@@ -42,20 +42,46 @@ func pin(exact, until string) *coreapi.ServiceProviderClusterPinnedVersion {
 func TestComputeForcedDesiredVersion(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name        string
-		desired     *semver.Version
-		pinned      *coreapi.ServiceProviderClusterPinnedVersion
-		best        *semver.Version
-		wantChanged bool
-		wantDesired *semver.Version
-		wantClear   bool
+		name         string
+		desired      *semver.Version
+		pinned       *coreapi.ServiceProviderClusterPinnedVersion
+		best         *semver.Version
+		exactVersion *semver.Version
+		wantChanged  bool
+		wantDesired  *semver.Version
+		wantClear    bool
 	}{
 		{
-			name:        "not pinned is a no-op",
+			name:        "not pinned and no exact version is a no-op",
 			desired:     v("4.21.4"),
 			pinned:      nil,
 			best:        v("4.21.6"),
 			wantChanged: false,
+		},
+		{
+			name:         "experimental exact version when unpinned - hold at exact",
+			desired:      v("4.21.4"),
+			pinned:       nil,
+			best:         v("4.21.6"),
+			exactVersion: v("4.17.3"),
+			wantChanged:  true,
+			wantDesired:  v("4.17.3"),
+		},
+		{
+			name:         "experimental exact version already set - no-op",
+			desired:      v("4.17.3"),
+			pinned:       nil,
+			exactVersion: v("4.17.3"),
+			wantChanged:  false,
+		},
+		{
+			name:         "pin takes precedence over experimental exact version",
+			desired:      v("4.21.4"),
+			pinned:       pin("4.21.2", "4.21.6"),
+			best:         v("4.21.4"),
+			exactVersion: v("4.17.3"),
+			wantChanged:  true,
+			wantDesired:  v("4.21.2"), // pin's exact wins, not the experimental exact
 		},
 		{
 			name:        "pin without exact version is a no-op",
@@ -120,7 +146,7 @@ func TestComputeForcedDesiredVersion(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			spc := newTestSPC("c1", tc.desired, nil, tc.pinned)
-			got := computeForcedDesiredVersion(spc, tc.best)
+			got := computeForcedDesiredVersion(spc, tc.best, tc.exactVersion)
 			assert.Equal(t, tc.wantChanged, got.Changed, "changed")
 			assert.Equal(t, tc.wantClear, got.ClearPin, "clearPin")
 			if tc.wantDesired == nil {
@@ -213,4 +239,45 @@ func TestForcedClusterDesiredVersionSyncer_SyncOnce(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestForcedClusterDesiredVersionSyncer_SyncOnce_ExperimentalExactVersion verifies
+// that an unpinned cluster whose ExperimentalFeatures.ControlPlaneExactVersion is
+// set is held at that exact version by the forced controller (no pin is created).
+func TestForcedClusterDesiredVersionSyncer_SyncOnce_ExperimentalExactVersion(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	const clusterName = "c1"
+
+	cluster := newTestCluster(clusterName, "stable", "4.21")
+	cluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion = v("4.17.3")
+	serviceProviderCluster := newTestSPC(clusterName, nil, nil, nil) // unpinned, no desired yet
+
+	mockDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, serviceProviderCluster})
+	require.NoError(t, err)
+
+	_, lister := newTestRolloutStore(t) // no rollout needed for the exact-version path
+
+	syncer := &forcedClusterDesiredVersionSyncer{
+		clock:                        utilsclock.RealClock{},
+		resourcesDBClient:            mockDB,
+		clusterLister:                &corelistertesting.DBClusterLister{ResourcesDBClient: mockDB},
+		serviceProviderClusterLister: &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockDB},
+		rolloutLister:                lister,
+	}
+
+	key := controllerutils.HCPClusterKey{
+		SubscriptionID:    testSubscriptionID,
+		ResourceGroupName: testResourceGroupName,
+		HCPClusterName:    clusterName,
+	}
+	require.NoError(t, syncer.SyncOnce(ctx, key))
+
+	updated, err := mockDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, clusterName).
+		Get(ctx, coreapi.ServiceProviderClusterResourceName)
+	require.NoError(t, err)
+	require.NotNil(t, updated.Spec.ControlPlaneVersion.DesiredVersion)
+	assert.True(t, updated.Spec.ControlPlaneVersion.DesiredVersion.EQ(*v("4.17.3")),
+		"expected desired held at experimental exact version, got %v", updated.Spec.ControlPlaneVersion.DesiredVersion)
+	assert.Nil(t, updated.Spec.PinnedVersion.ExactVersion, "no pin should be created for an experimental exact version")
 }

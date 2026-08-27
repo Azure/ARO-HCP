@@ -39,10 +39,12 @@ type ExperimentalFeatures struct {
 	ControlPlaneOperatorImage string `json:"controlPlaneOperatorImage,omitempty"`
 
 	// ControlPlaneExactVersion pins the control plane to an exact OpenShift
-	// release (e.g. 4.17.3) instead of letting the desired-version controllers
-	// resolve a z-stream from Cincinnati. When non-nil, both the initial and
-	// upgrade control plane version controllers use this value directly as the
-	// desired control plane version and skip graph/gateway-based resolution.
+	// release (e.g. 4.17.3) instead of letting the fleet version rollout resolve a
+	// version from Cincinnati. When non-nil on an unpinned cluster, the Forced
+	// Cluster Desired Version Assignment controller holds the cluster's desired
+	// control plane version at this value, and the Normal Cluster Desired Version
+	// Assignment controller excludes the cluster from rollout advancement. An SRE
+	// PinnedVersion, if present, takes precedence over this value.
 	ControlPlaneExactVersion *semver.Version `json:"controlPlaneExactVersion,omitempty"`
 }
 
