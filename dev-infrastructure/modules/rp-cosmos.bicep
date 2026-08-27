@@ -2,11 +2,11 @@ param cosmosDBAccountName string
 param userAssignedMIs array
 param readOnlyUserAssignedMIs array = []
 
-// Principal ID of the Clusters Service (CS) managed identity. When non-empty, CS is
-// granted container-scoped read access to the Fleet container so it can read
+// Principal ID of the Clusters Service (CS) managed identity. CS is granted
+// container-scoped read access to the Fleet container so it can read
 // ManagementCluster documents (used to resolve per-management-cluster kube-applier
-// containers). Left empty when CS integration is not deployed.
-param csManagedIdentityPrincipalId string = ''
+// containers).
+param csManagedIdentityPrincipalId string
 
 param resourceContainerMaxScale int
 param billingContainerMaxScale int
@@ -127,7 +127,7 @@ resource sqlRoleAssignmentReadOnly 'Microsoft.DocumentDB/databaseAccounts/sqlRol
 // per-management-cluster kube-applier container it must write to.
 var fleetContainerScope = '${cosmosDbAccount.id}/dbs/${cosmosDBAccountName}/colls/Fleet'
 
-resource sqlRoleAssignmentFleetReadOnly 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@2021-04-15' = if (csManagedIdentityPrincipalId != '') {
+resource sqlRoleAssignmentFleetReadOnly 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@2021-04-15' = {
   name: guid(cosmosReadOnlyRoleDefinitionId, csManagedIdentityPrincipalId, fleetContainerScope)
   parent: cosmosDbAccount
   properties: {
