@@ -1521,7 +1521,7 @@ func TestConvertCSManagementClusterToInternal(t *testing.T) {
 				expectedResourceID := metadataapi.Must(fleetapi.ToManagementClusterResourceID("1"))
 				require.NotNil(t, mc.ResourceID)
 				assert.Equal(t, expectedResourceID.String(), mc.ResourceID.String())
-				assert.Equal(t, mc.ResourceID, mc.CosmosMetadata.ResourceID)
+				assert.Equal(t, mc.ResourceID, mc.ResourceID)
 
 				assert.Equal(t, "1", mc.GetStampIdentifier(), "stamp identifier should be suffix after last '-' in AKS cluster name")
 				assert.Equal(t, fleetapi.ManagementClusterSchedulingPolicySchedulable, mc.Spec.SchedulingPolicy, "active shard should be schedulable")
