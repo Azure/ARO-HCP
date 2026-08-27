@@ -253,113 +253,32 @@ diff and always scope a recovery to the intended subscription.
 
 #### Validate the complete pool
 
-Do not validate only the resource group named in the original failure. Generate
-the full expected inventory from the catalog and compare it with Azure. The
-following commands are read-only:
+Do not validate only the resource group named in the original failure. Use the
+read-only validation target to compare the complete slot-expanded catalog
+inventory with Azure:
 
 ```bash
-environment=dev
-subscription="ARO HCP E2E Hosted Clusters (EA Subscription)"
-catalog=test/e2e-config/e2e-slots.yaml
-
-pools="$(
-  ENVIRONMENT="$environment" SUBSCRIPTION_NAME="$subscription" \
-    yq -o=json \
-      '[.environments[strenv(ENVIRONMENT)].pools[] |
-        select(.subscription_name == strenv(SUBSCRIPTION_NAME))]' \
-      "$catalog"
-)"
-
-if (( $(jq 'length' <<<"$pools") == 0 )); then
-  echo "no matching pools found in $environment for $subscription" >&2
-  exit 1
-fi
-
-workdir="$(mktemp -d)"
-trap 'rm -rf "$workdir"' EXIT
-: >"$workdir/expected-groups"
-: >"$workdir/actual-groups"
-
-while IFS= read -r pool; do
-  prefix="$(jq -r '.identity_container_prefix' <<<"$pool")"
-  slot_count="$(jq -r '.slot_count' <<<"$pool")"
-  container_count="$(jq -r '.identity_container_count' <<<"$pool")"
-
-  for ((slot = 0; slot < slot_count; slot++)); do
-    for ((container = 0; container < container_count; container++)); do
-      printf '%s-%02d-%02d\n' "$prefix" "$slot" "$container"
-    done
-  done >>"$workdir/expected-groups"
-
-  az group list \
-    --subscription "$subscription" \
-    --query "[?starts_with(name, '$prefix-')].name" \
-    --output tsv >>"$workdir/actual-groups"
-done < <(jq -c '.[]' <<<"$pools")
-
-sort -u -o "$workdir/expected-groups" "$workdir/expected-groups"
-sort -u -o "$workdir/actual-groups" "$workdir/actual-groups"
-
-comm -23 "$workdir/expected-groups" "$workdir/actual-groups"
+make -C test validate-identity-pool \
+  ENVIRONMENT=<dev|int|stg|prod> \
+  SUBSCRIPTION="<catalog subscription_name>"
 ```
 
-No output from `comm` means every expected resource group exists. Compare the
-counts as an additional summary:
+The target uses bulk Azure list operations and does not create, update, or
+delete resources. It validates every matching catalog pool in the subscription,
+including the complete resource-group inventory and the exact 13 identity names
+in every existing expected group. It reports sorted missing and unexpected
+resources, prints per-subscription counts, and exits non-zero when drift is
+detected.
 
-```bash
-printf 'expected=%s actual=%s missing=%s\n' \
-  "$(wc -l <"$workdir/expected-groups" | tr -d ' ')" \
-  "$(wc -l <"$workdir/actual-groups" | tr -d ' ')" \
-  "$(comm -23 "$workdir/expected-groups" "$workdir/actual-groups" |
-     wc -l | tr -d ' ')"
-```
+`SUBSCRIPTION` has the same selection semantics as the apply target. Omitting it
+validates every managed pool in the environment; setting it limits validation to
+matching pools and can include an externally managed pool.
 
-Validate the identity names across the complete pool with one subscription
-resource-list query:
-
-```bash
-identity_names=(
-  cluster-api-azure
-  control-plane
-  cloud-controller-manager
-  ingress
-  disk-csi-driver
-  file-csi-driver
-  image-registry
-  cloud-network-config
-  kms
-  dp-disk-csi-driver
-  dp-file-csi-driver
-  dp-image-registry
-  service
-)
-
-while IFS= read -r resource_group; do
-  for identity_name in "${identity_names[@]}"; do
-    printf '%s\t%s\n' "$resource_group" "$identity_name"
-  done
-done <"$workdir/expected-groups" |
-  sort >"$workdir/expected-identities"
-
-: >"$workdir/actual-identities"
-while IFS= read -r prefix; do
-  az resource list \
-    --subscription "$subscription" \
-    --resource-type Microsoft.ManagedIdentity/userAssignedIdentities \
-    --query "[?starts_with(resourceGroup, '$prefix-')].[resourceGroup,name]" \
-    --output tsv >>"$workdir/actual-identities"
-done < <(jq -r '.[].identity_container_prefix' <<<"$pools" | sort -u)
-
-sort -u -o "$workdir/actual-identities" "$workdir/actual-identities"
-
-comm -23 "$workdir/expected-identities" "$workdir/actual-identities"
-```
-
-No output means every expected identity exists. If reconciliation fails, retain
-the deployment stack error and inspect the first nested Azure error rather than
-retrying blindly. Common blockers are insufficient RBAC, an unregistered
-`Microsoft.ManagedIdentity` provider, subscription quota exhaustion, or another
-deployment operation holding the stack in a non-terminal state.
+If reconciliation or validation fails, retain the deployment stack error and
+inspect the first nested Azure error rather than retrying blindly. Common
+blockers are insufficient RBAC, an unregistered `Microsoft.ManagedIdentity`
+provider, subscription quota exhaustion, or another deployment operation
+holding the stack in a non-terminal state.
 
 This recovery procedure was added after
 [AROSLSRE-1895](https://redhat.atlassian.net/browse/AROSLSRE-1895).

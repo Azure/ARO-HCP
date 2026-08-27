@@ -56,6 +56,15 @@ apply-identity-pool: $(ARO_HCP_TESTS)
 		$(if $(SUBSCRIPTION),--subscription "$(SUBSCRIPTION)")
 .PHONY: apply-identity-pool
 
+# Validate the slot-managed identity pool against the canonical catalog using
+# read-only Azure list operations. SUBSCRIPTION has the same filtering semantics
+# as apply-identity-pool.
+validate-identity-pool: $(ARO_HCP_TESTS)
+	$(ARO_HCP_TESTS) slot-manager validate-identity-pool \
+		--environment "$${ENVIRONMENT:?ENVIRONMENT must be set (e.g. dev, int, stg, prod)}" \
+		$(if $(SUBSCRIPTION),--subscription "$(SUBSCRIPTION)")
+.PHONY: validate-identity-pool
+
 int-e2e:
 	PROW_JOB_NAME="$$(yq .clouds.public.environments.int.defaults.e2e.regionTest.prowJobName < ../config/config.msft.clouds-overlay.yaml)" \
 	REGION="uksouth" \

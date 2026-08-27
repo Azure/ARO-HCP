@@ -58,11 +58,16 @@ func NewCommand() (*cobra.Command, error) {
 	if err != nil {
 		return nil, err
 	}
+	validateIdentityPoolCommand, err := identitypool.NewValidateCommand()
+	if err != nil {
+		return nil, err
+	}
 
 	cmd.AddCommand(acquireCommand)
 	cmd.AddCommand(releaseCommand)
 	cmd.AddCommand(syncBoskosConfigCommand)
 	cmd.AddCommand(validateBoskosConfigCommand)
 	cmd.AddCommand(applyIdentityPoolCommand)
+	cmd.AddCommand(validateIdentityPoolCommand)
 	return cmd, nil
 }

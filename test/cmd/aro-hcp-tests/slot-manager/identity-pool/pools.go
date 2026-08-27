@@ -28,12 +28,13 @@ import (
 type subscriptionIDResolverFunc func(ctx context.Context, name string) (string, error)
 
 type identityPool struct {
-	Environment        string
-	Region             string
-	ProvisioningRegion string
-	SubscriptionName   string
-	SubscriptionID     string
-	Slots              []slots.ExpandedSlot
+	Environment             string
+	Region                  string
+	ProvisioningRegion      string
+	SubscriptionName        string
+	SubscriptionID          string
+	IdentityContainerPrefix string
+	Slots                   []slots.ExpandedSlot
 }
 
 // loadIdentityPools loads pools for the given environment. When
@@ -85,12 +86,13 @@ func loadIdentityPools(ctx context.Context, catalogPath, environment string, sub
 		}
 
 		pools = append(pools, identityPool{
-			Environment:        environment,
-			Region:             pool.Region,
-			ProvisioningRegion: pool.EffectiveIdentityProvisioningRegion(),
-			SubscriptionName:   pool.SubscriptionName,
-			SubscriptionID:     subscriptionID,
-			Slots:              slots.ExpandSlotsForPool(environment, pool),
+			Environment:             environment,
+			Region:                  pool.Region,
+			ProvisioningRegion:      pool.EffectiveIdentityProvisioningRegion(),
+			SubscriptionName:        pool.SubscriptionName,
+			SubscriptionID:          subscriptionID,
+			IdentityContainerPrefix: pool.IdentityContainerPrefix,
+			Slots:                   slots.ExpandSlotsForPool(environment, pool),
 		})
 	}
 
