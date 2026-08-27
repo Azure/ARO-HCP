@@ -401,6 +401,11 @@ resourceGroups:
         resourceGroup: regional
         step: output
         name: rpCosmosDbAccountId
+    - name: csManagedIdentityPrincipalId
+      input:
+        resourceGroup: service
+        step: output
+        name: csManagedIdentityPrincipalId
     - name: auditLogsEventHubAuthRuleId
       input:
         resourceGroup: auditLogs
