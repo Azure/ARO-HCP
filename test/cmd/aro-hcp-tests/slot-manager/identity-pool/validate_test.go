@@ -60,7 +60,7 @@ func TestCompareIdentityPoolInventory(t *testing.T) {
 	if result.ExpectedResourceGroups != 2 || result.ActualResourceGroups != 2 {
 		t.Fatalf("unexpected resource group counts: %+v", result)
 	}
-	if result.ExpectedIdentities != 26 || result.ActualIdentities != 14 {
+	if result.ExpectedIdentities != len(identityNames)*2 || result.ActualIdentities != len(actualIdentities)+1 {
 		t.Fatalf("unexpected identity counts: %+v", result)
 	}
 	if len(result.MissingResourceGroups) != 1 || result.MissingResourceGroups[0] != "aro-hcp-msi-container-dev-00-01" {
