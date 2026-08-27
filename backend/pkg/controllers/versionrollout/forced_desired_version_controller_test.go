@@ -178,17 +178,18 @@ func TestForcedClusterDesiredVersionSyncer_SyncOnce(t *testing.T) {
 			mockDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{tc.cluster, tc.spc})
 			require.NoError(t, err)
 
-			store := newFakeRolloutStore()
+			var rollouts []*fleetapi.ControlPlaneVersionRollout
 			if tc.rollout != nil {
-				store = newFakeRolloutStore(tc.rollout)
+				rollouts = append(rollouts, tc.rollout)
 			}
+			_, lister := newTestRolloutStore(t, rollouts...)
 
 			syncer := &forcedClusterDesiredVersionSyncer{
 				clock:                        utilsclock.RealClock{},
 				resourcesDBClient:            mockDB,
 				clusterLister:                &corelistertesting.DBClusterLister{ResourcesDBClient: mockDB},
 				serviceProviderClusterLister: &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockDB},
-				rolloutLister:                store,
+				rolloutLister:                lister,
 			}
 
 			key := controllerutils.HCPClusterKey{

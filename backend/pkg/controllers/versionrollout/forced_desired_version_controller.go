@@ -30,6 +30,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	"github.com/Azure/ARO-HCP/internal/database/listers/fleetlisters"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -48,7 +49,7 @@ type forcedClusterDesiredVersionSyncer struct {
 	resourcesDBClient            corecosmosstorage.ResourcesDBClient
 	clusterLister                corelisters.ClusterLister
 	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
-	rolloutLister                RolloutLister
+	rolloutLister                fleetlisters.ControlPlaneVersionRolloutLister
 }
 
 var _ controllerutils.ClusterSyncer = (*forcedClusterDesiredVersionSyncer)(nil)
@@ -60,7 +61,7 @@ func NewForcedClusterDesiredVersionController(
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	informers coreinformers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
-	rolloutLister RolloutLister,
+	rolloutLister fleetlisters.ControlPlaneVersionRolloutLister,
 ) controllerutils.Controller {
 	_, clusterLister := informers.Clusters()
 	_, serviceProviderClusterLister := informers.ServiceProviderClusters()

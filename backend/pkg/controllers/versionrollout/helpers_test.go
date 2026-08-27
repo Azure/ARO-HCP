@@ -17,8 +17,10 @@ package versionrollout
 import (
 	"context"
 	"strings"
+	"testing"
 
 	"github.com/blang/semver/v4"
+	"github.com/stretchr/testify/require"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -27,7 +29,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/fleetcosmosstoragetesting"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/fleetlistertesting"
 )
 
 const (
@@ -102,51 +105,27 @@ func newTestRollout(channel string, best *semver.Version, status fleetapi.Contro
 	return &fleetapi.ControlPlaneVersionRollout{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   id,
-			PartitionKey: strings.ToLower(id.Name),
+			PartitionKey: strings.ToLower(coreapi.ProviderNamespace),
 		},
 		Spec:   fleetapi.ControlPlaneVersionRolloutSpec{BestExactVersion: best},
 		Status: status,
 	}
 }
 
-// fakeRolloutStore is an in-memory RolloutLister + RolloutWriter for tests.
-type fakeRolloutStore struct {
-	rollouts   map[string]*fleetapi.ControlPlaneVersionRollout
-	replaceErr error // when set, Replace returns this (e.g. a precondition failure)
-	replaces   int
-}
-
-func newFakeRolloutStore(rollouts ...*fleetapi.ControlPlaneVersionRollout) *fakeRolloutStore {
-	m := make(map[string]*fleetapi.ControlPlaneVersionRollout, len(rollouts))
+// newTestRolloutStore builds a MockFleetDBClient seeded with the given rollouts
+// and a DB-backed lister over it. Controllers read rollouts via the lister and
+// write them via the fleet DB client, both backed by the same mock store, so a
+// read-modify-Replace cycle round-trips (etags match). It replaces the old
+// bespoke in-memory fake with the shared databasetesting + listertesting infra.
+func newTestRolloutStore(t *testing.T, rollouts ...*fleetapi.ControlPlaneVersionRollout) (*fleetcosmosstoragetesting.MockFleetDBClient, *fleetlistertesting.DBControlPlaneVersionRolloutLister) {
+	t.Helper()
+	resources := make([]any, 0, len(rollouts))
 	for _, r := range rollouts {
-		m[r.GetStampIdentifier()] = r
+		resources = append(resources, r)
 	}
-	return &fakeRolloutStore{rollouts: m}
-}
-
-func (f *fakeRolloutStore) Get(_ context.Context, ystreamChannel string) (*fleetapi.ControlPlaneVersionRollout, error) {
-	r, ok := f.rollouts[ystreamChannel]
-	if !ok {
-		return nil, cosmosstorageutils.NewNotFoundError()
-	}
-	return r.DeepCopy(), nil
-}
-
-func (f *fakeRolloutStore) List(_ context.Context) ([]*fleetapi.ControlPlaneVersionRollout, error) {
-	out := make([]*fleetapi.ControlPlaneVersionRollout, 0, len(f.rollouts))
-	for _, r := range f.rollouts {
-		out = append(out, r.DeepCopy())
-	}
-	return out, nil
-}
-
-func (f *fakeRolloutStore) Replace(_ context.Context, newRollout, _ *fleetapi.ControlPlaneVersionRollout) (*fleetapi.ControlPlaneVersionRollout, error) {
-	if f.replaceErr != nil {
-		return nil, f.replaceErr
-	}
-	f.replaces++
-	f.rollouts[newRollout.GetStampIdentifier()] = newRollout.DeepCopy()
-	return newRollout, nil
+	mockFleet, err := fleetcosmosstoragetesting.NewMockFleetDBClientWithResources(context.Background(), resources)
+	require.NoError(t, err, "failed to build mock fleet DB client")
+	return mockFleet, &fleetlistertesting.DBControlPlaneVersionRolloutLister{FleetDBClient: mockFleet}
 }
 
 // serviceProviderClusterName returns the backing cluster's name (its resource

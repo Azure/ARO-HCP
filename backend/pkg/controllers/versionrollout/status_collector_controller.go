@@ -29,6 +29,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/informers/fleetinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	"github.com/Azure/ARO-HCP/internal/database/listers/fleetlisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -40,23 +41,11 @@ const StatusCollectorControllerName = "ControlPlaneVersionStatusCollector"
 // desired/achieved progress into the rollout Status count maps.
 type statusCollectorSyncer struct {
 	clock                        utilsclock.PassiveClock
-	rolloutLister                RolloutLister
-	rolloutWriter                RolloutWriter
+	rolloutLister                fleetlisters.ControlPlaneVersionRolloutLister
+	fleetDBClient                fleetcosmosstorage.FleetDBClient
 	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
 	clusterLister                corelisters.ClusterLister
 	config                       RolloutConfig
-}
-
-// NewStatusCollectorSyncer constructs the syncer directly (used by tests).
-func NewStatusCollectorSyncer(clock utilsclock.PassiveClock, rolloutLister RolloutLister, rolloutWriter RolloutWriter, serviceProviderClusterLister corelisters.ServiceProviderClusterLister, clusterLister corelisters.ClusterLister, config RolloutConfig) *statusCollectorSyncer {
-	return &statusCollectorSyncer{
-		clock:                        clock,
-		rolloutLister:                rolloutLister,
-		rolloutWriter:                rolloutWriter,
-		serviceProviderClusterLister: serviceProviderClusterLister,
-		clusterLister:                clusterLister,
-		config:                       config,
-	}
 }
 
 // NewStatusCollectorController wires the syncer into a rollout watching controller.
@@ -65,7 +54,7 @@ func NewStatusCollectorController(fleetDBClient fleetcosmosstorage.FleetDBClient
 	syncer := &statusCollectorSyncer{
 		clock:                        clock,
 		rolloutLister:                rolloutLister,
-		rolloutWriter:                NewFleetRolloutWriter(fleetDBClient),
+		fleetDBClient:                fleetDBClient,
 		serviceProviderClusterLister: serviceProviderClusterLister,
 		clusterLister:                clusterLister,
 		config:                       config,
@@ -98,7 +87,7 @@ type rolloutCounts struct {
 //   - Successful[v]: achieved clusters that have held v (HCPClusterActiveVersion.LastTransitionTime)
 //     longer than MinVersionReadyDuration.
 //   - Failed[v]: mismatched clusters whose DesiredVersionLastTransitionTime is older
-//     than MaxUpgradeDuration[minor].
+//     than the minor's max upgrade duration (per-minor override or the 2h default).
 func computeRolloutStatusCounts(serviceProviderClusters []*coreapi.ServiceProviderCluster, config RolloutConfig, now time.Time) rolloutCounts {
 	counts := rolloutCounts{
 		Desired:    map[string]int64{},
@@ -123,11 +112,10 @@ func computeRolloutStatusCounts(serviceProviderClusters []*coreapi.ServiceProvid
 		}
 		if desired != nil && (achievedEntry == nil || !achievedEntry.Version.EQ(*desired)) {
 			counts.Mismatched[desired.String()]++
-			if maxDur, ok := config.MaxUpgradeDuration[minorString(*desired)]; ok {
-				desiredSince := serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersionLastTransitionTime
-				if desiredSince != nil && !desiredSince.IsZero() && now.Sub(desiredSince.Time) > maxDur {
-					counts.Failed[desired.String()]++
-				}
+			maxDur := config.MaxUpgradeDurationForMinor(minorString(*desired))
+			desiredSince := serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersionLastTransitionTime
+			if desiredSince != nil && !desiredSince.IsZero() && now.Sub(desiredSince.Time) > maxDur {
+				counts.Failed[desired.String()]++
 			}
 		}
 	}
@@ -162,7 +150,7 @@ func (c *statusCollectorSyncer) SyncOnce(ctx context.Context, key controllerutil
 		return nil
 	}
 
-	if _, err := c.rolloutWriter.Replace(ctx, replacement, rollout); cosmosstorageutils.IsPreconditionFailedError(err) {
+	if _, err := c.fleetDBClient.ControlPlaneVersionRollouts().Replace(ctx, replacement, rollout, nil); cosmosstorageutils.IsPreconditionFailedError(err) {
 		return nil
 	} else if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to replace ControlPlaneVersionRollout %q: %w", key.YStreamChannel, err))

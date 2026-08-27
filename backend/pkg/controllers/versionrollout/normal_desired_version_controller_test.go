@@ -94,18 +94,29 @@ func TestRolloutDecision(t *testing.T) {
 			wantOutcome: outcomeNoBest,
 		},
 		{
-			name:          "failure budget - absolute",
-			rollout:       rolloutWithCounts("4.21.6", 100, 0, 0, 0, 3),
+			// small channel: budget = max(2, 0.05*10=0.5) = 2 floor; 3 failed exceeds it.
+			name:          "failure budget - absolute floor dominates on small channel",
+			rollout:       rolloutWithCounts("4.21.6", 10, 0, 0, 0, 3),
+			totalClusters: 10,
+			eligibleCount: 5,
+			wantOutcome:   outcomeFailure,
+		},
+		{
+			// large channel: budget = max(2, 0.05*100=5) = 5; 6 failed exceeds it.
+			name:          "failure budget - fraction dominates on large channel",
+			rollout:       rolloutWithCounts("4.21.6", 100, 0, 0, 0, 6),
 			totalClusters: 100,
 			eligibleCount: 50,
 			wantOutcome:   outcomeFailure,
 		},
 		{
-			name:          "failure budget - fraction",
-			rollout:       rolloutWithCounts("4.21.6", 10, 0, 0, 0, 2),
+			// large channel at the fraction boundary: 5 == max(2,5), not > it, so proceed.
+			name:          "failure budget not exceeded at fraction boundary",
+			rollout:       rolloutWithCounts("4.21.6", 100, 0, 0, 0, 5),
 			totalClusters: 100,
 			eligibleCount: 50,
-			wantOutcome:   outcomeFailure,
+			wantOutcome:   outcomeCanary,
+			wantSelect:    7, // ceil(5% of 100) + 2
 		},
 		{
 			name:          "no eligible clusters is stable",
@@ -193,17 +204,19 @@ func TestNormalClusterDesiredVersionSyncer_SyncOnce_Canary(t *testing.T) {
 	mockDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, resources)
 	require.NoError(t, err)
 
-	// Fresh rollout at 4.21.6: canary threshold = ceil(5% of 4) + 2 = 3.
-	store := newFakeRolloutStore(newTestRollout(channel, v("4.21.6"), fleetapi.ControlPlaneVersionRolloutStatus{}))
+	// Fresh rollout at 4.21.6: canary threshold = ceil(6% of 4) + 2 = 3.
+	mockFleet, lister := newTestRolloutStore(t, newTestRollout(channel, v("4.21.6"), fleetapi.ControlPlaneVersionRolloutStatus{}))
 
-	syncer := NewNormalClusterDesiredVersionSyncer(
-		utilsclock.RealClock{},
-		mockDB, store, store,
-		&corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockDB},
-		&corelistertesting.DBClusterLister{ResourcesDBClient: mockDB},
-		firstNSelector{},
-		NewDefaultRolloutConfig(),
-	)
+	syncer := &normalClusterDesiredVersionSyncer{
+		clock:                        utilsclock.RealClock{},
+		resourcesDBClient:            mockDB,
+		rolloutLister:                lister,
+		fleetDBClient:                mockFleet,
+		serviceProviderClusterLister: &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockDB},
+		clusterLister:                &corelistertesting.DBClusterLister{ResourcesDBClient: mockDB},
+		selector:                     firstNSelector{},
+		config:                       NewDefaultRolloutConfig(),
+	}
 
 	require.NoError(t, syncer.SyncOnce(ctx, controllerutils.ControlPlaneVersionRolloutKey{YStreamChannel: channel}))
 

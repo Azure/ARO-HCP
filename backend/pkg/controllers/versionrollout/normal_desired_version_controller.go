@@ -36,6 +36,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/informers/fleetinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	"github.com/Azure/ARO-HCP/internal/database/listers/fleetlisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -48,8 +49,11 @@ const (
 	ConditionDegraded    = "Degraded"
 )
 
-// Failure-budget constants from the design (§5.5 step 1): abort rollout if more
-// than 2 clusters, or more than 5% of the clusters desiring best, have failed.
+// Failure-budget constants from the design (§5.5 step 1): abort the rollout when
+// the number of failed clusters exceeds the budget. The budget is the larger of
+// failureBudgetAbsolute and failureBudgetFraction of the clusters desiring best;
+// the absolute value is a floor so small channels tolerate a couple of failures
+// before the fraction would.
 const (
 	failureBudgetAbsolute = int64(2)
 	failureBudgetFraction = 0.05
@@ -62,26 +66,12 @@ const (
 type normalClusterDesiredVersionSyncer struct {
 	clock                        utilsclock.PassiveClock
 	resourcesDBClient            corecosmosstorage.ResourcesDBClient
-	rolloutLister                RolloutLister
-	rolloutWriter                RolloutWriter
+	rolloutLister                fleetlisters.ControlPlaneVersionRolloutLister
+	fleetDBClient                fleetcosmosstorage.FleetDBClient
 	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
 	clusterLister                corelisters.ClusterLister
 	selector                     ClusterSelector
 	config                       RolloutConfig
-}
-
-// NewNormalClusterDesiredVersionSyncer constructs the syncer directly (used by tests).
-func NewNormalClusterDesiredVersionSyncer(clock utilsclock.PassiveClock, resourcesDBClient corecosmosstorage.ResourcesDBClient, rolloutLister RolloutLister, rolloutWriter RolloutWriter, serviceProviderClusterLister corelisters.ServiceProviderClusterLister, clusterLister corelisters.ClusterLister, selector ClusterSelector, config RolloutConfig) *normalClusterDesiredVersionSyncer {
-	return &normalClusterDesiredVersionSyncer{
-		clock:                        clock,
-		resourcesDBClient:            resourcesDBClient,
-		rolloutLister:                rolloutLister,
-		rolloutWriter:                rolloutWriter,
-		serviceProviderClusterLister: serviceProviderClusterLister,
-		clusterLister:                clusterLister,
-		selector:                     selector,
-		config:                       config,
-	}
 }
 
 // NewNormalClusterDesiredVersionController wires the syncer into a rollout
@@ -95,7 +85,7 @@ func NewNormalClusterDesiredVersionController(clock utilsclock.PassiveClock, res
 		clock:                        clock,
 		resourcesDBClient:            resourcesDBClient,
 		rolloutLister:                rolloutLister,
-		rolloutWriter:                NewFleetRolloutWriter(fleetDBClient),
+		fleetDBClient:                fleetDBClient,
 		serviceProviderClusterLister: serviceProviderClusterLister,
 		clusterLister:                clusterLister,
 		selector:                     selector,
@@ -170,8 +160,11 @@ func rolloutDecision(rollout *fleetapi.ControlPlaneVersionRollout, totalClusters
 	achieved := status.ClusterCountByAchievedExactVersion[key]
 	successful := status.SuccessfulClusterCountByAchievedExactVersion[key]
 
-	// Step 1: failure budget.
-	if failed > failureBudgetAbsolute || float64(failed) > failureBudgetFraction*float64(desiredAtBest) {
+	// Step 1: failure budget. The absolute count is a floor: abort only when the
+	// number of failed clusters exceeds the larger of the absolute minimum and
+	// the per-channel fraction of clusters desiring best.
+	failureBudget := max(float64(failureBudgetAbsolute), failureBudgetFraction*float64(desiredAtBest))
+	if float64(failed) > failureBudget {
 		return rolloutDecisionResult{
 			Outcome: outcomeFailure,
 			Message: fmt.Sprintf("%d clusters failed to reach %s, exceeding the failure budget", failed, key),
@@ -308,7 +301,7 @@ func (c *normalClusterDesiredVersionSyncer) recordCondition(ctx context.Context,
 	if equality.Semantic.DeepEqual(rollout.Status.Conditions, replacement.Status.Conditions) {
 		return nil
 	}
-	if _, err := c.rolloutWriter.Replace(ctx, replacement, rollout); cosmosstorageutils.IsPreconditionFailedError(err) {
+	if _, err := c.fleetDBClient.ControlPlaneVersionRollouts().Replace(ctx, replacement, rollout, nil); cosmosstorageutils.IsPreconditionFailedError(err) {
 		return nil
 	} else if err != nil {
 		return fmt.Errorf("failed to replace ControlPlaneVersionRollout %q: %w", rollout.GetStampIdentifier(), err)
