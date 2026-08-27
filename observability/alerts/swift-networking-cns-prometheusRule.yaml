@@ -1,0 +1,59 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    app.kubernetes.io/name: kube-prometheus
+    app.kubernetes.io/part-of: kube-prometheus
+    prometheus: k8s
+    role: alert-rules
+  name: swift-networking-cns-alert-rules
+  namespace: monitoring
+spec:
+  groups:
+  # ========================================
+  # CNS IP Assignment Latency Alerts
+  # ========================================
+  # SLO: CNS IP assignment latency p99 <= 10s over 28 days.
+  # Source: ip_assignment_latency_seconds histogram via CNS PodMonitor.
+  #
+  # Lane: RP services (alerts-rp-services.yaml), not the HCP lane. CNS is a per-node,
+  # per-management-cluster DaemonSet in kube-system, so its metrics are remote-written
+  # to the services Azure Monitor Workspace, not the HCP one. This SLI is fleet/node-scoped
+  # rather than per hosted control plane; see the SWIFT runbook for triage details.
+  - name: arohcp_swift_cns_latency_alerts
+    labels:
+      component: slo
+    rules:
+    - alert: userJourneySwiftCNSLatencyP991h5m
+      expr: |
+        cns:ip_assignment_latency:p99_avg_5m > 10
+        and
+        cns:ip_assignment_latency:p99_avg_1h > 10
+      for: 2m
+      labels:
+        severity: "3"
+        burn_rate_tier: fast
+        long_window: 1h
+        short_window: 5m
+      annotations:
+        summary: "CNS IP assignment latency p99 critically elevated (fast burn)"
+        description: "CNS IP assignment latency p99 has exceeded 10s over the last hour and is still elevated. SWIFT secondary NIC assignment is slow. This SLI is fleet/node-scoped (not per hosted control plane) - use the runbook's blast-radius triage to narrow scope."
+        runbook_url: "https://aka.ms/arohcp-runbook-swift"
+        correlationId: "userJourneySwiftCNSLatency/{{ $labels.cluster }}"
+    - alert: userJourneySwiftCNSLatencyP996h30m
+      expr: |
+        cns:ip_assignment_latency:p99_avg_30m > 10
+        and
+        cns:ip_assignment_latency:p99_avg_6h > 10
+      for: 15m
+      labels:
+        severity: "3"
+        burn_rate_tier: medium
+        long_window: 6h
+        short_window: 30m
+      annotations:
+        summary: "CNS IP assignment latency p99 elevated (medium burn)"
+        description: "CNS IP assignment latency p99 has exceeded 10s over the last 6 hours and is still elevated."
+        runbook_url: "https://aka.ms/arohcp-runbook-swift"
+        correlationId: "userJourneySwiftCNSLatency/{{ $labels.cluster }}"
+

@@ -1,0 +1,244 @@
+rule_files:
+- swift-networking-recordingRule-KSM.yaml
+- swift-networking-prometheusRule.yaml
+evaluation_interval: 1m
+tests:
+# Test 1: No router pods stuck — no alerts should fire.
+- interval: 1m
+  input_series: []
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: userJourneySwiftLatencyP991h5m
+    exp_alerts: []
+  - eval_time: 10m
+    alertname: userJourneySwiftLatencyP996h30m
+    exp_alerts: []
+
+# Test 2: Router pod stuck for > 300s — fast-burn alert should fire after 2m for window.
+# Simulates a router pod that has been in Pending state for a long time.
+# At eval_time=70m, pod has been pending 70*60=4200 seconds >> 300s.
+# Both 5m and 1h averages of p99 will be >> 300.
+- interval: 1m
+  input_series:
+  - series: 'kube_pod_created{cluster="mgmt-1", namespace="ocm-prod-abc123", pod="router-abc-1"}'
+    values: "0+0x120"
+  - series: 'kube_pod_owner{cluster="mgmt-1", namespace="ocm-prod-abc123", pod="router-abc-1", owner_kind="ReplicaSet", owner_name="router-abc"}'
+    values: "1+0x120"
+  - series: 'kube_pod_status_phase{cluster="mgmt-1", namespace="ocm-prod-abc123", pod="router-abc-1", phase="Pending"}'
+    values: "1+0x120"
+  alert_rule_test:
+  # After 70m with pod stuck, both the 5m and 1h windows are far above 300s.
+  # The alert requires for: 2m, so eval at 72m.
+  - eval_time: 72m
+    alertname: userJourneySwiftLatencyP991h5m
+    exp_alerts:
+    - exp_labels:
+        severity: "3"
+        burn_rate_tier: fast
+        component: slo
+        long_window: 1h
+        cluster: mgmt-1
+        namespace: ocm-prod-abc123
+        short_window: 5m
+      exp_annotations:
+        summary: "SWIFT router pod startup latency p99 critically elevated (fast burn)"
+        description: "Router pod startup latency p99 has exceeded 300s over the last hour and is still elevated. SWIFT secondary NIC assignment is stalled."
+        runbook_url: "https://aka.ms/arohcp-runbook-swift"
+        correlationId: "userJourneySwiftLatency/mgmt-1/ocm-prod-abc123"
+# Test 2b: Router pod stuck sustained — medium-burn alert fires.
+# Same input as Test 2 but held for 6h30m + 15m for = 415m.
+# Both the 30m and 6h averages of p99 will be >> 300s.
+- interval: 1m
+  input_series:
+  - series: 'kube_pod_created{cluster="mgmt-1", namespace="ocm-prod-abc123", pod="router-abc-1"}'
+    values: "0+0x420"
+  - series: 'kube_pod_owner{cluster="mgmt-1", namespace="ocm-prod-abc123", pod="router-abc-1", owner_kind="ReplicaSet", owner_name="router-abc"}'
+    values: "1+0x420"
+  - series: 'kube_pod_status_phase{cluster="mgmt-1", namespace="ocm-prod-abc123", pod="router-abc-1", phase="Pending"}'
+    values: "1+0x420"
+  alert_rule_test:
+  - eval_time: 415m
+    alertname: userJourneySwiftLatencyP996h30m
+    exp_alerts:
+    - exp_labels:
+        severity: "3"
+        burn_rate_tier: medium
+        component: slo
+        long_window: 6h
+        cluster: mgmt-1
+        namespace: ocm-prod-abc123
+        short_window: 30m
+      exp_annotations:
+        summary: "SWIFT router pod startup latency p99 elevated (medium burn)"
+        description: "Router pod startup latency p99 has exceeded 300s over the last 6 hours and is still elevated."
+        runbook_url: "https://aka.ms/arohcp-runbook-swift"
+        correlationId: "userJourneySwiftLatency/mgmt-1/ocm-prod-abc123"
+# Test 3: Pod recovers (leaves Pending) — alert should clear.
+- interval: 1m
+  input_series:
+  - series: 'kube_pod_created{cluster="mgmt-1", namespace="ocm-prod-abc123", pod="router-abc-1"}'
+    values: "0+0x80"
+  - series: 'kube_pod_owner{cluster="mgmt-1", namespace="ocm-prod-abc123", pod="router-abc-1", owner_kind="ReplicaSet", owner_name="router-abc"}'
+    values: "1+0x80"
+  # Pod is Pending from t=0 to t=70m, then transitions to Running (phase no longer Pending)
+  - series: 'kube_pod_status_phase{cluster="mgmt-1", namespace="ocm-prod-abc123", pod="router-abc-1", phase="Pending"}'
+    values: "1+0x70 0+0x10"
+  alert_rule_test:
+  # Alert should not fire after pod recovers (series absence = no alert)
+  - eval_time: 80m
+    alertname: userJourneySwiftLatencyP991h5m
+    exp_alerts: []
+# ========================================
+# Konnectivity Tunnel Error Alert Tests
+# ========================================
+# Test 4: No konnectivity data — no alerts should fire.
+- interval: 1m
+  input_series: []
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: userJourneySwiftKonnectivityErrors1h5m
+    exp_alerts: []
+  - eval_time: 10m
+    alertname: userJourneySwiftKonnectivityErrors6h30m
+    exp_alerts: []
+  - eval_time: 10m
+    alertname: userJourneySwiftKonnectivityDialFailures1h5m
+    exp_alerts: []
+  - eval_time: 10m
+    alertname: userJourneySwiftKonnectivityDialFailures6h30m
+    exp_alerts: []
+# Test 5: Konnectivity stream error rate > 1% sustained — fast-burn alert fires.
+# errors=1/min, packets=10/min → stream_error_rate:5m = rate(errors[5m]) / rate(packets[5m])
+# = (1/60) / (10/60) = 0.1 (10%) > 0.01 threshold.
+# Both the 5m and 1h averages will exceed 0.01 after enough time.
+# for: 2m means we evaluate at 72m.
+- interval: 1m
+  input_series:
+  - series: 'konnectivity_network_proxy_server_stream_errors_total{cluster="mgmt-1", namespace="ocm-prod-abc123"}'
+    values: "0+1x120"
+  - series: 'konnectivity_network_proxy_server_stream_packets_total{cluster="mgmt-1", namespace="ocm-prod-abc123"}'
+    values: "0+10x120"
+  alert_rule_test:
+  - eval_time: 72m
+    alertname: userJourneySwiftKonnectivityErrors1h5m
+    exp_alerts:
+    - exp_labels:
+        severity: "3"
+        burn_rate_tier: fast
+        component: slo
+        long_window: 1h
+        cluster: mgmt-1
+        namespace: ocm-prod-abc123
+        short_window: 5m
+      exp_annotations:
+        summary: "Konnectivity tunnel error rate elevated (fast burn)"
+        description: "Konnectivity tunnel stream error rate has exceeded 1% over the last hour and is still elevated. KAS-to-node communication may be degraded."
+        runbook_url: "https://aka.ms/arohcp-runbook-swift"
+        correlationId: "userJourneySwiftKonnectivityErrors/mgmt-1/ocm-prod-abc123"
+# Test 6: Konnectivity stream error rate > 1% sustained — medium-burn alert fires.
+# Same input as Test 5 (errors=1/min, packets=10/min → 10% error rate) but held long enough
+# that both the 30m and 6h window averages exceed 0.01. for: 15m → eval_time >= 415m.
+- interval: 1m
+  input_series:
+  - series: 'konnectivity_network_proxy_server_stream_errors_total{cluster="mgmt-1", namespace="ocm-prod-abc123"}'
+    values: "0+1x420"
+  - series: 'konnectivity_network_proxy_server_stream_packets_total{cluster="mgmt-1", namespace="ocm-prod-abc123"}'
+    values: "0+10x420"
+  alert_rule_test:
+  - eval_time: 415m
+    alertname: userJourneySwiftKonnectivityErrors6h30m
+    exp_alerts:
+    - exp_labels:
+        severity: "3"
+        burn_rate_tier: medium
+        component: slo
+        long_window: 6h
+        cluster: mgmt-1
+        namespace: ocm-prod-abc123
+        short_window: 30m
+      exp_annotations:
+        summary: "Konnectivity tunnel error rate elevated (medium burn)"
+        description: "Konnectivity tunnel stream error rate has exceeded 1% over the last 6 hours and is still elevated."
+        runbook_url: "https://aka.ms/arohcp-runbook-swift"
+        correlationId: "userJourneySwiftKonnectivityErrors/mgmt-1/ocm-prod-abc123"
+# Test 7: Konnectivity stream error rate healthy — no alert fires.
+# All packets succeed (packets_total=10/min, errors_total=0).
+# stream_error_rate:5m = 0 / 10 = 0, which is < 0.01 threshold.
+- interval: 1m
+  input_series:
+  - series: 'konnectivity_network_proxy_server_stream_errors_total{cluster="mgmt-1", namespace="ocm-prod-abc123"}'
+    values: "0+0x120"
+  - series: 'konnectivity_network_proxy_server_stream_packets_total{cluster="mgmt-1", namespace="ocm-prod-abc123"}'
+    values: "0+10x120"
+  alert_rule_test:
+  - eval_time: 72m
+    alertname: userJourneySwiftKonnectivityErrors1h5m
+    exp_alerts: []
+  - eval_time: 72m
+    alertname: userJourneySwiftKonnectivityErrors6h30m
+    exp_alerts: []
+# Test 8: Konnectivity dial failure rate > 1% sustained — fast-burn alert fires.
+# failures=1/min, DIAL_RSP=10/min → dial_failure_rate:5m = (1/60) / ((1/60) + (10/60)) ≈ 0.091 (9%) > 0.01.
+- interval: 1m
+  input_series:
+  - series: 'konnectivity_network_proxy_server_dial_failure_count{cluster="mgmt-1", namespace="ocm-prod-abc123"}'
+    values: "0+1x120"
+  - series: 'konnectivity_network_proxy_server_stream_packets_total{cluster="mgmt-1", namespace="ocm-prod-abc123", segment="from_agent", packet_type="DIAL_RSP"}'
+    values: "0+10x120"
+  alert_rule_test:
+  - eval_time: 72m
+    alertname: userJourneySwiftKonnectivityDialFailures1h5m
+    exp_alerts:
+    - exp_labels:
+        severity: "3"
+        burn_rate_tier: fast
+        component: slo
+        long_window: 1h
+        cluster: mgmt-1
+        namespace: ocm-prod-abc123
+        short_window: 5m
+      exp_annotations:
+        summary: "Konnectivity dial failure rate elevated (fast burn)"
+        description: "Konnectivity server dial failure rate has exceeded 1%. KAS cannot establish connections to worker nodes."
+        runbook_url: "https://aka.ms/arohcp-runbook-swift"
+        correlationId: "userJourneySwiftKonnectivityDialFailures/mgmt-1/ocm-prod-abc123"
+# Test 9: Konnectivity dial failure rate > 1% sustained — medium-burn alert fires.
+# Same input as Test 8 (failures=1/min, DIAL_RSP=10/min → 9%) held for 6h+30m+15m.
+- interval: 1m
+  input_series:
+  - series: 'konnectivity_network_proxy_server_dial_failure_count{cluster="mgmt-1", namespace="ocm-prod-abc123"}'
+    values: "0+1x420"
+  - series: 'konnectivity_network_proxy_server_stream_packets_total{cluster="mgmt-1", namespace="ocm-prod-abc123", segment="from_agent", packet_type="DIAL_RSP"}'
+    values: "0+10x420"
+  alert_rule_test:
+  - eval_time: 415m
+    alertname: userJourneySwiftKonnectivityDialFailures6h30m
+    exp_alerts:
+    - exp_labels:
+        severity: "3"
+        burn_rate_tier: medium
+        component: slo
+        long_window: 6h
+        cluster: mgmt-1
+        namespace: ocm-prod-abc123
+        short_window: 30m
+      exp_annotations:
+        summary: "Konnectivity dial failure rate elevated (medium burn)"
+        description: "Konnectivity server dial failure rate has exceeded 1% over the last 6 hours."
+        runbook_url: "https://aka.ms/arohcp-runbook-swift"
+        correlationId: "userJourneySwiftKonnectivityDialFailures/mgmt-1/ocm-prod-abc123"
+# Test 10: Konnectivity dial failure rate healthy — no alert fires.
+# All dials succeed (DIAL_RSP=10/min, failures=0).
+- interval: 1m
+  input_series:
+  - series: 'konnectivity_network_proxy_server_dial_failure_count{cluster="mgmt-1", namespace="ocm-prod-abc123"}'
+    values: "0+0x120"
+  - series: 'konnectivity_network_proxy_server_stream_packets_total{cluster="mgmt-1", namespace="ocm-prod-abc123", segment="from_agent", packet_type="DIAL_RSP"}'
+    values: "0+10x120"
+  alert_rule_test:
+  - eval_time: 72m
+    alertname: userJourneySwiftKonnectivityDialFailures1h5m
+    exp_alerts: []
+  - eval_time: 72m
+    alertname: userJourneySwiftKonnectivityDialFailures6h30m
+    exp_alerts: []
