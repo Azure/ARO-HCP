@@ -42,7 +42,7 @@ resource mgmtCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
           summary: 'Management cluster {{ $labels.cluster }} HCP capacity approaching limit (60% threshold)'
           title: 'Management cluster {{ $labels.cluster }} HCP capacity approaching limit (60% threshold)'
         }
-        expression: '(count by (cluster) (kube_namespace_labels{namespace=~"^ocm-[^-]+-[^-]+$"}) / 60) > 0.6'
+        expression: '(count by (cluster, region) (kube_namespace_labels{namespace=~"^ocm-[^-]+-[^-]+$"}) / 60) > 0.6'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
@@ -102,7 +102,7 @@ resource mgmtCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
           summary: 'Management cluster {{ $labels.cluster }} HCP capacity critically high (85% threshold)'
           title: 'Management cluster {{ $labels.cluster }} HCP capacity critically high (85% threshold)'
         }
-        expression: '(count by (cluster) (kube_namespace_labels{namespace=~"^ocm-[^-]+-[^-]+$"}) / 60) > 0.85'
+        expression: '(count by (cluster, region) (kube_namespace_labels{namespace=~"^ocm-[^-]+-[^-]+$"}) / 60) > 0.85'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }

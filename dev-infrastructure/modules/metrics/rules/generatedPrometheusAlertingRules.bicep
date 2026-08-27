@@ -46,7 +46,7 @@ Check the status of the Prometheus pods, service endpoints, and network connecti
           summary: 'Prometheus is unreachable for 10 minutes.'
           title: 'Prometheus is unreachable for 10 minutes.'
         }
-        expression: 'group by (cluster) (up{job="kubelet"}) unless on (cluster) group by (cluster) (up{job="prometheus/prometheus",namespace="prometheus"} == 1)'
+        expression: 'group by (cluster, region) (up{job="kubelet"}) unless on (cluster) group by (cluster, region) (up{job="prometheus/prometheus",namespace="prometheus"} == 1)'
         for: 'PT10M'
         severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }
@@ -82,7 +82,7 @@ Please check the status of the Prometheus pods, service endpoints, and network c
           summary: 'Prometheus uptime below 95% over 24 hours.'
           title: 'Prometheus uptime below 95% over 24 hours.'
         }
-        expression: '(sum by (job, namespace, cluster) (sum_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d])) / sum by (job, namespace, cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d]))) < 0.95'
+        expression: '(sum by (job, namespace, cluster, region) (sum_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d])) / sum by (job, namespace, cluster, region) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d]))) < 0.95'
         for: 'PT10M'
         severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }
@@ -118,7 +118,7 @@ Check the PrometheusAgent pod status, remote write pipeline, and PodMonitor conf
           summary: 'Prometheus sample count below 95% SLO threshold for 24 hours.'
           title: 'Prometheus sample count below 95% SLO threshold for 24 hours.'
         }
-        expression: '(sum by (job, namespace, cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d])) < 0.95 * (24 * 3600 / 30)) and sum by (job, namespace, cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d] offset 1d)) > 0'
+        expression: '(sum by (job, namespace, cluster, region) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d])) < 0.95 * (24 * 3600 / 30)) and sum by (job, namespace, cluster, region) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d] offset 1d)) > 0'
         for: 'PT10M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -152,7 +152,7 @@ Check the PrometheusAgent pod status and remote write configuration on the affec
           summary: 'Prometheus metrics absent for cluster {{ $labels.cluster }}.'
           title: 'Prometheus metrics absent for cluster {{ $labels.cluster }}.'
         }
-        expression: 'count by (cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1w])) unless count by (cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[10m]))'
+        expression: 'count by (cluster, region) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1w])) unless count by (cluster, region) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[10m]))'
         for: 'PT10M'
         severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }
@@ -394,7 +394,7 @@ resource prometheusOperatorRules 'Microsoft.AlertsManagement/prometheusRuleGroup
           summary: 'Prometheus operator {{ $labels.namespace }}/{{ $labels.controller }} not ready'
           title: 'Prometheus operator {{ $labels.namespace }}/{{ $labels.controller }} not ready'
         }
-        expression: 'min by (cluster, controller, namespace) (max_over_time(prometheus_operator_ready{job="prometheus-operator",namespace="prometheus"}[5m])) == 0'
+        expression: 'min by (cluster, controller, namespace, region) (max_over_time(prometheus_operator_ready{job="prometheus-operator",namespace="prometheus"}[5m])) == 0'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -463,7 +463,7 @@ resource frontend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
           summary: 'High 4xx|5xx Error Rate on Frontend Cluster Service'
           title: 'High 4xx|5xx Error Rate on Frontend Cluster Service'
         }
-        expression: '(sum by (cluster) (max without (prometheus_replica) (rate(frontend_clusters_service_client_request_count{code=~"4..|5.."}[1h])))) / (sum by (cluster) (max without (prometheus_replica) (rate(frontend_clusters_service_client_request_count[1h])))) > 0.05'
+        expression: '(sum by (cluster, region) (max without (prometheus_replica) (rate(frontend_clusters_service_client_request_count{code=~"4..|5.."}[1h])))) / (sum by (cluster, region) (max without (prometheus_replica) (rate(frontend_clusters_service_client_request_count[1h])))) > 0.05'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
@@ -491,7 +491,7 @@ resource frontend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
           summary: 'High Frontend audit log error rate.'
           title: 'High Frontend audit log error rate.'
         }
-        expression: '(sum by (cluster) (rate(otel_audit_log_send_errors_total{job="aro-hcp-frontend-metrics"}[1h])) / sum by (cluster) (rate(otel_audit_log_records_total{job="aro-hcp-frontend-metrics"}[1h]))) > 0.05'
+        expression: '(sum by (cluster, region) (rate(otel_audit_log_send_errors_total{job="aro-hcp-frontend-metrics"}[1h])) / sum by (cluster, region) (rate(otel_audit_log_records_total{job="aro-hcp-frontend-metrics"}[1h]))) > 0.05'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
@@ -547,7 +547,7 @@ resource frontend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
           summary: 'Frontend is panicking during HTTP request handling'
           title: 'Frontend is panicking during HTTP request handling'
         }
-        expression: 'sum by (cluster) (increase(frontend_http_request_panics_total[5m])) > 0'
+        expression: 'sum by (cluster, region) (increase(frontend_http_request_panics_total[5m])) > 0'
         for: 'PT1M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -588,7 +588,7 @@ resource backend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
           summary: 'Backend controller workqueue {{ $labels.name }} depth is high'
           title: 'Backend controller workqueue {{ $labels.name }} depth is high'
         }
-        expression: 'max by (name, cluster) (max without (prometheus_replica) (workqueue_depth{namespace="aro-hcp"})) > 10'
+        expression: 'max by (name, cluster, region) (max without (prometheus_replica) (workqueue_depth{namespace="aro-hcp"})) > 10'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -616,7 +616,7 @@ resource backend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
           summary: 'Backend controller {{ $labels.controller }} is panicking'
           title: 'Backend controller {{ $labels.controller }} is panicking'
         }
-        expression: 'sum by (controller, cluster) (increase(panic_total{namespace="aro-hcp"}[5m])) > 0'
+        expression: 'sum by (controller, cluster, region) (increase(panic_total{namespace="aro-hcp"}[5m])) > 0'
         for: 'PT1M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -644,7 +644,7 @@ resource backend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
           summary: 'Orphaned cluster managed resource groups detected in {{ $labels.location }}'
           title: 'Orphaned cluster managed resource groups detected in {{ $labels.location }}'
         }
-        expression: 'sum by (location, cluster) (max without (prometheus_replica) (increase(aro_hcp_orphaned_managed_resource_groups_found_total[10m]))) > 0'
+        expression: 'sum by (location, cluster, region) (max without (prometheus_replica) (increase(aro_hcp_orphaned_managed_resource_groups_found_total[10m]))) > 0'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -672,7 +672,7 @@ resource backend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
           summary: 'Orphaned cluster managed resource group deletion failing in {{ $labels.location }}'
           title: 'Orphaned cluster managed resource group deletion failing in {{ $labels.location }}'
         }
-        expression: 'sum by (location, cluster) (max without (prometheus_replica) (increase(aro_hcp_orphaned_managed_resource_groups_deletion_failed_total[10m]))) > 0'
+        expression: 'sum by (location, cluster, region) (max without (prometheus_replica) (increase(aro_hcp_orphaned_managed_resource_groups_deletion_failed_total[10m]))) > 0'
         for: 'PT10M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -713,7 +713,7 @@ resource backendAsyncOperations 'Microsoft.AlertsManagement/prometheusRuleGroups
           summary: 'Cluster create for {{ $labels.resource_id }} stuck in {{ $labels.phase }}'
           title: 'Cluster create for {{ $labels.resource_id }} stuck in {{ $labels.phase }}'
         }
-        expression: '((max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (time() - backend_resource_operation_start_time_seconds{operation_type="create",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) and max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (backend_resource_operation_phase_info{operation_type="create",phase=~"accepted|provisioning",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1) > 1200) unless on (subscription_id) internal_subscription:info'
+        expression: '((max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster, region) (time() - backend_resource_operation_start_time_seconds{operation_type="create",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) and max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster, region) (backend_resource_operation_phase_info{operation_type="create",phase=~"accepted|provisioning",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1) > 1200) unless on (subscription_id) internal_subscription:info'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
@@ -740,7 +740,7 @@ resource backendAsyncOperations 'Microsoft.AlertsManagement/prometheusRuleGroups
           summary: 'Cluster update for {{ $labels.resource_id }} stuck in {{ $labels.phase }}'
           title: 'Cluster update for {{ $labels.resource_id }} stuck in {{ $labels.phase }}'
         }
-        expression: '((max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (time() - backend_resource_operation_start_time_seconds{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) and max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (backend_resource_operation_phase_info{operation_type="update",phase=~"accepted|updating",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1) > 2700) unless on (subscription_id) internal_subscription:info'
+        expression: '((max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster, region) (time() - backend_resource_operation_start_time_seconds{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) and max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster, region) (backend_resource_operation_phase_info{operation_type="update",phase=~"accepted|updating",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1) > 2700) unless on (subscription_id) internal_subscription:info'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
@@ -767,7 +767,7 @@ resource backendAsyncOperations 'Microsoft.AlertsManagement/prometheusRuleGroups
           summary: 'Cluster delete for {{ $labels.resource_id }} stuck'
           title: 'Cluster delete for {{ $labels.resource_id }} stuck'
         }
-        expression: '((max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (time() - backend_resource_operation_start_time_seconds{operation_type="delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) and max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (backend_resource_operation_phase_info{operation_type="delete",phase="deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1) > 1500) unless on (subscription_id) internal_subscription:info'
+        expression: '((max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster, region) (time() - backend_resource_operation_start_time_seconds{operation_type="delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) and max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster, region) (backend_resource_operation_phase_info{operation_type="delete",phase="deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1) > 1500) unless on (subscription_id) internal_subscription:info'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
@@ -794,7 +794,7 @@ resource backendAsyncOperations 'Microsoft.AlertsManagement/prometheusRuleGroups
           summary: 'Credential request for {{ $labels.resource_id }} stuck in {{ $labels.phase }}'
           title: 'Credential request for {{ $labels.resource_id }} stuck in {{ $labels.phase }}'
         }
-        expression: '((max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (time() - backend_resource_operation_start_time_seconds{operation_type="requestcredential",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) and max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (backend_resource_operation_phase_info{operation_type="requestcredential",phase=~"accepted|provisioning",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1) > 600) unless on (subscription_id) internal_subscription:info'
+        expression: '((max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster, region) (time() - backend_resource_operation_start_time_seconds{operation_type="requestcredential",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) and max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster, region) (backend_resource_operation_phase_info{operation_type="requestcredential",phase=~"accepted|provisioning",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1) > 600) unless on (subscription_id) internal_subscription:info'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
@@ -821,7 +821,7 @@ resource backendAsyncOperations 'Microsoft.AlertsManagement/prometheusRuleGroups
           summary: 'Credential revoke for {{ $labels.resource_id }} stuck in {{ $labels.phase }}'
           title: 'Credential revoke for {{ $labels.resource_id }} stuck in {{ $labels.phase }}'
         }
-        expression: '((max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (time() - backend_resource_operation_start_time_seconds{operation_type="revokecredentials",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) and max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (backend_resource_operation_phase_info{operation_type="revokecredentials",phase=~"accepted|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1) > 900) unless on (subscription_id) internal_subscription:info'
+        expression: '((max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster, region) (time() - backend_resource_operation_start_time_seconds{operation_type="revokecredentials",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) and max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster, region) (backend_resource_operation_phase_info{operation_type="revokecredentials",phase=~"accepted|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1) > 900) unless on (subscription_id) internal_subscription:info'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
@@ -848,7 +848,7 @@ resource backendAsyncOperations 'Microsoft.AlertsManagement/prometheusRuleGroups
           summary: 'Node pool create for {{ $labels.resource_id }} stuck in {{ $labels.phase }}'
           title: 'Node pool create for {{ $labels.resource_id }} stuck in {{ $labels.phase }}'
         }
-        expression: '((max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (time() - backend_resource_operation_start_time_seconds{operation_type="create",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"}) and max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (backend_resource_operation_phase_info{operation_type="create",phase=~"accepted|provisioning",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"}) == 1) > 1200) unless on (subscription_id) internal_subscription:info'
+        expression: '((max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster, region) (time() - backend_resource_operation_start_time_seconds{operation_type="create",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"}) and max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster, region) (backend_resource_operation_phase_info{operation_type="create",phase=~"accepted|provisioning",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"}) == 1) > 1200) unless on (subscription_id) internal_subscription:info'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
@@ -875,7 +875,7 @@ resource backendAsyncOperations 'Microsoft.AlertsManagement/prometheusRuleGroups
           summary: 'Node pool update for {{ $labels.resource_id }} stuck in {{ $labels.phase }}'
           title: 'Node pool update for {{ $labels.resource_id }} stuck in {{ $labels.phase }}'
         }
-        expression: '((max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (time() - backend_resource_operation_start_time_seconds{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"}) and max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (backend_resource_operation_phase_info{operation_type="update",phase=~"accepted|updating",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"}) == 1) > 2700) unless on (subscription_id) internal_subscription:info'
+        expression: '((max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster, region) (time() - backend_resource_operation_start_time_seconds{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"}) and max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster, region) (backend_resource_operation_phase_info{operation_type="update",phase=~"accepted|updating",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"}) == 1) > 2700) unless on (subscription_id) internal_subscription:info'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
@@ -902,7 +902,7 @@ resource backendAsyncOperations 'Microsoft.AlertsManagement/prometheusRuleGroups
           summary: 'Node pool delete for {{ $labels.resource_id }} stuck'
           title: 'Node pool delete for {{ $labels.resource_id }} stuck'
         }
-        expression: '((max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (time() - backend_resource_operation_start_time_seconds{operation_type="delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"}) and max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (backend_resource_operation_phase_info{operation_type="delete",phase="deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"}) == 1) > 1500) unless on (subscription_id) internal_subscription:info'
+        expression: '((max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster, region) (time() - backend_resource_operation_start_time_seconds{operation_type="delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"}) and max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster, region) (backend_resource_operation_phase_info{operation_type="delete",phase="deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"}) == 1) > 1500) unless on (subscription_id) internal_subscription:info'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
@@ -929,7 +929,7 @@ resource backendAsyncOperations 'Microsoft.AlertsManagement/prometheusRuleGroups
           summary: 'External auth create for {{ $labels.resource_id }} stuck in {{ $labels.phase }}'
           title: 'External auth create for {{ $labels.resource_id }} stuck in {{ $labels.phase }}'
         }
-        expression: '((max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (time() - backend_resource_operation_start_time_seconds{operation_type="create",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) and max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (backend_resource_operation_phase_info{operation_type="create",phase=~"accepted|awaitingsecret|provisioning",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) == 1) > 900) unless on (subscription_id) internal_subscription:info'
+        expression: '((max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster, region) (time() - backend_resource_operation_start_time_seconds{operation_type="create",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) and max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster, region) (backend_resource_operation_phase_info{operation_type="create",phase=~"accepted|awaitingsecret|provisioning",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) == 1) > 900) unless on (subscription_id) internal_subscription:info'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
@@ -956,7 +956,7 @@ resource backendAsyncOperations 'Microsoft.AlertsManagement/prometheusRuleGroups
           summary: 'External auth update for {{ $labels.resource_id }} stuck in {{ $labels.phase }}'
           title: 'External auth update for {{ $labels.resource_id }} stuck in {{ $labels.phase }}'
         }
-        expression: '((max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (time() - backend_resource_operation_start_time_seconds{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) and max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (backend_resource_operation_phase_info{operation_type="update",phase=~"accepted|updating",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) == 1) > 600) unless on (subscription_id) internal_subscription:info'
+        expression: '((max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster, region) (time() - backend_resource_operation_start_time_seconds{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) and max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster, region) (backend_resource_operation_phase_info{operation_type="update",phase=~"accepted|updating",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) == 1) > 600) unless on (subscription_id) internal_subscription:info'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
@@ -983,7 +983,7 @@ resource backendAsyncOperations 'Microsoft.AlertsManagement/prometheusRuleGroups
           summary: 'External auth delete for {{ $labels.resource_id }} stuck'
           title: 'External auth delete for {{ $labels.resource_id }} stuck'
         }
-        expression: '((max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (time() - backend_resource_operation_start_time_seconds{operation_type="delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) and max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (backend_resource_operation_phase_info{operation_type="delete",phase="deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) == 1) > 900) unless on (subscription_id) internal_subscription:info'
+        expression: '((max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster, region) (time() - backend_resource_operation_start_time_seconds{operation_type="delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) and max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster, region) (backend_resource_operation_phase_info{operation_type="delete",phase="deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) == 1) > 900) unless on (subscription_id) internal_subscription:info'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
@@ -1010,7 +1010,7 @@ resource backendAsyncOperations 'Microsoft.AlertsManagement/prometheusRuleGroups
           summary: '{{ $labels.operation_type }} {{ $labels.resource_type }} operation for {{ $labels.resource_id }} stuck in {{ $labels.phase }}'
           title: '{{ $labels.operation_type }} {{ $labels.resource_type }} operation for {{ $labels.resource_id }} stuck in {{ $labels.phase }}'
         }
-        expression: '((max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (time() - backend_resource_operation_start_time_seconds) and max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (backend_resource_operation_phase_info{phase=~"accepted|provisioning|updating|deleting|awaitingsecret"}) == 1) > 3600) unless on (subscription_id) internal_subscription:info'
+        expression: '((max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster, region) (time() - backend_resource_operation_start_time_seconds) and max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster, region) (backend_resource_operation_phase_info{phase=~"accepted|provisioning|updating|deleting|awaitingsecret"}) == 1) > 3600) unless on (subscription_id) internal_subscription:info'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
     ]
@@ -1050,7 +1050,7 @@ resource fleet 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
           summary: 'Fleet controller workqueue {{ $labels.name }} retry hot loop'
           title: 'Fleet controller workqueue {{ $labels.name }} retry hot loop'
         }
-        expression: '(sum by (name, cluster) (max without (prometheus_replica) (rate(workqueue_retries_total{namespace="fleet"}[10m]))) / sum by (name, cluster) (max without (prometheus_replica) (rate(workqueue_adds_total{namespace="fleet"}[10m])))) > 0.5'
+        expression: '(sum by (name, cluster, region) (max without (prometheus_replica) (rate(workqueue_retries_total{namespace="fleet"}[10m]))) / sum by (name, cluster, region) (max without (prometheus_replica) (rate(workqueue_adds_total{namespace="fleet"}[10m])))) > 0.5'
         for: 'PT10M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -1078,7 +1078,7 @@ resource fleet 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
           summary: 'Fleet controller workqueue {{ $labels.name }} depth is high'
           title: 'Fleet controller workqueue {{ $labels.name }} depth is high'
         }
-        expression: 'max by (name, cluster) (max without (prometheus_replica) (workqueue_depth{namespace="fleet"})) > 10'
+        expression: 'max by (name, cluster, region) (max without (prometheus_replica) (workqueue_depth{namespace="fleet"})) > 10'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -1106,7 +1106,7 @@ resource fleet 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
           summary: 'Fleet controller {{ $labels.controller }} is panicking'
           title: 'Fleet controller {{ $labels.controller }} is panicking'
         }
-        expression: 'sum by (controller, cluster) (increase(panic_total{namespace="fleet"}[5m])) > 0'
+        expression: 'sum by (controller, cluster, region) (increase(panic_total{namespace="fleet"}[5m])) > 0'
         for: 'PT1M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -1147,7 +1147,7 @@ resource adminApi 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
           summary: 'High Admin API audit log error rate.'
           title: 'High Admin API audit log error rate.'
         }
-        expression: '(sum by (cluster) (rate(otel_audit_log_send_errors_total{job="aro-hcp-admin-api-metrics"}[1h])) / sum by (cluster) (rate(otel_audit_log_records_total{job="aro-hcp-admin-api-metrics"}[1h]))) > 0.05'
+        expression: '(sum by (cluster, region) (rate(otel_audit_log_send_errors_total{job="aro-hcp-admin-api-metrics"}[1h])) / sum by (cluster, region) (rate(otel_audit_log_records_total{job="aro-hcp-admin-api-metrics"}[1h]))) > 0.05'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
@@ -1216,7 +1216,7 @@ resource maestro 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
           summary: 'Maestro has too many gRPC source client connections'
           title: 'Maestro has too many gRPC source client connections'
         }
-        expression: 'sum(grpc_server_registered_source_clients{namespace="maestro"}) > 100'
+        expression: 'sum by (region) (grpc_server_registered_source_clients{namespace="maestro"}) > 100'
         for: 'PT10M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -1244,7 +1244,7 @@ resource maestro 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
           summary: 'Maestro REST API error rate is high'
           title: 'Maestro REST API error rate is high'
         }
-        expression: 'sum(rate(rest_api_inbound_request_count{code=~"5..",namespace="maestro"}[5m])) / sum(rate(rest_api_inbound_request_count{namespace="maestro"}[5m])) > 0.05'
+        expression: 'sum by (region) (rate(rest_api_inbound_request_count{code=~"5..",namespace="maestro"}[5m])) / sum by (region) (rate(rest_api_inbound_request_count{namespace="maestro"}[5m])) > 0.05'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -1272,7 +1272,7 @@ resource maestro 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
           summary: 'Maestro gRPC server error rate is high'
           title: 'Maestro gRPC server error rate is high'
         }
-        expression: 'sum(rate(grpc_server_processed_total{code!="OK",namespace="maestro"}[5m])) / sum(rate(grpc_server_processed_total{namespace="maestro"}[5m])) > 0.05'
+        expression: 'sum by (region) (rate(grpc_server_processed_total{code!="OK",namespace="maestro"}[5m])) / sum by (region) (rate(grpc_server_processed_total{namespace="maestro"}[5m])) > 0.05'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -1300,7 +1300,7 @@ resource maestro 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
           summary: 'Maestro spec controller reconcile error rate is high'
           title: 'Maestro spec controller reconcile error rate is high'
         }
-        expression: 'sum(rate(spec_controller_event_reconcile_total{namespace="maestro",status="error"}[5m])) / sum(rate(spec_controller_event_reconcile_total{namespace="maestro"}[5m])) > 0.1'
+        expression: 'sum by (region) (rate(spec_controller_event_reconcile_total{namespace="maestro",status="error"}[5m])) / sum by (region) (rate(spec_controller_event_reconcile_total{namespace="maestro"}[5m])) > 0.1'
         for: 'PT10M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -1384,7 +1384,7 @@ resource maestro 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
           summary: 'Maestro PostgreSQL notification queue usage is high'
           title: 'Maestro PostgreSQL notification queue usage is high'
         }
-        expression: 'max(postgres_notification_queue_usage{namespace="maestro"}) > 0.5'
+        expression: 'max by (region) (postgres_notification_queue_usage{namespace="maestro"}) > 0.5'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -1412,7 +1412,7 @@ resource maestro 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
           summary: 'Maestro workqueue {{ $labels.queue_name }} depth is high'
           title: 'Maestro workqueue {{ $labels.queue_name }} depth is high'
         }
-        expression: 'max by (queue_name) (workqueue_depth{namespace="maestro",queue_name!=""}) > 100'
+        expression: 'max by (queue_name, region) (workqueue_depth{namespace="maestro",queue_name!=""}) > 100'
         for: 'PT10M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -1440,7 +1440,7 @@ resource maestro 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
           summary: 'Maestro unreconciled event age is too high — possible lost NOTIFY'
           title: 'Maestro unreconciled event age is too high — possible lost NOTIFY'
         }
-        expression: 'max(spec_controller_event_oldest_unreconciled_age_seconds{namespace="maestro"}) > 300'
+        expression: 'max by (region) (spec_controller_event_oldest_unreconciled_age_seconds{namespace="maestro"}) > 300'
         for: 'PT1M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -1483,7 +1483,7 @@ resource arobitRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01
           summary: 'Arobit forwarder metrics endpoint is unreachable on cluster {{ $labels.cluster }}.'
           title: 'Arobit forwarder metrics endpoint is unreachable on cluster {{ $labels.cluster }}.'
         }
-        expression: 'group by (cluster) (up{job="kube-state-metrics"}) unless on (cluster) group by (cluster) (up{job="arobit-forwarder",namespace="arobit"} == 1)'
+        expression: 'group by (cluster, region) (up{job="kube-state-metrics"}) unless on (cluster) group by (cluster, region) (up{job="arobit-forwarder",namespace="arobit"} == 1)'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -1517,7 +1517,7 @@ Investigate the Fluent Bit logs for the specific error details and check the Kus
           summary: 'Fluent Bit {{ $labels.pod }} on {{ $labels.cluster }} ingestion paused due to backpressure'
           title: 'Fluent Bit {{ $labels.pod }} on {{ $labels.cluster }} ingestion paused due to backpressure'
         }
-        expression: 'sum by (cluster, pod) (fluentbit_input_ingestion_paused) > 0'
+        expression: 'sum by (cluster, pod, region) (fluentbit_input_ingestion_paused) > 0'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -1551,7 +1551,7 @@ Investigate the Fluent Bit logs for the specific error details and check the Kus
           summary: 'Fluent Bit {{ $labels.pod }} on {{ $labels.cluster }} has high Kusto output retries'
           title: 'Fluent Bit {{ $labels.pod }} on {{ $labels.cluster }} has high Kusto output retries'
         }
-        expression: 'sum by (cluster, pod) (increase(fluentbit_output_retries_total{name=~"azure_kusto.*"}[5m])) > 3'
+        expression: 'sum by (cluster, pod, region) (increase(fluentbit_output_retries_total{name=~"azure_kusto.*"}[5m])) > 3'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -1583,7 +1583,7 @@ Investigate the Fluent Bit logs for the specific error details and check the Kus
           summary: 'Fluent Bit {{ $labels.pod }} on {{ $labels.cluster }} dropping logs due to unrecoverable Kusto errors'
           title: 'Fluent Bit {{ $labels.pod }} on {{ $labels.cluster }} dropping logs due to unrecoverable Kusto errors'
         }
-        expression: 'sum by (cluster, pod) (increase(fluentbit_output_errors_total{name=~"azure_kusto.*"}[5m])) > 0'
+        expression: 'sum by (cluster, pod, region) (increase(fluentbit_output_errors_total{name=~"azure_kusto.*"}[5m])) > 0'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -1615,7 +1615,7 @@ Investigate the Fluent Bit logs for the specific error details and check the Kus
           summary: 'Fluent Bit {{ $labels.pod }} on {{ $labels.cluster }} Kusto retries exhausted, chunks discarded'
           title: 'Fluent Bit {{ $labels.pod }} on {{ $labels.cluster }} Kusto retries exhausted, chunks discarded'
         }
-        expression: 'sum by (cluster, pod) (increase(fluentbit_output_retries_failed_total{name=~"azure_kusto.*"}[5m])) > 0'
+        expression: 'sum by (cluster, pod, region) (increase(fluentbit_output_retries_failed_total{name=~"azure_kusto.*"}[5m])) > 0'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -1971,7 +1971,7 @@ resource hcpTestClustersRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2
           summary: 'HCP {{ $labels.resource_id }} on {{ $labels.cluster }} in {{ $labels.environment }} is older than 3h'
           title: 'HCP {{ $labels.resource_id }} on {{ $labels.cluster }} in {{ $labels.environment }} is older than 3h'
         }
-        expression: 'max by (cluster, resource_id, environment) (time() - backend_cluster_created_time_seconds{environment=~"int|stg"}) > 3 * 3600'
+        expression: 'max by (cluster, resource_id, environment, region) (time() - backend_cluster_created_time_seconds{environment=~"int|stg"}) > 3 * 3600'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -2001,7 +2001,7 @@ resource hcpTestClustersRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2
           summary: 'Prod e2e HCP {{ $labels.resource_id }} in {{ $labels.subscription_id }} on {{ $labels.cluster }} is older than 3h'
           title: 'Prod e2e HCP {{ $labels.resource_id }} in {{ $labels.subscription_id }} on {{ $labels.cluster }} is older than 3h'
         }
-        expression: 'max by (cluster, resource_id, environment, subscription_id) (time() - backend_cluster_created_time_seconds{environment="prod",subscription_id=~"403d9de9-132b-4974-94a5-5b78bdfa191e|8d696692-794f-4cdb-ba25-9250c9e9ec4c|ec435068-e722-475f-8504-c91b72a5dc51"}) > 3 * 3600'
+        expression: 'max by (cluster, resource_id, environment, subscription_id, region) (time() - backend_cluster_created_time_seconds{environment="prod",subscription_id=~"403d9de9-132b-4974-94a5-5b78bdfa191e|8d696692-794f-4cdb-ba25-9250c9e9ec4c|ec435068-e722-475f-8504-c91b72a5dc51"}) > 3 * 3600'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -2149,7 +2149,7 @@ resource imageRegistryPolicy 'Microsoft.AlertsManagement/prometheusRuleGroups@20
           summary: 'Image registry policy on {{ $labels.cluster }} denied pod admission'
           title: 'Image registry policy on {{ $labels.cluster }} denied pod admission'
         }
-        expression: 'sum by (cluster, policy, policy_binding) (increase(apiserver_validating_admission_policy_check_total{enforcement_action="deny",policy="image-registry-allowlist-policy",validation_result="denied"}[15m])) > 0'
+        expression: 'sum by (cluster, policy, policy_binding, region) (increase(apiserver_validating_admission_policy_check_total{enforcement_action="deny",policy="image-registry-allowlist-policy",validation_result="denied"}[15m])) > 0'
         for: 'PT1M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -2177,7 +2177,7 @@ resource imageRegistryPolicy 'Microsoft.AlertsManagement/prometheusRuleGroups@20
           summary: 'Image registry policy on {{ $labels.cluster }} audit violation detected'
           title: 'Image registry policy on {{ $labels.cluster }} audit violation detected'
         }
-        expression: 'sum by (cluster, policy, policy_binding) (increase(apiserver_validating_admission_policy_check_total{enforcement_action="audit",policy="image-registry-allowlist-policy",validation_result="denied"}[15m])) > 0'
+        expression: 'sum by (cluster, policy, policy_binding, region) (increase(apiserver_validating_admission_policy_check_total{enforcement_action="audit",policy="image-registry-allowlist-policy",validation_result="denied"}[15m])) > 0'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
