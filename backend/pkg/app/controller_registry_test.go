@@ -93,6 +93,7 @@ var expectedControllerLaunches = []struct {
 	{"controlplaneversionstatuscollector", 20},
 	{"normalclusterdesiredversion", 20},
 	{"forcedclusterdesiredversion", 20},
+	{"controlplaneversionrolloutseeding", 20},
 	{"triggercontrolplaneupgrade", 20},
 	{"clusterbasedomainprefixsync", 20},
 	{"clusterpropertiessync", 20},
@@ -159,7 +160,7 @@ var expectedControllerLaunches = []struct {
 
 func TestControllerRegistryManifest(t *testing.T) {
 	registry := newControllerRegistry()
-	require.Len(t, registry, 105)
+	require.Len(t, registry, 106)
 	expectedOrder := make([]string, 0, len(expectedControllerLaunches))
 	for _, expected := range expectedControllerLaunches {
 		expectedOrder = append(expectedOrder, expected.name)
@@ -323,7 +324,7 @@ func TestControllerContextKeepsFactoriesNotIndividualInformers(t *testing.T) {
 func TestControllerRegistryNamedZoneRegistrations(t *testing.T) {
 	files := token.NewFileSet()
 	for zone, expectedCount := range map[string]int{
-		"billing": 2, "cluster": 59, "clusterresources": 1, "cosmosmigration": 1,
+		"billing": 2, "cluster": 60, "clusterresources": 1, "cosmosmigration": 1,
 		"datadump": 1, "externalauth": 10, "metrics": 6, "mismatch": 4, "nodepool": 19,
 	} {
 		source, err := parser.ParseFile(files, "../controllers/"+zone+"/registration.go", nil, 0)
@@ -392,7 +393,7 @@ func TestControllerRegistryUnorderedConstructionAndErrors(t *testing.T) {
 	constructed = nil
 	_, err = instantiateControllers(registry, ControllerContext{}, storageFactory)
 	require.NoError(t, err)
-	require.Len(t, constructed, 104)
+	require.Len(t, constructed, 105)
 	require.NotContains(t, constructed, "clusterdenyassignment")
 	expectedErr := errors.New("constructor failed")
 	name := "union-kube-applier-informers-controller"

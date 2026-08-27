@@ -26,8 +26,8 @@
 //     SRE-pinned cluster at its pinned exact version until the fleet best version
 //     reaches the pin's release threshold.
 //
-// The decision logic of every controller is factored into pure functions so it
-// can be unit-tested without Cosmos or informers.
+// Rollout counting and selection use pure functions. Controller persistence and
+// forced assignment decisions are tested through the shared mock Cosmos database.
 package versionrollout
 
 import (

@@ -1107,11 +1107,29 @@ func instantiateForcedClusterDesiredVersionController(controllerContext controll
 	), nil
 }
 
+func registerControlPlaneVersionRolloutSeedingController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{
+		Workers:     20,
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateControlPlaneVersionRolloutSeedingController, false),
+	}
+}
+
+func instantiateControlPlaneVersionRolloutSeedingController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+
+	return versionrollout.NewControlPlaneVersionRolloutSeedingController(
+		controllerContext.ResourcesDBClient,
+		controllerContext.FleetDBClient,
+		controllerContext.BackendInformers,
+		controllerContext.FleetInformers,
+	), nil
+}
+
 func Register(registry map[string]controllerconfig.ControllerRegistration) {
 	registry[strings.ToLower(versionrollout.BestVersionSelectionControllerName)] = registerBestVersionSelectionController()
 	registry[strings.ToLower(versionrollout.StatusCollectorControllerName)] = registerStatusCollectorController()
 	registry[strings.ToLower(versionrollout.NormalClusterDesiredVersionControllerName)] = registerNormalClusterDesiredVersionController()
 	registry[strings.ToLower(versionrollout.ForcedClusterDesiredVersionControllerName)] = registerForcedClusterDesiredVersionController()
+	registry[strings.ToLower(versionrollout.RolloutSeedingControllerName)] = registerControlPlaneVersionRolloutSeedingController()
 	registry[strings.ToLower(legacycredentialrequest.DispatchRequestCredentialControllerName)] = registerDispatchRequestCredentialController()
 	registry[strings.ToLower(credentialrequestoperations.SystemAdminCredentialDispatchRequestCredentialControllerName)] = registerAdminCredentialsDispatchRequestCredentialController()
 	registry[strings.ToLower(credentialrevocationoperations.SystemAdminCredentialDispatchRevokeCredentialsControllerName)] = registerAdminCredentialsDispatchRevokeCredentialsController()
