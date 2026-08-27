@@ -263,3 +263,12 @@ cluster should exist but no metrics are flowing yet, so an absence alert can fir
 until all components are up. If this turns out to be a real problem in practice it will likely
 need a more comprehensive approach than adjusting this one metric -- other alerts may fire during
 bring-up too -- and we will only know once a few more management clusters have been stamped.
+
+## Merge gate
+
+Production alerts feed back into development through the **merge gate**, a CI check
+that blocks a PR when it touches a component with unresolved production alerts. If
+your merge is blocked, see
+[Unblocking a merge blocked by the merge gate](alerts/merge-gate.md) for how to
+declare a
+fix with an `Ameliorates-Alert:` commit trailer.
