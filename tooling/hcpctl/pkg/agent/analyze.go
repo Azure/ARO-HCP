@@ -22,6 +22,12 @@ import (
 	"github.com/go-logr/logr"
 )
 
+// reviewMaxTableRows caps the rows of each table embedded in a review prompt.
+// It bounds the review document (which re-includes every proof's results) so a
+// few large tables cannot exhaust the model's context window, while still
+// showing enough of each table — plus its true row count — to review it.
+const reviewMaxTableRows = 50
+
 // AnalyzeOptions configures a single analysis run.
 type AnalyzeOptions struct {
 	// Manifest is the raw manifest.json content.
@@ -214,7 +220,14 @@ func Analyze(ctx context.Context, logger logr.Logger, session LLMSession, kustoC
 		}
 		session.ResetHistory()
 
-		rendered := RenderMarkdown(hydratedChain, renderTitle(hydratedChain, opts.TestName))
+		// Bound the review document: cap each table's rows so a huge proof
+		// table can't blow the model's context window during review. No table is
+		// dropped — each keeps its columns, representative rows, and a total-row
+		// count — so the model can still judge whether every proof is concise and
+		// actually supports its claim. (Note: ResetHistory is a no-op on the
+		// Copilot provider, so bounding what we send is what actually keeps the
+		// review turn within the context window there.)
+		rendered := RenderMarkdown(hydratedChain, renderTitle(hydratedChain, opts.TestName), WithMaxTableRows(reviewMaxTableRows))
 		reviewPrompt := BuildReviewPrompt(rendered)
 		if summary != "" {
 			reviewPrompt = "Context from prior analysis rounds:\n\n" + summary + "\n\n---\n\n" + reviewPrompt

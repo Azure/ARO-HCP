@@ -28,6 +28,13 @@ import (
 // FirstChainQuestion is the required question for the first link in the causal chain.
 const FirstChainQuestion = "Why did this test fail?"
 
+// maxConciseProofRows is the largest result set a proof query may return before
+// validation asks the model to tighten it. A proof is meant to be a legible
+// piece of evidence, not a data dump; keeping proofs small also keeps the
+// rendered review document within the model's context window. The threshold is
+// deliberately generous so only genuinely excessive result sets are flagged.
+const maxConciseProofRows = 300
+
 // ValidationContext holds the data needed to validate a DraftChain beyond
 // structural checks — file system paths, log contents, and worktree locations.
 type ValidationContext struct {
@@ -521,6 +528,20 @@ func ValidateDraft(ctx context.Context, client KustoClient, draft *DraftChain, v
 						"use a `summarize count=count()` and explicitly show a zero count instead of an empty result set.\n"+
 						"  Query:\n  ```kql\n  %s\n  ```",
 					where, loc.KQL,
+				),
+			})
+		} else if len(table.Rows) > maxConciseProofRows {
+			problems = append(problems, ValidationProblem{
+				Category: "kql_excessive_rows",
+				Chain:    loc.ChainIndex,
+				Proof:    loc.ProofIndex,
+				Detail: fmt.Sprintf(
+					"- %s: KQL query returned %d rows — far more than a legible proof needs. Evidence should be "+
+						"concise enough that a reader sees at a glance how it supports the claim. Tighten it: "+
+						"`summarize`/aggregate, narrow the `where` filters, `project` only the relevant columns, or "+
+						"`top`/`take` a bounded, meaningful set. If a long series is genuinely the point (e.g. a "+
+						"timeline), reduce it to the transitions that matter.\n  Query:\n  ```kql\n  %s\n  ```",
+					where, len(table.Rows), loc.KQL,
 				),
 			})
 		}

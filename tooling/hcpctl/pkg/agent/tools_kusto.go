@@ -305,6 +305,15 @@ func datasetToTable(dataset query.IterativeDataset) (*tabular.Table, error) {
 // TableToMarkdown renders a tabular.Table as a markdown table.
 // If the table is nil or has no columns, the string "(no results)" is returned.
 func TableToMarkdown(t *tabular.Table) string {
+	return TableToMarkdownCapped(t, 0)
+}
+
+// TableToMarkdownCapped renders a table to markdown, emitting at most maxRows
+// data rows. A maxRows of 0 means no limit. When rows are omitted, a trailing
+// "_Showing N of M rows._" note is appended so a reader still sees the true row
+// count — which is exactly the signal needed to judge whether a query is
+// concise — without paying for every row.
+func TableToMarkdownCapped(t *tabular.Table, maxRows int) string {
 	if t == nil || len(t.Columns) == 0 {
 		return "(no results)"
 	}
@@ -331,8 +340,12 @@ func TableToMarkdown(t *tabular.Table) string {
 	}
 	sb.WriteString(" |\n")
 
-	// Rows.
-	for _, row := range t.Rows {
+	// Rows (optionally capped).
+	limit := len(t.Rows)
+	if maxRows > 0 && limit > maxRows {
+		limit = maxRows
+	}
+	for _, row := range t.Rows[:limit] {
 		sb.WriteString("| ")
 		for i := range t.Columns {
 			if i > 0 {
@@ -343,6 +356,10 @@ func TableToMarkdown(t *tabular.Table) string {
 			}
 		}
 		sb.WriteString(" |\n")
+	}
+
+	if limit < len(t.Rows) {
+		sb.WriteString(fmt.Sprintf("\n_Showing %d of %d rows._\n", limit, len(t.Rows)))
 	}
 
 	return sb.String()

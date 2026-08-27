@@ -19,6 +19,22 @@ import (
 	"strings"
 )
 
+// RenderOption customizes how RenderMarkdown emits a chain.
+type RenderOption func(*renderConfig)
+
+type renderConfig struct {
+	// maxTableRows caps the number of data rows emitted per table. 0 = unlimited.
+	maxTableRows int
+}
+
+// WithMaxTableRows caps every rendered table to n data rows (with a
+// "_Showing N of M rows._" note when truncated). Used to bound the size of the
+// document embedded in review prompts without dropping any table, so the model
+// can still judge whether each proof is concise and on-point.
+func WithMaxTableRows(n int) RenderOption {
+	return func(c *renderConfig) { c.maxTableRows = n }
+}
+
 // RenderMarkdown produces a low-fidelity markdown document from a hydrated
 // analysis chain. This is used to show the agent the full rendered output —
 // including query result tables — so it can review narrative coherence,
@@ -28,7 +44,11 @@ import (
 // header reads "Test Failure Analysis: <title>". In intent mode (chain.Intent
 // is non-empty) the header reads "Analysis: <title>" and an Objective section
 // echoing the investigation intent is rendered before the root cause.
-func RenderMarkdown(chain *HydratedChain, title string) string {
+func RenderMarkdown(chain *HydratedChain, title string, opts ...RenderOption) string {
+	var cfg renderConfig
+	for _, o := range opts {
+		o(&cfg)
+	}
 	var sb strings.Builder
 
 	if chain.Intent != "" {
@@ -88,7 +108,7 @@ func RenderMarkdown(chain *HydratedChain, title string) string {
 					sb.WriteString("```kql\n")
 					sb.WriteString(proof.KQL)
 					sb.WriteString("\n```\n\n")
-					sb.WriteString(TableToMarkdown(proof.Table))
+					sb.WriteString(TableToMarkdownCapped(proof.Table, cfg.maxTableRows))
 					sb.WriteString("\n\n")
 				case "code":
 					sb.WriteString(fmt.Sprintf("#### Proof %d (code)\n\n", j+1))
@@ -145,7 +165,7 @@ func RenderMarkdown(chain *HydratedChain, title string) string {
 			sb.WriteString("```kql\n")
 			sb.WriteString(d.KQL)
 			sb.WriteString("\n```\n\n")
-			sb.WriteString(TableToMarkdown(d.Table))
+			sb.WriteString(TableToMarkdownCapped(d.Table, cfg.maxTableRows))
 			sb.WriteString("\n\n")
 		}
 	}
