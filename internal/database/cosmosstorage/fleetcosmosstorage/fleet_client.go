@@ -111,6 +111,19 @@ func (c *cosmosFleetDBClient) HCPResourceRequirements() cosmosstorageutils.Resou
 		cosmosstorageutils.FleetPartitionKeyDeriver{}, cosmosstorageutils.FleetResourceIDBuilder{})
 }
 
+func (c *cosmosFleetDBClient) ControlPlaneVersionRollouts() cosmosstorageutils.ValidatingResourceCRUD[fleetapi.ControlPlaneVersionRollout, *fleetapi.ControlPlaneVersionRollout] {
+	// ControlPlaneVersionRollouts share a single partition keyed by the provider
+	// namespace (there are only a handful fleet-wide, one per y-stream channel),
+	// so the whole set can be listed with a single-partition query.
+	inner := cosmosstorageutils.NewCosmosResourceCRUDWithStrategies[fleetapi.ControlPlaneVersionRollout, *fleetapi.ControlPlaneVersionRollout, cosmosstorageutils.GenericDocument[fleetapi.ControlPlaneVersionRollout]](
+		c.container, nil, fleetapi.ControlPlaneVersionRolloutResourceType,
+		cosmosstorageutils.ProviderNamespacePartitionKeyDeriver{}, cosmosstorageutils.FleetResourceIDBuilder{})
+	return cosmosstorageutils.NewValidatingCRUD(inner,
+		validation.ValidateControlPlaneVersionRolloutCreate,
+		validation.ValidateControlPlaneVersionRolloutUpdate,
+	)
+}
+
 func (c *cosmosFleetDBClient) GlobalListers() FleetGlobalListers {
 	return &cosmosFleetGlobalListers{container: c.container}
 }
