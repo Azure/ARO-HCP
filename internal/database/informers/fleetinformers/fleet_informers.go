@@ -108,6 +108,7 @@ func NewControlPlaneVersionRolloutInformerWithRelistDuration(lister cosmosstorag
 		lister,
 		cosmosClient,
 		relistDuration,
+		"fleet",
 	)
 
 	return cache.NewSharedIndexInformerWithOptions(

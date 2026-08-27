@@ -83,7 +83,7 @@ func TestSelectControlPlaneVersion_ReturnsChannelTipAtOffset(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var graphCalled bool
-			result, err := selectControlPlaneVersion(context.Background(), graphResponseRoundTripper(graphJSON, &graphCalled), "candidate", semver.MustParse("4.20.0"), tt.offset)
+			result, err := SelectControlPlaneVersion(context.Background(), graphResponseRoundTripper(graphJSON, &graphCalled), "candidate", semver.MustParse("4.20.0"), tt.offset)
 			require.NoError(t, err, "expected selectControlPlaneVersion to succeed")
 			require.NotNil(t, result, "expected a resolved version")
 			assert.Equal(t, tt.want, result.String(), "unexpected version for offset %d", tt.offset)

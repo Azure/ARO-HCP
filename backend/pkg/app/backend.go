@@ -124,8 +124,6 @@ type BackendOptions struct {
 	CheckAccessV2ClientBuilder                          azureclient.CheckAccessV2ClientBuilder
 	ClusterScopedIdentitiesConfig                       *internalazure.ClusterScopedIdentitiesConfig
 	CloudEnvironment                                    *azureconfig.AzureCloudEnvironment
-	EnableVersionRollout                                bool
-	VersionRolloutConfig                                versionrollout.RolloutConfig
 }
 
 const backendShutdownTimeout = 31 * time.Second
@@ -660,22 +658,12 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		"CreateBillingDoc", b.options.ResourcesDBClient, backendInformers, unionKubeApplierInformers, 60*time.Second,
 		billing.NewCreateBillingDocController(b.clock, b.options.AzureLocation, b.options.ResourcesDBClient, b.options.BillingDBClient, clusterLister, billingLister))
 	controlPlaneActiveVersionController := clusterversion.NewControlPlaneActiveVersionController(
+		b.clock,
 		b.options.ResourcesDBClient,
 		serviceProviderClusterLister,
 		backendInformers,
 		unionKubeApplierInformers,
 		unionReadDesireLister,
-	)
-	controlPlaneDesiredVersionController := clusterversion.NewControlPlaneDesiredVersionController(
-		b.clock,
-		b.options.ResourcesDBClient,
-		clusterLister,
-		b.options.ClustersServiceClient,
-		activeOperationLister,
-		serviceProviderClusterLister,
-		nodePoolLister,
-		serviceProviderNodePoolLister,
-		backendInformers,
 	)
 	triggerControlPlaneUpgradeController := clusterversion.NewTriggerControlPlaneUpgradeController(
 		b.clock,
@@ -687,48 +675,42 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		unionKubeApplierInformers,
 	)
 
-	// Fleet control-plane version rollout controllers. These take over ownership
-	// of ServiceProviderCluster desired version from ControlPlaneDesiredVersion
-	// when enabled, so ControlPlaneDesiredVersion is not run in that mode (see the
-	// OnStartedLeading run block below).
-	var (
-		bestVersionSelectionController      controllerutils.Controller
-		controlPlaneVersionStatusController controllerutils.Controller
-		normalDesiredVersionController      controllerutils.Controller
-		forcedDesiredVersionController      controllerutils.Controller
+	// Fleet control-plane version rollout controllers. These own the
+	// ServiceProviderCluster desired version, replacing the per-cluster
+	// ControlPlaneDesiredVersion controller (which is therefore not run).
+	rolloutConfig := versionrollout.NewDefaultRolloutConfig()
+	_, controlPlaneVersionRolloutLister := fleetInformers.ControlPlaneVersionRollouts()
+	bestVersionSelectionController := versionrollout.NewBestVersionSelectionController(
+		b.options.FleetDBClient,
+		fleetInformers,
+		versionrollout.NewCincinnatiBestVersionSelector(),
+		rolloutConfig,
 	)
-	if b.options.EnableVersionRollout {
-		_, controlPlaneVersionRolloutLister := fleetInformers.ControlPlaneVersionRollouts()
-		bestVersionSelectionController = versionrollout.NewBestVersionSelectionController(
-			b.options.FleetDBClient,
-			fleetInformers,
-			versionrollout.NewCincinnatiBestVersionSelector(),
-			b.options.VersionRolloutConfig,
-		)
-		controlPlaneVersionStatusController = versionrollout.NewStatusCollectorController(
-			b.options.FleetDBClient,
-			fleetInformers,
-			serviceProviderClusterLister,
-			clusterLister,
-			versionrollout.NewInMemoryVersionAgeSource(b.clock),
-			b.options.VersionRolloutConfig,
-		)
-		normalDesiredVersionController = versionrollout.NewNormalClusterDesiredVersionController(
-			b.options.ResourcesDBClient,
-			b.options.FleetDBClient,
-			fleetInformers,
-			serviceProviderClusterLister,
-			clusterLister,
-			nil, // default random cluster selector
-			b.options.VersionRolloutConfig,
-		)
-		forcedDesiredVersionController = versionrollout.NewForcedClusterDesiredVersionController(
-			b.options.ResourcesDBClient,
-			backendInformers,
-			unionKubeApplierInformers,
-			controlPlaneVersionRolloutLister,
-		)
-	}
+	controlPlaneVersionStatusController := versionrollout.NewStatusCollectorController(
+		b.options.FleetDBClient,
+		fleetInformers,
+		serviceProviderClusterLister,
+		clusterLister,
+		b.clock,
+		rolloutConfig,
+	)
+	normalDesiredVersionController := versionrollout.NewNormalClusterDesiredVersionController(
+		b.clock,
+		b.options.ResourcesDBClient,
+		b.options.FleetDBClient,
+		fleetInformers,
+		serviceProviderClusterLister,
+		clusterLister,
+		nil, // default random cluster selector
+		rolloutConfig,
+	)
+	forcedDesiredVersionController := versionrollout.NewForcedClusterDesiredVersionController(
+		b.clock,
+		b.options.ResourcesDBClient,
+		backendInformers,
+		unionKubeApplierInformers,
+		controlPlaneVersionRolloutLister,
+	)
 	clusterBaseDomainPrefixSyncController := clusterproperties.NewClusterBaseDomainPrefixSyncController(
 		b.options.ResourcesDBClient,
 		b.options.ClustersServiceClient,
@@ -1142,17 +1124,12 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go orphanedBillingCleanupController.Run(ctx, 20)
 				go createBillingDocController.Run(ctx, 20)
 				go controlPlaneActiveVersionController.Run(ctx, 20)
-				if b.options.EnableVersionRollout {
-					// The fleet rollout controllers own ServiceProviderCluster desired
-					// version; the per-cluster ControlPlaneDesiredVersion controller is
-					// intentionally not started to avoid both writing the same field.
-					go bestVersionSelectionController.Run(ctx, 20)
-					go controlPlaneVersionStatusController.Run(ctx, 20)
-					go normalDesiredVersionController.Run(ctx, 20)
-					go forcedDesiredVersionController.Run(ctx, 20)
-				} else {
-					go controlPlaneDesiredVersionController.Run(ctx, 20)
-				}
+				// The fleet rollout controllers own ServiceProviderCluster desired
+				// version, replacing the per-cluster ControlPlaneDesiredVersion controller.
+				go bestVersionSelectionController.Run(ctx, 20)
+				go controlPlaneVersionStatusController.Run(ctx, 20)
+				go normalDesiredVersionController.Run(ctx, 20)
+				go forcedDesiredVersionController.Run(ctx, 20)
 				go triggerControlPlaneUpgradeController.Run(ctx, 20)
 				go clusterBaseDomainPrefixSyncController.Run(ctx, 20)
 				go clusterPropertiesSyncController.Run(ctx, 20)

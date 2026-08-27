@@ -19,8 +19,6 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 )
 
@@ -38,11 +36,6 @@ type ControlPlaneVersionRollout struct {
 	// PartitionKey / top-level resource name is the y-stream channel, e.g.
 	// "stable-4.21". Every fleet document for one rollout shares this partition key.
 	coreapi.CosmosMetadata `json:"cosmosMetadata"`
-
-	// ResourceID exists to match cosmosMetadata.resourceID until we're able to
-	// transition all types to use cosmosMetadata.
-	// Example: "/providers/microsoft.redhatopenshift/controlPlaneVersionRollouts/stable-4.21"
-	ResourceID *azcorearm.ResourceID `json:"resourceId,omitempty"`
 
 	Spec   ControlPlaneVersionRolloutSpec   `json:"spec"`
 	Status ControlPlaneVersionRolloutStatus `json:"status"`

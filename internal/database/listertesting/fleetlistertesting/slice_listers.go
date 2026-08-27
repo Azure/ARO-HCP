@@ -100,7 +100,7 @@ func (l *SliceControlPlaneVersionRolloutLister) List(ctx context.Context) ([]*fl
 func (l *SliceControlPlaneVersionRolloutLister) Get(ctx context.Context, ystreamChannel string) (*fleetapi.ControlPlaneVersionRollout, error) {
 	key := fleetapi.ToControlPlaneVersionRolloutResourceIDString(ystreamChannel)
 	for _, r := range l.ControlPlaneVersionRollouts {
-		if r.CosmosMetadata.ResourceID != nil && strings.EqualFold(r.CosmosMetadata.ResourceID.String(), key) {
+		if r.ResourceID != nil && strings.EqualFold(r.ResourceID.String(), key) {
 			return r, nil
 		}
 	}

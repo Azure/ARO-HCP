@@ -34,7 +34,6 @@ package versionrollout
 import (
 	"context"
 	"math/rand"
-	"time"
 
 	"github.com/blang/semver/v4"
 
@@ -59,37 +58,12 @@ type RolloutWriter interface {
 }
 
 // BestVersionSelector returns the upgrade-graph-selected best exact version for a
-// y-stream channel, already offset by zStreamOffset. It abstracts the Cincinnati
-// query so the Best Version Selection controller can be tested with a fake.
-// Returning (nil, nil) means the graph has no suitable version yet.
+// y-stream channel, already offset by the channel group's z-stream offset. It
+// abstracts the OpenShift update service query so the Best Version Selection
+// controller can be tested with a fake. Returning (nil, nil) means the graph has
+// no suitable version yet.
 type BestVersionSelector interface {
-	BestExactVersionForChannel(ctx context.Context, ystreamChannel string, zStreamOffset int) (*semver.Version, error)
-}
-
-// VersionAgeSource reports, for a ServiceProviderCluster, how long its desired
-// version has been unachieved (mismatch age) and how long its achieved version
-// has been stable (achieved age). The boolean is false when the age is unknown.
-//
-// A production implementation needs a persisted per-cluster version-transition
-// timestamp (see the plan's open questions); until that exists, wiring passes
-// UnknownVersionAgeSource, which reports every age as unknown. Tests inject a
-// fake to exercise the Failed/Successful count branches.
-type VersionAgeSource interface {
-	MismatchAge(spc *coreapi.ServiceProviderCluster) (age time.Duration, known bool)
-	AchievedAge(spc *coreapi.ServiceProviderCluster) (age time.Duration, known bool)
-}
-
-// UnknownVersionAgeSource reports every age as unknown. It is the safe default
-// until a real transition-timestamp source is wired: it leaves the Failed and
-// Successful counts empty rather than guessing.
-type UnknownVersionAgeSource struct{}
-
-func (UnknownVersionAgeSource) MismatchAge(*coreapi.ServiceProviderCluster) (time.Duration, bool) {
-	return 0, false
-}
-
-func (UnknownVersionAgeSource) AchievedAge(*coreapi.ServiceProviderCluster) (time.Duration, bool) {
-	return 0, false
+	BestExactVersionForChannel(ctx context.Context, yStreamChannel string) (*semver.Version, error)
 }
 
 // ClusterSelector chooses which of the eligible clusters to advance in a canary

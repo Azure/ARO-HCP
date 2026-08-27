@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"k8s.io/apimachinery/pkg/api/equality"
+	utilsclock "k8s.io/utils/clock"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
@@ -38,35 +39,35 @@ const StatusCollectorControllerName = "ControlPlaneVersionStatusCollector"
 // controller (design §5.3). For one rollout channel it aggregates per-cluster
 // desired/achieved progress into the rollout Status count maps.
 type statusCollectorSyncer struct {
+	clock                        utilsclock.PassiveClock
 	rolloutLister                RolloutLister
 	rolloutWriter                RolloutWriter
 	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
 	clusterLister                corelisters.ClusterLister
-	ageSource                    VersionAgeSource
 	config                       RolloutConfig
 }
 
 // NewStatusCollectorSyncer constructs the syncer directly (used by tests).
-func NewStatusCollectorSyncer(rolloutLister RolloutLister, rolloutWriter RolloutWriter, serviceProviderClusterLister corelisters.ServiceProviderClusterLister, clusterLister corelisters.ClusterLister, ageSource VersionAgeSource, config RolloutConfig) *statusCollectorSyncer {
+func NewStatusCollectorSyncer(clock utilsclock.PassiveClock, rolloutLister RolloutLister, rolloutWriter RolloutWriter, serviceProviderClusterLister corelisters.ServiceProviderClusterLister, clusterLister corelisters.ClusterLister, config RolloutConfig) *statusCollectorSyncer {
 	return &statusCollectorSyncer{
+		clock:                        clock,
 		rolloutLister:                rolloutLister,
 		rolloutWriter:                rolloutWriter,
 		serviceProviderClusterLister: serviceProviderClusterLister,
 		clusterLister:                clusterLister,
-		ageSource:                    ageSource,
 		config:                       config,
 	}
 }
 
 // NewStatusCollectorController wires the syncer into a rollout watching controller.
-func NewStatusCollectorController(fleetDBClient fleetcosmosstorage.FleetDBClient, fleetInformers fleetinformers.FleetInformers, serviceProviderClusterLister corelisters.ServiceProviderClusterLister, clusterLister corelisters.ClusterLister, ageSource VersionAgeSource, config RolloutConfig) controllerutils.Controller {
+func NewStatusCollectorController(fleetDBClient fleetcosmosstorage.FleetDBClient, fleetInformers fleetinformers.FleetInformers, serviceProviderClusterLister corelisters.ServiceProviderClusterLister, clusterLister corelisters.ClusterLister, clock utilsclock.PassiveClock, config RolloutConfig) controllerutils.Controller {
 	_, rolloutLister := fleetInformers.ControlPlaneVersionRollouts()
 	syncer := &statusCollectorSyncer{
+		clock:                        clock,
 		rolloutLister:                rolloutLister,
 		rolloutWriter:                NewFleetRolloutWriter(fleetDBClient),
 		serviceProviderClusterLister: serviceProviderClusterLister,
 		clusterLister:                clusterLister,
-		ageSource:                    ageSource,
 		config:                       config,
 	}
 	return controllerutils.NewControlPlaneVersionRolloutWatchingController(
@@ -88,19 +89,17 @@ type rolloutCounts struct {
 	Successful map[string]int64
 }
 
-// computeRolloutStatusCounts aggregates the progress of the given clusters. It is
-// a pure function.
+// computeRolloutStatusCounts aggregates the progress of the given clusters as of
+// now. It is a pure function.
 //
 //   - Desired[v]: clusters whose resolved desired version is v.
 //   - Achieved[v]: clusters whose earliest active version is v.
 //   - Mismatched[v]: clusters desiring v that have not achieved v (upgrade in flight).
-//   - Successful[v]: achieved clusters stable at v longer than MinVersionReadyDuration.
-//   - Failed[v]: mismatched clusters that have desired v longer than MaxUpgradeDuration[minor].
-//
-// Failed and Successful require a per-cluster transition age from ageSource; when
-// the age is unknown (the default until a timestamp source is wired) those counts
-// stay empty.
-func computeRolloutStatusCounts(spcs []*coreapi.ServiceProviderCluster, config RolloutConfig, ageSource VersionAgeSource) rolloutCounts {
+//   - Successful[v]: achieved clusters that have held v (HCPClusterActiveVersion.LastTransitionTime)
+//     longer than MinVersionReadyDuration.
+//   - Failed[v]: mismatched clusters whose DesiredVersionLastTransitionTime is older
+//     than MaxUpgradeDuration[minor].
+func computeRolloutStatusCounts(serviceProviderClusters []*coreapi.ServiceProviderCluster, config RolloutConfig, now time.Time) rolloutCounts {
 	counts := rolloutCounts{
 		Desired:    map[string]int64{},
 		Mismatched: map[string]int64{},
@@ -108,23 +107,25 @@ func computeRolloutStatusCounts(spcs []*coreapi.ServiceProviderCluster, config R
 		Achieved:   map[string]int64{},
 		Successful: map[string]int64{},
 	}
-	for _, spc := range spcs {
-		desired := desiredVersion(spc)
-		achieved := earliestActiveVersion(spc.Status.ControlPlaneVersion.ActiveVersions)
+	for _, serviceProviderCluster := range serviceProviderClusters {
+		desired := serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion
+		achievedEntry := earliestActiveVersionEntry(serviceProviderCluster.Status.ControlPlaneVersion.ActiveVersions)
 
 		if desired != nil {
 			counts.Desired[desired.String()]++
 		}
-		if achieved != nil {
+		if achievedEntry != nil {
+			achieved := achievedEntry.Version
 			counts.Achieved[achieved.String()]++
-			if age, known := ageSource.AchievedAge(spc); known && age > config.MinVersionReadyDuration {
+			if !achievedEntry.LastTransitionTime.IsZero() && now.Sub(achievedEntry.LastTransitionTime.Time) > config.MinVersionReadyDuration {
 				counts.Successful[achieved.String()]++
 			}
 		}
-		if desired != nil && (achieved == nil || !achieved.EQ(*desired)) {
+		if desired != nil && (achievedEntry == nil || !achievedEntry.Version.EQ(*desired)) {
 			counts.Mismatched[desired.String()]++
 			if maxDur, ok := config.MaxUpgradeDuration[minorString(*desired)]; ok {
-				if age, known := ageSource.MismatchAge(spc); known && age > maxDur {
+				desiredSince := serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersionLastTransitionTime
+				if desiredSince != nil && !desiredSince.IsZero() && now.Sub(desiredSince.Time) > maxDur {
 					counts.Failed[desired.String()]++
 				}
 			}
@@ -143,12 +144,12 @@ func (c *statusCollectorSyncer) SyncOnce(ctx context.Context, key controllerutil
 		return utils.TrackError(fmt.Errorf("failed to get ControlPlaneVersionRollout %q: %w", key.YStreamChannel, err))
 	}
 
-	spcs, err := serviceProviderClustersForChannel(ctx, c.serviceProviderClusterLister, c.clusterLister, key.YStreamChannel)
+	serviceProviderClusters, err := serviceProviderClustersForChannel(ctx, c.serviceProviderClusterLister, c.clusterLister, key.YStreamChannel)
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
-	counts := computeRolloutStatusCounts(spcs, c.config, c.ageSource)
+	counts := computeRolloutStatusCounts(serviceProviderClusters, c.config, c.clock.Now())
 
 	replacement := rollout.DeepCopy()
 	replacement.Status.ClusterCountByDesiredExactVersion = nilIfEmpty(counts.Desired)

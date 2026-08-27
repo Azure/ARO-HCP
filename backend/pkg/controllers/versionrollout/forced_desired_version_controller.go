@@ -21,6 +21,9 @@ import (
 
 	"github.com/blang/semver/v4"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	utilsclock "k8s.io/utils/clock"
+
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
@@ -41,6 +44,7 @@ const ForcedClusterDesiredVersionControllerName = "ForcedClusterDesiredVersion"
 // version until the fleet's bestExactVersion for the cluster's channel reaches
 // the pin's UntilExactVersion, at which point it adopts best and clears the pin.
 type forcedClusterDesiredVersionSyncer struct {
+	clock                        utilsclock.PassiveClock
 	resourcesDBClient            corecosmosstorage.ResourcesDBClient
 	clusterLister                corelisters.ClusterLister
 	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
@@ -52,6 +56,7 @@ var _ controllerutils.ClusterSyncer = (*forcedClusterDesiredVersionSyncer)(nil)
 // NewForcedClusterDesiredVersionController wires the per-cluster forced-version
 // syncer into a cluster watching controller.
 func NewForcedClusterDesiredVersionController(
+	clock utilsclock.PassiveClock,
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	informers coreinformers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
@@ -60,6 +65,7 @@ func NewForcedClusterDesiredVersionController(
 	_, clusterLister := informers.Clusters()
 	_, serviceProviderClusterLister := informers.ServiceProviderClusters()
 	syncer := &forcedClusterDesiredVersionSyncer{
+		clock:                        clock,
 		resourcesDBClient:            resourcesDBClient,
 		clusterLister:                clusterLister,
 		serviceProviderClusterLister: serviceProviderClusterLister,
@@ -94,11 +100,11 @@ type forcedDecision struct {
 // pin's ExactVersion instead (tracked as an open question in the plan).
 func computeForcedDesiredVersion(current *coreapi.ServiceProviderCluster, best *semver.Version) forcedDecision {
 	pin := current.Spec.PinnedVersion
-	if pin == nil || pin.ExactVersion == nil {
+	if pin.ExactVersion == nil {
 		// Not pinned: this controller does nothing; normal assignment owns it.
 		return forcedDecision{Changed: false}
 	}
-	desired := desiredVersion(current)
+	desired := current.Spec.ControlPlaneVersion.DesiredVersion
 
 	// Release branch: once the fleet best reaches the pin's release threshold,
 	// adopt best and drop the pin so normal rollout selection resumes.
@@ -117,31 +123,55 @@ func computeForcedDesiredVersion(current *coreapi.ServiceProviderCluster, best *
 
 // SyncOnce applies the forced-assignment decision for one cluster.
 func (c *forcedClusterDesiredVersionSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
-	spc, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	serviceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster: %w", err))
 	}
-	if spc.Spec.PinnedVersion == nil || spc.Spec.PinnedVersion.ExactVersion == nil {
+	if serviceProviderCluster.Spec.PinnedVersion.ExactVersion == nil {
 		return nil // not pinned; nothing for this controller to do
 	}
 
-	best, err := c.bestVersionForCluster(ctx, key, spc)
+	// Resolve the ControlPlaneVersionRollout that governs this pinned cluster
+	// (its y-stream channel = <channelGroup>-<pinned minor>) to read bestExactVersion.
+	cluster, err := c.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	if cosmosstorageutils.IsNotFoundError(err) {
+		return nil // the cluster is gone; the ServiceProviderCluster will be cleaned up
+	}
 	if err != nil {
-		return utils.TrackError(err)
+		return utils.TrackError(fmt.Errorf("failed to get Cluster: %w", err))
+	}
+	channelGroup := cluster.CustomerProperties.Version.ChannelGroup
+	if channelGroup == "" {
+		return utils.TrackError(fmt.Errorf("cluster %s has no channel group", key.HCPClusterName))
+	}
+	yStreamChannel := yStreamChannel(channelGroup, minorString(*serviceProviderCluster.Spec.PinnedVersion.ExactVersion))
+
+	var best *semver.Version
+	rollout, err := c.rolloutLister.Get(ctx, yStreamChannel)
+	if err != nil && !cosmosstorageutils.IsNotFoundError(err) {
+		return utils.TrackError(fmt.Errorf("failed to get ControlPlaneVersionRollout %q: %w", yStreamChannel, err))
+	}
+	if err == nil {
+		best = rollout.Spec.BestExactVersion
 	}
 
-	decision := computeForcedDesiredVersion(spc, best)
+	decision := computeForcedDesiredVersion(serviceProviderCluster, best)
 	if !decision.Changed {
 		return nil
 	}
 
-	replacement := spc.DeepCopy()
-	replacement.Spec.ControlPlaneVersion.DesiredVersion = decision.NewDesired
+	replacement := serviceProviderCluster.DeepCopy()
+	oldDesired := replacement.Spec.ControlPlaneVersion.DesiredVersion
+	setDesiredVersion(replacement, decision.NewDesired, metav1.Time{Time: c.clock.Now()})
 	if decision.ClearPin {
-		replacement.Spec.PinnedVersion = nil
+		replacement.Spec.PinnedVersion = coreapi.ServiceProviderClusterPinnedVersion{}
+		utils.LoggerFromContext(ctx).Info("removing cluster version pin",
+			"hcpCluster", key.HCPClusterName,
+			"oldDesiredVersion", versionString(oldDesired),
+			"newDesiredVersion", versionString(decision.NewDesired))
 	}
 
 	if _, err := c.resourcesDBClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName).Replace(ctx, replacement, nil); cosmosstorageutils.IsPreconditionFailedError(err) {
@@ -151,33 +181,4 @@ func (c *forcedClusterDesiredVersionSyncer) SyncOnce(ctx context.Context, key co
 		return utils.TrackError(fmt.Errorf("failed to replace ServiceProviderCluster: %w", err))
 	}
 	return nil
-}
-
-// bestVersionForCluster resolves the ControlPlaneVersionRollout that governs a
-// pinned cluster (channel = <channelGroup>-<pinned minor>) and returns its
-// bestExactVersion. A missing cluster or rollout yields (nil, nil) so the cluster
-// simply holds at its pin.
-func (c *forcedClusterDesiredVersionSyncer) bestVersionForCluster(ctx context.Context, key controllerutils.HCPClusterKey, spc *coreapi.ServiceProviderCluster) (*semver.Version, error) {
-	cluster, err := c.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
-	if cosmosstorageutils.IsNotFoundError(err) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, fmt.Errorf("failed to get Cluster: %w", err)
-	}
-
-	channelGroup := cluster.CustomerProperties.Version.ChannelGroup
-	if channelGroup == "" {
-		channelGroup = "stable"
-	}
-	channel := yStreamChannel(channelGroup, minorString(*spc.Spec.PinnedVersion.ExactVersion))
-
-	rollout, err := c.rolloutLister.Get(ctx, channel)
-	if cosmosstorageutils.IsNotFoundError(err) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, fmt.Errorf("failed to get ControlPlaneVersionRollout %q: %w", channel, err)
-	}
-	return rollout.Spec.BestExactVersion, nil
 }

@@ -115,13 +115,14 @@ type ServiceProviderClusterSpec struct {
 	// Default is Enabled. Set to Disabled via Admin API to pause scheduled backups.
 	BackupScheduleState BackupScheduleState `json:"backupScheduleState,omitempty"`
 
-	// PinnedVersion, when set, is an SRE-specified cluster-specific exact-version
-	// override. The Forced Cluster Desired Version Assignment controller holds
-	// this cluster at PinnedVersion.ExactVersion until the fleet's
-	// bestExactVersion reaches PinnedVersion.UntilExactVersion, after which the
-	// pin is cleared and normal rollout selection resumes. Nil means no pin.
+	// PinnedVersion, when its ExactVersion is set, is an SRE-specified
+	// cluster-specific exact-version override. The Forced Cluster Desired Version
+	// Assignment controller holds this cluster at PinnedVersion.ExactVersion until
+	// the fleet's bestExactVersion reaches PinnedVersion.UntilExactVersion, after
+	// which the pin is cleared and normal rollout selection resumes. An empty
+	// PinnedVersion (nil ExactVersion) means no pin.
 	// Written by: Admin API (set), Forced Cluster Desired Version Assignment (clear)
-	PinnedVersion *ServiceProviderClusterPinnedVersion `json:"pinnedVersion,omitempty"`
+	PinnedVersion ServiceProviderClusterPinnedVersion `json:"pinnedVersion,omitempty"`
 }
 
 // ServiceProviderClusterSpecVersion contains the desired version information.
@@ -130,6 +131,14 @@ type ServiceProviderClusterSpecVersion struct {
 	// This is compared on each sync to detect when a new upgrade should be triggered.
 	// Written by: ControlPlaneDesiredVersion, Forced Cluster Desired Version Assignment, Normal Cluster Desired Version Assignment
 	DesiredVersion *semver.Version `json:"desired_version,omitempty"`
+
+	// DesiredVersionLastTransitionTime is when DesiredVersion last changed. It is
+	// used to decide when a cluster has been mismatched (desired set but not yet
+	// achieved) for longer than the allowed upgrade duration.
+	// TODO: align DesiredVersion with its transition time into a better structure
+	// (mirroring HCPClusterActiveVersion), instead of two loosely-coupled fields.
+	// Written by: ControlPlaneDesiredVersion, Forced Cluster Desired Version Assignment, Normal Cluster Desired Version Assignment
+	DesiredVersionLastTransitionTime *metav1.Time `json:"desired_version_last_transition_time,omitempty"`
 }
 
 // ServiceProviderClusterPinnedVersion is an SRE-specified exact-version pin for a
@@ -478,6 +487,10 @@ type HCPClusterActiveVersion struct {
 	Version *semver.Version `json:"version,omitempty"`
 	// State is the update state from OpenShift (e.g. configv1.CompletedUpdate or configv1.PartialUpdate).
 	State configv1.UpdateState `json:"state,omitempty"`
+	// LastTransitionTime is when we last observed this version enter its current
+	// State. It is used to decide when a cluster has held an achieved version
+	// long enough to be considered successfully upgraded.
+	LastTransitionTime metav1.Time `json:"lastTransitionTime,omitempty"`
 }
 
 type MaestroBundleReference struct {

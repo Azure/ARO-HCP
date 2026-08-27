@@ -17,7 +17,6 @@ package versionrollout
 import (
 	"context"
 	"strings"
-	"time"
 
 	"github.com/blang/semver/v4"
 
@@ -72,6 +71,10 @@ func newTestCluster(name, channelGroup, versionID string) *coreapi.HCPOpenShiftC
 }
 
 func newTestSPC(clusterName string, desired *semver.Version, active []coreapi.HCPClusterActiveVersion, pinned *coreapi.ServiceProviderClusterPinnedVersion) *coreapi.ServiceProviderCluster {
+	var pinnedValue coreapi.ServiceProviderClusterPinnedVersion
+	if pinned != nil {
+		pinnedValue = *pinned
+	}
 	id := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + testSubscriptionID +
 			"/resourceGroups/" + testResourceGroupName +
@@ -86,7 +89,7 @@ func newTestSPC(clusterName string, desired *semver.Version, active []coreapi.HC
 		},
 		Spec: coreapi.ServiceProviderClusterSpec{
 			ControlPlaneVersion: coreapi.ServiceProviderClusterSpecVersion{DesiredVersion: desired},
-			PinnedVersion:       pinned,
+			PinnedVersion:       pinnedValue,
 		},
 		Status: coreapi.ServiceProviderClusterStatus{
 			ControlPlaneVersion: coreapi.ServiceProviderClusterStatusVersion{ActiveVersions: active},
@@ -101,9 +104,8 @@ func newTestRollout(channel string, best *semver.Version, status fleetapi.Contro
 			ResourceID:   id,
 			PartitionKey: strings.ToLower(id.Name),
 		},
-		ResourceID: id,
-		Spec:       fleetapi.ControlPlaneVersionRolloutSpec{BestExactVersion: best},
-		Status:     status,
+		Spec:   fleetapi.ControlPlaneVersionRolloutSpec{BestExactVersion: best},
+		Status: status,
 	}
 }
 
@@ -147,27 +149,13 @@ func (f *fakeRolloutStore) Replace(_ context.Context, newRollout, _ *fleetapi.Co
 	return newRollout, nil
 }
 
-// fakeAgeSource reports fixed mismatch/achieved ages keyed by cluster name.
-type fakeAgeSource struct {
-	mismatch map[string]time.Duration
-	achieved map[string]time.Duration
-}
-
-func (f fakeAgeSource) MismatchAge(spc *coreapi.ServiceProviderCluster) (time.Duration, bool) {
-	d, ok := f.mismatch[spcClusterName(spc)]
-	return d, ok
-}
-
-func (f fakeAgeSource) AchievedAge(spc *coreapi.ServiceProviderCluster) (time.Duration, bool) {
-	d, ok := f.achieved[spcClusterName(spc)]
-	return d, ok
-}
-
-func spcClusterName(spc *coreapi.ServiceProviderCluster) string {
-	if spc.ResourceID == nil || spc.ResourceID.Parent == nil {
+// serviceProviderClusterName returns the backing cluster's name (its resource
+// ID's parent), for test assertions.
+func serviceProviderClusterName(serviceProviderCluster *coreapi.ServiceProviderCluster) string {
+	if serviceProviderCluster.ResourceID == nil || serviceProviderCluster.ResourceID.Parent == nil {
 		return ""
 	}
-	return spc.ResourceID.Parent.Name
+	return serviceProviderCluster.ResourceID.Parent.Name
 }
 
 // firstNSelector selects the first n candidates deterministically.
@@ -189,6 +177,6 @@ type fakeBestVersionSelector struct {
 	err  error
 }
 
-func (f fakeBestVersionSelector) BestExactVersionForChannel(_ context.Context, _ string, _ int) (*semver.Version, error) {
+func (f fakeBestVersionSelector) BestExactVersionForChannel(_ context.Context, _ string) (*semver.Version, error) {
 	return f.best, f.err
 }

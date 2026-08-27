@@ -225,7 +225,7 @@ func (c *controlPlaneVersionSyncer) SyncOnce(ctx context.Context, key controller
 		return utils.TrackError(fmt.Errorf("failed to parse customer desired minor version %q: %w", customerDesiredMinor, parseErr))
 	}
 	desiredMinorVersion := semver.MustParse(fmt.Sprintf("%d.%d.0", parsedDesired.Major, parsedDesired.Minor))
-	desiredVersion, resolveErr := selectControlPlaneVersion(ctx, c.roundTripper, channelGroup, desiredMinorVersion, GetZStreamOffset(channelGroup))
+	desiredVersion, resolveErr := SelectControlPlaneVersion(ctx, c.roundTripper, channelGroup, desiredMinorVersion, GetZStreamOffset(channelGroup))
 
 	// Only advance stored desired when the newly resolved version is greater, so graph changes cannot
 	// automatically select a lower z-stream. When rollback support is added, relax this so that only
@@ -426,15 +426,16 @@ func GetZStreamOffset(channel string) uint {
 	return defaultControlPlaneVersionOffset
 }
 
-// selectControlPlaneVersion resolves the desired control plane version for a minor by querying the
+// SelectControlPlaneVersion resolves the desired control plane version for a minor by querying the
 // OpenShift update service (Cincinnati graph API) for that minor's channel and selecting the release
 // at the given offset from the tip (offset 0 = most recent release). It bridges
 // controlplaneversion.SelectControlPlaneVersion, which returns a configv1.Release, into the
-// *semver.Version used throughout this controller.
+// *semver.Version used throughout this controller. It is exported for reuse by the fleet
+// control-plane version rollout's best-version selector.
 //
 // This must not be called for the nightly channel group: the graph API does not serve nightly
 // builds. See the nightly channel guard in SyncOnce.
-func selectControlPlaneVersion(ctx context.Context, roundTripper controlplaneversion.RoundTrip, channelGroup string, minorVersion semver.Version, offset uint) (*semver.Version, error) {
+func SelectControlPlaneVersion(ctx context.Context, roundTripper controlplaneversion.RoundTrip, channelGroup string, minorVersion semver.Version, offset uint) (*semver.Version, error) {
 	channel := fmt.Sprintf("%s-%d.%d", channelGroup, minorVersion.Major, minorVersion.Minor)
 	release, err := controlplaneversion.SelectControlPlaneVersion(ctx, roundTripper, nil, channel, offset)
 	if err != nil {
