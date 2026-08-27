@@ -39,9 +39,10 @@ Valid datasources end with full Azure region names (4+ chars), so this pattern s
 ## Extending
 
 1. Add or edit dashboard JSON in this folder.
-2. The folder is registered in [`observability/observability.yaml`](../../../observability.yaml) as `SRE Cluster Health`.
-3. The `GrafanaDashboards` EV2 step deploys all JSON files in this folder to the `SRE Cluster Health` Grafana folder in INT, STG, and PROD.
-4. No manual upload is needed — merge to `main` and the pipeline handles deployment.
+2. Preview and validate the dashboard locally with `make local-grafana-start` before you register and merge it. See [local development](../../../../docs/grafana-dashboards.md#local-development).
+3. The folder is registered in [`observability/observability.yaml`](../../../observability.yaml) as `SRE Cluster Health`.
+4. The `GrafanaDashboards` EV2 step deploys all JSON files in this folder to the `SRE Cluster Health` Grafana folder in INT, STG, and PROD.
+5. No manual upload is needed — merge to `main` and the pipeline handles deployment.
 
 ## Kusto / ADX Integration (Planned)
 
