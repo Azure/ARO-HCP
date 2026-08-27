@@ -273,7 +273,7 @@ func TestValidateSubscriptionCreate(t *testing.T) {
 
 func createValidSubscription() *coreapi.Subscription {
 	return &coreapi.Subscription{
-		ResourceID:       metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/12345678-1234-1234-1234-123456789012")),
+		CosmosMetadata:   coreapi.CosmosMetadata{ResourceID: metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/12345678-1234-1234-1234-123456789012"))},
 		State:            coreapi.SubscriptionStateRegistered,
 		RegistrationDate: ptr.To("2023-01-01T00:00:00Z"),
 		Properties:       nil, // Properties are optional

@@ -147,8 +147,7 @@ func testSubscription() *coreapi.Subscription {
 			ResourceID:   rid,
 			PartitionKey: strings.ToLower(rid.SubscriptionID),
 		},
-		ResourceID: rid,
-		State:      coreapi.SubscriptionStateRegistered,
+		State: coreapi.SubscriptionStateRegistered,
 	}
 }
 

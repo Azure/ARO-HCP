@@ -46,7 +46,6 @@ func testManagementCluster() *fleetapi.ManagementCluster {
 			ResourceID:   resourceID,
 			PartitionKey: strings.ToLower(scaleCeilingTestStampIdentifier),
 		},
-		ResourceID: resourceID,
 		Spec: fleetapi.ManagementClusterSpec{
 			SchedulingPolicy: fleetapi.ManagementClusterSchedulingPolicySchedulable,
 		},

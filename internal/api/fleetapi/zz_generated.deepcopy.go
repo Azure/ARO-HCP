@@ -132,10 +132,6 @@ func (in *HCPResourceRequirementsStatus) DeepCopy() *HCPResourceRequirementsStat
 func (in *ManagementCluster) DeepCopyInto(out *ManagementCluster) {
 	*out = *in
 	in.CosmosMetadata.DeepCopyInto(&out.CosmosMetadata)
-	if in.ResourceID != nil {
-		in, out := &in.ResourceID, &out.ResourceID
-		*out = coreapi.DeepCopyResourceID(*in)
-	}
 	out.Spec = in.Spec
 	in.Status.DeepCopyInto(&out.Status)
 	return
@@ -400,10 +396,6 @@ func (in *ScaleCeiling) DeepCopy() *ScaleCeiling {
 func (in *Stamp) DeepCopyInto(out *Stamp) {
 	*out = *in
 	in.CosmosMetadata.DeepCopyInto(&out.CosmosMetadata)
-	if in.ResourceID != nil {
-		in, out := &in.ResourceID, &out.ResourceID
-		*out = coreapi.DeepCopyResourceID(*in)
-	}
 	out.Spec = in.Spec
 	in.Status.DeepCopyInto(&out.Status)
 	return

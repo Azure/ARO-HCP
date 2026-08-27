@@ -42,9 +42,11 @@ func ValidateManagementClusterUpdate(ctx context.Context, newObj, oldObj *fleeta
 }
 
 var (
-	toManagementClusterResourceID = func(oldObj *fleetapi.ManagementCluster) *azcorearm.ResourceID { return oldObj.ResourceID }
-	toManagementClusterSpec       = func(oldObj *fleetapi.ManagementCluster) *fleetapi.ManagementClusterSpec { return &oldObj.Spec }
-	toManagementClusterStatus     = func(oldObj *fleetapi.ManagementCluster) *fleetapi.ManagementClusterStatus { return &oldObj.Status }
+	toManagementClusterResourceID = func(oldObj *fleetapi.ManagementCluster) *azcorearm.ResourceID {
+		return oldObj.CosmosMetadata.ResourceID
+	}
+	toManagementClusterSpec   = func(oldObj *fleetapi.ManagementCluster) *fleetapi.ManagementClusterSpec { return &oldObj.Spec }
+	toManagementClusterStatus = func(oldObj *fleetapi.ManagementCluster) *fleetapi.ManagementClusterStatus { return &oldObj.Status }
 )
 
 var stampIdentifierRegex = regexp.MustCompile(`^[a-z0-9]{1,3}$`)
@@ -52,11 +54,12 @@ var stampIdentifierRegex = regexp.MustCompile(`^[a-z0-9]{1,3}$`)
 func validateManagementCluster(ctx context.Context, op operation.Operation, newObj, oldObj *fleetapi.ManagementCluster) field.ErrorList {
 	errs := field.ErrorList{}
 
-	// ResourceID (top-level, mirrors CosmosMetadata.ResourceID)
-	errs = append(errs, validate.RequiredPointer(ctx, op, field.NewPath("resourceId"), newObj.ResourceID, safe.Field(oldObj, toManagementClusterResourceID))...)
-	errs = append(errs, immutableByReflect(ctx, op, field.NewPath("resourceId"), newObj.ResourceID, safe.Field(oldObj, toManagementClusterResourceID))...)
-	if newObj.ResourceID != nil && newObj.ResourceID.Parent != nil {
-		errs = append(errs, MatchesRegex(ctx, op, field.NewPath("resourceId", "parent", "name"), &newObj.ResourceID.Parent.Name, nil, stampIdentifierRegex, "must be 1-3 lowercase alphanumeric characters")...)
+	// ResourceID is sourced from the embedded CosmosMetadata.ResourceID. It is
+	// still surfaced under the "resourceId" field path in validation errors.
+	errs = append(errs, validate.RequiredPointer(ctx, op, field.NewPath("resourceId"), newObj.CosmosMetadata.ResourceID, safe.Field(oldObj, toManagementClusterResourceID))...)
+	errs = append(errs, immutableByReflect(ctx, op, field.NewPath("resourceId"), newObj.CosmosMetadata.ResourceID, safe.Field(oldObj, toManagementClusterResourceID))...)
+	if newObj.CosmosMetadata.ResourceID != nil && newObj.CosmosMetadata.ResourceID.Parent != nil {
+		errs = append(errs, MatchesRegex(ctx, op, field.NewPath("resourceId", "parent", "name"), &newObj.CosmosMetadata.ResourceID.Parent.Name, nil, stampIdentifierRegex, "must be 1-3 lowercase alphanumeric characters")...)
 	}
 
 	// Spec

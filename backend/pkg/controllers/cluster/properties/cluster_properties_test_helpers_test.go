@@ -82,7 +82,6 @@ func newSeededReadDesireLister(ctx context.Context, readDesires ...*kubeappliera
 			ManagementClusters: []*fleetapi.ManagementCluster{
 				{
 					CosmosMetadata: coreapi.CosmosMetadata{ResourceID: managementClusterID},
-					ResourceID:     managementClusterID,
 				},
 			},
 		},

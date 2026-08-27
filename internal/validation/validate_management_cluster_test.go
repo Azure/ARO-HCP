@@ -35,7 +35,6 @@ func validManagementCluster(t *testing.T) *fleetapi.ManagementCluster {
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID: resourceID,
 		},
-		ResourceID: resourceID,
 		Spec: fleetapi.ManagementClusterSpec{
 			SchedulingPolicy: fleetapi.ManagementClusterSchedulingPolicySchedulable,
 		},

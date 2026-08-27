@@ -41,7 +41,6 @@ func newStamp(stampIdentifier string) *fleetapi.Stamp {
 			ResourceID:   stampResourceID,
 			PartitionKey: strings.ToLower(stampIdentifier),
 		},
-		ResourceID: stampResourceID,
 	}
 }
 
@@ -52,7 +51,6 @@ func newStampWithConditions(stampIdentifier string, conditions ...metav1.Conditi
 			ResourceID:   stampResourceID,
 			PartitionKey: strings.ToLower(stampIdentifier),
 		},
-		ResourceID: stampResourceID,
 		Status: fleetapi.StampStatus{
 			Conditions: conditions,
 		},

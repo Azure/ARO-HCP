@@ -58,8 +58,7 @@ func createTestSubscription(t *testing.T, ctx context.Context, mockResourcesDBCl
 			ResourceID:   subResourceID,
 			PartitionKey: strings.ToLower(subResourceID.SubscriptionID),
 		},
-		ResourceID: subResourceID,
-		State:      coreapi.SubscriptionStateRegistered,
+		State: coreapi.SubscriptionStateRegistered,
 		Properties: &coreapi.SubscriptionProperties{
 			TenantId: ptr.To("test-tenant-id"),
 		},

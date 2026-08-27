@@ -287,7 +287,6 @@ func createStamp(ctx context.Context, fleetClient fleetcosmosstorage.FleetDBClie
 	stampResourceID := metadataapi.Must(fleetapi.ToStampResourceID(stampIdentifier))
 	stamp := &fleetapi.Stamp{
 		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: stampResourceID, PartitionKey: strings.ToLower(stampIdentifier)},
-		ResourceID:     stampResourceID,
 	}
 	_, err := fleetClient.Stamps().Create(ctx, stamp, nil)
 	return err
@@ -303,7 +302,6 @@ func createManagementCluster(ctx context.Context, fleetClient fleetcosmosstorage
 		fmt.Sprintf("/api/aro_hcp/v1alpha1/provision_shards/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeee%s", stampIdentifier))))
 	managementCluster := &fleetapi.ManagementCluster{
 		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: managementClusterResourceID, PartitionKey: strings.ToLower(stampIdentifier)},
-		ResourceID:     managementClusterResourceID,
 		Spec: fleetapi.ManagementClusterSpec{
 			SchedulingPolicy: fleetapi.ManagementClusterSchedulingPolicySchedulable,
 		},

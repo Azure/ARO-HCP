@@ -38,7 +38,6 @@ func testManagementCluster(stampIdentifier string, conditions ...metav1.Conditio
 	placeholderShardID := metadataapi.Must(metadataapi.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/placeholder"))
 	managementCluster := &fleetapi.ManagementCluster{
 		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(stampIdentifier)},
-		ResourceID:     resourceID,
 		Spec: fleetapi.ManagementClusterSpec{
 			SchedulingPolicy: fleetapi.ManagementClusterSchedulingPolicySchedulable,
 		},
@@ -63,7 +62,6 @@ func testStamp(identifier string) *fleetapi.Stamp {
 	resourceID := metadataapi.Must(fleetapi.ToStampResourceID(identifier))
 	return &fleetapi.Stamp{
 		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(identifier)},
-		ResourceID:     resourceID,
 	}
 }
 

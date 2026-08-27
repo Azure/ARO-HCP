@@ -311,7 +311,7 @@ func TestCreateClusterScopedReadDesires_SyncOnce(t *testing.T) {
 			}
 
 			mcLister := &fleetlistertesting.SliceManagementClusterLister{
-				ManagementClusters: []*fleetapi.ManagementCluster{{ResourceID: readDesireTestManagementClusterResourceID}},
+				ManagementClusters: []*fleetapi.ManagementCluster{{CosmosMetadata: coreapi.CosmosMetadata{ResourceID: readDesireTestManagementClusterResourceID}}},
 			}
 
 			syncer := &createClusterScopedReadDesiresSyncer{
