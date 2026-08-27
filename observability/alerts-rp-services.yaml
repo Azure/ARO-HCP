@@ -5,6 +5,7 @@ prometheusRules:
   - alerts/userJourneyClusterUpgradeMonitor-prometheusRule.yaml
   - alerts/nodepool-slo-prometheusRule.yaml
   - alerts/frontend-slo-prometheusRule.yaml
+  - alerts/swift-networking-cns-prometheusRule.yaml
   untestedRules: []
   testDependencies:
   - recording-rules-services.yaml
