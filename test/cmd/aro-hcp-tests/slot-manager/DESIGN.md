@@ -182,6 +182,188 @@ flowchart TD
 - Current rollout limitation:
   - migration is still staged while legacy leases are retired, so the active slot inventory is being brought up gradually even though the code path now supports the broader multi-pool model.
 
+### Identity pool reconciliation and recovery
+
+An E2E job can fail before cluster provisioning when its leased managed identity
+container resource group is missing. The nested ARM error normally contains:
+
+```text
+ResourceGroupNotFound: Resource group '<identity-container-resource-group>' could not be found.
+```
+
+The canonical pool shape comes from `test/e2e-config/e2e-slots.yaml`. For each
+pool, the slot manager expands:
+
+```text
+<identity_container_prefix>-<two-digit-slot>-<two-digit-container>
+```
+
+For example, a pool with `slot_count: 5` and
+`identity_container_count: 60` expects slot suffixes `00` through `04`, each
+with container suffixes `00` through `59`.
+
+#### Reconcile a pool
+
+Use the Make target rather than invoking `go run` or a previously built binary.
+The target regenerates the Bicep-derived ARM template before rebuilding
+`aro-hcp-tests`, preventing a stale embedded `msi-pools.json` from being
+applied.
+
+```bash
+make -C test apply-identity-pool \
+  ENVIRONMENT=<dev|int|stg|prod> \
+  SUBSCRIPTION="<catalog subscription_name>"
+```
+
+`SUBSCRIPTION` limits the operation to matching catalog pools. Omitting it
+reconciles every managed pool in the selected environment and skips pools with
+`identity_provisioning: unmanaged`. Supplying it can include a matching
+unmanaged pool, so only do that when the subscription owner intends to manage
+that pool with this command.
+
+The command applies one subscription-scoped deployment stack per slot. Each
+stack creates or updates the slot's resource groups and the 13 well-known user
+assigned identities in every group:
+
+```text
+cluster-api-azure
+control-plane
+cloud-controller-manager
+ingress
+disk-csi-driver
+file-csi-driver
+image-registry
+cloud-network-config
+kms
+dp-disk-csi-driver
+dp-file-csi-driver
+dp-image-registry
+service
+```
+
+Before applying, confirm that the selected Azure credential can resolve the
+catalog subscription and has permission to create subscription deployment
+stacks, resource groups, and managed identities. Also confirm required resource
+providers and subscription quotas are available.
+
+Deployment stacks use `ActionOnUnmanage: delete` for resources and resource
+groups. A later catalog change that reduces a pool or changes its naming can
+therefore delete resources no longer managed by the stack. Review the catalog
+diff and always scope a recovery to the intended subscription.
+
+#### Validate the complete pool
+
+Do not validate only the resource group named in the original failure. Generate
+the full expected inventory from the catalog and compare it with Azure. The
+following commands are read-only:
+
+```bash
+environment=dev
+subscription="ARO HCP E2E Hosted Clusters (EA Subscription)"
+catalog=test/e2e-config/e2e-slots.yaml
+
+pools="$(
+  ENVIRONMENT="$environment" SUBSCRIPTION_NAME="$subscription" \
+    yq -o=json \
+      '[.environments[strenv(ENVIRONMENT)].pools[] |
+        select(.subscription_name == strenv(SUBSCRIPTION_NAME))]' \
+      "$catalog"
+)"
+
+if (( $(jq 'length' <<<"$pools") == 0 )); then
+  echo "no matching pools found in $environment for $subscription" >&2
+  exit 1
+fi
+
+workdir="$(mktemp -d)"
+trap 'rm -rf "$workdir"' EXIT
+: >"$workdir/expected-groups"
+: >"$workdir/actual-groups"
+
+while IFS= read -r pool; do
+  prefix="$(jq -r '.identity_container_prefix' <<<"$pool")"
+  slot_count="$(jq -r '.slot_count' <<<"$pool")"
+  container_count="$(jq -r '.identity_container_count' <<<"$pool")"
+
+  for ((slot = 0; slot < slot_count; slot++)); do
+    for ((container = 0; container < container_count; container++)); do
+      printf '%s-%02d-%02d\n' "$prefix" "$slot" "$container"
+    done
+  done >>"$workdir/expected-groups"
+
+  az group list \
+    --subscription "$subscription" \
+    --query "[?starts_with(name, '$prefix-')].name" \
+    --output tsv >>"$workdir/actual-groups"
+done < <(jq -c '.[]' <<<"$pools")
+
+sort -u -o "$workdir/expected-groups" "$workdir/expected-groups"
+sort -u -o "$workdir/actual-groups" "$workdir/actual-groups"
+
+comm -23 "$workdir/expected-groups" "$workdir/actual-groups"
+```
+
+No output from `comm` means every expected resource group exists. Compare the
+counts as an additional summary:
+
+```bash
+printf 'expected=%s actual=%s missing=%s\n' \
+  "$(wc -l <"$workdir/expected-groups" | tr -d ' ')" \
+  "$(wc -l <"$workdir/actual-groups" | tr -d ' ')" \
+  "$(comm -23 "$workdir/expected-groups" "$workdir/actual-groups" |
+     wc -l | tr -d ' ')"
+```
+
+Validate the identity names across the complete pool with one subscription
+resource-list query:
+
+```bash
+identity_names=(
+  cluster-api-azure
+  control-plane
+  cloud-controller-manager
+  ingress
+  disk-csi-driver
+  file-csi-driver
+  image-registry
+  cloud-network-config
+  kms
+  dp-disk-csi-driver
+  dp-file-csi-driver
+  dp-image-registry
+  service
+)
+
+while IFS= read -r resource_group; do
+  for identity_name in "${identity_names[@]}"; do
+    printf '%s\t%s\n' "$resource_group" "$identity_name"
+  done
+done <"$workdir/expected-groups" |
+  sort >"$workdir/expected-identities"
+
+: >"$workdir/actual-identities"
+while IFS= read -r prefix; do
+  az resource list \
+    --subscription "$subscription" \
+    --resource-type Microsoft.ManagedIdentity/userAssignedIdentities \
+    --query "[?starts_with(resourceGroup, '$prefix-')].[resourceGroup,name]" \
+    --output tsv >>"$workdir/actual-identities"
+done < <(jq -r '.[].identity_container_prefix' <<<"$pools" | sort -u)
+
+sort -u -o "$workdir/actual-identities" "$workdir/actual-identities"
+
+comm -23 "$workdir/expected-identities" "$workdir/actual-identities"
+```
+
+No output means every expected identity exists. If reconciliation fails, retain
+the deployment stack error and inspect the first nested Azure error rather than
+retrying blindly. Common blockers are insufficient RBAC, an unregistered
+`Microsoft.ManagedIdentity` provider, subscription quota exhaustion, or another
+deployment operation holding the stack in a non-terminal state.
+
+This recovery procedure was added after
+[AROSLSRE-1895](https://redhat.atlassian.net/browse/AROSLSRE-1895).
+
 ### Dev subscription onboarding note
 
 - Adding a new **dev** customer subscription to the slot catalog is **not** sufficient by itself.
