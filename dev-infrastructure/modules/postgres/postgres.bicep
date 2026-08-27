@@ -36,6 +36,11 @@ type DatabaseProperties = {
 param databases DatabaseProperties[] = []
 
 @description('The zone redundant mode of the Postgres Database')
+@allowed([
+  'Disabled'
+  'SameZone'
+  'ZoneRedundant'
+])
 param postgresZoneRedundantMode string
 
 type MaintenanceWindow = {

@@ -959,6 +959,17 @@
         "zoneRedundantMode": {
           "$ref": "#/definitions/zoneRedundantMode"
         },
+        "highAvailabilityMode": {
+          "type": "string",
+          "description": "Overrides the PostgreSQL highAvailability mode. Empty string defers to zoneRedundantMode (default). When non-empty it takes precedence; 'Auto' is region-aware (ZoneRedundant where availability zones exist, otherwise SameZone).",
+          "enum": [
+            "",
+            "Auto",
+            "Disabled",
+            "SameZone",
+            "ZoneRedundant"
+          ]
+        },
         "backupRetentionDays": {
           "type": "integer",
           "description": "Number of days to retain backups for the PostgreSQL server."
