@@ -366,11 +366,11 @@ func TestConvertInflightCheck(t *testing.T) {
 			expectedCode: coreapi.CloudErrorCodeQuotaExceeded,
 		},
 		{
-			name: "OverconstrainedZonalAllocationRequest in message",
+			name: "OverconstrainedZonalAllocationRequest is not a quota error",
 			details: map[string]interface{}{
 				"error": "OverconstrainedZonalAllocationRequest: The required resources are not available in zone 1",
 			},
-			expectedCode: coreapi.CloudErrorCodeQuotaExceeded,
+			expectedCode: coreapi.CloudErrorCodeInternalServerError,
 		},
 		{
 			name: "non-quota error message gets InternalServerError code",

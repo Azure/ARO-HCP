@@ -15,55 +15,53 @@
 package coreapi
 
 import (
-	"net/http"
 	"regexp"
 	"strings"
 )
 
-// azureQuotaErrorCodes lists Azure ARM error codes that indicate quota or
-// capacity exhaustion. When one of these codes appears in an ARM ResponseError,
+// azureQuotaErrorCodes lists Azure ARM error codes that indicate quota
+// exhaustion. When one of these codes appears in an ARM ResponseError,
 // the error should be classified as a quota error.
+//
+// Note: Transient Azure placement/capacity failures such as
+// OverconstrainedZonalAllocationRequest and OverconstrainedAllocationRequest
+// are intentionally excluded. Those indicate temporary zone capacity issues
+// (remediation: retry with a different zone or VM size) rather than quota
+// limit violations (remediation: request a quota increase).
 var azureQuotaErrorCodes = map[string]bool{
-	"QuotaExceeded":                          true,
-	"PublicIPCountLimitReached":              true,
-	"OverconstrainedZonalAllocationRequest":  true,
-	"OverconstrainedAllocationRequest":       true,
+	"QuotaExceeded":                                  true,
+	"PublicIPCountLimitReached":                      true,
 	"MaxStorageAccountsCountPerSubscriptionExceeded": true,
-	"NetworkCountLimitReached": true,
+	"NetworkCountLimitReached":                       true,
 }
 
 // quotaMessagePatterns lists compiled regexps that match error messages
-// indicating quota or capacity issues. Each pattern is case-insensitive.
+// indicating quota issues. Each pattern is case-insensitive.
+//
+// Only natural-language patterns belong here. Patterns that match literal
+// ARM error code strings are unnecessary because the fast-path substring
+// check in isQuotaRelatedMessage already covers them.
 var quotaMessagePatterns = []*regexp.Regexp{
 	regexp.MustCompile(`(?i)insufficient\b.*\bquota\b`),
 	regexp.MustCompile(`(?i)\bquota\b.*\bexceeded\b`),
-	regexp.MustCompile(`(?i)\blimit\b.*\breached\b`),
-	regexp.MustCompile(`(?i)\bPublicIPCountLimitReached\b`),
-	regexp.MustCompile(`(?i)\bOverconstrainedZonalAllocationRequest\b`),
-	regexp.MustCompile(`(?i)\bOverconstrainedAllocationRequest\b`),
-	regexp.MustCompile(`(?i)\bQuotaExceeded\b`),
+	regexp.MustCompile(`(?i)\b(quota|resource)\b.*\blimit\b.*\breached\b`),
 	regexp.MustCompile(`(?i)\bOperationNotAllowed\b.*\bquota\b`),
 	regexp.MustCompile(`(?i)\bquota\b.*\bOperationNotAllowed\b`),
 	regexp.MustCompile(`(?i)\bexceeds\b.*\bquota\b`),
 	regexp.MustCompile(`(?i)\bquota\b.*\blimit\b`),
-	regexp.MustCompile(`(?i)\bcapacity\b.*\binsufficient\b`),
-	regexp.MustCompile(`(?i)\binsufficient\b.*\bcapacity\b`),
-	regexp.MustCompile(`(?i)\bno\b.*\bcapacity\b.*\bzone\b`),
-	regexp.MustCompile(`(?i)\bMaxStorageAccountsCountPerSubscriptionExceeded\b`),
-	regexp.MustCompile(`(?i)\bNetworkCountLimitReached\b`),
 }
 
-// IsAzureQuotaErrorCode reports whether the given Azure ARM error code
-// indicates a quota or capacity issue.
-func IsAzureQuotaErrorCode(errorCode string) bool {
+// isAzureQuotaErrorCode reports whether the given Azure ARM error code
+// indicates a quota issue.
+func isAzureQuotaErrorCode(errorCode string) bool {
 	return azureQuotaErrorCodes[errorCode]
 }
 
-// IsQuotaRelatedMessage reports whether the given error message indicates
-// an Azure quota or capacity error. It matches against known Azure ARM
-// error codes embedded in messages as well as natural-language patterns
-// such as "insufficient public IP address quota".
-func IsQuotaRelatedMessage(message string) bool {
+// isQuotaRelatedMessage reports whether the given error message indicates
+// an Azure quota error. It matches against known Azure ARM error codes
+// embedded in messages as well as natural-language patterns such as
+// "insufficient public IP address quota".
+func isQuotaRelatedMessage(message string) bool {
 	if message == "" {
 		return false
 	}
@@ -79,7 +77,7 @@ func IsQuotaRelatedMessage(message string) bool {
 	}
 
 	// Slow path: match against compiled regexp patterns for natural-language
-	// quota/capacity error messages.
+	// quota error messages.
 	for _, pattern := range quotaMessagePatterns {
 		if pattern.MatchString(message) {
 			return true
@@ -89,25 +87,19 @@ func IsQuotaRelatedMessage(message string) bool {
 	return false
 }
 
-// NewQuotaExceededError creates a CloudError for a quota/capacity exceeded
-// error. It returns HTTP 500 with the QuotaExceeded error code and the
-// provided message describing the specific quota that was exhausted.
-func NewQuotaExceededError(message string) *CloudError {
-	return NewCloudError(
-		http.StatusInternalServerError,
-		CloudErrorCodeQuotaExceeded,
-		"",
-		"%s", message,
-	)
-}
-
 // CloudErrorCodeForMessage returns CloudErrorCodeQuotaExceeded if the message
-// indicates a quota/capacity error, or the provided defaultCode otherwise.
+// indicates a quota error, or the provided defaultCode otherwise.
 // This is a convenience function for operation controllers that need to select
 // the appropriate error code when constructing a CloudErrorBody for a failed
 // operation.
+//
+// The caller's HTTP status code remains unchanged (typically 500). HTTP 500 is
+// used rather than 429 or 503 because quota errors are not transient from the
+// ARM client's perspective — they will not resolve on retry without a quota
+// increase. The distinct CloudErrorCodeQuotaExceeded code lets monitoring
+// distinguish quota failures from other internal errors (AROSLSRE-875).
 func CloudErrorCodeForMessage(message string, defaultCode string) string {
-	if IsQuotaRelatedMessage(message) {
+	if isQuotaRelatedMessage(message) {
 		return CloudErrorCodeQuotaExceeded
 	}
 	return defaultCode

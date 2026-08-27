@@ -15,11 +15,10 @@
 package coreapi
 
 import (
-	"net/http"
 	"testing"
 )
 
-func TestIsAzureQuotaErrorCode(t *testing.T) {
+func Test_isAzureQuotaErrorCode(t *testing.T) {
 	tests := []struct {
 		name      string
 		errorCode string
@@ -36,16 +35,6 @@ func TestIsAzureQuotaErrorCode(t *testing.T) {
 			expected:  true,
 		},
 		{
-			name:      "OverconstrainedZonalAllocationRequest is a quota error code",
-			errorCode: "OverconstrainedZonalAllocationRequest",
-			expected:  true,
-		},
-		{
-			name:      "OverconstrainedAllocationRequest is a quota error code",
-			errorCode: "OverconstrainedAllocationRequest",
-			expected:  true,
-		},
-		{
 			name:      "MaxStorageAccountsCountPerSubscriptionExceeded is a quota error code",
 			errorCode: "MaxStorageAccountsCountPerSubscriptionExceeded",
 			expected:  true,
@@ -54,6 +43,16 @@ func TestIsAzureQuotaErrorCode(t *testing.T) {
 			name:      "NetworkCountLimitReached is a quota error code",
 			errorCode: "NetworkCountLimitReached",
 			expected:  true,
+		},
+		{
+			name:      "OverconstrainedZonalAllocationRequest is NOT a quota error code",
+			errorCode: "OverconstrainedZonalAllocationRequest",
+			expected:  false,
+		},
+		{
+			name:      "OverconstrainedAllocationRequest is NOT a quota error code",
+			errorCode: "OverconstrainedAllocationRequest",
+			expected:  false,
 		},
 		{
 			name:      "InternalServerError is not a quota error code",
@@ -74,15 +73,15 @@ func TestIsAzureQuotaErrorCode(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			result := IsAzureQuotaErrorCode(tc.errorCode)
+			result := isAzureQuotaErrorCode(tc.errorCode)
 			if result != tc.expected {
-				t.Errorf("IsAzureQuotaErrorCode(%q) = %v, want %v", tc.errorCode, result, tc.expected)
+				t.Errorf("isAzureQuotaErrorCode(%q) = %v, want %v", tc.errorCode, result, tc.expected)
 			}
 		})
 	}
 }
 
-func TestIsQuotaRelatedMessage(t *testing.T) {
+func Test_isQuotaRelatedMessage(t *testing.T) {
 	tests := []struct {
 		name     string
 		message  string
@@ -100,7 +99,7 @@ func TestIsQuotaRelatedMessage(t *testing.T) {
 			expected: true,
 		},
 
-		// Azure ARM error code patterns
+		// Azure ARM error code patterns (detected via fast-path substring check)
 		{
 			name:     "QuotaExceeded error code in message",
 			message:  "QuotaExceeded: Operation could not be completed as it results in exceeding approved standardDSv3Family Cores quota",
@@ -112,55 +111,8 @@ func TestIsQuotaRelatedMessage(t *testing.T) {
 			expected: true,
 		},
 		{
-			name:     "OverconstrainedZonalAllocationRequest in message",
-			message:  "OverconstrainedZonalAllocationRequest: The required resources are not available in zone 1",
-			expected: true,
-		},
-		{
-			name:     "OverconstrainedAllocationRequest in message",
-			message:  "OverconstrainedAllocationRequest: Allocation failed due to insufficient capacity",
-			expected: true,
-		},
-		{
 			name:     "OperationNotAllowed with quota mention",
 			message:  "OperationNotAllowed: Operation could not be completed as it results in exceeding approved quota",
-			expected: true,
-		},
-
-		// Natural language patterns
-		{
-			name:     "quota exceeded generic",
-			message:  "The subscription quota for VM cores has been exceeded in region eastus",
-			expected: true,
-		},
-		{
-			name:     "limit reached generic",
-			message:  "The resource limit for public IP addresses has been reached in this region",
-			expected: true,
-		},
-		{
-			name:     "exceeds quota",
-			message:  "Deployment exceeds quota for VM size Standard_D4s_v3",
-			expected: true,
-		},
-		{
-			name:     "quota limit",
-			message:  "The quota limit for vCPUs has been reached",
-			expected: true,
-		},
-		{
-			name:     "insufficient capacity",
-			message:  "There is insufficient capacity in the requested zone",
-			expected: true,
-		},
-		{
-			name:     "capacity insufficient",
-			message:  "The capacity is currently insufficient for the requested VM size",
-			expected: true,
-		},
-		{
-			name:     "no capacity in zone",
-			message:  "There is no capacity available in zone 2 for the requested size",
 			expected: true,
 		},
 		{
@@ -171,6 +123,33 @@ func TestIsQuotaRelatedMessage(t *testing.T) {
 		{
 			name:     "NetworkCountLimitReached in message",
 			message:  "NetworkCountLimitReached: Cannot create more than 1000 virtual networks",
+			expected: true,
+		},
+
+		// Natural language patterns
+		{
+			name:     "quota exceeded generic",
+			message:  "The subscription quota for VM cores has been exceeded in region eastus",
+			expected: true,
+		},
+		{
+			name:     "resource limit reached",
+			message:  "The resource limit for public IP addresses has been reached in this region",
+			expected: true,
+		},
+		{
+			name:     "quota limit reached",
+			message:  "The quota limit for vCPUs has been reached",
+			expected: true,
+		},
+		{
+			name:     "exceeds quota",
+			message:  "Deployment exceeds quota for VM size Standard_D4s_v3",
+			expected: true,
+		},
+		{
+			name:     "quota limit",
+			message:  "The quota limit for vCPUs has been reached",
 			expected: true,
 		},
 
@@ -186,7 +165,22 @@ func TestIsQuotaRelatedMessage(t *testing.T) {
 			expected: true,
 		},
 
-		// Non-quota messages that should NOT match
+		// False-positive guards: messages that should NOT match
+		{
+			name:     "connection limit reached is not a quota error",
+			message:  "The connection limit has been reached for this endpoint",
+			expected: false,
+		},
+		{
+			name:     "retry limit reached is not a quota error",
+			message:  "Retry limit has been reached",
+			expected: false,
+		},
+		{
+			name:     "rate limit reached is not a quota error",
+			message:  "Rate limit has been reached",
+			expected: false,
+		},
 		{
 			name:     "normal internal error",
 			message:  "Internal server error occurred during processing",
@@ -217,30 +211,37 @@ func TestIsQuotaRelatedMessage(t *testing.T) {
 			message:  "OperationNotAllowed: The resource provider is not registered for this subscription",
 			expected: false,
 		},
+
+		// Capacity/placement errors are NOT quota errors
+		{
+			name:     "OverconstrainedZonalAllocationRequest is not a quota error",
+			message:  "OverconstrainedZonalAllocationRequest: The required resources are not available in zone 1",
+			expected: false,
+		},
+		{
+			name:     "OverconstrainedAllocationRequest is not a quota error",
+			message:  "OverconstrainedAllocationRequest: Allocation failed due to insufficient capacity",
+			expected: false,
+		},
+		{
+			name:     "insufficient capacity is not a quota error",
+			message:  "There is insufficient capacity in the requested zone",
+			expected: false,
+		},
+		{
+			name:     "no capacity in zone is not a quota error",
+			message:  "There is no capacity available in zone 2 for the requested size",
+			expected: false,
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			result := IsQuotaRelatedMessage(tc.message)
+			result := isQuotaRelatedMessage(tc.message)
 			if result != tc.expected {
-				t.Errorf("IsQuotaRelatedMessage(%q) = %v, want %v", tc.message, result, tc.expected)
+				t.Errorf("isQuotaRelatedMessage(%q) = %v, want %v", tc.message, result, tc.expected)
 			}
 		})
-	}
-}
-
-func TestNewQuotaExceededError(t *testing.T) {
-	message := "insufficient public IP address quota: required 2, available 0"
-	err := NewQuotaExceededError(message)
-
-	if err.StatusCode != http.StatusInternalServerError {
-		t.Errorf("StatusCode = %d, want %d", err.StatusCode, http.StatusInternalServerError)
-	}
-	if err.CloudErrorBody.Code != CloudErrorCodeQuotaExceeded {
-		t.Errorf("Code = %q, want %q", err.CloudErrorBody.Code, CloudErrorCodeQuotaExceeded)
-	}
-	if err.CloudErrorBody.Message != message {
-		t.Errorf("Message = %q, want %q", err.CloudErrorBody.Message, message)
 	}
 }
 
