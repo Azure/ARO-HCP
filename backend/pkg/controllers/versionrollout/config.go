@@ -55,7 +55,21 @@ const (
 	// DefaultMinVersionReadyDuration is how long a control plane must hold the
 	// achieved version before it counts as successful.
 	DefaultMinVersionReadyDuration = 1 * time.Hour
+	// DefaultMaxUpgradeDuration is how long a control plane may take to reach its
+	// desired version before the cluster counts as failed, used for any minor
+	// version without an explicit MaxUpgradeDuration override.
+	DefaultMaxUpgradeDuration = 2 * time.Hour
 )
+
+// MaxUpgradeDurationForMinor returns the configured maximum upgrade duration for
+// the given minor version (e.g. "4.21"), falling back to DefaultMaxUpgradeDuration
+// when no per-minor override is configured.
+func (c RolloutConfig) MaxUpgradeDurationForMinor(minor string) time.Duration {
+	if d, ok := c.MaxUpgradeDuration[minor]; ok {
+		return d
+	}
+	return DefaultMaxUpgradeDuration
+}
 
 // NewDefaultRolloutConfig returns the hardcoded production rollout config. The
 // per-channel-group z-stream offset is not configured here; it comes from the

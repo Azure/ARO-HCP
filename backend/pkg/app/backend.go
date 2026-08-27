@@ -676,8 +676,8 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	)
 
 	// Fleet control-plane version rollout controllers. These own the
-	// ServiceProviderCluster desired version, replacing the per-cluster
-	// ControlPlaneDesiredVersion controller (which is therefore not run).
+	// ServiceProviderCluster desired version; they replaced the per-cluster
+	// ControlPlaneDesiredVersion controller, which has been removed.
 	rolloutConfig := versionrollout.NewDefaultRolloutConfig()
 	_, controlPlaneVersionRolloutLister := fleetInformers.ControlPlaneVersionRollouts()
 	bestVersionSelectionController := versionrollout.NewBestVersionSelectionController(
@@ -1125,7 +1125,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go createBillingDocController.Run(ctx, 20)
 				go controlPlaneActiveVersionController.Run(ctx, 20)
 				// The fleet rollout controllers own ServiceProviderCluster desired
-				// version, replacing the per-cluster ControlPlaneDesiredVersion controller.
+				// version; they replaced the removed per-cluster ControlPlaneDesiredVersion controller.
 				go bestVersionSelectionController.Run(ctx, 20)
 				go controlPlaneVersionStatusController.Run(ctx, 20)
 				go normalDesiredVersionController.Run(ctx, 20)

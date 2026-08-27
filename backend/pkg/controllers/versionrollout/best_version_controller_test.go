@@ -63,14 +63,14 @@ func TestBestVersionSelectionSyncer_SyncOnce(t *testing.T) {
 	t.Run("writes graph best when above floor", func(t *testing.T) {
 		t.Parallel()
 		ctx := context.Background()
-		store := newFakeRolloutStore(newTestRollout(channel, nil, fleetapi.ControlPlaneVersionRolloutStatus{}))
+		mockFleet, lister := newTestRolloutStore(t, newTestRollout(channel, nil, fleetapi.ControlPlaneVersionRolloutStatus{}))
 		cfg := NewDefaultRolloutConfig()
 		cfg.MinimumVersions[channel] = *v("4.21.2")
 
-		syncer := NewBestVersionSelectionSyncer(store, store, fakeBestVersionSelector{best: v("4.21.6")}, cfg)
+		syncer := &bestVersionSelectionSyncer{rolloutLister: lister, fleetDBClient: mockFleet, selector: fakeBestVersionSelector{best: v("4.21.6")}, config: cfg}
 		require.NoError(t, syncer.SyncOnce(ctx, controllerutils.ControlPlaneVersionRolloutKey{YStreamChannel: channel}))
 
-		got, err := store.Get(ctx, channel)
+		got, err := mockFleet.ControlPlaneVersionRollouts().Get(ctx, channel)
 		require.NoError(t, err)
 		require.NotNil(t, got.Spec.BestExactVersion)
 		assert.True(t, got.Spec.BestExactVersion.EQ(*v("4.21.6")))
@@ -79,14 +79,14 @@ func TestBestVersionSelectionSyncer_SyncOnce(t *testing.T) {
 	t.Run("applies minimum floor when graph is lower", func(t *testing.T) {
 		t.Parallel()
 		ctx := context.Background()
-		store := newFakeRolloutStore(newTestRollout(channel, nil, fleetapi.ControlPlaneVersionRolloutStatus{}))
+		mockFleet, lister := newTestRolloutStore(t, newTestRollout(channel, nil, fleetapi.ControlPlaneVersionRolloutStatus{}))
 		cfg := NewDefaultRolloutConfig()
 		cfg.MinimumVersions[channel] = *v("4.21.6")
 
-		syncer := NewBestVersionSelectionSyncer(store, store, fakeBestVersionSelector{best: v("4.21.4")}, cfg)
+		syncer := &bestVersionSelectionSyncer{rolloutLister: lister, fleetDBClient: mockFleet, selector: fakeBestVersionSelector{best: v("4.21.4")}, config: cfg}
 		require.NoError(t, syncer.SyncOnce(ctx, controllerutils.ControlPlaneVersionRolloutKey{YStreamChannel: channel}))
 
-		got, err := store.Get(ctx, channel)
+		got, err := mockFleet.ControlPlaneVersionRollouts().Get(ctx, channel)
 		require.NoError(t, err)
 		require.NotNil(t, got.Spec.BestExactVersion)
 		assert.True(t, got.Spec.BestExactVersion.EQ(*v("4.21.6")))
@@ -95,31 +95,37 @@ func TestBestVersionSelectionSyncer_SyncOnce(t *testing.T) {
 	t.Run("no-op when unchanged", func(t *testing.T) {
 		t.Parallel()
 		ctx := context.Background()
-		store := newFakeRolloutStore(newTestRollout(channel, v("4.21.6"), fleetapi.ControlPlaneVersionRolloutStatus{}))
+		mockFleet, lister := newTestRolloutStore(t, newTestRollout(channel, v("4.21.6"), fleetapi.ControlPlaneVersionRolloutStatus{}))
 		cfg := NewDefaultRolloutConfig()
 
-		syncer := NewBestVersionSelectionSyncer(store, store, fakeBestVersionSelector{best: v("4.21.6")}, cfg)
+		syncer := &bestVersionSelectionSyncer{rolloutLister: lister, fleetDBClient: mockFleet, selector: fakeBestVersionSelector{best: v("4.21.6")}, config: cfg}
 		require.NoError(t, syncer.SyncOnce(ctx, controllerutils.ControlPlaneVersionRolloutKey{YStreamChannel: channel}))
-		assert.Equal(t, 0, store.replaces, "expected no write when best is unchanged")
+
+		got, err := mockFleet.ControlPlaneVersionRollouts().Get(ctx, channel)
+		require.NoError(t, err)
+		assert.Equal(t, int64(1), got.GetInstanceVersion(), "expected no write when best is unchanged")
 	})
 
 	t.Run("no-op when nothing selectable", func(t *testing.T) {
 		t.Parallel()
 		ctx := context.Background()
-		store := newFakeRolloutStore(newTestRollout(channel, nil, fleetapi.ControlPlaneVersionRolloutStatus{}))
+		mockFleet, lister := newTestRolloutStore(t, newTestRollout(channel, nil, fleetapi.ControlPlaneVersionRolloutStatus{}))
 		cfg := NewDefaultRolloutConfig()
 
-		syncer := NewBestVersionSelectionSyncer(store, store, fakeBestVersionSelector{best: nil}, cfg)
+		syncer := &bestVersionSelectionSyncer{rolloutLister: lister, fleetDBClient: mockFleet, selector: fakeBestVersionSelector{best: nil}, config: cfg}
 		require.NoError(t, syncer.SyncOnce(ctx, controllerutils.ControlPlaneVersionRolloutKey{YStreamChannel: channel}))
-		assert.Equal(t, 0, store.replaces)
+
+		got, err := mockFleet.ControlPlaneVersionRollouts().Get(ctx, channel)
+		require.NoError(t, err)
+		assert.Nil(t, got.Spec.BestExactVersion)
+		assert.Equal(t, int64(1), got.GetInstanceVersion(), "expected no write when nothing is selectable")
 	})
 
 	t.Run("missing rollout is a no-op", func(t *testing.T) {
 		t.Parallel()
 		ctx := context.Background()
-		store := newFakeRolloutStore()
-		syncer := NewBestVersionSelectionSyncer(store, store, fakeBestVersionSelector{best: v("4.21.6")}, NewDefaultRolloutConfig())
+		mockFleet, lister := newTestRolloutStore(t)
+		syncer := &bestVersionSelectionSyncer{rolloutLister: lister, fleetDBClient: mockFleet, selector: fakeBestVersionSelector{best: v("4.21.6")}, config: NewDefaultRolloutConfig()}
 		require.NoError(t, syncer.SyncOnce(ctx, controllerutils.ControlPlaneVersionRolloutKey{YStreamChannel: channel}))
-		assert.Equal(t, 0, store.replaces)
 	})
 }

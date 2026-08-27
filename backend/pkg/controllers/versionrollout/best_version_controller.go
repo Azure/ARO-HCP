@@ -26,6 +26,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/informers/fleetinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/fleetlisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -37,20 +38,10 @@ const BestVersionSelectionControllerName = "ControlPlaneVersionBestVersionSelect
 // exact version from the upgrade graph (offset by zStreamOffset) floored by the
 // SRE minimum, and stores it on Spec.BestExactVersion.
 type bestVersionSelectionSyncer struct {
-	rolloutLister RolloutLister
-	rolloutWriter RolloutWriter
+	rolloutLister fleetlisters.ControlPlaneVersionRolloutLister
+	fleetDBClient fleetcosmosstorage.FleetDBClient
 	selector      BestVersionSelector
 	config        RolloutConfig
-}
-
-// NewBestVersionSelectionSyncer constructs the syncer directly (used by tests).
-func NewBestVersionSelectionSyncer(rolloutLister RolloutLister, rolloutWriter RolloutWriter, selector BestVersionSelector, config RolloutConfig) *bestVersionSelectionSyncer {
-	return &bestVersionSelectionSyncer{
-		rolloutLister: rolloutLister,
-		rolloutWriter: rolloutWriter,
-		selector:      selector,
-		config:        config,
-	}
 }
 
 // NewBestVersionSelectionController wires the syncer into a rollout watching
@@ -59,7 +50,7 @@ func NewBestVersionSelectionController(fleetDBClient fleetcosmosstorage.FleetDBC
 	_, rolloutLister := fleetInformers.ControlPlaneVersionRollouts()
 	syncer := &bestVersionSelectionSyncer{
 		rolloutLister: rolloutLister,
-		rolloutWriter: NewFleetRolloutWriter(fleetDBClient),
+		fleetDBClient: fleetDBClient,
 		selector:      selector,
 		config:        config,
 	}
@@ -110,7 +101,7 @@ func (c *bestVersionSelectionSyncer) SyncOnce(ctx context.Context, key controlle
 	replacement := rollout.DeepCopy()
 	bestCopy := *best
 	replacement.Spec.BestExactVersion = &bestCopy
-	if _, err := c.rolloutWriter.Replace(ctx, replacement, rollout); cosmosstorageutils.IsPreconditionFailedError(err) {
+	if _, err := c.fleetDBClient.ControlPlaneVersionRollouts().Replace(ctx, replacement, rollout, nil); cosmosstorageutils.IsPreconditionFailedError(err) {
 		return nil
 	} else if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to replace ControlPlaneVersionRollout %q: %w", key.YStreamChannel, err))

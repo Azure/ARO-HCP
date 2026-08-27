@@ -38,24 +38,7 @@ import (
 	"github.com/blang/semver/v4"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
-	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 )
-
-// RolloutLister reads ControlPlaneVersionRollout objects. It is backed in
-// production by the fleet lister and in tests by an in-memory fake. Get returns a
-// cosmosstorageutils NotFound error when the rollout does not exist.
-type RolloutLister interface {
-	Get(ctx context.Context, ystreamChannel string) (*fleetapi.ControlPlaneVersionRollout, error)
-	List(ctx context.Context) ([]*fleetapi.ControlPlaneVersionRollout, error)
-}
-
-// RolloutWriter persists ControlPlaneVersionRollout objects. Replace takes the
-// mutated (new) object and the object it was derived from (old, for update
-// validation), uses optimistic concurrency (the new object's CosmosETag), and
-// callers treat a precondition failure as a benign no-op.
-type RolloutWriter interface {
-	Replace(ctx context.Context, newRollout, oldRollout *fleetapi.ControlPlaneVersionRollout) (*fleetapi.ControlPlaneVersionRollout, error)
-}
 
 // BestVersionSelector returns the upgrade-graph-selected best exact version for a
 // y-stream channel, already offset by the channel group's z-stream offset. It

@@ -115,18 +115,19 @@ func TestStatusCollectorSyncer_SyncOnce(t *testing.T) {
 		newTestSPC("other-minor", v("4.22.0"), nil, nil),
 	}
 
-	store := newFakeRolloutStore(newTestRollout(channel, v("4.21.6"), fleetapi.ControlPlaneVersionRolloutStatus{}))
-	syncer := NewStatusCollectorSyncer(
-		clocktesting.NewFakeClock(statusTestNow),
-		store, store,
-		&corelistertesting.SliceServiceProviderClusterLister{ServiceProviderClusters: serviceProviderClusters},
-		&corelistertesting.SliceClusterLister{Clusters: clusters},
-		NewDefaultRolloutConfig(),
-	)
+	mockFleet, lister := newTestRolloutStore(t, newTestRollout(channel, v("4.21.6"), fleetapi.ControlPlaneVersionRolloutStatus{}))
+	syncer := &statusCollectorSyncer{
+		clock:                        clocktesting.NewFakeClock(statusTestNow),
+		rolloutLister:                lister,
+		fleetDBClient:                mockFleet,
+		serviceProviderClusterLister: &corelistertesting.SliceServiceProviderClusterLister{ServiceProviderClusters: serviceProviderClusters},
+		clusterLister:                &corelistertesting.SliceClusterLister{Clusters: clusters},
+		config:                       NewDefaultRolloutConfig(),
+	}
 
 	require.NoError(t, syncer.SyncOnce(ctx, controllerutils.ControlPlaneVersionRolloutKey{YStreamChannel: channel}))
 
-	got, err := store.Get(ctx, channel)
+	got, err := mockFleet.ControlPlaneVersionRollouts().Get(ctx, channel)
 	require.NoError(t, err)
 	// Only c1 and c2 are in the stable-4.21 channel.
 	assert.Equal(t, int64(2), got.Status.ClusterCountByDesiredExactVersion["4.21.6"])
