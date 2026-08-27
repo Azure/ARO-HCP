@@ -1,0 +1,144 @@
+rule_files:
+- swift-networking-cns-recordingRule.yaml
+evaluation_interval: 1m
+tests:
+# Test 1: No CNS latency data — recording rules produce no series.
+- interval: 1m
+  input_series: []
+  promql_expr_test:
+  - expr: "cns:ip_assignment_latency:p99"
+    eval_time: 5m
+    exp_samples: []
+# Test 2: CNS IP assignment latency p99 > 10s.
+# Simulates 99 observations/min at or below 16s and one above 16s, placing p99 exactly at 16s.
+- interval: 1m
+  input_series:
+  - series: 'ip_assignment_latency_seconds_bucket{cluster="dev-westus3-mgmt-1", region="westus3", le="0.001"}'
+    values: "0+0x120"
+  - series: 'ip_assignment_latency_seconds_bucket{cluster="dev-westus3-mgmt-1", region="westus3", le="0.01"}'
+    values: "0+0x120"
+  - series: 'ip_assignment_latency_seconds_bucket{cluster="dev-westus3-mgmt-1", region="westus3", le="0.1"}'
+    values: "0+0x120"
+  - series: 'ip_assignment_latency_seconds_bucket{cluster="dev-westus3-mgmt-1", region="westus3", le="1"}'
+    values: "0+0x120"
+  - series: 'ip_assignment_latency_seconds_bucket{cluster="dev-westus3-mgmt-1", region="westus3", le="4"}'
+    values: "0+0x120"
+  - series: 'ip_assignment_latency_seconds_bucket{cluster="dev-westus3-mgmt-1", region="westus3", le="8"}'
+    values: "0+0x120"
+  - series: 'ip_assignment_latency_seconds_bucket{cluster="dev-westus3-mgmt-1", region="westus3", le="16"}'
+    values: "0+99x120"
+  - series: 'ip_assignment_latency_seconds_bucket{cluster="dev-westus3-mgmt-1", region="westus3", le="+Inf"}'
+    values: "0+100x120"
+  promql_expr_test:
+  - expr: "cns:ip_assignment_latency:p99"
+    eval_time: 72m
+    exp_samples:
+    - labels: 'cns:ip_assignment_latency:p99{cluster="dev-westus3-mgmt-1", region="westus3"}'
+      value: 16
+# Test 3: CNS assignment latency deduplicates Prometheus HA replicas.
+- interval: 1m
+  # Two CNS pods with different latency distributions. Pod 1 (99 observations/min
+  # at or below 16s) is scraped by both Prometheus replicas. Pod 2 (1 observation/min
+  # between 16s and 32s) is scraped by replica "a" only. Deduplicated, the p99
+  # falls exactly on the 16s bucket boundary. Counting pod 1 twice would move
+  # the p99 below 16s.
+  input_series:
+  - series: 'ip_assignment_latency_seconds_bucket{cluster="dev-westus3-mgmt-2", region="westus3", pod="azure-cns-1", le="8", prometheus_replica="a"}'
+    values: "0+0x10"
+  - series: 'ip_assignment_latency_seconds_bucket{cluster="dev-westus3-mgmt-2", region="westus3", pod="azure-cns-1", le="16", prometheus_replica="a"}'
+    values: "0+99x10"
+  - series: 'ip_assignment_latency_seconds_bucket{cluster="dev-westus3-mgmt-2", region="westus3", pod="azure-cns-1", le="32", prometheus_replica="a"}'
+    values: "0+99x10"
+  - series: 'ip_assignment_latency_seconds_bucket{cluster="dev-westus3-mgmt-2", region="westus3", pod="azure-cns-1", le="+Inf", prometheus_replica="a"}'
+    values: "0+99x10"
+  - series: 'ip_assignment_latency_seconds_bucket{cluster="dev-westus3-mgmt-2", region="westus3", pod="azure-cns-1", le="8", prometheus_replica="b"}'
+    values: "0+0x10"
+  - series: 'ip_assignment_latency_seconds_bucket{cluster="dev-westus3-mgmt-2", region="westus3", pod="azure-cns-1", le="16", prometheus_replica="b"}'
+    values: "0+99x10"
+  - series: 'ip_assignment_latency_seconds_bucket{cluster="dev-westus3-mgmt-2", region="westus3", pod="azure-cns-1", le="32", prometheus_replica="b"}'
+    values: "0+99x10"
+  - series: 'ip_assignment_latency_seconds_bucket{cluster="dev-westus3-mgmt-2", region="westus3", pod="azure-cns-1", le="+Inf", prometheus_replica="b"}'
+    values: "0+99x10"
+  - series: 'ip_assignment_latency_seconds_bucket{cluster="dev-westus3-mgmt-2", region="westus3", pod="azure-cns-2", le="8", prometheus_replica="a"}'
+    values: "0+0x10"
+  - series: 'ip_assignment_latency_seconds_bucket{cluster="dev-westus3-mgmt-2", region="westus3", pod="azure-cns-2", le="16", prometheus_replica="a"}'
+    values: "0+0x10"
+  - series: 'ip_assignment_latency_seconds_bucket{cluster="dev-westus3-mgmt-2", region="westus3", pod="azure-cns-2", le="32", prometheus_replica="a"}'
+    values: "0+1x10"
+  - series: 'ip_assignment_latency_seconds_bucket{cluster="dev-westus3-mgmt-2", region="westus3", pod="azure-cns-2", le="+Inf", prometheus_replica="a"}'
+    values: "0+1x10"
+  promql_expr_test:
+  - expr: "cns:ip_assignment_latency:p99"
+    eval_time: 5m
+    exp_samples:
+    - labels: 'cns:ip_assignment_latency:p99{cluster="dev-westus3-mgmt-2", region="westus3"}'
+      value: 16
+# Test 4: CNS IP assignment latency on a service cluster produces no series.
+# The CNS PodMonitor (#6866) also scrapes service clusters, but this SWIFT-
+# specific SLI is scoped to management clusters only.
+- interval: 1m
+  input_series:
+  - series: 'ip_assignment_latency_seconds_bucket{cluster="dev-westus3-svc-1", le="8"}'
+    values: "0+0x10"
+  - series: 'ip_assignment_latency_seconds_bucket{cluster="dev-westus3-svc-1", le="16"}'
+    values: "0+10x10"
+  - series: 'ip_assignment_latency_seconds_bucket{cluster="dev-westus3-svc-1", le="+Inf"}'
+    values: "0+10x10"
+  promql_expr_test:
+  - expr: "cns:ip_assignment_latency:p99"
+    eval_time: 5m
+    exp_samples: []
+# Test 5: CNS daemonset availability — all nodes ready.
+- interval: 1m
+  input_series:
+  - series: 'kube_daemonset_status_number_ready{job="kube-state-metrics", daemonset="azure-cns", namespace="kube-system", cluster="dev-westus3-mgmt-1"}'
+    values: "3+0x10"
+  - series: 'kube_daemonset_status_desired_number_scheduled{job="kube-state-metrics", daemonset="azure-cns", namespace="kube-system", cluster="dev-westus3-mgmt-1"}'
+    values: "3+0x10"
+  promql_expr_test:
+  - expr: "cns:daemonset_availability:ratio"
+    eval_time: 5m
+    exp_samples:
+    - labels: 'cns:daemonset_availability:ratio{cluster="dev-westus3-mgmt-1", daemonset="azure-cns", job="kube-state-metrics", namespace="kube-system"}'
+      value: 1
+# Test 6: CNS daemonset availability — 1 of 3 nodes not ready.
+- interval: 1m
+  input_series:
+  - series: 'kube_daemonset_status_number_ready{job="kube-state-metrics", daemonset="azure-cns", namespace="kube-system", cluster="dev-westus3-mgmt-1"}'
+    values: "2+0x10"
+  - series: 'kube_daemonset_status_desired_number_scheduled{job="kube-state-metrics", daemonset="azure-cns", namespace="kube-system", cluster="dev-westus3-mgmt-1"}'
+    values: "3+0x10"
+  promql_expr_test:
+  - expr: "cns:daemonset_availability:ratio"
+    eval_time: 5m
+    exp_samples:
+    - labels: 'cns:daemonset_availability:ratio{cluster="dev-westus3-mgmt-1", daemonset="azure-cns", job="kube-state-metrics", namespace="kube-system"}'
+      value: 0.6666666666666666
+# Test 7: CNS daemonset availability on a service cluster produces no series.
+- interval: 1m
+  input_series:
+  - series: 'kube_daemonset_status_number_ready{job="kube-state-metrics", daemonset="azure-cns", namespace="kube-system", cluster="dev-westus3-svc-1"}'
+    values: "3+0x10"
+  - series: 'kube_daemonset_status_desired_number_scheduled{job="kube-state-metrics", daemonset="azure-cns", namespace="kube-system", cluster="dev-westus3-svc-1"}'
+    values: "3+0x10"
+  promql_expr_test:
+  - expr: "cns:daemonset_availability:ratio"
+    eval_time: 5m
+    exp_samples: []
+# Test 8: Overlapping KSM targets produce one CNS DaemonSet ratio series.
+- interval: 1m
+  input_series:
+  - series: 'kube_daemonset_status_number_ready{job="kube-state-metrics", daemonset="azure-cns", namespace="kube-system", cluster="dev-westus3-mgmt-2", region="westus3", instance="old-ksm", pod="ksm-old"}'
+    values: "2+0x10"
+  - series: 'kube_daemonset_status_number_ready{job="kube-state-metrics", daemonset="azure-cns", namespace="kube-system", cluster="dev-westus3-mgmt-2", region="westus3", instance="new-ksm", pod="ksm-new"}'
+    values: "2+0x10"
+  - series: 'kube_daemonset_status_desired_number_scheduled{job="kube-state-metrics", daemonset="azure-cns", namespace="kube-system", cluster="dev-westus3-mgmt-2", region="westus3", instance="old-ksm", pod="ksm-old"}'
+    values: "3+0x10"
+  - series: 'kube_daemonset_status_desired_number_scheduled{job="kube-state-metrics", daemonset="azure-cns", namespace="kube-system", cluster="dev-westus3-mgmt-2", region="westus3", instance="new-ksm", pod="ksm-new"}'
+    values: "3+0x10"
+  promql_expr_test:
+  - expr: "cns:daemonset_availability:ratio"
+    eval_time: 5m
+    exp_samples:
+    - labels: 'cns:daemonset_availability:ratio{cluster="dev-westus3-mgmt-2", daemonset="azure-cns", job="kube-state-metrics", namespace="kube-system", region="westus3"}'
+      value: 0.6666666666666666
