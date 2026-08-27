@@ -425,6 +425,10 @@ resourceGroups:
       - "Resource is in Updating state"
       - "There was a problem communicating with the identity service"
       - "DeploymentScriptExceededMaxAllowedTime"
+      # Transient RBAC propagation lag, mostly on fresh region buildout: the
+      # deployment identity's Key Vault role assignment (needed to create the
+      # aks-etcd-encryption key) may not have propagated yet. Retry once it lands.
+      - "ForbiddenByRbac"
       maximumRetryCount: 3
       durationBetweenRetries: 2m
   - name: svc-mgmt-aks-permissions
