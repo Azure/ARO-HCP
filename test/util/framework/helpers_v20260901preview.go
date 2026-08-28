@@ -25,6 +25,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
@@ -36,6 +37,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
@@ -767,6 +769,40 @@ func (tc *perItOrDescribeTestContext) get20260901ClientFactoryUnlocked(ctx conte
 	return tc.clientFactory20260901, nil
 }
 
+// isAPIVersionUnavailableError returns true if err indicates that the
+// 2026-09-01-preview API version is not registered for the target
+// subscription/location (e.g. during the rollout window, or in
+// subscriptions that were never onboarded to this preview version). This is
+// distinct from an operation actually failing after it started, which should
+// not be silently retried on a different API version. NoRegisteredProviderFound
+// isn't pinned to a single HTTP status across endpoints/rollout state, so this
+// only checks the ARM error code (matching the convention used elsewhere in
+// the e2e suite, e.g. isAPINotDeployedError).
+func isAPIVersionUnavailableError(err error) bool {
+	var respErr *azcore.ResponseError
+	if !errors.As(err, &respErr) {
+		return false
+	}
+	return strings.Contains(respErr.ErrorCode, "NoRegisteredProviderFound")
+}
+
+// fallbackAdminRESTConfigTo20240610 re-requests admin credentials via the
+// stable 20240610 API version. Used when the 2026-09-01-preview path cannot
+// be used because that API version isn't available in this environment.
+func (tc *perItOrDescribeTestContext) fallbackAdminRESTConfigTo20240610(
+	ctx context.Context,
+	resourceGroupName string,
+	hcpClusterName string,
+	timeout time.Duration,
+	causeErr error,
+) (*rest.Config, error) {
+	fallbackFactory, fallbackErr := tc.Get20240610ClientFactory(ctx)
+	if fallbackErr != nil {
+		return nil, fmt.Errorf("0901 credential request failed: %w; fallback client factory error: %w", causeErr, fallbackErr)
+	}
+	return tc.GetAdminRESTConfigForHCPCluster20240610(ctx, fallbackFactory.NewHcpOpenShiftClustersClient(), resourceGroupName, hcpClusterName, timeout)
+}
+
 func (tc *perItOrDescribeTestContext) GetAdminRESTConfigForHCPCluster20260901(
 	ctx context.Context,
 	hcpClient *hcpsdk20260901preview.HcpOpenShiftClustersClient,
@@ -809,12 +845,8 @@ func (tc *perItOrDescribeTestContext) GetAdminRESTConfigForHCPCluster20260901(
 		nil,
 	)
 	if err != nil {
-		// Fall back to the old 0240610 mechanism during the transition period.
-		fallbackFactory, fallbackErr := tc.Get20240610ClientFactory(ctx)
-		if fallbackErr != nil {
-			return nil, fmt.Errorf("0901 credential request failed: %w; fallback client factory error: %w", err, fallbackErr)
-		}
-		return tc.GetAdminRESTConfigForHCPCluster20240610(ctx, fallbackFactory.NewHcpOpenShiftClustersClient(), resourceGroupName, hcpClusterName, timeout)
+		// Fall back to the old 20240610 mechanism during the transition period.
+		return tc.fallbackAdminRESTConfigTo20240610(ctx, resourceGroupName, hcpClusterName, timeout, err)
 	}
 
 	operationResult, err := adminCredentialRequestPoller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
@@ -823,6 +855,15 @@ func (tc *perItOrDescribeTestContext) GetAdminRESTConfigForHCPCluster20260901(
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
 			return nil, fmt.Errorf("failed waiting for hcpCluster=%q in resourcegroup=%q to finish getting creds, caused by: %w, error: %w", hcpClusterName, resourceGroupName, context.Cause(ctx), err)
+		}
+		if isAPIVersionUnavailableError(err) {
+			// The initial request succeeded (the resource/action itself is
+			// registered), but polling locations/hcpOperationStatuses at
+			// 2026-09-01-preview failed because that api-version isn't
+			// registered for this subscription/location. Fall back to the
+			// old 20240610 mechanism during the transition period, same as
+			// when the initial request fails outright.
+			return tc.fallbackAdminRESTConfigTo20240610(ctx, resourceGroupName, hcpClusterName, timeout, err)
 		}
 		return nil, fmt.Errorf("failed waiting for hcpCluster=%q in resourcegroup=%q to finish getting creds: %w", hcpClusterName, resourceGroupName, err)
 	}
