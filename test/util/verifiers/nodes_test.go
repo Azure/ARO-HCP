@@ -94,6 +94,15 @@ func TestNodeVersionInMinor(t *testing.T) {
 			wantEmpty:       true,
 		},
 		{
+			name:            "kubelet with unexpected Kubernetes major version",
+			nodeName:        "node-9",
+			criVersion:      "cri-o://1.35.6",
+			kubeletVersion:  "v2.35.0+bogus",
+			expectedVersion: "4.22",
+			wantEmpty:       false,
+			wantSubstring:   "unexpected major 2, expected 1",
+		},
+		{
 			name:            "new CRI-O format OCP 4.23 = k8s 1.36",
 			nodeName:        "node-7",
 			criVersion:      "cri-o://1.36.0",
