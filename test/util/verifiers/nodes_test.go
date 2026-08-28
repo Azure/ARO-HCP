@@ -28,86 +28,61 @@ func TestNodeVersionInMinor(t *testing.T) {
 	tests := []struct {
 		name            string
 		nodeName        string
-		criVersion      string
 		kubeletVersion  string
 		expectedVersion string
 		wantEmpty       bool
 		wantSubstring   string
 	}{
 		{
-			name:            "old rhaos format matching version",
+			name:            "matching kubelet version OCP 4.22 = k8s 1.35",
 			nodeName:        "node-1",
-			criVersion:      "cri-o://1.33.9-3.rhaos4.20.git0abcdef.el9",
-			kubeletVersion:  "v1.33.6+abc123",
-			expectedVersion: "4.20",
-			wantEmpty:       true,
-		},
-		{
-			name:            "old rhaos format wrong minor",
-			nodeName:        "node-2",
-			criVersion:      "cri-o://1.33.9-3.rhaos4.19.git0abcdef.el9",
-			kubeletVersion:  "v1.32.6+abc123",
-			expectedVersion: "4.20",
-			wantEmpty:       false,
-			wantSubstring:   "version 4.19 not in same minor as expected 4.20",
-		},
-		{
-			name:            "new clean CRI-O format with matching kubelet version (OCP 4.22 = k8s 1.35)",
-			nodeName:        "node-3",
-			criVersion:      "cri-o://1.35.6",
 			kubeletVersion:  "v1.35.6+abc123",
 			expectedVersion: "4.22",
 			wantEmpty:       true,
 		},
 		{
-			name:            "new clean CRI-O format with wrong kubelet minor",
-			nodeName:        "node-4",
-			criVersion:      "cri-o://1.35.6",
+			name:            "wrong kubelet minor",
+			nodeName:        "node-2",
 			kubeletVersion:  "v1.34.6+abc123",
 			expectedVersion: "4.22",
 			wantEmpty:       false,
 			wantSubstring:   "KubeletVersion v1.34.6+abc123 has minor 34, expected 35 for OCP 4.22",
 		},
 		{
-			name:            "new clean CRI-O format with unparseable kubelet version",
-			nodeName:        "node-5",
-			criVersion:      "cri-o://1.35.6",
-			kubeletVersion:  "not-a-version",
-			expectedVersion: "4.22",
-			wantEmpty:       false,
-			wantSubstring:   "cannot parse KubeletVersion",
-		},
-		{
-			name:            "old rhaos format OCP 4.14 = k8s 1.27",
-			nodeName:        "node-6",
-			criVersion:      "cri-o://1.27.5-3.rhaos4.14.gitabc.el9",
-			kubeletVersion:  "v1.27.5+abc",
-			expectedVersion: "4.14",
-			wantEmpty:       true,
-		},
-		{
-			name:            "rhaos tag takes priority over kubelet fallback",
-			nodeName:        "node-8",
-			criVersion:      "cri-o://1.33.9-3.rhaos4.20.git0abcdef.el9",
-			kubeletVersion:  "v1.99.0+bogus",
-			expectedVersion: "4.20",
-			wantEmpty:       true,
-		},
-		{
-			name:            "kubelet with unexpected Kubernetes major version",
-			nodeName:        "node-9",
-			criVersion:      "cri-o://1.35.6",
+			name:            "unexpected Kubernetes major version",
+			nodeName:        "node-3",
 			kubeletVersion:  "v2.35.0+bogus",
 			expectedVersion: "4.22",
 			wantEmpty:       false,
 			wantSubstring:   "unexpected major 2, expected 1",
 		},
 		{
-			name:            "new CRI-O format OCP 4.23 = k8s 1.36",
-			nodeName:        "node-7",
-			criVersion:      "cri-o://1.36.0",
+			name:            "unparseable kubelet version",
+			nodeName:        "node-4",
+			kubeletVersion:  "not-a-version",
+			expectedVersion: "4.22",
+			wantEmpty:       false,
+			wantSubstring:   "cannot parse KubeletVersion",
+		},
+		{
+			name:            "boundary OCP 4.14 = k8s 1.27",
+			nodeName:        "node-5",
+			kubeletVersion:  "v1.27.5+abc",
+			expectedVersion: "4.14",
+			wantEmpty:       true,
+		},
+		{
+			name:            "boundary OCP 4.23 = k8s 1.36",
+			nodeName:        "node-6",
 			kubeletVersion:  "v1.36.0+xyz",
 			expectedVersion: "4.23",
+			wantEmpty:       true,
+		},
+		{
+			name:            "matching kubelet version OCP 4.20 = k8s 1.33",
+			nodeName:        "node-7",
+			kubeletVersion:  "v1.33.6+abc123",
+			expectedVersion: "4.20",
 			wantEmpty:       true,
 		},
 	}
@@ -120,8 +95,7 @@ func TestNodeVersionInMinor(t *testing.T) {
 				},
 				Status: corev1.NodeStatus{
 					NodeInfo: corev1.NodeSystemInfo{
-						ContainerRuntimeVersion: tt.criVersion,
-						KubeletVersion:          tt.kubeletVersion,
+						KubeletVersion: tt.kubeletVersion,
 					},
 				},
 			}

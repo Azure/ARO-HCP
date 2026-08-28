@@ -334,39 +334,15 @@ func nodeReadyAndSchedulable(node *corev1.Node) bool {
 // For example, OCP 4.14 = k8s 1.27, OCP 4.15 = k8s 1.28, ..., OCP 4.22 = k8s 1.35.
 const ocpToK8sMinorOffset uint64 = 13
 
-// rhaosVersionRegex matches the OCP version embedded in old-style CRI-O version strings,
-// e.g. "cri-o://1.33.9-3.rhaos4.20.git0abcdef.el9" -> captures "4" and "20".
-var rhaosVersionRegex = regexp.MustCompile(`rhaos(\d+)\.(\d+)`)
-
 // nodeVersionInMinor returns a non-empty reason if the node's version is not in the same major.minor as expectedSemver.
-// It first tries the old RHCOS CRI-O format (e.g. "cri-o://1.33.9-3.rhaos4.20.gitXXX.el9") and, if
-// no rhaos tag is found (OCP 4.22+ ships clean semver CRI-O like "cri-o://1.35.6"), falls back to
-// the KubeletVersion to verify the Kubernetes minor version matches.
+// It parses the node's KubeletVersion (e.g. "v1.35.6+abc") and verifies that the Kubernetes minor
+// version matches the expected OCP version using the well-known offset: OCP 4.X ships Kubernetes 1.(X+13).
 func (v verifyNodePoolUpgrade) nodeVersionInMinor(node *corev1.Node, expectedSemver semver.Version) string {
-	cri := node.Status.NodeInfo.ContainerRuntimeVersion
-
-	// Try the old RHCOS CRI-O format first: "cri-o://1.33.9-3.rhaos4.20.gitXXX.el9"
-	m := rhaosVersionRegex.FindStringSubmatch(cri)
-	if len(m) == 3 {
-		nodeVerStr := m[1] + "." + m[2]
-		nodeVer, err := semver.ParseTolerant(nodeVerStr)
-		if err != nil {
-			return fmt.Sprintf("%s (invalid version %q)", node.Name, nodeVerStr)
-		}
-		if nodeVer.Major != expectedSemver.Major || nodeVer.Minor != expectedSemver.Minor {
-			return fmt.Sprintf("%s (version %s not in same minor as expected %s)", node.Name, nodeVerStr, v.expectedVersion)
-		}
-		return ""
-	}
-
-	// New CRI-O builds (OCP 4.22+) no longer embed an rhaos tag. Fall back to
-	// the kubelet version, which always carries the Kubernetes minor version.
-	// OCP 4.X ships Kubernetes 1.(X+13), so verify the kubelet minor matches.
 	kubeletVer := node.Status.NodeInfo.KubeletVersion
 	kv, err := semver.ParseTolerant(kubeletVer)
 	if err != nil {
-		return fmt.Sprintf("%s (no rhaos tag in containerRuntimeVersion %q and cannot parse KubeletVersion %q: %v)",
-			node.Name, cri, kubeletVer, err)
+		return fmt.Sprintf("%s (cannot parse KubeletVersion %q: %v)",
+			node.Name, kubeletVer, err)
 	}
 
 	if kv.Major != 1 {
