@@ -96,6 +96,11 @@ To resolve the principals behind orphaned role assignments, `shared-leftovers` r
 
 For `cleanup-sweeper` `rg-ordered`, candidate resource groups are chosen using `tooling/cleanup-sweeper/resourcegroups.policy.yaml`. Discovery treats the `createdAt` tag (RFC3339 timestamp on the resource group) as required for any `action: delete` rule: groups without a parseable tag are not candidates.
 
+The policy excludes long-lived slot-managed identity pools whose resource-group
+names start with `aro-hcp-msi-container-`. These groups carry `persist=true`,
+but they back repeated E2E leases and must not be treated as resources that
+expire after 15 days.
+
 Azure does not set that tag by default. Subscriptions where `rg-ordered` should run must apply an Azure Policy (or equivalent) that stamps `tags['createdAt']` when a resource group is created, using `[utcNow()]` in the policy rule. The rule body lives in `tooling/cleanup-sweeper/scripts/rg-createdat-policy-rule.json`.
 
 Because the `createdAt` tag is required for every `action: delete` rule, this policy is a hard per-subscription prerequisite: `rg-ordered` must not be enabled in a subscription (including the INT, STG, and PROD e2e subscriptions) until the `createdAt` policy is assigned there. The sweeper only requires a parseable `createdAt` tag, so groups created before the policy was assigned are not candidates until the tag is present (either stamped by the policy on new groups or backfilled onto existing ones, for example via policy remediation). Until the policy is in place, only `shared-leftovers` is safe to run in that subscription, since it does not delete resource groups.
