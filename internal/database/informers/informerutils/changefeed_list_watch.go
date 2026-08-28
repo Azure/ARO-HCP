@@ -466,7 +466,8 @@ func (c *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPITyp
 		return nil
 	}
 
-	loggedDocument := objAsTypedDocument
+	loggedDocument := &cosmosstorageutils.TypedDocument{}
+	*loggedDocument = *objAsTypedDocument
 	if err := cosmosstorageutils.RedactTypedDocument(loggedDocument); err != nil {
 		utilruntime.HandleError(utils.TrackError(err))
 		loggedDocument = nil
