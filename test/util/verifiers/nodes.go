@@ -334,6 +334,10 @@ func nodeReadyAndSchedulable(node *corev1.Node) bool {
 // For example, OCP 4.14 = k8s 1.27, OCP 4.15 = k8s 1.28, ..., OCP 4.22 = k8s 1.35.
 const ocpToK8sMinorOffset uint64 = 13
 
+// rhaosVersionRegex matches the OCP version embedded in old-style CRI-O version strings,
+// e.g. "cri-o://1.33.9-3.rhaos4.20.git0abcdef.el9" -> captures "4" and "20".
+var rhaosVersionRegex = regexp.MustCompile(`rhaos(\d+)\.(\d+)`)
+
 // nodeVersionInMinor returns a non-empty reason if the node's version is not in the same major.minor as expectedSemver.
 // It first tries the old RHCOS CRI-O format (e.g. "cri-o://1.33.9-3.rhaos4.20.gitXXX.el9") and, if
 // no rhaos tag is found (OCP 4.22+ ships clean semver CRI-O like "cri-o://1.35.6"), falls back to
@@ -342,7 +346,7 @@ func (v verifyNodePoolUpgrade) nodeVersionInMinor(node *corev1.Node, expectedSem
 	cri := node.Status.NodeInfo.ContainerRuntimeVersion
 
 	// Try the old RHCOS CRI-O format first: "cri-o://1.33.9-3.rhaos4.20.gitXXX.el9"
-	m := regexp.MustCompile(`rhaos(\d+)\.(\d+)`).FindStringSubmatch(cri)
+	m := rhaosVersionRegex.FindStringSubmatch(cri)
 	if len(m) == 3 {
 		nodeVerStr := m[1] + "." + m[2]
 		nodeVer, err := semver.ParseTolerant(nodeVerStr)
@@ -363,6 +367,11 @@ func (v verifyNodePoolUpgrade) nodeVersionInMinor(node *corev1.Node, expectedSem
 	if err != nil {
 		return fmt.Sprintf("%s (no rhaos tag in containerRuntimeVersion %q and cannot parse KubeletVersion %q: %v)",
 			node.Name, cri, kubeletVer, err)
+	}
+
+	if kv.Major != 1 {
+		return fmt.Sprintf("%s (KubeletVersion %s has unexpected major %d, expected 1)",
+			node.Name, kubeletVer, kv.Major)
 	}
 
 	expectedK8sMinor := expectedSemver.Minor + ocpToK8sMinorOffset

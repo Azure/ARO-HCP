@@ -1,4 +1,4 @@
-// Copyright 2025 Microsoft Corporation
+// Copyright 2026 Microsoft Corporation
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@
 package verifiers
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/blang/semver/v4"
@@ -85,6 +86,14 @@ func TestNodeVersionInMinor(t *testing.T) {
 			wantEmpty:       true,
 		},
 		{
+			name:            "rhaos tag takes priority over kubelet fallback",
+			nodeName:        "node-8",
+			criVersion:      "cri-o://1.33.9-3.rhaos4.20.git0abcdef.el9",
+			kubeletVersion:  "v1.99.0+bogus",
+			expectedVersion: "4.20",
+			wantEmpty:       true,
+		},
+		{
 			name:            "new CRI-O format OCP 4.23 = k8s 1.36",
 			nodeName:        "node-7",
 			criVersion:      "cri-o://1.36.0",
@@ -126,25 +135,12 @@ func TestNodeVersionInMinor(t *testing.T) {
 				t.Errorf("expected non-empty result containing %q, got empty", tt.wantSubstring)
 			}
 			if !tt.wantEmpty && tt.wantSubstring != "" {
-				if got == "" || !containsSubstring(got, tt.wantSubstring) {
+				if !strings.Contains(got, tt.wantSubstring) {
 					t.Errorf("expected result to contain %q, got %q", tt.wantSubstring, got)
 				}
 			}
 		})
 	}
-}
-
-func containsSubstring(s, substr string) bool {
-	return len(s) >= len(substr) && searchSubstring(s, substr)
-}
-
-func searchSubstring(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
 }
 
 func TestOcpToK8sMinorOffset(t *testing.T) {
