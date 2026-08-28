@@ -25,7 +25,6 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
-	"net/http"
 	"strings"
 	"time"
 
@@ -775,14 +774,16 @@ func (tc *perItOrDescribeTestContext) get20260901ClientFactoryUnlocked(ctx conte
 // subscription/location (e.g. during the rollout window, or in
 // subscriptions that were never onboarded to this preview version). This is
 // distinct from an operation actually failing after it started, which should
-// not be silently retried on a different API version.
+// not be silently retried on a different API version. NoRegisteredProviderFound
+// isn't pinned to a single HTTP status across endpoints/rollout state, so this
+// only checks the ARM error code (matching the convention used elsewhere in
+// the e2e suite, e.g. isAPINotDeployedError).
 func isAPIVersionUnavailableError(err error) bool {
 	var respErr *azcore.ResponseError
 	if !errors.As(err, &respErr) {
 		return false
 	}
-	return respErr.StatusCode == http.StatusBadRequest &&
-		strings.Contains(respErr.ErrorCode, "NoRegisteredProviderFound")
+	return strings.Contains(respErr.ErrorCode, "NoRegisteredProviderFound")
 }
 
 // fallbackAdminRESTConfigTo20240610 re-requests admin credentials via the
@@ -844,7 +845,7 @@ func (tc *perItOrDescribeTestContext) GetAdminRESTConfigForHCPCluster20260901(
 		nil,
 	)
 	if err != nil {
-		// Fall back to the old 0240610 mechanism during the transition period.
+		// Fall back to the old 20240610 mechanism during the transition period.
 		return tc.fallbackAdminRESTConfigTo20240610(ctx, resourceGroupName, hcpClusterName, timeout, err)
 	}
 
@@ -860,7 +861,7 @@ func (tc *perItOrDescribeTestContext) GetAdminRESTConfigForHCPCluster20260901(
 			// registered), but polling locations/hcpOperationStatuses at
 			// 2026-09-01-preview failed because that api-version isn't
 			// registered for this subscription/location. Fall back to the
-			// old 0240610 mechanism during the transition period, same as
+			// old 20240610 mechanism during the transition period, same as
 			// when the initial request fails outright.
 			return tc.fallbackAdminRESTConfigTo20240610(ctx, resourceGroupName, hcpClusterName, timeout, err)
 		}
