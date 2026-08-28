@@ -232,18 +232,41 @@ type nodeSummary struct {
 func summarizeNodes(nodes []corev1.Node) []nodeSummary {
 	summaries := make([]nodeSummary, len(nodes))
 	for i, node := range nodes {
-		var releaseImages []string
-		for _, img := range node.Status.Images {
-			releaseImages = append(releaseImages, img.Names...)
-		}
 		summaries[i] = nodeSummary{
 			Name:                    node.Name,
 			Ready:                   nodeReady(to.Ptr(node)),
 			ContainerRuntimeVersion: node.Status.NodeInfo.ContainerRuntimeVersion,
-			ReleaseImages:           releaseImages,
+			ReleaseImages:           summarizeReleaseImages(node.Status.Images),
 		}
 	}
 	return summaries
+}
+
+// maxReleaseImagesInSummary caps how many release image names appear in a node summary used
+// for human-readable error output. The verification logic (nodeReleaseImagesUpdated) still
+// compares the node's complete, untruncated set of image names; this cap only affects what
+// gets printed on failure.
+const maxReleaseImagesInSummary = 5
+
+// summarizeReleaseImages returns a short, deduplicated list of release image names for use in
+// error output. A single image is typically referenced by several aliases in img.Names (e.g. a
+// "repo@sha256:..." digest pull spec and a "repo:tag" tag pointing at the same image), even
+// though the node can only be running one version of that image. Keeping every alias for every
+// image on the node produces failure messages with dozens of near-duplicate entries that don't
+// help diagnose which OCP/release version is actually running, so this keeps one representative
+// name per image and truncates the result.
+func summarizeReleaseImages(images []corev1.ContainerImage) []string {
+	var names []string
+	for _, img := range images {
+		if len(img.Names) > 0 {
+			names = append(names, img.Names[0])
+		}
+	}
+	if len(names) > maxReleaseImagesInSummary {
+		elided := len(names) - maxReleaseImagesInSummary
+		names = append(names[:maxReleaseImagesInSummary], fmt.Sprintf("(+%d more)", elided))
+	}
+	return names
 }
 
 func (v verifyNodePoolUpgrade) Name() string {
