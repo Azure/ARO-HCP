@@ -148,6 +148,7 @@ data:
         Match                 kubernetes.*
         multiline.parser      klog
         multiline.key_content log
+        Emitter_Mem_Buf_Limit 50M
 
     [FILTER]
         # Drop noisy kube-proxy topology.go INFO messages that generate 10x log volume

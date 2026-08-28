@@ -144,6 +144,7 @@ data:
         Match                 kubernetes.*
         multiline.parser      klog
         multiline.key_content log
+        Emitter_Mem_Buf_Limit 50M
 
     [FILTER]
         # Drop noisy kube-proxy topology.go INFO messages that generate 10x log volume
@@ -997,7 +998,7 @@ spec:
         app: arobit-forwarder
         azure.workload.identity/use: "true"
       annotations:
-        checksum/configmap: 35482d7d830c2e71804253e8311a4f55d5c59f93b6cb4f46c513f2f030f8d4a5
+        checksum/configmap: 5b0f7652584a80bc9ce7a000ad45161157cc477a289a0e5222ba0e5a571e334a
     spec:
       priorityClassName: service-lifecycle-critical
       serviceAccountName: 'arobit-forwarder'
