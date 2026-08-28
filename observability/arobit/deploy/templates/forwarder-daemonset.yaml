@@ -102,10 +102,34 @@ spec:
             - name: flb-config
               mountPath: /forwarder/etc
               readOnly: true
-        {{- if and .Values.forwarder.mdsd.enabled (eq .Values.forwarder.clusterType "mgmt") }}
+{{- if and .Values.forwarder.mdsd.enabled (eq .Values.forwarder.clusterType "mgmt") }}
             - name: shoebox-mappings
               mountPath: /shoebox-config
               readOnly: true
+{{- end }}
+        - name: watson-agent
+          image: {{ .Values.watson.image.registry }}/{{ .Values.watson.image.repository }}@{{ .Values.watson.image.digest }}
+          imagePullPolicy: '{{ .Values.watson.image.pullPolicy }}'
+          env:
+            - name: INCOMING_QUEUE
+              value: {{ .Values.watson.env.INCOMING_QUEUE | quote }}
+            - name: REPORT_QUEUE
+              value: {{ .Values.watson.env.REPORT_QUEUE | quote }}
+            - name: MDSD_ROLE_PREFIX
+              value: {{ .Values.watson.env.MDSD_ROLE_PREFIX | quote }}
+            - name: WA_CORE_PATTERN
+              value: {{ .Values.watson.env.WA_CORE_PATTERN | quote }}
+            - name: AUTHENTICATION_ID
+              value: {{ .Values.watson.env.AUTHENTICATION_ID | quote }}
+          securityContext:
+            privileged: {{ .Values.watson.securityContext.privileged }}
+          resources: {{- toYaml .Values.watson.resources | nindent 12 }}
+          volumeMounts:
+            - name: watson-crashdump
+              mountPath: /azure-watson
+            - name: mdsd-run-clusterlogs
+              mountPath: /var/run/mdsd
+{{- if and .Values.forwarder.mdsd.enabled (eq .Values.forwarder.clusterType "mgmt") }}
         - name: mdsd-clusterlogs
           image: {{ .Values.forwarder.mdsd.image.registry }}/{{ .Values.forwarder.mdsd.image.repository }}@{{ .Values.forwarder.mdsd.image.digest }}
           imagePullPolicy: '{{ .Values.forwarder.mdsd.image.pullPolicy }}'
@@ -330,9 +354,13 @@ spec:
           configMap:
             name: arobit-forwarder
             defaultMode: 0755
-        {{- if and .Values.forwarder.mdsd.enabled (eq .Values.forwarder.clusterType "mgmt") }}
         - name: mdsd-run-clusterlogs
           emptyDir: {}
+        - name: watson-crashdump
+          hostPath:
+            type: DirectoryOrCreate
+            path: {{ .Values.watson.volumes.crashdumpHostPath | quote }}
+        {{- if and .Values.forwarder.mdsd.enabled (eq .Values.forwarder.clusterType "mgmt") }}
         - name: shoebox-mappings
           configMap:
             name: namespace-resourceid-mapping
