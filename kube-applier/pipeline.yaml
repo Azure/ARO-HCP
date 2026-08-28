@@ -84,7 +84,7 @@ resourceGroups:
       step: kusto-lookup
       name: kustoUri
     kustoDatabase: '{{ .kusto.serviceLogsDatabase }}'
-    kustoTable: 'containerLogs'
+    kustoTable: 'kubeApplierLogs'
     inputVariables:
       imagePullerMsiClientId:
         resourceGroup: management

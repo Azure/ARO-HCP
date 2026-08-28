@@ -47,6 +47,7 @@ import (
 	credentialrevocationdeletion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/credentialrevocation/deletion"
 	credentialrevocationoperations "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/credentialrevocation/operations"
 	clusterdeletion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/deletion"
+	clusteridentity "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/identity"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/legacycredentialrequest"
 	clusteroperations "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/operations"
 	clusterplacement "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/placement"
@@ -665,14 +666,13 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	controlPlaneDesiredVersionController := clusterversion.NewControlPlaneDesiredVersionController(
 		b.clock,
 		b.options.ResourcesDBClient,
+		clusterLister,
 		b.options.ClustersServiceClient,
 		activeOperationLister,
 		serviceProviderClusterLister,
+		nodePoolLister,
 		serviceProviderNodePoolLister,
 		backendInformers,
-		unionKubeApplierInformers,
-		unionReadDesireLister,
-		subscriptionLister,
 	)
 	triggerControlPlaneUpgradeController := clusterversion.NewTriggerControlPlaneUpgradeController(
 		b.clock,
@@ -695,9 +695,8 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		unionKubeApplierInformers,
 		unionReadDesireLister,
 	)
-	identityMigrationController := clusterproperties.NewIdentityMigrationController(
+	clusterIdentitySyncController := clusteridentity.NewClusterIdentitySyncController(
 		b.options.ResourcesDBClient,
-		b.options.ClustersServiceClient,
 		backendInformers,
 		unionKubeApplierInformers,
 	)
@@ -764,13 +763,13 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 
 	createClusterScopedReadDesiresController := clusterreaddesires.NewCreateClusterScopedReadDesiresController(
 		activeOperationLister, b.options.ResourcesDBClient, b.options.KubeApplierDBClients,
-		serviceProviderClusterLister,
+		serviceProviderClusterLister, unionReadDesireLister,
 		backendInformers, b.options.MaestroSourceEnvironmentIdentifier,
 	)
 
 	createNodePoolScopedReadDesiresController := nodepoolreaddesires.NewCreateNodePoolScopedReadDesiresController(
 		activeOperationLister, b.options.ResourcesDBClient, b.options.KubeApplierDBClients,
-		serviceProviderClusterLister,
+		serviceProviderClusterLister, unionReadDesireLister,
 		backendInformers, b.options.MaestroSourceEnvironmentIdentifier,
 	)
 
@@ -854,7 +853,25 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		serviceProviderClusterLister,
 		backendInformers,
 	)
+	dataPlaneIdentitiesPermissionsValidationController := clustervalidation.NewClusterValidationController(
+		validationutils.NewDataPlaneIdentitiesPermissionsValidation(
+			b.options.SMIClientBuilder,
+			b.options.ClusterScopedIdentitiesConfig,
+			b.options.BackendIdentityAzureCachedReaders,
+			b.options.CheckAccessV2ClientBuilder,
+		),
+		b.options.ResourcesDBClient,
+		serviceProviderClusterLister,
+		backendInformers,
+	)
 
+	nodePoolNSGBasedRequiredConnectivityValidationController := nodepoolvalidation.NewNodePoolValidationController(
+		validationutils.NewAzureNodePoolNSGBasedRequiredConnectivityValidation(b.options.SMIClientBuilder),
+		b.options.ResourcesDBClient,
+		serviceProviderNodePoolLister,
+		backendInformers,
+		unionKubeApplierInformers,
+	)
 	nodePoolVersionController := nodepoolversion.NewNodePoolVersionController(
 		b.options.ResourcesDBClient,
 		subscriptionLister,
@@ -1006,6 +1023,20 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		backendInformers,
 	)
 
+	fetchMSIIdentitiesInfoController := clusteridentity.NewFetchMSIIdentitiesInfoController(
+		b.clock,
+		b.options.ResourcesDBClient,
+		backendInformers,
+		b.options.FPAMIDataplaneClientBuilder,
+	)
+
+	fetchDataPlaneOperatorsManagedIdentitiesInfoController := clusteridentity.NewFetchDataPlaneOperatorsManagedIdentitiesInfoController(
+		b.clock,
+		b.options.ResourcesDBClient,
+		backendInformers,
+		b.options.SMIClientBuilder,
+	)
+
 	leaderElectionConfig := leaderelection.LeaderElectionConfig{
 		Lock:          b.options.LeaderElectionLock,
 		LeaseDuration: sharedleaderelection.RecommendedLeaseDuration,
@@ -1069,7 +1100,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go triggerControlPlaneUpgradeController.Run(ctx, 20)
 				go clusterBaseDomainPrefixSyncController.Run(ctx, 20)
 				go clusterPropertiesSyncController.Run(ctx, 20)
-				go identityMigrationController.Run(ctx, 20)
+				go clusterIdentitySyncController.Run(ctx, 20)
 				go clusterDegradedAggregatorController.Run(ctx, 20)
 				go clusterRequirementsValidAggregatorController.Run(ctx, 20)
 				go nodePoolDegradedAggregatorController.Run(ctx, 20)
@@ -1083,6 +1114,8 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go azureVMSizeSupportsEphemeralOSDiskValidationController.Run(ctx, 20)
 				go azureNodePoolVMQuotaValidationController.Run(ctx, 20)
 				go controlPlaneIdentitiesPermissionsValidationController.Run(ctx, 20)
+				go nodePoolNSGBasedRequiredConnectivityValidationController.Run(ctx, 20)
+				go dataPlaneIdentitiesPermissionsValidationController.Run(ctx, 20)
 				go nodePoolVersionController.Run(ctx, 20)
 				go nodePoolActiveVersionController.Run(ctx, 20)
 				go createClusterScopedReadDesiresController.Run(ctx, 20)
@@ -1117,6 +1150,8 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go cosmosMigrationController.Run(ctx, 5)
 				go virtualMachineResourceSKUsCachedReaderController.Run(ctx, 20)
 				go backupScheduleController.Run(ctx, 20)
+				go fetchMSIIdentitiesInfoController.Run(ctx, 20)
+				go fetchDataPlaneOperatorsManagedIdentitiesInfoController.Run(ctx, 20)
 			},
 			OnStoppedLeading: func() {
 				// This needs to be defined even though it does nothing.

@@ -10,6 +10,17 @@ set -euo pipefail
 #   < 2.88.0  ->  login --username <user> --password <token> <registry>
 #   >= 2.88.0 ->  login --username <user> --password-stdin <registry>, token on stdin
 # Parse the flags rather than relying on positional arguments so both forms work.
+# `az acr login` also probes this helper with `ps` before sending the login
+# (get_docker_command in azure-cli's acr/custom.py) and treats *any* stderr
+# output from that probe as a fatal "container runtime unusable" error --
+# it never looks at the exit code. Non-login invocations must therefore
+# exit 0 and stay silent, or the login is never attempted.
+
+if [[ "${1:-}" != "login" ]]; then
+    exit 0
+fi
+shift
+
 USERNAME=""
 PASSWORD=""
 

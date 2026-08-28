@@ -30,7 +30,6 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
-	"github.com/Azure/ARO-HCP/internal/utils/armhelpers"
 )
 
 func TestMockResourcesDBClient_LoadFromDirectory(t *testing.T) {
@@ -66,13 +65,13 @@ func TestMockResourcesDBClient_LoadFromDirectory(t *testing.T) {
 		}
 
 		switch {
-		case armhelpers.ResourceTypeStringEqual(typedDoc.ResourceType, coreapi.ClusterResourceType):
+		case metadataapi.ResourceTypeStringEqual(typedDoc.ResourceType, coreapi.ClusterResourceType):
 			foundCluster = true
-		case armhelpers.ResourceTypeStringEqual(typedDoc.ResourceType, coreapi.NodePoolResourceType):
+		case metadataapi.ResourceTypeStringEqual(typedDoc.ResourceType, coreapi.NodePoolResourceType):
 			foundNodePool = true
-		case armhelpers.ResourceTypeStringEqual(typedDoc.ResourceType, azcorearm.SubscriptionResourceType):
+		case metadataapi.ResourceTypeStringEqual(typedDoc.ResourceType, azcorearm.SubscriptionResourceType):
 			foundSubscription = true
-		case armhelpers.ResourceTypeStringEqual(typedDoc.ResourceType, coreapi.OperationStatusResourceType):
+		case metadataapi.ResourceTypeStringEqual(typedDoc.ResourceType, coreapi.OperationStatusResourceType):
 			foundOperation = true
 		}
 	}
@@ -310,6 +309,103 @@ func TestMockResourcesDBClient_CRUD_Operation(t *testing.T) {
 	}
 }
 
+func TestMockResourcesDBClient_ListActiveOperations_IncludeTerminal(t *testing.T) {
+	mock := NewMockResourcesDBClient()
+	ctx := context.Background()
+
+	subscriptionID := "6b690bec-0c16-4ecb-8f67-781caf40bba7"
+
+	clusterID := metadataapi.Must(azcorearm.ParseResourceID(
+		"/subscriptions/" + subscriptionID +
+			"/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster"))
+
+	otherClusterID := metadataapi.Must(azcorearm.ParseResourceID(
+		"/subscriptions/" + subscriptionID +
+			"/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/other-cluster"))
+
+	now := time.Now().UTC()
+	operationCRUD := mock.Operations(subscriptionID)
+
+	ops := []struct {
+		name       string
+		externalID *azcorearm.ResourceID
+		status     coreapi.ProvisioningState
+	}{
+		{"op-active", clusterID, coreapi.ProvisioningStateAccepted},
+		{"op-succeeded", clusterID, coreapi.ProvisioningStateSucceeded},
+		{"op-failed", clusterID, coreapi.ProvisioningStateFailed},
+		{"op-other-active", otherClusterID, coreapi.ProvisioningStateAccepted},
+		{"op-other-succeeded", otherClusterID, coreapi.ProvisioningStateSucceeded},
+	}
+
+	for _, op := range ops {
+		operationID := metadataapi.Must(azcorearm.ParseResourceID(
+			"/subscriptions/" + subscriptionID +
+				"/providers/Microsoft.RedHatOpenShift/locations/eastus/hcpOperationStatuses/" + op.name))
+		resourceID := metadataapi.Must(azcorearm.ParseResourceID(
+			"/subscriptions/" + subscriptionID +
+				"/providers/Microsoft.RedHatOpenShift/hcpOperationStatuses/" + op.name))
+		_, err := operationCRUD.Create(ctx, &coreapi.Operation{
+			CosmosMetadata: coreapi.CosmosMetadata{
+				ResourceID:   resourceID,
+				PartitionKey: strings.ToLower(subscriptionID),
+			},
+			OperationID:        operationID,
+			ExternalID:         op.externalID,
+			Request:            coreapi.OperationRequestCreate,
+			Status:             op.status,
+			StartTime:          now,
+			LastTransitionTime: now,
+		}, nil)
+		if err != nil {
+			t.Fatalf("Failed to create operation %s: %v", op.name, err)
+		}
+	}
+
+	countItems := func(iter cosmosstorageutils.DBClientIterator[coreapi.Operation]) int {
+		n := 0
+		for _, item := range iter.Items(ctx) {
+			if item != nil {
+				n++
+			}
+		}
+		if iter.GetError() != nil {
+			t.Fatalf("Iterator error: %v", iter.GetError())
+		}
+		return n
+	}
+
+	// Default: only active operations across all external IDs
+	if got := countItems(operationCRUD.ListActiveOperations(nil)); got != 2 {
+		t.Errorf("ListActiveOperations(nil): expected 2 active ops, got %d", got)
+	}
+
+	// IncludeTerminal: all operations across all external IDs
+	if got := countItems(operationCRUD.ListActiveOperations(
+		&corecosmosstorage.ResourcesDBClientListActiveOperationDocsOptions{
+			IncludeTerminal: true,
+		})); got != 5 {
+		t.Errorf("ListActiveOperations(IncludeTerminal): expected 5 ops, got %d", got)
+	}
+
+	// ExternalID filter without IncludeTerminal: only active ops for target cluster
+	if got := countItems(operationCRUD.ListActiveOperations(
+		&corecosmosstorage.ResourcesDBClientListActiveOperationDocsOptions{
+			ExternalID: clusterID,
+		})); got != 1 {
+		t.Errorf("ListActiveOperations(ExternalID): expected 1 active op, got %d", got)
+	}
+
+	// ExternalID + IncludeTerminal: all ops for target cluster
+	if got := countItems(operationCRUD.ListActiveOperations(
+		&corecosmosstorage.ResourcesDBClientListActiveOperationDocsOptions{
+			ExternalID:      clusterID,
+			IncludeTerminal: true,
+		})); got != 3 {
+		t.Errorf("ListActiveOperations(ExternalID+IncludeTerminal): expected 3 ops, got %d", got)
+	}
+}
+
 func TestMockResourcesDBClient_CRUD_Subscription(t *testing.T) {
 	mock := NewMockResourcesDBClient()
 	ctx := context.Background()
@@ -497,7 +593,7 @@ func TestMockResourcesDBClient_UntypedCRUD(t *testing.T) {
 		t.Fatalf("Failed to get cluster via untyped CRUD: %v", err)
 	}
 
-	if !armhelpers.ResourceTypeStringEqual(retrieved.ResourceType, coreapi.ClusterResourceType) {
+	if !metadataapi.ResourceTypeStringEqual(retrieved.ResourceType, coreapi.ClusterResourceType) {
 		t.Errorf("Expected resource type %s, got %s", coreapi.ClusterResourceType.String(), retrieved.ResourceType)
 	}
 }

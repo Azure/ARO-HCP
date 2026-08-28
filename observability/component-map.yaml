@@ -1,0 +1,28 @@
+# component-map.yaml maps repository path globs to the alert `component` label the
+# release-dashboard merge gate uses to decide which components a PR touches.
+#
+#   - name:  the alert `component` label (spec.groups[].labels.component in the
+#            *-prometheusRule.yaml files).
+#   - paths: doublestar globs; a changed file matching any of them belongs to the
+#            component. Files that match nothing are ignored.
+#
+# Only map directories that build an image from this repository. The gate reasons
+# about whether an ARO-HCP change broke production, so components whose images are
+# built elsewhere (maestro, hypershift, clusters-service, ...) cannot be reasoned
+# about from an ARO-HCP PR and are intentionally omitted.
+components:
+- name: backend
+  paths:
+  - backend/**
+- name: frontend
+  paths:
+  - frontend/**
+- name: admin
+  paths:
+  - admin/**
+- name: fleet
+  paths:
+  - fleet/**
+- name: kube-applier
+  paths:
+  - kube-applier/**

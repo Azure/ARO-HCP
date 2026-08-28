@@ -107,10 +107,11 @@ func queryToDeepLink(kustoEndpoint, kustoDatabase, query string) (string, error)
 // KQL queries and generating share URIs.
 func (h *Hydrator) Hydrate(ctx context.Context, draft *DraftChain) (*HydratedChain, error) {
 	result := &HydratedChain{
-		RootCause:   draft.RootCause,
-		Summary:     draft.Summary,
-		Notes:       draft.Notes,
-		Suggestions: draft.Suggestions,
+		RootCause:      draft.RootCause,
+		Summary:        draft.Summary,
+		Notes:          draft.Notes,
+		Classification: draft.Classification,
+		Suggestions:    draft.Suggestions,
 	}
 
 	// Backfill all discovery directories from the data dir. All pre-gathered

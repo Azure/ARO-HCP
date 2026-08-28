@@ -14,6 +14,10 @@
 
 package coreapi
 
+import (
+	"github.com/blang/semver/v4"
+)
+
 // ExperimentalFeatures captures experimental feature state evaluated from
 // AFEC and per-resource tags. This is stored in Cosmos as part of the
 // cluster's desired state and read during internal spec to CS transformation.
@@ -33,6 +37,13 @@ type ExperimentalFeatures struct {
 	// the control_plane_operator_image CS cluster property, which CS
 	// translates into the HostedCluster annotation.
 	ControlPlaneOperatorImage string `json:"controlPlaneOperatorImage,omitempty"`
+
+	// ControlPlaneExactVersion pins the control plane to an exact OpenShift
+	// release (e.g. 4.17.3) instead of letting the desired-version controllers
+	// resolve a z-stream from Cincinnati. When non-nil, both the initial and
+	// upgrade control plane version controllers use this value directly as the
+	// desired control plane version and skip graph/gateway-based resolution.
+	ControlPlaneExactVersion *semver.Version `json:"controlPlaneExactVersion,omitempty"`
 }
 
 // ControlPlaneAvailability controls the AvailabilityPolicy for control plane components.

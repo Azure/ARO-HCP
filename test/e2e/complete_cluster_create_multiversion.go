@@ -17,8 +17,8 @@ package e2e
 import (
 	"context"
 	"embed"
-	"errors"
 	"fmt"
+	"net/http"
 	"sort"
 	"strings"
 
@@ -33,6 +33,8 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 
+	clusterversion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/version"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controlplaneversion"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
@@ -57,16 +59,30 @@ var _ = Describe("ARO-HCP", func() {
 			suffix := rand.String(6)
 			clusterName := customerClusterNamePrefix + versionLabel + "-" + suffix
 			clusterParams.ClusterName = clusterName
+
+			// Resolve the install version up front so a missing version skips before we burn resources
+			// on cluster creation. Nightly cannot be resolved by the RP from a bare major.minor, so we
+			// look up the exact build tag. For every other channel group we install with the bare
+			// major.minor line and let the RP resolve it, verifying resolvability first via the
+			// OpenShift update service at the channel's z-stream offset.
+			channelGroup := clusterParams.ChannelGroup
 			clusterParams.OpenshiftVersionId = version
-			openShiftControlPlaneVersion, err := framework.GetLatestInstallVersion(ctx, clusterParams.ChannelGroup, version)
-			if err != nil {
-				if errors.Is(err, framework.ErrNightlyReleaseStreamNotFound) || errors.Is(err, framework.ErrNoAcceptedNightlyTags) || errors.Is(err, framework.ErrVersionNotFound) {
-					Skip(fmt.Sprintf("No install version found for %s in %s channel (%s)", version, clusterParams.ChannelGroup, err.Error()))
-				} else {
-					Fail(fmt.Sprintf("failed to get latest install version for %s channel: %s", clusterParams.ChannelGroup, err.Error()))
+			if channelGroup == "nightly" {
+				resolved, err := framework.GetLatestNightlyInstallVersion(ctx, channelGroup, version)
+				if framework.IsVersionNotFoundError(err) {
+					Skip(fmt.Sprintf("no nightly version for %s in %s channel: %v", version, channelGroup, err))
+				}
+				Expect(err).NotTo(HaveOccurred(), "failed to resolve nightly install version for %s", version)
+				clusterParams.OpenshiftVersionId = resolved
+			} else {
+				desiredVersion, err := controlplaneversion.SelectControlPlaneVersion(ctx, http.DefaultTransport.RoundTrip, nil, fmt.Sprintf("%s-%s", channelGroup, version), clusterversion.GetZStreamOffset(channelGroup))
+				if err != nil {
+					Skip(fmt.Sprintf("failed to resolve a version for channel %s-%s: %v", channelGroup, version, err))
+				}
+				if desiredVersion == nil {
+					Skip(fmt.Sprintf("no version resolved for channel %s-%s", channelGroup, version))
 				}
 			}
-			clusterParams.OpenshiftVersionId = openShiftControlPlaneVersion
 
 			tc := framework.NewTestContext()
 			if tc.UsePooledIdentities() {

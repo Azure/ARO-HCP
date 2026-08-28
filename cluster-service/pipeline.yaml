@@ -86,6 +86,10 @@ resourceGroups:
         resourceGroup: service
         step: output
         name: csMsiClientId
+      cosmosDBDocumentEndpoint:
+        resourceGroup: service
+        step: output
+        name: cosmosDBDocumentEndpoint
       databaseAuthMethod:
         resourceGroup: service
         step: output

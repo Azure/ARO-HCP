@@ -4,6 +4,7 @@ AKS_NAME ?= {{ .svc.aks.name }}
 SERVICE_KV ?= {{ .serviceKeyVault.name }}
 NAMESPACE ?= {{ .clustersService.k8s.namespace }}
 ACR_NAME ?= {{ .acr.svc.name }}
+SVC_ISTIO_TAG ?= {{ .svc.istio.tag }}
 OCP_ACR_NAME ?= {{ .acr.ocp.name }}
 REGIONAL_RESOURCEGROUP ?= {{ .regionRG }}
 MGMT_RESOURCEGROUP ?= {{ .mgmt.rg }}

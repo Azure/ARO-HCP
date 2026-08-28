@@ -447,6 +447,12 @@ func (e *erroringApplyLister) GetForSystemAdminCredentialRequest(ctx context.Con
 func (e *erroringApplyLister) GetForSystemAdminCredentialRevocation(ctx context.Context, _, _, _, _, _ string) (*kubeapplierapi.ApplyDesire, error) {
 	return nil, e.err
 }
+func (e *erroringApplyLister) GetForManagementCluster(ctx context.Context, _, _ string) (*kubeapplierapi.ApplyDesire, error) {
+	return nil, e.err
+}
+func (e *erroringApplyLister) GetByResourceID(ctx context.Context, _ string) (*kubeapplierapi.ApplyDesire, error) {
+	return nil, e.err
+}
 func (e *erroringApplyLister) ListForManagementCluster(ctx context.Context, _ *azcorearm.ResourceID) ([]*kubeapplierapi.ApplyDesire, error) {
 	return nil, e.err
 }

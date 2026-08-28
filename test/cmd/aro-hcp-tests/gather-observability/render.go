@@ -157,7 +157,16 @@ func alertFilterJSON(a alert) template.JS {
 	return template.JS(data)
 }
 
-func renderTemplate(outputPath string, data any) error {
+// observabilityTab is one section of the combined, tabbed observability page.
+// HTML is a full, self-contained document (the output of one of the existing
+// section renderers) embedded into its own iframe pane.
+type observabilityTab struct {
+	Title string `json:"title"`
+	HTML  string `json:"html"`
+}
+
+// renderAlertsHTML renders the Azure Monitor alerts page to HTML bytes.
+func renderAlertsHTML(data any) ([]byte, error) {
 	funcMap := template.FuncMap{
 		"formatTime": func(t *time.Time) string {
 			if t == nil {
@@ -202,12 +211,39 @@ func renderTemplate(outputPath string, data any) error {
 	tmplContent := mustReadArtifact("alerts.html.tmpl")
 	tmpl, err := template.New("alerts").Funcs(funcMap).Parse(string(tmplContent))
 	if err != nil {
-		return fmt.Errorf("failed to parse template: %w", err)
+		return nil, fmt.Errorf("failed to parse template: %w", err)
 	}
 
 	var buf bytes.Buffer
 	if err := tmpl.Execute(&buf, data); err != nil {
-		return fmt.Errorf("failed to execute template: %w", err)
+		return nil, fmt.Errorf("failed to execute template: %w", err)
+	}
+	return buf.Bytes(), nil
+}
+
+// renderObservabilityPage assembles all sections into a single tabbed HTML page
+// and writes it to outputPath. Emitting one page (rather than one file per
+// section) means Prow's Spyglass HTML lens renders a single inline iframe with
+// tabs instead of one collapsible section per file.
+func renderObservabilityPage(outputPath string, tabs []observabilityTab) error {
+	// json.Marshal escapes <, > and & to \u003c/\u003e/\u0026, so embedding the
+	// section HTML (which itself contains <script> and markup) inside the page's
+	// <script> block cannot terminate it early.
+	tabsJSON, err := json.Marshal(tabs)
+	if err != nil {
+		return fmt.Errorf("failed to marshal observability tabs: %w", err)
+	}
+
+	tmplContent := mustReadArtifact("observability.html.tmpl")
+	tmpl, err := template.New("observability").Parse(string(tmplContent))
+	if err != nil {
+		return fmt.Errorf("failed to parse observability template: %w", err)
+	}
+
+	var buf bytes.Buffer
+	data := struct{ TabsJSON template.JS }{TabsJSON: template.JS(tabsJSON)} //nolint:gosec // tabsJSON is JSON-encoded with HTML escaping
+	if err := tmpl.Execute(&buf, data); err != nil {
+		return fmt.Errorf("failed to execute observability template: %w", err)
 	}
 	if err := os.WriteFile(outputPath, buf.Bytes(), 0644); err != nil {
 		return fmt.Errorf("failed to write %s: %w", outputPath, err)

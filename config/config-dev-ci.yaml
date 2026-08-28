@@ -78,7 +78,7 @@ clouds:
             zones: "1"
             zoneRedundantMode: "Disabled"
         istio:
-          versions: "asm-1-29"
+          versions: "asm-1-28"
         monitoring:
           workspaceName: "opstool-monitor-{{ .ctx.regionShort }}"
         prometheus:
@@ -162,7 +162,7 @@ clouds:
           image:
             registry: "arohcpsvcdev.azurecr.io"
             repository: "tenant-quota-collector"
-            digest: sha256:4fa8de0e2020ae0959049723dcdd7526fc3d0cc388a357c9da11991acfd8ae62 # 0155fac0e048cd8def6e22309893d99c083c3bff (2026-08-14 18:14)
+            digest: sha256:9620fb1768c4efc2710618d3c5a91a3a362460c75d5b267e97b5833b4dd3e2e2 # f8832f1ed1147ccb394e9f6cd55f867a44411170 (2026-08-20 14:55)
           prow:
             enabled: true
             baseURL: "https://prow.ci.openshift.org"

@@ -40,7 +40,7 @@
       "id": 1,
       "options": {
         "code": { "language": "plaintext", "showLineNumbers": false, "showMiniMap": false },
-        "content": "### Frontend Control Plane Latency (S360)\n\n**KPI:** synchronous Frontend (RP) responses — **P99 < 1 second**.\n\n**Metric:** `frontend_http_requests_duration_seconds` (histogram; dense buckets around 1s).\n\n**Alerts:** `FrontendLatency` (1h P99>1s), `FrontendPathLatency` (5m P99>1s, Sev3/CI).\n\n**Excluded (matches alerts):** route `.../hcpoperationresults/{operationid}` — known slow break-glass path (route filter only; same as alert PromQL).\n\nUse this for PR evidence and day-to-day triage — not the 30-day S360 Power BI report.",
+        "content": "### Frontend Control Plane Latency (S360)\n\n**KPI:** synchronous Frontend (RP) responses — **P99 < 1 second**.\n\n**Metric:** `frontend_http_requests_duration_seconds` (histogram; dense buckets around 1s).\n\n**Alerts:** `FrontendLatency` (1h P99>1s, Sev4/info), `FrontendPathLatency` (30m slow-fraction — >5% of requests slower than 1s, gated on >=50 req/30m and >=3 slow calls, Sev3/CI), `FrontendPathMedianLatency` (30m P50>250ms, gated on >=10 req/30m, Sev3/CI).\n\n**Excluded (matches alerts):** route `.../hcpoperationresults/{operationid}` — known slow break-glass path (route filter only; same as alert PromQL).\n\nUse this for PR evidence and day-to-day triage — not the 30-day S360 Power BI report.",
         "mode": "markdown"
       },
       "title": "Dashboard Info",
@@ -85,7 +85,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "editorMode": "code",
-          "expr": "histogram_quantile(\n  0.99,\n  sum by (le, route, method) (\n    max without (prometheus_replica) (\n      rate(frontend_http_requests_duration_seconds_bucket{cluster=\"$cluster\",route!=\"/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}\"}[$__rate_interval])\n    )\n  )\n)",
+          "expr": "histogram_quantile(\n  0.99,\n  sum by (le, route, method) (\n    rate(frontend_http_requests_duration_seconds_bucket{cluster=\"$cluster\",route!=\"/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}\"}[$__rate_interval])\n  )\n)",
           "legendFormat": "{{method}} {{route}}",
           "refId": "A"
         }
@@ -131,7 +131,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "editorMode": "code",
-          "expr": "histogram_quantile(\n  0.95,\n  sum by (le, route, method) (\n    max without (prometheus_replica) (\n      rate(frontend_http_requests_duration_seconds_bucket{cluster=\"$cluster\",route!=\"/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}\"}[$__rate_interval])\n    )\n  )\n)",
+          "expr": "histogram_quantile(\n  0.95,\n  sum by (le, route, method) (\n    rate(frontend_http_requests_duration_seconds_bucket{cluster=\"$cluster\",route!=\"/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}\"}[$__rate_interval])\n  )\n)",
           "legendFormat": "{{method}} {{route}}",
           "refId": "A"
         }
@@ -169,7 +169,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "editorMode": "code",
-          "expr": "histogram_quantile(\n  0.50,\n  sum by (le, route, method) (\n    max without (prometheus_replica) (\n      rate(frontend_http_requests_duration_seconds_bucket{cluster=\"$cluster\",route!=\"/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}\"}[$__rate_interval])\n    )\n  )\n)",
+          "expr": "histogram_quantile(\n  0.50,\n  sum by (le, route, method) (\n    rate(frontend_http_requests_duration_seconds_bucket{cluster=\"$cluster\",route!=\"/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}\"}[$__rate_interval])\n  )\n)",
           "legendFormat": "{{method}} {{route}}",
           "refId": "A"
         }
@@ -213,7 +213,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "editorMode": "code",
-          "expr": "histogram_quantile(0.50, sum by (le, route, method) (max without (prometheus_replica) (rate(frontend_http_requests_duration_seconds_bucket{cluster=\"$cluster\",route!=\"/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}\"}[$__rate_interval]))))",
+          "expr": "histogram_quantile(0.50, sum by (le, route, method) (rate(frontend_http_requests_duration_seconds_bucket{cluster=\"$cluster\",route!=\"/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}\"}[$__rate_interval])))",
           "format": "table",
           "instant": true,
           "legendFormat": "P50",
@@ -222,7 +222,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "editorMode": "code",
-          "expr": "histogram_quantile(0.95, sum by (le, route, method) (max without (prometheus_replica) (rate(frontend_http_requests_duration_seconds_bucket{cluster=\"$cluster\",route!=\"/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}\"}[$__rate_interval]))))",
+          "expr": "histogram_quantile(0.95, sum by (le, route, method) (rate(frontend_http_requests_duration_seconds_bucket{cluster=\"$cluster\",route!=\"/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}\"}[$__rate_interval])))",
           "format": "table",
           "instant": true,
           "legendFormat": "P95",
@@ -231,7 +231,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "editorMode": "code",
-          "expr": "histogram_quantile(0.99, sum by (le, route, method) (max without (prometheus_replica) (rate(frontend_http_requests_duration_seconds_bucket{cluster=\"$cluster\",route!=\"/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}\"}[$__rate_interval]))))",
+          "expr": "histogram_quantile(0.99, sum by (le, route, method) (rate(frontend_http_requests_duration_seconds_bucket{cluster=\"$cluster\",route!=\"/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}\"}[$__rate_interval])))",
           "format": "table",
           "instant": true,
           "legendFormat": "P99",
@@ -288,7 +288,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "editorMode": "code",
-          "expr": "sum by (method, route) (max without (prometheus_replica) (rate(frontend_http_requests_duration_seconds_bucket{cluster=\"$cluster\",route!=\"/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}\",le=~\"^1(\\\\.0)?$\"}[$__rate_interval])))\n/\nsum by (method, route) (max without (prometheus_replica) (rate(frontend_http_requests_duration_seconds_bucket{cluster=\"$cluster\",route!=\"/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}\",le=\"+Inf\"}[$__rate_interval])))",
+          "expr": "sum by (method, route) (rate(frontend_http_requests_duration_seconds_bucket{cluster=\"$cluster\",route!=\"/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}\",le=~\"^1(\\\\.0)?$\"}[$__rate_interval]))\n/\nsum by (method, route) (rate(frontend_http_requests_duration_seconds_bucket{cluster=\"$cluster\",route!=\"/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}\",le=\"+Inf\"}[$__rate_interval]))",
           "legendFormat": "{{method}} {{route}}",
           "refId": "A"
         }

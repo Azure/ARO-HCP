@@ -84,9 +84,9 @@ type CapacityReportStatus struct {
 	// actual usage.
 	Requested corev1.ResourceList `json:"requested,omitempty"`
 
-	// hostedControlPlanes reports the ready and not-ready HostedControlPlane count on
+	// hostedControlPlanes reports the state of HostedControlPlane resources on
 	// the management cluster. An HCP is "ready" when its Available condition is True.
-	HostedControlPlanes HostedControlPlaneCount `json:"hostedControlPlanes"`
+	HostedControlPlanes HostedControlPlanes `json:"hostedControlPlanes"`
 }
 
 // NodeSKUCapacity reports the number of ready and not-ready worker nodes for a
@@ -103,13 +103,19 @@ type NodeSKUCapacity struct {
 	Allocatable corev1.ResourceList `json:"allocatable,omitempty"`
 }
 
-// HostedControlPlaneCount reports the ready and not-ready HostedControlPlane count on a
+// HostedControlPlanes reports the state of HostedControlPlane resources on a
 // management cluster.
-type HostedControlPlaneCount struct {
-	// ready is the count of HostedControlPlane resources whose Available condition is True.
-	Ready int32 `json:"ready"`
-	// notReady is the count of HostedControlPlane resources whose Available condition is not True.
-	NotReady int32 `json:"notReady"`
+type HostedControlPlanes struct {
+	// +optional
+	// +listType=set
+	// readyResourceIDs lists the ARM resource IDs of HostedControlPlanes whose
+	// Available condition is True.
+	ReadyResourceIDs []string `json:"readyResourceIDs,omitempty"`
+	// +optional
+	// +listType=set
+	// notReadyResourceIDs lists the ARM resource IDs of HostedControlPlanes whose
+	// Available condition is not True or missing.
+	NotReadyResourceIDs []string `json:"notReadyResourceIDs,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

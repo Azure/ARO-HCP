@@ -28,6 +28,20 @@ param svcAcrZoneRedundantMode string
 @description('Deploy mise artifact sync, only valid in Microsoft Production and AME Tenants')
 param deployMiseArtifactSync bool = false
 
+@description('Enable diagnostic settings (repository/login events + metrics) for the OCP ACR')
+param ocpAcrDiagnosticSettingsEnabled bool = false
+
+@description('Name of the Log Analytics workspace to create for OCP ACR diagnostic logs')
+param ocpAcrLogAnalyticsWorkspaceName string = ''
+
+@description('SKU for the OCP ACR diagnostics Log Analytics workspace')
+param ocpAcrLogAnalyticsWorkspaceSku string = 'PerGB2018'
+
+@description('Retention in days for the OCP ACR diagnostics Log Analytics workspace. Azure requires 30-730 days.')
+@minValue(30)
+@maxValue(730)
+param ocpAcrLogAnalyticsWorkspaceRetentionInDays int = 90
+
 resource globalMSI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
   name: globalMSIName
 }
@@ -236,6 +250,38 @@ module globalMSIOcpAcrAccess '../modules/acr/acr-permissions.bicep' = {
     grantPushAccess: true
     grantPullAccess: true
     acrName: ocpAcrName
+  }
+  dependsOn: [
+    ocpAcr
+  ]
+}
+
+module ocpAcrLogAnalyticsWorkspace '../modules/monitor/log-analytics-workspace.bicep' = if (ocpAcrDiagnosticSettingsEnabled) {
+  // The OCP ACR (ocpAcrName) is shared by every dev-cloud environment that
+  // enables this flag; ocpAcrLogAnalyticsWorkspaceName is configured to
+  // resolve to the same static value in every one of them (see config.yaml),
+  // so this module name resolves identically too and each environment's
+  // redeploy idempotently updates the same workspace instead of creating a
+  // new one (Azure caps diagnosticSettings at 5 per resource - a per-env
+  // workspace/name would blow past that with 6 dev-cloud environments).
+  name: '${ocpAcrName}-diagnostics-workspace'
+  params: {
+    workspaceName: ocpAcrLogAnalyticsWorkspaceName
+    location: location
+    sku: ocpAcrLogAnalyticsWorkspaceSku
+    retentionInDays: ocpAcrLogAnalyticsWorkspaceRetentionInDays
+  }
+}
+
+module ocpAcrDiagnosticSettings '../modules/acr/diagnostic-settings.bicep' = if (ocpAcrDiagnosticSettingsEnabled) {
+  // Same rationale as ocpAcrLogAnalyticsWorkspace above: this resolves to one
+  // shared diagnosticSettings resource on the shared ACR, not one per
+  // environment.
+  name: '${ocpAcrName}-diagnostic-settings'
+  params: {
+    acrName: ocpAcrName
+    logAnalyticsWorkspaceId: ocpAcrLogAnalyticsWorkspace!.outputs.workspaceId
+    diagnosticSettingsName: '${ocpAcrName}-diagnostic-logs'
   }
   dependsOn: [
     ocpAcr

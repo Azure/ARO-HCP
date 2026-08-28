@@ -40,6 +40,8 @@ type ResourcesDBClientListActiveOperationDocsOptions struct {
 	ExternalID *azcorearm.ResourceID
 	// IncludeNestedResources includes nested resources under ExternalID
 	IncludeNestedResources bool
+	// IncludeTerminal includes operations in terminal states (Succeeded, Failed, Canceled)
+	IncludeTerminal bool
 }
 
 // ResourcesDBClient provides a customized interface to the Cosmos DB containers used by the

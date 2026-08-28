@@ -62,6 +62,8 @@ ocpAcrResourceUrl: ""
 ocpAcrResourceId: ""
 tlsCertificatesIssuer: "Self"
 tlsCertificatesEnabled: true
+cosmosDatabaseUrl: ""
+cosmosDatabaseName: ""
 managedIdentitiesDataPlaneAudienceResource: ""
 dataPlaneHAProxyImage: ""
 tracing:

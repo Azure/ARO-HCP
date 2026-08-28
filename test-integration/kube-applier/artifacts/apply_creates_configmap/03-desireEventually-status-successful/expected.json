@@ -3,6 +3,10 @@
 		"conditions": [
 			{
 				"status": "True",
+				"type": "SuccessfullyApplied"
+			},
+			{
+				"status": "True",
 				"type": "Successful"
 			}
 		]

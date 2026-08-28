@@ -47,6 +47,16 @@ type ApplyDesireLister interface {
 	// SystemAdminCredentialRevocation by the revocation's identity and the desire's name.
 	GetForSystemAdminCredentialRevocation(ctx context.Context, subscriptionID, resourceGroupName, clusterName, revocationName, name string) (*kubeapplierapi.ApplyDesire, error)
 
+	// GetForManagementCluster fetches a single management-cluster-scoped ApplyDesire
+	// by its stamp identifier and the desire's name.
+	GetForManagementCluster(ctx context.Context, stampIdentifier, name string) (*kubeapplierapi.ApplyDesire, error)
+
+	// GetByResourceID fetches a single ApplyDesire by its full resource ID
+	// string — the same lower-cased key the informer stores under. Callers that
+	// derive the key generically (e.g. from a scope/parent resource ID) use this
+	// parent-kind-agnostic accessor instead of the GetFor* helpers.
+	GetByResourceID(ctx context.Context, resourceID string) (*kubeapplierapi.ApplyDesire, error)
+
 	// ListForManagementCluster returns every ApplyDesire whose
 	// spec.managementCluster matches (case-insensitively). A nil
 	// managementClusterResourceID returns no results.
@@ -106,6 +116,19 @@ func (l *applyDesireLister) GetForSystemAdminCredentialRevocation(
 		subscriptionID, resourceGroupName, clusterName, revocationName, name,
 	)
 	return listerutils.GetByKey[kubeapplierapi.ApplyDesire](l.indexer, key)
+}
+
+func (l *applyDesireLister) GetForManagementCluster(
+	ctx context.Context, stampIdentifier, name string,
+) (*kubeapplierapi.ApplyDesire, error) {
+	key := kubeapplierapi.ToManagementClusterScopedApplyDesireResourceIDString(stampIdentifier, name)
+	return listerutils.GetByKey[kubeapplierapi.ApplyDesire](l.indexer, key)
+}
+
+func (l *applyDesireLister) GetByResourceID(
+	ctx context.Context, resourceID string,
+) (*kubeapplierapi.ApplyDesire, error) {
+	return listerutils.GetByKey[kubeapplierapi.ApplyDesire](l.indexer, strings.ToLower(resourceID))
 }
 
 func (l *applyDesireLister) ListForManagementCluster(

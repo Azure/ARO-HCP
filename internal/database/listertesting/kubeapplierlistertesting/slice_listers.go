@@ -96,6 +96,31 @@ func (l *SliceApplyDesireLister) GetForSystemAdminCredentialRevocation(
 	return nil, cosmosstorageutils.NewNotFoundError()
 }
 
+func (l *SliceApplyDesireLister) GetForManagementCluster(
+	ctx context.Context, stampIdentifier, name string,
+) (*kubeapplierapi.ApplyDesire, error) {
+	want := kubeapplierapi.ToManagementClusterScopedApplyDesireResourceIDString(stampIdentifier, name)
+	for _, d := range l.Desires {
+		id := listertestingutils.ResourceIDOf(d)
+		if id != nil && strings.EqualFold(id.String(), want) {
+			return d, nil
+		}
+	}
+	return nil, cosmosstorageutils.NewNotFoundError()
+}
+
+func (l *SliceApplyDesireLister) GetByResourceID(
+	ctx context.Context, resourceID string,
+) (*kubeapplierapi.ApplyDesire, error) {
+	for _, d := range l.Desires {
+		id := listertestingutils.ResourceIDOf(d)
+		if id != nil && strings.EqualFold(id.String(), resourceID) {
+			return d, nil
+		}
+	}
+	return nil, cosmosstorageutils.NewNotFoundError()
+}
+
 func (l *SliceApplyDesireLister) ListForManagementCluster(
 	ctx context.Context, managementClusterResourceID *azcorearm.ResourceID,
 ) ([]*kubeapplierapi.ApplyDesire, error) {
@@ -199,6 +224,31 @@ func (l *SliceReadDesireLister) GetForSystemAdminCredentialRevocation(
 	for _, d := range l.Desires {
 		id := listertestingutils.ResourceIDOf(d)
 		if id != nil && strings.EqualFold(id.String(), want) {
+			return d, nil
+		}
+	}
+	return nil, cosmosstorageutils.NewNotFoundError()
+}
+
+func (l *SliceReadDesireLister) GetForManagementCluster(
+	ctx context.Context, stampIdentifier, name string,
+) (*kubeapplierapi.ReadDesire, error) {
+	want := kubeapplierapi.ToManagementClusterScopedReadDesireResourceIDString(stampIdentifier, name)
+	for _, d := range l.Desires {
+		id := listertestingutils.ResourceIDOf(d)
+		if id != nil && strings.EqualFold(id.String(), want) {
+			return d, nil
+		}
+	}
+	return nil, cosmosstorageutils.NewNotFoundError()
+}
+
+func (l *SliceReadDesireLister) GetByResourceID(
+	ctx context.Context, resourceID string,
+) (*kubeapplierapi.ReadDesire, error) {
+	for _, d := range l.Desires {
+		id := listertestingutils.ResourceIDOf(d)
+		if id != nil && strings.EqualFold(id.String(), resourceID) {
 			return d, nil
 		}
 	}

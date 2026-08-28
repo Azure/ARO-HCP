@@ -55,6 +55,17 @@ const (
 	// ExperimentalReleaseFeatures AFEC is registered on the subscription.
 	TagClusterCPOImageOverride = ExperimentalClusterTagPrefix + "control-plane-operator-image-override"
 
+	// TagClusterControlPlaneExactVersion is the ARM resource tag that pins the
+	// control plane to an exact OpenShift release (e.g. "4.17.3") when the
+	// ExperimentalReleaseFeatures AFEC is registered on the subscription. When
+	// set, the desired control plane version controllers use the exact version
+	// directly and skip Cincinnati/gateway version resolution. The value may be
+	// a full semantic version; alternatively the tag may be present while the
+	// exact version is supplied through the cluster's version.id, in which case
+	// admission relocates the patch version here and reduces version.id to its
+	// "<major>.<minor>" release line.
+	TagClusterControlPlaneExactVersion = ExperimentalClusterTagPrefix + "control-plane-exact-version"
+
 	// TagClusterMaxCreationDuration is the ARM resource tag that overrides
 	// the default cluster creation deadline (60 minutes) when the
 	// ExperimentalReleaseFeatures AFEC is registered on the subscription.

@@ -293,6 +293,7 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 	capacityReportCtrl := capacityreporting.NewCapacityReportController(
 		kubeInformers.Core().V1().Nodes(),
 		clusterWideKubeInformers.Core().V1().Pods(),
+		clusterWideKubeInformers.Core().V1().Namespaces(),
 		hsInformers.Hypershift().V1beta1().HostedControlPlanes(),
 		metricsClient,
 		crClient,

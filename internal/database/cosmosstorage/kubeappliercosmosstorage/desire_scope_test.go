@@ -23,8 +23,9 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
-	"github.com/Azure/ARO-HCP/internal/utils/armhelpers"
 )
 
 func TestParseDesireScope(t *testing.T) {
@@ -66,6 +67,12 @@ func TestParseDesireScope(t *testing.T) {
 			id:              mustParseResourceID("/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster/systemAdminCredentialRevocations/rev"),
 			wantAncestry:    ClusterAncestry,
 			wantBuilderType: cosmosstorageutils.ClusterNestedResourceIDBuilder{},
+		},
+		{
+			name:            "management cluster parent",
+			id:              mustParseResourceID("/providers/Microsoft.RedHatOpenShift/stamps/eastus/managementClusters/default"),
+			wantAncestry:    StampAncestry,
+			wantBuilderType: cosmosstorageutils.FleetResourceIDBuilder{},
 		},
 		{
 			name:    "nil resource ID",
@@ -133,6 +140,12 @@ func TestDesireScopeConstructors(t *testing.T) {
 			wantType:     coreapi.SystemAdminCredentialRevocationResourceType,
 			wantAncestry: ClusterAncestry,
 		},
+		{
+			name:         "ManagementClusterScope",
+			constructor:  func() (DesireScope, error) { return ManagementClusterScope("eastus") },
+			wantType:     fleetapi.ManagementClusterResourceType,
+			wantAncestry: StampAncestry,
+		},
 	}
 
 	for _, tt := range tests {
@@ -141,7 +154,7 @@ func TestDesireScopeConstructors(t *testing.T) {
 			scope, err := tt.constructor()
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantAncestry, scope.Ancestry())
-			assert.True(t, armhelpers.ResourceTypeEqual(tt.wantType, scope.ResourceID().ResourceType),
+			assert.True(t, metadataapi.ResourceTypeEqual(tt.wantType, scope.ResourceID().ResourceType),
 				"resource type mismatch: want %s, got %s", tt.wantType, scope.ResourceID().ResourceType)
 		})
 	}

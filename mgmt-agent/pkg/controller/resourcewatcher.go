@@ -41,6 +41,7 @@ var watchedGroupSuffixes = []string{
 	"agent-install.openshift.io",
 	"multicluster.openshift.io",
 	"multitenancy.acn.azure.com",
+	"velero.io",
 }
 
 // ServerResourceDiscoverer is the subset of the discovery API that ResourceWatcher needs.

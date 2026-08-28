@@ -26,7 +26,6 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
-	"github.com/Azure/ARO-HCP/internal/utils/armhelpers"
 )
 
 // newInitialServiceProviderCluster returns a new ServiceProviderCluster with
@@ -50,7 +49,7 @@ func GetOrCreateServiceProviderCluster(
 	ctx context.Context, dbClient ResourcesDBClient, clusterResourceID *azcorearm.ResourceID,
 	secondAttempt ...bool,
 ) (*coreapi.ServiceProviderCluster, error) {
-	if !armhelpers.ResourceTypeEqual(clusterResourceID.ResourceType, coreapi.ClusterResourceType) {
+	if !metadataapi.ResourceTypeEqual(clusterResourceID.ResourceType, coreapi.ClusterResourceType) {
 		return nil, utils.TrackError(fmt.Errorf("expected resource type %s, got %s", coreapi.ClusterResourceType, clusterResourceID.ResourceType))
 	}
 

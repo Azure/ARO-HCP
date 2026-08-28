@@ -5,6 +5,10 @@ This document shows a proof chain for a failure to install a cluster coming from
 An ARO HCP cluster failed to install because an Azure Disk could not be mounted for an `etcd` pod in the hosted control
 plane due to internal Azure Disk errors.
 
+## Classification
+
+- **Category:** Azure Problems
+
 ## Summary
 
 An end-to-end test installing two ARO HCP clusters in one resource group installed one without issue, but failed on the

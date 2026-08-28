@@ -66,6 +66,7 @@ func NewApplyDesireInformerWithRelistDuration(
 		lister,
 		changeFeedClient,
 		relistDuration,
+		"kubeApplier",
 	)
 	return cache.NewSharedIndexInformerWithOptions(
 		&informerutils.ListWatchWithoutWatchListSemantics{ListWatch: lw.ToListWatch()},
@@ -95,11 +96,13 @@ func NewReadDesireInformerWithRelistDuration(
 			kubeapplierapi.NodePoolScopedReadDesireResourceType,
 			kubeapplierapi.SystemAdminCredentialRequestScopedReadDesireResourceType,
 			kubeapplierapi.SystemAdminCredentialRevocationScopedReadDesireResourceType,
+			kubeapplierapi.ManagementClusterScopedReadDesireResourceType,
 		},
 		utilsclock.RealClock{},
 		lister,
 		changeFeedClient,
 		relistDuration,
+		"kubeApplier",
 	)
 	return cache.NewSharedIndexInformerWithOptions(
 		&informerutils.ListWatchWithoutWatchListSemantics{ListWatch: lw.ToListWatch()},

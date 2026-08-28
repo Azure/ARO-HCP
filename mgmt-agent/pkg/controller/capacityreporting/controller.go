@@ -37,9 +37,10 @@ import (
 	metricsclientset "k8s.io/metrics/pkg/client/clientset/versioned"
 
 	hypershiftv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
-	hcpinformers "github.com/openshift/hypershift/client/informers/externalversions/hypershift/v1beta1"
-	hcplisters "github.com/openshift/hypershift/client/listers/hypershift/v1beta1"
+	hypershiftinformers "github.com/openshift/hypershift/client/informers/externalversions/hypershift/v1beta1"
+	hypershiftlisters "github.com/openshift/hypershift/client/listers/hypershift/v1beta1"
 
+	"github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	capacityreportv1alpha1 "github.com/Azure/ARO-HCP/mgmt-agent/pkg/apis/capacityreport/v1alpha1"
 	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller"
@@ -62,7 +63,8 @@ const (
 type CapacityReportController struct {
 	nodeLister           corelisters.NodeLister
 	podLister            corelisters.PodLister
-	hcpLister            hcplisters.HostedControlPlaneLister
+	namespaceLister      corelisters.NamespaceLister
+	hcpLister            hypershiftlisters.HostedControlPlaneLister
 	metricsClient        metricsclientset.Interface
 	capacityReportClient capacityreportclient.Interface
 	nowFunc              func() time.Time
@@ -73,7 +75,8 @@ type CapacityReportController struct {
 func NewCapacityReportController(
 	nodeInformer coreinformers.NodeInformer,
 	podInformer coreinformers.PodInformer,
-	hcpInformer hcpinformers.HostedControlPlaneInformer,
+	namespaceInformer coreinformers.NamespaceInformer,
+	hcpInformer hypershiftinformers.HostedControlPlaneInformer,
 	metricsClient metricsclientset.Interface,
 	capacityReportClient capacityreportclient.Interface,
 	nowFunc func() time.Time,
@@ -85,6 +88,7 @@ func NewCapacityReportController(
 	return &CapacityReportController{
 		nodeLister:           nodeInformer.Lister(),
 		podLister:            podInformer.Lister(),
+		namespaceLister:      namespaceInformer.Lister(),
 		hcpLister:            hcpInformer.Lister(),
 		metricsClient:        metricsClient,
 		capacityReportClient: capacityReportClient,
@@ -92,6 +96,7 @@ func NewCapacityReportController(
 		hasSynced: []cache.InformerSynced{
 			nodeInformer.Informer().HasSynced,
 			podInformer.Informer().HasSynced,
+			namespaceInformer.Informer().HasSynced,
 			hcpInformer.Informer().HasSynced,
 		},
 	}
@@ -188,7 +193,7 @@ func (c *CapacityReportController) buildCapacityReportUpdate(ctx context.Context
 			fmt.Errorf("failed to list HostedControlPlanes: %w", err)
 	}
 	hcpNamespaces := collectHCPNamespaces(hcps)
-	hcpCount := countHCPs(hcps)
+	hostedControlPlanes := collectHostedControlPlanes(hcps, c.namespaceLister)
 
 	pods, err := c.podLister.List(labels.Everything())
 	if err != nil {
@@ -218,7 +223,7 @@ func (c *CapacityReportController) buildCapacityReportUpdate(ctx context.Context
 	}
 
 	condition := buildReportCurrentCondition(existingStatus.Conditions, metav1.ConditionTrue, capacityreportv1alpha1.ReasonDataCollected, "", now)
-	return buildReport(nodeCapacity, usage, requested, hcpCount, condition, now), nil
+	return buildReport(nodeCapacity, usage, requested, hostedControlPlanes, condition, now), nil
 }
 
 func retainStatusWithCondition(existingStatus capacityreportv1alpha1.CapacityReportStatus, status metav1.ConditionStatus, reason, message string, now time.Time) *applyconfigv1alpha1.CapacityReportApplyConfiguration {
@@ -235,9 +240,9 @@ func retainStatusWithCondition(existingStatus capacityreportv1alpha1.CapacityRep
 		WithNodes(nodeConfigs...).
 		WithUsage(existingStatus.Usage).
 		WithRequested(existingStatus.Requested).
-		WithHostedControlPlanes(applyconfigv1alpha1.HostedControlPlaneCount().
-			WithReady(existingStatus.HostedControlPlanes.Ready).
-			WithNotReady(existingStatus.HostedControlPlanes.NotReady))
+		WithHostedControlPlanes(applyconfigv1alpha1.HostedControlPlanes().
+			WithReadyResourceIDs(existingStatus.HostedControlPlanes.ReadyResourceIDs...).
+			WithNotReadyResourceIDs(existingStatus.HostedControlPlanes.NotReadyResourceIDs...))
 
 	if existingStatus.LastReportedAt != nil {
 		statusConfig = statusConfig.WithLastReportedAt(*existingStatus.LastReportedAt)
@@ -267,7 +272,7 @@ func buildReport(
 	nodes []capacityreportv1alpha1.NodeSKUCapacity,
 	usage corev1.ResourceList,
 	requested corev1.ResourceList,
-	hcpCount capacityreportv1alpha1.HostedControlPlaneCount,
+	hostedControlPlanes capacityreportv1alpha1.HostedControlPlanes,
 	condition *metaac.ConditionApplyConfiguration,
 	now time.Time,
 ) *applyconfigv1alpha1.CapacityReportApplyConfiguration {
@@ -287,13 +292,10 @@ func buildReport(
 		WithLastReportedAt(metav1.NewTime(now)).
 		WithNodes(nodeConfigs...).
 		WithUsage(usage).
-		WithRequested(requested)
-
-	statusConfig = statusConfig.WithHostedControlPlanes(
-		applyconfigv1alpha1.HostedControlPlaneCount().
-			WithReady(hcpCount.Ready).
-			WithNotReady(hcpCount.NotReady),
-	)
+		WithRequested(requested).
+		WithHostedControlPlanes(applyconfigv1alpha1.HostedControlPlanes().
+			WithReadyResourceIDs(hostedControlPlanes.ReadyResourceIDs...).
+			WithNotReadyResourceIDs(hostedControlPlanes.NotReadyResourceIDs...))
 
 	return applyconfigv1alpha1.CapacityReport(capacityReportResourceName).
 		WithStatus(statusConfig)
@@ -387,17 +389,31 @@ func collectHCPNamespaces(hcps []*hypershiftv1beta1.HostedControlPlane) sets.Set
 	return namespaces
 }
 
-// countHCPs counts ready and not-ready HostedControlPlanes.
-func countHCPs(hcps []*hypershiftv1beta1.HostedControlPlane) capacityreportv1alpha1.HostedControlPlaneCount {
-	count := capacityreportv1alpha1.HostedControlPlaneCount{}
+func collectHostedControlPlanes(hcps []*hypershiftv1beta1.HostedControlPlane, namespaceLister corelisters.NamespaceLister) capacityreportv1alpha1.HostedControlPlanes {
+	var readyResourceIDs, notReadyResourceIDs []string
 	for _, hcp := range hcps {
+		namespace, err := namespaceLister.Get(hcp.Namespace)
+		if err != nil {
+			continue
+		}
+		resourceID := namespace.Annotations[controllerutils.HcpClusterAzureResourceIdAnnotation]
+		if len(resourceID) == 0 {
+			continue
+		}
 		if isHCPAvailable(hcp) {
-			count.Ready++
+			readyResourceIDs = append(readyResourceIDs, resourceID)
 		} else {
-			count.NotReady++
+			notReadyResourceIDs = append(notReadyResourceIDs, resourceID)
 		}
 	}
-	return count
+	slices.Sort(readyResourceIDs)
+	readyResourceIDs = slices.Compact(readyResourceIDs)
+	slices.Sort(notReadyResourceIDs)
+	notReadyResourceIDs = slices.Compact(notReadyResourceIDs)
+	return capacityreportv1alpha1.HostedControlPlanes{
+		ReadyResourceIDs:    readyResourceIDs,
+		NotReadyResourceIDs: notReadyResourceIDs,
+	}
 }
 
 func isNodeReady(node *corev1.Node) bool {

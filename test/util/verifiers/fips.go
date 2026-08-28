@@ -27,6 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/util/retry"
 )
 
 type verifyFIPSEnabledImpl struct{}
@@ -50,8 +51,10 @@ func (v verifyFIPSEnabledImpl) Verify(ctx context.Context, adminRESTConfig *rest
 		return fmt.Errorf("no nodes found in the cluster")
 	}
 
-	for _, node := range nodes.Items {
-		fipsEnabled, err := checkNodeFIPSMode(ctx, kubeClient, &node)
+	for i := range nodes.Items {
+		node := &nodes.Items[i]
+
+		fipsEnabled, err := checkNodeFIPSMode(ctx, kubeClient, node)
 		if err != nil {
 			return fmt.Errorf("failed to check FIPS mode on node %s: %w", node.Name, err)
 		}
@@ -132,7 +135,7 @@ func checkNodeFIPSMode(ctx context.Context, kubeClient *kubernetes.Clientset, no
 
 		// track pod state transitions for better visibility in test output
 		if prevPodPhase != p.Status.Phase {
-			ginkgo.GinkgoWriter.Printf("Pod state transitioned from '%s' to '%s'\n", prevPodPhase, p.Status.Phase)
+			ginkgo.GinkgoWriter.Printf("[VerifyFIPSEnabled] pod %s on node %s transitioned from '%s' to '%s'\n", createdPod.Name, node.Name, prevPodPhase, p.Status.Phase)
 			prevPodPhase = p.Status.Phase
 		}
 
@@ -157,13 +160,32 @@ func checkNodeFIPSMode(ctx context.Context, kubeClient *kubernetes.Clientset, no
 		return p.Status.Phase == corev1.PodSucceeded, nil
 	})
 	if err != nil {
-		return false, fmt.Errorf("failed waiting for pod to complete: %w", err)
+		return false, fmt.Errorf("failed waiting for pod %s to complete: %w", createdPod.Name, err)
 	}
 
-	// Read pod logs
-	logs, err := kubeClient.CoreV1().Pods(namespace.Name).GetLogs(createdPod.Name, &corev1.PodLogOptions{}).Do(ctx).Raw()
-	if err != nil {
-		return false, fmt.Errorf("failed to get pod logs: %w", err)
+	// Read pod logs. The pod already reached PodSucceeded, so any GetLogs
+	// failure is transient and worth retrying. ~2s, 4s, 8s, 16s between
+	// attempts (capped at 30s), about a minute total. Retries stop early
+	// if the test context is cancelled.
+	logBackoff := wait.Backoff{
+		Duration: 2 * time.Second,
+		Factor:   2.0,
+		Steps:    5,
+		Cap:      30 * time.Second,
+	}
+	var logs []byte
+	logAttempt := 0
+	logErr := retry.OnError(logBackoff, func(error) bool { return ctx.Err() == nil }, func() error {
+		logAttempt++
+		var err error
+		logs, err = kubeClient.CoreV1().Pods(namespace.Name).GetLogs(createdPod.Name, &corev1.PodLogOptions{}).Do(ctx).Raw()
+		if err != nil {
+			ginkgo.GinkgoWriter.Printf("[VerifyFIPSEnabled] attempt %d to get logs for pod %s on node %s failed: %v\n", logAttempt, createdPod.Name, node.Name, err)
+		}
+		return err
+	})
+	if logErr != nil {
+		return false, fmt.Errorf("failed to get pod logs for pod %s in namespace %s on node %s after retries: %w", createdPod.Name, namespace.Name, node.Name, logErr)
 	}
 
 	output := strings.TrimSpace(string(logs))

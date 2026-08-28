@@ -20,3 +20,8 @@ param ocpAcrZoneRedundantMode = '{{ .acr.ocp.zoneRedundantMode }}'
 param globalKeyVaultName = '{{ .global.keyVault.name}}'
 
 param deployMiseArtifactSync = {{ .mise.deploy }}
+
+param ocpAcrDiagnosticSettingsEnabled = {{ .acr.ocp.diagnosticSettings.enabled }}
+param ocpAcrLogAnalyticsWorkspaceName = '{{ .acr.ocp.diagnosticSettings.logAnalyticsWorkspace.name }}'
+param ocpAcrLogAnalyticsWorkspaceSku = '{{ .acr.ocp.diagnosticSettings.logAnalyticsWorkspace.sku }}'
+param ocpAcrLogAnalyticsWorkspaceRetentionInDays = {{ .acr.ocp.diagnosticSettings.logAnalyticsWorkspace.retentionInDays }}

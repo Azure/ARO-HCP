@@ -20,8 +20,7 @@ import (
 
 	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
+	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
@@ -171,16 +170,23 @@ func (c *backupScheduleSyncer) SyncOnce(ctx context.Context, key controllerutils
 		schedules = append(schedules, schedule)
 	}
 
-	desiredApplyDesires, err := buildApplyDesiresFromSchedules(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, managementClusterResourceID, schedules)
+	// Build every ApplyDesire up front, then hand the built desires to the
+	// create-or-update pass. Building and create-or-update stay separate steps.
+	applyDesires, err := buildApplyDesiresFromSchedules(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, managementClusterResourceID, schedules)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to build ApplyDesires: %w", err))
 	}
 
-	if requeue, err := c.createOrUpdateDesires(ctx, key, desiredApplyDesires, applyDesireCRUD, readDesireCRUD); requeue || err != nil {
+	if err := c.createOrUpdateDesires(ctx, key, applyDesires, applyDesireCRUD, readDesireCRUD); err != nil {
 		return err
 	}
 
-	if requeue, err := c.deleteStaleApplyDesires(ctx, key, applyDesireCRUD, desiredApplyDesires); requeue || err != nil {
+	applyDesireNames := make(map[string]bool, len(applyDesires))
+	for _, applyDesire := range applyDesires {
+		applyDesireNames[applyDesire.ResourceID.Name] = true
+	}
+
+	if requeue, err := c.deleteStaleApplyDesires(ctx, key, applyDesireCRUD, applyDesireNames); requeue || err != nil {
 		return err
 	}
 
@@ -223,11 +229,7 @@ func (c *backupScheduleSyncer) syncDeletion(ctx context.Context, key controlleru
 		if _, ok := applyDesire.Tags[backup.DesireTagKeySchedule]; !ok {
 			continue
 		}
-		readDesire, err := c.readDesireLister.GetForCluster(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, applyDesire.ResourceID.Name)
-		if err != nil {
-			return utils.TrackError(fmt.Errorf("failed to retrieve ReadDesire %s: %w", applyDesire.ResourceID.Name, err))
-		}
-		if requeue, err := deleteApplyDesire(ctx, *applyDesire, *readDesire, applyDesireCRUD); requeue || err != nil {
+		if _, err := kubeapplierhelpers.EnsureApplyDesireRemoved(ctx, applyDesire.ResourceID.Name, applyDesireCRUD); err != nil {
 			return err
 		}
 		return nil
@@ -250,61 +252,72 @@ func (c *backupScheduleSyncer) syncDeletion(ctx context.Context, key controlleru
 	return nil
 }
 
+// createOrUpdateDesires reconciles the backup-schedule ApplyDesires (and their
+// paired ReadDesires). The backups package builds its own desires (see
+// buildApplyDesiresFromSchedules / buildReadDesireFromApplyDesire): the
+// ApplyDesires are built by the caller, this method builds every paired
+// ReadDesire up front, and only then hands the fully-formed desires to the
+// shared kubeapplierhelpers ensure helpers, which consult the informer listers,
+// compare with JSON-aware equality, and write only on drift. Keeping the build
+// and create-or-update work in separate passes (rather than one combined loop)
+// mirrors the original structure. All desires are cluster-scoped and carry the
+// schedule tag so the stale-cleanup and deletion paths can find them.
 func (c *backupScheduleSyncer) createOrUpdateDesires(
 	ctx context.Context,
 	key controllerutils.HCPClusterKey,
-	desiredApplyDesires []*kubeapplierapi.ApplyDesire,
+	applyDesires []*kubeapplierapi.ApplyDesire,
 	applyDesireCRUD cosmosstorageutils.ResourceCRUD[kubeapplierapi.ApplyDesire, *kubeapplierapi.ApplyDesire],
 	readDesireCRUD cosmosstorageutils.ResourceCRUD[kubeapplierapi.ReadDesire, *kubeapplierapi.ReadDesire],
-) (bool, error) {
-	for _, desired := range desiredApplyDesires {
-		requeue, err := ensureReadDesireFromApplyDesire(ctx, c.readDesireLister, readDesireCRUD,
-			key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, desired)
-		if requeue || err != nil {
-			return requeue, err
+) error {
+	// Build phase: construct the paired ReadDesire for every ApplyDesire before
+	// touching the store.
+	readDesires := make([]*kubeapplierapi.ReadDesire, 0, len(applyDesires))
+	for _, applyDesire := range applyDesires {
+		readDesire, err := buildReadDesireFromApplyDesire(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, applyDesire)
+		if err != nil {
+			return err
 		}
-		requeue, err = ensureApplyDesire(ctx, c.applyDesireLister, applyDesireCRUD,
-			key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, desired)
-		if requeue || err != nil {
-			return requeue, err
-		}
+		readDesires = append(readDesires, readDesire)
 	}
 
-	return false, nil
+	// Ensure phase: create-or-update the built desires. ReadDesires first so a
+	// schedule's status is observed as soon as its ApplyDesire lands.
+	for _, readDesire := range readDesires {
+		if err := kubeapplierhelpers.EnsureReadDesire(ctx, readDesireCRUD, c.readDesireLister, readDesire); err != nil {
+			return err
+		}
+	}
+	for _, applyDesire := range applyDesires {
+		if err := kubeapplierhelpers.EnsureApplyDesire(ctx, applyDesireCRUD, c.applyDesireLister, applyDesire); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (c *backupScheduleSyncer) deleteStaleApplyDesires(
 	ctx context.Context,
 	key controllerutils.HCPClusterKey,
 	applyDesireCRUD cosmosstorageutils.ResourceCRUD[kubeapplierapi.ApplyDesire, *kubeapplierapi.ApplyDesire],
-	desiredApplyDesires []*kubeapplierapi.ApplyDesire,
+	applyDesireNames map[string]bool,
 ) (bool, error) {
-	desiredSet := make(map[string]bool, len(desiredApplyDesires))
-	for _, desired := range desiredApplyDesires {
-		desiredSet[desired.ResourceID.Name] = true
-	}
-
 	applyDesires, err := c.applyDesireLister.ListForCluster(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if err != nil {
 		return false, err
 	}
 	for _, applyDesire := range applyDesires {
-		if desiredSet[applyDesire.ResourceID.Name] {
+		if applyDesireNames[applyDesire.ResourceID.Name] {
 			continue
 		}
 		if _, ok := applyDesire.Tags[backup.DesireTagKeySchedule]; !ok {
 			continue
 		}
-		readDesire, err := c.readDesireLister.GetForCluster(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, applyDesire.ResourceID.Name)
+		removed, err := kubeapplierhelpers.EnsureApplyDesireRemoved(ctx, applyDesire.ResourceID.Name, applyDesireCRUD)
 		if err != nil {
-			if cosmosstorageutils.IsNotFoundError(err) {
-				continue
-			}
 			return false, err
 		}
-		requeue, err := deleteApplyDesire(ctx, *applyDesire, *readDesire, applyDesireCRUD)
-		if requeue || err != nil {
-			return requeue, err
+		if removed {
+			return true, nil
 		}
 	}
 
@@ -338,13 +351,4 @@ func (c *backupScheduleSyncer) deleteStaleReadDesires(
 		return true, nil
 	}
 	return false, nil
-}
-
-func isDesireSuccessful(conditions []metav1.Condition) bool {
-	for _, condition := range conditions {
-		if condition.Type == kubeapplierapi.ConditionTypeSuccessful && condition.Status == metav1.ConditionTrue {
-			return true
-		}
-	}
-	return false
 }

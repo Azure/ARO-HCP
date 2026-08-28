@@ -12,6 +12,9 @@ Additionally, the Test Test Azure Red Hat OpenShift tenant subscriptions used fo
 
 The rule is simple: all E2E testing in those environments must go through Prow jobs, triggered via PRs.
 
+> [!NOTE]
+> This forbids manually creating clusters against those environments — via `az`, the portal, or ad-hoc scripts. It does not forbid triggering the gate job itself. Re-running a failed EV2 `regionalGating` job, or running the suite from a branch, is an operational procedure documented in [Manually Trigger an E2E Gate Run](../sops/manual-e2e-gate-run.md); that path still executes the tests in Prow rather than creating resources by hand.
+
 If a scenario is not covered by an existing E2E test, the correct approach is to write a new test and validate it through the Prow CI system. If we need to manually test something that is not caught by E2E, then we have a gap in test coverage that should be addressed.
 
 ## Running Tests Via PR
@@ -139,5 +142,6 @@ See [CI Execution](execution.md#periodic-jobs) for why these jobs exist and how 
 - [CI Overview](README.md)
 - [CI Execution](execution.md)
 - [CI Operations](operations.md)
+- [Manually Trigger an E2E Gate Run](../sops/manual-e2e-gate-run.md)
 - [Test Test Tenant Access](../sops/test-test-tenant-access.md)
 - [E2E Test Code](../../test/e2e/)

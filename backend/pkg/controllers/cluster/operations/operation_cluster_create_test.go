@@ -374,6 +374,12 @@ func (l *errorReadDesireLister) GetForSystemAdminCredentialRequest(_ context.Con
 func (l *errorReadDesireLister) GetForSystemAdminCredentialRevocation(_ context.Context, _, _, _, _, _ string) (*kubeapplierapi.ReadDesire, error) {
 	return nil, l.err
 }
+func (l *errorReadDesireLister) GetForManagementCluster(_ context.Context, _, _ string) (*kubeapplierapi.ReadDesire, error) {
+	return nil, l.err
+}
+func (l *errorReadDesireLister) GetByResourceID(_ context.Context, _ string) (*kubeapplierapi.ReadDesire, error) {
+	return nil, l.err
+}
 func (l *errorReadDesireLister) ListForManagementCluster(_ context.Context, _ *azcorearm.ResourceID) ([]*kubeapplierapi.ReadDesire, error) {
 	return nil, l.err
 }

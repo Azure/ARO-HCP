@@ -37,6 +37,7 @@ func TestMatchesGroupSuffix(t *testing.T) {
 		{"capi-provider.agent-install.openshift.io", true},
 		{"multicluster.openshift.io", true},
 		{"multitenancy.acn.azure.com", true},
+		{"velero.io", true},
 		{"", false},
 		{"apps", false},
 		{"openshift.io", false},

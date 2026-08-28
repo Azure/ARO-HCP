@@ -88,10 +88,30 @@ func ValidateCluster(ctx context.Context, op operation.Operation, newCluster, ol
 	// there several resourceIDs that must be verified with respect to this ID.  This is the only level of validation with access to both
 	errs = append(errs, validateResourceIDsAgainstClusterID(ctx, op, newCluster, oldCluster)...)
 
+	// Private KAS requires vnetIntegrationSubnetId to be set.
+	// For API versions v20251223preview and later, vnetIntegrationSubnetId is already
+	// enforced as required during conversion, so this check only has practical effect
+	// for v20240610preview.
+	errs = append(errs, validatePrivateKASRequiresVNetIntegrationSubnetID(ctx, op, newCluster, oldCluster)...)
+
 	// there are pieces of clusterProperties that are dependent upon values in .identity
 	errs = append(errs, validateOperatorAuthenticationAgainstIdentities(ctx, op, newCluster, oldCluster)...)
 
 	RewriteValidationFieldPaths(errs, validationPathMapper)
+
+	return errs
+}
+
+func validatePrivateKASRequiresVNetIntegrationSubnetID(_ context.Context, _ operation.Operation, newCluster, _ *coreapi.HCPOpenShiftCluster) field.ErrorList {
+	errs := field.ErrorList{}
+
+	if newCluster.CustomerProperties.API.Visibility == metadataapi.VisibilityPrivate &&
+		newCluster.CustomerProperties.Platform.VnetIntegrationSubnetID == nil {
+		errs = append(errs, field.Required(
+			field.NewPath("customerProperties", "platform", "vnetIntegrationSubnetId"),
+			"required when customerProperties.api.visibility is Private",
+		))
+	}
 
 	return errs
 }
@@ -385,13 +405,7 @@ func validateVersionProfile(ctx context.Context, op operation.Operation, fldPath
 	if oldObj == nil || len(oldObj.ID) > 0 {
 		errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("id"), &newObj.ID, nil)...)
 
-		if !op.HasOption(metadataapi.FeatureExperimentalReleaseFeatures) {
-			errs = append(errs, VersionMustBeAtLeast(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toVersionID), "4.20")...)
-		} else {
-			// only allow install from 4.19 with experimental flag
-			// this should be removed once support for 4.19 has been fully removed
-			errs = append(errs, VersionMustBeAtLeast(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toVersionID), "4.19")...)
-		}
+		errs = append(errs, VersionMustBeAtLeast(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toVersionID), "4.20")...)
 
 		errs = append(errs, VersionMayNotDecrease(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toVersionID))...)
 		errs = append(errs, OpenshiftVersionAtMostOneMinorSkewWithField(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toVersionID))...)

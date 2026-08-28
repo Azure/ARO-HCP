@@ -1,7 +1,7 @@
 let _startTime = {{.TimestampMin }};
 let _endTime = {{.TimestampMax }};
 // Extract cluster ID from CS logs using cid field
-let cluster_id = toscalar(
+let _cs_cluster_id = toscalar(
     database('ServiceLogs').table('clustersServiceLogs')
     | where timestamp between (_startTime .. _endTime)
     | where resource_id has '{{.ResourceGroupName}}'
@@ -15,7 +15,7 @@ let maestro_resource_ids = (
     | where timestamp between (_startTime .. _endTime)
     | where namespace_name has "maestro"
     | extend logStr = tostring(log)
-    | where logStr has cluster_id
+    | where logStr has _cs_cluster_id
     | extend resourceId = extract(@'resourceid[=:"]+([a-f0-9\-]+)', 1, logStr)
     | where isnotempty(resourceId)
     | distinct resourceId
@@ -29,7 +29,7 @@ union
         | where timestamp between (_startTime .. _endTime)
         | where namespace_name has "maestro"
         | extend logStr = tostring(log)
-        | where logStr has cluster_id or logStr has_any (maestro_resource_ids)
+        | where logStr has _cs_cluster_id or logStr has_any (maestro_resource_ids)
         | project timestamp, container_name, msg = logStr, log
     ),
     (
@@ -39,7 +39,7 @@ union
         | where timestamp between (_startTime .. _endTime)
         | where namespace_name has "hypershift"
         | extend logStr = tostring(log)
-        | where logStr has cluster_id
+        | where logStr has _cs_cluster_id
         | project timestamp, container_name, msg = logStr, log
     ),
     (
@@ -49,7 +49,7 @@ union
         | where timestamp between (_startTime .. _endTime)
         | where namespace_name has "open-cluster-management-agent"
         | extend logStr = tostring(log)
-        | where logStr has cluster_id
+        | where logStr has _cs_cluster_id
         | project timestamp, container_name, msg = logStr, log
     )
 | order by timestamp {{.OrderBy}}

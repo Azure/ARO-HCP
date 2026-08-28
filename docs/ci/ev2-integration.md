@@ -101,6 +101,8 @@ The operational procedure for renewal lives in:
 
 - [Renew the Prow Token](../sops/renew-prow-token.md)
 
+To reproduce a failed gate by triggering the same job by hand, see [Manually Trigger an E2E Gate Run](../sops/manual-e2e-gate-run.md). This matters most in INT and STG, which have no retry available on the rollout step.
+
 Symptoms that usually point to token problems:
 
 - the EV2 rollout gets stuck or fails at `regionalGating`

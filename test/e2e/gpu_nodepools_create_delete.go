@@ -16,6 +16,7 @@ package e2e
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -45,6 +46,9 @@ var _ = Describe("HCP Nodepools GPU instances", func() {
 
 			By("discovering an available GPU VM size")
 			gpuVMSize, err := tc.SelectVMSize(ctx, framework.GPUNodePoolVMSizeSelector())
+			if errors.Is(err, framework.ErrNoUsableVMSize) {
+				Skip(fmt.Sprintf("no GPU VM size available in %s: %v", tc.Location(), err))
+			}
 			Expect(err).NotTo(HaveOccurred(), "failed to discover a GPU VM size")
 
 			if tc.UsePooledIdentities() {

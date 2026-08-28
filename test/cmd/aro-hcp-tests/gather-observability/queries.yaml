@@ -1,17 +1,65 @@
+# HA-replica dedup convention:
+# The Azure Monitor managed Prometheus can run in HA, scraping each target from
+# multiple replicas (label `prometheus_replica`). Counter/gauge queries must
+# collapse that replica dimension BEFORE aggregating, or every series is counted
+# once per replica and totals are inflated. Wrap the per-series function in
+# `max without (prometheus_replica) ( ... )` inside your `sum`/aggregation, e.g.
+#   sum by (cluster) ( max without (prometheus_replica) ( increase(foo_total[5m]) ) )
+# (`max` because both replicas observe ~the same value). See the workqueue and
+# request-count queries below for the pattern.
 panels:
 - title: "Frontend Metrics"
   queries:
-  - title: "Frontend Request Latency"
-    description: "P99 frontend request latency by method/route/cluster (matches FrontendPathLatency). No minPeakThreshold — sub-second routes must stay visible for CI triage. Excludes hcpoperationresults (same as the alert)."
+  - title: "Frontend Slow-Request Fraction (>1s)"
+    description: "Fraction of frontend requests slower than 1 second, by method/route/cluster, over a trailing 30-minute window (matches the FrontendPathLatency alert's core signal). The alert fires at >0.05 (5%) but only for series that also clear its volume gate (>=50 requests/30m) and an absolute slow-call floor (>=3), so a single outlier on a low-traffic route cannot trip it. Uses count minus the le=1 bucket over count as the slow fraction; HA Prometheus replicas cancel in the ratio. Excludes hcpoperationresults (same as the alert)."
     query: |
-      histogram_quantile(0.99,
+      (
+        sum by (route, method, cluster) (
+          rate(frontend_http_requests_duration_seconds_count{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m])
+        )
+        -
+        sum by (route, method, cluster) (
+          rate(frontend_http_requests_duration_seconds_bucket{le="1", route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m])
+        )
+      )
+      /
+      sum by (route, method, cluster) (
+        rate(frontend_http_requests_duration_seconds_count{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m])
+      )
+    unit: ratio
+    workspace: svc
+    step: "60s"
+  - title: "Frontend Median (p50) Request Latency"
+    description: "Median (p50) frontend request latency by method/route/cluster over a trailing 30-minute window (matches the FrontendPathMedianLatency alert, which fires at >250ms for series with >=10 requests/30m). The median is robust at low sample counts, so this catches regressions in normal-request handling that the p99 signal misses. No minPeakThreshold — sub-second routes must stay visible for CI triage. Excludes hcpoperationresults (same as the alert)."
+    query: |
+      histogram_quantile(0.5,
         sum by (le, route, method, cluster) (
-          max without (prometheus_replica) (
-            rate(frontend_http_requests_duration_seconds_bucket{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[5m])
-          )
+          rate(frontend_http_requests_duration_seconds_bucket{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m])
         )
       )
     unit: seconds
+    workspace: svc
+    step: "60s"
+  - title: "Frontend Request Latency (p99, triage)"
+    description: "P99 frontend request latency by method/route/cluster over a trailing 30-minute window. Triage-only: the CI gate is no longer a raw p99 threshold (a p99 over a few samples is an outlier check) — it is the FrontendPathLatency slow-fraction and FrontendPathMedianLatency p50 alerts. This panel remains to spot tail behaviour. No minPeakThreshold — sub-second routes must stay visible for CI triage. Excludes hcpoperationresults (same as the alerts)."
+    query: |
+      histogram_quantile(0.99,
+        sum by (le, route, method, cluster) (
+          rate(frontend_http_requests_duration_seconds_bucket{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m])
+        )
+      )
+    unit: seconds
+    workspace: svc
+    step: "60s"
+  - title: "Frontend Request Count (30m sliding)"
+    description: "Frontend HTTP requests served in the trailing thirty-minute window (matching the alert evaluation window), broken down by method and route per svc cluster (same breakdown as the latency panels, but counting every route including hcpoperationresults). Uses increase() over frontend_http_requests_total, deduplicating HA Prometheus replicas with max without(prometheus_replica) before summing. At each point the value is the request count for the preceding thirty minutes (a sliding block); use it to see which series clear the alert volume gates (>=50/30m for FrontendPathLatency, >=10/30m for FrontendPathMedianLatency)."
+    query: |
+      sum by (route, method, cluster) (
+        max without (prometheus_replica) (
+          increase(frontend_http_requests_total[30m])
+        )
+      )
+    unit: requests
     workspace: svc
     step: "60s"
 - title: "Backend Metrics"
@@ -139,6 +187,45 @@ panels:
     unit: /s
     workspace: svc
     step: "60s"
+- title: "CosmosDB Metrics"
+  queries:
+  # One panel (one iframe) with three per-container charts. Each is a single
+  # Azure Monitor platform metric (Microsoft.DocumentDB/databaseAccounts) split
+  # by CollectionName, so every legend entry is just the container name; the
+  # aggregation is stated here in the blurb rather than repeated per series.
+  - title: "RU Consumption vs Provisioned"
+    description: "Per-container peak utilization of currently-provisioned throughput (max NormalizedRUConsumption). Sustained values near 100% mean the container is saturating its provisioned RU/s and will start throttling (429). Same signal as the 'Normalized RU Consumption High' alert."
+    source: azureMonitor
+    resource: cosmosdb
+    aggregation: Maximum
+    metrics:
+    - name: NormalizedRUConsumption
+      splitBy: CollectionName
+    unit: "%"
+    step: "60s"
+  - title: "Autoscale Provisioned RU vs Ceiling"
+    description: "Per-container autoscale-provisioned throughput (max AutoscaledRU) as a percentage of that container's configured autoscale maximum (from the rendered config). At 100% the autoscaler is at its ceiling and further load turns into throttling. Normalized client-side; the copyable query returns the raw RU/s."
+    source: azureMonitor
+    resource: cosmosdb
+    aggregation: Maximum
+    metrics:
+    - name: AutoscaledRU
+      splitBy: CollectionName
+      normalizeByAutoscaleMax: true
+    unit: "%"
+    step: "60s"
+  - title: "Throttled Requests (429)"
+    description: "Per-container count of throttled requests (TotalRequests filtered to StatusCode=429). Any sustained non-zero series means the container is exceeding its provisioned RU/s and clients are being rate-limited once SDK retries are exhausted."
+    source: azureMonitor
+    resource: cosmosdb
+    aggregation: Count
+    metrics:
+    - name: TotalRequests
+      splitBy: CollectionName
+      filter:
+        StatusCode: "429"
+    unit: requests
+    step: "60s"
 - title: "Maestro Metrics"
   queries:
   - title: "REST API Request Rate by Status"
@@ -231,5 +318,128 @@ panels:
         rate(advisory_lock_count{namespace="maestro"}[5m])
       )
     unit: /s
+    workspace: svc
+    step: "60s"
+- title: "MC AKS Metrics"
+  queries:
+  - title: "MC User Node Count by Phase"
+    description: "User node count per management cluster, stacked by phase: Ready (healthy, age >10m), NotReady (unhealthy, age >10m), Joining (any status, age ≤10m). Excludes system and infra pool nodes. Each sub-chart shows one management cluster."
+    query: |
+      label_replace(
+        count by (cluster) (
+          (max by (node, cluster, condition, status) (
+            kube_node_status_condition{cluster=~".*-mgmt-.*", node!~"aks-system-.*|aks-infra.*-.*", condition="Ready", status="true"}
+          ) == 1)
+          and on (node, cluster)
+          (time() - max by (node, cluster) (kube_node_created{cluster=~".*-mgmt-.*"}) > 600)
+        ),
+        "phase", "Ready", "", ""
+      )
+      or
+      label_replace(
+        count by (cluster) (
+          (max by (node, cluster, condition, status) (
+            kube_node_status_condition{cluster=~".*-mgmt-.*", node!~"aks-system-.*|aks-infra.*-.*", condition="Ready", status!="true"}
+          ) == 1)
+          and on (node, cluster)
+          (time() - max by (node, cluster) (kube_node_created{cluster=~".*-mgmt-.*"}) > 600)
+        ),
+        "phase", "NotReady", "", ""
+      )
+      or
+      label_replace(
+        count by (cluster) (
+          max by (node, cluster) (
+            kube_node_status_condition{cluster=~".*-mgmt-.*", node!~"aks-system-.*|aks-infra.*-.*", condition="Ready"}
+          )
+          and on (node, cluster)
+          (time() - max by (node, cluster) (kube_node_created{cluster=~".*-mgmt-.*"}) <= 600)
+        ),
+        "phase", "Joining", "", ""
+      )
+    unit: nodes
+    workspace: svc
+    step: "60s"
+    chartType: faceted-stacked-area
+    facetBy: cluster
+    stackBy: phase
+    colors:
+      Ready: "#4CAF50"
+      NotReady: "#F44336"
+      Joining: "#2196F3"
+  - title: "MC User Node Unhealthy Conditions"
+    description: "Count of user nodes with unhealthy conditions per management cluster. Only non-zero conditions are shown. Excludes Ready (shown separately) and VMEventScheduled (informational). Each sub-chart shows one management cluster."
+    query: |
+      count by (cluster, condition) (
+        max by (node, cluster, condition, status) (
+          kube_node_status_condition{
+            cluster=~".*-mgmt-.*",
+            node!~"aks-system-.*|aks-infra.*-.*",
+            condition!~"Ready|VMEventScheduled",
+            status="true"
+          }
+        ) == 1
+      )
+    unit: nodes
+    workspace: svc
+    step: "60s"
+    chartType: faceted-stacked-area
+    facetBy: cluster
+    stackBy: condition
+  - title: "MC User Node CPU Usage"
+    description: "Maximum CPU usage percentage across user nodes per management cluster. Shows the busiest node at each point. Sustained values above 80% indicate CPU pressure that may affect pod scheduling and kubelet health."
+    query: |
+      max by (cluster) (
+        (1 - avg by (instance, cluster) (
+          max without (prometheus_replica) (
+            rate(node_cpu_seconds_total{cluster=~".*-mgmt-.*", instance!~"aks-system-.*|aks-infra.*-.*", mode="idle"}[5m])
+          )
+        ))
+      ) * 100
+    unit: percent
+    workspace: svc
+    step: "60s"
+  - title: "MC User Node Memory Usage"
+    description: "Maximum memory usage percentage across user nodes per management cluster. Computed as (total - available) / total. Sustained high values indicate memory pressure that may trigger OOM kills or kubelet evictions."
+    query: |
+      max by (cluster) (
+        (1 - (
+          max by (instance, cluster) (node_memory_MemAvailable_bytes{cluster=~".*-mgmt-.*", instance!~"aks-system-.*|aks-infra.*-.*"})
+          /
+          max by (instance, cluster) (node_memory_MemTotal_bytes{cluster=~".*-mgmt-.*", instance!~"aks-system-.*|aks-infra.*-.*"})
+        ))
+      ) * 100
+    unit: percent
+    workspace: svc
+    step: "60s"
+  - title: "MC User Node Disk Usage"
+    description: "Maximum root filesystem usage percentage across user nodes per management cluster. Computed as (size - available) / size for the root mount. High values trigger DiskPressure node condition and pod evictions."
+    query: |
+      max by (cluster) (
+        (1 - (
+          max by (instance, cluster) (node_filesystem_avail_bytes{cluster=~".*-mgmt-.*", instance!~"aks-system-.*|aks-infra.*-.*", mountpoint="/", fstype!="tmpfs"})
+          /
+          max by (instance, cluster) (node_filesystem_size_bytes{cluster=~".*-mgmt-.*", instance!~"aks-system-.*|aks-infra.*-.*", mountpoint="/", fstype!="tmpfs"})
+        ))
+      ) * 100
+    unit: percent
+    workspace: svc
+    step: "60s"
+  - title: "MC User Node Pod Capacity"
+    description: "Overall pod utilization across user nodes per management cluster. Computed as total running pods / total pod capacity. Values approaching 100% mean the cluster is running out of pod capacity."
+    query: |
+      sum by (cluster) (
+        max by (instance, cluster) (kubelet_running_pods{cluster=~".*-mgmt-.*", instance!~"aks-system-.*|aks-infra.*-.*"})
+      )
+      /
+      sum by (cluster) (
+        max by (instance, cluster) (
+          label_replace(
+            kube_node_status_capacity{cluster=~".*-mgmt-.*", node!~"aks-system-.*|aks-infra.*-.*", resource="pods"},
+            "instance", "$1", "node", "(.*)"
+          )
+        )
+      ) * 100
+    unit: percent
     workspace: svc
     step: "60s"

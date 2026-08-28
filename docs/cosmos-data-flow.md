@@ -933,19 +933,35 @@ No Cosmos writes. Posts `NodePoolUpgradePolicy` to Cluster Service.
 | Read | ReadDesire (HostedCluster) | <ul><li>`Namespace` (HostedCluster namespace)</li><li>`Name` (HostedCluster name)</li></ul> |
 | **Write** | **`ServiceProviderCluster`** | <ul><li>**`Status.HostedClusterNamespace`** = HostedCluster namespace</li><li>**`Status.ControlPlaneNamespace`** = `<hostedClusterNamespace>-<hostedClusterName>` (dots replaced by dashes)</li></ul> |
 
-#### IdentityMigration
+#### ClusterIdentitySync
 
-**File:** [identity_migration.go](../backend/pkg/controllers/cluster/properties/identity_migration.go)
+**File:** [cluster_identity_sync.go](../backend/pkg/controllers/cluster/identity/cluster_identity_sync.go)
 **Trigger:** Cluster informer, 60-minute resync
 **Gate (NeedsWork on Cluster):**
-- `Cluster.ServiceProviderProperties.ClusterServiceID` != nil and non-empty
-- `Cluster.Identity` == nil, OR `len(Cluster.Identity.UserAssignedIdentities)` == 0, OR any entry has empty ClientID/PrincipalID, OR entries don't match `CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities`
+- `Cluster.ServiceProviderProperties.DeletionTimestamp` == nil, AND
+- `Cluster.Identity` != nil and `len(Cluster.Identity.UserAssignedIdentities)` > 0
 
 | | Object | Fields |
 |---|--------|--------|
-| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must not be nil and non-empty)</li><li>`Identity` (NeedsWork: must be nil, or `Identity.UserAssignedIdentities` empty, or entries incomplete)</li><li>`Identity.UserAssignedIdentities` (NeedsWork: each must have non-empty ClientID/PrincipalID)</li><li>`CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities` (NeedsWork: entries must match Identity map)</li></ul> |
-| Read | Cluster Service | <ul><li>`GetCluster` -> `GetClusterServiceUserAssignedIdentities`</li></ul> |
-| **Write** | **`HCPOpenShiftCluster`** | <ul><li>**`Identity.UserAssignedIdentities`** = migrated map from CS</li></ul> |
+| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork)</li><li>`Identity.UserAssignedIdentities` (iterated; keys preserved with original casing)</li></ul> |
+| Read | `ServiceProviderCluster` | <ul><li>`Status.MSIManagedIdentities.ControlPlaneOperatorsIdentities` (lookup by lowercased Identity map key)</li><li>`Status.MSIManagedIdentities.ServiceManagedIdentity` (lookup by lowercased ResourceID)</li></ul> |
+| **Write** | **`HCPOpenShiftCluster`** | <ul><li>**`Identity.UserAssignedIdentities[key].ClientID` / `PrincipalID`** = from SPC when a lowercased match exists; keys absent from SPC are left unchanged</li></ul> |
+
+#### FetchMSIIdentitiesInfo
+
+**File:** [fetch_msi_identities_info.go](../backend/pkg/controllers/cluster/identity/fetch_msi_identities_info.go)
+**Trigger:** Cluster informer, 1-minute resync
+**Gate (needsWork):**
+- `Cluster.ServiceProviderProperties.DeletionTimestamp` == nil
+- `ServiceProviderCluster.Status.MSIManagedIdentities.EarliestRecheckTime` is nil or in the past, OR
+- stored MSI identities on SPC no longer match `OperatorsAuthentication` (control-plane operator bindings / service managed identity resource ID), in which case EarliestRecheckTime is ignored
+
+| | Object | Fields |
+|---|--------|--------|
+| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork)</li><li>`ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL`</li><li>`CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators`</li><li>`CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity`</li></ul> |
+| Read | `ServiceProviderCluster` | <ul><li>`Status.MSIManagedIdentities.EarliestRecheckTime` (NeedsWork)</li><li>`Status.MSIManagedIdentities.ControlPlaneOperatorsIdentities` (deep-equal before write)</li><li>`Status.MSIManagedIdentities.ServiceManagedIdentity` (deep-equal before write)</li></ul> |
+| Read | Managed Identities Data Plane | <ul><li>`GetUserAssignedIdentitiesCredentials`</li></ul> |
+| **Write** | **`ServiceProviderCluster`** | <ul><li>**`Status.MSIManagedIdentities.ControlPlaneOperatorsIdentities`** = map keyed by lowercased resource ID (`ResourceID`, `ClientID`, `PrincipalID`)</li><li>**`Status.MSIManagedIdentities.ServiceManagedIdentity`** = `ResourceID`, `ClientID`, `PrincipalID`</li><li>**`Status.MSIManagedIdentities.EarliestRecheckTime`** = now + jittered 12h interval</li></ul> |
 
 ---
 
@@ -1106,19 +1122,35 @@ No writes to the Cosmos Resources container.
 
 **File:** [create_cluster_scoped_read_desires_controller.go](../backend/pkg/controllers/cluster/readdesires/create_cluster_scoped_read_desires_controller.go), [create_nodepool_scoped_read_desires_controller.go](../backend/pkg/controllers/nodepool/readdesires/create_nodepool_scoped_read_desires_controller.go)
 **Trigger:** Cluster/NodePool informer, 1-minute resync
-**Gate (SyncOnce preconditions + readDesireNeedsWork):**
+**Gate (SyncOnce preconditions + ReadDesire spec drift):**
 - `Cluster.ServiceProviderProperties.DeletionTimestamp` == nil
 - `Cluster.ServiceProviderProperties.ClusterServiceID` != nil
 - `ServiceProviderCluster.Status.ManagementClusterResourceID` != nil
 - `len(Cluster.CustomerProperties.DNS.BaseDomainPrefix)` > 0
-- Existing `ReadDesire` == nil, or `ReadDesire.Spec.ManagementCluster` differs, or `ReadDesire.Spec.TargetItem` differs
+- Existing `ReadDesire` == nil, or `ReadDesire.Spec.ManagementCluster` differs, or `ReadDesire.Spec.TargetItem` differs (both controllers reconcile via the shared `kubeapplierhelpers.EnsureReadDesire` helper, consulting the ReadDesire informer lister)
 
 | | Object | Fields |
 |---|--------|--------|
 | Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (SyncOnce: must be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (SyncOnce: must not be nil)</li><li>`CustomerProperties.DNS.BaseDomainPrefix` (SyncOnce: must be non-empty)</li></ul> |
 | Read | `ServiceProviderCluster` | <ul><li>`Status.ManagementClusterResourceID` (SyncOnce: must not be nil)</li></ul> |
-| Read | Existing `ReadDesire` | <ul><li>`Spec.ManagementCluster` (readDesireNeedsWork: compared to desired)</li><li>`Spec.TargetItem` (readDesireNeedsWork: compared to desired)</li></ul> |
+| Read | Existing `ReadDesire` | <ul><li>`Spec.ManagementCluster` (spec drift: compared to desired)</li><li>`Spec.TargetItem` (spec drift: compared to desired)</li></ul> |
 | **Write** | `ReadDesire` (kube-applier DB) | <ul><li>Creates or replaces `ReadDesire` documents (not Resources container)</li></ul> |
+
+#### FetchDataPlaneOperatorsManagedIdentitiesInfo
+
+**File:** [fetch_data_plane_operators_managed_identities_info.go](../backend/pkg/controllers/cluster/identity/fetch_data_plane_operators_managed_identities_info.go)
+**Trigger:** Cluster informer, 1-minute resync
+**Gate (needsWork on ServiceProviderCluster):**
+- Skipped entirely when `HCPOpenShiftCluster.ServiceProviderProperties.DeletionTimestamp` != nil
+- Honors `ServiceProviderCluster.Status.DataPlaneOperatorsManagedIdentities.EarliestRecheckTime` only when the unique data plane operator ResourceID set on `Status.DataPlaneOperatorsManagedIdentities.Identities` still matches the desired set from `CustomerProperties`; returns true (query Azure) immediately on any mismatch
+- When identities match: returns false while `EarliestRecheckTime` is in the future; true when `EarliestRecheckTime` is nil or already past
+
+| | Object | Fields |
+|---|--------|--------|
+| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (SyncOnce: must be nil)</li><li>`CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators` (desired identity ResourceIDs, deduplicated + lowercased)</li><li>`CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity` (SyncOnce: must not be nil)</li><li>`ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL` (used to build the SMI client)</li><li>`ID` (subscription / resource group / name)</li></ul> |
+| Read | `ServiceProviderCluster` | <ul><li>`Status.DataPlaneOperatorsManagedIdentities.Identities` (needsWork: compared to the desired ResourceID set)</li><li>`Status.DataPlaneOperatorsManagedIdentities.EarliestRecheckTime` (needsWork: honored only when identities match)</li></ul> |
+| Read | Azure (UserAssignedIdentitiesClient) | <ul><li>`Get` once per unique ResourceID -> `Properties.ClientID`, `Properties.PrincipalID`</li></ul> |
+| **Write** | **`ServiceProviderCluster`** | <ul><li>**`Status.DataPlaneOperatorsManagedIdentities.Identities[<lowercased resourceID>]`** = `{ResourceID, ClientID, PrincipalID, RetrievalError}` — ClientID/PrincipalID from Azure on success (RetrievalError nil); on any Get failure (including ResourceNotFound) ClientID/PrincipalID are cleared (nil) and RetrievalError is set to the first 1024 chars of the error. Identities no longer present on the cluster are pruned.</li><li>**`Status.DataPlaneOperatorsManagedIdentities.EarliestRecheckTime`** = now + jittered 12h interval when all Gets succeed; left nil (cleared) when any Get error is accumulated, so the next needsWork re-queries Azure</li></ul> |
 
 ---
 
@@ -1327,7 +1359,7 @@ Each entry links to every actor that writes the field.
 |-------|------|
 | [Frontend: PUT Cluster (Create)](#put-cluster-create) | Rebuilt via `completeClusterIdentity` |
 | [Frontend: PUT/PATCH Cluster (Update)](#put-cluster-update) | Rebuilt via `completeClusterIdentity` with old data |
-| [IdentityMigration](#identitymigration) | Migrated from CS for clusters with incomplete identity |
+| [ClusterIdentitySync](#clusteridentitysync) | Keeps ClientID/PrincipalID on existing Identity keys in sync with ServiceProviderCluster.Status.MSIManagedIdentities |
 
 ### `HCPOpenShiftCluster.ServiceProviderProperties.DeletionTimestamp`
 
@@ -1464,6 +1496,22 @@ Single writer, but tracks the namespace containing the HostedCluster CR and user
 | [ServiceProviderClusterPropertiesSync](#serviceproviderclusterpropertiessync) | Sets to `<hostedClusterNamespace>-<hostedClusterName>` (dots replaced by dashes) |
 
 Single writer, but tracks the namespace containing control plane pods (etcd, kube-apiserver, etc.) on the management cluster.
+
+### `ServiceProviderCluster.Status.MSIManagedIdentities`
+
+| Actor | When |
+|-------|------|
+| [FetchMSIIdentitiesInfo](#fetchmsiidentitiesinfo) | Sets ControlPlaneOperatorsIdentities (lowercased resource ID keys), ServiceManagedIdentity, and EarliestRecheckTime from Managed Identities Data Plane |
+
+Single writer. Read by [ClusterIdentitySync](#clusteridentitysync) to populate `HCPOpenShiftCluster.Identity.UserAssignedIdentities`.
+
+### `ServiceProviderCluster.Status.DataPlaneOperatorsManagedIdentities`
+
+| Actor | When |
+|-------|------|
+| [FetchDataPlaneOperatorsManagedIdentitiesInfo](#fetchdataplaneoperatorsmanagedidentitiesinfo) | Resolves each data plane operator identity's `ClientID`/`PrincipalID` from Azure (or clears them and sets `RetrievalError` on a Get failure), and sets `EarliestRecheckTime` for the next Azure recheck |
+
+Single writer. Mirrors the customer's data plane operator managed identities (`CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators`) into `Identities` keyed by lowercased Azure ResourceID, each carrying the Azure-resolved `ClientID`/`PrincipalID` or a `RetrievalError`.
 
 ### `ServiceProviderCluster.Status.Validations`
 

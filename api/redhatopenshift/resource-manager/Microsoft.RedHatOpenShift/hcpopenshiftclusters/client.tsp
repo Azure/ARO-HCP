@@ -15,7 +15,6 @@ using Microsoft.RedHatOpenShift;
 // Pattern: https://github.com/Azure/azure-rest-api-specs/pull/42784
 #suppress "@azure-tools/typespec-azure-resource-manager/missing-operations-endpoint" "Write-only helper models for JS SDK alternate types; operations are defined on the original resources in hcpCluster.tsp"
 namespace Microsoft.RedHatOpenShift {
-  #suppress "@azure-tools/typespec-azure-resource-manager/arm-resource-provisioning-state" ""
   @doc("API profile for create/update operations, omitting server-side read-only field url.")
   model ApiProfileCreate {
     /** The internet visibility of the OpenShift API server. */
@@ -27,7 +26,6 @@ namespace Microsoft.RedHatOpenShift {
     authorizedCidrs?: string[];
   }
 
-  #suppress "@azure-tools/typespec-azure-resource-manager/arm-resource-provisioning-state" ""
   @doc("Azure platform configuration for create/update operations, omitting server-side read-only field issuerUrl.")
   model PlatformProfileCreate {
     /** Resource group name to put cluster resources. */
@@ -50,7 +48,7 @@ namespace Microsoft.RedHatOpenShift {
     operatorsAuthentication: OperatorsAuthenticationProfile;
   }
 
-  #suppress "@azure-tools/typespec-azure-resource-manager/arm-resource-provisioning-state" ""
+  #suppress "@azure-tools/typespec-azure-resource-manager/arm-resource-provisioning-state" "Omitting provisioningState in this create/update model because it is a server-side read-only field"
   @doc("HCP cluster properties for create/update operations, omitting server-side read-only fields (console and status on the root model; api.url and platform.issuerUrl in nested models).")
   model HcpOpenShiftClusterPropertiesCreate {
     /** Version of the control plane components. */
@@ -142,7 +140,14 @@ namespace Microsoft.RedHatOpenShift {
     @minValue(0)
     replicas?: int32;
 
-    /** Auto-repair */
+    /** autoRepair specifies whether health checks should be enabled for machines
+     * in the NodePool. Enabling this feature will cause the controller to
+     * automatically delete unhealthy machines. The unhealthy criteria are
+     * determined by checking the Node Ready condition and a timeout that might
+     * vary depending on the platform provider. autoRepair will not take action
+     * when more than 2 Nodes are unhealthy at the same time, giving time for
+     * the cluster to stabilize or for the user to manually intervene.
+     */
     @visibility(Lifecycle.Read, Lifecycle.Create)
     autoRepair?: boolean = true;
 
@@ -152,7 +157,7 @@ namespace Microsoft.RedHatOpenShift {
 
     /** Kubernetes labels to propagate to the NodePool Nodes
      * Note that when the labels are updated this is only applied to newly
-     * create nodes in the Nodepool, existing node labels remain unchanged.
+     * created nodes in the Nodepool, existing node labels remain unchanged.
      */
     @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
     @identifiers(#["key", "value"])

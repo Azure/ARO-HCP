@@ -11,7 +11,8 @@ status:
     status: "False"
     type: ReportCurrent
   hostedControlPlanes:
-    notReady: 0
-    ready: 3
+    readyResourceIDs:
+    - /subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/cluster-a
+    - /subscriptions/sub-2/resourceGroups/rg-2/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/cluster-b
   requested: null
   usage: null

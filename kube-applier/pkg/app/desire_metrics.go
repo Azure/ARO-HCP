@@ -91,14 +91,28 @@ func (c *desireCollector) collect() {
 	}
 }
 
-// initCounts pre-seeds all label combinations to 0 so gauges go to zero when desires disappear.
+// initCounts pre-seeds all label combinations to 0 so gauges go to zero when
+// desires disappear. Condition types are per desire type: ApplyDesires report the
+// operation-specific SuccessfullyApplied / SuccessfullyDeleted conditions (plus
+// the legacy Successful) while ReadDesires only report Successful.
 func initCounts() map[string]map[string]float64 {
-	condTypes := []string{kubeapplierapi.ConditionTypeSuccessful, kubeapplierapi.ConditionTypeDegraded}
+	condTypesByDesireType := map[string][]string{
+		"apply": {
+			kubeapplierapi.ConditionTypeSuccessful,
+			kubeapplierapi.ConditionTypeSuccessfullyApplied,
+			kubeapplierapi.ConditionTypeSuccessfullyDeleted,
+			kubeapplierapi.ConditionTypeDegraded,
+		},
+		"read": {
+			kubeapplierapi.ConditionTypeSuccessful,
+			kubeapplierapi.ConditionTypeDegraded,
+		},
+	}
 	counts := map[string]map[string]float64{}
-	for _, t := range []string{"apply", "read"} {
-		counts[t] = map[string]float64{}
+	for desireType, condTypes := range condTypesByDesireType {
+		counts[desireType] = map[string]float64{}
 		for _, cond := range condTypes {
-			counts[t][cond] = 0
+			counts[desireType][cond] = 0
 		}
 	}
 	return counts

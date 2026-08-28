@@ -395,6 +395,45 @@
         "replicationState": {
           "type": "boolean",
           "description": "Whether this region's replica should have its regional data endpoint enabled. False for a canary/EUAP replica (e.g. eastus2euap) that must be kept disabled, see config.msft.clouds-overlay.yaml. Defaults to true (enabled)."
+        },
+        "diagnosticSettings": {
+          "type": "object",
+          "description": "ACR diagnostic settings (repository/login events + metrics) sent to a dedicated Log Analytics workspace.",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "logAnalyticsWorkspace": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "description": "Name of the Log Analytics workspace to create for ACR diagnostic logs"
+                },
+                "sku": {
+                  "type": "string",
+                  "description": "SKU for the Log Analytics workspace"
+                },
+                "retentionInDays": {
+                  "type": "integer",
+                  "minimum": 30,
+                  "maximum": 730,
+                  "description": "Data retention in days for the Log Analytics workspace. Azure requires 30-730 days."
+                }
+              },
+              "required": [
+                "name",
+                "sku",
+                "retentionInDays"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "enabled",
+            "logAnalyticsWorkspace"
+          ],
+          "additionalProperties": false
         }
       },
       "additionalProperties": false,
@@ -3174,6 +3213,89 @@
         "alertRuleOwningTeamTag"
       ]
     },
+    "genevaHealthFunction": {
+      "type": "object",
+      "properties": {
+        "deploy": {
+          "type": "boolean",
+          "description": "Whether to deploy the Geneva Health Function App"
+        },
+        "monitoringAccount": {
+          "type": "string",
+          "description": "Geneva Health monitoring account name"
+        },
+        "healthEnvironment": {
+          "type": "string",
+          "description": "Geneva Health ExecutionEnvironment (Int, Prod, UsNat, UsSec)"
+        },
+        "functionAppName": {
+          "type": "string",
+          "description": "Name of the Azure Function App"
+        },
+        "storageAccountName": {
+          "type": "string",
+          "description": "Name of the Storage Account for Function App runtime"
+        },
+        "appServicePlanName": {
+          "type": "string",
+          "description": "Name of the App Service Plan"
+        },
+        "managedIdentityName": {
+          "type": "string",
+          "description": "Name of the User-Assigned Managed Identity"
+        },
+        "image": {
+          "$ref": "#/definitions/containerImage"
+        },
+        "certificate": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "issuer": {
+              "$ref": "#/definitions/certificateIssuer"
+            },
+            "manage": {
+              "type": "boolean"
+            },
+            "commonName": {
+              "type": "string"
+            },
+            "sanDnsNames": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "issuer",
+            "manage",
+            "commonName",
+            "sanDnsNames"
+          ]
+        },
+        "imageArtifact": {
+          "$ref": "#/definitions/imageArtifact"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "deploy",
+        "monitoringAccount",
+        "healthEnvironment",
+        "functionAppName",
+        "storageAccountName",
+        "appServicePlanName",
+        "managedIdentityName",
+        "image",
+        "certificate",
+        "imageArtifact"
+      ]
+    },
     "quotaizer": {
       "type": "object",
       "properties": {
@@ -3751,7 +3873,8 @@
     "keyVaultDNSSuffix",
     "acrDNSSuffix",
     "e2e",
-    "entraAppOwnerIds"
+    "entraAppOwnerIds",
+    "genevaHealthFunction"
   ],
   "x-cel-validations": [
     {

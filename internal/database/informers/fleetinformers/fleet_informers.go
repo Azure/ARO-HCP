@@ -48,6 +48,7 @@ func NewStampInformerWithRelistDuration(lister cosmosstorageutils.GlobalLister[f
 		lister,
 		cosmosClient,
 		relistDuration,
+		"fleet",
 	)
 
 	return cache.NewSharedIndexInformerWithOptions(
@@ -75,6 +76,7 @@ func NewManagementClusterInformerWithRelistDuration(lister cosmosstorageutils.Gl
 		lister,
 		cosmosClient,
 		relistDuration,
+		"fleet",
 	)
 
 	return cache.NewSharedIndexInformerWithOptions(

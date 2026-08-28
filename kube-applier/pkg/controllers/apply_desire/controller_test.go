@@ -393,6 +393,16 @@ func TestSyncOnce_AppliedKubeGenerationSetOnSuccess(t *testing.T) {
 	if got := *replacer.last.Status.AppliedKubeGeneration; got != 3 {
 		t.Errorf("AppliedKubeGeneration = %d, want 3 (metadata.generation from SSA response)", got)
 	}
+	// A ServerSideApply success sets the operation-specific SuccessfullyApplied
+	// condition and mirrors it onto the legacy Successful condition.
+	for _, condType := range []string{kubeapplierapi.ConditionTypeSuccessfullyApplied, kubeapplierapi.ConditionTypeSuccessful} {
+		if got := findCond(replacer.last.Status.Conditions, condType); got == nil || got.Status != metav1.ConditionTrue {
+			t.Errorf("%s=%v, want True after successful apply", condType, got)
+		}
+	}
+	if got := findCond(replacer.last.Status.Conditions, kubeapplierapi.ConditionTypeSuccessfullyDeleted); got != nil {
+		t.Errorf("SuccessfullyDeleted should not be set on a ServerSideApply, got %v", got)
+	}
 }
 
 // TestSyncOnce_AppliedKubeGenerationNilOnFailure verifies that after a failed
@@ -483,6 +493,20 @@ func findCond(conds []metav1.Condition, condType string) *metav1.Condition {
 	return nil
 }
 
+// assertLegacyMirrors verifies the legacy Successful condition mirrors the
+// operation-specific primary condition (same status/reason/message), which the
+// controller dual-writes for backwards compatibility.
+func assertLegacyMirrors(t *testing.T, conds []metav1.Condition, primary *metav1.Condition) {
+	t.Helper()
+	legacy := findCond(conds, kubeapplierapi.ConditionTypeSuccessful)
+	if legacy == nil {
+		t.Fatalf("legacy Successful condition not set (want mirror of %s)", primary.Type)
+	}
+	if legacy.Status != primary.Status || legacy.Reason != primary.Reason || legacy.Message != primary.Message {
+		t.Errorf("legacy Successful=%+v does not mirror %s=%+v", legacy, primary.Type, primary)
+	}
+}
+
 func TestEvaluateDelete_TargetGoneIsSuccessful(t *testing.T) {
 	dyn := fake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), map[schema.GroupVersionResource]string{
 		{Version: "v1", Resource: "configmaps"}: "ConfigMapList",
@@ -494,10 +518,11 @@ func TestEvaluateDelete_TargetGoneIsSuccessful(t *testing.T) {
 	})
 	mutate := c.evaluateDelete(context.Background(), desire)
 	mutate(desire)
-	if got := findCond(desire.Status.Conditions, kubeapplierapi.ConditionTypeSuccessful); got == nil ||
-		got.Status != metav1.ConditionTrue {
-		t.Errorf("Successful=%v, want True (target absent)", got)
+	got := findCond(desire.Status.Conditions, kubeapplierapi.ConditionTypeSuccessfullyDeleted)
+	if got == nil || got.Status != metav1.ConditionTrue {
+		t.Errorf("SuccessfullyDeleted=%v, want True (target absent)", got)
 	}
+	assertLegacyMirrors(t, desire.Status.Conditions, got)
 }
 
 func TestEvaluateDelete_TargetWithDeletionTimestampWaits(t *testing.T) {
@@ -513,9 +538,9 @@ func TestEvaluateDelete_TargetWithDeletionTimestampWaits(t *testing.T) {
 	})
 	mutate := c.evaluateDelete(context.Background(), desire)
 	mutate(desire)
-	got := findCond(desire.Status.Conditions, kubeapplierapi.ConditionTypeSuccessful)
+	got := findCond(desire.Status.Conditions, kubeapplierapi.ConditionTypeSuccessfullyDeleted)
 	if got == nil || got.Status != metav1.ConditionFalse {
-		t.Fatalf("Successful=%v, want False (waiting)", got)
+		t.Fatalf("SuccessfullyDeleted=%v, want False (waiting)", got)
 	}
 	if got.Reason != kubeapplierapi.ConditionReasonWaitingForDeletion {
 		t.Errorf("Reason = %q, want %q", got.Reason, kubeapplierapi.ConditionReasonWaitingForDeletion)
@@ -523,6 +548,7 @@ func TestEvaluateDelete_TargetWithDeletionTimestampWaits(t *testing.T) {
 	if !strings.Contains(got.Message, "doomed-uid") {
 		t.Errorf("Message %q does not contain UID", got.Message)
 	}
+	assertLegacyMirrors(t, desire.Status.Conditions, got)
 }
 
 func TestEvaluateDelete_PresentNoTSIssuesDelete_ThenWaitsForFinalizers(t *testing.T) {
@@ -565,10 +591,11 @@ func TestEvaluateDelete_PresentNoTSIssuesDelete_ThenWaitsForFinalizers(t *testin
 	})
 	mutate := c.evaluateDelete(context.Background(), desire)
 	mutate(desire)
-	got := findCond(desire.Status.Conditions, kubeapplierapi.ConditionTypeSuccessful)
+	got := findCond(desire.Status.Conditions, kubeapplierapi.ConditionTypeSuccessfullyDeleted)
 	if got == nil || got.Status != metav1.ConditionFalse || got.Reason != kubeapplierapi.ConditionReasonWaitingForDeletion {
-		t.Errorf("Successful=%v, want False/WaitingForDeletion", got)
+		t.Errorf("SuccessfullyDeleted=%v, want False/WaitingForDeletion", got)
 	}
+	assertLegacyMirrors(t, desire.Status.Conditions, got)
 }
 
 func TestEvaluateDelete_DeleteAPIErrorClassifiesAsKubeAPIError(t *testing.T) {
@@ -587,10 +614,11 @@ func TestEvaluateDelete_DeleteAPIErrorClassifiesAsKubeAPIError(t *testing.T) {
 	})
 	mutate := c.evaluateDelete(context.Background(), desire)
 	mutate(desire)
-	got := findCond(desire.Status.Conditions, kubeapplierapi.ConditionTypeSuccessful)
+	got := findCond(desire.Status.Conditions, kubeapplierapi.ConditionTypeSuccessfullyDeleted)
 	if got == nil || got.Status != metav1.ConditionFalse || got.Reason != kubeapplierapi.ConditionReasonKubeAPIError {
-		t.Errorf("Successful=%v, want False/KubeAPIError", got)
+		t.Errorf("SuccessfullyDeleted=%v, want False/KubeAPIError", got)
 	}
+	assertLegacyMirrors(t, desire.Status.Conditions, got)
 }
 
 func TestEvaluateDelete_BadTargetIsPreCheckFailed(t *testing.T) {
@@ -601,8 +629,9 @@ func TestEvaluateDelete_BadTargetIsPreCheckFailed(t *testing.T) {
 	})
 	mutate := c.evaluateDelete(context.Background(), desire)
 	mutate(desire)
-	got := findCond(desire.Status.Conditions, kubeapplierapi.ConditionTypeSuccessful)
+	got := findCond(desire.Status.Conditions, kubeapplierapi.ConditionTypeSuccessfullyDeleted)
 	if got == nil || got.Reason != kubeapplierapi.ConditionReasonPreCheckFailed {
-		t.Errorf("Successful=%v, want PreCheckFailed", got)
+		t.Errorf("SuccessfullyDeleted=%v, want PreCheckFailed", got)
 	}
+	assertLegacyMirrors(t, desire.Status.Conditions, got)
 }

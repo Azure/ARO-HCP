@@ -7,6 +7,9 @@ param csMsiName string
 @description('The resourcegroup for regional infrastructure')
 param regionalResourceGroup string
 
+@description('The name of the CosmosDB shared with the RP that Cluster Service will connect to')
+param rpCosmosDbName string
+
 @description('The name of the Storage Account used to configure OIDC in ARO-HCP clusters')
 param regionalOidcStorageAccountName string
 
@@ -72,3 +75,14 @@ output databaseName string = useAzureDB ? 'clusters-service' : 'ocm-cs-db'
 output databaseUser string = useAzureDB ? 'clusters-service' : 'ocm'
 #disable-next-line outputs-should-not-contain-secrets
 output databasePassword string = useAzureDB ? '' : 'TheBlurstOfTimes'
+
+//
+//   C O S M O S D B   L O O K U P
+//
+
+resource cosmosDbAccount 'Microsoft.DocumentDB/databaseAccounts@2023-11-15' existing = {
+  scope: resourceGroup(regionalResourceGroup)
+  name: rpCosmosDbName
+}
+
+output cosmosDBDocumentEndpoint string = cosmosDbAccount.properties.documentEndpoint

@@ -69,7 +69,9 @@ resourceGroups:
   - name: kusto-lookup
     action: ARM
     template: templates/kusto-lookup.bicep
-    parameters: configurations/kusto-lookup.tmpl.bicepparam
+    # Must source the cluster name from stgGlobalV2 (like the deploy step above),
+    # otherwise the lookup targets the live V1 cluster and fails with ResourceNotFound.
+    parameters: configurations/kusto-lookup-stg.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
     dependsOn:

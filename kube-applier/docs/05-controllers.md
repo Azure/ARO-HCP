@@ -39,10 +39,19 @@ The existing controllerutils path writes `Degraded` to a Cosmos
 Add a small helper, `kube-applier/pkg/controllers/conditions/conditions.go`:
 
 ```go
+// ApplyDesire Type=ServerSideApply: sets SuccessfullyApplied (+ legacy Successful).
+func SetSuccessfullyApplied(conds *[]metav1.Condition, err error)
+// ApplyDesire Type=Delete: sets SuccessfullyDeleted (+ legacy Successful).
+func SetSuccessfullyDeleted(conds *[]metav1.Condition, err error)
+func SetWaitingForDeletion(conds *[]metav1.Condition, deletionTime metav1.Time, uid types.UID)
+// ReadDesire (single observe operation): sets the legacy Successful.
 func SetSuccessful(conds *[]metav1.Condition, err error)
-func SetSuccessfulWaitingForDeletion(conds *[]metav1.Condition, deletionTime metav1.Time, uid types.UID)
 func SetDegraded(conds *[]metav1.Condition, err error)
 ```
+
+The `SetSuccessfully*` / `SetWaitingForDeletion` helpers dual-write the
+operation-specific condition **and** the legacy `Successful` condition (same
+status/reason/message) so readers written against `Successful` keep working.
 
 Each helper:
 
@@ -104,10 +113,10 @@ Sync logic dispatches on `spec.type`:
 3. Server-side-apply with Force=true and FieldManager="kube-applier" via
    the dynamic client:
        dyn.Resource(gvr).Namespace(ns).Apply(ctx, name, obj, applyOpts)
-4. On success: SetSuccessful(conds, nil); SetDegraded(conds, nil).
-   On error:   SetSuccessful(conds, err); SetDegraded(conds, classifyAsDegraded(err)).
+4. On success: SetSuccessfullyApplied(conds, nil); SetDegraded(conds, nil).
+   On error:   SetSuccessfullyApplied(conds, err); SetDegraded(conds, classifyAsDegraded(err)).
    On a pre-check failure (malformed targetItem, malformed
-   kubeContent): SetSuccessful(conds, err with PreCheckFailed reason); SetDegraded(conds, nil).
+   kubeContent): SetSuccessfullyApplied(conds, err with PreCheckFailed reason); SetDegraded(conds, nil).
 5. Write status via statuswriter.
 ```
 
@@ -116,13 +125,13 @@ Sync logic dispatches on `spec.type`:
 ```
 1. Resolve the target resource from the ApplyDesire spec.
 2. Get the target object from the cluster:
-     not found             -> SetSuccessful(true)
-     has deletion timestamp -> SetSuccessfulWaitingForDeletion(
+     not found             -> SetSuccessfullyDeleted(true)
+     has deletion timestamp -> SetWaitingForDeletion(
                                deletionTimestamp, uid)
      no deletion timestamp -> issue Delete; if delete fails -> KubeAPIError
                                re-issue get:
-                                 still not found -> SetSuccessful(true)
-                                 has deletion timestamp -> SetSuccessfulWaitingForDeletion(
+                                 still not found -> SetSuccessfullyDeleted(true)
+                                 has deletion timestamp -> SetWaitingForDeletion(
                                                            deletionTimestamp, uid)
 3. Write status via statuswriter.
 ```

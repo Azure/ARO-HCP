@@ -11,8 +11,8 @@ status:
     status: "True"
     type: ReportCurrent
   hostedControlPlanes:
-    notReady: 0
-    ready: 1
+    readyResourceIDs:
+    - /subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/cluster-a
   lastReportedAt: "2025-01-01T00:00:00Z"
   nodes:
   - allocatable:

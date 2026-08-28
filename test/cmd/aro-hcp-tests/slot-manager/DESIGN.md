@@ -182,6 +182,107 @@ flowchart TD
 - Current rollout limitation:
   - migration is still staged while legacy leases are retired, so the active slot inventory is being brought up gradually even though the code path now supports the broader multi-pool model.
 
+### Identity pool reconciliation and recovery
+
+An E2E job can fail before cluster provisioning when its leased managed identity
+container resource group is missing. The nested ARM error normally contains:
+
+```text
+ResourceGroupNotFound: Resource group '<identity-container-resource-group>' could not be found.
+```
+
+The canonical pool shape comes from `test/e2e-config/e2e-slots.yaml`. For each
+pool, the slot manager expands:
+
+```text
+<identity_container_prefix>-<two-digit-slot>-<two-digit-container>
+```
+
+For example, a pool with `slot_count: 5` and
+`identity_container_count: 60` expects slot suffixes `00` through `04`, each
+with container suffixes `00` through `59`.
+
+#### Reconcile a pool
+
+Use the Make target rather than invoking `go run` or a previously built binary.
+The target regenerates the Bicep-derived ARM template before rebuilding
+`aro-hcp-tests`, preventing a stale embedded `msi-pools.json` from being
+applied.
+
+```bash
+make -C test apply-identity-pool \
+  ENVIRONMENT=<dev|int|stg|prod> \
+  SUBSCRIPTION="<catalog subscription_name>"
+```
+
+`SUBSCRIPTION` limits the operation to matching catalog pools. Omitting it
+reconciles every managed pool in the selected environment and skips pools with
+`identity_provisioning: unmanaged`. Supplying it can include a matching
+unmanaged pool, so only do that when the subscription owner intends to manage
+that pool with this command.
+
+The command applies one subscription-scoped deployment stack per slot. Each
+stack creates or updates the slot's resource groups and the 13 well-known
+user-assigned managed identities in every group:
+
+```text
+cluster-api-azure
+control-plane
+cloud-controller-manager
+ingress
+disk-csi-driver
+file-csi-driver
+image-registry
+cloud-network-config
+kms
+dp-disk-csi-driver
+dp-file-csi-driver
+dp-image-registry
+service
+```
+
+Before applying, confirm that the selected Azure credential can resolve the
+catalog subscription and has permission to create subscription deployment
+stacks, resource groups, and managed identities. Also confirm required resource
+providers and subscription quotas are available.
+
+Deployment stacks use `ActionOnUnmanage: delete` for resources and resource
+groups. A later catalog change that reduces a pool or changes its naming can
+therefore delete resources no longer managed by the stack. Review the catalog
+diff and always scope a recovery to the intended subscription.
+
+#### Validate the complete pool
+
+Do not validate only the resource group named in the original failure. Use the
+read-only validation target to compare the complete slot-expanded catalog
+inventory with Azure:
+
+```bash
+make -C test validate-identity-pool \
+  ENVIRONMENT=<dev|int|stg|prod> \
+  SUBSCRIPTION="<catalog subscription_name>"
+```
+
+The target uses bulk Azure list operations and does not create, update, or
+delete resources. It validates every matching catalog pool in the subscription,
+including the complete resource-group inventory and the exact 13 identity names
+in every existing expected group. It reports sorted missing and unexpected
+resources, prints per-subscription counts, and exits non-zero when drift is
+detected.
+
+`SUBSCRIPTION` has the same selection semantics as the apply target. Omitting it
+validates every managed pool in the environment; setting it limits validation to
+matching pools and can include an externally managed pool.
+
+If reconciliation or validation fails, retain the deployment stack error and
+inspect the first nested Azure error rather than retrying blindly. Common
+blockers are insufficient RBAC, an unregistered `Microsoft.ManagedIdentity`
+provider, subscription quota exhaustion, or another deployment operation
+holding the stack in a non-terminal state.
+
+This recovery procedure was added after
+[AROSLSRE-1895](https://redhat.atlassian.net/browse/AROSLSRE-1895).
+
 ### Dev subscription onboarding note
 
 - Adding a new **dev** customer subscription to the slot catalog is **not** sufficient by itself.

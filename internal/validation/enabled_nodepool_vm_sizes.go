@@ -16,14 +16,14 @@ package validation
 
 import "k8s.io/apimachinery/pkg/util/sets"
 
-// enabledNodePoolAzureVMSizes returns the set of VM sizes that are enabled in the ARO-HCP service for node pools.
+// EnabledNodePoolAzureVMSizes returns the set of VM sizes that are enabled in the ARO-HCP service for node pools.
 // It is a superset of the list of VM sizes that are supported across all Azure regions that the ARO-HCP service is
 // available in. This means that it is not a perfect check, but it is a good enough to detect many cases.
 // TODO at some point we might want to fully remove this restriction and allow any VM size at this level, so we can
 // automatically support all VM Sizes out of the box. For now we restrict it to the set here.
 // For now this list is also maintained on Cluster Service config files, but we will remove it from there in the
 // near future.
-func enabledNodePoolAzureVMSizes() sets.Set[string] {
+func EnabledNodePoolAzureVMSizes() sets.Set[string] {
 	return sets.New[string](
 		"Standard_D128s_v6",
 		"Standard_D16as_v4",

@@ -15,8 +15,11 @@
 package util
 
 import (
+	"context"
+	"errors"
 	"io"
 	"math/rand"
+	"net"
 	nethttp "net/http"
 	"path"
 	"strconv"
@@ -32,8 +35,9 @@ const (
 )
 
 // graphRetryHandler is a kiota middleware that retries transient Graph API errors.
-// It replaces kiota's default RetryHandler to add 404 retries on POST requests,
-// which handles eventual-consistency delays after resource creation.
+// It replaces kiota's default RetryHandler to add 404 retries on POST requests
+// and retries on transient network errors (connection refused, network unreachable,
+// DNS failures).
 type graphRetryHandler struct{}
 
 func newGraphRetryHandler() *graphRetryHandler {
@@ -42,18 +46,14 @@ func newGraphRetryHandler() *graphRetryHandler {
 
 func (h *graphRetryHandler) Intercept(pipeline kiotahttp.Pipeline, middlewareIndex int, req *nethttp.Request) (*nethttp.Response, error) {
 	resp, err := pipeline.Next(req, middlewareIndex)
-	if err != nil {
-		return resp, err
-	}
-	return h.retryIfNeeded(pipeline, middlewareIndex, req, resp, 0, 0)
+	return h.retryIfNeeded(pipeline, middlewareIndex, req, resp, err, 0, 0)
 }
 
-func (h *graphRetryHandler) retryIfNeeded(pipeline kiotahttp.Pipeline, middlewareIndex int, req *nethttp.Request, resp *nethttp.Response, executionCount int, cumulativeDelay time.Duration) (*nethttp.Response, error) {
-	if !h.isRetriableStatusCode(resp.StatusCode, req) ||
-		!h.isRetriableRequest(req) ||
+func (h *graphRetryHandler) retryIfNeeded(pipeline kiotahttp.Pipeline, middlewareIndex int, req *nethttp.Request, resp *nethttp.Response, lastErr error, executionCount int, cumulativeDelay time.Duration) (*nethttp.Response, error) {
+	if !h.shouldRetry(req, resp, lastErr) ||
 		executionCount >= graphRetryMaxRetries ||
 		cumulativeDelay >= graphRetryMaxCumulativeDelay {
-		return resp, nil
+		return resp, lastErr
 	}
 
 	executionCount++
@@ -61,7 +61,7 @@ func (h *graphRetryHandler) retryIfNeeded(pipeline kiotahttp.Pipeline, middlewar
 	cumulativeDelay += delay
 
 	if cumulativeDelay > graphRetryMaxCumulativeDelay {
-		return resp, nil
+		return resp, lastErr
 	}
 
 	req.Header.Set("Retry-Attempt", strconv.Itoa(executionCount))
@@ -69,18 +69,20 @@ func (h *graphRetryHandler) retryIfNeeded(pipeline kiotahttp.Pipeline, middlewar
 	if req.Body != nil {
 		if s, ok := req.Body.(io.Seeker); ok {
 			if _, err := s.Seek(0, io.SeekStart); err != nil {
-				return resp, err
+				return nil, err
 			}
 		} else if req.GetBody != nil {
 			body, err := req.GetBody()
 			if err != nil {
-				return resp, err
+				return nil, err
 			}
 			req.Body = body
 		}
 	}
 
-	resp.Body.Close()
+	if resp != nil {
+		resp.Body.Close()
+	}
 
 	ctx := req.Context()
 	t := time.NewTimer(delay)
@@ -91,11 +93,26 @@ func (h *graphRetryHandler) retryIfNeeded(pipeline kiotahttp.Pipeline, middlewar
 	case <-t.C:
 	}
 
-	response, err := pipeline.Next(req, middlewareIndex)
-	if err != nil {
-		return response, err
+	nextResp, nextErr := pipeline.Next(req, middlewareIndex)
+	return h.retryIfNeeded(pipeline, middlewareIndex, req, nextResp, nextErr, executionCount, cumulativeDelay)
+}
+
+func (h *graphRetryHandler) shouldRetry(req *nethttp.Request, resp *nethttp.Response, err error) bool {
+	if !h.isRetriableRequest(req) {
+		return false
 	}
-	return h.retryIfNeeded(pipeline, middlewareIndex, req, response, executionCount, cumulativeDelay)
+	if err != nil {
+		return isTransientNetworkError(err)
+	}
+	return h.isRetriableStatusCode(resp.StatusCode, req)
+}
+
+func isTransientNetworkError(err error) bool {
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return false
+	}
+	var netErr *net.OpError
+	return errors.As(err, &netErr)
 }
 
 func (h *graphRetryHandler) isRetriableStatusCode(code int, req *nethttp.Request) bool {
@@ -140,12 +157,14 @@ func (h *graphRetryHandler) isRetriableRequest(req *nethttp.Request) bool {
 }
 
 func (h *graphRetryHandler) getRetryDelay(resp *nethttp.Response, executionCount int) time.Duration {
-	if retryAfter := resp.Header.Get("Retry-After"); retryAfter != "" {
-		if seconds, err := strconv.ParseFloat(retryAfter, 64); err == nil {
-			return max(0, time.Duration(seconds*float64(time.Second)))
-		}
-		if t, err := time.Parse(time.RFC1123, retryAfter); err == nil {
-			return max(0, time.Until(t))
+	if resp != nil {
+		if retryAfter := resp.Header.Get("Retry-After"); retryAfter != "" {
+			if seconds, err := strconv.ParseFloat(retryAfter, 64); err == nil {
+				return max(0, time.Duration(seconds*float64(time.Second)))
+			}
+			if t, err := time.Parse(time.RFC1123, retryAfter); err == nil {
+				return max(0, time.Until(t))
+			}
 		}
 	}
 	exp := executionCount - 1

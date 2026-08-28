@@ -35,7 +35,6 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
-	"github.com/Azure/ARO-HCP/internal/utils/armhelpers"
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	hcpsdk20260630preview "github.com/Azure/ARO-HCP/test/sdk/v20260630preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	hcpsdk20260901preview "github.com/Azure/ARO-HCP/test/sdk/v20260901preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
@@ -217,7 +216,7 @@ func resourceIDToDir(resourceID *azcorearm.ResourceID) string {
 		)
 
 	default:
-		if armhelpers.ResourceTypeEqual(resourceID.Parent.ResourceType, azcorearm.ResourceGroupResourceType) {
+		if metadataapi.ResourceTypeEqual(resourceID.Parent.ResourceType, azcorearm.ResourceGroupResourceType) {
 			return filepath.Join(
 				startingDir,
 				resourceID.ResourceType.String(),

@@ -43,5 +43,3 @@ knownIssues:
     namespace: "velero"
     pod: "ocm-.*"
   reason: "Velero DataUpload exposer pods are transient (short-lived ~30-90s) pods that mount CSI snapshot PVCs for kopia data upload during scheduled backups. They complete and are deleted well within 5 minutes, but Prometheus lookback delta keeps stale Pending-phase metrics queryable beyond the for:5m alert threshold."
-- name: "FrontendPathLatency"
-  reason: "histogram_quantile(0.99) produces false positives with sparse request volume in CI. E2E runs create all nodepools in a burst then traffic drops to 1-2 requests per 5-minute rate window; at that volume, rate() floating-point noise across HA Prometheus replicas breaks cumulative histogram monotonicity, causing the P99 estimate to land in empty high-latency buckets (e.g. 12.083s reported when actual max was 26ms). Tracked in AROSLSRE-1746."

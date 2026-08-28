@@ -100,6 +100,7 @@ All pull requests must follow these standards. Reviewers will check for complian
 ### 6. Self-Review Before Requesting Review
 - Run `git diff` and review every changed line yourself before requesting others.
 - Look for: leftover debug code, TODOs, unintended changes, secrets, formatting issues.
+- **Security self-check**: Verify your PR does not accidentally include `.claude/settings.json`, `.vscode/` configuration files, or other IDE/agent config that shouldn't be committed. Changes to CI/CD configuration (`.github/workflows/`, `Makefile`, `*pipeline.yaml`, `Dockerfile`) should be called out explicitly in your PR description.
 
 ### 7. CI/CD Checks Must Pass
 - All tests, linting, and CI/CD pipeline checks must be green before requesting review, **excluding Tide**.

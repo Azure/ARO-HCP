@@ -3081,7 +3081,7 @@
         },
         "autoRepair": {
           "type": "boolean",
-          "description": "Auto-repair",
+          "description": "autoRepair specifies whether health checks should be enabled for machines\nin the NodePool. Enabling this feature will cause the controller to\nautomatically delete unhealthy machines. The unhealthy criteria are\ndetermined by checking the Node Ready condition and a timeout that might\nvary depending on the platform provider. autoRepair will not take action\nwhen more than 2 Nodes are unhealthy at the same time, giving time for\nthe cluster to stabilize or for the user to manually intervene.",
           "default": true,
           "x-ms-mutability": [
             "read",
@@ -3099,7 +3099,7 @@
         },
         "labels": {
           "type": "array",
-          "description": "Kubernetes labels to propagate to the NodePool Nodes\nNote that when the labels are updated this is only applied to newly\ncreate nodes in the Nodepool, existing node labels remain unchanged.",
+          "description": "Kubernetes labels to propagate to the NodePool Nodes\nNote that when the labels are updated this is only applied to newly\ncreated nodes in the Nodepool, existing node labels remain unchanged.",
           "items": {
             "$ref": "#/definitions/Label"
           },
@@ -3185,7 +3185,7 @@
         },
         "labels": {
           "type": "array",
-          "description": "Kubernetes labels to propagate to the NodePool Nodes\nNote that when the labels are updated this is only applied to newly\ncreate nodes in the Nodepool, existing node labels remain unchanged.",
+          "description": "Kubernetes labels to propagate to the NodePool Nodes\nNote that when the labels are updated this is only applied to newly\ncreated nodes in the Nodepool, existing node labels remain unchanged.",
           "items": {
             "$ref": "#/definitions/Label"
           },

@@ -14,24 +14,81 @@ spec:
     labels:
       component: frontend
     rules:
-    # Early / CI-facing path latency signal (kusto lane).
+    # Early / CI-facing path latency signals (kusto lane).
     # severity: warning → Sev3 so gather-observability (--severity-threshold Sev3) fails CI.
-    # Short rate window so the alert can fire within a typical e2e run (ARO-28090).
     # Keep cluster in the aggregation so firings stay per-cluster (correlationId uses $labels.cluster).
-    # Dedup HA Prometheus replicas before summing (same pattern as the control-plane latency dashboard).
+    #
+    # Robustness (ARO-28090): a raw per-(method,route) p99 over a short window is an
+    # outlier check when a route only sees a handful of requests in an e2e run — a single
+    # slow call pins the p99 to the top bucket. Both rules below use a 30m window (the run
+    # is ~90m, so there is still ample time to fire) and volume gates so we only alert on
+    # signal we can trust:
+    #   * FrontendPathLatency       — SYSTEMIC tail regressions: fraction of requests slower
+    #                                 than 1s > 5%, gated on volume (≥50 req/30m) AND an
+    #                                 absolute slow-call floor (≥3), so one outlier cannot fire.
+    #   * FrontendPathMedianLatency — NORMAL-request regressions: the median (p50) is robust
+    #                                 at low sample counts (an outlier sits far from rank
+    #                                 0.5·N), so it needs only a light volume floor (≥10 req/30m)
+    #                                 and a lower 250ms bound.
+    #
+    # HA Prometheus replica handling:
+    #   * Ratio/quantile clauses use sum (not max): doubled per-bucket counts from two
+    #     replicas cancel in the ratio, and max per-bucket broke cumulative monotonicity and
+    #     caused false positives (AROSLSRE-1746).
+    #   * Absolute count/volume gates must NOT double, so they dedup replicas first with
+    #     max without (prometheus_replica) ( increase(...) ) before summing (see
+    #     test/.../gather-observability/queries.yaml for the same convention).
     - alert: FrontendPathLatency
       expr: |
-        histogram_quantile(0.99,
-          sum by (le, route, method, cluster) (
-            max without(prometheus_replica) (
-              rate(frontend_http_requests_duration_seconds_bucket{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[5m])
-            )
+        (
+          (
+            sum by (route, method, cluster) (rate(frontend_http_requests_duration_seconds_count{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m]))
+            -
+            sum by (route, method, cluster) (rate(frontend_http_requests_duration_seconds_bucket{le="1", route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m]))
           )
-        ) > 1
+          /
+          sum by (route, method, cluster) (rate(frontend_http_requests_duration_seconds_count{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m]))
+        ) > 0.05
+        and on (route, method, cluster)
+        (
+          sum by (route, method, cluster) (
+            max without (prometheus_replica) (increase(frontend_http_requests_duration_seconds_count{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m]))
+          )
+        ) >= 50
+        and on (route, method, cluster)
+        (
+          sum by (route, method, cluster) (
+            max without (prometheus_replica) (increase(frontend_http_requests_duration_seconds_count{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m]))
+          )
+          -
+          sum by (route, method, cluster) (
+            max without (prometheus_replica) (increase(frontend_http_requests_duration_seconds_bucket{le="1", route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m]))
+          )
+        ) >= 3
       for: 1m
       labels:
         severity: warning
       annotations:
-        description: 'The 99th percentile of frontend request latency for {{ $labels.method }} {{ $labels.route }} has exceeded 1 second over the past 5 minutes.'
+        description: 'More than 5% of frontend requests for {{ $labels.method }} {{ $labels.route }} exceeded 1 second over the past 30 minutes (cluster {{ $labels.cluster }}).'
         runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/frontend-tsg.html'
-        summary: 'Frontend latency is high: 99th percentile exceeds 1 second for {{ $labels.method }} {{ $labels.route }}'
+        summary: 'Frontend latency is high: over 5% of {{ $labels.method }} {{ $labels.route }} requests on cluster {{ $labels.cluster }} exceeded 1 second over the past 30 minutes'
+    - alert: FrontendPathMedianLatency
+      expr: |
+        histogram_quantile(0.5,
+          sum by (le, route, method, cluster) (
+            rate(frontend_http_requests_duration_seconds_bucket{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m])
+          )
+        ) > 0.25
+        and on (route, method, cluster)
+        (
+          sum by (route, method, cluster) (
+            max without (prometheus_replica) (increase(frontend_http_requests_duration_seconds_count{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m]))
+          )
+        ) >= 10
+      for: 1m
+      labels:
+        severity: warning
+      annotations:
+        description: 'The median (p50) of frontend request latency for {{ $labels.method }} {{ $labels.route }} has exceeded 250ms over the past 30 minutes (cluster {{ $labels.cluster }}).'
+        runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/frontend-tsg.html'
+        summary: 'Frontend median latency is high: p50 exceeds 250ms for {{ $labels.method }} {{ $labels.route }} on cluster {{ $labels.cluster }} over the past 30 minutes'

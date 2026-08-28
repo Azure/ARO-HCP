@@ -126,9 +126,17 @@ type ServerSideApplyConfig struct {
 
 type ApplyDesireStatus struct {
 	// Conditions reports per-desire reconciliation status. Well-known types:
-	//   - "Successful": the operation succeeded (SSA applied, or target deleted).
-	//     For Delete, Successful=True means the target is gone. While finalizers
-	//     are running, Successful stays False with reason "WaitingForDeletion".
+	//   - "SuccessfullyApplied": set for Type=ServerSideApply. True means the SSA
+	//                   succeeded.
+	//   - "SuccessfullyDeleted": set for Type=Delete. True means the target is
+	//                   gone. While finalizers are running it stays False with
+	//                   reason "WaitingForDeletion".
+	//   - "Successful": retained for backwards compatibility. It mirrors whichever
+	//                   operation-specific condition applies (SuccessfullyApplied
+	//                   for ServerSideApply, SuccessfullyDeleted for Delete) with
+	//                   the same status/reason/message. Prefer the
+	//                   operation-specific condition; see
+	//                   kubeapplierapihelpers.IsConditionTruePreferring.
 	//   - "Degraded":   the controller is not making progress for an
 	//                   out-of-band reason.
 	Conditions []metav1.Condition `json:"conditions,omitempty"`

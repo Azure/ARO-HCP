@@ -93,6 +93,10 @@ type KubeApplierDBClient interface {
 	ReadDesiresForSystemAdminCredentialRequest(subscriptionID, resourceGroupName, clusterName, credentialRequestName string) (cosmosstorageutils.ResourceCRUD[kubeapplierapi.ReadDesire, *kubeapplierapi.ReadDesire], error)
 	// ReadDesiresForSystemAdminCredentialRevocation returns a CRUD scoped to a SystemAdminCredentialRevocation parent.
 	ReadDesiresForSystemAdminCredentialRevocation(subscriptionID, resourceGroupName, clusterName, revocationName string) (cosmosstorageutils.ResourceCRUD[kubeapplierapi.ReadDesire, *kubeapplierapi.ReadDesire], error)
+	// ApplyDesiresForManagementCluster returns a CRUD scoped to a management cluster parent.
+	ApplyDesiresForManagementCluster(stampIdentifier string) (cosmosstorageutils.ResourceCRUD[kubeapplierapi.ApplyDesire, *kubeapplierapi.ApplyDesire], error)
+	// ReadDesiresForManagementCluster returns a CRUD scoped to a management cluster parent.
+	ReadDesiresForManagementCluster(stampIdentifier string) (cosmosstorageutils.ResourceCRUD[kubeapplierapi.ReadDesire, *kubeapplierapi.ReadDesire], error)
 
 	// ApplyDesiresFor returns an ApplyDesire CRUD scoped to the given parent.
 	ApplyDesiresFor(parent DesireScope) (cosmosstorageutils.ResourceCRUD[kubeapplierapi.ApplyDesire, *kubeapplierapi.ApplyDesire], error)
@@ -229,6 +233,22 @@ func (c *kubeApplierCosmosDBClient) ReadDesiresForSystemAdminCredentialRevocatio
 	return c.ReadDesiresFor(parent)
 }
 
+func (c *kubeApplierCosmosDBClient) ApplyDesiresForManagementCluster(stampIdentifier string) (cosmosstorageutils.ResourceCRUD[kubeapplierapi.ApplyDesire, *kubeapplierapi.ApplyDesire], error) {
+	parent, err := ManagementClusterScope(stampIdentifier)
+	if err != nil {
+		return nil, err
+	}
+	return c.ApplyDesiresFor(parent)
+}
+
+func (c *kubeApplierCosmosDBClient) ReadDesiresForManagementCluster(stampIdentifier string) (cosmosstorageutils.ResourceCRUD[kubeapplierapi.ReadDesire, *kubeapplierapi.ReadDesire], error) {
+	parent, err := ManagementClusterScope(stampIdentifier)
+	if err != nil {
+		return nil, err
+	}
+	return c.ReadDesiresFor(parent)
+}
+
 // ApplyDesiresFor returns an ApplyDesire CRUD scoped to the given parent.
 func (c *kubeApplierCosmosDBClient) ApplyDesiresFor(parent DesireScope) (cosmosstorageutils.ResourceCRUD[kubeapplierapi.ApplyDesire, *kubeapplierapi.ApplyDesire], error) {
 	if parent.resourceID == nil {
@@ -293,6 +313,7 @@ func (g *cosmosKubeApplierListers) ApplyDesires() cosmosstorageutils.GlobalListe
 			kubeapplierapi.NodePoolScopedApplyDesireResourceType,
 			kubeapplierapi.SystemAdminCredentialRequestScopedApplyDesireResourceType,
 			kubeapplierapi.SystemAdminCredentialRevocationScopedApplyDesireResourceType,
+			kubeapplierapi.ManagementClusterScopedApplyDesireResourceType,
 		},
 	}
 }
@@ -305,6 +326,7 @@ func (g *cosmosKubeApplierListers) ReadDesires() cosmosstorageutils.GlobalLister
 			kubeapplierapi.NodePoolScopedReadDesireResourceType,
 			kubeapplierapi.SystemAdminCredentialRequestScopedReadDesireResourceType,
 			kubeapplierapi.SystemAdminCredentialRevocationScopedReadDesireResourceType,
+			kubeapplierapi.ManagementClusterScopedReadDesireResourceType,
 		},
 	}
 }
