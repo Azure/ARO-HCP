@@ -248,13 +248,15 @@ func summarizeNodes(nodes []corev1.Node) []nodeSummary {
 // gets printed on failure.
 const maxReleaseImagesInSummary = 5
 
-// summarizeReleaseImages returns a short, deduplicated list of release image names for use in
-// error output. A single image is typically referenced by several aliases in img.Names (e.g. a
-// "repo@sha256:..." digest pull spec and a "repo:tag" tag pointing at the same image), even
-// though the node can only be running one version of that image. Keeping every alias for every
-// image on the node produces failure messages with dozens of near-duplicate entries that don't
-// help diagnose which OCP/release version is actually running, so this keeps one representative
-// name per image and truncates the result.
+// summarizeReleaseImages returns a short list of release image names for use in error output:
+// one representative name per image, truncated to maxReleaseImagesInSummary entries with an
+// "(+N more)" marker appended if any were elided (so the returned slice can have up to
+// maxReleaseImagesInSummary+1 elements). A single image is typically referenced by several
+// aliases in img.Names (e.g. a "repo@sha256:..." digest pull spec and a "repo:tag" tag pointing
+// at the same image), even though the node can only be running one version of that image.
+// Keeping every alias for every image on the node produces failure messages with dozens of
+// near-duplicate entries that don't help diagnose which OCP/release version is actually running,
+// so this keeps only the first name per image.
 func summarizeReleaseImages(images []corev1.ContainerImage) []string {
 	var names []string
 	for _, img := range images {
@@ -415,5 +417,7 @@ func (v verifyNodePoolUpgrade) nodeReleaseImagesUpdated(node *corev1.Node) strin
 			return "" // at least one new image differs from previous
 		}
 	}
-	return fmt.Sprintf("%s (release images unchanged: %v)", node.Name, currentImgs)
+	// The failure message only needs to show a bounded, human-readable sample of the images;
+	// the comparison above already used the complete, untruncated currentImgs.
+	return fmt.Sprintf("%s (release images unchanged: %v)", node.Name, summarizeReleaseImages(node.Status.Images))
 }

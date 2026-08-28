@@ -22,6 +22,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/set"
 )
 
 func TestNodeVersionInMinor(t *testing.T) {
@@ -222,5 +223,36 @@ func TestSummarizeReleaseImages(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestNodeReleaseImagesUpdated(t *testing.T) {
+	previous := set.New[string]("img-1", "img-2", "img-3", "img-4", "img-5", "img-6", "img-7")
+	v := verifyNodePoolUpgrade{previousReleaseImages: previous}
+
+	node := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{Name: "node-1"},
+		Status: corev1.NodeStatus{
+			Images: []corev1.ContainerImage{
+				{Names: []string{"img-1"}},
+				{Names: []string{"img-2"}},
+				{Names: []string{"img-3"}},
+				{Names: []string{"img-4"}},
+				{Names: []string{"img-5"}},
+				{Names: []string{"img-6"}},
+				{Names: []string{"img-7"}},
+			},
+		},
+	}
+
+	got := v.nodeReleaseImagesUpdated(node)
+	if got == "" {
+		t.Fatal("expected a non-empty reason since no image differs from previous")
+	}
+	if strings.Contains(got, "img-6") || strings.Contains(got, "img-7") {
+		t.Errorf("expected the failure message to be bounded by summarizeReleaseImages, got: %s", got)
+	}
+	if !strings.Contains(got, "(+2 more)") {
+		t.Errorf("expected the failure message to report the elided count, got: %s", got)
 	}
 }
