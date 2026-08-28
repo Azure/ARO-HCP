@@ -221,26 +221,29 @@ type verifyNodePoolUpgrade struct {
 }
 
 // nodeSummary is a compact representation of a node for error messages.
-// Full node objects can be 10KB+ due to annotations and are too large for error output.
+// Full node objects can be 10KB+ due to annotations and image lists,
+// and are too large for error output.
 type nodeSummary struct {
-	Name                    string   `json:"name"`
-	Ready                   bool     `json:"ready"`
-	ContainerRuntimeVersion string   `json:"containerRuntimeVersion"`
-	ReleaseImages           []string `json:"releaseImages,omitempty"`
+	Name                    string `json:"name"`
+	Ready                   bool   `json:"ready"`
+	KubeletVersion          string `json:"kubeletVersion"`
+	ContainerRuntimeVersion string `json:"containerRuntimeVersion"`
+	ImageCount              int    `json:"imageCount"`
 }
 
 func summarizeNodes(nodes []corev1.Node) []nodeSummary {
 	summaries := make([]nodeSummary, len(nodes))
 	for i, node := range nodes {
-		var releaseImages []string
+		imageCount := 0
 		for _, img := range node.Status.Images {
-			releaseImages = append(releaseImages, img.Names...)
+			imageCount += len(img.Names)
 		}
 		summaries[i] = nodeSummary{
 			Name:                    node.Name,
 			Ready:                   nodeReady(to.Ptr(node)),
+			KubeletVersion:          node.Status.NodeInfo.KubeletVersion,
 			ContainerRuntimeVersion: node.Status.NodeInfo.ContainerRuntimeVersion,
-			ReleaseImages:           releaseImages,
+			ImageCount:              imageCount,
 		}
 	}
 	return summaries
@@ -361,5 +364,5 @@ func (v verifyNodePoolUpgrade) nodeReleaseImagesUpdated(node *corev1.Node) strin
 			return "" // at least one new image differs from previous
 		}
 	}
-	return fmt.Sprintf("%s (release images unchanged: %v)", node.Name, currentImgs)
+	return fmt.Sprintf("%s (release images unchanged: %d images, all match pre-upgrade set of %d)", node.Name, len(currentImgs), v.previousReleaseImages.Len())
 }
