@@ -72,11 +72,20 @@ func TestNodeVersionInMinor(t *testing.T) {
 			wantEmpty:       true,
 		},
 		{
-			name:            "boundary OCP 4.23 = k8s 1.36",
+			name:            "unmapped future OCP minor fails loudly instead of guessing",
 			nodeName:        "node-6",
 			kubeletVersion:  "v1.36.0+xyz",
 			expectedVersion: "4.23",
-			wantEmpty:       true,
+			wantEmpty:       false,
+			wantSubstring:   "no known Kubernetes minor mapping for OCP 4.23",
+		},
+		{
+			name:            "unmapped OCP major fails loudly instead of guessing",
+			nodeName:        "node-8",
+			kubeletVersion:  "v1.36.0+xyz",
+			expectedVersion: "5.0",
+			wantEmpty:       false,
+			wantSubstring:   "no known Kubernetes minor mapping for OCP major 5",
 		},
 		{
 			name:            "matching kubelet version OCP 4.20 = k8s 1.33",
@@ -126,8 +135,8 @@ func TestNodeVersionInMinor(t *testing.T) {
 	}
 }
 
-func TestOcpToK8sMinorOffset(t *testing.T) {
-	// Verify the well-known offset between OCP and Kubernetes minor versions.
+func TestOcpToK8sMinor(t *testing.T) {
+	// Verify the known-good OCP-to-Kubernetes minor mappings we've tested against.
 	knownMappings := []struct {
 		ocpMinor uint64
 		k8sMinor uint64
@@ -144,9 +153,17 @@ func TestOcpToK8sMinorOffset(t *testing.T) {
 	}
 
 	for _, m := range knownMappings {
-		got := m.ocpMinor + ocpToK8sMinorOffset
+		got, ok := ocpToK8sMinor[m.ocpMinor]
+		if !ok {
+			t.Errorf("OCP 4.%d: expected an entry in ocpToK8sMinor, found none", m.ocpMinor)
+			continue
+		}
 		if got != m.k8sMinor {
 			t.Errorf("OCP 4.%d: expected k8s minor %d, got %d", m.ocpMinor, m.k8sMinor, got)
 		}
+	}
+
+	if _, ok := ocpToK8sMinor[23]; ok {
+		t.Errorf("OCP 4.23 should not be mapped yet; add it deliberately once verified, not accidentally")
 	}
 }
