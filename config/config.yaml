@@ -893,6 +893,10 @@ defaults:
       replicas: 2
       namespace: sessiongate
       serviceAccountName: sessiongate
+      resources:
+        requests:
+          cpu: 250m
+          memory: 512Mi
     cert:
       name: sessiongate-cert-{{ .ctx.environment }}-{{ .ctx.regionShort }}
       san: ''
