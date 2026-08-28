@@ -329,23 +329,46 @@ func nodeReadyAndSchedulable(node *corev1.Node) bool {
 	return nodeReady(node) && !node.Spec.Unschedulable
 }
 
+// ocpToK8sMinorOffset is the well-known offset between OCP minor versions and
+// Kubernetes minor versions: OCP 4.X ships Kubernetes 1.(X+13).
+// For example, OCP 4.14 = k8s 1.27, OCP 4.15 = k8s 1.28, ..., OCP 4.22 = k8s 1.35.
+const ocpToK8sMinorOffset uint64 = 13
+
 // nodeVersionInMinor returns a non-empty reason if the node's version is not in the same major.minor as expectedSemver.
+// It first tries the old RHCOS CRI-O format (e.g. "cri-o://1.33.9-3.rhaos4.20.gitXXX.el9") and, if
+// no rhaos tag is found (OCP 4.22+ ships clean semver CRI-O like "cri-o://1.35.6"), falls back to
+// the KubeletVersion to verify the Kubernetes minor version matches.
 func (v verifyNodePoolUpgrade) nodeVersionInMinor(node *corev1.Node, expectedSemver semver.Version) string {
 	cri := node.Status.NodeInfo.ContainerRuntimeVersion
+
+	// Try the old RHCOS CRI-O format first: "cri-o://1.33.9-3.rhaos4.20.gitXXX.el9"
 	m := regexp.MustCompile(`rhaos(\d+)\.(\d+)`).FindStringSubmatch(cri)
-	nodeVerStr := ""
 	if len(m) == 3 {
-		nodeVerStr = m[1] + "." + m[2]
+		nodeVerStr := m[1] + "." + m[2]
+		nodeVer, err := semver.ParseTolerant(nodeVerStr)
+		if err != nil {
+			return fmt.Sprintf("%s (invalid version %q)", node.Name, nodeVerStr)
+		}
+		if nodeVer.Major != expectedSemver.Major || nodeVer.Minor != expectedSemver.Minor {
+			return fmt.Sprintf("%s (version %s not in same minor as expected %s)", node.Name, nodeVerStr, v.expectedVersion)
+		}
+		return ""
 	}
-	if len(nodeVerStr) == 0 {
-		return fmt.Sprintf("%s (no version in containerRuntimeVersion %q)", node.Name, node.Status.NodeInfo.ContainerRuntimeVersion)
-	}
-	nodeVer, err := semver.ParseTolerant(nodeVerStr)
+
+	// New CRI-O builds (OCP 4.22+) no longer embed an rhaos tag. Fall back to
+	// the kubelet version, which always carries the Kubernetes minor version.
+	// OCP 4.X ships Kubernetes 1.(X+13), so verify the kubelet minor matches.
+	kubeletVer := node.Status.NodeInfo.KubeletVersion
+	kv, err := semver.ParseTolerant(kubeletVer)
 	if err != nil {
-		return fmt.Sprintf("%s (invalid version %q)", node.Name, nodeVerStr)
+		return fmt.Sprintf("%s (no rhaos tag in containerRuntimeVersion %q and cannot parse KubeletVersion %q: %v)",
+			node.Name, cri, kubeletVer, err)
 	}
-	if nodeVer.Major != expectedSemver.Major || nodeVer.Minor != expectedSemver.Minor {
-		return fmt.Sprintf("%s (version %s not in same minor as expected %s)", node.Name, nodeVerStr, v.expectedVersion)
+
+	expectedK8sMinor := expectedSemver.Minor + ocpToK8sMinorOffset
+	if kv.Minor != expectedK8sMinor {
+		return fmt.Sprintf("%s (KubeletVersion %s has minor %d, expected %d for OCP %s)",
+			node.Name, kubeletVer, kv.Minor, expectedK8sMinor, v.expectedVersion)
 	}
 	return ""
 }
