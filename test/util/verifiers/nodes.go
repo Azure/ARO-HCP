@@ -334,9 +334,9 @@ func nodeReadyAndSchedulable(node *corev1.Node) bool {
 // For example, OCP 4.14 = k8s 1.27, OCP 4.15 = k8s 1.28, ..., OCP 4.22 = k8s 1.35.
 const ocpToK8sMinorOffset uint64 = 13
 
-// nodeVersionInMinor returns a non-empty reason if the node's version is not in the same major.minor as expectedSemver.
-// It parses the node's KubeletVersion (e.g. "v1.35.6+abc") and verifies that the Kubernetes minor
-// version matches the expected OCP version using the well-known offset: OCP 4.X ships Kubernetes 1.(X+13).
+// nodeVersionInMinor returns a non-empty reason if the node's KubeletVersion minor does not match
+// the expected Kubernetes minor for the given OCP version. It parses KubeletVersion (e.g. "v1.35.6+abc")
+// and checks that its minor equals expectedSemver.Minor + ocpToK8sMinorOffset (OCP 4.X ships k8s 1.(X+13)).
 func (v verifyNodePoolUpgrade) nodeVersionInMinor(node *corev1.Node, expectedSemver semver.Version) string {
 	kubeletVer := node.Status.NodeInfo.KubeletVersion
 	kv, err := semver.ParseTolerant(kubeletVer)
