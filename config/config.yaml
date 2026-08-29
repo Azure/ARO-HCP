@@ -122,6 +122,12 @@ defaults:
           name: 'arohcpocp{{ .ctx.environment }}-diag'
           sku: PerGB2018
           retentionInDays: 90
+      # Azure portal dashboard visualizing the diagnosticSettings workspace
+      # above (request volume, result codes, 429 throttling). Disabled by
+      # default; enabled per-cloud below (see clouds.dev.defaults.acr.ocp).
+      overviewDashboard:
+        enabled: false
+        name: 'arohcpocp{{ .ctx.environment }}-overview'
   # TRANSIENT — STG-global "V2" migration scaffolding. Every pipeline (including
   # the stg-only V2 copies) is preprocessed by helmtest against the dev render
   # and by EV2 manifest generation for all public envs, and the renderer uses
@@ -1435,6 +1441,11 @@ clouds:
             enabled: true
             logAnalyticsWorkspace:
               name: 'arohcpocpdev-diag'
+          # Same rationale as diagnosticSettings above: one shared, statically
+          # named dashboard for the shared arohcpocpdev registry.
+          overviewDashboard:
+            enabled: true
+            name: 'arohcpocpdev-overview'
       # Metrics
       monitoring:
         alertsEnabled: true

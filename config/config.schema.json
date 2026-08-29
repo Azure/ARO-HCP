@@ -434,6 +434,24 @@
             "logAnalyticsWorkspace"
           ],
           "additionalProperties": false
+        },
+        "overviewDashboard": {
+          "type": "object",
+          "description": "Azure portal dashboard visualizing ACR request volume, result codes, top repositories, latency, and 429 throttling from the diagnosticSettings Log Analytics workspace. Requires diagnosticSettings.enabled.",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "name": {
+              "type": "string",
+              "description": "Name of the Microsoft.Portal/dashboards resource"
+            }
+          },
+          "required": [
+            "enabled",
+            "name"
+          ],
+          "additionalProperties": false
         }
       },
       "additionalProperties": false,

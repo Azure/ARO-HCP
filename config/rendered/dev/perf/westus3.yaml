@@ -18,6 +18,9 @@ acr:
         retentionInDays: 90
         sku: PerGB2018
     name: arohcpocpdev
+    overviewDashboard:
+      enabled: true
+      name: arohcpocpdev-overview
     replicationState: true
     untaggedImagesRetention:
       days: 90
