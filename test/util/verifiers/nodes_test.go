@@ -22,6 +22,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/set"
 )
 
 func TestNodeVersionInMinor(t *testing.T) {
@@ -165,5 +166,93 @@ func TestOcpToK8sMinor(t *testing.T) {
 
 	if _, ok := ocpToK8sMinor[23]; ok {
 		t.Errorf("OCP 4.23 should not be mapped yet; add it deliberately once verified, not accidentally")
+	}
+}
+
+func TestSummarizeReleaseImages(t *testing.T) {
+	tests := []struct {
+		name      string
+		images    []corev1.ContainerImage
+		wantNames []string
+	}{
+		{
+			name:      "no images",
+			images:    nil,
+			wantNames: nil,
+		},
+		{
+			name: "each image contributes only its first name, even with multiple aliases",
+			images: []corev1.ContainerImage{
+				{Names: []string{"quay.io/repo@sha256:abc", "quay.io/repo:4.20.1"}},
+				{Names: []string{"quay.io/other@sha256:def", "quay.io/other:4.20.1"}},
+			},
+			wantNames: []string{"quay.io/repo@sha256:abc", "quay.io/other@sha256:def"},
+		},
+		{
+			name: "image with no names is skipped",
+			images: []corev1.ContainerImage{
+				{Names: nil},
+				{Names: []string{"quay.io/repo@sha256:abc"}},
+			},
+			wantNames: []string{"quay.io/repo@sha256:abc"},
+		},
+		{
+			name: "truncates beyond the cap and reports how many were elided",
+			images: []corev1.ContainerImage{
+				{Names: []string{"img-1"}},
+				{Names: []string{"img-2"}},
+				{Names: []string{"img-3"}},
+				{Names: []string{"img-4"}},
+				{Names: []string{"img-5"}},
+				{Names: []string{"img-6"}},
+				{Names: []string{"img-7"}},
+			},
+			wantNames: []string{"img-1", "img-2", "img-3", "img-4", "img-5", "(+2 more)"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := summarizeReleaseImages(tt.images)
+			if len(got) != len(tt.wantNames) {
+				t.Fatalf("expected %d names, got %d: %v", len(tt.wantNames), len(got), got)
+			}
+			for i := range got {
+				if got[i] != tt.wantNames[i] {
+					t.Errorf("index %d: expected %q, got %q", i, tt.wantNames[i], got[i])
+				}
+			}
+		})
+	}
+}
+
+func TestNodeReleaseImagesUpdated(t *testing.T) {
+	previous := set.New[string]("img-1", "img-2", "img-3", "img-4", "img-5", "img-6", "img-7")
+	v := verifyNodePoolUpgrade{previousReleaseImages: previous}
+
+	node := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{Name: "node-1"},
+		Status: corev1.NodeStatus{
+			Images: []corev1.ContainerImage{
+				{Names: []string{"img-1"}},
+				{Names: []string{"img-2"}},
+				{Names: []string{"img-3"}},
+				{Names: []string{"img-4"}},
+				{Names: []string{"img-5"}},
+				{Names: []string{"img-6"}},
+				{Names: []string{"img-7"}},
+			},
+		},
+	}
+
+	got := v.nodeReleaseImagesUpdated(node)
+	if got == "" {
+		t.Fatal("expected a non-empty reason since no image differs from previous")
+	}
+	if strings.Contains(got, "img-6") || strings.Contains(got, "img-7") {
+		t.Errorf("expected the failure message to be bounded by summarizeReleaseImages, got: %s", got)
+	}
+	if !strings.Contains(got, "(+2 more)") {
+		t.Errorf("expected the failure message to report the elided count, got: %s", got)
 	}
 }
