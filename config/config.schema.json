@@ -544,6 +544,44 @@
         "zoneRedundantMode"
       ]
     },
+    "aksSystemAgentPool": {
+      "type": "object",
+      "description": "Like aksAgentPool, but without poolCount: the system pool is always a single Microsoft.ContainerService/managedClusters/agentPools resource (defined inline on the cluster, spanning all configured zones), never looped into multiple pool resources the way userAgentPool/infraAgentPool are, so poolCount has no meaning here.",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "maxCount": {
+          "type": "number"
+        },
+        "minCount": {
+          "type": "number"
+        },
+        "osDiskSizeGB": {
+          "type": "number"
+        },
+        "vmSize": {
+          "type": "string"
+        },
+        "zones": {
+          "$ref": "#/definitions/zones",
+          "description": "Zones to use for the pools."
+        },
+        "zoneRedundantMode": {
+          "$ref": "#/definitions/zoneRedundantMode"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "maxCount",
+        "minCount",
+        "osDiskSizeGB",
+        "vmSize",
+        "zones",
+        "zoneRedundantMode"
+      ]
+    },
     "aksUpgradeSettings": {
       "type": "object",
       "additionalProperties": false,
@@ -608,7 +646,7 @@
           "$ref": "#/definitions/aksAgentPool"
         },
         "systemAgentPool": {
-          "$ref": "#/definitions/aksAgentPool"
+          "$ref": "#/definitions/aksSystemAgentPool"
         },
         "infraAgentPool": {
           "$ref": "#/definitions/aksAgentPool"
