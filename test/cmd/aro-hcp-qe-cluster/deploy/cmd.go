@@ -66,6 +66,7 @@ func tagResourceGroupForPersist(ctx context.Context, rgClient *armresources.Reso
 func NewCommand(registry *e.Registry, specs et.ExtensionTestSpecs) *cobra.Command {
 	var kubeconfigDirPath string
 	var leasedMSIContainers string
+	var artifactDir string
 
 	cmd := &cobra.Command{
 		Use:          "deploy TEST_NAME",
@@ -83,6 +84,12 @@ func NewCommand(registry *e.Registry, specs et.ExtensionTestSpecs) *cobra.Comman
 
 			if err := os.Setenv("ARO_E2E_SKIP_CLEANUP", "true"); err != nil {
 				return fmt.Errorf("setting ARO_E2E_SKIP_CLEANUP: %w", err)
+			}
+
+			if artifactDir != "" {
+				if err := os.Setenv("ARTIFACT_DIR", artifactDir); err != nil {
+					return fmt.Errorf("setting ARTIFACT_DIR: %w", err)
+				}
 			}
 
 			// The MSI container usage is fully implemented in the E2E testing
@@ -199,5 +206,6 @@ func NewCommand(registry *e.Registry, specs et.ExtensionTestSpecs) *cobra.Comman
 
 	cmd.Flags().StringVar(&kubeconfigDirPath, "kubeconfig-dir", "", "directory to write admin kubeconfigs into (one <cluster-name>.kubeconfig file per cluster)")
 	cmd.Flags().StringVar(&leasedMSIContainers, "leased-msi-containers", "", "space-separated list of pre-leased MSI container resource group names to use for managed identity pooling (sets "+framework.LeasedMSIContainersEnvvar+" and enables "+framework.UsePooledIdentitiesEnvvar+")")
+	cmd.Flags().StringVar(&artifactDir, "artifact-dir", "", "directory for test artifacts and logs (sets ARTIFACT_DIR)")
 	return cmd
 }
