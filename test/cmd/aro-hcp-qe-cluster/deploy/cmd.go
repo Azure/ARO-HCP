@@ -170,6 +170,11 @@ func NewCommand(registry *e.Registry, specs et.ExtensionTestSpecs) *cobra.Comman
 				}
 			}
 
+			// in the end, report all clusters deployed furn the E2E test run
+			for _, cluster := range clusters {
+				fmt.Printf("deployed cluster: %q/%q\n", cluster.resourceGroupName, cluster.clusterName)
+			}
+
 			// end here if we don't need to fetch the kubeconfig
 			if kubeconfigDirPath == "" {
 				return nil
