@@ -21,6 +21,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"sync"
 	"time"
 
@@ -42,9 +43,11 @@ type clusterRef struct {
 	clusterName       string
 }
 
-// tagResourceGroupForPersist adds a "persist: true" tag to the named resource
-// group, merging it with any tags already present.
-func tagResourceGroupForPersist(ctx context.Context, rgClient *armresources.ResourceGroupsClient, rgName string) error {
+// tweakResourceGroupCICleanup updates tags on the cluster resource groups to
+// avoid CI cleanup, when deleteAfterHours is non-zero, it sets the
+// deleteAfter.aro-hcp-ci.redhat.com tag that many hours into the future,
+// otherwise (when deleteAfterHours is zero) the CI cleanup is disabled
+func tweakResourceGroupCICleanup(ctx context.Context, rgClient *armresources.ResourceGroupsClient, rgName string, deleteAfterHours int) error {
 	existing, err := rgClient.Get(ctx, rgName, nil)
 	if err != nil {
 		return fmt.Errorf("getting resource group %q: %w", rgName, err)
@@ -54,7 +57,15 @@ func tagResourceGroupForPersist(ctx context.Context, rgClient *armresources.Reso
 	if tags == nil {
 		tags = make(map[string]*string)
 	}
-	tags["persist"] = to.Ptr("true")
+
+	if deleteAfterHours > 0 {
+		deleteAfter := time.Now().Add(time.Duration(deleteAfterHours) * time.Hour)
+		tags["deleteAfter.aro-hcp-ci.redhat.com"] = to.Ptr(deleteAfter.Format(time.RFC3339))
+	} else {
+		tags["persist"] = to.Ptr("true")
+		tags["e2e.aro-hcp-ci.redhat.com"] = to.Ptr("false")
+		delete(tags, "deleteAfter.aro-hcp-ci.redhat.com")
+	}
 
 	_, err = rgClient.Update(ctx, rgName, armresources.ResourceGroupPatchable{Tags: tags}, nil)
 	if err != nil {
@@ -69,9 +80,16 @@ func NewCommand(registry *e.Registry, specs et.ExtensionTestSpecs) *cobra.Comman
 	var artifactDir string
 
 	cmd := &cobra.Command{
-		Use:          "deploy TEST_NAME",
-		Short:        "Deploy ARO HCP cluster by running given E2E test without teardown",
-		Args:         cobra.ExactArgs(1),
+		Use:   "deploy TEST_NAME DELETE_AFTER",
+		Short: "Deploy ARO HCP cluster by running given E2E test without teardown",
+		Long: `Deploy an ARO HCP cluster by running the named E2E test with cleanup disabled.
+
+Arguments:
+  TEST_NAME     Name of the E2E test to run (must match a registered test case).
+  DELETE_AFTER  Number of hours before CI is allowed to clean up the deployed
+                cluster's resource groups. If the number is zero, CI cleanup
+                is disabled.`,
+		Args: cobra.ExactArgs(2),
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx, cancel := signal.NotifyContext(cmd.Context(), os.Interrupt)
@@ -80,6 +98,11 @@ func NewCommand(registry *e.Registry, specs et.ExtensionTestSpecs) *cobra.Comman
 			testName := args[0]
 			if !slices.Contains(specs.Names(), testName) {
 				return fmt.Errorf("test case %q not found", testName)
+			}
+
+			deleteAfterHours, err := strconv.Atoi(args[1])
+			if err != nil || deleteAfterHours < 0 {
+				return fmt.Errorf("DELETE_AFTER must be a positive integer (representing number of hours), got %q", args[1])
 			}
 
 			if err := os.Setenv("ARO_E2E_SKIP_CLEANUP", "true"); err != nil {
@@ -163,7 +186,7 @@ func NewCommand(registry *e.Registry, specs et.ExtensionTestSpecs) *cobra.Comman
 			}
 
 			for _, rg := range resourceGroups {
-				if err := tagResourceGroupForPersist(postDeployCtx, rgClient, rg); err != nil {
+				if err := tweakResourceGroupCICleanup(postDeployCtx, rgClient, rg, deleteAfterHours); err != nil {
 					fmt.Fprintf(os.Stderr, "deploy: failed to tag resource group %q: %v\n", rg, err)
 				} else {
 					fmt.Fprintf(os.Stderr, "deploy: tagged resource group %q with persist=true\n", rg)
