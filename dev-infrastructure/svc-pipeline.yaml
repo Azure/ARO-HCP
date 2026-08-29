@@ -937,6 +937,9 @@ resourceGroups:
       - "unknown_storage_failure"
       - "unexpected EOF"
       - "unauthorized: authentication required"
+      # Transient ACR pull/push failures during image mirroring (docker registry RegistryErrorResponse, "Please retry later").
+      - "RegistryErrorResponse"
+      - "Please retry later"
       maximumRetryCount: 5
       durationBetweenRetries: 1m
   - name: exporter-output
