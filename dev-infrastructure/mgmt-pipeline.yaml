@@ -742,7 +742,7 @@ resourceGroups:
       # Retry when the shell extension's backing ACI container never provisions
       # (empty log/exit code -1), a transient ACI-side failure distinct from an
       # app-level error. See AROSLSRE-1945.
-      - "\"ShellProvisioningState\": \"Failed\""
+      - '"ShellProvisioningState": "Failed"'
       maximumRetryCount: 3
       durationBetweenRetries: 1m
   - name: kubelet-ds
