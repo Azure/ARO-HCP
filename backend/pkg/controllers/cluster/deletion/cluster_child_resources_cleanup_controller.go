@@ -370,12 +370,15 @@ func (c *clusterChildResourcesCleanupController) remainingApplyDesires(ctx conte
 
 	applyDesireCRUD, err := kubeApplierDBClient.ApplyDesiresForCluster(subscriptionID, resourceGroupName, clusterName)
 	if err != nil {
-		return 0, "", utils.TrackError(fmt.Errorf("failed to get kube-applier CRUD for ApplyDesire precondition: %w", err))
+		// Return a plain wrapped error; the caller
+		// (extraDeleteGateShouldDeleteServiceProviderCluster) applies utils.TrackError
+		// once, so tracking here would nest LineTrackingError prefixes.
+		return 0, "", fmt.Errorf("failed to get kube-applier CRUD for ApplyDesire precondition: %w", err)
 	}
 
 	total, breakdown, err := kubeappliercosmosstorage.SummarizeApplyDesiresByController(ctx, applyDesireCRUD)
 	if err != nil {
-		return 0, "", utils.TrackError(err)
+		return 0, "", fmt.Errorf("failed to summarize ApplyDesires by controller: %w", err)
 	}
 	return total, breakdown, nil
 }
