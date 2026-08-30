@@ -739,6 +739,10 @@ resourceGroups:
       errorContainsAny:
       - "500 Internal Server Error"
       - "Internal error occurred"
+      # Retry when the shell extension's backing ACI container never provisions
+      # (empty log/exit code -1), a transient ACI-side failure distinct from an
+      # app-level error. See AROSLSRE-1945.
+      - "\"ShellProvisioningState\": \"Failed\""
       maximumRetryCount: 3
       durationBetweenRetries: 1m
   - name: kubelet-ds
