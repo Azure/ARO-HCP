@@ -234,13 +234,16 @@ var _ = Describe("Customer", func() {
 					Replicas: to.Ptr(initialReplicas),
 				},
 			}
+			// Scale-down for private clusters takes longer than the standard
+			// NodePoolScalingTimeout because the v20251223preview ARM LRO for
+			// node deletion exceeds 20 minutes in this topology.
 			scaleDownResp, err := framework.UpdateNodePoolAndWait20251223(ctx,
 				tc.Get20251223ClientFactoryOrDie(ctx).NewNodePoolsClient(),
 				*resourceGroup.Name,
 				customerClusterName,
 				customerNodePoolName,
 				update,
-				framework.NodePoolScalingTimeout,
+				60*time.Minute,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to scale down node pool %q from %d to %d replicas",
 				customerNodePoolName, scaledUpReplicas, initialReplicas)
@@ -272,7 +275,7 @@ var _ = Describe("Customer", func() {
 				for _, line := range nodeLines {
 					g.Expect(line).To(ContainSubstring(" Ready "), "node not in Ready state after scale down: %s", line)
 				}
-			}, framework.NodePoolScalingTimeout, 30*time.Second).Should(Succeed(),
+			}, 30*time.Minute, 30*time.Second).Should(Succeed(),
 				"all %d nodes should be Ready after scale down", initialReplicas)
 			GinkgoLogr.Info("Private cluster nodepool scaling verified successfully",
 				"clusterName", customerClusterName)
