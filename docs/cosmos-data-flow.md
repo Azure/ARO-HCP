@@ -572,6 +572,12 @@ After delete dispatch, polls Cluster Service; only a not-found result clears `Se
 
 Requires deletion timestamp, dispatched deletion and cleared Cluster Service ID. Waits for node pools, external auth, credential requests and revocations to be gone. Leaves controller-owned ApplyDesires to their owners and backup schedule desires to BackupSchedule; removes other eligible cluster-scoped intents. Deletes the provider document only after managed-resource-group references, Maestro readonly bundles and cluster-scoped desires are gone.
 
+| | Object | Fields |
+|---|--------|--------|
+| Read | `ServiceProviderCluster` | <ul><li>`Status.ManagementClusterResourceID` (used both to reach the kube-applier container and to gate ServiceProviderCluster deletion)</li><li>`Status.MaestroReadonlyBundles`</li><li>`Status.AzureResources.ManagedResourceGroup` (gate: ServiceProviderCluster is not deleted while `AzureResource` or `PendingAzureResource` is set)</li></ul> |
+| Read | `ApplyDesire` (kube-applier DB) | <ul><li>Before deleting the `ServiceProviderCluster`, lists all cluster-scoped ApplyDesires via `ApplyDesiresForCluster(...).List(...)` and counts them grouped by `Tags[ControllerName]` (untagged bucketed as `unknown`); SPC deletion is blocked while **any** remain. A nil `Status.ManagementClusterResourceID` or unavailable kube-applier client is treated as "no remaining ApplyDesires".</li></ul> |
+| **Write** | Child Cosmos docs | <ul><li>**DELETES** ServiceProviderCluster (only when the managed resource group is reflected as gone (`AzureResource` and `PendingAzureResource` both nil), MaestroReadonlyBundles empty, no ApplyDesires remain for the cluster, and cluster-scoped kube-applier desires gone)</li><li>**DELETES** ManagementClusterContent docs</li><li>**DELETES** kube-applier desire documents</li></ul> |
+
 #### ClusterDeletionController
 
 [Source](../backend/pkg/controllers/cluster/deletion/cluster_deletion_controller.go) · **Trigger:** Cluster; 1m.
@@ -599,6 +605,15 @@ Observes dispatched configuration and completion, including the same cluster val
 [Source](../backend/pkg/controllers/cluster/operations/operation_cluster_delete.go) · **Trigger:** Active operation; 10s.
 
 Under the new deletion path, waits for the resource document to disappear; retains legacy deletion handling. Timeout diagnostics combine deletion-dispatch progress, live Cluster Service state, remaining descendant resources and mirrored HostedCluster state. For the matching nonterminal operation, writes status/error/transition time and ARM provisioning state, clears the active-operation reference on terminal state, and sends the async notification.
+
+**Gate (remaining ApplyDesires, evaluated after the delete-deadline check):**
+- Holds the operation non-terminal while **any** `ApplyDesire` remains for the cluster (regardless of authoring controller). To reach them it reads the cluster's `ServiceProviderCluster` for `Status.ManagementClusterResourceID`, then lists ApplyDesires from that management cluster's kube-applier container. A missing `ServiceProviderCluster`, a nil `Status.ManagementClusterResourceID`, or an unavailable kube-applier client is treated as "no remaining ApplyDesires" (the operation proceeds).
+- The remaining count, grouped by `Tags[ControllerName]` (ApplyDesires with no such tag are bucketed as `unknown`), is surfaced as an `applyDesires` source in the delete-timeout message (mirrors `hostedClusterDeletionStatus`).
+
+| | Object | Fields |
+|---|--------|--------|
+| Read | `ServiceProviderCluster` | <ul><li>`Status.ManagementClusterResourceID` (to reach the per-management-cluster kube-applier container for the ApplyDesire gate; missing SPC or nil ID treated as "no remaining ApplyDesires")</li></ul> |
+| Read | `ApplyDesire` (kube-applier DB) | <ul><li>Lists all cluster-scoped ApplyDesires via `ApplyDesiresForCluster(...).List(...)`, counting them grouped by `Tags[ControllerName]` to hold the operation until none remain</li></ul> |
 
 #### ClusterDegradedAggregator
 
