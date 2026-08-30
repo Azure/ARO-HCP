@@ -1796,6 +1796,8 @@ Requires both deletion timestamps and a **nil** Cluster Service ID, checked in c
 
 The provider-document gate requires both confirmed/pending managed-resource-group references cleared, the entire KAS and ingress certificate fields nil, and no Maestro readonly bundles. Tracked deny assignments deliberately do not block: they disappear with the managed resource group and their controller does not clear the references on deletion. Cluster-scoped kube-applier documents also block **when actual placement and a client are available**; missing provider/actual placement or unavailable client skips desire cleanup, and missing placement/client permits the provider's desire gate. That fallback does not certify external deletion. The final cluster controller waits for an unavailable client if its cached provider still supplies placement.
 
+Before removing the provider document, the additional ApplyDesire gate lists every cluster-scoped ApplyDesire through `ApplyDesiresForCluster(...).List(...)`. **Any** remaining ApplyDesire blocks deletion, regardless of authoring controller. Counts are grouped by `Tags[ControllerName]`, sorted by controller name, with untagged desires in `unknown`. Nil actual placement or an unavailable kube-applier client preserves the existing bypass; the final cluster controller's different unavailable-client behavior is unchanged.
+
 #### ClusterDeletionController
 
 [Source](../../backend/pkg/controllers/cluster/deletion/cluster_deletion_controller.go) · **Trigger:** Cluster; 1m.
@@ -1833,6 +1835,8 @@ The [state-calculation helpers](../../backend/pkg/controllers/cluster/operations
 After determining state, a still-pending operation past `ServiceProviderProperties.UpdateOperationCompletionDeadline` becomes Failed with the selected `OperationState.CloudErrorCode` (replacing only `InternalServerError` with `DeadlineExceeded`) and the merged, source-labelled pending reasons, including Cluster Service progress messages. Already successful/failed observations retain their result. A missing deadline (older stored resources) preserves the previous behavior. State-evaluation errors remain reconcile errors, as in creation.
 
 #### OperationClusterDelete
+
+After checking the delete deadline, an additional gate holds the operation nonterminal while **any** cluster-scoped ApplyDesire remains. It reads `ServiceProviderCluster.Status.ManagementClusterResourceID` to select the kube-applier container; missing provider, nil placement, or an unavailable client bypasses this gate. The shared count groups desires by `Tags[ControllerName]`, sorted by controller name, with untagged desires in `unknown`. Timeout diagnostics include that count and breakdown under `applyDesires`, alongside the separate `resourceTeardown` progress source. An unavailable kube-applier client skips only kube-applier enumeration in descendant diagnostics: Resources DB descendant counts are retained.
 
 [Source](../../backend/pkg/controllers/cluster/operations/operation_cluster_delete.go) · **Trigger:** Active operation; 10s.
 

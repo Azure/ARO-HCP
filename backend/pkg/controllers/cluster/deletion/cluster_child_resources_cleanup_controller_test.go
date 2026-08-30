@@ -741,7 +741,7 @@ func TestClusterChildResourcesCleanupController_remainingApplyDesires(t *testing
 	}
 	newApplyDesire := func(name string, tags map[string]string) *kubeapplierapi.ApplyDesire {
 		resourceID := metadataapi.Must(azcorearm.ParseResourceID(
-			kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(
+			kubeapplierapihelpers.ToClusterScopedApplyDesireResourceIDString(
 				testSubscriptionID, testResourceGroupName, testClusterName, name)))
 		return &kubeapplierapi.ApplyDesire{
 			CosmosMetadata: coreapi.CosmosMetadata{
@@ -862,7 +862,7 @@ func TestClusterChildResourcesCleanupController_extraDeleteGate_ApplyDesires(t *
 	}
 	newApplyDesire := func(name string, tags map[string]string) *kubeapplierapi.ApplyDesire {
 		resourceID := metadataapi.Must(azcorearm.ParseResourceID(
-			kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(
+			kubeapplierapihelpers.ToClusterScopedApplyDesireResourceIDString(
 				testSubscriptionID, testResourceGroupName, testClusterName, name)))
 		return &kubeapplierapi.ApplyDesire{
 			CosmosMetadata: coreapi.CosmosMetadata{
