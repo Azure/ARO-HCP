@@ -264,6 +264,23 @@ func (c *clusterChildResourcesCleanupController) extraDeleteGateShouldDeleteServ
 		return false, utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster: %w", err))
 	}
 
+	// Do not delete the ServiceProviderCluster while the cluster's managed
+	// resource group is still reflected as present (either confirmed or pending).
+	// The ObserveManagedResourceGroup controller clears both references once the
+	// MRG is gone in Azure; until then we keep the ServiceProviderCluster document
+	// alive so that reflected state remains available.
+	managedResourceGroup := spc.Status.AzureResources.ManagedResourceGroup
+	if managedResourceGroup.AzureResource != nil || managedResourceGroup.PendingAzureResource != nil {
+		mrgID := managedResourceGroup.AzureResource
+		if mrgID == nil {
+			mrgID = managedResourceGroup.PendingAzureResource
+		}
+		logger.Info("waiting for the managed resource group to be deleted before removing the ServiceProviderCluster document",
+			"serviceProviderClusterResourceID", spc.ResourceID.String(),
+			"managedResourceGroupID", mrgID.String())
+		return false, nil
+	}
+
 	// Check if there are any Maestro readonly bundles remaining.
 	if len(spc.Status.MaestroReadonlyBundles) > 0 {
 		logger.Info("waiting for cluster-scoped Maestro readonly bundles to be deleted before removing Cosmos entry",

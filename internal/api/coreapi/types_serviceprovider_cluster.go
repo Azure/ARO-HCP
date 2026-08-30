@@ -401,6 +401,7 @@ type AzureResources struct {
 	// DenyAssignments tracks the deny assignments applied to the cluster's resources.
 	DenyAssignments AzureMultiReference `json:"denyAssignments,omitempty"`
 	// ManagedResourceGroup tracks the managed resource group for the cluster.
+	// Written by: ObserveManagedResourceGroup
 	ManagedResourceGroup AzureReference `json:"managedResourceGroup,omitempty"`
 }
 
