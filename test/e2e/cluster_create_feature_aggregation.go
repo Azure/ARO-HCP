@@ -232,6 +232,11 @@ var _ = Describe("Customer", func() {
 
 			By("updating the cluster to add the test runner IP to the authorized CIDR list")
 			cluster.Properties.API.AuthorizedCIDRs = []*string{to.Ptr(vmCIDR), to.Ptr(testRunnerCIDR)}
+			// The cluster we just Got has a fully populated UserAssignedIdentities map
+			// (ClientID/PrincipalID set by ARM). Re-sending those populated values on this
+			// PUT is rejected by ARM with InvalidIdentityValues; existing identities must be
+			// echoed back as empty objects.
+			framework.ClearUserAssignedIdentityValues20251223(cluster.Identity)
 			cidrUpdatePoller, err := tc.Get20251223ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient().BeginCreateOrUpdate(
 				ctx,
 				*resourceGroup.Name,

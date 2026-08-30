@@ -387,6 +387,11 @@ var _ = Describe("Authorized CIDRs", func() {
 				currentCluster.Properties.API.AuthorizedCIDRs = []*string{
 					to.Ptr("192.0.2.0/24"), // Use TEST-NET-1 (reserved for documentation)
 				}
+				// The Get above returns a fully populated UserAssignedIdentities map
+				// (ClientID/PrincipalID set by ARM). Re-sending those populated values on
+				// this PUT is rejected by ARM with InvalidIdentityValues; existing
+				// identities must be echoed back as empty objects.
+				framework.ClearUserAssignedIdentityValues20240610(currentCluster.Identity)
 
 				// Use CreateOrUpdate (PUT) to apply the change
 				poller, err := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient().BeginCreateOrUpdate(
