@@ -62,17 +62,15 @@ tests:
     alertname: userJourneyFrontendReady
     exp_alerts: []
 - interval: 1m
-  # ----------------------------------------
-
-  # ----------------------------------------
-  # Errors fast burn + Availability fast (MWMBR 1h AND 5m)
+  # Errors fast burn + Availability fast (MWMBR 1h AND 5m).
+  # eval_time 62m = 1h window + for:2m so the long window is fully populated.
   input_series:
   - series: 'errors:frontend_http:error_rate:rate5m{cluster="svc-1"}'
     values: "0.01+0x80"
   - series: 'sli:frontend_http:availability:rate5m{cluster="svc-1"}'
     values: "0.99+0x80"
   alert_rule_test:
-  - eval_time: 10m
+  - eval_time: 62m
     alertname: userJourneyFrontendErrors1h5m
     exp_alerts:
     - exp_labels:
@@ -87,7 +85,7 @@ tests:
         summary: "svc-1: Frontend HTTP 5xx error rate critically high (>0.72%)"
         description: "Frontend 5xx share on cluster svc-1 is above 0.72% on both the 1h and 5m windows (14.4x burn of the 99.95% availability / 0.05% error budget). Would exhaust the 30d budget in ~2d (~50h)."
         runbook_url: "https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/user-journey/frontend"
-  - eval_time: 10m
+  - eval_time: 62m
     alertname: userJourneyFrontendAvailability1h5m
     exp_alerts:
     - exp_labels:
@@ -102,15 +100,14 @@ tests:
         summary: "svc-1: Frontend HTTP availability critically low (<99.28%)"
         description: "Frontend availability on cluster svc-1 is below 99.28% on both the 1h and 5m windows (14.4x burn of the 99.95% SLO / 0.05% error budget). Sev4 ticket - Errors family pages on the complementary 5xx burn."
         runbook_url: "https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/user-journey/frontend"
-- interval: 1m
-  # Errors medium burn (0.4%) - not fast
-
-  # ----------------------------------------
+- interval: 5m
+  # Errors medium burn (0.4%) - not fast.
+  # 5m step x90 covers 7h30m so avg_over_time[6h] is populated; eval after 6h+for:15m.
   input_series:
   - series: 'errors:frontend_http:error_rate:rate5m{cluster="svc-1"}'
-    values: "0.004+0x80"
+    values: "0.004x90"
   alert_rule_test:
-  - eval_time: 50m
+  - eval_time: 6h20m
     alertname: userJourneyFrontendErrors6h30m
     exp_alerts:
     - exp_labels:
@@ -125,19 +122,17 @@ tests:
         summary: "svc-1: Frontend HTTP 5xx error rate elevated (>0.30%)"
         description: "Frontend 5xx share on cluster svc-1 is above 0.30% on both the 6h and 30m windows (6x burn of the 0.05% error budget)."
         runbook_url: "https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/user-journey/frontend"
-  - eval_time: 50m
+  - eval_time: 6h20m
     alertname: userJourneyFrontendErrors1h5m
     exp_alerts: []
-- interval: 1m
-  # ----------------------------------------
-
-  # ----------------------------------------
-  # Availability medium burn - not fast
+- interval: 5m
+  # Availability medium burn - not fast.
+  # 5m step x90 covers 7h30m so avg_over_time[6h] is populated; eval after 6h+for:15m.
   input_series:
   - series: 'sli:frontend_http:availability:rate5m{cluster="svc-1"}'
-    values: "0.995+0x80"
+    values: "0.995x90"
   alert_rule_test:
-  - eval_time: 50m
+  - eval_time: 6h20m
     alertname: userJourneyFrontendAvailability6h30m
     exp_alerts:
     - exp_labels:
@@ -152,18 +147,17 @@ tests:
         summary: "svc-1: Frontend HTTP availability degraded (<99.70%)"
         description: "Frontend availability on cluster svc-1 is below 99.70% on both the 6h and 30m windows (6x burn). Sev4 ticket - Errors family pages on the complementary 5xx burn."
         runbook_url: "https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/user-journey/frontend"
-  - eval_time: 50m
+  - eval_time: 6h20m
     alertname: userJourneyFrontendAvailability1h5m
     exp_alerts: []
-- interval: 1m
-  # Latency medium (p99 > 1s) - not fast (p99 > 5s)
-
-  # ----------------------------------------
+- interval: 5m
+  # Latency medium (p99 > 1s) - not fast (p99 > 5s).
+  # 5m step x90 covers 7h30m so avg_over_time[6h] is populated; eval after 6h+for:15m.
   input_series:
   - series: 'sli:frontend_http:latency_p99:rate5m{cluster="svc-1"}'
-    values: "1.2+0x80"
+    values: "1.2x90"
   alert_rule_test:
-  - eval_time: 50m
+  - eval_time: 6h20m
     alertname: userJourneyFrontendLatencyP996h30m
     exp_alerts:
     - exp_labels:
@@ -178,19 +172,16 @@ tests:
         summary: "svc-1: Frontend HTTP p99 latency above SLO (>1s)"
         description: "Frontend p99 latency on cluster svc-1 is above 1s on both the 6h and 30m windows (p99 < 1s ARM sync SLO miss)."
         runbook_url: "https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/user-journey/frontend"
-  - eval_time: 50m
+  - eval_time: 6h20m
     alertname: userJourneyFrontendLatencyP991h5m
     exp_alerts: []
 - interval: 1m
-  # ----------------------------------------
-
-  # ----------------------------------------
-  # Latency fast (p99 > 5s)
+  # Latency fast (p99 > 5s). eval_time 62m = 1h window + for:2m.
   input_series:
   - series: 'sli:frontend_http:latency_p99:rate5m{cluster="svc-1"}'
     values: "6+0x80"
   alert_rule_test:
-  - eval_time: 10m
+  - eval_time: 62m
     alertname: userJourneyFrontendLatencyP991h5m
     exp_alerts:
     - exp_labels:
