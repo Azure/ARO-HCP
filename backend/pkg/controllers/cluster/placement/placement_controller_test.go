@@ -594,3 +594,75 @@ func TestPlacementSyncer_setSpecPlacement_Timestamp(t *testing.T) {
 		})
 	}
 }
+
+// TestPlacementSyncer_setSpecPlacement_PreconditionFailureReturnsNil covers the
+// optimistic-concurrency loser path: when the Replace fails a precondition (412)
+// because another writer updated the ServiceProviderCluster first, setSpecPlacement
+// must swallow the error and return nil (no error / no requeue) rather than
+// propagating it.
+func TestPlacementSyncer_setSpecPlacement_PreconditionFailureReturnsNil(t *testing.T) {
+	ctx := context.Background()
+	chosen := testMgmtClusterResourceID()
+	key := controllerutils.HCPClusterKey{SubscriptionID: testClusterSubscriptionID, ResourceGroupName: testClusterResourceGroup, HCPClusterName: testClusterName}
+
+	existing := newTestSPC() // Spec nil => needsWork is satisfied
+	mockDB := corecosmosstoragetesting.NewMockResourcesDBClient()
+	spcCRUD := mockDB.ServiceProviderClusters(testClusterSubscriptionID, testClusterResourceGroup, testClusterName)
+	created, err := spcCRUD.Create(ctx, existing, nil)
+	require.NoError(t, err)
+
+	// Advance the stored document past the cached base so a Replace using the
+	// cached (now-stale) etag fails the precondition. Pass a deep copy to the bump
+	// so `created` keeps its stale etag for the lister below.
+	_, err = spcCRUD.Replace(ctx, created.DeepCopy(), nil)
+	require.NoError(t, err)
+
+	syncer := &placementSyncer{
+		serviceProviderClusterLister: &corelistertesting.SliceServiceProviderClusterLister{ServiceProviderClusters: []*coreapi.ServiceProviderCluster{created}},
+		cosmosClient:                 mockDB,
+	}
+
+	require.NoError(t, syncer.setSpecPlacement(ctx, key, chosen), "precondition failure must not be returned as an error")
+
+	// The losing write must not have applied: Spec stays as the winner left it (nil).
+	updated, err := spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
+	require.NoError(t, err)
+	assert.Nil(t, updated.Spec.ManagementClusterResourceID, "the losing write must not have overwritten the winner")
+}
+
+// TestPlacementSyncer_reservePendingAssignment_CaseInsensitiveIdempotent proves
+// the reservation dedup compares resource IDs case-insensitively
+// (ResourceIDsEqual/EqualFold): an entry already present under a different casing
+// must not be appended again.
+func TestPlacementSyncer_reservePendingAssignment_CaseInsensitiveIdempotent(t *testing.T) {
+	ctx := context.Background()
+	const stamp = "1"
+	mcResourceID := metadataapi.Must(fleetapi.ToManagementClusterResourceID(stamp))
+
+	clusterResourceID := metadataapi.Must(azcorearm.ParseResourceID(
+		"/subscriptions/" + testClusterSubscriptionID + "/resourceGroups/" + testClusterResourceGroup +
+			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/MyCluster"))
+	// The same ARM ID already reserved, stored under a different (lower) casing.
+	alreadyReserved := metadataapi.Must(azcorearm.ParseResourceID(
+		"/subscriptions/" + testClusterSubscriptionID + "/resourceGroups/" + testClusterResourceGroup +
+			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/mycluster"))
+	require.NotEqual(t, clusterResourceID.String(), alreadyReserved.String(), "test fixture: the two IDs must differ only in case")
+
+	fleetDB := fleetcosmosstoragetesting.NewMockFleetDBClient()
+	doc := &fleetapi.ManagementClusterScheduling{
+		CosmosMetadata: coreapi.CosmosMetadata{
+			ResourceID:   metadataapi.Must(fleetapi.ToManagementClusterSchedulingResourceID(stamp)),
+			PartitionKey: stamp,
+		},
+		Status: fleetapi.ManagementClusterSchedulingStatus{PendingAssignedClusters: []*azcorearm.ResourceID{alreadyReserved}},
+	}
+	_, err := fleetDB.Stamps().ManagementClusters(stamp).Scheduling().Create(ctx, doc, nil)
+	require.NoError(t, err)
+
+	syncer := &placementSyncer{fleetDBClient: fleetDB}
+	require.NoError(t, syncer.reservePendingAssignment(ctx, mcResourceID, clusterResourceID))
+
+	updated, err := fleetDB.Stamps().ManagementClusters(stamp).Scheduling().Get(ctx, fleetapi.SchedulingResourceName)
+	require.NoError(t, err)
+	assert.Len(t, updated.Status.PendingAssignedClusters, 1, "a case-differing duplicate must not be appended")
+}

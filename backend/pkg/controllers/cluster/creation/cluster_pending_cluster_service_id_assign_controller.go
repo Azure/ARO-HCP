@@ -31,9 +31,8 @@ import (
 )
 
 type clusterPendingClusterServiceIDAssignSyncer struct {
-	clusterLister                corelisters.ClusterLister
-	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
-	resourcesDBClient            corecosmosstorage.ResourcesDBClient
+	clusterLister     corelisters.ClusterLister
+	resourcesDBClient corecosmosstorage.ResourcesDBClient
 }
 
 var _ controllerutils.ClusterSyncer = (*clusterPendingClusterServiceIDAssignSyncer)(nil)
@@ -42,11 +41,9 @@ const ClusterPendingClusterServiceIDAssignControllerName = "ClusterPendingCluste
 
 func NewClusterPendingClusterServiceIDAssignController(resourcesDBClient corecosmosstorage.ResourcesDBClient, backendInformers coreinformers.BackendInformers) controllerutils.Controller {
 	_, clusterLister := backendInformers.Clusters()
-	_, serviceProviderClusterLister := backendInformers.ServiceProviderClusters()
 	syncer := &clusterPendingClusterServiceIDAssignSyncer{
-		clusterLister:                clusterLister,
-		serviceProviderClusterLister: serviceProviderClusterLister,
-		resourcesDBClient:            resourcesDBClient,
+		clusterLister:     clusterLister,
+		resourcesDBClient: resourcesDBClient,
 	}
 
 	return controllerutils.NewClusterWatchingController(
@@ -59,19 +56,18 @@ func NewClusterPendingClusterServiceIDAssignController(resourcesDBClient corecos
 	)
 }
 
-// needsWork reports whether a PendingClusterServiceID should be assigned. In
-// addition to the cluster not yet having a (pending or resolved) Cluster Service
-// ID and not being deleted, placement must already be resolved: the
-// ServiceProviderCluster must have Spec.ManagementClusterResourceID set by the
-// PlacementController. This gates Cluster Service creation on a management
-// cluster having been chosen first.
-func (c *clusterPendingClusterServiceIDAssignSyncer) needsWork(cluster *coreapi.HCPOpenShiftCluster, serviceProviderCluster *coreapi.ServiceProviderCluster) bool {
+// needsWork reports whether a PendingClusterServiceID should be assigned: the
+// cluster is not being deleted and does not yet have a (pending or resolved)
+// Cluster Service ID. Assignment is intentionally NOT gated on placement — a
+// pending Cluster Service ID can be minted before the PlacementController has
+// chosen a management cluster. The Cluster Service cluster itself is only created
+// later by ClusterClusterServiceCreate, which is what waits for placement
+// (Spec.ManagementClusterResourceID) so it can pin the provision shard.
+func (c *clusterPendingClusterServiceIDAssignSyncer) needsWork(cluster *coreapi.HCPOpenShiftCluster) bool {
 	return cluster.ServiceProviderProperties.DeletionTimestamp == nil &&
 		cluster.ServiceProviderProperties.PendingClusterServiceID == nil &&
 		(cluster.ServiceProviderProperties.ClusterServiceID == nil ||
-			len(cluster.ServiceProviderProperties.ClusterServiceID.String()) == 0) &&
-		serviceProviderCluster != nil &&
-		serviceProviderCluster.Spec.ManagementClusterResourceID != nil
+			len(cluster.ServiceProviderProperties.ClusterServiceID.String()) == 0)
 }
 
 func (c *clusterPendingClusterServiceIDAssignSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
@@ -85,16 +81,7 @@ func (c *clusterPendingClusterServiceIDAssignSyncer) SyncOnce(ctx context.Contex
 		return utils.TrackError(err)
 	}
 
-	serviceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
-	if cosmosstorageutils.IsNotFoundError(err) {
-		// Placement has not produced a ServiceProviderCluster yet; wait.
-		return nil
-	}
-	if err != nil {
-		return utils.TrackError(err)
-	}
-
-	if !c.needsWork(cluster, serviceProviderCluster) {
+	if !c.needsWork(cluster) {
 		return nil
 	}
 

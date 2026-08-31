@@ -34,6 +34,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
@@ -169,9 +170,12 @@ func (c *placementSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPC
 	// caught up yet). Fresh-selecting here could pick a different management
 	// cluster than the one Cluster Service already committed to. Instead, ask
 	// Cluster Service where it placed the cluster (by the pending CS ID) and
-	// backfill Spec from that. This targeted live Cluster Service read only runs
-	// for this migration edge case; new records never reach it because
-	// PendingClusterServiceID assignment is gated on Spec being resolved first.
+	// backfill Spec from that. New records may also carry a PendingClusterServiceID
+	// before placement — its assignment is no longer gated on placement — but their
+	// cluster does not exist in Cluster Service yet (ClusterClusterServiceCreate,
+	// which does the CS creation, is the step that waits for Spec), so Cluster
+	// Service returns 404 for them and backfillFromClusterService falls through to
+	// the fresh capacity-aware selection below.
 	if chosen, handled, err := c.backfillFromClusterService(ctx, key); err != nil {
 		return err
 	} else if handled {
@@ -231,11 +235,16 @@ func (c *placementSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPC
 //
 // It returns handled=false when the caller SHOULD fresh-select: there is no
 // pending CS ID, or Cluster Service returns 404 (not found) for the pending CS
-// ID. A 404 means the pending ID never became a real cluster — an older backend
-// recorded PendingClusterServiceID and then crashed or lost leadership before
-// creating the cluster in Cluster Service — so there is no committed placement to
-// preserve and a fresh capacity-aware selection is safe. Every other error is
-// transient and is returned so the workqueue retries.
+// ID. A 404 means no Cluster Service cluster exists for the pending ID yet. That
+// is the normal case for a brand-new record too: PendingClusterServiceID
+// assignment is not gated on placement, so a new cluster can carry a pending ID
+// before its Cluster Service cluster is created (creation happens in
+// ClusterClusterServiceCreate, which waits for Spec). It also covers the old
+// rollout edge case where a prior backend recorded PendingClusterServiceID then
+// crashed / lost leadership before creating the cluster in Cluster Service. In
+// every 404 case there is no committed placement to preserve, so a fresh
+// capacity-aware selection is safe. Every other error is transient and is
+// returned so the workqueue retries.
 func (c *placementSyncer) backfillFromClusterService(ctx context.Context, key controllerutils.HCPClusterKey) (chosen *azcorearm.ResourceID, handled bool, err error) {
 	cluster, err := c.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if cosmosstorageutils.IsNotFoundError(err) {
@@ -251,12 +260,15 @@ func (c *placementSyncer) backfillFromClusterService(ctx context.Context, key co
 
 	chosen, err = c.resolvePlacementFromClusterService(ctx, *pendingClusterServiceID)
 	if err != nil {
-		// A 404 from Cluster Service means this pending Cluster Service ID never
-		// became a real cluster (an older backend recorded PendingClusterServiceID
-		// then crashed / lost leadership before creating it in Cluster Service).
-		// There is no committed placement to diverge from, so fall through to a
-		// fresh capacity-aware selection instead of deferring forever. Any other
-		// error is transient — propagate it so the workqueue retries.
+		// A 404 from Cluster Service means no Cluster Service cluster exists for
+		// this pending ID yet. This is the normal case for a new record (the pending
+		// ID is assigned before placement, and the Cluster Service cluster is only
+		// created once Spec is resolved) as well as the old rollout case (a prior
+		// backend recorded PendingClusterServiceID then crashed before creating it
+		// in Cluster Service). Either way there is no committed placement to diverge
+		// from, so fall through to a fresh capacity-aware selection instead of
+		// deferring forever. Any other error is transient — propagate it so the
+		// workqueue retries.
 		var ocmError *ocmerrors.Error
 		if errors.As(err, &ocmError) && ocmError.Status() == http.StatusNotFound {
 			utils.LoggerFromContext(ctx).Info("pending Cluster Service ID has no cluster in Cluster Service (404); proceeding with fresh placement",
@@ -497,14 +509,18 @@ func (c *placementSyncer) reservePendingAssignment(ctx context.Context, manageme
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get scheduling document for management cluster %q: %w", managementClusterResourceID.String(), err))
 	}
-	want := strings.ToLower(clusterResourceID.String())
 	for _, pending := range existing.Status.PendingAssignedClusters {
-		if pending != nil && strings.ToLower(pending.String()) == want {
+		if controllerutil.ResourceIDsEqual(pending, clusterResourceID) {
 			return nil // already reserved
 		}
 	}
 
 	updated := existing.DeepCopy()
+	// TODO: also increase the estimated resource utilization for this reservation
+	// (e.g. reflect the swift-NIC cost of the pending HCP in
+	// ObservedResources.Usage) so capacity accounting reflects the pending
+	// assignment directly, not only indirectly via the PendingAssignedClusters
+	// count.
 	updated.Status.PendingAssignedClusters = append(updated.Status.PendingAssignedClusters, coreapi.DeepCopyResourceID(clusterResourceID))
 	if _, err := schedulingCRUD.Replace(ctx, updated, nil); err != nil {
 		return utils.TrackError(fmt.Errorf("failed to reserve pending assignment on management cluster %q: %w", managementClusterResourceID.String(), err))
@@ -542,6 +558,14 @@ func (c *placementSyncer) setSpecPlacement(ctx context.Context, key controllerut
 	}
 	spcCRUD := c.cosmosClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if _, err := spcCRUD.Replace(ctx, replacement, nil); err != nil {
+		// A precondition failure means we lost an optimistic-concurrency race: another
+		// writer updated the ServiceProviderCluster after our cached base was read.
+		// Do not treat this as an error — re-erroring would only add noise and a
+		// redundant requeue. The next reconcile re-reads a fresh base and the
+		// needsWork gate short-circuits if Spec is now already set.
+		if cosmosstorageutils.IsPreconditionFailedError(err) {
+			return nil
+		}
 		return utils.TrackError(fmt.Errorf("failed to update ServiceProviderCluster placement: %w", err))
 	}
 	return nil

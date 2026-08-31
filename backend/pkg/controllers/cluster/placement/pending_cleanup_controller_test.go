@@ -146,6 +146,8 @@ func TestPendingCleanupSyncer_SyncOnce_NoChangeWhenAllValid(t *testing.T) {
 	}
 	created, err := fleetDB.Stamps().ManagementClusters(thisStamp).Scheduling().Create(ctx, doc, nil)
 	require.NoError(t, err)
+	beforeETag := created.CosmosETag
+	require.NotEmpty(t, beforeETag, "test fixture: created scheduling doc should carry an etag")
 
 	schedulingLister := &fleetlistertesting.SliceManagementClusterSchedulingLister{Schedulings: []*fleetapi.ManagementClusterScheduling{created}}
 	syncer := &pendingCleanupSyncer{serviceProviderClusterLister: spcLister, managementClusterSchedulingLister: schedulingLister, fleetDBClient: fleetDB}
@@ -155,4 +157,7 @@ func TestPendingCleanupSyncer_SyncOnce_NoChangeWhenAllValid(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, updated.Status.PendingAssignedClusters, 1)
 	assert.Equal(t, strings.ToLower(pendingClusterResourceID("a").String()), strings.ToLower(updated.Status.PendingAssignedClusters[0].String()))
+	// The sweep changed nothing, so the semantic-deepequals guard must skip the
+	// Replace entirely: a write would have bumped the server-assigned etag.
+	assert.Equal(t, beforeETag, updated.CosmosETag, "no Replace should occur when the sweep changes nothing (semantic deepequals skip)")
 }

@@ -17,12 +17,12 @@ package placement
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
@@ -87,6 +87,14 @@ func (c *pendingCleanupSyncer) CooldownChecker() controllerutil.CooldownChecker 
 	return nil
 }
 
+// needsWork reports whether the scheduling document has any pending assignment
+// reservations to sweep. It mirrors the canonical needsWork predicate used by the
+// sibling cluster controllers (placement, creation): a pure check on the fetched
+// document with no I/O.
+func (c *pendingCleanupSyncer) needsWork(scheduling *fleetapi.ManagementClusterScheduling) bool {
+	return len(scheduling.Status.PendingAssignedClusters) > 0
+}
+
 // SyncOnce sweeps one management cluster's PendingAssignedClusters list. On a
 // transient failure it returns an error so the workqueue retries with backoff.
 func (c *pendingCleanupSyncer) SyncOnce(ctx context.Context, key controllerutils.ManagementClusterKey) error {
@@ -105,12 +113,11 @@ func (c *pendingCleanupSyncer) SyncOnce(ctx context.Context, key controllerutils
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get scheduling document for management cluster %q from cache: %w", key.StampIdentifier, err))
 	}
-	if len(existing.Status.PendingAssignedClusters) == 0 {
+	if !c.needsWork(existing) {
 		return nil
 	}
 
 	kept := make([]*azcorearm.ResourceID, 0, len(existing.Status.PendingAssignedClusters))
-	removed := 0
 	for _, pending := range existing.Status.PendingAssignedClusters {
 		keep, err := c.shouldKeepPending(ctx, pending, managementClusterResourceID)
 		if err != nil {
@@ -118,12 +125,7 @@ func (c *pendingCleanupSyncer) SyncOnce(ctx context.Context, key controllerutils
 		}
 		if keep {
 			kept = append(kept, pending)
-		} else {
-			removed++
 		}
-	}
-	if removed == 0 {
-		return nil
 	}
 
 	updated := existing.DeepCopy()
@@ -133,12 +135,21 @@ func (c *pendingCleanupSyncer) SyncOnce(ctx context.Context, key controllerutils
 		updated.Status.PendingAssignedClusters = kept
 	}
 
+	// Skip the write when the sweep changed nothing. NeedsUpdate is a semantic
+	// deep-equality check that ignores cosmos-managed fields (etag) and ResourceID
+	// representation differences, so an unchanged pending list never triggers a
+	// spurious Replace.
+	if !controllerutil.NeedsUpdate(existing, updated) {
+		return nil
+	}
+
 	// The write path stays a live, etag-guarded Replace via the CRUD client; the
 	// base document (and its etag) came from the cache read above.
 	schedulingCRUD := c.fleetDBClient.Stamps().ManagementClusters(key.StampIdentifier).Scheduling()
 	if _, err := schedulingCRUD.Replace(ctx, updated, nil); err != nil {
 		return utils.TrackError(fmt.Errorf("failed to update scheduling document for management cluster %q: %w", key.StampIdentifier, err))
 	}
+	removed := len(existing.Status.PendingAssignedClusters) - len(kept)
 	logger.Info("cleaned up stale pending assignments", "removed", removed, "remaining", len(kept))
 	return nil
 }
@@ -170,5 +181,5 @@ func (c *pendingCleanupSyncer) shouldKeepPending(ctx context.Context, pending, m
 		return true, nil
 	}
 	// Keep only when the effective placement still points at this management cluster.
-	return strings.EqualFold(effectivePlacement.String(), managementClusterResourceID.String()), nil
+	return controllerutil.ResourceIDsEqual(effectivePlacement, managementClusterResourceID), nil
 }
