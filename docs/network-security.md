@@ -66,7 +66,7 @@ In contrast using a private endpoint additional resources are needed. Using bice
 | Management | KeyVault | msi | SVC AKS</br> MGMT AKS</br> EV2 | NSP |
 | Management | KeyVault | MGTM AKS etcd | MGMT AKS | NSP |
 | Management | KeyVault | MGTM | MGMT AKS | NSP |
-| Global | Managed Grafana | arohcp-{env} | Public internet (VPN-only planned) | PublicNetworkAccess (currently Enabled; disabling requires a PE or `crossTenantSecurityGroup` to avoid locking out all users) |
+| Global | Managed Grafana | arohcp-{env} | Public internet (VPN-only planned) | PublicNetworkAccess (currently Enabled; disabling requires a Private Endpoint to be reachable first, or all users are locked out) |
 
 ## Choosing between the two
 

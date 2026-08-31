@@ -2,7 +2,7 @@
 
 ## Overview
 
-Azure Managed Grafana instances in staging, integration, and production environments can be configured with `publicNetworkAccess: Disabled`. On its own, this only removes the public internet path — it does **not** grant MSFT Corp VPN users access. A Private Endpoint (with private DNS and VPN routing) and/or the `crossTenantSecurityGroup` tag must also be in place for authorized users to reach Grafana once public access is disabled; otherwise everyone, including VPN users, is locked out. Dev environment Grafana instances are publicly accessible.
+Azure Managed Grafana instances in staging, integration, and production environments can be configured with `publicNetworkAccess: Disabled`. On its own, this only removes the public internet path — it does **not** grant MSFT Corp VPN users access. A Private Endpoint with private DNS and VPN routing must be in place before disabling public access, otherwise everyone, including VPN users, is locked out. The `crossTenantSecurityGroup` tag is a separate mechanism that authorizes identities from another Entra tenant — it does not provide network connectivity and cannot substitute for a Private Endpoint. Dev environment Grafana instances are publicly accessible.
 
 ## Prerequisites
 
