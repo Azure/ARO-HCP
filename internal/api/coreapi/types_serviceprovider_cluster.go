@@ -268,6 +268,14 @@ type ServiceProviderClusterStatus struct {
 	// contains the set of required data plane operators associated with a Cluster.
 	// Written by: FetchDataPlaneOperatorsManagedIdentitiesInfoController
 	DataPlaneOperatorsManagedIdentities ServiceProviderClusterDataPlaneOperatorsManagedIdentities `json:"dataPlaneOperatorsManagedIdentities,omitempty"`
+
+	// KubeAPIServerDNSReservation is the resource ID of the DNSReservation that is
+	// bound to this cluster's kube-apiserver DNS name. It is nil until the
+	// DNSReservationController reserves a unique name and records it here; once set,
+	// the reservation is considered Bound and the cleanup controller treats this
+	// pointer as the source of truth for "this cluster still needs that name".
+	// Written by: DNSReservationController
+	KubeAPIServerDNSReservation *azcorearm.ResourceID `json:"kubeAPIServerDNSReservation,omitempty"`
 }
 
 // ServiceProviderClusterMSIManagedIdentities holds Managed Service Identity (MSI)

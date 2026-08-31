@@ -60,6 +60,7 @@ import (
 	clusterversion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/version"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cosmosmigration"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/datadump"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/dnsreservation"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/example"
 	externalauthcreation "github.com/Azure/ARO-HCP/backend/pkg/controllers/externalauth/creation"
 	externalauthdeletion "github.com/Azure/ARO-HCP/backend/pkg/controllers/externalauth/deletion"
@@ -690,6 +691,14 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		backendInformers,
 		unionKubeApplierInformers,
 	)
+	dnsReservationController := dnsreservation.NewDNSReservationController(
+		b.options.ResourcesDBClient,
+		backendInformers,
+	)
+	dnsReservationCleanupController := dnsreservation.NewDNSReservationCleanupController(
+		b.options.ResourcesDBClient,
+		backendInformers,
+	)
 	clusterPropertiesSyncController := clusterproperties.NewClusterPropertiesSyncController(
 		b.options.ResourcesDBClient,
 		backendInformers,
@@ -1109,6 +1118,8 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go controlPlaneDesiredVersionController.Run(ctx, 20)
 				go triggerControlPlaneUpgradeController.Run(ctx, 20)
 				go clusterBaseDomainPrefixSyncController.Run(ctx, 20)
+				go dnsReservationController.Run(ctx, 20)
+				go dnsReservationCleanupController.Run(ctx, 20)
 				go clusterPropertiesSyncController.Run(ctx, 20)
 				go clusterIdentitySyncController.Run(ctx, 20)
 				go clusterDegradedAggregatorController.Run(ctx, 20)

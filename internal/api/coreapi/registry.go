@@ -80,9 +80,14 @@ const (
 	ManagementClusterContentResourceTypeName        = "managementClusterContents"
 	SystemAdminCredentialRequestResourceTypeName    = "systemAdminCredentialRequests"
 	SystemAdminCredentialRevocationResourceTypeName = "systemAdminCredentialRevocations"
+	DNSReservationResourceTypeName                  = "dnsReservations"
 )
 
 var (
+	// DNSReservationResourceType is a subscription-scoped logical resource used to
+	// reserve unique kube-apiserver DNS names. Like OperationStatus, it lives
+	// directly under a subscription (no resource group).
+	DNSReservationResourceType          = azcorearm.NewResourceType(ProviderNamespace, DNSReservationResourceTypeName)
 	OperationStatusResourceType         = azcorearm.NewResourceType(ProviderNamespace, OperationStatusResourceTypeName)
 	ClusterResourceType                 = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName)
 	ServiceProviderClusterResourceType  = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName+"/"+ServiceProviderClusterResourceTypeName)
