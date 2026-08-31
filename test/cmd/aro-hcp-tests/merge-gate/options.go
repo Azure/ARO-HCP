@@ -31,6 +31,8 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
+	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/clientcredentials"
 
 	"k8s.io/apimachinery/pkg/util/wait"
 )
@@ -49,26 +51,36 @@ const (
 	retryCap       = 30 * time.Second
 )
 
+// requiredFlags carry the data the tool acts on and must be passed explicitly;
+// there is deliberately no environment-variable fallback, so every input is
+// visible at the call site.
+var requiredFlags = []string{"url", "job-spec", "client-id", "client-secret", "token-url", "scope"}
+
 func DefaultOptions() *RawOptions {
 	return &RawOptions{
-		JobSpec:     os.Getenv("JOB_SPEC"),
-		Token:       os.Getenv("RELEASE_DASHBOARD_TOKEN"),
-		URL:         os.Getenv("RELEASE_DASHBOARD_URL"),
 		Timeout:     30 * time.Second,
 		Retries:     3,
 		FailOnError: true,
 	}
 }
 
-// BindOptions registers the merge-gate flags.
+// BindOptions registers the merge-gate flags. The inputs are explicit and
+// required; the behavioural knobs (timeout/retries/fail-on-error) keep defaults.
 func BindOptions(opts *RawOptions, cmd *cobra.Command) error {
-	cmd.Flags().StringVar(&opts.URL, "url", opts.URL, "Base URL of the release dashboard (defaults to RELEASE_DASHBOARD_URL).")
-	cmd.Flags().StringVar(&opts.JobSpec, "job-spec", opts.JobSpec, "Prow JOB_SPEC JSON (defaults to the JOB_SPEC environment variable).")
-	cmd.Flags().StringVar(&opts.JobSpecFile, "job-spec-file", opts.JobSpecFile, "Path to a file containing the prow JOB_SPEC JSON.")
-	cmd.Flags().StringVar(&opts.Token, "token", opts.Token, "Optional bearer token for the endpoint (defaults to RELEASE_DASHBOARD_TOKEN).")
+	cmd.Flags().StringVar(&opts.URL, "url", opts.URL, "Base URL of the release dashboard (the /api/merge-gate path is appended).")
+	cmd.Flags().StringVar(&opts.JobSpec, "job-spec", opts.JobSpec, "Prow JOB_SPEC JSON describing the PR (or batch) under test.")
+	cmd.Flags().StringVar(&opts.ClientID, "client-id", opts.ClientID, "OAuth2 client ID for client-credential auth.")
+	cmd.Flags().StringVar(&opts.ClientSecret, "client-secret", opts.ClientSecret, "OAuth2 client secret for client-credential auth.")
+	cmd.Flags().StringVar(&opts.TokenURL, "token-url", opts.TokenURL, "OAuth2 token endpoint used to mint the bearer token.")
+	cmd.Flags().StringSliceVar(&opts.Scopes, "scope", opts.Scopes, "OAuth2 scope to request; repeat for multiple.")
 	cmd.Flags().DurationVar(&opts.Timeout, "timeout", opts.Timeout, "Timeout for a single request to the merge gate.")
 	cmd.Flags().IntVar(&opts.Retries, "retries", opts.Retries, "Number of additional attempts on transient (503/network) failures.")
 	cmd.Flags().BoolVar(&opts.FailOnError, "fail-on-error", opts.FailOnError, "Treat an indeterminate verdict (or an unreachable gate) as a block.")
+	for _, name := range requiredFlags {
+		if err := cmd.MarkFlagRequired(name); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -77,12 +89,14 @@ type RawOptions struct {
 	// URL is the base URL of the release dashboard (the /api/merge-gate path is
 	// appended automatically).
 	URL string
-	// JobSpec is the prow JOB_SPEC JSON. Defaults to the JOB_SPEC env var.
+	// JobSpec is the prow JOB_SPEC JSON.
 	JobSpec string
-	// JobSpecFile, if set, is read instead of JobSpec.
-	JobSpecFile string
-	// Token is an optional bearer token for the endpoint.
-	Token string
+	// ClientID, ClientSecret, TokenURL and Scopes configure the OAuth2
+	// client-credential flow used to authenticate to the endpoint.
+	ClientID     string
+	ClientSecret string
+	TokenURL     string
+	Scopes       []string
 	// Timeout bounds a single HTTP attempt.
 	Timeout time.Duration
 	// Retries is the number of additional attempts on transient failures.
@@ -111,33 +125,26 @@ type Options struct {
 }
 
 func (o *RawOptions) Validate() (*ValidatedOptions, error) {
-	if o.URL == "" {
-		return nil, fmt.Errorf("the release dashboard URL must be provided with --url (or RELEASE_DASHBOARD_URL)")
-	}
 	u, err := url.Parse(o.URL)
 	if err != nil {
 		return nil, fmt.Errorf("invalid --url %q: %w", o.URL, err)
 	}
-	// Never send a bearer token in cleartext: require https, except when talking to
-	// a loopback address for local testing.
-	if o.Token != "" && !isSecureURL(u) {
-		return nil, fmt.Errorf("refusing to send a bearer token to insecure URL %q; use https (http is allowed only for localhost)", o.URL)
+	// A bearer token is always sent, so never talk cleartext to a non-loopback
+	// host.
+	if !isSecureURL(u) {
+		return nil, fmt.Errorf("refusing to send credentials to insecure URL %q; use https (http is allowed only for localhost)", o.URL)
+	}
+	if tu, err := url.Parse(o.TokenURL); err != nil || tu.Scheme != "https" {
+		return nil, fmt.Errorf("--token-url must be a valid https URL (got %q)", o.TokenURL)
 	}
 
 	jobSpec := []byte(o.JobSpec)
-	if o.JobSpecFile != "" {
-		data, err := os.ReadFile(o.JobSpecFile)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read --job-spec-file %q: %w", o.JobSpecFile, err)
-		}
-		jobSpec = data
-	}
 	if len(bytes.TrimSpace(jobSpec)) == 0 {
-		return nil, fmt.Errorf("a prow job spec must be provided via JOB_SPEC, --job-spec, or --job-spec-file")
+		return nil, fmt.Errorf("--job-spec must not be empty")
 	}
 	// Fail fast on obviously malformed input.
 	if !json.Valid(jobSpec) {
-		return nil, fmt.Errorf("the provided job spec is not valid JSON")
+		return nil, fmt.Errorf("--job-spec is not valid JSON")
 	}
 
 	if o.Timeout <= 0 {
@@ -171,11 +178,25 @@ func isSecureURL(u *url.URL) bool {
 	return false
 }
 
-func (o *ValidatedOptions) Complete(_ context.Context) (*Options, error) {
+func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
+	// Client-credential auth: the returned client transparently fetches a bearer
+	// token from the token endpoint, caches it, and adds it to every request.
+	cc := &clientcredentials.Config{
+		ClientID:     o.ClientID,
+		ClientSecret: o.ClientSecret,
+		TokenURL:     o.TokenURL,
+		Scopes:       o.Scopes,
+		AuthStyle:    oauth2.AuthStyleInParams,
+	}
+	// Bound the token-endpoint call by the same timeout as API requests.
+	tokenClient := &http.Client{Timeout: o.Timeout}
+	client := cc.Client(context.WithValue(ctx, oauth2.HTTPClient, tokenClient))
+	client.Timeout = o.Timeout
+
 	return &Options{
 		completedOptions: &completedOptions{
 			validatedOptions: o.validatedOptions,
-			client:           &http.Client{Timeout: o.Timeout},
+			client:           client,
 		},
 	}, nil
 }
@@ -269,16 +290,13 @@ func (o *Options) query(ctx context.Context, logger logr.Logger) (verdict, error
 }
 
 // attempt performs one HTTP request. The bool reports whether the error is
-// retryable (transient).
+// retryable (transient). The bearer token is added by the OAuth2 transport.
 func (o *Options) attempt(ctx context.Context) (verdict, bool, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, o.endpoint, bytes.NewReader(o.jobSpec))
 	if err != nil {
 		return verdict{}, false, fmt.Errorf("failed to build request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
-	if o.Token != "" {
-		req.Header.Set("Authorization", "Bearer "+o.Token)
-	}
 
 	resp, err := o.client.Do(req)
 	if err != nil {
