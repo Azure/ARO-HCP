@@ -17,6 +17,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -29,9 +30,14 @@ const pollIntervalSec = 20
 
 // drainPool cordons every node in `pool` before evicting pods. Cordon
 // failure is fatal: if new pods can still land on the node, the drain
-// phase is not reliable. Force=true lets drain remove unmanaged pods
-// instead of getting stuck; the subsequent pool delete is the
-// authoritative cleanup either way.
+// phase is not reliable. Force=true additionally lets DeleteOrEvictPods
+// remove unmanaged pods instead of getting stuck, but a failure evicting
+// pods is still returned to the caller (not swallowed): whether that's
+// fatal is a caller decision — the system pool caller treats it as fatal
+// (stop, needs human review, before deleting a pool running
+// CriticalAddonsOnly workloads), while the temp-pool cleanup caller treats
+// it as non-fatal (log and proceed, since the pool delete itself is the
+// authoritative cleanup either way).
 func (c *clients) drainPool(ctx context.Context, pool string, timeout time.Duration) error {
 	if c.kube == nil {
 		return fmt.Errorf("kube client not bootstrapped; cannot drain pool %s", pool)
@@ -59,6 +65,7 @@ func (c *clients) drainPool(ctx context.Context, pool string, timeout time.Durat
 		Out:                 &out,
 		ErrOut:              &errOut,
 	}
+	var evictErrs []error
 	for _, n := range nodes.Items {
 		name := n.Name
 		logf(">>> cordoning %s", name)
@@ -77,7 +84,8 @@ func (c *clients) drainPool(ctx context.Context, pool string, timeout time.Durat
 			logf("WARN: drain warnings for %s: %s", name, warnings)
 		}
 		if err := drainer.DeleteOrEvictPods(podList.Pods()); err != nil {
-			logf("WARN: drain %s returned: %v (continuing; pool delete will force-evict)", name, err)
+			logf("WARN: evict pods for %s returned: %v (continuing to next node; caller decides if this is fatal)", name, err)
+			evictErrs = append(evictErrs, fmt.Errorf("node %s: %w", name, err))
 		}
 	}
 	if out.Len() > 0 {
@@ -85,6 +93,9 @@ func (c *clients) drainPool(ctx context.Context, pool string, timeout time.Durat
 	}
 	if errOut.Len() > 0 {
 		logf("drain stderr: %s", errOut.String())
+	}
+	if len(evictErrs) > 0 {
+		return fmt.Errorf("eviction failed on %d node(s) in pool %s: %w", len(evictErrs), pool, errors.Join(evictErrs...))
 	}
 	return nil
 }

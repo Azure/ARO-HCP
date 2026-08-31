@@ -73,6 +73,11 @@ type systemPoolConfig struct {
 	resourceGroup  string
 	clusterName    string
 	vnetName       string
+	// location is the cluster's ARM location. It is not an env var; it is
+	// populated at runtime from the live ManagedCluster (mc.Location) once
+	// the cluster is known to exist, since it drives the same
+	// locationAvailabilityZoneList defaulting mgmt-cluster.bicep applies.
+	location string
 
 	poolName          string
 	vmSize            string
@@ -104,15 +109,30 @@ func subnetResourceID(subscriptionID, resourceGroup, vnetName, subnetName string
 	)
 }
 
-// desiredAvailabilityZones reproduces aks-cluster-base.bicep's
-// systemPoolZonesArray ternary:
+// desiredAvailabilityZones reproduces mgmt-cluster.bicep's zone resolution
+// in two steps:
 //
-//	systemZoneRedundantMode == 'Enabled'
-//	  || (systemZoneRedundantMode == 'Auto' && length(systemAgentPoolZones) > 0)
-//	  ? systemAgentPoolZones : null
-func desiredAvailabilityZones(mode string, zones []string) []*string {
-	if mode == "Enabled" || (mode == "Auto" && len(zones) > 0) {
-		return toPtrSlice(zones)
+//  1. systemAgentPoolZones input defaulting (mgmt-cluster.bicep):
+//     length(csvToArray(zones)) > 0 ? csvToArray(zones) : locationAvailabilityZoneList
+//     i.e. an empty config.yaml zones CSV does NOT mean "no zones" — it
+//     means "default to every zone the location supports".
+//  2. aks-cluster-base.bicep's systemPoolZonesArray ternary, applied to the
+//     already-resolved list from step 1:
+//     systemZoneRedundantMode == 'Enabled'
+//     || (systemZoneRedundantMode == 'Auto' && length(resolvedZones) > 0)
+//     ? resolvedZones : null
+//
+// Skipping step 1 (i.e. using the raw, possibly-empty config zones instead
+// of the resolved list) would make every zonal region with an empty
+// mgmt.aks.systemAgentPool.zones report a permanent AvailabilityZones drift
+// and trigger an unnecessary, destructive system pool recreate every run.
+func desiredAvailabilityZones(mode string, zones []string, location string) []*string {
+	resolved := zones
+	if len(resolved) == 0 {
+		resolved = locationAvailabilityZones(location)
+	}
+	if mode == "Enabled" || (mode == "Auto" && len(resolved) > 0) {
+		return toPtrSlice(resolved)
 	}
 	return nil
 }
@@ -165,7 +185,7 @@ func desiredAgentPool(cfg *systemPoolConfig, poolName string, cpVersion string) 
 			VnetSubnetID:        &nodeSubnetID,
 			PodSubnetID:         &podSubnetID,
 			MaxPods:             &maxPods,
-			AvailabilityZones:   desiredAvailabilityZones(cfg.zoneRedundantMode, cfg.zones),
+			AvailabilityZones:   desiredAvailabilityZones(cfg.zoneRedundantMode, cfg.zones, cfg.location),
 			OrchestratorVersion: &orchestratorVersion,
 			SecurityProfile: &armcs.AgentPoolSecurityProfile{
 				EnableSecureBoot: &falseVal,
@@ -257,6 +277,12 @@ func diffAgentPool(desired, live *armcs.AgentPool) []string {
 	cmpStrMap("nodeLabels", strPtrMapToStrings(d.NodeLabels), strPtrMapToStrings(l.NodeLabels), add)
 	cmpStrSlice("nodeTaints", ptrSliceToStrings(d.NodeTaints), ptrSliceToStrings(l.NodeTaints), add)
 	cmpStrMap("tags", stripAKSManagedTags(strPtrMapToStrings(d.Tags)), stripAKSManagedTags(strPtrMapToStrings(l.Tags)), add)
+
+	// Structural safety net: diff every field on the properties struct that
+	// isn't explicitly compared above or explicitly ignored (see
+	// field_registry.go). Catches drift in fields this function doesn't yet
+	// know about instead of silently dropping them on recreate.
+	diffs = append(diffs, genericFieldDiff(d, l)...)
 
 	return diffs
 }

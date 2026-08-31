@@ -16,6 +16,7 @@ package main
 
 import (
 	"encoding/json"
+	"reflect"
 	"testing"
 
 	armcs "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v6"
@@ -138,23 +139,30 @@ func TestDesiredAgentPool_IgnoresReadOnlyAndAKSManagedFields(t *testing.T) {
 
 func TestDesiredAvailabilityZones(t *testing.T) {
 	tests := []struct {
-		name  string
-		mode  string
-		zones []string
-		want  []string
+		name     string
+		mode     string
+		zones    []string
+		location string
+		want     []string
 	}{
-		{"enabled with zones", "Enabled", []string{"1", "2", "3"}, []string{"1", "2", "3"}},
-		{"enabled without zones", "Enabled", nil, nil},
-		{"auto with zones", "Auto", []string{"1", "2"}, []string{"1", "2"}},
-		{"auto without zones", "Auto", nil, nil},
-		{"disabled with zones", "Disabled", []string{"1", "2"}, nil},
-		{"disabled without zones", "Disabled", nil, nil},
+		{"enabled with explicit zones", "Enabled", []string{"1", "2", "3"}, "asia", []string{"1", "2", "3"}},
+		{"enabled without zones, zonal location", "Enabled", nil, "uksouth", []string{"1", "2", "3"}},
+		{"enabled without zones, non-zonal location", "Enabled", nil, "asia", nil},
+		{"auto with explicit zones", "Auto", []string{"1", "2"}, "asia", []string{"1", "2"}},
+		// Regression test for the case aks-cluster-base.bicep's ternary alone
+		// gets wrong if you skip mgmt-cluster.bicep's upstream defaulting: an
+		// empty config.yaml zones CSV in a zonal region does NOT mean "no
+		// zones", it means "default to every zone the location supports".
+		{"auto without zones, zonal location", "Auto", nil, "uksouth", []string{"1", "2", "3"}},
+		{"auto without zones, non-zonal location", "Auto", nil, "asia", nil},
+		{"disabled with explicit zones", "Disabled", []string{"1", "2"}, "uksouth", nil},
+		{"disabled without zones", "Disabled", nil, "uksouth", nil},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := ptrSliceToStrings(desiredAvailabilityZones(tt.mode, tt.zones))
+			got := ptrSliceToStrings(desiredAvailabilityZones(tt.mode, tt.zones, tt.location))
 			if !stringSlicesEqual(got, tt.want) {
-				t.Fatalf("mode=%s zones=%v: want %v, got %v", tt.mode, tt.zones, tt.want, got)
+				t.Fatalf("mode=%s zones=%v location=%s: want %v, got %v", tt.mode, tt.zones, tt.location, tt.want, got)
 			}
 		})
 	}
@@ -302,4 +310,80 @@ func indexOf(s, substr string) int {
 		}
 	}
 	return -1
+}
+
+// TestAgentPoolFieldRegistryComplete is the CI-time half of the safety net
+// documented in field_registry.go: it fails the moment a future Azure SDK
+// bump adds, removes, or renames a field on
+// armcs.ManagedClusterAgentPoolProfileProperties, forcing a deliberate
+// "compared / ignored / generic" triage decision in that PR instead of the
+// tool silently mishandling the new field at runtime.
+func TestAgentPoolFieldRegistryComplete(t *testing.T) {
+	typ := reflect.TypeOf(armcs.ManagedClusterAgentPoolProfileProperties{})
+
+	for i := 0; i < typ.NumField(); i++ {
+		name := typ.Field(i).Name
+		if _, ok := agentPoolFieldReasons[name]; !ok {
+			t.Errorf(
+				"field %q on armcs.ManagedClusterAgentPoolProfileProperties is not registered in agentPoolFieldReasons.\n"+
+					"The Azure SDK likely gained a new field. Add an entry categorizing it as:\n"+
+					"  \"compared: ...\" if desiredAgentPool sets it and diffAgentPool explicitly diffs it\n"+
+					"  \"ignored: ...\"  if it must never be diffed (read-only/status field), with a reason\n"+
+					"  \"generic: ...\"  to let genericFieldDiff structurally diff it automatically\n"+
+					"and add its JSON key to agentPoolFieldJSONKey.", name)
+		}
+		if _, ok := agentPoolFieldJSONKey[name]; !ok {
+			t.Errorf("field %q on armcs.ManagedClusterAgentPoolProfileProperties has no entry in agentPoolFieldJSONKey; add its ARM JSON key (see models_serde.go's MarshalJSON)", name)
+		}
+	}
+
+	for name := range agentPoolFieldReasons {
+		if _, ok := typ.FieldByName(name); !ok {
+			t.Errorf("agentPoolFieldReasons has stale entry %q that no longer exists on armcs.ManagedClusterAgentPoolProfileProperties; remove it", name)
+		}
+	}
+	for name := range agentPoolFieldJSONKey {
+		if _, ok := typ.FieldByName(name); !ok {
+			t.Errorf("agentPoolFieldJSONKey has stale entry %q that no longer exists on armcs.ManagedClusterAgentPoolProfileProperties; remove it", name)
+		}
+	}
+}
+
+// TestGenericFieldDiffCatchesUnhandledField proves the runtime half of the
+// safety net: a field that is neither "compared" nor "ignored" (i.e. left
+// to genericFieldDiff, or not registered at all) surfaces as a diff when
+// live disagrees with desired, instead of being silently dropped.
+func TestGenericFieldDiffCatchesUnhandledField(t *testing.T) {
+	desired := &armcs.ManagedClusterAgentPoolProfileProperties{}
+	live := &armcs.ManagedClusterAgentPoolProfileProperties{
+		// HostGroupID is registered as "generic" (not used by the system
+		// pool today); an unexpected live value must still be flagged.
+		HostGroupID: strPtr("/subscriptions/x/.../hostGroups/unexpected"),
+	}
+
+	diffs := genericFieldDiff(desired, live)
+	found := false
+	for _, d := range diffs {
+		if containsAll(d, "hostGroupID") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected genericFieldDiff to flag an unexpected hostGroupID value, got diffs: %v", diffs)
+	}
+}
+
+// TestGenericFieldDiffSkipsExplicitlyHandledFields proves genericFieldDiff
+// does not double-report fields already covered by diffAgentPool's
+// explicit cmpXxx calls (e.g. vmSize), even when they differ.
+func TestGenericFieldDiffSkipsExplicitlyHandledFields(t *testing.T) {
+	desired := &armcs.ManagedClusterAgentPoolProfileProperties{VMSize: strPtr("Standard_D4s_v5")}
+	live := &armcs.ManagedClusterAgentPoolProfileProperties{VMSize: strPtr("Standard_D8s_v5")}
+
+	diffs := genericFieldDiff(desired, live)
+	for _, d := range diffs {
+		if containsAll(d, "vmSize") {
+			t.Fatalf("expected genericFieldDiff to skip explicitly-compared field vmSize, got: %v", diffs)
+		}
+	}
 }

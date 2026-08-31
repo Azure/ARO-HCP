@@ -151,6 +151,13 @@ func runWith(ctx context.Context, cfg *systemPoolConfig, c *clients) error {
 	if cpVersion == "" {
 		return errors.New("cluster currentKubernetesVersion empty; refusing to act")
 	}
+	// location is not an env var; it drives the same zone defaulting
+	// mgmt-cluster.bicep applies (see desiredAvailabilityZones), so it must
+	// come from the live cluster to stay authoritative.
+	cfg.location = strDeref(mc.Location)
+	if cfg.location == "" {
+		return errors.New("cluster location empty; refusing to act")
+	}
 
 	logBanner("DIFF CHECK")
 	live, err := c.getPool(ctx, cfg, cfg.poolName)
