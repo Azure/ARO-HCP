@@ -21,14 +21,17 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/equality"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilsclock "k8s.io/utils/clock"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/statusutils"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -43,6 +46,11 @@ type nodePoolDegradedAggregator struct {
 	inertia           statusutils.Inertia
 	clock             utilsclock.PassiveClock
 	firstObservedBad  *statusutils.FirstObservedBadCache
+	// applyDesireLister and readDesireLister expose the node pool's
+	// kube-applier ApplyDesires/ReadDesires so their (already-True) Degraded
+	// conditions can be folded into the same aggregate Degraded condition.
+	applyDesireLister kubeapplierlisters.ApplyDesireLister
+	readDesireLister  kubeapplierlisters.ReadDesireLister
 }
 
 var _ controllerutils.NodePoolSyncer = (*nodePoolDegradedAggregator)(nil)
@@ -73,6 +81,11 @@ func NewNodePoolDegradedAggregatorController(
 	if clock == nil {
 		clock = utilsclock.RealClock{}
 	}
+	// The per-node-pool desire listers are already reachable from the union
+	// kube-applier informers handed to this constructor, so no additional
+	// wiring in the caller is needed.
+	_, applyDesireLister := kubeApplierInformers.ApplyDesires()
+	_, readDesireLister := kubeApplierInformers.ReadDesires()
 	syncer := &nodePoolDegradedAggregator{
 		nodePoolLister:    nodePoolLister,
 		controllerLister:  controllerLister,
@@ -80,6 +93,8 @@ func NewNodePoolDegradedAggregatorController(
 		inertia:           nodePoolDegradedAggregatorInertia(),
 		clock:             clock,
 		firstObservedBad:  statusutils.NewFirstObservedBadCache(clock),
+		applyDesireLister: applyDesireLister,
+		readDesireLister:  readDesireLister,
 	}
 	return controllerutils.NewNodePoolWatchingController(
 		"NodePoolDegradedAggregator",
@@ -105,14 +120,43 @@ func (c *nodePoolDegradedAggregator) SyncOnce(ctx context.Context, key controlle
 		return utils.TrackError(fmt.Errorf("failed to list Controllers from cache: %w", err))
 	}
 
-	// observed is true when the node pool has controllers, so an all-healthy
-	// node pool reports Degraded=False/AsExpected instead of Unknown/NoData
-	// (the latter is reserved for a node pool with no controllers at all).
-	aggregated := statusutils.DegradedFromSources(
+	// ListForNodePool returns exactly the node-pool-scoped desires for this node
+	// pool (desires nested under a node pool are node-pool-scoped), so no extra
+	// scope filtering is needed here — cluster-scoped and other node pools'
+	// desires are not returned.
+	applyDesires, err := c.applyDesireLister.ListForNodePool(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to list ApplyDesires from cache: %w", err))
+	}
+
+	readDesires, err := c.readDesireLister.ListForNodePool(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to list ReadDesires from cache: %w", err))
+	}
+
+	// Fold the node pool's controllers together with any degraded
+	// node-pool-scoped ApplyDesire/ReadDesire into a single "Degraded"
+	// condition. Unlike controllers, only actually-degraded desires are counted
+	// (see statusutils.CollectDegradedDesireConditions); healthy or
+	// not-yet-reported desires contribute nothing to the aggregate. With
+	// report-only-degraded filtering, an all-healthy node pool produces zero
+	// sources and UnionCondition returns Degraded=Unknown/NoData ("no data").
+	sources := statusutils.CollectDegradedConditions(controllers, c.firstObservedBad)
+	sources = append(sources, statusutils.CollectDegradedDesireConditions(
+		statusutils.ApplyDesireSourcePrefix, applyDesires,
+		func(d *kubeapplierapi.ApplyDesire) []metav1.Condition { return d.Status.Conditions },
+	)...)
+	sources = append(sources, statusutils.CollectDegradedDesireConditions(
+		statusutils.ReadDesireSourcePrefix, readDesires,
+		func(d *kubeapplierapi.ReadDesire) []metav1.Condition { return d.Status.Conditions },
+	)...)
+
+	aggregated := statusutils.UnionCondition(
+		statusutils.DegradedConditionType,
+		metav1.ConditionFalse,
 		c.inertia,
 		c.clock.Now(),
-		len(controllers) > 0,
-		statusutils.CollectDegradedConditions(controllers, c.firstObservedBad)...,
+		sources...,
 	)
 
 	replacement := existing.DeepCopy()

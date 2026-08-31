@@ -107,15 +107,16 @@ func TestExternalAuthDegradedAggregator_SyncOnce(t *testing.T) {
 			expectMessage: "",
 		},
 		{
-			name: "all-good aggregate: healthy controller omitted from message",
+			name: "all controllers healthy -> no degraded sources -> Unknown/NoData",
 			controllers: []*coreapi.Controller{
 				statusutils.ControllerUnder(parentResourceID, "AController", metav1.ConditionFalse, "NoErrors", "fine", 1*time.Minute),
 			},
-			inertia:      thirtySecondInertia,
-			expectStatus: metav1.ConditionFalse,
-			expectReason: "AsExpected",
-			// Healthy controllers are no longer emitted as sources -> empty-but-observed.
-			expectMessage: "All is well",
+			inertia: thirtySecondInertia,
+			// Healthy controllers are not emitted as sources, so UnionCondition
+			// sees zero sources and reports Unknown/NoData ("no data").
+			expectStatus:  metav1.ConditionUnknown,
+			expectReason:  "NoData",
+			expectMessage: "",
 		},
 		{
 			name: "bad controller within 30s inertia stays hidden",
@@ -173,17 +174,18 @@ func TestExternalAuthDegradedAggregator_SyncOnce(t *testing.T) {
 				statusutils.ControllerUnder(parentResourceID, "AController", metav1.ConditionFalse, "NoErrors", "fine", 1*time.Minute),
 			},
 			inertia: thirtySecondInertia,
+			// The single healthy controller yields zero sources -> Unknown/NoData;
+			// pre-seeding that exercises the no-op (skip Replace) path.
 			initialConditions: []metav1.Condition{
 				{
-					Type:    statusutils.DegradedConditionType,
-					Status:  metav1.ConditionFalse,
-					Reason:  "AsExpected",
-					Message: "All is well",
+					Type:   statusutils.DegradedConditionType,
+					Status: metav1.ConditionUnknown,
+					Reason: "NoData",
 				},
 			},
-			expectStatus:  metav1.ConditionFalse,
-			expectReason:  "AsExpected",
-			expectMessage: "All is well",
+			expectStatus:  metav1.ConditionUnknown,
+			expectReason:  "NoData",
+			expectMessage: "",
 		},
 	}
 

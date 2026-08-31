@@ -16,7 +16,6 @@ package statusutils
 
 import (
 	"strings"
-	"time"
 
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -169,34 +168,4 @@ func CollectDegradedDesireConditions[T coreapi.CosmosMetadataAccessor](
 		})
 	}
 	return out
-}
-
-// DegradedFromSources aggregates Degraded SourcedConditions exactly like
-// UnionCondition (conditionType=DegradedConditionType, defaultStatus=
-// ConditionFalse), with one refinement for the empty case.
-//
-// Now that CollectDegradedConditions no longer emits healthy (ConditionFalse)
-// controllers as sources, a parent whose controllers are all healthy produces
-// zero Degraded sources — which UnionCondition reports as Unknown/NoData
-// ("no data"). That is correct when nothing was observed, but wrong for a
-// parent we HAVE observed and found entirely healthy. The observed flag
-// distinguishes the two: when it is true and there are no degraded sources,
-// the result is an explicit not-degraded condition (ConditionFalse /
-// AsExpected / "All is well") instead of Unknown/NoData.
-//
-// observed should reflect whether any Degraded-reporting objects (controllers)
-// existed for the parent, so a parent with genuinely no controllers still
-// reports Unknown/NoData. This wraps UnionCondition rather than modifying it,
-// so every other UnionCondition caller is unaffected.
-func DegradedFromSources(inertia Inertia, now time.Time, observed bool, sources ...SourcedCondition) metav1.Condition {
-	aggregated := UnionCondition(DegradedConditionType, metav1.ConditionFalse, inertia, now, sources...)
-	if observed && aggregated.Status == metav1.ConditionUnknown && aggregated.Reason == "NoData" {
-		return metav1.Condition{
-			Type:    DegradedConditionType,
-			Status:  metav1.ConditionFalse,
-			Reason:  "AsExpected",
-			Message: "All is well",
-		}
-	}
-	return aggregated
 }

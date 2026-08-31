@@ -121,17 +121,17 @@ func TestClusterDegradedAggregator_SyncOnce(t *testing.T) {
 			expectMessage: "",
 		},
 		{
-			name: "all controllers healthy -> aggregate False/AsExpected, healthy controllers omitted from message",
+			name: "all controllers healthy -> no degraded sources -> Unknown/NoData",
 			controllers: []*coreapi.Controller{
 				statusutils.ControllerUnder(parentResourceID, "AController", metav1.ConditionFalse, "NoErrors", "fine", 1*time.Minute),
 				statusutils.ControllerUnder(parentResourceID, "BController", metav1.ConditionFalse, "NoErrors", "ok", 1*time.Minute),
 			},
-			inertia:      thirtySecondInertia,
-			expectStatus: metav1.ConditionFalse,
-			expectReason: "AsExpected",
-			// Healthy controllers are no longer emitted as sources, so the message
-			// is the empty-but-observed "All is well" rather than listing them.
-			expectMessage: "All is well",
+			inertia: thirtySecondInertia,
+			// Healthy controllers are not emitted as sources, so UnionCondition
+			// sees zero sources and reports Unknown/NoData ("no data").
+			expectStatus:  metav1.ConditionUnknown,
+			expectReason:  "NoData",
+			expectMessage: "",
 		},
 		{
 			name: "bad controller within 30s inertia is hidden -> aggregate stays default",
@@ -246,22 +246,19 @@ func TestClusterDegradedAggregator_SyncOnce(t *testing.T) {
 				statusutils.ControllerUnder(parentResourceID, "AController", metav1.ConditionFalse, "NoErrors", "fine", 1*time.Minute),
 			},
 			inertia: thirtySecondInertia,
-			// Pre-seed the cluster with the same Degraded=False/AsExpected condition
-			// that the aggregator will compute. The aggregator must detect the no-op
-			// and skip the Replace; we still verify the resulting condition matches.
-			// The single healthy controller is omitted, so the computed message is
-			// the empty-but-observed "All is well".
+			// The single healthy controller yields zero sources -> Unknown/NoData.
+			// Pre-seed that so the aggregator detects the no-op and skips the
+			// Replace; we still verify the resulting condition matches.
 			initialConditions: []metav1.Condition{
 				{
-					Type:    statusutils.DegradedConditionType,
-					Status:  metav1.ConditionFalse,
-					Reason:  "AsExpected",
-					Message: "All is well",
+					Type:   statusutils.DegradedConditionType,
+					Status: metav1.ConditionUnknown,
+					Reason: "NoData",
 				},
 			},
-			expectStatus:  metav1.ConditionFalse,
-			expectReason:  "AsExpected",
-			expectMessage: "All is well",
+			expectStatus:  metav1.ConditionUnknown,
+			expectReason:  "NoData",
+			expectMessage: "",
 		},
 		{
 			name: "degraded ApplyDesire past inertia folds into cluster Degraded=True",
@@ -308,12 +305,12 @@ func TestClusterDegradedAggregator_SyncOnce(t *testing.T) {
 			readDesires: []*kubeapplierapi.ReadDesire{
 				statusutils.ReadDesireUnder(parentResourceID, "read-none"),
 			},
-			inertia:      thirtySecondInertia,
-			expectStatus: metav1.ConditionFalse,
-			expectReason: "AsExpected",
+			inertia: thirtySecondInertia,
 			// The healthy controller and the healthy/condition-less desires are all
-			// omitted, so nothing degraded remains -> empty-but-observed "All is well".
-			expectMessage: "All is well",
+			// omitted, so there are zero sources -> Unknown/NoData ("no data").
+			expectStatus:  metav1.ConditionUnknown,
+			expectReason:  "NoData",
+			expectMessage: "",
 		},
 		{
 			name:        "degraded ApplyDesire within inertia is hidden but surfaced in the message",
@@ -343,12 +340,12 @@ func TestClusterDegradedAggregator_SyncOnce(t *testing.T) {
 				statusutils.NodePoolScopedReadDesireUnder(parentResourceID, statusutils.TestNodePoolName, "np-read",
 					statusutils.DegradedConditionAged(metav1.ConditionTrue, "Failed", "np kaboom", 1*time.Minute)),
 			},
-			inertia:      thirtySecondInertia,
-			expectStatus: metav1.ConditionFalse,
-			expectReason: "AsExpected",
-			// Only the healthy controller was observed; the node-pool-nested degraded
-			// desires are filtered out, so nothing degraded remains -> "All is well".
-			expectMessage: "All is well",
+			inertia: thirtySecondInertia,
+			// The node-pool-nested degraded desires are filtered out and the
+			// controller is healthy, so there are zero sources -> Unknown/NoData.
+			expectStatus:  metav1.ConditionUnknown,
+			expectReason:  "NoData",
+			expectMessage: "",
 		},
 		{
 			name: "cluster-scoped degraded desire folds in while a node-pool-nested degraded desire is excluded",
