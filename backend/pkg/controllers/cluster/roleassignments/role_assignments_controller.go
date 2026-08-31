@@ -17,6 +17,7 @@ package roleassignments
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -139,6 +140,9 @@ func (c *roleAssignmentsSyncer) NeedsWork(cluster *coreapi.HCPOpenShiftCluster, 
 
 	roleAssignments := serviceProviderCluster.Status.AzureResources.RoleAssignments
 	if len(roleAssignments.PendingAzureResources) != 0 {
+		return true
+	}
+	if len(expected) != len(roleAssignments.AzureResources) {
 		return true
 	}
 	for _, expectedID := range expected {
@@ -323,7 +327,6 @@ func (c *roleAssignmentsSyncer) expectedRoleAssignmentIDs(cluster *coreapi.HCPOp
 	if err != nil {
 		return nil, fmt.Errorf("failed to build managed resource group scope for cluster %q: %w", cluster.ID.String(), err)
 	}
-	scope := scopeID.String()
 
 	userAssignedIdentities := cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities
 
@@ -339,7 +342,7 @@ func (c *roleAssignmentsSyncer) expectedRoleAssignmentIDs(cluster *coreapi.HCPOp
 		if err != nil {
 			return nil, err
 		}
-		expected, err = appendRoleAssignmentIDs(expected, scope, principalID, roleDefinitionIDs)
+		expected, err = appendRoleAssignmentIDs(expected, scopeID.String(), principalID, roleDefinitionIDs)
 		if err != nil {
 			return nil, err
 		}
@@ -355,7 +358,7 @@ func (c *roleAssignmentsSyncer) expectedRoleAssignmentIDs(cluster *coreapi.HCPOp
 		if err != nil {
 			return nil, err
 		}
-		expected, err = appendRoleAssignmentIDs(expected, scope, principalID, roleDefinitionIDs)
+		expected, err = appendRoleAssignmentIDs(expected, scopeID.String(), principalID, roleDefinitionIDs)
 		if err != nil {
 			return nil, err
 		}
@@ -492,12 +495,9 @@ func (c *roleAssignmentsSyncer) roleAssignmentsClient(ctx context.Context, subsc
 // containsResourceID reports whether target is present in list, comparing resource IDs
 // with controllerutils.ResourceIDsEqual.
 func containsResourceID(list []*azcorearm.ResourceID, target *azcorearm.ResourceID) bool {
-	for _, id := range list {
-		if controllerutil.ResourceIDsEqual(id, target) {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(list, func(id *azcorearm.ResourceID) bool {
+		return controllerutil.ResourceIDsEqual(id, target)
+	})
 }
 
 // resourceIDStrings renders resource IDs for structured logging.
