@@ -52,12 +52,18 @@ type ExternalAuthStatus struct {
 
 	// UserFacingConditions is a list of conditions that tracks user-facing external auth
 	// conditions. Each Condition Type should be unique among all conditions.
+	// Known condition types are:
+	// - "Degraded": True when at least one external auth subsystem has an issue.
+	//   Messages are prefixed with the source condition type (e.g. "OIDCClientsDegraded: ...").
+	//   False when all subsystems are operational. Unknown when internal conditions
+	//   have not been reported yet.
 	// The conditions here are exposed to the ARM API. This means that UserFacingConditions
 	// must not contain any internal details. This also means the Type and Reason
 	// values become part of the public API.
 	// Addition of new conditions here should be done only when strictly necessary, sparingly and only done
 	// when there is a clear benefit to doing so. We expect the number of conditions at this
 	// level to be kept to a minimum.
+	// Written by: ExternalAuthUserFacingDegradedAggregator
 	// +optional
 	// +patchMergeKey=type
 	// +patchStrategy=merge
