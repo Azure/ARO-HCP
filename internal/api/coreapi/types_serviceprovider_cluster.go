@@ -124,19 +124,6 @@ type ServiceProviderClusterSpec struct {
 	// It is set once by the PlacementController and is not otherwise mutated.
 	// Written by: PlacementController
 	ManagementClusterResourceID *azcorearm.ResourceID `json:"managementClusterResourceID,omitempty"`
-
-	// ManagementClusterPlacementTime records when the PlacementController first
-	// resolved placement for this HCP — i.e. the moment ManagementClusterResourceID
-	// was set. It is written once, atomically with the ManagementClusterResourceID
-	// intent, and preserved across any later re-write/backfill so it marks the time
-	// of placement rather than the latest reconcile. Nil until the cluster is placed.
-	//
-	// It is exposed kube-state-metrics style as the
-	// backend_cluster_placement_time_seconds gauge (a unix timestamp, not a
-	// duration); time-to-placement is computed in PromQL against the cluster's
-	// creation timestamp.
-	// Written by: PlacementController
-	ManagementClusterPlacementTime *metav1.Time `json:"managementClusterPlacementTime,omitempty"`
 }
 
 // ServiceProviderClusterSpecVersion contains the desired version information.

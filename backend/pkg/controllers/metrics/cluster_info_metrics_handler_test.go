@@ -17,16 +17,12 @@ package metrics
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/require"
-
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -148,19 +144,13 @@ backend_cluster_info{management_cluster_resource_id="%s",resource_id="%s",subscr
 	require.NoError(t, testutil.GatherAndCompare(reg, strings.NewReader(expected), "backend_cluster_info"))
 }
 
-func TestClusterInfoMetricsHandler_PlacementTime(t *testing.T) {
+func TestClusterInfoMetricsHandler_PhaseInfo(t *testing.T) {
 	clusterResourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1"))
 	spcResourceID := metadataapi.Must(azcorearm.ParseResourceID(clusterResourceID.String() + "/serviceProviderClusters/default"))
 	mcResourceID := metadataapi.Must(azcorearm.ParseResourceID("/providers/microsoft.redhatopenshift/stamps/1/managementclusters/default"))
 
-	// A real placement timestamp; the gauge value is its unix-seconds representation.
-	placedAt := metav1.Date(2026, 1, 1, 12, 2, 0, 0, time.UTC)
-	// Format the expected value exactly as the prometheus text exposition does
-	// (strconv 'g', -1, 64) so large unix timestamps compare correctly.
-	placedValue := strconv.FormatFloat(float64(placedAt.Unix()), 'g', -1, 64)
-
-	placementTimeHeader := `# HELP backend_cluster_placement_time_seconds Unix timestamp (seconds) at which the scheduler recorded a management-cluster placement (Spec.ManagementClusterPlacementTime). Emitted per cluster once placement intent is set; kube-state-metrics style — compute time-to-placement in PromQL against the cluster's creation timestamp.
-# TYPE backend_cluster_placement_time_seconds gauge
+	phaseHeader := `# HELP backend_cluster_phase_info Current scheduling phase of the cluster. Value is always 1 for the cluster's current phase; kube-state-metrics style. Exactly one series per cluster. Phases: Initializing (placement not yet resolved), Scheduled (a management cluster has been selected).
+# TYPE backend_cluster_phase_info gauge
 `
 
 	tests := []struct {
@@ -169,23 +159,16 @@ func TestClusterInfoMetricsHandler_PlacementTime(t *testing.T) {
 		expected string
 	}{
 		{
-			name: "emitted as the placement unix timestamp when intent and timestamp are set",
-			spec: coreapi.ServiceProviderClusterSpec{
-				ManagementClusterResourceID:    mcResourceID,
-				ManagementClusterPlacementTime: &placedAt,
-			},
-			expected: placementTimeHeader + fmt.Sprintf(`backend_cluster_placement_time_seconds{resource_id="%s",subscription_id="%s"} %s
-`, resourceIDMetricLabel(clusterResourceID), subscriptionIDMetricLabel(clusterResourceID), placedValue),
+			name: "Initializing while placement intent is unset",
+			spec: coreapi.ServiceProviderClusterSpec{},
+			expected: phaseHeader + fmt.Sprintf(`backend_cluster_phase_info{phase="Initializing",resource_id="%s",subscription_id="%s"} 1
+`, resourceIDMetricLabel(clusterResourceID), subscriptionIDMetricLabel(clusterResourceID)),
 		},
 		{
-			name:     "not emitted while placement intent is unset",
-			spec:     coreapi.ServiceProviderClusterSpec{ManagementClusterPlacementTime: &placedAt},
-			expected: "",
-		},
-		{
-			name:     "not emitted when the placement timestamp is nil",
-			spec:     coreapi.ServiceProviderClusterSpec{ManagementClusterResourceID: mcResourceID},
-			expected: "",
+			name: "Scheduled once placement intent is set",
+			spec: coreapi.ServiceProviderClusterSpec{ManagementClusterResourceID: mcResourceID},
+			expected: phaseHeader + fmt.Sprintf(`backend_cluster_phase_info{phase="Scheduled",resource_id="%s",subscription_id="%s"} 1
+`, resourceIDMetricLabel(clusterResourceID), subscriptionIDMetricLabel(clusterResourceID)),
 		},
 	}
 
@@ -197,50 +180,46 @@ func TestClusterInfoMetricsHandler_PlacementTime(t *testing.T) {
 				CosmosMetadata: coreapi.CosmosMetadata{ResourceID: spcResourceID},
 				Spec:           tc.spec,
 			})
-			require.NoError(t, testutil.GatherAndCompare(reg, strings.NewReader(tc.expected), "backend_cluster_placement_time_seconds"))
+			require.NoError(t, testutil.GatherAndCompare(reg, strings.NewReader(tc.expected), "backend_cluster_phase_info"))
 		})
 	}
 }
 
-func TestClusterInfoMetricsHandler_PlacementTimeClearedWhenIntentRemoved(t *testing.T) {
+func TestClusterInfoMetricsHandler_PhaseInfoTransitionClearsStaleSeries(t *testing.T) {
 	clusterResourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1"))
 	spcResourceID := metadataapi.Must(azcorearm.ParseResourceID(clusterResourceID.String() + "/serviceProviderClusters/default"))
 	mcResourceID := metadataapi.Must(azcorearm.ParseResourceID("/providers/microsoft.redhatopenshift/stamps/1/managementclusters/default"))
-	placedAt := metav1.Date(2026, 1, 1, 12, 2, 0, 0, time.UTC)
 
 	reg := prometheus.NewRegistry()
 	handler := NewClusterInfoMetricsHandler(reg)
 
-	// Placed with a timestamp: the series is emitted.
-	handler.Sync(context.Background(), &coreapi.ServiceProviderCluster{
-		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: spcResourceID},
-		Spec: coreapi.ServiceProviderClusterSpec{
-			ManagementClusterResourceID:    mcResourceID,
-			ManagementClusterPlacementTime: &placedAt,
-		},
-	})
-	// Intent cleared: the placement-time series must be removed.
+	// First unplaced (Initializing).
 	handler.Sync(context.Background(), &coreapi.ServiceProviderCluster{
 		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: spcResourceID},
 	})
-	require.NoError(t, testutil.GatherAndCompare(reg, strings.NewReader(""), "backend_cluster_placement_time_seconds"))
+	// Then placed (Scheduled): the stale Initializing series must be cleared so only
+	// the current phase remains.
+	handler.Sync(context.Background(), &coreapi.ServiceProviderCluster{
+		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: spcResourceID},
+		Spec:           coreapi.ServiceProviderClusterSpec{ManagementClusterResourceID: mcResourceID},
+	})
+
+	expected := fmt.Sprintf(`# HELP backend_cluster_phase_info Current scheduling phase of the cluster. Value is always 1 for the cluster's current phase; kube-state-metrics style. Exactly one series per cluster. Phases: Initializing (placement not yet resolved), Scheduled (a management cluster has been selected).
+# TYPE backend_cluster_phase_info gauge
+backend_cluster_phase_info{phase="Scheduled",resource_id="%s",subscription_id="%s"} 1
+`, resourceIDMetricLabel(clusterResourceID), subscriptionIDMetricLabel(clusterResourceID))
+	require.NoError(t, testutil.GatherAndCompare(reg, strings.NewReader(expected), "backend_cluster_phase_info"))
 }
 
-func TestClusterInfoMetricsHandler_PlacementTimeDeletedOnDelete(t *testing.T) {
+func TestClusterInfoMetricsHandler_PhaseInfoDeletedOnDelete(t *testing.T) {
 	clusterResourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1"))
 	spcResourceID := metadataapi.Must(azcorearm.ParseResourceID(clusterResourceID.String() + "/serviceProviderClusters/default"))
-	mcResourceID := metadataapi.Must(azcorearm.ParseResourceID("/providers/microsoft.redhatopenshift/stamps/1/managementclusters/default"))
-	placedAt := metav1.Date(2026, 1, 1, 12, 2, 0, 0, time.UTC)
 
 	reg := prometheus.NewRegistry()
 	handler := NewClusterInfoMetricsHandler(reg)
 	handler.Sync(context.Background(), &coreapi.ServiceProviderCluster{
 		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: spcResourceID},
-		Spec: coreapi.ServiceProviderClusterSpec{
-			ManagementClusterResourceID:    mcResourceID,
-			ManagementClusterPlacementTime: &placedAt,
-		},
 	})
 	handler.Delete(strings.ToLower(spcResourceID.String()))
-	require.NoError(t, testutil.GatherAndCompare(reg, strings.NewReader(""), "backend_cluster_placement_time_seconds"))
+	require.NoError(t, testutil.GatherAndCompare(reg, strings.NewReader(""), "backend_cluster_phase_info"))
 }

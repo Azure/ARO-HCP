@@ -25,9 +25,19 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 )
 
+// Cluster scheduling phases emitted as the phase label of backend_cluster_phase_info.
+const (
+	// clusterPhaseInitializing is emitted before the scheduler has resolved
+	// placement (Spec.ManagementClusterResourceID is nil).
+	clusterPhaseInitializing = "Initializing"
+	// clusterPhaseScheduled is emitted once the scheduler has recorded placement
+	// intent (Spec.ManagementClusterResourceID is set).
+	clusterPhaseScheduled = "Scheduled"
+)
+
 type clusterInfoMetricsHandler struct {
-	clusterInfo   *prometheus.GaugeVec
-	placementTime *prometheus.GaugeVec
+	clusterInfo *prometheus.GaugeVec
+	phaseInfo   *prometheus.GaugeVec
 }
 
 // NewClusterInfoMetricsHandler creates a metrics handler that emits, per cluster:
@@ -38,24 +48,23 @@ type clusterInfoMetricsHandler struct {
 //     ServiceProviderCluster.Status.ManagementClusterResourceID). Use PromQL joins
 //     to combine it with other per-cluster metrics.
 //
-//   - backend_cluster_placement_time_seconds: a kube-state-metrics-style gauge
-//     emitted only once the scheduler has recorded placement intent
-//     (ServiceProviderCluster.Spec.ManagementClusterResourceID is set). Its value
-//     is the unix timestamp (seconds) at which placement was recorded
-//     (Spec.ManagementClusterPlacementTime) — a stable timestamp, not a duration.
-//     Compute time-to-placement in PromQL against the cluster's creation timestamp.
+//   - backend_cluster_phase_info: a kube-state-metrics-style info gauge (value
+//     always 1) carrying the cluster's current scheduling phase as a label.
+//     Exactly one series per cluster: phase="Scheduled" once the scheduler has
+//     recorded placement intent (ServiceProviderCluster.Spec.
+//     ManagementClusterResourceID is set), otherwise phase="Initializing".
 func NewClusterInfoMetricsHandler(registerer prometheus.Registerer) Handler[*coreapi.ServiceProviderCluster] {
 	handler := &clusterInfoMetricsHandler{
 		clusterInfo: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "backend_cluster_info",
 			Help: "Info metric for clusters. Value is always 1.",
 		}, []string{"resource_id", "subscription_id", "management_cluster_resource_id"}),
-		placementTime: prometheus.NewGaugeVec(prometheus.GaugeOpts{
-			Name: "backend_cluster_placement_time_seconds",
-			Help: "Unix timestamp (seconds) at which the scheduler recorded a management-cluster placement (Spec.ManagementClusterPlacementTime). Emitted per cluster once placement intent is set; kube-state-metrics style — compute time-to-placement in PromQL against the cluster's creation timestamp.",
-		}, []string{"resource_id", "subscription_id"}),
+		phaseInfo: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "backend_cluster_phase_info",
+			Help: "Current scheduling phase of the cluster. Value is always 1 for the cluster's current phase; kube-state-metrics style. Exactly one series per cluster. Phases: Initializing (placement not yet resolved), Scheduled (a management cluster has been selected).",
+		}, []string{"resource_id", "subscription_id", "phase"}),
 	}
-	registerer.MustRegister(handler.clusterInfo, handler.placementTime)
+	registerer.MustRegister(handler.clusterInfo, handler.phaseInfo)
 	return handler
 }
 
@@ -75,18 +84,26 @@ func (h *clusterInfoMetricsHandler) Sync(_ context.Context, serviceProviderClust
 		"management_cluster_resource_id": managementClusterResourceID,
 	}).Set(1.0)
 
-	// Placement time (kube-state-metrics style): expose the timestamp at which the
-	// scheduler recorded placement intent (Spec.ManagementClusterPlacementTime) as
-	// unix seconds. Clear any prior series first so an unplaced cluster — or one
-	// without a recorded placement timestamp — carries no stale series.
-	h.placementTime.DeletePartialMatch(prometheus.Labels{"resource_id": resourceID})
-	if serviceProviderCluster.Spec.ManagementClusterResourceID == nil || serviceProviderCluster.Spec.ManagementClusterPlacementTime == nil {
-		return
-	}
-	h.placementTime.With(prometheus.Labels{
+	// Phase (kube-state-metrics style): expose exactly one series per cluster
+	// carrying its current scheduling phase as a label. Clear any prior series
+	// first so a phase transition does not leave a stale series behind.
+	h.phaseInfo.DeletePartialMatch(prometheus.Labels{"resource_id": resourceID})
+	h.phaseInfo.With(prometheus.Labels{
 		"resource_id":     resourceID,
 		"subscription_id": subscriptionID,
-	}).Set(float64(serviceProviderCluster.Spec.ManagementClusterPlacementTime.Unix()))
+		"phase":           clusterPhase(serviceProviderCluster),
+	}).Set(1.0)
+}
+
+// clusterPhase returns the cluster's current scheduling phase for the
+// backend_cluster_phase_info metric: clusterPhaseScheduled once the scheduler has
+// recorded placement intent (Spec.ManagementClusterResourceID is set), otherwise
+// clusterPhaseInitializing.
+func clusterPhase(serviceProviderCluster *coreapi.ServiceProviderCluster) string {
+	if serviceProviderCluster.Spec.ManagementClusterResourceID != nil {
+		return clusterPhaseScheduled
+	}
+	return clusterPhaseInitializing
 }
 
 func (h *clusterInfoMetricsHandler) Delete(key string) {
@@ -98,7 +115,7 @@ func (h *clusterInfoMetricsHandler) Delete(key string) {
 		return
 	}
 	h.clusterInfo.DeletePartialMatch(prometheus.Labels{"resource_id": resourceID})
-	h.placementTime.DeletePartialMatch(prometheus.Labels{"resource_id": resourceID})
+	h.phaseInfo.DeletePartialMatch(prometheus.Labels{"resource_id": resourceID})
 }
 
 func clusterResourceIDFromServiceProviderCluster(serviceProviderCluster *coreapi.ServiceProviderCluster) *azcorearm.ResourceID {

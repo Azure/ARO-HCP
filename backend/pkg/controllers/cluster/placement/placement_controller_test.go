@@ -20,7 +20,6 @@ import (
 	"net/http"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -257,9 +256,11 @@ func TestPlacementSyncer_SyncOnce_Backfill(t *testing.T) {
 	require.NoError(t, err)
 
 	// No eligible MC and no fleet capacity data: proves backfill does NOT run
-	// fresh selection (which would fail).
+	// fresh selection (which would fail). A non-deleting cluster is present so the
+	// deletion guard falls through to the status backfill.
 	syncer := &placementSyncer{
 		serviceProviderClusterLister: &corelistertesting.SliceServiceProviderClusterLister{ServiceProviderClusters: []*coreapi.ServiceProviderCluster{created}},
+		clusterLister:                &corelistertesting.SliceClusterLister{Clusters: []*coreapi.HCPOpenShiftCluster{newTestHCPCluster()}},
 		managementClusterLister:      &fleetlistertesting.SliceManagementClusterLister{},
 		cosmosClient:                 mockDB,
 		fleetDBClient:                fleetcosmosstoragetesting.NewMockFleetDBClient(),
@@ -272,7 +273,6 @@ func TestPlacementSyncer_SyncOnce_Backfill(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, updated.Spec.ManagementClusterResourceID, "Spec must be backfilled from Status")
 	assert.Equal(t, testMgmtClusterResourceID().String(), updated.Spec.ManagementClusterResourceID.String())
-	require.NotNil(t, updated.Spec.ManagementClusterPlacementTime, "placement time must be recorded on backfill")
 }
 
 func TestPlacementSyncer_SyncOnce_FreshSelection(t *testing.T) {
@@ -318,7 +318,6 @@ func TestPlacementSyncer_SyncOnce_FreshSelection(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, updated.Spec.ManagementClusterResourceID)
 	assert.Equal(t, metadataapi.Must(fleetapi.ToManagementClusterResourceID("2")).String(), updated.Spec.ManagementClusterResourceID.String())
-	require.NotNil(t, updated.Spec.ManagementClusterPlacementTime, "placement time must be recorded atomically with the placement intent")
 
 	// Pending reservation recorded on the chosen MC's scheduling doc.
 	scheduling, err := fleetDB.Stamps().ManagementClusters("2").Scheduling().Get(ctx, fleetapi.SchedulingResourceName)
@@ -540,7 +539,6 @@ func TestPlacementSyncer_SyncOnce_PlacementSource(t *testing.T) {
 			if tc.expectedSpec != "" {
 				require.NotNil(t, updated.Spec.ManagementClusterResourceID)
 				assert.Equal(t, tc.expectedSpec, updated.Spec.ManagementClusterResourceID.String())
-				require.NotNil(t, updated.Spec.ManagementClusterPlacementTime, "placement time must be recorded when a placement is written")
 			} else {
 				assert.Nil(t, updated.Spec.ManagementClusterResourceID, "no placement should be written")
 			}
@@ -548,51 +546,56 @@ func TestPlacementSyncer_SyncOnce_PlacementSource(t *testing.T) {
 	}
 }
 
-// TestPlacementSyncer_setSpecPlacement_Timestamp covers the placement-time stamp:
-// it is set on first placement and preserved (not overwritten) when a timestamp
-// already exists, so it marks the moment of placement rather than the latest sync.
-func TestPlacementSyncer_setSpecPlacement_Timestamp(t *testing.T) {
+// TestPlacementSyncer_SyncOnce_SkipsDeletingCluster proves a cluster whose
+// deletion has been requested (HCPOpenShiftCluster.ServiceProviderProperties.
+// DeletionTimestamp is set) is neither placed nor reserved, even though an
+// eligible management cluster with capacity is available — so the skip is due to
+// the deletion guard, not a lack of capacity.
+func TestPlacementSyncer_SyncOnce_SkipsDeletingCluster(t *testing.T) {
 	ctx := context.Background()
-	chosen := testMgmtClusterResourceID()
+
+	// Spec and Status both nil: absent the deletion guard, SyncOnce would
+	// fresh-select and reserve capacity.
+	existing := newTestSPC()
+	mockDB := corecosmosstoragetesting.NewMockResourcesDBClient()
+	spcCRUD := mockDB.ServiceProviderClusters(testClusterSubscriptionID, testClusterResourceGroup, testClusterName)
+	created, err := spcCRUD.Create(ctx, existing, nil)
+	require.NoError(t, err)
+
+	// The HCP is being deleted.
+	deletionTime := metav1.Now()
+	deletingCluster := newTestHCPCluster(func(c *coreapi.HCPOpenShiftCluster) {
+		c.ServiceProviderProperties.DeletionTimestamp = &deletionTime
+	})
+
+	// An eligible MC with free capacity is available and seeded into the fleet DB
+	// so a reservation WOULD succeed if placement ran.
+	sched := schedulingDoc("1", 6, 0, 0, 0)
+	fleetDB := fleetcosmosstoragetesting.NewMockFleetDBClient()
+	_, err = fleetDB.Stamps().ManagementClusters("1").Scheduling().Create(ctx, sched, nil)
+	require.NoError(t, err)
+
+	syncer := &placementSyncer{
+		serviceProviderClusterLister:      &corelistertesting.SliceServiceProviderClusterLister{ServiceProviderClusters: []*coreapi.ServiceProviderCluster{created}},
+		clusterLister:                     &corelistertesting.SliceClusterLister{Clusters: []*coreapi.HCPOpenShiftCluster{deletingCluster}},
+		managementClusterLister:           &fleetlistertesting.SliceManagementClusterLister{ManagementClusters: []*fleetapi.ManagementCluster{mcForStamp("1", true, true)}},
+		managementClusterSchedulingLister: &fleetlistertesting.SliceManagementClusterSchedulingLister{Schedulings: []*fleetapi.ManagementClusterScheduling{sched}},
+		cosmosClient:                      mockDB,
+		fleetDBClient:                     fleetDB,
+	}
+
 	key := controllerutils.HCPClusterKey{SubscriptionID: testClusterSubscriptionID, ResourceGroupName: testClusterResourceGroup, HCPClusterName: testClusterName}
-	preExisting := metav1.NewTime(time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC))
+	require.NoError(t, syncer.SyncOnce(ctx, key))
 
-	tests := []struct {
-		name              string
-		existingPlacement *metav1.Time
-		// wantPreserved, when non-nil, is the timestamp the write must keep intact;
-		// when nil the write must populate a fresh (non-nil) timestamp.
-		wantPreserved *metav1.Time
-	}{
-		{name: "sets placement time on first placement", existingPlacement: nil, wantPreserved: nil},
-		{name: "preserves an existing placement time across re-write", existingPlacement: &preExisting, wantPreserved: &preExisting},
-	}
+	// Not placed: Spec.ManagementClusterResourceID stays nil.
+	updated, err := spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
+	require.NoError(t, err)
+	assert.Nil(t, updated.Spec.ManagementClusterResourceID, "a deleting cluster must not be placed")
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			existing := newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
-				spc.Spec.ManagementClusterPlacementTime = tc.existingPlacement
-			})
-			mockDB := corecosmosstoragetesting.NewMockResourcesDBClient()
-			spcCRUD := mockDB.ServiceProviderClusters(testClusterSubscriptionID, testClusterResourceGroup, testClusterName)
-			created, err := spcCRUD.Create(ctx, existing, nil)
-			require.NoError(t, err)
-
-			syncer := &placementSyncer{
-				serviceProviderClusterLister: &corelistertesting.SliceServiceProviderClusterLister{ServiceProviderClusters: []*coreapi.ServiceProviderCluster{created}},
-				cosmosClient:                 mockDB,
-			}
-			require.NoError(t, syncer.setSpecPlacement(ctx, key, chosen))
-
-			updated, err := spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
-			require.NoError(t, err)
-			require.NotNil(t, updated.Spec.ManagementClusterResourceID)
-			require.NotNil(t, updated.Spec.ManagementClusterPlacementTime, "placement time must be set")
-			if tc.wantPreserved != nil {
-				assert.Equal(t, tc.wantPreserved.Unix(), updated.Spec.ManagementClusterPlacementTime.Unix(), "existing placement time must be preserved")
-			}
-		})
-	}
+	// Not reserved: no PendingAssignedClusters entry on the eligible MC.
+	scheduling, err := fleetDB.Stamps().ManagementClusters("1").Scheduling().Get(ctx, fleetapi.SchedulingResourceName)
+	require.NoError(t, err)
+	assert.Empty(t, scheduling.Status.PendingAssignedClusters, "a deleting cluster must not reserve capacity")
 }
 
 // TestPlacementSyncer_setSpecPlacement_PreconditionFailureReturnsNil covers the

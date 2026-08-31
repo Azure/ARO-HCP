@@ -2272,10 +2272,6 @@ func (in *ServiceProviderClusterSpec) DeepCopyInto(out *ServiceProviderClusterSp
 		in, out := &in.ManagementClusterResourceID, &out.ManagementClusterResourceID
 		*out = DeepCopyResourceID(*in)
 	}
-	if in.ManagementClusterPlacementTime != nil {
-		in, out := &in.ManagementClusterPlacementTime, &out.ManagementClusterPlacementTime
-		*out = (*in).DeepCopy()
-	}
 	return
 }
 

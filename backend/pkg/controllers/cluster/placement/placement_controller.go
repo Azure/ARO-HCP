@@ -24,7 +24,6 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -145,6 +144,23 @@ func (c *placementSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPC
 	}
 	if !c.needsWork(serviceProviderCluster) {
 		logger.V(1).Info("ServiceProviderCluster already has Spec.ManagementClusterResourceID, skipping")
+		return nil
+	}
+
+	// Do not place — or reserve capacity for — a cluster whose deletion has already
+	// been requested. The frontend records the request as
+	// HCPOpenShiftCluster.ServiceProviderProperties.DeletionTimestamp, the same
+	// signal every sibling creation/deletion controller gates on. Fresh-selecting a
+	// deleting cluster would reserve swift-NIC capacity on a management cluster that
+	// the deletion path would then have to reclaim. A missing cluster document
+	// (cache miss / already gone) is not treated as "deleting": we fall through to
+	// the existing flow, which handles a NotFound cluster on its own.
+	cluster, err := c.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	if err != nil && !cosmosstorageutils.IsNotFoundError(err) {
+		return utils.TrackError(fmt.Errorf("failed to get cluster from cache: %w", err))
+	}
+	if err == nil && cluster.ServiceProviderProperties.DeletionTimestamp != nil {
+		logger.V(1).Info("HCP is being deleted; skipping placement")
 		return nil
 	}
 
@@ -529,12 +545,11 @@ func (c *placementSyncer) reservePendingAssignment(ctx context.Context, manageme
 }
 
 // setSpecPlacement records the chosen management cluster on
-// ServiceProviderCluster.Spec.ManagementClusterResourceID and stamps
-// Spec.ManagementClusterPlacementTime with the moment of placement. The base
-// document is read from the informer cache (not a live Cosmos Get); the cached
-// copy carries the etag that guards the optimistic Replace, so a stale cache can
-// only produce a write conflict — never a lost update. On such a conflict it
-// returns an error so the workqueue retries the whole reconcile with backoff.
+// ServiceProviderCluster.Spec.ManagementClusterResourceID. The base document is
+// read from the informer cache (not a live Cosmos Get); the cached copy carries
+// the etag that guards the optimistic Replace, so a stale cache can only produce
+// a write conflict — never a lost update. On such a conflict it returns an error
+// so the workqueue retries the whole reconcile with backoff.
 func (c *placementSyncer) setSpecPlacement(ctx context.Context, key controllerutils.HCPClusterKey, chosen *azcorearm.ResourceID) error {
 	existing, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if cosmosstorageutils.IsNotFoundError(err) {
@@ -549,13 +564,6 @@ func (c *placementSyncer) setSpecPlacement(ctx context.Context, key controllerut
 
 	replacement := existing.DeepCopy()
 	replacement.Spec.ManagementClusterResourceID = coreapi.DeepCopyResourceID(chosen)
-	// Stamp the placement time atomically with the intent, but only on first
-	// placement: preserve any existing timestamp across re-writes/backfills so it
-	// marks the moment of placement rather than the latest reconcile.
-	if replacement.Spec.ManagementClusterPlacementTime == nil {
-		now := metav1.Now()
-		replacement.Spec.ManagementClusterPlacementTime = &now
-	}
 	spcCRUD := c.cosmosClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if _, err := spcCRUD.Replace(ctx, replacement, nil); err != nil {
 		// A precondition failure means we lost an optimistic-concurrency race: another
