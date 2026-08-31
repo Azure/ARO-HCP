@@ -7,6 +7,7 @@ use (
 	./dev-infrastructure/scripts/acr-replication
 	./dev-infrastructure/scripts/grafana-group-roles
 	./dev-infrastructure/scripts/postgres-access
+	./dev-infrastructure/scripts/sync-system-pool
 	./fleet
 	./frontend
 	./hack/verify-gomega-assertions

@@ -4,3 +4,4 @@ istio-*
 
 swift/fpa.crt
 swift/fpa.pfx
+scripts/sync-system-pool/sync-system-pool
