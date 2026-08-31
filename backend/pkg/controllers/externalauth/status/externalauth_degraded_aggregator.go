@@ -104,7 +104,7 @@ func (c *externalAuthDegradedAggregator) SyncOnce(ctx context.Context, key contr
 	}
 
 	// With report-only-degraded filtering, an all-healthy external auth produces
-	// zero sources and UnionCondition returns Degraded=Unknown/NoData ("no data").
+	// zero sources and UnionCondition returns the good default (Degraded=False/AsExpected).
 	aggregated := statusutils.UnionCondition(
 		statusutils.DegradedConditionType,
 		metav1.ConditionFalse,

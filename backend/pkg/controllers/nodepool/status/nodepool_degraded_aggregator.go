@@ -140,7 +140,7 @@ func (c *nodePoolDegradedAggregator) SyncOnce(ctx context.Context, key controlle
 	// (see statusutils.CollectDegradedDesireConditions); healthy or
 	// not-yet-reported desires contribute nothing to the aggregate. With
 	// report-only-degraded filtering, an all-healthy node pool produces zero
-	// sources and UnionCondition returns Degraded=Unknown/NoData ("no data").
+	// sources and UnionCondition returns the good default (Degraded=False/AsExpected).
 	sources := statusutils.CollectDegradedConditions(controllers, c.firstObservedBad)
 	sources = append(sources, statusutils.CollectDegradedDesireConditions(
 		statusutils.ApplyDesireSourcePrefix, applyDesires,

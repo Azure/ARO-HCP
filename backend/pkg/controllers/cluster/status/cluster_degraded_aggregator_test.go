@@ -113,25 +113,25 @@ func TestClusterDegradedAggregator_SyncOnce(t *testing.T) {
 		expectMessage string
 	}{
 		{
-			name:          "no controllers under the cluster -> Unknown/NoData",
+			name:          "no controllers under the cluster -> False/AsExpected (all healthy)",
 			controllers:   nil,
 			inertia:       thirtySecondInertia,
-			expectStatus:  metav1.ConditionUnknown,
-			expectReason:  "NoData",
-			expectMessage: "",
+			expectStatus:  metav1.ConditionFalse,
+			expectReason:  "AsExpected",
+			expectMessage: "All is well",
 		},
 		{
-			name: "all controllers healthy -> no degraded sources -> Unknown/NoData",
+			name: "all controllers healthy -> no degraded sources -> False/AsExpected",
 			controllers: []*coreapi.Controller{
 				statusutils.ControllerUnder(parentResourceID, "AController", metav1.ConditionFalse, "NoErrors", "fine", 1*time.Minute),
 				statusutils.ControllerUnder(parentResourceID, "BController", metav1.ConditionFalse, "NoErrors", "ok", 1*time.Minute),
 			},
 			inertia: thirtySecondInertia,
 			// Healthy controllers are not emitted as sources, so UnionCondition
-			// sees zero sources and reports Unknown/NoData ("no data").
-			expectStatus:  metav1.ConditionUnknown,
-			expectReason:  "NoData",
-			expectMessage: "",
+			// sees zero sources and reports the good default (False/AsExpected).
+			expectStatus:  metav1.ConditionFalse,
+			expectReason:  "AsExpected",
+			expectMessage: "All is well",
 		},
 		{
 			name: "bad controller within 30s inertia is hidden -> aggregate stays default",
@@ -246,19 +246,20 @@ func TestClusterDegradedAggregator_SyncOnce(t *testing.T) {
 				statusutils.ControllerUnder(parentResourceID, "AController", metav1.ConditionFalse, "NoErrors", "fine", 1*time.Minute),
 			},
 			inertia: thirtySecondInertia,
-			// The single healthy controller yields zero sources -> Unknown/NoData.
+			// The single healthy controller yields zero sources -> False/AsExpected.
 			// Pre-seed that so the aggregator detects the no-op and skips the
 			// Replace; we still verify the resulting condition matches.
 			initialConditions: []metav1.Condition{
 				{
-					Type:   statusutils.DegradedConditionType,
-					Status: metav1.ConditionUnknown,
-					Reason: "NoData",
+					Type:    statusutils.DegradedConditionType,
+					Status:  metav1.ConditionFalse,
+					Reason:  "AsExpected",
+					Message: "All is well",
 				},
 			},
-			expectStatus:  metav1.ConditionUnknown,
-			expectReason:  "NoData",
-			expectMessage: "",
+			expectStatus:  metav1.ConditionFalse,
+			expectReason:  "AsExpected",
+			expectMessage: "All is well",
 		},
 		{
 			name: "degraded ApplyDesire past inertia folds into cluster Degraded=True",
@@ -307,10 +308,10 @@ func TestClusterDegradedAggregator_SyncOnce(t *testing.T) {
 			},
 			inertia: thirtySecondInertia,
 			// The healthy controller and the healthy/condition-less desires are all
-			// omitted, so there are zero sources -> Unknown/NoData ("no data").
-			expectStatus:  metav1.ConditionUnknown,
-			expectReason:  "NoData",
-			expectMessage: "",
+			// omitted, so there are zero sources -> good default (False/AsExpected).
+			expectStatus:  metav1.ConditionFalse,
+			expectReason:  "AsExpected",
+			expectMessage: "All is well",
 		},
 		{
 			name:        "degraded ApplyDesire within inertia is hidden but surfaced in the message",
@@ -342,10 +343,10 @@ func TestClusterDegradedAggregator_SyncOnce(t *testing.T) {
 			},
 			inertia: thirtySecondInertia,
 			// The node-pool-nested degraded desires are filtered out and the
-			// controller is healthy, so there are zero sources -> Unknown/NoData.
-			expectStatus:  metav1.ConditionUnknown,
-			expectReason:  "NoData",
-			expectMessage: "",
+			// controller is healthy, so there are zero sources -> False/AsExpected.
+			expectStatus:  metav1.ConditionFalse,
+			expectReason:  "AsExpected",
+			expectMessage: "All is well",
 		},
 		{
 			name: "cluster-scoped degraded desire folds in while a node-pool-nested degraded desire is excluded",

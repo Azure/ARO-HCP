@@ -116,24 +116,24 @@ func TestNodePoolDegradedAggregator_SyncOnce(t *testing.T) {
 		expectMessage string
 	}{
 		{
-			name:          "no controllers under the node pool -> Unknown/NoData",
+			name:          "no controllers under the node pool -> False/AsExpected (all healthy)",
 			controllers:   nil,
 			inertia:       thirtySecondInertia,
-			expectStatus:  metav1.ConditionUnknown,
-			expectReason:  "NoData",
-			expectMessage: "",
+			expectStatus:  metav1.ConditionFalse,
+			expectReason:  "AsExpected",
+			expectMessage: "All is well",
 		},
 		{
-			name: "all controllers healthy -> no degraded sources -> Unknown/NoData",
+			name: "all controllers healthy -> no degraded sources -> False/AsExpected",
 			controllers: []*coreapi.Controller{
 				statusutils.ControllerUnder(parentResourceID, "AController", metav1.ConditionFalse, "NoErrors", "fine", 1*time.Minute),
 			},
 			inertia: thirtySecondInertia,
 			// Healthy controllers are not emitted as sources, so UnionCondition
-			// sees zero sources and reports Unknown/NoData ("no data").
-			expectStatus:  metav1.ConditionUnknown,
-			expectReason:  "NoData",
-			expectMessage: "",
+			// sees zero sources and reports the good default (False/AsExpected).
+			expectStatus:  metav1.ConditionFalse,
+			expectReason:  "AsExpected",
+			expectMessage: "All is well",
 		},
 		{
 			name: "bad controller within 30s inertia stays hidden",
@@ -191,18 +191,19 @@ func TestNodePoolDegradedAggregator_SyncOnce(t *testing.T) {
 				statusutils.ControllerUnder(parentResourceID, "AController", metav1.ConditionFalse, "NoErrors", "fine", 1*time.Minute),
 			},
 			inertia: thirtySecondInertia,
-			// The single healthy controller yields zero sources -> Unknown/NoData;
+			// The single healthy controller yields zero sources -> False/AsExpected;
 			// pre-seeding that exercises the no-op (skip Replace) path.
 			initialConditions: []metav1.Condition{
 				{
-					Type:   statusutils.DegradedConditionType,
-					Status: metav1.ConditionUnknown,
-					Reason: "NoData",
+					Type:    statusutils.DegradedConditionType,
+					Status:  metav1.ConditionFalse,
+					Reason:  "AsExpected",
+					Message: "All is well",
 				},
 			},
-			expectStatus:  metav1.ConditionUnknown,
-			expectReason:  "NoData",
-			expectMessage: "",
+			expectStatus:  metav1.ConditionFalse,
+			expectReason:  "AsExpected",
+			expectMessage: "All is well",
 		},
 		{
 			name: "degraded node-pool-scoped ApplyDesire past inertia flips the node pool",
@@ -248,10 +249,10 @@ func TestNodePoolDegradedAggregator_SyncOnce(t *testing.T) {
 			},
 			inertia: thirtySecondInertia,
 			// None of the seeded desires belong to this node pool, and the
-			// controller is healthy, so there are no sources -> Unknown/NoData.
-			expectStatus:  metav1.ConditionUnknown,
-			expectReason:  "NoData",
-			expectMessage: "",
+			// controller is healthy, so there are no sources -> False/AsExpected.
+			expectStatus:  metav1.ConditionFalse,
+			expectReason:  "AsExpected",
+			expectMessage: "All is well",
 		},
 		{
 			name: "healthy and condition-less node-pool desires contribute nothing",
