@@ -27,6 +27,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azcertificates"
 
 	"github.com/Azure/ARO-HCP/tooling/aro-hcp-exporter/internal/cluster"
 	"github.com/Azure/ARO-HCP/tooling/aro-hcp-exporter/internal/metrics"
@@ -43,6 +44,9 @@ var (
 	validAzureRegion       = regexp.MustCompile(`^[a-z][a-z0-9]+$`)
 	validClusterType       = regexp.MustCompile(`^[A-Za-z0-9_.-]+$`)
 	validClusterNameFilter = regexp.MustCompile(`^[A-Za-z0-9_.\-]+$`)
+	validKeyVaultName      = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9-]{1,22}[A-Za-z0-9]$`)
+	validCertificateName   = regexp.MustCompile(`^[A-Za-z0-9-]+$`)
+	validDNSSuffix         = regexp.MustCompile(`^[a-z0-9]+(?:[.-][a-z0-9]+)*$`)
 )
 
 type RawOptions struct {
@@ -56,6 +60,9 @@ type RawOptions struct {
 	KustoCluster        string
 	KustoRegion         string
 	KustoQueryInterval  time.Duration
+	KeyVaultName        string
+	KeyVaultDNSSuffix   string
+	CertificateNames    []string
 	supportedCollectors []string
 }
 
@@ -67,7 +74,7 @@ func DefaultOptions() *RawOptions {
 		CacheTTL:            DefaultCacheTTL,
 		CollectionInterval:  DefaultCollectionInterval,
 		EnabledCollectors:   []string{metrics.ServiceTagUsageCollectorName, metrics.KustoLogsCurrentCollectorName},
-		supportedCollectors: []string{metrics.ServiceTagUsageCollectorName, metrics.KustoLogsCurrentCollectorName},
+		supportedCollectors: []string{metrics.ServiceTagUsageCollectorName, metrics.KustoLogsCurrentCollectorName, metrics.KeyVaultCertificateCollectorName},
 		KustoCluster:        "",
 		KustoRegion:         "",
 		KustoQueryInterval:  metrics.KustoQueryInterval,
@@ -85,6 +92,9 @@ type ValidatedOptions struct {
 	KustoCluster       string
 	KustoRegion        string
 	KustoQueryInterval time.Duration
+	KeyVaultName       string
+	KeyVaultDNSSuffix  string
+	CertificateNames   []string
 }
 
 type CompletedOptions struct {
@@ -142,6 +152,45 @@ func (o *RawOptions) Validate(ctx context.Context) (*ValidatedOptions, error) {
 		}
 	}
 
+	keyVaultName := strings.TrimSpace(o.KeyVaultName)
+	keyVaultDNSSuffix := strings.ToLower(strings.TrimSpace(o.KeyVaultDNSSuffix))
+	var certificateNames []string
+	if slices.Contains(o.EnabledCollectors, metrics.KeyVaultCertificateCollectorName) {
+		certificateNames = make([]string, 0, len(o.CertificateNames))
+		if keyVaultName == "" {
+			return nil, fmt.Errorf("keyvault-name is required when %s collector is enabled", metrics.KeyVaultCertificateCollectorName)
+		}
+		if !validKeyVaultName.MatchString(keyVaultName) || strings.Contains(keyVaultName, "--") {
+			return nil, fmt.Errorf("invalid keyvault-name %q: must be 3-24 alphanumeric or hyphen characters, start with a letter, end with a letter or number, and not contain consecutive hyphens", keyVaultName)
+		}
+		if keyVaultDNSSuffix == "" {
+			return nil, fmt.Errorf("keyvault-dns-suffix is required when %s collector is enabled", metrics.KeyVaultCertificateCollectorName)
+		}
+		if !validDNSSuffix.MatchString(keyVaultDNSSuffix) {
+			return nil, fmt.Errorf("invalid keyvault-dns-suffix %q: must match %s", o.KeyVaultDNSSuffix, validDNSSuffix.String())
+		}
+		if len(o.CertificateNames) == 0 {
+			return nil, fmt.Errorf("certificate-names is required when %s collector is enabled", metrics.KeyVaultCertificateCollectorName)
+		}
+
+		seenCertificateNames := make(map[string]struct{}, len(o.CertificateNames))
+		for _, certificateName := range o.CertificateNames {
+			certificateName = strings.TrimSpace(certificateName)
+			if certificateName == "" {
+				return nil, fmt.Errorf("certificate-names must not contain empty values")
+			}
+			if !validCertificateName.MatchString(certificateName) {
+				return nil, fmt.Errorf("invalid certificate name %q: must match %s", certificateName, validCertificateName.String())
+			}
+			canonicalCertificateName := strings.ToLower(certificateName)
+			if _, ok := seenCertificateNames[canonicalCertificateName]; ok {
+				return nil, fmt.Errorf("duplicate certificate name %q", certificateName)
+			}
+			seenCertificateNames[canonicalCertificateName] = struct{}{}
+			certificateNames = append(certificateNames, certificateName)
+		}
+	}
+
 	return &ValidatedOptions{
 		ListenAddress:      o.ListenAddress,
 		ClusterTypes:       clusterTypes,
@@ -153,6 +202,9 @@ func (o *RawOptions) Validate(ctx context.Context) (*ValidatedOptions, error) {
 		KustoCluster:       o.KustoCluster,
 		KustoRegion:        o.KustoRegion,
 		KustoQueryInterval: o.KustoQueryInterval,
+		KeyVaultName:       keyVaultName,
+		KeyVaultDNSSuffix:  keyVaultDNSSuffix,
+		CertificateNames:   certificateNames,
 	}, nil
 }
 
@@ -198,10 +250,13 @@ func BindOptions(opts *RawOptions, cmd *cobra.Command) error {
 	cmd.Flags().StringVar(&opts.ClusterNameFilter, "cluster-name-filter", opts.ClusterNameFilter, "Filter discovered clusters to those whose name contains this substring")
 	cmd.Flags().DurationVar(&opts.CacheTTL, "cache-ttl", opts.CacheTTL, fmt.Sprintf("Cache TTL (default: %s)", DefaultCacheTTL.String()))
 	cmd.Flags().DurationVar(&opts.CollectionInterval, "collection-interval", opts.CollectionInterval, fmt.Sprintf("Collection interval (default: %s)", DefaultCollectionInterval.String()))
-	cmd.Flags().StringSliceVar(&opts.EnabledCollectors, "enabled-collectors", opts.EnabledCollectors, fmt.Sprintf("Enabled collectors (default: %s)", strings.Join(opts.supportedCollectors, ", ")))
+	cmd.Flags().StringSliceVar(&opts.EnabledCollectors, "enabled-collectors", opts.EnabledCollectors, fmt.Sprintf("Enabled collectors (default: %s)", strings.Join(opts.EnabledCollectors, ", ")))
 	cmd.Flags().StringVar(&opts.KustoCluster, "kusto-cluster", opts.KustoCluster, "Azure Data Explorer (Kusto) cluster name")
 	cmd.Flags().StringVar(&opts.KustoRegion, "kusto-region", opts.KustoRegion, "Azure Data Explorer (Kusto) region")
 	cmd.Flags().DurationVar(&opts.KustoQueryInterval, "kusto-query-interval", opts.KustoQueryInterval, fmt.Sprintf("Kusto query interval (default: %s)", metrics.KustoQueryInterval.String()))
+	cmd.Flags().StringVar(&opts.KeyVaultName, "keyvault-name", opts.KeyVaultName, "Azure Key Vault name containing certificates to monitor")
+	cmd.Flags().StringVar(&opts.KeyVaultDNSSuffix, "keyvault-dns-suffix", opts.KeyVaultDNSSuffix, "Azure Key Vault DNS suffix")
+	cmd.Flags().StringSliceVar(&opts.CertificateNames, "certificate-names", opts.CertificateNames, "Key Vault certificate names to monitor")
 
 	err := cmd.MarkFlagRequired("cluster-types")
 	if err != nil {
@@ -243,6 +298,22 @@ func (o *ValidatedOptions) CreateEnabledCollectors(ctx context.Context, creds az
 				return nil, fmt.Errorf("failed to create Kusto logs collector: %w", err)
 			}
 			collectors = append(collectors, kustoCollector)
+		case metrics.KeyVaultCertificateCollectorName:
+			vaultURL := fmt.Sprintf("https://%s.%s", o.KeyVaultName, o.KeyVaultDNSSuffix)
+			certificateClient, err := azcertificates.NewClient(vaultURL, creds, nil)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create Key Vault certificate client: %w", err)
+			}
+			errorCounter := collectorErrorsTotal.WithLabelValues(metrics.KeyVaultCertificateCollectorName)
+			certificateCollector := metrics.NewKeyVaultCertificateCollector(
+				certificateClient,
+				o.KeyVaultName,
+				o.Region,
+				o.CertificateNames,
+				o.CacheTTL,
+				errorCounter,
+			)
+			collectors = append(collectors, certificateCollector)
 		}
 	}
 	return collectors, nil

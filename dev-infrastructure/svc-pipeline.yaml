@@ -953,8 +953,8 @@ resourceGroups:
       step: upgrade-aks-cluster
   - name: exporter-permissions
     action: ARM
-    template: templates/exporter-permissions.bicep
-    parameters: configurations/exporter-permissions.tmpl.bicepparam
+    template: templates/svc-exporter-permissions.bicep
+    parameters: configurations/svc-exporter-permissions.tmpl.bicepparam
     deploymentLevel: Subscription
     variables:
     - name: exporterPrincipalId
@@ -962,9 +962,16 @@ resourceGroups:
         resourceGroup: service
         step: exporter-output
         name: exporterPrincipalId
+    - name: serviceKeyVaultSubscription
+      input:
+        resourceGroup: svcKV
+        step: output
+        name: subscriptionId
     dependsOn:
     - resourceGroup: service
       step: exporter-output
+    - resourceGroup: service
+      step: infra
   - name: aro-hcp-exporter
     aksCluster: '{{ .svc.aks.name }}'
     action: Helm
