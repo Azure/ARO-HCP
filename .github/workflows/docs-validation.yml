@@ -1,0 +1,76 @@
+name: Documentation Validation
+
+on:
+  pull_request:
+    paths:
+      - '**.md'
+      - 'test/docs/**'
+      - '.github/workflows/docs-validation.yml'
+      - '.markdownlint.json'
+  push:
+    branches:
+      - main
+    paths:
+      - '**.md'
+      - 'test/docs/**'
+
+permissions:
+  contents: read
+
+jobs:
+  markdown-lint:
+    name: Markdown Linting
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Lint Markdown files
+        uses: nosborn/github-action-markdown-cli@v3.3.0
+        with:
+          files: "**/*.md"
+          config_file: .markdownlint.json
+          ignore_files: "vendor/"
+
+  readme-tests:
+    name: README Command Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.work
+
+      - name: Install Azure CLI
+        run: |
+          curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+
+      - name: Install kubectl
+        run: |
+          curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+          sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+
+      - name: Run personal-dev README tests
+        run: |
+          test/docs/personal-dev-readme-test.sh
+        env:
+          TEST_MODE: dry-run
+
+  link-check:
+    name: Check Markdown Links
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check links in Markdown files
+        uses: gaurav-nelson/github-action-markdown-link-check@v1
+        with:
+          use-quiet-mode: 'yes'
+          use-verbose-mode: 'no'
+          config-file: '.markdown-link-check.json'
+          check-modified-files-only: 'yes'
+          base-branch: 'main'
