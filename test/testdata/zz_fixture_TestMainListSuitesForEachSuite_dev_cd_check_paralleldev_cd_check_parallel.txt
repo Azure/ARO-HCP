@@ -92,3 +92,4 @@ Customer should upgrade a nodepool skipping one minor version (+2) from 4.20.z t
 Customer should downgrade a nodepool version z-stream downgrade from 4.21.zLatest to 4.21.zPrevious
 Customer should downgrade a nodepool to a lower minor version from 4.22.zLatest to 4.20.zLatest
 Customer should be able to use workload identity via the cluster OIDC issuer URL
+KSM HCP Metrics kube_node_info metrics should be present in Azure Monitor for the happy-path cluster

@@ -8,7 +8,6 @@
   "Successfully lists clusters filtered by resource group name",
   "creates a cluster and fails to update its name with a PATCH request",
   "creates and deletes a GPU nodepool in a single cluster",
-  "kube_node_info metrics should be present in Azure Monitor for the happy-path cluster",
   "should allow pods with images from allowed registries and have a valid allowlist",
   "should be able to create an HCP cluster then delete it by deleting the customer resource group",
   "should be able to delete an HCP cluster whose managed identities were deleted first",

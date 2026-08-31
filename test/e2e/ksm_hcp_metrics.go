@@ -35,6 +35,8 @@ var _ = Describe("KSM HCP Metrics", func() {
 		labels.RequireHappyPathInfra,
 		labels.Medium,
 		labels.Positive,
+		labels.DevelopmentOnly,
+		labels.AroRpApiCompatible,
 		labels.MIContainers(0),
 		func(ctx context.Context) {
 			tc := framework.NewTestContext()
