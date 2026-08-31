@@ -237,7 +237,7 @@ func TestCollectDegradedDesireConditions(t *testing.T) {
 	// A non-Degraded condition must not qualify a desire as degraded.
 	otherType := metav1.Condition{Type: kubeapplierapi.ConditionTypeSuccessful, Status: metav1.ConditionFalse, Reason: "PreCheckFailed"}
 
-	t.Run("only Degraded=True ApplyDesires are included, named <prefix>/<name>", func(t *testing.T) {
+	t.Run("only Degraded=True ApplyDesires are included, named by full resource ID", func(t *testing.T) {
 		desires := []*kubeapplierapi.ApplyDesire{
 			ApplyDesireUnder(clusterID, "deg", degraded),
 			ApplyDesireUnder(clusterID, "healthy", healthy), // Degraded=False -> skipped
@@ -247,7 +247,9 @@ func TestCollectDegradedDesireConditions(t *testing.T) {
 		}
 		got := CollectDegradedDesireConditions(ApplyDesireSourcePrefix, desires, applyConds)
 		if assert.Len(t, got, 1, "only the degraded desire should be included") {
-			assert.Equal(t, "applydesire/deg", got[0].ControllerName)
+			wantName := ApplyDesireSourcePrefix + kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(
+				TestSubscriptionID, TestResourceGroupName, TestClusterName, "deg")
+			assert.Equal(t, wantName, got[0].ControllerName, "source name must be prefix + full lowercased resource ID")
 			assert.Equal(t, DegradedConditionType, got[0].Condition.Type)
 			assert.Equal(t, metav1.ConditionTrue, got[0].Condition.Status)
 			assert.Equal(t, "Failed", got[0].Condition.Reason)
@@ -272,8 +274,29 @@ func TestCollectDegradedDesireConditions(t *testing.T) {
 		}
 		got := CollectDegradedDesireConditions(ReadDesireSourcePrefix, desires, readConds)
 		if assert.Len(t, got, 1) {
-			assert.Equal(t, "readdesire/rd", got[0].ControllerName)
+			wantName := ReadDesireSourcePrefix + kubeapplierapi.ToClusterScopedReadDesireResourceIDString(
+				TestSubscriptionID, TestResourceGroupName, TestClusterName, "rd")
+			assert.Equal(t, wantName, got[0].ControllerName)
 			assert.Equal(t, metav1.ConditionTrue, got[0].Condition.Status)
+		}
+	})
+
+	t.Run("same trailing name at different scopes -> distinct collision-safe names", func(t *testing.T) {
+		// Two ApplyDesires both named "config": one cluster-scoped, one
+		// node-pool-scoped. Using the full resource ID as the source name keeps
+		// them distinct (the trailing name alone would collide).
+		desires := []*kubeapplierapi.ApplyDesire{
+			ApplyDesireUnder(clusterID, "config", degraded),
+			NodePoolScopedApplyDesireUnder(clusterID, TestNodePoolName, "config", degraded),
+		}
+		got := CollectDegradedDesireConditions(ApplyDesireSourcePrefix, desires, applyConds)
+		if assert.Len(t, got, 2) {
+			names := []string{got[0].ControllerName, got[1].ControllerName}
+			assert.NotEqual(t, names[0], names[1], "same-named desires at different scopes must get distinct source names")
+			assert.Contains(t, names, ApplyDesireSourcePrefix+kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(
+				TestSubscriptionID, TestResourceGroupName, TestClusterName, "config"))
+			assert.Contains(t, names, ApplyDesireSourcePrefix+kubeapplierapi.ToNodePoolScopedApplyDesireResourceIDString(
+				TestSubscriptionID, TestResourceGroupName, TestClusterName, TestNodePoolName, "config"))
 		}
 	})
 

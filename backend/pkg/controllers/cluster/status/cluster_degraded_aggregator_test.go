@@ -85,6 +85,15 @@ func TestClusterDegradedAggregator_SyncOnce(t *testing.T) {
 		statusutils.InertiaController{ControllerNameMatcher: regexp.MustCompile(`^SlowController$`), Duration: 5 * time.Minute},
 	).Inertia
 
+	// Collision-safe desire source names: the source prefix followed by the
+	// desire's full lowercased resource ID (see CollectDegradedDesireConditions).
+	applyXName := statusutils.ApplyDesireSourcePrefix + kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(
+		statusutils.TestSubscriptionID, statusutils.TestResourceGroupName, statusutils.TestClusterName, "apply-x")
+	readYName := statusutils.ReadDesireSourcePrefix + kubeapplierapi.ToClusterScopedReadDesireResourceIDString(
+		statusutils.TestSubscriptionID, statusutils.TestResourceGroupName, statusutils.TestClusterName, "read-y")
+	applyZName := statusutils.ApplyDesireSourcePrefix + kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(
+		statusutils.TestSubscriptionID, statusutils.TestResourceGroupName, statusutils.TestClusterName, "apply-z")
+
 	tests := []struct {
 		name string
 
@@ -266,9 +275,9 @@ func TestClusterDegradedAggregator_SyncOnce(t *testing.T) {
 			inertia:      thirtySecondInertia,
 			expectStatus: metav1.ConditionTrue,
 			// Bad path enumerates only bad sources: the healthy controller is omitted,
-			// and the degraded ApplyDesire is named "applydesire/<name>".
-			expectReason:  "applydesire/apply-x_Failed",
-			expectMessage: "applydesire/apply-x: boom",
+			// and the degraded ApplyDesire is named by its full resource ID.
+			expectReason:  applyXName + "_Failed",
+			expectMessage: applyXName + ": boom",
 		},
 		{
 			name: "degraded ReadDesire past inertia folds into cluster Degraded=True",
@@ -281,8 +290,8 @@ func TestClusterDegradedAggregator_SyncOnce(t *testing.T) {
 			},
 			inertia:       thirtySecondInertia,
 			expectStatus:  metav1.ConditionTrue,
-			expectReason:  "readdesire/read-y_Failed",
-			expectMessage: "readdesire/read-y: kaboom",
+			expectReason:  readYName + "_Failed",
+			expectMessage: readYName + ": kaboom",
 		},
 		{
 			name: "healthy and condition-less desires contribute nothing to the aggregate",
@@ -318,7 +327,45 @@ func TestClusterDegradedAggregator_SyncOnce(t *testing.T) {
 			expectReason: "AsExpected",
 			// Fresh (5s < 30s) -> hidden from status, but still attributable in the message,
 			// proving the desire participates in the inertia window via its own LastTransitionTime.
-			expectMessage: "applydesire/apply-z: boom",
+			expectMessage: applyZName + ": boom",
+		},
+		{
+			name: "node-pool-nested degraded desires are excluded from cluster aggregation",
+			controllers: []*coreapi.Controller{
+				statusutils.ControllerUnder(parentResourceID, "AController", metav1.ConditionFalse, "NoErrors", "fine", 1*time.Minute),
+			},
+			applyDesires: []*kubeapplierapi.ApplyDesire{
+				// Degraded, but nested under a node pool -> must NOT affect the cluster.
+				statusutils.NodePoolScopedApplyDesireUnder(parentResourceID, statusutils.TestNodePoolName, "np-apply",
+					statusutils.DegradedConditionAged(metav1.ConditionTrue, "Failed", "np boom", 1*time.Minute)),
+			},
+			readDesires: []*kubeapplierapi.ReadDesire{
+				statusutils.NodePoolScopedReadDesireUnder(parentResourceID, statusutils.TestNodePoolName, "np-read",
+					statusutils.DegradedConditionAged(metav1.ConditionTrue, "Failed", "np kaboom", 1*time.Minute)),
+			},
+			inertia:      thirtySecondInertia,
+			expectStatus: metav1.ConditionFalse,
+			expectReason: "AsExpected",
+			// Only the healthy controller was observed; the node-pool-nested degraded
+			// desires are filtered out, so nothing degraded remains -> "All is well".
+			expectMessage: "All is well",
+		},
+		{
+			name: "cluster-scoped degraded desire folds in while a node-pool-nested degraded desire is excluded",
+			controllers: []*coreapi.Controller{
+				statusutils.ControllerUnder(parentResourceID, "AController", metav1.ConditionFalse, "NoErrors", "fine", 1*time.Minute),
+			},
+			applyDesires: []*kubeapplierapi.ApplyDesire{
+				statusutils.ApplyDesireUnder(parentResourceID, "apply-x",
+					statusutils.DegradedConditionAged(metav1.ConditionTrue, "Failed", "boom", 1*time.Minute)),
+				statusutils.NodePoolScopedApplyDesireUnder(parentResourceID, statusutils.TestNodePoolName, "np-apply",
+					statusutils.DegradedConditionAged(metav1.ConditionTrue, "Failed", "np boom", 1*time.Minute)),
+			},
+			inertia:      thirtySecondInertia,
+			expectStatus: metav1.ConditionTrue,
+			// Only the cluster-scoped desire is folded in; the node-pool-nested one is excluded.
+			expectReason:  applyXName + "_Failed",
+			expectMessage: applyXName + ": boom",
 		},
 	}
 

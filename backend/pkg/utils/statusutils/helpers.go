@@ -15,6 +15,7 @@
 package statusutils
 
 import (
+	"strings"
 	"time"
 
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
@@ -108,10 +109,9 @@ func CollectDegradedConditions(controllers []*coreapi.Controller, firstObservedB
 }
 
 // Source-name prefixes for kube-applier desire-sourced Degraded conditions.
-// They namespace a desire's SourcedCondition.ControllerName as
-// "<prefix>/<desireName>" so it stays attributable in the aggregated Degraded
-// reason/message and can never collide with a controller name (a controller
-// name is a bare resource-name segment, which contains no "/").
+// They are prepended to the desire's full lowercased resource ID (see
+// CollectDegradedDesireConditions) so each source stays attributable to its
+// kind in the aggregated Degraded reason/message.
 const (
 	ApplyDesireSourcePrefix = "applydesire"
 	ReadDesireSourcePrefix  = "readdesire"
@@ -132,10 +132,17 @@ const (
 //     first-observed-bad cache: every included condition brings its own
 //     LastTransitionTime, so it participates in the inertia window naturally.
 //
-// The source name is "<sourcePrefix>/<name>", where name is the trailing
-// segment of the desire's resource ID. conditionsOf extracts the desire's
-// Status.Conditions; it is passed in so this package need not import
-// kubeapplierapi and so one generic body serves both desire types.
+// The source name is the sourcePrefix immediately followed by the desire's
+// full, lowercased resource ID (e.g.
+// "applydesire/subscriptions/<sub>/.../applydesires/<name>"). Using the full
+// resource ID — not just its trailing name segment — keeps the source name
+// collision-safe: two desires that share a trailing name but live at different
+// resource paths (for example a cluster-scoped and a node-pool-scoped desire
+// both named "config") still get distinct source names, and desire names never
+// collide with the bare controller names emitted by CollectDegradedConditions.
+// conditionsOf extracts the desire's Status.Conditions; it is passed in so this
+// package need not import kubeapplierapi and so one generic body serves both
+// desire types.
 //
 // Desires with a nil ResourceID are skipped — there is no name to attribute
 // them to.
@@ -157,7 +164,7 @@ func CollectDegradedDesireConditions[T coreapi.CosmosMetadataAccessor](
 			continue
 		}
 		out = append(out, SourcedCondition{
-			ControllerName: sourcePrefix + "/" + resourceID.Name,
+			ControllerName: sourcePrefix + strings.ToLower(resourceID.String()),
 			Condition:      *cond,
 		})
 	}

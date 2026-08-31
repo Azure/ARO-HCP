@@ -81,10 +81,13 @@ func DegradedConditionAged(status metav1.ConditionStatus, reason, message string
 }
 
 // ApplyDesireUnder builds a kubeapplierapi.ApplyDesire nested directly under
-// the given cluster resource ID, carrying the supplied conditions. Pass no
-// conditions to model a desire that has not reported a Degraded condition yet.
-func ApplyDesireUnder(parentResourceID *azcorearm.ResourceID, name string, conditions ...metav1.Condition) *kubeapplierapi.ApplyDesire {
-	rid := metadataapi.Must(azcorearm.ParseResourceID(parentResourceID.String() + "/" + kubeapplierapi.ApplyDesireResourceTypeName + "/" + name))
+// the given cluster resource ID (cluster-scoped), carrying the supplied
+// conditions. Pass no conditions to model a desire that has not reported a
+// Degraded condition yet. The resource ID is built with the canonical
+// kubeapplierapi builder rather than manual string concatenation.
+func ApplyDesireUnder(clusterResourceID *azcorearm.ResourceID, name string, conditions ...metav1.Condition) *kubeapplierapi.ApplyDesire {
+	rid := metadataapi.Must(azcorearm.ParseResourceID(kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(
+		clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName, clusterResourceID.Name, name)))
 	return &kubeapplierapi.ApplyDesire{
 		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: rid},
 		Status:         kubeapplierapi.ApplyDesireStatus{Conditions: conditions},
@@ -92,10 +95,38 @@ func ApplyDesireUnder(parentResourceID *azcorearm.ResourceID, name string, condi
 }
 
 // ReadDesireUnder builds a kubeapplierapi.ReadDesire nested directly under the
-// given cluster resource ID, carrying the supplied conditions. Pass no
-// conditions to model a desire that has not reported a Degraded condition yet.
-func ReadDesireUnder(parentResourceID *azcorearm.ResourceID, name string, conditions ...metav1.Condition) *kubeapplierapi.ReadDesire {
-	rid := metadataapi.Must(azcorearm.ParseResourceID(parentResourceID.String() + "/" + kubeapplierapi.ReadDesireResourceTypeName + "/" + name))
+// given cluster resource ID (cluster-scoped), carrying the supplied conditions.
+// Pass no conditions to model a desire that has not reported a Degraded
+// condition yet. The resource ID is built with the canonical kubeapplierapi
+// builder rather than manual string concatenation.
+func ReadDesireUnder(clusterResourceID *azcorearm.ResourceID, name string, conditions ...metav1.Condition) *kubeapplierapi.ReadDesire {
+	rid := metadataapi.Must(azcorearm.ParseResourceID(kubeapplierapi.ToClusterScopedReadDesireResourceIDString(
+		clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName, clusterResourceID.Name, name)))
+	return &kubeapplierapi.ReadDesire{
+		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: rid},
+		Status:         kubeapplierapi.ReadDesireStatus{Conditions: conditions},
+	}
+}
+
+// NodePoolScopedApplyDesireUnder builds a kubeapplierapi.ApplyDesire nested
+// under a NODE POOL under the given cluster
+// (.../hcpOpenShiftClusters/<c>/nodePools/<np>/applyDesires/<name>). It exists
+// so tests can prove that node-pool-nested desires are excluded from
+// cluster-scoped aggregation.
+func NodePoolScopedApplyDesireUnder(clusterResourceID *azcorearm.ResourceID, nodePoolName, name string, conditions ...metav1.Condition) *kubeapplierapi.ApplyDesire {
+	rid := metadataapi.Must(azcorearm.ParseResourceID(kubeapplierapi.ToNodePoolScopedApplyDesireResourceIDString(
+		clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName, clusterResourceID.Name, nodePoolName, name)))
+	return &kubeapplierapi.ApplyDesire{
+		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: rid},
+		Status:         kubeapplierapi.ApplyDesireStatus{Conditions: conditions},
+	}
+}
+
+// NodePoolScopedReadDesireUnder is the ReadDesire parallel of
+// NodePoolScopedApplyDesireUnder.
+func NodePoolScopedReadDesireUnder(clusterResourceID *azcorearm.ResourceID, nodePoolName, name string, conditions ...metav1.Condition) *kubeapplierapi.ReadDesire {
+	rid := metadataapi.Must(azcorearm.ParseResourceID(kubeapplierapi.ToNodePoolScopedReadDesireResourceIDString(
+		clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName, clusterResourceID.Name, nodePoolName, name)))
 	return &kubeapplierapi.ReadDesire{
 		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: rid},
 		Status:         kubeapplierapi.ReadDesireStatus{Conditions: conditions},

@@ -24,9 +24,13 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilsclock "k8s.io/utils/clock"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/statusutils"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
@@ -141,18 +145,26 @@ func (c *clusterDegradedAggregator) SyncOnce(ctx context.Context, key controller
 		return utils.TrackError(fmt.Errorf("failed to list ReadDesires from cache: %w", err))
 	}
 
-	// Fold the cluster's controllers together with any degraded
+	// ListForCluster also returns node-pool-nested desires; the cluster
+	// aggregator only folds in cluster-scoped desires (immediate parent is the
+	// HCPOpenShiftCluster), matching the cluster-scoped, maxDepth-1 desire
+	// watch. Node-pool-nested desires are aggregated onto their node pool, not
+	// the cluster.
+	clusterApplyDesires := clusterScopedDesires(applyDesires, kubeapplierapi.ClusterScopedApplyDesireResourceType)
+	clusterReadDesires := clusterScopedDesires(readDesires, kubeapplierapi.ClusterScopedReadDesireResourceType)
+
+	// Fold the cluster's controllers together with any degraded cluster-scoped
 	// ApplyDesire/ReadDesire into a single "Degraded" condition. Unlike
 	// controllers, only actually-degraded desires are counted (see
 	// statusutils.CollectDegradedDesireConditions); healthy or not-yet-reported
 	// desires contribute nothing to the aggregate.
 	sources := statusutils.CollectDegradedConditions(controllers, c.firstObservedBad)
 	sources = append(sources, statusutils.CollectDegradedDesireConditions(
-		statusutils.ApplyDesireSourcePrefix, applyDesires,
+		statusutils.ApplyDesireSourcePrefix, clusterApplyDesires,
 		func(d *kubeapplierapi.ApplyDesire) []metav1.Condition { return d.Status.Conditions },
 	)...)
 	sources = append(sources, statusutils.CollectDegradedDesireConditions(
-		statusutils.ReadDesireSourcePrefix, readDesires,
+		statusutils.ReadDesireSourcePrefix, clusterReadDesires,
 		func(d *kubeapplierapi.ReadDesire) []metav1.Condition { return d.Status.Conditions },
 	)...)
 
@@ -179,4 +191,21 @@ func (c *clusterDegradedAggregator) SyncOnce(ctx context.Context, key controller
 		return utils.TrackError(fmt.Errorf("failed to replace Cluster: %w", err))
 	}
 	return nil
+}
+
+// clusterScopedDesires returns only the desires whose resource ID is directly
+// cluster-scoped — its resource type equals clusterScopedType, i.e. the desire
+// is nested immediately under the HCPOpenShiftCluster and NOT under a
+// nodePools/... (or any other) segment. It is used to drop the node-pool-nested
+// desires that ListForCluster also returns, keeping this aggregator
+// "cluster-scoped only". Desires with a nil resource ID are dropped.
+func clusterScopedDesires[T coreapi.CosmosMetadataAccessor](desires []T, clusterScopedType azcorearm.ResourceType) []T {
+	out := make([]T, 0, len(desires))
+	for _, desire := range desires {
+		resourceID := desire.GetResourceID()
+		if resourceID != nil && metadataapi.ResourceTypeEqual(resourceID.ResourceType, clusterScopedType) {
+			out = append(out, desire)
+		}
+	}
+	return out
 }
