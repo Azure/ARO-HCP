@@ -58,6 +58,7 @@ func NewMockFleetDBClient() *MockFleetDBClient {
 //   - *fleetapi.ManagementCluster
 //   - *fleetapi.ManagementClusterScheduling
 //   - *fleetapi.HCPResourceRequirements
+//   - *fleetapi.ControlPlaneVersionRollout
 func NewMockFleetDBClientWithResources(ctx context.Context, resources []any) (*MockFleetDBClient, error) {
 	mock := NewMockFleetDBClient()
 	for i, r := range resources {
@@ -78,6 +79,8 @@ func (m *MockFleetDBClient) addResource(ctx context.Context, resource any) error
 		return m.addManagementClusterScheduling(ctx, r)
 	case *fleetapi.HCPResourceRequirements:
 		return m.addHCPResourceRequirements(ctx, r)
+	case *fleetapi.ControlPlaneVersionRollout:
+		return m.addControlPlaneVersionRollout(ctx, r)
 	default:
 		return fmt.Errorf("unsupported resource type for MockFleetDBClient: %T", resource)
 	}
@@ -116,6 +119,16 @@ func (m *MockFleetDBClient) addManagementClusterScheduling(ctx context.Context, 
 func (m *MockFleetDBClient) addHCPResourceRequirements(ctx context.Context, requirements *fleetapi.HCPResourceRequirements) error {
 	crud := m.HCPResourceRequirements()
 	_, err := crud.Create(ctx, requirements, nil)
+	return err
+}
+
+func (m *MockFleetDBClient) addControlPlaneVersionRollout(ctx context.Context, rollout *fleetapi.ControlPlaneVersionRollout) error {
+	ystreamChannel := rollout.GetStampIdentifier()
+	if len(ystreamChannel) == 0 {
+		return fmt.Errorf("control plane version rollout has empty y-stream channel identifier")
+	}
+	crud := m.ControlPlaneVersionRollouts()
+	_, err := crud.Create(ctx, rollout, nil)
 	return err
 }
 
@@ -238,6 +251,16 @@ func (m *MockFleetDBClient) Stamps() fleetcosmosstorage.StampsCRUD {
 func (m *MockFleetDBClient) HCPResourceRequirements() cosmosstorageutils.ResourceCRUD[fleetapi.HCPResourceRequirements, *fleetapi.HCPResourceRequirements] {
 	return newMockFleetResourceCRUD[fleetapi.HCPResourceRequirements, *fleetapi.HCPResourceRequirements, cosmosstorageutils.GenericDocument[fleetapi.HCPResourceRequirements]](
 		m, nil, fleetapi.HCPResourceRequirementsResourceType,
+	)
+}
+
+func (m *MockFleetDBClient) ControlPlaneVersionRollouts() cosmosstorageutils.ValidatingResourceCRUD[fleetapi.ControlPlaneVersionRollout, *fleetapi.ControlPlaneVersionRollout] {
+	inner := newMockFleetResourceCRUD[fleetapi.ControlPlaneVersionRollout, *fleetapi.ControlPlaneVersionRollout, cosmosstorageutils.GenericDocument[fleetapi.ControlPlaneVersionRollout]](
+		m, nil, fleetapi.ControlPlaneVersionRolloutResourceType,
+	)
+	return cosmosstorageutils.NewValidatingCRUD(inner,
+		validation.ValidateControlPlaneVersionRolloutCreate,
+		validation.ValidateControlPlaneVersionRolloutUpdate,
 	)
 }
 

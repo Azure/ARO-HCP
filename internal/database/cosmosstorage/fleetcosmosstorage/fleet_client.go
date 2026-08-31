@@ -38,6 +38,7 @@ type FleetDBClient interface {
 	cosmosstorageutils.ChangeFeedClient
 	Stamps() StampsCRUD
 	HCPResourceRequirements() cosmosstorageutils.ResourceCRUD[fleetapi.HCPResourceRequirements, *fleetapi.HCPResourceRequirements]
+	ControlPlaneVersionRollouts() cosmosstorageutils.ValidatingResourceCRUD[fleetapi.ControlPlaneVersionRollout, *fleetapi.ControlPlaneVersionRollout]
 	GlobalListers() FleetGlobalListers
 }
 
