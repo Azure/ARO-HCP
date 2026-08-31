@@ -287,6 +287,11 @@ func (in *ServerSideApplyConfig) DeepCopyInto(out *ServerSideApplyConfig) {
 		*out = new(runtime.RawExtension)
 		(*in).DeepCopyInto(*out)
 	}
+	if in.FieldManager != nil {
+		in, out := &in.FieldManager, &out.FieldManager
+		*out = new(string)
+		**out = **in
+	}
 	return
 }
 

@@ -18,8 +18,9 @@
 //
 //   - Type=ServerSideApply: decodes .spec.serverSideApply.kubeContent into
 //     an unstructured object and issues a server-side-apply with Force=true
-//     and FieldManager from this package's FieldManager const via the dynamic
-//     client.
+//     via the dynamic client. The SSA field manager defaults to this package's
+//     FieldManager const, but .spec.serverSideApply.fieldManager may override
+//     it per-desire (e.g. to migrate field ownership from another manager).
 //   - Type=Delete: deletes .spec.targetItem from the management cluster and
 //     reports WaitingForDeletion until the target disappears (finalizers
 //     complete).
@@ -306,8 +307,17 @@ func (c *ApplyDesireController) applyDesired(ctx context.Context, d *kubeapplier
 		kubeResourceAccessor = resource.Namespace(target.Namespace)
 	}
 
+	// Default the SSA field manager to this package's const, but honor a
+	// non-empty per-desire override so field ownership can be migrated cleanly
+	// from another manager (e.g. cluster-service). A nil or empty override
+	// preserves the default behavior.
+	fieldManager := FieldManager
+	if override := d.Spec.ServerSideApply.FieldManager; override != nil && *override != "" {
+		fieldManager = *override
+	}
+
 	result, applyErr := kubeResourceAccessor.Apply(ctx, target.Name, obj, metav1.ApplyOptions{
-		FieldManager: FieldManager,
+		FieldManager: fieldManager,
 		Force:        true,
 	})
 	if applyErr != nil {

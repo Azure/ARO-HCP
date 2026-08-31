@@ -207,6 +207,76 @@ func TestApplyDesired_IssuesSSAPatch(t *testing.T) {
 	if got := patch.GetNamespace(); got != "default" {
 		t.Errorf("patch namespace = %q, want default", got)
 	}
+	if got := ssaFieldManager(t, actions); got != FieldManager {
+		t.Errorf("patch FieldManager = %q, want %q (default)", got, FieldManager)
+	}
+}
+
+// ssaFieldManager returns the FieldManager recorded on the server-side-apply
+// (apply-patch) action captured by the fake dynamic client. The fake routes
+// Apply through Patch with ApplyPatchType and stashes ApplyOptions.FieldManager
+// in the action's PatchOptions, so this is how tests observe which manager the
+// controller selected. Fails the test if no apply-patch action was recorded.
+func ssaFieldManager(t *testing.T, actions []clienttesting.Action) string {
+	t.Helper()
+	for _, a := range actions {
+		pa, ok := a.(clienttesting.PatchActionImpl)
+		if !ok || pa.GetPatchType() != types.ApplyPatchType {
+			continue
+		}
+		return pa.PatchOptions.FieldManager
+	}
+	t.Fatalf("no apply-patch action recorded; actions=%v", actions)
+	return ""
+}
+
+// TestApplyDesired_FieldManagerSelection verifies applyDesired selects the SSA
+// field manager per-desire: the default FieldManager const when the override is
+// unset (nil) or empty, and the override verbatim when set to a non-empty
+// value. The non-empty case supports migrating field ownership cleanly from
+// another manager (e.g. cluster-service).
+func TestApplyDesired_FieldManagerSelection(t *testing.T) {
+	override := "cluster-service"
+	empty := ""
+	cases := []struct {
+		name             string
+		fieldManager     *string
+		wantFieldManager string
+	}{
+		{name: "override unset uses default", fieldManager: nil, wantFieldManager: FieldManager},
+		{name: "override honored when set", fieldManager: &override, wantFieldManager: override},
+		{name: "empty-string override falls back to default", fieldManager: &empty, wantFieldManager: FieldManager},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+			gvr := schema.GroupVersionResource{Version: "v1", Resource: "configmaps"}
+			dyn := fakeDynamic(t, map[schema.GroupVersionResource]string{gvr: "ConfigMapList"})
+			dyn.PrependReactor("patch", "configmaps", func(action clienttesting.Action) (bool, runtime.Object, error) {
+				obj := &unstructured.Unstructured{}
+				obj.SetGroupVersionKind(schema.GroupVersionKind{Version: "v1", Kind: "ConfigMap"})
+				obj.SetName(action.(clienttesting.PatchAction).GetName())
+				obj.SetNamespace(action.GetNamespace())
+				return true, obj, nil
+			})
+
+			c := &ApplyDesireController{dyn: dyn}
+			desire := newApplyDesire(t, "ok", configMapTarget("hello"), []byte(`{
+			  "apiVersion": "v1",
+			  "kind": "ConfigMap",
+			  "metadata": {"name":"hello", "namespace":"default"},
+			  "data": {"k":"v"}
+			}`))
+			desire.Spec.ServerSideApply.FieldManager = tc.fieldManager
+
+			if _, err := c.applyDesired(ctx, desire); err != nil {
+				t.Fatalf("applyDesired: %v", err)
+			}
+			if got := ssaFieldManager(t, dyn.Actions()); got != tc.wantFieldManager {
+				t.Errorf("SSA FieldManager = %q, want %q", got, tc.wantFieldManager)
+			}
+		})
+	}
 }
 
 // TestApplyDesired_PreCheckErrors covers every pre-flight failure that must
