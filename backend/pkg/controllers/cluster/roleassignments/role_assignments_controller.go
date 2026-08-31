@@ -204,10 +204,10 @@ func (c *roleAssignmentsSyncer) SyncOnce(ctx context.Context, key controllerutil
 		return nil
 	}
 
-	return c.reconcileRoleAssignments(ctx, cluster, existingServiceProviderCluster)
+	return c.syncRoleAssignments(ctx, cluster, existingServiceProviderCluster)
 }
 
-// reconcileRoleAssignments observes the role assignments for a cluster that is not
+// syncRoleAssignments observes the role assignments for a cluster that is not
 // being deleted and reflects their state onto the ServiceProviderCluster.
 //
 // It first records every not-yet-tracked expected role assignment as
@@ -220,7 +220,7 @@ func (c *roleAssignmentsSyncer) SyncOnce(ctx context.Context, key controllerutil
 //     is observe-only).
 //   - other error: returns the error so the sync retries.
 //   - exists: moves it from pending to confirmed (AzureResources).
-func (c *roleAssignmentsSyncer) reconcileRoleAssignments(ctx context.Context, cluster *coreapi.HCPOpenShiftCluster, existingServiceProviderCluster *coreapi.ServiceProviderCluster) error {
+func (c *roleAssignmentsSyncer) syncRoleAssignments(ctx context.Context, cluster *coreapi.HCPOpenShiftCluster, existingServiceProviderCluster *coreapi.ServiceProviderCluster) error {
 	expected, err := c.expectedRoleAssignmentIDs(cluster, existingServiceProviderCluster)
 	if err != nil {
 		return utils.TrackError(err)
