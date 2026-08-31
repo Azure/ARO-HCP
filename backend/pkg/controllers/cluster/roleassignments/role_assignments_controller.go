@@ -146,7 +146,9 @@ func (c *roleAssignmentsSyncer) NeedsWork(cluster *coreapi.HCPOpenShiftCluster, 
 		return true
 	}
 	for _, expectedID := range expected {
-		if !containsResourceID(roleAssignments.AzureResources, expectedID) {
+		if !slices.ContainsFunc(roleAssignments.AzureResources, func(id *azcorearm.ResourceID) bool {
+			return controllerutil.ResourceIDsEqual(id, expectedID)
+		}) {
 			return true
 		}
 	}
@@ -240,10 +242,14 @@ func (c *roleAssignmentsSyncer) syncRoleAssignments(ctx context.Context, cluster
 	existingRoleAssignments := existingServiceProviderCluster.Status.AzureResources.RoleAssignments
 	var toAdd []*azcorearm.ResourceID
 	for _, expectedID := range expected {
-		if containsResourceID(existingRoleAssignments.AzureResources, expectedID) {
+		if slices.ContainsFunc(existingRoleAssignments.AzureResources, func(id *azcorearm.ResourceID) bool {
+			return controllerutil.ResourceIDsEqual(id, expectedID)
+		}) {
 			continue
 		}
-		if containsResourceID(existingRoleAssignments.PendingAzureResources, expectedID) {
+		if slices.ContainsFunc(existingRoleAssignments.PendingAzureResources, func(id *azcorearm.ResourceID) bool {
+			return controllerutil.ResourceIDsEqual(id, expectedID)
+		}) {
 			continue
 		}
 		toAdd = append(toAdd, expectedID)
@@ -277,6 +283,10 @@ func (c *roleAssignmentsSyncer) syncRoleAssignments(ctx context.Context, cluster
 		case azureclient.IsRoleAssignmentNotFoundErr(getErr):
 			// The role assignment does not exist yet. Cluster Service owns its
 			// creation; leave the pending marker in place and wait for a later pass.
+			// TODO(post-merge followup): the backend will take over CREATING this role
+			// assignment (rather than only observing Cluster Service's). That followup
+			// must also drive sync from the earliest-recheck interval (re-check ~1h after
+			// creation) so a confirmed assignment that later disappears is re-observed.
 			stillPending = append(stillPending, pendingID)
 		case getErr != nil:
 			return utils.TrackError(fmt.Errorf("failed to get role assignment %q: %w", pendingID.String(), getErr))
@@ -439,7 +449,9 @@ func appendRoleAssignmentIDs(expected []*azcorearm.ResourceID, scope, principalI
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse role assignment resource ID %q: %w", fullID, err)
 		}
-		if containsResourceID(expected, parsed) {
+		if slices.ContainsFunc(expected, func(id *azcorearm.ResourceID) bool {
+			return controllerutil.ResourceIDsEqual(id, parsed)
+		}) {
 			continue
 		}
 		expected = append(expected, parsed)
@@ -490,14 +502,6 @@ func (c *roleAssignmentsSyncer) roleAssignmentsClient(ctx context.Context, subsc
 		return nil, fmt.Errorf("failed to build role assignments client: %w", err)
 	}
 	return client, nil
-}
-
-// containsResourceID reports whether target is present in list, comparing resource IDs
-// with controllerutils.ResourceIDsEqual.
-func containsResourceID(list []*azcorearm.ResourceID, target *azcorearm.ResourceID) bool {
-	return slices.ContainsFunc(list, func(id *azcorearm.ResourceID) bool {
-		return controllerutil.ResourceIDsEqual(id, target)
-	})
 }
 
 // resourceIDStrings renders resource IDs for structured logging.
