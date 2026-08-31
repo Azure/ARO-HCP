@@ -46,6 +46,9 @@ type ServiceProviderExternalAuthStatus struct {
 	// - "OIDCClientsDegraded": Written by ExternalAuthOIDCClientsDegradedController. True when
 	//   at least one OIDC client has an issue; aggregated into the user-facing
 	//   Degraded condition by ExternalAuthUserFacingDegradedAggregator.
+	// - "OIDCIssuerCACertificateValidityCompromised": Written by ExternalAuthCACertValidityController.
+	//   True when any CA certificate in the issuer bundle has expired or is not yet valid;
+	//   aggregated into the user-facing Degraded condition by ExternalAuthUserFacingDegradedAggregator.
 	// +optional
 	// +patchMergeKey=type
 	// +patchStrategy=merge
