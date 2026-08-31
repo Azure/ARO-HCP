@@ -761,6 +761,12 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		backendInformers,
 		b.clock,
 	)
+	externalAuthAvailableController := externalauthstatus.NewExternalAuthAvailableController(
+		b.options.ResourcesDBClient,
+		externalAuthLister,
+		unionReadDesireLister,
+		backendInformers,
+	)
 
 	createClusterScopedReadDesiresController := clusterreaddesires.NewCreateClusterScopedReadDesiresController(
 		activeOperationLister, b.options.ResourcesDBClient, b.options.KubeApplierDBClients,
@@ -1116,6 +1122,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go nodePoolDegradedAggregatorController.Run(ctx, 20)
 				go nodePoolRequirementsValidAggregatorController.Run(ctx, 20)
 				go externalAuthDegradedAggregatorController.Run(ctx, 20)
+				go externalAuthAvailableController.Run(ctx, 20)
 				go desiredControlPlaneSizeController.Run(ctx, 20)
 				go serviceProviderClusterPropertiesSyncController.Run(ctx, 20)
 				go azureRPRegistrationValidationController.Run(ctx, 20)
