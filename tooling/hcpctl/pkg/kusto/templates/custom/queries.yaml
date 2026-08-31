@@ -51,3 +51,7 @@
   database: HostedControlPlaneLogs
   queryType: custom-logs
   templatePath: templates/custom/hosted_control_plane_logs.kql.gotmpl
+- name: kubeApplierLogs
+  database: ServiceLogs
+  queryType: custom-logs
+  templatePath: templates/custom/kube_applier_logs.kql.gotmpl

@@ -271,6 +271,18 @@ data:
         Emitter_Storage.type   filesystem
 
     [FILTER]
+        # Drop kube-applier logs that carry a resource-snapshot payload
+        # (snapshotType=kubernetes or cosmos) entirely. kube-applier is not a source
+        # of kubernetesResourceSnapshots or cosmosResourceSnapshots, so these records
+        # are discarded here rather than routed to a snapshot table; they also never
+        # reach the kubeApplierLogs table. Records without a snapshotType field (the
+        # normal kube-applier logs) do not match the exclude regex and pass through.
+        Name    grep
+        Alias   filter.drop_kube_applier_snapshots
+        Match   kube-applier.logs
+        Exclude snapshotType ^(kubernetes|cosmos)$
+
+    [FILTER]
         # Route backend logs with snapshotType=cosmos
         # to a dedicated tag for the cosmosResourceSnapshots Kusto table.
         Name            rewrite_tag
@@ -998,7 +1010,7 @@ spec:
         app: arobit-forwarder
         azure.workload.identity/use: "true"
       annotations:
-        checksum/configmap: 5b0f7652584a80bc9ce7a000ad45161157cc477a289a0e5222ba0e5a571e334a
+        checksum/configmap: 8181bfeb7a27a81934b0ffcc3a6ac867fdc904d050c6bd52d6ba638d75ac4336
     spec:
       priorityClassName: service-lifecycle-critical
       serviceAccountName: 'arobit-forwarder'
