@@ -711,6 +711,14 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		unionKubeApplierInformers,
 		controlPlaneVersionRolloutLister,
 	)
+	// Ensures a ControlPlaneVersionRollout document exists for every cluster's
+	// y-stream channel, so the rollout controllers above have something to drive.
+	controlPlaneVersionRolloutSeedingController := versionrollout.NewControlPlaneVersionRolloutSeedingController(
+		b.options.ResourcesDBClient,
+		b.options.FleetDBClient,
+		backendInformers,
+		fleetInformers,
+	)
 	clusterBaseDomainPrefixSyncController := clusterproperties.NewClusterBaseDomainPrefixSyncController(
 		b.options.ResourcesDBClient,
 		b.options.ClustersServiceClient,
@@ -1126,6 +1134,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go controlPlaneActiveVersionController.Run(ctx, 20)
 				// The fleet rollout controllers own ServiceProviderCluster desired
 				// version; they replaced the removed per-cluster ControlPlaneDesiredVersion controller.
+				go controlPlaneVersionRolloutSeedingController.Run(ctx, 20)
 				go bestVersionSelectionController.Run(ctx, 20)
 				go controlPlaneVersionStatusController.Run(ctx, 20)
 				go normalDesiredVersionController.Run(ctx, 20)

@@ -875,7 +875,7 @@ No Cosmos writes. Posts `NodePoolUpgradePolicy` to Cluster Service.
 
 ### Fleet Control-Plane Version Rollout Controllers
 
-These four controllers (package `backend/pkg/controllers/versionrollout/`)
+These five controllers (package `backend/pkg/controllers/versionrollout/`)
 implement the fleet-wide control-plane version rollout. Together they replace the
 removed per-cluster `ControlPlaneDesiredVersion` controller as the writers of
 `ServiceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion`.
@@ -884,11 +884,25 @@ They coordinate through a new fleet-scoped Cosmos type, `ControlPlaneVersionRoll
 which lives in the **Fleet** Cosmos container — not the per-subscription "Resources"
 container that holds every other type in this document. There is one
 `ControlPlaneVersionRollout` document per y-stream channel (e.g. `stable-4.21`),
-whose top-level resource name and partition key are that channel. The first three
-controllers are driven by a `ControlPlaneVersionRollout` watching controller (one
-key per channel); the forced controller is driven by the Cluster
-(`HCPOpenShiftCluster`) informer (one key per cluster). All four run
-unconditionally — there is no feature gate.
+whose top-level resource name is that channel; all rollouts share a single
+partition keyed by the provider namespace. The Rollout Seeding and Forced Cluster
+Desired Version controllers are driven by the Cluster (`HCPOpenShiftCluster`)
+informer (one key per cluster); the Best Version Selection, Status Collector, and
+Normal Cluster Desired Version controllers are driven by a
+`ControlPlaneVersionRollout` watching controller (one key per channel). All five
+run unconditionally — there is no feature gate.
+
+#### ControlPlaneVersionRolloutSeeding
+
+**File:** [rollout_seeding_controller.go](../backend/pkg/controllers/versionrollout/rollout_seeding_controller.go)
+**Trigger:** Cluster (`HCPOpenShiftCluster`) informer, 5-minute resync (per cluster)
+**Gate:** No formal NeedsWork. Skips inside SyncOnce if the cluster does not exist, is being deleted (`ServiceProviderProperties.DeletionTimestamp`), or has no derivable y-stream channel; skips the create when the channel's `ControlPlaneVersionRollout` already exists (checked via the lister; a racing create is absorbed as a 409 conflict).
+
+| | Object | Fields |
+|---|--------|--------|
+| Read | `HCPOpenShiftCluster` | <ul><li>`CustomerProperties.Version.ChannelGroup`, `CustomerProperties.Version.ID` (derive the y-stream channel)</li><li>`ServiceProviderProperties.DeletionTimestamp` (skip if set)</li></ul> |
+| Read | `ControlPlaneVersionRollout` (Fleet) | <ul><li>existence check for the cluster's channel</li></ul> |
+| **Write** | **`ControlPlaneVersionRollout`** (Fleet) | <ul><li>**CREATES** an empty document (no Spec/Status) for the cluster's y-stream channel when absent</li></ul> |
 
 #### ControlPlaneVersionBestVersionSelection
 
@@ -1548,6 +1562,14 @@ Read by `ClusterClusterServiceCreate` (gate), `OperationClusterUpdate`, and `Tri
 |-------|------|
 | Admin API | SRE sets `ExactVersion` / `UntilExactVersion` to pin a cluster to an exact z-stream |
 | [ForcedClusterDesiredVersion](#forcedclusterdesiredversion) | Clears the pin once fleet best reaches `PinnedVersion.UntilExactVersion` |
+
+### `ControlPlaneVersionRollout` document (Fleet container)
+
+| Actor | When |
+|-------|------|
+| [ControlPlaneVersionRolloutSeeding](#controlplaneversionrolloutseeding) | Creates one empty document per y-stream channel that a cluster belongs to |
+
+Single creator; every other rollout actor only reads or updates an existing document.
 
 ### `ControlPlaneVersionRollout.Spec.BestExactVersion` (Fleet container)
 
