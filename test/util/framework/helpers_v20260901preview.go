@@ -767,6 +767,30 @@ func (tc *perItOrDescribeTestContext) get20260901ClientFactoryUnlocked(ctx conte
 	return tc.clientFactory20260901, nil
 }
 
+// fallbackAdminRESTConfigTo20260901 re-requests admin credentials via the
+// CSR-based 2026-09-01-preview API version. Used when the legacy 20240610
+// admin credential path fails, so tests keep working once break-glass
+// issuance is no longer served for the stable 20240610 API version. Both the
+// originating 20240610 error and any 2026-09-01-preview error are wrapped so a
+// failure on either path stays diagnosable.
+func (tc *perItOrDescribeTestContext) fallbackAdminRESTConfigTo20260901(
+	ctx context.Context,
+	resourceGroupName string,
+	hcpClusterName string,
+	timeout time.Duration,
+	causeErr error,
+) (*rest.Config, error) {
+	fallbackFactory, fallbackErr := tc.Get20260901ClientFactory(ctx)
+	if fallbackErr != nil {
+		return nil, fmt.Errorf("20240610 credential request failed: %w; fallback client factory error: %w", causeErr, fallbackErr)
+	}
+	restConfig, fallbackErr := tc.GetAdminRESTConfigForHCPCluster20260901(ctx, fallbackFactory.NewHcpOpenShiftClustersClient(), resourceGroupName, hcpClusterName, timeout)
+	if fallbackErr != nil {
+		return nil, fmt.Errorf("20240610 credential request failed: %w; 2026-09-01-preview fallback failed: %w", causeErr, fallbackErr)
+	}
+	return restConfig, nil
+}
+
 func (tc *perItOrDescribeTestContext) GetAdminRESTConfigForHCPCluster20260901(
 	ctx context.Context,
 	hcpClient *hcpsdk20260901preview.HcpOpenShiftClustersClient,

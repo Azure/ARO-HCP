@@ -489,7 +489,9 @@ func (tc *perItOrDescribeTestContext) GetAdminRESTConfigForHCPCluster20240610(
 		nil,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to start credential request: %w", err)
+		// Fall back to the CSR-based 2026-09-01-preview mechanism when the
+		// legacy break-glass credential request cannot be started.
+		return tc.fallbackAdminRESTConfigTo20260901(ctx, resourceGroupName, hcpClusterName, timeout, fmt.Errorf("failed to start credential request: %w", err))
 	}
 
 	operationResult, err := adminCredentialRequestPoller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
@@ -499,7 +501,9 @@ func (tc *perItOrDescribeTestContext) GetAdminRESTConfigForHCPCluster20240610(
 		if errors.Is(err, context.DeadlineExceeded) {
 			return nil, fmt.Errorf("failed waiting for hcpCluster=%q in resourcegroup=%q to finish getting creds, caused by: %w, error: %w", hcpClusterName, resourceGroupName, context.Cause(ctx), err)
 		}
-		return nil, fmt.Errorf("failed waiting for hcpCluster=%q in resourcegroup=%q to finish getting creds: %w", hcpClusterName, resourceGroupName, err)
+		// Fall back to the CSR-based 2026-09-01-preview mechanism when the
+		// legacy break-glass credential request fails after it started.
+		return tc.fallbackAdminRESTConfigTo20260901(ctx, resourceGroupName, hcpClusterName, timeout, fmt.Errorf("failed waiting for hcpCluster=%q in resourcegroup=%q to finish getting creds: %w", hcpClusterName, resourceGroupName, err))
 	}
 
 	switch m := any(operationResult).(type) {
