@@ -143,6 +143,28 @@ func unionMessage(sources []SourcedCondition) string {
 	return joinNamedMessages(named)
 }
 
+// joinNamedMessagesHeaderOnly formats messages with the source name prefixed
+// only on the first line per source. Subsequent lines from the same source
+// appear unprefixed. This avoids repeating the condition type on every line
+// of a multi-line per-client message. Empty messages are skipped.
+func joinNamedMessagesHeaderOnly(sources []namedMessage) string {
+	lines := []string{}
+	for _, src := range sources {
+		if len(src.message) == 0 {
+			continue
+		}
+		msgLines := uniq(strings.Split(src.message, "\n"))
+		for i, line := range msgLines {
+			if i == 0 {
+				lines = append(lines, fmt.Sprintf("%s: %s", src.name, line))
+			} else {
+				lines = append(lines, line)
+			}
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
 // namedMessage is a source name paired with a free-form message. Used by
 // joinNamedMessages so Degraded aggregation (controller name) and
 // RequirementsValid aggregation (validation type) share one formatter.
