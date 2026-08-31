@@ -24,17 +24,20 @@ import (
 
 // ControlPlaneVersionRollout coordinates a fleet-wide control-plane version
 // rollout for a single y-stream channel (e.g. "stable-4.21"). It is a
-// region-wide (fleet-scoped) resource: the top-level resource name and partition
-// key are the y-stream channel it is associated with.
+// region-wide (fleet-scoped) resource: the top-level resource name is the
+// y-stream channel it is associated with, and all rollouts live in a single
+// shared partition keyed by the provider namespace.
 //
-// The Best Version Selection controller computes Spec.BestExactVersion from the
+// The Rollout Seeding controller creates one document per y-stream channel; the
+// Best Version Selection controller computes Spec.BestExactVersion from the
 // upgrade graph; the Status Collector aggregates per-cluster progress; and the
 // Normal/Forced Cluster Desired Version Assignment controllers drive individual
 // ServiceProviderCluster desired versions toward Spec.BestExactVersion.
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type ControlPlaneVersionRollout struct {
-	// PartitionKey / top-level resource name is the y-stream channel, e.g.
-	// "stable-4.21". Every fleet document for one rollout shares this partition key.
+	// The top-level resource name is the y-stream channel, e.g. "stable-4.21".
+	// All ControlPlaneVersionRollout documents share a single partition keyed by
+	// the provider namespace (see ProviderNamespacePartitionKeyDeriver).
 	coreapi.CosmosMetadata `json:"cosmosMetadata"`
 
 	Spec   ControlPlaneVersionRolloutSpec   `json:"spec"`

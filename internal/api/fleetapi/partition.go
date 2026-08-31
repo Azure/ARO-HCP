@@ -32,7 +32,8 @@ func (mc *ManagementCluster) GetStampIdentifier() string {
 }
 
 // GetStampIdentifier returns the top-level resource name of the rollout, which
-// is the y-stream channel (e.g. "stable-4.21") and doubles as the partition key.
+// is the y-stream channel (e.g. "stable-4.21"). Rollouts are partitioned by the
+// provider namespace, not by this identifier.
 func (r *ControlPlaneVersionRollout) GetStampIdentifier() string {
 	if r.ResourceID == nil {
 		return ""
