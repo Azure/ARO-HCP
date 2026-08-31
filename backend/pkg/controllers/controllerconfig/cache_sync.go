@@ -111,6 +111,12 @@ func (informers *trackingBackendInformers) ServiceProviderNodePools() (cache.Sha
 	return informer, lister
 }
 
+func (informers *trackingBackendInformers) ServiceProviderExternalAuths() (cache.SharedIndexInformer, corelisters.ServiceProviderExternalAuthLister) {
+	informer, lister := informers.BackendInformers.ServiceProviderExternalAuths()
+	informers.tracking.add(informer.HasSynced)
+	return informer, lister
+}
+
 func (informers *trackingBackendInformers) Controllers() (cache.SharedIndexInformer, corelisters.ControllerLister) {
 	informer, lister := informers.BackendInformers.Controllers()
 	informers.tracking.add(informer.HasSynced)
