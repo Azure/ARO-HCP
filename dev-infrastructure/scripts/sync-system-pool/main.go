@@ -74,6 +74,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"math"
 	"net/http"
 	"os"
 	"strconv"
@@ -344,6 +345,9 @@ func parseInt32(v, name string) (int32, error) {
 	n, err := strconv.Atoi(v)
 	if err != nil {
 		return 0, fmt.Errorf("%s: %w", name, err)
+	}
+	if n < math.MinInt32 || n > math.MaxInt32 {
+		return 0, fmt.Errorf("%s: value %d out of range for int32", name, n)
 	}
 	return int32(n), nil
 }
