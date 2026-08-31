@@ -313,6 +313,19 @@ func loadConfig(env func(string) string) (*systemPoolConfig, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Fail fast on an obviously-broken config, before anything gets
+	// mutated: a bad min/max/disk value here would otherwise only surface
+	// after the original system pool is already gone, with no valid config
+	// to recreate it from.
+	if minCount < 1 {
+		return nil, fmt.Errorf("SYSTEM_MIN_COUNT must be >= 1 for a system pool, got %d", minCount)
+	}
+	if maxCount < minCount {
+		return nil, fmt.Errorf("SYSTEM_MAX_COUNT (%d) must be >= SYSTEM_MIN_COUNT (%d)", maxCount, minCount)
+	}
+	if osDiskGB < 1 {
+		return nil, fmt.Errorf("SYSTEM_OS_DISK_GB must be > 0, got %d", osDiskGB)
+	}
 	c.minCount = minCount
 	c.maxCount = maxCount
 	c.osDiskSizeGB = osDiskGB

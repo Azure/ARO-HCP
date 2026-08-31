@@ -242,6 +242,46 @@ func TestLoadConfig_RequiresAllFields(t *testing.T) {
 	}
 }
 
+func TestLoadConfig_RejectsOutOfRangeNumericFields(t *testing.T) {
+	base := map[string]string{
+		"SUBSCRIPTION_ID":   "sub",
+		"RESOURCE_GROUP":    "rg",
+		"CLUSTER_NAME":      "cluster",
+		"VNET_NAME":         "aks-net",
+		"SYSTEM_POOL_NAME":  "system",
+		"SYSTEM_VM_SIZE":    "Standard_E8s_v3",
+		"SYSTEM_MIN_COUNT":  "1",
+		"SYSTEM_MAX_COUNT":  "4",
+		"SYSTEM_OS_DISK_GB": "32",
+		"SYSTEM_ZONE_MODE":  "Auto",
+	}
+	tests := []struct {
+		name     string
+		override map[string]string
+	}{
+		{"minCount zero", map[string]string{"SYSTEM_MIN_COUNT": "0"}},
+		{"minCount negative", map[string]string{"SYSTEM_MIN_COUNT": "-1"}},
+		{"maxCount below minCount", map[string]string{"SYSTEM_MIN_COUNT": "4", "SYSTEM_MAX_COUNT": "1"}},
+		{"osDiskGB zero", map[string]string{"SYSTEM_OS_DISK_GB": "0"}},
+		{"osDiskGB negative", map[string]string{"SYSTEM_OS_DISK_GB": "-32"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			env := map[string]string{}
+			for k, v := range base {
+				env[k] = v
+			}
+			for k, v := range tt.override {
+				env[k] = v
+			}
+			_, err := loadConfig(func(k string) string { return env[k] })
+			if err == nil {
+				t.Fatalf("expected loadConfig to reject %+v", tt.override)
+			}
+		})
+	}
+}
+
 func TestLoadConfig_DryRun(t *testing.T) {
 	env := map[string]string{
 		"SUBSCRIPTION_ID":   "sub",

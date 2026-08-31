@@ -43,7 +43,7 @@ func (c *clients) drainPool(ctx context.Context, pool string, timeout time.Durat
 		return fmt.Errorf("kube client not bootstrapped; cannot drain pool %s", pool)
 	}
 	nodes, err := c.kube.CoreV1().Nodes().List(ctx, metav1.ListOptions{
-		LabelSelector: "agentpool=" + pool,
+		LabelSelector: "kubernetes.azure.com/agentpool=" + pool,
 	})
 	if err != nil {
 		return fmt.Errorf("list nodes for pool %s: %w", pool, err)
@@ -108,7 +108,7 @@ func (c *clients) waitForReadyNodes(ctx context.Context, pool string, want int, 
 	var lastListErr error
 	for {
 		nodes, err := c.kube.CoreV1().Nodes().List(ctx, metav1.ListOptions{
-			LabelSelector: "agentpool=" + pool,
+			LabelSelector: "kubernetes.azure.com/agentpool=" + pool,
 		})
 		if err != nil {
 			lastListErr = fmt.Errorf("list nodes for pool %s: %w", pool, err)
