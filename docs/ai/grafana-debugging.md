@@ -5,7 +5,7 @@
 
 ## Access Requirements
 
-In staging, integration, and production environments, public network access to Grafana may be disabled. If so, the user must be connected to the **MSFT Corp VPN** to reach Grafana. If a Grafana URL is unreachable, prompt the user to verify VPN connectivity before further troubleshooting. Dev environment Grafana instances are publicly accessible.
+In staging, integration, and production environments, public network access to Grafana may be disabled. If so, the user must be connected to the **MSFT Corp VPN** to reach Grafana. If a Grafana URL is unreachable, prompt the user to verify VPN connectivity before further troubleshooting; see [Grafana VPN Access](../sops/grafana-vpn-access.md) for the full procedure. Dev environment Grafana instances are publicly accessible.
 
 ## Data Sources
 
