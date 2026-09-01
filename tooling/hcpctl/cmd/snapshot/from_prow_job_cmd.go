@@ -36,6 +36,8 @@ type RawFromProwJobOptions struct {
 	TestSelector    string // optional: only gather data for tests whose name contains this substring
 	OutputDir       string
 	SDPPipelinesDir string // optional: path to a local checkout of the sdp-pipelines repo
+	ViaKusto        string // optional: route queries through this reachable ADX cluster
+	ViaRegion       string // optional: region of ViaKusto (defaults to the job's region)
 	QueryTimeout    time.Duration
 	Concurrency     int
 }
@@ -52,6 +54,8 @@ func bindFromProwJobOptions(opts *RawFromProwJobOptions, cmd *cobra.Command) err
 	cmd.Flags().StringVar(&opts.TestSelector, "test", opts.TestSelector, "Only gather data for tests whose name contains this substring")
 	cmd.Flags().StringVar(&opts.OutputDir, "output-dir", opts.OutputDir, "Directory to write snapshot output")
 	cmd.Flags().StringVar(&opts.SDPPipelinesDir, "sdp-pipelines-dir", opts.SDPPipelinesDir, "Path to a local checkout of the sdp-pipelines repo (required for non-PR jobs)")
+	cmd.Flags().StringVar(&opts.ViaKusto, "via-kusto", opts.ViaKusto, "Route queries through this reachable ADX cluster instead of connecting to the job's cluster directly; queries still target the job's cluster via cross-cluster cluster(). The connecting identity needs viewer rights on the job's cluster, and the standard databases must exist on this cluster.")
+	cmd.Flags().StringVar(&opts.ViaRegion, "via-region", opts.ViaRegion, "Region of --via-kusto (defaults to the job's region)")
 	cmd.Flags().DurationVar(&opts.QueryTimeout, "query-timeout", opts.QueryTimeout, "Timeout for individual Kusto queries")
 	cmd.Flags().IntVar(&opts.Concurrency, "concurrency", opts.Concurrency, "Maximum number of concurrent Kusto queries (0 = 4*NumCPU)")
 
@@ -66,6 +70,8 @@ type validatedFromProwJobOptions struct {
 	testSelector    string
 	outputDir       string
 	sdpPipelinesDir string
+	viaKusto        string
+	viaRegion       string
 	queryTimeout    time.Duration
 	concurrency     int
 }
@@ -84,11 +90,16 @@ func (o *RawFromProwJobOptions) validate() (*validatedFromProwJobOptions, error)
 			return nil, fmt.Errorf("--sdp-pipelines-dir %q is not a directory", o.SDPPipelinesDir)
 		}
 	}
+	if o.ViaRegion != "" && o.ViaKusto == "" {
+		return nil, fmt.Errorf("--via-region requires --via-kusto")
+	}
 	return &validatedFromProwJobOptions{
 		prowURL:         o.URL,
 		testSelector:    o.TestSelector,
 		outputDir:       o.OutputDir,
 		sdpPipelinesDir: o.SDPPipelinesDir,
+		viaKusto:        o.ViaKusto,
+		viaRegion:       o.ViaRegion,
 		queryTimeout:    o.QueryTimeout,
 		concurrency:     o.Concurrency,
 	}, nil
@@ -105,7 +116,7 @@ func (o *validatedFromProwJobOptions) run(ctx context.Context) error {
 		return fmt.Errorf("failed to create Azure credential: %w", err)
 	}
 
-	pjCtx, err := snapshotpkg.NewProwJobContext(ctx, o.prowURL, cred, o.sdpPipelinesDir)
+	pjCtx, err := snapshotpkg.NewProwJobContext(ctx, o.prowURL, cred, o.sdpPipelinesDir, snapshotpkg.WithViaKusto(o.viaKusto, o.viaRegion))
 	if err != nil {
 		return fmt.Errorf("failed to initialize Prow job context: %w", err)
 	}
