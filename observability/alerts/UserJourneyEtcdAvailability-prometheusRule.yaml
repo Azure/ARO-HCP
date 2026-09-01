@@ -52,7 +52,7 @@ spec:
         summary: "etcd backend commit duration is high for {{ $labels.resource_id }} {{ $labels.instance }}"
         description: "{{ $labels.resource_id }} etcd instance {{ $labels.instance }} has 99th percentile backend commit duration of {{ $value }}s (threshold: 100ms). Slow disk performance may impact write performance. Medium burn (6h/30m)."
         runbook_url: https://aka.ms/arohcp-runbook-etcd
-    - alert: userJourneyEtcdBackendCommitDurationHigh3d
+    - alert: userJourneyEtcdBackendCommitDurationHigh3d6h
       expr: |
         histogram_quantile(0.99, sum by (cluster, subscription_id, resource_id, instance, le) (rate(etcd_disk_backend_commit_duration_seconds_bucket[6h]))) > 0.100
         and
@@ -100,7 +100,7 @@ spec:
         summary: "etcd database fragmentation is high for {{ $labels.resource_id }} {{ $labels.instance }}"
         description: "{{ $labels.resource_id }} etcd instance {{ $labels.instance }} database in-use ratio is {{ $value | humanizePercentage }} (threshold: 25%). Database defragmentation may be needed to reclaim space. Medium burn (6h/30m)."
         runbook_url: https://aka.ms/arohcp-runbook-etcd
-    - alert: userJourneyEtcdDatabaseHighFragmentation3d
+    - alert: userJourneyEtcdDatabaseHighFragmentation3d6h
       expr: |
         (etcd_mvcc_db_total_size_in_use_in_bytes / etcd_mvcc_db_total_size_in_bytes) < 0.25
       for: 6h
@@ -112,7 +112,7 @@ spec:
         short_window: 6h
       annotations:
         summary: "etcd database fragmentation is chronically high for {{ $labels.resource_id }} {{ $labels.instance }}"
-        description: "{{ $labels.resource_id }} etcd instance {{ $labels.instance }} database in-use ratio is {{ $value | humanizePercentage }} (threshold: 25%). Database defragmentation may be needed to reclaim space. Slow burn (3d)."
+        description: "{{ $labels.resource_id }} etcd instance {{ $labels.instance }} database in-use ratio is {{ $value | humanizePercentage }} (threshold: 25%). Database defragmentation may be needed to reclaim space. Slow burn (3d/6h)."
         runbook_url: https://aka.ms/arohcp-runbook-etcd
 
     # ----------------------------------------
@@ -146,7 +146,7 @@ spec:
         summary: "etcd database size is too large for {{ $labels.resource_id }} {{ $labels.instance }}"
         description: "{{ $labels.resource_id }} etcd instance {{ $labels.instance }} database size is {{ $value | humanize }}B (threshold: 8GB). Database may need compaction or quota increase. Medium burn (6h/30m)."
         runbook_url: https://aka.ms/arohcp-runbook-etcd
-    - alert: userJourneyEtcdDatabaseSizeExceeded3d
+    - alert: userJourneyEtcdDatabaseSizeExceeded3d6h
       expr: |
         etcd_mvcc_db_total_size_in_bytes > 8000000000
       for: 6h
@@ -158,7 +158,7 @@ spec:
         short_window: 6h
       annotations:
         summary: "etcd database size is chronically too large for {{ $labels.resource_id }} {{ $labels.instance }}"
-        description: "{{ $labels.resource_id }} etcd instance {{ $labels.instance }} database size is {{ $value | humanize }}B (threshold: 8GB). Database may need compaction or quota increase. Slow burn (3d)."
+        description: "{{ $labels.resource_id }} etcd instance {{ $labels.instance }} database size is {{ $value | humanize }}B (threshold: 8GB). Database may need compaction or quota increase. Slow burn (3d/6h)."
         runbook_url: https://aka.ms/arohcp-runbook-etcd
 
     # ----------------------------------------
@@ -192,7 +192,7 @@ spec:
         summary: "etcd cluster experiencing frequent leader changes for {{ $labels.resource_id }} {{ $labels.instance }}"
         description: "{{ $labels.resource_id }} etcd instance {{ $labels.instance }} has seen {{ $value }} leader changes in the last 15 minutes (threshold: 4). This may indicate network issues or cluster instability. Medium burn (6h/30m)."
         runbook_url: https://aka.ms/arohcp-runbook-etcd
-    - alert: userJourneyEtcdFrequentLeaderChanges3d
+    - alert: userJourneyEtcdFrequentLeaderChanges3d6h
       expr: |
         increase(etcd_server_leader_changes_seen_total[15m]) > 4
       for: 6h
@@ -204,7 +204,7 @@ spec:
         short_window: 6h
       annotations:
         summary: "etcd cluster experiencing chronic frequent leader changes for {{ $labels.resource_id }} {{ $labels.instance }}"
-        description: "{{ $labels.resource_id }} etcd instance {{ $labels.instance }} has seen {{ $value }} leader changes in the last 15 minutes (threshold: 4). This may indicate network issues or cluster instability. Slow burn (3d)."
+        description: "{{ $labels.resource_id }} etcd instance {{ $labels.instance }} has seen {{ $value }} leader changes in the last 15 minutes (threshold: 4). This may indicate network issues or cluster instability. Slow burn (3d/6h)."
         runbook_url: https://aka.ms/arohcp-runbook-etcd
 
     # ----------------------------------------
@@ -242,7 +242,7 @@ spec:
         summary: "etcd peer round-trip time is high for {{ $labels.resource_id }} {{ $labels.instance }}"
         description: "{{ $labels.resource_id }} etcd instance {{ $labels.instance }} has 99th percentile peer round-trip time of {{ $value }}s (threshold: 100ms). Network latency between peers may be affecting cluster performance. Medium burn (6h/30m)."
         runbook_url: https://aka.ms/arohcp-runbook-etcd
-    - alert: userJourneyEtcdPeerRoundTripTimeHigh3d
+    - alert: userJourneyEtcdPeerRoundTripTimeHigh3d6h
       expr: |
         histogram_quantile(0.99, sum by (cluster, subscription_id, resource_id, instance, le) (rate(etcd_network_peer_round_trip_time_seconds_bucket[6h]))) > 0.1
         and
@@ -294,7 +294,7 @@ spec:
         summary: "etcd WAL fsync duration is high for {{ $labels.resource_id }} {{ $labels.instance }}"
         description: "{{ $labels.resource_id }} etcd instance {{ $labels.instance }} has 99th percentile WAL fsync duration of {{ $value }}s (threshold: 50ms). Slow disk performance may impact cluster stability. Medium burn (6h/30m)."
         runbook_url: https://aka.ms/arohcp-runbook-etcd
-    - alert: userJourneyEtcdWALFsyncDurationHigh3d
+    - alert: userJourneyEtcdWALFsyncDurationHigh3d6h
       expr: |
         histogram_quantile(0.99, sum by (cluster, subscription_id, resource_id, instance, le) (rate(etcd_disk_wal_fsync_duration_seconds_bucket[6h]))) > 0.05
         and
