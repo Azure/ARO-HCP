@@ -23,6 +23,7 @@ import (
 	"github.com/go-logr/logr"
 	msgraphsdk "github.com/microsoftgraph/msgraph-sdk-go"
 	graphodataerrors "github.com/microsoftgraph/msgraph-sdk-go/models/odataerrors"
+
 	"k8s.io/apimachinery/pkg/util/sets"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v3"

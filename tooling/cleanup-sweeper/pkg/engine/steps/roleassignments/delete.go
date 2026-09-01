@@ -149,13 +149,13 @@ func (s *deleteOrphanedStep) Delete(ctx context.Context, target runner.Target, _
 		}
 		return fmt.Errorf("failed to re-read role assignment %q: %w", target.ID, err)
 	}
-	if response.RoleAssignment.Properties == nil ||
-		response.RoleAssignment.Properties.PrincipalID == nil ||
-		normalizeID(*response.RoleAssignment.Properties.PrincipalID) == "" {
+	if response.Properties == nil ||
+		response.Properties.PrincipalID == nil ||
+		normalizeID(*response.Properties.PrincipalID) == "" {
 		return fmt.Errorf("refusing to delete role assignment %q without a principal ID", target.ID)
 	}
 
-	principalID := normalizeID(*response.RoleAssignment.Properties.PrincipalID)
+	principalID := normalizeID(*response.Properties.PrincipalID)
 	retain, err := principalRequiresRoleAssignmentRetention(
 		ctx,
 		principalID,
