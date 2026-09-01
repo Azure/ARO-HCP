@@ -3,7 +3,7 @@ SHELL = /bin/bash
 # Binary name
 BINARY = hcpctl
 WINDOWS_BINARY = hcpctl.exe
-WINDOWS_BINARY_AMD64 = hcpctl-amd64.exe
+WINDOWS_BINARY_ARM64 = hcpctl-arm64.exe
 
 # Version information
 CURRENT_COMMIT ?= $(shell git rev-parse --short=7 HEAD)
@@ -53,11 +53,11 @@ $(WINDOWS_BINARY):
 	GOOS=windows GOARCH=amd64 go build $(LDFLAGS) -o $(WINDOWS_BINARY) .
 
 # Build for Windows ARM64
-$(WINDOWS_BINARY_AMD64):
-	GOOS=windows GOARCH=arm64 go build $(LDFLAGS) -o $(WINDOWS_BINARY_AMD64) .
+$(WINDOWS_BINARY_ARM64):
+	GOOS=windows GOARCH=arm64 go build $(LDFLAGS) -o $(WINDOWS_BINARY_ARM64) .
 
 # Build both Windows binaries
-windows: $(WINDOWS_BINARY) $(WINDOWS_BINARY_AMD64)
+windows: $(WINDOWS_BINARY) $(WINDOWS_BINARY_ARM64)
 
 # Clean build artifacts
 clean:
