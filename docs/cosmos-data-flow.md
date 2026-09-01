@@ -1048,14 +1048,13 @@ No Cosmos writes. Posts `NodePoolUpgradePolicy` to Cluster Service.
 
 **File:** [cluster_validation_controller.go](../backend/pkg/controllers/cluster/validation/cluster_validation_controller.go), [nodepool_validation_controller.go](../backend/pkg/controllers/nodepool/validation/nodepool_validation_controller.go)
 **Trigger:** Cluster/NodePool informer, 1-minute resync
-**Gate (shouldProcess on ServiceProviderCluster/ServiceProviderNodePool):**
-- `!meta.IsStatusConditionTrue(ServiceProviderCluster.Status.Validations, validation.Name())` (condition must not yet be True)
-- SyncOnce also checks `DeletionTimestamp == nil` on the resource
+**Gate:**
+- SyncOnce checks `DeletionTimestamp == nil` on the resource
 
 | | Object | Fields |
 |---|--------|--------|
-| Read | `ServiceProviderCluster` | <ul><li>`Status.Validations[<name>]` (shouldProcess: condition must not be True)</li></ul> |
-| Read | `ServiceProviderNodePool` | <ul><li>`Status.Validations[<name>]` (shouldProcess: condition must not be True)</li></ul> |
+| Read | `ServiceProviderCluster` | <ul><li>`Status.Validations[<name>]` (previousCondition / consecutive-Unknown suppression)</li></ul> |
+| Read | `ServiceProviderNodePool` | <ul><li>`Status.Validations[<name>]` (previousCondition / consecutive-Unknown suppression)</li></ul> |
 | Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (SyncOnce: must be nil)</li></ul> |
 | Read | `HCPOpenShiftClusterNodePool` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (SyncOnce: must be nil)</li></ul> |
 | **Write** | **`ServiceProviderCluster`** | <ul><li>**`Status.Validations[<name>]`** = condition (True/False)</li></ul> |
