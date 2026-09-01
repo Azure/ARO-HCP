@@ -954,7 +954,7 @@ func TestKeyRotationBackupSyncer_SyncOnce(t *testing.T) {
 
 			mcLister := &fleetlistertesting.SliceManagementClusterLister{
 				ManagementClusters: []*fleetapi.ManagementCluster{
-					{ResourceID: testMgmtClusterResourceID()},
+					{CosmosMetadata: coreapi.CosmosMetadata{ResourceID: testMgmtClusterResourceID()}},
 				},
 			}
 

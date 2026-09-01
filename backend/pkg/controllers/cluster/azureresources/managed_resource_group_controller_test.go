@@ -119,7 +119,6 @@ func newTestSubscription(tenantID *string) *coreapi.Subscription {
 			ResourceID:   subscriptionResourceID,
 			PartitionKey: strings.ToLower(subscriptionResourceID.SubscriptionID),
 		},
-		ResourceID: subscriptionResourceID,
 		Properties: &coreapi.SubscriptionProperties{
 			TenantId: tenantID,
 		},

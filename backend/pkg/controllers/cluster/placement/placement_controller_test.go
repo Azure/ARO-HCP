@@ -59,7 +59,6 @@ func mcForStamp(stamp string, schedulable, ready bool) *fleetapi.ManagementClust
 	}
 	return &fleetapi.ManagementCluster{
 		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(stamp)},
-		ResourceID:     resourceID,
 		Spec:           fleetapi.ManagementClusterSpec{SchedulingPolicy: policy},
 		Status: fleetapi.ManagementClusterStatus{
 			Conditions: []metav1.Condition{{Type: string(fleetapi.ManagementClusterConditionReady), Status: readyStatus, Reason: "Test"}},

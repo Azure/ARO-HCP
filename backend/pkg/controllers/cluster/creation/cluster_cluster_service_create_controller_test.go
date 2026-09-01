@@ -71,7 +71,6 @@ func newTestManagementCluster() *fleetapi.ManagementCluster {
 	resourceID := testManagementClusterResourceID()
 	return &fleetapi.ManagementCluster{
 		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: resourceID, PartitionKey: testStampIdentifier},
-		ResourceID:     resourceID,
 		Status: fleetapi.ManagementClusterStatus{
 			ClusterServiceProvisionShardID: ptr.To(metadataapi.Must(metadataapi.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/" + testProvisionShardID))),
 		},
