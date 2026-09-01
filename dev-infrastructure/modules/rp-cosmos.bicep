@@ -136,3 +136,18 @@ resource sqlRoleAssignmentFleetReadOnly 'Microsoft.DocumentDB/databaseAccounts/s
     scope: fleetContainerScope
   }
 }
+
+// Container-scoped read/write access to the Resources container for the Clusters
+// Service managed identity, so CS can persist its controller documents (per team
+// decision).
+var resourcesContainerScope = '${cosmosDbAccount.id}/dbs/${cosmosDBAccountName}/colls/Resources'
+
+resource sqlRoleAssignmentResourcesReadWrite 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@2021-04-15' = {
+  name: guid(cosmosDataContributorRoleDefinitionId, csManagedIdentityPrincipalId, resourcesContainerScope)
+  parent: cosmosDbAccount
+  properties: {
+    roleDefinitionId: '${cosmosDbAccount.id}/sqlRoleDefinitions/${cosmosDataContributorRoleDefinitionId}'
+    principalId: csManagedIdentityPrincipalId
+    scope: resourcesContainerScope
+  }
+}
