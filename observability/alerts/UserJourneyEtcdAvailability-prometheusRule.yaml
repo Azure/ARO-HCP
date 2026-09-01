@@ -11,7 +11,7 @@ spec:
     # Burn-rate tiers per ADR-001 (MWMBR):
     #   Fast   (1h/5m):  fires in 5m  — severity: 3
     #   Medium (6h/30m): fires in 30m — severity: 3
-    #   Slow   (3d/6h):  fires in 3h  — severity: 4
+    #   Slow   (3d/6h):  fires in 3h (histograms) / 6h (gauges & increase) — severity: 4
     # For histogram metrics the rate window matches the short window,
     # with a dual-window (short AND long) confirmation for all three tiers.
     # For gauge/increase metrics only the 'for' duration varies.
