@@ -135,6 +135,11 @@ func (c *nodePoolWatchingController) SyncOnce(ctx context.Context, key HCPNodePo
 }
 
 func (c *nodePoolWatchingController) CooldownChecker() controllerutil.CooldownChecker {
+	if p, ok := c.syncer.(interface {
+		CooldownChecker() controllerutil.CooldownChecker
+	}); ok {
+		return p.CooldownChecker()
+	}
 	return nil
 }
 

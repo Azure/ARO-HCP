@@ -26,7 +26,6 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/validationutils"
-	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
@@ -50,9 +49,9 @@ const (
 // validation.
 type clusterValidationSyncer struct {
 	resourcesDBClient corecosmosstorage.ResourcesDBClient
-	// retryCooldownChecker gates re-execution of a key(HCPCluster) that recently had a
-	// retry scheduled. Prevents redundant validation runs while the cooldown
-	// from a previous EarliestRetryAfter is still active.
+	// retryCooldownChecker is consulted by the watching controller's enqueue path for
+	// unchanged (resync) notifications. ETag changes and EnqueueAfter retries always
+	// run SyncOnce; see EarliestRetryAfter on ValidationResult.
 	retryCooldownChecker *controllerutil.SettableCooldownChecker
 	// enqueueAfter allows the syncer to schedule a delayed re-processing of a
 	// key(HCPCluster), bypassing the workqueue's default rate limiter.
@@ -108,18 +107,12 @@ func NewClusterValidationController(
 	return controller
 }
 
+func (c *clusterValidationSyncer) CooldownChecker() controllerutil.CooldownChecker {
+	return c.retryCooldownChecker
+}
+
 func (c *clusterValidationSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
 	logger := utils.LoggerFromContext(ctx)
-
-	// Skip processing if the key is still within its cooldown window from a previous validation. All outcomes can schedule a cooldown via
-	// EarliestRetryAfter so validations run continuously without racing. Re-enqueue so the item is revisited once the cooldown expires.
-	if !c.retryCooldownChecker.CanSync(ctx, key) {
-		if c.enqueueAfter != nil {
-			// Add a one-second buffer so the requeue lands strictly after the cooldown expires, avoiding a race where the item fires just before CanSync flips to true.
-			c.enqueueAfter.EnqueueAfter(key, c.retryCooldownChecker.TimeUntilReady(key)+time.Second)
-		}
-		return nil
-	}
 
 	existingCluster, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Get(ctx, key.HCPClusterName)
 	if cosmosstorageutils.IsNotFoundError(err) {
@@ -141,9 +134,6 @@ func (c *clusterValidationSyncer) SyncOnce(ctx context.Context, key controllerut
 		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster: %w", err))
 	}
 
-	if !c.shouldProcess(cachedServiceProviderCluster) {
-		return nil // no work to do
-	}
 	existingServiceProviderCluster := cachedServiceProviderCluster.DeepCopy()
 	subscription, err := c.resourcesDBClient.Subscriptions().Get(ctx, existingCluster.ID.SubscriptionID)
 	if err != nil {
@@ -199,8 +189,8 @@ func (c *clusterValidationSyncer) SyncOnce(ctx context.Context, key controllerut
 	return nil
 }
 
-// handleRequeue sets the earliest-retry gate and, for Failed/Unknown outcomes, schedules a
-// delayed workqueue requeue. Passed and Skipped outcomes set only the gate (no requeue).
+// handleRequeue sets the enqueue-time cooldown and, for Failed/Unknown outcomes, schedules a
+// delayed workqueue requeue. Passed and Skipped outcomes set only the cooldown (no requeue).
 // See EarliestRetryAfter on ValidationResult for the full semantics.
 func (c *clusterValidationSyncer) handleRequeue(key controllerutils.HCPClusterKey, result validationutils.ValidationResult) {
 	if result.EarliestRetryAfter == nil {
@@ -212,12 +202,6 @@ func (c *clusterValidationSyncer) handleRequeue(key controllerutils.HCPClusterKe
 	if c.enqueueAfter != nil && (result.Outcome.Type == validationutils.OutcomeTypeFailed || result.Outcome.Type == validationutils.OutcomeTypeUnknown) {
 		c.enqueueAfter.EnqueueAfter(key, *result.EarliestRetryAfter+time.Second)
 	}
-}
-
-// shouldProcess returns true when the condition associated to the validation does not exist or when it exists but
-// it failed to run successfully in a previous attempt.
-func (c *clusterValidationSyncer) shouldProcess(serviceProviderCluster *coreapi.ServiceProviderCluster) bool {
-	return !meta.IsStatusConditionTrue(serviceProviderCluster.Status.Validations, c.validation.Name())
 }
 
 // shouldWriteCondition reports whether the newly computed validation condition should be written, versus

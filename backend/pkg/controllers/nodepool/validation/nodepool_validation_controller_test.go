@@ -279,7 +279,7 @@ func TestNodePoolValidationSyncer_SyncOnce(t *testing.T) {
 			wantEnqueue:         false,
 		},
 		{
-			name: "already-succeeded validation -- skipped",
+			name: "already-succeeded validation -- re-runs and overwrites with Failed",
 			setupDB: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient) {
 				t.Helper()
 				defaultSetupDB(t, ctx, mockDB)
@@ -297,8 +297,10 @@ func TestNodePoolValidationSyncer_SyncOnce(t *testing.T) {
 				require.NoError(t, err)
 			},
 			validation: NewMockNodePoolValidation(testValidationName).WithFailed(
-				"ShouldNotBeCalled", "should not be called", "should not be called",
+				"QuotaExceeded", "quota exceeded", "Quota exceeded for this subscription.",
 			),
+			wantCondition: &metav1.Condition{Status: metav1.ConditionFalse, Reason: "QuotaExceeded", Message: "Quota exceeded for this subscription."},
+			wantEnqueue:   true,
 		},
 	}
 
@@ -357,8 +359,7 @@ func TestNodePoolValidationSyncer_SyncOnce(t *testing.T) {
 // Cosmos/DB plumbing, covering the boundary cases around maxConsecutiveUnknownsBeforeWrite.
 func TestNodePoolValidationSyncer_ShouldWriteCondition(t *testing.T) {
 	// shouldWriteCondition only checks previousCondition's nilness, not its Status, so the Status value
-	// here is just fixture data; it could never realistically be ConditionTrue, since shouldProcess
-	// prevents SyncOnce from reaching this code once the stored condition is already True.
+	// here is just fixture data.
 	storedCondition := &metav1.Condition{Type: testValidationName, Status: metav1.ConditionUnknown}
 
 	testCases := []struct {
@@ -525,8 +526,8 @@ func TestNodePoolValidationSyncer_ConsecutiveUnknownSuppression(t *testing.T) {
 	syncer, _ := newTestSyncer(mockDB, validation, fakeClock)
 
 	for i := 1; i <= maxConsecutiveUnknownsBeforeWrite; i++ {
-		// Advance the clock past the previous attempt's EarliestRetryAfter deadline so SyncOnce doesn't
-		// short-circuit on the retryCooldownChecker suppression.
+		// Advance the clock between attempts so each SyncOnce is independent of the previous
+		// attempt's EarliestRetryAfter enqueue-time cooldown.
 		fakeClock.SetTime(fakeClock.Now().Add(time.Hour))
 
 		before, err := spnpCRUD.Get(ctx, coreapi.ServiceProviderNodePoolResourceName)
@@ -562,10 +563,19 @@ func TestNodePoolValidationSyncer_ConsecutiveUnknownSuppression(t *testing.T) {
 	assert.NotEqual(t, before.CosmosETag, after.CosmosETag, "expected a Cosmos write once the suppression threshold was exceeded")
 }
 
-// TestNodePoolValidationSyncer_CooldownSuppression verifies that when the
-// retryCooldownChecker's cooldown is active for a key, SyncOnce returns
-// immediately without performing validation, and schedules a re-enqueue.
-func TestNodePoolValidationSyncer_CooldownSuppression(t *testing.T) {
+func findStoredNodePoolCondition(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient) *metav1.Condition {
+	t.Helper()
+	spnp, err := mockDB.ServiceProviderNodePools(
+		testSubscriptionID, testResourceGroup, testClusterName, testNodePoolName,
+	).Get(ctx, coreapi.ServiceProviderNodePoolResourceName)
+	require.NoError(t, err)
+	return meta.FindStatusCondition(spnp.Status.Validations, testValidationName)
+}
+
+// TestNodePoolValidationSyncer_CooldownDoesNotShortCircuitSyncOnce verifies that a
+// set cooldown does not prevent SyncOnce from running Validate. Cooldown is an
+// enqueue-time filter only; ETag changes and EnqueueAfter retries always run.
+func TestNodePoolValidationSyncer_CooldownDoesNotShortCircuitSyncOnce(t *testing.T) {
 	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
 
 	mockDB := corecosmosstoragetesting.NewMockResourcesDBClient()
@@ -580,18 +590,32 @@ func TestNodePoolValidationSyncer_CooldownSuppression(t *testing.T) {
 	require.NoError(t, err)
 
 	validation := NewMockNodePoolValidation(testValidationName).WithFailed(
-		"ShouldNotRun", "should not run", "should not run",
+		"QuotaExceeded", "quota exceeded", "Quota exceeded.",
 	)
 
 	fakeClock := clocktesting.NewFakePassiveClock(fixedNow)
 	syncer, enqueuer := newTestSyncer(mockDB, validation, fakeClock)
 
 	key := newTestNodePoolKey()
-	syncer.retryCooldownChecker.SetCooldown(key, 60*time.Second)
+	syncer.retryCooldownChecker.SetCooldown(key, 12*time.Hour)
 
-	err = syncer.SyncOnce(ctx, key)
-	require.NoError(t, err, "SyncOnce should return nil when cooldown is active")
+	require.NoError(t, syncer.SyncOnce(ctx, key))
 
-	require.NotEmpty(t, enqueuer.enqueuedKeys, "should have re-enqueued after cooldown skip")
-	assert.Greater(t, enqueuer.enqueuedDurations[0], time.Duration(0), "enqueue duration should be positive")
+	cond := findStoredNodePoolCondition(t, ctx, mockDB)
+	require.NotNil(t, cond)
+	assert.Equal(t, metav1.ConditionFalse, cond.Status)
+	assert.Equal(t, "QuotaExceeded", cond.Reason)
+	require.NotEmpty(t, enqueuer.enqueuedKeys, "Failed outcomes still schedule EnqueueAfter")
+}
+
+func TestNodePoolValidationSyncer_CooldownChecker(t *testing.T) {
+	ctx := context.Background()
+	fakeClock := clocktesting.NewFakePassiveClock(fixedNow)
+	syncer, _ := newTestSyncer(corecosmosstoragetesting.NewMockResourcesDBClient(), NewMockNodePoolValidation(testValidationName), fakeClock)
+
+	key := newTestNodePoolKey()
+	require.True(t, syncer.CooldownChecker().CanSync(ctx, key), "key with no cooldown must be allowed")
+
+	syncer.retryCooldownChecker.SetCooldown(key, time.Minute)
+	require.False(t, syncer.CooldownChecker().CanSync(ctx, key), "key inside cooldown must be denied at enqueue time")
 }

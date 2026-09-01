@@ -68,27 +68,29 @@ type ValidationResult struct {
 	// EarliestRetryAfter is an optional retry throttle for this validation result.
 	//
 	// It affects the validation controller in two ways:
-	//  1. Earliest-retry gate: when a sync event arrives, the controller skips the
-	//     actual validation work until EarliestRetryAfter has elapsed since the
-	//     previous attempt.
+	//  1. Enqueue-time gate: GenericWatchingController.EnqueueResourceIDAddWithMaxDepth
+	//     consults CooldownChecker.CanSync before queueing an unchanged informer
+	//     notification (a resync with the same Cosmos ETag). Those notifications are
+	//     not enqueued until EarliestRetryAfter has elapsed. ETag changes always
+	//     enqueue immediately (changed=true skips CanSync) and SyncOnce always runs
+	//     Validate, so user updates are not delayed by the Passed cooldown (12h+).
 	//  2. Workqueue requeue: whether the reconciled key is re-added to the workqueue
 	//     after a delay, so a retry is scheduled without waiting for an external event.
 	//
 	// Semantics:
 	//
-	//   - nil: neither the earliest-retry gate nor a workqueue requeue is applied.
+	//   - nil: neither the enqueue-time gate nor a workqueue requeue is applied.
 	//
 	//   - non-nil, Outcome Passed or Skipped:
-	//       - earliest-retry gate uses EarliestRetryAfter
+	//       - enqueue-time gate uses EarliestRetryAfter
 	//       - key is not requeued
 	//
 	//   - non-nil, Outcome Failed or Unknown:
-	//       - earliest-retry gate uses EarliestRetryAfter
+	//       - enqueue-time gate uses EarliestRetryAfter
 	//       - key is requeued after EarliestRetryAfter + 1s.
-	//         The extra 1s is only on the workqueue delay, not the gate. It avoids
-	//         landing on the gate boundary: duration+1s makes the next attempt
-	//         run strictly after the gate opens. Otherwise the sync could occur
-	//         too early, become a no-op, and never schedule another attempt.
+	//         EnqueueAfter bypasses the enqueue-time gate (it goes straight to the
+	//         queue). The extra 1s keeps the delayed retry from landing on the
+	//         cooldown boundary if an unchanged resync races with it.
 	EarliestRetryAfter *time.Duration
 }
 
