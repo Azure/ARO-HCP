@@ -242,6 +242,12 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 			dbCluster: newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
 				c.ServiceProviderProperties.PendingClusterServiceID = &pendingClusterServiceID
 			}),
+			existingServiceProviderCluster: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
+				// Placement is resolved so the needsWork placement gate passes; the desired
+				// version is intentionally left nil so this case isolates the desired-version
+				// precondition.
+				spc.Spec.ManagementClusterResourceID = testManagementClusterResourceID()
+			}),
 			setupMockCS: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
 				return ocm.NewMockClusterServiceClientSpec(ctrl)
 			},
@@ -311,14 +317,11 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 				// Spec.ManagementClusterResourceID intentionally left nil: placement not resolved.
 			}),
 			setupMockCS: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
-				mockCS := ocm.NewMockClusterServiceClientSpec(ctrl)
-				// findAROHCPClusterByAzureInfo still runs (before the placement gate)
-				// and finds no existing CS cluster; PostCluster must NOT be called
-				// because the gate returns nil before creation.
-				mockCS.EXPECT().
-					ListClusters(gomock.Any()).
-					Return(ocm.NewSimpleClusterListIterator(nil, nil))
-				return mockCS
+				// needsWork gates on placement (Spec.ManagementClusterResourceID) read from
+				// the ServiceProviderCluster cache before SyncOnce runs, so the Cluster
+				// Service ListClusters lookup never happens while placement is unresolved.
+				// gomock fails the test if any CS call is made.
+				return ocm.NewMockClusterServiceClientSpec(ctrl)
 			},
 			expectError: false,
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
@@ -394,13 +397,18 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 			if tt.listCluster != nil {
 				listerClusters = []*coreapi.HCPOpenShiftCluster{tt.listCluster}
 			}
+			var listerSPCs []*coreapi.ServiceProviderCluster
+			if tt.existingServiceProviderCluster != nil {
+				listerSPCs = []*coreapi.ServiceProviderCluster{tt.existingServiceProviderCluster}
+			}
 			syncer := &clusterClusterServiceCreateSyncer{
-				resourcesDBClient:       mockDB,
-				clusterLister:           &corelistertesting.SliceClusterLister{Clusters: listerClusters},
-				subscriptionLister:      &corelistertesting.SliceSubscriptionLister{Subscriptions: []*coreapi.Subscription{subscription}},
-				managementClusterLister: &fleetlistertesting.SliceManagementClusterLister{ManagementClusters: tt.managementClusters},
-				clustersServiceClient:   mockCS,
-				denyAssignmentsEnabled:  !tt.denyAssignmentsDisabled,
+				resourcesDBClient:            mockDB,
+				clusterLister:                &corelistertesting.SliceClusterLister{Clusters: listerClusters},
+				serviceProviderClusterLister: &corelistertesting.SliceServiceProviderClusterLister{ServiceProviderClusters: listerSPCs},
+				subscriptionLister:           &corelistertesting.SliceSubscriptionLister{Subscriptions: []*coreapi.Subscription{subscription}},
+				managementClusterLister:      &fleetlistertesting.SliceManagementClusterLister{ManagementClusters: tt.managementClusters},
+				clustersServiceClient:        mockCS,
+				denyAssignmentsEnabled:       !tt.denyAssignmentsDisabled,
 			}
 
 			key := controllerutils.HCPClusterKey{

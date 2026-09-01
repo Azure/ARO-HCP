@@ -124,16 +124,6 @@ func (c *placementSyncer) needsWork(serviceProviderCluster *coreapi.ServiceProvi
 func (c *placementSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
 	logger := utils.LoggerFromContext(ctx)
 
-	// Reads come from the informer caches; every Cosmos write is an optimistic,
-	// etag-guarded Replace. The ServiceProviderCluster is read from its lister
-	// (here for the needsWork gate and again in setSpecPlacement as the
-	// etag-carrying base of the Replace) and the per-management-cluster scheduling
-	// documents are read from their lister for capacity scoring. The write path is
-	// the only place that reads live: reservePendingAssignment read-modify-writes
-	// the scheduling document via the CRUD client. A stale cached read can only
-	// lose the race with a 412 conflict that re-enqueues the key — never a lost
-	// update — and capacity reserved against a now-obsolete decision is reclaimed
-	// by the PendingCleanupController.
 	serviceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if cosmosstorageutils.IsNotFoundError(err) {
 		logger.V(1).Info("ServiceProviderCluster not found in cache, skipping")
@@ -150,11 +140,7 @@ func (c *placementSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPC
 	// Do not place — or reserve capacity for — a cluster whose deletion has already
 	// been requested. The frontend records the request as
 	// HCPOpenShiftCluster.ServiceProviderProperties.DeletionTimestamp, the same
-	// signal every sibling creation/deletion controller gates on. Fresh-selecting a
-	// deleting cluster would reserve swift-NIC capacity on a management cluster that
-	// the deletion path would then have to reclaim. A missing cluster document
-	// (cache miss / already gone) is not treated as "deleting": we fall through to
-	// the existing flow, which handles a NotFound cluster on its own.
+	// signal every sibling creation/deletion controller gates on.
 	cluster, err := c.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if err != nil && !cosmosstorageutils.IsNotFoundError(err) {
 		return utils.TrackError(fmt.Errorf("failed to get cluster from cache: %w", err))
@@ -186,12 +172,9 @@ func (c *placementSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPC
 	// caught up yet). Fresh-selecting here could pick a different management
 	// cluster than the one Cluster Service already committed to. Instead, ask
 	// Cluster Service where it placed the cluster (by the pending CS ID) and
-	// backfill Spec from that. New records may also carry a PendingClusterServiceID
-	// before placement — its assignment is no longer gated on placement — but their
-	// cluster does not exist in Cluster Service yet (ClusterClusterServiceCreate,
-	// which does the CS creation, is the step that waits for Spec), so Cluster
-	// Service returns 404 for them and backfillFromClusterService falls through to
-	// the fresh capacity-aware selection below.
+	// backfill Spec from that.
+	// This is migration behavior from CS driven placement to RP driven placement
+	// and can be removed once rollout completes.
 	if chosen, handled, err := c.backfillFromClusterService(ctx, key); err != nil {
 		return err
 	} else if handled {
@@ -389,6 +372,8 @@ type managementClusterCandidate struct {
 //
 // When nothing fits it returns an error that enumerates why every candidate was
 // eliminated, so the decision can be debugged from the error alone.
+//
+// TODO: leverage CPU and memory as well as the average HCP resource consumption in the region for more elaborate capacity based placement decisions.
 func selectByCapacity(candidates []schedulingCandidate) (*azcorearm.ResourceID, error) {
 	var chosen managementClusterCandidate
 	found := false
@@ -427,11 +412,11 @@ func selectByCapacity(candidates []schedulingCandidate) (*azcorearm.ResourceID, 
 		// message would end with a dangling ": " (e.g. zero candidates, or every
 		// candidate skipped for a nil ResourceID before a reason was recorded).
 		if len(eliminated) == 0 {
-			return nil, fmt.Errorf("no eligible management cluster with at least %d available swift NICs among %d candidate(s)",
-				swiftNICsPerHCP, len(candidates))
+			return nil, utils.TrackError(fmt.Errorf("no eligible management cluster with at least %d available swift NICs among %d candidate(s)",
+				swiftNICsPerHCP, len(candidates)))
 		}
-		return nil, fmt.Errorf("no eligible management cluster with at least %d available swift NICs among %d candidate(s): %s",
-			swiftNICsPerHCP, len(candidates), strings.Join(eliminated, "; "))
+		return nil, utils.TrackError(fmt.Errorf("no eligible management cluster with at least %d available swift NICs among %d candidate(s): %s",
+			swiftNICsPerHCP, len(candidates), strings.Join(eliminated, "; ")))
 	}
 	return chosen.resourceID, nil
 }

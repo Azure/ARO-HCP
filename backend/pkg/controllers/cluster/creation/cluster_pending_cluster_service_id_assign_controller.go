@@ -56,13 +56,6 @@ func NewClusterPendingClusterServiceIDAssignController(resourcesDBClient corecos
 	)
 }
 
-// needsWork reports whether a PendingClusterServiceID should be assigned: the
-// cluster is not being deleted and does not yet have a (pending or resolved)
-// Cluster Service ID. Assignment is intentionally NOT gated on placement — a
-// pending Cluster Service ID can be minted before the PlacementController has
-// chosen a management cluster. The Cluster Service cluster itself is only created
-// later by ClusterClusterServiceCreate, which is what waits for placement
-// (Spec.ManagementClusterResourceID) so it can pin the provision shard.
 func (c *clusterPendingClusterServiceIDAssignSyncer) needsWork(cluster *coreapi.HCPOpenShiftCluster) bool {
 	return cluster.ServiceProviderProperties.DeletionTimestamp == nil &&
 		cluster.ServiceProviderProperties.PendingClusterServiceID == nil &&

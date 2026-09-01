@@ -149,7 +149,7 @@ func TestClusterInfoMetricsHandler_PhaseInfo(t *testing.T) {
 	spcResourceID := metadataapi.Must(azcorearm.ParseResourceID(clusterResourceID.String() + "/serviceProviderClusters/default"))
 	mcResourceID := metadataapi.Must(azcorearm.ParseResourceID("/providers/microsoft.redhatopenshift/stamps/1/managementclusters/default"))
 
-	phaseHeader := `# HELP backend_cluster_phase_info Current scheduling phase of the cluster. Value is always 1 for the cluster's current phase; kube-state-metrics style. Exactly one series per cluster. Phases: Initializing (placement not yet resolved), Scheduled (a management cluster has been selected).
+	phaseHeader := `# HELP backend_cluster_phase_info Current internal lifecycle phase of the cluster. Value is always 1. Phase: Initializing, Scheduled
 # TYPE backend_cluster_phase_info gauge
 `
 
@@ -204,7 +204,7 @@ func TestClusterInfoMetricsHandler_PhaseInfoTransitionClearsStaleSeries(t *testi
 		Spec:           coreapi.ServiceProviderClusterSpec{ManagementClusterResourceID: mcResourceID},
 	})
 
-	expected := fmt.Sprintf(`# HELP backend_cluster_phase_info Current scheduling phase of the cluster. Value is always 1 for the cluster's current phase; kube-state-metrics style. Exactly one series per cluster. Phases: Initializing (placement not yet resolved), Scheduled (a management cluster has been selected).
+	expected := fmt.Sprintf(`# HELP backend_cluster_phase_info Current internal lifecycle phase of the cluster. Value is always 1. Phase: Initializing, Scheduled
 # TYPE backend_cluster_phase_info gauge
 backend_cluster_phase_info{phase="Scheduled",resource_id="%s",subscription_id="%s"} 1
 `, resourceIDMetricLabel(clusterResourceID), subscriptionIDMetricLabel(clusterResourceID))

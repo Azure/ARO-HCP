@@ -487,7 +487,7 @@ which performs a **transactional batch** to atomically update the operation and 
 |---|--------|--------|
 | Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must be nil or empty)</li><li>All `CustomerProperties.*` (for building CS cluster request)</li><li>`ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL`</li><li>`ServiceProviderProperties.ExperimentalFeatures.*`</li><li>`ID`</li></ul> |
 | Read | `ServiceProviderCluster` | <ul><li>`Spec.ControlPlaneVersion.DesiredVersion` (precondition: must be non-nil)</li><li>`Spec.DesiredHostedClusterControlPlaneSize`</li><li>`Spec.ManagementClusterResourceID` (resolves the placed management cluster for provision-shard pinning)</li></ul> |
-| Read | `ManagementCluster` | <ul><li>`Status.ClusterServiceProvisionShardID` (pins the provision shard for the placed management cluster)</li></ul> |
+| Read | `ManagementCluster` | <ul><li>`Status.ClusterServiceProvisionShardID` (the downstream clusters-service provision shard ID for this management cluster)</li></ul> |
 | Read | `Subscription` | <ul><li>`Properties.TenantId`</li></ul> |
 | Read | Cluster Service | <ul><li>`ListClusters` (search by Azure info), `PostCluster`</li></ul> |
 | **Write** | **`HCPOpenShiftCluster`** | <ul><li>**`ServiceProviderProperties.ClusterServiceID`** = CS internal ID</li></ul> |
@@ -1550,7 +1550,7 @@ Single writer, but read by `ClusterClusterServiceCreate` (gate), `OperationClust
 |-------|------|
 | [PlacementController](#placementcontroller) | Sets the scheduler's placement intent: backfilled from `Status.ManagementClusterResourceID` when already placed, backfilled from Cluster Service (via `PendingClusterServiceID`) for rollout-race records, otherwise the capacity-selected eligible management cluster |
 
-This is the *desired* placement (scheduler intent), owned solely by the PlacementController. It is read by `ClusterPendingClusterServiceIDAssign` (gate: must be non-nil before a pending CS ID is assigned) and `ClusterClusterServiceCreate` (resolves the placed management cluster to pin the CS provision shard). It also drives the `backend_cluster_phase_info` metric: `phase="Scheduled"` once this field is set, otherwise `phase="Initializing"`.
+This is the *desired* placement (scheduler intent), owned solely by the PlacementController. It is read by `ClusterClusterServiceCreate` (resolves the placed management cluster to pin the CS provision shard). It also drives the `backend_cluster_phase_info` metric: `phase="Scheduled"` once this field is set, otherwise `phase="Initializing"`.
 
 ### `ServiceProviderCluster.Status.ManagementClusterResourceID`
 

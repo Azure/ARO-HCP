@@ -102,10 +102,6 @@ func (c *pendingCleanupSyncer) SyncOnce(ctx context.Context, key controllerutils
 
 	managementClusterResourceID := key.GetResourceID()
 
-	// Read the scheduling document from the informer cache (not a live CRUD Get).
-	// The cached copy carries the etag that guards the optimistic Replace below, so
-	// a stale cache can only produce a write conflict (412) that re-enqueues the
-	// key — never a lost update.
 	existing, err := c.managementClusterSchedulingLister.Get(ctx, key.StampIdentifier)
 	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
@@ -135,16 +131,10 @@ func (c *pendingCleanupSyncer) SyncOnce(ctx context.Context, key controllerutils
 		updated.Status.PendingAssignedClusters = kept
 	}
 
-	// Skip the write when the sweep changed nothing. NeedsUpdate is a semantic
-	// deep-equality check that ignores cosmos-managed fields (etag) and ResourceID
-	// representation differences, so an unchanged pending list never triggers a
-	// spurious Replace.
 	if !controllerutil.NeedsUpdate(existing, updated) {
 		return nil
 	}
 
-	// The write path stays a live, etag-guarded Replace via the CRUD client; the
-	// base document (and its etag) came from the cache read above.
 	schedulingCRUD := c.fleetDBClient.Stamps().ManagementClusters(key.StampIdentifier).Scheduling()
 	if _, err := schedulingCRUD.Replace(ctx, updated, nil); err != nil {
 		return utils.TrackError(fmt.Errorf("failed to update scheduling document for management cluster %q: %w", key.StampIdentifier, err))

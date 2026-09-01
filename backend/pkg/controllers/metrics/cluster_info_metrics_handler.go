@@ -61,7 +61,7 @@ func NewClusterInfoMetricsHandler(registerer prometheus.Registerer) Handler[*cor
 		}, []string{"resource_id", "subscription_id", "management_cluster_resource_id"}),
 		phaseInfo: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "backend_cluster_phase_info",
-			Help: "Current scheduling phase of the cluster. Value is always 1 for the cluster's current phase; kube-state-metrics style. Exactly one series per cluster. Phases: Initializing (placement not yet resolved), Scheduled (a management cluster has been selected).",
+			Help: "Current internal lifecycle phase of the cluster. Value is always 1. Phase: Initializing, Scheduled",
 		}, []string{"resource_id", "subscription_id", "phase"}),
 	}
 	registerer.MustRegister(handler.clusterInfo, handler.phaseInfo)
@@ -99,6 +99,8 @@ func (h *clusterInfoMetricsHandler) Sync(_ context.Context, serviceProviderClust
 // backend_cluster_phase_info metric: clusterPhaseScheduled once the scheduler has
 // recorded placement intent (Spec.ManagementClusterResourceID is set), otherwise
 // clusterPhaseInitializing.
+//
+// TODO: enhance with more relevant cluster lifecycle phases.
 func clusterPhase(serviceProviderCluster *coreapi.ServiceProviderCluster) string {
 	if serviceProviderCluster.Spec.ManagementClusterResourceID != nil {
 		return clusterPhaseScheduled
