@@ -185,6 +185,35 @@ func TestHostedControlPlaneLogs(t *testing.T) {
 	testutil.CompareWithFixture(t, queryToFixture(queries[0]))
 }
 
+func TestVeleroBackups(t *testing.T) {
+	f, err := NewQueryFactory()
+	require.NoError(t, err)
+	opts := baseOptions()
+	def, err := f.GetCustomQueryDefinition("veleroBackups")
+	require.NoError(t, err)
+	require.NotNil(t, def, "veleroBackups custom query not found")
+	queries, err := f.Build(*def, NewTemplateDataFromOptions(opts, WithClusterNames([]string{"mgmt-cluster-1", "mgmt-cluster-2"})))
+	require.NoError(t, err)
+	require.Len(t, queries, 1)
+
+	testutil.CompareWithFixture(t, queryToFixture(queries[0]))
+}
+
+func TestVeleroBackups_NoTruncation(t *testing.T) {
+	f, err := NewQueryFactory()
+	require.NoError(t, err)
+	opts := baseOptions()
+	opts.Limit = -1
+	def, err := f.GetCustomQueryDefinition("veleroBackups")
+	require.NoError(t, err)
+	require.NotNil(t, def, "veleroBackups custom query not found")
+	queries, err := f.Build(*def, NewTemplateDataFromOptions(opts, WithClusterNames([]string{"mgmt-cluster-1", "mgmt-cluster-2"})))
+	require.NoError(t, err)
+	require.Len(t, queries, 1)
+
+	testutil.CompareWithFixture(t, queryToFixture(queries[0]))
+}
+
 func TestClusterIdQuery(t *testing.T) {
 	f, err := NewQueryFactory()
 	require.NoError(t, err)
