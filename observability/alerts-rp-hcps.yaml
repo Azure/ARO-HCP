@@ -5,3 +5,6 @@ prometheusRules:
   testDependencies:
   - recording-rules-hcps.yaml
   outputBicep: ../dev-infrastructure/modules/metrics/rules/generatedRPHCPPrometheusAlertingRules.bicep
+internalSubscriptionFilter:
+  enabled: true
+  table: internal_subscription:info
