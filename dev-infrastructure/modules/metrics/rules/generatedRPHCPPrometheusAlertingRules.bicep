@@ -455,14 +455,14 @@ resource rpEtcdAvailability 'Microsoft.AlertsManagement/prometheusRuleGroups@202
         }
         annotations: {
           correlationId: 'userJourneyEtcdBackendCommitDurationHigh3d/{{ $labels.cluster }}/{{ $labels.resource_id }}/{{ $labels.instance }}'
-          description: '{{ $labels.resource_id }} etcd instance {{ $labels.instance }} has 99th percentile backend commit duration of {{ $value }}s (threshold: 100ms). Slow disk performance may impact write performance. Slow burn (3d).'
-          info: '{{ $labels.resource_id }} etcd instance {{ $labels.instance }} has 99th percentile backend commit duration of {{ $value }}s (threshold: 100ms). Slow disk performance may impact write performance. Slow burn (3d).'
+          description: '{{ $labels.resource_id }} etcd instance {{ $labels.instance }} has 99th percentile backend commit duration of {{ $value }}s (threshold: 100ms). Slow disk performance may impact write performance. Slow burn (3d/6h).'
+          info: '{{ $labels.resource_id }} etcd instance {{ $labels.instance }} has 99th percentile backend commit duration of {{ $value }}s (threshold: 100ms). Slow disk performance may impact write performance. Slow burn (3d/6h).'
           runbook_url: 'https://aka.ms/arohcp-runbook-etcd'
           summary: 'etcd backend commit duration is chronically high for {{ $labels.resource_id }} {{ $labels.instance }}'
           title: 'etcd backend commit duration is chronically high for {{ $labels.resource_id }} {{ $labels.instance }}'
         }
-        expression: '(histogram_quantile(0.99, sum by (cluster, subscription_id, resource_id, instance, le) (rate(etcd_disk_backend_commit_duration_seconds_bucket[6h]))) > 0.1) unless on (subscription_id) internal_subscription:info'
-        for: 'PT6H'
+        expression: '(histogram_quantile(0.99, sum by (cluster, subscription_id, resource_id, instance, le) (rate(etcd_disk_backend_commit_duration_seconds_bucket[6h]))) > 0.1 and histogram_quantile(0.99, sum by (cluster, subscription_id, resource_id, instance, le) (rate(etcd_disk_backend_commit_duration_seconds_bucket[3d]))) > 0.1) unless on (subscription_id) internal_subscription:info'
+        for: 'PT3H'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
       {
@@ -815,14 +815,14 @@ resource rpEtcdAvailability 'Microsoft.AlertsManagement/prometheusRuleGroups@202
         }
         annotations: {
           correlationId: 'userJourneyEtcdPeerRoundTripTimeHigh3d/{{ $labels.cluster }}/{{ $labels.resource_id }}/{{ $labels.instance }}'
-          description: '{{ $labels.resource_id }} etcd instance {{ $labels.instance }} has 99th percentile peer round-trip time of {{ $value }}s (threshold: 100ms). Network latency between peers may be affecting cluster performance. Slow burn (3d).'
-          info: '{{ $labels.resource_id }} etcd instance {{ $labels.instance }} has 99th percentile peer round-trip time of {{ $value }}s (threshold: 100ms). Network latency between peers may be affecting cluster performance. Slow burn (3d).'
+          description: '{{ $labels.resource_id }} etcd instance {{ $labels.instance }} has 99th percentile peer round-trip time of {{ $value }}s (threshold: 100ms). Network latency between peers may be affecting cluster performance. Slow burn (3d/6h).'
+          info: '{{ $labels.resource_id }} etcd instance {{ $labels.instance }} has 99th percentile peer round-trip time of {{ $value }}s (threshold: 100ms). Network latency between peers may be affecting cluster performance. Slow burn (3d/6h).'
           runbook_url: 'https://aka.ms/arohcp-runbook-etcd'
           summary: 'etcd peer round-trip time is chronically high for {{ $labels.resource_id }} {{ $labels.instance }}'
           title: 'etcd peer round-trip time is chronically high for {{ $labels.resource_id }} {{ $labels.instance }}'
         }
-        expression: '(histogram_quantile(0.99, sum by (cluster, subscription_id, resource_id, instance, le) (rate(etcd_network_peer_round_trip_time_seconds_bucket[6h]))) > 0.1) unless on (subscription_id) internal_subscription:info'
-        for: 'PT6H'
+        expression: '(histogram_quantile(0.99, sum by (cluster, subscription_id, resource_id, instance, le) (rate(etcd_network_peer_round_trip_time_seconds_bucket[6h]))) > 0.1 and histogram_quantile(0.99, sum by (cluster, subscription_id, resource_id, instance, le) (rate(etcd_network_peer_round_trip_time_seconds_bucket[3d]))) > 0.1) unless on (subscription_id) internal_subscription:info'
+        for: 'PT3H'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
       {
@@ -905,14 +905,14 @@ resource rpEtcdAvailability 'Microsoft.AlertsManagement/prometheusRuleGroups@202
         }
         annotations: {
           correlationId: 'userJourneyEtcdWALFsyncDurationHigh3d/{{ $labels.cluster }}/{{ $labels.resource_id }}/{{ $labels.instance }}'
-          description: '{{ $labels.resource_id }} etcd instance {{ $labels.instance }} has 99th percentile WAL fsync duration of {{ $value }}s (threshold: 50ms). Slow disk performance may impact cluster stability. Slow burn (3d).'
-          info: '{{ $labels.resource_id }} etcd instance {{ $labels.instance }} has 99th percentile WAL fsync duration of {{ $value }}s (threshold: 50ms). Slow disk performance may impact cluster stability. Slow burn (3d).'
+          description: '{{ $labels.resource_id }} etcd instance {{ $labels.instance }} has 99th percentile WAL fsync duration of {{ $value }}s (threshold: 50ms). Slow disk performance may impact cluster stability. Slow burn (3d/6h).'
+          info: '{{ $labels.resource_id }} etcd instance {{ $labels.instance }} has 99th percentile WAL fsync duration of {{ $value }}s (threshold: 50ms). Slow disk performance may impact cluster stability. Slow burn (3d/6h).'
           runbook_url: 'https://aka.ms/arohcp-runbook-etcd'
           summary: 'etcd WAL fsync duration is chronically high for {{ $labels.resource_id }} {{ $labels.instance }}'
           title: 'etcd WAL fsync duration is chronically high for {{ $labels.resource_id }} {{ $labels.instance }}'
         }
-        expression: '(histogram_quantile(0.99, sum by (cluster, subscription_id, resource_id, instance, le) (rate(etcd_disk_wal_fsync_duration_seconds_bucket[6h]))) > 0.05) unless on (subscription_id) internal_subscription:info'
-        for: 'PT6H'
+        expression: '(histogram_quantile(0.99, sum by (cluster, subscription_id, resource_id, instance, le) (rate(etcd_disk_wal_fsync_duration_seconds_bucket[6h]))) > 0.05 and histogram_quantile(0.99, sum by (cluster, subscription_id, resource_id, instance, le) (rate(etcd_disk_wal_fsync_duration_seconds_bucket[3d]))) > 0.05) unless on (subscription_id) internal_subscription:info'
+        for: 'PT3H'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
     ]
