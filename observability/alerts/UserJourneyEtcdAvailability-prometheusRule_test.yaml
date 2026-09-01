@@ -10,7 +10,7 @@ tests:
 # MWMBR: fast/medium tiers require both short AND long window confirmation
 # Fast  (1h5m):    fires after 5m -> check at 11m
 # Medium (6h30m):  fires after 30m -> check at 61m
-# Slow  (3d/6h):   fires after 3h -> check at 365m
+# Slow  (3d6h):   fires after 3h -> check at 365m
 # ========================================
 
 # Scenario 1: High commit duration — all three tiers fire
@@ -56,7 +56,7 @@ tests:
     alertname: userJourneyEtcdBackendCommitDurationHigh6h30m
     exp_alerts: []
   - eval_time: 11m
-    alertname: userJourneyEtcdBackendCommitDurationHigh3d
+    alertname: userJourneyEtcdBackendCommitDurationHigh3d6h
     exp_alerts: []
   # Medium fires at 61m
   - eval_time: 61m
@@ -76,14 +76,14 @@ tests:
         summary: "etcd backend commit duration is high for test-hcp-cluster etcd-0"
         runbook_url: https://aka.ms/arohcp-runbook-etcd
   - eval_time: 61m
-    alertname: userJourneyEtcdBackendCommitDurationHigh3d
+    alertname: userJourneyEtcdBackendCommitDurationHigh3d6h
     exp_alerts: []
   # Slow fires at 365m
   - eval_time: 365m
-    alertname: userJourneyEtcdBackendCommitDurationHigh3d
+    alertname: userJourneyEtcdBackendCommitDurationHigh3d6h
     exp_alerts:
     - exp_labels:
-        alertname: userJourneyEtcdBackendCommitDurationHigh3d
+        alertname: userJourneyEtcdBackendCommitDurationHigh3d6h
         severity: "4"
         long_window: 3d
         short_window: 6h
@@ -123,7 +123,7 @@ tests:
 # Gauge metric: value is 12.5% = 0.125 throughout all tiers
 # Fast  (1h5m):  fires after 5m  -> check at 11m
 # Medium (6h30m): fires after 30m -> check at 61m
-# Slow  (3d):    fires after 6h  -> check at 365m
+# Slow  (3d6h):    fires after 6h  -> check at 365m
 # ========================================
 
 # Scenario 1: Database high fragmentation (low in-use ratio) — all three tiers fire
@@ -154,7 +154,7 @@ tests:
     alertname: userJourneyEtcdDatabaseHighFragmentation6h30m
     exp_alerts: []
   - eval_time: 11m
-    alertname: userJourneyEtcdDatabaseHighFragmentation3d
+    alertname: userJourneyEtcdDatabaseHighFragmentation3d6h
     exp_alerts: []
   - eval_time: 61m
     alertname: userJourneyEtcdDatabaseHighFragmentation6h30m
@@ -173,13 +173,13 @@ tests:
         summary: "etcd database fragmentation is high for test-hcp-cluster etcd-0"
         runbook_url: https://aka.ms/arohcp-runbook-etcd
   - eval_time: 61m
-    alertname: userJourneyEtcdDatabaseHighFragmentation3d
+    alertname: userJourneyEtcdDatabaseHighFragmentation3d6h
     exp_alerts: []
   - eval_time: 365m
-    alertname: userJourneyEtcdDatabaseHighFragmentation3d
+    alertname: userJourneyEtcdDatabaseHighFragmentation3d6h
     exp_alerts:
     - exp_labels:
-        alertname: userJourneyEtcdDatabaseHighFragmentation3d
+        alertname: userJourneyEtcdDatabaseHighFragmentation3d6h
         severity: "4"
         long_window: 3d
         short_window: 6h
@@ -188,7 +188,7 @@ tests:
         component: hcp
         exclude_internal_subscriptions: "true"
       exp_annotations:
-        description: "test-hcp-cluster etcd instance etcd-0 database in-use ratio is 12.5% (threshold: 25%). Database defragmentation may be needed to reclaim space. Slow burn (3d)."
+        description: "test-hcp-cluster etcd instance etcd-0 database in-use ratio is 12.5% (threshold: 25%). Database defragmentation may be needed to reclaim space. Slow burn (3d/6h)."
         summary: "etcd database fragmentation is chronically high for test-hcp-cluster etcd-0"
         runbook_url: https://aka.ms/arohcp-runbook-etcd
 
@@ -222,7 +222,7 @@ tests:
 # Gauge metric: 9GB throughout
 # Fast  (1h5m):  fires after 5m  -> check at 11m
 # Medium (6h30m): fires after 30m -> check at 61m
-# Slow  (3d):    fires after 6h  -> check at 365m
+# Slow  (3d6h):    fires after 6h  -> check at 365m
 # ========================================
 
 # Scenario 1: Database size exceeds 8GB — all three tiers fire
@@ -251,7 +251,7 @@ tests:
     alertname: userJourneyEtcdDatabaseSizeExceeded6h30m
     exp_alerts: []
   - eval_time: 11m
-    alertname: userJourneyEtcdDatabaseSizeExceeded3d
+    alertname: userJourneyEtcdDatabaseSizeExceeded3d6h
     exp_alerts: []
   - eval_time: 61m
     alertname: userJourneyEtcdDatabaseSizeExceeded6h30m
@@ -270,13 +270,13 @@ tests:
         summary: "etcd database size is too large for test-hcp-cluster etcd-0"
         runbook_url: https://aka.ms/arohcp-runbook-etcd
   - eval_time: 61m
-    alertname: userJourneyEtcdDatabaseSizeExceeded3d
+    alertname: userJourneyEtcdDatabaseSizeExceeded3d6h
     exp_alerts: []
   - eval_time: 365m
-    alertname: userJourneyEtcdDatabaseSizeExceeded3d
+    alertname: userJourneyEtcdDatabaseSizeExceeded3d6h
     exp_alerts:
     - exp_labels:
-        alertname: userJourneyEtcdDatabaseSizeExceeded3d
+        alertname: userJourneyEtcdDatabaseSizeExceeded3d6h
         severity: "4"
         long_window: 3d
         short_window: 6h
@@ -285,7 +285,7 @@ tests:
         component: hcp
         exclude_internal_subscriptions: "true"
       exp_annotations:
-        description: "test-hcp-cluster etcd instance etcd-0 database size is 9GB (threshold: 8GB). Database may need compaction or quota increase. Slow burn (3d)."
+        description: "test-hcp-cluster etcd instance etcd-0 database size is 9GB (threshold: 8GB). Database may need compaction or quota increase. Slow burn (3d/6h)."
         summary: "etcd database size is chronically too large for test-hcp-cluster etcd-0"
         runbook_url: https://aka.ms/arohcp-runbook-etcd
 
@@ -315,7 +315,7 @@ tests:
 # Series: counter increments by 1/min -> at steady state increase([15m]) = 15
 # Fast  (1h5m):  for:5m  — condition true from ~t=4m, fires at ~t=9m  -> check at 15m
 # Medium (6h30m): for:30m — fires at ~t=34m                            -> check at 61m
-# Slow  (3d):    for:6h  — fires at ~t=364m                           -> check at 365m
+# Slow  (3d6h):    for:6h  — fires at ~t=364m                           -> check at 365m
 # ========================================
 
 # Scenario 1: Frequent leader changes — all three tiers fire
@@ -344,7 +344,7 @@ tests:
     alertname: userJourneyEtcdFrequentLeaderChanges6h30m
     exp_alerts: []
   - eval_time: 15m
-    alertname: userJourneyEtcdFrequentLeaderChanges3d
+    alertname: userJourneyEtcdFrequentLeaderChanges3d6h
     exp_alerts: []
   - eval_time: 61m
     alertname: userJourneyEtcdFrequentLeaderChanges6h30m
@@ -363,13 +363,13 @@ tests:
         summary: "etcd cluster experiencing frequent leader changes for test-hcp-cluster etcd-0"
         runbook_url: https://aka.ms/arohcp-runbook-etcd
   - eval_time: 61m
-    alertname: userJourneyEtcdFrequentLeaderChanges3d
+    alertname: userJourneyEtcdFrequentLeaderChanges3d6h
     exp_alerts: []
   - eval_time: 365m
-    alertname: userJourneyEtcdFrequentLeaderChanges3d
+    alertname: userJourneyEtcdFrequentLeaderChanges3d6h
     exp_alerts:
     - exp_labels:
-        alertname: userJourneyEtcdFrequentLeaderChanges3d
+        alertname: userJourneyEtcdFrequentLeaderChanges3d6h
         severity: "4"
         long_window: 3d
         short_window: 6h
@@ -378,7 +378,7 @@ tests:
         component: hcp
         exclude_internal_subscriptions: "true"
       exp_annotations:
-        description: "test-hcp-cluster etcd instance etcd-0 has seen 15 leader changes in the last 15 minutes (threshold: 4). This may indicate network issues or cluster instability. Slow burn (3d)."
+        description: "test-hcp-cluster etcd instance etcd-0 has seen 15 leader changes in the last 15 minutes (threshold: 4). This may indicate network issues or cluster instability. Slow burn (3d/6h)."
         summary: "etcd cluster experiencing chronic frequent leader changes for test-hcp-cluster etcd-0"
         runbook_url: https://aka.ms/arohcp-runbook-etcd
 
@@ -412,7 +412,7 @@ tests:
 # MWMBR: fast/medium tiers require both short AND long window confirmation
 # Fast  (1h5m):    fires after 5m -> check at 11m
 # Medium (6h30m):  fires after 30m -> check at 61m
-# Slow  (3d/6h):   fires after 3h -> check at 365m
+# Slow  (3d6h):   fires after 3h -> check at 365m
 # ========================================
 
 # Scenario 1: High peer RTT — all three tiers fire
@@ -466,7 +466,7 @@ tests:
     alertname: userJourneyEtcdPeerRoundTripTimeHigh6h30m
     exp_alerts: []
   - eval_time: 11m
-    alertname: userJourneyEtcdPeerRoundTripTimeHigh3d
+    alertname: userJourneyEtcdPeerRoundTripTimeHigh3d6h
     exp_alerts: []
   # Medium fires at 61m
   - eval_time: 61m
@@ -486,13 +486,13 @@ tests:
         summary: "etcd peer round-trip time is high for test-hcp-cluster etcd-0"
         runbook_url: https://aka.ms/arohcp-runbook-etcd
   - eval_time: 61m
-    alertname: userJourneyEtcdPeerRoundTripTimeHigh3d
+    alertname: userJourneyEtcdPeerRoundTripTimeHigh3d6h
     exp_alerts: []
   - eval_time: 365m
-    alertname: userJourneyEtcdPeerRoundTripTimeHigh3d
+    alertname: userJourneyEtcdPeerRoundTripTimeHigh3d6h
     exp_alerts:
     - exp_labels:
-        alertname: userJourneyEtcdPeerRoundTripTimeHigh3d
+        alertname: userJourneyEtcdPeerRoundTripTimeHigh3d6h
         severity: "4"
         long_window: 3d
         short_window: 6h
@@ -528,7 +528,7 @@ tests:
 # MWMBR: fast/medium tiers require both short AND long window confirmation
 # Fast  (1h5m):    fires after 5m -> check at 11m
 # Medium (6h30m):  fires after 30m -> check at 61m
-# Slow  (3d/6h):   fires after 3h -> check at 365m
+# Slow  (3d6h):   fires after 3h -> check at 365m
 # ========================================
 
 # Scenario 1: High WAL fsync duration — all three tiers fire
@@ -572,7 +572,7 @@ tests:
     alertname: userJourneyEtcdWALFsyncDurationHigh6h30m
     exp_alerts: []
   - eval_time: 11m
-    alertname: userJourneyEtcdWALFsyncDurationHigh3d
+    alertname: userJourneyEtcdWALFsyncDurationHigh3d6h
     exp_alerts: []
   # Medium fires at 61m
   - eval_time: 61m
@@ -592,13 +592,13 @@ tests:
         summary: "etcd WAL fsync duration is high for test-hcp-cluster etcd-0"
         runbook_url: https://aka.ms/arohcp-runbook-etcd
   - eval_time: 61m
-    alertname: userJourneyEtcdWALFsyncDurationHigh3d
+    alertname: userJourneyEtcdWALFsyncDurationHigh3d6h
     exp_alerts: []
   - eval_time: 365m
-    alertname: userJourneyEtcdWALFsyncDurationHigh3d
+    alertname: userJourneyEtcdWALFsyncDurationHigh3d6h
     exp_alerts:
     - exp_labels:
-        alertname: userJourneyEtcdWALFsyncDurationHigh3d
+        alertname: userJourneyEtcdWALFsyncDurationHigh3d6h
         severity: "4"
         long_window: 3d
         short_window: 6h
