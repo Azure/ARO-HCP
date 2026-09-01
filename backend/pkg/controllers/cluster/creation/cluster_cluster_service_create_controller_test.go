@@ -264,7 +264,11 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 				// Desired version is resolved, and NO deny assignments are tracked because the
 				// ClusterDenyAssignment controller is disabled in this environment.
 				spc.Spec.ControlPlaneVersion.DesiredVersion = desiredVersion
+				// Placement is resolved so the (independent) placement gate does not block; this
+				// case isolates the deny-assignment behaviour.
+				spc.Spec.ManagementClusterResourceID = testManagementClusterResourceID()
 			}),
+			managementClusters:      []*fleetapi.ManagementCluster{newTestManagementCluster()},
 			denyAssignmentsDisabled: true,
 			setupMockCS: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
 				mockCS := ocm.NewMockClusterServiceClientSpec(ctrl)
@@ -301,6 +305,9 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 			}),
 			existingServiceProviderCluster: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
 				spc.Spec.ControlPlaneVersion.DesiredVersion = desiredVersion
+				// Deny assignments are already created so the (independent) deny-assignment gate
+				// passes; this case isolates the placement gate.
+				spc.Status.AzureResources.DenyAssignments.AzureResources = []coreapi.DenyAssignmentReference{{DenyAssignmentType: "resources-deny-assignment", DenyAssignmentResourceID: metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/testManagedResourceGroup/providers/Microsoft.Authorization/denyAssignments/00000000-0000-0000-0000-000000000001"))}}
 				// Spec.ManagementClusterResourceID intentionally left nil: placement not resolved.
 			}),
 			setupMockCS: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
