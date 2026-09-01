@@ -9,11 +9,11 @@ spec:
     rules:
     # ========================================
     # Burn-rate tiers per ADR-001 (MWMBR):
-    #   Fast  (1h/5m):  fires in 5m   — severity: 3
-    #   Medium (6h/30m): fires in 30m  — severity: 3
-    #   Slow  (3d):     fires in 6h   — severity: 4
+    #   Fast   (1h/5m):  fires in 5m  — severity: 3
+    #   Medium (6h/30m): fires in 30m — severity: 3
+    #   Slow   (3d/6h):  fires in 3h  — severity: 4
     # For histogram metrics the rate window matches the short window,
-    # with a dual-window (short AND long) confirmation for fast/medium.
+    # with a dual-window (short AND long) confirmation for all three tiers.
     # For gauge/increase metrics only the 'for' duration varies.
     # ========================================
 
@@ -55,7 +55,9 @@ spec:
     - alert: userJourneyEtcdBackendCommitDurationHigh3d
       expr: |
         histogram_quantile(0.99, sum by (cluster, subscription_id, resource_id, instance, le) (rate(etcd_disk_backend_commit_duration_seconds_bucket[6h]))) > 0.100
-      for: 6h
+        and
+        histogram_quantile(0.99, sum by (cluster, subscription_id, resource_id, instance, le) (rate(etcd_disk_backend_commit_duration_seconds_bucket[3d]))) > 0.100
+      for: 3h
       labels:
         component: hcp
         exclude_internal_subscriptions: "true"
@@ -64,7 +66,7 @@ spec:
         short_window: 6h
       annotations:
         summary: "etcd backend commit duration is chronically high for {{ $labels.resource_id }} {{ $labels.instance }}"
-        description: "{{ $labels.resource_id }} etcd instance {{ $labels.instance }} has 99th percentile backend commit duration of {{ $value }}s (threshold: 100ms). Slow disk performance may impact write performance. Slow burn (3d)."
+        description: "{{ $labels.resource_id }} etcd instance {{ $labels.instance }} has 99th percentile backend commit duration of {{ $value }}s (threshold: 100ms). Slow disk performance may impact write performance. Slow burn (3d/6h)."
         runbook_url: https://aka.ms/arohcp-runbook-etcd
 
     # ----------------------------------------
@@ -243,7 +245,9 @@ spec:
     - alert: userJourneyEtcdPeerRoundTripTimeHigh3d
       expr: |
         histogram_quantile(0.99, sum by (cluster, subscription_id, resource_id, instance, le) (rate(etcd_network_peer_round_trip_time_seconds_bucket[6h]))) > 0.1
-      for: 6h
+        and
+        histogram_quantile(0.99, sum by (cluster, subscription_id, resource_id, instance, le) (rate(etcd_network_peer_round_trip_time_seconds_bucket[3d]))) > 0.1
+      for: 3h
       labels:
         component: hcp
         exclude_internal_subscriptions: "true"
@@ -252,7 +256,7 @@ spec:
         short_window: 6h
       annotations:
         summary: "etcd peer round-trip time is chronically high for {{ $labels.resource_id }} {{ $labels.instance }}"
-        description: "{{ $labels.resource_id }} etcd instance {{ $labels.instance }} has 99th percentile peer round-trip time of {{ $value }}s (threshold: 100ms). Network latency between peers may be affecting cluster performance. Slow burn (3d)."
+        description: "{{ $labels.resource_id }} etcd instance {{ $labels.instance }} has 99th percentile peer round-trip time of {{ $value }}s (threshold: 100ms). Network latency between peers may be affecting cluster performance. Slow burn (3d/6h)."
         runbook_url: https://aka.ms/arohcp-runbook-etcd
 
     # ----------------------------------------
@@ -293,7 +297,9 @@ spec:
     - alert: userJourneyEtcdWALFsyncDurationHigh3d
       expr: |
         histogram_quantile(0.99, sum by (cluster, subscription_id, resource_id, instance, le) (rate(etcd_disk_wal_fsync_duration_seconds_bucket[6h]))) > 0.05
-      for: 6h
+        and
+        histogram_quantile(0.99, sum by (cluster, subscription_id, resource_id, instance, le) (rate(etcd_disk_wal_fsync_duration_seconds_bucket[3d]))) > 0.05
+      for: 3h
       labels:
         component: hcp
         exclude_internal_subscriptions: "true"
@@ -302,5 +308,5 @@ spec:
         short_window: 6h
       annotations:
         summary: "etcd WAL fsync duration is chronically high for {{ $labels.resource_id }} {{ $labels.instance }}"
-        description: "{{ $labels.resource_id }} etcd instance {{ $labels.instance }} has 99th percentile WAL fsync duration of {{ $value }}s (threshold: 50ms). Slow disk performance may impact cluster stability. Slow burn (3d)."
+        description: "{{ $labels.resource_id }} etcd instance {{ $labels.instance }} has 99th percentile WAL fsync duration of {{ $value }}s (threshold: 50ms). Slow disk performance may impact cluster stability. Slow burn (3d/6h)."
         runbook_url: https://aka.ms/arohcp-runbook-etcd

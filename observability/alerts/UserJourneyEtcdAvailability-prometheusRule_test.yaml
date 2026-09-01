@@ -8,9 +8,9 @@ tests:
 # Threshold: p99 > 100ms
 # Data: all le buckets incrementing at constant rates -> p99 always at 0.128s
 # MWMBR: fast/medium tiers require both short AND long window confirmation
-# Fast  (1h5m):  fires after 5m  -> check at 11m
-# Medium (6h30m): fires after 30m -> check at 61m
-# Slow  (3d):    fires after 6h  -> check at 365m
+# Fast  (1h5m):    fires after 5m -> check at 11m
+# Medium (6h30m):  fires after 30m -> check at 61m
+# Slow  (3d/6h):   fires after 3h -> check at 365m
 # ========================================
 
 # Scenario 1: High commit duration — all three tiers fire
@@ -92,7 +92,7 @@ tests:
         component: hcp
         exclude_internal_subscriptions: "true"
       exp_annotations:
-        description: "test-hcp-cluster etcd instance etcd-0 has 99th percentile backend commit duration of 0.128s (threshold: 100ms). Slow disk performance may impact write performance. Slow burn (3d)."
+        description: "test-hcp-cluster etcd instance etcd-0 has 99th percentile backend commit duration of 0.128s (threshold: 100ms). Slow disk performance may impact write performance. Slow burn (3d/6h)."
         summary: "etcd backend commit duration is chronically high for test-hcp-cluster etcd-0"
         runbook_url: https://aka.ms/arohcp-runbook-etcd
 
@@ -410,9 +410,9 @@ tests:
 # Threshold: p99 > 100ms
 # Data: many le buckets, p99 at 0.2048s across all rate windows
 # MWMBR: fast/medium tiers require both short AND long window confirmation
-# Fast  (1h5m):  fires after 5m  -> check at 11m
-# Medium (6h30m): fires after 30m -> check at 61m
-# Slow  (3d):    fires after 6h  -> check at 365m
+# Fast  (1h5m):    fires after 5m -> check at 11m
+# Medium (6h30m):  fires after 30m -> check at 61m
+# Slow  (3d/6h):   fires after 3h -> check at 365m
 # ========================================
 
 # Scenario 1: High peer RTT — all three tiers fire
@@ -501,7 +501,7 @@ tests:
         component: hcp
         exclude_internal_subscriptions: "true"
       exp_annotations:
-        description: "test-hcp-cluster etcd instance etcd-0 has 99th percentile peer round-trip time of 0.2048s (threshold: 100ms). Network latency between peers may be affecting cluster performance. Slow burn (3d)."
+        description: "test-hcp-cluster etcd instance etcd-0 has 99th percentile peer round-trip time of 0.2048s (threshold: 100ms). Network latency between peers may be affecting cluster performance. Slow burn (3d/6h)."
         summary: "etcd peer round-trip time is chronically high for test-hcp-cluster etcd-0"
         runbook_url: https://aka.ms/arohcp-runbook-etcd
 
@@ -526,9 +526,9 @@ tests:
 # Threshold: p99 > 50ms
 # Data: le buckets with p99 at 0.064s across all rate windows
 # MWMBR: fast/medium tiers require both short AND long window confirmation
-# Fast  (1h5m):  fires after 5m  -> check at 11m
-# Medium (6h30m): fires after 30m -> check at 61m
-# Slow  (3d):    fires after 6h  -> check at 365m
+# Fast  (1h5m):    fires after 5m -> check at 11m
+# Medium (6h30m):  fires after 30m -> check at 61m
+# Slow  (3d/6h):   fires after 3h -> check at 365m
 # ========================================
 
 # Scenario 1: High WAL fsync duration — all three tiers fire
@@ -607,7 +607,7 @@ tests:
         component: hcp
         exclude_internal_subscriptions: "true"
       exp_annotations:
-        description: "test-hcp-cluster etcd instance etcd-0 has 99th percentile WAL fsync duration of 0.064s (threshold: 50ms). Slow disk performance may impact cluster stability. Slow burn (3d)."
+        description: "test-hcp-cluster etcd instance etcd-0 has 99th percentile WAL fsync duration of 0.064s (threshold: 50ms). Slow disk performance may impact cluster stability. Slow burn (3d/6h)."
         summary: "etcd WAL fsync duration is chronically high for test-hcp-cluster etcd-0"
         runbook_url: https://aka.ms/arohcp-runbook-etcd
 
