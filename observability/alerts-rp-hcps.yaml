@@ -2,7 +2,11 @@ prometheusRules:
   rulesFolders:
   - alerts/UserJourneyKubeApiserverAvailabilityMonitor-prometheusRule-KSM.yaml
   - alerts/UserJourneyEtcdLatencyMonitor-prometheusRule.yaml
+  - alerts/UserJourneyEtcdAvailability-prometheusRule.yaml
   untestedRules: []
   testDependencies:
   - recording-rules-hcps.yaml
   outputBicep: ../dev-infrastructure/modules/metrics/rules/generatedRPHCPPrometheusAlertingRules.bicep
+internalSubscriptionFilter:
+  enabled: true
+  table: internal_subscription:info
