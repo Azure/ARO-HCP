@@ -33,32 +33,43 @@ make
 ### Run
 
 ```bash
-# Generate everything (alerts + recording rules)
-make run
+# Generate alerts (skips promtool tests for speed)
+make alerts
 
-# Generate all alerts or all recording rules
-make alerts          # All 4 alert configs
-make recording-rules # Both recording-rules configs
+# Generate alerts and run promtool tests
+make alerts-and-test
 
-# Generate individually
-make run-sl-services              # Alerting rules: SL queue, services datasource
-make run-sre-hcps                 # Alerting rules: SRE queue, HCPs datasource
-make run-rp-services              # Alerting rules: RP queue, services datasource
-make run-rp-hcps                  # Alerting rules: RP queue, HCPs datasource
-make run-msft-services            # Alerting rules: MSFT queue, services datasource
-make run-recording-rules-services # Recording rules: services datasource
-make run-recording-rules-hcps    # Recording rules: HCPs datasource
+# Generate recording rules
+make recording-rules
+
+# Generate individually (runs promtool tests)
+make run-alerts-sl-services              # Alerting rules: SL queue, services datasource
+make run-alerts-sl-hcps                  # Alerting rules: SL queue, HCPs datasource
+make run-alerts-sre-hcps                 # Alerting rules: SRE queue, HCPs datasource
+make run-alerts-sre-services             # Alerting rules: SRE queue, services datasource
+make run-alerts-rp-services              # Alerting rules: RP queue, services datasource
+make run-alerts-rp-hcps                  # Alerting rules: RP queue, HCPs datasource
+make run-alerts-msft-services            # Alerting rules: MSFT queue, services datasource
+make run-alerts-kusto-services           # Alerting rules: Kusto, services datasource
+make run-alerts-kusto-hcps               # Alerting rules: Kusto, HCPs datasource
+make run-recording-rules-services        # Recording rules: services datasource
+make run-recording-rules-hcps            # Recording rules: HCPs datasource
+
+# Generate a correlation map (YAML to stdout)
+make correlation-map OUTPUT=path/to/output.yaml
 
 # Custom configuration
-go run . --config-file path/to/config.yaml
+./prometheus-rules --config-file path/to/config.yaml
 ```
 
-Note: `run`, `alerts`, and `recording-rules` automatically run `fmt-devinfra` after generation. Individual `run-*` targets do not.
+Note: `alerts`, `alerts-and-test`, and `recording-rules` automatically run `fmt-devinfra` after generation. Individual `run-*` targets do not.
 
 ### Command-line Options
 
 - `--config-file` (required): Path to configuration YAML file
-- `--force-info-severity`: Override all alert severities to "info" level (useful for testing)
+- `--promtool-path`: Path to promtool binary (default: `promtool`)
+- `--skip-tests`: Skip promtool test execution (generate Bicep only)
+- `--correlation-map`: Output a YAML correlation map instead of generating Bicep
 
 ## Configuration
 
@@ -152,13 +163,16 @@ go test -cover ./...
 
 ```
 .
-├── main.go              # CLI entry point
-├── main_test.go         # CLI tests
+├── main.go                          # CLI entry point
+├── main_test.go                     # CLI tests
 ├── internal/
-│   ├── generator.go     # Core rule generation logic
+│   ├── generator.go                 # Core rule generation logic
 │   ├── generator_test.go
-│   ├── writer.go        # Expression replacement utilities
+│   ├── writer.go                    # Expression replacement utilities
 │   └── writer_test.go
+├── pkg/prometheusrules/
+│   ├── prometheusrules.go           # Options, validation, and public API
+│   └── prometheusrules_test.go
 └── README.md
 ```
 
