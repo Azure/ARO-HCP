@@ -11,6 +11,14 @@ param tier = '{{ .kusto.tier }}'
 
 param kustoName = '{{ .stgGlobalV2.kustoName }}'
 
+param geoShortId = '{{ .azureGeoShortId }}'
+
+param environmentName = '{{ .environmentName }}'
+
+param enableGrafanaIntegration = {{ .monitoring.adxKustoAccessEnabled }}
+
+param grafanaPrincipalId = '__grafanaPrincipalId__'
+
 param manageInstance = {{ .kusto.manageInstance }}
 
 param serviceLogsDatabase = '{{ .kusto.serviceLogsDatabase }}'

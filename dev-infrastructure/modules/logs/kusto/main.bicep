@@ -31,6 +31,18 @@ param viewerIdentities string = ''
 @description('Name of the Kusto cluster to create')
 param kustoName string
 
+@description('ARO-HCP geography short ID used for global resource discovery')
+param geoShortId string
+
+@description('ARO-HCP environment used to scope global resource discovery')
+param environmentName string
+
+@description('Whether to grant the global Grafana identity Viewer access to ServiceLogs')
+param enableGrafanaIntegration bool = false
+
+@description('Global Azure Managed Grafana principal ID')
+param grafanaPrincipalId string = ''
+
 @description('Minimum number of nodes for autoscale')
 param autoScaleMin int
 
@@ -47,6 +59,7 @@ var db = {
 }
 
 var databases = [db.serviceLogs, db.hostedControlPlaneLogs, db.monitoringEvents]
+var hasGrafana = enableGrafanaIntegration && grafanaPrincipalId != '' && grafanaPrincipalId != '__grafanaPrincipalId__'
 
 var dummyScript = '.create-or-alter function with (docstring = \'dummy function to run last and to remove permission\') dummyFunction() {print \'dummy\'}'
 
@@ -79,6 +92,8 @@ module cluster 'cluster.bicep' = {
   params: {
     location: location
     kustoName: kustoName
+    geoShortId: geoShortId
+    environmentName: environmentName
     sku: sku
     tier: tier
     adminGroups: adminGroups
@@ -189,7 +204,18 @@ module databaseUserScripts 'database-users.bicep' = [
   }
 ]
 
-// 5. Remove the caller principal
+// 5. Grafana ServiceLogs access
+module grafanaServiceLogsAccess 'grant-access.bicep' = if (hasGrafana) {
+  name: 'grafana-serviceLogs-viewer'
+  params: {
+    kustoName: kustoName
+    databaseName: db.serviceLogs
+    readAccessPrincipalIds: [grafanaPrincipalId]
+  }
+  dependsOn: [serviceLogsTables]
+}
+
+// 6. Remove the caller principal
 // THIS MUST BE THE LAST SCRIPT TO RUN
 module removePermission 'script.bicep' = [
   for (database, i) in databases: {
@@ -207,6 +233,7 @@ module removePermission 'script.bicep' = [
       serviceLogsTables
       hostedControlPlaneLogsTables
       monitoringEventsTables
+      grafanaServiceLogsAccess
     ]
   }
 ]

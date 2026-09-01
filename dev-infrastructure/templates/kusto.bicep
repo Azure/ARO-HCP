@@ -31,6 +31,18 @@ param viewerIdentities string = ''
 @description('Name of the Kusto cluster to create')
 param kustoName string
 
+@description('ARO-HCP geography short ID used for global resource discovery')
+param geoShortId string
+
+@description('ARO-HCP environment used to scope global resource discovery')
+param environmentName string
+
+@description('Whether to grant the global Grafana identity Viewer access to ServiceLogs')
+param enableGrafanaIntegration bool = false
+
+@description('Global Azure Managed Grafana principal ID')
+param grafanaPrincipalId string = ''
+
 @description('Minimum number of nodes for autoscale')
 param autoScaleMin int
 
@@ -45,6 +57,10 @@ module kusto '../modules/logs/kusto/main.bicep' = if (manageInstance) {
   params: {
     location: location
     kustoName: kustoName
+    geoShortId: geoShortId
+    environmentName: environmentName
+    enableGrafanaIntegration: enableGrafanaIntegration
+    grafanaPrincipalId: grafanaPrincipalId
     dstsGroups: []
     sku: sku
     tier: tier

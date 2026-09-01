@@ -96,6 +96,32 @@ A single **Azure Managed Grafana** instance is deployed globally and configured 
 - Region-agnostic dashboard experience
 - Consolidated alerting and monitoring workflows
 
+### ADX integration fabrics
+
+The global Grafana reconciliation can optionally manage Dashboard resource provider integration-fabric children for ARO-HCP Kusto clusters. It discovers clusters in the Grafana subscription tagged with `aroHCPPurpose=logs`, the current `aroHCPEnvironment`, and `aroHCPGeoShortId`.
+
+The Kusto access grant and integration-fabric reconciliation have separate disabled-by-default gates:
+
+- `monitoring.adxKustoAccessEnabled` grants the Grafana workspace system identity database-level `Viewer` access to `ServiceLogs` during a geography rollout.
+- `monitoring.adxIntegrationEnabled` enables integration-fabric reconciliation during a global rollout.
+- `monitoring.adxIntegrationGeographies` is the required complete comma-separated geography short ID set when integration reconciliation is enabled. Matching is case-insensitive and ignores surrounding whitespace.
+
+The integration-fabric resource provider contract still needs nonproduction validation. `monitoring.adxIntegrationScenario` and `monitoring.adxIntegrationTargetResourceId` are therefore explicit configuration inputs rather than hardcoded assumptions. Do not enable the feature until the accepted scenario, target semantics, resulting Grafana datasource configuration, and resource provider ownership behavior have been confirmed.
+
+An empty scenario or target leaves that optional property unmanaged. Clearing a previously configured value does not remove the value already returned by the resource provider.
+
+Before enabling Kusto access in an existing environment, list the `ServiceLogs` database principal assignments and confirm that the Grafana principal does not already have a `Viewer` assignment under another resource name. Kusto rejects duplicate role and principal assignments even when their resource names differ.
+
+Use this rollout order:
+
+1. Deploy the Kusto discovery tags while both gates remain disabled.
+2. Set `monitoring.adxKustoAccessEnabled` and run the geography pipelines for the complete target geography set.
+3. Validate the resource provider contract in nonproduction, including scenario, target, datasource behavior, and integration-fabric tag round-trip.
+4. Build the complete geography allowlist from the geography pipelines' `ev2.geoShortId` values, then run `grafanactl manage reconcile` manually with the normal Grafana arguments, the ADX integration arguments, and `--dry-run`. Confirm every expected geography is selected and the planned operations contain no unexpected `delete` entries.
+5. Set the complete geography allowlist and validated resource provider inputs, enable `monitoring.adxIntegrationEnabled`, and run the global pipeline.
+
+Narrowing the geography allowlist removes owned integration fabrics that are no longer selected. Disabling integration reconciliation leaves fabrics unchanged, and Kusto principal assignments are deployed incrementally. Rollback therefore requires explicit removal of both the integration fabrics and the Viewer assignment.
+
 ### Regional Azure Monitor Workspace
 
 Each region contains **two Azure Monitor Workspaces (AMW)**:

@@ -1133,7 +1133,8 @@
   },
   "properties": {
     "environmentName": {
-      "type": "string"
+      "type": "string",
+      "pattern": "^[A-Za-z0-9-]+$"
     },
     "azureGeoShortId": {
       "type": "string"
@@ -3144,6 +3145,27 @@
           "type": "string",
           "description": "The SKU of the Azure Managed Grafana instance (e.g. Standard, Essential)."
         },
+        "adxKustoAccessEnabled": {
+          "type": "boolean",
+          "description": "Whether Kusto deployment grants the global Grafana identity Viewer access to ServiceLogs."
+        },
+        "adxIntegrationEnabled": {
+          "type": "boolean",
+          "description": "Whether the global Grafana reconciliation manages ADX integration-fabric child resources."
+        },
+        "adxIntegrationGeographies": {
+          "type": "string",
+          "pattern": "^$|^\\s*[A-Za-z0-9-]+\\s*(,\\s*[A-Za-z0-9-]+\\s*)*$",
+          "description": "Complete comma-separated geography short ID set for ADX integration fabrics. Required when integration reconciliation is enabled."
+        },
+        "adxIntegrationScenario": {
+          "type": "string",
+          "description": "Optional Managed Grafana integration-fabric scenario supplied to the Dashboard resource provider."
+        },
+        "adxIntegrationTargetResourceId": {
+          "type": "string",
+          "description": "Optional target resource ID supplied to each Managed Grafana ADX integration fabric."
+        },
         "grafanaMajorVersion": {
           "type": "string"
         },
@@ -3259,6 +3281,11 @@
       "required": [
         "grafanaName",
         "grafanaSku",
+        "adxKustoAccessEnabled",
+        "adxIntegrationEnabled",
+        "adxIntegrationGeographies",
+        "adxIntegrationScenario",
+        "adxIntegrationTargetResourceId",
         "grafanaRoles",
         "grafanaMajorVersion",
         "crossTenantSecurityGroup",
@@ -3933,6 +3960,14 @@
     "genevaHealthFunction"
   ],
   "x-cel-validations": [
+    {
+      "rule": "!self.monitoring.adxIntegrationEnabled || self.monitoring.adxIntegrationGeographies != ''",
+      "message": "monitoring.adxIntegrationGeographies must be non-empty when monitoring.adxIntegrationEnabled is true"
+    },
+    {
+      "rule": "!self.monitoring.adxIntegrationEnabled || self.monitoring.adxKustoAccessEnabled",
+      "message": "monitoring.adxKustoAccessEnabled must be true when monitoring.adxIntegrationEnabled is true"
+    },
     {
       "rule": "self.frontend.cert.san == 'rp.' + self.dns.regionalSubdomain + '.' + self.dns.svcParentZoneName",
       "message": "frontend.cert.san must equal 'rp.' + dns.regionalSubdomain + '.' + dns.svcParentZoneName"
