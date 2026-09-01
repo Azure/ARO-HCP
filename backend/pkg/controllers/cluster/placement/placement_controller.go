@@ -51,12 +51,50 @@ import (
 // and log values so metrics, ctx, and log fields never drift.
 const PlacementControllerName = "Placement"
 
-// swiftNICsPerHCP is the number of SWIFT NICs a single HostedControlPlane
-// consumes. Every HCP needs exactly 3 (except clusters created with the 2024
-// API version, which use fewer — but that version is being removed). Using 3 as
-// a flat per-HCP cost is a conservative approximation that never overbooks a
-// management cluster's swift-NIC capacity.
+// swiftNICsPerHCP is the number of SWIFT NICs a highly-available (default)
+// HostedControlPlane consumes: one NIC per control-plane replica, three
+// replicas. It is the conservative per-HCP cost used whenever a cluster's
+// control-plane availability cannot be determined.
 const swiftNICsPerHCP int64 = 3
+
+// singleReplicaSwiftNICsPerHCP is the number of SWIFT NICs a SingleReplica
+// HostedControlPlane consumes: its single control-plane replica needs one NIC.
+const singleReplicaSwiftNICsPerHCP int64 = 1
+
+// swiftNICReserver resolves how many SWIFT NICs the HCP identified by a cluster
+// ARM resource ID reserves. Production resolves it from the cluster's
+// control-plane availability via the informer cache (see swiftNICReserverFromCache);
+// unit tests stub it directly.
+type swiftNICReserver func(clusterResourceID *azcorearm.ResourceID) int64
+
+// swiftNICsForControlPlaneAvailability returns the number of SWIFT NICs a single
+// HostedControlPlane with the given control-plane availability consumes: a
+// SingleReplica control plane runs one replica and needs one NIC, while a
+// highly-available (default) control plane needs the full swiftNICsPerHCP.
+func swiftNICsForControlPlaneAvailability(availability coreapi.ControlPlaneAvailability) int64 {
+	if availability == coreapi.SingleReplicaControlPlane {
+		return singleReplicaSwiftNICsPerHCP
+	}
+	return swiftNICsPerHCP
+}
+
+// swiftNICReserverFromCache returns a swiftNICReserver that resolves each
+// cluster's swift-NIC reservation from the cluster informer cache. A cluster
+// that cannot be resolved (missing from the cache, or an unexpected lister
+// error) reserves the conservative swiftNICsPerHCP maximum, so a cache miss
+// never under-reserves capacity.
+func (c *placementSyncer) swiftNICReserverFromCache(ctx context.Context) swiftNICReserver {
+	return func(clusterResourceID *azcorearm.ResourceID) int64 {
+		if clusterResourceID == nil {
+			return swiftNICsPerHCP
+		}
+		cluster, err := c.clusterLister.Get(ctx, clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName, clusterResourceID.Name)
+		if err != nil {
+			return swiftNICsPerHCP
+		}
+		return swiftNICsForControlPlaneAvailability(cluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneAvailability)
+	}
+}
 
 // placementSyncer selects the management cluster a newly-created HCP should be
 // scheduled onto and records that intent on ServiceProviderCluster.Spec.
@@ -194,12 +232,19 @@ func (c *placementSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPC
 
 	// Fresh capacity-aware selection: gather candidate management clusters paired
 	// with their scheduling documents, then let selectByCapacity perform all
-	// candidate elimination and choose the emptiest eligible one.
+	// candidate elimination and choose the emptiest eligible one. The new HCP
+	// reserves swift NICs according to its own control-plane availability (a
+	// SingleReplica control plane needs one NIC, else swiftNICsPerHCP); a missing
+	// cluster document falls back to the conservative swiftNICsPerHCP.
 	candidates, err := c.gatherSchedulingCandidates(ctx)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to gather scheduling candidates for %s: %w", key.HCPClusterName, err))
 	}
-	chosen, err := selectByCapacity(candidates)
+	requiredSwiftNICs := swiftNICsPerHCP
+	if cluster != nil {
+		requiredSwiftNICs = swiftNICsForControlPlaneAvailability(cluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneAvailability)
+	}
+	chosen, err := selectByCapacity(candidates, requiredSwiftNICs, c.swiftNICReserverFromCache(ctx))
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to select management cluster for %s: %w", key.HCPClusterName, err))
 	}
@@ -364,17 +409,19 @@ type managementClusterCandidate struct {
 //
 // From the gathered (management cluster, scheduling document) pairs it eliminates
 // ineligible candidates — recording a human-readable reason for each — then, among
-// the candidates whose available swift-NIC capacity is at least swiftNICsPerHCP,
+// the candidates whose available swift-NIC capacity is at least requiredSwiftNICs
+// (the swift-NIC count the new HCP needs, 1 for SingleReplica else swiftNICsPerHCP),
 // returns the one with the HIGHEST available capacity (spread: place each new HCP
 // on the emptiest management cluster so load is distributed evenly rather than
 // concentrated). Ties are broken deterministically by the lowest resource ID
-// string so the selection is stable.
+// string so the selection is stable. swiftNICsFor resolves the per-cluster
+// reservation for each already-pending/not-ready HCP counted in the headroom.
 //
 // When nothing fits it returns an error that enumerates why every candidate was
 // eliminated, so the decision can be debugged from the error alone.
 //
 // TODO: leverage CPU and memory as well as the average HCP resource consumption in the region for more elaborate capacity based placement decisions.
-func selectByCapacity(candidates []schedulingCandidate) (*azcorearm.ResourceID, error) {
+func selectByCapacity(candidates []schedulingCandidate, requiredSwiftNICs int64, swiftNICsFor swiftNICReserver) (*azcorearm.ResourceID, error) {
 	var chosen managementClusterCandidate
 	found := false
 	var eliminated []string
@@ -389,9 +436,9 @@ func selectByCapacity(candidates []schedulingCandidate) (*azcorearm.ResourceID, 
 			eliminated = append(eliminated, fmt.Sprintf("%s: %s", id, reason))
 			continue
 		}
-		available := computeAvailableSwiftNICs(candidate.scheduling)
-		if available < swiftNICsPerHCP {
-			eliminated = append(eliminated, fmt.Sprintf("%s: insufficient swift-NIC capacity (available %d, need %d)", id, available, swiftNICsPerHCP))
+		available := computeAvailableSwiftNICs(candidate.scheduling, swiftNICsFor)
+		if available < requiredSwiftNICs {
+			eliminated = append(eliminated, fmt.Sprintf("%s: insufficient swift-NIC capacity (available %d, need %d)", id, available, requiredSwiftNICs))
 			continue
 		}
 
@@ -413,10 +460,10 @@ func selectByCapacity(candidates []schedulingCandidate) (*azcorearm.ResourceID, 
 		// candidate skipped for a nil ResourceID before a reason was recorded).
 		if len(eliminated) == 0 {
 			return nil, utils.TrackError(fmt.Errorf("no eligible management cluster with at least %d available swift NICs among %d candidate(s)",
-				swiftNICsPerHCP, len(candidates)))
+				requiredSwiftNICs, len(candidates)))
 		}
 		return nil, utils.TrackError(fmt.Errorf("no eligible management cluster with at least %d available swift NICs among %d candidate(s): %s",
-			swiftNICsPerHCP, len(candidates), strings.Join(eliminated, "; ")))
+			requiredSwiftNICs, len(candidates), strings.Join(eliminated, "; ")))
 	}
 	return chosen.resourceID, nil
 }
@@ -446,44 +493,58 @@ func ineligibilityReason(managementCluster *fleetapi.ManagementCluster, scheduli
 //
 //	available = ScaleCeiling.Capacity[swift-nic]
 //	          - ObservedResources.Usage[swift-nic]
-//	          - len(NotReadyResourceIDs) * swiftNICsPerHCP
-//	          - len(PendingAssignedClusters) * swiftNICsPerHCP
+//	          - sum(swiftNICsFor(each NotReadyResourceIDs entry))
+//	          - sum(swiftNICsFor(each PendingAssignedClusters entry))
 //
 // Ready HCPs are already reflected in Usage, so they are not reserved again.
-// NotReady HCPs may not yet consume their NICs, so each reserves swiftNICsPerHCP.
-// Pending (just-scheduled, not-yet-observed) HCPs likewise reserve
-// swiftNICsPerHCP. Capacity is bounded against the ScaleCeiling (max node count)
-// so the estimate reflects the worst case. Empty/nil list entries do not
-// correspond to a real HCP and are not counted toward the reservation.
-func computeAvailableSwiftNICs(scheduling *fleetapi.ManagementClusterScheduling) int64 {
+// NotReady HCPs may not yet consume their NICs, so each reserves its own
+// swift-NIC count; Pending (just-scheduled, not-yet-observed) HCPs likewise
+// reserve their own count. swiftNICsFor resolves that per-cluster count from the
+// cluster's control-plane availability (1 for SingleReplica, else swiftNICsPerHCP),
+// so a management cluster hosting SingleReplica HCPs is not over-reserved.
+// Capacity is bounded against the ScaleCeiling (max node count) so the estimate
+// reflects the worst case. Empty/nil list entries do not correspond to a real HCP
+// and are not counted toward the reservation.
+func computeAvailableSwiftNICs(scheduling *fleetapi.ManagementClusterScheduling, swiftNICsFor swiftNICReserver) int64 {
 	ceiling := swiftNICCount(scheduling.Status.ScaleCeiling.Capacity)
 	usage := swiftNICCount(scheduling.Status.ObservedResources.Usage)
-	notReady := countNonEmpty(scheduling.Status.NotReadyResourceIDs) * swiftNICsPerHCP
-	pending := countNonNilResourceIDs(scheduling.Status.PendingAssignedClusters) * swiftNICsPerHCP
+	notReady := sumSwiftNICReservationsForIDStrings(scheduling.Status.NotReadyResourceIDs, swiftNICsFor)
+	pending := sumSwiftNICReservationsForIDs(scheduling.Status.PendingAssignedClusters, swiftNICsFor)
 	return ceiling - usage - notReady - pending
 }
 
-// countNonNilResourceIDs counts the non-nil entries of a resource ID slice; a
-// nil entry does not correspond to a real HCP and must not reserve capacity.
-func countNonNilResourceIDs(ids []*azcorearm.ResourceID) int64 {
-	var count int64
+// sumSwiftNICReservationsForIDs sums the per-cluster swift-NIC reservations for a
+// slice of cluster ARM resource IDs, skipping nil entries (a nil entry does not
+// correspond to a real HCP and must not reserve capacity).
+func sumSwiftNICReservationsForIDs(ids []*azcorearm.ResourceID, swiftNICsFor swiftNICReserver) int64 {
+	var total int64
 	for _, id := range ids {
-		if id != nil {
-			count++
+		if id == nil {
+			continue
 		}
+		total += swiftNICsFor(id)
 	}
-	return count
+	return total
 }
 
-// countNonEmpty counts the non-empty entries of a string slice.
-func countNonEmpty(values []string) int64 {
-	var count int64
-	for _, value := range values {
-		if value != "" {
-			count++
+// sumSwiftNICReservationsForIDStrings sums the per-cluster swift-NIC reservations
+// for a slice of cluster ARM resource ID strings, skipping empty entries. An
+// unparseable entry reserves the conservative swiftNICsPerHCP maximum rather than
+// being dropped, so a malformed entry never under-reserves capacity.
+func sumSwiftNICReservationsForIDStrings(ids []string, swiftNICsFor swiftNICReserver) int64 {
+	var total int64
+	for _, id := range ids {
+		if id == "" {
+			continue
 		}
+		resourceID, err := azcorearm.ParseResourceID(id)
+		if err != nil {
+			total += swiftNICsPerHCP
+			continue
+		}
+		total += swiftNICsFor(resourceID)
 	}
-	return count
+	return total
 }
 
 // swiftNICCount returns the swift-NIC quantity in a ResourceList as an int64,
@@ -521,7 +582,7 @@ func (c *placementSyncer) reservePendingAssignment(ctx context.Context, manageme
 	// (e.g. reflect the swift-NIC cost of the pending HCP in
 	// ObservedResources.Usage) so capacity accounting reflects the pending
 	// assignment directly, not only indirectly via the PendingAssignedClusters
-	// count.
+	// entries.
 	updated.Status.PendingAssignedClusters = append(updated.Status.PendingAssignedClusters, coreapi.DeepCopyResourceID(clusterResourceID))
 	if _, err := schedulingCRUD.Replace(ctx, updated, nil); err != nil {
 		return utils.TrackError(fmt.Errorf("failed to reserve pending assignment on management cluster %q: %w", managementClusterResourceID.String(), err))

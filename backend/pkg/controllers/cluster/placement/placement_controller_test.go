@@ -88,6 +88,60 @@ func dummyResourceIDs(n int) []*azcorearm.ResourceID {
 	return ids
 }
 
+// allHighlyAvailableReserver is a swiftNICReserver that reserves the full
+// swiftNICsPerHCP for every cluster. It models an all-highly-available fleet (and
+// the pre-SingleReplica behaviour) so tests that don't care about per-cluster
+// availability keep the "3 each" math.
+func allHighlyAvailableReserver(*azcorearm.ResourceID) int64 { return swiftNICsPerHCP }
+
+// clusterResourceIDWithName builds an HCP-cluster ARM resource ID with the given
+// cluster name (the last segment); other segments are fixed test values.
+func clusterResourceIDWithName(name string) *azcorearm.ResourceID {
+	return metadataapi.Must(azcorearm.ParseResourceID(
+		fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/%s",
+			testClusterSubscriptionID, testClusterResourceGroup, name)))
+}
+
+// namedClusterResourceIDs builds n HCP-cluster resource IDs named "<prefix>-<i>".
+func namedClusterResourceIDs(prefix string, n int) []*azcorearm.ResourceID {
+	ids := make([]*azcorearm.ResourceID, 0, n)
+	for i := 0; i < n; i++ {
+		ids = append(ids, clusterResourceIDWithName(fmt.Sprintf("%s-%d", prefix, i)))
+	}
+	return ids
+}
+
+// namedClusterResourceIDStrings builds n HCP-cluster resource ID strings named
+// "<prefix>-<i>".
+func namedClusterResourceIDStrings(prefix string, n int) []string {
+	ids := make([]string, 0, n)
+	for i := 0; i < n; i++ {
+		ids = append(ids, clusterResourceIDWithName(fmt.Sprintf("%s-%d", prefix, i)).String())
+	}
+	return ids
+}
+
+// clusterWithAvailability builds an HCPOpenShiftCluster with the given name and
+// control-plane availability, for the informer-cache-backed swiftNICReserver.
+func clusterWithAvailability(name string, availability coreapi.ControlPlaneAvailability) *coreapi.HCPOpenShiftCluster {
+	rid := clusterResourceIDWithName(name)
+	cluster := &coreapi.HCPOpenShiftCluster{}
+	cluster.ID = rid
+	cluster.Name = rid.Name
+	cluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneAvailability = availability
+	return cluster
+}
+
+// prefixControlPlaneAvailabilityReserver returns a swiftNICReserver that treats
+// clusters whose name starts with "sr-" as SingleReplica (reserve 1) and every
+// other cluster as highly available (reserve swiftNICsPerHCP).
+func prefixControlPlaneAvailabilityReserver(id *azcorearm.ResourceID) int64 {
+	if id != nil && strings.HasPrefix(id.Name, "sr-") {
+		return singleReplicaSwiftNICsPerHCP
+	}
+	return swiftNICsPerHCP
+}
+
 func schedulingDoc(stamp string, ceiling, usage, notReady, pending int64) *fleetapi.ManagementClusterScheduling {
 	resourceID := metadataapi.Must(fleetapi.ToManagementClusterSchedulingResourceID(stamp))
 	notReadyIDs := make([]string, notReady)
@@ -126,9 +180,73 @@ func TestComputeAvailableSwiftNICs(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			doc := schedulingDoc("s", tc.ceiling, tc.usage, tc.notReady, tc.pending)
-			assert.Equal(t, tc.expected, computeAvailableSwiftNICs(doc))
+			assert.Equal(t, tc.expected, computeAvailableSwiftNICs(doc, allHighlyAvailableReserver))
 		})
 	}
+}
+
+// TestComputeAvailableSwiftNICs_MixedControlPlaneAvailability verifies the
+// headroom math reserves per-cluster swift NICs (1 for SingleReplica, else
+// swiftNICsPerHCP) for each pending / not-ready HCP, rather than assuming the
+// full swiftNICsPerHCP for every entry.
+func TestComputeAvailableSwiftNICs_MixedControlPlaneAvailability(t *testing.T) {
+	tests := []struct {
+		name       string
+		ceiling    int64
+		usage      int64
+		haPending  int // highly-available pending clusters (reserve swiftNICsPerHCP each)
+		srPending  int // single-replica pending clusters (reserve 1 each)
+		haNotReady int // highly-available not-ready clusters (reserve swiftNICsPerHCP each)
+		srNotReady int // single-replica not-ready clusters (reserve 1 each)
+		expected   int64
+	}{
+		{name: "single-replica pending reserve 1 each", ceiling: 9, srPending: 3, expected: 9 - 3},
+		{name: "highly-available pending reserve 3 each", ceiling: 9, haPending: 2, expected: 9 - 6},
+		{name: "mixed pending", ceiling: 20, haPending: 2, srPending: 3, expected: 20 - 6 - 3},
+		{name: "mixed not-ready", ceiling: 20, haNotReady: 2, srNotReady: 4, expected: 20 - 6 - 4},
+		{
+			name:      "mixed pending and not-ready with usage",
+			ceiling:   30,
+			usage:     3,
+			haPending: 1, srPending: 2, haNotReady: 1, srNotReady: 2,
+			expected: 30 - 3 - (3 + 2) - (3 + 2),
+		},
+		{name: "all single-replica", ceiling: 10, srPending: 4, srNotReady: 2, expected: 10 - 4 - 2},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc := &fleetapi.ManagementClusterScheduling{
+				Status: fleetapi.ManagementClusterSchedulingStatus{
+					ObservedResources:       fleetapi.ObservedResources{Usage: swiftResourceList(tc.usage)},
+					ScaleCeiling:            fleetapi.ScaleCeiling{Capacity: swiftResourceList(tc.ceiling)},
+					PendingAssignedClusters: append(namedClusterResourceIDs("ha-p", tc.haPending), namedClusterResourceIDs("sr-p", tc.srPending)...),
+					NotReadyResourceIDs:     append(namedClusterResourceIDStrings("ha-nr", tc.haNotReady), namedClusterResourceIDStrings("sr-nr", tc.srNotReady)...),
+				},
+			}
+			assert.Equal(t, tc.expected, computeAvailableSwiftNICs(doc, prefixControlPlaneAvailabilityReserver))
+		})
+	}
+}
+
+// TestSwiftNICReserverFromCache verifies the informer-cache-backed reserver maps
+// a cluster's control-plane availability to its swift-NIC reservation and falls
+// back to the conservative swiftNICsPerHCP when the cluster cannot be resolved.
+func TestSwiftNICReserverFromCache(t *testing.T) {
+	haCluster := clusterWithAvailability("ha", coreapi.DefaultControlPlaneAvailability)
+	srCluster := clusterWithAvailability("sr", coreapi.SingleReplicaControlPlane)
+
+	syncer := &placementSyncer{
+		clusterLister: &corelistertesting.SliceClusterLister{
+			Clusters: []*coreapi.HCPOpenShiftCluster{haCluster, srCluster},
+		},
+	}
+	reserve := syncer.swiftNICReserverFromCache(context.Background())
+
+	assert.Equal(t, swiftNICsPerHCP, reserve(haCluster.ID), "highly-available cluster reserves the full swiftNICsPerHCP")
+	assert.Equal(t, singleReplicaSwiftNICsPerHCP, reserve(srCluster.ID), "single-replica cluster reserves 1")
+	assert.Equal(t, swiftNICsPerHCP, reserve(clusterResourceIDWithName("missing")), "unresolvable cluster falls back to swiftNICsPerHCP")
+	assert.Equal(t, swiftNICsPerHCP, reserve(nil), "nil resource ID falls back to swiftNICsPerHCP")
 }
 
 func TestComputeAvailableSwiftNICs_IgnoresNilAndEmptyEntries(t *testing.T) {
@@ -145,7 +263,7 @@ func TestComputeAvailableSwiftNICs_IgnoresNilAndEmptyEntries(t *testing.T) {
 		},
 	}
 	// 9 - usage(0) - notReady(1*3) - pending(1*3) = 3
-	assert.Equal(t, int64(3), computeAvailableSwiftNICs(doc))
+	assert.Equal(t, int64(3), computeAvailableSwiftNICs(doc, allHighlyAvailableReserver))
 }
 
 // eligibleCandidate builds a schedulingCandidate for an eligible (schedulable +
@@ -167,11 +285,12 @@ func TestSelectByCapacity(t *testing.T) {
 	}
 
 	tests := []struct {
-		name          string
-		candidates    []schedulingCandidate
-		expectedStamp string // "" => expect error
-		expectError   bool
-		errContains   string // substring the error must enumerate (elimination reason)
+		name              string
+		candidates        []schedulingCandidate
+		requiredSwiftNICs int64  // swift NICs the new HCP needs; 0 => swiftNICsPerHCP
+		expectedStamp     string // "" => expect error
+		expectError       bool
+		errContains       string // substring the error must enumerate (elimination reason)
 	}{
 		{name: "no candidates - error", candidates: nil, expectError: true},
 		{
@@ -223,11 +342,35 @@ func TestSelectByCapacity(t *testing.T) {
 			},
 			expectedStamp: "2",
 		},
+		{
+			name:              "single-replica new cluster fits with only 1 available",
+			candidates:        []schedulingCandidate{eligibleCandidate("1", 1)},
+			requiredSwiftNICs: singleReplicaSwiftNICsPerHCP,
+			expectedStamp:     "1",
+		},
+		{
+			name:              "single-replica new cluster eliminated when 0 available",
+			candidates:        []schedulingCandidate{eligibleCandidate("1", 0)},
+			requiredSwiftNICs: singleReplicaSwiftNICsPerHCP,
+			expectError:       true,
+			errContains:       "insufficient swift-NIC capacity",
+		},
+		{
+			name:              "highly-available new cluster eliminated when only 1 available",
+			candidates:        []schedulingCandidate{eligibleCandidate("1", 1)},
+			requiredSwiftNICs: swiftNICsPerHCP,
+			expectError:       true,
+			errContains:       "insufficient swift-NIC capacity",
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			chosen, err := selectByCapacity(tc.candidates)
+			requiredSwiftNICs := tc.requiredSwiftNICs
+			if requiredSwiftNICs == 0 {
+				requiredSwiftNICs = swiftNICsPerHCP
+			}
+			chosen, err := selectByCapacity(tc.candidates, requiredSwiftNICs, allHighlyAvailableReserver)
 			if tc.expectError {
 				require.Error(t, err)
 				assert.Nil(t, chosen)
