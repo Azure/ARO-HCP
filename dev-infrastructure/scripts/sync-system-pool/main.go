@@ -105,7 +105,10 @@ func main() {
 		}
 	}
 	handler := slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{
-		Level:     slog.Level(verbosity * -1),
+		// slog levels are spaced by 4 (Debug=-4, Info=0), so scale verbosity by 4:
+		// LOG_VERBOSITY=1 enables Debug, higher values go progressively more verbose.
+		// (matches dev-infrastructure/scripts/grafana-group-roles's convention)
+		Level:     slog.Level(verbosity * -4),
 		AddSource: false,
 	})
 	slog.SetDefault(slog.New(handler).With("component", "sync-system-pool"))
@@ -291,6 +294,13 @@ func loadConfig(env func(string) string) (*systemPoolConfig, error) {
 		zoneRedundantMode: env("SYSTEM_ZONE_MODE"),
 	}
 	c.tempPoolName = tempPoolName(c.poolName)
+	if c.poolName == c.tempPoolName {
+		return nil, fmt.Errorf(
+			"SYSTEM_POOL_NAME (%q) collides with the temp pool name %q; "+
+				"rename the system pool or this script cannot tell it apart from a leftover temp pool",
+			c.poolName, c.tempPoolName,
+		)
+	}
 
 	required := map[string]string{
 		"SUBSCRIPTION_ID":  c.subscriptionID,

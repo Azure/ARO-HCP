@@ -212,9 +212,12 @@ func TestLoadConfig_RequiresAllFields(t *testing.T) {
 		"SYSTEM_OS_DISK_GB": "32",
 		"SYSTEM_ZONE_MODE":  "Auto",
 	}
-	// SYSTEM_ZONES is intentionally omitted from `full`: it's optional
-	// (an empty/absent value means "no zone pinning"), unlike every other
-	// field below.
+	// SYSTEM_ZONES is intentionally omitted from `full`: loadConfig doesn't
+	// require it to be set. That does NOT mean an empty/absent value means
+	// "no zone pinning" though - desiredAvailabilityZones resolves an empty
+	// zones CSV to the location's full AZ list (mirroring
+	// mgmt-cluster.bicep) before applying zoneRedundantMode, so it still
+	// affects the desired spec; it's just not a required env var here.
 	for missing := range full {
 		t.Run("missing_"+missing, func(t *testing.T) {
 			env := map[string]string{}
@@ -239,6 +242,29 @@ func TestLoadConfig_RequiresAllFields(t *testing.T) {
 	}
 	if cfg.minCount != 1 || cfg.maxCount != 4 || cfg.osDiskSizeGB != 32 {
 		t.Fatalf("unexpected numeric fields: %+v", cfg)
+	}
+}
+
+// TestLoadConfig_RejectsTempPoolNameCollision proves loadConfig fails fast
+// (instead of silently misidentifying the system pool as a leftover temp
+// pool) when SYSTEM_POOL_NAME collides with tempPoolName's hardcoded
+// "systmp" value.
+func TestLoadConfig_RejectsTempPoolNameCollision(t *testing.T) {
+	env := map[string]string{
+		"SUBSCRIPTION_ID":   "sub",
+		"RESOURCE_GROUP":    "rg",
+		"CLUSTER_NAME":      "cluster",
+		"VNET_NAME":         "aks-net",
+		"SYSTEM_POOL_NAME":  "systmp",
+		"SYSTEM_VM_SIZE":    "Standard_E8s_v3",
+		"SYSTEM_MIN_COUNT":  "1",
+		"SYSTEM_MAX_COUNT":  "4",
+		"SYSTEM_OS_DISK_GB": "32",
+		"SYSTEM_ZONE_MODE":  "Auto",
+	}
+	_, err := loadConfig(func(k string) string { return env[k] })
+	if err == nil {
+		t.Fatalf("expected error when SYSTEM_POOL_NAME collides with the temp pool name")
 	}
 }
 
