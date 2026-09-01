@@ -16,6 +16,7 @@ package e2e
 
 import (
 	"context"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -123,5 +124,10 @@ var _ = Describe("Customer", func() {
 			Expect(created.Properties.Platform).ToNot(BeNil(), "nodepool Properties.Platform was nil")
 			Expect(created.Properties.Platform.OSDisk).ToNot(BeNil(), "nodepool Properties.Platform.OSDisk was nil")
 			Expect(*created.Properties.Platform.OSDisk.SizeGiB).To(Equal(customerNodeOsDiskSizeGiB), "nodepool OS disk size should be %d GiB", customerNodeOsDiskSizeGiB)
+
+			By("keeping cluster alive for 2 hours for manual inspection")
+			GinkgoWriter.Printf("Cluster %s and nodepool %s are ready. Sleeping for 2 hours before cleanup.\n", customerClusterName, customerNodePoolName)
+			GinkgoWriter.Printf("Resource group: %s\n", *resourceGroup.Name)
+			time.Sleep(2 * time.Hour)
 		})
 })

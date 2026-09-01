@@ -717,7 +717,8 @@ func setupCli() *cobra.Command {
 	// 	specs = specs.AddLabel("SLOW")
 
 	// Specs can be globally filtered...
-	// specs = specs.MustFilter([]string{`name.contains("filter")`})
+	// TODO: remove after PR validation
+	specs = specs.MustFilter([]string{`name.contains("create an HCP cluster and custom node pool osDisk size")`})
 
 	// Or walked...
 	// specs = specs.Walk(func(spec *extensiontests.ExtensionTestSpec) {
