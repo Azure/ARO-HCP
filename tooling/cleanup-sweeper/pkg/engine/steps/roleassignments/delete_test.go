@@ -15,10 +15,15 @@
 package roleassignments
 
 import (
+	"context"
+	"errors"
+	"net/http"
 	"testing"
 
 	"github.com/go-logr/logr"
 	msgraphsdk "github.com/microsoftgraph/msgraph-sdk-go"
+	graphodataerrors "github.com/microsoftgraph/msgraph-sdk-go/models/odataerrors"
+	"k8s.io/apimachinery/pkg/util/sets"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v3"
 
@@ -189,6 +194,212 @@ func TestRoleAssignmentName_FallsBackToID(t *testing.T) {
 
 	if got, want := roleAssignmentName(role, "fallback-id"), "fallback-id"; got != want {
 		t.Fatalf("expected %q, got %q", want, got)
+	}
+}
+
+func TestResolveSoftDeletedPrincipalIDs(t *testing.T) {
+	t.Parallel()
+
+	lookedUp := sets.New[string]()
+	got, err := resolveSoftDeletedPrincipalIDs(
+		context.Background(),
+		sets.New("soft-deleted", "permanently-absent"),
+		func(_ context.Context, principalID string) (bool, error) {
+			lookedUp.Insert(principalID)
+			return principalID == "soft-deleted", nil
+		},
+	)
+	if err != nil {
+		t.Fatalf("expected lookup to succeed, got error: %v", err)
+	}
+	if !got.Equal(sets.New("soft-deleted")) {
+		t.Fatalf("expected only soft-deleted principal to be resolved, got %v", sets.List(got))
+	}
+	if !lookedUp.Equal(sets.New("soft-deleted", "permanently-absent")) {
+		t.Fatalf("expected each unique principal to be checked once, got %v", sets.List(lookedUp))
+	}
+}
+
+func TestResolveSoftDeletedPrincipalIDs_FailsClosed(t *testing.T) {
+	t.Parallel()
+
+	lookupErr := errors.New("graph unavailable")
+	got, err := resolveSoftDeletedPrincipalIDs(
+		context.Background(),
+		sets.New("principal"),
+		func(context.Context, string) (bool, error) {
+			return false, lookupErr
+		},
+	)
+	if !errors.Is(err, lookupErr) {
+		t.Fatalf("expected lookup error to be returned, got %v", err)
+	}
+	if got != nil {
+		t.Fatalf("expected no resolved set after lookup failure, got %v", sets.List(got))
+	}
+}
+
+func TestPrincipalRequiresRoleAssignmentRetention(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name          string
+		activeResults []bool
+		softDeleted   bool
+		wantRetain    bool
+		wantActive    int
+		wantDeleted   int
+	}{
+		{
+			name:          "active principal",
+			activeResults: []bool{true},
+			wantRetain:    true,
+			wantActive:    1,
+		},
+		{
+			name:          "soft-deleted principal",
+			activeResults: []bool{false},
+			softDeleted:   true,
+			wantRetain:    true,
+			wantActive:    1,
+			wantDeleted:   1,
+		},
+		{
+			name:          "principal restored during lookup",
+			activeResults: []bool{false, true},
+			wantRetain:    true,
+			wantActive:    2,
+			wantDeleted:   1,
+		},
+		{
+			name:          "permanently absent principal",
+			activeResults: []bool{false, false},
+			wantRetain:    false,
+			wantActive:    2,
+			wantDeleted:   1,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			activeCalls := 0
+			deletedCalls := 0
+			got, err := principalRequiresRoleAssignmentRetention(
+				context.Background(),
+				"principal",
+				func(context.Context, string) (bool, error) {
+					result := tc.activeResults[activeCalls]
+					activeCalls++
+					return result, nil
+				},
+				func(context.Context, string) (bool, error) {
+					deletedCalls++
+					return tc.softDeleted, nil
+				},
+			)
+			if err != nil {
+				t.Fatalf("expected lookup to succeed, got error: %v", err)
+			}
+			if got != tc.wantRetain {
+				t.Fatalf("expected retain=%t, got %t", tc.wantRetain, got)
+			}
+			if activeCalls != tc.wantActive {
+				t.Fatalf("expected %d active lookups, got %d", tc.wantActive, activeCalls)
+			}
+			if deletedCalls != tc.wantDeleted {
+				t.Fatalf("expected %d deleted lookups, got %d", tc.wantDeleted, deletedCalls)
+			}
+		})
+	}
+}
+
+func TestPrincipalRequiresRoleAssignmentRetention_FailsClosed(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name          string
+		activeResults []bool
+		activeErrAt   int
+		deletedErr    error
+	}{
+		{
+			name:        "initial active lookup fails",
+			activeErrAt: 1,
+		},
+		{
+			name:          "deleted lookup fails",
+			activeResults: []bool{false},
+			deletedErr:    errors.New("deleted lookup failed"),
+		},
+		{
+			name:          "active recheck fails",
+			activeResults: []bool{false},
+			activeErrAt:   2,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			activeCalls := 0
+			_, err := principalRequiresRoleAssignmentRetention(
+				context.Background(),
+				"principal",
+				func(context.Context, string) (bool, error) {
+					activeCalls++
+					if activeCalls == tc.activeErrAt {
+						return false, errors.New("active lookup failed")
+					}
+					return tc.activeResults[activeCalls-1], nil
+				},
+				func(context.Context, string) (bool, error) {
+					return false, tc.deletedErr
+				},
+			)
+			if err == nil {
+				t.Fatalf("expected lookup failure")
+			}
+		})
+	}
+}
+
+func TestSelectOrphanedRoleAssignments(t *testing.T) {
+	t.Parallel()
+
+	assignments := []roleAssignmentRecord{
+		{ID: "active-assignment", PrincipalID: "active-principal"},
+		{ID: "soft-deleted-assignment", PrincipalID: "soft-deleted-principal"},
+		{ID: "absent-assignment", PrincipalID: "absent-principal"},
+		{ID: "ABSENT-ASSIGNMENT", PrincipalID: "absent-principal"},
+		{ID: "missing-principal-assignment"},
+	}
+	resolvedPrincipalIDs := sets.New("active-principal", "soft-deleted-principal")
+
+	got := selectOrphanedRoleAssignments(assignments, resolvedPrincipalIDs)
+	if len(got) != 1 {
+		t.Fatalf("expected one orphaned assignment, got %#v", got)
+	}
+	if got[0].ID != "absent-assignment" {
+		t.Fatalf("expected permanently absent principal's assignment, got %q", got[0].ID)
+	}
+}
+
+func TestIsGraphNotFoundError(t *testing.T) {
+	t.Parallel()
+
+	notFound := graphodataerrors.NewODataError()
+	notFound.ResponseStatusCode = http.StatusNotFound
+	if !isGraphNotFoundError(notFound) {
+		t.Fatalf("expected Graph 404 to be recognized")
+	}
+
+	serverError := graphodataerrors.NewODataError()
+	serverError.ResponseStatusCode = http.StatusInternalServerError
+	if isGraphNotFoundError(serverError) {
+		t.Fatalf("expected Graph 500 not to be recognized as not found")
 	}
 }
 
