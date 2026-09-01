@@ -70,9 +70,9 @@ clean:
 help:
 	@echo "Available targets:"
 	@echo "  build                - Build the hcpctl binary (default)"
-	@echo "  build-windows        - Build both Windows binaries (amd64 and arm64)"
-	@echo "  build-windows-amd64  - Build Windows x86_64 binary"
-	@echo "  build-windows-arm64  - Build Windows ARM64 binary"
+	@echo "  windows              - Build both Windows binaries (amd64 and arm64)"
+	@echo "  $(WINDOWS_BINARY)           - Build Windows x86_64 binary"
+	@echo "  $(WINDOWS_BINARY_ARM64)     - Build Windows ARM64 binary"
 	@echo "  test                 - Run unit tests"
 	@echo "  test-e2e             - Run Go-based end-to-end tests (set E2E_MC_CLUSTER=<name> to use different cluster)"
 	@echo "  clean                - Remove build artifacts"
