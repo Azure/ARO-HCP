@@ -5,20 +5,36 @@ SHELL = /bin/bash
 all: build
 
 BICEP_OUTPUT_DIR=$(TEST_DIR)e2e/test-artifacts/generated-test-artifacts/
+BICEP_BUILD_RETRIES := 3
+BICEP_RETRY_INTERVAL := 5
 
 DEMO_BICEP_DIR=$(TEST_DIR)../demo/bicep
 DEMO_BICEP_SOURCES = $(shell find $(DEMO_BICEP_DIR) -name '*.bicep')
 DEMO_BICEP_OUTPUTS = $(addprefix $(BICEP_OUTPUT_DIR)standard-cluster-create/,$(addsuffix .json,$(basename $(notdir $(DEMO_BICEP_SOURCES)))))
 $(BICEP_OUTPUT_DIR)standard-cluster-create/%.json: $(DEMO_BICEP_DIR)/%.bicep
 	@mkdir -p $(dir $@)
-	az bicep build --file=$< --outfile=$@
+	@for i in $$(seq 1 $(BICEP_BUILD_RETRIES)); do \
+		az bicep build --file=$< --outfile=$@ && break || \
+		if [ $$i -lt $(BICEP_BUILD_RETRIES) ]; then \
+			echo "az bicep build failed (attempt $$i/$(BICEP_BUILD_RETRIES)), retrying in $(BICEP_RETRY_INTERVAL)s..."; sleep $(BICEP_RETRY_INTERVAL); \
+		else \
+			echo "az bicep build failed after $(BICEP_BUILD_RETRIES) attempts"; exit 1; \
+		fi; \
+	done
 
 TEST_BICEP_DIR=$(TEST_DIR)e2e-setup/bicep
 TEST_BICEP_SOURCES = $(shell cd $(TEST_BICEP_DIR) && find * -name '*.bicep')
 TEST_BICEP_OUTPUTS = $(addprefix $(BICEP_OUTPUT_DIR),$(addsuffix .json,$(basename $(TEST_BICEP_SOURCES))))
 $(BICEP_OUTPUT_DIR)%.json: $(TEST_BICEP_DIR)/%.bicep
 	@mkdir -p $(dir $@)
-	az bicep build --file=$< --outfile=$@
+	@for i in $$(seq 1 $(BICEP_BUILD_RETRIES)); do \
+		az bicep build --file=$< --outfile=$@ && break || \
+		if [ $$i -lt $(BICEP_BUILD_RETRIES) ]; then \
+			echo "az bicep build failed (attempt $$i/$(BICEP_BUILD_RETRIES)), retrying in $(BICEP_RETRY_INTERVAL)s..."; sleep $(BICEP_RETRY_INTERVAL); \
+		else \
+			echo "az bicep build failed after $(BICEP_BUILD_RETRIES) attempts"; exit 1; \
+		fi; \
+	done
 
 update-go-fixtures:
 	UPDATE=true go test --count=1 ./... -v
