@@ -112,21 +112,34 @@ var _ = Describe("Customer", func() {
 						Skip(fmt.Sprintf("install version %s not found in Cincinnati graph (channel %s) - no upgrade edges available",
 							resolvedInstallVersion, upgradeChannel))
 					}
-					if edgeErr == nil {
+					if edgeErr != nil {
+						GinkgoLogr.Info("Cincinnati edge preflight query returned non-VersionNotFound error, proceeding without preflight",
+							"installVersion", resolvedInstallVersion, "channel", upgradeChannel, "error", edgeErr)
+					} else {
+						var edgeVersions []string
 						hasTargetMinor := false
 						for _, u := range updates {
 							v, vErr := semver.ParseTolerant(u.Version)
 							if vErr == nil && v.Major == upgradeVersion.Major && v.Minor == upgradeVersion.Minor {
 								hasTargetMinor = true
-								break
+								edgeVersions = append(edgeVersions, u.Version)
 							}
 						}
 						if !hasTargetMinor {
-							Skip(fmt.Sprintf("Cincinnati has no upgrade edges from %s to %d.%d in channel %s",
-								resolvedInstallVersion, upgradeVersion.Major, upgradeVersion.Minor, upgradeChannel))
+							Skip(fmt.Sprintf("Cincinnati has no upgrade edges from %s to %d.%d in channel %s (total updates returned: %d)",
+								resolvedInstallVersion, upgradeVersion.Major, upgradeVersion.Minor, upgradeChannel, len(updates)))
 						}
+						GinkgoLogr.Info("Cincinnati edge preflight passed",
+							"installVersion", resolvedInstallVersion, "channel", upgradeChannel,
+							"edgesToTargetMinor", edgeVersions, "totalUpdates", len(updates))
 					}
+				} else {
+					GinkgoLogr.Info("Cincinnati edge preflight skipped: failed to get URI",
+						"channelGroup", channelGroup, "error", uriErr)
 				}
+			} else {
+				GinkgoLogr.Info("Cincinnati edge preflight skipped: failed to parse install version",
+					"resolvedInstallVersion", resolvedInstallVersion, "error", parseErr)
 			}
 
 			tc := framework.NewTestContext()
