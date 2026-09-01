@@ -77,6 +77,84 @@ func (c *MockFirstPartyApplicationClientBuilderBuilderTypeCall) DoAndReturn(f fu
 	return c
 }
 
+// DenyAssignmentsClient mocks base method.
+func (m *MockFirstPartyApplicationClientBuilder) DenyAssignmentsClient(tenantID, subscriptionID string) (DenyAssignmentsClient, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DenyAssignmentsClient", tenantID, subscriptionID)
+	ret0, _ := ret[0].(DenyAssignmentsClient)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DenyAssignmentsClient indicates an expected call of DenyAssignmentsClient.
+func (mr *MockFirstPartyApplicationClientBuilderMockRecorder) DenyAssignmentsClient(tenantID, subscriptionID any) *MockFirstPartyApplicationClientBuilderDenyAssignmentsClientCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DenyAssignmentsClient", reflect.TypeOf((*MockFirstPartyApplicationClientBuilder)(nil).DenyAssignmentsClient), tenantID, subscriptionID)
+	return &MockFirstPartyApplicationClientBuilderDenyAssignmentsClientCall{Call: call}
+}
+
+// MockFirstPartyApplicationClientBuilderDenyAssignmentsClientCall wrap *gomock.Call
+type MockFirstPartyApplicationClientBuilderDenyAssignmentsClientCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockFirstPartyApplicationClientBuilderDenyAssignmentsClientCall) Return(arg0 DenyAssignmentsClient, arg1 error) *MockFirstPartyApplicationClientBuilderDenyAssignmentsClientCall {
+	c.Call = c.Call.Return(arg0, arg1)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockFirstPartyApplicationClientBuilderDenyAssignmentsClientCall) Do(f func(string, string) (DenyAssignmentsClient, error)) *MockFirstPartyApplicationClientBuilderDenyAssignmentsClientCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockFirstPartyApplicationClientBuilderDenyAssignmentsClientCall) DoAndReturn(f func(string, string) (DenyAssignmentsClient, error)) *MockFirstPartyApplicationClientBuilderDenyAssignmentsClientCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// GenericResourcesClient mocks base method.
+func (m *MockFirstPartyApplicationClientBuilder) GenericResourcesClient(tenantID, subscriptionID string) (GenericResourcesClient, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GenericResourcesClient", tenantID, subscriptionID)
+	ret0, _ := ret[0].(GenericResourcesClient)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GenericResourcesClient indicates an expected call of GenericResourcesClient.
+func (mr *MockFirstPartyApplicationClientBuilderMockRecorder) GenericResourcesClient(tenantID, subscriptionID any) *MockFirstPartyApplicationClientBuilderGenericResourcesClientCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GenericResourcesClient", reflect.TypeOf((*MockFirstPartyApplicationClientBuilder)(nil).GenericResourcesClient), tenantID, subscriptionID)
+	return &MockFirstPartyApplicationClientBuilderGenericResourcesClientCall{Call: call}
+}
+
+// MockFirstPartyApplicationClientBuilderGenericResourcesClientCall wrap *gomock.Call
+type MockFirstPartyApplicationClientBuilderGenericResourcesClientCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockFirstPartyApplicationClientBuilderGenericResourcesClientCall) Return(arg0 GenericResourcesClient, arg1 error) *MockFirstPartyApplicationClientBuilderGenericResourcesClientCall {
+	c.Call = c.Call.Return(arg0, arg1)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockFirstPartyApplicationClientBuilderGenericResourcesClientCall) Do(f func(string, string) (GenericResourcesClient, error)) *MockFirstPartyApplicationClientBuilderGenericResourcesClientCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockFirstPartyApplicationClientBuilderGenericResourcesClientCall) DoAndReturn(f func(string, string) (GenericResourcesClient, error)) *MockFirstPartyApplicationClientBuilderGenericResourcesClientCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
 // ResourceGroupsClient mocks base method.
 func (m *MockFirstPartyApplicationClientBuilder) ResourceGroupsClient(tenantID, subscriptionID string) (ResourceGroupsClient, error) {
 	m.ctrl.T.Helper()

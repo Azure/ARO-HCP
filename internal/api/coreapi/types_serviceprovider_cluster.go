@@ -399,7 +399,7 @@ type ServiceProviderClusterDataPlaneOperatorManagedIdentity struct {
 // AzureResources groups the Azure resource references associated with a cluster.
 type AzureResources struct {
 	// DenyAssignments tracks the deny assignments applied to the cluster's resources.
-	DenyAssignments AzureMultiReference `json:"denyAssignments,omitempty"`
+	DenyAssignments DenyAssignmentReferences `json:"denyAssignments,omitempty"`
 	// ManagedResourceGroup tracks the managed resource group for the cluster.
 	// Written by: ObserveManagedResourceGroup
 	ManagedResourceGroup AzureReference `json:"managedResourceGroup,omitempty"`
@@ -441,6 +441,38 @@ type AzureReference struct {
 	// Additionally, long recheck times are recommended for resources outside of their active phases. Order of at least
 	// six hours is, with durations up to 24 hours considered normal.
 	EarliestRecheckTime *metav1.Time `json:"earliestRecheckTime,omitempty"`
+}
+
+type DenyAssignmentReferences struct {
+	// PendingAzureResources contains resource IDs that have been requested but
+	// not yet confirmed to exist in Azure.
+	// Written by: ClusterDenyAssignment
+	PendingAzureResources []DenyAssignmentReference `json:"pendingDenyAssignments,omitempty"`
+	// AzureResources contains resource IDs that have been confirmed to exist in Azure.
+	// Written by: ClusterDenyAssignment
+	AzureResources []DenyAssignmentReference `json:"denyAssignments,omitempty"`
+	// EarliestRecheckTime is the earliest time at which the controller should
+	// re-check the pending resources. Nil means recheck immediately.
+	// This allows for controllers to avoid repeatedly hitting an Azure API to recheck that the desired state is true.
+	// Controllers should set this field with substantial jitter: without another concern, jitter of 50% is considered normal
+	// so that any storms are quickly dissipated.
+	// Additionally, long recheck times are recommended for resources outside of their active phases. Order of at least
+	// six hours is, with durations up to 24 hours considered normal.
+	// Written by: ClusterDenyAssignment
+	EarliestRecheckTime *metav1.Time `json:"earliestRecheckTime,omitempty"`
+}
+
+// DenyAssignmentReference identifies a single Azure deny assignment.
+// +k8s:deepcopy-gen=true
+type DenyAssignmentReference struct {
+	// DenyAssignmentType identifies the category of deny assignment (e.g. "resources-deny-assignment").
+	// Used as a suffix when generating the deterministic deny assignment UUID.
+	// Written by: ClusterDenyAssignment
+	DenyAssignmentType string `json:"denyAssignmentType"`
+	// DenyAssignmentResourceID is the full Azure resource ID of the deny assignment,
+	// e.g. "/subscriptions/{sub}/resourceGroups/{rg}/providers/Microsoft.Authorization/denyAssignments/{uuid}".
+	// Written by: ClusterDenyAssignment
+	DenyAssignmentResourceID *azcorearm.ResourceID `json:"denyAssignmentResourceID"`
 }
 
 // ServiceProviderClusterStatusVersion contains the actual version information.
