@@ -43,7 +43,7 @@ func boolDeref(p *bool) bool {
 }
 
 func toPtrSlice(v []string) []*string {
-	if len(v) == 0 {
+	if v == nil {
 		return nil
 	}
 	out := make([]*string, len(v))

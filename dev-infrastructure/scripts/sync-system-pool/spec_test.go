@@ -427,3 +427,38 @@ func TestGenericFieldDiffSkipsExplicitlyHandledFields(t *testing.T) {
 		}
 	}
 }
+
+// TestIsKnownLocation proves locations present in locationAvailabilityZonesTable
+// (including non-zonal ones, which map to an explicit empty slice, not a
+// missing key) are recognized, and an unrecognized region is not - this is
+// the fail-closed guard runWith relies on before ever calling
+// locationAvailabilityZones, so a region missing from the table can't be
+// silently treated as non-zonal.
+func TestIsKnownLocation(t *testing.T) {
+	if !isKnownLocation("uksouth") {
+		t.Fatalf("expected uksouth (zonal) to be a known location")
+	}
+	if !isKnownLocation("asia") {
+		t.Fatalf("expected asia (non-zonal, explicit empty entry) to be a known location")
+	}
+	if isKnownLocation("notarealregion") {
+		t.Fatalf("expected notarealregion to be reported as unknown")
+	}
+}
+
+// TestToPtrSlicePreservesNilVsEmpty proves toPtrSlice distinguishes a nil
+// slice (no zones desired, property should be omitted) from a non-nil empty
+// slice (zones explicitly resolved to none for a non-zonal location, mirroring
+// bicep's explicit empty array), matching desiredAvailabilityZones' use of it.
+func TestToPtrSlicePreservesNilVsEmpty(t *testing.T) {
+	if got := toPtrSlice(nil); got != nil {
+		t.Fatalf("expected toPtrSlice(nil) to stay nil, got %v", got)
+	}
+	got := toPtrSlice([]string{})
+	if got == nil {
+		t.Fatalf("expected toPtrSlice([]string{}) to return a non-nil empty slice, got nil")
+	}
+	if len(got) != 0 {
+		t.Fatalf("expected toPtrSlice([]string{}) to be empty, got %v", got)
+	}
+}

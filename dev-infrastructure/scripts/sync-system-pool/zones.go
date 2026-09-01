@@ -122,8 +122,21 @@ var locationAvailabilityZonesTable = map[string][]string{
 
 // locationAvailabilityZones returns the availability zones for the given
 // ARM location, mirroring common.bicep's getLocationAvailabilityZones.
-// Unknown locations return an empty (non-zonal) list, matching bicep's
-// behavior of only knowing the locations enumerated in its table.
+// Unlike the bicep function (which indexes _locationAvailabilityZones
+// directly and fails the deployment on an unrecognized region), this is a
+// plain map lookup that returns a nil slice for an unknown location.
+// Callers MUST validate isKnownLocation(location) first (see main.go's
+// runWith, which does this right after reading the live cluster's
+// location) so an unrecognized region fails closed with a clear error
+// instead of silently being treated as non-zonal.
 func locationAvailabilityZones(location string) []string {
 	return locationAvailabilityZonesTable[location]
+}
+
+// isKnownLocation reports whether location is present in
+// locationAvailabilityZonesTable, i.e. whether this script's mirror of
+// common.bicep's _locationAvailabilityZones table has an entry for it.
+func isKnownLocation(location string) bool {
+	_, ok := locationAvailabilityZonesTable[location]
+	return ok
 }

@@ -159,6 +159,11 @@ func runWith(ctx context.Context, cfg *systemPoolConfig, c *clients) error {
 	if cfg.location == "" {
 		return errors.New("cluster location empty; refusing to act")
 	}
+	if !isKnownLocation(cfg.location) {
+		return fmt.Errorf("cluster location %q is not in this script's zones.go availability-zone table; "+
+			"update locationAvailabilityZonesTable to match common.bicep's _locationAvailabilityZones before "+
+			"running, refusing to act without human review", cfg.location)
+	}
 
 	logBanner("DIFF CHECK")
 	live, err := c.getPool(ctx, cfg, cfg.poolName)
