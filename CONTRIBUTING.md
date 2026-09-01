@@ -92,9 +92,9 @@ All pull requests must follow these standards. Reviewers will check for complian
 - Use formats like `Fixes #123`, `Closes PROJ-456`, or a direct URL.
 - If no ticket exists, create one first or explain why in the PR body.
 
-### 5. Include Screenshots for Graph/UI/Metrics/Performance Changes
-- Any change that affects dashboards, graphs, metrics visualizations, UI, or performance/metrics must include before/after screenshots.
-- This includes changes to alerting rules, SLOs, monitoring dashboards, and any observable behavioral change.
+### 5. Include Screenshots for Dashboard and UI Changes
+- Include before/after screenshots for changes to user-visible dashboards, graphs, metrics visualizations, or other UI.
+- Screenshots are not required for alerting-rule changes, routing/configuration changes, generated artifacts, or other backend-only monitoring changes unless they also change a user-visible dashboard or UI.
 - Annotate screenshots when the change is subtle.
 
 ### 6. Self-Review Before Requesting Review
