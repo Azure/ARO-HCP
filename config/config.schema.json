@@ -3243,6 +3243,9 @@
             },
             "msft": {
               "$ref": "#/definitions/icmConnection"
+            },
+            "dev": {
+              "$ref": "#/definitions/icmConnection"
             }
           },
           "additionalProperties": false,
