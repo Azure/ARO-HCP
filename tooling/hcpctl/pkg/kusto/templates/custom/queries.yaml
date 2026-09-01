@@ -55,3 +55,8 @@
   database: ServiceLogs
   queryType: custom-logs
   templatePath: templates/custom/kube_applier_logs.kql.gotmpl
+- name: veleroBackups
+  database: ServiceLogs
+  queryType: custom-logs
+  includeInMustGather: true
+  templatePath: templates/custom/velero_backups.kql.gotmpl
