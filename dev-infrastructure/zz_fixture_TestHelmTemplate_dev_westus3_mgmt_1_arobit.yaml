@@ -224,9 +224,8 @@ data:
         # filter's Namespace_annotations On). This is the namespace-annotation
         # alternative to resolving the ID from the ACM-managed /shoebox-config file
         # mapping. Only mgmt clusters emit ocm.logs to the containerLogs Kusto table.
-        # Fail-soft: records without the annotation are left unchanged. Runs before the
-        # shoebox re-tag; transform-shoebox.lua builds its own record, so shoebox output
-        # is unaffected.
+        # Fail-soft: records without the annotation are left unchanged. This runs before
+        # the shoebox re-tag so transform-shoebox.lua can reuse the normalized cluster_id.
         Name            lua
         Alias           lua.set_cluster_id_from_annotation
         Match           ocm.logs
@@ -802,7 +801,7 @@ spec:
         app: arobit-forwarder
         azure.workload.identity/use: "true"
       annotations:
-        checksum/configmap: cfdd034fd318877833b68e46ecaa9066ec801f76e434e7543128ff4c29afa171
+        checksum/configmap: 8a00d3d90aa6061ca5e5b9b79d33c296ceaed07c798bf3a8ba5f1f2c7a57bf19
     spec:
       priorityClassName: service-lifecycle-critical
       serviceAccountName: 'arobit-forwarder'
