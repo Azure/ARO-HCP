@@ -94,6 +94,9 @@ func ValidateCluster(ctx context.Context, op operation.Operation, newCluster, ol
 	// for v20240610preview.
 	errs = append(errs, validatePrivateKASRequiresVNetIntegrationSubnetID(ctx, op, newCluster, oldCluster)...)
 
+	// Private KAS requires OpenShift >= 4.22 (HyperShift gained private API server support in 4.22).
+	errs = append(errs, validatePrivateKASRequiresMinimumVersion(ctx, op, newCluster, oldCluster)...)
+
 	// there are pieces of clusterProperties that are dependent upon values in .identity
 	errs = append(errs, validateOperatorAuthenticationAgainstIdentities(ctx, op, newCluster, oldCluster)...)
 
@@ -114,6 +117,41 @@ func validatePrivateKASRequiresVNetIntegrationSubnetID(_ context.Context, _ oper
 	}
 
 	return errs
+}
+
+// minPrivateKASOpenShiftVersion is the minimum OCP version that supports
+// private KAS (API server) visibility.
+var minPrivateKASOpenShiftVersion = semver.Version{Major: 4, Minor: 22}
+
+// validatePrivateKASRequiresMinimumVersion rejects Private API visibility when
+// the requested OpenShift version is below 4.22.
+func validatePrivateKASRequiresMinimumVersion(_ context.Context, _ operation.Operation, newCluster, _ *coreapi.HCPOpenShiftCluster) field.ErrorList {
+	if newCluster.CustomerProperties.API.Visibility != metadataapi.VisibilityPrivate {
+		return nil
+	}
+
+	versionID := newCluster.CustomerProperties.Version.ID
+	if len(versionID) == 0 {
+		return nil
+	}
+
+	requestedVersion, err := semver.ParseTolerant(versionID)
+	if err != nil {
+		// Other validators will report the parse failure; skip here to
+		// avoid duplicate errors.
+		return nil
+	}
+
+	clusterVersion := semver.Version{Major: requestedVersion.Major, Minor: requestedVersion.Minor}
+	if clusterVersion.LT(minPrivateKASOpenShiftVersion) {
+		return field.ErrorList{field.Invalid(
+			field.NewPath("customerProperties", "api", "visibility"),
+			string(newCluster.CustomerProperties.API.Visibility),
+			fmt.Sprintf("not supported when customerProperties.version.id is below %d.%d", minPrivateKASOpenShiftVersion.Major, minPrivateKASOpenShiftVersion.Minor),
+		)}
+	}
+
+	return nil
 }
 
 func validateOperatorAuthenticationAgainstIdentities(ctx context.Context, op operation.Operation, newCluster, _ *coreapi.HCPOpenShiftCluster) field.ErrorList {
