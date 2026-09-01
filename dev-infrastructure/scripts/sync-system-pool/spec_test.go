@@ -308,6 +308,49 @@ func TestLoadConfig_RejectsOutOfRangeNumericFields(t *testing.T) {
 	}
 }
 
+// TestLoadConfig_RejectsUnknownZoneMode proves loadConfig fails fast on a
+// mistyped or unsupported SYSTEM_ZONE_MODE instead of letting
+// desiredAvailabilityZones silently treat it as "Disabled" (no zones),
+// which would otherwise produce a destructive drift signal and recreate
+// the system pool with the wrong zone configuration.
+func TestLoadConfig_RejectsUnknownZoneMode(t *testing.T) {
+	base := map[string]string{
+		"SUBSCRIPTION_ID":   "sub",
+		"RESOURCE_GROUP":    "rg",
+		"CLUSTER_NAME":      "cluster",
+		"VNET_NAME":         "aks-net",
+		"SYSTEM_POOL_NAME":  "system",
+		"SYSTEM_VM_SIZE":    "Standard_E8s_v3",
+		"SYSTEM_MIN_COUNT":  "1",
+		"SYSTEM_MAX_COUNT":  "4",
+		"SYSTEM_OS_DISK_GB": "32",
+	}
+	for _, mode := range []string{"Enabled", "Auto", "Disabled"} {
+		t.Run("accepts_"+mode, func(t *testing.T) {
+			env := map[string]string{}
+			for k, v := range base {
+				env[k] = v
+			}
+			env["SYSTEM_ZONE_MODE"] = mode
+			if _, err := loadConfig(func(k string) string { return env[k] }); err != nil {
+				t.Fatalf("unexpected error for SYSTEM_ZONE_MODE=%s: %v", mode, err)
+			}
+		})
+	}
+	for _, mode := range []string{"enabled", "auto", "AUTO", "Enable", "Manual", "typo"} {
+		t.Run("rejects_"+mode, func(t *testing.T) {
+			env := map[string]string{}
+			for k, v := range base {
+				env[k] = v
+			}
+			env["SYSTEM_ZONE_MODE"] = mode
+			if _, err := loadConfig(func(k string) string { return env[k] }); err == nil {
+				t.Fatalf("expected loadConfig to reject SYSTEM_ZONE_MODE=%q", mode)
+			}
+		})
+	}
+}
+
 func TestLoadConfig_DryRun(t *testing.T) {
 	env := map[string]string{
 		"SUBSCRIPTION_ID":   "sub",

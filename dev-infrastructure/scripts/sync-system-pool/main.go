@@ -317,6 +317,22 @@ func loadConfig(env func(string) string) (*systemPoolConfig, error) {
 		}
 	}
 
+	// desiredAvailabilityZones only recognizes "Enabled" and "Auto"
+	// (anything else, including a typo, is silently treated as
+	// "Disabled" -> no zones). Validate against the same allowed set as
+	// config.schema.json's zoneRedundantMode definition so a mistyped or
+	// unsupported value fails fast here instead of silently producing a
+	// destructive drift signal that recreates the system pool with the
+	// wrong zone configuration.
+	switch c.zoneRedundantMode {
+	case "Enabled", "Auto", "Disabled":
+	default:
+		return nil, fmt.Errorf(
+			"SYSTEM_ZONE_MODE must be one of Enabled, Auto, Disabled, got %q",
+			c.zoneRedundantMode,
+		)
+	}
+
 	minCount, err := parseInt32(env("SYSTEM_MIN_COUNT"), "SYSTEM_MIN_COUNT")
 	if err != nil {
 		return nil, err
