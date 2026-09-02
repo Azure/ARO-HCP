@@ -1,0 +1,28 @@
+// Distinct CI test names, one row per test.
+//
+// A dimension table for ciTestResults, written by the same collector as
+// ciJobOutcomes - see tooling/tenant-quota/pkg/cijoboutcomes. Test names are
+// long and repeat on every run, so storing them once and joining on a short id
+// keeps ciTestResults small and its queries fast.
+//
+// testId is the hex SHA-256 of the name, so it is stable across restarts and
+// needs no coordination between writers: the same test always yields the same
+// id, and re-ingesting a name already present is a no-op that dedup filters
+// out. Names are never rewritten, so a name that disappears from the suite
+// keeps its id and its history stays joinable.
+.create-merge table ciTestNames (
+    testId: string,
+    name: string
+)
+with (
+    docstring = "Distinct CI test names keyed by a stable hash, written by the opstool tenant-quota collector",
+    folder = "CI"
+)
+
+.create-or-alter table ciTestNames ingestion json mapping "ciTestNamesMapping"
+```
+[
+  {"column":"testId","path":"$['testId']","datatype":"string"},
+  {"column":"name","path":"$['name']","datatype":"string"}
+]
+```

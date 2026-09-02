@@ -618,15 +618,16 @@ func TestTenantConfigIsDirectoryQuotaEnabled(t *testing.T) {
 func TestCIJobOutcomesConfigValidatesEndpoints(t *testing.T) {
 	valid := func() CIJobOutcomesConfig {
 		return CIJobOutcomesConfig{
-			Enabled:          true,
-			ClusterURI:       "https://hcp-dev-us-2.eastus2.kusto.windows.net",
-			IngestionURI:     "https://ingest-hcp-dev-us-2.eastus2.kusto.windows.net",
-			Database:         "ServiceLogs",
-			Table:            "ciJobOutcomes",
-			IngestionMapping: "ciJobOutcomesMapping",
-			SippyURI:         "https://sippy.dptools.openshift.org",
-			JobFilter:        "e2e-parallel",
-			Releases:         []string{"Presubmits"},
+			Enabled:      true,
+			ClusterURI:   "https://hcp-dev-us-2.eastus2.kusto.windows.net",
+			IngestionURI: "https://ingest-hcp-dev-us-2.eastus2.kusto.windows.net",
+			Database:     "ServiceLogs",
+			Outcomes:     KustoTableConfig{Table: "ciJobOutcomes", IngestionMapping: "ciJobOutcomesMapping"},
+			TestNames:    KustoTableConfig{Table: "ciTestNames", IngestionMapping: "ciTestNamesMapping"},
+			TestResults:  KustoTableConfig{Table: "ciTestResults", IngestionMapping: "ciTestResultsMapping"},
+			SippyURI:     "https://sippy.dptools.openshift.org",
+			JobFilter:    "e2e-parallel",
+			Releases:     []string{"Presubmits"},
 		}
 	}
 
@@ -658,6 +659,14 @@ func TestCIJobOutcomesConfigValidatesEndpoints(t *testing.T) {
 		{
 			name:   "no releases",
 			mutate: func(c *CIJobOutcomesConfig) { c.Releases = nil },
+		},
+		{
+			name:   "missing test names table",
+			mutate: func(c *CIJobOutcomesConfig) { c.TestNames.Table = "" },
+		},
+		{
+			name:   "missing test results ingestion mapping",
+			mutate: func(c *CIJobOutcomesConfig) { c.TestResults.IngestionMapping = "" },
 		},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {

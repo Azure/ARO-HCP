@@ -74,7 +74,7 @@ func (w *Writer) Start(ctx context.Context) {
 	w.logger.Info("Starting CI job outcome collection",
 		"interval", interval,
 		"database", settings.Database,
-		"table", settings.Table,
+		"tables", []string{settings.Outcomes.Table, settings.TestNames.Table, settings.TestResults.Table},
 		"releases", settings.Releases,
 	)
 
@@ -121,14 +121,28 @@ func (w *Writer) write(ctx context.Context) error {
 	// it self-heals: any gap inside the window is filled by the next pass.
 	since := time.Now().UTC().Add(-settings.GetWindow())
 
+	// The run table gates all three: a run's test rows are written in the same
+	// pass as its outcome row, so a build id already present means the tests
+	// that belong to it are too. Gating each table on itself would let a
+	// partially ingested run be completed twice.
 	recorded, err := w.recordedBuildIDs(ctx, queryClient, since)
+	if err != nil {
+		return err
+	}
+	// Test names are shared across runs and accumulate rather than expiring, so
+	// they are gated on the whole table rather than a window.
+	storedNames, err := w.recordedTestIDs(ctx, queryClient)
 	if err != nil {
 		return err
 	}
 	w.forgetQueuedBefore(since)
 
-	var outcomes []ciJobOutcome
-	var failures []error
+	var (
+		outcomes []ciJobOutcome
+		names    []ciTestName
+		results  []ciTestResult
+		failures []error
+	)
 	for _, release := range settings.Releases {
 		runs, err := fetchRuns(ctx, w.client, settings.SippyURI, release, settings.JobFilter, since)
 		if err != nil {
@@ -153,7 +167,30 @@ func (w *Writer) write(ctx context.Context) error {
 				continue
 			}
 			recorded[outcome.BuildID] = struct{}{}
+
+			// A run whose artifacts cannot be read is still worth storing for
+			// its pass or fail, so enrichment failures are logged and the run
+			// kept rather than dropped. The run is recorded either way, so a
+			// later pass will not retry it - the artifacts of a finished run do
+			// not appear late.
+			detail, err := fetchRunDetail(ctx, w.client, outcome.ProwURL)
+			if err != nil {
+				w.logger.Warn("Failed to read run artifacts; storing run without them",
+					"release", release, "buildId", outcome.BuildID, "error", err)
+			}
+			outcome.SvcCluster = detail.SvcCluster
+			outcome.MgmtCluster = detail.MgmtCluster
+			outcome.FinishedAt = detail.FinishedAt
+
 			outcomes = append(outcomes, outcome)
+			results = append(results, detail.Tests...)
+			for _, name := range detail.Names {
+				if _, seen := storedNames[name.TestID]; seen {
+					continue
+				}
+				storedNames[name.TestID] = struct{}{}
+				names = append(names, name)
+			}
 			added++
 		}
 		w.logger.Info("Fetched runs", "release", release, "since", since.Format(time.RFC3339), "fetched", len(runs), "new", added)
@@ -163,11 +200,17 @@ func (w *Writer) write(ctx context.Context) error {
 		return errors.Join(failures...)
 	}
 
-	payload, err := encodeOutcomes(outcomes)
-	if err != nil {
+	// Tests are written before the runs that own them. Both orders leave a
+	// window where the tables disagree, but a test row without its run is
+	// invisible to queries that start from a run, whereas a run whose tests
+	// have not landed looks like a run that failed nothing.
+	if err := ingestRows(ctx, w, settings.TestNames, names); err != nil {
 		return errors.Join(append(failures, err)...)
 	}
-	if err := w.ingest(ctx, payload, len(outcomes)); err != nil {
+	if err := ingestRows(ctx, w, settings.TestResults, results); err != nil {
+		return errors.Join(append(failures, err)...)
+	}
+	if err := ingestRows(ctx, w, settings.Outcomes, outcomes); err != nil {
 		return errors.Join(append(failures, err)...)
 	}
 	w.rememberQueued(outcomes)
@@ -179,27 +222,47 @@ func (w *Writer) write(ctx context.Context) error {
 func (w *Writer) recordedBuildIDs(ctx context.Context, client *azkustodata.Client, since time.Time) (map[string]struct{}, error) {
 	settings := w.config.CIJobOutcomes
 
-	statement := kql.New("").AddTable(settings.Table).
+	statement := kql.New("").AddTable(settings.Outcomes.Table).
 		AddLiteral(" | where startedAt >= ").AddDateTime(since).
 		AddLiteral(" | distinct buildId")
-	dataset, err := client.Query(ctx, settings.Database, statement)
+	return w.distinctStrings(ctx, client, statement, "buildId", "recorded runs")
+}
+
+// recordedTestIDs reports which test names are already stored.
+//
+// The whole table is read rather than a window of it: names are a dimension
+// that accumulates, and a name first seen months ago is still referenced by
+// runs arriving now. The table holds one row per distinct test, so this stays
+// small even as the join table grows.
+func (w *Writer) recordedTestIDs(ctx context.Context, client *azkustodata.Client) (map[string]struct{}, error) {
+	settings := w.config.CIJobOutcomes
+
+	statement := kql.New("").AddTable(settings.TestNames.Table).
+		AddLiteral(" | distinct testId")
+	return w.distinctStrings(ctx, client, statement, "testId", "recorded test names")
+}
+
+// distinctStrings runs a query returning a single string column and collects it
+// into a set.
+func (w *Writer) distinctStrings(ctx context.Context, client *azkustodata.Client, statement *kql.Builder, column, what string) (map[string]struct{}, error) {
+	dataset, err := client.Query(ctx, w.config.CIJobOutcomes.Database, statement)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read recorded runs: %w", err)
+		return nil, fmt.Errorf("failed to read %s: %w", what, err)
 	}
 
-	recorded := make(map[string]struct{})
+	values := make(map[string]struct{})
 	tables := dataset.Tables()
 	if len(tables) == 0 {
-		return recorded, nil
+		return values, nil
 	}
 	for _, row := range tables[0].Rows() {
-		buildID, err := row.StringByName("buildId")
-		if err != nil || buildID == "" {
+		value, err := row.StringByName(column)
+		if err != nil || value == "" {
 			continue
 		}
-		recorded[buildID] = struct{}{}
+		values[value] = struct{}{}
 	}
-	return recorded, nil
+	return values, nil
 }
 
 func (w *Writer) queuedRecently(buildID string) bool {
@@ -229,43 +292,55 @@ func (w *Writer) forgetQueuedBefore(cutoff time.Time) {
 	}
 }
 
-// encodeOutcomes renders rows as the multi-line JSON that Kusto ingests.
-func encodeOutcomes(outcomes []ciJobOutcome) (*bytes.Buffer, error) {
+// encodeRows renders rows as the multi-line JSON that Kusto ingests.
+func encodeRows[T any](rows []T) (*bytes.Buffer, error) {
 	payload := &bytes.Buffer{}
 	encoder := json.NewEncoder(payload)
-	for _, outcome := range outcomes {
-		if err := encoder.Encode(outcome); err != nil {
-			return nil, fmt.Errorf("failed to encode run %q: %w", outcome.BuildID, err)
+	for i, row := range rows {
+		if err := encoder.Encode(row); err != nil {
+			return nil, fmt.Errorf("failed to encode row %d: %w", i, err)
 		}
 	}
 	return payload, nil
 }
 
-// ingest queues the rows, the same path the cluster log forwarder uses.
-func (w *Writer) ingest(ctx context.Context, payload *bytes.Buffer, rows int) error {
+// ingestRows queues rows for one table, the same path the cluster log forwarder
+// uses. Ingesting nothing is a no-op rather than an empty batch.
+func ingestRows[T any](ctx context.Context, w *Writer, table config.KustoTableConfig, rows []T) error {
+	if len(rows) == 0 {
+		return nil
+	}
+	payload, err := encodeRows(rows)
+	if err != nil {
+		return fmt.Errorf("failed to encode rows for %s: %w", table.Table, err)
+	}
+	return w.ingest(ctx, table, payload, len(rows))
+}
+
+func (w *Writer) ingest(ctx context.Context, table config.KustoTableConfig, payload *bytes.Buffer, rows int) error {
 	settings := w.config.CIJobOutcomes
 
 	ingestor, err := azkustoingest.New(
 		azkustodata.NewConnectionStringBuilder(settings.IngestionURI).WithDefaultAzureCredential(),
 		azkustoingest.WithDefaultDatabase(settings.Database),
-		azkustoingest.WithDefaultTable(settings.Table),
+		azkustoingest.WithDefaultTable(table.Table),
 	)
 	if err != nil {
-		return fmt.Errorf("failed to create ingestor: %w", err)
+		return fmt.Errorf("failed to create ingestor for %s: %w", table.Table, err)
 	}
 	defer func() {
 		if closeErr := ingestor.Close(); closeErr != nil {
-			w.logger.Error("Failed to close ingestor", "error", closeErr)
+			w.logger.Error("Failed to close ingestor", "table", table.Table, "error", closeErr)
 		}
 	}()
 
 	if _, err := ingestor.FromReader(ctx, payload,
-		azkustoingest.IngestionMappingRef(settings.IngestionMapping, azkustoingest.MultiJSON),
+		azkustoingest.IngestionMappingRef(table.IngestionMapping, azkustoingest.MultiJSON),
 		azkustoingest.FileFormat(azkustoingest.MultiJSON),
 	); err != nil {
-		return fmt.Errorf("failed to queue rows for ingestion: %w", err)
+		return fmt.Errorf("failed to queue rows for ingestion into %s: %w", table.Table, err)
 	}
 
-	w.logger.Info("Queued rows for ingestion", "rows", rows, "database", settings.Database, "table", settings.Table)
+	w.logger.Info("Queued rows for ingestion", "rows", rows, "database", settings.Database, "table", table.Table)
 	return nil
 }

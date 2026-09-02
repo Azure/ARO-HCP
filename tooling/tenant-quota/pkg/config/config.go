@@ -57,19 +57,33 @@ type Config struct {
 	cacheTTLDuration time.Duration
 }
 
+// KustoTableConfig names a destination table and the ingestion mapping declared
+// alongside it in the table's own .kql file. The two are separate because a
+// mapping is a distinct Kusto object whose name is not derivable from the
+// table's.
+type KustoTableConfig struct {
+	Table            string `yaml:"table"`
+	IngestionMapping string `yaml:"ingestionMapping"`
+}
+
 // CIJobOutcomesConfig configures recording CI job outcomes in Kusto.
 type CIJobOutcomesConfig struct {
-	Enabled          bool     `yaml:"enabled"`
-	ClusterURI       string   `yaml:"clusterURI"`
-	IngestionURI     string   `yaml:"ingestionURI"`
-	Database         string   `yaml:"database"`
-	Table            string   `yaml:"table"`
-	IngestionMapping string   `yaml:"ingestionMapping"`
-	SippyURI         string   `yaml:"sippyURI"`
-	Releases         []string `yaml:"releases"`
-	JobFilter        string   `yaml:"jobFilter"`
-	Interval         string   `yaml:"interval,omitempty"`
-	Window           string   `yaml:"window,omitempty"`
+	Enabled      bool   `yaml:"enabled"`
+	ClusterURI   string `yaml:"clusterURI"`
+	IngestionURI string `yaml:"ingestionURI"`
+	Database     string `yaml:"database"`
+
+	// Outcomes holds one row per run; TestNames is the test dimension; and
+	// TestResults joins the two with the per-test outcome and timings.
+	Outcomes    KustoTableConfig `yaml:"outcomes"`
+	TestNames   KustoTableConfig `yaml:"testNames"`
+	TestResults KustoTableConfig `yaml:"testResults"`
+
+	SippyURI  string   `yaml:"sippyURI"`
+	Releases  []string `yaml:"releases"`
+	JobFilter string   `yaml:"jobFilter"`
+	Interval  string   `yaml:"interval,omitempty"`
+	Window    string   `yaml:"window,omitempty"`
 
 	intervalDuration time.Duration
 	windowDuration   time.Duration
@@ -94,12 +108,19 @@ func (c *CIJobOutcomesConfig) validate() error {
 		return nil
 	}
 
-	for name, value := range map[string]string{
-		"ciJobOutcomes.database":         c.Database,
-		"ciJobOutcomes.table":            c.Table,
-		"ciJobOutcomes.ingestionMapping": c.IngestionMapping,
-		"ciJobOutcomes.jobFilter":        c.JobFilter,
+	required := map[string]string{
+		"ciJobOutcomes.database":  c.Database,
+		"ciJobOutcomes.jobFilter": c.JobFilter,
+	}
+	for prefix, table := range map[string]KustoTableConfig{
+		"ciJobOutcomes.outcomes":    c.Outcomes,
+		"ciJobOutcomes.testNames":   c.TestNames,
+		"ciJobOutcomes.testResults": c.TestResults,
 	} {
+		required[prefix+".table"] = table.Table
+		required[prefix+".ingestionMapping"] = table.IngestionMapping
+	}
+	for name, value := range required {
 		if strings.TrimSpace(value) == "" {
 			return fmt.Errorf("%s is required", name)
 		}

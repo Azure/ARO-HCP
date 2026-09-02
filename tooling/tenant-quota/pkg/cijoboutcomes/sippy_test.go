@@ -16,7 +16,6 @@ package cijoboutcomes
 
 import (
 	"encoding/json"
-	"slices"
 	"testing"
 	"time"
 )
@@ -43,55 +42,6 @@ func TestSippyTimestampAcceptsBothFormats(t *testing.T) {
 			}
 			if !decoded.UTC().Equal(testCase.want) {
 				t.Errorf("decoded %s = %v, want %v", testCase.data, decoded.UTC(), testCase.want)
-			}
-		})
-	}
-}
-
-func TestClusterTokenFor(t *testing.T) {
-	for _, testCase := range []struct {
-		name    string
-		buildID string
-		release string
-		want    string
-	}{
-		{
-			// ci01-j7579648-svc and -mgmt-N carry this token.
-			name:    "the last seven digits identify the run's clusters",
-			buildID: "2092003732647579648",
-			release: presubmitsRelease,
-			want:    "j7579648",
-		},
-		{
-			name:    "a seven character build id is used whole",
-			buildID: "1234567",
-			release: presubmitsRelease,
-			want:    "j1234567",
-		},
-		{
-			name:    "a build id too short to form a token yields none",
-			buildID: "123",
-			release: presubmitsRelease,
-			want:    "",
-		},
-		{
-			name:    "a missing build id yields no token",
-			buildID: "",
-			release: presubmitsRelease,
-			want:    "",
-		},
-		{
-			// These run against clusters that already exist, whose telemetry is
-			// in another Kusto entirely, so a token here would join to nothing.
-			name:    "a promoted environment provisions no clusters and gets no token",
-			buildID: "2092003732647579648",
-			release: "aro-integration",
-			want:    "",
-		},
-	} {
-		t.Run(testCase.name, func(t *testing.T) {
-			if got := clusterTokenFor(testCase.buildID, testCase.release); got != testCase.want {
-				t.Errorf("clusterTokenFor(%q, %q) = %q, want %q", testCase.buildID, testCase.release, got, testCase.want)
 			}
 		})
 	}
@@ -160,24 +110,24 @@ func TestOutcomeForDropsSippysOwnTests(t *testing.T) {
 
 	outcome := outcomeFor(run, "Presubmits")
 
-	if slices.Contains(outcome.FailedTests, "[sig-sippy] infrastructure should work") {
-		t.Errorf("FailedTests must not contain Sippy's own synthetic tests, got %v", outcome.FailedTests)
-	}
-	// The count has to agree with the retained names, not with Sippy's total.
-	if outcome.TestFailures != len(outcome.FailedTests) {
-		t.Errorf("TestFailures = %d, want %d to match FailedTests", outcome.TestFailures, len(outcome.FailedTests))
-	}
+	// The count has to agree with the tests Sippy attributed to the run, minus
+	// its own synthetic ones, not with Sippy's total.
 	if outcome.TestFailures != 1 {
 		t.Errorf("TestFailures = %d, want 1", outcome.TestFailures)
 	}
 	if !outcome.Failed {
 		t.Error("Failed must be true for a run that did not succeed")
 	}
-	if outcome.ClusterToken != "j7579648" {
-		t.Errorf("ClusterToken = %q, want %q", outcome.ClusterToken, "j7579648")
-	}
 	if outcome.Family != "batch" {
 		t.Errorf("Family = %q, want %q", outcome.Family, "batch")
+	}
+	// Cluster names and the finish time come from the run's artifacts, so a run
+	// built from Sippy alone must leave them unset rather than guess.
+	if outcome.SvcCluster != "" || outcome.MgmtCluster != "" {
+		t.Errorf("cluster names must come from artifacts, got svc=%q mgmt=%q", outcome.SvcCluster, outcome.MgmtCluster)
+	}
+	if !outcome.FinishedAt.IsZero() {
+		t.Errorf("FinishedAt must come from artifacts, got %v", outcome.FinishedAt)
 	}
 }
 

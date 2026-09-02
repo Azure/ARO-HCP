@@ -172,8 +172,15 @@ clouds:
             clusterURI: "https://hcp-dev-us-2.eastus2.kusto.windows.net"
             ingestionURI: "https://ingest-hcp-dev-us-2.eastus2.kusto.windows.net"
             database: "ServiceLogs"
-            table: "ciJobOutcomes"
-            ingestionMapping: "ciJobOutcomesMapping"
+            outcomes:
+              table: "ciJobOutcomes"
+              ingestionMapping: "ciJobOutcomesMapping"
+            testNames:
+              table: "ciTestNames"
+              ingestionMapping: "ciTestNamesMapping"
+            testResults:
+              table: "ciTestResults"
+              ingestionMapping: "ciTestResultsMapping"
             sippyURI: "https://sippy.dptools.openshift.org"
             jobFilter: "e2e-parallel"
             interval: "5m"

@@ -36,8 +36,15 @@ ciJobOutcomes:
   clusterURI: "{{ .opstool.tenantQuota.ciJobOutcomes.clusterURI }}"
   ingestionURI: "{{ .opstool.tenantQuota.ciJobOutcomes.ingestionURI }}"
   database: "{{ .opstool.tenantQuota.ciJobOutcomes.database }}"
-  table: "{{ .opstool.tenantQuota.ciJobOutcomes.table }}"
-  ingestionMapping: "{{ .opstool.tenantQuota.ciJobOutcomes.ingestionMapping }}"
+  outcomes:
+    table: "{{ .opstool.tenantQuota.ciJobOutcomes.outcomes.table }}"
+    ingestionMapping: "{{ .opstool.tenantQuota.ciJobOutcomes.outcomes.ingestionMapping }}"
+  testNames:
+    table: "{{ .opstool.tenantQuota.ciJobOutcomes.testNames.table }}"
+    ingestionMapping: "{{ .opstool.tenantQuota.ciJobOutcomes.testNames.ingestionMapping }}"
+  testResults:
+    table: "{{ .opstool.tenantQuota.ciJobOutcomes.testResults.table }}"
+    ingestionMapping: "{{ .opstool.tenantQuota.ciJobOutcomes.testResults.ingestionMapping }}"
   sippyURI: "{{ .opstool.tenantQuota.ciJobOutcomes.sippyURI }}"
   jobFilter: "{{ .opstool.tenantQuota.ciJobOutcomes.jobFilter }}"
   interval: "{{ .opstool.tenantQuota.ciJobOutcomes.interval }}"
