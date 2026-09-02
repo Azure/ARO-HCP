@@ -144,18 +144,26 @@ func resourceGroupNotFoundError() *azcore.ResponseError {
 	}
 }
 
-// resourceGroupPresentResponse returns a Get response describing an existing
-// managed resource group whose ManagedBy is set to the given owner resource ID.
-func resourceGroupPresentResponse(managedBy string) armresources.ResourceGroupsClientGetResponse {
+// resourceGroupPresentResponseWithState returns a Get response describing an existing
+// managed resource group whose ManagedBy is set to the given owner resource ID and
+// whose provisioning state is the given value.
+func resourceGroupPresentResponseWithState(managedBy, provisioningState string) armresources.ResourceGroupsClientGetResponse {
 	return armresources.ResourceGroupsClientGetResponse{
 		ResourceGroup: armresources.ResourceGroup{
 			Name:      ptr.To(testManagedRGName),
 			ManagedBy: ptr.To(managedBy),
 			Properties: &armresources.ResourceGroupProperties{
-				ProvisioningState: ptr.To("Succeeded"),
+				ProvisioningState: ptr.To(provisioningState),
 			},
 		},
 	}
+}
+
+// resourceGroupPresentResponse returns a Get response describing an existing managed
+// resource group whose ManagedBy is set to the given owner resource ID
+// (ProvisioningState=Succeeded).
+func resourceGroupPresentResponse(managedBy string) armresources.ResourceGroupsClientGetResponse {
+	return resourceGroupPresentResponseWithState(managedBy, "Succeeded")
 }
 
 // resourceGroupPresentResponseUnclaimed returns a Get response describing an
@@ -295,6 +303,21 @@ func TestManagedResourceGroupSyncerSyncOnce(t *testing.T) {
 			getErr:           nil,
 			expectAzure:      mrgID,
 			expectPending:    nil,
+		},
+		{
+			// Exists and owned by this cluster but not yet Succeeded (for example another
+			// actor is mid-create): the provisioning-state gate returns an error so a later
+			// pass retries; the pending marker recorded before the Get stays in place and
+			// no actual is set. Mirrors the create path's non-Succeeded handling.
+			name:              "not deleting and resource group present but not succeeded keeps pending",
+			deleting:          false,
+			initialReference:  coreapi.AzureReference{},
+			getResponse:       resourceGroupPresentResponseWithState(ownerClusterID, "Creating"),
+			getErr:            nil,
+			expectErr:         true,
+			expectErrContains: "provisioning state",
+			expectAzure:       nil,
+			expectPending:     mrgID,
 		},
 		{
 			// An existing resource group with no ManagedBy is treated as ours (Cluster
