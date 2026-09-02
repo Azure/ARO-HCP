@@ -205,14 +205,6 @@ func (c *operationClusterCreate) SynchronizeOperation(ctx context.Context, key c
 func (c *operationClusterCreate) determineOperationState(ctx context.Context, operation *coreapi.Operation, cluster *coreapi.HCPOpenShiftCluster) (*operationbase.OperationState, error) {
 	logger := utils.LoggerFromContext(ctx)
 
-	// Guard against a cluster whose Cluster Service resource has not yet been
-	// successfully created. clusterServiceCreateOperationState below dereferences
-	// *cluster.ServiceProviderProperties.ClusterServiceID, so bail out early with
-	// a retryable error until the ID is populated rather than panicking.
-	if cluster.ServiceProviderProperties.ClusterServiceID == nil || len(cluster.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
-		return nil, utils.TrackError(errors.New("cluster service has not been successfully created: ClusterServiceID is not set"))
-	}
-
 	errs := []error{}
 	operationStates := []*operationbase.OperationState{}
 
@@ -265,6 +257,14 @@ func (c *operationClusterCreate) determineOperationState(ctx context.Context, op
 
 func (c *operationClusterCreate) clusterServiceCreateOperationState(ctx context.Context, operation *coreapi.Operation, cluster *coreapi.HCPOpenShiftCluster) (*operationbase.OperationState, error) {
 	logger := utils.LoggerFromContext(ctx)
+
+	// The Cluster Service resource is created asynchronously; until its ID is
+	// populated there is nothing to query, so report the operation as still
+	// provisioning rather than dereferencing a nil ClusterServiceID.
+	if cluster.ServiceProviderProperties.ClusterServiceID == nil || len(cluster.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
+		return operationbase.NewOperationState(coreapi.ProvisioningStateProvisioning, "cluster service has not been successfully created"), nil
+	}
+
 	clusterServiceID := *cluster.ServiceProviderProperties.ClusterServiceID
 
 	clusterStatus, err := c.clusterServiceClient.GetClusterStatus(ctx, clusterServiceID)

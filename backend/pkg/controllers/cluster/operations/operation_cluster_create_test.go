@@ -736,15 +736,43 @@ func TestDetermineOperationState(t *testing.T) {
 			expectedState: coreapi.ProvisioningStateProvisioning,
 		},
 		{
-			name: "cluster ClusterServiceID unset → error",
+			name: "cluster ClusterServiceID unset → Provisioning",
 			clusterOverride: func() *coreapi.HCPOpenShiftCluster {
 				c := newClusterWithAPIURL("https://api.example.com", nil)
 				c.ServiceProviderProperties.ClusterServiceID = nil
 				return c
 			}(),
-			setupCSMock: readyClusterServiceMock,
-			expectError: true,
-			errContains: "cluster service has not been successfully created",
+			clusterLister: &corelistertesting.SliceClusterLister{
+				Clusters: []*coreapi.HCPOpenShiftCluster{newClusterWithAPIURL("https://api.example.com", nil)},
+			},
+			// ClusterServiceID is nil, so clusterServiceCreateOperationState returns
+			// early without calling GetClusterStatus; use a bare mock with no
+			// expectations to avoid an unmet-expectation failure.
+			setupCSMock: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
+				return ocm.NewMockClusterServiceClientSpec(ctrl)
+			},
+			readDesireLister: &kubeapplierlistertesting.SliceReadDesireLister{
+				Desires: []*kubeapplierapi.ReadDesire{
+					operationtesting.NewHostedClusterReadDesire(t, &v1beta1.HostedCluster{
+						Status: v1beta1.HostedClusterStatus{
+							Conditions: []metav1.Condition{
+								{Type: string(v1beta1.HostedClusterAvailable), Status: metav1.ConditionTrue},
+							},
+							ControlPlaneVersion: v1beta1.ControlPlaneVersionStatus{
+								History: []v1beta1.ControlPlaneUpdateHistory{
+									{Version: "4.17.3", State: configv1.CompletedUpdate},
+								},
+							},
+							ControlPlaneEndpoint: v1beta1.APIEndpoint{
+								Host: "api.example.com",
+								Port: 6443,
+							},
+						},
+					}),
+				},
+			},
+			expectedState:     coreapi.ProvisioningStateProvisioning,
+			wantMessageSubstr: "cluster service has not been successfully created",
 		},
 	}
 
