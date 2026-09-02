@@ -143,9 +143,10 @@ func (s *capacityReportingSyncer) persistObservedResources(ctx context.Context, 
 	updated := existing.DeepCopy()
 	meta.SetStatusCondition(&updated.Status.Conditions, condition)
 	updated.Status.ObservedResources = observed
-	// Mirror the ready/not-ready HCP resource IDs from the CapacityReport CR.
-	updated.Status.ReadyResourceIDs = readyResourceIDs
-	updated.Status.NotReadyResourceIDs = notReadyResourceIDs
+	// Mirror the ready/not-ready HCP resource IDs from the CapacityReport CR,
+	// translating the raw ARM ID strings into parsed *azcorearm.ResourceID.
+	updated.Status.ReadyResourceIDs = parseResourceIDs(ctx, readyResourceIDs)
+	updated.Status.NotReadyResourceIDs = parseResourceIDs(ctx, notReadyResourceIDs)
 	// Observation-based cleanup: drop pending reservations that are now observed
 	// (present in Ready ∪ NotReady). Their swift-NIC capacity is accounted for by
 	// the observed data, so the transient reservation is no longer needed.
@@ -186,6 +187,35 @@ func dropObservedPendingAssignments(pending []*azcorearm.ResourceID, readyResour
 		return nil
 	}
 	return kept
+}
+
+// parseResourceIDs translates ARM resource ID strings (mirrored from the
+// CapacityReport CR) into parsed *azcorearm.ResourceID values. Empty or
+// unparseable entries are logged and skipped rather than aborting the mirror,
+// so a single malformed ID never blocks capacity reporting. It returns nil when
+// no entries parse, so the omitempty-tagged status fields stay absent rather
+// than serializing an empty array.
+func parseResourceIDs(ctx context.Context, ids []string) []*azcorearm.ResourceID {
+	if len(ids) == 0 {
+		return nil
+	}
+	logger := utils.LoggerFromContext(ctx)
+	parsed := make([]*azcorearm.ResourceID, 0, len(ids))
+	for _, id := range ids {
+		if id == "" {
+			continue
+		}
+		resourceID, err := azcorearm.ParseResourceID(id)
+		if err != nil {
+			logger.Error(err, "skipping unparseable HCP resource ID from CapacityReport", "resourceID", id)
+			continue
+		}
+		parsed = append(parsed, resourceID)
+	}
+	if len(parsed) == 0 {
+		return nil
+	}
+	return parsed
 }
 
 // GetCapacityReport reads and unmarshals the CapacityReport from the

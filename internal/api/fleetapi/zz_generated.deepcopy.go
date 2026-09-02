@@ -265,13 +265,23 @@ func (in *ManagementClusterSchedulingStatus) DeepCopyInto(out *ManagementCluster
 	in.ObservedResources.DeepCopyInto(&out.ObservedResources)
 	if in.ReadyResourceIDs != nil {
 		in, out := &in.ReadyResourceIDs, &out.ReadyResourceIDs
-		*out = make([]string, len(*in))
-		copy(*out, *in)
+		*out = make([]*azcorearm.ResourceID, len(*in))
+		for i := range *in {
+			if (*in)[i] != nil {
+				in, out := &(*in)[i], &(*out)[i]
+				*out = coreapi.DeepCopyResourceID(*in)
+			}
+		}
 	}
 	if in.NotReadyResourceIDs != nil {
 		in, out := &in.NotReadyResourceIDs, &out.NotReadyResourceIDs
-		*out = make([]string, len(*in))
-		copy(*out, *in)
+		*out = make([]*azcorearm.ResourceID, len(*in))
+		for i := range *in {
+			if (*in)[i] != nil {
+				in, out := &(*in)[i], &(*out)[i]
+				*out = coreapi.DeepCopyResourceID(*in)
+			}
+		}
 	}
 	in.ScaleCeiling.DeepCopyInto(&out.ScaleCeiling)
 	if in.PendingAssignedClusters != nil {

@@ -258,8 +258,15 @@ func TestSyncOnce_MirrorsReadyAndNotReadyResourceIDs(t *testing.T) {
 	scheduling, err := schedulingCRUD.Get(ctx, fleetapi.SchedulingResourceName)
 	require.NoError(t, err)
 
-	assert.Equal(t, readyIDs, scheduling.Status.ReadyResourceIDs, "Status.ReadyResourceIDs must mirror the CapacityReport")
-	assert.Equal(t, notReadyIDs, scheduling.Status.NotReadyResourceIDs, "Status.NotReadyResourceIDs must mirror the CapacityReport")
+	wantReady := []*azcorearm.ResourceID{
+		metadataapi.Must(azcorearm.ParseResourceID(readyIDs[0])),
+		metadataapi.Must(azcorearm.ParseResourceID(readyIDs[1])),
+	}
+	wantNotReady := []*azcorearm.ResourceID{
+		metadataapi.Must(azcorearm.ParseResourceID(notReadyIDs[0])),
+	}
+	assert.Equal(t, wantReady, scheduling.Status.ReadyResourceIDs, "Status.ReadyResourceIDs must mirror the CapacityReport (parsed to ResourceIDs)")
+	assert.Equal(t, wantNotReady, scheduling.Status.NotReadyResourceIDs, "Status.NotReadyResourceIDs must mirror the CapacityReport (parsed to ResourceIDs)")
 }
 
 func TestDropObservedPendingAssignments(t *testing.T) {

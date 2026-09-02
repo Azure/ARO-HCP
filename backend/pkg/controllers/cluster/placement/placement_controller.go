@@ -24,6 +24,8 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
+	"k8s.io/apimachinery/pkg/api/resource"
+	"k8s.io/apimachinery/pkg/util/sets"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -53,19 +55,13 @@ const PlacementControllerName = "Placement"
 
 // swiftNICsPerHCP is the number of SWIFT NICs a highly-available (default)
 // HostedControlPlane consumes: one NIC per control-plane replica, three
-// replicas. It is the conservative per-HCP cost used whenever a cluster's
-// control-plane availability cannot be determined.
+// replicas. The same value doubles as the conservative fallback whenever a
+// cluster's control-plane availability cannot be determined.
 const swiftNICsPerHCP int64 = 3
 
 // singleReplicaSwiftNICsPerHCP is the number of SWIFT NICs a SingleReplica
 // HostedControlPlane consumes: its single control-plane replica needs one NIC.
 const singleReplicaSwiftNICsPerHCP int64 = 1
-
-// swiftNICReserver resolves how many SWIFT NICs the HCP identified by a cluster
-// ARM resource ID reserves. Production resolves it from the cluster's
-// control-plane availability via the informer cache (see swiftNICReserverFromCache);
-// unit tests stub it directly.
-type swiftNICReserver func(clusterResourceID *azcorearm.ResourceID) int64
 
 // swiftNICsForControlPlaneAvailability returns the number of SWIFT NICs a single
 // HostedControlPlane with the given control-plane availability consumes: a
@@ -78,22 +74,47 @@ func swiftNICsForControlPlaneAvailability(availability coreapi.ControlPlaneAvail
 	return swiftNICsPerHCP
 }
 
-// swiftNICReserverFromCache returns a swiftNICReserver that resolves each
-// cluster's swift-NIC reservation from the cluster informer cache. A cluster
-// that cannot be resolved (missing from the cache, or an unexpected lister
-// error) reserves the conservative swiftNICsPerHCP maximum, so a cache miss
-// never under-reserves capacity.
-func (c *placementSyncer) swiftNICReserverFromCache(ctx context.Context) swiftNICReserver {
-	return func(clusterResourceID *azcorearm.ResourceID) int64 {
-		if clusterResourceID == nil {
-			return swiftNICsPerHCP
-		}
-		cluster, err := c.clusterLister.Get(ctx, clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName, clusterResourceID.Name)
-		if err != nil {
-			return swiftNICsPerHCP
-		}
-		return swiftNICsForControlPlaneAvailability(cluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneAvailability)
+// swiftNICsForResourceID resolves how many SWIFT NICs the HCP identified by
+// clusterResourceID reserves, from its control-plane availability in the
+// cluster informer cache. A cluster that cannot be resolved (nil ID, missing
+// from the cache, or an unexpected lister error) reserves the conservative
+// swiftNICsPerHCP maximum, so a cache miss never under-reserves capacity.
+func (c *placementSyncer) swiftNICsForResourceID(ctx context.Context, clusterResourceID *azcorearm.ResourceID) int64 {
+	if clusterResourceID == nil {
+		return swiftNICsPerHCP
 	}
+	cluster, err := c.clusterLister.Get(ctx, clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName, clusterResourceID.Name)
+	if err != nil {
+		return swiftNICsPerHCP
+	}
+	return swiftNICsForControlPlaneAvailability(cluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneAvailability)
+}
+
+// swiftNICReservation sums swiftNICsForResourceID over a slice of cluster
+// resource IDs, skipping nil entries (a nil entry does not correspond to a
+// real HCP and must not reserve capacity).
+func (c *placementSyncer) swiftNICReservation(ctx context.Context, resourceIDs []*azcorearm.ResourceID) int64 {
+	var total int64
+	for _, resourceID := range resourceIDs {
+		if resourceID == nil {
+			continue
+		}
+		total += c.swiftNICsForResourceID(ctx, resourceID)
+	}
+	return total
+}
+
+// stampIdentifierFromResourceID extracts the parent stamp identifier from a
+// management cluster's resource ID, or "" when it has none. This mirrors
+// fleetapi.ManagementCluster.GetStampIdentifier(), which operates on a full
+// ManagementCluster object; here only the bare resource ID is available (e.g.
+// the chosen management cluster returned by selectByCapacity), so the two must
+// be kept in sync by hand if the resource ID shape ever changes.
+func stampIdentifierFromResourceID(resourceID *azcorearm.ResourceID) string {
+	if resourceID == nil || resourceID.Parent == nil {
+		return ""
+	}
+	return resourceID.Parent.Name
 }
 
 // placementSyncer selects the management cluster a newly-created HCP should be
@@ -213,7 +234,7 @@ func (c *placementSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPC
 	// backfill Spec from that.
 	// This is migration behavior from CS driven placement to RP driven placement
 	// and can be removed once rollout completes.
-	if chosen, handled, err := c.backfillFromClusterService(ctx, key); err != nil {
+	if chosen, handled, err := c.backfillFromClusterService(ctx, cluster); err != nil {
 		return err
 	} else if handled {
 		if chosen == nil {
@@ -244,7 +265,7 @@ func (c *placementSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPC
 	if cluster != nil {
 		requiredSwiftNICs = swiftNICsForControlPlaneAvailability(cluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneAvailability)
 	}
-	chosen, err := selectByCapacity(candidates, requiredSwiftNICs, c.swiftNICReserverFromCache(ctx))
+	chosen, err := selectByCapacity(candidates, requiredSwiftNICs)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to select management cluster for %s: %w", key.HCPClusterName, err))
 	}
@@ -269,7 +290,9 @@ func (c *placementSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPC
 // the cluster document carries a PendingClusterServiceID (a placement already
 // decided by a prior backend version / Cluster Service), it resolves the
 // Cluster-Service-reported provision shard back to a management cluster resource
-// ID.
+// ID. cluster is the already-fetched cluster document (nil when the cluster does
+// not exist in the cache) — the caller has already read it for the deletion
+// guard, so this does not re-fetch it.
 //
 // It returns handled=true when the caller must NOT fresh-select: either the
 // placement was resolved (chosen set to the management cluster resource ID) or
@@ -277,25 +300,21 @@ func (c *placementSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPC
 // nil — the caller should defer to avoid diverging from the placement Cluster
 // Service will eventually report).
 //
-// It returns handled=false when the caller SHOULD fresh-select: there is no
-// pending CS ID, or Cluster Service returns 404 (not found) for the pending CS
-// ID. A 404 means no Cluster Service cluster exists for the pending ID yet. That
-// is the normal case for a brand-new record too: PendingClusterServiceID
-// assignment is not gated on placement, so a new cluster can carry a pending ID
-// before its Cluster Service cluster is created (creation happens in
-// ClusterClusterServiceCreate, which waits for Spec). It also covers the old
-// rollout edge case where a prior backend recorded PendingClusterServiceID then
-// crashed / lost leadership before creating the cluster in Cluster Service. In
-// every 404 case there is no committed placement to preserve, so a fresh
-// capacity-aware selection is safe. Every other error is transient and is
-// returned so the workqueue retries.
-func (c *placementSyncer) backfillFromClusterService(ctx context.Context, key controllerutils.HCPClusterKey) (chosen *azcorearm.ResourceID, handled bool, err error) {
-	cluster, err := c.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
-	if cosmosstorageutils.IsNotFoundError(err) {
+// It returns handled=false when the caller SHOULD fresh-select: cluster is nil,
+// there is no pending CS ID, or Cluster Service returns 404 (not found) for the
+// pending CS ID. A 404 means no Cluster Service cluster exists for the pending
+// ID yet. That is the normal case for a brand-new record too:
+// PendingClusterServiceID assignment is not gated on placement, so a new
+// cluster can carry a pending ID before its Cluster Service cluster is created
+// (creation happens in ClusterClusterServiceCreate, which waits for Spec). It
+// also covers the old rollout edge case where a prior backend recorded
+// PendingClusterServiceID then crashed / lost leadership before creating the
+// cluster in Cluster Service. In every 404 case there is no committed
+// placement to preserve, so a fresh capacity-aware selection is safe. Every
+// other error is transient and is returned so the workqueue retries.
+func (c *placementSyncer) backfillFromClusterService(ctx context.Context, cluster *coreapi.HCPOpenShiftCluster) (chosen *azcorearm.ResourceID, handled bool, err error) {
+	if cluster == nil {
 		return nil, false, nil
-	}
-	if err != nil {
-		return nil, false, utils.TrackError(fmt.Errorf("failed to get cluster from cache: %w", err))
 	}
 	pendingClusterServiceID := cluster.ServiceProviderProperties.PendingClusterServiceID
 	if pendingClusterServiceID == nil {
@@ -352,19 +371,26 @@ func (c *placementSyncer) resolvePlacementFromClusterService(ctx context.Context
 	return managementCluster.ResourceID, nil
 }
 
-// schedulingCandidate pairs a management cluster with its scheduling document.
-// scheduling is nil when the management cluster has no stamp identifier or no
-// scheduling document in the cache yet; selectByCapacity records that as an
-// elimination reason.
+// schedulingCandidate pairs a management cluster's resource ID with its
+// eligibility state and resolved available resources. resourceID is always
+// non-nil (gatherSchedulingCandidates only constructs a candidate for a
+// management cluster with a non-nil ResourceID). ineligibleReason is "" when
+// the candidate is eligible; available is always computed (empty when
+// scheduling data is unavailable) but only meaningful for eligible candidates
+// — selectByCapacity only reads it once ineligibleReason has been checked.
 type schedulingCandidate struct {
-	managementCluster *fleetapi.ManagementCluster
-	scheduling        *fleetapi.ManagementClusterScheduling
+	resourceID       *azcorearm.ResourceID
+	ineligibleReason string
+	available        corev1.ResourceList
 }
 
-// gatherSchedulingCandidates lists management clusters and pairs each with its
-// scheduling document read from the informer cache. It performs no elimination —
-// that is selectByCapacity's job — so every non-nil management cluster is
-// returned, with a nil scheduling document when none is cached.
+// gatherSchedulingCandidates lists management clusters and resolves each into a
+// schedulingCandidate: its eligibility (ineligibilityReason, from the cluster's
+// scheduling document read from the informer cache) and its resolved available
+// resources (availableResources, computed unconditionally — it returns empty
+// when there is no scheduling document). It performs no elimination itself —
+// that is selectByCapacity's job — so every management cluster with a non-nil
+// ResourceID is returned (see schedulingCandidate's resourceID invariant).
 func (c *placementSyncer) gatherSchedulingCandidates(ctx context.Context) ([]schedulingCandidate, error) {
 	managementClusters, err := c.managementClusterLister.List(ctx)
 	if err != nil {
@@ -376,22 +402,24 @@ func (c *placementSyncer) gatherSchedulingCandidates(ctx context.Context) ([]sch
 		if managementCluster == nil || managementCluster.ResourceID == nil {
 			continue
 		}
-		candidate := schedulingCandidate{managementCluster: managementCluster}
-		// The scheduling document is a singleton child fetched by the parent stamp
-		// identifier. Without a stamp identifier there is nothing to fetch; leave
-		// scheduling nil and let selectByCapacity report the reason.
+		var scheduling *fleetapi.ManagementClusterScheduling
 		if stampIdentifier := managementCluster.GetStampIdentifier(); stampIdentifier != "" {
-			scheduling, err := c.managementClusterSchedulingLister.Get(ctx, stampIdentifier)
+			var err error
+			scheduling, err = c.managementClusterSchedulingLister.Get(ctx, stampIdentifier)
 			switch {
 			case cosmosstorageutils.IsNotFoundError(err):
 				// No capacity data cached yet: leave scheduling nil.
+				scheduling = nil
 			case err != nil:
 				return nil, utils.TrackError(fmt.Errorf("failed to get scheduling document for management cluster %q from cache: %w", managementCluster.ResourceID.String(), err))
-			default:
-				candidate.scheduling = scheduling
 			}
 		}
-		candidates = append(candidates, candidate)
+
+		candidates = append(candidates, schedulingCandidate{
+			resourceID:       managementCluster.ResourceID,
+			ineligibleReason: ineligibilityReason(managementCluster, scheduling),
+			available:        c.availableResources(ctx, scheduling),
+		})
 	}
 	return candidates, nil
 }
@@ -403,46 +431,43 @@ type managementClusterCandidate struct {
 	available  int64
 }
 
-// selectByCapacity is a pure function that performs ALL candidate elimination and
-// capacity-based selection in one place, so the scheduling decision lives in a
-// single unit-testable function rather than being split across the reconcile.
+// selectByCapacity is a pure function operating on already-resolved candidates:
+// eligibility (ineligibleReason) and available capacity are inputs computed by
+// gatherSchedulingCandidates, not by this function — keeping selection free of
+// I/O keeps it trivially unit-testable independent of the informer caches that
+// eligibility/capacity resolution reads from.
 //
-// From the gathered (management cluster, scheduling document) pairs it eliminates
-// ineligible candidates — recording a human-readable reason for each — then, among
-// the candidates whose available swift-NIC capacity is at least requiredSwiftNICs
-// (the swift-NIC count the new HCP needs, 1 for SingleReplica else swiftNICsPerHCP),
-// returns the one with the HIGHEST available capacity (spread: place each new HCP
-// on the emptiest management cluster so load is distributed evenly rather than
+// It eliminates ineligible candidates — recording the reason
+// gatherSchedulingCandidates attached — then, among the candidates whose
+// available swift-NIC capacity is at least requiredSwiftNICs (the swift-NIC
+// count the new HCP needs, 1 for SingleReplica else swiftNICsPerHCP), returns
+// the one with the HIGHEST available capacity (spread: place each new HCP on
+// the emptiest management cluster so load is distributed evenly rather than
 // concentrated). Ties are broken deterministically by the lowest resource ID
-// string so the selection is stable. swiftNICsFor resolves the per-cluster
-// reservation for each already-pending/not-ready HCP counted in the headroom.
+// string so the selection is stable.
 //
 // When nothing fits it returns an error that enumerates why every candidate was
 // eliminated, so the decision can be debugged from the error alone.
 //
 // TODO: leverage CPU and memory as well as the average HCP resource consumption in the region for more elaborate capacity based placement decisions.
-func selectByCapacity(candidates []schedulingCandidate, requiredSwiftNICs int64, swiftNICsFor swiftNICReserver) (*azcorearm.ResourceID, error) {
+func selectByCapacity(candidates []schedulingCandidate, requiredSwiftNICs int64) (*azcorearm.ResourceID, error) {
 	var chosen managementClusterCandidate
 	found := false
 	var eliminated []string
 
 	for _, candidate := range candidates {
-		managementCluster := candidate.managementCluster
-		if managementCluster == nil || managementCluster.ResourceID == nil {
+		id := candidate.resourceID.String()
+		if candidate.ineligibleReason != "" {
+			eliminated = append(eliminated, fmt.Sprintf("%s: %s", id, candidate.ineligibleReason))
 			continue
 		}
-		id := managementCluster.ResourceID.String()
-		if reason := ineligibilityReason(managementCluster, candidate.scheduling); reason != "" {
-			eliminated = append(eliminated, fmt.Sprintf("%s: %s", id, reason))
-			continue
-		}
-		available := computeAvailableSwiftNICs(candidate.scheduling, swiftNICsFor)
+		available := swiftNICCount(candidate.available)
 		if available < requiredSwiftNICs {
 			eliminated = append(eliminated, fmt.Sprintf("%s: insufficient swift-NIC capacity (available %d, need %d)", id, available, requiredSwiftNICs))
 			continue
 		}
 
-		fit := managementClusterCandidate{resourceID: managementCluster.ResourceID, available: available}
+		fit := managementClusterCandidate{resourceID: candidate.resourceID, available: available}
 		switch {
 		case !found:
 			chosen = fit
@@ -488,63 +513,62 @@ func ineligibilityReason(managementCluster *fleetapi.ManagementCluster, scheduli
 	return ""
 }
 
-// computeAvailableSwiftNICs returns the swift-NIC capacity still available on a
-// management cluster:
+// availableResources returns the resources still available on a management
+// cluster: ScaleCeiling.Capacity minus the higher of ObservedResources.Usage
+// and ObservedResources.Requests (per resource), with swift-NIC further
+// reduced by the per-cluster reservation for each NotReady or Pending HCP.
+// scheduling is nil for a candidate with no observed scheduling document (see
+// ineligibilityReason); such a candidate returns an empty ResourceList rather
+// than panicking, since gatherSchedulingCandidates calls this unconditionally,
+// before checking eligibility:
 //
-//	available = ScaleCeiling.Capacity[swift-nic]
-//	          - ObservedResources.Usage[swift-nic]
-//	          - sum(swiftNICsFor(each NotReadyResourceIDs entry))
-//	          - sum(swiftNICsFor(each PendingAssignedClusters entry))
+//	available = ScaleCeiling.Capacity
+//	          - max(ObservedResources.Usage, ObservedResources.Requests)
+//	          - sum(swiftNICsForResourceID(each NotReadyResourceIDs entry))    (swift-nic only)
+//	          - sum(swiftNICsForResourceID(each PendingAssignedClusters entry)) (swift-nic only)
 //
-// Ready HCPs are already reflected in Usage, so they are not reserved again.
-// NotReady HCPs may not yet consume their NICs, so each reserves its own
-// swift-NIC count; Pending (just-scheduled, not-yet-observed) HCPs likewise
-// reserve their own count. swiftNICsFor resolves that per-cluster count from the
-// cluster's control-plane availability (1 for SingleReplica, else swiftNICsPerHCP),
-// so a management cluster hosting SingleReplica HCPs is not over-reserved.
-// Capacity is bounded against the ScaleCeiling (max node count) so the estimate
-// reflects the worst case. Empty/nil list entries do not correspond to a real HCP
-// and are not counted toward the reservation.
-func computeAvailableSwiftNICs(scheduling *fleetapi.ManagementClusterScheduling, swiftNICsFor swiftNICReserver) int64 {
-	ceiling := swiftNICCount(scheduling.Status.ScaleCeiling.Capacity)
-	usage := swiftNICCount(scheduling.Status.ObservedResources.Usage)
-	notReady := sumSwiftNICReservationsForIDStrings(scheduling.Status.NotReadyResourceIDs, swiftNICsFor)
-	pending := sumSwiftNICReservationsForIDs(scheduling.Status.PendingAssignedClusters, swiftNICsFor)
-	return ceiling - usage - notReady - pending
-}
-
-// sumSwiftNICReservationsForIDs sums the per-cluster swift-NIC reservations for a
-// slice of cluster ARM resource IDs, skipping nil entries (a nil entry does not
-// correspond to a real HCP and must not reserve capacity).
-func sumSwiftNICReservationsForIDs(ids []*azcorearm.ResourceID, swiftNICsFor swiftNICReserver) int64 {
-	var total int64
-	for _, id := range ids {
-		if id == nil {
-			continue
-		}
-		total += swiftNICsFor(id)
+// Usage reflects actual consumption (from live metrics); Requests reflects
+// what the scheduler has already committed the node to, which kube-scheduler
+// enforces regardless of real usage. A resource whose pods run hotter than
+// their requests (Usage > Requests) is under-reported by Requests alone, and
+// a resource that is requested but idle (Requests > Usage) is over-reported by
+// Usage alone — taking the higher of the two never understates consumption.
+// For swift-NIC, Usage and Requests are always equal by construction (NICs
+// have no real utilization metric), so this is a no-op there.
+//
+// NotReady and Pending HCPs each reserve their own swift-NIC count, resolved
+// per-cluster from control-plane availability via swiftNICsForResourceID (1
+// for SingleReplica, else swiftNICsPerHCP); nil list entries reserve nothing.
+// Capacity is bounded against the ScaleCeiling (max node count), reflecting
+// the worst case.
+func (c *placementSyncer) availableResources(ctx context.Context, scheduling *fleetapi.ManagementClusterScheduling) corev1.ResourceList {
+	if scheduling == nil {
+		return corev1.ResourceList{}
 	}
-	return total
-}
-
-// sumSwiftNICReservationsForIDStrings sums the per-cluster swift-NIC reservations
-// for a slice of cluster ARM resource ID strings, skipping empty entries. An
-// unparseable entry reserves the conservative swiftNICsPerHCP maximum rather than
-// being dropped, so a malformed entry never under-reserves capacity.
-func sumSwiftNICReservationsForIDStrings(ids []string, swiftNICsFor swiftNICReserver) int64 {
-	var total int64
-	for _, id := range ids {
-		if id == "" {
-			continue
-		}
-		resourceID, err := azcorearm.ParseResourceID(id)
-		if err != nil {
-			total += swiftNICsPerHCP
-			continue
-		}
-		total += swiftNICsFor(resourceID)
+	available := scheduling.Status.ScaleCeiling.Capacity.DeepCopy()
+	if available == nil {
+		available = corev1.ResourceList{}
 	}
-	return total
+	usage := scheduling.Status.ObservedResources.Usage
+	requests := scheduling.Status.ObservedResources.Requests
+	for name := range sets.KeySet(usage).Union(sets.KeySet(requests)) {
+		consumed := usage[name]
+		if requested := requests[name]; requested.Cmp(consumed) > 0 {
+			consumed = requested
+		}
+		quantity := available[name]
+		quantity.Sub(consumed)
+		available[name] = quantity
+	}
+
+	swiftNICReservation := c.swiftNICReservation(ctx, scheduling.Status.NotReadyResourceIDs) + c.swiftNICReservation(ctx, scheduling.Status.PendingAssignedClusters)
+	if swiftNICReservation != 0 {
+		quantity := available[kuberesources.SwiftNICResourceName]
+		quantity.Sub(*resource.NewQuantity(swiftNICReservation, resource.DecimalSI))
+		available[kuberesources.SwiftNICResourceName] = quantity
+	}
+
+	return available
 }
 
 // swiftNICCount returns the swift-NIC quantity in a ResourceList as an int64,
@@ -561,10 +585,7 @@ func swiftNICCount(resources corev1.ResourceList) int64 {
 // cluster's PendingAssignedClusters list (idempotently). On a write conflict it
 // returns an error so the workqueue retries the whole reconcile with backoff.
 func (c *placementSyncer) reservePendingAssignment(ctx context.Context, managementClusterResourceID, clusterResourceID *azcorearm.ResourceID) error {
-	if managementClusterResourceID.Parent == nil {
-		return utils.TrackError(fmt.Errorf("management cluster resource ID %q has no parent stamp", managementClusterResourceID.String()))
-	}
-	stampIdentifier := managementClusterResourceID.Parent.Name
+	stampIdentifier := stampIdentifierFromResourceID(managementClusterResourceID)
 	schedulingCRUD := c.fleetDBClient.Stamps().ManagementClusters(stampIdentifier).Scheduling()
 
 	existing, err := schedulingCRUD.Get(ctx, fleetapi.SchedulingResourceName)

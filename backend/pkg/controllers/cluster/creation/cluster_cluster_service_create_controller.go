@@ -96,6 +96,13 @@ func (c *clusterClusterServiceCreateSyncer) needsWork(ctx context.Context, clust
 	// this cluster.
 	serviceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName, cluster.ID.Name)
 	if err != nil {
+		// A missing ServiceProviderCluster just means placement is not resolved yet;
+		// stay quiet and let the PlacementController's write re-trigger us. Any other
+		// cache error is unexpected and would otherwise silently skip creation, so log
+		// it while still holding the placement gate.
+		if !cosmosstorageutils.IsNotFoundError(err) {
+			utils.LoggerFromContext(ctx).Error(err, "failed to get ServiceProviderCluster from cache; treating placement as unresolved")
+		}
 		return false
 	}
 	return serviceProviderCluster.Spec.ManagementClusterResourceID != nil
@@ -298,26 +305,26 @@ func (c *clusterClusterServiceCreateSyncer) createClusterServiceCluster(ctx cont
 func (c *clusterClusterServiceCreateSyncer) provisionShardID(ctx context.Context, serviceProviderCluster *coreapi.ServiceProviderCluster) (string, error) {
 	managementClusterResourceID := serviceProviderCluster.Spec.ManagementClusterResourceID
 	if managementClusterResourceID == nil {
-		return "", fmt.Errorf("ServiceProviderCluster has no Spec.ManagementClusterResourceID; placement is not resolved")
+		return "", utils.TrackError(fmt.Errorf("ServiceProviderCluster has no Spec.ManagementClusterResourceID; placement is not resolved"))
 	}
 	// A management cluster is a singleton within a stamp, so its resource ID is
 	// .../stamps/<stampIdentifier>/managementClusters/default and the lister is
 	// keyed by the stamp identifier (the parent segment's name).
 	if managementClusterResourceID.Parent == nil {
-		return "", fmt.Errorf("management cluster resource ID %q has no parent stamp", managementClusterResourceID.String())
+		return "", utils.TrackError(fmt.Errorf("management cluster resource ID %q has no parent stamp", managementClusterResourceID.String()))
 	}
 	stampIdentifier := managementClusterResourceID.Parent.Name
 
 	managementCluster, err := c.managementClusterLister.Get(ctx, stampIdentifier)
 	if cosmosstorageutils.IsNotFoundError(err) {
-		return "", fmt.Errorf("management cluster %q not found", managementClusterResourceID.String())
+		return "", utils.TrackError(fmt.Errorf("management cluster %q not found", managementClusterResourceID.String()))
 	}
 	if err != nil {
 		return "", utils.TrackError(fmt.Errorf("failed to get management cluster %q: %w", managementClusterResourceID.String(), err))
 	}
 
 	if managementCluster.Status.ClusterServiceProvisionShardID == nil {
-		return "", fmt.Errorf("management cluster %q has no ClusterServiceProvisionShardID", managementClusterResourceID.String())
+		return "", utils.TrackError(fmt.Errorf("management cluster %q has no ClusterServiceProvisionShardID", managementClusterResourceID.String()))
 	}
 
 	return managementCluster.Status.ClusterServiceProvisionShardID.ID(), nil
