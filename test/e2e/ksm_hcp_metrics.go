@@ -18,13 +18,13 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"os"
 	"regexp"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	"github.com/Azure/ARO-HCP/test/util/config"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	promutil "github.com/Azure/ARO-HCP/test/util/prometheus"
@@ -37,15 +37,22 @@ var _ = Describe("KSM HCP Metrics", func() {
 		labels.Positive,
 		labels.DevelopmentOnly,
 		labels.AroRpApiCompatible,
+		labels.RequiresConfig,
 		labels.MIContainers(0),
 		func(ctx context.Context) {
 			tc := framework.NewTestContext()
 
-			regionRG := os.Getenv("REGION_RG")
-			Expect(regionRG).NotTo(BeEmpty(), "REGION_RG environment variable must be set")
+			regionRG, err := config.ServiceConfig.GetByPath("regionRG")
+			Expect(err).NotTo(HaveOccurred(), "failed to get regionRG from config")
+			regionRGStr, ok := regionRG.(string)
+			Expect(ok).To(BeTrue(), "regionRG is not a string")
+			Expect(regionRGStr).NotTo(BeEmpty(), "regionRG is empty")
 
-			hcpWorkspaceName := os.Getenv("HCP_WORKSPACE_NAME")
-			Expect(hcpWorkspaceName).NotTo(BeEmpty(), "HCP_WORKSPACE_NAME environment variable must be set")
+			hcpWorkspaceName, err := config.ServiceConfig.GetByPath("monitoring.hcpWorkspaceName")
+			Expect(err).NotTo(HaveOccurred(), "failed to get hcpWorkspaceName from config")
+			hcpWorkspaceNameStr, ok := hcpWorkspaceName.(string)
+			Expect(ok).To(BeTrue(), "hcpWorkspaceName is not a string")
+			Expect(hcpWorkspaceNameStr).NotTo(BeEmpty(), "hcpWorkspaceName is empty")
 
 			subscriptionID, err := tc.SubscriptionID(ctx)
 			Expect(err).NotTo(HaveOccurred(), "failed to get subscription ID")
@@ -54,7 +61,7 @@ var _ = Describe("KSM HCP Metrics", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to get Azure credential")
 
 			By("Resolving HCP workspace Prometheus endpoint")
-			endpoint, err := promutil.LookupPrometheusEndpoint(ctx, cred, subscriptionID, regionRG, hcpWorkspaceName)
+			endpoint, err := promutil.LookupPrometheusEndpoint(ctx, cred, subscriptionID, regionRGStr, hcpWorkspaceNameStr)
 			Expect(err).NotTo(HaveOccurred(), "failed to look up HCP Prometheus endpoint")
 
 			clusterName := e2eSetup.Cluster.Name
