@@ -35,6 +35,18 @@ In the normal public-cloud flow, test cleanup:
 2. waits for managed resource groups to disappear
 3. finishes cleaning up test-owned leftovers such as the customer resource group, app registrations, and leased identities
 
+When the tests use app-only CI credentials, test-created app registrations are
+permanently removed rather than left in Entra's deleted-items container. The
+framework records both the application object ID and the associated
+service-principal object ID. It soft-deletes and purges the service principal
+first, then does the same for the application. If a purge fails, cleanup
+restores that object so a later run can rediscover and retry it. Purging only
+the application is insufficient because its service principal remains
+independently recoverable and continues consuming directory quota. Local runs
+using delegated user credentials retain the standard soft-delete behavior
+because permanent deletion requires elevated directory permissions that
+ordinary application owners may not have.
+
 This path is not just background hygiene. Cleanup failures are treated as test signal.
 
 ### Targeted environment teardown
@@ -86,7 +98,7 @@ Its job is to keep subscriptions healthy over time, not to prove that a single t
 Today that periodic layer includes:
 
 - expired test resource-group cleanup
-- expired app-registration cleanup
+- expired app-registration and service-principal cleanup, including permanent deletion
 - Kusto role-assignment cleanup
 - `cleanup-sweeper` jobs for policy-driven resource-group cleanup and shared leftovers
 
@@ -168,7 +180,8 @@ This is implemented in:
 At the end of a test, the framework cleans:
 
 - resource groups created by the test context
-- app registrations created by the test
+- app registrations and associated service principals created by the test,
+  including both objects in Entra's deleted-items container
 - leased identity leftovers
 
 There are two cleanup modes in the framework:
@@ -203,6 +216,16 @@ There are two broad styles of periodic cleanup:
 
 - test-oriented cleanup jobs, such as expired resource groups and old test identities
 - `cleanup-sweeper` jobs, which are meant for policy-driven resource-group cleanup and shared leftovers
+
+The expired app-registration job resolves the active service principal before
+deleting each owned `aro-hcp-e2e-*` application. It then permanently deletes
+both objects after Entra exposes them in `directory/deletedItems`, preventing
+the hourly cleanup from moving quota pressure from active objects into the
+30-day recycle bin.
+
+This flow prevents new buildup. Existing objects already in the recycle bin
+require a separate, explicitly scoped purge because the ownership query only
+returns active applications.
 
 The important point is that all of these are background hygiene jobs. They are there to keep shared environments healthy and reduce accumulation over time.
 

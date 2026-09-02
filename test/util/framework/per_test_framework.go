@@ -67,7 +67,7 @@ type perItOrDescribeTestContext struct {
 
 	contextLock                   sync.RWMutex
 	knownResourceGroups           []string
-	knownAppRegistrationIDs       []string
+	knownAppRegistrations         []graphutil.ApplicationCleanupTarget
 	createdRoleAssignmentIDs      []string
 	subscriptionID                string
 	clientFactory20240610         *hcpsdk20240610preview.ClientFactory
@@ -263,8 +263,8 @@ func (tc *perItOrDescribeTestContext) deleteCreatedResources(ctx context.Context
 	}
 
 	tc.contextLock.RLock()
-	resourceGroupNames := tc.knownResourceGroups
-	appRegistrations := tc.knownAppRegistrationIDs
+	resourceGroupNames := slices.Clone(tc.knownResourceGroups)
+	appRegistrations := slices.Clone(tc.knownAppRegistrations)
 	tc.contextLock.RUnlock()
 	ginkgo.GinkgoLogr.Info("deleting created resources")
 
@@ -280,9 +280,9 @@ func (tc *perItOrDescribeTestContext) deleteCreatedResources(ctx context.Context
 		}
 	}
 
-	err = CleanupAppRegistrations(ctx, graphClient, appRegistrations)
+	err = graphClient.CleanupApplications(ctx, appRegistrations)
 	if err != nil {
-		ginkgo.GinkgoLogr.Error(err, "at least one app registration failed to delete")
+		ginkgo.GinkgoLogr.Error(err, "at least one app registration failed to delete and purge")
 	}
 
 	ginkgo.GinkgoLogr.Info("finished deleting created resources")
@@ -1010,29 +1010,23 @@ func (tc *perItOrDescribeTestContext) NewAppRegistrationWithServicePrincipal(ctx
 		return nil, nil, fmt.Errorf("failed to create app registration: %w", err)
 	}
 
-	func() {
-		tc.contextLock.Lock()
-		defer tc.contextLock.Unlock()
-		// Track the ObjectIDs as that's what operations are performed against, not AppID
-		tc.knownAppRegistrationIDs = append(tc.knownAppRegistrationIDs, app.ID)
-	}()
+	tc.contextLock.Lock()
+	targetIndex := len(tc.knownAppRegistrations)
+	tc.knownAppRegistrations = append(tc.knownAppRegistrations, graphutil.ApplicationCleanupTarget{
+		ApplicationObjectID: app.ID,
+	})
+	tc.contextLock.Unlock()
 
 	sp, err := graphClient.CreateServicePrincipal(ctx, app.AppID)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create service principal: %w", err)
 	}
 
-	return app, sp, nil
-}
+	tc.contextLock.Lock()
+	tc.knownAppRegistrations[targetIndex].ServicePrincipalObjectID = sp.ID
+	tc.contextLock.Unlock()
 
-func CleanupAppRegistrations(ctx context.Context, graphClient *graphutil.Client, appRegistrationIDs []string) error {
-	var errs []error
-	for _, currAppID := range appRegistrationIDs {
-		if err := graphClient.DeleteApplication(ctx, currAppID); err != nil {
-			errs = append(errs, err)
-		}
-	}
-	return errors.Join(errs...)
+	return app, sp, nil
 }
 
 func (tc *perItOrDescribeTestContext) GetARMResourcesClientFactoryOrDie(ctx context.Context) *armresources.ClientFactory {
