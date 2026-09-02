@@ -882,6 +882,13 @@
         "Auto"
       ]
     },
+    "publicNetworkAccess": {
+      "type": "string",
+      "enum": [
+        "Enabled",
+        "Disabled"
+      ]
+    },
     "prometheus": {
       "type": "object",
       "additionalProperties": false,
@@ -3150,6 +3157,9 @@
         "grafanaZoneRedundantMode": {
           "$ref": "#/definitions/zoneRedundantMode"
         },
+        "grafanaPublicNetworkAccess": {
+          "$ref": "#/definitions/publicNetworkAccess"
+        },
         "grafanaRoles": {
           "type": "string",
           "description": "A space-separated list of Service Principals IDs, Types and their desired grafana roles The format is: <principalId>/<principalType>/<role>, e.g. 12345678-1234-1234-1234-123456789012/Group/Admin",
@@ -3263,6 +3273,7 @@
         "grafanaMajorVersion",
         "crossTenantSecurityGroup",
         "grafanaZoneRedundantMode",
+        "grafanaPublicNetworkAccess",
         "svcWorkspaceName",
         "hcpWorkspaceName",
         "amwScaling",
