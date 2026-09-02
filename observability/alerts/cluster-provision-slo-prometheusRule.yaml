@@ -106,3 +106,62 @@ spec:
         summary: "{{ $labels.cluster }}: Cluster provisioning failure rate exceeds 15% for 30 minutes"
         description: "The cluster create (install) failure rate has been above 15% for 30 minutes. This provides early warning of degradation before SLO-based burn rate alerts fire."
         runbook_url: "https://aka.ms/arohcp-runbook-cluster-provision"
+  # ========================================
+  # Cluster Provisioning SLO Alerts — Latency (Stuck Operations)
+  # ========================================
+  # Cluster create operations stuck in non-terminal phases are invisible to
+  # the Errors SLI (which only counts terminal phases) and require investigation.
+  #
+  # Threshold: 1 hour (3600s). Cluster provisioning typically takes ~13
+  # minutes for HCP; 1 hour is ~5x the expected duration, matching the
+  # access-cluster stuck operation threshold.
+  #
+  # Stickiness (max_over_time ... [6h:5m]): while a resource stays wedged,
+  # the raw condition can transiently clear — most commonly when the backend
+  # retries the operation and resets backend_resource_operation_start_time_seconds,
+  # briefly dropping (time() - start_time) below the 7200s threshold. Each clear
+  # auto-resolves the IcM incident and the next re-fire opens a brand-new one.
+  # Holding the condition firing over a 6h look-back collapses a
+  # continuously-stuck resource into a single long-lived incident; genuinely
+  # distinct stuck episodes more than 6h apart still get their own incident.
+  - name: arohcp_cluster_provision_slo_latency_alerts
+    labels:
+      component: slo
+    rules:
+    - alert: userJourneyClusterProvisionStuckOperation
+      expr: |
+        max by (
+          cluster,
+          environment,
+          region,
+          subscription_id,
+          resource_id,
+          resource_type,
+          operation_type,
+          phase
+        ) (
+          max_over_time(
+            (
+              (
+                (time() - backend_resource_operation_start_time_seconds{
+                  resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
+                  operation_type="create"
+                })
+                and
+                backend_resource_operation_phase_info{
+                  resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
+                  operation_type="create",
+                  phase=~"accepted|provisioning"
+                } == 1
+              ) > 3600
+            )[6h:5m]
+          )
+        )
+      for: 15m
+      labels:
+        exclude_internal_subscriptions: "true"
+        severity: "4"
+      annotations:
+        summary: "{{ $labels.cluster }}: Cluster create operation for {{ $labels.resource_id }} stuck in {{ $labels.phase }} for over 1 hour"
+        description: "Cluster create operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 1 hour. Stuck operations are invisible to success/failure SLIs and require investigation."
+        runbook_url: "https://aka.ms/arohcp-runbook-cluster-provision"

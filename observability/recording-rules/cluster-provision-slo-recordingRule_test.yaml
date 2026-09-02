@@ -49,3 +49,51 @@ tests:
     exp_samples:
     - labels: 'errors:backend_cluster_provision:error_rate{cluster="mgmt-1"}'
       value: 0.4
+# ========================================
+# Latency Recording Rule Tests
+# ========================================
+# Test: In-flight cluster create operation — duration computed
+# Operation started at t=0 (start_time_seconds=0), still in "provisioning" phase.
+# At eval_time=10m (600s), duration should be 600.
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/2/cluster/inflight", subscription_id="sub-2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="provisioning", cluster="mgmt-1"}'
+    values: "0+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/2/cluster/inflight", subscription_id="sub-2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="provisioning", cluster="mgmt-1"}'
+    values: "1+0x15"
+  promql_expr_test:
+  - expr: latency:backend_cluster_provision:inflight_duration_seconds
+    eval_time: 10m
+    exp_samples:
+    - labels: 'latency:backend_cluster_provision:inflight_duration_seconds{cluster="mgmt-1", operation_type="create", phase="provisioning", resource_id="/sub/2/cluster/inflight", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", subscription_id="sub-2"}'
+      value: 600
+# Test: Terminal operation — no duration emitted
+# Operation in "succeeded" phase should NOT produce a latency metric.
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/3/cluster/done", subscription_id="sub-3", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1"}'
+    values: "0+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/3/cluster/done", subscription_id="sub-3", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1"}'
+    values: "1+0x15"
+  promql_expr_test:
+  - expr: latency:backend_cluster_provision:inflight_duration_seconds
+    eval_time: 10m
+    exp_samples: []
+# Test: Isolation — nodepool and update operations excluded
+# Only cluster create operations in non-terminal phase should produce duration.
+- interval: 1m
+  input_series:
+  # Nodepool create in provisioning (different resource_type — excluded)
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/4/np/a", subscription_id="sub-4", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="create", phase="provisioning", cluster="mgmt-1"}'
+    values: "0+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/4/np/a", subscription_id="sub-4", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="create", phase="provisioning", cluster="mgmt-1"}'
+    values: "1+0x15"
+  # Cluster update in provisioning (different operation_type — excluded)
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/4/cluster/b", subscription_id="sub-4", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="provisioning", cluster="mgmt-1"}'
+    values: "0+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/4/cluster/b", subscription_id="sub-4", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="provisioning", cluster="mgmt-1"}'
+    values: "1+0x15"
+  promql_expr_test:
+  - expr: latency:backend_cluster_provision:inflight_duration_seconds
+    eval_time: 10m
+    exp_samples: []
