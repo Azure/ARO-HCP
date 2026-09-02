@@ -225,6 +225,43 @@ func roleAssignmentNotFoundError() *azcore.ResponseError {
 	}
 }
 
+// roleAssignmentAlreadyExistsError returns an *azcore.ResponseError that
+// azureclient.IsRoleAssignmentAlreadyExistsErr recognizes as a role assignment that
+// Cluster Service (or a previous create) already created.
+func roleAssignmentAlreadyExistsError() *azcore.ResponseError {
+	return &azcore.ResponseError{
+		ErrorCode:  "RoleAssignmentExists",
+		StatusCode: http.StatusConflict,
+		RawResponse: &http.Response{
+			Status:     "409 Conflict",
+			StatusCode: http.StatusConflict,
+			Body:       io.NopCloser(strings.NewReader(`{"error":{"code":"RoleAssignmentExists","message":"The role assignment already exists."}}`)),
+			Request: &http.Request{
+				Method: http.MethodPut,
+				URL:    &url.URL{Scheme: "https", Host: "management.azure.com", Path: "/ra"},
+			},
+		},
+	}
+}
+
+// roleAssignmentGenericError returns an *azcore.ResponseError that is neither a
+// not-found nor an already-exists error, so a create failing with it must surface.
+func roleAssignmentGenericError() *azcore.ResponseError {
+	return &azcore.ResponseError{
+		ErrorCode:  "AuthorizationFailed",
+		StatusCode: http.StatusForbidden,
+		RawResponse: &http.Response{
+			Status:     "403 Forbidden",
+			StatusCode: http.StatusForbidden,
+			Body:       io.NopCloser(strings.NewReader(`{"error":{"code":"AuthorizationFailed","message":"The client does not have authorization."}}`)),
+			Request: &http.Request{
+				Method: http.MethodPut,
+				URL:    &url.URL{Scheme: "https", Host: "management.azure.com", Path: "/ra"},
+			},
+		},
+	}
+}
+
 func newTestSyncer(mockResourcesDB corecosmosstorage.ResourcesDBClient, fpaClientBuilder azureclient.FirstPartyApplicationClientBuilder) *roleAssignmentsSyncer {
 	return &roleAssignmentsSyncer{
 		resourcesDBClient:             mockResourcesDB,
@@ -244,7 +281,9 @@ var testHCPClusterKey = controllerutils.HCPClusterKey{
 
 // TestRoleAssignmentsSyncerSyncOnceReconcile exercises the reconcile path end to end
 // through the mock Cosmos DB, listers, and Azure client. Each case queries Azure once
-// per expected role assignment (one control-plane + one data-plane).
+// per expected role assignment (one control-plane + one data-plane) and, when Azure
+// reports an assignment missing, creates it (mirroring Cluster Service's parameters)
+// before promoting it to confirmed.
 func TestRoleAssignmentsSyncerSyncOnceReconcile(t *testing.T) {
 	t.Parallel()
 
@@ -254,31 +293,49 @@ func TestRoleAssignmentsSyncerSyncOnceReconcile(t *testing.T) {
 		name            string
 		initial         coreapi.AzureMultiReference
 		getByIDErr      error
+		createErr       error
+		expectCreate    bool
 		expectPending   []*azcorearm.ResourceID
 		expectConfirmed []*azcorearm.ResourceID
 	}{
 		{
 			// Empty start: the expected role assignments are recorded as pending before the
-			// Get, and (Azure reports them missing) stay pending afterwards.
-			name:            "empty state records pending then stays pending when not yet created",
+			// Azure write and, since Azure reports them missing, created and confirmed.
+			name:            "empty state records pending then creates and confirms",
 			initial:         coreapi.AzureMultiReference{},
 			getByIDErr:      roleAssignmentNotFoundError(),
-			expectPending:   expectedIDs,
-			expectConfirmed: nil,
+			createErr:       nil,
+			expectCreate:    true,
+			expectPending:   nil,
+			expectConfirmed: expectedIDs,
 		},
 		{
-			// Already pending and Azure reports them missing: they remain pending (NOOP).
-			name:            "pending stays pending when role assignments not found",
+			// Already pending and Azure reports them missing: they are created and confirmed.
+			name:            "pending not found is created and confirmed",
 			initial:         coreapi.AzureMultiReference{PendingAzureResources: expectedIDs},
 			getByIDErr:      roleAssignmentNotFoundError(),
-			expectPending:   expectedIDs,
-			expectConfirmed: nil,
+			createErr:       nil,
+			expectCreate:    true,
+			expectPending:   nil,
+			expectConfirmed: expectedIDs,
 		},
 		{
-			// Already pending and Azure reports them present: they are promoted to confirmed.
+			// Create races with Cluster Service (already exists): treated as success.
+			name:            "create already exists is treated as confirmed",
+			initial:         coreapi.AzureMultiReference{PendingAzureResources: expectedIDs},
+			getByIDErr:      roleAssignmentNotFoundError(),
+			createErr:       roleAssignmentAlreadyExistsError(),
+			expectCreate:    true,
+			expectPending:   nil,
+			expectConfirmed: expectedIDs,
+		},
+		{
+			// Already pending and Azure reports them present: promoted to confirmed, no create.
 			name:            "pending is promoted to confirmed when role assignments exist",
 			initial:         coreapi.AzureMultiReference{PendingAzureResources: expectedIDs},
 			getByIDErr:      nil,
+			createErr:       nil,
+			expectCreate:    false,
 			expectPending:   nil,
 			expectConfirmed: expectedIDs,
 		},
@@ -302,6 +359,16 @@ func TestRoleAssignmentsSyncerSyncOnceReconcile(t *testing.T) {
 				GetByID(gomock.Any(), gomock.Any(), nil).
 				Return(armauthorization.RoleAssignmentsClientGetByIDResponse{}, tc.getByIDErr).
 				Times(len(expectedIDs))
+			if tc.expectCreate {
+				mockRAClient.EXPECT().
+					Create(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), nil).
+					DoAndReturn(assertCreateParams(t, expectedIDs, tc.createErr)).
+					Times(len(expectedIDs))
+			} else {
+				mockRAClient.EXPECT().
+					Create(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Times(0)
+			}
 			fpaClientBuilder := azureclient.NewMockFirstPartyApplicationClientBuilder(ctrl)
 			fpaClientBuilder.EXPECT().
 				RoleAssignmentsClient(testTenantID, testSubscriptionID).
@@ -320,6 +387,52 @@ func TestRoleAssignmentsSyncerSyncOnceReconcile(t *testing.T) {
 			assertResourceIDSetEqual(t, tc.expectConfirmed, got.AzureResources, "AzureResources")
 		})
 	}
+}
+
+// TestRoleAssignmentsSyncerSyncOnceCreateErrorStaysPending verifies that when creating a
+// role assignment fails with a non-"already exists" error, SyncOnce returns the error and
+// leaves the assignment pending (never confirmed).
+func TestRoleAssignmentsSyncerSyncOnceCreateErrorStaysPending(t *testing.T) {
+	t.Parallel()
+
+	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+	expectedIDs := testExpectedRoleAssignmentIDs(t)
+
+	cluster := newTestCluster(false)
+	serviceProviderCluster := newTestServiceProviderCluster(t, true, true, true, coreapi.AzureMultiReference{
+		PendingAzureResources: expectedIDs,
+	})
+
+	mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, serviceProviderCluster})
+	require.NoError(t, err)
+
+	ctrl := gomock.NewController(t)
+	mockRAClient := azureclient.NewMockRoleAssignmentsClient(ctrl)
+	// Azure reports every assignment missing; the create fails. SyncOnce returns on the
+	// first create error, so the exact number of Get/Create calls is not asserted.
+	mockRAClient.EXPECT().
+		GetByID(gomock.Any(), gomock.Any(), nil).
+		Return(armauthorization.RoleAssignmentsClientGetByIDResponse{}, roleAssignmentNotFoundError()).
+		MinTimes(1)
+	mockRAClient.EXPECT().
+		Create(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), nil).
+		Return(armauthorization.RoleAssignmentsClientCreateResponse{}, roleAssignmentGenericError()).
+		MinTimes(1)
+	fpaClientBuilder := azureclient.NewMockFirstPartyApplicationClientBuilder(ctrl)
+	fpaClientBuilder.EXPECT().
+		RoleAssignmentsClient(testTenantID, testSubscriptionID).
+		Return(mockRAClient, nil).
+		Times(1)
+
+	syncer := newTestSyncer(mockResourcesDB, fpaClientBuilder)
+
+	require.Error(t, syncer.SyncOnce(ctx, testHCPClusterKey))
+
+	updated, err := mockResourcesDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
+	require.NoError(t, err)
+	got := updated.Status.AzureResources.RoleAssignments
+	assertResourceIDSetEqual(t, expectedIDs, got.PendingAzureResources, "PendingAzureResources")
+	assertResourceIDSetEqual(t, nil, got.AzureResources, "AzureResources")
 }
 
 // TestRoleAssignmentsSyncerSyncOnceSteadyStateSkipsAzure verifies the NeedsWork
@@ -524,4 +637,37 @@ func assertResourceIDSetEqual(t *testing.T, expected, actual []*azcorearm.Resour
 		return set
 	}
 	assert.Equal(t, toSet(expected), toSet(actual), "%s set mismatch", field)
+}
+
+// assertCreateParams returns a gomock DoAndReturn for RoleAssignmentsClient.Create that
+// verifies the create is issued at the managed resource group scope with the Cluster
+// Service-mirrored parameters (PrincipalID, RoleDefinitionID, PrincipalType=ServicePrincipal)
+// and the deterministic name / resource ID of one of the expected role assignments, then
+// returns createErr.
+func assertCreateParams(t *testing.T, expectedIDs []*azcorearm.ResourceID, createErr error) func(context.Context, string, string, armauthorization.RoleAssignmentCreateParameters, *armauthorization.RoleAssignmentsClientCreateOptions) (armauthorization.RoleAssignmentsClientCreateResponse, error) {
+	t.Helper()
+	return func(_ context.Context, scope, name string, params armauthorization.RoleAssignmentCreateParameters, _ *armauthorization.RoleAssignmentsClientCreateOptions) (armauthorization.RoleAssignmentsClientCreateResponse, error) {
+		assert.Equal(t, testManagedResourceGroupScope(t), scope, "create scope must be the managed resource group scope")
+		require.NotNil(t, params.Properties, "create parameters must have Properties")
+		require.NotNil(t, params.Properties.PrincipalID, "create must set PrincipalID")
+		require.NotNil(t, params.Properties.RoleDefinitionID, "create must set RoleDefinitionID")
+		require.NotNil(t, params.Properties.PrincipalType, "create must set PrincipalType")
+		assert.Equal(t, armauthorization.PrincipalTypeServicePrincipal, *params.Properties.PrincipalType, "create must use the ServicePrincipal principal type")
+
+		// The name and full ID must match the deterministic scheme for these params, and the
+		// resulting ID must be one of the expected role assignments.
+		wantID := roleassignment.ManagedResourceGroupScopedRoleAssignmentResourceID(scope, *params.Properties.PrincipalID, *params.Properties.RoleDefinitionID)
+		parsed := metadataapi.Must(azcorearm.ParseResourceID(wantID))
+		assert.Equal(t, parsed.Name, name, "create name must be the deterministic role assignment name")
+		found := false
+		for _, id := range expectedIDs {
+			if strings.EqualFold(id.String(), parsed.String()) {
+				found = true
+				break
+			}
+		}
+		assert.True(t, found, "created role assignment %q must be one of the expected assignments", parsed.String())
+
+		return armauthorization.RoleAssignmentsClientCreateResponse{}, createErr
+	}
 }
