@@ -394,7 +394,7 @@ resource rpEtcdAvailability 'Microsoft.AlertsManagement/prometheusRuleGroups@202
           short_window: '5m'
         }
         annotations: {
-          correlationId: 'userJourneyEtcdBackendCommitDurationHigh1h5m/{{ $labels.cluster }}/{{ $labels.resource_id }}/{{ $labels.instance }}'
+          correlationId: 'userJourneyEtcdBackendCommitDurationHigh/{{ $labels.resource_id }}/{{ $labels.instance }}'
           description: '{{ $labels.resource_id }} etcd instance {{ $labels.instance }} has 99th percentile backend commit duration of {{ $value }}s (threshold: 100ms). Slow disk performance may impact write performance. Fast burn (1h/5m).'
           info: '{{ $labels.resource_id }} etcd instance {{ $labels.instance }} has 99th percentile backend commit duration of {{ $value }}s (threshold: 100ms). Slow disk performance may impact write performance. Fast burn (1h/5m).'
           runbook_url: 'https://aka.ms/arohcp-runbook-etcd'
@@ -424,7 +424,7 @@ resource rpEtcdAvailability 'Microsoft.AlertsManagement/prometheusRuleGroups@202
           short_window: '30m'
         }
         annotations: {
-          correlationId: 'userJourneyEtcdBackendCommitDurationHigh6h30m/{{ $labels.cluster }}/{{ $labels.resource_id }}/{{ $labels.instance }}'
+          correlationId: 'userJourneyEtcdBackendCommitDurationHigh/{{ $labels.resource_id }}/{{ $labels.instance }}'
           description: '{{ $labels.resource_id }} etcd instance {{ $labels.instance }} has 99th percentile backend commit duration of {{ $value }}s (threshold: 100ms). Slow disk performance may impact write performance. Medium burn (6h/30m).'
           info: '{{ $labels.resource_id }} etcd instance {{ $labels.instance }} has 99th percentile backend commit duration of {{ $value }}s (threshold: 100ms). Slow disk performance may impact write performance. Medium burn (6h/30m).'
           runbook_url: 'https://aka.ms/arohcp-runbook-etcd'
@@ -454,7 +454,7 @@ resource rpEtcdAvailability 'Microsoft.AlertsManagement/prometheusRuleGroups@202
           short_window: '6h'
         }
         annotations: {
-          correlationId: 'userJourneyEtcdBackendCommitDurationHigh3d6h/{{ $labels.cluster }}/{{ $labels.resource_id }}/{{ $labels.instance }}'
+          correlationId: 'userJourneyEtcdBackendCommitDurationHigh/{{ $labels.resource_id }}/{{ $labels.instance }}'
           description: '{{ $labels.resource_id }} etcd instance {{ $labels.instance }} has 99th percentile backend commit duration of {{ $value }}s (threshold: 100ms). Slow disk performance may impact write performance. Slow burn (3d/6h).'
           info: '{{ $labels.resource_id }} etcd instance {{ $labels.instance }} has 99th percentile backend commit duration of {{ $value }}s (threshold: 100ms). Slow disk performance may impact write performance. Slow burn (3d/6h).'
           runbook_url: 'https://aka.ms/arohcp-runbook-etcd'
@@ -484,7 +484,7 @@ resource rpEtcdAvailability 'Microsoft.AlertsManagement/prometheusRuleGroups@202
           short_window: '5m'
         }
         annotations: {
-          correlationId: 'userJourneyEtcdDatabaseHighFragmentation1h5m/{{ $labels.cluster }}/{{ $labels.resource_id }}/{{ $labels.instance }}'
+          correlationId: 'userJourneyEtcdDatabaseHighFragmentation/{{ $labels.resource_id }}/{{ $labels.instance }}'
           description: '{{ $labels.resource_id }} etcd instance {{ $labels.instance }} database in-use ratio is {{ $value | humanizePercentage }} (threshold: 25%). Database defragmentation may be needed to reclaim space. Fast burn (1h/5m).'
           info: '{{ $labels.resource_id }} etcd instance {{ $labels.instance }} database in-use ratio is {{ $value | humanizePercentage }} (threshold: 25%). Database defragmentation may be needed to reclaim space. Fast burn (1h/5m).'
           runbook_url: 'https://aka.ms/arohcp-runbook-etcd'
@@ -514,7 +514,7 @@ resource rpEtcdAvailability 'Microsoft.AlertsManagement/prometheusRuleGroups@202
           short_window: '30m'
         }
         annotations: {
-          correlationId: 'userJourneyEtcdDatabaseHighFragmentation6h30m/{{ $labels.cluster }}/{{ $labels.resource_id }}/{{ $labels.instance }}'
+          correlationId: 'userJourneyEtcdDatabaseHighFragmentation/{{ $labels.resource_id }}/{{ $labels.instance }}'
           description: '{{ $labels.resource_id }} etcd instance {{ $labels.instance }} database in-use ratio is {{ $value | humanizePercentage }} (threshold: 25%). Database defragmentation may be needed to reclaim space. Medium burn (6h/30m).'
           info: '{{ $labels.resource_id }} etcd instance {{ $labels.instance }} database in-use ratio is {{ $value | humanizePercentage }} (threshold: 25%). Database defragmentation may be needed to reclaim space. Medium burn (6h/30m).'
           runbook_url: 'https://aka.ms/arohcp-runbook-etcd'
@@ -544,7 +544,7 @@ resource rpEtcdAvailability 'Microsoft.AlertsManagement/prometheusRuleGroups@202
           short_window: '6h'
         }
         annotations: {
-          correlationId: 'userJourneyEtcdDatabaseHighFragmentation3d6h/{{ $labels.cluster }}/{{ $labels.resource_id }}/{{ $labels.instance }}'
+          correlationId: 'userJourneyEtcdDatabaseHighFragmentation/{{ $labels.resource_id }}/{{ $labels.instance }}'
           description: '{{ $labels.resource_id }} etcd instance {{ $labels.instance }} database in-use ratio is {{ $value | humanizePercentage }} (threshold: 25%). Database defragmentation may be needed to reclaim space. Slow burn (3d/6h).'
           info: '{{ $labels.resource_id }} etcd instance {{ $labels.instance }} database in-use ratio is {{ $value | humanizePercentage }} (threshold: 25%). Database defragmentation may be needed to reclaim space. Slow burn (3d/6h).'
           runbook_url: 'https://aka.ms/arohcp-runbook-etcd'
@@ -574,7 +574,7 @@ resource rpEtcdAvailability 'Microsoft.AlertsManagement/prometheusRuleGroups@202
           short_window: '5m'
         }
         annotations: {
-          correlationId: 'userJourneyEtcdDatabaseSizeExceeded1h5m/{{ $labels.cluster }}/{{ $labels.resource_id }}/{{ $labels.instance }}'
+          correlationId: 'userJourneyEtcdDatabaseSizeExceeded/{{ $labels.resource_id }}/{{ $labels.instance }}'
           description: '{{ $labels.resource_id }} etcd instance {{ $labels.instance }} database size is {{ $value | humanize }}B (threshold: 8GB). Database may need compaction or quota increase. Fast burn (1h/5m).'
           info: '{{ $labels.resource_id }} etcd instance {{ $labels.instance }} database size is {{ $value | humanize }}B (threshold: 8GB). Database may need compaction or quota increase. Fast burn (1h/5m).'
           runbook_url: 'https://aka.ms/arohcp-runbook-etcd'
@@ -604,7 +604,7 @@ resource rpEtcdAvailability 'Microsoft.AlertsManagement/prometheusRuleGroups@202
           short_window: '30m'
         }
         annotations: {
-          correlationId: 'userJourneyEtcdDatabaseSizeExceeded6h30m/{{ $labels.cluster }}/{{ $labels.resource_id }}/{{ $labels.instance }}'
+          correlationId: 'userJourneyEtcdDatabaseSizeExceeded/{{ $labels.resource_id }}/{{ $labels.instance }}'
           description: '{{ $labels.resource_id }} etcd instance {{ $labels.instance }} database size is {{ $value | humanize }}B (threshold: 8GB). Database may need compaction or quota increase. Medium burn (6h/30m).'
           info: '{{ $labels.resource_id }} etcd instance {{ $labels.instance }} database size is {{ $value | humanize }}B (threshold: 8GB). Database may need compaction or quota increase. Medium burn (6h/30m).'
           runbook_url: 'https://aka.ms/arohcp-runbook-etcd'
@@ -634,7 +634,7 @@ resource rpEtcdAvailability 'Microsoft.AlertsManagement/prometheusRuleGroups@202
           short_window: '6h'
         }
         annotations: {
-          correlationId: 'userJourneyEtcdDatabaseSizeExceeded3d6h/{{ $labels.cluster }}/{{ $labels.resource_id }}/{{ $labels.instance }}'
+          correlationId: 'userJourneyEtcdDatabaseSizeExceeded/{{ $labels.resource_id }}/{{ $labels.instance }}'
           description: '{{ $labels.resource_id }} etcd instance {{ $labels.instance }} database size is {{ $value | humanize }}B (threshold: 8GB). Database may need compaction or quota increase. Slow burn (3d/6h).'
           info: '{{ $labels.resource_id }} etcd instance {{ $labels.instance }} database size is {{ $value | humanize }}B (threshold: 8GB). Database may need compaction or quota increase. Slow burn (3d/6h).'
           runbook_url: 'https://aka.ms/arohcp-runbook-etcd'
@@ -664,7 +664,7 @@ resource rpEtcdAvailability 'Microsoft.AlertsManagement/prometheusRuleGroups@202
           short_window: '5m'
         }
         annotations: {
-          correlationId: 'userJourneyEtcdFrequentLeaderChanges1h5m/{{ $labels.cluster }}/{{ $labels.resource_id }}/{{ $labels.instance }}'
+          correlationId: 'userJourneyEtcdFrequentLeaderChanges/{{ $labels.resource_id }}/{{ $labels.instance }}'
           description: '{{ $labels.resource_id }} etcd instance {{ $labels.instance }} has seen {{ $value }} leader changes in the last 15 minutes (threshold: 4). This may indicate network issues or cluster instability. Fast burn (1h/5m).'
           info: '{{ $labels.resource_id }} etcd instance {{ $labels.instance }} has seen {{ $value }} leader changes in the last 15 minutes (threshold: 4). This may indicate network issues or cluster instability. Fast burn (1h/5m).'
           runbook_url: 'https://aka.ms/arohcp-runbook-etcd'
@@ -694,7 +694,7 @@ resource rpEtcdAvailability 'Microsoft.AlertsManagement/prometheusRuleGroups@202
           short_window: '30m'
         }
         annotations: {
-          correlationId: 'userJourneyEtcdFrequentLeaderChanges6h30m/{{ $labels.cluster }}/{{ $labels.resource_id }}/{{ $labels.instance }}'
+          correlationId: 'userJourneyEtcdFrequentLeaderChanges/{{ $labels.resource_id }}/{{ $labels.instance }}'
           description: '{{ $labels.resource_id }} etcd instance {{ $labels.instance }} has seen {{ $value }} leader changes in the last 15 minutes (threshold: 4). This may indicate network issues or cluster instability. Medium burn (6h/30m).'
           info: '{{ $labels.resource_id }} etcd instance {{ $labels.instance }} has seen {{ $value }} leader changes in the last 15 minutes (threshold: 4). This may indicate network issues or cluster instability. Medium burn (6h/30m).'
           runbook_url: 'https://aka.ms/arohcp-runbook-etcd'
@@ -724,7 +724,7 @@ resource rpEtcdAvailability 'Microsoft.AlertsManagement/prometheusRuleGroups@202
           short_window: '6h'
         }
         annotations: {
-          correlationId: 'userJourneyEtcdFrequentLeaderChanges3d6h/{{ $labels.cluster }}/{{ $labels.resource_id }}/{{ $labels.instance }}'
+          correlationId: 'userJourneyEtcdFrequentLeaderChanges/{{ $labels.resource_id }}/{{ $labels.instance }}'
           description: '{{ $labels.resource_id }} etcd instance {{ $labels.instance }} has seen {{ $value }} leader changes in the last 15 minutes (threshold: 4). This may indicate network issues or cluster instability. Slow burn (3d/6h).'
           info: '{{ $labels.resource_id }} etcd instance {{ $labels.instance }} has seen {{ $value }} leader changes in the last 15 minutes (threshold: 4). This may indicate network issues or cluster instability. Slow burn (3d/6h).'
           runbook_url: 'https://aka.ms/arohcp-runbook-etcd'
@@ -754,7 +754,7 @@ resource rpEtcdAvailability 'Microsoft.AlertsManagement/prometheusRuleGroups@202
           short_window: '5m'
         }
         annotations: {
-          correlationId: 'userJourneyEtcdPeerRoundTripTimeHigh1h5m/{{ $labels.cluster }}/{{ $labels.resource_id }}/{{ $labels.instance }}'
+          correlationId: 'userJourneyEtcdPeerRoundTripTimeHigh/{{ $labels.resource_id }}/{{ $labels.instance }}'
           description: '{{ $labels.resource_id }} etcd instance {{ $labels.instance }} has 99th percentile peer round-trip time of {{ $value }}s (threshold: 100ms). Network latency between peers may be affecting cluster performance. Fast burn (1h/5m).'
           info: '{{ $labels.resource_id }} etcd instance {{ $labels.instance }} has 99th percentile peer round-trip time of {{ $value }}s (threshold: 100ms). Network latency between peers may be affecting cluster performance. Fast burn (1h/5m).'
           runbook_url: 'https://aka.ms/arohcp-runbook-etcd'
@@ -784,7 +784,7 @@ resource rpEtcdAvailability 'Microsoft.AlertsManagement/prometheusRuleGroups@202
           short_window: '30m'
         }
         annotations: {
-          correlationId: 'userJourneyEtcdPeerRoundTripTimeHigh6h30m/{{ $labels.cluster }}/{{ $labels.resource_id }}/{{ $labels.instance }}'
+          correlationId: 'userJourneyEtcdPeerRoundTripTimeHigh/{{ $labels.resource_id }}/{{ $labels.instance }}'
           description: '{{ $labels.resource_id }} etcd instance {{ $labels.instance }} has 99th percentile peer round-trip time of {{ $value }}s (threshold: 100ms). Network latency between peers may be affecting cluster performance. Medium burn (6h/30m).'
           info: '{{ $labels.resource_id }} etcd instance {{ $labels.instance }} has 99th percentile peer round-trip time of {{ $value }}s (threshold: 100ms). Network latency between peers may be affecting cluster performance. Medium burn (6h/30m).'
           runbook_url: 'https://aka.ms/arohcp-runbook-etcd'
@@ -814,7 +814,7 @@ resource rpEtcdAvailability 'Microsoft.AlertsManagement/prometheusRuleGroups@202
           short_window: '6h'
         }
         annotations: {
-          correlationId: 'userJourneyEtcdPeerRoundTripTimeHigh3d6h/{{ $labels.cluster }}/{{ $labels.resource_id }}/{{ $labels.instance }}'
+          correlationId: 'userJourneyEtcdPeerRoundTripTimeHigh/{{ $labels.resource_id }}/{{ $labels.instance }}'
           description: '{{ $labels.resource_id }} etcd instance {{ $labels.instance }} has 99th percentile peer round-trip time of {{ $value }}s (threshold: 100ms). Network latency between peers may be affecting cluster performance. Slow burn (3d/6h).'
           info: '{{ $labels.resource_id }} etcd instance {{ $labels.instance }} has 99th percentile peer round-trip time of {{ $value }}s (threshold: 100ms). Network latency between peers may be affecting cluster performance. Slow burn (3d/6h).'
           runbook_url: 'https://aka.ms/arohcp-runbook-etcd'
@@ -844,7 +844,7 @@ resource rpEtcdAvailability 'Microsoft.AlertsManagement/prometheusRuleGroups@202
           short_window: '5m'
         }
         annotations: {
-          correlationId: 'userJourneyEtcdWALFsyncDurationHigh1h5m/{{ $labels.cluster }}/{{ $labels.resource_id }}/{{ $labels.instance }}'
+          correlationId: 'userJourneyEtcdWALFsyncDurationHigh/{{ $labels.resource_id }}/{{ $labels.instance }}'
           description: '{{ $labels.resource_id }} etcd instance {{ $labels.instance }} has 99th percentile WAL fsync duration of {{ $value }}s (threshold: 50ms). Slow disk performance may impact cluster stability. Fast burn (1h/5m).'
           info: '{{ $labels.resource_id }} etcd instance {{ $labels.instance }} has 99th percentile WAL fsync duration of {{ $value }}s (threshold: 50ms). Slow disk performance may impact cluster stability. Fast burn (1h/5m).'
           runbook_url: 'https://aka.ms/arohcp-runbook-etcd'
@@ -874,7 +874,7 @@ resource rpEtcdAvailability 'Microsoft.AlertsManagement/prometheusRuleGroups@202
           short_window: '30m'
         }
         annotations: {
-          correlationId: 'userJourneyEtcdWALFsyncDurationHigh6h30m/{{ $labels.cluster }}/{{ $labels.resource_id }}/{{ $labels.instance }}'
+          correlationId: 'userJourneyEtcdWALFsyncDurationHigh/{{ $labels.resource_id }}/{{ $labels.instance }}'
           description: '{{ $labels.resource_id }} etcd instance {{ $labels.instance }} has 99th percentile WAL fsync duration of {{ $value }}s (threshold: 50ms). Slow disk performance may impact cluster stability. Medium burn (6h/30m).'
           info: '{{ $labels.resource_id }} etcd instance {{ $labels.instance }} has 99th percentile WAL fsync duration of {{ $value }}s (threshold: 50ms). Slow disk performance may impact cluster stability. Medium burn (6h/30m).'
           runbook_url: 'https://aka.ms/arohcp-runbook-etcd'
@@ -904,7 +904,7 @@ resource rpEtcdAvailability 'Microsoft.AlertsManagement/prometheusRuleGroups@202
           short_window: '6h'
         }
         annotations: {
-          correlationId: 'userJourneyEtcdWALFsyncDurationHigh3d6h/{{ $labels.cluster }}/{{ $labels.resource_id }}/{{ $labels.instance }}'
+          correlationId: 'userJourneyEtcdWALFsyncDurationHigh/{{ $labels.resource_id }}/{{ $labels.instance }}'
           description: '{{ $labels.resource_id }} etcd instance {{ $labels.instance }} has 99th percentile WAL fsync duration of {{ $value }}s (threshold: 50ms). Slow disk performance may impact cluster stability. Slow burn (3d/6h).'
           info: '{{ $labels.resource_id }} etcd instance {{ $labels.instance }} has 99th percentile WAL fsync duration of {{ $value }}s (threshold: 50ms). Slow disk performance may impact cluster stability. Slow burn (3d/6h).'
           runbook_url: 'https://aka.ms/arohcp-runbook-etcd'
