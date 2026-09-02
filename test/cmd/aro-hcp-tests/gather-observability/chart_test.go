@@ -834,8 +834,9 @@ func TestLoadQueriesConfigEmbedded(t *testing.T) {
 	// that attached Maestro's queries to the CosmosDB panel and dropped the
 	// Maestro Metrics panel entirely).
 	wantQuery := map[string]string{
-		"CosmosDB Metrics": "RU Consumption vs Provisioned",
-		"Maestro Metrics":  "REST API Request Rate by Status",
+		"CosmosDB Metrics":         "RU Consumption vs Provisioned",
+		"Maestro Metrics":          "REST API Request Rate by Status",
+		"Service Workload Metrics": "Top 20 Container CPU Usage",
 	}
 	for panelTitle, queryTitle := range wantQuery {
 		p, ok := byTitle[panelTitle]
