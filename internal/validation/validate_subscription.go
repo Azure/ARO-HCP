@@ -26,6 +26,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 )
 
+const emptyTenantID = "00000000-0000-0000-0000-000000000000"
+
 func ValidateSubscriptionCreate(ctx context.Context, newObj *coreapi.Subscription) field.ErrorList {
 	op := operation.Operation{Type: operation.Create}
 	return validateSubscription(ctx, op, newObj, nil)
@@ -50,6 +52,14 @@ func validateSubscription(ctx context.Context, op operation.Operation, newObj, o
 	}
 
 	//Properties       *SubscriptionProperties `json:"properties"`
+	if newObj.Properties != nil && newObj.Properties.TenantId != nil {
+		tenantIDPath := field.NewPath("properties").Child("tenantId")
+		errs = append(errs, validate.RequiredValue(ctx, op, tenantIDPath, newObj.Properties.TenantId, nil)...)
+		if *newObj.Properties.TenantId == emptyTenantID {
+			errs = append(errs, field.Invalid(tenantIDPath, *newObj.Properties.TenantId, "must not be the all-zero tenant ID"))
+		}
+	}
+
 	//LastUpdated int `json:"-"`
 
 	return errs
