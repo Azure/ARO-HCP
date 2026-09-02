@@ -42,3 +42,14 @@ func IsRoleAssignmentNotFoundErr(err error) bool {
 	var azErr *azcore.ResponseError
 	return errors.As(err, &azErr) && azErr.ErrorCode == "RoleAssignmentNotFound"
 }
+
+// IsRoleAssignmentAlreadyExistsErr is used to determine if a role assignment create failed
+// because an equivalent role assignment (same principal + role definition at the same scope)
+// already exists. Azure returns the `RoleAssignmentExists` error code in that case. Because
+// the managed-resource-group-scoped role assignment names are deterministic and Cluster
+// Service creates the same assignments in parallel, a create racing with Cluster Service (or
+// a retried create) is expected and should be treated as success.
+func IsRoleAssignmentAlreadyExistsErr(err error) bool {
+	var azErr *azcore.ResponseError
+	return errors.As(err, &azErr) && azErr.ErrorCode == "RoleAssignmentExists"
+}

@@ -413,9 +413,10 @@ func (c *operationClusterCreate) servingCABundleOperationStatus(ctx context.Cont
 }
 
 // roleAssignmentsOperationStatus blocks cluster creation until the managed
-// resource group scoped role assignments that Cluster Service creates for the
-// cluster's control-plane and data-plane operator managed identities have all been
-// observed as present. The ObserveRoleAssignments controller reflects them onto
+// resource group scoped role assignments for the cluster's control-plane and
+// data-plane operator managed identities have all been confirmed present. The
+// IdentityRoleAssignments controller creates them (Cluster Service creates the same
+// assignments in parallel) and reflects them onto
 // ServiceProviderCluster.Status.AzureResources.RoleAssignments; creation is
 // considered complete for this source once at least one role assignment is confirmed
 // and none remain pending.

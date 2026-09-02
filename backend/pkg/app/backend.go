@@ -1077,7 +1077,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		b.options.SMIClientBuilder,
 	)
 
-	observeRoleAssignmentsController := clusterroleassignments.NewRoleAssignmentsController(
+	identityRoleAssignmentsController := clusterroleassignments.NewRoleAssignmentsController(
 		b.options.ResourcesDBClient,
 		serviceProviderClusterLister,
 		subscriptionLister,
@@ -1205,7 +1205,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go backupScheduleController.Run(ctx, 20)
 				go fetchMSIIdentitiesInfoController.Run(ctx, 20)
 				go fetchDataPlaneOperatorsManagedIdentitiesInfoController.Run(ctx, 20)
-				go observeRoleAssignmentsController.Run(ctx, 20)
+				go identityRoleAssignmentsController.Run(ctx, 20)
 				go keyRotationBackupController.Run(ctx, 20)
 			},
 			OnStoppedLeading: func() {
