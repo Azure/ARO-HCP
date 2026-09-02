@@ -30,6 +30,7 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/component-base/metrics/legacyregistry"
 
+	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller"
 	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller/nodehealth/detectors"
 )
 
@@ -155,7 +156,7 @@ func seedSuccess(t *testing.T, c *Controller, host, name string, ts time.Time) {
 	pod.Spec.Containers = []corev1.Container{{
 		Name: "nic",
 		Resources: corev1.ResourceRequirements{
-			Limits: corev1.ResourceList{"aro.openshift.io/swift-nic": resource.MustParse("1")},
+			Limits: corev1.ResourceList{controller.SwiftNICResourceName: resource.MustParse("1")},
 		},
 	}}
 	if err := c.podIndexer.Add(pod); err != nil {
