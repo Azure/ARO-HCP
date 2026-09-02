@@ -369,8 +369,8 @@ Namespace: {{ $labels.namespace }}
   }
 }
 
-resource rpEtcdAvailability 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
-  name: 'rp-etcd-availability'
+resource hcpEtcdAvailability 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'hcp-etcd-availability'
   location: location
   properties: {
     interval: 'PT1M'
