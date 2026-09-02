@@ -32,3 +32,6 @@ amwScaling:
   pollInterval: "{{ .monitoring.amwScaling.pollInterval }}"
   svcAzureMonitorWorkspaceId: "__svcAzureMonitorWorkspaceId__"
   hcpAzureMonitorWorkspaceId: "__hcpAzureMonitorWorkspaceId__"
+workerNodePool:
+  profile: '{{ .fleet.workerNodePool.profile }}'
+  zones: '{{ .fleet.workerNodePool.zones }}'
