@@ -171,6 +171,27 @@ func resourceGroupPresentResponseUnclaimed() armresources.ResourceGroupsClientGe
 	}
 }
 
+// resourceGroupCreatedResponseWithState returns a CreateOrUpdate response describing a
+// managed resource group owned by the given ManagedBy and in the given provisioning
+// state.
+func resourceGroupCreatedResponseWithState(managedBy, provisioningState string) armresources.ResourceGroupsClientCreateOrUpdateResponse {
+	return armresources.ResourceGroupsClientCreateOrUpdateResponse{
+		ResourceGroup: armresources.ResourceGroup{
+			Name:      ptr.To(testManagedRGName),
+			ManagedBy: ptr.To(managedBy),
+			Properties: &armresources.ResourceGroupProperties{
+				ProvisioningState: ptr.To(provisioningState),
+			},
+		},
+	}
+}
+
+// resourceGroupCreatedResponse returns a successful CreateOrUpdate response for a
+// managed resource group owned by the given ManagedBy (ProvisioningState=Succeeded).
+func resourceGroupCreatedResponse(managedBy string) armresources.ResourceGroupsClientCreateOrUpdateResponse {
+	return resourceGroupCreatedResponseWithState(managedBy, "Succeeded")
+}
+
 // TestManagedResourceGroupSyncerSyncOnce exercises the switch-based reconcile and
 // deletion paths end to end through the mock Cosmos DB, listers, and Azure client.
 func TestManagedResourceGroupSyncerSyncOnce(t *testing.T) {
@@ -193,26 +214,78 @@ func TestManagedResourceGroupSyncerSyncOnce(t *testing.T) {
 	sameOwnerDifferentCasingID := strings.Replace(ownerClusterID, "Microsoft.RedHatOpenShift", "Microsoft.RedHatOpenshift", 1)
 
 	testCases := []struct {
-		name              string
-		deleting          bool
-		initialReference  coreapi.AzureReference
-		getResponse       armresources.ResourceGroupsClientGetResponse
-		getErr            error
-		expectErr         bool
-		expectErrContains string
-		expectAzure       *azcorearm.ResourceID
-		expectPending     *azcorearm.ResourceID
+		name                 string
+		deleting             bool
+		initialReference     coreapi.AzureReference
+		getResponse          armresources.ResourceGroupsClientGetResponse
+		getErr               error
+		expectCreateOrUpdate bool
+		createResponse       armresources.ResourceGroupsClientCreateOrUpdateResponse
+		createErr            error
+		expectErr            bool
+		expectErrContains    string
+		expectAzure          *azcorearm.ResourceID
+		expectPending        *azcorearm.ResourceID
 	}{
 		{
-			// Set-pending-before-Get: the pending marker persisted before the Get stays
-			// in place when the resource group does not exist yet, and no actual is set.
-			name:             "not deleting and resource group missing keeps pending and no actual",
-			deleting:         false,
-			initialReference: coreapi.AzureReference{},
-			getResponse:      armresources.ResourceGroupsClientGetResponse{},
-			getErr:           resourceGroupNotFoundError(),
-			expectAzure:      nil,
-			expectPending:    mrgID,
+			// Not found: the controller now CREATES the resource group (claiming
+			// ownership via ManagedBy) and, on success, records it as the confirmed
+			// AzureResource while clearing the pending marker set before the Get.
+			name:                 "not deleting and resource group missing creates it and records confirmed",
+			deleting:             false,
+			initialReference:     coreapi.AzureReference{},
+			getResponse:          armresources.ResourceGroupsClientGetResponse{},
+			getErr:               resourceGroupNotFoundError(),
+			expectCreateOrUpdate: true,
+			createResponse:       resourceGroupCreatedResponse(ownerClusterID),
+			expectAzure:          mrgID,
+			expectPending:        nil,
+		},
+		{
+			// Create failure: the pending marker recorded before the Get stays in place
+			// so a later pass retries, and no actual is set.
+			name:                 "not deleting and resource group missing and create fails keeps pending",
+			deleting:             false,
+			initialReference:     coreapi.AzureReference{},
+			getResponse:          armresources.ResourceGroupsClientGetResponse{},
+			getErr:               resourceGroupNotFoundError(),
+			expectCreateOrUpdate: true,
+			createErr:            errors.New("boom"),
+			expectErr:            true,
+			expectErrContains:    "failed to create managed resource group",
+			expectAzure:          nil,
+			expectPending:        mrgID,
+		},
+		{
+			// Create returned a non-Succeeded provisioning state: treated as not settled,
+			// so it errors (retry later) and does not record the resource group.
+			name:                 "not deleting and resource group missing and create not succeeded keeps pending",
+			deleting:             false,
+			initialReference:     coreapi.AzureReference{},
+			getResponse:          armresources.ResourceGroupsClientGetResponse{},
+			getErr:               resourceGroupNotFoundError(),
+			expectCreateOrUpdate: true,
+			createResponse:       resourceGroupCreatedResponseWithState(ownerClusterID, "Creating"),
+			expectErr:            true,
+			expectErrContains:    "provisioning state",
+			expectAzure:          nil,
+			expectPending:        mrgID,
+		},
+		{
+			// Defensive: if the just-created resource group reports a foreign ManagedBy
+			// (e.g. it was created externally in the race window), the ownership guard
+			// errors and records nothing; the pending marker stays in place.
+			name:                 "not deleting and resource group created but owned by another cluster errors",
+			deleting:             false,
+			initialReference:     coreapi.AzureReference{},
+			getResponse:          armresources.ResourceGroupsClientGetResponse{},
+			getErr:               resourceGroupNotFoundError(),
+			expectCreateOrUpdate: true,
+			createResponse:       resourceGroupCreatedResponse(differentOwnerID),
+			expectErr:            true,
+			expectErrContains:    "owned by another cluster",
+			expectAzure:          nil,
+			expectPending:        mrgID,
 		},
 		{
 			name:             "not deleting and resource group present and owned sets actual and clears pending",
@@ -316,6 +389,15 @@ func TestManagedResourceGroupSyncerSyncOnce(t *testing.T) {
 				Get(gomock.Any(), mrgID.Name, nil).
 				Return(tc.getResponse, tc.getErr).
 				Times(1)
+			if tc.expectCreateOrUpdate {
+				mockRGClient.EXPECT().
+					CreateOrUpdate(gomock.Any(), mrgID.Name, gomock.Any(), nil).
+					DoAndReturn(func(_ context.Context, _ string, parameters armresources.ResourceGroup, _ *armresources.ResourceGroupsClientCreateOrUpdateOptions) (armresources.ResourceGroupsClientCreateOrUpdateResponse, error) {
+						assert.Equal(t, ownerClusterID, ptr.Deref(parameters.ManagedBy, ""), "CreateOrUpdate should claim ownership via ManagedBy = this cluster's ID")
+						return tc.createResponse, tc.createErr
+					}).
+					Times(1)
+			}
 			fpaClientBuilder := azureclient.NewMockFirstPartyApplicationClientBuilder(ctrl)
 			fpaClientBuilder.EXPECT().
 				ResourceGroupsClient(testTenantID, testSubscriptionID).
