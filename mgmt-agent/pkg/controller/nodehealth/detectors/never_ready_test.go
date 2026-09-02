@@ -232,19 +232,17 @@ func TestNeverReadyOwnership(t *testing.T) {
 	}
 }
 
-// TestNeverReadyEvaluateNeverFires pins the Ready-path contract directly: the
-// snapshot Evaluate returns carries no dwell evidence, so the detector cannot
-// fire from a path that never saw the Node.
-func TestNeverReadyEvaluateNeverFires(t *testing.T) {
-	snap := neverReady.Evaluate(nil, nil, testNow)
-	if !snap.StuckSince.IsZero() {
-		t.Errorf("StuckSince = %v, want zero from Evaluate", snap.StuckSince)
+// TestNeverReadyIsNodeOnly pins the separation in the type system rather than in
+// a runtime check: this detector reads the Node, so it must be a NodeDetector
+// and must not satisfy PodDetector. If it ever did, Decide's Ready path would
+// evaluate it against a pod population it has nothing to say about.
+func TestNeverReadyIsNodeOnly(t *testing.T) {
+	var d Detector = neverReady
+	if _, ok := d.(NodeDetector); !ok {
+		t.Error("neverReady does not satisfy NodeDetector; it would never run on the NotReady path")
 	}
-	if neverReady.MeetsThreshold(snap, testNow) {
-		t.Error("MeetsThreshold(Evaluate snapshot) = true, want false")
-	}
-	if neverReady.MeetsThreshold(snap, testNow.Add(365*24*time.Hour)) {
-		t.Error("MeetsThreshold(Evaluate snapshot, far future) = true; the dwell must not be measured from a zero time")
+	if _, ok := d.(PodDetector); ok {
+		t.Error("neverReady satisfies PodDetector; it must not be reachable from the Ready path")
 	}
 }
 
@@ -252,7 +250,7 @@ func TestNeverReadyEvaluateNeverFires(t *testing.T) {
 // pod-centric summary is what every existing detector renders into the reason
 // annotation, so it has to be byte-identical when Detail is unset.
 func TestSnapshotDetailOverridesReasonString(t *testing.T) {
-	base := Snapshot{SustainedCount: 2, FailureCount: 5, Window: 10 * time.Minute}
+	base := Snapshot{Pods: &PodEvidence{SustainedCount: 2, FailureCount: 5}, Window: 10 * time.Minute}
 
 	const want = "2 pods stuck past dwell (5 stuck total), no recent success in 10m0s window"
 	if got := base.ReasonString(); got != want {
@@ -260,6 +258,7 @@ func TestSnapshotDetailOverridesReasonString(t *testing.T) {
 	}
 
 	withDetail := base
+	withDetail.Pods = nil
 	withDetail.Detail = "node never reached Ready in 22h0m since creation (KubeletNotReady)"
 	if got := withDetail.ReasonString(); got != withDetail.Detail {
 		t.Errorf("ReasonString() with Detail = %q, want the detail verbatim", got)
@@ -309,11 +308,11 @@ func TestProductionBornBrokenNodeFires(t *testing.T) {
 	if got != DecisionWedged {
 		t.Fatalf("Decide() = %v, want Wedged; the captured node sat NotReady for 22 hours", got)
 	}
-	// This detector reads the node, not pods, so the pod-count fields must stay
-	// zero or logs and telemetry imply pod evidence that was never gathered.
-	if snap.FailureCount != 0 || snap.SustainedCount != 0 {
-		t.Errorf("FailureCount/SustainedCount = %d/%d, want 0/0 for a node-only detector",
-			snap.FailureCount, snap.SustainedCount)
+	// This detector reads the node, not pods, so there is no pod evidence to
+	// report and Pods must stay nil rather than carry zeroes that read as "no
+	// pods were stuck".
+	if snap.Pods != nil {
+		t.Errorf("Pods = %+v, want nil for a node-only detector", snap.Pods)
 	}
 	if snap.DetectorName != "never-ready" {
 		t.Errorf("DetectorName = %q, want never-ready", snap.DetectorName)

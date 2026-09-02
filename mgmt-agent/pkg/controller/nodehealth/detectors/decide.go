@@ -63,11 +63,11 @@ func (d Decision) String() string {
 	}
 }
 
-// Detector is one fault family. Each concrete detector lives in its own file and
-// contributes only its specifics (applicability, signals, thresholds); the
-// evaluation primitives are shared through a common base (see signatureDetector).
-// Decide iterates the registry and never depends on a concrete type, so adding a
-// family is adding a Detector, not editing Decide.
+// Detector is what every fault family has in common: an identity and a scope.
+// It carries no evaluation method, because the two kinds of detector do not read
+// the same evidence and cannot share one. A concrete detector implements this
+// plus exactly one of PodDetector or NodeDetector, which is what puts it on the
+// matching path in Decide.
 type Detector interface {
 	// Name is a stable identifier used in logs, events, metrics, and the
 	// detector annotation.
@@ -82,6 +82,12 @@ type Detector interface {
 	// detector, independent of any node, so callers that only need the window do
 	// not have to evaluate the detector to learn it.
 	Window() time.Duration
+}
+
+// PodDetector reads a node's health from the Pods and Events held for it. It
+// runs only on a Ready node, where a pod population exists to be read.
+type PodDetector interface {
+	Detector
 	// Evaluate reads the detector's signals for the node from the Events and Pods
 	// currently held for it. Both the failure and the success signal come out of
 	// the Pods passed in, so the result depends on nothing but what a LIST
@@ -94,20 +100,29 @@ type Detector interface {
 	MeetsThreshold(snap Snapshot, now time.Time) bool
 }
 
-// nodeDetector is a Detector whose evidence is the Node object itself rather
-// than the Pods and Events on it. Decide evaluates these on the NotReady path,
-// because their whole subject is a node that never became Ready and so has no
-// meaningful pod population to read.
-type nodeDetector interface {
+// NodeDetector reads a node's health from the Node object alone. It runs only on
+// a node that is not Ready, whose subject never started and so has no pod
+// population worth reading.
+//
+// It returns the Decision rather than a snapshot plus a separate threshold
+// predicate. The two are one judgement here, and splitting them would mean
+// handing the Ready path a snapshot it must be trusted not to act on.
+type NodeDetector interface {
 	Detector
-	// EvaluateNode reads the detector's signals from the Node alone. It performs
-	// no I/O and depends on nothing a LIST cannot return, exactly as Evaluate.
-	EvaluateNode(node *corev1.Node, now time.Time) Snapshot
+	// EvaluateNode decides the node's state from the Node alone. It performs no
+	// I/O and depends on nothing a LIST cannot return, exactly as Evaluate.
+	// It returns DecisionWedged with the supporting evidence, or DecisionUnknown.
+	EvaluateNode(node *corev1.Node, now time.Time) (Decision, Snapshot)
 }
 
-// registry is the hard-coded set of detectors. A new fault family is a new
-// Detector added here, reusing the shared primitives, shipped and tested as code.
-var registry = []Detector{swiftVFTeardown, neverReady}
+// podRegistry and nodeRegistry are the hard-coded sets of detectors, split by
+// the evidence they read. A new fault family is added to whichever one matches
+// its evidence, shipped and tested as code. The split is what keeps a detector
+// off the path it has nothing to say on, instead of a runtime check.
+var (
+	podRegistry  = []PodDetector{swiftVFTeardown}
+	nodeRegistry = []NodeDetector{neverReady}
+)
 
 // AnyApplies reports whether any detector owns this node. It reads only the
 // node, so a caller can answer the ownership question before doing the work of
@@ -117,7 +132,12 @@ func AnyApplies(node *corev1.Node) bool {
 	if node == nil {
 		return false
 	}
-	for _, d := range registry {
+	for _, d := range podRegistry {
+		if d.Applies(node) {
+			return true
+		}
+	}
+	for _, d := range nodeRegistry {
 		if d.Applies(node) {
 			return true
 		}
@@ -125,16 +145,11 @@ func AnyApplies(node *corev1.Node) bool {
 	return false
 }
 
-// Snapshot is the read-only evidence a detector evaluated for a node, retained
-// for logging, the reason annotation, and the firing decision. Its fields are
-// exported so the controller and labeler can render them.
-type Snapshot struct {
-	// DetectorName is the name of the detector this snapshot belongs to.
-	DetectorName string
-	// Reason is the detector's human-readable explanation (set when it fires).
-	Reason string
-	// Window is the detector's evaluation window, for the reason string.
-	Window time.Duration
+// PodEvidence is the pod-derived evidence a PodDetector gathered. It is a
+// separate type so that a detector which reads no pods has no pod counts to
+// report: it leaves Snapshot.Pods nil, rather than carrying zeroes that read as
+// "no pods were stuck" when the truth is "pods were never the evidence".
+type PodEvidence struct {
 	// FailureCount is the number of distinct pods on the node currently stuck
 	// without a sandbox (PodReadyToStartContainers=False) that are the subject of
 	// a matching failure Event in the window, regardless of how long each has been
@@ -150,37 +165,50 @@ type Snapshot struct {
 	// inside the window (see SuccessAt). It is read from the same Pods the failure
 	// signal is read from, so it needs no history and survives a restart.
 	RecentSuccess bool
-	// StuckSince is the oldest PodReadyToStartContainers=False lastTransitionTime
-	// among the node's currently-stuck failing pods, a GC-independent dwell signal
-	// read from durable Pod state, reported for observability.
+}
+
+// Snapshot is the read-only evidence a detector evaluated for a node, retained
+// for logging, the reason annotation, and the firing decision. Its fields are
+// exported so the controller and labeler can render them.
+type Snapshot struct {
+	// DetectorName is the name of the detector this snapshot belongs to.
+	DetectorName string
+	// Reason is the detector's human-readable explanation (set when it fires).
+	Reason string
+	// Window is the detector's evaluation window, for the reason string.
+	Window time.Duration
+	// Pods is the pod-derived evidence, set by a PodDetector and nil for a
+	// NodeDetector, whose evidence is the Node object alone.
+	Pods *PodEvidence
+	// StuckSince is the dwell signal: for a PodDetector the oldest
+	// PodReadyToStartContainers=False lastTransitionTime among the node's
+	// currently-stuck failing pods, for a NodeDetector the point the node's own
+	// state started. Both are read from durable state, so neither depends on
+	// Event retention.
 	StuckSince time.Time
-	// MatchedSignature is the detector signature that classified the most of the
-	// pods counted in FailureCount, as its raw pattern. It is triage detail only:
-	// it names which failure mode inside the detector's family the node is
-	// showing, so an operator does not have to go read Events that may already
-	// have been collected. It is never a decision input, and mitigation must key
-	// on DetectorName, not on this: one detector is one fault with one remedy,
-	// and branching on the signature would require knowing detector internals.
+	// MatchedSignature names the failure mode inside the detector's family, as its
+	// raw pattern. It is triage detail only: it saves an operator reading Events
+	// that may already have been collected. It is never a decision input, and
+	// mitigation must key on DetectorName, not on this: one detector is one fault
+	// with one remedy, and branching on the signature would require knowing
+	// detector internals.
 	MatchedSignature string
-	// Detail, when set, replaces the pod-centric summary ReasonString renders. A
-	// detector whose evidence is not pod counts sets this so the reason
-	// annotation describes what it actually observed, instead of reporting zero
-	// pods stuck in a zero-length window. When it is empty, ReasonString renders
-	// the pod-centric summary.
+	// Detail is the reason-annotation summary for a detector whose evidence is
+	// not pod counts. ReasonString renders it in place of the pod-centric summary.
 	Detail string
 }
 
 // ReasonString renders a short human-readable summary for the reason annotation.
 func (s Snapshot) ReasonString() string {
-	if s.Detail != "" {
+	if s.Pods == nil {
 		return s.Detail
 	}
 	success := "no recent success"
-	if s.RecentSuccess {
+	if s.Pods.RecentSuccess {
 		success = "a recent success"
 	}
 	return fmt.Sprintf("%d pods stuck past dwell (%d stuck total), %s in %s window",
-		s.SustainedCount, s.FailureCount, success, s.Window)
+		s.Pods.SustainedCount, s.Pods.FailureCount, success, s.Window)
 }
 
 // Decide is the pure core of the controller: given a node, the Events and Pods
@@ -202,19 +230,16 @@ func Decide(node *corev1.Node, events []*corev1.Event, pods []*corev1.Pod, now t
 	}
 	// Node-Ready precondition. A node that was Ready and dropped out (reboot,
 	// upgrade, drain) is left to node lifecycle, which rescues it. A node that
-	// never reached Ready is a different case: nothing in
-	// node lifecycle rescues it, so it is ours. Only node-state detectors run on
-	// this path, because a node that never started has no pod population worth
-	// reading, and each of them rejects a node that was once Ready on its own
-	// discriminator.
+	// never reached Ready is a different case: nothing in node lifecycle rescues
+	// it, so it is ours. Only node-state detectors run here, because a node that
+	// never started has no pod population worth reading, and each of them rejects
+	// a node that was once Ready on its own discriminator.
 	if !isNodeReady(node) {
-		for _, d := range registry {
-			nd, ok := d.(nodeDetector)
-			if !ok || !d.Applies(node) {
+		for _, d := range nodeRegistry {
+			if !d.Applies(node) {
 				continue
 			}
-			snap := nd.EvaluateNode(node, now)
-			if nd.MeetsThreshold(snap, now) {
+			if decision, snap := d.EvaluateNode(node, now); decision == DecisionWedged {
 				snap.Reason = d.Reason()
 				return DecisionWedged, snap
 			}
@@ -225,12 +250,12 @@ func Decide(node *corev1.Node, events []*corev1.Event, pods []*corev1.Pod, now t
 	}
 
 	sawSuccess := false
-	for _, d := range registry {
+	for _, d := range podRegistry {
 		if !d.Applies(node) {
 			continue
 		}
 		snap := d.Evaluate(events, pods, now)
-		if snap.RecentSuccess {
+		if snap.Pods != nil && snap.Pods.RecentSuccess {
 			sawSuccess = true
 		}
 		if d.MeetsThreshold(snap, now) {

@@ -86,53 +86,43 @@ func (neverReadyDetector) Applies(node *corev1.Node) bool { return isSwiftV2Node
 // dwell is the only duration it has.
 func (neverReadyDetector) Window() time.Duration { return neverReadyDwell }
 
-// Evaluate satisfies Detector for the Ready path, where this detector has
-// nothing to say. Its evidence is the Node object, which Evaluate does not
-// receive, so it returns an empty snapshot that MeetsThreshold always rejects.
-// The real work is in EvaluateNode.
-func (d neverReadyDetector) Evaluate(_ []*corev1.Event, _ []*corev1.Pod, _ time.Time) Snapshot {
-	return Snapshot{DetectorName: d.Name(), Window: neverReadyDwell}
-}
-
-// EvaluateNode reads the born-broken signal from the Node alone.
+// EvaluateNode decides the born-broken state from the Node alone.
 //
 // The discriminator is that the Ready condition has never been True and its
 // first transition coincides with the node's creation. A node that reached Ready
-// at any point has a strictly later transition, which is what separates "never
-// started" from "started and later failed" and leaves the latter to node
+// at any point has a strictly later transition, so a transition that coincides
+// with creation is the born-broken shape. Anything later is left to node
 // lifecycle.
-func (d neverReadyDetector) EvaluateNode(node *corev1.Node, now time.Time) Snapshot {
+func (d neverReadyDetector) EvaluateNode(node *corev1.Node, now time.Time) (Decision, Snapshot) {
 	snap := Snapshot{DetectorName: d.Name(), Window: neverReadyDwell}
 	if node == nil {
-		return snap
+		return DecisionUnknown, snap
 	}
 	cond := nodeReadyCondition(node)
 	if cond == nil || cond.Status == corev1.ConditionTrue {
-		return snap
+		return DecisionUnknown, snap
 	}
 
 	created := node.CreationTimestamp.Time
 	transitioned := cond.LastTransitionTime.Time
 	if created.IsZero() || transitioned.IsZero() {
 		// Both timestamps are the discriminator, nothing to compare without them.
-		return snap
+		return DecisionUnknown, snap
 	}
 	if transitioned.Before(created) {
 		// A Ready transition predating the object cannot happen; treat it as bad
 		// data rather than evidence.
-		return snap
+		return DecisionUnknown, snap
 	}
 	if transitioned.After(created.Add(neverReadyTolerance)) {
-		// The node was Ready at some point and lost it later. Node lifecycle owns
-		// that case.
-		return snap
+		// The Ready condition changed well after creation, so this is not the
+		// born-broken shape. Node lifecycle owns whatever it is.
+		return DecisionUnknown, snap
 	}
 
 	snap.StuckSince = created
-	// FailureCount and SustainedCount stay zero: they are defined as counts of
-	// stuck pods, and this detector reads the node only. Reporting a pod count
-	// here would make logs and telemetry imply pod evidence that does not exist.
-	// MeetsThreshold keys on StuckSince, so leaving them zero changes nothing.
+	// Pods stays nil: this detector reads the Node alone, so there is no pod
+	// evidence to report and Detail carries what was actually observed.
 	//
 	// The Ready condition's reason names the cause within the family, which is
 	// what the signature annotation is for. It is triage detail only; mitigation
@@ -140,17 +130,10 @@ func (d neverReadyDetector) EvaluateNode(node *corev1.Node, now time.Time) Snaps
 	snap.MatchedSignature = cond.Reason
 	snap.Detail = fmt.Sprintf("node never reached Ready in %s since creation (%s)",
 		now.Sub(created).Round(time.Minute), readyReasonOrUnknown(cond.Reason))
-	return snap
-}
-
-// MeetsThreshold reports whether the node has been never-Ready for the dwell.
-// A snapshot from Evaluate carries no StuckSince, so the Ready path can never
-// fire this detector.
-func (neverReadyDetector) MeetsThreshold(snap Snapshot, now time.Time) bool {
-	if snap.StuckSince.IsZero() {
-		return false
+	if now.Sub(created) < neverReadyDwell {
+		return DecisionUnknown, snap
 	}
-	return now.Sub(snap.StuckSince) >= neverReadyDwell
+	return DecisionWedged, snap
 }
 
 // nodeReadyCondition returns the node's Ready condition, or nil when it is

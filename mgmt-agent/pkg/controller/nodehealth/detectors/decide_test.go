@@ -386,14 +386,14 @@ func TestDecideSnapshotOnWedge(t *testing.T) {
 	if snap.DetectorName != swiftVFTeardown.name {
 		t.Errorf("snapshot detector = %q, want %q", snap.DetectorName, swiftVFTeardown.name)
 	}
-	if snap.FailureCount != 3 {
-		t.Errorf("snapshot FailureCount = %d, want 3", snap.FailureCount)
+	if snap.Pods.FailureCount != 3 {
+		t.Errorf("snapshot FailureCount = %d, want 3", snap.Pods.FailureCount)
 	}
-	if snap.SustainedCount != 3 {
-		t.Errorf("snapshot SustainedCount = %d, want 3", snap.SustainedCount)
+	if snap.Pods.SustainedCount != 3 {
+		t.Errorf("snapshot SustainedCount = %d, want 3", snap.Pods.SustainedCount)
 	}
-	if snap.RecentSuccess {
-		t.Errorf("snapshot RecentSuccess = %v, want false", snap.RecentSuccess)
+	if snap.Pods.RecentSuccess {
+		t.Errorf("snapshot RecentSuccess = %v, want false", snap.Pods.RecentSuccess)
 	}
 	if !snap.StuckSince.Equal(ago(15 * time.Minute)) {
 		t.Errorf("snapshot StuckSince = %v, want %v", snap.StuckSince, ago(15*time.Minute))
@@ -510,8 +510,8 @@ func TestMatchedSignatureReportsDominantFailureMode(t *testing.T) {
 			failEventFor("p0", ago(10*time.Second), msgNoSuchIface),
 		}
 		snap := swiftVFTeardown.Evaluate(events, pods, testNow)
-		if snap.FailureCount != 1 {
-			t.Errorf("FailureCount = %d, want 1 (one pod, two Events)", snap.FailureCount)
+		if snap.Pods.FailureCount != 1 {
+			t.Errorf("FailureCount = %d, want 1 (one pod, two Events)", snap.Pods.FailureCount)
 		}
 		if snap.MatchedSignature != sigNoSuchIface {
 			t.Errorf("MatchedSignature = %q, want %q", snap.MatchedSignature, sigNoSuchIface)
@@ -533,8 +533,8 @@ func TestMatchedSignatureReportsDominantFailureMode(t *testing.T) {
 			failEventFor("p2", ago(20*time.Second), msgNoSuchIface),
 		}
 		snap := swiftVFTeardown.Evaluate(events, pods, testNow)
-		if snap.FailureCount != 1 {
-			t.Errorf("FailureCount = %d, want 1", snap.FailureCount)
+		if snap.Pods.FailureCount != 1 {
+			t.Errorf("FailureCount = %d, want 1", snap.Pods.FailureCount)
 		}
 		if snap.MatchedSignature != sigMtpnc {
 			t.Errorf("MatchedSignature = %q, want %q", snap.MatchedSignature, sigMtpnc)
@@ -693,7 +693,7 @@ func TestRestartedContainerDoesNotSuppressAWedge(t *testing.T) {
 	if got != DecisionWedged {
 		t.Errorf("Decide(with a restarting container) = %v, want Wedged", got)
 	}
-	if snap.RecentSuccess {
+	if snap.Pods.RecentSuccess {
 		t.Error("RecentSuccess = true for a container restarting in an existing sandbox, want false")
 	}
 }

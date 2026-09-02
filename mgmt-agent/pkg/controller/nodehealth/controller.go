@@ -392,8 +392,7 @@ func (c *Controller) syncHandler(ctx context.Context, name string) error {
 			logger.Info("detector fired; node labeled wedged",
 				"detector", snap.DetectorName,
 				"signature", snap.MatchedSignature,
-				"failures", snap.FailureCount,
-				"recentSuccess", snap.RecentSuccess)
+				"evidence", snap.ReasonString())
 		}
 		// Mitigation of a labeled node (cordon, taint, evict, delete) is owned
 		// by a separate controller; this controller stops at labeling.
