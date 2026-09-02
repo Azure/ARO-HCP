@@ -202,6 +202,25 @@ var _ = Describe("Customer", func() {
 			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred(), "failed to verify cluster %q is viable before upgrade", clusterName)
 
+			nodePoolName := "np-" + suffix
+			nodePoolParams := framework.NewDefaultNodePoolParams20240610()
+			nodePoolParams.ClusterName = clusterName
+			nodePoolParams.NodePoolName = nodePoolName
+			nodePoolParams.OpenshiftVersionId = resolvedInstallVersion
+			nodePoolParams.ChannelGroup = channelGroup
+
+			By(fmt.Sprintf("creating node pool %q with version %q on %s channel", nodePoolName, nodePoolParams.OpenshiftVersionId, channelGroup))
+			err = tc.CreateNodePoolFromParam20240610(
+				ctx,
+				GinkgoLogr,
+				*resourceGroup.Name,
+				clusterParams.ManagedResourceGroupName,
+				clusterName,
+				nodePoolParams,
+				framework.NodePoolCreationTimeout,
+			)
+			Expect(err).NotTo(HaveOccurred(), "failed to create node pool %q for cluster %q", nodePoolName, clusterName)
+
 			Expect(ctx.Err()).NotTo(HaveOccurred(), "test context expired before triggering upgrade for cluster %q", clusterName)
 			kubeClient, err := kubernetes.NewForConfig(adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred(), "failed to create Kubernetes client for cluster %q", clusterName)
