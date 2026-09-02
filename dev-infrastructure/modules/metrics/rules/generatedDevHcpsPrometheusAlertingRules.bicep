@@ -5,6 +5,7 @@ param azureMonitoring string
 param actionGroups array
 
 @description('The minimum IcM severity level (highest priority) that alerts can fire at. Alerts more critical than this ceiling will be degraded to this value. 0 means no ceiling.')
+#disable-next-line no-unused-params
 param severityCeiling int = 0
 
 #disable-next-line no-unused-params
