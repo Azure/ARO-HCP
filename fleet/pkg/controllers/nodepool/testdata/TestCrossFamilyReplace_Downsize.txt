@@ -1,0 +1,46 @@
+initial:
+  e1         Standard_E32ds_v6        zone=1       max=6   count=2   autoscaled
+  e2         Standard_E32ds_v6        zone=2       max=6   count=2   autoscaled
+  e3         Standard_E32ds_v6        zone=3       max=6   count=2   autoscaled
+
+desired:
+  d1         Standard_D8ds_v6         zone=1       max=6
+  d2         Standard_D8ds_v6         zone=2       max=6
+  d3         Standard_D8ds_v6         zone=3       max=6
+
+budget (vCPUs):
+  standardDDSv6Family: 144
+  standardEDSv6Family: 576
+
+initial headroom (vCPUs):
+  standardDDSv6Family: 144
+  standardEDSv6Family: 192
+
+initial NIC ceiling: 126
+
+actions:
+    1. Create       worker  Standard_D8ds_v6   d1         max=6         ceiling=+48 cores   nics=+18   DDSv6: 96c remaining
+    2. Create       worker  Standard_D8ds_v6   d2         max=6         ceiling=+96 cores   nics=+36   DDSv6: 48c remaining
+    3. Create       worker  Standard_D8ds_v6   d3         max=6         ceiling=+144 cores  nics=+54   DDSv6: 0c remaining
+    4. SetMaxCount  worker  Standard_E32ds_v6  e1         max=2         ceiling=+16 cores   nics=+26   EDSv6: 320c remaining
+    5. SetMaxCount  worker  Standard_E32ds_v6  e2         max=2         ceiling=-112 cores  nics=-2    EDSv6: 448c remaining
+    6. SetMaxCount  worker  Standard_E32ds_v6  e3         max=2         ceiling=-240 cores  nics=-30   EDSv6: 576c remaining
+    7. Freeze       worker  Standard_E32ds_v6  e1         count=2
+    8. Freeze       worker  Standard_E32ds_v6  e2         count=2
+    9. Freeze       worker  Standard_E32ds_v6  e3         count=2
+   10. Reduce       worker  Standard_E32ds_v6  e1         count=1       ceiling=-272 cores  nics=-37   EDSv6: 608c remaining
+   11. Reduce       worker  Standard_E32ds_v6  e1         count=0       ceiling=-304 cores  nics=-44   EDSv6: 640c remaining
+   12. Reduce       worker  Standard_E32ds_v6  e2         count=1       ceiling=-336 cores  nics=-51   EDSv6: 672c remaining
+   13. Reduce       worker  Standard_E32ds_v6  e2         count=0       ceiling=-368 cores  nics=-58   EDSv6: 704c remaining
+   14. Reduce       worker  Standard_E32ds_v6  e3         count=1       ceiling=-400 cores  nics=-65   EDSv6: 736c remaining
+   15. Reduce       worker  Standard_E32ds_v6  e3         count=0       ceiling=-432 cores  nics=-72   EDSv6: 768c remaining
+   16. Delete       worker  Standard_E32ds_v6  e1
+   17. Delete       worker  Standard_E32ds_v6  e2
+   18. Delete       worker  Standard_E32ds_v6  e3
+
+final:
+  d1         Standard_D8ds_v6         zone=1       max=6   count=1   autoscaled
+  d2         Standard_D8ds_v6         zone=2       max=6   count=1   autoscaled
+  d3         Standard_D8ds_v6         zone=3       max=6   count=1   autoscaled
+
+steps: 18

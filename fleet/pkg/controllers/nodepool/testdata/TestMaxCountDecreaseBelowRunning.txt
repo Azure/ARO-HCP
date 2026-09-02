@@ -1,0 +1,24 @@
+initial:
+  s1abc      Standard_E32ds_v6        zone=1       max=10  count=8   autoscaled
+
+desired:
+  s1abc      Standard_E32ds_v6        zone=1       max=6
+
+budget (vCPUs):
+  standardEDSv6Family: 320
+
+initial headroom (vCPUs):
+  standardEDSv6Family: 256
+
+initial NIC ceiling: 70
+
+actions:
+    1. Freeze       worker  Standard_E32ds_v6  s1abc      count=8       ceiling=-64 cores   nics=-14   EDSv6: 320c remaining
+    2. Reduce       worker  Standard_E32ds_v6  s1abc      count=7       ceiling=-96 cores   nics=-21   EDSv6: 352c remaining
+    3. Reduce       worker  Standard_E32ds_v6  s1abc      count=6       ceiling=-128 cores  nics=-28   EDSv6: 384c remaining
+    4. Unfreeze     worker  Standard_E32ds_v6  s1abc      max=6
+
+final:
+  s1abc      Standard_E32ds_v6        zone=1       max=6   count=6   autoscaled
+
+steps: 4

@@ -1,0 +1,39 @@
+initial:
+  a1         Standard_E32ds_v6        zone=1       max=6   count=3   autoscaled
+  b1         Standard_D4s_v3          zone=1       max=6   count=2   autoscaled
+  c1         Standard_D4s_v3          zone=2       max=6   count=2   autoscaled
+
+desired:
+  a1         Standard_E32ds_v6        zone=1       max=6
+  d1         Standard_D8ds_v6         zone=1       max=4
+
+budget (vCPUs):
+  standardDDSv6Family: 32
+  standardDSv3Family: 48
+  standardEDSv6Family: 192
+
+initial headroom (vCPUs):
+  standardDDSv6Family: 32
+  standardDSv3Family: 16
+  standardEDSv6Family: 96
+
+initial NIC ceiling: 54
+
+actions:
+    1. Create       worker  Standard_D8ds_v6   d1         max=4         ceiling=+32 cores   nics=+12   DDSv6: 0c remaining
+    2. SetMaxCount  worker  Standard_D4s_v3    b1         max=2         ceiling=+16 cores   nics=+8    DSv3: 32c remaining
+    3. SetMaxCount  worker  Standard_D4s_v3    c1         max=2         ceiling=+0 cores    nics=+4    DSv3: 48c remaining
+    4. Freeze       worker  Standard_D4s_v3    b1         count=2
+    5. Freeze       worker  Standard_D4s_v3    c1         count=2
+    6. Reduce       worker  Standard_D4s_v3    b1         count=1       ceiling=-4 cores    nics=+3    DSv3: 52c remaining
+    7. Reduce       worker  Standard_D4s_v3    b1         count=0       ceiling=-8 cores    nics=+2    DSv3: 56c remaining
+    8. Reduce       worker  Standard_D4s_v3    c1         count=1       ceiling=-12 cores   nics=+1    DSv3: 60c remaining
+    9. Reduce       worker  Standard_D4s_v3    c1         count=0       ceiling=-16 cores   nics=+0    DSv3: 64c remaining
+   10. Delete       worker  Standard_D4s_v3    b1
+   11. Delete       worker  Standard_D4s_v3    c1
+
+final:
+  a1         Standard_E32ds_v6        zone=1       max=6   count=3   autoscaled
+  d1         Standard_D8ds_v6         zone=1       max=4   count=1   autoscaled
+
+steps: 11

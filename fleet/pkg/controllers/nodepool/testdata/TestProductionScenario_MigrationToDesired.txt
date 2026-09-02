@@ -1,0 +1,94 @@
+initial:
+  system     Standard_E8ds_v5         zone=1,2,3   max=4   count=1   autoscaled
+  infra1     Standard_E32ds_v4        zone=1       max=3   count=1   autoscaled
+  infra2     Standard_E32ds_v4        zone=2       max=3   count=1   autoscaled
+  userswft1  Standard_E32ds_v5        zone=1       max=14  count=6   autoscaled
+  userswft2  Standard_E32ds_v5        zone=2       max=14  count=6   autoscaled
+  userswft3  Standard_E32ds_v5        zone=3       max=14  count=6   autoscaled
+
+desired:
+  s0-e8      Standard_E8ds_v5         zone=1,2,3   max=4
+  i1-e32     Standard_E32ds_v5        zone=1       max=1
+  i2-e32     Standard_E32ds_v5        zone=2       max=1
+  w1-e16     Standard_E16ds_v5        zone=1       max=4
+  w2-e16     Standard_E16ds_v5        zone=2       max=4
+  w3-e16     Standard_E16ds_v5        zone=3       max=4
+  w1-e32     Standard_E32ds_v5        zone=1       max=5
+  w2-e32     Standard_E32ds_v5        zone=2       max=5
+  w3-e32     Standard_E32ds_v5        zone=3       max=5
+
+budget (vCPUs):
+  standardEDSv5Family: 856
+  standardESv3Family: 100
+
+initial headroom (vCPUs):
+  standardEDSv5Family: 64
+  standardESv3Family: 100
+
+initial NIC ceiling: 294
+
+actions:
+    1. Create       system  Standard_E8ds_v5   s0-e8      max=4         ceiling=+32 cores   EDSv5: 32c remaining
+    2. Create       infra   Standard_E32ds_v5  i1-e32     max=1         ceiling=+64 cores   EDSv5: 0c remaining
+    3. SetMaxCount  system  Standard_E8ds_v5   system     max=1         ceiling=+40 cores   EDSv5: 24c remaining
+    4. Create       worker  Standard_E16ds_v5  w1-e16     max=1         ceiling=+56 cores   nics=+7    EDSv5: 8c remaining
+    5. SetMaxCount  infra   Standard_E32ds_v4  infra1     max=1
+    6. SetMaxCount  infra   Standard_E32ds_v4  infra2     max=1
+    7. SetMaxCount  worker  Standard_E32ds_v5  userswft1  max=6         ceiling=-200 cores  nics=-49   EDSv5: 264c remaining
+    8. Create       infra   Standard_E32ds_v5  i2-e32     max=1         ceiling=-168 cores  EDSv5: 232c remaining
+    9. Create       worker  Standard_E16ds_v5  w2-e16     max=4         ceiling=-104 cores  nics=-21   EDSv5: 168c remaining
+   10. Create       worker  Standard_E16ds_v5  w3-e16     max=4         ceiling=-40 cores   nics=+7    EDSv5: 104c remaining
+   11. Create       worker  Standard_E32ds_v5  w1-e32     max=3         ceiling=+56 cores   nics=+28   EDSv5: 8c remaining
+   12. SetMaxCount  worker  Standard_E32ds_v5  userswft2  max=6         ceiling=-200 cores  nics=-28   EDSv5: 264c remaining
+   13. Create       worker  Standard_E32ds_v5  w2-e32     max=5         ceiling=-40 cores   nics=+7    EDSv5: 104c remaining
+   14. Create       worker  Standard_E32ds_v5  w3-e32     max=3         ceiling=+56 cores   nics=+28   EDSv5: 8c remaining
+   15. SetMaxCount  worker  Standard_E32ds_v5  userswft3  max=6         ceiling=-200 cores  nics=-28   EDSv5: 264c remaining
+   16. SetMaxCount  worker  Standard_E16ds_v5  w1-e16     max=4         ceiling=-152 cores  nics=-7    EDSv5: 216c remaining
+   17. SetMaxCount  worker  Standard_E32ds_v5  w1-e32     max=5         ceiling=-88 cores   nics=+7    EDSv5: 152c remaining
+   18. SetMaxCount  worker  Standard_E32ds_v5  w3-e32     max=5         ceiling=-24 cores   nics=+21   EDSv5: 88c remaining
+   19. Freeze       system  Standard_E8ds_v5   system     count=1
+   20. Freeze       infra   Standard_E32ds_v4  infra1     count=1
+   21. Freeze       infra   Standard_E32ds_v4  infra2     count=1
+   22. Freeze       worker  Standard_E32ds_v5  userswft1  count=6
+   23. Freeze       worker  Standard_E32ds_v5  userswft2  count=6
+   24. Freeze       worker  Standard_E32ds_v5  userswft3  count=6
+   25. Reduce       infra   Standard_E32ds_v4  infra1     count=0
+   26. Reduce       infra   Standard_E32ds_v4  infra2     count=0
+   27. Reduce       system  Standard_E8ds_v5   system     count=0       ceiling=-32 cores   EDSv5: 96c remaining
+   28. Reduce       worker  Standard_E32ds_v5  userswft1  count=5       ceiling=-64 cores   nics=+14   EDSv5: 128c remaining
+   29. Reduce       worker  Standard_E32ds_v5  userswft1  count=4       ceiling=-96 cores   nics=+7    EDSv5: 160c remaining
+   30. Reduce       worker  Standard_E32ds_v5  userswft1  count=3       ceiling=-128 cores  nics=+0    EDSv5: 192c remaining
+   31. Reduce       worker  Standard_E32ds_v5  userswft1  count=2       ceiling=-160 cores  nics=-7    EDSv5: 224c remaining
+   32. Reduce       worker  Standard_E32ds_v5  userswft1  count=1       ceiling=-192 cores  nics=-14   EDSv5: 256c remaining
+   33. Reduce       worker  Standard_E32ds_v5  userswft1  count=0       ceiling=-224 cores  nics=-21   EDSv5: 288c remaining
+   34. Reduce       worker  Standard_E32ds_v5  userswft2  count=5       ceiling=-256 cores  nics=-28   EDSv5: 320c remaining
+   35. Reduce       worker  Standard_E32ds_v5  userswft2  count=4       ceiling=-288 cores  nics=-35   EDSv5: 352c remaining
+   36. Reduce       worker  Standard_E32ds_v5  userswft2  count=3       ceiling=-320 cores  nics=-42   EDSv5: 384c remaining
+   37. Reduce       worker  Standard_E32ds_v5  userswft2  count=2       ceiling=-352 cores  nics=-49   EDSv5: 416c remaining
+   38. Reduce       worker  Standard_E32ds_v5  userswft2  count=1       ceiling=-384 cores  nics=-56   EDSv5: 448c remaining
+   39. Reduce       worker  Standard_E32ds_v5  userswft2  count=0       ceiling=-416 cores  nics=-63   EDSv5: 480c remaining
+   40. Reduce       worker  Standard_E32ds_v5  userswft3  count=5       ceiling=-448 cores  nics=-70   EDSv5: 512c remaining
+   41. Reduce       worker  Standard_E32ds_v5  userswft3  count=4       ceiling=-480 cores  nics=-77   EDSv5: 544c remaining
+   42. Reduce       worker  Standard_E32ds_v5  userswft3  count=3       ceiling=-512 cores  nics=-84   EDSv5: 576c remaining
+   43. Reduce       worker  Standard_E32ds_v5  userswft3  count=2       ceiling=-544 cores  nics=-91   EDSv5: 608c remaining
+   44. Reduce       worker  Standard_E32ds_v5  userswft3  count=1       ceiling=-576 cores  nics=-98   EDSv5: 640c remaining
+   45. Reduce       worker  Standard_E32ds_v5  userswft3  count=0       ceiling=-608 cores  nics=-105  EDSv5: 672c remaining
+   46. Delete       infra   Standard_E32ds_v4  infra1
+   47. Delete       infra   Standard_E32ds_v4  infra2
+   48. Delete       system  Standard_E8ds_v5   system
+   49. Delete       worker  Standard_E32ds_v5  userswft1
+   50. Delete       worker  Standard_E32ds_v5  userswft2
+   51. Delete       worker  Standard_E32ds_v5  userswft3
+
+final:
+  s0-e8      Standard_E8ds_v5         zone=1,2,3   max=4   count=1   autoscaled
+  i1-e32     Standard_E32ds_v5        zone=1       max=1   count=1   autoscaled
+  w1-e16     Standard_E16ds_v5        zone=1       max=4   count=1   autoscaled
+  i2-e32     Standard_E32ds_v5        zone=2       max=1   count=1   autoscaled
+  w2-e16     Standard_E16ds_v5        zone=2       max=4   count=1   autoscaled
+  w3-e16     Standard_E16ds_v5        zone=3       max=4   count=1   autoscaled
+  w1-e32     Standard_E32ds_v5        zone=1       max=5   count=1   autoscaled
+  w2-e32     Standard_E32ds_v5        zone=2       max=5   count=1   autoscaled
+  w3-e32     Standard_E32ds_v5        zone=3       max=5   count=1   autoscaled
+
+steps: 51

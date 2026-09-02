@@ -1,0 +1,29 @@
+initial:
+  s1abc      Standard_E32ds_v6        zone=1       max=6   count=3   autoscaled
+  s2abc      Standard_E32ds_v6        zone=2       max=6   count=3   autoscaled
+  s3abc      Standard_E32ds_v6        zone=3       max=6   count=3   autoscaled
+
+desired:
+  s1abc      Standard_E32ds_v6        zone=1       max=10
+  s2abc      Standard_E32ds_v6        zone=2       max=10
+  s3abc      Standard_E32ds_v6        zone=3       max=10
+
+budget (vCPUs):
+  standardEDSv6Family: 960
+
+initial headroom (vCPUs):
+  standardEDSv6Family: 672
+
+initial NIC ceiling: 126
+
+actions:
+    1. SetMaxCount  worker  Standard_E32ds_v6  s1abc      max=10        ceiling=+128 cores  nics=+28   EDSv6: 544c remaining
+    2. SetMaxCount  worker  Standard_E32ds_v6  s2abc      max=10        ceiling=+256 cores  nics=+56   EDSv6: 416c remaining
+    3. SetMaxCount  worker  Standard_E32ds_v6  s3abc      max=10        ceiling=+384 cores  nics=+84   EDSv6: 288c remaining
+
+final:
+  s1abc      Standard_E32ds_v6        zone=1       max=10  count=3   autoscaled
+  s2abc      Standard_E32ds_v6        zone=2       max=10  count=3   autoscaled
+  s3abc      Standard_E32ds_v6        zone=3       max=10  count=3   autoscaled
+
+steps: 3

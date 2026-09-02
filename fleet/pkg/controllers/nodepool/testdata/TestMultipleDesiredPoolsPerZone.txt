@@ -1,0 +1,38 @@
+initial:
+  (none)
+
+desired:
+  e1         Standard_E32ds_v6        zone=1       max=4
+  d1         Standard_D8ds_v6         zone=1       max=2
+  e2         Standard_E32ds_v6        zone=2       max=4
+  d2         Standard_D8ds_v6         zone=2       max=2
+  e3         Standard_E32ds_v6        zone=3       max=4
+  d3         Standard_D8ds_v6         zone=3       max=2
+
+budget (vCPUs):
+  standardDDSv6Family: 48
+  standardEDSv6Family: 384
+
+initial headroom (vCPUs):
+  standardDDSv6Family: 48
+  standardEDSv6Family: 384
+
+initial NIC ceiling: 0
+
+actions:
+    1. Create       worker  Standard_E32ds_v6  e1         max=4         ceiling=+128 cores  nics=+28   EDSv6: 256c remaining
+    2. Create       worker  Standard_D8ds_v6   d1         max=2         ceiling=+144 cores  nics=+34   DDSv6: 32c remaining
+    3. Create       worker  Standard_E32ds_v6  e2         max=4         ceiling=+272 cores  nics=+62   EDSv6: 128c remaining
+    4. Create       worker  Standard_D8ds_v6   d2         max=2         ceiling=+288 cores  nics=+68   DDSv6: 16c remaining
+    5. Create       worker  Standard_E32ds_v6  e3         max=4         ceiling=+416 cores  nics=+96   EDSv6: 0c remaining
+    6. Create       worker  Standard_D8ds_v6   d3         max=2         ceiling=+432 cores  nics=+102  DDSv6: 0c remaining
+
+final:
+  e1         Standard_E32ds_v6        zone=1       max=4   count=1   autoscaled
+  d1         Standard_D8ds_v6         zone=1       max=2   count=1   autoscaled
+  e2         Standard_E32ds_v6        zone=2       max=4   count=1   autoscaled
+  d2         Standard_D8ds_v6         zone=2       max=2   count=1   autoscaled
+  e3         Standard_E32ds_v6        zone=3       max=4   count=1   autoscaled
+  d3         Standard_D8ds_v6         zone=3       max=2   count=1   autoscaled
+
+steps: 6

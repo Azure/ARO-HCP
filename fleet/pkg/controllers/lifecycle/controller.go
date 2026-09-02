@@ -39,7 +39,7 @@ func NewManagementClusterLifecycleController(
 	managementClusterInformer cache.SharedIndexInformer,
 	fleetDBClient fleetcosmosstorage.FleetDBClient,
 	cfg fleetcontrollers.StampWatchingControllerConfig,
-) *fleetcontrollers.StampWatchingController {
+) fleetcontrollers.Controller {
 	syncer := &lifecycleSyncer{
 		fleetDBClient: fleetDBClient,
 	}

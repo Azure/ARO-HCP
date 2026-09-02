@@ -61,6 +61,14 @@ spec:
         - "{{ .Values.amwScaling.svcAzureMonitorWorkspaceId }}"
         - "--amw-workspace-resource-id"
         - "{{ .Values.amwScaling.hcpAzureMonitorWorkspaceId }}"
+        {{- if .Values.nodePoolProvisioning.profile }}
+        - "--nodepool-profile"
+        - "{{ .Values.nodePoolProvisioning.profile }}"
+        {{- if .Values.nodePoolProvisioning.zones }}
+        - "--nodepool-zones"
+        - "{{ .Values.nodePoolProvisioning.zones }}"
+        {{- end }}
+        {{- end }}
         ports:
         - name: healthz
           containerPort: 8080

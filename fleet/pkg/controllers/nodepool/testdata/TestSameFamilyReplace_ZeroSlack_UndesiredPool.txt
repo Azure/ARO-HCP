@@ -1,0 +1,27 @@
+initial:
+  old1       Standard_E32ds_v6        zone=1       max=6   count=2   autoscaled
+
+desired:
+  new1       Standard_E32ds_v6        zone=1       max=6
+
+budget (vCPUs):
+  standardEDSv6Family: 192
+
+initial headroom (vCPUs):
+  standardEDSv6Family: 64
+
+initial NIC ceiling: 42
+
+actions:
+    1. Create       worker  Standard_E32ds_v6  new1       max=2         ceiling=+64 cores   nics=+14   EDSv6: 0c remaining
+    2. SetMaxCount  worker  Standard_E32ds_v6  old1       max=2         ceiling=-64 cores   nics=-14   EDSv6: 128c remaining
+    3. SetMaxCount  worker  Standard_E32ds_v6  new1       max=6         ceiling=+64 cores   nics=+14   EDSv6: 0c remaining
+    4. Freeze       worker  Standard_E32ds_v6  old1       count=2
+    5. Reduce       worker  Standard_E32ds_v6  old1       count=1       ceiling=+32 cores   nics=+7    EDSv6: 32c remaining
+    6. Reduce       worker  Standard_E32ds_v6  old1       count=0       ceiling=+0 cores    nics=+0    EDSv6: 64c remaining
+    7. Delete       worker  Standard_E32ds_v6  old1
+
+final:
+  new1       Standard_E32ds_v6        zone=1       max=6   count=1   autoscaled
+
+steps: 7

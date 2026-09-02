@@ -16,7 +16,11 @@ package controller
 
 import (
 	"context"
+	"slices"
+	"strings"
 	"testing"
+
+	"github.com/Azure/ARO-HCP/fleet/pkg/compute"
 )
 
 func TestValidate(t *testing.T) {
@@ -73,6 +77,20 @@ func TestValidate(t *testing.T) {
 			modify:  func(opts *RawControllerOptions) { opts.CloudEnvironment = "InvalidCloud" },
 			wantErr: true,
 		},
+		{
+			name:   "valid nodepool-zones",
+			modify: func(opts *RawControllerOptions) { opts.NodePoolZones = "1,2,3" },
+		},
+		{
+			name:    "nodepool-zones contains empty value",
+			modify:  func(opts *RawControllerOptions) { opts.NodePoolZones = "1,,3" },
+			wantErr: true,
+		},
+		{
+			name:    "nodepool-zones has duplicate value",
+			modify:  func(opts *RawControllerOptions) { opts.NodePoolZones = "1,2,2" },
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -89,6 +107,65 @@ func TestValidate(t *testing.T) {
 				if err != nil {
 					t.Fatalf("unexpected error: %v", err)
 				}
+			}
+		})
+	}
+}
+
+func TestResolveNodePoolProfile(t *testing.T) {
+	tests := []struct {
+		name        string
+		profile     string
+		zones       string
+		wantZones   []string
+		wantErr     bool
+		errContains string
+	}{
+		{
+			name:      "valid profile with explicit zones",
+			profile:   compute.ProfileCI,
+			zones:     "1,2,3",
+			wantZones: []string{"1", "2", "3"},
+		},
+		{
+			name:      "valid profile with no zones defaults to 1,2,3",
+			profile:   compute.ProfileProduction,
+			zones:     "",
+			wantZones: []string{"1", "2", "3"},
+		},
+		{
+			name:        "invalid profile name",
+			profile:     "not-a-real-profile",
+			wantErr:     true,
+			errContains: "not-a-real-profile",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			opts := &RawControllerOptions{
+				NodePoolProfile: tt.profile,
+				NodePoolZones:   tt.zones,
+			}
+
+			profile, zones, err := resolveNodePoolProfile(opts)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+				if len(tt.errContains) > 0 && !strings.Contains(err.Error(), tt.errContains) {
+					t.Fatalf("expected error to contain %q, got: %v", tt.errContains, err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if profile == nil {
+				t.Fatal("expected non-nil profile")
+			}
+			if !slices.Equal(zones, tt.wantZones) {
+				t.Fatalf("zones = %v, want %v", zones, tt.wantZones)
 			}
 		})
 	}

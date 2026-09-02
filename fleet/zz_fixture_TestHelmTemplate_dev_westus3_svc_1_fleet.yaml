@@ -140,6 +140,8 @@ spec:
         - "__svcAzureMonitorWorkspaceId__"
         - "--amw-workspace-resource-id"
         - "__hcpAzureMonitorWorkspaceId__"
+        - "--nodepool-profile"
+        - "production"
         ports:
         - name: healthz
           containerPort: 8080
