@@ -20,6 +20,7 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 )
@@ -85,6 +86,20 @@ func stuckPod(pod string, since time.Time) *corev1.Pod {
 	}
 }
 
+// withSwiftNIC marks a pod as one that asked for a SWIFT v2 delegated NIC, which
+// is what makes its start evidence about the delegated-NIC path. Success
+// fixtures that stand for "the node can still attach a NIC" must carry it;
+// fixtures that stand for ordinary overlay traffic must not.
+func withSwiftNIC(p *corev1.Pod) *corev1.Pod {
+	p.Spec.Containers = append(p.Spec.Containers, corev1.Container{
+		Name: "nic",
+		Resources: corev1.ResourceRequirements{
+			Limits: corev1.ResourceList{swiftNICResourceName: resource.MustParse("1")},
+		},
+	})
+	return p
+}
+
 // startedPod is a pod whose PodReadyToStartContainers condition transitioned to
 // True at ts: a fresh sandbox, the success signal SuccessAt records. hostNet
 // marks it host-network, which must be excluded since it reaches the condition
@@ -147,7 +162,7 @@ func TestDecide(t *testing.T) {
 			}(),
 			pods: func() []*corev1.Pod {
 				_, p := stuckFailing(3, ago(15*time.Minute))
-				return append(p, startedPod("ok", ago(2*time.Minute), false))
+				return append(p, withSwiftNIC(startedPod("ok", ago(2*time.Minute), false)))
 			}(),
 			want: DecisionHealthy,
 		},
@@ -226,7 +241,7 @@ func TestDecide(t *testing.T) {
 		{
 			name: "recovery: a started pod, no stuck pods",
 			node: testNode(true, true),
-			pods: []*corev1.Pod{startedPod("ok", ago(1*time.Minute), false)},
+			pods: []*corev1.Pod{withSwiftNIC(startedPod("ok", ago(1*time.Minute), false))},
 			want: DecisionHealthy,
 		},
 		{
@@ -283,7 +298,7 @@ func TestDecide(t *testing.T) {
 			}(),
 			pods: func() []*corev1.Pod {
 				_, p := stuckFailing(3, ago(15*time.Minute))
-				return append(p, startedPod("stale", ago(30*time.Minute), false))
+				return append(p, withSwiftNIC(startedPod("stale", ago(30*time.Minute), false)))
 			}(),
 			want: DecisionWedged,
 		},
@@ -684,9 +699,13 @@ func TestRestartedContainerDoesNotSuppressAWedge(t *testing.T) {
 }
 
 // TestFinishedPodInWindowPreventsAFalseWedge is the reason the finished-pod path
-// exists: on a low-churn node the only thing that started recently may be a
-// CronJob pod that has already completed. It is still real proof the node can
-// build a sandbox, so it must suppress the wedge exactly as a running pod does.
+// exists: on a low-churn node the only thing that started recently may be a pod
+// that has already completed. It is still real proof the node can build a
+// sandbox, so it must suppress the wedge exactly as a running pod does.
+//
+// The pod has to be one that asked for a delegated NIC. A completed pod that
+// only ever used the overlay proves nothing about the path this detector
+// watches; see TestOverlaySuccessDoesNotSuppressASwiftWedge.
 func TestFinishedPodInWindowPreventsAFalseWedge(t *testing.T) {
 	events, pods := stuckFailing(3, ago(15*time.Minute))
 
@@ -694,7 +713,7 @@ func TestFinishedPodInWindowPreventsAFalseWedge(t *testing.T) {
 		t.Fatalf("precondition: Decide() = %v, want Wedged", got)
 	}
 
-	withJob := append(pods, completedPod("cronjob", ago(3*time.Minute), false))
+	withJob := append(pods, withSwiftNIC(completedPod("router-job", ago(3*time.Minute), false)))
 	if got, _ := Decide(testNode(true, true), events, withJob, testNow); got != DecisionHealthy {
 		t.Errorf("a finished pod inside the window must rule out a wedge: Decide() = %v, want Healthy", got)
 	}
@@ -703,5 +722,119 @@ func TestFinishedPodInWindowPreventsAFalseWedge(t *testing.T) {
 	withOldJob := append(pods, completedPod("old-cronjob", ago(45*time.Minute), false))
 	if got, _ := Decide(testNode(true, true), events, withOldJob, testNow); got != DecisionWedged {
 		t.Errorf("a finished pod outside the window must not rule out a wedge: Decide() = %v, want Wedged", got)
+	}
+}
+
+// TestPodRequestsSwiftNIC pins how a pod is recognised as needing a delegated
+// NIC. Extended resources are schedulable only as a limit and the kubelet mirrors
+// the limit into requests, so both fields have to be read, on init containers as
+// well as regular ones.
+func TestPodRequestsSwiftNIC(t *testing.T) {
+	nic := corev1.ResourceList{swiftNICResourceName: resource.MustParse("1")}
+	cpu := corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("100m")}
+
+	tests := []struct {
+		name string
+		pod  *corev1.Pod
+		want bool
+	}{
+		{name: "nil pod", pod: nil, want: false},
+		{name: "no containers", pod: &corev1.Pod{}, want: false},
+		{
+			name: "limit on a regular container",
+			pod: &corev1.Pod{Spec: corev1.PodSpec{Containers: []corev1.Container{
+				{Name: "c", Resources: corev1.ResourceRequirements{Limits: nic}},
+			}}},
+			want: true,
+		},
+		{
+			name: "request on a regular container",
+			pod: &corev1.Pod{Spec: corev1.PodSpec{Containers: []corev1.Container{
+				{Name: "c", Resources: corev1.ResourceRequirements{Requests: nic}},
+			}}},
+			want: true,
+		},
+		{
+			name: "limit on an init container",
+			pod: &corev1.Pod{Spec: corev1.PodSpec{InitContainers: []corev1.Container{
+				{Name: "i", Resources: corev1.ResourceRequirements{Limits: nic}},
+			}}},
+			want: true,
+		},
+		{
+			name: "only unrelated resources",
+			pod: &corev1.Pod{Spec: corev1.PodSpec{Containers: []corev1.Container{
+				{Name: "c", Resources: corev1.ResourceRequirements{Limits: cpu, Requests: cpu}},
+			}}},
+			want: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := podRequestsSwiftNIC(tc.pod); got != tc.want {
+				t.Errorf("podRequestsSwiftNIC() = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+// TestOverlaySuccessDoesNotSuppressASwiftWedge is the partial-wedge case, and the
+// reason successScope exists.
+//
+// A mgmt node runs almost all of its pods on the ordinary overlay, which keeps
+// working while the delegated-NIC path is dead. Counting those starts as success
+// lets a node that cannot attach a single NIC look healthy for as long as it
+// keeps scheduling ordinary pods, which on a busy mgmt node is forever.
+//
+// Pinned to CI node aks-userswft2-17575576-vmss000003 on 2026-09-01, where 8
+// router pods across 7 hosted control planes hung for 16 minutes on
+// dhcp-discover timeouts while the node created 110 other pods and brought 107
+// of them to Running.
+func TestOverlaySuccessDoesNotSuppressASwiftWedge(t *testing.T) {
+	events, pods := stuckFailing(3, ago(15*time.Minute))
+
+	if got, _ := Decide(testNode(true, true), events, pods, testNow); got != DecisionWedged {
+		t.Fatalf("precondition: Decide() = %v, want Wedged", got)
+	}
+
+	// The overlay is healthy throughout: a steady stream of ordinary pods reaches
+	// a fresh sandbox well inside the window. None of them asked for a NIC.
+	overlay := pods
+	for i := 0; i < 20; i++ {
+		overlay = append(overlay, startedPod(fmt.Sprintf("overlay%d", i), ago(1*time.Minute), false))
+	}
+	// A completed overlay pod is the same story on a low-churn node.
+	overlay = append(overlay, completedPod("cronjob", ago(3*time.Minute), false))
+
+	got, snap := Decide(testNode(true, true), events, overlay, testNow)
+	if got != DecisionWedged {
+		t.Errorf("overlay-only successes suppressed a real delegated-NIC wedge: Decide() = %v, want Wedged", got)
+	}
+	if snap.RecentSuccess {
+		t.Error("RecentSuccess = true from pods that never asked for a NIC, want false")
+	}
+
+	// One pod that did ask for a NIC and got one is real proof the path works, and
+	// must still rule the wedge out.
+	recovered := append(overlay, withSwiftNIC(startedPod("router", ago(1*time.Minute), false)))
+	if got, _ := Decide(testNode(true, true), events, recovered, testNow); got != DecisionHealthy {
+		t.Errorf("a delegated-NIC success must rule out the wedge: Decide() = %v, want Healthy", got)
+	}
+}
+
+// TestSuccessScopeDefaultsToEveryPod pins the zero value: a detector that does
+// not set a scope keeps counting every pod, so adding the field cannot silently
+// change a detector that did not opt in.
+func TestSuccessScopeDefaultsToEveryPod(t *testing.T) {
+	unscoped := swiftVFTeardown
+	unscoped.successScope = nil
+
+	_, pods := stuckFailing(3, ago(15*time.Minute))
+	pods = append(pods, startedPod("plain", ago(1*time.Minute), false))
+	events, _ := stuckFailing(3, ago(15*time.Minute))
+
+	if snap := unscoped.Evaluate(events, pods, testNow); !snap.RecentSuccess {
+		t.Error("RecentSuccess = false with a nil successScope, want true")
 	}
 }

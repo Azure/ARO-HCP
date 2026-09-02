@@ -21,6 +21,7 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -145,10 +146,19 @@ func isWedged(t *testing.T, client *fake.Clientset, name string) bool {
 }
 
 // seedSuccess puts a pod that got a sandbox into the pod cache, which is the
-// only place the success signal is read from.
+// only place the success signal is read from. The pod asks for a delegated NIC,
+// because the SWIFT detector only counts a start as success if the pod actually
+// traversed the path it watches.
 func seedSuccess(t *testing.T, c *Controller, host, name string, ts time.Time) {
 	t.Helper()
-	if err := c.podIndexer.Add(startedPodOn(host, name, ts, false)); err != nil {
+	pod := startedPodOn(host, name, ts, false)
+	pod.Spec.Containers = []corev1.Container{{
+		Name: "nic",
+		Resources: corev1.ResourceRequirements{
+			Limits: corev1.ResourceList{"aro.openshift.io/swift-nic": resource.MustParse("1")},
+		},
+	}}
+	if err := c.podIndexer.Add(pod); err != nil {
 		t.Fatalf("add pod: %v", err)
 	}
 }
