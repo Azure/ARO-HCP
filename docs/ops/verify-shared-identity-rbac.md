@@ -31,16 +31,16 @@ dev-infrastructure/scripts/verify-shared-identity-rbac.sh \
   <target-object-id> [<target-object-id> ...]
 ```
 
-Example, using the healthy `aro-hcp-int-cs-arm-helper` identity as the reference for the three
-identities involved in AROSLSRE-1994:
+Example, using a known-healthy identity (e.g. `aro-hcp-int-cs-arm-helper`) as the reference for a
+set of target identities to check:
 
 ```bash
 dev-infrastructure/scripts/verify-shared-identity-rbac.sh \
-  64f0619f-ebc2-4156-9d91-c4c781de7e54 \
-  dfcca0f7-a439-45e8-9284-9a2b876d605a \
-  e02ddacf-108f-4f1b-914b-1aee78fd4cb2 \
-  3fcba429-5bf0-40b1-bd4e-efc8136390a3 \
-  6096f642-63a0-4dd6-958d-715a87f33535
+  <subscription-id> \
+  <reference-object-id> \
+  <target-object-id-1> \
+  <target-object-id-2> \
+  <target-object-id-3>
 ```
 
 Requires an `az` session with at least read access to role assignments on the target subscription
