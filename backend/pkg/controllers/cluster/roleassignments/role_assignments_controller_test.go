@@ -29,6 +29,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	clocktesting "k8s.io/utils/clock/testing"
 	"k8s.io/utils/ptr"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -262,6 +263,12 @@ func roleAssignmentGenericError() *azcore.ResponseError {
 	}
 }
 
+// testFixedNow is the fixed "now" the test fake clock reports, so tests can compute
+// earliest-recheck times relative to it deterministically.
+func testFixedNow() time.Time {
+	return time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)
+}
+
 func newTestSyncer(mockResourcesDB corecosmosstorage.ResourcesDBClient, fpaClientBuilder azureclient.FirstPartyApplicationClientBuilder) *roleAssignmentsSyncer {
 	return &roleAssignmentsSyncer{
 		resourcesDBClient:             mockResourcesDB,
@@ -270,6 +277,7 @@ func newTestSyncer(mockResourcesDB corecosmosstorage.ResourcesDBClient, fpaClien
 		subscriptionLister:            &corelistertesting.SliceSubscriptionLister{Subscriptions: []*coreapi.Subscription{newTestSubscription(ptr.To(testTenantID))}},
 		azureFPAClientBuilder:         fpaClientBuilder,
 		clusterScopedIdentitiesConfig: testConfig(),
+		clock:                         clocktesting.NewFakeClock(testFixedNow()),
 	}
 }
 
@@ -435,11 +443,11 @@ func TestRoleAssignmentsSyncerSyncOnceCreateErrorStaysPending(t *testing.T) {
 	assertResourceIDSetEqual(t, nil, got.AzureResources, "AzureResources")
 }
 
-// TestRoleAssignmentsSyncerSyncOnceSteadyStateSkipsAzure verifies the NeedsWork
-// short-circuit end to end: when every expected role assignment is already confirmed
-// and nothing is pending, the controller neither builds the FPA client nor queries
-// Azure, and makes no write.
-func TestRoleAssignmentsSyncerSyncOnceSteadyStateSkipsAzure(t *testing.T) {
+// TestRoleAssignmentsSyncerSyncOnceRecheckAllPresentReschedules verifies that when the
+// earliest-recheck interval has elapsed (nil == due now) and every confirmed role
+// assignment is still present in Azure, SyncOnce re-verifies them (no create) and pushes
+// the recheck time out.
+func TestRoleAssignmentsSyncerSyncOnceRecheckAllPresentReschedules(t *testing.T) {
 	t.Parallel()
 
 	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
@@ -448,6 +456,101 @@ func TestRoleAssignmentsSyncerSyncOnceSteadyStateSkipsAzure(t *testing.T) {
 	cluster := newTestCluster(false)
 	serviceProviderCluster := newTestServiceProviderCluster(t, true, true, true, coreapi.AzureMultiReference{
 		AzureResources: expectedIDs,
+	})
+
+	mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, serviceProviderCluster})
+	require.NoError(t, err)
+
+	ctrl := gomock.NewController(t)
+	mockRAClient := azureclient.NewMockRoleAssignmentsClient(ctrl)
+	// Every confirmed assignment is re-verified and still present; nothing is created.
+	mockRAClient.EXPECT().
+		GetByID(gomock.Any(), gomock.Any(), nil).
+		Return(armauthorization.RoleAssignmentsClientGetByIDResponse{}, nil).
+		Times(len(expectedIDs))
+	mockRAClient.EXPECT().
+		Create(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Times(0)
+	fpaClientBuilder := azureclient.NewMockFirstPartyApplicationClientBuilder(ctrl)
+	fpaClientBuilder.EXPECT().
+		RoleAssignmentsClient(testTenantID, testSubscriptionID).
+		Return(mockRAClient, nil).
+		Times(1)
+
+	syncer := newTestSyncer(mockResourcesDB, fpaClientBuilder)
+
+	require.NoError(t, syncer.SyncOnce(ctx, testHCPClusterKey))
+
+	updated, err := mockResourcesDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
+	require.NoError(t, err)
+	got := updated.Status.AzureResources.RoleAssignments
+	assertResourceIDSetEqual(t, expectedIDs, got.AzureResources, "AzureResources")
+	assertResourceIDSetEqual(t, nil, got.PendingAzureResources, "PendingAzureResources")
+	assertRecheckScheduled(t, got.EarliestRecheckTime)
+}
+
+// TestRoleAssignmentsSyncerSyncOnceRecheckDisappearedRecreates verifies that when a
+// confirmed role assignment has disappeared from Azure, the recheck demotes it to pending
+// and the create phase re-creates it, leaving it confirmed with a fresh recheck time.
+func TestRoleAssignmentsSyncerSyncOnceRecheckDisappearedRecreates(t *testing.T) {
+	t.Parallel()
+
+	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+	expectedIDs := testExpectedRoleAssignmentIDs(t)
+
+	cluster := newTestCluster(false)
+	serviceProviderCluster := newTestServiceProviderCluster(t, true, true, true, coreapi.AzureMultiReference{
+		AzureResources: expectedIDs,
+	})
+
+	mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, serviceProviderCluster})
+	require.NoError(t, err)
+
+	ctrl := gomock.NewController(t)
+	mockRAClient := azureclient.NewMockRoleAssignmentsClient(ctrl)
+	// Recheck reports every assignment gone; the create phase then re-Gets (still gone) and
+	// creates each, so GetByID is called during both phases.
+	mockRAClient.EXPECT().
+		GetByID(gomock.Any(), gomock.Any(), nil).
+		Return(armauthorization.RoleAssignmentsClientGetByIDResponse{}, roleAssignmentNotFoundError()).
+		Times(2 * len(expectedIDs))
+	mockRAClient.EXPECT().
+		Create(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), nil).
+		DoAndReturn(assertCreateParams(t, expectedIDs, nil)).
+		Times(len(expectedIDs))
+	fpaClientBuilder := azureclient.NewMockFirstPartyApplicationClientBuilder(ctrl)
+	// The client is built once for the recheck phase and once for the create phase.
+	fpaClientBuilder.EXPECT().
+		RoleAssignmentsClient(testTenantID, testSubscriptionID).
+		Return(mockRAClient, nil).
+		Times(2)
+
+	syncer := newTestSyncer(mockResourcesDB, fpaClientBuilder)
+
+	require.NoError(t, syncer.SyncOnce(ctx, testHCPClusterKey))
+
+	updated, err := mockResourcesDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
+	require.NoError(t, err)
+	got := updated.Status.AzureResources.RoleAssignments
+	assertResourceIDSetEqual(t, expectedIDs, got.AzureResources, "AzureResources")
+	assertResourceIDSetEqual(t, nil, got.PendingAzureResources, "PendingAzureResources")
+	assertRecheckScheduled(t, got.EarliestRecheckTime)
+}
+
+// TestRoleAssignmentsSyncerSyncOnceSteadyStateSkipsAzure verifies the NeedsWork
+// short-circuit end to end: when every expected role assignment is already confirmed,
+// nothing is pending, and the earliest-recheck time is still in the future, the controller
+// neither builds the FPA client nor queries Azure, and makes no write.
+func TestRoleAssignmentsSyncerSyncOnceSteadyStateSkipsAzure(t *testing.T) {
+	t.Parallel()
+
+	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+	expectedIDs := testExpectedRoleAssignmentIDs(t)
+
+	cluster := newTestCluster(false)
+	serviceProviderCluster := newTestServiceProviderCluster(t, true, true, true, coreapi.AzureMultiReference{
+		AzureResources:      expectedIDs,
+		EarliestRecheckTime: &metav1.Time{Time: testFixedNow().Add(12 * time.Hour)},
 	})
 
 	mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, serviceProviderCluster})
@@ -606,14 +709,35 @@ func TestRoleAssignmentsSyncerNeedsWork(t *testing.T) {
 			expect:     true,
 		},
 		{
-			name:         "all expected confirmed has no work",
+			name:         "all expected confirmed with future recheck has no work",
+			mrgConfirmed: true, cpResolved: true, dpResolved: true,
+			roleAssign: coreapi.AzureMultiReference{
+				AzureResources:      expectedIDs,
+				EarliestRecheckTime: &metav1.Time{Time: testFixedNow().Add(12 * time.Hour)},
+			},
+			expect: false,
+		},
+		{
+			name:         "all expected confirmed with nil recheck needs work",
 			mrgConfirmed: true, cpResolved: true, dpResolved: true,
 			roleAssign: coreapi.AzureMultiReference{AzureResources: expectedIDs},
-			expect:     false,
+			expect:     true,
+		},
+		{
+			name:         "all expected confirmed with elapsed recheck needs work",
+			mrgConfirmed: true, cpResolved: true, dpResolved: true,
+			roleAssign: coreapi.AzureMultiReference{
+				AzureResources:      expectedIDs,
+				EarliestRecheckTime: &metav1.Time{Time: testFixedNow().Add(-time.Minute)},
+			},
+			expect: true,
 		},
 	}
 
-	syncer := &roleAssignmentsSyncer{clusterScopedIdentitiesConfig: testConfig()}
+	syncer := &roleAssignmentsSyncer{
+		clusterScopedIdentitiesConfig: testConfig(),
+		clock:                         clocktesting.NewFakeClock(testFixedNow()),
+	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -670,4 +794,17 @@ func assertCreateParams(t *testing.T, expectedIDs []*azcorearm.ResourceID, creat
 
 		return armauthorization.RoleAssignmentsClientCreateResponse{}, createErr
 	}
+}
+
+// assertRecheckScheduled asserts the earliest-recheck time was set to roughly one recheck
+// interval from the fake clock's now, within the jittered window [now+interval,
+// now+interval*(1+jitterFactor)].
+func assertRecheckScheduled(t *testing.T, earliest *metav1.Time) {
+	t.Helper()
+	require.NotNil(t, earliest, "EarliestRecheckTime must be set once the confirmed set is complete")
+	got := earliest.Time
+	minTime := testFixedNow().Add(roleAssignmentRecheckInterval)
+	maxTime := testFixedNow().Add(roleAssignmentRecheckInterval + time.Duration(roleAssignmentRecheckJitterFactor*float64(roleAssignmentRecheckInterval)))
+	assert.False(t, got.Before(minTime), "recheck time %s must be at least the base interval out (%s)", got, minTime)
+	assert.False(t, got.After(maxTime), "recheck time %s must be within the jittered window (<= %s)", got, maxTime)
 }
