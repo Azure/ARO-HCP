@@ -105,7 +105,7 @@ func NewStampWatchingController(
 	}
 
 	adapter := &genericStampSyncer{syncer: syncer, cooldown: cooldown}
-	return controllerutils.NewGenericWatchingController(name, fleetapi.StampResourceType, adapter, ReconcileTotal)
+	return controllerutils.NewGenericWatchingController(name, fleetapi.StampResourceType, adapter, ReconcileTotal, nil)
 }
 
 // genericStampSyncer adapts a StampSyncer into a controllerutils.GenericSyncer[StampKey].

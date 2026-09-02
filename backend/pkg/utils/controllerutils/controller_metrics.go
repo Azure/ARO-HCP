@@ -22,11 +22,33 @@ import (
 )
 
 var (
-	// ReconcileTotal counts the total number of reconciliations per controller.
+	// ReconcileTotal counts the total number of reconciliations per controller,
+	// including cooldown no-ops that return without doing work.
 	ReconcileTotal = promauto.With(legacyregistry.Registerer()).NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "backend_controller_reconcile_total",
 			Help: "Total number of reconciliations per controller.",
+		},
+		[]string{"controller"},
+	)
+
+	// ReconcileErrors counts reconciliations where SyncOnce returned a non-nil error.
+	ReconcileErrors = promauto.With(legacyregistry.Registerer()).NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "backend_controller_reconcile_errors_total",
+			Help: "Total number of reconciliations that returned an error per controller.",
+		},
+		[]string{"controller"},
+	)
+
+	// ReconcileCooldownSkips counts reconciliations that returned immediately because
+	// a previous EarliestRetryAfter cooldown was still active. Subtracted from
+	// ReconcileTotal when computing reconcile error rate so AddRateLimited no-ops
+	// do not hide real failures.
+	ReconcileCooldownSkips = promauto.With(legacyregistry.Registerer()).NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "backend_controller_reconcile_cooldown_skips_total",
+			Help: "Total number of reconciliations skipped because a retry cooldown was still active.",
 		},
 		[]string{"controller"},
 	)
