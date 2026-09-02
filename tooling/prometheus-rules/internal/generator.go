@@ -406,9 +406,9 @@ func (o *Options) Generate() error {
 	isRecordingRulesFile := strings.Contains(o.outputBicep, "RecordingRules")
 	isAlertingRulesFile := strings.Contains(o.outputBicep, "AlertingRules")
 
-	// Validate that the filename contains the required keywords
-	if !isRecordingRulesFile && !isAlertingRulesFile {
-		return fmt.Errorf("output filename must contain either 'AlertingRules' or 'RecordingRules' to determine the rule type. Got: %s", o.outputBicep)
+	// Validate that the filename identifies exactly one rule type.
+	if isRecordingRulesFile == isAlertingRulesFile {
+		return fmt.Errorf("output filename must contain exactly one of 'AlertingRules' or 'RecordingRules' to determine the rule type. Got: %s", o.outputBicep)
 	}
 
 	generatedRules := &bytes.Buffer{}

@@ -592,6 +592,19 @@ func TestOptionsRunTests(t *testing.T) {
 func TestOptionsGenerate(t *testing.T) {
 	const unusedSeverityCeilingSuppression = "#disable-next-line no-unused-params\nparam severityCeiling int = 0"
 
+	t.Run("rejects ambiguous output filename", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		outputFile := filepath.Join(tmpDir, "generatedAlertingRulesRecordingRules.bicep")
+
+		opts := &Options{
+			outputBicep: outputFile,
+		}
+
+		err := opts.Generate()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "must contain exactly one of 'AlertingRules' or 'RecordingRules'")
+	})
+
 	t.Run("empty alerting output suppresses unused severity ceiling", func(t *testing.T) {
 		tmpDir := t.TempDir()
 		outputFile := filepath.Join(tmpDir, "generatedAlertingRules.bicep")
