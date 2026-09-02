@@ -205,6 +205,14 @@ func (c *operationClusterCreate) SynchronizeOperation(ctx context.Context, key c
 func (c *operationClusterCreate) determineOperationState(ctx context.Context, operation *coreapi.Operation, cluster *coreapi.HCPOpenShiftCluster) (*operationbase.OperationState, error) {
 	logger := utils.LoggerFromContext(ctx)
 
+	// Guard against a cluster whose Cluster Service resource has not yet been
+	// successfully created. clusterServiceCreateOperationState below dereferences
+	// *cluster.ServiceProviderProperties.ClusterServiceID, so bail out early with
+	// a retryable error until the ID is populated rather than panicking.
+	if cluster.ServiceProviderProperties.ClusterServiceID == nil || len(cluster.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
+		return nil, utils.TrackError(errors.New("cluster service has not been successfully created: ClusterServiceID is not set"))
+	}
+
 	errs := []error{}
 	operationStates := []*operationbase.OperationState{}
 
@@ -367,8 +375,8 @@ func (c *operationClusterCreate) hostedClusterOperationStatus(ctx context.Contex
 
 		if !anyVersionInstalled {
 			// can only check this when the success condition works, because this is unreliable otherwise
-			logger.Info("hosted cluster has no installed version", "hostedCluster.Status.ControlPlaneVersion.History", hostedCluster.Status.ControlPlaneVersion.History)
-			return operationbase.NewOperationState(coreapi.ProvisioningStateProvisioning, withDegradedSuffix("hosted cluster has no installed version", hostedCluster)), nil
+			logger.Info("hosted cluster has not completed installing", "hostedCluster.Status.ControlPlaneVersion.History", hostedCluster.Status.ControlPlaneVersion.History)
+			return operationbase.NewOperationState(coreapi.ProvisioningStateProvisioning, withDegradedSuffix("hosted cluster has not completed installing", hostedCluster)), nil
 		}
 	}
 

@@ -428,6 +428,7 @@ func TestDetermineOperationState(t *testing.T) {
 		clusterLister     corelisters.ClusterLister
 		readDesireLister  kubeapplierlisters.ReadDesireLister
 		setupCSMock       func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec
+		clusterOverride   *coreapi.HCPOpenShiftCluster
 		expectedState     coreapi.ProvisioningState
 		wantMessageSubstr string
 		expectError       bool
@@ -665,7 +666,7 @@ func TestDetermineOperationState(t *testing.T) {
 				},
 			},
 			expectedState:     coreapi.ProvisioningStateProvisioning,
-			wantMessageSubstr: "hosted cluster has no installed version",
+			wantMessageSubstr: "hosted cluster has not completed installing",
 		},
 		{
 			name: "cluster-service succeeded but cosmos not ready → Provisioning",
@@ -734,6 +735,17 @@ func TestDetermineOperationState(t *testing.T) {
 			},
 			expectedState: coreapi.ProvisioningStateProvisioning,
 		},
+		{
+			name: "cluster ClusterServiceID unset → error",
+			clusterOverride: func() *coreapi.HCPOpenShiftCluster {
+				c := newClusterWithAPIURL("https://api.example.com", nil)
+				c.ServiceProviderProperties.ClusterServiceID = nil
+				return c
+			}(),
+			setupCSMock: readyClusterServiceMock,
+			expectError: true,
+			errContains: "cluster service has not been successfully created",
+		},
 	}
 
 	for _, tt := range tests {
@@ -775,7 +787,11 @@ func TestDetermineOperationState(t *testing.T) {
 				},
 			}
 
-			result, err := controller.determineOperationState(ctx, operation, cluster)
+			clusterArg := cluster
+			if tt.clusterOverride != nil {
+				clusterArg = tt.clusterOverride
+			}
+			result, err := controller.determineOperationState(ctx, operation, clusterArg)
 
 			if tt.expectError {
 				require.Error(t, err)
