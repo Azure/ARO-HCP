@@ -389,10 +389,15 @@ func (c *Controller) syncHandler(ctx context.Context, name string) error {
 		}
 		if changed {
 			detectionsTotal.WithLabelValues(snap.DetectorName, snap.MatchedSignature).Inc()
-			logger.Info("detector fired; node labeled wedged",
-				"detector", snap.DetectorName,
-				"signature", snap.MatchedSignature,
-				"evidence", snap.ReasonString())
+			// Pod evidence is logged as structured fields so it stays filterable.
+			// A node detector has no pod counts, so it logs its summary instead.
+			kv := []any{"detector", snap.DetectorName, "signature", snap.MatchedSignature}
+			if snap.Pods != nil {
+				kv = append(kv, "failures", snap.Pods.FailureCount, "recentSuccess", snap.Pods.RecentSuccess)
+			} else {
+				kv = append(kv, "evidence", snap.Detail)
+			}
+			logger.Info("detector fired; node labeled wedged", kv...)
 		}
 		// Mitigation of a labeled node (cordon, taint, evict, delete) is owned
 		// by a separate controller; this controller stops at labeling.
