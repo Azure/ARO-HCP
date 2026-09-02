@@ -131,10 +131,11 @@ func (d neverReadyDetector) EvaluateNode(node *corev1.Node, now time.Time) Snaps
 	}
 
 	snap.StuckSince = created
-	// The node itself is the single subject, so both counts are one. They are
-	// reported so the metric and the logs read consistently with other detectors.
-	snap.FailureCount = 1
-	snap.SustainedCount = 1
+	// FailureCount and SustainedCount stay zero: they are defined as counts of
+	// stuck pods, and this detector reads the node only. Reporting a pod count
+	// here would make logs and telemetry imply pod evidence that does not exist.
+	// MeetsThreshold keys on StuckSince, so leaving them zero changes nothing.
+	//
 	// The Ready condition's reason names the cause within the family, which is
 	// what the signature annotation is for. It is triage detail only; mitigation
 	// keys on the detector name.

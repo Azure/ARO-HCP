@@ -309,6 +309,12 @@ func TestProductionBornBrokenNodeFires(t *testing.T) {
 	if got != DecisionWedged {
 		t.Fatalf("Decide() = %v, want Wedged; the captured node sat NotReady for 22 hours", got)
 	}
+	// This detector reads the node, not pods, so the pod-count fields must stay
+	// zero or logs and telemetry imply pod evidence that was never gathered.
+	if snap.FailureCount != 0 || snap.SustainedCount != 0 {
+		t.Errorf("FailureCount/SustainedCount = %d/%d, want 0/0 for a node-only detector",
+			snap.FailureCount, snap.SustainedCount)
+	}
 	if snap.DetectorName != "never-ready" {
 		t.Errorf("DetectorName = %q, want never-ready", snap.DetectorName)
 	}
