@@ -287,18 +287,30 @@ func (c *roleAssignmentsSyncer) syncRoleAssignments(ctx context.Context, cluster
 		}
 	}
 
-	// Phase 2 (recheck): when nothing is pending, the confirmed set already covers the
-	// expected set, and the earliest-recheck interval has elapsed, re-verify each confirmed
-	// role assignment against Azure. Any that have disappeared are demoted back to pending
-	// (so the create phase re-creates them); when they are all still present the recheck
-	// time is simply pushed out. This is the only reason SyncOnce runs in steady state.
+	// Phase 2 (recheck): once the confirmed set covers the expected set with nothing pending,
+	// maintain the earliest-recheck window. A cluster with no window yet (freshly confirmed,
+	// or confirmed before this controller tracked EarliestRecheckTime) has the window
+	// initialized to a future time WITHOUT an Azure recheck, so a rollout does not trigger a
+	// GetByID burst across every existing cluster. Once the window has elapsed, re-verify the
+	// confirmed set against Azure: any that have disappeared are demoted back to pending (so
+	// the create phase re-creates them), otherwise the window is simply pushed out. This is
+	// the only reason SyncOnce runs in steady state.
 	existingRoleAssignments = existingServiceProviderCluster.Status.AzureResources.RoleAssignments
 	if len(existingRoleAssignments.PendingAzureResources) == 0 &&
-		c.confirmedCoversExpected(existingRoleAssignments.AzureResources, expected) &&
-		c.recheckDue(existingRoleAssignments.EarliestRecheckTime) {
-		existingServiceProviderCluster, err = c.recheckConfirmedRoleAssignments(ctx, cluster, existingServiceProviderCluster)
-		if err != nil {
+		c.confirmedCoversExpected(existingRoleAssignments.AzureResources, expected) {
+		switch {
+		case existingRoleAssignments.EarliestRecheckTime == nil:
+			// No recheck window yet: schedule the first one instead of rechecking now, so a
+			// rollout of never-initialized cluster docs does not stampede Azure with GetByID.
+			replacement := existingServiceProviderCluster.DeepCopy()
+			replacement.Status.AzureResources.RoleAssignments.EarliestRecheckTime = c.nextRoleAssignmentRecheckTime()
+			_, err = c.persistIfChanged(ctx, cluster, existingServiceProviderCluster, replacement)
 			return utils.TrackError(err)
+		case c.recheckDue(existingRoleAssignments.EarliestRecheckTime):
+			existingServiceProviderCluster, err = c.recheckConfirmedRoleAssignments(ctx, cluster, existingServiceProviderCluster)
+			if err != nil {
+				return utils.TrackError(err)
+			}
 		}
 	}
 
@@ -314,7 +326,7 @@ func (c *roleAssignmentsSyncer) syncRoleAssignments(ctx context.Context, cluster
 		return nil
 	}
 
-	expectedByID := make(map[string]expectedRoleAssignment, len(expected))
+	expectedByID := make(map[string]roleAssignmentDefinition, len(expected))
 	for _, assignment := range expected {
 		expectedByID[strings.ToLower(assignment.resourceID.String())] = assignment
 	}
@@ -352,7 +364,7 @@ func (c *roleAssignmentsSyncer) syncRoleAssignments(ctx context.Context, cluster
 		}
 
 		// The role assignment does not exist yet: create it.
-		if createErr := c.createRoleAssignment(ctx, roleAssignmentsClient, cluster, assignment); createErr != nil {
+		if createErr := c.createRoleAssignment(ctx, roleAssignmentsClient, assignment); createErr != nil {
 			return utils.TrackError(createErr)
 		}
 		newlyConfirmed = append(newlyConfirmed, pendingID)
@@ -374,17 +386,17 @@ func (c *roleAssignmentsSyncer) syncRoleAssignments(ctx context.Context, cluster
 	return utils.TrackError(err)
 }
 
-// expectedRoleAssignment is a single managed-resource-group-scoped role assignment the
-// backend expects to exist for the cluster. It carries both what is needed to recognize
+// roleAssignmentDefinition describes a single managed-resource-group-scoped role assignment
+// the backend expects to exist for the cluster. It carries both what is needed to recognize
 // the assignment (resourceID) and what is needed to create it with the deterministic
-// identity from the roleassignment package (scope, name, principalID, roleAssignmentDefinition) -
+// identity from the roleassignment package (scope, name, principalID, roleDefinitionID) -
 // the hashed name cannot be reversed from the resource ID, so these inputs are retained.
-type expectedRoleAssignment struct {
-	resourceID               *azcorearm.ResourceID
-	scope                    string
-	name                     string
-	principalID              string
-	roleAssignmentDefinition string
+type roleAssignmentDefinition struct {
+	resourceID       *azcorearm.ResourceID
+	scope            string
+	name             string
+	principalID      string
+	roleDefinitionID string
 }
 
 // expectedRoleAssignments computes the managed-resource-group-scoped role assignments the
@@ -406,7 +418,7 @@ type expectedRoleAssignment struct {
 // A missing or unresolved required input (empty managed resource group name,
 // unresolved principal ID, or an operator with no configured role definitions)
 // returns an error so the caller retries rather than computing an incomplete set.
-func (c *roleAssignmentsSyncer) expectedRoleAssignments(cluster *coreapi.HCPOpenShiftCluster, serviceProviderCluster *coreapi.ServiceProviderCluster) ([]expectedRoleAssignment, error) {
+func (c *roleAssignmentsSyncer) expectedRoleAssignments(cluster *coreapi.HCPOpenShiftCluster, serviceProviderCluster *coreapi.ServiceProviderCluster) ([]roleAssignmentDefinition, error) {
 	managedResourceGroupName := cluster.CustomerProperties.Platform.ManagedResourceGroup
 	if len(managedResourceGroupName) == 0 {
 		return nil, fmt.Errorf("managed resource group name is empty for cluster %q", cluster.ID.String())
@@ -418,7 +430,7 @@ func (c *roleAssignmentsSyncer) expectedRoleAssignments(cluster *coreapi.HCPOpen
 
 	userAssignedIdentities := cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities
 
-	var expected []expectedRoleAssignment
+	var expected []roleAssignmentDefinition
 
 	// Control-plane operators.
 	for operatorName, identityResourceID := range userAssignedIdentities.ControlPlaneOperators {
@@ -517,7 +529,7 @@ func (c *roleAssignmentsSyncer) dataPlaneOperatorRoleDefinitionIDs(operatorName 
 // principalID paired with each role definition at scope and appends the resulting expected
 // assignments to expected, skipping duplicates (a shared identity + role definition would
 // otherwise produce the same deterministic ID twice).
-func appendRoleAssignments(expected []expectedRoleAssignment, scope, principalID string, roleDefinitionIDs []*azcorearm.ResourceID) ([]expectedRoleAssignment, error) {
+func appendRoleAssignments(expected []roleAssignmentDefinition, scope, principalID string, roleDefinitionIDs []*azcorearm.ResourceID) ([]roleAssignmentDefinition, error) {
 	for _, roleDefinitionID := range roleDefinitionIDs {
 		if roleDefinitionID == nil {
 			continue
@@ -529,17 +541,17 @@ func appendRoleAssignments(expected []expectedRoleAssignment, scope, principalID
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse role assignment resource ID %q: %w", fullID, err)
 		}
-		if slices.ContainsFunc(expected, func(e expectedRoleAssignment) bool {
+		if slices.ContainsFunc(expected, func(e roleAssignmentDefinition) bool {
 			return controllerutil.ResourceIDsEqual(e.resourceID, parsed)
 		}) {
 			continue
 		}
-		expected = append(expected, expectedRoleAssignment{
-			resourceID:               parsed,
-			scope:                    scope,
-			name:                     name,
-			principalID:              principalID,
-			roleAssignmentDefinition: roleDefID,
+		expected = append(expected, roleAssignmentDefinition{
+			resourceID:       parsed,
+			scope:            scope,
+			name:             name,
+			principalID:      principalID,
+			roleDefinitionID: roleDefID,
 		})
 	}
 	return expected, nil
@@ -588,16 +600,15 @@ func (c *roleAssignmentsSyncer) roleAssignmentsClient(ctx context.Context, subsc
 // PrincipalType=ServicePrincipal). Because the assignment name is deterministic, a create
 // that races with a concurrent creator - or a retried create - surfaces as
 // RoleAssignmentExists, which is treated as success.
-func (c *roleAssignmentsSyncer) createRoleAssignment(ctx context.Context, client azureclient.RoleAssignmentsClient, cluster *coreapi.HCPOpenShiftCluster, assignment expectedRoleAssignment) error {
+func (c *roleAssignmentsSyncer) createRoleAssignment(ctx context.Context, client azureclient.RoleAssignmentsClient, assignment roleAssignmentDefinition) error {
 	logger := utils.LoggerFromContext(ctx)
 	logger.Info("creating role assignment",
-		"clusterID", cluster.ID.String(),
 		"roleAssignmentID", assignment.resourceID.String())
 
 	_, err := client.Create(ctx, assignment.scope, assignment.name, armauthorization.RoleAssignmentCreateParameters{
 		Properties: &armauthorization.RoleAssignmentProperties{
 			PrincipalID:      to.Ptr(assignment.principalID),
-			RoleDefinitionID: to.Ptr(assignment.roleAssignmentDefinition),
+			RoleDefinitionID: to.Ptr(assignment.roleDefinitionID),
 			PrincipalType:    to.Ptr(armauthorization.PrincipalTypeServicePrincipal),
 		},
 	}, nil)
@@ -624,12 +635,13 @@ func (c *roleAssignmentsSyncer) recheckConfirmedRoleAssignments(ctx context.Cont
 		return nil, err
 	}
 
-	var disappeared []*azcorearm.ResourceID
+	var stillConfirmed, disappeared []*azcorearm.ResourceID
 	for _, confirmedID := range confirmed {
 		_, getErr := roleAssignmentsClient.GetByID(ctx, confirmedID.String(), nil)
 		switch {
 		case getErr == nil:
-			// Still present.
+			// Still present: keep it confirmed.
+			stillConfirmed = append(stillConfirmed, confirmedID)
 		case azureclient.IsRoleAssignmentNotFoundErr(getErr):
 			disappeared = append(disappeared, confirmedID)
 		default:
@@ -645,14 +657,14 @@ func (c *roleAssignmentsSyncer) recheckConfirmedRoleAssignments(ctx context.Cont
 		return c.persistIfChanged(ctx, cluster, existingServiceProviderCluster, replacement)
 	}
 
-	// One or more confirmed role assignments have disappeared: demote them back to pending
-	// (recording that intent before the create phase re-creates them) and clear the recheck
-	// time so they are re-created promptly.
+	// One or more confirmed role assignments have disappeared: keep only the ones still
+	// present as confirmed, demote the disappeared ones back to pending (recording that
+	// intent before the create phase re-creates them), and clear the recheck time so they
+	// are re-created promptly.
 	logger := utils.LoggerFromContext(ctx)
 	logger.Info("confirmed role assignment disappeared; demoting to pending for recreation",
-		"clusterID", cluster.ID.String(),
 		"roleAssignments", resourceIDStrings(disappeared))
-	roleAssignments.AzureResources = filterOutResourceIDs(confirmed, disappeared)
+	roleAssignments.AzureResources = stillConfirmed
 	roleAssignments.PendingAzureResources = append(roleAssignments.PendingAzureResources, disappeared...)
 	roleAssignments.EarliestRecheckTime = nil
 	return c.persistIfChanged(ctx, cluster, existingServiceProviderCluster, replacement)
@@ -660,7 +672,7 @@ func (c *roleAssignmentsSyncer) recheckConfirmedRoleAssignments(ctx context.Cont
 
 // confirmedCoversExpected reports whether every expected role assignment is present in the
 // confirmed set.
-func (c *roleAssignmentsSyncer) confirmedCoversExpected(confirmed []*azcorearm.ResourceID, expected []expectedRoleAssignment) bool {
+func (c *roleAssignmentsSyncer) confirmedCoversExpected(confirmed []*azcorearm.ResourceID, expected []roleAssignmentDefinition) bool {
 	for _, assignment := range expected {
 		if !slices.ContainsFunc(confirmed, func(id *azcorearm.ResourceID) bool {
 			return controllerutil.ResourceIDsEqual(id, assignment.resourceID)
@@ -671,8 +683,10 @@ func (c *roleAssignmentsSyncer) confirmedCoversExpected(confirmed []*azcorearm.R
 	return true
 }
 
-// recheckDue reports whether the earliest-recheck time has elapsed (or was never set, which
-// means recheck immediately).
+// recheckDue reports whether the earliest-recheck time has elapsed. A nil time reports true
+// so NeedsWork enqueues a sync for a steady-state cluster that has no recheck window yet; that
+// sync initializes the window to a future time rather than rechecking Azure immediately (see
+// syncRoleAssignments phase 2), so a nil time never triggers an immediate Azure recheck burst.
 func (c *roleAssignmentsSyncer) recheckDue(earliest *metav1.Time) bool {
 	return earliest == nil || !c.clock.Now().Before(earliest.Time)
 }
@@ -684,21 +698,6 @@ func (c *roleAssignmentsSyncer) nextRoleAssignmentRecheckTime() *metav1.Time {
 	jittered := wait.Jitter(roleAssignmentRecheckInterval, roleAssignmentRecheckJitterFactor)
 	recheck := metav1.NewTime(c.clock.Now().Add(jittered))
 	return &recheck
-}
-
-// filterOutResourceIDs returns ids with every entry present in remove removed
-// (case-insensitive resource ID comparison).
-func filterOutResourceIDs(ids, remove []*azcorearm.ResourceID) []*azcorearm.ResourceID {
-	var kept []*azcorearm.ResourceID
-	for _, id := range ids {
-		if slices.ContainsFunc(remove, func(r *azcorearm.ResourceID) bool {
-			return controllerutil.ResourceIDsEqual(r, id)
-		}) {
-			continue
-		}
-		kept = append(kept, id)
-	}
-	return kept
 }
 
 // resourceIDStrings renders resource IDs for structured logging.
