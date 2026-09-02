@@ -163,6 +163,7 @@ func (in *AzureResources) DeepCopyInto(out *AzureResources) {
 	*out = *in
 	in.DenyAssignments.DeepCopyInto(&out.DenyAssignments)
 	in.ManagedResourceGroup.DeepCopyInto(&out.ManagedResourceGroup)
+	in.RoleAssignments.DeepCopyInto(&out.RoleAssignments)
 	return
 }
 
