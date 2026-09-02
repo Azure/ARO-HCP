@@ -23,7 +23,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-logr/logr/funcr"
 	"github.com/go-logr/logr/testr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -712,28 +711,23 @@ func TestRoleAssignmentsSyncerSyncOnceRecheckPartialDisappearance(t *testing.T) 
 	assert.Nil(t, got.EarliestRecheckTime, "EarliestRecheckTime must be cleared while work remains")
 }
 
-// TestRoleAssignmentsSyncerSyncOnceExtraConfirmedLoggedNotTracked verifies the accepted-leak
-// handling: a previously-confirmed role assignment that is no longer expected is dropped from
-// tracking (the overwrite keeps only the expected set) and logged exactly once - never
-// re-queried and never carried in a side list.
-func TestRoleAssignmentsSyncerSyncOnceExtraConfirmedLoggedNotTracked(t *testing.T) {
+// TestRoleAssignmentsSyncerSyncOnceExtraConfirmedRetained verifies the accepted-leak handling:
+// a previously-confirmed role assignment that is no longer expected (e.g. after an identity or
+// name-scheme change) is RETAINED in AzureResources rather than dropped - it is never
+// re-queried, and it does not count as work nor block the recheck-window scheduling. Its
+// deletion is deferred to managed identity replacement support.
+func TestRoleAssignmentsSyncerSyncOnceExtraConfirmedRetained(t *testing.T) {
 	t.Parallel()
 
+	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
 	expectedIDs := testExpectedRoleAssignmentIDs(t)
 	extraID := testUnexpectedRoleAssignmentID(t)
-
-	var extraLogLines int
-	logger := funcr.New(func(_, args string) {
-		if strings.Contains(args, "no longer expected") {
-			extraLogLines++
-		}
-	}, funcr.Options{})
-	ctx := utils.ContextWithLogger(context.Background(), logger)
+	confirmedWithExtra := append(append([]*azcorearm.ResourceID{}, expectedIDs...), extraID)
 
 	cluster := newTestCluster(false)
 	// A previously-confirmed assignment (extraID) is no longer expected; the recheck is due.
 	serviceProviderCluster := newTestServiceProviderCluster(t, true, true, true, coreapi.AzureMultiReference{
-		AzureResources:      append(append([]*azcorearm.ResourceID{}, expectedIDs...), extraID),
+		AzureResources:      confirmedWithExtra,
 		EarliestRecheckTime: &metav1.Time{Time: testFixedNow().Add(-time.Minute)},
 	})
 
@@ -763,11 +757,11 @@ func TestRoleAssignmentsSyncerSyncOnceExtraConfirmedLoggedNotTracked(t *testing.
 	updated, err := mockResourcesDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
 	require.NoError(t, err)
 	got := updated.Status.AzureResources.RoleAssignments
-	// The extra is dropped from tracking (only expected remain) and logged exactly once.
-	assertResourceIDSetEqual(t, expectedIDs, got.AzureResources, "AzureResources")
+	// The extra is retained alongside the expected set; nothing pending, and the recheck window
+	// is still scheduled (retained extras are not in the expected set, so they are not work).
+	assertResourceIDSetEqual(t, confirmedWithExtra, got.AzureResources, "AzureResources")
 	assertResourceIDSetEqual(t, nil, got.PendingAzureResources, "PendingAzureResources")
 	assertRecheckScheduled(t, got.EarliestRecheckTime)
-	assert.Equal(t, 1, extraLogLines, "the single no-longer-expected assignment must be logged exactly once")
 }
 
 // TestRoleAssignmentsSyncerSyncOnceSteadyStateSkipsAzure verifies the NeedsWork
