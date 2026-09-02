@@ -161,8 +161,10 @@ func (c *managedResourceGroupSyncer) SyncOnce(ctx context.Context, key controlle
 //     records the resource group as AzureResource. A create failure returns an error
 //     so the sync retries with the pending marker still in place.
 //   - other error: returns the error so the sync retries.
-//   - exists: if the resource group is owned by another cluster (its ManagedBy is
-//     set and does not equal this cluster's ID) it returns an error; otherwise it
+//   - exists: if the resource group is not yet in a Succeeded provisioning state (for
+//     example another actor is mid-create) it returns an error so the sync retries with
+//     the pending marker intact; else if it is owned by another cluster (its ManagedBy
+//     is set and does not equal this cluster's ID) it returns an error; otherwise it
 //     clears the pending marker and records the resource group as AzureResource.
 func (c *managedResourceGroupSyncer) reconcileManagedResourceGroup(ctx context.Context, cluster *coreapi.HCPOpenShiftCluster, existingServiceProviderCluster *coreapi.ServiceProviderCluster) error {
 	// A cluster should always have a managed resource group name recorded on its
@@ -210,7 +212,15 @@ func (c *managedResourceGroupSyncer) reconcileManagedResourceGroup(ctx context.C
 		return utils.TrackError(fmt.Errorf("failed to get managed resource group %q: %w", managedResourceGroupID.Name, getErr))
 	default:
 		// The managed resource group already exists. getResponse is a value type; its
-		// ManagedBy (*string) is only meaningful here, where the Get succeeded.
+		// fields are only meaningful here, where the Get succeeded.
+		//
+		// Gate on provisioning state before confirming: if another actor (for example
+		// Cluster Service) is mid-create and the resource group is not yet Succeeded, do
+		// not confirm. Return an error so a later pass retries with the pending marker
+		// intact, mirroring the create path's handling of a non-Succeeded state.
+		if err := validateProvisioningStateSucceeded(getResponse.ResourceGroup); err != nil {
+			return utils.TrackError(fmt.Errorf("managed resource group %q not ready: %w", managedResourceGroupID.Name, err))
+		}
 		return c.confirmManagedResourceGroup(ctx, cluster, existingServiceProviderCluster, managedResourceGroupID, getResponse.ManagedBy)
 	}
 }
