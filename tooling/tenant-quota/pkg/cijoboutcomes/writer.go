@@ -35,6 +35,8 @@ import (
 	"github.com/Azure/azure-kusto-go/azkustodata"
 	"github.com/Azure/azure-kusto-go/azkustodata/kql"
 	"github.com/Azure/azure-kusto-go/azkustoingest"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 
 	"github.com/Azure/ARO-HCP/tooling/tenant-quota/pkg/config"
 )
@@ -116,7 +118,17 @@ func (w *Writer) Start(ctx context.Context) {
 	}
 }
 
-func (w *Writer) writeOnce(ctx context.Context) {
+// writeOnce bounds a single pass.
+//
+// Every collector here bounds its own pass so that one stuck call cannot hold
+// the loop past its next tick - see pkg/prow/collector.go and
+// pkg/subscriptionquota/collector.go. This one reads its own timeout rather
+// than the collector-wide one because a pass fetches artifacts per run and is
+// legitimately far slower than a single API call.
+func (w *Writer) writeOnce(parentCtx context.Context) {
+	ctx, cancel := context.WithTimeout(parentCtx, w.config.CIJobOutcomes.GetTimeout())
+	defer cancel()
+
 	if err := w.write(ctx); err != nil {
 		w.logger.Error("Failed to record CI job outcomes", "error", err)
 	}
@@ -125,7 +137,12 @@ func (w *Writer) writeOnce(ctx context.Context) {
 func (w *Writer) write(ctx context.Context) error {
 	settings := w.config.CIJobOutcomes
 
-	queryClient, err := azkustodata.New(azkustodata.NewConnectionStringBuilder(settings.ClusterURI).WithDefaultAzureCredential())
+	credential, err := kustoCredential()
+	if err != nil {
+		return err
+	}
+
+	queryClient, err := azkustodata.New(azkustodata.NewConnectionStringBuilder(settings.ClusterURI).WithTokenCredential(credential))
 	if err != nil {
 		return fmt.Errorf("failed to create Kusto client: %w", err)
 	}
@@ -193,6 +210,15 @@ func (w *Writer) write(ctx context.Context) error {
 
 			detail, err := fetchRunDetail(ctx, w.client, outcome.ProwURL)
 			if err != nil {
+				// A pass that ran out of time has not learned anything about
+				// the run, so it must not count against the run's attempts.
+				// Stopping here also avoids charging every remaining run for
+				// the same expired deadline.
+				if ctx.Err() != nil {
+					w.logger.Info("Pass timed out; leaving remaining runs for the next one",
+						"release", release, "buildId", outcome.BuildID)
+					break
+				}
 				// Artifacts are read over the network, so a failure here may be
 				// the run's (aborted before its test step uploaded anything) or
 				// the network's. The two are not reliably distinguishable, so
@@ -230,7 +256,7 @@ func (w *Writer) write(ctx context.Context) error {
 		return errors.Join(failures...)
 	}
 
-	ingestors, err := w.newIngestors()
+	ingestors, err := w.newIngestors(credential)
 	if err != nil {
 		return errors.Join(append(failures, err)...)
 	}
@@ -403,7 +429,24 @@ type tableIngestor struct {
 	ingestor *azkustoingest.Ingestion
 }
 
-func (w *Writer) newIngestors() (*ingestors, error) {
+// kustoCredential builds the credential both the query and ingestion clients
+// use.
+//
+// DefaultAzureCredential is constrained to token credentials so it cannot fall
+// back to a developer sign-in: the collector runs as a workload identity, and a
+// silent fallback would work on a laptop and fail in the cluster. This matches
+// tooling/hcpctl/pkg/kusto/client.go and the other tooling here.
+func kustoCredential() (azcore.TokenCredential, error) {
+	credential, err := azidentity.NewDefaultAzureCredential(&azidentity.DefaultAzureCredentialOptions{
+		RequireAzureTokenCredentials: true,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Azure credential: %w", err)
+	}
+	return credential, nil
+}
+
+func (w *Writer) newIngestors(credential azcore.TokenCredential) (*ingestors, error) {
 	settings := w.config.CIJobOutcomes
 
 	built := &ingestors{}
@@ -416,7 +459,7 @@ func (w *Writer) newIngestors() (*ingestors, error) {
 		{settings.TestResults, &built.testResults},
 	} {
 		ingestor, err := azkustoingest.New(
-			azkustodata.NewConnectionStringBuilder(settings.IngestionURI).WithDefaultAzureCredential(),
+			azkustodata.NewConnectionStringBuilder(settings.IngestionURI).WithTokenCredential(credential),
 			azkustoingest.WithDefaultDatabase(settings.Database),
 			azkustoingest.WithDefaultTable(target.table.Table),
 		)

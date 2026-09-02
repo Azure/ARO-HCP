@@ -41,6 +41,16 @@ const (
 	// short enough that a pass does not fetch months of runs in one unpaginated
 	// response. A gap longer than this is not backfilled.
 	DefaultCIJobOutcomesWindow = 24 * time.Hour
+	// DefaultCIJobOutcomesTimeout bounds a single pass, so that one stuck
+	// network call cannot hold the collector past its next tick and stall
+	// collection indefinitely.
+	//
+	// It is far longer than the collector-wide timeout because a pass reads one
+	// set of artifacts per run it has not seen, and a first pass over an empty
+	// table has a day of runs to read. Cutting a pass short is safe - runs
+	// already stored are subtracted from the next one, so a long backlog is
+	// worked through over several passes rather than lost.
+	DefaultCIJobOutcomesTimeout = 10 * time.Minute
 )
 
 type Config struct {
@@ -84,9 +94,11 @@ type CIJobOutcomesConfig struct {
 	JobFilter string   `yaml:"jobFilter"`
 	Interval  string   `yaml:"interval,omitempty"`
 	Window    string   `yaml:"window,omitempty"`
+	Timeout   string   `yaml:"timeout,omitempty"`
 
 	intervalDuration time.Duration
 	windowDuration   time.Duration
+	timeoutDuration  time.Duration
 }
 
 func (c *CIJobOutcomesConfig) GetInterval() time.Duration {
@@ -97,11 +109,18 @@ func (c *CIJobOutcomesConfig) GetWindow() time.Duration {
 	return c.windowDuration
 }
 
+func (c *CIJobOutcomesConfig) GetTimeout() time.Duration {
+	return c.timeoutDuration
+}
+
 func (c *CIJobOutcomesConfig) validate() error {
 	if err := parseDuration(c.Interval, DefaultCIJobOutcomesInterval, &c.intervalDuration, "ciJobOutcomes.interval"); err != nil {
 		return err
 	}
 	if err := parseDuration(c.Window, DefaultCIJobOutcomesWindow, &c.windowDuration, "ciJobOutcomes.window"); err != nil {
+		return err
+	}
+	if err := parseDuration(c.Timeout, DefaultCIJobOutcomesTimeout, &c.timeoutDuration, "ciJobOutcomes.timeout"); err != nil {
 		return err
 	}
 	if !c.Enabled {

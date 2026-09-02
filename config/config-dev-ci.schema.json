@@ -577,6 +577,7 @@
         "sippyURI": { "type": "string", "format": "uri", "description": "Sippy endpoint that runs are read from" },
         "jobFilter": { "type": "string", "description": "Substring a job name must contain to be recorded" },
         "interval": { "type": "string", "description": "How often outcomes are recorded, as a Go duration" },
+        "timeout": { "type": "string", "description": "Bounds a single pass, as a Go duration; longer than the collector-wide timeout because a pass reads artifacts per run" },
         "window": { "type": "string", "description": "How much recent history each pass reads, as a Go duration; runs already stored are subtracted" },
         "releases": {
           "type": "array",

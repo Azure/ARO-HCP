@@ -184,6 +184,10 @@ clouds:
             sippyURI: "https://sippy.dptools.openshift.org"
             jobFilter: "e2e-parallel"
             interval: "5m"
+            # Bounds a single pass, so a stuck read cannot stall collection.
+            # Longer than the collector-wide timeout because a pass reads one
+            # set of artifacts per run it has not seen.
+            timeout: "10m"
             # How much recent history each pass reads. Runs already stored are
             # subtracted, so this only has to cover a slow run completing after
             # faster ones started later.

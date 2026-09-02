@@ -48,6 +48,7 @@ ciJobOutcomes:
   sippyURI: "{{ .opstool.tenantQuota.ciJobOutcomes.sippyURI }}"
   jobFilter: "{{ .opstool.tenantQuota.ciJobOutcomes.jobFilter }}"
   interval: "{{ .opstool.tenantQuota.ciJobOutcomes.interval }}"
+  timeout: "{{ .opstool.tenantQuota.ciJobOutcomes.timeout }}"
   window: "{{ .opstool.tenantQuota.ciJobOutcomes.window }}"
   releases:
 {{- range .opstool.tenantQuota.ciJobOutcomes.releases }}

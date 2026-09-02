@@ -684,3 +684,19 @@ func TestCIJobOutcomesConfigValidatesEndpoints(t *testing.T) {
 		t.Errorf("a disabled config must validate, got %v", err)
 	}
 }
+
+// A pass reads artifacts per run, so it needs a bound of its own: the
+// collector-wide timeout is sized for a single API call and would cut off a
+// first pass over an empty table.
+func TestCIJobOutcomesTimeoutDefaultsIndependently(t *testing.T) {
+	cfg := CIJobOutcomesConfig{Enabled: false}
+	if err := cfg.validate(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.GetTimeout() != DefaultCIJobOutcomesTimeout {
+		t.Errorf("GetTimeout() = %v, want %v", cfg.GetTimeout(), DefaultCIJobOutcomesTimeout)
+	}
+	if cfg.GetTimeout() <= DefaultTimeout {
+		t.Errorf("a pass must be allowed longer than the collector-wide %v, got %v", DefaultTimeout, cfg.GetTimeout())
+	}
+}
