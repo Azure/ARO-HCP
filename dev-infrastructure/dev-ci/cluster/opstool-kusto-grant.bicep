@@ -15,9 +15,9 @@ param databaseName string
 // the run that produced them.
 //
 // It needs both roles. Ingestor lets it write rows, and Viewer lets it read
-// back the newest row it already wrote, which is how each pass knows where to
-// resume. Ingestor alone cannot read, so the collector would fail on its first
-// query and never ingest anything.
+// back which runs and test names are already stored, which each pass subtracts
+// from what it is about to write. Ingestor alone cannot read, so the collector
+// would fail on its first query and never ingest anything.
 //
 // These are declared here rather than through modules/logs/kusto/grant-access
 // because that module names every assignment 'grant-<guid(principal, database)>'

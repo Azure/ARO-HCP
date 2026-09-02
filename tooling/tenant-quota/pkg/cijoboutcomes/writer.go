@@ -57,8 +57,11 @@ type Writer struct {
 	// covers them. artifactAttempts counts failed artifact reads per run, so a
 	// transient failure is retried rather than stored as a run with no tests.
 	// Both are guarded by queuedMu and are optimisations rather than
-	// correctness guarantees: ingestion is idempotent, so losing either to a
-	// restart costs repeated work and not duplicate rows.
+	// correctness guarantees: a run's rows are tagged and ingested with
+	// IfNotExists, so losing either to a restart costs a repeated read and not
+	// a duplicate row. Test names are the exception - they belong to no single
+	// run, so they carry no tag and can be written twice; the rows are
+	// identical, and ciTestNames documents reading it through distinct.
 	queuedMu         sync.Mutex
 	queued           map[string]time.Time
 	artifactAttempts map[string]artifactAttempt
@@ -142,9 +145,9 @@ func (w *Writer) write(ctx context.Context) error {
 	since := time.Now().UTC().Add(-settings.GetWindow())
 
 	// Runs are gated on the outcome table, which is written last for a run and
-	// so marks it complete. Ingestion is idempotent on top of that - see
-	// ingestRows - so a gate that is merely stale, rather than wrong, costs a
-	// wasted read and not a duplicate row.
+	// so marks it complete. A run's rows are tagged and ingested with
+	// IfNotExists on top of that - see ingestRows - so a gate that is merely
+	// stale, rather than wrong, costs a wasted read and not a duplicate row.
 	recorded, err := w.recordedBuildIDs(ctx, queryClient, since)
 	if err != nil {
 		return err
