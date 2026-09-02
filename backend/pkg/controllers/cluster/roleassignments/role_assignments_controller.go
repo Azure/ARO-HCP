@@ -169,7 +169,7 @@ func (c *roleAssignmentsSyncer) NeedsWork(cluster *coreapi.HCPOpenShiftCluster, 
 	// nothing pending. A confirmed set that is a superset of the expected set (for example
 	// leftover role assignments from a previous operator identity) is NOT work: those extras
 	// are tolerated and must not defeat the steady-state short-circuit.
-	if !c.confirmedCoversExpected(roleAssignments.AzureResources, expected) {
+	if !c.roleAssignmentsPreviouslyCreated(roleAssignments.AzureResources, expected) {
 		return true
 	}
 	// Every expected role assignment is confirmed and nothing is pending: re-verify only
@@ -297,7 +297,7 @@ func (c *roleAssignmentsSyncer) syncRoleAssignments(ctx context.Context, cluster
 	// the only reason SyncOnce runs in steady state.
 	existingRoleAssignments = existingServiceProviderCluster.Status.AzureResources.RoleAssignments
 	if len(existingRoleAssignments.PendingAzureResources) == 0 &&
-		c.confirmedCoversExpected(existingRoleAssignments.AzureResources, expected) {
+		c.roleAssignmentsPreviouslyCreated(existingRoleAssignments.AzureResources, expected) {
 		switch {
 		case existingRoleAssignments.EarliestRecheckTime == nil:
 			// No recheck window yet: schedule the first one instead of rechecking now, so a
@@ -377,7 +377,7 @@ func (c *roleAssignmentsSyncer) syncRoleAssignments(ctx context.Context, cluster
 	roleAssignments := &replacement.Status.AzureResources.RoleAssignments
 	roleAssignments.PendingAzureResources = stillPending
 	roleAssignments.AzureResources = append(roleAssignments.AzureResources, newlyConfirmed...)
-	if len(stillPending) == 0 && c.confirmedCoversExpected(roleAssignments.AzureResources, expected) {
+	if len(stillPending) == 0 && c.roleAssignmentsPreviouslyCreated(roleAssignments.AzureResources, expected) {
 		// The confirmed set now covers every expected role assignment: schedule the next
 		// recheck so the set is re-verified later rather than on every resync.
 		roleAssignments.EarliestRecheckTime = c.nextRoleAssignmentRecheckTime()
@@ -670,9 +670,9 @@ func (c *roleAssignmentsSyncer) recheckConfirmedRoleAssignments(ctx context.Cont
 	return c.persistIfChanged(ctx, cluster, existingServiceProviderCluster, replacement)
 }
 
-// confirmedCoversExpected reports whether every expected role assignment is present in the
-// confirmed set.
-func (c *roleAssignmentsSyncer) confirmedCoversExpected(confirmed []*azcorearm.ResourceID, expected []roleAssignmentDefinition) bool {
+// roleAssignmentsPreviouslyCreated reports whether every expected role assignment has already
+// been created - i.e. every expected assignment is present in the confirmed set.
+func (c *roleAssignmentsSyncer) roleAssignmentsPreviouslyCreated(confirmed []*azcorearm.ResourceID, expected []roleAssignmentDefinition) bool {
 	for _, assignment := range expected {
 		if !slices.ContainsFunc(confirmed, func(id *azcorearm.ResourceID) bool {
 			return controllerutil.ResourceIDsEqual(id, assignment.resourceID)
