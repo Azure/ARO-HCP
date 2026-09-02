@@ -237,27 +237,35 @@ func (c *roleAssignmentsSyncer) SyncOnce(ctx context.Context, key controllerutil
 }
 
 // syncRoleAssignments reconciles the role assignments for a cluster that is not being
-// deleted in a single pass over the expected set, and reflects the result onto the
-// ServiceProviderCluster.
+// deleted in two passes and reflects the result onto the ServiceProviderCluster.
 //
 // It runs only when the NeedsWork recheck-window guard says there is work to do or the
 // earliest-recheck window is due; steady-state resyncs are skipped there and make no Azure
-// calls. For each expected role assignment it queries Azure once with GetByID:
+// calls.
+//
+// Pass 1 (classify - GetByID only, no Azure writes) queries Azure once per expected role
+// assignment:
 //
 //   - exists: recorded as confirmed (AzureResources).
-//   - not found: recorded as pending (PendingAzureResources) and then created; a create that
-//     races with a concurrent creator surfaces as "already exists" and is swallowed. A
-//     freshly-created assignment stays pending this pass and confirms on a later GetByID.
-//   - other error (on Get or Create): the assignment is left pending (not confirmed) and the
-//     error is returned so the sync retries.
+//   - not found: recorded as pending (PendingAzureResources) and queued for creation.
+//   - other error: recorded as pending but NOT queued for creation - its existence is unknown,
+//     so it self-heals on a later GetByID rather than being created blind - and the error is
+//     collected.
 //
-// After the loop PendingAzureResources and AzureResources are overwritten from this pass, so
-// every expected assignment is tracked in exactly one of them and nothing else is tracked.
-// When nothing is pending (every expected assignment is confirmed) the earliest-recheck
-// window is set to a future time - the only thing that stops the loop re-running on every
-// resync. Any previously-confirmed assignment that is no longer expected (for example after an
-// identity or name-scheme change) is retained in AzureResources, not dropped; its deletion is
-// deferred to managed identity replacement support.
+// The classified pending/confirmed state is then persisted BEFORE any Azure write, so a role
+// assignment that is about to be created is durably recorded as pending first: if the create
+// then succeeds but the process crashes before the next persist, a later GetByID still finds
+// and confirms it. When nothing is pending (every expected assignment confirmed) the
+// earliest-recheck window is set to a future time - the only thing that stops the sync
+// re-running on every resync.
+//
+// Pass 2 (create - Azure writes) creates the queued missing assignments; a create that races
+// with a concurrent creator surfaces as "already exists" and is swallowed. Freshly-created
+// assignments stay pending this pass (already persisted above) and confirm on a later GetByID.
+//
+// Any previously-confirmed assignment that is no longer expected (for example after an identity
+// or name-scheme change) is retained in AzureResources, not dropped; its deletion is deferred
+// to managed identity replacement support.
 func (c *roleAssignmentsSyncer) syncRoleAssignments(ctx context.Context, cluster *coreapi.HCPOpenShiftCluster, existingServiceProviderCluster *coreapi.ServiceProviderCluster) error {
 	expected, err := c.expectedRoleAssignments(cluster, existingServiceProviderCluster)
 	if err != nil {
@@ -269,7 +277,7 @@ func (c *roleAssignmentsSyncer) syncRoleAssignments(ctx context.Context, cluster
 		return nil
 	}
 
-	// Snapshot the previously-confirmed set before the loop overwrites it, so we can retain any
+	// Snapshot the previously-confirmed set before it is overwritten, so we can retain any
 	// assignment that is no longer expected.
 	previouslyConfirmed := existingServiceProviderCluster.Status.AzureResources.RoleAssignments.AzureResources
 
@@ -278,11 +286,12 @@ func (c *roleAssignmentsSyncer) syncRoleAssignments(ctx context.Context, cluster
 		return utils.TrackError(err)
 	}
 
-	// Single reconcile pass over the expected set. Invariant: at the end every expected role
-	// assignment is in exactly one of pendingList / confirmedList - nothing extra is tracked.
+	// Pass 1: classify each expected role assignment with GetByID only (no Azure writes).
+	// Invariant: every expected assignment ends up in exactly one of pendingList / confirmedList.
 	var (
 		pendingList   []*azcorearm.ResourceID
 		confirmedList []*azcorearm.ResourceID
+		toCreateList  []roleAssignmentDefinition
 		errs          []error
 	)
 	for _, assignment := range expected {
@@ -292,22 +301,19 @@ func (c *roleAssignmentsSyncer) syncRoleAssignments(ctx context.Context, cluster
 			// Exists in Azure: confirmed.
 			confirmedList = append(confirmedList, assignment.resourceID)
 		case azureclient.IsRoleAssignmentNotFoundErr(getErr):
-			// Not found: record it pending, then create it. A freshly-created assignment (or
-			// one that already exists from a concurrent creator, swallowed inside
-			// createRoleAssignment) stays pending this pass and confirms on a later GetByID.
+			// Not found: record it pending and queue it for creation in pass 2.
 			pendingList = append(pendingList, assignment.resourceID)
-			if createErr := c.createRoleAssignment(ctx, roleAssignmentsClient, assignment); createErr != nil {
-				errs = append(errs, createErr)
-			}
+			toCreateList = append(toCreateList, assignment)
 		default:
-			// Any other Get error: leave it pending (do not confirm) and retry next pass.
+			// Any other Get error: existence is unknown, so record it pending but do NOT queue
+			// a create (creating blind could race); it self-heals on a later GetByID.
 			pendingList = append(pendingList, assignment.resourceID)
 			errs = append(errs, fmt.Errorf("failed to get role assignment %q: %w", assignment.resourceID.String(), getErr))
 		}
 	}
 
-	// Overwrite the tracked sets from this pass: every expected role assignment is in exactly
-	// one of pendingList / confirmedList.
+	// Persist the classified state BEFORE any Azure Create, so the pending intent is durably
+	// recorded first. Every expected assignment is in exactly one of pendingList / confirmedList.
 	replacement := existingServiceProviderCluster.DeepCopy()
 	roleAssignments := &replacement.Status.AzureResources.RoleAssignments
 	roleAssignments.PendingAzureResources = pendingList
@@ -327,7 +333,7 @@ func (c *roleAssignmentsSyncer) syncRoleAssignments(ctx context.Context, cluster
 
 	if len(pendingList) == 0 {
 		// Every expected role assignment is confirmed with nothing pending: schedule the next
-		// recheck. This is the only thing that stops the loop re-running on every resync.
+		// recheck. This is the only thing that stops the sync re-running on every resync.
 		// Retained extras are not in the expected set, so they never affect this condition.
 		roleAssignments.EarliestRecheckTime = c.nextRoleAssignmentRecheckTime()
 	} else {
@@ -337,7 +343,19 @@ func (c *roleAssignmentsSyncer) syncRoleAssignments(ctx context.Context, cluster
 	}
 
 	if _, persistErr := c.persistIfChanged(ctx, cluster, existingServiceProviderCluster, replacement); persistErr != nil {
+		// The pending intent could not be recorded; do not create this pass so we never create
+		// before persisting. Retry on the next resync.
 		errs = append(errs, persistErr)
+		return utils.TrackError(errors.Join(errs...))
+	}
+
+	// Pass 2: create the queued missing role assignments, now that the pending intent is
+	// persisted. Freshly-created assignments stay pending this pass and confirm on a later
+	// GetByID; a create that races with a concurrent creator is swallowed as "already exists".
+	for _, assignment := range toCreateList {
+		if createErr := c.createRoleAssignment(ctx, roleAssignmentsClient, assignment); createErr != nil {
+			errs = append(errs, createErr)
+		}
 	}
 	return utils.TrackError(errors.Join(errs...))
 }
