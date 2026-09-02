@@ -1,0 +1,12 @@
+$schema: ../../../config/config.schema.json
+defaults:
+  test:
+    property: "override_value"
+clouds:
+  public:
+    environments:
+      dev:
+        regions:
+          uksouth:
+            test:
+              region_prop: "region_override"
