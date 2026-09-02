@@ -19,6 +19,7 @@ package skucache
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -39,12 +40,55 @@ import (
 )
 
 const (
-	skuCacheTTL                 = 1 * time.Hour
-	capabilityNameMemoryGB      = "MemoryGB"
-	capabilityNameVCPUs         = "vCPUs"
-	capabilityNameMaxNICs       = "MaxNetworkInterfaces"
-	resourceTypeVirtualMachines = "virtualMachines"
+	skuCacheTTL                          = 1 * time.Hour
+	capabilityNameMemoryGB               = "MemoryGB"
+	capabilityNameVCPUs                  = "vCPUs"
+	capabilityNameMaxNICs                = "MaxNetworkInterfaces"
+	capabilityNameEphemeralOSDiskSupport = "EphemeralOSDiskSupported"
+	capabilityNameNvmeDiskSizeInMiB      = "NVMeDiskSizeInMiB"
+	capabilityNameCachedDiskBytes        = "CachedDiskBytes"
+	capabilityNameMaxResourceVolumeMB    = "MaxResourceVolumeMB"
+	capabilityNameEphemeralPlacements    = "SupportedEphemeralOSDiskPlacements"
+	capabilityNameVCPUsAvailable         = "vCPUsAvailable"
+	resourceTypeVirtualMachines          = "virtualMachines"
+
+	// ephemeralPlacementResourceDisk is the SupportedEphemeralOSDiskPlacements
+	// token for temp/resource-disk placement (e.g. the Ddsv5/Edsv5 families),
+	// whose ephemeral OS disk is sized by MaxResourceVolumeMB rather than a
+	// dedicated cache or NVMe disk.
+	ephemeralPlacementResourceDisk = "ResourceDisk"
 )
+
+// SKUMetadata holds VM size characteristics from the Azure Resource SKUs API.
+// Instances handed out by SKUCache are shared, cached, read-only values: callers
+// must not mutate a SKUMetadata (or the map returned by SKUMetadataByVMSize).
+type SKUMetadata struct {
+	Name                     string
+	Family                   string
+	VCPUs                    int64
+	MemoryGB                 int64
+	SecondaryNICs            int64
+	EphemeralOSDiskSupported bool
+	EphemeralDiskSizeGB      int64
+	Zones                    []string
+	ConstrainedVCPUs         bool
+}
+
+// ResourceList constructs a Kubernetes ResourceList from the explicit fields.
+// Used by capacity reporting to compute per-node allocatable resources.
+func (m *SKUMetadata) ResourceList() corev1.ResourceList {
+	rl := corev1.ResourceList{}
+	if m.VCPUs > 0 {
+		rl[corev1.ResourceCPU] = *resource.NewQuantity(m.VCPUs, resource.DecimalSI)
+	}
+	if m.MemoryGB > 0 {
+		rl[corev1.ResourceMemory] = resource.MustParse(fmt.Sprintf("%dGi", m.MemoryGB))
+	}
+	if m.SecondaryNICs > 0 {
+		rl[kuberesources.SwiftNICResourceName] = *resource.NewQuantity(m.SecondaryNICs, resource.DecimalSI)
+	}
+	return rl
+}
 
 // SKUCache resolves scheduling-relevant resource data for a VM size from the
 // Azure Resource SKUs API. It is keyed by subscription ID; the region is fixed
@@ -61,7 +105,7 @@ type SKUCache struct {
 }
 
 type skuCacheEntry struct {
-	data      map[string]corev1.ResourceList
+	metadata  map[string]*SKUMetadata
 	expiresAt time.Time
 }
 
@@ -84,11 +128,15 @@ func NewSKUCache(region string, credential azcore.TokenCredential, clientOptions
 	}
 }
 
-func (c *SKUCache) SKUResourcesByVMSize(ctx context.Context, subscriptionID string) (map[string]corev1.ResourceList, error) {
+// SKUMetadataByVMSize returns VM-size metadata for subscriptionID, keyed by VM
+// size name, served from a per-subscription TTL cache. The returned map and its
+// SKUMetadata values are shared across callers and concurrent reconciles and
+// must be treated as read-only; a defensive copy would defeat the cache.
+func (c *SKUCache) SKUMetadataByVMSize(ctx context.Context, subscriptionID string) (map[string]*SKUMetadata, error) {
 	c.mu.Lock()
 	if entry, ok := c.entries[subscriptionID]; ok && c.clock.Now().Before(entry.expiresAt) {
 		c.mu.Unlock()
-		return entry.data, nil
+		return entry.metadata, nil
 	}
 	c.mu.Unlock()
 
@@ -96,30 +144,30 @@ func (c *SKUCache) SKUResourcesByVMSize(ctx context.Context, subscriptionID stri
 		c.mu.Lock()
 		if entry, ok := c.entries[subscriptionID]; ok && c.clock.Now().Before(entry.expiresAt) {
 			c.mu.Unlock()
-			return entry.data, nil
+			return entry.metadata, nil
 		}
 		c.mu.Unlock()
 
-		skuResources, err := c.fetchSKUResources(ctx, subscriptionID)
+		metadata, err := c.fetchSKUMetadata(ctx, subscriptionID)
 		if err != nil {
 			return nil, err
 		}
 
 		c.mu.Lock()
 		c.entries[subscriptionID] = skuCacheEntry{
-			data:      skuResources,
+			metadata:  metadata,
 			expiresAt: c.clock.Now().Add(skuCacheTTL),
 		}
 		c.mu.Unlock()
-		return skuResources, nil
+		return metadata, nil
 	})
 	if err != nil {
 		return nil, err
 	}
-	return result.(map[string]corev1.ResourceList), nil
+	return result.(map[string]*SKUMetadata), nil
 }
 
-func (c *SKUCache) fetchSKUResources(ctx context.Context, subscriptionID string) (map[string]corev1.ResourceList, error) {
+func (c *SKUCache) fetchSKUMetadata(ctx context.Context, subscriptionID string) (map[string]*SKUMetadata, error) {
 	client, err := armcompute.NewResourceSKUsClient(subscriptionID, c.credential, c.armClientOptions)
 	if err != nil {
 		return nil, fmt.Errorf("creating resource SKUs client: %w", err)
@@ -130,7 +178,7 @@ func (c *SKUCache) fetchSKUResources(ctx context.Context, subscriptionID string)
 		Filter: &filter,
 	})
 
-	skuResources := make(map[string]corev1.ResourceList)
+	result := make(map[string]*SKUMetadata)
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
@@ -140,60 +188,155 @@ func (c *SKUCache) fetchSKUResources(ctx context.Context, subscriptionID string)
 			if sku == nil || sku.ResourceType == nil || *sku.ResourceType != resourceTypeVirtualMachines || sku.Name == nil {
 				continue
 			}
-			resources := extractSKUResources(sku)
-			if len(resources) > 0 {
-				skuResources[*sku.Name] = resources
+			meta := extractSKUMetadata(sku)
+			if meta.HasResources() {
+				result[*sku.Name] = meta
 			}
 		}
 	}
-	return skuResources, nil
+	return result, nil
 }
 
-func extractSKUResources(sku *armcompute.ResourceSKU) corev1.ResourceList {
-	resources := corev1.ResourceList{}
-
-	if memoryQuantity, ok := lookupQuantityGi(sku, capabilityNameMemoryGB); ok {
-		resources[corev1.ResourceMemory] = memoryQuantity
+func extractSKUMetadata(sku *armcompute.ResourceSKU) *SKUMetadata {
+	meta := &SKUMetadata{
+		Name: *sku.Name,
 	}
+
+	if sku.Family != nil {
+		meta.Family = *sku.Family
+	}
+
+	// The SKU list is filtered to a single region (see fetchSKUMetadata), so
+	// LocationInfo has exactly one entry for that region; index 0 is safe.
+	if len(sku.LocationInfo) > 0 && sku.LocationInfo[0] != nil {
+		restrictedZones := collectRestrictedZones(sku)
+		for _, zone := range sku.LocationInfo[0].Zones {
+			if zone == nil {
+				continue
+			}
+			if _, restricted := restrictedZones[*zone]; restricted {
+				continue
+			}
+			meta.Zones = append(meta.Zones, *zone)
+		}
+		sort.Strings(meta.Zones)
+	}
+
 	if vcpus, ok := lookupInt64(sku, capabilityNameVCPUs); ok {
-		resources[corev1.ResourceCPU] = *resource.NewQuantity(vcpus, resource.DecimalSI)
+		meta.VCPUs = vcpus
+		if available, ok := lookupInt64(sku, capabilityNameVCPUsAvailable); ok && available < vcpus {
+			meta.ConstrainedVCPUs = true
+		}
+	}
+	if memoryGB, ok := lookupFloat64(sku, capabilityNameMemoryGB); ok {
+		meta.MemoryGB = int64(memoryGB)
 	}
 	if maxNICs, ok := lookupInt64(sku, capabilityNameMaxNICs); ok && maxNICs > 1 {
-		// One NIC is the primary (host) NIC; only the rest are available for Swift pod networking.
-		resources[kuberesources.SwiftNICResourceName] = *resource.NewQuantity(maxNICs-1, resource.DecimalSI)
+		meta.SecondaryNICs = maxNICs - 1
 	}
 
-	return resources
+	if supported, ok := lookupBool(sku, capabilityNameEphemeralOSDiskSupport); ok {
+		meta.EphemeralOSDiskSupported = supported
+	}
+
+	if nvmeMiB, ok := lookupInt64(sku, capabilityNameNvmeDiskSizeInMiB); ok && nvmeMiB > 0 {
+		meta.EphemeralDiskSizeGB = nvmeMiB / 1024
+	} else if cachedBytes, ok := lookupInt64(sku, capabilityNameCachedDiskBytes); ok && cachedBytes > 0 {
+		meta.EphemeralDiskSizeGB = cachedBytes / (1024 * 1024 * 1024)
+	} else if resourceMB, ok := lookupInt64(sku, capabilityNameMaxResourceVolumeMB); ok && resourceMB > 0 && supportsResourceDiskPlacement(sku) {
+		// Temp/resource-disk placement: the ephemeral OS disk lives on the
+		// resource (temp) disk, whose size is MaxResourceVolumeMB. Azure's own
+		// detection divides this MB value by 1024 to get the GiB ceiling.
+		meta.EphemeralDiskSizeGB = resourceMB / 1024
+	}
+
+	return meta
 }
 
-func lookupQuantityGi(sku *armcompute.ResourceSKU, capabilityName string) (resource.Quantity, bool) {
+// HasResources reports whether at least one resource field is populated.
+func (m *SKUMetadata) HasResources() bool {
+	return m.VCPUs > 0 || m.MemoryGB > 0 || m.SecondaryNICs > 0
+}
+
+func collectRestrictedZones(sku *armcompute.ResourceSKU) map[string]struct{} {
+	restricted := make(map[string]struct{})
+	for _, restriction := range sku.Restrictions {
+		if restriction == nil || restriction.Type == nil {
+			continue
+		}
+		if *restriction.Type != armcompute.ResourceSKURestrictionsTypeZone {
+			continue
+		}
+		if restriction.RestrictionInfo == nil {
+			continue
+		}
+		for _, zone := range restriction.RestrictionInfo.Zones {
+			if zone != nil {
+				restricted[*zone] = struct{}{}
+			}
+		}
+	}
+	return restricted
+}
+
+// supportsResourceDiskPlacement reports whether the SKU lists ResourceDisk as
+// a supported ephemeral OS disk placement. The capability value is a
+// comma-separated list (e.g. "CacheDisk,ResourceDisk").
+func supportsResourceDiskPlacement(sku *armcompute.ResourceSKU) bool {
+	raw, ok := lookupCapability(sku, capabilityNameEphemeralPlacements)
+	if !ok {
+		return false
+	}
+	for placement := range strings.SplitSeq(raw, ",") {
+		if strings.EqualFold(strings.TrimSpace(placement), ephemeralPlacementResourceDisk) {
+			return true
+		}
+	}
+	return false
+}
+
+// lookupCapability returns the trimmed raw value of the named capability, or
+// ("", false) if the SKU has no such capability.
+func lookupCapability(sku *armcompute.ResourceSKU, capabilityName string) (string, bool) {
 	for _, capability := range sku.Capabilities {
 		if capability == nil || capability.Name == nil || capability.Value == nil {
 			continue
 		}
 		if strings.EqualFold(*capability.Name, capabilityName) {
-			quantity, err := resource.ParseQuantity(strings.TrimSpace(*capability.Value) + "Gi")
-			if err != nil {
-				return resource.Quantity{}, false
-			}
-			return quantity, true
+			return strings.TrimSpace(*capability.Value), true
 		}
 	}
-	return resource.Quantity{}, false
+	return "", false
+}
+
+func lookupBool(sku *armcompute.ResourceSKU, capabilityName string) (bool, bool) {
+	raw, ok := lookupCapability(sku, capabilityName)
+	if !ok {
+		return false, false
+	}
+	return strings.EqualFold(raw, "true"), true
+}
+
+func lookupFloat64(sku *armcompute.ResourceSKU, capabilityName string) (float64, bool) {
+	raw, ok := lookupCapability(sku, capabilityName)
+	if !ok {
+		return 0, false
+	}
+	val, err := strconv.ParseFloat(raw, 64)
+	if err != nil {
+		return 0, false
+	}
+	return val, true
 }
 
 func lookupInt64(sku *armcompute.ResourceSKU, capabilityName string) (int64, bool) {
-	for _, capability := range sku.Capabilities {
-		if capability == nil || capability.Name == nil || capability.Value == nil {
-			continue
-		}
-		if strings.EqualFold(*capability.Name, capabilityName) {
-			val, err := strconv.ParseInt(strings.TrimSpace(*capability.Value), 10, 64)
-			if err != nil {
-				return 0, false
-			}
-			return val, true
-		}
+	raw, ok := lookupCapability(sku, capabilityName)
+	if !ok {
+		return 0, false
 	}
-	return 0, false
+	val, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil {
+		return 0, false
+	}
+	return val, true
 }

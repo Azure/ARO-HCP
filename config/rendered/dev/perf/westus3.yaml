@@ -297,6 +297,9 @@ fleet:
         memory: 512Mi
     serviceAccountName: fleet
   managedIdentityName: fleet
+  nodePoolProvisioning:
+    profile: production
+    zones: ""
   registration:
     autoApproveStamps: true
     stampIdentifier: "1"
