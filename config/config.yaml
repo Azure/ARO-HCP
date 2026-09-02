@@ -478,6 +478,12 @@ defaults:
         actionGroupShortName: ""
         routingId: ""
         automitigationEnabled: ""
+      dev:
+        enabled: true
+        actionGroupName: ""
+        actionGroupShortName: ""
+        routingId: ""
+        automitigationEnabled: ""
   genevaHealthFunction:
     deploy: false
     monitoringAccount: ""

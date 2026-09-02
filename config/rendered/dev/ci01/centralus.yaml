@@ -855,6 +855,12 @@ monitoring:
   icm:
     connectionId: ""
     connectionName: ""
+    dev:
+      actionGroupName: ""
+      actionGroupShortName: ""
+      automitigationEnabled: ""
+      enabled: true
+      routingId: ""
     environment: ""
     manageConnection: false
     msft:

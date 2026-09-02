@@ -81,3 +81,8 @@ resourceGroups:
         resourceGroup: kusto
         step: actiongroup-lookup
         name: actionGroupMSFT
+    - name: actionGroupDEV
+      input:
+        resourceGroup: kusto
+        step: actiongroup-lookup
+        name: actionGroupDEV
