@@ -26,7 +26,7 @@ The individual components are described in the [service components overview](../
     - (Async) From this point forward, Backend sees the CosmosDB Operation record and asynchronously calls CS to determine current provisioning state and updates the HCPOpenShiftCluster so the customer has live feedback on status of the long-running request.
     - (Async) At the same time, ARM will automatically issue polling GET requests to the OperationStatus resources on the customer's behalf (to the Frontend) so they see this status in live time.
 5. Clusters Service prepares a managed resource group in the customers subscription and creates the cloud resources for the cluster
-6. Clusters Service produces the desired management-cluster content (the `HostedCluster` Hypershift CRs and other supporting resources). The ARO HCP Backend converts this content into declarative `ApplyDesire` documents and writes them to the per-management-cluster CosmosDB container. (Deletions are expressed as `DeleteDesire` documents.)
+6. Clusters Service produces the desired management-cluster content (the `HostedCluster` Hypershift CRs and other supporting resources). The ARO HCP Backend converts this content into declarative `ApplyDesire` documents and writes them to the per-management-cluster CosmosDB container. (Deletions are expressed as `ApplyDesire` documents with `Type=Delete`.)
 7. `kube-applier`, running on the target management cluster, reads the `ApplyDesire` documents from CosmosDB and reconciles them against the local kube-apiserver using Server-Side Apply.
 8. Applying the desired resources creates the `ocm-xxx-${CLUSTER_ID}` namespace, the Hypershift `HostedCluster` CR, supporting secrets and configmaps, as well as the `ManagedCluster` MCE CR.
 9. The Hypershift operator picks up on the `HostedCluster` CR, creates the `ocm-xxx-${CLUSTER_ID}-${CLUSTER_NAME}` namespace, the control plane deployments within it and supporting cloud resources in the managed resource group of the customer
@@ -75,7 +75,7 @@ subgraph svc_cluster["service cluster"]
     end
  end
  subgraph cosmos["CosmosDB (per-management-cluster container)"]
-    desires["ApplyDesire / DeleteDesire / ReadDesire docs"]
+    desires["ApplyDesire (incl. Type=Delete) / ReadDesire docs"]
  end
  subgraph mgmt_cluster["management cluster"]
     subgraph kube_applier_ns["ns kube-applier"]
@@ -188,7 +188,7 @@ Currently this endpoint does not return yet direct management cluster metadata, 
 
 ## kube-applier
 
-`kube-applier` runs on each management cluster and reconciles the declarative "desire" documents (`ApplyDesire`, `DeleteDesire`, `ReadDesire`) stored in that cluster's dedicated CosmosDB container against the local kube-apiserver. Status is written back as `metav1.Condition` slices into the same documents. See [`kube-applier/docs/01-overview.md`](../../kube-applier/docs/01-overview.md) for the full design.
+`kube-applier` runs on each management cluster and reconciles the declarative "desire" documents (`ApplyDesire` with `Type=ServerSideApply` or `Type=Delete`, and `ReadDesire`) stored in that cluster's dedicated CosmosDB container against the local kube-apiserver. Status is written back as `metav1.Condition` slices into the same documents. See [`kube-applier/docs/01-overview.md`](../../kube-applier/docs/01-overview.md) for the full design.
 
 ### Check kube-applier Logs
 
@@ -196,7 +196,7 @@ Currently this endpoint does not return yet direct management cluster metadata, 
 
 <!-- BEGIN GENERATED: kube-applier-debug (namespace/deployment/container names derived from deployment manifests / topology config; regenerate via the "Generation Prompt" at the bottom of this file — do not hand-edit) -->
 ```sh
-kubectl logs -n kube-applier deployment/kube-applier
+kubectl logs -n kube-applier deployment/kube-applier -c kube-applier
 ```
 
 > [!NOTE]
@@ -320,8 +320,10 @@ Regenerate each region from source:
 
 3. kube-applier-debug — Fill the namespace, deployment, and container names in the
    kube-applier debug commands from the deployment manifests / topology config
-   (search config/ and the kube-applier component dir), not from memory. Replace the
-   TODO note with real inspection commands once the names are confirmed.
+   (search config/ and the kube-applier component dir), not from memory. Document
+   desire document types as `ApplyDesire` (with Type=ServerSideApply or Type=Delete)
+   and `ReadDesire`, not `DeleteDesire` (which doesn't exist as a separate type).
+   Replace the TODO note with real inspection commands once the names are confirmed.
 
 Preserve this Generation Prompt section at the bottom of the file so it can be
 edited and re-run.
