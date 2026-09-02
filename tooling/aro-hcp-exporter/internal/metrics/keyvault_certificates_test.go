@@ -161,24 +161,27 @@ func TestKeyVaultCertificateCollectorLastSuccessRecoversAfterFailure(t *testing.
 
 func TestKeyVaultCertificateCollectorRejectsIncompleteMetadata(t *testing.T) {
 	tests := []struct {
-		name       string
-		attributes *azcertificates.CertificateAttributes
+		name          string
+		attributes    *azcertificates.CertificateAttributes
+		expectedError string
 	}{
-		{name: "missing attributes"},
-		{name: "missing not-before", attributes: &azcertificates.CertificateAttributes{Expires: to.Ptr(time.Unix(2, 0)), Enabled: to.Ptr(true)}},
-		{name: "missing expiry", attributes: &azcertificates.CertificateAttributes{NotBefore: to.Ptr(time.Unix(1, 0)), Enabled: to.Ptr(true)}},
-		{name: "missing enabled", attributes: &azcertificates.CertificateAttributes{NotBefore: to.Ptr(time.Unix(1, 0)), Expires: to.Ptr(time.Unix(2, 0))}},
+		{name: "missing attributes", expectedError: `certificate "certificate" attributes are missing`},
+		{name: "missing not-before", attributes: &azcertificates.CertificateAttributes{Expires: to.Ptr(time.Unix(2, 0)), Enabled: to.Ptr(true)}, expectedError: `certificate "certificate" not-before timestamp is missing`},
+		{name: "missing expiry", attributes: &azcertificates.CertificateAttributes{NotBefore: to.Ptr(time.Unix(1, 0)), Enabled: to.Ptr(true)}, expectedError: `certificate "certificate" expiry timestamp is missing`},
+		{name: "missing enabled", attributes: &azcertificates.CertificateAttributes{NotBefore: to.Ptr(time.Unix(1, 0)), Expires: to.Ptr(time.Unix(2, 0))}, expectedError: `certificate "certificate" enabled attribute is missing`},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			response := azcertificates.GetCertificateResponse{Certificate: azcertificates.Certificate{Attributes: tt.attributes}}
 			client := &fakeKeyVaultCertificateClient{
 				responses: map[string]azcertificates.GetCertificateResponse{
-					"certificate": {Certificate: azcertificates.Certificate{Attributes: tt.attributes}},
+					"certificate": response,
 				},
 			}
 			errorCounter := prometheus.NewCounter(prometheus.CounterOpts{Name: "test_errors_total"})
 			collector := NewKeyVaultCertificateCollector(client, "vault", "westus3", []string{"certificate"}, time.Hour, errorCounter)
+			require.EqualError(t, collector.cacheCertificateMetrics("certificate", response), tt.expectedError)
 
 			collector.CollectMetricValues(context.Background())
 

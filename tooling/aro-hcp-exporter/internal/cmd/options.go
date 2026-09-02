@@ -25,6 +25,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
 
+	"k8s.io/apimachinery/pkg/util/sets"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azcertificates"
@@ -173,7 +175,7 @@ func (o *RawOptions) Validate(ctx context.Context) (*ValidatedOptions, error) {
 			return nil, fmt.Errorf("certificate-names is required when %s collector is enabled", metrics.KeyVaultCertificateCollectorName)
 		}
 
-		seenCertificateNames := make(map[string]struct{}, len(o.CertificateNames))
+		seenCertificateNames := sets.New[string]()
 		for _, certificateName := range o.CertificateNames {
 			certificateName = strings.TrimSpace(certificateName)
 			if certificateName == "" {
@@ -183,10 +185,10 @@ func (o *RawOptions) Validate(ctx context.Context) (*ValidatedOptions, error) {
 				return nil, fmt.Errorf("invalid certificate name %q: must match %s", certificateName, validCertificateName.String())
 			}
 			canonicalCertificateName := strings.ToLower(certificateName)
-			if _, ok := seenCertificateNames[canonicalCertificateName]; ok {
+			if seenCertificateNames.Has(canonicalCertificateName) {
 				return nil, fmt.Errorf("duplicate certificate name %q", certificateName)
 			}
-			seenCertificateNames[canonicalCertificateName] = struct{}{}
+			seenCertificateNames.Insert(canonicalCertificateName)
 			certificateNames = append(certificateNames, certificateName)
 		}
 	}
