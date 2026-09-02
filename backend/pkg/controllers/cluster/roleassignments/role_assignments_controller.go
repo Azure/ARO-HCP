@@ -255,8 +255,9 @@ func (c *roleAssignmentsSyncer) SyncOnce(ctx context.Context, key controllerutil
 // every expected assignment is tracked in exactly one of them and nothing else is tracked.
 // When nothing is pending (every expected assignment is confirmed) the earliest-recheck
 // window is set to a future time - the only thing that stops the loop re-running on every
-// resync. Any previously-confirmed assignment that is no longer expected is logged (an
-// accepted leak) but neither tracked nor deleted.
+// resync. Any previously-confirmed assignment that is no longer expected (for example after an
+// identity or name-scheme change) is retained in AzureResources, not dropped; its deletion is
+// deferred to managed identity replacement support.
 func (c *roleAssignmentsSyncer) syncRoleAssignments(ctx context.Context, cluster *coreapi.HCPOpenShiftCluster, existingServiceProviderCluster *coreapi.ServiceProviderCluster) error {
 	expected, err := c.expectedRoleAssignments(cluster, existingServiceProviderCluster)
 	if err != nil {
@@ -268,8 +269,8 @@ func (c *roleAssignmentsSyncer) syncRoleAssignments(ctx context.Context, cluster
 		return nil
 	}
 
-	// Snapshot the previously-confirmed set before the loop overwrites it, so we can log any
-	// assignment that is no longer expected (an accepted leak).
+	// Snapshot the previously-confirmed set before the loop overwrites it, so we can retain any
+	// assignment that is no longer expected.
 	previouslyConfirmed := existingServiceProviderCluster.Status.AzureResources.RoleAssignments.AzureResources
 
 	roleAssignmentsClient, err := c.roleAssignmentsClient(ctx, cluster.ID.SubscriptionID)
@@ -305,19 +306,29 @@ func (c *roleAssignmentsSyncer) syncRoleAssignments(ctx context.Context, cluster
 		}
 	}
 
-	// Accepted leak: log (but do not track or delete) any previously-confirmed role assignment
-	// that is no longer expected. There will be none until managed identity replacement is
-	// supported.
-	c.logExtraRoleAssignments(ctx, previouslyConfirmed, expected)
-
-	// Overwrite the tracked sets from this pass (invariant: expected == pending ∪ confirmed).
+	// Overwrite the tracked sets from this pass: every expected role assignment is in exactly
+	// one of pendingList / confirmedList.
 	replacement := existingServiceProviderCluster.DeepCopy()
 	roleAssignments := &replacement.Status.AzureResources.RoleAssignments
 	roleAssignments.PendingAzureResources = pendingList
 	roleAssignments.AzureResources = confirmedList
+
+	// TODO(MI-replacement): these previously-confirmed role assignments are no longer in the
+	// expected set (e.g. after an identity/name-scheme change). Retain them for now; deletion
+	// will be handled as part of managed identity replacement support (landing soon).
+	for _, confirmedID := range previouslyConfirmed {
+		if slices.ContainsFunc(expected, func(e roleAssignmentDefinition) bool {
+			return controllerutil.ResourceIDsEqual(e.resourceID, confirmedID)
+		}) {
+			continue
+		}
+		roleAssignments.AzureResources = append(roleAssignments.AzureResources, confirmedID)
+	}
+
 	if len(pendingList) == 0 {
 		// Every expected role assignment is confirmed with nothing pending: schedule the next
 		// recheck. This is the only thing that stops the loop re-running on every resync.
+		// Retained extras are not in the expected set, so they never affect this condition.
 		roleAssignments.EarliestRecheckTime = c.nextRoleAssignmentRecheckTime()
 	} else {
 		// Work remains: clear any window so the next resync re-runs promptly (NeedsWork also
@@ -561,24 +572,6 @@ func (c *roleAssignmentsSyncer) createRoleAssignment(ctx context.Context, client
 		return fmt.Errorf("failed to create role assignment %q: %w", assignment.resourceID.String(), err)
 	}
 	return nil
-}
-
-// logExtraRoleAssignments emits one log line per previously-confirmed role assignment that is
-// no longer in the expected set. These are an accepted leak: this controller has a create-only
-// lifecycle and never deletes MRG-scoped role assignments, and there will be none until managed
-// identity replacement is supported. They are logged only - never tracked in a side list.
-func (c *roleAssignmentsSyncer) logExtraRoleAssignments(ctx context.Context, previouslyConfirmed []*azcorearm.ResourceID, expected []roleAssignmentDefinition) {
-	logger := utils.LoggerFromContext(ctx)
-	for _, confirmedID := range previouslyConfirmed {
-		if slices.ContainsFunc(expected, func(e roleAssignmentDefinition) bool {
-			return controllerutil.ResourceIDsEqual(e.resourceID, confirmedID)
-		}) {
-			continue
-		}
-		// TODO(post-merge): delete on MI replacement.
-		logger.Info("role assignment no longer expected; left in Azure (accepted leak, not tracked)",
-			"roleAssignmentID", confirmedID.String())
-	}
 }
 
 // roleAssignmentsPreviouslyCreated reports whether every expected role assignment has already
