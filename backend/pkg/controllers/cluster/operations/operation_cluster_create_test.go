@@ -670,7 +670,7 @@ func TestDetermineOperationState(t *testing.T) {
 				},
 			},
 			expectedState:     coreapi.ProvisioningStateProvisioning,
-			wantMessageSubstr: "hosted cluster has not completed installing",
+			wantMessageSubstr: "hosted cluster control plane version not yet completed: version 4.23.0 is Partial (want Completed)",
 		},
 		{
 			name: "cluster-service succeeded but cosmos not ready → Provisioning",
@@ -979,4 +979,75 @@ func TestRoleAssignmentsOperationStatus(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestDescribeVersionHistory(t *testing.T) {
+	tests := []struct {
+		name     string
+		history  []v1beta1.ControlPlaneUpdateHistory
+		expected string
+	}{
+		{
+			name:     "empty history",
+			history:  nil,
+			expected: "hosted cluster has no version history entries",
+		},
+		{
+			name: "single version partial",
+			history: []v1beta1.ControlPlaneUpdateHistory{
+				{Version: "4.23.0", State: configv1.PartialUpdate},
+			},
+			expected: "hosted cluster control plane version not yet completed: version 4.23.0 is Partial (want Completed)",
+		},
+		{
+			name: "multiple versions all partial",
+			history: []v1beta1.ControlPlaneUpdateHistory{
+				{Version: "4.23.0", State: configv1.PartialUpdate},
+				{Version: "4.22.5", State: configv1.PartialUpdate},
+			},
+			expected: "hosted cluster control plane version not yet completed: version 4.23.0 is Partial (want Completed); version 4.22.5 is Partial (want Completed)",
+		},
+		{
+			name: "completed version does not show elapsed duration",
+			history: []v1beta1.ControlPlaneUpdateHistory{
+				{
+					Version:     "4.23.0",
+					State:       configv1.CompletedUpdate,
+					StartedTime: metav1.NewTime(time.Now().Add(-5 * time.Minute)),
+				},
+			},
+			expected: "hosted cluster control plane version not yet completed: version 4.23.0 is Completed (want Completed)",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := describeVersionHistory(tt.history)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+
+	t.Run("version with started time shows elapsed duration", func(t *testing.T) {
+		history := []v1beta1.ControlPlaneUpdateHistory{
+			{
+				Version:     "4.23.0",
+				State:       configv1.PartialUpdate,
+				StartedTime: metav1.NewTime(time.Now().Add(-5 * time.Minute)),
+			},
+		}
+		result := describeVersionHistory(history)
+		assert.Regexp(t, `^hosted cluster control plane version not yet completed: version 4\.23\.0 is Partial \(want Completed\), started \d+m\d+s ago$`, result)
+	})
+
+	t.Run("future started time clamps elapsed to zero", func(t *testing.T) {
+		history := []v1beta1.ControlPlaneUpdateHistory{
+			{
+				Version:     "4.23.0",
+				State:       configv1.PartialUpdate,
+				StartedTime: metav1.NewTime(time.Now().Add(5 * time.Minute)),
+			},
+		}
+		result := describeVersionHistory(history)
+		assert.Equal(t, "hosted cluster control plane version not yet completed: version 4.23.0 is Partial (want Completed), started 0s ago", result)
+	})
 }

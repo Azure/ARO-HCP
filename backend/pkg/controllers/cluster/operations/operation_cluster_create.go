@@ -375,8 +375,9 @@ func (c *operationClusterCreate) hostedClusterOperationStatus(ctx context.Contex
 
 		if !anyVersionInstalled {
 			// can only check this when the success condition works, because this is unreliable otherwise
-			logger.Info("hosted cluster has not completed installing", "hostedCluster.Status.ControlPlaneVersion.History", hostedCluster.Status.ControlPlaneVersion.History)
-			return operationbase.NewOperationState(coreapi.ProvisioningStateProvisioning, withDegradedSuffix("hosted cluster has not completed installing", hostedCluster)), nil
+			message := describeVersionHistory(hostedCluster.Status.ControlPlaneVersion.History)
+			logger.Info("hosted cluster control plane version not yet completed", "message", message, "hostedCluster.Status.ControlPlaneVersion.History", hostedCluster.Status.ControlPlaneVersion.History)
+			return operationbase.NewOperationState(coreapi.ProvisioningStateProvisioning, withDegradedSuffix(message, hostedCluster)), nil
 		}
 	}
 
@@ -448,4 +449,28 @@ func withDegradedSuffix(message string, hostedCluster *v1beta1.HostedCluster) st
 		return message
 	}
 	return fmt.Sprintf("%s; hosted cluster degraded: %s: %s", message, degraded.Reason, degraded.Message)
+}
+
+// describeVersionHistory produces a human-readable message explaining why no
+// version in the HostedCluster's control plane version history has reached
+// CompletedUpdate. It lists each version entry with its current state so that
+// operators and agents can understand what the control plane is doing without
+// reading backend source code.
+func describeVersionHistory(history []v1beta1.ControlPlaneUpdateHistory) string {
+	if len(history) == 0 {
+		return "hosted cluster has no version history entries"
+	}
+	descriptions := make([]string, 0, len(history))
+	for _, entry := range history {
+		desc := fmt.Sprintf("version %s is %s (want %s)", entry.Version, entry.State, configv1.CompletedUpdate)
+		if !entry.StartedTime.IsZero() && entry.State != configv1.CompletedUpdate {
+			elapsed := time.Since(entry.StartedTime.Time).Truncate(time.Second)
+			if elapsed < 0 {
+				elapsed = 0
+			}
+			desc += fmt.Sprintf(", started %s ago", elapsed)
+		}
+		descriptions = append(descriptions, desc)
+	}
+	return fmt.Sprintf("hosted cluster control plane version not yet completed: %s", strings.Join(descriptions, "; "))
 }
