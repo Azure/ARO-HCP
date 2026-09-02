@@ -299,11 +299,11 @@ var testHCPClusterKey = controllerutils.HCPClusterKey{
 	HCPClusterName:    testClusterName,
 }
 
-// TestRoleAssignmentsSyncerSyncOnceReconcile exercises the single reconcile loop end to end
-// through the mock Cosmos DB, listers, and Azure client. The loop queries Azure once per
+// TestRoleAssignmentsSyncerSyncOnceReconcile exercises the two-pass reconcile end to end
+// through the mock Cosmos DB, listers, and Azure client. Pass 1 queries Azure once per
 // expected role assignment (one control-plane + one data-plane): an assignment that exists is
-// confirmed, and one that is missing is recorded pending and created - a freshly-created
-// assignment stays pending this pass and confirms on a later GetByID.
+// confirmed, and one that is missing is recorded pending and created in pass 2 - a
+// freshly-created assignment stays pending this pass and confirms on a later GetByID.
 func TestRoleAssignmentsSyncerSyncOnceReconcile(t *testing.T) {
 	t.Parallel()
 
@@ -382,7 +382,7 @@ func TestRoleAssignmentsSyncerSyncOnceReconcile(t *testing.T) {
 					Create(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Times(0)
 			}
-			// The FPA client is built exactly once per pass, before the single loop.
+			// The FPA client is built exactly once and reused across both passes.
 			fpaClientBuilder := azureclient.NewMockFirstPartyApplicationClientBuilder(ctrl)
 			fpaClientBuilder.EXPECT().
 				RoleAssignmentsClient(testTenantID, testSubscriptionID).
@@ -408,6 +408,59 @@ func TestRoleAssignmentsSyncerSyncOnceReconcile(t *testing.T) {
 	}
 }
 
+// TestRoleAssignmentsSyncerSyncOncePersistsPendingBeforeCreate verifies the core ordering of
+// the two-pass reconcile: the pending intent is persisted to Cosmos BEFORE any
+// RoleAssignmentsClient.Create call. It asserts this by reading the persisted document from
+// inside the Create mock and requiring that the pending set is already recorded there.
+func TestRoleAssignmentsSyncerSyncOncePersistsPendingBeforeCreate(t *testing.T) {
+	t.Parallel()
+
+	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+	expectedIDs := testExpectedRoleAssignmentIDs(t)
+
+	cluster := newTestCluster(false)
+	// Empty tracked state: pass 1 classifies both expected assignments as missing.
+	serviceProviderCluster := newTestServiceProviderCluster(t, true, true, true, coreapi.AzureMultiReference{})
+
+	mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, serviceProviderCluster})
+	require.NoError(t, err)
+
+	ctrl := gomock.NewController(t)
+	mockRAClient := azureclient.NewMockRoleAssignmentsClient(ctrl)
+	mockRAClient.EXPECT().
+		GetByID(gomock.Any(), gomock.Any(), nil).
+		Return(armauthorization.RoleAssignmentsClientGetByIDResponse{}, roleAssignmentNotFoundError()).
+		Times(len(expectedIDs))
+	// Ordering assertion: by the time any Create runs, the classified pending intent for every
+	// expected assignment must already be persisted in Cosmos (pass 1 + persist ran first).
+	mockRAClient.EXPECT().
+		Create(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), nil).
+		DoAndReturn(func(_ context.Context, _, _ string, _ armauthorization.RoleAssignmentCreateParameters, _ *armauthorization.RoleAssignmentsClientCreateOptions) (armauthorization.RoleAssignmentsClientCreateResponse, error) {
+			persisted, getErr := mockResourcesDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
+			require.NoError(t, getErr, "reading persisted ServiceProviderCluster during Create")
+			assertResourceIDSetEqual(t, expectedIDs, persisted.Status.AzureResources.RoleAssignments.PendingAzureResources, "PendingAzureResources persisted before Create")
+			return armauthorization.RoleAssignmentsClientCreateResponse{}, nil
+		}).
+		Times(len(expectedIDs))
+	fpaClientBuilder := azureclient.NewMockFirstPartyApplicationClientBuilder(ctrl)
+	fpaClientBuilder.EXPECT().
+		RoleAssignmentsClient(testTenantID, testSubscriptionID).
+		Return(mockRAClient, nil).
+		Times(1)
+
+	syncer := newTestSyncer(mockResourcesDB, fpaClientBuilder)
+
+	require.NoError(t, syncer.SyncOnce(ctx, testHCPClusterKey))
+
+	updated, err := mockResourcesDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
+	require.NoError(t, err)
+	got := updated.Status.AzureResources.RoleAssignments
+	// Freshly-created assignments stay pending this pass (they confirm on a later GetByID).
+	assertResourceIDSetEqual(t, expectedIDs, got.PendingAzureResources, "PendingAzureResources")
+	assertResourceIDSetEqual(t, nil, got.AzureResources, "AzureResources")
+	assert.Nil(t, got.EarliestRecheckTime, "no recheck window while work remains")
+}
+
 // TestRoleAssignmentsSyncerSyncOnceCreateErrorStaysPending verifies that when creating a
 // role assignment fails with a non-"already exists" error, SyncOnce returns the error and
 // leaves the assignment pending (never confirmed).
@@ -427,9 +480,9 @@ func TestRoleAssignmentsSyncerSyncOnceCreateErrorStaysPending(t *testing.T) {
 
 	ctrl := gomock.NewController(t)
 	mockRAClient := azureclient.NewMockRoleAssignmentsClient(ctrl)
-	// Azure reports every assignment missing and every create fails. The single loop processes
-	// all expected assignments (it does not abort on the first error) and returns the joined
-	// error, leaving each assignment pending.
+	// Azure reports every assignment missing (pass 1) and every create fails (pass 2). Every
+	// assignment is processed (the reconcile does not abort on the first error) and the joined
+	// error is returned, leaving each assignment pending.
 	mockRAClient.EXPECT().
 		GetByID(gomock.Any(), gomock.Any(), nil).
 		Return(armauthorization.RoleAssignmentsClientGetByIDResponse{}, roleAssignmentNotFoundError()).
@@ -457,9 +510,9 @@ func TestRoleAssignmentsSyncerSyncOnceCreateErrorStaysPending(t *testing.T) {
 }
 
 // TestRoleAssignmentsSyncerSyncOnceStalePendingDropped verifies that a pending entry that is
-// no longer expected (e.g. an operator identity was replaced) is dropped: the single loop
-// iterates only the expected set, so the overwrite of PendingAzureResources leaves the stale
-// entry behind. The stale entry is never queried.
+// no longer expected (e.g. an operator identity was replaced) is dropped: pass 1 iterates only
+// the expected set, so the overwrite of PendingAzureResources leaves the stale entry behind.
+// The stale entry is never queried.
 func TestRoleAssignmentsSyncerSyncOnceStalePendingDropped(t *testing.T) {
 	t.Parallel()
 
@@ -556,7 +609,7 @@ func TestRoleAssignmentsSyncerSyncOnceRecheckAllPresentReschedules(t *testing.T)
 
 // TestRoleAssignmentsSyncerSyncOnceRecheckDisappearedRecreatesStaysPending verifies that when
 // the recheck window has elapsed and a confirmed role assignment has disappeared from Azure,
-// the single loop re-creates it - and, per the single-loop design, a freshly-created
+// the two-pass reconcile re-creates it - and, per the two-pass design, a freshly-created
 // assignment stays pending this pass (it confirms on a later GetByID) with the recheck window
 // cleared while work remains.
 func TestRoleAssignmentsSyncerSyncOnceRecheckDisappearedRecreatesStaysPending(t *testing.T) {
@@ -577,7 +630,7 @@ func TestRoleAssignmentsSyncerSyncOnceRecheckDisappearedRecreatesStaysPending(t 
 
 	ctrl := gomock.NewController(t)
 	mockRAClient := azureclient.NewMockRoleAssignmentsClient(ctrl)
-	// The single loop finds each assignment gone (one GetByID per expected) and re-creates it.
+	// Pass 1 finds each assignment gone (one GetByID per expected); pass 2 re-creates them.
 	mockRAClient.EXPECT().
 		GetByID(gomock.Any(), gomock.Any(), nil).
 		Return(armauthorization.RoleAssignmentsClientGetByIDResponse{}, roleAssignmentNotFoundError()).
@@ -587,7 +640,7 @@ func TestRoleAssignmentsSyncerSyncOnceRecheckDisappearedRecreatesStaysPending(t 
 		DoAndReturn(assertCreateParams(t, expectedIDs, nil)).
 		Times(len(expectedIDs))
 	fpaClientBuilder := azureclient.NewMockFirstPartyApplicationClientBuilder(ctrl)
-	// The client is built exactly once - there is a single loop, not separate phases.
+	// The client is built exactly once and reused across both passes.
 	fpaClientBuilder.EXPECT().
 		RoleAssignmentsClient(testTenantID, testSubscriptionID).
 		Return(mockRAClient, nil).
@@ -655,9 +708,9 @@ func TestRoleAssignmentsSyncerSyncOnceNilRecheckDoesOneRecheck(t *testing.T) {
 }
 
 // TestRoleAssignmentsSyncerSyncOnceRecheckPartialDisappearance verifies that on an elapsed
-// recheck where only some confirmed assignments have disappeared, the single loop keeps the
-// still-present ones confirmed and re-creates the missing one - which stays pending this pass
-// (it confirms on a later GetByID). The recheck window is cleared while work remains.
+// recheck where only some confirmed assignments have disappeared, the two-pass reconcile keeps
+// the still-present ones confirmed and re-creates the missing one - which stays pending this
+// pass (it confirms on a later GetByID). The recheck window is cleared while work remains.
 func TestRoleAssignmentsSyncerSyncOnceRecheckPartialDisappearance(t *testing.T) {
 	t.Parallel()
 
