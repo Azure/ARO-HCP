@@ -16,6 +16,7 @@ package roleassignments
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -235,20 +236,27 @@ func (c *roleAssignmentsSyncer) SyncOnce(ctx context.Context, key controllerutil
 	return c.syncRoleAssignments(ctx, cluster, existingServiceProviderCluster)
 }
 
-// syncRoleAssignments manages the role assignments for a cluster that is not being
-// deleted and reflects their state onto the ServiceProviderCluster.
+// syncRoleAssignments reconciles the role assignments for a cluster that is not being
+// deleted in a single pass over the expected set, and reflects the result onto the
+// ServiceProviderCluster.
 //
-// It first records every not-yet-tracked expected role assignment as
-// PendingAzureResources and persists that intent BEFORE any Azure write, so that a
-// failure - or a role assignment that does not exist yet - still leaves a durable pending
-// marker rather than an empty reference. It then queries Azure for each pending role
-// assignment and:
+// It runs only when the NeedsWork recheck-window guard says there is work to do or the
+// earliest-recheck window is due; steady-state resyncs are skipped there and make no Azure
+// calls. For each expected role assignment it queries Azure once with GetByID:
 //
-//   - exists: moves it from pending to confirmed (AzureResources).
-//   - not found: creates it and, on success or an "already exists" result, moves it to
-//     confirmed.
-//   - other error (on Get or Create): returns the error so the sync retries, leaving the
-//     assignment pending.
+//   - exists: recorded as confirmed (AzureResources).
+//   - not found: recorded as pending (PendingAzureResources) and then created; a create that
+//     races with a concurrent creator surfaces as "already exists" and is swallowed. A
+//     freshly-created assignment stays pending this pass and confirms on a later GetByID.
+//   - other error (on Get or Create): the assignment is left pending (not confirmed) and the
+//     error is returned so the sync retries.
+//
+// After the loop PendingAzureResources and AzureResources are overwritten from this pass, so
+// every expected assignment is tracked in exactly one of them and nothing else is tracked.
+// When nothing is pending (every expected assignment is confirmed) the earliest-recheck
+// window is set to a future time - the only thing that stops the loop re-running on every
+// resync. Any previously-confirmed assignment that is no longer expected is logged (an
+// accepted leak) but neither tracked nor deleted.
 func (c *roleAssignmentsSyncer) syncRoleAssignments(ctx context.Context, cluster *coreapi.HCPOpenShiftCluster, existingServiceProviderCluster *coreapi.ServiceProviderCluster) error {
 	expected, err := c.expectedRoleAssignments(cluster, existingServiceProviderCluster)
 	if err != nil {
@@ -260,130 +268,67 @@ func (c *roleAssignmentsSyncer) syncRoleAssignments(ctx context.Context, cluster
 		return nil
 	}
 
-	// Phase 1: record every not-yet-tracked expected role assignment as pending and
-	// persist that intent BEFORE querying Azure ("set pending before Get").
-	existingRoleAssignments := existingServiceProviderCluster.Status.AzureResources.RoleAssignments
-	var toAdd []*azcorearm.ResourceID
+	// Snapshot the previously-confirmed set before the loop overwrites it, so we can log any
+	// assignment that is no longer expected (an accepted leak).
+	previouslyConfirmed := existingServiceProviderCluster.Status.AzureResources.RoleAssignments.AzureResources
+
+	roleAssignmentsClient, err := c.roleAssignmentsClient(ctx, cluster.ID.SubscriptionID)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+
+	// Single reconcile pass over the expected set. Invariant: at the end every expected role
+	// assignment is in exactly one of pendingList / confirmedList - nothing extra is tracked.
+	var (
+		pendingList   []*azcorearm.ResourceID
+		confirmedList []*azcorearm.ResourceID
+		errs          []error
+	)
 	for _, assignment := range expected {
-		if slices.ContainsFunc(existingRoleAssignments.AzureResources, func(id *azcorearm.ResourceID) bool {
-			return controllerutil.ResourceIDsEqual(id, assignment.resourceID)
-		}) {
-			continue
-		}
-		if slices.ContainsFunc(existingRoleAssignments.PendingAzureResources, func(id *azcorearm.ResourceID) bool {
-			return controllerutil.ResourceIDsEqual(id, assignment.resourceID)
-		}) {
-			continue
-		}
-		toAdd = append(toAdd, assignment.resourceID)
-	}
-	if len(toAdd) != 0 {
-		replacement := existingServiceProviderCluster.DeepCopy()
-		replacement.Status.AzureResources.RoleAssignments.PendingAzureResources = append(
-			replacement.Status.AzureResources.RoleAssignments.PendingAzureResources, toAdd...)
-		existingServiceProviderCluster, err = c.persistIfChanged(ctx, cluster, existingServiceProviderCluster, replacement)
-		if err != nil {
-			return utils.TrackError(err)
-		}
-	}
-
-	// Phase 2 (recheck): once the confirmed set covers the expected set with nothing pending,
-	// maintain the earliest-recheck window. A cluster with no window yet (freshly confirmed,
-	// or confirmed before this controller tracked EarliestRecheckTime) has the window
-	// initialized to a future time WITHOUT an Azure recheck, so a rollout does not trigger a
-	// GetByID burst across every existing cluster. Once the window has elapsed, re-verify the
-	// confirmed set against Azure: any that have disappeared are demoted back to pending (so
-	// the create phase re-creates them), otherwise the window is simply pushed out. This is
-	// the only reason SyncOnce runs in steady state.
-	existingRoleAssignments = existingServiceProviderCluster.Status.AzureResources.RoleAssignments
-	if len(existingRoleAssignments.PendingAzureResources) == 0 &&
-		c.roleAssignmentsPreviouslyCreated(existingRoleAssignments.AzureResources, expected) {
-		switch {
-		case existingRoleAssignments.EarliestRecheckTime == nil:
-			// No recheck window yet: schedule the first one instead of rechecking now, so a
-			// rollout of never-initialized cluster docs does not stampede Azure with GetByID.
-			replacement := existingServiceProviderCluster.DeepCopy()
-			replacement.Status.AzureResources.RoleAssignments.EarliestRecheckTime = c.nextRoleAssignmentRecheckTime()
-			_, err = c.persistIfChanged(ctx, cluster, existingServiceProviderCluster, replacement)
-			return utils.TrackError(err)
-		case c.recheckDue(existingRoleAssignments.EarliestRecheckTime):
-			existingServiceProviderCluster, err = c.recheckConfirmedRoleAssignments(ctx, cluster, existingServiceProviderCluster)
-			if err != nil {
-				return utils.TrackError(err)
-			}
-		}
-	}
-
-	// Phase 3: reconcile the pending role assignments. Any pending entry that is no longer
-	// expected (for example an operator identity was replaced) is pruned - dropped from
-	// PendingAzureResources entirely - rather than tracked or re-created, so it stops
-	// consuming the create-gate. For each pending entry that is still expected, ensure it
-	// exists in Azure - creating it when Azure reports it missing - and promote it to
-	// confirmed. Create parameters are looked up by resource ID (the hashed role-assignment
-	// name cannot be reversed), so the expected set is keyed by its resource ID.
-	pending := existingServiceProviderCluster.Status.AzureResources.RoleAssignments.PendingAzureResources
-	if len(pending) == 0 {
-		return nil
-	}
-
-	expectedByID := make(map[string]roleAssignmentDefinition, len(expected))
-	for _, assignment := range expected {
-		expectedByID[strings.ToLower(assignment.resourceID.String())] = assignment
-	}
-
-	// stillPending holds the pending entries that remain pending after this pass; entries no
-	// longer expected are pruned (never added), and expected entries that are confirmed move
-	// to newlyConfirmed. The Azure client is built lazily so a pure prune makes no Azure call.
-	var stillPending []*azcorearm.ResourceID
-	var newlyConfirmed []*azcorearm.ResourceID
-	var roleAssignmentsClient azureclient.RoleAssignmentsClient
-	for _, pendingID := range pending {
-		assignment, ok := expectedByID[strings.ToLower(pendingID.String())]
-		if !ok {
-			// No longer expected: prune it (drop from pending) rather than tracking or
-			// re-creating it. Do not query Azure for it.
-			continue
-		}
-
-		if roleAssignmentsClient == nil {
-			roleAssignmentsClient, err = c.roleAssignmentsClient(ctx, cluster.ID.SubscriptionID)
-			if err != nil {
-				return utils.TrackError(err)
-			}
-		}
-
-		_, getErr := roleAssignmentsClient.GetByID(ctx, pendingID.String(), nil)
+		_, getErr := roleAssignmentsClient.GetByID(ctx, assignment.resourceID.String(), nil)
 		switch {
 		case getErr == nil:
-			// The role assignment already exists (created on a previous pass or
-			// concurrently): promote it to confirmed.
-			newlyConfirmed = append(newlyConfirmed, pendingID)
-			continue
-		case !azureclient.IsRoleAssignmentNotFoundErr(getErr):
-			return utils.TrackError(fmt.Errorf("failed to get role assignment %q: %w", pendingID.String(), getErr))
+			// Exists in Azure: confirmed.
+			confirmedList = append(confirmedList, assignment.resourceID)
+		case azureclient.IsRoleAssignmentNotFoundErr(getErr):
+			// Not found: record it pending, then create it. A freshly-created assignment (or
+			// one that already exists from a concurrent creator, swallowed inside
+			// createRoleAssignment) stays pending this pass and confirms on a later GetByID.
+			pendingList = append(pendingList, assignment.resourceID)
+			if createErr := c.createRoleAssignment(ctx, roleAssignmentsClient, assignment); createErr != nil {
+				errs = append(errs, createErr)
+			}
+		default:
+			// Any other Get error: leave it pending (do not confirm) and retry next pass.
+			pendingList = append(pendingList, assignment.resourceID)
+			errs = append(errs, fmt.Errorf("failed to get role assignment %q: %w", assignment.resourceID.String(), getErr))
 		}
-
-		// The role assignment does not exist yet: create it.
-		if createErr := c.createRoleAssignment(ctx, roleAssignmentsClient, assignment); createErr != nil {
-			return utils.TrackError(createErr)
-		}
-		newlyConfirmed = append(newlyConfirmed, pendingID)
 	}
 
-	// Persist whenever the pending set shrank (stale entries pruned and/or entries moved to
-	// confirmed) or anything was newly confirmed. persistIfChanged is a no-op when the
-	// document is unchanged, so it is always safe to build the replacement and let it decide.
+	// Accepted leak: log (but do not track or delete) any previously-confirmed role assignment
+	// that is no longer expected. There will be none until managed identity replacement is
+	// supported.
+	c.logExtraRoleAssignments(ctx, previouslyConfirmed, expected)
+
+	// Overwrite the tracked sets from this pass (invariant: expected == pending ∪ confirmed).
 	replacement := existingServiceProviderCluster.DeepCopy()
 	roleAssignments := &replacement.Status.AzureResources.RoleAssignments
-	roleAssignments.PendingAzureResources = stillPending
-	roleAssignments.AzureResources = append(roleAssignments.AzureResources, newlyConfirmed...)
-	if len(stillPending) == 0 && c.roleAssignmentsPreviouslyCreated(roleAssignments.AzureResources, expected) {
-		// The confirmed set now covers every expected role assignment: schedule the next
-		// recheck so the set is re-verified later rather than on every resync.
+	roleAssignments.PendingAzureResources = pendingList
+	roleAssignments.AzureResources = confirmedList
+	if len(pendingList) == 0 {
+		// Every expected role assignment is confirmed with nothing pending: schedule the next
+		// recheck. This is the only thing that stops the loop re-running on every resync.
 		roleAssignments.EarliestRecheckTime = c.nextRoleAssignmentRecheckTime()
+	} else {
+		// Work remains: clear any window so the next resync re-runs promptly (NeedsWork also
+		// returns true while anything is pending).
+		roleAssignments.EarliestRecheckTime = nil
 	}
-	_, err = c.persistIfChanged(ctx, cluster, existingServiceProviderCluster, replacement)
-	return utils.TrackError(err)
+
+	if _, persistErr := c.persistIfChanged(ctx, cluster, existingServiceProviderCluster, replacement); persistErr != nil {
+		errs = append(errs, persistErr)
+	}
+	return utils.TrackError(errors.Join(errs...))
 }
 
 // roleAssignmentDefinition describes a single managed-resource-group-scoped role assignment
@@ -618,56 +563,22 @@ func (c *roleAssignmentsSyncer) createRoleAssignment(ctx context.Context, client
 	return nil
 }
 
-// recheckConfirmedRoleAssignments re-verifies every confirmed role assignment against Azure.
-// Any that have disappeared are demoted from AzureResources back to PendingAzureResources
-// (recording that intent, and clearing the recheck time, before the create phase re-creates
-// them). When every confirmed assignment is still present it simply pushes the earliest
-// recheck time out. It returns the ServiceProviderCluster to use for the subsequent create
-// phase (the freshly persisted document, or the input when nothing changed).
-func (c *roleAssignmentsSyncer) recheckConfirmedRoleAssignments(ctx context.Context, cluster *coreapi.HCPOpenShiftCluster, existingServiceProviderCluster *coreapi.ServiceProviderCluster) (*coreapi.ServiceProviderCluster, error) {
-	confirmed := existingServiceProviderCluster.Status.AzureResources.RoleAssignments.AzureResources
-	if len(confirmed) == 0 {
-		return existingServiceProviderCluster, nil
-	}
-
-	roleAssignmentsClient, err := c.roleAssignmentsClient(ctx, cluster.ID.SubscriptionID)
-	if err != nil {
-		return nil, err
-	}
-
-	var stillConfirmed, disappeared []*azcorearm.ResourceID
-	for _, confirmedID := range confirmed {
-		_, getErr := roleAssignmentsClient.GetByID(ctx, confirmedID.String(), nil)
-		switch {
-		case getErr == nil:
-			// Still present: keep it confirmed.
-			stillConfirmed = append(stillConfirmed, confirmedID)
-		case azureclient.IsRoleAssignmentNotFoundErr(getErr):
-			disappeared = append(disappeared, confirmedID)
-		default:
-			return nil, fmt.Errorf("failed to re-check role assignment %q: %w", confirmedID.String(), getErr)
-		}
-	}
-
-	replacement := existingServiceProviderCluster.DeepCopy()
-	roleAssignments := &replacement.Status.AzureResources.RoleAssignments
-	if len(disappeared) == 0 {
-		// Every confirmed role assignment is still present: schedule the next recheck.
-		roleAssignments.EarliestRecheckTime = c.nextRoleAssignmentRecheckTime()
-		return c.persistIfChanged(ctx, cluster, existingServiceProviderCluster, replacement)
-	}
-
-	// One or more confirmed role assignments have disappeared: keep only the ones still
-	// present as confirmed, demote the disappeared ones back to pending (recording that
-	// intent before the create phase re-creates them), and clear the recheck time so they
-	// are re-created promptly.
+// logExtraRoleAssignments emits one log line per previously-confirmed role assignment that is
+// no longer in the expected set. These are an accepted leak: this controller has a create-only
+// lifecycle and never deletes MRG-scoped role assignments, and there will be none until managed
+// identity replacement is supported. They are logged only - never tracked in a side list.
+func (c *roleAssignmentsSyncer) logExtraRoleAssignments(ctx context.Context, previouslyConfirmed []*azcorearm.ResourceID, expected []roleAssignmentDefinition) {
 	logger := utils.LoggerFromContext(ctx)
-	logger.Info("confirmed role assignment disappeared; demoting to pending for recreation",
-		"roleAssignments", resourceIDStrings(disappeared))
-	roleAssignments.AzureResources = stillConfirmed
-	roleAssignments.PendingAzureResources = append(roleAssignments.PendingAzureResources, disappeared...)
-	roleAssignments.EarliestRecheckTime = nil
-	return c.persistIfChanged(ctx, cluster, existingServiceProviderCluster, replacement)
+	for _, confirmedID := range previouslyConfirmed {
+		if slices.ContainsFunc(expected, func(e roleAssignmentDefinition) bool {
+			return controllerutil.ResourceIDsEqual(e.resourceID, confirmedID)
+		}) {
+			continue
+		}
+		// TODO(post-merge): delete on MI replacement.
+		logger.Info("role assignment no longer expected; left in Azure (accepted leak, not tracked)",
+			"roleAssignmentID", confirmedID.String())
+	}
 }
 
 // roleAssignmentsPreviouslyCreated reports whether every expected role assignment has already
@@ -683,10 +594,9 @@ func (c *roleAssignmentsSyncer) roleAssignmentsPreviouslyCreated(confirmed []*az
 	return true
 }
 
-// recheckDue reports whether the earliest-recheck time has elapsed. A nil time reports true
-// so NeedsWork enqueues a sync for a steady-state cluster that has no recheck window yet; that
-// sync initializes the window to a future time rather than rechecking Azure immediately (see
-// syncRoleAssignments phase 2), so a nil time never triggers an immediate Azure recheck burst.
+// recheckDue reports whether the earliest-recheck time has elapsed. A nil time reports true:
+// a cluster that has never had a recheck window set does one reconcile pass on rollout (an
+// accepted one-time recheck), after which that pass sets a future window.
 func (c *roleAssignmentsSyncer) recheckDue(earliest *metav1.Time) bool {
 	return earliest == nil || !c.clock.Now().Before(earliest.Time)
 }
@@ -698,13 +608,4 @@ func (c *roleAssignmentsSyncer) nextRoleAssignmentRecheckTime() *metav1.Time {
 	jittered := wait.Jitter(roleAssignmentRecheckInterval, roleAssignmentRecheckJitterFactor)
 	recheck := metav1.NewTime(c.clock.Now().Add(jittered))
 	return &recheck
-}
-
-// resourceIDStrings renders resource IDs for structured logging.
-func resourceIDStrings(ids []*azcorearm.ResourceID) []string {
-	out := make([]string, 0, len(ids))
-	for _, id := range ids {
-		out = append(out, id.String())
-	}
-	return out
 }
