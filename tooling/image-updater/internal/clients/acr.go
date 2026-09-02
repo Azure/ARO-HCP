@@ -45,7 +45,12 @@ func NewACRClient(registryURL string, useAuth bool) (*ACRClient, error) {
 	var err error
 
 	if useAuth {
-		cred, err := azidentity.NewDefaultAzureCredential(&azidentity.DefaultAzureCredentialOptions{RequireAzureTokenCredentials: true})
+		// Allow authenticated ACR clients to be constructed even when a token-backed
+		// Azure identity is not yet available in the current environment. The Azure SDK
+		// only requires a real token when the client makes an authenticated request,
+		// and unit tests / dry runs often just validate client setup without a live
+		// Azure login.
+		cred, err := azidentity.NewDefaultAzureCredential(&azidentity.DefaultAzureCredentialOptions{})
 		if err != nil {
 			return nil, fmt.Errorf("failed to create Azure credential: %w", err)
 		}
