@@ -45,7 +45,10 @@ roleNames() {
         | sort -u
 }
 
-REFERENCE_ROLES=$(roleNames "${REFERENCE_OBJECT_ID}")
+if ! REFERENCE_ROLES=$(roleNames "${REFERENCE_OBJECT_ID}"); then
+    echo "Error: failed to query role assignments for reference identity ${REFERENCE_OBJECT_ID}; cannot establish a baseline." >&2
+    exit 2
+fi
 
 if [ -z "${REFERENCE_ROLES}" ]; then
     echo "Error: reference identity ${REFERENCE_OBJECT_ID} has no role assignments at /subscriptions/${SUBSCRIPTION_ID}; refusing to use it as a baseline." >&2
@@ -58,7 +61,11 @@ echo "${REFERENCE_ROLES}" | sed 's/^/  - /'
 DRIFT_FOUND=0
 
 for objectId in "${TARGET_OBJECT_IDS[@]}"; do
-    TARGET_ROLES=$(roleNames "${objectId}")
+    if ! TARGET_ROLES=$(roleNames "${objectId}"); then
+        echo "ERROR: failed to query role assignments for ${objectId}; treating as drift" >&2
+        DRIFT_FOUND=1
+        continue
+    fi
 
     MISSING_ROLES=$(comm -23 <(echo "${REFERENCE_ROLES}") <(echo "${TARGET_ROLES}"))
 
