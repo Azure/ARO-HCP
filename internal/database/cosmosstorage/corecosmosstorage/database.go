@@ -75,6 +75,8 @@ type ResourcesDBClient interface {
 
 	ServiceProviderNodePools(subscriptionID, resourceGroupName, clusterName, nodePoolName string) cosmosstorageutils.ResourceCRUD[coreapi.ServiceProviderNodePool, *coreapi.ServiceProviderNodePool]
 
+	ServiceProviderExternalAuths(subscriptionID, resourceGroupName, clusterName, externalAuthName string) cosmosstorageutils.ResourceCRUD[coreapi.ServiceProviderExternalAuth, *coreapi.ServiceProviderExternalAuth]
+
 	cosmosstorageutils.ChangeFeedClient
 }
 
@@ -127,6 +129,12 @@ func (d *resourcesCosmosDBClient) ServiceProviderNodePools(subscriptionID, resou
 	nodePoolResourceID := metadataapi.Must(coreapi.ToNodePoolResourceID(subscriptionID, resourceGroupName, clusterName, nodePoolName))
 	return cosmosstorageutils.NewCosmosResourceCRUD[coreapi.ServiceProviderNodePool, *coreapi.ServiceProviderNodePool, cosmosstorageutils.GenericDocument[coreapi.ServiceProviderNodePool]](
 		d.resources, nodePoolResourceID, coreapi.ServiceProviderNodePoolResourceType)
+}
+
+func (d *resourcesCosmosDBClient) ServiceProviderExternalAuths(subscriptionID, resourceGroupName, clusterName, externalAuthName string) cosmosstorageutils.ResourceCRUD[coreapi.ServiceProviderExternalAuth, *coreapi.ServiceProviderExternalAuth] {
+	externalAuthResourceID := metadataapi.Must(coreapi.ToExternalAuthResourceID(subscriptionID, resourceGroupName, clusterName, externalAuthName))
+	return cosmosstorageutils.NewCosmosResourceCRUD[coreapi.ServiceProviderExternalAuth, *coreapi.ServiceProviderExternalAuth, cosmosstorageutils.GenericDocument[coreapi.ServiceProviderExternalAuth]](
+		d.resources, externalAuthResourceID, coreapi.ServiceProviderExternalAuthResourceType)
 }
 
 func (d *resourcesCosmosDBClient) UntypedCRUD(parentResourceID azcorearm.ResourceID) (cosmosstorageutils.UntypedResourceCRUD, error) {

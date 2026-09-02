@@ -1446,18 +1446,59 @@ No Cosmos writes. Posts `NodePoolUpgradePolicy` to Cluster Service.
 #### ExternalAuthAvailableController
 
 **File:** [externalauth_available_controller.go](../backend/pkg/controllers/externalauth/status/externalauth_available_controller.go)
-**Trigger:** ExternalAuth informer, 1-minute resync
+**Trigger:** ExternalAuth / ServiceProviderExternalAuth informer, 1-minute resync
 **Gate (SyncOnce preconditions):**
 
 - `ExternalAuth.ServiceProviderProperties.DeletionTimestamp` == nil
 - `ExternalAuth.ServiceProviderProperties.ClusterServiceID` != nil
+- `ServiceProviderExternalAuth` exists (created by CreateServiceProviderExternalAuth)
 
 
-|           | Object                            | Fields |
-| --------- | --------------------------------- | ------ |
-| Read      | `HCPOpenShiftClusterExternalAuth` |        |
-| Read      | ReadDesire (HostedCluster)        |        |
-| **Write** | `HCPOpenShiftClusterExternalAuth` |        |
+|           | Object                             | Fields |
+| --------- | ---------------------------------- | ------ |
+| Read      | `HCPOpenShiftClusterExternalAuth`  |        |
+| Read      | `ServiceProviderExternalAuth`      |        |
+| Read      | ReadDesire (HostedCluster)         |        |
+| **Write** | `ServiceProviderExternalAuth`      |        |
+
+
+
+
+#### CreateServiceProviderExternalAuth
+
+**File:** [create_service_provider_externalauth_controller.go](../backend/pkg/controllers/externalauth/creation/create_service_provider_externalauth_controller.go)
+**Trigger:** ExternalAuth / ServiceProviderExternalAuth informer, 1-minute resync
+**Gate (SyncOnce preconditions):**
+
+- `ExternalAuth` exists and not deleting
+- `ServiceProviderExternalAuth` not yet in lister
+
+
+|           | Object                             | Fields |
+| --------- | ---------------------------------- | ------ |
+| Read      | `HCPOpenShiftClusterExternalAuth`  |        |
+| Read      | `ServiceProviderExternalAuth`      |        |
+| **Write** | `ServiceProviderExternalAuth`      |        |
+
+
+
+
+#### ExternalAuthUserFacingAggregator
+
+**File:** [externalauth_userfacing_aggregator.go](../backend/pkg/controllers/externalauth/status/externalauth_userfacing_aggregator.go)
+**Trigger:** ExternalAuth / ServiceProviderExternalAuth informer, 1-minute resync
+**Gate (SyncOnce preconditions):**
+
+- `ExternalAuth` exists
+- `ServiceProviderExternalAuth` exists
+- `ServiceProviderExternalAuth.Status.Conditions` differ from `ExternalAuth.Status.UserFacingConditions`
+
+
+|           | Object                             | Fields |
+| --------- | ---------------------------------- | ------ |
+| Read      | `HCPOpenShiftClusterExternalAuth`  |        |
+| Read      | `ServiceProviderExternalAuth`      |        |
+| **Write** | `HCPOpenShiftClusterExternalAuth`  |        |
 
 
 

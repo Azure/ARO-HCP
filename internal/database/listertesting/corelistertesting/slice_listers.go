@@ -313,6 +313,50 @@ func (l *SliceServiceProviderNodePoolLister) ListForNodePool(ctx context.Context
 	return result, nil
 }
 
+// SliceServiceProviderExternalAuthLister implements corelisters.ServiceProviderExternalAuthLister backed by a slice.
+type SliceServiceProviderExternalAuthLister struct {
+	ServiceProviderExternalAuths []*coreapi.ServiceProviderExternalAuth
+}
+
+var _ corelisters.ServiceProviderExternalAuthLister = &SliceServiceProviderExternalAuthLister{}
+
+func (l *SliceServiceProviderExternalAuthLister) List(ctx context.Context) ([]*coreapi.ServiceProviderExternalAuth, error) {
+	return l.ServiceProviderExternalAuths, nil
+}
+
+func (l *SliceServiceProviderExternalAuthLister) Get(ctx context.Context, subscriptionID, resourceGroupName, clusterName, externalAuthName string) (*coreapi.ServiceProviderExternalAuth, error) {
+	for _, spea := range l.ServiceProviderExternalAuths {
+		resourceID := spea.GetResourceID()
+		if resourceID == nil {
+			continue
+		}
+		if strings.EqualFold(resourceID.SubscriptionID, subscriptionID) &&
+			strings.EqualFold(resourceID.ResourceGroupName, resourceGroupName) &&
+			serviceProviderExternalAuthMatchesCluster(resourceID, clusterName) &&
+			serviceProviderExternalAuthMatchesExternalAuth(resourceID, externalAuthName) {
+			return spea, nil
+		}
+	}
+	return nil, cosmosstorageutils.NewNotFoundError()
+}
+
+func (l *SliceServiceProviderExternalAuthLister) ListForExternalAuth(ctx context.Context, subscriptionName, resourceGroupName, clusterName, externalAuthName string) ([]*coreapi.ServiceProviderExternalAuth, error) {
+	var result []*coreapi.ServiceProviderExternalAuth
+	for _, spea := range l.ServiceProviderExternalAuths {
+		resourceID := spea.GetResourceID()
+		if resourceID == nil {
+			continue
+		}
+		if strings.EqualFold(resourceID.SubscriptionID, subscriptionName) &&
+			strings.EqualFold(resourceID.ResourceGroupName, resourceGroupName) &&
+			serviceProviderExternalAuthMatchesCluster(resourceID, clusterName) &&
+			serviceProviderExternalAuthMatchesExternalAuth(resourceID, externalAuthName) {
+			result = append(result, spea)
+		}
+	}
+	return result, nil
+}
+
 // SliceManagementClusterContentLister implements corelisters.ManagementClusterContentLister backed by a slice.
 type SliceManagementClusterContentLister struct {
 	Contents []*coreapi.ManagementClusterContent

@@ -462,6 +462,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	_, controllerLister := backendInformers.Controllers()
 	_, serviceProviderClusterLister := backendInformers.ServiceProviderClusters()
 	_, serviceProviderNodePoolLister := backendInformers.ServiceProviderNodePools()
+	_, serviceProviderExternalAuthLister := backendInformers.ServiceProviderExternalAuths()
 
 	subscriptionNonClusterDataDumpController := datadump.NewSubscriptionNonClusterDataDumpController(b.options.ResourcesDBClient, backendInformers)
 	clusterRecursiveDataDumpController := datadump.NewClusterRecursiveDataDumpController(b.options.ResourcesDBClient, b.options.KubeApplierDBClients, managementClusterLister, activeOperationLister, backendInformers, unionKubeApplierInformers)
@@ -764,7 +765,20 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	externalAuthAvailableController := externalauthstatus.NewExternalAuthAvailableController(
 		b.options.ResourcesDBClient,
 		externalAuthLister,
+		serviceProviderExternalAuthLister,
 		unionReadDesireLister,
+		backendInformers,
+	)
+	externalAuthUserFacingAggregatorController := externalauthstatus.NewExternalAuthUserFacingAggregatorController(
+		b.options.ResourcesDBClient,
+		externalAuthLister,
+		serviceProviderExternalAuthLister,
+		backendInformers,
+	)
+	createServiceProviderExternalAuthController := externalauthcreation.NewCreateServiceProviderExternalAuthController(
+		b.options.ResourcesDBClient,
+		externalAuthLister,
+		serviceProviderExternalAuthLister,
 		backendInformers,
 	)
 
@@ -1123,6 +1137,8 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go nodePoolRequirementsValidAggregatorController.Run(ctx, 20)
 				go externalAuthDegradedAggregatorController.Run(ctx, 20)
 				go externalAuthAvailableController.Run(ctx, 20)
+				go externalAuthUserFacingAggregatorController.Run(ctx, 20)
+				go createServiceProviderExternalAuthController.Run(ctx, 20)
 				go desiredControlPlaneSizeController.Run(ctx, 20)
 				go serviceProviderClusterPropertiesSyncController.Run(ctx, 20)
 				go azureRPRegistrationValidationController.Run(ctx, 20)

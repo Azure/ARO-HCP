@@ -46,6 +46,7 @@ const (
 	ExternalAuthRelistDuration                    = 30 * time.Minute
 	ServiceProviderClusterRelistDuration          = 30 * time.Minute
 	ServiceProviderNodePoolRelistDuration         = 30 * time.Minute
+	ServiceProviderExternalAuthRelistDuration     = 30 * time.Minute
 	ControllerRelistDuration                      = 30 * time.Minute
 	AllOperationsRelistDuration                   = 30 * time.Minute
 	ActiveOperationsRelistDuration                = 30 * time.Minute
@@ -336,6 +337,37 @@ func NewServiceProviderNodePoolInformerWithRelistDuration(lister cosmosstorageut
 				corelisters.ByNodePool: nodePoolResourceIDIndexFunc,
 			},
 			ObjectDescription: "ServiceProviderNodePool",
+		},
+	)
+}
+
+// NewServiceProviderExternalAuthInformer creates an unstarted SharedIndexInformer for service provider external auths
+// with an external auth index using the default relist duration.
+func NewServiceProviderExternalAuthInformer(lister cosmosstorageutils.GlobalLister[coreapi.ServiceProviderExternalAuth], cosmosClient cosmosstorageutils.ChangeFeedClient) cache.SharedIndexInformer {
+	return NewServiceProviderExternalAuthInformerWithRelistDuration(lister, cosmosClient, ServiceProviderExternalAuthRelistDuration)
+}
+
+// NewServiceProviderExternalAuthInformerWithRelistDuration creates an unstarted SharedIndexInformer for service provider external auths
+// with an external auth index and a configurable relist duration.
+func NewServiceProviderExternalAuthInformerWithRelistDuration(lister cosmosstorageutils.GlobalLister[coreapi.ServiceProviderExternalAuth], cosmosClient cosmosstorageutils.ChangeFeedClient, relistDuration time.Duration) cache.SharedIndexInformer {
+	lw := informerutils.NewChangeFeedListWatcher[coreapi.ServiceProviderExternalAuth, *coreapi.ServiceProviderExternalAuth, cosmosstorageutils.GenericDocument[coreapi.ServiceProviderExternalAuth]](
+		[]azcorearm.ResourceType{coreapi.ServiceProviderExternalAuthResourceType},
+		utilsclock.RealClock{},
+		lister,
+		cosmosClient,
+		relistDuration,
+		"resources",
+	)
+
+	return cache.NewSharedIndexInformerWithOptions(
+		&informerutils.ListWatchWithoutWatchListSemantics{ListWatch: lw.ToListWatch()},
+		&coreapi.ServiceProviderExternalAuth{},
+		cache.SharedIndexInformerOptions{
+			ResyncPeriod: 1 * time.Hour,
+			Indexers: cache.Indexers{
+				corelisters.ByExternalAuth: externalAuthResourceIDIndexFunc,
+			},
+			ObjectDescription: "ServiceProviderExternalAuth",
 		},
 	)
 }

@@ -16,6 +16,7 @@ package status
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -85,6 +86,26 @@ func newTestExternalAuthForAvailable(opts ...func(*coreapi.HCPOpenShiftClusterEx
 		opt(ea)
 	}
 	return ea
+}
+
+func newTestServiceProviderExternalAuth(opts ...func(*coreapi.ServiceProviderExternalAuth)) *coreapi.ServiceProviderExternalAuth {
+	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
+		"/subscriptions/" + statusutils.TestSubscriptionID +
+			"/resourceGroups/" + statusutils.TestResourceGroupName +
+			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + statusutils.TestClusterName +
+			"/externalAuths/" + statusutils.TestExternalAuthName +
+			"/serviceProviderExternalAuths/" + coreapi.ServiceProviderExternalAuthResourceName,
+	))
+	spea := &coreapi.ServiceProviderExternalAuth{
+		CosmosMetadata: coreapi.CosmosMetadata{
+			ResourceID:   resourceID,
+			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
+		},
+	}
+	for _, opt := range opts {
+		opt(spea)
+	}
+	return spea
 }
 
 func newHostedClusterReadDesire(t *testing.T, hc *v1beta1.HostedCluster) *kubeapplierapi.ReadDesire {
@@ -183,8 +204,9 @@ func TestExternalAuthAvailableController_SyncOnce(t *testing.T) {
 	tests := []struct {
 		name string
 
-		externalAuth  *coreapi.HCPOpenShiftClusterExternalAuth
-		hostedCluster *v1beta1.HostedCluster
+		externalAuth                *coreapi.HCPOpenShiftClusterExternalAuth
+		serviceProviderExternalAuth *coreapi.ServiceProviderExternalAuth
+		hostedCluster               *v1beta1.HostedCluster
 
 		expectNoWrite bool
 		expectStatus  metav1.ConditionStatus
@@ -197,26 +219,36 @@ func TestExternalAuthAvailableController_SyncOnce(t *testing.T) {
 				now := metav1.Now()
 				ea.ServiceProviderProperties.DeletionTimestamp = &now
 			}),
-			expectNoWrite: true,
+			serviceProviderExternalAuth: newTestServiceProviderExternalAuth(),
+			expectNoWrite:               true,
 		},
 		{
 			name: "skip when external auth has no ClusterServiceID",
 			externalAuth: newTestExternalAuthForAvailable(func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
 				ea.ServiceProviderProperties.ClusterServiceID = nil
 			}),
-			expectNoWrite: true,
+			serviceProviderExternalAuth: newTestServiceProviderExternalAuth(),
+			expectNoWrite:               true,
 		},
 		{
-			name:          "HostedCluster not found -> Available: False, Reason: HostedClusterNotReady",
-			externalAuth:  newTestExternalAuthForAvailable(),
-			hostedCluster: nil,
-			expectStatus:  metav1.ConditionFalse,
-			expectReason:  coreapi.ExternalAuthReasonHostedClusterNotReady,
-			expectMessage: "Waiting for HostedCluster to be observed",
+			name:                        "skip when SPEA not yet created",
+			externalAuth:                newTestExternalAuthForAvailable(),
+			serviceProviderExternalAuth: nil,
+			expectNoWrite:               true,
 		},
 		{
-			name:         "HostedCluster found, no Configuration -> Available: Unknown, Reason: HostedClusterNotReady",
-			externalAuth: newTestExternalAuthForAvailable(),
+			name:                        "HostedCluster not found -> Available: False, Reason: HostedClusterNotReady",
+			externalAuth:                newTestExternalAuthForAvailable(),
+			serviceProviderExternalAuth: newTestServiceProviderExternalAuth(),
+			hostedCluster:               nil,
+			expectStatus:                metav1.ConditionFalse,
+			expectReason:                coreapi.ExternalAuthReasonHostedClusterNotReady,
+			expectMessage:               "Waiting for HostedCluster to be observed",
+		},
+		{
+			name:                        "HostedCluster found, no Configuration -> Available: Unknown, Reason: HostedClusterNotReady",
+			externalAuth:                newTestExternalAuthForAvailable(),
+			serviceProviderExternalAuth: newTestServiceProviderExternalAuth(),
 			hostedCluster: &v1beta1.HostedCluster{
 				Status: v1beta1.HostedClusterStatus{
 					Configuration: nil,
@@ -227,8 +259,9 @@ func TestExternalAuthAvailableController_SyncOnce(t *testing.T) {
 			expectMessage: "HostedCluster authentication status not yet available",
 		},
 		{
-			name:         "OIDCClientStatus Available: True, Reason: OIDCConfigAvailable -> Available: True",
-			externalAuth: newTestExternalAuthForAvailable(),
+			name:                        "OIDCClientStatus Available: True, Reason: OIDCConfigAvailable -> Available: True",
+			externalAuth:                newTestExternalAuthForAvailable(),
+			serviceProviderExternalAuth: newTestServiceProviderExternalAuth(),
 			hostedCluster: &v1beta1.HostedCluster{
 				Status: v1beta1.HostedClusterStatus{
 					Configuration: &v1beta1.ConfigurationStatus{
@@ -252,8 +285,9 @@ func TestExternalAuthAvailableController_SyncOnce(t *testing.T) {
 			expectReason: coreapi.ExternalAuthReasonOIDCConfigAvailable,
 		},
 		{
-			name:         "OIDCClientStatus Degraded: True, Reason: OIDCClientSecretGet -> Available: False, Reason: AwaitingSecret",
-			externalAuth: newTestExternalAuthForAvailable(),
+			name:                        "OIDCClientStatus Degraded: True, Reason: OIDCClientSecretGet -> Available: False, Reason: AwaitingSecret",
+			externalAuth:                newTestExternalAuthForAvailable(),
+			serviceProviderExternalAuth: newTestServiceProviderExternalAuth(),
 			hostedCluster: &v1beta1.HostedCluster{
 				Status: v1beta1.HostedClusterStatus{
 					Configuration: &v1beta1.ConfigurationStatus{
@@ -278,8 +312,9 @@ func TestExternalAuthAvailableController_SyncOnce(t *testing.T) {
 			expectMessage: "The external auth provider is waiting for the client secret to be created in the openshift-config namespace",
 		},
 		{
-			name:         "OIDCClientStatus Degraded: True with other reason -> Available: False, forward HC reason/message",
-			externalAuth: newTestExternalAuthForAvailable(),
+			name:                        "OIDCClientStatus Degraded: True with other reason -> Available: False, forward HC reason/message",
+			externalAuth:                newTestExternalAuthForAvailable(),
+			serviceProviderExternalAuth: newTestServiceProviderExternalAuth(),
 			hostedCluster: &v1beta1.HostedCluster{
 				Status: v1beta1.HostedClusterStatus{
 					Configuration: &v1beta1.ConfigurationStatus{
@@ -304,8 +339,9 @@ func TestExternalAuthAvailableController_SyncOnce(t *testing.T) {
 			expectMessage: "something else is wrong",
 		},
 		{
-			name:         "OIDCClientStatus Available: False, no Degraded -> Available: False, Reason: AwaitingSecret",
-			externalAuth: newTestExternalAuthForAvailable(),
+			name:                        "OIDCClientStatus Available: False, no Degraded -> Available: False, Reason: AwaitingSecret",
+			externalAuth:                newTestExternalAuthForAvailable(),
+			serviceProviderExternalAuth: newTestServiceProviderExternalAuth(),
 			hostedCluster: &v1beta1.HostedCluster{
 				Status: v1beta1.HostedClusterStatus{
 					Configuration: &v1beta1.ConfigurationStatus{
@@ -329,8 +365,9 @@ func TestExternalAuthAvailableController_SyncOnce(t *testing.T) {
 			expectMessage: "not available yet",
 		},
 		{
-			name:         "no matching OIDCClientStatus -> Available: False, Reason: AwaitingSecret",
-			externalAuth: newTestExternalAuthForAvailable(),
+			name:                        "no matching OIDCClientStatus -> Available: False, Reason: AwaitingSecret",
+			externalAuth:                newTestExternalAuthForAvailable(),
+			serviceProviderExternalAuth: newTestServiceProviderExternalAuth(),
 			hostedCluster: &v1beta1.HostedCluster{
 				Status: v1beta1.HostedClusterStatus{
 					Configuration: &v1beta1.ConfigurationStatus{
@@ -370,6 +407,7 @@ func TestExternalAuthAvailableController_SyncOnce(t *testing.T) {
 					},
 				}
 			}),
+			serviceProviderExternalAuth: newTestServiceProviderExternalAuth(),
 			hostedCluster: &v1beta1.HostedCluster{
 				Status: v1beta1.HostedClusterStatus{
 					Configuration: &v1beta1.ConfigurationStatus{
@@ -401,9 +439,10 @@ func TestExternalAuthAvailableController_SyncOnce(t *testing.T) {
 			expectMessage: "The external auth provider is waiting for the client secret to be created in the openshift-config namespace",
 		},
 		{
-			name: "no-op when UserFacingConditions already match",
-			externalAuth: newTestExternalAuthForAvailable(func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
-				ea.Status.UserFacingConditions = []metav1.Condition{
+			name:         "no-op when SPEA conditions already match",
+			externalAuth: newTestExternalAuthForAvailable(),
+			serviceProviderExternalAuth: newTestServiceProviderExternalAuth(func(spea *coreapi.ServiceProviderExternalAuth) {
+				spea.Status.Conditions = []metav1.Condition{
 					{
 						Type:    coreapi.ExternalAuthAvailableCondition,
 						Status:  metav1.ConditionTrue,
@@ -449,6 +488,9 @@ func TestExternalAuthAvailableController_SyncOnce(t *testing.T) {
 			}
 
 			seed := []any{parentCluster, tc.externalAuth}
+			if tc.serviceProviderExternalAuth != nil {
+				seed = append(seed, tc.serviceProviderExternalAuth)
+			}
 			mockDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, seed)
 			require.NoError(t, err)
 
@@ -460,9 +502,10 @@ func TestExternalAuthAvailableController_SyncOnce(t *testing.T) {
 			}
 
 			syncer := &externalAuthAvailableController{
-				externalAuthLister: &corelistertesting.DBExternalAuthLister{ResourcesDBClient: mockDB},
-				readDesireLister:   &readDesireLister,
-				resourcesDBClient:  mockDB,
+				externalAuthLister:                &corelistertesting.DBExternalAuthLister{ResourcesDBClient: mockDB},
+				serviceProviderExternalAuthLister: &corelistertesting.DBServiceProviderExternalAuthLister{ResourcesDBClient: mockDB},
+				readDesireLister:                  &readDesireLister,
+				resourcesDBClient:                 mockDB,
 			}
 
 			err = syncer.SyncOnce(ctx, controllerutils.HCPExternalAuthKey{
@@ -473,27 +516,155 @@ func TestExternalAuthAvailableController_SyncOnce(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			updated, err := mockDB.HCPClusters(statusutils.TestSubscriptionID, statusutils.TestResourceGroupName).ExternalAuth(statusutils.TestClusterName).Get(ctx, statusutils.TestExternalAuthName)
-			require.NoError(t, err)
-
 			if tc.expectNoWrite {
-				cond := apimeta.FindStatusCondition(updated.Status.UserFacingConditions, coreapi.ExternalAuthAvailableCondition)
-				if len(tc.externalAuth.Status.UserFacingConditions) == 0 {
-					assert.Nil(t, cond, "expected no Available condition to be set")
+				if tc.serviceProviderExternalAuth == nil {
+					return
+				}
+				updatedSPEA, err := mockDB.ServiceProviderExternalAuths(statusutils.TestSubscriptionID, statusutils.TestResourceGroupName, statusutils.TestClusterName, statusutils.TestExternalAuthName).Get(ctx, coreapi.ServiceProviderExternalAuthResourceName)
+				require.NoError(t, err)
+				cond := apimeta.FindStatusCondition(updatedSPEA.Status.Conditions, coreapi.ExternalAuthAvailableCondition)
+				if len(tc.serviceProviderExternalAuth.Status.Conditions) == 0 {
+					assert.Nil(t, cond, "expected no Available condition to be set on SPEA")
 				} else {
-					existing := apimeta.FindStatusCondition(tc.externalAuth.Status.UserFacingConditions, coreapi.ExternalAuthAvailableCondition)
-					require.NotNil(t, cond, "expected existing Available condition to be preserved")
+					existing := apimeta.FindStatusCondition(tc.serviceProviderExternalAuth.Status.Conditions, coreapi.ExternalAuthAvailableCondition)
+					require.NotNil(t, cond, "expected existing Available condition to be preserved on SPEA")
 					assert.Equal(t, existing.Status, cond.Status, "status should not change")
 					assert.Equal(t, existing.Reason, cond.Reason, "reason should not change")
 				}
 				return
 			}
 
-			cond := apimeta.FindStatusCondition(updated.Status.UserFacingConditions, coreapi.ExternalAuthAvailableCondition)
-			require.NotNil(t, cond, "controller must set the Available condition on the external auth")
+			updatedSPEA, err := mockDB.ServiceProviderExternalAuths(statusutils.TestSubscriptionID, statusutils.TestResourceGroupName, statusutils.TestClusterName, statusutils.TestExternalAuthName).Get(ctx, coreapi.ServiceProviderExternalAuthResourceName)
+			require.NoError(t, err)
+
+			cond := apimeta.FindStatusCondition(updatedSPEA.Status.Conditions, coreapi.ExternalAuthAvailableCondition)
+			require.NotNil(t, cond, "controller must set the Available condition on SPEA")
 			assert.Equal(t, tc.expectStatus, cond.Status, "status")
 			assert.Equal(t, tc.expectReason, cond.Reason, "reason")
 			assert.Equal(t, tc.expectMessage, cond.Message, "message")
+		})
+	}
+}
+
+func TestExternalAuthUserFacingAggregator_SyncOnce(t *testing.T) {
+	parentClusterID := metadataapi.Must(azcorearm.ParseResourceID(
+		"/subscriptions/" + statusutils.TestSubscriptionID +
+			"/resourceGroups/" + statusutils.TestResourceGroupName +
+			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + statusutils.TestClusterName,
+	))
+
+	availableTrue := metav1.Condition{
+		Type:    coreapi.ExternalAuthAvailableCondition,
+		Status:  metav1.ConditionTrue,
+		Reason:  coreapi.ExternalAuthReasonOIDCConfigAvailable,
+		Message: "OIDC config is available",
+	}
+	availableFalse := metav1.Condition{
+		Type:    coreapi.ExternalAuthAvailableCondition,
+		Status:  metav1.ConditionFalse,
+		Reason:  coreapi.ExternalAuthReasonAwaitingSecret,
+		Message: "Waiting for secret",
+	}
+
+	tests := []struct {
+		name string
+
+		externalAuth                *coreapi.HCPOpenShiftClusterExternalAuth
+		serviceProviderExternalAuth *coreapi.ServiceProviderExternalAuth
+
+		expectNoWrite bool
+		wantCondition *metav1.Condition
+	}{
+		{
+			name:         "lifts Available condition from SPEA to ExternalAuth.Status.UserFacingConditions",
+			externalAuth: newTestExternalAuthForAvailable(),
+			serviceProviderExternalAuth: newTestServiceProviderExternalAuth(func(spea *coreapi.ServiceProviderExternalAuth) {
+				spea.Status.Conditions = []metav1.Condition{availableTrue}
+			}),
+			wantCondition: &availableTrue,
+		},
+		{
+			name:         "lifts AwaitingSecret condition from SPEA to ExternalAuth",
+			externalAuth: newTestExternalAuthForAvailable(),
+			serviceProviderExternalAuth: newTestServiceProviderExternalAuth(func(spea *coreapi.ServiceProviderExternalAuth) {
+				spea.Status.Conditions = []metav1.Condition{availableFalse}
+			}),
+			wantCondition: &availableFalse,
+		},
+		{
+			name:                        "no-op when SPEA not found",
+			externalAuth:                newTestExternalAuthForAvailable(),
+			serviceProviderExternalAuth: nil,
+			expectNoWrite:               true,
+		},
+		{
+			name: "no-op when UserFacingConditions already match SPEA",
+			externalAuth: newTestExternalAuthForAvailable(func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
+				ea.Status.UserFacingConditions = []metav1.Condition{availableTrue}
+			}),
+			serviceProviderExternalAuth: newTestServiceProviderExternalAuth(func(spea *coreapi.ServiceProviderExternalAuth) {
+				spea.Status.Conditions = []metav1.Condition{availableTrue}
+			}),
+			expectNoWrite: true,
+		},
+		{
+			name:                        "no-op when SPEA has no conditions",
+			externalAuth:                newTestExternalAuthForAvailable(),
+			serviceProviderExternalAuth: newTestServiceProviderExternalAuth(),
+			expectNoWrite:               true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+
+			parentCluster := &coreapi.HCPOpenShiftCluster{
+				CosmosMetadata: coreapi.CosmosMetadata{
+					ResourceID:   parentClusterID,
+					PartitionKey: strings.ToLower(parentClusterID.SubscriptionID),
+				},
+				TrackedResource: coreapi.TrackedResource{
+					Resource: coreapi.Resource{ID: parentClusterID, Name: statusutils.TestClusterName, Type: parentClusterID.ResourceType.String()},
+				},
+			}
+
+			seed := []any{parentCluster, tc.externalAuth}
+			if tc.serviceProviderExternalAuth != nil {
+				seed = append(seed, tc.serviceProviderExternalAuth)
+			}
+			mockDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, seed)
+			require.NoError(t, err)
+
+			syncer := &externalAuthUserFacingAggregator{
+				externalAuthLister:                &corelistertesting.DBExternalAuthLister{ResourcesDBClient: mockDB},
+				serviceProviderExternalAuthLister: &corelistertesting.DBServiceProviderExternalAuthLister{ResourcesDBClient: mockDB},
+				resourcesDBClient:                 mockDB,
+			}
+
+			err = syncer.SyncOnce(ctx, controllerutils.HCPExternalAuthKey{
+				SubscriptionID:      statusutils.TestSubscriptionID,
+				ResourceGroupName:   statusutils.TestResourceGroupName,
+				HCPClusterName:      statusutils.TestClusterName,
+				HCPExternalAuthName: statusutils.TestExternalAuthName,
+			})
+			require.NoError(t, err)
+
+			updatedEA, err := mockDB.HCPClusters(statusutils.TestSubscriptionID, statusutils.TestResourceGroupName).ExternalAuth(statusutils.TestClusterName).Get(ctx, statusutils.TestExternalAuthName)
+			require.NoError(t, err)
+
+			if tc.expectNoWrite {
+				assert.Equal(t, tc.externalAuth.Status.UserFacingConditions, updatedEA.Status.UserFacingConditions,
+					"UserFacingConditions should not have changed")
+				return
+			}
+
+			require.NotNil(t, tc.wantCondition, "test must specify wantCondition when expectNoWrite is false")
+			cond := apimeta.FindStatusCondition(updatedEA.Status.UserFacingConditions, tc.wantCondition.Type)
+			require.NotNil(t, cond, fmt.Sprintf("aggregator must set the %s condition on ExternalAuth.Status.UserFacingConditions", tc.wantCondition.Type))
+			assert.Equal(t, tc.wantCondition.Status, cond.Status, "status")
+			assert.Equal(t, tc.wantCondition.Reason, cond.Reason, "reason")
+			assert.Equal(t, tc.wantCondition.Message, cond.Message, "message")
 		})
 	}
 }

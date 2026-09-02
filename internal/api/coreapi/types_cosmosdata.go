@@ -123,6 +123,13 @@ func ToServiceProviderNodePoolResourceIDString(subscriptionName, resourceGroupNa
 	))
 }
 
+func ToServiceProviderExternalAuthResourceIDString(subscriptionName, resourceGroupName, clusterName, externalAuthName string) string {
+	return strings.ToLower(path.Join(
+		ToExternalAuthResourceIDString(subscriptionName, resourceGroupName, clusterName, externalAuthName),
+		leafTypeName(ServiceProviderExternalAuthResourceType), ServiceProviderExternalAuthResourceName,
+	))
+}
+
 // leafTypeName returns the trailing segment of an ARM ResourceType (the
 // part after the last slash). Using it in the per-level helpers prevents
 // callers from accidentally embedding the full `namespace/type/...` form

@@ -42,29 +42,34 @@ const (
 )
 
 // externalAuthAvailableController reads the HostedCluster's OIDCClientStatus
-// conditions from the ReadDesire cache and maps them to
-// ExternalAuth.Status.UserFacingConditions as an "Available" condition.
+// conditions from the ReadDesire cache and maps them onto
+// ServiceProviderExternalAuth.Status.Conditions as an "Available" condition.
+// The ExternalAuthUserFacingAggregator then surfaces these onto
+// ExternalAuth.Status.UserFacingConditions.
 type externalAuthAvailableController struct {
-	externalAuthLister corelisters.ExternalAuthLister
-	readDesireLister   kubeapplierlisters.ReadDesireLister
-	resourcesDBClient  corecosmosstorage.ResourcesDBClient
+	externalAuthLister                corelisters.ExternalAuthLister
+	serviceProviderExternalAuthLister corelisters.ServiceProviderExternalAuthLister
+	readDesireLister                  kubeapplierlisters.ReadDesireLister
+	resourcesDBClient                 corecosmosstorage.ResourcesDBClient
 }
 
 var _ controllerutils.ExternalAuthSyncer = (*externalAuthAvailableController)(nil)
 
 // NewExternalAuthAvailableController creates a controller that reads
 // HostedCluster OIDCClientStatus conditions via the ReadDesire cache and maps
-// them to ExternalAuth.Status.UserFacingConditions as an "Available" condition.
+// them onto ServiceProviderExternalAuth.Status.Conditions as an "Available" condition.
 func NewExternalAuthAvailableController(
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	externalAuthLister corelisters.ExternalAuthLister,
+	serviceProviderExternalAuthLister corelisters.ServiceProviderExternalAuthLister,
 	readDesireLister kubeapplierlisters.ReadDesireLister,
 	informers coreinformers.BackendInformers,
 ) controllerutils.Controller {
 	syncer := &externalAuthAvailableController{
-		externalAuthLister: externalAuthLister,
-		readDesireLister:   readDesireLister,
-		resourcesDBClient:  resourcesDBClient,
+		externalAuthLister:                externalAuthLister,
+		serviceProviderExternalAuthLister: serviceProviderExternalAuthLister,
+		readDesireLister:                  readDesireLister,
+		resourcesDBClient:                 resourcesDBClient,
 	}
 	return controllerutils.NewExternalAuthWatchingController(
 		ExternalAuthAvailableControllerName,
@@ -91,19 +96,28 @@ func (c *externalAuthAvailableController) SyncOnce(ctx context.Context, key cont
 		return nil
 	}
 
+	spea, err := c.serviceProviderExternalAuthLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPExternalAuthName)
+	if cosmosstorageutils.IsNotFoundError(err) {
+		// CreateServiceProviderExternalAuth will populate it. We'll be re-enqueued via the SPEA informer.
+		return nil
+	}
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderExternalAuth from cache: %w", err))
+	}
+
 	condition, err := c.determineAvailableCondition(ctx, existing, key)
 	if err != nil {
 		return err
 	}
 
-	replacement := existing.DeepCopy()
-	apimeta.SetStatusCondition(&replacement.Status.UserFacingConditions, condition)
-	if equality.Semantic.DeepEqual(existing.Status.UserFacingConditions, replacement.Status.UserFacingConditions) {
+	replacement := spea.DeepCopy()
+	apimeta.SetStatusCondition(&replacement.Status.Conditions, condition)
+	if equality.Semantic.DeepEqual(spea.Status.Conditions, replacement.Status.Conditions) {
 		return nil
 	}
 
-	externalAuthCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).ExternalAuth(key.HCPClusterName)
-	_, err = externalAuthCRUD.Replace(ctx, replacement, nil)
+	speaCRUD := c.resourcesDBClient.ServiceProviderExternalAuths(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPExternalAuthName)
+	_, err = speaCRUD.Replace(ctx, replacement, nil)
 	if cosmosstorageutils.IsPreconditionFailedError(err) {
 		return nil
 	}
@@ -111,7 +125,7 @@ func (c *externalAuthAvailableController) SyncOnce(ctx context.Context, key cont
 		return nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to replace ExternalAuth: %w", err))
+		return utils.TrackError(fmt.Errorf("failed to replace ServiceProviderExternalAuth: %w", err))
 	}
 	return nil
 }
@@ -149,8 +163,8 @@ func (c *externalAuthAvailableController) determineAvailableCondition(
 		}, nil
 	}
 
-	matched := matchingOIDCClientStatuses(externalAuth, hostedCluster.Status.Configuration.Authentication.OIDCClients)
-	if len(matched) == 0 {
+	oidcClientStatusByComponent := matchingOIDCClientStatuses(externalAuth, hostedCluster.Status.Configuration.Authentication.OIDCClients)
+	if len(oidcClientStatusByComponent) == 0 {
 		return metav1.Condition{
 			Type:    coreapi.ExternalAuthAvailableCondition,
 			Status:  metav1.ConditionFalse,
@@ -159,7 +173,7 @@ func (c *externalAuthAvailableController) determineAvailableCondition(
 		}, nil
 	}
 
-	return worstAvailableCondition(matched), nil
+	return worstAvailableCondition(oidcClientStatusByComponent), nil
 }
 
 // matchingOIDCClientStatuses returns HostedCluster OIDC client statuses that
@@ -174,13 +188,13 @@ func matchingOIDCClientStatuses(externalAuth *coreapi.HCPOpenShiftClusterExterna
 	for _, client := range externalAuth.Properties.Clients {
 		wanted[oidcClientKey(client.Component.Name, client.Component.AuthClientNamespace)] = struct{}{}
 	}
-	matched := make([]configv1.OIDCClientStatus, 0, len(observed))
+	oidcClientStatusByComponent := make([]configv1.OIDCClientStatus, 0, len(observed))
 	for _, client := range observed {
 		if _, ok := wanted[oidcClientKey(client.ComponentName, client.ComponentNamespace)]; ok {
-			matched = append(matched, client)
+			oidcClientStatusByComponent = append(oidcClientStatusByComponent, client)
 		}
 	}
-	return matched
+	return oidcClientStatusByComponent
 }
 
 func oidcClientKey(name, namespace string) string {
@@ -202,9 +216,9 @@ func conditionPriority(c metav1.Condition) int {
 
 // worstAvailableCondition maps each matched OIDCClientStatus's conditions to
 // our user-facing Available condition and returns the worst across all clients.
-func worstAvailableCondition(matched []configv1.OIDCClientStatus) metav1.Condition {
-	worst := mapSingleClientConditions(matched[0].Conditions)
-	for _, client := range matched[1:] {
+func worstAvailableCondition(oidcClientStatusByComponent []configv1.OIDCClientStatus) metav1.Condition {
+	worst := mapSingleClientConditions(oidcClientStatusByComponent[0].Conditions)
+	for _, client := range oidcClientStatusByComponent[1:] {
 		candidate := mapSingleClientConditions(client.Conditions)
 		if conditionPriority(candidate) < conditionPriority(worst) {
 			worst = candidate

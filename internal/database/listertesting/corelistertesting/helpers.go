@@ -74,3 +74,22 @@ func serviceProviderNodePoolMatchesCluster(resourceID *azcorearm.ResourceID, clu
 	}
 	return strings.EqualFold(resourceID.Parent.Parent.Name, clusterName)
 }
+
+// serviceProviderExternalAuthMatchesExternalAuth checks if a service provider external auth's resource ID belongs to the given external auth.
+// Service provider external auths are grandchild resources: .../externalAuths/<ea>/serviceProviderExternalAuths/default
+// so we check the parent (externalAuth) name.
+func serviceProviderExternalAuthMatchesExternalAuth(resourceID *azcorearm.ResourceID, externalAuthName string) bool {
+	if resourceID == nil || resourceID.Parent == nil {
+		return false
+	}
+	return strings.EqualFold(resourceID.Parent.Name, externalAuthName)
+}
+
+// serviceProviderExternalAuthMatchesCluster checks if a service provider external auth's resource ID belongs to the given cluster.
+// The cluster name is the grandparent: .../hcpOpenShiftClusters/<cluster>/externalAuths/<ea>/serviceProviderExternalAuths/default
+func serviceProviderExternalAuthMatchesCluster(resourceID *azcorearm.ResourceID, clusterName string) bool {
+	if resourceID == nil || resourceID.Parent == nil || resourceID.Parent.Parent == nil {
+		return false
+	}
+	return strings.EqualFold(resourceID.Parent.Parent.Name, clusterName)
+}

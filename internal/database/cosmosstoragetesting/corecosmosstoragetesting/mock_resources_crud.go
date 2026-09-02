@@ -754,6 +754,20 @@ func newMockServiceProviderNodePoolCRUD(client *MockResourcesDBClient, parentRes
 
 var _ cosmosstorageutils.ResourceCRUD[coreapi.ServiceProviderNodePool, *coreapi.ServiceProviderNodePool] = &mockServiceProviderNodePoolCRUD{}
 
+// mockServiceProviderExternalAuthCRUD implements cosmosstorageutils.ResourceCRUD[coreapi.ServiceProviderExternalAuth, *coreapi.ServiceProviderExternalAuth].
+type mockServiceProviderExternalAuthCRUD struct {
+	*MockResourceCRUD[coreapi.ServiceProviderExternalAuth, *coreapi.ServiceProviderExternalAuth, cosmosstorageutils.GenericDocument[coreapi.ServiceProviderExternalAuth]]
+}
+
+func newMockServiceProviderExternalAuthCRUD(client *MockResourcesDBClient, parentResourceID *azcorearm.ResourceID) *mockServiceProviderExternalAuthCRUD {
+	return &mockServiceProviderExternalAuthCRUD{
+		MockResourceCRUD: NewMockResourceCRUD[coreapi.ServiceProviderExternalAuth, *coreapi.ServiceProviderExternalAuth, cosmosstorageutils.GenericDocument[coreapi.ServiceProviderExternalAuth]](
+			client, parentResourceID, coreapi.ServiceProviderExternalAuthResourceType),
+	}
+}
+
+var _ cosmosstorageutils.ResourceCRUD[coreapi.ServiceProviderExternalAuth, *coreapi.ServiceProviderExternalAuth] = &mockServiceProviderExternalAuthCRUD{}
+
 // mockManagementClusterContentCRUD implements cosmosstorageutils.ResourceCRUD[coreapi.ManagementClusterContent, *coreapi.ManagementClusterContent].
 type mockManagementClusterContentCRUD struct {
 	*MockResourceCRUD[coreapi.ManagementClusterContent, *coreapi.ManagementClusterContent, cosmosstorageutils.GenericDocument[coreapi.ManagementClusterContent]]

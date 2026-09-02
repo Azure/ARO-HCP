@@ -194,6 +194,25 @@ func (l *ServiceProviderNodePoolList) GetObjectKind() schema.ObjectKind {
 }
 
 var (
+	_ runtime.Object            = &ServiceProviderExternalAuth{}
+	_ metav1.ObjectMetaAccessor = &ServiceProviderExternalAuth{}
+)
+
+func (o *ServiceProviderExternalAuth) GetObjectKind() schema.ObjectKind {
+	return schema.EmptyObjectKind
+}
+
+func (o *ServiceProviderExternalAuth) GetObjectMeta() metav1.Object {
+	om := &metav1.ObjectMeta{}
+	if o.GetResourceID() != nil {
+		om.Name = strings.ToLower(o.GetResourceID().String())
+	}
+	// shared_informer uses ResourceVersion to determine if an event is a sync
+	om.ResourceVersion = strconv.FormatInt(o.InstanceVersion, 10)
+	return om
+}
+
+var (
 	_ runtime.Object            = &Operation{}
 	_ metav1.ObjectMetaAccessor = &Operation{}
 )
