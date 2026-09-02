@@ -1,0 +1,4393 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "languageVersion": "2.0",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.41.2.15936",
+      "templateHash": "7856179740747326616"
+    }
+  },
+  "functions": [
+    {
+      "namespace": "_1",
+      "members": {
+        "arrayToCSV": {
+          "parameters": [
+            {
+              "type": "array",
+              "name": "inputArray"
+            }
+          ],
+          "output": {
+            "type": "string",
+            "value": "[join(parameters('inputArray'), ',')]"
+          },
+          "metadata": {
+            "__bicep_imported_from!": {
+              "sourceTemplate": "../modules/common.bicep"
+            }
+          }
+        },
+        "getLocationAvailabilityZones": {
+          "parameters": [
+            {
+              "type": "string",
+              "name": "region"
+            }
+          ],
+          "output": {
+            "type": "array",
+            "value": "[variables('_1._locationAvailabilityZones')[parameters('region')].availabilityZones]"
+          },
+          "metadata": {
+            "__bicep_imported_from!": {
+              "sourceTemplate": "../modules/common.bicep"
+            }
+          }
+        },
+        "splitOrEmptyArray": {
+          "parameters": [
+            {
+              "type": "string",
+              "name": "inputString"
+            },
+            {
+              "type": "string",
+              "name": "delimiter"
+            }
+          ],
+          "output": {
+            "type": "array",
+            "value": "[if(or(equals(parameters('inputString'), ''), equals(parameters('inputString'), null())), createArray(), split(parameters('inputString'), parameters('delimiter')))]"
+          },
+          "metadata": {
+            "__bicep_imported_from!": {
+              "sourceTemplate": "../modules/common.bicep"
+            }
+          }
+        }
+      }
+    },
+    {
+      "namespace": "__bicep",
+      "members": {
+        "csvToArray": {
+          "parameters": [
+            {
+              "type": "string",
+              "name": "inputString"
+            }
+          ],
+          "output": {
+            "type": "array",
+            "value": "[_1.splitOrEmptyArray(parameters('inputString'), ',')]"
+          },
+          "metadata": {
+            "__bicep_imported_from!": {
+              "sourceTemplate": "../modules/common.bicep"
+            }
+          }
+        },
+        "getLocationAvailabilityZonesCSV": {
+          "parameters": [
+            {
+              "type": "string",
+              "name": "region"
+            }
+          ],
+          "output": {
+            "type": "string",
+            "value": "[_1.arrayToCSV(_1.getLocationAvailabilityZones(parameters('region')))]"
+          },
+          "metadata": {
+            "__bicep_imported_from!": {
+              "sourceTemplate": "../modules/common.bicep"
+            }
+          }
+        }
+      }
+    }
+  ],
+  "parameters": {
+    "location": {
+      "type": "string",
+      "defaultValue": "[resourceGroup().location]",
+      "metadata": {
+        "description": "Azure Region Location"
+      }
+    },
+    "locationAvailabilityZones": {
+      "type": "string",
+      "defaultValue": "[__bicep.getLocationAvailabilityZonesCSV(parameters('location'))]",
+      "metadata": {
+        "description": "Availability Zones to use for the infrastructure, as a CSV string. Defaults to all the zones of the location"
+      }
+    },
+    "aksClusterName": {
+      "type": "string",
+      "defaultValue": "aro-hcp-aks",
+      "metadata": {
+        "description": "AKS cluster name"
+      }
+    },
+    "subnetPrefix": {
+      "type": "string",
+      "metadata": {
+        "description": "Subnet address prefix"
+      }
+    },
+    "podSubnetPrefix": {
+      "type": "string",
+      "metadata": {
+        "description": "Specifies the address prefix of the subnet hosting the pods of the AKS cluster."
+      }
+    },
+    "aksClusterOutboundIPAddressIPTags": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "IPTags to be set on the cluster outbound IP address in the format of ipTagType:tag,ipTagType:tag"
+      }
+    },
+    "aksKeyVaultName": {
+      "type": "string",
+      "maxLength": 24,
+      "metadata": {
+        "description": "The name of the keyvault for AKS."
+      }
+    },
+    "aksKeyVaultTagName": {
+      "type": "string",
+      "metadata": {
+        "description": "The tag key for the AKS keyvault"
+      }
+    },
+    "aksKeyVaultTagValue": {
+      "type": "string",
+      "metadata": {
+        "description": "The tag value for the AKS keyvault"
+      }
+    },
+    "aksEtcdKVEnableSoftDelete": {
+      "type": "bool",
+      "defaultValue": true,
+      "metadata": {
+        "description": "Manage soft delete setting for AKS etcd key-value store"
+      }
+    },
+    "cxKeyVaultName": {
+      "type": "string",
+      "metadata": {
+        "description": "The name of the CX KeyVault"
+      }
+    },
+    "cxKeyVaultPrivate": {
+      "type": "bool",
+      "metadata": {
+        "description": "Defines if the CX KeyVault is private"
+      }
+    },
+    "cxKeyVaultSoftDelete": {
+      "type": "bool",
+      "metadata": {
+        "description": "Defines if the CX KeyVault has soft delete enabled"
+      }
+    },
+    "cxKeyVaultTagName": {
+      "type": "string"
+    },
+    "cxKeyVaultTagValue": {
+      "type": "string"
+    },
+    "msiKeyVaultName": {
+      "type": "string",
+      "metadata": {
+        "description": "The name of the MSI KeyVault"
+      }
+    },
+    "msiKeyVaultPrivate": {
+      "type": "bool",
+      "metadata": {
+        "description": "Defines if the MSI KeyVault is private"
+      }
+    },
+    "msiKeyVaultSoftDelete": {
+      "type": "bool",
+      "metadata": {
+        "description": "Defines if the MSI KeyVault has soft delete enabled"
+      }
+    },
+    "msiKeyVaultTagName": {
+      "type": "string"
+    },
+    "msiKeyVaultTagValue": {
+      "type": "string"
+    },
+    "mgmtKeyVaultName": {
+      "type": "string",
+      "metadata": {
+        "description": "The name of the MGMT KeyVault"
+      }
+    },
+    "mgmtKeyVaultPrivate": {
+      "type": "bool",
+      "metadata": {
+        "description": "Defines if the MGMT KeyVault is private"
+      }
+    },
+    "mgmtKeyVaultSoftDelete": {
+      "type": "bool",
+      "metadata": {
+        "description": "Defines if the MGMT KeyVault has soft delete enabled"
+      }
+    },
+    "mgmtKeyVaultTagName": {
+      "type": "string"
+    },
+    "mgmtKeyVaultTagValue": {
+      "type": "string"
+    },
+    "kvCertOfficerPrincipalId": {
+      "type": "string",
+      "metadata": {
+        "description": "KV certificate officer principal ID"
+      }
+    },
+    "globalMSIId": {
+      "type": "string",
+      "metadata": {
+        "description": "MSI that will be used during pipeline runs"
+      }
+    },
+    "hcpBackupsStorageAccountName": {
+      "type": "string",
+      "minLength": 3
+    },
+    "hcpBackupsStorageAccountContainerName": {
+      "type": "string",
+      "defaultValue": "backups"
+    },
+    "hcpBackupsStorageAccountZoneRedundantMode": {
+      "type": "string",
+      "defaultValue": "Auto"
+    },
+    "hcpBackupsStorageAccountPublic": {
+      "type": "bool",
+      "defaultValue": true
+    }
+  },
+  "variables": {
+    "locationAvailabilityZoneList": "[__bicep.csvToArray(parameters('locationAvailabilityZones'))]",
+    "readerRoleId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'acdd72a7-3385-48ef-bd42-f606fba81ae7')]",
+    "networkContributorRoleId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', '4d97b98b-1d4f-4787-a291-c67834d212e7')]",
+    "keyVaultCryptoUserId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '12338af0-0e69-4776-bea7-57ae8d297424')]",
+    "vnetName": "aks-net",
+    "nodeSubnetName": "ClusterSubnet-001",
+    "aksClusterOutboundIPAddressName": "[format('{0}-outbound-ip', parameters('aksClusterName'))]",
+    "_1._locationAvailabilityZones": {
+      "asia": {
+        "availabilityZones": []
+      },
+      "asiapacific": {
+        "availabilityZones": []
+      },
+      "australia": {
+        "availabilityZones": []
+      },
+      "australiacentral": {
+        "availabilityZones": []
+      },
+      "australiacentral2": {
+        "availabilityZones": []
+      },
+      "australiaeast": {
+        "availabilityZones": [
+          "1",
+          "2",
+          "3"
+        ]
+      },
+      "australiasoutheast": {
+        "availabilityZones": []
+      },
+      "brazil": {
+        "availabilityZones": []
+      },
+      "brazilsouth": {
+        "availabilityZones": [
+          "1",
+          "2",
+          "3"
+        ]
+      },
+      "brazilsoutheast": {
+        "availabilityZones": []
+      },
+      "brazilus": {
+        "availabilityZones": []
+      },
+      "canada": {
+        "availabilityZones": []
+      },
+      "canadacentral": {
+        "availabilityZones": [
+          "1",
+          "2",
+          "3"
+        ]
+      },
+      "canadaeast": {
+        "availabilityZones": []
+      },
+      "centralindia": {
+        "availabilityZones": [
+          "1",
+          "2",
+          "3"
+        ]
+      },
+      "centralus": {
+        "availabilityZones": [
+          "1",
+          "2",
+          "3"
+        ]
+      },
+      "centraluseuap": {
+        "availabilityZones": []
+      },
+      "centralusstage": {
+        "availabilityZones": []
+      },
+      "eastasia": {
+        "availabilityZones": [
+          "1",
+          "2",
+          "3"
+        ]
+      },
+      "eastasiastage": {
+        "availabilityZones": []
+      },
+      "eastus": {
+        "availabilityZones": [
+          "1",
+          "2",
+          "3"
+        ]
+      },
+      "eastus2": {
+        "availabilityZones": [
+          "1",
+          "2",
+          "3"
+        ]
+      },
+      "eastus2euap": {
+        "availabilityZones": [
+          "1",
+          "3",
+          "4"
+        ]
+      },
+      "eastus2stage": {
+        "availabilityZones": []
+      },
+      "eastusstage": {
+        "availabilityZones": []
+      },
+      "eastusstg": {
+        "availabilityZones": []
+      },
+      "europe": {
+        "availabilityZones": []
+      },
+      "france": {
+        "availabilityZones": []
+      },
+      "francecentral": {
+        "availabilityZones": [
+          "1",
+          "2",
+          "3"
+        ]
+      },
+      "francesouth": {
+        "availabilityZones": []
+      },
+      "germany": {
+        "availabilityZones": []
+      },
+      "germanynorth": {
+        "availabilityZones": []
+      },
+      "germanywestcentral": {
+        "availabilityZones": [
+          "1",
+          "2",
+          "3"
+        ]
+      },
+      "global": {
+        "availabilityZones": []
+      },
+      "india": {
+        "availabilityZones": []
+      },
+      "israel": {
+        "availabilityZones": []
+      },
+      "israelcentral": {
+        "availabilityZones": [
+          "1",
+          "2",
+          "3"
+        ]
+      },
+      "italy": {
+        "availabilityZones": []
+      },
+      "italynorth": {
+        "availabilityZones": [
+          "1",
+          "2",
+          "3"
+        ]
+      },
+      "japan": {
+        "availabilityZones": []
+      },
+      "japaneast": {
+        "availabilityZones": [
+          "1",
+          "2",
+          "3"
+        ]
+      },
+      "japanwest": {
+        "availabilityZones": []
+      },
+      "jioindiacentral": {
+        "availabilityZones": []
+      },
+      "jioindiawest": {
+        "availabilityZones": []
+      },
+      "korea": {
+        "availabilityZones": []
+      },
+      "koreacentral": {
+        "availabilityZones": [
+          "1",
+          "2",
+          "3"
+        ]
+      },
+      "koreasouth": {
+        "availabilityZones": []
+      },
+      "mexicocentral": {
+        "availabilityZones": [
+          "1",
+          "2",
+          "3"
+        ]
+      },
+      "newzealand": {
+        "availabilityZones": []
+      },
+      "newzealandnorth": {
+        "availabilityZones": [
+          "1",
+          "2",
+          "3"
+        ]
+      },
+      "northcentralus": {
+        "availabilityZones": []
+      },
+      "northcentralusstage": {
+        "availabilityZones": []
+      },
+      "northeurope": {
+        "availabilityZones": [
+          "1",
+          "2",
+          "3"
+        ]
+      },
+      "norway": {
+        "availabilityZones": []
+      },
+      "norwayeast": {
+        "availabilityZones": [
+          "1",
+          "2",
+          "3"
+        ]
+      },
+      "norwaywest": {
+        "availabilityZones": []
+      },
+      "poland": {
+        "availabilityZones": []
+      },
+      "polandcentral": {
+        "availabilityZones": [
+          "1",
+          "2",
+          "3"
+        ]
+      },
+      "qatar": {
+        "availabilityZones": []
+      },
+      "qatarcentral": {
+        "availabilityZones": [
+          "1",
+          "2",
+          "3"
+        ]
+      },
+      "singapore": {
+        "availabilityZones": []
+      },
+      "southafrica": {
+        "availabilityZones": []
+      },
+      "southafricanorth": {
+        "availabilityZones": [
+          "1",
+          "2",
+          "3"
+        ]
+      },
+      "southafricawest": {
+        "availabilityZones": []
+      },
+      "southcentralus": {
+        "availabilityZones": [
+          "1",
+          "2",
+          "3"
+        ]
+      },
+      "southcentralusstage": {
+        "availabilityZones": []
+      },
+      "southcentralusstg": {
+        "availabilityZones": []
+      },
+      "southeastasia": {
+        "availabilityZones": [
+          "1",
+          "2",
+          "3"
+        ]
+      },
+      "southeastasiastage": {
+        "availabilityZones": []
+      },
+      "southindia": {
+        "availabilityZones": []
+      },
+      "spaincentral": {
+        "availabilityZones": [
+          "1",
+          "2",
+          "3"
+        ]
+      },
+      "sweden": {
+        "availabilityZones": []
+      },
+      "swedencentral": {
+        "availabilityZones": [
+          "1",
+          "2",
+          "3"
+        ]
+      },
+      "switzerland": {
+        "availabilityZones": []
+      },
+      "switzerlandnorth": {
+        "availabilityZones": [
+          "1",
+          "2",
+          "3"
+        ]
+      },
+      "switzerlandwest": {
+        "availabilityZones": []
+      },
+      "uae": {
+        "availabilityZones": []
+      },
+      "uaecentral": {
+        "availabilityZones": []
+      },
+      "uaenorth": {
+        "availabilityZones": [
+          "1",
+          "2",
+          "3"
+        ]
+      },
+      "uk": {
+        "availabilityZones": []
+      },
+      "uksouth": {
+        "availabilityZones": [
+          "1",
+          "2",
+          "3"
+        ]
+      },
+      "ukwest": {
+        "availabilityZones": []
+      },
+      "unitedstates": {
+        "availabilityZones": []
+      },
+      "unitedstateseuap": {
+        "availabilityZones": []
+      },
+      "westcentralus": {
+        "availabilityZones": []
+      },
+      "westeurope": {
+        "availabilityZones": [
+          "1",
+          "2",
+          "3"
+        ]
+      },
+      "westindia": {
+        "availabilityZones": []
+      },
+      "westus": {
+        "availabilityZones": []
+      },
+      "westus2": {
+        "availabilityZones": [
+          "1",
+          "2",
+          "3"
+        ]
+      },
+      "westus2stage": {
+        "availabilityZones": []
+      },
+      "westus3": {
+        "availabilityZones": [
+          "1",
+          "2",
+          "3"
+        ]
+      },
+      "westusstage": {
+        "availabilityZones": []
+      }
+    }
+  },
+  "resources": {
+    "aroDevopsMSIReader": {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "name": "[guid(resourceGroup().id, parameters('globalMSIId'), variables('readerRoleId'))]",
+      "properties": {
+        "principalId": "[reference(parameters('globalMSIId'), '2023-01-31').principalId]",
+        "principalType": "ServicePrincipal",
+        "roleDefinitionId": "[variables('readerRoleId')]"
+      }
+    },
+    "aksClusterUserDefinedManagedIdentity": {
+      "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+      "apiVersion": "2023-01-31",
+      "name": "[format('{0}-msi', parameters('aksClusterName'))]",
+      "location": "[parameters('location')]"
+    },
+    "mgmtClusterNSG": {
+      "type": "Microsoft.Network/networkSecurityGroups",
+      "apiVersion": "2023-11-01",
+      "name": "mgmt-cluster-node-nsg",
+      "location": "[parameters('location')]",
+      "properties": {
+        "securityRules": [
+          {
+            "name": "kas-443-in-internet",
+            "properties": {
+              "access": "Allow",
+              "destinationAddressPrefix": "*",
+              "destinationPortRange": "443",
+              "direction": "Inbound",
+              "priority": 120,
+              "protocol": "Tcp",
+              "sourceAddressPrefix": "*",
+              "sourcePortRange": "*"
+            }
+          },
+          {
+            "name": "kas-6443-in-internet",
+            "properties": {
+              "access": "Allow",
+              "destinationAddressPrefix": "*",
+              "destinationPortRange": "6443",
+              "direction": "Inbound",
+              "priority": 130,
+              "protocol": "Tcp",
+              "sourceAddressPrefix": "*",
+              "sourcePortRange": "*"
+            }
+          }
+        ]
+      }
+    },
+    "vnet": {
+      "existing": true,
+      "type": "Microsoft.Network/virtualNetworks",
+      "apiVersion": "2024-05-01",
+      "name": "[variables('vnetName')]"
+    },
+    "aksPodSubnet": {
+      "type": "Microsoft.Network/virtualNetworks/subnets",
+      "apiVersion": "2023-11-01",
+      "name": "[format('{0}/{1}', variables('vnetName'), 'PodSubnet-001')]",
+      "properties": {
+        "addressPrefix": "[parameters('podSubnetPrefix')]",
+        "privateEndpointNetworkPolicies": "Disabled",
+        "serviceEndpoints": [
+          {
+            "service": "Microsoft.Storage"
+          }
+        ],
+        "defaultOutboundAccess": false,
+        "delegations": [
+          {
+            "name": "AKS",
+            "properties": {
+              "serviceName": "Microsoft.ContainerService/managedClusters"
+            }
+          }
+        ]
+      },
+      "dependsOn": [
+        "nodeSubnetCreation"
+      ]
+    },
+    "aksNetworkContributorRoleAssignment": {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "scope": "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]",
+      "name": "[guid(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-msi', parameters('aksClusterName'))), variables('networkContributorRoleId'), resourceId('Microsoft.Network/virtualNetworks/subnets', variables('vnetName'), variables('nodeSubnetName')))]",
+      "properties": {
+        "roleDefinitionId": "[variables('networkContributorRoleId')]",
+        "principalId": "[reference('aksClusterUserDefinedManagedIdentity').principalId]",
+        "principalType": "ServicePrincipal"
+      },
+      "dependsOn": [
+        "aksClusterUserDefinedManagedIdentity"
+      ]
+    },
+    "aks_keyvault": {
+      "existing": true,
+      "type": "Microsoft.KeyVault/vaults",
+      "apiVersion": "2023-07-01",
+      "name": "[parameters('aksKeyVaultName')]",
+      "dependsOn": [
+        "aks_keyvault_builder"
+      ]
+    },
+    "aks_etcd_kms": {
+      "type": "Microsoft.KeyVault/vaults/keys",
+      "apiVersion": "2023-07-01",
+      "name": "[format('{0}/{1}', parameters('aksKeyVaultName'), 'aks-etcd-encryption')]",
+      "properties": {
+        "kty": "RSA",
+        "keyOps": [
+          "encrypt",
+          "decrypt"
+        ],
+        "keySize": 2048,
+        "rotationPolicy": {
+          "lifetimeActions": [
+            {
+              "action": {
+                "type": "notify"
+              },
+              "trigger": {
+                "timeBeforeExpiry": "P30D"
+              }
+            }
+          ]
+        }
+      },
+      "dependsOn": [
+        "aks_keyvault_builder"
+      ]
+    },
+    "aks_keyvault_crypto_user": {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "scope": "[resourceId('Microsoft.KeyVault/vaults', parameters('aksKeyVaultName'))]",
+      "name": "[guid(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-msi', parameters('aksClusterName'))), variables('keyVaultCryptoUserId'), resourceId('Microsoft.KeyVault/vaults', parameters('aksKeyVaultName')))]",
+      "properties": {
+        "roleDefinitionId": "[variables('keyVaultCryptoUserId')]",
+        "principalId": "[reference('aksClusterUserDefinedManagedIdentity').principalId]",
+        "principalType": "ServicePrincipal"
+      },
+      "dependsOn": [
+        "aks_keyvault_builder",
+        "aksClusterUserDefinedManagedIdentity"
+      ]
+    },
+    "cxKeyVault": {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "[format('cx-kv-{0}', uniqueString(parameters('cxKeyVaultName')))]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "keyVaultName": {
+            "value": "[parameters('cxKeyVaultName')]"
+          },
+          "private": {
+            "value": "[parameters('cxKeyVaultPrivate')]"
+          },
+          "enableSoftDelete": {
+            "value": "[parameters('cxKeyVaultSoftDelete')]"
+          },
+          "tagKey": {
+            "value": "[parameters('cxKeyVaultTagName')]"
+          },
+          "tagValue": {
+            "value": "[parameters('cxKeyVaultTagValue')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.41.2.15936",
+              "templateHash": "7588065045881012475"
+            }
+          },
+          "parameters": {
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "Location of the keyvault."
+              }
+            },
+            "keyVaultName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the key vault."
+              }
+            },
+            "enableSoftDelete": {
+              "type": "bool",
+              "metadata": {
+                "description": "Toggle to enable soft delete."
+              }
+            },
+            "private": {
+              "type": "bool",
+              "metadata": {
+                "description": "Toggle to make the keyvault private."
+              }
+            },
+            "enabledForTemplateDeployment": {
+              "type": "bool",
+              "defaultValue": false,
+              "metadata": {
+                "description": "Allow ARM deployments to retrieve secrets from the Key Vault."
+              }
+            },
+            "tagKey": {
+              "type": "string",
+              "metadata": {
+                "description": "Tag key for the keyvault."
+              }
+            },
+            "tagValue": {
+              "type": "string",
+              "metadata": {
+                "description": "Tag value for the keyvault."
+              }
+            },
+            "kvCertOfficerPrincipalId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Principal ID for KV certificate officer"
+              }
+            },
+            "kvCertAccessPrincipalId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Principal ID for EV2 certificate access, i.e. geneva log/action access"
+              }
+            },
+            "kvCertAccessRoleId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Roles used for EV2 KeyVault access, i.e. geneva log/action access"
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.KeyVault/vaults",
+              "apiVersion": "2024-04-01-preview",
+              "name": "[parameters('keyVaultName')]",
+              "location": "[parameters('location')]",
+              "tags": {
+                "resourceGroup": "[resourceGroup().name]",
+                "[format('{0}', parameters('tagKey'))]": "[parameters('tagValue')]"
+              },
+              "properties": {
+                "enableRbacAuthorization": true,
+                "enabledForDeployment": false,
+                "enabledForDiskEncryption": false,
+                "enabledForTemplateDeployment": "[parameters('enabledForTemplateDeployment')]",
+                "enableSoftDelete": "[parameters('enableSoftDelete')]",
+                "publicNetworkAccess": "[if(parameters('private'), 'Disabled', 'Enabled')]",
+                "sku": {
+                  "name": "standard",
+                  "family": "A"
+                },
+                "tenantId": "[subscription().tenantId]"
+              }
+            },
+            {
+              "condition": "[not(equals(parameters('kvCertOfficerPrincipalId'), ''))]",
+              "type": "Microsoft.Resources/deployments",
+              "apiVersion": "2025-04-01",
+              "name": "[guid(parameters('kvCertOfficerPrincipalId'), parameters('keyVaultName'), 'cert-officer')]",
+              "properties": {
+                "expressionEvaluationOptions": {
+                  "scope": "inner"
+                },
+                "mode": "Incremental",
+                "parameters": {
+                  "keyVaultName": {
+                    "value": "[parameters('keyVaultName')]"
+                  },
+                  "roleName": {
+                    "value": "Key Vault Certificates Officer"
+                  },
+                  "managedIdentityPrincipalIds": {
+                    "value": [
+                      "[parameters('kvCertOfficerPrincipalId')]"
+                    ]
+                  }
+                },
+                "template": {
+                  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                  "contentVersion": "1.0.0.0",
+                  "metadata": {
+                    "_generator": {
+                      "name": "bicep",
+                      "version": "0.41.2.15936",
+                      "templateHash": "1532414038243427123"
+                    }
+                  },
+                  "parameters": {
+                    "keyVaultName": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "The name of the keyvault where access is managed"
+                      }
+                    },
+                    "secretName": {
+                      "type": "string",
+                      "defaultValue": "",
+                      "metadata": {
+                        "description": "Optional name of the secret in the keyvault where access is managed. If not provided, access will be granted to all secrets in the keyvault."
+                      }
+                    },
+                    "roleName": {
+                      "type": "string",
+                      "allowedValues": [
+                        "Key Vault Secrets Officer",
+                        "Key Vault Secrets User",
+                        "Key Vault Certificate User",
+                        "Key Vault Certificates Officer",
+                        "Key Vault Crypto Officer",
+                        "Key Vault Reader",
+                        "Azure Service Deploy Release Management Key Vault Secrets User"
+                      ],
+                      "metadata": {
+                        "description": "The name of the role that will be assigned to the managed identity for the secret in KV"
+                      }
+                    },
+                    "managedIdentityPrincipalIds": {
+                      "type": "array",
+                      "metadata": {
+                        "description": "The principal ids of the managed identity that will be assigned access to the secret in KV"
+                      }
+                    },
+                    "kvCertAccessRoleId": {
+                      "type": "string",
+                      "defaultValue": "",
+                      "metadata": {
+                        "description": "Roles used for EV2 KeyVault access, i.e. geneva log access"
+                      }
+                    }
+                  },
+                  "variables": {
+                    "roleResourceIds": {
+                      "Key Vault Secrets User": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', '4633458b-17de-408a-b874-0445c86b69e6')]",
+                      "Key Vault Secrets Officer": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', 'b86a8fe4-44ce-4948-aee5-eccb2c155cd7')]",
+                      "Key Vault Certificate User": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', 'db79e9a7-68ee-4b58-9aeb-b90e7c24fcba')]",
+                      "Key Vault Certificates Officer": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', 'a4417e6f-fecd-4de8-b567-7b0420556985')]",
+                      "Key Vault Crypto Officer": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', '14b46e9e-c2b7-41b4-b07b-48a6ebf60603')]",
+                      "Key Vault Reader": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', '21090545-7ca7-4776-b22c-e363652d74d2')]",
+                      "Azure Service Deploy Release Management Key Vault Secrets User": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', parameters('kvCertAccessRoleId'))]"
+                    }
+                  },
+                  "resources": [
+                    {
+                      "copy": {
+                        "name": "secretAccessPermission",
+                        "count": "[length(parameters('managedIdentityPrincipalIds'))]"
+                      },
+                      "condition": "[not(equals(parameters('secretName'), ''))]",
+                      "type": "Microsoft.Authorization/roleAssignments",
+                      "apiVersion": "2022-04-01",
+                      "scope": "[resourceId('Microsoft.KeyVault/vaults/secrets', parameters('keyVaultName'), parameters('secretName'))]",
+                      "name": "[guid(resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName')), parameters('managedIdentityPrincipalIds')[copyIndex()], parameters('secretName'), variables('roleResourceIds')[parameters('roleName')])]",
+                      "properties": {
+                        "roleDefinitionId": "[variables('roleResourceIds')[parameters('roleName')]]",
+                        "principalId": "[parameters('managedIdentityPrincipalIds')[copyIndex()]]",
+                        "principalType": "ServicePrincipal"
+                      }
+                    },
+                    {
+                      "copy": {
+                        "name": "keyVaultAccessPermission",
+                        "count": "[length(parameters('managedIdentityPrincipalIds'))]"
+                      },
+                      "condition": "[equals(parameters('secretName'), '')]",
+                      "type": "Microsoft.Authorization/roleAssignments",
+                      "apiVersion": "2022-04-01",
+                      "scope": "[resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName'))]",
+                      "name": "[guid(resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName')), parameters('managedIdentityPrincipalIds')[copyIndex()], variables('roleResourceIds')[parameters('roleName')])]",
+                      "properties": {
+                        "roleDefinitionId": "[variables('roleResourceIds')[parameters('roleName')]]",
+                        "principalId": "[parameters('managedIdentityPrincipalIds')[copyIndex()]]",
+                        "principalType": "ServicePrincipal"
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "condition": "[not(equals(parameters('kvCertOfficerPrincipalId'), ''))]",
+              "type": "Microsoft.Resources/deployments",
+              "apiVersion": "2025-04-01",
+              "name": "[guid(parameters('kvCertOfficerPrincipalId'), parameters('keyVaultName'), 'secrets-officer')]",
+              "properties": {
+                "expressionEvaluationOptions": {
+                  "scope": "inner"
+                },
+                "mode": "Incremental",
+                "parameters": {
+                  "keyVaultName": {
+                    "value": "[parameters('keyVaultName')]"
+                  },
+                  "roleName": {
+                    "value": "Key Vault Secrets Officer"
+                  },
+                  "managedIdentityPrincipalIds": {
+                    "value": [
+                      "[parameters('kvCertOfficerPrincipalId')]"
+                    ]
+                  }
+                },
+                "template": {
+                  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                  "contentVersion": "1.0.0.0",
+                  "metadata": {
+                    "_generator": {
+                      "name": "bicep",
+                      "version": "0.41.2.15936",
+                      "templateHash": "1532414038243427123"
+                    }
+                  },
+                  "parameters": {
+                    "keyVaultName": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "The name of the keyvault where access is managed"
+                      }
+                    },
+                    "secretName": {
+                      "type": "string",
+                      "defaultValue": "",
+                      "metadata": {
+                        "description": "Optional name of the secret in the keyvault where access is managed. If not provided, access will be granted to all secrets in the keyvault."
+                      }
+                    },
+                    "roleName": {
+                      "type": "string",
+                      "allowedValues": [
+                        "Key Vault Secrets Officer",
+                        "Key Vault Secrets User",
+                        "Key Vault Certificate User",
+                        "Key Vault Certificates Officer",
+                        "Key Vault Crypto Officer",
+                        "Key Vault Reader",
+                        "Azure Service Deploy Release Management Key Vault Secrets User"
+                      ],
+                      "metadata": {
+                        "description": "The name of the role that will be assigned to the managed identity for the secret in KV"
+                      }
+                    },
+                    "managedIdentityPrincipalIds": {
+                      "type": "array",
+                      "metadata": {
+                        "description": "The principal ids of the managed identity that will be assigned access to the secret in KV"
+                      }
+                    },
+                    "kvCertAccessRoleId": {
+                      "type": "string",
+                      "defaultValue": "",
+                      "metadata": {
+                        "description": "Roles used for EV2 KeyVault access, i.e. geneva log access"
+                      }
+                    }
+                  },
+                  "variables": {
+                    "roleResourceIds": {
+                      "Key Vault Secrets User": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', '4633458b-17de-408a-b874-0445c86b69e6')]",
+                      "Key Vault Secrets Officer": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', 'b86a8fe4-44ce-4948-aee5-eccb2c155cd7')]",
+                      "Key Vault Certificate User": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', 'db79e9a7-68ee-4b58-9aeb-b90e7c24fcba')]",
+                      "Key Vault Certificates Officer": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', 'a4417e6f-fecd-4de8-b567-7b0420556985')]",
+                      "Key Vault Crypto Officer": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', '14b46e9e-c2b7-41b4-b07b-48a6ebf60603')]",
+                      "Key Vault Reader": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', '21090545-7ca7-4776-b22c-e363652d74d2')]",
+                      "Azure Service Deploy Release Management Key Vault Secrets User": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', parameters('kvCertAccessRoleId'))]"
+                    }
+                  },
+                  "resources": [
+                    {
+                      "copy": {
+                        "name": "secretAccessPermission",
+                        "count": "[length(parameters('managedIdentityPrincipalIds'))]"
+                      },
+                      "condition": "[not(equals(parameters('secretName'), ''))]",
+                      "type": "Microsoft.Authorization/roleAssignments",
+                      "apiVersion": "2022-04-01",
+                      "scope": "[resourceId('Microsoft.KeyVault/vaults/secrets', parameters('keyVaultName'), parameters('secretName'))]",
+                      "name": "[guid(resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName')), parameters('managedIdentityPrincipalIds')[copyIndex()], parameters('secretName'), variables('roleResourceIds')[parameters('roleName')])]",
+                      "properties": {
+                        "roleDefinitionId": "[variables('roleResourceIds')[parameters('roleName')]]",
+                        "principalId": "[parameters('managedIdentityPrincipalIds')[copyIndex()]]",
+                        "principalType": "ServicePrincipal"
+                      }
+                    },
+                    {
+                      "copy": {
+                        "name": "keyVaultAccessPermission",
+                        "count": "[length(parameters('managedIdentityPrincipalIds'))]"
+                      },
+                      "condition": "[equals(parameters('secretName'), '')]",
+                      "type": "Microsoft.Authorization/roleAssignments",
+                      "apiVersion": "2022-04-01",
+                      "scope": "[resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName'))]",
+                      "name": "[guid(resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName')), parameters('managedIdentityPrincipalIds')[copyIndex()], variables('roleResourceIds')[parameters('roleName')])]",
+                      "properties": {
+                        "roleDefinitionId": "[variables('roleResourceIds')[parameters('roleName')]]",
+                        "principalId": "[parameters('managedIdentityPrincipalIds')[copyIndex()]]",
+                        "principalType": "ServicePrincipal"
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "condition": "[and(not(equals(parameters('kvCertAccessPrincipalId'), '')), not(equals(parameters('kvCertAccessRoleId'), '')))]",
+              "type": "Microsoft.Resources/deployments",
+              "apiVersion": "2025-04-01",
+              "name": "[guid(parameters('kvCertOfficerPrincipalId'), parameters('keyVaultName'), 'certificate-access')]",
+              "properties": {
+                "expressionEvaluationOptions": {
+                  "scope": "inner"
+                },
+                "mode": "Incremental",
+                "parameters": {
+                  "keyVaultName": {
+                    "value": "[parameters('keyVaultName')]"
+                  },
+                  "roleName": {
+                    "value": "Azure Service Deploy Release Management Key Vault Secrets User"
+                  },
+                  "managedIdentityPrincipalIds": {
+                    "value": [
+                      "[parameters('kvCertAccessPrincipalId')]"
+                    ]
+                  },
+                  "kvCertAccessRoleId": {
+                    "value": "[parameters('kvCertAccessRoleId')]"
+                  }
+                },
+                "template": {
+                  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                  "contentVersion": "1.0.0.0",
+                  "metadata": {
+                    "_generator": {
+                      "name": "bicep",
+                      "version": "0.41.2.15936",
+                      "templateHash": "1532414038243427123"
+                    }
+                  },
+                  "parameters": {
+                    "keyVaultName": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "The name of the keyvault where access is managed"
+                      }
+                    },
+                    "secretName": {
+                      "type": "string",
+                      "defaultValue": "",
+                      "metadata": {
+                        "description": "Optional name of the secret in the keyvault where access is managed. If not provided, access will be granted to all secrets in the keyvault."
+                      }
+                    },
+                    "roleName": {
+                      "type": "string",
+                      "allowedValues": [
+                        "Key Vault Secrets Officer",
+                        "Key Vault Secrets User",
+                        "Key Vault Certificate User",
+                        "Key Vault Certificates Officer",
+                        "Key Vault Crypto Officer",
+                        "Key Vault Reader",
+                        "Azure Service Deploy Release Management Key Vault Secrets User"
+                      ],
+                      "metadata": {
+                        "description": "The name of the role that will be assigned to the managed identity for the secret in KV"
+                      }
+                    },
+                    "managedIdentityPrincipalIds": {
+                      "type": "array",
+                      "metadata": {
+                        "description": "The principal ids of the managed identity that will be assigned access to the secret in KV"
+                      }
+                    },
+                    "kvCertAccessRoleId": {
+                      "type": "string",
+                      "defaultValue": "",
+                      "metadata": {
+                        "description": "Roles used for EV2 KeyVault access, i.e. geneva log access"
+                      }
+                    }
+                  },
+                  "variables": {
+                    "roleResourceIds": {
+                      "Key Vault Secrets User": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', '4633458b-17de-408a-b874-0445c86b69e6')]",
+                      "Key Vault Secrets Officer": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', 'b86a8fe4-44ce-4948-aee5-eccb2c155cd7')]",
+                      "Key Vault Certificate User": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', 'db79e9a7-68ee-4b58-9aeb-b90e7c24fcba')]",
+                      "Key Vault Certificates Officer": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', 'a4417e6f-fecd-4de8-b567-7b0420556985')]",
+                      "Key Vault Crypto Officer": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', '14b46e9e-c2b7-41b4-b07b-48a6ebf60603')]",
+                      "Key Vault Reader": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', '21090545-7ca7-4776-b22c-e363652d74d2')]",
+                      "Azure Service Deploy Release Management Key Vault Secrets User": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', parameters('kvCertAccessRoleId'))]"
+                    }
+                  },
+                  "resources": [
+                    {
+                      "copy": {
+                        "name": "secretAccessPermission",
+                        "count": "[length(parameters('managedIdentityPrincipalIds'))]"
+                      },
+                      "condition": "[not(equals(parameters('secretName'), ''))]",
+                      "type": "Microsoft.Authorization/roleAssignments",
+                      "apiVersion": "2022-04-01",
+                      "scope": "[resourceId('Microsoft.KeyVault/vaults/secrets', parameters('keyVaultName'), parameters('secretName'))]",
+                      "name": "[guid(resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName')), parameters('managedIdentityPrincipalIds')[copyIndex()], parameters('secretName'), variables('roleResourceIds')[parameters('roleName')])]",
+                      "properties": {
+                        "roleDefinitionId": "[variables('roleResourceIds')[parameters('roleName')]]",
+                        "principalId": "[parameters('managedIdentityPrincipalIds')[copyIndex()]]",
+                        "principalType": "ServicePrincipal"
+                      }
+                    },
+                    {
+                      "copy": {
+                        "name": "keyVaultAccessPermission",
+                        "count": "[length(parameters('managedIdentityPrincipalIds'))]"
+                      },
+                      "condition": "[equals(parameters('secretName'), '')]",
+                      "type": "Microsoft.Authorization/roleAssignments",
+                      "apiVersion": "2022-04-01",
+                      "scope": "[resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName'))]",
+                      "name": "[guid(resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName')), parameters('managedIdentityPrincipalIds')[copyIndex()], variables('roleResourceIds')[parameters('roleName')])]",
+                      "properties": {
+                        "roleDefinitionId": "[variables('roleResourceIds')[parameters('roleName')]]",
+                        "principalId": "[parameters('managedIdentityPrincipalIds')[copyIndex()]]",
+                        "principalType": "ServicePrincipal"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          ],
+          "outputs": {
+            "kvId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName'))]"
+            },
+            "kvName": {
+              "type": "string",
+              "value": "[parameters('keyVaultName')]"
+            },
+            "kvUrl": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName')), '2024-04-01-preview').vaultUri]"
+            }
+          }
+        }
+      }
+    },
+    "cxKeyVaultAccess": {
+      "copy": {
+        "name": "cxKeyVaultAccess",
+        "count": "[length(createArray('Key Vault Secrets Officer', 'Key Vault Certificates Officer'))]"
+      },
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "[guid(parameters('cxKeyVaultName'), parameters('kvCertOfficerPrincipalId'), createArray('Key Vault Secrets Officer', 'Key Vault Certificates Officer')[copyIndex()])]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "keyVaultName": {
+            "value": "[parameters('cxKeyVaultName')]"
+          },
+          "roleName": {
+            "value": "[createArray('Key Vault Secrets Officer', 'Key Vault Certificates Officer')[copyIndex()]]"
+          },
+          "managedIdentityPrincipalIds": {
+            "value": [
+              "[parameters('kvCertOfficerPrincipalId')]"
+            ]
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.41.2.15936",
+              "templateHash": "1532414038243427123"
+            }
+          },
+          "parameters": {
+            "keyVaultName": {
+              "type": "string",
+              "metadata": {
+                "description": "The name of the keyvault where access is managed"
+              }
+            },
+            "secretName": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Optional name of the secret in the keyvault where access is managed. If not provided, access will be granted to all secrets in the keyvault."
+              }
+            },
+            "roleName": {
+              "type": "string",
+              "allowedValues": [
+                "Key Vault Secrets Officer",
+                "Key Vault Secrets User",
+                "Key Vault Certificate User",
+                "Key Vault Certificates Officer",
+                "Key Vault Crypto Officer",
+                "Key Vault Reader",
+                "Azure Service Deploy Release Management Key Vault Secrets User"
+              ],
+              "metadata": {
+                "description": "The name of the role that will be assigned to the managed identity for the secret in KV"
+              }
+            },
+            "managedIdentityPrincipalIds": {
+              "type": "array",
+              "metadata": {
+                "description": "The principal ids of the managed identity that will be assigned access to the secret in KV"
+              }
+            },
+            "kvCertAccessRoleId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Roles used for EV2 KeyVault access, i.e. geneva log access"
+              }
+            }
+          },
+          "variables": {
+            "roleResourceIds": {
+              "Key Vault Secrets User": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', '4633458b-17de-408a-b874-0445c86b69e6')]",
+              "Key Vault Secrets Officer": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', 'b86a8fe4-44ce-4948-aee5-eccb2c155cd7')]",
+              "Key Vault Certificate User": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', 'db79e9a7-68ee-4b58-9aeb-b90e7c24fcba')]",
+              "Key Vault Certificates Officer": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', 'a4417e6f-fecd-4de8-b567-7b0420556985')]",
+              "Key Vault Crypto Officer": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', '14b46e9e-c2b7-41b4-b07b-48a6ebf60603')]",
+              "Key Vault Reader": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', '21090545-7ca7-4776-b22c-e363652d74d2')]",
+              "Azure Service Deploy Release Management Key Vault Secrets User": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', parameters('kvCertAccessRoleId'))]"
+            }
+          },
+          "resources": [
+            {
+              "copy": {
+                "name": "secretAccessPermission",
+                "count": "[length(parameters('managedIdentityPrincipalIds'))]"
+              },
+              "condition": "[not(equals(parameters('secretName'), ''))]",
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[resourceId('Microsoft.KeyVault/vaults/secrets', parameters('keyVaultName'), parameters('secretName'))]",
+              "name": "[guid(resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName')), parameters('managedIdentityPrincipalIds')[copyIndex()], parameters('secretName'), variables('roleResourceIds')[parameters('roleName')])]",
+              "properties": {
+                "roleDefinitionId": "[variables('roleResourceIds')[parameters('roleName')]]",
+                "principalId": "[parameters('managedIdentityPrincipalIds')[copyIndex()]]",
+                "principalType": "ServicePrincipal"
+              }
+            },
+            {
+              "copy": {
+                "name": "keyVaultAccessPermission",
+                "count": "[length(parameters('managedIdentityPrincipalIds'))]"
+              },
+              "condition": "[equals(parameters('secretName'), '')]",
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName'))]",
+              "name": "[guid(resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName')), parameters('managedIdentityPrincipalIds')[copyIndex()], variables('roleResourceIds')[parameters('roleName')])]",
+              "properties": {
+                "roleDefinitionId": "[variables('roleResourceIds')[parameters('roleName')]]",
+                "principalId": "[parameters('managedIdentityPrincipalIds')[copyIndex()]]",
+                "principalType": "ServicePrincipal"
+              }
+            }
+          ]
+        }
+      },
+      "dependsOn": [
+        "cxKeyVault"
+      ]
+    },
+    "msiKeyVault": {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "[format('msi-kv-{0}', uniqueString(parameters('msiKeyVaultName')))]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "keyVaultName": {
+            "value": "[parameters('msiKeyVaultName')]"
+          },
+          "private": {
+            "value": "[parameters('msiKeyVaultPrivate')]"
+          },
+          "enableSoftDelete": {
+            "value": "[parameters('msiKeyVaultSoftDelete')]"
+          },
+          "tagKey": {
+            "value": "[parameters('msiKeyVaultTagName')]"
+          },
+          "tagValue": {
+            "value": "[parameters('msiKeyVaultTagValue')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.41.2.15936",
+              "templateHash": "7588065045881012475"
+            }
+          },
+          "parameters": {
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "Location of the keyvault."
+              }
+            },
+            "keyVaultName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the key vault."
+              }
+            },
+            "enableSoftDelete": {
+              "type": "bool",
+              "metadata": {
+                "description": "Toggle to enable soft delete."
+              }
+            },
+            "private": {
+              "type": "bool",
+              "metadata": {
+                "description": "Toggle to make the keyvault private."
+              }
+            },
+            "enabledForTemplateDeployment": {
+              "type": "bool",
+              "defaultValue": false,
+              "metadata": {
+                "description": "Allow ARM deployments to retrieve secrets from the Key Vault."
+              }
+            },
+            "tagKey": {
+              "type": "string",
+              "metadata": {
+                "description": "Tag key for the keyvault."
+              }
+            },
+            "tagValue": {
+              "type": "string",
+              "metadata": {
+                "description": "Tag value for the keyvault."
+              }
+            },
+            "kvCertOfficerPrincipalId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Principal ID for KV certificate officer"
+              }
+            },
+            "kvCertAccessPrincipalId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Principal ID for EV2 certificate access, i.e. geneva log/action access"
+              }
+            },
+            "kvCertAccessRoleId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Roles used for EV2 KeyVault access, i.e. geneva log/action access"
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.KeyVault/vaults",
+              "apiVersion": "2024-04-01-preview",
+              "name": "[parameters('keyVaultName')]",
+              "location": "[parameters('location')]",
+              "tags": {
+                "resourceGroup": "[resourceGroup().name]",
+                "[format('{0}', parameters('tagKey'))]": "[parameters('tagValue')]"
+              },
+              "properties": {
+                "enableRbacAuthorization": true,
+                "enabledForDeployment": false,
+                "enabledForDiskEncryption": false,
+                "enabledForTemplateDeployment": "[parameters('enabledForTemplateDeployment')]",
+                "enableSoftDelete": "[parameters('enableSoftDelete')]",
+                "publicNetworkAccess": "[if(parameters('private'), 'Disabled', 'Enabled')]",
+                "sku": {
+                  "name": "standard",
+                  "family": "A"
+                },
+                "tenantId": "[subscription().tenantId]"
+              }
+            },
+            {
+              "condition": "[not(equals(parameters('kvCertOfficerPrincipalId'), ''))]",
+              "type": "Microsoft.Resources/deployments",
+              "apiVersion": "2025-04-01",
+              "name": "[guid(parameters('kvCertOfficerPrincipalId'), parameters('keyVaultName'), 'cert-officer')]",
+              "properties": {
+                "expressionEvaluationOptions": {
+                  "scope": "inner"
+                },
+                "mode": "Incremental",
+                "parameters": {
+                  "keyVaultName": {
+                    "value": "[parameters('keyVaultName')]"
+                  },
+                  "roleName": {
+                    "value": "Key Vault Certificates Officer"
+                  },
+                  "managedIdentityPrincipalIds": {
+                    "value": [
+                      "[parameters('kvCertOfficerPrincipalId')]"
+                    ]
+                  }
+                },
+                "template": {
+                  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                  "contentVersion": "1.0.0.0",
+                  "metadata": {
+                    "_generator": {
+                      "name": "bicep",
+                      "version": "0.41.2.15936",
+                      "templateHash": "1532414038243427123"
+                    }
+                  },
+                  "parameters": {
+                    "keyVaultName": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "The name of the keyvault where access is managed"
+                      }
+                    },
+                    "secretName": {
+                      "type": "string",
+                      "defaultValue": "",
+                      "metadata": {
+                        "description": "Optional name of the secret in the keyvault where access is managed. If not provided, access will be granted to all secrets in the keyvault."
+                      }
+                    },
+                    "roleName": {
+                      "type": "string",
+                      "allowedValues": [
+                        "Key Vault Secrets Officer",
+                        "Key Vault Secrets User",
+                        "Key Vault Certificate User",
+                        "Key Vault Certificates Officer",
+                        "Key Vault Crypto Officer",
+                        "Key Vault Reader",
+                        "Azure Service Deploy Release Management Key Vault Secrets User"
+                      ],
+                      "metadata": {
+                        "description": "The name of the role that will be assigned to the managed identity for the secret in KV"
+                      }
+                    },
+                    "managedIdentityPrincipalIds": {
+                      "type": "array",
+                      "metadata": {
+                        "description": "The principal ids of the managed identity that will be assigned access to the secret in KV"
+                      }
+                    },
+                    "kvCertAccessRoleId": {
+                      "type": "string",
+                      "defaultValue": "",
+                      "metadata": {
+                        "description": "Roles used for EV2 KeyVault access, i.e. geneva log access"
+                      }
+                    }
+                  },
+                  "variables": {
+                    "roleResourceIds": {
+                      "Key Vault Secrets User": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', '4633458b-17de-408a-b874-0445c86b69e6')]",
+                      "Key Vault Secrets Officer": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', 'b86a8fe4-44ce-4948-aee5-eccb2c155cd7')]",
+                      "Key Vault Certificate User": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', 'db79e9a7-68ee-4b58-9aeb-b90e7c24fcba')]",
+                      "Key Vault Certificates Officer": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', 'a4417e6f-fecd-4de8-b567-7b0420556985')]",
+                      "Key Vault Crypto Officer": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', '14b46e9e-c2b7-41b4-b07b-48a6ebf60603')]",
+                      "Key Vault Reader": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', '21090545-7ca7-4776-b22c-e363652d74d2')]",
+                      "Azure Service Deploy Release Management Key Vault Secrets User": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', parameters('kvCertAccessRoleId'))]"
+                    }
+                  },
+                  "resources": [
+                    {
+                      "copy": {
+                        "name": "secretAccessPermission",
+                        "count": "[length(parameters('managedIdentityPrincipalIds'))]"
+                      },
+                      "condition": "[not(equals(parameters('secretName'), ''))]",
+                      "type": "Microsoft.Authorization/roleAssignments",
+                      "apiVersion": "2022-04-01",
+                      "scope": "[resourceId('Microsoft.KeyVault/vaults/secrets', parameters('keyVaultName'), parameters('secretName'))]",
+                      "name": "[guid(resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName')), parameters('managedIdentityPrincipalIds')[copyIndex()], parameters('secretName'), variables('roleResourceIds')[parameters('roleName')])]",
+                      "properties": {
+                        "roleDefinitionId": "[variables('roleResourceIds')[parameters('roleName')]]",
+                        "principalId": "[parameters('managedIdentityPrincipalIds')[copyIndex()]]",
+                        "principalType": "ServicePrincipal"
+                      }
+                    },
+                    {
+                      "copy": {
+                        "name": "keyVaultAccessPermission",
+                        "count": "[length(parameters('managedIdentityPrincipalIds'))]"
+                      },
+                      "condition": "[equals(parameters('secretName'), '')]",
+                      "type": "Microsoft.Authorization/roleAssignments",
+                      "apiVersion": "2022-04-01",
+                      "scope": "[resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName'))]",
+                      "name": "[guid(resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName')), parameters('managedIdentityPrincipalIds')[copyIndex()], variables('roleResourceIds')[parameters('roleName')])]",
+                      "properties": {
+                        "roleDefinitionId": "[variables('roleResourceIds')[parameters('roleName')]]",
+                        "principalId": "[parameters('managedIdentityPrincipalIds')[copyIndex()]]",
+                        "principalType": "ServicePrincipal"
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "condition": "[not(equals(parameters('kvCertOfficerPrincipalId'), ''))]",
+              "type": "Microsoft.Resources/deployments",
+              "apiVersion": "2025-04-01",
+              "name": "[guid(parameters('kvCertOfficerPrincipalId'), parameters('keyVaultName'), 'secrets-officer')]",
+              "properties": {
+                "expressionEvaluationOptions": {
+                  "scope": "inner"
+                },
+                "mode": "Incremental",
+                "parameters": {
+                  "keyVaultName": {
+                    "value": "[parameters('keyVaultName')]"
+                  },
+                  "roleName": {
+                    "value": "Key Vault Secrets Officer"
+                  },
+                  "managedIdentityPrincipalIds": {
+                    "value": [
+                      "[parameters('kvCertOfficerPrincipalId')]"
+                    ]
+                  }
+                },
+                "template": {
+                  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                  "contentVersion": "1.0.0.0",
+                  "metadata": {
+                    "_generator": {
+                      "name": "bicep",
+                      "version": "0.41.2.15936",
+                      "templateHash": "1532414038243427123"
+                    }
+                  },
+                  "parameters": {
+                    "keyVaultName": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "The name of the keyvault where access is managed"
+                      }
+                    },
+                    "secretName": {
+                      "type": "string",
+                      "defaultValue": "",
+                      "metadata": {
+                        "description": "Optional name of the secret in the keyvault where access is managed. If not provided, access will be granted to all secrets in the keyvault."
+                      }
+                    },
+                    "roleName": {
+                      "type": "string",
+                      "allowedValues": [
+                        "Key Vault Secrets Officer",
+                        "Key Vault Secrets User",
+                        "Key Vault Certificate User",
+                        "Key Vault Certificates Officer",
+                        "Key Vault Crypto Officer",
+                        "Key Vault Reader",
+                        "Azure Service Deploy Release Management Key Vault Secrets User"
+                      ],
+                      "metadata": {
+                        "description": "The name of the role that will be assigned to the managed identity for the secret in KV"
+                      }
+                    },
+                    "managedIdentityPrincipalIds": {
+                      "type": "array",
+                      "metadata": {
+                        "description": "The principal ids of the managed identity that will be assigned access to the secret in KV"
+                      }
+                    },
+                    "kvCertAccessRoleId": {
+                      "type": "string",
+                      "defaultValue": "",
+                      "metadata": {
+                        "description": "Roles used for EV2 KeyVault access, i.e. geneva log access"
+                      }
+                    }
+                  },
+                  "variables": {
+                    "roleResourceIds": {
+                      "Key Vault Secrets User": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', '4633458b-17de-408a-b874-0445c86b69e6')]",
+                      "Key Vault Secrets Officer": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', 'b86a8fe4-44ce-4948-aee5-eccb2c155cd7')]",
+                      "Key Vault Certificate User": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', 'db79e9a7-68ee-4b58-9aeb-b90e7c24fcba')]",
+                      "Key Vault Certificates Officer": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', 'a4417e6f-fecd-4de8-b567-7b0420556985')]",
+                      "Key Vault Crypto Officer": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', '14b46e9e-c2b7-41b4-b07b-48a6ebf60603')]",
+                      "Key Vault Reader": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', '21090545-7ca7-4776-b22c-e363652d74d2')]",
+                      "Azure Service Deploy Release Management Key Vault Secrets User": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', parameters('kvCertAccessRoleId'))]"
+                    }
+                  },
+                  "resources": [
+                    {
+                      "copy": {
+                        "name": "secretAccessPermission",
+                        "count": "[length(parameters('managedIdentityPrincipalIds'))]"
+                      },
+                      "condition": "[not(equals(parameters('secretName'), ''))]",
+                      "type": "Microsoft.Authorization/roleAssignments",
+                      "apiVersion": "2022-04-01",
+                      "scope": "[resourceId('Microsoft.KeyVault/vaults/secrets', parameters('keyVaultName'), parameters('secretName'))]",
+                      "name": "[guid(resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName')), parameters('managedIdentityPrincipalIds')[copyIndex()], parameters('secretName'), variables('roleResourceIds')[parameters('roleName')])]",
+                      "properties": {
+                        "roleDefinitionId": "[variables('roleResourceIds')[parameters('roleName')]]",
+                        "principalId": "[parameters('managedIdentityPrincipalIds')[copyIndex()]]",
+                        "principalType": "ServicePrincipal"
+                      }
+                    },
+                    {
+                      "copy": {
+                        "name": "keyVaultAccessPermission",
+                        "count": "[length(parameters('managedIdentityPrincipalIds'))]"
+                      },
+                      "condition": "[equals(parameters('secretName'), '')]",
+                      "type": "Microsoft.Authorization/roleAssignments",
+                      "apiVersion": "2022-04-01",
+                      "scope": "[resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName'))]",
+                      "name": "[guid(resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName')), parameters('managedIdentityPrincipalIds')[copyIndex()], variables('roleResourceIds')[parameters('roleName')])]",
+                      "properties": {
+                        "roleDefinitionId": "[variables('roleResourceIds')[parameters('roleName')]]",
+                        "principalId": "[parameters('managedIdentityPrincipalIds')[copyIndex()]]",
+                        "principalType": "ServicePrincipal"
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "condition": "[and(not(equals(parameters('kvCertAccessPrincipalId'), '')), not(equals(parameters('kvCertAccessRoleId'), '')))]",
+              "type": "Microsoft.Resources/deployments",
+              "apiVersion": "2025-04-01",
+              "name": "[guid(parameters('kvCertOfficerPrincipalId'), parameters('keyVaultName'), 'certificate-access')]",
+              "properties": {
+                "expressionEvaluationOptions": {
+                  "scope": "inner"
+                },
+                "mode": "Incremental",
+                "parameters": {
+                  "keyVaultName": {
+                    "value": "[parameters('keyVaultName')]"
+                  },
+                  "roleName": {
+                    "value": "Azure Service Deploy Release Management Key Vault Secrets User"
+                  },
+                  "managedIdentityPrincipalIds": {
+                    "value": [
+                      "[parameters('kvCertAccessPrincipalId')]"
+                    ]
+                  },
+                  "kvCertAccessRoleId": {
+                    "value": "[parameters('kvCertAccessRoleId')]"
+                  }
+                },
+                "template": {
+                  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                  "contentVersion": "1.0.0.0",
+                  "metadata": {
+                    "_generator": {
+                      "name": "bicep",
+                      "version": "0.41.2.15936",
+                      "templateHash": "1532414038243427123"
+                    }
+                  },
+                  "parameters": {
+                    "keyVaultName": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "The name of the keyvault where access is managed"
+                      }
+                    },
+                    "secretName": {
+                      "type": "string",
+                      "defaultValue": "",
+                      "metadata": {
+                        "description": "Optional name of the secret in the keyvault where access is managed. If not provided, access will be granted to all secrets in the keyvault."
+                      }
+                    },
+                    "roleName": {
+                      "type": "string",
+                      "allowedValues": [
+                        "Key Vault Secrets Officer",
+                        "Key Vault Secrets User",
+                        "Key Vault Certificate User",
+                        "Key Vault Certificates Officer",
+                        "Key Vault Crypto Officer",
+                        "Key Vault Reader",
+                        "Azure Service Deploy Release Management Key Vault Secrets User"
+                      ],
+                      "metadata": {
+                        "description": "The name of the role that will be assigned to the managed identity for the secret in KV"
+                      }
+                    },
+                    "managedIdentityPrincipalIds": {
+                      "type": "array",
+                      "metadata": {
+                        "description": "The principal ids of the managed identity that will be assigned access to the secret in KV"
+                      }
+                    },
+                    "kvCertAccessRoleId": {
+                      "type": "string",
+                      "defaultValue": "",
+                      "metadata": {
+                        "description": "Roles used for EV2 KeyVault access, i.e. geneva log access"
+                      }
+                    }
+                  },
+                  "variables": {
+                    "roleResourceIds": {
+                      "Key Vault Secrets User": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', '4633458b-17de-408a-b874-0445c86b69e6')]",
+                      "Key Vault Secrets Officer": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', 'b86a8fe4-44ce-4948-aee5-eccb2c155cd7')]",
+                      "Key Vault Certificate User": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', 'db79e9a7-68ee-4b58-9aeb-b90e7c24fcba')]",
+                      "Key Vault Certificates Officer": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', 'a4417e6f-fecd-4de8-b567-7b0420556985')]",
+                      "Key Vault Crypto Officer": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', '14b46e9e-c2b7-41b4-b07b-48a6ebf60603')]",
+                      "Key Vault Reader": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', '21090545-7ca7-4776-b22c-e363652d74d2')]",
+                      "Azure Service Deploy Release Management Key Vault Secrets User": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', parameters('kvCertAccessRoleId'))]"
+                    }
+                  },
+                  "resources": [
+                    {
+                      "copy": {
+                        "name": "secretAccessPermission",
+                        "count": "[length(parameters('managedIdentityPrincipalIds'))]"
+                      },
+                      "condition": "[not(equals(parameters('secretName'), ''))]",
+                      "type": "Microsoft.Authorization/roleAssignments",
+                      "apiVersion": "2022-04-01",
+                      "scope": "[resourceId('Microsoft.KeyVault/vaults/secrets', parameters('keyVaultName'), parameters('secretName'))]",
+                      "name": "[guid(resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName')), parameters('managedIdentityPrincipalIds')[copyIndex()], parameters('secretName'), variables('roleResourceIds')[parameters('roleName')])]",
+                      "properties": {
+                        "roleDefinitionId": "[variables('roleResourceIds')[parameters('roleName')]]",
+                        "principalId": "[parameters('managedIdentityPrincipalIds')[copyIndex()]]",
+                        "principalType": "ServicePrincipal"
+                      }
+                    },
+                    {
+                      "copy": {
+                        "name": "keyVaultAccessPermission",
+                        "count": "[length(parameters('managedIdentityPrincipalIds'))]"
+                      },
+                      "condition": "[equals(parameters('secretName'), '')]",
+                      "type": "Microsoft.Authorization/roleAssignments",
+                      "apiVersion": "2022-04-01",
+                      "scope": "[resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName'))]",
+                      "name": "[guid(resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName')), parameters('managedIdentityPrincipalIds')[copyIndex()], variables('roleResourceIds')[parameters('roleName')])]",
+                      "properties": {
+                        "roleDefinitionId": "[variables('roleResourceIds')[parameters('roleName')]]",
+                        "principalId": "[parameters('managedIdentityPrincipalIds')[copyIndex()]]",
+                        "principalType": "ServicePrincipal"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          ],
+          "outputs": {
+            "kvId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName'))]"
+            },
+            "kvName": {
+              "type": "string",
+              "value": "[parameters('keyVaultName')]"
+            },
+            "kvUrl": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName')), '2024-04-01-preview').vaultUri]"
+            }
+          }
+        }
+      }
+    },
+    "mgmtKeyVault": {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "[format('mgmt-kv-{0}', uniqueString(parameters('mgmtKeyVaultName')))]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "keyVaultName": {
+            "value": "[parameters('mgmtKeyVaultName')]"
+          },
+          "private": {
+            "value": "[parameters('mgmtKeyVaultPrivate')]"
+          },
+          "enableSoftDelete": {
+            "value": "[parameters('mgmtKeyVaultSoftDelete')]"
+          },
+          "tagKey": {
+            "value": "[parameters('mgmtKeyVaultTagName')]"
+          },
+          "tagValue": {
+            "value": "[parameters('mgmtKeyVaultTagValue')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.41.2.15936",
+              "templateHash": "7588065045881012475"
+            }
+          },
+          "parameters": {
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "Location of the keyvault."
+              }
+            },
+            "keyVaultName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the key vault."
+              }
+            },
+            "enableSoftDelete": {
+              "type": "bool",
+              "metadata": {
+                "description": "Toggle to enable soft delete."
+              }
+            },
+            "private": {
+              "type": "bool",
+              "metadata": {
+                "description": "Toggle to make the keyvault private."
+              }
+            },
+            "enabledForTemplateDeployment": {
+              "type": "bool",
+              "defaultValue": false,
+              "metadata": {
+                "description": "Allow ARM deployments to retrieve secrets from the Key Vault."
+              }
+            },
+            "tagKey": {
+              "type": "string",
+              "metadata": {
+                "description": "Tag key for the keyvault."
+              }
+            },
+            "tagValue": {
+              "type": "string",
+              "metadata": {
+                "description": "Tag value for the keyvault."
+              }
+            },
+            "kvCertOfficerPrincipalId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Principal ID for KV certificate officer"
+              }
+            },
+            "kvCertAccessPrincipalId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Principal ID for EV2 certificate access, i.e. geneva log/action access"
+              }
+            },
+            "kvCertAccessRoleId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Roles used for EV2 KeyVault access, i.e. geneva log/action access"
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.KeyVault/vaults",
+              "apiVersion": "2024-04-01-preview",
+              "name": "[parameters('keyVaultName')]",
+              "location": "[parameters('location')]",
+              "tags": {
+                "resourceGroup": "[resourceGroup().name]",
+                "[format('{0}', parameters('tagKey'))]": "[parameters('tagValue')]"
+              },
+              "properties": {
+                "enableRbacAuthorization": true,
+                "enabledForDeployment": false,
+                "enabledForDiskEncryption": false,
+                "enabledForTemplateDeployment": "[parameters('enabledForTemplateDeployment')]",
+                "enableSoftDelete": "[parameters('enableSoftDelete')]",
+                "publicNetworkAccess": "[if(parameters('private'), 'Disabled', 'Enabled')]",
+                "sku": {
+                  "name": "standard",
+                  "family": "A"
+                },
+                "tenantId": "[subscription().tenantId]"
+              }
+            },
+            {
+              "condition": "[not(equals(parameters('kvCertOfficerPrincipalId'), ''))]",
+              "type": "Microsoft.Resources/deployments",
+              "apiVersion": "2025-04-01",
+              "name": "[guid(parameters('kvCertOfficerPrincipalId'), parameters('keyVaultName'), 'cert-officer')]",
+              "properties": {
+                "expressionEvaluationOptions": {
+                  "scope": "inner"
+                },
+                "mode": "Incremental",
+                "parameters": {
+                  "keyVaultName": {
+                    "value": "[parameters('keyVaultName')]"
+                  },
+                  "roleName": {
+                    "value": "Key Vault Certificates Officer"
+                  },
+                  "managedIdentityPrincipalIds": {
+                    "value": [
+                      "[parameters('kvCertOfficerPrincipalId')]"
+                    ]
+                  }
+                },
+                "template": {
+                  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                  "contentVersion": "1.0.0.0",
+                  "metadata": {
+                    "_generator": {
+                      "name": "bicep",
+                      "version": "0.41.2.15936",
+                      "templateHash": "1532414038243427123"
+                    }
+                  },
+                  "parameters": {
+                    "keyVaultName": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "The name of the keyvault where access is managed"
+                      }
+                    },
+                    "secretName": {
+                      "type": "string",
+                      "defaultValue": "",
+                      "metadata": {
+                        "description": "Optional name of the secret in the keyvault where access is managed. If not provided, access will be granted to all secrets in the keyvault."
+                      }
+                    },
+                    "roleName": {
+                      "type": "string",
+                      "allowedValues": [
+                        "Key Vault Secrets Officer",
+                        "Key Vault Secrets User",
+                        "Key Vault Certificate User",
+                        "Key Vault Certificates Officer",
+                        "Key Vault Crypto Officer",
+                        "Key Vault Reader",
+                        "Azure Service Deploy Release Management Key Vault Secrets User"
+                      ],
+                      "metadata": {
+                        "description": "The name of the role that will be assigned to the managed identity for the secret in KV"
+                      }
+                    },
+                    "managedIdentityPrincipalIds": {
+                      "type": "array",
+                      "metadata": {
+                        "description": "The principal ids of the managed identity that will be assigned access to the secret in KV"
+                      }
+                    },
+                    "kvCertAccessRoleId": {
+                      "type": "string",
+                      "defaultValue": "",
+                      "metadata": {
+                        "description": "Roles used for EV2 KeyVault access, i.e. geneva log access"
+                      }
+                    }
+                  },
+                  "variables": {
+                    "roleResourceIds": {
+                      "Key Vault Secrets User": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', '4633458b-17de-408a-b874-0445c86b69e6')]",
+                      "Key Vault Secrets Officer": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', 'b86a8fe4-44ce-4948-aee5-eccb2c155cd7')]",
+                      "Key Vault Certificate User": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', 'db79e9a7-68ee-4b58-9aeb-b90e7c24fcba')]",
+                      "Key Vault Certificates Officer": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', 'a4417e6f-fecd-4de8-b567-7b0420556985')]",
+                      "Key Vault Crypto Officer": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', '14b46e9e-c2b7-41b4-b07b-48a6ebf60603')]",
+                      "Key Vault Reader": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', '21090545-7ca7-4776-b22c-e363652d74d2')]",
+                      "Azure Service Deploy Release Management Key Vault Secrets User": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', parameters('kvCertAccessRoleId'))]"
+                    }
+                  },
+                  "resources": [
+                    {
+                      "copy": {
+                        "name": "secretAccessPermission",
+                        "count": "[length(parameters('managedIdentityPrincipalIds'))]"
+                      },
+                      "condition": "[not(equals(parameters('secretName'), ''))]",
+                      "type": "Microsoft.Authorization/roleAssignments",
+                      "apiVersion": "2022-04-01",
+                      "scope": "[resourceId('Microsoft.KeyVault/vaults/secrets', parameters('keyVaultName'), parameters('secretName'))]",
+                      "name": "[guid(resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName')), parameters('managedIdentityPrincipalIds')[copyIndex()], parameters('secretName'), variables('roleResourceIds')[parameters('roleName')])]",
+                      "properties": {
+                        "roleDefinitionId": "[variables('roleResourceIds')[parameters('roleName')]]",
+                        "principalId": "[parameters('managedIdentityPrincipalIds')[copyIndex()]]",
+                        "principalType": "ServicePrincipal"
+                      }
+                    },
+                    {
+                      "copy": {
+                        "name": "keyVaultAccessPermission",
+                        "count": "[length(parameters('managedIdentityPrincipalIds'))]"
+                      },
+                      "condition": "[equals(parameters('secretName'), '')]",
+                      "type": "Microsoft.Authorization/roleAssignments",
+                      "apiVersion": "2022-04-01",
+                      "scope": "[resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName'))]",
+                      "name": "[guid(resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName')), parameters('managedIdentityPrincipalIds')[copyIndex()], variables('roleResourceIds')[parameters('roleName')])]",
+                      "properties": {
+                        "roleDefinitionId": "[variables('roleResourceIds')[parameters('roleName')]]",
+                        "principalId": "[parameters('managedIdentityPrincipalIds')[copyIndex()]]",
+                        "principalType": "ServicePrincipal"
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "condition": "[not(equals(parameters('kvCertOfficerPrincipalId'), ''))]",
+              "type": "Microsoft.Resources/deployments",
+              "apiVersion": "2025-04-01",
+              "name": "[guid(parameters('kvCertOfficerPrincipalId'), parameters('keyVaultName'), 'secrets-officer')]",
+              "properties": {
+                "expressionEvaluationOptions": {
+                  "scope": "inner"
+                },
+                "mode": "Incremental",
+                "parameters": {
+                  "keyVaultName": {
+                    "value": "[parameters('keyVaultName')]"
+                  },
+                  "roleName": {
+                    "value": "Key Vault Secrets Officer"
+                  },
+                  "managedIdentityPrincipalIds": {
+                    "value": [
+                      "[parameters('kvCertOfficerPrincipalId')]"
+                    ]
+                  }
+                },
+                "template": {
+                  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                  "contentVersion": "1.0.0.0",
+                  "metadata": {
+                    "_generator": {
+                      "name": "bicep",
+                      "version": "0.41.2.15936",
+                      "templateHash": "1532414038243427123"
+                    }
+                  },
+                  "parameters": {
+                    "keyVaultName": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "The name of the keyvault where access is managed"
+                      }
+                    },
+                    "secretName": {
+                      "type": "string",
+                      "defaultValue": "",
+                      "metadata": {
+                        "description": "Optional name of the secret in the keyvault where access is managed. If not provided, access will be granted to all secrets in the keyvault."
+                      }
+                    },
+                    "roleName": {
+                      "type": "string",
+                      "allowedValues": [
+                        "Key Vault Secrets Officer",
+                        "Key Vault Secrets User",
+                        "Key Vault Certificate User",
+                        "Key Vault Certificates Officer",
+                        "Key Vault Crypto Officer",
+                        "Key Vault Reader",
+                        "Azure Service Deploy Release Management Key Vault Secrets User"
+                      ],
+                      "metadata": {
+                        "description": "The name of the role that will be assigned to the managed identity for the secret in KV"
+                      }
+                    },
+                    "managedIdentityPrincipalIds": {
+                      "type": "array",
+                      "metadata": {
+                        "description": "The principal ids of the managed identity that will be assigned access to the secret in KV"
+                      }
+                    },
+                    "kvCertAccessRoleId": {
+                      "type": "string",
+                      "defaultValue": "",
+                      "metadata": {
+                        "description": "Roles used for EV2 KeyVault access, i.e. geneva log access"
+                      }
+                    }
+                  },
+                  "variables": {
+                    "roleResourceIds": {
+                      "Key Vault Secrets User": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', '4633458b-17de-408a-b874-0445c86b69e6')]",
+                      "Key Vault Secrets Officer": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', 'b86a8fe4-44ce-4948-aee5-eccb2c155cd7')]",
+                      "Key Vault Certificate User": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', 'db79e9a7-68ee-4b58-9aeb-b90e7c24fcba')]",
+                      "Key Vault Certificates Officer": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', 'a4417e6f-fecd-4de8-b567-7b0420556985')]",
+                      "Key Vault Crypto Officer": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', '14b46e9e-c2b7-41b4-b07b-48a6ebf60603')]",
+                      "Key Vault Reader": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', '21090545-7ca7-4776-b22c-e363652d74d2')]",
+                      "Azure Service Deploy Release Management Key Vault Secrets User": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', parameters('kvCertAccessRoleId'))]"
+                    }
+                  },
+                  "resources": [
+                    {
+                      "copy": {
+                        "name": "secretAccessPermission",
+                        "count": "[length(parameters('managedIdentityPrincipalIds'))]"
+                      },
+                      "condition": "[not(equals(parameters('secretName'), ''))]",
+                      "type": "Microsoft.Authorization/roleAssignments",
+                      "apiVersion": "2022-04-01",
+                      "scope": "[resourceId('Microsoft.KeyVault/vaults/secrets', parameters('keyVaultName'), parameters('secretName'))]",
+                      "name": "[guid(resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName')), parameters('managedIdentityPrincipalIds')[copyIndex()], parameters('secretName'), variables('roleResourceIds')[parameters('roleName')])]",
+                      "properties": {
+                        "roleDefinitionId": "[variables('roleResourceIds')[parameters('roleName')]]",
+                        "principalId": "[parameters('managedIdentityPrincipalIds')[copyIndex()]]",
+                        "principalType": "ServicePrincipal"
+                      }
+                    },
+                    {
+                      "copy": {
+                        "name": "keyVaultAccessPermission",
+                        "count": "[length(parameters('managedIdentityPrincipalIds'))]"
+                      },
+                      "condition": "[equals(parameters('secretName'), '')]",
+                      "type": "Microsoft.Authorization/roleAssignments",
+                      "apiVersion": "2022-04-01",
+                      "scope": "[resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName'))]",
+                      "name": "[guid(resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName')), parameters('managedIdentityPrincipalIds')[copyIndex()], variables('roleResourceIds')[parameters('roleName')])]",
+                      "properties": {
+                        "roleDefinitionId": "[variables('roleResourceIds')[parameters('roleName')]]",
+                        "principalId": "[parameters('managedIdentityPrincipalIds')[copyIndex()]]",
+                        "principalType": "ServicePrincipal"
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "condition": "[and(not(equals(parameters('kvCertAccessPrincipalId'), '')), not(equals(parameters('kvCertAccessRoleId'), '')))]",
+              "type": "Microsoft.Resources/deployments",
+              "apiVersion": "2025-04-01",
+              "name": "[guid(parameters('kvCertOfficerPrincipalId'), parameters('keyVaultName'), 'certificate-access')]",
+              "properties": {
+                "expressionEvaluationOptions": {
+                  "scope": "inner"
+                },
+                "mode": "Incremental",
+                "parameters": {
+                  "keyVaultName": {
+                    "value": "[parameters('keyVaultName')]"
+                  },
+                  "roleName": {
+                    "value": "Azure Service Deploy Release Management Key Vault Secrets User"
+                  },
+                  "managedIdentityPrincipalIds": {
+                    "value": [
+                      "[parameters('kvCertAccessPrincipalId')]"
+                    ]
+                  },
+                  "kvCertAccessRoleId": {
+                    "value": "[parameters('kvCertAccessRoleId')]"
+                  }
+                },
+                "template": {
+                  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                  "contentVersion": "1.0.0.0",
+                  "metadata": {
+                    "_generator": {
+                      "name": "bicep",
+                      "version": "0.41.2.15936",
+                      "templateHash": "1532414038243427123"
+                    }
+                  },
+                  "parameters": {
+                    "keyVaultName": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "The name of the keyvault where access is managed"
+                      }
+                    },
+                    "secretName": {
+                      "type": "string",
+                      "defaultValue": "",
+                      "metadata": {
+                        "description": "Optional name of the secret in the keyvault where access is managed. If not provided, access will be granted to all secrets in the keyvault."
+                      }
+                    },
+                    "roleName": {
+                      "type": "string",
+                      "allowedValues": [
+                        "Key Vault Secrets Officer",
+                        "Key Vault Secrets User",
+                        "Key Vault Certificate User",
+                        "Key Vault Certificates Officer",
+                        "Key Vault Crypto Officer",
+                        "Key Vault Reader",
+                        "Azure Service Deploy Release Management Key Vault Secrets User"
+                      ],
+                      "metadata": {
+                        "description": "The name of the role that will be assigned to the managed identity for the secret in KV"
+                      }
+                    },
+                    "managedIdentityPrincipalIds": {
+                      "type": "array",
+                      "metadata": {
+                        "description": "The principal ids of the managed identity that will be assigned access to the secret in KV"
+                      }
+                    },
+                    "kvCertAccessRoleId": {
+                      "type": "string",
+                      "defaultValue": "",
+                      "metadata": {
+                        "description": "Roles used for EV2 KeyVault access, i.e. geneva log access"
+                      }
+                    }
+                  },
+                  "variables": {
+                    "roleResourceIds": {
+                      "Key Vault Secrets User": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', '4633458b-17de-408a-b874-0445c86b69e6')]",
+                      "Key Vault Secrets Officer": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', 'b86a8fe4-44ce-4948-aee5-eccb2c155cd7')]",
+                      "Key Vault Certificate User": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', 'db79e9a7-68ee-4b58-9aeb-b90e7c24fcba')]",
+                      "Key Vault Certificates Officer": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', 'a4417e6f-fecd-4de8-b567-7b0420556985')]",
+                      "Key Vault Crypto Officer": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', '14b46e9e-c2b7-41b4-b07b-48a6ebf60603')]",
+                      "Key Vault Reader": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', '21090545-7ca7-4776-b22c-e363652d74d2')]",
+                      "Azure Service Deploy Release Management Key Vault Secrets User": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', parameters('kvCertAccessRoleId'))]"
+                    }
+                  },
+                  "resources": [
+                    {
+                      "copy": {
+                        "name": "secretAccessPermission",
+                        "count": "[length(parameters('managedIdentityPrincipalIds'))]"
+                      },
+                      "condition": "[not(equals(parameters('secretName'), ''))]",
+                      "type": "Microsoft.Authorization/roleAssignments",
+                      "apiVersion": "2022-04-01",
+                      "scope": "[resourceId('Microsoft.KeyVault/vaults/secrets', parameters('keyVaultName'), parameters('secretName'))]",
+                      "name": "[guid(resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName')), parameters('managedIdentityPrincipalIds')[copyIndex()], parameters('secretName'), variables('roleResourceIds')[parameters('roleName')])]",
+                      "properties": {
+                        "roleDefinitionId": "[variables('roleResourceIds')[parameters('roleName')]]",
+                        "principalId": "[parameters('managedIdentityPrincipalIds')[copyIndex()]]",
+                        "principalType": "ServicePrincipal"
+                      }
+                    },
+                    {
+                      "copy": {
+                        "name": "keyVaultAccessPermission",
+                        "count": "[length(parameters('managedIdentityPrincipalIds'))]"
+                      },
+                      "condition": "[equals(parameters('secretName'), '')]",
+                      "type": "Microsoft.Authorization/roleAssignments",
+                      "apiVersion": "2022-04-01",
+                      "scope": "[resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName'))]",
+                      "name": "[guid(resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName')), parameters('managedIdentityPrincipalIds')[copyIndex()], variables('roleResourceIds')[parameters('roleName')])]",
+                      "properties": {
+                        "roleDefinitionId": "[variables('roleResourceIds')[parameters('roleName')]]",
+                        "principalId": "[parameters('managedIdentityPrincipalIds')[copyIndex()]]",
+                        "principalType": "ServicePrincipal"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          ],
+          "outputs": {
+            "kvId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName'))]"
+            },
+            "kvName": {
+              "type": "string",
+              "value": "[parameters('keyVaultName')]"
+            },
+            "kvUrl": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName')), '2024-04-01-preview').vaultUri]"
+            }
+          }
+        }
+      }
+    },
+    "mgmtKeyVaultAccess": {
+      "copy": {
+        "name": "mgmtKeyVaultAccess",
+        "count": "[length(createArray('Key Vault Secrets Officer', 'Key Vault Certificates Officer'))]"
+      },
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "[guid(parameters('mgmtKeyVaultName'), parameters('kvCertOfficerPrincipalId'), createArray('Key Vault Secrets Officer', 'Key Vault Certificates Officer')[copyIndex()])]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "keyVaultName": {
+            "value": "[parameters('mgmtKeyVaultName')]"
+          },
+          "roleName": {
+            "value": "[createArray('Key Vault Secrets Officer', 'Key Vault Certificates Officer')[copyIndex()]]"
+          },
+          "managedIdentityPrincipalIds": {
+            "value": [
+              "[parameters('kvCertOfficerPrincipalId')]"
+            ]
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.41.2.15936",
+              "templateHash": "1532414038243427123"
+            }
+          },
+          "parameters": {
+            "keyVaultName": {
+              "type": "string",
+              "metadata": {
+                "description": "The name of the keyvault where access is managed"
+              }
+            },
+            "secretName": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Optional name of the secret in the keyvault where access is managed. If not provided, access will be granted to all secrets in the keyvault."
+              }
+            },
+            "roleName": {
+              "type": "string",
+              "allowedValues": [
+                "Key Vault Secrets Officer",
+                "Key Vault Secrets User",
+                "Key Vault Certificate User",
+                "Key Vault Certificates Officer",
+                "Key Vault Crypto Officer",
+                "Key Vault Reader",
+                "Azure Service Deploy Release Management Key Vault Secrets User"
+              ],
+              "metadata": {
+                "description": "The name of the role that will be assigned to the managed identity for the secret in KV"
+              }
+            },
+            "managedIdentityPrincipalIds": {
+              "type": "array",
+              "metadata": {
+                "description": "The principal ids of the managed identity that will be assigned access to the secret in KV"
+              }
+            },
+            "kvCertAccessRoleId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Roles used for EV2 KeyVault access, i.e. geneva log access"
+              }
+            }
+          },
+          "variables": {
+            "roleResourceIds": {
+              "Key Vault Secrets User": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', '4633458b-17de-408a-b874-0445c86b69e6')]",
+              "Key Vault Secrets Officer": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', 'b86a8fe4-44ce-4948-aee5-eccb2c155cd7')]",
+              "Key Vault Certificate User": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', 'db79e9a7-68ee-4b58-9aeb-b90e7c24fcba')]",
+              "Key Vault Certificates Officer": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', 'a4417e6f-fecd-4de8-b567-7b0420556985')]",
+              "Key Vault Crypto Officer": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', '14b46e9e-c2b7-41b4-b07b-48a6ebf60603')]",
+              "Key Vault Reader": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', '21090545-7ca7-4776-b22c-e363652d74d2')]",
+              "Azure Service Deploy Release Management Key Vault Secrets User": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', parameters('kvCertAccessRoleId'))]"
+            }
+          },
+          "resources": [
+            {
+              "copy": {
+                "name": "secretAccessPermission",
+                "count": "[length(parameters('managedIdentityPrincipalIds'))]"
+              },
+              "condition": "[not(equals(parameters('secretName'), ''))]",
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[resourceId('Microsoft.KeyVault/vaults/secrets', parameters('keyVaultName'), parameters('secretName'))]",
+              "name": "[guid(resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName')), parameters('managedIdentityPrincipalIds')[copyIndex()], parameters('secretName'), variables('roleResourceIds')[parameters('roleName')])]",
+              "properties": {
+                "roleDefinitionId": "[variables('roleResourceIds')[parameters('roleName')]]",
+                "principalId": "[parameters('managedIdentityPrincipalIds')[copyIndex()]]",
+                "principalType": "ServicePrincipal"
+              }
+            },
+            {
+              "copy": {
+                "name": "keyVaultAccessPermission",
+                "count": "[length(parameters('managedIdentityPrincipalIds'))]"
+              },
+              "condition": "[equals(parameters('secretName'), '')]",
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName'))]",
+              "name": "[guid(resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName')), parameters('managedIdentityPrincipalIds')[copyIndex()], variables('roleResourceIds')[parameters('roleName')])]",
+              "properties": {
+                "roleDefinitionId": "[variables('roleResourceIds')[parameters('roleName')]]",
+                "principalId": "[parameters('managedIdentityPrincipalIds')[copyIndex()]]",
+                "principalType": "ServicePrincipal"
+              }
+            }
+          ]
+        }
+      },
+      "dependsOn": [
+        "mgmtKeyVault"
+      ]
+    },
+    "hcpBackupsStorage": {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "hcp-backups-storage",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "storageAccountName": {
+            "value": "[parameters('hcpBackupsStorageAccountName')]"
+          },
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "containerName": {
+            "value": "[parameters('hcpBackupsStorageAccountContainerName')]"
+          },
+          "zoneRedundantMode": {
+            "value": "[parameters('hcpBackupsStorageAccountZoneRedundantMode')]"
+          },
+          "public": {
+            "value": "[parameters('hcpBackupsStorageAccountPublic')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "languageVersion": "2.0",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.41.2.15936",
+              "templateHash": "10855326963403426295"
+            }
+          },
+          "functions": [
+            {
+              "namespace": "_1",
+              "members": {
+                "arrayToCSV": {
+                  "parameters": [
+                    {
+                      "type": "array",
+                      "name": "inputArray"
+                    }
+                  ],
+                  "output": {
+                    "type": "string",
+                    "value": "[join(parameters('inputArray'), ',')]"
+                  },
+                  "metadata": {
+                    "__bicep_imported_from!": {
+                      "sourceTemplate": "../common.bicep"
+                    }
+                  }
+                },
+                "getLocationAvailabilityZones": {
+                  "parameters": [
+                    {
+                      "type": "string",
+                      "name": "region"
+                    }
+                  ],
+                  "output": {
+                    "type": "array",
+                    "value": "[variables('_1._locationAvailabilityZones')[parameters('region')].availabilityZones]"
+                  },
+                  "metadata": {
+                    "__bicep_imported_from!": {
+                      "sourceTemplate": "../common.bicep"
+                    }
+                  }
+                },
+                "splitOrEmptyArray": {
+                  "parameters": [
+                    {
+                      "type": "string",
+                      "name": "inputString"
+                    },
+                    {
+                      "type": "string",
+                      "name": "delimiter"
+                    }
+                  ],
+                  "output": {
+                    "type": "array",
+                    "value": "[if(or(equals(parameters('inputString'), ''), equals(parameters('inputString'), null())), createArray(), split(parameters('inputString'), parameters('delimiter')))]"
+                  },
+                  "metadata": {
+                    "__bicep_imported_from!": {
+                      "sourceTemplate": "../common.bicep"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "namespace": "__bicep",
+              "members": {
+                "csvToArray": {
+                  "parameters": [
+                    {
+                      "type": "string",
+                      "name": "inputString"
+                    }
+                  ],
+                  "output": {
+                    "type": "array",
+                    "value": "[_1.splitOrEmptyArray(parameters('inputString'), ',')]"
+                  },
+                  "metadata": {
+                    "__bicep_imported_from!": {
+                      "sourceTemplate": "../common.bicep"
+                    }
+                  }
+                },
+                "determineZoneRedundancy": {
+                  "parameters": [
+                    {
+                      "type": "array",
+                      "name": "availabilityZones"
+                    },
+                    {
+                      "type": "string",
+                      "name": "mode"
+                    }
+                  ],
+                  "output": {
+                    "type": "bool",
+                    "value": "[if(equals(parameters('mode'), 'Auto'), greater(length(parameters('availabilityZones')), 0), and(equals(parameters('mode'), 'Enabled'), greater(length(parameters('availabilityZones')), 0)))]"
+                  },
+                  "metadata": {
+                    "__bicep_imported_from!": {
+                      "sourceTemplate": "../common.bicep"
+                    }
+                  }
+                },
+                "getLocationAvailabilityZonesCSV": {
+                  "parameters": [
+                    {
+                      "type": "string",
+                      "name": "region"
+                    }
+                  ],
+                  "output": {
+                    "type": "string",
+                    "value": "[_1.arrayToCSV(_1.getLocationAvailabilityZones(parameters('region')))]"
+                  },
+                  "metadata": {
+                    "__bicep_imported_from!": {
+                      "sourceTemplate": "../common.bicep"
+                    }
+                  }
+                }
+              }
+            }
+          ],
+          "parameters": {
+            "locationAvailabilityZones": {
+              "type": "string",
+              "defaultValue": "[__bicep.getLocationAvailabilityZonesCSV(parameters('location'))]",
+              "metadata": {
+                "description": "Availability Zones to use for the infrastructure, as a CSV string. Defaults to all the zones of the location"
+              }
+            },
+            "storageAccountName": {
+              "type": "string",
+              "minLength": 3,
+              "maxLength": 24,
+              "metadata": {
+                "description": "The name of the Azure Storage account to create."
+              }
+            },
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "The location into which the Azure Storage resources should be deployed."
+              }
+            },
+            "containerName": {
+              "type": "string",
+              "defaultValue": "backups",
+              "metadata": {
+                "description": "The name of the blob container to create."
+              }
+            },
+            "zoneRedundantMode": {
+              "type": "string",
+              "defaultValue": "Auto",
+              "metadata": {
+                "description": "Zone redundant mode for the storage account."
+              }
+            },
+            "public": {
+              "type": "bool",
+              "defaultValue": false,
+              "metadata": {
+                "description": "Whether the storage account should allow public access."
+              }
+            }
+          },
+          "variables": {
+            "locationAvailabilityZoneList": "[__bicep.csvToArray(parameters('locationAvailabilityZones'))]",
+            "_1._locationAvailabilityZones": {
+              "asia": {
+                "availabilityZones": []
+              },
+              "asiapacific": {
+                "availabilityZones": []
+              },
+              "australia": {
+                "availabilityZones": []
+              },
+              "australiacentral": {
+                "availabilityZones": []
+              },
+              "australiacentral2": {
+                "availabilityZones": []
+              },
+              "australiaeast": {
+                "availabilityZones": [
+                  "1",
+                  "2",
+                  "3"
+                ]
+              },
+              "australiasoutheast": {
+                "availabilityZones": []
+              },
+              "brazil": {
+                "availabilityZones": []
+              },
+              "brazilsouth": {
+                "availabilityZones": [
+                  "1",
+                  "2",
+                  "3"
+                ]
+              },
+              "brazilsoutheast": {
+                "availabilityZones": []
+              },
+              "brazilus": {
+                "availabilityZones": []
+              },
+              "canada": {
+                "availabilityZones": []
+              },
+              "canadacentral": {
+                "availabilityZones": [
+                  "1",
+                  "2",
+                  "3"
+                ]
+              },
+              "canadaeast": {
+                "availabilityZones": []
+              },
+              "centralindia": {
+                "availabilityZones": [
+                  "1",
+                  "2",
+                  "3"
+                ]
+              },
+              "centralus": {
+                "availabilityZones": [
+                  "1",
+                  "2",
+                  "3"
+                ]
+              },
+              "centraluseuap": {
+                "availabilityZones": []
+              },
+              "centralusstage": {
+                "availabilityZones": []
+              },
+              "eastasia": {
+                "availabilityZones": [
+                  "1",
+                  "2",
+                  "3"
+                ]
+              },
+              "eastasiastage": {
+                "availabilityZones": []
+              },
+              "eastus": {
+                "availabilityZones": [
+                  "1",
+                  "2",
+                  "3"
+                ]
+              },
+              "eastus2": {
+                "availabilityZones": [
+                  "1",
+                  "2",
+                  "3"
+                ]
+              },
+              "eastus2euap": {
+                "availabilityZones": [
+                  "1",
+                  "3",
+                  "4"
+                ]
+              },
+              "eastus2stage": {
+                "availabilityZones": []
+              },
+              "eastusstage": {
+                "availabilityZones": []
+              },
+              "eastusstg": {
+                "availabilityZones": []
+              },
+              "europe": {
+                "availabilityZones": []
+              },
+              "france": {
+                "availabilityZones": []
+              },
+              "francecentral": {
+                "availabilityZones": [
+                  "1",
+                  "2",
+                  "3"
+                ]
+              },
+              "francesouth": {
+                "availabilityZones": []
+              },
+              "germany": {
+                "availabilityZones": []
+              },
+              "germanynorth": {
+                "availabilityZones": []
+              },
+              "germanywestcentral": {
+                "availabilityZones": [
+                  "1",
+                  "2",
+                  "3"
+                ]
+              },
+              "global": {
+                "availabilityZones": []
+              },
+              "india": {
+                "availabilityZones": []
+              },
+              "israel": {
+                "availabilityZones": []
+              },
+              "israelcentral": {
+                "availabilityZones": [
+                  "1",
+                  "2",
+                  "3"
+                ]
+              },
+              "italy": {
+                "availabilityZones": []
+              },
+              "italynorth": {
+                "availabilityZones": [
+                  "1",
+                  "2",
+                  "3"
+                ]
+              },
+              "japan": {
+                "availabilityZones": []
+              },
+              "japaneast": {
+                "availabilityZones": [
+                  "1",
+                  "2",
+                  "3"
+                ]
+              },
+              "japanwest": {
+                "availabilityZones": []
+              },
+              "jioindiacentral": {
+                "availabilityZones": []
+              },
+              "jioindiawest": {
+                "availabilityZones": []
+              },
+              "korea": {
+                "availabilityZones": []
+              },
+              "koreacentral": {
+                "availabilityZones": [
+                  "1",
+                  "2",
+                  "3"
+                ]
+              },
+              "koreasouth": {
+                "availabilityZones": []
+              },
+              "mexicocentral": {
+                "availabilityZones": [
+                  "1",
+                  "2",
+                  "3"
+                ]
+              },
+              "newzealand": {
+                "availabilityZones": []
+              },
+              "newzealandnorth": {
+                "availabilityZones": [
+                  "1",
+                  "2",
+                  "3"
+                ]
+              },
+              "northcentralus": {
+                "availabilityZones": []
+              },
+              "northcentralusstage": {
+                "availabilityZones": []
+              },
+              "northeurope": {
+                "availabilityZones": [
+                  "1",
+                  "2",
+                  "3"
+                ]
+              },
+              "norway": {
+                "availabilityZones": []
+              },
+              "norwayeast": {
+                "availabilityZones": [
+                  "1",
+                  "2",
+                  "3"
+                ]
+              },
+              "norwaywest": {
+                "availabilityZones": []
+              },
+              "poland": {
+                "availabilityZones": []
+              },
+              "polandcentral": {
+                "availabilityZones": [
+                  "1",
+                  "2",
+                  "3"
+                ]
+              },
+              "qatar": {
+                "availabilityZones": []
+              },
+              "qatarcentral": {
+                "availabilityZones": [
+                  "1",
+                  "2",
+                  "3"
+                ]
+              },
+              "singapore": {
+                "availabilityZones": []
+              },
+              "southafrica": {
+                "availabilityZones": []
+              },
+              "southafricanorth": {
+                "availabilityZones": [
+                  "1",
+                  "2",
+                  "3"
+                ]
+              },
+              "southafricawest": {
+                "availabilityZones": []
+              },
+              "southcentralus": {
+                "availabilityZones": [
+                  "1",
+                  "2",
+                  "3"
+                ]
+              },
+              "southcentralusstage": {
+                "availabilityZones": []
+              },
+              "southcentralusstg": {
+                "availabilityZones": []
+              },
+              "southeastasia": {
+                "availabilityZones": [
+                  "1",
+                  "2",
+                  "3"
+                ]
+              },
+              "southeastasiastage": {
+                "availabilityZones": []
+              },
+              "southindia": {
+                "availabilityZones": []
+              },
+              "spaincentral": {
+                "availabilityZones": [
+                  "1",
+                  "2",
+                  "3"
+                ]
+              },
+              "sweden": {
+                "availabilityZones": []
+              },
+              "swedencentral": {
+                "availabilityZones": [
+                  "1",
+                  "2",
+                  "3"
+                ]
+              },
+              "switzerland": {
+                "availabilityZones": []
+              },
+              "switzerlandnorth": {
+                "availabilityZones": [
+                  "1",
+                  "2",
+                  "3"
+                ]
+              },
+              "switzerlandwest": {
+                "availabilityZones": []
+              },
+              "uae": {
+                "availabilityZones": []
+              },
+              "uaecentral": {
+                "availabilityZones": []
+              },
+              "uaenorth": {
+                "availabilityZones": [
+                  "1",
+                  "2",
+                  "3"
+                ]
+              },
+              "uk": {
+                "availabilityZones": []
+              },
+              "uksouth": {
+                "availabilityZones": [
+                  "1",
+                  "2",
+                  "3"
+                ]
+              },
+              "ukwest": {
+                "availabilityZones": []
+              },
+              "unitedstates": {
+                "availabilityZones": []
+              },
+              "unitedstateseuap": {
+                "availabilityZones": []
+              },
+              "westcentralus": {
+                "availabilityZones": []
+              },
+              "westeurope": {
+                "availabilityZones": [
+                  "1",
+                  "2",
+                  "3"
+                ]
+              },
+              "westindia": {
+                "availabilityZones": []
+              },
+              "westus": {
+                "availabilityZones": []
+              },
+              "westus2": {
+                "availabilityZones": [
+                  "1",
+                  "2",
+                  "3"
+                ]
+              },
+              "westus2stage": {
+                "availabilityZones": []
+              },
+              "westus3": {
+                "availabilityZones": [
+                  "1",
+                  "2",
+                  "3"
+                ]
+              },
+              "westusstage": {
+                "availabilityZones": []
+              }
+            }
+          },
+          "resources": {
+            "blobService": {
+              "type": "Microsoft.Storage/storageAccounts/blobServices",
+              "apiVersion": "2022-09-01",
+              "name": "[format('{0}/default', toLower(parameters('storageAccountName')))]",
+              "dependsOn": [
+                "hcpBackupsStorageAccount"
+              ]
+            },
+            "hcpBackupsContainer": {
+              "type": "Microsoft.Storage/storageAccounts/blobServices/containers",
+              "apiVersion": "2022-09-01",
+              "name": "[format('{0}/{1}/{2}', split(format('{0}/default', toLower(parameters('storageAccountName'))), '/')[0], split(format('{0}/default', toLower(parameters('storageAccountName'))), '/')[1], parameters('containerName'))]",
+              "dependsOn": [
+                "blobService"
+              ]
+            },
+            "hcpBackupsStorageAccount": {
+              "type": "Microsoft.Resources/deployments",
+              "apiVersion": "2025-04-01",
+              "name": "hcpBackupsStorageAccount",
+              "properties": {
+                "expressionEvaluationOptions": {
+                  "scope": "inner"
+                },
+                "mode": "Incremental",
+                "parameters": {
+                  "storageAccountName": {
+                    "value": "[parameters('storageAccountName')]"
+                  },
+                  "location": {
+                    "value": "[parameters('location')]"
+                  },
+                  "skuName": "[if(__bicep.determineZoneRedundancy(variables('locationAvailabilityZoneList'), parameters('zoneRedundantMode')), createObject('value', 'Standard_ZRS'), createObject('value', 'Standard_LRS'))]",
+                  "accessTier": {
+                    "value": "Cool"
+                  },
+                  "allowBlobPublicAccess": {
+                    "value": "[parameters('public')]"
+                  },
+                  "allowSharedKeyAccess": {
+                    "value": false
+                  },
+                  "publicNetworkAccess": {
+                    "value": "Enabled"
+                  },
+                  "configureNetworkAcls": {
+                    "value": true
+                  },
+                  "networkAclsBypass": {
+                    "value": "AzureServices"
+                  },
+                  "networkAclsDefaultAction": {
+                    "value": "Allow"
+                  },
+                  "configureEncryption": {
+                    "value": true
+                  }
+                },
+                "template": {
+                  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                  "contentVersion": "1.0.0.0",
+                  "metadata": {
+                    "_generator": {
+                      "name": "bicep",
+                      "version": "0.41.2.15936",
+                      "templateHash": "10832409165445759048"
+                    }
+                  },
+                  "parameters": {
+                    "storageAccountName": {
+                      "type": "string",
+                      "minLength": 3,
+                      "maxLength": 24,
+                      "metadata": {
+                        "description": "The name of the storage account"
+                      }
+                    },
+                    "location": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "The location for the storage account"
+                      }
+                    },
+                    "skuName": {
+                      "type": "string",
+                      "defaultValue": "Standard_ZRS",
+                      "metadata": {
+                        "description": "The SKU name for the storage account"
+                      }
+                    },
+                    "accessTier": {
+                      "type": "string",
+                      "defaultValue": "Hot",
+                      "allowedValues": [
+                        "Hot",
+                        "Cool"
+                      ],
+                      "metadata": {
+                        "description": "The access tier for the storage account"
+                      }
+                    },
+                    "allowBlobPublicAccess": {
+                      "type": "bool",
+                      "defaultValue": false,
+                      "metadata": {
+                        "description": "Whether to allow blob public access"
+                      }
+                    },
+                    "allowSharedKeyAccess": {
+                      "type": "bool",
+                      "defaultValue": true,
+                      "metadata": {
+                        "description": "Whether to allow shared key access"
+                      }
+                    },
+                    "publicNetworkAccess": {
+                      "type": "string",
+                      "defaultValue": "Enabled",
+                      "allowedValues": [
+                        "Enabled",
+                        "Disabled"
+                      ],
+                      "metadata": {
+                        "description": "Public network access setting"
+                      }
+                    },
+                    "configureNetworkAcls": {
+                      "type": "bool",
+                      "defaultValue": false,
+                      "metadata": {
+                        "description": "Whether to configure network ACLs"
+                      }
+                    },
+                    "networkAclsBypass": {
+                      "type": "string",
+                      "defaultValue": "AzureServices",
+                      "metadata": {
+                        "description": "Network ACLs bypass setting"
+                      }
+                    },
+                    "networkAclsDefaultAction": {
+                      "type": "string",
+                      "defaultValue": "Allow",
+                      "allowedValues": [
+                        "Allow",
+                        "Deny"
+                      ],
+                      "metadata": {
+                        "description": "Network ACLs default action"
+                      }
+                    },
+                    "configureEncryption": {
+                      "type": "bool",
+                      "defaultValue": false,
+                      "metadata": {
+                        "description": "Whether to explicitly configure encryption (blob and file services)"
+                      }
+                    }
+                  },
+                  "variables": {
+                    "baseProperties": {
+                      "accessTier": "[parameters('accessTier')]",
+                      "minimumTlsVersion": "TLS1_2",
+                      "allowBlobPublicAccess": "[parameters('allowBlobPublicAccess')]",
+                      "supportsHttpsTrafficOnly": true,
+                      "allowSharedKeyAccess": "[parameters('allowSharedKeyAccess')]",
+                      "publicNetworkAccess": "[parameters('publicNetworkAccess')]"
+                    },
+                    "networkAclsConfig": "[if(parameters('configureNetworkAcls'), createObject('networkAcls', createObject('bypass', parameters('networkAclsBypass'), 'defaultAction', parameters('networkAclsDefaultAction'))), createObject())]",
+                    "encryptionConfig": "[if(parameters('configureEncryption'), createObject('encryption', createObject('services', createObject('blob', createObject('enabled', true()), 'file', createObject('enabled', true())), 'keySource', 'Microsoft.Storage')), createObject())]",
+                    "storageProperties": "[union(variables('baseProperties'), variables('networkAclsConfig'), variables('encryptionConfig'))]"
+                  },
+                  "resources": [
+                    {
+                      "type": "Microsoft.Storage/storageAccounts",
+                      "apiVersion": "2023-01-01",
+                      "name": "[toLower(parameters('storageAccountName'))]",
+                      "location": "[parameters('location')]",
+                      "kind": "StorageV2",
+                      "sku": {
+                        "name": "[parameters('skuName')]"
+                      },
+                      "properties": "[variables('storageProperties')]"
+                    }
+                  ],
+                  "outputs": {
+                    "storageAccountId": {
+                      "type": "string",
+                      "value": "[resourceId('Microsoft.Storage/storageAccounts', toLower(parameters('storageAccountName')))]"
+                    },
+                    "storageAccountName": {
+                      "type": "string",
+                      "value": "[toLower(parameters('storageAccountName'))]"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "outputs": {
+            "storageAccountId": {
+              "type": "string",
+              "value": "[reference('hcpBackupsStorageAccount').outputs.storageAccountId.value]"
+            },
+            "storageAccountName": {
+              "type": "string",
+              "value": "[reference('hcpBackupsStorageAccount').outputs.storageAccountName.value]"
+            },
+            "containerName": {
+              "type": "string",
+              "value": "[parameters('containerName')]"
+            }
+          }
+        }
+      }
+    },
+    "nodeSubnetCreation": {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "[format('subnet-{0}-creation', variables('nodeSubnetName'))]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "vnetName": {
+            "value": "[variables('vnetName')]"
+          },
+          "subnetName": {
+            "value": "[variables('nodeSubnetName')]"
+          },
+          "subnetNSGId": {
+            "value": "[resourceId('Microsoft.Network/networkSecurityGroups', 'mgmt-cluster-node-nsg')]"
+          },
+          "subnetPrefix": {
+            "value": "[parameters('subnetPrefix')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.41.2.15936",
+              "templateHash": "770398276163318293"
+            }
+          },
+          "parameters": {
+            "vnetName": {
+              "type": "string",
+              "metadata": {
+                "description": "The VNET that should be tagged"
+              }
+            },
+            "subnetName": {
+              "type": "string",
+              "metadata": {
+                "description": "The name of the subnet"
+              }
+            },
+            "subnetPrefix": {
+              "type": "string",
+              "metadata": {
+                "description": "The prefix for the subnet"
+              }
+            },
+            "subnetNSGId": {
+              "type": "string",
+              "metadata": {
+                "description": "The resource ID of the network security group for the subnet"
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Network/virtualNetworks/subnets",
+              "apiVersion": "2023-11-01",
+              "name": "[format('{0}/{1}', parameters('vnetName'), parameters('subnetName'))]",
+              "properties": {
+                "addressPrefix": "[parameters('subnetPrefix')]",
+                "privateEndpointNetworkPolicies": "Disabled",
+                "serviceEndpoints": [
+                  {
+                    "service": "Microsoft.AzureCosmosDB"
+                  },
+                  {
+                    "service": "Microsoft.ContainerRegistry"
+                  },
+                  {
+                    "service": "Microsoft.Storage"
+                  },
+                  {
+                    "service": "Microsoft.KeyVault"
+                  }
+                ],
+                "defaultOutboundAccess": false,
+                "networkSecurityGroup": {
+                  "id": "[parameters('subnetNSGId')]"
+                }
+              }
+            }
+          ],
+          "outputs": {
+            "subnetId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('vnetName'), parameters('subnetName'))]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "mgmtClusterNSG"
+      ]
+    },
+    "aksClusterOutboundIPAddress": {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "[variables('aksClusterOutboundIPAddressName')]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "name": {
+            "value": "[variables('aksClusterOutboundIPAddressName')]"
+          },
+          "ipTags": {
+            "value": "[parameters('aksClusterOutboundIPAddressIPTags')]"
+          },
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "zones": "[if(greater(length(variables('locationAvailabilityZoneList')), 0), createObject('value', variables('locationAvailabilityZoneList')), createObject('value', null()))]",
+          "roleAssignmentProperties": {
+            "value": {
+              "principalId": "[reference('aksClusterUserDefinedManagedIdentity').principalId]",
+              "principalType": "ServicePrincipal",
+              "roleDefinitionId": "[variables('networkContributorRoleId')]"
+            }
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "languageVersion": "2.0",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.41.2.15936",
+              "templateHash": "1967225328141396004"
+            }
+          },
+          "definitions": {
+            "_1.IPServiceTag": {
+              "type": "object",
+              "properties": {
+                "ipTagType": {
+                  "type": "string"
+                },
+                "tag": {
+                  "type": "string"
+                }
+              },
+              "metadata": {
+                "__bicep_imported_from!": {
+                  "sourceTemplate": "../common.bicep"
+                }
+              }
+            }
+          },
+          "functions": [
+            {
+              "namespace": "__bicep",
+              "members": {
+                "csvToArray": {
+                  "parameters": [
+                    {
+                      "type": "string",
+                      "name": "inputString"
+                    }
+                  ],
+                  "output": {
+                    "type": "array",
+                    "value": "[_1.splitOrEmptyArray(parameters('inputString'), ',')]"
+                  },
+                  "metadata": {
+                    "__bicep_imported_from!": {
+                      "sourceTemplate": "../common.bicep"
+                    }
+                  }
+                },
+                "parseIPServiceTag": {
+                  "parameters": [
+                    {
+                      "type": "string",
+                      "name": "tag"
+                    }
+                  ],
+                  "output": {
+                    "$ref": "#/definitions/_1.IPServiceTag",
+                    "value": {
+                      "ipTagType": "[split(parameters('tag'), ':')[0]]",
+                      "tag": "[split(parameters('tag'), ':')[1]]"
+                    }
+                  },
+                  "metadata": {
+                    "__bicep_imported_from!": {
+                      "sourceTemplate": "../common.bicep"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "namespace": "_1",
+              "members": {
+                "splitOrEmptyArray": {
+                  "parameters": [
+                    {
+                      "type": "string",
+                      "name": "inputString"
+                    },
+                    {
+                      "type": "string",
+                      "name": "delimiter"
+                    }
+                  ],
+                  "output": {
+                    "type": "array",
+                    "value": "[if(or(equals(parameters('inputString'), ''), equals(parameters('inputString'), null())), createArray(), split(parameters('inputString'), parameters('delimiter')))]"
+                  },
+                  "metadata": {
+                    "__bicep_imported_from!": {
+                      "sourceTemplate": "../common.bicep"
+                    }
+                  }
+                }
+              }
+            }
+          ],
+          "parameters": {
+            "name": {
+              "type": "string",
+              "minLength": 5,
+              "maxLength": 80,
+              "metadata": {
+                "description": "Name of the Azure Public IP address"
+              }
+            },
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "Location of the Public IP address"
+              }
+            },
+            "zones": {
+              "type": "array",
+              "defaultValue": [],
+              "metadata": {
+                "description": "List of Availability Zones for the Public IP address"
+              }
+            },
+            "ipTags": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "IPTags for the Public IP address"
+              }
+            },
+            "tags": {
+              "type": "object",
+              "defaultValue": {},
+              "metadata": {
+                "description": "Tags to set on the Public IP address"
+              }
+            },
+            "roleAssignmentProperties": {
+              "type": "object",
+              "defaultValue": {},
+              "metadata": {
+                "description": "The Public IP address's role assignment properties"
+              }
+            }
+          },
+          "variables": {
+            "copy": [
+              {
+                "name": "tagsArray",
+                "count": "[length(__bicep.csvToArray(parameters('ipTags')))]",
+                "input": "[__bicep.parseIPServiceTag(__bicep.csvToArray(parameters('ipTags'))[copyIndex('tagsArray')])]"
+              }
+            ]
+          },
+          "resources": {
+            "publicIPAddress": {
+              "type": "Microsoft.Network/publicIPAddresses",
+              "apiVersion": "2024-05-01",
+              "name": "[parameters('name')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "ipTags": "[variables('tagsArray')]",
+                "publicIPAddressVersion": "IPv4",
+                "publicIPAllocationMethod": "Static"
+              },
+              "sku": {
+                "name": "Standard",
+                "tier": "Regional"
+              },
+              "zones": "[parameters('zones')]"
+            },
+            "roleAssignment": {
+              "condition": "[not(equals(parameters('roleAssignmentProperties'), createObject()))]",
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[resourceId('Microsoft.Network/publicIPAddresses', parameters('name'))]",
+              "name": "[guid(resourceId('Microsoft.Network/publicIPAddresses', parameters('name')), parameters('roleAssignmentProperties').principalId, parameters('roleAssignmentProperties').roleDefinitionId)]",
+              "properties": "[parameters('roleAssignmentProperties')]",
+              "dependsOn": [
+                "publicIPAddress"
+              ]
+            }
+          },
+          "outputs": {
+            "ipAddress": {
+              "type": "string",
+              "value": "[reference('publicIPAddress').ipAddress]"
+            },
+            "resourceId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.Network/publicIPAddresses', parameters('name'))]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "aksClusterUserDefinedManagedIdentity"
+      ]
+    },
+    "aks_keyvault_builder": {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "[parameters('aksKeyVaultName')]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "keyVaultName": {
+            "value": "[parameters('aksKeyVaultName')]"
+          },
+          "private": {
+            "value": false
+          },
+          "enableSoftDelete": {
+            "value": "[parameters('aksEtcdKVEnableSoftDelete')]"
+          },
+          "tagKey": {
+            "value": "[parameters('aksKeyVaultTagName')]"
+          },
+          "tagValue": {
+            "value": "[parameters('aksKeyVaultTagValue')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.41.2.15936",
+              "templateHash": "7588065045881012475"
+            }
+          },
+          "parameters": {
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "Location of the keyvault."
+              }
+            },
+            "keyVaultName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the key vault."
+              }
+            },
+            "enableSoftDelete": {
+              "type": "bool",
+              "metadata": {
+                "description": "Toggle to enable soft delete."
+              }
+            },
+            "private": {
+              "type": "bool",
+              "metadata": {
+                "description": "Toggle to make the keyvault private."
+              }
+            },
+            "enabledForTemplateDeployment": {
+              "type": "bool",
+              "defaultValue": false,
+              "metadata": {
+                "description": "Allow ARM deployments to retrieve secrets from the Key Vault."
+              }
+            },
+            "tagKey": {
+              "type": "string",
+              "metadata": {
+                "description": "Tag key for the keyvault."
+              }
+            },
+            "tagValue": {
+              "type": "string",
+              "metadata": {
+                "description": "Tag value for the keyvault."
+              }
+            },
+            "kvCertOfficerPrincipalId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Principal ID for KV certificate officer"
+              }
+            },
+            "kvCertAccessPrincipalId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Principal ID for EV2 certificate access, i.e. geneva log/action access"
+              }
+            },
+            "kvCertAccessRoleId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Roles used for EV2 KeyVault access, i.e. geneva log/action access"
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.KeyVault/vaults",
+              "apiVersion": "2024-04-01-preview",
+              "name": "[parameters('keyVaultName')]",
+              "location": "[parameters('location')]",
+              "tags": {
+                "resourceGroup": "[resourceGroup().name]",
+                "[format('{0}', parameters('tagKey'))]": "[parameters('tagValue')]"
+              },
+              "properties": {
+                "enableRbacAuthorization": true,
+                "enabledForDeployment": false,
+                "enabledForDiskEncryption": false,
+                "enabledForTemplateDeployment": "[parameters('enabledForTemplateDeployment')]",
+                "enableSoftDelete": "[parameters('enableSoftDelete')]",
+                "publicNetworkAccess": "[if(parameters('private'), 'Disabled', 'Enabled')]",
+                "sku": {
+                  "name": "standard",
+                  "family": "A"
+                },
+                "tenantId": "[subscription().tenantId]"
+              }
+            },
+            {
+              "condition": "[not(equals(parameters('kvCertOfficerPrincipalId'), ''))]",
+              "type": "Microsoft.Resources/deployments",
+              "apiVersion": "2025-04-01",
+              "name": "[guid(parameters('kvCertOfficerPrincipalId'), parameters('keyVaultName'), 'cert-officer')]",
+              "properties": {
+                "expressionEvaluationOptions": {
+                  "scope": "inner"
+                },
+                "mode": "Incremental",
+                "parameters": {
+                  "keyVaultName": {
+                    "value": "[parameters('keyVaultName')]"
+                  },
+                  "roleName": {
+                    "value": "Key Vault Certificates Officer"
+                  },
+                  "managedIdentityPrincipalIds": {
+                    "value": [
+                      "[parameters('kvCertOfficerPrincipalId')]"
+                    ]
+                  }
+                },
+                "template": {
+                  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                  "contentVersion": "1.0.0.0",
+                  "metadata": {
+                    "_generator": {
+                      "name": "bicep",
+                      "version": "0.41.2.15936",
+                      "templateHash": "1532414038243427123"
+                    }
+                  },
+                  "parameters": {
+                    "keyVaultName": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "The name of the keyvault where access is managed"
+                      }
+                    },
+                    "secretName": {
+                      "type": "string",
+                      "defaultValue": "",
+                      "metadata": {
+                        "description": "Optional name of the secret in the keyvault where access is managed. If not provided, access will be granted to all secrets in the keyvault."
+                      }
+                    },
+                    "roleName": {
+                      "type": "string",
+                      "allowedValues": [
+                        "Key Vault Secrets Officer",
+                        "Key Vault Secrets User",
+                        "Key Vault Certificate User",
+                        "Key Vault Certificates Officer",
+                        "Key Vault Crypto Officer",
+                        "Key Vault Reader",
+                        "Azure Service Deploy Release Management Key Vault Secrets User"
+                      ],
+                      "metadata": {
+                        "description": "The name of the role that will be assigned to the managed identity for the secret in KV"
+                      }
+                    },
+                    "managedIdentityPrincipalIds": {
+                      "type": "array",
+                      "metadata": {
+                        "description": "The principal ids of the managed identity that will be assigned access to the secret in KV"
+                      }
+                    },
+                    "kvCertAccessRoleId": {
+                      "type": "string",
+                      "defaultValue": "",
+                      "metadata": {
+                        "description": "Roles used for EV2 KeyVault access, i.e. geneva log access"
+                      }
+                    }
+                  },
+                  "variables": {
+                    "roleResourceIds": {
+                      "Key Vault Secrets User": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', '4633458b-17de-408a-b874-0445c86b69e6')]",
+                      "Key Vault Secrets Officer": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', 'b86a8fe4-44ce-4948-aee5-eccb2c155cd7')]",
+                      "Key Vault Certificate User": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', 'db79e9a7-68ee-4b58-9aeb-b90e7c24fcba')]",
+                      "Key Vault Certificates Officer": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', 'a4417e6f-fecd-4de8-b567-7b0420556985')]",
+                      "Key Vault Crypto Officer": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', '14b46e9e-c2b7-41b4-b07b-48a6ebf60603')]",
+                      "Key Vault Reader": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', '21090545-7ca7-4776-b22c-e363652d74d2')]",
+                      "Azure Service Deploy Release Management Key Vault Secrets User": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', parameters('kvCertAccessRoleId'))]"
+                    }
+                  },
+                  "resources": [
+                    {
+                      "copy": {
+                        "name": "secretAccessPermission",
+                        "count": "[length(parameters('managedIdentityPrincipalIds'))]"
+                      },
+                      "condition": "[not(equals(parameters('secretName'), ''))]",
+                      "type": "Microsoft.Authorization/roleAssignments",
+                      "apiVersion": "2022-04-01",
+                      "scope": "[resourceId('Microsoft.KeyVault/vaults/secrets', parameters('keyVaultName'), parameters('secretName'))]",
+                      "name": "[guid(resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName')), parameters('managedIdentityPrincipalIds')[copyIndex()], parameters('secretName'), variables('roleResourceIds')[parameters('roleName')])]",
+                      "properties": {
+                        "roleDefinitionId": "[variables('roleResourceIds')[parameters('roleName')]]",
+                        "principalId": "[parameters('managedIdentityPrincipalIds')[copyIndex()]]",
+                        "principalType": "ServicePrincipal"
+                      }
+                    },
+                    {
+                      "copy": {
+                        "name": "keyVaultAccessPermission",
+                        "count": "[length(parameters('managedIdentityPrincipalIds'))]"
+                      },
+                      "condition": "[equals(parameters('secretName'), '')]",
+                      "type": "Microsoft.Authorization/roleAssignments",
+                      "apiVersion": "2022-04-01",
+                      "scope": "[resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName'))]",
+                      "name": "[guid(resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName')), parameters('managedIdentityPrincipalIds')[copyIndex()], variables('roleResourceIds')[parameters('roleName')])]",
+                      "properties": {
+                        "roleDefinitionId": "[variables('roleResourceIds')[parameters('roleName')]]",
+                        "principalId": "[parameters('managedIdentityPrincipalIds')[copyIndex()]]",
+                        "principalType": "ServicePrincipal"
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "condition": "[not(equals(parameters('kvCertOfficerPrincipalId'), ''))]",
+              "type": "Microsoft.Resources/deployments",
+              "apiVersion": "2025-04-01",
+              "name": "[guid(parameters('kvCertOfficerPrincipalId'), parameters('keyVaultName'), 'secrets-officer')]",
+              "properties": {
+                "expressionEvaluationOptions": {
+                  "scope": "inner"
+                },
+                "mode": "Incremental",
+                "parameters": {
+                  "keyVaultName": {
+                    "value": "[parameters('keyVaultName')]"
+                  },
+                  "roleName": {
+                    "value": "Key Vault Secrets Officer"
+                  },
+                  "managedIdentityPrincipalIds": {
+                    "value": [
+                      "[parameters('kvCertOfficerPrincipalId')]"
+                    ]
+                  }
+                },
+                "template": {
+                  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                  "contentVersion": "1.0.0.0",
+                  "metadata": {
+                    "_generator": {
+                      "name": "bicep",
+                      "version": "0.41.2.15936",
+                      "templateHash": "1532414038243427123"
+                    }
+                  },
+                  "parameters": {
+                    "keyVaultName": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "The name of the keyvault where access is managed"
+                      }
+                    },
+                    "secretName": {
+                      "type": "string",
+                      "defaultValue": "",
+                      "metadata": {
+                        "description": "Optional name of the secret in the keyvault where access is managed. If not provided, access will be granted to all secrets in the keyvault."
+                      }
+                    },
+                    "roleName": {
+                      "type": "string",
+                      "allowedValues": [
+                        "Key Vault Secrets Officer",
+                        "Key Vault Secrets User",
+                        "Key Vault Certificate User",
+                        "Key Vault Certificates Officer",
+                        "Key Vault Crypto Officer",
+                        "Key Vault Reader",
+                        "Azure Service Deploy Release Management Key Vault Secrets User"
+                      ],
+                      "metadata": {
+                        "description": "The name of the role that will be assigned to the managed identity for the secret in KV"
+                      }
+                    },
+                    "managedIdentityPrincipalIds": {
+                      "type": "array",
+                      "metadata": {
+                        "description": "The principal ids of the managed identity that will be assigned access to the secret in KV"
+                      }
+                    },
+                    "kvCertAccessRoleId": {
+                      "type": "string",
+                      "defaultValue": "",
+                      "metadata": {
+                        "description": "Roles used for EV2 KeyVault access, i.e. geneva log access"
+                      }
+                    }
+                  },
+                  "variables": {
+                    "roleResourceIds": {
+                      "Key Vault Secrets User": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', '4633458b-17de-408a-b874-0445c86b69e6')]",
+                      "Key Vault Secrets Officer": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', 'b86a8fe4-44ce-4948-aee5-eccb2c155cd7')]",
+                      "Key Vault Certificate User": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', 'db79e9a7-68ee-4b58-9aeb-b90e7c24fcba')]",
+                      "Key Vault Certificates Officer": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', 'a4417e6f-fecd-4de8-b567-7b0420556985')]",
+                      "Key Vault Crypto Officer": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', '14b46e9e-c2b7-41b4-b07b-48a6ebf60603')]",
+                      "Key Vault Reader": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', '21090545-7ca7-4776-b22c-e363652d74d2')]",
+                      "Azure Service Deploy Release Management Key Vault Secrets User": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', parameters('kvCertAccessRoleId'))]"
+                    }
+                  },
+                  "resources": [
+                    {
+                      "copy": {
+                        "name": "secretAccessPermission",
+                        "count": "[length(parameters('managedIdentityPrincipalIds'))]"
+                      },
+                      "condition": "[not(equals(parameters('secretName'), ''))]",
+                      "type": "Microsoft.Authorization/roleAssignments",
+                      "apiVersion": "2022-04-01",
+                      "scope": "[resourceId('Microsoft.KeyVault/vaults/secrets', parameters('keyVaultName'), parameters('secretName'))]",
+                      "name": "[guid(resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName')), parameters('managedIdentityPrincipalIds')[copyIndex()], parameters('secretName'), variables('roleResourceIds')[parameters('roleName')])]",
+                      "properties": {
+                        "roleDefinitionId": "[variables('roleResourceIds')[parameters('roleName')]]",
+                        "principalId": "[parameters('managedIdentityPrincipalIds')[copyIndex()]]",
+                        "principalType": "ServicePrincipal"
+                      }
+                    },
+                    {
+                      "copy": {
+                        "name": "keyVaultAccessPermission",
+                        "count": "[length(parameters('managedIdentityPrincipalIds'))]"
+                      },
+                      "condition": "[equals(parameters('secretName'), '')]",
+                      "type": "Microsoft.Authorization/roleAssignments",
+                      "apiVersion": "2022-04-01",
+                      "scope": "[resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName'))]",
+                      "name": "[guid(resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName')), parameters('managedIdentityPrincipalIds')[copyIndex()], variables('roleResourceIds')[parameters('roleName')])]",
+                      "properties": {
+                        "roleDefinitionId": "[variables('roleResourceIds')[parameters('roleName')]]",
+                        "principalId": "[parameters('managedIdentityPrincipalIds')[copyIndex()]]",
+                        "principalType": "ServicePrincipal"
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "condition": "[and(not(equals(parameters('kvCertAccessPrincipalId'), '')), not(equals(parameters('kvCertAccessRoleId'), '')))]",
+              "type": "Microsoft.Resources/deployments",
+              "apiVersion": "2025-04-01",
+              "name": "[guid(parameters('kvCertOfficerPrincipalId'), parameters('keyVaultName'), 'certificate-access')]",
+              "properties": {
+                "expressionEvaluationOptions": {
+                  "scope": "inner"
+                },
+                "mode": "Incremental",
+                "parameters": {
+                  "keyVaultName": {
+                    "value": "[parameters('keyVaultName')]"
+                  },
+                  "roleName": {
+                    "value": "Azure Service Deploy Release Management Key Vault Secrets User"
+                  },
+                  "managedIdentityPrincipalIds": {
+                    "value": [
+                      "[parameters('kvCertAccessPrincipalId')]"
+                    ]
+                  },
+                  "kvCertAccessRoleId": {
+                    "value": "[parameters('kvCertAccessRoleId')]"
+                  }
+                },
+                "template": {
+                  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                  "contentVersion": "1.0.0.0",
+                  "metadata": {
+                    "_generator": {
+                      "name": "bicep",
+                      "version": "0.41.2.15936",
+                      "templateHash": "1532414038243427123"
+                    }
+                  },
+                  "parameters": {
+                    "keyVaultName": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "The name of the keyvault where access is managed"
+                      }
+                    },
+                    "secretName": {
+                      "type": "string",
+                      "defaultValue": "",
+                      "metadata": {
+                        "description": "Optional name of the secret in the keyvault where access is managed. If not provided, access will be granted to all secrets in the keyvault."
+                      }
+                    },
+                    "roleName": {
+                      "type": "string",
+                      "allowedValues": [
+                        "Key Vault Secrets Officer",
+                        "Key Vault Secrets User",
+                        "Key Vault Certificate User",
+                        "Key Vault Certificates Officer",
+                        "Key Vault Crypto Officer",
+                        "Key Vault Reader",
+                        "Azure Service Deploy Release Management Key Vault Secrets User"
+                      ],
+                      "metadata": {
+                        "description": "The name of the role that will be assigned to the managed identity for the secret in KV"
+                      }
+                    },
+                    "managedIdentityPrincipalIds": {
+                      "type": "array",
+                      "metadata": {
+                        "description": "The principal ids of the managed identity that will be assigned access to the secret in KV"
+                      }
+                    },
+                    "kvCertAccessRoleId": {
+                      "type": "string",
+                      "defaultValue": "",
+                      "metadata": {
+                        "description": "Roles used for EV2 KeyVault access, i.e. geneva log access"
+                      }
+                    }
+                  },
+                  "variables": {
+                    "roleResourceIds": {
+                      "Key Vault Secrets User": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', '4633458b-17de-408a-b874-0445c86b69e6')]",
+                      "Key Vault Secrets Officer": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', 'b86a8fe4-44ce-4948-aee5-eccb2c155cd7')]",
+                      "Key Vault Certificate User": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', 'db79e9a7-68ee-4b58-9aeb-b90e7c24fcba')]",
+                      "Key Vault Certificates Officer": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', 'a4417e6f-fecd-4de8-b567-7b0420556985')]",
+                      "Key Vault Crypto Officer": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', '14b46e9e-c2b7-41b4-b07b-48a6ebf60603')]",
+                      "Key Vault Reader": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', '21090545-7ca7-4776-b22c-e363652d74d2')]",
+                      "Azure Service Deploy Release Management Key Vault Secrets User": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', parameters('kvCertAccessRoleId'))]"
+                    }
+                  },
+                  "resources": [
+                    {
+                      "copy": {
+                        "name": "secretAccessPermission",
+                        "count": "[length(parameters('managedIdentityPrincipalIds'))]"
+                      },
+                      "condition": "[not(equals(parameters('secretName'), ''))]",
+                      "type": "Microsoft.Authorization/roleAssignments",
+                      "apiVersion": "2022-04-01",
+                      "scope": "[resourceId('Microsoft.KeyVault/vaults/secrets', parameters('keyVaultName'), parameters('secretName'))]",
+                      "name": "[guid(resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName')), parameters('managedIdentityPrincipalIds')[copyIndex()], parameters('secretName'), variables('roleResourceIds')[parameters('roleName')])]",
+                      "properties": {
+                        "roleDefinitionId": "[variables('roleResourceIds')[parameters('roleName')]]",
+                        "principalId": "[parameters('managedIdentityPrincipalIds')[copyIndex()]]",
+                        "principalType": "ServicePrincipal"
+                      }
+                    },
+                    {
+                      "copy": {
+                        "name": "keyVaultAccessPermission",
+                        "count": "[length(parameters('managedIdentityPrincipalIds'))]"
+                      },
+                      "condition": "[equals(parameters('secretName'), '')]",
+                      "type": "Microsoft.Authorization/roleAssignments",
+                      "apiVersion": "2022-04-01",
+                      "scope": "[resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName'))]",
+                      "name": "[guid(resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName')), parameters('managedIdentityPrincipalIds')[copyIndex()], variables('roleResourceIds')[parameters('roleName')])]",
+                      "properties": {
+                        "roleDefinitionId": "[variables('roleResourceIds')[parameters('roleName')]]",
+                        "principalId": "[parameters('managedIdentityPrincipalIds')[copyIndex()]]",
+                        "principalType": "ServicePrincipal"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          ],
+          "outputs": {
+            "kvId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName'))]"
+            },
+            "kvName": {
+              "type": "string",
+              "value": "[parameters('keyVaultName')]"
+            },
+            "kvUrl": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName')), '2024-04-01-preview').vaultUri]"
+            }
+          }
+        }
+      }
+    }
+  },
+  "outputs": {
+    "cxKeyVaultUrl": {
+      "type": "string",
+      "value": "[reference('cxKeyVault').outputs.kvUrl.value]"
+    },
+    "msiKeyVaultUrl": {
+      "type": "string",
+      "value": "[reference('msiKeyVault').outputs.kvUrl.value]"
+    },
+    "mgmtKeyVaultUrl": {
+      "type": "string",
+      "value": "[reference('mgmtKeyVault').outputs.kvUrl.value]"
+    },
+    "hcpBackupsStorageAccountId": {
+      "type": "string",
+      "value": "[reference('hcpBackupsStorage').outputs.storageAccountId.value]"
+    },
+    "nodeSubnetId": {
+      "type": "string",
+      "value": "[reference('nodeSubnetCreation').outputs.subnetId.value]"
+    },
+    "podSubnetId": {
+      "type": "string",
+      "value": "[resourceId('Microsoft.Network/virtualNetworks/subnets', variables('vnetName'), 'PodSubnet-001')]"
+    },
+    "outboundIPResourceId": {
+      "type": "string",
+      "value": "[reference('aksClusterOutboundIPAddress').outputs.resourceId.value]"
+    },
+    "etcdKeyUriWithVersion": {
+      "type": "string",
+      "value": "[reference('aks_etcd_kms').keyUriWithVersion]"
+    },
+    "managedIdentityId": {
+      "type": "string",
+      "value": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-msi', parameters('aksClusterName')))]"
+    },
+    "vnetId": {
+      "type": "string",
+      "value": "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]"
+    }
+  }
+}

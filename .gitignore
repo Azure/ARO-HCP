@@ -1,6 +1,7 @@
 **/*.swp
 aro-hcp-frontend
 aro-hcp-backend
+/aks-cluster-create
 localsecrets
 secrets
 node_modules

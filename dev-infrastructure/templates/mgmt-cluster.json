@@ -1,0 +1,3972 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "languageVersion": "2.0",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.41.2.15936",
+      "templateHash": "12262607774148916099"
+    }
+  },
+  "definitions": {
+    "_1.acrRef": {
+      "type": "object",
+      "properties": {
+        "resourceGroup": {
+          "$ref": "#/definitions/_1.resourceGroupReference"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "metadata": {
+        "__bicep_imported_from!": {
+          "sourceTemplate": "../modules/resource.bicep"
+        }
+      }
+    },
+    "_1.cosmosDBAccountRef": {
+      "type": "object",
+      "properties": {
+        "resourceGroup": {
+          "$ref": "#/definitions/_1.resourceGroupReference"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "metadata": {
+        "__bicep_imported_from!": {
+          "sourceTemplate": "../modules/resource.bicep"
+        }
+      }
+    },
+    "_1.dnsRecordRef": {
+      "type": "object",
+      "properties": {
+        "recordName": {
+          "type": "string"
+        },
+        "zoneName": {
+          "type": "string"
+        }
+      },
+      "metadata": {
+        "__bicep_imported_from!": {
+          "sourceTemplate": "../modules/resource.bicep"
+        }
+      }
+    },
+    "_1.dnsZoneRef": {
+      "type": "object",
+      "properties": {
+        "resourceGroup": {
+          "$ref": "#/definitions/_1.resourceGroupReference"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "metadata": {
+        "__bicep_imported_from!": {
+          "sourceTemplate": "../modules/resource.bicep"
+        }
+      }
+    },
+    "_1.eventgridNamespaceRef": {
+      "type": "object",
+      "properties": {
+        "resourceGroup": {
+          "$ref": "#/definitions/_1.resourceGroupReference"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "metadata": {
+        "__bicep_imported_from!": {
+          "sourceTemplate": "../modules/resource.bicep"
+        }
+      }
+    },
+    "_1.frontdoorProfileRef": {
+      "type": "object",
+      "properties": {
+        "resourceGroup": {
+          "$ref": "#/definitions/_1.resourceGroupReference"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "metadata": {
+        "__bicep_imported_from!": {
+          "sourceTemplate": "../modules/resource.bicep"
+        }
+      }
+    },
+    "_1.grafanaRef": {
+      "type": "object",
+      "properties": {
+        "resourceGroup": {
+          "$ref": "#/definitions/_1.resourceGroupReference"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "metadata": {
+        "__bicep_imported_from!": {
+          "sourceTemplate": "../modules/resource.bicep"
+        }
+      }
+    },
+    "_1.kustoRef": {
+      "type": "object",
+      "properties": {
+        "resourceGroup": {
+          "$ref": "#/definitions/_1.resourceGroupReference"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "metadata": {
+        "__bicep_imported_from!": {
+          "sourceTemplate": "../modules/resource.bicep"
+        }
+      }
+    },
+    "_1.monitoringWorkspaceRef": {
+      "type": "object",
+      "properties": {
+        "resourceGroup": {
+          "$ref": "#/definitions/_1.resourceGroupReference"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "metadata": {
+        "__bicep_imported_from!": {
+          "sourceTemplate": "../modules/resource.bicep"
+        }
+      }
+    },
+    "_1.msiRef": {
+      "type": "object",
+      "properties": {
+        "resourceGroup": {
+          "$ref": "#/definitions/_1.resourceGroupReference"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "metadata": {
+        "__bicep_imported_from!": {
+          "sourceTemplate": "../modules/resource.bicep"
+        }
+      }
+    },
+    "_1.resourceGroupReference": {
+      "type": "object",
+      "properties": {
+        "subscriptionId": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "metadata": {
+        "__bicep_imported_from!": {
+          "sourceTemplate": "../modules/resource.bicep"
+        }
+      }
+    }
+  },
+  "functions": [
+    {
+      "namespace": "_1",
+      "members": {
+        "acrRefFromId": {
+          "parameters": [
+            {
+              "type": "string",
+              "name": "acrResourceId"
+            }
+          ],
+          "output": {
+            "$ref": "#/definitions/_1.acrRef",
+            "value": {
+              "resourceGroup": "[_1.resourceGroupFromResourceId(parameters('acrResourceId'))]",
+              "name": "[last(split(parameters('acrResourceId'), '/'))]"
+            }
+          },
+          "metadata": {
+            "__bicep_imported_from!": {
+              "sourceTemplate": "../modules/resource.bicep"
+            }
+          }
+        },
+        "cosmosDBAccountRefFromId": {
+          "parameters": [
+            {
+              "type": "string",
+              "name": "cosmosDBAccountResourceId"
+            }
+          ],
+          "output": {
+            "$ref": "#/definitions/_1.cosmosDBAccountRef",
+            "value": {
+              "resourceGroup": "[_1.resourceGroupFromResourceId(parameters('cosmosDBAccountResourceId'))]",
+              "name": "[last(split(parameters('cosmosDBAccountResourceId'), '/'))]"
+            }
+          },
+          "metadata": {
+            "__bicep_imported_from!": {
+              "sourceTemplate": "../modules/resource.bicep"
+            }
+          }
+        },
+        "dnsRecordRefFromFqdn": {
+          "parameters": [
+            {
+              "type": "string",
+              "name": "fqdn"
+            }
+          ],
+          "output": {
+            "$ref": "#/definitions/_1.dnsRecordRef",
+            "value": {
+              "recordName": "[split(parameters('fqdn'), '.')[0]]",
+              "zoneName": "[join(skip(split(parameters('fqdn'), '.'), 1), '.')]"
+            }
+          },
+          "metadata": {
+            "__bicep_imported_from!": {
+              "sourceTemplate": "../modules/resource.bicep"
+            }
+          }
+        },
+        "dnsZoneRefFromId": {
+          "parameters": [
+            {
+              "type": "string",
+              "name": "dnsZoneResourceId"
+            }
+          ],
+          "output": {
+            "$ref": "#/definitions/_1.dnsZoneRef",
+            "value": {
+              "resourceGroup": "[_1.resourceGroupFromResourceId(parameters('dnsZoneResourceId'))]",
+              "name": "[last(split(parameters('dnsZoneResourceId'), '/'))]"
+            }
+          },
+          "metadata": {
+            "__bicep_imported_from!": {
+              "sourceTemplate": "../modules/resource.bicep"
+            }
+          }
+        },
+        "eventgridNamespaceRefFromId": {
+          "parameters": [
+            {
+              "type": "string",
+              "name": "eventgridNamespaceResourceId"
+            }
+          ],
+          "output": {
+            "$ref": "#/definitions/_1.eventgridNamespaceRef",
+            "value": {
+              "resourceGroup": "[_1.resourceGroupFromResourceId(parameters('eventgridNamespaceResourceId'))]",
+              "name": "[last(split(parameters('eventgridNamespaceResourceId'), '/'))]"
+            }
+          },
+          "metadata": {
+            "__bicep_imported_from!": {
+              "sourceTemplate": "../modules/resource.bicep"
+            }
+          }
+        },
+        "frontdoorProfileRefFromId": {
+          "parameters": [
+            {
+              "type": "string",
+              "name": "frontdoorProfileResourceId"
+            }
+          ],
+          "output": {
+            "$ref": "#/definitions/_1.frontdoorProfileRef",
+            "value": {
+              "resourceGroup": "[_1.resourceGroupFromResourceId(parameters('frontdoorProfileResourceId'))]",
+              "name": "[last(split(parameters('frontdoorProfileResourceId'), '/'))]"
+            }
+          },
+          "metadata": {
+            "__bicep_imported_from!": {
+              "sourceTemplate": "../modules/resource.bicep"
+            }
+          }
+        },
+        "grafanaRefFromId": {
+          "parameters": [
+            {
+              "type": "string",
+              "name": "grafanaResourceId"
+            }
+          ],
+          "output": {
+            "$ref": "#/definitions/_1.grafanaRef",
+            "value": {
+              "resourceGroup": "[_1.resourceGroupFromResourceId(parameters('grafanaResourceId'))]",
+              "name": "[last(split(parameters('grafanaResourceId'), '/'))]"
+            }
+          },
+          "metadata": {
+            "__bicep_imported_from!": {
+              "sourceTemplate": "../modules/resource.bicep"
+            }
+          }
+        },
+        "isMsiResourceId": {
+          "parameters": [
+            {
+              "type": "string",
+              "name": "resourceId"
+            }
+          ],
+          "output": {
+            "type": "bool",
+            "value": "[contains(parameters('resourceId'), '/providers/Microsoft.ManagedIdentity/userAssignedIdentities/')]"
+          },
+          "metadata": {
+            "__bicep_imported_from!": {
+              "sourceTemplate": "../modules/resource.bicep"
+            }
+          }
+        },
+        "kustoRefFromId": {
+          "parameters": [
+            {
+              "type": "string",
+              "name": "kustoResourceId"
+            }
+          ],
+          "output": {
+            "$ref": "#/definitions/_1.kustoRef",
+            "value": {
+              "resourceGroup": "[_1.resourceGroupFromResourceId(parameters('kustoResourceId'))]",
+              "name": "[if(not(equals(parameters('kustoResourceId'), '')), last(split(parameters('kustoResourceId'), '/')), '')]"
+            }
+          },
+          "metadata": {
+            "__bicep_imported_from!": {
+              "sourceTemplate": "../modules/resource.bicep"
+            }
+          }
+        },
+        "monitoringWorkspaceRefFromId": {
+          "parameters": [
+            {
+              "type": "string",
+              "name": "monitoringWorkspaceResourceId"
+            }
+          ],
+          "output": {
+            "$ref": "#/definitions/_1.monitoringWorkspaceRef",
+            "value": {
+              "resourceGroup": "[_1.resourceGroupFromResourceId(parameters('monitoringWorkspaceResourceId'))]",
+              "name": "[last(split(parameters('monitoringWorkspaceResourceId'), '/'))]"
+            }
+          },
+          "metadata": {
+            "__bicep_imported_from!": {
+              "sourceTemplate": "../modules/resource.bicep"
+            }
+          }
+        },
+        "msiRefFromId": {
+          "parameters": [
+            {
+              "type": "string",
+              "name": "msiResourceId"
+            }
+          ],
+          "output": {
+            "$ref": "#/definitions/_1.msiRef",
+            "value": {
+              "resourceGroup": "[_1.resourceGroupFromResourceId(parameters('msiResourceId'))]",
+              "name": "[last(split(parameters('msiResourceId'), '/'))]"
+            }
+          },
+          "metadata": {
+            "__bicep_imported_from!": {
+              "sourceTemplate": "../modules/resource.bicep"
+            }
+          }
+        },
+        "resourceGroupFromResourceId": {
+          "parameters": [
+            {
+              "type": "string",
+              "name": "resourceId"
+            }
+          ],
+          "output": {
+            "$ref": "#/definitions/_1.resourceGroupReference",
+            "value": {
+              "subscriptionId": "[if(not(equals(parameters('resourceId'), '')), split(parameters('resourceId'), '/')[2], '')]",
+              "name": "[if(not(equals(parameters('resourceId'), '')), split(parameters('resourceId'), '/')[4], '')]"
+            }
+          },
+          "metadata": {
+            "__bicep_imported_from!": {
+              "sourceTemplate": "../modules/resource.bicep"
+            }
+          }
+        }
+      }
+    }
+  ],
+  "parameters": {
+    "location": {
+      "type": "string",
+      "defaultValue": "[resourceGroup().location]",
+      "metadata": {
+        "description": "Azure Region Location"
+      }
+    },
+    "aksClusterName": {
+      "type": "string",
+      "defaultValue": "aro-hcp-aks",
+      "metadata": {
+        "description": "AKS cluster name"
+      }
+    },
+    "nodeSubnetId": {
+      "type": "string",
+      "metadata": {
+        "description": "Resource ID of the node subnet, from mgmt-infra.bicep"
+      }
+    },
+    "vnetId": {
+      "type": "string",
+      "metadata": {
+        "description": "Resource ID of the VNet, from mgmt-infra.bicep"
+      }
+    },
+    "ocpAcrResourceId": {
+      "type": "string",
+      "metadata": {
+        "description": "The resource ID of the OCP ACR"
+      }
+    },
+    "svcAcrResourceId": {
+      "type": "string",
+      "metadata": {
+        "description": "The resource ID of the SVC ACR"
+      }
+    },
+    "maestroConsumerName": {
+      "type": "string",
+      "metadata": {
+        "description": "The name of the maestro consumer."
+      }
+    },
+    "maestroConsumerCertSAN": {
+      "type": "string",
+      "metadata": {
+        "description": "The SAN and CN for the Maestro consumer EventGrid certificate."
+      }
+    },
+    "maestroCertIssuer": {
+      "type": "string",
+      "metadata": {
+        "description": "The issuer of the Maestro certificate."
+      }
+    },
+    "maestroEventGridNamespaceId": {
+      "type": "string",
+      "metadata": {
+        "description": "The Azure resource ID of the eventgrid namespace for Maestro."
+      }
+    },
+    "maestroConsumerMIName": {
+      "type": "string",
+      "metadata": {
+        "description": "The name of the maestro consumer."
+      }
+    },
+    "maestroConsumerNamespace": {
+      "type": "string",
+      "metadata": {
+        "description": "The namespace of the maestro consumer."
+      }
+    },
+    "maestroConsumerServiceAccountName": {
+      "type": "string",
+      "metadata": {
+        "description": "The service account name of the maestro consumer."
+      }
+    },
+    "rpCosmosDbAccountId": {
+      "type": "string",
+      "metadata": {
+        "description": "The resource ID of the Cosmos DB account for the RP"
+      }
+    },
+    "rpCosmosDbPrivate": {
+      "type": "bool",
+      "metadata": {
+        "description": "If true, make the Cosmos DB instance private"
+      }
+    },
+    "kubeApplierMIName": {
+      "type": "string",
+      "metadata": {
+        "description": "The name of the kube-applier managed identity."
+      }
+    },
+    "kubeApplierNamespace": {
+      "type": "string",
+      "metadata": {
+        "description": "The namespace for kube-applier."
+      }
+    },
+    "kubeApplierServiceAccountName": {
+      "type": "string",
+      "metadata": {
+        "description": "The service account name for kube-applier."
+      }
+    },
+    "kubeApplierContainerName": {
+      "type": "string",
+      "metadata": {
+        "description": "The CosmosDB container name for kube-applier."
+      }
+    },
+    "kubeApplierContainerMaxScale": {
+      "type": "int",
+      "metadata": {
+        "description": "The autoscale max throughput for the kube-applier CosmosDB container."
+      }
+    },
+    "mgmtAgentMIName": {
+      "type": "string",
+      "metadata": {
+        "description": "The name of the mgmt-agent managed identity."
+      }
+    },
+    "mgmtAgentNamespace": {
+      "type": "string",
+      "metadata": {
+        "description": "The namespace of the mgmt-agent controller."
+      }
+    },
+    "mgmtAgentServiceAccountName": {
+      "type": "string",
+      "metadata": {
+        "description": "The service account name of the mgmt-agent controller."
+      }
+    },
+    "cxKeyVaultName": {
+      "type": "string",
+      "metadata": {
+        "description": "The name of the CX KeyVault"
+      }
+    },
+    "msiKeyVaultName": {
+      "type": "string",
+      "metadata": {
+        "description": "The name of the MSI KeyVault"
+      }
+    },
+    "mgmtKeyVaultName": {
+      "type": "string",
+      "metadata": {
+        "description": "The name of the MGMT KeyVault"
+      }
+    },
+    "globalMSIId": {
+      "type": "string",
+      "metadata": {
+        "description": "MSI that will be used to run deploymentScripts"
+      }
+    },
+    "azureMonitoringWorkspaceId": {
+      "type": "string",
+      "metadata": {
+        "description": "The Azure resource ID of the Azure Monitor Workspace (stores prometheus metrics for services/aks level metrics)"
+      }
+    },
+    "hcpAzureMonitoringWorkspaceId": {
+      "type": "string",
+      "metadata": {
+        "description": "The Azure resource ID of the Azure Monitor Workspace (stores prometheus metrics for hosted control planes)"
+      }
+    },
+    "logsNamespace": {
+      "type": "string",
+      "metadata": {
+        "description": "The namespace of the logs"
+      }
+    },
+    "logsMSI": {
+      "type": "string",
+      "metadata": {
+        "description": "The managed identity name of the logs"
+      }
+    },
+    "logsServiceAccount": {
+      "type": "string",
+      "metadata": {
+        "description": "The service account name of the logs managed identity"
+      }
+    },
+    "genevaRpLogsName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of certificate in Keyvault and hostname used in SAN"
+      }
+    },
+    "genevaClusterLogsName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of certificate in Keyvault and hostname used in SAN"
+      }
+    },
+    "hcpBackupsStorageAccountName": {
+      "type": "string",
+      "metadata": {
+        "description": "The name of the Azure Storage account to create for HCP Backups"
+      }
+    },
+    "auditLogsEventHubName": {
+      "type": "string",
+      "metadata": {
+        "description": "Event Hub name for AKS audit logs"
+      }
+    },
+    "auditLogsEventHubAuthRuleId": {
+      "type": "string",
+      "metadata": {
+        "description": "Resource ID of the event hub authorization rule for AKS audit logs"
+      }
+    }
+  },
+  "variables": {
+    "workloadIdentities": "[items(createObject('maestro_wi', createObject('uamiName', parameters('maestroConsumerMIName'), 'namespace', parameters('maestroConsumerNamespace'), 'serviceAccountName', parameters('maestroConsumerServiceAccountName')), 'mgmt_agent_wi', createObject('uamiName', parameters('mgmtAgentMIName'), 'namespace', parameters('mgmtAgentNamespace'), 'serviceAccountName', parameters('mgmtAgentServiceAccountName')), 'logs_wi', createObject('uamiName', parameters('logsMSI'), 'namespace', parameters('logsNamespace'), 'serviceAccountName', parameters('logsServiceAccount')), 'prom_wi', createObject('uamiName', 'prometheus', 'namespace', 'prometheus', 'serviceAccountName', 'prometheus'), 'velero_wi', createObject('uamiName', 'velero', 'namespace', 'velero', 'serviceAccountName', 'velero'), 'kube_applier_wi', createObject('uamiName', parameters('kubeApplierMIName'), 'namespace', parameters('kubeApplierNamespace'), 'serviceAccountName', parameters('kubeApplierServiceAccountName'))))]",
+    "rpCosmosDbAccountRef": "[_1.cosmosDBAccountRefFromId(parameters('rpCosmosDbAccountId'))]"
+  },
+  "resources": {
+    "aksCluster": {
+      "existing": true,
+      "type": "Microsoft.ContainerService/managedClusters",
+      "apiVersion": "2026-04-02-preview",
+      "name": "[parameters('aksClusterName')]"
+    },
+    "prometheusUAMI": {
+      "existing": true,
+      "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+      "apiVersion": "2023-01-31",
+      "name": "prometheus",
+      "dependsOn": [
+        "managedIdentities"
+      ]
+    },
+    "logsUAMI": {
+      "existing": true,
+      "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+      "apiVersion": "2023-01-31",
+      "name": "[parameters('logsMSI')]",
+      "dependsOn": [
+        "managedIdentities"
+      ]
+    },
+    "mgmtKeyVault": {
+      "existing": true,
+      "type": "Microsoft.KeyVault/vaults",
+      "apiVersion": "2024-04-01-preview",
+      "name": "[parameters('mgmtKeyVaultName')]"
+    },
+    "maestroConsumerUAMI": {
+      "existing": true,
+      "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+      "apiVersion": "2023-01-31",
+      "name": "maestro-consumer",
+      "dependsOn": [
+        "managedIdentities"
+      ]
+    },
+    "kubeApplierUAMI": {
+      "existing": true,
+      "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+      "apiVersion": "2023-01-31",
+      "name": "[parameters('kubeApplierMIName')]",
+      "dependsOn": [
+        "managedIdentities"
+      ]
+    },
+    "veleroUAMI": {
+      "existing": true,
+      "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+      "apiVersion": "2023-01-31",
+      "name": "velero",
+      "dependsOn": [
+        "managedIdentities"
+      ]
+    },
+    "managedIdentities": {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "managed-identities",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "manageIdentityNames": {
+            "copy": [
+              {
+                "name": "value",
+                "count": "[length(variables('workloadIdentities'))]",
+                "input": "[variables('workloadIdentities')[copyIndex('value')].value.uamiName]"
+              }
+            ]
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "languageVersion": "2.0",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.41.2.15936",
+              "templateHash": "3615559986586497178"
+            }
+          },
+          "definitions": {
+            "managedIdentity": {
+              "type": "object",
+              "properties": {
+                "uamiID": {
+                  "type": "string"
+                },
+                "uamiName": {
+                  "type": "string"
+                },
+                "uamiClientID": {
+                  "type": "string"
+                },
+                "uamiPrincipalID": {
+                  "type": "string"
+                }
+              },
+              "metadata": {
+                "__bicep_export!": true
+              }
+            }
+          },
+          "functions": [
+            {
+              "namespace": "__bicep",
+              "members": {
+                "getManagedIdentityByName": {
+                  "parameters": [
+                    {
+                      "type": "array",
+                      "name": "managedIdentities"
+                    },
+                    {
+                      "type": "string",
+                      "name": "identityName"
+                    }
+                  ],
+                  "output": {
+                    "$ref": "#/definitions/managedIdentity",
+                    "value": "[filter(parameters('managedIdentities'), lambda('id', equals(lambdaVariables('id').uamiName, parameters('identityName'))))[0]]"
+                  },
+                  "metadata": {
+                    "__bicep_export!": true
+                  }
+                }
+              }
+            }
+          ],
+          "parameters": {
+            "location": {
+              "type": "string"
+            },
+            "manageIdentityNames": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "resources": {
+            "uami": {
+              "copy": {
+                "name": "uami",
+                "count": "[length(parameters('manageIdentityNames'))]"
+              },
+              "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+              "apiVersion": "2023-01-31",
+              "name": "[parameters('manageIdentityNames')[copyIndex()]]",
+              "location": "[parameters('location')]"
+            }
+          },
+          "outputs": {
+            "managedIdentities": {
+              "type": "array",
+              "copy": {
+                "count": "[length(range(0, length(parameters('manageIdentityNames'))))]",
+                "input": {
+                  "uamiID": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('manageIdentityNames')[range(0, length(parameters('manageIdentityNames')))[copyIndex()]])]",
+                  "uamiName": "[parameters('manageIdentityNames')[range(0, length(parameters('manageIdentityNames')))[copyIndex()]]]",
+                  "uamiClientID": "[reference(format('uami[{0}]', range(0, length(parameters('manageIdentityNames')))[copyIndex()])).clientId]",
+                  "uamiPrincipalID": "[reference(format('uami[{0}]', range(0, length(parameters('manageIdentityNames')))[copyIndex()])).principalId]"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "aksPostConfig": {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "aks-cluster-post",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "aksClusterName": {
+            "value": "[parameters('aksClusterName')]"
+          },
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "deploymentMsiId": {
+            "value": "[parameters('globalMSIId')]"
+          },
+          "pullAcrResourceIds": {
+            "value": [
+              "[parameters('ocpAcrResourceId')]",
+              "[parameters('svcAcrResourceId')]"
+            ]
+          },
+          "workloadIdentities": {
+            "value": "[variables('workloadIdentities')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "languageVersion": "2.0",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.41.2.15936",
+              "templateHash": "10145296187857508380"
+            }
+          },
+          "definitions": {
+            "_1.acrRef": {
+              "type": "object",
+              "properties": {
+                "resourceGroup": {
+                  "$ref": "#/definitions/_1.resourceGroupReference"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "metadata": {
+                "__bicep_imported_from!": {
+                  "sourceTemplate": "resource.bicep"
+                }
+              }
+            },
+            "_1.cosmosDBAccountRef": {
+              "type": "object",
+              "properties": {
+                "resourceGroup": {
+                  "$ref": "#/definitions/_1.resourceGroupReference"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "metadata": {
+                "__bicep_imported_from!": {
+                  "sourceTemplate": "resource.bicep"
+                }
+              }
+            },
+            "_1.dnsRecordRef": {
+              "type": "object",
+              "properties": {
+                "recordName": {
+                  "type": "string"
+                },
+                "zoneName": {
+                  "type": "string"
+                }
+              },
+              "metadata": {
+                "__bicep_imported_from!": {
+                  "sourceTemplate": "resource.bicep"
+                }
+              }
+            },
+            "_1.dnsZoneRef": {
+              "type": "object",
+              "properties": {
+                "resourceGroup": {
+                  "$ref": "#/definitions/_1.resourceGroupReference"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "metadata": {
+                "__bicep_imported_from!": {
+                  "sourceTemplate": "resource.bicep"
+                }
+              }
+            },
+            "_1.eventgridNamespaceRef": {
+              "type": "object",
+              "properties": {
+                "resourceGroup": {
+                  "$ref": "#/definitions/_1.resourceGroupReference"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "metadata": {
+                "__bicep_imported_from!": {
+                  "sourceTemplate": "resource.bicep"
+                }
+              }
+            },
+            "_1.frontdoorProfileRef": {
+              "type": "object",
+              "properties": {
+                "resourceGroup": {
+                  "$ref": "#/definitions/_1.resourceGroupReference"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "metadata": {
+                "__bicep_imported_from!": {
+                  "sourceTemplate": "resource.bicep"
+                }
+              }
+            },
+            "_1.grafanaRef": {
+              "type": "object",
+              "properties": {
+                "resourceGroup": {
+                  "$ref": "#/definitions/_1.resourceGroupReference"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "metadata": {
+                "__bicep_imported_from!": {
+                  "sourceTemplate": "resource.bicep"
+                }
+              }
+            },
+            "_1.kustoRef": {
+              "type": "object",
+              "properties": {
+                "resourceGroup": {
+                  "$ref": "#/definitions/_1.resourceGroupReference"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "metadata": {
+                "__bicep_imported_from!": {
+                  "sourceTemplate": "resource.bicep"
+                }
+              }
+            },
+            "_1.monitoringWorkspaceRef": {
+              "type": "object",
+              "properties": {
+                "resourceGroup": {
+                  "$ref": "#/definitions/_1.resourceGroupReference"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "metadata": {
+                "__bicep_imported_from!": {
+                  "sourceTemplate": "resource.bicep"
+                }
+              }
+            },
+            "_1.msiRef": {
+              "type": "object",
+              "properties": {
+                "resourceGroup": {
+                  "$ref": "#/definitions/_1.resourceGroupReference"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "metadata": {
+                "__bicep_imported_from!": {
+                  "sourceTemplate": "resource.bicep"
+                }
+              }
+            },
+            "_1.resourceGroupReference": {
+              "type": "object",
+              "properties": {
+                "subscriptionId": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "metadata": {
+                "__bicep_imported_from!": {
+                  "sourceTemplate": "resource.bicep"
+                }
+              }
+            }
+          },
+          "functions": [
+            {
+              "namespace": "_1",
+              "members": {
+                "acrRefFromId": {
+                  "parameters": [
+                    {
+                      "type": "string",
+                      "name": "acrResourceId"
+                    }
+                  ],
+                  "output": {
+                    "$ref": "#/definitions/_1.acrRef",
+                    "value": {
+                      "resourceGroup": "[_1.resourceGroupFromResourceId(parameters('acrResourceId'))]",
+                      "name": "[last(split(parameters('acrResourceId'), '/'))]"
+                    }
+                  },
+                  "metadata": {
+                    "__bicep_imported_from!": {
+                      "sourceTemplate": "resource.bicep"
+                    }
+                  }
+                },
+                "cosmosDBAccountRefFromId": {
+                  "parameters": [
+                    {
+                      "type": "string",
+                      "name": "cosmosDBAccountResourceId"
+                    }
+                  ],
+                  "output": {
+                    "$ref": "#/definitions/_1.cosmosDBAccountRef",
+                    "value": {
+                      "resourceGroup": "[_1.resourceGroupFromResourceId(parameters('cosmosDBAccountResourceId'))]",
+                      "name": "[last(split(parameters('cosmosDBAccountResourceId'), '/'))]"
+                    }
+                  },
+                  "metadata": {
+                    "__bicep_imported_from!": {
+                      "sourceTemplate": "resource.bicep"
+                    }
+                  }
+                },
+                "dnsRecordRefFromFqdn": {
+                  "parameters": [
+                    {
+                      "type": "string",
+                      "name": "fqdn"
+                    }
+                  ],
+                  "output": {
+                    "$ref": "#/definitions/_1.dnsRecordRef",
+                    "value": {
+                      "recordName": "[split(parameters('fqdn'), '.')[0]]",
+                      "zoneName": "[join(skip(split(parameters('fqdn'), '.'), 1), '.')]"
+                    }
+                  },
+                  "metadata": {
+                    "__bicep_imported_from!": {
+                      "sourceTemplate": "resource.bicep"
+                    }
+                  }
+                },
+                "dnsZoneRefFromId": {
+                  "parameters": [
+                    {
+                      "type": "string",
+                      "name": "dnsZoneResourceId"
+                    }
+                  ],
+                  "output": {
+                    "$ref": "#/definitions/_1.dnsZoneRef",
+                    "value": {
+                      "resourceGroup": "[_1.resourceGroupFromResourceId(parameters('dnsZoneResourceId'))]",
+                      "name": "[last(split(parameters('dnsZoneResourceId'), '/'))]"
+                    }
+                  },
+                  "metadata": {
+                    "__bicep_imported_from!": {
+                      "sourceTemplate": "resource.bicep"
+                    }
+                  }
+                },
+                "eventgridNamespaceRefFromId": {
+                  "parameters": [
+                    {
+                      "type": "string",
+                      "name": "eventgridNamespaceResourceId"
+                    }
+                  ],
+                  "output": {
+                    "$ref": "#/definitions/_1.eventgridNamespaceRef",
+                    "value": {
+                      "resourceGroup": "[_1.resourceGroupFromResourceId(parameters('eventgridNamespaceResourceId'))]",
+                      "name": "[last(split(parameters('eventgridNamespaceResourceId'), '/'))]"
+                    }
+                  },
+                  "metadata": {
+                    "__bicep_imported_from!": {
+                      "sourceTemplate": "resource.bicep"
+                    }
+                  }
+                },
+                "frontdoorProfileRefFromId": {
+                  "parameters": [
+                    {
+                      "type": "string",
+                      "name": "frontdoorProfileResourceId"
+                    }
+                  ],
+                  "output": {
+                    "$ref": "#/definitions/_1.frontdoorProfileRef",
+                    "value": {
+                      "resourceGroup": "[_1.resourceGroupFromResourceId(parameters('frontdoorProfileResourceId'))]",
+                      "name": "[last(split(parameters('frontdoorProfileResourceId'), '/'))]"
+                    }
+                  },
+                  "metadata": {
+                    "__bicep_imported_from!": {
+                      "sourceTemplate": "resource.bicep"
+                    }
+                  }
+                },
+                "grafanaRefFromId": {
+                  "parameters": [
+                    {
+                      "type": "string",
+                      "name": "grafanaResourceId"
+                    }
+                  ],
+                  "output": {
+                    "$ref": "#/definitions/_1.grafanaRef",
+                    "value": {
+                      "resourceGroup": "[_1.resourceGroupFromResourceId(parameters('grafanaResourceId'))]",
+                      "name": "[last(split(parameters('grafanaResourceId'), '/'))]"
+                    }
+                  },
+                  "metadata": {
+                    "__bicep_imported_from!": {
+                      "sourceTemplate": "resource.bicep"
+                    }
+                  }
+                },
+                "isMsiResourceId": {
+                  "parameters": [
+                    {
+                      "type": "string",
+                      "name": "resourceId"
+                    }
+                  ],
+                  "output": {
+                    "type": "bool",
+                    "value": "[contains(parameters('resourceId'), '/providers/Microsoft.ManagedIdentity/userAssignedIdentities/')]"
+                  },
+                  "metadata": {
+                    "__bicep_imported_from!": {
+                      "sourceTemplate": "resource.bicep"
+                    }
+                  }
+                },
+                "kustoRefFromId": {
+                  "parameters": [
+                    {
+                      "type": "string",
+                      "name": "kustoResourceId"
+                    }
+                  ],
+                  "output": {
+                    "$ref": "#/definitions/_1.kustoRef",
+                    "value": {
+                      "resourceGroup": "[_1.resourceGroupFromResourceId(parameters('kustoResourceId'))]",
+                      "name": "[if(not(equals(parameters('kustoResourceId'), '')), last(split(parameters('kustoResourceId'), '/')), '')]"
+                    }
+                  },
+                  "metadata": {
+                    "__bicep_imported_from!": {
+                      "sourceTemplate": "resource.bicep"
+                    }
+                  }
+                },
+                "monitoringWorkspaceRefFromId": {
+                  "parameters": [
+                    {
+                      "type": "string",
+                      "name": "monitoringWorkspaceResourceId"
+                    }
+                  ],
+                  "output": {
+                    "$ref": "#/definitions/_1.monitoringWorkspaceRef",
+                    "value": {
+                      "resourceGroup": "[_1.resourceGroupFromResourceId(parameters('monitoringWorkspaceResourceId'))]",
+                      "name": "[last(split(parameters('monitoringWorkspaceResourceId'), '/'))]"
+                    }
+                  },
+                  "metadata": {
+                    "__bicep_imported_from!": {
+                      "sourceTemplate": "resource.bicep"
+                    }
+                  }
+                },
+                "msiRefFromId": {
+                  "parameters": [
+                    {
+                      "type": "string",
+                      "name": "msiResourceId"
+                    }
+                  ],
+                  "output": {
+                    "$ref": "#/definitions/_1.msiRef",
+                    "value": {
+                      "resourceGroup": "[_1.resourceGroupFromResourceId(parameters('msiResourceId'))]",
+                      "name": "[last(split(parameters('msiResourceId'), '/'))]"
+                    }
+                  },
+                  "metadata": {
+                    "__bicep_imported_from!": {
+                      "sourceTemplate": "resource.bicep"
+                    }
+                  }
+                },
+                "resourceGroupFromResourceId": {
+                  "parameters": [
+                    {
+                      "type": "string",
+                      "name": "resourceId"
+                    }
+                  ],
+                  "output": {
+                    "$ref": "#/definitions/_1.resourceGroupReference",
+                    "value": {
+                      "subscriptionId": "[if(not(equals(parameters('resourceId'), '')), split(parameters('resourceId'), '/')[2], '')]",
+                      "name": "[if(not(equals(parameters('resourceId'), '')), split(parameters('resourceId'), '/')[4], '')]"
+                    }
+                  },
+                  "metadata": {
+                    "__bicep_imported_from!": {
+                      "sourceTemplate": "resource.bicep"
+                    }
+                  }
+                }
+              }
+            }
+          ],
+          "parameters": {
+            "location": {
+              "type": "string",
+              "defaultValue": "[resourceGroup().location]",
+              "metadata": {
+                "description": "Azure Region Location"
+              }
+            },
+            "aksClusterName": {
+              "type": "string",
+              "metadata": {
+                "description": "AKS cluster name"
+              }
+            },
+            "deploymentMsiId": {
+              "type": "string",
+              "metadata": {
+                "description": "MSI that will take actions on the AKS cluster during service deployment time"
+              }
+            },
+            "pullAcrResourceIds": {
+              "type": "array",
+              "defaultValue": [],
+              "metadata": {
+                "description": "The resource IDs of ACR instances that the AKS cluster will pull images from"
+              }
+            },
+            "workloadIdentities": {
+              "type": "array",
+              "metadata": {
+                "description": "Workload identities (namespace/serviceAccountName) that need a federated credential on the cluster OIDC issuer"
+              }
+            }
+          },
+          "variables": {
+            "copy": [
+              {
+                "name": "acrReferences",
+                "count": "[length(parameters('pullAcrResourceIds'))]",
+                "input": "[_1.acrRefFromId(parameters('pullAcrResourceIds')[copyIndex('acrReferences')])]"
+              }
+            ],
+            "acrPullRoleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')]",
+            "aksClusterAdminRBACRoleId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', 'b1ff04bb-8a4e-4dc4-8eb5-8693973ce19b')]"
+          },
+          "resources": {
+            "aksCluster": {
+              "existing": true,
+              "type": "Microsoft.ContainerService/managedClusters",
+              "apiVersion": "2026-04-02-preview",
+              "name": "[parameters('aksClusterName')]"
+            },
+            "uami": {
+              "copy": {
+                "name": "uami",
+                "count": "[length(parameters('workloadIdentities'))]"
+              },
+              "existing": true,
+              "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+              "apiVersion": "2023-01-31",
+              "name": "[parameters('workloadIdentities')[copyIndex()].value.uamiName]"
+            },
+            "uami_fedcred": {
+              "copy": {
+                "name": "uami_fedcred",
+                "count": "[length(range(0, length(parameters('workloadIdentities'))))]"
+              },
+              "type": "Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials",
+              "apiVersion": "2023-01-31",
+              "name": "[format('{0}/{1}', parameters('workloadIdentities')[range(0, length(parameters('workloadIdentities')))[copyIndex()]].value.uamiName, format('{0}-{1}-fedcred', parameters('workloadIdentities')[range(0, length(parameters('workloadIdentities')))[copyIndex()]].value.uamiName, parameters('location')))]",
+              "properties": {
+                "audiences": [
+                  "api://AzureADTokenExchange"
+                ],
+                "issuer": "[reference('aksCluster').oidcIssuerProfile.issuerURL]",
+                "subject": "[format('system:serviceaccount:{0}:{1}', parameters('workloadIdentities')[range(0, length(parameters('workloadIdentities')))[copyIndex()]].value.namespace, parameters('workloadIdentities')[range(0, length(parameters('workloadIdentities')))[copyIndex()]].value.serviceAccountName)]"
+              },
+              "dependsOn": [
+                "aksCluster"
+              ]
+            },
+            "pullerIdentity": {
+              "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+              "apiVersion": "2023-01-31",
+              "name": "image-puller",
+              "location": "[parameters('location')]"
+            },
+            "puller_fedcred": {
+              "copy": {
+                "name": "puller_fedcred",
+                "count": "[length(range(0, length(parameters('workloadIdentities'))))]",
+                "mode": "serial",
+                "batchSize": 1
+              },
+              "type": "Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials",
+              "apiVersion": "2023-01-31",
+              "name": "[format('{0}/{1}', 'image-puller', format('{0}-{1}-puller-fedcred', parameters('workloadIdentities')[range(0, length(parameters('workloadIdentities')))[copyIndex()]].value.uamiName, parameters('location')))]",
+              "properties": {
+                "audiences": [
+                  "api://AzureCRTokenExchange"
+                ],
+                "issuer": "[reference('aksCluster').oidcIssuerProfile.issuerURL]",
+                "subject": "[format('system:serviceaccount:{0}:{1}', parameters('workloadIdentities')[range(0, length(parameters('workloadIdentities')))[copyIndex()]].value.namespace, parameters('workloadIdentities')[range(0, length(parameters('workloadIdentities')))[copyIndex()]].value.serviceAccountName)]"
+              },
+              "dependsOn": [
+                "aksCluster",
+                "pullerIdentity"
+              ]
+            },
+            "aroDevopsMSIClusterAdmin": {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[resourceId('Microsoft.ContainerService/managedClusters', parameters('aksClusterName'))]",
+              "name": "[guid(resourceId('Microsoft.ContainerService/managedClusters', parameters('aksClusterName')), parameters('deploymentMsiId'), variables('aksClusterAdminRBACRoleId'))]",
+              "properties": {
+                "principalId": "[reference(parameters('deploymentMsiId'), '2023-01-31').principalId]",
+                "principalType": "ServicePrincipal",
+                "roleDefinitionId": "[variables('aksClusterAdminRBACRoleId')]"
+              }
+            },
+            "acrPullRole": {
+              "copy": {
+                "name": "acrPullRole",
+                "count": "[length(variables('acrReferences'))]"
+              },
+              "type": "Microsoft.Resources/deployments",
+              "apiVersion": "2025-04-01",
+              "name": "[guid(variables('acrReferences')[copyIndex()].name, resourceId('Microsoft.ContainerService/managedClusters', parameters('aksClusterName')), variables('acrPullRoleDefinitionId'))]",
+              "subscriptionId": "[variables('acrReferences')[copyIndex()].resourceGroup.subscriptionId]",
+              "resourceGroup": "[variables('acrReferences')[copyIndex()].resourceGroup.name]",
+              "properties": {
+                "expressionEvaluationOptions": {
+                  "scope": "inner"
+                },
+                "mode": "Incremental",
+                "parameters": {
+                  "principalIds": {
+                    "value": [
+                      "[reference('aksCluster').identityProfile.kubeletidentity.objectId]"
+                    ]
+                  },
+                  "acrName": {
+                    "value": "[variables('acrReferences')[copyIndex()].name]"
+                  },
+                  "grantPullAccess": {
+                    "value": true
+                  }
+                },
+                "template": {
+                  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                  "contentVersion": "1.0.0.0",
+                  "metadata": {
+                    "_generator": {
+                      "name": "bicep",
+                      "version": "0.41.2.15936",
+                      "templateHash": "17398910685637768611"
+                    }
+                  },
+                  "parameters": {
+                    "principalIds": {
+                      "type": "array",
+                      "metadata": {
+                        "description": "The principal ids of the service principals that will be assigned access to the ACR"
+                      }
+                    },
+                    "grantPushAccess": {
+                      "type": "bool",
+                      "defaultValue": false,
+                      "metadata": {
+                        "description": "Whether to grant push access to the ACR"
+                      }
+                    },
+                    "grantPullAccess": {
+                      "type": "bool",
+                      "defaultValue": false,
+                      "metadata": {
+                        "description": "Whether to grant pull access from the ACR"
+                      }
+                    },
+                    "grantManageTokenAccess": {
+                      "type": "bool",
+                      "defaultValue": false,
+                      "metadata": {
+                        "description": "Whether to grant manage token access to the ACR"
+                      }
+                    },
+                    "acrName": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "The name of the ACR"
+                      }
+                    }
+                  },
+                  "variables": {
+                    "acrPullRoleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')]",
+                    "acrPushRoleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '8311e382-0749-4cb8-b61a-304f252e45ec')]",
+                    "acrDeleteRoleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'c2f4ef07-c644-48eb-af81-4b1b4947fb11')]",
+                    "acrContributorAndDataAccessConfigurationAdministratorRoleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '3bc748fc-213d-45c1-8d91-9da5725539b9')]"
+                  },
+                  "resources": [
+                    {
+                      "copy": {
+                        "name": "acrPullRole",
+                        "count": "[length(parameters('principalIds'))]"
+                      },
+                      "condition": "[parameters('grantPullAccess')]",
+                      "type": "Microsoft.Authorization/roleAssignments",
+                      "apiVersion": "2022-04-01",
+                      "scope": "[resourceId('Microsoft.ContainerRegistry/registries', parameters('acrName'))]",
+                      "name": "[guid(parameters('acrName'), parameters('principalIds')[copyIndex()], variables('acrPullRoleDefinitionId'))]",
+                      "properties": {
+                        "principalId": "[parameters('principalIds')[copyIndex()]]",
+                        "roleDefinitionId": "[variables('acrPullRoleDefinitionId')]",
+                        "principalType": "ServicePrincipal"
+                      }
+                    },
+                    {
+                      "copy": {
+                        "name": "acrPushRole",
+                        "count": "[length(parameters('principalIds'))]"
+                      },
+                      "condition": "[parameters('grantPushAccess')]",
+                      "type": "Microsoft.Authorization/roleAssignments",
+                      "apiVersion": "2022-04-01",
+                      "scope": "[resourceId('Microsoft.ContainerRegistry/registries', parameters('acrName'))]",
+                      "name": "[guid(parameters('acrName'), parameters('principalIds')[copyIndex()], variables('acrPushRoleDefinitionId'))]",
+                      "properties": {
+                        "principalId": "[parameters('principalIds')[copyIndex()]]",
+                        "roleDefinitionId": "[variables('acrPushRoleDefinitionId')]",
+                        "principalType": "ServicePrincipal"
+                      }
+                    },
+                    {
+                      "copy": {
+                        "name": "acrDeleteRole",
+                        "count": "[length(parameters('principalIds'))]"
+                      },
+                      "condition": "[parameters('grantPushAccess')]",
+                      "type": "Microsoft.Authorization/roleAssignments",
+                      "apiVersion": "2022-04-01",
+                      "scope": "[resourceId('Microsoft.ContainerRegistry/registries', parameters('acrName'))]",
+                      "name": "[guid(parameters('acrName'), parameters('principalIds')[copyIndex()], variables('acrDeleteRoleDefinitionId'))]",
+                      "properties": {
+                        "principalId": "[parameters('principalIds')[copyIndex()]]",
+                        "roleDefinitionId": "[variables('acrDeleteRoleDefinitionId')]",
+                        "principalType": "ServicePrincipal"
+                      }
+                    },
+                    {
+                      "copy": {
+                        "name": "acrContributorAndDataAccessConfigurationAdministratorRole",
+                        "count": "[length(parameters('principalIds'))]"
+                      },
+                      "condition": "[parameters('grantManageTokenAccess')]",
+                      "type": "Microsoft.Authorization/roleAssignments",
+                      "apiVersion": "2022-04-01",
+                      "scope": "[resourceId('Microsoft.ContainerRegistry/registries', parameters('acrName'))]",
+                      "name": "[guid(parameters('acrName'), parameters('principalIds')[copyIndex()], variables('acrContributorAndDataAccessConfigurationAdministratorRoleDefinitionId'))]",
+                      "properties": {
+                        "roleDefinitionId": "[variables('acrContributorAndDataAccessConfigurationAdministratorRoleDefinitionId')]",
+                        "principalId": "[parameters('principalIds')[copyIndex()]]",
+                        "principalType": "ServicePrincipal"
+                      }
+                    }
+                  ]
+                }
+              },
+              "dependsOn": [
+                "aksCluster"
+              ]
+            },
+            "acrPullerRoles": {
+              "copy": {
+                "name": "acrPullerRoles",
+                "count": "[length(variables('acrReferences'))]"
+              },
+              "type": "Microsoft.Resources/deployments",
+              "apiVersion": "2025-04-01",
+              "name": "[guid(variables('acrReferences')[copyIndex()].name, resourceId('Microsoft.ContainerService/managedClusters', parameters('aksClusterName')), variables('acrPullRoleDefinitionId'), 'puller-identity')]",
+              "subscriptionId": "[variables('acrReferences')[copyIndex()].resourceGroup.subscriptionId]",
+              "resourceGroup": "[variables('acrReferences')[copyIndex()].resourceGroup.name]",
+              "properties": {
+                "expressionEvaluationOptions": {
+                  "scope": "inner"
+                },
+                "mode": "Incremental",
+                "parameters": {
+                  "principalIds": {
+                    "value": [
+                      "[reference('pullerIdentity').principalId]"
+                    ]
+                  },
+                  "acrName": {
+                    "value": "[variables('acrReferences')[copyIndex()].name]"
+                  },
+                  "grantPullAccess": {
+                    "value": true
+                  }
+                },
+                "template": {
+                  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                  "contentVersion": "1.0.0.0",
+                  "metadata": {
+                    "_generator": {
+                      "name": "bicep",
+                      "version": "0.41.2.15936",
+                      "templateHash": "17398910685637768611"
+                    }
+                  },
+                  "parameters": {
+                    "principalIds": {
+                      "type": "array",
+                      "metadata": {
+                        "description": "The principal ids of the service principals that will be assigned access to the ACR"
+                      }
+                    },
+                    "grantPushAccess": {
+                      "type": "bool",
+                      "defaultValue": false,
+                      "metadata": {
+                        "description": "Whether to grant push access to the ACR"
+                      }
+                    },
+                    "grantPullAccess": {
+                      "type": "bool",
+                      "defaultValue": false,
+                      "metadata": {
+                        "description": "Whether to grant pull access from the ACR"
+                      }
+                    },
+                    "grantManageTokenAccess": {
+                      "type": "bool",
+                      "defaultValue": false,
+                      "metadata": {
+                        "description": "Whether to grant manage token access to the ACR"
+                      }
+                    },
+                    "acrName": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "The name of the ACR"
+                      }
+                    }
+                  },
+                  "variables": {
+                    "acrPullRoleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')]",
+                    "acrPushRoleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '8311e382-0749-4cb8-b61a-304f252e45ec')]",
+                    "acrDeleteRoleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'c2f4ef07-c644-48eb-af81-4b1b4947fb11')]",
+                    "acrContributorAndDataAccessConfigurationAdministratorRoleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '3bc748fc-213d-45c1-8d91-9da5725539b9')]"
+                  },
+                  "resources": [
+                    {
+                      "copy": {
+                        "name": "acrPullRole",
+                        "count": "[length(parameters('principalIds'))]"
+                      },
+                      "condition": "[parameters('grantPullAccess')]",
+                      "type": "Microsoft.Authorization/roleAssignments",
+                      "apiVersion": "2022-04-01",
+                      "scope": "[resourceId('Microsoft.ContainerRegistry/registries', parameters('acrName'))]",
+                      "name": "[guid(parameters('acrName'), parameters('principalIds')[copyIndex()], variables('acrPullRoleDefinitionId'))]",
+                      "properties": {
+                        "principalId": "[parameters('principalIds')[copyIndex()]]",
+                        "roleDefinitionId": "[variables('acrPullRoleDefinitionId')]",
+                        "principalType": "ServicePrincipal"
+                      }
+                    },
+                    {
+                      "copy": {
+                        "name": "acrPushRole",
+                        "count": "[length(parameters('principalIds'))]"
+                      },
+                      "condition": "[parameters('grantPushAccess')]",
+                      "type": "Microsoft.Authorization/roleAssignments",
+                      "apiVersion": "2022-04-01",
+                      "scope": "[resourceId('Microsoft.ContainerRegistry/registries', parameters('acrName'))]",
+                      "name": "[guid(parameters('acrName'), parameters('principalIds')[copyIndex()], variables('acrPushRoleDefinitionId'))]",
+                      "properties": {
+                        "principalId": "[parameters('principalIds')[copyIndex()]]",
+                        "roleDefinitionId": "[variables('acrPushRoleDefinitionId')]",
+                        "principalType": "ServicePrincipal"
+                      }
+                    },
+                    {
+                      "copy": {
+                        "name": "acrDeleteRole",
+                        "count": "[length(parameters('principalIds'))]"
+                      },
+                      "condition": "[parameters('grantPushAccess')]",
+                      "type": "Microsoft.Authorization/roleAssignments",
+                      "apiVersion": "2022-04-01",
+                      "scope": "[resourceId('Microsoft.ContainerRegistry/registries', parameters('acrName'))]",
+                      "name": "[guid(parameters('acrName'), parameters('principalIds')[copyIndex()], variables('acrDeleteRoleDefinitionId'))]",
+                      "properties": {
+                        "principalId": "[parameters('principalIds')[copyIndex()]]",
+                        "roleDefinitionId": "[variables('acrDeleteRoleDefinitionId')]",
+                        "principalType": "ServicePrincipal"
+                      }
+                    },
+                    {
+                      "copy": {
+                        "name": "acrContributorAndDataAccessConfigurationAdministratorRole",
+                        "count": "[length(parameters('principalIds'))]"
+                      },
+                      "condition": "[parameters('grantManageTokenAccess')]",
+                      "type": "Microsoft.Authorization/roleAssignments",
+                      "apiVersion": "2022-04-01",
+                      "scope": "[resourceId('Microsoft.ContainerRegistry/registries', parameters('acrName'))]",
+                      "name": "[guid(parameters('acrName'), parameters('principalIds')[copyIndex()], variables('acrContributorAndDataAccessConfigurationAdministratorRoleDefinitionId'))]",
+                      "properties": {
+                        "roleDefinitionId": "[variables('acrContributorAndDataAccessConfigurationAdministratorRoleDefinitionId')]",
+                        "principalId": "[parameters('principalIds')[copyIndex()]]",
+                        "principalType": "ServicePrincipal"
+                      }
+                    }
+                  ]
+                }
+              },
+              "dependsOn": [
+                "pullerIdentity"
+              ]
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "managedIdentities"
+      ]
+    },
+    "dataCollection": {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "metrics-infra",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "azureMonitorWorkspaceLocation": {
+            "value": "[parameters('location')]"
+          },
+          "azureMonitoringWorkspaceId": {
+            "value": "[parameters('azureMonitoringWorkspaceId')]"
+          },
+          "hcpAzureMonitoringWorkspaceId": {
+            "value": "[parameters('hcpAzureMonitoringWorkspaceId')]"
+          },
+          "aksClusterName": {
+            "value": "[parameters('aksClusterName')]"
+          },
+          "prometheusPrincipalId": {
+            "value": "[reference('prometheusUAMI').principalId]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "languageVersion": "2.0",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.41.2.15936",
+              "templateHash": "574145220262722947"
+            }
+          },
+          "functions": [
+            {
+              "namespace": "__bicep",
+              "members": {
+                "safeTake": {
+                  "parameters": [
+                    {
+                      "type": "string",
+                      "name": "input"
+                    },
+                    {
+                      "type": "int",
+                      "name": "maxLength"
+                    }
+                  ],
+                  "output": {
+                    "type": "string",
+                    "value": "[if(and(greater(length(take(parameters('input'), parameters('maxLength'))), 0), or(or(endsWith(take(parameters('input'), parameters('maxLength')), '-'), endsWith(take(parameters('input'), parameters('maxLength')), '_')), endsWith(take(parameters('input'), parameters('maxLength')), '.'))), take(take(parameters('input'), parameters('maxLength')), sub(length(take(parameters('input'), parameters('maxLength'))), 1)), take(parameters('input'), parameters('maxLength')))]"
+                  },
+                  "metadata": {
+                    "__bicep_imported_from!": {
+                      "sourceTemplate": "../common.bicep"
+                    }
+                  }
+                }
+              }
+            }
+          ],
+          "parameters": {
+            "azureMonitoringWorkspaceId": {
+              "type": "string"
+            },
+            "hcpAzureMonitoringWorkspaceId": {
+              "type": "string",
+              "defaultValue": ""
+            },
+            "azureMonitorWorkspaceLocation": {
+              "type": "string"
+            },
+            "aksClusterName": {
+              "type": "string"
+            },
+            "prometheusPrincipalId": {
+              "type": "string"
+            }
+          },
+          "variables": {
+            "dceName": "[__bicep.safeTake(format('MSProm-{0}-{1}', parameters('azureMonitorWorkspaceLocation'), parameters('aksClusterName')), 44)]",
+            "dcrName": "[__bicep.safeTake(format('MSProm-{0}-{1}', parameters('azureMonitorWorkspaceLocation'), parameters('aksClusterName')), 44)]",
+            "hcpDcrName": "[__bicep.safeTake(format('HCP-{0}-{1}', parameters('azureMonitorWorkspaceLocation'), parameters('aksClusterName')), 44)]"
+          },
+          "resources": {
+            "dce": {
+              "type": "Microsoft.Insights/dataCollectionEndpoints",
+              "apiVersion": "2022-06-01",
+              "name": "[variables('dceName')]",
+              "tags": {
+                "purpose": "aks"
+              },
+              "location": "[parameters('azureMonitorWorkspaceLocation')]",
+              "kind": "Linux",
+              "properties": {}
+            },
+            "dcr": {
+              "type": "Microsoft.Insights/dataCollectionRules",
+              "apiVersion": "2022-06-01",
+              "name": "[variables('dcrName')]",
+              "location": "[parameters('azureMonitorWorkspaceLocation')]",
+              "kind": "Linux",
+              "tags": {
+                "purpose": "services"
+              },
+              "properties": {
+                "dataCollectionEndpointId": "[resourceId('Microsoft.Insights/dataCollectionEndpoints', variables('dceName'))]",
+                "dataFlows": [
+                  {
+                    "destinations": [
+                      "MonitoringAccount1"
+                    ],
+                    "streams": [
+                      "Microsoft-PrometheusMetrics"
+                    ]
+                  }
+                ],
+                "dataSources": {
+                  "prometheusForwarder": [
+                    {
+                      "name": "PrometheusDataSource",
+                      "streams": [
+                        "Microsoft-PrometheusMetrics"
+                      ],
+                      "labelIncludeFilter": {}
+                    }
+                  ]
+                },
+                "description": "DCR for Azure Monitor Metrics Profile (Managed Prometheus)",
+                "destinations": {
+                  "monitoringAccounts": [
+                    {
+                      "accountResourceId": "[parameters('azureMonitoringWorkspaceId')]",
+                      "name": "MonitoringAccount1"
+                    }
+                  ]
+                }
+              },
+              "dependsOn": [
+                "dce"
+              ]
+            },
+            "hcpDcr": {
+              "condition": "[not(equals(parameters('hcpAzureMonitoringWorkspaceId'), ''))]",
+              "type": "Microsoft.Insights/dataCollectionRules",
+              "apiVersion": "2022-06-01",
+              "name": "[variables('hcpDcrName')]",
+              "location": "[parameters('azureMonitorWorkspaceLocation')]",
+              "kind": "Linux",
+              "tags": {
+                "purpose": "hcp"
+              },
+              "properties": {
+                "dataCollectionEndpointId": "[resourceId('Microsoft.Insights/dataCollectionEndpoints', variables('dceName'))]",
+                "dataFlows": [
+                  {
+                    "destinations": [
+                      "MonitoringAccount1"
+                    ],
+                    "streams": [
+                      "Microsoft-PrometheusMetrics"
+                    ]
+                  }
+                ],
+                "dataSources": {
+                  "prometheusForwarder": [
+                    {
+                      "name": "PrometheusDataSource",
+                      "streams": [
+                        "Microsoft-PrometheusMetrics"
+                      ],
+                      "labelIncludeFilter": {}
+                    }
+                  ]
+                },
+                "description": "DCR for Azure Monitor Metrics Profile (Managed Prometheus)",
+                "destinations": {
+                  "monitoringAccounts": [
+                    {
+                      "accountResourceId": "[parameters('hcpAzureMonitoringWorkspaceId')]",
+                      "name": "MonitoringAccount1"
+                    }
+                  ]
+                }
+              },
+              "dependsOn": [
+                "dce"
+              ]
+            },
+            "aksCluster": {
+              "existing": true,
+              "type": "Microsoft.ContainerService/managedClusters",
+              "apiVersion": "2023-03-01",
+              "name": "[parameters('aksClusterName')]"
+            },
+            "aksClusterDcra": {
+              "type": "Microsoft.Insights/dataCollectionRuleAssociations",
+              "apiVersion": "2022-06-01",
+              "scope": "[resourceId('Microsoft.ContainerService/managedClusters', parameters('aksClusterName'))]",
+              "name": "[format('{0}-dcra', parameters('aksClusterName'))]",
+              "properties": {
+                "description": "Association of data collection rule. Deleting this association will break the data collection for this AKS Cluster.",
+                "dataCollectionRuleId": "[resourceId('Microsoft.Insights/dataCollectionRules', variables('dcrName'))]"
+              },
+              "dependsOn": [
+                "dcr"
+              ]
+            },
+            "monitoringMetricsPublisher": {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[resourceId('Microsoft.Insights/dataCollectionRules', variables('dcrName'))]",
+              "name": "[guid(parameters('aksClusterName'))]",
+              "properties": {
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '3913510d-42f4-4e42-8a64-420c390055eb')]",
+                "principalId": "[parameters('prometheusPrincipalId')]",
+                "principalType": "ServicePrincipal"
+              },
+              "dependsOn": [
+                "dcr"
+              ]
+            },
+            "hcpMonitoringMetricsPublisher": {
+              "condition": "[not(equals(parameters('hcpAzureMonitoringWorkspaceId'), ''))]",
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[resourceId('Microsoft.Insights/dataCollectionRules', variables('hcpDcrName'))]",
+              "name": "[guid('hcp', parameters('aksClusterName'))]",
+              "properties": {
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '3913510d-42f4-4e42-8a64-420c390055eb')]",
+                "principalId": "[parameters('prometheusPrincipalId')]",
+                "principalType": "ServicePrincipal"
+              },
+              "dependsOn": [
+                "hcpDcr"
+              ]
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "prometheusUAMI"
+      ]
+    },
+    "underlayClusterMetric": {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "underlay-clusters-metric",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "azureMonitoringWorkspaceId": {
+            "value": "[parameters('azureMonitoringWorkspaceId')]"
+          },
+          "clusterName": {
+            "value": "[parameters('aksClusterName')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.41.2.15936",
+              "templateHash": "13294940682553143887"
+            }
+          },
+          "parameters": {
+            "azureMonitoringWorkspaceId": {
+              "type": "string",
+              "metadata": {
+                "description": "Resource ID of the Azure Monitor Workspace the inventory series is emitted into"
+              }
+            },
+            "clusterName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the underlay (service or management) cluster this series represents. Must match the `cluster` external label that this cluster's Prometheus stamps onto its metrics."
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.AlertsManagement/prometheusRuleGroups",
+              "apiVersion": "2023-03-01",
+              "name": "[format('underlay-clusters-metric-{0}', parameters('clusterName'))]",
+              "location": "[resourceGroup().location]",
+              "properties": {
+                "description": "[format('Authoritative list entry declaring that underlay cluster {0} should be running.', parameters('clusterName'))]",
+                "scopes": [
+                  "[parameters('azureMonitoringWorkspaceId')]"
+                ],
+                "enabled": true,
+                "interval": "PT1M",
+                "rules": [
+                  {
+                    "record": "underlay_clusters",
+                    "expression": "vector(1)",
+                    "labels": {
+                      "cluster": "[parameters('clusterName')]",
+                      "source": "bicep"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    "logsMgmtKeyVaultAccess": {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "[guid(parameters('mgmtKeyVaultName'), parameters('logsMSI'), 'certuser')]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "keyVaultName": {
+            "value": "[parameters('mgmtKeyVaultName')]"
+          },
+          "roleName": {
+            "value": "Key Vault Certificate User"
+          },
+          "managedIdentityPrincipalIds": {
+            "value": [
+              "[reference('logsUAMI').principalId]"
+            ]
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.41.2.15936",
+              "templateHash": "1532414038243427123"
+            }
+          },
+          "parameters": {
+            "keyVaultName": {
+              "type": "string",
+              "metadata": {
+                "description": "The name of the keyvault where access is managed"
+              }
+            },
+            "secretName": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Optional name of the secret in the keyvault where access is managed. If not provided, access will be granted to all secrets in the keyvault."
+              }
+            },
+            "roleName": {
+              "type": "string",
+              "allowedValues": [
+                "Key Vault Secrets Officer",
+                "Key Vault Secrets User",
+                "Key Vault Certificate User",
+                "Key Vault Certificates Officer",
+                "Key Vault Crypto Officer",
+                "Key Vault Reader",
+                "Azure Service Deploy Release Management Key Vault Secrets User"
+              ],
+              "metadata": {
+                "description": "The name of the role that will be assigned to the managed identity for the secret in KV"
+              }
+            },
+            "managedIdentityPrincipalIds": {
+              "type": "array",
+              "metadata": {
+                "description": "The principal ids of the managed identity that will be assigned access to the secret in KV"
+              }
+            },
+            "kvCertAccessRoleId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Roles used for EV2 KeyVault access, i.e. geneva log access"
+              }
+            }
+          },
+          "variables": {
+            "roleResourceIds": {
+              "Key Vault Secrets User": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', '4633458b-17de-408a-b874-0445c86b69e6')]",
+              "Key Vault Secrets Officer": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', 'b86a8fe4-44ce-4948-aee5-eccb2c155cd7')]",
+              "Key Vault Certificate User": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', 'db79e9a7-68ee-4b58-9aeb-b90e7c24fcba')]",
+              "Key Vault Certificates Officer": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', 'a4417e6f-fecd-4de8-b567-7b0420556985')]",
+              "Key Vault Crypto Officer": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', '14b46e9e-c2b7-41b4-b07b-48a6ebf60603')]",
+              "Key Vault Reader": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', '21090545-7ca7-4776-b22c-e363652d74d2')]",
+              "Azure Service Deploy Release Management Key Vault Secrets User": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', parameters('kvCertAccessRoleId'))]"
+            }
+          },
+          "resources": [
+            {
+              "copy": {
+                "name": "secretAccessPermission",
+                "count": "[length(parameters('managedIdentityPrincipalIds'))]"
+              },
+              "condition": "[not(equals(parameters('secretName'), ''))]",
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[resourceId('Microsoft.KeyVault/vaults/secrets', parameters('keyVaultName'), parameters('secretName'))]",
+              "name": "[guid(resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName')), parameters('managedIdentityPrincipalIds')[copyIndex()], parameters('secretName'), variables('roleResourceIds')[parameters('roleName')])]",
+              "properties": {
+                "roleDefinitionId": "[variables('roleResourceIds')[parameters('roleName')]]",
+                "principalId": "[parameters('managedIdentityPrincipalIds')[copyIndex()]]",
+                "principalType": "ServicePrincipal"
+              }
+            },
+            {
+              "copy": {
+                "name": "keyVaultAccessPermission",
+                "count": "[length(parameters('managedIdentityPrincipalIds'))]"
+              },
+              "condition": "[equals(parameters('secretName'), '')]",
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName'))]",
+              "name": "[guid(resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName')), parameters('managedIdentityPrincipalIds')[copyIndex()], variables('roleResourceIds')[parameters('roleName')])]",
+              "properties": {
+                "roleDefinitionId": "[variables('roleResourceIds')[parameters('roleName')]]",
+                "principalId": "[parameters('managedIdentityPrincipalIds')[copyIndex()]]",
+                "principalType": "ServicePrincipal"
+              }
+            }
+          ]
+        }
+      },
+      "dependsOn": [
+        "logsUAMI"
+      ]
+    },
+    "cxCSIKeyVaultAccess": {
+      "copy": {
+        "name": "cxCSIKeyVaultAccess",
+        "count": "[length(createArray('Key Vault Secrets Officer', 'Key Vault Certificate User', 'Key Vault Certificates Officer'))]"
+      },
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "[guid(parameters('cxKeyVaultName'), 'aks-kv-csi-mi', createArray('Key Vault Secrets Officer', 'Key Vault Certificate User', 'Key Vault Certificates Officer')[copyIndex()])]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "keyVaultName": {
+            "value": "[parameters('cxKeyVaultName')]"
+          },
+          "roleName": {
+            "value": "[createArray('Key Vault Secrets Officer', 'Key Vault Certificate User', 'Key Vault Certificates Officer')[copyIndex()]]"
+          },
+          "managedIdentityPrincipalIds": {
+            "value": [
+              "[reference('aksCluster').addonProfiles.azureKeyvaultSecretsProvider.identity.objectId]"
+            ]
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.41.2.15936",
+              "templateHash": "1532414038243427123"
+            }
+          },
+          "parameters": {
+            "keyVaultName": {
+              "type": "string",
+              "metadata": {
+                "description": "The name of the keyvault where access is managed"
+              }
+            },
+            "secretName": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Optional name of the secret in the keyvault where access is managed. If not provided, access will be granted to all secrets in the keyvault."
+              }
+            },
+            "roleName": {
+              "type": "string",
+              "allowedValues": [
+                "Key Vault Secrets Officer",
+                "Key Vault Secrets User",
+                "Key Vault Certificate User",
+                "Key Vault Certificates Officer",
+                "Key Vault Crypto Officer",
+                "Key Vault Reader",
+                "Azure Service Deploy Release Management Key Vault Secrets User"
+              ],
+              "metadata": {
+                "description": "The name of the role that will be assigned to the managed identity for the secret in KV"
+              }
+            },
+            "managedIdentityPrincipalIds": {
+              "type": "array",
+              "metadata": {
+                "description": "The principal ids of the managed identity that will be assigned access to the secret in KV"
+              }
+            },
+            "kvCertAccessRoleId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Roles used for EV2 KeyVault access, i.e. geneva log access"
+              }
+            }
+          },
+          "variables": {
+            "roleResourceIds": {
+              "Key Vault Secrets User": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', '4633458b-17de-408a-b874-0445c86b69e6')]",
+              "Key Vault Secrets Officer": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', 'b86a8fe4-44ce-4948-aee5-eccb2c155cd7')]",
+              "Key Vault Certificate User": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', 'db79e9a7-68ee-4b58-9aeb-b90e7c24fcba')]",
+              "Key Vault Certificates Officer": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', 'a4417e6f-fecd-4de8-b567-7b0420556985')]",
+              "Key Vault Crypto Officer": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', '14b46e9e-c2b7-41b4-b07b-48a6ebf60603')]",
+              "Key Vault Reader": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', '21090545-7ca7-4776-b22c-e363652d74d2')]",
+              "Azure Service Deploy Release Management Key Vault Secrets User": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', parameters('kvCertAccessRoleId'))]"
+            }
+          },
+          "resources": [
+            {
+              "copy": {
+                "name": "secretAccessPermission",
+                "count": "[length(parameters('managedIdentityPrincipalIds'))]"
+              },
+              "condition": "[not(equals(parameters('secretName'), ''))]",
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[resourceId('Microsoft.KeyVault/vaults/secrets', parameters('keyVaultName'), parameters('secretName'))]",
+              "name": "[guid(resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName')), parameters('managedIdentityPrincipalIds')[copyIndex()], parameters('secretName'), variables('roleResourceIds')[parameters('roleName')])]",
+              "properties": {
+                "roleDefinitionId": "[variables('roleResourceIds')[parameters('roleName')]]",
+                "principalId": "[parameters('managedIdentityPrincipalIds')[copyIndex()]]",
+                "principalType": "ServicePrincipal"
+              }
+            },
+            {
+              "copy": {
+                "name": "keyVaultAccessPermission",
+                "count": "[length(parameters('managedIdentityPrincipalIds'))]"
+              },
+              "condition": "[equals(parameters('secretName'), '')]",
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName'))]",
+              "name": "[guid(resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName')), parameters('managedIdentityPrincipalIds')[copyIndex()], variables('roleResourceIds')[parameters('roleName')])]",
+              "properties": {
+                "roleDefinitionId": "[variables('roleResourceIds')[parameters('roleName')]]",
+                "principalId": "[parameters('managedIdentityPrincipalIds')[copyIndex()]]",
+                "principalType": "ServicePrincipal"
+              }
+            }
+          ]
+        }
+      },
+      "dependsOn": [
+        "aksCluster"
+      ]
+    },
+    "msiCSIKeyVaultAccess": {
+      "copy": {
+        "name": "msiCSIKeyVaultAccess",
+        "count": "[length(createArray('Key Vault Secrets Officer', 'Key Vault Certificate User', 'Key Vault Certificates Officer'))]"
+      },
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "[guid(parameters('msiKeyVaultName'), 'aks-kv-csi-mi', createArray('Key Vault Secrets Officer', 'Key Vault Certificate User', 'Key Vault Certificates Officer')[copyIndex()])]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "keyVaultName": {
+            "value": "[parameters('msiKeyVaultName')]"
+          },
+          "roleName": {
+            "value": "[createArray('Key Vault Secrets Officer', 'Key Vault Certificate User', 'Key Vault Certificates Officer')[copyIndex()]]"
+          },
+          "managedIdentityPrincipalIds": {
+            "value": [
+              "[reference('aksCluster').addonProfiles.azureKeyvaultSecretsProvider.identity.objectId]"
+            ]
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.41.2.15936",
+              "templateHash": "1532414038243427123"
+            }
+          },
+          "parameters": {
+            "keyVaultName": {
+              "type": "string",
+              "metadata": {
+                "description": "The name of the keyvault where access is managed"
+              }
+            },
+            "secretName": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Optional name of the secret in the keyvault where access is managed. If not provided, access will be granted to all secrets in the keyvault."
+              }
+            },
+            "roleName": {
+              "type": "string",
+              "allowedValues": [
+                "Key Vault Secrets Officer",
+                "Key Vault Secrets User",
+                "Key Vault Certificate User",
+                "Key Vault Certificates Officer",
+                "Key Vault Crypto Officer",
+                "Key Vault Reader",
+                "Azure Service Deploy Release Management Key Vault Secrets User"
+              ],
+              "metadata": {
+                "description": "The name of the role that will be assigned to the managed identity for the secret in KV"
+              }
+            },
+            "managedIdentityPrincipalIds": {
+              "type": "array",
+              "metadata": {
+                "description": "The principal ids of the managed identity that will be assigned access to the secret in KV"
+              }
+            },
+            "kvCertAccessRoleId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Roles used for EV2 KeyVault access, i.e. geneva log access"
+              }
+            }
+          },
+          "variables": {
+            "roleResourceIds": {
+              "Key Vault Secrets User": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', '4633458b-17de-408a-b874-0445c86b69e6')]",
+              "Key Vault Secrets Officer": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', 'b86a8fe4-44ce-4948-aee5-eccb2c155cd7')]",
+              "Key Vault Certificate User": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', 'db79e9a7-68ee-4b58-9aeb-b90e7c24fcba')]",
+              "Key Vault Certificates Officer": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', 'a4417e6f-fecd-4de8-b567-7b0420556985')]",
+              "Key Vault Crypto Officer": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', '14b46e9e-c2b7-41b4-b07b-48a6ebf60603')]",
+              "Key Vault Reader": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', '21090545-7ca7-4776-b22c-e363652d74d2')]",
+              "Azure Service Deploy Release Management Key Vault Secrets User": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', parameters('kvCertAccessRoleId'))]"
+            }
+          },
+          "resources": [
+            {
+              "copy": {
+                "name": "secretAccessPermission",
+                "count": "[length(parameters('managedIdentityPrincipalIds'))]"
+              },
+              "condition": "[not(equals(parameters('secretName'), ''))]",
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[resourceId('Microsoft.KeyVault/vaults/secrets', parameters('keyVaultName'), parameters('secretName'))]",
+              "name": "[guid(resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName')), parameters('managedIdentityPrincipalIds')[copyIndex()], parameters('secretName'), variables('roleResourceIds')[parameters('roleName')])]",
+              "properties": {
+                "roleDefinitionId": "[variables('roleResourceIds')[parameters('roleName')]]",
+                "principalId": "[parameters('managedIdentityPrincipalIds')[copyIndex()]]",
+                "principalType": "ServicePrincipal"
+              }
+            },
+            {
+              "copy": {
+                "name": "keyVaultAccessPermission",
+                "count": "[length(parameters('managedIdentityPrincipalIds'))]"
+              },
+              "condition": "[equals(parameters('secretName'), '')]",
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName'))]",
+              "name": "[guid(resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName')), parameters('managedIdentityPrincipalIds')[copyIndex()], variables('roleResourceIds')[parameters('roleName')])]",
+              "properties": {
+                "roleDefinitionId": "[variables('roleResourceIds')[parameters('roleName')]]",
+                "principalId": "[parameters('managedIdentityPrincipalIds')[copyIndex()]]",
+                "principalType": "ServicePrincipal"
+              }
+            }
+          ]
+        }
+      },
+      "dependsOn": [
+        "aksCluster"
+      ]
+    },
+    "genevaRpLogsCertCSIAccess": {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "geneva-mgmt-rp-certificate",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "keyVaultName": {
+            "value": "[parameters('mgmtKeyVaultName')]"
+          },
+          "principalId": {
+            "value": "[reference('aksCluster').addonProfiles.azureKeyvaultSecretsProvider.identity.objectId]"
+          },
+          "secretName": {
+            "value": "[parameters('genevaRpLogsName')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.41.2.15936",
+              "templateHash": "7798058841999250701"
+            }
+          },
+          "parameters": {
+            "keyVaultName": {
+              "type": "string",
+              "metadata": {
+                "description": "The Key Vault name"
+              }
+            },
+            "secretName": {
+              "type": "string",
+              "metadata": {
+                "description": "The name of the secret (certificate name) to grant access to"
+              }
+            },
+            "principalId": {
+              "type": "string",
+              "metadata": {
+                "description": "The principal ID of the managed identity to grant access to"
+              }
+            }
+          },
+          "variables": {
+            "keyVaultSecretUserRoleId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', '4633458b-17de-408a-b874-0445c86b69e6')]"
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[resourceId('Microsoft.KeyVault/vaults/secrets', parameters('keyVaultName'), parameters('secretName'))]",
+              "name": "[guid(parameters('principalId'), variables('keyVaultSecretUserRoleId'), resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName')), parameters('secretName'))]",
+              "properties": {
+                "roleDefinitionId": "[variables('keyVaultSecretUserRoleId')]",
+                "principalId": "[parameters('principalId')]",
+                "principalType": "ServicePrincipal"
+              }
+            }
+          ]
+        }
+      },
+      "dependsOn": [
+        "aksCluster"
+      ]
+    },
+    "genevaClusterLogsCertCSIAccess": {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "geneva-cluster-log-certificate",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "keyVaultName": {
+            "value": "[parameters('mgmtKeyVaultName')]"
+          },
+          "principalId": {
+            "value": "[reference('aksCluster').addonProfiles.azureKeyvaultSecretsProvider.identity.objectId]"
+          },
+          "secretName": {
+            "value": "[parameters('genevaClusterLogsName')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.41.2.15936",
+              "templateHash": "7798058841999250701"
+            }
+          },
+          "parameters": {
+            "keyVaultName": {
+              "type": "string",
+              "metadata": {
+                "description": "The Key Vault name"
+              }
+            },
+            "secretName": {
+              "type": "string",
+              "metadata": {
+                "description": "The name of the secret (certificate name) to grant access to"
+              }
+            },
+            "principalId": {
+              "type": "string",
+              "metadata": {
+                "description": "The principal ID of the managed identity to grant access to"
+              }
+            }
+          },
+          "variables": {
+            "keyVaultSecretUserRoleId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', '4633458b-17de-408a-b874-0445c86b69e6')]"
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[resourceId('Microsoft.KeyVault/vaults/secrets', parameters('keyVaultName'), parameters('secretName'))]",
+              "name": "[guid(parameters('principalId'), variables('keyVaultSecretUserRoleId'), resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName')), parameters('secretName'))]",
+              "properties": {
+                "roleDefinitionId": "[variables('keyVaultSecretUserRoleId')]",
+                "principalId": "[parameters('principalId')]",
+                "principalType": "ServicePrincipal"
+              }
+            }
+          ]
+        }
+      },
+      "dependsOn": [
+        "aksCluster"
+      ]
+    },
+    "maestroConsumer": {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "maestro-consumer",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "maestroAgentManagedIdentityPrincipalId": {
+            "value": "[reference('maestroConsumerUAMI').principalId]"
+          },
+          "maestroConsumerName": {
+            "value": "[parameters('maestroConsumerName')]"
+          },
+          "maestroEventGridNamespaceId": {
+            "value": "[parameters('maestroEventGridNamespaceId')]"
+          },
+          "certKeyVaultName": {
+            "value": "[parameters('mgmtKeyVaultName')]"
+          },
+          "certificateSAN": {
+            "value": "[parameters('maestroConsumerCertSAN')]"
+          },
+          "certificateIssuer": {
+            "value": "[parameters('maestroCertIssuer')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "languageVersion": "2.0",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.41.2.15936",
+              "templateHash": "7687139747035579935"
+            }
+          },
+          "definitions": {
+            "_1.acrRef": {
+              "type": "object",
+              "properties": {
+                "resourceGroup": {
+                  "$ref": "#/definitions/_1.resourceGroupReference"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "metadata": {
+                "__bicep_imported_from!": {
+                  "sourceTemplate": "../resource.bicep"
+                }
+              }
+            },
+            "_1.cosmosDBAccountRef": {
+              "type": "object",
+              "properties": {
+                "resourceGroup": {
+                  "$ref": "#/definitions/_1.resourceGroupReference"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "metadata": {
+                "__bicep_imported_from!": {
+                  "sourceTemplate": "../resource.bicep"
+                }
+              }
+            },
+            "_1.dnsRecordRef": {
+              "type": "object",
+              "properties": {
+                "recordName": {
+                  "type": "string"
+                },
+                "zoneName": {
+                  "type": "string"
+                }
+              },
+              "metadata": {
+                "__bicep_imported_from!": {
+                  "sourceTemplate": "../resource.bicep"
+                }
+              }
+            },
+            "_1.dnsZoneRef": {
+              "type": "object",
+              "properties": {
+                "resourceGroup": {
+                  "$ref": "#/definitions/_1.resourceGroupReference"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "metadata": {
+                "__bicep_imported_from!": {
+                  "sourceTemplate": "../resource.bicep"
+                }
+              }
+            },
+            "_1.eventgridNamespaceRef": {
+              "type": "object",
+              "properties": {
+                "resourceGroup": {
+                  "$ref": "#/definitions/_1.resourceGroupReference"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "metadata": {
+                "__bicep_imported_from!": {
+                  "sourceTemplate": "../resource.bicep"
+                }
+              }
+            },
+            "_1.frontdoorProfileRef": {
+              "type": "object",
+              "properties": {
+                "resourceGroup": {
+                  "$ref": "#/definitions/_1.resourceGroupReference"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "metadata": {
+                "__bicep_imported_from!": {
+                  "sourceTemplate": "../resource.bicep"
+                }
+              }
+            },
+            "_1.grafanaRef": {
+              "type": "object",
+              "properties": {
+                "resourceGroup": {
+                  "$ref": "#/definitions/_1.resourceGroupReference"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "metadata": {
+                "__bicep_imported_from!": {
+                  "sourceTemplate": "../resource.bicep"
+                }
+              }
+            },
+            "_1.kustoRef": {
+              "type": "object",
+              "properties": {
+                "resourceGroup": {
+                  "$ref": "#/definitions/_1.resourceGroupReference"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "metadata": {
+                "__bicep_imported_from!": {
+                  "sourceTemplate": "../resource.bicep"
+                }
+              }
+            },
+            "_1.monitoringWorkspaceRef": {
+              "type": "object",
+              "properties": {
+                "resourceGroup": {
+                  "$ref": "#/definitions/_1.resourceGroupReference"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "metadata": {
+                "__bicep_imported_from!": {
+                  "sourceTemplate": "../resource.bicep"
+                }
+              }
+            },
+            "_1.msiRef": {
+              "type": "object",
+              "properties": {
+                "resourceGroup": {
+                  "$ref": "#/definitions/_1.resourceGroupReference"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "metadata": {
+                "__bicep_imported_from!": {
+                  "sourceTemplate": "../resource.bicep"
+                }
+              }
+            },
+            "_1.resourceGroupReference": {
+              "type": "object",
+              "properties": {
+                "subscriptionId": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "metadata": {
+                "__bicep_imported_from!": {
+                  "sourceTemplate": "../resource.bicep"
+                }
+              }
+            }
+          },
+          "functions": [
+            {
+              "namespace": "_1",
+              "members": {
+                "acrRefFromId": {
+                  "parameters": [
+                    {
+                      "type": "string",
+                      "name": "acrResourceId"
+                    }
+                  ],
+                  "output": {
+                    "$ref": "#/definitions/_1.acrRef",
+                    "value": {
+                      "resourceGroup": "[_1.resourceGroupFromResourceId(parameters('acrResourceId'))]",
+                      "name": "[last(split(parameters('acrResourceId'), '/'))]"
+                    }
+                  },
+                  "metadata": {
+                    "__bicep_imported_from!": {
+                      "sourceTemplate": "../resource.bicep"
+                    }
+                  }
+                },
+                "cosmosDBAccountRefFromId": {
+                  "parameters": [
+                    {
+                      "type": "string",
+                      "name": "cosmosDBAccountResourceId"
+                    }
+                  ],
+                  "output": {
+                    "$ref": "#/definitions/_1.cosmosDBAccountRef",
+                    "value": {
+                      "resourceGroup": "[_1.resourceGroupFromResourceId(parameters('cosmosDBAccountResourceId'))]",
+                      "name": "[last(split(parameters('cosmosDBAccountResourceId'), '/'))]"
+                    }
+                  },
+                  "metadata": {
+                    "__bicep_imported_from!": {
+                      "sourceTemplate": "../resource.bicep"
+                    }
+                  }
+                },
+                "dnsRecordRefFromFqdn": {
+                  "parameters": [
+                    {
+                      "type": "string",
+                      "name": "fqdn"
+                    }
+                  ],
+                  "output": {
+                    "$ref": "#/definitions/_1.dnsRecordRef",
+                    "value": {
+                      "recordName": "[split(parameters('fqdn'), '.')[0]]",
+                      "zoneName": "[join(skip(split(parameters('fqdn'), '.'), 1), '.')]"
+                    }
+                  },
+                  "metadata": {
+                    "__bicep_imported_from!": {
+                      "sourceTemplate": "../resource.bicep"
+                    }
+                  }
+                },
+                "dnsZoneRefFromId": {
+                  "parameters": [
+                    {
+                      "type": "string",
+                      "name": "dnsZoneResourceId"
+                    }
+                  ],
+                  "output": {
+                    "$ref": "#/definitions/_1.dnsZoneRef",
+                    "value": {
+                      "resourceGroup": "[_1.resourceGroupFromResourceId(parameters('dnsZoneResourceId'))]",
+                      "name": "[last(split(parameters('dnsZoneResourceId'), '/'))]"
+                    }
+                  },
+                  "metadata": {
+                    "__bicep_imported_from!": {
+                      "sourceTemplate": "../resource.bicep"
+                    }
+                  }
+                },
+                "eventgridNamespaceRefFromId": {
+                  "parameters": [
+                    {
+                      "type": "string",
+                      "name": "eventgridNamespaceResourceId"
+                    }
+                  ],
+                  "output": {
+                    "$ref": "#/definitions/_1.eventgridNamespaceRef",
+                    "value": {
+                      "resourceGroup": "[_1.resourceGroupFromResourceId(parameters('eventgridNamespaceResourceId'))]",
+                      "name": "[last(split(parameters('eventgridNamespaceResourceId'), '/'))]"
+                    }
+                  },
+                  "metadata": {
+                    "__bicep_imported_from!": {
+                      "sourceTemplate": "../resource.bicep"
+                    }
+                  }
+                },
+                "frontdoorProfileRefFromId": {
+                  "parameters": [
+                    {
+                      "type": "string",
+                      "name": "frontdoorProfileResourceId"
+                    }
+                  ],
+                  "output": {
+                    "$ref": "#/definitions/_1.frontdoorProfileRef",
+                    "value": {
+                      "resourceGroup": "[_1.resourceGroupFromResourceId(parameters('frontdoorProfileResourceId'))]",
+                      "name": "[last(split(parameters('frontdoorProfileResourceId'), '/'))]"
+                    }
+                  },
+                  "metadata": {
+                    "__bicep_imported_from!": {
+                      "sourceTemplate": "../resource.bicep"
+                    }
+                  }
+                },
+                "grafanaRefFromId": {
+                  "parameters": [
+                    {
+                      "type": "string",
+                      "name": "grafanaResourceId"
+                    }
+                  ],
+                  "output": {
+                    "$ref": "#/definitions/_1.grafanaRef",
+                    "value": {
+                      "resourceGroup": "[_1.resourceGroupFromResourceId(parameters('grafanaResourceId'))]",
+                      "name": "[last(split(parameters('grafanaResourceId'), '/'))]"
+                    }
+                  },
+                  "metadata": {
+                    "__bicep_imported_from!": {
+                      "sourceTemplate": "../resource.bicep"
+                    }
+                  }
+                },
+                "isMsiResourceId": {
+                  "parameters": [
+                    {
+                      "type": "string",
+                      "name": "resourceId"
+                    }
+                  ],
+                  "output": {
+                    "type": "bool",
+                    "value": "[contains(parameters('resourceId'), '/providers/Microsoft.ManagedIdentity/userAssignedIdentities/')]"
+                  },
+                  "metadata": {
+                    "__bicep_imported_from!": {
+                      "sourceTemplate": "../resource.bicep"
+                    }
+                  }
+                },
+                "kustoRefFromId": {
+                  "parameters": [
+                    {
+                      "type": "string",
+                      "name": "kustoResourceId"
+                    }
+                  ],
+                  "output": {
+                    "$ref": "#/definitions/_1.kustoRef",
+                    "value": {
+                      "resourceGroup": "[_1.resourceGroupFromResourceId(parameters('kustoResourceId'))]",
+                      "name": "[if(not(equals(parameters('kustoResourceId'), '')), last(split(parameters('kustoResourceId'), '/')), '')]"
+                    }
+                  },
+                  "metadata": {
+                    "__bicep_imported_from!": {
+                      "sourceTemplate": "../resource.bicep"
+                    }
+                  }
+                },
+                "monitoringWorkspaceRefFromId": {
+                  "parameters": [
+                    {
+                      "type": "string",
+                      "name": "monitoringWorkspaceResourceId"
+                    }
+                  ],
+                  "output": {
+                    "$ref": "#/definitions/_1.monitoringWorkspaceRef",
+                    "value": {
+                      "resourceGroup": "[_1.resourceGroupFromResourceId(parameters('monitoringWorkspaceResourceId'))]",
+                      "name": "[last(split(parameters('monitoringWorkspaceResourceId'), '/'))]"
+                    }
+                  },
+                  "metadata": {
+                    "__bicep_imported_from!": {
+                      "sourceTemplate": "../resource.bicep"
+                    }
+                  }
+                },
+                "msiRefFromId": {
+                  "parameters": [
+                    {
+                      "type": "string",
+                      "name": "msiResourceId"
+                    }
+                  ],
+                  "output": {
+                    "$ref": "#/definitions/_1.msiRef",
+                    "value": {
+                      "resourceGroup": "[_1.resourceGroupFromResourceId(parameters('msiResourceId'))]",
+                      "name": "[last(split(parameters('msiResourceId'), '/'))]"
+                    }
+                  },
+                  "metadata": {
+                    "__bicep_imported_from!": {
+                      "sourceTemplate": "../resource.bicep"
+                    }
+                  }
+                },
+                "resourceGroupFromResourceId": {
+                  "parameters": [
+                    {
+                      "type": "string",
+                      "name": "resourceId"
+                    }
+                  ],
+                  "output": {
+                    "$ref": "#/definitions/_1.resourceGroupReference",
+                    "value": {
+                      "subscriptionId": "[if(not(equals(parameters('resourceId'), '')), split(parameters('resourceId'), '/')[2], '')]",
+                      "name": "[if(not(equals(parameters('resourceId'), '')), split(parameters('resourceId'), '/')[4], '')]"
+                    }
+                  },
+                  "metadata": {
+                    "__bicep_imported_from!": {
+                      "sourceTemplate": "../resource.bicep"
+                    }
+                  }
+                }
+              }
+            }
+          ],
+          "parameters": {
+            "maestroAgentManagedIdentityPrincipalId": {
+              "type": "string"
+            },
+            "maestroConsumerName": {
+              "type": "string",
+              "minLength": 1
+            },
+            "maestroEventGridNamespaceId": {
+              "type": "string"
+            },
+            "certKeyVaultName": {
+              "type": "string"
+            },
+            "certificateSAN": {
+              "type": "string",
+              "metadata": {
+                "description": "The subject alternative name of the certificate"
+              }
+            },
+            "certificateIssuer": {
+              "type": "string",
+              "metadata": {
+                "description": "The issuer of the certificate."
+              }
+            }
+          },
+          "variables": {
+            "eventGridNamespaceRef": "[_1.eventgridNamespaceRefFromId(parameters('maestroEventGridNamespaceId'))]"
+          },
+          "resources": {
+            "kv": {
+              "existing": true,
+              "type": "Microsoft.KeyVault/vaults",
+              "apiVersion": "2023-07-01",
+              "name": "[parameters('certKeyVaultName')]"
+            },
+            "certSecret": {
+              "existing": true,
+              "type": "Microsoft.KeyVault/vaults/secrets",
+              "apiVersion": "2023-07-01",
+              "name": "[format('{0}/{1}', parameters('certKeyVaultName'), parameters('maestroConsumerName'))]"
+            },
+            "certSecretAccess": {
+              "type": "Microsoft.Resources/deployments",
+              "apiVersion": "2025-04-01",
+              "name": "[format('maestro-cert-access-{0}', uniqueString(parameters('maestroConsumerName')))]",
+              "properties": {
+                "expressionEvaluationOptions": {
+                  "scope": "inner"
+                },
+                "mode": "Incremental",
+                "parameters": {
+                  "keyVaultName": {
+                    "value": "[parameters('certKeyVaultName')]"
+                  },
+                  "secretName": {
+                    "value": "[parameters('maestroConsumerName')]"
+                  },
+                  "principalId": {
+                    "value": "[parameters('maestroAgentManagedIdentityPrincipalId')]"
+                  }
+                },
+                "template": {
+                  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                  "contentVersion": "1.0.0.0",
+                  "metadata": {
+                    "_generator": {
+                      "name": "bicep",
+                      "version": "0.41.2.15936",
+                      "templateHash": "7798058841999250701"
+                    }
+                  },
+                  "parameters": {
+                    "keyVaultName": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "The Key Vault name"
+                      }
+                    },
+                    "secretName": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "The name of the secret (certificate name) to grant access to"
+                      }
+                    },
+                    "principalId": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "The principal ID of the managed identity to grant access to"
+                      }
+                    }
+                  },
+                  "variables": {
+                    "keyVaultSecretUserRoleId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', '4633458b-17de-408a-b874-0445c86b69e6')]"
+                  },
+                  "resources": [
+                    {
+                      "type": "Microsoft.Authorization/roleAssignments",
+                      "apiVersion": "2022-04-01",
+                      "scope": "[resourceId('Microsoft.KeyVault/vaults/secrets', parameters('keyVaultName'), parameters('secretName'))]",
+                      "name": "[guid(parameters('principalId'), variables('keyVaultSecretUserRoleId'), resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName')), parameters('secretName'))]",
+                      "properties": {
+                        "roleDefinitionId": "[variables('keyVaultSecretUserRoleId')]",
+                        "principalId": "[parameters('principalId')]",
+                        "principalType": "ServicePrincipal"
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            "evengGridAccess": {
+              "type": "Microsoft.Resources/deployments",
+              "apiVersion": "2025-04-01",
+              "name": "[format('eg-access-{0}', uniqueString(parameters('maestroConsumerName')))]",
+              "subscriptionId": "[variables('eventGridNamespaceRef').resourceGroup.subscriptionId]",
+              "resourceGroup": "[variables('eventGridNamespaceRef').resourceGroup.name]",
+              "properties": {
+                "expressionEvaluationOptions": {
+                  "scope": "inner"
+                },
+                "mode": "Incremental",
+                "parameters": {
+                  "eventGridNamespaceName": {
+                    "value": "[variables('eventGridNamespaceRef').name]"
+                  },
+                  "clientName": {
+                    "value": "[parameters('maestroConsumerName')]"
+                  },
+                  "clientRole": {
+                    "value": "consumer"
+                  },
+                  "certificateSAN": {
+                    "value": "[parameters('certificateSAN')]"
+                  },
+                  "certificateIssuer": {
+                    "value": "[parameters('certificateIssuer')]"
+                  },
+                  "certificateThumbprint": {
+                    "value": "[coalesce(tryGet(tryGet(reference('certSecret', '2023-07-01', 'full'), 'tags'), 'thumbprint'), '')]"
+                  }
+                },
+                "template": {
+                  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                  "contentVersion": "1.0.0.0",
+                  "metadata": {
+                    "_generator": {
+                      "name": "bicep",
+                      "version": "0.41.2.15936",
+                      "templateHash": "620143609648862309"
+                    }
+                  },
+                  "parameters": {
+                    "eventGridNamespaceName": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "The EventGrid Namespace name where access will be managed"
+                      }
+                    },
+                    "clientName": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "The name of the client that will be created in the EventGrid Namespace"
+                      }
+                    },
+                    "clientRole": {
+                      "type": "string",
+                      "allowedValues": [
+                        "server",
+                        "consumer"
+                      ],
+                      "metadata": {
+                        "description": "The role of the client in the EventGrid Namespace."
+                      }
+                    },
+                    "certificateIssuer": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "The issuer of the certificate."
+                      }
+                    },
+                    "certificateThumbprint": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "The thumbprint of the certificate that should get access. Dont use in production"
+                      }
+                    },
+                    "certificateSAN": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "The subject alternative name of the certificate"
+                      }
+                    }
+                  },
+                  "resources": [
+                    {
+                      "condition": "[equals(parameters('certificateIssuer'), 'Self')]",
+                      "type": "Microsoft.EventGrid/namespaces/clients",
+                      "apiVersion": "2023-12-15-preview",
+                      "name": "[format('{0}/{1}', parameters('eventGridNamespaceName'), parameters('clientName'))]",
+                      "properties": {
+                        "authenticationName": "[parameters('certificateSAN')]",
+                        "attributes": {
+                          "role": "[parameters('clientRole')]",
+                          "consumer_name": "[parameters('clientName')]"
+                        },
+                        "clientCertificateAuthentication": {
+                          "allowedThumbprints": [
+                            "[parameters('certificateThumbprint')]"
+                          ],
+                          "validationScheme": "ThumbprintMatch"
+                        },
+                        "state": "Enabled"
+                      }
+                    },
+                    {
+                      "condition": "[not(equals(parameters('certificateIssuer'), 'Self'))]",
+                      "type": "Microsoft.EventGrid/namespaces/clients",
+                      "apiVersion": "2023-12-15-preview",
+                      "name": "[format('{0}/{1}', parameters('eventGridNamespaceName'), parameters('clientName'))]",
+                      "properties": {
+                        "authenticationName": "[parameters('certificateSAN')]",
+                        "attributes": {
+                          "role": "[parameters('clientRole')]",
+                          "consumer_name": "[parameters('clientName')]"
+                        },
+                        "clientCertificateAuthentication": {
+                          "validationScheme": "DnsMatchesAuthenticationName"
+                        },
+                        "state": "Enabled"
+                      }
+                    }
+                  ]
+                }
+              },
+              "dependsOn": [
+                "certSecret"
+              ]
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "maestroConsumerUAMI",
+        "mgmtKeyVault"
+      ]
+    },
+    "eventGrindPrivateEndpoint": {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "eventGridPrivateEndpoint",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "subnetIds": {
+            "value": [
+              "[parameters('nodeSubnetId')]"
+            ]
+          },
+          "privateLinkServiceId": {
+            "value": "[parameters('maestroEventGridNamespaceId')]"
+          },
+          "vnetId": {
+            "value": "[parameters('vnetId')]"
+          },
+          "serviceType": {
+            "value": "eventgrid"
+          },
+          "groupId": {
+            "value": "topicspace"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.41.2.15936",
+              "templateHash": "14649819341239129686"
+            }
+          },
+          "parameters": {
+            "location": {
+              "type": "string"
+            },
+            "serviceType": {
+              "type": "string",
+              "allowedValues": [
+                "eventgrid",
+                "keyvault",
+                "cosmosdb",
+                "postgres",
+                "acr"
+              ],
+              "metadata": {
+                "description": "The service type the private endpoint is created for"
+              }
+            },
+            "groupId": {
+              "type": "string",
+              "allowedValues": [
+                "topicspace",
+                "vault",
+                "Sql",
+                "postgresqlServer",
+                "registry"
+              ],
+              "metadata": {
+                "description": "The group id of the private endpoint service"
+              }
+            },
+            "privateLinkServiceId": {
+              "type": "string",
+              "metadata": {
+                "description": "The private link service id"
+              }
+            },
+            "subnetIds": {
+              "type": "array",
+              "metadata": {
+                "description": "The subnet ids to create the private endpoint in"
+              }
+            },
+            "vnetId": {
+              "type": "string",
+              "metadata": {
+                "description": "The vnet id to link the private endpoint to"
+              }
+            }
+          },
+          "variables": {
+            "endpointConfig": {
+              "eventgrid": {
+                "topicspace": "privatelink.ts.eventgrid.azure.net"
+              },
+              "keyvault": {
+                "vault": "privatelink.vaultcore.azure.net"
+              },
+              "cosmosdb": {
+                "Sql": "privatelink.documents.azure.com"
+              },
+              "postgres": {
+                "postgresqlServer": "privatelink.postgres.database.azure.com"
+              },
+              "acr": {
+                "registry": "privatelink.azurecr.io"
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Network/privateDnsZones",
+              "apiVersion": "2020-06-01",
+              "name": "[variables('endpointConfig')[parameters('serviceType')][parameters('groupId')]]",
+              "location": "global",
+              "properties": {},
+              "dependsOn": [
+                "privatEndpoint"
+              ]
+            },
+            {
+              "copy": {
+                "name": "privatEndpoint",
+                "count": "[length(parameters('subnetIds'))]"
+              },
+              "type": "Microsoft.Network/privateEndpoints",
+              "apiVersion": "2023-09-01",
+              "name": "[format('{0}-{1}', parameters('serviceType'), uniqueString(parameters('subnetIds')[copyIndex()], parameters('privateLinkServiceId')))]",
+              "location": "[parameters('location')]",
+              "properties": {
+                "privateLinkServiceConnections": [
+                  {
+                    "name": "[format('{0}-private-endpoint', parameters('serviceType'))]",
+                    "properties": {
+                      "privateLinkServiceId": "[parameters('privateLinkServiceId')]",
+                      "groupIds": [
+                        "[parameters('groupId')]"
+                      ]
+                    }
+                  }
+                ],
+                "subnet": {
+                  "id": "[parameters('subnetIds')[copyIndex()]]"
+                }
+              }
+            },
+            {
+              "copy": {
+                "name": "privateEndpointDnsGroup",
+                "count": "[length(range(0, length(parameters('subnetIds'))))]"
+              },
+              "type": "Microsoft.Network/privateEndpoints/privateDnsZoneGroups",
+              "apiVersion": "2023-09-01",
+              "name": "[format('{0}/{1}', format('{0}-{1}', parameters('serviceType'), uniqueString(parameters('subnetIds')[range(0, length(parameters('subnetIds')))[copyIndex()]], parameters('privateLinkServiceId'))), format('{0}-{1}', parameters('serviceType'), uniqueString(parameters('subnetIds')[range(0, length(parameters('subnetIds')))[copyIndex()]])))]",
+              "properties": {
+                "privateDnsZoneConfigs": [
+                  {
+                    "name": "config1",
+                    "properties": {
+                      "privateDnsZoneId": "[resourceId('Microsoft.Network/privateDnsZones', variables('endpointConfig')[parameters('serviceType')][parameters('groupId')])]"
+                    }
+                  }
+                ]
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Network/privateDnsZones/virtualNetworkLinks', variables('endpointConfig')[parameters('serviceType')][parameters('groupId')], uniqueString(format('{0}-{1}', parameters('serviceType'), uniqueString(parameters('vnetId')))))]",
+                "[resourceId('Microsoft.Network/privateDnsZones', variables('endpointConfig')[parameters('serviceType')][parameters('groupId')])]",
+                "[resourceId('Microsoft.Network/privateEndpoints', format('{0}-{1}', parameters('serviceType'), uniqueString(parameters('subnetIds')[range(0, length(parameters('subnetIds')))[copyIndex()]], parameters('privateLinkServiceId'))))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Network/privateDnsZones/virtualNetworkLinks",
+              "apiVersion": "2020-06-01",
+              "name": "[format('{0}/{1}', variables('endpointConfig')[parameters('serviceType')][parameters('groupId')], uniqueString(format('{0}-{1}', parameters('serviceType'), uniqueString(parameters('vnetId')))))]",
+              "location": "global",
+              "properties": {
+                "registrationEnabled": false,
+                "virtualNetwork": {
+                  "id": "[parameters('vnetId')]"
+                }
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Network/privateDnsZones', variables('endpointConfig')[parameters('serviceType')][parameters('groupId')])]"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "kubeApplierCosmos": {
+      "condition": "[not(equals(parameters('rpCosmosDbAccountId'), ''))]",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "[format('kube-applier-cosmos-{0}', uniqueString(resourceGroup().name))]",
+      "subscriptionId": "[variables('rpCosmosDbAccountRef').resourceGroup.subscriptionId]",
+      "resourceGroup": "[variables('rpCosmosDbAccountRef').resourceGroup.name]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "cosmosDBAccountName": {
+            "value": "[variables('rpCosmosDbAccountRef').name]"
+          },
+          "containerName": {
+            "value": "[parameters('kubeApplierContainerName')]"
+          },
+          "containerMaxScale": {
+            "value": "[parameters('kubeApplierContainerMaxScale')]"
+          },
+          "kubeApplierManagedIdentityPrincipalId": {
+            "value": "[reference('kubeApplierUAMI').principalId]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.41.2.15936",
+              "templateHash": "11526497404955599747"
+            }
+          },
+          "parameters": {
+            "cosmosDBAccountName": {
+              "type": "string"
+            },
+            "containerName": {
+              "type": "string"
+            },
+            "containerMaxScale": {
+              "type": "int"
+            },
+            "kubeApplierManagedIdentityPrincipalId": {
+              "type": "string"
+            },
+            "cosmosDataContributorRoleDefinitionId": {
+              "type": "string",
+              "defaultValue": "00000000-0000-0000-0000-000000000002"
+            }
+          },
+          "variables": {
+            "containerScope": "[format('{0}/dbs/{1}/colls/{2}', resourceId('Microsoft.DocumentDB/databaseAccounts', parameters('cosmosDBAccountName')), parameters('cosmosDBAccountName'), parameters('containerName'))]"
+          },
+          "resources": [
+            {
+              "type": "Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers",
+              "apiVersion": "2023-11-15",
+              "name": "[format('{0}/{1}/{2}', parameters('cosmosDBAccountName'), parameters('cosmosDBAccountName'), parameters('containerName'))]",
+              "properties": {
+                "options": {
+                  "autoscaleSettings": {
+                    "maxThroughput": "[parameters('containerMaxScale')]"
+                  }
+                },
+                "resource": {
+                  "id": "[parameters('containerName')]",
+                  "defaultTtl": -1,
+                  "indexingPolicy": {
+                    "indexingMode": "consistent",
+                    "automatic": true,
+                    "includedPaths": [
+                      {
+                        "path": "/*"
+                      }
+                    ],
+                    "excludedPaths": [
+                      {
+                        "path": "/\"_etag\"/?"
+                      }
+                    ]
+                  },
+                  "partitionKey": {
+                    "paths": [
+                      "/partitionKey"
+                    ],
+                    "kind": "Hash",
+                    "version": 2
+                  },
+                  "uniqueKeyPolicy": {
+                    "uniqueKeys": []
+                  },
+                  "conflictResolutionPolicy": {
+                    "mode": "LastWriterWins",
+                    "conflictResolutionPath": "/_ts"
+                  },
+                  "computedProperties": []
+                }
+              }
+            },
+            {
+              "type": "Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments",
+              "apiVersion": "2021-04-15",
+              "name": "[format('{0}/{1}', parameters('cosmosDBAccountName'), guid(guid('kube-applier-role', resourceId('Microsoft.DocumentDB/databaseAccounts', parameters('cosmosDBAccountName')), parameters('cosmosDataContributorRoleDefinitionId')), parameters('kubeApplierManagedIdentityPrincipalId'), resourceId('Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers', parameters('cosmosDBAccountName'), parameters('cosmosDBAccountName'), parameters('containerName'))))]",
+              "properties": {
+                "roleDefinitionId": "[format('{0}/sqlRoleDefinitions/{1}', resourceId('Microsoft.DocumentDB/databaseAccounts', parameters('cosmosDBAccountName')), parameters('cosmosDataContributorRoleDefinitionId'))]",
+                "principalId": "[parameters('kubeApplierManagedIdentityPrincipalId')]",
+                "scope": "[variables('containerScope')]"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers', parameters('cosmosDBAccountName'), parameters('cosmosDBAccountName'), parameters('containerName'))]"
+              ]
+            }
+          ]
+        }
+      },
+      "dependsOn": [
+        "kubeApplierUAMI"
+      ]
+    },
+    "cosmosDbPrivateEndpoint": {
+      "condition": "[and(parameters('rpCosmosDbPrivate'), not(equals(parameters('rpCosmosDbAccountId'), '')))]",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "cosmosDbPrivateEndpoint",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "subnetIds": {
+            "value": [
+              "[parameters('nodeSubnetId')]"
+            ]
+          },
+          "privateLinkServiceId": {
+            "value": "[parameters('rpCosmosDbAccountId')]"
+          },
+          "vnetId": {
+            "value": "[parameters('vnetId')]"
+          },
+          "serviceType": {
+            "value": "cosmosdb"
+          },
+          "groupId": {
+            "value": "Sql"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.41.2.15936",
+              "templateHash": "14649819341239129686"
+            }
+          },
+          "parameters": {
+            "location": {
+              "type": "string"
+            },
+            "serviceType": {
+              "type": "string",
+              "allowedValues": [
+                "eventgrid",
+                "keyvault",
+                "cosmosdb",
+                "postgres",
+                "acr"
+              ],
+              "metadata": {
+                "description": "The service type the private endpoint is created for"
+              }
+            },
+            "groupId": {
+              "type": "string",
+              "allowedValues": [
+                "topicspace",
+                "vault",
+                "Sql",
+                "postgresqlServer",
+                "registry"
+              ],
+              "metadata": {
+                "description": "The group id of the private endpoint service"
+              }
+            },
+            "privateLinkServiceId": {
+              "type": "string",
+              "metadata": {
+                "description": "The private link service id"
+              }
+            },
+            "subnetIds": {
+              "type": "array",
+              "metadata": {
+                "description": "The subnet ids to create the private endpoint in"
+              }
+            },
+            "vnetId": {
+              "type": "string",
+              "metadata": {
+                "description": "The vnet id to link the private endpoint to"
+              }
+            }
+          },
+          "variables": {
+            "endpointConfig": {
+              "eventgrid": {
+                "topicspace": "privatelink.ts.eventgrid.azure.net"
+              },
+              "keyvault": {
+                "vault": "privatelink.vaultcore.azure.net"
+              },
+              "cosmosdb": {
+                "Sql": "privatelink.documents.azure.com"
+              },
+              "postgres": {
+                "postgresqlServer": "privatelink.postgres.database.azure.com"
+              },
+              "acr": {
+                "registry": "privatelink.azurecr.io"
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Network/privateDnsZones",
+              "apiVersion": "2020-06-01",
+              "name": "[variables('endpointConfig')[parameters('serviceType')][parameters('groupId')]]",
+              "location": "global",
+              "properties": {},
+              "dependsOn": [
+                "privatEndpoint"
+              ]
+            },
+            {
+              "copy": {
+                "name": "privatEndpoint",
+                "count": "[length(parameters('subnetIds'))]"
+              },
+              "type": "Microsoft.Network/privateEndpoints",
+              "apiVersion": "2023-09-01",
+              "name": "[format('{0}-{1}', parameters('serviceType'), uniqueString(parameters('subnetIds')[copyIndex()], parameters('privateLinkServiceId')))]",
+              "location": "[parameters('location')]",
+              "properties": {
+                "privateLinkServiceConnections": [
+                  {
+                    "name": "[format('{0}-private-endpoint', parameters('serviceType'))]",
+                    "properties": {
+                      "privateLinkServiceId": "[parameters('privateLinkServiceId')]",
+                      "groupIds": [
+                        "[parameters('groupId')]"
+                      ]
+                    }
+                  }
+                ],
+                "subnet": {
+                  "id": "[parameters('subnetIds')[copyIndex()]]"
+                }
+              }
+            },
+            {
+              "copy": {
+                "name": "privateEndpointDnsGroup",
+                "count": "[length(range(0, length(parameters('subnetIds'))))]"
+              },
+              "type": "Microsoft.Network/privateEndpoints/privateDnsZoneGroups",
+              "apiVersion": "2023-09-01",
+              "name": "[format('{0}/{1}', format('{0}-{1}', parameters('serviceType'), uniqueString(parameters('subnetIds')[range(0, length(parameters('subnetIds')))[copyIndex()]], parameters('privateLinkServiceId'))), format('{0}-{1}', parameters('serviceType'), uniqueString(parameters('subnetIds')[range(0, length(parameters('subnetIds')))[copyIndex()]])))]",
+              "properties": {
+                "privateDnsZoneConfigs": [
+                  {
+                    "name": "config1",
+                    "properties": {
+                      "privateDnsZoneId": "[resourceId('Microsoft.Network/privateDnsZones', variables('endpointConfig')[parameters('serviceType')][parameters('groupId')])]"
+                    }
+                  }
+                ]
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Network/privateDnsZones/virtualNetworkLinks', variables('endpointConfig')[parameters('serviceType')][parameters('groupId')], uniqueString(format('{0}-{1}', parameters('serviceType'), uniqueString(parameters('vnetId')))))]",
+                "[resourceId('Microsoft.Network/privateDnsZones', variables('endpointConfig')[parameters('serviceType')][parameters('groupId')])]",
+                "[resourceId('Microsoft.Network/privateEndpoints', format('{0}-{1}', parameters('serviceType'), uniqueString(parameters('subnetIds')[range(0, length(parameters('subnetIds')))[copyIndex()]], parameters('privateLinkServiceId'))))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Network/privateDnsZones/virtualNetworkLinks",
+              "apiVersion": "2020-06-01",
+              "name": "[format('{0}/{1}', variables('endpointConfig')[parameters('serviceType')][parameters('groupId')], uniqueString(format('{0}-{1}', parameters('serviceType'), uniqueString(parameters('vnetId')))))]",
+              "location": "global",
+              "properties": {
+                "registrationEnabled": false,
+                "virtualNetwork": {
+                  "id": "[parameters('vnetId')]"
+                }
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Network/privateDnsZones', variables('endpointConfig')[parameters('serviceType')][parameters('groupId')])]"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "hcpBackupsRbac": {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "hcp-backups-rbac",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "storageAccountName": {
+            "value": "[parameters('hcpBackupsStorageAccountName')]"
+          },
+          "veleroManagedIdentityPrincipalId": {
+            "value": "[reference('veleroUAMI').principalId]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.41.2.15936",
+              "templateHash": "7051419038709233968"
+            }
+          },
+          "parameters": {
+            "storageAccountName": {
+              "type": "string",
+              "metadata": {
+                "description": "Storage account name for HCP backups"
+              }
+            },
+            "veleroManagedIdentityPrincipalId": {
+              "type": "string",
+              "metadata": {
+                "description": "Principal ID of the Velero managed identity"
+              }
+            }
+          },
+          "variables": {
+            "storageBlobDataContributorRole": "ba92f5b4-2d11-453d-a403-e96b0029c9fe",
+            "storageAccountKeyOperatorRole": "81a9662b-bebf-436f-a333-f67b29880f12",
+            "readerRole": "acdd72a7-3385-48ef-bd42-f606fba81ae7"
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName'))]",
+              "name": "[guid(parameters('storageAccountName'), 'velero-blob-contributor', variables('storageBlobDataContributorRole'))]",
+              "properties": {
+                "principalId": "[parameters('veleroManagedIdentityPrincipalId')]",
+                "principalType": "ServicePrincipal",
+                "roleDefinitionId": "[resourceId('Microsoft.Authorization/roleDefinitions', variables('storageBlobDataContributorRole'))]"
+              }
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName'))]",
+              "name": "[guid(parameters('storageAccountName'), 'velero-key-operator', variables('storageAccountKeyOperatorRole'))]",
+              "properties": {
+                "principalId": "[parameters('veleroManagedIdentityPrincipalId')]",
+                "principalType": "ServicePrincipal",
+                "roleDefinitionId": "[resourceId('Microsoft.Authorization/roleDefinitions', variables('storageAccountKeyOperatorRole'))]"
+              }
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName'))]",
+              "name": "[guid(parameters('storageAccountName'), 'velero-reader', variables('readerRole'))]",
+              "properties": {
+                "principalId": "[parameters('veleroManagedIdentityPrincipalId')]",
+                "principalType": "ServicePrincipal",
+                "roleDefinitionId": "[resourceId('Microsoft.Authorization/roleDefinitions', variables('readerRole'))]"
+              }
+            }
+          ]
+        }
+      },
+      "dependsOn": [
+        "veleroUAMI"
+      ]
+    },
+    "diagnosticSetting": {
+      "condition": "[not(equals(parameters('auditLogsEventHubAuthRuleId'), ''))]",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "aks-diagnostic-setting",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "aksClusterName": {
+            "value": "[parameters('aksClusterName')]"
+          },
+          "auditLogsEventHubName": {
+            "value": "[parameters('auditLogsEventHubName')]"
+          },
+          "auditLogsEventHubAuthRuleId": {
+            "value": "[parameters('auditLogsEventHubAuthRuleId')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.41.2.15936",
+              "templateHash": "1991160851064791459"
+            }
+          },
+          "parameters": {
+            "aksClusterName": {
+              "type": "string"
+            },
+            "auditLogsEventHubName": {
+              "type": "string"
+            },
+            "auditLogsEventHubAuthRuleId": {
+              "type": "string"
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Insights/diagnosticSettings",
+              "apiVersion": "2021-05-01-preview",
+              "scope": "[resourceId('Microsoft.ContainerService/managedClusters', parameters('aksClusterName'))]",
+              "name": "aks-audit-logs",
+              "properties": {
+                "eventHubAuthorizationRuleId": "[parameters('auditLogsEventHubAuthRuleId')]",
+                "eventHubName": "[parameters('auditLogsEventHubName')]",
+                "logs": [
+                  {
+                    "category": "kube-audit",
+                    "enabled": true
+                  },
+                  {
+                    "category": "cluster-autoscaler",
+                    "enabled": true
+                  },
+                  {
+                    "category": "kube-apiserver",
+                    "enabled": true
+                  },
+                  {
+                    "category": "kube-controller-manager",
+                    "enabled": true
+                  },
+                  {
+                    "category": "guard",
+                    "enabled": true
+                  },
+                  {
+                    "category": "kube-scheduler",
+                    "enabled": true
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    }
+  },
+  "outputs": {
+    "aksClusterName": {
+      "type": "string",
+      "value": "[parameters('aksClusterName')]"
+    }
+  }
+}

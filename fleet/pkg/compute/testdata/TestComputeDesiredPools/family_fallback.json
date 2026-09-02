@@ -1,0 +1,26 @@
+{
+  "pools": [
+    {
+      "role": "system",
+      "name": "s096e5ae8f6f",
+      "spec": {
+        "size": "Standard_D4ds_v6",
+        "family": "standardDDSv6Family",
+        "vcpus": 4,
+        "memoryGB": 16,
+        "secondaryNICs": 1
+      },
+      "zones": [
+        "1",
+        "2",
+        "3"
+      ],
+      "maxCount": 3,
+      "osDiskSizeGB": 32,
+      "maxPods": 100,
+      "labels": {
+        "aro-hcp.azure.com/role": "system"
+      }
+    }
+  ]
+}

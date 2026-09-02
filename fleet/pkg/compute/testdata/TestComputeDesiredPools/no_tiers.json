@@ -1,0 +1,12 @@
+{
+  "pools": null,
+  "failures": [
+    {
+      "tierIndex": 0,
+      "cores": 0,
+      "reason": "NoTiersConfigured",
+      "message": "no worker pool tiers are configured",
+      "required": false
+    }
+  ]
+}
