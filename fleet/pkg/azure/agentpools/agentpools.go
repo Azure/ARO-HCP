@@ -20,26 +20,73 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v6"
+
+	"github.com/Azure/ARO-HCP/fleet/pkg/compute"
 )
 
-// WorkerPoolLabel is the AKS node label key that identifies HCP worker pools.
-// Pools with aro-hcp.azure.com/role=worker are the only pools considered for
-// scheduling capacity. This must match the label selector used by the
-// mgmt-agent CapacityReport controller to filter nodes.
-const WorkerPoolLabel = "aro-hcp.azure.com/role"
+// RoleLabel is the canonical label key for controller-managed pools. Defined
+// in the nodepool package; re-exported here for callers that only need the key.
+const RoleLabel = compute.RoleLabel
 
-// WorkerPoolLabelValue is the expected value for WorkerPoolLabel on HCP worker pools.
-const WorkerPoolLabelValue = "worker"
+// WorkerPoolLabelValue is the expected value of RoleLabel on HCP worker pools.
+const WorkerPoolLabelValue = string(compute.PoolRoleWorker)
+
+// NewClientFactory builds a subscription-scoped AgentPoolsClient factory for
+// credential, resolving a nil clientOptions the same way every caller needs
+// to. It also returns the resolved ARM client options so callers that build
+// other subscription-scoped clients (e.g. armcompute.UsageClient) can reuse
+// them instead of resolving clientOptions a second time.
+func NewClientFactory(credential azcore.TokenCredential, clientOptions *policy.ClientOptions) (func(subscriptionID string) (*armcontainerservice.AgentPoolsClient, error), *azcorearm.ClientOptions) {
+	if clientOptions == nil {
+		clientOptions = &policy.ClientOptions{}
+	}
+	armClientOptions := &azcorearm.ClientOptions{ClientOptions: *clientOptions}
+
+	factory := func(subscriptionID string) (*armcontainerservice.AgentPoolsClient, error) {
+		return armcontainerservice.NewAgentPoolsClient(subscriptionID, credential, armClientOptions)
+	}
+	return factory, armClientOptions
+}
+
+// PoolRole returns the role label value for the given agent pool.
+// Returns "" when the pool has no role label.
+func PoolRole(pool armcontainerservice.AgentPool) string {
+	if pool.Properties == nil || pool.Properties.NodeLabels == nil {
+		return ""
+	}
+	role := pool.Properties.NodeLabels[RoleLabel]
+	if role == nil {
+		return ""
+	}
+	return *role
+}
+
+// IsManagedPool returns true if the agent pool has a role label, meaning it
+// is managed by the controller (system, infra, or worker).
+func IsManagedPool(pool armcontainerservice.AgentPool) bool {
+	return len(PoolRole(pool)) > 0
+}
 
 // IsWorkerPool returns true if the AKS agent pool is labeled as an HCP worker.
 func IsWorkerPool(pool armcontainerservice.AgentPool) bool {
-	if pool.Properties == nil || pool.Properties.NodeLabels == nil {
-		return false
+	return PoolRole(pool) == WorkerPoolLabelValue
+}
+
+// PoolMaxCount returns the pool's node ceiling: MaxCount when autoscaling is
+// enabled, otherwise the static Count. Returns 0 when Count is unset.
+func PoolMaxCount(pool armcontainerservice.AgentPool) int64 {
+	if pool.Properties == nil || pool.Properties.Count == nil {
+		return 0
 	}
-	role := pool.Properties.NodeLabels[WorkerPoolLabel]
-	return role != nil && *role == WorkerPoolLabelValue
+	count := int64(*pool.Properties.Count)
+	if pool.Properties.EnableAutoScaling != nil && *pool.Properties.EnableAutoScaling && pool.Properties.MaxCount != nil {
+		count = int64(*pool.Properties.MaxCount)
+	}
+	return count
 }
 
 // ListAgentPools lists the current AKS agent pools of a management cluster.

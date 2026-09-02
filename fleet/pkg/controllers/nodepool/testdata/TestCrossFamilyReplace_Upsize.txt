@@ -1,0 +1,46 @@
+initial:
+  old1       Standard_D4s_v3          zone=1       max=6   count=2   autoscaled
+  old2       Standard_D4s_v3          zone=2       max=6   count=2   autoscaled
+  old3       Standard_D4s_v3          zone=3       max=6   count=2   autoscaled
+
+desired:
+  new1       Standard_E32ds_v6        zone=1       max=6
+  new2       Standard_E32ds_v6        zone=2       max=6
+  new3       Standard_E32ds_v6        zone=3       max=6
+
+budget (vCPUs):
+  standardDSv3Family: 72
+  standardEDSv6Family: 576
+
+initial headroom (vCPUs):
+  standardDSv3Family: 24
+  standardEDSv6Family: 576
+
+initial NIC ceiling: 18
+
+actions:
+    1. Create       worker  Standard_E32ds_v6  new1       max=6         ceiling=+192 cores  nics=+42   EDSv6: 384c remaining
+    2. Create       worker  Standard_E32ds_v6  new2       max=6         ceiling=+384 cores  nics=+84   EDSv6: 192c remaining
+    3. Create       worker  Standard_E32ds_v6  new3       max=6         ceiling=+576 cores  nics=+126  EDSv6: 0c remaining
+    4. SetMaxCount  worker  Standard_D4s_v3    old1       max=2         ceiling=+560 cores  nics=+122  DSv3: 40c remaining
+    5. SetMaxCount  worker  Standard_D4s_v3    old2       max=2         ceiling=+544 cores  nics=+118  DSv3: 56c remaining
+    6. SetMaxCount  worker  Standard_D4s_v3    old3       max=2         ceiling=+528 cores  nics=+114  DSv3: 72c remaining
+    7. Freeze       worker  Standard_D4s_v3    old1       count=2
+    8. Freeze       worker  Standard_D4s_v3    old2       count=2
+    9. Freeze       worker  Standard_D4s_v3    old3       count=2
+   10. Reduce       worker  Standard_D4s_v3    old1       count=1       ceiling=+524 cores  nics=+113  DSv3: 76c remaining
+   11. Reduce       worker  Standard_D4s_v3    old1       count=0       ceiling=+520 cores  nics=+112  DSv3: 80c remaining
+   12. Reduce       worker  Standard_D4s_v3    old2       count=1       ceiling=+516 cores  nics=+111  DSv3: 84c remaining
+   13. Reduce       worker  Standard_D4s_v3    old2       count=0       ceiling=+512 cores  nics=+110  DSv3: 88c remaining
+   14. Reduce       worker  Standard_D4s_v3    old3       count=1       ceiling=+508 cores  nics=+109  DSv3: 92c remaining
+   15. Reduce       worker  Standard_D4s_v3    old3       count=0       ceiling=+504 cores  nics=+108  DSv3: 96c remaining
+   16. Delete       worker  Standard_D4s_v3    old1
+   17. Delete       worker  Standard_D4s_v3    old2
+   18. Delete       worker  Standard_D4s_v3    old3
+
+final:
+  new1       Standard_E32ds_v6        zone=1       max=6   count=1   autoscaled
+  new2       Standard_E32ds_v6        zone=2       max=6   count=1   autoscaled
+  new3       Standard_E32ds_v6        zone=3       max=6   count=1   autoscaled
+
+steps: 18

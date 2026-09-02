@@ -20,11 +20,13 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 
@@ -37,6 +39,7 @@ import (
 	maestroopenapi "github.com/openshift-online/maestro/pkg/api/openapi"
 	ocmsdk "github.com/openshift-online/ocm-sdk-go"
 
+	"github.com/Azure/ARO-HCP/fleet/pkg/compute"
 	"github.com/Azure/ARO-HCP/fleet/pkg/controllers/maestroregistration"
 	"github.com/Azure/ARO-HCP/fleet/pkg/manager"
 	"github.com/Azure/ARO-HCP/internal/azsdk"
@@ -72,6 +75,9 @@ type RawControllerOptions struct {
 
 	AMWWorkspaceResourceIDs []string
 	AMWScalingPollInterval  time.Duration
+
+	NodePoolProfile string
+	NodePoolZones   string
 }
 
 func DefaultControllerOptions() *RawControllerOptions {
@@ -97,7 +103,8 @@ func BindControllerOptions(opts *RawControllerOptions, cmd *cobra.Command) error
 	cmd.Flags().StringVar(&opts.MetricsListenAddress, "metrics-listen-address", opts.MetricsListenAddress, "listen address for metrics server")
 	cmd.Flags().StringArrayVar(&opts.AMWWorkspaceResourceIDs, "amw-workspace-resource-id", opts.AMWWorkspaceResourceIDs, "Azure Monitor Workspace resource ID to manage ingestion limits for. Can be specified multiple times.")
 	cmd.Flags().DurationVar(&opts.AMWScalingPollInterval, "amw-scaling-poll-interval", opts.AMWScalingPollInterval, "Interval at which the AMW ingestion limits scaling controller checks utilization and scales limits.")
-
+	cmd.Flags().StringVar(&opts.NodePoolProfile, "nodepool-profile", opts.NodePoolProfile, "Node pool tier profile (ci, development, integration, production)")
+	cmd.Flags().StringVar(&opts.NodePoolZones, "nodepool-zones", opts.NodePoolZones, "Comma-separated availability zone list for node pools (e.g. 1,2,3). If empty, derived from SKU API at runtime.")
 	for _, flag := range []string{
 		"cloud-environment",
 		"region",
@@ -117,6 +124,8 @@ func BindControllerOptions(opts *RawControllerOptions, cmd *cobra.Command) error
 type validatedControllerOptions struct {
 	*RawControllerOptions
 	cloudConfiguration cloud.Configuration
+	nodePoolProfile    *compute.Profile
+	nodePoolZones      []string
 }
 
 type ValidatedControllerOptions struct {
@@ -156,10 +165,40 @@ func (o *RawControllerOptions) Validate(ctx context.Context) (*ValidatedControll
 		return nil, utils.TrackError(fmt.Errorf("--amw-scaling-poll-interval must be positive when AMW workspaces are configured"))
 	}
 
+	if len(o.NodePoolZones) > 0 {
+		seen := sets.New[string]()
+		for _, zone := range strings.Split(o.NodePoolZones, ",") {
+			if len(zone) == 0 {
+				return nil, fmt.Errorf("--nodepool-zones contains empty zone value")
+			}
+			if len(zone) != 1 || zone[0] < '1' || zone[0] > '9' {
+				return nil, fmt.Errorf("--nodepool-zones: zone %q must be a single digit 1-9", zone)
+			}
+			if seen.Has(zone) {
+				return nil, fmt.Errorf("--nodepool-zones: duplicate zone %q", zone)
+			}
+			seen.Insert(zone)
+		}
+		if seen.Len() != 3 {
+			return nil, fmt.Errorf("--nodepool-zones: exactly 3 zones required, got %d", seen.Len())
+		}
+	}
+
+	var nodePoolProfile *compute.Profile
+	var nodePoolZones []string
+	if len(o.NodePoolProfile) > 0 {
+		nodePoolProfile, nodePoolZones, err = resolveNodePoolProfile(o)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	return &ValidatedControllerOptions{
 		validatedControllerOptions: &validatedControllerOptions{
 			RawControllerOptions: o,
 			cloudConfiguration:   cloudConfig,
+			nodePoolProfile:      nodePoolProfile,
+			nodePoolZones:        nodePoolZones,
 		},
 	}, nil
 }
@@ -177,6 +216,8 @@ type controllerOptions struct {
 	amwScalingPollInterval       time.Duration
 	azureCredential              azcore.TokenCredential
 	azureClientOptions           *policy.ClientOptions
+	nodePoolProfile              *compute.Profile
+	nodePoolZones                []string
 }
 
 type ControllerOptions struct {
@@ -249,8 +290,23 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 			amwScalingPollInterval:       o.AMWScalingPollInterval,
 			azureCredential:              azureCredential,
 			azureClientOptions:           azureClientOptions,
+			nodePoolProfile:              o.nodePoolProfile,
+			nodePoolZones:                o.nodePoolZones,
 		},
 	}, nil
+}
+
+func resolveNodePoolProfile(o *RawControllerOptions) (*compute.Profile, []string, error) {
+	profile, ok := compute.LookupProfile(o.NodePoolProfile)
+	if !ok {
+		return nil, nil, fmt.Errorf("--nodepool-profile %q is not a valid profile (valid: %s)",
+			o.NodePoolProfile, strings.Join(compute.ValidProfileNames(), ", "))
+	}
+	zones := []string{"1", "2", "3"}
+	if len(o.NodePoolZones) > 0 {
+		zones = strings.Split(o.NodePoolZones, ",")
+	}
+	return &profile, zones, nil
 }
 
 func (o *ControllerOptions) Run(ctx context.Context) error {
@@ -267,6 +323,8 @@ func (o *ControllerOptions) Run(ctx context.Context) error {
 		AMWScalingPollInterval:       o.amwScalingPollInterval,
 		AzureCredential:              o.azureCredential,
 		AzureClientOptions:           o.azureClientOptions,
+		NodePoolProfile:              o.nodePoolProfile,
+		NodePoolZones:                o.nodePoolZones,
 	}
 	return mgr.Run(ctx)
 }

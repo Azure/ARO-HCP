@@ -1,0 +1,60 @@
+initial:
+  e16az1     Standard_E16ds_v6        zone=1       max=3   count=1   autoscaled
+  e16bz1     Standard_E16ds_v6        zone=1       max=3   count=1   autoscaled
+  e16az2     Standard_E16ds_v6        zone=2       max=3   count=1   autoscaled
+  e16bz2     Standard_E16ds_v6        zone=2       max=3   count=1   autoscaled
+  e16az3     Standard_E16ds_v6        zone=3       max=3   count=1   autoscaled
+  e16bz3     Standard_E16ds_v6        zone=3       max=3   count=1   autoscaled
+
+desired:
+  e32z1      Standard_E32ds_v6        zone=1       max=3
+  e32z2      Standard_E32ds_v6        zone=2       max=3
+  e32z3      Standard_E32ds_v6        zone=3       max=3
+
+budget (vCPUs):
+  standardEDSv6Family: 288
+
+initial headroom (vCPUs):
+  standardEDSv6Family: 96
+
+initial NIC ceiling: 126
+
+actions:
+    1. Create       worker  Standard_E32ds_v6  e32z1      max=3         ceiling=+96 cores   nics=+21   EDSv6: 0c remaining
+    2. SetMaxCount  worker  Standard_E16ds_v6  e16az1     max=1         ceiling=+64 cores   nics=+7    EDSv6: 32c remaining
+    3. Create       worker  Standard_E32ds_v6  e32z2      max=1         ceiling=+96 cores   nics=+14   EDSv6: 0c remaining
+    4. SetMaxCount  worker  Standard_E16ds_v6  e16bz1     max=1         ceiling=+64 cores   nics=+0    EDSv6: 32c remaining
+    5. Create       worker  Standard_E32ds_v6  e32z3      max=1         ceiling=+96 cores   nics=+7    EDSv6: 0c remaining
+    6. SetMaxCount  worker  Standard_E16ds_v6  e16az2     max=1         ceiling=+64 cores   nics=-7    EDSv6: 32c remaining
+    7. SetMaxCount  worker  Standard_E32ds_v6  e32z2      max=2         ceiling=+96 cores   nics=+0    EDSv6: 0c remaining
+    8. SetMaxCount  worker  Standard_E16ds_v6  e16bz2     max=1         ceiling=+64 cores   nics=-14   EDSv6: 32c remaining
+    9. SetMaxCount  worker  Standard_E32ds_v6  e32z2      max=3         ceiling=+96 cores   nics=-7    EDSv6: 0c remaining
+   10. SetMaxCount  worker  Standard_E16ds_v6  e16az3     max=1         ceiling=+64 cores   nics=-21   EDSv6: 32c remaining
+   11. SetMaxCount  worker  Standard_E32ds_v6  e32z3      max=2         ceiling=+96 cores   nics=-14   EDSv6: 0c remaining
+   12. SetMaxCount  worker  Standard_E16ds_v6  e16bz3     max=1         ceiling=+64 cores   nics=-28   EDSv6: 32c remaining
+   13. SetMaxCount  worker  Standard_E32ds_v6  e32z3      max=3         ceiling=+96 cores   nics=-21   EDSv6: 0c remaining
+   14. Freeze       worker  Standard_E16ds_v6  e16az1     count=1
+   15. Freeze       worker  Standard_E16ds_v6  e16bz1     count=1
+   16. Freeze       worker  Standard_E16ds_v6  e16az2     count=1
+   17. Freeze       worker  Standard_E16ds_v6  e16bz2     count=1
+   18. Freeze       worker  Standard_E16ds_v6  e16az3     count=1
+   19. Freeze       worker  Standard_E16ds_v6  e16bz3     count=1
+   20. Reduce       worker  Standard_E16ds_v6  e16az1     count=0       ceiling=+80 cores   nics=-28   EDSv6: 16c remaining
+   21. Reduce       worker  Standard_E16ds_v6  e16az2     count=0       ceiling=+64 cores   nics=-35   EDSv6: 32c remaining
+   22. Reduce       worker  Standard_E16ds_v6  e16az3     count=0       ceiling=+48 cores   nics=-42   EDSv6: 48c remaining
+   23. Reduce       worker  Standard_E16ds_v6  e16bz1     count=0       ceiling=+32 cores   nics=-49   EDSv6: 64c remaining
+   24. Reduce       worker  Standard_E16ds_v6  e16bz2     count=0       ceiling=+16 cores   nics=-56   EDSv6: 80c remaining
+   25. Reduce       worker  Standard_E16ds_v6  e16bz3     count=0       ceiling=+0 cores    nics=-63   EDSv6: 96c remaining
+   26. Delete       worker  Standard_E16ds_v6  e16az1
+   27. Delete       worker  Standard_E16ds_v6  e16az2
+   28. Delete       worker  Standard_E16ds_v6  e16az3
+   29. Delete       worker  Standard_E16ds_v6  e16bz1
+   30. Delete       worker  Standard_E16ds_v6  e16bz2
+   31. Delete       worker  Standard_E16ds_v6  e16bz3
+
+final:
+  e32z1      Standard_E32ds_v6        zone=1       max=3   count=1   autoscaled
+  e32z2      Standard_E32ds_v6        zone=2       max=3   count=1   autoscaled
+  e32z3      Standard_E32ds_v6        zone=3       max=3   count=1   autoscaled
+
+steps: 31
