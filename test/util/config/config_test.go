@@ -1,7 +1,6 @@
 package config_test
 
 import (
-	"fmt"
 	"path/filepath"
 	"testing"
 
@@ -26,24 +25,36 @@ func TestLoadConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to get test.property: %v", err)
 	}
-	fmt.Println(val)
-	if val.(string) != "override_value" {
-		t.Errorf("Expected 'override_value', got '%v'", val)
+	valStr, ok := val.(string)
+	if !ok {
+		t.Fatalf("Expected string, got %T", val)
+	}
+
+	if valStr != "override_value" {
+		t.Errorf("Expected 'override_value', got '%v'", valStr)
 	}
 
 	val2, err := config.ServiceConfig.GetByPath("test.cloud")
+	val2Str, ok := val2.(string)
+	if !ok {
+		t.Fatalf("Expected string, got %T", val2)
+	}
 	if err != nil {
 		t.Fatalf("Failed to get test.cloud: %v", err)
 	}
-	if val2.(string) != "public" {
+	if val2Str != "public" {
 		t.Errorf("Expected 'public', got '%v'", val2)
 	}
 
 	val3, err := config.ServiceConfig.GetByPath("test.region_prop")
+	val3Str, ok := val3.(string)
+	if !ok {
+		t.Fatalf("Expected string, got %T", val3)
+	}
 	if err != nil {
 		t.Fatalf("Failed to get test.region_prop: %v", err)
 	}
-	if val3.(string) != "region_override" {
+	if val3Str != "region_override" {
 		t.Errorf("Expected 'region_override', got '%v'", val3)
 	}
 }
