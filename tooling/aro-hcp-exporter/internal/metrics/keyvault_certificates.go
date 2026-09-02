@@ -113,15 +113,17 @@ func (c *KeyVaultCertificateCollector) Collect(ch chan<- prometheus.Metric) {
 	c.lastSuccessMu.RLock()
 	lastSuccess := c.lastSuccess
 	c.lastSuccessMu.RUnlock()
+	lastSuccessTimestamp := int64(0)
 	if !lastSuccess.IsZero() {
-		ch <- prometheus.MustNewConstMetric(
-			keyVaultCertificateCollectorLastSuccessTimestampSecondsDesc,
-			prometheus.GaugeValue,
-			float64(lastSuccess.Unix()),
-			c.keyVault,
-			c.region,
-		)
+		lastSuccessTimestamp = lastSuccess.Unix()
 	}
+	ch <- prometheus.MustNewConstMetric(
+		keyVaultCertificateCollectorLastSuccessTimestampSecondsDesc,
+		prometheus.GaugeValue,
+		float64(lastSuccessTimestamp),
+		c.keyVault,
+		c.region,
+	)
 }
 
 func (c *KeyVaultCertificateCollector) CollectMetricValues(ctx context.Context) {

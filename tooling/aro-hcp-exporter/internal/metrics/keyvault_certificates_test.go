@@ -113,7 +113,10 @@ func TestKeyVaultCertificateCollectorPartialFailure(t *testing.T) {
 	assert.Equal(t, float64(1), testutil.ToFloat64(errorCounter))
 	require.NoError(t, testutil.CollectAndCompare(
 		collector,
-		strings.NewReader(`# HELP keyvault_certificate_enabled Whether the Key Vault certificate is enabled
+		strings.NewReader(`# HELP keyvault_certificate_collector_last_success_timestamp_seconds Unix timestamp of the last collection in which all configured Key Vault certificates were read successfully
+# TYPE keyvault_certificate_collector_last_success_timestamp_seconds gauge
+keyvault_certificate_collector_last_success_timestamp_seconds{key_vault="aro-hcp-dev-svc-kv",region="westus3"} 0
+# HELP keyvault_certificate_enabled Whether the Key Vault certificate is enabled
 # TYPE keyvault_certificate_enabled gauge
 keyvault_certificate_enabled{certificate_name="frontend-cert-dev-usw3",key_vault="aro-hcp-dev-svc-kv",region="westus3"} 1
 `),
@@ -186,7 +189,7 @@ func TestKeyVaultCertificateCollectorRejectsIncompleteMetadata(t *testing.T) {
 			collector.CollectMetricValues(context.Background())
 
 			assert.Equal(t, float64(1), testutil.ToFloat64(errorCounter))
-			require.NoError(t, testutil.CollectAndCompare(collector, strings.NewReader("")))
+			requireLastSuccessTimestamp(t, collector, 0)
 		})
 	}
 }
