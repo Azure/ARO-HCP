@@ -1,7 +1,7 @@
 {
   "uid": "hcp-namespace-deepdive",
   "title": "HCP Namespace Deep Dive",
-  "description": "Drill-down view for investigating specific HCP instances on MGMT clusters. Shows per-container resource breakdown, pod lifecycle, and etcd health.",
+  "description": "Shows per-pod and per-container CPU & memory resource breakdown, pod lifecycle, network/disk I/O, etcd health, HCP namespace utilization, and HCP cluster footprint on user nodes in the MGMT cluster.",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
@@ -229,7 +229,7 @@
               }
             ]
           },
-          "unit": "bytes"
+          "unit": "decbytes"
         },
         "overrides": []
       },
@@ -298,7 +298,7 @@
               }
             ]
           },
-          "unit": "bytes"
+          "unit": "decbytes"
         },
         "overrides": [
           {
@@ -400,7 +400,7 @@
               }
             ]
           },
-          "unit": "bytes"
+          "unit": "decbytes"
         },
         "overrides": [
           {
@@ -482,6 +482,423 @@
         "w": 24,
         "x": 0,
         "y": 17
+      },
+      "id": 23,
+      "panels": [],
+      "title": "Pod-Level Resource Usage",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource_svc}"
+      },
+      "description": "CPU usage (cores) aggregated per pod over time. Spot which pod is driving CPU load without the per-container noise.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "CPU Cores",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short",
+          "decimals": 3
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 18
+      },
+      "id": 24,
+      "options": {
+        "legend": {
+          "calcs": [
+            "last",
+            "max",
+            "mean"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource_svc}"
+          },
+          "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{cluster=\"$cluster\", namespace=\"$namespace\", container!=\"\", container!=\"POD\"}[$__rate_interval]))",
+          "legendFormat": "{{pod}}",
+          "refId": "A"
+        }
+      ],
+      "title": "CPU Usage per Pod (cores)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource_svc}"
+      },
+      "description": "Memory working set aggregated per pod over time (excludes reclaimable cache).",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "Memory",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "decbytes"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 18
+      },
+      "id": 25,
+      "options": {
+        "legend": {
+          "calcs": [
+            "last",
+            "max",
+            "mean"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource_svc}"
+          },
+          "expr": "sum by (pod) (container_memory_working_set_bytes{cluster=\"$cluster\", namespace=\"$namespace\", container!=\"\", container!=\"POD\"})",
+          "legendFormat": "{{pod}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Memory Working Set per Pod",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource_svc}"
+      },
+      "description": "Current CPU usage per pod, sorted highest first.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.5
+              },
+              {
+                "color": "red",
+                "value": 2
+              }
+            ]
+          },
+          "unit": "short",
+          "decimals": 3
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Pod"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 350
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 26
+      },
+      "id": 26,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": true
+        },
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "CPU Usage (cores)"
+          }
+        ]
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource_svc}"
+          },
+          "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{cluster=\"$cluster\", namespace=\"$namespace\", container!=\"\", container!=\"POD\"}[$__rate_interval]))",
+          "format": "table",
+          "instant": true,
+          "range": false,
+          "legendFormat": "__auto",
+          "refId": "A"
+        }
+      ],
+      "title": "Current CPU Usage per Pod",
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "cluster": true
+            },
+            "renameByName": {
+              "pod": "Pod",
+              "Value": "CPU Usage (cores)"
+            }
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource_svc}"
+      },
+      "description": "Current memory working set per pod, sorted highest first.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "decbytes"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Pod"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 350
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 26
+      },
+      "id": 27,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": true
+        },
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "Memory Usage"
+          }
+        ]
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource_svc}"
+          },
+          "expr": "sum by (pod) (container_memory_working_set_bytes{cluster=\"$cluster\", namespace=\"$namespace\", container!=\"\", container!=\"POD\"})",
+          "format": "table",
+          "instant": true,
+          "range": false,
+          "legendFormat": "__auto",
+          "refId": "A"
+        }
+      ],
+      "title": "Current Memory Usage per Pod",
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "cluster": true
+            },
+            "renameByName": {
+              "pod": "Pod",
+              "Value": "Memory Usage"
+            }
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 34
       },
       "id": 5,
       "panels": [],
@@ -577,7 +994,7 @@
         "h": 6,
         "w": 8,
         "x": 0,
-        "y": 18
+        "y": 35
       },
       "id": 6,
       "options": {
@@ -603,7 +1020,7 @@
             "type": "prometheus",
             "uid": "${datasource_hcp}"
           },
-          "expr": "sum(kube_pod_status_phase{cluster=\"$cluster\", namespace=\"$namespace\", phase=\"running\"})",
+          "expr": "sum(kube_pod_status_phase{cluster=\"$cluster\", namespace=\"$namespace\", phase=\"Running\"})",
           "instant": true,
           "range": false,
           "legendFormat": "Running",
@@ -614,7 +1031,7 @@
             "type": "prometheus",
             "uid": "${datasource_hcp}"
           },
-          "expr": "sum(kube_pod_status_phase{cluster=\"$cluster\", namespace=\"$namespace\", phase=\"pending\"})",
+          "expr": "sum(kube_pod_status_phase{cluster=\"$cluster\", namespace=\"$namespace\", phase=\"Pending\"})",
           "instant": true,
           "range": false,
           "legendFormat": "Pending",
@@ -625,7 +1042,7 @@
             "type": "prometheus",
             "uid": "${datasource_hcp}"
           },
-          "expr": "sum(kube_pod_status_phase{cluster=\"$cluster\", namespace=\"$namespace\", phase=\"failed\"})",
+          "expr": "sum(kube_pod_status_phase{cluster=\"$cluster\", namespace=\"$namespace\", phase=\"Failed\"})",
           "instant": true,
           "range": false,
           "legendFormat": "Failed",
@@ -636,7 +1053,7 @@
             "type": "prometheus",
             "uid": "${datasource_hcp}"
           },
-          "expr": "sum(kube_pod_status_phase{cluster=\"$cluster\", namespace=\"$namespace\", phase=\"succeeded\"})",
+          "expr": "sum(kube_pod_status_phase{cluster=\"$cluster\", namespace=\"$namespace\", phase=\"Succeeded\"})",
           "instant": true,
           "range": false,
           "legendFormat": "Succeeded",
@@ -710,7 +1127,7 @@
         "h": 6,
         "w": 16,
         "x": 8,
-        "y": 18
+        "y": 35
       },
       "id": 7,
       "options": {
@@ -807,7 +1224,7 @@
         "h": 6,
         "w": 12,
         "x": 0,
-        "y": 24
+        "y": 41
       },
       "id": 8,
       "options": {
@@ -886,7 +1303,7 @@
         "h": 6,
         "w": 12,
         "x": 12,
-        "y": 24
+        "y": 41
       },
       "id": 9,
       "options": {
@@ -962,7 +1379,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 30
+        "y": 47
       },
       "id": 10,
       "panels": [],
@@ -1030,7 +1447,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 31
+        "y": 48
       },
       "id": 11,
       "options": {
@@ -1124,7 +1541,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 31
+        "y": 48
       },
       "id": 12,
       "options": {
@@ -1222,7 +1639,7 @@
         "h": 6,
         "w": 24,
         "x": 0,
-        "y": 39
+        "y": 56
       },
       "id": 13,
       "options": {
@@ -1260,7 +1677,7 @@
           "refId": "B"
         }
       ],
-      "title": "Network Error Rate",
+      "title": "Network Error Rate per Pod",
       "type": "timeseries"
     },
     {
@@ -1269,7 +1686,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 45
+        "y": 62
       },
       "id": 14,
       "panels": [],
@@ -1337,7 +1754,7 @@
               }
             ]
           },
-          "unit": "bytes"
+          "unit": "decbytes"
         },
         "overrides": []
       },
@@ -1345,7 +1762,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 46
+        "y": 63
       },
       "id": 15,
       "options": {
@@ -1438,7 +1855,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 54
+        "y": 71
       },
       "id": 16,
       "options": {
@@ -1532,7 +1949,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 54
+        "y": 71
       },
       "id": 17,
       "options": {
@@ -1571,7 +1988,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 62
+        "y": 79
       },
       "id": 18,
       "panels": [],
@@ -1647,7 +2064,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 63
+        "y": 80
       },
       "id": 19,
       "options": {
@@ -1702,15 +2119,15 @@
               },
               {
                 "color": "yellow",
-                "value": 2
+                "value": 2000000000
               },
               {
                 "color": "red",
-                "value": 8
+                "value": 8000000000
               }
             ]
           },
-          "unit": "decgbytes"
+          "unit": "decbytes"
         },
         "overrides": []
       },
@@ -1718,7 +2135,7 @@
         "h": 8,
         "w": 6,
         "x": 12,
-        "y": 63
+        "y": 80
       },
       "id": 20,
       "options": {
@@ -1744,14 +2161,14 @@
             "type": "prometheus",
             "uid": "${datasource_hcp}"
           },
-          "expr": "etcd_mvcc_db_total_size_in_bytes{cluster=\"$cluster\", namespace=\"$namespace\"} / 1024 / 1024 / 1024",
+          "expr": "etcd_mvcc_db_total_size_in_bytes{cluster=\"$cluster\", namespace=\"$namespace\"}",
           "instant": true,
           "legendFormat": "{{pod}}",
           "range": false,
           "refId": "A"
         }
       ],
-      "title": "etcd DB Size (GB)",
+      "title": "etcd DB Size",
       "type": "stat"
     },
     {
@@ -1791,7 +2208,7 @@
         "h": 8,
         "w": 6,
         "x": 18,
-        "y": 63
+        "y": 80
       },
       "id": 21,
       "options": {
@@ -1826,6 +2243,729 @@
       ],
       "title": "etcd Leader Changes (Last 1h)",
       "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 88
+      },
+      "id": 33,
+      "panels": [],
+      "title": "HCP Namespace Resource Footprint on MGMT Cluster",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource_svc}"
+      },
+      "description": "Total CPU usage (cores) for the selected HCP namespace over time.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "CPU Cores",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short",
+          "decimals": 3
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 89
+      },
+      "id": 38,
+      "options": {
+        "legend": {
+          "calcs": [
+            "last",
+            "max",
+            "mean"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource_svc}"
+          },
+          "expr": "sum(rate(container_cpu_usage_seconds_total{cluster=\"$cluster\", namespace=\"$namespace\", container!=\"\", container!=\"POD\"}[$__rate_interval]))",
+          "legendFormat": "$namespace CPU usage",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "HCP Namespace CPU Usage (cores)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource_svc}"
+      },
+      "description": "Total memory working set for the selected HCP namespace over time.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "Memory",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "decbytes"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 89
+      },
+      "id": 39,
+      "options": {
+        "legend": {
+          "calcs": [
+            "last",
+            "max",
+            "mean"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource_svc}"
+          },
+          "expr": "sum(container_memory_working_set_bytes{cluster=\"$cluster\", namespace=\"$namespace\", container!=\"\", container!=\"POD\"})",
+          "legendFormat": "$namespace memory usage",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "HCP Namespace Memory Usage",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource_svc}"
+      },
+      "description": "Total network I/O (receive + transmit) for the selected HCP namespace over time.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "Network I/O",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "Bps"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 89
+      },
+      "id": 40,
+      "options": {
+        "legend": {
+          "calcs": [
+            "last",
+            "max",
+            "mean"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource_svc}"
+          },
+          "expr": "sum(rate(container_network_receive_bytes_total{cluster=\"$cluster\", namespace=\"$namespace\"}[$__rate_interval]))",
+          "legendFormat": "$namespace RX",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource_svc}"
+          },
+          "expr": "sum(rate(container_network_transmit_bytes_total{cluster=\"$cluster\", namespace=\"$namespace\"}[$__rate_interval]))",
+          "legendFormat": "$namespace TX",
+          "range": true,
+          "refId": "B"
+        }
+      ],
+      "title": "HCP Namespace Network I/O",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource_svc}"
+      },
+      "description": "CPU usage of the selected HCP namespace on each user (userswft) node as a percentage of that node's allocatable CPU. Shows how the HCP workload is distributed across user (userswft) nodes.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "% of Node CPU",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 97
+      },
+      "id": 41,
+      "options": {
+        "legend": {
+          "calcs": [
+            "last",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource_svc}"
+          },
+          "expr": "sum by (node) (\n  label_replace(\n    rate(container_cpu_usage_seconds_total{cluster=\"$cluster\", namespace=\"$namespace\", container!=\"\", container!=\"POD\"}[$__rate_interval]),\n    \"node\", \"$1\", \"instance\", \"([^:]+)(:.*)?\"\n  )\n)\n/ on(node)\nmax by (node) (kube_node_status_allocatable{cluster=\"$cluster\", resource=\"cpu\", node=~\"aks-user.*\"})\n* 100",
+          "legendFormat": "{{node}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "HCP Namespace CPU % per user (userswft) Node",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource_svc}"
+      },
+      "description": "Memory working set of the selected HCP namespace on each user (userswft) node as a percentage of that node's allocatable memory. Shows how the HCP workload is distributed across user (userswft) nodes.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "% of Node Memory",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 97
+      },
+      "id": 42,
+      "options": {
+        "legend": {
+          "calcs": [
+            "last",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource_svc}"
+          },
+          "expr": "sum by (node) (\n  label_replace(\n    container_memory_working_set_bytes{cluster=\"$cluster\", namespace=\"$namespace\", container!=\"\", container!=\"POD\"},\n    \"node\", \"$1\", \"instance\", \"([^:]+)(:.*)?\"\n  )\n)\n/ on(node)\nmax by (node) (kube_node_status_allocatable{cluster=\"$cluster\", resource=\"memory\", node=~\"aks-user.*\"})\n* 100",
+          "legendFormat": "{{node}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "HCP Namespace Memory % per user (userswft) Node",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 105
+      },
+      "id": 28,
+      "panels": [],
+      "title": "Current Overall MGMT Cluster Node Utilization",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource_svc}"
+      },
+      "description": "Current CPU utilization per MGMT cluster node as a percentage of allocatable capacity. Helps identify hot nodes.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 70
+              },
+              {
+                "color": "red",
+                "value": 90
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 106
+      },
+      "id": 29,
+      "options": {
+        "legend": {
+          "calcs": [
+            "last",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource_svc}"
+          },
+          "expr": "sum by (node) (label_replace(rate(container_cpu_usage_seconds_total{cluster=\"$cluster\", container!=\"\", container!=\"POD\"}[$__rate_interval]), \"node\", \"$1\", \"instance\", \"([^:]+)(:.*)?\"))\n/ on(node)\nmax by (node) (kube_node_status_allocatable{cluster=\"$cluster\", resource=\"cpu\"})\n* 100",
+          "legendFormat": "{{node}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "CPU Utilization per Node (% of Allocatable)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource_svc}"
+      },
+      "description": "Current memory utilization per MGMT cluster node as a percentage of allocatable capacity. Helps identify hot nodes.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 70
+              },
+              {
+                "color": "red",
+                "value": 90
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 106
+      },
+      "id": 30,
+      "options": {
+        "legend": {
+          "calcs": [
+            "last",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource_svc}"
+          },
+          "expr": "sum by (node) (label_replace(container_memory_working_set_bytes{cluster=\"$cluster\", container!=\"\", container!=\"POD\"}, \"node\", \"$1\", \"instance\", \"([^:]+)(:.*)?\"))\n/ on(node)\nmax by (node) (kube_node_status_allocatable{cluster=\"$cluster\", resource=\"memory\"})\n* 100",
+          "legendFormat": "{{node}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Memory Utilization per Node (% of Allocatable)",
+      "type": "timeseries"
     }
   ],
   "schemaVersion": 39,
