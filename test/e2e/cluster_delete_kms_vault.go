@@ -48,6 +48,18 @@ var _ = Describe("Customer", func() {
 		labels.Critical,
 		labels.Positive,
 		labels.MIContainers(1),
+		// TODO(AROSLSRE-1709): temporary, remove before merge. The dev presubmit
+		// e2e-parallel job only runs the rp-api-compat-all/parallel suite, which
+		// (in dev) selects on ARO-HCP-RP-API-Compatible || Development-Only. This
+		// test uses ARM templates directly (like cluster_delete_cx_rg.go), so it
+		// is not RP-API-compatible; Development-Only is added solely to get a CI
+		// run on this draft PR since local personal-dev-env validation hit a
+		// shared-subscription public IP quota exhaustion. Removing this label
+		// restores eligibility for the broader integration/stage/prod-e2e-parallel
+		// suites (which exclude Development-Only), matching cluster_delete_cx_rg.go
+		// and cluster_delete_missing_identities.go's unlabeled state — the intended
+		// long-term home for this test, since the original incident was in prod.
+		labels.DevelopmentOnly,
 		func(ctx context.Context) {
 			const (
 				customerNetworkSecurityGroupName = "customer-nsg"
