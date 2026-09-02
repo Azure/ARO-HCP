@@ -10,7 +10,7 @@ tests:
 # MWMBR: fast/medium tiers require both short AND long window confirmation
 # Fast  (1h5m):    fires after 5m -> check at 11m
 # Medium (6h30m):  fires after 30m -> check at 61m
-# Slow  (3d6h):   fires after 3h -> check at 365m
+# Slow  (3d6h):    for: 3h, but checked at 365m so the 6h short window has enough samples
 # ========================================
 
 # Scenario 1: High commit duration — all three tiers fire
@@ -52,6 +52,7 @@ tests:
         description: "test-hcp-cluster etcd instance etcd-0 has 99th percentile backend commit duration of 0.128s (threshold: 100ms). Slow disk performance may impact write performance. Fast burn (1h/5m)."
         summary: "etcd backend commit duration is high for test-hcp-cluster etcd-0"
         runbook_url: https://aka.ms/arohcp-runbook-etcd
+        correlationId: "userJourneyEtcdBackendCommitDurationHigh/test-hcp-cluster/etcd-0"
   - eval_time: 11m
     alertname: userJourneyEtcdBackendCommitDurationHigh6h30m
     exp_alerts: []
@@ -75,6 +76,7 @@ tests:
         description: "test-hcp-cluster etcd instance etcd-0 has 99th percentile backend commit duration of 0.128s (threshold: 100ms). Slow disk performance may impact write performance. Medium burn (6h/30m)."
         summary: "etcd backend commit duration is high for test-hcp-cluster etcd-0"
         runbook_url: https://aka.ms/arohcp-runbook-etcd
+        correlationId: "userJourneyEtcdBackendCommitDurationHigh/test-hcp-cluster/etcd-0"
   - eval_time: 61m
     alertname: userJourneyEtcdBackendCommitDurationHigh3d6h
     exp_alerts: []
@@ -95,6 +97,7 @@ tests:
         description: "test-hcp-cluster etcd instance etcd-0 has 99th percentile backend commit duration of 0.128s (threshold: 100ms). Slow disk performance may impact write performance. Slow burn (3d/6h)."
         summary: "etcd backend commit duration is chronically high for test-hcp-cluster etcd-0"
         runbook_url: https://aka.ms/arohcp-runbook-etcd
+        correlationId: "userJourneyEtcdBackendCommitDurationHigh/test-hcp-cluster/etcd-0"
 
 # Scenario 2: Normal commit duration — no tiers fire
 - interval: 1m
@@ -150,6 +153,7 @@ tests:
         description: "test-hcp-cluster etcd instance etcd-0 database in-use ratio is 12.5% (threshold: 25%). Database defragmentation may be needed to reclaim space. Fast burn (1h/5m)."
         summary: "etcd database fragmentation is high for test-hcp-cluster etcd-0"
         runbook_url: https://aka.ms/arohcp-runbook-etcd
+        correlationId: "userJourneyEtcdDatabaseHighFragmentation/test-hcp-cluster/etcd-0"
   - eval_time: 11m
     alertname: userJourneyEtcdDatabaseHighFragmentation6h30m
     exp_alerts: []
@@ -172,6 +176,7 @@ tests:
         description: "test-hcp-cluster etcd instance etcd-0 database in-use ratio is 12.5% (threshold: 25%). Database defragmentation may be needed to reclaim space. Medium burn (6h/30m)."
         summary: "etcd database fragmentation is high for test-hcp-cluster etcd-0"
         runbook_url: https://aka.ms/arohcp-runbook-etcd
+        correlationId: "userJourneyEtcdDatabaseHighFragmentation/test-hcp-cluster/etcd-0"
   - eval_time: 61m
     alertname: userJourneyEtcdDatabaseHighFragmentation3d6h
     exp_alerts: []
@@ -191,6 +196,7 @@ tests:
         description: "test-hcp-cluster etcd instance etcd-0 database in-use ratio is 12.5% (threshold: 25%). Database defragmentation may be needed to reclaim space. Slow burn (3d/6h)."
         summary: "etcd database fragmentation is chronically high for test-hcp-cluster etcd-0"
         runbook_url: https://aka.ms/arohcp-runbook-etcd
+        correlationId: "userJourneyEtcdDatabaseHighFragmentation/test-hcp-cluster/etcd-0"
 
 # Scenario 2: Database in-use ratio healthy (no fragmentation) — no tiers fire
 - interval: 1m
@@ -247,6 +253,7 @@ tests:
         description: "test-hcp-cluster etcd instance etcd-0 database size is 9GB (threshold: 8GB). Database may need compaction or quota increase. Fast burn (1h/5m)."
         summary: "etcd database size is too large for test-hcp-cluster etcd-0"
         runbook_url: https://aka.ms/arohcp-runbook-etcd
+        correlationId: "userJourneyEtcdDatabaseSizeExceeded/test-hcp-cluster/etcd-0"
   - eval_time: 11m
     alertname: userJourneyEtcdDatabaseSizeExceeded6h30m
     exp_alerts: []
@@ -269,6 +276,7 @@ tests:
         description: "test-hcp-cluster etcd instance etcd-0 database size is 9GB (threshold: 8GB). Database may need compaction or quota increase. Medium burn (6h/30m)."
         summary: "etcd database size is too large for test-hcp-cluster etcd-0"
         runbook_url: https://aka.ms/arohcp-runbook-etcd
+        correlationId: "userJourneyEtcdDatabaseSizeExceeded/test-hcp-cluster/etcd-0"
   - eval_time: 61m
     alertname: userJourneyEtcdDatabaseSizeExceeded3d6h
     exp_alerts: []
@@ -288,6 +296,7 @@ tests:
         description: "test-hcp-cluster etcd instance etcd-0 database size is 9GB (threshold: 8GB). Database may need compaction or quota increase. Slow burn (3d/6h)."
         summary: "etcd database size is chronically too large for test-hcp-cluster etcd-0"
         runbook_url: https://aka.ms/arohcp-runbook-etcd
+        correlationId: "userJourneyEtcdDatabaseSizeExceeded/test-hcp-cluster/etcd-0"
 
 # Scenario 2: Database size below threshold — no tiers fire
 - interval: 1m
@@ -340,6 +349,7 @@ tests:
         description: "test-hcp-cluster etcd instance etcd-0 has seen 15 leader changes in the last 15 minutes (threshold: 4). This may indicate network issues or cluster instability. Fast burn (1h/5m)."
         summary: "etcd cluster experiencing frequent leader changes for test-hcp-cluster etcd-0"
         runbook_url: https://aka.ms/arohcp-runbook-etcd
+        correlationId: "userJourneyEtcdFrequentLeaderChanges/test-hcp-cluster/etcd-0"
   - eval_time: 15m
     alertname: userJourneyEtcdFrequentLeaderChanges6h30m
     exp_alerts: []
@@ -362,6 +372,7 @@ tests:
         description: "test-hcp-cluster etcd instance etcd-0 has seen 15 leader changes in the last 15 minutes (threshold: 4). This may indicate network issues or cluster instability. Medium burn (6h/30m)."
         summary: "etcd cluster experiencing frequent leader changes for test-hcp-cluster etcd-0"
         runbook_url: https://aka.ms/arohcp-runbook-etcd
+        correlationId: "userJourneyEtcdFrequentLeaderChanges/test-hcp-cluster/etcd-0"
   - eval_time: 61m
     alertname: userJourneyEtcdFrequentLeaderChanges3d6h
     exp_alerts: []
@@ -381,6 +392,7 @@ tests:
         description: "test-hcp-cluster etcd instance etcd-0 has seen 15 leader changes in the last 15 minutes (threshold: 4). This may indicate network issues or cluster instability. Slow burn (3d/6h)."
         summary: "etcd cluster experiencing chronic frequent leader changes for test-hcp-cluster etcd-0"
         runbook_url: https://aka.ms/arohcp-runbook-etcd
+        correlationId: "userJourneyEtcdFrequentLeaderChanges/test-hcp-cluster/etcd-0"
 
 # Scenario 2: Stable leader — no tiers fire
 - interval: 1m
@@ -412,7 +424,7 @@ tests:
 # MWMBR: fast/medium tiers require both short AND long window confirmation
 # Fast  (1h5m):    fires after 5m -> check at 11m
 # Medium (6h30m):  fires after 30m -> check at 61m
-# Slow  (3d6h):   fires after 3h -> check at 365m
+# Slow  (3d6h):    for: 3h, but checked at 365m so the 6h short window has enough samples
 # ========================================
 
 # Scenario 1: High peer RTT — all three tiers fire
@@ -462,6 +474,7 @@ tests:
         description: "test-hcp-cluster etcd instance etcd-0 has 99th percentile peer round-trip time of 0.2048s (threshold: 100ms). Network latency between peers may be affecting cluster performance. Fast burn (1h/5m)."
         summary: "etcd peer round-trip time is high for test-hcp-cluster etcd-0"
         runbook_url: https://aka.ms/arohcp-runbook-etcd
+        correlationId: "userJourneyEtcdPeerRoundTripTimeHigh/test-hcp-cluster/etcd-0"
   - eval_time: 11m
     alertname: userJourneyEtcdPeerRoundTripTimeHigh6h30m
     exp_alerts: []
@@ -485,6 +498,7 @@ tests:
         description: "test-hcp-cluster etcd instance etcd-0 has 99th percentile peer round-trip time of 0.2048s (threshold: 100ms). Network latency between peers may be affecting cluster performance. Medium burn (6h/30m)."
         summary: "etcd peer round-trip time is high for test-hcp-cluster etcd-0"
         runbook_url: https://aka.ms/arohcp-runbook-etcd
+        correlationId: "userJourneyEtcdPeerRoundTripTimeHigh/test-hcp-cluster/etcd-0"
   - eval_time: 61m
     alertname: userJourneyEtcdPeerRoundTripTimeHigh3d6h
     exp_alerts: []
@@ -504,6 +518,7 @@ tests:
         description: "test-hcp-cluster etcd instance etcd-0 has 99th percentile peer round-trip time of 0.2048s (threshold: 100ms). Network latency between peers may be affecting cluster performance. Slow burn (3d/6h)."
         summary: "etcd peer round-trip time is chronically high for test-hcp-cluster etcd-0"
         runbook_url: https://aka.ms/arohcp-runbook-etcd
+        correlationId: "userJourneyEtcdPeerRoundTripTimeHigh/test-hcp-cluster/etcd-0"
 
 # Scenario 2: Normal peer RTT — no tiers fire
 - interval: 1m
@@ -528,7 +543,7 @@ tests:
 # MWMBR: fast/medium tiers require both short AND long window confirmation
 # Fast  (1h5m):    fires after 5m -> check at 11m
 # Medium (6h30m):  fires after 30m -> check at 61m
-# Slow  (3d6h):   fires after 3h -> check at 365m
+# Slow  (3d6h):    for: 3h, but checked at 365m so the 6h short window has enough samples
 # ========================================
 
 # Scenario 1: High WAL fsync duration — all three tiers fire
@@ -568,6 +583,7 @@ tests:
         description: "test-hcp-cluster etcd instance etcd-0 has 99th percentile WAL fsync duration of 0.064s (threshold: 50ms). Slow disk performance may impact cluster stability. Fast burn (1h/5m)."
         summary: "etcd WAL fsync duration is high for test-hcp-cluster etcd-0"
         runbook_url: https://aka.ms/arohcp-runbook-etcd
+        correlationId: "userJourneyEtcdWALFsyncDurationHigh/test-hcp-cluster/etcd-0"
   - eval_time: 11m
     alertname: userJourneyEtcdWALFsyncDurationHigh6h30m
     exp_alerts: []
@@ -591,6 +607,7 @@ tests:
         description: "test-hcp-cluster etcd instance etcd-0 has 99th percentile WAL fsync duration of 0.064s (threshold: 50ms). Slow disk performance may impact cluster stability. Medium burn (6h/30m)."
         summary: "etcd WAL fsync duration is high for test-hcp-cluster etcd-0"
         runbook_url: https://aka.ms/arohcp-runbook-etcd
+        correlationId: "userJourneyEtcdWALFsyncDurationHigh/test-hcp-cluster/etcd-0"
   - eval_time: 61m
     alertname: userJourneyEtcdWALFsyncDurationHigh3d6h
     exp_alerts: []
@@ -610,6 +627,7 @@ tests:
         description: "test-hcp-cluster etcd instance etcd-0 has 99th percentile WAL fsync duration of 0.064s (threshold: 50ms). Slow disk performance may impact cluster stability. Slow burn (3d/6h)."
         summary: "etcd WAL fsync duration is chronically high for test-hcp-cluster etcd-0"
         runbook_url: https://aka.ms/arohcp-runbook-etcd
+        correlationId: "userJourneyEtcdWALFsyncDurationHigh/test-hcp-cluster/etcd-0"
 
 # Scenario 2: Normal WAL fsync duration — no tiers fire
 - interval: 1m
