@@ -435,8 +435,7 @@ func (c *operationClusterCreate) roleAssignmentsOperationStatus(ctx context.Cont
 }
 
 func (c *operationClusterCreate) shouldReconcileOperationAndResourceStatus(cluster *coreapi.HCPOpenShiftCluster) bool {
-	return cluster.ServiceProviderProperties.DeletionTimestamp == nil &&
-		cluster.ServiceProviderProperties.ClusterServiceID != nil
+	return cluster.ServiceProviderProperties.DeletionTimestamp == nil
 }
 
 // withDegradedSuffix appends the HostedCluster Degraded condition's reason and

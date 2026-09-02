@@ -150,20 +150,24 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 			},
 		},
 		{
-			name: "waits when cluster ClusterServiceID is unset",
+			name: "reports Provisioning when cluster ClusterServiceID is unset",
 			existingCluster: func() *coreapi.HCPOpenShiftCluster {
 				cluster := newClusterWithAPIURL("https://api.example.com", &createdAt)
 				cluster.ServiceProviderProperties.ClusterServiceID = nil
 				return cluster
 			}(),
 			existingOperation: fixture.NewOperation(cosmosstorageutils.OperationRequestCreate),
+			// ClusterServiceID is nil, so clusterServiceCreateOperationState reports
+			// Provisioning without calling GetClusterStatus; the bare mock therefore
+			// has no expectations. Every other sub-state is ready, so the operation
+			// is persisted as Provisioning.
 			setupCSMock: func(ctrl *gomock.Controller, _ *operationtesting.ClusterTestFixture) ocm.ClusterServiceClientSpec {
 				return ocm.NewMockClusterServiceClientSpec(ctrl)
 			},
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, coreapi.ProvisioningStateAccepted, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateProvisioning, op.Status)
 			},
 		},
 		{
