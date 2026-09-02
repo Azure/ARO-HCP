@@ -65,3 +65,8 @@
   queryType: custom-logs
   includeInMustGather: true
   templatePath: templates/custom/velero_hcp_logs.kql.gotmpl
+- name: veleroServerLogs
+  database: ServiceLogs
+  queryType: custom-logs
+  includeInMustGather: true
+  templatePath: templates/custom/velero_server_logs.kql.gotmpl
