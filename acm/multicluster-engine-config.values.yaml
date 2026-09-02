@@ -1,5 +1,9 @@
 global:
   registryOverride: "{{ .acr.svc.name }}.azurecr.io/acm-d-cache"
+  # Temporary per-component pin. This value is merged into the policy subchart
+  # and takes precedence over its bundle-derived imageOverrides default.
+  imageOverrides:
+    governance_policy_propagator: "governance-policy-propagator-rhel9@sha256:af38ee1695978c68234762d9208c8369fbba623ed5a5c1dd180a64a5c161f34a"
 finalizeMceJobImage: "{{ .aksCommandRuntime.image.registry }}/{{ .aksCommandRuntime.image.repository }}@{{ .aksCommandRuntime.image.digest }}"
 localCluster:
   kubeApiUrl: https://kubernetes.default.svc
