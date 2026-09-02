@@ -214,6 +214,35 @@ func TestVeleroBackups_NoTruncation(t *testing.T) {
 	testutil.CompareWithFixture(t, queryToFixture(queries[0]))
 }
 
+func TestVeleroHcpLogs(t *testing.T) {
+	f, err := NewQueryFactory()
+	require.NoError(t, err)
+	opts := baseOptions()
+	def, err := f.GetCustomQueryDefinition("veleroHcpLogs")
+	require.NoError(t, err)
+	require.NotNil(t, def, "veleroHcpLogs custom query not found")
+	queries, err := f.Build(*def, NewTemplateDataFromOptions(opts))
+	require.NoError(t, err)
+	require.Len(t, queries, 1)
+
+	testutil.CompareWithFixture(t, queryToFixture(queries[0]))
+}
+
+func TestVeleroHcpLogs_NoTruncation(t *testing.T) {
+	f, err := NewQueryFactory()
+	require.NoError(t, err)
+	opts := baseOptions()
+	opts.Limit = -1
+	def, err := f.GetCustomQueryDefinition("veleroHcpLogs")
+	require.NoError(t, err)
+	require.NotNil(t, def, "veleroHcpLogs custom query not found")
+	queries, err := f.Build(*def, NewTemplateDataFromOptions(opts))
+	require.NoError(t, err)
+	require.Len(t, queries, 1)
+
+	testutil.CompareWithFixture(t, queryToFixture(queries[0]))
+}
+
 func TestClusterIdQuery(t *testing.T) {
 	f, err := NewQueryFactory()
 	require.NoError(t, err)

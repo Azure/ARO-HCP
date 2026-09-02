@@ -1,0 +1,42 @@
+// Velero component logs: server, node-agent, and data-mover pod logs from the `velero`
+// namespace on management clusters, for backup-failure debugging (ARO-28989). Scoped to the
+// target HCP with NO Cluster Service dependency: the HCP's control-plane namespaces
+// (ocm-<env>-<id>[-<suffix>]) are read from the watcher-captured Velero Backup CRs, matched by
+// the Azure resource-id annotation, then grepped in the velero component logs. That namespace
+// token appears in server, node-agent, and data-mover log bodies alike, so it correlates all
+// three components to this HCP.
+{{if .NoTruncation}}set notruncation;
+{{end -}}
+let hcpNamespaces = (
+    kubernetesResourceSnapshots
+    | where timestamp between ({{.TimestampMin}} .. {{.TimestampMax}})
+    | where cluster has_any ({{.ClusterNames}})
+    | where objectKind == "Backup"
+    | where namespace == "velero"
+    | where tostring(object.metadata.annotations["azure.microsoft.com/hcp-cluster-azure-resource-id"]) has '{{.SubResourceGroupId}}'
+    | mv-expand ns = object.spec.includedNamespaces to typeof(string)
+    | distinct ns
+);
+containerLogs
+| where timestamp between ({{.TimestampMin}} .. {{.TimestampMax}})
+| where cluster has_any ({{.ClusterNames}})
+| where namespace_name == "velero"
+| where log has_any (hcpNamespaces)
+// container/containerPod are renamed off the reserved container_name/pod_name columns so they
+// survive into the custom-logs output (known columns are consumed by the gatherer and dropped
+// from each row). `log` is left verbatim (time/level/msg/kv all in it) — the consumer is an AI
+// reading the raw line, so splitting fields out adds no value here.
+//   container = the emitting velero component: "velero" (server), "node-agent", or an operation
+//     UUID for a per-backup pod.
+//   containerPod = the pod name; disambiguates the UUID container case — for a per-backup pod it
+//     is the backup name (ocm-<env>-<id>-<schedule>-<suffix>), so it tells you which backup emitted
+//     the line. Named to sort next to `container` in the output (the gatherer marshals each row
+//     from a Go map, so JSON keys come out alphabetically).
+| extend
+    container = container_name,
+    containerPod = column_ifexists("pod_name", "")
+| project timestamp, log, container, containerPod
+| order by timestamp {{.OrderBy}}
+{{- if gt .Limit 0}}
+| limit {{.Limit}}
+{{- end}}
