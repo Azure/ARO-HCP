@@ -200,6 +200,19 @@ func resourceGroupCreatedResponse(managedBy string) armresources.ResourceGroupsC
 	return resourceGroupCreatedResponseWithState(managedBy, "Succeeded")
 }
 
+// fakeAfterEnqueuer records EnqueueAfter calls so tests can assert that the syncer
+// scheduled a delayed requeue (and with what delay). It mirrors the fake used by the
+// cluster/nodepool validation controllers.
+type fakeAfterEnqueuer struct {
+	enqueuedKeys      []any
+	enqueuedDurations []time.Duration
+}
+
+func (f *fakeAfterEnqueuer) EnqueueAfter(keyObj any, duration time.Duration) {
+	f.enqueuedKeys = append(f.enqueuedKeys, keyObj)
+	f.enqueuedDurations = append(f.enqueuedDurations, duration)
+}
+
 // TestManagedResourceGroupSyncerSyncOnce exercises the switch-based reconcile and
 // deletion paths end to end through the mock Cosmos DB, listers, and Azure client.
 func TestManagedResourceGroupSyncerSyncOnce(t *testing.T) {
@@ -234,6 +247,9 @@ func TestManagedResourceGroupSyncerSyncOnce(t *testing.T) {
 		expectErrContains    string
 		expectAzure          *azcorearm.ResourceID
 		expectPending        *azcorearm.ResourceID
+		// expectRequeue asserts that the syncer scheduled exactly one EnqueueAfter with the
+		// managedResourceGroupProvisioningRequeueInterval delay (the in-progress path).
+		expectRequeue bool
 	}{
 		{
 			// Not found: the controller now CREATES the resource group (claiming
@@ -265,15 +281,30 @@ func TestManagedResourceGroupSyncerSyncOnce(t *testing.T) {
 			expectPending:        mrgID,
 		},
 		{
-			// Create returned a non-Succeeded provisioning state: treated as not settled,
-			// so it errors (retry later) and does not record the resource group.
-			name:                 "not deleting and resource group missing and create not succeeded keeps pending",
+			// Create returned an in-progress state (Creating): do NOT confirm; schedule a
+			// requeue after the provisioning interval and keep the pending marker so a later
+			// pass re-checks. No error is returned.
+			name:                 "not deleting and resource group missing and create in progress schedules requeue and keeps pending",
 			deleting:             false,
 			initialReference:     coreapi.AzureReference{},
 			getResponse:          armresources.ResourceGroupsClientGetResponse{},
 			getErr:               resourceGroupNotFoundError(),
 			expectCreateOrUpdate: true,
 			createResponse:       resourceGroupCreatedResponseWithState(ownerClusterID, "Creating"),
+			expectAzure:          nil,
+			expectPending:        mrgID,
+			expectRequeue:        true,
+		},
+		{
+			// Create returned a terminal-bad state (Failed): return an error so the sync
+			// retries; the pending marker stays in place and no actual is set.
+			name:                 "not deleting and resource group missing and create failed state errors",
+			deleting:             false,
+			initialReference:     coreapi.AzureReference{},
+			getResponse:          armresources.ResourceGroupsClientGetResponse{},
+			getErr:               resourceGroupNotFoundError(),
+			expectCreateOrUpdate: true,
+			createResponse:       resourceGroupCreatedResponseWithState(ownerClusterID, "Failed"),
 			expectErr:            true,
 			expectErrContains:    "provisioning state",
 			expectAzure:          nil,
@@ -305,14 +336,26 @@ func TestManagedResourceGroupSyncerSyncOnce(t *testing.T) {
 			expectPending:    nil,
 		},
 		{
-			// Exists and owned by this cluster but not yet Succeeded (for example another
-			// actor is mid-create): the provisioning-state gate returns an error so a later
-			// pass retries; the pending marker recorded before the Get stays in place and
-			// no actual is set. Mirrors the create path's non-Succeeded handling.
-			name:              "not deleting and resource group present but not succeeded keeps pending",
+			// Exists and owned by this cluster but in an in-progress state (Creating), e.g.
+			// another actor is mid-create: the provisioning-state gate does NOT confirm;
+			// it schedules a requeue and keeps the pending marker in place, with no error.
+			name:             "not deleting and resource group present but in progress schedules requeue and keeps pending",
+			deleting:         false,
+			initialReference: coreapi.AzureReference{},
+			getResponse:      resourceGroupPresentResponseWithState(ownerClusterID, "Creating"),
+			getErr:           nil,
+			expectAzure:      nil,
+			expectPending:    mrgID,
+			expectRequeue:    true,
+		},
+		{
+			// Exists but in a terminal-bad state (Failed): the provisioning-state gate returns
+			// an error so the sync retries; the pending marker stays in place and no actual
+			// is set.
+			name:              "not deleting and resource group present but failed state errors",
 			deleting:          false,
 			initialReference:  coreapi.AzureReference{},
-			getResponse:       resourceGroupPresentResponseWithState(ownerClusterID, "Creating"),
+			getResponse:       resourceGroupPresentResponseWithState(ownerClusterID, "Failed"),
 			getErr:            nil,
 			expectErr:         true,
 			expectErrContains: "provisioning state",
@@ -427,12 +470,14 @@ func TestManagedResourceGroupSyncerSyncOnce(t *testing.T) {
 				Return(mockRGClient, nil).
 				Times(1)
 
+			enqueuer := &fakeAfterEnqueuer{}
 			syncer := &managedResourceGroupSyncer{
 				resourcesDBClient:            mockResourcesDB,
 				clusterLister:                &corelistertesting.DBClusterLister{ResourcesDBClient: mockResourcesDB},
 				serviceProviderClusterLister: &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDB},
 				subscriptionLister:           &corelistertesting.SliceSubscriptionLister{Subscriptions: []*coreapi.Subscription{newTestSubscription(ptr.To(testTenantID))}},
 				azureFPAClientBuilder:        fpaClientBuilder,
+				enqueueAfter:                 enqueuer,
 			}
 
 			key := controllerutils.HCPClusterKey{
@@ -457,6 +502,14 @@ func TestManagedResourceGroupSyncerSyncOnce(t *testing.T) {
 			gotReference := updated.Status.AzureResources.ManagedResourceGroup
 			assertResourceIDEqual(t, tc.expectAzure, gotReference.AzureResource, "AzureResource")
 			assertResourceIDEqual(t, tc.expectPending, gotReference.PendingAzureResource, "PendingAzureResource")
+
+			if tc.expectRequeue {
+				require.Len(t, enqueuer.enqueuedKeys, 1, "expected exactly one requeue to be scheduled")
+				assert.Equal(t, key, enqueuer.enqueuedKeys[0], "requeue should use the cluster key")
+				assert.Equal(t, managedResourceGroupProvisioningRequeueInterval, enqueuer.enqueuedDurations[0], "requeue delay should be the provisioning interval")
+			} else {
+				assert.Empty(t, enqueuer.enqueuedKeys, "no requeue should be scheduled")
+			}
 		})
 	}
 }
