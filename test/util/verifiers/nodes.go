@@ -221,12 +221,14 @@ type verifyNodePoolUpgrade struct {
 }
 
 // nodeSummary is a compact representation of a node for error messages.
-// Full node objects can be 10KB+ due to annotations and are too large for error output.
+// Full node objects can be 10KB+ due to annotations and image lists,
+// and are too large for error output.
 type nodeSummary struct {
-	Name                    string   `json:"name"`
-	Ready                   bool     `json:"ready"`
-	ContainerRuntimeVersion string   `json:"containerRuntimeVersion"`
-	ReleaseImages           []string `json:"releaseImages,omitempty"`
+	Name                    string `json:"name"`
+	Ready                   bool   `json:"ready"`
+	KubeletVersion          string `json:"kubeletVersion"`
+	ContainerRuntimeVersion string `json:"containerRuntimeVersion"`
+	ImageCount              int    `json:"imageCount"`
 }
 
 func summarizeNodes(nodes []corev1.Node) []nodeSummary {
@@ -235,41 +237,14 @@ func summarizeNodes(nodes []corev1.Node) []nodeSummary {
 		summaries[i] = nodeSummary{
 			Name:                    node.Name,
 			Ready:                   nodeReady(to.Ptr(node)),
+			KubeletVersion:          node.Status.NodeInfo.KubeletVersion,
 			ContainerRuntimeVersion: node.Status.NodeInfo.ContainerRuntimeVersion,
-			ReleaseImages:           summarizeReleaseImages(node.Status.Images),
+			ImageCount:              len(node.Status.Images),
 		}
 	}
 	return summaries
 }
 
-// maxReleaseImagesInSummary caps how many release image names appear in a node summary used
-// for human-readable error output. The verification logic (nodeReleaseImagesUpdated) still
-// compares the node's complete, untruncated set of image names; this cap only affects what
-// gets printed on failure.
-const maxReleaseImagesInSummary = 5
-
-// summarizeReleaseImages returns a short list of release image names for use in error output:
-// one representative name per image, truncated to maxReleaseImagesInSummary entries with an
-// "(+N more)" marker appended if any were elided (so the returned slice can have up to
-// maxReleaseImagesInSummary+1 elements). A single image is typically referenced by several
-// aliases in img.Names (e.g. a "repo@sha256:..." digest pull spec and a "repo:tag" tag pointing
-// at the same image), even though the node can only be running one version of that image.
-// Keeping every alias for every image on the node produces failure messages with dozens of
-// near-duplicate entries that don't help diagnose which OCP/release version is actually running,
-// so this keeps only the first name per image.
-func summarizeReleaseImages(images []corev1.ContainerImage) []string {
-	var names []string
-	for _, img := range images {
-		if len(img.Names) > 0 {
-			names = append(names, img.Names[0])
-		}
-	}
-	if len(names) > maxReleaseImagesInSummary {
-		elided := len(names) - maxReleaseImagesInSummary
-		names = append(names[:maxReleaseImagesInSummary], fmt.Sprintf("(+%d more)", elided))
-	}
-	return names
-}
 
 func (v verifyNodePoolUpgrade) Name() string {
 	return fmt.Sprintf("VerifyNodePoolUpgrade(expected=%s, nodePool=%s)", v.expectedVersion, v.nodePoolName)
@@ -408,6 +383,9 @@ func (v verifyNodePoolUpgrade) nodeVersionInMinor(node *corev1.Node, expectedSem
 
 // nodeReleaseImagesUpdated returns a non-empty reason if no release image on the node differs from previous.
 func (v verifyNodePoolUpgrade) nodeReleaseImagesUpdated(node *corev1.Node) string {
+	if len(node.Status.Images) == 0 {
+		return fmt.Sprintf("%s (node has no images yet)", node.Name)
+	}
 	var currentImgs []string
 	for _, img := range node.Status.Images {
 		currentImgs = append(currentImgs, img.Names...)
@@ -417,7 +395,5 @@ func (v verifyNodePoolUpgrade) nodeReleaseImagesUpdated(node *corev1.Node) strin
 			return "" // at least one new image differs from previous
 		}
 	}
-	// The failure message only needs to show a bounded, human-readable sample of the images;
-	// the comparison above already used the complete, untruncated currentImgs.
-	return fmt.Sprintf("%s (release images unchanged: %v)", node.Name, summarizeReleaseImages(node.Status.Images))
+	return fmt.Sprintf("%s (release images unchanged: %d image entries on node, none differ from pre-upgrade set)", node.Name, len(node.Status.Images))
 }
