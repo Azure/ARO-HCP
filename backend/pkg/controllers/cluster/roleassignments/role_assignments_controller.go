@@ -66,17 +66,15 @@ const (
 // it creates the ones that do not exist yet and reflects their existence onto
 // ServiceProviderCluster.Status.AzureResources.RoleAssignments.
 //
-// Cluster Service creates the same deterministically-named role assignments in parallel,
-// so the two actors are idempotent with respect to each other: a create that races with
-// Cluster Service surfaces as "already exists" and is treated as success. Reflecting the
-// confirmed state onto the ServiceProviderCluster lets DB-consuming code (for example the
-// cluster-create completion gate) reason about the role assignments without reaching into
-// Azure directly.
+// Creates are idempotent: the role assignment names are deterministic, so a create that
+// races with a concurrent creator - or is retried - surfaces as "already exists" and is
+// treated as success. Reflecting the confirmed state onto the ServiceProviderCluster lets
+// DB-consuming code (for example the cluster-create completion gate) reason about the role
+// assignments without reaching into Azure directly.
 //
-// Deletion is a deliberate no-op: when the cluster is deleted Cluster Service deletes the
-// managed resource group, and that cascade removes the MRG-scoped role assignments with it.
-// There is therefore nothing to create or delete (and no Azure call to make) on the delete
-// path.
+// Deletion is a deliberate no-op: when the cluster is deleted its managed resource group is
+// deleted, and that cascade removes the MRG-scoped role assignments with it. There is
+// therefore nothing to create or delete (and no Azure call to make) on the delete path.
 type roleAssignmentsSyncer struct {
 	resourcesDBClient             corecosmosstorage.ResourcesDBClient
 	clusterLister                 corelisters.ClusterLister
@@ -93,7 +91,7 @@ var _ controllerutils.ClusterSyncer = (*roleAssignmentsSyncer)(nil)
 // managed-resource-group-scoped role assignments for the cluster's control-plane and
 // data-plane operator managed identities: it creates the ones Azure reports missing and
 // keeps ServiceProviderCluster.Status.AzureResources.RoleAssignments in sync with their
-// confirmed existence. Cluster Service creates the same assignments in parallel.
+// confirmed existence.
 func NewRoleAssignmentsController(
 	clock utilsclock.PassiveClock,
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
@@ -167,15 +165,12 @@ func (c *roleAssignmentsSyncer) NeedsWork(cluster *coreapi.HCPOpenShiftCluster, 
 	if len(roleAssignments.PendingAzureResources) != 0 {
 		return true
 	}
-	if len(expected) != len(roleAssignments.AzureResources) {
+	// "No work" means every expected role assignment is present in the confirmed set with
+	// nothing pending. A confirmed set that is a superset of the expected set (for example
+	// leftover role assignments from a previous operator identity) is NOT work: those extras
+	// are tolerated and must not defeat the steady-state short-circuit.
+	if !c.confirmedCoversExpected(roleAssignments.AzureResources, expected) {
 		return true
-	}
-	for _, assignment := range expected {
-		if !slices.ContainsFunc(roleAssignments.AzureResources, func(id *azcorearm.ResourceID) bool {
-			return controllerutil.ResourceIDsEqual(id, assignment.resourceID)
-		}) {
-			return true
-		}
 	}
 	// Every expected role assignment is confirmed and nothing is pending: re-verify only
 	// once the earliest-recheck interval has elapsed.
@@ -250,8 +245,8 @@ func (c *roleAssignmentsSyncer) SyncOnce(ctx context.Context, key controllerutil
 // assignment and:
 //
 //   - exists: moves it from pending to confirmed (AzureResources).
-//   - not found: creates it (mirroring Cluster Service's parameters) and, on success or
-//     an "already exists" race with Cluster Service, moves it to confirmed.
+//   - not found: creates it and, on success or an "already exists" result, moves it to
+//     confirmed.
 //   - other error (on Get or Create): returns the error so the sync retries, leaving the
 //     assignment pending.
 func (c *roleAssignmentsSyncer) syncRoleAssignments(ctx context.Context, cluster *coreapi.HCPOpenShiftCluster, existingServiceProviderCluster *coreapi.ServiceProviderCluster) error {
@@ -307,11 +302,13 @@ func (c *roleAssignmentsSyncer) syncRoleAssignments(ctx context.Context, cluster
 		}
 	}
 
-	// Phase 3: for each pending role assignment, ensure it exists in Azure - creating it
-	// when Azure reports it missing - and promote it to confirmed. The create parameters
-	// are looked up by resource ID: the hashed role-assignment name cannot be reversed, so
-	// the expected set (which carries scope/name/principalID/roleDefinitionID) is keyed by
-	// its resource ID.
+	// Phase 3: reconcile the pending role assignments. Any pending entry that is no longer
+	// expected (for example an operator identity was replaced) is pruned - dropped from
+	// PendingAzureResources entirely - rather than tracked or re-created, so it stops
+	// consuming the create-gate. For each pending entry that is still expected, ensure it
+	// exists in Azure - creating it when Azure reports it missing - and promote it to
+	// confirmed. Create parameters are looked up by resource ID (the hashed role-assignment
+	// name cannot be reversed), so the expected set is keyed by its resource ID.
 	pending := existingServiceProviderCluster.Status.AzureResources.RoleAssignments.PendingAzureResources
 	if len(pending) == 0 {
 		return nil
@@ -322,19 +319,32 @@ func (c *roleAssignmentsSyncer) syncRoleAssignments(ctx context.Context, cluster
 		expectedByID[strings.ToLower(assignment.resourceID.String())] = assignment
 	}
 
-	roleAssignmentsClient, err := c.roleAssignmentsClient(ctx, cluster.ID.SubscriptionID)
-	if err != nil {
-		return utils.TrackError(err)
-	}
-
+	// stillPending holds the pending entries that remain pending after this pass; entries no
+	// longer expected are pruned (never added), and expected entries that are confirmed move
+	// to newlyConfirmed. The Azure client is built lazily so a pure prune makes no Azure call.
 	var stillPending []*azcorearm.ResourceID
 	var newlyConfirmed []*azcorearm.ResourceID
+	var roleAssignmentsClient azureclient.RoleAssignmentsClient
 	for _, pendingID := range pending {
+		assignment, ok := expectedByID[strings.ToLower(pendingID.String())]
+		if !ok {
+			// No longer expected: prune it (drop from pending) rather than tracking or
+			// re-creating it. Do not query Azure for it.
+			continue
+		}
+
+		if roleAssignmentsClient == nil {
+			roleAssignmentsClient, err = c.roleAssignmentsClient(ctx, cluster.ID.SubscriptionID)
+			if err != nil {
+				return utils.TrackError(err)
+			}
+		}
+
 		_, getErr := roleAssignmentsClient.GetByID(ctx, pendingID.String(), nil)
 		switch {
 		case getErr == nil:
-			// The role assignment already exists (created on a previous pass or by
-			// Cluster Service): promote it to confirmed.
+			// The role assignment already exists (created on a previous pass or
+			// concurrently): promote it to confirmed.
 			newlyConfirmed = append(newlyConfirmed, pendingID)
 			continue
 		case !azureclient.IsRoleAssignmentNotFoundErr(getErr):
@@ -342,25 +352,15 @@ func (c *roleAssignmentsSyncer) syncRoleAssignments(ctx context.Context, cluster
 		}
 
 		// The role assignment does not exist yet: create it.
-		assignment, ok := expectedByID[strings.ToLower(pendingID.String())]
-		if !ok {
-			// A pending entry that is no longer expected (for example an operator removed
-			// after it was recorded pending). Its create parameters cannot be
-			// reconstructed, so leave it pending; it settles once expectations stabilize.
-			stillPending = append(stillPending, pendingID)
-			continue
-		}
 		if createErr := c.createRoleAssignment(ctx, roleAssignmentsClient, cluster, assignment); createErr != nil {
 			return utils.TrackError(createErr)
 		}
 		newlyConfirmed = append(newlyConfirmed, pendingID)
 	}
 
-	if len(newlyConfirmed) == 0 {
-		// Nothing was confirmed this pass; leave the document unchanged.
-		return nil
-	}
-
+	// Persist whenever the pending set shrank (stale entries pruned and/or entries moved to
+	// confirmed) or anything was newly confirmed. persistIfChanged is a no-op when the
+	// document is unchanged, so it is always safe to build the replacement and let it decide.
 	replacement := existingServiceProviderCluster.DeepCopy()
 	roleAssignments := &replacement.Status.AzureResources.RoleAssignments
 	roleAssignments.PendingAzureResources = stillPending
@@ -376,26 +376,26 @@ func (c *roleAssignmentsSyncer) syncRoleAssignments(ctx context.Context, cluster
 
 // expectedRoleAssignment is a single managed-resource-group-scoped role assignment the
 // backend expects to exist for the cluster. It carries both what is needed to recognize
-// the assignment (resourceID) and what is needed to create it with the same deterministic
-// identity Cluster Service uses (scope, name, principalID, roleDefinitionID) - the hashed
-// name cannot be reversed from the resource ID, so these inputs are retained.
+// the assignment (resourceID) and what is needed to create it with the deterministic
+// identity from the roleassignment package (scope, name, principalID, roleAssignmentDefinition) -
+// the hashed name cannot be reversed from the resource ID, so these inputs are retained.
 type expectedRoleAssignment struct {
-	resourceID       *azcorearm.ResourceID
-	scope            string
-	name             string
-	principalID      string
-	roleDefinitionID string
+	resourceID               *azcorearm.ResourceID
+	scope                    string
+	name                     string
+	principalID              string
+	roleAssignmentDefinition string
 }
 
 // expectedRoleAssignments computes the managed-resource-group-scoped role assignments the
 // backend expects to exist for the cluster's control-plane and data-plane operator managed
-// identities. Cluster Service creates the same assignments in parallel.
+// identities.
 //
 // For each control-plane and data-plane operator configured on the cluster it pairs
 // the operator identity's resolved principal ID (read from the ServiceProviderCluster
 // status) with each of that operator's role definitions (read from the cluster-scoped
 // identities config) and derives the deterministic role assignment name and resource ID
-// using the same algorithm Cluster Service uses (see the roleassignment package).
+// using the algorithm in the roleassignment package.
 //
 // Enumerating from the cluster's actual operators (rather than the whole config)
 // naturally excludes operators that are not provisioned on this cluster (for example
@@ -535,11 +535,11 @@ func appendRoleAssignments(expected []expectedRoleAssignment, scope, principalID
 			continue
 		}
 		expected = append(expected, expectedRoleAssignment{
-			resourceID:       parsed,
-			scope:            scope,
-			name:             name,
-			principalID:      principalID,
-			roleDefinitionID: roleDefID,
+			resourceID:               parsed,
+			scope:                    scope,
+			name:                     name,
+			principalID:              principalID,
+			roleAssignmentDefinition: roleDefID,
 		})
 	}
 	return expected, nil
@@ -554,13 +554,6 @@ func (c *roleAssignmentsSyncer) persistIfChanged(ctx context.Context, cluster *c
 	if !controllerutil.NeedsUpdate(existing, replacement) {
 		return existing, nil
 	}
-
-	logger := utils.LoggerFromContext(ctx)
-	roleAssignments := replacement.Status.AzureResources.RoleAssignments
-	logger.Info("reflecting role assignment state onto ServiceProviderCluster",
-		"clusterID", cluster.ID.String(),
-		"confirmedRoleAssignments", resourceIDStrings(roleAssignments.AzureResources),
-		"pendingRoleAssignments", resourceIDStrings(roleAssignments.PendingAzureResources))
 
 	updated, err := c.resourcesDBClient.ServiceProviderClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName, cluster.ID.Name).Replace(ctx, replacement, nil)
 	if cosmosstorageutils.IsPreconditionFailedError(err) {
@@ -591,11 +584,10 @@ func (c *roleAssignmentsSyncer) roleAssignmentsClient(ctx context.Context, subsc
 }
 
 // createRoleAssignment creates the managed-resource-group-scoped role assignment described
-// by assignment, mirroring the parameters Cluster Service uses (PrincipalID,
-// RoleDefinitionID, PrincipalType=ServicePrincipal) at the deterministic name. Because
-// Cluster Service creates the same deterministically-named assignment in parallel, a create
-// that races with it - or a retried create - surfaces as RoleAssignmentExists, which is
-// treated as success.
+// by assignment with its deterministic name and parameters (PrincipalID, RoleDefinitionID,
+// PrincipalType=ServicePrincipal). Because the assignment name is deterministic, a create
+// that races with a concurrent creator - or a retried create - surfaces as
+// RoleAssignmentExists, which is treated as success.
 func (c *roleAssignmentsSyncer) createRoleAssignment(ctx context.Context, client azureclient.RoleAssignmentsClient, cluster *coreapi.HCPOpenShiftCluster, assignment expectedRoleAssignment) error {
 	logger := utils.LoggerFromContext(ctx)
 	logger.Info("creating role assignment",
@@ -605,7 +597,7 @@ func (c *roleAssignmentsSyncer) createRoleAssignment(ctx context.Context, client
 	_, err := client.Create(ctx, assignment.scope, assignment.name, armauthorization.RoleAssignmentCreateParameters{
 		Properties: &armauthorization.RoleAssignmentProperties{
 			PrincipalID:      to.Ptr(assignment.principalID),
-			RoleDefinitionID: to.Ptr(assignment.roleDefinitionID),
+			RoleDefinitionID: to.Ptr(assignment.roleAssignmentDefinition),
 			PrincipalType:    to.Ptr(armauthorization.PrincipalTypeServicePrincipal),
 		},
 	}, nil)
