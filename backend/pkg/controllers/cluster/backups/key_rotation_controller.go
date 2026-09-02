@@ -334,29 +334,37 @@ func (c *keyRotationBackupSyncer) purgeCompletedOnDemandApplyDesires(
 		// Desires from older rotations can be retired regardless of backup status.
 		reason := "superseded by newer rotation"
 		if isCurrent {
-			// Only retire the current rotation's ApplyDesire once its backup has succeeded.
-			readDesire, err := c.readDesireLister.GetForCluster(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, applyDesire.ResourceID.Name)
-			if err != nil {
-				if cosmosstorageutils.IsNotFoundError(err) {
+			if cachedServiceProviderCluster.Status.KeyRotationBackupFingerprint == kmsKeyFingerprint {
+				// Completion was already durably recorded on a prior sync: purge
+				// unconditionally. Do not re-derive phase from the ReadDesire here,
+				// since its KubeContent may have already gone nil (Velero TTL GC
+				// observed by kube-applier) or the ReadDesire may already be gone
+				// (deleteStaleOnDemandReadDesires runs after this); either would
+				// otherwise orphan this ApplyDesire forever.
+				reason = "backup completed successfully; Velero Backup retained until its TTL"
+			} else {
+				// Fingerprint not yet recorded: only retire the current rotation's
+				// ApplyDesire once its backup has succeeded.
+				readDesire, err := c.readDesireLister.GetForCluster(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, applyDesire.ResourceID.Name)
+				if err != nil {
+					if cosmosstorageutils.IsNotFoundError(err) {
+						continue
+					}
+					return false, err
+				}
+				phase, err := observedVeleroBackupPhase(readDesire.Status.KubeContent)
+				if err != nil {
+					return false, utils.TrackError(fmt.Errorf("failed to determine observed Backup phase for %s: %w", applyDesire.ResourceID.Name, err))
+				}
+				if phase != velerov1.BackupPhaseCompleted {
+					// Keep unsuccessful backups until a future rotation supersedes them.
 					continue
 				}
-				return false, err
-			}
-			phase, err := observedVeleroBackupPhase(readDesire.Status.KubeContent)
-			if err != nil {
-				return false, utils.TrackError(fmt.Errorf("failed to determine observed Backup phase for %s: %w", applyDesire.ResourceID.Name, err))
-			}
-			if phase != velerov1.BackupPhaseCompleted {
-				// Keep unsuccessful backups until a future rotation supersedes them.
-				continue
-			}
-			// Record completion before purging so a crash cannot cause the desire to be recreated.
-			if cachedServiceProviderCluster.Status.KeyRotationBackupFingerprint != kmsKeyFingerprint {
+				// Record completion before purging so a crash cannot cause the desire to be recreated.
 				logger.Info("recording key rotation backup fingerprint",
 					"desire", applyDesire.ResourceID.Name, "fingerprint", kmsKeyFingerprint, "phase", phase)
 				return c.recordKeyRotationBackupFingerprint(ctx, key, cachedServiceProviderCluster, kmsKeyFingerprint)
 			}
-			reason = "backup completed successfully; Velero Backup retained until its TTL"
 		}
 
 		logger.Info("purging on-demand backup ApplyDesire", "desire", applyDesire.ResourceID.Name, "reason", reason)

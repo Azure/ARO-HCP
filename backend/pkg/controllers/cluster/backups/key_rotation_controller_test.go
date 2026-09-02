@@ -801,6 +801,52 @@ func TestKeyRotationBackupSyncer_SyncOnce(t *testing.T) {
 			},
 		},
 		{
+			name:             "purges current ApplyDesire when fingerprint already recorded and ReadDesire is missing",
+			clusterOpts:      []func(*coreapi.HCPOpenShiftCluster){withKMS},
+			hasPlacement:     true,
+			seedHCReadDesire: completedRotationHC,
+			seedServiceProviderCluster: func(spc *coreapi.ServiceProviderCluster) {
+				spc.Status.KeyRotationBackupFingerprint = expectedFingerprint
+			},
+			seedKubeApplier: func(t *testing.T, ctx context.Context, mockKubeApplier *kubeappliercosmosstoragetesting.MockKubeApplierDBClient) {
+				t.Helper()
+				// Simulates the ReadDesire already having been deleted (e.g. by
+				// deleteStaleOnDemandReadDesires on a prior sync) while the ApplyDesire
+				// for the current, already-recorded rotation is still present.
+				seedOnDemandDesire(t, ctx, mockKubeApplier, expectedBackupName, false)
+			},
+			verify: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient, mockKubeApplier *kubeappliercosmosstoragetesting.MockKubeApplierDBClient) {
+				t.Helper()
+				applyDesireCRUD, err := mockKubeApplier.ApplyDesiresForCluster(testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName)
+				require.NoError(t, err)
+				_, err = applyDesireCRUD.Get(ctx, expectedDesireName)
+				assert.True(t, cosmosstorageutils.IsNotFoundError(err), "current ApplyDesire must be purged once its fingerprint is durably recorded, even if the ReadDesire is gone")
+			},
+		},
+		{
+			name:             "purges current ApplyDesire when fingerprint already recorded and ReadDesire KubeContent was GC'd",
+			clusterOpts:      []func(*coreapi.HCPOpenShiftCluster){withKMS},
+			hasPlacement:     true,
+			seedHCReadDesire: completedRotationHC,
+			seedServiceProviderCluster: func(spc *coreapi.ServiceProviderCluster) {
+				spc.Status.KeyRotationBackupFingerprint = expectedFingerprint
+			},
+			seedKubeApplier: func(t *testing.T, ctx context.Context, mockKubeApplier *kubeappliercosmosstoragetesting.MockKubeApplierDBClient) {
+				t.Helper()
+				// Simulates Velero having GC'd the Backup at its TTL and kube-applier
+				// observing its absence (nil KubeContent), before the ApplyDesire for
+				// the already-recorded rotation was purged.
+				seedOnDemandDesireObserved(t, ctx, mockKubeApplier, expectedBackupName, expectedFingerprint, "", false)
+			},
+			verify: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient, mockKubeApplier *kubeappliercosmosstoragetesting.MockKubeApplierDBClient) {
+				t.Helper()
+				applyDesireCRUD, err := mockKubeApplier.ApplyDesiresForCluster(testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName)
+				require.NoError(t, err)
+				_, err = applyDesireCRUD.Get(ctx, expectedDesireName)
+				assert.True(t, cosmosstorageutils.IsNotFoundError(err), "current ApplyDesire must be purged once its fingerprint is durably recorded, even if the ReadDesire's KubeContent was cleared by Velero TTL GC")
+			},
+		},
+		{
 			name:             "removes read desire once velero purges the backup via ttl",
 			clusterOpts:      []func(*coreapi.HCPOpenShiftCluster){withKMS},
 			hasPlacement:     true,
