@@ -230,10 +230,7 @@ func Decide(node *corev1.Node, events []*corev1.Event, pods []*corev1.Pod, now t
 	}
 	// Node-Ready precondition. A node that was Ready and dropped out (reboot,
 	// upgrade, drain) is left to node lifecycle, which rescues it. A node that
-	// never reached Ready is a different case: nothing in node lifecycle rescues
-	// it, so it is ours. Only node-state detectors run here, because a node that
-	// never started has no pod population worth reading, and each of them rejects
-	// a node that was once Ready on its own discriminator.
+	// never reached Ready is not rescued by anything, so it is ours.
 	if !isNodeReady(node) {
 		for _, d := range nodeRegistry {
 			if !d.Applies(node) {
