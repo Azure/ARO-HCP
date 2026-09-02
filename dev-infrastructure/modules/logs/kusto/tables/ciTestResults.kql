@@ -17,7 +17,7 @@
 //
 //     ciTestResults
 //     | where failed
-//     | join kind=inner ciTestNames on testId
+//     | join kind=inner (ciTestNames | distinct testId, name) on testId
 //     | join kind=inner ciJobOutcomes on buildId
 //     | project startedAt, name, jobName, svcCluster, mgmtCluster, prowUrl
 //

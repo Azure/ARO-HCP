@@ -41,6 +41,11 @@ import (
 
 const CollectorName = "ci-job-outcomes"
 
+// maxArtifactAttempts is how many passes may fail to read a run's artifacts
+// before the run is stored without them. Three covers a transient outage
+// without holding a run back long enough for it to leave the window unstored.
+const maxArtifactAttempts = 3
+
 // Writer records CI job outcomes on a timer.
 type Writer struct {
 	config *config.Config
@@ -49,17 +54,32 @@ type Writer struct {
 
 	// queued holds runs written but not yet visible to a query, keyed by build
 	// id and held with their start time so they can be dropped once the query
-	// covers them.
-	queuedMu sync.Mutex
-	queued   map[string]time.Time
+	// covers them. artifactAttempts counts failed artifact reads per run, so a
+	// transient failure is retried rather than stored as a run with no tests.
+	// Both are guarded by queuedMu and are optimisations rather than
+	// correctness guarantees: ingestion is idempotent, so losing either to a
+	// restart costs repeated work and not duplicate rows.
+	queuedMu         sync.Mutex
+	queued           map[string]time.Time
+	artifactAttempts map[string]artifactAttempt
+}
+
+// artifactAttempt counts a run's failed artifact reads, alongside when the run
+// started so the entry can be dropped once the run leaves the window - a run
+// that is never stored would otherwise leave its count behind for the life of
+// the process.
+type artifactAttempt struct {
+	count     int
+	startedAt time.Time
 }
 
 func NewWriter(cfg *config.Config, logger *slog.Logger) *Writer {
 	return &Writer{
-		config: cfg,
-		logger: logger.With("collector", CollectorName),
-		client: &http.Client{Timeout: 2 * time.Minute},
-		queued: make(map[string]time.Time),
+		config:           cfg,
+		logger:           logger.With("collector", CollectorName),
+		client:           &http.Client{Timeout: 2 * time.Minute},
+		queued:           make(map[string]time.Time),
+		artifactAttempts: make(map[string]artifactAttempt),
 	}
 }
 
@@ -121,10 +141,10 @@ func (w *Writer) write(ctx context.Context) error {
 	// it self-heals: any gap inside the window is filled by the next pass.
 	since := time.Now().UTC().Add(-settings.GetWindow())
 
-	// The run table gates all three: a run's test rows are written in the same
-	// pass as its outcome row, so a build id already present means the tests
-	// that belong to it are too. Gating each table on itself would let a
-	// partially ingested run be completed twice.
+	// Runs are gated on the outcome table, which is written last for a run and
+	// so marks it complete. Ingestion is idempotent on top of that - see
+	// ingestRows - so a gate that is merely stale, rather than wrong, costs a
+	// wasted read and not a duplicate row.
 	recorded, err := w.recordedBuildIDs(ctx, queryClient, since)
 	if err != nil {
 		return err
@@ -138,9 +158,8 @@ func (w *Writer) write(ctx context.Context) error {
 	w.forgetQueuedBefore(since)
 
 	var (
-		outcomes []ciJobOutcome
+		pending  []runRows
 		names    []ciTestName
-		results  []ciTestResult
 		failures []error
 	)
 	for _, release := range settings.Releases {
@@ -162,19 +181,27 @@ func (w *Writer) write(ctx context.Context) error {
 				continue
 			}
 			// Queued rows stay invisible to the query above for several
-			// minutes, so a pass has to remember what it queued itself.
+			// minutes, so a pass has to remember what it queued itself. This is
+			// an optimisation, not the correctness guarantee: losing it to a
+			// restart costs a repeated read, which ingestion then discards.
 			if w.queuedRecently(outcome.BuildID) {
 				continue
 			}
-			recorded[outcome.BuildID] = struct{}{}
 
-			// A run whose artifacts cannot be read is still worth storing for
-			// its pass or fail, so enrichment failures are logged and the run
-			// kept rather than dropped. The run is recorded either way, so a
-			// later pass will not retry it - the artifacts of a finished run do
-			// not appear late.
 			detail, err := fetchRunDetail(ctx, w.client, outcome.ProwURL)
 			if err != nil {
+				// Artifacts are read over the network, so a failure here may be
+				// the run's (aborted before its test step uploaded anything) or
+				// the network's. The two are not reliably distinguishable, so
+				// the run is retried a few times before being stored for its
+				// pass or fail alone. Storing it on the first failure would
+				// freeze a transient error into a run that permanently appears
+				// to have run no tests.
+				if w.shouldRetryArtifacts(outcome) {
+					w.logger.Warn("Failed to read run artifacts; will retry",
+						"release", release, "buildId", outcome.BuildID, "error", err)
+					continue
+				}
 				w.logger.Warn("Failed to read run artifacts; storing run without them",
 					"release", release, "buildId", outcome.BuildID, "error", err)
 			}
@@ -182,8 +209,8 @@ func (w *Writer) write(ctx context.Context) error {
 			outcome.MgmtCluster = detail.MgmtCluster
 			outcome.FinishedAt = detail.FinishedAt
 
-			outcomes = append(outcomes, outcome)
-			results = append(results, detail.Tests...)
+			recorded[outcome.BuildID] = struct{}{}
+			pending = append(pending, runRows{outcome: outcome, tests: detail.Tests})
 			for _, name := range detail.Names {
 				if _, seen := storedNames[name.TestID]; seen {
 					continue
@@ -196,25 +223,75 @@ func (w *Writer) write(ctx context.Context) error {
 		w.logger.Info("Fetched runs", "release", release, "since", since.Format(time.RFC3339), "fetched", len(runs), "new", added)
 	}
 
-	if len(outcomes) == 0 {
+	if len(pending) == 0 {
 		return errors.Join(failures...)
 	}
 
-	// Tests are written before the runs that own them. Both orders leave a
-	// window where the tables disagree, but a test row without its run is
-	// invisible to queries that start from a run, whereas a run whose tests
-	// have not landed looks like a run that failed nothing.
-	if err := ingestRows(ctx, w, settings.TestNames, names); err != nil {
+	ingestors, err := w.newIngestors()
+	if err != nil {
 		return errors.Join(append(failures, err)...)
 	}
-	if err := ingestRows(ctx, w, settings.TestResults, results); err != nil {
+	defer ingestors.close(w.logger)
+
+	// Names are written first and in one batch. They are a dimension shared by
+	// every run, so there is no run to key them to, and a name row that arrives
+	// before the results referencing it is simply unreferenced.
+	//
+	// A failure here abandons the pass rather than continuing. Names are
+	// derived from a run's artifacts, and a run is only re-read while it is
+	// ungated, so writing the runs anyway would gate them with their names
+	// missing - leaving test rows that join to nothing. Returning instead
+	// leaves every run ungated for the next pass, which re-derives both.
+	if err := ingestRows(ctx, ingestors.testNames, names, ""); err != nil {
 		return errors.Join(append(failures, err)...)
 	}
-	if err := ingestRows(ctx, w, settings.Outcomes, outcomes); err != nil {
-		return errors.Join(append(failures, err)...)
+
+	// Each run is then written on its own: its tests, then the outcome row that
+	// marks it complete. Runs are independent, so one that fails to ingest must
+	// not cost the others their rows.
+	for _, run := range pending {
+		if err := ingestRows(ctx, ingestors.testResults, run.tests, testsTag(run.outcome.BuildID)); err != nil {
+			failures = append(failures, err)
+			continue
+		}
+		if err := ingestRows(ctx, ingestors.outcomes, []ciJobOutcome{run.outcome}, runTag(run.outcome.BuildID)); err != nil {
+			failures = append(failures, err)
+			continue
+		}
+		w.rememberQueued(run.outcome)
 	}
-	w.rememberQueued(outcomes)
 	return errors.Join(failures...)
+}
+
+// runRows is everything written for one run.
+type runRows struct {
+	outcome ciJobOutcome
+	tests   []ciTestResult
+}
+
+// Rows are tagged so that Kusto itself rejects a second attempt to write them.
+// Nothing about the pipeline makes a repeat impossible: a pass that ingests a
+// run's tests and then fails to ingest its outcome row leaves the run ungated,
+// and a restart discards the in-process record of what was queued while rows
+// are still invisible to queries. Both are ordinary, and Kusto has neither a
+// primary key nor an upsert, so a duplicate row would be permanent.
+func runTag(buildID string) string   { return "run-" + buildID }
+func testsTag(buildID string) string { return "tests-" + buildID }
+
+// shouldRetryArtifacts reports whether a run whose artifacts could not be read
+// should be left for a later pass, and counts the attempt.
+//
+// The count is held in memory only. Losing it to a restart costs at most a few
+// more attempts, which ingestion deduplicates, whereas persisting it would mean
+// a second store to keep consistent with Kusto.
+func (w *Writer) shouldRetryArtifacts(outcome ciJobOutcome) bool {
+	w.queuedMu.Lock()
+	defer w.queuedMu.Unlock()
+	attempt := w.artifactAttempts[outcome.BuildID]
+	attempt.count++
+	attempt.startedAt = outcome.StartedAt
+	w.artifactAttempts[outcome.BuildID] = attempt
+	return attempt.count < maxArtifactAttempts
 }
 
 // recordedBuildIDs reports which runs are already stored from the given time on,
@@ -272,22 +349,27 @@ func (w *Writer) queuedRecently(buildID string) bool {
 	return queued
 }
 
-func (w *Writer) rememberQueued(outcomes []ciJobOutcome) {
+func (w *Writer) rememberQueued(outcome ciJobOutcome) {
 	w.queuedMu.Lock()
 	defer w.queuedMu.Unlock()
-	for _, outcome := range outcomes {
-		w.queued[outcome.BuildID] = outcome.StartedAt
-	}
+	w.queued[outcome.BuildID] = outcome.StartedAt
+	delete(w.artifactAttempts, outcome.BuildID)
 }
 
 // forgetQueuedBefore drops runs that the query above now covers, so the set
-// cannot grow without bound.
+// cannot grow without bound. Runs that left the window without ever being
+// stored take their attempt count with them.
 func (w *Writer) forgetQueuedBefore(cutoff time.Time) {
 	w.queuedMu.Lock()
 	defer w.queuedMu.Unlock()
 	for buildID, startedAt := range w.queued {
 		if startedAt.Before(cutoff) {
 			delete(w.queued, buildID)
+		}
+	}
+	for buildID, attempt := range w.artifactAttempts {
+		if attempt.startedAt.Before(cutoff) {
+			delete(w.artifactAttempts, buildID)
 		}
 	}
 }
@@ -304,43 +386,87 @@ func encodeRows[T any](rows []T) (*bytes.Buffer, error) {
 	return payload, nil
 }
 
+// ingestors holds one queued ingestor per destination table, so that a pass
+// authenticates once rather than once per run.
+type ingestors struct {
+	outcomes    *tableIngestor
+	testNames   *tableIngestor
+	testResults *tableIngestor
+}
+
+type tableIngestor struct {
+	name     string
+	mapping  string
+	ingestor *azkustoingest.Ingestion
+}
+
+func (w *Writer) newIngestors() (*ingestors, error) {
+	settings := w.config.CIJobOutcomes
+
+	built := &ingestors{}
+	for _, target := range []struct {
+		table config.KustoTableConfig
+		into  **tableIngestor
+	}{
+		{settings.Outcomes, &built.outcomes},
+		{settings.TestNames, &built.testNames},
+		{settings.TestResults, &built.testResults},
+	} {
+		ingestor, err := azkustoingest.New(
+			azkustodata.NewConnectionStringBuilder(settings.IngestionURI).WithDefaultAzureCredential(),
+			azkustoingest.WithDefaultDatabase(settings.Database),
+			azkustoingest.WithDefaultTable(target.table.Table),
+		)
+		if err != nil {
+			built.close(w.logger)
+			return nil, fmt.Errorf("failed to create ingestor for %s: %w", target.table.Table, err)
+		}
+		*target.into = &tableIngestor{name: target.table.Table, mapping: target.table.IngestionMapping, ingestor: ingestor}
+	}
+	return built, nil
+}
+
+func (i *ingestors) close(logger *slog.Logger) {
+	for _, target := range []*tableIngestor{i.outcomes, i.testNames, i.testResults} {
+		if target == nil {
+			continue
+		}
+		if err := target.ingestor.Close(); err != nil {
+			logger.Error("Failed to close ingestor", "table", target.name, "error", err)
+		}
+	}
+}
+
 // ingestRows queues rows for one table, the same path the cluster log forwarder
 // uses. Ingesting nothing is a no-op rather than an empty batch.
-func ingestRows[T any](ctx context.Context, w *Writer, table config.KustoTableConfig, rows []T) error {
+//
+// When tag is set the rows are tagged with it and the ingestion is rejected if
+// the table already holds an extent carrying that tag, which is what makes a
+// repeated write harmless. The rejection is silent by design: it is the
+// expected outcome of a retry, not a failure.
+func ingestRows[T any](ctx context.Context, target *tableIngestor, rows []T, tag string) error {
 	if len(rows) == 0 {
 		return nil
 	}
 	payload, err := encodeRows(rows)
 	if err != nil {
-		return fmt.Errorf("failed to encode rows for %s: %w", table.Table, err)
+		return fmt.Errorf("failed to encode rows for %s: %w", target.name, err)
 	}
-	return w.ingest(ctx, table, payload, len(rows))
-}
 
-func (w *Writer) ingest(ctx context.Context, table config.KustoTableConfig, payload *bytes.Buffer, rows int) error {
-	settings := w.config.CIJobOutcomes
-
-	ingestor, err := azkustoingest.New(
-		azkustodata.NewConnectionStringBuilder(settings.IngestionURI).WithDefaultAzureCredential(),
-		azkustoingest.WithDefaultDatabase(settings.Database),
-		azkustoingest.WithDefaultTable(table.Table),
-	)
-	if err != nil {
-		return fmt.Errorf("failed to create ingestor for %s: %w", table.Table, err)
-	}
-	defer func() {
-		if closeErr := ingestor.Close(); closeErr != nil {
-			w.logger.Error("Failed to close ingestor", "table", table.Table, "error", closeErr)
-		}
-	}()
-
-	if _, err := ingestor.FromReader(ctx, payload,
-		azkustoingest.IngestionMappingRef(table.IngestionMapping, azkustoingest.MultiJSON),
+	options := []azkustoingest.FileOption{
+		azkustoingest.IngestionMappingRef(target.mapping, azkustoingest.MultiJSON),
 		azkustoingest.FileFormat(azkustoingest.MultiJSON),
-	); err != nil {
-		return fmt.Errorf("failed to queue rows for ingestion into %s: %w", table.Table, err)
+	}
+	if tag != "" {
+		ingestBy := "ingest-by:" + tag
+		options = append(options,
+			azkustoingest.Tags([]string{ingestBy}),
+			azkustoingest.IfNotExists(tag),
+		)
 	}
 
-	w.logger.Info("Queued rows for ingestion", "rows", rows, "database", settings.Database, "table", table.Table)
+	if _, err := target.ingestor.FromReader(ctx, payload, options...); err != nil {
+		return fmt.Errorf("failed to queue rows for ingestion into %s: %w", target.name, err)
+	}
 	return nil
 }

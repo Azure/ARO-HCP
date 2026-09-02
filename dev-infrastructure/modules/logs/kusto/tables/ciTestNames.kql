@@ -7,9 +7,18 @@
 //
 // testId is the hex SHA-256 of the name, so it is stable across restarts and
 // needs no coordination between writers: the same test always yields the same
-// id, and re-ingesting a name already present is a no-op that dedup filters
-// out. Names are never rewritten, so a name that disappears from the suite
-// keeps its id and its history stays joinable.
+// id. Names are never rewritten, so a name that disappears from the suite keeps
+// its id and its history stays joinable.
+//
+// A name may appear more than once. The writer skips names already stored, but
+// a queued row stays invisible to that check for several minutes, so two runs
+// carrying a newly added test can both write it. Duplicates are identical by
+// construction - the row is entirely determined by the id - so reading through
+// distinct collapses them exactly, and the table is small enough for that to
+// cost nothing:
+//
+//     ciTestResults
+//     | join kind=inner (ciTestNames | distinct testId, name) on testId
 .create-merge table ciTestNames (
     testId: string,
     name: string
