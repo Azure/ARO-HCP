@@ -228,11 +228,6 @@ func (c *operationClusterCreate) determineOperationState(ctx context.Context, op
 	} else {
 		operationStates = append(operationStates, currState.WithSource("servingCABundle"))
 	}
-	if currState, err := c.roleAssignmentsOperationStatus(ctx, operation); err != nil {
-		errs = append(errs, utils.TrackError(err))
-	} else {
-		operationStates = append(operationStates, currState.WithSource("roleAssignments"))
-	}
 
 	if err := errors.Join(errs...); err != nil {
 		return nil, err
@@ -400,28 +395,6 @@ func (c *operationClusterCreate) servingCABundleOperationStatus(ctx context.Cont
 	}
 	if len(serviceProviderCluster.Status.ServingCABundle) == 0 {
 		return operationbase.NewOperationState(coreapi.ProvisioningStateProvisioning, "ServingCABundle not yet populated"), nil
-	}
-	return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, ""), nil
-}
-
-// roleAssignmentsOperationStatus blocks cluster creation until the managed
-// resource group scoped role assignments that Cluster Service creates for the
-// cluster's control-plane and data-plane operator managed identities have all been
-// observed as present. The ObserveRoleAssignments controller reflects them onto
-// ServiceProviderCluster.Status.AzureResources.RoleAssignments; creation is
-// considered complete for this source once at least one role assignment is confirmed
-// and none remain pending.
-func (c *operationClusterCreate) roleAssignmentsOperationStatus(ctx context.Context, operation *coreapi.Operation) (*operationbase.OperationState, error) {
-	serviceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Name)
-	if cosmosstorageutils.IsNotFoundError(err) {
-		return operationbase.NewOperationState(coreapi.ProvisioningStateProvisioning, "ServiceProviderCluster not cached yet"), nil
-	}
-	if err != nil {
-		return nil, utils.TrackError(err)
-	}
-	roleAssignments := serviceProviderCluster.Status.AzureResources.RoleAssignments
-	if len(roleAssignments.AzureResources) == 0 || len(roleAssignments.PendingAzureResources) != 0 {
-		return operationbase.NewOperationState(coreapi.ProvisioningStateProvisioning, "role assignments not yet confirmed"), nil
 	}
 	return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, ""), nil
 }

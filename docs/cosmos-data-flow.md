@@ -239,7 +239,6 @@ which performs a **transactional batch** to atomically update the operation and 
 | Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.ActiveOperationID` (mismatch check)</li><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.API.URL`</li><li>`ServiceProviderProperties.CreateOperationCompletionDeadline`</li></ul> |
 | Read | ReadDesire (HostedCluster) | <ul><li>`Status.Conditions` (ConditionTypeSuccessful)</li><li>`Status.KubeContent` -> HostedCluster `status.controlPlaneVersion.history[].state`, `status.controlPlaneVersion.history[].version`, `status.conditions` (Available, Degraded), `status.controlPlaneEndpoint.host`, `status.controlPlaneEndpoint.port`</li></ul> |
 | Read | Cluster Service | <ul><li>cluster state, provision error</li></ul> |
-| Read | `ServiceProviderCluster` | <ul><li>`Status.ServingCABundle` (completion gate: must be populated)</li><li>`Status.AzureResources.RoleAssignments` (completion gate: at least one confirmed `AzureResources` and no `PendingAzureResources`)</li></ul> |
 | **Write** | **`Operation`** | <ul><li>**`Status`** -> `Provisioning`/`Succeeded`/`Failed`</li><li>**`Error`** (on failure)</li><li>**`LastTransitionTime`**</li><li>**`NotificationURI`** (cleared after ARM notification)</li></ul> |
 | **Write** | **`HCPOpenShiftCluster`** | <ul><li>**`ServiceProviderProperties.ProvisioningState`** = new status</li><li>**`.ActiveOperationID`** = `""` (on terminal)</li></ul> |
 
@@ -1172,25 +1171,6 @@ No writes to the Cosmos Resources container.
 | Read | Azure (ResourceGroupsClient) | <ul><li>`Get` on the managed resource group -> exists / ResourceGroupNotFound; `ManagedBy` (ownership check) is inspected only in the non-deletion path when the resource group exists</li></ul> |
 | **Write** | **`ServiceProviderCluster`** | <ul><li>**`Status.AzureResources.ManagedResourceGroup.PendingAzureResource`** = managed resource group resource ID, recorded (and persisted) before the Azure Get in the non-deletion path; kept while the resource group is missing; cleared once `AzureResource` is set, or during deletion once the resource group is gone</li><li>**`Status.AzureResources.ManagedResourceGroup.AzureResource`** = managed resource group resource ID when it exists and is not owned by another cluster (non-deletion path only); cleared during deletion once the resource group is gone</li></ul> |
 
-#### ObserveRoleAssignments
-
-**File:** [role_assignments_controller.go](../backend/pkg/controllers/cluster/roleassignments/role_assignments_controller.go)
-**Trigger:** Cluster informer, 5-minute resync
-**Behavior:** Observe-only — never creates or deletes a role assignment. Cluster Service creates the managed-resource-group-scoped role assignments for each control-plane and data-plane operator managed identity; this controller mirrors their observed existence onto `ServiceProviderCluster.Status.AzureResources.RoleAssignments` so the cluster-create gate can confirm they are present. A `NeedsWork` gate skips the sync when there is nothing to do: it is a no-op until the managed resource group is confirmed (`Status.AzureResources.ManagedResourceGroup.AzureResource` != nil), and thereafter only until every expected role assignment is confirmed and nothing is left pending.
-- **Deletion is a genuine no-op**: while the cluster is being deleted the controller returns immediately and makes no Azure calls. Cluster Service deletes the managed resource group on delete, and that cascade removes the role assignments scoped to it, so there is nothing to observe and no deletion gate.
-- Not deleting (reconcile): computes the expected role assignment IDs by pairing each control-plane operator (`CustomerProperties...UserAssignedIdentities.ControlPlaneOperators`) and data-plane operator (`...DataPlaneOperators`) identity's resolved `PrincipalID` (from `Status.MSIManagedIdentities` / `Status.DataPlaneOperatorsManagedIdentities`) with that operator's role definitions (from the cluster-scoped identities config), scoped to the managed resource group. The role assignment name is generated with the same deterministic UUIDv5 algorithm Cluster Service uses. It records every not-yet-tracked expected ID as `PendingAzureResources` and persists that intent **before** querying Azure ("set pending before Get"), then queries Azure per pending ID and switches on the result:
-  - **not found** (`RoleAssignmentNotFound`) → leaves it pending (Cluster Service owns creation; this controller is observe-only).
-  - **other error** → returns the error so the sync retries.
-  - **exists** → moves it from `PendingAzureResources` to `AzureResources` (confirmed).
-
-| | Object | Fields |
-|---|--------|--------|
-| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (SyncOnce: deletion is a no-op)</li><li>`CustomerProperties.Platform.ManagedResourceGroup` (managed resource group scope; error when empty)</li><li>`CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators` / `DataPlaneOperators` (operator identities to enumerate)</li><li>`ID` (subscription / resource group / name)</li></ul> |
-| Read | `Subscription` | <ul><li>`Properties.TenantId` (to build the FPA RoleAssignments client)</li></ul> |
-| Read | `ServiceProviderCluster` | <ul><li>`Status.AzureResources.ManagedResourceGroup.AzureResource` (gate: must be confirmed before observing)</li><li>`Status.MSIManagedIdentities.ControlPlaneOperatorsIdentities[<lowercased resourceID>].PrincipalID`</li><li>`Status.DataPlaneOperatorsManagedIdentities.Identities[<lowercased resourceID>].PrincipalID`</li><li>`Status.AzureResources.RoleAssignments` (compared before write to skip no-op replacements)</li></ul> |
-| Read | Azure (RoleAssignmentsClient) | <ul><li>`GetByID` per pending role assignment -> exists / `RoleAssignmentNotFound`</li></ul> |
-| **Write** | **`ServiceProviderCluster`** | <ul><li>**`Status.AzureResources.RoleAssignments.PendingAzureResources`** = expected role assignment IDs not yet confirmed, recorded (and persisted) before the Azure Get; entries are removed as they are confirmed</li><li>**`Status.AzureResources.RoleAssignments.AzureResources`** = role assignment IDs confirmed to exist in Azure</li></ul> |
-
 ---
 
 ## 3. Execution Order Digraphs
@@ -1559,14 +1539,6 @@ Single writer. Mirrors the customer's data plane operator managed identities (`C
 | [ObserveManagedResourceGroup](#observemanagedresourcegroup) | Observe-only: while the cluster is not being deleted, records `PendingAzureResource` before querying Azure, then sets `AzureResource` (clearing pending) when the resource group exists and is not owned by another cluster, leaves the pending marker when it is missing, and returns an error when it is owned by another cluster (`ManagedBy` set to a different cluster ID); while the cluster is being deleted, clears both references once the resource group is gone and otherwise does nothing |
 
 Single writer. Read by [ClusterChildResourcesCleanupController](#clusterchildresourcescleanupcontroller) to gate deletion of the `ServiceProviderCluster` document until the managed resource group is gone.
-
-### `ServiceProviderCluster.Status.AzureResources.RoleAssignments`
-
-| Actor | When |
-|-------|------|
-| [ObserveRoleAssignments](#observeroleassignments) | Observe-only: while the cluster is not being deleted and the managed resource group is confirmed, records each expected control-plane / data-plane operator role assignment as `PendingAzureResources` before querying Azure, then moves it to `AzureResources` once Azure confirms it exists. Deletion is a no-op (the managed resource group deletion cascade removes the role assignments). |
-
-Single writer. Read by [OperationClusterCreate](#operationclustercreate) to gate cluster-create completion until at least one role assignment is confirmed and none remain pending.
 
 ### `ServiceProviderCluster.Status.Validations`
 

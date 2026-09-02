@@ -50,7 +50,6 @@ type FirstPartyApplicationClientBuilder interface {
 	UsageClient(tenantID string, subscriptionID string) (UsageClient, error)
 	GenericResourcesClient(tenantID string, subscriptionID string) (GenericResourcesClient, error)
 	DenyAssignmentsClient(tenantID string, subscriptionID string) (DenyAssignmentsClient, error)
-	RoleAssignmentsClient(tenantID string, subscriptionID string) (RoleAssignmentsClient, error)
 }
 
 type firstPartyApplicationClientBuilder struct {
@@ -123,15 +122,6 @@ func (b *firstPartyApplicationClientBuilder) DenyAssignmentsClient(tenantID stri
 	}
 
 	return armauthorization.NewDenyAssignmentsClient(subscriptionID, creds, b.options)
-}
-
-func (b *firstPartyApplicationClientBuilder) RoleAssignmentsClient(tenantID string, subscriptionID string) (RoleAssignmentsClient, error) {
-	creds, err := b.fpaTokenCredRetriever.RetrieveCredential(tenantID)
-	if err != nil {
-		return nil, err
-	}
-
-	return armauthorization.NewRoleAssignmentsClient(subscriptionID, creds, b.options)
 }
 
 func (b *firstPartyApplicationClientBuilder) BuilderType() FirstPartyApplicationClientBuilderType {

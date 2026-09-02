@@ -124,7 +124,3 @@ func (m *FirstPartyApplicationClientBuilderFunc) GenericResourcesClient(tenantID
 func (m *FirstPartyApplicationClientBuilderFunc) DenyAssignmentsClient(tenantID string, subscriptionID string) (azureclient.DenyAssignmentsClient, error) {
 	return m.DenyAssignmentsClientVal, m.DenyAssignmentsClientErr
 }
-
-func (m *FirstPartyApplicationClientBuilderFunc) RoleAssignmentsClient(tenantID string, subscriptionID string) (azureclient.RoleAssignmentsClient, error) {
-	return nil, fmt.Errorf("not implemented")
-}

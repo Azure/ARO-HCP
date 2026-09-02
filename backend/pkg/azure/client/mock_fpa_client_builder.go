@@ -272,45 +272,6 @@ func (c *MockFirstPartyApplicationClientBuilderResourceSKUsClientCall) DoAndRetu
 	return c
 }
 
-// RoleAssignmentsClient mocks base method.
-func (m *MockFirstPartyApplicationClientBuilder) RoleAssignmentsClient(tenantID, subscriptionID string) (RoleAssignmentsClient, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RoleAssignmentsClient", tenantID, subscriptionID)
-	ret0, _ := ret[0].(RoleAssignmentsClient)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// RoleAssignmentsClient indicates an expected call of RoleAssignmentsClient.
-func (mr *MockFirstPartyApplicationClientBuilderMockRecorder) RoleAssignmentsClient(tenantID, subscriptionID any) *MockFirstPartyApplicationClientBuilderRoleAssignmentsClientCall {
-	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RoleAssignmentsClient", reflect.TypeOf((*MockFirstPartyApplicationClientBuilder)(nil).RoleAssignmentsClient), tenantID, subscriptionID)
-	return &MockFirstPartyApplicationClientBuilderRoleAssignmentsClientCall{Call: call}
-}
-
-// MockFirstPartyApplicationClientBuilderRoleAssignmentsClientCall wrap *gomock.Call
-type MockFirstPartyApplicationClientBuilderRoleAssignmentsClientCall struct {
-	*gomock.Call
-}
-
-// Return rewrite *gomock.Call.Return
-func (c *MockFirstPartyApplicationClientBuilderRoleAssignmentsClientCall) Return(arg0 RoleAssignmentsClient, arg1 error) *MockFirstPartyApplicationClientBuilderRoleAssignmentsClientCall {
-	c.Call = c.Call.Return(arg0, arg1)
-	return c
-}
-
-// Do rewrite *gomock.Call.Do
-func (c *MockFirstPartyApplicationClientBuilderRoleAssignmentsClientCall) Do(f func(string, string) (RoleAssignmentsClient, error)) *MockFirstPartyApplicationClientBuilderRoleAssignmentsClientCall {
-	c.Call = c.Call.Do(f)
-	return c
-}
-
-// DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockFirstPartyApplicationClientBuilderRoleAssignmentsClientCall) DoAndReturn(f func(string, string) (RoleAssignmentsClient, error)) *MockFirstPartyApplicationClientBuilderRoleAssignmentsClientCall {
-	c.Call = c.Call.DoAndReturn(f)
-	return c
-}
-
 // UsageClient mocks base method.
 func (m *MockFirstPartyApplicationClientBuilder) UsageClient(tenantID, subscriptionID string) (UsageClient, error) {
 	m.ctrl.T.Helper()
