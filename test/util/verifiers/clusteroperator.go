@@ -47,7 +47,7 @@ func (v verifyAllClusterOperatorsAvailableImpl) Verify(ctx context.Context, admi
 	start := time.Now()
 	var lastErr error
 	var lastErrMsg string
-	verifyErr := wait.PollUntilContextTimeout(ctx, 20*time.Second, 30*time.Minute, true, func(ctx context.Context) (done bool, err error) {
+	verifyErr := wait.PollUntilContextTimeout(ctx, 20*time.Second, 10*time.Minute, true, func(ctx context.Context) (done bool, err error) {
 		clusterOperators, err := configClient.ClusterOperators().List(ctx, metav1.ListOptions{})
 		if err != nil {
 			lastErr = fmt.Errorf("failed to list ClusterOperators: %w", err)

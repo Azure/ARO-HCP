@@ -24,11 +24,13 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	"k8s.io/utils/ptr"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
@@ -37,6 +39,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
+	configv1 "github.com/openshift/api/config/v1"
 	operatorclient "github.com/openshift/client-go/operator/clientset/versioned"
 
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
@@ -52,8 +55,11 @@ import (
 // - ETCD data encryption with customer-managed keys
 // - ETCD disk-level encryption with platform-managed keys
 // - Internal image registry disabled
+// - Image digest mirrors (IDMS) — enterprise mirroring with registry disabled
 // - API IP address access control (authorized CIDRs)
 // - KeyVaultVisibility set to Private
+// - Node pool autoscaling configuration and minimum-node provisioning
+// - Node pool labels and taints
 var _ = Describe("Customer", func() {
 	It("should be able to create a cluster and node pools with aggregated advanced features",
 		labels.RequireNothing,
@@ -71,6 +77,17 @@ var _ = Describe("Customer", func() {
 				externalAuthSubjectPrefix = "prefix-"
 				ciliumNamespace           = "kube-system"
 				ciliumVersion             = "1.19.2"
+
+				idmsSource = "fake-source.example.com/fake"
+				idmsMirror = "fake-mirror.example.com/fake"
+
+				autoscalingMin int32 = 2
+				autoscalingMax int32 = 4
+
+				nodeLabelKey   = "feature-agg.example.com/workload"
+				nodeLabelValue = "general"
+				nodeTaintKey   = "feature-agg.example.com/dedicated"
+				nodeTaintValue = "specialized"
 			)
 
 			tc := framework.NewTestContext()
@@ -160,8 +177,14 @@ var _ = Describe("Customer", func() {
 			// The test runner's IP is added after the negative check via a cluster update.
 			clusterParams.AuthorizedCIDRs = []*string{to.Ptr(vmCIDR)}
 
-			By("creating cluster resource payload with private key vault visibility")
-			clusterResource, err := framework.BuildHCPClusterFromParams20251223(clusterParams, tc.Location(), nil)
+			By("creating cluster resource payload with private key vault visibility and image digest mirrors")
+			imageDigestMirrors := []*hcpsdk20251223preview.ImageDigestMirror{
+				{
+					Source:  to.Ptr(idmsSource),
+					Mirrors: []*string{to.Ptr(idmsMirror)},
+				},
+			}
+			clusterResource, err := framework.BuildHCPClusterFromParams20251223(clusterParams, tc.Location(), imageDigestMirrors)
 			Expect(err).NotTo(HaveOccurred(), "failed to build v20251223 cluster resource payload")
 			if clusterResource.Properties != nil &&
 				clusterResource.Properties.Etcd != nil &&
@@ -183,7 +206,7 @@ var _ = Describe("Customer", func() {
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %q with aggregated settings", customerClusterName)
 
-			By("verifying cluster properties for key vault visibility, image registry, etcd data encryption and authorized CIDRs")
+			By("verifying cluster properties for key vault visibility, image registry, IDMS, etcd data encryption and authorized CIDRs")
 			cluster, err := tc.Get20251223ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient().Get(ctx, *resourceGroup.Name, customerClusterName, nil)
 			Expect(err).NotTo(HaveOccurred(), "failed to get HCP cluster %q", customerClusterName)
 			Expect(cluster.Properties).ToNot(BeNil(), "cluster %q Properties was nil", customerClusterName)
@@ -198,6 +221,10 @@ var _ = Describe("Customer", func() {
 			Expect(cluster.Properties.ClusterImageRegistry).ToNot(BeNil(), "cluster %q Properties.ClusterImageRegistry was nil", customerClusterName)
 			Expect(cluster.Properties.ClusterImageRegistry.State).ToNot(BeNil(), "cluster %q Properties.ClusterImageRegistry.State was nil", customerClusterName)
 			Expect(*cluster.Properties.ClusterImageRegistry.State).To(Equal(hcpsdk20251223preview.ClusterImageRegistryStateDisabled), "cluster %q image registry state should be Disabled", customerClusterName)
+			Expect(cluster.Properties.ImageDigestMirrors).NotTo(BeEmpty(), "cluster %q ImageDigestMirrors should not be empty", customerClusterName)
+			Expect(ptr.Deref(cluster.Properties.ImageDigestMirrors[0].Source, "")).To(Equal(idmsSource), "cluster %q ImageDigestMirror source should be %s", customerClusterName, idmsSource)
+			Expect(cluster.Properties.ImageDigestMirrors[0].Mirrors).NotTo(BeEmpty(), "cluster %q ImageDigestMirror mirrors list should not be empty", customerClusterName)
+			Expect(ptr.Deref(cluster.Properties.ImageDigestMirrors[0].Mirrors[0], "")).To(Equal(idmsMirror), "cluster %q ImageDigestMirror mirror should be %s", customerClusterName, idmsMirror)
 			Expect(cluster.Properties.API).ToNot(BeNil(), "cluster %q Properties.API was nil", customerClusterName)
 			Expect(cluster.Properties.API.URL).ToNot(BeNil(), "cluster %q Properties.API.URL was nil", customerClusterName)
 			apiURL := *cluster.Properties.API.URL
@@ -247,6 +274,24 @@ var _ = Describe("Customer", func() {
 				Frequency: framework.StandardPollInterval,
 			})
 			Expect(err).NotTo(HaveOccurred(), "failed to update cluster %q authorized CIDRs to include test runner IP", customerClusterName)
+
+			By("verifying customer-specified image digest mirrors are present in the cluster ImageDigestMirrorSet")
+			// Verify after authorized CIDRs include the test runner so the Kubernetes API is reachable.
+			expectedMirrors := []verifiers.ImageDigestMirrorExpectation{
+				{
+					Source:             idmsSource,
+					Mirrors:            []configv1.ImageMirror{idmsMirror},
+					MirrorSourcePolicy: configv1.AllowContactingSource,
+				},
+			}
+			idmsVerifier := verifiers.VerifyImageDigestMirrorSets(expectedMirrors)
+			Eventually(func() error {
+				verifyErr := idmsVerifier.Verify(ctx, adminRESTConfig)
+				if verifyErr != nil {
+					GinkgoLogr.Info("Verifier check", "name", idmsVerifier.Name(), "status", "failed", "error", verifyErr.Error())
+				}
+				return verifyErr
+			}, 1*time.Minute, 15*time.Second).Should(Succeed(), "ImageDigestMirrorSet CRDs should exist on cluster %q", customerClusterName)
 
 			By("disabling kube-proxy in the cluster network operator")
 			opClient, err := operatorclient.NewForConfig(adminRESTConfig)
@@ -309,12 +354,24 @@ var _ = Describe("Customer", func() {
 			err = framework.InstallCiliumChart(ctx, ciliumVersion, ciliumValues, adminKubeconfig, ciliumNamespace)
 			Expect(err).NotTo(HaveOccurred(), "failed to install Cilium chart via Helm SDK")
 
-			By("creating two node pools")
+			By("creating a node pool with autoscaling min/max configured for general workloads")
+			// This pool is created with autoscaling bounds; the test only checks that
+			// those bounds are stored and that at least Min nodes join. It does not
+			// create pending workload or otherwise raise desired capacity.
 			nodePoolParamsA := framework.NewDefaultNodePoolParams20251223()
 			nodePoolParamsA.ClusterName = customerClusterName
 			nodePoolParamsA.NodePoolName = customerNodePoolNameA
-			nodePoolParamsA.Replicas = int32(2)
 			nodePoolParamsA.AutoRepair = true
+			nodePoolParamsA.AutoScaling = &framework.NodePoolAutoScalingParams{
+				Min: autoscalingMin,
+				Max: autoscalingMax,
+			}
+			nodePoolParamsA.Labels = []*hcpsdk20251223preview.Label{
+				{
+					Key:   to.Ptr(nodeLabelKey),
+					Value: to.Ptr(nodeLabelValue),
+				},
+			}
 			nodePoolErrA := tc.CreateNodePoolFromParam20251223(
 				ctx,
 				GinkgoLogr,
@@ -335,11 +392,26 @@ var _ = Describe("Customer", func() {
 			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig, verifiers.VerifySimpleWebApp(), verifiers.VerifyCiliumConnectivityChecks(ciliumVersion))
 			Expect(err).NotTo(HaveOccurred(), "failed to run simple web app and connectivity check app with cilium CNI")
 
+			By("creating a second node pool with labels and NoSchedule taints")
+			// Keep NoSchedule only on this pool so general workloads still schedule on np-a.
 			nodePoolParamsB := framework.NewDefaultNodePoolParams20251223()
 			nodePoolParamsB.ClusterName = customerClusterName
 			nodePoolParamsB.NodePoolName = customerNodePoolNameB
 			nodePoolParamsB.Replicas = int32(1)
 			nodePoolParamsB.AutoRepair = true
+			nodePoolParamsB.Labels = []*hcpsdk20251223preview.Label{
+				{
+					Key:   to.Ptr(nodeLabelKey),
+					Value: to.Ptr(nodeLabelValue),
+				},
+			}
+			nodePoolParamsB.Taints = []*hcpsdk20251223preview.Taint{
+				{
+					Key:    to.Ptr(nodeTaintKey),
+					Value:  to.Ptr(nodeTaintValue),
+					Effect: to.Ptr(hcpsdk20251223preview.EffectNoSchedule),
+				},
+			}
 			nodePoolErrB := tc.CreateNodePoolFromParam20251223(
 				ctx,
 				GinkgoLogr,
@@ -360,7 +432,7 @@ var _ = Describe("Customer", func() {
 			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig, verifiers.VerifySimpleWebApp(), verifiers.VerifyCiliumConnectivityChecks(ciliumVersion))
 			Expect(err).NotTo(HaveOccurred(), "failed to run simple web app and connectivity check app with cilium CNI")
 
-			By("verifying node pools use platform managed disk-level encryption")
+			By("verifying node pools use platform managed disk-level encryption, autoscaling configuration, labels, and taints")
 			nodePoolClient := tc.Get20251223ClientFactoryOrDie(ctx).NewNodePoolsClient()
 			nodePoolA, err := framework.GetNodePool20251223(ctx, nodePoolClient, *resourceGroup.Name, customerClusterName, customerNodePoolNameA)
 			Expect(err).NotTo(HaveOccurred(), "failed to get node pool %q", customerNodePoolNameA)
@@ -368,12 +440,69 @@ var _ = Describe("Customer", func() {
 			Expect(nodePoolA.Properties.Platform).ToNot(BeNil(), "node pool %q Properties.Platform was nil", customerNodePoolNameA)
 			Expect(nodePoolA.Properties.Platform.OSDisk).ToNot(BeNil(), "node pool %q Properties.Platform.OSDisk was nil", customerNodePoolNameA)
 			Expect(nodePoolA.Properties.Platform.OSDisk.EncryptionSetID).To(BeNil(), "node pool %q should not specify an OSDisk EncryptionSetID when platform-managed disk encryption is expected", customerNodePoolNameA)
+			Expect(nodePoolA.Properties.AutoScaling).NotTo(BeNil(), "node pool %q AutoScaling was nil", customerNodePoolNameA)
+			Expect(nodePoolA.Properties.AutoScaling.Min).To(Equal(to.Ptr(autoscalingMin)), "node pool %q autoscaling min should be %d", customerNodePoolNameA, autoscalingMin)
+			Expect(nodePoolA.Properties.AutoScaling.Max).To(Equal(to.Ptr(autoscalingMax)), "node pool %q autoscaling max should be %d", customerNodePoolNameA, autoscalingMax)
+			Expect(nodePoolA.Properties.Labels).To(HaveLen(1), "node pool %q should have exactly one label", customerNodePoolNameA)
+			Expect(ptr.Deref(nodePoolA.Properties.Labels[0].Key, "")).To(Equal(nodeLabelKey), "node pool %q label key should be %s", customerNodePoolNameA, nodeLabelKey)
+			Expect(ptr.Deref(nodePoolA.Properties.Labels[0].Value, "")).To(Equal(nodeLabelValue), "node pool %q label value should be %s", customerNodePoolNameA, nodeLabelValue)
+
 			nodePoolB, err := framework.GetNodePool20251223(ctx, nodePoolClient, *resourceGroup.Name, customerClusterName, customerNodePoolNameB)
 			Expect(err).NotTo(HaveOccurred(), "failed to get node pool %q", customerNodePoolNameB)
 			Expect(nodePoolB.Properties).ToNot(BeNil(), "node pool %q Properties was nil", customerNodePoolNameB)
 			Expect(nodePoolB.Properties.Platform).ToNot(BeNil(), "node pool %q Properties.Platform was nil", customerNodePoolNameB)
 			Expect(nodePoolB.Properties.Platform.OSDisk).ToNot(BeNil(), "node pool %q Properties.Platform.OSDisk was nil", customerNodePoolNameB)
 			Expect(nodePoolB.Properties.Platform.OSDisk.EncryptionSetID).To(BeNil(), "node pool %q should not specify an OSDisk EncryptionSetID when platform-managed disk encryption is expected", customerNodePoolNameB)
+			Expect(nodePoolB.Properties.Labels).To(HaveLen(1), "node pool %q should have exactly one label", customerNodePoolNameB)
+			Expect(ptr.Deref(nodePoolB.Properties.Labels[0].Key, "")).To(Equal(nodeLabelKey), "node pool %q label key should be %s", customerNodePoolNameB, nodeLabelKey)
+			Expect(ptr.Deref(nodePoolB.Properties.Labels[0].Value, "")).To(Equal(nodeLabelValue), "node pool %q label value should be %s", customerNodePoolNameB, nodeLabelValue)
+			Expect(nodePoolB.Properties.Taints).To(HaveLen(1), "node pool %q should have exactly one taint", customerNodePoolNameB)
+			Expect(ptr.Deref(nodePoolB.Properties.Taints[0].Key, "")).To(Equal(nodeTaintKey), "node pool %q taint key should be %s", customerNodePoolNameB, nodeTaintKey)
+			Expect(ptr.Deref(nodePoolB.Properties.Taints[0].Value, "")).To(Equal(nodeTaintValue), "node pool %q taint value should be %s", customerNodePoolNameB, nodeTaintValue)
+			Expect(ptr.Deref(nodePoolB.Properties.Taints[0].Effect, "")).To(Equal(hcpsdk20251223preview.EffectNoSchedule), "node pool %q taint effect should be NoSchedule", customerNodePoolNameB)
+
+			By("verifying labels and taints persisted onto cluster nodes")
+			// VerifyNodesReady only asserts that some nodes are Ready; poll until each
+			// pool has joined with the labels/taints configured on that pool.
+			kubeClient, err := kubernetes.NewForConfig(adminRESTConfig)
+			Expect(err).NotTo(HaveOccurred(), "failed to create kubernetes client for node label/taint verification")
+			var lastLabelTaintState string
+			Eventually(func(g Gomega) {
+				nodes, listErr := kubeClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
+				g.Expect(listErr).NotTo(HaveOccurred(), "failed to list nodes for label/taint verification")
+				g.Expect(nodes.Items).NotTo(BeEmpty(), "cluster %q should have at least one node", customerClusterName)
+
+				poolANodes, selectErr := framework.SelectNodesBelongingToNodePool(nodes.Items, customerNodePoolNameA)
+				g.Expect(selectErr).NotTo(HaveOccurred(), "failed to select nodes belonging to node pool %q", customerNodePoolNameA)
+				poolBNodes, selectErr := framework.SelectNodesBelongingToNodePool(nodes.Items, customerNodePoolNameB)
+				g.Expect(selectErr).NotTo(HaveOccurred(), "failed to select nodes belonging to node pool %q", customerNodePoolNameB)
+
+				poolALabeled := framework.HasNodeLabel(poolANodes, nodeLabelKey, nodeLabelValue, len(poolANodes))
+				poolATainted := framework.HasNodeTaint(poolANodes, nodeTaintKey, nodeTaintValue, corev1.TaintEffectNoSchedule)
+				poolBLabeled := framework.HasNodeLabel(poolBNodes, nodeLabelKey, nodeLabelValue, len(poolBNodes))
+				poolBTainted := framework.HasNodeTaint(poolBNodes, nodeTaintKey, nodeTaintValue, corev1.TaintEffectNoSchedule, 1)
+				state := fmt.Sprintf("np-a nodes=%d labeled=%t tainted=%t; np-b nodes=%d labeled=%t tainted=%t",
+					len(poolANodes), poolALabeled, poolATainted, len(poolBNodes), poolBLabeled, poolBTainted)
+				if state != lastLabelTaintState {
+					GinkgoWriter.Printf("waiting for node labels/taints: %s\n", state)
+					lastLabelTaintState = state
+				}
+
+				g.Expect(len(poolANodes)).To(BeNumerically(">=", int(autoscalingMin)),
+					"node pool %q should have at least %d nodes (autoscaling min), found %d", customerNodePoolNameA, autoscalingMin, len(poolANodes))
+				g.Expect(poolALabeled).To(BeTrue(),
+					"all nodes in node pool %q should have label %s=%s", customerNodePoolNameA, nodeLabelKey, nodeLabelValue)
+				g.Expect(poolATainted).To(BeFalse(),
+					"node pool %q should not have taint %s=%s:NoSchedule", customerNodePoolNameA, nodeTaintKey, nodeTaintValue)
+
+				g.Expect(poolBNodes).To(HaveLen(1),
+					"node pool %q should have 1 node, found %d", customerNodePoolNameB, len(poolBNodes))
+				g.Expect(poolBLabeled).To(BeTrue(),
+					"all nodes in node pool %q should have label %s=%s", customerNodePoolNameB, nodeLabelKey, nodeLabelValue)
+				g.Expect(poolBTainted).To(BeTrue(),
+					"exactly one node in node pool %q should have taint %s=%s:NoSchedule", customerNodePoolNameB, nodeTaintKey, nodeTaintValue)
+			}, 15*time.Minute, 15*time.Second).Should(Succeed(),
+				"node labels/taints should appear on the intended node pools of cluster %q", customerClusterName)
 
 			By("creating an external OIDC auth provider and verifying its state")
 			app, sp, err := tc.NewAppRegistrationWithServicePrincipal(ctx)
@@ -445,8 +574,6 @@ var _ = Describe("Customer", func() {
 			By("creating a cluster role binding for the external OIDC subject")
 			clusterRoleBindingName := "agg-external-auth-cluster-admin"
 			clusterRoleBindingSubject := externalAuthSubjectPrefix + sp.ID
-			kubeClient, err := kubernetes.NewForConfig(adminRESTConfig)
-			Expect(err).NotTo(HaveOccurred(), "failed to create kubernetes client for cluster role binding creation")
 			_, err = kubeClient.RbacV1().ClusterRoleBindings().Create(ctx, &rbacv1.ClusterRoleBinding{
 				ObjectMeta: metav1.ObjectMeta{Name: clusterRoleBindingName},
 				RoleRef: rbacv1.RoleRef{

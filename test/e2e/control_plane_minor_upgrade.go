@@ -25,7 +25,6 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/blang/semver/v4"
-	"github.com/google/uuid"
 
 	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/client-go/kubernetes"
@@ -35,7 +34,6 @@ import (
 	clusterversion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/version"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controlplaneversion"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
-	"github.com/Azure/ARO-HCP/internal/cincinnati"
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
@@ -69,7 +67,6 @@ var _ = Describe("Customer", func() {
 			// resolvable via the OpenShift update service at the channel's z-stream offset.
 			installVersionId := fmt.Sprintf("%d.%d", installVersion.Major, installVersion.Minor)
 			upgradeVersionId := fmt.Sprintf("%d.%d", upgradeVersion.Major, upgradeVersion.Minor)
-			var resolvedInstallVersion string
 			if channelGroup == "nightly" {
 				resolvedInstall, err := framework.GetLatestNightlyInstallVersion(ctx, channelGroup, installVersionId)
 				if framework.IsVersionNotFoundError(err) {
@@ -77,7 +74,6 @@ var _ = Describe("Customer", func() {
 				}
 				Expect(err).NotTo(HaveOccurred(), "failed to resolve nightly install version for %s", installVersionId)
 				installVersionId = resolvedInstall
-				resolvedInstallVersion = installVersionId
 
 				resolvedUpgrade, err := framework.GetLatestNightlyInstallVersion(ctx, channelGroup, upgradeVersionId)
 				if framework.IsVersionNotFoundError(err) {
@@ -94,9 +90,6 @@ var _ = Describe("Customer", func() {
 					if desiredVersion == nil {
 						Skip(fmt.Sprintf("no version resolved for channel %s-%s; skipping y-stream upgrade %s -> %s",
 							channelGroup, minorLine, installVersionId, upgradeVersionId))
-					}
-					if minorLine == installVersionId {
-						resolvedInstallVersion = desiredVersion.Version
 					}
 				}
 			}
@@ -238,42 +231,6 @@ var _ = Describe("Customer", func() {
 				},
 			}
 			_, err = framework.UpdateHCPCluster20240610(ctx, hcpClient, *resourceGroup.Name, clusterName, update, framework.HCPClusterVersionUpgradeTimeout)
-			// Reactive: when the upgrade is rejected with "no upgrade path to update
-			// channel …", confirm via Cincinnati that the resolved install z-stream
-			// truly has no outgoing edges to the target minor. If so, the failure is
-			// a transient upstream graph-data gap — skip the test instead of failing.
-			// The timebomb (2026-09-30) ensures this grace window doesn't mask a real
-			// regression indefinitely.
-			if err != nil && strings.Contains(err.Error(), "no upgrade path") &&
-				time.Now().Before(time.Date(2026, 9, 30, 0, 0, 0, 0, time.UTC)) {
-				installSemver, parseErr := semver.ParseTolerant(resolvedInstallVersion)
-				if parseErr == nil {
-					upgradeChannel := fmt.Sprintf("%s-%d.%d", channelGroup, upgradeVersion.Major, upgradeVersion.Minor)
-					cincinnatiURI, uriErr := cincinnati.GetCincinnatiURI(channelGroup)
-					if uriErr == nil {
-						cincinnatiClient := cincinnati.NewClientCache().GetOrCreateClient(uuid.Nil)
-						_, updates, _, edgeErr := cincinnatiClient.GetUpdates(ctx, cincinnatiURI, "multi", "multi", upgradeChannel, installSemver)
-						noEdges := cincinnati.IsCincinnatiVersionNotFoundError(edgeErr)
-						if edgeErr == nil {
-							noEdges = true
-							for _, u := range updates {
-								v, vErr := semver.ParseTolerant(u.Version)
-								if vErr != nil {
-									continue
-								}
-								if v.Major == upgradeVersion.Major && v.Minor == upgradeVersion.Minor {
-									noEdges = false
-									break
-								}
-							}
-						}
-						if noEdges {
-							Skip(fmt.Sprintf("reactive: upgrade of cluster %q failed with 'no upgrade path' and Cincinnati confirms no outgoing edges from %s to %d.%d.z in channel %s — upstream graph data likely not yet published",
-								clusterName, resolvedInstallVersion, upgradeVersion.Major, upgradeVersion.Minor, upgradeChannel))
-						}
-					}
-				}
-			}
 			Expect(err).NotTo(HaveOccurred(), "failed to trigger y-stream upgrade of cluster %q to %s", clusterName, upgradeVersionId)
 
 			By("verifying control plane reached desired version and cluster remains viable")

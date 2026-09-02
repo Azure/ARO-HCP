@@ -232,18 +232,43 @@ type nodeSummary struct {
 func summarizeNodes(nodes []corev1.Node) []nodeSummary {
 	summaries := make([]nodeSummary, len(nodes))
 	for i, node := range nodes {
-		var releaseImages []string
-		for _, img := range node.Status.Images {
-			releaseImages = append(releaseImages, img.Names...)
-		}
 		summaries[i] = nodeSummary{
 			Name:                    node.Name,
 			Ready:                   nodeReady(to.Ptr(node)),
 			ContainerRuntimeVersion: node.Status.NodeInfo.ContainerRuntimeVersion,
-			ReleaseImages:           releaseImages,
+			ReleaseImages:           summarizeReleaseImages(node.Status.Images),
 		}
 	}
 	return summaries
+}
+
+// maxReleaseImagesInSummary caps how many release image names appear in a node summary used
+// for human-readable error output. The verification logic (nodeReleaseImagesUpdated) still
+// compares the node's complete, untruncated set of image names; this cap only affects what
+// gets printed on failure.
+const maxReleaseImagesInSummary = 5
+
+// summarizeReleaseImages returns a short list of release image names for use in error output:
+// one representative name per image, truncated to maxReleaseImagesInSummary entries with an
+// "(+N more)" marker appended if any were elided (so the returned slice can have up to
+// maxReleaseImagesInSummary+1 elements). A single image is typically referenced by several
+// aliases in img.Names (e.g. a "repo@sha256:..." digest pull spec and a "repo:tag" tag pointing
+// at the same image), even though the node can only be running one version of that image.
+// Keeping every alias for every image on the node produces failure messages with dozens of
+// near-duplicate entries that don't help diagnose which OCP/release version is actually running,
+// so this keeps only the first name per image.
+func summarizeReleaseImages(images []corev1.ContainerImage) []string {
+	var names []string
+	for _, img := range images {
+		if len(img.Names) > 0 {
+			names = append(names, img.Names[0])
+		}
+	}
+	if len(names) > maxReleaseImagesInSummary {
+		elided := len(names) - maxReleaseImagesInSummary
+		names = append(names[:maxReleaseImagesInSummary], fmt.Sprintf("(+%d more)", elided))
+	}
+	return names
 }
 
 func (v verifyNodePoolUpgrade) Name() string {
@@ -329,23 +354,54 @@ func nodeReadyAndSchedulable(node *corev1.Node) bool {
 	return nodeReady(node) && !node.Spec.Unschedulable
 }
 
-// nodeVersionInMinor returns a non-empty reason if the node's version is not in the same major.minor as expectedSemver.
+// ocpToK8sMinor maps known OCP 4.x minor versions to the Kubernetes minor version they ship.
+// This is an explicit allowlist rather than an arithmetic offset: the OCP-to-Kubernetes minor
+// mapping has held steady at +13 across 4.14-4.22, but that's not a guarantee that holds
+// forever (in particular across an OCP major version bump), so an unlisted OCP version fails
+// loudly here instead of silently producing an unverified expected value. Add an entry whenever
+// we start testing against a new OCP minor.
+var ocpToK8sMinor = map[uint64]uint64{
+	14: 27, // OCP 4.14 = k8s 1.27
+	15: 28, // OCP 4.15 = k8s 1.28
+	16: 29, // OCP 4.16 = k8s 1.29
+	17: 30, // OCP 4.17 = k8s 1.30
+	18: 31, // OCP 4.18 = k8s 1.31
+	19: 32, // OCP 4.19 = k8s 1.32
+	20: 33, // OCP 4.20 = k8s 1.33
+	21: 34, // OCP 4.21 = k8s 1.34
+	22: 35, // OCP 4.22 = k8s 1.35
+}
+
+// nodeVersionInMinor returns a non-empty reason if the node's KubeletVersion minor does not match
+// the expected Kubernetes minor for the given OCP version. It parses KubeletVersion (e.g. "v1.35.6+abc")
+// and checks that its minor equals the value in ocpToK8sMinor for expectedSemver's major.minor.
 func (v verifyNodePoolUpgrade) nodeVersionInMinor(node *corev1.Node, expectedSemver semver.Version) string {
-	cri := node.Status.NodeInfo.ContainerRuntimeVersion
-	m := regexp.MustCompile(`rhaos(\d+)\.(\d+)`).FindStringSubmatch(cri)
-	nodeVerStr := ""
-	if len(m) == 3 {
-		nodeVerStr = m[1] + "." + m[2]
-	}
-	if len(nodeVerStr) == 0 {
-		return fmt.Sprintf("%s (no version in containerRuntimeVersion %q)", node.Name, node.Status.NodeInfo.ContainerRuntimeVersion)
-	}
-	nodeVer, err := semver.ParseTolerant(nodeVerStr)
+	kubeletVer := node.Status.NodeInfo.KubeletVersion
+	kv, err := semver.ParseTolerant(kubeletVer)
 	if err != nil {
-		return fmt.Sprintf("%s (invalid version %q)", node.Name, nodeVerStr)
+		return fmt.Sprintf("%s (cannot parse KubeletVersion %q: %v)",
+			node.Name, kubeletVer, err)
 	}
-	if nodeVer.Major != expectedSemver.Major || nodeVer.Minor != expectedSemver.Minor {
-		return fmt.Sprintf("%s (version %s not in same minor as expected %s)", node.Name, nodeVerStr, v.expectedVersion)
+
+	if kv.Major != 1 {
+		return fmt.Sprintf("%s (KubeletVersion %s has unexpected major %d, expected 1)",
+			node.Name, kubeletVer, kv.Major)
+	}
+
+	if expectedSemver.Major != 4 {
+		return fmt.Sprintf("%s (no known Kubernetes minor mapping for OCP major %d; add it to ocpToK8sMinor in nodes.go)",
+			node.Name, expectedSemver.Major)
+	}
+
+	expectedK8sMinor, ok := ocpToK8sMinor[expectedSemver.Minor]
+	if !ok {
+		return fmt.Sprintf("%s (no known Kubernetes minor mapping for OCP 4.%d; add it to ocpToK8sMinor in nodes.go)",
+			node.Name, expectedSemver.Minor)
+	}
+
+	if kv.Minor != expectedK8sMinor {
+		return fmt.Sprintf("%s (KubeletVersion %s has minor %d, expected %d for OCP %s)",
+			node.Name, kubeletVer, kv.Minor, expectedK8sMinor, v.expectedVersion)
 	}
 	return ""
 }
@@ -361,5 +417,7 @@ func (v verifyNodePoolUpgrade) nodeReleaseImagesUpdated(node *corev1.Node) strin
 			return "" // at least one new image differs from previous
 		}
 	}
-	return fmt.Sprintf("%s (release images unchanged: %v)", node.Name, currentImgs)
+	// The failure message only needs to show a bounded, human-readable sample of the images;
+	// the comparison above already used the complete, untruncated currentImgs.
+	return fmt.Sprintf("%s (release images unchanged: %v)", node.Name, summarizeReleaseImages(node.Status.Images))
 }

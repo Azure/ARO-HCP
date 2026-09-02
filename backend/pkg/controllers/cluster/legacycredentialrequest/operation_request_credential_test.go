@@ -16,7 +16,7 @@ package legacycredentialrequest
 
 import (
 	"context"
-	"errors"
+	"net/http"
 	"testing"
 
 	"github.com/go-logr/logr/testr"
@@ -27,6 +27,7 @@ import (
 	utilsclock "k8s.io/utils/clock"
 
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
+	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
 	operationtesting "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils/operationtesting"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
@@ -94,7 +95,7 @@ func TestOperationRequestCredential_SynchronizeOperation(t *testing.T) {
 		name                       string
 		operationOverride          func(*coreapi.Operation)
 		breakGlassCredentialStatus cmv1.BreakGlassCredentialStatus
-		getBreakGlassCredentialErr error
+		getBreakGlassCredentialErr *ocmerrors.ErrorBuilder
 		expectError                bool
 		expectCSMockCalled         bool
 		verify                     func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, fixture *operationtesting.ClusterTestFixture)
@@ -147,13 +148,28 @@ func TestOperationRequestCredential_SynchronizeOperation(t *testing.T) {
 		{
 			name:                       "GetBreakGlassCredential failure leads to error",
 			breakGlassCredentialStatus: cmv1.BreakGlassCredentialStatusIssued,
-			getBreakGlassCredentialErr: errors.New("something went wrong"),
+			getBreakGlassCredentialErr: ocmerrors.NewError().Reason("something went wrong"),
 			expectError:                true,
 			expectCSMockCalled:         true,
 			verify: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, fixture *operationtesting.ClusterTestFixture) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, coreapi.ProvisioningStateAccepted, op.Status) // no state change
+			},
+		},
+		{
+			name:                       "credential endpoint not found updates operation status to failed",
+			breakGlassCredentialStatus: cmv1.BreakGlassCredentialStatusIssued,
+			getBreakGlassCredentialErr: ocmerrors.NewError().
+				Status(http.StatusNotFound).
+				Reason(http.StatusText(http.StatusNotFound)),
+			expectError:        false,
+			expectCSMockCalled: true,
+			verify: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, fixture *operationtesting.ClusterTestFixture) {
+				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
+				require.NoError(t, err)
+				assert.Equal(t, coreapi.ProvisioningStateFailed, op.Status)
+				assert.Equal(t, coreapi.CloudErrorCodeInternalServerError, op.Error.Code)
 			},
 		},
 		{
@@ -189,14 +205,23 @@ func TestOperationRequestCredential_SynchronizeOperation(t *testing.T) {
 			mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
 
 			if tt.expectCSMockCalled {
-				breakGlassCredential, err := cmv1.NewBreakGlassCredential().
-					Status(tt.breakGlassCredentialStatus).
-					Build()
-				require.NoError(t, err)
+				if tt.getBreakGlassCredentialErr != nil {
+					ocmError, err := tt.getBreakGlassCredentialErr.Build()
+					require.NoError(t, err)
 
-				mockCSClient.EXPECT().
-					GetBreakGlassCredential(gomock.Any(), fixture.ClusterInternalID).
-					Return(breakGlassCredential, tt.getBreakGlassCredentialErr)
+					mockCSClient.EXPECT().
+						GetBreakGlassCredential(gomock.Any(), fixture.ClusterInternalID).
+						Return(nil, ocmError)
+				} else {
+					breakGlassCredential, err := cmv1.NewBreakGlassCredential().
+						Status(tt.breakGlassCredentialStatus).
+						Build()
+					require.NoError(t, err)
+
+					mockCSClient.EXPECT().
+						GetBreakGlassCredential(gomock.Any(), fixture.ClusterInternalID).
+						Return(breakGlassCredential, nil)
+				}
 			}
 
 			controller := &operationRequestCredential{

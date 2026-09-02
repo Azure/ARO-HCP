@@ -37,13 +37,26 @@ func runGrafanaManageStep(id graph.Identifier, step *types.GrafanaManageStep, ct
 	outputs := state.GetOutputs(id.Stamp)
 	state.RUnlock()
 
-	grafanaName, err := resolveValue(step.GrafanaName, options.Configuration, outputs, id.ServiceGroup)
+	opts, err := buildGrafanaReconcileOptions(id, step, options.Configuration, outputs, executionTarget)
 	if err != nil {
-		return fmt.Errorf("failed to resolve grafanaName: %w", err)
+		return err
 	}
-	location, err := resolveValue(step.Location, options.Configuration, outputs, id.ServiceGroup)
+
+	return opts.Run(ctx)
+}
+
+// buildGrafanaReconcileOptions resolves the GrafanaManageStep's config-referenced
+// values and assembles the RawReconcileOptions that grafanactl will run. It is
+// extracted from runGrafanaManageStep so it can be unit tested without making
+// any real Azure API calls, which opts.Run(ctx) performs.
+func buildGrafanaReconcileOptions(id graph.Identifier, step *types.GrafanaManageStep, cfg configtypes.Configuration, outputs Outputs, executionTarget ExecutionTarget) (*manage.RawReconcileOptions, error) {
+	grafanaName, err := resolveValue(step.GrafanaName, cfg, outputs, id.ServiceGroup)
 	if err != nil {
-		return fmt.Errorf("failed to resolve location: %w", err)
+		return nil, fmt.Errorf("failed to resolve grafanaName: %w", err)
+	}
+	location, err := resolveValue(step.Location, cfg, outputs, id.ServiceGroup)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve location: %w", err)
 	}
 
 	opts := manage.DefaultReconcileOptions()
@@ -52,41 +65,49 @@ func runGrafanaManageStep(id graph.Identifier, step *types.GrafanaManageStep, ct
 	opts.ResourceGroup = executionTarget.GetResourceGroup()
 	opts.Location = location
 
-	sku, err := resolveOptionalValue(step.SKU, options.Configuration, outputs, id.ServiceGroup)
+	sku, err := resolveOptionalValue(step.SKU, cfg, outputs, id.ServiceGroup)
 	if err != nil {
-		return fmt.Errorf("failed to resolve sku: %w", err)
+		return nil, fmt.Errorf("failed to resolve sku: %w", err)
 	}
 	if sku != "" {
 		opts.SKU = sku
 	}
 
-	majorVersion, err := resolveOptionalValue(step.MajorVersion, options.Configuration, outputs, id.ServiceGroup)
+	majorVersion, err := resolveOptionalValue(step.MajorVersion, cfg, outputs, id.ServiceGroup)
 	if err != nil {
-		return fmt.Errorf("failed to resolve majorVersion: %w", err)
+		return nil, fmt.Errorf("failed to resolve majorVersion: %w", err)
 	}
 	opts.MajorVersion = majorVersion
 
-	zoneRedundancy, err := resolveOptionalValue(step.ZoneRedundancy, options.Configuration, outputs, id.ServiceGroup)
+	zoneRedundancy, err := resolveOptionalValue(step.ZoneRedundancy, cfg, outputs, id.ServiceGroup)
 	if err != nil {
-		return fmt.Errorf("failed to resolve zoneRedundancy: %w", err)
+		return nil, fmt.Errorf("failed to resolve zoneRedundancy: %w", err)
 	}
 	if zoneRedundancy != "" {
 		opts.ZoneRedundancy = zoneRedundancy
 	}
 
-	crossTenantSecurityGroup, err := resolveOptionalValue(step.CrossTenantSecurityGroup, options.Configuration, outputs, id.ServiceGroup)
+	publicNetworkAccess, err := resolveOptionalValue(step.PublicNetworkAccess, cfg, outputs, id.ServiceGroup)
 	if err != nil {
-		return fmt.Errorf("failed to resolve crossTenantSecurityGroup: %w", err)
+		return nil, fmt.Errorf("failed to resolve publicNetworkAccess: %w", err)
+	}
+	if publicNetworkAccess != "" {
+		opts.PublicNetworkAccess = publicNetworkAccess
+	}
+
+	crossTenantSecurityGroup, err := resolveOptionalValue(step.CrossTenantSecurityGroup, cfg, outputs, id.ServiceGroup)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve crossTenantSecurityGroup: %w", err)
 	}
 	opts.CrossTenantSecurityGroup = crossTenantSecurityGroup
 
 	if step.Timeout != "" {
 		d, err := time.ParseDuration(step.Timeout)
 		if err != nil {
-			return fmt.Errorf("failed to parse timeout %q: %w", step.Timeout, err)
+			return nil, fmt.Errorf("failed to parse timeout %q: %w", step.Timeout, err)
 		}
 		opts.Timeout = d
 	}
 
-	return opts.Run(ctx)
+	return opts, nil
 }

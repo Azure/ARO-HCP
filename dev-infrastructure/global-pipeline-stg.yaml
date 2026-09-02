@@ -72,6 +72,8 @@ resourceGroups:
       configRef: monitoring.grafanaMajorVersion
     zoneRedundancy:
       configRef: monitoring.grafanaZoneRedundantMode
+    publicNetworkAccess:
+      configRef: monitoring.grafanaPublicNetworkAccess
     crossTenantSecurityGroup:
       configRef: monitoring.crossTenantSecurityGroup
     timeout: "15m"
@@ -401,6 +403,9 @@ resourceGroups:
       errorContainsAny:
       - "unknown_storage_failure"
       - "unauthorized: authentication required"
+      # Transient ACR pull/push failures during image mirroring (docker registry RegistryErrorResponse, "Please retry later").
+      - "RegistryErrorResponse"
+      - "Please retry later"
       maximumRetryCount: 5
       durationBetweenRetries: 1m
   # deploys the image mirror for the ACRs

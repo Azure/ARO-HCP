@@ -685,6 +685,11 @@ func admitClusterVersionID(_ context.Context, admissionContext *ClusterAdmission
 	if len(newObj.ChannelGroup) == 0 {
 		return nil
 	}
+	// on nightlies and candidates, we don't wait for the target version to show up. We trust these people to
+	// know what they're doing.
+	if newObj.ChannelGroup == "nightly" || newObj.ChannelGroup == "candidate" {
+		return nil
+	}
 
 	// No channel data yet: fail open (see the doc comment above). A genuinely
 	// missing ServiceProviderCluster prefetch is still surfaced as an

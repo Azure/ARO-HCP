@@ -480,6 +480,10 @@ resourceGroups:
       - "AnmPreconditionFailedException"
       - "MaxRetryCountReached"
       - "ServiceUnavailable"
+      # Transient RBAC propagation lag, mostly on fresh region buildout: the
+      # deployment identity's Key Vault role assignment (needed to create the
+      # aks-etcd-encryption key) may not have propagated yet. Retry once it lands.
+      - "ForbiddenByRbac"
       maximumRetryCount: 3
       durationBetweenRetries: 2m
   - name: upgrade-aks-cluster
@@ -933,6 +937,9 @@ resourceGroups:
       - "unknown_storage_failure"
       - "unexpected EOF"
       - "unauthorized: authentication required"
+      # Transient ACR pull/push failures during image mirroring (docker registry RegistryErrorResponse, "Please retry later").
+      - "RegistryErrorResponse"
+      - "Please retry later"
       maximumRetryCount: 5
       durationBetweenRetries: 1m
   - name: exporter-output

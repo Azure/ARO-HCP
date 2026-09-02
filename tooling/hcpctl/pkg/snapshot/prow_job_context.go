@@ -60,6 +60,26 @@ type ProwJobContext struct {
 	kustoClient *azkustodata.Client
 }
 
+// ProwJobContextOption configures optional behavior for NewProwJobContext.
+type ProwJobContextOption func(*prowJobContextConfig)
+
+type prowJobContextConfig struct {
+	viaKusto  string
+	viaRegion string
+}
+
+// WithViaKusto routes the Kusto client's connection through a reachable cluster
+// (viaKusto/viaRegion) instead of connecting to the job's target cluster
+// directly. Queries still target the job's cluster via cross-cluster cluster()
+// references. viaRegion defaults to the job's region when empty. Passing an
+// empty viaKusto is a no-op.
+func WithViaKusto(viaKusto, viaRegion string) ProwJobContextOption {
+	return func(c *prowJobContextConfig) {
+		c.viaKusto = viaKusto
+		c.viaRegion = viaRegion
+	}
+}
+
 // NewProwJobContext resolves all per-job state from a Prow job URL: it parses
 // the URL, fetches the job configuration and test results from GCS, creates a
 // Kusto client, and builds a snapshot Gatherer.
@@ -67,8 +87,16 @@ type ProwJobContext struct {
 // sdpPipelinesDir is an optional path to a local checkout of the sdp-pipelines
 // repo, used to resolve Kusto configuration for non-PR jobs. It may be empty.
 //
+// Optional behavior (e.g. WithViaKusto) is supplied via options so the base
+// signature stays stable for existing callers.
+//
 // The caller must call Close on the returned context when done.
-func NewProwJobContext(ctx context.Context, prowURL string, cred azcore.TokenCredential, sdpPipelinesDir string) (*ProwJobContext, error) {
+func NewProwJobContext(ctx context.Context, prowURL string, cred azcore.TokenCredential, sdpPipelinesDir string, opts ...ProwJobContextOption) (*ProwJobContext, error) {
+	var cfg prowJobContextConfig
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+
 	prowInfo, err := ParseProwURL(prowURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse Prow URL %q: %w", prowURL, err)
@@ -89,7 +117,23 @@ func NewProwJobContext(ctx context.Context, prowURL string, cred azcore.TokenCre
 		return nil, fmt.Errorf("failed to build Kusto endpoint: %w", err)
 	}
 
-	kcsb := azkustodata.NewConnectionStringBuilder(kustoEndpoint.String()).
+	// connectEndpoint is where the Kusto client actually connects. By default it
+	// is the job's target cluster, but WithViaKusto lets callers route through a
+	// reachable cluster while queries still target the job's cluster via
+	// cross-cluster cluster() references in the query templates.
+	connectEndpoint := kustoEndpoint
+	if cfg.viaKusto != "" {
+		viaRegion := cfg.viaRegion
+		if viaRegion == "" {
+			viaRegion = jobConfig.Region
+		}
+		connectEndpoint, err = kusto.KustoEndpoint(cfg.viaKusto, viaRegion)
+		if err != nil {
+			return nil, fmt.Errorf("failed to build via-Kusto endpoint: %w", err)
+		}
+	}
+
+	kcsb := azkustodata.NewConnectionStringBuilder(connectEndpoint.String()).
 		WithTokenCredential(cred)
 	kustoClient, err := azkustodata.New(kcsb)
 	if err != nil {

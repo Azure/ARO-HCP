@@ -25,3 +25,6 @@ param ocpAcrDiagnosticSettingsEnabled = {{ .acr.ocp.diagnosticSettings.enabled }
 param ocpAcrLogAnalyticsWorkspaceName = '{{ .acr.ocp.diagnosticSettings.logAnalyticsWorkspace.name }}'
 param ocpAcrLogAnalyticsWorkspaceSku = '{{ .acr.ocp.diagnosticSettings.logAnalyticsWorkspace.sku }}'
 param ocpAcrLogAnalyticsWorkspaceRetentionInDays = {{ .acr.ocp.diagnosticSettings.logAnalyticsWorkspace.retentionInDays }}
+
+param ocpAcrOverviewDashboardEnabled = {{ .acr.ocp.overviewDashboard.enabled }}
+param ocpAcrOverviewDashboardName = '{{ .acr.ocp.overviewDashboard.name }}'

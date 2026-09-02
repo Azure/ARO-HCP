@@ -425,6 +425,10 @@ resourceGroups:
       - "Resource is in Updating state"
       - "There was a problem communicating with the identity service"
       - "DeploymentScriptExceededMaxAllowedTime"
+      # Transient RBAC propagation lag, mostly on fresh region buildout: the
+      # deployment identity's Key Vault role assignment (needed to create the
+      # aks-etcd-encryption key) may not have propagated yet. Retry once it lands.
+      - "ForbiddenByRbac"
       maximumRetryCount: 3
       durationBetweenRetries: 2m
   - name: svc-mgmt-aks-permissions
@@ -735,6 +739,12 @@ resourceGroups:
       errorContainsAny:
       - "500 Internal Server Error"
       - "Internal error occurred"
+      # Retry when the shell extension's backing ACI container is stuck pending
+      # and never actually runs (empty log, exit code -1), a transient ACI-side
+      # provisioning failure distinct from an app-level script error. Matches
+      # only the "still waiting to run" detail status, not any Failed shell run.
+      # See AROSLSRE-1945.
+      - '"DetailStatus": "Waiting to run"'
       maximumRetryCount: 3
       durationBetweenRetries: 1m
   - name: kubelet-ds

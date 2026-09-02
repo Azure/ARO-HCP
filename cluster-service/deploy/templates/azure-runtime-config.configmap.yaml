@@ -22,5 +22,9 @@ data:
       "tls_certificates_config": {
         "issuer": "{{ .Values.tlsCertificatesIssuer }}",
         "enabled": {{ .Values.tlsCertificatesEnabled }}
+      },
+      "cosmos_database": {
+        "url": "{{ .Values.cosmosDatabaseUrl }}",
+        "database_name": "{{ .Values.cosmosDatabaseName }}"
       }
     }

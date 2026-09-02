@@ -213,6 +213,10 @@ data:
       "tls_certificates_config": {
         "issuer": "Self",
         "enabled": true
+      },
+      "cosmos_database": {
+        "url": "__cosmosDBDocumentEndpoint__",
+        "database_name": "arohcpdev-rp-usw3"
       }
     }
 ---
@@ -7893,7 +7897,7 @@ spec:
         checksum/cskv: '089346897c49e4b24754b3c6c3be350f8b0e6bf2c2c64c442b1744db4faee2fb'
         checksum/provisionshard: 'd2d4582f46da482e7a0c56f8a4372d95839bf6ced1d48a964d7030dc7e1b5b4b'
         checksum/cs: '7f91f7a8dc3a8b51073043defb13df2c3864a9c93f5a5588a2431f012bc2ae28'
-        checksum/runtime: 'a59b6e4224066ebe7cb35d89a9e9c179f9e90942d3b4173c91c0609299a983ef'
+        checksum/runtime: '6326799ce2854ee14cd7074151365c9f6d96739c5f0f0870a95c0105633cc20c'
         checksum/cloudres: '6db050cd35a77e565d80d2ba2c028450a8758e3ab0a4e524ede12cf207c3a73a'
         checksum/sa: '0187a6f1019114e284fb5565a82e4e954460ac079f952f07b9602117c0d81e3f'
     spec:

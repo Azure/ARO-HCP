@@ -116,12 +116,23 @@ type ServerSideApplyConfig struct {
 	// A nil pointer (or one with an empty Raw) is treated as a pre-check
 	// failure: the kube-applier needs an object to apply.
 	//
-	// The kube-applier always issues SSA with FieldManager="aro-hcp-kube-applier".
-	// The manager name is intentionally not configurable via this API: every
-	// field the kube-applier owns on the cluster traces to that one string,
-	// so an operator inspecting fieldsV1 metadata can attribute ownership at
-	// a glance.
+	// By default the kube-applier issues SSA with
+	// FieldManager="aro-hcp-kube-applier", so that every field the kube-applier
+	// owns on the cluster traces to that one string and an operator inspecting
+	// fieldsV1 metadata can attribute ownership at a glance. That default can be
+	// overridden per-desire via the FieldManager field below.
 	KubeContent *runtime.RawExtension `json:"kubeContent,omitempty"`
+
+	// FieldManager optionally overrides the server-side-apply field-manager
+	// name used for this desire. When nil or empty, the kube-applier uses its
+	// default manager name ("aro-hcp-kube-applier"). When set to a non-empty
+	// value, that value is used verbatim as the SSA FieldManager.
+	//
+	// This exists to support migrating field ownership cleanly from another
+	// manager (e.g. cluster-service): applying as the manager that currently
+	// owns the fields lets the kube-applier adopt them without a conflict,
+	// after which subsequent desires can drop back to the default.
+	FieldManager *string `json:"fieldManager,omitempty"`
 }
 
 type ApplyDesireStatus struct {

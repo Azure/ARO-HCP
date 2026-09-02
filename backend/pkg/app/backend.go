@@ -38,6 +38,7 @@ import (
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	azureconfig "github.com/Azure/ARO-HCP/backend/pkg/azure/config"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/billing"
+	clusterazureresources "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/azureresources"
 	clusterbackups "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/backups"
 	clustercreation "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/creation"
 	credentialrequestcreation "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/credentialrequest/creation"
@@ -47,12 +48,14 @@ import (
 	credentialrevocationdeletion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/credentialrevocation/deletion"
 	credentialrevocationoperations "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/credentialrevocation/operations"
 	clusterdeletion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/deletion"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/denyassignments"
 	clusteridentity "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/identity"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/legacycredentialrequest"
 	clusteroperations "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/operations"
 	clusterplacement "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/placement"
 	clusterproperties "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/properties"
 	clusterreaddesires "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/readdesires"
+	clusterroleassignments "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/roleassignments"
 	clusterstatus "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/status"
 	clusterupdate "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/update"
 	clustervalidation "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/validation"
@@ -96,23 +99,27 @@ type Backend struct {
 }
 
 type BackendOptions struct {
-	AppShortDescriptionName                             string
-	AppVersion                                          string
-	AzureLocation                                       string
-	LeaderElectionLock                                  resourcelock.Interface
-	ResourcesDBClient                                   corecosmosstorage.ResourcesDBClient
-	BillingDBClient                                     billingcosmosstorage.BillingDBClient
-	FleetDBClient                                       fleetcosmosstorage.FleetDBClient
-	KubeApplierDBClients                                kubeappliercosmosstorage.KubeApplierDBClients
-	ClustersServiceClient                               ocm.ClusterServiceClientSpec
-	MetricsRegisterer                                   prometheus.Registerer
-	MetricsGatherer                                     prometheus.Gatherer
-	MetricsServerListenAddress                          string
-	MetricsServerListener                               net.Listener
-	HealthzServerListenAddress                          string
-	TracerProviderShutdownFunc                          func(context.Context) error
-	MaestroSourceEnvironmentIdentifier                  string
-	FPAClientBuilder                                    azureclient.FirstPartyApplicationClientBuilder
+	AppShortDescriptionName            string
+	AppVersion                         string
+	AzureLocation                      string
+	LeaderElectionLock                 resourcelock.Interface
+	ResourcesDBClient                  corecosmosstorage.ResourcesDBClient
+	BillingDBClient                    billingcosmosstorage.BillingDBClient
+	FleetDBClient                      fleetcosmosstorage.FleetDBClient
+	KubeApplierDBClients               kubeappliercosmosstorage.KubeApplierDBClients
+	ClustersServiceClient              ocm.ClusterServiceClientSpec
+	MetricsRegisterer                  prometheus.Registerer
+	MetricsGatherer                    prometheus.Gatherer
+	MetricsServerListenAddress         string
+	MetricsServerListener              net.Listener
+	HealthzServerListenAddress         string
+	TracerProviderShutdownFunc         func(context.Context) error
+	MaestroSourceEnvironmentIdentifier string
+	FPAClientBuilder                   azureclient.FirstPartyApplicationClientBuilder
+	// HasRealFPA indicates the backend runs against a real First Party Application rather than the
+	// insecure MI mock. Controllers that create Azure resources only a real FPA can create (e.g.
+	// deny assignments) are disabled when this is false (dev/int environments).
+	HasRealFPA                                          bool
 	BackendIdentityAzureClients                         *azureclient.BackendIdentityAzureClients
 	BackendIdentityAzureCachedReaders                   *cachedreader.BackendIdentityAzureCachedReaders
 	ExitOnPanic                                         bool
@@ -800,6 +807,15 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		backendInformers,
 	)
 
+	observeManagedResourceGroupController := clusterazureresources.NewManagedResourceGroupController(
+		b.options.ResourcesDBClient,
+		serviceProviderClusterLister,
+		subscriptionLister,
+		b.options.FPAClientBuilder,
+		backendInformers,
+		unionKubeApplierInformers,
+	)
+
 	virtualMachineResourceSKUsCachedReaderController := cachedreader.NewFPAVirtualMachineResourceSKUsCachedReaderController(
 		b.options.FPAClientBuilder,
 		b.options.AzureLocation,
@@ -848,6 +864,17 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 			b.options.CheckAccessV2ClientBuilder,
 			b.options.MIDataplaneBasedIdentityAccessTokenRetrieverBuilder,
 			b.options.CloudEnvironment.CheckAccessV2Scope(),
+		),
+		b.options.ResourcesDBClient,
+		serviceProviderClusterLister,
+		backendInformers,
+	)
+	dataPlaneIdentitiesPermissionsValidationController := clustervalidation.NewClusterValidationController(
+		validationutils.NewDataPlaneIdentitiesPermissionsValidation(
+			b.options.SMIClientBuilder,
+			b.options.ClusterScopedIdentitiesConfig,
+			b.options.BackendIdentityAzureCachedReaders,
+			b.options.CheckAccessV2ClientBuilder,
 		),
 		b.options.ResourcesDBClient,
 		serviceProviderClusterLister,
@@ -951,6 +978,19 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		backendInformers,
 	)
 
+	// The deny assignment controller creates Azure deny assignments through the FPA, which only
+	// exists in environments with a real First Party Application (stage/prod). Skip it entirely when
+	// running against the MI mock (dev/int), where deny assignments cannot be created.
+	var clusterDenyAssignmentController controllerutils.Controller
+	if b.options.HasRealFPA {
+		clusterDenyAssignmentController = denyassignments.NewClusterDenyAssignmentController(
+			utilsclock.RealClock{},
+			b.options.ResourcesDBClient,
+			b.options.FPAClientBuilder,
+			backendInformers,
+		)
+	}
+
 	clusterPendingClusterServiceIDAssignController := clustercreation.NewClusterPendingClusterServiceIDAssignController(
 		b.options.ResourcesDBClient,
 		backendInformers,
@@ -960,6 +1000,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		b.options.ResourcesDBClient,
 		b.options.ClustersServiceClient,
 		backendInformers,
+		b.options.HasRealFPA,
 	)
 
 	clusterDeletionClusterServiceDeleteDispatchController := clusterdeletion.NewClusterClusterServiceDeleteDispatchController(
@@ -1026,6 +1067,16 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		b.options.SMIClientBuilder,
 	)
 
+	observeRoleAssignmentsController := clusterroleassignments.NewRoleAssignmentsController(
+		b.options.ResourcesDBClient,
+		serviceProviderClusterLister,
+		subscriptionLister,
+		b.options.FPAClientBuilder,
+		b.options.ClusterScopedIdentitiesConfig,
+		backendInformers,
+		unionKubeApplierInformers,
+	)
+
 	leaderElectionConfig := leaderelection.LeaderElectionConfig{
 		Lock:          b.options.LeaderElectionLock,
 		LeaseDuration: sharedleaderelection.RecommendedLeaseDuration,
@@ -1063,6 +1114,9 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go systemAdminCredentialRevocationDesiresController.Run(ctx, 20)
 				go systemAdminCredentialRevocationCompletionController.Run(ctx, 20)
 				go systemAdminCredentialRevocationDeletionController.Run(ctx, 20)
+				if clusterDenyAssignmentController != nil {
+					go clusterDenyAssignmentController.Run(ctx, 20)
+				}
 				go clusterPendingClusterServiceIDAssignController.Run(ctx, 20)
 				go clusterClusterServiceCreateController.Run(ctx, 20)
 				go nodePoolClusterServiceCreateController.Run(ctx, 20)
@@ -1104,6 +1158,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go azureNodePoolVMQuotaValidationController.Run(ctx, 20)
 				go controlPlaneIdentitiesPermissionsValidationController.Run(ctx, 20)
 				go nodePoolNSGBasedRequiredConnectivityValidationController.Run(ctx, 20)
+				go dataPlaneIdentitiesPermissionsValidationController.Run(ctx, 20)
 				go nodePoolVersionController.Run(ctx, 20)
 				go nodePoolActiveVersionController.Run(ctx, 20)
 				go createClusterScopedReadDesiresController.Run(ctx, 20)
@@ -1111,6 +1166,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go createServiceProviderClusterController.Run(ctx, 20)
 				go createServiceProviderNodePoolController.Run(ctx, 20)
 				go cleanOrphanedClusterManagedResourceGroupController.Run(ctx, 20)
+				go observeManagedResourceGroupController.Run(ctx, 20)
 				go triggerNodePoolUpgradeController.Run(ctx, 20)
 				go nodePoolDeletionClusterServiceDeleteDispatchController.Run(ctx, 20)
 				go nodePoolClusterServiceIDClearerController.Run(ctx, 20)
@@ -1140,6 +1196,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go backupScheduleController.Run(ctx, 20)
 				go fetchMSIIdentitiesInfoController.Run(ctx, 20)
 				go fetchDataPlaneOperatorsManagedIdentitiesInfoController.Run(ctx, 20)
+				go observeRoleAssignmentsController.Run(ctx, 20)
 			},
 			OnStoppedLeading: func() {
 				// This needs to be defined even though it does nothing.

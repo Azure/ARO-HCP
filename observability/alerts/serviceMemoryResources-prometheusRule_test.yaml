@@ -67,6 +67,33 @@ tests:
           This may indicate a memory leak or workload growth that requires right-sizing the request in config.yaml.
         runbook_url: https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/service-memory-resources.md
         owning_team: hcp-sl
+# ServiceMemoryDrift - alert fires for arobit namespace too (AROSLSRE-1928)
+- interval: 1m
+  input_series:
+  - series: 'container_memory_working_set_bytes{container="fluentbit", namespace="arobit", pod="arobit-forwarder-0", cluster="test"}'
+    values: "220200960+0x20"
+  - series: 'kube_pod_container_resource_requests{container="fluentbit", namespace="arobit", pod="arobit-forwarder-0", cluster="test", resource="memory", job="kube-state-metrics"}'
+    values: "134217728+0x20"
+  alert_rule_test:
+  - eval_time: 15m
+    alertname: ServiceMemoryDrift
+    exp_alerts:
+    - exp_labels:
+        alertname: ServiceMemoryDrift
+        severity: warning
+        team: hcp-sl
+        component: service-memory
+        cluster: test
+        container: fluentbit
+        namespace: arobit
+        pod: arobit-forwarder-0
+      exp_annotations:
+        summary: fluentbit in arobit exceeds 1.5x its memory request on cluster test. pod:arobit-forwarder-0
+        description: |
+          Container fluentbit in pod arobit-forwarder-0 (namespace arobit) on cluster test is using 164.1% of its memory request for more than 15 minutes.
+          This may indicate a memory leak or workload growth that requires right-sizing the request in config.yaml.
+        runbook_url: https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/service-memory-resources.md
+        owning_team: hcp-sl
 # ServiceMemoryDrift - no alert for namespaces outside the regex
 - interval: 1m
   input_series:
@@ -118,3 +145,31 @@ tests:
   - eval_time: 390m
     alertname: ServiceMemoryTrend
     exp_alerts: []
+# ServiceMemoryTrend - alert fires for arobit namespace too
+- interval: 1m
+  input_series:
+  - series: 'container_memory_working_set_bytes{container="fluentbit", namespace="arobit", pod="arobit-forwarder-0", cluster="test"}'
+    values: "134217728+1048576x390"
+  - series: 'kube_pod_container_resource_requests{container="fluentbit", namespace="arobit", pod="arobit-forwarder-0", cluster="test", resource="memory", job="kube-state-metrics"}'
+    values: "134217728+0x390"
+  alert_rule_test:
+  - eval_time: 390m
+    alertname: ServiceMemoryTrend
+    exp_alerts:
+    - exp_labels:
+        alertname: ServiceMemoryTrend
+        severity: info
+        team: hcp-sl
+        component: service-memory
+        cluster: test
+        container: fluentbit
+        namespace: arobit
+        pod: arobit-forwarder-0
+      exp_annotations:
+        summary: fluentbit in arobit memory trending toward 2x its request on cluster test. pod:arobit-forwarder-0
+        description: |
+          Container fluentbit in pod arobit-forwarder-0 (namespace arobit) on cluster test memory is growing steadily.
+          At the current rate over the past 6 hours, it will exceed 2x its memory request within 4 hours.
+          Investigate for potential memory leaks or increased workload.
+        runbook_url: https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/service-memory-resources.md
+        owning_team: hcp-sl

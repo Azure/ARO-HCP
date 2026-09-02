@@ -35,21 +35,23 @@ resourceGroups:
       name: globalMSIId
     # Setting this explicitly replaces the default MSI/connection-failure retry
     # (see sdp-pipelines graph_step.go buildOnFailure), so it must keep those
-    # phrases as well as the new marker prow-job-executor emits when finished.json
-    # marks a gate failure as a known, tracked issue safe to retry (AROSLSRE-1721).
-    # Do not reproduce ev2-retryable-known-issue-failure verbatim anywhere else this
-    # gate's inlined common.sh script could echo back into stdout, or a genuine,
+    # phrases as well as the new markers prow-job-executor emits when finished.json
+    # marks a gate failure as a known, tracked issue safe to retry (AROSLSRE-1721),
+    # or as a pre-test infra precondition failure safe to retry once (AROSLSRE-1926).
+    # Do not reproduce ev2-retryable-known-issue-failure or
+    # ev2-retryable-infra-precondition-failure verbatim anywhere else this gate's
+    # inlined common.sh script could echo back into stdout, or a genuine,
     # non-eligible failure would be spuriously retried (see AROSLSRE-1292).
-    # NOTE: this currently only takes effect in prod. stg and int set
-    # useExclusiveLocks in stages.yaml, and sdp-pipelines' generator ignores an
-    # explicit automatedRetry whenever the stage fails fast, so those stages
-    # still fall back to the default MSI/connection-failure-only retry. Tracked
-    # as a follow-up generator fix in AROSLSRE-1764.
+    # stg and int set useExclusiveLocks in stages.yaml, which makes the generator
+    # fail fast on this step; even there, these errorContainsAny patterns are
+    # still honored (merged into the fixed, bounded fail-fast retry) as of
+    # AROSLSRE-1764 - only the retry count/wait duration are pinned in that path.
     automatedRetry:
       errorContainsAny:
       - "failed to establish a new connection"
       - "failed to get token"
       - "Failed to connect to MSI"
       - "ev2-retryable-known-issue-failure"
+      - "ev2-retryable-infra-precondition-failure"
       maximumRetryCount: 1
       durationBetweenRetries: 1m

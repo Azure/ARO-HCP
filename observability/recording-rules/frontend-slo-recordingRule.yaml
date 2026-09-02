@@ -1,0 +1,348 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    app.kubernetes.io/name: kube-prometheus
+    app.kubernetes.io/part-of: kube-prometheus
+    prometheus: k8s
+    role: recording-rules
+  name: frontend-slo-recording-rules
+  namespace: monitoring
+spec:
+  groups:
+  # ========================================
+  # Frontend (ARM RP) User Journey SLO Recording Rules
+  # ========================================
+  # Baseline SLIs per ARO HCP Alerting Recommendation ADR.
+  # Availability and errors are good/total (or 5xx/total) ratios at 5m.
+  # 30d availability is request-weighted: avg(good RPS)/avg(total RPS), not
+  # avg_over_time of the 5m ratio (that ignores per-window request volume).
+  # Latency is histogram_quantile p99/p95 in seconds (not a ≤1s share).
+  # Traffic is absolute RPS. Ready is kube available/spec.
+  # ARO-28705. Proposed SLOs (formal burn-rate alerts: ARO-28707):
+  #   Availability: >= 99.95% over 30d (non-5xx / total)
+  #   Errors:       < 0.05% 5xx share (same budget as availability)
+  #   Latency:      p99 < 1s ARM sync — histogram_quantile (p99 / p95 seconds)
+  #   Traffic:      request rate (anomaly detection is alert-side)
+  #   Ready:        kube Deployment available/spec (kube /healthz probes)
+  #   Saturation:   Frontend pod CPU vs request, memory vs limit (Istio /
+  #                 Cosmos RU saturation deferred until owned series are wired)
+  #
+  # Scope: synchronous Frontend HTTP on svc clusters. Excludes ARM async poll
+  # routes hcpoperationresults and hcpoperationstatuses (status polls dilute SLIs).
+  #
+  # HTTP availability/errors/latency emit no sample when there is zero ARM
+  # traffic (avoid NaN). That makes a complete Frontend outage look like a
+  # quiet cluster. Distinguish with sli:frontend:ready:ratio5m — kube
+  # readiness probes hit Frontend /healthz (see frontend deployment). There is
+  # no ARM-path blackbox of /healthz (MISE/POP); kube ready is the probe we have.
+  #
+  # Metrics: frontend_http_requests_total / _duration_seconds (histogram has a
+  # 1s bucket — see frontend/pkg/frontend/metrics.go). HA scrapes are deduped
+  # with max without (prometheus_replica).
+  - name: arohcp_frontend_slo_recording_rules
+    interval: 1m
+    rules:
+    # Availability SLI: non-5xx / total (ratio in [0,1]).
+    # `or 0 * total` keeps availability=0 when traffic is all 5xx (non-5xx series gone).
+    - record: sli:frontend_http:availability:rate5m
+      expr: |
+        (
+          (
+            sum by (cluster) (
+              max without (prometheus_replica) (
+                rate(frontend_http_requests_total{
+                  code!~"5..",
+                  route!~".*hcpoperation(results|statuses).*"
+                }[5m])
+              )
+            )
+            or
+            0 * sum by (cluster) (
+              max without (prometheus_replica) (
+                rate(frontend_http_requests_total{
+                  route!~".*hcpoperation(results|statuses).*"
+                }[5m])
+              )
+            )
+          )
+          /
+          sum by (cluster) (
+            max without (prometheus_replica) (
+              rate(frontend_http_requests_total{
+                route!~".*hcpoperation(results|statuses).*"
+              }[5m])
+            )
+          )
+        )
+        and on (cluster)
+        (
+          sum by (cluster) (
+            max without (prometheus_replica) (
+              rate(frontend_http_requests_total{
+                route!~".*hcpoperation(results|statuses).*"
+              }[5m])
+            )
+          )
+          > 0
+        )
+    - record: sli:frontend_http:good:rate5m
+      # Non-5xx request rate (RPS). Numerator for request-weighted long-window
+      # availability. `or 0 * total` keeps good=0 when traffic is all 5xx.
+      expr: |
+        (
+          sum by (cluster) (
+            max without (prometheus_replica) (
+              rate(frontend_http_requests_total{
+                code!~"5..",
+                route!~".*hcpoperation(results|statuses).*"
+              }[5m])
+            )
+          )
+          or
+          0 * sum by (cluster) (
+            max without (prometheus_replica) (
+              rate(frontend_http_requests_total{
+                route!~".*hcpoperation(results|statuses).*"
+              }[5m])
+            )
+          )
+        )
+    - record: errors:frontend_http:error_rate:rate5m
+      # Errors: 5xx / total (Access-style error_rate for future MWMBR alerts).
+
+      # `or 0 * total` keeps error_rate=0 when there is traffic but no 5xx series.
+      expr: |
+        (
+          (
+            sum by (cluster) (
+              max without (prometheus_replica) (
+                rate(frontend_http_requests_total{
+                  code=~"5..",
+                  route!~".*hcpoperation(results|statuses).*"
+                }[5m])
+              )
+            )
+            or
+            0 * sum by (cluster) (
+              max without (prometheus_replica) (
+                rate(frontend_http_requests_total{
+                  route!~".*hcpoperation(results|statuses).*"
+                }[5m])
+              )
+            )
+          )
+          /
+          sum by (cluster) (
+            max without (prometheus_replica) (
+              rate(frontend_http_requests_total{
+                route!~".*hcpoperation(results|statuses).*"
+              }[5m])
+            )
+          )
+        )
+        and on (cluster)
+        (
+          sum by (cluster) (
+            max without (prometheus_replica) (
+              rate(frontend_http_requests_total{
+                route!~".*hcpoperation(results|statuses).*"
+              }[5m])
+            )
+          )
+          > 0
+        )
+    - record: sli:frontend_http:latency_p99:rate5m
+      # Latency p99 in seconds (ADR LatencyP99). SLO: p99 < 1s.
+
+      # histogram_quantile distinguishes 1.01s vs 50s; a 1s-bucket share cannot.
+      expr: |
+        histogram_quantile(
+          0.99,
+          sum by (cluster, le) (
+            max without (prometheus_replica) (
+              rate(frontend_http_requests_duration_seconds_bucket{
+                route!~".*hcpoperation(results|statuses).*"
+              }[5m])
+            )
+          )
+        )
+        and on (cluster)
+        (
+          sum by (cluster) (
+            max without (prometheus_replica) (
+              rate(frontend_http_requests_duration_seconds_count{
+                route!~".*hcpoperation(results|statuses).*"
+              }[5m])
+            )
+          )
+          > 0
+        )
+    - record: sli:frontend_http:latency_p95:rate5m
+      # Latency p95 in seconds (ADR LatencyP95). Same histogram / route filter as p99.
+
+      expr: |
+        histogram_quantile(
+          0.95,
+          sum by (cluster, le) (
+            max without (prometheus_replica) (
+              rate(frontend_http_requests_duration_seconds_bucket{
+                route!~".*hcpoperation(results|statuses).*"
+              }[5m])
+            )
+          )
+        )
+        and on (cluster)
+        (
+          sum by (cluster) (
+            max without (prometheus_replica) (
+              rate(frontend_http_requests_duration_seconds_count{
+                route!~".*hcpoperation(results|statuses).*"
+              }[5m])
+            )
+          )
+          > 0
+        )
+    - record: traffic:frontend_http:request_rate:rate5m
+      # Traffic: absolute request rate (RPS). Anomaly thresholds belong in ARO-28707.
+
+      expr: |
+        sum by (cluster) (
+          max without (prometheus_replica) (
+            rate(frontend_http_requests_total{
+              route!~".*hcpoperation(results|statuses).*"
+            }[5m])
+          )
+        )
+    - record: sli:frontend_http:availability:rate_avg_30d
+      # Request-weighted 30-day availability for SLO status panels (not fast burn).
+      # avg(good RPS) / avg(total RPS) over equal 5m steps equals
+      # sum(good requests) / sum(total requests). Averaging the rate5m *ratio*
+      # would treat a 1-request window the same as a 10k-request window.
+      # Extra rate1h/rate6h ratio windows do not fix that (same avg-of-ratios).
+      expr: |
+        (
+          avg_over_time(sli:frontend_http:good:rate5m[30d:5m])
+          /
+          avg_over_time(traffic:frontend_http:request_rate:rate5m[30d:5m])
+        )
+        and
+        avg_over_time(traffic:frontend_http:request_rate:rate5m[30d:5m]) > 0
+    - record: sli:frontend:ready:ratio5m
+      # Process health: available / desired replicas. Kube readiness probes
+
+      # GET /healthz on the frontend container. Emits 0 on a full outage
+      # (unlike HTTP SLIs, which go absent with no ARM traffic).
+      expr: |
+        (
+          sum by (cluster) (
+            max without (prometheus_replica) (
+              kube_deployment_status_replicas_available{
+                namespace="aro-hcp",
+                deployment="aro-hcp-frontend"
+              }
+            )
+          )
+          /
+          sum by (cluster) (
+            max without (prometheus_replica) (
+              kube_deployment_spec_replicas{
+                namespace="aro-hcp",
+                deployment="aro-hcp-frontend"
+              }
+            )
+          )
+        )
+        and on (cluster)
+        (
+          sum by (cluster) (
+            max without (prometheus_replica) (
+              kube_deployment_spec_replicas{
+                namespace="aro-hcp",
+                deployment="aro-hcp-frontend"
+              }
+            )
+          )
+          > 0
+        )
+    - record: sli:frontend:saturation_cpu:ratio5m
+      # Saturation — CPU: usage cores / requested cores (ratio). SLO target < 0.85.
+      # kube-state-metrics requests/limits: max by (cluster, namespace, pod, container)
+      # so multi-target scrapes are not double-counted (same pattern as
+      # serviceMemoryResources).
+
+      expr: |
+        (
+          sum by (cluster) (
+            max without (prometheus_replica) (
+              rate(container_cpu_usage_seconds_total{
+                namespace="aro-hcp",
+                container="aro-hcp-frontend"
+              }[5m])
+            )
+          )
+          /
+          sum by (cluster) (
+            max by (cluster, namespace, pod, container) (
+              kube_pod_container_resource_requests{
+                namespace="aro-hcp",
+                container="aro-hcp-frontend",
+                resource="cpu",
+                job="kube-state-metrics"
+              }
+            )
+          )
+        )
+        and on (cluster)
+        (
+          sum by (cluster) (
+            max by (cluster, namespace, pod, container) (
+              kube_pod_container_resource_requests{
+                namespace="aro-hcp",
+                container="aro-hcp-frontend",
+                resource="cpu",
+                job="kube-state-metrics"
+              }
+            )
+          )
+          > 0
+        )
+    - record: sli:frontend:saturation_memory:ratio5m
+      # Saturation — memory: working set / limit (ratio). Frontend sets a memory limit.
+
+      expr: |
+        (
+          sum by (cluster) (
+            max without (prometheus_replica) (
+              container_memory_working_set_bytes{
+                namespace="aro-hcp",
+                container="aro-hcp-frontend"
+              }
+            )
+          )
+          /
+          sum by (cluster) (
+            max by (cluster, namespace, pod, container) (
+              kube_pod_container_resource_limits{
+                namespace="aro-hcp",
+                container="aro-hcp-frontend",
+                resource="memory",
+                job="kube-state-metrics"
+              }
+            )
+          )
+        )
+        and on (cluster)
+        (
+          sum by (cluster) (
+            max by (cluster, namespace, pod, container) (
+              kube_pod_container_resource_limits{
+                namespace="aro-hcp",
+                container="aro-hcp-frontend",
+                resource="memory",
+                job="kube-state-metrics"
+              }
+            )
+          )
+          > 0
+        )

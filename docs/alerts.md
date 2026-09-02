@@ -170,6 +170,8 @@ Add your rule file to the appropriate configuration in `observability/`:
 | `observability/alerts-rp-services.yaml` | Resource provider alerts (RP queue) | RP-specific alerts |
 | `observability/alerts-rp-hcps.yaml` | HCP namespace alerts (RP queue) | RP-specific alerts using HCP metrics |
 | `observability/alerts-msft-services.yaml` | MSFT-filtered alerts (MSFT queue) | Subset of alerts for MSFT environments (uses `includedAlertsByGroup`) |
+| `observability/alerts-dev-services.yaml` | Service alerts (DEV queue) | Alerts routed to the shared DEV queue |
+| `observability/alerts-dev-hcps.yaml` | HCP namespace alerts (DEV queue) | HCP alerts routed to the shared DEV queue |
 
 Edit the relevant YAML file and add your rule file path to `rulesFolders`:
 
@@ -263,3 +265,12 @@ cluster should exist but no metrics are flowing yet, so an absence alert can fir
 until all components are up. If this turns out to be a real problem in practice it will likely
 need a more comprehensive approach than adjusting this one metric -- other alerts may fire during
 bring-up too -- and we will only know once a few more management clusters have been stamped.
+
+## Merge gate
+
+Production alerts feed back into development through the **merge gate**, a CI check
+that blocks a PR when it touches a component with unresolved production alerts. If
+your merge is blocked, see
+[Unblocking a merge blocked by the merge gate](alerts/merge-gate.md) for how to
+declare a
+fix with an `Ameliorates-Alert:` commit trailer.
