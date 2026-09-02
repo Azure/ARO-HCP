@@ -807,7 +807,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		backendInformers,
 	)
 
-	observeManagedResourceGroupController := clusterazureresources.NewManagedResourceGroupController(
+	ensureManagedResourceGroupController := clusterazureresources.NewManagedResourceGroupController(
 		b.options.ResourcesDBClient,
 		serviceProviderClusterLister,
 		subscriptionLister,
@@ -1166,7 +1166,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go createServiceProviderClusterController.Run(ctx, 20)
 				go createServiceProviderNodePoolController.Run(ctx, 20)
 				go cleanOrphanedClusterManagedResourceGroupController.Run(ctx, 20)
-				go observeManagedResourceGroupController.Run(ctx, 20)
+				go ensureManagedResourceGroupController.Run(ctx, 20)
 				go triggerNodePoolUpgradeController.Run(ctx, 20)
 				go nodePoolDeletionClusterServiceDeleteDispatchController.Run(ctx, 20)
 				go nodePoolClusterServiceIDClearerController.Run(ctx, 20)

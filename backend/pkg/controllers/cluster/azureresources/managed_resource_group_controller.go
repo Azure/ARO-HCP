@@ -39,7 +39,7 @@ import (
 // ManagedResourceGroupControllerName is the single source of truth for this
 // controller's name. It is used for the workqueue name (a Prometheus label),
 // context/logger controller name, and log fields.
-const ManagedResourceGroupControllerName = "ObserveManagedResourceGroup"
+const ManagedResourceGroupControllerName = "EnsureManagedResourceGroup"
 
 // managedResourceGroupSyncer ensures the cluster's managed resource group (MRG)
 // exists in Azure and reflects its state onto
