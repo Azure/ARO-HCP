@@ -24,7 +24,7 @@ spec:
         args:
         - controller
         - "--health-address=:{{ .Values.health.port }}"
-        - "--ksm-image={{ .Values.ksmImage.registry }}/{{ .Values.ksmImage.repository }}@{{ .Values.ksmImage.digest }}"
+        - "--ksm-image={{ .Values.ksmImage.registry }}/{{ .Values.ksmImage.repository }}@sha256:{{ .Values.ksmImage.digest }}"
         - "--log-verbosity={{ .Values.logVerbosity }}"
         - "--node-health-configmap={{ .Values.nodeHealth.configMapName }}"
         - "--node-health-config-key={{ .Values.nodeHealth.configKey }}"

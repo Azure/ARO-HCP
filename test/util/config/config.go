@@ -1,4 +1,4 @@
-// Copyright 2025 Microsoft Corporation
+// Copyright 2026 Microsoft Corporation
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,13 +16,50 @@ package config
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
+	"sync"
 
 	"github.com/Azure/ARO-Tools/config"
+	"github.com/Azure/ARO-Tools/config/ev2config"
 	"github.com/Azure/ARO-Tools/config/types"
 )
 
 var ServiceConfig types.Configuration
+
+var (
+	configOnce sync.Once
+	configErr  error
+)
+
+// GetServiceConfig returns the service configuration, loading it from
+// environment variables on first call. Subsequent calls return the
+// cached result.
+func GetServiceConfig() (types.Configuration, error) {
+	configOnce.Do(func() {
+		configFile := os.Getenv("ARO_HCP_CONFIG_FILE")
+		if configFile == "" {
+			return
+		}
+		cloud := os.Getenv("ARO_HCP_CLOUD")
+		if cloud == "" {
+			cloud = "dev"
+		}
+		region := os.Getenv("REGION")
+		if region == "" {
+			region = "centralus"
+		}
+		opts := ConfigOptions{
+			ConfigFile:         configFile,
+			ConfigFileOverride: os.Getenv("ARO_HCP_CONFIG_FILE_OVERRIDE"),
+			Cloud:              cloud,
+			DeployEnv:          os.Getenv("DEPLOY_ENV"),
+			Region:             region,
+		}
+		configErr = LoadConfig(opts)
+	})
+	return ServiceConfig, configErr
+}
 
 type ConfigOptions struct {
 	ConfigFile         string
@@ -37,7 +74,6 @@ func LoadConfig(opts ConfigOptions) error {
 	var provider config.ConfigProvider
 	var err error
 
-	// 1. Merge files if override is provided, or just read the base file
 	if opts.ConfigFileOverride != "" {
 		schemaBaseDir := filepath.Dir(opts.ConfigFile)
 		mergedConfigData, err := types.MergeRawConfigurationFiles(schemaBaseDir, []string{opts.ConfigFile, opts.ConfigFileOverride})
@@ -55,15 +91,33 @@ func LoadConfig(opts ConfigOptions) error {
 		}
 	}
 
-	// 2. Supply replacements for templated values (e.g. {{ .ctx.region }})
+	ev2Cloud := opts.Cloud
+	if ev2Cloud == "dev" {
+		ev2Cloud = "public"
+	}
+	ev2Cfg, err := ev2config.ResolveConfig(ev2Cloud, opts.Region)
+	if err != nil {
+		return fmt.Errorf("failed to resolve ev2 config for cloud=%q region=%q: %w", ev2Cloud, opts.Region, err)
+	}
+
+	regionShort := ""
+	if rs, ok := ev2Cfg["regionShortName"]; ok {
+		if rsStr, ok := rs.(string); ok {
+			regionShort = rsStr
+		}
+	}
+
+	// 3. Supply replacements for templated values (e.g. {{ .ctx.region }}, {{ .ev2.geoShortId }})
 	replacements := config.ConfigReplacements{
 		CloudReplacement:       opts.Cloud,
 		EnvironmentReplacement: opts.DeployEnv,
 		RegionReplacement:      opts.Region,
-		// Add StampReplacement or RegionShortReplacement if your tests require stamp-scoped values
+		RegionShortReplacement: regionShort,
+		StampReplacement:       "1",
+		Ev2Config:              ev2Cfg,
 	}
 
-	// 3. Resolve
+	// 4. Resolve
 	resolver, err := provider.GetResolver(&replacements)
 	if err != nil {
 		return fmt.Errorf("failed to get config resolver: %w", err)
@@ -73,7 +127,7 @@ func LoadConfig(opts ConfigOptions) error {
 		return fmt.Errorf("resolver is nil!")
 	}
 
-	// 4. Evaluate region specific overrides/values and expose globally
+	// 5. Evaluate region specific overrides/values and expose globally
 	ServiceConfig, err = resolver.GetRegionConfiguration(opts.Region)
 	return err
 }
