@@ -5,6 +5,17 @@ This document describes the high level cluster creation flow of an ARO HCP clust
 
 The individual components are described in the [service components overview](../service-components.md). The flowchart below shows the rough flow of the cluster creation process through the individual service components. Helpful debug commands are provided for each component in their respective sections.
 
+> [!IMPORTANT]
+> **Maestro → kube-applier migration in progress.**
+> The cross-cluster resource delivery mechanism is being migrated from Maestro to `kube-applier` as part of [ARO-27402 "Remove Maestro from the ARO HCP architecture"](https://issues.redhat.com/browse/ARO-27402). This document describes the **target** kube-applier flow, with the legacy Maestro path retained below for reference while the migration is in flight.
+>
+> Current state (as of this revision):
+> - **Reads are live on kube-applier** — `ReadDesire` has replaced Maestro read-only bundles ([#5238](https://github.com/Azure/ARO-HCP/pull/5238)).
+> - **The write/apply path is still dual-run and flag-gated.** Clusters Service continues to deliver `ManifestWork` via Maestro until the manifest-delivery migration ([ARO-27507](https://issues.redhat.com/browse/ARO-27507)) and phased rollout ([ARO-27509](https://issues.redhat.com/browse/ARO-27509)) complete. During this window, both paths may be active depending on the region and per-operation feature flags.
+> - **Maestro decommissioning** (Maestro Server/Agent, EventGrid MQTT, Maestro PostgreSQL) is tracked by [ARO-27508](https://issues.redhat.com/browse/ARO-27508) and has not yet started.
+>
+> Maestro's responsibilities are being split across several components: `kube-applier` (cross-cluster apply/delete/read), the **fleet controller** (management cluster registration & lifecycle), and **mgmt-agent** (management-cluster-local operations). See the `kube-applier` design docs — [`kube-applier/docs/01-overview.md`](../../kube-applier/docs/01-overview.md) and [`kube-applier/docs/08-rollout.md`](../../kube-applier/docs/08-rollout.md) — for the authoritative design and the phased rollout plan.
+
 ## Cluster Creation Flow Happy Path in a Nutshell
 
 1. A cluster creation request from ARM enters the ARO HCP service on the istio gateway
@@ -14,14 +25,24 @@ The individual components are described in the [service components overview](../
     - (Async) From this point forward, Backend sees the CosmosDB Operation record and asynchronously calls CS to determine current provisioning state and updates the HCPOpenShiftCluster so the customer has live feedback on status of the long-running request.
     - (Async) At the same time, ARM will automatically issue polling GET requests to the OperationStatus resources on the customer's behalf (to the Frontend) so they see this status in live time.
 5. Clusters Service prepares a managed resource group in the customers subscription and creates the cloud resources for the cluster
-6. Clusters Service posts `ManifestWork` containing `HostedCluster` Hypershift CRs and other supporting resources to the Maestro Server
-7. The Maestro Server posts transfers the `ManifestWork` to the Maestro Agent via Eventgrid Namespaces MQTT
-8. The Maestro Agent applies the `ManifestWork`, creating the `ocm-xxx-${CLUSTER_ID}` namespace, the Hypershift `HostedCluster` CR, supporting secrets and configmaps as well as the `ManagedCluster` MCE CR.
+6. Clusters Service produces the desired management-cluster content (the `HostedCluster` Hypershift CRs and other supporting resources). The ARO HCP Backend converts this content into declarative `ApplyDesire` documents and writes them to the per-management-cluster CosmosDB container. (Deletions are expressed as `DeleteDesire` documents.)
+7. `kube-applier`, running on the target management cluster, reads the `ApplyDesire` documents from CosmosDB and reconciles them against the local kube-apiserver using Server-Side Apply.
+8. Applying the desired resources creates the `ocm-xxx-${CLUSTER_ID}` namespace, the Hypershift `HostedCluster` CR, supporting secrets and configmaps, as well as the `ManagedCluster` MCE CR.
 9. The Hypershift operator picks up on the `HostedCluster` CR, creates the `ocm-xxx-${CLUSTER_ID}-${CLUSTER_NAME}` namespace, the control plane deployments within it and supporting cloud resources in the managed resource group of the customer
 10. MCE picks up on the finished `HostedCluster` provisioning and updates the `ManagedCluster` CR.
-11. The Maestro Agent transfers all status updates from `HostedCluster`, `ManagedCluster` and other `ManifestWork` resources back to the Maestro Server via Eventgrid Namespaces MQTT
-12. CS notices the status updates and updates the cluster records
+11. `kube-applier` reports apply status back as conditions written into the same CosmosDB documents, and mirrors live management-cluster object state (e.g. `HostedCluster`, `ManagedCluster` status) back to the service side via `ReadDesire` documents.
+12. CS/Backend read the reported status from CosmosDB and update the cluster records
 13. The Backend ultimately reports the updated CS status and completes the asynchronous Operation. ARM reports the Operation as successful and returns the OperationResult. The RP frontend now reports the cluster as `Provisioned` to ARM for all future requests.
+
+> [!NOTE]
+> **Legacy Maestro path (dual-run).** Until [ARO-27507](https://issues.redhat.com/browse/ARO-27507)/[ARO-27509](https://issues.redhat.com/browse/ARO-27509) complete, the write path for steps 6–8 and 11–12 may still run through Maestro instead of `kube-applier`:
+> - (6) Clusters Service posts `ManifestWork` containing the Hypershift CRs and supporting resources to the Maestro Server.
+> - (7) The Maestro Server transfers the `ManifestWork` to the Maestro Agent via EventGrid Namespaces MQTT.
+> - (8) The Maestro Agent applies the `ManifestWork` on the management cluster.
+> - (11) The Maestro Agent transfers status updates back to the Maestro Server via EventGrid Namespaces MQTT.
+> - (12) CS notices the status updates and updates the cluster records.
+>
+> See the [Maestro Server](#maestro-server-legacy), [Maestro Agent](#maestro-agent-legacy), and [ACM](#acm-legacy-manifestwork) sections below for debugging the legacy path.
 
 ```mermaid
 ---
@@ -49,13 +70,13 @@ subgraph svc_cluster["service cluster"]
     subgraph cs_ns["ns cluster-service"]
         cs["Clusters Service"]
     end
-    subgraph maestro_server_ns["ns maestro"]
-        maestro_server["Maestro Server"]
-    end
+ end
+ subgraph cosmos["CosmosDB (per-management-cluster container)"]
+    desires["ApplyDesire / DeleteDesire / ReadDesire docs"]
  end
  subgraph mgmt_cluster["management cluster"]
-    subgraph maestro_agent_ns["ns maestro"]
-        maestro_agent["Maestro Agent"]
+    subgraph kube_applier_ns["ns kube-applier"]
+        kube_applier["kube-applier"]
     end
     subgraph acm_mce_ns["ns multicluster-engine (ACM)"]
         mce["MCE"]
@@ -76,18 +97,18 @@ subgraph svc_cluster["service cluster"]
  arm -- (1)(13) --> istio_ingress -- (2) --> mise
  mise --> istio_ingress -- (3) --> rp_frontend -- (4) --> cs
  cs -- (5) --> managed_resourcegroup
- cs -- (6) --> maestro_server
+ cs -- (6) --> rp_backend -- (6) --> desires
  rp_backend -- (async) --> cs
- maestro_server -- (7) --> maestro_agent
+ desires -- (7) --> kube_applier
 
  mce -- (10) --> managed_cluster_cr
- maestro_agent -- (8) --> hypershift_hcp_ns
- maestro_agent -- (8) --> managed_cluster_cr
+ kube_applier -- (8) --> hypershift_hcp_ns
+ kube_applier -- (8) --> managed_cluster_cr
  hostedcluster_cr --> hypershift
  hypershift -- (9) --> managed_resourcegroup
  hypershift -- (9) --> hypershift_cp_ns
- maestro_agent -- (11) --> maestro_server
- maestro_server -- (12) --> cs
+ kube_applier -- (11) --> desires
+ desires -- (12) --> cs
 ```
 
 ## RP Frontend
@@ -161,7 +182,25 @@ curl -sG http://localhost:8001/${CLUSTER_HREF}/provision_shard | jq
 
 Currently this endpoint does not return yet direct management cluster metadata, but the management cluster can be inferred from the stamp number at the end of the CX KV URL `.azure_shard.cx_managed_identities_key_vault_url`. Look for a management cluster in the same region that has the same stamp number in the AKS name and/or the Azure resource group.
 
-## Maestro Server
+## kube-applier
+
+`kube-applier` runs on each management cluster and reconciles the declarative "desire" documents (`ApplyDesire`, `DeleteDesire`, `ReadDesire`) stored in that cluster's dedicated CosmosDB container against the local kube-apiserver. Status is written back as `metav1.Condition` slices into the same documents. See [`kube-applier/docs/01-overview.md`](../../kube-applier/docs/01-overview.md) for the full design.
+
+### Check kube-applier Logs
+
+`kube-applier` runs on the management cluster. To check its logs:
+
+```sh
+kubectl logs -n kube-applier deployment/kube-applier
+```
+
+> [!NOTE]
+> TODO: confirm the exact namespace/deployment/container names and add commands for inspecting the CosmosDB desire documents (`ApplyDesire`/`DeleteDesire`/`ReadDesire`) and their reported conditions once the write path is fully rolled out. Track under [ARO-27507](https://issues.redhat.com/browse/ARO-27507).
+
+## Maestro Server (legacy)
+
+> [!WARNING]
+> The Maestro path is being decommissioned ([ARO-27508](https://issues.redhat.com/browse/ARO-27508)). These sections apply only while the legacy dual-run path is still active.
 
 ### Port Forward to the Maestro Server
 
@@ -187,7 +226,7 @@ Noteworthy fields:
 * `.status.conditions` - the conditions of `Manifestwork` - e.g. was it applied correctly on the management cluster?
 * `.status.resourceStatus[].statusFeedback.values[].fieldValue.jsonRaw | fromjson | .resourceStatus.manifests[].statusFeedback` - the contents of the innermost resource status feedback
 
-## Maestro Agent
+## Maestro Agent (legacy)
 
 ### Check Maestro Agent Logs
 
@@ -197,7 +236,7 @@ The Maestro Agent runs on the management cluster in the `maestro` namespace. To 
 kubectl logs -n maestro deployment/maestro-agent -c maestro-agent
 ```
 
-## ACM
+## ACM (legacy ManifestWork)
 
 ### Query for ManifestWork on the Management Cluster
 
