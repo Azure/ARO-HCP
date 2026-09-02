@@ -1,0 +1,12 @@
+{
+  "pools": null,
+  "failures": [
+    {
+      "tierIndex": 0,
+      "cores": 32,
+      "reason": "InsufficientQuota",
+      "message": "tier 0 (32 cores): no family has enough quota for at least one node per zone",
+      "required": false
+    }
+  ]
+}
