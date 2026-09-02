@@ -1,0 +1,16 @@
+$schema: ../../../config/config.schema.json
+defaults:
+  test:
+    property: "base_value"
+    cloud: "{{ .ctx.cloud }}"
+    env: "{{ .ctx.environment }}"
+    region: "{{ .ctx.region }}"
+clouds:
+  public:
+    environments:
+      dev:
+        defaults: {}
+        regions:
+          uksouth:
+            test:
+              region_prop: "region_base"

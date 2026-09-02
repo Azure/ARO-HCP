@@ -22,6 +22,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 
+	"github.com/Azure/ARO-HCP/test/util/config"
 	"github.com/Azure/ARO-HCP/test/util/integration"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/log"
@@ -32,8 +33,37 @@ var (
 )
 
 func setup(ctx context.Context) error {
-	// Use GinkgoLabelFilter to determine if the test should load the e2e setup file
 	labelFilter := GinkgoLabelFilter()
+
+	// Load templated configuration
+	opts := config.ConfigOptions{
+		ConfigFile:         os.Getenv("ARO_HCP_CONFIG_FILE"),
+		ConfigFileOverride: os.Getenv("ARO_HCP_CONFIG_FILE_OVERRIDE"),
+		Cloud:              os.Getenv("CLOUD"),
+		DeployEnv:          os.Getenv("DEPLOY_ENV"),
+		Region:             os.Getenv("REGION"),
+	}
+
+	if opts.ConfigFileOverride != "" && opts.ConfigFile == "" {
+		return fmt.Errorf("ARO_HCP_CONFIG_FILE_OVERRIDE is set but ARO_HCP_CONFIG_FILE is not set")
+	}
+
+	requiresConfig := strings.Contains(labelFilter, labels.RequiresConfig[0])
+	if requiresConfig && opts.ConfigFile == "" {
+		return fmt.Errorf("test requires config but ARO_HCP_CONFIG_FILE is not set")
+	}
+	if requiresConfig && (opts.Cloud == "" || opts.DeployEnv == "" || opts.Region == "") {
+		return fmt.Errorf("test requires config but CLOUD/DEPLOY_ENV/REGION are not all set (CLOUD=%q, DEPLOY_ENV=%q, REGION=%q)", opts.Cloud, opts.DeployEnv, opts.Region)
+	}
+
+	// Only fail if a config file is explicitly supplied but fails to render
+	if opts.ConfigFile != "" {
+		if err := config.LoadConfig(opts); err != nil {
+			return fmt.Errorf("failed to load service config: %w", err)
+		}
+	}
+
+	// Use GinkgoLabelFilter to determine if the test should load the e2e setup file
 	if strings.Contains(labelFilter, labels.RequireNothing[0]) ||
 		strings.Contains(labelFilter, labels.UpgradeInPlace[0]) {
 		// Skip loading the e2esetup file
