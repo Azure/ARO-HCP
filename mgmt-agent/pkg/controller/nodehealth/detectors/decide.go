@@ -95,13 +95,9 @@ type Detector interface {
 }
 
 // nodeDetector is a Detector whose evidence is the Node object itself rather
-// than the Pods and Events on it. Decide evaluates these ahead of the Ready
-// gate, because their whole subject is a node that never became Ready and so
-// has no meaningful pod population to read.
-//
-// It is an optional extension rather than a change to Detector: a pod/event
-// detector has no node-only evaluation to offer, and widening Evaluate for the
-// sake of one family would touch every existing detector and its tests.
+// than the Pods and Events on it. Decide evaluates these on the NotReady path,
+// because their whole subject is a node that never became Ready and so has no
+// meaningful pod population to read.
 type nodeDetector interface {
 	Detector
 	// EvaluateNode reads the detector's signals from the Node alone. It performs
@@ -169,8 +165,8 @@ type Snapshot struct {
 	// Detail, when set, replaces the pod-centric summary ReasonString renders. A
 	// detector whose evidence is not pod counts sets this so the reason
 	// annotation describes what it actually observed, instead of reporting zero
-	// pods stuck in a zero-length window. Leaving it empty keeps the pod-centric
-	// summary, so every existing detector is unaffected.
+	// pods stuck in a zero-length window. When it is empty, ReasonString renders
+	// the pod-centric summary.
 	Detail string
 }
 
@@ -205,8 +201,8 @@ func Decide(node *corev1.Node, events []*corev1.Event, pods []*corev1.Pod, now t
 		return DecisionNotApplicable, Snapshot{}
 	}
 	// Node-Ready precondition. A node that was Ready and dropped out (reboot,
-	// upgrade, drain) is left to node lifecycle, which is what the original gate
-	// was for. A node that never reached Ready is a different case: nothing in
+	// upgrade, drain) is left to node lifecycle, which rescues it. A node that
+	// never reached Ready is a different case: nothing in
 	// node lifecycle rescues it, so it is ours. Only node-state detectors run on
 	// this path, because a node that never started has no pod population worth
 	// reading, and each of them rejects a node that was once Ready on its own

@@ -126,7 +126,7 @@ func (d neverReadyDetector) EvaluateNode(node *corev1.Node, now time.Time) Snaps
 	}
 	if transitioned.After(created.Add(neverReadyTolerance)) {
 		// The node was Ready at some point and lost it later. Node lifecycle owns
-		// that case, exactly as it did before this detector existed.
+		// that case.
 		return snap
 	}
 
