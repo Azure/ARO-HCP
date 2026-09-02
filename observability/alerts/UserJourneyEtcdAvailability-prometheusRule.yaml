@@ -5,7 +5,7 @@ metadata:
   namespace: prometheus
 spec:
   groups:
-  - name: rp-etcd-availability
+  - name: hcp-etcd-availability
     rules:
     # ========================================
     # Burn-rate tiers per ADR-001 (MWMBR):
