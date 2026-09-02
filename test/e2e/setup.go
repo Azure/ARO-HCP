@@ -44,9 +44,16 @@ func setup(ctx context.Context) error {
 		Region:             os.Getenv("REGION"),
 	}
 
+	if opts.ConfigFileOverride != "" && opts.ConfigFile == "" {
+		return fmt.Errorf("ARO_HCP_CONFIG_FILE_OVERRIDE is set but ARO_HCP_CONFIG_FILE is not set")
+	}
+
 	requiresConfig := strings.Contains(labelFilter, labels.RequiresConfig[0])
 	if requiresConfig && opts.ConfigFile == "" {
 		return fmt.Errorf("test requires config but ARO_HCP_CONFIG_FILE is not set")
+	}
+	if requiresConfig && (opts.Cloud == "" || opts.DeployEnv == "" || opts.Region == "") {
+		return fmt.Errorf("test requires config but CLOUD/DEPLOY_ENV/REGION are not all set (CLOUD=%q, DEPLOY_ENV=%q, REGION=%q)", opts.Cloud, opts.DeployEnv, opts.Region)
 	}
 
 	// Only fail if a config file is explicitly supplied but fails to render
