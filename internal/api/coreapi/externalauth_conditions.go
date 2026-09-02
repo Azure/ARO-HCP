@@ -14,16 +14,17 @@
 
 package coreapi
 
-// ExternalAuth user-facing condition Type values (metav1.Condition.Type)
-// for HCPOpenShiftClusterExternalAuth.Status.UserFacingConditions.
+// ExternalAuth availability condition Type values. These are written by the
+// ExternalAuthAvailableController onto ServiceProviderExternalAuth.Status.Conditions,
+// then promoted to ExternalAuth.Status.UserFacingConditions by the aggregator.
 const (
 	// ExternalAuthAvailableCondition tracks whether the external auth OIDC
 	// configuration is fully operational on the hosted cluster.
 	ExternalAuthAvailableCondition = "Available"
 )
 
-// ExternalAuth user-facing condition Reason values (metav1.Condition.Reason)
-// for ExternalAuthAvailableCondition.
+// ExternalAuth availability condition Reason values used with
+// ExternalAuthAvailableCondition.
 const (
 	// ExternalAuthReasonOIDCConfigAvailable indicates the OIDC client
 	// configuration is fully operational.
