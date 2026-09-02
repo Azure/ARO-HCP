@@ -68,6 +68,7 @@ var _ = Describe("Service Provider", func() {
 			}
 			if desiredVersion == nil {
 				Skip(fmt.Sprintf("no version resolved for channel %s-%s at offset %d", channelGroup, minorVersion, normalOffset+1))
+				return
 			}
 			installVersion := desiredVersion.Version
 
