@@ -716,6 +716,67 @@ func TestManagedResourceGroupSyncerSyncOnceDeletingKeepsGateClosedOnGetError(t *
 	assertResourceIDEqual(t, nil, gotReference.PendingAzureResource, "PendingAzureResource")
 }
 
+// TestValidateManagedResourceGroup exercises the pure ownership + provisioning-state
+// classification helper directly, covering its three outcomes — proceed (Succeeded),
+// requeue (in-progress), and error (owned-by-another / failed / terminal / absent) — with no
+// Cosmos or Azure interaction. It also documents that validate is side-effect free: it neither
+// persists nor requeues (it only returns a (requeue, err) decision).
+func TestValidateManagedResourceGroup(t *testing.T) {
+	t.Parallel()
+
+	cluster := newTestCluster(false)
+	mrgID := testManagedResourceGroupID(t)
+	ownerClusterID := cluster.ID.String()
+	differentOwnerID := "/subscriptions/" + testSubscriptionID +
+		"/resourceGroups/" + testResourceGroupName +
+		"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/other-cluster"
+
+	rg := func(managedBy, provisioningState *string) armresources.ResourceGroup {
+		return armresources.ResourceGroup{
+			Name:       ptr.To(testManagedRGName),
+			ManagedBy:  managedBy,
+			Properties: &armresources.ResourceGroupProperties{ProvisioningState: provisioningState},
+		}
+	}
+
+	testCases := []struct {
+		name          string
+		resourceGroup armresources.ResourceGroup
+		expectRequeue bool
+		expectErr     bool
+		errContains   string
+	}{
+		{name: "succeeded and owned by this cluster proceeds", resourceGroup: rg(ptr.To(ownerClusterID), ptr.To("Succeeded"))},
+		{name: "succeeded and unclaimed proceeds", resourceGroup: rg(nil, ptr.To("Succeeded"))},
+		{name: "succeeded but owned by another cluster errors", resourceGroup: rg(ptr.To(differentOwnerID), ptr.To("Succeeded")), expectErr: true, errContains: "owned by another cluster"},
+		{name: "accepted requeues", resourceGroup: rg(ptr.To(ownerClusterID), ptr.To("Accepted")), expectRequeue: true},
+		{name: "creating requeues", resourceGroup: rg(ptr.To(ownerClusterID), ptr.To("Creating")), expectRequeue: true},
+		{name: "updating requeues", resourceGroup: rg(ptr.To(ownerClusterID), ptr.To("Updating")), expectRequeue: true},
+		{name: "deleting requeues", resourceGroup: rg(ptr.To(ownerClusterID), ptr.To("Deleting")), expectRequeue: true},
+		{name: "failed errors", resourceGroup: rg(ptr.To(ownerClusterID), ptr.To("Failed")), expectErr: true, errContains: "provisioning state"},
+		{name: "canceled errors", resourceGroup: rg(ptr.To(ownerClusterID), ptr.To("Canceled")), expectErr: true, errContains: "provisioning state"},
+		{name: "unrecognized state errors", resourceGroup: rg(ptr.To(ownerClusterID), ptr.To("Weird")), expectErr: true, errContains: "provisioning state"},
+		{name: "missing provisioning state errors", resourceGroup: armresources.ResourceGroup{Name: ptr.To(testManagedRGName), ManagedBy: ptr.To(ownerClusterID)}, expectErr: true, errContains: "no provisioning state"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			requeue, err := validateManagedResourceGroup(cluster, mrgID, tc.resourceGroup)
+			if tc.expectErr {
+				require.Error(t, err)
+				if tc.errContains != "" {
+					assert.Contains(t, err.Error(), tc.errContains)
+				}
+				assert.False(t, requeue, "requeue must be false when an error is returned")
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tc.expectRequeue, requeue, "requeue outcome")
+			}
+		})
+	}
+}
+
 // assertResourceIDEqual compares two optional resource IDs by their canonical string form.
 func assertResourceIDEqual(t *testing.T, expected, actual *azcorearm.ResourceID, field string) {
 	t.Helper()
