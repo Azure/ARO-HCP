@@ -1,0 +1,38 @@
+database: ServiceLogs
+kql: |
+  // Velero DeleteBackupRequests: backup-deletion requests for the target HCP, captured on management
+  // clusters, for backup-failure debugging (ARO-28989). Shows deletion/GC intent and outcome — useful
+  // alongside the watcher's missing-Delete-events limitation (a DeleteBackupRequest is a durable
+  // record of a deletion that a Backup `event:"Delete"` row may have missed). DeleteBackupRequest CRs
+  // carry NO ARM resource-id annotation, so the HCP is resolved the veleroHcpLogs way (HCP control-plane
+  // namespaces from watcher-captured Backup CRs), matched against the velero.io/backup-name label
+  // (which embeds the HCP namespace token). mgmtCluster is renamed off the reserved `cluster` column
+  // so it survives into the output.
+  set notruncation;
+  let hcpNamespaces = (
+      kubernetesResourceSnapshots
+      | where timestamp between (datetime(2025-01-01T00:00:00.0000000Z) .. datetime(2025-01-02T00:00:00.0000000Z))
+      | where cluster has_any ('mgmt-cluster-1', 'mgmt-cluster-2')
+      | where objectKind == "Backup"
+      | where namespace == "velero"
+      | where tostring(object.metadata.annotations["azure.microsoft.com/hcp-cluster-azure-resource-id"]) has '/subscriptions/test-sub/resourceGroups/test-rg'
+      | mv-expand ns = object.spec.includedNamespaces to typeof(string)
+      | distinct ns
+  );
+  kubernetesResourceSnapshots
+  | where timestamp between (datetime(2025-01-01T00:00:00.0000000Z) .. datetime(2025-01-02T00:00:00.0000000Z))
+  | where cluster has_any ('mgmt-cluster-1', 'mgmt-cluster-2')
+  | where objectKind == "DeleteBackupRequest"
+  | where namespace == "velero"
+  | where tostring(object.metadata.labels["velero.io/backup-name"]) has_any (hcpNamespaces)
+  | extend
+      capturedAt = timestamp,
+      mgmtCluster = cluster,
+      request = name,
+      backup = tostring(object.spec.backupName),
+      phase = tostring(object.status.phase),
+      errors = object.status.errors
+  | project timestamp, capturedAt, event, mgmtCluster, request, backup, phase, errors
+  | order by timestamp asc
+name: veleroDeleteBackupRequests
+unlimited: true
