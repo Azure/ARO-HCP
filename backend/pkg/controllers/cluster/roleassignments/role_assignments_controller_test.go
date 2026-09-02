@@ -113,6 +113,18 @@ func testExpectedRoleAssignmentIDs(t *testing.T) []*azcorearm.ResourceID {
 	return []*azcorearm.ResourceID{cpID, dpID}
 }
 
+// testUnexpectedRoleAssignmentID returns a managed-resource-group-scoped role assignment ID
+// that is NOT part of the expected set - a leftover from a since-removed / replaced operator
+// identity. It is used to exercise stale-pending pruning and confirmed-superset tolerance.
+func testUnexpectedRoleAssignmentID(t *testing.T) *azcorearm.ResourceID {
+	t.Helper()
+	return metadataapi.Must(azcorearm.ParseResourceID(
+		roleassignment.ManagedResourceGroupScopedRoleAssignmentResourceID(
+			testManagedResourceGroupScope(t),
+			"unexpected-principal-99999999-9999-9999-9999-999999999999",
+			"/providers/Microsoft.Authorization/roleDefinitions/99999999-9999-9999-9999-999999999999")))
+}
+
 // newTestCluster builds an HCPOpenShiftCluster addressable by the mock
 // ResourcesDBClient with one control-plane and one data-plane operator identity and
 // the given deletion state.
@@ -228,7 +240,7 @@ func roleAssignmentNotFoundError() *azcore.ResponseError {
 
 // roleAssignmentAlreadyExistsError returns an *azcore.ResponseError that
 // azureclient.IsRoleAssignmentAlreadyExistsErr recognizes as a role assignment that
-// Cluster Service (or a previous create) already created.
+// already exists (a concurrent create, or a previous attempt, created it).
 func roleAssignmentAlreadyExistsError() *azcore.ResponseError {
 	return &azcore.ResponseError{
 		ErrorCode:  "RoleAssignmentExists",
@@ -290,7 +302,7 @@ var testHCPClusterKey = controllerutils.HCPClusterKey{
 // TestRoleAssignmentsSyncerSyncOnceReconcile exercises the reconcile path end to end
 // through the mock Cosmos DB, listers, and Azure client. Each case queries Azure once
 // per expected role assignment (one control-plane + one data-plane) and, when Azure
-// reports an assignment missing, creates it (mirroring Cluster Service's parameters)
+// reports an assignment missing, creates it (with the deterministic name and parameters)
 // before promoting it to confirmed.
 func TestRoleAssignmentsSyncerSyncOnceReconcile(t *testing.T) {
 	t.Parallel()
@@ -328,7 +340,7 @@ func TestRoleAssignmentsSyncerSyncOnceReconcile(t *testing.T) {
 			expectConfirmed: expectedIDs,
 		},
 		{
-			// Create races with Cluster Service (already exists): treated as success.
+			// Create races with a concurrent creator (already exists): treated as success.
 			name:            "create already exists is treated as confirmed",
 			initial:         coreapi.AzureMultiReference{PendingAzureResources: expectedIDs},
 			getByIDErr:      roleAssignmentNotFoundError(),
@@ -441,6 +453,46 @@ func TestRoleAssignmentsSyncerSyncOnceCreateErrorStaysPending(t *testing.T) {
 	got := updated.Status.AzureResources.RoleAssignments
 	assertResourceIDSetEqual(t, expectedIDs, got.PendingAzureResources, "PendingAzureResources")
 	assertResourceIDSetEqual(t, nil, got.AzureResources, "AzureResources")
+}
+
+// TestRoleAssignmentsSyncerSyncOncePrunesStalePending verifies that a pending role
+// assignment that is no longer expected (e.g. an operator identity was replaced) is pruned
+// from PendingAzureResources and the pruned set is persisted - even though nothing is newly
+// confirmed - and Azure is never queried for the stale entry.
+func TestRoleAssignmentsSyncerSyncOncePrunesStalePending(t *testing.T) {
+	t.Parallel()
+
+	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+	expectedIDs := testExpectedRoleAssignmentIDs(t)
+	staleID := testUnexpectedRoleAssignmentID(t)
+
+	cluster := newTestCluster(false)
+	// Every expected assignment is already confirmed; a stale (no-longer-expected) entry
+	// lingers in pending.
+	serviceProviderCluster := newTestServiceProviderCluster(t, true, true, true, coreapi.AzureMultiReference{
+		AzureResources:        expectedIDs,
+		PendingAzureResources: []*azcorearm.ResourceID{staleID},
+	})
+
+	mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, serviceProviderCluster})
+	require.NoError(t, err)
+
+	ctrl := gomock.NewController(t)
+	// The stale entry is pruned without any Azure call: no client is built, so no GetByID or
+	// Create happens for it.
+	fpaClientBuilder := azureclient.NewMockFirstPartyApplicationClientBuilder(ctrl)
+	fpaClientBuilder.EXPECT().RoleAssignmentsClient(gomock.Any(), gomock.Any()).Times(0)
+
+	syncer := newTestSyncer(mockResourcesDB, fpaClientBuilder)
+
+	require.NoError(t, syncer.SyncOnce(ctx, testHCPClusterKey))
+
+	updated, err := mockResourcesDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
+	require.NoError(t, err)
+	got := updated.Status.AzureResources.RoleAssignments
+	// The stale entry was pruned and the change persisted; the confirmed set is untouched.
+	assertResourceIDSetEqual(t, nil, got.PendingAzureResources, "PendingAzureResources")
+	assertResourceIDSetEqual(t, expectedIDs, got.AzureResources, "AzureResources")
 }
 
 // TestRoleAssignmentsSyncerSyncOnceRecheckAllPresentReschedules verifies that when the
@@ -669,6 +721,9 @@ func TestRoleAssignmentsSyncerNeedsWork(t *testing.T) {
 	t.Parallel()
 
 	expectedIDs := testExpectedRoleAssignmentIDs(t)
+	// supersetIDs is the expected set plus a leftover assignment from a since-replaced
+	// operator identity; a confirmed superset must be tolerated (not treated as work).
+	supersetIDs := append(append([]*azcorearm.ResourceID{}, expectedIDs...), testUnexpectedRoleAssignmentID(t))
 
 	testCases := []struct {
 		name         string
@@ -728,6 +783,27 @@ func TestRoleAssignmentsSyncerNeedsWork(t *testing.T) {
 			mrgConfirmed: true, cpResolved: true, dpResolved: true,
 			roleAssign: coreapi.AzureMultiReference{
 				AzureResources:      expectedIDs,
+				EarliestRecheckTime: &metav1.Time{Time: testFixedNow().Add(-time.Minute)},
+			},
+			expect: true,
+		},
+		{
+			// A confirmed superset (leftover role from a previous operator identity) with a
+			// future recheck is steady state - not work.
+			name:         "confirmed superset of expected with future recheck has no work",
+			mrgConfirmed: true, cpResolved: true, dpResolved: true,
+			roleAssign: coreapi.AzureMultiReference{
+				AzureResources:      supersetIDs,
+				EarliestRecheckTime: &metav1.Time{Time: testFixedNow().Add(12 * time.Hour)},
+			},
+			expect: false,
+		},
+		{
+			// A confirmed superset still needs work once the recheck interval has elapsed.
+			name:         "confirmed superset of expected with elapsed recheck needs work",
+			mrgConfirmed: true, cpResolved: true, dpResolved: true,
+			roleAssign: coreapi.AzureMultiReference{
+				AzureResources:      supersetIDs,
 				EarliestRecheckTime: &metav1.Time{Time: testFixedNow().Add(-time.Minute)},
 			},
 			expect: true,
