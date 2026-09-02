@@ -62,7 +62,7 @@ DRIFT_FOUND=0
 
 for objectId in "${TARGET_OBJECT_IDS[@]}"; do
     if ! TARGET_ROLES=$(roleNames "${objectId}"); then
-        echo "ERROR: failed to query role assignments for ${objectId}; treating as drift" >&2
+        echo "ERROR: ${objectId} failed to query role assignments; treating as drift"
         DRIFT_FOUND=1
         continue
     fi
