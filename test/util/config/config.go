@@ -66,6 +66,10 @@ func LoadConfig(opts ConfigOptions) error {
 		return fmt.Errorf("failed to get config resolver: %w", err)
 	}
 
+	if resolver == nil {
+		return fmt.Errorf("resolver is nil!")
+	}
+
 	// 4. Evaluate region specific overrides/values and expose globally
 	ServiceConfig, err = resolver.GetRegionConfiguration(opts.Region)
 	return err
