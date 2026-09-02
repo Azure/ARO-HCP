@@ -1078,6 +1078,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	)
 
 	identityRoleAssignmentsController := clusterroleassignments.NewRoleAssignmentsController(
+		b.clock,
 		b.options.ResourcesDBClient,
 		serviceProviderClusterLister,
 		subscriptionLister,
