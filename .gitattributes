@@ -1,2 +1,4 @@
 # Prefer current branch version during rebase/merge generated configuration files
 config/rendered/**        merge=ours
+
+.github/workflows/*.lock.yml linguist-generated=true merge=ours

@@ -27,6 +27,12 @@ permissions:
 
 engine: copilot
 
+# Pin to the "sonnet" model alias instead of a specific Claude version. gh-aw/Copilot
+# resolve aliases to whatever concrete sonnet-family model is currently available for
+# the "agentic-workflows" integrator, so the workflow does not break every time a
+# model gets retired (as happened with the hardcoded claude-sonnet-4.6 default).
+model: sonnet
+
 # Give the agent up to 45 minutes: it runs the go.work tidy ritual (module
 # download + `make all-tidy` + license regeneration) across the ARO-HCP workspace
 # (~30 modules plus npm manifests), which does not fit the default 20-minute budget.
