@@ -114,9 +114,7 @@ func (d neverReadyDetector) EvaluateNode(node *corev1.Node, now time.Time) Snaps
 	created := node.CreationTimestamp.Time
 	transitioned := cond.LastTransitionTime.Time
 	if created.IsZero() || transitioned.IsZero() {
-		// Without both timestamps the discriminator cannot be evaluated, and
-		// guessing would risk labeling a node that simply came up before this
-		// controller started watching.
+		// Both timestamps are the discriminator, nothing to compare without them.
 		return snap
 	}
 	if transitioned.Before(created) {
