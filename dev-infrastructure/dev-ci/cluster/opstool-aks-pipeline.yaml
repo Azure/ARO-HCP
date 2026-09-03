@@ -108,6 +108,13 @@ resourceGroups:
       resourceGroup: opstool
       step: cluster-output
       name: prometheusUAMIId
+    automatedRetry:
+      errorContainsAny:
+      - "500 Internal Server Error"
+      - "Internal error occurred"
+      - "not ready. status: Unknown"
+      maximumRetryCount: 3
+      durationBetweenRetries: 1m
 - name: global
   resourceGroup: '{{ .global.rg }}'
   subscription: '{{ .global.subscription.key }}'
