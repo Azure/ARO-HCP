@@ -37,6 +37,12 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+// clusterCreateGracePeriod is how long after a cluster's CreatedAt we suppress
+// automatic upgrade triggering while an active Create operation is still in
+// flight. After this window the create is expected to have finished, so resuming
+// upgrade triggering is safe.
+const clusterCreateGracePeriod = 2 * time.Hour
+
 // triggerControlPlaneUpgradeSyncer is a Cluster syncer that triggers control plane upgrades
 type triggerControlPlaneUpgradeSyncer struct {
 	clock                        utilsclock.PassiveClock

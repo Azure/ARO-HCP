@@ -29,8 +29,9 @@ import (
 )
 
 const (
-	StampRelistDuration             = 2 * time.Minute
-	ManagementClusterRelistDuration = 2 * time.Minute
+	StampRelistDuration                      = 2 * time.Minute
+	ManagementClusterRelistDuration          = 2 * time.Minute
+	ControlPlaneVersionRolloutRelistDuration = 2 * time.Minute
 )
 
 // NewStampInformer creates an unstarted SharedIndexInformer for stamps
@@ -88,6 +89,34 @@ func NewManagementClusterInformerWithRelistDuration(lister cosmosstorageutils.Gl
 				fleetlisters.ByCSProvisionShard: managementClusterProvisionShardIDIndexFunc,
 			},
 			ObjectDescription: "ManagementCluster",
+		},
+	)
+}
+
+// NewControlPlaneVersionRolloutInformer creates an unstarted SharedIndexInformer
+// for control-plane version rollouts with the default relist duration.
+func NewControlPlaneVersionRolloutInformer(lister cosmosstorageutils.GlobalLister[fleetapi.ControlPlaneVersionRollout], cosmosClient cosmosstorageutils.ChangeFeedClient) cache.SharedIndexInformer {
+	return NewControlPlaneVersionRolloutInformerWithRelistDuration(lister, cosmosClient, ControlPlaneVersionRolloutRelistDuration)
+}
+
+// NewControlPlaneVersionRolloutInformerWithRelistDuration creates an unstarted
+// SharedIndexInformer for control-plane version rollouts with a configurable relist duration.
+func NewControlPlaneVersionRolloutInformerWithRelistDuration(lister cosmosstorageutils.GlobalLister[fleetapi.ControlPlaneVersionRollout], cosmosClient cosmosstorageutils.ChangeFeedClient, relistDuration time.Duration) cache.SharedIndexInformer {
+	lw := informerutils.NewChangeFeedListWatcher[fleetapi.ControlPlaneVersionRollout, *fleetapi.ControlPlaneVersionRollout, cosmosstorageutils.GenericDocument[fleetapi.ControlPlaneVersionRollout]](
+		[]azcorearm.ResourceType{fleetapi.ControlPlaneVersionRolloutResourceType},
+		utilsclock.RealClock{},
+		lister,
+		cosmosClient,
+		relistDuration,
+		"fleet",
+	)
+
+	return cache.NewSharedIndexInformerWithOptions(
+		&informerutils.ListWatchWithoutWatchListSemantics{ListWatch: lw.ToListWatch()},
+		&fleetapi.ControlPlaneVersionRollout{},
+		cache.SharedIndexInformerOptions{
+			ResyncPeriod:      1 * time.Hour,
+			ObjectDescription: "ControlPlaneVersionRollout",
 		},
 	)
 }

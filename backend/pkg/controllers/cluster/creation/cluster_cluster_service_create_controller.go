@@ -162,16 +162,17 @@ func (c *clusterClusterServiceCreateSyncer) SyncOnce(ctx context.Context, key co
 	return nil
 }
 
-// createPreconditionDesiredVersionResolved reports whether the ControlPlaneDesiredVersion
-// controller has written the Cincinnati-resolved desired version to the ServiceProviderCluster.
-// Returns (false, nil) when this controller should wait and retry.
+// createPreconditionDesiredVersionResolved reports whether the fleet version
+// rollout controllers have written the resolved desired version to the
+// ServiceProviderCluster. Returns (false, nil) when this controller should wait
+// and retry.
 func (c *clusterClusterServiceCreateSyncer) createPreconditionDesiredVersionResolved(ctx context.Context, serviceProviderCluster *coreapi.ServiceProviderCluster) (bool, error) {
 	logger := utils.LoggerFromContext(ctx)
 
 	if serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion != nil {
 		return true, nil
 	}
-	logger.Info("DesiredVersion not yet set, waiting for ControlPlaneDesiredVersion controller")
+	logger.Info("DesiredVersion not yet set, waiting for the fleet version rollout controllers")
 	return false, nil
 }
 
