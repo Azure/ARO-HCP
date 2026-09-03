@@ -182,6 +182,26 @@ func (c *clusterDenyAssignmentSyncer) syncDenyAssignmentUpsert(ctx context.Conte
 		return utils.TrackError(fmt.Errorf("failed to build managed resource group resource ID: %w", err))
 	}
 
+	// Deny assignments are scoped to the managed resource group, which Cluster Service creates
+	// asynchronously and independently of the identity-resolution status this sync is gated on
+	// (see syncDenyAssignmentNeedsWork). Confirm the resource group actually exists before issuing
+	// any deny-assignment writes against it; otherwise every write fails with ResourceGroupNotFound
+	// and keeps failing on every one-minute reconcile until the overall cluster-create deadline
+	// expires. Wait for a later pass instead, mirroring the same check in
+	// managed_resource_group_controller.go.
+	resourceGroupsClient, err := c.azureFPAClientBuilder.ResourceGroupsClient(tenantID, key.SubscriptionID)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to create resource groups client: %w", err))
+	}
+	if _, err := resourceGroupsClient.Get(ctx, cluster.CustomerProperties.Platform.ManagedResourceGroup, nil); err != nil {
+		if azureclient.IsResourceGroupNotFoundErr(err) {
+			logger.Info("managed resource group does not exist yet, waiting for a later pass",
+				"managedResourceGroup", cluster.CustomerProperties.Platform.ManagedResourceGroup)
+			return nil
+		}
+		return utils.TrackError(fmt.Errorf("failed to get managed resource group %q: %w", cluster.CustomerProperties.Platform.ManagedResourceGroup, err))
+	}
+
 	requiredDenyAssignmentReferences, err := allDenyAssignmentReferences(cluster)
 	if err != nil {
 		return utils.TrackError(err)

@@ -87,12 +87,43 @@ func (m *GenericResourcesClientFunc) BeginDeleteByID(ctx context.Context, resour
 	return nil, fmt.Errorf("GenericResourcesClientFunc: set DeleteErr to control this path; PollUntilDone cannot be called on a nil poller")
 }
 
+// ResourceGroupsClientFunc adapts a function to the ResourceGroupsClient.Get interface.
+// Tests set GetFunc to control the response per call; unset GetFunc reports the resource
+// group as existing (an empty successful response), which is the common case for tests that
+// don't care about resource-group existence.
+type ResourceGroupsClientFunc struct {
+	GetFunc func(ctx context.Context, resourceGroupName string, options *armresources.ResourceGroupsClientGetOptions) (armresources.ResourceGroupsClientGetResponse, error)
+}
+
+var _ azureclient.ResourceGroupsClient = (*ResourceGroupsClientFunc)(nil)
+
+func (m *ResourceGroupsClientFunc) Get(ctx context.Context, resourceGroupName string, options *armresources.ResourceGroupsClientGetOptions) (armresources.ResourceGroupsClientGetResponse, error) {
+	if m.GetFunc != nil {
+		return m.GetFunc(ctx, resourceGroupName, options)
+	}
+	return armresources.ResourceGroupsClientGetResponse{}, nil
+}
+
+func (m *ResourceGroupsClientFunc) CreateOrUpdate(ctx context.Context, resourceGroupName string, parameters armresources.ResourceGroup, options *armresources.ResourceGroupsClientCreateOrUpdateOptions) (armresources.ResourceGroupsClientCreateOrUpdateResponse, error) {
+	return armresources.ResourceGroupsClientCreateOrUpdateResponse{}, fmt.Errorf("CreateOrUpdate not implemented")
+}
+
+func (m *ResourceGroupsClientFunc) BeginDelete(ctx context.Context, resourceGroupName string, options *armresources.ResourceGroupsClientBeginDeleteOptions) (*azruntime.Poller[armresources.ResourceGroupsClientDeleteResponse], error) {
+	return nil, fmt.Errorf("BeginDelete not implemented")
+}
+
+func (m *ResourceGroupsClientFunc) NewListPager(options *armresources.ResourceGroupsClientListOptions) *azruntime.Pager[armresources.ResourceGroupsClientListResponse] {
+	return nil
+}
+
 // FirstPartyApplicationClientBuilderFunc builds mock Azure clients.
 type FirstPartyApplicationClientBuilderFunc struct {
 	GenericResourcesClientVal azureclient.GenericResourcesClient
 	GenericResourcesClientErr error
 	DenyAssignmentsClientVal  azureclient.DenyAssignmentsClient
 	DenyAssignmentsClientErr  error
+	ResourceGroupsClientVal   azureclient.ResourceGroupsClient
+	ResourceGroupsClientErr   error
 }
 
 var _ azureclient.FirstPartyApplicationClientBuilder = (*FirstPartyApplicationClientBuilderFunc)(nil)
@@ -102,7 +133,12 @@ func (m *FirstPartyApplicationClientBuilderFunc) BuilderType() azureclient.First
 }
 
 func (m *FirstPartyApplicationClientBuilderFunc) ResourceGroupsClient(tenantID string, subscriptionID string) (azureclient.ResourceGroupsClient, error) {
-	return nil, fmt.Errorf("not implemented")
+	if m.ResourceGroupsClientVal == nil && m.ResourceGroupsClientErr == nil {
+		// Default to "the resource group exists" so tests that don't care about
+		// resource-group existence aren't forced to wire this up explicitly.
+		return &ResourceGroupsClientFunc{}, nil
+	}
+	return m.ResourceGroupsClientVal, m.ResourceGroupsClientErr
 }
 
 func (m *FirstPartyApplicationClientBuilderFunc) ResourceProvidersClient(tenantID string, subscriptionID string) (azureclient.ResourceProvidersClient, error) {
