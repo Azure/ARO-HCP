@@ -1050,7 +1050,7 @@ No Cosmos writes. Posts `NodePoolUpgradePolicy` to Cluster Service.
 **Trigger:** Cluster/NodePool informer, 1-minute resync
 **Gate (shouldProcess on ServiceProviderCluster/ServiceProviderNodePool):**
 - Condition does not exist or is not True, OR
-- the validation implements `InputKeyedClusterValidation` and its `InputKey(cluster)` differs from the stored `condition.Message` (day-2 input change) — the controller stores the input key in the condition `Message` on success and re-validates when it changes
+- the validation implements `InputKeyedClusterValidation` and its `InputKey(cluster)` differs from `ServiceProviderCluster.Status.ValidationInputKeys[<name>]` (day-2 input change) — the controller stores the input key there on success and re-validates when it changes
 - SyncOnce also checks `DeletionTimestamp == nil` on the resource
 
 Keyed validations (implementing `InputKeyedClusterValidation`): `ContainerRegistryPullCredentialsPermissionValidation` — re-runs when the container-registry pull MI resource ID changes on day-2.
