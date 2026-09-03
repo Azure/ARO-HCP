@@ -28,6 +28,8 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/util/retry"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 )
 
 type verifyFIPSEnabledImpl struct{}
@@ -108,6 +110,19 @@ func checkNodeFIPSMode(ctx context.Context, kubeClient *kubernetes.Clientset, no
 					Name:    "fips-check",
 					Image:   "mcr.microsoft.com/azurelinux/distroless/debug:3.0",
 					Command: []string{"busybox", "cat", "/proc/sys/crypto/fips_enabled"},
+					Env: []corev1.EnvVar{
+						{Name: "HOME", Value: "/tmp"},
+					},
+					SecurityContext: &corev1.SecurityContext{
+						RunAsNonRoot:             to.Ptr(true),
+						AllowPrivilegeEscalation: to.Ptr(false),
+						Capabilities: &corev1.Capabilities{
+							Drop: []corev1.Capability{"ALL"},
+						},
+						SeccompProfile: &corev1.SeccompProfile{
+							Type: corev1.SeccompProfileTypeRuntimeDefault,
+						},
+					},
 				},
 			},
 		},
