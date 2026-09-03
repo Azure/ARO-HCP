@@ -19,6 +19,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -300,6 +301,74 @@ var testHCPClusterKey = controllerutils.HCPClusterKey{
 	SubscriptionID:    testSubscriptionID,
 	ResourceGroupName: testResourceGroupName,
 	HCPClusterName:    testClusterName,
+}
+
+// TestExpectedRoleAssignmentsDeterministicOrder verifies that expectedRoleAssignments returns
+// its slice in a stable order (sorted by the canonical, case-insensitive resource ID) regardless
+// of Go's randomized iteration over the operator maps. A stable order keeps the persisted
+// PendingAzureResources / AzureResources ordering from flapping between passes, which would
+// otherwise make the slice-order-sensitive controllerutil.NeedsUpdate report spurious changes and
+// drive redundant Cosmos writes (and precondition conflicts) even when the SET is unchanged.
+func TestExpectedRoleAssignmentsDeterministicOrder(t *testing.T) {
+	t.Parallel()
+
+	config := testConfig()
+
+	// Build a cluster whose ControlPlaneOperators map holds every dev-config control-plane
+	// operator that has role definitions - several entries, so map-iteration randomization would
+	// scramble the output order between calls if it were not sorted.
+	controlPlaneOperators := map[string]*azcorearm.ResourceID{}
+	resolvedIdentities := map[string]*coreapi.ServiceProviderClusterControlPlaneOperatorIdentity{}
+	for identifier, identity := range config.ControlPlaneOperatorsIdentities {
+		if identity == nil || len(identity.RoleDefinitionsResourceIDs()) == 0 {
+			continue
+		}
+		name := string(identifier)
+		identityID := metadataapi.Must(azcorearm.ParseResourceID(
+			"/subscriptions/" + testSubscriptionID +
+				"/resourceGroups/" + testResourceGroupName +
+				"/providers/Microsoft.ManagedIdentity/userAssignedIdentities/cp-" + name))
+		controlPlaneOperators[name] = identityID
+		resolvedIdentities[strings.ToLower(identityID.String())] = &coreapi.ServiceProviderClusterControlPlaneOperatorIdentity{
+			ResourceID:  identityID,
+			PrincipalID: ptr.To("cp-principal-" + name),
+		}
+	}
+	require.GreaterOrEqual(t, len(controlPlaneOperators), 2, "need multiple control-plane operators to exercise map-order randomization")
+
+	cluster := newTestCluster(false)
+	cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = controlPlaneOperators
+	// Exercise the control-plane operators only; data-plane enumeration is not needed here.
+	cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators = nil
+
+	serviceProviderCluster := newTestServiceProviderCluster(t, true, false, false, coreapi.AzureMultiReference{})
+	serviceProviderCluster.Status.MSIManagedIdentities.ControlPlaneOperatorsIdentities = resolvedIdentities
+
+	syncer := &roleAssignmentsSyncer{clusterScopedIdentitiesConfig: config}
+
+	order := func(defs []roleAssignmentDefinition) []string {
+		out := make([]string, len(defs))
+		for i, d := range defs {
+			out[i] = strings.ToLower(d.resourceID.String())
+		}
+		return out
+	}
+
+	first, err := syncer.expectedRoleAssignments(cluster, serviceProviderCluster)
+	require.NoError(t, err)
+	require.NotEmpty(t, first)
+	require.True(t, slices.IsSortedFunc(first, func(a, b roleAssignmentDefinition) int {
+		return strings.Compare(strings.ToLower(a.resourceID.String()), strings.ToLower(b.resourceID.String()))
+	}), "expectedRoleAssignments must return a slice sorted by canonical resource ID")
+
+	// Despite Go randomizing map iteration order per range statement, every call must yield the
+	// same order.
+	want := order(first)
+	for n := 0; n < 64; n++ {
+		got, err := syncer.expectedRoleAssignments(cluster, serviceProviderCluster)
+		require.NoError(t, err)
+		require.Equal(t, want, order(got), "expectedRoleAssignments order must be deterministic across calls")
+	}
 }
 
 // TestRoleAssignmentsSyncerSyncOnceReconcile exercises the two-pass reconcile end to end
