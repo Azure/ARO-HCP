@@ -8102,8 +8102,8 @@ spec:
         - --azure-operators-managed-identities-config-path=/configs/azure-operators-managed-identities-config.yaml
         - --aro-hcp-ocp-versions-config-path=/configs/aro-hcp-ocp-versions-config.yaml
         - --azure-mi-mock-service-principal-certificate-bundle-path=/secrets/keyvault/mockMiServicePrincipalCertificateBundle
-        - --azure-mi-mock-service-principal-client-id=e8723db7-9b9e-46a4-9f7d-64d75c3534f0
-        - --azure-mi-mock-service-principal-principal-id=d6b62dfa-87f5-49b3-bbcb-4a687c4faa96
+        - --azure-mi-mock-service-principal-client-id=f2e4769e-d3c2-498d-92b9-3e6d24cd2d7a
+        - --azure-mi-mock-service-principal-principal-id=6096f642-63a0-4dd6-958d-715a87f33535
         - --azure-arm-helper-identity-certificate-bundle-path=/secrets/keyvault/armHelperIndentityCertificateBundle
         - --azure-arm-helper-identity-client-id=clusters-service-client-id
         - --azure-arm-helper-mock-fpa-principal-id=mock-fpa-principal-id
