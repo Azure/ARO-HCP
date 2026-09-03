@@ -1615,7 +1615,7 @@ func TestAdmitClusterContainerRegistryPullManagedIdentity(t *testing.T) {
 			},
 		},
 		{
-			name:    "update with containerRegistry but empty ActiveVersions — internal error",
+			name:    "update with containerRegistry and empty ActiveVersions falls back to stored version",
 			op:      operation.Operation{Type: operation.Update},
 			cluster: makeCluster("4.22.0", miResourceID),
 			spc: &coreapi.ServiceProviderCluster{
@@ -1625,8 +1625,21 @@ func TestAdmitClusterContainerRegistryPullManagedIdentity(t *testing.T) {
 					},
 				},
 			},
+			expectErrors: nil,
+		},
+		{
+			name:    "update with containerRegistry, empty ActiveVersions, and unsupported stored version rejected",
+			op:      operation.Operation{Type: operation.Update},
+			cluster: makeCluster("4.21.0", miResourceID),
+			spc: &coreapi.ServiceProviderCluster{
+				Status: coreapi.ServiceProviderClusterStatus{
+					ControlPlaneVersion: coreapi.ServiceProviderClusterStatusVersion{
+						ActiveVersions: nil,
+					},
+				},
+			},
 			expectErrors: []utils.ExpectedError{
-				{FieldPath: "properties.platform.containerRegistry.managedIdentity", Message: "cannot determine cluster version for containerRegistry validation"},
+				{FieldPath: "properties.platform.containerRegistry.managedIdentity", Message: "containerRegistry requires cluster version"},
 			},
 		},
 	}

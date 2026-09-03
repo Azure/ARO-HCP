@@ -465,10 +465,20 @@ func admitClusterContainerRegistryPullManagedIdentity(_ context.Context, admissi
 	var clusterVersion semver.Version
 	if spc := admissionContext.ServiceProviderCluster; spc != nil {
 		lowest, _ := apihelpers.FindLowestAndHighestClusterVersion(spc.Status.ControlPlaneVersion.ActiveVersions)
-		if lowest == nil {
-			return field.ErrorList{field.InternalError(fldPath, errors.New("cannot determine cluster version for containerRegistry validation"))}
+		if lowest != nil {
+			clusterVersion = semver.Version{Major: lowest.Major, Minor: lowest.Minor}
+		} else {
+			// ActiveVersions not yet mirrored by the backend (transient); fall
+			// back to the stored cluster version rather than blocking the request.
+			if admissionContext.OriginalCluster == nil {
+				return field.ErrorList{field.InternalError(fldPath, errors.New("cannot determine cluster version for containerRegistry validation"))}
+			}
+			parsed, err := semver.ParseTolerant(admissionContext.OriginalCluster.CustomerProperties.Version.ID)
+			if err != nil {
+				return field.ErrorList{field.InternalError(fldPath, fmt.Errorf("cannot parse cluster version %q: %w", admissionContext.OriginalCluster.CustomerProperties.Version.ID, err))}
+			}
+			clusterVersion = semver.Version{Major: parsed.Major, Minor: parsed.Minor}
 		}
-		clusterVersion = semver.Version{Major: lowest.Major, Minor: lowest.Minor}
 	} else {
 		if admissionContext.OriginalCluster == nil {
 			return field.ErrorList{field.InternalError(fldPath, errors.New("cannot validate containerRegistry version requirement"))}
