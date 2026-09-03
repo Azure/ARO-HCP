@@ -133,9 +133,9 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to find private KAS internal LB IP")
 			GinkgoLogr.Info("Found private KAS internal LB", "ip", internalIP)
 
-			// Connect to the internal LB IP to prove network reachability to KAS from
-			// inside the VNet. Skip TLS hostname verification because the server URL
-			// uses an IP address rather than the hostname the cert was issued for.
+			// Connect to the internal LB IP to prove network reachability to KAS from inside the VNet.
+			// We intentionally disable TLS verification here (insecure-skip-tls-verify) because we're
+			// connecting via an IP address and are validating the network path rather than certificate correctness.
 			adminRESTConfig.Insecure = true
 			adminRESTConfig.Host = fmt.Sprintf("https://%s:443", internalIP)
 
