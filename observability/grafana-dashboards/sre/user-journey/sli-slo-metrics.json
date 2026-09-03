@@ -392,7 +392,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count((backend_resource_operation_phase_info{phase!~\"succeeded|failed|canceled\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{phase!~\"succeeded|failed|canceled\"}) > 3600)) or vector(0)",
+          "expr": "count((backend_resource_operation_phase_info{resource_type=~\"microsoft.redhatopenshift/hcpopenshiftclusters($|/nodepools$|/externalauths$)\",operation_type=~\"create|delete|update\",phase!~\"succeeded|failed|canceled\",subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=~\"microsoft.redhatopenshift/hcpopenshiftclusters($|/nodepools$|/externalauths$)\",operation_type=~\"create|delete|update\",phase!~\"succeeded|failed|canceled\",subscription_id!~\"${exclude_subs:raw}\"}) > 3600)) or vector(0)",
           "instant": true,
           "legendFormat": "ARM Breaches",
           "refId": "A"
@@ -749,7 +749,7 @@
         "y": 29
       },
       "id": 21,
-      "interval": "7d",
+      "interval": "5m",
       "options": {
         "legend": {
           "calcs": [
@@ -775,7 +775,7 @@
           "editorMode": "code",
           "expr": "count((backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\",operation_type=\"create\",phase=\"succeeded\",subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\",operation_type=\"create\",phase=\"succeeded\",subscription_id!~\"${exclude_subs:raw}\"}) < 604800))",
           "instant": false,
-          "interval": "7d",
+          "interval": "5m",
           "legendFormat": "Succeeded",
           "range": true,
           "refId": "A"
@@ -788,7 +788,7 @@
           "editorMode": "code",
           "expr": "count((backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\",operation_type=\"create\",phase=\"failed\",subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\",operation_type=\"create\",phase=\"failed\",subscription_id!~\"${exclude_subs:raw}\"}) < 604800))",
           "instant": false,
-          "interval": "7d",
+          "interval": "5m",
           "legendFormat": "Failed",
           "range": true,
           "refId": "B"
@@ -850,7 +850,7 @@
         "y": 29
       },
       "id": 22,
-      "interval": "7d",
+      "interval": "5m",
       "options": {
         "legend": {
           "calcs": [
@@ -876,7 +876,7 @@
           "editorMode": "code",
           "expr": "count((backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/nodepools\",operation_type=\"create\",phase=\"succeeded\",subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/nodepools\",operation_type=\"create\",phase=\"succeeded\",subscription_id!~\"${exclude_subs:raw}\"}) < 604800))",
           "instant": false,
-          "interval": "7d",
+          "interval": "5m",
           "legendFormat": "Succeeded",
           "range": true,
           "refId": "A"
@@ -889,7 +889,7 @@
           "editorMode": "code",
           "expr": "count((backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/nodepools\",operation_type=\"create\",phase=\"failed\",subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/nodepools\",operation_type=\"create\",phase=\"failed\",subscription_id!~\"${exclude_subs:raw}\"}) < 604800))",
           "instant": false,
-          "interval": "7d",
+          "interval": "5m",
           "legendFormat": "Failed",
           "range": true,
           "refId": "B"
@@ -965,7 +965,7 @@
         "y": 40
       },
       "id": 23,
-      "interval": "7d",
+      "interval": "5m",
       "options": {
         "legend": {
           "calcs": [
@@ -991,7 +991,7 @@
           "editorMode": "code",
           "expr": "100 * count((backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\",operation_type=\"create\",phase=\"succeeded\",subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\",operation_type=\"create\",phase=\"succeeded\",subscription_id!~\"${exclude_subs:raw}\"}) < 604800)) / clamp_min(count((backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\",operation_type=\"create\",phase=~\"succeeded|failed\",subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\",operation_type=\"create\",phase=~\"succeeded|failed\",subscription_id!~\"${exclude_subs:raw}\"}) < 604800)), 1)",
           "instant": false,
-          "interval": "7d",
+          "interval": "5m",
           "legendFormat": "Cluster",
           "range": true,
           "refId": "A"
@@ -1004,7 +1004,7 @@
           "editorMode": "code",
           "expr": "100 * count((backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/nodepools\",operation_type=\"create\",phase=\"succeeded\",subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/nodepools\",operation_type=\"create\",phase=\"succeeded\",subscription_id!~\"${exclude_subs:raw}\"}) < 604800)) / clamp_min(count((backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/nodepools\",operation_type=\"create\",phase=~\"succeeded|failed\",subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/nodepools\",operation_type=\"create\",phase=~\"succeeded|failed\",subscription_id!~\"${exclude_subs:raw}\"}) < 604800)), 1)",
           "instant": false,
-          "interval": "7d",
+          "interval": "5m",
           "legendFormat": "NodePool",
           "range": true,
           "refId": "B"
@@ -1078,7 +1078,7 @@
         "y": 40
       },
       "id": 24,
-      "interval": "7d",
+      "interval": "5m",
       "options": {
         "legend": {
           "calcs": [
@@ -1104,7 +1104,7 @@
           "editorMode": "code",
           "expr": "quantile(0.50, ((backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\",operation_type=\"create\",phase=\"succeeded\",subscription_id!~\"${exclude_subs:raw}\"} - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\",operation_type=\"create\",phase=\"succeeded\",subscription_id!~\"${exclude_subs:raw}\"}) / 60) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\",operation_type=\"create\",phase=\"succeeded\",subscription_id!~\"${exclude_subs:raw}\"}) < 604800))",
           "instant": false,
-          "interval": "7d",
+          "interval": "5m",
           "legendFormat": "Cluster p50",
           "range": true,
           "refId": "A"
@@ -1117,7 +1117,7 @@
           "editorMode": "code",
           "expr": "quantile(0.95, ((backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\",operation_type=\"create\",phase=\"succeeded\",subscription_id!~\"${exclude_subs:raw}\"} - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\",operation_type=\"create\",phase=\"succeeded\",subscription_id!~\"${exclude_subs:raw}\"}) / 60) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\",operation_type=\"create\",phase=\"succeeded\",subscription_id!~\"${exclude_subs:raw}\"}) < 604800))",
           "instant": false,
-          "interval": "7d",
+          "interval": "5m",
           "legendFormat": "Cluster p95",
           "range": true,
           "refId": "B"
@@ -1130,7 +1130,7 @@
           "editorMode": "code",
           "expr": "quantile(0.50, ((backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/nodepools\",operation_type=\"create\",phase=\"succeeded\",subscription_id!~\"${exclude_subs:raw}\"} - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/nodepools\",operation_type=\"create\",phase=\"succeeded\",subscription_id!~\"${exclude_subs:raw}\"}) / 60) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/nodepools\",operation_type=\"create\",phase=\"succeeded\",subscription_id!~\"${exclude_subs:raw}\"}) < 604800))",
           "instant": false,
-          "interval": "7d",
+          "interval": "5m",
           "legendFormat": "NodePool p50",
           "range": true,
           "refId": "C"
@@ -1143,7 +1143,7 @@
           "editorMode": "code",
           "expr": "quantile(0.95, ((backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/nodepools\",operation_type=\"create\",phase=\"succeeded\",subscription_id!~\"${exclude_subs:raw}\"} - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/nodepools\",operation_type=\"create\",phase=\"succeeded\",subscription_id!~\"${exclude_subs:raw}\"}) / 60) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/nodepools\",operation_type=\"create\",phase=\"succeeded\",subscription_id!~\"${exclude_subs:raw}\"}) < 604800))",
           "instant": false,
-          "interval": "7d",
+          "interval": "5m",
           "legendFormat": "NodePool p95",
           "range": true,
           "refId": "D"
@@ -1359,7 +1359,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count by (resource_type,phase) (backend_resource_operation_phase_info{resource_type=~\"microsoft.redhatopenshift/hcpopenshiftclusters($|/nodepools$|/externalauths$)\"} == 1)",
+          "expr": "count by (resource_type,phase) (backend_resource_operation_phase_info{resource_type=~\"microsoft.redhatopenshift/hcpopenshiftclusters($|/nodepools$|/externalauths$)\",operation_type=~\"create|delete|update\",subscription_id!~\"${exclude_subs:raw}\"} == 1)",
           "instant": true,
           "legendFormat": "{{resource_type}} / {{phase}}",
           "refId": "A"
@@ -1454,7 +1454,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count((backend_resource_operation_phase_info{phase!~\"succeeded|failed|canceled\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{phase!~\"succeeded|failed|canceled\"}) > 1200)) or vector(0)",
+          "expr": "count((backend_resource_operation_phase_info{resource_type=~\"microsoft.redhatopenshift/hcpopenshiftclusters($|/nodepools$|/externalauths$)\",operation_type=~\"create|delete|update\",phase!~\"succeeded|failed|canceled\",subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=~\"microsoft.redhatopenshift/hcpopenshiftclusters($|/nodepools$|/externalauths$)\",operation_type=~\"create|delete|update\",phase!~\"succeeded|failed|canceled\",subscription_id!~\"${exclude_subs:raw}\"}) > 1200)) or vector(0)",
           "instant": true,
           "legendFormat": "SLO breach >20m",
           "refId": "A"
@@ -1465,7 +1465,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count((backend_resource_operation_phase_info{phase!~\"succeeded|failed|canceled\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{phase!~\"succeeded|failed|canceled\"}) > 3600)) or vector(0)",
+          "expr": "count((backend_resource_operation_phase_info{resource_type=~\"microsoft.redhatopenshift/hcpopenshiftclusters($|/nodepools$|/externalauths$)\",operation_type=~\"create|delete|update\",phase!~\"succeeded|failed|canceled\",subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=~\"microsoft.redhatopenshift/hcpopenshiftclusters($|/nodepools$|/externalauths$)\",operation_type=~\"create|delete|update\",phase!~\"succeeded|failed|canceled\",subscription_id!~\"${exclude_subs:raw}\"}) > 3600)) or vector(0)",
           "instant": true,
           "legendFormat": "ARM breach >60m",
           "refId": "B"
@@ -1476,7 +1476,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count((backend_resource_operation_phase_info{phase!~\"succeeded|failed|canceled\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{phase!~\"succeeded|failed|canceled\"}) > 86400)) or vector(0)",
+          "expr": "count((backend_resource_operation_phase_info{resource_type=~\"microsoft.redhatopenshift/hcpopenshiftclusters($|/nodepools$|/externalauths$)\",operation_type=~\"create|delete|update\",phase!~\"succeeded|failed|canceled\",subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=~\"microsoft.redhatopenshift/hcpopenshiftclusters($|/nodepools$|/externalauths$)\",operation_type=~\"create|delete|update\",phase!~\"succeeded|failed|canceled\",subscription_id!~\"${exclude_subs:raw}\"}) > 86400)) or vector(0)",
           "instant": true,
           "legendFormat": "Severe >24h",
           "refId": "C"
@@ -1487,7 +1487,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count((backend_resource_operation_phase_info{phase!~\"succeeded|failed|canceled\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{phase!~\"succeeded|failed|canceled\"}) > 604800)) or vector(0)",
+          "expr": "count((backend_resource_operation_phase_info{resource_type=~\"microsoft.redhatopenshift/hcpopenshiftclusters($|/nodepools$|/externalauths$)\",operation_type=~\"create|delete|update\",phase!~\"succeeded|failed|canceled\",subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=~\"microsoft.redhatopenshift/hcpopenshiftclusters($|/nodepools$|/externalauths$)\",operation_type=~\"create|delete|update\",phase!~\"succeeded|failed|canceled\",subscription_id!~\"${exclude_subs:raw}\"}) > 604800)) or vector(0)",
           "instant": true,
           "legendFormat": "Zombie >7d",
           "refId": "D"
@@ -1602,7 +1602,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "((time() - backend_resource_operation_last_transition_time_seconds{phase!~\"succeeded|failed|canceled\"}) / 60) and (backend_resource_operation_phase_info{phase!~\"succeeded|failed|canceled\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{phase!~\"succeeded|failed|canceled\"}) > 3600)",
+          "expr": "((time() - backend_resource_operation_last_transition_time_seconds{resource_type=~\"microsoft.redhatopenshift/hcpopenshiftclusters($|/nodepools$|/externalauths$)\",operation_type=~\"create|delete|update\",phase!~\"succeeded|failed|canceled\",subscription_id!~\"${exclude_subs:raw}\"}) / 60) and (backend_resource_operation_phase_info{resource_type=~\"microsoft.redhatopenshift/hcpopenshiftclusters($|/nodepools$|/externalauths$)\",operation_type=~\"create|delete|update\",phase!~\"succeeded|failed|canceled\",subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=~\"microsoft.redhatopenshift/hcpopenshiftclusters($|/nodepools$|/externalauths$)\",operation_type=~\"create|delete|update\",phase!~\"succeeded|failed|canceled\",subscription_id!~\"${exclude_subs:raw}\"}) > 3600)",
           "format": "table",
           "instant": true,
           "legendFormat": "__auto",
@@ -1936,10 +1936,10 @@
       },
       {
         "current": {
-          "text": "",
-          "value": ""
+          "text": "^$",
+          "value": "^$"
         },
-        "description": "Pipe-separated subscription IDs to exclude from the report, such as internal test subscriptions.",
+        "description": "Pipe-separated subscription IDs to exclude from the report, such as internal test subscriptions. Keep ^$ to include all subscriptions.",
         "hide": 0,
         "label": "Exclude Subscriptions",
         "name": "exclude_subs",
