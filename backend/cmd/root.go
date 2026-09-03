@@ -164,7 +164,8 @@ func (f *BackendRootCmdFlags) AddFlags(cmd *cobra.Command) {
 		"The principal id of the ARO-HCP Clusters Managed Identities (MI) mock identity, which is a common Azure Service Principal identity. "+
 			"This flag should only be set in environments where Microsoft's MI Dataplane service is not available. "+
 			"When set, it must be set in combination with the '--insecure-azure-managed-identity-mock-certificate-bundle-path' and "+
-			"'--azure-mi-mock-principal-client-id' and '--insecure-azure-managed-identity-mock-tenant-id' flags. "+
+			"'--insecure-azure-managed-identity-mock-client-id' (or '--insecure-azure-managed-identity-mock-client-id-path') and "+
+			"'--insecure-azure-managed-identity-mock-tenant-id' flags. "+
 			"Mutually exclusive with '--insecure-azure-managed-identity-mock-principal-id-path'.",
 	)
 
