@@ -20,6 +20,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
@@ -61,7 +62,9 @@ type BackendRootCmdFlags struct {
 	MaestroSourceEnvironmentIdentifier                                                            string
 	InsecureAzureManagedIdentityMockCertificateBundlePath                                         string
 	InsecureAzureManagedIdentityMockClientID                                                      string
+	InsecureAzureManagedIdentityMockClientIDPath                                                  string
 	InsecureAzureManagedIdentityMockServicePrincipalID                                            string
+	InsecureAzureManagedIdentityMockServicePrincipalIDPath                                        string
 	InsecureAzureManagedIdentityMockTenantID                                                      string
 	InsecureIgnoreUserAzureManagedIdentitiesThatNeedManagedIdentitiesDataplaneAvailableAndUseMock bool
 	ExitOnPanic                                                                                   bool
@@ -139,7 +142,19 @@ func (f *BackendRootCmdFlags) AddFlags(cmd *cobra.Command) {
 		"The client id of the ARO-HCP Clusters Managed Identities (MI) mock identity, which is a common Azure Service Principal identity. "+
 			"This flag should only be set in environments where Microsoft's MI Dataplane service is not available. "+
 			"When set, it must be set in combination with the '--insecure-azure-managed-identity-mock-certificate-bundle-path' and "+
-			"'--insecure-azure-managed-identity-mock-principal-id' and '--insecure-azure-managed-identity-mock-tenant-id' flags.",
+			"'--insecure-azure-managed-identity-mock-principal-id' and '--insecure-azure-managed-identity-mock-tenant-id' flags. "+
+			"Mutually exclusive with '--insecure-azure-managed-identity-mock-client-id-path'.",
+	)
+
+	cmd.Flags().StringVar(
+		&f.InsecureAzureManagedIdentityMockClientIDPath,
+		"insecure-azure-managed-identity-mock-client-id-path",
+		"",
+		"Path to a file containing the client id of the ARO-HCP Clusters Managed Identities (MI) mock identity. Use this instead of "+
+			"'--insecure-azure-managed-identity-mock-client-id' when the value is sourced from a Key Vault secret mounted via the CSI "+
+			"driver, so the mock identity's client id no longer needs to be duplicated as static configuration. The file is read once "+
+			"at startup; the file contents are trimmed of surrounding whitespace. Mutually exclusive with "+
+			"'--insecure-azure-managed-identity-mock-client-id'.",
 	)
 
 	cmd.Flags().StringVar(
@@ -149,7 +164,19 @@ func (f *BackendRootCmdFlags) AddFlags(cmd *cobra.Command) {
 		"The principal id of the ARO-HCP Clusters Managed Identities (MI) mock identity, which is a common Azure Service Principal identity. "+
 			"This flag should only be set in environments where Microsoft's MI Dataplane service is not available. "+
 			"When set, it must be set in combination with the '--insecure-azure-managed-identity-mock-certificate-bundle-path' and "+
-			"'--azure-mi-mock-principal-client-id' and '--insecure-azure-managed-identity-mock-tenant-id' flags.",
+			"'--azure-mi-mock-principal-client-id' and '--insecure-azure-managed-identity-mock-tenant-id' flags. "+
+			"Mutually exclusive with '--insecure-azure-managed-identity-mock-principal-id-path'.",
+	)
+
+	cmd.Flags().StringVar(
+		&f.InsecureAzureManagedIdentityMockServicePrincipalIDPath,
+		"insecure-azure-managed-identity-mock-principal-id-path",
+		"",
+		"Path to a file containing the principal id of the ARO-HCP Clusters Managed Identities (MI) mock identity. Use this instead of "+
+			"'--insecure-azure-managed-identity-mock-principal-id' when the value is sourced from a Key Vault secret mounted via the CSI "+
+			"driver, so the mock identity's principal id (which changes whenever the underlying Service Principal is recreated) no "+
+			"longer needs to be duplicated as static configuration. The file is read once at startup; the file contents are trimmed of "+
+			"surrounding whitespace. Mutually exclusive with '--insecure-azure-managed-identity-mock-principal-id'.",
 	)
 
 	cmd.Flags().StringVar(
@@ -245,11 +272,17 @@ func (f *BackendRootCmdFlags) validate() error {
 		if len(f.InsecureAzureManagedIdentityMockCertificateBundlePath) == 0 {
 			return utils.TrackError(fmt.Errorf("--insecure-azure-managed-identity-mock-certificate-bundle-path must be set"))
 		}
-		if len(f.InsecureAzureManagedIdentityMockClientID) == 0 {
-			return utils.TrackError(fmt.Errorf("--insecure-azure-managed-identity-mock-client-id must be set"))
+		if len(f.InsecureAzureManagedIdentityMockClientID) == 0 && len(f.InsecureAzureManagedIdentityMockClientIDPath) == 0 {
+			return utils.TrackError(fmt.Errorf("one of --insecure-azure-managed-identity-mock-client-id or --insecure-azure-managed-identity-mock-client-id-path must be set"))
 		}
-		if len(f.InsecureAzureManagedIdentityMockServicePrincipalID) == 0 {
-			return utils.TrackError(fmt.Errorf("--insecure-azure-managed-identity-mock-principal-id must be set"))
+		if len(f.InsecureAzureManagedIdentityMockClientID) != 0 && len(f.InsecureAzureManagedIdentityMockClientIDPath) != 0 {
+			return utils.TrackError(fmt.Errorf("--insecure-azure-managed-identity-mock-client-id and --insecure-azure-managed-identity-mock-client-id-path are mutually exclusive"))
+		}
+		if len(f.InsecureAzureManagedIdentityMockServicePrincipalID) == 0 && len(f.InsecureAzureManagedIdentityMockServicePrincipalIDPath) == 0 {
+			return utils.TrackError(fmt.Errorf("one of --insecure-azure-managed-identity-mock-principal-id or --insecure-azure-managed-identity-mock-principal-id-path must be set"))
+		}
+		if len(f.InsecureAzureManagedIdentityMockServicePrincipalID) != 0 && len(f.InsecureAzureManagedIdentityMockServicePrincipalIDPath) != 0 {
+			return utils.TrackError(fmt.Errorf("--insecure-azure-managed-identity-mock-principal-id and --insecure-azure-managed-identity-mock-principal-id-path are mutually exclusive"))
 		}
 		if len(f.InsecureAzureManagedIdentityMockTenantID) == 0 {
 			return utils.TrackError(fmt.Errorf("--insecure-azure-managed-identity-mock-tenant-id must be set"))
@@ -270,8 +303,14 @@ func (f *BackendRootCmdFlags) validate() error {
 		if len(f.InsecureAzureManagedIdentityMockClientID) != 0 {
 			return utils.TrackError(fmt.Errorf("--insecure-azure-managed-identity-mock-client-id must not be set"))
 		}
+		if len(f.InsecureAzureManagedIdentityMockClientIDPath) != 0 {
+			return utils.TrackError(fmt.Errorf("--insecure-azure-managed-identity-mock-client-id-path must not be set"))
+		}
 		if len(f.InsecureAzureManagedIdentityMockServicePrincipalID) != 0 {
 			return utils.TrackError(fmt.Errorf("--insecure-azure-managed-identity-mock-principal-id must not be set"))
+		}
+		if len(f.InsecureAzureManagedIdentityMockServicePrincipalIDPath) != 0 {
+			return utils.TrackError(fmt.Errorf("--insecure-azure-managed-identity-mock-principal-id-path must not be set"))
 		}
 		if len(f.InsecureAzureManagedIdentityMockTenantID) != 0 {
 			return utils.TrackError(fmt.Errorf("--insecure-azure-managed-identity-mock-tenant-id must not be set"))
@@ -302,6 +341,46 @@ func (f *BackendRootCmdFlags) validate() error {
 	}
 
 	return nil
+}
+
+// resolveInsecureManagedIdentityMockIDsFromFiles reads any of the "-path" variants of the mock identity
+// client id / principal id flags and populates the corresponding raw fields with their (whitespace-trimmed)
+// file contents. This lets the mock identity's client id / principal id be sourced from a Key Vault secret
+// mounted via the CSI driver instead of being duplicated as static configuration, so it self-heals whenever
+// the underlying Service Principal is recreated (its principal id changes) without requiring a config change.
+// Must be called after validate(), which already enforces that exactly one of the raw/path flags is set.
+func (f *BackendRootCmdFlags) resolveInsecureManagedIdentityMockIDsFromFiles() error {
+	if len(f.InsecureAzureManagedIdentityMockClientIDPath) != 0 {
+		value, err := readTrimmedFile(f.InsecureAzureManagedIdentityMockClientIDPath)
+		if err != nil {
+			return utils.TrackError(fmt.Errorf("failed to read --insecure-azure-managed-identity-mock-client-id-path: %w", err))
+		}
+		f.InsecureAzureManagedIdentityMockClientID = value
+	}
+
+	if len(f.InsecureAzureManagedIdentityMockServicePrincipalIDPath) != 0 {
+		value, err := readTrimmedFile(f.InsecureAzureManagedIdentityMockServicePrincipalIDPath)
+		if err != nil {
+			return utils.TrackError(fmt.Errorf("failed to read --insecure-azure-managed-identity-mock-principal-id-path: %w", err))
+		}
+		f.InsecureAzureManagedIdentityMockServicePrincipalID = value
+	}
+
+	return nil
+}
+
+// readTrimmedFile reads the file at path and returns its contents with leading/trailing whitespace
+// (including a trailing newline, as commonly written by Key Vault CSI driver secret mounts) removed.
+func readTrimmedFile(path string) (string, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", fmt.Errorf("read file %q: %w", path, err)
+	}
+	value := strings.TrimSpace(string(data))
+	if len(value) == 0 {
+		return "", fmt.Errorf("file %q is empty", path)
+	}
+	return value, nil
 }
 
 func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.Command) (*app.BackendOptions, error) {
@@ -565,6 +644,11 @@ func RunRootCmd(cmd *cobra.Command, flags *BackendRootCmdFlags) error {
 	err := flags.validate()
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("flags validation failed: %w", err))
+	}
+
+	err = flags.resolveInsecureManagedIdentityMockIDsFromFiles()
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to resolve mock identity ids from file: %w", err))
 	}
 
 	// Setup signal context allowing for both graceful and forceful shutdown
