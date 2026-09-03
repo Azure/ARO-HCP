@@ -14,10 +14,10 @@ tests:
     alertname: userJourneySwiftCNSLatencyP996h30m
     exp_alerts: []
   - eval_time: 10m
-    alertname: SwiftCNSAvailability3d
+    alertname: userJourneySwiftCNSAvailability3d
     exp_alerts: []
   - eval_time: 10m
-    alertname: SwiftPendingProgramming
+    alertname: userJourneySwiftPendingProgramming
     exp_alerts: []
 
 # Test 2: CNS IP assignment latency p99 > 10s — fast-burn alert should fire.
@@ -90,8 +90,8 @@ tests:
   - series: 'kube_daemonset_status_desired_number_scheduled{job="kube-state-metrics", daemonset="azure-cns", namespace="kube-system"}'
     values: "3+0x400"
   alert_rule_test:
-  - eval_time: 6h
-    alertname: SwiftCNSAvailability3d
+  - eval_time: 6h1m
+    alertname: userJourneySwiftCNSAvailability3d
     exp_alerts: []
 
 # Test 5: CNS daemonset availability degraded (1 of 3 nodes not ready) for 6h — slow-burn alert fires.
@@ -102,8 +102,8 @@ tests:
   - series: 'kube_daemonset_status_desired_number_scheduled{job="kube-state-metrics", daemonset="azure-cns", namespace="kube-system"}'
     values: "3+0x400"
   alert_rule_test:
-  - eval_time: 6h
-    alertname: SwiftCNSAvailability3d
+  - eval_time: 6h1m
+    alertname: userJourneySwiftCNSAvailability3d
     exp_alerts:
     - exp_labels:
         severity: "4"
@@ -124,7 +124,7 @@ tests:
     values: "0+0x10"
   alert_rule_test:
   - eval_time: 10m
-    alertname: SwiftPendingProgramming
+    alertname: userJourneySwiftPendingProgramming
     exp_alerts: []
 
 # Test 7: PendingProgramming IPs sustained > 0 for 5m — alert fires.
@@ -134,7 +134,7 @@ tests:
     values: "5+0x10"
   alert_rule_test:
   - eval_time: 10m
-    alertname: SwiftPendingProgramming
+    alertname: userJourneySwiftPendingProgramming
     exp_alerts:
     - exp_labels:
         severity: "3"
@@ -151,5 +151,5 @@ tests:
     values: "5+0x2"
   alert_rule_test:
   - eval_time: 3m
-    alertname: SwiftPendingProgramming
+    alertname: userJourneySwiftPendingProgramming
     exp_alerts: []

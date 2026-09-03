@@ -1,4 +1,3 @@
-
 param azureMonitoring string
 
 param location string = resourceGroup().location
@@ -238,6 +237,36 @@ resource userjourneyKubeapiserverAvailabilityRecordingRules 'Microsoft.AlertsMan
       {
         record: 'hostedClusterAPI_kubeapiserver_available:sli_count_30m'
         expression: 'sum by (name, namespace, _id, resource_id, cluster) (count_over_time((max by (name, namespace, _id, resource_id, cluster) (hostedClusterAPI_kubeapiserver_available) and on (name, namespace, _id, resource_id, cluster) max by (name, namespace, _id, resource_id, cluster) ((hostedClusterAPI_kubeapiserver_available offset 15m) >= 0))[30m:1m])) and on (name, namespace, _id, resource_id, cluster) count by (name, namespace, _id, resource_id, cluster) (hostedClusterAPI_kubeapiserver_available)'
+      }
+    ]
+  }
+}
+
+resource hcpEtcdGrpcLatencyRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'hcp-etcd-grpc-latency-recording-rules'
+  location: location
+  properties: {
+    scopes: [
+      azureMonitoring
+    ]
+    enabled: true
+    interval: 'PT1M'
+    rules: [
+      {
+        record: 'etcd:grpc_server_handling:read_latency_p99:rate5m'
+        expression: 'histogram_quantile(0.99, sum by (namespace, cluster, le) (rate(grpc_server_handling_seconds_bucket{grpc_method="Range",grpc_service="etcdserverpb.KV",namespace=~"ocm-.*"}[5m])))'
+      }
+      {
+        record: 'etcd:grpc_server_handling:read_latency_p95:rate5m'
+        expression: 'histogram_quantile(0.95, sum by (namespace, cluster, le) (rate(grpc_server_handling_seconds_bucket{grpc_method="Range",grpc_service="etcdserverpb.KV",namespace=~"ocm-.*"}[5m])))'
+      }
+      {
+        record: 'etcd:grpc_server_handling:write_latency_p99:rate5m'
+        expression: 'histogram_quantile(0.99, sum by (namespace, cluster, le) (rate(grpc_server_handling_seconds_bucket{grpc_method="Txn",grpc_service="etcdserverpb.KV",namespace=~"ocm-.*"}[5m])))'
+      }
+      {
+        record: 'etcd:grpc_server_handling:write_latency_p95:rate5m'
+        expression: 'histogram_quantile(0.95, sum by (namespace, cluster, le) (rate(grpc_server_handling_seconds_bucket{grpc_method="Txn",grpc_service="etcdserverpb.KV",namespace=~"ocm-.*"}[5m])))'
       }
     ]
   }

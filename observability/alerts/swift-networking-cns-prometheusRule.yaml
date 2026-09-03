@@ -74,7 +74,7 @@ spec:
     labels:
       component: slo
     rules:
-    - alert: SwiftCNSAvailability3d
+    - alert: userJourneySwiftCNSAvailability3d
       expr: cns:daemonset_availability:ratio_avg_6h < 0.999
       for: 6h
       labels:
@@ -108,7 +108,7 @@ spec:
     labels:
       component: slo
     rules:
-    - alert: SwiftPendingProgramming
+    - alert: userJourneySwiftPendingProgramming
       expr: cx_pending_programming_ips_v2 > 0
       for: 5m
       labels:
