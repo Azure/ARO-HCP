@@ -1177,6 +1177,11 @@ defaults:
   miMockPrincipalId: ""
   miMockTenantId: ""
   miMockCertName: ""
+  # When set, backend mounts these Key Vault secrets and reads clientId/principalId from file
+  # instead of the static miMockClientId/miMockPrincipalId above, so they stay correct even when
+  # the mock identity Service Principal is recreated. Empty by default (opt-in, backward compatible).
+  miMockClientIdSecretName: ""
+  miMockPrincipalIdSecretName: ""
   armHelperClientId: ""
   armHelperFPAPrincipalId: ""
   armHelperTenantId: ""

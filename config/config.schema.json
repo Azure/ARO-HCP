@@ -1409,6 +1409,14 @@
     "miMockCertName": {
       "type": "string"
     },
+    "miMockClientIdSecretName": {
+      "type": "string",
+      "description": "Name of a Key Vault secret holding the mock identity's client id. When set, backend mounts and reads this instead of the static miMockClientId value."
+    },
+    "miMockPrincipalIdSecretName": {
+      "type": "string",
+      "description": "Name of a Key Vault secret holding the mock identity's principal id. When set, backend mounts and reads this instead of the static miMockPrincipalId value."
+    },
     "armHelperClientId": {
       "type": "string"
     },
