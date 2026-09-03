@@ -26,6 +26,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 )
 
+// emptyTenantID is the all-zero GUID sentinel, distinct from the empty string
+// case also validated below.
 const emptyTenantID = "00000000-0000-0000-0000-000000000000"
 
 func ValidateSubscriptionCreate(ctx context.Context, newObj *coreapi.Subscription) field.ErrorList {
