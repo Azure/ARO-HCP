@@ -71,11 +71,11 @@ const (
 // it creates the ones that do not exist yet and reflects their existence onto
 // ServiceProviderCluster.Status.AzureResources.RoleAssignments.
 //
-// Creates are idempotent: the role assignment names are deterministic, so a create that
-// races with a concurrent creator - or is retried - surfaces as "already exists" and is
-// treated as success. Reflecting the confirmed state onto the ServiceProviderCluster lets
-// DB-consuming code (for example the cluster-create completion gate) reason about the role
-// assignments without reaching into Azure directly.
+// Creates are idempotent: the role assignment names are deterministic, so re-creating the
+// same assignment is an update (PUT) rather than a conflict - any create error is therefore
+// surfaced (not swallowed) so the sync retries. Reflecting the confirmed state onto the
+// ServiceProviderCluster lets DB-consuming code (for example the cluster-create completion
+// gate) reason about the role assignments without reaching into Azure directly.
 //
 // Deletion is a deliberate no-op: when the cluster is deleted its managed resource group is
 // deleted, and that cascade removes the MRG-scoped role assignments with it. There is
@@ -280,9 +280,10 @@ func (c *roleAssignmentsSyncer) SyncOnce(ctx context.Context, key controllerutil
 // so the sync re-enqueues the cluster after a short delay and does NOT create this pass; any
 // other persist error is returned to retry via the rate-limited requeue.
 //
-// Pass 2 (create - Azure writes) creates the queued missing assignments; a create that races
-// with a concurrent creator surfaces as "already exists" and is swallowed. Freshly-created
-// assignments stay pending this pass (already persisted above) and confirm on a later GetByID.
+// Pass 2 (create - Azure writes) creates the queued missing assignments. The assignment names
+// are deterministic, so re-creating is an idempotent update rather than a conflict; any create
+// error is surfaced so the sync retries. Freshly-created assignments stay pending this pass
+// (already persisted above) and confirm on a later GetByID.
 //
 // Any previously-confirmed assignment that is no longer expected (for example after an identity
 // or name-scheme change) is retained in AzureResources, not dropped; its deletion is deferred
@@ -329,7 +330,7 @@ func (c *roleAssignmentsSyncer) syncRoleAssignments(ctx context.Context, key con
 			// Any other Get error: existence is unknown, so record it pending but do NOT queue
 			// a create (creating blind could race); it self-heals on a later GetByID.
 			pendingList = append(pendingList, assignment.resourceID)
-			errs = append(errs, fmt.Errorf("failed to get role assignment %q: %w", assignment.resourceID.String(), getErr))
+			errs = append(errs, utils.TrackError(fmt.Errorf("failed to get role assignment %q: %w", assignment.resourceID.String(), getErr)))
 		}
 	}
 
@@ -373,20 +374,23 @@ func (c *roleAssignmentsSyncer) syncRoleAssignments(ctx context.Context, key con
 			return nil
 		}
 		// Any other persist error: do not create; return it so it retries via the normal
-		// rate-limited requeue.
+		// rate-limited requeue. persistErr is already wrapped by persistIfChanged, and every
+		// other collected error is wrapped where it is appended, so the join is not re-wrapped.
 		errs = append(errs, persistErr)
-		return utils.TrackError(errors.Join(errs...))
+		return errors.Join(errs...)
 	}
 
 	// Pass 2: create the queued missing role assignments, now that the pending intent is
 	// persisted. Freshly-created assignments stay pending this pass and confirm on a later
-	// GetByID; a create that races with a concurrent creator is swallowed as "already exists".
+	// GetByID; any create error is surfaced (createRoleAssignment wraps it) so the sync retries.
 	for _, assignment := range toCreateList {
 		if createErr := c.createRoleAssignment(ctx, roleAssignmentsClient, assignment); createErr != nil {
 			errs = append(errs, createErr)
 		}
 	}
-	return utils.TrackError(errors.Join(errs...))
+	// Every collected error is wrapped with utils.TrackError where it is appended, so the join
+	// is returned without re-wrapping.
+	return errors.Join(errs...)
 }
 
 // roleAssignmentDefinition describes a single managed-resource-group-scoped role assignment
@@ -596,11 +600,21 @@ func (c *roleAssignmentsSyncer) roleAssignmentsClient(ctx context.Context, subsc
 	return client, nil
 }
 
-// createRoleAssignment creates the managed-resource-group-scoped role assignment described
-// by assignment with its deterministic name and parameters (PrincipalID, RoleDefinitionID,
-// PrincipalType=ServicePrincipal). Because the assignment name is deterministic, a create
-// that races with a concurrent creator - or a retried create - surfaces as
-// RoleAssignmentExists, which is treated as success.
+// createRoleAssignment creates the managed-resource-group-scoped role assignment described by
+// assignment with its deterministic name and parameters (PrincipalID, RoleDefinitionID,
+// PrincipalType=ServicePrincipal).
+//
+// The assignment name is deterministic (a UUIDv5 derived from the scope, principal, and role
+// definition), so re-creating the same assignment is an idempotent update (PUT) rather than a
+// conflict. Azure only returns the RoleAssignmentExists (409) error when a role assignment for
+// the same principal + role definition at the same scope already exists under a DIFFERENT name,
+// which is not expected here. Any create error is therefore surfaced (wrapped) so the sync
+// retries instead of silently treating the failure as success.
+//
+// TODO(https://github.com/Azure/ARO-HCP/pull/6784#pullrequestreview-5093255837): if a
+// RoleAssignmentExists error is ever observed - an equivalent assignment (same principal + scope
+// + role definition) already exists under a different name - adopt (import) that existing
+// assignment instead of returning an error.
 func (c *roleAssignmentsSyncer) createRoleAssignment(ctx context.Context, client azureclient.RoleAssignmentsClient, assignment roleAssignmentDefinition) error {
 	logger := utils.LoggerFromContext(ctx)
 	logger.Info("creating role assignment",
@@ -613,8 +627,8 @@ func (c *roleAssignmentsSyncer) createRoleAssignment(ctx context.Context, client
 			PrincipalType:    to.Ptr(armauthorization.PrincipalTypeServicePrincipal),
 		},
 	}, nil)
-	if err != nil && !azureclient.IsRoleAssignmentAlreadyExistsErr(err) {
-		return fmt.Errorf("failed to create role assignment %q: %w", assignment.resourceID.String(), err)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to create role assignment %q: %w", assignment.resourceID.String(), err))
 	}
 	return nil
 }

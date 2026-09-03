@@ -240,9 +240,10 @@ func roleAssignmentNotFoundError() *azcore.ResponseError {
 	}
 }
 
-// roleAssignmentAlreadyExistsError returns an *azcore.ResponseError that
-// azureclient.IsRoleAssignmentAlreadyExistsErr recognizes as a role assignment that
-// already exists (a concurrent create, or a previous attempt, created it).
+// roleAssignmentAlreadyExistsError returns the *azcore.ResponseError Azure sends (error code
+// RoleAssignmentExists, HTTP 409) when a role assignment for the same principal + role definition
+// at the same scope already exists under a different name. Because the backend uses deterministic
+// names, this error is unexpected and must surface (it is no longer swallowed).
 func roleAssignmentAlreadyExistsError() *azcore.ResponseError {
 	return &azcore.ResponseError{
 		ErrorCode:  "RoleAssignmentExists",
@@ -316,6 +317,7 @@ func TestRoleAssignmentsSyncerSyncOnceReconcile(t *testing.T) {
 		getByIDErr       error
 		createErr        error
 		expectCreate     bool
+		expectErr        bool
 		expectPending    []*azcorearm.ResourceID
 		expectConfirmed  []*azcorearm.ResourceID
 		expectRecheckSet bool
@@ -332,12 +334,15 @@ func TestRoleAssignmentsSyncerSyncOnceReconcile(t *testing.T) {
 			expectRecheckSet: false,
 		},
 		{
-			// Create races with a concurrent creator (already exists): swallowed; the
-			// assignment stays pending this pass and confirms on a later GetByID.
-			name:             "create already exists is swallowed and left pending this pass",
+			// A create returning RoleAssignmentExists (409) is NOT swallowed: because the
+			// assignment name is deterministic, that error is unexpected, so it surfaces (wrapped)
+			// and the sync retries. The pending intent was persisted in pass 1, so the assignment
+			// stays pending and is never confirmed this pass.
+			name:             "create already exists surfaces the error and stays pending",
 			getByIDErr:       roleAssignmentNotFoundError(),
 			createErr:        roleAssignmentAlreadyExistsError(),
 			expectCreate:     true,
+			expectErr:        true,
 			expectPending:    expectedIDs,
 			expectConfirmed:  nil,
 			expectRecheckSet: false,
@@ -393,7 +398,12 @@ func TestRoleAssignmentsSyncerSyncOnceReconcile(t *testing.T) {
 
 			syncer := newTestSyncer(mockResourcesDB, fpaClientBuilder)
 
-			require.NoError(t, syncer.SyncOnce(ctx, testHCPClusterKey))
+			syncErr := syncer.SyncOnce(ctx, testHCPClusterKey)
+			if tc.expectErr {
+				require.Error(t, syncErr)
+			} else {
+				require.NoError(t, syncErr)
+			}
 
 			updated, err := mockResourcesDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
 			require.NoError(t, err)
@@ -545,8 +555,8 @@ func TestRoleAssignmentsSyncerSyncOncePreconditionFailureReEnqueues(t *testing.T
 }
 
 // TestRoleAssignmentsSyncerSyncOnceCreateErrorStaysPending verifies that when creating a
-// role assignment fails with a non-"already exists" error, SyncOnce returns the error and
-// leaves the assignment pending (never confirmed).
+// role assignment fails, SyncOnce returns the error and leaves the assignment pending
+// (never confirmed).
 func TestRoleAssignmentsSyncerSyncOnceCreateErrorStaysPending(t *testing.T) {
 	t.Parallel()
 
