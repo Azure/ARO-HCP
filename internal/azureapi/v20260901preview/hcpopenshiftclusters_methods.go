@@ -661,12 +661,18 @@ func normalizePlatform(fldPath *field.Path, p *generated.PlatformProfile, out *c
 func normalizeContainerRegistry(fldPath *field.Path, p *generated.ContainerRegistryProfile, out **azcorearm.ResourceID) field.ErrorList {
 	errs := field.ErrorList{}
 
-	if p == nil || p.ManagedIdentity == nil || len(*p.ManagedIdentity) == 0 {
+	if p == nil || p.ManagedIdentity == nil {
 		*out = nil
 		return errs
 	}
 
-	resourceID, err := azcorearm.ParseResourceID(*p.ManagedIdentity)
+	mi := strings.TrimSpace(*p.ManagedIdentity)
+	if mi == "" {
+		errs = append(errs, field.Invalid(fldPath.Child("managedIdentity"), *p.ManagedIdentity, "must be a non-empty resource ID or null to clear"))
+		return errs
+	}
+
+	resourceID, err := azcorearm.ParseResourceID(mi)
 	if err != nil {
 		errs = append(errs, field.Invalid(fldPath.Child("managedIdentity"), *p.ManagedIdentity, err.Error()))
 	} else {
