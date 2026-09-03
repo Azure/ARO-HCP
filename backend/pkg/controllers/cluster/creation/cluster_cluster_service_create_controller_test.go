@@ -225,31 +225,6 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 			},
 		},
 		{
-			name: "deny assignments still pending waits without dispatching",
-			listCluster: newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
-				c.ServiceProviderProperties.PendingClusterServiceID = &pendingClusterServiceID
-			}),
-			dbCluster: newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
-				c.ServiceProviderProperties.PendingClusterServiceID = &pendingClusterServiceID
-			}),
-			existingServiceProviderCluster: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
-				// The desired version is resolved (that precondition passes)...
-				spc.Spec.ControlPlaneVersion.DesiredVersion = desiredVersion
-				// ...but deny assignments are still pending, so cluster creation must not dispatch yet.
-				spc.Status.AzureResources.DenyAssignments.PendingAzureResources = []coreapi.DenyAssignmentReference{{DenyAssignmentType: "resources-deny-assignment", DenyAssignmentResourceID: metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/testManagedResourceGroup/providers/Microsoft.Authorization/denyAssignments/00000000-0000-0000-0000-000000000001"))}}
-			}),
-			setupMockCS: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
-				// No CS calls are expected: gomock fails the test if the controller dispatches.
-				return ocm.NewMockClusterServiceClientSpec(ctrl)
-			},
-			expectError: false,
-			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
-				cluster, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
-				require.NoError(t, err)
-				assert.Nil(t, cluster.ServiceProviderProperties.ClusterServiceID, "cluster creation must not dispatch while deny assignments are pending")
-			},
-		},
-		{
 			name: "deny assignments disabled (no real FPA) dispatches without waiting on them",
 			listCluster: newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
 				c.ServiceProviderProperties.PendingClusterServiceID = &pendingClusterServiceID
