@@ -46,7 +46,7 @@ The individual components are described in the [service components overview](../
 >
 > See the [Maestro Server](#maestro-server-legacy), [Maestro Agent](#maestro-agent-legacy), and [ACM](#acm-legacy-manifestwork) sections below for debugging the legacy path.
 
-<!-- BEGIN GENERATED: flow-diagram (nodes/edges mirror the "Cluster Create Flow" digraph in ../cosmos-data-flow.md; regenerate via the "Generation Prompt" at the bottom of this file — do not hand-edit) -->
+<!-- BEGIN GENERATED: flow-diagram (component/topology view of the cluster-creation write path; the step-numbered edges follow the same ARM->RP->CS->CosmosDB->kube-applier ordering narrated above, and complement — rather than reproduce — the controller-gating "Cluster Create Flow" digraph in ../cosmos-data-flow.md; regenerate via the "Generation Prompt" at the bottom of this file — do not hand-edit) -->
 ```mermaid
 ---
 config:
@@ -200,7 +200,7 @@ kubectl logs -n kube-applier deployment/kube-applier -c kube-applier
 ```
 
 > [!NOTE]
-> TODO: confirm the exact namespace/deployment/container names and add commands for inspecting the CosmosDB desire documents (`ApplyDesire`/`DeleteDesire`/`ReadDesire`) and their reported conditions once the write path is fully rolled out. Track under [ARO-27507](https://issues.redhat.com/browse/ARO-27507).
+> TODO: confirm the exact namespace/deployment/container names and add commands for inspecting the CosmosDB desire documents (`ApplyDesire` with `Type=ServerSideApply` or `Type=Delete`, and `ReadDesire`) and their reported conditions once the write path is fully rolled out. Track under [ARO-27507](https://issues.redhat.com/browse/ARO-27507).
 <!-- END GENERATED: kube-applier-debug -->
 
 ## Maestro Server (legacy)
@@ -312,11 +312,13 @@ Regenerate each region from source:
    Maestro description in the [!NOTE] callout (which is hand-maintained, outside the
    markers). Remove the legacy note only after ARO-27508 lands.
 
-2. flow-diagram — Regenerate the mermaid graph so its nodes and edges match the
-   controller-gating order in the "Cluster Create Flow" digraph of
-   docs/cosmos-data-flow.md (each edge is a gate: a field written by one actor that
-   enables the next). Keep the existing service-cluster / management-cluster subgraph
-   layout and step-number edge labels.
+2. flow-diagram — Regenerate the mermaid graph as a component/topology view of the
+   cluster-creation write path, with step-numbered edges tracing the ARM -> RP -> CS
+   -> CosmosDB -> kube-applier ordering from the numbered narrative above. This is a
+   component view, not a reproduction of the controller-gating "Cluster Create Flow"
+   digraph in docs/cosmos-data-flow.md; consult that digraph for the field-level
+   gating between controllers. Keep the existing service-cluster / management-cluster
+   subgraph layout and step-number edge labels.
 
 3. kube-applier-debug — Fill the namespace, deployment, and container names in the
    kube-applier debug commands from the deployment manifests / topology config
