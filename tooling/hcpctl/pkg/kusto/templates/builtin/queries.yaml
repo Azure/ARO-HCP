@@ -2,6 +2,30 @@
   queryType: kubernetes-events
   database: ServiceLogs
   templatePath: templates/builtin/infra/kubernetes_events.kql.gotmpl
+- name: ocAdmInspectResources
+  queryType: oc-adm-inspect-resource
+  database: ServiceLogs
+  templatePath: templates/builtin/oc-adm-inspect/resource_snapshots.kql.gotmpl
+- name: ocAdmInspectEvents
+  queryType: oc-adm-inspect-events
+  database: ServiceLogs
+  templatePath: templates/builtin/oc-adm-inspect/events.kql.gotmpl
+- name: ocAdmInspectContainerLogs
+  queryType: oc-adm-inspect-logs
+  database: ServiceLogs
+  templatePath: templates/builtin/oc-adm-inspect/container_logs.kql.gotmpl
+- name: ocAdmInspectHostedControlPlaneLogs
+  queryType: oc-adm-inspect-logs
+  database: HostedControlPlaneLogs
+  templatePath: templates/builtin/oc-adm-inspect/container_logs_hcp.kql.gotmpl
+- name: ocAdmInspectActiveClusters
+  queryType: must-gather-internal
+  database: ServiceLogs
+  templatePath: templates/builtin/oc-adm-inspect/active_clusters.kql.gotmpl
+- name: ocAdmInspectNamespaces
+  queryType: must-gather-internal
+  database: ServiceLogs
+  templatePath: templates/builtin/oc-adm-inspect/namespaces.kql.gotmpl
 - name: systemdLogs
   queryType: systemd-logs
   database: ServiceLogs

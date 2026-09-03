@@ -35,10 +35,13 @@ type QueryChild struct {
 type QueryType string
 
 const (
-	QueryTypeServices           QueryType = "services"
-	QueryTypeHostedControlPlane QueryType = "hosted-control-plane"
-	QueryTypeInternal           QueryType = "must-gather-internal"
-	QueryTypeKubernetesEvents   QueryType = "kubernetes-events"
-	QueryTypeSystemdLogs        QueryType = "systemd-logs"
-	QueryTypeCustomLogs         QueryType = "custom-logs"
+	QueryTypeServices             QueryType = "services"
+	QueryTypeHostedControlPlane   QueryType = "hosted-control-plane"
+	QueryTypeInternal             QueryType = "must-gather-internal"
+	QueryTypeKubernetesEvents     QueryType = "kubernetes-events"
+	QueryTypeSystemdLogs          QueryType = "systemd-logs"
+	QueryTypeCustomLogs           QueryType = "custom-logs"
+	QueryTypeOCAdmInspectResource QueryType = "oc-adm-inspect-resource"
+	QueryTypeOCAdmInspectEvents   QueryType = "oc-adm-inspect-events"
+	QueryTypeOCAdmInspectLogs     QueryType = "oc-adm-inspect-logs"
 )

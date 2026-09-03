@@ -1,0 +1,16 @@
+{{- /*
+Kubernetes API events for a namespace on the management/service cluster, up to
+the requested timestamp. Mirrors the events oc adm inspect writes under
+namespaces/<ns>/core/events.yaml.
+*/ -}}
+{{- if .NoTruncation}}set notruncation;
+{{end -}}
+kubernetesEvents
+| where timestamp between ({{ .TimestampMin }} .. {{ .TimestampMax }})
+| where cluster == '{{.ClusterName}}'
+| where eventNamespace == '{{.Namespace}}'
+| project timestamp, firstSeen, lastSeen, count, kubeEventType, reason, objectKind, objectApiVersion, objectName, sourceComponent, message
+| order by timestamp {{.OrderBy}}
+{{- if gt .Limit 0}}
+| limit {{.Limit}}
+{{- end}}
