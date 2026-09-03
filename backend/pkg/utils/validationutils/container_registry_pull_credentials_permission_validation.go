@@ -67,6 +67,19 @@ func (v *ContainerRegistryPullCredentialsPermissionValidation) Validate(ctx cont
 		)
 	}
 
+	// Cross-subscription pull MIs are permitted by ARM but cannot be verified end-to-end
+	// in CI because we have no test infrastructure with a pull MI in a different subscription.
+	// Allowing untested cross-sub behavior in a production service is not acceptable, so we
+	// restrict to same-subscription for now.
+	// TODO: lift this restriction once cross-subscription E2E coverage exists.
+	if containerRegistryPullMI.SubscriptionID != cluster.ID.SubscriptionID {
+		return FailedValidation(
+			"CrossSubscriptionNotSupported",
+			fmt.Sprintf("Container registry pull managed identity %s must be in the same subscription as the cluster (%s).", containerRegistryPullMI, cluster.ID.SubscriptionID),
+			fmt.Sprintf("container registry pull MI subscription %s differs from cluster subscription %s; cross-subscription not supported", containerRegistryPullMI.SubscriptionID, cluster.ID.SubscriptionID),
+		)
+	}
+
 	capzIdentifier := string(internalazure.ClusterOperatorIdentifierClusterAPIAzure)
 	capzResourceID, ok := cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators[capzIdentifier]
 	if !ok || capzResourceID == nil {

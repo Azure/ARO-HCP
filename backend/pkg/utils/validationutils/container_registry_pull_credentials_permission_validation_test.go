@@ -97,9 +97,11 @@ func testSubscription() *coreapi.Subscription {
 
 func TestContainerRegistryPullCredentialsPermissionValidation(t *testing.T) {
 	capzMIResourceID := "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/capz"
-	containerRegistryPullMIResourceID := "/subscriptions/00000000-0000-0000-0000-000000000002/resourceGroups/customer-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/acr-pull"
+	// Same-subscription pull MI — the only supported case; cross-subscription is rejected at validation.
+	containerRegistryPullMIResourceID := "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/customer-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/acr-pull"
+	crossSubContainerRegistryPullMIResourceID := "/subscriptions/00000000-0000-0000-0000-000000000002/resourceGroups/customer-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/acr-pull"
 
-	acrPullMISubscription := "00000000-0000-0000-0000-000000000002"
+	acrPullMISubscription := "00000000-0000-0000-0000-000000000001"
 	capzMISubscription := "00000000-0000-0000-0000-000000000001"
 	testTenantID := "00000000-0000-0000-0000-000000000099"
 	testIdentityURL := "https://mi.example.com"
@@ -144,6 +146,15 @@ func TestContainerRegistryPullCredentialsPermissionValidation(t *testing.T) {
 		wantOutcomeType OutcomeType
 		msgContains     string
 	}{
+		{
+			name:    "cross-subscription pull MI rejected",
+			cluster: containerRegistryTestCluster(crossSubContainerRegistryPullMIResourceID, capzMIResourceID),
+			setup: func(ctrl *gomock.Controller) (azureclient.ServiceManagedIdentityClientBuilder, azureclient.CheckAccessV2ClientBuilder) {
+				return azureclient.NewMockServiceManagedIdentityClientBuilder(ctrl), azureclient.NewMockCheckAccessV2ClientBuilder(ctrl)
+			},
+			wantOutcomeType: OutcomeTypeFailed,
+			msgContains:     "same subscription",
+		},
 		{
 			name:    "no containerRegistry configured, skip",
 			cluster: containerRegistryTestCluster("", capzMIResourceID),
