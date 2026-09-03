@@ -66,7 +66,7 @@ resource arohcpClusterProvisionLatencyRecordingRules 'Microsoft.AlertsManagement
     rules: [
       {
         record: 'latency:backend_cluster_provision:inflight_duration_seconds'
-        expression: '(time() - backend_resource_operation_start_time_seconds{operation_type="create",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) and backend_resource_operation_phase_info{operation_type="create",phase=~"accepted|provisioning",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} == 1'
+        expression: 'max without (prometheus_replica) ((time() - backend_resource_operation_start_time_seconds{operation_type="create",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) and backend_resource_operation_phase_info{operation_type="create",phase=~"accepted|provisioning",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} == 1)'
       }
     ]
   }
