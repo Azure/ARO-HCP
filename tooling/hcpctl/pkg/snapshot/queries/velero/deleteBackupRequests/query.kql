@@ -1,0 +1,15 @@
+cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('kubernetesResourceSnapshots')
+| where timestamp between ({{ kqlDatetime .PhaseStartTime }} .. {{ kqlDatetime .PhaseEndTime }})
+{{- if and .ServiceClusterName .ManagementClusterName }}
+| where cluster in ('{{ .ServiceClusterName }}', '{{ .ManagementClusterName }}')
+{{- end }}
+| where objectKind == 'DeleteBackupRequest'
+| where namespace == 'velero'
+| where tostring(object.metadata.labels['velero.io/backup-name']) has '{{ .HostedClusterNamespace }}'
+| extend
+    request = name,
+    backup = tostring(object.spec.backupName),
+    phase = tostring(object.status.phase),
+    errors = object.status.errors
+| project timestamp, event, cluster, request, backup, phase, errors
+| order by timestamp asc

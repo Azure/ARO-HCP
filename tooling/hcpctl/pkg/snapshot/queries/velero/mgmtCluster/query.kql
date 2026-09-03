@@ -1,0 +1,6 @@
+cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('kubernetesResourceSnapshots')
+| where timestamp between ({{ kqlDatetime .FullStartTime }} .. {{ kqlDatetime .FullEndTime }})
+| where objectKind == 'Backup'
+| where namespace == 'velero'
+| where tostring(object.metadata.annotations['azure.microsoft.com/hcp-cluster-azure-resource-id']) =~ '{{ .ClusterResourceID }}'
+| distinct cluster
