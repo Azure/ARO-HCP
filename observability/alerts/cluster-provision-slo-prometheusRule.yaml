@@ -119,7 +119,7 @@ spec:
   # Stickiness (max_over_time ... [6h:5m]): while a resource stays wedged,
   # the raw condition can transiently clear — most commonly when the backend
   # retries the operation and resets backend_resource_operation_start_time_seconds,
-  # briefly dropping (time() - start_time) below the 7200s threshold. Each clear
+  # briefly dropping (time() - start_time) below the 3600s threshold. Each clear
   # auto-resolves the IcM incident and the next re-fire opens a brand-new one.
   # Holding the condition firing over a 6h look-back collapses a
   # continuously-stuck resource into a single long-lived incident; genuinely

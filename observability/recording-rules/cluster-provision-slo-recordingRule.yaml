@@ -95,15 +95,17 @@ spec:
     # have already completed and their outcome is covered by the Errors SLI.
     - record: latency:backend_cluster_provision:inflight_duration_seconds
       expr: |
-        (
-          time() - backend_resource_operation_start_time_seconds{
+        max without(prometheus_replica) (
+          (
+            time() - backend_resource_operation_start_time_seconds{
+              resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
+              operation_type="create"
+            }
+          )
+          and
+          backend_resource_operation_phase_info{
             resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
-            operation_type="create"
-          }
+            operation_type="create",
+            phase=~"accepted|provisioning"
+          } == 1
         )
-        and
-        backend_resource_operation_phase_info{
-          resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
-          operation_type="create",
-          phase=~"accepted|provisioning"
-        } == 1
