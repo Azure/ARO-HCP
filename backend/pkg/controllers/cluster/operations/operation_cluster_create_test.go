@@ -150,20 +150,24 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 			},
 		},
 		{
-			name: "waits when cluster ClusterServiceID is unset",
+			name: "reports Provisioning when cluster ClusterServiceID is unset",
 			existingCluster: func() *coreapi.HCPOpenShiftCluster {
 				cluster := newClusterWithAPIURL("https://api.example.com", &createdAt)
 				cluster.ServiceProviderProperties.ClusterServiceID = nil
 				return cluster
 			}(),
 			existingOperation: fixture.NewOperation(cosmosstorageutils.OperationRequestCreate),
+			// ClusterServiceID is nil, so clusterServiceCreateOperationState reports
+			// Provisioning without calling GetClusterStatus; the bare mock therefore
+			// has no expectations. Every other sub-state is ready, so the operation
+			// is persisted as Provisioning.
 			setupCSMock: func(ctrl *gomock.Controller, _ *operationtesting.ClusterTestFixture) ocm.ClusterServiceClientSpec {
 				return ocm.NewMockClusterServiceClientSpec(ctrl)
 			},
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, coreapi.ProvisioningStateAccepted, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateProvisioning, op.Status)
 			},
 		},
 		{
@@ -428,6 +432,7 @@ func TestDetermineOperationState(t *testing.T) {
 		clusterLister     corelisters.ClusterLister
 		readDesireLister  kubeapplierlisters.ReadDesireLister
 		setupCSMock       func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec
+		clusterOverride   *coreapi.HCPOpenShiftCluster
 		expectedState     coreapi.ProvisioningState
 		wantMessageSubstr string
 		expectError       bool
@@ -665,7 +670,7 @@ func TestDetermineOperationState(t *testing.T) {
 				},
 			},
 			expectedState:     coreapi.ProvisioningStateProvisioning,
-			wantMessageSubstr: "hosted cluster has no installed version",
+			wantMessageSubstr: "hosted cluster has not completed installing",
 		},
 		{
 			name: "cluster-service succeeded but cosmos not ready → Provisioning",
@@ -734,6 +739,45 @@ func TestDetermineOperationState(t *testing.T) {
 			},
 			expectedState: coreapi.ProvisioningStateProvisioning,
 		},
+		{
+			name: "cluster ClusterServiceID unset → Provisioning",
+			clusterOverride: func() *coreapi.HCPOpenShiftCluster {
+				c := newClusterWithAPIURL("https://api.example.com", nil)
+				c.ServiceProviderProperties.ClusterServiceID = nil
+				return c
+			}(),
+			clusterLister: &corelistertesting.SliceClusterLister{
+				Clusters: []*coreapi.HCPOpenShiftCluster{newClusterWithAPIURL("https://api.example.com", nil)},
+			},
+			// ClusterServiceID is nil, so clusterServiceCreateOperationState returns
+			// early without calling GetClusterStatus; use a bare mock with no
+			// expectations to avoid an unmet-expectation failure.
+			setupCSMock: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
+				return ocm.NewMockClusterServiceClientSpec(ctrl)
+			},
+			readDesireLister: &kubeapplierlistertesting.SliceReadDesireLister{
+				Desires: []*kubeapplierapi.ReadDesire{
+					operationtesting.NewHostedClusterReadDesire(t, &v1beta1.HostedCluster{
+						Status: v1beta1.HostedClusterStatus{
+							Conditions: []metav1.Condition{
+								{Type: string(v1beta1.HostedClusterAvailable), Status: metav1.ConditionTrue},
+							},
+							ControlPlaneVersion: v1beta1.ControlPlaneVersionStatus{
+								History: []v1beta1.ControlPlaneUpdateHistory{
+									{Version: "4.17.3", State: configv1.CompletedUpdate},
+								},
+							},
+							ControlPlaneEndpoint: v1beta1.APIEndpoint{
+								Host: "api.example.com",
+								Port: 6443,
+							},
+						},
+					}),
+				},
+			},
+			expectedState:     coreapi.ProvisioningStateProvisioning,
+			wantMessageSubstr: "cluster service has not been successfully created",
+		},
 	}
 
 	for _, tt := range tests {
@@ -775,7 +819,11 @@ func TestDetermineOperationState(t *testing.T) {
 				},
 			}
 
-			result, err := controller.determineOperationState(ctx, operation, cluster)
+			clusterArg := cluster
+			if tt.clusterOverride != nil {
+				clusterArg = tt.clusterOverride
+			}
+			result, err := controller.determineOperationState(ctx, operation, clusterArg)
 
 			if tt.expectError {
 				require.Error(t, err)

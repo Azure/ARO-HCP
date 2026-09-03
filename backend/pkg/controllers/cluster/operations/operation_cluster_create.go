@@ -257,6 +257,14 @@ func (c *operationClusterCreate) determineOperationState(ctx context.Context, op
 
 func (c *operationClusterCreate) clusterServiceCreateOperationState(ctx context.Context, operation *coreapi.Operation, cluster *coreapi.HCPOpenShiftCluster) (*operationbase.OperationState, error) {
 	logger := utils.LoggerFromContext(ctx)
+
+	// The Cluster Service resource is created asynchronously; until its ID is
+	// populated there is nothing to query, so report the operation as still
+	// provisioning rather than dereferencing a nil ClusterServiceID.
+	if cluster.ServiceProviderProperties.ClusterServiceID == nil || len(cluster.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
+		return operationbase.NewOperationState(coreapi.ProvisioningStateProvisioning, "cluster service has not been successfully created"), nil
+	}
+
 	clusterServiceID := *cluster.ServiceProviderProperties.ClusterServiceID
 
 	clusterStatus, err := c.clusterServiceClient.GetClusterStatus(ctx, clusterServiceID)
@@ -367,8 +375,8 @@ func (c *operationClusterCreate) hostedClusterOperationStatus(ctx context.Contex
 
 		if !anyVersionInstalled {
 			// can only check this when the success condition works, because this is unreliable otherwise
-			logger.Info("hosted cluster has no installed version", "hostedCluster.Status.ControlPlaneVersion.History", hostedCluster.Status.ControlPlaneVersion.History)
-			return operationbase.NewOperationState(coreapi.ProvisioningStateProvisioning, withDegradedSuffix("hosted cluster has no installed version", hostedCluster)), nil
+			logger.Info("hosted cluster has not completed installing", "hostedCluster.Status.ControlPlaneVersion.History", hostedCluster.Status.ControlPlaneVersion.History)
+			return operationbase.NewOperationState(coreapi.ProvisioningStateProvisioning, withDegradedSuffix("hosted cluster has not completed installing", hostedCluster)), nil
 		}
 	}
 
@@ -427,8 +435,7 @@ func (c *operationClusterCreate) roleAssignmentsOperationStatus(ctx context.Cont
 }
 
 func (c *operationClusterCreate) shouldReconcileOperationAndResourceStatus(cluster *coreapi.HCPOpenShiftCluster) bool {
-	return cluster.ServiceProviderProperties.DeletionTimestamp == nil &&
-		cluster.ServiceProviderProperties.ClusterServiceID != nil
+	return cluster.ServiceProviderProperties.DeletionTimestamp == nil
 }
 
 // withDegradedSuffix appends the HostedCluster Degraded condition's reason and
