@@ -173,6 +173,18 @@ func (c *clusterValidationSyncer) SyncOnce(ctx context.Context, key controllerut
 		if c.shouldWriteCondition(previousCondition, consecutiveUnknowns) {
 			meta.SetStatusCondition(&replacement.Status.Validations, desiredCondition)
 		}
+
+		// When a keyed validation passes, record the input key that was validated in ValidationInputKeys
+		// (not in condition.Message) so shouldProcess can detect future input changes without coupling the
+		// change-detection logic to condition.Message formatting.
+		if result.Outcome.Type == validationutils.OutcomeTypePassed {
+			if keyed, ok := c.validation.(validationutils.InputKeyedClusterValidation); ok {
+				if replacement.Status.ValidationInputKeys == nil {
+					replacement.Status.ValidationInputKeys = make(map[string]string)
+				}
+				replacement.Status.ValidationInputKeys[c.validation.Name()] = keyed.InputKey(existingCluster)
+			}
+		}
 	}
 
 	if !equality.Semantic.DeepEqual(existingServiceProviderCluster, replacement) {
@@ -217,14 +229,14 @@ func (c *clusterValidationSyncer) handleRequeue(key controllerutils.HCPClusterKe
 // shouldProcess returns true when the validation should run. This is the case when:
 //   - the condition does not exist or previously failed, OR
 //   - the validation implements InputKeyedClusterValidation and the input has changed
-//     since the last successful validation.
+//     since the last successful validation (compared against ValidationInputKeys, not condition.Message).
 func (c *clusterValidationSyncer) shouldProcess(serviceProviderCluster *coreapi.ServiceProviderCluster, cluster *coreapi.HCPOpenShiftCluster) bool {
 	condition := meta.FindStatusCondition(serviceProviderCluster.Status.Validations, c.validation.Name())
 	if condition == nil || condition.Status != metav1.ConditionTrue {
 		return true
 	}
 	if keyed, ok := c.validation.(validationutils.InputKeyedClusterValidation); ok {
-		return keyed.InputKey(cluster) != condition.Message
+		return keyed.InputKey(cluster) != serviceProviderCluster.Status.ValidationInputKeys[c.validation.Name()]
 	}
 	return false
 }

@@ -168,7 +168,7 @@ func (v *ContainerRegistryPullCredentialsPermissionValidation) Validate(ctx cont
 		if decision.ActionId == assignAction && decision.AccessDecision == checkaccessv2.Allowed {
 			return PassedValidation(
 				coreapi.ControllerConditionReasonAsExpected,
-				v.InputKey(cluster),
+				fmt.Sprintf("CAPZ identity has assign/action permission on container registry pull managed identity %s.", containerRegistryPullMI),
 				fmt.Sprintf("CAPZ identity has assign/action permission on container registry pull MI %s.", containerRegistryPullMI),
 			)
 		}

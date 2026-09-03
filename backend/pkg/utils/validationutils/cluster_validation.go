@@ -29,18 +29,17 @@ type ClusterValidation interface {
 }
 
 // InputKeyedClusterValidation is an optional extension of ClusterValidation
-// for validations whose input can change on day-2 updates. Implementations
-// must call PassedValidation(reason, InputKey(cluster), internalMessage) on
-// success, storing the key directly in the condition's Message field. The
-// controller re-runs when InputKey(cluster) != condition.Message.
+// for validations whose input can change on day-2 updates. The controller
+// stores InputKey(cluster) in ServiceProviderClusterStatus.ValidationInputKeys
+// (not in condition.Message) after a successful validation, and re-runs the
+// validation when the stored key differs from the current InputKey.
 //
-// This stores a cache key (e.g., a resource ID) in Message instead of a
-// human-readable string. This is acceptable because:
-//  1. Status=True conditions are filtered by AggregateRequirementsValidCondition
-//     and never shown to end users.
-//  2. The optimization prevents stale validation results: without it, a day-2
-//     input change (e.g., changing the ACR pull MI) would be gated by the 12-hour
-//     Passed retry cooldown before the new MI is validated.
+// This prevents stale validation results: without it, a day-2 input change
+// (e.g., changing the ACR pull MI) would be gated by the 12-hour Passed retry
+// cooldown before the new MI is validated.
+//
+// Implementations should pass a descriptive human-readable userMessage to
+// PassedValidation; the input key is stored separately by the controller.
 type InputKeyedClusterValidation interface {
 	ClusterValidation
 	// InputKey returns a string representing the validation-relevant input.
