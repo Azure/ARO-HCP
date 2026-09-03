@@ -48,13 +48,13 @@ tests:
       value: 0
   alert_rule_test:
   - eval_time: 10m
-    alertname: UJClusterProvisionErrors1h5m
+    alertname: UserJourneyClusterProvisionErrors1h5m
   - eval_time: 10m
-    alertname: UJClusterProvisionErrors6h30m
+    alertname: UserJourneyClusterProvisionErrors6h30m
   - eval_time: 10m
-    alertname: UJClusterProvisionErrors3d
+    alertname: UserJourneyClusterProvisionErrors3d
   - eval_time: 10m
-    alertname: UJClusterProvisionErrorsDegradation
+    alertname: UserJourneyClusterProvisionErrorsDegradation
 # ========================================
 # Test 2: Fast burn — 80% failure rate, fast + degradation fire
 # ========================================
@@ -90,7 +90,7 @@ tests:
   alert_rule_test:
   # Fast burn fires after 5m 'for' duration
   - eval_time: 7m
-    alertname: UJClusterProvisionErrors1h5m
+    alertname: UserJourneyClusterProvisionErrors1h5m
     exp_alerts:
     - exp_labels:
         cluster: "mgmt-1"
@@ -105,7 +105,7 @@ tests:
         runbook_url: "https://aka.ms/arohcp-runbook-cluster-provision"
   # Degradation also fires (15% threshold met at 80%)
   - eval_time: 35m
-    alertname: UJClusterProvisionErrorsDegradation
+    alertname: UserJourneyClusterProvisionErrorsDegradation
     exp_alerts:
     - exp_labels:
         cluster: "mgmt-1"
@@ -151,7 +151,7 @@ tests:
   alert_rule_test:
   # Degradation fires at 20%
   - eval_time: 35m
-    alertname: UJClusterProvisionErrorsDegradation
+    alertname: UserJourneyClusterProvisionErrorsDegradation
     exp_alerts:
     - exp_labels:
         cluster: "mgmt-1"
@@ -164,9 +164,9 @@ tests:
         runbook_url: "https://aka.ms/arohcp-runbook-cluster-provision"
   # Fast and medium burn must NOT fire at 20%
   - eval_time: 35m
-    alertname: UJClusterProvisionErrors1h5m
+    alertname: UserJourneyClusterProvisionErrors1h5m
   - eval_time: 35m
-    alertname: UJClusterProvisionErrors6h30m
+    alertname: UserJourneyClusterProvisionErrors6h30m
 # ========================================
 # Test 4: Medium burn — 40% failure rate, medium + degradation fire, fast does not
 # ========================================
@@ -202,7 +202,7 @@ tests:
   alert_rule_test:
   # Medium burn fires after 30m 'for' duration
   - eval_time: 35m
-    alertname: UJClusterProvisionErrors6h30m
+    alertname: UserJourneyClusterProvisionErrors6h30m
     exp_alerts:
     - exp_labels:
         cluster: "mgmt-1"
@@ -217,7 +217,7 @@ tests:
         runbook_url: "https://aka.ms/arohcp-runbook-cluster-provision"
   # Fast burn must NOT fire at 40%
   - eval_time: 35m
-    alertname: UJClusterProvisionErrors1h5m
+    alertname: UserJourneyClusterProvisionErrors1h5m
 # ========================================
 # Test 5: Isolation — node pool and in-flight (non-terminal) ops are excluded
 # ========================================
