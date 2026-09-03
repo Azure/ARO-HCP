@@ -143,30 +143,14 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to generate kubeconfig")
 			kubeconfigB64 := base64.StdEncoding.EncodeToString([]byte(kubeconfig))
 
-			versionCmd := fmt.Sprintf(
-				"KUBECONFIG=$(mktemp) && "+
-					"trap 'rm -f $KUBECONFIG' EXIT && "+
-					"echo '%s' | base64 -d > $KUBECONFIG && "+
-					"chmod 600 $KUBECONFIG && "+
-					"kubectl --kubeconfig=$KUBECONFIG version 2>&1",
-				kubeconfigB64,
-			)
-			versionOutput, err := framework.RunVMCommand(ctx, tc, *resourceGroup.Name, vmName, versionCmd, 2*time.Minute)
-			Expect(err).NotTo(HaveOccurred(), "RunVMCommand failed for kubectl version (output: %s)", versionOutput)
+			versionOutput, err := framework.RunKubectlOnVM(ctx, tc, *resourceGroup.Name, vmName, kubeconfigB64, "version", 2*time.Minute)
+			Expect(err).NotTo(HaveOccurred(), "kubectl version should succeed from VM via private endpoint (output: %s)", versionOutput)
 			Expect(versionOutput).To(ContainSubstring("Server Version"),
 				"KAS should be reachable from VM via private endpoint (output: %s)", versionOutput)
 
 			By("verifying initial node count and ready status")
 			Eventually(func(g Gomega) {
-				nodesCmd := fmt.Sprintf(
-					"KUBECONFIG=$(mktemp) && "+
-						"trap 'rm -f $KUBECONFIG' EXIT && "+
-						"echo '%s' | base64 -d > $KUBECONFIG && "+
-						"chmod 600 $KUBECONFIG && "+
-						"kubectl --kubeconfig=$KUBECONFIG get nodes --no-headers 2>/dev/null",
-					kubeconfigB64,
-				)
-				output, runErr := framework.RunVMCommand(ctx, tc, *resourceGroup.Name, vmName, nodesCmd, 2*time.Minute)
+				output, runErr := framework.RunKubectlOnVM(ctx, tc, *resourceGroup.Name, vmName, kubeconfigB64, "get nodes --no-headers", 2*time.Minute)
 				g.Expect(runErr).NotTo(HaveOccurred(), "failed to get nodes via VM")
 				var nodeLines []string
 				for _, l := range strings.Split(strings.TrimSpace(output), "\n") {
@@ -205,15 +189,7 @@ var _ = Describe("Customer", func() {
 
 			By("verifying scaled-up node count and ready status")
 			Eventually(func(g Gomega) {
-				nodesCmd := fmt.Sprintf(
-					"KUBECONFIG=$(mktemp) && "+
-						"trap 'rm -f $KUBECONFIG' EXIT && "+
-						"echo '%s' | base64 -d > $KUBECONFIG && "+
-						"chmod 600 $KUBECONFIG && "+
-						"kubectl --kubeconfig=$KUBECONFIG get nodes --no-headers 2>/dev/null",
-					kubeconfigB64,
-				)
-				output, runErr := framework.RunVMCommand(ctx, tc, *resourceGroup.Name, vmName, nodesCmd, 2*time.Minute)
+				output, runErr := framework.RunKubectlOnVM(ctx, tc, *resourceGroup.Name, vmName, kubeconfigB64, "get nodes --no-headers", 2*time.Minute)
 				g.Expect(runErr).NotTo(HaveOccurred(), "failed to get nodes via VM")
 				var nodeLines []string
 				for _, l := range strings.Split(strings.TrimSpace(output), "\n") {
@@ -254,15 +230,7 @@ var _ = Describe("Customer", func() {
 
 			By("verifying scaled-down node count via kubectl from inside the VNet")
 			Eventually(func(g Gomega) {
-				nodesCmd := fmt.Sprintf(
-					"KUBECONFIG=$(mktemp) && "+
-						"trap 'rm -f $KUBECONFIG' EXIT && "+
-						"echo '%s' | base64 -d > $KUBECONFIG && "+
-						"chmod 600 $KUBECONFIG && "+
-						"kubectl --kubeconfig=$KUBECONFIG get nodes --no-headers 2>/dev/null",
-					kubeconfigB64,
-				)
-				output, runErr := framework.RunVMCommand(ctx, tc, *resourceGroup.Name, vmName, nodesCmd, 2*time.Minute)
+				output, runErr := framework.RunKubectlOnVM(ctx, tc, *resourceGroup.Name, vmName, kubeconfigB64, "get nodes --no-headers", 2*time.Minute)
 				g.Expect(runErr).NotTo(HaveOccurred(), "failed to get nodes via VM")
 				var nodeLines []string
 				for _, l := range strings.Split(strings.TrimSpace(output), "\n") {
