@@ -60,6 +60,10 @@ const (
 	// that clusters confirmed together do not re-query Azure in lockstep - the 50% jitter
 	// the EarliestRecheckTime convention recommends.
 	roleAssignmentRecheckJitterFactor = 0.5
+	// roleAssignmentPreconditionRetryDelay is how soon to re-enqueue a cluster after a Cosmos
+	// optimistic-concurrency (precondition) failure while persisting the pending intent, so the
+	// retry runs quickly with fresh inputs rather than waiting for the periodic resync.
+	roleAssignmentPreconditionRetryDelay = 10 * time.Second
 )
 
 // roleAssignmentsSyncer MANAGES the Azure role assignments on a cluster's managed
@@ -84,6 +88,10 @@ type roleAssignmentsSyncer struct {
 	azureFPAClientBuilder         azureclient.FirstPartyApplicationClientBuilder
 	clusterScopedIdentitiesConfig *azure.ClusterScopedIdentitiesConfig
 	clock                         utilsclock.PassiveClock
+	// enqueueAfter lets the syncer explicitly re-enqueue a cluster after a delay (grabbed from
+	// the watching controller at construction). It is used to retry shortly after a Cosmos
+	// precondition failure so a Create never runs before the pending intent is persisted.
+	enqueueAfter controllerutils.AfterEnqueuer
 }
 
 var _ controllerutils.ClusterSyncer = (*roleAssignmentsSyncer)(nil)
@@ -115,7 +123,7 @@ func NewRoleAssignmentsController(
 		clock:                         clock,
 	}
 
-	return controllerutils.NewClusterWatchingController(
+	controller := controllerutils.NewClusterWatchingController(
 		RoleAssignmentsControllerName,
 		resourcesDBClient,
 		informers,
@@ -123,6 +131,16 @@ func NewRoleAssignmentsController(
 		5*time.Minute,
 		syncer,
 	)
+
+	// Assert that genericWatchingController implements AfterEnqueuer, which lets the syncer explicitly schedule retries via EnqueueAfter rather than
+	// relying on error-based rate-limited requeue in some cases. Panics at startup if the interface is not satisfied.
+	if enqueuer, ok := controller.(controllerutils.AfterEnqueuer); ok {
+		syncer.enqueueAfter = enqueuer
+	} else {
+		panic("IdentityRoleAssignmentsController must implement AfterEnqueuer")
+	}
+
+	return controller
 }
 
 // NeedsWork reports whether SyncOnce has anything to do for a cluster that is not
@@ -233,7 +251,7 @@ func (c *roleAssignmentsSyncer) SyncOnce(ctx context.Context, key controllerutil
 		return nil
 	}
 
-	return c.syncRoleAssignments(ctx, cluster, existingServiceProviderCluster)
+	return c.syncRoleAssignments(ctx, key, cluster, existingServiceProviderCluster)
 }
 
 // syncRoleAssignments reconciles the role assignments for a cluster that is not being
@@ -257,7 +275,10 @@ func (c *roleAssignmentsSyncer) SyncOnce(ctx context.Context, key controllerutil
 // then succeeds but the process crashes before the next persist, a later GetByID still finds
 // and confirms it. When nothing is pending (every expected assignment confirmed) the
 // earliest-recheck window is set to a future time - the only thing that stops the sync
-// re-running on every resync.
+// re-running on every resync. If that persist fails with a Cosmos precondition
+// (optimistic-concurrency) conflict, the state was not recorded and the inputs are now stale,
+// so the sync re-enqueues the cluster after a short delay and does NOT create this pass; any
+// other persist error is returned to retry via the rate-limited requeue.
 //
 // Pass 2 (create - Azure writes) creates the queued missing assignments; a create that races
 // with a concurrent creator surfaces as "already exists" and is swallowed. Freshly-created
@@ -266,7 +287,7 @@ func (c *roleAssignmentsSyncer) SyncOnce(ctx context.Context, key controllerutil
 // Any previously-confirmed assignment that is no longer expected (for example after an identity
 // or name-scheme change) is retained in AzureResources, not dropped; its deletion is deferred
 // to managed identity replacement support.
-func (c *roleAssignmentsSyncer) syncRoleAssignments(ctx context.Context, cluster *coreapi.HCPOpenShiftCluster, existingServiceProviderCluster *coreapi.ServiceProviderCluster) error {
+func (c *roleAssignmentsSyncer) syncRoleAssignments(ctx context.Context, key controllerutils.HCPClusterKey, cluster *coreapi.HCPOpenShiftCluster, existingServiceProviderCluster *coreapi.ServiceProviderCluster) error {
 	expected, err := c.expectedRoleAssignments(cluster, existingServiceProviderCluster)
 	if err != nil {
 		return utils.TrackError(err)
@@ -343,8 +364,16 @@ func (c *roleAssignmentsSyncer) syncRoleAssignments(ctx context.Context, cluster
 	}
 
 	if _, persistErr := c.persistIfChanged(ctx, cluster, existingServiceProviderCluster, replacement); persistErr != nil {
-		// The pending intent could not be recorded; do not create this pass so we never create
-		// before persisting. Retry on the next resync.
+		if cosmosstorageutils.IsPreconditionFailedError(persistErr) {
+			// Optimistic-concurrency conflict: another writer updated the document, so our
+			// classified pending/confirmed state was NOT persisted and our in-memory inputs are
+			// now stale. Do NOT proceed to pass 2 (that would Create before persisting the pending
+			// intent). Re-enqueue to retry shortly with fresh inputs.
+			c.enqueueAfter.EnqueueAfter(key, roleAssignmentPreconditionRetryDelay)
+			return nil
+		}
+		// Any other persist error: do not create; return it so it retries via the normal
+		// rate-limited requeue.
 		errs = append(errs, persistErr)
 		return utils.TrackError(errors.Join(errs...))
 	}
@@ -532,19 +561,17 @@ func appendRoleAssignments(expected []roleAssignmentDefinition, scope, principal
 }
 
 // persistIfChanged replaces the ServiceProviderCluster when replacement differs from
-// existing and returns the object to use for any subsequent write (the freshly
-// persisted document on success, or existing when nothing changed). A Cosmos
-// precondition conflict is treated as success (another writer updated the document
-// first; we'll be re-enqueued and retry).
+// existing and returns the freshly persisted document (or existing when nothing changed).
+// All Replace errors are returned - including a Cosmos precondition (optimistic-concurrency)
+// failure, which MUST NOT be treated as success: when it happens the pending/confirmed state
+// was not persisted, so the caller must not proceed to create. The caller decides how to react
+// to each error (see syncRoleAssignments).
 func (c *roleAssignmentsSyncer) persistIfChanged(ctx context.Context, cluster *coreapi.HCPOpenShiftCluster, existing, replacement *coreapi.ServiceProviderCluster) (*coreapi.ServiceProviderCluster, error) {
 	if !controllerutil.NeedsUpdate(existing, replacement) {
 		return existing, nil
 	}
 
 	updated, err := c.resourcesDBClient.ServiceProviderClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName, cluster.ID.Name).Replace(ctx, replacement, nil)
-	if cosmosstorageutils.IsPreconditionFailedError(err) {
-		return existing, nil
-	}
 	if err != nil {
 		return nil, utils.TrackError(fmt.Errorf("failed to replace ServiceProviderCluster: %w", err))
 	}

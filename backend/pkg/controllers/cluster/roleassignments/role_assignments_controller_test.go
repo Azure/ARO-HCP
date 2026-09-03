@@ -34,6 +34,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v2"
 
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
@@ -43,6 +44,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/azure"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -459,6 +461,87 @@ func TestRoleAssignmentsSyncerSyncOncePersistsPendingBeforeCreate(t *testing.T) 
 	assertResourceIDSetEqual(t, expectedIDs, got.PendingAzureResources, "PendingAzureResources")
 	assertResourceIDSetEqual(t, nil, got.AzureResources, "AzureResources")
 	assert.Nil(t, got.EarliestRecheckTime, "no recheck window while work remains")
+}
+
+// fakeAfterEnqueuer records EnqueueAfter calls so tests can assert an explicit re-enqueue.
+type fakeAfterEnqueuer struct {
+	keys      []any
+	durations []time.Duration
+}
+
+func (f *fakeAfterEnqueuer) EnqueueAfter(keyObj any, duration time.Duration) {
+	f.keys = append(f.keys, keyObj)
+	f.durations = append(f.durations, duration)
+}
+
+// preconditionFailingReplaceDB wraps a ResourcesDBClient so that
+// ServiceProviderClusters(...).Replace always fails with a Cosmos precondition
+// (optimistic-concurrency) error; every other operation - including Get - delegates to the
+// wrapped client. It drives the precondition-retry path.
+type preconditionFailingReplaceDB struct {
+	corecosmosstorage.ResourcesDBClient
+}
+
+func (d preconditionFailingReplaceDB) ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName string) cosmosstorageutils.ResourceCRUD[coreapi.ServiceProviderCluster, *coreapi.ServiceProviderCluster] {
+	return preconditionFailingReplaceCRUD{ResourceCRUD: d.ResourcesDBClient.ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName)}
+}
+
+type preconditionFailingReplaceCRUD struct {
+	cosmosstorageutils.ResourceCRUD[coreapi.ServiceProviderCluster, *coreapi.ServiceProviderCluster]
+}
+
+func (preconditionFailingReplaceCRUD) Replace(context.Context, *coreapi.ServiceProviderCluster, *azcosmos.ItemOptions) (*coreapi.ServiceProviderCluster, error) {
+	return nil, corecosmosstoragetesting.NewPreconditionFailedError()
+}
+
+// TestRoleAssignmentsSyncerSyncOncePreconditionFailureReEnqueues verifies that when the pass-1
+// persist of the pending intent fails with a Cosmos precondition (optimistic-concurrency)
+// conflict, the syncer does NOT proceed to create: it re-enqueues the cluster after the
+// precondition retry delay and returns nil, so pass 2 (Create) never runs before the pending
+// intent is persisted.
+func TestRoleAssignmentsSyncerSyncOncePreconditionFailureReEnqueues(t *testing.T) {
+	t.Parallel()
+
+	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+	expectedIDs := testExpectedRoleAssignmentIDs(t)
+
+	cluster := newTestCluster(false)
+	// Empty tracked state so pass 1 classifies both expected assignments as missing and the
+	// persist is a real change (which the wrapper then fails with a precondition error).
+	serviceProviderCluster := newTestServiceProviderCluster(t, true, true, true, coreapi.AzureMultiReference{})
+
+	mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, serviceProviderCluster})
+	require.NoError(t, err)
+
+	ctrl := gomock.NewController(t)
+	mockRAClient := azureclient.NewMockRoleAssignmentsClient(ctrl)
+	// Pass 1 classifies via GetByID (both missing); pass 2 must NOT run, so Create is forbidden.
+	mockRAClient.EXPECT().
+		GetByID(gomock.Any(), gomock.Any(), nil).
+		Return(armauthorization.RoleAssignmentsClientGetByIDResponse{}, roleAssignmentNotFoundError()).
+		Times(len(expectedIDs))
+	mockRAClient.EXPECT().
+		Create(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Times(0)
+	fpaClientBuilder := azureclient.NewMockFirstPartyApplicationClientBuilder(ctrl)
+	fpaClientBuilder.EXPECT().
+		RoleAssignmentsClient(testTenantID, testSubscriptionID).
+		Return(mockRAClient, nil).
+		Times(1)
+
+	// Wrap the DB so the pass-1 persist (Replace) fails with a precondition error.
+	enqueuer := &fakeAfterEnqueuer{}
+	syncer := newTestSyncer(preconditionFailingReplaceDB{ResourcesDBClient: mockResourcesDB}, fpaClientBuilder)
+	syncer.enqueueAfter = enqueuer
+
+	// (a) SyncOnce returns nil, (b) no Create ran (asserted by gomock Times(0)).
+	require.NoError(t, syncer.SyncOnce(ctx, testHCPClusterKey))
+
+	// (c) the cluster was re-enqueued once, with the precondition retry delay.
+	require.Len(t, enqueuer.keys, 1, "expected exactly one EnqueueAfter call")
+	assert.Equal(t, testHCPClusterKey, enqueuer.keys[0], "re-enqueued key must be the cluster key")
+	require.Len(t, enqueuer.durations, 1)
+	assert.Equal(t, roleAssignmentPreconditionRetryDelay, enqueuer.durations[0], "re-enqueue delay must be the precondition retry delay")
 }
 
 // TestRoleAssignmentsSyncerSyncOnceCreateErrorStaysPending verifies that when creating a
