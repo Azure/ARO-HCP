@@ -23,18 +23,19 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	hcpsdk20251223preview "github.com/Azure/ARO-HCP/test/sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
 )
 
-var _ = Describe("Create HCPOpenShiftCluster with Private KeyVault", func() {
+var _ = Describe("Create HCPOpenShiftCluster with Public KeyVault and CPO override", func() {
 	BeforeEach(func() {
 		// do nothing. per test initialization usually ages better than shared.
 	})
 
-	It("should create a cluster with private keyvault using v20251223preview API",
+	It("should create a cluster with public keyvault and CPO override using v20251223preview API",
 		labels.RequireNothing,
 		labels.Critical,
 		labels.Positive,
@@ -42,7 +43,7 @@ var _ = Describe("Create HCPOpenShiftCluster with Private KeyVault", func() {
 		labels.CreateCluster,
 		labels.MIContainers(1),
 		func(ctx context.Context) {
-			const customerClusterName = "private-kv-cluster"
+			const customerClusterName = "public-kv-cluster"
 
 			tc := framework.NewTestContext()
 
@@ -52,27 +53,33 @@ var _ = Describe("Create HCPOpenShiftCluster with Private KeyVault", func() {
 			}
 
 			By("creating a resource group")
-			resourceGroup, err := tc.NewResourceGroup(ctx, "private-keyvault", tc.Location())
-			Expect(err).NotTo(HaveOccurred(), "failed to create resource group for private keyvault test")
+			resourceGroup, err := tc.NewResourceGroup(ctx, "public-keyvault", tc.Location())
+			Expect(err).NotTo(HaveOccurred(), "failed to create resource group for public keyvault test")
 
 			By("creating cluster parameters")
 			clusterParams := framework.NewDefaultClusterParams20251223()
 			clusterParams.ClusterName = customerClusterName
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			clusterParams.ManagedResourceGroupName = managedResourceGroupName
-			clusterParams.KeyVaultVisibility = "Private"
+			clusterParams.KeyVaultVisibility = "Public"
+			// The CPO image override is built for a specific OpenShift minor, so the
+			// cluster version must be pinned to match it (otherwise the override CPO
+			// cannot parse a newer release payload and the control plane never comes up).
+			clusterParams.OpenshiftVersionId = "4.20"
+			clusterParams.ChannelGroup = "candidate"
+			clusterParams.Tags[metadataapi.TagClusterCPOImageOverride] = to.Ptr(cpoOverrideImage)
 
 			By("creating customer resources (infrastructure and managed identities)")
 			clusterParams, err = tc.CreateClusterCustomerResources20251223(ctx,
 				resourceGroup,
 				clusterParams,
 				map[string]interface{}{
-					"privateKeyVault": true,
+					"privateKeyVault": false,
 				},
 				TestArtifactsFS,
 				framework.RBACScopeResourceGroup,
 			)
-			Expect(err).NotTo(HaveOccurred(), "failed to create customer resources with private key vault")
+			Expect(err).NotTo(HaveOccurred(), "failed to create customer resources with public key vault")
 
 			By("creating the HCP cluster")
 			clusterResource, err := framework.BuildHCPClusterFromParams20251223(clusterParams, tc.Location(), nil)
@@ -83,7 +90,7 @@ var _ = Describe("Create HCPOpenShiftCluster with Private KeyVault", func() {
 				clusterResource.Properties.Etcd.DataEncryption != nil &&
 				clusterResource.Properties.Etcd.DataEncryption.CustomerManaged != nil &&
 				clusterResource.Properties.Etcd.DataEncryption.CustomerManaged.Kms != nil {
-				clusterResource.Properties.Etcd.DataEncryption.CustomerManaged.Kms.Visibility = to.Ptr(hcpsdk20251223preview.KeyVaultVisibilityPrivate)
+				clusterResource.Properties.Etcd.DataEncryption.CustomerManaged.Kms.Visibility = to.Ptr(hcpsdk20251223preview.KeyVaultVisibilityPublic)
 			}
 
 			_, err = framework.CreateHCPClusterAndWait20251223(
@@ -95,9 +102,9 @@ var _ = Describe("Create HCPOpenShiftCluster with Private KeyVault", func() {
 				clusterResource,
 				framework.ClusterCreationTimeout,
 			)
-			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %q with private keyvault", customerClusterName)
+			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %q with public keyvault", customerClusterName)
 
-			By("verifying cluster was created with private keyvault visibility")
+			By("verifying cluster was created with public keyvault visibility")
 			clientFactory := tc.Get20251223ClientFactoryOrDie(ctx)
 			cluster, err := clientFactory.NewHcpOpenShiftClustersClient().Get(
 				ctx,
@@ -105,7 +112,7 @@ var _ = Describe("Create HCPOpenShiftCluster with Private KeyVault", func() {
 				customerClusterName,
 				nil,
 			)
-			Expect(err).ToNot(HaveOccurred(), "failed to get cluster %q to verify private keyvault visibility", customerClusterName)
+			Expect(err).ToNot(HaveOccurred(), "failed to get cluster %q to verify public keyvault visibility", customerClusterName)
 			Expect(cluster.Properties).ToNot(BeNil(), "cluster %q Properties was nil", customerClusterName)
 			Expect(cluster.Properties.Etcd).ToNot(BeNil(), "cluster %q Properties.Etcd was nil", customerClusterName)
 			Expect(cluster.Properties.Etcd.DataEncryption).ToNot(BeNil(), "cluster %q Properties.Etcd.DataEncryption was nil", customerClusterName)
@@ -113,20 +120,23 @@ var _ = Describe("Create HCPOpenShiftCluster with Private KeyVault", func() {
 			Expect(cluster.Properties.Etcd.DataEncryption.CustomerManaged.Kms).ToNot(BeNil(), "cluster %q Properties.Etcd.DataEncryption.CustomerManaged.Kms was nil", customerClusterName)
 
 			Expect(cluster.Properties.Etcd.DataEncryption.CustomerManaged.Kms.Visibility).ToNot(BeNil(), "cluster %q Visibility field was nil", customerClusterName)
-			Expect(*cluster.Properties.Etcd.DataEncryption.CustomerManaged.Kms.Visibility).To(Equal(hcpsdk20251223preview.KeyVaultVisibilityPrivate), "cluster etcd encryption key vault visibility should be Private")
+			Expect(*cluster.Properties.Etcd.DataEncryption.CustomerManaged.Kms.Visibility).To(Equal(hcpsdk20251223preview.KeyVaultVisibilityPublic), "cluster etcd encryption key vault visibility should be Public")
 
-			GinkgoLogr.Info("Cluster created successfully with private keyvault",
+			GinkgoLogr.Info("Cluster created successfully with public keyvault",
 				"clusterName", customerClusterName,
 				"keyVaultName", clusterParams.KeyVaultName,
 				"keyVaultVisibility", *cluster.Properties.Etcd.DataEncryption.CustomerManaged.Kms.Visibility)
 
 			By("creating the node pool")
-			nodePoolParams := framework.NewDefaultNodePoolParams20240610()
+			nodePoolParams := framework.NewDefaultNodePoolParams20251223()
 			nodePoolParams.ClusterName = customerClusterName
 			nodePoolParams.NodePoolName = "np-1"
 			nodePoolParams.Replicas = int32(2)
+			// Pin the node pool to a concrete 4.20 patch to match the pinned control plane version.
+			nodePoolParams.OpenshiftVersionId = "4.20.15"
+			nodePoolParams.ChannelGroup = "candidate"
 
-			err = tc.CreateNodePoolFromParam20240610(ctx,
+			err = tc.CreateNodePoolFromParam20251223(ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
 				managedResourceGroupName,
@@ -134,9 +144,9 @@ var _ = Describe("Create HCPOpenShiftCluster with Private KeyVault", func() {
 				nodePoolParams,
 				framework.NodePoolCreationTimeout,
 			)
-			Expect(err).NotTo(HaveOccurred(), "failed to create node pool %q for private keyvault cluster %q", nodePoolParams.NodePoolName, customerClusterName)
+			Expect(err).NotTo(HaveOccurred(), "failed to create node pool %q for public keyvault cluster %q", nodePoolParams.NodePoolName, customerClusterName)
 
-			GinkgoLogr.Info("Nodepool created successfully for private keyvault cluster",
+			GinkgoLogr.Info("Nodepool created successfully for public keyvault cluster",
 				"clusterName", customerClusterName,
 				"nodePoolName", nodePoolParams.NodePoolName)
 
@@ -148,7 +158,7 @@ var _ = Describe("Create HCPOpenShiftCluster with Private KeyVault", func() {
 				customerClusterName,
 				framework.GetAdminRESTConfigTimeout,
 			)
-			Expect(err).NotTo(HaveOccurred(), "failed to get admin REST config for private keyvault cluster %q", customerClusterName)
+			Expect(err).NotTo(HaveOccurred(), "failed to get admin REST config for public keyvault cluster %q", customerClusterName)
 
 			By("verifying the cluster is viable and pod logs can be fetched")
 			logVerifier := verifiers.VerifyGetDeploymentLogs("openshift-ingress", "router-default", "router")

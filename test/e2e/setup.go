@@ -16,6 +16,7 @@ package e2e
 
 import (
 	"context"
+	"embed"
 	"fmt"
 	"os"
 	"strings"
@@ -26,6 +27,11 @@ import (
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/log"
 )
+
+const cpoOverrideImage = "arohcpocpdev.azurecr.io/control-plane-operator@sha256:c4f30518dabd27fe43465c5b43889c579865dd36b703686cf13ad448d2dc3a4d"
+
+//go:embed test-artifacts
+var TestArtifactsFS embed.FS
 
 var (
 	e2eSetup integration.SetupModel
