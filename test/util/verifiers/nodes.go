@@ -245,7 +245,6 @@ func summarizeNodes(nodes []corev1.Node) []nodeSummary {
 	return summaries
 }
 
-
 func (v verifyNodePoolUpgrade) Name() string {
 	return fmt.Sprintf("VerifyNodePoolUpgrade(expected=%s, nodePool=%s)", v.expectedVersion, v.nodePoolName)
 }
