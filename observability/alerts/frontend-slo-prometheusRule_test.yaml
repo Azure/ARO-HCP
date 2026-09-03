@@ -255,8 +255,20 @@ tests:
         slo: frontend-traffic
       exp_annotations:
         summary: "svc-1: Frontend HTTP traffic collapsed below 10% of 1d baseline"
-        description: "Frontend request rate on cluster svc-1 is below 10% of its 1-day average for 15m while the baseline exceeded 0.5 RPS and pods are still Ready (traffic drought, not a replica outage)."
+        description: "Frontend request rate on cluster svc-1 is below 10% of its 1-day average for 15m while the 1d baseline exceeded 0.5 RPS (fleet-wide noise floor) and pods are still Ready (traffic drought, not a replica outage)."
         runbook_url: "https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/user-journey/frontend"
+- interval: 5m
+  # Baseline 0.3 RPS is under the 0.5 RPS noise floor, then a 90% drop.
+  # Must not fire even though the relative collapse matches the 10% rule.
+  input_series:
+  - series: 'traffic:frontend_http:request_rate:rate5m{cluster="svc-1"}'
+    values: "0.3x288 0.02x13"
+  - series: 'sli:frontend:ready:ratio5m{cluster="svc-1"}'
+    values: "1x301"
+  alert_rule_test:
+  - eval_time: 25h
+    alertname: userJourneyFrontendTrafficDrop
+    exp_alerts: []
 - interval: 1m
   # Replica outage — ready=0 pages; HTTP drought path does not apply.
 

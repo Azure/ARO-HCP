@@ -222,6 +222,11 @@ spec:
         summary: "{{ $labels.cluster }}: Frontend has no Ready replicas (kube /healthz)"
         description: "aro-hcp-frontend on cluster {{ $labels.cluster }} has 0 available replicas (kube readiness probes hit /healthz). This is a process outage, not an ARM traffic drought."
         runbook_url: "https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/user-journey/frontend"
+  # Traffic drought is Sev 4 (ticket). The 0.5 RPS 1d-baseline floor is a
+  # fleet-wide noise gate, not an SLO: 10% of 0.5 RPS is 0.05 RPS (~3 rpm),
+  # below which a 90% drop is scrape noise / idle INT, not a customer-visible
+  # ARM collapse. Replica death is userJourneyFrontendReady (Sev 3).
+  # One RP bicep is generated for all clouds, so the floor is not per-env.
   - name: arohcp_frontend_slo_traffic_alerts
     labels:
       component: slo
@@ -242,7 +247,7 @@ spec:
         slo: frontend-traffic
       annotations:
         summary: "{{ $labels.cluster }}: Frontend HTTP traffic collapsed below 10% of 1d baseline"
-        description: "Frontend request rate on cluster {{ $labels.cluster }} is below 10% of its 1-day average for 15m while the baseline exceeded 0.5 RPS and pods are still Ready (traffic drought, not a replica outage)."
+        description: "Frontend request rate on cluster {{ $labels.cluster }} is below 10% of its 1-day average for 15m while the 1d baseline exceeded 0.5 RPS (fleet-wide noise floor) and pods are still Ready (traffic drought, not a replica outage)."
         runbook_url: "https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/user-journey/frontend"
   - name: arohcp_frontend_slo_saturation_alerts
     labels:
