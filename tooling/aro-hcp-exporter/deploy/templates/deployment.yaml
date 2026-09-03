@@ -39,6 +39,11 @@ spec:
         - --kusto-cluster={{ .Values.kustoCluster }}
         - --kusto-region={{ .Values.kustoRegion | replace " " "" | lower }}
 {{- end }}
+{{- if contains "keyvault-certificates" .Values.enabledCollectors }}
+        - --keyvault-name={{ .Values.keyvaultName }}
+        - --keyvault-dns-suffix={{ .Values.keyvaultDNSSuffix }}
+        - --certificate-names={{ join "," .Values.certificateNames }}
+{{- end }}
         ports:
         - name: metrics
           containerPort: 8080

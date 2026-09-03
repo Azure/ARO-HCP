@@ -213,7 +213,7 @@ defaults:
   # ARO HCP Metrics Exporter
   customExporter:
     managedIdentityName: "aro-hcp-exporter"
-    enabledCollectors: "service-tag-usage,kusto-logs-current"
+    enabledCollectors: "service-tag-usage,kusto-logs-current,keyvault-certificates"
     clusterTypes: "svc-cluster,mgmt-cluster"
     clusterNameFilter: ""
     k8s:

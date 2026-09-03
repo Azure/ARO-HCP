@@ -230,7 +230,7 @@ clustersServiceArmHelperClientId: 3331e670-0804-48e8-a086-6241671ddc93
 customExporter:
   clusterNameFilter: ci01-j7654321
   clusterTypes: svc-cluster,mgmt-cluster
-  enabledCollectors: service-tag-usage,kusto-logs-current
+  enabledCollectors: service-tag-usage,kusto-logs-current,keyvault-certificates
   image:
     digest: sha256:335a5217890f8137c8bce97c212762dcf584ffb8d5c193499880dcbb4acd4673
     registry: arohcpsvcdev.azurecr.io
