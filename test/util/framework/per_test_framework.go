@@ -1346,6 +1346,7 @@ func (tc *perItOrDescribeTestContext) commitTimingMetadata(ctx context.Context) 
 		tc.recordDeploymentOperationsUnlocked(resourceGroupName, deploymentName, operations)
 	}
 
+	tc.timingMetadata.SubscriptionID = subscriptionID
 	tc.timingMetadata.FinishedAt = time.Now().Format(time.RFC3339)
 	encoded, err := yaml.Marshal(tc.timingMetadata)
 	if err != nil {

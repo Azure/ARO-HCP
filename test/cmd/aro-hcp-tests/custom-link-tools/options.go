@@ -435,10 +435,16 @@ func getPerTestMustGatherCommands(timingInfo map[string]timing.TimingInfo, subsc
 			continue
 		}
 		rg := ti.ResourceGroupNames[0]
+		// Prefer the subscription the test actually ran in; fall back to the global
+		// flag when the timing metadata predates per-test subscription capture.
+		testSubscriptionID := ti.SubscriptionID
+		if testSubscriptionID == "" {
+			testSubscriptionID = subscriptionID
+		}
 		cmd := fmt.Sprintf(`hcpctl must-gather query --kusto %s --region %s --timestamp-min '%s' --timestamp-max '%s' --resource-group %s --subscription-id %s`,
 			kusto.KustoName, kusto.KustoRegion,
 			ti.StartTime.Format(time.DateTime), ti.EndTime.Format(time.DateTime),
-			rg, subscriptionID)
+			rg, testSubscriptionID)
 		rows = append(rows, TestCommandRow{
 			TestName: testName,
 			Command:  cmd,
