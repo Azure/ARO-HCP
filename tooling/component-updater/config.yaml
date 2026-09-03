@@ -1,0 +1,28 @@
+components:
+  grafana:
+    provider: azure-grafana
+    locations: [westus3, eastus2, uksouth]
+    targets:
+    - jsonPath: clouds.dev.defaults.monitoring.grafanaMajorVersion
+      filePath: ../../config/config.yaml
+    bumpStrategy: increment
+
+  aks-kubernetes:
+    provider: azure-aks
+    locations: [westus3, eastus2, uksouth]
+    targets:
+    - jsonPath: defaults.svc.aks.kubernetesVersion
+      filePath: ../../config/config.yaml
+    - jsonPath: defaults.mgmt.aks.kubernetesVersion
+      filePath: ../../config/config.yaml
+    bumpStrategy: increment
+
+  istio-mesh-revision:
+    provider: azure-istio
+    locations: [westus3, eastus2, uksouth]
+    targets:
+    - jsonPath: defaults.svc.istio.versions
+      filePath: ../../config/config.yaml
+    - jsonPath: defaults.svc.istio.targetVersion
+      filePath: ../../config/config.yaml
+    bumpStrategy: increment

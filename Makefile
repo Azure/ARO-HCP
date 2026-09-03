@@ -644,3 +644,12 @@ cleanup: $(TEMPLATIZE)
 image-updater:
 	@$(MAKE) -C tooling/image-updater update
 .PHONY: image-updater
+
+# Component Updater
+component-updater-check:
+	@$(MAKE) -C tooling/component-updater check
+.PHONY: component-updater-check
+
+component-updater-update:
+	@$(MAKE) -C tooling/component-updater update
+.PHONY: component-updater-update
