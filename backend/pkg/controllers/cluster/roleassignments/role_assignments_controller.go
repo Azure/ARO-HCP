@@ -364,20 +364,27 @@ func (c *roleAssignmentsSyncer) syncRoleAssignments(ctx context.Context, key con
 		roleAssignments.EarliestRecheckTime = nil
 	}
 
-	if _, persistErr := c.persistIfChanged(ctx, cluster, existingServiceProviderCluster, replacement); persistErr != nil {
-		if cosmosstorageutils.IsPreconditionFailedError(persistErr) {
-			// Optimistic-concurrency conflict: another writer updated the document, so our
-			// classified pending/confirmed state was NOT persisted and our in-memory inputs are
-			// now stale. Do NOT proceed to pass 2 (that would Create before persisting the pending
-			// intent). Re-enqueue to retry shortly with fresh inputs.
-			c.enqueueAfter.EnqueueAfter(key, roleAssignmentPreconditionRetryDelay)
-			return nil
+	// Persist the classified pending/confirmed state BEFORE any Azure Create, but only when it
+	// actually changed, so an unchanged SET does not trigger a redundant Cosmos write. A Cosmos
+	// precondition (optimistic-concurrency) failure MUST NOT be treated as success: the state was
+	// not persisted, so we must not proceed to create.
+	if controllerutil.NeedsUpdate(existingServiceProviderCluster, replacement) {
+		_, persistErr := c.resourcesDBClient.ServiceProviderClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName, cluster.ID.Name).Replace(ctx, replacement, nil)
+		if persistErr != nil {
+			if cosmosstorageutils.IsPreconditionFailedError(persistErr) {
+				// Optimistic-concurrency conflict: another writer updated the document, so our
+				// classified pending/confirmed state was NOT persisted and our in-memory inputs are
+				// now stale. Do NOT proceed to pass 2 (that would Create before persisting the pending
+				// intent). Re-enqueue to retry shortly with fresh inputs.
+				c.enqueueAfter.EnqueueAfter(key, roleAssignmentPreconditionRetryDelay)
+				return nil
+			}
+			// Any other persist error: do not create; return it so it retries via the normal
+			// rate-limited requeue. Each collected error is wrapped where it is appended, so the
+			// join is not re-wrapped.
+			errs = append(errs, utils.TrackError(fmt.Errorf("failed to replace ServiceProviderCluster: %w", persistErr)))
+			return errors.Join(errs...)
 		}
-		// Any other persist error: do not create; return it so it retries via the normal
-		// rate-limited requeue. persistErr is already wrapped by persistIfChanged, and every
-		// other collected error is wrapped where it is appended, so the join is not re-wrapped.
-		errs = append(errs, persistErr)
-		return errors.Join(errs...)
 	}
 
 	// Pass 2: create the queued missing role assignments, now that the pending intent is
@@ -471,6 +478,17 @@ func (c *roleAssignmentsSyncer) expectedRoleAssignments(cluster *coreapi.HCPOpen
 		}
 	}
 
+	// The operator maps above iterate in a non-deterministic order, so sort the expected
+	// assignments by their canonical (case-insensitive, matching ResourceIDsEqual) resource ID.
+	// This keeps the persisted PendingAzureResources / AzureResources ordering stable across
+	// passes, so an unchanged SET does not look changed to the slice-order-sensitive
+	// controllerutil.NeedsUpdate - which would otherwise cause redundant Cosmos writes (and
+	// spurious optimistic-concurrency conflicts). The de-dup in appendRoleAssignments guarantees
+	// the sort key is unique, so the ordering is total and deterministic.
+	slices.SortFunc(expected, func(a, b roleAssignmentDefinition) int {
+		return strings.Compare(strings.ToLower(a.resourceID.String()), strings.ToLower(b.resourceID.String()))
+	})
+
 	return expected, nil
 }
 
@@ -562,24 +580,6 @@ func appendRoleAssignments(expected []roleAssignmentDefinition, scope, principal
 		})
 	}
 	return expected, nil
-}
-
-// persistIfChanged replaces the ServiceProviderCluster when replacement differs from
-// existing and returns the freshly persisted document (or existing when nothing changed).
-// All Replace errors are returned - including a Cosmos precondition (optimistic-concurrency)
-// failure, which MUST NOT be treated as success: when it happens the pending/confirmed state
-// was not persisted, so the caller must not proceed to create. The caller decides how to react
-// to each error (see syncRoleAssignments).
-func (c *roleAssignmentsSyncer) persistIfChanged(ctx context.Context, cluster *coreapi.HCPOpenShiftCluster, existing, replacement *coreapi.ServiceProviderCluster) (*coreapi.ServiceProviderCluster, error) {
-	if !controllerutil.NeedsUpdate(existing, replacement) {
-		return existing, nil
-	}
-
-	updated, err := c.resourcesDBClient.ServiceProviderClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName, cluster.ID.Name).Replace(ctx, replacement, nil)
-	if err != nil {
-		return nil, utils.TrackError(fmt.Errorf("failed to replace ServiceProviderCluster: %w", err))
-	}
-	return updated, nil
 }
 
 // roleAssignmentsClient builds an FPA-credentialed Azure RoleAssignments client for
