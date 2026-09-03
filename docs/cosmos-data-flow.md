@@ -1057,11 +1057,11 @@ Keyed validations (implementing `InputKeyedClusterValidation`): `ContainerRegist
 
 | | Object | Fields |
 |---|--------|--------|
-| Read | `ServiceProviderCluster` | <ul><li>`Status.Validations[<name>]` (shouldProcess: condition must not be True; keyed validations also re-run when `InputKey(cluster) != condition.Message`)</li></ul> |
+| Read | `ServiceProviderCluster` | <ul><li>`Status.Validations[<name>]` (shouldProcess: condition must not be True; keyed validations also re-run when `InputKey(cluster) != Status.ValidationInputKeys[<name>]`)</li><li>`Status.ValidationInputKeys[<name>]` (keyed validations: stored input key for change detection)</li></ul> |
 | Read | `ServiceProviderNodePool` | <ul><li>`Status.Validations[<name>]` (shouldProcess: condition must not be True)</li></ul> |
 | Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (SyncOnce: must be nil)</li><li>`CustomerProperties.Platform.ContainerRegistry.PullManagedIdentity` (keyed-validation input for `ContainerRegistryPullCredentialsPermissionValidation`; also the validated resource — CAPZ `assign/action` permission is checked against it via CheckAccess V2)</li><li>`CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators` (CAPZ identity)</li><li>`CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity`</li></ul> |
 | Read | `HCPOpenShiftClusterNodePool` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (SyncOnce: must be nil)</li></ul> |
-| **Write** | **`ServiceProviderCluster`** | <ul><li>**`Status.Validations[<name>]`** = condition (True/False). For keyed validations the success condition `Message` holds the input key (e.g. the pull MI resource ID), not a human-readable string.</li></ul> |
+| **Write** | **`ServiceProviderCluster`** | <ul><li>**`Status.Validations[<name>]`** = condition (True/False) with human-readable `Message`.</li><li>**`Status.ValidationInputKeys[<name>]`** = input key on success (e.g. pull MI resource ID); used by shouldProcess to detect day-2 input changes.</li></ul> |
 | **Write** | **`ServiceProviderNodePool`** | <ul><li>**`Status.Validations[<name>]`** = condition (True/False)</li></ul> |
 
 #### DegradedAggregators (Cluster / NodePool / ExternalAuth)
