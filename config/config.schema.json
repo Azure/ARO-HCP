@@ -1661,6 +1661,25 @@
             "stampIdentifier",
             "autoApproveStamps"
           ]
+        },
+        "nodePoolProvisioning": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Configuration for the nodepool desired state controller.",
+          "properties": {
+            "profile": {
+              "type": "string",
+              "enum": ["", "ci", "development", "production"],
+              "description": "Nodepool tier profile. Empty means disabled. Tier definitions (VM cores, disk sizes, nodes per zone, family priorities) are defined in code."
+            },
+            "zones": {
+              "type": "string",
+              "description": "Comma-separated availability zone override for nodepools, e.g. 1,3. Each entry must be a unique zone within the region's availability zones (1..azureRegionAvailabilityZoneCount). If empty, all of the region's zones are used."
+            }
+          },
+          "required": [
+            "profile"
+          ]
         }
       },
       "additionalProperties": false,
@@ -1668,7 +1687,8 @@
         "image",
         "managedIdentityName",
         "k8s",
-        "registration"
+        "registration",
+        "nodePoolProvisioning"
       ]
     },
     "adminApi": {

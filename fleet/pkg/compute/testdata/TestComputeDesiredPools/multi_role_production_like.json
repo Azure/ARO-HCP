@@ -1,0 +1,231 @@
+{
+  "fullyAllocated": false,
+  "pools": [
+    {
+      "role": "system",
+      "name": "sys01876fc",
+      "spec": {
+        "size": "Standard_E8ds_v6",
+        "family": "standardEDSv6Family",
+        "vcpus": 8,
+        "memoryGiB": 64,
+        "secondaryNICs": 3
+      },
+      "zones": null,
+      "maxCount": 3,
+      "initialMinCount": 1,
+      "osDiskSizeGB": 128,
+      "maxPods": 100,
+      "labels": {
+        "aro-hcp.azure.com/role": "system"
+      },
+      "taints": [
+        "CriticalAddonsOnly=true:NoSchedule"
+      ]
+    },
+    {
+      "role": "infra",
+      "name": "inf17dc270",
+      "spec": {
+        "size": "Standard_E32ds_v6",
+        "family": "standardEDSv6Family",
+        "vcpus": 32,
+        "memoryGiB": 256,
+        "secondaryNICs": 7
+      },
+      "zones": [
+        "1"
+      ],
+      "maxCount": 1,
+      "initialMinCount": 1,
+      "osDiskSizeGB": 128,
+      "maxPods": 225,
+      "labels": {
+        "aro-hcp.azure.com/role": "infra"
+      },
+      "taints": [
+        "infra=true:NoSchedule"
+      ]
+    },
+    {
+      "role": "infra",
+      "name": "inf27dc270",
+      "spec": {
+        "size": "Standard_E32ds_v6",
+        "family": "standardEDSv6Family",
+        "vcpus": 32,
+        "memoryGiB": 256,
+        "secondaryNICs": 7
+      },
+      "zones": [
+        "2"
+      ],
+      "maxCount": 1,
+      "initialMinCount": 1,
+      "osDiskSizeGB": 128,
+      "maxPods": 225,
+      "labels": {
+        "aro-hcp.azure.com/role": "infra"
+      },
+      "taints": [
+        "infra=true:NoSchedule"
+      ]
+    },
+    {
+      "role": "infra",
+      "name": "inf37dc270",
+      "spec": {
+        "size": "Standard_E32ds_v6",
+        "family": "standardEDSv6Family",
+        "vcpus": 32,
+        "memoryGiB": 256,
+        "secondaryNICs": 7
+      },
+      "zones": [
+        "3"
+      ],
+      "maxCount": 1,
+      "initialMinCount": 1,
+      "osDiskSizeGB": 128,
+      "maxPods": 225,
+      "labels": {
+        "aro-hcp.azure.com/role": "infra"
+      },
+      "taints": [
+        "infra=true:NoSchedule"
+      ]
+    },
+    {
+      "role": "worker",
+      "name": "wrk161c5e393",
+      "spec": {
+        "size": "Standard_E16ds_v6",
+        "family": "standardEDSv6Family",
+        "vcpus": 16,
+        "memoryGiB": 128,
+        "secondaryNICs": 7
+      },
+      "zones": [
+        "1"
+      ],
+      "maxCount": 2,
+      "initialMinCount": 1,
+      "osDiskSizeGB": 256,
+      "maxPods": 225,
+      "labels": {
+        "aro-hcp.azure.com/role": "worker"
+      },
+      "enableSwift": true
+    },
+    {
+      "role": "worker",
+      "name": "wrk162c5e393",
+      "spec": {
+        "size": "Standard_E16ds_v6",
+        "family": "standardEDSv6Family",
+        "vcpus": 16,
+        "memoryGiB": 128,
+        "secondaryNICs": 7
+      },
+      "zones": [
+        "2"
+      ],
+      "maxCount": 2,
+      "initialMinCount": 1,
+      "osDiskSizeGB": 256,
+      "maxPods": 225,
+      "labels": {
+        "aro-hcp.azure.com/role": "worker"
+      },
+      "enableSwift": true
+    },
+    {
+      "role": "worker",
+      "name": "wrk163c5e393",
+      "spec": {
+        "size": "Standard_E16ds_v6",
+        "family": "standardEDSv6Family",
+        "vcpus": 16,
+        "memoryGiB": 128,
+        "secondaryNICs": 7
+      },
+      "zones": [
+        "3"
+      ],
+      "maxCount": 2,
+      "initialMinCount": 1,
+      "osDiskSizeGB": 256,
+      "maxPods": 225,
+      "labels": {
+        "aro-hcp.azure.com/role": "worker"
+      },
+      "enableSwift": true
+    },
+    {
+      "role": "worker",
+      "name": "wrk3218bc26f",
+      "spec": {
+        "size": "Standard_E32ds_v6",
+        "family": "standardEDSv6Family",
+        "vcpus": 32,
+        "memoryGiB": 256,
+        "secondaryNICs": 7
+      },
+      "zones": [
+        "1"
+      ],
+      "maxCount": 7,
+      "initialMinCount": 1,
+      "osDiskSizeGB": 512,
+      "maxPods": 225,
+      "labels": {
+        "aro-hcp.azure.com/role": "worker"
+      },
+      "enableSwift": true
+    },
+    {
+      "role": "worker",
+      "name": "wrk3228bc26f",
+      "spec": {
+        "size": "Standard_E32ds_v6",
+        "family": "standardEDSv6Family",
+        "vcpus": 32,
+        "memoryGiB": 256,
+        "secondaryNICs": 7
+      },
+      "zones": [
+        "2"
+      ],
+      "maxCount": 7,
+      "initialMinCount": 1,
+      "osDiskSizeGB": 512,
+      "maxPods": 225,
+      "labels": {
+        "aro-hcp.azure.com/role": "worker"
+      },
+      "enableSwift": true
+    },
+    {
+      "role": "worker",
+      "name": "wrk3238bc26f",
+      "spec": {
+        "size": "Standard_E32ds_v6",
+        "family": "standardEDSv6Family",
+        "vcpus": 32,
+        "memoryGiB": 256,
+        "secondaryNICs": 7
+      },
+      "zones": [
+        "3"
+      ],
+      "maxCount": 7,
+      "initialMinCount": 1,
+      "osDiskSizeGB": 512,
+      "maxPods": 225,
+      "labels": {
+        "aro-hcp.azure.com/role": "worker"
+      },
+      "enableSwift": true
+    }
+  ]
+}

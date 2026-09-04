@@ -1,44 +1,9 @@
 using '../templates/mgmt-cluster.bicep'
 
 // AKS
-param kubernetesVersion = '{{ .mgmt.aks.kubernetesVersion }}'
-param vnetAddressPrefix = '{{ .mgmt.aks.vnetAddressPrefix }}'
-param subnetPrefix = '{{ .mgmt.aks.subnetPrefix }}'
-param podSubnetPrefix = '{{ .mgmt.aks.podSubnetPrefix }}'
 param aksClusterName = '{{ .mgmt.aks.name }}'
-param aksKeyVaultName = '{{ .mgmt.aks.etcd.name }}'
-param aksKeyVaultTagName = '{{ .mgmt.aks.etcd.tagKey }}'
-param aksKeyVaultTagValue = '{{ .mgmt.aks.etcd.tagValue }}'
-param aksEtcdKVEnableSoftDelete = {{ .mgmt.aks.etcd.softDelete }}
-param systemAgentPoolName = '{{ .mgmt.aks.systemAgentPool.name }}'
-param systemAgentMinCount = {{ .mgmt.aks.systemAgentPool.minCount}}
-param systemAgentMaxCount = {{ .mgmt.aks.systemAgentPool.maxCount }}
-param systemAgentVMSize = '{{ .mgmt.aks.systemAgentPool.vmSize }}'
-param systemAgentPoolZones = '{{ .mgmt.aks.systemAgentPool.zones }}'
-param systemOsDiskSizeGB = {{ .mgmt.aks.systemAgentPool.osDiskSizeGB }}
-param systemZoneRedundantMode = '{{ .mgmt.aks.systemAgentPool.zoneRedundantMode }}'
-param userAgentPoolName = '{{ .mgmt.aks.userAgentPool.name }}'
-param userAgentMinCount = {{ .mgmt.aks.userAgentPool.minCount }}
-param userAgentMaxCount = {{ .mgmt.aks.userAgentPool.maxCount }}
-param userAgentVMSize = '{{ .mgmt.aks.userAgentPool.vmSize }}'
-param userAgentPoolCount = {{ .mgmt.aks.userAgentPool.poolCount }}
-param userOsDiskSizeGB = {{ .mgmt.aks.userAgentPool.osDiskSizeGB }}
-param userAgentPoolZones = '{{ .mgmt.aks.userAgentPool.zones }}'
-param userZoneRedundantMode = '{{ .mgmt.aks.userAgentPool.zoneRedundantMode }}'
-param userSecondaryNicCount = {{ .mgmt.aks.userAgentPool.secondaryNicCount }}
-param infraAgentPoolName = '{{ .mgmt.aks.infraAgentPool.name }}'
-param infraAgentMinCount = {{ .mgmt.aks.infraAgentPool.minCount }}
-param infraAgentMaxCount = {{ .mgmt.aks.infraAgentPool.maxCount }}
-param infraAgentVMSize = '{{ .mgmt.aks.infraAgentPool.vmSize }}'
-param infraAgentPoolCount = {{ .mgmt.aks.infraAgentPool.poolCount }}
-param infraAgentPoolZones = '{{ .mgmt.aks.infraAgentPool.zones }}'
-param infraOsDiskSizeGB = {{ .mgmt.aks.infraAgentPool.osDiskSizeGB }}
-param infraZoneRedundantMode = '{{ .mgmt.aks.infraAgentPool.zoneRedundantMode }}'
-param aksClusterOutboundIPAddressIPTags = '{{ .mgmt.aks.clusterOutboundIPAddressIPTags }}'
-param aksNetworkDataplane = '{{ .mgmt.aks.networkDataplane }}'
-param aksNetworkPolicy = '{{ .mgmt.aks.networkPolicy }}'
-param aksUpgradeSettingsMaxSurge = '{{ .mgmt.aks.upgradeSettings.maxSurge }}'
-param aksUpgradeSettingsMaxUnavailable = '{{ .mgmt.aks.upgradeSettings.maxUnavailable }}'
+param nodeSubnetId = '__nodeSubnetId__'
+param vnetId = '__vnetId__'
 
 // Maestro
 param maestroConsumerMIName = '{{ .maestro.agent.managedIdentityName }}'
@@ -93,10 +58,6 @@ param logsServiceAccount = '{{ .logs.mdsd.serviceAccountName }}'
 // Geneva logging settings
 param genevaRpLogsName = '{{ .geneva.logs.rp.secretName }}'
 param genevaClusterLogsName = '{{ .geneva.logs.cluster.secretName }}'
-
-// Alert rules tag value
-param owningTeamTagValue = '{{ .monitoring.alertRuleOwningTeamTag }}'
-param aksClusterTags = '{{ .mgmt.aks.tags }}'
 
 // HCP Backups Storage Account
 param hcpBackupsStorageAccountName = '{{ .mgmt.hcpBackups.storageAccount.name }}'

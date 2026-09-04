@@ -1,0 +1,13 @@
+{
+  "fullyAllocated": false,
+  "pools": null,
+  "failures": [
+    {
+      "tierIndex": 0,
+      "cores": 32,
+      "reason": "NoEligibleSKU",
+      "message": "tier 0 (32 cores): no family has an eligible SKU (ephemeral OS disk support required)",
+      "required": false
+    }
+  ]
+}
