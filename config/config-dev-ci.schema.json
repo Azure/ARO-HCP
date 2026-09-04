@@ -435,7 +435,11 @@
         "id": { "type": "string" },
         "isGlobalSubscription": {
           "type": "boolean",
-          "description": "Marks where shared infra lives; the bot gets extra data-plane roles (Key Vault Admin, Grafana Admin) here"
+          "description": "Marks where shared infra lives; the bot gets extra global-only data-plane roles (Grafana Admin) here"
+        },
+        "grantKeyVaultAdmin": {
+          "type": "boolean",
+          "description": "Grant Key Vault Administrator on this subscription; decoupled from isGlobalSubscription so a sub can get Key Vault Admin without the other global-only roles"
         }
       },
       "required": ["name", "id"]
