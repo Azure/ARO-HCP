@@ -46,6 +46,12 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+const (
+	// AFEC feature flags that indicate a subscription should skip orphaned MRG deletion
+	afecFeatureINTApproved     = "Microsoft.RedHatOpenShift/INT-APPROVED"
+	afecFeatureStagingApproved = "Microsoft.RedHatOpenShift/STAGING-APPROVED"
+)
+
 var (
 	orphanedMRGsFound = promauto.With(legacyregistry.Registerer()).NewCounterVec(
 		prometheus.CounterOpts{
@@ -93,6 +99,13 @@ func NewCleanOrphanedClusterManagedResourceGroupController(
 		10*time.Minute,
 		syncer,
 	)
+}
+
+// shouldSkipSubscriptionDeletion checks if a subscription has INT-APPROVED or STAGING-APPROVED
+// AFEC flags, which indicates that orphaned managed resource group deletion should be skipped.
+func shouldSkipSubscriptionDeletion(subscription *coreapi.Subscription) bool {
+	return subscription.HasRegisteredFeature(afecFeatureStagingApproved) ||
+		subscription.HasRegisteredFeature(afecFeatureINTApproved)
 }
 
 // listManagedResourceGroupsForSubscription lists all HCP-managed resource groups in the controller's location
@@ -293,6 +306,14 @@ func (c *cleanOrphanedClusterManagedResourceGroup) SyncOnce(ctx context.Context,
 
 	tenantID := *subscription.Properties.TenantId
 
+	// Check if the subscription has STAGING-APPROVED or INT-APPROVED AFEC flags
+	shouldSkipDeletion := shouldSkipSubscriptionDeletion(subscription)
+
+	if shouldSkipDeletion {
+		logger.Info("Subscription has STAGING-APPROVED or INT-APPROVED - orphaned managed resource groups will be skipped",
+			"subscriptionID", key.SubscriptionID)
+	}
+
 	rgClient, err := c.azureFPAClientBuilder.ResourceGroupsClient(tenantID, key.SubscriptionID)
 	if err != nil {
 		logger.Error(err, "Failed to create resource groups client",
@@ -329,7 +350,16 @@ func (c *cleanOrphanedClusterManagedResourceGroup) SyncOnce(ctx context.Context,
 			continue
 		}
 
-		// Found an orphaned managed resource group
+		// Skip deletion if subscription has STAGING-APPROVED or INT-APPROVED
+		if shouldSkipDeletion {
+			logger.Info("Skipping orphaned managed resource group deletion - subscription has STAGING-APPROVED or INT-APPROVED",
+				"subscriptionID", key.SubscriptionID,
+				"resourceGroup", resourceGroupName,
+				"managedBy", managedBy)
+			continue
+		}
+
+		// Found an orphaned managed resource group that will be processed
 		orphanedMRGsFound.WithLabelValues(c.location).Inc()
 
 		resourceGroupName := resourceGroupName

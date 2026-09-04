@@ -31,6 +31,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -262,3 +263,93 @@ func TestDeleteOrphanedManagedResourceGroup_BeginDelete404(t *testing.T) {
 // the Poller[T] type which is a concrete struct from the Azure SDK, not an interface.
 // The polling logic is best tested through integration tests.
 // We test the error handling paths above which cover the critical business logic.
+
+func TestShouldSkipSubscriptionDeletion(t *testing.T) {
+	tests := []struct {
+		name               string
+		registeredFeatures []coreapi.Feature
+		expectedSkip       bool
+	}{
+		{
+			name: "subscription with STAGING-APPROVED should be skipped",
+			registeredFeatures: []coreapi.Feature{
+				{
+					Name:  ptr.To(afecFeatureStagingApproved),
+					State: ptr.To("Registered"),
+				},
+			},
+			expectedSkip: true,
+		},
+		{
+			name: "subscription with INT-APPROVED should be skipped",
+			registeredFeatures: []coreapi.Feature{
+				{
+					Name:  ptr.To(afecFeatureINTApproved),
+					State: ptr.To("Registered"),
+				},
+			},
+			expectedSkip: true,
+		},
+		{
+			name: "subscription with both STAGING-APPROVED and INT-APPROVED should be skipped",
+			registeredFeatures: []coreapi.Feature{
+				{
+					Name:  ptr.To(afecFeatureStagingApproved),
+					State: ptr.To("Registered"),
+				},
+				{
+					Name:  ptr.To(afecFeatureINTApproved),
+					State: ptr.To("Registered"),
+				},
+			},
+			expectedSkip: true,
+		},
+		{
+			name: "subscription with only HcpPrivatePreview should not be skipped",
+			registeredFeatures: []coreapi.Feature{
+				{
+					Name:  ptr.To("Microsoft.RedHatOpenShift/HcpPrivatePreview"),
+					State: ptr.To("Registered"),
+				},
+			},
+			expectedSkip: false,
+		},
+		{
+			name:               "subscription with no registered features should not be skipped",
+			registeredFeatures: []coreapi.Feature{},
+			expectedSkip:       false,
+		},
+		{
+			name:               "subscription with nil registered features should not be skipped",
+			registeredFeatures: nil,
+			expectedSkip:       false,
+		},
+		{
+			name: "subscription with STAGING-APPROVED not in Registered state should not be skipped",
+			registeredFeatures: []coreapi.Feature{
+				{
+					Name:  ptr.To(afecFeatureStagingApproved),
+					State: ptr.To("Pending"),
+				},
+			},
+			// Note: HasRegisteredFeature checks state == "Registered", so this should NOT skip
+			expectedSkip: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			subscription := &coreapi.Subscription{
+				Properties: &coreapi.SubscriptionProperties{},
+			}
+			// Only set RegisteredFeatures if the test case provides features
+			// This allows testing the nil pointer case
+			if tt.registeredFeatures != nil {
+				subscription.Properties.RegisteredFeatures = &tt.registeredFeatures
+			}
+
+			result := shouldSkipSubscriptionDeletion(subscription)
+			assert.Equal(t, tt.expectedSkip, result)
+		})
+	}
+}
