@@ -25,6 +25,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
 	"github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/pkg/engine/runner"
+	directoryobjectsteps "github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/pkg/engine/steps/directoryobjects"
 	kvsteps "github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/pkg/engine/steps/keyvault"
 	roleassignmentsteps "github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/pkg/engine/steps/roleassignments"
 )
@@ -32,6 +33,7 @@ import (
 const (
 	orphanedRoleAssignmentStepRetries = 3
 	orphanedVaultStepRetries          = 3
+	agedDeletedObjectStepRetries      = 3
 )
 
 // RoleAssignmentsSweeperWorkflow builds the shared-leftovers cleanup workflow.
@@ -40,11 +42,20 @@ const (
 // groups). graphCredential is used exclusively for the Microsoft Graph
 // directory reads performed by the orphaned role-assignment step; when nil it
 // defaults to credential, preserving single-identity behavior.
+//
+// directoryWriteCredential, when non-nil, backs a second Graph client used
+// only by the aged-deleted-directory-object purge step. That step permanently
+// deletes directory objects (Directory.ReadWrite.All / Application.ReadWrite.All),
+// a materially higher privilege than the read-only access graphCredential
+// needs, so the two are kept separate rather than reusing graphCredential.
+// When nil, the aged-deleted-directory-object purge step is omitted entirely -
+// it is opt-in, since most callers won't have an identity holding that grant.
 func RoleAssignmentsSweeperWorkflow(
 	_ context.Context,
 	subscriptionID string,
 	credential azcore.TokenCredential,
 	graphCredential azcore.TokenCredential,
+	directoryWriteCredential azcore.TokenCredential,
 	opts WorkflowOptions,
 ) (*runner.Engine, error) {
 	if strings.TrimSpace(subscriptionID) == "" {
@@ -85,26 +96,49 @@ func RoleAssignmentsSweeperWorkflow(
 		return resp.Success, nil
 	}
 
+	steps := []runner.Step{}
+
+	if directoryWriteCredential != nil {
+		directoryWriteGraphClient, err := roleassignmentsteps.NewGraphClient(directoryWriteCredential)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create directory-write graph client: %w", err)
+		}
+		// Runs before the orphaned-role-assignment step: purging an aged
+		// deletedItems object here means its role assignment is picked up as
+		// orphaned by that step in this very same run instead of waiting for
+		// Entra's 30-day recycle-bin timer.
+		steps = append(steps, directoryobjectsteps.MustNewPurgeAgedDeletedStep(directoryobjectsteps.PurgeAgedDeletedStepConfig{
+			RoleAssignmentsClient: roleAssignmentsClient,
+			GraphClient:           directoryWriteGraphClient,
+			SubscriptionID:        subscriptionID,
+			Name:                  "Purge aged deleted directory objects",
+			Retries:               agedDeletedObjectStepRetries,
+			ContinueOnError:       true,
+		}))
+	}
+
+	steps = append(steps,
+		roleassignmentsteps.MustNewDeleteOrphanedStep(roleassignmentsteps.DeleteOrphanedStepConfig{
+			RoleAssignmentsClient:       roleAssignmentsClient,
+			GraphClient:                 graphClient,
+			SubscriptionID:              subscriptionID,
+			Name:                        "Delete orphaned role assignments",
+			Retries:                     orphanedRoleAssignmentStepRetries,
+			ContinueOnTargetDeleteError: true,
+		}),
+		kvsteps.MustNewPurgeOrphanedDeletedStep(kvsteps.PurgeOrphanedDeletedStepConfig{
+			VaultsClient:        vaultsClient,
+			ResourceGroupExists: resourceGroupExists,
+			Name:                "Purge orphaned soft-deleted Key Vaults",
+			Retries:             orphanedVaultStepRetries,
+			ContinueOnError:     true,
+		}),
+	)
+
 	return &runner.Engine{
 		Parallelism: opts.Parallelism,
 		DryRun:      opts.DryRun,
 		Wait:        opts.Wait,
-		Steps: []runner.Step{
-			roleassignmentsteps.MustNewDeleteOrphanedStep(roleassignmentsteps.DeleteOrphanedStepConfig{
-				RoleAssignmentsClient:       roleAssignmentsClient,
-				GraphClient:                 graphClient,
-				SubscriptionID:              subscriptionID,
-				Name:                        "Delete orphaned role assignments",
-				Retries:                     orphanedRoleAssignmentStepRetries,
-				ContinueOnTargetDeleteError: true,
-			}),
-			kvsteps.MustNewPurgeOrphanedDeletedStep(kvsteps.PurgeOrphanedDeletedStepConfig{
-				VaultsClient:        vaultsClient,
-				ResourceGroupExists: resourceGroupExists,
-				Name:                "Purge orphaned soft-deleted Key Vaults",
-				Retries:             orphanedVaultStepRetries,
-				ContinueOnError:     true,
-			}),
-		},
+		Steps:       steps,
 	}, nil
 }

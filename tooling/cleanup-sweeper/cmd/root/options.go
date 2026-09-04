@@ -101,7 +101,13 @@ type completedOptions struct {
 	// dedicated Graph identity is supplied via the GRAPH_AZURE_* environment
 	// variables.
 	GraphCredential azcore.TokenCredential
-	Policy          *policy.Policy
+	// DirectoryWriteCredential backs the aged-deleted-directory-object purge
+	// step's Graph client. Unlike GraphCredential, it is opt-in: it is only
+	// set when a dedicated DIRECTORY_WRITE_AZURE_* identity is configured, and
+	// never falls back to AzureCredential or GraphCredential, since this
+	// credential needs materially higher (directory-write) privilege.
+	DirectoryWriteCredential azcore.TokenCredential
+	Policy                   *policy.Policy
 
 	Workflow WorkflowMode
 
@@ -185,8 +191,13 @@ func (o *ValidatedOptions) Complete(_ context.Context) (*Options, error) {
 	// This keeps a partial GRAPH_AZURE_* configuration from failing workflows
 	// that never touch Graph (for example, rg-ordered).
 	var graphCred azcore.TokenCredential = cred
+	var directoryWriteCred azcore.TokenCredential
 	if o.workflow == WorkflowSharedLeftovers {
 		graphCred, err = newGraphCredential(cred)
+		if err != nil {
+			return nil, err
+		}
+		directoryWriteCred, err = newDirectoryWriteCredential()
 		if err != nil {
 			return nil, err
 		}
@@ -194,17 +205,18 @@ func (o *ValidatedOptions) Complete(_ context.Context) (*Options, error) {
 
 	return &Options{
 		completedOptions: &completedOptions{
-			AzureCredential: cred,
-			GraphCredential: graphCred,
-			Policy:          o.policy,
-			Workflow:        o.workflow,
-			SubscriptionID:  subscriptionID,
-			PolicyFile:      policyFile,
-			ReferenceTime:   referenceTime,
-			DryRun:          o.DryRun,
-			Wait:            o.Wait,
-			Parallelism:     o.Parallelism,
-			ResourceGroups:  resourceGroups,
+			AzureCredential:          cred,
+			GraphCredential:          graphCred,
+			DirectoryWriteCredential: directoryWriteCred,
+			Policy:                   o.policy,
+			Workflow:                 o.workflow,
+			SubscriptionID:           subscriptionID,
+			PolicyFile:               policyFile,
+			ReferenceTime:            referenceTime,
+			DryRun:                   o.DryRun,
+			Wait:                     o.Wait,
+			Parallelism:              o.Parallelism,
+			ResourceGroups:           resourceGroups,
 		},
 	}, nil
 }
@@ -240,12 +252,13 @@ func (o *Options) Run(ctx context.Context) error {
 		}
 	case WorkflowSharedLeftovers:
 		err := sharedworkflow.Run(ctx, sharedworkflow.RunOptions{
-			SubscriptionID:  o.SubscriptionID,
-			AzureCredential: o.AzureCredential,
-			GraphCredential: o.GraphCredential,
-			DryRun:          o.DryRun,
-			Wait:            o.Wait,
-			Parallelism:     o.Parallelism,
+			SubscriptionID:           o.SubscriptionID,
+			AzureCredential:          o.AzureCredential,
+			GraphCredential:          o.GraphCredential,
+			DirectoryWriteCredential: o.DirectoryWriteCredential,
+			DryRun:                   o.DryRun,
+			Wait:                     o.Wait,
+			Parallelism:              o.Parallelism,
 		})
 		if err != nil {
 			return err
@@ -279,6 +292,34 @@ func newGraphCredential(fallback azcore.TokenCredential) (azcore.TokenCredential
 	cred, err := azidentity.NewClientSecretCredential(tenantID, clientID, clientSecret, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create dedicated Graph credential: %w", err)
+	}
+	return cred, nil
+}
+
+// newDirectoryWriteCredential returns the credential used by the
+// aged-deleted-directory-object purge step, which needs directory-write
+// permission (Directory.ReadWrite.All / Application.ReadWrite.All). Unlike
+// newGraphCredential, it never falls back to another credential: the step is
+// materially more privileged (it permanently deletes directory objects), so
+// it is only enabled when a dedicated identity is explicitly configured via
+// the DIRECTORY_WRITE_AZURE_* environment variables. Returns a nil credential
+// (and nil error) when unset, which the shared-leftovers workflow treats as
+// "omit this step".
+func newDirectoryWriteCredential() (azcore.TokenCredential, error) {
+	tenantID := strings.TrimSpace(os.Getenv("DIRECTORY_WRITE_AZURE_TENANT_ID"))
+	clientID := strings.TrimSpace(os.Getenv("DIRECTORY_WRITE_AZURE_CLIENT_ID"))
+	clientSecret := strings.TrimSpace(os.Getenv("DIRECTORY_WRITE_AZURE_CLIENT_SECRET"))
+
+	if tenantID == "" && clientID == "" && clientSecret == "" {
+		return nil, nil
+	}
+	if tenantID == "" || clientID == "" || clientSecret == "" {
+		return nil, fmt.Errorf("DIRECTORY_WRITE_AZURE_TENANT_ID, DIRECTORY_WRITE_AZURE_CLIENT_ID and DIRECTORY_WRITE_AZURE_CLIENT_SECRET must all be set to enable the aged-deleted-directory-object purge step")
+	}
+
+	cred, err := azidentity.NewClientSecretCredential(tenantID, clientID, clientSecret, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create directory-write credential: %w", err)
 	}
 	return cred, nil
 }
