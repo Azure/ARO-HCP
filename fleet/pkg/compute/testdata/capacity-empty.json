@@ -1,0 +1,17 @@
+{
+  "infra": {
+    "vcpus": 0,
+    "memoryGiB": 0,
+    "swiftNICs": 0
+  },
+  "system": {
+    "vcpus": 0,
+    "memoryGiB": 0,
+    "swiftNICs": 0
+  },
+  "worker": {
+    "vcpus": 0,
+    "memoryGiB": 0,
+    "swiftNICs": 0
+  }
+}

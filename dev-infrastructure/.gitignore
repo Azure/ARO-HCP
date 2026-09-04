@@ -4,3 +4,6 @@ istio-*
 
 swift/fpa.crt
 swift/fpa.pfx
+
+# compiled ARM templates (build output of *.bicep, never committed)
+templates/*.json

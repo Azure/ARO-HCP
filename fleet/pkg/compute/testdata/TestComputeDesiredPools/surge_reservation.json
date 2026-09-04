@@ -1,0 +1,131 @@
+{
+  "fullyAllocated": false,
+  "pools": [
+    {
+      "role": "worker",
+      "name": "wrk16156bbfe",
+      "spec": {
+        "size": "Standard_E16ds_v6",
+        "family": "standardEDSv6Family",
+        "vcpus": 16,
+        "memoryGiB": 128,
+        "secondaryNICs": 7
+      },
+      "zones": [
+        "1"
+      ],
+      "maxCount": 2,
+      "initialMinCount": 1,
+      "osDiskSizeGB": 256,
+      "maxPods": 225,
+      "labels": {
+        "aro-hcp.azure.com/role": "worker"
+      }
+    },
+    {
+      "role": "worker",
+      "name": "wrk16256bbfe",
+      "spec": {
+        "size": "Standard_E16ds_v6",
+        "family": "standardEDSv6Family",
+        "vcpus": 16,
+        "memoryGiB": 128,
+        "secondaryNICs": 7
+      },
+      "zones": [
+        "2"
+      ],
+      "maxCount": 2,
+      "initialMinCount": 1,
+      "osDiskSizeGB": 256,
+      "maxPods": 225,
+      "labels": {
+        "aro-hcp.azure.com/role": "worker"
+      }
+    },
+    {
+      "role": "worker",
+      "name": "wrk16356bbfe",
+      "spec": {
+        "size": "Standard_E16ds_v6",
+        "family": "standardEDSv6Family",
+        "vcpus": 16,
+        "memoryGiB": 128,
+        "secondaryNICs": 7
+      },
+      "zones": [
+        "3"
+      ],
+      "maxCount": 2,
+      "initialMinCount": 1,
+      "osDiskSizeGB": 256,
+      "maxPods": 225,
+      "labels": {
+        "aro-hcp.azure.com/role": "worker"
+      }
+    },
+    {
+      "role": "worker",
+      "name": "wrk321ea8056",
+      "spec": {
+        "size": "Standard_E32ds_v6",
+        "family": "standardEDSv6Family",
+        "vcpus": 32,
+        "memoryGiB": 256,
+        "secondaryNICs": 7
+      },
+      "zones": [
+        "1"
+      ],
+      "maxCount": 1,
+      "initialMinCount": 1,
+      "osDiskSizeGB": 512,
+      "maxPods": 225,
+      "labels": {
+        "aro-hcp.azure.com/role": "worker"
+      }
+    },
+    {
+      "role": "worker",
+      "name": "wrk322ea8056",
+      "spec": {
+        "size": "Standard_E32ds_v6",
+        "family": "standardEDSv6Family",
+        "vcpus": 32,
+        "memoryGiB": 256,
+        "secondaryNICs": 7
+      },
+      "zones": [
+        "2"
+      ],
+      "maxCount": 1,
+      "initialMinCount": 1,
+      "osDiskSizeGB": 512,
+      "maxPods": 225,
+      "labels": {
+        "aro-hcp.azure.com/role": "worker"
+      }
+    },
+    {
+      "role": "worker",
+      "name": "wrk323ea8056",
+      "spec": {
+        "size": "Standard_E32ds_v6",
+        "family": "standardEDSv6Family",
+        "vcpus": 32,
+        "memoryGiB": 256,
+        "secondaryNICs": 7
+      },
+      "zones": [
+        "3"
+      ],
+      "maxCount": 1,
+      "initialMinCount": 1,
+      "osDiskSizeGB": 512,
+      "maxPods": 225,
+      "labels": {
+        "aro-hcp.azure.com/role": "worker"
+      }
+    }
+  ]
+}

@@ -859,6 +859,9 @@ defaults:
     registration:
       stampIdentifier: '{{ .ctx.stamp }}'
       autoApproveStamps: true
+    nodePoolProvisioning:
+      profile: "production"
+      zones: ""
   # Admin API
   adminApi:
     audit:
@@ -1712,6 +1715,9 @@ clouds:
                 osDiskSizeGB: 64
             jaeger:
               deploy: true
+          fleet:
+            nodePoolProvisioning:
+              profile: "development"
       perf:
         defaults:
           kubeApplier:
@@ -1853,6 +1859,9 @@ clouds:
                 vmSize: Standard_D4ds_v6
             jaeger:
               deploy: true
+          fleet:
+            nodePoolProvisioning:
+              profile: "ci"
       ci01:
         # prow infra shard1 - deploys into "ARO HCP E2E Infrastructure" subscription
         defaults:
@@ -1961,3 +1970,6 @@ clouds:
                 vmSize: Standard_D4ds_v6
             jaeger:
               deploy: true
+          fleet:
+            nodePoolProvisioning:
+              profile: "ci"

@@ -1,0 +1,49 @@
+{
+  "fullyAllocated": false,
+  "pools": [
+    {
+      "role": "worker",
+      "name": "wrk18bc26f",
+      "spec": {
+        "size": "Standard_E32ds_v6",
+        "family": "standardEDSv6Family",
+        "vcpus": 32,
+        "memoryGiB": 256,
+        "secondaryNICs": 7
+      },
+      "zones": [
+        "1"
+      ],
+      "maxCount": 3,
+      "initialMinCount": 1,
+      "osDiskSizeGB": 512,
+      "maxPods": 225,
+      "labels": {
+        "aro-hcp.azure.com/role": "worker"
+      },
+      "enableSwift": true
+    },
+    {
+      "role": "worker",
+      "name": "wrk28bc26f",
+      "spec": {
+        "size": "Standard_E32ds_v6",
+        "family": "standardEDSv6Family",
+        "vcpus": 32,
+        "memoryGiB": 256,
+        "secondaryNICs": 7
+      },
+      "zones": [
+        "2"
+      ],
+      "maxCount": 3,
+      "initialMinCount": 1,
+      "osDiskSizeGB": 512,
+      "maxPods": 225,
+      "labels": {
+        "aro-hcp.azure.com/role": "worker"
+      },
+      "enableSwift": true
+    }
+  ]
+}
