@@ -64,7 +64,7 @@ func TestNormalizeContainerRegistry(t *testing.T) {
 		{
 			name:      "invalid resource ID returns parse error",
 			input:     &generated.ContainerRegistryProfile{ManagedIdentity: ptr.To("not-a-resource-id")},
-			wantError: "",
+			wantError: "not-a-resource-id",
 		},
 	}
 
