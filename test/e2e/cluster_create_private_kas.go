@@ -62,8 +62,17 @@ var _ = Describe("Customer", func() {
 			clusterParams.ClusterName = customerClusterName
 			clusterParams.ManagedResourceGroupName = framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			clusterParams.APIVisibility = "Private"
+
 			// Private KAS requires OCP >= 4.22 (CS validation rejects lower versions)
-			clusterParams.OpenshiftVersionId = "4.22"
+			openshiftVersionID, err := framework.PickLatestOpenshiftVersionId(clusterParams.OpenshiftVersionId, "4.22")
+			// If we can't select a version, skip this test with an explation
+			// TODO
+			if framework.IsVersionNotFoundError(err) {
+				Skip(fmt.Sprintf("private KAS requires OCP >= 4.22, but default version %q does not satisfy it: %v", clusterParams.OpenshiftVersionId, err))
+			}
+			Expect(err).NotTo(HaveOccurred(), "failed to select OpenShift version >= 4.22 for private KAS test")
+			// Otherwise, just use the selected version
+			clusterParams.OpenshiftVersionId = openshiftVersionID
 
 			By("creating customer resources (infrastructure and managed identities)")
 			clusterParams, err = tc.CreateClusterCustomerResources20251223(ctx,
@@ -75,10 +84,6 @@ var _ = Describe("Customer", func() {
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for private KAS cluster")
 
-			By("deploying test VM in customer VNet")
-			vmName, _, err := tc.DeployTestVM(ctx, TestArtifactsFS, *resourceGroup.Name, customerClusterName, clusterParams.VnetName, clusterParams.SubnetName)
-			Expect(err).NotTo(HaveOccurred(), "failed to deploy test VM for private KAS verification")
-
 			By("creating the HCP cluster with private KAS")
 			err = tc.CreateHCPClusterFromParam20251223(ctx,
 				GinkgoLogr,
@@ -88,6 +93,10 @@ var _ = Describe("Customer", func() {
 				framework.ClusterCreationTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %q with private KAS", customerClusterName)
+
+			By("deploying test VM in customer VNet")
+			vmName, _, err := tc.DeployTestVM(ctx, TestArtifactsFS, *resourceGroup.Name, customerClusterName, clusterParams.VnetName, clusterParams.SubnetName)
+			Expect(err).NotTo(HaveOccurred(), "failed to deploy test VM for private KAS verification")
 
 			By("verifying cluster API visibility is Private via ARM GET")
 			hcpClient := tc.Get20251223ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
