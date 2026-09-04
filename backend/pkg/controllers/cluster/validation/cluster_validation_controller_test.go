@@ -248,7 +248,7 @@ func TestClusterValidationSyncer_SyncOnce(t *testing.T) {
 			wantEnqueue:         false,
 		},
 		{
-			name: "already-succeeded validation -- skipped",
+			name: "already-succeeded validation -- re-runs and overwrites with Failed",
 			setupDB: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient) {
 				t.Helper()
 				defaultSetupDB(t, ctx, mockDB)
@@ -266,8 +266,10 @@ func TestClusterValidationSyncer_SyncOnce(t *testing.T) {
 				require.NoError(t, err)
 			},
 			validation: NewMockClusterValidation(testValidationName).WithFailed(
-				"ShouldNotBeCalled", "should not be called", "should not be called",
+				"QuotaExceeded", "quota exceeded", "Quota exceeded for this subscription.",
 			),
+			wantCondition: &metav1.Condition{Status: metav1.ConditionFalse, Reason: "QuotaExceeded", Message: "Quota exceeded for this subscription."},
+			wantEnqueue:   true,
 		},
 	}
 
@@ -332,8 +334,7 @@ func TestClusterValidationSyncer_ShouldWriteCondition(t *testing.T) {
 	})
 
 	// shouldWriteCondition only checks previousCondition's nilness, not its Status. Vary Status here to
-	// lock that contract: suppression depends solely on consecutiveUnknowns. A prior passed condition is
-	// unreachable via SyncOnce (shouldProcess skips it), but the helper must still behave consistently.
+	// lock that contract: suppression depends solely on consecutiveUnknowns.
 	previousConditionFixtures := []struct {
 		name      string
 		condition *metav1.Condition
