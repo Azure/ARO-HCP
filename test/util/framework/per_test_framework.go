@@ -65,6 +65,10 @@ import (
 type perItOrDescribeTestContext struct {
 	perBinaryInvocationTestContext *perBinaryInvocationTestContext
 
+	envAssigned           bool
+	envAssignedContainers []string
+	envAssignedIdx        int
+
 	contextLock                   sync.RWMutex
 	knownResourceGroups           []string
 	knownAppRegistrations         []graphutil.ApplicationCleanupTarget
