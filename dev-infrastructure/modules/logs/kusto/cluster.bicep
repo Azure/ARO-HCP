@@ -23,6 +23,15 @@ param viewerGroups string
 @description('CSV separated list of identities (apps/managed identities) to assign viewer in the Kusto cluster, format: "(tenantId/)principalId", if tenantId is not provided, the current tenant will be used')
 param viewerIdentities string = ''
 
+@description('Name of the global rollout MSI granted AllDatabasesAdmin so the KustoEntityGroups pipeline step (kustoctl) can sync entity groups on every database. Empty disables the grant.')
+param globalMSIName string = ''
+
+@description('Resource group of the global rollout MSI. Must be in the same subscription as this deployment. Required when globalMSIName is set.')
+param globalMSIResourceGroup string = ''
+
+@description('ARO-HCP environment (int, stg, prod). Emitted as the aroHCPEnvironment cluster tag so the KustoEntityGroups pipeline step (kustoctl) can scope entity-group discovery to a single environment.')
+param environment string = ''
+
 @description('Minimum number of nodes for autoscale')
 param autoScaleMin int
 
@@ -58,6 +67,16 @@ var viewerIdentityPermissions = [
   }
 ]
 
+// The KustoEntityGroups pipeline step runs `kustoctl entity-groups sync` under
+// the global rollout MSI. `.create-or-alter entity_group` requires Database
+// Admin on the target database, so the MSI needs AllDatabasesAdmin at cluster
+// scope to cover ServiceLogs, HostedControlPlaneLogs and MonitoringEvents. The
+// MSI lives in the global resource group (same subscription as this deployment).
+resource globalMSI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = if (!empty(globalMSIName) && !empty(globalMSIResourceGroup)) {
+  name: globalMSIName
+  scope: resourceGroup(globalMSIResourceGroup)
+}
+
 // Core Kusto cluster (no databases here; those are in separate modules)
 resource kusto 'Microsoft.Kusto/clusters@2024-04-13' = {
   name: kustoName
@@ -65,6 +84,10 @@ resource kusto 'Microsoft.Kusto/clusters@2024-04-13' = {
   sku: {
     name: sku
     tier: tier
+  }
+  tags: {
+    aroHCPPurpose: 'logs'
+    aroHCPEnvironment: environment
   }
   identity: {
     type: 'SystemAssigned'
@@ -116,6 +139,17 @@ resource kusto 'Microsoft.Kusto/clusters@2024-04-13' = {
       }
     }
   ]
+
+  // Runtime admin for the KustoEntityGroups (kustoctl) sync step.
+  resource clusterAdminPermissionForEntityGroupsSync 'principalAssignments' = if (!empty(globalMSIName) && !empty(globalMSIResourceGroup)) {
+    name: 'admin-app-entitygroups-sync'
+    properties: {
+      principalId: globalMSI!.properties.principalId
+      principalType: 'App'
+      role: 'AllDatabasesAdmin'
+      tenantId: tenant().tenantId
+    }
+  }
 }
 
 output id string = kusto.id
