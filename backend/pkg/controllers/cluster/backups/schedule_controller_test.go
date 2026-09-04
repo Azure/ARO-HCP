@@ -1185,14 +1185,13 @@ func TestBackupScheduleSyncer_SyncOnce(t *testing.T) {
 			}
 
 			syncer := &backupScheduleSyncer{
-				cosmosClient:                        mockResourcesDBClient,
-				clusterLister:                       clusterLister,
-				serviceProviderClusterLister:        &corelistertesting.SliceServiceProviderClusterLister{ServiceProviderClusters: serviceProviderClusterList},
-				kubeApplierDBClients:                mockKubeApplierDBClients,
-				applyDesireLister:                   &kubeapplierlistertesting.DBApplyDesireLister{Clients: mockKubeApplierDBClients, Lister: mcLister},
-				readDesireLister:                    &kubeapplierlistertesting.DBReadDesireLister{Clients: mockKubeApplierDBClients, Lister: mcLister},
-				hostedClusterNamespaceEnvIdentifier: testEnvID,
-				backupConfig:                        cfg,
+				cosmosClient:                 mockResourcesDBClient,
+				clusterLister:                clusterLister,
+				serviceProviderClusterLister: &corelistertesting.SliceServiceProviderClusterLister{ServiceProviderClusters: serviceProviderClusterList},
+				kubeApplierDBClients:         mockKubeApplierDBClients,
+				applyDesireLister:            &kubeapplierlistertesting.DBApplyDesireLister{Clients: mockKubeApplierDBClients, Lister: mcLister},
+				readDesireLister:             &kubeapplierlistertesting.DBReadDesireLister{Clients: mockKubeApplierDBClients, Lister: mcLister},
+				backupConfig:                 cfg,
 			}
 
 			syncCount := max(tt.syncCount, 1)
