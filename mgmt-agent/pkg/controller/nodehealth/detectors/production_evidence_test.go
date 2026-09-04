@@ -322,10 +322,10 @@ func TestProductionHardWedgeShapeFires(t *testing.T) {
 	}
 
 	snap := swiftVFTeardown.Evaluate(events, pods, now)
-	if snap.SustainedCount != 2 {
-		t.Fatalf("captured wedge shape did not produce 2 sustained pods: SustainedCount = %d", snap.SustainedCount)
+	if snap.Pods.SustainedCount != 2 {
+		t.Fatalf("captured wedge shape did not produce 2 sustained pods: SustainedCount = %d", snap.Pods.SustainedCount)
 	}
-	if snap.RecentSuccess {
+	if snap.Pods.RecentSuccess {
 		t.Fatal("captured wedge shape must have no fresh sandbox success")
 	}
 	if got, _ := Decide(productionWedgedNode(), events, pods, now); got != DecisionWedged {

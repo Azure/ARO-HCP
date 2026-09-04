@@ -811,7 +811,7 @@ func TestOverlaySuccessDoesNotSuppressASwiftWedge(t *testing.T) {
 	if got != DecisionWedged {
 		t.Errorf("overlay-only successes suppressed a real delegated-NIC wedge: Decide() = %v, want Wedged", got)
 	}
-	if snap.RecentSuccess {
+	if snap.Pods.RecentSuccess {
 		t.Error("RecentSuccess = true from pods that never asked for a NIC, want false")
 	}
 
@@ -834,7 +834,7 @@ func TestSuccessScopeDefaultsToEveryPod(t *testing.T) {
 	pods = append(pods, startedPod("plain", ago(1*time.Minute), false))
 	events, _ := stuckFailing(3, ago(15*time.Minute))
 
-	if snap := unscoped.Evaluate(events, pods, testNow); !snap.RecentSuccess {
+	if snap := unscoped.Evaluate(events, pods, testNow); !snap.Pods.RecentSuccess {
 		t.Error("RecentSuccess = false with a nil successScope, want true")
 	}
 }
