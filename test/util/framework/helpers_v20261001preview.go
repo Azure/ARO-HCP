@@ -809,12 +809,12 @@ func (tc *perItOrDescribeTestContext) GetAdminRESTConfigForHCPCluster20261001(
 		nil,
 	)
 	if err != nil {
-		// Fall back to the old 0240610 mechanism during the transition period.
-		fallbackFactory, fallbackErr := tc.Get20240610ClientFactory(ctx)
+		// Fall back to the old 20260630 mechanism during the transition period.
+		fallbackFactory, fallbackErr := tc.Get20260630ClientFactory(ctx)
 		if fallbackErr != nil {
 			return nil, fmt.Errorf("1001 credential request failed: %w; fallback client factory error: %w", err, fallbackErr)
 		}
-		return tc.GetAdminRESTConfigForHCPCluster20240610(ctx, fallbackFactory.NewHcpOpenShiftClustersClient(), resourceGroupName, hcpClusterName, timeout)
+		return tc.GetAdminRESTConfigForHCPCluster20260630(ctx, fallbackFactory.NewHcpOpenShiftClustersClient(), resourceGroupName, hcpClusterName, timeout)
 	}
 
 	operationResult, err := adminCredentialRequestPoller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{

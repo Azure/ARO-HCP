@@ -229,8 +229,8 @@ Instead, resolve VM sizes at runtime through the restriction-aware selector in
 - Use the named selectors for common shapes: `DefaultWorkerVMSizeSelector()`,
   `SmallWorkerVMSizeSelector()`, `JumpboxVMSizeSelector()`,
   `ARM64NodePoolVMSizeSelector()`, `GPUNodePoolVMSizeSelector()`.
-- The default node pool params (`NewDefaultNodePoolParams20240610` /
-  `...20251223` / `...20260630`) leave `VMSize` empty; `CreateNodePoolFromParam*`
+- The default node pool params (`NewDefaultNodePoolParams20260901`) leave
+  `VMSize` empty; `CreateNodePoolFromParam*`
   resolves it via `DefaultWorkerVMSizeSelector()` automatically. The OS disk
   storage account type comes from the shared `DefaultDiskStorageAccountType`
   constant. Set `VMSize` explicitly only to pin a specific size (for example
@@ -251,17 +251,17 @@ Framework helpers include an API version suffix. See [`test/AGENTS.md`](../AGENT
 
 | Category | Constant | Typical use |
 |----------|----------|-------------|
-| Provisioning | `ClusterCreationTimeout` | `CreateHCPClusterFromParam20240610`, `CreateHCPClusterAndWait20240610`; preview: `CreateHCPClusterFromParam20251223`, `CreateHCPClusterAndWait20251223` |
-| Provisioning | `NodePoolCreationTimeout` | `CreateNodePoolFromParam20240610`, `CreateNodePoolAndWait20240610`; preview: `CreateNodePoolFromParam20251223`, `CreateNodePoolAndWait20251223` |
-| Provisioning | `ExternalAuthCreationTimeout` | `CreateOrUpdateExternalAuthAndWait20240610` |
-| Access cluster | `GetAdminRESTConfigTimeout` | `GetAdminRESTConfigForHCPCluster20240610` |
-| Deletion | `HCPClusterDeletionTimeout` | `DeleteHCPCluster20240610`, `DeleteAllHCPClusters20240610`, inline delete pollers |
-| Deletion | `NodePoolDeletionTimeout` | `DeleteNodePool20240610`, inline node pool delete pollers |
-| Deletion | `ExternalAuthDeletionTimeout` | `DeleteExternalAuth20240610`, inline external auth delete pollers |
-| Update | `UpdateHCPClusterTimeout` | `UpdateHCPCluster20240610` (tags, IDMS, autoscaling PATCH); preview: `UpdateHCPCluster20251223` |
-| Update | `HCPClusterVersionUpgradeTimeout` | Control plane version upgrades (`UpdateHCPCluster20240610`, `Eventually` verifiers) |
-| Update | `NodePoolVersionUpgradeTimeout` | Node pool version upgrades (`UpdateNodePoolAndWait20240610`, `Eventually` verifiers) |
-| Update | `NodePoolScalingTimeout` | Replica scale up/down, taints/labels with scaling (`UpdateNodePoolAndWait20240610`) |
+| Provisioning | `ClusterCreationTimeout` | `CreateHCPClusterFromParam20260901`, `CreateHCPClusterAndWait20260901` |
+| Provisioning | `NodePoolCreationTimeout` | `CreateNodePoolFromParam20260901`, `CreateNodePoolAndWait20260901` |
+| Provisioning | `ExternalAuthCreationTimeout` | `CreateOrUpdateExternalAuthAndWait20260901` |
+| Access cluster | `GetAdminRESTConfigTimeout` | `GetAdminRESTConfigForHCPCluster20260901` |
+| Deletion | `HCPClusterDeletionTimeout` | `DeleteHCPCluster20260901`, `DeleteAllHCPClusters20260901`, inline delete pollers |
+| Deletion | `NodePoolDeletionTimeout` | `DeleteNodePool20260901`, inline node pool delete pollers |
+| Deletion | `ExternalAuthDeletionTimeout` | `DeleteExternalAuth20260901`, inline external auth delete pollers |
+| Update | `UpdateHCPClusterTimeout` | `UpdateHCPCluster20260901` (tags, IDMS, autoscaling PATCH); preview: `UpdateHCPCluster20260901` |
+| Update | `HCPClusterVersionUpgradeTimeout` | Control plane version upgrades (`UpdateHCPCluster20260901`, `Eventually` verifiers) |
+| Update | `NodePoolVersionUpgradeTimeout` | Node pool version upgrades (`UpdateNodePoolAndWait20260901`, `Eventually` verifiers) |
+| Update | `NodePoolScalingTimeout` | Replica scale up/down, taints/labels with scaling (`UpdateNodePoolAndWait20260901`) |
 
 ### Provisioning durations (Kusto)
 

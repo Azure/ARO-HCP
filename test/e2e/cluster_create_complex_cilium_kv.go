@@ -29,7 +29,7 @@ import (
 
 	operatorclient "github.com/openshift/client-go/operator/clientset/versioned"
 
-	hcpsdk20251223preview "github.com/Azure/ARO-HCP/test/sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	hcpsdk20260901preview "github.com/Azure/ARO-HCP/test/sdk/v20260901preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
@@ -62,7 +62,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create resource group for complex cilium keyvault test")
 
 			By("creating cluster parameters")
-			clusterParams := framework.NewDefaultClusterParams20251223()
+			clusterParams := framework.NewDefaultClusterParams20260901()
 			clusterParams.ClusterName = customerClusterName
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			clusterParams.ManagedResourceGroupName = managedResourceGroupName
@@ -71,7 +71,7 @@ var _ = Describe("Customer", func() {
 			clusterParams.Network.NetworkType = "Other"
 
 			By("creating customer resources (infrastructure and managed identities)")
-			clusterParams, err = tc.CreateClusterCustomerResources20251223(ctx,
+			clusterParams, err = tc.CreateClusterCustomerResources20260901(ctx,
 				resourceGroup,
 				clusterParams,
 				map[string]any{
@@ -82,8 +82,8 @@ var _ = Describe("Customer", func() {
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create customer resources with private key vault")
 
-			By("creating the HCP cluster with no CNI and private etcd via v20251223preview")
-			clusterResource, err := framework.BuildHCPClusterFromParams20251223(clusterParams, tc.Location(), nil)
+			By("creating the HCP cluster with no CNI and private etcd via v20260901preview")
+			clusterResource, err := framework.BuildHCPClusterFromParams20260901(clusterParams, tc.Location(), nil)
 			Expect(err).NotTo(HaveOccurred(), "failed to build HCP cluster resource from params")
 
 			// Set KeyVault visibility to Private
@@ -91,13 +91,13 @@ var _ = Describe("Customer", func() {
 				clusterResource.Properties.Etcd.DataEncryption != nil &&
 				clusterResource.Properties.Etcd.DataEncryption.CustomerManaged != nil &&
 				clusterResource.Properties.Etcd.DataEncryption.CustomerManaged.Kms != nil {
-				clusterResource.Properties.Etcd.DataEncryption.CustomerManaged.Kms.Visibility = to.Ptr(hcpsdk20251223preview.KeyVaultVisibilityPrivate)
+				clusterResource.Properties.Etcd.DataEncryption.CustomerManaged.Kms.Visibility = to.Ptr(hcpsdk20260901preview.KeyVaultVisibilityPrivate)
 			}
 
-			_, err = framework.CreateHCPClusterAndWait20251223(
+			_, err = framework.CreateHCPClusterAndWait20260901(
 				ctx,
 				GinkgoLogr,
-				tc.Get20251223ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
+				tc.Get20260901ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
 				customerClusterName,
 				clusterResource,
@@ -159,12 +159,12 @@ var _ = Describe("Customer", func() {
 			err = framework.InstallCiliumChart(ctx, "1.19.2", ciliumValues, kubeconfigContent, "kube-system")
 			Expect(err).NotTo(HaveOccurred(), "failed to install Cilium chart via Helm")
 
-			By("creating the node pool via v20251223preview")
-			nodePoolParams := framework.NewDefaultNodePoolParams20251223()
+			By("creating the node pool via v20260901preview")
+			nodePoolParams := framework.NewDefaultNodePoolParams20260901()
 			nodePoolParams.ClusterName = customerClusterName
 			nodePoolParams.NodePoolName = customerNodePoolName
 			nodePoolParams.AutoRepair = true
-			nodePoolErr := tc.CreateNodePoolFromParam20251223(
+			nodePoolErr := tc.CreateNodePoolFromParam20260901(
 				ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
