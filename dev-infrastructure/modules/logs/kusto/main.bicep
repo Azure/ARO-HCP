@@ -62,6 +62,9 @@ var allServiceLogsTablesKQL = {
   systemdLogs: loadTextContent('tables/systemdLogs.kql')
   resourceSnapshots: loadTextContent('tables/kubernetesResourceSnapshots.kql')
   cosmosResourceSnapshots: loadTextContent('tables/cosmosResourceSnapshots.kql')
+  ciJobOutcomes: loadTextContent('tables/ciJobOutcomes.kql')
+  ciTestNames: loadTextContent('tables/ciTestNames.kql')
+  ciTestResults: loadTextContent('tables/ciTestResults.kql')
 }
 
 var allCustomerLogsTablesKQL = {
