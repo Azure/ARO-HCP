@@ -323,7 +323,7 @@ require (
 	sigs.k8s.io/kustomize/kyaml v0.21.1 // indirect
 	sigs.k8s.io/prow v0.0.0-20251030184004-0e4d5be4200d // indirect
 	sigs.k8s.io/randfill v1.0.0 // indirect
-	sigs.k8s.io/structured-merge-diff/v6 v6.3.2 // indirect
+	sigs.k8s.io/structured-merge-diff/v6 v6.4.0 // indirect
 )
 
 replace github.com/go-echarts/go-echarts/v2 => github.com/stevekuznetsov/go-echarts/v2 v2.0.0-20251106144453-30c025b42a65

@@ -80,7 +80,7 @@ require (
 	github.com/openshift-online/ocm-api-model/model v0.0.464 // indirect
 	github.com/openshift/api v0.0.0-20260429122012-1180c0f5c3e9 // indirect
 	github.com/openshift/cluster-version-operator v1.0.1-0.20260202115537-557510ea0603 // indirect
-	github.com/openshift/hypershift/api v0.0.0-20260602200802-c135e0c47b37 // indirect
+	github.com/openshift/hypershift/api v0.0.0-20260708113917-8b5103a5875b // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/prometheus/otlptranslator v1.0.0 // indirect
@@ -139,7 +139,7 @@ require (
 	k8s.io/kube-openapi v0.0.0-20260317180543-43fb72c5454a // indirect
 	sigs.k8s.io/json v0.0.0-20250730193827-2d320260d730 // indirect
 	sigs.k8s.io/randfill v1.0.0 // indirect
-	sigs.k8s.io/structured-merge-diff/v6 v6.3.2 // indirect
+	sigs.k8s.io/structured-merge-diff/v6 v6.4.0 // indirect
 )
 
 require (

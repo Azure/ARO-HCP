@@ -39,6 +39,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
 	"github.com/Azure/ARO-HCP/internal/backup"
+	"github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/kubeappliercosmosstoragetesting"
@@ -492,6 +493,229 @@ func TestGetBackupScheduleHandler(t *testing.T) {
 				}
 				if actual.BackupExecutionState != expected.BackupExecutionState {
 					t.Errorf("schedule[%d] state: expected %q, got %q", i, expected.BackupExecutionState, actual.BackupExecutionState)
+				}
+			}
+		})
+	}
+}
+
+func TestGetOnDemandBackupsHandler(t *testing.T) {
+	managementClusterResourceID := metadataapi.Must(azcorearm.ParseResourceID(
+		"/subscriptions/" + coreapitesting.TestSubscriptionID + "/resourceGroups/mgmt-rg/providers/Microsoft.ContainerService/managedClusters/mgmt-cluster",
+	))
+
+	makeReadDesire := func(name string) *kubeapplierapi.ReadDesire {
+		resourceIDStr := kubeapplierapi.ToClusterScopedReadDesireResourceIDString(
+			coreapitesting.TestSubscriptionID, coreapitesting.TestResourceGroupName, coreapitesting.TestClusterName, name,
+		)
+		resourceID := metadataapi.Must(azcorearm.ParseResourceID(resourceIDStr))
+		return &kubeapplierapi.ReadDesire{
+			CosmosMetadata: coreapi.CosmosMetadata{
+				ResourceID:   resourceID,
+				PartitionKey: strings.ToLower(managementClusterResourceID.String()),
+			},
+			Spec: kubeapplierapi.ReadDesireSpec{
+				ManagementCluster: managementClusterResourceID,
+			},
+			Tags: map[string]string{backup.DesireTagKeyOndemandBackup: ""},
+		}
+	}
+
+	seedCluster := func(ctx context.Context, t *testing.T, mockResourcesDBClient *corecosmosstoragetesting.MockResourcesDBClient, resourceID *azcorearm.ResourceID) {
+		t.Helper()
+		hcp := &coreapi.HCPOpenShiftCluster{
+			CosmosMetadata: coreapi.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(resourceID.SubscriptionID)},
+			TrackedResource: coreapi.TrackedResource{
+				Resource: coreapi.Resource{ID: resourceID},
+			},
+		}
+		_, err := mockResourcesDBClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).Create(ctx, hcp, nil)
+		require.NoError(t, err)
+		spc, err := corecosmosstorage.GetOrCreateServiceProviderCluster(ctx, mockResourcesDBClient, resourceID)
+		require.NoError(t, err)
+		spc.Status.ManagementClusterResourceID = managementClusterResourceID
+		_, err = mockResourcesDBClient.ServiceProviderClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName, resourceID.Name).Replace(ctx, spc, nil)
+		require.NoError(t, err)
+	}
+
+	tests := []struct {
+		name               string
+		skipResourceID     bool
+		doSeedCluster      bool
+		registerKubeClient bool
+		readDesires        []*kubeapplierapi.ReadDesire
+		expectedStatusCode int
+		expectedError      string
+		expectedBackups    []OnDemandBackupDetail
+	}{
+		{
+			name:           "missing resource ID in context",
+			skipResourceID: true,
+			expectedError:  "failed to resolve HCP context",
+		},
+		{
+			name:               "HCP cluster not found",
+			expectedStatusCode: http.StatusNotFound,
+			expectedError:      "not found",
+		},
+		{
+			name:               "no on-demand backups returns empty list",
+			doSeedCluster:      true,
+			registerKubeClient: true,
+			expectedStatusCode: http.StatusOK,
+			expectedBackups:    []OnDemandBackupDetail{},
+		},
+		{
+			name:               "returns backup details from ReadDesires",
+			doSeedCluster:      true,
+			registerKubeClient: true,
+			readDesires: func() []*kubeapplierapi.ReadDesire {
+				startTime := metav1.NewTime(time.Date(2026, 8, 1, 12, 0, 0, 0, time.UTC))
+				completionTime := metav1.NewTime(time.Date(2026, 8, 1, 12, 5, 0, 0, time.UTC))
+				backupJSON, _ := json.Marshal(velerov1api.Backup{
+					ObjectMeta: metav1.ObjectMeta{
+						Annotations: map[string]string{
+							controllerutils.HcpClusterKmsKeyFingerprintAnnotation: "abc123fingerprint",
+						},
+					},
+					Status: velerov1api.BackupStatus{
+						Phase:               velerov1api.BackupPhaseCompleted,
+						StartTimestamp:      &startTime,
+						CompletionTimestamp: &completionTime,
+					},
+				})
+				rd := makeReadDesire(backup.OndemandBackupDesireNamePrefix + "cluster1-keyrotation-abc123fingerprint")
+				rd.Status.KubeContent = &runtime.RawExtension{Raw: backupJSON}
+				return []*kubeapplierapi.ReadDesire{rd}
+			}(),
+			expectedStatusCode: http.StatusOK,
+			expectedBackups: []OnDemandBackupDetail{
+				{
+					Name:              "cluster1-keyrotation-abc123fingerprint",
+					Phase:             "Completed",
+					KMSKeyFingerprint: "abc123fingerprint",
+					StartTime:         "2026-08-01T12:00:00Z",
+					CompletionTime:    "2026-08-01T12:05:00Z",
+				},
+			},
+		},
+		{
+			name:               "ReadDesire without KubeContent returns name only",
+			doSeedCluster:      true,
+			registerKubeClient: true,
+			readDesires: []*kubeapplierapi.ReadDesire{
+				makeReadDesire(backup.OndemandBackupDesireNamePrefix + "cluster1-keyrotation-def456"),
+			},
+			expectedStatusCode: http.StatusOK,
+			expectedBackups: []OnDemandBackupDetail{
+				{Name: "cluster1-keyrotation-def456"},
+			},
+		},
+		{
+			name:               "ReadDesire without on-demand tag is skipped",
+			doSeedCluster:      true,
+			registerKubeClient: true,
+			readDesires: func() []*kubeapplierapi.ReadDesire {
+				rd := makeReadDesire(backup.OndemandBackupDesireNamePrefix + "untagged")
+				rd.Tags = map[string]string{backup.DesireTagKeySchedule: ""}
+				return []*kubeapplierapi.ReadDesire{rd}
+			}(),
+			expectedStatusCode: http.StatusOK,
+			expectedBackups:    []OnDemandBackupDetail{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+			mockResourcesDBClient := corecosmosstoragetesting.NewMockResourcesDBClient()
+			mockKubeApplierClients := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClients()
+
+			resourceID, err := azcorearm.ParseResourceID(coreapitesting.TestClusterResourceID)
+			require.NoError(t, err)
+
+			if tt.doSeedCluster {
+				seedCluster(ctx, t, mockResourcesDBClient, resourceID)
+			}
+
+			if tt.registerKubeClient {
+				mockKubeApplierClient := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClient()
+				mockKubeApplierClients.Register(managementClusterResourceID, mockKubeApplierClient)
+
+				if len(tt.readDesires) > 0 {
+					readDesireCRUD, err := mockKubeApplierClient.ReadDesiresForCluster(
+						resourceID.SubscriptionID, resourceID.ResourceGroupName, resourceID.Name,
+					)
+					require.NoError(t, err)
+					for _, rd := range tt.readDesires {
+						_, err = readDesireCRUD.Create(ctx, rd, nil)
+						require.NoError(t, err)
+					}
+				}
+			}
+
+			handler := NewHCPGetOnDemandBackupsHandler(mockResourcesDBClient, mockKubeApplierClients)
+
+			if !tt.skipResourceID {
+				ctx = utils.ContextWithResourceID(ctx, resourceID)
+			}
+
+			req := httptest.NewRequest(http.MethodGet, "/backups", nil)
+			req = req.WithContext(ctx)
+			recorder := httptest.NewRecorder()
+
+			err = handler.ServeHTTP(recorder, req)
+
+			if tt.expectedStatusCode >= 400 {
+				if err == nil {
+					t.Fatalf("expected error but got none")
+				}
+				var cloudErr *coreapi.CloudError
+				if !errors.As(err, &cloudErr) {
+					t.Fatalf("expected CloudError but got %T: %v", err, err)
+				}
+				if cloudErr.StatusCode != tt.expectedStatusCode {
+					t.Errorf("expected status %d, got %d", tt.expectedStatusCode, cloudErr.StatusCode)
+				}
+				if tt.expectedError != "" && !strings.Contains(err.Error(), tt.expectedError) {
+					t.Errorf("expected error containing %q, got %q", tt.expectedError, err.Error())
+				}
+				return
+			}
+
+			if tt.expectedError != "" {
+				if err == nil {
+					t.Fatalf("expected error but got none")
+				}
+				if !strings.Contains(err.Error(), tt.expectedError) {
+					t.Errorf("expected error containing %q, got %q", tt.expectedError, err.Error())
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("expected no error but got %v", err)
+			}
+
+			var response OnDemandBackupResponse
+			require.NoError(t, json.NewDecoder(recorder.Body).Decode(&response))
+			require.Len(t, response.Backups, len(tt.expectedBackups))
+			for i, expected := range tt.expectedBackups {
+				actual := response.Backups[i]
+				if actual.Name != expected.Name {
+					t.Errorf("backup[%d] name: expected %q, got %q", i, expected.Name, actual.Name)
+				}
+				if actual.Phase != expected.Phase {
+					t.Errorf("backup[%d] phase: expected %q, got %q", i, expected.Phase, actual.Phase)
+				}
+				if actual.KMSKeyFingerprint != expected.KMSKeyFingerprint {
+					t.Errorf("backup[%d] fingerprint: expected %q, got %q", i, expected.KMSKeyFingerprint, actual.KMSKeyFingerprint)
+				}
+				if actual.StartTime != expected.StartTime {
+					t.Errorf("backup[%d] startTime: expected %q, got %q", i, expected.StartTime, actual.StartTime)
+				}
+				if actual.CompletionTime != expected.CompletionTime {
+					t.Errorf("backup[%d] completionTime: expected %q, got %q", i, expected.CompletionTime, actual.CompletionTime)
 				}
 			}
 		})
