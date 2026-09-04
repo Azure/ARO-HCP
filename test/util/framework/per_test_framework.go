@@ -78,6 +78,7 @@ type perItOrDescribeTestContext struct {
 	armResourcesClientFactory     *armresources.ClientFactory
 	armSubscriptionsClientFactory *armsubscriptions.ClientFactory
 	armNetworkClientFactory       *armnetwork.ClientFactory
+	armKeyVaultClientFactory      *armkeyvault.ClientFactory
 	graphClient                   *graphutil.Client
 
 	LogDirPath       string
@@ -769,21 +770,12 @@ func (tc *perItOrDescribeTestContext) purgeDeletedKeyVaultsInResourceGroup(ctx c
 	ctx, cancel := context.WithTimeout(ctx, keyVaultPurgeTimeout)
 	defer cancel()
 
-	creds, err := tc.AzureCredential()
+	clientFactory, err := tc.GetARMKeyVaultClientFactory(ctx)
 	if err != nil {
-		ginkgo.GinkgoLogr.Error(err, "unable to purge soft-deleted key vaults: failed to get azure credentials", "resourceGroup", resourceGroupName)
+		ginkgo.GinkgoLogr.Error(err, "unable to purge soft-deleted key vaults: failed to build key vault client factory", "resourceGroup", resourceGroupName)
 		return
 	}
-	subscriptionID, err := tc.SubscriptionID(ctx)
-	if err != nil {
-		ginkgo.GinkgoLogr.Error(err, "unable to purge soft-deleted key vaults: failed to get subscription id", "resourceGroup", resourceGroupName)
-		return
-	}
-	vaultsClient, err := armkeyvault.NewVaultsClient(subscriptionID, creds, tc.perBinaryInvocationTestContext.getClientFactoryOptions())
-	if err != nil {
-		ginkgo.GinkgoLogr.Error(err, "unable to purge soft-deleted key vaults: failed to build key vault client", "resourceGroup", resourceGroupName)
-		return
-	}
+	vaultsClient := clientFactory.NewVaultsClient()
 
 	// Soft-deleted vaults expose their original resource id via VaultID; match
 	// the resource group segment case-insensitively.
@@ -1176,6 +1168,46 @@ func (tc *perItOrDescribeTestContext) getARMComputeClientFactoryUnlocked(ctx con
 	tc.armComputeClientFactory = clientFactory
 
 	return tc.armComputeClientFactory, nil
+}
+
+func (tc *perItOrDescribeTestContext) GetARMKeyVaultClientFactoryOrDie(ctx context.Context) *armkeyvault.ClientFactory {
+	return Must(tc.GetARMKeyVaultClientFactory(ctx))
+}
+
+func (tc *perItOrDescribeTestContext) GetARMKeyVaultClientFactory(ctx context.Context) (*armkeyvault.ClientFactory, error) {
+	tc.contextLock.RLock()
+	if tc.armKeyVaultClientFactory != nil {
+		defer tc.contextLock.RUnlock()
+		return tc.armKeyVaultClientFactory, nil
+	}
+	tc.contextLock.RUnlock()
+
+	tc.contextLock.Lock()
+	defer tc.contextLock.Unlock()
+
+	return tc.getARMKeyVaultClientFactoryUnlocked(ctx)
+}
+
+func (tc *perItOrDescribeTestContext) getARMKeyVaultClientFactoryUnlocked(ctx context.Context) (*armkeyvault.ClientFactory, error) {
+	if tc.armKeyVaultClientFactory != nil {
+		return tc.armKeyVaultClientFactory, nil
+	}
+
+	creds, err := tc.perBinaryInvocationTestContext.getAzureCredentials()
+	if err != nil {
+		return nil, err
+	}
+	subscriptionID, err := tc.getSubscriptionIDUnlocked(ctx)
+	if err != nil {
+		return nil, err
+	}
+	clientFactory, err := armkeyvault.NewClientFactory(subscriptionID, creds, tc.perBinaryInvocationTestContext.getClientFactoryOptions())
+	if err != nil {
+		return nil, err
+	}
+	tc.armKeyVaultClientFactory = clientFactory
+
+	return tc.armKeyVaultClientFactory, nil
 }
 
 func (tc *perItOrDescribeTestContext) getSubscriptionIDUnlocked(ctx context.Context) (string, error) {
