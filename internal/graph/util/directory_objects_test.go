@@ -60,11 +60,17 @@ func newTestGraphClient(t *testing.T, server *httptest.Server) *Client {
 
 func writeGraphError(t *testing.T, writer http.ResponseWriter, statusCode int) {
 	t.Helper()
+	writeGraphErrorCode(t, writer, statusCode, "Request_ResourceNotFound")
+}
+
+func writeGraphErrorCode(t *testing.T, writer http.ResponseWriter, statusCode int, code string) {
+	t.Helper()
 	writer.Header().Set("Content-Type", "application/json")
 	writer.WriteHeader(statusCode)
 	_, err := fmt.Fprintf(
 		writer,
-		`{"error":{"code":"Request_ResourceNotFound","message":"status %d"}}`,
+		`{"error":{"code":"%s","message":"status %d"}}`,
+		code,
 		statusCode,
 	)
 	require.NoError(t, err)
@@ -233,6 +239,66 @@ func TestDeleteApplicationPermanentlyRestoresApplicationWhenPurgeFails(t *testin
 		"DELETE /applications/app-object",
 		"DELETE /directory/deletedItems/app-object",
 		"POST /directory/deletedItems/app-object/restore",
+	}, requests)
+}
+
+func TestDeleteApplicationPermanentlySkipsRestoreWhenServicePrincipalPurgeIsForbidden(t *testing.T) {
+	var requests []string
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		requests = append(requests, request.Method+" "+request.URL.Path)
+		switch request.URL.Path {
+		case "/servicePrincipals/sp-object", "/applications/app-object", "/directory/deletedItems/app-object":
+			writer.WriteHeader(http.StatusNoContent)
+		case "/directory/deletedItems/sp-object":
+			writeGraphErrorCode(t, writer, http.StatusForbidden, "Authorization_RequestDenied")
+		default:
+			t.Errorf("unexpected request: %s %s", request.Method, request.URL.Path)
+			writer.WriteHeader(http.StatusInternalServerError)
+		}
+	}))
+	defer server.Close()
+
+	client := newTestGraphClient(t, server)
+	err := client.DeleteApplicationPermanently(context.Background(), ApplicationCleanupTarget{
+		ApplicationObjectID:      "app-object",
+		ServicePrincipalObjectID: "sp-object",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, []string{
+		"DELETE /servicePrincipals/sp-object",
+		"DELETE /directory/deletedItems/sp-object",
+		"DELETE /applications/app-object",
+		"DELETE /directory/deletedItems/app-object",
+	}, requests)
+}
+
+func TestDeleteApplicationPermanentlySkipsRestoreWhenApplicationPurgeIsForbidden(t *testing.T) {
+	var requests []string
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		requests = append(requests, request.Method+" "+request.URL.Path)
+		switch request.URL.Path {
+		case "/servicePrincipals/sp-object", "/directory/deletedItems/sp-object", "/applications/app-object":
+			writer.WriteHeader(http.StatusNoContent)
+		case "/directory/deletedItems/app-object":
+			writeGraphErrorCode(t, writer, http.StatusForbidden, "Authorization_RequestDenied")
+		default:
+			t.Errorf("unexpected request: %s %s", request.Method, request.URL.Path)
+			writer.WriteHeader(http.StatusInternalServerError)
+		}
+	}))
+	defer server.Close()
+
+	client := newTestGraphClient(t, server)
+	err := client.DeleteApplicationPermanently(context.Background(), ApplicationCleanupTarget{
+		ApplicationObjectID:      "app-object",
+		ServicePrincipalObjectID: "sp-object",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, []string{
+		"DELETE /servicePrincipals/sp-object",
+		"DELETE /directory/deletedItems/sp-object",
+		"DELETE /applications/app-object",
+		"DELETE /directory/deletedItems/app-object",
 	}, requests)
 }
 
