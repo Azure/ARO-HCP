@@ -347,8 +347,11 @@ func (f *BackendRootCmdFlags) validate() error {
 // resolveInsecureManagedIdentityMockIDsFromFiles reads any of the "-path" variants of the mock identity
 // client id / principal id flags and populates the corresponding raw fields with their (whitespace-trimmed)
 // file contents. This lets the mock identity's client id / principal id be sourced from a Key Vault secret
-// mounted via the CSI driver instead of being duplicated as static configuration, so it self-heals whenever
-// the underlying Service Principal is recreated (its principal id changes) without requiring a config change.
+// mounted via the CSI driver instead of being duplicated as static configuration, so a rotated value (e.g.
+// after the underlying Service Principal is recreated and its principal id changes) no longer requires a
+// config change to pick up. This resolution only runs once, at startup: it is called a single time before
+// the backend is constructed, so an already-running pod does not observe a later CSI secret rotation and
+// must be restarted to pick up the new value.
 // Must be called after validate(), which already enforces that exactly one of the raw/path flags is set.
 func (f *BackendRootCmdFlags) resolveInsecureManagedIdentityMockIDsFromFiles() error {
 	if len(f.InsecureAzureManagedIdentityMockClientIDPath) != 0 {
