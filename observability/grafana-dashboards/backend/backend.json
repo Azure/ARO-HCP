@@ -254,7 +254,7 @@
           "refId": "PrometheusVariableQueryEditor-VariableQuery"
         },
         "refresh": 1,
-        "regex": "^.*-svc-\\d+$",
+        "regex": "^.*-svc(?:-\\d+)?$",
         "skipUrlSync": false,
         "sort": 0,
         "type": "query"
