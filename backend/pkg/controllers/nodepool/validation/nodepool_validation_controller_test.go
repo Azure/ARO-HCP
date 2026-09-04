@@ -16,11 +16,13 @@ package validation
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/go-logr/logr/testr"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -140,6 +142,7 @@ func newTestSyncer(mockDB *corecosmosstoragetesting.MockResourcesDBClient, valid
 		serviceProviderNodePoolLister: &corelistertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockDB},
 		validation:                    validation,
 		consecutiveUnknownCounts:      lru.New(consecutiveUnknownCountsCacheCapacity),
+		controllerName:                fmt.Sprintf("NodePoolValidation%s", validation.Name()),
 	}
 	return syncer, enqueuer
 }
@@ -589,9 +592,11 @@ func TestNodePoolValidationSyncer_CooldownSuppression(t *testing.T) {
 	key := newTestNodePoolKey()
 	syncer.retryCooldownChecker.SetCooldown(key, 60*time.Second)
 
+	beforeSkips := testutil.ToFloat64(controllerutils.ReconcileCooldownSkips.WithLabelValues(syncer.controllerName))
 	err = syncer.SyncOnce(ctx, key)
 	require.NoError(t, err, "SyncOnce should return nil when cooldown is active")
 
 	require.NotEmpty(t, enqueuer.enqueuedKeys, "should have re-enqueued after cooldown skip")
 	assert.Greater(t, enqueuer.enqueuedDurations[0], time.Duration(0), "enqueue duration should be positive")
+	assert.Equal(t, beforeSkips+1, testutil.ToFloat64(controllerutils.ReconcileCooldownSkips.WithLabelValues(syncer.controllerName)), "cooldown skip should increment ReconcileCooldownSkips")
 }

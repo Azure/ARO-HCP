@@ -85,6 +85,34 @@ resource backendRetryhotloop 'Microsoft.AlertsManagement/prometheusRuleGroups@20
         for: 'PT10M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'BackendControllerReconcileErrorRate'
+        enabled: true
+        labels: {
+          component: 'backend'
+          severity: 'warning'
+        }
+        annotations: {
+          correlationId: 'BackendControllerReconcileErrorRate/{{ $labels.cluster }}/{{ $labels.controller }}'
+          description: 'Backend controller {{ $labels.controller }} has a reconcile error ratio of > 50% sustained over 10 minutes, indicating most reconciles are failing rather than succeeding.'
+          info: 'Backend controller {{ $labels.controller }} has a reconcile error ratio of > 50% sustained over 10 minutes, indicating most reconciles are failing rather than succeeding.'
+          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html'
+          summary: 'Backend controller {{ $labels.controller }} reconcile error rate is high'
+          title: 'Backend controller {{ $labels.controller }} reconcile error rate is high'
+        }
+        expression: '(sum by (controller, cluster) (max without (prometheus_replica) (rate(backend_controller_reconcile_errors_total{namespace="aro-hcp"}[10m]))) / clamp_min((sum by (controller, cluster) (max without (prometheus_replica) (rate(backend_controller_reconcile_total{namespace="aro-hcp"}[10m]))) - (sum by (controller, cluster) (max without (prometheus_replica) (rate(backend_controller_reconcile_cooldown_skips_total{namespace="aro-hcp"}[10m]))) or (sum by (controller, cluster) (max without (prometheus_replica) (rate(backend_controller_reconcile_total{namespace="aro-hcp"}[10m]))) * 0))), 0)) > 0.5'
+        for: 'PT10M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
     ]
     scopes: [
       azureMonitoring
