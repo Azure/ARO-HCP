@@ -116,14 +116,15 @@ var _ controllerutils.ClusterSyncer = (*fetchMSIIdentitiesInfoSyncer)(nil)
 //     CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities
 //     (control plane operators and service managed identity), de-duplicating
 //     control plane operator identities that share a resource ID.
-//  3. Via needsWork, skips Managed Identities Data Plane calls when
-//     ServiceProviderCluster.Status.MSIManagedIdentities.EarliestRecheckTime is
-//     still in the future AND the identities stored on the ServiceProviderCluster
-//     still match the collected desired set. If the desired identities have
-//     changed, EarliestRecheckTime is ignored so the dataplane is queried
-//     immediately. The recheck time is shared across every entry in
-//     MSIManagedIdentities.ControlPlaneOperatorsIdentities and
-//     MSIManagedIdentities.ServiceManagedIdentity.
+//  3. Via needsWork, skips Managed Identities Data Plane calls when this
+//     controller's entry in
+//     ServiceProviderCluster.Spec.EarliestRecheckTimesByController (keyed by
+//     FetchMSIIdentitiesInfoControllerName) is still in the future AND the
+//     identities stored on the ServiceProviderCluster still match the collected
+//     desired set. If the desired identities have changed, the recheck time is
+//     ignored so the dataplane is queried immediately. The recheck time is shared
+//     across every entry in MSIManagedIdentities.ControlPlaneOperatorsIdentities
+//     and MSIManagedIdentities.ServiceManagedIdentity.
 //  4. Calls the Managed Identities Data Plane (or the fake client implementation
 //     in environments where the real Managed Identities Data Plane service
 //     is not available) once with the set of identities.
@@ -131,8 +132,9 @@ var _ controllerutils.ClusterSyncer = (*fetchMSIIdentitiesInfoSyncer)(nil)
 //     ARM IDs are case-insensitive and response order is not assumed)
 //     and sets ClientID and PrincipalID when the dataplane returns
 //     non-empty values. Resource IDs are stored lowercased in the ServiceProviderCluster.
-//  6. On a fully successful dataplane fetch, it sets EarliestRecheckTime on the
-//     in-memory replacement to now plus a long jittered interval.
+//  6. On a fully successful dataplane fetch, it sets this controller's entry in
+//     Spec.EarliestRecheckTimesByController on the in-memory replacement to now
+//     plus a long jittered interval.
 //  7. Replaces the ServiceProviderCluster document when the resulting document
 //     differs from the one that was read. Reads use the informer cache, and the
 //     Replace uses the cached document's etag, so a stale cache results in a
@@ -188,7 +190,7 @@ func (c *fetchMSIIdentitiesInfoSyncer) needsWork(existingServiceProviderCluster 
 		// EarliestRecheckTime so we do not repeatedly query the Managed Identities
 		// Data Plane for the same identities. Nil means recheck immediately; a
 		// future time means skip work.
-		earliestRecheckTime := existingServiceProviderCluster.Status.MSIManagedIdentities.EarliestRecheckTime
+		earliestRecheckTime := existingServiceProviderCluster.Spec.EarliestRecheckTimesByController[FetchMSIIdentitiesInfoControllerName]
 		if earliestRecheckTime != nil && c.clock.Now().Before(earliestRecheckTime.Time) {
 			return false
 		}
@@ -354,7 +356,10 @@ func (c *fetchMSIIdentitiesInfoSyncer) SyncOnce(ctx context.Context, key control
 		msiIdentitiesRecheckInterval,
 		msiIdentitiesRecheckJitter,
 	)))
-	replacement.Status.MSIManagedIdentities.EarliestRecheckTime = &earliestRecheckAt
+	if replacement.Spec.EarliestRecheckTimesByController == nil {
+		replacement.Spec.EarliestRecheckTimesByController = map[string]*metav1.Time{}
+	}
+	replacement.Spec.EarliestRecheckTimesByController[FetchMSIIdentitiesInfoControllerName] = &earliestRecheckAt
 
 	if equality.Semantic.DeepEqual(replacement, existingServiceProviderCluster) {
 		return nil
@@ -363,7 +368,7 @@ func (c *fetchMSIIdentitiesInfoSyncer) SyncOnce(ctx context.Context, key control
 	serviceProviderClusterCRUD := c.resourcesDBClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	_, err = serviceProviderClusterCRUD.Replace(ctx, replacement, nil)
 	if cosmosstorageutils.IsPreconditionFailedError(err) {
-		// Status (including any new EarliestRecheckTime) was not written.
+		// Spec (including any new EarliestRecheckTimesByController entry) was not written.
 		// The informer will observe the newer document and requeue.
 		return nil
 	}
