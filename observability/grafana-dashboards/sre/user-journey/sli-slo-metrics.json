@@ -978,7 +978,7 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "Fleet-weighted terminal success rates across the selected regional datasources over the latest 24 hours. The cluster SLO line is 95%.",
+      "description": "Average regional terminal success rates across the selected datasources over the latest 24 hours. The cluster SLO line is 95%.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1063,10 +1063,10 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "100 * count((backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\",operation_type=\"create\",phase=\"succeeded\",subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\",operation_type=\"create\",phase=\"succeeded\",subscription_id!~\"${exclude_subs:raw}\"}) < $__range_s))",
+          "expr": "100 * count((backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\",operation_type=\"create\",phase=\"succeeded\",subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\",operation_type=\"create\",phase=\"succeeded\",subscription_id!~\"${exclude_subs:raw}\"}) < $__range_s)) / clamp_min(count((backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\",operation_type=\"create\",phase=~\"succeeded|failed\",subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\",operation_type=\"create\",phase=~\"succeeded|failed\",subscription_id!~\"${exclude_subs:raw}\"}) < $__range_s)), 1)",
           "instant": false,
           "interval": "1h",
-          "legendFormat": "Cluster Succeeded x100",
+          "legendFormat": "Cluster",
           "range": true,
           "refId": "A"
         },
@@ -1076,38 +1076,12 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count((backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\",operation_type=\"create\",phase=~\"succeeded|failed\",subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\",operation_type=\"create\",phase=~\"succeeded|failed\",subscription_id!~\"${exclude_subs:raw}\"}) < $__range_s))",
+          "expr": "100 * count((backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/nodepools\",operation_type=\"create\",phase=\"succeeded\",subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/nodepools\",operation_type=\"create\",phase=\"succeeded\",subscription_id!~\"${exclude_subs:raw}\"}) < $__range_s)) / clamp_min(count((backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/nodepools\",operation_type=\"create\",phase=~\"succeeded|failed\",subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/nodepools\",operation_type=\"create\",phase=~\"succeeded|failed\",subscription_id!~\"${exclude_subs:raw}\"}) < $__range_s)), 1)",
           "instant": false,
           "interval": "1h",
-          "legendFormat": "Cluster Terminal",
+          "legendFormat": "NodePool",
           "range": true,
           "refId": "B"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "$datasource"
-          },
-          "editorMode": "code",
-          "expr": "100 * count((backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/nodepools\",operation_type=\"create\",phase=\"succeeded\",subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/nodepools\",operation_type=\"create\",phase=\"succeeded\",subscription_id!~\"${exclude_subs:raw}\"}) < $__range_s))",
-          "instant": false,
-          "interval": "1h",
-          "legendFormat": "NodePool Succeeded x100",
-          "range": true,
-          "refId": "C"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "$datasource"
-          },
-          "editorMode": "code",
-          "expr": "count((backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/nodepools\",operation_type=\"create\",phase=~\"succeeded|failed\",subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/nodepools\",operation_type=\"create\",phase=~\"succeeded|failed\",subscription_id!~\"${exclude_subs:raw}\"}) < $__range_s))",
-          "instant": false,
-          "interval": "1h",
-          "legendFormat": "NodePool Terminal",
-          "range": true,
-          "refId": "D"
         }
       ],
       "timeFrom": "24h",
@@ -1135,7 +1109,7 @@
               },
               "Value": {
                 "aggregations": [
-                  "sum"
+                  "mean"
                 ],
                 "operation": "aggregate"
               }
@@ -1145,45 +1119,7 @@
         {
           "id": "prepareTimeSeries",
           "options": {
-            "format": "wide"
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Cluster",
-            "binary": {
-              "left": "Value (sum) Cluster Succeeded x100",
-              "operator": "/",
-              "right": "Value (sum) Cluster Terminal"
-            },
-            "mode": "binary",
-            "replaceFields": false
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "NodePool",
-            "binary": {
-              "left": "Value (sum) NodePool Succeeded x100",
-              "operator": "/",
-              "right": "Value (sum) NodePool Terminal"
-            },
-            "mode": "binary",
-            "replaceFields": false
-          }
-        },
-        {
-          "id": "filterFieldsByName",
-          "options": {
-            "include": {
-              "names": [
-                "Time",
-                "Cluster",
-                "NodePool"
-              ]
-            }
+            "format": "many"
           }
         }
       ],
