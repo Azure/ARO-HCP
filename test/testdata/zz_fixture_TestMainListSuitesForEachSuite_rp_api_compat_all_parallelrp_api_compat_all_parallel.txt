@@ -16,7 +16,6 @@ Customer should create a cluster using v20260901preview API and verify cluster h
 ARO HCP Service should successfully provision cluster when MI role assignments are added after cluster creation
 FIPS Mode Support with v2026-06-30 API should create an HCP cluster with FIPS mode enabled via cryptoRestrictions property
 Customer should be able to create an HCP cluster and manage pull secrets
-Customer should be able to propagate pull secret to a nodepool created after the pull secret
 Update HCPOpenShiftCluster Positive creates a cluster and updates tags with a PATCH request
 Customer should be able to create an HCP cluster with back-level version 4.19
 ARO-HCP should be able to perform a control plane and node pool install with OCP candidate channel for 4.20

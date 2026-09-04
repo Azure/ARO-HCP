@@ -16,7 +16,6 @@ ARO HCP Service should successfully provision cluster when MI role assignments a
 Customer should be able to create an HCP cluster then delete it by deleting the customer resource group
 FIPS Mode Support with v2026-06-30 API should create an HCP cluster with FIPS mode enabled via cryptoRestrictions property
 Customer should be able to create an HCP cluster and manage pull secrets
-Customer should be able to propagate pull secret to a nodepool created after the pull secret
 Customer should create an HCP cluster and validate TLS certificates
 Update HCPOpenShiftCluster Negative creates a cluster and fails to update its name with a PATCH request
 Update HCPOpenShiftCluster Positive creates a cluster and updates tags with a PATCH request

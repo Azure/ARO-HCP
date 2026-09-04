@@ -111,20 +111,6 @@ var _ = Describe("Customer", func() {
 				framework.ClusterCreationTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster for pull secret test")
-			By("Creating the node pool")
-			nodePoolParams := framework.NewDefaultNodePoolParams20240610()
-			nodePoolParams.NodePoolName = "np-1"
-			nodePoolParams.ClusterName = customerClusterName
-			nodePoolParams.Replicas = int32(2)
-			err = tc.CreateNodePoolFromParam20240610(ctx,
-				GinkgoLogr,
-				*resourceGroup.Name,
-				managedResourceGroupName,
-				customerClusterName,
-				nodePoolParams,
-				framework.NodePoolCreationTimeout,
-			)
-			Expect(err).NotTo(HaveOccurred(), "failed to create node pool np-1 for pull secret cluster")
 
 			By("getting credentials")
 			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20260901(
@@ -165,12 +151,6 @@ var _ = Describe("Customer", func() {
 				Verify(ctx, adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred(), "failed to wait for additional pull secret to be merged into global-pull-secret by HCCO")
 
-			// The merged secret doesn't reach nodes until global-pull-secret-syncer syncs it to /var/lib/kubelet/config.json
-			By("verifying the DaemonSet for global pull secret synchronization is created")
-			err = verifiers.VerifyGlobalPullSecretSyncer(daemonSetSyncTimeout).
-				Verify(ctx, adminRESTConfig)
-			Expect(err).NotTo(HaveOccurred(), "failed to wait for global-pull-secret-syncer DaemonSet to be created and ready")
-
 			By("verifying the pull secret was merged into the global pull secret")
 			err = verifiers.VerifyPullSecretAuthData(
 				"global-pull-secret",
@@ -180,6 +160,27 @@ var _ = Describe("Customer", func() {
 				testRegistryAuth.Email,
 			).Verify(ctx, adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred(), "failed to verify pull secret auth data for host.example.com in global-pull-secret")
+
+			By("Creating the node pool")
+			nodePoolParams := framework.NewDefaultNodePoolParams20240610()
+			nodePoolParams.NodePoolName = "np-1"
+			nodePoolParams.ClusterName = customerClusterName
+			nodePoolParams.Replicas = int32(2)
+			err = tc.CreateNodePoolFromParam20240610(ctx,
+				GinkgoLogr,
+				*resourceGroup.Name,
+				managedResourceGroupName,
+				customerClusterName,
+				nodePoolParams,
+				framework.NodePoolCreationTimeout,
+			)
+			Expect(err).NotTo(HaveOccurred(), "failed to create node pool np-1 for pull secret cluster")
+
+			// The merged secret doesn't reach nodes until global-pull-secret-syncer syncs it to /var/lib/kubelet/config.json
+			By("verifying the global-pull-secret-syncer DaemonSet is ready on all nodes")
+			err = verifiers.VerifyGlobalPullSecretSyncer(daemonSetSyncTimeout).
+				Verify(ctx, adminRESTConfig)
+			Expect(err).NotTo(HaveOccurred(), "failed to wait for global-pull-secret-syncer DaemonSet to be ready on nodepool nodes")
 
 			By("reading pull-secret file from aro-hcp-qe-pull-secret directory")
 			pullSecretFileData, err := os.ReadFile(pullSecretFilePath)
