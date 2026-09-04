@@ -1465,6 +1465,16 @@ Each entry links to every actor that writes the field.
 | [Frontend: PUT/PATCH Cluster (Update)](#put-cluster-update) | Rebuilt via `completeClusterIdentity` with old data |
 | [ClusterIdentitySync](#clusteridentitysync) | Keeps ClientID/PrincipalID on existing Identity keys in sync with ServiceProviderCluster.Status.MSIManagedIdentities |
 
+### `HCPOpenShiftCluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.KeyEncryptionKeyURL`
+
+| Actor | When |
+|-------|------|
+| [Frontend: PUT Cluster (Create)](#put-cluster-create) | Sets from `keyEncryptionKeyUrl` in v20261003preview request body, or reconstructed from `activeKey`+`vaultName` in v20260901preview |
+| [Frontend: PUT/PATCH Cluster (Update)](#put-cluster-update) | Updated from `keyEncryptionKeyUrl` in v20261003preview request body, or reconstructed from `activeKey`+`vaultName` in v20260901preview |
+| [CosmosMigration: migrateClusterKMS](#cosmosmigration) | Backfills from `ActiveKey` fields for clusters created before v20261003preview, if `KeyEncryptionKeyURL` is empty |
+
+The full Key Vault URL for ETCD data encryption. Stored alongside the decomposed `ActiveKey` fields for backward compatibility with older API versions and OCM.
+
 ### `HCPOpenShiftCluster.ServiceProviderProperties.DeletionTimestamp`
 
 | Actor | When |

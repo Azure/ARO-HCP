@@ -53,6 +53,7 @@ const (
 	v20251223 = "2025-12-23-preview"
 	v20260630 = "2026-06-30-preview"
 	v20260901 = "2026-09-01-preview"
+	v20261003 = "2026-10-03-preview"
 )
 
 // crossVersionTestEntry pairs a subtest name with its runner function.
@@ -90,6 +91,11 @@ func clusterPUTRoundTripTests() []crossVersionTestEntry {
 		{"Cluster/PUT/v20260901-create-v20240610-put-v20260901-verify", v20260901, v20240610, "xvrt-put-v20260901v20240610"},
 		{"Cluster/PUT/v20260901-create-v20251223-put-v20260901-verify", v20260901, v20251223, "xvrt-put-v20260901v20251223"},
 		{"Cluster/PUT/v20260901-create-v20260630-put-v20260901-verify", v20260901, v20260630, "xvrt-put-v20260901v20260630"},
+		{"Cluster/PUT/v20261003-create-v20261003-put-v20261003-verify", v20261003, v20261003, "xvrt-put-v20261003same"},
+		{"Cluster/PUT/v20261003-create-v20240610-put-v20261003-verify", v20261003, v20240610, "xvrt-put-v20261003v20240610"},
+		{"Cluster/PUT/v20261003-create-v20251223-put-v20261003-verify", v20261003, v20251223, "xvrt-put-v20261003v20251223"},
+		{"Cluster/PUT/v20261003-create-v20260630-put-v20261003-verify", v20261003, v20260630, "xvrt-put-v20261003v20260630"},
+		{"Cluster/PUT/v20261003-create-v20260901-put-v20261003-verify", v20261003, v20260901, "xvrt-put-v20261003v20260901"},
 	}
 	var tests []crossVersionTestEntry
 	for _, tc := range tcs {
@@ -117,6 +123,11 @@ func clusterPATCHRoundTripTests() []crossVersionTestEntry {
 		{"Cluster/PATCH/v20260901-create-v20240610-patch-v20260901-verify", v20260901, v20240610, "xvrt-patch-v20260901v20240610"},
 		{"Cluster/PATCH/v20260901-create-v20251223-patch-v20260901-verify", v20260901, v20251223, "xvrt-patch-v20260901v20251223"},
 		{"Cluster/PATCH/v20260901-create-v20260630-patch-v20260901-verify", v20260901, v20260630, "xvrt-patch-v20260901v20260630"},
+		{"Cluster/PATCH/v20261003-create-v20261003-patch-v20261003-verify", v20261003, v20261003, "xvrt-patch-v20261003same"},
+		{"Cluster/PATCH/v20261003-create-v20240610-patch-v20261003-verify", v20261003, v20240610, "xvrt-patch-v20261003v20240610"},
+		{"Cluster/PATCH/v20261003-create-v20251223-patch-v20261003-verify", v20261003, v20251223, "xvrt-patch-v20261003v20251223"},
+		{"Cluster/PATCH/v20261003-create-v20260630-patch-v20261003-verify", v20261003, v20260630, "xvrt-patch-v20261003v20260630"},
+		{"Cluster/PATCH/v20261003-create-v20260901-patch-v20261003-verify", v20261003, v20260901, "xvrt-patch-v20261003v20260901"},
 	}
 	var tests []crossVersionTestEntry
 	for _, tc := range tcs {
@@ -415,7 +426,6 @@ func clusterCreatePayload(clusterName, apiVersion string) []byte {
 }`, clusterName, subscriptionID, subscriptionID, subscriptionID))
 
 	case v20260901:
-		// v20260901 payload
 		return []byte(fmt.Sprintf(`{
   "identity": {
     "type": "UserAssigned",
@@ -440,12 +450,73 @@ func clusterCreatePayload(clusterName, apiVersion string) []byte {
         "customerManaged": {
           "encryptionType": "KMS",
           "kms": {
+            "visibility": "Public",
             "activeKey": {
               "name": "vc-encryption-key",
               "version": "2024-12-01-preview"
             },
-            "vaultName": "vc-key-vault",
-            "visibility": "Public"
+            "vaultName": "vc-key-vault"
+          }
+        },
+        "keyManagementMode": "CustomerManaged"
+      }
+    },
+    "ingress": {
+      "type": "Private"
+    },
+    "nodeDrainTimeoutMinutes": 15,
+    "network": {
+      "hostPrefix": 23,
+      "machineCidr": "10.0.0.0/16",
+      "networkType": "OVNKubernetes",
+      "podCidr": "10.128.0.0/14",
+      "serviceCidr": "172.30.0.0/16"
+    },
+    "platform": {
+      "managedResourceGroup": "managed-rg-xvrt",
+      "networkSecurityGroupId": "/subscriptions/%s/resourceGroups/bar/providers/Microsoft.Network/networkSecurityGroups/nsg",
+      "outboundType": "LoadBalancer",
+      "subnetId": "/subscriptions/%s/resourceGroups/bar/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet",
+      "vnetIntegrationSubnetId": "/subscriptions/%s/resourceGroups/bar/providers/Microsoft.Network/virtualNetworks/vnet/subnets/swift-subnet"
+    },
+    "version": {
+      "channelGroup": "stable",
+      "id": "4.20"
+    }
+  },
+  "tags": {
+    "env": "test"
+  },
+  "type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
+}`, clusterName, subscriptionID, subscriptionID, subscriptionID))
+
+	case v20261003:
+		return []byte(fmt.Sprintf(`{
+  "identity": {
+    "type": "UserAssigned",
+    "userAssignedIdentities": {}
+  },
+  "name": "%s",
+  "properties": {
+    "api": {
+      "visibility": "Public"
+    },
+    "autoscaling": {
+      "maxNodeProvisionTimeSeconds": 1200,
+      "maxNodesTotal": 50,
+      "maxPodGracePeriodSeconds": 300,
+      "podPriorityThreshold": -5
+    },
+    "clusterImageRegistry": {
+      "state": "Disabled"
+    },
+    "etcd": {
+      "dataEncryption": {
+        "customerManaged": {
+          "encryptionType": "KMS",
+          "kms": {
+            "visibility": "Public",
+            "keyEncryptionKeyUrl": "https://vc-key-vault.vault.azure.net/keys/vc-encryption-key/2024-12-01-preview"
           }
         },
         "keyManagementMode": "CustomerManaged"

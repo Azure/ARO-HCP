@@ -15,6 +15,7 @@
 package v20260901preview
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/google/uuid"
@@ -684,6 +685,11 @@ func normalizeCustomerManaged(p *generated.CustomerManagedEncryptionProfile, out
 		normalizeActiveKey(p.Kms.ActiveKey, &out.Kms.ActiveKey)
 		out.Kms.ActiveKey.VaultName = metadataapi.Deref(p.Kms.VaultName)
 		out.Kms.Visibility = metadataapi.KeyVaultVisibility(metadataapi.Deref(p.Kms.Visibility))
+		out.Kms.KeyEncryptionKeyURL = ""
+		if out.Kms.ActiveKey.VaultName != "" && out.Kms.ActiveKey.Name != "" && out.Kms.ActiveKey.Version != "" {
+			out.Kms.KeyEncryptionKeyURL = fmt.Sprintf("https://%s.vault.azure.net/keys/%s/%s",
+				out.Kms.ActiveKey.VaultName, out.Kms.ActiveKey.Name, out.Kms.ActiveKey.Version)
+		}
 	} else {
 		out.Kms = nil
 	}

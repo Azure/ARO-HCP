@@ -3,7 +3,7 @@ SHELL = /bin/bash
 
 # VERSION determines which API version to generate with autorest.
 # The default value for VERSION should be the latest API version.
-VERSION ?= v20260901preview
+VERSION ?= v20261003preview
 
 AUTOREST_OUTPUT_DIR = ../internal/azureapi/${VERSION}/generated
 
