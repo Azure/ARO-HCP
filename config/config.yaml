@@ -28,7 +28,7 @@ defaults:
   region: "{{ .ctx.region }}"
   regionRG: "{{ .ctx.region }}-shared-resources"
   cloud: "{{ .ev2.cloudName }}"
-  azureRegionAvailabilityZoneCount: {{ .ev2.availabilityZoneCount }}
+  azureRegionAvailabilityZoneCount: {{ .ev2.availabilityZoneLiveCount }}
   keyVaultDNSSuffix: "{{ .ev2.keyVault.domainNameSuffix }}"
   acrDNSSuffix: "{{ .ev2.azureContainerRegistry.domainNameSuffix }}"
   administration:
@@ -744,6 +744,7 @@ defaults:
         vmSize: 'Standard_E8ds_v6'
         osDiskSizeGB: 128
         minCount: 1
+        maxCount: 3
         zones: ""
         zoneRedundantMode: "Auto"
       userAgentPool:
@@ -751,6 +752,7 @@ defaults:
         vmSize: 'Standard_E32ds_v6'
         osDiskSizeGB: 512
         minCount: 1
+        maxCount: 14
         poolCount: 3
         zones: ""
         zoneRedundantMode: "Auto"
@@ -760,7 +762,7 @@ defaults:
         minCount: 1
         maxCount: 3
         vmSize: 'Standard_D4ds_v5'
-        osDiskSizeGB: 32
+        osDiskSizeGB: 64
         poolCount: 2
         zones: ""
         zoneRedundantMode: "Auto"
@@ -1410,18 +1412,6 @@ clouds:
           - '*.hcp.osadev.cloud'
           - '*.hcpsvc.osadev.cloud'
         aks:
-          # MGMTM AKS nodepools - big enough for 1 HCPs
-          systemAgentPool:
-            vmSize: 'Standard_E8s_v3'
-            maxCount: 4
-          userAgentPool:
-            maxCount: 14
-            vmSize: 'Standard_D4s_v3'
-            osDiskSizeGB: 100
-            secondaryNicCount: 1
-          infraAgentPool:
-            poolCount: 2
-            vmSize: 'Standard_D2s_v3'
           etcd:
             softDelete: false
         nsp:
@@ -1492,18 +1482,6 @@ clouds:
         # this is the integrated DEV environment
         defaults:
           regionRG: hcp-underlay-{{ .ctx.environment }}-{{ .ctx.region }}
-          mgmt:
-            aks:
-              systemAgentPool:
-                maxCount: 4
-              # MC AKS nodepools
-              # big enough for multiple HCPs
-              userAgentPool:
-                minCount: 1
-                maxCount: 3
-                vmSize: 'Standard_D16s_v3'
-                secondaryNicCount: 7
-                osDiskSizeGB: 128
           # DNS
           dns:
             regionalSubdomain: '{{ .ctx.region }}'
@@ -1552,19 +1530,6 @@ clouds:
               userAgentPool:
                 minCount: 2
                 maxCount: 12
-          mgmt:
-            aks:
-              systemAgentPool:
-                minCount: 1
-                maxCount: 4
-              # MC AKS nodepools
-              # big enough for multiple HCPs
-              userAgentPool:
-                minCount: 1
-                maxCount: 3
-                vmSize: 'Standard_D16s_v3'
-                secondaryNicCount: 7
-                osDiskSizeGB: 128
           # Geneva
           geneva:
             logs:
@@ -1609,15 +1574,6 @@ clouds:
                 privateLinkLocation: westus3
           westeurope:
             svc:
-              aks:
-                userAgentPool:
-                  zones: '1'
-                infraAgentPool:
-                  zones: '1'
-                  vmSize: 'Standard_D2s_v3'
-                systemAgentPool:
-                  zones: '1'
-            mgmt:
               aks:
                 userAgentPool:
                   zones: '1'
@@ -1689,18 +1645,6 @@ clouds:
             rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}"
             aks:
               name: "{{ .ctx.environment }}-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}"
-              systemAgentPool:
-                maxCount: 4
-                osDiskSizeGB: 32
-                vmSize: Standard_D4s_v3
-              userAgentPool:
-                maxCount: 6
-                osDiskSizeGB: 100
-                vmSize: Standard_D4s_v3
-                secondaryNicCount: 1
-              infraAgentPool:
-                osDiskSizeGB: 64
-                vmSize: 'Standard_D4s_v3'
             jaeger:
               deploy: false
             applyKubeletFixes: false
@@ -1751,13 +1695,9 @@ clouds:
             rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}"
             aks:
               name: "{{ .ctx.environment }}-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}"
-              systemAgentPool:
-                maxCount: 4
-              userAgentPool:
-                maxCount: 3
-                vmSize: 'Standard_D16s_v3'
-                osDiskSizeGB: 128
-                secondaryNicCount: 7
+          fleet:
+            nodePoolProvisioning:
+              profile: "ci"
       ci00:
         defaults:
           kubeApplier:
@@ -1829,19 +1769,6 @@ clouds:
             rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}"
             aks:
               name: "{{ .ctx.environment }}-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}"
-              systemAgentPool:
-                maxCount: 4
-                osDiskSizeGB: 32
-                vmSize: Standard_D8ds_v6
-              userAgentPool:
-                maxCount: 14
-                minCount: 4
-                osDiskSizeGB: 100
-                vmSize: Standard_E16ds_v6
-                secondaryNicCount: 7
-              infraAgentPool:
-                vmSize: Standard_D8ds_v6
-                osDiskSizeGB: 64
             jaeger:
               deploy: false
           # SVC
@@ -1938,19 +1865,6 @@ clouds:
             rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}"
             aks:
               name: "{{ .ctx.environment }}-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}"
-              systemAgentPool:
-                maxCount: 4
-                osDiskSizeGB: 32
-                vmSize: Standard_D8ds_v6
-              userAgentPool:
-                maxCount: 14
-                minCount: 4
-                osDiskSizeGB: 100
-                vmSize: Standard_E16ds_v6
-                secondaryNicCount: 7
-              infraAgentPool:
-                vmSize: Standard_D8ds_v6
-                osDiskSizeGB: 64
             jaeger:
               deploy: false
           # SVC

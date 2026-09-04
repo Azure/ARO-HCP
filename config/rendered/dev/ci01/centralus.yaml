@@ -297,6 +297,9 @@ fleet:
         memory: 512Mi
     serviceAccountName: fleet
   managedIdentityName: fleet
+  nodePoolProvisioning:
+    profile: ci
+    zones: ""
   registration:
     autoApproveStamps: true
     stampIdentifier: "1"
@@ -658,7 +661,7 @@ mgmt:
       name: infra
       osDiskSizeGB: 64
       poolCount: 2
-      vmSize: Standard_D8ds_v6
+      vmSize: Standard_D4ds_v5
       zoneRedundantMode: Auto
       zones: ""
     kubernetesVersion: "1.35"
@@ -668,11 +671,11 @@ mgmt:
     podSubnetPrefix: 10.128.64.0/18
     subnetPrefix: 10.128.8.0/21
     systemAgentPool:
-      maxCount: 4
+      maxCount: 3
       minCount: 1
       name: system
-      osDiskSizeGB: 32
-      vmSize: Standard_D8ds_v6
+      osDiskSizeGB: 128
+      vmSize: Standard_E8ds_v6
       zoneRedundantMode: Auto
       zones: ""
     tags: clusterType=mgmt-cluster,persist=true
@@ -681,12 +684,12 @@ mgmt:
       maxUnavailable: "0"
     userAgentPool:
       maxCount: 14
-      minCount: 4
+      minCount: 1
       name: userswft
-      osDiskSizeGB: 100
+      osDiskSizeGB: 512
       poolCount: 3
       secondaryNicCount: 7
-      vmSize: Standard_E16ds_v6
+      vmSize: Standard_E32ds_v6
       zoneRedundantMode: Auto
       zones: ""
     vnetAddressPrefix: 10.128.0.0/14

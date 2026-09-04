@@ -3,9 +3,9 @@ module github.com/Azure/ARO-HCP/tooling/secret-sync
 go 1.25.7
 
 require (
-	github.com/Azure/ARO-Tools/tools/secret-sync v0.0.0-20260901142504-86903908c305
-	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.21.1
-	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.13.1
+	github.com/Azure/ARO-Tools/tools/secret-sync v0.0.0-20260904180154-466f2f384637
+	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.23.0
+	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.14.0
 	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azkeys v1.4.0
 	github.com/dusted-go/logging v1.3.0
 	github.com/go-logr/logr v1.4.3
@@ -15,11 +15,10 @@ require (
 )
 
 require (
-	github.com/Azure/ARO-Tools/config v0.0.0-20260901142504-86903908c305 // indirect
-	github.com/Azure/ARO-Tools/testutil v0.0.0-20260901142504-86903908c305 // indirect
-	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260901142504-86903908c305 // indirect
-	github.com/Azure/ARO-Tools/tools/yamlwrap v0.0.0-20260901142504-86903908c305 // indirect
-	github.com/Azure/azure-sdk-for-go/sdk/azidentity/cache v0.4.0 // indirect
+	github.com/Azure/ARO-Tools/config v0.0.0-20260904180154-466f2f384637 // indirect
+	github.com/Azure/ARO-Tools/testutil v0.0.0-20260904180154-466f2f384637 // indirect
+	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260904180154-466f2f384637 // indirect
+	github.com/Azure/ARO-Tools/tools/yamlwrap v0.0.0-20260904180154-466f2f384637 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.12.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azsecrets v1.4.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/internal v1.2.0 // indirect
