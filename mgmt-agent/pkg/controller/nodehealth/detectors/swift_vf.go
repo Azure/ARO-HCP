@@ -33,6 +33,12 @@ const (
 	// reasonFailedCreatePodSandBox is the kubelet Event reason emitted when a pod
 	// sandbox cannot be created. It is the failure signal for the SWIFT wedge.
 	reasonFailedCreatePodSandBox = "FailedCreatePodSandBox"
+
+	// swiftNICResourceName is the extended resource a pod requests to be given a
+	// SWIFT v2 delegated NIC. It mirrors controller.SwiftNICResourceName, which
+	// the mgmt-agent advertises on the node; the two are pinned equal by test so
+	// this package stays free of a dependency on the controller package.
+	swiftNICResourceName corev1.ResourceName = "aro.openshift.io/swift-nic"
 )
 
 // swiftVFTeardown detects the SWIFT v2 delegated-NIC teardown wedge: on a
@@ -65,6 +71,39 @@ var swiftVFTeardown = signatureDetector{
 	window:             10 * time.Minute,
 	dwell:              10 * time.Minute,
 	requireZeroSuccess: true,
+	successScope:       podRequestsSwiftNIC,
+}
+
+// podRequestsSwiftNIC reports whether a pod asks for a SWIFT v2 delegated NIC,
+// which is what makes its start evidence about the delegated-NIC path.
+//
+// Only these pods traverse the path this detector watches. A mgmt node runs the
+// overwhelming majority of its pods on the ordinary overlay, which keeps working
+// while the delegated-NIC path is dead, so counting them as success lets a node
+// that cannot attach a single NIC look healthy indefinitely. Observed on CI node
+// aks-userswft2-17575576-vmss000003 on 2026-09-01: 8 router pods across 7 hosted
+// control planes hung for 16 minutes on dhcp-discover timeouts while the node
+// created 110 other pods and brought 107 of them to Running.
+//
+// Extended resources are only schedulable when requested as a limit, and the
+// kubelet copies the limit into requests, so either field carrying the resource
+// means the pod needed a NIC.
+func podRequestsSwiftNIC(p *corev1.Pod) bool {
+	if p == nil {
+		return false
+	}
+	for _, containers := range [][]corev1.Container{p.Spec.InitContainers, p.Spec.Containers} {
+		for i := range containers {
+			res := containers[i].Resources
+			if _, ok := res.Limits[swiftNICResourceName]; ok {
+				return true
+			}
+			if _, ok := res.Requests[swiftNICResourceName]; ok {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func isSwiftV2Node(node *corev1.Node) bool {
