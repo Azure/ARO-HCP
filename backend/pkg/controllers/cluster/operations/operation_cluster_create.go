@@ -391,7 +391,7 @@ func (c *operationClusterCreate) hostedClusterOperationStatus(ctx context.Contex
 	// 1. the hosted cluster is available via condition
 	// 2. the hosted cluster has successfully installed at least one version
 	// 3. the hosted cluster has a control plane endpoint host and port
-	return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, ""), nil
+	return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, withDegradedSuffix("hosted cluster is available", hostedCluster)), nil
 }
 
 func (c *operationClusterCreate) servingCABundleOperationStatus(ctx context.Context, operation *coreapi.Operation) (*operationbase.OperationState, error) {
