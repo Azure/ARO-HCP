@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"os"
 	"regexp"
 	"time"
 
@@ -42,8 +43,24 @@ var _ = Describe("KSM HCP Metrics", func() {
 		func(ctx context.Context) {
 			tc := framework.NewTestContext()
 
+			// Debug: dump config loading state
+			GinkgoWriter.Printf("[DEBUG] ARO_HCP_CONFIG_FILE=%q\n", os.Getenv("ARO_HCP_CONFIG_FILE"))
+			GinkgoWriter.Printf("[DEBUG] CLOUD=%q DEPLOY_ENV=%q REGION=%q\n",
+				os.Getenv("CLOUD"), os.Getenv("DEPLOY_ENV"), os.Getenv("REGION"))
+			GinkgoWriter.Printf("[DEBUG] ServiceConfig is nil: %v\n", config.ServiceConfig == nil)
+			GinkgoWriter.Printf("[DEBUG] ServiceConfig length: %d\n", len(config.ServiceConfig))
+			if len(config.ServiceConfig) > 0 {
+				topKeys := make([]string, 0, len(config.ServiceConfig))
+				for k := range config.ServiceConfig {
+					topKeys = append(topKeys, k)
+				}
+				GinkgoWriter.Printf("[DEBUG] ServiceConfig top-level keys: %v\n", topKeys)
+			}
+			GinkgoWriter.Printf("[DEBUG] GinkgoLabelFilter: %q\n", GinkgoLabelFilter())
+
 			regionRG, err := config.ServiceConfig.GetByPath("regionRG")
-			Expect(err).NotTo(HaveOccurred(), "failed to get regionRG from config")
+			Expect(err).NotTo(HaveOccurred(), "failed to get regionRG from config. ServiceConfig has %d keys. Config env: ARO_HCP_CONFIG_FILE=%q CLOUD=%q DEPLOY_ENV=%q REGION=%q",
+				len(config.ServiceConfig), os.Getenv("ARO_HCP_CONFIG_FILE"), os.Getenv("CLOUD"), os.Getenv("DEPLOY_ENV"), os.Getenv("REGION"))
 			regionRGStr, ok := regionRG.(string)
 			Expect(ok).To(BeTrue(), "regionRG is not a string")
 			Expect(regionRGStr).NotTo(BeEmpty(), "regionRG is empty")

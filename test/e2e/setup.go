@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -32,16 +33,50 @@ var (
 	e2eSetup integration.SetupModel
 )
 
+func findRepoRoot() string {
+	dir, err := os.Getwd()
+	if err != nil {
+		return ""
+	}
+	for {
+		if _, err := os.Stat(filepath.Join(dir, "go.work")); err == nil {
+			return dir
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return ""
+		}
+		dir = parent
+	}
+}
+
+func envOrDefault(envVar, defaultVal string) string {
+	if v := os.Getenv(envVar); v != "" {
+		return v
+	}
+	return defaultVal
+}
+
 func setup(ctx context.Context) error {
 	labelFilter := GinkgoLabelFilter()
 
+	configFile := os.Getenv("ARO_HCP_CONFIG_FILE")
+	if configFile == "" {
+		if root := findRepoRoot(); root != "" {
+			candidate := filepath.Join(root, "config", "config.yaml")
+			if _, err := os.Stat(candidate); err == nil {
+				configFile = candidate
+			}
+		}
+	}
+
 	// Load templated configuration
 	opts := config.ConfigOptions{
-		ConfigFile:         os.Getenv("ARO_HCP_CONFIG_FILE"),
+		ConfigFile:         configFile,
 		ConfigFileOverride: os.Getenv("ARO_HCP_CONFIG_FILE_OVERRIDE"),
-		Cloud:              os.Getenv("CLOUD"),
+		Cloud:              envOrDefault("CLOUD", "dev"),
 		DeployEnv:          os.Getenv("DEPLOY_ENV"),
-		Region:             os.Getenv("REGION"),
+		Region:             envOrDefault("REGION", "centralus"),
 	}
 
 	if opts.ConfigFileOverride != "" && opts.ConfigFile == "" {
