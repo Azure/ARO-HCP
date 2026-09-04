@@ -17,13 +17,19 @@ package controlplaneversion
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"slices"
+	"syscall"
+	"time"
 
 	"github.com/blang/semver/v4"
+
+	"k8s.io/apimachinery/pkg/util/wait"
 
 	configv1 "github.com/openshift/api/config/v1"
 )
@@ -54,6 +60,20 @@ type graph struct {
 }
 
 var defaultUpstreamUpdateService = "https://api.openshift.com/api/upgrades_info/graph"
+
+// cincinnatiRetryBackoff configures the retry-with-backoff behavior of
+// doWithRetry when fetching the Cincinnati update graph in production. It
+// is a package-level var (rather than a hard-coded literal inside
+// doWithRetry) purely for readability; tests exercise the retry/no-retry
+// behavior by passing their own fast backoff directly to doWithRetry
+// instead of overriding this var, to stay deterministic and avoid shared
+// mutable state.
+var cincinnatiRetryBackoff = wait.Backoff{
+	Duration: 1 * time.Second,
+	Factor:   2,
+	Steps:    5,
+	Cap:      30 * time.Second,
+}
 
 // roundTrip converts a RoundTrip function into a RoundTripper.
 type roundTrip struct {
@@ -96,15 +116,8 @@ func cincinnati(ctx context.Context, roundTripper RoundTrip, updateService *url.
 	if roundTripper != nil {
 		client.Transport = &roundTrip{roundTripper: roundTripper}
 	}
-	resp, err := client.Do(req.WithContext(ctx))
-	if err != nil {
-		return nil, updateService, err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return nil, updateService, fmt.Errorf("%s returned unexpected HTTP status %s", updateService, resp.Status)
-	}
-	body, err := io.ReadAll(resp.Body)
+
+	body, err := doWithRetry(ctx, client, req, cincinnatiRetryBackoff)
 	if err != nil {
 		return nil, updateService, err
 	}
@@ -116,6 +129,101 @@ func cincinnati(ctx context.Context, roundTripper RoundTrip, updateService *url.
 
 	releases, err := nodesToReleases(graph.Nodes)
 	return releases, updateService, err
+}
+
+// doWithRetry issues req via client, retrying transient failures (DNS lookup
+// failures, connection timeouts, and 5xx responses) with exponential
+// backoff. It returns the response body on a successful 200, or an error if
+// every attempt failed. Non-transient failures (e.g. 4xx responses) are
+// returned immediately without retrying.
+func doWithRetry(ctx context.Context, client *http.Client, req *http.Request, backoff wait.Backoff) ([]byte, error) {
+	var body []byte
+	var lastErr error
+	err := wait.ExponentialBackoffWithContext(ctx, backoff, func(ctx context.Context) (bool, error) {
+		resp, err := client.Do(req.Clone(ctx))
+		if err != nil {
+			if ctx.Err() != nil {
+				// The context was cancelled or timed out; stop retrying and
+				// surface that immediately instead of the generic transport
+				// error.
+				return false, ctx.Err()
+			}
+			if !isTransientTransportError(err) {
+				// Misconfiguration-style errors (bad URL, unsupported
+				// protocol scheme, TLS cert errors, etc.) will not clear up
+				// on retry; fail fast instead of masking them.
+				return false, err
+			}
+			// Treat known-transient transport errors (DNS lookup failures,
+			// dial timeouts, connection resets, etc.) as retryable,
+			// remembering the error in case every attempt fails.
+			lastErr = err
+			return false, nil
+		}
+		defer func() {
+			// Drain the body before closing so the underlying connection
+			// can be reused by later retry attempts.
+			_, _ = io.Copy(io.Discard, resp.Body)
+			resp.Body.Close()
+		}()
+
+		if resp.StatusCode >= http.StatusInternalServerError {
+			// Server-side errors are typically transient; retry.
+			lastErr = fmt.Errorf("%s returned unexpected HTTP status %d", req.URL, resp.StatusCode)
+			return false, nil
+		}
+		if resp.StatusCode != http.StatusOK {
+			return false, fmt.Errorf("%s returned unexpected HTTP status %d", req.URL, resp.StatusCode)
+		}
+
+		body, err = io.ReadAll(resp.Body)
+		if err != nil {
+			lastErr = err
+			return false, nil
+		}
+		return true, nil
+	})
+	if err != nil {
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			// The caller's context was cancelled or timed out; surface that
+			// directly rather than a generic retries-exhausted error.
+			return nil, err
+		}
+		if wait.Interrupted(err) {
+			if lastErr != nil {
+				return nil, fmt.Errorf("%s did not respond successfully after retries: %w", req.URL, lastErr)
+			}
+			return nil, fmt.Errorf("%s did not respond successfully after retries", req.URL)
+		}
+		return nil, err
+	}
+	return body, nil
+}
+
+// isTransientTransportError reports whether err, returned from
+// client.Do, is likely to clear up on its own (DNS resolution failures,
+// dial timeouts, connection resets) as opposed to a persistent
+// misconfiguration (unsupported URL scheme, TLS certificate errors,
+// malformed requests) that will fail identically on every retry.
+func isTransientTransportError(err error) bool {
+	var dnsErr *net.DNSError
+	if errors.As(err, &dnsErr) {
+		// Permanent lookup failures (e.g. NXDOMAIN / "no such host") will
+		// not clear up on retry; only timeouts and other temporary
+		// resolver failures are worth retrying.
+		return dnsErr.IsTimeout || dnsErr.IsTemporary
+	}
+	var netErr net.Error
+	if errors.As(err, &netErr) {
+		return netErr.Timeout()
+	}
+	if errors.Is(err, syscall.ECONNRESET) || errors.Is(err, syscall.ECONNREFUSED) || errors.Is(err, syscall.ETIMEDOUT) {
+		return true
+	}
+	if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+		return true
+	}
+	return false
 }
 
 // nodesToReleases converts a slice of update-service nodes to a slice
