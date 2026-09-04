@@ -38,7 +38,7 @@ type HCPOpenShiftCluster struct {
 	ServiceProviderProperties HCPOpenShiftClusterServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
 	// Written by: Frontend PUT/PATCH Cluster (Create/Update), ClusterIdentitySync
 	Identity *ManagedServiceIdentity `json:"identity,omitempty"`
-	// Written by: ClusterDegradedAggregator, ClusterRequirementsValidAggregator
+	// Written by: ClusterDegradedAggregator, ClusterRequirementsValidAggregator, ManagedIdentitiesStatusAggregator
 	Status HCPOpenShiftClusterStatus `json:"status"`
 }
 
@@ -69,6 +69,84 @@ type HCPOpenShiftClusterStatus struct {
 	// +listType=map
 	// +listMapKey=type
 	UserFacingConditions []metav1.Condition `json:"userFacingConditions,omitempty" patchStrategy:"merge" patchMergeKey:"type"`
+
+	// OperatorIdentities is a distilled rollup of identity replacement for
+	// Cluster-document readers (Desired vs Active ResourceID per operator).
+	// The full slot/instance ledger lives on
+	// ServiceProviderCluster.Spec/Status.ManagedIdentities; see
+	// ServiceProviderClusterManagedIdentitiesSpec. This field is not mapped to
+	// ARM ResourceStatus. ARM only exposes UserFacingConditions.
+	// Written by: ManagedIdentitiesStatusAggregator
+	OperatorIdentities ClusterOperatorIdentitiesStatus `json:"operatorIdentities,omitempty"`
+}
+
+// ClusterOperatorIdentitiesStatus is the Cluster-document rollup of identity
+// replacement. Each map entry is one slot (one operator, or the SMI): Desired
+// is what the user asked for, Active is what is in service. Instance history,
+// role-assignment progress, and overlapping replacements live on
+// ServiceProviderCluster.Status.ManagedIdentities.
+type ClusterOperatorIdentitiesStatus struct {
+	// Conditions are per-cluster identity observations. Keep this list small.
+	// Known types:
+	// - "Configured": True when every desired slot is Active on its desired
+	//   instance and no instance is still deconfiguring.
+	// Written by: ManagedIdentitiesStatusAggregator
+	// +optional
+	// +patchMergeKey=type
+	// +patchStrategy=merge
+	// +listType=map
+	// +listMapKey=type
+	Conditions []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type"`
+
+	// ControlPlaneOperators is keyed by operator name as stored on
+	// Cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators.
+	// Keys are not lowercased; they keep the Cluster map's casing. Lookups must
+	// use that same name, not a lowercased form and not the identity ResourceID.
+	// Written by: ManagedIdentitiesStatusAggregator
+	ControlPlaneOperators map[string]ClusterOperatorIdentityStatus `json:"controlPlaneOperators,omitempty"`
+	// DataPlaneOperators is keyed by operator name as stored on
+	// Cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators.
+	// Keys are not lowercased; they keep the Cluster map's casing. Lookups must
+	// use that same name, not a lowercased form and not the identity ResourceID.
+	// Written by: ManagedIdentitiesStatusAggregator
+	DataPlaneOperators map[string]ClusterOperatorIdentityStatus `json:"dataPlaneOperators,omitempty"`
+	// ServiceManagedIdentity is the distilled observed state of the cluster's
+	// service managed identity. Nil when that slot is absent.
+	// Written by: ManagedIdentitiesStatusAggregator
+	ServiceManagedIdentity *ClusterOperatorIdentityStatus `json:"serviceManagedIdentity,omitempty"`
+}
+
+// ClusterOperatorIdentityStatus is the distilled observed state of one slot
+// (one operator or the SMI). Desired* is the latest Cluster ResourceID. Active*
+// is what is in service. They differ during replacement.
+type ClusterOperatorIdentityStatus struct {
+	// DesiredResourceID is the latest Cluster-desired identity ResourceID for
+	// this slot, copied from Spec.ManagedIdentities.
+	// Written by: ManagedIdentitiesStatusAggregator
+	DesiredResourceID *azcorearm.ResourceID `json:"desiredResourceID,omitempty"`
+	// ActiveResourceID is the identity ResourceID currently in service for this
+	// slot, copied from Status.ManagedIdentities slot ActiveResourceID. Empty
+	// until an instance is activated.
+	// Written by: ManagedIdentitiesStatusAggregator
+	ActiveResourceID *azcorearm.ResourceID `json:"activeResourceID,omitempty"`
+	// ClientID is the Client ID of the Active identity. Empty until an instance
+	// is activated and metadata is resolved.
+	// Written by: ManagedIdentitiesStatusAggregator
+	ClientID *string `json:"clientID,omitempty"`
+	// PrincipalID is the Principal ID of the Active identity. Empty until an
+	// instance is activated and metadata is resolved.
+	// Written by: ManagedIdentitiesStatusAggregator
+	PrincipalID *string `json:"principalID,omitempty"`
+
+	// Conditions for this slot. Known types:
+	// - "Configured": True when Active matches Desired and that instance is fully configured.
+	// Written by: ManagedIdentitiesStatusAggregator
+	// +optional
+	// +patchMergeKey=type
+	// +patchStrategy=merge
+	// +listType=map
+	// +listMapKey=type
+	Conditions []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type"`
 }
 
 var _ CosmosPersistable = &HCPOpenShiftCluster{}
@@ -298,13 +376,24 @@ type OperatorsAuthenticationProfile struct {
 	UserAssignedIdentities UserAssignedIdentitiesProfile `json:"userAssignedIdentities,omitempty"`
 }
 
-// UserAssignedIdentitiesProfile represents authentication configuration for
-// OpenShift operators using user-assigned managed identities.
-// Visibility for the entire struct is "read create".
+// UserAssignedIdentitiesProfile is the ARM-visible latest desired ResourceID
+// for each operator and the SMI. Visibility for the entire struct is "read create".
+// Frontend PUT/PATCH overwrites these maps. Replacement history (old ResourceIDs
+// still being deconfigured, overlapping A then B then C changes) lives on
+// ServiceProviderCluster Spec/Status ManagedIdentities, not here. See
+// ServiceProviderClusterManagedIdentitiesSpec.
 type UserAssignedIdentitiesProfile struct {
-	ControlPlaneOperators  map[string]*azcorearm.ResourceID `json:"controlPlaneOperators,omitempty"`
-	DataPlaneOperators     map[string]*azcorearm.ResourceID `json:"dataPlaneOperators,omitempty"`
-	ServiceManagedIdentity *azcorearm.ResourceID            `json:"serviceManagedIdentity,omitempty"`
+	// ControlPlaneOperators is keyed by operator name (for example
+	// "cloud-controller-manager"). Keys are not lowercased; they keep the
+	// casing from the ARM request. Values are identity ResourceIDs.
+	ControlPlaneOperators map[string]*azcorearm.ResourceID `json:"controlPlaneOperators,omitempty"`
+	// DataPlaneOperators is keyed by operator name (for example
+	// "image-registry"). Keys are not lowercased; they keep the casing from
+	// the ARM request. Values are identity ResourceIDs.
+	DataPlaneOperators map[string]*azcorearm.ResourceID `json:"dataPlaneOperators,omitempty"`
+	// ServiceManagedIdentity is the latest desired ResourceID of the cluster's
+	// service managed identity. Nil when the user has not provided one.
+	ServiceManagedIdentity *azcorearm.ResourceID `json:"serviceManagedIdentity,omitempty"`
 }
 
 // ClusterImageRegistryProfile - OpenShift cluster image registry
