@@ -158,11 +158,11 @@ func TestProductionCompletedPodsDoNotCount(t *testing.T) {
 	}
 
 	snap := swiftVFTeardown.Evaluate(events, pods, now)
-	if snap.SustainedCount != 0 {
-		t.Errorf("completed pods counted toward the floor: SustainedCount = %d, want 0", snap.SustainedCount)
+	if snap.Pods.SustainedCount != 0 {
+		t.Errorf("completed pods counted toward the floor: SustainedCount = %d, want 0", snap.Pods.SustainedCount)
 	}
-	if snap.FailureCount != 0 {
-		t.Errorf("completed pods counted as failures: FailureCount = %d, want 0", snap.FailureCount)
+	if snap.Pods.FailureCount != 0 {
+		t.Errorf("completed pods counted as failures: FailureCount = %d, want 0", snap.Pods.FailureCount)
 	}
 
 	// The node must not be declared wedged on completed-pod turnover alone.
@@ -229,7 +229,7 @@ func TestProductionStaleSuccessesDoNotSuppressDetection(t *testing.T) {
 	if got != DecisionWedged {
 		t.Fatalf("stale success suppressed detection of the real wedge: Decide = %v (%s)", got, snap.ReasonString())
 	}
-	if snap.RecentSuccess {
+	if snap.Pods.RecentSuccess {
 		t.Error("an 8 hour old success must not count as recent")
 	}
 
@@ -322,10 +322,10 @@ func TestProductionHardWedgeShapeFires(t *testing.T) {
 	}
 
 	snap := swiftVFTeardown.Evaluate(events, pods, now)
-	if snap.SustainedCount != 2 {
-		t.Fatalf("captured wedge shape did not produce 2 sustained pods: SustainedCount = %d", snap.SustainedCount)
+	if snap.Pods.SustainedCount != 2 {
+		t.Fatalf("captured wedge shape did not produce 2 sustained pods: SustainedCount = %d", snap.Pods.SustainedCount)
 	}
-	if snap.RecentSuccess {
+	if snap.Pods.RecentSuccess {
 		t.Fatal("captured wedge shape must have no fresh sandbox success")
 	}
 	if got, _ := Decide(productionWedgedNode(), events, pods, now); got != DecisionWedged {

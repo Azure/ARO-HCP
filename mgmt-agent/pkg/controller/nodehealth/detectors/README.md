@@ -43,23 +43,39 @@ just started decides exactly what one running for hours would, with no warm-up.
 A **detector** is one fault family. Detection is modular so that adding a family
 is adding code in its own file, never editing the engine:
 
-- **`decide.go`**: the engine. It defines the `Detector` interface
-  (`Applies`, `Evaluate`, `MeetsThreshold`, plus `Name`/`Reason`), the `Snapshot` of
-  evaluated evidence, the `Decision` type, the `registry` of detectors, and
-  `Decide`, which iterates the registry without knowing any concrete type.
+- **`decide.go`**: the engine. It defines `Detector` (identity and scope only:
+  `Name`, `Reason`, `Applies`, `Window`), the two evaluation interfaces
+  `PodDetector` and `NodeDetector`, the `Snapshot` of evaluated evidence and its
+  `PodEvidence`, the `Decision` type, the `podRegistry` and `nodeRegistry`, and
+  `Decide`, which iterates them without knowing any concrete type.
 - **`signature_detector.go`**: the shared base. `signatureDetector` implements
-  the `Detector` interface once for the common shape and carries the reusable
-  toolkit (windowed correlation of failure Events to stuck pods, condition-based
-  dwell math, node-Ready and success helpers). Families that fit this shape reuse
-  all of it.
+  `PodDetector` once for the common shape and carries the reusable toolkit
+  (windowed correlation of failure Events to stuck pods, condition-based dwell
+  math, node-Ready and success helpers). Families that fit this shape reuse all
+  of it.
 - **`swift_vf.go`**: one fault family's specifics only, the `swift-vf-teardown`
   detector value plus its applicability predicate. No evaluation logic lives here.
+- **`never_ready.go`**: the `never-ready` detector, a `NodeDetector` whose whole
+  evidence is the Node object.
 
-`Decide` walks `registry`. For each detector it calls `Applies(node)` (skip if the
-node can't exhibit the fault), then `Evaluate(...)` to gather the evidence
-`Snapshot`, then `MeetsThreshold(snap, now)`. The first detector that fires
-wins and the node is `Wedged`; if none fires but some success was seen, the node is
-`Healthy`; otherwise `Unknown`.
+A detector reads either the node's Pods and Events or the Node object itself, and
+those are not the same job, so they are not the same interface. A `PodDetector`
+adds `Evaluate` and `MeetsThreshold`. A `NodeDetector` adds `EvaluateNode`, which
+returns the `Decision` directly, because for it the evidence and the judgement are
+one step. Each registry holds only its own kind, so a detector cannot run on a
+path its evidence does not exist on.
+
+`Decide` picks the path from the node's Ready condition. A node that is not Ready
+never had a pod population worth reading, so `Decide` walks `nodeRegistry` and
+calls `EvaluateNode`. A Ready node goes to `podRegistry`, where each detector gets
+`Applies(node)` (skip if the node can't exhibit the fault), then `Evaluate(...)`
+to gather the evidence `Snapshot`, then `MeetsThreshold(snap, now)`. Either way
+the first detector that fires wins and the node is `Wedged`; if none fires but
+some success was seen, the node is `Healthy`; otherwise `Unknown`.
+
+`Snapshot.Pods` holds the pod-derived counts and is nil for a `NodeDetector`, so a
+detector that reads no pods reports no pod counts rather than zeroes that would
+read as "nothing was stuck".
 
 ## The `signatureDetector` shape
 
@@ -125,7 +141,9 @@ Pods that the apiserver garbage-collects:
   cache, which is why the terminal-pod shape above is counted rather than relying on
   a pod still being alive at reconcile time.
 
-## The one detector today: `swift-vf-teardown`
+## The detectors today
+
+### `swift-vf-teardown`
 
 Applies only to SWIFT-v2 delegated-NIC nodes (label
 `kubernetes.azure.com/podnetwork-swiftv2-enabled=true`, exported as
@@ -144,13 +162,33 @@ labeled is still swept and has its stale label retired
 (`DecisionNotApplicable`), including when that transition happened while the
 controller was down.
 
-## Adding a fault family
+### `never-ready`
 
+A `NodeDetector`, scoped to the same SWIFT-v2 nodes. It fires on a node that
+registered and never reached Ready for 30 minutes, which node lifecycle does not
+rescue: a node that was Ready and dropped out is someone else's problem, but a
+node that never started sits NotReady until a human notices.
+
+The discriminator is the Ready condition: never `True`, and its first transition
+falls within 2 minutes of the node's creation. A node that reached Ready at any
+point has a strictly later transition. The dwell comes from the dev fleet, where
+1119 nodes over 14 days reached Ready in at most 3.4 minutes, so 30 minutes is
+roughly nine times the worst legitimate boot.
+
+It is deliberately generic rather than keyed on a cause. Dead IMDS, a failed
+disk, a kubelet certificate problem and a failed image pull are all born broken
+and all remedied by reimaging, and one detector is one fault with one remedy. The
+Ready condition's reason is carried as the signature for triage instead, which
+keeps the evidence to the Node object alone.
+
+## Adding a fault family
 1. If it fits the signature shape, add a new `signatureDetector` value in its own
    file (e.g. `myfault.go`) with its constants, plus its `appliesTo` predicate.
-2. If it needs different evidence (for example reading a CRD, not Events), add a
-   new type in its own file implementing the `Detector` interface directly.
-3. Register it in `registry` in `decide.go`.
+2. If it needs different evidence, add a new type in its own file implementing
+   `Detector` plus whichever of `PodDetector` or `NodeDetector` matches what it
+   reads.
+3. Register it in `podRegistry` or `nodeRegistry` in `decide.go`, whichever
+   matches its interface.
 4. Add table cases to `decide_test.go`.
 
-`Decide` needs no changes in any case: it only knows the interface.
+`Decide` needs no changes in any case: it only knows the interfaces.
