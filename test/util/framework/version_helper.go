@@ -164,3 +164,43 @@ func getLatestInstallVersionForNightlyChannel(ctx context.Context, version strin
 
 	return latestTagName, nil
 }
+
+// PickLatestOpenshiftVersionId returns whichever of defaultVersion or
+// minimalVersion is more recent. If defaultVersion already satisfies the
+// minimum it is returned unchanged. If it does not:
+//   - For nightly builds, an error is returned (wrapped in ErrNoAcceptedNightlyTags
+//     so callers can use IsVersionNotFoundError to skip the test). Nightly versions
+//     cannot be bumped to a different minor version — there is no release stream to
+//     fetch from for an arbitrary newer minor.
+//   - For all other channel groups, minimalVersion is returned as the fallback.
+//
+// Nightly versions (e.g. "4.19.0-0.nightly-multi-2026-09-01-142156") are compared
+// by Major.Minor only, not by full semver, because the pre-release suffix would
+// otherwise rank them below the bare release (4.19.0) and produce false negatives.
+func PickLatestOpenshiftVersionId(defaultVersion, minimalVersion string) (string, error) {
+	defaultSemver, err := semver.ParseTolerant(defaultVersion)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse default version %q: %w", defaultVersion, err)
+	}
+	minimalSemver, err := semver.ParseTolerant(minimalVersion)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse minimal version %q: %w", minimalVersion, err)
+	}
+
+	if strings.Contains(defaultVersion, "nightly") {
+		// Compare Major.Minor only: a 4.19 nightly satisfies a minimum of "4.19"
+		// even though semver pre-release ordering would rank it below 4.19.0.
+		defaultMajorMinorOK := defaultSemver.Major > minimalSemver.Major ||
+			(defaultSemver.Major == minimalSemver.Major && defaultSemver.Minor >= minimalSemver.Minor)
+		if defaultMajorMinorOK {
+			return defaultVersion, nil
+		}
+		return "", fmt.Errorf("%w: nightly build %s does not satisfy minimum %s",
+			ErrNoAcceptedNightlyTags, defaultVersion, minimalVersion)
+	}
+
+	if defaultSemver.GTE(minimalSemver) {
+		return defaultVersion, nil
+	}
+	return minimalVersion, nil
+}
