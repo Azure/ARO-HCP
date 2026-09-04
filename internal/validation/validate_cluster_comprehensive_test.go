@@ -905,6 +905,17 @@ func TestValidateClusterCreate(t *testing.T) {
 			},
 		},
 		{
+			name: "container registry pull MI in different subscription - create",
+			cluster: func() *coreapi.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Platform.ContainerRegistry.PullManagedIdentity = metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/different-sub/resourceGroups/customer-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/acr-pull"))
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be in the same Azure subscription", FieldPath: "customerProperties.platform.containerRegistry.managedIdentity"},
+			},
+		},
+		{
 			name: "control plane operator identity in wrong location - create",
 			cluster: func() *coreapi.HCPOpenShiftCluster {
 				c := createValidCluster()
