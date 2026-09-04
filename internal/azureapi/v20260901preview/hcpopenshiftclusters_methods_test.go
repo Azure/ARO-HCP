@@ -102,4 +102,3 @@ func TestNormalizeContainerRegistry(t *testing.T) {
 		})
 	}
 }
-

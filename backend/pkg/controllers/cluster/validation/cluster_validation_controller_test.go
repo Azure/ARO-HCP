@@ -631,7 +631,7 @@ func TestShouldProcess(t *testing.T) {
 				{Type: "FakeValidation", Status: metav1.ConditionTrue, Message: "CAPZ identity has permission."},
 			},
 			inputKeys: map[string]string{"FakeValidation": "mi-resource-id-a"},
-			want:       false,
+			want:      false,
 		},
 		{
 			name:       "condition is True, keyed validation, key changed",
@@ -640,7 +640,7 @@ func TestShouldProcess(t *testing.T) {
 				{Type: "FakeValidation", Status: metav1.ConditionTrue, Message: "CAPZ identity has permission."},
 			},
 			inputKeys: map[string]string{"FakeValidation": "mi-resource-id-a"},
-			want:       true,
+			want:      true,
 		},
 		{
 			name:       "condition is True, keyed validation, key cleared",
@@ -649,7 +649,7 @@ func TestShouldProcess(t *testing.T) {
 				{Type: "FakeValidation", Status: metav1.ConditionTrue, Message: "CAPZ identity has permission."},
 			},
 			inputKeys: map[string]string{"FakeValidation": "mi-resource-id-a"},
-			want:       true,
+			want:      true,
 		},
 		{
 			name:       "condition is True, keyed validation, key set from empty (no stored key)",
@@ -658,7 +658,7 @@ func TestShouldProcess(t *testing.T) {
 				{Type: "FakeValidation", Status: metav1.ConditionTrue, Message: "CAPZ identity has permission."},
 			},
 			inputKeys: nil,
-			want:       true,
+			want:      true,
 		},
 	}
 
