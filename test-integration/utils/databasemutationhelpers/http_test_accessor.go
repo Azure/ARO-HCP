@@ -30,7 +30,18 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+// GetResponse is the concrete value returned (as any) by HTTPTestAccessor.Get:
+// the decoded response body plus the response headers, so callers can honor
+// server hints such as Retry-After. Implementations that cannot surface headers
+// (e.g. SDK-backed clients) leave Header nil.
+type GetResponse struct {
+	Body   any
+	Header http.Header
+}
+
 type HTTPTestAccessor interface {
+	// Get performs a GET and returns a *GetResponse (decoded body + response
+	// headers) as any. Callers type-assert to *GetResponse to read Body/Header.
 	Get(ctx context.Context, resourceIDString string) (any, error)
 	List(ctx context.Context, parentResourceIDString string) ([]any, error)
 	CreateOrUpdate(ctx context.Context, resourceIDString string, content []byte) error
@@ -70,7 +81,11 @@ func NewVersionedHTTPTestAccessor(url, apiVersion string) *httpHTTPTestAccessor 
 var _ HTTPTestAccessor = &httpHTTPTestAccessor{}
 
 func (a *httpHTTPTestAccessor) Get(ctx context.Context, resourceIDString string) (any, error) {
-	return a.doRequest(ctx, http.MethodGet, resourceIDString, nil)
+	body, header, err := a.doRequest(ctx, http.MethodGet, resourceIDString, nil)
+	if err != nil {
+		return nil, err
+	}
+	return &GetResponse{Body: body, Header: header}, nil
 }
 
 func (a *httpHTTPTestAccessor) List(ctx context.Context, exemplarResourceIDString string) ([]any, error) {
@@ -82,7 +97,7 @@ func (a *httpHTTPTestAccessor) List(ctx context.Context, exemplarResourceIDStrin
 	}
 	collectionPath := exemplarResourceIDString[:lastSlash]
 
-	result, err := a.doRequest(ctx, http.MethodGet, collectionPath, nil)
+	result, _, err := a.doRequest(ctx, http.MethodGet, collectionPath, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -102,22 +117,22 @@ func (a *httpHTTPTestAccessor) List(ctx context.Context, exemplarResourceIDStrin
 }
 
 func (a *httpHTTPTestAccessor) CreateOrUpdate(ctx context.Context, resourceIDString string, content []byte) error {
-	_, err := a.doRequest(ctx, http.MethodPut, resourceIDString, content)
+	_, _, err := a.doRequest(ctx, http.MethodPut, resourceIDString, content)
 	return err
 }
 
 func (a *httpHTTPTestAccessor) Post(ctx context.Context, resourceIDString string, content []byte) error {
-	_, err := a.doRequest(ctx, http.MethodPost, resourceIDString, content)
+	_, _, err := a.doRequest(ctx, http.MethodPost, resourceIDString, content)
 	return err
 }
 
 func (a *httpHTTPTestAccessor) Patch(ctx context.Context, resourceIDString string, content []byte) error {
-	_, err := a.doRequest(ctx, http.MethodPatch, resourceIDString, content)
+	_, _, err := a.doRequest(ctx, http.MethodPatch, resourceIDString, content)
 	return err
 }
 
 func (a *httpHTTPTestAccessor) Delete(ctx context.Context, resourceIDString string) error {
-	_, err := a.doRequest(ctx, http.MethodDelete, resourceIDString, nil)
+	_, _, err := a.doRequest(ctx, http.MethodDelete, resourceIDString, nil)
 	return err
 }
 
@@ -126,7 +141,7 @@ func (a *httpHTTPTestAccessor) Delete(ctx context.Context, resourceIDString stri
 // is not present in the stored resource ID.
 const operationStatusLocation = "fake-location"
 
-func (a *httpHTTPTestAccessor) doRequest(ctx context.Context, method, path string, body []byte) (any, error) {
+func (a *httpHTTPTestAccessor) doRequest(ctx context.Context, method, path string, body []byte) (any, http.Header, error) {
 	logger := utils.LoggerFromContext(ctx)
 
 	var reqBody io.Reader
@@ -160,7 +175,7 @@ func (a *httpHTTPTestAccessor) doRequest(ctx context.Context, method, path strin
 
 	req, err := http.NewRequestWithContext(ctx, method, fullURL, reqBody)
 	if err != nil {
-		return nil, utils.TrackError(err)
+		return nil, nil, utils.TrackError(err)
 	}
 
 	for key, value := range a.headers {
@@ -169,7 +184,7 @@ func (a *httpHTTPTestAccessor) doRequest(ctx context.Context, method, path strin
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return nil, utils.TrackError(err)
+		return nil, nil, utils.TrackError(err)
 	}
 	defer func() {
 		if err := resp.Body.Close(); err != nil {
@@ -179,7 +194,7 @@ func (a *httpHTTPTestAccessor) doRequest(ctx context.Context, method, path strin
 
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, utils.TrackError(err)
+		return nil, resp.Header, utils.TrackError(err)
 	}
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
@@ -191,19 +206,19 @@ func (a *httpHTTPTestAccessor) doRequest(ctx context.Context, method, path strin
 		if err := json.Indent(&indented, bodyBytes, "", "  "); err == nil {
 			bodyBytes = indented.Bytes()
 		}
-		return nil, utils.TrackError(fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(bodyBytes)))
+		return nil, resp.Header, utils.TrackError(fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(bodyBytes)))
 	}
 
 	if len(bodyBytes) == 0 {
-		return nil, nil
+		return nil, resp.Header, nil
 	}
 
 	var result map[string]any
 
 	// handles both JSON and YAML
 	if err := yaml.Unmarshal(bodyBytes, &result); err != nil {
-		return nil, utils.TrackError(err)
+		return nil, resp.Header, utils.TrackError(err)
 	}
 
-	return result, nil
+	return result, resp.Header, nil
 }

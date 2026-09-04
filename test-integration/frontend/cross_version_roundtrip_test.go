@@ -838,10 +838,12 @@ func getResourceResponse(
 	t.Helper()
 
 	accessor := databasemutationhelpers.NewVersionedHTTPTestAccessor(testInfo.FrontendURL, apiVersion)
-	result, err := accessor.Get(ctx, resourceID)
+	raw, err := accessor.Get(ctx, resourceID)
 	require.NoError(t, err)
 
-	resultMap, ok := result.(map[string]any)
+	resp, ok := raw.(*databasemutationhelpers.GetResponse)
+	require.True(t, ok, "GET should return a *GetResponse")
+	resultMap, ok := resp.Body.(map[string]any)
 	require.True(t, ok, "GET response should be a map")
 
 	resultBytes, err := json.Marshal(resultMap)
