@@ -43,8 +43,10 @@ func Validate(args []string, configFilePath, promtoolPath string) error {
 
 // GenerateFromConfig validates and renders rule files into Bicep output.
 // forceInfoSeverity is kept for compatibility with external callers and is ignored.
-func GenerateFromConfig(configFilePath string, _ bool, promtoolPath string) error {
-	o := internal.NewOptions()
+// preserveAggregationLabels lists labels that must survive every aggregation in a
+// rule's PromQL; each aggregation is rewritten so those labels remain on the output.
+func GenerateFromConfig(configFilePath string, _ bool, promtoolPath string, preserveAggregationLabels []string) error {
+	o := internal.NewOptions().WithPreserveAggregationLabels(preserveAggregationLabels)
 
 	if err := o.Complete(configFilePath, promtoolPath); err != nil {
 		return fmt.Errorf("could not complete options, %w", err)

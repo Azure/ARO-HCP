@@ -25,6 +25,7 @@ with (docstring = "Staging table for metric alert events ingested from Event Hub
     resolvedDateTime: datetime,
     targetResourceId: string,
     targetResourceType: string,
+    region: string,
     alertContext: dynamic
 )
 with (docstring = "Alert events with top-level Common Alert Schema fields extracted")
@@ -45,6 +46,7 @@ rawAlertEventsTransform() {
         resolvedDateTime = todatetime(essentials.resolvedDateTime),
         targetResourceId = tostring(essentials.alertTargetIDs[0]),
         targetResourceType = tostring(essentials.targetResourceType),
+        region = tostring(raw.data.alertContext.labels.region),
         alertContext = raw.data.alertContext
 }
 
