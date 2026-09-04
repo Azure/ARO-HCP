@@ -681,7 +681,7 @@ mgmt:
       maxUnavailable: "0"
     userAgentPool:
       maxCount: 14
-      minCount: 4
+      minCount: 5
       name: userswft
       osDiskSizeGB: 100
       poolCount: 3
