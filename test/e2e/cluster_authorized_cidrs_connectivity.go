@@ -393,6 +393,13 @@ var _ = Describe("Authorized CIDRs", func() {
 				// identities must be echoed back as empty objects.
 				framework.ClearUserAssignedIdentityValues20240610(currentCluster.Identity)
 
+				// corrupt the way I think we failed
+				if currentCluster.Identity != nil && currentCluster.Identity.UserAssignedIdentities != nil {
+					for k := range currentCluster.Identity.UserAssignedIdentities {
+						currentCluster.Identity.UserAssignedIdentities[k] = &hcpsdk20240610preview.UserAssignedIdentity{}
+					}
+				}
+
 				// Use CreateOrUpdate (PUT) to apply the change
 				poller, err := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient().BeginCreateOrUpdate(
 					ctx,
