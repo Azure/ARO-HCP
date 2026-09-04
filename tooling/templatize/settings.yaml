@@ -46,6 +46,16 @@ environments:
     ev2Cloud: public
     cxStamp: 1
     regionShortOverride: "j${BUILD_ID: -7}"
+- name: ci02
+  description: |
+    CI infra for upgrade/in-place tests.
+    Sized for 10 concurrent HCPs (1/5 of ci01).
+  defaults:
+    region: centralus
+    cloud: dev
+    ev2Cloud: public
+    cxStamp: 1
+    regionShortOverride: "j${BUILD_ID: -7}"
 - name: perf
   description: |
     Used for performance testing.

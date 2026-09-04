@@ -1961,3 +1961,110 @@ clouds:
                 vmSize: Standard_D4ds_v6
             jaeger:
               deploy: true
+      ci02:
+        # prow upgrade infra - deploys into "ARO HCP E2E Infrastructure" subscription
+        # Sized for 10 concurrent HCPs (1/5 of ci01)
+        defaults:
+          customExporter:
+            clusterNameFilter: "{{ .ctx.environment }}-{{ .ctx.regionShort }}"
+          auditLogsEventHub:
+            enabled: true
+          kusto:
+            manageInstance: false
+          # Service Key Vault
+          serviceKeyVault:
+            assignNSP: false
+          # Cluster Service
+          clustersService:
+            postgres:
+              deploy: false
+              password: 'TheBlurstOfTimes'
+              containerizedDb:
+                image: "docker.io/library/postgres:14.2"
+                pvcCapacity: 512Mi
+            tracing:
+              address: "http://ingest.observability:4318"
+              exporter: "otlp"
+          # Geneva
+          geneva:
+            logs:
+              manage: Disabled
+          # DNS
+          dns:
+            regionalSubdomain: '{{ .ctx.regionShort }}'
+          # Maestro
+          maestro:
+            postgres:
+              deploy: false
+              password: 'TheBlurstOfTimes'
+              containerizedDb:
+                image: "docker.io/library/postgres:14.2"
+                pvcCapacity: 512Mi
+            server:
+              mqttClientName: 'maestro-server-{{ .ctx.regionShort }}'
+              certSAN: 'maestro-server-{{ .ctx.regionShort }}.maestro.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
+              certCN: 'server.maestro.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
+              tracing:
+                address: "http://ingest.observability:4318"
+                exporter: "otlp"
+            agent:
+              certSAN: 'hcp-underlay-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}.maestro.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
+              certCN: 'mgmt-{{ .ctx.stamp }}.maestro.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
+          # Backend
+          backend:
+            tracing:
+              address: "http://ingest.observability:4318"
+              exporter: "otlp"
+          # Frontend
+          frontend:
+            audit:
+              connectSocket: false
+            cosmosDB:
+              private: false
+              zoneRedundantMode: 'Disabled'
+            tracing:
+              address: "http://ingest.observability:4318"
+              exporter: "otlp"
+          # MC - sized for 10 concurrent HCPs (1/5 of ci01)
+          mgmt:
+            subscription:
+              key: ARO HCP E2E Infrastructure (EA Subscription)
+            rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}"
+            aks:
+              name: "{{ .ctx.environment }}-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}"
+              systemAgentPool:
+                maxCount: 4
+                osDiskSizeGB: 32
+                vmSize: Standard_D8ds_v6
+              userAgentPool:
+                maxCount: 9
+                minCount: 5
+                osDiskSizeGB: 100
+                vmSize: Standard_E16ds_v6
+                poolCount: 1
+                secondaryNicCount: 7
+              infraAgentPool:
+                vmSize: Standard_D8ds_v6
+                osDiskSizeGB: 64
+                poolCount: 1
+                maxCount: 2
+            jaeger:
+              deploy: false
+            applyKubeletFixes: false
+          # SVC - same as ci01
+          svc:
+            subscription:
+              key: ARO HCP E2E Infrastructure (EA Subscription)
+            rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.regionShort }}-svc"
+            aks:
+              name: "{{ .ctx.environment }}-{{ .ctx.regionShort }}-svc"
+              systemAgentPool:
+                vmSize: Standard_D4ds_v6
+              userAgentPool:
+                name: 'u64d8dsv6'
+                vmSize: Standard_D8ds_v6
+                osDiskSizeGB: 64
+              infraAgentPool:
+                vmSize: Standard_D4ds_v6
+            jaeger:
+              deploy: true
