@@ -266,3 +266,69 @@ func TestFutureDatedSuccessDoesNotSuppressDetection(t *testing.T) {
 		t.Errorf("a future-dated success suppressed detection of a real wedge: Decide = %v, want %v", got, DecisionWedged)
 	}
 }
+
+// TestProductionHardWedgeShapeFires pins the failure floor against the pod count
+// the captured incident actually produced.
+//
+// The other tests in this file replay the wedge with three stuck pods, which is
+// comfortably over any floor and so cannot detect a floor set too high. The
+// distinguishing property of a hard wedge is the opposite of a storm: once the
+// node cannot build a sandbox, the scheduler stops getting new pods to a running
+// state there, so a very small number of pods retry indefinitely instead of many
+// pods failing once each.
+//
+// Kusto for the captured uksouth node over the incident, counting distinct pods
+// rather than events, shows exactly that:
+//
+//	node                                distinct pods   events   span
+//	aks-userswft2-40171262-vmss000001               2     1193   58.3h
+//
+// One sampled hour inside the wedge, 2026-07-27 09:00 to 10:00, is the shape
+// replayed below: 2 distinct failing pods, no fresh sandbox success at all.
+//
+// The same query over flapping (not wedged) nodes returns 30 to 70 distinct pods
+// per node, with successes throughout, so the flap population is ruled out by
+// dwell and requireZeroSuccess rather than by the floor. That is why the floor
+// can sit at 2 without letting flaps through: a flapping pod gets its sandbox on
+// retry, so it never stays stuck for the dwell.
+func TestProductionHardWedgeShapeFires(t *testing.T) {
+	now := time.Date(2026, 7, 27, 9, 30, 0, 0, time.UTC)
+	const ns = "openshift-monitoring"
+	const host = "aks-userswift0-00000000-vmss000000"
+
+	var pods []*corev1.Pod
+	var events []*corev1.Event
+	for i, name := range []string{"ovnkube-node-x1", "prometheus-k8s-0"} {
+		uid := types.UID("uid-" + name)
+		pods = append(pods, &corev1.Pod{
+			ObjectMeta: metav1.ObjectMeta{Namespace: ns, Name: name, UID: uid},
+			Status: corev1.PodStatus{
+				Phase: corev1.PodPending,
+				Conditions: []corev1.PodCondition{{
+					Type:               corev1.PodReadyToStartContainers,
+					Status:             corev1.ConditionFalse,
+					LastTransitionTime: metav1.NewTime(now.Add(-45 * time.Minute)),
+				}},
+			},
+		})
+		events = append(events, &corev1.Event{
+			ObjectMeta:     metav1.ObjectMeta{Namespace: ns, Name: name + ".evt"},
+			Reason:         reasonFailedCreatePodSandBox,
+			Message:        productionSandboxMessages[i%len(productionSandboxMessages)].message,
+			InvolvedObject: corev1.ObjectReference{Kind: "Pod", Namespace: ns, Name: name, UID: uid},
+			Source:         corev1.EventSource{Host: host},
+			LastTimestamp:  metav1.NewTime(now.Add(-1 * time.Minute)),
+		})
+	}
+
+	snap := swiftVFTeardown.Evaluate(events, pods, now)
+	if snap.SustainedCount != 2 {
+		t.Fatalf("captured wedge shape did not produce 2 sustained pods: SustainedCount = %d", snap.SustainedCount)
+	}
+	if snap.RecentSuccess {
+		t.Fatal("captured wedge shape must have no fresh sandbox success")
+	}
+	if got, _ := Decide(productionWedgedNode(), events, pods, now); got != DecisionWedged {
+		t.Errorf("the captured hard wedge did not fire: Decide = %v, want %v; the failure floor is above the pod count a real wedge produces", got, DecisionWedged)
+	}
+}

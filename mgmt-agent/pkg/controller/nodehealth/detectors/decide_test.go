@@ -155,11 +155,11 @@ func TestDecide(t *testing.T) {
 			name: "below the stuck-pod floor is not wedged",
 			node: testNode(true, true),
 			events: func() []*corev1.Event {
-				e, _ := stuckFailing(2, ago(15*time.Minute))
+				e, _ := stuckFailing(1, ago(15*time.Minute))
 				return e
 			}(),
 			pods: func() []*corev1.Pod {
-				_, p := stuckFailing(2, ago(15*time.Minute))
+				_, p := stuckFailing(1, ago(15*time.Minute))
 				return p
 			}(),
 			want: DecisionUnknown,

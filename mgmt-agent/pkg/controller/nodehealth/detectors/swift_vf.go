@@ -52,7 +52,16 @@ var swiftVFTeardown = signatureDetector{
 		`mtpnc is not ready`,
 		`dhcp discover.*timed out`,
 	),
-	failuresFloor:      3,
+	// failuresFloor is 2, not 3, because a hard wedge presents with very few
+	// distinct pods. Once a node cannot build a sandbox, almost nothing new is
+	// placed on it, so the same handful of pods retry indefinitely rather than a
+	// crowd of pods each failing once. The captured uksouth wedge
+	// (TestProductionHardWedgeShapeFires) produced 1193 failure events from only
+	// 2 distinct pods over 58 hours, so a floor of 3 would never have fired on it.
+	// False positives are held off by dwell and requireZeroSuccess, not by this
+	// floor: a flapping node's pods succeed on retry, so they never reach the
+	// dwell, and the node's other successes trip requireZeroSuccess anyway.
+	failuresFloor:      2,
 	window:             10 * time.Minute,
 	dwell:              10 * time.Minute,
 	requireZeroSuccess: true,
