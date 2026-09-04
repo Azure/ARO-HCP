@@ -46,7 +46,18 @@ func NewFrontendHTTPTestAccessor(frontEndURL string, frontendClient *hcpsdk20240
 
 var _ HTTPTestAccessor = &frontendHTTPTestAccessor{}
 
+// Get satisfies HTTPTestAccessor. The ARM SDK abstracts away the raw HTTP
+// response, so no headers are available; a nil GetResponse.Header means callers
+// see no Retry-After and therefore do not retry.
 func (c frontendHTTPTestAccessor) Get(ctx context.Context, resourceIDString string) (any, error) {
+	body, err := c.get(ctx, resourceIDString)
+	if err != nil {
+		return nil, err
+	}
+	return &GetResponse{Body: body}, nil
+}
+
+func (c frontendHTTPTestAccessor) get(ctx context.Context, resourceIDString string) (any, error) {
 	logger := utils.LoggerFromContext(ctx)
 
 	resourceID, err := azcorearm.ParseResourceID(resourceIDString)
