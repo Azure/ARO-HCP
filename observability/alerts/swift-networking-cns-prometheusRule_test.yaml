@@ -1,0 +1,155 @@
+rule_files:
+- swift-networking-cns-recordingRule.yaml
+- swift-networking-cns-prometheusRule.yaml
+evaluation_interval: 1m
+tests:
+# Test 1: No CNS latency data — no alerts should fire.
+- interval: 1m
+  input_series: []
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: userJourneySwiftCNSLatencyP991h5m
+    exp_alerts: []
+  - eval_time: 10m
+    alertname: userJourneySwiftCNSLatencyP996h30m
+    exp_alerts: []
+  - eval_time: 10m
+    alertname: userJourneySwiftCNSAvailability3d
+    exp_alerts: []
+  - eval_time: 10m
+    alertname: userJourneySwiftPendingProgramming
+    exp_alerts: []
+
+# Test 2: CNS IP assignment latency p99 > 10s — fast-burn alert should fire.
+# Simulates ip_assignment_latency_seconds histogram with all observations in the 16s+ bucket.
+- interval: 1m
+  input_series:
+  - series: 'ip_assignment_latency_seconds_bucket{le="0.001"}'
+    values: "0+0x120"
+  - series: 'ip_assignment_latency_seconds_bucket{le="0.01"}'
+    values: "0+0x120"
+  - series: 'ip_assignment_latency_seconds_bucket{le="0.1"}'
+    values: "0+0x120"
+  - series: 'ip_assignment_latency_seconds_bucket{le="1"}'
+    values: "0+0x120"
+  - series: 'ip_assignment_latency_seconds_bucket{le="4"}'
+    values: "0+0x120"
+  - series: 'ip_assignment_latency_seconds_bucket{le="8"}'
+    values: "0+0x120"
+  - series: 'ip_assignment_latency_seconds_bucket{le="16"}'
+    values: "0+0x120"
+  - series: 'ip_assignment_latency_seconds_bucket{le="+Inf"}'
+    values: "0+10x120"
+  alert_rule_test:
+  - eval_time: 72m
+    alertname: userJourneySwiftCNSLatencyP991h5m
+    exp_alerts:
+    - exp_labels:
+        severity: "3"
+        burn_rate_tier: fast
+        component: slo
+        long_window: 1h
+        short_window: 5m
+      exp_annotations:
+        summary: "CNS IP assignment latency p99 critically elevated (fast burn)"
+        description: "CNS IP assignment latency p99 has exceeded 10s over the last hour and is still elevated. SWIFT secondary NIC assignment is slow. This SLI is fleet/node-scoped (not per hosted control plane) - use the runbook's blast-radius triage to narrow scope."
+        runbook_url: "https://aka.ms/arohcp-runbook-swift"
+
+# Test 3: CNS IP assignment latency healthy (all under 1s) — no alerts.
+- interval: 1m
+  input_series:
+  - series: 'ip_assignment_latency_seconds_bucket{le="0.001"}'
+    values: "0+0x120"
+  - series: 'ip_assignment_latency_seconds_bucket{le="0.01"}'
+    values: "0+0x120"
+  - series: 'ip_assignment_latency_seconds_bucket{le="0.1"}'
+    values: "0+0x120"
+  - series: 'ip_assignment_latency_seconds_bucket{le="1"}'
+    values: "0+10x120"
+  - series: 'ip_assignment_latency_seconds_bucket{le="4"}'
+    values: "0+10x120"
+  - series: 'ip_assignment_latency_seconds_bucket{le="8"}'
+    values: "0+10x120"
+  - series: 'ip_assignment_latency_seconds_bucket{le="16"}'
+    values: "0+10x120"
+  - series: 'ip_assignment_latency_seconds_bucket{le="+Inf"}'
+    values: "0+10x120"
+  alert_rule_test:
+  - eval_time: 72m
+    alertname: userJourneySwiftCNSLatencyP991h5m
+    exp_alerts: []
+  - eval_time: 72m
+    alertname: userJourneySwiftCNSLatencyP996h30m
+    exp_alerts: []
+
+# Test 4: CNS daemonset availability healthy (all nodes ready) — no alert.
+- interval: 1m
+  input_series:
+  - series: 'kube_daemonset_status_number_ready{job="kube-state-metrics", daemonset="azure-cns", namespace="kube-system"}'
+    values: "3+0x400"
+  - series: 'kube_daemonset_status_desired_number_scheduled{job="kube-state-metrics", daemonset="azure-cns", namespace="kube-system"}'
+    values: "3+0x400"
+  alert_rule_test:
+  - eval_time: 6h1m
+    alertname: userJourneySwiftCNSAvailability3d
+    exp_alerts: []
+
+# Test 5: CNS daemonset availability degraded (1 of 3 nodes not ready) for 6h — slow-burn alert fires.
+- interval: 1m
+  input_series:
+  - series: 'kube_daemonset_status_number_ready{job="kube-state-metrics", daemonset="azure-cns", namespace="kube-system"}'
+    values: "2+0x400"
+  - series: 'kube_daemonset_status_desired_number_scheduled{job="kube-state-metrics", daemonset="azure-cns", namespace="kube-system"}'
+    values: "3+0x400"
+  alert_rule_test:
+  - eval_time: 6h1m
+    alertname: userJourneySwiftCNSAvailability3d
+    exp_alerts:
+    - exp_labels:
+        severity: "4"
+        burn_rate_tier: slow
+        component: slo
+        daemonset: "azure-cns"
+        job: "kube-state-metrics"
+        namespace: "kube-system"
+      exp_annotations:
+        summary: "CNS daemonset availability degraded (slow burn — SLO budget on track to exhaust by month end)"
+        description: "CNS daemonset availability has been below 99.9% for an extended period. At current rate the monthly SLO budget will be exhausted before end of month. This SLI is fleet/node-scoped (not per hosted control plane) - use the runbook's blast-radius triage to narrow scope."
+        runbook_url: "https://aka.ms/arohcp-runbook-swift"
+
+# Test 6: No PendingProgramming IPs — no alert.
+- interval: 1m
+  input_series:
+  - series: 'cx_pending_programming_ips_v2'
+    values: "0+0x10"
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: userJourneySwiftPendingProgramming
+    exp_alerts: []
+
+# Test 7: PendingProgramming IPs sustained > 0 for 5m — alert fires.
+- interval: 1m
+  input_series:
+  - series: 'cx_pending_programming_ips_v2'
+    values: "5+0x10"
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: userJourneySwiftPendingProgramming
+    exp_alerts:
+    - exp_labels:
+        severity: "3"
+        component: slo
+      exp_annotations:
+        summary: "CNS IPs stuck in PendingProgramming"
+        description: "IPs have been sustained in PendingProgramming state (reserved from DNC, secondary NIC not yet attached) for at least 5 minutes. This SLI is fleet/node-scoped (not per hosted control plane) - use the runbook's blast-radius triage to narrow scope."
+        runbook_url: "https://aka.ms/arohcp-runbook-swift"
+
+# Test 8: PendingProgramming IPs briefly non-zero but under 5m — alert does not fire yet.
+- interval: 1m
+  input_series:
+  - series: 'cx_pending_programming_ips_v2'
+    values: "5+0x2"
+  alert_rule_test:
+  - eval_time: 3m
+    alertname: userJourneySwiftPendingProgramming
+    exp_alerts: []

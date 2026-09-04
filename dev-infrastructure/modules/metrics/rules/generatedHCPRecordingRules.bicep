@@ -271,3 +271,95 @@ resource hcpEtcdGrpcLatencyRecordingRules 'Microsoft.AlertsManagement/prometheus
     ]
   }
 }
+
+resource arohcpSwiftNetworkingSloRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_swift_networking_slo_recording_rules'
+  location: location
+  properties: {
+    scopes: [
+      azureMonitoring
+    ]
+    enabled: true
+    interval: 'PT1M'
+    rules: [
+      {
+        record: 'router:startup_latency:seconds'
+        expression: '(time() - kube_pod_created{namespace=~"ocm-.*"}) * on (namespace, pod) kube_pod_owner{owner_kind="ReplicaSet",owner_name=~"router-.*"} * on (namespace, pod) (kube_pod_status_phase{phase="Pending"} == 1)'
+      }
+      {
+        record: 'router:startup_latency:p99'
+        expression: 'quantile by (namespace) (0.99, router:startup_latency:seconds)'
+      }
+      {
+        record: 'router:startup_latency:p99_avg_5m'
+        expression: 'avg_over_time(router:startup_latency:p99[5m])'
+      }
+      {
+        record: 'router:startup_latency:p99_avg_30m'
+        expression: 'avg_over_time(router:startup_latency:p99[30m])'
+      }
+      {
+        record: 'router:startup_latency:p99_avg_1h'
+        expression: 'avg_over_time(router:startup_latency:p99[1h])'
+      }
+      {
+        record: 'router:startup_latency:p99_avg_6h'
+        expression: 'avg_over_time(router:startup_latency:p99[6h])'
+      }
+    ]
+  }
+}
+
+resource arohcpSwiftKonnectivityRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_swift_konnectivity_recording_rules'
+  location: location
+  properties: {
+    scopes: [
+      azureMonitoring
+    ]
+    enabled: true
+    interval: 'PT1M'
+    rules: [
+      {
+        record: 'konnectivity:stream_error_rate:5m'
+        expression: 'sum by (namespace) (rate(konnectivity_network_proxy_server_stream_errors_total[5m])) / clamp_min(sum by (namespace) (rate(konnectivity_network_proxy_server_stream_packets_total[5m])), 1)'
+      }
+      {
+        record: 'konnectivity:stream_error_rate:avg_5m'
+        expression: 'avg_over_time(konnectivity:stream_error_rate:5m[5m])'
+      }
+      {
+        record: 'konnectivity:stream_error_rate:avg_30m'
+        expression: 'avg_over_time(konnectivity:stream_error_rate:5m[30m])'
+      }
+      {
+        record: 'konnectivity:stream_error_rate:avg_1h'
+        expression: 'avg_over_time(konnectivity:stream_error_rate:5m[1h])'
+      }
+      {
+        record: 'konnectivity:stream_error_rate:avg_6h'
+        expression: 'avg_over_time(konnectivity:stream_error_rate:5m[6h])'
+      }
+      {
+        record: 'konnectivity:dial_failure_rate:5m'
+        expression: 'sum by (namespace) (rate(konnectivity_network_proxy_server_dial_failure_count[5m])) / clamp_min(sum by (namespace) (rate(konnectivity_network_proxy_server_dial_failure_count[5m])) + sum by (namespace) (rate(konnectivity_network_proxy_server_stream_packets_total{packet_type="DIAL_RSP",segment="from_agent"}[5m])), 1)'
+      }
+      {
+        record: 'konnectivity:dial_failure_rate:avg_5m'
+        expression: 'avg_over_time(konnectivity:dial_failure_rate:5m[5m])'
+      }
+      {
+        record: 'konnectivity:dial_failure_rate:avg_30m'
+        expression: 'avg_over_time(konnectivity:dial_failure_rate:5m[30m])'
+      }
+      {
+        record: 'konnectivity:dial_failure_rate:avg_1h'
+        expression: 'avg_over_time(konnectivity:dial_failure_rate:5m[1h])'
+      }
+      {
+        record: 'konnectivity:dial_failure_rate:avg_6h'
+        expression: 'avg_over_time(konnectivity:dial_failure_rate:5m[6h])'
+      }
+    ]
+  }
+}

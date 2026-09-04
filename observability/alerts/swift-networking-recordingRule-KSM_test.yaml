@@ -1,0 +1,79 @@
+rule_files:
+- swift-networking-recordingRule-KSM.yaml
+evaluation_interval: 1m
+tests:
+# Test 1: When no router pods are stuck, recording rules produce no series.
+# This is the healthy state — absence of data means no pods are waiting.
+- interval: 1m
+  input_series: []
+  promql_expr_test:
+  - expr: "router:startup_latency:seconds"
+    eval_time: 5m
+    exp_samples: []
+  - expr: "router:startup_latency:p99"
+    eval_time: 5m
+    exp_samples: []
+  - expr: "router:startup_latency:p99_avg_5m"
+    eval_time: 10m
+    exp_samples: []
+
+# Test 2: One router pod stuck in Pending — p99 should exceed 300s threshold.
+# kube_pod_created value of 0 = epoch. At eval_time=400m, time()-0=24000s.
+# This tests that a single stuck pod triggers the recording rule.
+- interval: 1m
+  input_series:
+  - series: 'kube_pod_created{namespace="ocm-prod-abc123", pod="router-abc-1"}'
+    values: "0+0x420"
+  - series: 'kube_pod_owner{namespace="ocm-prod-abc123", pod="router-abc-1", owner_kind="ReplicaSet", owner_name="router-abc"}'
+    values: "1+0x420"
+  - series: 'kube_pod_status_phase{namespace="ocm-prod-abc123", pod="router-abc-1", phase="Pending"}'
+    values: "1+0x420"
+  promql_expr_test:
+  # At t=400m: time()=24000s, kube_pod_created=0, so latency=24000s >> 300s threshold
+  - expr: "router:startup_latency:p99 > 300"
+    eval_time: 400m
+    exp_samples:
+    - labels: 'router:startup_latency:p99{namespace="ocm-prod-abc123"}'
+      value: 24000
+
+# Test 4: Multiple router pods stuck at different durations — validates quantile aggregation.
+# In promtool tests, time() at eval_time=10m = 600s.
+# Pod A: kube_pod_created=0   → latency = 600-0   = 600s
+# Pod B: kube_pod_created=300 → latency = 600-300  = 300s
+# PromQL quantile() uses linear interpolation between sorted samples, not max:
+# rank = 0.99*(2-1) = 0.99 → 300 + 0.99*(600-300) = 597.
+- interval: 1m
+  input_series:
+  - series: 'kube_pod_created{namespace="ocm-prod-abc123", pod="router-a"}'
+    values: "0+0x11"
+  - series: 'kube_pod_owner{namespace="ocm-prod-abc123", pod="router-a", owner_kind="ReplicaSet", owner_name="router-abc"}'
+    values: "1+0x11"
+  - series: 'kube_pod_status_phase{namespace="ocm-prod-abc123", pod="router-a", phase="Pending"}'
+    values: "1+0x11"
+  - series: 'kube_pod_created{namespace="ocm-prod-abc123", pod="router-b"}'
+    values: "300+0x11"
+  - series: 'kube_pod_owner{namespace="ocm-prod-abc123", pod="router-b", owner_kind="ReplicaSet", owner_name="router-abc"}'
+    values: "1+0x11"
+  - series: 'kube_pod_status_phase{namespace="ocm-prod-abc123", pod="router-b", phase="Pending"}'
+    values: "1+0x11"
+  promql_expr_test:
+  - expr: "router:startup_latency:p99"
+    eval_time: 10m
+    exp_samples:
+    - labels: 'router:startup_latency:p99{namespace="ocm-prod-abc123"}'
+      value: 597
+
+# Test 3: No pods stuck — non-router pods in Pending should not appear.
+# Verifies namespace filter (ocm-.*) and owner_name filter (router-.*).
+- interval: 1m
+  input_series:
+  - series: 'kube_pod_created{namespace="kube-system", pod="coredns-1"}'
+    values: "0+0x30"
+  - series: 'kube_pod_owner{namespace="kube-system", pod="coredns-1", owner_kind="ReplicaSet", owner_name="coredns"}'
+    values: "1+0x30"
+  - series: 'kube_pod_status_phase{namespace="kube-system", pod="coredns-1", phase="Pending"}'
+    values: "1+0x30"
+  promql_expr_test:
+  - expr: "router:startup_latency:seconds"
+    eval_time: 10m
+    exp_samples: []

@@ -656,3 +656,161 @@ resource arohcpNodepoolSaturationAlerts 'Microsoft.AlertsManagement/prometheusRu
     ]
   }
 }
+
+resource arohcpSwiftCnsLatencyAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_swift_cns_latency_alerts'
+  location: location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneySwiftCNSLatencyP991h5m'
+        enabled: true
+        labels: {
+          burn_rate_tier: 'fast'
+          component: 'slo'
+          long_window: '1h'
+          severity: '3'
+          short_window: '5m'
+        }
+        annotations: {
+          correlationId: 'userJourneySwiftCNSLatencyP991h5m/{{ $labels.cluster }}'
+          description: 'CNS IP assignment latency p99 has exceeded 10s over the last hour and is still elevated. SWIFT secondary NIC assignment is slow. This SLI is fleet/node-scoped (not per hosted control plane) - use the runbook\'s blast-radius triage to narrow scope.'
+          info: 'CNS IP assignment latency p99 has exceeded 10s over the last hour and is still elevated. SWIFT secondary NIC assignment is slow. This SLI is fleet/node-scoped (not per hosted control plane) - use the runbook\'s blast-radius triage to narrow scope.'
+          runbook_url: 'https://aka.ms/arohcp-runbook-swift'
+          summary: 'CNS IP assignment latency p99 critically elevated (fast burn)'
+          title: 'CNS IP assignment latency p99 critically elevated (fast burn)'
+        }
+        expression: 'cns:ip_assignment_latency:p99_avg_5m > 10 and cns:ip_assignment_latency:p99_avg_1h > 10'
+        for: 'PT2M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneySwiftCNSLatencyP996h30m'
+        enabled: true
+        labels: {
+          burn_rate_tier: 'medium'
+          component: 'slo'
+          long_window: '6h'
+          severity: '3'
+          short_window: '30m'
+        }
+        annotations: {
+          correlationId: 'userJourneySwiftCNSLatencyP996h30m/{{ $labels.cluster }}'
+          description: 'CNS IP assignment latency p99 has exceeded 10s over the last 6 hours and is still elevated.'
+          info: 'CNS IP assignment latency p99 has exceeded 10s over the last 6 hours and is still elevated.'
+          runbook_url: 'https://aka.ms/arohcp-runbook-swift'
+          summary: 'CNS IP assignment latency p99 elevated (medium burn)'
+          title: 'CNS IP assignment latency p99 elevated (medium burn)'
+        }
+        expression: 'cns:ip_assignment_latency:p99_avg_30m > 10 and cns:ip_assignment_latency:p99_avg_6h > 10'
+        for: 'PT15M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
+
+resource arohcpSwiftCnsAvailabilityAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_swift_cns_availability_alerts'
+  location: location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneySwiftCNSAvailability3d'
+        enabled: true
+        labels: {
+          burn_rate_tier: 'slow'
+          component: 'slo'
+          severity: '4'
+        }
+        annotations: {
+          correlationId: 'userJourneySwiftCNSAvailability3d/{{ $labels.cluster }}'
+          description: 'CNS daemonset availability has been below 99.9% for an extended period. At current rate the monthly SLO budget will be exhausted before end of month. This SLI is fleet/node-scoped (not per hosted control plane) - use the runbook\'s blast-radius triage to narrow scope.'
+          info: 'CNS daemonset availability has been below 99.9% for an extended period. At current rate the monthly SLO budget will be exhausted before end of month. This SLI is fleet/node-scoped (not per hosted control plane) - use the runbook\'s blast-radius triage to narrow scope.'
+          runbook_url: 'https://aka.ms/arohcp-runbook-swift'
+          summary: 'CNS daemonset availability degraded (slow burn — SLO budget on track to exhaust by month end)'
+          title: 'CNS daemonset availability degraded (slow burn — SLO budget on track to exhaust by month end)'
+        }
+        expression: 'cns:daemonset_availability:ratio_avg_6h < 0.999'
+        for: 'PT6H'
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
+
+resource arohcpSwiftCnsPendingProgrammingAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_swift_cns_pending_programming_alerts'
+  location: location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneySwiftPendingProgramming'
+        enabled: true
+        labels: {
+          component: 'slo'
+          severity: '3'
+        }
+        annotations: {
+          correlationId: 'userJourneySwiftPendingProgramming/{{ $labels.cluster }}'
+          description: 'IPs have been sustained in PendingProgramming state (reserved from DNC, secondary NIC not yet attached) for at least 5 minutes. This SLI is fleet/node-scoped (not per hosted control plane) - use the runbook\'s blast-radius triage to narrow scope.'
+          info: 'IPs have been sustained in PendingProgramming state (reserved from DNC, secondary NIC not yet attached) for at least 5 minutes. This SLI is fleet/node-scoped (not per hosted control plane) - use the runbook\'s blast-radius triage to narrow scope.'
+          runbook_url: 'https://aka.ms/arohcp-runbook-swift'
+          summary: 'CNS IPs stuck in PendingProgramming'
+          title: 'CNS IPs stuck in PendingProgramming'
+        }
+        expression: 'cx_pending_programming_ips_v2 > 0'
+        for: 'PT5M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}

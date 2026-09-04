@@ -141,3 +141,71 @@ resource arohcpFrontendSloRecordingRules 'Microsoft.AlertsManagement/prometheusR
     ]
   }
 }
+
+resource arohcpSwiftCnsLatencyRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_swift_cns_latency_recording_rules'
+  location: location
+  properties: {
+    scopes: [
+      azureMonitoring
+    ]
+    enabled: true
+    interval: 'PT1M'
+    rules: [
+      {
+        record: 'cns:ip_assignment_latency:p99'
+        expression: 'histogram_quantile(0.99, sum by (le) (rate(ip_assignment_latency_seconds_bucket[5m])))'
+      }
+      {
+        record: 'cns:ip_assignment_latency:p99_avg_5m'
+        expression: 'avg_over_time(cns:ip_assignment_latency:p99[5m])'
+      }
+      {
+        record: 'cns:ip_assignment_latency:p99_avg_30m'
+        expression: 'avg_over_time(cns:ip_assignment_latency:p99[30m])'
+      }
+      {
+        record: 'cns:ip_assignment_latency:p99_avg_1h'
+        expression: 'avg_over_time(cns:ip_assignment_latency:p99[1h])'
+      }
+      {
+        record: 'cns:ip_assignment_latency:p99_avg_6h'
+        expression: 'avg_over_time(cns:ip_assignment_latency:p99[6h])'
+      }
+    ]
+  }
+}
+
+resource arohcpSwiftCnsAvailabilityRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_swift_cns_availability_recording_rules'
+  location: location
+  properties: {
+    scopes: [
+      azureMonitoring
+    ]
+    enabled: true
+    interval: 'PT1M'
+    rules: [
+      {
+        record: 'cns:daemonset_availability:ratio'
+        expression: 'kube_daemonset_status_number_ready{daemonset="azure-cns",job="kube-state-metrics",namespace="kube-system"} / kube_daemonset_status_desired_number_scheduled{daemonset="azure-cns",job="kube-state-metrics",namespace="kube-system"}'
+      }
+      {
+        record: 'cns:daemonset_availability:ratio_avg_5m'
+        expression: 'avg_over_time(cns:daemonset_availability:ratio[5m])'
+      }
+      {
+        record: 'cns:daemonset_availability:ratio_avg_30m'
+        expression: 'avg_over_time(cns:daemonset_availability:ratio[30m])'
+      }
+      {
+        record: 'cns:daemonset_availability:ratio_avg_1h'
+        expression: 'avg_over_time(cns:daemonset_availability:ratio[1h])'
+      }
+      {
+        record: 'cns:daemonset_availability:ratio_avg_6h'
+        expression: 'avg_over_time(cns:daemonset_availability:ratio[6h])'
+      }
+    ]
+  }
+}

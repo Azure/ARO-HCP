@@ -1,0 +1,154 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    app.kubernetes.io/name: kube-prometheus
+    app.kubernetes.io/part-of: kube-prometheus
+    prometheus: k8s
+    role: alert-rules
+  name: swift-networking-alert-rules
+  namespace: prometheus
+spec:
+  groups:
+  # ========================================
+  # SWIFT Networking User Journey Alerts
+  # ========================================
+  # These alerts implement multi-window multi-burn-rate alerting for the SWIFT
+  # Networking user journey per ADR-001 (ARO HCP Alerting Recommendation for SRE).
+  #
+  # SLO: router pod startup latency p99 ≤ 300s
+  # Lane: RP per-HCP (alerts-rp-hcps.yaml)
+  # Runbook: https://aka.ms/arohcp-runbook-swift
+  # TSG: https://aka.ms/arohcp-tsg-swift
+  #
+  # Naming convention: {Scope}{Subject}{Metric}{BurnRateTier}
+  # - Scope: userJourney (customer-facing, Sev 3)
+  # - Subject: Swift
+  # - Metric: LatencyP99
+  # - BurnRateTier: 1h5m (fast), 6h30m (medium), 3d (slow/Sev 4)
+  - name: arohcp_swift_networking_alerts
+    labels:
+      component: slo
+    rules:
+    # Fast burn: 1h long window + 5m short window
+    # Fires when both windows exceed threshold — confirms the issue is real and current.
+    - alert: userJourneySwiftLatencyP991h5m
+      expr: |
+        router:startup_latency:p99_avg_5m > 300
+        and
+        router:startup_latency:p99_avg_1h > 300
+      for: 2m
+      labels:
+        severity: "3"
+        burn_rate_tier: fast
+        long_window: 1h
+        short_window: 5m
+      annotations:
+        summary: "SWIFT router pod startup latency p99 critically elevated (fast burn)"
+        description: "Router pod startup latency p99 has exceeded 300s over the last hour and is still elevated. SWIFT secondary NIC assignment is stalled."
+        runbook_url: "https://aka.ms/arohcp-runbook-swift"
+
+    # Medium burn: 6h long window + 30m short window
+    - alert: userJourneySwiftLatencyP996h30m
+      expr: |
+        router:startup_latency:p99_avg_30m > 300
+        and
+        router:startup_latency:p99_avg_6h > 300
+      for: 15m
+      labels:
+        severity: "3"
+        burn_rate_tier: medium
+        long_window: 6h
+        short_window: 30m
+      annotations:
+        summary: "SWIFT router pod startup latency p99 elevated (medium burn)"
+        description: "Router pod startup latency p99 has exceeded 300s over the last 6 hours and is still elevated."
+        runbook_url: "https://aka.ms/arohcp-runbook-swift"
+
+    # Slow tier: 6h window with 6h for-clause — Sev 4 ticket, not a page.
+    # The name "P993d" reflects the burn rate: at this rate the monthly SLO budget exhausts in ~3 days.
+    # Per ADR-001: user journey Sev 3 alerts wire Fast + Medium; Slow tier is Sev 4.
+    - alert: userJourneySwiftLatencyP993d
+      expr: router:startup_latency:p99_avg_6h > 300
+      for: 6h
+      labels:
+        severity: "4"
+        burn_rate_tier: slow
+      annotations:
+        summary: "SWIFT router pod startup latency p99 elevated (slow burn — SLO budget on track to exhaust by month end)"
+        description: "Router pod startup latency p99 has been elevated for an extended period. At current rate the monthly SLO budget will be exhausted before end of month."
+        runbook_url: "https://aka.ms/arohcp-runbook-swift"
+
+  # ========================================
+  # Konnectivity Tunnel Error Alerts
+  # ========================================
+  # SLO: konnectivity tunnel stream error rate <= 1% over 28 days.
+  # Source: konnectivity-server sidecar metrics via PodMonitor (port 8093).
+  # Lane: RP per-HCP (alerts-rp-hcps.yaml)
+  - name: arohcp_swift_konnectivity_alerts
+    labels:
+      component: slo
+    rules:
+    - alert: userJourneySwiftKonnectivityErrors1h5m
+      expr: |
+        konnectivity:stream_error_rate:avg_5m > 0.01
+        and
+        konnectivity:stream_error_rate:avg_1h > 0.01
+      for: 2m
+      labels:
+        severity: "3"
+        burn_rate_tier: fast
+        long_window: 1h
+        short_window: 5m
+      annotations:
+        summary: "Konnectivity tunnel error rate elevated (fast burn)"
+        description: "Konnectivity tunnel stream error rate has exceeded 1% over the last hour and is still elevated. KAS-to-node communication may be degraded."
+        runbook_url: "https://aka.ms/arohcp-runbook-swift"
+
+    - alert: userJourneySwiftKonnectivityErrors6h30m
+      expr: |
+        konnectivity:stream_error_rate:avg_30m > 0.01
+        and
+        konnectivity:stream_error_rate:avg_6h > 0.01
+      for: 15m
+      labels:
+        severity: "3"
+        burn_rate_tier: medium
+        long_window: 6h
+        short_window: 30m
+      annotations:
+        summary: "Konnectivity tunnel error rate elevated (medium burn)"
+        description: "Konnectivity tunnel stream error rate has exceeded 1% over the last 6 hours and is still elevated."
+        runbook_url: "https://aka.ms/arohcp-runbook-swift"
+
+    - alert: userJourneySwiftKonnectivityDialFailures1h5m
+      expr: |
+        konnectivity:dial_failure_rate:avg_5m > 0.01
+        and
+        konnectivity:dial_failure_rate:avg_1h > 0.01
+      for: 2m
+      labels:
+        severity: "3"
+        burn_rate_tier: fast
+        long_window: 1h
+        short_window: 5m
+      annotations:
+        summary: "Konnectivity dial failure rate elevated (fast burn)"
+        description: "Konnectivity server dial failure rate has exceeded 1%. KAS cannot establish connections to worker nodes."
+        runbook_url: "https://aka.ms/arohcp-runbook-swift"
+
+    - alert: userJourneySwiftKonnectivityDialFailures6h30m
+      expr: |
+        konnectivity:dial_failure_rate:avg_30m > 0.01
+        and
+        konnectivity:dial_failure_rate:avg_6h > 0.01
+      for: 15m
+      labels:
+        severity: "3"
+        burn_rate_tier: medium
+        long_window: 6h
+        short_window: 30m
+      annotations:
+        summary: "Konnectivity dial failure rate elevated (medium burn)"
+        description: "Konnectivity server dial failure rate has exceeded 1% over the last 6 hours."
+        runbook_url: "https://aka.ms/arohcp-runbook-swift"
