@@ -1,0 +1,5 @@
+{
+	"apiVersion": "2026-09-01-preview",
+	"id": "28497969-12a1-5740-a104-c53515746d8f",
+	"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-reject-cr-managed-rg"
+}
