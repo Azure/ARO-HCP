@@ -687,7 +687,7 @@ func admitClusterVersionID(_ context.Context, admissionContext *ClusterAdmission
 	}
 	// on nightlies and candidates, we don't wait for the target version to show up. We trust these people to
 	// know what they're doing.
-	if newObj.ChannelGroup == "nightly" || newObj.ChannelGroup == "candidate" {
+	if newObj.ChannelGroup == metadataapi.ChannelGroupNightly || newObj.ChannelGroup == metadataapi.ChannelGroupCandidate {
 		return nil
 	}
 

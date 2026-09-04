@@ -53,11 +53,24 @@ var AllowControlPlaneNodePoolMajorVersionSkew = map[string][]string{
 	"4.23": {"5.1", "5.2"},
 }
 
+// OpenShift version update channel groups.
+const (
+	ChannelGroupStable    = "stable"
+	ChannelGroupFast      = "fast"
+	ChannelGroupCandidate = "candidate"
+	// ChannelGroupNightly builds are published to the CI releasestream API rather
+	// than the Cincinnati graph API used for version selection, so a nightly
+	// version cannot be resolved from a bare major.minor and must be pinned to a
+	// full major.minor.patch (see validateVersionProfile and the control plane
+	// desired version controller).
+	ChannelGroupNightly = "nightly"
+)
+
 // AllowedChannelGroups is the set ARO-HCP allows to use for customer purposes
-var AllowedChannelGroups = sets.New("stable", "fast")
+var AllowedChannelGroups = sets.New(ChannelGroupStable, ChannelGroupFast)
 
 // AllowedChannelGroupsWithExperimentalFlag is the set the service allows to use when using the Experimental Feature AFEC flag
-var AllowedChannelGroupsWithExperimentalFlag = sets.New("stable", "fast", "candidate", "nightly")
+var AllowedChannelGroupsWithExperimentalFlag = sets.New(ChannelGroupStable, ChannelGroupFast, ChannelGroupCandidate, ChannelGroupNightly)
 
 // NextMinorReleaseLine returns the next OpenShift minor release line after v as
 // major.minor.0 (patch and pre-release metadata cleared).
