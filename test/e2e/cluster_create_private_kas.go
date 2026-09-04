@@ -75,10 +75,6 @@ var _ = Describe("Customer", func() {
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for private KAS cluster")
 
-			By("deploying test VM in customer VNet")
-			vmName, _, err := tc.DeployTestVM(ctx, TestArtifactsFS, *resourceGroup.Name, customerClusterName, clusterParams.VnetName, clusterParams.SubnetName)
-			Expect(err).NotTo(HaveOccurred(), "failed to deploy test VM for private KAS verification")
-
 			By("creating the HCP cluster with private KAS")
 			err = tc.CreateHCPClusterFromParam20251223(ctx,
 				GinkgoLogr,
@@ -88,6 +84,10 @@ var _ = Describe("Customer", func() {
 				framework.ClusterCreationTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %q with private KAS", customerClusterName)
+
+			By("deploying test VM in customer VNet")
+			vmName, _, err := tc.DeployTestVM(ctx, TestArtifactsFS, *resourceGroup.Name, customerClusterName, clusterParams.VnetName, clusterParams.SubnetName)
+			Expect(err).NotTo(HaveOccurred(), "failed to deploy test VM for private KAS verification")
 
 			By("verifying cluster API visibility is Private via ARM GET")
 			hcpClient := tc.Get20251223ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
