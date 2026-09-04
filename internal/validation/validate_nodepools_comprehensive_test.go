@@ -208,11 +208,10 @@ func TestValidateNodePoolCreate(t *testing.T) {
 			}(),
 			expectErrors: []utils.ExpectedError{
 				{Message: "No Major.Minor.Patch elements found", FieldPath: "properties.version.id"},
-				{Message: "Short version cannot contain PreRelease/Build meta data", FieldPath: "properties.version.id"},
 			},
 		},
 		{
-			name: "version ID lower than minimum version without experimental flag - create",
+			name: "version ID lower than minimum version - create",
 			nodePool: func() *coreapi.HCPOpenShiftClusterNodePool {
 				np := createValidNodePool()
 				np.Properties.Version.ID = "4.20.0"
@@ -831,7 +830,6 @@ func TestValidateNodePoolCreate(t *testing.T) {
 			}(),
 			expectErrors: []utils.ExpectedError{
 				{Message: "No Major.Minor.Patch elements found", FieldPath: "properties.version.id"},
-				{Message: "Short version cannot contain PreRelease/Build meta data", FieldPath: "properties.version.id"},
 				{Message: "Required value", FieldPath: "properties.platform.vmSize"},
 				{Message: "Unsupported value", FieldPath: "properties.platform.vmSize"},
 				{Message: "must be greater than or equal to 64", FieldPath: "properties.platform.osDisk.sizeGiB"},
@@ -1503,7 +1501,6 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 			oldNodePool: createValidNodePool(),
 			expectErrors: []utils.ExpectedError{
 				{Message: "No Major.Minor.Patch elements found", FieldPath: "properties.version.id"},
-				{Message: "Short version cannot contain PreRelease/Build meta data", FieldPath: "properties.version.id"},
 			},
 		},
 		{
@@ -1789,7 +1786,7 @@ func TestValidateNodePoolVersionWithFeatureFlags(t *testing.T) {
 			name: "X.Y format rejected for stable channel ",
 			nodePool: func() *coreapi.HCPOpenShiftClusterNodePool {
 				np := createValidNodePool()
-				np.Properties.Version.ID = "4.20"
+				np.Properties.Version.ID = "4.21"
 				np.Properties.Version.ChannelGroup = "stable"
 				return np
 			}(),
@@ -1855,18 +1852,7 @@ func TestValidateNodePoolVersionWithFeatureFlags(t *testing.T) {
 			opOptions: nil,
 			expectErrors: []utils.ExpectedError{
 				{Message: "No Major.Minor.Patch elements found", FieldPath: "properties.version.id"},
-				{Message: "Short version cannot contain PreRelease/Build meta data", FieldPath: "properties.version.id"},
 			},
-		},
-		{
-			name: "version ID lower than minimum version with experimental flag - create",
-			nodePool: func() *coreapi.HCPOpenShiftClusterNodePool {
-				np := createValidNodePool()
-				np.Properties.Version.ID = "4.20.0"
-				return np
-			}(),
-			opOptions:    testNodePoolFeatureOptions(metadataapi.FeatureExperimentalReleaseFeatures),
-			expectErrors: []utils.ExpectedError{},
 		},
 	}
 
