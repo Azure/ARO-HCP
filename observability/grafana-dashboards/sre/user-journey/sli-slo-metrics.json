@@ -35,7 +35,7 @@
           "showLineNumbers": false,
           "showMiniMap": false
         },
-        "content": "### ARO HCP SLI / SLO metrics\n\nLive Grafana companion to the `sli-slo-metrics` report and its charts. The dashboard time picker defines the lookback window for summary and detail panels. The default is 14 days.\n\n**Create SLO:** 95% successful cluster creates and p95 within 20 minutes. **ARM threshold:** asynchronous operations should complete within 60 minutes.\n\n**Collection model:** these panels use the backend's current-operation gauges and include terminal operations whose latest transition falls inside the selected lookback. The four trend panels use a 24-hour display window and one-hour query step because Azure Managed Prometheus rejects the equivalent multi-day range queries at its query-cost limit. They can miss completed creates after a later operation changes the resource's labels. The generated report remains authoritative for start-time-bounded, deduplicated historical cohorts.\n\n**Datasource selection:** choose `All` for fleet totals or fleet averages across all regional `Managed_Prometheus_services-<region>` datasources, or select one datasource for a regional view. Control-plane version panels use the separate `Managed_Prometheus_hcps-<region>` datasource selector.\n\n**Known gaps:** normalized failure reasons require Kusto, and customer incident counts require IcM/Kusto. Those report sections are intentionally not synthesized from Prometheus.",
+        "content": "### ARO HCP SLI / SLO metrics\n\nLive Grafana companion to the `sli-slo-metrics` report and its charts. The dashboard time picker defines the lookback window for summary and detail panels. The default is 14 days.\n\n**Create SLO:** 95% successful cluster creates and cluster installs complete within 20 minutes.\n\n**Collection model:** these panels use the backend's current-operation gauges and include terminal operations whose latest transition falls inside the selected lookback. The four trend panels use a 24-hour display window and one-hour query step because Azure Managed Prometheus rejects the equivalent multi-day range queries at its query-cost limit. They can miss completed creates after a later operation changes the resource's labels. The generated report remains authoritative for start-time-bounded, deduplicated historical cohorts.\n\n**Datasource selection:** choose `All` for fleet totals or fleet averages across all regional `Managed_Prometheus_services-<region>` datasources, or select one datasource for a regional view. Control-plane version panels use the separate `Managed_Prometheus_hcps-<region>` datasource selector.\n\n**Known gaps:** normalized failure reasons require Kusto, and customer incident counts require IcM/Kusto. Those report sections are intentionally not synthesized from Prometheus.",
         "mode": "markdown"
       },
       "pluginVersion": "11.6.9",
@@ -344,7 +344,7 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "Current non-terminal operations whose last transition was more than 60 minutes ago.",
+      "description": "Current non-terminal cluster create operations whose elapsed time from operation start exceeds the 20-minute install SLO.",
       "fieldConfig": {
         "defaults": {
           "decimals": 0,
@@ -392,13 +392,13 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count((backend_resource_operation_phase_info{resource_type=~\"microsoft.redhatopenshift/hcpopenshiftclusters($|/nodepools$|/externalauths$)\",operation_type=~\"create|delete|update\",phase!~\"succeeded|failed|canceled\",subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=~\"microsoft.redhatopenshift/hcpopenshiftclusters($|/nodepools$|/externalauths$)\",operation_type=~\"create|delete|update\",phase!~\"succeeded|failed|canceled\",subscription_id!~\"${exclude_subs:raw}\"}) > 3600)) or vector(0)",
+          "expr": "count((backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\",operation_type=\"create\",phase!~\"succeeded|failed|canceled\",subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\",operation_type=\"create\",phase!~\"succeeded|failed|canceled\",subscription_id!~\"${exclude_subs:raw}\"}) > 1200)) or vector(0)",
           "instant": true,
-          "legendFormat": "ARM Breaches",
+          "legendFormat": "SLO Breaches",
           "refId": "A"
         }
       ],
-      "title": "Current ARM Breaches (>60m)",
+      "title": "Current Install SLO Breaches (>20m)",
       "transformations": [
         {
           "id": "seriesToRows",
@@ -1496,7 +1496,7 @@
       },
       "id": 40,
       "panels": [],
-      "title": "Latest phase and stuck operations",
+      "title": "Latest phase and SLO breaches",
       "type": "row"
     },
     {
@@ -1612,7 +1612,7 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "Current non-terminal operations grouped by severity threshold. Counts are cumulative: the >7d series is included in >24h and >60m.",
+      "description": "Current non-terminal cluster create operations grouped by install SLO severity. Counts are cumulative: the >7d series is included in >24h and >20m.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1666,9 +1666,9 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count((backend_resource_operation_phase_info{resource_type=~\"microsoft.redhatopenshift/hcpopenshiftclusters($|/nodepools$|/externalauths$)\",operation_type=~\"create|delete|update\",phase!~\"succeeded|failed|canceled\",subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=~\"microsoft.redhatopenshift/hcpopenshiftclusters($|/nodepools$|/externalauths$)\",operation_type=~\"create|delete|update\",phase!~\"succeeded|failed|canceled\",subscription_id!~\"${exclude_subs:raw}\"}) > 1200)) or vector(0)",
+          "expr": "count((backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\",operation_type=\"create\",phase!~\"succeeded|failed|canceled\",subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\",operation_type=\"create\",phase!~\"succeeded|failed|canceled\",subscription_id!~\"${exclude_subs:raw}\"}) > 1200)) or vector(0)",
           "instant": true,
-          "legendFormat": "SLO breach >20m",
+          "legendFormat": "Install SLO breach >20m",
           "refId": "A"
         },
         {
@@ -1677,9 +1677,9 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count((backend_resource_operation_phase_info{resource_type=~\"microsoft.redhatopenshift/hcpopenshiftclusters($|/nodepools$|/externalauths$)\",operation_type=~\"create|delete|update\",phase!~\"succeeded|failed|canceled\",subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=~\"microsoft.redhatopenshift/hcpopenshiftclusters($|/nodepools$|/externalauths$)\",operation_type=~\"create|delete|update\",phase!~\"succeeded|failed|canceled\",subscription_id!~\"${exclude_subs:raw}\"}) > 3600)) or vector(0)",
+          "expr": "count((backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\",operation_type=\"create\",phase!~\"succeeded|failed|canceled\",subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\",operation_type=\"create\",phase!~\"succeeded|failed|canceled\",subscription_id!~\"${exclude_subs:raw}\"}) > 86400)) or vector(0)",
           "instant": true,
-          "legendFormat": "ARM breach >60m",
+          "legendFormat": "Severe >24h",
           "refId": "B"
         },
         {
@@ -1688,24 +1688,13 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count((backend_resource_operation_phase_info{resource_type=~\"microsoft.redhatopenshift/hcpopenshiftclusters($|/nodepools$|/externalauths$)\",operation_type=~\"create|delete|update\",phase!~\"succeeded|failed|canceled\",subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=~\"microsoft.redhatopenshift/hcpopenshiftclusters($|/nodepools$|/externalauths$)\",operation_type=~\"create|delete|update\",phase!~\"succeeded|failed|canceled\",subscription_id!~\"${exclude_subs:raw}\"}) > 86400)) or vector(0)",
-          "instant": true,
-          "legendFormat": "Severe >24h",
-          "refId": "C"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "$datasource"
-          },
-          "editorMode": "code",
-          "expr": "count((backend_resource_operation_phase_info{resource_type=~\"microsoft.redhatopenshift/hcpopenshiftclusters($|/nodepools$|/externalauths$)\",operation_type=~\"create|delete|update\",phase!~\"succeeded|failed|canceled\",subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=~\"microsoft.redhatopenshift/hcpopenshiftclusters($|/nodepools$|/externalauths$)\",operation_type=~\"create|delete|update\",phase!~\"succeeded|failed|canceled\",subscription_id!~\"${exclude_subs:raw}\"}) > 604800)) or vector(0)",
+          "expr": "count((backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\",operation_type=\"create\",phase!~\"succeeded|failed|canceled\",subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\",operation_type=\"create\",phase!~\"succeeded|failed|canceled\",subscription_id!~\"${exclude_subs:raw}\"}) > 604800)) or vector(0)",
           "instant": true,
           "legendFormat": "Zombie >7d",
-          "refId": "D"
+          "refId": "C"
         }
       ],
-      "title": "Stuck Operation Severity",
+      "title": "Install SLO Breach Severity",
       "transformations": [
         {
           "id": "seriesToRows",
@@ -1755,7 +1744,7 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "Resource-level view of current operations over the 60-minute ARM threshold.",
+      "description": "Resource-level view of current cluster create operations over the 20-minute install SLO.",
       "fieldConfig": {
         "defaults": {
           "custom": {
@@ -1773,7 +1762,7 @@
               },
               {
                 "color": "red",
-                "value": 60
+                "value": 20
               }
             ]
           }
@@ -1814,7 +1803,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "((time() - backend_resource_operation_last_transition_time_seconds{resource_type=~\"microsoft.redhatopenshift/hcpopenshiftclusters($|/nodepools$|/externalauths$)\",operation_type=~\"create|delete|update\",phase!~\"succeeded|failed|canceled\",subscription_id!~\"${exclude_subs:raw}\"}) / 60) and (backend_resource_operation_phase_info{resource_type=~\"microsoft.redhatopenshift/hcpopenshiftclusters($|/nodepools$|/externalauths$)\",operation_type=~\"create|delete|update\",phase!~\"succeeded|failed|canceled\",subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=~\"microsoft.redhatopenshift/hcpopenshiftclusters($|/nodepools$|/externalauths$)\",operation_type=~\"create|delete|update\",phase!~\"succeeded|failed|canceled\",subscription_id!~\"${exclude_subs:raw}\"}) > 3600)",
+          "expr": "((time() - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\",operation_type=\"create\",phase!~\"succeeded|failed|canceled\",subscription_id!~\"${exclude_subs:raw}\"}) / 60) and (backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\",operation_type=\"create\",phase!~\"succeeded|failed|canceled\",subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\",operation_type=\"create\",phase!~\"succeeded|failed|canceled\",subscription_id!~\"${exclude_subs:raw}\"}) > 1200)",
           "format": "table",
           "instant": true,
           "legendFormat": "__auto",
@@ -1822,7 +1811,7 @@
           "refId": "A"
         }
       ],
-      "title": "ARM Breach Details",
+      "title": "Install SLO Breach Details",
       "transformations": [
         {
           "id": "merge",
