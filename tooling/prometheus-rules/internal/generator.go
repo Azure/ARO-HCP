@@ -431,37 +431,14 @@ func (o *Options) Generate() error {
 	isRecordingRulesFile := strings.Contains(o.outputBicep, "RecordingRules")
 	isAlertingRulesFile := strings.Contains(o.outputBicep, "AlertingRules")
 
-	// Validate that the filename contains the required keywords
-	if !isRecordingRulesFile && !isAlertingRulesFile {
-		return fmt.Errorf("output filename must contain either 'AlertingRules' or 'RecordingRules' to determine the rule type. Got: %s", o.outputBicep)
+	// Validate that the filename identifies exactly one rule type.
+	if isRecordingRulesFile == isAlertingRulesFile {
+		return fmt.Errorf("output filename must contain exactly one of 'AlertingRules' or 'RecordingRules' to determine the rule type. Got: %s", o.outputBicep)
 	}
 
-	// Write parameters based on file type
-	if isAlertingRulesFile {
-		if _, err := output.Write([]byte(`#disable-next-line no-unused-params
-param azureMonitoring string
-
-#disable-next-line no-unused-params
-param actionGroups array
-
-@description('The minimum IcM severity level (highest priority) that alerts can fire at. Alerts more critical than this ceiling will be degraded to this value. 0 means no ceiling.')
-param severityCeiling int = 0
-
-#disable-next-line no-unused-params
-param location string = resourceGroup().location
-`)); err != nil {
-			return err
-		}
-	} else {
-		if _, err := output.Write([]byte(`
-param azureMonitoring string
-
-param location string = resourceGroup().location
-`)); err != nil {
-			return err
-		}
-	}
-
+	generatedRules := &bytes.Buffer{}
+	replacementWriter := NewReplacementWriter(generatedRules, o.outputReplacements, o.regexOutputReplacements)
+	hasGeneratedRules := false
 	var titleErrors []error
 	for _, irf := range o.ruleFiles {
 		if irf.testDependency {
@@ -679,8 +656,6 @@ param location string = resourceGroup().location
 				// Use the file type to determine which function to call
 				// Groups are guaranteed to contain only one type of rule
 
-				replacementWriter := NewReplacementWriter(output, o.outputReplacements, o.regexOutputReplacements)
-
 				if isRecordingRulesFile {
 					if err := writeRecordingGroups(armGroup, replacementWriter); err != nil {
 						return err
@@ -690,13 +665,47 @@ param location string = resourceGroup().location
 						return err
 					}
 				}
+				hasGeneratedRules = true
 			}
 		}
 	}
 	if len(titleErrors) > 0 {
 		return errors.Join(titleErrors...)
 	}
-	return nil
+
+	// Write parameters based on file type. Empty alerting modules need to
+	// suppress severityCeiling because no generated rule references it.
+	if isAlertingRulesFile {
+		severityCeilingSuppression := ""
+		if !hasGeneratedRules {
+			severityCeilingSuppression = "#disable-next-line no-unused-params\n"
+		}
+		if _, err := fmt.Fprintf(output, `#disable-next-line no-unused-params
+param azureMonitoring string
+
+#disable-next-line no-unused-params
+param actionGroups array
+
+@description('The minimum IcM severity level (highest priority) that alerts can fire at. Alerts more critical than this ceiling will be degraded to this value. 0 means no ceiling.')
+%sparam severityCeiling int = 0
+
+#disable-next-line no-unused-params
+param location string = resourceGroup().location
+`, severityCeilingSuppression); err != nil {
+			return err
+		}
+	} else {
+		if _, err := output.Write([]byte(`
+param azureMonitoring string
+
+param location string = resourceGroup().location
+`)); err != nil {
+			return err
+		}
+	}
+
+	_, err = generatedRules.WriteTo(output)
+	return err
 }
 
 // A note on IcM: the connection between prometheusRuleGroups to IcM via actionGroups is tenuous. Keep the following
