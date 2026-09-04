@@ -396,6 +396,8 @@ MSI_MOCK_CERT_NAME=$(yq ".miMockPool.\"${LEASED_MSI_MOCK_SP}\".certName" dev-inf
 
 Jobs only consume the Boskos key and the static `msi-mock-pool.yaml` catalog at runtime. They do not query Entra or the `dev-ci` rollout directly during provisioning.
 
+The mock SP is process-wide for the job. Stripping its subscription grants while other specs in the same OTE invocation are still creating or deleting clusters would fail those siblings. The ARM-helper pool already isolates CheckAccess per job; MSI mock uses the same job-level lease. Per-spec isolation is a dedicated `development/mock-msi-acl` suite (`Parallelism: 1`) that strips then restores only a **pooled** mock principal — never `aro-dev-msi-mock2`. The test process must receive the same lease Helm applied, and live Cluster Service / backend `miMock*` must match it, or the spec can false-pass. See [DEV Mock-MSI ACL Isolation](mock-msi-acl-isolation.md) and [Helm must match the lease](mock-msi-acl-isolation.md#helm-must-match-the-lease-false-pass).
+
 ## ARM Helper Service Principal Pool
 
 The DEV ARM helper pool prevents concurrent E2E backends from sharing the

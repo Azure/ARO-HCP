@@ -511,7 +511,7 @@ func setupCli() *cobra.Command {
 
 	// The tests that a suite is composed of can be filtered by CEL expressions. By
 	// default, the qualifiers only apply to tests from this extension.
-	integrationQuery := fmt.Sprintf(`labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s")`, labels.RequireNothing[0], labels.DevelopmentOnly[0], labels.StageAndProdOnly[0], labels.HypershiftPresubmit[0])
+	integrationQuery := fmt.Sprintf(`labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s")`, labels.RequireNothing[0], labels.DevelopmentOnly[0], labels.StageAndProdOnly[0], labels.HypershiftPresubmit[0], labels.MockMSIACL[0])
 	integrationTestTimeout := 150 * time.Minute
 	ext.AddSuite(e.Suite{
 		Name: "integration/parallel",
@@ -537,7 +537,7 @@ func setupCli() *cobra.Command {
 		ResourcePools: miPools,
 	})
 
-	stageQuery := fmt.Sprintf(`labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s")`, labels.RequireNothing[0], labels.IntegrationOnly[0], labels.DevelopmentOnly[0], labels.HypershiftPresubmit[0])
+	stageQuery := fmt.Sprintf(`labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s")`, labels.RequireNothing[0], labels.IntegrationOnly[0], labels.DevelopmentOnly[0], labels.HypershiftPresubmit[0], labels.MockMSIACL[0])
 	stageTestTimeout := 150 * time.Minute
 	ext.AddSuite(e.Suite{
 		Name: "stage/parallel",
@@ -562,7 +562,7 @@ func setupCli() *cobra.Command {
 		ResourcePools: miPools,
 	})
 
-	prodQuery := fmt.Sprintf(`labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s")`, labels.RequireNothing[0], labels.IntegrationOnly[0], labels.DevelopmentOnly[0], labels.HypershiftPresubmit[0])
+	prodQuery := fmt.Sprintf(`labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s")`, labels.RequireNothing[0], labels.IntegrationOnly[0], labels.DevelopmentOnly[0], labels.HypershiftPresubmit[0], labels.MockMSIACL[0])
 	prodTestTimeout := 150 * time.Minute
 	ext.AddSuite(e.Suite{
 		Name: "prod/parallel",
@@ -593,7 +593,7 @@ func setupCli() *cobra.Command {
 			// Subset of E2E tests to be executed as a final step during ARO
 			// HCP Continous Deployment GitHub Action Workflow.
 			// TODO: revisit labels to tweak which tests to select here
-			fmt.Sprintf(`labels.exists(l, l=="%s" ) && labels.exists(l, l=="%s")`, labels.AroRpApiCompatible[0], labels.Positive[0]),
+			fmt.Sprintf(`labels.exists(l, l=="%s" ) && labels.exists(l, l=="%s") && !labels.exists(l, l=="%s")`, labels.AroRpApiCompatible[0], labels.Positive[0], labels.MockMSIACL[0]),
 		},
 		// Override at runtime via ARO_HCP_SUITE_PARALLELISM.
 		Parallelism:   parallelism(20),
@@ -603,9 +603,9 @@ func setupCli() *cobra.Command {
 	rpApiCompatBaseQualifier := fmt.Sprintf(`labels.exists(l, l=="%s")`, labels.AroRpApiCompatible[0])
 
 	if framework.IsDevelopmentEnvironment() {
-		rpApiCompatBaseQualifier = fmt.Sprintf(`%s || labels.exists(l, l=="%s")`, rpApiCompatBaseQualifier, labels.DevelopmentOnly[0])
+		rpApiCompatBaseQualifier = fmt.Sprintf(`(%s || labels.exists(l, l=="%s")) && !labels.exists(l, l=="%s")`, rpApiCompatBaseQualifier, labels.DevelopmentOnly[0], labels.MockMSIACL[0])
 	} else {
-		rpApiCompatBaseQualifier = fmt.Sprintf(`%s && !labels.exists(l, l=="%s")`, rpApiCompatBaseQualifier, labels.DevelopmentOnly[0])
+		rpApiCompatBaseQualifier = fmt.Sprintf(`%s && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s")`, rpApiCompatBaseQualifier, labels.DevelopmentOnly[0], labels.MockMSIACL[0])
 	}
 
 	rpApiCompatTestTimeout := 150 * time.Minute
@@ -636,6 +636,20 @@ func setupCli() *cobra.Command {
 		Parallelism:   parallelism(24),
 		TestTimeout:   &hypershiftPresubmitTimeout,
 		ResourcePools: miPools,
+	})
+
+	// development/mock-msi-acl owns the job-leased MSI mock SP exclusively so it
+	// can strip (then restore) subscription RBAC without racing sibling specs.
+	// Parallelism is the literal 1: ARO_HCP_SUITE_PARALLELISM must not raise it.
+	// Not wired into default DEV parallel CI; see docs/ci/mock-msi-acl-isolation.md.
+	mockMSIACLTimeout := 150 * time.Minute
+	ext.AddSuite(e.Suite{
+		Name: "development/mock-msi-acl",
+		Qualifiers: []string{
+			fmt.Sprintf(`labels.exists(l, l=="%s")`, labels.MockMSIACL[0]),
+		},
+		Parallelism: 1,
+		TestTimeout: &mockMSIACLTimeout,
 	})
 
 	// upgrade/in-place runs UpgradeInPlace specs in parallel. Each spec provisions

@@ -95,6 +95,12 @@ ARO HCP CI is split across this repository and the OpenShift CI configuration in
 - [Lease Configuration](identity-leasing.md#lease-configuration)
 - [Where To Look](identity-leasing.md#where-to-look)
 
+### [DEV Mock-MSI ACL Isolation](mock-msi-acl-isolation.md)
+
+- How to strip (then restore) the job-leased mock MSI for one DEV e2e spec without breaking sibling clusters
+- [Helm must match the lease (false pass)](mock-msi-acl-isolation.md#helm-must-match-the-lease-false-pass)
+- [Personal-dev overlay](mock-msi-acl-isolation.md#personal-dev-overlay)
+
 ### [DEV CI Monitoring and Alert Response](dev-ci-monitoring.md)
 
 - [At A Glance](dev-ci-monitoring.md#at-a-glance)
