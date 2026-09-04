@@ -16,7 +16,10 @@ package e2e
 
 import (
 	"context"
+	cryptorand "crypto/rand"
+	"crypto/rsa"
 	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -39,10 +42,11 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
 	"github.com/openshift-eng/openshift-tests-extension/pkg/util/sets"
 
-	hcpsdk20251223preview "github.com/Azure/ARO-HCP/test/sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	hcpsdk20260901preview "github.com/Azure/ARO-HCP/test/sdk/v20260901preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
@@ -50,7 +54,7 @@ import (
 
 var _ = Describe("Customer", func() {
 
-	terminalProvisioningStates := sets.New(hcpsdk20251223preview.ProvisioningStateSucceeded, hcpsdk20251223preview.ProvisioningStateFailed, hcpsdk20251223preview.ProvisioningStateCanceled)
+	terminalProvisioningStates := sets.New(hcpsdk20260901preview.ProvisioningStateSucceeded, hcpsdk20260901preview.ProvisioningStateFailed, hcpsdk20260901preview.ProvisioningStateCanceled)
 
 	It("should be able to test admin credentials before cluster ready, then full admin credential lifecycle",
 		labels.RequireNothing,
@@ -72,13 +76,13 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create resource group for admin credential lifecycle test")
 
 			By("creating cluster parameters")
-			clusterParams := framework.NewDefaultClusterParams20251223()
+			clusterParams := framework.NewDefaultClusterParams20260901()
 			clusterParams.ClusterName = clusterName
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			clusterParams.ManagedResourceGroupName = managedResourceGroupName
 
 			By("creating customer resources")
-			clusterParams, err = tc.CreateClusterCustomerResources20251223(ctx,
+			clusterParams, err = tc.CreateClusterCustomerResources20260901(ctx,
 				resourceGroup,
 				clusterParams,
 				map[string]any{},
@@ -88,12 +92,12 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for admin credential lifecycle cluster")
 
 			By("starting HCP cluster creation asynchronously")
-			clusterClient := tc.Get20251223ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
+			clusterClient := tc.Get20260901ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
 			timeout := framework.ClusterCreationTimeout
 			deploymentCtx, deploymentCancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during admin credential lifecycle test", timeout.Minutes()))
 			defer deploymentCancel()
 
-			_, err = framework.BeginCreateHCPCluster20251223(
+			_, err = framework.BeginCreateHCPCluster20260901(
 				deploymentCtx,
 				GinkgoLogr,
 				clusterClient,
@@ -107,7 +111,7 @@ var _ = Describe("Customer", func() {
 			By("waiting for cluster to appear and testing admin credentials while in deploying state")
 			// Poll the cluster state and test admin credentials when we find it deploying
 			var testedWhileDeploying bool
-			var previousState hcpsdk20251223preview.ProvisioningState
+			var previousState hcpsdk20260901preview.ProvisioningState
 			GinkgoLogr.Info("creating cluster, waiting for it to reach a terminal state")
 			Eventually(func() bool {
 				cluster, err := clusterClient.Get(ctx, *resourceGroup.Name, clusterName, nil)
@@ -126,6 +130,22 @@ var _ = Describe("Customer", func() {
 					previousState = *cluster.Properties.ProvisioningState
 				}
 
+				privKey, err := rsa.GenerateKey(cryptorand.Reader, 4096)
+				if err != nil {
+					Fail(fmt.Sprintf("failed to generate RSA key: %v", err))
+				}
+
+				csrDER, err := x509.CreateCertificateRequest(cryptorand.Reader, &x509.CertificateRequest{
+					Subject: pkix.Name{
+						CommonName:   "system:customer-break-glass:system-admin",
+						Organization: []string{"system:masters"},
+					},
+				}, privKey)
+				if err != nil {
+					Fail(fmt.Sprintf("failed to create CSR: %v", err))
+				}
+
+				csrPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csrDER})
 				// If cluster is still deploying and we haven't tested yet, test admin credentials
 				if !testedWhileDeploying && !terminalProvisioningStates.Has(*cluster.Properties.ProvisioningState) {
 					By("testing admin credentials while cluster is in deploying state")
@@ -134,6 +154,9 @@ var _ = Describe("Customer", func() {
 						ctx,
 						*resourceGroup.Name,
 						clusterName,
+						hcpsdk20260901preview.HcpOpenShiftClusterAdminCredentialRequest{
+							CertificateSigningRequest: to.Ptr(string(csrPEM)),
+						},
 						nil,
 					)
 					var respErr *azcore.ResponseError
@@ -146,7 +169,7 @@ var _ = Describe("Customer", func() {
 				}
 
 				// If cluster is ready, we're done
-				if *cluster.Properties.ProvisioningState == hcpsdk20251223preview.ProvisioningStateSucceeded {
+				if *cluster.Properties.ProvisioningState == hcpsdk20260901preview.ProvisioningStateSucceeded {
 					if !testedWhileDeploying {
 						Fail("Cluster provisioned too quickly to test 409 behavior - unable to validate admin credentials fail during deployment")
 					}
@@ -154,7 +177,7 @@ var _ = Describe("Customer", func() {
 				}
 
 				// If cluster failed, that's an error
-				if *cluster.Properties.ProvisioningState == hcpsdk20251223preview.ProvisioningStateFailed {
+				if *cluster.Properties.ProvisioningState == hcpsdk20260901preview.ProvisioningStateFailed {
 					Fail("Cluster provisioning failed")
 				}
 
@@ -178,10 +201,31 @@ var _ = Describe("Customer", func() {
 				// request admin credential without using the helper function to ensure we can validate
 				// the raw kubeconfig returned by the API. The helper function returns a rest.Config
 				// that omits certain information that is required for validation (e.g. config.Clusters).
+
+				privKey, err := rsa.GenerateKey(cryptorand.Reader, 4096)
+				if err != nil {
+					Fail(fmt.Sprintf("failed to generate RSA key: %v", err))
+				}
+
+				csrDER, err := x509.CreateCertificateRequest(cryptorand.Reader, &x509.CertificateRequest{
+					Subject: pkix.Name{
+						CommonName:   "system:customer-break-glass:system-admin",
+						Organization: []string{"system:masters"},
+					},
+				}, privKey)
+				if err != nil {
+					Fail(fmt.Sprintf("failed to create CSR: %v", err))
+				}
+
+				csrPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csrDER})
+
 				adminCredentialRequestPoller, err := clusterClient.BeginRequestAdminCredential(
 					validationCtx,
 					*resourceGroup.Name,
 					clusterName,
+					hcpsdk20260901preview.HcpOpenShiftClusterAdminCredentialRequest{
+						CertificateSigningRequest: to.Ptr(string(csrPEM)),
+					},
 					nil,
 				)
 				Expect(err).NotTo(HaveOccurred(), "failed to request admin credential %d", i+1)
@@ -193,8 +237,15 @@ var _ = Describe("Customer", func() {
 				Expect(credResp.Kubeconfig).NotTo(BeNil(), "admin credential response Kubeconfig was nil for credential %d", i+1)
 
 				By("validating kubeconfig returned by the API is valid")
-				kubeconfigData := []byte(*credResp.Kubeconfig)
-				config, err := clientcmd.Load(kubeconfigData)
+				config, err := clientcmd.Load([]byte(*credResp.Kubeconfig))
+				Expect(err).NotTo(HaveOccurred(), "Error loading kubeconfig data")
+				privKeyPEM := pem.EncodeToMemory(&pem.Block{
+					Type:  "RSA PRIVATE KEY",
+					Bytes: x509.MarshalPKCS1PrivateKey(privKey),
+				})
+				for _, authInfo := range config.AuthInfos {
+					authInfo.ClientKeyData = privKeyPEM
+				}
 				Expect(err).NotTo(HaveOccurred(), "kubeconfig must be valid YAML")
 
 				By("validating exactly one cluster in kubeconfig")
@@ -223,7 +274,7 @@ var _ = Describe("Customer", func() {
 				Expect(cluster.InsecureSkipTLSVerify).To(BeFalse(), "cluster must not use InsecureSkipTLSVerify")
 
 				By("converting validated kubeconfig to rest.Config")
-				adminRESTConfig, err := clientcmd.RESTConfigFromKubeConfig(kubeconfigData)
+				adminRESTConfig, err := clientcmd.NewDefaultClientConfig(*config, &clientcmd.ConfigOverrides{}).ClientConfig()
 				Expect(err).NotTo(HaveOccurred(), "failed to convert kubeconfig to rest.Config for credential %d", i+1)
 				Expect(adminRESTConfig).NotTo(BeNil(), "adminRESTConfig was nil for credential %d", i+1)
 
@@ -246,7 +297,7 @@ var _ = Describe("Customer", func() {
 			skipSuite := os.Getenv("ARO_HCP_SUITE_NAME") == "integration/parallel" && time.Now().Before(time.Date(2026, 4, 15, 0, 0, 0, 0, time.UTC))
 
 			By("revoking all cluster admin credentials via ARO HCP RP API")
-			err = tc.RevokeCredentialsAndWait20251223(ctx, clusterClient, *resourceGroup.Name, clusterName, 15*time.Minute)
+			err = tc.RevokeCredentialsAndWait20260901(ctx, clusterClient, *resourceGroup.Name, clusterName, 15*time.Minute)
 			if err != nil && skipSuite {
 				Skip("skipping revocation and remaining steps in integration/parallel suite")
 			}
@@ -288,9 +339,9 @@ var _ = Describe("Customer", func() {
 			By("verifying new admin credentials can still be requested after revocation")
 			// After revocation, new admin credential requests should still work
 			// This validates the revocation endpoint doesn't break the cluster
-			newAdminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20251223(
+			newAdminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20260901(
 				ctx,
-				tc.Get20251223ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
+				tc.Get20260901ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
 				clusterName,
 				framework.GetAdminRESTConfigTimeout,

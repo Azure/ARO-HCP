@@ -62,13 +62,13 @@ var _ = Describe("SRE", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create resource group for admin-api-breakglass")
 
 			By("creating cluster parameters")
-			clusterParams := framework.NewDefaultClusterParams20251223()
+			clusterParams := framework.NewDefaultClusterParams20260901()
 			clusterParams.ClusterName = engineeringClusterName
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			clusterParams.ManagedResourceGroupName = managedResourceGroupName
 
 			By("creating customer resources")
-			clusterParams, err = tc.CreateClusterCustomerResources20251223(ctx,
+			clusterParams, err = tc.CreateClusterCustomerResources20260901(ctx,
 				resourceGroup,
 				clusterParams,
 				map[string]interface{}{
@@ -82,7 +82,7 @@ var _ = Describe("SRE", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for breakglass cluster")
 
 			By("creating the HCP cluster")
-			err = tc.CreateHCPClusterFromParam20251223(
+			err = tc.CreateHCPClusterFromParam20260901(
 				ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
@@ -279,13 +279,13 @@ var _ = Describe("SRE", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create resource group for serial console test")
 
 			By("creating cluster parameters")
-			clusterParams := framework.NewDefaultClusterParams20251223()
+			clusterParams := framework.NewDefaultClusterParams20260901()
 			clusterParams.ClusterName = engineeringClusterName
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			clusterParams.ManagedResourceGroupName = managedResourceGroupName
 
 			By("creating customer resources")
-			clusterParams, err = tc.CreateClusterCustomerResources20251223(ctx,
+			clusterParams, err = tc.CreateClusterCustomerResources20260901(ctx,
 				resourceGroup,
 				clusterParams,
 				map[string]interface{}{
@@ -299,7 +299,7 @@ var _ = Describe("SRE", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for serial console cluster")
 
 			By("creating the HCP cluster")
-			err = tc.CreateHCPClusterFromParam20251223(
+			err = tc.CreateHCPClusterFromParam20260901(
 				ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
@@ -310,12 +310,12 @@ var _ = Describe("SRE", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %q for serial console test", engineeringClusterName)
 
 			By("creating a nodepool to provision worker VMs")
-			nodePoolParams := framework.NewDefaultNodePoolParams20251223()
+			nodePoolParams := framework.NewDefaultNodePoolParams20260901()
 			nodePoolParams.ClusterName = engineeringClusterName
 			nodePoolParams.NodePoolName = "worker"
 			nodePoolParams.Replicas = int32(1)
 
-			err = tc.CreateNodePoolFromParam20251223(ctx,
+			err = tc.CreateNodePoolFromParam20260901(ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
 				managedResourceGroupName,
@@ -389,13 +389,13 @@ var _ = Describe("SRE", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create resource group for boot diagnostics test")
 
 			By("creating cluster parameters")
-			clusterParams := framework.NewDefaultClusterParams20251223()
+			clusterParams := framework.NewDefaultClusterParams20260901()
 			clusterParams.ClusterName = engineeringClusterName
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			clusterParams.ManagedResourceGroupName = managedResourceGroupName
 
 			By("creating customer resources")
-			clusterParams, err = tc.CreateClusterCustomerResources20251223(ctx,
+			clusterParams, err = tc.CreateClusterCustomerResources20260901(ctx,
 				resourceGroup,
 				clusterParams,
 				map[string]interface{}{
@@ -409,7 +409,7 @@ var _ = Describe("SRE", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for boot diagnostics cluster")
 
 			By("creating the HCP cluster")
-			err = tc.CreateHCPClusterFromParam20251223(
+			err = tc.CreateHCPClusterFromParam20260901(
 				ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
@@ -420,12 +420,12 @@ var _ = Describe("SRE", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %q for boot diagnostics test", engineeringClusterName)
 
 			By("creating a nodepool to provision worker VMs")
-			nodePoolParams := framework.NewDefaultNodePoolParams20251223()
+			nodePoolParams := framework.NewDefaultNodePoolParams20260901()
 			nodePoolParams.ClusterName = engineeringClusterName
 			nodePoolParams.NodePoolName = "worker"
 			nodePoolParams.Replicas = int32(1)
 
-			err = tc.CreateNodePoolFromParam20251223(ctx,
+			err = tc.CreateNodePoolFromParam20260901(ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
 				managedResourceGroupName,

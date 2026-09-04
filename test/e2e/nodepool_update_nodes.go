@@ -24,7 +24,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
-	hcpsdk20251223preview "github.com/Azure/ARO-HCP/test/sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	hcpsdk20260901preview "github.com/Azure/ARO-HCP/test/sdk/v20260901preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
@@ -57,13 +57,13 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create resource group nodepool-update-nodes")
 
 			By("creating cluster parameters")
-			clusterParams := framework.NewDefaultClusterParams20251223()
+			clusterParams := framework.NewDefaultClusterParams20260901()
 			clusterParams.ClusterName = customerClusterName
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			clusterParams.ManagedResourceGroupName = managedResourceGroupName
 
 			By("creating customer resources")
-			clusterParams, err = tc.CreateClusterCustomerResources20251223(ctx,
+			clusterParams, err = tc.CreateClusterCustomerResources20260901(ctx,
 				resourceGroup,
 				clusterParams,
 				map[string]interface{}{},
@@ -73,7 +73,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create cluster customer resources")
 
 			By("creating the HCP cluster")
-			err = tc.CreateHCPClusterFromParam20251223(ctx,
+			err = tc.CreateHCPClusterFromParam20260901(ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
 				clusterParams,
@@ -96,19 +96,19 @@ var _ = Describe("Customer", func() {
 			mainNodeCount := 2
 			oneNodeCount := 1
 
-			mainNodePoolParams := framework.NewDefaultNodePoolParams20251223()
+			mainNodePoolParams := framework.NewDefaultNodePoolParams20260901()
 			mainNodePoolParams.NodePoolName = customerNodePoolName
 			mainNodePoolParams.Replicas = int32(mainNodeCount)
 
-			oneNodePoolParams := framework.NewDefaultNodePoolParams20251223()
+			oneNodePoolParams := framework.NewDefaultNodePoolParams20260901()
 			oneNodePoolParams.NodePoolName = oneNodePoolName
 			oneNodePoolParams.Replicas = int32(oneNodeCount)
 
 			errCh := make(chan error, 2)
 			group, groupCtx := errgroup.WithContext(ctx)
-			for _, nodePoolParams := range []framework.NodePoolParams20251223{mainNodePoolParams, oneNodePoolParams} {
+			for _, nodePoolParams := range []framework.NodePoolParams20260901{mainNodePoolParams, oneNodePoolParams} {
 				group.Go(func() error {
-					createErr := tc.CreateNodePoolFromParam20251223(
+					createErr := tc.CreateNodePoolFromParam20260901(
 						groupCtx,
 						GinkgoLogr,
 						*resourceGroup.Name,
@@ -138,13 +138,13 @@ var _ = Describe("Customer", func() {
 
 			By("scaling up the nodepool replicas from 2 to 3 replicas")
 			mainNodeCount = 3
-			update := hcpsdk20251223preview.NodePoolUpdate{
-				Properties: &hcpsdk20251223preview.NodePoolPropertiesUpdate{
+			update := hcpsdk20260901preview.NodePoolUpdate{
+				Properties: &hcpsdk20260901preview.NodePoolPropertiesUpdate{
 					Replicas: to.Ptr(int32(mainNodeCount)),
 				},
 			}
-			scaleUpResp, err := framework.UpdateNodePoolAndWait20251223(ctx,
-				tc.Get20251223ClientFactoryOrDie(ctx).NewNodePoolsClient(),
+			scaleUpResp, err := framework.UpdateNodePoolAndWait20260901(ctx,
+				tc.Get20260901ClientFactoryOrDie(ctx).NewNodePoolsClient(),
 				*resourceGroup.Name,
 				customerClusterName,
 				customerNodePoolName,
@@ -161,16 +161,16 @@ var _ = Describe("Customer", func() {
 			Expect(verifiers.VerifyNodeCount(customerClusterName, totalNodeCount).Verify(ctx, adminRESTConfig)).To(Succeed(), "failed to verify node count of %d after scale up", totalNodeCount)
 			Expect(verifiers.VerifyNodesReady().Verify(ctx, adminRESTConfig)).To(Succeed(), "failed to verify all nodes are ready after scale up")
 
-			nodePoolsClient := tc.Get20251223ClientFactoryOrDie(ctx).NewNodePoolsClient()
+			nodePoolsClient := tc.Get20260901ClientFactoryOrDie(ctx).NewNodePoolsClient()
 
 			By("scaling down the nodepool replicas from 3 to 2 replicas")
 			mainNodeCount = 2
-			update = hcpsdk20251223preview.NodePoolUpdate{
-				Properties: &hcpsdk20251223preview.NodePoolPropertiesUpdate{
+			update = hcpsdk20260901preview.NodePoolUpdate{
+				Properties: &hcpsdk20260901preview.NodePoolPropertiesUpdate{
 					Replicas: to.Ptr(int32(mainNodeCount)),
 				},
 			}
-			scaleDownResp, err := framework.UpdateNodePoolAndWait20251223(ctx,
+			scaleDownResp, err := framework.UpdateNodePoolAndWait20260901(ctx,
 				nodePoolsClient,
 				*resourceGroup.Name,
 				customerClusterName,
@@ -189,16 +189,16 @@ var _ = Describe("Customer", func() {
 			Expect(verifiers.VerifyNodesReady().Verify(ctx, adminRESTConfig)).To(Succeed(), "failed to verify all nodes are ready after scale down")
 
 			By("updating the one-replica nodepool replicas to 0 and enabling autoscaling with a PATCH")
-			update = hcpsdk20251223preview.NodePoolUpdate{
-				Properties: &hcpsdk20251223preview.NodePoolPropertiesUpdate{
+			update = hcpsdk20260901preview.NodePoolUpdate{
+				Properties: &hcpsdk20260901preview.NodePoolPropertiesUpdate{
 					Replicas: to.Ptr(int32(0)),
-					AutoScaling: &hcpsdk20251223preview.NodePoolAutoScaling{
+					AutoScaling: &hcpsdk20260901preview.NodePoolAutoScaling{
 						Min: to.Ptr(int32(2)),
 						Max: to.Ptr(int32(3)),
 					},
 				},
 			}
-			autoscaleResp, err := framework.UpdateNodePoolAndWait20251223(ctx,
+			autoscaleResp, err := framework.UpdateNodePoolAndWait20260901(ctx,
 				nodePoolsClient,
 				*resourceGroup.Name,
 				customerClusterName,
