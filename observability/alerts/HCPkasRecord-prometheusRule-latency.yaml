@@ -77,6 +77,8 @@ spec:
     # correct here because the base rule already produces a dimensionless [0,1]
     # value; smoothing it preserves that bound and gives burn-rate alert
     # consumers a stable signal.
+    - record: kas:apiserver_request_latency:sli_ratio:rate_avg_5m
+      expr: avg_over_time(kas:apiserver_request_latency:sli_ratio:rate5m[5m])
     - record: kas:apiserver_request_latency:sli_ratio:rate_avg_30m
       expr: avg_over_time(kas:apiserver_request_latency:sli_ratio:rate5m[30m])
     - record: kas:apiserver_request_latency:sli_ratio:rate_avg_1h
@@ -89,3 +91,99 @@ spec:
     # Subquery step of 5m matches the base rule rate window (rate5m).
     - record: kas:apiserver_request_latency:sli_ratio:rate_avg_30d
       expr: avg_over_time(kas:apiserver_request_latency:sli_ratio:rate5m[30d:5m])
+    # Request termination rate — ADR Traffic column signal. Non-zero means KAS
+    # is killing in-flight requests due to timeout or overload.
+    - record: kas:apiserver_request_terminations:rate5m
+      expr: sum by (namespace, cluster) (rate(apiserver_request_terminations_total{namespace=~"ocm-.*"}[5m]))
+    # In-flight request saturation — ADR Saturation column signal. Smoothed
+    # gauge of concurrent requests by kind (mutating vs readOnly).
+    - record: kas:apiserver_inflight_requests:avg_5m
+      expr: |
+        avg_over_time(
+          sum by (namespace, cluster, requestKind) (
+            apiserver_current_inflight_requests{namespace=~"ocm-.*"}
+          )[5m:1m]
+        )
+    # Per-category latency SLI breakdowns — triage decomposition for the
+    # aggregate SLI ratio. When the aggregate burns budget, these show which
+    # verb/scope category is responsible.
+    - record: kas:apiserver_request_latency:sli_ratio_mutating:rate5m
+      expr: |
+        sum by (namespace, cluster) (
+          rate(apiserver_request_sli_duration_seconds_bucket{
+            namespace=~"ocm-.*",
+            verb=~"POST|PUT|PATCH|DELETE",
+            scope=~"resource|namespace|cluster",
+            subresource!~"proxy|attach|log|exec|portforward",
+            le="1.0"
+          }[5m])
+        )
+        /
+        sum by (namespace, cluster) (
+          rate(apiserver_request_sli_duration_seconds_count{
+            namespace=~"ocm-.*",
+            verb=~"POST|PUT|PATCH|DELETE",
+            scope=~"resource|namespace|cluster",
+            subresource!~"proxy|attach|log|exec|portforward"
+          }[5m])
+        )
+    - record: kas:apiserver_request_latency:sli_ratio_reads_resource:rate5m
+      expr: |
+        sum by (namespace, cluster) (
+          rate(apiserver_request_sli_duration_seconds_bucket{
+            namespace=~"ocm-.*",
+            verb=~"GET|LIST",
+            scope="resource",
+            subresource!~"proxy|attach|log|exec|portforward",
+            le="1.0"
+          }[5m])
+        )
+        /
+        sum by (namespace, cluster) (
+          rate(apiserver_request_sli_duration_seconds_count{
+            namespace=~"ocm-.*",
+            verb=~"GET|LIST",
+            scope="resource",
+            subresource!~"proxy|attach|log|exec|portforward"
+          }[5m])
+        )
+    - record: kas:apiserver_request_latency:sli_ratio_reads_namespace:rate5m
+      expr: |
+        sum by (namespace, cluster) (
+          rate(apiserver_request_sli_duration_seconds_bucket{
+            namespace=~"ocm-.*",
+            verb=~"GET|LIST",
+            scope="namespace",
+            subresource!~"proxy|attach|log|exec|portforward",
+            le="5.0"
+          }[5m])
+        )
+        /
+        sum by (namespace, cluster) (
+          rate(apiserver_request_sli_duration_seconds_count{
+            namespace=~"ocm-.*",
+            verb=~"GET|LIST",
+            scope="namespace",
+            subresource!~"proxy|attach|log|exec|portforward"
+          }[5m])
+        )
+    - record: kas:apiserver_request_latency:sli_ratio_reads_cluster:rate5m
+      expr: |
+        sum by (namespace, cluster) (
+          rate(apiserver_request_sli_duration_seconds_bucket{
+            namespace=~"ocm-.*",
+            verb=~"GET|LIST",
+            scope="cluster",
+            subresource!~"proxy|attach|log|exec|portforward",
+            le="30.0"
+          }[5m])
+        )
+        /
+        sum by (namespace, cluster) (
+          rate(apiserver_request_sli_duration_seconds_count{
+            namespace=~"ocm-.*",
+            verb=~"GET|LIST",
+            scope="cluster",
+            subresource!~"proxy|attach|log|exec|portforward"
+          }[5m])
+        )
