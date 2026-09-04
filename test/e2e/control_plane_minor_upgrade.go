@@ -94,6 +94,47 @@ var _ = Describe("Customer", func() {
 				}
 			}
 
+			installSemver, parseErr := semver.ParseTolerant(resolvedInstallVersion)
+			if parseErr == nil {
+				upgradeChannel := fmt.Sprintf("%s-%d.%d", channelGroup, upgradeVersion.Major, upgradeVersion.Minor)
+				cincinnatiURI, uriErr := cincinnati.GetCincinnatiURI(channelGroup)
+				if uriErr == nil {
+					cincinnatiClient := cincinnati.NewClientCache().GetOrCreateClient(uuid.Nil)
+					_, updates, _, edgeErr := cincinnatiClient.GetUpdates(ctx, cincinnatiURI, "multi", "multi", upgradeChannel, installSemver)
+					if cincinnati.IsCincinnatiVersionNotFoundError(edgeErr) {
+						Skip(fmt.Sprintf("install version %s not found in Cincinnati graph (channel %s) - no upgrade edges available",
+							resolvedInstallVersion, upgradeChannel))
+					}
+					if edgeErr != nil {
+						GinkgoLogr.Info("Cincinnati edge preflight query returned non-VersionNotFound error, proceeding without preflight",
+							"installVersion", resolvedInstallVersion, "channel", upgradeChannel, "error", edgeErr)
+					} else {
+						var edgeVersions []string
+						hasTargetMinor := false
+						for _, u := range updates {
+							v, vErr := semver.ParseTolerant(u.Version)
+							if vErr == nil && v.Major == upgradeVersion.Major && v.Minor == upgradeVersion.Minor {
+								hasTargetMinor = true
+								edgeVersions = append(edgeVersions, u.Version)
+							}
+						}
+						if !hasTargetMinor {
+							Skip(fmt.Sprintf("Cincinnati has no upgrade edges from %s to %d.%d in channel %s (total updates returned: %d)",
+								resolvedInstallVersion, upgradeVersion.Major, upgradeVersion.Minor, upgradeChannel, len(updates)))
+						}
+						GinkgoLogr.Info("Cincinnati edge preflight passed",
+							"installVersion", resolvedInstallVersion, "channel", upgradeChannel,
+							"edgesToTargetMinor", edgeVersions, "totalUpdates", len(updates))
+					}
+				} else {
+					GinkgoLogr.Info("Cincinnati edge preflight skipped: failed to get URI",
+						"channelGroup", channelGroup, "error", uriErr)
+				}
+			} else {
+				GinkgoLogr.Info("Cincinnati edge preflight skipped: failed to parse install version",
+					"resolvedInstallVersion", resolvedInstallVersion, "error", parseErr)
+			}
+
 			tc := framework.NewTestContext()
 			if tc.UsePooledIdentities() {
 				err := tc.AssignIdentityContainers(ctx, 1, framework.IdentityContainerAssignmentRetryInterval)
@@ -153,6 +194,25 @@ var _ = Describe("Customer", func() {
 			By("verifying the cluster is viable before upgrade")
 			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred(), "failed to verify cluster %q is viable before upgrade", clusterName)
+
+			nodePoolName := "np-" + suffix
+			nodePoolParams := framework.NewDefaultNodePoolParams20240610()
+			nodePoolParams.ClusterName = clusterName
+			nodePoolParams.NodePoolName = nodePoolName
+			nodePoolParams.OpenshiftVersionId = resolvedInstallVersion
+			nodePoolParams.ChannelGroup = channelGroup
+
+			By(fmt.Sprintf("creating node pool %q with version %q on %s channel", nodePoolName, nodePoolParams.OpenshiftVersionId, channelGroup))
+			err = tc.CreateNodePoolFromParam20240610(
+				ctx,
+				GinkgoLogr,
+				*resourceGroup.Name,
+				clusterParams.ManagedResourceGroupName,
+				clusterName,
+				nodePoolParams,
+				framework.NodePoolCreationTimeout,
+			)
+			Expect(err).NotTo(HaveOccurred(), "failed to create node pool %q for cluster %q", nodePoolName, clusterName)
 
 			Expect(ctx.Err()).NotTo(HaveOccurred(), "test context expired before triggering upgrade for cluster %q", clusterName)
 			kubeClient, err := kubernetes.NewForConfig(adminRESTConfig)
