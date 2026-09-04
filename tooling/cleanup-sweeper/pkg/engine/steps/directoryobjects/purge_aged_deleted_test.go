@@ -15,14 +15,19 @@
 package directoryobjects
 
 import (
+	"context"
+	"errors"
 	"net/http"
 	"testing"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v3"
+	"github.com/go-logr/logr"
 	msgraphsdk "github.com/microsoftgraph/msgraph-sdk-go"
 	graphodataerrors "github.com/microsoftgraph/msgraph-sdk-go/models/odataerrors"
+	"k8s.io/apimachinery/pkg/util/sets"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v3"
+	"github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/pkg/engine/steps/common"
 )
 
 func validPurgeAgedDeletedStepConfig() PurgeAgedDeletedStepConfig {
@@ -210,5 +215,98 @@ func TestNormalizeID(t *testing.T) {
 
 	if got := normalizeID("  /SUBSCRIPTIONS/ABC  "); got != "/subscriptions/abc" {
 		t.Fatalf("expected normalized ID, got %q", got)
+	}
+}
+
+func TestAssignmentWithinSubscriptionScope(t *testing.T) {
+	t.Parallel()
+
+	strPtr := func(s string) *string { return &s }
+
+	testCases := []struct {
+		name string
+		role *armauthorization.RoleAssignment
+		want bool
+	}{
+		{
+			name: "accepts nested scope within subscription",
+			role: &armauthorization.RoleAssignment{
+				ID: strPtr("/subscriptions/abc/resourceGroups/rg-one/providers/Microsoft.Authorization/roleAssignments/ra1"),
+			},
+			want: true,
+		},
+		{
+			name: "rejects management group scope",
+			role: &armauthorization.RoleAssignment{
+				ID: strPtr("/providers/Microsoft.Management/managementGroups/mg1/providers/Microsoft.Authorization/roleAssignments/ra1"),
+			},
+			want: false,
+		},
+		{
+			name: "rejects different subscription with shared prefix",
+			role: &armauthorization.RoleAssignment{
+				ID: strPtr("/subscriptions/abc123/providers/Microsoft.Authorization/roleAssignments/ra1"),
+			},
+			want: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got := assignmentWithinSubscriptionScope(tc.role, "/subscriptions/abc/")
+			if got != tc.want {
+				t.Fatalf("expected %t, got %t", tc.want, got)
+			}
+		})
+	}
+}
+
+func TestPurgeAgedDeletedStepDiscover_SkipsWhenRoleAssignmentListingFails(t *testing.T) {
+	t.Parallel()
+
+	step, err := NewPurgeAgedDeletedStep(validPurgeAgedDeletedStepConfig())
+	if err != nil {
+		t.Fatalf("expected constructor to succeed, got error: %v", err)
+	}
+
+	concrete := step.(*purgeAgedDeletedStep)
+	concrete.listRoleAssignmentPrincipalIDs = func(context.Context, *armauthorization.RoleAssignmentsClient, string, logr.Logger, *common.DiscoverySkipReporter) (sets.Set[string], error) {
+		return nil, errors.New("arm unavailable")
+	}
+
+	ctx := logr.NewContext(context.Background(), logr.Discard())
+	targets, err := concrete.Discover(ctx)
+	if err != nil {
+		t.Fatalf("expected discover to fail open, got error: %v", err)
+	}
+	if len(targets) != 0 {
+		t.Fatalf("expected no targets when listing role assignments fails, got %d", len(targets))
+	}
+}
+
+func TestPurgeAgedDeletedStepDiscover_SkipsWhenActivePrincipalResolutionFails(t *testing.T) {
+	t.Parallel()
+
+	step, err := NewPurgeAgedDeletedStep(validPurgeAgedDeletedStepConfig())
+	if err != nil {
+		t.Fatalf("expected constructor to succeed, got error: %v", err)
+	}
+
+	concrete := step.(*purgeAgedDeletedStep)
+	concrete.listRoleAssignmentPrincipalIDs = func(context.Context, *armauthorization.RoleAssignmentsClient, string, logr.Logger, *common.DiscoverySkipReporter) (sets.Set[string], error) {
+		return sets.New("/principals/a"), nil
+	}
+	concrete.resolveActivePrincipalIDs = func(context.Context, *msgraphsdk.GraphServiceClient, sets.Set[string]) (sets.Set[string], error) {
+		return nil, errors.New("graph unavailable")
+	}
+
+	ctx := logr.NewContext(context.Background(), logr.Discard())
+	targets, err := concrete.Discover(ctx)
+	if err != nil {
+		t.Fatalf("expected discover to fail open, got error: %v", err)
+	}
+	if len(targets) != 0 {
+		t.Fatalf("expected no targets when resolving active principals fails, got %d", len(targets))
 	}
 }

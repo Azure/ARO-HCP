@@ -91,13 +91,30 @@ type PurgeAgedDeletedStepConfig struct {
 }
 
 type purgeAgedDeletedStep struct {
-	cfg             PurgeAgedDeletedStepConfig
-	name            string
-	retries         int
-	continueOnError bool
-	verify          runner.VerifyFn
-	minAge          time.Duration
-	now             func() time.Time
+	cfg                            PurgeAgedDeletedStepConfig
+	name                           string
+	retries                        int
+	continueOnError                bool
+	verify                         runner.VerifyFn
+	minAge                         time.Duration
+	now                            func() time.Time
+	listRoleAssignmentPrincipalIDs func(
+		ctx context.Context,
+		roleAssignmentsClient *armauthorization.RoleAssignmentsClient,
+		subscriptionID string,
+		logger logr.Logger,
+		skipReporter *common.DiscoverySkipReporter,
+	) (sets.Set[string], error)
+	resolveActivePrincipalIDs func(
+		ctx context.Context,
+		graphClient *msgraphsdk.GraphServiceClient,
+		principalIDs sets.Set[string],
+	) (sets.Set[string], error)
+	lookupDeletedDirectoryObject func(
+		ctx context.Context,
+		graphClient *msgraphsdk.GraphServiceClient,
+		principalID string,
+	) (deletedObjectRecord, bool, error)
 }
 
 var _ runner.Step = (*purgeAgedDeletedStep)(nil)
@@ -130,13 +147,16 @@ func NewPurgeAgedDeletedStep(cfg PurgeAgedDeletedStepConfig) (runner.Step, error
 	}
 
 	return &purgeAgedDeletedStep{
-		cfg:             cfg,
-		name:            stepName,
-		retries:         cfg.Retries,
-		continueOnError: cfg.ContinueOnError,
-		verify:          cfg.Verify,
-		minAge:          minAge,
-		now:             now,
+		cfg:                            cfg,
+		name:                           stepName,
+		retries:                        cfg.Retries,
+		continueOnError:                cfg.ContinueOnError,
+		verify:                         cfg.Verify,
+		minAge:                         minAge,
+		now:                            now,
+		listRoleAssignmentPrincipalIDs: listRoleAssignmentPrincipalIDs,
+		resolveActivePrincipalIDs:      resolveActivePrincipalIDs,
+		lookupDeletedDirectoryObject:   lookupDeletedDirectoryObject,
 	}, nil
 }
 
@@ -205,9 +225,10 @@ func (s *purgeAgedDeletedStep) Discover(ctx context.Context) ([]runner.Target, e
 	// subscription. This step never scans the tenant's directory blindly - it
 	// only ever considers principals already tied to this subscription's own
 	// role-assignment quota pressure.
-	principalIDs, err := listRoleAssignmentPrincipalIDs(ctx, s.cfg.RoleAssignmentsClient, s.cfg.SubscriptionID, logger, skipReporter)
+	principalIDs, err := s.listRoleAssignmentPrincipalIDs(ctx, s.cfg.RoleAssignmentsClient, s.cfg.SubscriptionID, logger, skipReporter)
 	if err != nil {
-		return nil, fmt.Errorf("failed listing role assignment principal IDs: %w", err)
+		skipReporter.Record(logger, "role_assignment_principal_listing_failed", "error", err)
+		return nil, nil
 	}
 	if principalIDs.Len() == 0 {
 		return nil, nil
@@ -215,9 +236,10 @@ func (s *purgeAgedDeletedStep) Discover(ctx context.Context) ([]runner.Target, e
 
 	// 2) Resolve which of those principals are still active. Active
 	// principals are never purge candidates.
-	activePrincipalIDs, err := resolveActivePrincipalIDs(ctx, s.cfg.GraphClient, principalIDs)
+	activePrincipalIDs, err := s.resolveActivePrincipalIDs(ctx, s.cfg.GraphClient, principalIDs)
 	if err != nil {
-		return nil, fmt.Errorf("failed resolving active principals with Microsoft Graph getByIds: %w", err)
+		skipReporter.Record(logger, "active_principal_resolution_failed", "error", err)
+		return nil, nil
 	}
 	candidatePrincipalIDs := principalIDs.Difference(activePrincipalIDs)
 
@@ -228,7 +250,7 @@ func (s *purgeAgedDeletedStep) Discover(ctx context.Context) ([]runner.Target, e
 	// is left alone - there is nothing here for this step to purge.
 	targets := make([]runner.Target, 0)
 	for _, principalID := range sets.List(candidatePrincipalIDs) {
-		record, found, err := lookupDeletedDirectoryObject(ctx, s.cfg.GraphClient, principalID)
+		record, found, err := s.lookupDeletedDirectoryObject(ctx, s.cfg.GraphClient, principalID)
 		if err != nil {
 			skipReporter.Record(logger, "deleted_item_lookup_failed", "principalID", principalID, "error", err)
 			continue
@@ -286,6 +308,7 @@ func listRoleAssignmentPrincipalIDs(
 ) (sets.Set[string], error) {
 	pager := roleAssignmentsClient.NewListForSubscriptionPager(nil)
 	principalIDs := sets.New[string]()
+	subscriptionScopePrefix := "/subscriptions/" + normalizeID(subscriptionID) + "/"
 
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
@@ -293,6 +316,9 @@ func listRoleAssignmentPrincipalIDs(
 			return nil, fmt.Errorf("failed listing role assignments: %w", err)
 		}
 		for _, roleAssignment := range page.Value {
+			if !assignmentWithinSubscriptionScope(roleAssignment, subscriptionScopePrefix) {
+				continue
+			}
 			if roleAssignment == nil || roleAssignment.Properties == nil || roleAssignment.Properties.PrincipalID == nil {
 				skipReporter.Record(logger, "invalid_role_assignment_payload")
 				continue
@@ -394,4 +420,23 @@ func isGraphNotFoundError(err error) bool {
 
 func normalizeID(raw string) string {
 	return strings.ToLower(strings.TrimSpace(raw))
+}
+
+func roleAssignmentID(roleAssignment *armauthorization.RoleAssignment) (string, bool) {
+	if roleAssignment == nil || roleAssignment.ID == nil {
+		return "", false
+	}
+	id := strings.TrimSpace(*roleAssignment.ID)
+	return id, id != ""
+}
+
+func assignmentWithinSubscriptionScope(
+	roleAssignment *armauthorization.RoleAssignment,
+	subscriptionScopePrefix string,
+) bool {
+	id, ok := roleAssignmentID(roleAssignment)
+	if !ok {
+		return false
+	}
+	return strings.HasPrefix(normalizeID(id), subscriptionScopePrefix)
 }
