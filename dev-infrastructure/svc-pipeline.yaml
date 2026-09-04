@@ -486,6 +486,39 @@ resourceGroups:
       - "ForbiddenByRbac"
       maximumRetryCount: 3
       durationBetweenRetries: 2m
+  # User and infra node pools live in their own Deployment Stack so that pools
+  # removed from the template are pruned automatically (actionOnUnmanage: delete)
+  # without giving the stack prune rights over the rest of the cluster template.
+  - name: nodepools
+    action: ARMStack
+    template: templates/aks-nodepools.bicep
+    parameters: configurations/svc-cluster-nodepools.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    actionOnUnmanage: delete
+    bypassStackOutOfSyncError: false
+    variables:
+    - name: aksClusterName
+      input:
+        resourceGroup: service
+        step: cluster
+        name: aksClusterName
+    - name: nodeSubnetId
+      input:
+        resourceGroup: service
+        step: cluster
+        name: nodeSubnetId
+    - name: podSubnetId
+      input:
+        resourceGroup: service
+        step: cluster
+        name: podSubnetId
+    automatedRetry:
+      errorContainsAny:
+      - "DeploymentStackInNonTerminalState"
+      - "Internal server error"
+      - "Resource is in Updating state"
+      maximumRetryCount: 3
+      durationBetweenRetries: 2m
   - name: upgrade-aks-cluster
     action: Shell
     command: ./upgrade-aks-cluster.sh
@@ -504,7 +537,7 @@ resourceGroups:
       configRef: svc.aks.kubernetesVersion
     dependsOn:
     - resourceGroup: service
-      step: cluster
+      step: nodepools
   - name: cs-postgres-access
     action: Shell
     command: ./postgres-access
@@ -796,7 +829,7 @@ resourceGroups:
     kustoTable: 'containerLogs'
     dependsOn:
     - resourceGroup: service
-      step: cluster
+      step: nodepools
     identityFrom:
       resourceGroup: global
       step: output

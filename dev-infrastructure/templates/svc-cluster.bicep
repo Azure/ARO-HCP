@@ -38,65 +38,11 @@ param systemZoneRedundantMode string
 @description('Disk size for the AKS system nodes')
 param aksSystemOsDiskSizeGB int
 
-@description('Disk size for the AKS user nodes')
-param userOsDiskSizeGB int
-
 @description('Network dataplane plugin for the AKS cluster')
 param aksNetworkDataplane string
 
 @description('Network policy plugin for the AKS cluster')
 param aksNetworkPolicy string
-
-@description('Maximum surge for AKS node pool upgrades')
-param aksUpgradeSettingsMaxSurge string
-
-@description('Maximum unavailable for AKS node pool upgrades')
-param aksUpgradeSettingsMaxUnavailable string
-
-@description('Name of the user agent pool')
-param userAgentPoolName string
-
-@description('Min replicas for the worker nodes')
-param userAgentMinCount int
-
-@description('Max replicas for the worker nodes')
-param userAgentMaxCount int
-
-@description('VM instance type for the worker nodes')
-param userAgentVMSize string
-
-@description('Number of pools to create for user nodes')
-param userAgentPoolCount int
-
-@description('Zones to use for the user nodes')
-param userAgentPoolZones string
-
-@description('Zone redundant mode for the user nodes')
-param userZoneRedundantMode string
-
-@description('Name of the infra agent pool')
-param infraAgentPoolName string
-
-@description('Min replicas for the infra worker nodes')
-param infraAgentMinCount int
-
-@description('Max replicas for the infra worker nodes')
-param infraAgentMaxCount int
-
-@description('VM instance type for the infra worker nodes')
-param infraAgentVMSize string
-
-@description('Number of pools to create for infra nodes')
-param infraAgentPoolCount int
-
-@description('Zones to use for the infra nodes')
-param infraAgentPoolZones string
-
-@description('Disk size for the AKS infra nodes')
-param infraOsDiskSizeGB int
-
-@description('Zone redundant mode for the infra nodes')
-param infraZoneRedundantMode string
 
 @description('The resource ID of the OCP ACR')
 param ocpAcrResourceId string
@@ -656,26 +602,6 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
     podSubnetPrefix: podSubnetPrefix
     aksClusterTags: aksClusterTags
     owningTeamTagValue: owningTeamTagValue
-    userOsDiskSizeGB: userOsDiskSizeGB
-    userAgentPoolName: userAgentPoolName
-    userAgentMinCount: userAgentMinCount
-    userAgentMaxCount: userAgentMaxCount
-    userAgentVMSize: userAgentVMSize
-    userAgentPoolCount: userAgentPoolCount
-    userAgentPoolZones: length(csvToArray(userAgentPoolZones)) > 0
-      ? csvToArray(userAgentPoolZones)
-      : locationAvailabilityZoneList
-    userZoneRedundantMode: userZoneRedundantMode
-    infraAgentPoolName: infraAgentPoolName
-    infraAgentMinCount: infraAgentMinCount
-    infraAgentMaxCount: infraAgentMaxCount
-    infraAgentVMSize: infraAgentVMSize
-    infraAgentPoolCount: infraAgentPoolCount
-    infraAgentPoolZones: length(csvToArray(infraAgentPoolZones)) > 0
-      ? csvToArray(infraAgentPoolZones)
-      : locationAvailabilityZoneList
-    infraOsDiskSizeGB: infraOsDiskSizeGB
-    infraZoneRedundantMode: infraZoneRedundantMode
     systemOsDiskSizeGB: aksSystemOsDiskSizeGB
     systemAgentPoolName: systemAgentPoolName
     systemAgentMinCount: systemAgentMinCount
@@ -694,8 +620,6 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
     pullAcrResourceIds: [svcAcrResourceId]
     deploymentMsiId: globalMSIId
     enableSwiftV2Nodepools: false
-    upgradeSettingsMaxSurge: aksUpgradeSettingsMaxSurge
-    upgradeSettingsMaxUnavailable: aksUpgradeSettingsMaxUnavailable
     aksClusterUserDefinedManagedIdentityName: aksClusterUserDefinedManagedIdentity.name
   }
   dependsOn: [
@@ -704,6 +628,8 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
 }
 
 output aksClusterName string = svcCluster.outputs.aksClusterName
+output nodeSubnetId string = nodeSubnetCreation.outputs.subnetId
+output podSubnetId string = svcCluster.outputs.podSubnetId
 
 //
 //   O P S   I N G R E S S   P U B L I C   I P

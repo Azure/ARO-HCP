@@ -31,48 +31,6 @@ param systemZoneRedundantMode string
 @description('Disk size for the AKS system nodes')
 param aksSystemOsDiskSizeGB int
 
-@description('Number of worker agent pools to create')
-param userAgentPoolCount int = 0
-
-@description('Minimum node count for worker agent pool')
-param userAgentMinCount int = 0
-
-@description('Maximum node count for worker agent pool')
-param userAgentMaxCount int = 0
-
-@description('VM instance type for the worker nodes')
-param userAgentVMSize string = 'Standard_D4s_v3'
-
-@description('Zones to use for the worker nodes')
-param userAgentPoolZones string = ''
-
-@description('Zone redundant mode for the worker nodes')
-param userZoneRedundantMode string = 'Disabled'
-
-@description('Disk size for the AKS worker nodes')
-param userOsDiskSizeGB int = 64
-
-@description('Number of infra agent pools to create')
-param infraAgentPoolCount int = 1
-
-@description('Minimum node count for infra agent pool')
-param infraAgentMinCount int = 1
-
-@description('Maximum node count for infra agent pool')
-param infraAgentMaxCount int = 3
-
-@description('VM instance type for the infra nodes')
-param infraAgentVMSize string = 'Standard_D4s_v3'
-
-@description('Zones to use for the infra nodes')
-param infraAgentPoolZones string = ''
-
-@description('Zone redundant mode for the infra nodes')
-param infraZoneRedundantMode string = 'Disabled'
-
-@description('Disk size for the AKS infra nodes')
-param infraOsDiskSizeGB int = 64
-
 @description('Name of the resource group for the AKS nodes')
 param aksNodeResourceGroupName string = '${resourceGroup().name}-aks1'
 
@@ -96,12 +54,6 @@ param aksNetworkDataplane string = 'cilium'
 
 @description('Network policy plugin for the AKS cluster')
 param aksNetworkPolicy string = 'cilium'
-
-@description('Maximum surge for AKS node pool upgrades')
-param aksUpgradeSettingsMaxSurge string
-
-@description('Maximum unavailable for AKS node pool upgrades')
-param aksUpgradeSettingsMaxUnavailable string
 
 @description('IPTags to be set on the cluster outbound IP address')
 param aksClusterOutboundIPAddressIPTags string = ''
@@ -148,8 +100,6 @@ param svcAcrResourceGroupName string = ''
 
 var nsgName = 'opstool-cluster-nsg'
 var systemAgentPoolName = 'system'
-var userAgentPoolName = 'user'
-var infraAgentPoolName = 'infra'
 
 resource opstoolClusterNSG 'Microsoft.Network/networkSecurityGroups@2023-11-01' existing = {
   name: nsgName
@@ -237,8 +187,6 @@ module opstoolCluster '../modules/aks-cluster-base.bicep' = {
     ipZones: locationAvailabilityZoneList
     aksClusterName: aksClusterName
     systemAgentPoolName: systemAgentPoolName
-    userAgentPoolName: userAgentPoolName
-    infraAgentPoolName: infraAgentPoolName
     aksNodeResourceGroupName: aksNodeResourceGroupName
     aksEtcdKVEnableSoftDelete: aksEtcdKVEnableSoftDelete
     aksClusterOutboundIPAddressIPTags: aksClusterOutboundIPAddressIPTags
@@ -250,24 +198,6 @@ module opstoolCluster '../modules/aks-cluster-base.bicep' = {
     podSubnetPrefix: podSubnetPrefix
     aksClusterTags: aksClusterTags
     owningTeamTagValue: owningTeamTagValue
-    userOsDiskSizeGB: userOsDiskSizeGB
-    userAgentMinCount: userAgentMinCount
-    userAgentMaxCount: userAgentMaxCount
-    userAgentVMSize: userAgentVMSize
-    userAgentPoolCount: userAgentPoolCount
-    userAgentPoolZones: length(csvToArray(userAgentPoolZones)) > 0
-      ? csvToArray(userAgentPoolZones)
-      : locationAvailabilityZoneList
-    userZoneRedundantMode: userZoneRedundantMode
-    infraAgentMinCount: infraAgentMinCount
-    infraAgentMaxCount: infraAgentMaxCount
-    infraAgentVMSize: infraAgentVMSize
-    infraAgentPoolCount: infraAgentPoolCount
-    infraAgentPoolZones: length(csvToArray(infraAgentPoolZones)) > 0
-      ? csvToArray(infraAgentPoolZones)
-      : locationAvailabilityZoneList
-    infraOsDiskSizeGB: infraOsDiskSizeGB
-    infraZoneRedundantMode: infraZoneRedundantMode
     systemOsDiskSizeGB: aksSystemOsDiskSizeGB
     systemAgentMinCount: systemAgentMinCount
     systemAgentMaxCount: systemAgentMaxCount
@@ -278,8 +208,6 @@ module opstoolCluster '../modules/aks-cluster-base.bicep' = {
     systemZoneRedundantMode: systemZoneRedundantMode
     networkDataplane: aksNetworkDataplane
     networkPolicy: aksNetworkPolicy
-    upgradeSettingsMaxSurge: aksUpgradeSettingsMaxSurge
-    upgradeSettingsMaxUnavailable: aksUpgradeSettingsMaxUnavailable
     workloadIdentities: workloadIdentities
     aksKeyVaultName: aksKeyVaultName
     aksKeyVaultTagName: aksKeyVaultTagName
@@ -372,6 +300,8 @@ module cihealthKVAccess '../modules/keyvault/keyvault-secret-access.bicep' = {
 }
 
 output aksClusterName string = opstoolCluster.outputs.aksClusterName
+output nodeSubnetId string = nodeSubnetCreation.outputs.subnetId
+output podSubnetId string = opstoolCluster.outputs.podSubnetId
 output azureMonitorWorkspaceId string = azureMonitorWorkspace.id
 output workloadKVName string = workloadKV.outputs.kvName
 output workloadKVUrl string = workloadKV.outputs.kvUrl
