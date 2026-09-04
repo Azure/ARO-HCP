@@ -27,9 +27,10 @@
 					"kms": {
 						"activeKey": {
 							"name": "encryptionKeyName",
-							"vaultName": "keyVaultName",
 							"version": "2024-12-01-preview"
-						}
+						},
+						"vaultName": "keyVaultName",
+						"visibility": "Public"
 					}
 				},
 				"keyManagementMode": "CustomerManaged"
@@ -51,13 +52,19 @@
 				}
 			},
 			"outboundType": "LoadBalancer",
-			"subnetId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/different-resource-group/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet"
+			"subnetId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/different-resource-group/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet",
+			"vnetIntegrationSubnetId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/different-resource-group/providers/Microsoft.Network/virtualNetworks/vnet/subnets/swift-subnet"
 		},
 		"provisioningState": "Accepted",
 		"version": {
 			"channelGroup": "stable",
 			"id": "4.20"
-		}
+		},
+		"cryptoRestrictions": "None",
+		"ingress": {
+			"type": "Public"
+		},
+		"nodeDrainTimeoutMinutes": 0
 	},
 	"systemData": {
 		"createdBy": "Unknown-ARO-HCP-frontend",

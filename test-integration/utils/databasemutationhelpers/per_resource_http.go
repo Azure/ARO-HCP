@@ -29,15 +29,15 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
-	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	hcpsdk20260630preview "github.com/Azure/ARO-HCP/test/sdk/v20260630preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 )
 
 type frontendHTTPTestAccessor struct {
 	frontEndURL    string
-	frontendClient *hcpsdk20240610preview.ClientFactory
+	frontendClient *hcpsdk20260630preview.ClientFactory
 }
 
-func NewFrontendHTTPTestAccessor(frontEndURL string, frontendClient *hcpsdk20240610preview.ClientFactory) *frontendHTTPTestAccessor {
+func NewFrontendHTTPTestAccessor(frontEndURL string, frontendClient *hcpsdk20260630preview.ClientFactory) *frontendHTTPTestAccessor {
 	return &frontendHTTPTestAccessor{
 		frontEndURL:    frontEndURL,
 		frontendClient: frontendClient,
@@ -75,7 +75,7 @@ func (c frontendHTTPTestAccessor) Get(ctx context.Context, resourceIDString stri
 			coreapi.OperationStatusResourceType.Type,
 			resourceID.Name,
 		}
-		fullURL := c.frontEndURL + strings.Join(parts, "/") + "?api-version=2024-06-10-preview"
+		fullURL := c.frontEndURL + strings.Join(parts, "/") + "?api-version=2026-06-30-preview"
 		req, err := http.NewRequest(http.MethodGet, fullURL, nil)
 		if err != nil {
 			return nil, utils.TrackError(err)
@@ -176,7 +176,7 @@ func (c frontendHTTPTestAccessor) CreateOrUpdate(ctx context.Context, resourceID
 
 	switch strings.ToLower(resourceID.ResourceType.String()) {
 	case strings.ToLower(coreapi.ClusterResourceType.String()):
-		obj := hcpsdk20240610preview.HcpOpenShiftCluster{}
+		obj := hcpsdk20260630preview.HcpOpenShiftCluster{}
 		if err := json.Unmarshal(content, &obj); err != nil {
 			return utils.TrackError(err)
 		}
@@ -187,7 +187,7 @@ func (c frontendHTTPTestAccessor) CreateOrUpdate(ctx context.Context, resourceID
 		return nil
 
 	case strings.ToLower(coreapi.NodePoolResourceType.String()):
-		obj := hcpsdk20240610preview.NodePool{}
+		obj := hcpsdk20260630preview.NodePool{}
 		if err := json.Unmarshal(content, &obj); err != nil {
 			return utils.TrackError(err)
 		}
@@ -198,7 +198,7 @@ func (c frontendHTTPTestAccessor) CreateOrUpdate(ctx context.Context, resourceID
 		return nil
 
 	case strings.ToLower(coreapi.ExternalAuthResourceType.String()):
-		obj := hcpsdk20240610preview.ExternalAuth{}
+		obj := hcpsdk20260630preview.ExternalAuth{}
 		if err := json.Unmarshal(content, &obj); err != nil {
 			return utils.TrackError(err)
 		}
@@ -266,7 +266,7 @@ func (c frontendHTTPTestAccessor) Patch(ctx context.Context, resourceIDString st
 
 	switch strings.ToLower(resourceID.ResourceType.String()) {
 	case strings.ToLower(coreapi.ClusterResourceType.String()):
-		obj := hcpsdk20240610preview.HcpOpenShiftClusterUpdate{}
+		obj := hcpsdk20260630preview.HcpOpenShiftClusterUpdate{}
 		if err := json.Unmarshal(content, &obj); err != nil {
 			return utils.TrackError(err)
 		}
@@ -277,7 +277,7 @@ func (c frontendHTTPTestAccessor) Patch(ctx context.Context, resourceIDString st
 		return nil
 
 	case strings.ToLower(coreapi.NodePoolResourceType.String()):
-		obj := hcpsdk20240610preview.NodePoolUpdate{}
+		obj := hcpsdk20260630preview.NodePoolUpdate{}
 		if err := json.Unmarshal(content, &obj); err != nil {
 			return utils.TrackError(err)
 		}
@@ -288,7 +288,7 @@ func (c frontendHTTPTestAccessor) Patch(ctx context.Context, resourceIDString st
 		return nil
 
 	case strings.ToLower(coreapi.ExternalAuthResourceType.String()):
-		obj := hcpsdk20240610preview.ExternalAuthUpdate{}
+		obj := hcpsdk20260630preview.ExternalAuthUpdate{}
 		if err := json.Unmarshal(content, &obj); err != nil {
 			return utils.TrackError(err)
 		}

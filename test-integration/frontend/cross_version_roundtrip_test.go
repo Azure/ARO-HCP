@@ -40,7 +40,7 @@ import (
 // across API versions preserve all fields, including those unknown to the
 // requesting version.
 //
-// Today v20240610 and v20251223 share all fields; newer versions (v20260630/v20260901) add fields (e.g. ingress).
+// Today v20251223 and v20260630 share most fields; newer versions (v20260901) add fields (e.g. ingress).
 // Cross-version tests will FAIL when a newer version introduces fields that an older version drops unless
 // ConvertToInternal preserves unknown fields (the Classic ARO pattern).
 func TestCrossVersionRoundTrip(t *testing.T) {
@@ -49,7 +49,6 @@ func TestCrossVersionRoundTrip(t *testing.T) {
 }
 
 const (
-	v20240610 = "2024-06-10-preview"
 	v20251223 = "2025-12-23-preview"
 	v20260630 = "2026-06-30-preview"
 	v20260901 = "2026-09-01-preview"
@@ -82,12 +81,9 @@ func clusterPUTRoundTripTests() []crossVersionTestEntry {
 	// name | createVersion (create+verify) | updateVersion (PUT) | clusterName
 	tcs := []clusterVersionTC{
 		{"Cluster/PUT/v20251223-create-v20251223-put-v20251223-verify", v20251223, v20251223, "xvrt-put-v20251223same"},
-		{"Cluster/PUT/v20251223-create-v20240610-put-v20251223-verify", v20251223, v20240610, "xvrt-put-v20251223v20240610"},
 		{"Cluster/PUT/v20260630-create-v20260630-put-v20260630-verify", v20260630, v20260630, "xvrt-put-v20260630same"},
-		{"Cluster/PUT/v20260630-create-v20240610-put-v20260630-verify", v20260630, v20240610, "xvrt-put-v20260630v20240610"},
 		{"Cluster/PUT/v20260630-create-v20251223-put-v20260630-verify", v20260630, v20251223, "xvrt-put-v20260630v20251223"},
 		{"Cluster/PUT/v20260901-create-v20260901-put-v20260901-verify", v20260901, v20260901, "xvrt-put-v20260901same"},
-		{"Cluster/PUT/v20260901-create-v20240610-put-v20260901-verify", v20260901, v20240610, "xvrt-put-v20260901v20240610"},
 		{"Cluster/PUT/v20260901-create-v20251223-put-v20260901-verify", v20260901, v20251223, "xvrt-put-v20260901v20251223"},
 		{"Cluster/PUT/v20260901-create-v20260630-put-v20260901-verify", v20260901, v20260630, "xvrt-put-v20260901v20260630"},
 	}
@@ -109,12 +105,9 @@ func clusterPATCHRoundTripTests() []crossVersionTestEntry {
 	// name | createVersion (create+verify) | updateVersion (PATCH) | clusterName
 	tcs := []clusterVersionTC{
 		{"Cluster/PATCH/v20251223-create-v20251223-patch-v20251223-verify", v20251223, v20251223, "xvrt-patch-v20251223same"},
-		{"Cluster/PATCH/v20251223-create-v20240610-patch-v20251223-verify", v20251223, v20240610, "xvrt-patch-v20251223v20240610"},
 		{"Cluster/PATCH/v20260630-create-v20260630-patch-v20260630-verify", v20260630, v20260630, "xvrt-patch-v20260630same"},
-		{"Cluster/PATCH/v20260630-create-v20240610-patch-v20260630-verify", v20260630, v20240610, "xvrt-patch-v20260630v20240610"},
 		{"Cluster/PATCH/v20260630-create-v20251223-patch-v20260630-verify", v20260630, v20251223, "xvrt-patch-v20260630v20251223"},
 		{"Cluster/PATCH/v20260901-create-v20260901-patch-v20260901-verify", v20260901, v20260901, "xvrt-patch-v20260901same"},
-		{"Cluster/PATCH/v20260901-create-v20240610-patch-v20260901-verify", v20260901, v20240610, "xvrt-patch-v20260901v20240610"},
 		{"Cluster/PATCH/v20260901-create-v20251223-patch-v20260901-verify", v20260901, v20251223, "xvrt-patch-v20260901v20251223"},
 		{"Cluster/PATCH/v20260901-create-v20260630-patch-v20260901-verify", v20260901, v20260630, "xvrt-patch-v20260901v20260630"},
 	}
@@ -129,26 +122,26 @@ func clusterPATCHRoundTripTests() []crossVersionTestEntry {
 }
 
 // nodepoolExternalAuthRoundTripTests returns tests that verify GET-then-PUT and tag
-// PATCH operations via v20240610 preserve all v20251223-exclusive fields on NodePool
+// PATCH operations via v20260630 preserve all v20260901-exclusive fields on NodePool
 // and ExternalAuth resources. These resource types share the same version coverage as
 // the cluster tests but require additional parent-cluster and child-resource setup that
 // does not fit the generic cluster helpers.
 func nodepoolExternalAuthRoundTripTests() []crossVersionTestEntry {
 	return []crossVersionTestEntry{
 		{
-			name: "NodePool/PUT/v20251223-create-v20240610-put-v20251223-verify",
+			name: "NodePool/PUT/v20260901-create-v20260630-put-v20260901-verify",
 			fn:   testCrossVersionNodePoolPUT,
 		},
 		{
-			name: "NodePool/PATCH/v20251223-create-v20240610-patch-v20251223-verify",
+			name: "NodePool/PATCH/v20260901-create-v20260630-patch-v20260901-verify",
 			fn:   testCrossVersionNodePoolPATCH,
 		},
 		{
-			name: "ExternalAuth/PUT/v20251223-create-v20240610-put-v20251223-verify",
+			name: "ExternalAuth/PUT/v20260901-create-v20260630-put-v20260901-verify",
 			fn:   testCrossVersionExternalAuthPUT,
 		},
 		{
-			name: "ExternalAuth/PATCH/v20251223-create-v20240610-patch-v20251223-verify",
+			name: "ExternalAuth/PATCH/v20260901-create-v20260630-patch-v20260901-verify",
 			fn:   testCrossVersionExternalAuthPATCH,
 		},
 	}
@@ -231,60 +224,6 @@ func clusterCreatePayload(clusterName, apiVersion string) []byte {
 	subscriptionID := "6b690bec-0c16-4ecb-8f67-781caf40bba7"
 
 	switch apiVersion {
-	case v20240610:
-		// v20240610 payload — omits optional fields (autoscaling, nodeDrainTimeoutMinutes) to test preservation
-		return []byte(fmt.Sprintf(`{
-  "identity": {
-    "type": "UserAssigned",
-    "userAssignedIdentities": {}
-  },
-  "name": "%s",
-  "properties": {
-    "api": {
-      "visibility": "Public"
-    },
-    "clusterImageRegistry": {
-      "state": "Disabled"
-    },
-   "etcd": {
-      "dataEncryption": {
-        "customerManaged": {
-          "encryptionType": "KMS",
-          "kms": {
-            "activeKey": {
-              "name": "vc-encryption-key",
-              "vaultName": "vc-key-vault",
-              "version": "2024-12-01-preview"
-            }
-          }
-        },
-        "keyManagementMode": "CustomerManaged"
-      }
-    },
-    "network": {
-      "hostPrefix": 23,
-      "machineCidr": "10.0.0.0/16",
-      "networkType": "OVNKubernetes",
-      "podCidr": "10.128.0.0/14",
-      "serviceCidr": "172.30.0.0/16"
-    },
-    "platform": {
-      "managedResourceGroup": "managed-rg-xvrt",
-      "networkSecurityGroupId": "/subscriptions/%s/resourceGroups/bar/providers/Microsoft.Network/networkSecurityGroups/nsg",
-      "outboundType": "LoadBalancer",
-      "subnetId": "/subscriptions/%s/resourceGroups/bar/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet"
-    },
-    "version": {
-      "channelGroup": "stable",
-      "id": "4.20"
-    }
-  },
-  "tags": {
-    "env": "test"
-  },
-  "type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
-}`, clusterName, subscriptionID, subscriptionID))
-
 	case v20251223:
 		// v20251223 payload — includes all optional fields (autoscaling, nodeDrainTimeoutMinutes)
 		return []byte(fmt.Sprintf(`{
@@ -642,44 +581,8 @@ func nodePoolCreatePayload(nodePoolName, apiVersion string) []byte {
 	subscriptionID := "6b690bec-0c16-4ecb-8f67-781caf40bba7"
 
 	switch apiVersion {
-	case v20240610:
-		// v20240610 payload — omits optional fields (osDisk.diskStorageAccountType, nodeDrainTimeoutMinutes) to test preservation
-		return []byte(fmt.Sprintf(`{
-  "name": "%s",
-  "properties": {
-    "autoRepair": true,
-    "autoScaling": {
-      "min": 1,
-      "max": 5
-    },
-    "labels": [
-      {
-        "key": "env",
-        "value": "test"
-      }
-    ],
-    "platform": {
-      "vmSize": "Standard_D4s_v3",
-      "availabilityZone": "1",
-      "subnetId": "/subscriptions/%s/resourceGroups/bar/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet"
-    },
-    "taints": [
-      {
-        "effect": "NoExecute",
-        "key": "dedicated",
-        "value": "gpu"
-      }
-    ],
-    "version": {
-      "channelGroup": "stable",
-      "id": "4.20.8"
-    }
-  },
-  "type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools"
-}`, nodePoolName, subscriptionID))
-
-	case v20251223:
-		// v20251223 payload — includes all optional fields (osDisk.diskStorageAccountType, diskType, nodeDrainTimeoutMinutes)
+	case v20251223, v20260630, v20260901:
+		// v20251223/v20260901 payload — includes all optional fields (osDisk.diskStorageAccountType, diskType, nodeDrainTimeoutMinutes)
 		return []byte(fmt.Sprintf(`{
   "name": "%s",
   "properties": {
@@ -757,7 +660,7 @@ func createNodePoolAndComplete(
 }
 
 // externalAuthCreatePayload returns the ExternalAuth creation payload.
-// v20240610 and v20251223 are currently identical (no version-specific fields yet).
+// v20251223 and newer versions are currently identical for ExternalAuth (no version-specific fields yet).
 // When version-specific fields are added, convert to a switch like clusterCreatePayload.
 func externalAuthCreatePayload(_ string) []byte {
 	return []byte(`{
@@ -850,70 +753,70 @@ func getResourceResponse(
 	return resultBytes, resultMap
 }
 
-// testCrossVersionNodePoolPUT verifies that a v20240610 GET-then-PUT preserves
-// all v20251223 nodepool fields.
+// testCrossVersionNodePoolPUT verifies that a v20260630 GET-then-PUT preserves
+// all v20260901 nodepool fields.
 func testCrossVersionNodePoolPUT(t *testing.T, testInfo *integrationutils.IntegrationTestInfo, subscriptionID string) {
 	ctx := utils.ContextWithLogger(t.Context(), integrationutils.DefaultLogger(t))
-	clusterName := "xvrt-np-put-v20251223v20240610"
+	clusterName := "xvrt-np-put-v20260901v20260630"
 	nodePoolName := "np01"
 	resourceID := nodePoolResourceID(clusterName, nodePoolName)
 
-	// Step 1: Create parent cluster via v20251223
-	createClusterAndComplete(t, ctx, testInfo, v20251223, subscriptionID, clusterName)
+	// Step 1: Create parent cluster via v20260901
+	createClusterAndComplete(t, ctx, testInfo, v20260901, subscriptionID, clusterName)
 
-	// Step 2: Create nodepool via v20251223 with all fields populated
-	createNodePoolAndComplete(t, ctx, testInfo, v20251223, subscriptionID, clusterName, nodePoolName)
+	// Step 2: Create nodepool via v20260901 with all fields populated
+	createNodePoolAndComplete(t, ctx, testInfo, v20260901, subscriptionID, clusterName, nodePoolName)
 
-	// Step 3: GET via v20251223 → snapshot of all fields ("before")
-	_, beforeMap := getResourceResponse(t, ctx, testInfo, v20251223, resourceID)
+	// Step 3: GET via v20260901 → snapshot of all fields ("before")
+	_, beforeMap := getResourceResponse(t, ctx, testInfo, v20260901, resourceID)
 
-	// Step 4: GET via v20240610 → this drops any v20251223-only fields from the response
-	v20240610Body, _ := getResourceResponse(t, ctx, testInfo, v20240610, resourceID)
+	// Step 4: GET via v20260630 → this drops any v20260901-only fields from the response
+	v20260630Body, _ := getResourceResponse(t, ctx, testInfo, v20260630, resourceID)
 
-	// Step 5: PUT via v20240610 using the v20240610 GET response body
-	v20240610Accessor := databasemutationhelpers.NewVersionedHTTPTestAccessor(testInfo.FrontendURL, v20240610)
-	require.NoError(t, v20240610Accessor.CreateOrUpdate(ctx, resourceID, v20240610Body))
+	// Step 5: PUT via v20260630 using the v20260630 GET response body
+	v20260630Accessor := databasemutationhelpers.NewVersionedHTTPTestAccessor(testInfo.FrontendURL, v20260630)
+	require.NoError(t, v20260630Accessor.CreateOrUpdate(ctx, resourceID, v20260630Body))
 
 	parsedID := metadataapi.Must(azcorearm.ParseResourceID(resourceID))
 	require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, testInfo.ResourcesDBClient(), subscriptionID, parsedID.Name))
 
-	// Step 6: GET via v20251223 → snapshot after the v20240610 round-trip ("after")
-	_, afterMap := getResourceResponse(t, ctx, testInfo, v20251223, resourceID)
+	// Step 6: GET via v20260901 → snapshot after the v20260630 round-trip ("after")
+	_, afterMap := getResourceResponse(t, ctx, testInfo, v20260901, resourceID)
 
-	// Step 7: Compare — all v20251223 fields should be preserved
+	// Step 7: Compare — all v20260901 fields should be preserved
 	diff, equals := databasemutationhelpers.ResourceInstanceEquals(t, beforeMap, afterMap)
 	if !equals {
-		t.Logf("before (v20251223 GET before v20240610 PUT):\n%s", prettyJSON(t, beforeMap))
-		t.Logf("after (v20251223 GET after v20240610 PUT):\n%s", prettyJSON(t, afterMap))
-		t.Errorf("NodePool cross-version PUT data loss: v20240610 GET-then-PUT lost v20251223 fields:\n%s", diff)
+		t.Logf("before (v20260901 GET before v20260630 PUT):\n%s", prettyJSON(t, beforeMap))
+		t.Logf("after (v20260901 GET after v20260630 PUT):\n%s", prettyJSON(t, afterMap))
+		t.Errorf("NodePool cross-version PUT data loss: v20260630 GET-then-PUT lost v20260901 fields:\n%s", diff)
 	}
 }
 
-// testCrossVersionNodePoolPATCH verifies that a v20240610 PATCH of an unrelated
-// nodepool field preserves all v20251223 fields.
+// testCrossVersionNodePoolPATCH verifies that a v20260630 PATCH of an unrelated
+// nodepool field preserves all v20260901 fields.
 func testCrossVersionNodePoolPATCH(t *testing.T, testInfo *integrationutils.IntegrationTestInfo, subscriptionID string) {
 	ctx := utils.ContextWithLogger(t.Context(), integrationutils.DefaultLogger(t))
-	clusterName := "xvrt-np-patch-v20251223v20240610"
+	clusterName := "xvrt-np-patch-v20260901v20260630"
 	nodePoolName := "np01"
 	resourceID := nodePoolResourceID(clusterName, nodePoolName)
 
-	// Step 1: Create parent cluster and nodepool via v20251223
-	createClusterAndComplete(t, ctx, testInfo, v20251223, subscriptionID, clusterName)
-	createNodePoolAndComplete(t, ctx, testInfo, v20251223, subscriptionID, clusterName, nodePoolName)
+	// Step 1: Create parent cluster and nodepool via v20260901
+	createClusterAndComplete(t, ctx, testInfo, v20260901, subscriptionID, clusterName)
+	createNodePoolAndComplete(t, ctx, testInfo, v20260901, subscriptionID, clusterName, nodePoolName)
 
-	// Step 2: GET via v20251223 → snapshot of all fields ("before")
-	_, beforeMap := getResourceResponse(t, ctx, testInfo, v20251223, resourceID)
+	// Step 2: GET via v20260901 → snapshot of all fields ("before")
+	_, beforeMap := getResourceResponse(t, ctx, testInfo, v20260901, resourceID)
 
-	// Step 3: PATCH via v20240610 — only change tags (unrelated to v20251223-only fields)
+	// Step 3: PATCH via v20260630 — only change tags (unrelated to v20260901-only fields)
 	patchBody := []byte(`{"tags": {"patched": "true"}}`)
-	v20240610Accessor := databasemutationhelpers.NewVersionedHTTPTestAccessor(testInfo.FrontendURL, v20240610)
-	require.NoError(t, v20240610Accessor.Patch(ctx, resourceID, patchBody))
+	v20260630Accessor := databasemutationhelpers.NewVersionedHTTPTestAccessor(testInfo.FrontendURL, v20260630)
+	require.NoError(t, v20260630Accessor.Patch(ctx, resourceID, patchBody))
 
 	parsedID := metadataapi.Must(azcorearm.ParseResourceID(resourceID))
 	require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, testInfo.ResourcesDBClient(), subscriptionID, parsedID.Name))
 
-	// Step 4: GET via v20251223 → snapshot after the v20240610 PATCH ("after")
-	_, afterMap := getResourceResponse(t, ctx, testInfo, v20251223, resourceID)
+	// Step 4: GET via v20260901 → snapshot after the v20260630 PATCH ("after")
+	_, afterMap := getResourceResponse(t, ctx, testInfo, v20260901, resourceID)
 
 	// Step 5: Tags are what we changed — equalize them and compare everything else
 	afterTags, ok := afterMap["tags"].(map[string]any)
@@ -923,80 +826,80 @@ func testCrossVersionNodePoolPATCH(t *testing.T, testInfo *integrationutils.Inte
 
 	diff, equals := databasemutationhelpers.ResourceInstanceEquals(t, beforeMap, afterMap)
 	if !equals {
-		t.Logf("before (v20251223 GET before v20240610 PATCH, tags equalized):\n%s", prettyJSON(t, beforeMap))
-		t.Logf("after (v20251223 GET after v20240610 PATCH):\n%s", prettyJSON(t, afterMap))
-		t.Errorf("NodePool cross-version PATCH data loss: v20240610 PATCH lost v20251223 fields:\n%s", diff)
+		t.Logf("before (v20260901 GET before v20260630 PATCH, tags equalized):\n%s", prettyJSON(t, beforeMap))
+		t.Logf("after (v20260901 GET after v20260630 PATCH):\n%s", prettyJSON(t, afterMap))
+		t.Errorf("NodePool cross-version PATCH data loss: v20260630 PATCH lost v20260901 fields:\n%s", diff)
 	}
 }
 
-// testCrossVersionExternalAuthPUT verifies that a v20240610 GET-then-PUT preserves
-// all v20251223 external auth fields.
+// testCrossVersionExternalAuthPUT verifies that a v20260630 GET-then-PUT preserves
+// all v20260901 external auth fields.
 func testCrossVersionExternalAuthPUT(t *testing.T, testInfo *integrationutils.IntegrationTestInfo, subscriptionID string) {
 	ctx := utils.ContextWithLogger(t.Context(), integrationutils.DefaultLogger(t))
-	clusterName := "xvrt-ea-put-v20251223v20240610"
+	clusterName := "xvrt-ea-put-v20260901v20260630"
 	authName := "default"
 	resourceID := externalAuthResourceID(clusterName, authName)
 
-	// Step 1: Create parent cluster via v20251223
-	createClusterAndComplete(t, ctx, testInfo, v20251223, subscriptionID, clusterName)
+	// Step 1: Create parent cluster via v20260901
+	createClusterAndComplete(t, ctx, testInfo, v20260901, subscriptionID, clusterName)
 
-	// Step 2: Create external auth via v20251223
-	createExternalAuthAndComplete(t, ctx, testInfo, v20251223, subscriptionID, clusterName, authName)
+	// Step 2: Create external auth via v20260901
+	createExternalAuthAndComplete(t, ctx, testInfo, v20260901, subscriptionID, clusterName, authName)
 
-	// Step 3: GET via v20251223 → snapshot of all fields ("before")
-	_, beforeMap := getResourceResponse(t, ctx, testInfo, v20251223, resourceID)
+	// Step 3: GET via v20260901 → snapshot of all fields ("before")
+	_, beforeMap := getResourceResponse(t, ctx, testInfo, v20260901, resourceID)
 
-	// Step 4: GET via v20240610 → this drops any v20251223-only fields from the response
-	v20240610Body, _ := getResourceResponse(t, ctx, testInfo, v20240610, resourceID)
+	// Step 4: GET via v20260630 → this drops any v20260901-only fields from the response
+	v20260630Body, _ := getResourceResponse(t, ctx, testInfo, v20260630, resourceID)
 
-	// Step 5: PUT via v20240610 using the v20240610 GET response body
-	v20240610Accessor := databasemutationhelpers.NewVersionedHTTPTestAccessor(testInfo.FrontendURL, v20240610)
-	require.NoError(t, v20240610Accessor.CreateOrUpdate(ctx, resourceID, v20240610Body))
+	// Step 5: PUT via v20260630 using the v20260630 GET response body
+	v20260630Accessor := databasemutationhelpers.NewVersionedHTTPTestAccessor(testInfo.FrontendURL, v20260630)
+	require.NoError(t, v20260630Accessor.CreateOrUpdate(ctx, resourceID, v20260630Body))
 
 	// Complete the update operation
 	parsedID := metadataapi.Must(azcorearm.ParseResourceID(resourceID))
 	require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, testInfo.ResourcesDBClient(), subscriptionID, parsedID.Name))
 
-	// Step 6: GET via v20251223 → snapshot after the v20240610 round-trip ("after")
-	_, afterMap := getResourceResponse(t, ctx, testInfo, v20251223, resourceID)
+	// Step 6: GET via v20260901 → snapshot after the v20260630 round-trip ("after")
+	_, afterMap := getResourceResponse(t, ctx, testInfo, v20260901, resourceID)
 
-	// Step 7: Compare — all v20251223 fields should be preserved
+	// Step 7: Compare — all v20260901 fields should be preserved
 	diff, equals := databasemutationhelpers.ResourceInstanceEquals(t, beforeMap, afterMap)
 	if !equals {
-		t.Logf("before (v20251223 GET before v20240610 PUT):\n%s", prettyJSON(t, beforeMap))
-		t.Logf("after (v20251223 GET after v20240610 PUT):\n%s", prettyJSON(t, afterMap))
-		t.Errorf("ExternalAuth cross-version PUT data loss: v20240610 GET-then-PUT lost v20251223 fields:\n%s", diff)
+		t.Logf("before (v20260901 GET before v20260630 PUT):\n%s", prettyJSON(t, beforeMap))
+		t.Logf("after (v20260901 GET after v20260630 PUT):\n%s", prettyJSON(t, afterMap))
+		t.Errorf("ExternalAuth cross-version PUT data loss: v20260630 GET-then-PUT lost v20260901 fields:\n%s", diff)
 	}
 }
 
-// testCrossVersionExternalAuthPATCH verifies that a v20240610 PATCH of an
-// unrelated field preserves all v20251223 external auth fields.
+// testCrossVersionExternalAuthPATCH verifies that a v20260630 PATCH of an
+// unrelated field preserves all v20260901 external auth fields.
 func testCrossVersionExternalAuthPATCH(t *testing.T, testInfo *integrationutils.IntegrationTestInfo, subscriptionID string) {
 	ctx := utils.ContextWithLogger(t.Context(), integrationutils.DefaultLogger(t))
-	clusterName := "xvrt-ea-patch-v20251223v20240610"
+	clusterName := "xvrt-ea-patch-v20260901v20260630"
 	authName := "default"
 	resourceID := externalAuthResourceID(clusterName, authName)
 
-	// Step 1: Create parent cluster via v20251223
-	createClusterAndComplete(t, ctx, testInfo, v20251223, subscriptionID, clusterName)
+	// Step 1: Create parent cluster via v20260901
+	createClusterAndComplete(t, ctx, testInfo, v20260901, subscriptionID, clusterName)
 
-	// Step 2: Create external auth via v20251223
-	createExternalAuthAndComplete(t, ctx, testInfo, v20251223, subscriptionID, clusterName, authName)
+	// Step 2: Create external auth via v20260901
+	createExternalAuthAndComplete(t, ctx, testInfo, v20260901, subscriptionID, clusterName, authName)
 
-	// Step 3: GET via v20251223 → snapshot of all fields ("before")
-	_, beforeMap := getResourceResponse(t, ctx, testInfo, v20251223, resourceID)
+	// Step 3: GET via v20260901 → snapshot of all fields ("before")
+	_, beforeMap := getResourceResponse(t, ctx, testInfo, v20260901, resourceID)
 
-	// Step 4: PATCH an unrelated field via v20240610
+	// Step 4: PATCH an unrelated field via v20260630
 	patchBody := []byte(`{"properties": {"issuer": {"url": "https://patched-issuer.example.com"}}}`)
-	v20240610Accessor := databasemutationhelpers.NewVersionedHTTPTestAccessor(testInfo.FrontendURL, v20240610)
-	require.NoError(t, v20240610Accessor.Patch(ctx, resourceID, patchBody))
+	v20260630Accessor := databasemutationhelpers.NewVersionedHTTPTestAccessor(testInfo.FrontendURL, v20260630)
+	require.NoError(t, v20260630Accessor.Patch(ctx, resourceID, patchBody))
 
 	// Complete the update operation
 	parsedID := metadataapi.Must(azcorearm.ParseResourceID(resourceID))
 	require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, testInfo.ResourcesDBClient(), subscriptionID, parsedID.Name))
 
-	// Step 5: GET via v20251223 → snapshot after the v20240610 PATCH ("after")
-	_, afterMap := getResourceResponse(t, ctx, testInfo, v20251223, resourceID)
+	// Step 5: GET via v20260901 → snapshot after the v20260630 PATCH ("after")
+	_, afterMap := getResourceResponse(t, ctx, testInfo, v20260901, resourceID)
 
 	// Step 6: Equalize the patched field before comparing everything else
 	beforeProps, _ := beforeMap["properties"].(map[string]any)
@@ -1006,11 +909,11 @@ func testCrossVersionExternalAuthPATCH(t *testing.T, testInfo *integrationutils.
 	require.Equal(t, "https://patched-issuer.example.com", afterIssuer["url"], "PATCH should have updated the issuer URL")
 	beforeIssuer["url"] = afterIssuer["url"]
 
-	// Step 7: Compare — all other v20251223 fields should be preserved
+	// Step 7: Compare — all other v20260901 fields should be preserved
 	diff, equals := databasemutationhelpers.ResourceInstanceEquals(t, beforeMap, afterMap)
 	if !equals {
-		t.Logf("before (v20251223 GET before v20240610 PATCH, ca equalized):\n%s", prettyJSON(t, beforeMap))
-		t.Logf("after (v20251223 GET after v20240610 PATCH):\n%s", prettyJSON(t, afterMap))
-		t.Errorf("ExternalAuth cross-version PATCH data loss: v20240610 PATCH lost v20251223 fields:\n%s", diff)
+		t.Logf("before (v20260901 GET before v20260630 PATCH, ca equalized):\n%s", prettyJSON(t, beforeMap))
+		t.Logf("after (v20260901 GET after v20260630 PATCH):\n%s", prettyJSON(t, afterMap))
+		t.Errorf("ExternalAuth cross-version PATCH data loss: v20260630 PATCH lost v20260901 fields:\n%s", diff)
 	}
 }
