@@ -15,14 +15,17 @@
 package validation
 
 import (
+	"bytes"
 	"context"
 	"crypto/x509"
+	"encoding/pem"
 	"fmt"
 	"net"
 	"net/url"
 	"regexp"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/blang/semver/v4"
 	"github.com/google/uuid"
@@ -846,6 +849,10 @@ func ValidatePEM(ctx context.Context, op operation.Operation, fldPath *field.Pat
 		return field.ErrorList{field.Invalid(fldPath, *value, "not a valid PEM")}
 	}
 
+	errs := validateCACertificatePEM(fldPath, value, time.Now())
+	if len(errs) > 0 {
+		return errs
+	}
 	return nil
 }
 
@@ -1046,4 +1053,107 @@ func ValidateNodePoolVersionChange(desiredVersion semver.Version, activeVersions
 	}
 
 	return nil
+}
+
+// pemBlockDiagnostic is the field.Error BadValue for a PEM block. It always
+// includes the 1-based block index and, when known, the certificate subject.
+func pemBlockDiagnostic(blockIndex int, subject string) string {
+	if subject == "" {
+		return fmt.Sprintf("block %d", blockIndex)
+	}
+	return fmt.Sprintf("block %d: %s", blockIndex, subject)
+}
+
+// pemBlockDetail prefixes a CA PEM error with the block index and, when known,
+// the certificate subject so every message has the same identity.
+func pemBlockDetail(blockIndex int, subject, detail string) string {
+	if subject == "" {
+		return fmt.Sprintf("certificate %d %s", blockIndex, detail)
+	}
+	return fmt.Sprintf("certificate %d (%s) %s", blockIndex, subject, detail)
+}
+
+// validateCACertificatePEM checks that a PEM-encoded certificate is a valid CA certificate.
+//   - only CERTIFICATE blocks are allowed (private keys and other types are rejected)
+//   - each certificate must parse as X.509, have the CA basic constraint, and
+//     satisfy NotBefore ≤ now ≤ NotAfter
+//   - trailing non-PEM data after the last block is rejected
+func validateCACertificatePEM(fldPath *field.Path, value *string, now time.Time) field.ErrorList {
+	if value == nil || len(*value) == 0 {
+		return nil
+	}
+
+	rest := []byte(*value)
+	errs := field.ErrorList{}
+	foundBlock := false
+	blockIndex := 0
+
+	for {
+		var block *pem.Block
+		block, rest = pem.Decode(rest)
+		if block == nil {
+			break
+		}
+		foundBlock = true
+		blockIndex++
+		diagnostic := pemBlockDiagnostic(blockIndex, "")
+
+		if block.Type != "CERTIFICATE" {
+			errs = append(errs, field.Invalid(
+				fldPath,
+				diagnostic,
+				fmt.Sprintf("PEM block %d has type %q; must be CERTIFICATE", blockIndex, block.Type),
+			))
+			continue
+		}
+
+		cert, err := x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			errs = append(errs, field.Invalid(
+				fldPath,
+				diagnostic,
+				pemBlockDetail(blockIndex, "", fmt.Sprintf("is not a valid X.509 certificate: %s", err)),
+			))
+			continue
+		}
+
+		subject := cert.Subject.String()
+		diagnostic = pemBlockDiagnostic(blockIndex, subject)
+
+		if !cert.IsCA {
+			errs = append(errs, field.Invalid(
+				fldPath,
+				diagnostic,
+				pemBlockDetail(blockIndex, subject, "must be a CA certificate"),
+			))
+		}
+
+		if now.Before(cert.NotBefore) {
+			notBefore := cert.NotBefore.UTC().Format(time.RFC3339)
+			errs = append(errs, field.Invalid(
+				fldPath,
+				diagnostic,
+				pemBlockDetail(blockIndex, subject, fmt.Sprintf("is not yet valid (NotBefore %s)", notBefore)),
+			))
+		}
+		if now.After(cert.NotAfter) {
+			notAfter := cert.NotAfter.UTC().Format(time.RFC3339)
+			errs = append(errs, field.Invalid(
+				fldPath,
+				diagnostic,
+				pemBlockDetail(blockIndex, subject, fmt.Sprintf("has expired (NotAfter %s)", notAfter)),
+			))
+		}
+	}
+
+	// No PEM blocks: ValidatePEM reports "not a valid PEM".
+	if !foundBlock {
+		return nil
+	}
+
+	if len(bytes.TrimSpace(rest)) > 0 {
+		errs = append(errs, field.Invalid(fldPath, "", "contains trailing non-PEM data"))
+	}
+
+	return errs
 }
