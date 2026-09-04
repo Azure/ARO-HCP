@@ -214,6 +214,8 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 				assert.Equal(t, coreapi.ProvisioningStateFailed, op.Status)
 				require.NotNil(t, op.Error)
 				assert.Equal(t, coreapi.CloudErrorCodeInternalServerError, op.Error.Code)
+				assert.Contains(t, op.Error.Message, "cluster creation did not complete before the deadline")
+				assert.Contains(t, op.Error.Message, "cluster service is installing")
 			},
 		},
 		{
@@ -244,6 +246,7 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 				assert.Equal(t, coreapi.ProvisioningStateFailed, op.Status)
 				require.NotNil(t, op.Error)
 				assert.Equal(t, coreapi.CloudErrorCodeInternalServerError, op.Error.Code)
+				assert.Contains(t, op.Error.Message, "cluster creation did not complete before the deadline")
 			},
 		},
 		{
@@ -737,7 +740,8 @@ func TestDetermineOperationState(t *testing.T) {
 					}),
 				},
 			},
-			expectedState: coreapi.ProvisioningStateProvisioning,
+			expectedState:     coreapi.ProvisioningStateProvisioning,
+			wantMessageSubstr: "cluster service is installing",
 		},
 		{
 			name: "cluster ClusterServiceID unset → Provisioning",

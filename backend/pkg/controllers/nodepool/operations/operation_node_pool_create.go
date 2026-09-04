@@ -158,10 +158,10 @@ func (c *operationNodePoolCreate) SynchronizeOperation(ctx context.Context, key 
 	if !operationalState.ProvisioningState.IsTerminal() &&
 		nodePool.ServiceProviderProperties.CreateOperationCompletionDeadline != nil &&
 		c.clock.Now().After(nodePool.ServiceProviderProperties.CreateOperationCompletionDeadline.Time) {
-		message := "node pool creation did not complete before the deadline"
-		if len(operationalState.Message) > 0 {
-			message = operationalState.Message
-		}
+		message := operationbase.DeadlineExceededMessage(
+			"node pool creation did not complete before the deadline",
+			operationalState.Message,
+		)
 		logger.Info("create operation deadline exceeded, marking as failed",
 			"deadline", nodePool.ServiceProviderProperties.CreateOperationCompletionDeadline.Time,
 			"message", message)
@@ -232,9 +232,5 @@ func (c *operationNodePoolCreate) nodePoolServiceCreateOperationState(ctx contex
 		return nil, utils.TrackError(err)
 	}
 	logger.Info("new status via cluster-service", "newStatus", newOperationStatus, "newOperationError", newOperationError)
-	msg := ""
-	if newOperationError != nil {
-		msg = newOperationError.Message
-	}
-	return operationbase.NewOperationState(newOperationStatus, msg), nil
+	return operationbase.NewOperationState(newOperationStatus, operationbase.NodePoolServiceOperationMessage(csNodePoolStatus, newOperationError)), nil
 }
