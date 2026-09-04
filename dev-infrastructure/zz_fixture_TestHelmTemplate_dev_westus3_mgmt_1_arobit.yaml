@@ -888,6 +888,34 @@ spec:
             - name: flb-config
               mountPath: /forwarder/etc
               readOnly: true
+        - name: watson-agent
+          image: mcr.microsoft.com/azure-watson/agent/azlinux3@sha256:1234567890
+          imagePullPolicy: 'IfNotPresent'
+          env:
+            - name: INCOMING_QUEUE
+              value: "/azure-watson/cores"
+            - name: REPORT_QUEUE
+              value: "/azure-watson/queue"
+            - name: MDSD_ROLE_PREFIX
+              value: "/var/run/mdsd/asa/"
+            - name: WA_CORE_PATTERN
+              value: "/azure-watson/cores/%e.%p.%h.%t"
+            - name: AUTHENTICATION_ID
+              value: "MsiClientId#__msiClientId__"
+          securityContext:
+            privileged: true
+          resources:
+            limits:
+              cpu: 250m
+              memory: 512Mi
+            requests:
+              cpu: 50m
+              memory: 128Mi
+          volumeMounts:
+            - name: watson-crashdump
+              mountPath: /azure-watson
+            - name: mdsd-run-clusterlogs
+              mountPath: /var/run/mdsd
       terminationGracePeriodSeconds: 45
       tolerations:
       - effect: NoSchedule
@@ -921,6 +949,12 @@ spec:
           configMap:
             name: arobit-forwarder
             defaultMode: 0755
+        - name: mdsd-run-clusterlogs
+          emptyDir: {}
+        - name: watson-crashdump
+          hostPath:
+            type: DirectoryOrCreate
+            path: "/home/docker/azure-watson"
 ---
 # Source: arobit/templates/forwarder-servicemonitor.yaml
 apiVersion: monitoring.coreos.com/v1

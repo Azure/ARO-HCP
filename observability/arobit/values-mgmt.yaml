@@ -91,3 +91,27 @@ forwarder:
   tenantId: "__tenantId__"
   secretProvider:
     keyVault: "{{ .mgmtKeyVault.name }}"
+watson:
+  image:
+    registry: "{{ .arobit.watson.image.registry }}"
+    repository: "{{ .arobit.watson.image.repository }}"
+    digest: "{{ .arobit.watson.image.digest }}"
+    pullPolicy: IfNotPresent
+  securityContext:
+    privileged: {{ .arobit.watson.securityContext.privileged }}
+  resources:
+    requests:
+      cpu: "{{ .arobit.watson.resources.requests.cpu }}"
+      memory: "{{ .arobit.watson.resources.requests.memory }}"
+    limits:
+      cpu: "{{ .arobit.watson.resources.limits.cpu }}"
+      memory: "{{ .arobit.watson.resources.limits.memory }}"
+  env:
+    INCOMING_QUEUE: "/azure-watson/cores"
+    REPORT_QUEUE: "/azure-watson/queue"
+    MDSD_ROLE_PREFIX: "/var/run/mdsd/asa/"
+    WA_CORE_PATTERN: "/azure-watson/cores/%e.%p.%h.%t"
+    AUTHENTICATION_ID: "MsiClientId#__msiClientId__"
+  volumes:
+    crashdumpHostPath: "{{ .arobit.watson.volumes.crashdumpHostPath }}"
+    mdsdSocketHostPath: "/var/run/mdsd"

@@ -2773,6 +2773,48 @@
             "image"
           ]
         },
+        "watson": {
+          "type": "object",
+          "properties": {
+            "image": {
+              "$ref": "#/definitions/containerImage"
+            },
+            "securityContext": {
+              "type": "object",
+              "properties": {
+                "privileged": {
+                  "type": "boolean"
+                }
+              },
+              "additionalProperties": false,
+              "required": [
+                "privileged"
+              ]
+            },
+            "resources": {
+              "$ref": "#/definitions/containerResources"
+            },
+            "volumes": {
+              "type": "object",
+              "properties": {
+                "crashdumpHostPath": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false,
+              "required": [
+                "crashdumpHostPath"
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "image",
+            "securityContext",
+            "resources",
+            "volumes"
+          ]
+        },
         "kusto": {
           "type": "object",
           "properties": {
