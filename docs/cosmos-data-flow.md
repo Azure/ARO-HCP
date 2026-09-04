@@ -499,7 +499,8 @@ which performs a **transactional batch** to atomically update the operation and 
 | | Object | Fields |
 |---|--------|--------|
 | Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must be nil or empty)</li><li>All `CustomerProperties.*` (for building CS cluster request)</li><li>`ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL`</li><li>`ServiceProviderProperties.ExperimentalFeatures.*`</li><li>`ID`</li></ul> |
-| Read | `ServiceProviderCluster` | <ul><li>`Spec.ControlPlaneVersion.DesiredVersion` (precondition: must be non-nil)</li><li>`Spec.DesiredHostedClusterControlPlaneSize`</li></ul> |
+| Read | `ServiceProviderCluster` | <ul><li>`Spec.ControlPlaneVersion.DesiredVersion` (precondition: must be non-nil)</li><li>`Spec.DesiredHostedClusterControlPlaneSize`</li><li>`Spec.ManagementClusterResourceID` (resolves the placed management cluster for provision-shard pinning)</li></ul> |
+| Read | `ManagementCluster` | <ul><li>`Status.ClusterServiceProvisionShardID` (the downstream clusters-service provision shard ID for this management cluster)</li></ul> |
 | Read | `Subscription` | <ul><li>`Properties.TenantId`</li></ul> |
 | Read | Cluster Service | <ul><li>`ListClusters` (search by Azure info), `PostCluster`</li></ul> |
 | **Write** | **`HCPOpenShiftCluster`** | <ul><li>**`ServiceProviderProperties.ClusterServiceID`** = CS internal ID</li></ul> |
@@ -981,20 +982,51 @@ No Cosmos writes. Posts `NodePoolUpgradePolicy` to Cluster Service.
 
 ### Other Controllers
 
+#### PlacementController
+
+**File:** [placement_controller.go](../backend/pkg/controllers/cluster/placement/placement_controller.go)
+**Trigger:** Cluster informer, 5-minute resync (20 workers)
+**Gate (needsWork on ServiceProviderCluster):**
+- `ServiceProviderCluster.Spec.ManagementClusterResourceID` == nil
+
+Resolves the scheduler's *desired* placement (`Spec.ManagementClusterResourceID`). When the HCP was already placed by ManagementClusterPlacementSync (`Status.ManagementClusterResourceID` set) but Spec is still nil, it backfills Spec from Status (rollout, no re-scheduling). When instead both Spec and Status are nil but the HCP already carries a `PendingClusterServiceID` (a rollout-race record created by a prior backend version), it asks Cluster Service where that cluster was placed (`GetClusterProvisionShard` → provision shard → the matching `ManagementCluster` by `Status.ClusterServiceProvisionShardID`) and backfills Spec from that already-decided placement rather than fresh-scheduling — a migration-only targeted Cluster Service read; it defers (no write) when Cluster Service has not yet reported a shard. Otherwise it selects an eligible management cluster (`ManagementCluster.Spec.SchedulingPolicy == Schedulable` AND Ready condition True) with sufficient SWIFT-NIC capacity, where `available = ScaleCeiling.Capacity[swift-nic] - max(ObservedResources.Usage[swift-nic], ObservedResources.Requests[swift-nic]) - (non-empty NotReadyResourceIDs)*3 - (non-nil PendingAssignedClusters)*3` (empty-string / nil entries reserve 0), an HCP fits when `available >= 3`, and among fitting clusters it chooses the highest-available eligible cluster (spread load evenly across management clusters), breaking ties by lowest resource ID. All candidate elimination (eligibility and capacity) happens in one place (`selectByCapacity`), which surfaces the per-candidate elimination reasons in its error. The `ManagementCluster` and `ManagementClusterScheduling` reads come from the informer caches; it reserves capacity on the chosen cluster (a live etag-guarded read-modify-write) before recording the intent (`Spec.ManagementClusterResourceID`). A cluster whose deletion has already been requested (`HCPOpenShiftCluster.ServiceProviderProperties.DeletionTimestamp` is set) is skipped entirely — neither placed nor reserved — so the deletion path does not have to reclaim capacity reserved for a cluster that is going away.
+
+| | Object | Fields |
+|---|--------|--------|
+| Read | `ServiceProviderCluster` | <ul><li>`Spec.ManagementClusterResourceID` (NeedsWork: must be nil)</li><li>`Status.ManagementClusterResourceID` (rollout backfill source)</li></ul> |
+| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (skip placement/reservation when the HCP is being deleted)</li><li>`ServiceProviderProperties.PendingClusterServiceID` (rollout-race: triggers the Cluster Service backfill when both Spec and Status are nil)</li></ul> |
+| Read | Cluster Service (rollout-race only) | <ul><li>`GetClusterProvisionShard` for the pending CS ID → provision shard (mapped back to a `ManagementCluster` by `Status.ClusterServiceProvisionShardID`)</li></ul> |
+| Read | `ManagementCluster` (all) | <ul><li>`Spec.SchedulingPolicy`, `Status.Conditions[Ready]`, `ResourceID`, `Status.ClusterServiceProvisionShardID` (rollout-race shard→MC mapping)</li></ul> |
+| Read | `ManagementClusterScheduling` (per eligible MC) | <ul><li>`Status.ScaleCeiling.Capacity`, `Status.ObservedResources.Usage`, `Status.NotReadyResourceIDs`, `Status.PendingAssignedClusters`</li></ul> |
+| **Write** | **`ManagementClusterScheduling`** | <ul><li>**`Status.PendingAssignedClusters`** += chosen HCP cluster resource ID (capacity reservation; conflict-retried)</li></ul> |
+| **Write** | **`ServiceProviderCluster`** | <ul><li>**`Spec.ManagementClusterResourceID`** = chosen (or backfilled) management cluster resource ID (conflict-retried)</li></ul> |
+
+#### PendingCleanupController
+
+**File:** [pending_cleanup_controller.go](../backend/pkg/controllers/cluster/placement/pending_cleanup_controller.go)
+**Trigger:** ManagementCluster informer, 10-minute resync (5 workers)
+
+Garbage-collects stale entries from each management cluster's `Status.PendingAssignedClusters`. Each entry's *effective* placement is the referenced ServiceProviderCluster's `Status.ManagementClusterResourceID` (Cluster Service reality) when set, falling back to `Spec.ManagementClusterResourceID` only when Status is unset. An entry is kept when that effective placement points at this management cluster, or is still nil (placement in progress); it is removed when the effective placement points at a different management cluster or the ServiceProviderCluster no longer exists. Reservations that become observed (present in `ReadyResourceIDs`/`NotReadyResourceIDs`) are cleared by CapacityReportingController instead.
+
+| | Object | Fields |
+|---|--------|--------|
+| Read | `ManagementClusterScheduling` | <ul><li>`Status.PendingAssignedClusters`</li></ul> |
+| Read | `ServiceProviderCluster` (per pending entry) | <ul><li>`Status.ManagementClusterResourceID` (effective placement; preferred when set)</li><li>`Spec.ManagementClusterResourceID` (fallback when Status unset)</li></ul> |
+| **Write** | **`ManagementClusterScheduling`** | <ul><li>**`Status.PendingAssignedClusters`** = stale entries removed (conflict-retried)</li></ul> |
+
 #### ManagementClusterPlacementSync
 
 **File:** [management_cluster_placement_sync.go](../backend/pkg/controllers/cluster/placement/management_cluster_placement_sync.go)
 **Trigger:** Cluster informer, 5-minute resync
-**Gate (needsWork on ServiceProviderCluster):**
-- `ServiceProviderCluster.Status.ManagementClusterResourceID` == nil
+Records the observed placement (`Status.ManagementClusterResourceID`) from the Cluster Service provision shard. Cluster Service is queried **only while the observed placement is unknown** (`Status` unset); once a shard has been observed and recorded, the CS lookup is skipped on subsequent syncs.
 
 | | Object | Fields |
 |---|--------|--------|
-| Read | `ServiceProviderCluster` | <ul><li>`Status.ManagementClusterResourceID` (NeedsWork: must be nil)</li></ul> |
-| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.ClusterServiceID`</li></ul> |
-| Read | Cluster Service | <ul><li>`GetClusterProvisionShard`</li></ul> |
+| Read | `ServiceProviderCluster` | <ul><li>`Status.ManagementClusterResourceID` (when already set, the CS lookup is skipped)</li></ul> |
+| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.ClusterServiceID` (skip when unset)</li></ul> |
+| Read | Cluster Service | <ul><li>`GetClusterProvisionShard` (only when `Status` is unset)</li></ul> |
 | Read | `ManagementCluster` | <ul><li>`ResourceID` (via `GetByCSProvisionShardID`)</li></ul> |
-| **Write** | **`ServiceProviderCluster`** | <ul><li>**`Status.ManagementClusterResourceID`** = management cluster resource ID</li></ul> |
+| **Write** | **`ServiceProviderCluster`** | <ul><li>**`Status.ManagementClusterResourceID`** = observed management cluster resource ID (written only when previously unset)</li></ul> |
 
 #### BackfillClusterUID
 
@@ -1545,13 +1577,21 @@ Single writer today (`RequirementsValid` only).
 
 Single writer, but read by `ClusterClusterServiceCreate` (gate), `OperationClusterUpdate`, and `TriggerControlPlaneUpgrade`.
 
+### `ServiceProviderCluster.Spec.ManagementClusterResourceID`
+
+| Actor | When |
+|-------|------|
+| [PlacementController](#placementcontroller) | Sets the scheduler's placement intent: backfilled from `Status.ManagementClusterResourceID` when already placed, backfilled from Cluster Service (via `PendingClusterServiceID`) for rollout-race records, otherwise the capacity-selected eligible management cluster |
+
+This is the *desired* placement (scheduler intent), owned solely by the PlacementController. It is read by `ClusterClusterServiceCreate` (resolves the placed management cluster to pin the CS provision shard). It also drives the `backend_cluster_phase_info` metric: `phase="Scheduled"` once this field is set, otherwise `phase="Initializing"`.
+
 ### `ServiceProviderCluster.Status.ManagementClusterResourceID`
 
 | Actor | When |
 |-------|------|
-| [ManagementClusterPlacementSync](#managementclusterplacementsync) | Sets from CS provision shard |
+| [ManagementClusterPlacementSync](#managementclusterplacementsync) | Resolves from the CS provision shard when unset (the CS lookup is skipped once the shard has been observed) |
 
-Single writer, but gates `CreateClusterScopedReadDesires` and deletion cleanup.
+This is the *observed* placement. It gates `CreateClusterScopedReadDesires` and deletion cleanup, and seeds `PlacementController`'s rollout backfill.
 
 ### `ServiceProviderCluster.Status.HostedClusterNamespace`
 

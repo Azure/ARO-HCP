@@ -24,11 +24,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
+
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	fleetcontrollers "github.com/Azure/ARO-HCP/fleet/pkg/controllers/base"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
@@ -110,7 +113,7 @@ func (s *capacityReportingSyncer) SyncOnce(ctx context.Context, key fleetcontrol
 	capacity := ComputeObservedResources(report)
 	condition := evaluateCapacityCondition(report)
 
-	return s.persistObservedResources(ctx, key.StampIdentifier, capacity, condition)
+	return s.persistObservedResources(ctx, key.StampIdentifier, capacity, report.Status.HostedControlPlanes.ReadyResourceIDs, report.Status.HostedControlPlanes.NotReadyResourceIDs, condition)
 }
 
 func evaluateCapacityCondition(report *capacityreportv1alpha1.CapacityReport) metav1.Condition {
@@ -129,7 +132,7 @@ func evaluateCapacityCondition(report *capacityreportv1alpha1.CapacityReport) me
 	}
 }
 
-func (s *capacityReportingSyncer) persistObservedResources(ctx context.Context, stampIdentifier string, observed fleetapi.ObservedResources, condition metav1.Condition) error {
+func (s *capacityReportingSyncer) persistObservedResources(ctx context.Context, stampIdentifier string, observed fleetapi.ObservedResources, readyResourceIDs, notReadyResourceIDs []string, condition metav1.Condition) error {
 	existing, err := fleetcosmosstorage.GetOrCreateManagementClusterScheduling(ctx, s.fleetDBClient, stampIdentifier)
 	if err != nil {
 		return err
@@ -140,10 +143,79 @@ func (s *capacityReportingSyncer) persistObservedResources(ctx context.Context, 
 	updated := existing.DeepCopy()
 	meta.SetStatusCondition(&updated.Status.Conditions, condition)
 	updated.Status.ObservedResources = observed
+	// Mirror the ready/not-ready HCP resource IDs from the CapacityReport CR,
+	// translating the raw ARM ID strings into parsed *azcorearm.ResourceID.
+	updated.Status.ReadyResourceIDs = parseResourceIDs(ctx, readyResourceIDs)
+	updated.Status.NotReadyResourceIDs = parseResourceIDs(ctx, notReadyResourceIDs)
+	// Observation-based cleanup: drop pending reservations that are now observed
+	// (present in Ready ∪ NotReady). Their swift-NIC capacity is accounted for by
+	// the observed data, so the transient reservation is no longer needed.
+	updated.Status.PendingAssignedClusters = dropObservedPendingAssignments(updated.Status.PendingAssignedClusters, readyResourceIDs, notReadyResourceIDs)
 	if _, err := schedulingCRUD.Replace(ctx, updated, nil); err != nil {
 		return utils.TrackError(err)
 	}
 	return nil
+}
+
+// dropObservedPendingAssignments returns pending reservations minus any whose
+// cluster resource ID now appears in the observed ready or not-ready sets. Nil
+// entries are dropped. It returns nil when nothing remains; because the field is
+// tagged omitempty, a nil slice is omitted from the serialized document rather
+// than encoded as an empty array.
+func dropObservedPendingAssignments(pending []*azcorearm.ResourceID, readyResourceIDs, notReadyResourceIDs []string) []*azcorearm.ResourceID {
+	if len(pending) == 0 {
+		return nil
+	}
+	observed := make(map[string]struct{}, len(readyResourceIDs)+len(notReadyResourceIDs))
+	for _, id := range readyResourceIDs {
+		observed[strings.ToLower(id)] = struct{}{}
+	}
+	for _, id := range notReadyResourceIDs {
+		observed[strings.ToLower(id)] = struct{}{}
+	}
+	kept := make([]*azcorearm.ResourceID, 0, len(pending))
+	for _, entry := range pending {
+		if entry == nil {
+			continue
+		}
+		if _, ok := observed[strings.ToLower(entry.String())]; ok {
+			continue // now observed → drop the reservation
+		}
+		kept = append(kept, entry)
+	}
+	if len(kept) == 0 {
+		return nil
+	}
+	return kept
+}
+
+// parseResourceIDs translates ARM resource ID strings (mirrored from the
+// CapacityReport CR) into parsed *azcorearm.ResourceID values. Empty or
+// unparseable entries are logged and skipped rather than aborting the mirror,
+// so a single malformed ID never blocks capacity reporting. It returns nil when
+// no entries parse, so the omitempty-tagged status fields stay absent rather
+// than serializing an empty array.
+func parseResourceIDs(ctx context.Context, ids []string) []*azcorearm.ResourceID {
+	if len(ids) == 0 {
+		return nil
+	}
+	logger := utils.LoggerFromContext(ctx)
+	parsed := make([]*azcorearm.ResourceID, 0, len(ids))
+	for _, id := range ids {
+		if id == "" {
+			continue
+		}
+		resourceID, err := azcorearm.ParseResourceID(id)
+		if err != nil {
+			logger.Error(err, "skipping unparseable HCP resource ID from CapacityReport", "resourceID", id)
+			continue
+		}
+		parsed = append(parsed, resourceID)
+	}
+	if len(parsed) == 0 {
+		return nil
+	}
+	return parsed
 }
 
 // GetCapacityReport reads and unmarshals the CapacityReport from the

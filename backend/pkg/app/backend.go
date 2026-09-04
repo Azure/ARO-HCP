@@ -922,6 +922,21 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		backendInformers,
 		unionKubeApplierInformers,
 	)
+	_, managementClusterSchedulingLister := fleetInformers.ManagementClusterSchedulings()
+	placementController := clusterplacement.NewPlacementController(
+		b.options.ResourcesDBClient,
+		b.options.FleetDBClient,
+		b.options.ClustersServiceClient,
+		managementClusterLister,
+		managementClusterSchedulingLister,
+		backendInformers,
+		unionKubeApplierInformers,
+	)
+	pendingCleanupController := clusterplacement.NewPendingCleanupController(
+		b.options.FleetDBClient,
+		serviceProviderClusterLister,
+		fleetInformers,
+	)
 
 	nodePoolClusterServiceCreateController := nodepoolcreation.NewNodePoolClusterServiceCreateController(
 		b.options.ResourcesDBClient,
@@ -993,6 +1008,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	clusterClusterServiceCreateController := clustercreation.NewClusterClusterServiceCreateController(
 		b.options.ResourcesDBClient,
 		b.options.ClustersServiceClient,
+		managementClusterLister,
 		backendInformers,
 		b.options.HasRealFPA,
 	)
@@ -1182,6 +1198,8 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go externalAuthMetricsController.Run(ctx, 1)
 				go clusterInfoMetricsController.Run(ctx, 1)
 				go placementSyncController.Run(ctx, 20)
+				go placementController.Run(ctx, 20)
+				go pendingCleanupController.Run(ctx, 5)
 				go cosmosMigrationController.Run(ctx, 5)
 				go virtualMachineResourceSKUsCachedReaderController.Run(ctx, 20)
 				go backupScheduleController.Run(ctx, 20)

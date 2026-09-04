@@ -44,7 +44,10 @@ func TestClusterPendingClusterServiceIDAssign_SyncOnce(t *testing.T) {
 		verifyDB    func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient)
 	}{
 		{
-			name:        "assigns PendingClusterServiceID when both IDs are nil",
+			// Behavior: PendingClusterServiceID assignment is NOT gated on placement.
+			// No ServiceProviderCluster is involved at all; assignment happens as soon
+			// as the cluster exists and has neither a pending nor a resolved CS ID.
+			name:        "assigns PendingClusterServiceID when both IDs nil (not gated on placement)",
 			listCluster: newTestCluster(),
 			dbCluster:   newTestCluster(),
 			expectError: false,

@@ -2268,6 +2268,10 @@ func (in *ServiceProviderClusterSpec) DeepCopyInto(out *ServiceProviderClusterSp
 		*out = new(string)
 		**out = **in
 	}
+	if in.ManagementClusterResourceID != nil {
+		in, out := &in.ManagementClusterResourceID, &out.ManagementClusterResourceID
+		*out = DeepCopyResourceID(*in)
+	}
 	return
 }
 

@@ -20,6 +20,7 @@
 package fleetapi
 
 import (
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
@@ -262,7 +263,37 @@ func (in *ManagementClusterSchedulingStatus) DeepCopyInto(out *ManagementCluster
 		}
 	}
 	in.ObservedResources.DeepCopyInto(&out.ObservedResources)
+	if in.ReadyResourceIDs != nil {
+		in, out := &in.ReadyResourceIDs, &out.ReadyResourceIDs
+		*out = make([]*azcorearm.ResourceID, len(*in))
+		for i := range *in {
+			if (*in)[i] != nil {
+				in, out := &(*in)[i], &(*out)[i]
+				*out = coreapi.DeepCopyResourceID(*in)
+			}
+		}
+	}
+	if in.NotReadyResourceIDs != nil {
+		in, out := &in.NotReadyResourceIDs, &out.NotReadyResourceIDs
+		*out = make([]*azcorearm.ResourceID, len(*in))
+		for i := range *in {
+			if (*in)[i] != nil {
+				in, out := &(*in)[i], &(*out)[i]
+				*out = coreapi.DeepCopyResourceID(*in)
+			}
+		}
+	}
 	in.ScaleCeiling.DeepCopyInto(&out.ScaleCeiling)
+	if in.PendingAssignedClusters != nil {
+		in, out := &in.PendingAssignedClusters, &out.PendingAssignedClusters
+		*out = make([]*azcorearm.ResourceID, len(*in))
+		for i := range *in {
+			if (*in)[i] != nil {
+				in, out := &(*in)[i], &(*out)[i]
+				*out = coreapi.DeepCopyResourceID(*in)
+			}
+		}
+	}
 	return
 }
 

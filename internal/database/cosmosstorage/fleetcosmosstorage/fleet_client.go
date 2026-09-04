@@ -60,6 +60,7 @@ type ManagementClustersCRUD interface {
 type FleetGlobalListers interface {
 	Stamps() cosmosstorageutils.GlobalLister[fleetapi.Stamp]
 	ManagementClusters() cosmosstorageutils.GlobalLister[fleetapi.ManagementCluster]
+	ManagementClusterSchedulings() cosmosstorageutils.GlobalLister[fleetapi.ManagementClusterScheduling]
 }
 
 type cosmosFleetDBClient struct {
@@ -179,5 +180,12 @@ func (g *cosmosFleetGlobalListers) ManagementClusters() cosmosstorageutils.Globa
 	return &cosmosstorageutils.CosmosGlobalLister[fleetapi.ManagementCluster, cosmosstorageutils.GenericDocument[fleetapi.ManagementCluster]]{
 		ContainerClient: g.container,
 		ResourceTypes:   []azcorearm.ResourceType{fleetapi.ManagementClusterResourceType},
+	}
+}
+
+func (g *cosmosFleetGlobalListers) ManagementClusterSchedulings() cosmosstorageutils.GlobalLister[fleetapi.ManagementClusterScheduling] {
+	return &cosmosstorageutils.CosmosGlobalLister[fleetapi.ManagementClusterScheduling, cosmosstorageutils.GenericDocument[fleetapi.ManagementClusterScheduling]]{
+		ContainerClient: g.container,
+		ResourceTypes:   []azcorearm.ResourceType{fleetapi.ManagementClusterSchedulingResourceType},
 	}
 }
