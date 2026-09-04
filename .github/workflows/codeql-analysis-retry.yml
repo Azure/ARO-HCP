@@ -6,13 +6,16 @@ on:
     - completed
 jobs:
   retry-on-failure:
-    # Only retry once: run_attempt is 1 on the first try, so this only fires
-    # after the first failure and never again after the automatic re-run.
+    # run_attempt is 1 on the original run, 2 after the first retry, and so
+    # on, so this fires again only while there are retries left to spend.
+    # Total attempts = 1 original run + CODEQL_MAX_RETRIES retries. Set a
+    # repository/org Actions variable named CODEQL_MAX_RETRIES to change how
+    # many times it retries; defaults to 1 if unset.
     # Covers cancelled/timed_out as well as failure, since a runner
     # preemption or our own job timeout-minutes can surface as either.
     if: >-
       contains(fromJSON('["failure", "cancelled", "timed_out"]'), github.event.workflow_run.conclusion) &&
-      github.event.workflow_run.run_attempt < 2
+      github.event.workflow_run.run_attempt <= fromJSON(vars.CODEQL_MAX_RETRIES || '1')
     runs-on: ubuntu-latest
     permissions:
       actions: write
