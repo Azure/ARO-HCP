@@ -16,23 +16,21 @@ package e2e
 
 import (
 	"context"
-	"fmt"
 	"strings"
-	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
-	v20260630preview "github.com/Azure/ARO-HCP/test/sdk/v20260630preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	v20260901preview "github.com/Azure/ARO-HCP/test/sdk/v20260901preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
 )
 
 var _ = Describe("FIPS Mode Support", func() {
-	Context("with v2026-06-30 API", func() {
+	Context("with v2026-09-01 API", func() {
 		It("should create an HCP cluster with FIPS mode enabled via cryptoRestrictions property",
 			labels.RequireNothing,
 			labels.Medium,
@@ -43,20 +41,10 @@ var _ = Describe("FIPS Mode Support", func() {
 			func(ctx context.Context) {
 				const (
 					customerClusterName = "fips-enabled-cluster"
-					apiVersion          = "2026-06-30-preview"
+					apiVersion          = "2026-09-01-preview"
 				)
 
 				tc := framework.NewTestContext()
-
-				By("checking API version availability")
-				apiAvailable, err := tc.IsHCPAPIVersionAvailable(ctx, apiVersion)
-				Expect(err).NotTo(HaveOccurred(), "failed to check API version availability")
-				if !apiAvailable {
-					if time.Now().After(framework.V20260630PreviewDeploymentDeadline) {
-						Fail(fmt.Sprintf("API version %s should be fully available by %s", apiVersion, framework.V20260630PreviewDeploymentDeadline.Format(time.RFC3339)))
-					}
-					Skip(fmt.Sprintf("API version %s is not fully available in this environment", apiVersion))
-				}
 
 				if tc.UsePooledIdentities() {
 					err := tc.AssignIdentityContainers(ctx, 1, framework.IdentityContainerAssignmentRetryInterval)
@@ -68,14 +56,14 @@ var _ = Describe("FIPS Mode Support", func() {
 				Expect(err).NotTo(HaveOccurred(), "failed to create resource group for fips-enabled test")
 
 				By("creating cluster parameters with cryptoRestrictions set to FIPS")
-				clusterParams := framework.NewDefaultClusterParams20260630()
+				clusterParams := framework.NewDefaultClusterParams20260901()
 				clusterParams.ClusterName = customerClusterName
 				managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 				clusterParams.ManagedResourceGroupName = managedResourceGroupName
-				clusterParams.CryptoRestrictions = to.Ptr(v20260630preview.CryptoRestrictionsFIPS)
+				clusterParams.CryptoRestrictions = to.Ptr(v20260901preview.CryptoRestrictionsFIPS)
 
 				By("creating customer resources (infrastructure and managed identities)")
-				clusterParams, err = tc.CreateClusterCustomerResources20260630(ctx,
+				clusterParams, err = tc.CreateClusterCustomerResources20260901(ctx,
 					resourceGroup,
 					clusterParams,
 					map[string]interface{}{},
@@ -85,33 +73,27 @@ var _ = Describe("FIPS Mode Support", func() {
 				Expect(err).NotTo(HaveOccurred(), "failed to create cluster customer resources")
 
 				By("creating the ARO-HCP cluster with cryptoRestrictions set to FIPS")
-				clusterResource, err := framework.BuildHCPClusterFromParams20260630(clusterParams, tc.Location(), nil)
+				clusterResource, err := framework.BuildHCPClusterFromParams20260901(clusterParams, tc.Location(), nil)
 				Expect(err).NotTo(HaveOccurred(), "failed to build HCP cluster resource from params")
 
-				_, err = framework.CreateHCPClusterAndWait20260630(
+				_, err = framework.CreateHCPClusterAndWait20260901(
 					ctx,
 					GinkgoLogr,
-					tc.Get20260630ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
+					tc.Get20260901ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 					*resourceGroup.Name,
 					customerClusterName,
 					clusterResource,
 					framework.ClusterCreationTimeout,
 				)
-				if isAPINotDeployedError(err) {
-					if time.Now().Before(framework.V20260630PreviewDeploymentDeadline) {
-						Skip(fmt.Sprintf("v20260630preview API not yet deployed; skipping until %s", framework.V20260630PreviewDeploymentDeadline.Format(time.RFC3339)))
-					}
-					Fail(fmt.Sprintf("v20260630preview API still not deployed as of %s deadline", framework.V20260630PreviewDeploymentDeadline.Format(time.RFC3339)))
-				}
 				Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %q with cryptoRestrictions set to FIPS", customerClusterName)
 
 				By("creating the node pool with FIPS enabled machines")
-				nodePoolParams := framework.NewDefaultNodePoolParams20260630()
+				nodePoolParams := framework.NewDefaultNodePoolParams20260901()
 				nodePoolParams.ClusterName = customerClusterName
 				nodePoolParams.NodePoolName = "np-1"
 				nodePoolParams.Replicas = int32(2)
 
-				err = tc.CreateNodePoolFromParam20260630(ctx,
+				err = tc.CreateNodePoolFromParam20260901(ctx,
 					GinkgoLogr,
 					*resourceGroup.Name,
 					managedResourceGroupName,
@@ -122,10 +104,10 @@ var _ = Describe("FIPS Mode Support", func() {
 				Expect(err).NotTo(HaveOccurred(), "failed to create node pool %q for fips-enabled cluster %q", nodePoolParams.NodePoolName, customerClusterName)
 
 				By("verifying the cluster was created with cryptoRestrictions=FIPS")
-				actualHCPCluster, err := tc.Get20260630ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient().Get(ctx, *resourceGroup.Name, customerClusterName, nil)
+				actualHCPCluster, err := tc.Get20260901ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient().Get(ctx, *resourceGroup.Name, customerClusterName, nil)
 				Expect(err).NotTo(HaveOccurred(), "failed to get HCP cluster %s", customerClusterName)
 				Expect(actualHCPCluster.Properties.CryptoRestrictions).NotTo(BeNil(), "cryptoRestrictions should not be nil")
-				Expect(*actualHCPCluster.Properties.CryptoRestrictions).To(Equal(v20260630preview.CryptoRestrictionsFIPS), "cryptoRestrictions should be set to 'FIPS'")
+				Expect(*actualHCPCluster.Properties.CryptoRestrictions).To(Equal(v20260901preview.CryptoRestrictionsFIPS), "cryptoRestrictions should be set to 'FIPS'")
 
 				By("getting credentials")
 				adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20260901(
@@ -142,13 +124,13 @@ var _ = Describe("FIPS Mode Support", func() {
 				Expect(err).NotTo(HaveOccurred(), "failed to verify FIPS is enabled on cluster %s", customerClusterName)
 
 				By("attempting to change cryptoRestrictions from FIPS to None - should be rejected")
-				actualHCPCluster.Properties.CryptoRestrictions = to.Ptr(v20260630preview.CryptoRestrictionsNone)
+				actualHCPCluster.Properties.CryptoRestrictions = to.Ptr(v20260901preview.CryptoRestrictionsNone)
 				// The Get above returns a fully populated UserAssignedIdentities map
 				// (ClientID/PrincipalID set by ARM). Re-sending those populated values on
 				// this PUT is rejected by ARM with InvalidIdentityValues; existing
 				// identities must be echoed back as empty objects.
-				framework.ClearUserAssignedIdentityValues20260630(actualHCPCluster.Identity)
-				poller, err := tc.Get20260630ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient().BeginCreateOrUpdate(
+				framework.ClearUserAssignedIdentityValues20260901(actualHCPCluster.Identity)
+				poller, err := tc.Get20260901ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient().BeginCreateOrUpdate(
 					ctx,
 					*resourceGroup.Name,
 					customerClusterName,
@@ -162,10 +144,10 @@ var _ = Describe("FIPS Mode Support", func() {
 				Expect(strings.ToLower(err.Error())).To(ContainSubstring("immutable"), "error should indicate cryptoRestrictions is immutable")
 
 				By("verifying cryptoRestrictions remains unchanged at FIPS")
-				verifyCluster, err := tc.Get20260630ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient().Get(ctx, *resourceGroup.Name, customerClusterName, nil)
+				verifyCluster, err := tc.Get20260901ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient().Get(ctx, *resourceGroup.Name, customerClusterName, nil)
 				Expect(err).NotTo(HaveOccurred(), "failed to get HCP cluster after update attempt")
 				Expect(verifyCluster.Properties.CryptoRestrictions).NotTo(BeNil(), "cryptoRestrictions should not be nil")
-				Expect(*verifyCluster.Properties.CryptoRestrictions).To(Equal(v20260630preview.CryptoRestrictionsFIPS), "cryptoRestrictions should remain 'FIPS' after rejected update")
+				Expect(*verifyCluster.Properties.CryptoRestrictions).To(Equal(v20260901preview.CryptoRestrictionsFIPS), "cryptoRestrictions should remain 'FIPS' after rejected update")
 			})
 	})
 })

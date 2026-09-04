@@ -33,7 +33,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 
-	hcpsdk20251223preview "github.com/Azure/ARO-HCP/test/sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	hcpsdk20260901preview "github.com/Azure/ARO-HCP/test/sdk/v20260901preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 )
@@ -68,13 +68,13 @@ var _ = Describe("Authorized CIDRs", func() {
 				Expect(err).NotTo(HaveOccurred(), "failed to create resource group for authorized CIDRs connectivity test")
 
 				By("creating cluster parameters")
-				clusterParams := framework.NewDefaultClusterParams20251223()
+				clusterParams := framework.NewDefaultClusterParams20260901()
 				clusterParams.ClusterName = clusterName
 				managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 				clusterParams.ManagedResourceGroupName = managedResourceGroupName
 
 				By("creating customer resources")
-				clusterParams, err = tc.CreateClusterCustomerResources20251223(ctx,
+				clusterParams, err = tc.CreateClusterCustomerResources20260901(ctx,
 					resourceGroup,
 					clusterParams,
 					map[string]interface{}{
@@ -101,7 +101,7 @@ var _ = Describe("Authorized CIDRs", func() {
 					to.Ptr(fmt.Sprintf("%s/32", vmPublicIP)),
 				}
 
-				err = tc.CreateHCPClusterFromParam20251223(
+				err = tc.CreateHCPClusterFromParam20260901(
 					ctx,
 					GinkgoLogr,
 					*resourceGroup.Name,
@@ -112,7 +112,7 @@ var _ = Describe("Authorized CIDRs", func() {
 				Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %q with authorized CIDRs", clusterName)
 
 				By("getting cluster details")
-				clusterResponse, err := tc.Get20251223ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient().Get(
+				clusterResponse, err := tc.Get20260901ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient().Get(
 					ctx,
 					*resourceGroup.Name,
 					clusterName,
@@ -205,12 +205,12 @@ var _ = Describe("Authorized CIDRs", func() {
 				}, 5*time.Minute, 10*time.Second).Should(Succeed())
 
 				By("creating the node pool")
-				nodePoolParams := framework.NewDefaultNodePoolParams20251223()
+				nodePoolParams := framework.NewDefaultNodePoolParams20260901()
 				nodePoolParams.ClusterName = clusterName
 				nodePoolParams.NodePoolName = "np-1"
 				nodePoolParams.Replicas = int32(2)
 
-				err = tc.CreateNodePoolFromParam20251223(ctx,
+				err = tc.CreateNodePoolFromParam20260901(ctx,
 					GinkgoLogr,
 					*resourceGroup.Name,
 					managedResourceGroupName,
@@ -233,51 +233,51 @@ var _ = Describe("Authorized CIDRs", func() {
 				Expect(err).NotTo(HaveOccurred(), "failed to add password to app registration")
 
 				By("creating an external auth config with a prefix")
-				extAuth := hcpsdk20251223preview.ExternalAuth{
-					Properties: &hcpsdk20251223preview.ExternalAuthProperties{
-						Issuer: &hcpsdk20251223preview.TokenIssuerProfile{
+				extAuth := hcpsdk20260901preview.ExternalAuth{
+					Properties: &hcpsdk20260901preview.ExternalAuthProperties{
+						Issuer: &hcpsdk20260901preview.TokenIssuerProfile{
 							URL:       to.Ptr(fmt.Sprintf("https://login.microsoftonline.com/%s/v2.0", tc.TenantID())),
 							Audiences: []*string{to.Ptr(app.AppID)},
 						},
-						Claim: &hcpsdk20251223preview.ExternalAuthClaimProfile{
-							Mappings: &hcpsdk20251223preview.TokenClaimMappingsProfile{
-								Username: &hcpsdk20251223preview.UsernameClaimProfile{
+						Claim: &hcpsdk20260901preview.ExternalAuthClaimProfile{
+							Mappings: &hcpsdk20260901preview.TokenClaimMappingsProfile{
+								Username: &hcpsdk20260901preview.UsernameClaimProfile{
 									Claim:        to.Ptr("sub"), // objectID of SP
-									PrefixPolicy: to.Ptr(hcpsdk20251223preview.UsernameClaimPrefixPolicyPrefix),
+									PrefixPolicy: to.Ptr(hcpsdk20260901preview.UsernameClaimPrefixPolicyPrefix),
 									Prefix:       to.Ptr(externalAuthSubjectPrefix),
 								},
-								Groups: &hcpsdk20251223preview.GroupClaimProfile{
+								Groups: &hcpsdk20260901preview.GroupClaimProfile{
 									Claim: to.Ptr("groups"),
 								},
 							},
 						},
-						Clients: []*hcpsdk20251223preview.ExternalAuthClientProfile{
+						Clients: []*hcpsdk20260901preview.ExternalAuthClientProfile{
 							{
 								ClientID: to.Ptr(app.AppID),
-								Component: &hcpsdk20251223preview.ExternalAuthClientComponentProfile{
+								Component: &hcpsdk20260901preview.ExternalAuthClientComponentProfile{
 									Name:                to.Ptr("console"),
 									AuthClientNamespace: to.Ptr("openshift-console"),
 								},
-								Type: to.Ptr(hcpsdk20251223preview.ExternalAuthClientTypeConfidential),
+								Type: to.Ptr(hcpsdk20260901preview.ExternalAuthClientTypeConfidential),
 							},
 							{
 								ClientID: to.Ptr(app.AppID),
-								Component: &hcpsdk20251223preview.ExternalAuthClientComponentProfile{
+								Component: &hcpsdk20260901preview.ExternalAuthClientComponentProfile{
 									Name:                to.Ptr("cli"),
 									AuthClientNamespace: to.Ptr("openshift-console"),
 								},
-								Type: to.Ptr(hcpsdk20251223preview.ExternalAuthClientTypePublic),
+								Type: to.Ptr(hcpsdk20260901preview.ExternalAuthClientTypePublic),
 							},
 						},
 					},
 				}
-				_, err = framework.CreateOrUpdateExternalAuthAndWait20251223(ctx, tc.Get20251223ClientFactoryOrDie(ctx).NewExternalAuthsClient(), *resourceGroup.Name, clusterName, customerExternalAuthName, extAuth, framework.ExternalAuthCreationTimeout)
+				_, err = framework.CreateOrUpdateExternalAuthAndWait20260901(ctx, tc.Get20260901ClientFactoryOrDie(ctx).NewExternalAuthsClient(), *resourceGroup.Name, clusterName, customerExternalAuthName, extAuth, framework.ExternalAuthCreationTimeout)
 				Expect(err).NotTo(HaveOccurred(), "failed to create external auth config %q", customerExternalAuthName)
 
 				By("verifying ExternalAuth is in a Succeeded state")
-				eaResult, err := tc.Get20251223ClientFactoryOrDie(ctx).NewExternalAuthsClient().Get(ctx, *resourceGroup.Name, clusterName, customerExternalAuthName, nil)
+				eaResult, err := tc.Get20260901ClientFactoryOrDie(ctx).NewExternalAuthsClient().Get(ctx, *resourceGroup.Name, clusterName, customerExternalAuthName, nil)
 				Expect(err).NotTo(HaveOccurred(), "failed to get external auth config %q", customerExternalAuthName)
-				Expect(*eaResult.Properties.ProvisioningState).To(Equal(hcpsdk20251223preview.ExternalAuthProvisioningStateSucceeded), "external auth %q provisioning state should be Succeeded", customerExternalAuthName)
+				Expect(*eaResult.Properties.ProvisioningState).To(Equal(hcpsdk20260901preview.ExternalAuthProvisioningStateSucceeded), "external auth %q provisioning state should be Succeeded", customerExternalAuthName)
 
 				By("creating a cluster role binding for the entra application via VM")
 				clusterRoleBindingName := "external-auth-cluster-admin"
@@ -376,7 +376,7 @@ var _ = Describe("Authorized CIDRs", func() {
 
 				By("updating cluster to remove VM from authorized CIDRs")
 				// Get the current cluster state
-				currentCluster, err := tc.Get20251223ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient().Get(
+				currentCluster, err := tc.Get20260901ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient().Get(
 					ctx,
 					*resourceGroup.Name,
 					clusterName,
@@ -392,10 +392,10 @@ var _ = Describe("Authorized CIDRs", func() {
 				// (ClientID/PrincipalID set by ARM). Re-sending those populated values on
 				// this PUT is rejected by ARM with InvalidIdentityValues; existing
 				// identities must be echoed back as empty objects.
-				framework.ClearUserAssignedIdentityValues20251223(currentCluster.Identity)
+				framework.ClearUserAssignedIdentityValues20260901(currentCluster.Identity)
 
 				// Use CreateOrUpdate (PUT) to apply the change
-				poller, err := tc.Get20251223ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient().BeginCreateOrUpdate(
+				poller, err := tc.Get20260901ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient().BeginCreateOrUpdate(
 					ctx,
 					*resourceGroup.Name,
 					clusterName,

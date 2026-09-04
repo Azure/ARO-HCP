@@ -29,7 +29,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
-	hcpsdk20251223preview "github.com/Azure/ARO-HCP/test/sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	hcpsdk20260901preview "github.com/Azure/ARO-HCP/test/sdk/v20260901preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
@@ -68,7 +68,7 @@ var _ = Describe("ARO HCP Service", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create resource group")
 
 			By("creating cluster parameters")
-			clusterParams := framework.NewDefaultClusterParams20251223()
+			clusterParams := framework.NewDefaultClusterParams20260901()
 			clusterParams.ClusterName = customerClusterName
 			clusterParams.ManagedResourceGroupName = framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			clusterParams.Tags[metadataapi.TagClusterMaxCreationDuration] = to.Ptr((clusterCreationTimeout - time.Minute).String())
@@ -90,7 +90,7 @@ var _ = Describe("ARO HCP Service", func() {
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to deploy customer infrastructure")
 
-			clusterParams, err = framework.PopulateClusterParamsFromCustomerInfraDeployment20251223(clusterParams, customerInfraResult)
+			clusterParams, err = framework.PopulateClusterParamsFromCustomerInfraDeployment20260901(clusterParams, customerInfraResult)
 			Expect(err).NotTo(HaveOccurred(), "failed to populate cluster params from customer infra deployment")
 
 			// Determine MI resource group and identity names. In pooled mode,
@@ -128,11 +128,11 @@ var _ = Describe("ARO HCP Service", func() {
 				Expect(err).NotTo(HaveOccurred(), "failed to deploy identity-only bicep template")
 			}
 
-			uamis, msi := framework.BuildIdentityParamsFromNames(subscriptionID, msiResourceGroupName, identities)
+			uamis, msi := framework.BuildIdentityParamsFromNames20260901(subscriptionID, msiResourceGroupName, identities)
 
 			By("starting HCP cluster creation (MIs exist but lack role assignments)")
-			hcpClient := tc.Get20251223ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
-			cluster, err := framework.BuildHCPClusterFromParams20251223(clusterParams, tc.Location(), nil)
+			hcpClient := tc.Get20260901ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
+			cluster, err := framework.BuildHCPClusterFromParams20260901(clusterParams, tc.Location(), nil)
 			Expect(err).NotTo(HaveOccurred(), "failed to build HCP cluster spec")
 			cluster.Identity = msi
 			cluster.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities = uamis
@@ -148,7 +148,7 @@ var _ = Describe("ARO HCP Service", func() {
 
 			By("verifying cluster does not enter terminal Failed state while role assignments are missing")
 			var lastConsistentlyErr string
-			var lastConsistentlyState hcpsdk20251223preview.ProvisioningState
+			var lastConsistentlyState hcpsdk20260901preview.ProvisioningState
 			Consistently(func(g Gomega) {
 				resp, err := hcpClient.Get(ctx, *resourceGroup.Name, customerClusterName, nil)
 				if err != nil {
@@ -167,7 +167,7 @@ var _ = Describe("ARO HCP Service", func() {
 					GinkgoLogr.Info("cluster provisioning state", "state", state)
 					lastConsistentlyState = state
 				}
-				g.Expect(state).NotTo(Equal(hcpsdk20251223preview.ProvisioningStateFailed),
+				g.Expect(state).NotTo(Equal(hcpsdk20260901preview.ProvisioningStateFailed),
 					"cluster entered terminal Failed state — CS inflight validation should retry, not fail terminally (ARO-25805)")
 			}, consistentlyLoopDuration, 30*time.Second).Should(Succeed())
 
@@ -197,7 +197,7 @@ var _ = Describe("ARO HCP Service", func() {
 
 			By("waiting for cluster to reach Succeeded state")
 			var lastEventuallyErr string
-			var lastEventuallyState hcpsdk20251223preview.ProvisioningState
+			var lastEventuallyState hcpsdk20260901preview.ProvisioningState
 			Eventually(func(g Gomega) {
 				resp, err := hcpClient.Get(ctx, *resourceGroup.Name, customerClusterName, nil)
 				if err != nil {
@@ -221,9 +221,9 @@ var _ = Describe("ARO HCP Service", func() {
 					GinkgoLogr.Info("cluster provisioning state", "state", state)
 					lastEventuallyState = state
 				}
-				g.Expect(state).NotTo(Equal(hcpsdk20251223preview.ProvisioningStateFailed),
+				g.Expect(state).NotTo(Equal(hcpsdk20260901preview.ProvisioningStateFailed),
 					"cluster entered terminal Failed state after role assignment deployment")
-				g.Expect(state).To(Equal(hcpsdk20251223preview.ProvisioningStateSucceeded),
+				g.Expect(state).To(Equal(hcpsdk20260901preview.ProvisioningStateSucceeded),
 					"cluster has not yet reached Succeeded state")
 			}, clusterCreationTimeout-consistentlyLoopDuration, 30*time.Second).Should(Succeed(),
 				"cluster should eventually succeed after role assignments are created")

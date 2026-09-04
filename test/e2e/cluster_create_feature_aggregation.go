@@ -42,7 +42,7 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	operatorclient "github.com/openshift/client-go/operator/clientset/versioned"
 
-	hcpsdk20251223preview "github.com/Azure/ARO-HCP/test/sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	hcpsdk20260901preview "github.com/Azure/ARO-HCP/test/sdk/v20260901preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
@@ -101,7 +101,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create resource group for feature aggregation test")
 
 			By("building cluster parameters for aggregated feature coverage")
-			clusterParams := framework.NewDefaultClusterParams20251223()
+			clusterParams := framework.NewDefaultClusterParams20260901()
 			clusterParams.ClusterName = customerClusterName
 			clusterParams.ManagedResourceGroupName = framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			clusterParams.Network.NetworkType = "Other"
@@ -109,13 +109,13 @@ var _ = Describe("Customer", func() {
 			clusterParams.Network.ServiceCIDR = "172.30.0.0/16"
 			clusterParams.Network.MachineCIDR = "10.0.0.0/16"
 			clusterParams.Network.HostPrefix = 23
-			clusterParams.EncryptionKeyManagementMode = string(hcpsdk20251223preview.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged)
-			clusterParams.EncryptionType = string(hcpsdk20251223preview.CustomerManagedEncryptionTypeKms)
+			clusterParams.EncryptionKeyManagementMode = string(hcpsdk20260901preview.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged)
+			clusterParams.EncryptionType = string(hcpsdk20260901preview.CustomerManagedEncryptionTypeKms)
 			clusterParams.KeyVaultVisibility = "Private"
-			clusterParams.ImageRegistryState = string(hcpsdk20251223preview.ClusterImageRegistryStateDisabled)
+			clusterParams.ImageRegistryState = string(hcpsdk20260901preview.ClusterImageRegistryStateDisabled)
 
 			By("creating customer resources with private key vault support")
-			clusterParams, err = tc.CreateClusterCustomerResources20251223(
+			clusterParams, err = tc.CreateClusterCustomerResources20260901(
 				ctx,
 				resourceGroup,
 				clusterParams,
@@ -177,27 +177,27 @@ var _ = Describe("Customer", func() {
 			clusterParams.AuthorizedCIDRs = []*string{to.Ptr(vmCIDR)}
 
 			By("creating cluster resource payload with private key vault visibility and image digest mirrors")
-			imageDigestMirrors := []*hcpsdk20251223preview.ImageDigestMirror{
+			imageDigestMirrors := []*hcpsdk20260901preview.ImageDigestMirror{
 				{
 					Source:  to.Ptr(idmsSource),
 					Mirrors: []*string{to.Ptr(idmsMirror)},
 				},
 			}
-			clusterResource, err := framework.BuildHCPClusterFromParams20251223(clusterParams, tc.Location(), imageDigestMirrors)
-			Expect(err).NotTo(HaveOccurred(), "failed to build v20251223 cluster resource payload")
+			clusterResource, err := framework.BuildHCPClusterFromParams20260901(clusterParams, tc.Location(), imageDigestMirrors)
+			Expect(err).NotTo(HaveOccurred(), "failed to build v20260901 cluster resource payload")
 			if clusterResource.Properties != nil &&
 				clusterResource.Properties.Etcd != nil &&
 				clusterResource.Properties.Etcd.DataEncryption != nil &&
 				clusterResource.Properties.Etcd.DataEncryption.CustomerManaged != nil &&
 				clusterResource.Properties.Etcd.DataEncryption.CustomerManaged.Kms != nil {
-				clusterResource.Properties.Etcd.DataEncryption.CustomerManaged.Kms.Visibility = to.Ptr(hcpsdk20251223preview.KeyVaultVisibilityPrivate)
+				clusterResource.Properties.Etcd.DataEncryption.CustomerManaged.Kms.Visibility = to.Ptr(hcpsdk20260901preview.KeyVaultVisibilityPrivate)
 			}
 
 			By("creating the HCP cluster with aggregated settings")
-			_, err = framework.CreateHCPClusterAndWait20251223(
+			_, err = framework.CreateHCPClusterAndWait20260901(
 				ctx,
 				GinkgoLogr,
-				tc.Get20251223ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
+				tc.Get20260901ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
 				customerClusterName,
 				clusterResource,
@@ -206,20 +206,20 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %q with aggregated settings", customerClusterName)
 
 			By("verifying cluster properties for key vault visibility, image registry, IDMS, etcd data encryption and authorized CIDRs")
-			cluster, err := tc.Get20251223ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient().Get(ctx, *resourceGroup.Name, customerClusterName, nil)
+			cluster, err := tc.Get20260901ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient().Get(ctx, *resourceGroup.Name, customerClusterName, nil)
 			Expect(err).NotTo(HaveOccurred(), "failed to get HCP cluster %q", customerClusterName)
 			Expect(cluster.Properties).ToNot(BeNil(), "cluster %q Properties was nil", customerClusterName)
 			Expect(cluster.Properties.Etcd).ToNot(BeNil(), "cluster %q Properties.Etcd was nil", customerClusterName)
 			Expect(cluster.Properties.Etcd.DataEncryption).ToNot(BeNil(), "cluster %q Properties.Etcd.DataEncryption was nil", customerClusterName)
 			Expect(cluster.Properties.Etcd.DataEncryption.KeyManagementMode).ToNot(BeNil(), "cluster %q Properties.Etcd.DataEncryption.KeyManagementMode was nil", customerClusterName)
-			Expect(*cluster.Properties.Etcd.DataEncryption.KeyManagementMode).To(Equal(hcpsdk20251223preview.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged), "cluster %q etcd data encryption key management mode should be CustomerManaged", customerClusterName)
+			Expect(*cluster.Properties.Etcd.DataEncryption.KeyManagementMode).To(Equal(hcpsdk20260901preview.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged), "cluster %q etcd data encryption key management mode should be CustomerManaged", customerClusterName)
 			Expect(cluster.Properties.Etcd.DataEncryption.CustomerManaged).ToNot(BeNil(), "cluster %q Properties.Etcd.DataEncryption.CustomerManaged was nil", customerClusterName)
 			Expect(cluster.Properties.Etcd.DataEncryption.CustomerManaged.Kms).ToNot(BeNil(), "cluster %q Properties.Etcd.DataEncryption.CustomerManaged.Kms was nil", customerClusterName)
 			Expect(cluster.Properties.Etcd.DataEncryption.CustomerManaged.Kms.Visibility).ToNot(BeNil(), "cluster %q Properties.Etcd.DataEncryption.CustomerManaged.Kms.Visibility was nil", customerClusterName)
-			Expect(*cluster.Properties.Etcd.DataEncryption.CustomerManaged.Kms.Visibility).To(Equal(hcpsdk20251223preview.KeyVaultVisibilityPrivate), "cluster %q key vault visibility should be Private", customerClusterName)
+			Expect(*cluster.Properties.Etcd.DataEncryption.CustomerManaged.Kms.Visibility).To(Equal(hcpsdk20260901preview.KeyVaultVisibilityPrivate), "cluster %q key vault visibility should be Private", customerClusterName)
 			Expect(cluster.Properties.ClusterImageRegistry).ToNot(BeNil(), "cluster %q Properties.ClusterImageRegistry was nil", customerClusterName)
 			Expect(cluster.Properties.ClusterImageRegistry.State).ToNot(BeNil(), "cluster %q Properties.ClusterImageRegistry.State was nil", customerClusterName)
-			Expect(*cluster.Properties.ClusterImageRegistry.State).To(Equal(hcpsdk20251223preview.ClusterImageRegistryStateDisabled), "cluster %q image registry state should be Disabled", customerClusterName)
+			Expect(*cluster.Properties.ClusterImageRegistry.State).To(Equal(hcpsdk20260901preview.ClusterImageRegistryStateDisabled), "cluster %q image registry state should be Disabled", customerClusterName)
 			Expect(cluster.Properties.ImageDigestMirrors).NotTo(BeEmpty(), "cluster %q ImageDigestMirrors should not be empty", customerClusterName)
 			Expect(ptr.Deref(cluster.Properties.ImageDigestMirrors[0].Source, "")).To(Equal(idmsSource), "cluster %q ImageDigestMirror source should be %s", customerClusterName, idmsSource)
 			Expect(cluster.Properties.ImageDigestMirrors[0].Mirrors).NotTo(BeEmpty(), "cluster %q ImageDigestMirror mirrors list should not be empty", customerClusterName)
@@ -232,9 +232,9 @@ var _ = Describe("Customer", func() {
 			Expect(*cluster.Properties.API.AuthorizedCIDRs[0]).To(Equal(vmCIDR), "cluster %q authorized CIDR should match the VM public IP", customerClusterName)
 
 			By("getting admin credentials")
-			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20251223(
+			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20260630(
 				ctx,
-				tc.Get20251223ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
+				tc.Get20260630ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
 				customerClusterName,
 				framework.GetAdminRESTConfigTimeout,
@@ -262,8 +262,8 @@ var _ = Describe("Customer", func() {
 			// (ClientID/PrincipalID set by ARM). Re-sending those populated values on this
 			// PUT is rejected by ARM with InvalidIdentityValues; existing identities must be
 			// echoed back as empty objects.
-			framework.ClearUserAssignedIdentityValues20251223(cluster.Identity)
-			cidrUpdatePoller, err := tc.Get20251223ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient().BeginCreateOrUpdate(
+			framework.ClearUserAssignedIdentityValues20260901(cluster.Identity)
+			cidrUpdatePoller, err := tc.Get20260901ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient().BeginCreateOrUpdate(
 				ctx,
 				*resourceGroup.Name,
 				customerClusterName,
@@ -362,7 +362,7 @@ var _ = Describe("Customer", func() {
 			// This pool is created with autoscaling bounds; the test only checks that
 			// those bounds are stored and that at least Min nodes join. It does not
 			// create pending workload or otherwise raise desired capacity.
-			nodePoolParamsA := framework.NewDefaultNodePoolParams20251223()
+			nodePoolParamsA := framework.NewDefaultNodePoolParams20260901()
 			nodePoolParamsA.ClusterName = customerClusterName
 			nodePoolParamsA.NodePoolName = customerNodePoolNameA
 			nodePoolParamsA.AutoRepair = true
@@ -370,13 +370,13 @@ var _ = Describe("Customer", func() {
 				Min: autoscalingMin,
 				Max: autoscalingMax,
 			}
-			nodePoolParamsA.Labels = []*hcpsdk20251223preview.Label{
+			nodePoolParamsA.Labels = []*hcpsdk20260901preview.Label{
 				{
 					Key:   to.Ptr(nodeLabelKey),
 					Value: to.Ptr(nodeLabelValue),
 				},
 			}
-			nodePoolErrA := tc.CreateNodePoolFromParam20251223(
+			nodePoolErrA := tc.CreateNodePoolFromParam20260901(
 				ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
@@ -402,25 +402,25 @@ var _ = Describe("Customer", func() {
 
 			By("creating a second node pool with labels and NoSchedule taints")
 			// Keep NoSchedule only on this pool so general workloads still schedule on np-a.
-			nodePoolParamsB := framework.NewDefaultNodePoolParams20251223()
+			nodePoolParamsB := framework.NewDefaultNodePoolParams20260901()
 			nodePoolParamsB.ClusterName = customerClusterName
 			nodePoolParamsB.NodePoolName = customerNodePoolNameB
 			nodePoolParamsB.Replicas = int32(1)
 			nodePoolParamsB.AutoRepair = true
-			nodePoolParamsB.Labels = []*hcpsdk20251223preview.Label{
+			nodePoolParamsB.Labels = []*hcpsdk20260901preview.Label{
 				{
 					Key:   to.Ptr(nodeLabelKey),
 					Value: to.Ptr(nodeLabelValue),
 				},
 			}
-			nodePoolParamsB.Taints = []*hcpsdk20251223preview.Taint{
+			nodePoolParamsB.Taints = []*hcpsdk20260901preview.Taint{
 				{
 					Key:    to.Ptr(nodeTaintKey),
 					Value:  to.Ptr(nodeTaintValue),
-					Effect: to.Ptr(hcpsdk20251223preview.EffectNoSchedule),
+					Effect: to.Ptr(hcpsdk20260901preview.EffectNoSchedule),
 				},
 			}
-			nodePoolErrB := tc.CreateNodePoolFromParam20251223(
+			nodePoolErrB := tc.CreateNodePoolFromParam20260901(
 				ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
@@ -441,8 +441,8 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to run simple web app and connectivity check app with cilium CNI")
 
 			By("verifying node pools use platform managed disk-level encryption, autoscaling configuration, labels, and taints")
-			nodePoolClient := tc.Get20251223ClientFactoryOrDie(ctx).NewNodePoolsClient()
-			nodePoolA, err := framework.GetNodePool20251223(ctx, nodePoolClient, *resourceGroup.Name, customerClusterName, customerNodePoolNameA)
+			nodePoolClient := tc.Get20260901ClientFactoryOrDie(ctx).NewNodePoolsClient()
+			nodePoolA, err := framework.GetNodePool20260901(ctx, nodePoolClient, *resourceGroup.Name, customerClusterName, customerNodePoolNameA)
 			Expect(err).NotTo(HaveOccurred(), "failed to get node pool %q", customerNodePoolNameA)
 			Expect(nodePoolA.Properties).ToNot(BeNil(), "node pool %q Properties was nil", customerNodePoolNameA)
 			Expect(nodePoolA.Properties.Platform).ToNot(BeNil(), "node pool %q Properties.Platform was nil", customerNodePoolNameA)
@@ -455,7 +455,7 @@ var _ = Describe("Customer", func() {
 			Expect(ptr.Deref(nodePoolA.Properties.Labels[0].Key, "")).To(Equal(nodeLabelKey), "node pool %q label key should be %s", customerNodePoolNameA, nodeLabelKey)
 			Expect(ptr.Deref(nodePoolA.Properties.Labels[0].Value, "")).To(Equal(nodeLabelValue), "node pool %q label value should be %s", customerNodePoolNameA, nodeLabelValue)
 
-			nodePoolB, err := framework.GetNodePool20251223(ctx, nodePoolClient, *resourceGroup.Name, customerClusterName, customerNodePoolNameB)
+			nodePoolB, err := framework.GetNodePool20260901(ctx, nodePoolClient, *resourceGroup.Name, customerClusterName, customerNodePoolNameB)
 			Expect(err).NotTo(HaveOccurred(), "failed to get node pool %q", customerNodePoolNameB)
 			Expect(nodePoolB.Properties).ToNot(BeNil(), "node pool %q Properties was nil", customerNodePoolNameB)
 			Expect(nodePoolB.Properties.Platform).ToNot(BeNil(), "node pool %q Properties.Platform was nil", customerNodePoolNameB)
@@ -467,7 +467,7 @@ var _ = Describe("Customer", func() {
 			Expect(nodePoolB.Properties.Taints).To(HaveLen(1), "node pool %q should have exactly one taint", customerNodePoolNameB)
 			Expect(ptr.Deref(nodePoolB.Properties.Taints[0].Key, "")).To(Equal(nodeTaintKey), "node pool %q taint key should be %s", customerNodePoolNameB, nodeTaintKey)
 			Expect(ptr.Deref(nodePoolB.Properties.Taints[0].Value, "")).To(Equal(nodeTaintValue), "node pool %q taint value should be %s", customerNodePoolNameB, nodeTaintValue)
-			Expect(ptr.Deref(nodePoolB.Properties.Taints[0].Effect, "")).To(Equal(hcpsdk20251223preview.EffectNoSchedule), "node pool %q taint effect should be NoSchedule", customerNodePoolNameB)
+			Expect(ptr.Deref(nodePoolB.Properties.Taints[0].Effect, "")).To(Equal(hcpsdk20260901preview.EffectNoSchedule), "node pool %q taint effect should be NoSchedule", customerNodePoolNameB)
 
 			By("verifying labels and taints persisted onto cluster nodes")
 			// VerifyNodesReady only asserts that some nodes are Ready; poll until each
@@ -519,47 +519,47 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to get Microsoft Graph client for external OIDC configuration")
 			pass, err := graphClient.AddPassword(ctx, app.ID, "agg-ext-auth-pass", time.Now(), time.Now().Add(24*time.Hour))
 			Expect(err).NotTo(HaveOccurred(), "failed to add client secret to app registration for external OIDC configuration")
-			extAuth := hcpsdk20251223preview.ExternalAuth{
-				Properties: &hcpsdk20251223preview.ExternalAuthProperties{
-					Issuer: &hcpsdk20251223preview.TokenIssuerProfile{
+			extAuth := hcpsdk20260901preview.ExternalAuth{
+				Properties: &hcpsdk20260901preview.ExternalAuthProperties{
+					Issuer: &hcpsdk20260901preview.TokenIssuerProfile{
 						URL:       to.Ptr(fmt.Sprintf("https://login.microsoftonline.com/%s/v2.0", tc.TenantID())),
 						Audiences: []*string{to.Ptr(app.AppID)},
 					},
-					Claim: &hcpsdk20251223preview.ExternalAuthClaimProfile{
-						Mappings: &hcpsdk20251223preview.TokenClaimMappingsProfile{
-							Username: &hcpsdk20251223preview.UsernameClaimProfile{
+					Claim: &hcpsdk20260901preview.ExternalAuthClaimProfile{
+						Mappings: &hcpsdk20260901preview.TokenClaimMappingsProfile{
+							Username: &hcpsdk20260901preview.UsernameClaimProfile{
 								Claim:        to.Ptr("sub"),
-								PrefixPolicy: to.Ptr(hcpsdk20251223preview.UsernameClaimPrefixPolicyPrefix),
+								PrefixPolicy: to.Ptr(hcpsdk20260901preview.UsernameClaimPrefixPolicyPrefix),
 								Prefix:       to.Ptr(externalAuthSubjectPrefix),
 							},
-							Groups: &hcpsdk20251223preview.GroupClaimProfile{
+							Groups: &hcpsdk20260901preview.GroupClaimProfile{
 								Claim: to.Ptr("groups"),
 							},
 						},
 					},
-					Clients: []*hcpsdk20251223preview.ExternalAuthClientProfile{
+					Clients: []*hcpsdk20260901preview.ExternalAuthClientProfile{
 						{
 							ClientID: to.Ptr(app.AppID),
-							Component: &hcpsdk20251223preview.ExternalAuthClientComponentProfile{
+							Component: &hcpsdk20260901preview.ExternalAuthClientComponentProfile{
 								Name:                to.Ptr("console"),
 								AuthClientNamespace: to.Ptr("openshift-console"),
 							},
-							Type: to.Ptr(hcpsdk20251223preview.ExternalAuthClientTypeConfidential),
+							Type: to.Ptr(hcpsdk20260901preview.ExternalAuthClientTypeConfidential),
 						},
 						{
 							ClientID: to.Ptr(app.AppID),
-							Component: &hcpsdk20251223preview.ExternalAuthClientComponentProfile{
+							Component: &hcpsdk20260901preview.ExternalAuthClientComponentProfile{
 								Name:                to.Ptr("cli"),
 								AuthClientNamespace: to.Ptr("openshift-console"),
 							},
-							Type: to.Ptr(hcpsdk20251223preview.ExternalAuthClientTypePublic),
+							Type: to.Ptr(hcpsdk20260901preview.ExternalAuthClientTypePublic),
 						},
 					},
 				},
 			}
-			_, err = framework.CreateOrUpdateExternalAuthAndWait20251223(
+			_, err = framework.CreateOrUpdateExternalAuthAndWait20260901(
 				ctx,
-				tc.Get20251223ClientFactoryOrDie(ctx).NewExternalAuthsClient(),
+				tc.Get20260901ClientFactoryOrDie(ctx).NewExternalAuthsClient(),
 				*resourceGroup.Name,
 				customerClusterName,
 				customerExternalAuthName,
@@ -567,9 +567,9 @@ var _ = Describe("Customer", func() {
 				framework.ExternalAuthCreationTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create external auth config %q for cluster %q", customerExternalAuthName, customerClusterName)
-			extAuthResult, err := framework.GetExternalAuth20251223(
+			extAuthResult, err := framework.GetExternalAuth20260901(
 				ctx,
-				tc.Get20251223ClientFactoryOrDie(ctx).NewExternalAuthsClient(),
+				tc.Get20260901ClientFactoryOrDie(ctx).NewExternalAuthsClient(),
 				*resourceGroup.Name,
 				customerClusterName,
 				customerExternalAuthName,
@@ -577,7 +577,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to get external auth config %q for cluster %q", customerExternalAuthName, customerClusterName)
 			Expect(extAuthResult.Properties).ToNot(BeNil(), "external auth %q Properties was nil", customerExternalAuthName)
 			Expect(extAuthResult.Properties.ProvisioningState).ToNot(BeNil(), "external auth %q ProvisioningState was nil", customerExternalAuthName)
-			Expect(*extAuthResult.Properties.ProvisioningState).To(Equal(hcpsdk20251223preview.ExternalAuthProvisioningStateSucceeded), "external auth %q provisioning state should be Succeeded", customerExternalAuthName)
+			Expect(*extAuthResult.Properties.ProvisioningState).To(Equal(hcpsdk20260901preview.ExternalAuthProvisioningStateSucceeded), "external auth %q provisioning state should be Succeeded", customerExternalAuthName)
 
 			By("creating a cluster role binding for the external OIDC subject")
 			clusterRoleBindingName := "agg-external-auth-cluster-admin"
