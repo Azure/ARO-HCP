@@ -67,10 +67,15 @@ var _ = Describe("Customer", func() {
 			resourceGroup, err := tc.NewResourceGroup(ctx, "kms-key-rotate", tc.Location())
 			Expect(err).NotTo(HaveOccurred(), "failed to create resource group for KMS key rotation test")
 
-			By("creating cluster parameters with version 4.22")
+			By("creating cluster parameters with version 4.22 or higher")
 			clusterParams := framework.NewDefaultClusterParams20260630()
 			clusterParams.ClusterName = clusterName
-			clusterParams.OpenshiftVersionId = "4.22"
+			openshiftVersionID, err := framework.PickAtLeastOpenshiftVersionId(clusterParams.OpenshiftVersionId, "4.22")
+			if framework.IsIncompatibleNightlyVersionError(err) {
+				Skip(fmt.Sprintf("this test needs OCP >= 4.22, but default version %q does not satisfy it: %v", clusterParams.OpenshiftVersionId, err))
+			}
+			Expect(err).NotTo(HaveOccurred(), "failed to select OpenShift version >= 4.22 (default version: %q)", clusterParams.OpenshiftVersionId)
+			clusterParams.OpenshiftVersionId = openshiftVersionID
 
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			clusterParams.ManagedResourceGroupName = managedResourceGroupName
@@ -87,7 +92,7 @@ var _ = Describe("Customer", func() {
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for KMS key rotation cluster")
 
-			By("creating the HCP cluster with version 4.22")
+			By("creating the HCP cluster with version 4.22 or higher")
 			err = tc.CreateHCPClusterFromParam20260630(
 				ctx,
 				GinkgoLogr,
