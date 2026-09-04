@@ -1,0 +1,22 @@
+cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('kubernetesResourceSnapshots')
+| where timestamp between ({{ kqlDatetime .PhaseStartTime }} .. {{ kqlDatetime .PhaseEndTime }})
+{{- if and .ServiceClusterName .ManagementClusterName }}
+| where cluster in ('{{ .ServiceClusterName }}', '{{ .ManagementClusterName }}')
+{{- end }}
+| where objectKind == 'DataUpload'
+| where namespace == 'velero'
+| where tostring(object.spec.sourceNamespace) in ('{{ .HostedClusterNamespace }}', '{{ .HostedControlPlaneNamespace }}')
+| extend
+    dataUpload = name,
+    backup = tostring(object.metadata.labels['velero.io/backup-name']),
+    sourceNamespace = tostring(object.spec.sourceNamespace),
+    sourcePVC = tostring(object.spec.sourcePVC),
+    phase = tostring(object.status.phase),
+    node = tostring(object.status.node),
+    startTimestamp = todatetime(object.status.startTimestamp),
+    completionTimestamp = todatetime(object.status.completionTimestamp),
+    bytesDone = tolong(object.status.progress.bytesDone),
+    totalBytes = tolong(object.status.progress.totalBytes)
+| extend isFailed = phase in ('Failed', 'Canceled')
+| project timestamp, event, cluster, dataUpload, backup, sourceNamespace, sourcePVC, phase, isFailed, node, startTimestamp, completionTimestamp, bytesDone, totalBytes
+| order by timestamp asc
