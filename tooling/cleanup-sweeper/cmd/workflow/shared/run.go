@@ -32,6 +32,12 @@ type RunOptions struct {
 	// GraphCredential is used exclusively for Microsoft Graph directory reads.
 	// When nil it defaults to AzureCredential.
 	GraphCredential azcore.TokenCredential
+	// DirectoryWriteCredential backs a second Graph client used only by the
+	// aged-deleted-directory-object purge step, which requires
+	// Directory.ReadWrite.All / Application.ReadWrite.All - materially higher
+	// privilege than GraphCredential needs. When nil, that step is omitted
+	// entirely rather than reusing GraphCredential or AzureCredential.
+	DirectoryWriteCredential azcore.TokenCredential
 
 	DryRun      bool
 	Wait        bool
@@ -51,6 +57,7 @@ func Run(ctx context.Context, opts RunOptions) error {
 		opts.SubscriptionID,
 		opts.AzureCredential,
 		opts.GraphCredential,
+		opts.DirectoryWriteCredential,
 		cleanupengine.WorkflowOptions{
 			DryRun:      opts.DryRun,
 			Wait:        opts.Wait,

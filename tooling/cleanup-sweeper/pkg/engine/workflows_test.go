@@ -44,6 +44,7 @@ func TestWorkflowBuilders(t *testing.T) {
 					"00000000-0000-0000-0000-000000000000",
 					workflowsTestCredential{},
 					workflowsTestCredential{},
+					nil,
 					WorkflowOptions{
 						DryRun:      true,
 						Wait:        true,
@@ -76,6 +77,7 @@ func TestWorkflowBuilders(t *testing.T) {
 					"00000000-0000-0000-0000-000000000000",
 					workflowsTestCredential{},
 					nil,
+					nil,
 					WorkflowOptions{
 						DryRun:      true,
 						Wait:        true,
@@ -94,6 +96,39 @@ func TestWorkflowBuilders(t *testing.T) {
 				}
 				if len(builtWorkflow.Steps) != 2 {
 					t.Fatalf("expected two steps, got %d", len(builtWorkflow.Steps))
+				}
+			},
+		},
+		{
+			name: "role assignments workflow adds directory-object purge step when directory-write credential set",
+			execute: func(_ *testing.T) (interface{}, error) {
+				return RoleAssignmentsSweeperWorkflow(
+					context.Background(),
+					"00000000-0000-0000-0000-000000000000",
+					workflowsTestCredential{},
+					workflowsTestCredential{},
+					workflowsTestCredential{},
+					WorkflowOptions{
+						DryRun:      true,
+						Wait:        true,
+						Parallelism: 7,
+					},
+				)
+			},
+			assertions: func(t *testing.T, workflow interface{}, err error) {
+				t.Helper()
+				if err != nil {
+					t.Fatalf("expected no error while building workflow with directory-write credential, got %v", err)
+				}
+				builtWorkflow, ok := workflow.(*runner.Engine)
+				if !ok || builtWorkflow == nil {
+					t.Fatalf("expected *runner.Engine workflow")
+				}
+				if len(builtWorkflow.Steps) != 3 {
+					t.Fatalf("expected three steps, got %d", len(builtWorkflow.Steps))
+				}
+				if got := builtWorkflow.Steps[0].Name(); got != "Purge aged deleted directory objects" {
+					t.Fatalf("expected directory-object purge step to run first, got %q", got)
 				}
 			},
 		},
