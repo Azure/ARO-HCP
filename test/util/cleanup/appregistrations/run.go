@@ -20,7 +20,7 @@ import (
 
 	"github.com/go-logr/logr"
 
-	"github.com/Azure/ARO-HCP/test/util/framework"
+	graphutil "github.com/Azure/ARO-HCP/internal/graph/util"
 )
 
 func (o *Options) Run(ctx context.Context) error {
@@ -37,12 +37,28 @@ func (o *Options) Run(ctx context.Context) error {
 		return nil
 	}
 
-	appObjectIDs := make([]string, 0, len(expiredApps))
+	targets := make([]graphutil.ApplicationCleanupTarget, 0, len(expiredApps))
 	for _, app := range expiredApps {
-		logger.Info("Found expired app registration", "clientID", app.AppID, "objectID", app.ID, "displayName", app.DisplayName)
-		if !o.DryRun {
-			appObjectIDs = append(appObjectIDs, app.ID)
+		servicePrincipal, err := o.GraphClient.GetServicePrincipalByAppID(ctx, app.AppID)
+		if err != nil {
+			return fmt.Errorf("failed to resolve service principal for app registration %q: %w", app.ID, err)
 		}
+
+		target := graphutil.ApplicationCleanupTarget{
+			ApplicationObjectID: app.ID,
+		}
+		if servicePrincipal != nil {
+			target.ServicePrincipalObjectID = servicePrincipal.ID
+		}
+		targets = append(targets, target)
+
+		logger.Info(
+			"Found expired app registration",
+			"clientID", app.AppID,
+			"applicationObjectID", app.ID,
+			"servicePrincipalObjectID", target.ServicePrincipalObjectID,
+			"displayName", app.DisplayName,
+		)
 	}
 
 	if o.DryRun {
@@ -50,11 +66,11 @@ func (o *Options) Run(ctx context.Context) error {
 		return nil
 	}
 
-	logger.Info("Deleting owned expired app registrations", "count", len(appObjectIDs))
-	if err := framework.CleanupAppRegistrations(ctx, o.GraphClient, appObjectIDs); err != nil {
-		return fmt.Errorf("failed to delete app registrations: %w", err)
+	logger.Info("Deleting and purging owned expired app registrations", "count", len(targets))
+	if err := o.GraphClient.CleanupApplications(ctx, targets); err != nil {
+		return fmt.Errorf("failed to delete and purge app registrations: %w", err)
 	}
 
-	logger.Info("All expired app registrations successfully deleted", "count", len(appObjectIDs))
+	logger.Info("All expired app registrations and service principals successfully purged", "count", len(targets))
 	return nil
 }
