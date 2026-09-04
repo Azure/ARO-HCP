@@ -48,13 +48,13 @@ tests:
       value: 0
   alert_rule_test:
   - eval_time: 10m
-    alertname: UJClusterProvisionErrors1h5m
+    alertname: userJourneyClusterProvisionErrors1h5m
   - eval_time: 10m
-    alertname: UJClusterProvisionErrors6h30m
+    alertname: userJourneyClusterProvisionErrors6h30m
   - eval_time: 10m
-    alertname: UJClusterProvisionErrors3d
+    alertname: userJourneyClusterProvisionErrors3d
   - eval_time: 10m
-    alertname: UJClusterProvisionErrorsDegradation
+    alertname: userJourneyClusterProvisionErrorsDegradation
 # ========================================
 # Test 2: Fast burn — 80% failure rate, fast + degradation fire
 # ========================================
@@ -90,7 +90,7 @@ tests:
   alert_rule_test:
   # Fast burn fires after 5m 'for' duration
   - eval_time: 7m
-    alertname: UJClusterProvisionErrors1h5m
+    alertname: userJourneyClusterProvisionErrors1h5m
     exp_alerts:
     - exp_labels:
         cluster: "mgmt-1"
@@ -100,12 +100,12 @@ tests:
         short_window: 5m
         slo: cluster-provision-errors
       exp_annotations:
-        summary: "mgmt-1: Cluster provisioning error rate critically high (>72%)"
+        summary: "Cluster provisioning error rate critically high (>72%)"
         description: "More than 72% of cluster create (install) operations are in failed state, indicating a fast error budget burn (14.4x) that would exhaust the 95% SLO budget in ~12 hours. A regional install failure of this magnitude typically points at a shared dependency (e.g. registry, DNS, or ARM) rather than individual clusters."
         runbook_url: "https://aka.ms/arohcp-runbook-cluster-provision"
   # Degradation also fires (15% threshold met at 80%)
   - eval_time: 35m
-    alertname: UJClusterProvisionErrorsDegradation
+    alertname: userJourneyClusterProvisionErrorsDegradation
     exp_alerts:
     - exp_labels:
         cluster: "mgmt-1"
@@ -113,7 +113,7 @@ tests:
         severity: "4"
         slo: cluster-provision-errors
       exp_annotations:
-        summary: "mgmt-1: Cluster provisioning failure rate exceeds 15% for 30 minutes"
+        summary: "Cluster provisioning failure rate exceeds 15% for 30 minutes"
         description: "The cluster create (install) failure rate has been above 15% for 30 minutes. This provides early warning of degradation before SLO-based burn rate alerts fire."
         runbook_url: "https://aka.ms/arohcp-runbook-cluster-provision"
 # ========================================
@@ -151,7 +151,7 @@ tests:
   alert_rule_test:
   # Degradation fires at 20%
   - eval_time: 35m
-    alertname: UJClusterProvisionErrorsDegradation
+    alertname: userJourneyClusterProvisionErrorsDegradation
     exp_alerts:
     - exp_labels:
         cluster: "mgmt-1"
@@ -159,14 +159,14 @@ tests:
         severity: "4"
         slo: cluster-provision-errors
       exp_annotations:
-        summary: "mgmt-1: Cluster provisioning failure rate exceeds 15% for 30 minutes"
+        summary: "Cluster provisioning failure rate exceeds 15% for 30 minutes"
         description: "The cluster create (install) failure rate has been above 15% for 30 minutes. This provides early warning of degradation before SLO-based burn rate alerts fire."
         runbook_url: "https://aka.ms/arohcp-runbook-cluster-provision"
   # Fast and medium burn must NOT fire at 20%
   - eval_time: 35m
-    alertname: UJClusterProvisionErrors1h5m
+    alertname: userJourneyClusterProvisionErrors1h5m
   - eval_time: 35m
-    alertname: UJClusterProvisionErrors6h30m
+    alertname: userJourneyClusterProvisionErrors6h30m
 # ========================================
 # Test 4: Medium burn — 40% failure rate, medium + degradation fire, fast does not
 # ========================================
@@ -202,7 +202,7 @@ tests:
   alert_rule_test:
   # Medium burn fires after 30m 'for' duration
   - eval_time: 35m
-    alertname: UJClusterProvisionErrors6h30m
+    alertname: userJourneyClusterProvisionErrors6h30m
     exp_alerts:
     - exp_labels:
         cluster: "mgmt-1"
@@ -212,12 +212,12 @@ tests:
         short_window: 30m
         slo: cluster-provision-errors
       exp_annotations:
-        summary: "mgmt-1: Cluster provisioning error rate elevated (>30%) for 30+ minutes"
+        summary: "Cluster provisioning error rate elevated (>30%) for 30+ minutes"
         description: "More than 30% of cluster create (install) operations are in failed state sustained over 30 minutes, indicating a medium error budget burn (6x) that would exhaust the 95% SLO budget in ~28 hours."
         runbook_url: "https://aka.ms/arohcp-runbook-cluster-provision"
   # Fast burn must NOT fire at 40%
   - eval_time: 35m
-    alertname: UJClusterProvisionErrors1h5m
+    alertname: userJourneyClusterProvisionErrors1h5m
 # ========================================
 # Test 5: Isolation — node pool and in-flight (non-terminal) ops are excluded
 # ========================================
