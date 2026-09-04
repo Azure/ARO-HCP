@@ -17,15 +17,17 @@ package framework
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v6"
 )
 
 // GetPrivateKASInternalIP finds the private IP address of the internal load
-// balancer created by HyperShift for a private KAS cluster. The internal LB
-// is in the cluster's managed resource group and has a frontend IP on the
-// customer's subnet. Returns the IP address or an error if not found.
+// balancer created by HyperShift for the KAS in a private cluster. The KAS
+// internal LB is identified by its kube-apiserver load balancing rule —
+// fully-private clusters have a second internal LB for private ingress that
+// must not be confused with the KAS LB.
 func GetPrivateKASInternalIP(ctx context.Context, tc interface {
 	SubscriptionID(ctx context.Context) (string, error)
 	AzureCredential() (azcore.TokenCredential, error)
@@ -59,9 +61,16 @@ func GetPrivateKASInternalIP(ctx context.Context, tc interface {
 				if fip.Properties == nil {
 					continue
 				}
-				// Internal LBs have a private IP and no public IP
+				// Internal LBs have a private IP and no public IP.
+				// Fully-private clusters have two internal LBs (KAS and ingress),
+				// so also check for the kube-apiserver load balancing rule to
+				// identify the KAS LB specifically.
 				if fip.Properties.PrivateIPAddress != nil && fip.Properties.PublicIPAddress == nil {
-					return *fip.Properties.PrivateIPAddress, nil
+					for _, rule := range fip.Properties.LoadBalancingRules {
+						if rule.ID != nil && strings.HasSuffix(*rule.ID, "/kube-apiserver") {
+							return *fip.Properties.PrivateIPAddress, nil
+						}
+					}
 				}
 			}
 		}
