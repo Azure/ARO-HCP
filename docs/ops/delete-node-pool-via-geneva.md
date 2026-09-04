@@ -6,8 +6,15 @@ A management cluster's reconcile loop can get stuck when a stale or quota-constr
 can't reach its configured `minCount`. This happens for example when a node pool's VM SKU
 family has no quota headroom left in a region (physically constrained, not just a limit that
 can be raised), and the reconcile loop keeps retrying that pool instead of bringing up a
-replacement pool on a different SKU. The control plane can't delete node pools on its own, so
-the stale pool has to be removed directly.
+replacement pool on a different SKU. This procedure covers stale pools that the
+active provisioning path cannot remove automatically.
+
+For clusters managed by the [Fleet nodepool controller](../../fleet/docs/nodepool),
+undesired pools are drained and deleted automatically when the capacity floor
+allows it. A blocked replacement reports `Degraded=True`; direct deletion bypasses
+that protection. Check the rejected plan or blocked-action error and the role's
+CPU, memory, and Swift NIC floor before considering this procedure. A pool still
+present in the desired plan will be recreated by the controller.
 
 ## When to Use
 

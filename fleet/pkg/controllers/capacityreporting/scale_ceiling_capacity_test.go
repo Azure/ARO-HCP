@@ -23,24 +23,25 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v6"
 
-	"github.com/Azure/ARO-HCP/fleet/pkg/azure/agentpools"
+	"github.com/Azure/ARO-HCP/fleet/pkg/azure/skucache"
+	"github.com/Azure/ARO-HCP/fleet/pkg/compute"
 	"github.com/Azure/ARO-HCP/internal/kuberesources"
 	capacityreportv1alpha1 "github.com/Azure/ARO-HCP/mgmt-agent/pkg/apis/capacityreport/v1alpha1"
 )
 
 func workerNodeLabels() map[string]*string {
 	return map[string]*string{
-		agentpools.WorkerPoolLabel: ptr.To("worker"),
+		compute.RoleLabel: ptr.To("worker"),
 	}
 }
 
 func TestComputeMaxCapacity(t *testing.T) {
 	tests := []struct {
-		name         string
-		report       *capacityreportv1alpha1.CapacityReport
-		pools        []armcontainerservice.AgentPool
-		skuResources map[string]corev1.ResourceList
-		wantMax      corev1.ResourceList
+		name        string
+		report      *capacityreportv1alpha1.CapacityReport
+		pools       []armcontainerservice.AgentPool
+		skuMetadata map[string]*skucache.SKUMetadata
+		wantMax     corev1.ResourceList
 	}{
 		{
 			name: "scales per-node allocatable by max count including CPU",
@@ -70,7 +71,7 @@ func TestComputeMaxCapacity(t *testing.T) {
 					},
 				},
 			},
-			skuResources: map[string]corev1.ResourceList{},
+			skuMetadata: map[string]*skucache.SKUMetadata{},
 			wantMax: corev1.ResourceList{
 				corev1.ResourceCPU:                 resource.MustParse("40"),
 				corev1.ResourceMemory:              resource.MustParse("160Gi"),
@@ -94,10 +95,8 @@ func TestComputeMaxCapacity(t *testing.T) {
 					},
 				},
 			},
-			skuResources: map[string]corev1.ResourceList{
-				"Standard_D16ds_v5": {
-					corev1.ResourceMemory: resource.MustParse("128Gi"),
-				},
+			skuMetadata: map[string]*skucache.SKUMetadata{
+				"Standard_D16ds_v5": {Name: "Standard_D16ds_v5", MemoryGB: 128},
 			},
 			wantMax: corev1.ResourceList{
 				corev1.ResourceMemory:              resource.MustParse("384Gi"),
@@ -116,10 +115,8 @@ func TestComputeMaxCapacity(t *testing.T) {
 					},
 				},
 			},
-			skuResources: map[string]corev1.ResourceList{
-				"Standard_D8ds_v5": {
-					corev1.ResourceMemory: resource.MustParse("32Gi"),
-				},
+			skuMetadata: map[string]*skucache.SKUMetadata{
+				"Standard_D8ds_v5": {Name: "Standard_D8ds_v5", MemoryGB: 32},
 			},
 			wantMax: corev1.ResourceList{
 				corev1.ResourceMemory: resource.MustParse("64Gi"),
@@ -139,8 +136,8 @@ func TestComputeMaxCapacity(t *testing.T) {
 					},
 				},
 			},
-			skuResources: map[string]corev1.ResourceList{},
-			wantMax:      corev1.ResourceList{},
+			skuMetadata: map[string]*skucache.SKUMetadata{},
+			wantMax:     corev1.ResourceList{},
 		},
 		{
 			name: "autoscaling without max count falls back to current count",
@@ -169,7 +166,7 @@ func TestComputeMaxCapacity(t *testing.T) {
 					},
 				},
 			},
-			skuResources: map[string]corev1.ResourceList{},
+			skuMetadata: map[string]*skucache.SKUMetadata{},
 			wantMax: corev1.ResourceList{
 				corev1.ResourceCPU:    resource.MustParse("16"),
 				corev1.ResourceMemory: resource.MustParse("64Gi"),
@@ -200,10 +197,8 @@ func TestComputeMaxCapacity(t *testing.T) {
 					},
 				},
 			},
-			skuResources: map[string]corev1.ResourceList{
-				"Standard_D8ds_v5": {
-					corev1.ResourceMemory: resource.MustParse("32Gi"),
-				},
+			skuMetadata: map[string]*skucache.SKUMetadata{
+				"Standard_D8ds_v5": {Name: "Standard_D8ds_v5", MemoryGB: 32},
 			},
 			wantMax: corev1.ResourceList{
 				corev1.ResourceMemory: resource.MustParse("64Gi"),
@@ -226,10 +221,8 @@ func TestComputeMaxCapacity(t *testing.T) {
 					},
 				},
 			},
-			skuResources: map[string]corev1.ResourceList{
-				"Standard_D16ds_v5": {
-					corev1.ResourceMemory: resource.MustParse("128Gi"),
-				},
+			skuMetadata: map[string]*skucache.SKUMetadata{
+				"Standard_D16ds_v5": {Name: "Standard_D16ds_v5", MemoryGB: 128},
 			},
 			wantMax: corev1.ResourceList{
 				corev1.ResourceMemory: resource.MustParse("128Gi"),
@@ -267,10 +260,8 @@ func TestComputeMaxCapacity(t *testing.T) {
 					},
 				},
 			},
-			skuResources: map[string]corev1.ResourceList{
-				"Standard_D16ds_v5": {
-					corev1.ResourceMemory: resource.MustParse("128Gi"),
-				},
+			skuMetadata: map[string]*skucache.SKUMetadata{
+				"Standard_D16ds_v5": {Name: "Standard_D16ds_v5", MemoryGB: 128},
 			},
 			wantMax: corev1.ResourceList{
 				corev1.ResourceCPU:    resource.MustParse("16"),
@@ -304,7 +295,7 @@ func TestComputeMaxCapacity(t *testing.T) {
 					},
 				},
 			},
-			skuResources: map[string]corev1.ResourceList{},
+			skuMetadata: map[string]*skucache.SKUMetadata{},
 			wantMax: corev1.ResourceList{
 				corev1.ResourceCPU:    resource.MustParse("31600m"),
 				corev1.ResourceMemory: resource.MustParse("128Gi"),
@@ -339,7 +330,7 @@ func TestComputeMaxCapacity(t *testing.T) {
 						VMSize: ptr.To("Standard_D8ds_v5"),
 						Count:  ptr.To(int32(3)),
 						NodeLabels: map[string]*string{
-							agentpools.WorkerPoolLabel: ptr.To("system"),
+							compute.RoleLabel: ptr.To("system"),
 						},
 					},
 				},
@@ -348,7 +339,7 @@ func TestComputeMaxCapacity(t *testing.T) {
 						VMSize: ptr.To("Standard_D8ds_v5"),
 						Count:  ptr.To(int32(1)),
 						NodeLabels: map[string]*string{
-							agentpools.WorkerPoolLabel: ptr.To("infra"),
+							compute.RoleLabel: ptr.To("infra"),
 						},
 					},
 				},
@@ -360,7 +351,7 @@ func TestComputeMaxCapacity(t *testing.T) {
 					},
 				},
 			},
-			skuResources: map[string]corev1.ResourceList{},
+			skuMetadata: map[string]*skucache.SKUMetadata{},
 			wantMax: corev1.ResourceList{
 				corev1.ResourceCPU:    resource.MustParse("16"),
 				corev1.ResourceMemory: resource.MustParse("64Gi"),
@@ -370,7 +361,7 @@ func TestComputeMaxCapacity(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			actual := computeMaxCapacity(test.report, test.pools, test.skuResources)
+			actual := computeMaxCapacity(test.report, test.pools, test.skuMetadata)
 			assertResourceListEqual(t, test.wantMax, actual, "Max")
 		})
 	}

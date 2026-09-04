@@ -23,22 +23,25 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v6"
 
 	"github.com/Azure/ARO-HCP/fleet/pkg/azure/agentpools"
+	"github.com/Azure/ARO-HCP/fleet/pkg/azure/agentpoolspec"
+	"github.com/Azure/ARO-HCP/fleet/pkg/azure/skucache"
+	"github.com/Azure/ARO-HCP/fleet/pkg/compute"
 	"github.com/Azure/ARO-HCP/fleet/pkg/scheduling"
 	"github.com/Azure/ARO-HCP/internal/kuberesources"
 	capacityreportv1alpha1 "github.com/Azure/ARO-HCP/mgmt-agent/pkg/apis/capacityreport/v1alpha1"
 )
 
-// nicSecondaryCountTag is the AKS agent pool tag set by
-// dev-infrastructure/modules/aks/pool.bicep, carrying the configured
-// per-node secondary NIC count. Used as a fallback when no CapacityReport
-// sample exists for a pool's SKU.
-const nicSecondaryCountTag = "aks-nic-secondary-count"
+// nicSecondaryCountTag mirrors agentpoolspec.SwiftSecondaryNICCountTag, the
+// same tag key dev-infrastructure/modules/aks/pool.bicep sets, carrying the
+// configured per-node secondary NIC count. Used as a fallback when no
+// CapacityReport sample exists for a pool's SKU.
+const nicSecondaryCountTag = agentpoolspec.SwiftSecondaryNICCountTag
 
 // computeMaxCapacity derives the maximum scheduling capacity from AKS agent
 // pool scaling limits and per-node allocatable data. Per-node allocatable is
 // preferred from the CapacityReport CR (live observation); the SKU cache
 // provides a fallback when no CR sample exists.
-func computeMaxCapacity(report *capacityreportv1alpha1.CapacityReport, pools []armcontainerservice.AgentPool, skuResources map[string]corev1.ResourceList) corev1.ResourceList {
+func computeMaxCapacity(report *capacityreportv1alpha1.CapacityReport, pools []armcontainerservice.AgentPool, skuMetadata map[string]*skucache.SKUMetadata) corev1.ResourceList {
 	var nodesBySKU map[string]capacityreportv1alpha1.NodeSKUCapacity
 	if report != nil {
 		nodesBySKU = make(map[string]capacityreportv1alpha1.NodeSKUCapacity, len(report.Status.Nodes))
@@ -53,16 +56,13 @@ func computeMaxCapacity(report *capacityreportv1alpha1.CapacityReport, pools []a
 		if pool.Properties == nil || pool.Properties.VMSize == nil || pool.Properties.Count == nil {
 			continue
 		}
-		if !agentpools.IsWorkerPool(pool) {
+		if agentpools.PoolRole(pool) != string(compute.PoolRoleWorker) {
 			continue
 		}
 		vmSize := *pool.Properties.VMSize
-		maxCount := int64(*pool.Properties.Count)
-		if pool.Properties.EnableAutoScaling != nil && *pool.Properties.EnableAutoScaling && pool.Properties.MaxCount != nil {
-			maxCount = int64(*pool.Properties.MaxCount)
-		}
+		maxCount := agentpools.PoolMaxCount(pool)
 
-		perNode := perNodeAllocatable(vmSize, nodesBySKU, skuResources, pool.Properties.Tags)
+		perNode := perNodeAllocatable(vmSize, nodesBySKU, skuMetadata, pool.Properties.Tags)
 		if len(perNode) == 0 {
 			continue
 		}
@@ -85,7 +85,7 @@ func computeMaxCapacity(report *capacityreportv1alpha1.CapacityReport, pools []a
 //  2. Azure SKU cache + pool tags (static specs) — provides cpu and memory
 //     from the VM size's SKU capabilities, and swift-nic from the pool's
 //     aks-nic-secondary-count tag (overrides SKU-derived NIC count).
-func perNodeAllocatable(vmSize string, nodesBySKU map[string]capacityreportv1alpha1.NodeSKUCapacity, skuResources map[string]corev1.ResourceList, tags map[string]*string) corev1.ResourceList {
+func perNodeAllocatable(vmSize string, nodesBySKU map[string]capacityreportv1alpha1.NodeSKUCapacity, skuMetadata map[string]*skucache.SKUMetadata, tags map[string]*string) corev1.ResourceList {
 	// Prefer live allocatable from CapacityReport — reflects actual
 	// kubelet-reported resources including system reservations.
 	if node, found := nodesBySKU[vmSize]; found && node.Ready > 0 {
@@ -104,7 +104,8 @@ func perNodeAllocatable(vmSize string, nodesBySKU map[string]capacityreportv1alp
 	// Fallback to SKU specs — no ready nodes yet, use theoretical per-VM
 	// capacity from the Azure Resource SKUs API.
 	result := corev1.ResourceList{}
-	if skuRL, found := skuResources[vmSize]; found {
+	if meta, found := skuMetadata[vmSize]; found {
+		skuRL := meta.ResourceList()
 		for _, name := range scheduling.Resources() {
 			if quantity, exists := skuRL[name]; exists {
 				result[name] = quantity

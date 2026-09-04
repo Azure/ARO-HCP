@@ -16,7 +16,11 @@ package controller
 
 import (
 	"context"
+	"slices"
+	"strings"
 	"testing"
+
+	"github.com/Azure/ARO-HCP/fleet/pkg/compute"
 )
 
 func TestValidate(t *testing.T) {
@@ -89,6 +93,85 @@ func TestValidate(t *testing.T) {
 				if err != nil {
 					t.Fatalf("unexpected error: %v", err)
 				}
+			}
+		})
+	}
+}
+
+func TestResolveNodePoolProfile(t *testing.T) {
+	tests := []struct {
+		name        string
+		profile     string
+		zones       string
+		zoneCount   int
+		wantZones   []string
+		wantErr     bool
+		errContains string
+	}{
+		{
+			name:      "valid profile with explicit zones",
+			profile:   compute.ProfileCI,
+			zones:     "1,2,3",
+			zoneCount: 3,
+			wantZones: []string{"1", "2", "3"},
+		},
+		{
+			name:      "valid profile with no zones derives the region's zones",
+			profile:   compute.ProfileProduction,
+			zones:     "",
+			zoneCount: 3,
+			wantZones: []string{"1", "2", "3"},
+		},
+		{
+			name:        "explicit zone outside the region range is rejected",
+			profile:     compute.ProfileProduction,
+			zones:       "1,3,4",
+			zoneCount:   3,
+			wantErr:     true,
+			errContains: "outside the region's availability zones",
+		},
+		{
+			name:        "zero zone count is rejected",
+			profile:     compute.ProfileProduction,
+			zones:       "",
+			zoneCount:   0,
+			wantErr:     true,
+			errContains: "region has no availability zones",
+		},
+		{
+			name:        "invalid profile name",
+			profile:     "not-a-real-profile",
+			wantErr:     true,
+			errContains: "not-a-real-profile",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			opts := &RawControllerOptions{
+				NodePoolProfile:                  tt.profile,
+				NodePoolZones:                    tt.zones,
+				AzureRegionAvailabilityZoneCount: tt.zoneCount,
+			}
+
+			profile, zones, err := resolveNodePoolProfile(opts)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+				if len(tt.errContains) > 0 && !strings.Contains(err.Error(), tt.errContains) {
+					t.Fatalf("expected error to contain %q, got: %v", tt.errContains, err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if profile == nil {
+				t.Fatal("expected non-nil profile")
+			}
+			if !slices.Equal(zones, tt.wantZones) {
+				t.Fatalf("zones = %v, want %v", zones, tt.wantZones)
 			}
 		})
 	}
