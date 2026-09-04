@@ -14,8 +14,7 @@ jobs:
     # Covers cancelled/timed_out as well as failure, since a runner
     # preemption or our own job timeout-minutes can surface as either.
     if: >-
-      contains(fromJSON('["failure", "cancelled", "timed_out"]'), github.event.workflow_run.conclusion) &&
-      github.event.workflow_run.run_attempt <= fromJSON(vars.CODEQL_MAX_RETRIES || '1')
+      contains(fromJSON('["failure", "cancelled", "timed_out"]'), github.event.workflow_run.conclusion) && github.event.workflow_run.run_attempt <= fromJSON(vars.CODEQL_MAX_RETRIES || '1')
     runs-on: ubuntu-latest
     permissions:
       actions: write
