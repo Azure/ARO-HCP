@@ -1962,6 +1962,18 @@
               }
             }
           }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": {},
+            "sort": [
+              {
+                "desc": true,
+                "field": "Metric"
+              }
+            ]
+          }
         }
       ],
       "type": "barchart"
