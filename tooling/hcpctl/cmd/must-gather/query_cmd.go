@@ -17,11 +17,14 @@ package mustgather
 import (
 	"context"
 	"errors"
+	"fmt"
+	"os"
 	"path/filepath"
 
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
 
+	datadumptogit "github.com/Azure/ARO-HCP/tooling/hcpctl/cmd/datadump-to-git"
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/kusto"
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/mustgather"
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/ocadminspect"
@@ -71,6 +74,8 @@ func (opts *CompletedQueryOptions) RunQuery(ctx context.Context) error {
 	logger.Info("gathering must-gather logs", "output", opts.OutputPath)
 	gatherErr := gatherer.GatherLogs(ctx)
 
+	cosmosContentErr := generateCosmosContent(ctx, opts.OutputPath)
+
 	// For every HCP cluster discovered in the resource group, oc-adm-inspect the
 	// hosted-cluster namespace (which pulls in the paired control-plane namespace)
 	// on the management cluster that hosts it.
@@ -79,11 +84,35 @@ func (opts *CompletedQueryOptions) RunQuery(ctx context.Context) error {
 		inspectErr = opts.runOCAdmInspect(ctx)
 	}
 
-	if err := errors.Join(gatherErr, inspectErr); err != nil {
+	if err := errors.Join(gatherErr, cosmosContentErr, inspectErr); err != nil {
 		logger.Error(err, "must-gather finished with errors; partial content may have been written", "output", opts.OutputPath)
 		return err
 	}
 	logger.Info("must-gather complete; content written", "output", opts.OutputPath)
+	return nil
+}
+
+func generateCosmosContent(ctx context.Context, mustGatherPath string) error {
+	inputPath := filepath.Join(mustGatherPath, CustomLogsDirectory, "custom-query_cosmosResourceSnapshots.jsonl")
+	outputPath := filepath.Join(mustGatherPath, "cosmosContent")
+	logger := logr.FromContextOrDiscard(ctx)
+	logger.Info("generating Cosmos content Git history", "input", inputPath, "output", outputPath)
+	if _, err := os.Stat(inputPath); os.IsNotExist(err) {
+		// Kusto's output writer does not create a file for an empty result set.
+		// Use an empty input so the must-gather still contains an initialized
+		// cosmosContent repository.
+		if err := os.WriteFile(inputPath, nil, 0644); err != nil {
+			return fmt.Errorf("failed to create empty Cosmos snapshot input: %w", err)
+		}
+	} else if err != nil {
+		return fmt.Errorf("failed to inspect Cosmos snapshot input: %w", err)
+	}
+	opts := datadumptogit.DefaultCosmosSnapshotToGitRepoOptions()
+	opts.LogPath = inputPath
+	opts.OutputDir = outputPath
+	if err := opts.Run(ctx); err != nil {
+		return fmt.Errorf("failed to generate Cosmos content Git history: %w", err)
+	}
 	return nil
 }
 
