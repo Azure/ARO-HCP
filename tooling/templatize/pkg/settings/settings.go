@@ -15,10 +15,9 @@
 package settings
 
 import (
-	"context"
 	"fmt"
 	"os"
-	"os/exec"
+	"strconv"
 	"strings"
 
 	"sigs.k8s.io/yaml"
@@ -45,9 +44,9 @@ type Parameters struct {
 	Region string `json:"region"`
 	// CxStamp is the stamp for which this environment is rendered.
 	CxStamp string `json:"cxStamp"`
-	// RegionShortOverride is a shell-ism that, when run through `echo`, outputs a replacement for the short region variable from the EV2 central config.
+	// RegionShortOverride is a bash parameter expression that expands to a replacement for the short region variable from the EV2 central config.
 	RegionShortOverride string `json:"regionShortOverride"`
-	// RegionShortSuffix is a shell-ism that, when run through `echo`, outputs a suffix for the short region variable.
+	// RegionShortSuffix is a bash parameter expression that expands to a suffix for the short region variable.
 	RegionShortSuffix string `json:"regionShortSuffix"`
 }
 
@@ -71,7 +70,7 @@ type EnvironmentParameters struct {
 	RegionShortSuffix   string
 }
 
-func (s *Settings) Resolve(ctx context.Context, cloud, environment string) (EnvironmentParameters, error) {
+func (s *Settings) Resolve(cloud, environment string) (EnvironmentParameters, error) {
 	var env *Environment
 	for _, e := range s.Environments {
 		if e.Defaults.Cloud == cloud && e.Name == environment {
@@ -82,10 +81,10 @@ func (s *Settings) Resolve(ctx context.Context, cloud, environment string) (Envi
 		return EnvironmentParameters{}, fmt.Errorf("cloud %s environment %s not found", cloud, environment)
 	}
 
-	return Resolve(ctx, *env)
+	return Resolve(*env)
 }
 
-func Resolve(ctx context.Context, environment Environment) (EnvironmentParameters, error) {
+func Resolve(environment Environment) (EnvironmentParameters, error) {
 	out := EnvironmentParameters{
 		Cloud:       environment.Defaults.Cloud,
 		Ev2Cloud:    environment.Defaults.Ev2Cloud,
@@ -94,22 +93,92 @@ func Resolve(ctx context.Context, environment Environment) (EnvironmentParameter
 		Stamp:       environment.Defaults.CxStamp,
 	}
 	if environment.Defaults.RegionShortSuffix != "" {
-		evaluator := exec.CommandContext(ctx, "bash", "-c", fmt.Sprintf("echo %s", environment.Defaults.RegionShortSuffix))
-		evaluator.Env = os.Environ()
-		evaluated, err := evaluator.CombinedOutput()
+		expanded, err := expandBashSubstring(environment.Defaults.RegionShortSuffix)
 		if err != nil {
-			return EnvironmentParameters{}, fmt.Errorf("failed to evaluate region short suffix: %w; output: %s", err, string(evaluated))
+			return EnvironmentParameters{}, fmt.Errorf("expanding region short suffix %q: %w", environment.Defaults.RegionShortSuffix, err)
 		}
-		out.RegionShortSuffix = strings.TrimSpace(string(evaluated))
+		out.RegionShortSuffix = expanded
 	}
 	if environment.Defaults.RegionShortOverride != "" {
-		evaluator := exec.CommandContext(ctx, "bash", "-c", fmt.Sprintf("echo %s", environment.Defaults.RegionShortOverride))
-		evaluator.Env = os.Environ()
-		evaluated, err := evaluator.CombinedOutput()
+		expanded, err := expandBashSubstring(environment.Defaults.RegionShortOverride)
 		if err != nil {
-			return EnvironmentParameters{}, fmt.Errorf("failed to evaluate region short override: %w; output: %s", err, string(evaluated))
+			return EnvironmentParameters{}, fmt.Errorf("expanding region short override %q: %w", environment.Defaults.RegionShortOverride, err)
 		}
-		out.RegionShortOverride = strings.TrimSpace(string(evaluated))
+		out.RegionShortOverride = expanded
 	}
 	return out, nil
+}
+
+// expandBashSubstring expands a limited subset of bash-style parameter
+// expansions. It supports plain variable expansion ($VAR, ${VAR}) and
+// substring extraction (${VAR:offset}, ${VAR:offset:length}).
+// Note: negative offsets require a space after the colon (${VAR: -3});
+// ${VAR:-3} is bash default-value syntax and is not supported here.
+func expandBashSubstring(s string) (string, error) {
+	var expandErr error
+	result := os.Expand(s, func(key string) string {
+		if expandErr != nil {
+			return ""
+		}
+
+		colonIdx := strings.IndexByte(key, ':')
+		if colonIdx == -1 {
+			return os.Getenv(key)
+		}
+
+		varName := key[:colonIdx]
+		substringExpr := key[colonIdx+1:]
+		value := os.Getenv(varName)
+		if value == "" {
+			return ""
+		}
+
+		expanded, err := applySubstring(value, substringExpr)
+		if err != nil {
+			expandErr = fmt.Errorf("variable %q: %w", varName, err)
+			return ""
+		}
+		return expanded
+	})
+	if expandErr != nil {
+		return "", expandErr
+	}
+	return result, nil
+}
+
+func applySubstring(value, expr string) (string, error) {
+	parts := strings.SplitN(expr, ":", 2)
+
+	offset, err := strconv.Atoi(strings.TrimSpace(parts[0]))
+	if err != nil {
+		return "", fmt.Errorf("invalid offset %q: %w", parts[0], err)
+	}
+
+	if offset < 0 {
+		offset = len(value) + offset
+		if offset < 0 {
+			offset = 0
+		}
+	}
+	if offset > len(value) {
+		return "", nil
+	}
+
+	if len(parts) == 1 {
+		return value[offset:], nil
+	}
+
+	length, err := strconv.Atoi(strings.TrimSpace(parts[1]))
+	if err != nil {
+		return "", fmt.Errorf("invalid length %q: %w", parts[1], err)
+	}
+
+	end := offset + length
+	if end > len(value) {
+		end = len(value)
+	}
+	if end < offset {
+		return "", nil
+	}
+	return value[offset:end], nil
 }
