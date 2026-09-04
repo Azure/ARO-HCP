@@ -185,7 +185,7 @@ clustersService:
   deployDebugJobs: false
   environment: arohcpci00
   image:
-    digest: sha256:42f40e917eaa873a729ec656d99377845401642dc8a1369c54ed0c519e1622a3
+    digest: sha256:394eee85c19ce289abbbd9966008276a0573a58a47e2579e0bb41bb186b4adae
     registry: arohcpsvcdev.azurecr.io
     repository: mchitimb/cs
   k8s:
