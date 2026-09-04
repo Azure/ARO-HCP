@@ -141,7 +141,7 @@ func (c *clusterValidationSyncer) SyncOnce(ctx context.Context, key controllerut
 		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster: %w", err))
 	}
 
-	if !c.shouldProcess(cachedServiceProviderCluster) {
+	if !c.shouldProcess(cachedServiceProviderCluster, existingCluster) {
 		return nil // no work to do
 	}
 	existingServiceProviderCluster := cachedServiceProviderCluster.DeepCopy()
@@ -172,6 +172,18 @@ func (c *clusterValidationSyncer) SyncOnce(ctx context.Context, key controllerut
 		consecutiveUnknowns := c.trackConsecutiveUnknowns(key, desiredCondition)
 		if c.shouldWriteCondition(previousCondition, consecutiveUnknowns) {
 			meta.SetStatusCondition(&replacement.Status.Validations, desiredCondition)
+		}
+
+		// When a keyed validation passes, record the input key that was validated in ValidationInputKeys
+		// (not in condition.Message) so shouldProcess can detect future input changes without coupling the
+		// change-detection logic to condition.Message formatting.
+		if result.Outcome.Type == validationutils.OutcomeTypePassed {
+			if keyed, ok := c.validation.(validationutils.InputKeyedClusterValidation); ok {
+				if replacement.Status.ValidationInputKeys == nil {
+					replacement.Status.ValidationInputKeys = make(map[string]string)
+				}
+				replacement.Status.ValidationInputKeys[c.validation.Name()] = keyed.InputKey(existingCluster)
+			}
 		}
 	}
 
@@ -214,10 +226,19 @@ func (c *clusterValidationSyncer) handleRequeue(key controllerutils.HCPClusterKe
 	}
 }
 
-// shouldProcess returns true when the condition associated to the validation does not exist or when it exists but
-// it failed to run successfully in a previous attempt.
-func (c *clusterValidationSyncer) shouldProcess(serviceProviderCluster *coreapi.ServiceProviderCluster) bool {
-	return !meta.IsStatusConditionTrue(serviceProviderCluster.Status.Validations, c.validation.Name())
+// shouldProcess returns true when the validation should run. This is the case when:
+//   - the condition does not exist or previously failed, OR
+//   - the validation implements InputKeyedClusterValidation and the input has changed
+//     since the last successful validation (compared against ValidationInputKeys, not condition.Message).
+func (c *clusterValidationSyncer) shouldProcess(serviceProviderCluster *coreapi.ServiceProviderCluster, cluster *coreapi.HCPOpenShiftCluster) bool {
+	condition := meta.FindStatusCondition(serviceProviderCluster.Status.Validations, c.validation.Name())
+	if condition == nil || condition.Status != metav1.ConditionTrue {
+		return true
+	}
+	if keyed, ok := c.validation.(validationutils.InputKeyedClusterValidation); ok {
+		return keyed.InputKey(cluster) != serviceProviderCluster.Status.ValidationInputKeys[c.validation.Name()]
+	}
+	return false
 }
 
 // shouldWriteCondition reports whether the newly computed validation condition should be written, versus

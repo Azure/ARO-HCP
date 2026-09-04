@@ -240,6 +240,7 @@ func validateResourceIDsAgainstClusterID(ctx context.Context, op operation.Opera
 	errs = append(errs, SameSubscription(ctx, op, field.NewPath("customerProperties", "platform", "networkSecurityGroupId"), newCluster.CustomerProperties.Platform.NetworkSecurityGroupID, nil, newCluster.ID.SubscriptionID)...)
 	errs = append(errs, DifferentResourceGroupNameFromResourceID(ctx, op, field.NewPath("customerProperties", "platform", "networkSecurityGroupId"), newCluster.CustomerProperties.Platform.NetworkSecurityGroupID, nil, newCluster.CustomerProperties.Platform.ManagedResourceGroup)...)
 	errs = append(errs, SameSubscription(ctx, op, field.NewPath("customerProperties", "platform", "vnetIntegrationSubnetId"), newCluster.CustomerProperties.Platform.VnetIntegrationSubnetID, nil, newCluster.ID.SubscriptionID)...)
+	errs = append(errs, SameSubscription(ctx, op, field.NewPath("customerProperties", "platform", "containerRegistry", "managedIdentity"), newCluster.CustomerProperties.Platform.ContainerRegistry.PullManagedIdentity, nil, newCluster.ID.SubscriptionID)...)
 
 	for operatorName, operatorIdentity := range newCluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators {
 		fldPath := field.NewPath("customerProperties", "platform", "operatorsAuthentication", "userAssignedIdentities", "controlPlaneOperators").Key(operatorName)
@@ -318,7 +319,6 @@ func validateClusterCustomerProperties(ctx context.Context, op operation.Operati
 	errs = append(errs, validateCustomerIngressProfile(ctx, op, fldPath.Child("ingress"), &newObj.Ingress, safe.Field(oldObj, toCustomerIngress))...)
 
 	// Platform                CustomerPlatformProfile             `json:"platform,omitempty"`
-	errs = append(errs, immutableByReflect(ctx, op, fldPath.Child("platform"), &newObj.Platform, safe.Field(oldObj, toCustomerPlatform))...)
 	errs = append(errs, validateCustomerPlatformProfile(ctx, op, fldPath.Child("platform"), &newObj.Platform, safe.Field(oldObj, toCustomerPlatform))...)
 
 	//Autoscaling             ClusterAutoscalingProfile   `json:"autoscaling,omitempty"`
@@ -712,8 +712,27 @@ func validateCustomerPlatformProfile(ctx context.Context, op operation.Operation
 	errs = append(errs, immutableByReflect(ctx, op, fldPath.Child("operatorsAuthentication"), &newObj.OperatorsAuthentication, safe.Field(oldObj, toPlatformOperatorsAuthentication))...)
 	errs = append(errs, validateOperatorsAuthenticationProfile(ctx, op, fldPath.Child("operatorsAuthentication"), &newObj.OperatorsAuthentication, safe.Field(oldObj, toPlatformOperatorsAuthentication))...)
 
+	//ContainerRegistry       ContainerRegistryProfile             `json:"containerRegistry,omitzero"`
+	errs = append(errs, validateContainerRegistryPullCredentials(ctx, op, fldPath.Child("containerRegistry", "managedIdentity"), newObj.ContainerRegistry.PullManagedIdentity, safe.Field(oldObj, toPlatformContainerRegistryPullMI), newObj.ManagedResourceGroup)...)
+
 	return errs
 }
+
+func validateContainerRegistryPullCredentials(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj *azcorearm.ResourceID, oldObj *azcorearm.ResourceID, managedResourceGroup string) field.ErrorList {
+	errs := field.ErrorList{}
+	if newObj == nil {
+		return errs
+	}
+	errs = append(errs, RestrictedResourceIDWithResourceGroup(ctx, op, fldPath, newObj, oldObj, "Microsoft.ManagedIdentity/userAssignedIdentities")...)
+	errs = append(errs, DifferentResourceGroupNameFromResourceID(ctx, op, fldPath, newObj, oldObj, managedResourceGroup)...)
+	return errs
+}
+
+var (
+	toPlatformContainerRegistryPullMI = func(oldObj *coreapi.CustomerPlatformProfile) *azcorearm.ResourceID {
+		return oldObj.ContainerRegistry.PullManagedIdentity
+	}
+)
 
 var (
 	toServiceProviderPlatformProfileIssuerURL = func(oldObj *coreapi.ServiceProviderPlatformProfile) *string { return &oldObj.IssuerURL }

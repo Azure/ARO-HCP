@@ -28,6 +28,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clocktesting "k8s.io/utils/clock/testing"
 	"k8s.io/utils/lru"
+	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -143,6 +144,9 @@ func TestClusterValidationSyncer_SyncOnce(t *testing.T) {
 		// wantConditionAbsent asserts that no validation condition is stored at all.
 		wantConditionAbsent bool
 		wantEnqueue         bool
+		// wantValidationInputKey, if non-nil, asserts that the stored ValidationInputKeys entry for this
+		// validation name equals the pointed-to string. Use ptr.To("") to assert the key is present but empty.
+		wantValidationInputKey *string
 	}{
 		{
 			name: "cluster not found -- no-op",
@@ -248,6 +252,16 @@ func TestClusterValidationSyncer_SyncOnce(t *testing.T) {
 			wantEnqueue:         false,
 		},
 		{
+			name:    "keyed validation passes -- input key written to ValidationInputKeys",
+			setupDB: defaultSetupDB,
+			validation: newMockKeyedValidation(testValidationName, "mi-resource-id-a").withPassed(
+				coreapi.ControllerConditionReasonAsExpected, "CAPZ identity has permission on MI mi-resource-id-a.", "",
+			),
+			wantCondition:          &metav1.Condition{Status: metav1.ConditionTrue, Reason: "AsExpected", Message: "CAPZ identity has permission on MI mi-resource-id-a."},
+			wantValidationInputKey: ptr.To("mi-resource-id-a"),
+			wantEnqueue:            false,
+		},
+		{
 			name: "already-succeeded validation -- skipped",
 			setupDB: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient) {
 				t.Helper()
@@ -317,6 +331,16 @@ func TestClusterValidationSyncer_SyncOnce(t *testing.T) {
 				assert.Equal(t, tc.wantCondition.Status, cond.Status)
 				assert.Equal(t, tc.wantCondition.Reason, cond.Reason)
 				assert.Equal(t, tc.wantCondition.Message, cond.Message)
+			}
+
+			if tc.wantValidationInputKey != nil {
+				spc, spcErr := mockDB.ServiceProviderClusters(
+					testSubscriptionID, testResourceGroup, testClusterName,
+				).Get(ctx, coreapi.ServiceProviderClusterResourceName)
+				require.NoError(t, spcErr)
+				got, ok := spc.Status.ValidationInputKeys[testValidationName]
+				assert.True(t, ok, "expected ValidationInputKeys[%q] to be set", testValidationName)
+				assert.Equal(t, *tc.wantValidationInputKey, got)
 			}
 		})
 	}
@@ -568,4 +592,118 @@ func TestClusterValidationSyncer_CooldownSuppression(t *testing.T) {
 
 	require.NotEmpty(t, enqueuer.enqueuedKeys, "should have re-enqueued after cooldown skip")
 	assert.Greater(t, enqueuer.enqueuedDurations[0], time.Duration(0), "enqueue duration should be positive")
+}
+
+func TestShouldProcess(t *testing.T) {
+	tests := []struct {
+		name       string
+		validation validationutils.ClusterValidation
+		conditions []metav1.Condition
+		inputKeys  map[string]string
+		want       bool
+	}{
+		{
+			name:       "no condition exists",
+			validation: NewMockClusterValidation("FakeValidation"),
+			conditions: nil,
+			want:       true,
+		},
+		{
+			name:       "condition is False",
+			validation: NewMockClusterValidation("FakeValidation"),
+			conditions: []metav1.Condition{
+				{Type: "FakeValidation", Status: metav1.ConditionFalse},
+			},
+			want: true,
+		},
+		{
+			name:       "condition is True, non-keyed validation",
+			validation: NewMockClusterValidation("FakeValidation"),
+			conditions: []metav1.Condition{
+				{Type: "FakeValidation", Status: metav1.ConditionTrue, Message: "Validation succeeded"},
+			},
+			want: false,
+		},
+		{
+			name:       "condition is True, keyed validation, key matches",
+			validation: newMockKeyedValidation("FakeValidation", "mi-resource-id-a"),
+			conditions: []metav1.Condition{
+				{Type: "FakeValidation", Status: metav1.ConditionTrue, Message: "CAPZ identity has permission."},
+			},
+			inputKeys: map[string]string{"FakeValidation": "mi-resource-id-a"},
+			want:      false,
+		},
+		{
+			name:       "condition is True, keyed validation, key changed",
+			validation: newMockKeyedValidation("FakeValidation", "mi-resource-id-b"),
+			conditions: []metav1.Condition{
+				{Type: "FakeValidation", Status: metav1.ConditionTrue, Message: "CAPZ identity has permission."},
+			},
+			inputKeys: map[string]string{"FakeValidation": "mi-resource-id-a"},
+			want:      true,
+		},
+		{
+			name:       "condition is True, keyed validation, key cleared",
+			validation: newMockKeyedValidation("FakeValidation", ""),
+			conditions: []metav1.Condition{
+				{Type: "FakeValidation", Status: metav1.ConditionTrue, Message: "CAPZ identity has permission."},
+			},
+			inputKeys: map[string]string{"FakeValidation": "mi-resource-id-a"},
+			want:      true,
+		},
+		{
+			name:       "condition is True, keyed validation, key set from empty (no stored key)",
+			validation: newMockKeyedValidation("FakeValidation", "mi-resource-id-a"),
+			conditions: []metav1.Condition{
+				{Type: "FakeValidation", Status: metav1.ConditionTrue, Message: "CAPZ identity has permission."},
+			},
+			inputKeys: nil,
+			want:      true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			syncer := &clusterValidationSyncer{
+				validation: tt.validation,
+			}
+			spc := &coreapi.ServiceProviderCluster{
+				Status: coreapi.ServiceProviderClusterStatus{
+					Validations:         tt.conditions,
+					ValidationInputKeys: tt.inputKeys,
+				},
+			}
+			cluster := &coreapi.HCPOpenShiftCluster{}
+
+			got := syncer.shouldProcess(spc, cluster)
+			if got != tt.want {
+				t.Errorf("shouldProcess() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+// mockKeyedClusterValidation is a mock that implements both ClusterValidation
+// and InputKeyedClusterValidation for testing shouldProcess with InputKey.
+type mockKeyedClusterValidation struct {
+	MockClusterValidation
+	inputKey string
+}
+
+var _ validationutils.InputKeyedClusterValidation = (*mockKeyedClusterValidation)(nil)
+
+func newMockKeyedValidation(name, key string) *mockKeyedClusterValidation {
+	return &mockKeyedClusterValidation{
+		MockClusterValidation: *NewMockClusterValidation(name),
+		inputKey:              key,
+	}
+}
+
+func (m *mockKeyedClusterValidation) InputKey(_ *coreapi.HCPOpenShiftCluster) string {
+	return m.inputKey
+}
+
+func (m *mockKeyedClusterValidation) withPassed(reason, userMessage, internalMessage string) *mockKeyedClusterValidation {
+	m.result = validationutils.PassedValidation(reason, userMessage, internalMessage)
+	return m
 }

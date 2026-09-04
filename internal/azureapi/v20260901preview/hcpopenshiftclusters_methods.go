@@ -196,7 +196,17 @@ func newPlatformProfile(from *coreapi.CustomerPlatformProfile, from2 *coreapi.Se
 		OutboundType:            metadataapi.PtrOrNil(generated.OutboundType(from.OutboundType)),
 		NetworkSecurityGroupID:  metadataapi.ResourceIDToStringPtr(from.NetworkSecurityGroupID),
 		OperatorsAuthentication: metadataapi.PtrOrNil(newOperatorsAuthenticationProfile(&from.OperatorsAuthentication)),
+		ContainerRegistry:       newContainerRegistryProfile(from.ContainerRegistry.PullManagedIdentity),
 		IssuerURL:               metadataapi.PtrOrNil(from2.IssuerURL),
+	}
+}
+
+func newContainerRegistryProfile(from *azcorearm.ResourceID) *generated.ContainerRegistryProfile {
+	if from == nil {
+		return nil
+	}
+	return &generated.ContainerRegistryProfile{
+		ManagedIdentity: metadataapi.ResourceIDToStringPtr(from),
 	}
 }
 
@@ -517,6 +527,7 @@ func (c *HcpOpenShiftCluster) ConvertToInternal(existing *coreapi.HCPOpenShiftCl
 		}
 		if c.Properties.Platform != nil {
 			errs = append(errs, normalizePlatform(field.NewPath("properties", "platform"), c.Properties.Platform, &out.CustomerProperties.Platform, &out.ServiceProviderProperties.Platform)...)
+			errs = append(errs, normalizeContainerRegistry(field.NewPath("properties", "platform", "containerRegistry"), c.Properties.Platform.ContainerRegistry, &out.CustomerProperties.Platform.ContainerRegistry.PullManagedIdentity)...)
 		}
 		if c.Properties.Autoscaling != nil {
 			normalizeAutoscaling(c.Properties.Autoscaling, &out.CustomerProperties.Autoscaling)
@@ -643,6 +654,30 @@ func normalizePlatform(fldPath *field.Path, p *generated.PlatformProfile, out *c
 		out.OperatorsAuthentication = coreapi.OperatorsAuthenticationProfile{}
 	}
 	out2.IssuerURL = metadataapi.Deref(p.IssuerURL)
+
+	return errs
+}
+
+func normalizeContainerRegistry(fldPath *field.Path, p *generated.ContainerRegistryProfile, out **azcorearm.ResourceID) field.ErrorList {
+	errs := field.ErrorList{}
+
+	if p == nil || p.ManagedIdentity == nil {
+		*out = nil
+		return errs
+	}
+
+	mi := strings.TrimSpace(*p.ManagedIdentity)
+	if mi == "" {
+		errs = append(errs, field.Invalid(fldPath.Child("managedIdentity"), *p.ManagedIdentity, "must be a non-empty resource ID or null to clear"))
+		return errs
+	}
+
+	resourceID, err := azcorearm.ParseResourceID(mi)
+	if err != nil {
+		errs = append(errs, field.Invalid(fldPath.Child("managedIdentity"), *p.ManagedIdentity, err.Error()))
+	} else {
+		*out = resourceID
+	}
 
 	return errs
 }

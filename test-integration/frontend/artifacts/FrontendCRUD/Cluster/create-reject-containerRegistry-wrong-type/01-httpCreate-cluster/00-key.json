@@ -1,0 +1,5 @@
+{
+	"apiVersion": "2026-09-01-preview",
+	"id": "69190308-c604-5f02-8313-7337e42635de",
+	"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-reject-cr-wrong-type"
+}

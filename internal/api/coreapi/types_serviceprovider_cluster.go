@@ -185,6 +185,12 @@ type ServiceProviderClusterStatus struct {
 	// The Condition Reason and Message are used to provide more details about the validation status.
 	// The Condition LastTransitionTime is used to track the last time the validation transitioned from one status to another.
 	Validations []metav1.Condition `json:"validations,omitempty"`
+	// ValidationInputKeys maps each InputKeyedClusterValidation's name to the input key
+	// (e.g. a managed identity resource ID) that was current when the validation last passed.
+	// The controller updates this alongside the True condition so that shouldProcess can detect
+	// a changed input without comparing against condition.Message, keeping Message human-readable.
+	// Written by: ClusterValidationController (keyed validations only)
+	ValidationInputKeys map[string]string `json:"validationInputKeys,omitempty"`
 	// MaestroReadonlyBundles contains a list of Maestro readonly bundles references.
 	// These bundles are used to retrieve particular K8s resources from the Management Cluster.
 	// The reference contains a mapping between the logical name we give to the Maestro bundle internally

@@ -1,0 +1,5 @@
+{
+	"apiVersion": "2026-09-01-preview",
+	"id": "99555df9-f7ef-5da6-ba16-816f8bd6e599",
+	"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-reject-cr-cross-subscription"
+}
