@@ -214,6 +214,10 @@ e2e-local/run-test:
 	$(MAKE) -C test -f E2ELocal.mk e2e-local/pf/run-test TEST_NAME="$$TEST_NAME"
 .PHONY: e2e-local/run-test
 
+e2e-local/shell:
+	$(MAKE) -C test -f E2ELocal.mk e2e-local/pf/shell
+.PHONY: e2e-local/shell
+
 mega-lint:
 	$(CONTAINER_ENGINE) run --rm \
 		-e FILTER_REGEX_EXCLUDE='hypershiftoperator/deploy/crds/|acm/deploy/helm/multicluster-engine-config/charts/policy/charts|dev-infrastructure/global-pipeline.yaml|tooling/templatize/testdata/pipeline.yaml|hypershiftoperator/deploy/templates/cluster.clustersizingconfiguration.yaml' \

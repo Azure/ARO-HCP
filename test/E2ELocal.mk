@@ -39,6 +39,48 @@ e2e-local/pf/run-test: $(HCPCTL)
 			$(MAKE) -C $(DIR) -f $(THIS) e2e-local/run-test SKIP_CERT_VERIFICATION=true FRONTEND_ADDRESS=http://localhost:$(LOCAL_FRONTEND_PORT) ADMIN_API_ADDRESS=http://localhost:$(LOCAL_ADMIN_API_PORT)
 .PHONY: e2e-local/pf/run-test
 
+e2e-local/pf/shell: $(HCPCTL)
+	HCPCTL=$(HCPCTL) ../hack/run-with-port-forward.sh "${SVC_CLUSTER}" "aro-hcp/aro-hcp-frontend/$(LOCAL_FRONTEND_PORT)/8443" \
+		../hack/run-with-port-forward.sh "${SVC_CLUSTER}" "aro-hcp-admin-api/admin-api/$(LOCAL_ADMIN_API_PORT)/8443" \
+			$(MAKE) -C $(DIR) -f $(THIS) e2e-local/shell/inner \
+				FRONTEND_ADDRESS=http://localhost:$(LOCAL_FRONTEND_PORT) \
+				ADMIN_API_ADDRESS=http://localhost:$(LOCAL_ADMIN_API_PORT)
+.PHONY: e2e-local/pf/shell
+
+e2e-local/shell/inner: $(ARO_HCP_TESTS) ${ARO_HCP_QE_CLUSTER}
+	$(MAKE) -C $(DIR) -f $(THIS) .e2e-local/setup
+	tmpf=$$(mktemp); \
+	customer_sub=$$(az account show --output tsv --query name); \
+	tenant_id=$$(az account show --output tsv --query tenantId); \
+	printf '%s\n' \
+		'. ~/.bashrc' \
+		'echo "********************************************************************************"' \
+		'echo "ARO HCP dev-env shell has started."' \
+		'echo "Env. variables are exported and port forwarding is running."' \
+		'echo "When you exit this shell, the port-forwarding will stop."' \
+		'echo "********************************************************************************"' \
+		'set -x' \
+		"export LOCATION=$${LOCATION:-$(REGION)}" \
+		'export AROHCP_ENV=development' \
+		"export CUSTOMER_SUBSCRIPTION='$$customer_sub'" \
+		"export AZURE_TENANT_ID='$$tenant_id'" \
+		'export SKIP_CERT_VERIFICATION=${SKIP_CERT_VERIFICATION:-false}' \
+		"export FRONTEND_ADDRESS=$(FRONTEND_ADDRESS)" \
+		"export ADMIN_API_ADDRESS=$(ADMIN_API_ADDRESS)" \
+		"export ARTIFACT_DIR=$(E2E_ARTIFACT_DIR)" \
+		'set +x' \
+		'echo "********************************************************************************"' \
+		'echo ""' \
+		'echo "You can use these binaries to run test or deploy cluster:"' \
+		'echo ""' \
+		"echo ' * E2E Test runner:   $(basename $(ARO_HCP_TESTS))'" \
+		"echo ' * QE Cluster tool:   $(basename $(ARO_HCP_QE_CLUSTER))'" \
+		'echo ""' \
+		> $$tmpf; \
+	bash --init-file $$tmpf; \
+	rm -f $$tmpf
+.PHONY: e2e-local/shell/inner
+
 e2e-local/gather-snapshot: $(ARO_HCP_TESTS) $(TEMPLATIZE)
 	$(TEMPLATIZE) configuration render \
 	  --service-config-file $(CONFIG_FILE) \

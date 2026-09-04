@@ -39,7 +39,11 @@ PROW_JOB_EXECUTOR = $(TEST_DIR)prow-job-executor
 $(PROW_JOB_EXECUTOR): $(PROW_JOB_EXECUTOR_SOURCES) $(MAKEFILE_LIST) $(TEST_DIR)/go.mod $(TEST_DIR)/go.sum
 	cd $(TEST_DIR) && go build -o $@ ./cmd/prow-job-executor
 
-build: $(PROW_JOB_EXECUTOR) $(ARO_HCP_TESTS)
+ARO_HCP_QE_CLUSTER = $(TEST_DIR)aro-hcp-qe-cluster
+$(ARO_HCP_QE_CLUSTER): $(TEST_SOURCES) $(MAKEFILE_LIST) $(TEST_DIR)/go.mod $(TEST_DIR)/go.sum $(DEMO_BICEP_OUTPUTS) $(TEST_BICEP_OUTPUTS)
+	cd $(TEST_DIR) && go build -o $@ ./cmd/aro-hcp-qe-cluster
+
+build: $(PROW_JOB_EXECUTOR) $(ARO_HCP_TESTS) $(ARO_HCP_QE_CLUSTER)
 .PHONY: build
 
 # Apply the slot-managed identity pool ARM deployment stack for a given environment.

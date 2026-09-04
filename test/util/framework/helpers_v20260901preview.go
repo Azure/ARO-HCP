@@ -349,12 +349,19 @@ func (tc *perItOrDescribeTestContext) CreateHCPClusterFromParam20260901(
 		tc.RecordTestStep(fmt.Sprintf("Deploy HCP cluster %s/%s (v20260901preview)", resourceGroupName, clusterName), startTime, finishTime)
 	}()
 
+	if OnResourceGroupCreated != nil && parameters.ManagedResourceGroupName != "" {
+		OnResourceGroupCreated(parameters.ManagedResourceGroupName)
+	}
+	if OnHCPClusterCreated != nil && parameters.ClusterName != "" {
+		OnHCPClusterCreated(resourceGroupName, parameters.ClusterName)
+	}
+
 	cluster, err := BuildHCPClusterFromParams20260901(parameters, tc.Location(), imageDigestMirrors)
 	if err != nil {
 		return fmt.Errorf("failed to build HCP cluster %s: %w", clusterName, err)
 	}
 
-	if _, err := CreateHCPClusterAndWait20260901(
+	deployedCluster, err := CreateHCPClusterAndWait20260901(
 		ctx,
 		logger,
 		tc.Get20260901ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
@@ -362,11 +369,18 @@ func (tc *perItOrDescribeTestContext) CreateHCPClusterFromParam20260901(
 		clusterName,
 		cluster,
 		timeout,
-	); err != nil {
+	)
+	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
 			return fmt.Errorf("failed to create HCP cluster %s, caused by: %w, error: %w", clusterName, context.Cause(ctx), err)
 		}
 		return fmt.Errorf("failed to create HCP cluster %s: %w", clusterName, err)
+	}
+	if OnResourceGroupCreated != nil && parameters.ManagedResourceGroupName == "" &&
+		deployedCluster != nil && deployedCluster.Properties != nil &&
+		deployedCluster.Properties.Platform != nil &&
+		deployedCluster.Properties.Platform.ManagedResourceGroup != nil {
+		OnResourceGroupCreated(*deployedCluster.Properties.Platform.ManagedResourceGroup)
 	}
 	return nil
 }
