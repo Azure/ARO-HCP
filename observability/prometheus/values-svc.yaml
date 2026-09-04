@@ -80,7 +80,7 @@ kube-prometheus-stack:
     image:
       registry: "{{ .svc.prometheus.kubeStateMetrics.image.registry }}"
       repository: "{{ .svc.prometheus.kubeStateMetrics.image.repository }}"
-      sha: "{{ .svc.prometheus.kubeStateMetrics.image.sha }}"
+      sha: "sha256:{{ .svc.prometheus.kubeStateMetrics.image.sha }}"
 # this is our own config for the files in templates/
 prometheusSpec:
   image:

@@ -9,6 +9,27 @@ globalDefault: false
 preemptionPolicy: PreemptLowerPriority
 description: "Priority class for ARO-HCP service lifecycle critical DaemonSets"
 ---
+# Source: service-lifecycle/templates/ama-metrics-prometheus-config.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ama-metrics-prometheus-config
+  namespace: kube-system
+data:
+  prometheus-config: |-
+    global:
+      scrape_interval: 30s
+    scrape_configs:
+      - job_name: "custom-app-metrics"
+        kubernetes_sd_configs:
+          - role: pod
+        metric_relabel_configs:
+          - source_labels: [microsoft_metrics_include_label]
+            regex: "^$"
+            target_label: microsoft_metrics_include_label
+            replacement: "service"
+            action: replace
+---
 # Source: service-lifecycle/templates/ama-metrics-settings-configmap.yaml
 kind: ConfigMap
 apiVersion: v1

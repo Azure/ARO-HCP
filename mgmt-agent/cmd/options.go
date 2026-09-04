@@ -58,6 +58,7 @@ import (
 	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller"
 	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller/capacityreporting"
 	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller/ksmhcp"
+	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller/monitortranslator"
 	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller/nodehealth"
 	capacityreportclient "github.com/Azure/ARO-HCP/mgmt-agent/pkg/generated/clientset/versioned"
 )
@@ -67,12 +68,13 @@ const (
 )
 
 type RawControllerOptions struct {
-	HealthAddress string
-	Kubeconfig    string
-	Namespace     string
-	Workers       int
-	LogVerbosity  int
-	KSMImage      string
+	HealthAddress      string
+	Kubeconfig         string
+	Namespace          string
+	Workers            int
+	LogVerbosity       int
+	KSMImage           string
+	OCMNamespacePrefix string
 
 	NodeHealthConfigMapName string
 	NodeHealthConfigKey     string
@@ -82,6 +84,7 @@ func DefaultControllerOptions() *RawControllerOptions {
 	return &RawControllerOptions{
 		HealthAddress:           ":8080",
 		Workers:                 2,
+		OCMNamespacePrefix:      "ocm-",
 		NodeHealthConfigMapName: "mgmt-agent-node-health",
 		NodeHealthConfigKey:     "config.yaml",
 	}
@@ -96,6 +99,7 @@ func (o *RawControllerOptions) BindFlags(cmd *cobra.Command) error {
 		"Log verbosity. 0 is the default verbosity level, equivalent to INFO. "+
 			"It must be a value >= 0, where a higher value means more verbose output.")
 	cmd.Flags().StringVar(&o.KSMImage, "ksm-image", o.KSMImage, "Container image for kube-state-metrics deployed per HCP namespace")
+	cmd.Flags().StringVar(&o.OCMNamespacePrefix, "ocm-namespace-prefix", o.OCMNamespacePrefix, "Namespace prefix for OCM/HyperShift namespaces to translate monitors for")
 	cmd.Flags().StringVar(&o.NodeHealthConfigMapName, "node-health-configmap", o.NodeHealthConfigMapName,
 		"Name of the ConfigMap (in --namespace) holding the node-health configuration. The controller is disabled until this ConfigMap enables it.")
 	cmd.Flags().StringVar(&o.NodeHealthConfigKey, "node-health-config-key", o.NodeHealthConfigKey,
@@ -115,6 +119,7 @@ type ValidatedControllerOptions struct {
 type completedControllerOptions struct {
 	ctrl                     *controller.SwiftNICController
 	ksmCtrl                  *ksmhcp.KSMHCPController
+	monitorTranslatorCtrl    *monitortranslator.MonitorTranslatorController
 	nodeHealth               *nodehealth.Controller
 	capacityReport           *capacityreporting.CapacityReportController
 	resourceWatcher          *controller.ResourceWatcher
@@ -128,6 +133,7 @@ type completedControllerOptions struct {
 	nodeHealthCMInformers    kubeinformers.SharedInformerFactory
 	hypershiftInformers      hypershiftinformers.SharedInformerFactory
 	dynamicInformers         dynamicinformer.DynamicSharedInformerFactory
+	translatorDynInformers   dynamicinformer.DynamicSharedInformerFactory
 	workers                  int
 	healthAddress            string
 	leaderElectionLock       resourcelock.Interface
@@ -301,8 +307,10 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 	)
 
 	var ksmCtrl *ksmhcp.KSMHCPController
+	var monitorTranslatorCtrl *monitortranslator.MonitorTranslatorController
 	var ksmKubeInformers kubeinformers.SharedInformerFactory
 	var dynInformers dynamicinformer.DynamicSharedInformerFactory
+	var translatorDynInformers dynamicinformer.DynamicSharedInformerFactory
 	if o.KSMImage != "" {
 		ksmKubeInformers = kubeinformers.NewSharedInformerFactoryWithOptions(kubeClientset, 10*time.Minute,
 			kubeinformers.WithTweakListOptions(func(opts *metav1.ListOptions) {
@@ -328,6 +336,17 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 		if err != nil {
 			return nil, fmt.Errorf("failed to create KSM HCP controller: %w", err)
 		}
+
+		translatorDynInformers = dynamicinformer.NewDynamicSharedInformerFactory(dynamicClient, 10*time.Minute)
+		monitorTranslatorCtrl, err = monitortranslator.NewMonitorTranslatorController(
+			dynamicClient,
+			translatorDynInformers.ForResource(monitortranslator.SourceServiceMonitorGVR).Informer(),
+			translatorDynInformers.ForResource(monitortranslator.SourcePodMonitorGVR).Informer(),
+			o.OCMNamespacePrefix,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create monitor translator controller: %w", err)
+		}
 	}
 
 	hostname, err := os.Hostname()
@@ -344,6 +363,7 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 		completedControllerOptions: &completedControllerOptions{
 			ctrl:                     ctrl,
 			ksmCtrl:                  ksmCtrl,
+			monitorTranslatorCtrl:    monitorTranslatorCtrl,
 			nodeHealth:               nodeHealth,
 			capacityReport:           capacityReportCtrl,
 			resourceWatcher:          resourceWatcher,
@@ -357,6 +377,7 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 			nodeHealthCMInformers:    nodeHealthCMInformers,
 			hypershiftInformers:      hsInformers,
 			dynamicInformers:         dynInformers,
+			translatorDynInformers:   translatorDynInformers,
 			workers:                  o.Workers,
 			healthAddress:            o.HealthAddress,
 			leaderElectionLock:       leaderElectionLock,
@@ -465,6 +486,9 @@ func (o *ControllerOptions) runControllersUnderLeaderElection(ctx context.Contex
 				if o.dynamicInformers != nil {
 					o.dynamicInformers.Start(ctx.Done())
 				}
+				if o.translatorDynInformers != nil {
+					o.translatorDynInformers.Start(ctx.Done())
+				}
 				if o.cmWatcherInformers != nil {
 					o.cmWatcherInformers.Start(ctx.Done())
 				}
@@ -508,6 +532,14 @@ func (o *ControllerOptions) runControllersUnderLeaderElection(ctx context.Contex
 						defer utilruntime.HandleCrash()
 						if err := o.ksmCtrl.Run(ctx, o.workers); err != nil {
 							logger.Error(err, "KSM HCP controller failed")
+						}
+					}()
+				}
+				if o.monitorTranslatorCtrl != nil {
+					go func() {
+						defer utilruntime.HandleCrash()
+						if err := o.monitorTranslatorCtrl.Run(ctx, o.workers); err != nil {
+							logger.Error(err, "monitor translator controller failed")
 						}
 					}()
 				}

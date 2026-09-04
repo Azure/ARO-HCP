@@ -6,7 +6,7 @@ image:
 ksmImage:
   registry: "{{ .mgmt.prometheus.kubeStateMetrics.image.registry }}"
   repository: "{{ .mgmt.prometheus.kubeStateMetrics.image.repository }}"
-  digest: "{{ .mgmt.prometheus.kubeStateMetrics.image.digest }}"
+  digest: "{{ .mgmt.prometheus.kubeStateMetrics.image.sha }}"
 deployment:
   replicas: "{{ .mgmtAgent.k8s.replicas }}"
   requests:

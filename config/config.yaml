@@ -1689,6 +1689,7 @@ clouds:
               exporter: "otlp"
           # MC
           mgmt:
+            monitoringApiGroup: "azmonitoring.coreos.com"
             rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}"
             aks:
               name: "{{ .ctx.environment }}-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}"
@@ -1709,6 +1710,7 @@ clouds:
             applyKubeletFixes: false
           # SVC
           svc:
+            monitoringApiGroup: "azmonitoring.coreos.com"
             rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.regionShort }}-svc"
             aks:
               name: "{{ .ctx.environment }}-{{ .ctx.regionShort }}-svc"

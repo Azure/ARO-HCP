@@ -1,7 +1,7 @@
 {{- $none := "NONE" -}}
 {{- $ossMonitoring := eq .Values.monitoringApiGroup "monitoring.coreos.com" -}}
+{{- if $ossMonitoring }}
 {{- $hasHcpRemoteWrite := ne .Values.prometheusSpec.hcpRemoteWriteUrl $none -}}
-{{- if or $ossMonitoring $hasHcpRemoteWrite }}
 {{- $setRequests := or (ne (.Values.prometheusSpec.resources.requests.cpu | toString) $none) (ne (.Values.prometheusSpec.resources.requests.memory | toString) $none) -}}
 {{- $setLimits := ne (.Values.prometheusSpec.resources.limits.memory | toString) $none -}}
 apiVersion: monitoring.coreos.com/v1alpha1
@@ -113,7 +113,6 @@ spec:
     region: '{{ .Values.prometheusSpec.externalLabels.region }}'
     environment: '{{ .Values.prometheusSpec.externalLabels.environment }}'
   remoteWrite:
-  {{- if $ossMonitoring }}
   - url: '{{ .Values.prometheusSpec.remoteWriteUrl }}'
     azureAd:
       cloud: AzurePublic
@@ -142,7 +141,6 @@ spec:
         regex: '^ocm-{{ .Values.environment }}.*'
         action: drop
     {{- end -}}
-  {{- end }}
   {{- if $hasHcpRemoteWrite }}
   - url: '{{ .Values.prometheusSpec.hcpRemoteWriteUrl }}'
     azureAd:

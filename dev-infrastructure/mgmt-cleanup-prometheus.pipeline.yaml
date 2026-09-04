@@ -1,6 +1,6 @@
 $schema: "pipeline.schema.v1"
-serviceGroup: Microsoft.Azure.ARO.HCP.SVC.CleanupPrometheus
-rolloutName: SVC Prometheus Cleanup Rollout
+serviceGroup: Microsoft.Azure.ARO.HCP.MGMT.CleanupPrometheus
+rolloutName: MGMT Prometheus Cleanup Rollout
 resourceGroups:
 - name: global
   resourceGroup: '{{ .global.rg }}'
@@ -12,15 +12,20 @@ resourceGroups:
     parameters: configurations/output-global.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
-- name: service
-  resourceGroup: '{{ .svc.rg }}'
-  subscription: '{{ .svc.subscription.key }}'
+- name: mgmt
+  resourceGroup: '{{ .mgmt.rg }}'
+  subscription: '{{ .mgmt.subscription.key }}'
   steps:
   - name: cleanup-prometheus
-    aksCluster: '{{ .svc.aks.name }}'
+    aksCluster: '{{ .mgmt.aks.name }}'
     action: Shell
     command: ./cleanup-prometheus.sh
     workingDir: ./scripts
+    variables:
+    - name: MONITORING_API_GROUP
+      configRef: mgmt.monitoringApiGroup
+    - name: IS_MGMT_CLUSTER
+      value: "true"
     externalDependsOn:
     - serviceGroup: Microsoft.Azure.ARO.HCP.Maestro.Server
       resourceGroup: service

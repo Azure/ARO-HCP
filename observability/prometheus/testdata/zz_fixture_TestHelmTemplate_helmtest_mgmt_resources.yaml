@@ -68269,7 +68269,7 @@ spec:
           mountPath: /etc/customresourcestate
           readOnly: true
         imagePullPolicy: IfNotPresent
-        image: mcr.microsoft.com/oss/v2/kubernetes/kube-state-metrics:v2.15.0@9b99d6e6e3a52eeb24295f1ebbb62dd2f415b1665ca2235e259bdf79792876de
+        image: mcr.microsoft.com/oss/v2/kubernetes/kube-state-metrics:v2.15.0@sha256:1234567890
         ports:
         - containerPort: 8080
           name: "http"

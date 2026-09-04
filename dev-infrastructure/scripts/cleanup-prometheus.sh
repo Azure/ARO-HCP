@@ -28,6 +28,11 @@ delete_ns_if_exists() {
 
 echo "=== Cleaning up prometheus-operator from SVC cluster ==="
 
+if [ "$MONITORING_API_GROUP" != "azmonitoring.coreos.com" ]; then
+    echo "Skipping prometheus cleanup for $MONITORING_API_GROUP"
+    exit 0
+fi
+
 # 1. Delete the prometheus namespace (cascades all namespace-scoped resources)
 delete_ns_if_exists "prometheus"
 
@@ -44,16 +49,20 @@ delete_if_exists clusterrolebinding "prometheus-admission"
 delete_if_exists validatingwebhookconfiguration "prometheus-admission"
 delete_if_exists mutatingwebhookconfiguration "prometheus-admission"
 
-# 3. Delete CRDs installed by kube-prometheus-stack
-delete_if_exists crd "alertmanagerconfigs.monitoring.coreos.com"
-delete_if_exists crd "alertmanagers.monitoring.coreos.com"
-delete_if_exists crd "podmonitors.monitoring.coreos.com"
-delete_if_exists crd "probes.monitoring.coreos.com"
-delete_if_exists crd "prometheusagents.monitoring.coreos.com"
-delete_if_exists crd "prometheuses.monitoring.coreos.com"
-delete_if_exists crd "prometheusrules.monitoring.coreos.com"
-delete_if_exists crd "scrapeconfigs.monitoring.coreos.com"
-delete_if_exists crd "servicemonitors.monitoring.coreos.com"
-delete_if_exists crd "thanosrulers.monitoring.coreos.com"
+if [ "${IS_MGMT_CLUSTER:-false}" == "true" ]; then
+    echo "Skipping CRD deletion for mgmt cluster to preserve CRDs for workloads."
+else
+    # 3. Delete CRDs installed by kube-prometheus-stack
+    delete_if_exists crd "alertmanagerconfigs.monitoring.coreos.com"
+    delete_if_exists crd "alertmanagers.monitoring.coreos.com"
+    delete_if_exists crd "podmonitors.monitoring.coreos.com"
+    delete_if_exists crd "probes.monitoring.coreos.com"
+    delete_if_exists crd "prometheusagents.monitoring.coreos.com"
+    delete_if_exists crd "prometheuses.monitoring.coreos.com"
+    delete_if_exists crd "prometheusrules.monitoring.coreos.com"
+    delete_if_exists crd "scrapeconfigs.monitoring.coreos.com"
+    delete_if_exists crd "servicemonitors.monitoring.coreos.com"
+    delete_if_exists crd "thanosrulers.monitoring.coreos.com"
+fi
 
 echo "=== Prometheus cleanup complete ==="

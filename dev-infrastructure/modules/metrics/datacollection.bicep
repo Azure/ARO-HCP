@@ -20,6 +20,14 @@ resource dce 'Microsoft.Insights/dataCollectionEndpoints@2022-06-01' = {
   properties: {}
 }
 
+var svcLabelIncludeFilter = {
+  'microsoft_metrics_include_label': 'service'
+}
+
+var hcpLabelIncludeFilter = {
+  'microsoft_metrics_include_label': 'hcp'
+}
+
 resource dcr 'Microsoft.Insights/dataCollectionRules@2022-06-01' = {
   name: dcrName
   location: azureMonitorWorkspaceLocation
@@ -46,7 +54,7 @@ resource dcr 'Microsoft.Insights/dataCollectionRules@2022-06-01' = {
           streams: [
             'Microsoft-PrometheusMetrics'
           ]
-          labelIncludeFilter: {}
+          labelIncludeFilter: svcLabelIncludeFilter
         }
       ]
     }
@@ -88,7 +96,7 @@ resource hcpDcr 'Microsoft.Insights/dataCollectionRules@2022-06-01' = if (hcpAzu
           streams: [
             'Microsoft-PrometheusMetrics'
           ]
-          labelIncludeFilter: {}
+          labelIncludeFilter: hcpLabelIncludeFilter
         }
       ]
     }
