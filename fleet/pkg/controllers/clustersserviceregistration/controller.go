@@ -62,7 +62,7 @@ func NewClustersServiceRegistrationController(
 	stampLister fleetlisters.StampLister,
 	region string,
 	cfg fleetcontrollers.StampWatchingControllerConfig,
-) *fleetcontrollers.StampWatchingController {
+) fleetcontrollers.Controller {
 	syncer := &clustersServiceRegistrationSyncer{
 		fleetDBClient:         fleetDBClient,
 		clustersServiceClient: clustersServiceClient,

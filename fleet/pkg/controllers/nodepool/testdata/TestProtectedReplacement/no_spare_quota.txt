@@ -1,0 +1,37 @@
+initial:
+  old  worker  sku  zone=  max=10  count=5  autoscaled
+
+desired:
+  new  worker  sku  zone=  max=10
+
+budget (vCPUs):
+  family:  20
+
+initial headroom (vCPUs):
+  family:  0
+
+fully allocated: true
+
+baseline:
+  system:  cpu=0   memory=0GiB    swiftNICs=0
+  infra:   cpu=0   memory=0GiB    swiftNICs=0
+  worker:  cpu=40  memory=160GiB  swiftNICs=20
+
+transition floor:
+  system:  cpu=0   memory=0GiB    swiftNICs=0
+  infra:   cpu=0   memory=0GiB    swiftNICs=0
+  worker:  cpu=40  memory=160GiB  swiftNICs=20
+
+initial capacity:
+  system:  cpu=0   (+0)  memory=0GiB    (+0GiB)  swiftNICs=0   (+0)
+  infra:   cpu=0   (+0)  memory=0GiB    (+0GiB)  swiftNICs=0   (+0)
+  worker:  cpu=40  (+0)  memory=160GiB  (+0GiB)  swiftNICs=20  (+0)
+
+actions:
+  (none)
+
+final:
+  old  worker  sku  zone=  max=10  count=5  autoscaled
+
+steps:      0
+converged:  false

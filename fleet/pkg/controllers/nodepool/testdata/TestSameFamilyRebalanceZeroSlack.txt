@@ -1,0 +1,47 @@
+initial:
+  a1  worker  Standard_E32ds_v6  zone=1  max=10  count=8  autoscaled
+  b1  worker  Standard_E32ds_v6  zone=2  max=1   count=1  autoscaled
+
+desired:
+  a1  worker  Standard_E32ds_v6  zone=1  max=3
+  b1  worker  Standard_E32ds_v6  zone=2  max=6
+
+budget (vCPUs):
+  standardEDSv6Family:  288
+
+initial headroom (vCPUs):
+  standardEDSv6Family:  224
+
+fully allocated: true
+
+baseline:
+  system:  cpu=0    memory=0GiB     swiftNICs=0
+  infra:   cpu=0    memory=0GiB     swiftNICs=0
+  worker:  cpu=256  memory=2048GiB  swiftNICs=56
+
+transition floor:
+  system:  cpu=0    memory=0GiB     swiftNICs=0
+  infra:   cpu=0    memory=0GiB     swiftNICs=0
+  worker:  cpu=256  memory=2048GiB  swiftNICs=56
+
+initial capacity:
+  system:  cpu=0    (+0)   memory=0GiB     (+0GiB)    swiftNICs=0   (+0)
+  infra:   cpu=0    (+0)   memory=0GiB     (+0GiB)    swiftNICs=0   (+0)
+  worker:  cpu=352  (+96)  memory=2816GiB  (+768GiB)  swiftNICs=77  (+21)
+
+actions:
+    1.  Freeze            worker  Standard_E32ds_v6  a1  count=8        capacity: cpu=288  (+32)   memory=2304GiB  (+256GiB)   swiftNICs=63  (+7)   EDSv6:    288c remaining
+    2.  Reduce            worker  Standard_E32ds_v6  a1  count=7        capacity: cpu=256  (+0)    memory=2048GiB  (+0GiB)     swiftNICs=56  (+0)   EDSv6:    320c remaining
+    3.  SetScalingBounds  worker  Standard_E32ds_v6  b1  min=1   max=6  capacity: cpu=416  (+160)  memory=3328GiB  (+1280GiB)  swiftNICs=91  (+35)  EDSv6:    160c remaining
+    4.  Reduce            worker  Standard_E32ds_v6  a1  count=6        capacity: cpu=384  (+128)  memory=3072GiB  (+1024GiB)  swiftNICs=84  (+28)  EDSv6:    192c remaining
+    5.  Reduce            worker  Standard_E32ds_v6  a1  count=5        capacity: cpu=352  (+96)   memory=2816GiB  (+768GiB)   swiftNICs=77  (+21)  EDSv6:    224c remaining
+    6.  Reduce            worker  Standard_E32ds_v6  a1  count=4        capacity: cpu=320  (+64)   memory=2560GiB  (+512GiB)   swiftNICs=70  (+14)  EDSv6:    256c remaining
+    7.  Reduce            worker  Standard_E32ds_v6  a1  count=3        capacity: cpu=288  (+32)   memory=2304GiB  (+256GiB)   swiftNICs=63  (+7)   EDSv6:    288c remaining
+    8.  Unfreeze          worker  Standard_E32ds_v6  a1  min=1   max=3  capacity: cpu=288  (+32)   memory=2304GiB  (+256GiB)   swiftNICs=63  (+7)
+
+final:
+  a1  worker  Standard_E32ds_v6  zone=1  max=3  count=3  autoscaled
+  b1  worker  Standard_E32ds_v6  zone=2  max=6  count=1  autoscaled
+
+steps:      8
+converged:  true

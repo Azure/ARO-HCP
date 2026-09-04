@@ -1,0 +1,55 @@
+initial:
+  a1  worker  Standard_E32ds_v6  zone=1  max=6  count=3  autoscaled
+  b1  worker  Standard_D4s_v3    zone=1  max=6  count=2  autoscaled
+  c1  worker  Standard_D4s_v3    zone=2  max=6  count=2  autoscaled
+
+desired:
+  a1  worker  Standard_E32ds_v6  zone=1  max=6
+  d1  worker  Standard_D8ds_v6   zone=1  max=4
+
+budget (vCPUs):
+  standardDDSv6Family:  32
+  standardDSv3Family:   48
+  standardEDSv6Family:  192
+
+initial headroom (vCPUs):
+  standardDDSv6Family:  32
+  standardDSv3Family:   16
+  standardEDSv6Family:  96
+
+fully allocated: true
+
+baseline:
+  system:  cpu=0    memory=0GiB     swiftNICs=0
+  infra:   cpu=0    memory=0GiB     swiftNICs=0
+  worker:  cpu=192  memory=1536GiB  swiftNICs=42
+
+transition floor:
+  system:  cpu=0    memory=0GiB     swiftNICs=0
+  infra:   cpu=0    memory=0GiB     swiftNICs=0
+  worker:  cpu=192  memory=1536GiB  swiftNICs=42
+
+initial capacity:
+  system:  cpu=0    (+0)   memory=0GiB     (+0GiB)    swiftNICs=0   (+0)
+  infra:   cpu=0    (+0)   memory=0GiB     (+0GiB)    swiftNICs=0   (+0)
+  worker:  cpu=240  (+48)  memory=1728GiB  (+192GiB)  swiftNICs=54  (+12)
+
+actions:
+    1.  Create            worker  Standard_D8ds_v6  d1  min=1   max=4  capacity: cpu=272  (+80)  memory=1984GiB  (+448GiB)  swiftNICs=66  (+24)  DDSv6:      0c remaining
+    2.  SetScalingBounds  worker  Standard_D4s_v3   b1  min=1   max=2  capacity: cpu=256  (+64)  memory=1920GiB  (+384GiB)  swiftNICs=62  (+20)  DSv3:      32c remaining
+    3.  SetScalingBounds  worker  Standard_D4s_v3   c1  min=1   max=2  capacity: cpu=240  (+48)  memory=1856GiB  (+320GiB)  swiftNICs=58  (+16)  DSv3:      48c remaining
+    4.  Freeze            worker  Standard_D4s_v3   b1  count=2        capacity: cpu=240  (+48)  memory=1856GiB  (+320GiB)  swiftNICs=58  (+16)
+    5.  Freeze            worker  Standard_D4s_v3   c1  count=2        capacity: cpu=240  (+48)  memory=1856GiB  (+320GiB)  swiftNICs=58  (+16)
+    6.  Reduce            worker  Standard_D4s_v3   b1  count=1        capacity: cpu=236  (+44)  memory=1840GiB  (+304GiB)  swiftNICs=57  (+15)  DSv3:      52c remaining
+    7.  Reduce            worker  Standard_D4s_v3   b1  count=0        capacity: cpu=232  (+40)  memory=1824GiB  (+288GiB)  swiftNICs=56  (+14)  DSv3:      56c remaining
+    8.  Reduce            worker  Standard_D4s_v3   c1  count=1        capacity: cpu=228  (+36)  memory=1808GiB  (+272GiB)  swiftNICs=55  (+13)  DSv3:      60c remaining
+    9.  Reduce            worker  Standard_D4s_v3   c1  count=0        capacity: cpu=224  (+32)  memory=1792GiB  (+256GiB)  swiftNICs=54  (+12)  DSv3:      64c remaining
+   10.  Delete            worker  Standard_D4s_v3   b1                 capacity: cpu=224  (+32)  memory=1792GiB  (+256GiB)  swiftNICs=54  (+12)
+   11.  Delete            worker  Standard_D4s_v3   c1                 capacity: cpu=224  (+32)  memory=1792GiB  (+256GiB)  swiftNICs=54  (+12)
+
+final:
+  a1  worker  Standard_E32ds_v6  zone=1  max=6  count=3  autoscaled
+  d1  worker  Standard_D8ds_v6   zone=1  max=4  count=1  autoscaled
+
+steps:      11
+converged:  true

@@ -39,7 +39,7 @@ func NewStampDataDumpController(
 	stampLister fleetlisters.StampLister,
 	managementClusterLister fleetlisters.ManagementClusterLister,
 	cfg fleetcontrollers.StampWatchingControllerConfig,
-) *fleetcontrollers.StampWatchingController {
+) fleetcontrollers.Controller {
 	syncer := &stampDataDumpSyncer{
 		stampLister:             stampLister,
 		managementClusterLister: managementClusterLister,

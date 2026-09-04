@@ -1,0 +1,62 @@
+initial:
+  e1  worker  Standard_E32ds_v6  zone=1  max=6  count=2  autoscaled
+  e2  worker  Standard_E32ds_v6  zone=2  max=6  count=2  autoscaled
+  e3  worker  Standard_E32ds_v6  zone=3  max=6  count=2  autoscaled
+
+desired:
+  d1  worker  Standard_D8ds_v6  zone=1  max=6
+  d2  worker  Standard_D8ds_v6  zone=2  max=6
+  d3  worker  Standard_D8ds_v6  zone=3  max=6
+
+budget (vCPUs):
+  standardDDSv6Family:  144
+  standardEDSv6Family:  576
+
+initial headroom (vCPUs):
+  standardDDSv6Family:  144
+  standardEDSv6Family:  192
+
+fully allocated: true
+
+baseline:
+  system:  cpu=0    memory=0GiB     swiftNICs=0
+  infra:   cpu=0    memory=0GiB     swiftNICs=0
+  worker:  cpu=144  memory=1152GiB  swiftNICs=54
+
+transition floor:
+  system:  cpu=0    memory=0GiB     swiftNICs=0
+  infra:   cpu=0    memory=0GiB     swiftNICs=0
+  worker:  cpu=144  memory=1152GiB  swiftNICs=54
+
+initial capacity:
+  system:  cpu=0    (+0)    memory=0GiB     (+0GiB)     swiftNICs=0    (+0)
+  infra:   cpu=0    (+0)    memory=0GiB     (+0GiB)     swiftNICs=0    (+0)
+  worker:  cpu=576  (+432)  memory=4608GiB  (+3456GiB)  swiftNICs=126  (+72)
+
+actions:
+    1.  Create            worker  Standard_D8ds_v6   d1  min=1   max=6  capacity: cpu=624  (+480)  memory=4992GiB  (+3840GiB)  swiftNICs=144  (+90)   DDSv6:     96c remaining
+    2.  Create            worker  Standard_D8ds_v6   d2  min=1   max=6  capacity: cpu=672  (+528)  memory=5376GiB  (+4224GiB)  swiftNICs=162  (+108)  DDSv6:     48c remaining
+    3.  Create            worker  Standard_D8ds_v6   d3  min=1   max=6  capacity: cpu=720  (+576)  memory=5760GiB  (+4608GiB)  swiftNICs=180  (+126)  DDSv6:      0c remaining
+    4.  SetScalingBounds  worker  Standard_E32ds_v6  e1  min=1   max=2  capacity: cpu=592  (+448)  memory=4736GiB  (+3584GiB)  swiftNICs=152  (+98)   EDSv6:    320c remaining
+    5.  SetScalingBounds  worker  Standard_E32ds_v6  e2  min=1   max=2  capacity: cpu=464  (+320)  memory=3712GiB  (+2560GiB)  swiftNICs=124  (+70)   EDSv6:    448c remaining
+    6.  SetScalingBounds  worker  Standard_E32ds_v6  e3  min=1   max=2  capacity: cpu=336  (+192)  memory=2688GiB  (+1536GiB)  swiftNICs=96   (+42)   EDSv6:    576c remaining
+    7.  Freeze            worker  Standard_E32ds_v6  e1  count=2        capacity: cpu=336  (+192)  memory=2688GiB  (+1536GiB)  swiftNICs=96   (+42)
+    8.  Freeze            worker  Standard_E32ds_v6  e2  count=2        capacity: cpu=336  (+192)  memory=2688GiB  (+1536GiB)  swiftNICs=96   (+42)
+    9.  Freeze            worker  Standard_E32ds_v6  e3  count=2        capacity: cpu=336  (+192)  memory=2688GiB  (+1536GiB)  swiftNICs=96   (+42)
+   10.  Reduce            worker  Standard_E32ds_v6  e1  count=1        capacity: cpu=304  (+160)  memory=2432GiB  (+1280GiB)  swiftNICs=89   (+35)  EDSv6:    608c remaining
+   11.  Reduce            worker  Standard_E32ds_v6  e1  count=0        capacity: cpu=272  (+128)  memory=2176GiB  (+1024GiB)  swiftNICs=82   (+28)  EDSv6:    640c remaining
+   12.  Reduce            worker  Standard_E32ds_v6  e2  count=1        capacity: cpu=240  (+96)   memory=1920GiB  (+768GiB)   swiftNICs=75   (+21)  EDSv6:    672c remaining
+   13.  Reduce            worker  Standard_E32ds_v6  e2  count=0        capacity: cpu=208  (+64)   memory=1664GiB  (+512GiB)   swiftNICs=68   (+14)  EDSv6:    704c remaining
+   14.  Reduce            worker  Standard_E32ds_v6  e3  count=1        capacity: cpu=176  (+32)   memory=1408GiB  (+256GiB)   swiftNICs=61   (+7)   EDSv6:    736c remaining
+   15.  Reduce            worker  Standard_E32ds_v6  e3  count=0        capacity: cpu=144  (+0)    memory=1152GiB  (+0GiB)     swiftNICs=54   (+0)   EDSv6:    768c remaining
+   16.  Delete            worker  Standard_E32ds_v6  e1                 capacity: cpu=144  (+0)    memory=1152GiB  (+0GiB)     swiftNICs=54   (+0)
+   17.  Delete            worker  Standard_E32ds_v6  e2                 capacity: cpu=144  (+0)    memory=1152GiB  (+0GiB)     swiftNICs=54   (+0)
+   18.  Delete            worker  Standard_E32ds_v6  e3                 capacity: cpu=144  (+0)    memory=1152GiB  (+0GiB)     swiftNICs=54   (+0)
+
+final:
+  d1  worker  Standard_D8ds_v6  zone=1  max=6  count=1  autoscaled
+  d2  worker  Standard_D8ds_v6  zone=2  max=6  count=1  autoscaled
+  d3  worker  Standard_D8ds_v6  zone=3  max=6  count=1  autoscaled
+
+steps:      18
+converged:  true

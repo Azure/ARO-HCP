@@ -1,0 +1,54 @@
+initial:
+  (none)
+
+desired:
+  e1  worker  Standard_E32ds_v6  zone=1  max=4
+  d1  worker  Standard_D8ds_v6   zone=1  max=2
+  e2  worker  Standard_E32ds_v6  zone=2  max=4
+  d2  worker  Standard_D8ds_v6   zone=2  max=2
+  e3  worker  Standard_E32ds_v6  zone=3  max=4
+  d3  worker  Standard_D8ds_v6   zone=3  max=2
+
+budget (vCPUs):
+  standardDDSv6Family:  48
+  standardEDSv6Family:  384
+
+initial headroom (vCPUs):
+  standardDDSv6Family:  48
+  standardEDSv6Family:  384
+
+fully allocated: true
+
+baseline:
+  system:  cpu=0  memory=0GiB  swiftNICs=0
+  infra:   cpu=0  memory=0GiB  swiftNICs=0
+  worker:  cpu=0  memory=0GiB  swiftNICs=0
+
+transition floor:
+  system:  cpu=0  memory=0GiB  swiftNICs=0
+  infra:   cpu=0  memory=0GiB  swiftNICs=0
+  worker:  cpu=0  memory=0GiB  swiftNICs=0
+
+initial capacity:
+  system:  cpu=0  (+0)  memory=0GiB  (+0GiB)  swiftNICs=0  (+0)
+  infra:   cpu=0  (+0)  memory=0GiB  (+0GiB)  swiftNICs=0  (+0)
+  worker:  cpu=0  (+0)  memory=0GiB  (+0GiB)  swiftNICs=0  (+0)
+
+actions:
+    1.  Create  worker  Standard_E32ds_v6  e1  min=1   max=4  capacity: cpu=128  (+128)  memory=1024GiB  (+1024GiB)  swiftNICs=28   (+28)   EDSv6:    256c remaining
+    2.  Create  worker  Standard_D8ds_v6   d1  min=1   max=2  capacity: cpu=144  (+144)  memory=1152GiB  (+1152GiB)  swiftNICs=34   (+34)   DDSv6:     32c remaining
+    3.  Create  worker  Standard_E32ds_v6  e2  min=1   max=4  capacity: cpu=272  (+272)  memory=2176GiB  (+2176GiB)  swiftNICs=62   (+62)   EDSv6:    128c remaining
+    4.  Create  worker  Standard_D8ds_v6   d2  min=1   max=2  capacity: cpu=288  (+288)  memory=2304GiB  (+2304GiB)  swiftNICs=68   (+68)   DDSv6:     16c remaining
+    5.  Create  worker  Standard_E32ds_v6  e3  min=1   max=4  capacity: cpu=416  (+416)  memory=3328GiB  (+3328GiB)  swiftNICs=96   (+96)   EDSv6:      0c remaining
+    6.  Create  worker  Standard_D8ds_v6   d3  min=1   max=2  capacity: cpu=432  (+432)  memory=3456GiB  (+3456GiB)  swiftNICs=102  (+102)  DDSv6:      0c remaining
+
+final:
+  e1  worker  Standard_E32ds_v6  zone=1  max=4  count=1  autoscaled
+  d1  worker  Standard_D8ds_v6   zone=1  max=2  count=1  autoscaled
+  e2  worker  Standard_E32ds_v6  zone=2  max=4  count=1  autoscaled
+  d2  worker  Standard_D8ds_v6   zone=2  max=2  count=1  autoscaled
+  e3  worker  Standard_E32ds_v6  zone=3  max=4  count=1  autoscaled
+  d3  worker  Standard_D8ds_v6   zone=3  max=2  count=1  autoscaled
+
+steps:      6
+converged:  true

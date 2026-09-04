@@ -1,0 +1,76 @@
+initial:
+  e16az1  worker  Standard_E16ds_v6  zone=1  max=3  count=1  autoscaled
+  e16bz1  worker  Standard_E16ds_v6  zone=1  max=3  count=1  autoscaled
+  e16az2  worker  Standard_E16ds_v6  zone=2  max=3  count=1  autoscaled
+  e16bz2  worker  Standard_E16ds_v6  zone=2  max=3  count=1  autoscaled
+  e16az3  worker  Standard_E16ds_v6  zone=3  max=3  count=1  autoscaled
+  e16bz3  worker  Standard_E16ds_v6  zone=3  max=3  count=1  autoscaled
+
+desired:
+  e32z1  worker  Standard_E32ds_v6  zone=1  max=3
+  e32z2  worker  Standard_E32ds_v6  zone=2  max=3
+  e32z3  worker  Standard_E32ds_v6  zone=3  max=3
+
+budget (vCPUs):
+  standardEDSv6Family:  288
+
+initial headroom (vCPUs):
+  standardEDSv6Family:  96
+
+fully allocated: true
+
+baseline:
+  system:  cpu=0    memory=0GiB     swiftNICs=0
+  infra:   cpu=0    memory=0GiB     swiftNICs=0
+  worker:  cpu=144  memory=1152GiB  swiftNICs=63
+
+transition floor:
+  system:  cpu=0    memory=0GiB     swiftNICs=0
+  infra:   cpu=0    memory=0GiB     swiftNICs=0
+  worker:  cpu=144  memory=1152GiB  swiftNICs=63
+
+initial capacity:
+  system:  cpu=0    (+0)    memory=0GiB     (+0GiB)     swiftNICs=0    (+0)
+  infra:   cpu=0    (+0)    memory=0GiB     (+0GiB)     swiftNICs=0    (+0)
+  worker:  cpu=288  (+144)  memory=2304GiB  (+1152GiB)  swiftNICs=126  (+63)
+
+actions:
+    1.  Create            worker  Standard_E32ds_v6  e32z1   min=1   max=3  capacity: cpu=384  (+240)  memory=3072GiB  (+1920GiB)  swiftNICs=147  (+84)  EDSv6:      0c remaining
+    2.  SetScalingBounds  worker  Standard_E16ds_v6  e16az1  min=1   max=1  capacity: cpu=352  (+208)  memory=2816GiB  (+1664GiB)  swiftNICs=133  (+70)  EDSv6:     32c remaining
+    3.  Create            worker  Standard_E32ds_v6  e32z2   min=1   max=1  capacity: cpu=384  (+240)  memory=3072GiB  (+1920GiB)  swiftNICs=140  (+77)  EDSv6:      0c remaining
+    4.  SetScalingBounds  worker  Standard_E16ds_v6  e16az2  min=1   max=1  capacity: cpu=352  (+208)  memory=2816GiB  (+1664GiB)  swiftNICs=126  (+63)  EDSv6:     32c remaining
+    5.  Create            worker  Standard_E32ds_v6  e32z3   min=1   max=1  capacity: cpu=384  (+240)  memory=3072GiB  (+1920GiB)  swiftNICs=133  (+70)  EDSv6:      0c remaining
+    6.  SetScalingBounds  worker  Standard_E16ds_v6  e16az3  min=1   max=1  capacity: cpu=352  (+208)  memory=2816GiB  (+1664GiB)  swiftNICs=119  (+56)  EDSv6:     32c remaining
+    7.  SetScalingBounds  worker  Standard_E32ds_v6  e32z2   min=1   max=2  capacity: cpu=384  (+240)  memory=3072GiB  (+1920GiB)  swiftNICs=126  (+63)  EDSv6:      0c remaining
+    8.  SetScalingBounds  worker  Standard_E16ds_v6  e16bz1  min=1   max=1  capacity: cpu=352  (+208)  memory=2816GiB  (+1664GiB)  swiftNICs=112  (+49)  EDSv6:     32c remaining
+    9.  SetScalingBounds  worker  Standard_E32ds_v6  e32z2   min=1   max=3  capacity: cpu=384  (+240)  memory=3072GiB  (+1920GiB)  swiftNICs=119  (+56)  EDSv6:      0c remaining
+   10.  SetScalingBounds  worker  Standard_E16ds_v6  e16bz2  min=1   max=1  capacity: cpu=352  (+208)  memory=2816GiB  (+1664GiB)  swiftNICs=105  (+42)  EDSv6:     32c remaining
+   11.  SetScalingBounds  worker  Standard_E32ds_v6  e32z3   min=1   max=2  capacity: cpu=384  (+240)  memory=3072GiB  (+1920GiB)  swiftNICs=112  (+49)  EDSv6:      0c remaining
+   12.  SetScalingBounds  worker  Standard_E16ds_v6  e16bz3  min=1   max=1  capacity: cpu=352  (+208)  memory=2816GiB  (+1664GiB)  swiftNICs=98   (+35)  EDSv6:     32c remaining
+   13.  SetScalingBounds  worker  Standard_E32ds_v6  e32z3   min=1   max=3  capacity: cpu=384  (+240)  memory=3072GiB  (+1920GiB)  swiftNICs=105  (+42)  EDSv6:      0c remaining
+   14.  Freeze            worker  Standard_E16ds_v6  e16az1  count=1        capacity: cpu=384  (+240)  memory=3072GiB  (+1920GiB)  swiftNICs=105  (+42)
+   15.  Freeze            worker  Standard_E16ds_v6  e16az2  count=1        capacity: cpu=384  (+240)  memory=3072GiB  (+1920GiB)  swiftNICs=105  (+42)
+   16.  Freeze            worker  Standard_E16ds_v6  e16az3  count=1        capacity: cpu=384  (+240)  memory=3072GiB  (+1920GiB)  swiftNICs=105  (+42)
+   17.  Freeze            worker  Standard_E16ds_v6  e16bz1  count=1        capacity: cpu=384  (+240)  memory=3072GiB  (+1920GiB)  swiftNICs=105  (+42)
+   18.  Freeze            worker  Standard_E16ds_v6  e16bz2  count=1        capacity: cpu=384  (+240)  memory=3072GiB  (+1920GiB)  swiftNICs=105  (+42)
+   19.  Freeze            worker  Standard_E16ds_v6  e16bz3  count=1        capacity: cpu=384  (+240)  memory=3072GiB  (+1920GiB)  swiftNICs=105  (+42)
+   20.  Reduce            worker  Standard_E16ds_v6  e16az1  count=0        capacity: cpu=368  (+224)  memory=2944GiB  (+1792GiB)  swiftNICs=98   (+35)  EDSv6:     16c remaining
+   21.  Reduce            worker  Standard_E16ds_v6  e16az2  count=0        capacity: cpu=352  (+208)  memory=2816GiB  (+1664GiB)  swiftNICs=91   (+28)  EDSv6:     32c remaining
+   22.  Reduce            worker  Standard_E16ds_v6  e16az3  count=0        capacity: cpu=336  (+192)  memory=2688GiB  (+1536GiB)  swiftNICs=84   (+21)  EDSv6:     48c remaining
+   23.  Reduce            worker  Standard_E16ds_v6  e16bz1  count=0        capacity: cpu=320  (+176)  memory=2560GiB  (+1408GiB)  swiftNICs=77   (+14)  EDSv6:     64c remaining
+   24.  Reduce            worker  Standard_E16ds_v6  e16bz2  count=0        capacity: cpu=304  (+160)  memory=2432GiB  (+1280GiB)  swiftNICs=70   (+7)   EDSv6:     80c remaining
+   25.  Reduce            worker  Standard_E16ds_v6  e16bz3  count=0        capacity: cpu=288  (+144)  memory=2304GiB  (+1152GiB)  swiftNICs=63   (+0)   EDSv6:     96c remaining
+   26.  Delete            worker  Standard_E16ds_v6  e16az1                 capacity: cpu=288  (+144)  memory=2304GiB  (+1152GiB)  swiftNICs=63   (+0)
+   27.  Delete            worker  Standard_E16ds_v6  e16az2                 capacity: cpu=288  (+144)  memory=2304GiB  (+1152GiB)  swiftNICs=63   (+0)
+   28.  Delete            worker  Standard_E16ds_v6  e16az3                 capacity: cpu=288  (+144)  memory=2304GiB  (+1152GiB)  swiftNICs=63   (+0)
+   29.  Delete            worker  Standard_E16ds_v6  e16bz1                 capacity: cpu=288  (+144)  memory=2304GiB  (+1152GiB)  swiftNICs=63   (+0)
+   30.  Delete            worker  Standard_E16ds_v6  e16bz2                 capacity: cpu=288  (+144)  memory=2304GiB  (+1152GiB)  swiftNICs=63   (+0)
+   31.  Delete            worker  Standard_E16ds_v6  e16bz3                 capacity: cpu=288  (+144)  memory=2304GiB  (+1152GiB)  swiftNICs=63   (+0)
+
+final:
+  e32z1  worker  Standard_E32ds_v6  zone=1  max=3  count=1  autoscaled
+  e32z2  worker  Standard_E32ds_v6  zone=2  max=3  count=1  autoscaled
+  e32z3  worker  Standard_E32ds_v6  zone=3  max=3  count=1  autoscaled
+
+steps:      31
+converged:  true

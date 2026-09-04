@@ -1,0 +1,45 @@
+initial:
+  w1abc  worker  Standard_E32ds_v6  zone=1  max=6  count=3  autoscaled
+  w2abc  worker  Standard_E32ds_v6  zone=2  max=6  count=3  autoscaled
+  w3abc  worker  Standard_E32ds_v6  zone=3  max=6  count=3  autoscaled
+
+desired:
+  w1abc  worker  Standard_E32ds_v6  zone=1  max=10
+  w2abc  worker  Standard_E32ds_v6  zone=2  max=10
+  w3abc  worker  Standard_E32ds_v6  zone=3  max=10
+
+budget (vCPUs):
+  standardEDSv6Family:  960
+
+initial headroom (vCPUs):
+  standardEDSv6Family:  672
+
+fully allocated: true
+
+baseline:
+  system:  cpu=0    memory=0GiB     swiftNICs=0
+  infra:   cpu=0    memory=0GiB     swiftNICs=0
+  worker:  cpu=576  memory=4608GiB  swiftNICs=126
+
+transition floor:
+  system:  cpu=0    memory=0GiB     swiftNICs=0
+  infra:   cpu=0    memory=0GiB     swiftNICs=0
+  worker:  cpu=576  memory=4608GiB  swiftNICs=126
+
+initial capacity:
+  system:  cpu=0    (+0)  memory=0GiB     (+0GiB)  swiftNICs=0    (+0)
+  infra:   cpu=0    (+0)  memory=0GiB     (+0GiB)  swiftNICs=0    (+0)
+  worker:  cpu=576  (+0)  memory=4608GiB  (+0GiB)  swiftNICs=126  (+0)
+
+actions:
+    1.  SetScalingBounds  worker  Standard_E32ds_v6  w1abc  min=1   max=10  capacity: cpu=704  (+128)  memory=5632GiB  (+1024GiB)  swiftNICs=154  (+28)  EDSv6:    544c remaining
+    2.  SetScalingBounds  worker  Standard_E32ds_v6  w2abc  min=1   max=10  capacity: cpu=832  (+256)  memory=6656GiB  (+2048GiB)  swiftNICs=182  (+56)  EDSv6:    416c remaining
+    3.  SetScalingBounds  worker  Standard_E32ds_v6  w3abc  min=1   max=10  capacity: cpu=960  (+384)  memory=7680GiB  (+3072GiB)  swiftNICs=210  (+84)  EDSv6:    288c remaining
+
+final:
+  w1abc  worker  Standard_E32ds_v6  zone=1  max=10  count=3  autoscaled
+  w2abc  worker  Standard_E32ds_v6  zone=2  max=10  count=3  autoscaled
+  w3abc  worker  Standard_E32ds_v6  zone=3  max=10  count=3  autoscaled
+
+steps:      3
+converged:  true

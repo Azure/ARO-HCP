@@ -1,0 +1,46 @@
+initial:
+  old  worker  sku  zone=  max=10  count=5  autoscaled
+
+desired:
+  new  worker  sku  zone=  max=10
+
+budget (vCPUs):
+  family:  40
+
+initial headroom (vCPUs):
+  family:  20
+
+fully allocated: true
+
+baseline:
+  system:  cpu=0   memory=0GiB    swiftNICs=0
+  infra:   cpu=0   memory=0GiB    swiftNICs=0
+  worker:  cpu=40  memory=160GiB  swiftNICs=20
+
+transition floor:
+  system:  cpu=0   memory=0GiB    swiftNICs=0
+  infra:   cpu=0   memory=0GiB    swiftNICs=0
+  worker:  cpu=40  memory=160GiB  swiftNICs=20
+
+initial capacity:
+  system:  cpu=0   (+0)  memory=0GiB    (+0GiB)  swiftNICs=0   (+0)
+  infra:   cpu=0   (+0)  memory=0GiB    (+0GiB)  swiftNICs=0   (+0)
+  worker:  cpu=40  (+0)  memory=160GiB  (+0GiB)  swiftNICs=20  (+0)
+
+actions:
+    1.  Create            worker  sku  new  min=0   max=5   capacity: cpu=60  (+20)  memory=240GiB  (+80GiB)  swiftNICs=30  (+10)  family:     0c remaining
+    2.  SetScalingBounds  worker  sku  old  min=0   max=5   capacity: cpu=40  (+0)   memory=160GiB  (+0GiB)   swiftNICs=20  (+0)   family:    20c remaining
+    3.  SetScalingBounds  worker  sku  new  min=0   max=10  capacity: cpu=60  (+20)  memory=240GiB  (+80GiB)  swiftNICs=30  (+10)  family:     0c remaining
+    4.  Freeze            worker  sku  old  count=5         capacity: cpu=60  (+20)  memory=240GiB  (+80GiB)  swiftNICs=30  (+10)
+    5.  Reduce            worker  sku  old  count=4         capacity: cpu=56  (+16)  memory=224GiB  (+64GiB)  swiftNICs=28  (+8)  family:     4c remaining
+    6.  Reduce            worker  sku  old  count=3         capacity: cpu=52  (+12)  memory=208GiB  (+48GiB)  swiftNICs=26  (+6)  family:     8c remaining
+    7.  Reduce            worker  sku  old  count=2         capacity: cpu=48  (+8)   memory=192GiB  (+32GiB)  swiftNICs=24  (+4)  family:    12c remaining
+    8.  Reduce            worker  sku  old  count=1         capacity: cpu=44  (+4)   memory=176GiB  (+16GiB)  swiftNICs=22  (+2)  family:    16c remaining
+    9.  Reduce            worker  sku  old  count=0         capacity: cpu=40  (+0)   memory=160GiB  (+0GiB)   swiftNICs=20  (+0)  family:    20c remaining
+   10.  Delete            worker  sku  old                  capacity: cpu=40  (+0)   memory=160GiB  (+0GiB)   swiftNICs=20  (+0)
+
+final:
+  new  worker  sku  zone=  max=10  count=1  autoscaled
+
+steps:      10
+converged:  true

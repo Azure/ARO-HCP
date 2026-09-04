@@ -48,7 +48,7 @@ func NewEnsureCapacityReadDesireController(
 	managementClusterInformer cache.SharedIndexInformer,
 	kubeApplierDBClients kubeappliercosmosstorage.KubeApplierDBClients,
 	cfg fleetcontrollers.StampWatchingControllerConfig,
-) *fleetcontrollers.StampWatchingController {
+) fleetcontrollers.Controller {
 	syncer := &ensureReadDesireSyncer{
 		kubeApplierDBClients: kubeApplierDBClients,
 	}

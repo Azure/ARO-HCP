@@ -1,0 +1,43 @@
+initial:
+  (none)
+
+desired:
+  w1abc  worker  Standard_E32ds_v6  zone=1  max=6
+  w2abc  worker  Standard_E32ds_v6  zone=2  max=6
+  w3abc  worker  Standard_E32ds_v6  zone=3  max=6
+
+budget (vCPUs):
+  standardEDSv6Family:  576
+
+initial headroom (vCPUs):
+  standardEDSv6Family:  576
+
+fully allocated: true
+
+baseline:
+  system:  cpu=0  memory=0GiB  swiftNICs=0
+  infra:   cpu=0  memory=0GiB  swiftNICs=0
+  worker:  cpu=0  memory=0GiB  swiftNICs=0
+
+transition floor:
+  system:  cpu=0  memory=0GiB  swiftNICs=0
+  infra:   cpu=0  memory=0GiB  swiftNICs=0
+  worker:  cpu=0  memory=0GiB  swiftNICs=0
+
+initial capacity:
+  system:  cpu=0  (+0)  memory=0GiB  (+0GiB)  swiftNICs=0  (+0)
+  infra:   cpu=0  (+0)  memory=0GiB  (+0GiB)  swiftNICs=0  (+0)
+  worker:  cpu=0  (+0)  memory=0GiB  (+0GiB)  swiftNICs=0  (+0)
+
+actions:
+    1.  Create  worker  Standard_E32ds_v6  w1abc  min=1   max=6  capacity: cpu=192  (+192)  memory=1536GiB  (+1536GiB)  swiftNICs=42   (+42)   EDSv6:    384c remaining
+    2.  Create  worker  Standard_E32ds_v6  w2abc  min=1   max=6  capacity: cpu=384  (+384)  memory=3072GiB  (+3072GiB)  swiftNICs=84   (+84)   EDSv6:    192c remaining
+    3.  Create  worker  Standard_E32ds_v6  w3abc  min=1   max=6  capacity: cpu=576  (+576)  memory=4608GiB  (+4608GiB)  swiftNICs=126  (+126)  EDSv6:      0c remaining
+
+final:
+  w1abc  worker  Standard_E32ds_v6  zone=1  max=6  count=1  autoscaled
+  w2abc  worker  Standard_E32ds_v6  zone=2  max=6  count=1  autoscaled
+  w3abc  worker  Standard_E32ds_v6  zone=3  max=6  count=1  autoscaled
+
+steps:      3
+converged:  true
