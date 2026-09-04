@@ -704,7 +704,7 @@ func (tc *perItOrDescribeTestContext) cleanupResourceGroupNoRP(ctx context.Conte
 	startTime := time.Now()
 	defer func() {
 		finishTime := time.Now()
-		tc.recordTestStepUnlocked(fmt.Sprintf("Clean up resource group %s (no RP)", resourceGroupName), startTime, finishTime)
+		tc.RecordTestStep(fmt.Sprintf("Clean up resource group %s (no RP)", resourceGroupName), startTime, finishTime)
 	}()
 
 	managedResourceGroups, err := tc.findManagedResourceGroups(ctx, resourceGroupName)
@@ -1214,7 +1214,12 @@ func (tc *perItOrDescribeTestContext) getGraphClientUnlocked(ctx context.Context
 	if err != nil {
 		return nil, err
 	}
-	return graphutil.NewClient(ctx, creds)
+	client, err := graphutil.NewClient(ctx, creds)
+	if err != nil {
+		return nil, err
+	}
+	tc.graphClient = client
+	return tc.graphClient, nil
 }
 
 func (tc *perItOrDescribeTestContext) Location() string {
