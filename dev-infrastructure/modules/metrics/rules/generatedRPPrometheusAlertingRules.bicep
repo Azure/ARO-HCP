@@ -257,7 +257,7 @@ resource arohcpClusterProvisionSloErrorAlerts 'Microsoft.AlertsManagement/promet
             }
           }
         ]
-        alert: 'UJClusterProvisionErrors1h5m'
+        alert: 'UserJourneyClusterProvisionErrors1h5m'
         enabled: true
         labels: {
           component: 'slo'
@@ -267,7 +267,7 @@ resource arohcpClusterProvisionSloErrorAlerts 'Microsoft.AlertsManagement/promet
           slo: 'cluster-provision-errors'
         }
         annotations: {
-          correlationId: 'UJClusterProvisionErrors1h5m/{{ $labels.cluster }}'
+          correlationId: 'UserJourneyClusterProvisionErrors1h5m/{{ $labels.cluster }}'
           description: 'More than 72% of cluster create (install) operations are in failed state, indicating a fast error budget burn (14.4x) that would exhaust the 95% SLO budget in ~12 hours. A regional install failure of this magnitude typically points at a shared dependency (e.g. registry, DNS, or ARM) rather than individual clusters.'
           info: 'More than 72% of cluster create (install) operations are in failed state, indicating a fast error budget burn (14.4x) that would exhaust the 95% SLO budget in ~12 hours. A regional install failure of this magnitude typically points at a shared dependency (e.g. registry, DNS, or ARM) rather than individual clusters.'
           runbook_url: 'https://aka.ms/arohcp-runbook-cluster-provision'
@@ -288,7 +288,7 @@ resource arohcpClusterProvisionSloErrorAlerts 'Microsoft.AlertsManagement/promet
             }
           }
         ]
-        alert: 'UJClusterProvisionErrors6h30m'
+        alert: 'UserJourneyClusterProvisionErrors6h30m'
         enabled: true
         labels: {
           component: 'slo'
@@ -298,7 +298,7 @@ resource arohcpClusterProvisionSloErrorAlerts 'Microsoft.AlertsManagement/promet
           slo: 'cluster-provision-errors'
         }
         annotations: {
-          correlationId: 'UJClusterProvisionErrors6h30m/{{ $labels.cluster }}'
+          correlationId: 'UserJourneyClusterProvisionErrors6h30m/{{ $labels.cluster }}'
           description: 'More than 30% of cluster create (install) operations are in failed state sustained over 30 minutes, indicating a medium error budget burn (6x) that would exhaust the 95% SLO budget in ~28 hours.'
           info: 'More than 30% of cluster create (install) operations are in failed state sustained over 30 minutes, indicating a medium error budget burn (6x) that would exhaust the 95% SLO budget in ~28 hours.'
           runbook_url: 'https://aka.ms/arohcp-runbook-cluster-provision'
@@ -319,7 +319,7 @@ resource arohcpClusterProvisionSloErrorAlerts 'Microsoft.AlertsManagement/promet
             }
           }
         ]
-        alert: 'UJClusterProvisionErrors3d'
+        alert: 'UserJourneyClusterProvisionErrors3d'
         enabled: true
         labels: {
           component: 'slo'
@@ -328,7 +328,7 @@ resource arohcpClusterProvisionSloErrorAlerts 'Microsoft.AlertsManagement/promet
           slo: 'cluster-provision-errors'
         }
         annotations: {
-          correlationId: 'UJClusterProvisionErrors3d/{{ $labels.cluster }}'
+          correlationId: 'UserJourneyClusterProvisionErrors3d/{{ $labels.cluster }}'
           description: 'More than 5% of cluster create (install) operations are in failed state sustained over 6 hours, indicating persistent degradation at the 95% SLO boundary that would exhaust the error budget in ~7 days.'
           info: 'More than 5% of cluster create (install) operations are in failed state sustained over 6 hours, indicating persistent degradation at the 95% SLO boundary that would exhaust the error budget in ~7 days.'
           runbook_url: 'https://aka.ms/arohcp-runbook-cluster-provision'
@@ -349,7 +349,7 @@ resource arohcpClusterProvisionSloErrorAlerts 'Microsoft.AlertsManagement/promet
             }
           }
         ]
-        alert: 'UJClusterProvisionErrorsDegradation'
+        alert: 'UserJourneyClusterProvisionErrorsDegradation'
         enabled: true
         labels: {
           component: 'slo'
@@ -357,7 +357,7 @@ resource arohcpClusterProvisionSloErrorAlerts 'Microsoft.AlertsManagement/promet
           slo: 'cluster-provision-errors'
         }
         annotations: {
-          correlationId: 'UJClusterProvisionErrorsDegradation/{{ $labels.cluster }}'
+          correlationId: 'UserJourneyClusterProvisionErrorsDegradation/{{ $labels.cluster }}'
           description: 'The cluster create (install) failure rate has been above 15% for 30 minutes. This provides early warning of degradation before SLO-based burn rate alerts fire.'
           info: 'The cluster create (install) failure rate has been above 15% for 30 minutes. This provides early warning of degradation before SLO-based burn rate alerts fire.'
           runbook_url: 'https://aka.ms/arohcp-runbook-cluster-provision'
@@ -366,6 +366,47 @@ resource arohcpClusterProvisionSloErrorAlerts 'Microsoft.AlertsManagement/promet
         }
         expression: 'errors:backend_cluster_provision:error_rate > 0.15'
         for: 'PT30M'
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
+
+resource arohcpClusterProvisionSloLatencyAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_cluster_provision_slo_latency_alerts'
+  location: location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyClusterProvisionStuckOperation'
+        enabled: true
+        labels: {
+          component: 'slo'
+          severity: '4'
+        }
+        annotations: {
+          correlationId: 'userJourneyClusterProvisionStuckOperation/{{ $labels.cluster }}/{{ $labels.resource_id }}/{{ $labels.phase }}'
+          description: 'Cluster create operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 1 hour. Stuck operations are invisible to success/failure SLIs and require investigation.'
+          info: 'Cluster create operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 1 hour. Stuck operations are invisible to success/failure SLIs and require investigation.'
+          runbook_url: 'https://aka.ms/arohcp-runbook-cluster-provision'
+          summary: '{{ $labels.cluster }}: Cluster create operation for {{ $labels.resource_id }} stuck in {{ $labels.phase }} for over 1 hour'
+          title: '{{ $labels.cluster }}: Cluster create operation for {{ $labels.resource_id }} stuck in {{ $labels.phase }} for over 1 hour'
+        }
+        expression: '(max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{operation_type="create",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) and backend_resource_operation_phase_info{operation_type="create",phase=~"accepted|provisioning",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} == 1) > 3600)[6h:5m]))) unless on (subscription_id) internal_subscription:info'
+        for: 'PT15M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
     ]

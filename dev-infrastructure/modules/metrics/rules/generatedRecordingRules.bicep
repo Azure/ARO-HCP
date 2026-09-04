@@ -54,6 +54,24 @@ resource arohcpClusterProvisionSloRecordingRules 'Microsoft.AlertsManagement/pro
   }
 }
 
+resource arohcpClusterProvisionLatencyRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_cluster_provision_latency_recording_rules'
+  location: location
+  properties: {
+    scopes: [
+      azureMonitoring
+    ]
+    enabled: true
+    interval: 'PT1M'
+    rules: [
+      {
+        record: 'latency:backend_cluster_provision:inflight_duration_seconds'
+        expression: 'max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) ((time() - backend_resource_operation_start_time_seconds{operation_type="create",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) and backend_resource_operation_phase_info{operation_type="create",phase=~"accepted|provisioning",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} == 1)'
+      }
+    ]
+  }
+}
+
 resource arohcpUserJourneyClusterUpgradeRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'arohcp_user_journey_cluster_upgrade_recording_rules'
   location: location

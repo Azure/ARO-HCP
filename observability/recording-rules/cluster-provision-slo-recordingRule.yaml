@@ -72,3 +72,40 @@ spec:
           }),
           1
         )
+  # ========================================
+  # Cluster Provisioning SLO Recording Rules — Latency
+  # ========================================
+  # These rules track the Latency SLI for HCP cluster provisioning (install).
+  # The SLI measures how long each cluster create operation has been in flight
+  # (time since operation start, for operations still in non-terminal phase).
+  #
+  # Metrics are gauge-based: backend_resource_operation_start_time_seconds
+  # (unix timestamp) joined with backend_resource_operation_phase_info to
+  # filter to in-flight operations only.
+  #
+  # This is a per-resource metric (not fleet-aggregate) — each in-flight
+  # operation produces its own duration series, enabling per-cluster stuck
+  # operation detection and dashboard drill-down.
+  - name: arohcp_cluster_provision_latency_recording_rules
+    interval: 1m
+    rules:
+    # Current age (seconds) of each in-flight cluster create operation.
+    # Only emits for operations in non-terminal phases (accepted, provisioning).
+    # Terminal operations (succeeded, failed, canceled) are excluded — they
+    # have already completed and their outcome is covered by the Errors SLI.
+    - record: latency:backend_cluster_provision:inflight_duration_seconds
+      expr: |
+        max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (
+          (
+            time() - backend_resource_operation_start_time_seconds{
+              resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
+              operation_type="create"
+            }
+          )
+          and
+          backend_resource_operation_phase_info{
+            resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
+            operation_type="create",
+            phase=~"accepted|provisioning"
+          } == 1
+        )
