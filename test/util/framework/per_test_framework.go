@@ -50,6 +50,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/keyvault/armkeyvault"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v6"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armfeatures"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armsubscriptions"
 
@@ -267,6 +268,12 @@ func (tc *perItOrDescribeTestContext) deleteCreatedResources(ctx context.Context
 	appRegistrations := slices.Clone(tc.knownAppRegistrations)
 	tc.contextLock.RUnlock()
 	ginkgo.GinkgoLogr.Info("deleting created resources")
+
+	if subscriptionID, err := tc.SubscriptionID(ctx); err != nil {
+		ginkgo.GinkgoLogr.Error(err, "failed to get subscription ID for role assignment cleanup")
+	} else if err := tc.cleanupRoleAssignments(ctx, subscriptionID); err != nil {
+		ginkgo.GinkgoLogr.Error(err, "failed to cleanup role assignments before resource group deletion")
+	}
 
 	opts := CleanupResourceGroupsOptions{
 		ResourceGroupNames: resourceGroupNames,
@@ -804,6 +811,11 @@ func (tc *perItOrDescribeTestContext) purgeDeletedKeyVaultsInResourceGroup(ctx c
 			if !strings.Contains(strings.ToLower(*deleted.Properties.VaultID), rgMarker) {
 				continue
 			}
+			if keyVaultPurgeProtected(deleted.Properties) {
+				ginkgo.GinkgoLogr.Info("skipping purge of soft-deleted key vault with purge protection enabled",
+					"keyVault", *deleted.Name, "resourceGroup", resourceGroupName)
+				continue
+			}
 			ginkgo.GinkgoLogr.Info("purging soft-deleted key vault",
 				"keyVault", *deleted.Name, "location", *deleted.Properties.Location, "resourceGroup", resourceGroupName)
 			poller, err := vaultsClient.BeginPurgeDeleted(ctx, *deleted.Name, *deleted.Properties.Location, nil)
@@ -827,6 +839,12 @@ func (tc *perItOrDescribeTestContext) purgeDeletedKeyVaultsInResourceGroup(ctx c
 			}
 		}
 	}
+}
+
+// keyVaultPurgeProtected reports whether a soft-deleted vault has purge
+// protection enabled, meaning the purge API will reject any purge attempt.
+func keyVaultPurgeProtected(props *armkeyvault.DeletedVaultProperties) bool {
+	return props != nil && props.PurgeProtectionEnabled != nil && *props.PurgeProtectionEnabled
 }
 
 // isKeyVaultNotFound reports whether err is an Azure 404 response, which for a
@@ -1267,6 +1285,38 @@ func (tc *perItOrDescribeTestContext) SubscriptionID(ctx context.Context) (strin
 
 func (tc *perItOrDescribeTestContext) AzureCredential() (azcore.TokenCredential, error) {
 	return tc.perBinaryInvocationTestContext.getAzureCredentials()
+}
+
+// IsSubscriptionFeatureRegistered checks if an AFEC is registered on the subscription.
+// featureName must be in "provider/feature" format, e.g. "microsoft.redhatopenshift/experimentalreleasefeatures".
+func (tc *perItOrDescribeTestContext) IsSubscriptionFeatureRegistered(ctx context.Context, featureName string) (bool, error) {
+	parts := strings.SplitN(featureName, "/", 2)
+	if len(parts) != 2 {
+		return false, fmt.Errorf("invalid feature name %q: expected \"provider/feature\" format", featureName)
+	}
+	provider, feature := parts[0], parts[1]
+
+	subscriptionID, err := tc.SubscriptionID(ctx)
+	if err != nil {
+		return false, fmt.Errorf("failed to get subscription ID: %w", err)
+	}
+
+	creds, err := tc.AzureCredential()
+	if err != nil {
+		return false, fmt.Errorf("failed to get Azure credentials: %w", err)
+	}
+
+	client, err := armfeatures.NewClient(subscriptionID, creds, tc.perBinaryInvocationTestContext.getClientFactoryOptions())
+	if err != nil {
+		return false, fmt.Errorf("failed to create ARM features client: %w", err)
+	}
+
+	resp, err := client.Get(ctx, provider, feature, nil)
+	if err != nil {
+		return false, fmt.Errorf("failed to get feature %q: %w", featureName, err)
+	}
+
+	return resp.Properties != nil && resp.Properties.State != nil && *resp.Properties.State == "Registered", nil
 }
 
 func (tc *perItOrDescribeTestContext) TenantID() string {
