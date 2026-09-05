@@ -94,7 +94,7 @@ func TestIsResourceGroupNotFoundError(t *testing.T) {
 	}
 }
 
-func TestIsKeyVaultNotFound(t *testing.T) {
+func TestIsNotFoundError(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -142,7 +142,7 @@ func TestIsKeyVaultNotFound(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := isKeyVaultNotFound(tt.err)
+			got := IsNotFoundError(tt.err)
 			assert.Equal(t, tt.want, got)
 		})
 	}
