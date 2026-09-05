@@ -7,13 +7,13 @@ Customer should be able to create a HCP cluster and use cilium CNI plugin
 Customer should be able to create a no-CNI private cluster with a private key vault, a nodepool and install cilium CNI successfully
 Customer should be able to create a cluster and node pools with aggregated advanced features
 Customer should be able to create an HCP cluster and custom node pool osDisk size
-Customer should create a cluster with private ingress using v20260630preview and verify the ingress is internal
+Customer should create a cluster with private ingress using v20260901preview and verify the ingress is internal
 Customer should create a cluster with private KAS and verify API server is only reachable from VNet while ingress remains public
-Create HCPOpenShiftCluster with Private KeyVault should create a cluster with private keyvault using v20251223preview API
+Create HCPOpenShiftCluster with Private KeyVault should create a cluster with private keyvault using v20260901preview API
 Customer should create a cluster using v20260901preview API and verify cluster health
 ARO HCP Service should successfully provision cluster when MI role assignments are added after cluster creation
 Customer should be able to create an HCP cluster then delete it by deleting the customer resource group
-FIPS Mode Support with v2026-06-30 API should create an HCP cluster with FIPS mode enabled via cryptoRestrictions property
+FIPS Mode Support with v2026-09-01 API should create an HCP cluster with FIPS mode enabled via cryptoRestrictions property
 Customer should not be able to reuse subnets and NSGs between clusters
 Customer should be able to create an HCP cluster and manage pull secrets
 Customer should create an HCP cluster and validate TLS certificates

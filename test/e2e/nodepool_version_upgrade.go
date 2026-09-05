@@ -34,7 +34,7 @@ import (
 	clusterversion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/version"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controlplaneversion"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
-	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	hcpsdk20260901preview "github.com/Azure/ARO-HCP/test/sdk/v20260901preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
@@ -115,7 +115,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create resource group for nodepool version upgrade")
 
 			By("creating cluster parameters at control plane version")
-			clusterParams := framework.NewDefaultClusterParams20240610()
+			clusterParams := framework.NewDefaultClusterParams20260901()
 			clusterParams.ClusterName = clusterName
 			clusterParams.OpenshiftVersionId = clusterInstallVersion
 			clusterParams.ChannelGroup = channelGroup
@@ -123,7 +123,7 @@ var _ = Describe("Customer", func() {
 			clusterParams.ManagedResourceGroupName = managedResourceGroupName
 
 			By("creating customer resources")
-			clusterParams, err = tc.CreateClusterCustomerResources20240610(ctx,
+			clusterParams, err = tc.CreateClusterCustomerResources20260901(ctx,
 				resourceGroup,
 				clusterParams,
 				map[string]interface{}{
@@ -137,11 +137,12 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create cluster customer resources")
 
 			By(fmt.Sprintf("creating the HCP cluster with version %s", clusterInstallVersion))
-			err = tc.CreateHCPClusterFromParam20240610(
+			err = tc.CreateHCPClusterFromParam20260901(
 				ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
 				clusterParams,
+				nil,
 				framework.ClusterCreationTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %s with version %s", clusterName, clusterInstallVersion)
@@ -149,12 +150,12 @@ var _ = Describe("Customer", func() {
 			By(fmt.Sprintf("creating nodepool with version %s (behind control plane)", nodePoolInitialVersion))
 			// Node pool name must be a DNS label (no '.'); encode minor as e.g. 4.20 -> npupgrade-4-20.
 			customerNodePoolName := fmt.Sprintf("npupgrade-%s", strings.ReplaceAll(nodePoolMinor, ".", "-"))
-			nodePoolParams := framework.NewDefaultNodePoolParams20240610()
+			nodePoolParams := framework.NewDefaultNodePoolParams20260901()
 			nodePoolParams.NodePoolName = customerNodePoolName
 			nodePoolParams.OpenshiftVersionId = nodePoolInitialVersion
 			nodePoolParams.ChannelGroup = channelGroup
 			nodePoolParams.NodeDrainTimeoutMinutes = to.Ptr(int32(10))
-			err = tc.CreateNodePoolFromParam20240610(
+			err = tc.CreateNodePoolFromParam20260901(
 				ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
@@ -182,17 +183,17 @@ var _ = Describe("Customer", func() {
 
 			By(fmt.Sprintf("triggering nodepool upgrade to version %s and update replicas to 3", nodePoolDesiredVersion))
 			updateReplicas := 3
-			nodePoolsClient := tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient()
-			update := hcpsdk20240610preview.NodePoolUpdate{
-				Properties: &hcpsdk20240610preview.NodePoolPropertiesUpdate{
+			nodePoolsClient := tc.Get20260901ClientFactoryOrDie(ctx).NewNodePoolsClient()
+			update := hcpsdk20260901preview.NodePoolUpdate{
+				Properties: &hcpsdk20260901preview.NodePoolPropertiesUpdate{
 					Replicas: ptr.To(int32(updateReplicas)),
-					Version: &hcpsdk20240610preview.NodePoolVersionProfile{
+					Version: &hcpsdk20260901preview.NodePoolVersionProfileUpdate{
 						ID:           to.Ptr(nodePoolDesiredVersion),
 						ChannelGroup: to.Ptr(channelGroup),
 					},
 				},
 			}
-			_, err = framework.UpdateNodePoolAndWait20240610(ctx, nodePoolsClient, *resourceGroup.Name, clusterName, customerNodePoolName, update, framework.NodePoolVersionUpgradeTimeout)
+			_, err = framework.UpdateNodePoolAndWait20260901(ctx, nodePoolsClient, *resourceGroup.Name, clusterName, customerNodePoolName, update, framework.NodePoolVersionUpgradeTimeout)
 			Expect(err).NotTo(HaveOccurred(), "failed to upgrade node pool %s to version %s", customerNodePoolName, nodePoolDesiredVersion)
 
 			By("verifying nodes are ready, updated to expected version, and release images differ from pre-upgrade")
@@ -206,7 +207,7 @@ var _ = Describe("Customer", func() {
 			}, framework.NodePoolVersionUpgradeTimeout, 2*time.Minute).Should(Succeed())
 
 			By("verifying node pool GET still reflects the new version")
-			npGetResponse, err := framework.GetNodePool20240610(ctx, nodePoolsClient, *resourceGroup.Name, clusterName, customerNodePoolName)
+			npGetResponse, err := framework.GetNodePool20260901(ctx, nodePoolsClient, *resourceGroup.Name, clusterName, customerNodePoolName)
 			Expect(err).NotTo(HaveOccurred(), "failed to GET node pool %s after upgrade", customerNodePoolName)
 			Expect(npGetResponse.Properties).NotTo(BeNil(), "node pool GET response Properties was nil")
 			Expect(npGetResponse.Properties.Version).NotTo(BeNil(), "node pool GET response Properties.Version was nil")
@@ -271,14 +272,14 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create resource group")
 
 			By("creating cluster parameters at control plane version")
-			clusterParams := framework.NewDefaultClusterParams20240610()
+			clusterParams := framework.NewDefaultClusterParams20260901()
 			clusterParams.ClusterName = clusterName
 			clusterParams.OpenshiftVersionId = clusterInstallVersion
 			clusterParams.ChannelGroup = channelGroup
 			clusterParams.ManagedResourceGroupName = framework.SuffixName(*resourceGroup.Name+"-np-ne-"+suffix, "-managed", 64)
 
 			By("creating customer resources")
-			clusterParams, err = tc.CreateClusterCustomerResources20240610(ctx,
+			clusterParams, err = tc.CreateClusterCustomerResources20260901(ctx,
 				resourceGroup,
 				clusterParams,
 				map[string]interface{}{
@@ -292,23 +293,24 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create cluster customer resources")
 
 			By(fmt.Sprintf("creating the HCP cluster with version %s", clusterInstallVersion))
-			err = tc.CreateHCPClusterFromParam20240610(
+			err = tc.CreateHCPClusterFromParam20260901(
 				ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
 				clusterParams,
+				nil,
 				framework.ClusterCreationTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %s", clusterName)
 
 			By(fmt.Sprintf("creating nodepool at version %s (one z-stream behind %s)", fromVersion, toVersion))
 			customerNodePoolName := fmt.Sprintf("npnoedge-%s", strings.ReplaceAll(minor, ".", "-"))
-			nodePoolParams := framework.NewDefaultNodePoolParams20240610()
+			nodePoolParams := framework.NewDefaultNodePoolParams20260901()
 			nodePoolParams.NodePoolName = customerNodePoolName
 			nodePoolParams.OpenshiftVersionId = fromVersion
 			nodePoolParams.ChannelGroup = channelGroup
 			nodePoolParams.NodeDrainTimeoutMinutes = to.Ptr(int32(10))
-			err = tc.CreateNodePoolFromParam20240610(
+			err = tc.CreateNodePoolFromParam20260901(
 				ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
@@ -335,16 +337,16 @@ var _ = Describe("Customer", func() {
 			Expect(previousReleaseImages).NotTo(BeEmpty(), "expected node pool nodes to report at least one release image ref before upgrade")
 
 			By(fmt.Sprintf("triggering nodepool upgrade from %s to %s", fromVersion, toVersion))
-			nodePoolsClient := tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient()
-			update := hcpsdk20240610preview.NodePoolUpdate{
-				Properties: &hcpsdk20240610preview.NodePoolPropertiesUpdate{
-					Version: &hcpsdk20240610preview.NodePoolVersionProfile{
+			nodePoolsClient := tc.Get20260901ClientFactoryOrDie(ctx).NewNodePoolsClient()
+			update := hcpsdk20260901preview.NodePoolUpdate{
+				Properties: &hcpsdk20260901preview.NodePoolPropertiesUpdate{
+					Version: &hcpsdk20260901preview.NodePoolVersionProfileUpdate{
 						ID:           to.Ptr(toVersion),
 						ChannelGroup: to.Ptr(channelGroup),
 					},
 				},
 			}
-			_, err = framework.UpdateNodePoolAndWait20240610(ctx, nodePoolsClient, *resourceGroup.Name, clusterName, customerNodePoolName, update, framework.NodePoolVersionUpgradeTimeout)
+			_, err = framework.UpdateNodePoolAndWait20260901(ctx, nodePoolsClient, *resourceGroup.Name, clusterName, customerNodePoolName, update, framework.NodePoolVersionUpgradeTimeout)
 			Expect(err).NotTo(HaveOccurred(), "failed to upgrade nodepool %s from %s to %s", customerNodePoolName, fromVersion, toVersion)
 
 			By("verifying nodes are recreated at the target version")
@@ -353,7 +355,7 @@ var _ = Describe("Customer", func() {
 			}, framework.NodePoolVersionUpgradeTimeout, 2*time.Minute).Should(Succeed())
 
 			By("verifying node pool GET reflects the target version")
-			npGetResponse, err := framework.GetNodePool20240610(ctx, nodePoolsClient, *resourceGroup.Name, clusterName, customerNodePoolName)
+			npGetResponse, err := framework.GetNodePool20260901(ctx, nodePoolsClient, *resourceGroup.Name, clusterName, customerNodePoolName)
 			Expect(err).NotTo(HaveOccurred(), "failed to GET nodepool %s", customerNodePoolName)
 			Expect(npGetResponse.Properties).NotTo(BeNil(), "nodepool %s response Properties was nil", customerNodePoolName)
 			Expect(npGetResponse.Properties.Version).NotTo(BeNil(), "nodepool %s Properties.Version was nil", customerNodePoolName)
@@ -410,7 +412,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create resource group")
 
 			By("creating cluster parameters at control plane version")
-			clusterParams := framework.NewDefaultClusterParams20240610()
+			clusterParams := framework.NewDefaultClusterParams20260901()
 			clusterParams.ClusterName = clusterName
 			clusterParams.OpenshiftVersionId = clusterInstallVersion
 			clusterParams.ChannelGroup = channelGroup
@@ -418,7 +420,7 @@ var _ = Describe("Customer", func() {
 			clusterParams.ManagedResourceGroupName = managedResourceGroupName
 
 			By("creating customer resources")
-			clusterParams, err = tc.CreateClusterCustomerResources20240610(ctx,
+			clusterParams, err = tc.CreateClusterCustomerResources20260901(ctx,
 				resourceGroup,
 				clusterParams,
 				map[string]any{
@@ -432,23 +434,24 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create cluster customer resources")
 
 			By(fmt.Sprintf("creating the HCP cluster with version %s", clusterInstallVersion))
-			err = tc.CreateHCPClusterFromParam20240610(
+			err = tc.CreateHCPClusterFromParam20260901(
 				ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
 				clusterParams,
+				nil,
 				framework.ClusterCreationTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %s at version %s", clusterName, clusterInstallVersion)
 
 			By(fmt.Sprintf("creating nodepool at version %s (2 minors behind CP %s)", nodePoolInstallVersion, clusterInstallVersion))
 			customerNodePoolName := fmt.Sprintf("nps-%s-%s", strings.ReplaceAll(nodePoolMinor, ".", ""), strings.ReplaceAll(targetMinor, ".", ""))
-			nodePoolParams := framework.NewDefaultNodePoolParams20240610()
+			nodePoolParams := framework.NewDefaultNodePoolParams20260901()
 			nodePoolParams.NodePoolName = customerNodePoolName
 			nodePoolParams.OpenshiftVersionId = nodePoolInstallVersion
 			nodePoolParams.ChannelGroup = channelGroup
 			nodePoolParams.NodeDrainTimeoutMinutes = to.Ptr(int32(10))
-			err = tc.CreateNodePoolFromParam20240610(
+			err = tc.CreateNodePoolFromParam20260901(
 				ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
@@ -475,16 +478,16 @@ var _ = Describe("Customer", func() {
 			Expect(previousReleaseImages).NotTo(BeEmpty(), "expected node pool nodes to report at least one release image ref before upgrade")
 
 			By(fmt.Sprintf("triggering nodepool +2 minor upgrade from %s to %s", nodePoolInstallVersion, nodePoolDesiredVersion))
-			nodePoolsClient := tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient()
-			update := hcpsdk20240610preview.NodePoolUpdate{
-				Properties: &hcpsdk20240610preview.NodePoolPropertiesUpdate{
-					Version: &hcpsdk20240610preview.NodePoolVersionProfile{
+			nodePoolsClient := tc.Get20260901ClientFactoryOrDie(ctx).NewNodePoolsClient()
+			update := hcpsdk20260901preview.NodePoolUpdate{
+				Properties: &hcpsdk20260901preview.NodePoolPropertiesUpdate{
+					Version: &hcpsdk20260901preview.NodePoolVersionProfileUpdate{
 						ID:           to.Ptr(nodePoolDesiredVersion),
 						ChannelGroup: to.Ptr(channelGroup),
 					},
 				},
 			}
-			_, err = framework.UpdateNodePoolAndWait20240610(ctx, nodePoolsClient, *resourceGroup.Name, clusterName, customerNodePoolName, update, framework.NodePoolVersionUpgradeTimeout)
+			_, err = framework.UpdateNodePoolAndWait20260901(ctx, nodePoolsClient, *resourceGroup.Name, clusterName, customerNodePoolName, update, framework.NodePoolVersionUpgradeTimeout)
 			Expect(err).NotTo(HaveOccurred(), "failed to upgrade nodepool %s from %s to %s", customerNodePoolName, nodePoolInstallVersion, nodePoolDesiredVersion)
 
 			By("verifying nodes are recreated at the target version")
@@ -493,7 +496,7 @@ var _ = Describe("Customer", func() {
 			}, framework.NodePoolVersionUpgradeTimeout, 2*time.Minute).Should(Succeed())
 
 			By("verifying node pool GET reflects the target version")
-			npGetResponse, err := framework.GetNodePool20240610(ctx, nodePoolsClient, *resourceGroup.Name, clusterName, customerNodePoolName)
+			npGetResponse, err := framework.GetNodePool20260901(ctx, nodePoolsClient, *resourceGroup.Name, clusterName, customerNodePoolName)
 			Expect(err).NotTo(HaveOccurred(), "failed to GET nodepool %s", customerNodePoolName)
 			Expect(npGetResponse.Properties).NotTo(BeNil(), "nodepool %s response Properties was nil", customerNodePoolName)
 			Expect(npGetResponse.Properties.Version).NotTo(BeNil(), "nodepool %s Properties.Version was nil", customerNodePoolName)
@@ -549,7 +552,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create resource group")
 
 			By("creating cluster parameters at control plane version")
-			clusterParams := framework.NewDefaultClusterParams20240610()
+			clusterParams := framework.NewDefaultClusterParams20260901()
 			clusterParams.ClusterName = clusterName
 			clusterParams.OpenshiftVersionId = clusterInstallVersion
 			clusterParams.ChannelGroup = channelGroup
@@ -557,7 +560,7 @@ var _ = Describe("Customer", func() {
 			clusterParams.ManagedResourceGroupName = managedResourceGroupName
 
 			By("creating customer resources")
-			clusterParams, err = tc.CreateClusterCustomerResources20240610(ctx,
+			clusterParams, err = tc.CreateClusterCustomerResources20260901(ctx,
 				resourceGroup,
 				clusterParams,
 				map[string]any{
@@ -571,23 +574,24 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create cluster customer resources")
 
 			By(fmt.Sprintf("creating the HCP cluster with version %s", clusterInstallVersion))
-			err = tc.CreateHCPClusterFromParam20240610(
+			err = tc.CreateHCPClusterFromParam20260901(
 				ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
 				clusterParams,
+				nil,
 				framework.ClusterCreationTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster")
 
 			By(fmt.Sprintf("creating nodepool at latest version %s", nodePoolInstallVersion))
 			customerNodePoolName := fmt.Sprintf("npdg-%s", strings.ReplaceAll(minor, ".", "-"))
-			nodePoolParams := framework.NewDefaultNodePoolParams20240610()
+			nodePoolParams := framework.NewDefaultNodePoolParams20260901()
 			nodePoolParams.NodePoolName = customerNodePoolName
 			nodePoolParams.OpenshiftVersionId = nodePoolInstallVersion
 			nodePoolParams.ChannelGroup = channelGroup
 			nodePoolParams.NodeDrainTimeoutMinutes = to.Ptr(int32(10))
-			err = tc.CreateNodePoolFromParam20240610(
+			err = tc.CreateNodePoolFromParam20260901(
 				ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
@@ -614,16 +618,16 @@ var _ = Describe("Customer", func() {
 			Expect(previousReleaseImages).NotTo(BeEmpty(), "expected node pool nodes to report at least one release image ref before downgrade")
 
 			By(fmt.Sprintf("triggering nodepool downgrade from %s to %s", nodePoolInstallVersion, nodePoolDowngradeTarget))
-			nodePoolsClient := tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient()
-			update := hcpsdk20240610preview.NodePoolUpdate{
-				Properties: &hcpsdk20240610preview.NodePoolPropertiesUpdate{
-					Version: &hcpsdk20240610preview.NodePoolVersionProfile{
+			nodePoolsClient := tc.Get20260901ClientFactoryOrDie(ctx).NewNodePoolsClient()
+			update := hcpsdk20260901preview.NodePoolUpdate{
+				Properties: &hcpsdk20260901preview.NodePoolPropertiesUpdate{
+					Version: &hcpsdk20260901preview.NodePoolVersionProfileUpdate{
 						ID:           to.Ptr(nodePoolDowngradeTarget),
 						ChannelGroup: to.Ptr(channelGroup),
 					},
 				},
 			}
-			_, err = framework.UpdateNodePoolAndWait20240610(ctx, nodePoolsClient, *resourceGroup.Name, clusterName, customerNodePoolName, update, framework.NodePoolVersionUpgradeTimeout)
+			_, err = framework.UpdateNodePoolAndWait20260901(ctx, nodePoolsClient, *resourceGroup.Name, clusterName, customerNodePoolName, update, framework.NodePoolVersionUpgradeTimeout)
 			Expect(err).NotTo(HaveOccurred(), "failed to update nodepool %s to downgrade target %s", customerNodePoolName, nodePoolDowngradeTarget)
 
 			By("verifying nodes are recreated at the downgrade target version")
@@ -632,7 +636,7 @@ var _ = Describe("Customer", func() {
 			}, framework.NodePoolVersionUpgradeTimeout, 2*time.Minute).Should(Succeed(), "node pool nodes were not recreated at downgrade target version %s", nodePoolDowngradeTarget)
 
 			By("verifying node pool GET reflects the downgrade target version")
-			npGetResponse, err := framework.GetNodePool20240610(ctx, nodePoolsClient, *resourceGroup.Name, clusterName, customerNodePoolName)
+			npGetResponse, err := framework.GetNodePool20260901(ctx, nodePoolsClient, *resourceGroup.Name, clusterName, customerNodePoolName)
 			Expect(err).NotTo(HaveOccurred(), "failed to GET nodepool %s after downgrade", customerNodePoolName)
 			Expect(npGetResponse.Properties).NotTo(BeNil(), "nodepool %s response Properties was nil", customerNodePoolName)
 			Expect(npGetResponse.Properties.Version).NotTo(BeNil(), "nodepool %s Properties.Version was nil", customerNodePoolName)
@@ -689,7 +693,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create resource group")
 
 			By("creating cluster parameters at control plane version")
-			clusterParams := framework.NewDefaultClusterParams20240610()
+			clusterParams := framework.NewDefaultClusterParams20260901()
 			clusterParams.ClusterName = clusterName
 			clusterParams.OpenshiftVersionId = clusterInstallVersion
 			clusterParams.ChannelGroup = channelGroup
@@ -697,7 +701,7 @@ var _ = Describe("Customer", func() {
 			clusterParams.ManagedResourceGroupName = managedResourceGroupName
 
 			By("creating customer resources")
-			clusterParams, err = tc.CreateClusterCustomerResources20240610(ctx,
+			clusterParams, err = tc.CreateClusterCustomerResources20260901(ctx,
 				resourceGroup,
 				clusterParams,
 				map[string]any{
@@ -711,23 +715,24 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create cluster customer resources")
 
 			By(fmt.Sprintf("creating the HCP cluster with version %s", clusterInstallVersion))
-			err = tc.CreateHCPClusterFromParam20240610(
+			err = tc.CreateHCPClusterFromParam20260901(
 				ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
 				clusterParams,
+				nil,
 				framework.ClusterCreationTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster")
 
 			By(fmt.Sprintf("creating nodepool at version %s (same as CP)", nodePoolInstallVersion))
 			customerNodePoolName := fmt.Sprintf("npdg-%s-%s", strings.ReplaceAll(cpMinor, ".", ""), strings.ReplaceAll(targetMinor, ".", ""))
-			nodePoolParams := framework.NewDefaultNodePoolParams20240610()
+			nodePoolParams := framework.NewDefaultNodePoolParams20260901()
 			nodePoolParams.NodePoolName = customerNodePoolName
 			nodePoolParams.OpenshiftVersionId = nodePoolInstallVersion
 			nodePoolParams.ChannelGroup = channelGroup
 			nodePoolParams.NodeDrainTimeoutMinutes = to.Ptr(int32(10))
-			err = tc.CreateNodePoolFromParam20240610(
+			err = tc.CreateNodePoolFromParam20260901(
 				ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
@@ -754,16 +759,16 @@ var _ = Describe("Customer", func() {
 			Expect(previousReleaseImages).NotTo(BeEmpty(), "expected node pool nodes to report at least one release image ref before downgrade")
 
 			By(fmt.Sprintf("triggering nodepool y-stream downgrade from %s to %s (-2 minors)", nodePoolInstallVersion, nodePoolDowngradeTarget))
-			nodePoolsClient := tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient()
-			update := hcpsdk20240610preview.NodePoolUpdate{
-				Properties: &hcpsdk20240610preview.NodePoolPropertiesUpdate{
-					Version: &hcpsdk20240610preview.NodePoolVersionProfile{
+			nodePoolsClient := tc.Get20260901ClientFactoryOrDie(ctx).NewNodePoolsClient()
+			update := hcpsdk20260901preview.NodePoolUpdate{
+				Properties: &hcpsdk20260901preview.NodePoolPropertiesUpdate{
+					Version: &hcpsdk20260901preview.NodePoolVersionProfileUpdate{
 						ID:           to.Ptr(nodePoolDowngradeTarget),
 						ChannelGroup: to.Ptr(channelGroup),
 					},
 				},
 			}
-			_, err = framework.UpdateNodePoolAndWait20240610(ctx, nodePoolsClient, *resourceGroup.Name, clusterName, customerNodePoolName, update, framework.NodePoolVersionUpgradeTimeout)
+			_, err = framework.UpdateNodePoolAndWait20260901(ctx, nodePoolsClient, *resourceGroup.Name, clusterName, customerNodePoolName, update, framework.NodePoolVersionUpgradeTimeout)
 			Expect(err).NotTo(HaveOccurred(), "failed to update nodepool %s to downgrade target %s", customerNodePoolName, nodePoolDowngradeTarget)
 
 			By("verifying nodes are recreated at the downgrade target version")
@@ -772,7 +777,7 @@ var _ = Describe("Customer", func() {
 			}, framework.NodePoolVersionUpgradeTimeout, 2*time.Minute).Should(Succeed(), "node pool nodes were not recreated at downgrade target version %s", nodePoolDowngradeTarget)
 
 			By("verifying node pool GET reflects the downgrade target version")
-			npGetResponse, err := framework.GetNodePool20240610(ctx, nodePoolsClient, *resourceGroup.Name, clusterName, customerNodePoolName)
+			npGetResponse, err := framework.GetNodePool20260901(ctx, nodePoolsClient, *resourceGroup.Name, clusterName, customerNodePoolName)
 			Expect(err).NotTo(HaveOccurred(), "failed to GET nodepool %s after downgrade", customerNodePoolName)
 			Expect(npGetResponse.Properties).NotTo(BeNil(), "nodepool %s response Properties was nil", customerNodePoolName)
 			Expect(npGetResponse.Properties.Version).NotTo(BeNil(), "nodepool %s Properties.Version was nil", customerNodePoolName)

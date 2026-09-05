@@ -21,18 +21,18 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	hcpsdk20260901preview "github.com/Azure/ARO-HCP/test/sdk/v20260901preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
 )
 
 // Helper to convert ManagedServiceIdentity to AzureResourceManagerCommonTypesManagedServiceIdentityUpdate
-func toIdentityUpdate(identity *hcpsdk20240610preview.ManagedServiceIdentity) *hcpsdk20240610preview.AzureResourceManagerCommonTypesManagedServiceIdentityUpdate {
+func toIdentityUpdate(identity *hcpsdk20260901preview.ManagedServiceIdentity) *hcpsdk20260901preview.AzureResourceManagerCommonTypesManagedServiceIdentityUpdate {
 	if identity == nil {
 		return nil
 	}
-	return &hcpsdk20240610preview.AzureResourceManagerCommonTypesManagedServiceIdentityUpdate{
+	return &hcpsdk20260901preview.AzureResourceManagerCommonTypesManagedServiceIdentityUpdate{
 		Type:                   identity.Type,
 		UserAssignedIdentities: identity.UserAssignedIdentities,
 	}
@@ -58,13 +58,13 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 				Expect(err).NotTo(HaveOccurred(), "failed to create resource group for patch-name test")
 
 				By("creating cluster parameters")
-				clusterParams := framework.NewDefaultClusterParams20240610()
+				clusterParams := framework.NewDefaultClusterParams20260901()
 				clusterParams.ClusterName = clusterName
 				managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 				clusterParams.ManagedResourceGroupName = managedResourceGroupName
 
 				By("creating customer resources")
-				clusterParams, err = tc.CreateClusterCustomerResources20240610(ctx,
+				clusterParams, err = tc.CreateClusterCustomerResources20260901(ctx,
 					resourceGroup,
 					clusterParams,
 					map[string]interface{}{},
@@ -74,11 +74,12 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 				Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for patch-name cluster")
 
 				By("creating the HCP cluster")
-				err = tc.CreateHCPClusterFromParam20240610(
+				err = tc.CreateHCPClusterFromParam20260901(
 					ctx,
 					GinkgoLogr,
 					*resourceGroup.Name,
 					clusterParams,
+					nil,
 					framework.ClusterCreationTimeout,
 				)
 				Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster for patch-name test")
@@ -99,12 +100,12 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 
 				By("sending a PATCH request attempting to change the resource name")
 				newName := clusterName + "-renamed"
-				update := hcpsdk20240610preview.HcpOpenShiftClusterUpdate{
+				update := hcpsdk20260901preview.HcpOpenShiftClusterUpdate{
 					Name: &newName,
 				}
-				_, err = framework.UpdateHCPCluster20240610(
+				_, err = framework.UpdateHCPCluster20260901(
 					ctx,
-					tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
+					tc.Get20260901ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 					*resourceGroup.Name,
 					clusterName,
 					update,
@@ -135,13 +136,13 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 				Expect(err).NotTo(HaveOccurred(), "failed to create resource group for patch-tags test")
 
 				By("creating cluster parameters")
-				clusterParams := framework.NewDefaultClusterParams20240610()
+				clusterParams := framework.NewDefaultClusterParams20260901()
 				clusterParams.ClusterName = clusterName
 				managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 				clusterParams.ManagedResourceGroupName = managedResourceGroupName
 
 				By("creating customer resources")
-				clusterParams, err = tc.CreateClusterCustomerResources20240610(ctx,
+				clusterParams, err = tc.CreateClusterCustomerResources20260901(ctx,
 					resourceGroup,
 					clusterParams,
 					map[string]interface{}{},
@@ -151,11 +152,12 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 				Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for patch-tags cluster")
 
 				By("creating the HCP cluster")
-				err = tc.CreateHCPClusterFromParam20240610(
+				err = tc.CreateHCPClusterFromParam20260901(
 					ctx,
 					GinkgoLogr,
 					*resourceGroup.Name,
 					clusterParams,
+					nil,
 					framework.ClusterCreationTimeout,
 				)
 				Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster for patch-tags test")
@@ -176,15 +178,15 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 
 				By("sending a PATCH request to set a tag")
 				val := "should succeed"
-				update := hcpsdk20240610preview.HcpOpenShiftClusterUpdate{
+				update := hcpsdk20260901preview.HcpOpenShiftClusterUpdate{
 					Identity: toIdentityUpdate(clusterParams.Identity),
 					Tags: map[string]*string{
 						"test": &val,
 					},
 				}
-				resp, err := framework.UpdateHCPCluster20240610(
+				resp, err := framework.UpdateHCPCluster20260901(
 					ctx,
-					tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
+					tc.Get20260901ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 					*resourceGroup.Name,
 					clusterName,
 					update,
@@ -198,12 +200,7 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 				Expect(*resp.Tags["test"]).To(Equal(val), "update response Tags[\"test\"] should equal %q", val)
 
 				By("verifying the tag is present on the cluster")
-				respGet, err := framework.GetHCPCluster20240610(
-					ctx,
-					tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
-					*resourceGroup.Name,
-					clusterName,
-				)
+				respGet, err := tc.Get20260901ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient().Get(ctx, *resourceGroup.Name, clusterName, nil)
 				Expect(err).NotTo(HaveOccurred(), "failed to GET HCP cluster after tag update")
 				Expect(respGet.Tags).ToNot(BeNil(), "GET response Tags was nil")
 				Expect(respGet.Tags["test"]).ToNot(BeNil(), "GET response Tags[\"test\"] was nil")

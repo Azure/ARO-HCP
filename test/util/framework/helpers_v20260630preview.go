@@ -28,6 +28,9 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
+	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
@@ -59,6 +62,7 @@ type ClusterParams20260630 struct {
 	EncryptionKeyManagementMode   string
 	EncryptionType                string
 	VnetIntegrationSubnetID       string
+	IntegrationSubnetName         string
 	KeyVaultVisibility            string
 	IngressType                   string
 	Network                       NetworkConfig
@@ -245,12 +249,17 @@ func PopulateClusterParamsFromCustomerInfraDeployment20260630(
 	if err != nil {
 		return params, fmt.Errorf("failed to get vnetSubnetName from customer infra deployment: %w", err)
 	}
+	integrationSubnetName, err := GetOutputValueString(customerInfraDeploymentResult, "integrationSubnetName")
+	if err != nil {
+		return params, fmt.Errorf("failed to get integrationSubnetName from customer infra deployment: %w", err)
+	}
 	params.KeyVaultName = keyVaultName
 	params.EtcdEncryptionKeyVersion = etcdEncryptionKeyVersion
 	params.EtcdEncryptionKeyName = etcdEncryptionKeyName
 	params.NsgResourceID = nsgResourceID
 	params.SubnetResourceID = subnetResourceID
 	params.VnetIntegrationSubnetID = vnetIntegrationSubnetID
+	params.IntegrationSubnetName = integrationSubnetName
 	params.VnetName = vnetName
 	params.NsgName = nsgName
 	params.SubnetName = subnetName
@@ -556,6 +565,7 @@ func BuildHCPClusterFromParams20260630(
 				},
 			},
 			ImageDigestMirrors: imageDigestMirrors,
+			Autoscaling:        parameters.Autoscaling,
 		},
 	}, nil
 }
@@ -661,7 +671,7 @@ func UpdateHCPCluster20260630(
 
 		// The v20260630 variant does not call checkOperationResult because
 		// the v20260630 SDK does not yet have a matching Get response type
-		// to compare against. The v20240610 variant above does this check.
+		// to compare against.
 		hcpOpenShiftCluster = &operationResult.HcpOpenShiftCluster
 		return true, nil
 	})
@@ -812,4 +822,105 @@ func (tc *perItOrDescribeTestContext) get20260630ClientFactoryUnlocked(ctx conte
 	tc.clientFactory20260630 = clientFactory
 
 	return tc.clientFactory20260630, nil
+}
+
+// ---------------------------------------------------------------------------
+// Admin credential helpers (v20260630preview, non-CSR API)
+// ---------------------------------------------------------------------------
+
+func (tc *perItOrDescribeTestContext) GetAdminRESTConfigForHCPCluster20260630(
+	ctx context.Context,
+	hcpClient *hcpsdk20260630preview.HcpOpenShiftClustersClient,
+	resourceGroupName string,
+	hcpClusterName string,
+	timeout time.Duration, // this is a POST request, so keep the timeout as it's async
+) (*rest.Config, error) {
+	ctx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during GetAdminRESTConfigForHCPCluster20260630 for cluster %s in resource group %s", timeout.Minutes(), hcpClusterName, resourceGroupName))
+	defer cancel()
+
+	startTime := time.Now()
+	defer func() {
+		finishTime := time.Now()
+		tc.RecordTestStep("Collect admin credentials for cluster", startTime, finishTime)
+	}()
+
+	adminCredentialRequestPoller, err := hcpClient.BeginRequestAdminCredential(
+		ctx,
+		resourceGroupName,
+		hcpClusterName,
+		nil,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to start credential request: %w", err)
+	}
+
+	operationResult, err := adminCredentialRequestPoller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
+		Frequency: StandardPollInterval,
+	})
+	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return nil, fmt.Errorf("failed waiting for hcpCluster=%q in resourcegroup=%q to finish getting creds, caused by: %w, error: %w", hcpClusterName, resourceGroupName, context.Cause(ctx), err)
+		}
+		return nil, fmt.Errorf("failed waiting for hcpCluster=%q in resourcegroup=%q to finish getting creds: %w", hcpClusterName, resourceGroupName, err)
+	}
+
+	switch m := any(operationResult).(type) {
+	case hcpsdk20260630preview.HcpOpenShiftClustersClientRequestAdminCredentialResponse:
+		restConfig, err := clientcmd.BuildConfigFromKubeconfigGetter("", func() (*clientcmdapi.Config, error) {
+			if m.Kubeconfig == nil {
+				return nil, fmt.Errorf("kubeconfig content is nil")
+			}
+			return clientcmd.Load([]byte(*m.Kubeconfig))
+		})
+		if err != nil {
+			return nil, err
+		}
+
+		tc.contextLock.Lock()
+		tc.hcpAdminConfigs[resourceGroupName+"/"+hcpClusterName] = restConfig
+		tc.contextLock.Unlock()
+
+		return restConfig, nil
+	default:
+		return nil, fmt.Errorf("unknown type %T", m)
+	}
+}
+
+func (tc *perItOrDescribeTestContext) RevokeCredentialsAndWait20260630(
+	ctx context.Context,
+	hcpClient *hcpsdk20260630preview.HcpOpenShiftClustersClient,
+	resourceGroupName string,
+	hcpClusterName string,
+	timeout time.Duration,
+) error {
+	ctx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during RevokeCredentialsAndWait20260630 for cluster %s in resource group %s", timeout.Minutes(), hcpClusterName, resourceGroupName))
+	defer cancel()
+
+	startTime := time.Now()
+	defer func() {
+		finishTime := time.Now()
+		tc.RecordTestStep("Collect revoke admin credentials for cluster", startTime, finishTime)
+	}()
+
+	poller, err := hcpClient.BeginRevokeCredentials(ctx, resourceGroupName, hcpClusterName, nil)
+	if err != nil {
+		return fmt.Errorf("failed to start credential revocation for hcpCluster=%q in resourcegroup=%q: %w", hcpClusterName, resourceGroupName, err)
+	}
+
+	operationResult, err := poller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
+		Frequency: StandardPollInterval,
+	})
+	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return fmt.Errorf("failed waiting for hcpCluster=%q in resourcegroup=%q to finish revoking creds, caused by: %w, error: %w", hcpClusterName, resourceGroupName, context.Cause(ctx), err)
+		}
+		return fmt.Errorf("failed waiting for hcpCluster=%q in resourcegroup=%q to finish revoking creds: %w", hcpClusterName, resourceGroupName, err)
+	}
+
+	switch m := any(operationResult).(type) {
+	case hcpsdk20260630preview.HcpOpenShiftClustersClientRevokeCredentialsResponse:
+		return nil
+	default:
+		return fmt.Errorf("unknown type %T", m)
+	}
 }

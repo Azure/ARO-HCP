@@ -30,7 +30,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
-	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	hcpsdk20260901preview "github.com/Azure/ARO-HCP/test/sdk/v20260901preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
@@ -63,13 +63,13 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create resource group rg-negative-tests")
 
 			By("creating cluster parameters")
-			clusterParams := framework.NewDefaultClusterParams20240610()
+			clusterParams := framework.NewDefaultClusterParams20260901()
 			clusterParams.ClusterName = customerClusterName
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			clusterParams.ManagedResourceGroupName = managedResourceGroupName
 
 			By("creating customer resources")
-			clusterParams, err = tc.CreateClusterCustomerResources20240610(ctx,
+			clusterParams, err = tc.CreateClusterCustomerResources20260901(ctx,
 				resourceGroup,
 				clusterParams,
 				map[string]any{
@@ -82,12 +82,12 @@ var _ = Describe("Customer", func() {
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create cluster customer resources")
 
-			nodePoolClient := tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient()
+			nodePoolClient := tc.Get20260901ClientFactoryOrDie(ctx).NewNodePoolsClient()
 			var errs []error
 
 			// TEST CASE: ARO-22570
 			By("attempting to list clusters in a non-existent resource group")
-			clusterClient := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
+			clusterClient := tc.Get20260901ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
 			nonExistentRgName := "non-existent-rg"
 			clusterPager := clusterClient.NewListByResourceGroupPager(nonExistentRgName, nil)
 			_, err = clusterPager.NextPage(ctx)
@@ -100,11 +100,12 @@ var _ = Describe("Customer", func() {
 			checkExpectedError(&errs, "node pool listing in non-existent resource group", err, "resource group not found")
 
 			By("creating the HCP cluster")
-			err = tc.CreateHCPClusterFromParam20240610(
+			err = tc.CreateHCPClusterFromParam20260901(
 				ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
 				clusterParams,
+				nil,
 				framework.ClusterCreationTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %s", customerClusterName)
@@ -123,7 +124,7 @@ var _ = Describe("Customer", func() {
 			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred(), "cluster %s is not viable", customerClusterName)
 
-			baseNodePoolParams := framework.NewDefaultNodePoolParams20240610()
+			baseNodePoolParams := framework.NewDefaultNodePoolParams20260901()
 			baseNodePoolParams.ClusterName = clusterParams.ClusterName
 
 			// TEST CASE: ARO-22576 test that verifies error is triggered when the configured nodepool replicas exceeds
@@ -135,7 +136,7 @@ var _ = Describe("Customer", func() {
 			nodePoolParamsInvalidQuota.NodePoolName = "np-inv-quota"
 
 			By("attempting to create a node pool with invalid quota")
-			err = tc.CreateNodePoolFromParam20240610(ctx,
+			err = tc.CreateNodePoolFromParam20260901(ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
 				managedResourceGroupName,
@@ -148,7 +149,7 @@ var _ = Describe("Customer", func() {
 			nodePoolParams := baseNodePoolParams
 			nodePoolParams.NodePoolName = "np-1"
 			By("creating a nodepool")
-			err = tc.CreateNodePoolFromParam20240610(ctx,
+			err = tc.CreateNodePoolFromParam20260901(ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
 				managedResourceGroupName,
@@ -188,7 +189,7 @@ var _ = Describe("Customer", func() {
 				nodePool.Properties.Platform.AvailabilityZone = to.Ptr("2")
 				if nodePool.Properties.Platform.OSDisk != nil {
 					nodePool.Properties.Platform.OSDisk.SizeGiB = to.Ptr[int32](256)
-					nodePool.Properties.Platform.OSDisk.DiskStorageAccountType = to.Ptr(hcpsdk20240610preview.DiskStorageAccountTypePremiumLRS)
+					nodePool.Properties.Platform.OSDisk.DiskStorageAccountType = to.Ptr(hcpsdk20260901preview.DiskStorageAccountTypePremiumLRS)
 				}
 
 				_, err = nodePoolClient.BeginCreateOrUpdate(ctx, *resourceGroup.Name, clusterParams.ClusterName, nodePoolParams.NodePoolName, nodePool.NodePool, nil)
@@ -215,7 +216,7 @@ var _ = Describe("Customer", func() {
 								errs = append(errs, fmt.Errorf("osDisk.sizeGiB was modified despite immutable error"))
 							}
 
-							if platform.OSDisk.DiskStorageAccountType != nil && *platform.OSDisk.DiskStorageAccountType != hcpsdk20240610preview.DiskStorageAccountTypeStandardSSDLRS {
+							if platform.OSDisk.DiskStorageAccountType != nil && *platform.OSDisk.DiskStorageAccountType != hcpsdk20260901preview.DiskStorageAccountTypeStandardSSDLRS {
 								errs = append(errs, fmt.Errorf("osDisk.diskStorageAccountType was modified despite immutable error"))
 							}
 						}

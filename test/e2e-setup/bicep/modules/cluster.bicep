@@ -13,6 +13,9 @@ param vnetName string
 @description('The subnet name for deploying hcp cluster resources.')
 param subnetName string
 
+@description('The integration subnet name for control plane connectivity.')
+param integrationSubnetName string
+
 @description('OpenShift Version ID to use')
 param openshiftVersionId string
 
@@ -58,6 +61,11 @@ resource subnet 'Microsoft.Network/virtualNetworks/subnets@2022-07-01' existing 
   parent: vnet
 }
 
+resource vnetIntegrationSubnet 'Microsoft.Network/virtualNetworks/subnets@2022-07-01' existing = {
+  name: integrationSubnetName
+  parent: vnet
+}
+
 resource nsg 'Microsoft.Network/networkSecurityGroups@2022-07-01' existing = {
   name: nsgName
 }
@@ -75,7 +83,7 @@ resource etcdEncryptionKey 'Microsoft.KeyVault/vaults/keys@2024-12-01-preview' e
 // Hosted cluster
 //
 
-resource hcp 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters@2024-06-10-preview' = {
+resource hcp 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters@2025-12-23-preview' = {
   name: clusterName
   location: resourceGroup().location
   tags: tags
@@ -93,8 +101,9 @@ resource hcp 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters@2024-06-10-preview'
         customerManaged: {
           encryptionType: 'KMS'
           kms: {
+            vaultName: keyVaultName
+            visibility: 'Public'
             activeKey: {
-              vaultName: keyVaultName
               name: etcdEncryptionKeyName
               version: last(split(etcdEncryptionKey.properties.keyUriWithVersion, '/'))
             }
@@ -112,6 +121,7 @@ resource hcp 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters@2024-06-10-preview'
     platform: {
       managedResourceGroup: managedResourceGroupName
       subnetId: subnet.id
+      vnetIntegrationSubnetId: vnetIntegrationSubnet.id
       outboundType: 'LoadBalancer'
       networkSecurityGroupId: nsg.id
       operatorsAuthentication: {

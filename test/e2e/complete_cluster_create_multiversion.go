@@ -48,7 +48,7 @@ var _ = Describe("ARO-HCP", func() {
 	DescribeTable("should be able to perform a control plane and node pool install with OCP "+framework.DefaultOpenshiftChannelGroup()+" channel",
 		labels.MIContainers(1),
 		func(ctx context.Context, version string) {
-			clusterParams := framework.NewDefaultClusterParams20251223()
+			clusterParams := framework.NewDefaultClusterParams20260901()
 
 			customerNetworkSecurityGroupName := "customer-nsg-" + clusterParams.ChannelGroup + "-"
 			customerVnetName := "customer-vnet-" + clusterParams.ChannelGroup + "-"
@@ -98,7 +98,7 @@ var _ = Describe("ARO-HCP", func() {
 			clusterParams.ManagedResourceGroupName = managedResourceGroupName
 
 			By("creating customer resources")
-			clusterParams, err = tc.CreateClusterCustomerResources20251223(ctx,
+			clusterParams, err = tc.CreateClusterCustomerResources20260901(ctx,
 				resourceGroup,
 				clusterParams,
 				map[string]interface{}{
@@ -112,7 +112,7 @@ var _ = Describe("ARO-HCP", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for cluster %q", clusterName)
 
 			By(fmt.Sprintf("creating the HCP cluster with version '%s' on %s channel", clusterParams.OpenshiftVersionId, clusterParams.ChannelGroup))
-			err = tc.CreateHCPClusterFromParam20251223(
+			err = tc.CreateHCPClusterFromParam20260901(
 				ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
@@ -135,7 +135,7 @@ var _ = Describe("ARO-HCP", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to verify HCP cluster %q is viable", clusterName)
 
 			nodePoolName := "np-" + suffix
-			nodePoolParams := framework.NewDefaultNodePoolParams20240610()
+			nodePoolParams := framework.NewDefaultNodePoolParams20260901()
 			nodePoolParams.ClusterName = clusterName
 			nodePoolParams.NodePoolName = nodePoolName
 			// Calculate the node pool version
@@ -164,7 +164,7 @@ var _ = Describe("ARO-HCP", func() {
 			nodePoolParams.OpenshiftVersionId = parseableVersions[0]
 
 			By(fmt.Sprintf("creating node pool %q with version '%s' on %s channel", nodePoolName, nodePoolParams.OpenshiftVersionId, nodePoolParams.ChannelGroup))
-			err = tc.CreateNodePoolFromParam20240610(
+			err = tc.CreateNodePoolFromParam20260901(
 				ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
@@ -176,8 +176,8 @@ var _ = Describe("ARO-HCP", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create node pool %q for cluster %q", nodePoolName, clusterName)
 
 			By("verifying nodepool DiskStorageAccountType matches framework default")
-			err = framework.ValidateNodePoolDiskStorageAccountType20240610(ctx,
-				tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient(),
+			err = framework.ValidateNodePoolDiskStorageAccountType20260901(ctx,
+				tc.Get20260901ClientFactoryOrDie(ctx).NewNodePoolsClient(),
 				*resourceGroup.Name,
 				clusterName,
 				nodePoolName,

@@ -22,7 +22,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
-	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	hcpsdk20260901preview "github.com/Azure/ARO-HCP/test/sdk/v20260901preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
@@ -71,11 +71,11 @@ var _ = Describe("Customer", func() {
 			resourceGroup, err := tc.NewResourceGroup(ctx, "autoscaling-cluster", tc.Location())
 			Expect(err).NotTo(HaveOccurred(), "failed to create resource group for autoscaling cluster test")
 
-			clusterParams := framework.NewDefaultClusterParams20240610()
+			clusterParams := framework.NewDefaultClusterParams20260901()
 			clusterParams.ClusterName = customerClusterName
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			clusterParams.ManagedResourceGroupName = managedResourceGroupName
-			clusterParams.Autoscaling = &hcpsdk20240610preview.ClusterAutoscalingProfile{
+			clusterParams.Autoscaling = &hcpsdk20260901preview.ClusterAutoscalingProfile{
 				MaxNodeProvisionTimeSeconds: to.Ptr(autoscalingMaxNodeProvisionTimeSeconds),
 				MaxPodGracePeriodSeconds:    to.Ptr(autoscalingMaxPodGracePeriodSeconds),
 				PodPriorityThreshold:        to.Ptr(autoscalingPodPriorityThreshold),
@@ -83,7 +83,7 @@ var _ = Describe("Customer", func() {
 			}
 
 			By("creating customer resources")
-			clusterParams, err = tc.CreateClusterCustomerResources20240610(ctx,
+			clusterParams, err = tc.CreateClusterCustomerResources20260901(ctx,
 				resourceGroup,
 				clusterParams,
 				map[string]interface{}{
@@ -96,24 +96,20 @@ var _ = Describe("Customer", func() {
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for autoscaling cluster")
 
-			hcpClient := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
+			hcpClient := tc.Get20260901ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
 
 			By("creating the cluster with custom autoscaling configuration")
-			err = tc.CreateHCPClusterFromParam20240610(ctx,
+			err = tc.CreateHCPClusterFromParam20260901(ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
 				clusterParams,
+				nil,
 				framework.ClusterCreationTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %q with custom autoscaling", customerClusterName)
 
 			By("ensuring the custom autoscaling configuration was honored at create time")
-			got, err := framework.GetHCPCluster20240610(
-				ctx,
-				hcpClient,
-				*resourceGroup.Name,
-				customerClusterName,
-			)
+			got, err := hcpClient.Get(ctx, *resourceGroup.Name, customerClusterName, nil)
 			Expect(err).NotTo(HaveOccurred(), "failed to get cluster %q to verify autoscaling settings", customerClusterName)
 			Expect(got.Properties).NotTo(BeNil(), "cluster response Properties was nil")
 			Expect(got.Properties.Autoscaling).ToNot(BeNil(), "cluster Properties.Autoscaling was nil")
@@ -123,12 +119,12 @@ var _ = Describe("Customer", func() {
 			Expect(got.Properties.Autoscaling.MaxNodesTotal).To(Equal(to.Ptr(autoscalingMaxNodesTotal)), "cluster autoscaling MaxNodesTotal should be %d", autoscalingMaxNodesTotal)
 
 			By("creating the node pool")
-			nodePoolParams := framework.NewDefaultNodePoolParams20240610()
+			nodePoolParams := framework.NewDefaultNodePoolParams20260901()
 			nodePoolParams.ClusterName = customerClusterName
 			nodePoolParams.NodePoolName = customerNodePoolName
 			nodePoolParams.Replicas = int32(2)
 
-			err = tc.CreateNodePoolFromParam20240610(ctx,
+			err = tc.CreateNodePoolFromParam20260901(ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
 				managedResourceGroupName,
@@ -139,9 +135,9 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create nodepool %q for autoscaling cluster", customerNodePoolName)
 
 			By("getting admin credentials for the cluster")
-			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
+			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20260630(
 				ctx,
-				hcpClient,
+				tc.Get20260630ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
 				customerClusterName,
 				framework.GetAdminRESTConfigTimeout,
@@ -153,14 +149,14 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to verify HCP cluster health before autoscaling update")
 
 			By("updating the cluster autoscaling configuration via PATCH")
-			updateResp, err := framework.UpdateHCPCluster20240610(
+			updateResp, err := framework.UpdateHCPCluster20260901(
 				ctx,
 				hcpClient,
 				*resourceGroup.Name,
 				customerClusterName,
-				hcpsdk20240610preview.HcpOpenShiftClusterUpdate{
-					Properties: &hcpsdk20240610preview.HcpOpenShiftClusterPropertiesUpdate{
-						Autoscaling: &hcpsdk20240610preview.ClusterAutoscalingProfile{
+				hcpsdk20260901preview.HcpOpenShiftClusterUpdate{
+					Properties: &hcpsdk20260901preview.HcpOpenShiftClusterPropertiesUpdate{
+						Autoscaling: &hcpsdk20260901preview.ClusterAutoscalingProfile{
 							MaxNodesTotal:               to.Ptr(updatedMaxNodesTotal),
 							MaxNodeProvisionTimeSeconds: to.Ptr(updatedMaxNodeProvisionTimeSeconds),
 							MaxPodGracePeriodSeconds:    to.Ptr(updatedMaxPodGracePeriodSeconds),
@@ -176,7 +172,7 @@ var _ = Describe("Customer", func() {
 			Expect(updateResp).NotTo(BeNil(), "autoscaling update response was nil")
 			Expect(updateResp.Properties).NotTo(BeNil(), "autoscaling update response Properties was nil")
 			Expect(updateResp.Properties.ProvisioningState).NotTo(BeNil(), "autoscaling update response ProvisioningState was nil")
-			Expect(*updateResp.Properties.ProvisioningState).To(Equal(hcpsdk20240610preview.ProvisioningStateSucceeded), "cluster provisioning state should be Succeeded after autoscaling update")
+			Expect(*updateResp.Properties.ProvisioningState).To(Equal(hcpsdk20260901preview.ProvisioningStateSucceeded), "cluster provisioning state should be Succeeded after autoscaling update")
 			Expect(updateResp.Properties.Autoscaling).NotTo(BeNil(), "autoscaling update response Properties.Autoscaling was nil")
 			Expect(updateResp.Properties.Autoscaling.MaxNodesTotal).To(Equal(to.Ptr(updatedMaxNodesTotal)), "update response MaxNodesTotal should be %d", updatedMaxNodesTotal)
 			Expect(updateResp.Properties.Autoscaling.MaxNodeProvisionTimeSeconds).To(Equal(to.Ptr(updatedMaxNodeProvisionTimeSeconds)), "update response MaxNodeProvisionTimeSeconds should be %d", updatedMaxNodeProvisionTimeSeconds)
@@ -184,12 +180,7 @@ var _ = Describe("Customer", func() {
 			Expect(updateResp.Properties.Autoscaling.PodPriorityThreshold).To(Equal(to.Ptr(updatedPodPriorityThreshold)), "update response PodPriorityThreshold should be %d", updatedPodPriorityThreshold)
 
 			By("verifying the updated autoscaling configuration via GET")
-			clusterAfterAutoscalingUpdate, err := framework.GetHCPCluster20240610(
-				ctx,
-				hcpClient,
-				*resourceGroup.Name,
-				customerClusterName,
-			)
+			clusterAfterAutoscalingUpdate, err := hcpClient.Get(ctx, *resourceGroup.Name, customerClusterName, nil)
 			Expect(err).NotTo(HaveOccurred(), "failed to get cluster %q after autoscaling update", customerClusterName)
 			Expect(clusterAfterAutoscalingUpdate.Properties).NotTo(BeNil(), "cluster response Properties was nil after autoscaling update")
 			Expect(clusterAfterAutoscalingUpdate.Properties.Autoscaling).NotTo(BeNil(), "cluster Properties.Autoscaling was nil after autoscaling update")

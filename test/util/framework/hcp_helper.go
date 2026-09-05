@@ -49,8 +49,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
-	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
-	hcpsdk20251223preview "github.com/Azure/ARO-HCP/test/sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	hcpsdk20260901preview "github.com/Azure/ARO-HCP/test/sdk/v20260901preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 )
 
 // checkOperationResult ensures the result model returned by a runtime.Poller
@@ -64,10 +63,7 @@ func checkOperationResult(expectModel, resultModel any) error {
 		// Note: I'm anticipating adding "Identity.UserAssignedIdentities" here once
 		// the RP takes over fetching client and principal IDs from the Managed Identity
 		// service. That would be a concrete example of asynchronously computed fields.
-		cmpopts.IgnoreFields(hcpsdk20240610preview.HcpOpenShiftCluster{}, "SystemData"),
-		cmpopts.IgnoreFields(hcpsdk20240610preview.NodePool{}, "SystemData"),
-		cmpopts.IgnoreFields(hcpsdk20240610preview.ExternalAuth{}, "SystemData"),
-		cmpopts.IgnoreFields(hcpsdk20251223preview.NodePool{}, "SystemData"),
+		cmpopts.IgnoreFields(hcpsdk20260901preview.NodePool{}, "SystemData"),
 	)
 
 	if len(diff) > 0 {

@@ -42,7 +42,7 @@ import (
 
 	"github.com/openshift-eng/openshift-tests-extension/pkg/util/sets"
 
-	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	hcpsdk20260901preview "github.com/Azure/ARO-HCP/test/sdk/v20260901preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
@@ -50,7 +50,7 @@ import (
 
 var _ = Describe("Customer", func() {
 
-	terminalProvisioningStates := sets.New(hcpsdk20240610preview.ProvisioningStateSucceeded, hcpsdk20240610preview.ProvisioningStateFailed, hcpsdk20240610preview.ProvisioningStateCanceled)
+	terminalProvisioningStates := sets.New(hcpsdk20260901preview.ProvisioningStateSucceeded, hcpsdk20260901preview.ProvisioningStateFailed, hcpsdk20260901preview.ProvisioningStateCanceled)
 
 	It("should be able to test admin credentials before cluster ready, then full admin credential lifecycle",
 		labels.RequireNothing,
@@ -72,13 +72,13 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create resource group for admin credential lifecycle test")
 
 			By("creating cluster parameters")
-			clusterParams := framework.NewDefaultClusterParams20240610()
+			clusterParams := framework.NewDefaultClusterParams20260901()
 			clusterParams.ClusterName = clusterName
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			clusterParams.ManagedResourceGroupName = managedResourceGroupName
 
 			By("creating customer resources")
-			clusterParams, err = tc.CreateClusterCustomerResources20240610(ctx,
+			clusterParams, err = tc.CreateClusterCustomerResources20260901(ctx,
 				resourceGroup,
 				clusterParams,
 				map[string]any{},
@@ -88,12 +88,14 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for admin credential lifecycle cluster")
 
 			By("starting HCP cluster creation asynchronously")
-			clusterClient := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
+			clusterClient := tc.Get20260901ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
+			// Admin credential operations use the v20260630preview (non-CSR) API.
+			credentialClient := tc.Get20260630ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
 			timeout := framework.ClusterCreationTimeout
 			deploymentCtx, deploymentCancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during admin credential lifecycle test", timeout.Minutes()))
 			defer deploymentCancel()
 
-			_, err = framework.BeginCreateHCPCluster20240610(
+			_, err = framework.BeginCreateHCPCluster20260901(
 				deploymentCtx,
 				GinkgoLogr,
 				clusterClient,
@@ -107,10 +109,10 @@ var _ = Describe("Customer", func() {
 			By("waiting for cluster to appear and testing admin credentials while in deploying state")
 			// Poll the cluster state and test admin credentials when we find it deploying
 			var testedWhileDeploying bool
-			var previousState hcpsdk20240610preview.ProvisioningState
+			var previousState hcpsdk20260901preview.ProvisioningState
 			GinkgoLogr.Info("creating cluster, waiting for it to reach a terminal state")
 			Eventually(func() bool {
-				cluster, err := framework.GetHCPCluster20240610(ctx, clusterClient, *resourceGroup.Name, clusterName)
+				cluster, err := clusterClient.Get(ctx, *resourceGroup.Name, clusterName, nil)
 				if err != nil {
 					var respErr *azcore.ResponseError
 					if errors.As(err, &respErr) && respErr.StatusCode == http.StatusNotFound {
@@ -130,7 +132,7 @@ var _ = Describe("Customer", func() {
 				if !testedWhileDeploying && !terminalProvisioningStates.Has(*cluster.Properties.ProvisioningState) {
 					By("testing admin credentials while cluster is in deploying state")
 					testedWhileDeploying = true
-					_, err := clusterClient.BeginRequestAdminCredential(
+					_, err := credentialClient.BeginRequestAdminCredential(
 						ctx,
 						*resourceGroup.Name,
 						clusterName,
@@ -146,7 +148,7 @@ var _ = Describe("Customer", func() {
 				}
 
 				// If cluster is ready, we're done
-				if *cluster.Properties.ProvisioningState == hcpsdk20240610preview.ProvisioningStateSucceeded {
+				if *cluster.Properties.ProvisioningState == hcpsdk20260901preview.ProvisioningStateSucceeded {
 					if !testedWhileDeploying {
 						Fail("Cluster provisioned too quickly to test 409 behavior - unable to validate admin credentials fail during deployment")
 					}
@@ -154,7 +156,7 @@ var _ = Describe("Customer", func() {
 				}
 
 				// If cluster failed, that's an error
-				if *cluster.Properties.ProvisioningState == hcpsdk20240610preview.ProvisioningStateFailed {
+				if *cluster.Properties.ProvisioningState == hcpsdk20260901preview.ProvisioningStateFailed {
 					Fail("Cluster provisioning failed")
 				}
 
@@ -178,7 +180,7 @@ var _ = Describe("Customer", func() {
 				// request admin credential without using the helper function to ensure we can validate
 				// the raw kubeconfig returned by the API. The helper function returns a rest.Config
 				// that omits certain information that is required for validation (e.g. config.Clusters).
-				adminCredentialRequestPoller, err := clusterClient.BeginRequestAdminCredential(
+				adminCredentialRequestPoller, err := credentialClient.BeginRequestAdminCredential(
 					validationCtx,
 					*resourceGroup.Name,
 					clusterName,
@@ -246,7 +248,7 @@ var _ = Describe("Customer", func() {
 			skipSuite := os.Getenv("ARO_HCP_SUITE_NAME") == "integration/parallel" && time.Now().Before(time.Date(2026, 4, 15, 0, 0, 0, 0, time.UTC))
 
 			By("revoking all cluster admin credentials via ARO HCP RP API")
-			err = tc.RevokeCredentialsAndWait20240610(ctx, clusterClient, *resourceGroup.Name, clusterName, 15*time.Minute)
+			err = tc.RevokeCredentialsAndWait20260630(ctx, credentialClient, *resourceGroup.Name, clusterName, 15*time.Minute)
 			if err != nil && skipSuite {
 				Skip("skipping revocation and remaining steps in integration/parallel suite")
 			}
@@ -288,9 +290,9 @@ var _ = Describe("Customer", func() {
 			By("verifying new admin credentials can still be requested after revocation")
 			// After revocation, new admin credential requests should still work
 			// This validates the revocation endpoint doesn't break the cluster
-			newAdminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
+			newAdminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20260630(
 				ctx,
-				clusterClient,
+				tc.Get20260630ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
 				clusterName,
 				framework.GetAdminRESTConfigTimeout,

@@ -77,13 +77,13 @@ var _ = Describe("Region in-place upgrade", func() {
 
 			resourceGroupName := *resourceGroup.Name
 
-			clusterParams := framework.NewDefaultClusterParams20240610()
+			clusterParams := framework.NewDefaultClusterParams20260901()
 			clusterParams.ClusterName = clusterName
 			managedResourceGroupName := framework.SuffixName(resourceGroupName, "-managed", 64)
 			clusterParams.ManagedResourceGroupName = managedResourceGroupName
 
 			By("creating customer resources (infrastructure and managed identities)")
-			clusterParams, err = tc.CreateClusterCustomerResources20240610(ctx,
+			clusterParams, err = tc.CreateClusterCustomerResources20260901(ctx,
 				resourceGroup,
 				clusterParams,
 				map[string]interface{}{},
@@ -93,20 +93,21 @@ var _ = Describe("Region in-place upgrade", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for cluster %q", clusterName)
 
 			By("creating the HCP cluster")
-			err = tc.CreateHCPClusterFromParam20240610(ctx,
+			err = tc.CreateHCPClusterFromParam20260901(ctx,
 				GinkgoLogr,
 				resourceGroupName,
 				clusterParams,
+				nil,
 				framework.ClusterCreationTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %q", clusterName)
 
 			By("creating the node pool")
-			nodePoolParams := framework.NewDefaultNodePoolParams20240610()
+			nodePoolParams := framework.NewDefaultNodePoolParams20260901()
 			nodePoolParams.ClusterName = clusterName
 			nodePoolParams.NodePoolName = nodePoolName
 
-			err = tc.CreateNodePoolFromParam20240610(ctx,
+			err = tc.CreateNodePoolFromParam20260901(ctx,
 				GinkgoLogr,
 				resourceGroupName,
 				managedResourceGroupName,
@@ -117,10 +118,9 @@ var _ = Describe("Region in-place upgrade", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create node pool %q for cluster %q", nodePoolName, clusterName)
 
 			By("capturing baseline node pool hash before upgrade")
-			hcpClusterClient := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
-			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
+			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20260630(
 				ctx,
-				hcpClusterClient,
+				tc.Get20260630ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				resourceGroupName,
 				clusterName,
 				framework.GetAdminRESTConfigTimeout,
