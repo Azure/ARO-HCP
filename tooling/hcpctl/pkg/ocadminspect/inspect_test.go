@@ -133,6 +133,114 @@ func TestRenderedResourceQuery(t *testing.T) {
 	}
 }
 
+// TestRenderedResourceQuery_WholeCluster verifies that leaving Namespace unset
+// (no WithNamespace call — the whole-cluster export path) drops the namespace
+// filter entirely, rather than rendering an empty/broken clause, while every
+// other clause (collapse, delete/grace-period filtering) is untouched.
+func TestRenderedResourceQuery_WholeCluster(t *testing.T) {
+	factory, err := kusto.NewQueryFactory()
+	if err != nil {
+		t.Fatalf("failed to build query factory: %v", err)
+	}
+	def, err := factory.GetBuiltinQueryDefinition("ocAdmInspectResources")
+	if err != nil {
+		t.Fatalf("failed to get query definition: %v", err)
+	}
+	data := kusto.NewTemplateDataFromOptions(kusto.NewQueryOptions(), kusto.WithClusterName("aro-hcp-mgmt-1"))
+	queries, err := factory.Build(*def, data)
+	if err != nil {
+		t.Fatalf("failed to build query: %v", err)
+	}
+	rendered := queries[0].GetQuery().String()
+
+	if strings.Contains(rendered, "namespace ==") {
+		t.Errorf("whole-cluster rendered resource query should have no namespace filter:\n%s", rendered)
+	}
+	for _, want := range []string{"kubernetesResourceSnapshots", "cluster == 'aro-hcp-mgmt-1'", "event != 'Delete'", "deletionGracePeriodSeconds"} {
+		if !strings.Contains(rendered, want) {
+			t.Errorf("whole-cluster rendered resource query missing %q:\n%s", want, rendered)
+		}
+	}
+}
+
+// TestRenderedResourceHistoryQuery verifies the uncollapsed changelog query
+// (feeding watch-index) carries the event column and ordering, and does not
+// collapse to "state as of" or drop deleted objects the way
+// ocAdmInspectResources does.
+func TestRenderedResourceHistoryQuery(t *testing.T) {
+	factory, err := kusto.NewQueryFactory()
+	if err != nil {
+		t.Fatalf("failed to build query factory: %v", err)
+	}
+	def, err := factory.GetBuiltinQueryDefinition("ocAdmInspectResourceHistory")
+	if err != nil {
+		t.Fatalf("failed to get query definition: %v", err)
+	}
+	data := kusto.NewTemplateDataFromOptions(kusto.NewQueryOptions(), kusto.WithClusterName("aro-hcp-mgmt-1"))
+	queries, err := factory.Build(*def, data)
+	if err != nil {
+		t.Fatalf("failed to build query: %v", err)
+	}
+	rendered := queries[0].GetQuery().String()
+
+	for _, notWant := range []string{"arg_max", "event != 'Delete'", "deletionTimestamp", "namespace =="} {
+		if strings.Contains(rendered, notWant) {
+			t.Errorf("rendered resource history query should not contain %q:\n%s", notWant, rendered)
+		}
+	}
+	for _, want := range []string{"kubernetesResourceSnapshots", "cluster == 'aro-hcp-mgmt-1'", "project timestamp, event,", "order by timestamp asc"} {
+		if !strings.Contains(rendered, want) {
+			t.Errorf("rendered resource history query missing %q:\n%s", want, rendered)
+		}
+	}
+}
+
+// TestRenderedEventsQuery verifies the events template projects eventNamespace
+// (needed to route each event to the right archive path in whole-cluster
+// mode) both with and without a namespace filter.
+func TestRenderedEventsQuery(t *testing.T) {
+	factory, err := kusto.NewQueryFactory()
+	if err != nil {
+		t.Fatalf("failed to build query factory: %v", err)
+	}
+	def, err := factory.GetBuiltinQueryDefinition("ocAdmInspectEvents")
+	if err != nil {
+		t.Fatalf("failed to get query definition: %v", err)
+	}
+
+	t.Run("namespaced", func(t *testing.T) {
+		data := kusto.NewTemplateDataFromOptions(kusto.NewQueryOptions(),
+			kusto.WithClusterName("aro-hcp-mgmt-1"),
+			kusto.WithNamespace("kube-system"),
+		)
+		queries, err := factory.Build(*def, data)
+		if err != nil {
+			t.Fatalf("failed to build query: %v", err)
+		}
+		rendered := queries[0].GetQuery().String()
+		for _, want := range []string{"eventNamespace == 'kube-system'", "eventNamespace,", "cluster == 'aro-hcp-mgmt-1'"} {
+			if !strings.Contains(rendered, want) {
+				t.Errorf("rendered events query missing %q:\n%s", want, rendered)
+			}
+		}
+	})
+
+	t.Run("whole cluster", func(t *testing.T) {
+		data := kusto.NewTemplateDataFromOptions(kusto.NewQueryOptions(), kusto.WithClusterName("aro-hcp-mgmt-1"))
+		queries, err := factory.Build(*def, data)
+		if err != nil {
+			t.Fatalf("failed to build query: %v", err)
+		}
+		rendered := queries[0].GetQuery().String()
+		if strings.Contains(rendered, "eventNamespace ==") {
+			t.Errorf("whole-cluster rendered events query should have no namespace filter:\n%s", rendered)
+		}
+		if !strings.Contains(rendered, "eventNamespace,") {
+			t.Errorf("whole-cluster rendered events query should still project eventNamespace:\n%s", rendered)
+		}
+	})
+}
+
 func TestRenderedContainerLogsQuery(t *testing.T) {
 	factory, err := kusto.NewQueryFactory()
 	if err != nil {

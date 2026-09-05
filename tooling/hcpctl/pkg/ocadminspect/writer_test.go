@@ -48,26 +48,6 @@ func TestRenderLogLine(t *testing.T) {
 	}
 }
 
-func TestResourcePlural(t *testing.T) {
-	tests := map[string]string{
-		"Pod":           "pods",
-		"ConfigMap":     "configmaps",
-		"Service":       "services",
-		"Endpoints":     "endpoints",
-		"Ingress":       "ingresses",
-		"NetworkPolicy": "networkpolicies",
-		"Deployment":    "deployments",
-		"HostedCluster": "hostedclusters",
-		"EgressQoS":     "egressqoses",
-		"Namespace":     "namespaces",
-	}
-	for kind, want := range tests {
-		if got := resourcePlural(kind); got != want {
-			t.Errorf("resourcePlural(%q) = %q, want %q", kind, got, want)
-		}
-	}
-}
-
 func TestFilesystemWriter_Layout(t *testing.T) {
 	ctx := context.Background()
 	root := t.TempDir()

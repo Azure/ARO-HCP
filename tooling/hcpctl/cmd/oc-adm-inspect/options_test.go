@@ -97,6 +97,36 @@ func TestValidate(t *testing.T) {
 		}
 	})
 
+	t.Run("out rejects namespace flags", func(t *testing.T) {
+		o := base()
+		o.Out = "capture.kshrk"
+		o.Namespaces = []string{"kube-system"}
+		if _, err := o.Validate(ctx, nil); err == nil {
+			t.Errorf("expected error when --out is combined with --namespace")
+		}
+	})
+
+	t.Run("out rejects positional namespace args", func(t *testing.T) {
+		o := base()
+		o.Out = "capture.kshrk"
+		if _, err := o.Validate(ctx, []string{"ns/ocm-stg-abc"}); err == nil {
+			t.Errorf("expected error when --out is combined with a positional ns/<name> argument")
+		}
+	})
+
+	t.Run("out alone needs no namespace", func(t *testing.T) {
+		o := base()
+		o.Out = "capture.kshrk"
+		o.ManagementCluster = "aro-hcp-mgmt-1"
+		v, err := o.Validate(ctx, nil)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(v.Namespaces) != 0 {
+			t.Errorf("Namespaces = %v, want empty", v.Namespaces)
+		}
+	})
+
 	t.Run("positional args are treated as namespaces", func(t *testing.T) {
 		o := base()
 		v, err := o.Validate(ctx, []string{"ns/ocm-stg-abc"})

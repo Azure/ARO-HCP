@@ -1,0 +1,21 @@
+{{- /*
+Every resource-snapshot row on the cluster (or, when Namespace is set, in that
+one namespace) within the requested window, unsummarized: one row per captured
+Add/Update/Delete event, ordered by timestamp ascending. Unlike
+resource_snapshots.kql.gotmpl this does not collapse to "state as of
+TimestampMax" and does not drop deleted objects — it is the raw change history
+a watch-index (ADDED/MODIFIED/DELETED) is built from.
+*/ -}}
+{{- if .NoTruncation}}set notruncation;
+{{end -}}
+kubernetesResourceSnapshots
+| where timestamp between ({{ .TimestampMin }} .. {{ .TimestampMax }})
+| where cluster == '{{.ClusterName}}'
+{{- if .Namespace}}
+| where namespace == '{{.Namespace}}' or (objectKind == 'Namespace' and name == '{{.Namespace}}')
+{{- end}}
+| project timestamp, event, apiVersion, objectKind, namespace, name, uid, object
+| order by timestamp asc
+{{- if gt .Limit 0}}
+| limit {{.Limit}}
+{{- end}}
