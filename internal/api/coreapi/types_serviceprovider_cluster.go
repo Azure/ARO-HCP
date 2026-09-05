@@ -320,6 +320,117 @@ type ServiceProviderClusterStatus struct {
 	// TODO: Move the controllers to use this information. For already introduced controllers that need to support identities replacement, move them
 	// to use this at the point those are updated to support identity replacement.
 	ManagedIdentityDetails map[string]*ManagedIdentityMetadata `json:"managedIdentityDetails,omitempty"`
+
+	// ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation tracks the desired
+	// and observed data-plane OIDC federation state for each fully resolved
+	// data-plane operator identity, using ManagedIdentityDetails as the identity
+	// metadata source. The map is keyed by the fully lowercased Azure Resource ID
+	// of the identity.
+	// Desired identities are the unique ResourceIDs in
+	// Cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators
+	// whose ManagedIdentityDetails entry has resolved
+	// MetadataFromARMUserAssignedIdentitiesAPI (ClientID, PrincipalID, and TenantID).
+	// Identities that only have dataplane or hardcoded-identity metadata
+	// (control-plane operators and the ServiceManagedIdentity) are ignored, even
+	// when the same UAMI is still used as CP or SMI.
+	// DataPlaneOIDCFederationIntent adds those identities as PendingConfigure and
+	// copies ObservedIdentity from the ARM ClientID/PrincipalID/TenantID. A change
+	// to those IDs on the same ResourceID updates ObservedIdentity and sets
+	// PendingConfigure on that entry; it does not deconfigure. Identities that
+	// have left the data-plane set are marked PendingDeconfigure (stamping
+	// DeconfigureTimestamp when that was requested so Azure FIC deletes wait 24
+	// hours on a live cluster). DataPlaneOIDCFederation then creates or deletes
+	// federated identity credentials in Azure (one per data-plane operator
+	// service account) and advances the phase to Configured, or removes the
+	// identity from this map after a successful deconfigure.
+	// Written by: DataPlaneOIDCFederationIntent, DataPlaneOIDCFederation
+	ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation map[string]*ManagedIdentityDataplaneOIDCFederationStatus `json:"managedIdentitiesWithDataPlaneWorkloadsOIDCFederation,omitempty"`
+}
+
+// ManagedIdentityDataplaneOIDCFederationPhase is the reconciliation phase of
+// data-plane OIDC federation for a single managed identity.
+type ManagedIdentityDataplaneOIDCFederationPhase string
+
+const (
+	// ManagedIdentityDataplaneOIDCFederationPhasePendingConfigure means the
+	// identity is fully resolved and a federated identity credential should be created.
+	ManagedIdentityDataplaneOIDCFederationPhasePendingConfigure ManagedIdentityDataplaneOIDCFederationPhase = "PendingConfigure"
+	// ManagedIdentityDataplaneOIDCFederationPhaseConfigured means the federated
+	// identity credential has been created in Azure.
+	ManagedIdentityDataplaneOIDCFederationPhaseConfigured ManagedIdentityDataplaneOIDCFederationPhase = "Configured"
+	// ManagedIdentityDataplaneOIDCFederationPhasePendingDeconfigure means the
+	// identity is no longer a desired data-plane identity and the federated
+	// identity credential should be deleted.
+	ManagedIdentityDataplaneOIDCFederationPhasePendingDeconfigure ManagedIdentityDataplaneOIDCFederationPhase = "PendingDeconfigure"
+	// ManagedIdentityDataplaneOIDCFederationPhaseDeconfigured means the federated
+	// identity credential has been deleted from Azure. New reconciles remove the
+	// identity from ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation instead
+	// of persisting this phase. The value may still appear on existing documents
+	// until DataPlaneOIDCFederationIntent drops the entry, or until the identity
+	// is desired again and flipped back to PendingConfigure.
+	ManagedIdentityDataplaneOIDCFederationPhaseDeconfigured ManagedIdentityDataplaneOIDCFederationPhase = "Deconfigured"
+)
+
+// ManagedIdentityDataplaneOIDCFederationObservedIdentity is the ARM User
+// Assigned Identities ClientID/PrincipalID/TenantID that intent last targeted
+// for this ResourceID. ResourceID is the map key and is not duplicated here.
+// Written only when ARM metadata is fully resolved. TenantID is the identity
+// tenant; it is not the OIDC issuer tenant. The executor builds the issuer
+// from the cluster subscription tenant.
+// Written by: DataPlaneOIDCFederationIntent
+type ManagedIdentityDataplaneOIDCFederationObservedIdentity struct {
+	ClientID    string `json:"clientId,omitempty"`
+	PrincipalID string `json:"principalId,omitempty"`
+	TenantID    string `json:"tenantId,omitempty"`
+}
+
+type ManagedIdentityDataplaneOIDCFederationStatus struct {
+	// EarliestRecheckTime is the earliest time at which the controller should
+	// re-query Azure for the managed identity's OIDC Federation status. Nil means recheck immediately.
+	// This allows the controller to avoid repeatedly hitting an Azure API to
+	// recheck that the desired state is true.
+	// Controllers should set this field with substantial jitter: without another
+	// concern, jitter of 50% is considered normal so that any storms are quickly
+	// dissipated. Additionally, long recheck times are recommended for resources outside of their active phases. Order of at least six hours is, with durations up to 24 hours considered normal.
+	// Written by: DataPlaneOIDCFederation
+	EarliestRecheckTime *metav1.Time `json:"earliestRecheckTime,omitempty"`
+	// Phase is the reconciliation phase of data-plane OIDC federation for this identity.
+	// Written by: DataPlaneOIDCFederationIntent, DataPlaneOIDCFederation
+	Phase ManagedIdentityDataplaneOIDCFederationPhase `json:"phase,omitempty"`
+	// ObservedIdentity is the ARM User Assigned Identities ClientID, PrincipalID,
+	// and TenantID that intent last targeted for this ResourceID. Intent copies
+	// these from ManagedIdentityDetails when ARM metadata is resolved. A change
+	// to any of these IDs updates this field and sets Phase to PendingConfigure
+	// in the same write so Configured is never paired with a new instance that
+	// has not been ensured. Other controllers join this field with live
+	// ManagedIdentityDetails and Phase to know which identity instance was
+	// federated.
+	// Written by: DataPlaneOIDCFederationIntent
+	ObservedIdentity ManagedIdentityDataplaneOIDCFederationObservedIdentity `json:"observedIdentity,omitempty"`
+	// DeconfigureTimestamp is the timestamp at which deconfigure of this
+	// identity's data-plane OIDC federation was requested. The timestamp is in UTC.
+	// A nil value indicates that deconfigure has not been requested.
+	// On a live cluster the executor waits 24 hours from this timestamp before
+	// deleting Azure FICs. Cluster deletion (DeletionTimestamp set) deconfigures
+	// immediately. Cleared when the identity is desired again and flipped back
+	// to PendingConfigure. Successful deconfigure removes the map entry rather
+	// than clearing this field in place.
+	// Written by: DataPlaneOIDCFederationIntent
+	DeconfigureTimestamp *metav1.Time `json:"deconfigureTimestamp,omitempty"`
+	// PendingAzureResources contains federated identity credential resource IDs
+	// that have been requested but not yet confirmed to exist in Azure.
+	// DataPlaneOIDCFederation persists these IDs before CreateOrUpdate, so a crash
+	// or replace failure cannot lose the tracked set. After a partial Azure ensure,
+	// desired IDs that were not confirmed stay here. PendingDeconfigure also
+	// deletes leftover IDs here from a previous incomplete configure.
+	// Written by: DataPlaneOIDCFederation
+	PendingAzureResources []*azcorearm.ResourceID `json:"pendingFederatedIdentityCredentials,omitempty"`
+	// AzureResources contains federated identity credential resource IDs that
+	// have been confirmed to exist in Azure. After a partial Azure ensure this
+	// is the confirmed subset (plus extras Azure did not delete); after a
+	// partial deconfigure it is the IDs Azure did not delete.
+	// Written by: DataPlaneOIDCFederation
+	AzureResources []*azcorearm.ResourceID `json:"federatedIdentityCredentials,omitempty"`
 }
 
 // ServiceProviderClusterPlacementStatus holds placement-specific status for a
