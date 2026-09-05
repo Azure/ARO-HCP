@@ -15,6 +15,8 @@
 package statusutils
 
 import (
+	"strings"
+
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -39,12 +41,21 @@ const DegradedConditionType = "Degraded"
 // to controllerutils.WriteController, so it is a stable identifier of the
 // producing subsystem.
 //
-// Two shapes are produced:
-//   - Controller reports any Degraded condition (True, False, or Unknown):
-//     passed through untouched. The condition's own LastTransitionTime
-//     drives inertia, and Unknown ends up counted as bad by UnionCondition
-//     because it is not the default ConditionFalse. The aggregator forgets
-//     any prior missing-observation entry for this controller.
+// Only degraded controllers are emitted as sources — successful controllers
+// are omitted so they do not clutter the aggregated Degraded message. This
+// changes reporting only, not detection: Unknown still counts as bad and a
+// missing condition is still synthesized as degraded.
+//
+// Three shapes are produced:
+//   - Controller reports Degraded=True or Unknown: passed through untouched.
+//     The condition's own LastTransitionTime drives inertia, and Unknown ends
+//     up counted as bad by UnionCondition because it is not the default
+//     ConditionFalse. The aggregator forgets any prior missing-observation
+//     entry for this controller.
+//   - Controller reports Degraded=False (healthy/successful): NOT emitted as a
+//     source, so it never appears in the aggregated message. Its prior
+//     missing-observation entry is still forgotten so a later flap starts its
+//     inertia fresh.
 //   - Controller has no Degraded condition at all: synthesized as
 //     Degraded=True with reason MissingDegradedCondition. The synthesized
 //     LastTransitionTime is the first-observed-bad time from the in-memory
@@ -68,6 +79,11 @@ func CollectDegradedConditions(controllers []*coreapi.Controller, firstObservedB
 			// prior missing-observation entry so a future "condition disappeared"
 			// case starts its inertia fresh.
 			firstObservedBad.forget(ridString)
+			if cond.Status == metav1.ConditionFalse {
+				// Healthy/successful controller: no longer emitted as a source so
+				// it does not appear in the aggregated Degraded message.
+				continue
+			}
 			out = append(out, SourcedCondition{
 				ControllerName: controllerName,
 				Condition:      *cond,
@@ -86,6 +102,69 @@ func CollectDegradedConditions(controllers []*coreapi.Controller, firstObservedB
 				Message:            "Controller has not reported a Degraded condition",
 				LastTransitionTime: metav1.NewTime(firstObservedBad.observe(ridString)),
 			},
+		})
+	}
+	return out
+}
+
+// Source-name prefixes for kube-applier desire-sourced Degraded conditions.
+// They are prepended to the desire's full lowercased resource ID (see
+// CollectDegradedDesireConditions) so each source stays attributable to its
+// kind in the aggregated Degraded reason/message.
+const (
+	ApplyDesireSourcePrefix = "applydesire"
+	ReadDesireSourcePrefix  = "readdesire"
+)
+
+// CollectDegradedDesireConditions flattens kube-applier *Desires (ApplyDesire
+// or ReadDesire) into the SourcedCondition form UnionCondition consumes,
+// including ONLY desires that are actually degraded.
+//
+// This differs from CollectDegradedConditions in two deliberate ways:
+//   - A desire is included ONLY when it carries a Degraded condition whose
+//     Status is ConditionTrue. Healthy desires (Degraded=False), desires whose
+//     Degraded condition is Unknown, and desires that have never reported a
+//     Degraded condition all contribute nothing — a successful or
+//     not-yet-reported desire must not surface in the cluster's aggregated
+//     Degraded message.
+//   - Consequently there is no missing-as-degraded synthesis and no
+//     first-observed-bad cache: every included condition brings its own
+//     LastTransitionTime, so it participates in the inertia window naturally.
+//
+// The source name is the sourcePrefix immediately followed by the desire's
+// full, lowercased resource ID (e.g.
+// "applydesire/subscriptions/<sub>/.../applydesires/<name>"). Using the full
+// resource ID — not just its trailing name segment — keeps the source name
+// collision-safe: two desires that share a trailing name but live at different
+// resource paths (for example a cluster-scoped and a node-pool-scoped desire
+// both named "config") still get distinct source names, and desire names never
+// collide with the bare controller names emitted by CollectDegradedConditions.
+// conditionsOf extracts the desire's Status.Conditions; it is passed in so this
+// package need not import kubeapplierapi and so one generic body serves both
+// desire types.
+//
+// Desires with a nil ResourceID are skipped — there is no name to attribute
+// them to.
+func CollectDegradedDesireConditions[T coreapi.CosmosMetadataAccessor](
+	sourcePrefix string,
+	desires []T,
+	conditionsOf func(T) []metav1.Condition,
+) []SourcedCondition {
+	out := make([]SourcedCondition, 0, len(desires))
+	for _, desire := range desires {
+		resourceID := desire.GetResourceID()
+		if resourceID == nil {
+			continue
+		}
+		cond := apimeta.FindStatusCondition(conditionsOf(desire), DegradedConditionType)
+		if cond == nil || cond.Status != metav1.ConditionTrue {
+			// Only actually-degraded desires are reported; skip healthy
+			// (False/Unknown) and never-reported desires.
+			continue
+		}
+		out = append(out, SourcedCondition{
+			ControllerName: sourcePrefix + strings.ToLower(resourceID.String()),
+			Condition:      *cond,
 		})
 	}
 	return out

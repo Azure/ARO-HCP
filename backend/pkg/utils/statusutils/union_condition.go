@@ -49,8 +49,10 @@ type SourcedCondition struct {
 //   - When inertia is nil, every disagreeing source is propagated
 //     immediately (no flap protection).
 //
-// If no sources are supplied the result is Unknown/NoData — the parent
-// has nothing to base its aggregate on.
+// If no sources are supplied the result is defaultStatus with Reason=AsExpected
+// and message "All is well". With report-only-degraded source collection an
+// all-healthy parent produces zero sources, so reporting the good default keeps
+// a healthy parent from being misreported as Unknown/"no data".
 func UnionCondition(
 	conditionType string,
 	defaultStatus metav1.ConditionStatus,
@@ -88,7 +90,12 @@ func UnionCondition(
 
 	result := metav1.Condition{Type: conditionType, Status: metav1.ConditionUnknown}
 	if len(interesting) == 0 {
-		result.Reason = "NoData"
+		// No sources to judge. With report-only-degraded source collection this
+		// is the all-healthy case, so report the good default status rather than
+		// Unknown, so a healthy parent is not misreported as "no data".
+		result.Status = defaultStatus
+		result.Reason = "AsExpected"
+		result.Message = "All is well"
 		return result
 	}
 

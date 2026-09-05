@@ -99,22 +99,24 @@ func TestExternalAuthDegradedAggregator_SyncOnce(t *testing.T) {
 		expectMessage string
 	}{
 		{
-			name:          "no controllers under the external auth -> Unknown/NoData",
+			name:          "no controllers under the external auth -> False/AsExpected (all healthy)",
 			controllers:   nil,
-			inertia:       thirtySecondInertia,
-			expectStatus:  metav1.ConditionUnknown,
-			expectReason:  "NoData",
-			expectMessage: "",
-		},
-		{
-			name: "all-good aggregate",
-			controllers: []*coreapi.Controller{
-				statusutils.ControllerUnder(parentResourceID, "AController", metav1.ConditionFalse, "NoErrors", "fine", 1*time.Minute),
-			},
 			inertia:       thirtySecondInertia,
 			expectStatus:  metav1.ConditionFalse,
 			expectReason:  "AsExpected",
-			expectMessage: "AController: fine",
+			expectMessage: "All is well",
+		},
+		{
+			name: "all controllers healthy -> no degraded sources -> False/AsExpected",
+			controllers: []*coreapi.Controller{
+				statusutils.ControllerUnder(parentResourceID, "AController", metav1.ConditionFalse, "NoErrors", "fine", 1*time.Minute),
+			},
+			inertia: thirtySecondInertia,
+			// Healthy controllers are not emitted as sources, so UnionCondition
+			// sees zero sources and reports the good default (False/AsExpected).
+			expectStatus:  metav1.ConditionFalse,
+			expectReason:  "AsExpected",
+			expectMessage: "All is well",
 		},
 		{
 			name: "bad controller within 30s inertia stays hidden",
@@ -172,17 +174,19 @@ func TestExternalAuthDegradedAggregator_SyncOnce(t *testing.T) {
 				statusutils.ControllerUnder(parentResourceID, "AController", metav1.ConditionFalse, "NoErrors", "fine", 1*time.Minute),
 			},
 			inertia: thirtySecondInertia,
+			// The single healthy controller yields zero sources -> False/AsExpected;
+			// pre-seeding that exercises the no-op (skip Replace) path.
 			initialConditions: []metav1.Condition{
 				{
 					Type:    statusutils.DegradedConditionType,
 					Status:  metav1.ConditionFalse,
 					Reason:  "AsExpected",
-					Message: "AController: fine",
+					Message: "All is well",
 				},
 			},
 			expectStatus:  metav1.ConditionFalse,
 			expectReason:  "AsExpected",
-			expectMessage: "AController: fine",
+			expectMessage: "All is well",
 		},
 	}
 

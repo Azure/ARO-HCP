@@ -24,12 +24,18 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilsclock "k8s.io/utils/clock"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/statusutils"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -54,6 +60,11 @@ type clusterDegradedAggregator struct {
 	// have not yet reported a definite Degraded condition (missing or
 	// Unknown) so they too get inertia protection.
 	firstObservedBad *statusutils.FirstObservedBadCache
+	// applyDesireLister and readDesireLister expose the cluster's
+	// kube-applier ApplyDesires/ReadDesires so their (already-True) Degraded
+	// conditions can be folded into the same aggregate Degraded condition.
+	applyDesireLister kubeapplierlisters.ApplyDesireLister
+	readDesireLister  kubeapplierlisters.ReadDesireLister
 }
 
 var _ controllerutils.ClusterSyncer = (*clusterDegradedAggregator)(nil)
@@ -85,6 +96,11 @@ func NewClusterDegradedAggregatorController(
 	if clock == nil {
 		clock = utilsclock.RealClock{}
 	}
+	// The per-cluster desire listers are already reachable from the union
+	// kube-applier informers handed to this constructor, so no additional
+	// wiring in the caller is needed.
+	_, applyDesireLister := kubeApplierInformers.ApplyDesires()
+	_, readDesireLister := kubeApplierInformers.ReadDesires()
 	syncer := &clusterDegradedAggregator{
 		clusterLister:     clusterLister,
 		controllerLister:  controllerLister,
@@ -92,6 +108,8 @@ func NewClusterDegradedAggregatorController(
 		inertia:           clusterDegradedAggregatorInertia(),
 		clock:             clock,
 		firstObservedBad:  statusutils.NewFirstObservedBadCache(clock),
+		applyDesireLister: applyDesireLister,
+		readDesireLister:  readDesireLister,
 	}
 	return controllerutils.NewClusterWatchingController(
 		"ClusterDegradedAggregator",
@@ -117,12 +135,47 @@ func (c *clusterDegradedAggregator) SyncOnce(ctx context.Context, key controller
 		return utils.TrackError(fmt.Errorf("failed to list Controllers from cache: %w", err))
 	}
 
+	applyDesires, err := c.applyDesireLister.ListForCluster(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to list ApplyDesires from cache: %w", err))
+	}
+
+	readDesires, err := c.readDesireLister.ListForCluster(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to list ReadDesires from cache: %w", err))
+	}
+
+	// ListForCluster also returns node-pool-nested desires; the cluster
+	// aggregator only folds in cluster-scoped desires (immediate parent is the
+	// HCPOpenShiftCluster), matching the cluster-scoped, maxDepth-1 desire
+	// watch. Node-pool-nested desires are aggregated onto their node pool, not
+	// the cluster.
+	clusterApplyDesires := clusterScopedDesires(applyDesires, kubeapplierapi.ClusterScopedApplyDesireResourceType)
+	clusterReadDesires := clusterScopedDesires(readDesires, kubeapplierapi.ClusterScopedReadDesireResourceType)
+
+	// Fold the cluster's controllers together with any degraded cluster-scoped
+	// ApplyDesire/ReadDesire into a single "Degraded" condition. Unlike
+	// controllers, only actually-degraded desires are counted (see
+	// statusutils.CollectDegradedDesireConditions); healthy or not-yet-reported
+	// desires contribute nothing to the aggregate.
+	sources := statusutils.CollectDegradedConditions(controllers, c.firstObservedBad)
+	sources = append(sources, statusutils.CollectDegradedDesireConditions(
+		statusutils.ApplyDesireSourcePrefix, clusterApplyDesires,
+		func(d *kubeapplierapi.ApplyDesire) []metav1.Condition { return d.Status.Conditions },
+	)...)
+	sources = append(sources, statusutils.CollectDegradedDesireConditions(
+		statusutils.ReadDesireSourcePrefix, clusterReadDesires,
+		func(d *kubeapplierapi.ReadDesire) []metav1.Condition { return d.Status.Conditions },
+	)...)
+
+	// With report-only-degraded filtering, an all-healthy cluster produces zero
+	// sources and UnionCondition returns the good default (Degraded=False/AsExpected).
 	aggregated := statusutils.UnionCondition(
 		statusutils.DegradedConditionType,
 		metav1.ConditionFalse,
 		c.inertia,
 		c.clock.Now(),
-		statusutils.CollectDegradedConditions(controllers, c.firstObservedBad)...,
+		sources...,
 	)
 
 	replacement := existing.DeepCopy()
@@ -143,4 +196,21 @@ func (c *clusterDegradedAggregator) SyncOnce(ctx context.Context, key controller
 		return utils.TrackError(fmt.Errorf("failed to replace Cluster: %w", err))
 	}
 	return nil
+}
+
+// clusterScopedDesires returns only the desires whose resource ID is directly
+// cluster-scoped — its resource type equals clusterScopedType, i.e. the desire
+// is nested immediately under the HCPOpenShiftCluster and NOT under a
+// nodePools/... (or any other) segment. It is used to drop the node-pool-nested
+// desires that ListForCluster also returns, keeping this aggregator
+// "cluster-scoped only". Desires with a nil resource ID are dropped.
+func clusterScopedDesires[T coreapi.CosmosMetadataAccessor](desires []T, clusterScopedType azcorearm.ResourceType) []T {
+	out := make([]T, 0, len(desires))
+	for _, desire := range desires {
+		resourceID := desire.GetResourceID()
+		if resourceID != nil && metadataapi.ResourceTypeEqual(resourceID.ResourceType, clusterScopedType) {
+			out = append(out, desire)
+		}
+	}
+	return out
 }

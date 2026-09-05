@@ -65,12 +65,12 @@ func TestUnionCondition(t *testing.T) {
 	}{
 		// --- shape cases (no inertia involvement) ---
 		{
-			name:           "no sources -> Unknown/NoData",
-			inertia:        thirtySecondInertia,
-			sources:        nil,
-			expectedStatus: metav1.ConditionUnknown,
-			expectedReason: "NoData",
-			// no message expected; the aggregate has nothing to say.
+			name:            "no sources -> defaultStatus/AsExpected (all healthy)",
+			inertia:         thirtySecondInertia,
+			sources:         nil,
+			expectedStatus:  metav1.ConditionFalse,
+			expectedReason:  "AsExpected",
+			expectedMessage: "All is well",
 		},
 		{
 			name:    "all sources at default -> defaultStatus/AsExpected with empty-message fallback",
@@ -95,7 +95,7 @@ func TestUnionCondition(t *testing.T) {
 			expectedMessage: "AController: everything green\nBController: all good",
 		},
 		{
-			name:    "ignores conditions whose type does not match",
+			name:    "ignores conditions whose type does not match -> no interesting sources -> defaultStatus/AsExpected",
 			inertia: thirtySecondInertia,
 			sources: []SourcedCondition{
 				{
@@ -107,8 +107,9 @@ func TestUnionCondition(t *testing.T) {
 					},
 				},
 			},
-			expectedStatus: metav1.ConditionUnknown,
-			expectedReason: "NoData",
+			expectedStatus:  metav1.ConditionFalse,
+			expectedReason:  "AsExpected",
+			expectedMessage: "All is well",
 		},
 
 		// --- inertia: nil disables flap protection entirely ---

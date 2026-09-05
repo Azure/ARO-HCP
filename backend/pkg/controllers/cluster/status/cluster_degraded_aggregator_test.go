@@ -33,9 +33,11 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/statusutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/kubeapplierlistertesting"
 )
 
 // newTestClusterForAggregator builds a minimal HCPOpenShiftCluster suitable
@@ -83,11 +85,25 @@ func TestClusterDegradedAggregator_SyncOnce(t *testing.T) {
 		statusutils.InertiaController{ControllerNameMatcher: regexp.MustCompile(`^SlowController$`), Duration: 5 * time.Minute},
 	).Inertia
 
+	// Collision-safe desire source names: the source prefix followed by the
+	// desire's full lowercased resource ID (see CollectDegradedDesireConditions).
+	applyXName := statusutils.ApplyDesireSourcePrefix + kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(
+		statusutils.TestSubscriptionID, statusutils.TestResourceGroupName, statusutils.TestClusterName, "apply-x")
+	readYName := statusutils.ReadDesireSourcePrefix + kubeapplierapi.ToClusterScopedReadDesireResourceIDString(
+		statusutils.TestSubscriptionID, statusutils.TestResourceGroupName, statusutils.TestClusterName, "read-y")
+	applyZName := statusutils.ApplyDesireSourcePrefix + kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(
+		statusutils.TestSubscriptionID, statusutils.TestResourceGroupName, statusutils.TestClusterName, "apply-z")
+
 	tests := []struct {
 		name string
 
 		controllers []*coreapi.Controller
-		inertia     statusutils.Inertia
+		// applyDesires / readDesires are exposed to the aggregator via
+		// slice-backed listers. Only their Degraded=True conditions should be
+		// folded into the aggregate; healthy/condition-less desires must not.
+		applyDesires []*kubeapplierapi.ApplyDesire
+		readDesires  []*kubeapplierapi.ReadDesire
+		inertia      statusutils.Inertia
 		// initialConditions, if set, is layered onto the cluster before SyncOnce
 		// runs. Used to drive the "no-op when conditions unchanged" case.
 		initialConditions []metav1.Condition
@@ -97,23 +113,25 @@ func TestClusterDegradedAggregator_SyncOnce(t *testing.T) {
 		expectMessage string
 	}{
 		{
-			name:          "no controllers under the cluster -> Unknown/NoData",
+			name:          "no controllers under the cluster -> False/AsExpected (all healthy)",
 			controllers:   nil,
 			inertia:       thirtySecondInertia,
-			expectStatus:  metav1.ConditionUnknown,
-			expectReason:  "NoData",
-			expectMessage: "",
+			expectStatus:  metav1.ConditionFalse,
+			expectReason:  "AsExpected",
+			expectMessage: "All is well",
 		},
 		{
-			name: "all controllers report Degraded=False -> aggregate False/AsExpected",
+			name: "all controllers healthy -> no degraded sources -> False/AsExpected",
 			controllers: []*coreapi.Controller{
 				statusutils.ControllerUnder(parentResourceID, "AController", metav1.ConditionFalse, "NoErrors", "fine", 1*time.Minute),
 				statusutils.ControllerUnder(parentResourceID, "BController", metav1.ConditionFalse, "NoErrors", "ok", 1*time.Minute),
 			},
-			inertia:       thirtySecondInertia,
+			inertia: thirtySecondInertia,
+			// Healthy controllers are not emitted as sources, so UnionCondition
+			// sees zero sources and reports the good default (False/AsExpected).
 			expectStatus:  metav1.ConditionFalse,
 			expectReason:  "AsExpected",
-			expectMessage: "AController: fine\nBController: ok",
+			expectMessage: "All is well",
 		},
 		{
 			name: "bad controller within 30s inertia is hidden -> aggregate stays default",
@@ -228,20 +246,124 @@ func TestClusterDegradedAggregator_SyncOnce(t *testing.T) {
 				statusutils.ControllerUnder(parentResourceID, "AController", metav1.ConditionFalse, "NoErrors", "fine", 1*time.Minute),
 			},
 			inertia: thirtySecondInertia,
-			// Pre-seed the cluster with the same Degraded=False/AsExpected condition
-			// that the aggregator will compute. The aggregator must detect the no-op
-			// and skip the Replace; we still verify the resulting condition matches.
+			// The single healthy controller yields zero sources -> False/AsExpected.
+			// Pre-seed that so the aggregator detects the no-op and skips the
+			// Replace; we still verify the resulting condition matches.
 			initialConditions: []metav1.Condition{
 				{
 					Type:    statusutils.DegradedConditionType,
 					Status:  metav1.ConditionFalse,
 					Reason:  "AsExpected",
-					Message: "AController: fine",
+					Message: "All is well",
 				},
 			},
 			expectStatus:  metav1.ConditionFalse,
 			expectReason:  "AsExpected",
-			expectMessage: "AController: fine",
+			expectMessage: "All is well",
+		},
+		{
+			name: "degraded ApplyDesire past inertia folds into cluster Degraded=True",
+			controllers: []*coreapi.Controller{
+				statusutils.ControllerUnder(parentResourceID, "AController", metav1.ConditionFalse, "NoErrors", "fine", 1*time.Minute),
+			},
+			applyDesires: []*kubeapplierapi.ApplyDesire{
+				statusutils.ApplyDesireUnder(parentResourceID, "apply-x",
+					statusutils.DegradedConditionAged(metav1.ConditionTrue, "Failed", "boom", 1*time.Minute)),
+			},
+			inertia:      thirtySecondInertia,
+			expectStatus: metav1.ConditionTrue,
+			// Bad path enumerates only bad sources: the healthy controller is omitted,
+			// and the degraded ApplyDesire is named by its full resource ID.
+			expectReason:  applyXName + "_Failed",
+			expectMessage: applyXName + ": boom",
+		},
+		{
+			name: "degraded ReadDesire past inertia folds into cluster Degraded=True",
+			controllers: []*coreapi.Controller{
+				statusutils.ControllerUnder(parentResourceID, "AController", metav1.ConditionFalse, "NoErrors", "fine", 1*time.Minute),
+			},
+			readDesires: []*kubeapplierapi.ReadDesire{
+				statusutils.ReadDesireUnder(parentResourceID, "read-y",
+					statusutils.DegradedConditionAged(metav1.ConditionTrue, "Failed", "kaboom", 1*time.Minute)),
+			},
+			inertia:       thirtySecondInertia,
+			expectStatus:  metav1.ConditionTrue,
+			expectReason:  readYName + "_Failed",
+			expectMessage: readYName + ": kaboom",
+		},
+		{
+			name: "healthy and condition-less desires contribute nothing to the aggregate",
+			controllers: []*coreapi.Controller{
+				statusutils.ControllerUnder(parentResourceID, "AController", metav1.ConditionFalse, "NoErrors", "fine", 1*time.Minute),
+			},
+			applyDesires: []*kubeapplierapi.ApplyDesire{
+				// Degraded=False -> not degraded -> skipped.
+				statusutils.ApplyDesireUnder(parentResourceID, "apply-ok",
+					statusutils.DegradedConditionAged(metav1.ConditionFalse, "NoErrors", "all good", 1*time.Minute)),
+				// No Degraded condition at all -> skipped (no missing-as-degraded synthesis).
+				statusutils.ApplyDesireUnder(parentResourceID, "apply-none"),
+			},
+			readDesires: []*kubeapplierapi.ReadDesire{
+				statusutils.ReadDesireUnder(parentResourceID, "read-none"),
+			},
+			inertia: thirtySecondInertia,
+			// The healthy controller and the healthy/condition-less desires are all
+			// omitted, so there are zero sources -> good default (False/AsExpected).
+			expectStatus:  metav1.ConditionFalse,
+			expectReason:  "AsExpected",
+			expectMessage: "All is well",
+		},
+		{
+			name:        "degraded ApplyDesire within inertia is hidden but surfaced in the message",
+			controllers: nil,
+			applyDesires: []*kubeapplierapi.ApplyDesire{
+				statusutils.ApplyDesireUnder(parentResourceID, "apply-z",
+					statusutils.DegradedConditionAged(metav1.ConditionTrue, "Failed", "boom", 5*time.Second)),
+			},
+			inertia:      thirtySecondInertia,
+			expectStatus: metav1.ConditionFalse,
+			expectReason: "AsExpected",
+			// Fresh (5s < 30s) -> hidden from status, but still attributable in the message,
+			// proving the desire participates in the inertia window via its own LastTransitionTime.
+			expectMessage: applyZName + ": boom",
+		},
+		{
+			name: "node-pool-nested degraded desires are excluded from cluster aggregation",
+			controllers: []*coreapi.Controller{
+				statusutils.ControllerUnder(parentResourceID, "AController", metav1.ConditionFalse, "NoErrors", "fine", 1*time.Minute),
+			},
+			applyDesires: []*kubeapplierapi.ApplyDesire{
+				// Degraded, but nested under a node pool -> must NOT affect the cluster.
+				statusutils.NodePoolScopedApplyDesireUnder(parentResourceID, statusutils.TestNodePoolName, "np-apply",
+					statusutils.DegradedConditionAged(metav1.ConditionTrue, "Failed", "np boom", 1*time.Minute)),
+			},
+			readDesires: []*kubeapplierapi.ReadDesire{
+				statusutils.NodePoolScopedReadDesireUnder(parentResourceID, statusutils.TestNodePoolName, "np-read",
+					statusutils.DegradedConditionAged(metav1.ConditionTrue, "Failed", "np kaboom", 1*time.Minute)),
+			},
+			inertia: thirtySecondInertia,
+			// The node-pool-nested degraded desires are filtered out and the
+			// controller is healthy, so there are zero sources -> False/AsExpected.
+			expectStatus:  metav1.ConditionFalse,
+			expectReason:  "AsExpected",
+			expectMessage: "All is well",
+		},
+		{
+			name: "cluster-scoped degraded desire folds in while a node-pool-nested degraded desire is excluded",
+			controllers: []*coreapi.Controller{
+				statusutils.ControllerUnder(parentResourceID, "AController", metav1.ConditionFalse, "NoErrors", "fine", 1*time.Minute),
+			},
+			applyDesires: []*kubeapplierapi.ApplyDesire{
+				statusutils.ApplyDesireUnder(parentResourceID, "apply-x",
+					statusutils.DegradedConditionAged(metav1.ConditionTrue, "Failed", "boom", 1*time.Minute)),
+				statusutils.NodePoolScopedApplyDesireUnder(parentResourceID, statusutils.TestNodePoolName, "np-apply",
+					statusutils.DegradedConditionAged(metav1.ConditionTrue, "Failed", "np boom", 1*time.Minute)),
+			},
+			inertia:      thirtySecondInertia,
+			expectStatus: metav1.ConditionTrue,
+			// Only the cluster-scoped desire is folded in; the node-pool-nested one is excluded.
+			expectReason:  applyXName + "_Failed",
+			expectMessage: applyXName + ": boom",
 		},
 	}
 
@@ -270,6 +392,8 @@ func TestClusterDegradedAggregator_SyncOnce(t *testing.T) {
 				inertia:           tc.inertia,
 				clock:             clock,
 				firstObservedBad:  statusutils.NewFirstObservedBadCache(clock),
+				applyDesireLister: &kubeapplierlistertesting.SliceApplyDesireLister{Desires: tc.applyDesires},
+				readDesireLister:  &kubeapplierlistertesting.SliceReadDesireLister{Desires: tc.readDesires},
 			}
 
 			err = syncer.SyncOnce(ctx, controllerutils.HCPClusterKey{
@@ -331,6 +455,8 @@ func TestClusterDegradedAggregator_MissingDegradedFlipsAfterInertia(t *testing.T
 		inertia:           statusutils.MustNewInertia(statusutils.DefaultInertia).Inertia,
 		clock:             clock,
 		firstObservedBad:  statusutils.NewFirstObservedBadCache(clock),
+		applyDesireLister: &kubeapplierlistertesting.SliceApplyDesireLister{},
+		readDesireLister:  &kubeapplierlistertesting.SliceReadDesireLister{},
 	}
 	key := controllerutils.HCPClusterKey{
 		SubscriptionID:    statusutils.TestSubscriptionID,

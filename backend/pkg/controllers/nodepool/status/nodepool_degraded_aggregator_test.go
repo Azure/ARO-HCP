@@ -33,9 +33,11 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/statusutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/kubeapplierlistertesting"
 )
 
 // newTestNodePoolForAggregator builds a minimal HCPOpenShiftClusterNodePool
@@ -88,11 +90,23 @@ func TestNodePoolDegradedAggregator_SyncOnce(t *testing.T) {
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + statusutils.TestClusterName,
 	))
 
+	// Collision-safe node-pool desire source names: source prefix + the desire's
+	// full lowercased resource ID (see CollectDegradedDesireConditions).
+	npApplyName := statusutils.ApplyDesireSourcePrefix + kubeapplierapi.ToNodePoolScopedApplyDesireResourceIDString(
+		statusutils.TestSubscriptionID, statusutils.TestResourceGroupName, statusutils.TestClusterName, statusutils.TestNodePoolName, "np-apply")
+	npReadName := statusutils.ReadDesireSourcePrefix + kubeapplierapi.ToNodePoolScopedReadDesireResourceIDString(
+		statusutils.TestSubscriptionID, statusutils.TestResourceGroupName, statusutils.TestClusterName, statusutils.TestNodePoolName, "np-read")
+
 	tests := []struct {
 		name string
 
 		controllers []*coreapi.Controller
-		inertia     statusutils.Inertia
+		// applyDesires / readDesires are exposed to the aggregator via
+		// slice-backed listers; only their Degraded=True node-pool-scoped
+		// entries for THIS node pool should be folded in.
+		applyDesires []*kubeapplierapi.ApplyDesire
+		readDesires  []*kubeapplierapi.ReadDesire
+		inertia      statusutils.Inertia
 		// initialConditions, if set, is layered onto the node pool before SyncOnce
 		// runs. Used to drive the "no-op when conditions unchanged" case.
 		initialConditions []metav1.Condition
@@ -102,22 +116,24 @@ func TestNodePoolDegradedAggregator_SyncOnce(t *testing.T) {
 		expectMessage string
 	}{
 		{
-			name:          "no controllers under the node pool -> Unknown/NoData",
+			name:          "no controllers under the node pool -> False/AsExpected (all healthy)",
 			controllers:   nil,
-			inertia:       thirtySecondInertia,
-			expectStatus:  metav1.ConditionUnknown,
-			expectReason:  "NoData",
-			expectMessage: "",
-		},
-		{
-			name: "all controllers report Degraded=False -> aggregate False/AsExpected",
-			controllers: []*coreapi.Controller{
-				statusutils.ControllerUnder(parentResourceID, "AController", metav1.ConditionFalse, "NoErrors", "fine", 1*time.Minute),
-			},
 			inertia:       thirtySecondInertia,
 			expectStatus:  metav1.ConditionFalse,
 			expectReason:  "AsExpected",
-			expectMessage: "AController: fine",
+			expectMessage: "All is well",
+		},
+		{
+			name: "all controllers healthy -> no degraded sources -> False/AsExpected",
+			controllers: []*coreapi.Controller{
+				statusutils.ControllerUnder(parentResourceID, "AController", metav1.ConditionFalse, "NoErrors", "fine", 1*time.Minute),
+			},
+			inertia: thirtySecondInertia,
+			// Healthy controllers are not emitted as sources, so UnionCondition
+			// sees zero sources and reports the good default (False/AsExpected).
+			expectStatus:  metav1.ConditionFalse,
+			expectReason:  "AsExpected",
+			expectMessage: "All is well",
 		},
 		{
 			name: "bad controller within 30s inertia stays hidden",
@@ -175,17 +191,85 @@ func TestNodePoolDegradedAggregator_SyncOnce(t *testing.T) {
 				statusutils.ControllerUnder(parentResourceID, "AController", metav1.ConditionFalse, "NoErrors", "fine", 1*time.Minute),
 			},
 			inertia: thirtySecondInertia,
+			// The single healthy controller yields zero sources -> False/AsExpected;
+			// pre-seeding that exercises the no-op (skip Replace) path.
 			initialConditions: []metav1.Condition{
 				{
 					Type:    statusutils.DegradedConditionType,
 					Status:  metav1.ConditionFalse,
 					Reason:  "AsExpected",
-					Message: "AController: fine",
+					Message: "All is well",
 				},
 			},
 			expectStatus:  metav1.ConditionFalse,
 			expectReason:  "AsExpected",
-			expectMessage: "AController: fine",
+			expectMessage: "All is well",
+		},
+		{
+			name: "degraded node-pool-scoped ApplyDesire past inertia flips the node pool",
+			controllers: []*coreapi.Controller{
+				statusutils.ControllerUnder(parentResourceID, "AController", metav1.ConditionFalse, "NoErrors", "fine", 1*time.Minute),
+			},
+			applyDesires: []*kubeapplierapi.ApplyDesire{
+				statusutils.NodePoolScopedApplyDesireUnder(parentClusterID, statusutils.TestNodePoolName, "np-apply",
+					statusutils.DegradedConditionAged(metav1.ConditionTrue, "Failed", "boom", 1*time.Minute)),
+			},
+			inertia:      thirtySecondInertia,
+			expectStatus: metav1.ConditionTrue,
+			// Named by full canonical resource ID; healthy controller omitted from the bad path.
+			expectReason:  npApplyName + "_Failed",
+			expectMessage: npApplyName + ": boom",
+		},
+		{
+			name: "degraded node-pool-scoped ReadDesire past inertia flips the node pool",
+			controllers: []*coreapi.Controller{
+				statusutils.ControllerUnder(parentResourceID, "AController", metav1.ConditionFalse, "NoErrors", "fine", 1*time.Minute),
+			},
+			readDesires: []*kubeapplierapi.ReadDesire{
+				statusutils.NodePoolScopedReadDesireUnder(parentClusterID, statusutils.TestNodePoolName, "np-read",
+					statusutils.DegradedConditionAged(metav1.ConditionTrue, "Failed", "kaboom", 1*time.Minute)),
+			},
+			inertia:       thirtySecondInertia,
+			expectStatus:  metav1.ConditionTrue,
+			expectReason:  npReadName + "_Failed",
+			expectMessage: npReadName + ": kaboom",
+		},
+		{
+			name: "cluster-scoped and other node pools' degraded desires do not affect this node pool",
+			controllers: []*coreapi.Controller{
+				statusutils.ControllerUnder(parentResourceID, "AController", metav1.ConditionFalse, "NoErrors", "fine", 1*time.Minute),
+			},
+			applyDesires: []*kubeapplierapi.ApplyDesire{
+				// Cluster-scoped desire -> not returned by ListForNodePool.
+				statusutils.ApplyDesireUnder(parentClusterID, "cluster-apply",
+					statusutils.DegradedConditionAged(metav1.ConditionTrue, "Failed", "cluster boom", 1*time.Minute)),
+				// A different node pool's desire -> not returned by ListForNodePool.
+				statusutils.NodePoolScopedApplyDesireUnder(parentClusterID, "other-nodepool", "other-apply",
+					statusutils.DegradedConditionAged(metav1.ConditionTrue, "Failed", "other boom", 1*time.Minute)),
+			},
+			inertia: thirtySecondInertia,
+			// None of the seeded desires belong to this node pool, and the
+			// controller is healthy, so there are no sources -> False/AsExpected.
+			expectStatus:  metav1.ConditionFalse,
+			expectReason:  "AsExpected",
+			expectMessage: "All is well",
+		},
+		{
+			name: "healthy and condition-less node-pool desires contribute nothing",
+			controllers: []*coreapi.Controller{
+				statusutils.ControllerUnder(parentResourceID, "AController", metav1.ConditionTrue, "Failed", "boom", 1*time.Minute),
+			},
+			applyDesires: []*kubeapplierapi.ApplyDesire{
+				statusutils.NodePoolScopedApplyDesireUnder(parentClusterID, statusutils.TestNodePoolName, "np-ok",
+					statusutils.DegradedConditionAged(metav1.ConditionFalse, "NoErrors", "all good", 1*time.Minute)),
+				statusutils.NodePoolScopedApplyDesireUnder(parentClusterID, statusutils.TestNodePoolName, "np-none"),
+			},
+			inertia:      thirtySecondInertia,
+			expectStatus: metav1.ConditionTrue,
+			// Only the degraded controller is reported; the healthy/condition-less
+			// desires contribute nothing.
+			expectReason:  "AController_Failed",
+			expectMessage: "AController: boom",
 		},
 	}
 
@@ -223,6 +307,8 @@ func TestNodePoolDegradedAggregator_SyncOnce(t *testing.T) {
 				inertia:           tc.inertia,
 				clock:             clock,
 				firstObservedBad:  statusutils.NewFirstObservedBadCache(clock),
+				applyDesireLister: &kubeapplierlistertesting.SliceApplyDesireLister{Desires: tc.applyDesires},
+				readDesireLister:  &kubeapplierlistertesting.SliceReadDesireLister{Desires: tc.readDesires},
 			}
 
 			err = syncer.SyncOnce(ctx, controllerutils.HCPNodePoolKey{
