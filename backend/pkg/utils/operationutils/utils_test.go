@@ -18,6 +18,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/go-logr/logr"
 	"github.com/go-logr/logr/testr"
 	"github.com/tj/assert"
 
@@ -333,6 +334,71 @@ func TestConvertClusterStatus(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 			}
+		})
+	}
+}
+
+func TestConvertInflightCheck(t *testing.T) {
+	tests := []struct {
+		name         string
+		details      map[string]interface{}
+		expectedCode string
+	}{
+		{
+			name: "quota error message gets QuotaExceeded code",
+			details: map[string]interface{}{
+				"error": "insufficient public IP address quota: required 2, available 0",
+			},
+			expectedCode: coreapi.CloudErrorCodeQuotaExceeded,
+		},
+		{
+			name: "QuotaExceeded ARM error code in message",
+			details: map[string]interface{}{
+				"error": "QuotaExceeded: Operation could not be completed as it results in exceeding approved standardDSv3Family Cores quota",
+			},
+			expectedCode: coreapi.CloudErrorCodeQuotaExceeded,
+		},
+		{
+			name: "PublicIPCountLimitReached in message",
+			details: map[string]interface{}{
+				"error": "PublicIPCountLimitReached: Cannot create more than 300 public IP addresses",
+			},
+			expectedCode: coreapi.CloudErrorCodeQuotaExceeded,
+		},
+		{
+			name: "OverconstrainedZonalAllocationRequest is not a quota error",
+			details: map[string]interface{}{
+				"error": "OverconstrainedZonalAllocationRequest: The required resources are not available in zone 1",
+			},
+			expectedCode: coreapi.CloudErrorCodeInternalServerError,
+		},
+		{
+			name: "non-quota error message gets InternalServerError code",
+			details: map[string]interface{}{
+				"error": "failed to create hosted cluster: internal service error",
+			},
+			expectedCode: coreapi.CloudErrorCodeInternalServerError,
+		},
+		{
+			name:         "missing error details gets InternalServerError code",
+			details:      map[string]interface{}{},
+			expectedCode: coreapi.CloudErrorCodeInternalServerError,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			builder := arohcpv1alpha1.NewInflightCheck().
+				Name("test-check").
+				State(arohcpv1alpha1.InflightCheckStateFailed)
+			if tt.details != nil {
+				builder = builder.Details(tt.details)
+			}
+			inflightCheck, err := builder.Build()
+			assert.NoError(t, err)
+
+			result := convertInflightCheck(inflightCheck, logr.Discard())
+			assert.Equal(t, tt.expectedCode, result.Code)
 		})
 	}
 }

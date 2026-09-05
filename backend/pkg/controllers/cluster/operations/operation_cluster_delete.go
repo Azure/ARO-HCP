@@ -166,7 +166,7 @@ func (c *operationClusterDelete) SynchronizeOperation(ctx context.Context, key c
 			"deadline", cluster.ServiceProviderProperties.DeleteOperationCompletionDeadline.Time,
 			"message", message)
 		persistErr := &coreapi.CloudErrorBody{
-			Code:    coreapi.CloudErrorCodeInternalServerError,
+			Code:    coreapi.CloudErrorCodeForMessage(message, coreapi.CloudErrorCodeInternalServerError),
 			Message: message,
 		}
 		err = operationbase.UpdateOperationStatus(ctx, c.clock, c.resourcesDBClient, operation, coreapi.ProvisioningStateFailed, persistErr, operationbase.PostAsyncNotificationFn(c.notificationClient))
