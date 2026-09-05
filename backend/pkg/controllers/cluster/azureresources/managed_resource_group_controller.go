@@ -19,7 +19,10 @@ import (
 	"fmt"
 	"time"
 
+	"k8s.io/utils/ptr"
+
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
@@ -36,30 +39,48 @@ import (
 // ManagedResourceGroupControllerName is the single source of truth for this
 // controller's name. It is used for the workqueue name (a Prometheus label),
 // context/logger controller name, and log fields.
-const ManagedResourceGroupControllerName = "ObserveManagedResourceGroup"
+const ManagedResourceGroupControllerName = "EnsureManagedResourceGroup"
 
-// managedResourceGroupSyncer OBSERVES the cluster's managed resource group (MRG)
-// in Azure and reflects its existence onto
+// managedResourceGroupProvisioningRequeueInterval is how long to wait before re-checking a
+// managed resource group that Azure reports is still provisioning (e.g. Creating/Updating).
+// The reconcile schedules an explicit requeue after this delay instead of confirming it or
+// treating the in-progress state as an error.
+const managedResourceGroupProvisioningRequeueInterval = 10 * time.Second
+
+// managedResourceGroupSyncer ensures the cluster's managed resource group (MRG)
+// exists in Azure and reflects its state onto
 // ServiceProviderCluster.Status.AzureResources.ManagedResourceGroup.
 //
-// Cluster Service is the actor that creates and deletes the MRG. This controller
-// is strictly read-only against Azure: it never calls CreateOrUpdate or
-// BeginDelete on a resource group. Its only job is to mirror the observed state
-// so that DB-consuming code (for example the cluster child-resources cleanup
-// gate) can reason about the MRG without reaching into Azure directly.
+// In the non-deletion path this controller is the actor that CREATES the MRG:
+// when the resource group does not exist yet it calls CreateOrUpdate, claiming
+// ownership via ManagedBy = cluster ID, and then records it as confirmed so that
+// DB-consuming code (for example the cluster child-resources cleanup gate) can
+// reason about the MRG without reaching into Azure directly.
+//
+// Deletion is still owned by Cluster Service: the deletion path is observe-only
+// (it never calls BeginDelete) and merely mirrors the observed state so the
+// cluster deletion gate can decide when it is safe to proceed.
 type managedResourceGroupSyncer struct {
 	resourcesDBClient            corecosmosstorage.ResourcesDBClient
 	clusterLister                corelisters.ClusterLister
 	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
 	subscriptionLister           corelisters.SubscriptionLister
 	azureFPAClientBuilder        azureclient.FirstPartyApplicationClientBuilder
+
+	// enqueueAfter lets the syncer schedule a delayed re-processing of a cluster key
+	// (bypassing the workqueue's rate limiter) when Azure reports the managed resource
+	// group is still provisioning. It is wired from the controller in
+	// NewManagedResourceGroupController.
+	enqueueAfter controllerutils.AfterEnqueuer
 }
 
 var _ controllerutils.ClusterSyncer = (*managedResourceGroupSyncer)(nil)
 
 // NewManagedResourceGroupController creates a cluster-watching controller that
-// keeps ServiceProviderCluster.Status.AzureResources.ManagedResourceGroup in sync
-// with the observed existence of the cluster's managed resource group in Azure.
+// creates the cluster's managed resource group in Azure when it does not exist
+// (non-deletion path) and keeps
+// ServiceProviderCluster.Status.AzureResources.ManagedResourceGroup in sync with
+// its observed state.
 func NewManagedResourceGroupController(
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	serviceProviderClusterLister corelisters.ServiceProviderClusterLister,
@@ -78,7 +99,7 @@ func NewManagedResourceGroupController(
 		azureFPAClientBuilder:        azureFPAClientBuilder,
 	}
 
-	return controllerutils.NewClusterWatchingController(
+	controller := controllerutils.NewClusterWatchingController(
 		ManagedResourceGroupControllerName,
 		resourcesDBClient,
 		informers,
@@ -86,6 +107,18 @@ func NewManagedResourceGroupController(
 		5*time.Minute,
 		syncer,
 	)
+
+	// The syncer schedules its own fast requeue (via EnqueueAfter) when Azure reports the
+	// managed resource group is still provisioning, rather than relying on error-based
+	// rate-limited requeue. genericWatchingController implements AfterEnqueuer; assert it here
+	// so a wiring regression fails loudly at startup.
+	if enqueuer, ok := controller.(controllerutils.AfterEnqueuer); ok {
+		syncer.enqueueAfter = enqueuer
+	} else {
+		panic(fmt.Sprintf("%s controller must implement AfterEnqueuer", ManagedResourceGroupControllerName))
+	}
+
+	return controller
 }
 
 // NeedsWork reports whether SyncOnce has anything to do.
@@ -106,8 +139,8 @@ func (c *managedResourceGroupSyncer) NeedsWork(cluster *coreapi.HCPOpenShiftClus
 
 // SyncOnce reads the cluster and ServiceProviderCluster from the informer caches,
 // short-circuits via NeedsWork, and then dispatches to the deletion or
-// non-deletion (reconcile) path. This controller never creates or deletes the
-// resource group.
+// non-deletion (reconcile) path. The non-deletion path creates the resource group
+// when it is missing; deletion remains observe-only (Cluster Service owns it).
 func (c *managedResourceGroupSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
 	cluster, err := c.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if cosmosstorageutils.IsNotFoundError(err) {
@@ -135,24 +168,31 @@ func (c *managedResourceGroupSyncer) SyncOnce(ctx context.Context, key controlle
 	if cluster.ServiceProviderProperties.DeletionTimestamp != nil {
 		return c.deleteManagedResourceGroup(ctx, cluster, existingServiceProviderCluster)
 	}
-	return c.reconcileManagedResourceGroup(ctx, cluster, existingServiceProviderCluster)
+	return c.reconcileManagedResourceGroup(ctx, key, cluster, existingServiceProviderCluster)
 }
 
-// reconcileManagedResourceGroup observes the managed resource group for a cluster
-// that is not being deleted and reflects its state onto the ServiceProviderCluster.
+// reconcileManagedResourceGroup ensures the managed resource group exists for a
+// cluster that is not being deleted and reflects its state onto the
+// ServiceProviderCluster.
 //
 // It first records the resource group as PendingAzureResource and persists that
 // intent BEFORE querying Azure, so that a Get failure - or a resource group that
 // does not exist yet - still leaves a durable pending marker (keeping the deletion
 // gate closed) rather than an empty reference. It then queries Azure and:
 //
-//   - not found: does nothing, leaving the pending marker in place (Cluster Service
-//     owns creation; this controller is observe-only).
+//   - not found: creates the resource group via CreateOrUpdate, claiming ownership via
+//     ManagedBy = this cluster's ID. A create failure returns an error so the sync retries
+//     with the pending marker still in place.
 //   - other error: returns the error so the sync retries.
-//   - exists: if the resource group is owned by another cluster (its ManagedBy is
-//     set and does not equal this cluster's ID) it returns an error; otherwise it
-//     clears the pending marker and records the resource group as AzureResource.
-func (c *managedResourceGroupSyncer) reconcileManagedResourceGroup(ctx context.Context, cluster *coreapi.HCPOpenShiftCluster, existingServiceProviderCluster *coreapi.ServiceProviderCluster) error {
+//   - exists: proceeds with the resource group returned by Get.
+//
+// In both the not-found (post-create) and exists cases the resource group is handled by two
+// separate, inline calls: validateManagedResourceGroup classifies ownership and provisioning
+// state without side effects, then — based on its result — this function itself either schedules
+// a requeue (in-progress state), returns an error (owned by another cluster, or a
+// failed/terminal state), or calls persistManagedResourceGroup to record it as AzureResource
+// (Succeeded). The requeue (EnqueueAfter) happens here, not inside a helper.
+func (c *managedResourceGroupSyncer) reconcileManagedResourceGroup(ctx context.Context, key controllerutils.HCPClusterKey, cluster *coreapi.HCPOpenShiftCluster, existingServiceProviderCluster *coreapi.ServiceProviderCluster) error {
 	// A cluster should always have a managed resource group name recorded on its
 	// CustomerProperties. If it is empty, something is wrong upstream; return a hard
 	// error so the syncer retries rather than silently skipping.
@@ -185,26 +225,111 @@ func (c *managedResourceGroupSyncer) reconcileManagedResourceGroup(ctx context.C
 	getResponse, getErr := rgClient.Get(ctx, managedResourceGroupID.Name, nil)
 	switch {
 	case isNotFound(getErr):
-		// The managed resource group does not exist yet. Cluster Service owns its
-		// creation; leave the pending marker in place and wait for a later pass.
-		// TODO: create the managed resource group.
-		return nil
+		// The managed resource group does not exist yet. Create it in Azure, claiming
+		// ownership via ManagedBy = this cluster's ID. A create failure returns an error so
+		// a later pass retries with the pending marker still in place.
+		created, createErr := c.createManagedResourceGroup(ctx, cluster, managedResourceGroupID.Name, rgClient)
+		if createErr != nil {
+			return utils.TrackError(fmt.Errorf("failed to create managed resource group %q: %w", managedResourceGroupID.Name, createErr))
+		}
+		requeue, err := validateManagedResourceGroup(cluster, managedResourceGroupID, created)
+		if err != nil {
+			return err
+		}
+		if requeue {
+			c.enqueueAfter.EnqueueAfter(key, managedResourceGroupProvisioningRequeueInterval)
+			return nil
+		}
+		return c.persistManagedResourceGroup(ctx, cluster, existingServiceProviderCluster, managedResourceGroupID)
 	case getErr != nil:
 		return utils.TrackError(fmt.Errorf("failed to get managed resource group %q: %w", managedResourceGroupID.Name, getErr))
 	default:
-		// The managed resource group exists. getResponse is a value type; its
-		// ManagedBy (*string) is only meaningful here, where the Get succeeded.
-		if ownedByAnotherCluster(getResponse.ManagedBy, cluster.ID) {
-			return utils.TrackError(fmt.Errorf("managed resource group %q is owned by another cluster (ManagedBy=%q), not %q",
-				managedResourceGroupID.Name, managedByValue(getResponse.ManagedBy), cluster.ID.String()))
+		// The managed resource group already exists. getResponse is a value type; its fields
+		// are only meaningful here, where the Get succeeded.
+		requeue, err := validateManagedResourceGroup(cluster, managedResourceGroupID, getResponse.ResourceGroup)
+		if err != nil {
+			return err
 		}
-		replacement := existingServiceProviderCluster.DeepCopy()
-		reference := &replacement.Status.AzureResources.ManagedResourceGroup
-		reference.PendingAzureResource = nil
-		reference.AzureResource = managedResourceGroupID
-		_, err = c.persistIfChanged(ctx, cluster, existingServiceProviderCluster, replacement)
-		return utils.TrackError(err)
+		if requeue {
+			c.enqueueAfter.EnqueueAfter(key, managedResourceGroupProvisioningRequeueInterval)
+			return nil
+		}
+		return c.persistManagedResourceGroup(ctx, cluster, existingServiceProviderCluster, managedResourceGroupID)
 	}
+}
+
+// createManagedResourceGroup creates (or updates) the managed resource group in Azure with
+// the desired Location and ManagedBy = this cluster's ID, and returns the resulting resource
+// group. The caller is responsible for validating it (ownership + provisioning state) before
+// persisting it (see validateManagedResourceGroup / persistManagedResourceGroup).
+//
+// CreateOrUpdate is idempotent: if the resource group was created concurrently with a matching
+// ManagedBy, Azure returns it unchanged. A conflicting ManagedBy or Location (for example a
+// foreign or pre-existing resource group that appeared between the Get and this call) makes
+// Azure return an error, which is surfaced to the caller so the sync retries rather than
+// recording someone else's resource group as ours.
+func (c *managedResourceGroupSyncer) createManagedResourceGroup(ctx context.Context, cluster *coreapi.HCPOpenShiftCluster, managedResourceGroupName string, rgClient azureclient.ResourceGroupsClient) (armresources.ResourceGroup, error) {
+	logger := utils.LoggerFromContext(ctx)
+	logger.Info("creating managed resource group", "managedResourceGroup", managedResourceGroupName)
+
+	response, err := rgClient.CreateOrUpdate(ctx, managedResourceGroupName, buildDesiredManagedResourceGroup(cluster, managedResourceGroupName), nil)
+	if err != nil {
+		return armresources.ResourceGroup{}, err
+	}
+	logger.Info("created managed resource group", "managedResourceGroup", managedResourceGroupName)
+	return response.ResourceGroup, nil
+}
+
+// validateManagedResourceGroup checks that an observed resource group (returned by Get or
+// CreateOrUpdate) is owned by this cluster and classifies its Azure provisioning state. It has
+// NO side effects: it never persists and never schedules a requeue. The caller
+// (reconcileManagedResourceGroup) acts on the returned values inline:
+//
+//   - Succeeded and not owned by another cluster: returns (false, nil) — the caller persists
+//     the resource group as AzureResource.
+//   - in-progress (Accepted/Creating/Updating/Deleting): returns (true, nil) — the caller
+//     schedules a requeue and leaves the pending marker in place.
+//   - owned by another cluster, or a failed/terminal/unrecognized/absent provisioning state:
+//     returns (false, err) — the caller returns the error so the sync retries.
+func validateManagedResourceGroup(cluster *coreapi.HCPOpenShiftCluster, managedResourceGroupID *azcorearm.ResourceID, resourceGroup armresources.ResourceGroup) (bool, error) {
+	if ownedByAnotherCluster(resourceGroup.ManagedBy, cluster.ID) {
+		return false, utils.TrackError(fmt.Errorf("managed resource group %q is owned by another cluster (ManagedBy=%q), not %q",
+			managedResourceGroupID.Name, managedByValue(resourceGroup.ManagedBy), cluster.ID.String()))
+	}
+
+	if resourceGroup.Properties == nil || resourceGroup.Properties.ProvisioningState == nil {
+		return false, utils.TrackError(fmt.Errorf("managed resource group %q has no provisioning state", managedResourceGroupID.Name))
+	}
+
+	switch state := *resourceGroup.Properties.ProvisioningState; state {
+	case string(armresources.ProvisioningStateSucceeded):
+		return false, nil
+	case string(armresources.ProvisioningStateAccepted),
+		string(armresources.ProvisioningStateCreating),
+		string(armresources.ProvisioningStateUpdating),
+		string(armresources.ProvisioningStateDeleting):
+		// Another actor (for example Cluster Service) is mid-flight. Signal the caller to
+		// requeue rather than confirming; this is not an error.
+		return true, nil
+	default:
+		// Failed, Canceled, or any unrecognized/terminal state: surface an error so the sync
+		// retries rather than confirming a resource group that is not healthy.
+		return false, utils.TrackError(fmt.Errorf("managed resource group %q is in provisioning state %q, want %q",
+			managedResourceGroupID.Name, state, string(armresources.ProvisioningStateSucceeded)))
+	}
+}
+
+// persistManagedResourceGroup records the managed resource group as the confirmed AzureResource:
+// it clears the PendingAzureResource marker, sets AzureResource, and persists the change (a
+// no-op write when nothing changed). It performs no validation and no requeuing; callers must
+// validate with validateManagedResourceGroup first.
+func (c *managedResourceGroupSyncer) persistManagedResourceGroup(ctx context.Context, cluster *coreapi.HCPOpenShiftCluster, existingServiceProviderCluster *coreapi.ServiceProviderCluster, managedResourceGroupID *azcorearm.ResourceID) error {
+	replacement := existingServiceProviderCluster.DeepCopy()
+	reference := &replacement.Status.AzureResources.ManagedResourceGroup
+	reference.PendingAzureResource = nil
+	reference.AzureResource = managedResourceGroupID
+	_, err := c.persistIfChanged(ctx, cluster, existingServiceProviderCluster, replacement)
+	return utils.TrackError(err)
 }
 
 // deleteManagedResourceGroup observes the managed resource group while the cluster
@@ -327,6 +452,21 @@ func managedByValue(managedBy *string) string {
 		return ""
 	}
 	return *managedBy
+}
+
+// buildDesiredManagedResourceGroup builds the Azure resource group this controller
+// wants to create for the cluster: the Location is taken from the cluster and
+// ManagedBy is set to the cluster's resource ID so the resource group is claimed as
+// ours (and recognized as such by ownedByAnotherCluster on later observations). No
+// tags are set.
+func buildDesiredManagedResourceGroup(cluster *coreapi.HCPOpenShiftCluster, managedResourceGroupName string) armresources.ResourceGroup {
+	return armresources.ResourceGroup{
+		// Name is read-only per the SDK type, but the API accepts it on CreateOrUpdate
+		// as long as it matches the name argument; set it for clarity.
+		Name:      ptr.To(managedResourceGroupName),
+		Location:  ptr.To(cluster.Location),
+		ManagedBy: ptr.To(cluster.ID.String()),
+	}
 }
 
 // resourceIDString renders an optional resource ID for structured logging without

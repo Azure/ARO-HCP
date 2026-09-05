@@ -144,18 +144,26 @@ func resourceGroupNotFoundError() *azcore.ResponseError {
 	}
 }
 
-// resourceGroupPresentResponse returns a Get response describing an existing
-// managed resource group whose ManagedBy is set to the given owner resource ID.
-func resourceGroupPresentResponse(managedBy string) armresources.ResourceGroupsClientGetResponse {
+// resourceGroupPresentResponseWithState returns a Get response describing an existing
+// managed resource group whose ManagedBy is set to the given owner resource ID and
+// whose provisioning state is the given value.
+func resourceGroupPresentResponseWithState(managedBy, provisioningState string) armresources.ResourceGroupsClientGetResponse {
 	return armresources.ResourceGroupsClientGetResponse{
 		ResourceGroup: armresources.ResourceGroup{
 			Name:      ptr.To(testManagedRGName),
 			ManagedBy: ptr.To(managedBy),
 			Properties: &armresources.ResourceGroupProperties{
-				ProvisioningState: ptr.To("Succeeded"),
+				ProvisioningState: ptr.To(provisioningState),
 			},
 		},
 	}
+}
+
+// resourceGroupPresentResponse returns a Get response describing an existing managed
+// resource group whose ManagedBy is set to the given owner resource ID
+// (ProvisioningState=Succeeded).
+func resourceGroupPresentResponse(managedBy string) armresources.ResourceGroupsClientGetResponse {
+	return resourceGroupPresentResponseWithState(managedBy, "Succeeded")
 }
 
 // resourceGroupPresentResponseUnclaimed returns a Get response describing an
@@ -169,6 +177,40 @@ func resourceGroupPresentResponseUnclaimed() armresources.ResourceGroupsClientGe
 			},
 		},
 	}
+}
+
+// resourceGroupCreatedResponseWithState returns a CreateOrUpdate response describing a
+// managed resource group owned by the given ManagedBy and in the given provisioning
+// state.
+func resourceGroupCreatedResponseWithState(managedBy, provisioningState string) armresources.ResourceGroupsClientCreateOrUpdateResponse {
+	return armresources.ResourceGroupsClientCreateOrUpdateResponse{
+		ResourceGroup: armresources.ResourceGroup{
+			Name:      ptr.To(testManagedRGName),
+			ManagedBy: ptr.To(managedBy),
+			Properties: &armresources.ResourceGroupProperties{
+				ProvisioningState: ptr.To(provisioningState),
+			},
+		},
+	}
+}
+
+// resourceGroupCreatedResponse returns a successful CreateOrUpdate response for a
+// managed resource group owned by the given ManagedBy (ProvisioningState=Succeeded).
+func resourceGroupCreatedResponse(managedBy string) armresources.ResourceGroupsClientCreateOrUpdateResponse {
+	return resourceGroupCreatedResponseWithState(managedBy, "Succeeded")
+}
+
+// fakeAfterEnqueuer records EnqueueAfter calls so tests can assert that the syncer
+// scheduled a delayed requeue (and with what delay). It mirrors the fake used by the
+// cluster/nodepool validation controllers.
+type fakeAfterEnqueuer struct {
+	enqueuedKeys      []any
+	enqueuedDurations []time.Duration
+}
+
+func (f *fakeAfterEnqueuer) EnqueueAfter(keyObj any, duration time.Duration) {
+	f.enqueuedKeys = append(f.enqueuedKeys, keyObj)
+	f.enqueuedDurations = append(f.enqueuedDurations, duration)
 }
 
 // TestManagedResourceGroupSyncerSyncOnce exercises the switch-based reconcile and
@@ -193,26 +235,96 @@ func TestManagedResourceGroupSyncerSyncOnce(t *testing.T) {
 	sameOwnerDifferentCasingID := strings.Replace(ownerClusterID, "Microsoft.RedHatOpenShift", "Microsoft.RedHatOpenshift", 1)
 
 	testCases := []struct {
-		name              string
-		deleting          bool
-		initialReference  coreapi.AzureReference
-		getResponse       armresources.ResourceGroupsClientGetResponse
-		getErr            error
-		expectErr         bool
-		expectErrContains string
-		expectAzure       *azcorearm.ResourceID
-		expectPending     *azcorearm.ResourceID
+		name                 string
+		deleting             bool
+		initialReference     coreapi.AzureReference
+		getResponse          armresources.ResourceGroupsClientGetResponse
+		getErr               error
+		expectCreateOrUpdate bool
+		createResponse       armresources.ResourceGroupsClientCreateOrUpdateResponse
+		createErr            error
+		expectErr            bool
+		expectErrContains    string
+		expectAzure          *azcorearm.ResourceID
+		expectPending        *azcorearm.ResourceID
+		// expectRequeue asserts that the syncer scheduled exactly one EnqueueAfter with the
+		// managedResourceGroupProvisioningRequeueInterval delay (the in-progress path).
+		expectRequeue bool
 	}{
 		{
-			// Set-pending-before-Get: the pending marker persisted before the Get stays
-			// in place when the resource group does not exist yet, and no actual is set.
-			name:             "not deleting and resource group missing keeps pending and no actual",
-			deleting:         false,
-			initialReference: coreapi.AzureReference{},
-			getResponse:      armresources.ResourceGroupsClientGetResponse{},
-			getErr:           resourceGroupNotFoundError(),
-			expectAzure:      nil,
-			expectPending:    mrgID,
+			// Not found: the controller now CREATES the resource group (claiming
+			// ownership via ManagedBy) and, on success, records it as the confirmed
+			// AzureResource while clearing the pending marker set before the Get.
+			name:                 "not deleting and resource group missing creates it and records confirmed",
+			deleting:             false,
+			initialReference:     coreapi.AzureReference{},
+			getResponse:          armresources.ResourceGroupsClientGetResponse{},
+			getErr:               resourceGroupNotFoundError(),
+			expectCreateOrUpdate: true,
+			createResponse:       resourceGroupCreatedResponse(ownerClusterID),
+			expectAzure:          mrgID,
+			expectPending:        nil,
+		},
+		{
+			// Create failure: the pending marker recorded before the Get stays in place
+			// so a later pass retries, and no actual is set.
+			name:                 "not deleting and resource group missing and create fails keeps pending",
+			deleting:             false,
+			initialReference:     coreapi.AzureReference{},
+			getResponse:          armresources.ResourceGroupsClientGetResponse{},
+			getErr:               resourceGroupNotFoundError(),
+			expectCreateOrUpdate: true,
+			createErr:            errors.New("boom"),
+			expectErr:            true,
+			expectErrContains:    "failed to create managed resource group",
+			expectAzure:          nil,
+			expectPending:        mrgID,
+		},
+		{
+			// Create returned an in-progress state (Creating): do NOT confirm; schedule a
+			// requeue after the provisioning interval and keep the pending marker so a later
+			// pass re-checks. No error is returned.
+			name:                 "not deleting and resource group missing and create in progress schedules requeue and keeps pending",
+			deleting:             false,
+			initialReference:     coreapi.AzureReference{},
+			getResponse:          armresources.ResourceGroupsClientGetResponse{},
+			getErr:               resourceGroupNotFoundError(),
+			expectCreateOrUpdate: true,
+			createResponse:       resourceGroupCreatedResponseWithState(ownerClusterID, "Creating"),
+			expectAzure:          nil,
+			expectPending:        mrgID,
+			expectRequeue:        true,
+		},
+		{
+			// Create returned a terminal-bad state (Failed): return an error so the sync
+			// retries; the pending marker stays in place and no actual is set.
+			name:                 "not deleting and resource group missing and create failed state errors",
+			deleting:             false,
+			initialReference:     coreapi.AzureReference{},
+			getResponse:          armresources.ResourceGroupsClientGetResponse{},
+			getErr:               resourceGroupNotFoundError(),
+			expectCreateOrUpdate: true,
+			createResponse:       resourceGroupCreatedResponseWithState(ownerClusterID, "Failed"),
+			expectErr:            true,
+			expectErrContains:    "provisioning state",
+			expectAzure:          nil,
+			expectPending:        mrgID,
+		},
+		{
+			// Defensive: if the just-created resource group reports a foreign ManagedBy
+			// (e.g. it was created externally in the race window), the ownership guard
+			// errors and records nothing; the pending marker stays in place.
+			name:                 "not deleting and resource group created but owned by another cluster errors",
+			deleting:             false,
+			initialReference:     coreapi.AzureReference{},
+			getResponse:          armresources.ResourceGroupsClientGetResponse{},
+			getErr:               resourceGroupNotFoundError(),
+			expectCreateOrUpdate: true,
+			createResponse:       resourceGroupCreatedResponse(differentOwnerID),
+			expectErr:            true,
+			expectErrContains:    "owned by another cluster",
+			expectAzure:          nil,
+			expectPending:        mrgID,
 		},
 		{
 			name:             "not deleting and resource group present and owned sets actual and clears pending",
@@ -222,6 +334,33 @@ func TestManagedResourceGroupSyncerSyncOnce(t *testing.T) {
 			getErr:           nil,
 			expectAzure:      mrgID,
 			expectPending:    nil,
+		},
+		{
+			// Exists and owned by this cluster but in an in-progress state (Creating), e.g.
+			// another actor is mid-create: the provisioning-state gate does NOT confirm;
+			// it schedules a requeue and keeps the pending marker in place, with no error.
+			name:             "not deleting and resource group present but in progress schedules requeue and keeps pending",
+			deleting:         false,
+			initialReference: coreapi.AzureReference{},
+			getResponse:      resourceGroupPresentResponseWithState(ownerClusterID, "Creating"),
+			getErr:           nil,
+			expectAzure:      nil,
+			expectPending:    mrgID,
+			expectRequeue:    true,
+		},
+		{
+			// Exists but in a terminal-bad state (Failed): the provisioning-state gate returns
+			// an error so the sync retries; the pending marker stays in place and no actual
+			// is set.
+			name:              "not deleting and resource group present but failed state errors",
+			deleting:          false,
+			initialReference:  coreapi.AzureReference{},
+			getResponse:       resourceGroupPresentResponseWithState(ownerClusterID, "Failed"),
+			getErr:            nil,
+			expectErr:         true,
+			expectErrContains: "provisioning state",
+			expectAzure:       nil,
+			expectPending:     mrgID,
 		},
 		{
 			// An existing resource group with no ManagedBy is treated as ours (Cluster
@@ -316,18 +455,29 @@ func TestManagedResourceGroupSyncerSyncOnce(t *testing.T) {
 				Get(gomock.Any(), mrgID.Name, nil).
 				Return(tc.getResponse, tc.getErr).
 				Times(1)
+			if tc.expectCreateOrUpdate {
+				mockRGClient.EXPECT().
+					CreateOrUpdate(gomock.Any(), mrgID.Name, gomock.Any(), nil).
+					DoAndReturn(func(_ context.Context, _ string, parameters armresources.ResourceGroup, _ *armresources.ResourceGroupsClientCreateOrUpdateOptions) (armresources.ResourceGroupsClientCreateOrUpdateResponse, error) {
+						assert.Equal(t, ownerClusterID, ptr.Deref(parameters.ManagedBy, ""), "CreateOrUpdate should claim ownership via ManagedBy = this cluster's ID")
+						return tc.createResponse, tc.createErr
+					}).
+					Times(1)
+			}
 			fpaClientBuilder := azureclient.NewMockFirstPartyApplicationClientBuilder(ctrl)
 			fpaClientBuilder.EXPECT().
 				ResourceGroupsClient(testTenantID, testSubscriptionID).
 				Return(mockRGClient, nil).
 				Times(1)
 
+			enqueuer := &fakeAfterEnqueuer{}
 			syncer := &managedResourceGroupSyncer{
 				resourcesDBClient:            mockResourcesDB,
 				clusterLister:                &corelistertesting.DBClusterLister{ResourcesDBClient: mockResourcesDB},
 				serviceProviderClusterLister: &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDB},
 				subscriptionLister:           &corelistertesting.SliceSubscriptionLister{Subscriptions: []*coreapi.Subscription{newTestSubscription(ptr.To(testTenantID))}},
 				azureFPAClientBuilder:        fpaClientBuilder,
+				enqueueAfter:                 enqueuer,
 			}
 
 			key := controllerutils.HCPClusterKey{
@@ -352,6 +502,14 @@ func TestManagedResourceGroupSyncerSyncOnce(t *testing.T) {
 			gotReference := updated.Status.AzureResources.ManagedResourceGroup
 			assertResourceIDEqual(t, tc.expectAzure, gotReference.AzureResource, "AzureResource")
 			assertResourceIDEqual(t, tc.expectPending, gotReference.PendingAzureResource, "PendingAzureResource")
+
+			if tc.expectRequeue {
+				require.Len(t, enqueuer.enqueuedKeys, 1, "expected exactly one requeue to be scheduled")
+				assert.Equal(t, key, enqueuer.enqueuedKeys[0], "requeue should use the cluster key")
+				assert.Equal(t, managedResourceGroupProvisioningRequeueInterval, enqueuer.enqueuedDurations[0], "requeue delay should be the provisioning interval")
+			} else {
+				assert.Empty(t, enqueuer.enqueuedKeys, "no requeue should be scheduled")
+			}
 		})
 	}
 }
@@ -556,6 +714,67 @@ func TestManagedResourceGroupSyncerSyncOnceDeletingKeepsGateClosedOnGetError(t *
 	gotReference := updated.Status.AzureResources.ManagedResourceGroup
 	assertResourceIDEqual(t, mrgID, gotReference.AzureResource, "AzureResource")
 	assertResourceIDEqual(t, nil, gotReference.PendingAzureResource, "PendingAzureResource")
+}
+
+// TestValidateManagedResourceGroup exercises the pure ownership + provisioning-state
+// classification helper directly, covering its three outcomes — proceed (Succeeded),
+// requeue (in-progress), and error (owned-by-another / failed / terminal / absent) — with no
+// Cosmos or Azure interaction. It also documents that validate is side-effect free: it neither
+// persists nor requeues (it only returns a (requeue, err) decision).
+func TestValidateManagedResourceGroup(t *testing.T) {
+	t.Parallel()
+
+	cluster := newTestCluster(false)
+	mrgID := testManagedResourceGroupID(t)
+	ownerClusterID := cluster.ID.String()
+	differentOwnerID := "/subscriptions/" + testSubscriptionID +
+		"/resourceGroups/" + testResourceGroupName +
+		"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/other-cluster"
+
+	rg := func(managedBy, provisioningState *string) armresources.ResourceGroup {
+		return armresources.ResourceGroup{
+			Name:       ptr.To(testManagedRGName),
+			ManagedBy:  managedBy,
+			Properties: &armresources.ResourceGroupProperties{ProvisioningState: provisioningState},
+		}
+	}
+
+	testCases := []struct {
+		name          string
+		resourceGroup armresources.ResourceGroup
+		expectRequeue bool
+		expectErr     bool
+		errContains   string
+	}{
+		{name: "succeeded and owned by this cluster proceeds", resourceGroup: rg(ptr.To(ownerClusterID), ptr.To("Succeeded"))},
+		{name: "succeeded and unclaimed proceeds", resourceGroup: rg(nil, ptr.To("Succeeded"))},
+		{name: "succeeded but owned by another cluster errors", resourceGroup: rg(ptr.To(differentOwnerID), ptr.To("Succeeded")), expectErr: true, errContains: "owned by another cluster"},
+		{name: "accepted requeues", resourceGroup: rg(ptr.To(ownerClusterID), ptr.To("Accepted")), expectRequeue: true},
+		{name: "creating requeues", resourceGroup: rg(ptr.To(ownerClusterID), ptr.To("Creating")), expectRequeue: true},
+		{name: "updating requeues", resourceGroup: rg(ptr.To(ownerClusterID), ptr.To("Updating")), expectRequeue: true},
+		{name: "deleting requeues", resourceGroup: rg(ptr.To(ownerClusterID), ptr.To("Deleting")), expectRequeue: true},
+		{name: "failed errors", resourceGroup: rg(ptr.To(ownerClusterID), ptr.To("Failed")), expectErr: true, errContains: "provisioning state"},
+		{name: "canceled errors", resourceGroup: rg(ptr.To(ownerClusterID), ptr.To("Canceled")), expectErr: true, errContains: "provisioning state"},
+		{name: "unrecognized state errors", resourceGroup: rg(ptr.To(ownerClusterID), ptr.To("Weird")), expectErr: true, errContains: "provisioning state"},
+		{name: "missing provisioning state errors", resourceGroup: armresources.ResourceGroup{Name: ptr.To(testManagedRGName), ManagedBy: ptr.To(ownerClusterID)}, expectErr: true, errContains: "no provisioning state"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			requeue, err := validateManagedResourceGroup(cluster, mrgID, tc.resourceGroup)
+			if tc.expectErr {
+				require.Error(t, err)
+				if tc.errContains != "" {
+					assert.Contains(t, err.Error(), tc.errContains)
+				}
+				assert.False(t, requeue, "requeue must be false when an error is returned")
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tc.expectRequeue, requeue, "requeue outcome")
+			}
+		})
+	}
 }
 
 // assertResourceIDEqual compares two optional resource IDs by their canonical string form.
