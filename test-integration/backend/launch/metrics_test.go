@@ -40,6 +40,7 @@ import (
 
 	apisconfigv1 "github.com/Azure/ARO-HCP/backend/pkg/apis/config/v1"
 	"github.com/Azure/ARO-HCP/backend/pkg/app"
+	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	azureconfig "github.com/Azure/ARO-HCP/backend/pkg/azure/config"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/backups"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
@@ -101,6 +102,15 @@ func TestBackendExposesMetrics(t *testing.T) {
 		cloudEnvironment, err := azureconfig.NewAzureCloudEnvironment(apisconfigv1.AzurePublicCloud, nil)
 		require.NoError(t, err)
 
+		// fake hardcoded identity for metrics test, so controllers that panic when neither hardcoded identity nor
+		// managed identities dataplane client builder are not set do not panic.
+		hardcodedIdentity := &azureclient.HardcodedIdentity{
+			ClientID:     "test-client-id",
+			ClientSecret: "test-client-secret",
+			PrincipalID:  "test-principal-id",
+			TenantID:     "test-tenant-id",
+		}
+
 		metricsListener := newMetricsTestListener(t)
 		metricsAddress := metricsListener.Addr().String()
 		backendOptions := &app.BackendOptions{
@@ -125,6 +135,7 @@ func TestBackendExposesMetrics(t *testing.T) {
 				BackupScheduleState:  coreapi.BackupScheduleStateEnabled,
 				BackupCadenceProfile: backups.BackupCadenceProduction,
 			},
+			HardcodedIdentity: hardcodedIdentity,
 		}
 
 		backendErrCh := make(chan error, 1)

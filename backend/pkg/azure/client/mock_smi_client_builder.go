@@ -79,6 +79,45 @@ func (c *MockServiceManagedIdentityClientBuilderBuilderTypeCall) DoAndReturn(f f
 	return c
 }
 
+// FederatedIdentityCredentialsClient mocks base method.
+func (m *MockServiceManagedIdentityClientBuilder) FederatedIdentityCredentialsClient(ctx context.Context, clusterIdentityURL string, smiResourceID *arm.ResourceID, subscriptionID string) (FederatedIdentityCredentialsClient, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FederatedIdentityCredentialsClient", ctx, clusterIdentityURL, smiResourceID, subscriptionID)
+	ret0, _ := ret[0].(FederatedIdentityCredentialsClient)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FederatedIdentityCredentialsClient indicates an expected call of FederatedIdentityCredentialsClient.
+func (mr *MockServiceManagedIdentityClientBuilderMockRecorder) FederatedIdentityCredentialsClient(ctx, clusterIdentityURL, smiResourceID, subscriptionID any) *MockServiceManagedIdentityClientBuilderFederatedIdentityCredentialsClientCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FederatedIdentityCredentialsClient", reflect.TypeOf((*MockServiceManagedIdentityClientBuilder)(nil).FederatedIdentityCredentialsClient), ctx, clusterIdentityURL, smiResourceID, subscriptionID)
+	return &MockServiceManagedIdentityClientBuilderFederatedIdentityCredentialsClientCall{Call: call}
+}
+
+// MockServiceManagedIdentityClientBuilderFederatedIdentityCredentialsClientCall wrap *gomock.Call
+type MockServiceManagedIdentityClientBuilderFederatedIdentityCredentialsClientCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockServiceManagedIdentityClientBuilderFederatedIdentityCredentialsClientCall) Return(arg0 FederatedIdentityCredentialsClient, arg1 error) *MockServiceManagedIdentityClientBuilderFederatedIdentityCredentialsClientCall {
+	c.Call = c.Call.Return(arg0, arg1)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockServiceManagedIdentityClientBuilderFederatedIdentityCredentialsClientCall) Do(f func(context.Context, string, *arm.ResourceID, string) (FederatedIdentityCredentialsClient, error)) *MockServiceManagedIdentityClientBuilderFederatedIdentityCredentialsClientCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockServiceManagedIdentityClientBuilderFederatedIdentityCredentialsClientCall) DoAndReturn(f func(context.Context, string, *arm.ResourceID, string) (FederatedIdentityCredentialsClient, error)) *MockServiceManagedIdentityClientBuilderFederatedIdentityCredentialsClientCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
 // NetworkSecurityGroupsClient mocks base method.
 func (m *MockServiceManagedIdentityClientBuilder) NetworkSecurityGroupsClient(ctx context.Context, clusterIdentityURL string, smiResourceID *arm.ResourceID, subscriptionID string) (NetworkSecurityGroupsClient, error) {
 	m.ctrl.T.Helper()
