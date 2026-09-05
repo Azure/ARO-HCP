@@ -494,3 +494,41 @@ panels:
     unit: percent
     workspace: svc
     step: "60s"
+  - title: "HCP Control Plane Pod Churn Ratio"
+    description: "Highest pod churn ratio seen anywhere on each management cluster: distinct pods observed per Deployment, divided by desired replica count, maxed across every HostedControlPlane Deployment on that cluster. ~1 = healthy; higher means at least one Deployment somewhere on the cluster had pods repeatedly replaced, not just scaled up. Copy the query below and drop the outer max-by-cluster to drill into which HCP instance and component is churning."
+    query: |
+      max by (cluster) (
+        count by (cluster, namespace, workload) (
+          count_over_time(
+            label_replace(
+              label_replace(
+                max without (prometheus_replica) (
+                  kube_pod_owner{job="kube-state-metrics", owner_kind="ReplicaSet", namespace=~"ocm-.*"}
+                ),
+                "replicaset", "$1", "owner_name", "(.*)"
+              )
+              * on (replicaset, namespace) group_left(owner_name) topk by (replicaset, namespace) (
+                1, max without (prometheus_replica) (
+                  kube_replicaset_owner{job="kube-state-metrics", owner_kind="Deployment", namespace=~"ocm-.*"}
+                )
+              ),
+              "workload", "$1", "owner_name", "(.*)"
+            )[1m:30s]
+          )
+        )
+        / on (cluster, namespace, workload)
+        (
+          max by (cluster, namespace, workload) (
+            label_replace(
+              max_over_time(
+                kube_deployment_spec_replicas{job="kube-state-metrics", namespace=~"ocm-.*"}[1m]
+              ),
+              "workload", "$1", "deployment", "(.*)"
+            )
+          ) > 0
+        )
+      )
+    unit: ratio
+    workspace: hcp
+    step: "1m"
+    minPeakThreshold: 2
