@@ -34,9 +34,10 @@ import (
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
 )
 
-// UpdateTimeout of a cluster + the etcd re-encryption timeout
-// To check the p99 in the future and adjust times
-const HCPClusterReencryptionUpgradeTimeout = framework.UpdateHCPClusterTimeout + 20*time.Minute
+// HCPClusterReencryptionUpgradeTimeout is the cluster update timeout plus additional time for etcd re-encryption.
+// p99 across dev/stg/prod is 18m 29s (2026-09-01, 30d window).
+// The total timeout should be 23m = p99 + ~20% buffer.
+const HCPClusterReencryptionUpgradeTimeout = framework.UpdateHCPClusterTimeout + 13*time.Minute
 
 var _ = Describe("Customer", func() {
 	It("should be able to rotate KMS key for a cluster with version >= 4.22",
