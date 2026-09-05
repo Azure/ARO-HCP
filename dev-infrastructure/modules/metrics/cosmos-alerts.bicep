@@ -66,7 +66,7 @@ resource normalizedRUConsumptionBurstHigh 'Microsoft.Insights/metricAlerts@2018-
   name: 'Cosmos DB Normalized RU Consumption Burst High - ${cosmosDbName}'
   location: 'global'
   properties: {
-    description: 'Cosmos DB normalized RU consumption is above 95% averaged over a 5-minute window, evaluated every minute. This catches short bursts (e.g. mass cluster creation at the start of e2e) that exceed provisioned throughput before the 10-minute sustained alert fires and that can cause 429 throttling. Investigate workload patterns or increase provisioned throughput. https://learn.microsoft.com/azure/cosmos-db/monitor-normalized-request-units'
+    description: 'Cosmos DB normalized RU consumption is above 95% averaged over a 5-minute window, evaluated every minute. This catches short RU-saturation bursts (e.g. mass cluster creation at the start of E2E tests) that exceed provisioned throughput and cause 429 throttling before the 10-minute sustained alert fires. Investigate workload patterns or increase provisioned throughput. https://learn.microsoft.com/azure/cosmos-db/monitor-normalized-request-units'
     severity: 3
     enabled: enabled
     autoMitigate: true
