@@ -69,10 +69,10 @@ func (c *managementClusterDataDump) SyncOnce(ctx context.Context, key controller
 		return nil
 	}
 
-	logger.Info(fmt.Sprintf("dumping resourceID %v", mc.CosmosMetadata.ResourceID),
+	logger.Info(fmt.Sprintf("dumping resourceID %v", mc.ResourceID),
 		"snapshotType", "cosmos",
-		"currentResourceID", mc.CosmosMetadata.ResourceID.String(),
-		"objectMetadata", metadataapi.ObjectMetadataForResourceID("fleet", mc.CosmosMetadata.ResourceID),
+		"currentResourceID", mc.ResourceID.String(),
+		"objectMetadata", metadataapi.ObjectMetadataForResourceID("fleet", mc.ResourceID),
 		"content", mc,
 	)
 

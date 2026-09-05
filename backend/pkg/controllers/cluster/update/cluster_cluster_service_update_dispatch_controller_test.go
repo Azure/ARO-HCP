@@ -347,7 +347,6 @@ func newTestSubscription(opts ...func(*coreapi.Subscription)) *coreapi.Subscript
 	subResourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID))
 	subscription := &coreapi.Subscription{
 		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: subResourceID},
-		ResourceID:     subResourceID,
 		Properties: &coreapi.SubscriptionProperties{
 			TenantId: metadataapi.Ptr("11111111-1111-1111-1111-111111111111"),
 		},

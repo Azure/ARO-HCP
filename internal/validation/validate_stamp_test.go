@@ -33,7 +33,6 @@ func validStamp(t *testing.T) *fleetapi.Stamp {
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID: resourceID,
 		},
-		ResourceID: resourceID,
 	}
 }
 
@@ -60,7 +59,6 @@ func TestValidateStampCreate(t *testing.T) {
 			name: "valid two chars letters",
 			modify: func(t *testing.T, s *fleetapi.Stamp) {
 				resourceID := metadataapi.Must(fleetapi.ToStampResourceID("ab"))
-				s.CosmosMetadata.ResourceID = resourceID
 				s.ResourceID = resourceID
 			},
 			expectErrors: nil,
@@ -69,7 +67,6 @@ func TestValidateStampCreate(t *testing.T) {
 			name: "valid three chars mixed",
 			modify: func(t *testing.T, s *fleetapi.Stamp) {
 				resourceID := metadataapi.Must(fleetapi.ToStampResourceID("1a2"))
-				s.CosmosMetadata.ResourceID = resourceID
 				s.ResourceID = resourceID
 			},
 			expectErrors: nil,
@@ -78,7 +75,6 @@ func TestValidateStampCreate(t *testing.T) {
 			name: "valid three chars all digits",
 			modify: func(t *testing.T, s *fleetapi.Stamp) {
 				resourceID := metadataapi.Must(fleetapi.ToStampResourceID("123"))
-				s.CosmosMetadata.ResourceID = resourceID
 				s.ResourceID = resourceID
 			},
 			expectErrors: nil,
@@ -87,7 +83,6 @@ func TestValidateStampCreate(t *testing.T) {
 			name: "valid three chars all letters",
 			modify: func(t *testing.T, s *fleetapi.Stamp) {
 				resourceID := metadataapi.Must(fleetapi.ToStampResourceID("abc"))
-				s.CosmosMetadata.ResourceID = resourceID
 				s.ResourceID = resourceID
 			},
 			expectErrors: nil,
@@ -96,7 +91,6 @@ func TestValidateStampCreate(t *testing.T) {
 		{
 			name: "empty stamp identifier rejected",
 			modify: func(t *testing.T, s *fleetapi.Stamp) {
-				s.CosmosMetadata.ResourceID = nil
 				s.ResourceID = nil
 			},
 			expectErrors: []expectedError{
@@ -107,7 +101,6 @@ func TestValidateStampCreate(t *testing.T) {
 			name: "four chars rejected",
 			modify: func(t *testing.T, s *fleetapi.Stamp) {
 				resourceID := metadataapi.Must(azcorearm.ParseResourceID("/providers/Microsoft.RedHatOpenShift/stamps/abcd"))
-				s.CosmosMetadata.ResourceID = resourceID
 				s.ResourceID = resourceID
 			},
 			expectErrors: []expectedError{
@@ -118,7 +111,6 @@ func TestValidateStampCreate(t *testing.T) {
 			name: "uppercase rejected",
 			modify: func(t *testing.T, s *fleetapi.Stamp) {
 				resourceID := metadataapi.Must(azcorearm.ParseResourceID("/providers/Microsoft.RedHatOpenShift/stamps/ABC"))
-				s.CosmosMetadata.ResourceID = resourceID
 				s.ResourceID = resourceID
 			},
 			expectErrors: []expectedError{
@@ -129,7 +121,6 @@ func TestValidateStampCreate(t *testing.T) {
 			name: "special chars rejected",
 			modify: func(t *testing.T, s *fleetapi.Stamp) {
 				resourceID := metadataapi.Must(azcorearm.ParseResourceID("/providers/Microsoft.RedHatOpenShift/stamps/a-b"))
-				s.CosmosMetadata.ResourceID = resourceID
 				s.ResourceID = resourceID
 			},
 			expectErrors: []expectedError{
@@ -140,7 +131,6 @@ func TestValidateStampCreate(t *testing.T) {
 			name: "spaces rejected",
 			modify: func(t *testing.T, s *fleetapi.Stamp) {
 				resourceID := metadataapi.Must(azcorearm.ParseResourceID("/providers/Microsoft.RedHatOpenShift/stamps/a b"))
-				s.CosmosMetadata.ResourceID = resourceID
 				s.ResourceID = resourceID
 			},
 			expectErrors: []expectedError{
@@ -201,7 +191,6 @@ func TestValidateStampUpdate(t *testing.T) {
 			name: "valid two chars letters",
 			modify: func(t *testing.T, s *fleetapi.Stamp) {
 				resourceID := metadataapi.Must(fleetapi.ToStampResourceID("ab"))
-				s.CosmosMetadata.ResourceID = resourceID
 				s.ResourceID = resourceID
 			},
 			expectErrors: nil,
@@ -210,7 +199,6 @@ func TestValidateStampUpdate(t *testing.T) {
 			name: "valid three chars mixed",
 			modify: func(t *testing.T, s *fleetapi.Stamp) {
 				resourceID := metadataapi.Must(fleetapi.ToStampResourceID("1a2"))
-				s.CosmosMetadata.ResourceID = resourceID
 				s.ResourceID = resourceID
 			},
 			expectErrors: nil,
@@ -219,7 +207,6 @@ func TestValidateStampUpdate(t *testing.T) {
 			name: "valid three chars all digits",
 			modify: func(t *testing.T, s *fleetapi.Stamp) {
 				resourceID := metadataapi.Must(fleetapi.ToStampResourceID("123"))
-				s.CosmosMetadata.ResourceID = resourceID
 				s.ResourceID = resourceID
 			},
 			expectErrors: nil,
@@ -228,7 +215,6 @@ func TestValidateStampUpdate(t *testing.T) {
 			name: "valid three chars all letters",
 			modify: func(t *testing.T, s *fleetapi.Stamp) {
 				resourceID := metadataapi.Must(fleetapi.ToStampResourceID("abc"))
-				s.CosmosMetadata.ResourceID = resourceID
 				s.ResourceID = resourceID
 			},
 			expectErrors: nil,
@@ -237,7 +223,6 @@ func TestValidateStampUpdate(t *testing.T) {
 		{
 			name: "empty stamp identifier rejected",
 			modify: func(t *testing.T, s *fleetapi.Stamp) {
-				s.CosmosMetadata.ResourceID = nil
 				s.ResourceID = nil
 			},
 			expectErrors: []expectedError{
@@ -248,7 +233,6 @@ func TestValidateStampUpdate(t *testing.T) {
 			name: "four chars rejected",
 			modify: func(t *testing.T, s *fleetapi.Stamp) {
 				resourceID := metadataapi.Must(azcorearm.ParseResourceID("/providers/Microsoft.RedHatOpenShift/stamps/abcd"))
-				s.CosmosMetadata.ResourceID = resourceID
 				s.ResourceID = resourceID
 			},
 			expectErrors: []expectedError{
@@ -259,7 +243,6 @@ func TestValidateStampUpdate(t *testing.T) {
 			name: "uppercase rejected",
 			modify: func(t *testing.T, s *fleetapi.Stamp) {
 				resourceID := metadataapi.Must(azcorearm.ParseResourceID("/providers/Microsoft.RedHatOpenShift/stamps/ABC"))
-				s.CosmosMetadata.ResourceID = resourceID
 				s.ResourceID = resourceID
 			},
 			expectErrors: []expectedError{
@@ -270,7 +253,6 @@ func TestValidateStampUpdate(t *testing.T) {
 			name: "special chars rejected",
 			modify: func(t *testing.T, s *fleetapi.Stamp) {
 				resourceID := metadataapi.Must(azcorearm.ParseResourceID("/providers/Microsoft.RedHatOpenShift/stamps/a-b"))
-				s.CosmosMetadata.ResourceID = resourceID
 				s.ResourceID = resourceID
 			},
 			expectErrors: []expectedError{
@@ -281,7 +263,6 @@ func TestValidateStampUpdate(t *testing.T) {
 			name: "spaces rejected",
 			modify: func(t *testing.T, s *fleetapi.Stamp) {
 				resourceID := metadataapi.Must(azcorearm.ParseResourceID("/providers/Microsoft.RedHatOpenShift/stamps/a b"))
-				s.CosmosMetadata.ResourceID = resourceID
 				s.ResourceID = resourceID
 			},
 			expectErrors: []expectedError{

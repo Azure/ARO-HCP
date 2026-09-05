@@ -202,7 +202,6 @@ func CreateTestSubscription(registeredFeatures ...string) *coreapi.Subscription 
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID: metadataapi.Must(azcorearm.ParseResourceID(TestSubscriptionResourceID)),
 		},
-		ResourceID:       metadataapi.Must(azcorearm.ParseResourceID(TestSubscriptionResourceID)),
 		State:            coreapi.SubscriptionStateRegistered,
 		RegistrationDate: ptr.To(time.Now().Format(time.RFC1123)),
 		Properties: &coreapi.SubscriptionProperties{

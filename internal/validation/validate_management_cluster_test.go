@@ -35,7 +35,6 @@ func validManagementCluster(t *testing.T) *fleetapi.ManagementCluster {
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID: resourceID,
 		},
-		ResourceID: resourceID,
 		Spec: fleetapi.ManagementClusterSpec{
 			SchedulingPolicy: fleetapi.ManagementClusterSchedulingPolicySchedulable,
 		},
@@ -87,7 +86,6 @@ func TestValidateManagementClusterCreate(t *testing.T) {
 			name: "stamp identifier with uppercase rejected",
 			modify: func(t *testing.T, mc *fleetapi.ManagementCluster) {
 				mc.ResourceID = metadataapi.Must(azcorearm.ParseResourceID("/providers/Microsoft.RedHatOpenShift/stamps/ABC/managementClusters/default"))
-				mc.CosmosMetadata.ResourceID = mc.ResourceID
 			},
 			expectErrors: []expectedError{
 				{fieldPath: "resourceId.parent.name", message: "must be 1-3 lowercase alphanumeric characters"},
@@ -97,7 +95,6 @@ func TestValidateManagementClusterCreate(t *testing.T) {
 			name: "stamp identifier too long rejected",
 			modify: func(t *testing.T, mc *fleetapi.ManagementCluster) {
 				mc.ResourceID = metadataapi.Must(azcorearm.ParseResourceID("/providers/Microsoft.RedHatOpenShift/stamps/abcd/managementClusters/default"))
-				mc.CosmosMetadata.ResourceID = mc.ResourceID
 			},
 			expectErrors: []expectedError{
 				{fieldPath: "resourceId.parent.name", message: "must be 1-3 lowercase alphanumeric characters"},
@@ -107,7 +104,6 @@ func TestValidateManagementClusterCreate(t *testing.T) {
 			name: "stamp identifier with special chars rejected",
 			modify: func(t *testing.T, mc *fleetapi.ManagementCluster) {
 				mc.ResourceID = metadataapi.Must(azcorearm.ParseResourceID("/providers/Microsoft.RedHatOpenShift/stamps/a-b/managementClusters/default"))
-				mc.CosmosMetadata.ResourceID = mc.ResourceID
 			},
 			expectErrors: []expectedError{
 				{fieldPath: "resourceId.parent.name", message: "must be 1-3 lowercase alphanumeric characters"},
@@ -117,7 +113,6 @@ func TestValidateManagementClusterCreate(t *testing.T) {
 			name: "stamp identifier single char accepted",
 			modify: func(t *testing.T, mc *fleetapi.ManagementCluster) {
 				mc.ResourceID = metadataapi.Must(fleetapi.ToManagementClusterResourceID("a"))
-				mc.CosmosMetadata.ResourceID = mc.ResourceID
 			},
 			expectErrors: nil,
 		},
@@ -125,7 +120,6 @@ func TestValidateManagementClusterCreate(t *testing.T) {
 			name: "stamp identifier three chars accepted",
 			modify: func(t *testing.T, mc *fleetapi.ManagementCluster) {
 				mc.ResourceID = metadataapi.Must(fleetapi.ToManagementClusterResourceID("ab3"))
-				mc.CosmosMetadata.ResourceID = mc.ResourceID
 			},
 			expectErrors: nil,
 		},

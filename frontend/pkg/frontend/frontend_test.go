@@ -68,7 +68,6 @@ func newTestSubscription(subscriptionID string, state coreapi.SubscriptionState,
 			ResourceID:   resourceID,
 			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 		},
-		ResourceID:       resourceID,
 		State:            state,
 		RegistrationDate: metadataapi.Ptr(time.Now().String()),
 		Properties:       props,
@@ -234,7 +233,7 @@ func TestSubscriptionsPUT(t *testing.T) {
 			name:    "PUT Subscription - Doc does not exist",
 			urlPath: coreapitesting.TestSubscriptionResourceID,
 			subscription: &coreapi.Subscription{
-				ResourceID:       metadataapi.Must(coreapi.ToSubscriptionResourceID(coreapitesting.TestSubscriptionID)),
+				CosmosMetadata:   coreapi.CosmosMetadata{ResourceID: metadataapi.Must(coreapi.ToSubscriptionResourceID(coreapitesting.TestSubscriptionID))},
 				State:            coreapi.SubscriptionStateRegistered,
 				RegistrationDate: metadataapi.Ptr(time.Now().String()),
 				Properties: &coreapi.SubscriptionProperties{
@@ -260,7 +259,7 @@ func TestSubscriptionsPUT(t *testing.T) {
 			name:    "PUT Subscription - Update with no changes",
 			urlPath: coreapitesting.TestSubscriptionResourceID,
 			subscription: &coreapi.Subscription{
-				ResourceID:       metadataapi.Must(coreapi.ToSubscriptionResourceID(coreapitesting.TestSubscriptionID)),
+				CosmosMetadata:   coreapi.CosmosMetadata{ResourceID: metadataapi.Must(coreapi.ToSubscriptionResourceID(coreapitesting.TestSubscriptionID))},
 				State:            coreapi.SubscriptionStateRegistered,
 				RegistrationDate: metadataapi.Ptr(time.Now().String()),
 				Properties:       nil,
@@ -273,7 +272,7 @@ func TestSubscriptionsPUT(t *testing.T) {
 			name:    "PUT Subscription - Update registered features",
 			urlPath: coreapitesting.TestSubscriptionResourceID,
 			subscription: &coreapi.Subscription{
-				ResourceID:       metadataapi.Must(coreapi.ToSubscriptionResourceID(coreapitesting.TestSubscriptionID)),
+				CosmosMetadata:   coreapi.CosmosMetadata{ResourceID: metadataapi.Must(coreapi.ToSubscriptionResourceID(coreapitesting.TestSubscriptionID))},
 				State:            coreapi.SubscriptionStateRegistered,
 				RegistrationDate: metadataapi.Ptr(time.Now().String()),
 				Properties: &coreapi.SubscriptionProperties{

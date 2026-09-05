@@ -86,7 +86,7 @@ func newMockDBAndListers(ctx context.Context, t *testing.T, resources []any) (
 	clients.Register(testMCResourceID, mockDB)
 	mcLister := &fleetlistertesting.SliceManagementClusterLister{
 		ManagementClusters: []*fleetapi.ManagementCluster{
-			{CosmosMetadata: coreapi.CosmosMetadata{ResourceID: testMCResourceID}, ResourceID: testMCResourceID},
+			{CosmosMetadata: coreapi.CosmosMetadata{ResourceID: testMCResourceID}},
 		},
 	}
 

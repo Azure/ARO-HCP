@@ -440,10 +440,10 @@ func (c *kubeApplierDBClients) findManagementClusterLocked(ctx context.Context, 
 	}
 	target := strings.ToLower(rid.String())
 	for _, mc := range mcs {
-		if mc.CosmosMetadata.ResourceID == nil {
+		if mc.ResourceID == nil {
 			continue
 		}
-		if strings.ToLower(mc.CosmosMetadata.ResourceID.String()) == target {
+		if strings.ToLower(mc.ResourceID.String()) == target {
 			return mc
 		}
 	}

@@ -67,7 +67,6 @@ func newManagementCluster(t *testing.T, stampIdentifier string) *fleetapi.Manage
 			ResourceID:   managementClusterResourceID,
 			PartitionKey: strings.ToLower(stampIdentifier),
 		},
-		ResourceID: managementClusterResourceID,
 		Spec: fleetapi.ManagementClusterSpec{
 			SchedulingPolicy: fleetapi.ManagementClusterSchedulingPolicySchedulable,
 		},

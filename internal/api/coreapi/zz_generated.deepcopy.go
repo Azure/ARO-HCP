@@ -2603,10 +2603,6 @@ func (in *ServiceProviderPlatformProfile) DeepCopy() *ServiceProviderPlatformPro
 func (in *Subscription) DeepCopyInto(out *Subscription) {
 	*out = *in
 	in.CosmosMetadata.DeepCopyInto(&out.CosmosMetadata)
-	if in.ResourceID != nil {
-		in, out := &in.ResourceID, &out.ResourceID
-		*out = DeepCopyResourceID(*in)
-	}
 	if in.RegistrationDate != nil {
 		in, out := &in.RegistrationDate, &out.RegistrationDate
 		*out = new(string)
