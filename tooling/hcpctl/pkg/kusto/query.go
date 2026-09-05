@@ -138,8 +138,13 @@ type TemplateData struct {
 	ClusterIds         string
 	FilterClusterName  string
 	HCPNamespacePrefix string
-	SplitByPod         bool
-	OrderBy            string
+	// Namespace is the Kubernetes namespace to scope a query to (e.g. an
+	// oc-adm-inspect resource/event/log query). Single quotes are escaped for safe
+	// embedding inside a single-quoted KQL string literal; the template supplies
+	// the surrounding quotes (e.g. '{{.Namespace}}').
+	Namespace  string
+	SplitByPod bool
+	OrderBy    string
 }
 
 type TemplateDataOptions func(*TemplateData)
@@ -177,6 +182,12 @@ func WithHCPNamespacePrefix(hcpNamespacePrefix string) TemplateDataOptions {
 func WithClusterName(clusterName string) TemplateDataOptions {
 	return func(d *TemplateData) {
 		d.ClusterName = kqlEscStr(clusterName)
+	}
+}
+
+func WithNamespace(namespace string) TemplateDataOptions {
+	return func(d *TemplateData) {
+		d.Namespace = kqlEscStr(namespace)
 	}
 }
 

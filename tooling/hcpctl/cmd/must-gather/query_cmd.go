@@ -16,11 +16,15 @@ package mustgather
 
 import (
 	"context"
+	"errors"
+	"path/filepath"
 
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
 
+	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/kusto"
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/mustgather"
+	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/ocadminspect"
 )
 
 func newQueryCommand() (*cobra.Command, error) {
@@ -64,5 +68,36 @@ func (opts *CompletedQueryOptions) RunQuery(ctx context.Context) error {
 		QueryOptions:               &opts.QueryOptions,
 	}, false)
 
-	return gatherer.GatherLogs(ctx)
+	logger.Info("gathering must-gather logs", "output", opts.OutputPath)
+	gatherErr := gatherer.GatherLogs(ctx)
+
+	// For every HCP cluster discovered in the resource group, oc-adm-inspect the
+	// hosted-cluster namespace (which pulls in the paired control-plane namespace)
+	// on the management cluster that hosts it.
+	var inspectErr error
+	if !opts.SkipOCAdmInspect {
+		inspectErr = opts.runOCAdmInspect(ctx)
+	}
+
+	if err := errors.Join(gatherErr, inspectErr); err != nil {
+		logger.Error(err, "must-gather finished with errors; partial content may have been written", "output", opts.OutputPath)
+		return err
+	}
+	logger.Info("must-gather complete; content written", "output", opts.OutputPath)
+	return nil
+}
+
+// runOCAdmInspect runs the Kusto-backed oc-adm-inspect for every cluster in the
+// resource group, writing under <output>/oc-adm-inspect.
+func (opts *CompletedQueryOptions) runOCAdmInspect(ctx context.Context) error {
+	logger := logr.FromContextOrDiscard(ctx)
+
+	factory, err := kusto.NewQueryFactory()
+	if err != nil {
+		return err
+	}
+	outputPath := filepath.Join(opts.OutputPath, OCAdmInspectDirectory)
+	writer := ocadminspect.NewFilesystemWriter(outputPath)
+	logger.Info("running oc-adm-inspect for clusters in the resource group", "output", outputPath, "clusterIDs", opts.QueryOptions.ClusterIds)
+	return ocadminspect.InspectResourceGroupManagementNamespaces(ctx, opts.QueryClient, factory, opts.QueryOptions, writer, opts.QueryOptions.ClusterIds)
 }

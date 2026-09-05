@@ -5,6 +5,7 @@ ClusterNames: '''cluster-a'', ''cluster-b'''
 FilterClusterName: ""
 HCPNamespacePrefix: ocm-arohcp
 Limit: 100
+Namespace: ""
 NoTruncation: false
 OrderBy: asc
 ResourceGroupName: rg

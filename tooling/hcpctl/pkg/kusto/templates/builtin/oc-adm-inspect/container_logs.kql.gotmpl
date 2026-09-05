@@ -1,0 +1,17 @@
+{{- /*
+Container logs for every pod in a namespace on the management/service cluster,
+from the lookback floor up to the requested timestamp (TimestampMax). Ordered so
+each pod/container's lines can be written in chronological order, mirroring the
+current.log files oc adm inspect writes per container.
+*/ -}}
+{{- if .NoTruncation}}set notruncation;
+{{end -}}
+containerLogs
+| where timestamp between ({{ .TimestampMin }} .. {{ .TimestampMax }})
+| where cluster == '{{.ClusterName}}'
+| where namespace_name == '{{.Namespace}}'
+| project timestamp, log, cluster, namespace_name, container_name, pod_name
+| order by pod_name asc, container_name asc, timestamp asc
+{{- if gt .Limit 0}}
+| limit {{.Limit}}
+{{- end}}

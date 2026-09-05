@@ -22,6 +22,7 @@ var ServicesLogDirectory = "service"
 var HostedControlPlaneLogDirectory = "hosted-control-plane"
 var CustomLogsDirectory = "custom"
 var InfraLogDirectory = "cluster"
+var OCAdmInspectDirectory = "oc-adm-inspect"
 
 var OptionsOutputFile = "options.json"
 
