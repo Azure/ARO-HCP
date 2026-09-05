@@ -2,6 +2,12 @@ param cosmosDBAccountName string
 param userAssignedMIs array
 param readOnlyUserAssignedMIs array = []
 
+// Principal ID of the Clusters Service (CS) managed identity. CS is granted
+// container-scoped read access to the Fleet container so it can read
+// ManagementCluster documents (used to resolve per-management-cluster kube-applier
+// containers).
+param csManagedIdentityPrincipalId string
+
 param resourceContainerMaxScale int
 param billingContainerMaxScale int
 param locksContainerMaxScale int
@@ -115,3 +121,33 @@ resource sqlRoleAssignmentReadOnly 'Microsoft.DocumentDB/databaseAccounts/sqlRol
     }
   }
 ]
+
+// Container-scoped read access to the Fleet container for the Clusters Service
+// managed identity. CS reads ManagementCluster documents from Fleet to resolve the
+// per-management-cluster kube-applier container it must write to.
+var fleetContainerScope = '${cosmosDbAccount.id}/dbs/${cosmosDBAccountName}/colls/Fleet'
+
+resource sqlRoleAssignmentFleetReadOnly 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@2021-04-15' = {
+  name: guid(cosmosReadOnlyRoleDefinitionId, csManagedIdentityPrincipalId, fleetContainerScope)
+  parent: cosmosDbAccount
+  properties: {
+    roleDefinitionId: '${cosmosDbAccount.id}/sqlRoleDefinitions/${cosmosReadOnlyRoleDefinitionId}'
+    principalId: csManagedIdentityPrincipalId
+    scope: fleetContainerScope
+  }
+}
+
+// Container-scoped read/write access to the Resources container for the Clusters
+// Service managed identity, so CS can persist its controller documents (per team
+// decision).
+var resourcesContainerScope = '${cosmosDbAccount.id}/dbs/${cosmosDBAccountName}/colls/Resources'
+
+resource sqlRoleAssignmentResourcesReadWrite 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@2021-04-15' = {
+  name: guid(cosmosDataContributorRoleDefinitionId, csManagedIdentityPrincipalId, resourcesContainerScope)
+  parent: cosmosDbAccount
+  properties: {
+    roleDefinitionId: '${cosmosDbAccount.id}/sqlRoleDefinitions/${cosmosDataContributorRoleDefinitionId}'
+    principalId: csManagedIdentityPrincipalId
+    scope: resourcesContainerScope
+  }
+}
