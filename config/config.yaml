@@ -1804,6 +1804,7 @@ clouds:
               connectSocket: false
             cosmosDB:
               private: false
+              resourceContainerMaxScale: 20000
               zoneRedundantMode: 'Disabled'
             tracing:
               address: "http://ingest.observability:4318"
@@ -1905,6 +1906,7 @@ clouds:
               connectSocket: false
             cosmosDB:
               private: false
+              resourceContainerMaxScale: 20000
               zoneRedundantMode: 'Disabled'
             tracing:
               address: "http://ingest.observability:4318"
