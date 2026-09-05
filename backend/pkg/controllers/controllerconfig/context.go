@@ -51,6 +51,7 @@ type ControllerContext struct {
 	FleetDBClient                                       fleetcosmosstorage.FleetDBClient
 	HasRealFPA                                          bool
 	HardcodedIdentity                                   *azureclient.HardcodedIdentity
+	ClusterOIDCIssuerBaseURL                            string
 	KubeApplierDBClients                                kubeappliercosmosstorage.KubeApplierDBClients
 	MIDataplaneBasedIdentityAccessTokenRetrieverBuilder azureclient.MIDataplaneBasedIdentityAccessTokenRetrieverBuilder
 	MaestroSourceEnvironmentIdentifier                  string

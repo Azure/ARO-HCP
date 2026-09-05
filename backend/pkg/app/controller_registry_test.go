@@ -160,6 +160,8 @@ var expectedControllerLaunches = []struct {
 	{"fetchmsiidentitiesinfo", 20},
 	{"fetchdataplaneoperatorsmanagedidentitiesinfo", 20},
 	{"fetchmanagedidentitiesinfo", 20},
+	{"dataplaneoidcfederationintent", 20},
+	{"dataplaneoidcfederation", 20},
 	{"identityroleassignments", 20},
 	{"keyrotationbackup", 20},
 	{"clusterresources", 20},
