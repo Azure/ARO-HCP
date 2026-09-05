@@ -517,13 +517,15 @@ panels:
           )
         )
         / on (cluster, namespace, workload)
-        max by (cluster, namespace, workload) (
-          label_replace(
-            max_over_time(
-              kube_deployment_spec_replicas{job="kube-state-metrics", namespace=~"ocm-.*"}[1m]
-            ),
-            "workload", "$1", "deployment", "(.*)"
-          )
+        (
+          max by (cluster, namespace, workload) (
+            label_replace(
+              max_over_time(
+                kube_deployment_spec_replicas{job="kube-state-metrics", namespace=~"ocm-.*"}[1m]
+              ),
+              "workload", "$1", "deployment", "(.*)"
+            )
+          ) > 0
         )
       )
     unit: ratio
