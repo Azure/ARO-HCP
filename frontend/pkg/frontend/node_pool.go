@@ -310,7 +310,7 @@ func (f *Frontend) createNodePool(writer http.ResponseWriter, request *http.Requ
 		return utils.TrackError(err)
 	}
 
-	transaction := f.resourcesDBClient.NewTransaction(newInternalNodePool.ID.SubscriptionID)
+	transaction := f.resourcesDBClient.NewTransaction(newInternalNodePool.ID.SubscriptionID, "create_node_pool")
 
 	createNodePoolOperation := cosmosstorageutils.NewOperation(
 		cosmosstorageutils.OperationRequestCreate,
@@ -585,7 +585,7 @@ func (f *Frontend) updateNodePoolInCosmos(ctx context.Context, writer http.Respo
 	// The cosmos representation the new desired version
 	// The controllers will take care of handle the upgrade
 
-	transaction := f.resourcesDBClient.NewTransaction(oldInternalNodePool.ID.SubscriptionID)
+	transaction := f.resourcesDBClient.NewTransaction(oldInternalNodePool.ID.SubscriptionID, "update_node_pool")
 
 	nodePoolUpdateOperation := cosmosstorageutils.NewOperation(
 		cosmosstorageutils.OperationRequestUpdate,
@@ -695,7 +695,7 @@ func (f *Frontend) DeleteNodePool(writer http.ResponseWriter, request *http.Requ
 		return utils.TrackError(err)
 	}
 
-	transaction := f.resourcesDBClient.NewTransaction(nodePool.ID.SubscriptionID)
+	transaction := f.resourcesDBClient.NewTransaction(nodePool.ID.SubscriptionID, "delete_node_pool")
 	if err := f.addDeleteNodePoolToTransaction(ctx, writer, request, transaction, nodePool); err != nil {
 		return utils.TrackError(err)
 	}

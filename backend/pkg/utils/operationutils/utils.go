@@ -107,7 +107,7 @@ func UpdateOperationStatus(ctx context.Context, clock utilsclock.PassiveClock, r
 	// All documents in the transaction must share the same partition key. Both
 	// operation and resource documents are partitioned by subscription ID. If the
 	// partition key scheme changes the transaction creation here must be updated accordingly.
-	transaction := resourcesDBClient.NewTransaction(updatedOperation.OperationID.SubscriptionID)
+	transaction := resourcesDBClient.NewTransaction(updatedOperation.OperationID.SubscriptionID, "update_operation_status")
 
 	// Add the operation document replace to the transaction.
 	if _, err := resourcesDBClient.Operations(updatedOperation.OperationID.SubscriptionID).AddReplaceToTransaction(ctx, transaction, updatedOperation, nil); err != nil {

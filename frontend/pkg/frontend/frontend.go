@@ -396,7 +396,7 @@ func (f *Frontend) ArmResourceActionRequestAdminCredential(writer http.ResponseW
 		return coreapi.NewConflictError(clusterResourceID, "Cannot request credential while credentials are being revoked")
 	}
 
-	transaction := f.resourcesDBClient.NewTransaction(clusterResourceID.SubscriptionID)
+	transaction := f.resourcesDBClient.NewTransaction(clusterResourceID.SubscriptionID, "request_admin_credential")
 
 	operationDoc := cosmosstorageutils.NewOperation(
 		operationRequest,
@@ -465,7 +465,7 @@ func (f *Frontend) ArmResourceActionRevokeCredentials(writer http.ResponseWriter
 		return coreapi.NewConflictError(clusterResourceID, "Credentials are already being revoked")
 	}
 
-	transaction := f.resourcesDBClient.NewTransaction(clusterResourceID.SubscriptionID)
+	transaction := f.resourcesDBClient.NewTransaction(clusterResourceID.SubscriptionID, "revoke_credentials")
 
 	// Just as deleting an ARM resource cancels any other operations on the resource,
 	// revoking credentials cancels any credential requests in progress.
