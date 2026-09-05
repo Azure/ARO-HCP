@@ -320,6 +320,57 @@ panels:
     unit: /s
     workspace: svc
     step: "60s"
+- title: "Service Workload Metrics"
+  queries:
+  - title: "Top 20 Container CPU Usage"
+    description: "Twenty highest CPU-consuming service containers at each point in the CI run window, measured in CPU cores. The namespace scope matches the service memory resource alerts. This bounded chart is for failure triage and does not define a CI threshold."
+    query: |
+      topk(20,
+        sum by (cluster, namespace, pod, container) (
+          max without (prometheus_replica) (
+            rate(container_cpu_usage_seconds_total{
+              container!="",
+              container!="POD",
+              namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|clusters-service|fleet|kube-applier|maestro|mgmt-agent|prometheus|secret-sync-controller|sessiongate"
+            }[5m])
+          )
+        )
+      )
+    unit: cores
+    workspace: svc
+    step: "60s"
+  - title: "Top 20 Container Memory Working Set"
+    description: "Twenty highest memory-working-set service containers at each point in the CI run window. The namespace scope matches the service memory resource alerts. This bounded chart is for failure triage and does not define a CI threshold."
+    query: |
+      topk(20,
+        max by (cluster, namespace, pod, container) (
+          max without (prometheus_replica) (
+            container_memory_working_set_bytes{
+              container!="",
+              container!="POD",
+              namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|clusters-service|fleet|kube-applier|maestro|mgmt-agent|prometheus|secret-sync-controller|sessiongate"
+            }
+          )
+        )
+      )
+    unit: bytes
+    workspace: svc
+    step: "60s"
+  - title: "Running Service Pods by Namespace"
+    description: "Running pod count for each monitored service namespace and cluster during the CI run window. This low-cardinality chart shows workload density; use the MC pod-capacity chart to determine whether that density is exhausting node capacity."
+    query: |
+      count by (cluster, namespace) (
+        max by (cluster, namespace, pod) (
+          kube_pod_status_phase{
+            job="kube-state-metrics",
+            namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|clusters-service|fleet|kube-applier|maestro|mgmt-agent|prometheus|secret-sync-controller|sessiongate",
+            phase="Running"
+          } == 1
+        )
+      )
+    unit: pods
+    workspace: svc
+    step: "60s"
 - title: "MC AKS Metrics"
   queries:
   - title: "MC User Node Count by Phase"

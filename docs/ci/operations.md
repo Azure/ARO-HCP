@@ -23,6 +23,28 @@ Useful signals include:
 - GitHub checks status on the PR
 - Slack notifications in [`#forum-ocp-testplatform`](https://redhat.enterprise.slack.com/archives/CBN38N3MW) for build-farm-side failures and repeated issues
 
+### Post-Job Observability Artifacts
+
+For DEV E2E runs, open the artifacts for the
+`aro-hcp-gather-observability` post-step before looking for a separate Grafana
+dashboard. The step runs before environment deletion and queries only the
+run's bounded time window from the regional Azure Monitor workspaces.
+
+- `observability-summary.html` contains fired-alert details and the selected
+  Frontend, Backend, Fleet, Maestro, service-container, and management-cluster
+  charts. Use the service-workload charts to identify the highest CPU and
+  memory consumers and the running pod count during the failure window, then
+  correlate their cluster, namespace, pod, and container labels with the test
+  logs.
+- `alerts.json` contains the alert data used by the summary.
+- `junit_alerts.xml` records unexpected fired alerts as test failures for Prow.
+
+The uploaded summary preserves the selected chart samples after the ephemeral
+environment is deleted, subject to OpenShift CI artifact retention. It is not a
+raw cross-run metrics store. The chart descriptions and copyable PromQL are the
+source of truth for interpreting each signal; the maintained query catalog is
+[`queries.yaml`](../../test/cmd/aro-hcp-tests/gather-observability/queries.yaml).
+
 ## Modifying CI Configuration
 
 ARO HCP Prow job definitions are maintained in `openshift/release`, not in this repository. The generated job manifests under `ci-operator/jobs/Azure/ARO-HCP/` are outputs and should not be edited directly.
