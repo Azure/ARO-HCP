@@ -91,14 +91,21 @@ func (c *Client) DeleteApplicationPermanently(ctx context.Context, target Applic
 			deletedItemPropagationTimeout,
 			servicePrincipalWasDeleted,
 		); err != nil {
-			purgeErr := fmt.Errorf("purge service principal %q: %w", target.ServicePrincipalObjectID, err)
-			if restoreErr := c.restoreDeletedDirectoryObject(ctx, target.ServicePrincipalObjectID); restoreErr != nil {
-				return errors.Join(
-					purgeErr,
-					fmt.Errorf("restore service principal %q after failed purge: %w", target.ServicePrincipalObjectID, restoreErr),
+			if isInsufficientPrivileges(err) {
+				logr.FromContextOrDiscard(ctx).V(1).Info(
+					"Skipping permanent deletion because this app-only credential lacks deletedItems purge permissions; leaving item soft-deleted",
+					"servicePrincipalObjectID", target.ServicePrincipalObjectID,
 				)
+			} else {
+				purgeErr := fmt.Errorf("purge service principal %q: %w", target.ServicePrincipalObjectID, err)
+				if restoreErr := c.restoreDeletedDirectoryObject(ctx, target.ServicePrincipalObjectID); restoreErr != nil {
+					return errors.Join(
+						purgeErr,
+						fmt.Errorf("restore service principal %q after failed purge: %w", target.ServicePrincipalObjectID, restoreErr),
+					)
+				}
+				return purgeErr
 			}
-			return purgeErr
 		}
 	}
 
@@ -117,6 +124,13 @@ func (c *Client) DeleteApplicationPermanently(ctx context.Context, target Applic
 		deletedItemPropagationTimeout,
 		applicationWasDeleted,
 	); err != nil {
+		if isInsufficientPrivileges(err) {
+			logr.FromContextOrDiscard(ctx).V(1).Info(
+				"Skipping permanent deletion because this app-only credential lacks deletedItems purge permissions; leaving item soft-deleted",
+				"applicationObjectID", target.ApplicationObjectID,
+			)
+			return nil
+		}
 		purgeErr := fmt.Errorf("purge application %q: %w", target.ApplicationObjectID, err)
 		if restoreErr := c.restoreDeletedDirectoryObject(ctx, target.ApplicationObjectID); restoreErr != nil {
 			return errors.Join(
@@ -226,4 +240,24 @@ func (c *Client) permanentlyDeleteDirectoryObject(
 func isODataStatus(err error, statusCode int) bool {
 	var odataErr *odataerrors.ODataError
 	return errors.As(err, &odataErr) && odataErr.ResponseStatusCode == statusCode
+}
+
+// isInsufficientPrivileges reports whether err is a Microsoft Graph 403
+// Authorization_RequestDenied response, indicating the calling credential
+// lacks the deletedItems purge permission grant rather than encountering a
+// transient failure. Some app-only credentials (e.g. per-environment E2E
+// service principals) may not have been granted this permission; permanent
+// purge is a best-effort optimization on top of the underlying soft-delete,
+// so this case must not fail the caller.
+func isInsufficientPrivileges(err error) bool {
+	var odataErr *odataerrors.ODataError
+	if !errors.As(err, &odataErr) || odataErr.ResponseStatusCode != http.StatusForbidden {
+		return false
+	}
+	odataError := odataErr.GetErrorEscaped()
+	if odataError == nil {
+		return false
+	}
+	code := odataError.GetCode()
+	return code != nil && *code == "Authorization_RequestDenied"
 }
