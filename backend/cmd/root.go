@@ -494,6 +494,7 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 		CheckAccessV2ClientBuilder:    checkAccessV2ClientBuilder,
 		ClusterScopedIdentitiesConfig: clusterScopedIdentitiesConfig,
 		CloudEnvironment:              azureConfig.CloudEnvironment,
+		DataPlaneOIDCIssuerBaseURL:    azureConfig.AzureRuntimeConfig.DataPlaneIdentitiesOIDCConfiguration.OIDCIssuerBaseURL,
 		MetricsRegisterer:             legacyregistry.Registerer(),
 		MetricsGatherer:               legacyregistry.DefaultGatherer,
 	}
