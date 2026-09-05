@@ -36,6 +36,9 @@ param rpCosmosDbPrivate bool
 @description('The zone redundant mode of the Cosmos DB instance')
 param rpCosmosZoneRedundantMode string
 
+@description('Enables Cosmos DB burst capacity for the RP CosmosDB account')
+param rpCosmosEnableBurstCapacity bool = false
+
 @description('disableLocalAuth for the ARO HCP RP CosmosDB')
 param disableLocalAuth bool
 
@@ -141,6 +144,7 @@ module rpCosmosAccount '../modules/rp-cosmos-account.bicep' = {
     zoneRedundant: determineZoneRedundancyForRegion(location, rpCosmosZoneRedundantMode)
     disableLocalAuth: disableLocalAuth
     private: rpCosmosDbPrivate
+    enableBurstCapacity: rpCosmosEnableBurstCapacity
   }
 }
 
