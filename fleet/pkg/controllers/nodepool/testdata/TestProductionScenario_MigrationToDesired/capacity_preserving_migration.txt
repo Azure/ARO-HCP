@@ -1,0 +1,117 @@
+initial:
+  system     system  Standard_E8ds_v5   zone=1,2,3  max=4   count=1  autoscaled
+  infra1     infra   Standard_E32ds_v4  zone=1      max=3   count=1  autoscaled
+  infra2     infra   Standard_E32ds_v4  zone=2      max=3   count=1  autoscaled
+  userswft1  worker  Standard_E32ds_v5  zone=1      max=14  count=6  autoscaled
+  userswft2  worker  Standard_E32ds_v5  zone=2      max=14  count=6  autoscaled
+  userswft3  worker  Standard_E32ds_v5  zone=3      max=14  count=6  autoscaled
+
+desired:
+  s0-e8   system  Standard_E8ds_v5   zone=1,2,3  max=4
+  i1-e32  infra   Standard_E32ds_v5  zone=1      max=3
+  i2-e32  infra   Standard_E32ds_v5  zone=2      max=3
+  w1-e16  worker  Standard_E16ds_v5  zone=1      max=4
+  w2-e16  worker  Standard_E16ds_v5  zone=2      max=4
+  w3-e16  worker  Standard_E16ds_v5  zone=3      max=4
+  w1-e32  worker  Standard_E32ds_v5  zone=1      max=12
+  w2-e32  worker  Standard_E32ds_v5  zone=2      max=12
+  w3-e32  worker  Standard_E32ds_v5  zone=3      max=12
+
+budget (vCPUs):
+  standardEDSv5Family:  1240
+  standardESv3Family:   100
+
+initial headroom (vCPUs):
+  standardEDSv5Family:  448
+  standardESv3Family:   100
+
+fully allocated: true
+
+baseline:
+  system:  cpu=32    memory=256GiB    swiftNICs=0
+  infra:   cpu=192   memory=1536GiB   swiftNICs=0
+  worker:  cpu=1344  memory=10752GiB  swiftNICs=294
+
+transition floor:
+  system:  cpu=32    memory=256GiB    swiftNICs=0
+  infra:   cpu=192   memory=1536GiB   swiftNICs=0
+  worker:  cpu=1344  memory=10752GiB  swiftNICs=294
+
+initial capacity:
+  system:  cpu=32    (+0)  memory=256GiB    (+0GiB)  swiftNICs=0    (+0)
+  infra:   cpu=192   (+0)  memory=1536GiB   (+0GiB)  swiftNICs=0    (+0)
+  worker:  cpu=1344  (+0)  memory=10752GiB  (+0GiB)  swiftNICs=294  (+0)
+
+actions:
+    1.  Create            system  Standard_E8ds_v5   s0-e8      min=0   max=4   capacity: cpu=64    (+32)   memory=512GiB    (+256GiB)   swiftNICs=0    (+0)   EDSv5:    416c remaining
+    2.  Create            infra   Standard_E32ds_v5  i1-e32     min=1   max=3   capacity: cpu=288   (+96)   memory=2304GiB   (+768GiB)   swiftNICs=0    (+0)   EDSv5:    320c remaining
+    3.  Create            infra   Standard_E32ds_v5  i2-e32     min=1   max=3   capacity: cpu=384   (+192)  memory=3072GiB   (+1536GiB)  swiftNICs=0    (+0)   EDSv5:    224c remaining
+    4.  Create            worker  Standard_E16ds_v5  w1-e16     min=1   max=4   capacity: cpu=1408  (+64)   memory=11264GiB  (+512GiB)   swiftNICs=322  (+28)  EDSv5:    160c remaining
+    5.  Create            worker  Standard_E16ds_v5  w2-e16     min=1   max=4   capacity: cpu=1472  (+128)  memory=11776GiB  (+1024GiB)  swiftNICs=350  (+56)  EDSv5:     96c remaining
+    6.  Create            worker  Standard_E16ds_v5  w3-e16     min=1   max=4   capacity: cpu=1536  (+192)  memory=12288GiB  (+1536GiB)  swiftNICs=378  (+84)  EDSv5:     32c remaining
+    7.  Create            worker  Standard_E32ds_v5  w1-e32     min=1   max=1   capacity: cpu=1568  (+224)  memory=12544GiB  (+1792GiB)  swiftNICs=385  (+91)  EDSv5:      0c remaining
+    8.  Delete            system  Standard_E8ds_v5   system                     capacity: cpu=32    (+0)    memory=256GiB    (+0GiB)     swiftNICs=0    (+0)   EDSv5:     32c remaining
+    9.  Create            worker  Standard_E32ds_v5  w2-e32     min=1   max=1   capacity: cpu=1600  (+256)  memory=12800GiB  (+2048GiB)  swiftNICs=392  (+98)  EDSv5:      0c remaining
+   10.  SetScalingBounds  infra   Standard_E32ds_v4  infra1     min=1   max=1   capacity: cpu=320   (+128)  memory=2560GiB   (+1024GiB)  swiftNICs=0    (+0)
+   11.  SetScalingBounds  infra   Standard_E32ds_v4  infra2     min=1   max=1   capacity: cpu=256   (+64)   memory=2048GiB   (+512GiB)   swiftNICs=0    (+0)
+   12.  SetScalingBounds  worker  Standard_E32ds_v5  userswft1  min=1   max=6   capacity: cpu=1344  (+0)    memory=10752GiB  (+0GiB)     swiftNICs=336  (+42)  EDSv5:    256c remaining
+   13.  Create            worker  Standard_E32ds_v5  w3-e32     min=1   max=8   capacity: cpu=1600  (+256)  memory=12800GiB  (+2048GiB)  swiftNICs=392  (+98)  EDSv5:      0c remaining
+   14.  SetScalingBounds  worker  Standard_E32ds_v5  userswft2  min=1   max=6   capacity: cpu=1344  (+0)    memory=10752GiB  (+0GiB)     swiftNICs=336  (+42)  EDSv5:    256c remaining
+   15.  SetScalingBounds  worker  Standard_E32ds_v5  w1-e32     min=1   max=9   capacity: cpu=1600  (+256)  memory=12800GiB  (+2048GiB)  swiftNICs=392  (+98)  EDSv5:      0c remaining
+   16.  SetScalingBounds  worker  Standard_E32ds_v5  userswft3  min=1   max=6   capacity: cpu=1344  (+0)    memory=10752GiB  (+0GiB)     swiftNICs=336  (+42)  EDSv5:    256c remaining
+   17.  SetScalingBounds  worker  Standard_E32ds_v5  w1-e32     min=1   max=12  capacity: cpu=1440  (+96)   memory=11520GiB  (+768GiB)   swiftNICs=357  (+63)  EDSv5:    160c remaining
+   18.  SetScalingBounds  worker  Standard_E32ds_v5  w2-e32     min=1   max=6   capacity: cpu=1600  (+256)  memory=12800GiB  (+2048GiB)  swiftNICs=392  (+98)  EDSv5:      0c remaining
+   19.  Freeze            infra   Standard_E32ds_v4  infra1     count=1         capacity: cpu=256   (+64)   memory=2048GiB   (+512GiB)   swiftNICs=0    (+0)
+   20.  Freeze            infra   Standard_E32ds_v4  infra2     count=1         capacity: cpu=256   (+64)   memory=2048GiB   (+512GiB)   swiftNICs=0    (+0)
+   21.  Freeze            worker  Standard_E32ds_v5  userswft1  count=6         capacity: cpu=1600  (+256)  memory=12800GiB  (+2048GiB)  swiftNICs=392  (+98)
+   22.  Freeze            worker  Standard_E32ds_v5  userswft2  count=6         capacity: cpu=1600  (+256)  memory=12800GiB  (+2048GiB)  swiftNICs=392  (+98)
+   23.  Freeze            worker  Standard_E32ds_v5  userswft3  count=6         capacity: cpu=1600  (+256)  memory=12800GiB  (+2048GiB)  swiftNICs=392  (+98)
+   24.  Reduce            infra   Standard_E32ds_v4  infra1     count=0         capacity: cpu=224   (+32)   memory=1792GiB   (+256GiB)   swiftNICs=0    (+0)
+   25.  Reduce            infra   Standard_E32ds_v4  infra2     count=0         capacity: cpu=192   (+0)    memory=1536GiB   (+0GiB)     swiftNICs=0    (+0)
+   26.  Reduce            worker  Standard_E32ds_v5  userswft1  count=5         capacity: cpu=1568  (+224)  memory=12544GiB  (+1792GiB)  swiftNICs=385  (+91)  EDSv5:     32c remaining
+   27.  SetScalingBounds  worker  Standard_E32ds_v5  w2-e32     min=1   max=7   capacity: cpu=1600  (+256)  memory=12800GiB  (+2048GiB)  swiftNICs=392  (+98)  EDSv5:      0c remaining
+   28.  Reduce            worker  Standard_E32ds_v5  userswft1  count=4         capacity: cpu=1568  (+224)  memory=12544GiB  (+1792GiB)  swiftNICs=385  (+91)  EDSv5:     32c remaining
+   29.  SetScalingBounds  worker  Standard_E32ds_v5  w2-e32     min=1   max=8   capacity: cpu=1600  (+256)  memory=12800GiB  (+2048GiB)  swiftNICs=392  (+98)  EDSv5:      0c remaining
+   30.  Reduce            worker  Standard_E32ds_v5  userswft1  count=3         capacity: cpu=1568  (+224)  memory=12544GiB  (+1792GiB)  swiftNICs=385  (+91)  EDSv5:     32c remaining
+   31.  SetScalingBounds  worker  Standard_E32ds_v5  w2-e32     min=1   max=9   capacity: cpu=1600  (+256)  memory=12800GiB  (+2048GiB)  swiftNICs=392  (+98)  EDSv5:      0c remaining
+   32.  Reduce            worker  Standard_E32ds_v5  userswft1  count=2         capacity: cpu=1568  (+224)  memory=12544GiB  (+1792GiB)  swiftNICs=385  (+91)  EDSv5:     32c remaining
+   33.  SetScalingBounds  worker  Standard_E32ds_v5  w2-e32     min=1   max=10  capacity: cpu=1600  (+256)  memory=12800GiB  (+2048GiB)  swiftNICs=392  (+98)  EDSv5:      0c remaining
+   34.  Reduce            worker  Standard_E32ds_v5  userswft1  count=1         capacity: cpu=1568  (+224)  memory=12544GiB  (+1792GiB)  swiftNICs=385  (+91)  EDSv5:     32c remaining
+   35.  SetScalingBounds  worker  Standard_E32ds_v5  w2-e32     min=1   max=11  capacity: cpu=1600  (+256)  memory=12800GiB  (+2048GiB)  swiftNICs=392  (+98)  EDSv5:      0c remaining
+   36.  Reduce            worker  Standard_E32ds_v5  userswft1  count=0         capacity: cpu=1568  (+224)  memory=12544GiB  (+1792GiB)  swiftNICs=385  (+91)  EDSv5:     32c remaining
+   37.  SetScalingBounds  worker  Standard_E32ds_v5  w2-e32     min=1   max=12  capacity: cpu=1600  (+256)  memory=12800GiB  (+2048GiB)  swiftNICs=392  (+98)  EDSv5:      0c remaining
+   38.  Reduce            worker  Standard_E32ds_v5  userswft2  count=5         capacity: cpu=1568  (+224)  memory=12544GiB  (+1792GiB)  swiftNICs=385  (+91)  EDSv5:     32c remaining
+   39.  SetScalingBounds  worker  Standard_E32ds_v5  w3-e32     min=1   max=9   capacity: cpu=1600  (+256)  memory=12800GiB  (+2048GiB)  swiftNICs=392  (+98)  EDSv5:      0c remaining
+   40.  Reduce            worker  Standard_E32ds_v5  userswft2  count=4         capacity: cpu=1568  (+224)  memory=12544GiB  (+1792GiB)  swiftNICs=385  (+91)  EDSv5:     32c remaining
+   41.  SetScalingBounds  worker  Standard_E32ds_v5  w3-e32     min=1   max=10  capacity: cpu=1600  (+256)  memory=12800GiB  (+2048GiB)  swiftNICs=392  (+98)  EDSv5:      0c remaining
+   42.  Reduce            worker  Standard_E32ds_v5  userswft2  count=3         capacity: cpu=1568  (+224)  memory=12544GiB  (+1792GiB)  swiftNICs=385  (+91)  EDSv5:     32c remaining
+   43.  SetScalingBounds  worker  Standard_E32ds_v5  w3-e32     min=1   max=11  capacity: cpu=1600  (+256)  memory=12800GiB  (+2048GiB)  swiftNICs=392  (+98)  EDSv5:      0c remaining
+   44.  Reduce            worker  Standard_E32ds_v5  userswft2  count=2         capacity: cpu=1568  (+224)  memory=12544GiB  (+1792GiB)  swiftNICs=385  (+91)  EDSv5:     32c remaining
+   45.  SetScalingBounds  worker  Standard_E32ds_v5  w3-e32     min=1   max=12  capacity: cpu=1600  (+256)  memory=12800GiB  (+2048GiB)  swiftNICs=392  (+98)  EDSv5:      0c remaining
+   46.  Reduce            worker  Standard_E32ds_v5  userswft2  count=1         capacity: cpu=1568  (+224)  memory=12544GiB  (+1792GiB)  swiftNICs=385  (+91)  EDSv5:     32c remaining
+   47.  Reduce            worker  Standard_E32ds_v5  userswft2  count=0         capacity: cpu=1536  (+192)  memory=12288GiB  (+1536GiB)  swiftNICs=378  (+84)  EDSv5:     64c remaining
+   48.  Reduce            worker  Standard_E32ds_v5  userswft3  count=5         capacity: cpu=1504  (+160)  memory=12032GiB  (+1280GiB)  swiftNICs=371  (+77)  EDSv5:     96c remaining
+   49.  Reduce            worker  Standard_E32ds_v5  userswft3  count=4         capacity: cpu=1472  (+128)  memory=11776GiB  (+1024GiB)  swiftNICs=364  (+70)  EDSv5:    128c remaining
+   50.  Reduce            worker  Standard_E32ds_v5  userswft3  count=3         capacity: cpu=1440  (+96)   memory=11520GiB  (+768GiB)   swiftNICs=357  (+63)  EDSv5:    160c remaining
+   51.  Reduce            worker  Standard_E32ds_v5  userswft3  count=2         capacity: cpu=1408  (+64)   memory=11264GiB  (+512GiB)   swiftNICs=350  (+56)  EDSv5:    192c remaining
+   52.  Reduce            worker  Standard_E32ds_v5  userswft3  count=1         capacity: cpu=1376  (+32)   memory=11008GiB  (+256GiB)   swiftNICs=343  (+49)  EDSv5:    224c remaining
+   53.  Reduce            worker  Standard_E32ds_v5  userswft3  count=0         capacity: cpu=1344  (+0)    memory=10752GiB  (+0GiB)     swiftNICs=336  (+42)  EDSv5:    256c remaining
+   54.  Delete            infra   Standard_E32ds_v4  infra1                     capacity: cpu=192   (+0)    memory=1536GiB   (+0GiB)     swiftNICs=0    (+0)
+   55.  Delete            infra   Standard_E32ds_v4  infra2                     capacity: cpu=192   (+0)    memory=1536GiB   (+0GiB)     swiftNICs=0    (+0)
+   56.  Delete            worker  Standard_E32ds_v5  userswft1                  capacity: cpu=1344  (+0)    memory=10752GiB  (+0GiB)     swiftNICs=336  (+42)
+   57.  Delete            worker  Standard_E32ds_v5  userswft2                  capacity: cpu=1344  (+0)    memory=10752GiB  (+0GiB)     swiftNICs=336  (+42)
+   58.  Delete            worker  Standard_E32ds_v5  userswft3                  capacity: cpu=1344  (+0)    memory=10752GiB  (+0GiB)     swiftNICs=336  (+42)
+
+final:
+  s0-e8   system  Standard_E8ds_v5   zone=1,2,3  max=4   count=1  autoscaled
+  i1-e32  infra   Standard_E32ds_v5  zone=1      max=3   count=1  autoscaled
+  i2-e32  infra   Standard_E32ds_v5  zone=2      max=3   count=1  autoscaled
+  w1-e16  worker  Standard_E16ds_v5  zone=1      max=4   count=1  autoscaled
+  w2-e16  worker  Standard_E16ds_v5  zone=2      max=4   count=1  autoscaled
+  w3-e16  worker  Standard_E16ds_v5  zone=3      max=4   count=1  autoscaled
+  w1-e32  worker  Standard_E32ds_v5  zone=1      max=12  count=1  autoscaled
+  w2-e32  worker  Standard_E32ds_v5  zone=2      max=12  count=1  autoscaled
+  w3-e32  worker  Standard_E32ds_v5  zone=3      max=12  count=1  autoscaled
+
+steps:      58
+converged:  true

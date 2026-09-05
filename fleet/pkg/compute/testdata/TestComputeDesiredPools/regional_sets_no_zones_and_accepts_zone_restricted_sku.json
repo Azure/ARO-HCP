@@ -1,0 +1,25 @@
+{
+  "fullyAllocated": false,
+  "pools": [
+    {
+      "role": "worker",
+      "name": "ovfl08bc26f",
+      "spec": {
+        "size": "Standard_E32ds_v6",
+        "family": "standardEDSv6Family",
+        "vcpus": 32,
+        "memoryGiB": 256,
+        "secondaryNICs": 7
+      },
+      "zones": null,
+      "maxCount": 6,
+      "initialMinCount": 1,
+      "osDiskSizeGB": 512,
+      "maxPods": 225,
+      "labels": {
+        "aro-hcp.azure.com/role": "worker"
+      },
+      "enableSwift": true
+    }
+  ]
+}

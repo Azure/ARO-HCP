@@ -24,7 +24,6 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v6"
 
@@ -34,6 +33,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/listers/fleetlisters"
 	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -45,35 +45,31 @@ const (
 )
 
 type scaleCeilingReportingSyncer struct {
-	fleetDBClient          fleetcosmosstorage.FleetDBClient
-	readDesireLister       kubeapplierlisters.ReadDesireLister
-	agentPoolClientFactory func(subscriptionID string) (*armcontainerservice.AgentPoolsClient, error)
-	skuCache               *skucache.SKUCache
+	managementClusterLister fleetlisters.ManagementClusterLister
+	fleetDBClient           fleetcosmosstorage.FleetDBClient
+	readDesireLister        kubeapplierlisters.ReadDesireLister
+	agentPoolClientFactory  func(subscriptionID string) (*armcontainerservice.AgentPoolsClient, error)
+	skuCache                *skucache.SKUCache
 }
 
 func NewManagementClusterScaleCeilingReportingController(
 	managementClusterInformer cache.SharedIndexInformer,
+	managementClusterLister fleetlisters.ManagementClusterLister,
 	fleetDBClient fleetcosmosstorage.FleetDBClient,
 	readDesireLister kubeapplierlisters.ReadDesireLister,
 	region string,
 	credential azcore.TokenCredential,
 	clientOptions *policy.ClientOptions,
 	cfg fleetcontrollers.StampWatchingControllerConfig,
-) *fleetcontrollers.StampWatchingController {
-	if clientOptions == nil {
-		clientOptions = &policy.ClientOptions{}
-	}
-	armClientOptions := &azcorearm.ClientOptions{ClientOptions: *clientOptions}
-
-	agentPoolClientFactory := func(subscriptionID string) (*armcontainerservice.AgentPoolsClient, error) {
-		return armcontainerservice.NewAgentPoolsClient(subscriptionID, credential, armClientOptions)
-	}
+) fleetcontrollers.Controller {
+	agentPoolClientFactory, _ := agentpools.NewClientFactory(credential, clientOptions)
 
 	syncer := &scaleCeilingReportingSyncer{
-		fleetDBClient:          fleetDBClient,
-		readDesireLister:       readDesireLister,
-		agentPoolClientFactory: agentPoolClientFactory,
-		skuCache:               skucache.NewSKUCache(region, credential, clientOptions, nil),
+		managementClusterLister: managementClusterLister,
+		fleetDBClient:           fleetDBClient,
+		readDesireLister:        readDesireLister,
+		agentPoolClientFactory:  agentPoolClientFactory,
+		skuCache:                skucache.NewSKUCache(region, credential, clientOptions, nil),
 	}
 
 	controller := fleetcontrollers.NewStampWatchingController(
@@ -92,7 +88,7 @@ func NewManagementClusterScaleCeilingReportingController(
 func (s *scaleCeilingReportingSyncer) SyncOnce(ctx context.Context, key fleetcontrollers.StampKey) error {
 	logger := utils.LoggerFromContext(ctx)
 
-	managementCluster, err := s.fleetDBClient.Stamps().ManagementClusters(key.StampIdentifier).Get(ctx, fleetapi.ManagementClusterResourceName)
+	managementCluster, err := s.managementClusterLister.Get(ctx, key.StampIdentifier)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -117,12 +113,12 @@ func (s *scaleCeilingReportingSyncer) SyncOnce(ctx context.Context, key fleetcon
 		return utils.TrackError(err)
 	}
 
-	skuResources, err := s.skuCache.SKUResourcesByVMSize(ctx, aksResourceID.SubscriptionID)
+	skuMetadata, err := s.skuCache.SKUMetadataByVMSize(ctx, aksResourceID.SubscriptionID)
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
-	max := computeMaxCapacity(report, pools, skuResources)
+	max := computeMaxCapacity(report, pools, skuMetadata)
 
 	now := metav1.Now()
 	return s.persistMaxCapacity(ctx, key.StampIdentifier, max, &now)

@@ -75,7 +75,7 @@ func NewCapacityReportingController(
 	fleetDBClient fleetcosmosstorage.FleetDBClient,
 	readDesireLister kubeapplierlisters.ReadDesireLister,
 	cfg fleetcontrollers.StampWatchingControllerConfig,
-) *fleetcontrollers.StampWatchingController {
+) fleetcontrollers.Controller {
 	syncer := &capacityReportingSyncer{
 		fleetDBClient:    fleetDBClient,
 		readDesireLister: readDesireLister,

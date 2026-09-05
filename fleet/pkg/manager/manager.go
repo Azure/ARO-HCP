@@ -37,6 +37,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 
+	"github.com/Azure/ARO-HCP/fleet/pkg/compute"
 	"github.com/Azure/ARO-HCP/fleet/pkg/controllers/amwscaling"
 	"github.com/Azure/ARO-HCP/fleet/pkg/controllers/base"
 	"github.com/Azure/ARO-HCP/fleet/pkg/controllers/capacityreporting"
@@ -45,6 +46,7 @@ import (
 	"github.com/Azure/ARO-HCP/fleet/pkg/controllers/hcpresourcerequirements"
 	"github.com/Azure/ARO-HCP/fleet/pkg/controllers/lifecycle"
 	"github.com/Azure/ARO-HCP/fleet/pkg/controllers/maestroregistration"
+	"github.com/Azure/ARO-HCP/fleet/pkg/controllers/nodepool"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/informers/fleetinformers"
@@ -77,6 +79,8 @@ type Manager struct {
 	AMWScalingPollInterval       time.Duration
 	AzureCredential              azcore.TokenCredential
 	AzureClientOptions           *policy.ClientOptions
+	NodePoolProfile              *compute.Profile
+	NodePoolZones                []string
 }
 
 // Run starts the fleet controller manager. It serves /healthz and /metrics,
@@ -228,6 +232,7 @@ func (m *Manager) runControllersUnderLeaderElection(
 
 	scaleCeilingReportingController := capacityreporting.NewManagementClusterScaleCeilingReportingController(
 		managementClusterInformer,
+		managementClusterLister,
 		m.FleetDBClient,
 		readDesireLister,
 		m.Region,
@@ -249,6 +254,20 @@ func (m *Manager) runControllersUnderLeaderElection(
 		m.AzureCredential,
 		m.AzureClientOptions,
 	)
+
+	var nodePoolController base.Controller
+	if m.NodePoolProfile != nil {
+		nodePoolController = nodepool.NewNodePoolController(
+			managementClusterInformer,
+			managementClusterLister,
+			m.FleetDBClient,
+			*m.NodePoolProfile,
+			m.NodePoolZones,
+			m.Region,
+			m.AzureCredential,
+			m.AzureClientOptions,
+		)
+	}
 
 	leaderElectionConfig := leaderelection.LeaderElectionConfig{
 		Lock:          m.LeaderElectionLock,
@@ -277,6 +296,9 @@ func (m *Manager) runControllersUnderLeaderElection(
 				go scaleCeilingReportingController.Run(ctx, 1)
 				go hcpResourceRequirementsController.Run(ctx)
 				go amwScalingController.Run(ctx)
+				if nodePoolController != nil {
+					go nodePoolController.Run(ctx, 4)
+				}
 			},
 			OnStoppedLeading: func() {
 				logger.Info("lost leader election lease")

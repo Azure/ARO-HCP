@@ -1,0 +1,24 @@
+{
+  "fullyAllocated": true,
+  "pools": [
+    {
+      "role": "system",
+      "name": "sys0703b3f",
+      "spec": {
+        "size": "Standard_D8ds_v6",
+        "family": "standardDDSv6Family",
+        "vcpus": 8,
+        "memoryGiB": 32,
+        "secondaryNICs": 2
+      },
+      "zones": null,
+      "maxCount": 3,
+      "initialMinCount": 1,
+      "osDiskSizeGB": 128,
+      "maxPods": 100,
+      "labels": {
+        "aro-hcp.azure.com/role": "system"
+      }
+    }
+  ]
+}

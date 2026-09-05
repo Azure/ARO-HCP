@@ -1,0 +1,6 @@
+{
+  "arohcp-capacity-infra": "{\"vcpus\":0,\"memoryGiB\":0,\"swiftNICs\":0}",
+  "arohcp-capacity-system": "{\"vcpus\":12,\"memoryGiB\":48,\"swiftNICs\":0}",
+  "arohcp-capacity-worker": "{\"vcpus\":999,\"memoryGiB\":9999,\"swiftNICs\":999}",
+  "owner": "team"
+}
