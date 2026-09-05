@@ -4,7 +4,7 @@
 		"externalId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/example-cluster/externalAuths/default",
 		"request": "Create",
 		"status": "Accepted",
-		"tenantId": "00000000-0000-0000-0000-000000000000",
+		"tenantId": "33333333-3333-3333-3333-333333333333",
 		"usesNewClusterDeletionApproach": false,
 		"usesNewExternalAuthDeletionApproach": false,
 		"usesNewNodePoolDeletionApproach": false

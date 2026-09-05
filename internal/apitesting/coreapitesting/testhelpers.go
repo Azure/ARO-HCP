@@ -38,7 +38,7 @@ import (
 const (
 	TestLocation                                = "westus3"
 	TestAPIVersion                              = "2024-06-10-preview"
-	TestTenantID                                = "00000000-0000-0000-0000-000000000000"
+	TestTenantID                                = "33333333-3333-3333-3333-333333333333"
 	TestSubscriptionID                          = "11111111-1111-1111-1111-111111111111"
 	TestAltSubscriptionID                       = "22222222-2222-2222-2222-222222222222"
 	TestResourceGroupName                       = "testResourceGroup"

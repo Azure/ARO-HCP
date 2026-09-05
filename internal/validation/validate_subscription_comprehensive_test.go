@@ -54,6 +54,32 @@ func TestValidateSubscriptionCreate(t *testing.T) {
 			expectErrors: []utils.ExpectedError{},
 		},
 		{
+			name: "empty tenant ID",
+			subscription: func() *coreapi.Subscription {
+				s := createValidSubscription()
+				s.Properties = &coreapi.SubscriptionProperties{
+					TenantId: ptr.To(""),
+				}
+				return s
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "Required value", FieldPath: "properties.tenantId"},
+			},
+		},
+		{
+			name: "all-zero tenant ID",
+			subscription: func() *coreapi.Subscription {
+				s := createValidSubscription()
+				s.Properties = &coreapi.SubscriptionProperties{
+					TenantId: ptr.To(emptyTenantID),
+				}
+				return s
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "must not be the all-zero tenant ID", FieldPath: "properties.tenantId"},
+			},
+		},
+		{
 			name: "valid subscription - all valid states",
 			subscription: func() *coreapi.Subscription {
 				s := createValidSubscription()
