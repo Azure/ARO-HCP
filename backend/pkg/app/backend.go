@@ -59,6 +59,7 @@ import (
 	clusterupdate "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/update"
 	clustervalidation "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/validation"
 	clusterversion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/version"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/clusterresources"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cosmosmigration"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/datadump"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/example"
@@ -975,6 +976,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		b.options.ResourcesDBClient,
 		backendInformers,
 		unionKubeApplierInformers,
+		b.options.KubeApplierDBClients,
 	)
 
 	externalAuthDeletionClusterServiceDeleteDispatchController := externalauthdeletion.NewExternalAuthClusterServiceDeleteDispatchController(
@@ -1018,6 +1020,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		b.options.ResourcesDBClient,
 		b.options.ClustersServiceClient,
 		backendInformers,
+		unionKubeApplierInformers,
 	)
 
 	clusterClusterServiceIDClearerController := clusterdeletion.NewClusterClusterServiceIDClearerController(
@@ -1043,6 +1046,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		b.options.ResourcesDBClient,
 		b.options.BillingDBClient,
 		backendInformers,
+		b.options.KubeApplierDBClients,
 	)
 
 	clusterClusterServiceUpdateDispatchController := clusterupdate.NewClusterClusterServiceUpdateDispatchController(
@@ -1085,6 +1089,14 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		b.options.ClusterScopedIdentitiesConfig,
 		backendInformers,
 		unionKubeApplierInformers,
+	)
+
+	clusterResourcesController := clusterresources.NewClusterResourcesController(
+		b.options.ResourcesDBClient,
+		b.options.KubeApplierDBClients,
+		backendInformers,
+		unionKubeApplierInformers,
+		b.options.ClustersServiceClient,
 	)
 
 	leaderElectionConfig := leaderelection.LeaderElectionConfig{
@@ -1207,6 +1219,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go fetchDataPlaneOperatorsManagedIdentitiesInfoController.Run(ctx, 20)
 				go observeRoleAssignmentsController.Run(ctx, 20)
 				go keyRotationBackupController.Run(ctx, 20)
+				go clusterResourcesController.Run(ctx, 20)
 			},
 			OnStoppedLeading: func() {
 				// This needs to be defined even though it does nothing.

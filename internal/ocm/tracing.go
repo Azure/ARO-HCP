@@ -90,6 +90,19 @@ func (csc *clusterServiceClientWithTracing) GetClusterHypershiftDetails(ctx cont
 	return csc.csc.GetClusterHypershiftDetails(ctx, internalID)
 }
 
+func (csc *clusterServiceClientWithTracing) GetClusterResources(ctx context.Context,
+	internalID InternalID) (*arohcpv1alpha1.ClusterResources, error) {
+	ctx, span := csc.startChildSpan(ctx, "ClusterServiceClient.GetClusterResources")
+	defer span.End()
+
+	response, err := csc.csc.GetClusterResources(ctx, internalID)
+	if err != nil {
+		span.RecordError(err)
+	}
+
+	return response, err
+}
+
 func (csc *clusterServiceClientWithTracing) GetClusterProvisionShard(ctx context.Context, internalID InternalID) (*arohcpv1alpha1.ProvisionShard, error) {
 	ctx, span := csc.startChildSpan(ctx, "ClusterServiceClient.GetClusterProvisionShard")
 	defer span.End()

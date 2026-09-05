@@ -17,13 +17,16 @@ package deletion
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
@@ -38,7 +41,9 @@ import (
 type nodePoolDeletionController struct {
 	nodePoolLister                corelisters.NodePoolLister
 	serviceProviderNodePoolLister corelisters.ServiceProviderNodePoolLister
+	serviceProviderClusterLister  corelisters.ServiceProviderClusterLister
 	resourcesDBClient             corecosmosstorage.ResourcesDBClient
+	kubeApplierDBClients          kubeappliercosmosstorage.KubeApplierDBClients
 }
 
 var _ controllerutils.NodePoolSyncer = (*nodePoolDeletionController)(nil)
@@ -47,13 +52,17 @@ func NewNodePoolDeletionController(
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	informers coreinformers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
+	kubeApplierDBClients kubeappliercosmosstorage.KubeApplierDBClients,
 ) controllerutils.Controller {
 	_, nodePoolLister := informers.NodePools()
 	_, serviceProviderNodePoolLister := informers.ServiceProviderNodePools()
+	_, serviceProviderClusterLister := informers.ServiceProviderClusters()
 	syncer := &nodePoolDeletionController{
 		nodePoolLister:                nodePoolLister,
 		serviceProviderNodePoolLister: serviceProviderNodePoolLister,
+		serviceProviderClusterLister:  serviceProviderClusterLister,
 		resourcesDBClient:             resourcesDBClient,
+		kubeApplierDBClients:          kubeApplierDBClients,
 	}
 
 	return controllerutils.NewNodePoolWatchingController(
@@ -123,8 +132,17 @@ func (c *nodePoolDeletionController) SyncOnce(ctx context.Context, key controlle
 		return nil
 	}
 
+	// Precondition: all ApplyDesires for this NodePool must be gone.
+	preconditionMet, err := c.deletePreconditionAllApplyDesiresGone(ctx, key)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to check ApplyDesire precondition: %w", err))
+	}
+	if !preconditionMet {
+		return nil
+	}
+
 	// We do not proceed until we know that all the maestro readonly bundles have been eliminated
-	preconditionMet, err := c.deletePreconditionAllMaestroNodePoolScopedReadonlyBundlesCleared(ctx, key)
+	preconditionMet, err = c.deletePreconditionAllMaestroNodePoolScopedReadonlyBundlesCleared(ctx, key)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to check precondition: %w", err))
 	}
@@ -198,5 +216,65 @@ func (c *nodePoolDeletionController) deletePreconditionCosmosChildResourcesDelet
 		return false, utils.TrackError(fmt.Errorf("error iterating child resources: %w", err))
 	}
 
+	return true, nil
+}
+
+// deletePreconditionAllApplyDesiresGone checks that no ApplyDesires remain for
+// this NodePool. The log message reports remaining counts per controller.
+func (c *nodePoolDeletionController) deletePreconditionAllApplyDesiresGone(ctx context.Context, key controllerutils.HCPNodePoolKey) (bool, error) {
+	logger := utils.LoggerFromContext(ctx)
+
+	spc, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	if cosmosstorageutils.IsNotFoundError(err) {
+		return true, nil
+	}
+	if err != nil {
+		return false, utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster from cache: %w", err))
+	}
+	if spc.Status.ManagementClusterResourceID == nil {
+		return true, nil
+	}
+
+	managementClusterID := spc.Status.ManagementClusterResourceID
+	kubeApplierDBClient := c.kubeApplierDBClients.For(ctx, managementClusterID)
+	if kubeApplierDBClient == nil {
+		logger.Info("waiting for kube-applier DB client to be available for ApplyDesire precondition", "managementCluster", managementClusterID.String())
+		return false, nil
+	}
+
+	kubeApplierCRUD, err := kubeApplierDBClient.ApplyDesiresForNodePool(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)
+	if err != nil {
+		return false, fmt.Errorf("failed to get kube-applier CRUD for ApplyDesire precondition: %w", err)
+	}
+
+	applyDesireIterator, err := kubeApplierCRUD.List(ctx, &cosmosstorageutils.DBClientListResourceDocsOptions{})
+	if err != nil {
+		return false, fmt.Errorf("failed to list ApplyDesire documents for precondition check: %w", err)
+	}
+
+	controllerCounts := map[string]int{}
+	for _, desire := range applyDesireIterator.Items(ctx) {
+		controller := "unknown"
+		if desire.Tags != nil {
+			if name := desire.Tags[kubeapplierapi.TagControllerName]; name != "" {
+				controller = name
+			}
+		}
+		controllerCounts[controller]++
+	}
+	if err := applyDesireIterator.GetError(); err != nil {
+		return false, fmt.Errorf("error iterating ApplyDesires for precondition check: %w", err)
+	}
+
+	if len(controllerCounts) > 0 {
+		var parts []string
+		for controller, count := range controllerCounts {
+			parts = append(parts, fmt.Sprintf("%d from %s", count, controller))
+		}
+		slices.Sort(parts)
+		logger.Info("waiting for all ApplyDesires to be deleted",
+			"remaining", strings.Join(parts, ", "))
+		return false, nil
+	}
 	return true, nil
 }
