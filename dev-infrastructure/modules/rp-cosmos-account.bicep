@@ -4,6 +4,7 @@ param disableLocalAuth bool = true
 param location string
 param zoneRedundant bool
 param private bool
+param enableBurstCapacity bool = false
 
 resource cosmosDbAccount 'Microsoft.DocumentDB/databaseAccounts@2024-11-15' = {
   kind: 'GlobalDocumentDB'
@@ -44,7 +45,7 @@ resource cosmosDbAccount 'Microsoft.DocumentDB/databaseAccounts@2024-11-15' = {
     defaultIdentity: 'FirstPartyIdentity'
     networkAclBypass: 'None'
     enablePartitionMerge: false
-    enableBurstCapacity: false
+    enableBurstCapacity: enableBurstCapacity
     enablePerRegionPerPartitionAutoscale: true
     minimalTlsVersion: 'Tls12'
   }
