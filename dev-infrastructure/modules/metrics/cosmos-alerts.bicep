@@ -62,11 +62,11 @@ resource normalizedRUConsumptionHigh 'Microsoft.Insights/metricAlerts@2018-03-01
   }
 }
 
-resource throttledRequestsHigh 'Microsoft.Insights/metricAlerts@2018-03-01' = {
-  name: 'Cosmos DB Throttled Requests (429) High - ${cosmosDbName}'
+resource normalizedRUConsumptionBurstHigh 'Microsoft.Insights/metricAlerts@2018-03-01' = {
+  name: 'Cosmos DB Normalized RU Consumption Burst High - ${cosmosDbName}'
   location: 'global'
   properties: {
-    description: 'Cosmos DB returned more than 100 throttled requests (HTTP 429 - request rate too large) summed over a 5-minute window, evaluated every minute. Sustained 429s mean the workload is exceeding provisioned throughput - investigate hot partitions or increase provisioned throughput (RU/s). A low, steady rate of 429s that client SDKs retry transparently can be normal. https://learn.microsoft.com/azure/cosmos-db/troubleshoot-request-rate-too-large'
+    description: 'Cosmos DB normalized RU consumption is above 95% averaged over a 5-minute window, evaluated every minute. This catches short bursts (e.g. mass cluster creation at the start of e2e) that exceed provisioned throughput before the 10-minute sustained alert fires and that can cause 429 throttling. Investigate workload patterns or increase provisioned throughput. https://learn.microsoft.com/azure/cosmos-db/monitor-normalized-request-units'
     severity: 3
     enabled: enabled
     autoMitigate: true
@@ -79,20 +79,13 @@ resource throttledRequestsHigh 'Microsoft.Insights/metricAlerts@2018-03-01' = {
       'odata.type': 'Microsoft.Azure.Monitor.SingleResourceMultipleMetricCriteria'
       allOf: [
         {
-          threshold: 100
-          name: 'ThrottledRequestsCriteria'
-          metricName: 'TotalRequests'
+          threshold: 95
+          name: 'NormalizedRUConsumptionBurstCriteria'
+          metricName: 'NormalizedRUConsumption'
           operator: 'GreaterThan'
-          timeAggregation: 'Count'
+          timeAggregation: 'Average'
           criterionType: 'StaticThresholdCriterion'
           dimensions: [
-            {
-              name: 'StatusCode'
-              operator: 'Include'
-              values: [
-                '429'
-              ]
-            }
             {
               name: 'CollectionName'
               operator: 'Include'
@@ -108,11 +101,11 @@ resource throttledRequestsHigh 'Microsoft.Insights/metricAlerts@2018-03-01' = {
       for g in actionGroups: {
         actionGroupId: g
         webHookProperties: {
-          'IcM.Title': '${region}: Cosmos DB Throttled Requests (429) High - ${cosmosDbName}'
+          'IcM.Title': '${region}: Cosmos DB Normalized RU Consumption Burst High - ${cosmosDbName}'
           // TODO: This will associate all Collections to the same IcM.  There doesn't appear to
           // be a way to reference the Collection that fired within the alert itself without
           // defining multiple alerts.
-          'IcM.CorrelationId': 'CosmosDBThrottledRequests429/${cosmosDbName}'
+          'IcM.CorrelationId': 'CosmosDBNormalizedRUConsumptionBurst/${cosmosDbName}'
         }
       }
     ]
