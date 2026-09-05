@@ -19,6 +19,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -29,10 +30,12 @@ import (
 	"go.uber.org/mock/gomock"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	clocktesting "k8s.io/utils/clock/testing"
 	"k8s.io/utils/ptr"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v2"
 
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
@@ -42,6 +45,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/azure"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -110,6 +114,18 @@ func testExpectedRoleAssignmentIDs(t *testing.T) []*azcorearm.ResourceID {
 	dpID := metadataapi.Must(azcorearm.ParseResourceID(
 		roleassignment.ManagedResourceGroupScopedRoleAssignmentResourceID(scope, testDataPlanePrincipalID, dpRoleDefs[0].String())))
 	return []*azcorearm.ResourceID{cpID, dpID}
+}
+
+// testUnexpectedRoleAssignmentID returns a managed-resource-group-scoped role assignment ID
+// that is NOT part of the expected set - a leftover from a since-removed / replaced operator
+// identity. It is used to exercise stale-pending pruning and confirmed-superset tolerance.
+func testUnexpectedRoleAssignmentID(t *testing.T) *azcorearm.ResourceID {
+	t.Helper()
+	return metadataapi.Must(azcorearm.ParseResourceID(
+		roleassignment.ManagedResourceGroupScopedRoleAssignmentResourceID(
+			testManagedResourceGroupScope(t),
+			"unexpected-principal-99999999-9999-9999-9999-999999999999",
+			"/providers/Microsoft.Authorization/roleDefinitions/99999999-9999-9999-9999-999999999999")))
 }
 
 // newTestCluster builds an HCPOpenShiftCluster addressable by the mock
@@ -225,6 +241,50 @@ func roleAssignmentNotFoundError() *azcore.ResponseError {
 	}
 }
 
+// roleAssignmentAlreadyExistsError returns the *azcore.ResponseError Azure sends (error code
+// RoleAssignmentExists, HTTP 409) when a role assignment for the same principal + role definition
+// at the same scope already exists under a different name. Because the backend uses deterministic
+// names, this error is unexpected and must surface (it is no longer swallowed).
+func roleAssignmentAlreadyExistsError() *azcore.ResponseError {
+	return &azcore.ResponseError{
+		ErrorCode:  "RoleAssignmentExists",
+		StatusCode: http.StatusConflict,
+		RawResponse: &http.Response{
+			Status:     "409 Conflict",
+			StatusCode: http.StatusConflict,
+			Body:       io.NopCloser(strings.NewReader(`{"error":{"code":"RoleAssignmentExists","message":"The role assignment already exists."}}`)),
+			Request: &http.Request{
+				Method: http.MethodPut,
+				URL:    &url.URL{Scheme: "https", Host: "management.azure.com", Path: "/ra"},
+			},
+		},
+	}
+}
+
+// roleAssignmentGenericError returns an *azcore.ResponseError that is neither a
+// not-found nor an already-exists error, so a create failing with it must surface.
+func roleAssignmentGenericError() *azcore.ResponseError {
+	return &azcore.ResponseError{
+		ErrorCode:  "AuthorizationFailed",
+		StatusCode: http.StatusForbidden,
+		RawResponse: &http.Response{
+			Status:     "403 Forbidden",
+			StatusCode: http.StatusForbidden,
+			Body:       io.NopCloser(strings.NewReader(`{"error":{"code":"AuthorizationFailed","message":"The client does not have authorization."}}`)),
+			Request: &http.Request{
+				Method: http.MethodPut,
+				URL:    &url.URL{Scheme: "https", Host: "management.azure.com", Path: "/ra"},
+			},
+		},
+	}
+}
+
+// testFixedNow is the fixed "now" the test fake clock reports, so tests can compute
+// earliest-recheck times relative to it deterministically.
+func testFixedNow() time.Time {
+	return time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)
+}
+
 func newTestSyncer(mockResourcesDB corecosmosstorage.ResourcesDBClient, fpaClientBuilder azureclient.FirstPartyApplicationClientBuilder) *roleAssignmentsSyncer {
 	return &roleAssignmentsSyncer{
 		resourcesDBClient:             mockResourcesDB,
@@ -233,6 +293,7 @@ func newTestSyncer(mockResourcesDB corecosmosstorage.ResourcesDBClient, fpaClien
 		subscriptionLister:            &corelistertesting.SliceSubscriptionLister{Subscriptions: []*coreapi.Subscription{newTestSubscription(ptr.To(testTenantID))}},
 		azureFPAClientBuilder:         fpaClientBuilder,
 		clusterScopedIdentitiesConfig: testConfig(),
+		clock:                         clocktesting.NewFakeClock(testFixedNow()),
 	}
 }
 
@@ -242,45 +303,129 @@ var testHCPClusterKey = controllerutils.HCPClusterKey{
 	HCPClusterName:    testClusterName,
 }
 
-// TestRoleAssignmentsSyncerSyncOnceReconcile exercises the reconcile path end to end
-// through the mock Cosmos DB, listers, and Azure client. Each case queries Azure once
-// per expected role assignment (one control-plane + one data-plane).
+// TestExpectedRoleAssignmentsDeterministicOrder verifies that expectedRoleAssignments returns
+// its slice in a stable order (sorted by the canonical, case-insensitive resource ID) regardless
+// of Go's randomized iteration over the operator maps. A stable order keeps the persisted
+// PendingAzureResources / AzureResources ordering from flapping between passes, which would
+// otherwise make the slice-order-sensitive controllerutil.NeedsUpdate report spurious changes and
+// drive redundant Cosmos writes (and precondition conflicts) even when the SET is unchanged.
+func TestExpectedRoleAssignmentsDeterministicOrder(t *testing.T) {
+	t.Parallel()
+
+	config := testConfig()
+
+	// Build a cluster whose ControlPlaneOperators map holds every dev-config control-plane
+	// operator that has role definitions - several entries, so map-iteration randomization would
+	// scramble the output order between calls if it were not sorted.
+	controlPlaneOperators := map[string]*azcorearm.ResourceID{}
+	resolvedIdentities := map[string]*coreapi.ServiceProviderClusterControlPlaneOperatorIdentity{}
+	for identifier, identity := range config.ControlPlaneOperatorsIdentities {
+		if identity == nil || len(identity.RoleDefinitionsResourceIDs()) == 0 {
+			continue
+		}
+		name := string(identifier)
+		identityID := metadataapi.Must(azcorearm.ParseResourceID(
+			"/subscriptions/" + testSubscriptionID +
+				"/resourceGroups/" + testResourceGroupName +
+				"/providers/Microsoft.ManagedIdentity/userAssignedIdentities/cp-" + name))
+		controlPlaneOperators[name] = identityID
+		resolvedIdentities[strings.ToLower(identityID.String())] = &coreapi.ServiceProviderClusterControlPlaneOperatorIdentity{
+			ResourceID:  identityID,
+			PrincipalID: ptr.To("cp-principal-" + name),
+		}
+	}
+	require.GreaterOrEqual(t, len(controlPlaneOperators), 2, "need multiple control-plane operators to exercise map-order randomization")
+
+	cluster := newTestCluster(false)
+	cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = controlPlaneOperators
+	// Exercise the control-plane operators only; data-plane enumeration is not needed here.
+	cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators = nil
+
+	serviceProviderCluster := newTestServiceProviderCluster(t, true, false, false, coreapi.AzureMultiReference{})
+	serviceProviderCluster.Status.MSIManagedIdentities.ControlPlaneOperatorsIdentities = resolvedIdentities
+
+	syncer := &roleAssignmentsSyncer{clusterScopedIdentitiesConfig: config}
+
+	order := func(defs []roleAssignmentDefinition) []string {
+		out := make([]string, len(defs))
+		for i, d := range defs {
+			out[i] = strings.ToLower(d.resourceID.String())
+		}
+		return out
+	}
+
+	first, err := syncer.expectedRoleAssignments(cluster, serviceProviderCluster)
+	require.NoError(t, err)
+	require.NotEmpty(t, first)
+	require.True(t, slices.IsSortedFunc(first, func(a, b roleAssignmentDefinition) int {
+		return strings.Compare(strings.ToLower(a.resourceID.String()), strings.ToLower(b.resourceID.String()))
+	}), "expectedRoleAssignments must return a slice sorted by canonical resource ID")
+
+	// Despite Go randomizing map iteration order per range statement, every call must yield the
+	// same order.
+	want := order(first)
+	for n := 0; n < 64; n++ {
+		got, err := syncer.expectedRoleAssignments(cluster, serviceProviderCluster)
+		require.NoError(t, err)
+		require.Equal(t, want, order(got), "expectedRoleAssignments order must be deterministic across calls")
+	}
+}
+
+// TestRoleAssignmentsSyncerSyncOnceReconcile exercises the two-pass reconcile end to end
+// through the mock Cosmos DB, listers, and Azure client. Pass 1 queries Azure once per
+// expected role assignment (one control-plane + one data-plane): an assignment that exists is
+// confirmed, and one that is missing is recorded pending and created in pass 2 - a
+// freshly-created assignment stays pending this pass and confirms on a later GetByID.
 func TestRoleAssignmentsSyncerSyncOnceReconcile(t *testing.T) {
 	t.Parallel()
 
 	expectedIDs := testExpectedRoleAssignmentIDs(t)
 
 	testCases := []struct {
-		name            string
-		initial         coreapi.AzureMultiReference
-		getByIDErr      error
-		expectPending   []*azcorearm.ResourceID
-		expectConfirmed []*azcorearm.ResourceID
+		name             string
+		getByIDErr       error
+		createErr        error
+		expectCreate     bool
+		expectErr        bool
+		expectPending    []*azcorearm.ResourceID
+		expectConfirmed  []*azcorearm.ResourceID
+		expectRecheckSet bool
 	}{
 		{
-			// Empty start: the expected role assignments are recorded as pending before the
-			// Get, and (Azure reports them missing) stay pending afterwards.
-			name:            "empty state records pending then stays pending when not yet created",
-			initial:         coreapi.AzureMultiReference{},
-			getByIDErr:      roleAssignmentNotFoundError(),
-			expectPending:   expectedIDs,
-			expectConfirmed: nil,
+			// Not found in Azure: recorded pending and created; a freshly-created assignment
+			// stays pending this pass and confirms on a later GetByID.
+			name:             "not found is created and left pending this pass",
+			getByIDErr:       roleAssignmentNotFoundError(),
+			createErr:        nil,
+			expectCreate:     true,
+			expectPending:    expectedIDs,
+			expectConfirmed:  nil,
+			expectRecheckSet: false,
 		},
 		{
-			// Already pending and Azure reports them missing: they remain pending (NOOP).
-			name:            "pending stays pending when role assignments not found",
-			initial:         coreapi.AzureMultiReference{PendingAzureResources: expectedIDs},
-			getByIDErr:      roleAssignmentNotFoundError(),
-			expectPending:   expectedIDs,
-			expectConfirmed: nil,
+			// A create returning RoleAssignmentExists (409) is NOT swallowed: because the
+			// assignment name is deterministic, that error is unexpected, so it surfaces (wrapped)
+			// and the sync retries. The pending intent was persisted in pass 1, so the assignment
+			// stays pending and is never confirmed this pass.
+			name:             "create already exists surfaces the error and stays pending",
+			getByIDErr:       roleAssignmentNotFoundError(),
+			createErr:        roleAssignmentAlreadyExistsError(),
+			expectCreate:     true,
+			expectErr:        true,
+			expectPending:    expectedIDs,
+			expectConfirmed:  nil,
+			expectRecheckSet: false,
 		},
 		{
-			// Already pending and Azure reports them present: they are promoted to confirmed.
-			name:            "pending is promoted to confirmed when role assignments exist",
-			initial:         coreapi.AzureMultiReference{PendingAzureResources: expectedIDs},
-			getByIDErr:      nil,
-			expectPending:   nil,
-			expectConfirmed: expectedIDs,
+			// Already exists in Azure: confirmed without a create; with nothing left pending
+			// the recheck window is scheduled.
+			name:             "exists is confirmed and schedules the recheck window",
+			getByIDErr:       nil,
+			createErr:        nil,
+			expectCreate:     false,
+			expectPending:    nil,
+			expectConfirmed:  expectedIDs,
+			expectRecheckSet: true,
 		},
 	}
 
@@ -291,7 +436,8 @@ func TestRoleAssignmentsSyncerSyncOnceReconcile(t *testing.T) {
 			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
 
 			cluster := newTestCluster(false)
-			serviceProviderCluster := newTestServiceProviderCluster(t, true, true, true, tc.initial)
+			// Start from empty tracked state so NeedsWork sees work and the loop runs.
+			serviceProviderCluster := newTestServiceProviderCluster(t, true, true, true, coreapi.AzureMultiReference{})
 
 			mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, serviceProviderCluster})
 			require.NoError(t, err)
@@ -302,6 +448,17 @@ func TestRoleAssignmentsSyncerSyncOnceReconcile(t *testing.T) {
 				GetByID(gomock.Any(), gomock.Any(), nil).
 				Return(armauthorization.RoleAssignmentsClientGetByIDResponse{}, tc.getByIDErr).
 				Times(len(expectedIDs))
+			if tc.expectCreate {
+				mockRAClient.EXPECT().
+					Create(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), nil).
+					DoAndReturn(assertCreateParams(t, expectedIDs, tc.createErr)).
+					Times(len(expectedIDs))
+			} else {
+				mockRAClient.EXPECT().
+					Create(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Times(0)
+			}
+			// The FPA client is built exactly once and reused across both passes.
 			fpaClientBuilder := azureclient.NewMockFirstPartyApplicationClientBuilder(ctrl)
 			fpaClientBuilder.EXPECT().
 				RoleAssignmentsClient(testTenantID, testSubscriptionID).
@@ -310,7 +467,12 @@ func TestRoleAssignmentsSyncerSyncOnceReconcile(t *testing.T) {
 
 			syncer := newTestSyncer(mockResourcesDB, fpaClientBuilder)
 
-			require.NoError(t, syncer.SyncOnce(ctx, testHCPClusterKey))
+			syncErr := syncer.SyncOnce(ctx, testHCPClusterKey)
+			if tc.expectErr {
+				require.Error(t, syncErr)
+			} else {
+				require.NoError(t, syncErr)
+			}
 
 			updated, err := mockResourcesDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
 			require.NoError(t, err)
@@ -318,14 +480,509 @@ func TestRoleAssignmentsSyncerSyncOnceReconcile(t *testing.T) {
 			got := updated.Status.AzureResources.RoleAssignments
 			assertResourceIDSetEqual(t, tc.expectPending, got.PendingAzureResources, "PendingAzureResources")
 			assertResourceIDSetEqual(t, tc.expectConfirmed, got.AzureResources, "AzureResources")
+			if tc.expectRecheckSet {
+				assertRecheckScheduled(t, got.EarliestRecheckTime)
+			} else {
+				assert.Nil(t, got.EarliestRecheckTime, "EarliestRecheckTime must not be set while work remains")
+			}
 		})
 	}
 }
 
+// TestRoleAssignmentsSyncerSyncOncePersistsPendingBeforeCreate verifies the core ordering of
+// the two-pass reconcile: the pending intent is persisted to Cosmos BEFORE any
+// RoleAssignmentsClient.Create call. It asserts this by reading the persisted document from
+// inside the Create mock and requiring that the pending set is already recorded there.
+func TestRoleAssignmentsSyncerSyncOncePersistsPendingBeforeCreate(t *testing.T) {
+	t.Parallel()
+
+	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+	expectedIDs := testExpectedRoleAssignmentIDs(t)
+
+	cluster := newTestCluster(false)
+	// Empty tracked state: pass 1 classifies both expected assignments as missing.
+	serviceProviderCluster := newTestServiceProviderCluster(t, true, true, true, coreapi.AzureMultiReference{})
+
+	mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, serviceProviderCluster})
+	require.NoError(t, err)
+
+	ctrl := gomock.NewController(t)
+	mockRAClient := azureclient.NewMockRoleAssignmentsClient(ctrl)
+	mockRAClient.EXPECT().
+		GetByID(gomock.Any(), gomock.Any(), nil).
+		Return(armauthorization.RoleAssignmentsClientGetByIDResponse{}, roleAssignmentNotFoundError()).
+		Times(len(expectedIDs))
+	// Ordering assertion: by the time any Create runs, the classified pending intent for every
+	// expected assignment must already be persisted in Cosmos (pass 1 + persist ran first).
+	mockRAClient.EXPECT().
+		Create(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), nil).
+		DoAndReturn(func(_ context.Context, _, _ string, _ armauthorization.RoleAssignmentCreateParameters, _ *armauthorization.RoleAssignmentsClientCreateOptions) (armauthorization.RoleAssignmentsClientCreateResponse, error) {
+			persisted, getErr := mockResourcesDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
+			require.NoError(t, getErr, "reading persisted ServiceProviderCluster during Create")
+			assertResourceIDSetEqual(t, expectedIDs, persisted.Status.AzureResources.RoleAssignments.PendingAzureResources, "PendingAzureResources persisted before Create")
+			return armauthorization.RoleAssignmentsClientCreateResponse{}, nil
+		}).
+		Times(len(expectedIDs))
+	fpaClientBuilder := azureclient.NewMockFirstPartyApplicationClientBuilder(ctrl)
+	fpaClientBuilder.EXPECT().
+		RoleAssignmentsClient(testTenantID, testSubscriptionID).
+		Return(mockRAClient, nil).
+		Times(1)
+
+	syncer := newTestSyncer(mockResourcesDB, fpaClientBuilder)
+
+	require.NoError(t, syncer.SyncOnce(ctx, testHCPClusterKey))
+
+	updated, err := mockResourcesDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
+	require.NoError(t, err)
+	got := updated.Status.AzureResources.RoleAssignments
+	// Freshly-created assignments stay pending this pass (they confirm on a later GetByID).
+	assertResourceIDSetEqual(t, expectedIDs, got.PendingAzureResources, "PendingAzureResources")
+	assertResourceIDSetEqual(t, nil, got.AzureResources, "AzureResources")
+	assert.Nil(t, got.EarliestRecheckTime, "no recheck window while work remains")
+}
+
+// fakeAfterEnqueuer records EnqueueAfter calls so tests can assert an explicit re-enqueue.
+type fakeAfterEnqueuer struct {
+	keys      []any
+	durations []time.Duration
+}
+
+func (f *fakeAfterEnqueuer) EnqueueAfter(keyObj any, duration time.Duration) {
+	f.keys = append(f.keys, keyObj)
+	f.durations = append(f.durations, duration)
+}
+
+// preconditionFailingReplaceDB wraps a ResourcesDBClient so that
+// ServiceProviderClusters(...).Replace always fails with a Cosmos precondition
+// (optimistic-concurrency) error; every other operation - including Get - delegates to the
+// wrapped client. It drives the precondition-retry path.
+type preconditionFailingReplaceDB struct {
+	corecosmosstorage.ResourcesDBClient
+}
+
+func (d preconditionFailingReplaceDB) ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName string) cosmosstorageutils.ResourceCRUD[coreapi.ServiceProviderCluster, *coreapi.ServiceProviderCluster] {
+	return preconditionFailingReplaceCRUD{ResourceCRUD: d.ResourcesDBClient.ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName)}
+}
+
+type preconditionFailingReplaceCRUD struct {
+	cosmosstorageutils.ResourceCRUD[coreapi.ServiceProviderCluster, *coreapi.ServiceProviderCluster]
+}
+
+func (preconditionFailingReplaceCRUD) Replace(context.Context, *coreapi.ServiceProviderCluster, *azcosmos.ItemOptions) (*coreapi.ServiceProviderCluster, error) {
+	return nil, corecosmosstoragetesting.NewPreconditionFailedError()
+}
+
+// TestRoleAssignmentsSyncerSyncOncePreconditionFailureReEnqueues verifies that when the pass-1
+// persist of the pending intent fails with a Cosmos precondition (optimistic-concurrency)
+// conflict, the syncer does NOT proceed to create: it re-enqueues the cluster after the
+// precondition retry delay and returns nil, so pass 2 (Create) never runs before the pending
+// intent is persisted.
+func TestRoleAssignmentsSyncerSyncOncePreconditionFailureReEnqueues(t *testing.T) {
+	t.Parallel()
+
+	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+	expectedIDs := testExpectedRoleAssignmentIDs(t)
+
+	cluster := newTestCluster(false)
+	// Empty tracked state so pass 1 classifies both expected assignments as missing and the
+	// persist is a real change (which the wrapper then fails with a precondition error).
+	serviceProviderCluster := newTestServiceProviderCluster(t, true, true, true, coreapi.AzureMultiReference{})
+
+	mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, serviceProviderCluster})
+	require.NoError(t, err)
+
+	ctrl := gomock.NewController(t)
+	mockRAClient := azureclient.NewMockRoleAssignmentsClient(ctrl)
+	// Pass 1 classifies via GetByID (both missing); pass 2 must NOT run, so Create is forbidden.
+	mockRAClient.EXPECT().
+		GetByID(gomock.Any(), gomock.Any(), nil).
+		Return(armauthorization.RoleAssignmentsClientGetByIDResponse{}, roleAssignmentNotFoundError()).
+		Times(len(expectedIDs))
+	mockRAClient.EXPECT().
+		Create(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Times(0)
+	fpaClientBuilder := azureclient.NewMockFirstPartyApplicationClientBuilder(ctrl)
+	fpaClientBuilder.EXPECT().
+		RoleAssignmentsClient(testTenantID, testSubscriptionID).
+		Return(mockRAClient, nil).
+		Times(1)
+
+	// Wrap the DB so the pass-1 persist (Replace) fails with a precondition error.
+	enqueuer := &fakeAfterEnqueuer{}
+	syncer := newTestSyncer(preconditionFailingReplaceDB{ResourcesDBClient: mockResourcesDB}, fpaClientBuilder)
+	syncer.enqueueAfter = enqueuer
+
+	// (a) SyncOnce returns nil, (b) no Create ran (asserted by gomock Times(0)).
+	require.NoError(t, syncer.SyncOnce(ctx, testHCPClusterKey))
+
+	// (c) the cluster was re-enqueued once, with the precondition retry delay.
+	require.Len(t, enqueuer.keys, 1, "expected exactly one EnqueueAfter call")
+	assert.Equal(t, testHCPClusterKey, enqueuer.keys[0], "re-enqueued key must be the cluster key")
+	require.Len(t, enqueuer.durations, 1)
+	assert.Equal(t, roleAssignmentPreconditionRetryDelay, enqueuer.durations[0], "re-enqueue delay must be the precondition retry delay")
+}
+
+// TestRoleAssignmentsSyncerSyncOnceCreateErrorStaysPending verifies that when creating a
+// role assignment fails, SyncOnce returns the error and leaves the assignment pending
+// (never confirmed).
+func TestRoleAssignmentsSyncerSyncOnceCreateErrorStaysPending(t *testing.T) {
+	t.Parallel()
+
+	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+	expectedIDs := testExpectedRoleAssignmentIDs(t)
+
+	cluster := newTestCluster(false)
+	serviceProviderCluster := newTestServiceProviderCluster(t, true, true, true, coreapi.AzureMultiReference{
+		PendingAzureResources: expectedIDs,
+	})
+
+	mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, serviceProviderCluster})
+	require.NoError(t, err)
+
+	ctrl := gomock.NewController(t)
+	mockRAClient := azureclient.NewMockRoleAssignmentsClient(ctrl)
+	// Azure reports every assignment missing (pass 1) and every create fails (pass 2). Every
+	// assignment is processed (the reconcile does not abort on the first error) and the joined
+	// error is returned, leaving each assignment pending.
+	mockRAClient.EXPECT().
+		GetByID(gomock.Any(), gomock.Any(), nil).
+		Return(armauthorization.RoleAssignmentsClientGetByIDResponse{}, roleAssignmentNotFoundError()).
+		Times(len(expectedIDs))
+	mockRAClient.EXPECT().
+		Create(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), nil).
+		Return(armauthorization.RoleAssignmentsClientCreateResponse{}, roleAssignmentGenericError()).
+		Times(len(expectedIDs))
+	fpaClientBuilder := azureclient.NewMockFirstPartyApplicationClientBuilder(ctrl)
+	fpaClientBuilder.EXPECT().
+		RoleAssignmentsClient(testTenantID, testSubscriptionID).
+		Return(mockRAClient, nil).
+		Times(1)
+
+	syncer := newTestSyncer(mockResourcesDB, fpaClientBuilder)
+
+	require.Error(t, syncer.SyncOnce(ctx, testHCPClusterKey))
+
+	updated, err := mockResourcesDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
+	require.NoError(t, err)
+	got := updated.Status.AzureResources.RoleAssignments
+	assertResourceIDSetEqual(t, expectedIDs, got.PendingAzureResources, "PendingAzureResources")
+	assertResourceIDSetEqual(t, nil, got.AzureResources, "AzureResources")
+	assert.Nil(t, got.EarliestRecheckTime, "EarliestRecheckTime must not be set while work remains")
+}
+
+// TestRoleAssignmentsSyncerSyncOnceStalePendingDropped verifies that a pending entry that is
+// no longer expected (e.g. an operator identity was replaced) is dropped: pass 1 iterates only
+// the expected set, so the overwrite of PendingAzureResources leaves the stale entry behind.
+// The stale entry is never queried.
+func TestRoleAssignmentsSyncerSyncOnceStalePendingDropped(t *testing.T) {
+	t.Parallel()
+
+	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+	expectedIDs := testExpectedRoleAssignmentIDs(t)
+	staleID := testUnexpectedRoleAssignmentID(t)
+
+	cluster := newTestCluster(false)
+	// A stale (no-longer-expected) entry lingers in pending; the expected assignments exist.
+	serviceProviderCluster := newTestServiceProviderCluster(t, true, true, true, coreapi.AzureMultiReference{
+		AzureResources:        expectedIDs,
+		PendingAzureResources: []*azcorearm.ResourceID{staleID},
+	})
+
+	mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, serviceProviderCluster})
+	require.NoError(t, err)
+
+	ctrl := gomock.NewController(t)
+	mockRAClient := azureclient.NewMockRoleAssignmentsClient(ctrl)
+	// The loop queries only the expected set (both still exist); the stale entry is never
+	// queried and is dropped by the overwrite.
+	mockRAClient.EXPECT().
+		GetByID(gomock.Any(), gomock.Any(), nil).
+		Return(armauthorization.RoleAssignmentsClientGetByIDResponse{}, nil).
+		Times(len(expectedIDs))
+	mockRAClient.EXPECT().
+		Create(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Times(0)
+	fpaClientBuilder := azureclient.NewMockFirstPartyApplicationClientBuilder(ctrl)
+	fpaClientBuilder.EXPECT().
+		RoleAssignmentsClient(testTenantID, testSubscriptionID).
+		Return(mockRAClient, nil).
+		Times(1)
+
+	syncer := newTestSyncer(mockResourcesDB, fpaClientBuilder)
+
+	require.NoError(t, syncer.SyncOnce(ctx, testHCPClusterKey))
+
+	updated, err := mockResourcesDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
+	require.NoError(t, err)
+	got := updated.Status.AzureResources.RoleAssignments
+	// The stale entry is gone; only the expected (confirmed) assignments remain.
+	assertResourceIDSetEqual(t, nil, got.PendingAzureResources, "PendingAzureResources")
+	assertResourceIDSetEqual(t, expectedIDs, got.AzureResources, "AzureResources")
+	assertRecheckScheduled(t, got.EarliestRecheckTime)
+}
+
+// TestRoleAssignmentsSyncerSyncOnceRecheckAllPresentReschedules verifies that when the
+// earliest-recheck window has elapsed and every confirmed role assignment is still present
+// in Azure, SyncOnce re-verifies them (no create) and pushes the recheck window out.
+func TestRoleAssignmentsSyncerSyncOnceRecheckAllPresentReschedules(t *testing.T) {
+	t.Parallel()
+
+	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+	expectedIDs := testExpectedRoleAssignmentIDs(t)
+
+	cluster := newTestCluster(false)
+	// The recheck window has already elapsed, so the confirmed set is re-verified.
+	serviceProviderCluster := newTestServiceProviderCluster(t, true, true, true, coreapi.AzureMultiReference{
+		AzureResources:      expectedIDs,
+		EarliestRecheckTime: &metav1.Time{Time: testFixedNow().Add(-time.Minute)},
+	})
+
+	mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, serviceProviderCluster})
+	require.NoError(t, err)
+
+	ctrl := gomock.NewController(t)
+	mockRAClient := azureclient.NewMockRoleAssignmentsClient(ctrl)
+	// Every confirmed assignment is re-verified and still present; nothing is created.
+	mockRAClient.EXPECT().
+		GetByID(gomock.Any(), gomock.Any(), nil).
+		Return(armauthorization.RoleAssignmentsClientGetByIDResponse{}, nil).
+		Times(len(expectedIDs))
+	mockRAClient.EXPECT().
+		Create(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Times(0)
+	fpaClientBuilder := azureclient.NewMockFirstPartyApplicationClientBuilder(ctrl)
+	fpaClientBuilder.EXPECT().
+		RoleAssignmentsClient(testTenantID, testSubscriptionID).
+		Return(mockRAClient, nil).
+		Times(1)
+
+	syncer := newTestSyncer(mockResourcesDB, fpaClientBuilder)
+
+	require.NoError(t, syncer.SyncOnce(ctx, testHCPClusterKey))
+
+	updated, err := mockResourcesDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
+	require.NoError(t, err)
+	got := updated.Status.AzureResources.RoleAssignments
+	assertResourceIDSetEqual(t, expectedIDs, got.AzureResources, "AzureResources")
+	assertResourceIDSetEqual(t, nil, got.PendingAzureResources, "PendingAzureResources")
+	assertRecheckScheduled(t, got.EarliestRecheckTime)
+}
+
+// TestRoleAssignmentsSyncerSyncOnceRecheckDisappearedRecreatesStaysPending verifies that when
+// the recheck window has elapsed and a confirmed role assignment has disappeared from Azure,
+// the two-pass reconcile re-creates it - and, per the two-pass design, a freshly-created
+// assignment stays pending this pass (it confirms on a later GetByID) with the recheck window
+// cleared while work remains.
+func TestRoleAssignmentsSyncerSyncOnceRecheckDisappearedRecreatesStaysPending(t *testing.T) {
+	t.Parallel()
+
+	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+	expectedIDs := testExpectedRoleAssignmentIDs(t)
+
+	cluster := newTestCluster(false)
+	// The recheck window has already elapsed; the confirmed assignments have since disappeared.
+	serviceProviderCluster := newTestServiceProviderCluster(t, true, true, true, coreapi.AzureMultiReference{
+		AzureResources:      expectedIDs,
+		EarliestRecheckTime: &metav1.Time{Time: testFixedNow().Add(-time.Minute)},
+	})
+
+	mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, serviceProviderCluster})
+	require.NoError(t, err)
+
+	ctrl := gomock.NewController(t)
+	mockRAClient := azureclient.NewMockRoleAssignmentsClient(ctrl)
+	// Pass 1 finds each assignment gone (one GetByID per expected); pass 2 re-creates them.
+	mockRAClient.EXPECT().
+		GetByID(gomock.Any(), gomock.Any(), nil).
+		Return(armauthorization.RoleAssignmentsClientGetByIDResponse{}, roleAssignmentNotFoundError()).
+		Times(len(expectedIDs))
+	mockRAClient.EXPECT().
+		Create(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), nil).
+		DoAndReturn(assertCreateParams(t, expectedIDs, nil)).
+		Times(len(expectedIDs))
+	fpaClientBuilder := azureclient.NewMockFirstPartyApplicationClientBuilder(ctrl)
+	// The client is built exactly once and reused across both passes.
+	fpaClientBuilder.EXPECT().
+		RoleAssignmentsClient(testTenantID, testSubscriptionID).
+		Return(mockRAClient, nil).
+		Times(1)
+
+	syncer := newTestSyncer(mockResourcesDB, fpaClientBuilder)
+
+	require.NoError(t, syncer.SyncOnce(ctx, testHCPClusterKey))
+
+	updated, err := mockResourcesDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
+	require.NoError(t, err)
+	got := updated.Status.AzureResources.RoleAssignments
+	// Recreated this pass -> pending (not yet confirmed); recheck cleared while work remains.
+	assertResourceIDSetEqual(t, expectedIDs, got.PendingAzureResources, "PendingAzureResources")
+	assertResourceIDSetEqual(t, nil, got.AzureResources, "AzureResources")
+	assert.Nil(t, got.EarliestRecheckTime, "EarliestRecheckTime must be cleared while work remains")
+}
+
+// TestRoleAssignmentsSyncerSyncOnceNilRecheckDoesOneRecheck verifies that a nil
+// EarliestRecheckTime is treated as due: an existing cluster confirmed before this controller
+// tracked the window does one reconcile pass on rollout (the accepted one-time recheck),
+// re-verifying every expected assignment and then scheduling a future window.
+func TestRoleAssignmentsSyncerSyncOnceNilRecheckDoesOneRecheck(t *testing.T) {
+	t.Parallel()
+
+	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+	expectedIDs := testExpectedRoleAssignmentIDs(t)
+
+	cluster := newTestCluster(false)
+	// Confirmed and pending-empty, but EarliestRecheckTime is nil (never initialized).
+	serviceProviderCluster := newTestServiceProviderCluster(t, true, true, true, coreapi.AzureMultiReference{
+		AzureResources: expectedIDs,
+	})
+
+	mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, serviceProviderCluster})
+	require.NoError(t, err)
+
+	ctrl := gomock.NewController(t)
+	mockRAClient := azureclient.NewMockRoleAssignmentsClient(ctrl)
+	// One recheck runs: every expected assignment is queried once and found present.
+	mockRAClient.EXPECT().
+		GetByID(gomock.Any(), gomock.Any(), nil).
+		Return(armauthorization.RoleAssignmentsClientGetByIDResponse{}, nil).
+		Times(len(expectedIDs))
+	mockRAClient.EXPECT().
+		Create(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Times(0)
+	fpaClientBuilder := azureclient.NewMockFirstPartyApplicationClientBuilder(ctrl)
+	fpaClientBuilder.EXPECT().
+		RoleAssignmentsClient(testTenantID, testSubscriptionID).
+		Return(mockRAClient, nil).
+		Times(1)
+
+	syncer := newTestSyncer(mockResourcesDB, fpaClientBuilder)
+
+	require.NoError(t, syncer.SyncOnce(ctx, testHCPClusterKey))
+
+	updated, err := mockResourcesDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
+	require.NoError(t, err)
+	got := updated.Status.AzureResources.RoleAssignments
+	// One recheck ran (all present -> confirmed) and a future window is now scheduled.
+	assertResourceIDSetEqual(t, expectedIDs, got.AzureResources, "AzureResources")
+	assertResourceIDSetEqual(t, nil, got.PendingAzureResources, "PendingAzureResources")
+	assertRecheckScheduled(t, got.EarliestRecheckTime)
+}
+
+// TestRoleAssignmentsSyncerSyncOnceRecheckPartialDisappearance verifies that on an elapsed
+// recheck where only some confirmed assignments have disappeared, the two-pass reconcile keeps
+// the still-present ones confirmed and re-creates the missing one - which stays pending this
+// pass (it confirms on a later GetByID). The recheck window is cleared while work remains.
+func TestRoleAssignmentsSyncerSyncOnceRecheckPartialDisappearance(t *testing.T) {
+	t.Parallel()
+
+	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+	expectedIDs := testExpectedRoleAssignmentIDs(t)
+	require.Len(t, expectedIDs, 2, "test expects one control-plane and one data-plane assignment")
+	presentID, missingID := expectedIDs[0], expectedIDs[1]
+
+	cluster := newTestCluster(false)
+	serviceProviderCluster := newTestServiceProviderCluster(t, true, true, true, coreapi.AzureMultiReference{
+		AzureResources:      expectedIDs,
+		EarliestRecheckTime: &metav1.Time{Time: testFixedNow().Add(-time.Minute)},
+	})
+
+	mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, serviceProviderCluster})
+	require.NoError(t, err)
+
+	ctrl := gomock.NewController(t)
+	mockRAClient := azureclient.NewMockRoleAssignmentsClient(ctrl)
+	// presentID still exists; missingID is gone. Each expected assignment is queried once.
+	mockRAClient.EXPECT().
+		GetByID(gomock.Any(), gomock.Any(), nil).
+		DoAndReturn(func(_ context.Context, id string, _ *armauthorization.RoleAssignmentsClientGetByIDOptions) (armauthorization.RoleAssignmentsClientGetByIDResponse, error) {
+			if strings.EqualFold(id, presentID.String()) {
+				return armauthorization.RoleAssignmentsClientGetByIDResponse{}, nil
+			}
+			return armauthorization.RoleAssignmentsClientGetByIDResponse{}, roleAssignmentNotFoundError()
+		}).
+		Times(len(expectedIDs))
+	// Only the missing assignment is (re-)created.
+	mockRAClient.EXPECT().
+		Create(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), nil).
+		DoAndReturn(assertCreateParams(t, []*azcorearm.ResourceID{missingID}, nil)).
+		Times(1)
+	fpaClientBuilder := azureclient.NewMockFirstPartyApplicationClientBuilder(ctrl)
+	fpaClientBuilder.EXPECT().
+		RoleAssignmentsClient(testTenantID, testSubscriptionID).
+		Return(mockRAClient, nil).
+		Times(1)
+
+	syncer := newTestSyncer(mockResourcesDB, fpaClientBuilder)
+
+	require.NoError(t, syncer.SyncOnce(ctx, testHCPClusterKey))
+
+	updated, err := mockResourcesDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
+	require.NoError(t, err)
+	got := updated.Status.AzureResources.RoleAssignments
+	// The still-present assignment stays confirmed; the missing one is re-created and pending.
+	assertResourceIDSetEqual(t, []*azcorearm.ResourceID{presentID}, got.AzureResources, "AzureResources")
+	assertResourceIDSetEqual(t, []*azcorearm.ResourceID{missingID}, got.PendingAzureResources, "PendingAzureResources")
+	assert.Nil(t, got.EarliestRecheckTime, "EarliestRecheckTime must be cleared while work remains")
+}
+
+// TestRoleAssignmentsSyncerSyncOnceExtraConfirmedRetained verifies the accepted-leak handling:
+// a previously-confirmed role assignment that is no longer expected (e.g. after an identity or
+// name-scheme change) is RETAINED in AzureResources rather than dropped - it is never
+// re-queried, and it does not count as work nor block the recheck-window scheduling. Its
+// deletion is deferred to managed identity replacement support.
+func TestRoleAssignmentsSyncerSyncOnceExtraConfirmedRetained(t *testing.T) {
+	t.Parallel()
+
+	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+	expectedIDs := testExpectedRoleAssignmentIDs(t)
+	extraID := testUnexpectedRoleAssignmentID(t)
+	confirmedWithExtra := append(append([]*azcorearm.ResourceID{}, expectedIDs...), extraID)
+
+	cluster := newTestCluster(false)
+	// A previously-confirmed assignment (extraID) is no longer expected; the recheck is due.
+	serviceProviderCluster := newTestServiceProviderCluster(t, true, true, true, coreapi.AzureMultiReference{
+		AzureResources:      confirmedWithExtra,
+		EarliestRecheckTime: &metav1.Time{Time: testFixedNow().Add(-time.Minute)},
+	})
+
+	mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, serviceProviderCluster})
+	require.NoError(t, err)
+
+	ctrl := gomock.NewController(t)
+	mockRAClient := azureclient.NewMockRoleAssignmentsClient(ctrl)
+	// The loop iterates the expected set only; the extra is never queried. Both expected exist.
+	mockRAClient.EXPECT().
+		GetByID(gomock.Any(), gomock.Any(), nil).
+		Return(armauthorization.RoleAssignmentsClientGetByIDResponse{}, nil).
+		Times(len(expectedIDs))
+	mockRAClient.EXPECT().
+		Create(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Times(0)
+	fpaClientBuilder := azureclient.NewMockFirstPartyApplicationClientBuilder(ctrl)
+	fpaClientBuilder.EXPECT().
+		RoleAssignmentsClient(testTenantID, testSubscriptionID).
+		Return(mockRAClient, nil).
+		Times(1)
+
+	syncer := newTestSyncer(mockResourcesDB, fpaClientBuilder)
+
+	require.NoError(t, syncer.SyncOnce(ctx, testHCPClusterKey))
+
+	updated, err := mockResourcesDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
+	require.NoError(t, err)
+	got := updated.Status.AzureResources.RoleAssignments
+	// The extra is retained alongside the expected set; nothing pending, and the recheck window
+	// is still scheduled (retained extras are not in the expected set, so they are not work).
+	assertResourceIDSetEqual(t, confirmedWithExtra, got.AzureResources, "AzureResources")
+	assertResourceIDSetEqual(t, nil, got.PendingAzureResources, "PendingAzureResources")
+	assertRecheckScheduled(t, got.EarliestRecheckTime)
+}
+
 // TestRoleAssignmentsSyncerSyncOnceSteadyStateSkipsAzure verifies the NeedsWork
-// short-circuit end to end: when every expected role assignment is already confirmed
-// and nothing is pending, the controller neither builds the FPA client nor queries
-// Azure, and makes no write.
+// short-circuit end to end: when every expected role assignment is already confirmed,
+// nothing is pending, and the earliest-recheck time is still in the future, the controller
+// neither builds the FPA client nor queries Azure, and makes no write.
 func TestRoleAssignmentsSyncerSyncOnceSteadyStateSkipsAzure(t *testing.T) {
 	t.Parallel()
 
@@ -334,7 +991,8 @@ func TestRoleAssignmentsSyncerSyncOnceSteadyStateSkipsAzure(t *testing.T) {
 
 	cluster := newTestCluster(false)
 	serviceProviderCluster := newTestServiceProviderCluster(t, true, true, true, coreapi.AzureMultiReference{
-		AzureResources: expectedIDs,
+		AzureResources:      expectedIDs,
+		EarliestRecheckTime: &metav1.Time{Time: testFixedNow().Add(12 * time.Hour)},
 	})
 
 	mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, serviceProviderCluster})
@@ -453,6 +1111,9 @@ func TestRoleAssignmentsSyncerNeedsWork(t *testing.T) {
 	t.Parallel()
 
 	expectedIDs := testExpectedRoleAssignmentIDs(t)
+	// supersetIDs is the expected set plus a leftover assignment from a since-replaced
+	// operator identity; a confirmed superset must be tolerated (not treated as work).
+	supersetIDs := append(append([]*azcorearm.ResourceID{}, expectedIDs...), testUnexpectedRoleAssignmentID(t))
 
 	testCases := []struct {
 		name         string
@@ -493,14 +1154,56 @@ func TestRoleAssignmentsSyncerNeedsWork(t *testing.T) {
 			expect:     true,
 		},
 		{
-			name:         "all expected confirmed has no work",
+			name:         "all expected confirmed with future recheck has no work",
+			mrgConfirmed: true, cpResolved: true, dpResolved: true,
+			roleAssign: coreapi.AzureMultiReference{
+				AzureResources:      expectedIDs,
+				EarliestRecheckTime: &metav1.Time{Time: testFixedNow().Add(12 * time.Hour)},
+			},
+			expect: false,
+		},
+		{
+			name:         "all expected confirmed with nil recheck needs work",
 			mrgConfirmed: true, cpResolved: true, dpResolved: true,
 			roleAssign: coreapi.AzureMultiReference{AzureResources: expectedIDs},
-			expect:     false,
+			expect:     true,
+		},
+		{
+			name:         "all expected confirmed with elapsed recheck needs work",
+			mrgConfirmed: true, cpResolved: true, dpResolved: true,
+			roleAssign: coreapi.AzureMultiReference{
+				AzureResources:      expectedIDs,
+				EarliestRecheckTime: &metav1.Time{Time: testFixedNow().Add(-time.Minute)},
+			},
+			expect: true,
+		},
+		{
+			// A confirmed superset (leftover role from a previous operator identity) with a
+			// future recheck is steady state - not work.
+			name:         "confirmed superset of expected with future recheck has no work",
+			mrgConfirmed: true, cpResolved: true, dpResolved: true,
+			roleAssign: coreapi.AzureMultiReference{
+				AzureResources:      supersetIDs,
+				EarliestRecheckTime: &metav1.Time{Time: testFixedNow().Add(12 * time.Hour)},
+			},
+			expect: false,
+		},
+		{
+			// A confirmed superset still needs work once the recheck interval has elapsed.
+			name:         "confirmed superset of expected with elapsed recheck needs work",
+			mrgConfirmed: true, cpResolved: true, dpResolved: true,
+			roleAssign: coreapi.AzureMultiReference{
+				AzureResources:      supersetIDs,
+				EarliestRecheckTime: &metav1.Time{Time: testFixedNow().Add(-time.Minute)},
+			},
+			expect: true,
 		},
 	}
 
-	syncer := &roleAssignmentsSyncer{clusterScopedIdentitiesConfig: testConfig()}
+	syncer := &roleAssignmentsSyncer{
+		clusterScopedIdentitiesConfig: testConfig(),
+		clock:                         clocktesting.NewFakeClock(testFixedNow()),
+	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -524,4 +1227,50 @@ func assertResourceIDSetEqual(t *testing.T, expected, actual []*azcorearm.Resour
 		return set
 	}
 	assert.Equal(t, toSet(expected), toSet(actual), "%s set mismatch", field)
+}
+
+// assertCreateParams returns a gomock DoAndReturn for RoleAssignmentsClient.Create that
+// verifies the create is issued at the managed resource group scope with the expected
+// parameters (PrincipalID, RoleDefinitionID, PrincipalType=ServicePrincipal) and the
+// deterministic name / resource ID of one of the expected role assignments, then returns
+// createErr.
+func assertCreateParams(t *testing.T, expectedIDs []*azcorearm.ResourceID, createErr error) func(context.Context, string, string, armauthorization.RoleAssignmentCreateParameters, *armauthorization.RoleAssignmentsClientCreateOptions) (armauthorization.RoleAssignmentsClientCreateResponse, error) {
+	t.Helper()
+	return func(_ context.Context, scope, name string, params armauthorization.RoleAssignmentCreateParameters, _ *armauthorization.RoleAssignmentsClientCreateOptions) (armauthorization.RoleAssignmentsClientCreateResponse, error) {
+		assert.Equal(t, testManagedResourceGroupScope(t), scope, "create scope must be the managed resource group scope")
+		require.NotNil(t, params.Properties, "create parameters must have Properties")
+		require.NotNil(t, params.Properties.PrincipalID, "create must set PrincipalID")
+		require.NotNil(t, params.Properties.RoleDefinitionID, "create must set RoleDefinitionID")
+		require.NotNil(t, params.Properties.PrincipalType, "create must set PrincipalType")
+		assert.Equal(t, armauthorization.PrincipalTypeServicePrincipal, *params.Properties.PrincipalType, "create must use the ServicePrincipal principal type")
+
+		// The name and full ID must match the deterministic scheme for these params, and the
+		// resulting ID must be one of the expected role assignments.
+		wantID := roleassignment.ManagedResourceGroupScopedRoleAssignmentResourceID(scope, *params.Properties.PrincipalID, *params.Properties.RoleDefinitionID)
+		parsed := metadataapi.Must(azcorearm.ParseResourceID(wantID))
+		assert.Equal(t, parsed.Name, name, "create name must be the deterministic role assignment name")
+		found := false
+		for _, id := range expectedIDs {
+			if strings.EqualFold(id.String(), parsed.String()) {
+				found = true
+				break
+			}
+		}
+		assert.True(t, found, "created role assignment %q must be one of the expected assignments", parsed.String())
+
+		return armauthorization.RoleAssignmentsClientCreateResponse{}, createErr
+	}
+}
+
+// assertRecheckScheduled asserts the earliest-recheck time was set to roughly one recheck
+// interval from the fake clock's now, within the jittered window [now+interval,
+// now+interval*(1+jitterFactor)].
+func assertRecheckScheduled(t *testing.T, earliest *metav1.Time) {
+	t.Helper()
+	require.NotNil(t, earliest, "EarliestRecheckTime must be set once the confirmed set is complete")
+	got := earliest.Time
+	minTime := testFixedNow().Add(roleAssignmentRecheckInterval)
+	maxTime := testFixedNow().Add(roleAssignmentRecheckInterval + time.Duration(roleAssignmentRecheckJitterFactor*float64(roleAssignmentRecheckInterval)))
+	assert.False(t, got.Before(minTime), "recheck time %s must be at least the base interval out (%s)", got, minTime)
+	assert.False(t, got.After(maxTime), "recheck time %s must be within the jittered window (<= %s)", got, maxTime)
 }
