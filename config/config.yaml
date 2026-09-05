@@ -933,6 +933,7 @@ defaults:
       disableLocalAuth: true
       name: "arohcp{{ .ctx.environment }}-rp-{{ .ctx.regionShort }}" # [globally-unique]
       private: true
+      enableBurstCapacity: false
       zoneRedundantMode: 'Auto'
       resourceContainerMaxScale: 8000
       billingContainerMaxScale: 4000
@@ -1811,6 +1812,7 @@ clouds:
               connectSocket: false
             cosmosDB:
               private: false
+              enableBurstCapacity: true
               resourceContainerMaxScale: 10000
               zoneRedundantMode: 'Disabled'
             tracing:
@@ -1915,6 +1917,7 @@ clouds:
               connectSocket: false
             cosmosDB:
               private: false
+              enableBurstCapacity: true
               resourceContainerMaxScale: 10000
               zoneRedundantMode: 'Disabled'
             tracing:

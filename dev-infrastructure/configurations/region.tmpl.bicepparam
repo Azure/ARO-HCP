@@ -15,6 +15,7 @@ param maestroCertificateIssuer = '{{ .maestro.certIssuer }}'
 param rpCosmosDbName = '{{ .frontend.cosmosDB.name }}'
 param rpCosmosDbPrivate = {{ .frontend.cosmosDB.private }}
 param rpCosmosZoneRedundantMode = '{{ .frontend.cosmosDB.zoneRedundantMode }}'
+param rpCosmosEnableBurstCapacity = {{ .frontend.cosmosDB.enableBurstCapacity }}
 param disableLocalAuth = {{ .frontend.cosmosDB.disableLocalAuth }}
 
 // MI for resource access during pipeline runs
