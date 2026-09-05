@@ -99,3 +99,118 @@ func TestExtraDeleteGateShouldDeleteServiceProviderClusterManagedResourceGroup(t
 		})
 	}
 }
+
+func TestExtraDeleteGateShouldDeleteServiceProviderClusterOIDCFederation(t *testing.T) {
+	const (
+		subscriptionID    = "00000000-0000-0000-0000-000000000000"
+		resourceGroupName = "test-rg"
+		clusterName       = "test-cluster"
+	)
+
+	serviceProviderClusterResourceID := metadataapi.Must(azcorearm.ParseResourceID(
+		"/subscriptions/" + subscriptionID +
+			"/resourceGroups/" + resourceGroupName +
+			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + clusterName +
+			"/" + coreapi.ServiceProviderClusterResourceTypeName +
+			"/" + coreapi.ServiceProviderClusterResourceName,
+	))
+	identityA := metadataapi.Must(azcorearm.ParseResourceID(
+		"/subscriptions/" + subscriptionID +
+			"/resourceGroups/" + resourceGroupName +
+			"/providers/Microsoft.ManagedIdentity/userAssignedIdentities/identity-a"))
+	identityB := metadataapi.Must(azcorearm.ParseResourceID(
+		"/subscriptions/" + subscriptionID +
+			"/resourceGroups/" + resourceGroupName +
+			"/providers/Microsoft.ManagedIdentity/userAssignedIdentities/identity-b"))
+	federatedIdentityCredentialA := metadataapi.Must(azcorearm.ParseResourceID(
+		identityA.String() + "/federatedIdentityCredentials/fic-a"))
+	federatedIdentityCredentialB := metadataapi.Must(azcorearm.ParseResourceID(
+		identityB.String() + "/federatedIdentityCredentials/fic-b"))
+
+	keyA := strings.ToLower(identityA.String())
+	keyB := strings.ToLower(identityB.String())
+
+	testCases := []struct {
+		name               string
+		federation         map[string]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus
+		expectShouldDelete bool
+	}{
+		{
+			name: "azure resources remaining blocks deletion",
+			federation: map[string]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
+				keyA: {
+					Phase:          coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingDeconfigure,
+					AzureResources: []*azcorearm.ResourceID{federatedIdentityCredentialA},
+				},
+			},
+			expectShouldDelete: false,
+		},
+		{
+			name: "pending azure resources remaining blocks deletion",
+			federation: map[string]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
+				keyA: {
+					Phase:                 coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingDeconfigure,
+					PendingAzureResources: []*azcorearm.ResourceID{federatedIdentityCredentialA},
+				},
+			},
+			expectShouldDelete: false,
+		},
+		{
+			name: "remaining resources on one identity blocks deletion",
+			federation: map[string]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
+				keyA: {
+					Phase: coreapi.ManagedIdentityDataplaneOIDCFederationPhaseDeconfigured,
+				},
+				keyB: {
+					Phase:          coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingDeconfigure,
+					AzureResources: []*azcorearm.ResourceID{federatedIdentityCredentialB},
+				},
+			},
+			expectShouldDelete: false,
+		},
+		{
+			name: "empty resource slices allow deletion",
+			federation: map[string]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
+				keyA: {
+					Phase:                 coreapi.ManagedIdentityDataplaneOIDCFederationPhaseDeconfigured,
+					AzureResources:        []*azcorearm.ResourceID{},
+					PendingAzureResources: []*azcorearm.ResourceID{},
+				},
+			},
+			expectShouldDelete: true,
+		},
+		{
+			name: "deconfigured identities with no remaining resources allow deletion",
+			federation: map[string]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
+				keyA: {Phase: coreapi.ManagedIdentityDataplaneOIDCFederationPhaseDeconfigured},
+				keyB: {Phase: coreapi.ManagedIdentityDataplaneOIDCFederationPhaseDeconfigured},
+			},
+			expectShouldDelete: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+
+			serviceProviderCluster := &coreapi.ServiceProviderCluster{
+				CosmosMetadata: coreapi.CosmosMetadata{
+					ResourceID:   serviceProviderClusterResourceID,
+					PartitionKey: strings.ToLower(serviceProviderClusterResourceID.SubscriptionID),
+				},
+			}
+			serviceProviderCluster.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation = tc.federation
+
+			mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{serviceProviderCluster})
+			require.NoError(t, err)
+
+			controller := &clusterChildResourcesCleanupController{
+				resourcesDBClient: mockResourcesDB,
+			}
+
+			shouldDelete, err := controller.extraDeleteGateShouldDeleteServiceProviderCluster(ctx, serviceProviderClusterResourceID)
+			require.NoError(t, err)
+			assert.Equal(t, tc.expectShouldDelete, shouldDelete)
+		})
+	}
+}
