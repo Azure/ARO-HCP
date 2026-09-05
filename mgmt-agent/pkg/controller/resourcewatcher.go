@@ -94,6 +94,16 @@ func (w *ResourceWatcher) Run(ctx context.Context) error {
 		return err
 	}
 	gvrs = append(gvrs, watchedBuiltinGVRs...)
+
+	// CustomResourceDefinitions are watched (and logged, like every other GVR
+	// above) so a snapshot can resolve a CRD's exact plural/singular/shortNames
+	// instead of guessing them from the Kind alone.
+	crdGVR := schema.GroupVersionResource{
+		Group:    "apiextensions.k8s.io",
+		Version:  "v1",
+		Resource: "customresourcedefinitions",
+	}
+	gvrs = append(gvrs, crdGVR)
 	logger.Info("Discovered resources to watch", "count", len(gvrs))
 
 	knownGVRs := sets.New[schema.GroupVersionResource](gvrs...)
@@ -103,11 +113,6 @@ func (w *ResourceWatcher) Run(ctx context.Context) error {
 	// Watch CRDs so we can detect when new API resources matching our group
 	// suffixes are registered in the cluster. When that happens, we exit the
 	// process so the pod restarts and picks up the new GVRs.
-	crdGVR := schema.GroupVersionResource{
-		Group:    "apiextensions.k8s.io",
-		Version:  "v1",
-		Resource: "customresourcedefinitions",
-	}
 	handleCRD := func(obj interface{}) {
 		newGVRs := newMatchingGVRsFromCRD(obj, knownGVRs)
 		if newGVRs.Len() > 0 {

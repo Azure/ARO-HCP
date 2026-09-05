@@ -34,6 +34,14 @@ import (
 // is safe to use as an on-disk path segment.
 var namespacePattern = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$`)
 
+// pollBaselineLookback bounds how far back the whole-cluster poll-baseline
+// query searches for each object's last known state before the export
+// window starts. Not user-tunable by design: an object whose last real
+// change predates it is missing from the baseline regardless of how wide
+// this is (see Inspector.InspectCluster) — this is simply "as far back as
+// practical" rather than a value worth exposing as a flag.
+const pollBaselineLookback = 90 * 24 * time.Hour
+
 // RawOptions is the unvalidated CLI configuration for oc-adm-inspect.
 type RawOptions struct {
 	Kusto             string
@@ -46,8 +54,12 @@ type RawOptions struct {
 	ManagementCluster string
 	ServiceCluster    string
 	OutputPath        string
-	QueryTimeout      time.Duration
-	Limit             int
+	// Out, when set, exports the whole cluster (not a namespace) as a
+	// .kshrk archive at this path instead of writing a filesystem tree —
+	// mutually exclusive with namespace args/flags.
+	Out          string
+	QueryTimeout time.Duration
+	Limit        int
 }
 
 // DefaultOptions returns RawOptions with sensible defaults. The time-window
@@ -75,6 +87,7 @@ func BindOptions(opts *RawOptions, cmd *cobra.Command) error {
 	cmd.Flags().StringVar(&opts.ManagementCluster, "management-cluster", opts.ManagementCluster, "management cluster to inspect (the telemetry 'cluster' name)")
 	cmd.Flags().StringVar(&opts.ServiceCluster, "service-cluster", opts.ServiceCluster, "service cluster to inspect (the telemetry 'cluster' name)")
 	cmd.Flags().StringVar(&opts.OutputPath, "output-path", opts.OutputPath, "path to write the gathered data")
+	cmd.Flags().StringVar(&opts.Out, "out", opts.Out, "export the whole cluster as a .kshrk archive (github.com/phenixblue/k8shark) at this path, instead of one namespace as a filesystem tree; mutually exclusive with namespace args/flags")
 	cmd.Flags().DurationVar(&opts.QueryTimeout, "query-timeout", opts.QueryTimeout, "timeout for query execution")
 	cmd.Flags().IntVar(&opts.Limit, "limit", opts.Limit, "limit the number of rows per query (-1 for no limit)")
 
@@ -121,12 +134,18 @@ func (o *RawOptions) Validate(ctx context.Context, args []string) (*ValidatedOpt
 	}
 
 	namespaces := normalizeNamespaces(append(append([]string{}, o.Namespaces...), args...))
-	if len(namespaces) == 0 {
-		return nil, fmt.Errorf("at least one namespace is required (use --namespace or a positional ns/<name> argument)")
-	}
-	for _, namespace := range namespaces {
-		if !namespacePattern.MatchString(namespace) {
-			return nil, fmt.Errorf("invalid namespace %q: must be a valid Kubernetes namespace name (RFC 1123 label; this also rejects path separators and traversal)", namespace)
+	if o.Out != "" {
+		if len(namespaces) > 0 {
+			return nil, fmt.Errorf("--out exports the whole cluster; it cannot be combined with --namespace or a positional ns/<name> argument")
+		}
+	} else {
+		if len(namespaces) == 0 {
+			return nil, fmt.Errorf("at least one namespace is required (use --namespace or a positional ns/<name> argument), or use --out to export the whole cluster")
+		}
+		for _, namespace := range namespaces {
+			if !namespacePattern.MatchString(namespace) {
+				return nil, fmt.Errorf("invalid namespace %q: must be a valid Kubernetes namespace name (RFC 1123 label; this also rejects path separators and traversal)", namespace)
+			}
 		}
 	}
 
@@ -171,12 +190,22 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*CompletedOptions, err
 	baseOptions.TimestampMax = o.TimestampMax
 	baseOptions.Limit = o.Limit
 
+	var writer ocadminspect.Writer
+	if o.Out != "" {
+		writer, err = ocadminspect.NewKshrkWriter(o.Out, o.ClusterName, o.TimestampMin, o.TimestampMax)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create kshrk writer: %w", err)
+		}
+	} else {
+		writer = ocadminspect.NewFilesystemWriter(o.OutputPath)
+	}
+
 	return &CompletedOptions{
 		ValidatedOptions: o,
 		kustoClient:      kustoClient,
 		factory:          factory,
 		baseOptions:      baseOptions,
-		writer:           ocadminspect.NewFilesystemWriter(o.OutputPath),
+		writer:           writer,
 	}, nil
 }
 

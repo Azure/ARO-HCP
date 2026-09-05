@@ -87,6 +87,27 @@ func (o *CompletedOptions) Inspect(ctx context.Context) error {
 
 	inspector := ocadminspect.NewInspector(o.kustoClient, o.factory, o.baseOptions, o.ClusterName, o.writer)
 
+	if o.Out != "" {
+		logger.Info("inspecting whole cluster",
+			"cluster", o.ClusterName,
+			"windowStart", o.TimestampMin.Format(time.RFC3339),
+			"windowEnd", o.TimestampMax.Format(time.RFC3339),
+			"output", o.Out,
+		)
+		if err := inspector.InspectCluster(ctx, o.TimestampMin.Add(-pollBaselineLookback)); err != nil {
+			return err
+		}
+		kshrkWriter, ok := o.writer.(*ocadminspect.KshrkWriter)
+		if !ok {
+			return fmt.Errorf("internal error: --out set but writer is not a KshrkWriter")
+		}
+		if err := kshrkWriter.Finish(); err != nil {
+			return fmt.Errorf("failed to seal kshrk archive: %w", err)
+		}
+		logger.Info("wrote kshrk archive", "path", o.Out)
+		return nil
+	}
+
 	namespaces, err := inspector.ExpandWithPairedNamespaces(ctx, o.Namespaces)
 	if err != nil {
 		return fmt.Errorf("failed to pair hosted-cluster/control-plane namespaces: %w", err)
