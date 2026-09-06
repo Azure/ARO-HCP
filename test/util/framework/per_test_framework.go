@@ -811,7 +811,7 @@ func (tc *perItOrDescribeTestContext) purgeDeletedKeyVaultsInResourceGroup(ctx c
 				// A 404 means the vault was already purged or its soft-delete
 				// window expired between the list and the purge; that is the
 				// desired end state, so treat it as a no-op rather than noise.
-				if isKeyVaultNotFound(err) {
+				if IsNotFoundError(err) {
 					continue
 				}
 				ginkgo.GinkgoLogr.Error(err, "failed to start purge of soft-deleted key vault; a colliding name may block a later run until it is purged or expires",
@@ -819,7 +819,7 @@ func (tc *perItOrDescribeTestContext) purgeDeletedKeyVaultsInResourceGroup(ctx c
 				continue
 			}
 			if _, err := poller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{Frequency: StandardPollInterval}); err != nil {
-				if isKeyVaultNotFound(err) {
+				if IsNotFoundError(err) {
 					continue
 				}
 				ginkgo.GinkgoLogr.Error(err, "failed to purge soft-deleted key vault; a colliding name may block a later run until it is purged or expires",
@@ -829,10 +829,8 @@ func (tc *perItOrDescribeTestContext) purgeDeletedKeyVaultsInResourceGroup(ctx c
 	}
 }
 
-// isKeyVaultNotFound reports whether err is an Azure 404 response, which for a
-// purge means the vault is already gone (already purged or soft-delete window
-// expired) and can be treated as a successful no-op.
-func isKeyVaultNotFound(err error) bool {
+// IsNotFoundError reports whether err is an Azure 404 (Not Found) response.
+func IsNotFoundError(err error) bool {
 	var respErr *azcore.ResponseError
 	return errors.As(err, &respErr) && respErr.StatusCode == http.StatusNotFound
 }
