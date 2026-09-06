@@ -495,42 +495,80 @@ panels:
     workspace: svc
     step: "60s"
   - title: "HCP Control Plane Pod Churn Ratio (Top 10 Namespaces)"
-    description: "Top 10 HostedControlPlane namespaces by worst pod churn ratio this minute: distinct pods observed per Deployment, divided by desired replica count, maxed across every Deployment in that namespace. Only namespaces above the healthy baseline of 1 are ranked, so a quiet minute can show fewer than 10 lines (or none). Top-10 membership is recomputed every minute, so which namespaces appear can shift over time. Copy the query below and drop the outer topk/max-by-namespace to drill into which component is churning."
+    description: "Top 10 HostedControlPlane namespaces by worst pod churn ratio anywhere in this chart's whole time range: distinct pods observed per Deployment, divided by desired replica count, maxed across every Deployment in that namespace. Ranking is based on each namespace's peak over the full window (not the current minute), so membership is stable -- it only changes when a namespace posts a bigger spike than any prior top-10 member. Lines still show the real per-minute value, which can dip below other non-ranked namespaces at any given moment. Namespaces that never exceed the healthy baseline of 1 are never ranked. This ranking pass re-evaluates the full pod/Deployment join at every sub-point of a 6h lookback, so it is by far the most expensive query in this panel -- if gather-observability CI runs start timing out or slowing down noticeably, this is the first place to check."
     query: |
-      topk(10,
-        (
-          max by (cluster, namespace) (
-            count by (cluster, namespace, workload) (
-              count_over_time(
+      (
+        max by (cluster, namespace) (
+          count by (cluster, namespace, workload) (
+            count_over_time(
+              label_replace(
                 label_replace(
-                  label_replace(
-                    max without (prometheus_replica) (
-                      kube_pod_owner{job="kube-state-metrics", owner_kind="ReplicaSet", namespace=~"ocm-.*"}
-                    ),
-                    "replicaset", "$1", "owner_name", "(.*)"
-                  )
-                  * on (replicaset, namespace) group_left(owner_name) topk by (replicaset, namespace) (
-                    1, max without (prometheus_replica) (
-                      kube_replicaset_owner{job="kube-state-metrics", owner_kind="Deployment", namespace=~"ocm-.*"}
-                    )
+                  max without (prometheus_replica) (
+                    kube_pod_owner{job="kube-state-metrics", owner_kind="ReplicaSet", namespace=~"ocm-.*"}
                   ),
-                  "workload", "$1", "owner_name", "(.*)"
-                )[1m:30s]
-              )
-            )
-            / on (cluster, namespace, workload)
-            (
-              max by (cluster, namespace, workload) (
-                label_replace(
-                  max_over_time(
-                    kube_deployment_spec_replicas{job="kube-state-metrics", namespace=~"ocm-.*"}[1m]
-                  ),
-                  "workload", "$1", "deployment", "(.*)"
+                  "replicaset", "$1", "owner_name", "(.*)"
                 )
-              ) > 0
+                * on (replicaset, namespace) group_left(owner_name) topk by (replicaset, namespace) (
+                  1, max without (prometheus_replica) (
+                    kube_replicaset_owner{job="kube-state-metrics", owner_kind="Deployment", namespace=~"ocm-.*"}
+                  )
+                ),
+                "workload", "$1", "owner_name", "(.*)"
+              )[1m:30s]
             )
           )
-        ) > 1
+          / on (cluster, namespace, workload)
+          (
+            max by (cluster, namespace, workload) (
+              label_replace(
+                max_over_time(
+                  kube_deployment_spec_replicas{job="kube-state-metrics", namespace=~"ocm-.*"}[1m]
+                ),
+                "workload", "$1", "deployment", "(.*)"
+              )
+            ) > 0
+          )
+        )
+      )
+      and on (cluster, namespace)
+      topk(10,
+        max_over_time(
+          (
+            (
+              max by (cluster, namespace) (
+                count by (cluster, namespace, workload) (
+                  count_over_time(
+                    label_replace(
+                      label_replace(
+                        max without (prometheus_replica) (
+                          kube_pod_owner{job="kube-state-metrics", owner_kind="ReplicaSet", namespace=~"ocm-.*"}
+                        ),
+                        "replicaset", "$1", "owner_name", "(.*)"
+                      )
+                      * on (replicaset, namespace) group_left(owner_name) topk by (replicaset, namespace) (
+                        1, max without (prometheus_replica) (
+                          kube_replicaset_owner{job="kube-state-metrics", owner_kind="Deployment", namespace=~"ocm-.*"}
+                        )
+                      ),
+                      "workload", "$1", "owner_name", "(.*)"
+                    )[1m:30s]
+                  )
+                )
+                / on (cluster, namespace, workload)
+                (
+                  max by (cluster, namespace, workload) (
+                    label_replace(
+                      max_over_time(
+                        kube_deployment_spec_replicas{job="kube-state-metrics", namespace=~"ocm-.*"}[1m]
+                      ),
+                      "workload", "$1", "deployment", "(.*)"
+                    )
+                  ) > 0
+                )
+              )
+            ) > 1
+          )[6h:1m]
+        )
       )
     unit: ratio
     workspace: hcp
