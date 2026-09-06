@@ -1755,6 +1755,10 @@
             "private": {
               "type": "boolean"
             },
+            "enableBurstCapacity": {
+              "type": "boolean",
+              "description": "Enables Cosmos DB burst capacity, letting the account use banked unused throughput to absorb short RU spikes at no extra cost"
+            },
             "resourceContainerMaxScale": {
               "type": "integer"
             },

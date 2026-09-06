@@ -311,6 +311,7 @@ frontend:
   cosmosDB:
     billingContainerMaxScale: 4000
     disableLocalAuth: true
+    enableBurstCapacity: true
     fleetContainerMaxScale: 4000
     locksContainerMaxScale: 4000
     name: arohcpci01-rp-j7654321
