@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": "InvalidRequestContent",
+    "message": "Invalid value: \"4.22.8\": invalid node pool version 4.22.8: must be within 2 minor versions of control plane version 4.25.0",
+    "target": "properties.version.id"
+  }
+}
