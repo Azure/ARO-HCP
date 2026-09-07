@@ -28,6 +28,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -75,6 +76,7 @@ func TestBackendExposesMetrics(t *testing.T) {
 			metadataapi.Must(arohcpv1alpha1.NewCluster().ID("test-cluster").HREF(internalClusterID.String()).Build()),
 		}
 		clusterServiceMock.MockClusterServiceClient.EXPECT().ListProvisionShards().Return(ocm.NewSimpleProvisionShardListIterator(nil, nil)).AnyTimes()
+		clusterServiceMock.MockClusterServiceClient.EXPECT().GetClusterResources(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
 		cleanupCtx := utils.ContextWithLogger(context.Background(), integrationutils.DefaultLogger(t))
 		defer storageIntegrationTestInfo.Cleanup(cleanupCtx)
 		defer clusterServiceMock.Cleanup(cleanupCtx)
