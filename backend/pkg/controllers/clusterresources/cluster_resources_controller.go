@@ -266,6 +266,18 @@ func (c *clusterResourcesController) processClusterResources(ctx context.Context
 				errs = append(errs, utils.TrackError(fmt.Errorf("failed to get nodepool %s: %w", classified.nodePoolName, npErr)))
 				continue
 			}
+			// Skipping here drops the desire out of desiredResourceIDs, so
+			// deleteStaleApplyDesires reaps it below.
+			//
+			// While Cluster Service still owns the NodePool it is also still
+			// reporting it here, and its ManifestWork keeps the CR materialized
+			// through the work-agent, so the CR can be re-applied a couple of times
+			// after kube-applier deletes it. That churn is bounded: it stops once
+			// Cluster Service removes the ManifestWork, and it cannot stall the
+			// delete pipeline, because NodePoolClusterServiceDeleteDispatch issues
+			// the Cluster Service delete without waiting on these desires. The churn
+			// disappears entirely once the backend owns NodePool deletion directly.
+			//  TODO: remove this comment once ACM and Maestro are removed.
 			if np == nil || np.ServiceProviderProperties.DeletionTimestamp != nil {
 				continue
 			}

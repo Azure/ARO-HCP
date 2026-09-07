@@ -151,6 +151,37 @@ func TestNodePoolChildResourcesCleanupController_SyncOnce(t *testing.T) {
 			},
 		}
 	}
+	// newTestOwnedNodePoolScopedApplyDesire builds a nodepool-scoped ApplyDesire
+	// that names an owning controller, the way every controller that persists a
+	// desire through the kubeapplierhelpers ensure helpers does.
+	newTestOwnedNodePoolScopedApplyDesire := func(name, owningController string) *kubeapplierapi.ApplyDesire {
+		desire := newTestNodePoolScopedApplyDesire(name)
+		desire.Tags = map[string]string{kubeapplierapi.TagControllerName: owningController}
+		return desire
+	}
+	assertNodePoolScopedKubeApplierResourceExists := func(
+		t *testing.T,
+		ctx context.Context,
+		kubeApplierDBClients *kubeappliercosmosstoragetesting.MockKubeApplierDBClients,
+		resourceIDString string,
+	) {
+		t.Helper()
+		client := kubeApplierDBClients.For(ctx, managementClusterResourceID)
+		require.NotNil(t, client)
+		resourceID := metadataapi.Must(azcorearm.ParseResourceID(resourceIDString))
+		untypedCRUD, err := client.UntypedCRUD(*resourceID.Parent)
+		require.NoError(t, err)
+		iter, err := untypedCRUD.List(ctx, nil)
+		require.NoError(t, err)
+		for _, resource := range iter.Items(ctx) {
+			if resource.ResourceID != nil && strings.EqualFold(resource.ResourceID.String(), resourceIDString) {
+				require.NoError(t, iter.GetError())
+				return
+			}
+		}
+		require.NoError(t, iter.GetError())
+		t.Fatalf("expected nodepool-scoped kube-applier resource %q to still exist", resourceIDString)
+	}
 	assertNoNodePoolScopedKubeApplierResources := func(
 		t *testing.T,
 		ctx context.Context,
@@ -471,6 +502,53 @@ func TestNodePoolChildResourcesCleanupController_SyncOnce(t *testing.T) {
 				assertClusterScopedKubeApplierResourceExists(t, ctx, kubeApplierDBClients,
 					kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(
 						testSubscriptionID, testResourceGroupName, testClusterName, "apply-example"))
+			},
+		},
+		{
+			// An ApplyDesire naming an owning controller is that controller's to
+			// tear down: it flips the desire to Type=Delete and purges the document
+			// only once the kube-applier confirms the object is gone from the
+			// management cluster. Deleting the document here would strand the
+			// object, so the desire - and with it the SPNP - has to survive this
+			// pass. ReadDesires have no cluster-side effect and are still removed.
+			name:             "when a nodepool-scoped ApplyDesire names an owning controller it is left for that controller",
+			existingNodePool: newTestNodePoolWithNewDeletionApproach(t, readyToDeleteNodePoolOptsFunc),
+			childResources: []any{
+				newTestSPCWithManagementCluster(managementClusterResourceID),
+				newTestSPNP(t, nil),
+			},
+			kubeApplierDesires: []any{
+				newTestOwnedNodePoolScopedApplyDesire("apply-nodepool", "ClusterResources"),
+				newTestNodePoolScopedReadDesire("readonly-nodepool"),
+			},
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, kubeApplierDBClients *kubeappliercosmosstoragetesting.MockKubeApplierDBClients) {
+				assertNodePoolScopedKubeApplierResourceExists(t, ctx, kubeApplierDBClients,
+					kubeapplierapi.ToNodePoolScopedApplyDesireResourceIDString(
+						testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName, "apply-nodepool"))
+
+				spnpCRUD := db.ServiceProviderNodePools(
+					testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName)
+				_, err := spnpCRUD.Get(ctx, coreapi.ServiceProviderNodePoolResourceName)
+				require.NoError(t, err, "expected SPNP to be held back while an owned ApplyDesire remains")
+			},
+		},
+		{
+			// No owning controller is recorded, so nothing else will ever reap it.
+			// Removing the document here is the backstop that keeps deletion moving.
+			name:             "when a nodepool-scoped ApplyDesire names no owning controller it is deleted",
+			existingNodePool: newTestNodePoolWithNewDeletionApproach(t, readyToDeleteNodePoolOptsFunc),
+			childResources: []any{
+				newTestSPCWithManagementCluster(managementClusterResourceID),
+				newTestSPNP(t, nil),
+			},
+			kubeApplierDesires: []any{newTestNodePoolScopedApplyDesire("orphaned-apply-nodepool")},
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, kubeApplierDBClients *kubeappliercosmosstoragetesting.MockKubeApplierDBClients) {
+				assertNoNodePoolScopedKubeApplierResources(t, ctx, kubeApplierDBClients)
+
+				spnpCRUD := db.ServiceProviderNodePools(
+					testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName)
+				_, err := spnpCRUD.Get(ctx, coreapi.ServiceProviderNodePoolResourceName)
+				require.True(t, cosmosstorageutils.IsNotFoundError(err), "expected SPNP to be deleted")
 			},
 		},
 	}
