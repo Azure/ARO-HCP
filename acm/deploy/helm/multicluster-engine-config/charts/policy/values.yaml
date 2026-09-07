@@ -2,7 +2,7 @@ global:
   registryOverride: "registry.redhat.io/rhacm2"
   imageOverrides:
     governance_policy_propagator: "governance-policy-propagator-rhel9@sha256:21e57c2f6b9556b45ef33934b35edb8c563385b591cb557fecd6322e1a635768"
-    governance_policy_addon_controller: "acm-governance-policy-addon-controller-rhel9@sha256:c48babbfe45a6df7dd88f08c6304f019fe60c4059d18d16f744cfae4ac8c8ea7"
+    governance_policy_addon_controller: "acm-governance-policy-addon-controller-rhel9@sha256:226041eb9c2c4424edd1fbec83c1a2041e6626d4e29907e15a1f4ce0d11ba54d"
     config_policy_controller: "config-policy-controller-rhel9@sha256:730d8bcc0bc45e93682d5a24a6825100559920216edbff161c2cc48af1f16993"
     governance_policy_framework_addon: "acm-governance-policy-framework-addon-rhel9@sha256:f5d5dde4b41e4946f306cb7539a55a673ae47a1988b865e4d2e7a5849a9dd4c5"
     klusterlet_addon_controller: "klusterlet-addon-controller-rhel9@sha256:8f63faa54bd2c261b81ccd289ed1e801decaeb85fa86d537404153f1cacc8f7d"
