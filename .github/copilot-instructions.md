@@ -13,6 +13,7 @@ Key points to remember:
 - Ignore Tide when evaluating CI/CD status — it is not a CI check.
 - Screenshots are required for graph, UI, metrics, and performance changes.
 - The PR checklist is built into `.github/PULL_REQUEST_TEMPLATE.md` — it appears automatically.
+- For a PR that claims to be a revert, verify that it is a clean revert created with `git revert`. The description must explicitly say so and identify the reverted commit or PR; otherwise, flag a critical issue.
 
 ## Security Review (Mandatory for all PR reviews)
 
