@@ -288,8 +288,28 @@ func (s *purgeAgedDeletedStep) Discover(ctx context.Context) ([]runner.Target, e
 	return targets, nil
 }
 
+// SAFETY CONTRACT:
+// A deleted directory object is purged only after re-reading it from
+// deletedItems immediately before the destructive call. This re-read guards
+// against the object having been restored (it no longer appears in
+// deletedItems), reclassified into a non-purge-eligible type, or not yet
+// having aged past minAge, in the time between Discover and Delete.
 func (s *purgeAgedDeletedStep) Delete(ctx context.Context, target runner.Target, _ bool) error {
-	err := s.cfg.GraphClient.Directory().DeletedItems().ByDirectoryObjectId(target.ID).Delete(ctx, nil)
+	record, found, err := lookupDeletedDirectoryObject(ctx, s.cfg.GraphClient, target.ID)
+	if err != nil {
+		return fmt.Errorf("failed revalidating deleted directory object %q: %w", target.ID, err)
+	}
+	if !found {
+		return nil
+	}
+	if record.DeletedDateTime == nil {
+		return fmt.Errorf("%w: deleted directory object %q lost its deletedDateTime on revalidation", runner.ErrTargetRetained, target.ID)
+	}
+	if age := s.now().Sub(*record.DeletedDateTime); age < s.minAge {
+		return fmt.Errorf("%w: deleted directory object %q no longer meets minAge on revalidation", runner.ErrTargetRetained, target.ID)
+	}
+
+	err = s.cfg.GraphClient.Directory().DeletedItems().ByDirectoryObjectId(target.ID).Delete(ctx, nil)
 	if err != nil {
 		if isGraphNotFoundError(err) {
 			return nil
