@@ -714,3 +714,114 @@ func TestClassifyClusterResource(t *testing.T) {
 		})
 	}
 }
+
+// TestProcessClusterResourcesNodePoolPath covers the node-pool-scoped branch of
+// processClusterResources. A NodePool marked for deletion is dropped from the
+// desired set and its ApplyDesire is reaped, even while Cluster Service is
+// still reporting the CR. That is deliberate: NodePoolClusterServiceDeleteDispatch
+// does not wait on these desires, so the reap cannot deadlock against the
+// work-agent re-applying the CR from the still-live ManifestWork.
+func TestProcessClusterResourcesNodePoolPath(t *testing.T) {
+	t.Parallel()
+
+	const testNodePoolName = "gpu-np-1"
+
+	nodePoolCR := `{"apiVersion":"hypershift.openshift.io/v1beta1","kind":"NodePool",` +
+		`"metadata":{"name":"` + testClusterName + `-` + testNodePoolName + `","namespace":"ocm-env-abc"},` +
+		`"spec":{"clusterName":"` + testClusterName + `"}}`
+
+	newNodePool := func(deleting bool) *coreapi.HCPOpenShiftClusterNodePool {
+		resourceID := metadataapi.Must(azcorearm.ParseResourceID(
+			"/subscriptions/" + testSubscriptionID +
+				"/resourceGroups/" + testResourceGroupName +
+				"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
+				"/nodePools/" + testNodePoolName,
+		))
+		np := &coreapi.HCPOpenShiftClusterNodePool{
+			CosmosMetadata: coreapi.CosmosMetadata{
+				ResourceID:   resourceID,
+				PartitionKey: strings.ToLower(resourceID.SubscriptionID),
+			},
+			TrackedResource: coreapi.TrackedResource{
+				Resource: coreapi.Resource{
+					ID:   resourceID,
+					Name: testNodePoolName,
+					Type: resourceID.ResourceType.String(),
+				},
+			},
+		}
+		np.ServiceProviderProperties.ClusterServiceID = metadataapi.Ptr(metadataapi.Must(
+			metadataapi.NewInternalID("/api/clusters_mgmt/v1/clusters/abc123/node_pools/np123")))
+		if deleting {
+			now := metav1.Now()
+			np.ServiceProviderProperties.DeletionTimestamp = &now
+		}
+		return np
+	}
+
+	tests := []struct {
+		name           string
+		nodePool       *coreapi.HCPOpenShiftClusterNodePool
+		wantDesireType kubeapplierapi.ApplyDesireType
+		reason         string
+	}{
+		{
+			name:           "keeps desire applied while NodePool is live",
+			nodePool:       newNodePool(false),
+			wantDesireType: kubeapplierapi.ApplyDesireTypeServerSideApply,
+			reason:         "a live NodePool must keep its ApplyDesire applied",
+		},
+		{
+			name:           "reaps desire once NodePool is marked for deletion",
+			nodePool:       newNodePool(true),
+			wantDesireType: kubeapplierapi.ApplyDesireTypeDelete,
+			reason:         "a deleting NodePool is dropped from the desired set and reaped",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+
+			mockKubeApplierClient := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClient()
+			mockClients := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClients()
+			mockClients.Register(testManagementClusterResourceID, mockKubeApplierClient)
+
+			npCRUD, err := mockKubeApplierClient.ApplyDesiresForNodePool(
+				testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName)
+			require.NoError(t, err, "failed to get node pool ApplyDesires CRUD")
+
+			mcLister := &fleetlistertesting.SliceManagementClusterLister{
+				ManagementClusters: []*fleetapi.ManagementCluster{{ResourceID: testManagementClusterResourceID}},
+			}
+			syncer := &clusterResourcesController{
+				nodePoolLister:       &corelistertesting.SliceNodePoolLister{NodePools: []*coreapi.HCPOpenShiftClusterNodePool{tt.nodePool}},
+				kubeApplierDBClients: mockClients,
+				applyDesireLister:    &kubeapplierlistertesting.DBApplyDesireLister{Clients: mockClients, Lister: mcLister},
+			}
+
+			// Seed the desire with a pass over a healthy NodePool, so the deletion
+			// case exercises reaping an existing desire rather than never creating one.
+			seedSyncer := *syncer
+			seedSyncer.nodePoolLister = &corelistertesting.SliceNodePoolLister{
+				NodePools: []*coreapi.HCPOpenShiftClusterNodePool{newNodePool(false)},
+			}
+			require.NoError(t, seedSyncer.processClusterResources(ctx, testKey(), testManagementClusterResourceID,
+				buildClusterResources(map[string]string{"node-pool": nodePoolCR})),
+				"seeding the NodePool ApplyDesire should succeed")
+			_, err = npCRUD.Get(ctx, "nodepool")
+			require.NoError(t, err, "seed pass should have created the NodePool ApplyDesire")
+
+			// Cluster Service still reports the CR, as it does until it removes the
+			// ManifestWork.
+			require.NoError(t, syncer.processClusterResources(ctx, testKey(), testManagementClusterResourceID,
+				buildClusterResources(map[string]string{"node-pool": nodePoolCR})),
+				"processClusterResources should succeed")
+
+			desire, err := npCRUD.Get(ctx, "nodepool")
+			require.NoError(t, err, "NodePool ApplyDesire should still exist: %s", tt.reason)
+			assert.Equal(t, tt.wantDesireType, desire.Spec.Type, "unexpected desire type: %s", tt.reason)
+		})
+	}
+}

@@ -140,8 +140,8 @@ func (c *clusterDeletionController) SyncOnce(ctx context.Context, key controller
 		return nil
 	}
 
-	// Precondition: all ApplyDesires for this cluster must be gone.
-	// Each controller is responsible for deleting its own desires during cluster deletion.
+	// Precondition: all cluster-scoped ApplyDesires for this cluster must be gone.
+	// Node-pool-scoped desires are handled by the node pool deletion pipeline.
 	preconditionMet, err := c.deletePreconditionAllApplyDesiresGone(ctx, key, cachedSPC)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to check ApplyDesire precondition: %w", err))

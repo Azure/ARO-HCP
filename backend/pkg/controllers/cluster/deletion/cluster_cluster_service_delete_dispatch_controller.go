@@ -57,9 +57,8 @@ const missingClusterServiceIDTimeout = 120 * time.Second
 // on the Cluster to record that this step is complete and avoid re-issuing
 // the delete on subsequent syncs.
 //
-// Before dispatching the delete, this controller waits until the
-// ClusterResourcesController has cleaned up all its tagged ApplyDesires,
-// so that kube resources are torn down before the cluster itself.
+// ClusterResourcesController has purged its tagged ApplyDesire documents,
+// so it won't recreate them during cluster deletion.
 type clusterClusterServiceDeleteDispatchSyncer struct {
 	clock                utilsclock.PassiveClock
 	clusterLister        corelisters.ClusterLister

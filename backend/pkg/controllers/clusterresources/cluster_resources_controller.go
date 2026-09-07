@@ -154,9 +154,10 @@ func (c *clusterResourcesController) SyncOnce(ctx context.Context, key controlle
 }
 
 // deleteAllOwnedApplyDesires removes all ApplyDesire Cosmos documents owned by
-// this controller for the given cluster. Called during cluster deletion — the
-// underlying kube resources are cleaned up separately by the
-// ClusterChildResourcesCleanupController, so we only need to purge the docs.
+// this controller for the given cluster during cluster deletion.
+// Note: deleting an ApplyDesire document does not trigger deletion of the
+// underlying Kubernetes object;
+// TODO: Teardown of underlying Kubernetes resources.
 func (c *clusterResourcesController) deleteAllOwnedApplyDesires(ctx context.Context, key controllerutils.HCPClusterKey, managementCluster *azcorearm.ResourceID) error {
 	logger := utils.LoggerFromContext(ctx)
 
@@ -266,6 +267,18 @@ func (c *clusterResourcesController) processClusterResources(ctx context.Context
 				errs = append(errs, utils.TrackError(fmt.Errorf("failed to get nodepool %s: %w", classified.nodePoolName, npErr)))
 				continue
 			}
+			// Skipping here drops the desire out of desiredResourceIDs, so
+			// deleteStaleApplyDesires reaps it below.
+			//
+			// While Cluster Service still owns the NodePool it is also still
+			// reporting it here, and its ManifestWork keeps the CR materialized
+			// through the work-agent, so the CR can be re-applied a couple of times
+			// after kube-applier deletes it. That churn is bounded: it stops once
+			// Cluster Service removes the ManifestWork, and it cannot stall the
+			// delete pipeline, because NodePoolClusterServiceDeleteDispatch issues
+			// the Cluster Service delete without waiting on these desires. The churn
+			// disappears entirely once the backend owns NodePool deletion directly.
+			//  TODO: remove this comment once ACM and Maestro are removed.
 			if np == nil || np.ServiceProviderProperties.DeletionTimestamp != nil {
 				continue
 			}
