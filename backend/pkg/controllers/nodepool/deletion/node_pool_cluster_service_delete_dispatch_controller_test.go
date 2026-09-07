@@ -40,7 +40,6 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
-	kubeapplierlistertesting "github.com/Azure/ARO-HCP/internal/database/listertesting/kubeapplierlistertesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -258,7 +257,6 @@ func TestNodePoolClusterServiceDeleteDispatchSyncer_SyncOnce(t *testing.T) {
 				nodePoolLister:                  &corelistertesting.SliceNodePoolLister{NodePools: nodePoolsForLister},
 				resourcesDBClient:               mockResourcesDBClient,
 				clusterServiceClient:            mockCSClient,
-				applyDesireLister:               &kubeapplierlistertesting.SliceApplyDesireLister{},
 				firstSeenDeletionTimestampCache: firstSeenDeletionTimestampCache,
 			}
 
@@ -298,7 +296,6 @@ func TestNodePoolClusterServiceDeleteDispatchSyncer_SyncOnce_cacheShortCircuit(t
 		nodePoolLister:                  &corelistertesting.SliceNodePoolLister{NodePools: []*coreapi.HCPOpenShiftClusterNodePool{cachedNodePool}},
 		resourcesDBClient:               mockResourcesDBClient,
 		clusterServiceClient:            ocm.NewMockClusterServiceClientSpec(ctrl),
-		applyDesireLister:               &kubeapplierlistertesting.SliceApplyDesireLister{},
 		firstSeenDeletionTimestampCache: lru.New(10),
 	}
 
@@ -335,7 +332,6 @@ func TestNodePoolClusterServiceDeleteDispatchSyncer_SyncOnce_firstSeenDeletionCa
 		nodePoolLister:                  &corelistertesting.SliceNodePoolLister{NodePools: []*coreapi.HCPOpenShiftClusterNodePool{nodePool}},
 		resourcesDBClient:               mockResourcesDBClient,
 		clusterServiceClient:            ocm.NewMockClusterServiceClientSpec(ctrl),
-		applyDesireLister:               &kubeapplierlistertesting.SliceApplyDesireLister{},
 		firstSeenDeletionTimestampCache: firstSeenDeletionTimestampCache,
 	}
 
@@ -379,7 +375,6 @@ func TestNodePoolClusterServiceDeleteDispatchSyncer_SyncOnce_firstSeenDeletionCa
 		nodePoolLister:                  &corelistertesting.SliceNodePoolLister{NodePools: []*coreapi.HCPOpenShiftClusterNodePool{nodePool}},
 		resourcesDBClient:               mockResourcesDBClient,
 		clusterServiceClient:            mockCSClient,
-		applyDesireLister:               &kubeapplierlistertesting.SliceApplyDesireLister{},
 		firstSeenDeletionTimestampCache: firstSeenDeletionTimestampCache,
 	}
 
