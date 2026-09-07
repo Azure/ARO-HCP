@@ -17,10 +17,6 @@ aliases:
   - sclarkso 
   - venkateshsredhat 
   - weherdh
-  capz-approvers:
-  - RadekCap
-  - marek-veber
-  - mzazrivec
   sre-approvers:
   - SudoBrendan
   - ehvs

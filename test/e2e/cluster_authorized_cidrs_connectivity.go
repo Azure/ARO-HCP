@@ -189,11 +189,9 @@ var _ = Describe("Authorized CIDRs", func() {
 				}, 5*time.Minute, 10*time.Second).Should(Succeed())
 
 				By("verifying aggregated API services from authorized VM")
-				// Filter :True lines on the VM to stay within the 4KB run-command output limit.
-				// Write kubectl output first so a kubectl failure fails the command. Isolate grep
-				// so only its rc=1 ("no matches", the healthy case) is treated as success.
+				// Only output unavailable services (filter out :True lines) to stay within 4KB VM output limit
 				apiServicesCmd := fmt.Sprintf(
-					`echo '%s' | base64 -d > /tmp/kubeconfig && kubectl --kubeconfig=/tmp/kubeconfig get apiservices -o jsonpath='{range .items[*]}{.metadata.name}:{.status.conditions[?(@.type=="Available")].status}{"\n"}{end}' > /tmp/apiservices.status && { grep -v ':True$' /tmp/apiservices.status; rc=$?; [ $rc -le 1 ]; }`,
+					`echo '%s' | base64 -d > /tmp/kubeconfig && kubectl --kubeconfig=/tmp/kubeconfig get apiservices -o jsonpath='{range .items[*]}{.metadata.name}:{.status.conditions[?(@.type=="Available")].status}{"\n"}{end}' | grep -v ':True$'`,
 					kubeconfigB64,
 				)
 
@@ -361,11 +359,9 @@ var _ = Describe("Authorized CIDRs", func() {
 				Expect(err).NotTo(HaveOccurred(), "failed to create console OAuth client secret for external auth via VM")
 
 				By("verifying all cluster operators are healthy from authorized VM")
-				// Filter :True lines on the VM to stay within the 4KB run-command output limit.
-				// Write kubectl output first so a kubectl failure fails the command. Isolate grep
-				// so only its rc=1 ("no matches", the healthy case) is treated as success.
+				// Only output unavailable operators (filter out :True lines) to stay within 4KB VM output limit
 				clusterOperatorsCmd := fmt.Sprintf(
-					`echo '%s' | base64 -d > /tmp/kubeconfig && kubectl --kubeconfig=/tmp/kubeconfig get clusteroperators -o jsonpath='{range .items[*]}{.metadata.name}:{.status.conditions[?(@.type=="Available")].status}{"\n"}{end}' > /tmp/clusteroperators.status && { grep -v ':True$' /tmp/clusteroperators.status; rc=$?; [ $rc -le 1 ]; }`,
+					`echo '%s' | base64 -d > /tmp/kubeconfig && kubectl --kubeconfig=/tmp/kubeconfig get clusteroperators -o jsonpath='{range .items[*]}{.metadata.name}:{.status.conditions[?(@.type=="Available")].status}{"\n"}{end}' | grep -v ':True$'`,
 					kubeconfigB64,
 				)
 
