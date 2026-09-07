@@ -81,18 +81,13 @@ func (c StampWatchingControllerConfig) withDefaults() StampWatchingControllerCon
 	return c
 }
 
-// StampWatchingController is a controller base that watches
-// fleet informers, handles etag-based change detection with cooldown gating,
-// and delegates reconciliation to a StampSyncer.
-type StampWatchingController = controllerutils.GenericWatchingController[StampKey]
-
 // NewStampWatchingController creates a controller and delegates
 // reconciliation to the syncer. Call QueueForInformers to register informers.
 func NewStampWatchingController(
 	name string,
 	syncer StampSyncer,
 	cfg StampWatchingControllerConfig,
-) *StampWatchingController {
+) Controller {
 	cfg = cfg.withDefaults()
 
 	var cooldown controllerutils.CooldownChecker
