@@ -1062,9 +1062,7 @@ svc:
   istio:
     ingressGatewayIPAddressIPTags: ""
     ingressGatewayIPAddressName: aro-hcp-istio-ingress
-    istioctlVersion: 1.31.0
     tag: prod-stable
-    targetVersion: asm-1-29
     versions: asm-1-29
   jaeger:
     deploy: true

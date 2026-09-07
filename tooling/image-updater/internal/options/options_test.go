@@ -265,7 +265,7 @@ func TestValidateConfig(t *testing.T) {
 				},
 			},
 			wantErr:    true,
-			wantErrMsg: "source image or githubLatestRelease is required",
+			wantErrMsg: "source image is required",
 		},
 		{
 			name: "no targets configured",
@@ -442,26 +442,15 @@ func TestRawUpdateOptions_Validate_InvalidConfig(t *testing.T) {
 	})
 }
 
-// TestRealConfigValid_Regression ensures the in-repo config.yaml loads and validates successfully,
-// and that any githubLatestRelease entries use valid owner/repo format.
+// TestRealConfigValid_Regression ensures the in-repo config.yaml loads and validates successfully.
 func TestRealConfigValid_Regression(t *testing.T) {
 	configPath := filepath.Join("..", "..", "config.yaml")
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
 		t.Skip("in-repo config.yaml not found (run from tooling/image-updater or repo root)")
 	}
 	opts := &RawUpdateOptions{ConfigPath: configPath, DryRun: true}
-	validated, err := opts.Validate(context.Background())
-	if err != nil {
+	if _, err := opts.Validate(context.Background()); err != nil {
 		t.Fatalf("real config Validate() failed: %v", err)
-	}
-	for name, img := range validated.Config.Images {
-		if img.Source.GitHubLatestRelease == "" {
-			continue
-		}
-		parts := strings.SplitN(img.Source.GitHubLatestRelease, "/", 2)
-		if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
-			t.Errorf("image %q: githubLatestRelease %q is not valid owner/repo format", name, img.Source.GitHubLatestRelease)
-		}
 	}
 }
 
