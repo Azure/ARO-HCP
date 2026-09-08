@@ -1,0 +1,9 @@
+{
+	"properties": {
+		"platform": {
+			"containerRegistry": {
+				"managedIdentity": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/customer-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/acr-pull-mi"
+			}
+		}
+	}
+}
