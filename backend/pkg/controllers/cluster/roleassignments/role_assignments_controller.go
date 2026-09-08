@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"slices"
 	"strings"
 	"time"
@@ -355,11 +356,13 @@ func (c *roleAssignmentsSyncer) syncRoleAssignments(ctx context.Context, cluster
 		roleAssignments.EarliestRecheckTime = nil
 	}
 
-	// Persist the classified pending/confirmed state BEFORE any Azure Create, but only when the
-	// role-assignment references actually changed, so an unchanged SET does not trigger a redundant
-	// Cosmos write. A Cosmos precondition (optimistic-concurrency) failure MUST NOT be treated as
-	// success: the state was not persisted, so we must not proceed to create.
-	if !roleAssignmentReferencesEqual(existingServiceProviderCluster.Status.AzureResources.RoleAssignments, replacement.Status.AzureResources.RoleAssignments) {
+	// Persist the classified pending/confirmed state BEFORE any Azure Create, but only when it
+	// actually changed, so an unchanged document does not trigger a redundant Cosmos write. Only
+	// Status.AzureResources.RoleAssignments is mutated on the deep copy, so a whole-document
+	// reflect.DeepEqual detects exactly a role-assignment change. A Cosmos precondition
+	// (optimistic-concurrency) failure MUST NOT be treated as success: the state was not persisted,
+	// so we must not proceed to create.
+	if !reflect.DeepEqual(existingServiceProviderCluster, replacement) {
 		_, persistErr := c.resourcesDBClient.ServiceProviderClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName, cluster.ID.Name).Replace(ctx, replacement, nil)
 		if persistErr != nil {
 			if cosmosstorageutils.IsPreconditionFailedError(persistErr) {
@@ -389,41 +392,6 @@ func (c *roleAssignmentsSyncer) syncRoleAssignments(ctx context.Context, cluster
 	// Every collected error is wrapped with utils.TrackError where it is appended, so the join
 	// is returned without re-wrapping.
 	return errors.Join(errs...)
-}
-
-// roleAssignmentReferencesEqual reports whether two role-assignment AzureMultiReference values are
-// equal in the only fields this controller writes: the PendingAzureResources and AzureResources
-// slices and EarliestRecheckTime. The slices are compared element-wise (order-sensitive is fine:
-// expected is deterministically sorted and retained extras are appended in a stable order). It is
-// used in place of a whole-document diff so a Cosmos Replace is issued only when the
-// role-assignment state actually changed.
-func roleAssignmentReferencesEqual(a, b coreapi.AzureMultiReference) bool {
-	return resourceIDSlicesEqual(a.PendingAzureResources, b.PendingAzureResources) &&
-		resourceIDSlicesEqual(a.AzureResources, b.AzureResources) &&
-		earliestRecheckTimesEqual(a.EarliestRecheckTime, b.EarliestRecheckTime)
-}
-
-// resourceIDSlicesEqual reports whether two resource-ID slices are element-wise equal: same length,
-// each pair equal under the case-insensitive controllerutil.ResourceIDsEqual.
-func resourceIDSlicesEqual(a, b []*azcorearm.ResourceID) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if !controllerutil.ResourceIDsEqual(a[i], b[i]) {
-			return false
-		}
-	}
-	return true
-}
-
-// earliestRecheckTimesEqual reports whether two recheck times are equal: both nil, or both non-nil
-// and the same instant.
-func earliestRecheckTimesEqual(a, b *metav1.Time) bool {
-	if a == nil || b == nil {
-		return a == b
-	}
-	return a.Time.Equal(b.Time)
 }
 
 // roleAssignmentDefinition describes a single managed-resource-group-scoped role assignment
@@ -507,11 +475,10 @@ func (c *roleAssignmentsSyncer) expectedRoleAssignments(cluster *coreapi.HCPOpen
 	// The operator maps above iterate in a non-deterministic order, so sort the expected
 	// assignments by their canonical (case-insensitive, matching ResourceIDsEqual) resource ID.
 	// This keeps the persisted PendingAzureResources / AzureResources ordering stable across
-	// passes, so an unchanged SET does not look changed to the order-sensitive
-	// roleAssignmentReferencesEqual check in syncRoleAssignments - which would otherwise cause
-	// redundant Cosmos writes (and spurious optimistic-concurrency conflicts). The de-dup in
-	// appendRoleAssignments guarantees the sort key is unique, so the ordering is total and
-	// deterministic.
+	// passes, so an unchanged SET does not look changed to the slice-order-sensitive
+	// reflect.DeepEqual check in syncRoleAssignments - which would otherwise cause redundant Cosmos
+	// writes (and spurious optimistic-concurrency conflicts). The de-dup in appendRoleAssignments
+	// guarantees the sort key is unique, so the ordering is total and deterministic.
 	slices.SortFunc(expected, func(a, b roleAssignmentDefinition) int {
 		return strings.Compare(strings.ToLower(a.resourceID.String()), strings.ToLower(b.resourceID.String()))
 	})

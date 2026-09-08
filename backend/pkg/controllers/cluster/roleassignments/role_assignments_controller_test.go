@@ -306,8 +306,8 @@ var testHCPClusterKey = controllerutils.HCPClusterKey{
 // its slice in a stable order (sorted by the canonical, case-insensitive resource ID) regardless
 // of Go's randomized iteration over the operator maps. A stable order keeps the persisted
 // PendingAzureResources / AzureResources ordering from flapping between passes, which would
-// otherwise make the order-sensitive roleAssignmentReferencesEqual check report spurious changes
-// and drive redundant Cosmos writes (and precondition conflicts) even when the SET is unchanged.
+// otherwise make the slice-order-sensitive reflect.DeepEqual check report spurious changes and
+// drive redundant Cosmos writes (and precondition conflicts) even when the SET is unchanged.
 func TestExpectedRoleAssignmentsDeterministicOrder(t *testing.T) {
 	t.Parallel()
 
@@ -649,44 +649,6 @@ func TestRoleAssignmentsSyncerSyncOnceClassifyErrorSkipsPersistAndCreate(t *test
 	got := updated.Status.AzureResources.RoleAssignments
 	assertResourceIDSetEqual(t, nil, got.PendingAzureResources, "PendingAzureResources (nothing persisted)")
 	assertResourceIDSetEqual(t, nil, got.AzureResources, "AzureResources (nothing persisted)")
-}
-
-// TestRoleAssignmentReferencesEqual exercises the inline equality that guards the Cosmos write in
-// syncRoleAssignments: a Replace is issued only when PendingAzureResources, AzureResources, or
-// EarliestRecheckTime actually changed. The slice comparison is order-sensitive.
-func TestRoleAssignmentReferencesEqual(t *testing.T) {
-	t.Parallel()
-
-	ids := testExpectedRoleAssignmentIDs(t)
-	idA, idB := ids[0], ids[1]
-	t0 := metav1.NewTime(testFixedNow())
-	t1 := metav1.NewTime(testFixedNow().Add(time.Hour))
-
-	ref := func(pending, confirmed []*azcorearm.ResourceID, rt *metav1.Time) coreapi.AzureMultiReference {
-		return coreapi.AzureMultiReference{PendingAzureResources: pending, AzureResources: confirmed, EarliestRecheckTime: rt}
-	}
-
-	testCases := []struct {
-		name  string
-		a, b  coreapi.AzureMultiReference
-		equal bool
-	}{
-		{"both empty", ref(nil, nil, nil), ref(nil, nil, nil), true},
-		{"same content", ref([]*azcorearm.ResourceID{idA}, []*azcorearm.ResourceID{idB}, &t0), ref([]*azcorearm.ResourceID{idA}, []*azcorearm.ResourceID{idB}, &t0), true},
-		{"pending differs", ref([]*azcorearm.ResourceID{idA}, nil, nil), ref([]*azcorearm.ResourceID{idB}, nil, nil), false},
-		{"pending length differs", ref([]*azcorearm.ResourceID{idA}, nil, nil), ref(nil, nil, nil), false},
-		{"confirmed differs", ref(nil, []*azcorearm.ResourceID{idA}, nil), ref(nil, []*azcorearm.ResourceID{idB}, nil), false},
-		{"pending order differs", ref([]*azcorearm.ResourceID{idA, idB}, nil, nil), ref([]*azcorearm.ResourceID{idB, idA}, nil, nil), false},
-		{"time nil vs set", ref(nil, nil, nil), ref(nil, nil, &t0), false},
-		{"time differs", ref(nil, nil, &t0), ref(nil, nil, &t1), false},
-		{"time equal", ref(nil, nil, &t0), ref(nil, nil, &t0), true},
-	}
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			assert.Equal(t, tc.equal, roleAssignmentReferencesEqual(tc.a, tc.b))
-		})
-	}
 }
 
 // TestRoleAssignmentsSyncerSyncOnceCreateErrorStaysPending verifies that when creating a
