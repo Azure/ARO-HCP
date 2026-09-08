@@ -9,6 +9,22 @@
 $schema: "pipeline.schema.v1"
 serviceGroup: Microsoft.Azure.ARO.HCP.Management.Infra
 rolloutName: Management Cluster Rollout
+# Pre-build the Go binary invoked by the cluster-create Shell step below. The EV2
+# Shell runner image has no Go toolchain, so the binary is built here and shipped
+# as part of the step's workingDir, same pattern as scripts/grafana-group-roles in
+# global-pipeline-stg.yaml.
+buildStep:
+  command: bash
+  args:
+  - -c
+  - |
+    set -euo pipefail
+    tmp="$(mktemp ./scripts/aks-cluster-create/aks-cluster-create.XXXXXX)"
+    trap 'rm -f "${tmp}"' EXIT
+    CGO_ENABLED=0 go build -o "${tmp}" ./scripts/aks-cluster-create
+    chmod 0755 "${tmp}"
+    mv "${tmp}" ./scripts/aks-cluster-create/aks-cluster-create
+    trap - EXIT
 resourceGroups:
 - name: global
   resourceGroup: '{{ .global.rg }}'
@@ -95,6 +111,64 @@ resourceGroups:
       resourceGroup: global
       step: output
       name: globalMSIId
+  # Swift VNet is mandatory for management clusters, so this step grants the Swift
+  # VNet RBAC unconditionally.
+  - name: swift-vnet-permissions
+    action: ARM
+    template: templates/swift-vnet-permissions.bicep
+    parameters: configurations/swift-vnet-permissions.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    variables:
+    - name: deploymentMsiId
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
+    dependsOn:
+    - resourceGroup: management
+      step: subscription-output
+  # Create/tag the Swift VNet. The tag stampcreatorserviceinfo=true must be written by the
+  # Swift-registered globalMSI, so this step launches a container group assigned globalMSI and
+  # runs the create/tag AS globalMSI from inside it (scripts/swift-vnet.sh). Create, wait, log
+  # and cleanup all happen in this single Shell step, so there is no cross-step async race. Runs
+  # ahead of infra since infra now also creates the node/pod subnets that live in this VNet.
+  - name: swift-vnet
+    action: Shell
+    command: ./swift-vnet.sh
+    workingDir: ./scripts
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
+    variables:
+    - name: VNET_NAME
+      value: aks-net
+    - name: VNET_ADDRESS_PREFIX
+      configRef: mgmt.aks.vnetAddressPrefix
+    - name: RESOURCE_GROUP
+      configRef: mgmt.rg
+    - name: SUBSCRIPTION_ID
+      input:
+        resourceGroup: management
+        step: subscription-output
+        name: subscriptionId
+    - name: DEPLOYMENT_MSI_ID
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
+    dependsOn:
+    - resourceGroup: management
+      step: swift-vnet-permissions
+    automatedRetry:
+      errorContainsAny:
+      - "ContainerGroupDeploymentNotReady"
+      - "Timed out"
+      - "dns readiness (login.microsoftonline.com): giving up"
+      - "az login (globalMSI): giving up"
+      maximumRetryCount: 3
+      durationBetweenRetries: 1m
   - name: infra
     action: ARM
     template: templates/mgmt-infra.bicep
@@ -109,6 +183,15 @@ resourceGroups:
     dependsOn:
     - resourceGroup: management
       step: rpRegistration
+    - resourceGroup: management
+      step: swift-vnet
+    automatedRetry:
+      errorContainsAny:
+      # The deployment identity's Key Vault role assignment may not have
+      # propagated yet when creating the aks-etcd-encryption key.
+      - "ForbiddenByRbac"
+      maximumRetryCount: 3
+      durationBetweenRetries: 2m
   - name: svc-mgmt-permissions
     action: ARM
     omitFromServiceGroupCompletion: true
@@ -302,70 +385,132 @@ resourceGroups:
       - "ServiceUnavailable"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
-  # Build the MC
-  # Swift VNet is mandatory for management clusters, so this step grants the Swift
-  # VNet RBAC unconditionally.
-  - name: swift-vnet-permissions
-    action: ARM
-    template: templates/swift-vnet-permissions.bicep
-    parameters: configurations/swift-vnet-permissions.tmpl.bicepparam
-    deploymentLevel: ResourceGroup
-    variables:
-    - name: deploymentMsiId
-      input:
-        resourceGroup: global
-        step: output
-        name: globalMSIId
-    dependsOn:
-    - resourceGroup: management
-      step: subscription-output
-  # Create/tag the Swift VNet. The tag stampcreatorserviceinfo=true must be written by the
-  # Swift-registered globalMSI, so this step launches a container group assigned globalMSI and
-  # runs the create/tag AS globalMSI from inside it (scripts/swift-vnet.sh). Create, wait, log
-  # and cleanup all happen in this single Shell step, so there is no cross-step async race.
-  - name: swift-vnet
+  - name: cluster-create
     action: Shell
-    command: ./swift-vnet.sh
-    workingDir: ./scripts
+    command: ./aks-cluster-create
+    workingDir: ./scripts/aks-cluster-create
     shellIdentity:
       input:
         resourceGroup: global
         step: output
         name: globalMSIId
     variables:
-    - name: VNET_NAME
-      value: aks-net
-    - name: VNET_ADDRESS_PREFIX
-      configRef: mgmt.aks.vnetAddressPrefix
-    - name: RESOURCE_GROUP
-      configRef: mgmt.rg
     - name: SUBSCRIPTION_ID
       input:
         resourceGroup: management
         step: subscription-output
         name: subscriptionId
-    - name: DEPLOYMENT_MSI_ID
+    - name: RESOURCE_GROUP
+      configRef: mgmt.rg
+    - name: CLUSTER_NAME
+      configRef: mgmt.aks.name
+    - name: REGION
+      configRef: region
+    - name: REGION_AVAILABILITY_ZONE_COUNT
+      configRef: azureRegionAvailabilityZoneCount
+    - name: SYSTEM_POOL_NAME
+      configRef: mgmt.aks.systemAgentPool.name
+    - name: SYSTEM_POOL_VM_SIZE
+      configRef: mgmt.aks.systemAgentPool.vmSize
+    - name: SYSTEM_POOL_OS_DISK_SIZE_GB
+      configRef: mgmt.aks.systemAgentPool.osDiskSizeGB
+    - name: SYSTEM_POOL_MIN_COUNT
+      configRef: mgmt.aks.systemAgentPool.minCount
+    - name: SYSTEM_POOL_MAX_COUNT
+      configRef: mgmt.aks.systemAgentPool.maxCount
+    - name: SYSTEM_POOL_ZONES
+      configRef: mgmt.aks.systemAgentPool.zones
+    - name: USER_POOL_NAME
+      configRef: mgmt.aks.userAgentPool.name
+    - name: USER_POOL_VM_SIZE
+      configRef: mgmt.aks.userAgentPool.vmSize
+    - name: USER_POOL_OS_DISK_SIZE_GB
+      configRef: mgmt.aks.userAgentPool.osDiskSizeGB
+    - name: USER_POOL_MIN_COUNT
+      configRef: mgmt.aks.userAgentPool.minCount
+    - name: USER_POOL_MAX_COUNT
+      configRef: mgmt.aks.userAgentPool.maxCount
+    - name: USER_POOL_COUNT
+      configRef: mgmt.aks.userAgentPool.poolCount
+    - name: USER_POOL_ZONES
+      configRef: mgmt.aks.userAgentPool.zones
+    - name: INFRA_POOL_NAME
+      configRef: mgmt.aks.infraAgentPool.name
+    - name: INFRA_POOL_VM_SIZE
+      configRef: mgmt.aks.infraAgentPool.vmSize
+    - name: INFRA_POOL_OS_DISK_SIZE_GB
+      configRef: mgmt.aks.infraAgentPool.osDiskSizeGB
+    - name: INFRA_POOL_MIN_COUNT
+      configRef: mgmt.aks.infraAgentPool.minCount
+    - name: INFRA_POOL_MAX_COUNT
+      configRef: mgmt.aks.infraAgentPool.maxCount
+    - name: INFRA_POOL_COUNT
+      configRef: mgmt.aks.infraAgentPool.poolCount
+    - name: INFRA_POOL_ZONES
+      configRef: mgmt.aks.infraAgentPool.zones
+    - name: NODE_SUBNET_ID
       input:
-        resourceGroup: global
-        step: output
-        name: globalMSIId
+        resourceGroup: management
+        step: infra
+        name: nodeSubnetId
+    - name: POD_SUBNET_ID
+      input:
+        resourceGroup: management
+        step: infra
+        name: podSubnetId
+    - name: NETWORK_DATAPLANE
+      configRef: mgmt.aks.networkDataplane
+    - name: NETWORK_POLICY
+      configRef: mgmt.aks.networkPolicy
+    - name: OUTBOUND_IP_RESOURCE_ID
+      input:
+        resourceGroup: management
+        step: infra
+        name: outboundIPResourceId
+    - name: MANAGED_IDENTITY_ID
+      input:
+        resourceGroup: management
+        step: infra
+        name: managedIdentityId
+    - name: ETCD_KMS_KEY_URI
+      input:
+        resourceGroup: management
+        step: infra
+        name: etcdKeyUriWithVersion
+    - name: KUBERNETES_VERSION
+      configRef: mgmt.aks.kubernetesVersion
+    - name: CLUSTER_TAGS
+      configRef: mgmt.aks.tags
+    - name: OWNING_TEAM_TAG_VALUE
+      configRef: monitoring.alertRuleOwningTeamTag
     dependsOn:
     - resourceGroup: management
-      step: swift-vnet-permissions
+      step: infra
     automatedRetry:
       errorContainsAny:
-      - "ContainerGroupDeploymentNotReady"
-      - "Timed out"
-      - "dns readiness (login.microsoftonline.com): giving up"
-      - "az login (globalMSI): giving up"
+      - "InternalServerError"
+      - "ServiceUnavailable"
       maximumRetryCount: 3
-      durationBetweenRetries: 1m
+      durationBetweenRetries: 2m
+  # Everything that needs the ManagedCluster to already exist: ACR pull roles,
+  # workload-identity federated credentials, KeyVault/Geneva access, metrics,
+  # Maestro, kube-applier, HCP backups, diagnostic settings.
   - name: cluster
     action: ARM
     template: templates/mgmt-cluster.bicep
     parameters: configurations/mgmt-cluster.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     variables:
+    - name: nodeSubnetId
+      input:
+        resourceGroup: management
+        step: infra
+        name: nodeSubnetId
+    - name: vnetId
+      input:
+        resourceGroup: management
+        step: infra
+        name: vnetId
     - name: ocpAcrResourceId
       input:
         resourceGroup: global
@@ -413,6 +558,8 @@ resourceGroups:
         name: auditLogsEventHubAuthRuleId
     dependsOn:
     - resourceGroup: management
+      step: cluster-create
+    - resourceGroup: management
       step: maestro-consumer-cert
     - resourceGroup: management
       step: cx-oncert-public-kv-issuer
@@ -420,8 +567,6 @@ resourceGroups:
       step: oncert-private-kv-issuer
     - resourceGroup: management
       step: oncert-public-kv-issuer
-    - resourceGroup: management
-      step: swift-vnet
     automatedRetry:
       errorContainsAny:
       - "DeploymentScriptACIProvisioningTimeout"
@@ -430,9 +575,7 @@ resourceGroups:
       - "Resource is in Updating state"
       - "There was a problem communicating with the identity service"
       - "DeploymentScriptExceededMaxAllowedTime"
-      # Transient RBAC propagation lag, mostly on fresh region buildout: the
-      # deployment identity's Key Vault role assignment (needed to create the
-      # aks-etcd-encryption key) may not have propagated yet. Retry once it lands.
+      # Retry transient RBAC propagation failures in post-cluster wiring.
       - "ForbiddenByRbac"
       maximumRetryCount: 3
       durationBetweenRetries: 2m
