@@ -233,7 +233,7 @@ func TestValidateExternalAuth(t *testing.T) {
 			}(),
 			op: operation.Operation{Type: operation.Create},
 			expectErrors: []utils.ExpectedError{
-				{FieldPath: "properties.issuer.ca", Message: "not a valid PEM"},
+				{FieldPath: "properties.issuer.ca", Message: "must be CERTIFICATE"},
 			},
 		},
 		{
@@ -1318,7 +1318,7 @@ func TestValidateCACertificatePEM(t *testing.T) {
 			name:  "private key rejected",
 			value: ptr.To(privateKey),
 			expectErrors: []utils.ExpectedError{
-				{FieldPath: "properties.issuer.ca", Message: "not a valid PEM"},
+				{FieldPath: "properties.issuer.ca", Message: "must be CERTIFICATE"},
 			},
 		},
 		{
@@ -1329,10 +1329,10 @@ func TestValidateCACertificatePEM(t *testing.T) {
 			},
 		},
 		{
-			name:  "empty certificate block is not a valid PEM",
+			name:  "empty certificate block is not a valid X.509 certificate",
 			value: ptr.To("-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----\n"),
 			expectErrors: []utils.ExpectedError{
-				{FieldPath: "properties.issuer.ca", Message: "not a valid PEM"},
+				{FieldPath: "properties.issuer.ca", Message: "is not a valid X.509 certificate"},
 			},
 		},
 		{
