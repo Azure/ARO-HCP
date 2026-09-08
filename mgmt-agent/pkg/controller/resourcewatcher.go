@@ -44,18 +44,27 @@ var watchedGroupSuffixes = []string{
 	"velero.io",
 }
 
-// watchedBuiltinGVRs is the hardcoded list of built-in (non-CRD)
-// GroupVersionResources to watch in addition to everything discovered via
-// watchedGroupSuffixes. These are core/apps types that are not covered by the
-// CRD group suffixes above but still carry useful management-cluster state. To
-// snapshot another built-in type, add its GVR here.
-var watchedBuiltinGVRs = []schema.GroupVersionResource{
+// watchedExplicitGVRs is the hardcoded list of GroupVersionResources to watch
+// in addition to everything discovered via watchedGroupSuffixes. These APIs
+// are not covered by the group suffixes above but still carry useful
+// management-cluster state.
+var watchedExplicitGVRs = []schema.GroupVersionResource{
 	{Group: "", Version: "v1", Resource: "namespaces"},
 	{Group: "", Version: "v1", Resource: "nodes"},
+	{Group: "", Version: "v1", Resource: "configmaps"},
+	{Group: "", Version: "v1", Resource: "endpoints"},
+	{Group: "", Version: "v1", Resource: "persistentvolumeclaims"},
+	{Group: "", Version: "v1", Resource: "services"},
 	{Group: "apps", Version: "v1", Resource: "deployments"},
 	{Group: "apps", Version: "v1", Resource: "daemonsets"},
 	{Group: "apps", Version: "v1", Resource: "statefulsets"},
 	{Group: "apps", Version: "v1", Resource: "replicasets"},
+	{Group: "batch", Version: "v1", Resource: "cronjobs"},
+	{Group: "batch", Version: "v1", Resource: "jobs"},
+	{Group: "monitoring.coreos.com", Version: "v1", Resource: "podmonitors"},
+	{Group: "monitoring.coreos.com", Version: "v1", Resource: "servicemonitors"},
+	{Group: "networking.k8s.io", Version: "v1", Resource: "networkpolicies"},
+	{Group: "policy", Version: "v1", Resource: "poddisruptionbudgets"},
 }
 
 // ServerResourceDiscoverer is the subset of the discovery API that ResourceWatcher needs.
@@ -64,7 +73,7 @@ type ServerResourceDiscoverer interface {
 }
 
 // ResourceWatcher discovers API resources matching a set of group suffixes, also
-// watches a fixed set of built-in GroupVersionResources (watchedBuiltinGVRs), and
+// watches a fixed set of additional GroupVersionResources (watchedExplicitGVRs), and
 // logs every event via dynamic informers as structured JSON.
 type ResourceWatcher struct {
 	dynamicClient   dynamic.Interface
@@ -79,8 +88,8 @@ func NewResourceWatcher(dynamicClient dynamic.Interface, discoveryClient ServerR
 	}
 }
 
-// Run discovers GVRs for the configured group suffixes, also watches the built-in
-// GVRs in watchedBuiltinGVRs, starts dynamic informers for each, and blocks until
+// Run discovers GVRs for the configured group suffixes, also watches the GVRs in
+// watchedExplicitGVRs, starts dynamic informers for each, and blocks until
 // the context is cancelled. Events are
 // logged as structured JSON via klog. A CRD informer watches for new CustomResourceDefinitions;
 // if a new CRD is registered whose group matches the watched suffixes and introduces
@@ -93,7 +102,7 @@ func (w *ResourceWatcher) Run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	gvrs = append(gvrs, watchedBuiltinGVRs...)
+	gvrs = append(gvrs, watchedExplicitGVRs...)
 	logger.Info("Discovered resources to watch", "count", len(gvrs))
 
 	knownGVRs := sets.New[schema.GroupVersionResource](gvrs...)

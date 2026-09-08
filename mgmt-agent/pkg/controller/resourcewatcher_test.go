@@ -137,22 +137,32 @@ func TestDiscoverGVRs(t *testing.T) {
 	}
 }
 
-func TestWatchedBuiltinGVRs(t *testing.T) {
-	// These built-in (non-CRD) resources are not covered by watchedGroupSuffixes,
-	// so they must be listed explicitly in watchedBuiltinGVRs to be snapshotted.
+func TestWatchedExplicitGVRs(t *testing.T) {
+	// These resources are not covered by watchedGroupSuffixes, so they must be
+	// listed explicitly in watchedExplicitGVRs to be snapshotted.
 	required := []schema.GroupVersionResource{
 		{Group: "", Version: "v1", Resource: "namespaces"},
 		{Group: "", Version: "v1", Resource: "nodes"},
+		{Group: "", Version: "v1", Resource: "configmaps"},
+		{Group: "", Version: "v1", Resource: "endpoints"},
+		{Group: "", Version: "v1", Resource: "persistentvolumeclaims"},
+		{Group: "", Version: "v1", Resource: "services"},
 		{Group: "apps", Version: "v1", Resource: "deployments"},
 		{Group: "apps", Version: "v1", Resource: "daemonsets"},
 		{Group: "apps", Version: "v1", Resource: "statefulsets"},
 		{Group: "apps", Version: "v1", Resource: "replicasets"},
+		{Group: "batch", Version: "v1", Resource: "cronjobs"},
+		{Group: "batch", Version: "v1", Resource: "jobs"},
+		{Group: "monitoring.coreos.com", Version: "v1", Resource: "podmonitors"},
+		{Group: "monitoring.coreos.com", Version: "v1", Resource: "servicemonitors"},
+		{Group: "networking.k8s.io", Version: "v1", Resource: "networkpolicies"},
+		{Group: "policy", Version: "v1", Resource: "poddisruptionbudgets"},
 	}
 
-	have := sets.New[schema.GroupVersionResource](watchedBuiltinGVRs...)
+	have := sets.New[schema.GroupVersionResource](watchedExplicitGVRs...)
 	for _, want := range required {
 		if !have.Has(want) {
-			t.Errorf("watchedBuiltinGVRs is missing %v", want)
+			t.Errorf("watchedExplicitGVRs is missing %v", want)
 		}
 	}
 }
