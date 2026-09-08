@@ -91,7 +91,9 @@ type dataPlaneOIDCFederatedIdentityCredential struct {
 // PendingDeconfigure deletes the credentials already tracked
 // on the status (AzureResources and PendingAzureResources). On a live cluster
 // Azure deletes wait until 24h after DeconfigureTimestamp. Cluster deletion
-// (DeletionTimestamp set) deconfigures immediately, including when a wait has
+// (DeletionTimestamp set) skips PendingConfigure and Configured so Cluster
+// Service can deconfigure FICs without this controller recreating them, and
+// deconfigures PendingDeconfigure immediately, including when a wait has
 // not elapsed. New FIC resource
 // IDs are persisted to PendingAzureResources before CreateOrUpdate, so a crash
 // cannot lose the tracked set. Azure errors on one FIC do not skip the rest:
@@ -157,12 +159,22 @@ func (s *dataPlaneOIDCFederationSyncer) needsWork(cluster *coreapi.HCPOpenShiftC
 	for federationKey, status := range serviceProviderCluster.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation {
 		switch status.Phase {
 		case coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingConfigure:
+			// Cluster Service deconfigures FICs during teardown. Creating or
+			// repairing them here would race with that.
+			if cluster.ServiceProviderProperties.DeletionTimestamp != nil {
+				continue
+			}
 			return true
 		case coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingDeconfigure:
 			if s.pendingDeconfigureReady(cluster, status, now) {
 				return true
 			}
 		case coreapi.ManagedIdentityDataplaneOIDCFederationPhaseConfigured:
+			// Cluster Service deconfigures FICs during teardown. Creating or
+			// repairing them here would race with that.
+			if cluster.ServiceProviderProperties.DeletionTimestamp != nil {
+				continue
+			}
 			if len(csClusterID) > 0 && s.desiredFICSetDiffers(cluster, federationKey, status, csClusterID) {
 				return true
 			}
@@ -244,6 +256,8 @@ func (s *dataPlaneOIDCFederationSyncer) SyncOnce(ctx context.Context, key contro
 	// AzureResources so a crash after create cannot lose them. PendingConfigure's AzureResources
 	// is empty, so that is the full desired set. PendingDeconfigure is skipped: its
 	// IDs are already on AzureResources or leftover PendingAzureResources.
+	// Cluster deletion skips PendingConfigure and Configured so Cluster Service
+	// can deconfigure FICs without this controller recreating them.
 	// Configured is skipped only when EarliestRecheckTime is in the future and the
 	// desired FIC set is unchanged. A drift is processed immediately.
 	for federationKey := range replacement.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation {
@@ -260,6 +274,11 @@ func (s *dataPlaneOIDCFederationSyncer) SyncOnce(ctx context.Context, key contro
 		switch status.Phase {
 		case coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingConfigure,
 			coreapi.ManagedIdentityDataplaneOIDCFederationPhaseConfigured:
+			// Cluster Service deconfigures FICs during teardown. Creating or
+			// repairing them here would race with that.
+			if existingCluster.ServiceProviderProperties.DeletionTimestamp != nil {
+				continue
+			}
 			if len(csClusterID) == 0 {
 				// Credential names and the issuer URL include the cluster service ID. If the cluster service ID is not set,
 				// we skip: the FICs cannot be created.
@@ -294,7 +313,9 @@ func (s *dataPlaneOIDCFederationSyncer) SyncOnce(ctx context.Context, key contro
 	// Configured or Deconfigured only when every Azure call for that identity
 	// succeeds. PendingConfigure and Configured Get each desired FIC and
 	// CreateOrUpdate only when it is missing or Issuer/Subject/Audiences
-	// drifted. Configured also deletes tracked FICs that are no longer desired
+	// drifted. Cluster deletion skips PendingConfigure and Configured so Cluster
+	// Service can deconfigure FICs without this controller recreating them.
+	// Configured also deletes tracked FICs that are no longer desired
 	// (see ensureFederation). Deconfigure deletes the union of AzureResources
 	// and PendingAzureResources. Results are persisted after the loop.
 	// One FederatedIdentityCredentialsClient is built for this reconcile and
@@ -317,6 +338,11 @@ func (s *dataPlaneOIDCFederationSyncer) SyncOnce(ctx context.Context, key contro
 		switch status.Phase {
 		case coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingConfigure,
 			coreapi.ManagedIdentityDataplaneOIDCFederationPhaseConfigured:
+			// Cluster Service deconfigures FICs during teardown. Creating or
+			// repairing them here would race with that.
+			if existingCluster.ServiceProviderProperties.DeletionTimestamp != nil {
+				continue
+			}
 			if len(csClusterID) == 0 {
 				continue
 			}

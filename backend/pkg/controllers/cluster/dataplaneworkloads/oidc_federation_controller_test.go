@@ -257,6 +257,12 @@ func TestDataPlaneOIDCFederationNeedsWork(t *testing.T) {
 		PrincipalID: "principal-a",
 		TenantID:    "tenant-a",
 	}
+	keyB := coreapi.ManagedIdentityDataplaneOIDCFederationKey{
+		ResourceID:  "/subscriptions/" + testSubscriptionID + "/resourcegroups/" + testResourceGroupName + "/providers/microsoft.managedidentity/userassignedidentities/identity-b",
+		ClientID:    "client-b",
+		PrincipalID: "principal-b",
+		TenantID:    "tenant-b",
+	}
 
 	testCases := []struct {
 		name              string
@@ -272,6 +278,46 @@ func TestDataPlaneOIDCFederationNeedsWork(t *testing.T) {
 			name: "PendingConfigure needs work",
 			federation: map[coreapi.ManagedIdentityDataplaneOIDCFederationKey]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
 				keyA: {Phase: coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingConfigure},
+			},
+			expectedNeedsWork: true,
+		},
+		{
+			name: "PendingConfigure does not need work when the cluster is being deleted",
+			federation: map[coreapi.ManagedIdentityDataplaneOIDCFederationKey]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
+				keyA: {Phase: coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingConfigure},
+			},
+			cluster: &coreapi.HCPOpenShiftCluster{
+				ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+					DeletionTimestamp: &future,
+				},
+			},
+			expectedNeedsWork: false,
+		},
+		{
+			name: "Configured does not need work when the cluster is being deleted",
+			federation: map[coreapi.ManagedIdentityDataplaneOIDCFederationKey]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
+				keyA: {Phase: coreapi.ManagedIdentityDataplaneOIDCFederationPhaseConfigured},
+			},
+			cluster: &coreapi.HCPOpenShiftCluster{
+				ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+					DeletionTimestamp: &future,
+				},
+			},
+			expectedNeedsWork: false,
+		},
+		{
+			name: "PendingDeconfigure still needs work during cluster deletion when another identity is PendingConfigure",
+			federation: map[coreapi.ManagedIdentityDataplaneOIDCFederationKey]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
+				keyA: {Phase: coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingConfigure},
+				keyB: {
+					Phase:                coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingDeconfigure,
+					DeconfigureTimestamp: &since,
+				},
+			},
+			cluster: &coreapi.HCPOpenShiftCluster{
+				ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+					DeletionTimestamp: &future,
+				},
 			},
 			expectedNeedsWork: true,
 		},
@@ -1397,6 +1443,181 @@ func TestDataPlaneOIDCFederationSyncOnceSkipsConfigureWhenClusterServiceIDMissin
 	assert.Equal(t, coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingConfigure, got.Phase)
 }
 
+func TestDataPlaneOIDCFederationSyncOnceSkipsConfigureWhileClusterDeleting(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	now := time.Date(2026, 9, 5, 12, 0, 0, 0, time.UTC)
+	deletionTimestamp := metav1.NewTime(now)
+
+	serviceManagedIdentity := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID + "/resourceGroups/" + testResourceGroupName + "/providers/Microsoft.ManagedIdentity/userAssignedIdentities/smi"))
+	identityA := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID + "/resourceGroups/" + testResourceGroupName + "/providers/Microsoft.ManagedIdentity/userAssignedIdentities/identity-a"))
+	keyA := coreapi.ManagedIdentityDataplaneOIDCFederationKey{
+		ResourceID:  strings.ToLower(identityA.String()),
+		ClientID:    "client-a",
+		PrincipalID: "principal-a",
+		TenantID:    "tenant-a",
+	}
+	tracked := expectedFICResourceIDs(t, identityA, testDiskCSIOperator, diskCSIDriverServiceAccounts(t))
+
+	testCases := []struct {
+		name  string
+		phase coreapi.ManagedIdentityDataplaneOIDCFederationPhase
+	}{
+		{
+			name:  "PendingConfigure",
+			phase: coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingConfigure,
+		},
+		{
+			name:  "Configured",
+			phase: coreapi.ManagedIdentityDataplaneOIDCFederationPhaseConfigured,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			cluster := newTestClusterWithIdentities(t, testClusterName, serviceManagedIdentity, map[string]*azcorearm.ResourceID{
+				testDiskCSIOperator: identityA,
+			})
+			cluster.ServiceProviderProperties.ClusterServiceID = testClusterServiceID()
+			cluster.ServiceProviderProperties.DeletionTimestamp = &deletionTimestamp
+
+			status := &coreapi.ManagedIdentityDataplaneOIDCFederationStatus{Phase: tc.phase}
+			if tc.phase == coreapi.ManagedIdentityDataplaneOIDCFederationPhaseConfigured {
+				status.AzureResources = tracked
+			}
+			serviceProviderCluster := newTestServiceProviderClusterWithIdentities(testClusterName, nil, nil)
+			serviceProviderCluster.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation = map[coreapi.ManagedIdentityDataplaneOIDCFederationKey]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
+				keyA: status,
+			}
+
+			mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, serviceProviderCluster})
+			require.NoError(t, err)
+
+			ctrl := gomock.NewController(t)
+			smiClientBuilder := azureclient.NewMockServiceManagedIdentityClientBuilder(ctrl)
+			smiClientBuilder.EXPECT().
+				FederatedIdentityCredentialsClient(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+				Times(0)
+
+			syncer := &dataPlaneOIDCFederationSyncer{
+				clock:                         clocktesting.NewFakePassiveClock(now),
+				clusterLister:                 &corelistertesting.DBClusterLister{ResourcesDBClient: mockResourcesDB},
+				serviceProviderClusterLister:  &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDB},
+				resourcesDBClient:             mockResourcesDB,
+				smiClientBuilder:              smiClientBuilder,
+				fpaMIdataplaneClientBuilder:   testSMIDataplaneBuilder(serviceManagedIdentity, true),
+				clusterScopedIdentitiesConfig: testDataPlaneOIDCFederationIdentitiesConfig(),
+				oidcIssuerBaseURL:             testOIDCIssuerBaseURL,
+			}
+
+			err = syncer.SyncOnce(ctx, controllerutils.HCPClusterKey{
+				SubscriptionID:    testSubscriptionID,
+				ResourceGroupName: testResourceGroupName,
+				HCPClusterName:    testClusterName,
+			})
+			require.NoError(t, err)
+
+			updated, err := mockResourcesDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
+			require.NoError(t, err)
+			got := updated.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation[keyA]
+			require.NotNil(t, got)
+			assert.Equal(t, tc.phase, got.Phase)
+			assert.Empty(t, got.PendingAzureResources)
+			if tc.phase == coreapi.ManagedIdentityDataplaneOIDCFederationPhaseConfigured {
+				assert.ElementsMatch(t, resourceIDStrings(tracked), resourceIDStrings(got.AzureResources))
+			} else {
+				assert.Empty(t, got.AzureResources)
+			}
+		})
+	}
+}
+
+func TestDataPlaneOIDCFederationSyncOnceSkipsConfigureButDeconfiguresWhileClusterDeleting(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	now := time.Date(2026, 9, 5, 12, 0, 0, 0, time.UTC)
+	deletionTimestamp := metav1.NewTime(now)
+
+	serviceManagedIdentity := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID + "/resourceGroups/" + testResourceGroupName + "/providers/Microsoft.ManagedIdentity/userAssignedIdentities/smi"))
+	identityA := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID + "/resourceGroups/" + testResourceGroupName + "/providers/Microsoft.ManagedIdentity/userAssignedIdentities/identity-a"))
+	identityB := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID + "/resourceGroups/" + testResourceGroupName + "/providers/Microsoft.ManagedIdentity/userAssignedIdentities/identity-b"))
+	keyA := coreapi.ManagedIdentityDataplaneOIDCFederationKey{
+		ResourceID:  strings.ToLower(identityA.String()),
+		ClientID:    "client-a",
+		PrincipalID: "principal-a",
+		TenantID:    "tenant-a",
+	}
+	keyB := coreapi.ManagedIdentityDataplaneOIDCFederationKey{
+		ResourceID:  strings.ToLower(identityB.String()),
+		ClientID:    "client-b",
+		PrincipalID: "principal-b",
+		TenantID:    "tenant-b",
+	}
+	trackedB := expectedFICResourceIDs(t, identityB, testDiskCSIOperator, diskCSIDriverServiceAccounts(t))
+
+	cluster := newTestClusterWithIdentities(t, testClusterName, serviceManagedIdentity, map[string]*azcorearm.ResourceID{
+		testDiskCSIOperator: identityA,
+	})
+	cluster.ServiceProviderProperties.ClusterServiceID = testClusterServiceID()
+	cluster.ServiceProviderProperties.DeletionTimestamp = &deletionTimestamp
+
+	serviceProviderCluster := newTestServiceProviderClusterWithIdentities(testClusterName, nil, nil)
+	serviceProviderCluster.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation = map[coreapi.ManagedIdentityDataplaneOIDCFederationKey]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
+		keyA: {Phase: coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingConfigure},
+		keyB: {
+			Phase:                coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingDeconfigure,
+			DeconfigureTimestamp: &deletionTimestamp,
+			AzureResources:       trackedB,
+		},
+	}
+
+	mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, serviceProviderCluster})
+	require.NoError(t, err)
+
+	fakeClient := &fakeFederatedIdentityCredentialsClient{}
+	ctrl := gomock.NewController(t)
+	smiClientBuilder := azureclient.NewMockServiceManagedIdentityClientBuilder(ctrl)
+	smiClientBuilder.EXPECT().
+		FederatedIdentityCredentialsClient(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(fakeClient, nil)
+
+	syncer := &dataPlaneOIDCFederationSyncer{
+		clock:                         clocktesting.NewFakePassiveClock(now),
+		clusterLister:                 &corelistertesting.DBClusterLister{ResourcesDBClient: mockResourcesDB},
+		serviceProviderClusterLister:  &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDB},
+		resourcesDBClient:             mockResourcesDB,
+		smiClientBuilder:              smiClientBuilder,
+		fpaMIdataplaneClientBuilder:   testSMIDataplaneBuilder(serviceManagedIdentity, true),
+		clusterScopedIdentitiesConfig: testDataPlaneOIDCFederationIdentitiesConfig(),
+		oidcIssuerBaseURL:             testOIDCIssuerBaseURL,
+	}
+
+	err = syncer.SyncOnce(ctx, controllerutils.HCPClusterKey{
+		SubscriptionID:    testSubscriptionID,
+		ResourceGroupName: testResourceGroupName,
+		HCPClusterName:    testClusterName,
+	})
+	require.NoError(t, err)
+	assert.Empty(t, fakeClient.creates)
+	assert.Len(t, fakeClient.deletes, len(trackedB))
+
+	updated, err := mockResourcesDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
+	require.NoError(t, err)
+	gotA := updated.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation[keyA]
+	require.NotNil(t, gotA)
+	assert.Equal(t, coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingConfigure, gotA.Phase)
+	assert.Empty(t, gotA.PendingAzureResources)
+	gotB := updated.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation[keyB]
+	require.NotNil(t, gotB)
+	assert.Equal(t, coreapi.ManagedIdentityDataplaneOIDCFederationPhaseDeconfigured, gotB.Phase)
+	assert.Empty(t, gotB.AzureResources)
+	assert.Empty(t, gotB.PendingAzureResources)
+}
+
 func TestDataPlaneOIDCFederationSyncOnceDeconfiguresTrackedFICsWhenClusterServiceIDMissing(t *testing.T) {
 	t.Parallel()
 
@@ -1597,6 +1818,9 @@ func TestDataPlaneOIDCFederationNeedsWorkConfiguredDesiredSetChanged(t *testing.
 		},
 	}
 	assert.True(t, syncer.needsWork(cluster, serviceProviderCluster), "desired FIC set differs from empty AzureResources")
+
+	cluster.ServiceProviderProperties.DeletionTimestamp = &future
+	assert.False(t, syncer.needsWork(cluster, serviceProviderCluster), "Configured desired-set drift is skipped while the cluster is being deleted")
 }
 
 func TestDataPlaneOIDCFederationSyncOnceConfiguredGetMatchingDoesNotCreate(t *testing.T) {
