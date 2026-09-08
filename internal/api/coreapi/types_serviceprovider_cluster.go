@@ -310,7 +310,8 @@ type ServiceProviderClusterStatus struct {
 	// data-plane OIDC federation state for each fully resolved managed identity.
 	// DataPlaneOIDCFederationDesiredState adds identities whose ClientID, PrincipalID,
 	// and TenantID are all set as PendingConfigure, and marks identities that have
-	// left ManagedIdentityDetails as PendingDeconfigure. DataPlaneOIDCFederation
+	// left ManagedIdentityDetails as PendingDeconfigure (stamping DeconfigureTimestamp
+	// when that was requested so Azure FIC deletes wait 24 hours on a live cluster). DataPlaneOIDCFederation
 	// then creates or deletes federated identity credentials in Azure (one per
 	// data-plane operator service account) and advances the phase to Configured
 	// or Deconfigured.
@@ -481,6 +482,14 @@ type ManagedIdentityDataplaneOIDCFederationStatus struct {
 	// Phase is the reconciliation phase of data-plane OIDC federation for this identity.
 	// Written by: DataPlaneOIDCFederationDesiredState, DataPlaneOIDCFederation
 	Phase ManagedIdentityDataplaneOIDCFederationPhase `json:"phase,omitempty"`
+	// DeconfigureTimestamp is the timestamp at which deconfigure of this
+	// identity's data-plane OIDC federation was requested. The timestamp is in UTC.
+	// A nil value indicates that deconfigure has not been requested.
+	// On a live cluster the executor waits 24 hours from this timestamp before
+	// deleting Azure FICs. Cluster deletion (DeletionTimestamp set) deconfigures
+	// immediately.
+	// Written by: DataPlaneOIDCFederationDesiredState
+	DeconfigureTimestamp *metav1.Time `json:"deconfigureTimestamp,omitempty"`
 	// PendingAzureResources contains federated identity credential resource IDs
 	// that have been requested but not yet confirmed to exist in Azure.
 	// DataPlaneOIDCFederation persists these IDs before CreateOrUpdate, so a crash

@@ -249,6 +249,8 @@ func TestDataPlaneOIDCFederationNeedsWork(t *testing.T) {
 
 	now := time.Date(2026, 9, 5, 12, 0, 0, 0, time.UTC)
 	future := metav1.NewTime(now.Add(time.Hour))
+	since := metav1.NewTime(now)
+	sinceElapsed := metav1.NewTime(now.Add(-dataPlaneOIDCFederationDeconfigureDelay))
 	keyA := coreapi.ManagedIdentityDataplaneOIDCFederationKey{
 		ResourceID:  "/subscriptions/" + testSubscriptionID + "/resourcegroups/" + testResourceGroupName + "/providers/microsoft.managedidentity/userassignedidentities/identity-a",
 		ClientID:    "client-a",
@@ -274,9 +276,14 @@ func TestDataPlaneOIDCFederationNeedsWork(t *testing.T) {
 			expectedNeedsWork: true,
 		},
 		{
-			name: "PendingDeconfigure needs work",
+			name: "PendingDeconfigure with nil DeconfigureTimestamp needs work when the cluster is being deleted",
 			federation: map[coreapi.ManagedIdentityDataplaneOIDCFederationKey]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
 				keyA: {Phase: coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingDeconfigure},
+			},
+			cluster: &coreapi.HCPOpenShiftCluster{
+				ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+					DeletionTimestamp: &future,
+				},
 			},
 			expectedNeedsWork: true,
 		},
@@ -298,11 +305,47 @@ func TestDataPlaneOIDCFederationNeedsWork(t *testing.T) {
 			expectedNeedsWork: true,
 		},
 		{
-			name: "PendingDeconfigure with future recheck still needs work",
+			name: "PendingDeconfigure with recent DeconfigureTimestamp does not need work",
 			federation: map[coreapi.ManagedIdentityDataplaneOIDCFederationKey]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
 				keyA: {
-					Phase:               coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingDeconfigure,
-					EarliestRecheckTime: &future,
+					Phase:                coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingDeconfigure,
+					DeconfigureTimestamp: &since,
+				},
+			},
+			expectedNeedsWork: false,
+		},
+		{
+			name: "PendingDeconfigure with recent DeconfigureTimestamp needs work when the cluster is being deleted",
+			federation: map[coreapi.ManagedIdentityDataplaneOIDCFederationKey]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
+				keyA: {
+					Phase:                coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingDeconfigure,
+					DeconfigureTimestamp: &since,
+				},
+			},
+			cluster: &coreapi.HCPOpenShiftCluster{
+				ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+					DeletionTimestamp: &future,
+				},
+			},
+			expectedNeedsWork: true,
+		},
+		{
+			name: "PendingDeconfigure with elapsed DeconfigureTimestamp needs work",
+			federation: map[coreapi.ManagedIdentityDataplaneOIDCFederationKey]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
+				keyA: {
+					Phase:                coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingDeconfigure,
+					DeconfigureTimestamp: &sinceElapsed,
+				},
+			},
+			expectedNeedsWork: true,
+		},
+		{
+			name: "PendingDeconfigure with future EarliestRecheckTime needs work after DeconfigureTimestamp elapsed",
+			federation: map[coreapi.ManagedIdentityDataplaneOIDCFederationKey]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
+				keyA: {
+					Phase:                coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingDeconfigure,
+					DeconfigureTimestamp: &sinceElapsed,
+					EarliestRecheckTime:  &future,
 				},
 			},
 			expectedNeedsWork: true,
@@ -651,8 +694,9 @@ func TestDataPlaneOIDCFederationSyncOnceDeconfiguresFICsForOperatorServiceAccoun
 	serviceProviderCluster := newTestServiceProviderClusterWithIdentities(testClusterName, nil, nil)
 	serviceProviderCluster.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation = map[coreapi.ManagedIdentityDataplaneOIDCFederationKey]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
 		keyA: {
-			Phase:          coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingDeconfigure,
-			AzureResources: tracked,
+			Phase:                coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingDeconfigure,
+			DeconfigureTimestamp: &metav1.Time{Time: now.Add(-dataPlaneOIDCFederationDeconfigureDelay)},
+			AzureResources:       tracked,
 		},
 	}
 
@@ -699,6 +743,114 @@ func TestDataPlaneOIDCFederationSyncOnceDeconfiguresFICsForOperatorServiceAccoun
 	assert.Empty(t, got.AzureResources)
 }
 
+func TestDataPlaneOIDCFederationSyncOnceDeconfigureHonorsLiveClusterDelay(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	now := time.Date(2026, 9, 5, 12, 0, 0, 0, time.UTC)
+	since := metav1.NewTime(now)
+	deletionTimestamp := metav1.NewTime(now)
+
+	serviceManagedIdentity := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID + "/resourceGroups/" + testResourceGroupName + "/providers/Microsoft.ManagedIdentity/userAssignedIdentities/smi"))
+	identityA := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID + "/resourceGroups/" + testResourceGroupName + "/providers/Microsoft.ManagedIdentity/userAssignedIdentities/identity-a"))
+	keyA := coreapi.ManagedIdentityDataplaneOIDCFederationKey{
+		ResourceID:  strings.ToLower(identityA.String()),
+		ClientID:    "client-a",
+		PrincipalID: "principal-a",
+		TenantID:    "tenant-a",
+	}
+	tracked := expectedFICResourceIDs(t, identityA, testDiskCSIOperator, diskCSIDriverServiceAccounts(t))
+
+	testCases := []struct {
+		name              string
+		deleting          bool
+		wantDeletes       bool
+		wantPhase         coreapi.ManagedIdentityDataplaneOIDCFederationPhase
+		wantAzureResource bool
+	}{
+		{
+			name:              "live cluster waits 24h after DeconfigureTimestamp",
+			wantPhase:         coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingDeconfigure,
+			wantAzureResource: true,
+		},
+		{
+			name:        "cluster deletion deconfigures immediately",
+			deleting:    true,
+			wantDeletes: true,
+			wantPhase:   coreapi.ManagedIdentityDataplaneOIDCFederationPhaseDeconfigured,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			cluster := newTestClusterWithIdentities(t, testClusterName, serviceManagedIdentity, nil)
+			cluster.ServiceProviderProperties.ClusterServiceID = testClusterServiceID()
+			if tc.deleting {
+				cluster.ServiceProviderProperties.DeletionTimestamp = &deletionTimestamp
+			}
+
+			serviceProviderCluster := newTestServiceProviderClusterWithIdentities(testClusterName, nil, nil)
+			serviceProviderCluster.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation = map[coreapi.ManagedIdentityDataplaneOIDCFederationKey]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
+				keyA: {
+					Phase:                coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingDeconfigure,
+					AzureResources:       tracked,
+					DeconfigureTimestamp: &since,
+				},
+			}
+
+			mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, serviceProviderCluster})
+			require.NoError(t, err)
+
+			fakeClient := &fakeFederatedIdentityCredentialsClient{}
+			ctrl := gomock.NewController(t)
+			smiClientBuilder := azureclient.NewMockServiceManagedIdentityClientBuilder(ctrl)
+			if tc.wantDeletes {
+				smiClientBuilder.EXPECT().
+					FederatedIdentityCredentialsClient(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(fakeClient, nil)
+			} else {
+				smiClientBuilder.EXPECT().
+					FederatedIdentityCredentialsClient(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Times(0)
+			}
+
+			syncer := &dataPlaneOIDCFederationSyncer{
+				clock:                        clocktesting.NewFakePassiveClock(now),
+				clusterLister:                &corelistertesting.DBClusterLister{ResourcesDBClient: mockResourcesDB},
+				serviceProviderClusterLister: &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDB},
+				resourcesDBClient:            mockResourcesDB,
+				smiClientBuilder:             smiClientBuilder,
+				fpaMIdataplaneClientBuilder:  testSMIDataplaneBuilder(serviceManagedIdentity, true),
+			}
+
+			err = syncer.SyncOnce(ctx, controllerutils.HCPClusterKey{
+				SubscriptionID:    testSubscriptionID,
+				ResourceGroupName: testResourceGroupName,
+				HCPClusterName:    testClusterName,
+			})
+			require.NoError(t, err)
+			if tc.wantDeletes {
+				assert.Len(t, fakeClient.deletes, len(tracked))
+			} else {
+				assert.Empty(t, fakeClient.deletes)
+			}
+
+			updated, err := mockResourcesDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
+			require.NoError(t, err)
+			got := updated.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation[keyA]
+			require.NotNil(t, got)
+			assert.Equal(t, tc.wantPhase, got.Phase)
+			if tc.wantAzureResource {
+				assert.ElementsMatch(t, resourceIDStrings(tracked), resourceIDStrings(got.AzureResources))
+			} else {
+				assert.Empty(t, got.AzureResources)
+			}
+		})
+	}
+}
+
 func TestDataPlaneOIDCFederationSyncOnceDeconfiguresTrackedFICsWhenIdentityNoLongerAssigned(t *testing.T) {
 	t.Parallel()
 
@@ -721,8 +873,9 @@ func TestDataPlaneOIDCFederationSyncOnceDeconfiguresTrackedFICsWhenIdentityNoLon
 	serviceProviderCluster := newTestServiceProviderClusterWithIdentities(testClusterName, nil, nil)
 	serviceProviderCluster.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation = map[coreapi.ManagedIdentityDataplaneOIDCFederationKey]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
 		keyA: {
-			Phase:          coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingDeconfigure,
-			AzureResources: tracked,
+			Phase:                coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingDeconfigure,
+			DeconfigureTimestamp: &metav1.Time{Time: now.Add(-dataPlaneOIDCFederationDeconfigureDelay)},
+			AzureResources:       tracked,
 		},
 	}
 
@@ -1014,8 +1167,9 @@ func TestDataPlaneOIDCFederationSyncOnceDeconfigurePersistsPartialAzureDeletes(t
 	serviceProviderCluster := newTestServiceProviderClusterWithIdentities(testClusterName, nil, nil)
 	serviceProviderCluster.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation = map[coreapi.ManagedIdentityDataplaneOIDCFederationKey]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
 		keyA: {
-			Phase:          coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingDeconfigure,
-			AzureResources: tracked,
+			Phase:                coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingDeconfigure,
+			DeconfigureTimestamp: &metav1.Time{Time: now.Add(-dataPlaneOIDCFederationDeconfigureDelay)},
+			AzureResources:       tracked,
 		},
 	}
 
@@ -1143,8 +1297,9 @@ func TestDataPlaneOIDCFederationSyncOnceDeconfigureAzureFailureLeavesTrackedReso
 	serviceProviderCluster := newTestServiceProviderClusterWithIdentities(testClusterName, nil, nil)
 	serviceProviderCluster.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation = map[coreapi.ManagedIdentityDataplaneOIDCFederationKey]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
 		keyA: {
-			Phase:          coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingDeconfigure,
-			AzureResources: tracked,
+			Phase:                coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingDeconfigure,
+			DeconfigureTimestamp: &metav1.Time{Time: now.Add(-dataPlaneOIDCFederationDeconfigureDelay)},
+			AzureResources:       tracked,
 		},
 	}
 
@@ -1262,8 +1417,9 @@ func TestDataPlaneOIDCFederationSyncOnceDeconfiguresTrackedFICsWhenClusterServic
 	serviceProviderCluster := newTestServiceProviderClusterWithIdentities(testClusterName, nil, nil)
 	serviceProviderCluster.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation = map[coreapi.ManagedIdentityDataplaneOIDCFederationKey]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
 		keyA: {
-			Phase:          coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingDeconfigure,
-			AzureResources: tracked,
+			Phase:                coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingDeconfigure,
+			DeconfigureTimestamp: &metav1.Time{Time: now.Add(-dataPlaneOIDCFederationDeconfigureDelay)},
+			AzureResources:       tracked,
 		},
 	}
 
@@ -1278,12 +1434,12 @@ func TestDataPlaneOIDCFederationSyncOnceDeconfiguresTrackedFICsWhenClusterServic
 		Return(fakeClient, nil)
 
 	syncer := &dataPlaneOIDCFederationSyncer{
-		clock:                         clocktesting.NewFakePassiveClock(now),
-		clusterLister:                 &corelistertesting.DBClusterLister{ResourcesDBClient: mockResourcesDB},
-		serviceProviderClusterLister:  &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDB},
-		resourcesDBClient:             mockResourcesDB,
-		smiClientBuilder:              smiClientBuilder,
-		fpaMIdataplaneClientBuilder:   testSMIDataplaneBuilder(serviceManagedIdentity, true),
+		clock:                        clocktesting.NewFakePassiveClock(now),
+		clusterLister:                &corelistertesting.DBClusterLister{ResourcesDBClient: mockResourcesDB},
+		serviceProviderClusterLister: &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDB},
+		resourcesDBClient:            mockResourcesDB,
+		smiClientBuilder:             smiClientBuilder,
+		fpaMIdataplaneClientBuilder:  testSMIDataplaneBuilder(serviceManagedIdentity, true),
 	}
 
 	err = syncer.SyncOnce(ctx, controllerutils.HCPClusterKey{
@@ -1325,8 +1481,9 @@ func TestDataPlaneOIDCFederationSyncOnceDeconfiguresWhenServiceManagedIdentityMi
 	serviceProviderCluster := newTestServiceProviderClusterWithIdentities(testClusterName, nil, nil)
 	serviceProviderCluster.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation = map[coreapi.ManagedIdentityDataplaneOIDCFederationKey]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
 		keyA: {
-			Phase:          coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingDeconfigure,
-			AzureResources: tracked,
+			Phase:                coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingDeconfigure,
+			DeconfigureTimestamp: &metav1.Time{Time: now.Add(-dataPlaneOIDCFederationDeconfigureDelay)},
+			AzureResources:       tracked,
 		},
 	}
 

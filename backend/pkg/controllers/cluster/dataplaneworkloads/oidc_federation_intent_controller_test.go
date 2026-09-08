@@ -24,6 +24,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	clocktesting "k8s.io/utils/clock/testing"
 	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -65,11 +66,12 @@ func TestDesiredDataPlaneOIDCFederationStatus(t *testing.T) {
 	}
 
 	testCases := []struct {
-		name               string
-		details            map[coreapi.ManagedIdentityDetailsKey]*coreapi.ManagedIdentityDetails
-		current            map[coreapi.ManagedIdentityDataplaneOIDCFederationKey]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus
-		expectedPhases     map[coreapi.ManagedIdentityDataplaneOIDCFederationKey]coreapi.ManagedIdentityDataplaneOIDCFederationPhase
-		expectNilWhenEmpty bool
+		name                              string
+		details                           map[coreapi.ManagedIdentityDetailsKey]*coreapi.ManagedIdentityDetails
+		current                           map[coreapi.ManagedIdentityDataplaneOIDCFederationKey]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus
+		expectedPhases                    map[coreapi.ManagedIdentityDataplaneOIDCFederationKey]coreapi.ManagedIdentityDataplaneOIDCFederationPhase
+		expectStampedDeconfigureTimestamp []coreapi.ManagedIdentityDataplaneOIDCFederationKey
+		expectNilWhenEmpty                bool
 	}{
 		{
 			name:               "empty details and empty federation yields nil",
@@ -109,7 +111,25 @@ func TestDesiredDataPlaneOIDCFederationStatus(t *testing.T) {
 				{ResourceID: strings.ToLower(identityA.String()), MSIBasedDetails: false}: resolvedA,
 			},
 			current: map[coreapi.ManagedIdentityDataplaneOIDCFederationKey]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
-				keyA: {Phase: coreapi.ManagedIdentityDataplaneOIDCFederationPhaseDeconfigured},
+				keyA: {
+					Phase:                coreapi.ManagedIdentityDataplaneOIDCFederationPhaseDeconfigured,
+					DeconfigureTimestamp: &metav1.Time{Time: time.Date(2026, 9, 4, 12, 0, 0, 0, time.UTC)},
+				},
+			},
+			expectedPhases: map[coreapi.ManagedIdentityDataplaneOIDCFederationKey]coreapi.ManagedIdentityDataplaneOIDCFederationPhase{
+				keyA: coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingConfigure,
+			},
+		},
+		{
+			name: "pending deconfigure identity that is resolved again becomes PendingConfigure",
+			details: map[coreapi.ManagedIdentityDetailsKey]*coreapi.ManagedIdentityDetails{
+				{ResourceID: strings.ToLower(identityA.String()), MSIBasedDetails: false}: resolvedA,
+			},
+			current: map[coreapi.ManagedIdentityDataplaneOIDCFederationKey]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
+				keyA: {
+					Phase:                coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingDeconfigure,
+					DeconfigureTimestamp: &metav1.Time{Time: time.Date(2026, 9, 4, 12, 0, 0, 0, time.UTC)},
+				},
 			},
 			expectedPhases: map[coreapi.ManagedIdentityDataplaneOIDCFederationKey]coreapi.ManagedIdentityDataplaneOIDCFederationPhase{
 				keyA: coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingConfigure,
@@ -118,7 +138,24 @@ func TestDesiredDataPlaneOIDCFederationStatus(t *testing.T) {
 		{
 			name: "identity that left details is marked PendingDeconfigure",
 			current: map[coreapi.ManagedIdentityDataplaneOIDCFederationKey]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
-				keyA: {Phase: coreapi.ManagedIdentityDataplaneOIDCFederationPhaseConfigured},
+				keyA: {
+					Phase:               coreapi.ManagedIdentityDataplaneOIDCFederationPhaseConfigured,
+					EarliestRecheckTime: &metav1.Time{Time: time.Date(2026, 9, 6, 12, 0, 0, 0, time.UTC)},
+				},
+			},
+			expectedPhases: map[coreapi.ManagedIdentityDataplaneOIDCFederationKey]coreapi.ManagedIdentityDataplaneOIDCFederationPhase{
+				keyA: coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingDeconfigure,
+			},
+			expectStampedDeconfigureTimestamp: []coreapi.ManagedIdentityDataplaneOIDCFederationKey{keyA},
+		},
+		{
+			name: "already PendingDeconfigure identity that left details stays PendingDeconfigure",
+			current: map[coreapi.ManagedIdentityDataplaneOIDCFederationKey]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
+				keyA: {
+					Phase:                coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingDeconfigure,
+					DeconfigureTimestamp: &metav1.Time{Time: time.Date(2026, 9, 7, 12, 0, 0, 0, time.UTC)},
+					EarliestRecheckTime:  &metav1.Time{Time: time.Date(2026, 9, 7, 18, 0, 0, 0, time.UTC)},
+				},
 			},
 			expectedPhases: map[coreapi.ManagedIdentityDataplaneOIDCFederationKey]coreapi.ManagedIdentityDataplaneOIDCFederationPhase{
 				keyA: coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingDeconfigure,
@@ -167,6 +204,7 @@ func TestDesiredDataPlaneOIDCFederationStatus(t *testing.T) {
 				}: coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingConfigure,
 				keyA: coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingDeconfigure,
 			},
+			expectStampedDeconfigureTimestamp: []coreapi.ManagedIdentityDataplaneOIDCFederationKey{keyA},
 		},
 		{
 			name: "one identity added and another removed",
@@ -180,14 +218,20 @@ func TestDesiredDataPlaneOIDCFederationStatus(t *testing.T) {
 				keyA: coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingConfigure,
 				keyB: coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingDeconfigure,
 			},
+			expectStampedDeconfigureTimestamp: []coreapi.ManagedIdentityDataplaneOIDCFederationKey{keyB},
 		},
+	}
+
+	since := metav1.NewTime(time.Date(2026, 9, 6, 12, 0, 0, 0, time.UTC))
+	syncer := &dataPlaneOIDCFederationIntentSyncer{
+		clock: clocktesting.NewFakePassiveClock(since.Time),
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := desiredDataPlaneOIDCFederationStatus(tc.details, tc.current)
+			got, err := syncer.desiredDataPlaneOIDCFederationStatus(tc.details, tc.current)
 			require.NoError(t, err)
 			if tc.expectNilWhenEmpty {
 				assert.Nil(t, got)
@@ -199,6 +243,31 @@ func TestDesiredDataPlaneOIDCFederationStatus(t *testing.T) {
 				require.Contains(t, got, key)
 				require.NotNil(t, got[key])
 				assert.Equal(t, expectedPhase, got[key].Phase)
+			}
+			stamped := map[coreapi.ManagedIdentityDataplaneOIDCFederationKey]struct{}{}
+			for _, key := range tc.expectStampedDeconfigureTimestamp {
+				stamped[key] = struct{}{}
+				require.NotNil(t, got[key].DeconfigureTimestamp)
+				assert.Equal(t, since, *got[key].DeconfigureTimestamp)
+			}
+			for key := range tc.expectedPhases {
+				if tc.current[key] == nil {
+					assert.Nil(t, got[key].EarliestRecheckTime)
+				} else {
+					assert.Equal(t, tc.current[key].EarliestRecheckTime, got[key].EarliestRecheckTime)
+				}
+				if _, ok := stamped[key]; ok {
+					continue
+				}
+				if got[key].Phase == coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingConfigure {
+					assert.Nil(t, got[key].DeconfigureTimestamp)
+					continue
+				}
+				if tc.current[key] == nil {
+					assert.Nil(t, got[key].DeconfigureTimestamp)
+					continue
+				}
+				assert.Equal(t, tc.current[key].DeconfigureTimestamp, got[key].DeconfigureTimestamp)
 			}
 		})
 	}
@@ -215,7 +284,9 @@ func TestDesiredDataPlaneOIDCFederationStatusNilEntryErrors(t *testing.T) {
 		TenantID:    "tenant-a",
 	}
 
-	_, err := desiredDataPlaneOIDCFederationStatus(nil, map[coreapi.ManagedIdentityDataplaneOIDCFederationKey]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
+	_, err := (&dataPlaneOIDCFederationIntentSyncer{
+		clock: clocktesting.NewFakePassiveClock(time.Time{}),
+	}).desiredDataPlaneOIDCFederationStatus(nil, map[coreapi.ManagedIdentityDataplaneOIDCFederationKey]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
 		keyA: nil,
 	})
 	require.Error(t, err)
@@ -245,7 +316,9 @@ func TestDataPlaneOIDCFederationIntentSyncOnce(t *testing.T) {
 	mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, serviceProviderCluster})
 	require.NoError(t, err)
 
+	now := time.Date(2026, 9, 5, 12, 0, 0, 0, time.UTC)
 	syncer := &dataPlaneOIDCFederationIntentSyncer{
+		clock:                        clocktesting.NewFakePassiveClock(now),
 		clusterLister:                &corelistertesting.DBClusterLister{ResourcesDBClient: mockResourcesDB},
 		serviceProviderClusterLister: &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDB},
 		resourcesDBClient:            mockResourcesDB,
@@ -262,6 +335,52 @@ func TestDataPlaneOIDCFederationIntentSyncOnce(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, updated.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation, keyA)
 	assert.Equal(t, coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingConfigure, updated.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation[keyA].Phase)
+}
+
+func TestDataPlaneOIDCFederationIntentSyncOnceStampsDeconfigureTimestampOnLiveCluster(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	now := time.Date(2026, 9, 5, 12, 0, 0, 0, time.UTC)
+	identityA := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID + "/resourceGroups/" + testResourceGroupName + "/providers/Microsoft.ManagedIdentity/userAssignedIdentities/identity-a"))
+	keyA := coreapi.ManagedIdentityDataplaneOIDCFederationKey{
+		ResourceID:  strings.ToLower(identityA.String()),
+		ClientID:    "client-a",
+		PrincipalID: "principal-a",
+		TenantID:    "tenant-a",
+	}
+
+	cluster := newTestClusterWithIdentities(t, testClusterName, nil, nil)
+	serviceProviderCluster := newTestServiceProviderClusterWithIdentities(testClusterName, nil, nil)
+	serviceProviderCluster.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation = map[coreapi.ManagedIdentityDataplaneOIDCFederationKey]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
+		keyA: {Phase: coreapi.ManagedIdentityDataplaneOIDCFederationPhaseConfigured},
+	}
+
+	mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, serviceProviderCluster})
+	require.NoError(t, err)
+
+	syncer := &dataPlaneOIDCFederationIntentSyncer{
+		clock:                        clocktesting.NewFakePassiveClock(now),
+		clusterLister:                &corelistertesting.DBClusterLister{ResourcesDBClient: mockResourcesDB},
+		serviceProviderClusterLister: &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDB},
+		resourcesDBClient:            mockResourcesDB,
+	}
+
+	err = syncer.SyncOnce(ctx, controllerutils.HCPClusterKey{
+		SubscriptionID:    testSubscriptionID,
+		ResourceGroupName: testResourceGroupName,
+		HCPClusterName:    testClusterName,
+	})
+	require.NoError(t, err)
+
+	updated, err := mockResourcesDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
+	require.NoError(t, err)
+	got := updated.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation[keyA]
+	require.NotNil(t, got)
+	assert.Equal(t, coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingDeconfigure, got.Phase)
+	require.NotNil(t, got.DeconfigureTimestamp)
+	assert.True(t, got.DeconfigureTimestamp.Time.Equal(now))
+	assert.Nil(t, got.EarliestRecheckTime)
 }
 
 func TestDataPlaneOIDCFederationIntentSyncOnceMarksPendingDeconfigureOnClusterDeletion(t *testing.T) {
@@ -281,6 +400,7 @@ func TestDataPlaneOIDCFederationIntentSyncOnceMarksPendingDeconfigureOnClusterDe
 	clusterServiceDeletionTimestamp := &metav1.Time{Time: time.Date(2026, 9, 5, 12, 2, 0, 0, time.UTC)}
 	clusterServiceID := testClusterServiceID()
 	pendingClusterServiceID := testClusterServiceID()
+	now := deletionTimestamp.Time
 
 	testCases := []struct {
 		name          string
@@ -352,6 +472,7 @@ func TestDataPlaneOIDCFederationIntentSyncOnceMarksPendingDeconfigureOnClusterDe
 			require.NoError(t, err)
 
 			syncer := &dataPlaneOIDCFederationIntentSyncer{
+				clock:                        clocktesting.NewFakePassiveClock(now),
 				clusterLister:                &corelistertesting.DBClusterLister{ResourcesDBClient: mockResourcesDB},
 				serviceProviderClusterLister: &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDB},
 				resourcesDBClient:            mockResourcesDB,
@@ -367,7 +488,12 @@ func TestDataPlaneOIDCFederationIntentSyncOnceMarksPendingDeconfigureOnClusterDe
 			updated, err := mockResourcesDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
 			require.NoError(t, err)
 			require.Contains(t, updated.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation, keyA)
-			assert.Equal(t, tc.expectedPhase, updated.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation[keyA].Phase)
+			got := updated.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation[keyA]
+			assert.Equal(t, tc.expectedPhase, got.Phase)
+			if tc.expectedPhase == coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingDeconfigure {
+				require.NotNil(t, got.DeconfigureTimestamp)
+				assert.True(t, got.DeconfigureTimestamp.Time.Equal(now))
+			}
 		})
 	}
 }

@@ -1525,6 +1525,10 @@ func (in *ManagedIdentityDataplaneOIDCFederationStatus) DeepCopyInto(out *Manage
 		in, out := &in.EarliestRecheckTime, &out.EarliestRecheckTime
 		*out = (*in).DeepCopy()
 	}
+	if in.DeconfigureTimestamp != nil {
+		in, out := &in.DeconfigureTimestamp, &out.DeconfigureTimestamp
+		*out = (*in).DeepCopy()
+	}
 	if in.PendingAzureResources != nil {
 		in, out := &in.PendingAzureResources, &out.PendingAzureResources
 		*out = make([]*azcorearm.ResourceID, len(*in))

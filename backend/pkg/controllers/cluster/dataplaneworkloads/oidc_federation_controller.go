@@ -60,6 +60,11 @@ const (
 
 	// dataPlaneOIDCFederationAudience is the Azure AD token-exchange audience required on federated identity credentials.
 	dataPlaneOIDCFederationAudience = "openshift"
+
+	// dataPlaneOIDCFederationDeconfigureDelay is how long a live cluster's
+	// identity must stay PendingDeconfigure after DeconfigureTimestamp before
+	// Azure FIC deletes run. Cluster deletion ignores this delay.
+	dataPlaneOIDCFederationDeconfigureDelay = 24 * time.Hour
 )
 
 // dataPlaneOIDCFederatedIdentityCredential is one Azure federated identity
@@ -84,7 +89,10 @@ type dataPlaneOIDCFederatedIdentityCredential struct {
 // longer desired while the identity stays Configured. See ensureFederation
 // for the cases that shrink the desired set.
 // PendingDeconfigure deletes the credentials already tracked
-// on the status (AzureResources and PendingAzureResources). New FIC resource
+// on the status (AzureResources and PendingAzureResources). On a live cluster
+// Azure deletes wait until 24h after DeconfigureTimestamp. Cluster deletion
+// (DeletionTimestamp set) deconfigures immediately, including when a wait has
+// not elapsed. New FIC resource
 // IDs are persisted to PendingAzureResources before CreateOrUpdate, so a crash
 // cannot lose the tracked set. Azure errors on one FIC do not skip the rest:
 // remaining creates, updates, and deletes still run, confirmed IDs move to
@@ -148,9 +156,12 @@ func (s *dataPlaneOIDCFederationSyncer) needsWork(cluster *coreapi.HCPOpenShiftC
 	now := s.clock.Now()
 	for federationKey, status := range serviceProviderCluster.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation {
 		switch status.Phase {
-		case coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingConfigure,
-			coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingDeconfigure:
+		case coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingConfigure:
 			return true
+		case coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingDeconfigure:
+			if s.pendingDeconfigureReady(cluster, status, now) {
+				return true
+			}
 		case coreapi.ManagedIdentityDataplaneOIDCFederationPhaseConfigured:
 			if len(csClusterID) > 0 && s.desiredFICSetDiffers(cluster, federationKey, status, csClusterID) {
 				return true
@@ -175,6 +186,20 @@ func (s *dataPlaneOIDCFederationSyncer) desiredFICSetDiffers(
 		return true
 	}
 	return controllerutil.NeedsUpdate(s.uniqueSortedResourceIDs(status.AzureResources), s.uniqueSortedResourceIDs(desired))
+}
+
+// pendingDeconfigureReady reports whether Azure FIC deletes may run for a
+// PendingDeconfigure entry. A live cluster always waits until 24h after
+// DeconfigureTimestamp. Cluster deletion ignores the wait.
+func (s *dataPlaneOIDCFederationSyncer) pendingDeconfigureReady(
+	cluster *coreapi.HCPOpenShiftCluster,
+	status *coreapi.ManagedIdentityDataplaneOIDCFederationStatus,
+	now time.Time,
+) bool {
+	if cluster.ServiceProviderProperties.DeletionTimestamp != nil {
+		return true
+	}
+	return !now.Before(status.DeconfigureTimestamp.Time.Add(dataPlaneOIDCFederationDeconfigureDelay))
 }
 
 func (s *dataPlaneOIDCFederationSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
@@ -308,6 +333,9 @@ func (s *dataPlaneOIDCFederationSyncer) SyncOnce(ctx context.Context, key contro
 				errs = append(errs, err)
 			}
 		case coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingDeconfigure:
+			if !s.pendingDeconfigureReady(existingCluster, status, timeNow) {
+				continue
+			}
 			err := s.deconfigureFederation(ctx, existingCluster, federationKey, status, getFederatedIdentityCredentialsClient)
 			if err != nil {
 				errs = append(errs, err)
@@ -573,6 +601,7 @@ func (s *dataPlaneOIDCFederationSyncer) deconfigureFederation(
 
 	status.PendingAzureResources = nil
 	status.AzureResources = nil
+	status.DeconfigureTimestamp = nil
 	status.Phase = coreapi.ManagedIdentityDataplaneOIDCFederationPhaseDeconfigured
 	recheckAt := metav1.NewTime(s.clock.Now().Add(wait.Jitter(dataPlaneOIDCFederationRecheckInterval, dataPlaneOIDCFederationRecheckJitter)))
 	status.EarliestRecheckTime = &recheckAt

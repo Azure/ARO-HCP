@@ -1088,6 +1088,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	)
 
 	dataPlaneWorkloadsOIDCFederationIntentController := clusterdataplaneworkloads.NewDataPlaneOIDCFederationIntentController(
+		b.clock,
 		b.options.ResourcesDBClient,
 		backendInformers,
 	)

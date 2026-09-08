@@ -21,6 +21,8 @@ import (
 	"time"
 
 	"k8s.io/apimachinery/pkg/api/equality"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	utilsclock "k8s.io/utils/clock"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
@@ -46,11 +48,16 @@ const DataPlaneOIDCFederationIntentControllerName = "DataPlaneOIDCFederationInte
 //     PendingConfigure if already present).
 //   - Identities present in ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation
 //     but no longer in ManagedIdentityDetails are marked PendingDeconfigure
-//     unless they are already Deconfigured.
+//     unless they are already Deconfigured. The first transition stamps
+//     DeconfigureTimestamp to now (when deconfigure was requested). The
+//     executor waits 24h from that time on a live cluster. Cluster deletion
+//     still stamps the request time; the executor ignores the wait when
+//     DeletionTimestamp is set.
 //   - Identities still in ManagedIdentityDetails whose ClientID, PrincipalID, or
 //     TenantID is temporarily unset are left as-is so a transient fetch error
 //     does not deconfigure them.
 type dataPlaneOIDCFederationIntentSyncer struct {
+	clock                        utilsclock.PassiveClock
 	clusterLister                corelisters.ClusterLister
 	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
 	resourcesDBClient            corecosmosstorage.ResourcesDBClient
@@ -62,6 +69,7 @@ var _ controllerutils.ClusterSyncer = (*dataPlaneOIDCFederationIntentSyncer)(nil
 // controller that marks data-plane OIDC federation phases from resolved
 // managed identity details.
 func NewDataPlaneOIDCFederationIntentController(
+	clock utilsclock.PassiveClock,
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	backendInformers coreinformers.BackendInformers,
 ) controllerutils.Controller {
@@ -69,6 +77,7 @@ func NewDataPlaneOIDCFederationIntentController(
 	_, serviceProviderClusterLister := backendInformers.ServiceProviderClusters()
 
 	syncer := &dataPlaneOIDCFederationIntentSyncer{
+		clock:                        clock,
 		clusterLister:                clusterLister,
 		serviceProviderClusterLister: serviceProviderClusterLister,
 		resourcesDBClient:            resourcesDBClient,
@@ -114,7 +123,7 @@ func (s *dataPlaneOIDCFederationIntentSyncer) SyncOnce(ctx context.Context, key 
 		existingManagedIdentityDetails = nil
 	}
 
-	desiredManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation, err := desiredDataPlaneOIDCFederationStatus(
+	desiredManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation, err := s.desiredDataPlaneOIDCFederationStatus(
 		existingManagedIdentityDetails,
 		existingServiceProviderCluster.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation,
 	)
@@ -180,7 +189,12 @@ func (s *dataPlaneOIDCFederationIntentSyncer) clusterServiceGone(cluster *coreap
 // any of those IDs is a new key. Both loops together cover identity rotation:
 // the first loop adds PendingConfigure for the new key, and the second loop
 // marks the old key PendingDeconfigure.
-func desiredDataPlaneOIDCFederationStatus(
+//
+// The first transition to PendingDeconfigure stamps DeconfigureTimestamp from
+// the controller clock (when deconfigure was requested). The executor waits
+// 24h from that event on a live cluster. Already PendingDeconfigure entries
+// keep their existing stamp so the wait is not reset.
+func (s *dataPlaneOIDCFederationIntentSyncer) desiredDataPlaneOIDCFederationStatus(
 	existingManagedIdentityDetails map[coreapi.ManagedIdentityDetailsKey]*coreapi.ManagedIdentityDetails,
 	existingFederation map[coreapi.ManagedIdentityDataplaneOIDCFederationKey]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus,
 ) (map[coreapi.ManagedIdentityDataplaneOIDCFederationKey]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus, error) {
@@ -221,6 +235,7 @@ func desiredDataPlaneOIDCFederationStatus(
 		case coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingDeconfigure,
 			coreapi.ManagedIdentityDataplaneOIDCFederationPhaseDeconfigured:
 			next.Phase = coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingConfigure
+			next.DeconfigureTimestamp = nil
 		}
 		desired[key] = next
 	}
@@ -247,9 +262,12 @@ func desiredDataPlaneOIDCFederationStatus(
 		switch existing.Phase {
 		case coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingDeconfigure,
 			coreapi.ManagedIdentityDataplaneOIDCFederationPhaseDeconfigured:
-			// Already on the deconfigure path; leave as-is.
+			// Already on the deconfigure path; leave as-is so a live-cluster
+			// 24h wait is not reset, and a Deconfigured entry stays terminal.
 		default:
 			next.Phase = coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingDeconfigure
+			requestedAt := metav1.NewTime(s.clock.Now())
+			next.DeconfigureTimestamp = &requestedAt
 		}
 		desired[key] = next
 	}
