@@ -71,9 +71,16 @@ const (
 	testDataPlaneIdentityID = "/subscriptions/" + testSubscriptionID +
 		"/resourceGroups/" + testResourceGroupName +
 		"/providers/Microsoft.ManagedIdentity/userAssignedIdentities/dp-identity"
+	// testServiceManagedIdentityID is the cluster's single service managed identity (SMI).
+	// Unlike the CP/DP operators it is not keyed in a map - it is a single identity whose
+	// resolved principal ID lives on Status.MSIManagedIdentities.ServiceManagedIdentity.
+	testServiceManagedIdentityID = "/subscriptions/" + testSubscriptionID +
+		"/resourceGroups/" + testResourceGroupName +
+		"/providers/Microsoft.ManagedIdentity/userAssignedIdentities/smi-identity"
 
-	testControlPlanePrincipalID = "cp-principal-11111111-1111-1111-1111-111111111111"
-	testDataPlanePrincipalID    = "dp-principal-22222222-2222-2222-2222-222222222222"
+	testControlPlanePrincipalID   = "cp-principal-11111111-1111-1111-1111-111111111111"
+	testDataPlanePrincipalID      = "dp-principal-22222222-2222-2222-2222-222222222222"
+	testServiceManagedPrincipalID = "smi-principal-33333333-3333-3333-3333-333333333333"
 )
 
 // testConfig returns the real cluster-scoped identities config used to enumerate
@@ -97,8 +104,8 @@ func testManagedResourceGroupID(t *testing.T) *azcorearm.ResourceID {
 }
 
 // testExpectedRoleAssignmentIDs returns the role assignment IDs the controller expects
-// for the test cluster: one for the control-plane operator and one for the data-plane
-// operator.
+// for the test cluster: one for the control-plane operator, one for the data-plane
+// operator, and one for the service managed identity.
 func testExpectedRoleAssignmentIDs(t *testing.T) []*azcorearm.ResourceID {
 	t.Helper()
 	config := testConfig()
@@ -108,12 +115,22 @@ func testExpectedRoleAssignmentIDs(t *testing.T) []*azcorearm.ResourceID {
 	require.NotEmpty(t, cpRoleDefs, "control-plane operator must have at least one role definition")
 	dpRoleDefs := config.DataPlaneOperatorsIdentities[azure.ClusterOperatorIdentifier(testDataPlaneOperatorName)].RoleDefinitionsResourceIDs()
 	require.NotEmpty(t, dpRoleDefs, "data-plane operator must have at least one role definition")
+	smiRoleDefs := config.ServiceManagedIdentity.RoleDefinitionsResourceIDs()
+	require.NotEmpty(t, smiRoleDefs, "service managed identity must have at least one role definition")
 
-	cpID := metadataapi.Must(azcorearm.ParseResourceID(
-		roleassignment.ManagedResourceGroupScopedRoleAssignmentResourceID(scope, testControlPlanePrincipalID, cpRoleDefs[0].String())))
-	dpID := metadataapi.Must(azcorearm.ParseResourceID(
-		roleassignment.ManagedResourceGroupScopedRoleAssignmentResourceID(scope, testDataPlanePrincipalID, dpRoleDefs[0].String())))
-	return []*azcorearm.ResourceID{cpID, dpID}
+	expected := []*azcorearm.ResourceID{
+		metadataapi.Must(azcorearm.ParseResourceID(
+			roleassignment.ManagedResourceGroupScopedRoleAssignmentResourceID(scope, testControlPlanePrincipalID, cpRoleDefs[0].String()))),
+		metadataapi.Must(azcorearm.ParseResourceID(
+			roleassignment.ManagedResourceGroupScopedRoleAssignmentResourceID(scope, testDataPlanePrincipalID, dpRoleDefs[0].String()))),
+	}
+	// The service managed identity may carry more than one role definition; include a role
+	// assignment for each so the expected set always matches what the controller computes.
+	for _, smiRoleDef := range smiRoleDefs {
+		expected = append(expected, metadataapi.Must(azcorearm.ParseResourceID(
+			roleassignment.ManagedResourceGroupScopedRoleAssignmentResourceID(scope, testServiceManagedPrincipalID, smiRoleDef.String()))))
+	}
+	return expected
 }
 
 // testUnexpectedRoleAssignmentID returns a managed-resource-group-scoped role assignment ID
@@ -129,8 +146,8 @@ func testUnexpectedRoleAssignmentID(t *testing.T) *azcorearm.ResourceID {
 }
 
 // newTestCluster builds an HCPOpenShiftCluster addressable by the mock
-// ResourcesDBClient with one control-plane and one data-plane operator identity and
-// the given deletion state.
+// ResourcesDBClient with one control-plane operator, one data-plane operator, and a
+// service managed identity, and the given deletion state.
 func newTestCluster(deleting bool) *coreapi.HCPOpenShiftCluster {
 	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + testSubscriptionID +
@@ -158,6 +175,8 @@ func newTestCluster(deleting bool) *coreapi.HCPOpenShiftCluster {
 	cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators = map[string]*azcorearm.ResourceID{
 		testDataPlaneOperatorName: metadataapi.Must(azcorearm.ParseResourceID(testDataPlaneIdentityID)),
 	}
+	cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity =
+		metadataapi.Must(azcorearm.ParseResourceID(testServiceManagedIdentityID))
 	if deleting {
 		cluster.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
 	}
@@ -166,10 +185,11 @@ func newTestCluster(deleting bool) *coreapi.HCPOpenShiftCluster {
 
 // newTestServiceProviderCluster builds a ServiceProviderCluster addressable by the
 // mock ResourcesDBClient. When mrgConfirmed is true the managed resource group is
-// reflected as confirmed (opening the observation gate); cpResolved / dpResolved
-// control whether the control-plane / data-plane operator principal IDs are resolved
-// on the status. roleAssignments is the initial observed state.
-func newTestServiceProviderCluster(t *testing.T, mrgConfirmed, cpResolved, dpResolved bool, roleAssignments coreapi.AzureMultiReference) *coreapi.ServiceProviderCluster {
+// reflected as confirmed (opening the observation gate); cpResolved / dpResolved /
+// smiResolved control whether the control-plane operator / data-plane operator /
+// service managed identity principal IDs are resolved on the status. roleAssignments
+// is the initial observed state.
+func newTestServiceProviderCluster(t *testing.T, mrgConfirmed, cpResolved, dpResolved, smiResolved bool, roleAssignments coreapi.AzureMultiReference) *coreapi.ServiceProviderCluster {
 	t.Helper()
 	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + testSubscriptionID +
@@ -202,6 +222,12 @@ func newTestServiceProviderCluster(t *testing.T, mrgConfirmed, cpResolved, dpRes
 				ResourceID:  metadataapi.Must(azcorearm.ParseResourceID(testDataPlaneIdentityID)),
 				PrincipalID: ptr.To(testDataPlanePrincipalID),
 			},
+		}
+	}
+	if smiResolved {
+		serviceProviderCluster.Status.MSIManagedIdentities.ServiceManagedIdentity = &coreapi.ServiceProviderClusterServiceManagedIdentity{
+			ResourceID:  metadataapi.Must(azcorearm.ParseResourceID(testServiceManagedIdentityID)),
+			PrincipalID: ptr.To(testServiceManagedPrincipalID),
 		}
 	}
 	serviceProviderCluster.Status.AzureResources.RoleAssignments = roleAssignments
@@ -337,10 +363,12 @@ func TestExpectedRoleAssignmentsDeterministicOrder(t *testing.T) {
 
 	cluster := newTestCluster(false)
 	cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = controlPlaneOperators
-	// Exercise the control-plane operators only; data-plane enumeration is not needed here.
+	// Exercise the control-plane operators only; data-plane and service managed identity
+	// enumeration is not needed here.
 	cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators = nil
+	cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity = nil
 
-	serviceProviderCluster := newTestServiceProviderCluster(t, true, false, false, coreapi.AzureMultiReference{})
+	serviceProviderCluster := newTestServiceProviderCluster(t, true, false, false, false, coreapi.AzureMultiReference{})
 	serviceProviderCluster.Status.MSIManagedIdentities.ControlPlaneOperatorsIdentities = resolvedIdentities
 
 	syncer := &roleAssignmentsSyncer{clusterScopedIdentitiesConfig: config}
@@ -372,9 +400,10 @@ func TestExpectedRoleAssignmentsDeterministicOrder(t *testing.T) {
 
 // TestRoleAssignmentsSyncerSyncOnceReconcile exercises the two-pass reconcile end to end
 // through the mock Cosmos DB, listers, and Azure client. Pass 1 queries Azure once per
-// expected role assignment (one control-plane + one data-plane): an assignment that exists is
-// confirmed, and one that is missing is recorded pending and created in pass 2 - a
-// freshly-created assignment stays pending this pass and confirms on a later GetByID.
+// expected role assignment (one control-plane operator, one data-plane operator, and the
+// service managed identity): an assignment that exists is confirmed, and one that is missing
+// is recorded pending and created in pass 2 - a freshly-created assignment stays pending this
+// pass and confirms on a later GetByID.
 func TestRoleAssignmentsSyncerSyncOnceReconcile(t *testing.T) {
 	t.Parallel()
 
@@ -436,7 +465,7 @@ func TestRoleAssignmentsSyncerSyncOnceReconcile(t *testing.T) {
 
 			cluster := newTestCluster(false)
 			// Start from empty tracked state so NeedsWork sees work and the loop runs.
-			serviceProviderCluster := newTestServiceProviderCluster(t, true, true, true, coreapi.AzureMultiReference{})
+			serviceProviderCluster := newTestServiceProviderCluster(t, true, true, true, true, coreapi.AzureMultiReference{})
 
 			mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, serviceProviderCluster})
 			require.NoError(t, err)
@@ -500,7 +529,7 @@ func TestRoleAssignmentsSyncerSyncOncePersistsPendingBeforeCreate(t *testing.T) 
 
 	cluster := newTestCluster(false)
 	// Empty tracked state: pass 1 classifies both expected assignments as missing.
-	serviceProviderCluster := newTestServiceProviderCluster(t, true, true, true, coreapi.AzureMultiReference{})
+	serviceProviderCluster := newTestServiceProviderCluster(t, true, true, true, true, coreapi.AzureMultiReference{})
 
 	mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, serviceProviderCluster})
 	require.NoError(t, err)
@@ -575,7 +604,7 @@ func TestRoleAssignmentsSyncerSyncOncePreconditionFailureSkipsCreate(t *testing.
 	cluster := newTestCluster(false)
 	// Empty tracked state so pass 1 classifies both expected assignments as missing and the
 	// persist is a real change (which the wrapper then fails with a precondition error).
-	serviceProviderCluster := newTestServiceProviderCluster(t, true, true, true, coreapi.AzureMultiReference{})
+	serviceProviderCluster := newTestServiceProviderCluster(t, true, true, true, true, coreapi.AzureMultiReference{})
 
 	mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, serviceProviderCluster})
 	require.NoError(t, err)
@@ -616,7 +645,7 @@ func TestRoleAssignmentsSyncerSyncOnceClassifyErrorSkipsPersistAndCreate(t *test
 
 	cluster := newTestCluster(false)
 	// Empty tracked state so NeedsWork sees work and syncRoleAssignments runs.
-	serviceProviderCluster := newTestServiceProviderCluster(t, true, true, true, coreapi.AzureMultiReference{})
+	serviceProviderCluster := newTestServiceProviderCluster(t, true, true, true, true, coreapi.AzureMultiReference{})
 
 	mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, serviceProviderCluster})
 	require.NoError(t, err)
@@ -661,7 +690,7 @@ func TestRoleAssignmentsSyncerSyncOnceCreateErrorStaysPending(t *testing.T) {
 	expectedIDs := testExpectedRoleAssignmentIDs(t)
 
 	cluster := newTestCluster(false)
-	serviceProviderCluster := newTestServiceProviderCluster(t, true, true, true, coreapi.AzureMultiReference{
+	serviceProviderCluster := newTestServiceProviderCluster(t, true, true, true, true, coreapi.AzureMultiReference{
 		PendingAzureResources: expectedIDs,
 	})
 
@@ -712,7 +741,7 @@ func TestRoleAssignmentsSyncerSyncOnceStalePendingDropped(t *testing.T) {
 
 	cluster := newTestCluster(false)
 	// A stale (no-longer-expected) entry lingers in pending; the expected assignments exist.
-	serviceProviderCluster := newTestServiceProviderCluster(t, true, true, true, coreapi.AzureMultiReference{
+	serviceProviderCluster := newTestServiceProviderCluster(t, true, true, true, true, coreapi.AzureMultiReference{
 		AzureResources:        expectedIDs,
 		PendingAzureResources: []*azcorearm.ResourceID{staleID},
 	})
@@ -761,7 +790,7 @@ func TestRoleAssignmentsSyncerSyncOnceRecheckAllPresentReschedules(t *testing.T)
 
 	cluster := newTestCluster(false)
 	// The recheck window has already elapsed, so the confirmed set is re-verified.
-	serviceProviderCluster := newTestServiceProviderCluster(t, true, true, true, coreapi.AzureMultiReference{
+	serviceProviderCluster := newTestServiceProviderCluster(t, true, true, true, true, coreapi.AzureMultiReference{
 		AzureResources:      expectedIDs,
 		EarliestRecheckTime: &metav1.Time{Time: testFixedNow().Add(-time.Minute)},
 	})
@@ -810,7 +839,7 @@ func TestRoleAssignmentsSyncerSyncOnceRecheckDisappearedRecreatesStaysPending(t 
 
 	cluster := newTestCluster(false)
 	// The recheck window has already elapsed; the confirmed assignments have since disappeared.
-	serviceProviderCluster := newTestServiceProviderCluster(t, true, true, true, coreapi.AzureMultiReference{
+	serviceProviderCluster := newTestServiceProviderCluster(t, true, true, true, true, coreapi.AzureMultiReference{
 		AzureResources:      expectedIDs,
 		EarliestRecheckTime: &metav1.Time{Time: testFixedNow().Add(-time.Minute)},
 	})
@@ -861,7 +890,7 @@ func TestRoleAssignmentsSyncerSyncOnceNilRecheckDoesOneRecheck(t *testing.T) {
 
 	cluster := newTestCluster(false)
 	// Confirmed and pending-empty, but EarliestRecheckTime is nil (never initialized).
-	serviceProviderCluster := newTestServiceProviderCluster(t, true, true, true, coreapi.AzureMultiReference{
+	serviceProviderCluster := newTestServiceProviderCluster(t, true, true, true, true, coreapi.AzureMultiReference{
 		AzureResources: expectedIDs,
 	})
 
@@ -906,11 +935,13 @@ func TestRoleAssignmentsSyncerSyncOnceRecheckPartialDisappearance(t *testing.T) 
 
 	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
 	expectedIDs := testExpectedRoleAssignmentIDs(t)
-	require.Len(t, expectedIDs, 2, "test expects one control-plane and one data-plane assignment")
-	presentID, missingID := expectedIDs[0], expectedIDs[1]
+	require.GreaterOrEqual(t, len(expectedIDs), 2, "test needs at least two expected assignments to exercise partial disappearance")
+	// The first expected assignment still exists; the rest have disappeared and are re-created.
+	presentID := expectedIDs[0]
+	missingIDs := expectedIDs[1:]
 
 	cluster := newTestCluster(false)
-	serviceProviderCluster := newTestServiceProviderCluster(t, true, true, true, coreapi.AzureMultiReference{
+	serviceProviderCluster := newTestServiceProviderCluster(t, true, true, true, true, coreapi.AzureMultiReference{
 		AzureResources:      expectedIDs,
 		EarliestRecheckTime: &metav1.Time{Time: testFixedNow().Add(-time.Minute)},
 	})
@@ -930,11 +961,11 @@ func TestRoleAssignmentsSyncerSyncOnceRecheckPartialDisappearance(t *testing.T) 
 			return armauthorization.RoleAssignmentsClientGetByIDResponse{}, roleAssignmentNotFoundError()
 		}).
 		Times(len(expectedIDs))
-	// Only the missing assignment is (re-)created.
+	// Only the missing assignments are (re-)created.
 	mockRAClient.EXPECT().
 		Create(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), nil).
-		DoAndReturn(assertCreateParams(t, []*azcorearm.ResourceID{missingID}, nil)).
-		Times(1)
+		DoAndReturn(assertCreateParams(t, missingIDs, nil)).
+		Times(len(missingIDs))
 	fpaClientBuilder := azureclient.NewMockFirstPartyApplicationClientBuilder(ctrl)
 	fpaClientBuilder.EXPECT().
 		RoleAssignmentsClient(testTenantID, testSubscriptionID).
@@ -948,9 +979,9 @@ func TestRoleAssignmentsSyncerSyncOnceRecheckPartialDisappearance(t *testing.T) 
 	updated, err := mockResourcesDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
 	require.NoError(t, err)
 	got := updated.Status.AzureResources.RoleAssignments
-	// The still-present assignment stays confirmed; the missing one is re-created and pending.
+	// The still-present assignment stays confirmed; the missing ones are re-created and pending.
 	assertResourceIDSetEqual(t, []*azcorearm.ResourceID{presentID}, got.AzureResources, "AzureResources")
-	assertResourceIDSetEqual(t, []*azcorearm.ResourceID{missingID}, got.PendingAzureResources, "PendingAzureResources")
+	assertResourceIDSetEqual(t, missingIDs, got.PendingAzureResources, "PendingAzureResources")
 	assert.Nil(t, got.EarliestRecheckTime, "EarliestRecheckTime must be cleared while work remains")
 }
 
@@ -969,7 +1000,7 @@ func TestRoleAssignmentsSyncerSyncOnceExtraConfirmedRetained(t *testing.T) {
 
 	cluster := newTestCluster(false)
 	// A previously-confirmed assignment (extraID) is no longer expected; the recheck is due.
-	serviceProviderCluster := newTestServiceProviderCluster(t, true, true, true, coreapi.AzureMultiReference{
+	serviceProviderCluster := newTestServiceProviderCluster(t, true, true, true, true, coreapi.AzureMultiReference{
 		AzureResources:      confirmedWithExtra,
 		EarliestRecheckTime: &metav1.Time{Time: testFixedNow().Add(-time.Minute)},
 	})
@@ -1018,7 +1049,7 @@ func TestRoleAssignmentsSyncerSyncOnceSteadyStateSkipsAzure(t *testing.T) {
 	expectedIDs := testExpectedRoleAssignmentIDs(t)
 
 	cluster := newTestCluster(false)
-	serviceProviderCluster := newTestServiceProviderCluster(t, true, true, true, coreapi.AzureMultiReference{
+	serviceProviderCluster := newTestServiceProviderCluster(t, true, true, true, true, coreapi.AzureMultiReference{
 		AzureResources:      expectedIDs,
 		EarliestRecheckTime: &metav1.Time{Time: testFixedNow().Add(12 * time.Hour)},
 	})
@@ -1051,7 +1082,38 @@ func TestRoleAssignmentsSyncerSyncOnceUnresolvedPrincipalSkipsAzure(t *testing.T
 
 	cluster := newTestCluster(false)
 	// Control-plane principal resolved, data-plane principal not resolved yet.
-	serviceProviderCluster := newTestServiceProviderCluster(t, true, true, false, coreapi.AzureMultiReference{})
+	serviceProviderCluster := newTestServiceProviderCluster(t, true, true, false, true, coreapi.AzureMultiReference{})
+
+	mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, serviceProviderCluster})
+	require.NoError(t, err)
+
+	ctrl := gomock.NewController(t)
+	fpaClientBuilder := azureclient.NewMockFirstPartyApplicationClientBuilder(ctrl)
+	fpaClientBuilder.EXPECT().RoleAssignmentsClient(gomock.Any(), gomock.Any()).Times(0)
+
+	syncer := newTestSyncer(mockResourcesDB, fpaClientBuilder)
+
+	require.NoError(t, syncer.SyncOnce(ctx, testHCPClusterKey))
+
+	updated, err := mockResourcesDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
+	require.NoError(t, err)
+	got := updated.Status.AzureResources.RoleAssignments
+	assertResourceIDSetEqual(t, nil, got.PendingAzureResources, "PendingAzureResources")
+	assertResourceIDSetEqual(t, nil, got.AzureResources, "AzureResources")
+}
+
+// TestRoleAssignmentsSyncerSyncOnceUnresolvedServiceManagedIdentitySkipsAzure verifies that
+// while the service managed identity's principal ID is not yet resolved (control-plane and
+// data-plane principals are), the controller skips entirely (no FPA client, no Azure calls,
+// no write) rather than persisting a partial pending set that omits the SMI assignment.
+func TestRoleAssignmentsSyncerSyncOnceUnresolvedServiceManagedIdentitySkipsAzure(t *testing.T) {
+	t.Parallel()
+
+	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+
+	cluster := newTestCluster(false)
+	// Control-plane and data-plane principals resolved, service managed identity not yet.
+	serviceProviderCluster := newTestServiceProviderCluster(t, true, true, true, false, coreapi.AzureMultiReference{})
 
 	mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, serviceProviderCluster})
 	require.NoError(t, err)
@@ -1081,7 +1143,7 @@ func TestRoleAssignmentsSyncerSyncOnceDeletingIsNoOp(t *testing.T) {
 	expectedIDs := testExpectedRoleAssignmentIDs(t)
 
 	cluster := newTestCluster(true) // deleting
-	serviceProviderCluster := newTestServiceProviderCluster(t, true, true, true, coreapi.AzureMultiReference{
+	serviceProviderCluster := newTestServiceProviderCluster(t, true, true, true, true, coreapi.AzureMultiReference{
 		PendingAzureResources: expectedIDs,
 	})
 
@@ -1113,7 +1175,7 @@ func TestRoleAssignmentsSyncerSyncOnceManagedResourceGroupNotConfirmedGate(t *te
 	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
 
 	cluster := newTestCluster(false)
-	serviceProviderCluster := newTestServiceProviderCluster(t, false, true, true, coreapi.AzureMultiReference{})
+	serviceProviderCluster := newTestServiceProviderCluster(t, false, true, true, true, coreapi.AzureMultiReference{})
 
 	mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, serviceProviderCluster})
 	require.NoError(t, err)
@@ -1134,7 +1196,8 @@ func TestRoleAssignmentsSyncerSyncOnceManagedResourceGroupNotConfirmedGate(t *te
 }
 
 // TestRoleAssignmentsSyncerNeedsWork verifies the NeedsWork short-circuit, including
-// the resolvable-principal gate for both control-plane and data-plane identities.
+// the resolvable-principal gate for the control-plane operator, data-plane operator, and
+// service managed identities.
 func TestRoleAssignmentsSyncerNeedsWork(t *testing.T) {
 	t.Parallel()
 
@@ -1148,42 +1211,49 @@ func TestRoleAssignmentsSyncerNeedsWork(t *testing.T) {
 		mrgConfirmed bool
 		cpResolved   bool
 		dpResolved   bool
+		smiResolved  bool
 		roleAssign   coreapi.AzureMultiReference
 		expect       bool
 	}{
 		{
 			name:         "managed resource group not confirmed has no work",
-			mrgConfirmed: false, cpResolved: true, dpResolved: true,
+			mrgConfirmed: false, cpResolved: true, dpResolved: true, smiResolved: true,
 			roleAssign: coreapi.AzureMultiReference{},
 			expect:     false,
 		},
 		{
 			name:         "control-plane principal unresolved has no work",
-			mrgConfirmed: true, cpResolved: false, dpResolved: true,
+			mrgConfirmed: true, cpResolved: false, dpResolved: true, smiResolved: true,
 			roleAssign: coreapi.AzureMultiReference{},
 			expect:     false,
 		},
 		{
 			name:         "data-plane principal unresolved has no work",
-			mrgConfirmed: true, cpResolved: true, dpResolved: false,
+			mrgConfirmed: true, cpResolved: true, dpResolved: false, smiResolved: true,
+			roleAssign: coreapi.AzureMultiReference{},
+			expect:     false,
+		},
+		{
+			name:         "service managed identity principal unresolved has no work",
+			mrgConfirmed: true, cpResolved: true, dpResolved: true, smiResolved: false,
 			roleAssign: coreapi.AzureMultiReference{},
 			expect:     false,
 		},
 		{
 			name:         "all principals resolved and empty role assignments needs work",
-			mrgConfirmed: true, cpResolved: true, dpResolved: true,
+			mrgConfirmed: true, cpResolved: true, dpResolved: true, smiResolved: true,
 			roleAssign: coreapi.AzureMultiReference{},
 			expect:     true,
 		},
 		{
 			name:         "pending role assignment needs work",
-			mrgConfirmed: true, cpResolved: true, dpResolved: true,
+			mrgConfirmed: true, cpResolved: true, dpResolved: true, smiResolved: true,
 			roleAssign: coreapi.AzureMultiReference{PendingAzureResources: expectedIDs},
 			expect:     true,
 		},
 		{
 			name:         "all expected confirmed with future recheck has no work",
-			mrgConfirmed: true, cpResolved: true, dpResolved: true,
+			mrgConfirmed: true, cpResolved: true, dpResolved: true, smiResolved: true,
 			roleAssign: coreapi.AzureMultiReference{
 				AzureResources:      expectedIDs,
 				EarliestRecheckTime: &metav1.Time{Time: testFixedNow().Add(12 * time.Hour)},
@@ -1192,13 +1262,13 @@ func TestRoleAssignmentsSyncerNeedsWork(t *testing.T) {
 		},
 		{
 			name:         "all expected confirmed with nil recheck needs work",
-			mrgConfirmed: true, cpResolved: true, dpResolved: true,
+			mrgConfirmed: true, cpResolved: true, dpResolved: true, smiResolved: true,
 			roleAssign: coreapi.AzureMultiReference{AzureResources: expectedIDs},
 			expect:     true,
 		},
 		{
 			name:         "all expected confirmed with elapsed recheck needs work",
-			mrgConfirmed: true, cpResolved: true, dpResolved: true,
+			mrgConfirmed: true, cpResolved: true, dpResolved: true, smiResolved: true,
 			roleAssign: coreapi.AzureMultiReference{
 				AzureResources:      expectedIDs,
 				EarliestRecheckTime: &metav1.Time{Time: testFixedNow().Add(-time.Minute)},
@@ -1209,7 +1279,7 @@ func TestRoleAssignmentsSyncerNeedsWork(t *testing.T) {
 			// A confirmed superset (leftover role from a previous operator identity) with a
 			// future recheck is steady state - not work.
 			name:         "confirmed superset of expected with future recheck has no work",
-			mrgConfirmed: true, cpResolved: true, dpResolved: true,
+			mrgConfirmed: true, cpResolved: true, dpResolved: true, smiResolved: true,
 			roleAssign: coreapi.AzureMultiReference{
 				AzureResources:      supersetIDs,
 				EarliestRecheckTime: &metav1.Time{Time: testFixedNow().Add(12 * time.Hour)},
@@ -1219,7 +1289,7 @@ func TestRoleAssignmentsSyncerNeedsWork(t *testing.T) {
 		{
 			// A confirmed superset still needs work once the recheck interval has elapsed.
 			name:         "confirmed superset of expected with elapsed recheck needs work",
-			mrgConfirmed: true, cpResolved: true, dpResolved: true,
+			mrgConfirmed: true, cpResolved: true, dpResolved: true, smiResolved: true,
 			roleAssign: coreapi.AzureMultiReference{
 				AzureResources:      supersetIDs,
 				EarliestRecheckTime: &metav1.Time{Time: testFixedNow().Add(-time.Minute)},
@@ -1236,7 +1306,7 @@ func TestRoleAssignmentsSyncerNeedsWork(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			cluster := newTestCluster(false)
-			serviceProviderCluster := newTestServiceProviderCluster(t, tc.mrgConfirmed, tc.cpResolved, tc.dpResolved, tc.roleAssign)
+			serviceProviderCluster := newTestServiceProviderCluster(t, tc.mrgConfirmed, tc.cpResolved, tc.dpResolved, tc.smiResolved, tc.roleAssign)
 			assert.Equal(t, tc.expect, syncer.NeedsWork(cluster, serviceProviderCluster))
 		})
 	}

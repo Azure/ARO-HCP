@@ -408,7 +408,8 @@ type AzureResources struct {
 	// Written by: ObserveManagedResourceGroup
 	ManagedResourceGroup AzureReference `json:"managedResourceGroup,omitempty"`
 	// RoleAssignments tracks the role assignments created on the managed resource group
-	// for the cluster's control-plane and data-plane managed identities.
+	// for the cluster's control-plane operator, data-plane operator, and service managed
+	// identities.
 	// Written by: IdentityRoleAssignments
 	RoleAssignments AzureMultiReference `json:"roleAssignments,omitempty"`
 }
