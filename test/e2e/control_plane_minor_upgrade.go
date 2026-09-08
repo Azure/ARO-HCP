@@ -25,6 +25,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/blang/semver/v4"
+	"github.com/google/uuid"
 
 	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/client-go/kubernetes"
@@ -34,6 +35,7 @@ import (
 	clusterversion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/version"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controlplaneversion"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/cincinnati"
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
@@ -67,6 +69,7 @@ var _ = Describe("Customer", func() {
 			// resolvable via the OpenShift update service at the channel's z-stream offset.
 			installVersionId := fmt.Sprintf("%d.%d", installVersion.Major, installVersion.Minor)
 			upgradeVersionId := fmt.Sprintf("%d.%d", upgradeVersion.Major, upgradeVersion.Minor)
+			var resolvedInstallVersion string
 			if channelGroup == "nightly" {
 				resolvedInstall, err := framework.GetLatestNightlyInstallVersion(ctx, channelGroup, installVersionId)
 				if framework.IsVersionNotFoundError(err) {
@@ -74,6 +77,7 @@ var _ = Describe("Customer", func() {
 				}
 				Expect(err).NotTo(HaveOccurred(), "failed to resolve nightly install version for %s", installVersionId)
 				installVersionId = resolvedInstall
+				resolvedInstallVersion = installVersionId
 
 				resolvedUpgrade, err := framework.GetLatestNightlyInstallVersion(ctx, channelGroup, upgradeVersionId)
 				if framework.IsVersionNotFoundError(err) {
@@ -90,6 +94,9 @@ var _ = Describe("Customer", func() {
 					if desiredVersion == nil {
 						Skip(fmt.Sprintf("no version resolved for channel %s-%s; skipping y-stream upgrade %s -> %s",
 							channelGroup, minorLine, installVersionId, upgradeVersionId))
+					}
+					if minorLine == installVersionId {
+						resolvedInstallVersion = desiredVersion.Version
 					}
 				}
 			}
