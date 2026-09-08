@@ -30,6 +30,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -44,6 +45,11 @@ type nodePoolDegradedAggregator struct {
 	inertia           statusutils.Inertia
 	clock             utilsclock.PassiveClock
 	firstObservedBad  *statusutils.FirstObservedBadCache
+	// applyDesireLister and readDesireLister expose the node pool's
+	// kube-applier ApplyDesires/ReadDesires so their Degraded conditions can be
+	// folded into the same aggregate Degraded condition.
+	applyDesireLister kubeapplierlisters.ApplyDesireLister
+	readDesireLister  kubeapplierlisters.ReadDesireLister
 }
 
 var _ controllerutils.NodePoolSyncer = (*nodePoolDegradedAggregator)(nil)
@@ -74,6 +80,11 @@ func NewNodePoolDegradedAggregatorController(
 	if clock == nil {
 		clock = utilsclock.RealClock{}
 	}
+	// The per-node-pool desire listers are already reachable from the union
+	// kube-applier informers handed to this constructor, so no additional
+	// wiring in the caller is needed.
+	_, applyDesireLister := kubeApplierInformers.ApplyDesires()
+	_, readDesireLister := kubeApplierInformers.ReadDesires()
 	syncer := &nodePoolDegradedAggregator{
 		nodePoolLister:    nodePoolLister,
 		controllerLister:  controllerLister,
@@ -81,6 +92,8 @@ func NewNodePoolDegradedAggregatorController(
 		inertia:           nodePoolDegradedAggregatorInertia(),
 		clock:             clock,
 		firstObservedBad:  statusutils.NewFirstObservedBadCache(clock),
+		applyDesireLister: applyDesireLister,
+		readDesireLister:  readDesireLister,
 	}
 	return controllerutils.NewNodePoolWatchingController(
 		"NodePoolDegradedAggregator",
@@ -106,12 +119,42 @@ func (c *nodePoolDegradedAggregator) SyncOnce(ctx context.Context, key controlle
 		return utils.TrackError(fmt.Errorf("failed to list Controllers from cache: %w", err))
 	}
 
+	// ListForNodePool returns exactly the node-pool-scoped desires for this node
+	// pool (desires nested under a node pool are node-pool-scoped), so no extra
+	// scope filtering is needed here — cluster-scoped and other node pools'
+	// desires are not returned.
+	applyDesires, err := c.applyDesireLister.ListForNodePool(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to list ApplyDesires from cache: %w", err))
+	}
+
+	readDesires, err := c.readDesireLister.ListForNodePool(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to list ReadDesires from cache: %w", err))
+	}
+
+	// Fold the node pool's controllers together with any node-pool-scoped
+	// ApplyDesire/ReadDesire into a single "Degraded" condition using the same
+	// collector for every item type: only degraded items are emitted, healthy
+	// items are dropped, and missing conditions are synthesized as degraded (see
+	// statusutils.CollectDegradedConditions). With report-only-degraded
+	// collection an all-healthy node pool produces zero sources and
+	// UnionCondition returns the good default (Degraded=False/AsExpected).
+	// Controllers and desires share the firstObservedBad cache — their resource
+	// IDs (and thus cache keys) are distinct.
+	sources := statusutils.CollectDegradedConditions(
+		controllers, statusutils.ConditionsOfKnown, "", c.firstObservedBad)
+	sources = append(sources, statusutils.CollectDegradedConditions(
+		applyDesires, statusutils.ConditionsOfKnown, statusutils.ApplyDesireSourcePrefix, c.firstObservedBad)...)
+	sources = append(sources, statusutils.CollectDegradedConditions(
+		readDesires, statusutils.ConditionsOfKnown, statusutils.ReadDesireSourcePrefix, c.firstObservedBad)...)
+
 	aggregated := statusutils.UnionCondition(
 		statusutils.DegradedConditionType,
 		metav1.ConditionFalse,
 		c.inertia,
 		c.clock.Now(),
-		statusutils.CollectDegradedConditions(controllers, c.firstObservedBad)...,
+		sources...,
 	)
 
 	replacement := existing.DeepCopy()
