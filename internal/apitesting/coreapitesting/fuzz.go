@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"math/rand"
 	"strings"
 	"testing"
@@ -208,8 +209,20 @@ func CommonRoundTripFuzzFuncs() []interface{} {
 			if j.Kms != nil && j.Kms.ActiveKey.Name == "" && j.Kms.ActiveKey.Version == "" {
 				j.Kms = nil
 			}
-			if j.Kms != nil && j.Kms.Visibility == "" {
-				j.Kms.Visibility = metadataapi.KeyVaultVisibilityPublic
+			if j.Kms != nil {
+				if j.Kms.Visibility == "" {
+					j.Kms.Visibility = metadataapi.KeyVaultVisibilityPublic
+				}
+				// Use alphanumeric values for KMS key fields so they
+				// survive URL construction/parsing round-trips in
+				// v20260901preview.
+				j.Kms.ActiveKey.VaultName = fmt.Sprintf("vault%d", c.Int31())
+				j.Kms.ActiveKey.Name = fmt.Sprintf("key%d", c.Int31())
+				j.Kms.ActiveKey.Version = fmt.Sprintf("ver%d", c.Int31())
+				// Construct a consistent KeyEncryptionKeyURL from the
+				// cleaned ActiveKey fields so it round-trips correctly.
+				j.Kms.KeyEncryptionKeyURL = fmt.Sprintf("https://%s.vault.azure.net/keys/%s/%s",
+					j.Kms.ActiveKey.VaultName, j.Kms.ActiveKey.Name, j.Kms.ActiveKey.Version)
 			}
 		},
 	)
