@@ -1,0 +1,1 @@
+"message": "Invalid value: \"/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/managed-resource-group-name/providers/Microsoft.ManagedIdentity/userAssignedIdentities/acr-pull-mi\": must not be the same resource group name

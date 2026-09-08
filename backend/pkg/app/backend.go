@@ -850,6 +850,12 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		serviceProviderClusterLister,
 		backendInformers,
 	)
+	containerRegistryPullCredentialsValidationController := clustervalidation.NewClusterValidationController(
+		validationutils.NewContainerRegistryPullCredentialsPermissionValidation(b.options.SMIClientBuilder, b.options.CheckAccessV2ClientBuilder),
+		b.options.ResourcesDBClient,
+		serviceProviderClusterLister,
+		backendInformers,
+	)
 	azureVMSizeSupportsEphemeralOSDiskValidationController := nodepoolvalidation.NewNodePoolValidationController(
 		validationutils.NewAzureVMSizeSupportsEphemeralOSDiskValidation(virtualMachineResourceSKUsCachedReaderController),
 		b.options.ResourcesDBClient,
@@ -1195,6 +1201,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go controlPlaneIdentitiesPermissionsValidationController.Run(ctx, 20)
 				go nodePoolNSGBasedRequiredConnectivityValidationController.Run(ctx, 20)
 				go dataPlaneIdentitiesPermissionsValidationController.Run(ctx, 20)
+				go containerRegistryPullCredentialsValidationController.Run(ctx, 20)
 				go nodePoolVersionController.Run(ctx, 20)
 				go nodePoolActiveVersionController.Run(ctx, 20)
 				go createClusterScopedReadDesiresController.Run(ctx, 20)

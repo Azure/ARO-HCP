@@ -103,6 +103,13 @@ type ConsoleProfile struct {
 	URL *string
 }
 
+// ContainerRegistryProfile - Azure Container Registry configuration for a cluster. Configures how worker nodes authenticate
+// container image pulls from Azure Container Registry (ACR).
+type ContainerRegistryProfile struct {
+	// The user-assigned managed identity used for container registry image pulls.
+	ManagedIdentity *string
+}
+
 // CustomerManagedEncryptionProfile - Customer managed encryption key profile.
 type CustomerManagedEncryptionProfile struct {
 	// The encryption type used. By default, "KMS" is used.
@@ -776,14 +783,18 @@ type NodePoolProperties struct {
 	// REQUIRED; Azure node pool platform configuration
 	Platform *NodePoolPlatformProfile
 
-	// Auto-repair
+	// autoRepair specifies whether health checks should be enabled for machines in the NodePool. Enabling this feature will cause
+	// the controller to automatically delete unhealthy machines. The unhealthy
+	// criteria are determined by checking the Node Ready condition and a timeout that might vary depending on the platform provider.
+	// autoRepair will not take action when more than 2 Nodes are unhealthy at
+	// the same time, giving time for the cluster to stabilize or for the user to manually intervene.
 	AutoRepair *bool
 
 	// Representation of a autoscaling in a node pool.
 	AutoScaling *NodePoolAutoScaling
 
 	// Kubernetes labels to propagate to the NodePool Nodes Note that when the labels are updated this is only applied to newly
-	// create nodes in the Nodepool, existing node labels remain unchanged.
+	// created nodes in the Nodepool, existing node labels remain unchanged.
 	Labels []*Label
 
 	// nodeDrainTimeoutMinutes is the grace period for how long Pod Disruption Budget-protected workloads will be respected during
@@ -819,7 +830,7 @@ type NodePoolPropertiesUpdate struct {
 	AutoScaling *NodePoolAutoScaling
 
 	// Kubernetes labels to propagate to the NodePool Nodes Note that when the labels are updated this is only applied to newly
-	// create nodes in the Nodepool, existing node labels remain unchanged.
+	// created nodes in the Nodepool, existing node labels remain unchanged.
 	Labels []*Label
 
 	// nodeDrainTimeoutMinutes is the grace period for how long Pod Disruption Budget-protected workloads will be respected during
@@ -1010,15 +1021,21 @@ type PlatformProfile struct {
 	// unique identifier per RFC 4122.
 	ManagedResourceGroup *string
 
-	// The core outgoing configuration
-	OutboundType *OutboundType
-
 	// READ-ONLY; URL for the OIDC provider to be used for authentication to authenticate against user Azure cloud account
 	IssuerURL *string
+
+	// Azure Container Registry configuration for authenticating image pulls on the cluster's worker nodes.
+	ContainerRegistry *ContainerRegistryProfile
+
+	// The core outgoing configuration
+	OutboundType *OutboundType
 }
 
 // PlatformProfileUpdate - Azure specific configuration
 type PlatformProfileUpdate struct {
+	// Azure Container Registry configuration for authenticating image pulls on the cluster's worker nodes.
+	ContainerRegistry *ContainerRegistryProfile
+
 	// The configuration that the operators of the cluster have to authenticate to Azure
 	OperatorsAuthentication *OperatorsAuthenticationProfileUpdate
 }

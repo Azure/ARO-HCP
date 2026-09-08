@@ -1,0 +1,2 @@
+"message": "Invalid value: \"\": must be a non-empty resource ID or null to clear",
+    "target": "properties.platform.containerRegistry.managedIdentity"

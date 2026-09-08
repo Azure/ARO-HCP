@@ -18,12 +18,16 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/blang/semver/v4"
 
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	"github.com/openshift/hypershift/api/hypershift/v1beta1"
@@ -88,6 +92,9 @@ func (c *operationClusterUpdate) hypershiftHostedClusterSpecMatchesDesired(clust
 		return false, message
 	}
 	if matches, message := c.hypershiftHostedClusterEtcdSecretEncryptionSpecMatchesDesired(cluster.CustomerProperties.Etcd.DataEncryption, hostedCluster.Spec.SecretEncryption); !matches {
+		return false, message
+	}
+	if matches, message := c.hypershiftHostedClusterContainerRegistrySpecMatchesDesired(cluster.CustomerProperties.Platform.ContainerRegistry.PullManagedIdentity, hostedCluster); !matches {
 		return false, message
 	}
 	return true, ""
@@ -411,6 +418,9 @@ func (c *operationClusterUpdate) clusterServiceClusterSpecMatchesDesired(cluster
 	if matches, message := c.clusterServiceClusterNodeDrainTimeoutSpecMatchesDesired(cluster.CustomerProperties.NodeDrainTimeoutMinutes, csCluster); !matches {
 		return false, message
 	}
+	if matches, message := c.clusterServiceClusterContainerRegistryPullMISpecMatchesDesired(cluster.CustomerProperties.Platform.ContainerRegistry.PullManagedIdentity, csCluster); !matches {
+		return false, message
+	}
 	return true, ""
 }
 
@@ -485,6 +495,36 @@ func (c *operationClusterUpdate) clusterServiceClusterNodeDrainTimeoutSpecMatche
 	return true, ""
 }
 
+// clusterServiceClusterContainerRegistryPullMISpecMatchesDesired reports whether
+// Cluster Service container registry pull managed identity matches desired state.
+func (c *operationClusterUpdate) clusterServiceClusterContainerRegistryPullMISpecMatchesDesired(desired *azcorearm.ResourceID, csCluster *arohcpv1alpha1.Cluster) (bool, string) {
+	var desiredStr *string
+	if desired != nil {
+		desiredStr = to.Ptr(desired.String())
+	}
+
+	got := ocm.ClusterUpdateDispatchConfigContainerRegistryPullMIFromCS(csCluster.Azure())
+	// Normalizes "CS returned empty string" to "unset" so the comparison sees them as equal.
+	// TODO: PR #6439 enables continuous validation, which re-runs on every sync.
+	// Once that merges, this normalization may no longer be needed if validation always detects changes.
+	if got != nil && *got == "" {
+		got = nil
+	}
+
+	if (desiredStr == nil) != (got == nil) || (desiredStr != nil && !strings.EqualFold(*desiredStr, *got)) {
+		desiredDisplay := "unset"
+		if desiredStr != nil {
+			desiredDisplay = *desiredStr
+		}
+		gotDisplay := "unset"
+		if got != nil {
+			gotDisplay = *got
+		}
+		return false, fmt.Sprintf("Cluster Service containerRegistryPullManagedIdentity is %s, want %s", gotDisplay, desiredDisplay)
+	}
+	return true, ""
+}
+
 // hypershiftControlPlaneClusterAutoscalerState gates on the
 // cluster-autoscaler ControlPlaneComponent status (Available + RolloutComplete)
 // when the active control plane is 4.20+. HostedCluster autoscaling Spec matching
@@ -552,4 +592,32 @@ func (c *operationClusterUpdate) controlPlaneClusterAutoscalerNotReadyMessage(co
 		return clusterAutoscalerRolloutNotCompleteMsg
 	}
 	return clusterAutoscalerNotReadyMsg
+}
+
+func (c *operationClusterUpdate) hypershiftHostedClusterContainerRegistrySpecMatchesDesired(
+	desired *azcorearm.ResourceID,
+	hostedCluster *v1beta1.HostedCluster,
+) (bool, string) {
+	var observedResourceID string
+	if azure := hostedCluster.Spec.Platform.Azure; azure != nil {
+		observedResourceID = string(azure.ContainerRegistry.Credentials.ManagedIdentity.ResourceID)
+	}
+
+	var desiredStr string
+	if desired != nil {
+		desiredStr = desired.String()
+	}
+
+	if !strings.EqualFold(desiredStr, observedResourceID) {
+		desiredDisplay := "unset"
+		if desiredStr != "" {
+			desiredDisplay = desiredStr
+		}
+		observedDisplay := "unset"
+		if observedResourceID != "" {
+			observedDisplay = observedResourceID
+		}
+		return false, fmt.Sprintf("HostedCluster containerRegistry managed identity is %s, want %s", observedDisplay, desiredDisplay)
+	}
+	return true, ""
 }

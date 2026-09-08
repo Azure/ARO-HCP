@@ -48,32 +48,33 @@ import (
 // --- Types from deployment_params.go ---
 
 type ClusterParams20261001 struct {
-	OpenshiftVersionId            string
-	ClusterName                   string
-	ManagedResourceGroupName      string
-	NsgResourceID                 string
-	NsgName                       string
-	SubnetResourceID              string
-	SubnetName                    string
-	VnetName                      string
-	UserAssignedIdentitiesProfile *hcpsdk20261001preview.UserAssignedIdentitiesProfile
-	Identity                      *hcpsdk20261001preview.ManagedServiceIdentity
-	KeyVaultName                  string
-	EtcdEncryptionKeyName         string
-	EtcdEncryptionKeyVersion      string
-	EncryptionKeyManagementMode   string
-	EncryptionType                string
-	VnetIntegrationSubnetID       string
-	KeyVaultVisibility            string
-	IngressType                   string
-	Network                       NetworkConfig
-	APIVisibility                 string
-	ImageRegistryState            string
-	ChannelGroup                  string
-	AuthorizedCIDRs               []*string
-	Autoscaling                   *hcpsdk20261001preview.ClusterAutoscalingProfile
-	CryptoRestrictions            *hcpsdk20261001preview.CryptoRestrictions
-	Tags                          map[string]*string
+	OpenshiftVersionId               string
+	ClusterName                      string
+	ManagedResourceGroupName         string
+	NsgResourceID                    string
+	NsgName                          string
+	SubnetResourceID                 string
+	SubnetName                       string
+	VnetName                         string
+	UserAssignedIdentitiesProfile    *hcpsdk20261001preview.UserAssignedIdentitiesProfile
+	Identity                         *hcpsdk20261001preview.ManagedServiceIdentity
+	KeyVaultName                     string
+	EtcdEncryptionKeyName            string
+	EtcdEncryptionKeyVersion         string
+	EncryptionKeyManagementMode      string
+	EncryptionType                   string
+	VnetIntegrationSubnetID          string
+	KeyVaultVisibility               string
+	IngressType                      string
+	Network                          NetworkConfig
+	APIVisibility                    string
+	ImageRegistryState               string
+	ChannelGroup                     string
+	AuthorizedCIDRs                  []*string
+	Autoscaling                      *hcpsdk20261001preview.ClusterAutoscalingProfile
+	CryptoRestrictions               *hcpsdk20261001preview.CryptoRestrictions
+	ContainerRegistryManagedIdentity *string
+	Tags                             map[string]*string
 }
 
 type NodePoolParams20261001 struct {
@@ -471,7 +472,7 @@ func BuildHCPClusterFromParams20261001(
 		}
 	}
 
-	return hcpsdk20261001preview.HcpOpenShiftCluster{
+	cluster := hcpsdk20261001preview.HcpOpenShiftCluster{
 		Location: to.Ptr(location),
 		Identity: identity,
 		Tags:     parameters.Tags,
@@ -525,7 +526,14 @@ func BuildHCPClusterFromParams20261001(
 			},
 			ImageDigestMirrors: imageDigestMirrors,
 		},
-	}, nil
+	}
+
+	if parameters.ContainerRegistryManagedIdentity != nil {
+		cluster.Properties.Platform.ContainerRegistry = &hcpsdk20261001preview.ContainerRegistryProfile{
+			ManagedIdentity: parameters.ContainerRegistryManagedIdentity,
+		}
+	}
+	return cluster, nil
 }
 
 func CreateHCPClusterAndWait20261001(
