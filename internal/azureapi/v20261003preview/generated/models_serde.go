@@ -1482,8 +1482,7 @@ func (i *IngressProfile) UnmarshalJSON(data []byte) error {
 // MarshalJSON implements the json.Marshaller interface for type KmsEncryptionProfile.
 func (k KmsEncryptionProfile) MarshalJSON() ([]byte, error) {
 	objectMap := make(map[string]any)
-	populate(objectMap, "activeKey", k.ActiveKey)
-	populate(objectMap, "vaultName", k.VaultName)
+	populate(objectMap, "keyEncryptionKeyUrl", k.KeyEncryptionKeyURL)
 	populate(objectMap, "visibility", k.Visibility)
 	return json.Marshal(objectMap)
 }
@@ -1497,11 +1496,8 @@ func (k *KmsEncryptionProfile) UnmarshalJSON(data []byte) error {
 	for key, val := range rawMsg {
 		var err error
 		switch key {
-		case "activeKey":
-			err = unpopulate(val, "ActiveKey", &k.ActiveKey)
-			delete(rawMsg, key)
-		case "vaultName":
-			err = unpopulate(val, "VaultName", &k.VaultName)
+		case "keyEncryptionKeyUrl":
+			err = unpopulate(val, "KeyEncryptionKeyURL", &k.KeyEncryptionKeyURL)
 			delete(rawMsg, key)
 		case "visibility":
 			err = unpopulate(val, "Visibility", &k.Visibility)
@@ -1519,7 +1515,7 @@ func (k *KmsEncryptionProfile) UnmarshalJSON(data []byte) error {
 // MarshalJSON implements the json.Marshaller interface for type KmsEncryptionProfileUpdate.
 func (k KmsEncryptionProfileUpdate) MarshalJSON() ([]byte, error) {
 	objectMap := make(map[string]any)
-	populate(objectMap, "activeKey", k.ActiveKey)
+	populate(objectMap, "keyEncryptionKeyUrl", k.KeyEncryptionKeyURL)
 	return json.Marshal(objectMap)
 }
 
@@ -1532,70 +1528,8 @@ func (k *KmsEncryptionProfileUpdate) UnmarshalJSON(data []byte) error {
 	for key, val := range rawMsg {
 		var err error
 		switch key {
-		case "activeKey":
-			err = unpopulate(val, "ActiveKey", &k.ActiveKey)
-			delete(rawMsg, key)
-		default:
-			err = fmt.Errorf("unmarshalling type %T, unknown field %q", k, key)
-		}
-		if err != nil {
-			return fmt.Errorf("unmarshalling type %T: %v", k, err)
-		}
-	}
-	return nil
-}
-
-// MarshalJSON implements the json.Marshaller interface for type KmsKey.
-func (k KmsKey) MarshalJSON() ([]byte, error) {
-	objectMap := make(map[string]any)
-	populate(objectMap, "name", k.Name)
-	populate(objectMap, "version", k.Version)
-	return json.Marshal(objectMap)
-}
-
-// UnmarshalJSON implements the json.Unmarshaller interface for type KmsKey.
-func (k *KmsKey) UnmarshalJSON(data []byte) error {
-	var rawMsg map[string]json.RawMessage
-	if err := json.Unmarshal(data, &rawMsg); err != nil {
-		return fmt.Errorf("unmarshalling type %T: %v", k, err)
-	}
-	for key, val := range rawMsg {
-		var err error
-		switch key {
-		case "name":
-			err = unpopulate(val, "Name", &k.Name)
-			delete(rawMsg, key)
-		case "version":
-			err = unpopulate(val, "Version", &k.Version)
-			delete(rawMsg, key)
-		default:
-			err = fmt.Errorf("unmarshalling type %T, unknown field %q", k, key)
-		}
-		if err != nil {
-			return fmt.Errorf("unmarshalling type %T: %v", k, err)
-		}
-	}
-	return nil
-}
-
-// MarshalJSON implements the json.Marshaller interface for type KmsKeyUpdate.
-func (k KmsKeyUpdate) MarshalJSON() ([]byte, error) {
-	objectMap := make(map[string]any)
-	populate(objectMap, "version", k.Version)
-	return json.Marshal(objectMap)
-}
-
-// UnmarshalJSON implements the json.Unmarshaller interface for type KmsKeyUpdate.
-func (k *KmsKeyUpdate) UnmarshalJSON(data []byte) error {
-	var rawMsg map[string]json.RawMessage
-	if err := json.Unmarshal(data, &rawMsg); err != nil {
-		return fmt.Errorf("unmarshalling type %T: %v", k, err)
-	}
-	for key, val := range rawMsg {
-		var err error
-		switch key {
-		case "version":
-			err = unpopulate(val, "Version", &k.Version)
+		case "keyEncryptionKeyUrl":
+			err = unpopulate(val, "KeyEncryptionKeyURL", &k.KeyEncryptionKeyURL)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", k, key)
