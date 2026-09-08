@@ -21,6 +21,7 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -137,6 +138,37 @@ func TestDoWithRetry(t *testing.T) {
 		}
 		if attempts != 1 {
 			t.Errorf("expected exactly 1 attempt (no retry) for a non-transient error, got %d", attempts)
+		}
+	})
+
+	t.Run("retries a connection reset wrapped in a net.OpError", func(t *testing.T) {
+		// *net.OpError implements net.Error, so it must not be mistaken for
+		// a plain timeout check; the underlying ECONNRESET has to still be
+		// detected and retried.
+		attempts := 0
+		econnreset := &net.OpError{Op: "read", Net: "tcp", Err: syscall.ECONNRESET}
+		client := &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			attempts++
+			if attempts < 2 {
+				return nil, econnreset
+			}
+			return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader("ok"))}, nil
+		})}
+
+		req, err := http.NewRequest("GET", "https://api.openshift.com/api/upgrades_info/graph", nil)
+		if err != nil {
+			t.Fatalf("failed to build request: %v", err)
+		}
+
+		body, err := doWithRetry(context.Background(), client, req, fastTestBackoff)
+		if err != nil {
+			t.Fatalf("expected success after retry, got error: %v", err)
+		}
+		if string(body) != "ok" {
+			t.Errorf("expected body %q, got %q", "ok", body)
+		}
+		if attempts != 2 {
+			t.Errorf("expected 2 attempts, got %d", attempts)
 		}
 	})
 

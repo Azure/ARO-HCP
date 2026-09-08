@@ -213,15 +213,19 @@ func isTransientTransportError(err error) bool {
 		// resolver failures are worth retrying.
 		return dnsErr.IsTimeout || dnsErr.IsTemporary
 	}
-	var netErr net.Error
-	if errors.As(err, &netErr) {
-		return netErr.Timeout()
-	}
 	if errors.Is(err, syscall.ECONNRESET) || errors.Is(err, syscall.ECONNREFUSED) || errors.Is(err, syscall.ETIMEDOUT) {
 		return true
 	}
 	if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
 		return true
+	}
+	// net.Error (e.g. *net.OpError) wraps connection resets/refusals too,
+	// but its Timeout() only reports timeouts; the syscall checks above
+	// must run first so those cases are retried rather than short-circuited
+	// here as non-timeout, non-retryable errors.
+	var netErr net.Error
+	if errors.As(err, &netErr) {
+		return netErr.Timeout()
 	}
 	return false
 }
