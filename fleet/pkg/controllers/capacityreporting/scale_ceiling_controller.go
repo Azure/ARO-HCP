@@ -59,7 +59,7 @@ func NewManagementClusterScaleCeilingReportingController(
 	credential azcore.TokenCredential,
 	clientOptions *policy.ClientOptions,
 	cfg fleetcontrollers.StampWatchingControllerConfig,
-) *fleetcontrollers.StampWatchingController {
+) fleetcontrollers.Controller {
 	if clientOptions == nil {
 		clientOptions = &policy.ClientOptions{}
 	}
