@@ -8,6 +8,8 @@ filters:
       - service-lifecycle-global-approvers
   # Intended to support autoowners generation in openshift/release; in this repo it will apply to any file paths that match the regex below.
   # See https://github.com/openshift/release/blob/main/ci-operator/config/Azure/ARO-HCP/OWNERS
-  '.*capz.*':
+  # Matches the capz-e2e ci-operator config (config/.../Azure-ARO-HCP-main__capz-e2e.yaml)
+  # and the generated Prow job files (jobs/.../Azure-ARO-HCP-main-p*.yaml) that bundle the capz jobs.
+  'main__capz.*yaml|Azure-ARO-HCP-main-p.*\.yaml':
     approvers:
       - capz-approvers
