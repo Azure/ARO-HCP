@@ -245,19 +245,22 @@ func newKmsEncryptionProfile(from *coreapi.KmsEncryptionProfile) generated.KmsEn
 	if from == nil {
 		return generated.KmsEncryptionProfile{}
 	}
+	// Derive activeKey from KeyEncryptionKeyURL when available; fall back to ActiveKey
+	// fields for old Cosmos documents that predate KeyEncryptionKeyURL storage.
+	var activeKey *generated.KmsKey
+	var vaultName *string
+	if from.KeyEncryptionKeyURL != "" {
+		v, k, ver, _ := coreapi.ParseKeyEncryptionKeyURL(from.KeyEncryptionKeyURL)
+		activeKey = &generated.KmsKey{Name: metadataapi.PtrOrNil(k), Version: metadataapi.PtrOrNil(ver)}
+		vaultName = metadataapi.PtrOrNil(v)
+	} else if from.ActiveKey.Name != "" {
+		activeKey = &generated.KmsKey{Name: metadataapi.PtrOrNil(from.ActiveKey.Name), Version: metadataapi.PtrOrNil(from.ActiveKey.Version)}
+		vaultName = metadataapi.PtrOrNil(from.ActiveKey.VaultName)
+	}
 	return generated.KmsEncryptionProfile{
-		ActiveKey:  metadataapi.PtrOrNil(newKmsKey(&from.ActiveKey)),
-		VaultName:  metadataapi.PtrOrNil(from.ActiveKey.VaultName),
+		ActiveKey:  activeKey,
+		VaultName:  vaultName,
 		Visibility: metadataapi.PtrOrNil(generated.KeyVaultVisibility(from.Visibility)),
-	}
-}
-func newKmsKey(from *coreapi.KmsKey) generated.KmsKey {
-	if from == nil {
-		return generated.KmsKey{}
-	}
-	return generated.KmsKey{
-		Name:    metadataapi.PtrOrNil(from.Name),
-		Version: metadataapi.PtrOrNil(from.Version),
 	}
 }
 

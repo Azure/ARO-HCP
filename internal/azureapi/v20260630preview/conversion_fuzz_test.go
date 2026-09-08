@@ -40,10 +40,9 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 	for i := 0; i < 200; i++ {
 		original := &coreapi.HCPOpenShiftCluster{}
 		fuzzer.Fill(original)
-		// KeyEncryptionKeyURL was added in v2026_10_03_preview and does
-		// not round-trip through this version.
+		// ActiveKey fields are no longer written by any API version; clear them before round-trip.
 		if original.CustomerProperties.Etcd.DataEncryption.CustomerManaged != nil && original.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms != nil {
-			original.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.KeyEncryptionKeyURL = ""
+			original.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.ActiveKey = coreapi.KmsKey{}
 		}
 		// ConvertToInternal derives CosmosMetadata.ResourceID from arm.Resource.ID,
 		// so synchronize them for a lossless round-trip comparison.

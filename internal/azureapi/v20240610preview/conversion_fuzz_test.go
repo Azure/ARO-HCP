@@ -82,10 +82,11 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 		original.ResourceID = original.ID
 		original.InstanceVersion = 0
 		original.PartitionKey = ""
-		// KeyEncryptionKeyURL was added in v2026_10_03_preview and does
-		// not round-trip through this version.
+		// ActiveKey fields are no longer written by any API version — only KeyEncryptionKeyURL
+		// is the source of truth. Clear ActiveKey from the original before round-trip.
+		// KeyEncryptionKeyURL itself is constructed from the fuzz data by the common fuzz func.
 		if original.CustomerProperties.Etcd.DataEncryption.CustomerManaged != nil && original.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms != nil {
-			original.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.KeyEncryptionKeyURL = ""
+			original.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.ActiveKey = coreapi.KmsKey{}
 		}
 		roundTripHCPCluster(t, original)
 	}

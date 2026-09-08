@@ -48,6 +48,10 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 		// also zeroes this, but randfill does not always dispatch the custom
 		// func when filling an embedded struct in-place, so zero it here too.
 		original.InstanceVersion = 0
+		// ActiveKey fields are no longer written by any API version; clear before round-trip.
+		if original.CustomerProperties.Etcd.DataEncryption.CustomerManaged != nil && original.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms != nil {
+			original.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.ActiveKey = coreapi.KmsKey{}
+		}
 		roundTripHCPCluster(t, original)
 	}
 

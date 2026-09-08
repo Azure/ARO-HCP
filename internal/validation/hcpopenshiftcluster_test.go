@@ -695,15 +695,7 @@ func TestClusterValidate(t *testing.T) {
 				},
 				{
 					Message:   "Required value",
-					FieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms.activeKey.name",
-				},
-				{
-					Message:   "Required value",
-					FieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms.activeKey.vaultName",
-				},
-				{
-					Message:   "Required value",
-					FieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms.activeKey.version",
+					FieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms.keyEncryptionKeyUrl",
 				},
 				{
 					Message:   "Required value",

@@ -88,12 +88,8 @@ func MinimumValidClusterTestCase() *coreapi.HCPOpenShiftCluster {
 	resource.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{
 		EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
 		Kms: &coreapi.KmsEncryptionProfile{
-			Visibility: metadataapi.KeyVaultVisibilityPublic,
-			ActiveKey: coreapi.KmsKey{
-				Name:      TestKMSKeyName,
-				VaultName: TestKMSKeyVaultName,
-				Version:   TestKMSKeyVersion,
-			},
+			Visibility:          metadataapi.KeyVaultVisibilityPublic,
+			KeyEncryptionKeyURL: "https://" + TestKMSKeyVaultName + ".vault.azure.net/keys/" + TestKMSKeyName + "/" + TestKMSKeyVersion,
 		},
 	}
 	resource.CustomerProperties.Platform.ManagedResourceGroup = TestManagedResourceGroupName
@@ -106,12 +102,8 @@ func MinimumValidClusterTestCase() *coreapi.HCPOpenShiftCluster {
 	resource.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{
 		EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
 		Kms: &coreapi.KmsEncryptionProfile{
-			Visibility: metadataapi.KeyVaultVisibilityPublic,
-			ActiveKey: coreapi.KmsKey{
-				Name:      "test-key",
-				VaultName: "test-vault",
-				Version:   "test-version",
-			},
+			Visibility:          metadataapi.KeyVaultVisibilityPublic,
+			KeyEncryptionKeyURL: "https://test-vault.vault.azure.net/keys/test-key/test-version",
 		},
 	}
 	// Add required systemData fields

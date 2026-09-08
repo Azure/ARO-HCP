@@ -32,10 +32,11 @@
 						"encryptionType": "KMS",
 						"kms": {
 							"activeKey": {
-								"name": "encryptionKeyName",
-								"vaultName": "keyVaultName",
-								"version": "2024-12-01-preview"
+								"name": "",
+								"vaultName": "",
+								"version": ""
 							},
+							"keyEncryptionKeyUrl": "https://keyVaultName.vault.azure.net/keys/encryptionKeyName/2024-12-01-preview",
 							"visibility": "Public"
 						}
 					},

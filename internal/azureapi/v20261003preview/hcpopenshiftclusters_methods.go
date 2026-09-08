@@ -696,13 +696,8 @@ func normalizeCustomerManaged(fldPath *field.Path, p *generated.CustomerManagedE
 			}
 			out.Kms.KeyEncryptionKeyURL = *p.Kms.KeyEncryptionKeyURL
 			out.Kms.Visibility = metadataapi.KeyVaultVisibility(metadataapi.Deref(p.Kms.Visibility))
-			vaultName, keyName, version, err := coreapi.ParseKeyEncryptionKeyURL(*p.Kms.KeyEncryptionKeyURL)
-			if err != nil {
+			if _, _, _, err := coreapi.ParseKeyEncryptionKeyURL(*p.Kms.KeyEncryptionKeyURL); err != nil {
 				errs = append(errs, field.Invalid(fldPath.Child("kms", "keyEncryptionKeyUrl"), *p.Kms.KeyEncryptionKeyURL, err.Error()))
-			} else {
-				out.Kms.ActiveKey.VaultName = vaultName
-				out.Kms.ActiveKey.Name = keyName
-				out.Kms.ActiveKey.Version = version
 			}
 		}
 	} else {

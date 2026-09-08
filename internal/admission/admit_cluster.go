@@ -741,11 +741,25 @@ func admitClusterEtcdKmsKeyVersionChange(_ context.Context, admissionContext *Cl
 		return nil
 	}
 
-	if newObj.Etcd.DataEncryption.KeyManagementMode != metadataapi.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged && newObj.Etcd.DataEncryption.KeyManagementMode != oldObj.Etcd.DataEncryption.KeyManagementMode {
-		return field.ErrorList{field.Forbidden(fldPath, "KMS key version rotation is only supported for customer-managed encryption")}
+	if newObj.Etcd.DataEncryption.KeyManagementMode != metadataapi.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged {
+		if newObj.Etcd.DataEncryption.KeyManagementMode != oldObj.Etcd.DataEncryption.KeyManagementMode {
+			return field.ErrorList{field.Forbidden(fldPath, "KMS key version rotation is only supported for customer-managed encryption")}
+		}
+		return nil
 	}
 
-	if newObj.Etcd.DataEncryption.CustomerManaged.Kms.ActiveKey.Version == oldObj.Etcd.DataEncryption.CustomerManaged.Kms.ActiveKey.Version {
+	// Extract the key version from KeyEncryptionKeyURL when available,
+	// falling back to ActiveKey.Version for backward compatibility.
+	newVersion := newObj.Etcd.DataEncryption.CustomerManaged.Kms.ActiveKey.Version
+	oldVersion := oldObj.Etcd.DataEncryption.CustomerManaged.Kms.ActiveKey.Version
+	if newObj.Etcd.DataEncryption.CustomerManaged.Kms.KeyEncryptionKeyURL != "" {
+		_, _, newVersion, _ = coreapi.ParseKeyEncryptionKeyURL(newObj.Etcd.DataEncryption.CustomerManaged.Kms.KeyEncryptionKeyURL)
+	}
+	if oldObj.Etcd.DataEncryption.CustomerManaged.Kms.KeyEncryptionKeyURL != "" {
+		_, _, oldVersion, _ = coreapi.ParseKeyEncryptionKeyURL(oldObj.Etcd.DataEncryption.CustomerManaged.Kms.KeyEncryptionKeyURL)
+	}
+
+	if newVersion == oldVersion {
 		return nil
 	}
 
@@ -761,7 +775,7 @@ func admitClusterEtcdKmsKeyVersionChange(_ context.Context, admissionContext *Cl
 	lowest, _ := apihelpers.FindLowestAndHighestClusterVersion(admissionContext.ServiceProviderCluster.Status.ControlPlaneVersion.ActiveVersions)
 	clusterVersion := semver.Version{Major: lowest.Major, Minor: lowest.Minor}
 	if clusterVersion.LT(minKmsKeyVersionRotationVersion) {
-		return field.ErrorList{field.Invalid(fldPath, newObj.Etcd.DataEncryption.CustomerManaged.Kms.ActiveKey.Version, fmt.Sprintf("KMS key version rotation requires cluster version %s or above", minKmsKeyVersionRotationVersion))}
+		return field.ErrorList{field.Invalid(fldPath, newVersion, fmt.Sprintf("KMS key version rotation requires cluster version %s or above", minKmsKeyVersionRotationVersion))}
 	}
 
 	return nil

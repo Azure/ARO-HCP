@@ -230,19 +230,22 @@ func newKmsEncryptionProfile(from *coreapi.KmsEncryptionProfile) generated.KmsEn
 	if from == nil {
 		return generated.KmsEncryptionProfile{}
 	}
+	// Derive activeKey from KeyEncryptionKeyURL when available; fall back to ActiveKey
+	// fields for old Cosmos documents that predate KeyEncryptionKeyURL storage.
+	var activeKey *generated.KmsKey
+	var vaultName *string
+	if from.KeyEncryptionKeyURL != "" {
+		v, k, ver, _ := coreapi.ParseKeyEncryptionKeyURL(from.KeyEncryptionKeyURL)
+		activeKey = &generated.KmsKey{Name: metadataapi.PtrOrNil(k), Version: metadataapi.PtrOrNil(ver)}
+		vaultName = metadataapi.PtrOrNil(v)
+	} else if from.ActiveKey.Name != "" {
+		activeKey = &generated.KmsKey{Name: metadataapi.PtrOrNil(from.ActiveKey.Name), Version: metadataapi.PtrOrNil(from.ActiveKey.Version)}
+		vaultName = metadataapi.PtrOrNil(from.ActiveKey.VaultName)
+	}
 	return generated.KmsEncryptionProfile{
-		ActiveKey:  metadataapi.PtrOrNil(newKmsKey(&from.ActiveKey)),
-		VaultName:  metadataapi.PtrOrNil(from.ActiveKey.VaultName),
+		ActiveKey:  activeKey,
+		VaultName:  vaultName,
 		Visibility: metadataapi.PtrOrNil(generated.KeyVaultVisibility(from.Visibility)),
-	}
-}
-func newKmsKey(from *coreapi.KmsKey) generated.KmsKey {
-	if from == nil {
-		return generated.KmsKey{}
-	}
-	return generated.KmsKey{
-		Name:    metadataapi.PtrOrNil(from.Name),
-		Version: metadataapi.PtrOrNil(from.Version),
 	}
 }
 
@@ -497,7 +500,9 @@ func preserveUnknownClusterFields(from, to *coreapi.HCPOpenShiftCluster) {
 	// KeyEncryptionKeyURL was added in v2026_10_03_preview.
 	if from.CustomerProperties.Etcd.DataEncryption.CustomerManaged != nil && from.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms != nil &&
 		to.CustomerProperties.Etcd.DataEncryption.CustomerManaged != nil && to.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms != nil {
-		to.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.KeyEncryptionKeyURL = from.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.KeyEncryptionKeyURL
+		if to.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.KeyEncryptionKeyURL == "" {
+			to.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.KeyEncryptionKeyURL = from.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.KeyEncryptionKeyURL
+		}
 	}
 }
 
@@ -624,18 +629,17 @@ func normalizeCustomerManaged(p *generated.CustomerManagedEncryptionProfile, out
 		if out.Kms == nil {
 			out.Kms = &coreapi.KmsEncryptionProfile{}
 		}
-
-		normalizeActiveKey(p.Kms.ActiveKey, &out.Kms.ActiveKey)
-		out.Kms.ActiveKey.VaultName = metadataapi.Deref(p.Kms.VaultName)
 		out.Kms.Visibility = metadataapi.KeyVaultVisibility(metadataapi.Deref(p.Kms.Visibility))
+		// Construct KeyEncryptionKeyURL from decomposed fields; no longer write to ActiveKey.
+		vaultName := metadataapi.Deref(p.Kms.VaultName)
+		keyName := metadataapi.Deref(p.Kms.ActiveKey.Name)
+		version := metadataapi.Deref(p.Kms.ActiveKey.Version)
+		if vaultName != "" && keyName != "" {
+			out.Kms.KeyEncryptionKeyURL = "https://" + vaultName + ".vault.azure.net/keys/" + keyName + "/" + version
+		}
 	} else {
 		out.Kms = nil
 	}
-}
-
-func normalizeActiveKey(p *generated.KmsKey, out *coreapi.KmsKey) {
-	out.Name = metadataapi.Deref(p.Name)
-	out.Version = metadataapi.Deref(p.Version)
 }
 
 func normalizeClusterImageRegistry(p *generated.ClusterImageRegistryProfile, out *coreapi.ClusterImageRegistryProfile) {
