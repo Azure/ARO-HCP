@@ -11,9 +11,9 @@ else
 	AUTH_FILE = ${HOME}/.docker/config.json
 endif
 
+# Context must stay this directory: CI builds this image with context_dir image-sync/oc-mirror.
 image:
-	cd ../.. && \
-	$(CONTAINER_ENGINE) build --platform="linux/amd64" -f "image-sync/oc-mirror/Dockerfile" -t ${OC_MIRROR_IMAGE_TAGGED} .
+	$(CONTAINER_ENGINE) build --platform="linux/amd64" -f Dockerfile -t ${OC_MIRROR_IMAGE_TAGGED} .
 .PHONY: image
 
 build-and-push: image
