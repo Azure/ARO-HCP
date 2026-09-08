@@ -38,8 +38,7 @@ COPY tooling/acrauth/ tooling/acrauth/
 # https://github.com/microsoft/go/tree/microsoft/main/eng/doc/fips#build-option-to-require-fips-mode
 ENV CGO_ENABLED=1 GOFIPS140=latest
 RUN --mount=type=cache,target=/go/cache \
-    GOCACHE=/go/cache \
-    cd tooling/acrauth && go build -o /out/acrauth .
+    cd tooling/acrauth && GOCACHE=/go/cache go build -o /out/acrauth .
 
 # azurelinux3.0 from Apr 1st 2025
 FROM --platform=linux/amd64 mcr.microsoft.com/azure-cli@sha256:18ec5cf02ba6b46e9858ddff1125baaa1f14ba919f77ebc67c918c891f8df4a2
