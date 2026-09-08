@@ -179,3 +179,47 @@ func TestNewGraphCredential(t *testing.T) {
 		}
 	})
 }
+
+func TestNewDirectoryWriteCredential(t *testing.T) {
+	t.Run("returns nil when no DIRECTORY_WRITE_AZURE_* variables are set", func(t *testing.T) {
+		t.Setenv("DIRECTORY_WRITE_AZURE_TENANT_ID", "")
+		t.Setenv("DIRECTORY_WRITE_AZURE_CLIENT_ID", "")
+		t.Setenv("DIRECTORY_WRITE_AZURE_CLIENT_SECRET", "")
+
+		got, err := newDirectoryWriteCredential()
+		if err != nil {
+			t.Fatalf("expected no error, got %v", err)
+		}
+		if got != nil {
+			t.Fatalf("expected nil credential when unset, got %T", got)
+		}
+	})
+
+	t.Run("errors when DIRECTORY_WRITE_AZURE_* variables are partially set", func(t *testing.T) {
+		t.Setenv("DIRECTORY_WRITE_AZURE_TENANT_ID", "00000000-0000-0000-0000-000000000000")
+		t.Setenv("DIRECTORY_WRITE_AZURE_CLIENT_ID", "")
+		t.Setenv("DIRECTORY_WRITE_AZURE_CLIENT_SECRET", "secret")
+
+		_, err := newDirectoryWriteCredential()
+		if err == nil {
+			t.Fatalf("expected error for partial configuration")
+		}
+		if !strings.Contains(err.Error(), "must all be set") {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("builds a dedicated credential when all DIRECTORY_WRITE_AZURE_* variables are set", func(t *testing.T) {
+		t.Setenv("DIRECTORY_WRITE_AZURE_TENANT_ID", "00000000-0000-0000-0000-000000000000")
+		t.Setenv("DIRECTORY_WRITE_AZURE_CLIENT_ID", "11111111-1111-1111-1111-111111111111")
+		t.Setenv("DIRECTORY_WRITE_AZURE_CLIENT_SECRET", "secret")
+
+		got, err := newDirectoryWriteCredential()
+		if err != nil {
+			t.Fatalf("expected no error, got %v", err)
+		}
+		if got == nil {
+			t.Fatalf("expected a credential")
+		}
+	})
+}
