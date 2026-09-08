@@ -23,15 +23,15 @@ Azure regions by way of the ARO-HCP [ARM manifest](https://msazure.visualstudio.
 tag: v20240610preview
 ```
 
-### Tag: v20240610preview
+### Tag: v20261003preview
 
-These settings apply only when `--tag=v20240610preview` is specified on the command line.
+These settings apply only when `--tag=v20261003preview` is specified on the command line.
 
-``` yaml $(tag) == 'v20240610preview'
+``` yaml $(tag) == 'v20261003preview'
 input-file:
-  - redhatopenshift/resource-manager/Microsoft.RedHatOpenShift/hcpopenshiftclusters/preview/2024-06-10-preview/openapi.json
+  - redhatopenshift/resource-manager/Microsoft.RedHatOpenShift/hcpopenshiftclusters/preview/2026-10-03-preview/openapi.json
 go:
-  module-name: sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp
+  module-name: sdk/v20261003preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp
 ```
 
 ### Tag: v20261001preview
@@ -76,6 +76,17 @@ input-file:
   - redhatopenshift/resource-manager/Microsoft.RedHatOpenShift/hcpopenshiftclusters/preview/2025-12-23-preview/openapi.json
 go:
   module-name: sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp
+```
+
+### Tag: v20240610preview
+
+These settings apply only when `--tag=v20240610preview` is specified on the command line.
+
+``` yaml $(tag) == 'v20240610preview'
+input-file:
+  - redhatopenshift/resource-manager/Microsoft.RedHatOpenShift/hcpopenshiftclusters/preview/2024-06-10-preview/openapi.json
+go:
+  module-name: sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp
 ```
 
 ### Code Generation
