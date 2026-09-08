@@ -118,7 +118,8 @@ func (f *BackendRootCmdFlags) AddFlags(cmd *cobra.Command) {
 			"Cluster's Control Plane Operators identities and the Cluster's Service Managed Identity. Even though when this is set there's no authentication "+
 			"as them against Azure, the backend still leverages them to perform some permissions validation checks. Additionally, when it is set, the backend will also "+
 			"use the ARM Permissions Manager identity to perform some additional permissions management and validations. When set, the --insecure-azure-managed-identity-mock-certificate-bundle-path, "+
-			"--insecure-azure-managed-identity-mock-client-id, --insecure-azure-managed-identity-mock-principal-id, --insecure-azure-managed-identity-mock-tenant-id, "+
+			"--insecure-azure-managed-identity-mock-client-id (or --insecure-azure-managed-identity-mock-client-id-path), "+
+			"--insecure-azure-managed-identity-mock-principal-id (or --insecure-azure-managed-identity-mock-principal-id-path), --insecure-azure-managed-identity-mock-tenant-id, "+
 			"--insecure-azure-arm-permissions-manager-identity-certificate-bundle-path, --insecure-azure-arm-permissions-manager-identity-client-id, "+
 			"--insecure-azure-arm-permissions-manager-identity-tenant-id flags must also be set.",
 	)
@@ -131,8 +132,9 @@ func (f *BackendRootCmdFlags) AddFlags(cmd *cobra.Command) {
 			"certificate chain, in a PEM or PKCS#12 format for authenticating clients with the msi mock identity, which is "+
 			"a common Azure Service Principal identity. This flag should only be set in environments where "+
 			"Microsoft's MI Dataplane service is not available. "+
-			"When set, it must be set in combination with the '--insecure-azure-managed-identity-mock-client-id' and "+
-			"'--insecure-azure-managed-identity-mock-principal-id' and '--insecure-azure-managed-identity-mock-tenant-id' flags.",
+			"When set, it must be set in combination with the '--insecure-azure-managed-identity-mock-client-id' (or "+
+			"'--insecure-azure-managed-identity-mock-client-id-path') and '--insecure-azure-managed-identity-mock-principal-id' "+
+			"(or '--insecure-azure-managed-identity-mock-principal-id-path') and '--insecure-azure-managed-identity-mock-tenant-id' flags.",
 	)
 
 	cmd.Flags().StringVar(
@@ -142,7 +144,8 @@ func (f *BackendRootCmdFlags) AddFlags(cmd *cobra.Command) {
 		"The client id of the ARO-HCP Clusters Managed Identities (MI) mock identity, which is a common Azure Service Principal identity. "+
 			"This flag should only be set in environments where Microsoft's MI Dataplane service is not available. "+
 			"When set, it must be set in combination with the '--insecure-azure-managed-identity-mock-certificate-bundle-path' and "+
-			"'--insecure-azure-managed-identity-mock-principal-id' and '--insecure-azure-managed-identity-mock-tenant-id' flags. "+
+			"'--insecure-azure-managed-identity-mock-principal-id' (or '--insecure-azure-managed-identity-mock-principal-id-path') and "+
+			"'--insecure-azure-managed-identity-mock-tenant-id' flags. "+
 			"Mutually exclusive with '--insecure-azure-managed-identity-mock-client-id-path'.",
 	)
 
@@ -187,7 +190,8 @@ func (f *BackendRootCmdFlags) AddFlags(cmd *cobra.Command) {
 		"The tenant id of the ARO-HCP Clusters Managed Identities (MI) mock identity, which is a common Azure Service Principal identity. "+
 			"This flag should only be set in environments where Microsoft's MI Dataplane service is not available. "+
 			"When set, it must be set in combination with the '--insecure-azure-managed-identity-mock-certificate-bundle-path', "+
-			"'--insecure-azure-managed-identity-mock-client-id' and '--insecure-azure-managed-identity-mock-principal-id' flags.",
+			"'--insecure-azure-managed-identity-mock-client-id' (or '--insecure-azure-managed-identity-mock-client-id-path') and "+
+			"'--insecure-azure-managed-identity-mock-principal-id' (or '--insecure-azure-managed-identity-mock-principal-id-path') flags.",
 	)
 
 	cmd.Flags().BoolVar(&f.ExitOnPanic, "exit-on-panic", f.ExitOnPanic,
