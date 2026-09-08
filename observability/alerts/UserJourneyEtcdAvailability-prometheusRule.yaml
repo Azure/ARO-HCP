@@ -21,7 +21,9 @@ spec:
     # The remaining alerts (database size, fragmentation, leader changes)
     # compare a gauge/increase directly against a fixed threshold, so the
     # expression doesn't vary by window — these are single, non-tiered
-    # alerts (for: 15m, severity: 3) instead of three burn-rate tiers.
+    # alerts (for: 15m, severity: 3) instead of three burn-rate tiers,
+    # except the frequent etcd leader changes alert, which uses for: 5m.
+    #
     # ========================================
 
     # ----------------------------------------
