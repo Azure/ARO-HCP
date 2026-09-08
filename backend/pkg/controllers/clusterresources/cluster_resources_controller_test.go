@@ -401,7 +401,11 @@ func TestSyncOnce(t *testing.T) {
 
 			mcLister := &fleetlistertesting.SliceManagementClusterLister{
 				ManagementClusters: []*fleetapi.ManagementCluster{
-					{ResourceID: testManagementClusterResourceID},
+					{
+						CosmosMetadata: coreapi.CosmosMetadata{
+							ResourceID: testManagementClusterResourceID,
+						},
+					},
 				},
 			}
 
@@ -472,7 +476,13 @@ func TestDeleteStaleApplyDesires(t *testing.T) {
 		_, _ = crud.Create(ctx, makeTaggedDesire("configmaps.ns.stale"), nil)
 
 		mcLister := &fleetlistertesting.SliceManagementClusterLister{
-			ManagementClusters: []*fleetapi.ManagementCluster{{ResourceID: testManagementClusterResourceID}},
+			ManagementClusters: []*fleetapi.ManagementCluster{
+				{
+					CosmosMetadata: coreapi.CosmosMetadata{
+						ResourceID: testManagementClusterResourceID,
+					},
+				},
+			},
 		}
 		syncer := &clusterResourcesController{
 			kubeApplierDBClients: mockClients,
@@ -508,7 +518,13 @@ func TestDeleteStaleApplyDesires(t *testing.T) {
 		_, _ = crud.Create(ctx, makeUntaggedDesire("configmaps.ns.other-controller"), nil)
 
 		mcLister := &fleetlistertesting.SliceManagementClusterLister{
-			ManagementClusters: []*fleetapi.ManagementCluster{{ResourceID: testManagementClusterResourceID}},
+			ManagementClusters: []*fleetapi.ManagementCluster{
+				{
+					CosmosMetadata: coreapi.CosmosMetadata{
+						ResourceID: testManagementClusterResourceID,
+					},
+				},
+			},
 		}
 		syncer := &clusterResourcesController{
 			kubeApplierDBClients: mockClients,
@@ -539,7 +555,13 @@ func TestDeleteStaleApplyDesires(t *testing.T) {
 		_, _ = crud.Create(ctx, staleDesire, nil)
 
 		mcLister := &fleetlistertesting.SliceManagementClusterLister{
-			ManagementClusters: []*fleetapi.ManagementCluster{{ResourceID: testManagementClusterResourceID}},
+			ManagementClusters: []*fleetapi.ManagementCluster{
+				{
+					CosmosMetadata: coreapi.CosmosMetadata{
+						ResourceID: testManagementClusterResourceID,
+					},
+				},
+			},
 		}
 		syncer := &clusterResourcesController{
 			kubeApplierDBClients: mockClients,
@@ -572,7 +594,13 @@ func TestDeleteStaleApplyDesires(t *testing.T) {
 		_, _ = crud.Create(ctx, staleDesire, nil)
 
 		mcLister := &fleetlistertesting.SliceManagementClusterLister{
-			ManagementClusters: []*fleetapi.ManagementCluster{{ResourceID: testManagementClusterResourceID}},
+			ManagementClusters: []*fleetapi.ManagementCluster{
+				{
+					CosmosMetadata: coreapi.CosmosMetadata{
+						ResourceID: testManagementClusterResourceID,
+					},
+				},
+			},
 		}
 		syncer := &clusterResourcesController{
 			kubeApplierDBClients: mockClients,
@@ -793,7 +821,13 @@ func TestProcessClusterResourcesNodePoolPath(t *testing.T) {
 			require.NoError(t, err, "failed to get node pool ApplyDesires CRUD")
 
 			mcLister := &fleetlistertesting.SliceManagementClusterLister{
-				ManagementClusters: []*fleetapi.ManagementCluster{{ResourceID: testManagementClusterResourceID}},
+				ManagementClusters: []*fleetapi.ManagementCluster{
+					{
+						CosmosMetadata: coreapi.CosmosMetadata{
+							ResourceID: testManagementClusterResourceID,
+						},
+					},
+				},
 			}
 			syncer := &clusterResourcesController{
 				nodePoolLister:       &corelistertesting.SliceNodePoolLister{NodePools: []*coreapi.HCPOpenShiftClusterNodePool{tt.nodePool}},
