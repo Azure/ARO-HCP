@@ -16,7 +16,6 @@ package v20261003preview
 
 import (
 	"fmt"
-	"net/url"
 	"strings"
 
 	"github.com/google/uuid"
@@ -267,35 +266,6 @@ func buildKeyEncryptionKeyURL(vaultName, keyName, version string) string {
 		return base + "/" + version
 	}
 	return base
-}
-
-func parseKeyEncryptionKeyURL(keyURL string) (vaultName, keyName, version string, err error) {
-	u, err := url.Parse(keyURL)
-	if err != nil {
-		return "", "", "", fmt.Errorf("invalid keyEncryptionKeyUrl: %w", err)
-	}
-	if u.Scheme != "https" {
-		return "", "", "", fmt.Errorf("invalid keyEncryptionKeyUrl: scheme must be https, got %q", u.Scheme)
-	}
-	hostname := u.Hostname()
-	if !strings.Contains(hostname, ".vault.") && !strings.Contains(hostname, ".managedhsm.") {
-		return "", "", "", fmt.Errorf("invalid keyEncryptionKeyUrl: host must contain .vault. or .managedhsm., got %q", hostname)
-	}
-	if idx := strings.IndexByte(hostname, '.'); idx > 0 {
-		vaultName = hostname[:idx]
-	} else {
-		return "", "", "", fmt.Errorf("invalid keyEncryptionKeyUrl: cannot extract vault name from host %q", hostname)
-	}
-	if vaultName == "" {
-		return "", "", "", fmt.Errorf("invalid keyEncryptionKeyUrl: vault name is empty")
-	}
-	parts := strings.Split(strings.Trim(u.Path, "/"), "/")
-	if len(parts) != 3 || parts[0] != "keys" || parts[1] == "" || parts[2] == "" {
-		return "", "", "", fmt.Errorf("invalid keyEncryptionKeyUrl: path must be /keys/{name}/{version}")
-	}
-	keyName = parts[1]
-	version = parts[2]
-	return vaultName, keyName, version, nil
 }
 
 func newConditions(from []metav1.Condition) []*generated.Condition {
@@ -726,7 +696,7 @@ func normalizeCustomerManaged(fldPath *field.Path, p *generated.CustomerManagedE
 			}
 			out.Kms.KeyEncryptionKeyURL = *p.Kms.KeyEncryptionKeyURL
 			out.Kms.Visibility = metadataapi.KeyVaultVisibility(metadataapi.Deref(p.Kms.Visibility))
-			vaultName, keyName, version, err := parseKeyEncryptionKeyURL(*p.Kms.KeyEncryptionKeyURL)
+			vaultName, keyName, version, err := coreapi.ParseKeyEncryptionKeyURL(*p.Kms.KeyEncryptionKeyURL)
 			if err != nil {
 				errs = append(errs, field.Invalid(fldPath.Child("kms", "keyEncryptionKeyUrl"), *p.Kms.KeyEncryptionKeyURL, err.Error()))
 			} else {
