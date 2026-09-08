@@ -837,7 +837,6 @@ func newOr[T any](validateFns ...validate.ValidateFunc[T]) validate.ValidateFunc
 	}
 }
 
-// TODO this is compatible with what existed before, but still allows much invalid content
 func ValidatePEM(ctx context.Context, op operation.Operation, fldPath *field.Path, value, _ *string) field.ErrorList {
 	if value == nil {
 		return nil
@@ -845,15 +844,7 @@ func ValidatePEM(ctx context.Context, op operation.Operation, fldPath *field.Pat
 	if len(*value) == 0 {
 		return nil
 	}
-	if !x509.NewCertPool().AppendCertsFromPEM([]byte(*value)) {
-		return field.ErrorList{field.Invalid(fldPath, *value, "not a valid PEM")}
-	}
-
-	errs := validateCACertificatePEM(fldPath, value, time.Now())
-	if len(errs) > 0 {
-		return errs
-	}
-	return nil
+	return validateCACertificatePEM(fldPath, value, time.Now())
 }
 
 // EachMapKey validates each element of newMap with the specified validation function.
@@ -1146,9 +1137,8 @@ func validateCACertificatePEM(fldPath *field.Path, value *string, now time.Time)
 		}
 	}
 
-	// No PEM blocks: ValidatePEM reports "not a valid PEM".
 	if !foundBlock {
-		return nil
+		return field.ErrorList{field.Invalid(fldPath, "", "not a valid PEM")}
 	}
 
 	if len(bytes.TrimSpace(rest)) > 0 {

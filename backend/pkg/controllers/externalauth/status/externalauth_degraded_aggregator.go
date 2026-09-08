@@ -16,6 +16,8 @@ package status
 
 import (
 	"context"
+	"crypto/x509"
+	"encoding/pem"
 	"fmt"
 	"time"
 
@@ -31,6 +33,12 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
+)
+
+const (
+	// CACertificateExpiryConditionType is the user-facing condition type set when the issuer
+	// CA certificate has expired. Written to Status.UserFacingConditions only while expired;
+	CACertificateExpiryConditionType = "CACertificateExpiry"
 )
 
 // externalAuthDegradedAggregator rolls per-controller Degraded conditions
@@ -113,7 +121,17 @@ func (c *externalAuthDegradedAggregator) SyncOnce(ctx context.Context, key contr
 
 	replacement := existing.DeepCopy()
 	apimeta.SetStatusCondition(&replacement.Status.Conditions, aggregated)
-	if equality.Semantic.DeepEqual(existing.Status.Conditions, replacement.Status.Conditions) {
+
+	// CACertificateExpiry is user-facing only when the CA has expired.
+	if caCond := caCertExpiryCondition(existing.Properties.Issuer.CA, c.clock.Now()); caCond != nil {
+		apimeta.SetStatusCondition(&replacement.Status.UserFacingConditions, *caCond)
+	} else {
+		apimeta.RemoveStatusCondition(&replacement.Status.UserFacingConditions, CACertificateExpiryConditionType)
+	}
+
+	conditionsChanged := !equality.Semantic.DeepEqual(existing.Status.Conditions, replacement.Status.Conditions)
+	userFacingChanged := !equality.Semantic.DeepEqual(existing.Status.UserFacingConditions, replacement.Status.UserFacingConditions)
+	if !conditionsChanged && !userFacingChanged {
 		return nil
 	}
 
@@ -129,4 +147,53 @@ func (c *externalAuthDegradedAggregator) SyncOnce(ctx context.Context, key contr
 		return utils.TrackError(fmt.Errorf("failed to replace ExternalAuth: %w", err))
 	}
 	return nil
+}
+
+// caCertExpiryCondition inspects all CERTIFICATE PEM blocks in ca and returns a
+// CACertificateExpiry condition only when the CA has expired. Healthy, missing, or
+// unparseable CAs return nil so the condition is omitted from user-facing status.
+// When a bundle contains multiple certs the cert with the earliest NotAfter
+// drives the condition.
+func caCertExpiryCondition(ca string, now time.Time) *metav1.Condition {
+	if ca == "" {
+		return nil
+	}
+
+	// Walk every PEM block; only CERTIFICATE blocks are relevant.
+	var earliest *x509.Certificate
+	rest := []byte(ca)
+	for {
+		var block *pem.Block
+		block, rest = pem.Decode(rest)
+		if block == nil {
+			break
+		}
+		if block.Type != "CERTIFICATE" {
+			continue
+		}
+		cert, err := x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			continue
+		}
+		if earliest == nil || cert.NotAfter.Before(earliest.NotAfter) {
+			earliest = cert
+		}
+	}
+
+	if earliest == nil {
+		return nil
+	}
+
+	// If the CA is not expired, return nil.
+	if !now.After(earliest.NotAfter) {
+		return nil
+	}
+
+	notAfter := earliest.NotAfter.UTC().Format(time.RFC3339)
+	return &metav1.Condition{
+		Type:    CACertificateExpiryConditionType,
+		Status:  metav1.ConditionTrue,
+		Reason:  "Expired",
+		Message: fmt.Sprintf("issuer CA certificate (CN=%s) expired at %s", earliest.Subject.CommonName, notAfter),
+	}
 }
