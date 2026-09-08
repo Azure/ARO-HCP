@@ -90,7 +90,7 @@ var _ controllerutils.ClusterSyncer = (*roleAssignmentsSyncer)(nil)
 
 // NewRoleAssignmentsController creates a cluster-watching controller that manages the
 // managed-resource-group-scoped role assignments for the cluster's control-plane operator,
-// data-plane operator, and service managed identities: it creates the ones Azure reports
+// data-plane operator, and service managed identity: it creates the ones Azure reports
 // missing and keeps ServiceProviderCluster.Status.AzureResources.RoleAssignments in sync
 // with their confirmed existence.
 func NewRoleAssignmentsController(
@@ -197,12 +197,10 @@ func (c *roleAssignmentsSyncer) principalIDsResolvable(cluster *coreapi.HCPOpenS
 			return false
 		}
 	}
-	// The service managed identity is a single identity (not a map). When the cluster has one
-	// configured, its principal ID must be resolved too before the expected set is complete.
-	if identityResourceID := userAssignedIdentities.ServiceManagedIdentity; identityResourceID != nil {
-		if _, ok := serviceManagedIdentityPrincipalID(serviceProviderCluster, identityResourceID); !ok {
-			return false
-		}
+	// The service managed identity is a single identity (not a map) and is always configured
+	// on a cluster; its principal ID must be resolved too before the expected set is complete.
+	if _, ok := serviceManagedIdentityPrincipalID(serviceProviderCluster, userAssignedIdentities.ServiceManagedIdentity); !ok {
+		return false
 	}
 	return true
 }
@@ -413,7 +411,7 @@ type roleAssignmentDefinition struct {
 
 // expectedRoleAssignments computes the managed-resource-group-scoped role assignments the
 // backend expects to exist for the cluster's control-plane operator, data-plane operator,
-// and service managed identities.
+// and service managed identity.
 //
 // For each control-plane and data-plane operator configured on the cluster it pairs
 // the operator identity's resolved principal ID (read from the ServiceProviderCluster
@@ -477,22 +475,21 @@ func (c *roleAssignmentsSyncer) expectedRoleAssignments(cluster *coreapi.HCPOpen
 		}
 	}
 
-	// Service managed identity (a single identity, not a map). Included when the cluster has
-	// one configured; its role assignment is scoped to the same managed resource group as the
+	// Service managed identity (a single identity, not a map) and always configured on a
+	// cluster; its role assignment is scoped to the same managed resource group as the
 	// operator identities above.
-	if identityResourceID := userAssignedIdentities.ServiceManagedIdentity; identityResourceID != nil {
-		principalID, ok := serviceManagedIdentityPrincipalID(serviceProviderCluster, identityResourceID)
-		if !ok {
-			return nil, fmt.Errorf("principal ID not yet resolved for service managed identity (identity %q)", identityResourceID.String())
-		}
-		roleDefinitionIDs, err := c.serviceManagedIdentityRoleDefinitionIDs()
-		if err != nil {
-			return nil, err
-		}
-		expected, err = appendRoleAssignments(expected, scopeID.String(), principalID, roleDefinitionIDs)
-		if err != nil {
-			return nil, err
-		}
+	serviceManagedIdentityResourceID := userAssignedIdentities.ServiceManagedIdentity
+	principalID, ok := serviceManagedIdentityPrincipalID(serviceProviderCluster, serviceManagedIdentityResourceID)
+	if !ok {
+		return nil, fmt.Errorf("principal ID not yet resolved for service managed identity (identity %q)", serviceManagedIdentityResourceID.String())
+	}
+	roleDefinitionIDs, err := c.serviceManagedIdentityRoleDefinitionIDs()
+	if err != nil {
+		return nil, err
+	}
+	expected, err = appendRoleAssignments(expected, scopeID.String(), principalID, roleDefinitionIDs)
+	if err != nil {
+		return nil, err
 	}
 
 	// The operator maps above iterate in a non-deterministic order, so sort the expected

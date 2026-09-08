@@ -363,12 +363,11 @@ func TestExpectedRoleAssignmentsDeterministicOrder(t *testing.T) {
 
 	cluster := newTestCluster(false)
 	cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = controlPlaneOperators
-	// Exercise the control-plane operators only; data-plane and service managed identity
-	// enumeration is not needed here.
+	// Exercise the control-plane operators (plus the always-present service managed identity);
+	// data-plane enumeration is not needed here.
 	cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators = nil
-	cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity = nil
 
-	serviceProviderCluster := newTestServiceProviderCluster(t, true, false, false, false, coreapi.AzureMultiReference{})
+	serviceProviderCluster := newTestServiceProviderCluster(t, true, false, false, true, coreapi.AzureMultiReference{})
 	serviceProviderCluster.Status.MSIManagedIdentities.ControlPlaneOperatorsIdentities = resolvedIdentities
 
 	syncer := &roleAssignmentsSyncer{clusterScopedIdentitiesConfig: config}
