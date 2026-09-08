@@ -8072,7 +8072,7 @@ spec:
             secretProviderClass: cs-keyvault
       initContainers:
       - name: clusters-service-init
-        image: 'arohcpsvcdev.azurecr.io/app-sre/aro-hcp-clusters-service@sha256:1234567890'
+        image: 'arohcpsvcdev.azurecr.io/mvacula/cs@sha256:1234567890'
         imagePullPolicy: IfNotPresent
         env:
         # We set AZURE_TOKEN_CREDENTIALS to WorkloadIdentityCredential to force workload identity because this pod uses
@@ -8107,7 +8107,7 @@ spec:
         - --azure-first-party-application-certificate-bundle-path=/secrets/keyvault/firstPartyApplicationCertificateBundle
       containers:
       - name: clusters-service-server
-        image: 'arohcpsvcdev.azurecr.io/app-sre/aro-hcp-clusters-service@sha256:1234567890'
+        image: 'arohcpsvcdev.azurecr.io/mvacula/cs@sha256:1234567890'
         imagePullPolicy: IfNotPresent
         env:
         - name: DENYASSIGNMENTS
@@ -8357,7 +8357,7 @@ spec:
   acr:
     environment: PublicCloud
     server: 'arohcpsvcdev.azurecr.io'
-    scope: 'repository:app-sre/aro-hcp-clusters-service:pull'
+    scope: 'repository:mvacula/cs:pull'
   auth:
     workloadIdentity:
       serviceAccountRef: 'clusters-service'

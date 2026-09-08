@@ -45,11 +45,6 @@
       }
       {
         "code": "InvalidRequestContent",
-        "message": "Invalid value: \"/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/shared-identity\": identity is used multiple times",
-        "target": "identity.userAssignedIdentities[/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/shared-identity]"
-      }
-      {
-        "code": "InvalidRequestContent",
         "message": "Invalid value: \"/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/unused-identity\": identity is assigned to this resource but not used",
         "target": "identity.userAssignedIdentities[/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/unused-identity]"
       }
