@@ -11,8 +11,9 @@ else
 	AUTH_FILE = ${HOME}/.docker/config.json
 endif
 
+# Context must stay this directory: CI builds this image with context_dir image-sync/oc-mirror.
 image:
-	$(CONTAINER_ENGINE) build --platform="linux/amd64" -f "./Dockerfile" -t ${OC_MIRROR_IMAGE_TAGGED} .
+	$(CONTAINER_ENGINE) build --platform="linux/amd64" -f Dockerfile -t ${OC_MIRROR_IMAGE_TAGGED} .
 .PHONY: image
 
 build-and-push: image
@@ -25,6 +26,7 @@ build-and-push: image
 acm-dry-run: image
 	@$(CONTAINER_ENGINE) run -it --rm --tmpfs /oc-mirror-workspace \
 		-e XDG_RUNTIME_DIR=/ \
+		-e AZURE_CLIENT_ID= \
 		-v ${AUTH_FILE}:/containers/auth.json:z \
 		-v ${HOME}/.azure:/root/.azure:z \
 		-e IMAGE_SET_CONFIG=$(shell cat ${PWD}/test/acm-image-set-config.yml | base64) \
@@ -37,6 +39,7 @@ acm-dry-run: image
 ocp-dry-run: image
 	@$(CONTAINER_ENGINE) run -it --rm --tmpfs /oc-mirror-workspace \
 		-e XDG_RUNTIME_DIR=/ \
+		-e AZURE_CLIENT_ID= \
 		-v ${AUTH_FILE}:/containers/auth.json:z \
 		-v ${HOME}/.azure:/root/.azure:z \
 		-e IMAGE_SET_CONFIG=$(shell cat ${PWD}/test/ocp-image-set-config.yml | base64) \

@@ -20,6 +20,7 @@ BUILD_SERVICES_OPTS ?= -j7
 # There is currently no convenient way to run commands against a whole Go workspace
 # https://github.com/golang/go/issues/50745
 MODULES := $(shell go list -f '{{.Dir}}/...' -m | xargs)
+TIDY_MODULES := $(MODULES) $(abspath image-sync/oc-mirror/acrauth)/...
 
 all: test lint
 .PHONY: all
@@ -153,7 +154,7 @@ work-sync:
 	go work sync
 .PHONY: work-sync
 
-tidy: $(MODULES:/...=.tidy) work-sync
+tidy: $(TIDY_MODULES:/...=.tidy) work-sync
 
 %.tidy:
 	cd $(basename $@) && go mod tidy
