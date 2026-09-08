@@ -2199,7 +2199,7 @@ spec:
               fieldPath: metadata.name
         - name: OPERATOR_NAME
           value: governance-policy-propagator
-        image: "arohcpsvcdev.azurecr.io/acm-d-cache/governance-policy-propagator-rhel9@sha256:1234567890"
+        image: "arohcpsvcdev.azurecr.io/acm-d-cache/governance-policy-propagator-acm-216@sha256:1234567890"
         imagePullPolicy: IfNotPresent
         livenessProbe:
           exec:

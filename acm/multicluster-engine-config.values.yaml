@@ -1,5 +1,7 @@
 global:
   registryOverride: "{{ .acr.svc.name }}.azurecr.io/acm-d-cache"
+  imageOverrides:
+    governance_policy_propagator: "governance-policy-propagator-acm-216@sha256:deb737b19932d520553c902ee5e0738ebeaad4592e8aa9649c41fec6fc00b62e"
 finalizeMceJobImage: "{{ .aksCommandRuntime.image.registry }}/{{ .aksCommandRuntime.image.repository }}@{{ .aksCommandRuntime.image.digest }}"
 localCluster:
   kubeApiUrl: https://kubernetes.default.svc
