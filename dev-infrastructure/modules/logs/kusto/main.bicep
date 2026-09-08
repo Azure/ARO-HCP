@@ -28,6 +28,15 @@ param viewerGroups string
 @description('CSV separated list of identities (apps/managed identities) to assign viewer in the Kusto cluster')
 param viewerIdentities string = ''
 
+@description('Name of the global rollout MSI granted AllDatabasesAdmin so the KustoEntityGroups pipeline step (kustoctl) can sync entity groups. Empty disables the grant.')
+param globalMSIName string = ''
+
+@description('Resource group of the global rollout MSI (same subscription as this deployment). Required when globalMSIName is set.')
+param globalMSIResourceGroup string = ''
+
+@description('ARO-HCP environment (int, stg, prod) tagged on the Kusto cluster so kustoctl can scope entity-group discovery per environment.')
+param environment string = ''
+
 @description('Name of the Kusto cluster to create')
 param kustoName string
 
@@ -84,6 +93,9 @@ module cluster 'cluster.bicep' = {
     adminGroups: adminGroups
     viewerGroups: viewerGroups
     viewerIdentities: viewerIdentities
+    globalMSIName: globalMSIName
+    globalMSIResourceGroup: globalMSIResourceGroup
+    environment: environment
     autoScaleMin: autoScaleMin
     autoScaleMax: autoScaleMax
     enableAutoScale: enableAutoScale
@@ -189,8 +201,16 @@ module databaseUserScripts 'database-users.bicep' = [
   }
 ]
 
-// 5. Remove the caller principal
-// THIS MUST BE THE LAST SCRIPT TO RUN
+// The table scripts above use RetainPermissionOnScriptCompletion, so the
+// principal that runs them keeps database Admin on each logs database after
+// they finish. This dummy script runs LAST with RemovePermissionOnScriptCompletion
+// to strip that retained, per-database Admin so no standing admin accumulates on
+// the Kusto databases.
+// The strip is database-scoped and only affects that deployment principal; it
+// does not touch the cluster-scoped AllDatabasesAdmin principalAssignment that
+// cluster.bicep grants the global rollout MSI, which is what lets the
+// KustoEntityGroups pipeline step (kustoctl) sync entity groups on all three
+// databases (including MonitoringEvents) after deployment.
 module removePermission 'script.bicep' = [
   for (database, i) in databases: {
     name: '${database}-removePermission-${i}'

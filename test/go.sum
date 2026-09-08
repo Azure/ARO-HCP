@@ -79,6 +79,8 @@ github.com/Azure/ARO-Tools/tools/helm v0.0.0-20260901142504-86903908c305 h1:oQ6q
 github.com/Azure/ARO-Tools/tools/helm v0.0.0-20260901142504-86903908c305/go.mod h1:EFovGxjmd5bJ7lFPCr8miWXXTT4EEXOHp4qdgTMoZac=
 github.com/Azure/ARO-Tools/tools/istio-upgrade v0.0.0-20260901142504-86903908c305 h1:5/os+yTvaDuDki+7d9kNGHXtPKYR220/llNS4hTwlho=
 github.com/Azure/ARO-Tools/tools/istio-upgrade v0.0.0-20260901142504-86903908c305/go.mod h1:TLHkYGJtrdTEkFfoRTi+q921HaAQ5gJtmzePacnUXrk=
+github.com/Azure/ARO-Tools/tools/kustoctl v0.0.0-20260901142504-86903908c305 h1:vBWPdJ+uBEFWo23m7/gIlZnXlb1/V7MwJzsXQnMISjY=
+github.com/Azure/ARO-Tools/tools/kustoctl v0.0.0-20260901142504-86903908c305/go.mod h1:ZzVjgEavNzbI7gTgrNP5lfeZbv928qEYQq0KHt+6M8Q=
 github.com/Azure/ARO-Tools/tools/prow-job-executor v0.0.0-20260901142504-86903908c305 h1:i8FdpZf/xEcZhaGwCHP+n6YQZenD9cxXgmtaUIkWlEA=
 github.com/Azure/ARO-Tools/tools/prow-job-executor v0.0.0-20260901142504-86903908c305/go.mod h1:1ZVKgwyjYNZh7rejV1uU9CLT1AiXSVYvlJ/BHvGs8Dw=
 github.com/Azure/ARO-Tools/tools/registration v0.0.0-20260901142504-86903908c305 h1:K1y8w1tfZ0CmfeZF9FDEfhSV8w9OtoUB+c3vCXKdHaQ=
