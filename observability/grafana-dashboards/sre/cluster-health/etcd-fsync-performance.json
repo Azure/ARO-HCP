@@ -1003,6 +1003,532 @@
       ],
       "title": "Fsync Rate per etcd Pod",
       "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 60 },
+      "id": 60,
+      "title": "DB Size & Health — Scenarios 2 (Helm bloat), 4 (Job garbage), 5 (High-cardinality CRs), 9 (No defrag)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "$ds_hcps" },
+      "description": "Current etcd DB total allocated size. Approaches 8 GB hard quota.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "decimals": 2,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 2 },
+              { "color": "red", "value": 6 }
+            ]
+          },
+          "unit": "decgbytes"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 5, "w": 5, "x": 0, "y": 61 },
+      "id": 61,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "$ds_hcps" },
+          "editorMode": "code",
+          "expr": "max(etcd_mvcc_db_total_size_in_bytes{namespace=~\"$namespace\"}) / 1073741824",
+          "instant": true,
+          "legendFormat": "DB Total Size",
+          "refId": "A"
+        }
+      ],
+      "title": "DB Total Size",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "$ds_hcps" },
+      "description": "Actual data in DB (excludes fragmented space). Compare with total size to detect fragmentation.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "decimals": 2,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 1.5 },
+              { "color": "red", "value": 5 }
+            ]
+          },
+          "unit": "decgbytes"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 5, "w": 5, "x": 5, "y": 61 },
+      "id": 62,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "$ds_hcps" },
+          "editorMode": "code",
+          "expr": "max(etcd_mvcc_db_total_size_in_use_in_bytes{namespace=~\"$namespace\"}) / 1073741824",
+          "instant": true,
+          "legendFormat": "DB In-Use Size",
+          "refId": "A"
+        }
+      ],
+      "title": "DB In-Use Size",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "$ds_hcps" },
+      "description": "Percentage of DB allocated to fragmented (wasted) space. High fragmentation means defrag is needed. >40% is critical.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "decimals": 1,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 20 },
+              { "color": "red", "value": 40 }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 5, "w": 5, "x": 10, "y": 61 },
+      "id": 63,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "$ds_hcps" },
+          "editorMode": "code",
+          "expr": "(1 - max(etcd_mvcc_db_total_size_in_use_in_bytes{namespace=~\"$namespace\"}) / max(etcd_mvcc_db_total_size_in_bytes{namespace=~\"$namespace\"})) * 100",
+          "instant": true,
+          "legendFormat": "DB Fragmentation %",
+          "refId": "A"
+        }
+      ],
+      "title": "DB Fragmentation",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "$ds_hcps" },
+      "description": "DB size as % of the 8 GB quota. At 100% the cluster goes read-only (NOSPACE alarm). SRE alert fires at 80%.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "decimals": 1,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 75 },
+              { "color": "red", "value": 90 }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 5, "w": 5, "x": 15, "y": 61 },
+      "id": 64,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "$ds_hcps" },
+          "editorMode": "code",
+          "expr": "max(etcd_mvcc_db_total_size_in_bytes{namespace=~\"$namespace\"}) / max(etcd_server_quota_backend_bytes{namespace=~\"$namespace\"}) * 100",
+          "instant": true,
+          "legendFormat": "DB % of Quota",
+          "refId": "A"
+        }
+      ],
+      "title": "DB % of Quota",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "$ds_hcps" },
+      "description": "Current key-value put operation rate. High put rate combined with high WAL fsync latency indicates write saturation.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "decimals": 1,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "blue", "value": null }
+            ]
+          },
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 5, "w": 4, "x": 20, "y": 61 },
+      "id": 65,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "$ds_hcps" },
+          "editorMode": "code",
+          "expr": "sum(rate(etcd_mvcc_put_total{namespace=~\"$namespace\"}[5m]))",
+          "instant": true,
+          "legendFormat": "Put Rate",
+          "refId": "A"
+        }
+      ],
+      "title": "Put Rate (ops/sec)",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 66 },
+      "id": 70,
+      "title": "DB Size Growth Over Time",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "$ds_hcps" },
+      "description": "DB growth over time. When total size approaches quota (8 GB default), etcd will trigger NOSPACE and go read-only. Gap between total and in-use indicates fragmented space needing defrag.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "insertNulls": false,
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": { "type": "linear" },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": { "group": "A", "mode": "none" },
+            "thresholdsStyle": { "mode": "dashed", "line": true }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "transparent", "value": null },
+              { "color": "red", "value": 6.4 }
+            ]
+          },
+          "unit": "decgbytes"
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "8 GB Quota" },
+            "properties": [
+              { "id": "custom.lineStyle", "value": { "fill": "dash", "dash": [10, 10] } },
+              { "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } },
+              { "id": "custom.fillOpacity", "value": 0 }
+            ]
+          }
+        ]
+      },
+      "gridPos": { "h": 10, "w": 14, "x": 0, "y": 67 },
+      "id": 71,
+      "options": {
+        "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "$ds_hcps" },
+          "editorMode": "code",
+          "expr": "max(etcd_mvcc_db_total_size_in_bytes{namespace=~\"$namespace\"}) / 1073741824",
+          "legendFormat": "DB Total Size",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "$ds_hcps" },
+          "editorMode": "code",
+          "expr": "max(etcd_mvcc_db_total_size_in_use_in_bytes{namespace=~\"$namespace\"}) / 1073741824",
+          "legendFormat": "DB In-Use Size",
+          "range": true,
+          "refId": "B"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "$ds_hcps" },
+          "editorMode": "code",
+          "expr": "max(etcd_server_quota_backend_bytes{namespace=~\"$namespace\"}) / 1073741824",
+          "legendFormat": "8 GB Quota",
+          "range": true,
+          "refId": "C"
+        }
+      ],
+      "title": "DB Total Size, In-Use Size & Quota",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "$ds_hcps" },
+      "description": "Rising fragmentation after compaction without defrag. Run `etcdctl defrag` when this exceeds 30%.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 20,
+            "gradientMode": "none",
+            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "insertNulls": false,
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": { "type": "linear" },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": { "group": "A", "mode": "none" },
+            "thresholdsStyle": { "mode": "dashed", "line": true }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "transparent", "value": null },
+              { "color": "red", "value": 0.4 }
+            ]
+          },
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 10, "w": 10, "x": 14, "y": 67 },
+      "id": 72,
+      "options": {
+        "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "$ds_hcps" },
+          "editorMode": "code",
+          "expr": "1 - max(etcd_mvcc_db_total_size_in_use_in_bytes{namespace=~\"$namespace\"}) / max(etcd_mvcc_db_total_size_in_bytes{namespace=~\"$namespace\"})",
+          "legendFormat": "Fragmentation Ratio",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "DB Fragmentation Ratio Over Time",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 77 },
+      "id": 80,
+      "title": "Read & Write Operation Rate — Scenario 8 (Abusive LIST clients)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "$ds_hcps" },
+      "description": "Range read rate vs put rate. Abusive LIST clients show massive range read spike with low put rate — this is pure read pressure, not write pressure. High range reads also cause backend commit latency spikes.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "insertNulls": false,
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": { "type": "linear" },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": { "group": "A", "mode": "none" },
+            "thresholdsStyle": { "mode": "off" }
+          },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 10, "w": 12, "x": 0, "y": 78 },
+      "id": 81,
+      "options": {
+        "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "$ds_hcps" },
+          "editorMode": "code",
+          "expr": "sum(rate(etcd_mvcc_range_total{namespace=~\"$namespace\"}[$__rate_interval]))",
+          "legendFormat": "Range Reads (ops/sec)",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "$ds_hcps" },
+          "editorMode": "code",
+          "expr": "sum(rate(etcd_mvcc_put_total{namespace=~\"$namespace\"}[$__rate_interval]))",
+          "legendFormat": "Puts (ops/sec)",
+          "range": true,
+          "refId": "B"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "$ds_hcps" },
+          "editorMode": "code",
+          "expr": "sum(rate(etcd_mvcc_delete_total{namespace=~\"$namespace\"}[$__rate_interval]))",
+          "legendFormat": "Deletes (ops/sec)",
+          "range": true,
+          "refId": "C"
+        }
+      ],
+      "title": "Key Operation Rate (Reads vs Writes)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "$ds_hcps" },
+      "description": "Requests exceeding 300ms usually indicate disk pressure or network issues. Leader changes (election count rate) indicate instability.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "insertNulls": false,
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": { "type": "linear" },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": { "group": "A", "mode": "none" },
+            "thresholdsStyle": { "mode": "off" }
+          },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+          "unit": "ops"
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Leader Changes/sec" },
+            "properties": [
+              { "id": "custom.axisPlacement", "value": "right" },
+              { "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }
+            ]
+          }
+        ]
+      },
+      "gridPos": { "h": 10, "w": 12, "x": 12, "y": 78 },
+      "id": 82,
+      "options": {
+        "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "$ds_hcps" },
+          "editorMode": "code",
+          "expr": "sum(rate(etcd_server_slow_apply_total{namespace=~\"$namespace\"}[$__rate_interval]))",
+          "legendFormat": "Slow Applies (>300ms)",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "$ds_hcps" },
+          "editorMode": "code",
+          "expr": "sum(rate(etcd_server_leader_changes_seen_total{namespace=~\"$namespace\"}[$__rate_interval]))",
+          "legendFormat": "Leader Changes/sec",
+          "range": true,
+          "refId": "B"
+        }
+      ],
+      "title": "Slow Requests (>300ms) & Leader Changes",
+      "type": "timeseries"
     }
   ],
   "preload": false,
@@ -1077,6 +1603,6 @@
   "timepicker": {},
   "timezone": "browser",
   "title": "etcd Fsync Performance",
-  "uid": "sre-cluster-health-etcd-fsync-performance",
-  "version": 1
+  "uid": "sre-cluster-health-etcd-fsync",
+  "version": 2
 }
