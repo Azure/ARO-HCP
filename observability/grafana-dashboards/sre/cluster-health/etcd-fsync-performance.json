@@ -63,7 +63,7 @@
       "id": 1,
       "options": {
         "code": { "language": "plaintext", "showLineNumbers": false, "showMiniMap": false },
-        "content": "### etcd Fsync Performance Dashboard\n\nDisk-level etcd latency analysis beyond P99 — covering latency distribution, tail latencies, throughput, and regional comparison.\n\n**Complements** `etcd-availability.json` (fleet SLO violators) and `per-cluster-drill-in.json` (single-cluster P99). This dashboard adds:\n- Full latency distribution heatmaps (WAL fsync + backend commit)\n- Tail latency percentiles (P99, P99.9, P99.99)\n- Fsync operation rate (ops/sec)\n- Regional latency comparison\n- Latency vs throughput correlation\n\n**SLO targets:** WAL fsync P99 < 10ms, backend commit P99 < 25ms.",
+        "content": "### etcd Fsync Performance Dashboard\n\nDisk-level etcd analysis beyond P99 — covering latency distribution, tail latencies, throughput, DB size/fragmentation, read/write operation rates, and fleet-wide comparison.\n\n**Complements** `etcd-availability.json` (fleet SLO violators) and `per-cluster-drill-in.json` (single-cluster P99). This dashboard adds:\n- Full latency distribution heatmaps (WAL fsync + backend commit)\n- Tail latency percentiles (P99, P99.9, P99.99)\n- Fsync operation rate (ops/sec) and latency vs throughput correlation\n- DB size, in-use size, fragmentation %, quota usage\n- Read/write/delete operation rates and slow request tracking\n- Per-pod breakdown for noisy-neighbor detection\n- Fleet-wide per-cluster comparison\n\n**SLO targets:** WAL fsync P99 < 10ms, backend commit P99 < 25ms.",
         "mode": "markdown"
       },
       "pluginVersion": "11.6.9",
@@ -747,7 +747,7 @@
       "collapsed": false,
       "gridPos": { "h": 1, "w": 24, "x": 0, "y": 38 },
       "id": 40,
-      "title": "Regional Comparison (Fleet-Wide)",
+      "title": "Fleet-Wide Per-Cluster Comparison",
       "type": "row"
     },
     {
@@ -755,7 +755,7 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "WAL fsync P99 latency per region. Each line represents the worst per-cluster P99 in that region. Quickly identify which regions have disk-related latency issues.",
+      "description": "WAL fsync P99 latency per cluster across the fleet. Each line represents one cluster's P99. Quickly identify which clusters have disk-related latency issues.",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -811,7 +811,7 @@
           "refId": "A"
         }
       ],
-      "title": "WAL Fsync P99 by Region",
+      "title": "WAL Fsync P99 per Cluster (Fleet)",
       "type": "timeseries"
     },
     {
@@ -819,7 +819,7 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "Backend commit P99 latency per region. Identifies regions with slow disk commit performance.",
+      "description": "Backend commit P99 latency per cluster across the fleet. Identifies clusters with slow disk commit performance.",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -875,7 +875,7 @@
           "refId": "A"
         }
       ],
-      "title": "Backend Commit P99 by Region",
+      "title": "Backend Commit P99 per Cluster (Fleet)",
       "type": "timeseries"
     },
     {
