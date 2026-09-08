@@ -18,7 +18,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"reflect"
 	"slices"
 	"strings"
 	"time"
@@ -357,12 +356,10 @@ func (c *roleAssignmentsSyncer) syncRoleAssignments(ctx context.Context, cluster
 	}
 
 	// Persist the classified pending/confirmed state BEFORE any Azure Create, but only when it
-	// actually changed, so an unchanged document does not trigger a redundant Cosmos write. Only
-	// Status.AzureResources.RoleAssignments is mutated on the deep copy, so a whole-document
-	// reflect.DeepEqual detects exactly a role-assignment change. A Cosmos precondition
-	// (optimistic-concurrency) failure MUST NOT be treated as success: the state was not persisted,
-	// so we must not proceed to create.
-	if !reflect.DeepEqual(existingServiceProviderCluster, replacement) {
+	// actually changed, so an unchanged SET does not trigger a redundant Cosmos write. A Cosmos
+	// precondition (optimistic-concurrency) failure MUST NOT be treated as success: the state was
+	// not persisted, so we must not proceed to create.
+	if controllerutil.NeedsUpdate(existingServiceProviderCluster, replacement) {
 		_, persistErr := c.resourcesDBClient.ServiceProviderClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName, cluster.ID.Name).Replace(ctx, replacement, nil)
 		if persistErr != nil {
 			if cosmosstorageutils.IsPreconditionFailedError(persistErr) {
@@ -476,9 +473,9 @@ func (c *roleAssignmentsSyncer) expectedRoleAssignments(cluster *coreapi.HCPOpen
 	// assignments by their canonical (case-insensitive, matching ResourceIDsEqual) resource ID.
 	// This keeps the persisted PendingAzureResources / AzureResources ordering stable across
 	// passes, so an unchanged SET does not look changed to the slice-order-sensitive
-	// reflect.DeepEqual check in syncRoleAssignments - which would otherwise cause redundant Cosmos
-	// writes (and spurious optimistic-concurrency conflicts). The de-dup in appendRoleAssignments
-	// guarantees the sort key is unique, so the ordering is total and deterministic.
+	// controllerutil.NeedsUpdate - which would otherwise cause redundant Cosmos writes (and
+	// spurious optimistic-concurrency conflicts). The de-dup in appendRoleAssignments guarantees
+	// the sort key is unique, so the ordering is total and deterministic.
 	slices.SortFunc(expected, func(a, b roleAssignmentDefinition) int {
 		return strings.Compare(strings.ToLower(a.resourceID.String()), strings.ToLower(b.resourceID.String()))
 	})
