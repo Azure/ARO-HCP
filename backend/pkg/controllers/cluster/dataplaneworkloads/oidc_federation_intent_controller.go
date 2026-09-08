@@ -43,19 +43,22 @@ const DataPlaneOIDCFederationIntentControllerName = "DataPlaneOIDCFederationInte
 // in sync with ServiceProviderCluster.Status.ManagedIdentityDetails.
 //
 // It does not call Azure. It only marks desired phases:
-//   - Identities in ManagedIdentityDetails with non-nil ClientID, PrincipalID,
-//     and TenantID are added as PendingConfigure (or left Configured /
-//     PendingConfigure if already present).
+//   - Data-plane operator identities in ManagedIdentityDetails
+//     (MSIBasedDetails false) with non-nil ClientID, PrincipalID, and TenantID
+//     are added as PendingConfigure (or left Configured / PendingConfigure if
+//     already present). MSI-based identities (control plane operators and the
+//     ServiceManagedIdentity, MSIBasedDetails true) are ignored, even when the
+//     same UAMI is still used as CP or SMI.
 //   - Identities present in ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation
-//     but no longer in ManagedIdentityDetails are marked PendingDeconfigure
-//     unless they are already Deconfigured. The first transition stamps
-//     DeconfigureTimestamp to now (when deconfigure was requested). The
-//     executor waits 24h from that time on a live cluster. Cluster deletion
-//     still stamps the request time; the executor ignores the wait when
-//     DeletionTimestamp is set.
-//   - Identities still in ManagedIdentityDetails whose ClientID, PrincipalID, or
-//     TenantID is temporarily unset are left as-is so a transient fetch error
-//     does not deconfigure them.
+//     but no longer among those data-plane details entries are marked
+//     PendingDeconfigure unless they are already Deconfigured. The first
+//     transition stamps DeconfigureTimestamp to now (when deconfigure was
+//     requested). The executor waits 24h from that time on a live cluster.
+//     Cluster deletion still stamps the request time; the executor ignores
+//     the wait when DeletionTimestamp is set.
+//   - Data-plane identities still in ManagedIdentityDetails whose ClientID,
+//     PrincipalID, or TenantID is temporarily unset are left as-is so a
+//     transient fetch error does not deconfigure them.
 type dataPlaneOIDCFederationIntentSyncer struct {
 	clock                        utilsclock.PassiveClock
 	clusterLister                corelisters.ClusterLister
@@ -185,6 +188,12 @@ func (s *dataPlaneOIDCFederationIntentSyncer) clusterServiceGone(cluster *coreap
 // desiredDataPlaneOIDCFederationStatus computes the federation map that should
 // be stored on the ServiceProviderCluster.
 //
+// Only data-plane operator identities are considered: ManagedIdentityDetails
+// entries with MSIBasedDetails false. MSI-based entries (control plane
+// operators and the ServiceManagedIdentity) are skipped so a UAMI that is
+// still CP or SMI does not keep data-plane OIDC federation after the last
+// data-plane operator leaves it.
+//
 // The map key is ResourceID + ClientID + PrincipalID + TenantID, so a change to
 // any of those IDs is a new key. Both loops together cover identity rotation:
 // the first loop adds PendingConfigure for the new key, and the second loop
@@ -203,12 +212,21 @@ func (s *dataPlaneOIDCFederationIntentSyncer) desiredDataPlaneOIDCFederationStat
 	resolvedKeys := make(map[coreapi.ManagedIdentityDataplaneOIDCFederationKey]struct{}, len(existingManagedIdentityDetails))
 	unresolvedResourceIDs := map[string]struct{}{}
 
-	// First loop: identities that are currently resolved in ManagedIdentityDetails.
-	// These are the keys that should be federated. Missing keys become
-	// PendingConfigure. Keys already PendingConfigure or Configured are left as-is.
-	// Keys already PendingDeconfigure or Deconfigured are flipped back to
-	// PendingConfigure because they are desired again.
-	for _, details := range existingManagedIdentityDetails {
+	// First loop: data-plane identities that are currently resolved in
+	// ManagedIdentityDetails. These are the keys that should be federated.
+	// Missing keys become PendingConfigure. Keys already PendingConfigure or
+	// Configured are left as-is. Keys already PendingDeconfigure or
+	// Deconfigured are flipped back to PendingConfigure because they are
+	// desired again.
+	for detailsKey, details := range existingManagedIdentityDetails {
+		// MSIBasedDetails true is a control-plane operator or the
+		// ServiceManagedIdentity. Data-plane OIDC federation is only for
+		// data-plane operator identities (MSIBasedDetails false). Skipping
+		// here also means a UAMI that is still CP or SMI does not keep
+		// federation after the last data-plane operator leaves it.
+		if detailsKey.MSIBasedDetails {
+			continue
+		}
 		key, ok := details.AsDataplaneOIDCFederationKey()
 		if !ok {
 			// ClientID, PrincipalID, or TenantID is not set. This can be a
@@ -241,12 +259,13 @@ func (s *dataPlaneOIDCFederationIntentSyncer) desiredDataPlaneOIDCFederationStat
 	}
 
 	// Second loop: federation keys that the first loop did not mark as still
-	// desired. Deconfigure only when the identity is gone from
+	// desired. Deconfigure only when the data-plane identity is gone from
 	// ManagedIdentityDetails, or when ClientID/PrincipalID/TenantID changed
 	// (the first loop recorded the new key; this loop sees the old key).
-	// If the identity is still in ManagedIdentityDetails but those IDs are
-	// unset, keep the existing entry. A transient Azure error in the fetch
-	// controller must not start deconfiguration.
+	// An MSI-based entry for the same ResourceID is not enough to keep
+	// federation. If the data-plane identity is still in ManagedIdentityDetails
+	// but those IDs are unset, keep the existing entry. A transient Azure
+	// error in the fetch controller must not start deconfiguration.
 	for key, existing := range existingFederation {
 		if existing == nil {
 			return nil, utils.TrackError(fmt.Errorf("ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation has a nil status for resource ID %s", key.ResourceID))

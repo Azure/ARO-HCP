@@ -307,10 +307,11 @@ type ServiceProviderClusterStatus struct {
 	ManagedIdentitiesEarliestRecheckTime *metav1.Time `json:"managedIdentitiesEarliestRecheckTime,omitempty"`
 
 	// ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation tracks the desired and observed
-	// data-plane OIDC federation state for each fully resolved managed identity.
-	// DataPlaneOIDCFederationDesiredState adds identities whose ClientID, PrincipalID,
+	// data-plane OIDC federation state for each fully resolved data-plane operator
+	// identity (ManagedIdentityDetails entries with MSIBasedDetails false).
+	// DataPlaneOIDCFederationDesiredState adds those identities whose ClientID, PrincipalID,
 	// and TenantID are all set as PendingConfigure, and marks identities that have
-	// left ManagedIdentityDetails as PendingDeconfigure (stamping DeconfigureTimestamp
+	// left that data-plane set as PendingDeconfigure (stamping DeconfigureTimestamp
 	// when that was requested so Azure FIC deletes wait 24 hours on a live cluster). DataPlaneOIDCFederation
 	// then creates or deletes federated identity credentials in Azure (one per
 	// data-plane operator service account) and advances the phase to Configured

@@ -220,6 +220,49 @@ func TestDesiredDataPlaneOIDCFederationStatus(t *testing.T) {
 			},
 			expectStampedDeconfigureTimestamp: []coreapi.ManagedIdentityDataplaneOIDCFederationKey{keyB},
 		},
+		{
+			name: "MSI-based identity is not added to the federation map",
+			details: map[coreapi.ManagedIdentityDetailsKey]*coreapi.ManagedIdentityDetails{
+				{ResourceID: strings.ToLower(identityA.String()), MSIBasedDetails: true}: resolvedA,
+			},
+			expectNilWhenEmpty: true,
+		},
+		{
+			name: "MSI-based identity for the same UAMI does not keep data-plane federation",
+			details: map[coreapi.ManagedIdentityDetailsKey]*coreapi.ManagedIdentityDetails{
+				{ResourceID: strings.ToLower(identityA.String()), MSIBasedDetails: true}: resolvedA,
+			},
+			current: map[coreapi.ManagedIdentityDataplaneOIDCFederationKey]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
+				keyA: {Phase: coreapi.ManagedIdentityDataplaneOIDCFederationPhaseConfigured},
+			},
+			expectedPhases: map[coreapi.ManagedIdentityDataplaneOIDCFederationKey]coreapi.ManagedIdentityDataplaneOIDCFederationPhase{
+				keyA: coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingDeconfigure,
+			},
+			expectStampedDeconfigureTimestamp: []coreapi.ManagedIdentityDataplaneOIDCFederationKey{keyA},
+		},
+		{
+			name: "data-plane identity is federated even when the same UAMI is also MSI-based",
+			details: map[coreapi.ManagedIdentityDetailsKey]*coreapi.ManagedIdentityDetails{
+				{ResourceID: strings.ToLower(identityA.String()), MSIBasedDetails: true}:  resolvedA,
+				{ResourceID: strings.ToLower(identityA.String()), MSIBasedDetails: false}: resolvedA,
+			},
+			expectedPhases: map[coreapi.ManagedIdentityDataplaneOIDCFederationKey]coreapi.ManagedIdentityDataplaneOIDCFederationPhase{
+				keyA: coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingConfigure,
+			},
+		},
+		{
+			name: "unresolved MSI-based identity does not leave a configured data-plane entry as-is",
+			details: map[coreapi.ManagedIdentityDetailsKey]*coreapi.ManagedIdentityDetails{
+				{ResourceID: strings.ToLower(identityA.String()), MSIBasedDetails: true}: unresolvedA,
+			},
+			current: map[coreapi.ManagedIdentityDataplaneOIDCFederationKey]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
+				keyA: {Phase: coreapi.ManagedIdentityDataplaneOIDCFederationPhaseConfigured},
+			},
+			expectedPhases: map[coreapi.ManagedIdentityDataplaneOIDCFederationKey]coreapi.ManagedIdentityDataplaneOIDCFederationPhase{
+				keyA: coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingDeconfigure,
+			},
+			expectStampedDeconfigureTimestamp: []coreapi.ManagedIdentityDataplaneOIDCFederationKey{keyA},
+		},
 	}
 
 	since := metav1.NewTime(time.Date(2026, 9, 6, 12, 0, 0, 0, time.UTC))
