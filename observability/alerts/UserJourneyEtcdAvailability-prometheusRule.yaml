@@ -35,7 +35,6 @@ spec:
       for: 5m
       labels:
         component: hcp
-        exclude_internal_subscriptions: "true"
         severity: "3"
         long_window: 1h
         short_window: 5m
@@ -53,7 +52,6 @@ spec:
       for: 30m
       labels:
         component: hcp
-        exclude_internal_subscriptions: "true"
         severity: "3"
         long_window: 6h
         short_window: 30m
@@ -71,7 +69,6 @@ spec:
       for: 3h
       labels:
         component: hcp
-        exclude_internal_subscriptions: "true"
         severity: "4"
         long_window: 3d
         short_window: 6h
@@ -91,7 +88,6 @@ spec:
       for: 15m
       labels:
         component: hcp
-        exclude_internal_subscriptions: "true"
         severity: "3"
         slo: etcd-database-fragmentation
       annotations:
@@ -109,7 +105,6 @@ spec:
       for: 15m
       labels:
         component: hcp
-        exclude_internal_subscriptions: "true"
         severity: "3"
         slo: etcd-database-size
       annotations:
@@ -127,7 +122,6 @@ spec:
       for: 5m
       labels:
         component: hcp
-        exclude_internal_subscriptions: "true"
         severity: "3"
         slo: etcd-leader-changes
       annotations:
@@ -147,7 +141,6 @@ spec:
       for: 5m
       labels:
         component: hcp
-        exclude_internal_subscriptions: "true"
         severity: "3"
         long_window: 1h
         short_window: 5m
@@ -165,7 +158,6 @@ spec:
       for: 30m
       labels:
         component: hcp
-        exclude_internal_subscriptions: "true"
         severity: "3"
         long_window: 6h
         short_window: 30m
@@ -183,7 +175,6 @@ spec:
       for: 3h
       labels:
         component: hcp
-        exclude_internal_subscriptions: "true"
         severity: "4"
         long_window: 3d
         short_window: 6h
@@ -205,7 +196,6 @@ spec:
       for: 5m
       labels:
         component: hcp
-        exclude_internal_subscriptions: "true"
         severity: "3"
         long_window: 1h
         short_window: 5m
@@ -223,7 +213,6 @@ spec:
       for: 30m
       labels:
         component: hcp
-        exclude_internal_subscriptions: "true"
         severity: "3"
         long_window: 6h
         short_window: 30m
@@ -241,7 +230,6 @@ spec:
       for: 3h
       labels:
         component: hcp
-        exclude_internal_subscriptions: "true"
         severity: "4"
         long_window: 3d
         short_window: 6h
