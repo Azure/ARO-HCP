@@ -107,66 +107,67 @@ func (l *httpGetStep) RunTest(ctx context.Context, t *testing.T, stepInput StepI
 	// lets reads tolerate eventual consistency (e.g. an informer lister cache)
 	// exactly as a real client following the Retry-After contract would, with no
 	// per-step configuration.
-	deadline := time.Now().Add(retryAfterTimeout)
-	for {
-		raw, err := accessor.Get(ctx, l.key.ResourceID)
+	//
+	// Bounding the retries with a context rather than a manual deadline means an
+	// over-large Retry-After can't overshoot retryAfterTimeout: whichever of the
+	// two fires first wins the select below. The GET itself keeps the parent
+	// ctx, so a slow in-flight request isn't turned into a context error.
+	retryCtx, cancel := context.WithTimeout(ctx, retryAfterTimeout)
+	defer cancel()
 
-		// On success the accessor must return a *GetResponse; fail fast if the
-		// contract is violated rather than silently treating it as an empty
-		// response (nil body/headers), which would produce confusing diffs.
-		var resp *GetResponse
+	for {
+		resp, err := accessor.Get(ctx, l.key.ResourceID)
+
+		// Capture the headers before decoding, since DecodeResponseBody
+		// consumes and closes the body.
+		var header http.Header
+		var body any
 		if err == nil {
-			var ok bool
-			resp, ok = raw.(*GetResponse)
-			require.Truef(t, ok, "accessor.Get for %s returned %T, want *GetResponse", l.key.ResourceID, raw)
+			header = resp.Header
+			body, err = DecodeResponseBody(resp)
 		}
 
-		if l.matches(t, resp, err) {
+		if l.matches(t, body, err) {
 			return
 		}
 
-		var header http.Header
-		if resp != nil {
-			header = resp.Header
-		}
 		delay, retryRequested := retryAfterDelay(header)
-		if remaining := time.Until(deadline); retryRequested && remaining > 0 {
-			// Cap the wait at the remaining time so retryAfterTimeout is a real
-			// bound even when the server returns a large Retry-After value.
-			if delay > remaining {
-				delay = remaining
-			}
-			select {
-			case <-ctx.Done():
-				t.Fatalf("context cancelled while retrying GET after Retry-After for %s: %v", l.key.ResourceID, ctx.Err())
-				return
-			case <-time.After(delay):
-				continue
-			}
+		if !retryRequested {
+			// Definitive response: assert once so the failure output is the
+			// same as a plain single GET.
+			l.assert(t, body, err)
+			return
 		}
 
-		// Definitive response (no Retry-After) or timed out: assert once so the
-		// failure output is the same as a plain single GET.
-		l.assert(t, resp, err)
-		return
+		timer := time.NewTimer(delay)
+		select {
+		case <-retryCtx.Done():
+			timer.Stop()
+			// Out of budget (or the parent ctx went away). Assert on the last
+			// response rather than reporting a context error, so the failure
+			// shows the actual/expected diff that kept us retrying.
+			l.assert(t, body, err)
+			return
+		case <-timer.C:
+		}
 	}
 }
 
 // matches reports whether the response satisfies the step's expectation without
 // failing the test, so it is safe to call repeatedly in the retry loop.
-func (l *httpGetStep) matches(t *testing.T, resp *GetResponse, err error) bool {
+func (l *httpGetStep) matches(t *testing.T, body any, err error) bool {
 	if len(l.expectedError) > 0 {
 		return err != nil && strings.Contains(err.Error(), l.expectedError)
 	}
 	if err != nil {
 		return false
 	}
-	_, equals := ResourceInstanceEquals(t, l.expectedResource, respBody(resp))
+	_, equals := ResourceInstanceEquals(t, l.expectedResource, body)
 	return equals
 }
 
 // assert performs the terminal comparison, failing the test on mismatch.
-func (l *httpGetStep) assert(t *testing.T, resp *GetResponse, err error) {
+func (l *httpGetStep) assert(t *testing.T, body any, err error) {
 	switch {
 	case len(l.expectedError) > 0:
 		require.ErrorContains(t, err, l.expectedError)
@@ -175,18 +176,10 @@ func (l *httpGetStep) assert(t *testing.T, resp *GetResponse, err error) {
 		require.NoError(t, err)
 	}
 
-	body := respBody(resp)
 	if diff, equals := ResourceInstanceEquals(t, l.expectedResource, body); !equals {
 		t.Logf("actual:\n%v", stringifyResource(body))
 		t.Error(diff)
 	}
-}
-
-func respBody(resp *GetResponse) any {
-	if resp == nil {
-		return nil
-	}
-	return resp.Body
 }
 
 // retryAfterDelay parses the Retry-After header. It returns whether a retry was
