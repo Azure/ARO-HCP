@@ -1924,7 +1924,7 @@ clouds:
               systemAgentPool:
                 maxCount: 4
                 osDiskSizeGB: 32
-                vmSize: Standard_D8s_v3
+                vmSize: Standard_D8ds_v6
               userAgentPool:
                 maxCount: 14
                 minCount: 5
@@ -1944,7 +1944,7 @@ clouds:
             aks:
               name: "{{ .ctx.environment }}-{{ .ctx.regionShort }}-svc"
               systemAgentPool:
-                vmSize: Standard_D4s_v3
+                vmSize: Standard_D4ds_v6
               userAgentPool:
                 name: 'u64d8dsv6'
                 vmSize: Standard_D8ds_v6
