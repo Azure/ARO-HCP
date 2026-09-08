@@ -225,11 +225,14 @@ func (c *clusterClusterServiceCreateSyncer) createPreconditionDenyAssignmentsCre
 		return true, nil
 	}
 
-	if len(serviceProviderCluster.Status.AzureResources.DenyAssignments.PendingAzureResources) == 0 && len(serviceProviderCluster.Status.AzureResources.DenyAssignments.AzureResources) > 0 {
+	denyAssignments := serviceProviderCluster.Status.AzureResources.DenyAssignments
+	if len(denyAssignments.PendingAzureResources) == 0 &&
+		len(denyAssignments.AzureResources) > 0 &&
+		denyAssignments.EarliestRecheckTime != nil {
 		return true, nil
 	}
-	pendingTypes := make([]string, 0, len(serviceProviderCluster.Status.AzureResources.DenyAssignments.PendingAzureResources))
-	for _, denyAssignmentReference := range serviceProviderCluster.Status.AzureResources.DenyAssignments.PendingAzureResources {
+	pendingTypes := make([]string, 0, len(denyAssignments.PendingAzureResources))
+	for _, denyAssignmentReference := range denyAssignments.PendingAzureResources {
 		pendingTypes = append(pendingTypes, denyAssignmentReference.DenyAssignmentType)
 	}
 	logger.Info("Deny assignments not yet created, waiting for ClusterDenyAssignment controller",
