@@ -60,10 +60,6 @@ const (
 	// that clusters confirmed together do not re-query Azure in lockstep - the 50% jitter
 	// the EarliestRecheckTime convention recommends.
 	roleAssignmentRecheckJitterFactor = 0.5
-	// roleAssignmentPreconditionRetryDelay is how soon to re-enqueue a cluster after a Cosmos
-	// optimistic-concurrency (precondition) failure while persisting the pending intent, so the
-	// retry runs quickly with fresh inputs rather than waiting for the periodic resync.
-	roleAssignmentPreconditionRetryDelay = 10 * time.Second
 )
 
 // roleAssignmentsSyncer MANAGES the Azure role assignments on a cluster's managed
@@ -88,10 +84,6 @@ type roleAssignmentsSyncer struct {
 	azureFPAClientBuilder         azureclient.FirstPartyApplicationClientBuilder
 	clusterScopedIdentitiesConfig *azure.ClusterScopedIdentitiesConfig
 	clock                         utilsclock.PassiveClock
-	// enqueueAfter lets the syncer explicitly re-enqueue a cluster after a delay (grabbed from
-	// the watching controller at construction). It is used to retry shortly after a Cosmos
-	// precondition failure so a Create never runs before the pending intent is persisted.
-	enqueueAfter controllerutils.AfterEnqueuer
 }
 
 var _ controllerutils.ClusterSyncer = (*roleAssignmentsSyncer)(nil)
@@ -131,14 +123,6 @@ func NewRoleAssignmentsController(
 		5*time.Minute,
 		syncer,
 	)
-
-	// Assert that genericWatchingController implements AfterEnqueuer, which lets the syncer explicitly schedule retries via EnqueueAfter rather than
-	// relying on error-based rate-limited requeue in some cases. Panics at startup if the interface is not satisfied.
-	if enqueuer, ok := controller.(controllerutils.AfterEnqueuer); ok {
-		syncer.enqueueAfter = enqueuer
-	} else {
-		panic("IdentityRoleAssignmentsController must implement AfterEnqueuer")
-	}
 
 	return controller
 }
@@ -251,7 +235,7 @@ func (c *roleAssignmentsSyncer) SyncOnce(ctx context.Context, key controllerutil
 		return nil
 	}
 
-	return c.syncRoleAssignments(ctx, key, cluster, existingServiceProviderCluster)
+	return c.syncRoleAssignments(ctx, cluster, existingServiceProviderCluster)
 }
 
 // syncRoleAssignments reconciles the role assignments for a cluster that is not being
@@ -276,9 +260,9 @@ func (c *roleAssignmentsSyncer) SyncOnce(ctx context.Context, key controllerutil
 // and confirms it. When nothing is pending (every expected assignment confirmed) the
 // earliest-recheck window is set to a future time - the only thing that stops the sync
 // re-running on every resync. If that persist fails with a Cosmos precondition
-// (optimistic-concurrency) conflict, the state was not recorded and the inputs are now stale,
-// so the sync re-enqueues the cluster after a short delay and does NOT create this pass; any
-// other persist error is returned to retry via the rate-limited requeue.
+// (optimistic-concurrency) conflict, the state was not recorded and the inputs are now stale, so
+// the sync returns without creating this pass and relies on the watch event from the conflicting
+// write to re-enqueue it; any other persist error is returned to retry via the rate-limited requeue.
 //
 // Pass 2 (create - Azure writes) creates the queued missing assignments. The assignment names
 // are deterministic, so re-creating is an idempotent update rather than a conflict; any create
@@ -288,7 +272,7 @@ func (c *roleAssignmentsSyncer) SyncOnce(ctx context.Context, key controllerutil
 // Any previously-confirmed assignment that is no longer expected (for example after an identity
 // or name-scheme change) is retained in AzureResources, not dropped; its deletion is deferred
 // to managed identity replacement support.
-func (c *roleAssignmentsSyncer) syncRoleAssignments(ctx context.Context, key controllerutils.HCPClusterKey, cluster *coreapi.HCPOpenShiftCluster, existingServiceProviderCluster *coreapi.ServiceProviderCluster) error {
+func (c *roleAssignmentsSyncer) syncRoleAssignments(ctx context.Context, cluster *coreapi.HCPOpenShiftCluster, existingServiceProviderCluster *coreapi.ServiceProviderCluster) error {
 	expected, err := c.expectedRoleAssignments(cluster, existingServiceProviderCluster)
 	if err != nil {
 		return utils.TrackError(err)
@@ -334,6 +318,13 @@ func (c *roleAssignmentsSyncer) syncRoleAssignments(ctx context.Context, key con
 		}
 	}
 
+	// If classification hit an unknown (non-nil, non-not-found) GetByID error above, we could not
+	// cleanly classify every expected assignment. Bail and retry rather than persisting partial
+	// state or creating off an incomplete view.
+	if len(errs) > 0 {
+		return errors.Join(errs...)
+	}
+
 	// Persist the classified state BEFORE any Azure Create, so the pending intent is durably
 	// recorded first. Every expected assignment is in exactly one of pendingList / confirmedList.
 	replacement := existingServiceProviderCluster.DeepCopy()
@@ -364,19 +355,19 @@ func (c *roleAssignmentsSyncer) syncRoleAssignments(ctx context.Context, key con
 		roleAssignments.EarliestRecheckTime = nil
 	}
 
-	// Persist the classified pending/confirmed state BEFORE any Azure Create, but only when it
-	// actually changed, so an unchanged SET does not trigger a redundant Cosmos write. A Cosmos
-	// precondition (optimistic-concurrency) failure MUST NOT be treated as success: the state was
-	// not persisted, so we must not proceed to create.
-	if controllerutil.NeedsUpdate(existingServiceProviderCluster, replacement) {
+	// Persist the classified pending/confirmed state BEFORE any Azure Create, but only when the
+	// role-assignment references actually changed, so an unchanged SET does not trigger a redundant
+	// Cosmos write. A Cosmos precondition (optimistic-concurrency) failure MUST NOT be treated as
+	// success: the state was not persisted, so we must not proceed to create.
+	if !roleAssignmentReferencesEqual(existingServiceProviderCluster.Status.AzureResources.RoleAssignments, replacement.Status.AzureResources.RoleAssignments) {
 		_, persistErr := c.resourcesDBClient.ServiceProviderClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName, cluster.ID.Name).Replace(ctx, replacement, nil)
 		if persistErr != nil {
 			if cosmosstorageutils.IsPreconditionFailedError(persistErr) {
 				// Optimistic-concurrency conflict: another writer updated the document, so our
 				// classified pending/confirmed state was NOT persisted and our in-memory inputs are
 				// now stale. Do NOT proceed to pass 2 (that would Create before persisting the pending
-				// intent). Re-enqueue to retry shortly with fresh inputs.
-				c.enqueueAfter.EnqueueAfter(key, roleAssignmentPreconditionRetryDelay)
+				// intent). Just return: the conflicting write fired a watch event that re-enqueues us
+				// almost immediately, so no explicit timed re-enqueue is needed.
 				return nil
 			}
 			// Any other persist error: do not create; return it so it retries via the normal
@@ -398,6 +389,41 @@ func (c *roleAssignmentsSyncer) syncRoleAssignments(ctx context.Context, key con
 	// Every collected error is wrapped with utils.TrackError where it is appended, so the join
 	// is returned without re-wrapping.
 	return errors.Join(errs...)
+}
+
+// roleAssignmentReferencesEqual reports whether two role-assignment AzureMultiReference values are
+// equal in the only fields this controller writes: the PendingAzureResources and AzureResources
+// slices and EarliestRecheckTime. The slices are compared element-wise (order-sensitive is fine:
+// expected is deterministically sorted and retained extras are appended in a stable order). It is
+// used in place of a whole-document diff so a Cosmos Replace is issued only when the
+// role-assignment state actually changed.
+func roleAssignmentReferencesEqual(a, b coreapi.AzureMultiReference) bool {
+	return resourceIDSlicesEqual(a.PendingAzureResources, b.PendingAzureResources) &&
+		resourceIDSlicesEqual(a.AzureResources, b.AzureResources) &&
+		earliestRecheckTimesEqual(a.EarliestRecheckTime, b.EarliestRecheckTime)
+}
+
+// resourceIDSlicesEqual reports whether two resource-ID slices are element-wise equal: same length,
+// each pair equal under the case-insensitive controllerutil.ResourceIDsEqual.
+func resourceIDSlicesEqual(a, b []*azcorearm.ResourceID) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if !controllerutil.ResourceIDsEqual(a[i], b[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+// earliestRecheckTimesEqual reports whether two recheck times are equal: both nil, or both non-nil
+// and the same instant.
+func earliestRecheckTimesEqual(a, b *metav1.Time) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return a.Time.Equal(b.Time)
 }
 
 // roleAssignmentDefinition describes a single managed-resource-group-scoped role assignment
@@ -481,10 +507,11 @@ func (c *roleAssignmentsSyncer) expectedRoleAssignments(cluster *coreapi.HCPOpen
 	// The operator maps above iterate in a non-deterministic order, so sort the expected
 	// assignments by their canonical (case-insensitive, matching ResourceIDsEqual) resource ID.
 	// This keeps the persisted PendingAzureResources / AzureResources ordering stable across
-	// passes, so an unchanged SET does not look changed to the slice-order-sensitive
-	// controllerutil.NeedsUpdate - which would otherwise cause redundant Cosmos writes (and
-	// spurious optimistic-concurrency conflicts). The de-dup in appendRoleAssignments guarantees
-	// the sort key is unique, so the ordering is total and deterministic.
+	// passes, so an unchanged SET does not look changed to the order-sensitive
+	// roleAssignmentReferencesEqual check in syncRoleAssignments - which would otherwise cause
+	// redundant Cosmos writes (and spurious optimistic-concurrency conflicts). The de-dup in
+	// appendRoleAssignments guarantees the sort key is unique, so the ordering is total and
+	// deterministic.
 	slices.SortFunc(expected, func(a, b roleAssignmentDefinition) int {
 		return strings.Compare(strings.ToLower(a.resourceID.String()), strings.ToLower(b.resourceID.String()))
 	})

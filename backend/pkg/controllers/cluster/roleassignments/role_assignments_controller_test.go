@@ -306,8 +306,8 @@ var testHCPClusterKey = controllerutils.HCPClusterKey{
 // its slice in a stable order (sorted by the canonical, case-insensitive resource ID) regardless
 // of Go's randomized iteration over the operator maps. A stable order keeps the persisted
 // PendingAzureResources / AzureResources ordering from flapping between passes, which would
-// otherwise make the slice-order-sensitive controllerutil.NeedsUpdate report spurious changes and
-// drive redundant Cosmos writes (and precondition conflicts) even when the SET is unchanged.
+// otherwise make the order-sensitive roleAssignmentReferencesEqual check report spurious changes
+// and drive redundant Cosmos writes (and precondition conflicts) even when the SET is unchanged.
 func TestExpectedRoleAssignmentsDeterministicOrder(t *testing.T) {
 	t.Parallel()
 
@@ -541,17 +541,6 @@ func TestRoleAssignmentsSyncerSyncOncePersistsPendingBeforeCreate(t *testing.T) 
 	assert.Nil(t, got.EarliestRecheckTime, "no recheck window while work remains")
 }
 
-// fakeAfterEnqueuer records EnqueueAfter calls so tests can assert an explicit re-enqueue.
-type fakeAfterEnqueuer struct {
-	keys      []any
-	durations []time.Duration
-}
-
-func (f *fakeAfterEnqueuer) EnqueueAfter(keyObj any, duration time.Duration) {
-	f.keys = append(f.keys, keyObj)
-	f.durations = append(f.durations, duration)
-}
-
 // preconditionFailingReplaceDB wraps a ResourcesDBClient so that
 // ServiceProviderClusters(...).Replace always fails with a Cosmos precondition
 // (optimistic-concurrency) error; every other operation - including Get - delegates to the
@@ -572,12 +561,12 @@ func (preconditionFailingReplaceCRUD) Replace(context.Context, *coreapi.ServiceP
 	return nil, corecosmosstoragetesting.NewPreconditionFailedError()
 }
 
-// TestRoleAssignmentsSyncerSyncOncePreconditionFailureReEnqueues verifies that when the pass-1
+// TestRoleAssignmentsSyncerSyncOncePreconditionFailureSkipsCreate verifies that when the pass-1
 // persist of the pending intent fails with a Cosmos precondition (optimistic-concurrency)
-// conflict, the syncer does NOT proceed to create: it re-enqueues the cluster after the
-// precondition retry delay and returns nil, so pass 2 (Create) never runs before the pending
-// intent is persisted.
-func TestRoleAssignmentsSyncerSyncOncePreconditionFailureReEnqueues(t *testing.T) {
+// conflict, the syncer does NOT proceed to create: pass 2 (Create) never runs before the pending
+// intent is persisted, and SyncOnce returns nil (the conflicting write fires a watch event that
+// re-enqueues us, so no explicit re-enqueue is needed).
+func TestRoleAssignmentsSyncerSyncOncePreconditionFailureSkipsCreate(t *testing.T) {
 	t.Parallel()
 
 	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
@@ -608,18 +597,96 @@ func TestRoleAssignmentsSyncerSyncOncePreconditionFailureReEnqueues(t *testing.T
 		Times(1)
 
 	// Wrap the DB so the pass-1 persist (Replace) fails with a precondition error.
-	enqueuer := &fakeAfterEnqueuer{}
 	syncer := newTestSyncer(preconditionFailingReplaceDB{ResourcesDBClient: mockResourcesDB}, fpaClientBuilder)
-	syncer.enqueueAfter = enqueuer
 
-	// (a) SyncOnce returns nil, (b) no Create ran (asserted by gomock Times(0)).
+	// (a) SyncOnce returns nil, (b) no Create ran (asserted by gomock Times(0)); the controller
+	// relies on the conflicting writer's watch event to re-enqueue it rather than a timed re-enqueue.
 	require.NoError(t, syncer.SyncOnce(ctx, testHCPClusterKey))
+}
 
-	// (c) the cluster was re-enqueued once, with the precondition retry delay.
-	require.Len(t, enqueuer.keys, 1, "expected exactly one EnqueueAfter call")
-	assert.Equal(t, testHCPClusterKey, enqueuer.keys[0], "re-enqueued key must be the cluster key")
-	require.Len(t, enqueuer.durations, 1)
-	assert.Equal(t, roleAssignmentPreconditionRetryDelay, enqueuer.durations[0], "re-enqueue delay must be the precondition retry delay")
+// TestRoleAssignmentsSyncerSyncOnceClassifyErrorSkipsPersistAndCreate verifies that when a pass-1
+// GetByID returns an unknown (non-nil, non-not-found) error, the syncer cannot cleanly classify
+// every expected assignment, so it returns the joined error WITHOUT persisting partial state or
+// creating anything.
+func TestRoleAssignmentsSyncerSyncOnceClassifyErrorSkipsPersistAndCreate(t *testing.T) {
+	t.Parallel()
+
+	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+	expectedIDs := testExpectedRoleAssignmentIDs(t)
+
+	cluster := newTestCluster(false)
+	// Empty tracked state so NeedsWork sees work and syncRoleAssignments runs.
+	serviceProviderCluster := newTestServiceProviderCluster(t, true, true, true, coreapi.AzureMultiReference{})
+
+	mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, serviceProviderCluster})
+	require.NoError(t, err)
+
+	ctrl := gomock.NewController(t)
+	mockRAClient := azureclient.NewMockRoleAssignmentsClient(ctrl)
+	// Every classify GetByID fails with an unknown (non-not-found) error; Create must never run.
+	mockRAClient.EXPECT().
+		GetByID(gomock.Any(), gomock.Any(), nil).
+		Return(armauthorization.RoleAssignmentsClientGetByIDResponse{}, roleAssignmentGenericError()).
+		Times(len(expectedIDs))
+	mockRAClient.EXPECT().
+		Create(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Times(0)
+	fpaClientBuilder := azureclient.NewMockFirstPartyApplicationClientBuilder(ctrl)
+	fpaClientBuilder.EXPECT().
+		RoleAssignmentsClient(testTenantID, testSubscriptionID).
+		Return(mockRAClient, nil).
+		Times(1)
+
+	syncer := newTestSyncer(mockResourcesDB, fpaClientBuilder)
+
+	// The joined classify error is returned...
+	require.Error(t, syncer.SyncOnce(ctx, testHCPClusterKey))
+
+	// ...and nothing was persisted: the early return happens before the pass-1 persist, so the
+	// tracked role-assignment state stays empty (no partial pending intent written).
+	updated, err := mockResourcesDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
+	require.NoError(t, err)
+	got := updated.Status.AzureResources.RoleAssignments
+	assertResourceIDSetEqual(t, nil, got.PendingAzureResources, "PendingAzureResources (nothing persisted)")
+	assertResourceIDSetEqual(t, nil, got.AzureResources, "AzureResources (nothing persisted)")
+}
+
+// TestRoleAssignmentReferencesEqual exercises the inline equality that guards the Cosmos write in
+// syncRoleAssignments: a Replace is issued only when PendingAzureResources, AzureResources, or
+// EarliestRecheckTime actually changed. The slice comparison is order-sensitive.
+func TestRoleAssignmentReferencesEqual(t *testing.T) {
+	t.Parallel()
+
+	ids := testExpectedRoleAssignmentIDs(t)
+	idA, idB := ids[0], ids[1]
+	t0 := metav1.NewTime(testFixedNow())
+	t1 := metav1.NewTime(testFixedNow().Add(time.Hour))
+
+	ref := func(pending, confirmed []*azcorearm.ResourceID, rt *metav1.Time) coreapi.AzureMultiReference {
+		return coreapi.AzureMultiReference{PendingAzureResources: pending, AzureResources: confirmed, EarliestRecheckTime: rt}
+	}
+
+	testCases := []struct {
+		name  string
+		a, b  coreapi.AzureMultiReference
+		equal bool
+	}{
+		{"both empty", ref(nil, nil, nil), ref(nil, nil, nil), true},
+		{"same content", ref([]*azcorearm.ResourceID{idA}, []*azcorearm.ResourceID{idB}, &t0), ref([]*azcorearm.ResourceID{idA}, []*azcorearm.ResourceID{idB}, &t0), true},
+		{"pending differs", ref([]*azcorearm.ResourceID{idA}, nil, nil), ref([]*azcorearm.ResourceID{idB}, nil, nil), false},
+		{"pending length differs", ref([]*azcorearm.ResourceID{idA}, nil, nil), ref(nil, nil, nil), false},
+		{"confirmed differs", ref(nil, []*azcorearm.ResourceID{idA}, nil), ref(nil, []*azcorearm.ResourceID{idB}, nil), false},
+		{"pending order differs", ref([]*azcorearm.ResourceID{idA, idB}, nil, nil), ref([]*azcorearm.ResourceID{idB, idA}, nil, nil), false},
+		{"time nil vs set", ref(nil, nil, nil), ref(nil, nil, &t0), false},
+		{"time differs", ref(nil, nil, &t0), ref(nil, nil, &t1), false},
+		{"time equal", ref(nil, nil, &t0), ref(nil, nil, &t0), true},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.equal, roleAssignmentReferencesEqual(tc.a, tc.b))
+		})
+	}
 }
 
 // TestRoleAssignmentsSyncerSyncOnceCreateErrorStaysPending verifies that when creating a
