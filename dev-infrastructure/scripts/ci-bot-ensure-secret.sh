@@ -1,19 +1,25 @@
 #!/bin/bash
 set -euo pipefail
 
-# Ensure a CI bot application has its credentials stored in Key Vault.
-# Backfills any missing secrets without regenerating existing ones.
+# Ensure an Entra application has its credentials stored in Key Vault.
+# Backfills any missing secrets without regenerating existing ones. Despite
+# the "ci-bot" name, this is generic enough for any single-app/single-secret
+# Entra identity (e.g. the cleanup-sweeper directory-write app), selected via
+# SECRET_PREFIX.
 #
 # Required environment variables:
 #   APP_NAME       - Entra application display name (e.g. "OpenShift Release Bot - STG")
 #   ENV_NAME       - Environment label (e.g. "stg") used in KV secret names
 #   KEY_VAULT_NAME - Target Azure Key Vault name
+#
+# Optional environment variables:
+#   SECRET_PREFIX  - KV secret name prefix (default: ci-bot-${ENV_NAME})
 
 : "${APP_NAME:?APP_NAME is required}"
 : "${ENV_NAME:?ENV_NAME is required}"
 : "${KEY_VAULT_NAME:?KEY_VAULT_NAME is required}"
 
-SECRET_PREFIX="ci-bot-${ENV_NAME}"
+SECRET_PREFIX="${SECRET_PREFIX:-ci-bot-${ENV_NAME}}"
 
 # kv_secret_exists: returns 0 if the secret exists, 1 if SecretNotFound,
 # and exits on any other error.
@@ -49,15 +55,16 @@ if [[ -z "${APP_OBJECT_ID}" ]]; then
     exit 1
 fi
 
-# Admin consent for declared API permissions (e.g. Application.ReadWrite.OwnedBy).
-# This is best-effort: if the pipeline executor lacks the required Entra role
-# (e.g. Cloud Application Administrator or Global Administrator), the call will
-# fail and a tenant admin must grant consent manually before the bot is fully
-# usable. The warning below is NOT self-healing — treat it as a manual action item.
+# Admin consent for declared API permissions (e.g. Application.ReadWrite.OwnedBy,
+# Application.ReadWrite.All). This is best-effort: if the pipeline executor
+# lacks the required Entra role (e.g. Cloud Application Administrator or
+# Global Administrator), the call will fail and a tenant admin must grant
+# consent manually before the application is fully usable. The warning below
+# is NOT self-healing — treat it as a manual action item.
 echo "Granting admin consent for declared API permissions..."
 az ad app permission admin-consent --id "${APP_CLIENT_ID}" || {
     echo "WARNING: admin-consent failed — a tenant admin must grant consent manually"
-    echo "         before the bot can exercise Application.ReadWrite.OwnedBy."
+    echo "         before '${APP_NAME}' can exercise its declared Graph permissions."
     echo "         This will NOT resolve itself on subsequent pipeline runs."
 }
 

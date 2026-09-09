@@ -1,10 +1,13 @@
 $schema: "pipeline.schema.v1"
 serviceGroup: Microsoft.Azure.ARO.HCP.DevCI.E2ESubscriptionRBAC
 rolloutName: Dev CI E2E Subscription RBAC Rollout
-# Reconciles the CI bot Entra identities: the ci-bot-identity step creates the
-# bot Entra applications and service principals, and the ci-bot-secret-* steps
-# mint their client secrets. These are Entra directory-object writes, so this is
-# a privileged pipeline that the unattended dev-ci postsubmit never runs.
+# Reconciles privileged Entra directory-object writes for DEV: the
+# ci-bot-identity step creates the bot Entra applications and service
+# principals, ci-bot-secret-* mint their client secrets, and the
+# cleanup-sweeper-directory-write-* steps do the same for the dedicated
+# directory-write app used by cleanup-sweeper's purge-aged-deleted step. These
+# are Entra directory-object writes, so this is a privileged pipeline that the
+# unattended dev-ci postsubmit never runs.
 resourceGroups:
 - name: ci-bots
   resourceGroup: '{{ .global.rg }}'
@@ -21,6 +24,36 @@ resourceGroups:
     template: ../../templates/ci-bot-identity.bicep
     parameters: ../../configurations/ci-bot-identity.tmpl.bicepparam
     deploymentLevel: ResourceGroup
+  # Dedicated DEV-only app for cleanup-sweeper's shared-leftovers
+  # purge-aged-deleted step. Kept out of ci-bot-identity.bicep because it
+  # needs Application.ReadWrite.All, a materially higher privilege than the
+  # CI bots' Application.ReadWrite.OwnedBy.
+  - name: cleanup-sweeper-directory-write-app
+    action: ARM
+    template: ../../modules/entra/app.bicep
+    parameters: ../../configurations/cleanup-sweeper-directory-write-app-dev.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+  - name: cleanup-sweeper-directory-write-secret
+    action: Shell
+    command: ./ci-bot-ensure-secret.sh
+    workingDir: ../../scripts
+    shellIdentity:
+      input:
+        resourceGroup: ci-bots
+        step: global-identity
+        name: globalMSIId
+    variables:
+    - name: APP_NAME
+      configRef: ci.dev.cleanupSweeperDirectoryWriteApp.applicationName
+    - name: ENV_NAME
+      value: dev
+    - name: KEY_VAULT_NAME
+      configRef: opstool.keyVault.name
+    - name: SECRET_PREFIX
+      value: cleanup-sweeper-directory-write
+    dependsOn:
+    - resourceGroup: ci-bots
+      step: cleanup-sweeper-directory-write-app
   - name: ci-bot-secret-int
     action: Shell
     command: ./ci-bot-ensure-secret.sh

@@ -413,6 +413,10 @@
         },
         "mockIdentities": {
           "$ref": "#/$defs/MockIdentities"
+        },
+        "cleanupSweeperDirectoryWriteApp": {
+          "$ref": "#/$defs/CIBot",
+          "description": "Dedicated Entra app (DEV-only today) granted Microsoft Graph Application.ReadWrite.All, used by the cleanup-sweeper shared-leftovers workflow to purge aged soft-deleted apps/SPs so their orphaned role assignments stop lingering for Entra's full 30-day recycle-bin window. Requires manual tenant-admin consent after deployment; see docs/ci/dev-mock-identities.md."
         }
       },
       "required": ["bot", "e2eSubscriptions"]
