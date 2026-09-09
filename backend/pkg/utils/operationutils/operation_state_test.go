@@ -178,3 +178,71 @@ func TestPickWorstOperationState(t *testing.T) {
 		})
 	}
 }
+
+func TestPickWorstOperationStateErrors(t *testing.T) {
+	t.Parallel()
+
+	capacityError := coreapi.CloudErrorBody{
+		Code:    coreapi.CloudErrorCodeCapacityHeavyUse,
+		Message: "Try again later.",
+	}
+	otherError := coreapi.CloudErrorBody{
+		Code:    coreapi.CloudErrorCodeInternalServerError,
+		Message: "An operation failed.",
+		Details: []coreapi.CloudErrorBody{{Code: "NestedError", Target: "resource"}},
+	}
+	tests := []struct {
+		name      string
+		states    []*OperationState
+		wantError *coreapi.CloudErrorBody
+	}{
+		{
+			name:   "no customer errors",
+			states: []*OperationState{NewFailedOperationState("internal diagnostic", nil)},
+		},
+		{
+			name: "single customer error after an unclassified failure",
+			states: []*OperationState{
+				NewFailedOperationState("a", nil),
+				NewFailedOperationState("b", &capacityError),
+			},
+			wantError: &capacityError,
+		},
+		{
+			name: "multiple customer errors including an empty diagnostic",
+			states: []*OperationState{
+				NewFailedOperationState("", &capacityError),
+				NewFailedOperationState("internal diagnostic", &otherError),
+			},
+			wantError: &coreapi.CloudErrorBody{
+				Code:    coreapi.CloudErrorCodeMultipleErrorsOccurred,
+				Message: "Operation failed due to multiple errors",
+				Details: []coreapi.CloudErrorBody{capacityError, otherError},
+			},
+		},
+		{
+			name: "errors from other provisioning states are excluded",
+			states: []*OperationState{
+				NewFailedOperationState("", &capacityError),
+				{ProvisioningState: coreapi.ProvisioningStateProvisioning, Error: &otherError},
+			},
+			wantError: &capacityError,
+		},
+		{
+			name: "nonfailed result has no customer error",
+			states: []*OperationState{
+				{ProvisioningState: coreapi.ProvisioningStateProvisioning, Error: &otherError},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := PickWorstOperationState(tt.states)
+			assert.NoError(t, err)
+			assert.NotNil(t, got)
+			assert.Equal(t, tt.wantError, got.Error)
+		})
+	}
+}

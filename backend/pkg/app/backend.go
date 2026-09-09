@@ -936,6 +936,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	pendingCleanupController := clusterplacement.NewPendingCleanupController(
 		b.options.FleetDBClient,
 		serviceProviderClusterLister,
+		clusterLister,
 		fleetInformers,
 	)
 

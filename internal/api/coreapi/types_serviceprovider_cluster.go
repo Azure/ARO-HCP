@@ -220,6 +220,12 @@ type ServiceProviderClusterStatus struct {
 	// Once set, this field is immutable.
 	ManagementClusterResourceID *azcorearm.ResourceID `json:"managementClusterResourceID,omitempty"`
 
+	// Placement holds capacity availability for the HCP's placement attempt.
+	// CapacityAvailable=True is recorded on the same Replace that sets
+	// Spec.ManagementClusterResourceID.
+	// Written by: PlacementController
+	Placement *ServiceProviderClusterPlacementStatus `json:"placement,omitempty"`
+
 	// DesiredHostedClusterControlPlaneSize mirrors the value of
 	// Spec.DesiredHostedClusterControlPlaneSize once cluster-service reflects
 	// the effective size override (as confirmed by the desired-control-plane-size
@@ -300,6 +306,25 @@ type ServiceProviderClusterStatus struct {
 	// cannot lose the record. Empty means no backup has completed.
 	// Written by: KeyRotationBackup
 	KeyRotationBackupFingerprint string `json:"keyRotationBackupFingerprint,omitempty"`
+}
+
+// ServiceProviderClusterPlacementStatus holds placement-specific status for a
+// ServiceProviderCluster. It is kept off the top-level Status.Conditions per the
+// minimalism guidance there ("conditions at other levels can be specified within
+// ServiceProviderClusterStatus too").
+type ServiceProviderClusterPlacementStatus struct {
+	// Conditions holds placement conditions. Known types:
+	//   - "CapacityAvailable": True when suitable placement capacity was found;
+	//     False when no usable capacity exists; Unknown when required observations or
+	//     configuration are unavailable. Placement itself is recorded in
+	//     Spec.ManagementClusterResourceID.
+	// Written by: PlacementController
+	// +optional
+	// +patchMergeKey=type
+	// +patchStrategy=merge
+	// +listType=map
+	// +listMapKey=type
+	Conditions []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type"`
 }
 
 // ServiceProviderClusterMSIManagedIdentities holds Managed Service Identity (MSI)
