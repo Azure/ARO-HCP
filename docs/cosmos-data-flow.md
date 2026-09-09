@@ -1220,6 +1220,11 @@ No writes to the Cosmos Resources container.
 
 #### EnsureManagedResourceGroup
 
+The [ClusterDenyAssignment controller](../backend/pkg/controllers/cluster/denyassignments/deny_assignment_controller.go)
+reads `ServiceProviderCluster.Status.AzureResources.ManagedResourceGroup.AzureResource`
+as a NeedsWork prerequisite: it must be non-nil before deny assignments are reconciled.
+A configured managed resource group name or `PendingAzureResource` alone does not satisfy this gate.
+
 **File:** [managed_resource_group_controller.go](../backend/pkg/controllers/cluster/azureresources/managed_resource_group_controller.go)
 **Trigger:** Cluster informer, 5-minute resync
 **Behavior:** Creates the managed resource group in Azure when it is missing (non-deletion path); deletion remains observe-only (Cluster Service owns deletion — the controller never calls `BeginDelete`). A `NeedsWork` gate skips the sync when there is nothing to do: while the cluster is not being deleted, only until the managed resource group is confirmed as `AzureResource` (it is immutable, so a confirmed reference never needs re-checking); while the cluster is being deleted, only while a reference is still set.
