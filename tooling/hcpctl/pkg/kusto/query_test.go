@@ -79,6 +79,29 @@ func TestInfraKubernetesEvents_NoTruncation(t *testing.T) {
 	testutil.CompareWithFixture(t, queryToFixture(queries[0]))
 }
 
+func TestUnlimitedOrderedQueryCanRenderLimitedTimeRange(t *testing.T) {
+	f, err := NewQueryFactory()
+	require.NoError(t, err)
+	opts := baseOptions()
+	opts.Limit = -1
+	def, err := f.GetBuiltinQueryDefinition("kubernetesEvents")
+	require.NoError(t, err)
+	queries, err := f.Build(*def, NewTemplateDataFromOptions(opts))
+	require.NoError(t, err)
+
+	query, ok := queries[0].(TimeRangeQuery)
+	require.True(t, ok)
+	require.True(t, query.IsPageable())
+	pageEnd := opts.TimestampMin.Add(5*time.Minute - kustoTimePrecision)
+	page, err := query.WithTimeRange(opts.TimestampMin, pageEnd)
+	require.NoError(t, err)
+
+	assert.False(t, page.IsUnlimited())
+	assert.NotContains(t, page.GetQuery().String(), "set notruncation")
+	assert.Contains(t, page.GetQuery().String(), "| order by timestamp asc")
+	assert.Contains(t, page.GetQuery().String(), kqlDatetime(pageEnd))
+}
+
 func TestKubernetesEventsSvc(t *testing.T) {
 	f, err := NewQueryFactory()
 	require.NoError(t, err)
