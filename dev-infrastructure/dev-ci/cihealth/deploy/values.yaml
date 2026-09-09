@@ -33,7 +33,7 @@ postgres:
   persistence:
     size: 20Gi
     accessModes:
-    - ReadWriteOnce
+      - ReadWriteOnce
     storageClass: "managed-premium"
   resources:
     requests:
@@ -50,11 +50,11 @@ app:
   service:
     type: ClusterIP
     port: 8082
+  # Cache refreshes can temporarily retain the old and replacement snapshots.
+  # Reserve steady-state memory without imposing an OOM-kill ceiling.
   resources:
     requests:
-      cpu: 50m
-      memory: 128Mi
-    limits:
+      cpu: 500m
       memory: 512Mi
   extraEnv: []
   extraArgs: []
@@ -70,10 +70,10 @@ controllers:
   historyWeeks: 4
   source:
     envs:
-    - dev
-    - int
-    - stg
-    - prod
+      - dev
+      - int
+      - stg
+      - prod
     sippyBaseUrl: https://sippy.dptools.openshift.org
     sippyOrg: Azure
     sippyRepo: ARO-HCP
@@ -92,11 +92,11 @@ controllers:
     factsRuns: 1
     factsRawFailures: 1
     metricsRollupDaily: 1
+  # Controller memory follows the volume of imported CI data and has reached
+  # the previous 1Gi limit. Reserve observed usage without forcing restarts.
   resources:
     requests:
-      cpu: 100m
-      memory: 256Mi
-    limits:
+      cpu: 250m
       memory: 1Gi
   extraEnv: []
   extraArgs: []
