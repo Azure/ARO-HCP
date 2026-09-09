@@ -1,0 +1,82 @@
+rule_files:
+- HCPkasProbeAvailabilityRecord-prometheusRule.yaml
+evaluation_interval: 1m
+tests:
+# Test 1: 100% availability
+- interval: 1m
+  input_series:
+  - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="test-cluster-1", namespace="clusters", _id="abc-123", cluster="mgmt-cluster", resource_id="test-resource-1"}'
+    values: "1+0x9"
+  promql_expr_test:
+  - expr: probe_success{name="test-cluster-1", namespace="clusters"}
+    eval_time: 10m
+    exp_samples:
+    - labels: '{__name__="probe_success", name="test-cluster-1", namespace="clusters", _id="abc-123", cluster="mgmt-cluster", resource_id="test-resource-1"}'
+      value: 1
+  - expr: probe_availability:ratio_avg_7d{name="test-cluster-1", namespace="clusters"}
+    eval_time: 10m
+    exp_samples:
+    - labels: '{__name__="probe_availability:ratio_avg_7d", name="test-cluster-1", namespace="clusters", _id="abc-123", cluster="mgmt-cluster", resource_id="test-resource-1"}'
+      value: 1
+  - expr: probe_availability:ratio_avg_30d{name="test-cluster-1", namespace="clusters"}
+    eval_time: 10m
+    exp_samples:
+    - labels: '{__name__="probe_availability:ratio_avg_30d", name="test-cluster-1", namespace="clusters", _id="abc-123", cluster="mgmt-cluster", resource_id="test-resource-1"}'
+      value: 1
+# Test 2: 50% availability
+- interval: 1m
+  input_series:
+  - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="test-cluster-2", namespace="clusters", _id="def-456", cluster="mgmt-cluster", resource_id="test-resource-2"}'
+    values: "1 0 1 0 1 0 1 0 1 0"
+  promql_expr_test:
+  - expr: probe_success{name="test-cluster-2", namespace="clusters"}
+    eval_time: 10m
+    exp_samples:
+    - labels: '{__name__="probe_success", name="test-cluster-2", namespace="clusters", _id="def-456", cluster="mgmt-cluster", resource_id="test-resource-2"}'
+      value: 0
+  - expr: probe_availability:ratio_avg_7d{name="test-cluster-2", namespace="clusters"}
+    eval_time: 10m
+    exp_samples:
+    - labels: '{__name__="probe_availability:ratio_avg_7d", name="test-cluster-2", namespace="clusters", _id="def-456", cluster="mgmt-cluster", resource_id="test-resource-2"}'
+      value: 0.5
+  - expr: probe_availability:ratio_avg_30d{name="test-cluster-2", namespace="clusters"}
+    eval_time: 10m
+    exp_samples:
+    - labels: '{__name__="probe_availability:ratio_avg_30d", name="test-cluster-2", namespace="clusters", _id="def-456", cluster="mgmt-cluster", resource_id="test-resource-2"}'
+      value: 0.5
+# Test 3: 0% availability
+- interval: 1m
+  input_series:
+  - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="test-cluster-3", namespace="clusters", _id="ghi-789", cluster="mgmt-cluster", resource_id="test-resource-3"}'
+    values: "0+0x9"
+  promql_expr_test:
+  - expr: probe_success{name="test-cluster-3", namespace="clusters"}
+    eval_time: 10m
+    exp_samples:
+    - labels: '{__name__="probe_success", name="test-cluster-3", namespace="clusters", _id="ghi-789", cluster="mgmt-cluster", resource_id="test-resource-3"}'
+      value: 0
+  - expr: probe_availability:ratio_avg_7d{name="test-cluster-3", namespace="clusters"}
+    eval_time: 10m
+    exp_samples:
+    - labels: '{__name__="probe_availability:ratio_avg_7d", name="test-cluster-3", namespace="clusters", _id="ghi-789", cluster="mgmt-cluster", resource_id="test-resource-3"}'
+      value: 0
+  - expr: probe_availability:ratio_avg_30d{name="test-cluster-3", namespace="clusters"}
+    eval_time: 10m
+    exp_samples:
+    - labels: '{__name__="probe_availability:ratio_avg_30d", name="test-cluster-3", namespace="clusters", _id="ghi-789", cluster="mgmt-cluster", resource_id="test-resource-3"}'
+      value: 0
+# Test 4: deleted cluster is gated out (no currently reported KSM series)
+- interval: 1m
+  input_series:
+  - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="test-cluster-4", namespace="clusters", _id="stale-000", cluster="mgmt-cluster", resource_id="test-resource-4"}'
+    values: "1+0x4 _x5"
+  promql_expr_test:
+  - expr: probe_success{name="test-cluster-4"}
+    eval_time: 10m
+    exp_samples: []
+  - expr: probe_availability:ratio_avg_7d{name="test-cluster-4"}
+    eval_time: 10m
+    exp_samples: []
+  - expr: probe_availability:ratio_avg_30d{name="test-cluster-4"}
+    eval_time: 10m
+    exp_samples: []
