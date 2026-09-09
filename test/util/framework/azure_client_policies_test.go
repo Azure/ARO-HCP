@@ -28,6 +28,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"k8s.io/apimachinery/pkg/util/wait"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
@@ -497,6 +499,20 @@ func TestLROPollerRetryPolicy(t *testing.T) {
 			)),
 		}, nil
 	}
+	newPolicyForTest := func(steps int) *lroPollerRetryPolicy {
+		return &lroPollerRetryPolicy{
+			deploymentNotFoundBackoff: wait.Backoff{
+				Duration: time.Millisecond,
+				Factor:   2,
+				Steps:    steps,
+			},
+			unauthorizedBackoff: wait.Backoff{
+				Duration: time.Millisecond,
+				Factor:   2,
+				Steps:    2,
+			},
+		}
+	}
 
 	t.Run("passes through non-GET requests", func(t *testing.T) {
 		t.Parallel()
@@ -546,12 +562,7 @@ func TestLROPollerRetryPolicy(t *testing.T) {
 
 	t.Run("returns success on first attempt", func(t *testing.T) {
 		t.Parallel()
-		pol := &lroPollerRetryPolicy{
-			MaxRetries:     5,
-			BaseBackoff:    time.Millisecond,
-			MaxBackoff:     5 * time.Millisecond,
-			MaxRetryWindow: time.Second,
-		}
+		pol := newPolicyForTest(6)
 		transport := &fakeTransport{
 			do: func(r *http.Request) (*http.Response, error) {
 				return okResponse()
@@ -569,12 +580,7 @@ func TestLROPollerRetryPolicy(t *testing.T) {
 	t.Run("retries DeploymentNotFound then succeeds", func(t *testing.T) {
 		t.Parallel()
 		callCount := 0
-		pol := &lroPollerRetryPolicy{
-			MaxRetries:     5,
-			BaseBackoff:    time.Millisecond,
-			MaxBackoff:     5 * time.Millisecond,
-			MaxRetryWindow: time.Second,
-		}
+		pol := newPolicyForTest(6)
 		transport := &fakeTransport{
 			do: func(r *http.Request) (*http.Response, error) {
 				callCount++
@@ -597,12 +603,7 @@ func TestLROPollerRetryPolicy(t *testing.T) {
 	t.Run("exhausts retries on persistent DeploymentNotFound", func(t *testing.T) {
 		t.Parallel()
 		callCount := 0
-		pol := &lroPollerRetryPolicy{
-			MaxRetries:     3,
-			BaseBackoff:    time.Millisecond,
-			MaxBackoff:     5 * time.Millisecond,
-			MaxRetryWindow: time.Second,
-		}
+		pol := newPolicyForTest(4)
 		transport := &fakeTransport{
 			do: func(r *http.Request) (*http.Response, error) {
 				callCount++
@@ -625,12 +626,7 @@ func TestLROPollerRetryPolicy(t *testing.T) {
 	t.Run("does not retry other 404 errors", func(t *testing.T) {
 		t.Parallel()
 		callCount := 0
-		pol := &lroPollerRetryPolicy{
-			MaxRetries:     5,
-			BaseBackoff:    time.Millisecond,
-			MaxBackoff:     5 * time.Millisecond,
-			MaxRetryWindow: time.Second,
-		}
+		pol := newPolicyForTest(6)
 		transport := &fakeTransport{
 			do: func(r *http.Request) (*http.Response, error) {
 				callCount++
@@ -656,12 +652,7 @@ func TestLROPollerRetryPolicy(t *testing.T) {
 	t.Run("does not retry non-DeploymentNotFound errors", func(t *testing.T) {
 		t.Parallel()
 		callCount := 0
-		pol := &lroPollerRetryPolicy{
-			MaxRetries:     5,
-			BaseBackoff:    time.Millisecond,
-			MaxBackoff:     5 * time.Millisecond,
-			MaxRetryWindow: time.Second,
-		}
+		pol := newPolicyForTest(6)
 		transport := &fakeTransport{
 			do: func(r *http.Request) (*http.Response, error) {
 				callCount++
@@ -683,13 +674,7 @@ func TestLROPollerRetryPolicy(t *testing.T) {
 	t.Run("retries 401 Unauthorized then succeeds", func(t *testing.T) {
 		t.Parallel()
 		callCount := 0
-		pol := &lroPollerRetryPolicy{
-			MaxRetries:     5,
-			MaxAuthRetries: 1,
-			BaseBackoff:    time.Millisecond,
-			MaxBackoff:     5 * time.Millisecond,
-			MaxRetryWindow: time.Second,
-		}
+		pol := newPolicyForTest(6)
 		transport := &fakeTransport{
 			do: func(r *http.Request) (*http.Response, error) {
 				callCount++
@@ -712,13 +697,7 @@ func TestLROPollerRetryPolicy(t *testing.T) {
 	t.Run("exhausts auth retries on persistent 401", func(t *testing.T) {
 		t.Parallel()
 		callCount := 0
-		pol := &lroPollerRetryPolicy{
-			MaxRetries:     5,
-			MaxAuthRetries: 1,
-			BaseBackoff:    time.Millisecond,
-			MaxBackoff:     5 * time.Millisecond,
-			MaxRetryWindow: time.Second,
-		}
+		pol := newPolicyForTest(6)
 		transport := &fakeTransport{
 			do: func(r *http.Request) (*http.Response, error) {
 				callCount++
@@ -738,16 +717,10 @@ func TestLROPollerRetryPolicy(t *testing.T) {
 		assert.Equal(t, 2, callCount)
 	})
 
-	t.Run("401 does not consume the DeploymentNotFound budget", func(t *testing.T) {
+	t.Run("retries mixed transient responses", func(t *testing.T) {
 		t.Parallel()
 		callCount := 0
-		pol := &lroPollerRetryPolicy{
-			MaxRetries:     2,
-			MaxAuthRetries: 1,
-			BaseBackoff:    time.Millisecond,
-			MaxBackoff:     5 * time.Millisecond,
-			MaxRetryWindow: time.Second,
-		}
+		pol := newPolicyForTest(3)
 		transport := &fakeTransport{
 			do: func(r *http.Request) (*http.Response, error) {
 				callCount++
@@ -795,12 +768,7 @@ func TestLROPollerRetryPolicy(t *testing.T) {
 	t.Run("respects context cancellation", func(t *testing.T) {
 		t.Parallel()
 		ctx, cancel := context.WithCancel(context.Background())
-		pol := &lroPollerRetryPolicy{
-			MaxRetries:     10,
-			BaseBackoff:    time.Millisecond,
-			MaxBackoff:     5 * time.Millisecond,
-			MaxRetryWindow: 10 * time.Second,
-		}
+		pol := newPolicyForTest(10)
 		transport := &fakeTransport{
 			do: func(r *http.Request) (*http.Response, error) {
 				cancel()
@@ -816,22 +784,6 @@ func TestLROPollerRetryPolicy(t *testing.T) {
 		assert.ErrorIs(t, err, context.Canceled)
 	})
 
-	t.Run("backoff respects bounds", func(t *testing.T) {
-		t.Parallel()
-		pol := &lroPollerRetryPolicy{
-			BaseBackoff: 2 * time.Second,
-			MaxBackoff:  10 * time.Second,
-		}
-
-		for attempt := 0; attempt < 10; attempt++ {
-			d := pol.backoff(attempt)
-			expectedSleep := min(pol.BaseBackoff<<uint(attempt), pol.MaxBackoff)
-			assert.GreaterOrEqual(t, d, expectedSleep,
-				"attempt %d: backoff should be at least the base sleep", attempt)
-			assert.Less(t, d, expectedSleep+pol.BaseBackoff/2,
-				"attempt %d: backoff should be less than base sleep + max jitter", attempt)
-		}
-	})
 }
 
 func versionNotFoundError() (*http.Response, error) {
