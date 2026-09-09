@@ -21,10 +21,10 @@ spec:
     - alert: ServiceMemoryDrift
       expr: |
         (
-          container_memory_working_set_bytes{container!="", namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|clusters-service|fleet|kube-applier|maestro|mgmt-agent|prometheus|secret-sync-controller|sessiongate"}
+          container_memory_working_set_bytes{container!="", namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|clusters-service|fleet|kube-applier|maestro|mgmt-agent|prometheus|secret-sync-controller|sessiongate"}
           / on(namespace, pod, container, cluster) group_left()
           max by(namespace, pod, container, cluster) (
-            kube_pod_container_resource_requests{resource="memory", job="kube-state-metrics", namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|clusters-service|fleet|kube-applier|maestro|mgmt-agent|prometheus|secret-sync-controller|sessiongate"}
+            kube_pod_container_resource_requests{resource="memory", job="kube-state-metrics", namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|clusters-service|fleet|kube-applier|maestro|mgmt-agent|prometheus|secret-sync-controller|sessiongate"}
           )
         ) > 1.5
       for: 15m
@@ -42,11 +42,11 @@ spec:
       expr: |
         (
           predict_linear(
-            container_memory_working_set_bytes{container!="", namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|clusters-service|fleet|kube-applier|maestro|mgmt-agent|prometheus|secret-sync-controller|sessiongate"}[6h], 4 * 3600
+            container_memory_working_set_bytes{container!="", namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|clusters-service|fleet|kube-applier|maestro|mgmt-agent|prometheus|secret-sync-controller|sessiongate"}[6h], 4 * 3600
           )
           / on(namespace, pod, container, cluster) group_left()
           max by(namespace, pod, container, cluster) (
-            kube_pod_container_resource_requests{resource="memory", job="kube-state-metrics", namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|clusters-service|fleet|kube-applier|maestro|mgmt-agent|prometheus|secret-sync-controller|sessiongate"}
+            kube_pod_container_resource_requests{resource="memory", job="kube-state-metrics", namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|clusters-service|fleet|kube-applier|maestro|mgmt-agent|prometheus|secret-sync-controller|sessiongate"}
           )
         ) > 2.0
       for: 30m

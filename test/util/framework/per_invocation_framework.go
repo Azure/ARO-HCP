@@ -187,7 +187,7 @@ func (tc *perBinaryInvocationTestContext) getClientFactoryOptions() *azcorearm.C
 	clientOpts := azsdk.NewClientOptions(azsdk.ComponentE2E)
 	clientOpts.Retry = azureRetryOptions
 	clientOpts.PerCallPolicies = []policy.Policy{
-		NewLROPollerRetryDeploymentNotFoundPolicy(),
+		NewLROPollerRetryPolicy(),
 		&sanitizeAuthHeaderPolicy{},
 	}
 	if tc.isDevelopmentEnvironment {

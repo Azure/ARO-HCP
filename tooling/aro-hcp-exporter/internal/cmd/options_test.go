@@ -17,10 +17,22 @@ package cmd
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+
+	"github.com/Azure/ARO-HCP/tooling/aro-hcp-exporter/internal/metrics"
 )
+
+type fakeTokenCredential struct{}
+
+func (fakeTokenCredential) GetToken(context.Context, policy.TokenRequestOptions) (azcore.AccessToken, error) {
+	return azcore.AccessToken{Token: "token", ExpiresOn: time.Now().Add(time.Hour)}, nil
+}
 
 func TestValidateRegion(t *testing.T) {
 	tests := []struct {
@@ -242,4 +254,197 @@ func TestValidateClusterNameFilter(t *testing.T) {
 			assert.Equal(t, tt.wantFilter, validated.ClusterNameFilter)
 		})
 	}
+}
+
+func TestValidateKeyVaultCertificateOptions(t *testing.T) {
+	tests := []struct {
+		name                  string
+		enabled               bool
+		keyVaultName          string
+		keyVaultDNSSuffix     string
+		certificateNames      []string
+		wantErrContains       string
+		wantKeyVaultName      string
+		wantKeyVaultDNSSuffix string
+		wantCertificateNames  []string
+	}{
+		{
+			name:    "disabled collector does not require options",
+			enabled: false,
+		},
+		{
+			name:                  "valid options are normalized",
+			enabled:               true,
+			keyVaultName:          " aro-hcp-dev-svc-kv ",
+			keyVaultDNSSuffix:     " VAULT.AZURE.NET ",
+			certificateNames:      []string{" frontend-cert-dev-usw3 ", "admin-api-cert-dev-usw3"},
+			wantKeyVaultName:      "aro-hcp-dev-svc-kv",
+			wantKeyVaultDNSSuffix: "vault.azure.net",
+			wantCertificateNames:  []string{"frontend-cert-dev-usw3", "admin-api-cert-dev-usw3"},
+		},
+		{
+			name:                  "minimum length vault name",
+			enabled:               true,
+			keyVaultName:          "a-1",
+			keyVaultDNSSuffix:     "vault.azure.net",
+			certificateNames:      []string{"certificate"},
+			wantKeyVaultName:      "a-1",
+			wantKeyVaultDNSSuffix: "vault.azure.net",
+			wantCertificateNames:  []string{"certificate"},
+		},
+		{
+			name:                  "maximum length vault name",
+			enabled:               true,
+			keyVaultName:          "abcdefghijklmnopqrstuvwx",
+			keyVaultDNSSuffix:     "vault.azure.net",
+			certificateNames:      []string{"certificate"},
+			wantKeyVaultName:      "abcdefghijklmnopqrstuvwx",
+			wantKeyVaultDNSSuffix: "vault.azure.net",
+			wantCertificateNames:  []string{"certificate"},
+		},
+		{
+			name:              "missing vault name",
+			enabled:           true,
+			keyVaultDNSSuffix: "vault.azure.net",
+			certificateNames:  []string{"certificate"},
+			wantErrContains:   "keyvault-name is required",
+		},
+		{
+			name:              "vault name starts with number",
+			enabled:           true,
+			keyVaultName:      "1vault",
+			keyVaultDNSSuffix: "vault.azure.net",
+			certificateNames:  []string{"certificate"},
+			wantErrContains:   "invalid keyvault-name",
+		},
+		{
+			name:              "vault name starts with hyphen",
+			enabled:           true,
+			keyVaultName:      "-vault",
+			keyVaultDNSSuffix: "vault.azure.net",
+			certificateNames:  []string{"certificate"},
+			wantErrContains:   "invalid keyvault-name",
+		},
+		{
+			name:              "vault name ends with hyphen",
+			enabled:           true,
+			keyVaultName:      "vault-",
+			keyVaultDNSSuffix: "vault.azure.net",
+			certificateNames:  []string{"certificate"},
+			wantErrContains:   "invalid keyvault-name",
+		},
+		{
+			name:              "vault name contains consecutive hyphens",
+			enabled:           true,
+			keyVaultName:      "vault--name",
+			keyVaultDNSSuffix: "vault.azure.net",
+			certificateNames:  []string{"certificate"},
+			wantErrContains:   "invalid keyvault-name",
+		},
+		{
+			name:              "vault name is too short",
+			enabled:           true,
+			keyVaultName:      "ab",
+			keyVaultDNSSuffix: "vault.azure.net",
+			certificateNames:  []string{"certificate"},
+			wantErrContains:   "invalid keyvault-name",
+		},
+		{
+			name:              "vault name is too long",
+			enabled:           true,
+			keyVaultName:      "abcdefghijklmnopqrstuvwxy",
+			keyVaultDNSSuffix: "vault.azure.net",
+			certificateNames:  []string{"certificate"},
+			wantErrContains:   "invalid keyvault-name",
+		},
+		{
+			name:             "missing DNS suffix",
+			enabled:          true,
+			keyVaultName:     "vault",
+			certificateNames: []string{"certificate"},
+			wantErrContains:  "keyvault-dns-suffix is required",
+		},
+		{
+			name:              "missing certificate names",
+			enabled:           true,
+			keyVaultName:      "vault",
+			keyVaultDNSSuffix: "vault.azure.net",
+			wantErrContains:   "certificate-names is required",
+		},
+		{
+			name:              "empty certificate name",
+			enabled:           true,
+			keyVaultName:      "vault",
+			keyVaultDNSSuffix: "vault.azure.net",
+			certificateNames:  []string{"certificate", " "},
+			wantErrContains:   "must not contain empty values",
+		},
+		{
+			name:              "duplicate certificate name",
+			enabled:           true,
+			keyVaultName:      "vault",
+			keyVaultDNSSuffix: "vault.azure.net",
+			certificateNames:  []string{"Certificate", " certificate "},
+			wantErrContains:   "duplicate certificate name",
+		},
+		{
+			name:              "invalid certificate name",
+			enabled:           true,
+			keyVaultName:      "vault",
+			keyVaultDNSSuffix: "vault.azure.net",
+			certificateNames:  []string{"certificate/name"},
+			wantErrContains:   "invalid certificate name",
+		},
+		{
+			name:              "invalid DNS suffix",
+			enabled:           true,
+			keyVaultName:      "vault",
+			keyVaultDNSSuffix: "https://vault.azure.net",
+			certificateNames:  []string{"certificate"},
+			wantErrContains:   "invalid keyvault-dns-suffix",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			opts := DefaultOptions()
+			opts.ClusterTypes = []string{"svc-cluster"}
+			opts.Region = "westus3"
+			if tt.enabled {
+				opts.EnabledCollectors = []string{metrics.KeyVaultCertificateCollectorName}
+			}
+			opts.KeyVaultName = tt.keyVaultName
+			opts.KeyVaultDNSSuffix = tt.keyVaultDNSSuffix
+			opts.CertificateNames = tt.certificateNames
+
+			validated, err := opts.Validate(context.Background())
+			if tt.wantErrContains != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.wantErrContains)
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantKeyVaultName, validated.KeyVaultName)
+			assert.Equal(t, tt.wantKeyVaultDNSSuffix, validated.KeyVaultDNSSuffix)
+			assert.Equal(t, tt.wantCertificateNames, validated.CertificateNames)
+		})
+	}
+}
+
+func TestCreateEnabledCollectorsCreatesKeyVaultCertificateCollector(t *testing.T) {
+	opts := &ValidatedOptions{
+		Region:            "westus3",
+		CacheTTL:          time.Hour,
+		EnabledCollectors: []string{metrics.KeyVaultCertificateCollectorName},
+		KeyVaultName:      "vault",
+		KeyVaultDNSSuffix: "vault.azure.net",
+		CertificateNames:  []string{"certificate"},
+	}
+
+	collectors, err := opts.CreateEnabledCollectors(context.Background(), fakeTokenCredential{}, nil)
+
+	require.NoError(t, err)
+	require.Len(t, collectors, 1)
+	assert.Equal(t, metrics.KeyVaultCertificateCollectorName, collectors[0].Name())
 }

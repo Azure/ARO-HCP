@@ -22,6 +22,7 @@ import (
 	"strings"
 
 	copilot "github.com/github/copilot-sdk/go"
+	"github.com/go-logr/logr"
 
 	"github.com/Azure/azure-kusto-go/azkustodata"
 	kustoerrors "github.com/Azure/azure-kusto-go/azkustodata/errors"
@@ -139,8 +140,12 @@ type ADXKustoClient struct {
 	database string
 }
 
-// NewADXKustoClient creates a KustoClient that queries a specific ADX cluster and database.
-// The client is created using the provided credential and cluster URI.
+// NewADXKustoClient creates a KustoClient that connects to clusterURI and runs
+// queries against the given database. clusterURI is normally the cluster whose
+// data you want, but it may be a different reachable cluster when the queries
+// use cross-cluster cluster() references to reach the real target; the database
+// must exist on whichever cluster is connected to.
+// The client is created using the provided credential.
 // The caller is responsible for calling Close when done.
 func NewADXKustoClient(credential azcore.TokenCredential, clusterURI, database string) (*ADXKustoClient, error) {
 	kcsb := azkustodata.NewConnectionStringBuilder(clusterURI).
@@ -158,6 +163,51 @@ func NewADXKustoClient(credential azcore.TokenCredential, clusterURI, database s
 // Close releases the underlying Kusto client resources.
 func (c *ADXKustoClient) Close() error {
 	return c.client.Close()
+}
+
+// LoggingKustoClient wraps a KustoClient so every query is logged: the query
+// text and row count at V(2), and — importantly — any failure at Info level
+// (V(0)) with the summarized Kusto error. This surfaces failing agent tool
+// calls (e.g. cross-cluster permission errors when using --via-kusto) without
+// needing V(5) trace-event logging.
+type LoggingKustoClient struct {
+	delegate KustoClient
+	logger   logr.Logger
+}
+
+// NewLoggingKustoClient wraps the given client with query logging.
+func NewLoggingKustoClient(delegate KustoClient, logger logr.Logger) *LoggingKustoClient {
+	return &LoggingKustoClient{delegate: delegate, logger: logger}
+}
+
+// Query logs the query and its outcome, then delegates.
+func (c *LoggingKustoClient) Query(ctx context.Context, kqlQuery string) (*tabular.Table, error) {
+	c.logger.V(2).Info("kusto_query tool: executing query", "kql", kqlPreview(kqlQuery))
+	table, err := c.delegate.Query(ctx, kqlQuery)
+	if err != nil {
+		c.logger.Info("kusto_query tool: query FAILED",
+			"error", summarizeKustoError(err),
+			"kql", kqlPreview(kqlQuery),
+		)
+		return nil, err
+	}
+	rows := 0
+	if table != nil {
+		rows = len(table.Rows)
+	}
+	c.logger.V(2).Info("kusto_query tool: query succeeded", "rows", rows)
+	return table, nil
+}
+
+// kqlPreview returns a single-line, length-limited version of a KQL query
+// suitable for logging.
+func kqlPreview(kql string) string {
+	const max = 300
+	s := strings.Join(strings.Fields(kql), " ")
+	if len(s) > max {
+		return s[:max] + "…"
+	}
+	return s
 }
 
 // CachingKustoClient wraps a KustoClient and caches successful query results
@@ -255,6 +305,15 @@ func datasetToTable(dataset query.IterativeDataset) (*tabular.Table, error) {
 // TableToMarkdown renders a tabular.Table as a markdown table.
 // If the table is nil or has no columns, the string "(no results)" is returned.
 func TableToMarkdown(t *tabular.Table) string {
+	return TableToMarkdownCapped(t, 0)
+}
+
+// TableToMarkdownCapped renders a table to markdown, emitting at most maxRows
+// data rows. A maxRows of 0 means no limit. When rows are omitted, a trailing
+// "_Showing N of M rows._" note is appended so a reader still sees the true row
+// count — which is exactly the signal needed to judge whether a query is
+// concise — without paying for every row.
+func TableToMarkdownCapped(t *tabular.Table, maxRows int) string {
 	if t == nil || len(t.Columns) == 0 {
 		return "(no results)"
 	}
@@ -281,8 +340,12 @@ func TableToMarkdown(t *tabular.Table) string {
 	}
 	sb.WriteString(" |\n")
 
-	// Rows.
-	for _, row := range t.Rows {
+	// Rows (optionally capped).
+	limit := len(t.Rows)
+	if maxRows > 0 && limit > maxRows {
+		limit = maxRows
+	}
+	for _, row := range t.Rows[:limit] {
 		sb.WriteString("| ")
 		for i := range t.Columns {
 			if i > 0 {
@@ -293,6 +356,10 @@ func TableToMarkdown(t *tabular.Table) string {
 			}
 		}
 		sb.WriteString(" |\n")
+	}
+
+	if limit < len(t.Rows) {
+		sb.WriteString(fmt.Sprintf("\n_Showing %d of %d rows._\n", limit, len(t.Rows)))
 	}
 
 	return sb.String()

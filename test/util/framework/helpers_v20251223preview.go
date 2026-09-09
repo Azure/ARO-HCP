@@ -87,7 +87,11 @@ type NodePoolParams20251223 struct {
 	AutoScaling      *NodePoolAutoScalingParams
 	AvailabilityZone string
 	AutoRepair       bool
-	Tags             map[string]*string
+	// Labels are Kubernetes labels propagated to NodePool nodes.
+	Labels []*hcpsdk20251223preview.Label
+	// Taints are Kubernetes taints applied to NodePool nodes.
+	Taints []*hcpsdk20251223preview.Taint
+	Tags   map[string]*string
 }
 
 // ---------------------------------------------------------------------------
@@ -158,6 +162,25 @@ func ConvertToUserAssignedIdentitiesProfile20251223(value interface{}) (*hcpsdk2
 		return nil, fmt.Errorf("failed to unmarshal UserAssignedIdentitiesValue: %w", err)
 	}
 	return &uamis, nil
+}
+
+// ClearUserAssignedIdentityValues20251223 resets every value in a
+// ManagedServiceIdentity's UserAssignedIdentities map to an empty struct,
+// preserving only the map keys (identity resource IDs).
+//
+// ARM requires that on a PUT of an existing resource, UserAssignedIdentities
+// map values for identities that should be kept unchanged are sent back as
+// empty objects ({}); the client/PrincipalID values a prior GET populated
+// must not be echoed back. Callers that Get a cluster, mutate an unrelated
+// field, and then BeginCreateOrUpdate the full object must call this first
+// or ARM rejects the request with error code InvalidIdentityValues.
+func ClearUserAssignedIdentityValues20251223(identity *hcpsdk20251223preview.ManagedServiceIdentity) {
+	if identity == nil {
+		return
+	}
+	for id := range identity.UserAssignedIdentities {
+		identity.UserAssignedIdentities[id] = &hcpsdk20251223preview.UserAssignedIdentity{}
+	}
 }
 
 func ConvertToManagedServiceIdentity20251223(value interface{}) (*hcpsdk20251223preview.ManagedServiceIdentity, error) {
@@ -430,6 +453,8 @@ func BuildNodePoolFromParams20251223(
 				AvailabilityZone: to.Ptr(parameters.AvailabilityZone),
 			},
 			AutoRepair: to.Ptr(parameters.AutoRepair),
+			Labels:     parameters.Labels,
+			Taints:     parameters.Taints,
 		},
 	}
 

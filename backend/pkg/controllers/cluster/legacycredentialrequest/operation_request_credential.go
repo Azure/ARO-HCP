@@ -16,6 +16,7 @@ package legacycredentialrequest
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -24,6 +25,7 @@ import (
 	utilsclock "k8s.io/utils/clock"
 
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
+	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	operationbase "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
@@ -113,6 +115,29 @@ func (opsync *operationRequestCredential) SynchronizeOperation(ctx context.Conte
 	}
 
 	breakGlassCredential, err := opsync.clustersServiceClient.GetBreakGlassCredential(ctx, oldOperation.InternalID)
+
+	// This is for an observed case where a credential request was dispatched, but for
+	// some reason took a full day for the Cluster Service credential endpoint to show
+	// status "issued". By that time the backing certificate had already expired. Logs
+	// showed Cluster Service transitioning the credential status to "issued" and then
+	// immediately purging it, such that further polling returned a 404 Not Found. The
+	// backend controller never saw the state transition. If this happens again, catch
+	// it and fail the operation to avoid a hot loop.
+	var ocmError *ocmerrors.Error
+	if errors.As(err, &ocmError) && ocmError.Status() == http.StatusNotFound {
+		logger.Info("credential endpoint vanished, terminating operation")
+		err = operationbase.PatchOperation(ctx, opsync.clock, opsync.resourcesDBClient, oldOperation,
+			coreapi.ProvisioningStateFailed,
+			&coreapi.CloudErrorBody{
+				Code:    coreapi.CloudErrorCodeInternalServerError,
+				Message: "Failed to provision cluster credential",
+			},
+			operationbase.PostAsyncNotificationFn(opsync.notificationClient))
+		if err != nil {
+			return utils.TrackError(err)
+		}
+		return nil
+	}
 	if err != nil {
 		return utils.TrackError(err)
 	}

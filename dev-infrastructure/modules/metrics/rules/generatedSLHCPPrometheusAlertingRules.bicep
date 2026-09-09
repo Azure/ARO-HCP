@@ -42,7 +42,7 @@ resource hcpClusterOperatorsRules 'Microsoft.AlertsManagement/prometheusRuleGrou
           summary: 'HCP cluster operator unavailable on {{ $labels.namespace }} ({{ $labels.cluster }})'
           title: 'HCP cluster operator unavailable on {{ $labels.namespace }} ({{ $labels.cluster }})'
         }
-        expression: 'count by (cluster, namespace) (cluster_operator_conditions{condition="available",name!~"version|console"} == 0) and on (cluster, namespace) (sum by (cluster, namespace) (node_collector_zone_size) > 0)'
+        expression: 'count by (cluster, namespace, region) (cluster_operator_conditions{condition="available",name!~"version|console"} == 0) and on (cluster, namespace) (sum by (cluster, namespace, region) (node_collector_zone_size) > 0)'
         for: 'PT30M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -72,7 +72,7 @@ resource hcpClusterOperatorsRules 'Microsoft.AlertsManagement/prometheusRuleGrou
           summary: 'HCP cluster operator degraded on {{ $labels.namespace }} ({{ $labels.cluster }})'
           title: 'HCP cluster operator degraded on {{ $labels.namespace }} ({{ $labels.cluster }})'
         }
-        expression: 'count by (cluster, namespace) (cluster_operator_conditions{condition="degraded",name!~"version|console"} == 1) and on (cluster, namespace) (sum by (cluster, namespace) (node_collector_zone_size) > 0)'
+        expression: 'count by (cluster, namespace, region) (cluster_operator_conditions{condition="degraded",name!~"version|console"} == 1) and on (cluster, namespace) (sum by (cluster, namespace, region) (node_collector_zone_size) > 0)'
         for: 'PT2H'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
@@ -102,7 +102,7 @@ resource hcpClusterOperatorsRules 'Microsoft.AlertsManagement/prometheusRuleGrou
           summary: 'HCP version operator failing on {{ $labels.namespace }} ({{ $labels.cluster }})'
           title: 'HCP version operator failing on {{ $labels.namespace }} ({{ $labels.cluster }})'
         }
-        expression: 'count by (cluster, namespace) (cluster_operator_conditions{condition="failing",name="version"} == 1) unless on (cluster, namespace) count by (cluster, namespace) ((cluster_operator_conditions{condition="available",name!="version"} == 0) or (cluster_operator_conditions{condition="degraded",name!="version"} == 1))'
+        expression: 'count by (cluster, namespace, region) (cluster_operator_conditions{condition="failing",name="version"} == 1) unless on (cluster, namespace) count by (cluster, namespace, region) ((cluster_operator_conditions{condition="available",name!="version"} == 0) or (cluster_operator_conditions{condition="degraded",name!="version"} == 1))'
         for: 'PT1H'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }

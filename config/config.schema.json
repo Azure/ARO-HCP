@@ -434,6 +434,24 @@
             "logAnalyticsWorkspace"
           ],
           "additionalProperties": false
+        },
+        "overviewDashboard": {
+          "type": "object",
+          "description": "Azure portal dashboard visualizing ACR request volume, result codes, top repositories, latency, and 429 throttling from the diagnosticSettings Log Analytics workspace. Requires diagnosticSettings.enabled.",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "name": {
+              "type": "string",
+              "description": "Name of the Microsoft.Portal/dashboards resource"
+            }
+          },
+          "required": [
+            "enabled",
+            "name"
+          ],
+          "additionalProperties": false
         }
       },
       "additionalProperties": false,
@@ -544,6 +562,44 @@
         "zoneRedundantMode"
       ]
     },
+    "aksSystemAgentPool": {
+      "type": "object",
+      "description": "Like aksAgentPool, but without poolCount: the system pool is always a single Microsoft.ContainerService/managedClusters/agentPools resource (defined inline on the cluster, spanning all configured zones), never looped into multiple pool resources the way userAgentPool/infraAgentPool are, so poolCount has no meaning here.",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "maxCount": {
+          "type": "number"
+        },
+        "minCount": {
+          "type": "number"
+        },
+        "osDiskSizeGB": {
+          "type": "number"
+        },
+        "vmSize": {
+          "type": "string"
+        },
+        "zones": {
+          "$ref": "#/definitions/zones",
+          "description": "Zones to use for the pools."
+        },
+        "zoneRedundantMode": {
+          "$ref": "#/definitions/zoneRedundantMode"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "maxCount",
+        "minCount",
+        "osDiskSizeGB",
+        "vmSize",
+        "zones",
+        "zoneRedundantMode"
+      ]
+    },
     "aksUpgradeSettings": {
       "type": "object",
       "additionalProperties": false,
@@ -608,7 +664,7 @@
           "$ref": "#/definitions/aksAgentPool"
         },
         "systemAgentPool": {
-          "$ref": "#/definitions/aksAgentPool"
+          "$ref": "#/definitions/aksSystemAgentPool"
         },
         "infraAgentPool": {
           "$ref": "#/definitions/aksAgentPool"
@@ -824,6 +880,13 @@
         "Enabled",
         "Disabled",
         "Auto"
+      ]
+    },
+    "publicNetworkAccess": {
+      "type": "string",
+      "enum": [
+        "Enabled",
+        "Disabled"
       ]
     },
     "prometheus": {
@@ -3094,6 +3157,9 @@
         "grafanaZoneRedundantMode": {
           "$ref": "#/definitions/zoneRedundantMode"
         },
+        "grafanaPublicNetworkAccess": {
+          "$ref": "#/definitions/publicNetworkAccess"
+        },
         "grafanaRoles": {
           "type": "string",
           "description": "A space-separated list of Service Principals IDs, Types and their desired grafana roles The format is: <principalId>/<principalType>/<role>, e.g. 12345678-1234-1234-1234-123456789012/Group/Admin",
@@ -3187,6 +3253,9 @@
             },
             "msft": {
               "$ref": "#/definitions/icmConnection"
+            },
+            "dev": {
+              "$ref": "#/definitions/icmConnection"
             }
           },
           "additionalProperties": false,
@@ -3207,6 +3276,7 @@
         "grafanaMajorVersion",
         "crossTenantSecurityGroup",
         "grafanaZoneRedundantMode",
+        "grafanaPublicNetworkAccess",
         "svcWorkspaceName",
         "hcpWorkspaceName",
         "amwScaling",

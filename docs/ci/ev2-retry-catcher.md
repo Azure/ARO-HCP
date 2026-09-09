@@ -203,17 +203,18 @@ automatedRetry:
   - "failed to get token"
   - "Failed to connect to MSI"
   - "ev2-retryable-known-issue-failure"
+  - "ev2-retryable-infra-precondition-failure"
   maximumRetryCount: 1
   durationBetweenRetries: 1m
 ```
 
-EV2 substring-scans the step's output for any of the `errorContainsAny` strings and, on a match, redrives the whole step up to `maximumRetryCount` times, waiting `durationBetweenRetries` in between. Setting `automatedRetry` explicitly on a step **replaces** sdp-pipelines' default retry policy for that step (which only covers the three MSI/connection-failure phrases above) rather than extending it - so the three default phrases have to be repeated here alongside the new marker, or the gate would lose its existing infra-retry behavior.
+EV2 substring-scans the step's output for any of the `errorContainsAny` strings and, on a match, redrives the whole step up to `maximumRetryCount` times, waiting `durationBetweenRetries` in between. Setting `automatedRetry` explicitly on a step **replaces** sdp-pipelines' default retry policy for that step (which only covers the three MSI/connection-failure phrases above) rather than extending it - so the three default phrases have to be repeated here alongside the new markers, or the gate would lose its existing infra-retry behavior. `ev2-retryable-infra-precondition-failure` is the marker for the `InfraPreconditionEligible` case (AROSLSRE-1926): a gate failure where no step's `finished.json` ever carried the `ev2-failed-tests` metadata key at all, because a shared pre-step (e.g. `aro-hcp-lease-acquire` exhausting the e2e slot pool) failed before the `aro-hcp-tests` step got a chance to run and write it - distinct from `ev2-retryable-known-issue-failure`, which covers a per-test allow-retry decision once results were reported.
 
 `sdp-pipelines`'s `tooling/pkg/types/pipeline/prow.go` passes `--allow-ev2-retry` to every generated `ProwJob` step's command unconditionally; this is safe because the flag is inert unless `gate-promotion` is also set on the step, which is only true for the Stage/Prod EV2 gating steps and never for periodic or pre-merge jobs.
 
-**This currently only takes effect in prod.** `stg` and `int` both set `useExclusiveLocks: true` in sdp-pipelines' `hcp/stages.yaml`, which makes the generator treat those stages as fail-fast. `orchestratedStepFor` (`tooling/pkg/ev2/manifests/generate/graph_step.go`) ignores any explicit `automatedRetry` whenever a stage is fail-fast, falling back to the default MSI-only policy instead - so today, a stage gating run still needs a manual retry. Extending the generator to honor a custom `automatedRetry` even under fail-fast (while still forcing `FallbackToManualMitigation: false`, preserving the "don't hold the exclusive lock for a week" intent behind fail-fast) is a shared code path used by roughly 30 other pipelines and is tracked as a separate follow-up in AROSLSRE-1764, rather than bundled into this change.
+**This now takes effect in stg and int too, not just prod (AROSLSRE-1764).** `stg` and `int` both set `useExclusiveLocks: true` in sdp-pipelines' `hcp/stages.yaml`, which makes the generator treat those stages as fail-fast. `orchestratedStepFor`/`buildOnFailure` (`tooling/pkg/ev2/manifests/generate/graph_step.go`) used to ignore any explicit `automatedRetry` whenever a stage is fail-fast, falling back to the default MSI-only policy instead - so a stage gating run needed a manual retry. The generator now merges a step's custom `errorContainsAny` patterns into the fail-fast retry instead of dropping them, while still keeping `MaxRetryAttempts`/`WaitDurationBetweenRetry` pinned and `FallbackToManualMitigation: false` (preserving the "don't hold the exclusive lock for a week" intent behind fail-fast).
 
-> ⚠️ Do not reproduce the literal string `ev2-retryable-known-issue-failure` anywhere else that could end up in a gating step's stdout (comments in `common.sh`, other steps' `automatedRetry` lists, etc.). EV2's substring scan is applied to the whole step output, and a stray match would cause a genuinely failed, non-eligible run to be spuriously retried - exactly the class of bug described in AROSLSRE-1292.
+> ⚠️ Do not reproduce the literal strings `ev2-retryable-known-issue-failure` or `ev2-retryable-infra-precondition-failure` anywhere else that could end up in a gating step's stdout (comments in `common.sh`, other steps' `automatedRetry` lists, etc.). EV2's substring scan is applied to the whole step output, and a stray match would cause a genuinely failed, non-eligible run to be spuriously retried - exactly the class of bug described in AROSLSRE-1292.
 
 ## Expiration configuration
 
@@ -250,7 +251,6 @@ The label and signal names went through some discussion (`flaky`, `retry-during-
 
 ## Follow-ups
 
-- Extend EV2 automated retry to `stg`/`int`: today it only takes effect in prod, since those stages fail fast and the generator ignores custom `automatedRetry` in that mode. Tracked in AROSLSRE-1764.
 - Pick and implement one of the [expiration configuration](#expiration-configuration) options above so the TTL/timebomb intent is enforced rather than just documented.
 
 ## See also

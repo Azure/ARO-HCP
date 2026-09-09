@@ -143,6 +143,11 @@ var _ = Describe("FIPS Mode Support", func() {
 
 				By("attempting to change cryptoRestrictions from FIPS to None - should be rejected")
 				actualHCPCluster.Properties.CryptoRestrictions = to.Ptr(v20260630preview.CryptoRestrictionsNone)
+				// The Get above returns a fully populated UserAssignedIdentities map
+				// (ClientID/PrincipalID set by ARM). Re-sending those populated values on
+				// this PUT is rejected by ARM with InvalidIdentityValues; existing
+				// identities must be echoed back as empty objects.
+				framework.ClearUserAssignedIdentityValues20260630(actualHCPCluster.Identity)
 				poller, err := tc.Get20260630ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient().BeginCreateOrUpdate(
 					ctx,
 					*resourceGroup.Name,

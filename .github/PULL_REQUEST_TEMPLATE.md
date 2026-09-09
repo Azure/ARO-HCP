@@ -30,7 +30,7 @@ justification.
 - [ ] Title follows [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) format
 - [ ] Summary explains the "Why" behind the change
 - [ ] Linked to relevant ticket/issue
-- [ ] Screenshots included (if graph/UI/metrics changes)
+- [ ] Screenshots included (if dashboards or other UI changes)
 - [ ] Self-reviewed the diff
 - [ ] CI/CD checks are passing (ignore Tide)
 - [ ] Draft PR used for WIP (if applicable)

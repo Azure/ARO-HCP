@@ -68,7 +68,7 @@ resource msftKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@202
           summary: 'Pod {{ $labels.namespace }}/{{ $labels.pod }} has been in a non-ready state for more than 5 minutes.'
           title: 'Pod {{ $labels.namespace }}/{{ $labels.pod }} has been in a non-ready state for more than 5 minutes.'
         }
-        expression: 'sum by (namespace, pod, cluster) (max by (namespace, pod, cluster) (kube_pod_status_phase{job="kube-state-metrics",namespace!~"klusterlet-.*",phase=~"Pending|Unknown|Failed",prometheus="prometheus/prometheus"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster) (1, max by (namespace, pod, owner_kind, cluster) (kube_pod_owner{namespace=~"billing|credential-refresher",owner_kind!="Job",prometheus="prometheus/prometheus"}))) > 0'
+        expression: 'sum by (namespace, pod, cluster, region) (max by (namespace, pod, cluster, region) (kube_pod_status_phase{job="kube-state-metrics",namespace!~"klusterlet-.*",phase=~"Pending|Unknown|Failed",prometheus="prometheus/prometheus"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster, region) (1, max by (namespace, pod, owner_kind, cluster, region) (kube_pod_owner{namespace=~"billing|credential-refresher",owner_kind!="Job",prometheus="prometheus/prometheus"}))) > 0'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -236,7 +236,7 @@ resource msftKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@202
           summary: 'StatefulSet {{ $labels.namespace }}/{{ $labels.statefulset }} update has not been rolled out.'
           title: 'StatefulSet {{ $labels.namespace }}/{{ $labels.statefulset }} update has not been rolled out.'
         }
-        expression: '(max by (namespace, statefulset, job, cluster) (kube_statefulset_status_current_revision{job="kube-state-metrics",namespace=~"billing|credential-refresher"} unless kube_statefulset_status_update_revision{job="kube-state-metrics",namespace=~"billing|credential-refresher"}) * (kube_statefulset_replicas{job="kube-state-metrics",namespace=~"billing|credential-refresher"} != kube_statefulset_status_replicas_updated{job="kube-state-metrics",namespace=~"billing|credential-refresher"})) and (changes(kube_statefulset_status_replicas_updated{job="kube-state-metrics",namespace=~"billing|credential-refresher"}[5m]) == 0)'
+        expression: '(max by (namespace, statefulset, job, cluster, region) (kube_statefulset_status_current_revision{job="kube-state-metrics",namespace=~"billing|credential-refresher"} unless kube_statefulset_status_update_revision{job="kube-state-metrics",namespace=~"billing|credential-refresher"}) * (kube_statefulset_replicas{job="kube-state-metrics",namespace=~"billing|credential-refresher"} != kube_statefulset_status_replicas_updated{job="kube-state-metrics",namespace=~"billing|credential-refresher"})) and (changes(kube_statefulset_status_replicas_updated{job="kube-state-metrics",namespace=~"billing|credential-refresher"}[5m]) == 0)'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -292,7 +292,7 @@ resource msftKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@202
           summary: 'Pod {{ $labels.namespace }}/{{ $labels.pod }} container {{ $labels.container }} waiting longer than 1 hour'
           title: 'Pod {{ $labels.namespace }}/{{ $labels.pod }} container {{ $labels.container }} waiting longer than 1 hour'
         }
-        expression: 'sum by (namespace, pod, container, cluster) (kube_pod_container_status_waiting_reason{job="kube-state-metrics",namespace=~"billing|credential-refresher"}) > 0'
+        expression: 'sum by (namespace, pod, container, cluster, region) (kube_pod_container_status_waiting_reason{job="kube-state-metrics",namespace=~"billing|credential-refresher"}) > 0'
         for: 'PT1H'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -376,7 +376,7 @@ resource msftKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@202
           summary: 'Job {{ $labels.namespace }}/{{ $labels.job_name }} did not complete in time'
           title: 'Job {{ $labels.namespace }}/{{ $labels.job_name }} did not complete in time'
         }
-        expression: 'time() - max by (namespace, job_name, cluster) (kube_job_status_start_time{job="kube-state-metrics",namespace=~"billing|credential-refresher"} and kube_job_status_active{job="kube-state-metrics",namespace=~"billing|credential-refresher"} > 0) > 43200'
+        expression: 'time() - max by (namespace, job_name, cluster, region) (kube_job_status_start_time{job="kube-state-metrics",namespace=~"billing|credential-refresher"} and kube_job_status_active{job="kube-state-metrics",namespace=~"billing|credential-refresher"} > 0) > 43200'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
@@ -750,7 +750,7 @@ resource msftMise 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
           summary: 'Envoy scrape target down for namespace=mise'
           title: 'Envoy scrape target down for namespace=mise'
         }
-        expression: 'group by (cluster) (up{cluster=~".*-svc(-[0-9]+)?$",job="kube-state-metrics"}) unless on (cluster) group by (cluster) (up{container="istio-proxy",endpoint="http-envoy-prom",namespace="mise"} == 1)'
+        expression: 'group by (cluster, region) (up{cluster=~".*-svc(-[0-9]+)?$",job="kube-state-metrics"}) unless on (cluster) group by (cluster, region) (up{container="istio-proxy",endpoint="http-envoy-prom",namespace="mise"} == 1)'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
@@ -791,7 +791,7 @@ resource msftMsiCredentialRefresher 'Microsoft.AlertsManagement/prometheusRuleGr
           summary: 'Customer cluster credential on {{ $labels.cluster }} expiring soon'
           title: 'Customer cluster credential on {{ $labels.cluster }} expiring soon'
         }
-        expression: 'sum by (cluster) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^30([.]0)?$"}[30m])) - sum by (cluster) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^0([.]0)?$"}[30m])) > 0'
+        expression: 'sum by (cluster, region) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^30([.]0)?$"}[30m])) - sum by (cluster, region) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^0([.]0)?$"}[30m])) > 0'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -819,7 +819,7 @@ resource msftMsiCredentialRefresher 'Microsoft.AlertsManagement/prometheusRuleGr
           summary: 'Customer cluster credential on {{ $labels.cluster }} has expired'
           title: 'Customer cluster credential on {{ $labels.cluster }} has expired'
         }
-        expression: 'sum by (cluster) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^0([.]0)?$"}[30m])) - sum by (cluster) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^-90([.]0)?$"}[30m])) > 0'
+        expression: 'sum by (cluster, region) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^0([.]0)?$"}[30m])) - sum by (cluster, region) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^-90([.]0)?$"}[30m])) > 0'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -847,7 +847,7 @@ resource msftMsiCredentialRefresher 'Microsoft.AlertsManagement/prometheusRuleGr
           summary: 'Customer cluster credential on {{ $labels.cluster }} is no longer renewable'
           title: 'Customer cluster credential on {{ $labels.cluster }} is no longer renewable'
         }
-        expression: 'sum by (cluster) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^-90([.]0)?$"}[30m])) > 0'
+        expression: 'sum by (cluster, region) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^-90([.]0)?$"}[30m])) > 0'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }

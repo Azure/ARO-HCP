@@ -44,13 +44,28 @@ var watchedGroupSuffixes = []string{
 	"velero.io",
 }
 
+// watchedBuiltinGVRs is the hardcoded list of built-in (non-CRD)
+// GroupVersionResources to watch in addition to everything discovered via
+// watchedGroupSuffixes. These are core/apps types that are not covered by the
+// CRD group suffixes above but still carry useful management-cluster state. To
+// snapshot another built-in type, add its GVR here.
+var watchedBuiltinGVRs = []schema.GroupVersionResource{
+	{Group: "", Version: "v1", Resource: "namespaces"},
+	{Group: "", Version: "v1", Resource: "nodes"},
+	{Group: "apps", Version: "v1", Resource: "deployments"},
+	{Group: "apps", Version: "v1", Resource: "daemonsets"},
+	{Group: "apps", Version: "v1", Resource: "statefulsets"},
+	{Group: "apps", Version: "v1", Resource: "replicasets"},
+}
+
 // ServerResourceDiscoverer is the subset of the discovery API that ResourceWatcher needs.
 type ServerResourceDiscoverer interface {
 	ServerGroupsAndResources() ([]*metav1.APIGroup, []*metav1.APIResourceList, error)
 }
 
 // ResourceWatcher discovers API resources matching a set of group suffixes, also
-// watches core/v1/namespaces, and logs every event via dynamic informers as structured JSON.
+// watches a fixed set of built-in GroupVersionResources (watchedBuiltinGVRs), and
+// logs every event via dynamic informers as structured JSON.
 type ResourceWatcher struct {
 	dynamicClient   dynamic.Interface
 	discoveryClient ServerResourceDiscoverer
@@ -64,8 +79,9 @@ func NewResourceWatcher(dynamicClient dynamic.Interface, discoveryClient ServerR
 	}
 }
 
-// Run discovers GVRs for the configured group suffixes, also watches core/v1/namespaces,
-// starts dynamic informers for each, and blocks until the context is cancelled. Events are
+// Run discovers GVRs for the configured group suffixes, also watches the built-in
+// GVRs in watchedBuiltinGVRs, starts dynamic informers for each, and blocks until
+// the context is cancelled. Events are
 // logged as structured JSON via klog. A CRD informer watches for new CustomResourceDefinitions;
 // if a new CRD is registered whose group matches the watched suffixes and introduces
 // GVRs not known at startup, the process exits so the pod restarts and picks them up.
@@ -77,7 +93,7 @@ func (w *ResourceWatcher) Run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	gvrs = append(gvrs, schema.GroupVersionResource{Group: "", Version: "v1", Resource: "namespaces"})
+	gvrs = append(gvrs, watchedBuiltinGVRs...)
 	logger.Info("Discovered resources to watch", "count", len(gvrs))
 
 	knownGVRs := sets.New[schema.GroupVersionResource](gvrs...)

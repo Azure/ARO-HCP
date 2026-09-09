@@ -142,6 +142,7 @@ data:
         Match                 kubernetes.*
         multiline.parser      klog
         multiline.key_content log
+        Emitter_Mem_Buf_Limit 50M
 
     [FILTER]
         # Drop noisy kube-proxy topology.go INFO messages that generate 10x log volume
@@ -238,6 +239,18 @@ data:
         Emitter_Name    re_emitted_resource_snapshot_router
         Emitter_Mem_Buf_Limit  20M
         Emitter_Storage.type   filesystem
+
+    [FILTER]
+        # Drop kube-applier logs that carry a resource-snapshot payload
+        # (snapshotType=kubernetes or cosmos) entirely. kube-applier is not a source
+        # of kubernetesResourceSnapshots or cosmosResourceSnapshots, so these records
+        # are discarded here rather than routed to a snapshot table; they also never
+        # reach the kubeApplierLogs table. Records without a snapshotType field (the
+        # normal kube-applier logs) do not match the exclude regex and pass through.
+        Name    grep
+        Alias   filter.drop_kube_applier_snapshots
+        Match   kube-applier.logs
+        Exclude snapshotType ^(kubernetes|cosmos)$
 
     [FILTER]
         # Route backend logs with snapshotType=cosmos
@@ -634,7 +647,7 @@ spec:
         app: arobit-forwarder
         azure.workload.identity/use: "true"
       annotations:
-        checksum/configmap: 7572fb4a6c4b6d03c798dea3e80408fb86a55e91e64601ffc6bd16bb2a1a455a
+        checksum/configmap: 6b8a31922302c699e435fd102943be4cdc3669bb6467294678c534a8ef7fa374
     spec:
       priorityClassName: service-lifecycle-critical
       serviceAccountName: 'arobit-forwarder'

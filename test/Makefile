@@ -4,6 +4,8 @@ SHELL = /bin/bash
 
 all: build
 
+BICEP ?= bicep
+
 BICEP_OUTPUT_DIR=$(TEST_DIR)e2e/test-artifacts/generated-test-artifacts/
 
 DEMO_BICEP_DIR=$(TEST_DIR)../demo/bicep
@@ -11,14 +13,14 @@ DEMO_BICEP_SOURCES = $(shell find $(DEMO_BICEP_DIR) -name '*.bicep')
 DEMO_BICEP_OUTPUTS = $(addprefix $(BICEP_OUTPUT_DIR)standard-cluster-create/,$(addsuffix .json,$(basename $(notdir $(DEMO_BICEP_SOURCES)))))
 $(BICEP_OUTPUT_DIR)standard-cluster-create/%.json: $(DEMO_BICEP_DIR)/%.bicep
 	@mkdir -p $(dir $@)
-	az bicep build --file=$< --outfile=$@
+	$(BICEP) build $< --outfile $@
 
 TEST_BICEP_DIR=$(TEST_DIR)e2e-setup/bicep
 TEST_BICEP_SOURCES = $(shell cd $(TEST_BICEP_DIR) && find * -name '*.bicep')
 TEST_BICEP_OUTPUTS = $(addprefix $(BICEP_OUTPUT_DIR),$(addsuffix .json,$(basename $(TEST_BICEP_SOURCES))))
 $(BICEP_OUTPUT_DIR)%.json: $(TEST_BICEP_DIR)/%.bicep
 	@mkdir -p $(dir $@)
-	az bicep build --file=$< --outfile=$@
+	$(BICEP) build $< --outfile $@
 
 update-go-fixtures:
 	UPDATE=true go test --count=1 ./... -v

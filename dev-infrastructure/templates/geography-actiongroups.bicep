@@ -55,6 +55,18 @@ param icmRoutingIdMSFT string
 @description('ICM automitigation enabled ID')
 param icmAutomitigationEnabledMSFT string
 
+@description('ICM incident receiver name for DEV')
+param icmActionGroupNameDEV string
+
+@description('Short display name for the DEV action group')
+param icmActionGroupShortNameDEV string
+
+@description('ICM routing ID')
+param icmRoutingIdDEV string
+
+@description('ICM automitigation enabled ID')
+param icmAutomitigationEnabledDEV string
+
 @description('Enable creating ICM action groups')
 param manageConnection bool
 
@@ -111,6 +123,10 @@ module actionGroups '../modules/metrics/actiongroups.bicep' = if (manageConnecti
     icmActionGroupShortNameMSFT: icmActionGroupShortNameMSFT
     icmRoutingIdMSFT: icmRoutingIdMSFT
     icmAutomitigationEnabledMSFT: icmAutomitigationEnabledMSFT
+    icmActionGroupNameDEV: icmActionGroupNameDEV
+    icmActionGroupShortNameDEV: icmActionGroupShortNameDEV
+    icmRoutingIdDEV: icmRoutingIdDEV
+    icmAutomitigationEnabledDEV: icmAutomitigationEnabledDEV
     alertingEnabled: alertsEnabled
   }
 }
@@ -119,6 +135,7 @@ output actionGroupSL string = manageConnection ? actionGroups!.outputs.actionGro
 output actionGroupSRE string = manageConnection ? actionGroups!.outputs.actionGroupsSRE : ''
 output actionGroupRP string = manageConnection ? actionGroups!.outputs.actionGroupsRP : ''
 output actionGroupMSFT string = manageConnection ? actionGroups!.outputs.actionGroupsMSFT : ''
+output actionGroupDEV string = manageConnection ? actionGroups!.outputs.actionGroupsDEV : ''
 output actionGroupAlertEH string = eventHubAlertingEnabled && kustoRegion == regionLocation
   ? eventHubActionGroup!.outputs.actionGroupId
   : ''

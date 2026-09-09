@@ -43,7 +43,7 @@ const (
 
 	// Default OpenShift channel group and version for the E2E tests
 	DefaultOCPChannelGroup         = "candidate"
-	DefaultOCPVersionId            = "4.20"
+	DefaultOCPVersionId            = "4.21"
 	DefaultOCPNodePoolChannelGroup = "candidate"
 
 	DefaultPodCIDR      = "10.128.0.0/14"

@@ -150,20 +150,24 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 			},
 		},
 		{
-			name: "waits when cluster ClusterServiceID is unset",
+			name: "reports Provisioning when cluster ClusterServiceID is unset",
 			existingCluster: func() *coreapi.HCPOpenShiftCluster {
 				cluster := newClusterWithAPIURL("https://api.example.com", &createdAt)
 				cluster.ServiceProviderProperties.ClusterServiceID = nil
 				return cluster
 			}(),
 			existingOperation: fixture.NewOperation(cosmosstorageutils.OperationRequestCreate),
+			// ClusterServiceID is nil, so clusterServiceCreateOperationState reports
+			// Provisioning without calling GetClusterStatus; the bare mock therefore
+			// has no expectations. Every other sub-state is ready, so the operation
+			// is persisted as Provisioning.
 			setupCSMock: func(ctrl *gomock.Controller, _ *operationtesting.ClusterTestFixture) ocm.ClusterServiceClientSpec {
 				return ocm.NewMockClusterServiceClientSpec(ctrl)
 			},
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, coreapi.ProvisioningStateAccepted, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateProvisioning, op.Status)
 			},
 		},
 		{
@@ -311,6 +315,14 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 							},
 							Status: coreapi.ServiceProviderClusterStatus{
 								ServingCABundle: "fake-ca-data",
+								AzureResources: coreapi.AzureResources{
+									RoleAssignments: coreapi.AzureMultiReference{
+										AzureResources: []*azcorearm.ResourceID{
+											metadataapi.Must(azcorearm.ParseResourceID(
+												"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/managed-rg/providers/Microsoft.Authorization/roleAssignments/11111111-1111-1111-1111-111111111111")),
+										},
+									},
+								},
 							},
 						},
 					},
@@ -420,6 +432,7 @@ func TestDetermineOperationState(t *testing.T) {
 		clusterLister     corelisters.ClusterLister
 		readDesireLister  kubeapplierlisters.ReadDesireLister
 		setupCSMock       func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec
+		clusterOverride   *coreapi.HCPOpenShiftCluster
 		expectedState     coreapi.ProvisioningState
 		wantMessageSubstr string
 		expectError       bool
@@ -657,7 +670,7 @@ func TestDetermineOperationState(t *testing.T) {
 				},
 			},
 			expectedState:     coreapi.ProvisioningStateProvisioning,
-			wantMessageSubstr: "hosted cluster has no installed version",
+			wantMessageSubstr: "hosted cluster has not completed installing",
 		},
 		{
 			name: "cluster-service succeeded but cosmos not ready → Provisioning",
@@ -726,6 +739,45 @@ func TestDetermineOperationState(t *testing.T) {
 			},
 			expectedState: coreapi.ProvisioningStateProvisioning,
 		},
+		{
+			name: "cluster ClusterServiceID unset → Provisioning",
+			clusterOverride: func() *coreapi.HCPOpenShiftCluster {
+				c := newClusterWithAPIURL("https://api.example.com", nil)
+				c.ServiceProviderProperties.ClusterServiceID = nil
+				return c
+			}(),
+			clusterLister: &corelistertesting.SliceClusterLister{
+				Clusters: []*coreapi.HCPOpenShiftCluster{newClusterWithAPIURL("https://api.example.com", nil)},
+			},
+			// ClusterServiceID is nil, so clusterServiceCreateOperationState returns
+			// early without calling GetClusterStatus; use a bare mock with no
+			// expectations to avoid an unmet-expectation failure.
+			setupCSMock: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
+				return ocm.NewMockClusterServiceClientSpec(ctrl)
+			},
+			readDesireLister: &kubeapplierlistertesting.SliceReadDesireLister{
+				Desires: []*kubeapplierapi.ReadDesire{
+					operationtesting.NewHostedClusterReadDesire(t, &v1beta1.HostedCluster{
+						Status: v1beta1.HostedClusterStatus{
+							Conditions: []metav1.Condition{
+								{Type: string(v1beta1.HostedClusterAvailable), Status: metav1.ConditionTrue},
+							},
+							ControlPlaneVersion: v1beta1.ControlPlaneVersionStatus{
+								History: []v1beta1.ControlPlaneUpdateHistory{
+									{Version: "4.17.3", State: configv1.CompletedUpdate},
+								},
+							},
+							ControlPlaneEndpoint: v1beta1.APIEndpoint{
+								Host: "api.example.com",
+								Port: 6443,
+							},
+						},
+					}),
+				},
+			},
+			expectedState:     coreapi.ProvisioningStateProvisioning,
+			wantMessageSubstr: "cluster service has not been successfully created",
+		},
 	}
 
 	for _, tt := range tests {
@@ -753,13 +805,25 @@ func TestDetermineOperationState(t *testing.T) {
 							},
 							Status: coreapi.ServiceProviderClusterStatus{
 								ServingCABundle: "fake-ca-data",
+								AzureResources: coreapi.AzureResources{
+									RoleAssignments: coreapi.AzureMultiReference{
+										AzureResources: []*azcorearm.ResourceID{
+											metadataapi.Must(azcorearm.ParseResourceID(
+												"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/managed-rg/providers/Microsoft.Authorization/roleAssignments/11111111-1111-1111-1111-111111111111")),
+										},
+									},
+								},
 							},
 						},
 					},
 				},
 			}
 
-			result, err := controller.determineOperationState(ctx, operation, cluster)
+			clusterArg := cluster
+			if tt.clusterOverride != nil {
+				clusterArg = tt.clusterOverride
+			}
+			result, err := controller.determineOperationState(ctx, operation, clusterArg)
 
 			if tt.expectError {
 				require.Error(t, err)
@@ -830,6 +894,83 @@ func TestServingCABundleOperationStatus(t *testing.T) {
 			}
 
 			result, err := controller.servingCABundleOperationStatus(ctx, operation)
+			require.NoError(t, err)
+			require.NotNil(t, result)
+			assert.Equal(t, tt.expectedState, result.ProvisioningState)
+			if tt.wantMsgSubstr != "" {
+				assert.Contains(t, result.Message, tt.wantMsgSubstr)
+			}
+		})
+	}
+}
+
+func TestRoleAssignmentsOperationStatus(t *testing.T) {
+	fixture := operationtesting.NewClusterTestFixture()
+	operation := fixture.NewOperation(cosmosstorageutils.OperationRequestCreate)
+
+	roleAssignmentID := func(name string) *azcorearm.ResourceID {
+		return metadataapi.Must(azcorearm.ParseResourceID(
+			"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/managed-rg/providers/Microsoft.Authorization/roleAssignments/" + name))
+	}
+
+	spcLister := func(ra coreapi.AzureMultiReference) corelisters.ServiceProviderClusterLister {
+		return &corelistertesting.SliceServiceProviderClusterLister{
+			ServiceProviderClusters: []*coreapi.ServiceProviderCluster{
+				{
+					CosmosMetadata: coreapi.CosmosMetadata{
+						ResourceID: metadataapi.Must(azcorearm.ParseResourceID(
+							fixture.ClusterResourceID.String() + "/" +
+								coreapi.ServiceProviderClusterResourceTypeName + "/" +
+								coreapi.ServiceProviderClusterResourceName)),
+					},
+					Status: coreapi.ServiceProviderClusterStatus{
+						AzureResources: coreapi.AzureResources{
+							RoleAssignments: ra,
+						},
+					},
+				},
+			},
+		}
+	}
+
+	tests := []struct {
+		name            string
+		roleAssignments coreapi.AzureMultiReference
+		expectedState   coreapi.ProvisioningState
+		wantMsgSubstr   string
+	}{
+		{
+			name: "all confirmed and none pending → Succeeded",
+			roleAssignments: coreapi.AzureMultiReference{
+				AzureResources: []*azcorearm.ResourceID{roleAssignmentID("11111111-1111-1111-1111-111111111111")},
+			},
+			expectedState: coreapi.ProvisioningStateSucceeded,
+		},
+		{
+			name:            "none confirmed → Provisioning",
+			roleAssignments: coreapi.AzureMultiReference{},
+			expectedState:   coreapi.ProvisioningStateProvisioning,
+			wantMsgSubstr:   "role assignments not yet confirmed",
+		},
+		{
+			name: "some still pending → Provisioning",
+			roleAssignments: coreapi.AzureMultiReference{
+				AzureResources:        []*azcorearm.ResourceID{roleAssignmentID("11111111-1111-1111-1111-111111111111")},
+				PendingAzureResources: []*azcorearm.ResourceID{roleAssignmentID("22222222-2222-2222-2222-222222222222")},
+			},
+			expectedState: coreapi.ProvisioningStateProvisioning,
+			wantMsgSubstr: "role assignments not yet confirmed",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+			controller := &operationClusterCreate{
+				serviceProviderClusterLister: spcLister(tt.roleAssignments),
+			}
+
+			result, err := controller.roleAssignmentsOperationStatus(ctx, operation)
 			require.NoError(t, err)
 			require.NotNil(t, result)
 			assert.Equal(t, tt.expectedState, result.ProvisioningState)

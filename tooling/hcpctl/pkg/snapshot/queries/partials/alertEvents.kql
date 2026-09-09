@@ -13,5 +13,5 @@ cluster('{{ .ClusterURI }}').database('{{ .MonitoringEventsDatabase }}').table('
 {{- end -}}
 
 {{- define "alertEventsProject" -}}
-| project cluster, alert=alertContext.labels.alertname, firedDateTime, resolvedDateTime, description=alertContext.annotations.description
+| project cluster, region=alertContext.labels.region, alert=alertContext.labels.alertname, firedDateTime, resolvedDateTime, description=alertContext.annotations.description
 {{- end -}}

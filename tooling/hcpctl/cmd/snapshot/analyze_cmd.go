@@ -18,6 +18,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -29,6 +30,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/agent"
+	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/kusto"
 	snapshotpkg "github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/snapshot"
 )
 
@@ -49,6 +51,19 @@ type RawAnalyzeOptions struct {
 	MaxRounds           int
 	Output              string
 	Model               string
+
+	// Intent/IntentFile provide a free-form investigation objective (e.g. a
+	// customer complaint). When set, the analysis runs in intent mode instead
+	// of the default failed-test mode. They are mutually exclusive.
+	Intent     string
+	IntentFile string
+
+	// ViaKusto/ViaRegion optionally route the kusto_query tool through a
+	// reachable ADX cluster instead of connecting to the manifest's cluster
+	// directly. Queries still target the manifest's cluster via cross-cluster
+	// cluster() references (which the agent is instructed to always use).
+	ViaKusto  string
+	ViaRegion string
 
 	// Provider selects the LLM backend: "copilot" (default) or "claude".
 	Provider string
@@ -88,6 +103,12 @@ func bindAnalyzeOptions(opts *RawAnalyzeOptions, cmd *cobra.Command) error {
 	cmd.Flags().StringVar(&opts.Output, "output", opts.Output, "Output directory for analysis results (defaults to data-dir)")
 	cmd.Flags().StringVar(&opts.Model, "model", opts.Model, "Override the model (applies to all providers)")
 
+	cmd.Flags().StringVar(&opts.Intent, "intent", opts.Intent, "Free-form investigation objective (e.g. a customer complaint). When set, analyzes the snapshot against this objective instead of assuming a failed e2e test. Mutually exclusive with --intent-file.")
+	cmd.Flags().StringVar(&opts.IntentFile, "intent-file", opts.IntentFile, "Path to a file containing the free-form investigation objective. Mutually exclusive with --intent.")
+
+	cmd.Flags().StringVar(&opts.ViaKusto, "via-kusto", opts.ViaKusto, "Route the kusto_query tool through this reachable ADX cluster instead of connecting to the manifest's cluster directly; queries still target the manifest's cluster via cross-cluster cluster(). The connecting identity needs viewer rights on the manifest's cluster, and the standard databases must exist on this cluster.")
+	cmd.Flags().StringVar(&opts.ViaRegion, "via-region", opts.ViaRegion, "Region of --via-kusto (required when --via-kusto is set)")
+
 	// Provider selection.
 	cmd.Flags().StringVar(&opts.Provider, "provider", opts.Provider, "LLM provider: copilot (default) or claude")
 
@@ -119,6 +140,14 @@ type validatedAnalyzeOptions struct {
 	maxRounds     int
 	outputDir     string
 	model         string
+
+	// intent is the resolved free-form investigation objective (from --intent
+	// or --intent-file). Empty means failed-test mode.
+	intent string
+
+	// viaKustoEndpoint, when non-nil, is the reachable ADX cluster to connect
+	// the kusto_query tool through instead of the manifest's cluster.
+	viaKustoEndpoint *url.URL
 
 	// Provider selection — exactly one of these is non-nil.
 	copilotConfig *agent.AgentConfig
@@ -158,13 +187,46 @@ func (o *RawAnalyzeOptions) validate() (*validatedAnalyzeOptions, error) {
 		outputDir = o.DataDir
 	}
 
+	// Resolve the optional free-form investigation objective.
+	if o.Intent != "" && o.IntentFile != "" {
+		return nil, fmt.Errorf("--intent and --intent-file are mutually exclusive")
+	}
+	intent := o.Intent
+	if o.IntentFile != "" {
+		data, err := os.ReadFile(o.IntentFile)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read --intent-file %q: %w", o.IntentFile, err)
+		}
+		intent = strings.TrimSpace(string(data))
+		if intent == "" {
+			return nil, fmt.Errorf("--intent-file %q is empty", o.IntentFile)
+		}
+	}
+
+	// Resolve an optional via-cluster to route Kusto queries through.
+	var viaKustoEndpoint *url.URL
+	if o.ViaKusto != "" {
+		if o.ViaRegion == "" {
+			return nil, fmt.Errorf("--via-region is required when --via-kusto is set")
+		}
+		endpoint, err := kusto.KustoEndpoint(o.ViaKusto, o.ViaRegion)
+		if err != nil {
+			return nil, err
+		}
+		viaKustoEndpoint = endpoint
+	} else if o.ViaRegion != "" {
+		return nil, fmt.Errorf("--via-region requires --via-kusto")
+	}
+
 	validated := &validatedAnalyzeOptions{
-		dataDir:       o.DataDir,
-		worktreePaths: worktreePaths,
-		reviewRounds:  o.ReviewRounds,
-		maxRounds:     o.MaxRounds,
-		outputDir:     outputDir,
-		model:         o.Model,
+		dataDir:          o.DataDir,
+		worktreePaths:    worktreePaths,
+		reviewRounds:     o.ReviewRounds,
+		maxRounds:        o.MaxRounds,
+		outputDir:        outputDir,
+		intent:           intent,
+		model:            o.Model,
+		viaKustoEndpoint: viaKustoEndpoint,
 	}
 
 	// Validate provider-specific options.
@@ -309,8 +371,20 @@ func (o *validatedAnalyzeOptions) run(ctx context.Context) (runErr error) {
 		return fmt.Errorf("failed to create Azure credential: %w", err)
 	}
 
-	// Create Kusto client from manifest info.
-	kustoClient, err := agent.NewADXKustoClient(cred, manifest.KustoCluster, manifest.KustoDatabase)
+	// Create Kusto client from manifest info. The client connects to
+	// manifest.KustoCluster by default, but when --via-kusto is set it connects
+	// to that reachable cluster instead; the agent's queries still target
+	// manifest.KustoCluster via cross-cluster cluster() references, and
+	// hydration share links continue to point at manifest.KustoCluster.
+	kustoConnectURI := manifest.KustoCluster
+	if o.viaKustoEndpoint != nil {
+		kustoConnectURI = o.viaKustoEndpoint.String()
+		logger.Info("Routing Kusto queries through via-cluster",
+			"viaCluster", kustoConnectURI,
+			"targetCluster", manifest.KustoCluster,
+		)
+	}
+	kustoClient, err := agent.NewADXKustoClient(cred, kustoConnectURI, manifest.KustoDatabase)
 	if err != nil {
 		return fmt.Errorf("failed to create Kusto client: %w", err)
 	}
@@ -319,13 +393,18 @@ func (o *validatedAnalyzeOptions) run(ctx context.Context) (runErr error) {
 			logger.Error(err, "Failed to close Kusto client.")
 		}
 	}()
-	cachedKustoClient := agent.NewCachingKustoClient(kustoClient)
+	cachedKustoClient := agent.NewCachingKustoClient(agent.NewLoggingKustoClient(kustoClient, logger))
 
 	// Build provider-neutral tool definitions and domain-only prompt.
 	// Each provider adds its own identity/tone framing, so we pass only
-	// the domain content here to avoid duplicating those sections.
+	// the domain content here to avoid duplicating those sections. The mode
+	// selects failed-test framing (default) or free-form intent framing.
+	mode := agent.ModeTest
+	if o.intent != "" {
+		mode = agent.ModeIntent
+	}
 	kustoTool := agent.NewKustoToolDefinition(cachedKustoClient)
-	domainPrompt, err := agent.BuildDomainPrompt()
+	domainPrompt, err := agent.BuildDomainPromptFor(mode)
 	if err != nil {
 		return fmt.Errorf("failed to build domain prompt: %w", err)
 	}
@@ -362,7 +441,7 @@ func (o *validatedAnalyzeOptions) run(ctx context.Context) (runErr error) {
 	}()
 
 	session, err := provider.CreateProviderSession(ctx, logger, agent.ProviderSessionConfig{
-		IdentityPrompt:   agent.IdentityPrompt,
+		IdentityPrompt:   agent.IdentityPromptFor(mode),
 		TonePrompt:       agent.TonePrompt,
 		SystemPrompt:     domainPrompt,
 		Tools:            []agent.ToolDefinition{kustoTool},
@@ -377,9 +456,29 @@ func (o *validatedAnalyzeOptions) run(ctx context.Context) (runErr error) {
 		finalizeAnalysisSession(ctx, logger, session, o.outputDir, usageStartedAt, time.Now().UTC(), &runErr)
 	}()
 
+	// Ensure the output directory exists up front so progress checkpoints can be
+	// written as the analysis proceeds.
+	if err := os.MkdirAll(o.outputDir, 0o755); err != nil {
+		return fmt.Errorf("failed to create output directory: %w", err)
+	}
+	writeOutputs := func(chain *agent.HydratedChain, markdown string) {
+		analysisJSON, err := json.MarshalIndent(chain, "", "  ")
+		if err != nil {
+			logger.Error(err, "Failed to marshal analysis output.")
+			return
+		}
+		if err := os.WriteFile(filepath.Join(o.outputDir, "analysis.json"), analysisJSON, 0o644); err != nil {
+			logger.Error(err, "Failed to write analysis.json.")
+		}
+		if err := os.WriteFile(filepath.Join(o.outputDir, "analysis.md"), []byte(markdown), 0o644); err != nil {
+			logger.Error(err, "Failed to write analysis.md.")
+		}
+	}
+
 	result, err := agent.Analyze(ctx, logger, session, cachedKustoClient, agent.AnalyzeOptions{
 		Manifest:            manifestData,
 		TestName:            manifest.TestName,
+		Intent:              o.intent,
 		TestError:           testError,
 		TestOutput:          testOutput,
 		SiblingTests:        siblingTests,
@@ -391,30 +490,28 @@ func (o *validatedAnalyzeOptions) run(ctx context.Context) (runErr error) {
 		ReviewRounds:        o.reviewRounds,
 		NodeConsoleLogs:     nodeConsoleLogs,
 		NodeConsoleLogURLs:  nodeConsoleLogURLs,
+		// Checkpoint the latest good analysis to disk after each phase so an
+		// interrupted or context-exhausted run still leaves usable output.
+		OnProgress: func(u agent.ProgressUpdate) {
+			logger.Info("Checkpointing analysis output.", "phase", u.Phase)
+			writeOutputs(u.HydratedChain, u.Markdown)
+		},
 	})
 	if err != nil {
 		return err
 	}
 	hydratedChain := result.HydratedChain
 
-	// Write output.
+	// Write the final output (identical to the last checkpoint).
 	logger.Info("Writing analysis output.")
-	if err := os.MkdirAll(o.outputDir, 0o755); err != nil {
-		return fmt.Errorf("failed to create output directory: %w", err)
+	// Prefer the model-authored title in intent mode; in test mode keep the
+	// test name as the heading so output stays backwards compatible even if the
+	// model emits a title opportunistically.
+	renderTitle := manifest.TestName
+	if hydratedChain.Intent != "" && hydratedChain.Title != "" {
+		renderTitle = hydratedChain.Title
 	}
-
-	analysisJSON, err := json.MarshalIndent(hydratedChain, "", "  ")
-	if err != nil {
-		return fmt.Errorf("failed to marshal analysis: %w", err)
-	}
-	if err := os.WriteFile(filepath.Join(o.outputDir, "analysis.json"), analysisJSON, 0o644); err != nil {
-		return fmt.Errorf("failed to write analysis.json: %w", err)
-	}
-
-	rendered := agent.RenderMarkdown(hydratedChain, manifest.TestName)
-	if err := os.WriteFile(filepath.Join(o.outputDir, "analysis.md"), []byte(rendered), 0o644); err != nil {
-		return fmt.Errorf("failed to write analysis.md: %w", err)
-	}
+	writeOutputs(hydratedChain, agent.RenderMarkdown(hydratedChain, renderTitle))
 
 	return nil
 }

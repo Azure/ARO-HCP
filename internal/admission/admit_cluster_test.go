@@ -1341,7 +1341,9 @@ func TestAdmitCluster_PlatformResourceIDs(t *testing.T) {
 // associated HostedCluster's observed status.version.desired.channels, which the
 // backend mirrors onto ServiceProviderCluster.Status.DesiredVersionChannels. The
 // requested version's major.minor is derived from its ID, so patch, nightly and
-// pre-release IDs all resolve to their release-line channel.
+// pre-release IDs all resolve to their release-line channel. The check is skipped
+// entirely for the "nightly" and "candidate" channel groups, which we trust to
+// self-serve without waiting for the target channel to be mirrored.
 func TestAdmitClusterVersionID(t *testing.T) {
 	t.Parallel()
 
@@ -1407,23 +1409,46 @@ func TestAdmitClusterVersionID(t *testing.T) {
 			},
 		},
 		{
-			// Nightly pre-release: "5.0.0-0.nightly-..." must resolve to "5.0".
-			name:         "nightly version resolves to major.minor channel and passes",
+			// Nightly-build pre-release string ("5.0.0-0.nightly-...") must resolve to the "5.0"
+			// release line. Uses the "fast" channel group so the availability check actually runs
+			// (nightly/candidate short-circuit it).
+			name:         "nightly-build version string resolves to major.minor channel and passes",
 			op:           operation.Operation{Type: operation.Update},
-			oldVersion:   &coreapi.VersionProfile{ID: "4.19", ChannelGroup: "candidate"},
-			newVersion:   &coreapi.VersionProfile{ID: "5.0.0-0.nightly-2026-08-05-123456", ChannelGroup: "candidate"},
-			spc:          spcWithChannels("candidate-5.0"),
+			oldVersion:   &coreapi.VersionProfile{ID: "4.19", ChannelGroup: "fast"},
+			newVersion:   &coreapi.VersionProfile{ID: "5.0.0-0.nightly-2026-08-05-123456", ChannelGroup: "fast"},
+			spc:          spcWithChannels("fast-5.0"),
 			expectErrors: []utils.ExpectedError{},
 		},
 		{
-			name:       "nightly version with no matching major.minor channel is rejected",
+			// Same setup on "fast", but the target channel is absent: the availability check runs
+			// and rejects it (unlike nightly/candidate, which short-circuit — see below).
+			name:       "nightly-build version string with no matching channel is rejected on fast",
 			op:         operation.Operation{Type: operation.Update},
-			oldVersion: &coreapi.VersionProfile{ID: "4.19", ChannelGroup: "candidate"},
-			newVersion: &coreapi.VersionProfile{ID: "5.0.0-0.nightly-2026-08-05-123456", ChannelGroup: "candidate"},
-			spc:        spcWithChannels("candidate-4.19"),
+			oldVersion: &coreapi.VersionProfile{ID: "4.19", ChannelGroup: "fast"},
+			newVersion: &coreapi.VersionProfile{ID: "5.0.0-0.nightly-2026-08-05-123456", ChannelGroup: "fast"},
+			spc:        spcWithChannels("fast-4.19"),
 			expectErrors: []utils.ExpectedError{
-				{FieldPath: "properties.version.id", Message: `no upgrade path to update channel "candidate-5.0"`},
+				{FieldPath: "properties.version.id", Message: `no upgrade path to update channel "fast-5.0"`},
 			},
+		},
+		{
+			// candidate short-circuits the availability check: we trust candidate users, so a
+			// missing target channel is NOT rejected (contrast the "fast" case above).
+			name:         "candidate channel group skips the availability check",
+			op:           operation.Operation{Type: operation.Update},
+			oldVersion:   &coreapi.VersionProfile{ID: "4.19", ChannelGroup: "candidate"},
+			newVersion:   &coreapi.VersionProfile{ID: "5.0.0-0.nightly-2026-08-05-123456", ChannelGroup: "candidate"},
+			spc:          spcWithChannels("candidate-4.19"), // candidate-5.0 absent, but not enforced
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			// nightly likewise short-circuits the availability check.
+			name:         "nightly channel group skips the availability check",
+			op:           operation.Operation{Type: operation.Update},
+			oldVersion:   &coreapi.VersionProfile{ID: "4.19", ChannelGroup: "nightly"},
+			newVersion:   &coreapi.VersionProfile{ID: "4.20", ChannelGroup: "nightly"},
+			spc:          spcWithChannels("nightly-4.19"), // nightly-4.20 absent, but not enforced
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			// Pre-release: "4.21.0-rc.1" must resolve to "4.21".

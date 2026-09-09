@@ -202,7 +202,7 @@ resource arohcpAccessClusterSaturationAlerts 'Microsoft.AlertsManagement/prometh
           summary: '{{ $labels.cluster }}: Credential controller workqueue {{ $labels.name }} depth is high'
           title: '{{ $labels.cluster }}: Credential controller workqueue {{ $labels.name }} depth is high'
         }
-        expression: 'max by (name, cluster) (max without (prometheus_replica) (workqueue_depth{name=~".*(RequestCredential|RevokeCredentials).*",namespace="aro-hcp"})) > 10'
+        expression: 'max by (name, cluster, region) (max without (prometheus_replica) (workqueue_depth{name=~".*(RequestCredential|RevokeCredentials).*",namespace="aro-hcp"})) > 10'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
@@ -230,7 +230,7 @@ resource arohcpAccessClusterSaturationAlerts 'Microsoft.AlertsManagement/prometh
           summary: '{{ $labels.cluster }}: Credential controller workqueue {{ $labels.name }} retry hot loop'
           title: '{{ $labels.cluster }}: Credential controller workqueue {{ $labels.name }} retry hot loop'
         }
-        expression: '(sum by (name, cluster) (max without (prometheus_replica) (rate(workqueue_retries_total{name=~".*(RequestCredential|RevokeCredentials).*",namespace="aro-hcp"}[10m]))) / sum by (name, cluster) (max without (prometheus_replica) (rate(workqueue_adds_total{name=~".*(RequestCredential|RevokeCredentials).*",namespace="aro-hcp"}[10m])))) > 0.5 and sum by (name, cluster) (max without (prometheus_replica) (rate(workqueue_adds_total{name=~".*(RequestCredential|RevokeCredentials).*",namespace="aro-hcp"}[10m]))) > 0.008'
+        expression: '(sum by (name, cluster, region) (max without (prometheus_replica) (rate(workqueue_retries_total{name=~".*(RequestCredential|RevokeCredentials).*",namespace="aro-hcp"}[10m]))) / sum by (name, cluster, region) (max without (prometheus_replica) (rate(workqueue_adds_total{name=~".*(RequestCredential|RevokeCredentials).*",namespace="aro-hcp"}[10m])))) > 0.5 and sum by (name, cluster, region) (max without (prometheus_replica) (rate(workqueue_adds_total{name=~".*(RequestCredential|RevokeCredentials).*",namespace="aro-hcp"}[10m]))) > 0.008'
         for: 'PT10M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
@@ -646,7 +646,7 @@ resource arohcpNodepoolSaturationAlerts 'Microsoft.AlertsManagement/prometheusRu
           summary: '{{ $labels.cluster }}: Node Pool controller workqueue {{ $labels.name }} depth is high'
           title: '{{ $labels.cluster }}: Node Pool controller workqueue {{ $labels.name }} depth is high'
         }
-        expression: 'max by (name, cluster) (max without (prometheus_replica) (workqueue_depth{name=~".*NodePool.*",namespace="aro-hcp"})) > 10'
+        expression: 'max by (name, cluster, region) (max without (prometheus_replica) (workqueue_depth{name=~".*NodePool.*",namespace="aro-hcp"})) > 10'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }

@@ -38,6 +38,10 @@ type clusterClusterServiceCreateSyncer struct {
 	clusterLister         corelisters.ClusterLister
 	subscriptionLister    corelisters.SubscriptionLister
 	clustersServiceClient ocm.ClusterServiceClientSpec
+	// denyAssignmentsEnabled mirrors whether the ClusterDenyAssignment controller runs (i.e. a real
+	// FPA is available). When false, cluster creation must not wait for deny assignments to be
+	// created, because nothing creates them.
+	denyAssignmentsEnabled bool
 }
 
 var _ controllerutils.ClusterSyncer = (*clusterClusterServiceCreateSyncer)(nil)
@@ -46,14 +50,16 @@ func NewClusterClusterServiceCreateController(
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	clustersServiceClient ocm.ClusterServiceClientSpec,
 	backendInformers coreinformers.BackendInformers,
+	denyAssignmentsEnabled bool,
 ) controllerutils.Controller {
 	_, clusterLister := backendInformers.Clusters()
 	_, subscriptionLister := backendInformers.Subscriptions()
 	syncer := &clusterClusterServiceCreateSyncer{
-		resourcesDBClient:     resourcesDBClient,
-		clusterLister:         clusterLister,
-		subscriptionLister:    subscriptionLister,
-		clustersServiceClient: clustersServiceClient,
+		resourcesDBClient:      resourcesDBClient,
+		clusterLister:          clusterLister,
+		subscriptionLister:     subscriptionLister,
+		clustersServiceClient:  clustersServiceClient,
+		denyAssignmentsEnabled: denyAssignmentsEnabled,
 	}
 
 	return controllerutils.NewClusterWatchingController(

@@ -17,6 +17,7 @@ package runner
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -132,6 +133,25 @@ func TestEngineRun(t *testing.T) {
 				}
 				if !strings.Contains(err.Error(), "failed deleting") {
 					t.Fatalf("expected delete failure error, got %v", err)
+				}
+			},
+		},
+		{
+			name: "target retained after revalidation is not retried or deleted",
+			step: &fakeStep{
+				name:          "retain-step",
+				targets:       []Target{{ID: "x", Name: "res-x", Type: "example/type"}},
+				deleteErrByID: map[string]error{"x": fmt.Errorf("%w: principal restored", ErrTargetRetained)},
+				retryLimit:    3,
+			},
+			parallelism: 1,
+			assertions: func(t *testing.T, err error, step *fakeStep, _ bool) {
+				t.Helper()
+				if err != nil {
+					t.Fatalf("expected no error, got %v", err)
+				}
+				if step.deleteCalls != 1 {
+					t.Fatalf("expected one revalidation call without retries, got %d", step.deleteCalls)
 				}
 			},
 		},

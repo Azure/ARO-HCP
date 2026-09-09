@@ -116,6 +116,69 @@ func TestNeedsUpdate_ResourceID(t *testing.T) {
 	}
 }
 
+func TestResourceIDsEqual(t *testing.T) {
+	const (
+		// idOpenShift uses the provider-namespace casing our internal (coreapi)
+		// types produce.
+		idOpenShift = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/c"
+		// idOpenshift is the same ARM ID as Azure returns it, differing only by
+		// provider-namespace casing ("Openshift" vs "OpenShift").
+		idOpenshift = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/c"
+		// idDifferentName is a genuinely different resource (different name).
+		idDifferentName = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/d"
+	)
+
+	tests := []struct {
+		name string
+		a    *azcorearm.ResourceID
+		b    *azcorearm.ResourceID
+		want bool
+	}{
+		{
+			name: "identical IDs are equal",
+			a:    mustParseRID(t, idOpenShift),
+			b:    mustParseRID(t, idOpenShift),
+			want: true,
+		},
+		{
+			name: "IDs differing only by provider-namespace casing are equal",
+			a:    mustParseRID(t, idOpenShift),
+			b:    mustParseRID(t, idOpenshift),
+			want: true,
+		},
+		{
+			name: "genuinely different resource names are not equal",
+			a:    mustParseRID(t, idOpenShift),
+			b:    mustParseRID(t, idDifferentName),
+			want: false,
+		},
+		{
+			name: "both nil are equal",
+			a:    nil,
+			b:    nil,
+			want: true,
+		},
+		{
+			name: "non-nil vs nil are not equal",
+			a:    mustParseRID(t, idOpenShift),
+			b:    nil,
+			want: false,
+		},
+		{
+			name: "nil vs non-nil are not equal",
+			a:    nil,
+			b:    mustParseRID(t, idOpenShift),
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, ResourceIDsEqual(tt.a, tt.b))
+		})
+	}
+}
+
 func TestNeedsUpdate_InternalID(t *testing.T) {
 	idA, err := metadataapi.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/abc")
 	require.NoError(t, err)

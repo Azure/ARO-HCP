@@ -1,0 +1,119 @@
+rule_files:
+- UserJourneyEtcdLatencyMonitor-prometheusRule.yaml
+evaluation_interval: 1m
+tests:
+# Test 1: Fast burn read alert fires when P99 > 500ms in both 1h and 5m windows
+# Bucket distribution: 80% at le=0.1, 90% at le=0.5, 100% at le=1.0
+# This places P99 between 0.5 and 1.0 (~0.95), clearly above the 500ms threshold
+- interval: 1m
+  name: "Test 1: Fast burn read alert fires on high latency"
+  input_series:
+  - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", grpc_method="Range", namespace="ocm-test-01", cluster="mgmt-1", le="0.1"}'
+    values: "0+80x70"
+  - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", grpc_method="Range", namespace="ocm-test-01", cluster="mgmt-1", le="0.5"}'
+    values: "0+90x70"
+  - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", grpc_method="Range", namespace="ocm-test-01", cluster="mgmt-1", le="1.0"}'
+    values: "0+100x70"
+  - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", grpc_method="Range", namespace="ocm-test-01", cluster="mgmt-1", le="+Inf"}'
+    values: "0+100x70"
+  alert_rule_test:
+  - eval_time: 65m
+    alertname: userJourneyEtcdReadLatencyP991h5m
+    exp_alerts:
+    - exp_labels:
+        severity: "3"
+        slo: etcd-grpc-read-latency
+        long_window: 1h
+        short_window: 5m
+        component: etcd
+        namespace: ocm-test-01
+        cluster: mgmt-1
+      exp_annotations:
+        summary: "[userJourneyEtcdReadLatencyP99] mgmt-1 / ocm-test-01 P99 > 500ms (1h/5m)"
+        description: |
+          etcd gRPC Range (read) P99 latency has exceeded 500ms in both the 1h and 5m windows.
+          Management Cluster: mgmt-1
+          Namespace: ocm-test-01
+        runbook_url: "https://aka.ms/arohcp-runbook-etcd"
+        correlationId: "userJourneyEtcdReadLatencyP99/mgmt-1/ocm-test-01"
+# Test 2: No alert when P99 < 500ms (healthy latency)
+# All requests complete well below 500ms
+- interval: 1m
+  name: "Test 2: No alerts when latency is healthy"
+  input_series:
+  - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", grpc_method="Range", namespace="ocm-test-02", cluster="mgmt-2", le="0.005"}'
+    values: "0+90x70"
+  - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", grpc_method="Range", namespace="ocm-test-02", cluster="mgmt-2", le="0.01"}'
+    values: "0+95x70"
+  - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", grpc_method="Range", namespace="ocm-test-02", cluster="mgmt-2", le="0.5"}'
+    values: "0+100x70"
+  - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", grpc_method="Range", namespace="ocm-test-02", cluster="mgmt-2", le="+Inf"}'
+    values: "0+100x70"
+  alert_rule_test:
+  - eval_time: 65m
+    alertname: userJourneyEtcdReadLatencyP991h5m
+    exp_alerts: []
+  - eval_time: 65m
+    alertname: userJourneyEtcdReadLatencyP996h30m
+    exp_alerts: []
+# Test 3: Write alert fires independently from read
+- interval: 1m
+  name: "Test 3: Write alert fires on high Txn latency"
+  input_series:
+  - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", grpc_method="Txn", namespace="ocm-test-03", cluster="mgmt-3", le="0.1"}'
+    values: "0+80x70"
+  - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", grpc_method="Txn", namespace="ocm-test-03", cluster="mgmt-3", le="0.5"}'
+    values: "0+85x70"
+  - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", grpc_method="Txn", namespace="ocm-test-03", cluster="mgmt-3", le="1.0"}'
+    values: "0+100x70"
+  - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", grpc_method="Txn", namespace="ocm-test-03", cluster="mgmt-3", le="+Inf"}'
+    values: "0+100x70"
+  alert_rule_test:
+  - eval_time: 65m
+    alertname: userJourneyEtcdWriteLatencyP991h5m
+    exp_alerts:
+    - exp_labels:
+        severity: "3"
+        slo: etcd-grpc-write-latency
+        long_window: 1h
+        short_window: 5m
+        component: etcd
+        namespace: ocm-test-03
+        cluster: mgmt-3
+      exp_annotations:
+        summary: "[userJourneyEtcdWriteLatencyP99] mgmt-3 / ocm-test-03 P99 > 500ms (1h/5m)"
+        description: |
+          etcd gRPC Txn (write) P99 latency has exceeded 500ms in both the 1h and 5m windows.
+          Management Cluster: mgmt-3
+          Namespace: ocm-test-03
+        runbook_url: "https://aka.ms/arohcp-runbook-etcd"
+        correlationId: "userJourneyEtcdWriteLatencyP99/mgmt-3/ocm-test-03"
+# Test 4: Hot long window but healthy short window — alert must NOT fire
+# First 55 min: high latency (P99 > 500ms), then recovers
+- interval: 1m
+  name: "Test 4: Hot long window, healthy short window — no alert"
+  input_series:
+  - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", grpc_method="Range", namespace="ocm-test-04", cluster="mgmt-4", le="0.5"}'
+    values: "0+90x55 4950+100x15"
+  - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", grpc_method="Range", namespace="ocm-test-04", cluster="mgmt-4", le="1.0"}'
+    values: "0+100x70"
+  - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", grpc_method="Range", namespace="ocm-test-04", cluster="mgmt-4", le="+Inf"}'
+    values: "0+100x70"
+  alert_rule_test:
+  - eval_time: 68m
+    alertname: userJourneyEtcdReadLatencyP991h5m
+    exp_alerts: []
+# Test 5: Non-etcdserverpb.KV traffic excluded
+- interval: 1m
+  name: "Test 5: Non-KV gRPC service excluded"
+  input_series:
+  - series: 'grpc_server_handling_seconds_bucket{grpc_service="other.Service", grpc_method="Range", namespace="ocm-test-05", cluster="mgmt-5", le="0.5"}'
+    values: "0+90x70"
+  - series: 'grpc_server_handling_seconds_bucket{grpc_service="other.Service", grpc_method="Range", namespace="ocm-test-05", cluster="mgmt-5", le="1.0"}'
+    values: "0+100x70"
+  - series: 'grpc_server_handling_seconds_bucket{grpc_service="other.Service", grpc_method="Range", namespace="ocm-test-05", cluster="mgmt-5", le="+Inf"}'
+    values: "0+100x70"
+  alert_rule_test:
+  - eval_time: 65m
+    alertname: userJourneyEtcdReadLatencyP991h5m
+    exp_alerts: []

@@ -137,6 +137,26 @@ func TestDiscoverGVRs(t *testing.T) {
 	}
 }
 
+func TestWatchedBuiltinGVRs(t *testing.T) {
+	// These built-in (non-CRD) resources are not covered by watchedGroupSuffixes,
+	// so they must be listed explicitly in watchedBuiltinGVRs to be snapshotted.
+	required := []schema.GroupVersionResource{
+		{Group: "", Version: "v1", Resource: "namespaces"},
+		{Group: "", Version: "v1", Resource: "nodes"},
+		{Group: "apps", Version: "v1", Resource: "deployments"},
+		{Group: "apps", Version: "v1", Resource: "daemonsets"},
+		{Group: "apps", Version: "v1", Resource: "statefulsets"},
+		{Group: "apps", Version: "v1", Resource: "replicasets"},
+	}
+
+	have := sets.New[schema.GroupVersionResource](watchedBuiltinGVRs...)
+	for _, want := range required {
+		if !have.Has(want) {
+			t.Errorf("watchedBuiltinGVRs is missing %v", want)
+		}
+	}
+}
+
 // fakeDiscovery implements ServerResourceDiscoverer for testing.
 type fakeDiscovery struct {
 	resources []*metav1.APIResourceList

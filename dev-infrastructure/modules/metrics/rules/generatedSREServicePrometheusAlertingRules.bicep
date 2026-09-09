@@ -40,7 +40,7 @@ resource frontendLatency 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
           summary: 'Frontend latency is high: 99th percentile exceeds 1 second for {{ $labels.method }} {{ $labels.route }}'
           title: 'Frontend latency is high: 99th percentile exceeds 1 second for {{ $labels.method }} {{ $labels.route }}'
         }
-        expression: 'histogram_quantile(0.99, sum by (le, route, method) (rate(frontend_http_requests_duration_seconds_bucket{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[1h]))) > 1'
+        expression: 'histogram_quantile(0.99, sum by (le, route, method, region) (rate(frontend_http_requests_duration_seconds_bucket{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[1h]))) > 1'
         for: 'PT1M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
@@ -81,7 +81,7 @@ resource backendRetryhotloop 'Microsoft.AlertsManagement/prometheusRuleGroups@20
           summary: 'Backend controller workqueue {{ $labels.name }} retry hot loop'
           title: 'Backend controller workqueue {{ $labels.name }} retry hot loop'
         }
-        expression: '(sum by (name, cluster) (max without (prometheus_replica) (rate(workqueue_retries_total{name!~"clustervalidation.*|nodepoolvalidation.*",namespace="aro-hcp"}[10m]))) / sum by (name, cluster) (max without (prometheus_replica) (rate(workqueue_adds_total{name!~"clustervalidation.*|nodepoolvalidation.*",namespace="aro-hcp"}[10m])))) > 0.5'
+        expression: '(sum by (name, cluster, region) (max without (prometheus_replica) (rate(workqueue_retries_total{name!~"clustervalidation.*|nodepoolvalidation.*",namespace="aro-hcp"}[10m]))) / sum by (name, cluster, region) (max without (prometheus_replica) (rate(workqueue_adds_total{name!~"clustervalidation.*|nodepoolvalidation.*",namespace="aro-hcp"}[10m])))) > 0.5'
         for: 'PT10M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }

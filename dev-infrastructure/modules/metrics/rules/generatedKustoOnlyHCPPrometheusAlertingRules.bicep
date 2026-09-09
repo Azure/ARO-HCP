@@ -68,7 +68,7 @@ resource kubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
           summary: 'Pod {{ $labels.namespace }}/{{ $labels.pod }} has been in a non-ready state for more than 5 minutes.'
           title: 'Pod {{ $labels.namespace }}/{{ $labels.pod }} has been in a non-ready state for more than 5 minutes.'
         }
-        expression: 'sum by (namespace, pod, cluster) (max by (namespace, pod, cluster) (kube_pod_status_phase{job="kube-state-metrics",namespace!~"klusterlet-.*",phase=~"Pending|Unknown|Failed",prometheus="prometheus/prometheus"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster) (1, max by (namespace, pod, owner_kind, cluster) (kube_pod_owner{owner_kind!="Job",prometheus="prometheus/prometheus"}))) > 0'
+        expression: 'sum by (namespace, pod, cluster, region) (max by (namespace, pod, cluster, region) (kube_pod_status_phase{job="kube-state-metrics",namespace!~"klusterlet-.*",phase=~"Pending|Unknown|Failed",prometheus="prometheus/prometheus"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster, region) (1, max by (namespace, pod, owner_kind, cluster, region) (kube_pod_owner{owner_kind!="Job",prometheus="prometheus/prometheus"}))) > 0'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -236,7 +236,7 @@ resource kubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
           summary: 'StatefulSet {{ $labels.namespace }}/{{ $labels.statefulset }} update has not been rolled out.'
           title: 'StatefulSet {{ $labels.namespace }}/{{ $labels.statefulset }} update has not been rolled out.'
         }
-        expression: '(max by (namespace, statefulset, job, cluster) (kube_statefulset_status_current_revision{job="kube-state-metrics"} unless kube_statefulset_status_update_revision{job="kube-state-metrics"}) * (kube_statefulset_replicas{job="kube-state-metrics"} != kube_statefulset_status_replicas_updated{job="kube-state-metrics"})) and (changes(kube_statefulset_status_replicas_updated{job="kube-state-metrics"}[5m]) == 0)'
+        expression: '(max by (namespace, statefulset, job, cluster, region) (kube_statefulset_status_current_revision{job="kube-state-metrics"} unless kube_statefulset_status_update_revision{job="kube-state-metrics"}) * (kube_statefulset_replicas{job="kube-state-metrics"} != kube_statefulset_status_replicas_updated{job="kube-state-metrics"})) and (changes(kube_statefulset_status_replicas_updated{job="kube-state-metrics"}[5m]) == 0)'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -292,7 +292,7 @@ resource kubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
           summary: 'Pod {{ $labels.namespace }}/{{ $labels.pod }} container {{ $labels.container }} waiting longer than 1 hour'
           title: 'Pod {{ $labels.namespace }}/{{ $labels.pod }} container {{ $labels.container }} waiting longer than 1 hour'
         }
-        expression: 'sum by (namespace, pod, container, cluster) (kube_pod_container_status_waiting_reason{job="kube-state-metrics"}) > 0'
+        expression: 'sum by (namespace, pod, container, cluster, region) (kube_pod_container_status_waiting_reason{job="kube-state-metrics"}) > 0'
         for: 'PT1H'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -376,7 +376,7 @@ resource kubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
           summary: 'Job {{ $labels.namespace }}/{{ $labels.job_name }} did not complete in time'
           title: 'Job {{ $labels.namespace }}/{{ $labels.job_name }} did not complete in time'
         }
-        expression: 'time() - max by (namespace, job_name, cluster) (kube_job_status_start_time{job="kube-state-metrics"} and kube_job_status_active{job="kube-state-metrics"} > 0) > 43200'
+        expression: 'time() - max by (namespace, job_name, cluster, region) (kube_job_status_start_time{job="kube-state-metrics"} and kube_job_status_active{job="kube-state-metrics"} > 0) > 43200'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
@@ -500,7 +500,7 @@ resource kubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroups@20
           summary: 'Cluster {{ $labels.cluster }} has overcommitted CPU resource requests.'
           title: 'Cluster {{ $labels.cluster }} has overcommitted CPU resource requests.'
         }
-        expression: 'sum by (cluster) (namespace_cpu:kube_pod_container_resource_requests:sum) - (sum by (cluster) (kube_node_status_allocatable{job="kube-state-metrics",resource="cpu"}) - max by (cluster) (kube_node_status_allocatable{job="kube-state-metrics",resource="cpu"})) > 0 and (sum by (cluster) (kube_node_status_allocatable{job="kube-state-metrics",resource="cpu"}) - max by (cluster) (kube_node_status_allocatable{job="kube-state-metrics",resource="cpu"})) > 0'
+        expression: 'sum by (cluster, region) (namespace_cpu:kube_pod_container_resource_requests:sum) - (sum by (cluster, region) (kube_node_status_allocatable{job="kube-state-metrics",resource="cpu"}) - max by (cluster, region) (kube_node_status_allocatable{job="kube-state-metrics",resource="cpu"})) > 0 and (sum by (cluster, region) (kube_node_status_allocatable{job="kube-state-metrics",resource="cpu"}) - max by (cluster, region) (kube_node_status_allocatable{job="kube-state-metrics",resource="cpu"})) > 0'
         for: 'PT10M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -528,7 +528,7 @@ resource kubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroups@20
           summary: 'Cluster {{ $labels.cluster }} has overcommitted memory resource requests.'
           title: 'Cluster {{ $labels.cluster }} has overcommitted memory resource requests.'
         }
-        expression: 'sum by (cluster) (namespace_memory:kube_pod_container_resource_requests:sum) - (sum by (cluster) (kube_node_status_allocatable{job="kube-state-metrics",resource="memory"}) - max by (cluster) (kube_node_status_allocatable{job="kube-state-metrics",resource="memory"})) > 0 and (sum by (cluster) (kube_node_status_allocatable{job="kube-state-metrics",resource="memory"}) - max by (cluster) (kube_node_status_allocatable{job="kube-state-metrics",resource="memory"})) > 0'
+        expression: 'sum by (cluster, region) (namespace_memory:kube_pod_container_resource_requests:sum) - (sum by (cluster, region) (kube_node_status_allocatable{job="kube-state-metrics",resource="memory"}) - max by (cluster, region) (kube_node_status_allocatable{job="kube-state-metrics",resource="memory"})) > 0 and (sum by (cluster, region) (kube_node_status_allocatable{job="kube-state-metrics",resource="memory"}) - max by (cluster, region) (kube_node_status_allocatable{job="kube-state-metrics",resource="memory"})) > 0'
         for: 'PT10M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -556,7 +556,7 @@ resource kubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroups@20
           summary: 'Cluster {{ $labels.cluster }} has overcommitted CPU resource quota requests.'
           title: 'Cluster {{ $labels.cluster }} has overcommitted CPU resource quota requests.'
         }
-        expression: 'sum by (cluster) (min without (resource) (kube_resourcequota{job="kube-state-metrics",resource=~"(cpu|requests.cpu)",type="hard"})) / sum by (cluster) (kube_node_status_allocatable{job="kube-state-metrics",resource="cpu"}) > 1.5'
+        expression: 'sum by (cluster, region) (min without (resource) (kube_resourcequota{job="kube-state-metrics",resource=~"(cpu|requests.cpu)",type="hard"})) / sum by (cluster, region) (kube_node_status_allocatable{job="kube-state-metrics",resource="cpu"}) > 1.5'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -584,7 +584,7 @@ resource kubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroups@20
           summary: 'Cluster {{ $labels.cluster }} has overcommitted memory resource quota requests.'
           title: 'Cluster {{ $labels.cluster }} has overcommitted memory resource quota requests.'
         }
-        expression: 'sum by (cluster) (min without (resource) (kube_resourcequota{job="kube-state-metrics",resource=~"(memory|requests.memory)",type="hard"})) / sum by (cluster) (kube_node_status_allocatable{job="kube-state-metrics",resource="memory"}) > 1.5'
+        expression: 'sum by (cluster, region) (min without (resource) (kube_resourcequota{job="kube-state-metrics",resource=~"(memory|requests.memory)",type="hard"})) / sum by (cluster, region) (kube_node_status_allocatable{job="kube-state-metrics",resource="memory"}) > 1.5'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -696,7 +696,7 @@ resource kubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroups@20
           summary: 'Processes in {{ $labels.namespace }}/{{ $labels.pod }}/{{ $labels.container }} experience elevated CPU throttling.'
           title: 'Processes in {{ $labels.namespace }}/{{ $labels.pod }}/{{ $labels.container }} experience elevated CPU throttling.'
         }
-        expression: 'sum by (cluster, container, pod, namespace) (increase(container_cpu_cfs_throttled_periods_total{container!=""}[5m])) / sum by (cluster, container, pod, namespace) (increase(container_cpu_cfs_periods_total[5m])) > (25 / 100)'
+        expression: 'sum by (cluster, container, pod, namespace, region) (increase(container_cpu_cfs_throttled_periods_total{container!=""}[5m])) / sum by (cluster, container, pod, namespace, region) (increase(container_cpu_cfs_periods_total[5m])) > (25 / 100)'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
@@ -890,7 +890,7 @@ resource kubernetesSystem 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-
           summary: 'Different semantic versions of Kubernetes components running.'
           title: 'Different semantic versions of Kubernetes components running.'
         }
-        expression: 'count by (cluster) (count by (git_version, cluster) (label_replace(kubernetes_build_info{job!~"kube-dns|coredns"}, "git_version", "$1", "git_version", "(v[0-9]*.[0-9]*).*"))) > 1'
+        expression: 'count by (cluster, region) (count by (git_version, cluster, region) (label_replace(kubernetes_build_info{job!~"kube-dns|coredns"}, "git_version", "$1", "git_version", "(v[0-9]*.[0-9]*).*"))) > 1'
         for: 'PT1H30M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -918,7 +918,7 @@ resource kubernetesSystem 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-
           summary: 'Kubernetes API server client {{ $labels.job }}/{{ $labels.instance }} is experiencing errors.'
           title: 'Kubernetes API server client {{ $labels.job }}/{{ $labels.instance }} is experiencing errors.'
         }
-        expression: '(sum by (cluster, instance, job, namespace) (rate(rest_client_requests_total{code=~"5..",job="controlplane-apiserver"}[5m])) / sum by (cluster, instance, job, namespace) (rate(rest_client_requests_total{job="controlplane-apiserver"}[5m]))) > 0.01'
+        expression: '(sum by (cluster, instance, job, namespace, region) (rate(rest_client_requests_total{code=~"5..",job="controlplane-apiserver"}[5m])) / sum by (cluster, instance, job, namespace, region) (rate(rest_client_requests_total{job="controlplane-apiserver"}[5m]))) > 0.01'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -961,7 +961,7 @@ resource kubeApiserverSlos 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
           summary: 'The API server is burning too much error budget.'
           title: 'The API server is burning too much error budget.'
         }
-        expression: 'sum(apiserver_request:burnrate1h) > (14.4 * 0.01) and sum(apiserver_request:burnrate5m) > (14.4 * 0.01)'
+        expression: 'sum by (region) (apiserver_request:burnrate1h) > (14.4 * 0.01) and sum by (region) (apiserver_request:burnrate5m) > (14.4 * 0.01)'
         for: 'PT2M'
         severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }
@@ -991,7 +991,7 @@ resource kubeApiserverSlos 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
           summary: 'The API server is burning too much error budget.'
           title: 'The API server is burning too much error budget.'
         }
-        expression: 'sum(apiserver_request:burnrate6h) > (6 * 0.01) and sum(apiserver_request:burnrate30m) > (6 * 0.01)'
+        expression: 'sum by (region) (apiserver_request:burnrate6h) > (6 * 0.01) and sum by (region) (apiserver_request:burnrate30m) > (6 * 0.01)'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }
@@ -1021,7 +1021,7 @@ resource kubeApiserverSlos 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
           summary: 'The API server is burning too much error budget.'
           title: 'The API server is burning too much error budget.'
         }
-        expression: 'sum(apiserver_request:burnrate1d) > (3 * 0.01) and sum(apiserver_request:burnrate2h) > (3 * 0.01)'
+        expression: 'sum by (region) (apiserver_request:burnrate1d) > (3 * 0.01) and sum by (region) (apiserver_request:burnrate2h) > (3 * 0.01)'
         for: 'PT1H'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -1051,7 +1051,7 @@ resource kubeApiserverSlos 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
           summary: 'The API server is burning too much error budget.'
           title: 'The API server is burning too much error budget.'
         }
-        expression: 'sum(apiserver_request:burnrate3d) > (1 * 0.01) and sum(apiserver_request:burnrate6h) > (1 * 0.01)'
+        expression: 'sum by (region) (apiserver_request:burnrate3d) > (1 * 0.01) and sum by (region) (apiserver_request:burnrate6h) > (1 * 0.01)'
         for: 'PT3H'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -1092,7 +1092,7 @@ resource kubernetesSystemApiserver 'Microsoft.AlertsManagement/prometheusRuleGro
           summary: 'Client certificate is about to expire.'
           title: 'Client certificate is about to expire.'
         }
-        expression: 'apiserver_client_certificate_expiration_seconds_count{job="controlplane-apiserver"} > 0 and on (job) histogram_quantile(0.01, sum by (job, le) (rate(apiserver_client_certificate_expiration_seconds_bucket{job="controlplane-apiserver"}[5m]))) < 604800'
+        expression: 'apiserver_client_certificate_expiration_seconds_count{job="controlplane-apiserver"} > 0 and on (job) histogram_quantile(0.01, sum by (job, le, region) (rate(apiserver_client_certificate_expiration_seconds_bucket{job="controlplane-apiserver"}[5m]))) < 604800'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -1120,7 +1120,7 @@ resource kubernetesSystemApiserver 'Microsoft.AlertsManagement/prometheusRuleGro
           summary: 'Client certificate is about to expire.'
           title: 'Client certificate is about to expire.'
         }
-        expression: 'apiserver_client_certificate_expiration_seconds_count{job="controlplane-apiserver"} > 0 and on (job) histogram_quantile(0.01, sum by (job, le) (rate(apiserver_client_certificate_expiration_seconds_bucket{job="controlplane-apiserver"}[5m]))) < 86400'
+        expression: 'apiserver_client_certificate_expiration_seconds_count{job="controlplane-apiserver"} > 0 and on (job) histogram_quantile(0.01, sum by (job, le, region) (rate(apiserver_client_certificate_expiration_seconds_bucket{job="controlplane-apiserver"}[5m]))) < 86400'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }
@@ -1148,7 +1148,7 @@ resource kubernetesSystemApiserver 'Microsoft.AlertsManagement/prometheusRuleGro
           summary: 'Kubernetes aggregated API {{ $labels.namespace }}/{{ $labels.name }} has reported errors.'
           title: 'Kubernetes aggregated API {{ $labels.namespace }}/{{ $labels.name }} has reported errors.'
         }
-        expression: 'sum by (name, namespace, cluster) (increase(aggregator_unavailable_apiservice_total{job="controlplane-apiserver"}[10m])) > 4'
+        expression: 'sum by (name, namespace, cluster, region) (increase(aggregator_unavailable_apiservice_total{job="controlplane-apiserver"}[10m])) > 4'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
@@ -1175,7 +1175,7 @@ resource kubernetesSystemApiserver 'Microsoft.AlertsManagement/prometheusRuleGro
           summary: 'Kubernetes aggregated API {{ $labels.namespace }}/{{ $labels.name }} is down.'
           title: 'Kubernetes aggregated API {{ $labels.namespace }}/{{ $labels.name }} is down.'
         }
-        expression: '(1 - max by (name, namespace, cluster) (avg_over_time(aggregator_unavailable_apiservice{job="controlplane-apiserver"}[10m]))) * 100 < 85'
+        expression: '(1 - max by (name, namespace, cluster, region) (avg_over_time(aggregator_unavailable_apiservice{job="controlplane-apiserver"}[10m]))) * 100 < 85'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -1203,7 +1203,7 @@ resource kubernetesSystemApiserver 'Microsoft.AlertsManagement/prometheusRuleGro
           summary: 'Target disappeared from Prometheus target discovery.'
           title: 'Target disappeared from Prometheus target discovery.'
         }
-        expression: 'count by (cluster) (up{job="controlplane-apiserver"} == 1) == 0'
+        expression: 'count by (cluster, region) (up{job="controlplane-apiserver"} == 1) == 0'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }
@@ -1231,7 +1231,7 @@ resource kubernetesSystemApiserver 'Microsoft.AlertsManagement/prometheusRuleGro
           summary: 'The kubernetes apiserver has terminated {{ $value | humanizePercentage }} of its incoming requests.'
           title: 'The kubernetes apiserver has terminated {{ $value | humanizePercentage }} of its incoming requests.'
         }
-        expression: 'sum(rate(apiserver_request_terminations_total{job="controlplane-apiserver"}[10m])) / (sum(rate(apiserver_request_total{job="controlplane-apiserver"}[10m])) + sum(rate(apiserver_request_terminations_total{job="controlplane-apiserver"}[10m]))) > 0.2'
+        expression: 'sum by (region) (rate(apiserver_request_terminations_total{job="controlplane-apiserver"}[10m])) / (sum by (region) (rate(apiserver_request_total{job="controlplane-apiserver"}[10m])) + sum by (region) (rate(apiserver_request_terminations_total{job="controlplane-apiserver"}[10m]))) > 0.2'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -1328,7 +1328,7 @@ resource kubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGroup
           summary: 'Kubelet on node {{ $labels.node }} is running at capacity.'
           title: 'Kubelet on node {{ $labels.node }} is running at capacity.'
         }
-        expression: 'count by (cluster, node) ((kube_pod_status_phase{job="kube-state-metrics",phase="Running"} == 1) * on (instance, pod, namespace, cluster) group_left (node) topk by (instance, pod, namespace, cluster) (1, kube_pod_info{job="kube-state-metrics"})) / max by (cluster, node) (kube_node_status_capacity{job="kube-state-metrics",resource="pods"} != 1) > 0.95'
+        expression: 'count by (cluster, node, region) ((kube_pod_status_phase{job="kube-state-metrics",phase="Running"} == 1) * on (instance, pod, namespace, cluster) group_left (node) topk by (instance, pod, namespace, cluster, region) (1, kube_pod_info{job="kube-state-metrics"})) / max by (cluster, node, region) (kube_node_status_capacity{job="kube-state-metrics",resource="pods"} != 1) > 0.95'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
@@ -1356,7 +1356,7 @@ resource kubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGroup
           summary: 'Node {{ $labels.node }} readiness status is flapping.'
           title: 'Node {{ $labels.node }} readiness status is flapping.'
         }
-        expression: 'sum by (cluster, node) (changes(kube_node_status_condition{condition="Ready",job="kube-state-metrics",status="true"}[15m])) > 2'
+        expression: 'sum by (cluster, node, region) (changes(kube_node_status_condition{condition="Ready",job="kube-state-metrics",status="true"}[15m])) > 2'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -1412,7 +1412,7 @@ resource kubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGroup
           summary: 'Kubelet on node {{ $labels.node }} Pod startup latency is too high.'
           title: 'Kubelet on node {{ $labels.node }} Pod startup latency is too high.'
         }
-        expression: 'histogram_quantile(0.99, sum by (cluster, instance, le) (rate(kubelet_pod_worker_duration_seconds_bucket{job="kubelet",metrics_path="/metrics"}[5m]))) * on (cluster, instance) group_left (node) kubelet_node_name{job="kubelet",metrics_path="/metrics"} > 60'
+        expression: 'histogram_quantile(0.99, sum by (cluster, instance, le, region) (rate(kubelet_pod_worker_duration_seconds_bucket{job="kubelet",metrics_path="/metrics"}[5m]))) * on (cluster, instance) group_left (node) kubelet_node_name{job="kubelet",metrics_path="/metrics"} > 60'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -1604,7 +1604,7 @@ resource kubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGroup
           summary: 'Target disappeared from Prometheus target discovery.'
           title: 'Target disappeared from Prometheus target discovery.'
         }
-        expression: 'count by (cluster) (up{job="kubelet",metrics_path="/metrics"} == 1) == 0'
+        expression: 'count by (cluster, region) (up{job="kubelet",metrics_path="/metrics"} == 1) == 0'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }
@@ -1645,7 +1645,7 @@ resource kubernetesSystemScheduler 'Microsoft.AlertsManagement/prometheusRuleGro
           summary: 'Target disappeared from Prometheus target discovery.'
           title: 'Target disappeared from Prometheus target discovery.'
         }
-        expression: 'count by (cluster) (up{job="controlplane-kube-scheduler"} == 1) == 0'
+        expression: 'count by (cluster, region) (up{job="controlplane-kube-scheduler"} == 1) == 0'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }
@@ -1686,7 +1686,7 @@ resource kubernetesSystemControllerManager 'Microsoft.AlertsManagement/prometheu
           summary: 'Target disappeared from Prometheus target discovery.'
           title: 'Target disappeared from Prometheus target discovery.'
         }
-        expression: 'count by (cluster) (up{job="controlplane-kube-controller-manager"} == 1) == 0'
+        expression: 'count by (cluster, region) (up{job="controlplane-kube-controller-manager"} == 1) == 0'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }

@@ -19,6 +19,9 @@ param actionGroupRP string
 @description('Resource ID of the MSFT ICM action group (empty string if not managed)')
 param actionGroupMSFT string
 
+@description('Resource ID of the DEV ICM action group (empty string if not managed)')
+param actionGroupDEV string
+
 @description('Whether alerting is enabled for this region')
 param alertsEnabled bool
 
@@ -46,6 +49,9 @@ param icmEnabledRP bool = true
 @description('Whether the MSFT IcM action group is wired to MSFT alert rules. When false, MSFT rules still evaluate in Prometheus but do not deliver to IcM.')
 param icmEnabledMSFT bool = true
 
+@description('Whether the DEV IcM action group is wired to DEV alert rules. When false, DEV rules still evaluate in Prometheus but do not deliver to IcM.')
+param icmEnabledDEV bool = true
+
 @description('Resource ID of the RP Cosmos DB account')
 param rpCosmosDbAccountId string = ''
 
@@ -70,6 +76,7 @@ var sreActionGroups = actionGroupSRE != '' && icmEnabledSRE ? concat([actionGrou
 var msftActionGroups = actionGroupMSFT != '' && icmEnabledMSFT
   ? concat([actionGroupMSFT], ehActionGroups)
   : ehActionGroups
+var devActionGroups = actionGroupDEV != '' && icmEnabledDEV ? concat([actionGroupDEV], ehActionGroups) : ehActionGroups
 
 module serviceAlerts '../modules/metrics/service-rules.bicep' = {
   name: 'serviceAlerts'
@@ -148,6 +155,24 @@ module msftAlerts '../modules/metrics/msft-rules.bicep' = {
   params: {
     azureMonitoringWorkspaceId: azureMonitoringWorkspaceId
     actionGroups: msftActionGroups
+    severityCeiling: alertSeverityCeiling
+  }
+}
+
+module devServicesAlerts '../modules/metrics/dev-services-rules.bicep' = {
+  name: 'devServicesAlerts'
+  params: {
+    azureMonitoringWorkspaceId: azureMonitoringWorkspaceId
+    actionGroups: devActionGroups
+    severityCeiling: alertSeverityCeiling
+  }
+}
+
+module devHcpsAlerts '../modules/metrics/dev-hcps-rules.bicep' = {
+  name: 'devHcpsAlerts'
+  params: {
+    azureMonitoringWorkspaceId: hcpAzureMonitoringWorkspaceId
+    actionGroups: devActionGroups
     severityCeiling: alertSeverityCeiling
   }
 }

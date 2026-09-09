@@ -338,6 +338,7 @@ func TestValidateClusterCreate(t *testing.T) {
 			cluster: func() *coreapi.HCPOpenShiftCluster {
 				c := createValidCluster()
 				c.CustomerProperties.API.Visibility = metadataapi.VisibilityPrivate
+				c.CustomerProperties.Version.ID = "4.22" // private KAS requires >= 4.22
 				// VnetIntegrationSubnetID is already set by createValidCluster
 				return c
 			}(),
@@ -348,12 +349,66 @@ func TestValidateClusterCreate(t *testing.T) {
 			cluster: func() *coreapi.HCPOpenShiftCluster {
 				c := createValidCluster()
 				c.CustomerProperties.API.Visibility = metadataapi.VisibilityPrivate
+				c.CustomerProperties.Version.ID = "4.22" // private KAS requires >= 4.22
 				c.CustomerProperties.Platform.VnetIntegrationSubnetID = nil
 				return c
 			}(),
 			expectErrors: []utils.ExpectedError{
 				{Message: "required when customerProperties.api.visibility is Private", FieldPath: "customerProperties.platform.vnetIntegrationSubnetId"},
 			},
+		},
+		{
+			name: "private KAS at 4.22 is allowed - create",
+			cluster: func() *coreapi.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.API.Visibility = metadataapi.VisibilityPrivate
+				c.CustomerProperties.Version.ID = "4.22"
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name: "private KAS at 4.23 is allowed - create",
+			cluster: func() *coreapi.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.API.Visibility = metadataapi.VisibilityPrivate
+				c.CustomerProperties.Version.ID = "4.23"
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name: "private KAS at 5.0 is allowed - create",
+			cluster: func() *coreapi.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.API.Visibility = metadataapi.VisibilityPrivate
+				c.CustomerProperties.Version.ID = "5.0"
+				return c
+			}(),
+			opOptions:    testFeatureOptions(metadataapi.FeatureExperimentalReleaseFeatures),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name: "private KAS at 4.21 is rejected - create",
+			cluster: func() *coreapi.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.API.Visibility = metadataapi.VisibilityPrivate
+				c.CustomerProperties.Version.ID = "4.21"
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "customerProperties.api.visibility", Message: "not supported when customerProperties.version.id is below 4.22"},
+			},
+		},
+		{
+			name: "public KAS at 4.20 is allowed - create",
+			cluster: func() *coreapi.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.API.Visibility = metadataapi.VisibilityPublic
+				c.CustomerProperties.Version.ID = "4.20"
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "missing subnet ID - create",
@@ -1635,16 +1690,68 @@ func TestValidateClusterUpdate(t *testing.T) {
 			newCluster: func() *coreapi.HCPOpenShiftCluster {
 				c := createValidCluster()
 				c.CustomerProperties.API.Visibility = metadataapi.VisibilityPrivate
+				c.CustomerProperties.Version.ID = "4.22" // private KAS requires >= 4.22
 				return c
 			}(),
 			oldCluster: func() *coreapi.HCPOpenShiftCluster {
 				c := createValidCluster()
 				c.CustomerProperties.API.Visibility = metadataapi.VisibilityPublic
+				c.CustomerProperties.Version.ID = "4.22"
 				return c
 			}(),
 			expectErrors: []utils.ExpectedError{
 				{Message: "field is immutable", FieldPath: "customerProperties.api.visibility"},
 			},
+		},
+		{
+			name: "private KAS at 4.22 is allowed - update",
+			newCluster: func() *coreapi.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.API.Visibility = metadataapi.VisibilityPrivate
+				c.CustomerProperties.Version.ID = "4.22"
+				return c
+			}(),
+			oldCluster: func() *coreapi.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.API.Visibility = metadataapi.VisibilityPrivate
+				c.CustomerProperties.Version.ID = "4.22"
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name: "private KAS at 4.21 is rejected - update",
+			newCluster: func() *coreapi.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.API.Visibility = metadataapi.VisibilityPrivate
+				c.CustomerProperties.Version.ID = "4.21"
+				return c
+			}(),
+			oldCluster: func() *coreapi.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.API.Visibility = metadataapi.VisibilityPrivate
+				c.CustomerProperties.Version.ID = "4.21"
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "customerProperties.api.visibility", Message: "not supported when customerProperties.version.id is below 4.22"},
+			},
+		},
+		{
+			name: "public KAS at 4.20 unchanged is allowed - update",
+			newCluster: func() *coreapi.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.API.Visibility = metadataapi.VisibilityPublic
+				c.CustomerProperties.Version.ID = "4.20"
+				return c
+			}(),
+			oldCluster: func() *coreapi.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.API.Visibility = metadataapi.VisibilityPublic
+				c.CustomerProperties.Version.ID = "4.20"
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "immutable ingress type - update",
@@ -2247,7 +2354,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 			name: "multiple immutable field changes - update",
 			newCluster: func() *coreapi.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.CustomerProperties.Version.ID = "4.21"
+				c.CustomerProperties.Version.ID = "4.23"
 				c.CustomerProperties.Version.ChannelGroup = "fast"
 				c.CustomerProperties.DNS.BaseDomainPrefix = "newprefix"
 				c.CustomerProperties.API.Visibility = metadataapi.VisibilityPrivate
@@ -2256,7 +2363,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 			}(),
 			oldCluster: func() *coreapi.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.CustomerProperties.Version.ID = "4.20"
+				c.CustomerProperties.Version.ID = "4.22"
 				c.CustomerProperties.Version.ChannelGroup = "stable"
 				c.CustomerProperties.DNS.BaseDomainPrefix = "oldprefix"
 				c.CustomerProperties.API.Visibility = metadataapi.VisibilityPublic

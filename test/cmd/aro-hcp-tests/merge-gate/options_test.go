@@ -18,26 +18,43 @@ import "testing"
 
 const validSpec = `{"type":"presubmit","refs":{"org":"Azure","repo":"ARO-HCP"}}`
 
-func TestValidateTokenRequiresSecureURL(t *testing.T) {
+// validOpts returns a RawOptions with every required input populated.
+func validOpts() *RawOptions {
+	return &RawOptions{
+		URL:          "https://dash.example.com",
+		JobSpec:      validSpec,
+		ClientID:     "id",
+		ClientSecret: "secret",
+		TokenURL:     "https://login.example.com/oauth2/token",
+		Scopes:       []string{"api://dash/.default"},
+	}
+}
+
+func TestValidate(t *testing.T) {
 	tests := []struct {
 		name    string
-		url     string
-		token   string
+		mutate  func(*RawOptions)
 		wantErr bool
 	}{
-		{name: "https with token", url: "https://dash.example.com", token: "t"},
-		{name: "http localhost with token", url: "http://localhost:8080", token: "t"},
-		{name: "http 127.0.0.1 with token", url: "http://127.0.0.1:8080", token: "t"},
-		{name: "plain http with token is rejected", url: "http://dash.example.com", token: "t", wantErr: true},
-		{name: "plain http without token is allowed", url: "http://dash.example.com", token: ""},
-		{name: "http non-loopback host with token rejected", url: "http://10.0.0.5:8080", token: "t", wantErr: true},
+		{name: "valid"},
+		{name: "http localhost endpoint allowed", mutate: func(o *RawOptions) { o.URL = "http://localhost:8080" }},
+		{name: "http 127.0.0.1 endpoint allowed", mutate: func(o *RawOptions) { o.URL = "http://127.0.0.1:8080" }},
+		{name: "plain http endpoint rejected", mutate: func(o *RawOptions) { o.URL = "http://dash.example.com" }, wantErr: true},
+		{name: "http non-loopback endpoint rejected", mutate: func(o *RawOptions) { o.URL = "http://10.0.0.5:8080" }, wantErr: true},
+		{name: "insecure token url rejected", mutate: func(o *RawOptions) { o.TokenURL = "http://login.example.com/token" }, wantErr: true},
+		{name: "empty token url rejected", mutate: func(o *RawOptions) { o.TokenURL = "" }, wantErr: true},
+		{name: "empty job spec rejected", mutate: func(o *RawOptions) { o.JobSpec = "" }, wantErr: true},
+		{name: "malformed job spec rejected", mutate: func(o *RawOptions) { o.JobSpec = "{" }, wantErr: true},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			opts := &RawOptions{URL: tc.url, Token: tc.token, JobSpec: validSpec}
-			_, err := opts.Validate()
+			o := validOpts()
+			if tc.mutate != nil {
+				tc.mutate(o)
+			}
+			_, err := o.Validate()
 			if tc.wantErr && err == nil {
-				t.Fatalf("expected validation error for url=%q token=%q", tc.url, tc.token)
+				t.Fatal("expected validation error")
 			}
 			if !tc.wantErr && err != nil {
 				t.Fatalf("unexpected error: %v", err)

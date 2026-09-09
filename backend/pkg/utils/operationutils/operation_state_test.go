@@ -143,12 +143,21 @@ func TestPickWorstOperationState(t *testing.T) {
 			wantMessage: "[<no_source>] worst",
 		},
 		{
-			name: "empty message uses placeholder",
+			name: "source with empty message is omitted, not rendered as a placeholder",
 			states: []*OperationState{
 				NewOperationState(coreapi.ProvisioningStateFailed, "").WithSource("checkA"),
 			},
 			wantProv:    coreapi.ProvisioningStateFailed,
-			wantMessage: "[checkA] <no_message>",
+			wantMessage: "",
+		},
+		{
+			name: "source with empty message is omitted alongside sources with a real message",
+			states: []*OperationState{
+				NewOperationState(coreapi.ProvisioningStateFailed, "").WithSource("checkA"),
+				NewOperationState(coreapi.ProvisioningStateFailed, "NotReady: cluster is not ready").WithSource("checkB"),
+			},
+			wantProv:    coreapi.ProvisioningStateFailed,
+			wantMessage: "[checkB] NotReady: cluster is not ready",
 		},
 	}
 

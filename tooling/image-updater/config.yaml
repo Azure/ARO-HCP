@@ -144,16 +144,6 @@ images:
     targets:
     - jsonPath: defaults.secretSyncController.providerImage.digest
       filePath: ../../config/config.yaml
-  # Image Sync
-  imageSync:
-    group: aro-deps
-    source:
-      image: arohcpsvcdev.azurecr.io/image-sync/oc-mirror
-      tagPattern: "^[a-f0-9]{7}$"
-      useAuth: true
-    targets:
-    - jsonPath: defaults.imageSync.ocMirror.image.digest
-      filePath: ../../config/config.yaml
   # Tenant Quota Collector image
   tenant-quota:
     group: aro-ci-images

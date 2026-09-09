@@ -163,7 +163,13 @@ Each HCP cluster created during E2E consumes role assignments in its identity co
 - **`resourceGroupScope`**: 26 role assignments per HCP (13 from E2E test bicep + 13 from the RP-managed resource group)
 - **`resourceScope`**: 41 role assignments per HCP (28 from E2E test bicep + 13 from the RP-managed resource group)
 
-The E2E suite runs all tests in `resourceGroupScope` mode except one test path that uses `resourceScope`.
+Most specs run in `resourceGroupScope` mode; the exceptions are the specs that pass `framework.RBACScopeResource`. Derive that count from the test source rather than trusting a number written here — this sentence has been stale before:
+
+```bash
+git grep -o "framework.RBACScopeResource," -- test/e2e/ | wc -l   # 3 at the time of writing
+```
+
+A test path that deploys a pinned back-level copy of the setup bicep is also resource-scoped regardless of what it passes, because those copies have no `rbacScope` parameter and only ever grant resource-scoped RBAC. No such path exists today, but one has existed before and may again.
 
 The test-side role-assignment count comes from the managed-identity deployment bicep at `test/e2e-setup/bicep/modules/managed-identities.bicep`, which delegates to:
 
@@ -174,17 +180,72 @@ Each file contains conditional resources gated on the `rbacScope` parameter. To 
 
 Individual test specs may also create additional role assignments beyond this baseline. At the time of writing this is not the common case, but if it grows, the headroom in the formula below may need to be adjusted.
 
-Given a target suite parallelism and a subscription's role-assignment quota, the maximum identity-pool size for the flat legacy model is:
+Given the concurrent HCP demand of a run and a subscription's role-assignment quota, the cost of a run and the maximum number of concurrent runs are:
 
 ```text
-RG_SCOPE_COST  = 26   (current resourceGroupScope cost per HCP)
-RES_SCOPE_COST = 41   (current resourceScope cost per HCP)
+# Every value below is derived from a checked-in source. The numbers are current
+# at the time of writing; re-derive rather than trusting them.
 
-max-concurrency = floor((role-assignment-quota - 100) / (((suite-parallelism - 1) * RG_SCOPE_COST) + RES_SCOPE_COST))
-pool-size       = max-concurrency * suite-parallelism
+RG_SCOPE_COST   = 26   # unconditional + rbacScope=='resourceGroup' assignments
+                       #   in test/e2e-setup/bicep/modules/{non-msi,msi}-scoped-assignments.bicep,
+                       #   plus RP-managed assignments (see the per-HCP costs above)
+RES_SCOPE_COST  = 41   # same, for rbacScope=='resource'
+RES_SCOPED_HCPS = 3    # git grep -o "framework.RBACScopeResource," -- test/e2e/ | wc -l
+
+identity_container_count = 60   # the leasing pool's per-slot container count, from
+                                #   test/e2e-config/e2e-slots.yaml. Differs per pool
+                                #   (20, 25 and 60 today), so run-cost is per pool too.
+
+# Concurrent HCPs is NOT the Ginkgo worker count. Some specs lease more than one
+# identity container each, so P workers can hold more than P clusters.
+#
+# Let demand(spec) be the value of that spec's labels.MIContainers decorator,
+# taken over the specs the run actually selects, and let P = suite-parallelism.
+hcp-concurrency = min(
+    sum of demand(spec) over the selected specs,   # total declared demand
+    identity_container_count,                      # leased pool ceiling
+    sum of the P largest demand(spec) values       # worker bound
+)
+
+# A run cannot hold more resource-scoped clusters than clusters. Assuming every
+# resource-scoped spec is among those running concurrently is the worst case.
+res-scoped-concurrent = min(RES_SCOPED_HCPS, hcp-concurrency)
+
+run-cost        = ((hcp-concurrency - res-scoped-concurrent) * RG_SCOPE_COST) + (res-scoped-concurrent * RES_SCOPE_COST)
+max-concurrency = floor((role-assignment-quota - 100) / run-cost)
 ```
 
 The 100 subtracted from quota is headroom reserved for other activity in the subscription and for any additional role assignments created by individual specs.
+
+`suite-parallelism` is declared per suite in `test/cmd/aro-hcp-tests/main.go` and can be overridden at runtime by `ARO_HCP_SUITE_PARALLELISM`, which the CI job configuration in `openshift/release` sets. That override is not visible from this repository, so check the job config rather than assuming the source literal applies.
+
+`run-cost` is the cost of a single run. To answer whether a change fits within a
+subscription's quota — the question that arises whenever role assignments are
+added to the E2E bicep — scale it across the slots that subscription configures:
+
+```text
+# Slots and their container counts come from test/e2e-config/e2e-slots.yaml.
+# Group pools by subscription_name first: several pools can share one
+# subscription and therefore one quota, so their costs add up. Today the INT
+# environment is the case that matters.
+#
+# run-cost is per pool, not per subscription: it depends on
+# identity_container_count, which differs between pools (20, 25 and 60 today).
+# Compute it separately for each pool rather than reusing one value.
+subscription-cost = sum over that subscription's pools of (run-cost(pool) * slot_count(pool))
+
+assert subscription-cost + persistent-baseline <= role-assignment-quota
+```
+
+`persistent-baseline` is the role assignments a subscription holds independently of any running suite — subscription-scoped grants for humans and automation, plus long-lived infrastructure. Measure it on an idle subscription rather than assuming; assignments belonging to running clusters cannot be told apart by scope:
+
+```bash
+az role assignment list --subscription <name-or-id> --all -o json | jq length
+```
+
+This is a *configured worst case*: it assumes every slot runs a suite at peak concurrency simultaneously. Real usage is normally well below it, so a breach means the catalog permits one, not that one has occurred.
+
+Every input above has a stated derivation, so the whole calculation can be re-run from this repository without trusting a figure written here. Do that rather than reusing quoted numbers, which require manual maintenance and have been stale in the past.
 
 For the current live capacity model:
 
@@ -201,12 +262,14 @@ Three bottlenecks matter:
 - In the legacy flat-pool model, each E2E job leases a fixed number of identity containers, so:
 
 ```text
+# pool-size here is the total size of the legacy flat identity pool, not a
+# quantity from the role-assignment model above.
 max-concurrent-runs = floor(pool-size / per-job-lease-count)
 ```
 
 - In the slot-managed DEV model, concurrency is instead bounded by the number of available slots across the shard pools that the job is allowed to consume.
 
-**Bottleneck 2: parallelism within a single run.** The per-job identity-container set still caps how many HCP clusters a single suite execution can run simultaneously. When the suite has more specs requiring HCPs than available leased containers, specs run in waves — the first wave runs, and the remaining specs block inside `AssignIdentityContainers()` until containers are released. This means adding more test specs increases total suite runtime even if the specs themselves are fast.
+**Bottleneck 2: parallelism within a single run.** How many HCP clusters a single suite execution holds at once is bounded by both the leased identity-container set and the effective suite parallelism, whichever is smaller — see `hcp-concurrency` above. When the suite has more specs requiring HCPs than can run concurrently, specs run in waves — the first wave runs, and the remaining specs block inside `AssignIdentityContainers()` until containers are released. This means adding more test specs increases total suite runtime even if the specs themselves are fast.
 
 **Bottleneck 3: deny assignments per subscription (AME only — STG and PROD).** The Azure Authorization RP allows at most **2000 deny assignments per subscription**. The RP currently creates *sharded* (per-cluster) deny assignments — roughly 21 per HCP — which caps a single subscription at about **92 concurrent HCP clusters**, regardless of role-assignment quota or identity-pool size:
 
@@ -223,7 +286,7 @@ This applies to **AME environments only (STG and PROD)**: the RP only creates de
 max-slots-per-sub = floor(max-hcps-per-sub / identity-container-count-per-slot)
 ```
 
-where `identity-container-count-per-slot` is the pool's `identity_container_count` (the max HCPs a single suite run provisions concurrently). The PROD `slot_count` in `test/e2e-config/e2e-slots.yaml` is sized to stay within this cap; that catalog is the source of truth for the current per-subscription values.
+where `identity-container-count-per-slot` is the pool's `identity_container_count` — an upper bound on the HCPs a single suite run provisions concurrently, not the actual figure; see `hcp-concurrency` above. Using the ceiling here is deliberate and safe, since it overstates rather than understates deny-assignment consumption. The PROD `slot_count` in `test/e2e-config/e2e-slots.yaml` is sized to stay within this cap; that catalog is the source of truth for the current per-subscription values.
 
 The RP is expected to consolidate the per-cluster deny assignments into a single deny assignment with all managed identities excluded once Azure raises the excluded-principals limit from 10 to 25. When that lands, this per-subscription HCP ceiling is lifted and the PROD `slot_count` can be raised accordingly.
 

@@ -34,6 +34,10 @@ const (
 	DefaultRetries = 1
 )
 
+// ErrTargetRetained tells the engine that a target discovered earlier is no
+// longer safe to delete after the step's final revalidation.
+var ErrTargetRetained = errors.New("target retained after revalidation")
+
 // Target represents a discovered resource selected for deletion.
 type Target struct {
 	ID   string
@@ -135,8 +139,14 @@ func (e *Engine) runStep(ctx context.Context, step Step, parallelism int) error 
 					if !ok {
 						return
 					}
+					retained := false
 					err := retry(ctx, step.RetryLimit(), func() error {
-						return step.Delete(ctx, target, e.Wait)
+						err := step.Delete(ctx, target, e.Wait)
+						if errors.Is(err, ErrTargetRetained) {
+							retained = true
+							return nil
+						}
+						return err
 					})
 					if err != nil {
 						if step.ContinueOnError() {
@@ -150,6 +160,16 @@ func (e *Engine) runStep(ctx context.Context, step Step, parallelism int) error 
 							continue
 						}
 						errs <- fmt.Errorf("%s: failed deleting %s (%s): %w", step.Name(), target.Name, target.Type, err)
+						continue
+					}
+					if retained {
+						logger.Info(
+							"Retained resource after revalidation",
+							"step", step.Name(),
+							"resource", target.Name,
+							"type", target.Type,
+							"id", target.ID,
+						)
 						continue
 					}
 					logger.Info(

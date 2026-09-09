@@ -29,7 +29,7 @@ import (
 func NewScheduledBackup(resourceID, hostedClusterNamespace, controlPlaneNamespace string, backupScheduleConfig BackupScheduleConfig, paused bool) *velerov1api.Schedule {
 	namePrefix := hostedClusterNamespace
 	scheduleName := fmt.Sprintf("%s-%s", namePrefix, backupScheduleConfig.Name)
-	clusterBackup := backup.NewBackup(scheduleName, resourceID, backupScheduleConfig.TTL, hostedClusterNamespace, controlPlaneNamespace)
+	clusterBackup := backup.NewBackup(scheduleName, resourceID, hostedClusterNamespace, controlPlaneNamespace, backupScheduleConfig.TTL)
 	schedule := builder.ForSchedule("velero", scheduleName).
 		CronSchedule(backupScheduleConfig.Schedule).
 		Template(clusterBackup.Spec).

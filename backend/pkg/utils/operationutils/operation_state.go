@@ -79,6 +79,11 @@ func CompareOperationState(lhs, rhs *OperationState) int {
 }
 
 // PickWorstOperationState expects states pre-sorted and returns the worst state with merged messages.
+//
+// Only sources that report an actual message are included in the merged message: a source tied
+// for the worst provisioning state with no message of its own has nothing blocking to report (e.g.
+// it is simply still in progress), so it is omitted rather than rendered as a confusing "<no_message>"
+// placeholder that reads like an error.
 func PickWorstOperationState(states []*OperationState) (*OperationState, error) {
 	if len(states) == 0 {
 		return nil, errors.New("no operation states")
@@ -92,15 +97,14 @@ func PickWorstOperationState(states []*OperationState) (*OperationState, error) 
 		if s.ProvisioningState != worstProvisioningState {
 			break
 		}
+		if s.Message == "" {
+			continue
+		}
 		currentSource := "<no_source>"
 		if s.Source != "" {
 			currentSource = s.Source
 		}
-		currentMessage := "<no_message>"
-		if s.Message != "" {
-			currentMessage = s.Message
-		}
-		messageParts = append(messageParts, fmt.Sprintf("[%s] %s", currentSource, currentMessage))
+		messageParts = append(messageParts, fmt.Sprintf("[%s] %s", currentSource, s.Message))
 	}
 	return NewOperationState(worstProvisioningState, strings.Join(messageParts, "; ")), nil
 }

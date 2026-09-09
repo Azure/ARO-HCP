@@ -73,6 +73,11 @@ type Classification struct {
 // DraftChain is the structured output the agent must produce as its final message.
 // This is the pre-hydration format — KQL queries have no share URIs or result tables yet.
 type DraftChain struct {
+	// Title is a short, human-readable headline for the analysis. It is
+	// model-authored and required in intent mode (used as the rendered document
+	// heading); in test mode it is optional and falls back to the test name.
+	Title string `json:"title,omitempty"`
+
 	RootCause      string          `json:"root_cause"`
 	Summary        string          `json:"summary"`
 	Notes          string          `json:"notes,omitempty"`
@@ -95,8 +100,9 @@ type DiscoveryItem struct {
 }
 
 // ChainLink is one link in the causal why-chain. Each link poses a "why?"
-// question and provides an answer backed by proof. The first link's question
-// is always "Why did this test fail?"; subsequent questions follow naturally
+// question and provides an answer backed by proof. In test mode the first
+// link's question is always "Why did this test fail?"; in intent mode it
+// restates the investigation objective. Subsequent questions follow naturally
 // from the previous answer.
 type ChainLink struct {
 	Question string      `json:"question"`
@@ -125,6 +131,14 @@ type ProofItem struct {
 
 // HydratedChain extends DraftChain with query results and share URIs.
 type HydratedChain struct {
+	// Title is the model-authored headline (see DraftChain.Title).
+	Title string `json:"title,omitempty"`
+
+	// Intent is the human-written investigation objective, echoed from the
+	// analysis input. It is set programmatically (not model-authored) and is
+	// empty in test mode.
+	Intent string `json:"intent,omitempty"`
+
 	RootCause      string              `json:"root_cause"`
 	Summary        string              `json:"summary"`
 	Notes          string              `json:"notes,omitempty"`

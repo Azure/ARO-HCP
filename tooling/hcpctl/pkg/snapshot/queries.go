@@ -645,6 +645,21 @@ var allQueries = []querySpec{
 		requiredWhen:  isClusterOrNodePool,
 	},
 
+	// --- kube-applier: desire reconciliation logs ---
+	{
+		component:    "kubeApplier",
+		queryName:    "logs",
+		templatePath: "queries/kubeApplier/logs/query.kql",
+		database:     "service",
+		category:     categoryLogs,
+		ready: func(d queryData) bool {
+			return d.SubscriptionID != "" && d.ResourceGroup != "" && d.ClusterResourceName != "" && isClusterType(d)
+		},
+		prerequisites: "SubscriptionID, ResourceGroup, ClusterResourceName, ResourceType is cluster",
+		// Informational: kube-applier is a newly rolled-out component and may be absent from
+		// older snapshots, so empty results are acceptable (no requiredWhen).
+	},
+
 	// --- ACM: ManagedCluster conditions and klusterlet events ---
 	{
 		component:    "acm",

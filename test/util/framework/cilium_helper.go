@@ -18,14 +18,26 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"time"
 
+	"github.com/blang/semver/v4"
 	"helm.sh/helm/v4/pkg/action"
 	"helm.sh/helm/v4/pkg/chart/v2/loader"
 	"helm.sh/helm/v4/pkg/cli"
 	"helm.sh/helm/v4/pkg/kube"
 
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
+	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/rest"
 	"k8s.io/utils/ptr"
+
+	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 )
 
 // Install Cilium helm chart using the helm Go SDK. Cilium configuration is
@@ -88,4 +100,105 @@ func InstallCiliumChart(ctx context.Context, chartVersion string, values map[str
 	}
 
 	return nil
+}
+
+var ciliumDNSHostAPIServerPolicyMinVersion = semver.MustParse("4.22.0")
+
+func EnsureDNSAllowHostAPIServerCiliumNetworkPolicy(ctx context.Context, adminRESTConfig *rest.Config, nodePoolCreationTimeout time.Duration) error {
+	const (
+		dnsNamespace    = "openshift-dns"
+		policyName      = "dns-allow-host-apiserver"
+		apiServerPort   = "6443"
+		dnsDaemonSetKey = "dns.operator.openshift.io/daemonset-dns"
+	)
+
+	configClient, err := configv1client.NewForConfig(adminRESTConfig)
+	if err != nil {
+		return fmt.Errorf("failed to create config client to resolve cluster version: %w", err)
+	}
+
+	clusterVersion, err := configClient.ClusterVersions().Get(ctx, "version", metav1.GetOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to get clusterversion to resolve cluster version: %w", err)
+	}
+
+	currentVersion, err := semver.ParseTolerant(clusterVersion.Status.Desired.Version)
+	if err != nil {
+		return fmt.Errorf("failed to parse cluster version %q: %w", clusterVersion.Status.Desired.Version, err)
+	}
+
+	if currentVersion.LT(ciliumDNSHostAPIServerPolicyMinVersion) {
+		// Below the NE-1476 boundary: the DNS operator does not create any
+		// NetworkPolicy in openshift-dns, so there is nothing to work around.
+		return nil
+	}
+
+	dynamicClient, err := dynamic.NewForConfig(adminRESTConfig)
+	if err != nil {
+		return fmt.Errorf("failed to create dynamic client for CiliumNetworkPolicy: %w", err)
+	}
+
+	cnpGVR := schema.GroupVersionResource{Group: "cilium.io", Version: "v2", Resource: "ciliumnetworkpolicies"}
+	desired := &unstructured.Unstructured{
+		Object: map[string]any{
+			"apiVersion": "cilium.io/v2",
+			"kind":       "CiliumNetworkPolicy",
+			"metadata": map[string]any{
+				"name":      policyName,
+				"namespace": dnsNamespace,
+			},
+			"spec": map[string]any{
+				"endpointSelector": map[string]any{
+					"matchLabels": map[string]any{
+						dnsDaemonSetKey: "default",
+					},
+				},
+				"egress": []any{
+					map[string]any{
+						"toEntities": []any{"host", "remote-node"},
+						"toPorts": []any{
+							map[string]any{
+								"ports": []any{
+									map[string]any{
+										"port":     apiServerPort,
+										"protocol": "TCP",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	// The CiliumNetworkPolicy CRD is registered by cilium-operator, which can
+	// only schedule once the node pool's worker nodes exist. Retry only the
+	// CRD/GVR-not-found race; AlreadyExists means a previous attempt succeeded.
+	var lastErr error
+	err = wait.PollUntilContextTimeout(ctx, 10*time.Second, nodePoolCreationTimeout, true, func(ctx context.Context) (bool, error) {
+		_, createErr := dynamicClient.Resource(cnpGVR).Namespace(dnsNamespace).Create(ctx, desired, metav1.CreateOptions{})
+		if createErr == nil || apierrors.IsAlreadyExists(createErr) {
+			return true, nil
+		}
+		if isRetryableCiliumNetworkPolicyCreateError(createErr) {
+			lastErr = createErr
+			return false, nil
+		}
+		return false, fmt.Errorf("failed to create CiliumNetworkPolicy %s/%s: %w", dnsNamespace, policyName, createErr)
+	})
+	if err != nil {
+		if wait.Interrupted(err) && lastErr != nil {
+			return fmt.Errorf("timed out creating CiliumNetworkPolicy %s/%s: %w", dnsNamespace, policyName, lastErr)
+		}
+		return err
+	}
+	return nil
+}
+
+// isRetryableCiliumNetworkPolicyCreateError reports whether create failed
+// because the CiliumNetworkPolicy CRD/GVR is not served yet. Permanent errors
+// such as Forbidden or Invalid must not be retried.
+func isRetryableCiliumNetworkPolicyCreateError(err error) bool {
+	return apierrors.IsNotFound(err) || meta.IsNoMatchError(err)
 }

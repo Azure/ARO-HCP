@@ -80,6 +80,7 @@ func TestOperationsList(t *testing.T) {
 	// https://github.com/cloud-and-ai-microsoft/resource-provider-contract/blob/master/v1.0/proxy-api-reference.md#required-operations
 	requiredOperations := sets.New[string](
 		path.Join(coreapi.ProviderNamespace, "register", coreapi.NamespaceOperationAction),
+		path.Join(coreapi.ProviderNamespace, "unregister", coreapi.NamespaceOperationAction), // undocumented
 	)
 
 	reg := prometheus.NewRegistry()

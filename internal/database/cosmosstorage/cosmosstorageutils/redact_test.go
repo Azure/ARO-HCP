@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package serverutils
+package cosmosstorageutils
 
 import (
 	"encoding/json"
@@ -24,7 +24,6 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 )
 
 func TestRedactTypedDocument_RedactsSupportedResourceTypes(t *testing.T) {
@@ -32,13 +31,13 @@ func TestRedactTypedDocument_RedactsSupportedResourceTypes(t *testing.T) {
 		name         string
 		resourceID   string
 		resourceType string
-		newDocument  func() (any, *cosmosstorageutils.TypedDocument)
+		newDocument  func() (any, *TypedDocument)
 	}{
 		{
 			name:         "cluster",
 			resourceID:   coreapitesting.TestClusterResourceID,
 			resourceType: coreapi.ClusterResourceType.String(),
-			newDocument: func() (any, *cosmosstorageutils.TypedDocument) {
+			newDocument: func() (any, *TypedDocument) {
 				resourceID := mustParseResourceID(t, coreapitesting.TestClusterResourceID)
 				createdAt := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 				obj := &coreapi.HCPOpenShiftCluster{
@@ -62,7 +61,7 @@ func TestRedactTypedDocument_RedactsSupportedResourceTypes(t *testing.T) {
 			name:         "nodepool",
 			resourceID:   coreapitesting.TestNodePoolResourceID,
 			resourceType: coreapi.NodePoolResourceType.String(),
-			newDocument: func() (any, *cosmosstorageutils.TypedDocument) {
+			newDocument: func() (any, *TypedDocument) {
 				resourceID := mustParseResourceID(t, coreapitesting.TestNodePoolResourceID)
 				createdAt := time.Date(2025, 2, 1, 0, 0, 0, 0, time.UTC)
 				obj := &coreapi.HCPOpenShiftClusterNodePool{
@@ -86,7 +85,7 @@ func TestRedactTypedDocument_RedactsSupportedResourceTypes(t *testing.T) {
 			name:         "external-auth",
 			resourceID:   coreapitesting.TestExternalAuthResourceID,
 			resourceType: coreapi.ExternalAuthResourceType.String(),
-			newDocument: func() (any, *cosmosstorageutils.TypedDocument) {
+			newDocument: func() (any, *TypedDocument) {
 				resourceID := mustParseResourceID(t, coreapitesting.TestExternalAuthResourceID)
 				createdAt := time.Date(2025, 3, 1, 0, 0, 0, 0, time.UTC)
 				obj := &coreapi.HCPOpenShiftClusterExternalAuth{
@@ -113,8 +112,8 @@ func TestRedactTypedDocument_RedactsSupportedResourceTypes(t *testing.T) {
 			expectedObject, doc := tt.newDocument()
 			originalProperties := append(json.RawMessage(nil), doc.Properties...)
 
-			if err := redactTypedDocument(doc); err != nil {
-				t.Fatalf("redactTypedDocument() error = %v", err)
+			if err := RedactTypedDocument(doc); err != nil {
+				t.Fatalf("RedactTypedDocument() error = %v", err)
 			}
 
 			if doc.ResourceType != tt.resourceType {
@@ -157,8 +156,8 @@ func TestRedactTypedDocument_RedactsSupportedResourceTypes(t *testing.T) {
 
 func TestRedactTypedDocument_ReturnsNestedFieldTypeError(t *testing.T) {
 	resourceID := mustParseResourceID(t, coreapitesting.TestClusterResourceID)
-	doc := &cosmosstorageutils.TypedDocument{
-		BaseDocument: cosmosstorageutils.BaseDocument{
+	doc := &TypedDocument{
+		BaseDocument: BaseDocument{
 			ID: resourceID.Name,
 		},
 		PartitionKey: resourceID.SubscriptionID,
@@ -167,9 +166,9 @@ func TestRedactTypedDocument_ReturnsNestedFieldTypeError(t *testing.T) {
 		Properties:   json.RawMessage(`{"systemData":{"createdBy":123}}`),
 	}
 
-	err := redactTypedDocument(doc)
+	err := RedactTypedDocument(doc)
 	if err == nil {
-		t.Fatal("redactTypedDocument() error = nil, want nested field type error")
+		t.Fatal("RedactTypedDocument() error = nil, want nested field type error")
 	}
 	if !strings.Contains(err.Error(), "failed to read systemData.createdBy") {
 		t.Fatalf("error = %q, want it to mention createdBy read failure", err.Error())
@@ -179,7 +178,7 @@ func TestRedactTypedDocument_ReturnsNestedFieldTypeError(t *testing.T) {
 	}
 }
 
-func newTypedDocument(t *testing.T, resourceID *azcorearm.ResourceID, resourceType string, properties any) *cosmosstorageutils.TypedDocument {
+func newTypedDocument(t *testing.T, resourceID *azcorearm.ResourceID, resourceType string, properties any) *TypedDocument {
 	t.Helper()
 
 	propertiesBytes, err := json.Marshal(properties)
@@ -187,8 +186,8 @@ func newTypedDocument(t *testing.T, resourceID *azcorearm.ResourceID, resourceTy
 		t.Fatalf("marshal properties: %v", err)
 	}
 
-	return &cosmosstorageutils.TypedDocument{
-		BaseDocument: cosmosstorageutils.BaseDocument{
+	return &TypedDocument{
+		BaseDocument: BaseDocument{
 			ID: resourceID.Name,
 		},
 		PartitionKey: resourceID.SubscriptionID,

@@ -480,6 +480,10 @@ resourceGroups:
       - "AnmPreconditionFailedException"
       - "MaxRetryCountReached"
       - "ServiceUnavailable"
+      # Transient RBAC propagation lag, mostly on fresh region buildout: the
+      # deployment identity's Key Vault role assignment (needed to create the
+      # aks-etcd-encryption key) may not have propagated yet. Retry once it lands.
+      - "ForbiddenByRbac"
       maximumRetryCount: 3
       durationBetweenRetries: 2m
   - name: upgrade-aks-cluster
@@ -933,6 +937,9 @@ resourceGroups:
       - "unknown_storage_failure"
       - "unexpected EOF"
       - "unauthorized: authentication required"
+      # Transient ACR pull/push failures during image mirroring (docker registry RegistryErrorResponse, "Please retry later").
+      - "RegistryErrorResponse"
+      - "Please retry later"
       maximumRetryCount: 5
       durationBetweenRetries: 1m
   - name: exporter-output
@@ -946,8 +953,8 @@ resourceGroups:
       step: upgrade-aks-cluster
   - name: exporter-permissions
     action: ARM
-    template: templates/exporter-permissions.bicep
-    parameters: configurations/exporter-permissions.tmpl.bicepparam
+    template: templates/svc-exporter-permissions.bicep
+    parameters: configurations/svc-exporter-permissions.tmpl.bicepparam
     deploymentLevel: Subscription
     variables:
     - name: exporterPrincipalId
@@ -955,9 +962,16 @@ resourceGroups:
         resourceGroup: service
         step: exporter-output
         name: exporterPrincipalId
+    - name: serviceKeyVaultSubscription
+      input:
+        resourceGroup: svcKV
+        step: output
+        name: subscriptionId
     dependsOn:
     - resourceGroup: service
       step: exporter-output
+    - resourceGroup: service
+      step: infra
   - name: aro-hcp-exporter
     aksCluster: '{{ .svc.aks.name }}'
     action: Helm

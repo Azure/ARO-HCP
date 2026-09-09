@@ -34,3 +34,11 @@ func IsResourceNotFoundErr(err error) bool {
 	var azErr *azcore.ResponseError
 	return errors.As(err, &azErr) && azErr.ErrorCode == "ResourceNotFound"
 }
+
+// IsRoleAssignmentNotFoundErr is used to determine if we are failing to find a role assignment
+// within azure. The role assignments API returns the more specific `RoleAssignmentNotFound`
+// error code (not `ResourceNotFound`) when a role assignment does not exist.
+func IsRoleAssignmentNotFoundErr(err error) bool {
+	var azErr *azcore.ResponseError
+	return errors.As(err, &azErr) && azErr.ErrorCode == "RoleAssignmentNotFound"
+}

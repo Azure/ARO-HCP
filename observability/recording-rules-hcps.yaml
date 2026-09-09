@@ -4,6 +4,7 @@ prometheusRules:
   - alerts/HCPkasRecord-prometheusRule-apiserver-requests.yaml
   - alerts/HCPkasRecord-prometheusRule-latency.yaml
   - alerts/UserJourneyKubeApiserverAvailabilityRecord-prometheusRule-KSM.yaml
+  - alerts/UserJourneyEtcdLatencyRecord-prometheusRule.yaml
   - recording-rules/ingress-availability-slo-recordingRule.yaml
   untestedRules: []
   outputBicep: ../dev-infrastructure/modules/metrics/rules/generatedHCPRecordingRules.bicep

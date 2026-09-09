@@ -38,6 +38,7 @@ import (
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	azureconfig "github.com/Azure/ARO-HCP/backend/pkg/azure/config"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/billing"
+	clusterazureresources "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/azureresources"
 	clusterbackups "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/backups"
 	clustercreation "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/creation"
 	credentialrequestcreation "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/credentialrequest/creation"
@@ -53,6 +54,7 @@ import (
 	clusterplacement "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/placement"
 	clusterproperties "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/properties"
 	clusterreaddesires "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/readdesires"
+	clusterroleassignments "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/roleassignments"
 	clusterstatus "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/status"
 	clusterupdate "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/update"
 	clustervalidation "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/validation"
@@ -96,23 +98,27 @@ type Backend struct {
 }
 
 type BackendOptions struct {
-	AppShortDescriptionName                             string
-	AppVersion                                          string
-	AzureLocation                                       string
-	LeaderElectionLock                                  resourcelock.Interface
-	ResourcesDBClient                                   corecosmosstorage.ResourcesDBClient
-	BillingDBClient                                     billingcosmosstorage.BillingDBClient
-	FleetDBClient                                       fleetcosmosstorage.FleetDBClient
-	KubeApplierDBClients                                kubeappliercosmosstorage.KubeApplierDBClients
-	ClustersServiceClient                               ocm.ClusterServiceClientSpec
-	MetricsRegisterer                                   prometheus.Registerer
-	MetricsGatherer                                     prometheus.Gatherer
-	MetricsServerListenAddress                          string
-	MetricsServerListener                               net.Listener
-	HealthzServerListenAddress                          string
-	TracerProviderShutdownFunc                          func(context.Context) error
-	MaestroSourceEnvironmentIdentifier                  string
-	FPAClientBuilder                                    azureclient.FirstPartyApplicationClientBuilder
+	AppShortDescriptionName            string
+	AppVersion                         string
+	AzureLocation                      string
+	LeaderElectionLock                 resourcelock.Interface
+	ResourcesDBClient                  corecosmosstorage.ResourcesDBClient
+	BillingDBClient                    billingcosmosstorage.BillingDBClient
+	FleetDBClient                      fleetcosmosstorage.FleetDBClient
+	KubeApplierDBClients               kubeappliercosmosstorage.KubeApplierDBClients
+	ClustersServiceClient              ocm.ClusterServiceClientSpec
+	MetricsRegisterer                  prometheus.Registerer
+	MetricsGatherer                    prometheus.Gatherer
+	MetricsServerListenAddress         string
+	MetricsServerListener              net.Listener
+	HealthzServerListenAddress         string
+	TracerProviderShutdownFunc         func(context.Context) error
+	MaestroSourceEnvironmentIdentifier string
+	FPAClientBuilder                   azureclient.FirstPartyApplicationClientBuilder
+	// HasRealFPA indicates the backend runs against a real First Party Application rather than the
+	// insecure MI mock. Controllers that create Azure resources only a real FPA can create (e.g.
+	// deny assignments) are disabled when this is false (dev/int environments).
+	HasRealFPA                                          bool
 	BackendIdentityAzureClients                         *azureclient.BackendIdentityAzureClients
 	BackendIdentityAzureCachedReaders                   *cachedreader.BackendIdentityAzureCachedReaders
 	ExitOnPanic                                         bool
@@ -800,6 +806,15 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		backendInformers,
 	)
 
+	observeManagedResourceGroupController := clusterazureresources.NewManagedResourceGroupController(
+		b.options.ResourcesDBClient,
+		serviceProviderClusterLister,
+		subscriptionLister,
+		b.options.FPAClientBuilder,
+		backendInformers,
+		unionKubeApplierInformers,
+	)
+
 	virtualMachineResourceSKUsCachedReaderController := cachedreader.NewFPAVirtualMachineResourceSKUsCachedReaderController(
 		b.options.FPAClientBuilder,
 		b.options.AzureLocation,
@@ -971,6 +986,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		b.options.ResourcesDBClient,
 		b.options.ClustersServiceClient,
 		backendInformers,
+		b.options.HasRealFPA,
 	)
 
 	clusterDeletionClusterServiceDeleteDispatchController := clusterdeletion.NewClusterClusterServiceDeleteDispatchController(
@@ -1035,6 +1051,16 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		b.options.ResourcesDBClient,
 		backendInformers,
 		b.options.SMIClientBuilder,
+	)
+
+	observeRoleAssignmentsController := clusterroleassignments.NewRoleAssignmentsController(
+		b.options.ResourcesDBClient,
+		serviceProviderClusterLister,
+		subscriptionLister,
+		b.options.FPAClientBuilder,
+		b.options.ClusterScopedIdentitiesConfig,
+		backendInformers,
+		unionKubeApplierInformers,
 	)
 
 	leaderElectionConfig := leaderelection.LeaderElectionConfig{
@@ -1123,6 +1149,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go createServiceProviderClusterController.Run(ctx, 20)
 				go createServiceProviderNodePoolController.Run(ctx, 20)
 				go cleanOrphanedClusterManagedResourceGroupController.Run(ctx, 20)
+				go observeManagedResourceGroupController.Run(ctx, 20)
 				go triggerNodePoolUpgradeController.Run(ctx, 20)
 				go nodePoolDeletionClusterServiceDeleteDispatchController.Run(ctx, 20)
 				go nodePoolClusterServiceIDClearerController.Run(ctx, 20)
@@ -1152,6 +1179,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go backupScheduleController.Run(ctx, 20)
 				go fetchMSIIdentitiesInfoController.Run(ctx, 20)
 				go fetchDataPlaneOperatorsManagedIdentitiesInfoController.Run(ctx, 20)
+				go observeRoleAssignmentsController.Run(ctx, 20)
 			},
 			OnStoppedLeading: func() {
 				// This needs to be defined even though it does nothing.

@@ -73,6 +73,31 @@ type Options struct {
 	outputReplacements      []Replacements
 	regexOutputReplacements []RegexReplacements
 	groupNamePrefix         string
+	// preserveAggregationLabels are labels that must survive every aggregation
+	// in a rule's PromQL. Each aggregation is rewritten so these labels are
+	// present on the output vector (see preserveLabelInAggregations).
+	preserveAggregationLabels []string
+}
+
+// WithPreserveAggregationLabels configures the labels that must be preserved
+// through every aggregation when generating rules.
+func (o *Options) WithPreserveAggregationLabels(labels []string) *Options {
+	o.preserveAggregationLabels = append([]string{}, labels...)
+	return o
+}
+
+// applyLabelPreservation rewrites the expression so that every configured
+// aggregation label survives to the output vector.
+func (o *Options) applyLabelPreservation(expr string) (string, error) {
+	result := expr
+	for _, label := range o.preserveAggregationLabels {
+		rewritten, err := preserveLabelInAggregations(result, label)
+		if err != nil {
+			return "", err
+		}
+		result = rewritten
+	}
+	return result, nil
 }
 
 type PrometheusRulesConfig struct {
@@ -588,6 +613,11 @@ param location string = resourceGroup().location
 						}
 						exprStr = normalized
 					}
+					preserved, err := o.applyLabelPreservation(exprStr)
+					if err != nil {
+						return fmt.Errorf("failed to preserve aggregation labels for alert %s in group %s: %w", rule.Alert, group.Name, err)
+					}
+					exprStr = preserved
 					if excludeInternalSubs && o.internalSubFilter.Enabled {
 						exprStr = fmt.Sprintf("(%s) unless on(subscription_id) %s", exprStr, o.internalSubFilter.Table)
 						normalized, parseErr := normalizeExpr(exprStr)
@@ -631,6 +661,11 @@ param location string = resourceGroup().location
 						}
 						exprStr = normalized
 					}
+					preserved, err := o.applyLabelPreservation(exprStr)
+					if err != nil {
+						return fmt.Errorf("failed to preserve aggregation labels for record %s in group %s: %w", rule.Record, group.Name, err)
+					}
+					exprStr = preserved
 					armGroup.Properties.Rules = append(armGroup.Properties.Rules, &armprometheusrulegroups.PrometheusRule{
 						Record:     ptr.To(rule.Record),
 						Enabled:    ptr.To(true),

@@ -114,6 +114,8 @@ var _ = Describe("Customer", func() {
 				framework.GetAdminRESTConfigTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to get admin REST config for cluster %q", customerClusterName)
+			adminRESTConfig.QPS = 50
+			adminRESTConfig.Burst = 100
 
 			By("disabling kube-proxy via networks.operator.openshift.io patch")
 			opClient, err := operatorclient.NewForConfig(adminRESTConfig)
@@ -186,6 +188,10 @@ var _ = Describe("Customer", func() {
 						tc.LogDirPath)
 				}
 			}
+
+			By("allowing DNS pods to reach the kube-apiserver-proxy via CiliumNetworkPolicy (OCP >= 4.22 only)")
+			cnpErr := framework.EnsureDNSAllowHostAPIServerCiliumNetworkPolicy(ctx, adminRESTConfig, framework.NodePoolCreationTimeout)
+			Expect(cnpErr).NotTo(HaveOccurred(), "failed to create CiliumNetworkPolicy allowing DNS pods to reach the kube-apiserver-proxy")
 
 			By("verifying nodes become Ready with Cilium CNI")
 			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig, verifiers.VerifyNodesReady(), verifiers.VerifyCiliumOperational("kube-system", "k8s-app=cilium"))

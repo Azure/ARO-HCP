@@ -40,8 +40,6 @@ clouds:
                 resources:
                   requests:
                     memory: 2Gi
-          backend:
-            backupScheduleState: Enabled
       stg:
         # this is the MSFT STAGE environment
         regions:
@@ -133,8 +131,6 @@ clouds:
           mise:
             audit:
               connectSocket: true
-          backend:
-            backupScheduleState: Enabled
       prod:
         # this is the MSFT PRODUCTION environment
         defaults:
@@ -142,8 +138,6 @@ clouds:
           e2e:
             regionTest:
               prowJobName: branch-ci-Azure-ARO-HCP-main-e2e-prod-e2e-parallel
-          backend:
-            backupScheduleState: Disabled
           # Cluster Service
           clustersService:
             deployDebugJobs: true
@@ -188,6 +182,3 @@ clouds:
           switzerlandnorth:
             kusto:
               kustoName: "hcp-prod-ch-2"
-          australiaeast:
-            backend:
-              backupScheduleState: Enabled

@@ -1045,7 +1045,7 @@ func (tc *perItOrDescribeTestContext) GetARMComputeClientFactoryOrDie(ctx contex
 
 func (tc *perItOrDescribeTestContext) GetARMSubscriptionsClientFactory() (*armsubscriptions.ClientFactory, error) {
 	tc.contextLock.RLock()
-	if tc.clientFactory20240610 != nil {
+	if tc.armSubscriptionsClientFactory != nil {
 		defer tc.contextLock.RUnlock()
 		return tc.armSubscriptionsClientFactory, nil
 	}
@@ -1058,7 +1058,7 @@ func (tc *perItOrDescribeTestContext) GetARMSubscriptionsClientFactory() (*armsu
 }
 
 func (tc *perItOrDescribeTestContext) getARMSubscriptionsClientFactoryUnlocked() (*armsubscriptions.ClientFactory, error) {
-	if tc.armResourcesClientFactory != nil {
+	if tc.armSubscriptionsClientFactory != nil {
 		return tc.armSubscriptionsClientFactory, nil
 	}
 
@@ -1259,12 +1259,12 @@ func (tc *perItOrDescribeTestContext) AvailableZones(ctx context.Context, vmSize
 }
 
 func (tc *perItOrDescribeTestContext) SubscriptionID(ctx context.Context) (string, error) {
-	tc.contextLock.Lock()
+	tc.contextLock.RLock()
 	if len(tc.subscriptionID) > 0 {
 		defer tc.contextLock.RUnlock()
 		return tc.subscriptionID, nil
 	}
-	tc.contextLock.Unlock()
+	tc.contextLock.RUnlock()
 
 	tc.contextLock.Lock()
 	defer tc.contextLock.Unlock()

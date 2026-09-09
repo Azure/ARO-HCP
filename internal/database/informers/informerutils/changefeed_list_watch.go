@@ -466,6 +466,13 @@ func (c *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPITyp
 		return nil
 	}
 
+	loggedDocument := &cosmosstorageutils.TypedDocument{}
+	*loggedDocument = *objAsTypedDocument
+	if err := cosmosstorageutils.RedactTypedDocument(loggedDocument); err != nil {
+		utilruntime.HandleError(utils.TrackError(err))
+		loggedDocument = nil
+	}
+
 	objDeleted := false
 	if objAsTypedDocument.DeletionTimestamp != nil {
 		if objPreviouslySeen {
@@ -473,7 +480,7 @@ func (c *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPITyp
 		} else {
 			logger.Info("skipping soft-deleted document not previously seen",
 				"snapshotType", "cosmos",
-				"content", cosmosObj)
+				"content", loggedDocument)
 			return nil
 		}
 	} else if c.shouldDeliverItemFn != nil && !c.shouldDeliverItemFn(internalObj) {
@@ -482,15 +489,14 @@ func (c *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPITyp
 		} else {
 			logger.Info("should not deliver document",
 				"snapshotType", "cosmos",
-				"content", cosmosObj)
+				"content", loggedDocument)
 			return nil
 		}
 	}
 
 	logger.Info("delivering change feed item",
 		"snapshotType", "cosmos",
-		"content", cosmosObj,
-		"internalObj", internalObj,
+		"content", loggedDocument,
 	)
 	if objDeleted {
 		c.resourceIDToInstanceVersion.Delete(canonicalResourceID)
