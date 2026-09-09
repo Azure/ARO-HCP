@@ -16,7 +16,9 @@ package pipeline
 
 import (
 	"context"
+	"io"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -49,6 +51,16 @@ func successfulResponse() (*http.Response, error) {
 		StatusCode: http.StatusOK,
 		Header:     http.Header{},
 		Body:       http.NoBody,
+	}, nil
+}
+
+func deploymentNotFoundResponse() (*http.Response, error) {
+	return &http.Response{
+		StatusCode: http.StatusNotFound,
+		Header:     http.Header{"Content-Type": {"application/json"}},
+		Body: io.NopCloser(strings.NewReader(
+			`{"error":{"code":"DeploymentNotFound","message":"Deployment could not be found."}}`,
+		)),
 	}, nil
 }
 
@@ -115,10 +127,7 @@ func TestLROPollerRetryDeploymentNotFoundPolicy(t *testing.T) {
 			interceptor: func(_ *http.Request) (*http.Response, error) {
 				callCount++
 				if callCount <= 2 {
-					return nil, &azcore.ResponseError{
-						StatusCode: http.StatusNotFound,
-						ErrorCode:  "DeploymentNotFound",
-					}
+					return deploymentNotFoundResponse()
 				}
 				return successfulResponse()
 			},
@@ -146,21 +155,52 @@ func TestLROPollerRetryDeploymentNotFoundPolicy(t *testing.T) {
 		transport := &fakeTransport{
 			interceptor: func(_ *http.Request) (*http.Response, error) {
 				callCount++
-				return nil, &azcore.ResponseError{
-					StatusCode: http.StatusNotFound,
-					ErrorCode:  "DeploymentNotFound",
-				}
+				return deploymentNotFoundResponse()
 			},
 		}
 		pipeline := newRetryPolicyTestPipeline(pol, transport)
 		req, err := runtime.NewRequest(t.Context(), http.MethodGet, "https://management.azure.com"+deploymentOperationStatusPath)
 		require.NoError(t, err)
 
-		_, err = pipeline.Do(req)
+		resp, err := pipeline.Do(req)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 		var responseErr *azcore.ResponseError
-		require.ErrorAs(t, err, &responseErr)
+		require.ErrorAs(t, runtime.NewResponseError(resp), &responseErr)
 		assert.Equal(t, "DeploymentNotFound", responseErr.ErrorCode)
 		assert.Equal(t, 3, callCount)
+	})
+
+	t.Run("does not retry other 404 errors", func(t *testing.T) {
+		t.Parallel()
+
+		callCount := 0
+		pol := &lroPollerRetryDeploymentNotFoundPolicy{
+			backoff: wait.Backoff{
+				Duration: time.Millisecond,
+				Steps:    3,
+			},
+		}
+		transport := &fakeTransport{
+			interceptor: func(_ *http.Request) (*http.Response, error) {
+				callCount++
+				return &http.Response{
+					StatusCode: http.StatusNotFound,
+					Header:     http.Header{"Content-Type": {"application/json"}},
+					Body: io.NopCloser(strings.NewReader(
+						`{"error":{"code":"ResourceGroupNotFound","message":"Resource group could not be found."}}`,
+					)),
+				}, nil
+			},
+		}
+		pipeline := newRetryPolicyTestPipeline(pol, transport)
+		req, err := runtime.NewRequest(t.Context(), http.MethodGet, "https://management.azure.com"+deploymentOperationStatusPath)
+		require.NoError(t, err)
+
+		resp, err := pipeline.Do(req)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+		assert.Equal(t, 1, callCount)
 	})
 
 	t.Run("does not retry other errors", func(t *testing.T) {
@@ -176,18 +216,20 @@ func TestLROPollerRetryDeploymentNotFoundPolicy(t *testing.T) {
 		transport := &fakeTransport{
 			interceptor: func(_ *http.Request) (*http.Response, error) {
 				callCount++
-				return nil, &azcore.ResponseError{
+				return &http.Response{
 					StatusCode: http.StatusInternalServerError,
-					ErrorCode:  "InternalServerError",
-				}
+					Header:     http.Header{},
+					Body:       http.NoBody,
+				}, nil
 			},
 		}
 		pipeline := newRetryPolicyTestPipeline(pol, transport)
 		req, err := runtime.NewRequest(t.Context(), http.MethodGet, "https://management.azure.com"+deploymentOperationStatusPath)
 		require.NoError(t, err)
 
-		_, err = pipeline.Do(req)
-		assert.Error(t, err)
+		resp, err := pipeline.Do(req)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
 		assert.Equal(t, 1, callCount)
 	})
 
@@ -204,10 +246,7 @@ func TestLROPollerRetryDeploymentNotFoundPolicy(t *testing.T) {
 		transport := &fakeTransport{
 			interceptor: func(_ *http.Request) (*http.Response, error) {
 				cancel()
-				return nil, &azcore.ResponseError{
-					StatusCode: http.StatusNotFound,
-					ErrorCode:  "DeploymentNotFound",
-				}
+				return deploymentNotFoundResponse()
 			},
 		}
 		pipeline := newRetryPolicyTestPipeline(pol, transport)

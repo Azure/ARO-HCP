@@ -32,6 +32,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
@@ -234,6 +235,16 @@ func (p *lroPollerRetryPolicy) Do(req *policy.Request) (*http.Response, error) {
 
 			resp, err = retryReq.Next()
 			if err == nil {
+				switch resp.StatusCode {
+				case http.StatusNotFound:
+					var respErr *azcore.ResponseError
+					if errors.As(runtime.NewResponseError(resp), &respErr) &&
+						strings.EqualFold(respErr.ErrorCode, "DeploymentNotFound") {
+						return resp, retryDeploymentNotFound, nil
+					}
+				case http.StatusUnauthorized:
+					return resp, retryUnauthorized, nil
+				}
 				return resp, retryNone, nil
 			}
 			defer func(resp *http.Response) {
@@ -274,8 +285,20 @@ func (p *lroPollerRetryPolicy) Do(req *policy.Request) (*http.Response, error) {
 		}
 
 		if *counter >= budget || time.Since(start) >= p.MaxRetryWindow {
+			if resp != nil {
+				// Return the final response unchanged so the SDK poller can create
+				// its normal ResponseError after the policy pipeline has completed.
+				return resp, nil
+			}
 			err := fmt.Errorf("max retries or max retry window reached: %w", err)
 			return resp, err
+		}
+
+		if resp != nil && resp.Body != nil {
+			if err := resp.Body.Close(); err != nil {
+				ginkgo.GinkgoLogr.Error(err, "failed to close response body")
+			}
+			resp = nil
 		}
 
 		sleep := p.backoff(*counter)

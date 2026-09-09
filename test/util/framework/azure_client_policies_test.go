@@ -476,6 +476,27 @@ func TestLROPollerRetryPolicy(t *testing.T) {
 	t.Parallel()
 
 	lroPath := "/subscriptions/sub-id/resourceGroups/rg/providers/Microsoft.Resources/deployments/my-deploy/operationStatuses/op-id"
+	deploymentNotFoundResponse := func() (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusNotFound,
+			Header:     http.Header{"Content-Type": {"application/json"}},
+			Body: io.NopCloser(strings.NewReader(
+				`{"error":{"code":"DeploymentNotFound","message":"Deployment could not be found."}}`,
+			)),
+		}, nil
+	}
+	unauthorizedResponse := func() (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusUnauthorized,
+			Header: http.Header{
+				"Content-Type":     {"application/json"},
+				"WWW-Authenticate": {`Bearer error="invalid_token"`},
+			},
+			Body: io.NopCloser(strings.NewReader(
+				`{"error":{"code":"AuthenticationFailed","message":"Authentication failed."}}`,
+			)),
+		}, nil
+	}
 
 	t.Run("passes through non-GET requests", func(t *testing.T) {
 		t.Parallel()
@@ -558,10 +579,7 @@ func TestLROPollerRetryPolicy(t *testing.T) {
 			do: func(r *http.Request) (*http.Response, error) {
 				callCount++
 				if callCount <= 2 {
-					return nil, &azcore.ResponseError{
-						StatusCode: http.StatusNotFound,
-						ErrorCode:  "DeploymentNotFound",
-					}
+					return deploymentNotFoundResponse()
 				}
 				return okResponse()
 			},
@@ -588,20 +606,51 @@ func TestLROPollerRetryPolicy(t *testing.T) {
 		transport := &fakeTransport{
 			do: func(r *http.Request) (*http.Response, error) {
 				callCount++
-				return nil, &azcore.ResponseError{
-					StatusCode: http.StatusNotFound,
-					ErrorCode:  "DeploymentNotFound",
-				}
+				return deploymentNotFoundResponse()
 			},
 		}
 		pipeline := newTestPipeline(pol, transport)
 		req, err := runtime.NewRequest(context.Background(), http.MethodGet, "https://management.azure.com"+lroPath)
 		require.NoError(t, err)
 
-		_, err = pipeline.Do(req)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "max retries or max retry window reached")
+		resp, err := pipeline.Do(req)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+		var responseErr *azcore.ResponseError
+		require.ErrorAs(t, runtime.NewResponseError(resp), &responseErr)
+		assert.Equal(t, "DeploymentNotFound", responseErr.ErrorCode)
 		assert.Equal(t, 4, callCount)
+	})
+
+	t.Run("does not retry other 404 errors", func(t *testing.T) {
+		t.Parallel()
+		callCount := 0
+		pol := &lroPollerRetryPolicy{
+			MaxRetries:     5,
+			BaseBackoff:    time.Millisecond,
+			MaxBackoff:     5 * time.Millisecond,
+			MaxRetryWindow: time.Second,
+		}
+		transport := &fakeTransport{
+			do: func(r *http.Request) (*http.Response, error) {
+				callCount++
+				return &http.Response{
+					StatusCode: http.StatusNotFound,
+					Header:     http.Header{"Content-Type": {"application/json"}},
+					Body: io.NopCloser(strings.NewReader(
+						`{"error":{"code":"ResourceGroupNotFound","message":"Resource group could not be found."}}`,
+					)),
+				}, nil
+			},
+		}
+		pipeline := newTestPipeline(pol, transport)
+		req, err := runtime.NewRequest(context.Background(), http.MethodGet, "https://management.azure.com"+lroPath)
+		require.NoError(t, err)
+
+		resp, err := pipeline.Do(req)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+		assert.Equal(t, 1, callCount)
 	})
 
 	t.Run("does not retry non-DeploymentNotFound errors", func(t *testing.T) {
@@ -645,10 +694,7 @@ func TestLROPollerRetryPolicy(t *testing.T) {
 			do: func(r *http.Request) (*http.Response, error) {
 				callCount++
 				if callCount == 1 {
-					return nil, &azcore.ResponseError{
-						StatusCode: http.StatusUnauthorized,
-						ErrorCode:  "AuthenticationFailed",
-					}
+					return unauthorizedResponse()
 				}
 				return okResponse()
 			},
@@ -676,19 +722,19 @@ func TestLROPollerRetryPolicy(t *testing.T) {
 		transport := &fakeTransport{
 			do: func(r *http.Request) (*http.Response, error) {
 				callCount++
-				return nil, &azcore.ResponseError{
-					StatusCode: http.StatusUnauthorized,
-					ErrorCode:  "AuthenticationFailed",
-				}
+				return unauthorizedResponse()
 			},
 		}
 		pipeline := newTestPipeline(pol, transport)
 		req, err := runtime.NewRequest(context.Background(), http.MethodGet, "https://management.azure.com"+lroPath)
 		require.NoError(t, err)
 
-		_, err = pipeline.Do(req)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "max retries or max retry window reached")
+		resp, err := pipeline.Do(req)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+		var responseErr *azcore.ResponseError
+		require.ErrorAs(t, runtime.NewResponseError(resp), &responseErr)
+		assert.Equal(t, "AuthenticationFailed", responseErr.ErrorCode)
 		assert.Equal(t, 2, callCount)
 	})
 
@@ -707,15 +753,9 @@ func TestLROPollerRetryPolicy(t *testing.T) {
 				callCount++
 				switch callCount {
 				case 1:
-					return nil, &azcore.ResponseError{
-						StatusCode: http.StatusUnauthorized,
-						ErrorCode:  "AuthenticationFailed",
-					}
+					return unauthorizedResponse()
 				case 2, 3:
-					return nil, &azcore.ResponseError{
-						StatusCode: http.StatusNotFound,
-						ErrorCode:  "DeploymentNotFound",
-					}
+					return deploymentNotFoundResponse()
 				}
 				return okResponse()
 			},
@@ -764,10 +804,7 @@ func TestLROPollerRetryPolicy(t *testing.T) {
 		transport := &fakeTransport{
 			do: func(r *http.Request) (*http.Response, error) {
 				cancel()
-				return nil, &azcore.ResponseError{
-					StatusCode: http.StatusNotFound,
-					ErrorCode:  "DeploymentNotFound",
-				}
+				return deploymentNotFoundResponse()
 			},
 		}
 		pipeline := newTestPipeline(pol, transport)

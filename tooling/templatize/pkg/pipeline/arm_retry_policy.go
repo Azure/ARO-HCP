@@ -27,6 +27,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 )
 
 // lroPollerRetryDeploymentNotFoundPolicy retries transient 404
@@ -57,19 +58,8 @@ func (p *lroPollerRetryDeploymentNotFoundPolicy) Do(req *policy.Request) (*http.
 
 	logger := logr.FromContextOrDiscard(req.Raw().Context())
 	var resp *http.Response
-	var lastRetryableErr error
 
 	err := wait.ExponentialBackoffWithContext(req.Raw().Context(), p.backoff, func(ctx context.Context) (bool, error) {
-		retryReq := req.Clone(ctx)
-		if err := retryReq.RewindBody(); err != nil {
-			return false, err
-		}
-
-		var err error
-		resp, err = retryReq.Next()
-		if err == nil {
-			return true, nil
-		}
 		if resp != nil {
 			if resp.Body != nil {
 				if closeErr := resp.Body.Close(); closeErr != nil {
@@ -79,24 +69,43 @@ func (p *lroPollerRetryDeploymentNotFoundPolicy) Do(req *policy.Request) (*http.
 			resp = nil
 		}
 
-		var respErr *azcore.ResponseError
-		if !errors.As(err, &respErr) ||
-			respErr.StatusCode != http.StatusNotFound ||
-			!strings.EqualFold(respErr.ErrorCode, "DeploymentNotFound") {
+		retryReq := req.Clone(ctx)
+		if err := retryReq.RewindBody(); err != nil {
 			return false, err
 		}
 
-		lastRetryableErr = err
-		return false, nil
+		var err error
+		resp, err = retryReq.Next()
+		if err != nil {
+			return false, err
+		}
+
+		if resp.StatusCode != http.StatusNotFound {
+			return true, nil
+		}
+
+		var respErr *azcore.ResponseError
+		if errors.As(runtime.NewResponseError(resp), &respErr) &&
+			strings.EqualFold(respErr.ErrorCode, "DeploymentNotFound") {
+			return false, nil
+		}
+		return true, nil
 	})
 	if err == nil {
 		return resp, nil
 	}
 	if req.Raw().Context().Err() != nil {
+		if resp != nil && resp.Body != nil {
+			if closeErr := resp.Body.Close(); closeErr != nil {
+				logger.Error(closeErr, "failed to close response body")
+			}
+		}
 		return nil, req.Raw().Context().Err()
 	}
-	if wait.Interrupted(err) && lastRetryableErr != nil {
-		return resp, lastRetryableErr
+	if wait.Interrupted(err) && resp != nil {
+		// Return the final response unchanged so the SDK poller can create its
+		// normal ResponseError after the policy pipeline has completed.
+		return resp, nil
 	}
 	return resp, err
 }
