@@ -149,11 +149,13 @@ type eventHubResult struct {
 
 func createEventHub(ctx context.Context, subscriptionID string, creds azcore.TokenCredential, resourceGroupName, location string) (*eventHubResult, error) {
 	const (
-		namespaceName = "shoebox-eh-ns"
-		hubName       = "shoebox-eh"
-		authRuleName  = "shoebox-eh-auth"
-		pollTimeout   = 10 * time.Minute
+		hubName      = "shoebox-eh"
+		authRuleName = "shoebox-eh-auth"
+		pollTimeout  = 10 * time.Minute
 	)
+
+	// Event Hubs namespace names are globally unique, including across parallel test runs.
+	namespaceName := "shoebox-eh-ns-" + rand.String(5)
 
 	nsClient, err := armeventhub.NewNamespacesClient(subscriptionID, creds, nil)
 	if err != nil {
@@ -275,8 +277,6 @@ var _ = Describe("Customer", func() {
 			creds, err := tc.AzureCredential()
 			Expect(err).NotTo(HaveOccurred(), "failed to get Azure credential")
 
-			// TODO: convert shoebox-specific steps below to hard-fail assertions once validated in all stage/prod regions.
-
 			By("creating storage account and Event Hub namespace in parallel")
 			var (
 				storage  *storageAccountResult
@@ -294,10 +294,8 @@ var _ = Describe("Customer", func() {
 				eventHub, err = createEventHub(gCtx, subscriptionID, creds, *resourceGroup.Name, tc.Location())
 				return err
 			})
-			if err := g.Wait(); err != nil {
-				GinkgoLogr.Error(err, "failed to create shoebox destination resources")
-				return
-			}
+			err = g.Wait()
+			Expect(err).NotTo(HaveOccurred(), "failed to create shoebox storage account and Event Hub destination resources")
 			GinkgoLogr.Info("shoebox destination resources created",
 				"storageAccount", storage.AccountName,
 				"eventHub", eventHub.EventHubName,
@@ -310,10 +308,7 @@ var _ = Describe("Customer", func() {
 			diagnosticsClient, err := armmonitor.NewDiagnosticSettingsClient(creds, &azcorearm.ClientOptions{
 				ClientOptions: azsdk.NewClientOptions(azsdk.ComponentE2E),
 			})
-			if err != nil {
-				GinkgoLogr.Error(err, "failed to create diagnostics client")
-				return
-			}
+			Expect(err).NotTo(HaveOccurred(), "failed to create diagnostics client")
 
 			_, err = diagnosticsClient.CreateOrUpdate(ctx, resourceID, "shoebox-storage-diag", armmonitor.DiagnosticSettingsResource{
 				Properties: &armmonitor.DiagnosticSettings{
@@ -321,10 +316,7 @@ var _ = Describe("Customer", func() {
 					Logs:             logSettings,
 				},
 			}, nil)
-			if err != nil {
-				GinkgoLogr.Error(err, "failed to create storage account diagnostic setting")
-				return
-			}
+			Expect(err).NotTo(HaveOccurred(), "failed to create storage account diagnostic setting for cluster %s", resourceID)
 			GinkgoLogr.Info("storage account diagnostic setting created")
 
 			_, err = diagnosticsClient.CreateOrUpdate(ctx, resourceID, "shoebox-eh-diag", armmonitor.DiagnosticSettingsResource{
@@ -334,18 +326,12 @@ var _ = Describe("Customer", func() {
 					Logs:                        logSettings,
 				},
 			}, nil)
-			if err != nil {
-				GinkgoLogr.Error(err, "failed to create Event Hub diagnostic setting")
-				return
-			}
+			Expect(err).NotTo(HaveOccurred(), "failed to create Event Hub diagnostic setting for cluster %s", resourceID)
 			GinkgoLogr.Info("Event Hub diagnostic setting created")
 
 			By("waiting for shoebox logs to appear in storage account and Event Hub")
 			blobContainersClient, err := armstorage.NewBlobContainersClient(subscriptionID, creds, nil)
-			if err != nil {
-				GinkgoLogr.Error(err, "failed to create blob containers client")
-				return
-			}
+			Expect(err).NotTo(HaveOccurred(), "failed to create blob containers client")
 
 			storageVerifier := verifiers.VerifyShoeboxLogs(blobContainersClient, *resourceGroup.Name, storage.AccountName)
 			eventHubVerifier := verifiers.VerifyShoeboxEventHub(eventHub.ConnectionString, eventHub.EventHubName)
@@ -363,9 +349,7 @@ var _ = Describe("Customer", func() {
 				}
 				return nil
 			})
-			if err := g.Wait(); err != nil {
-				GinkgoLogr.Error(err, "shoebox log verification failed")
-				return
-			}
+			err = g.Wait()
+			Expect(err).NotTo(HaveOccurred(), "failed to verify shoebox logs reached storage account %s and Event Hub %s for cluster %s", storage.AccountName, eventHub.EventHubName, resourceID)
 		})
 })

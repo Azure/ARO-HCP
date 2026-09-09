@@ -103,9 +103,6 @@ spec:
               mountPath: /forwarder/etc
               readOnly: true
         {{- if and .Values.forwarder.mdsd.enabled (eq .Values.forwarder.clusterType "mgmt") }}
-            - name: shoebox-mappings
-              mountPath: /shoebox-config
-              readOnly: true
         - name: mdsd-clusterlogs
           image: {{ .Values.forwarder.mdsd.image.registry }}/{{ .Values.forwarder.mdsd.image.repository }}@{{ .Values.forwarder.mdsd.image.digest }}
           imagePullPolicy: '{{ .Values.forwarder.mdsd.image.pullPolicy }}'
@@ -333,10 +330,6 @@ spec:
         {{- if and .Values.forwarder.mdsd.enabled (eq .Values.forwarder.clusterType "mgmt") }}
         - name: mdsd-run-clusterlogs
           emptyDir: {}
-        - name: shoebox-mappings
-          configMap:
-            name: namespace-resourceid-mapping
-            optional: true
         - name: geneva-certs-clusterlogs
           csi:
             driver: secrets-store.csi.k8s.io
