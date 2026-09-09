@@ -153,3 +153,22 @@ func TestClusterWatchingControllerSyncHasLoggerContextValues(t *testing.T) {
 	require.Contains(t, output, `"hcp_cluster_name"="/subscriptions/00000000-0000-0000-0000-000000000000/resourcegroups/test-rg/providers/microsoft.redhatopenshift/hcpopenshiftclusters/test-cluster"`)
 
 }
+
+type clusterSyncerWithoutCooldown struct{}
+
+func (s *clusterSyncerWithoutCooldown) SyncOnce(context.Context, HCPClusterKey) error { return nil }
+
+func TestClusterWatchingController_CooldownCheckerDelegates(t *testing.T) {
+	cooldown := controllerutil.NewSettableCooldownChecker()
+	inner := &clusterWatchingController{
+		syncer: &mockClusterSyncer{cooldown: cooldown},
+	}
+	require.Equal(t, cooldown, inner.CooldownChecker())
+}
+
+func TestClusterWatchingController_CooldownCheckerNilWhenSyncerHasNone(t *testing.T) {
+	inner := &clusterWatchingController{
+		syncer: &clusterSyncerWithoutCooldown{},
+	}
+	require.Nil(t, inner.CooldownChecker())
+}

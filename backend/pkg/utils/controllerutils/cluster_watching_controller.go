@@ -135,6 +135,11 @@ func (c *clusterWatchingController) SyncOnce(ctx context.Context, key HCPCluster
 }
 
 func (c *clusterWatchingController) CooldownChecker() controllerutil.CooldownChecker {
+	if p, ok := c.syncer.(interface {
+		CooldownChecker() controllerutil.CooldownChecker
+	}); ok {
+		return p.CooldownChecker()
+	}
 	return nil
 }
 
