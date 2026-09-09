@@ -15,8 +15,8 @@ require (
 	github.com/Azure/ARO-HCP/test/sdk/v20260901preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp v0.0.0-20260730193700-1078d78685af
 	github.com/google/go-cmp v0.7.0
 	github.com/microsoft/go-otel-audit v0.2.2
-	github.com/openshift-online/ocm-api-model/clientapi v0.0.464
-	github.com/openshift-online/ocm-sdk-go v0.1.509
+	github.com/openshift-online/ocm-api-model/clientapi v0.0.466
+	github.com/openshift-online/ocm-sdk-go v0.1.511
 	github.com/prometheus/client_golang v1.23.2
 	github.com/stretchr/testify v1.11.1
 	go.uber.org/goleak v1.3.0
@@ -77,7 +77,7 @@ require (
 	github.com/jedib0t/go-pretty/v6 v6.6.7 // indirect
 	github.com/kubernetes-csi/external-snapshotter/client/v8 v8.4.0 // indirect
 	github.com/mattn/go-runewidth v0.0.16 // indirect
-	github.com/openshift-online/ocm-api-model/model v0.0.464 // indirect
+	github.com/openshift-online/ocm-api-model/model v0.0.466 // indirect
 	github.com/openshift/api v0.0.0-20260429122012-1180c0f5c3e9 // indirect
 	github.com/openshift/cluster-version-operator v1.0.1-0.20260202115537-557510ea0603 // indirect
 	github.com/openshift/hypershift/api v0.0.0-20260708113917-8b5103a5875b // indirect

@@ -20,7 +20,7 @@ require (
 	github.com/go-logr/logr v1.4.3
 	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
-	github.com/openshift-online/ocm-sdk-go v0.1.509
+	github.com/openshift-online/ocm-sdk-go v0.1.511
 	github.com/openshift/api v0.0.0-20260429122012-1180c0f5c3e9
 	github.com/openshift/cluster-version-operator v1.0.1-0.20260202115537-557510ea0603
 	github.com/openshift/hypershift/api v0.0.0-20260708113917-8b5103a5875b
@@ -95,8 +95,8 @@ require (
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
-	github.com/openshift-online/ocm-api-model/clientapi v0.0.464 // indirect
-	github.com/openshift-online/ocm-api-model/model v0.0.464 // indirect
+	github.com/openshift-online/ocm-api-model/clientapi v0.0.466 // indirect
+	github.com/openshift-online/ocm-api-model/model v0.0.466 // indirect
 	github.com/openshift/library-go v0.0.0-20260504190829-2dd4388d7b89 // indirect
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c // indirect
 	github.com/pkg/errors v0.9.1 // indirect
