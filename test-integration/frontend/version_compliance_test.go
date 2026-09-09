@@ -157,7 +157,9 @@ func testVersionCompliance(t *testing.T, withMock bool) {
 			for _, v := range allVersions {
 				t.Run("GET/"+v, func(t *testing.T) {
 					getter := databasemutationhelpers.NewVersionedHTTPTestAccessor(testInfo.FrontendURL, v)
-					actual, err := getter.Get(ctx, scenario.ResourceID)
+					resp, err := getter.Get(ctx, scenario.ResourceID)
+					require.NoError(t, err)
+					actual, err := databasemutationhelpers.DecodeResponseBody(resp)
 					require.NoError(t, err)
 
 					expected := loadExpectedResponse(t, artifacts, scenario.dir, "get", v)

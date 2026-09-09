@@ -31,7 +31,11 @@ import (
 )
 
 type HTTPTestAccessor interface {
-	Get(ctx context.Context, resourceIDString string) (any, error)
+	// Get performs a GET and returns the raw *http.Response (after validating
+	// the status code). The body is not read; callers decode it (e.g. via
+	// DecodeResponseBody) and read response headers (e.g. Retry-After), and are
+	// responsible for closing the body.
+	Get(ctx context.Context, resourceIDString string) (*http.Response, error)
 	List(ctx context.Context, parentResourceIDString string) ([]any, error)
 	CreateOrUpdate(ctx context.Context, resourceIDString string, content []byte) error
 	Post(ctx context.Context, resourceIDString string, content []byte) error
@@ -69,7 +73,7 @@ func NewVersionedHTTPTestAccessor(url, apiVersion string) *httpHTTPTestAccessor 
 
 var _ HTTPTestAccessor = &httpHTTPTestAccessor{}
 
-func (a *httpHTTPTestAccessor) Get(ctx context.Context, resourceIDString string) (any, error) {
+func (a *httpHTTPTestAccessor) Get(ctx context.Context, resourceIDString string) (*http.Response, error) {
 	return a.doRequest(ctx, http.MethodGet, resourceIDString, nil)
 }
 
@@ -82,7 +86,11 @@ func (a *httpHTTPTestAccessor) List(ctx context.Context, exemplarResourceIDStrin
 	}
 	collectionPath := exemplarResourceIDString[:lastSlash]
 
-	result, err := a.doRequest(ctx, http.MethodGet, collectionPath, nil)
+	resp, err := a.doRequest(ctx, http.MethodGet, collectionPath, nil)
+	if err != nil {
+		return nil, err
+	}
+	result, err := DecodeResponseBody(resp)
 	if err != nil {
 		return nil, err
 	}
@@ -102,22 +110,38 @@ func (a *httpHTTPTestAccessor) List(ctx context.Context, exemplarResourceIDStrin
 }
 
 func (a *httpHTTPTestAccessor) CreateOrUpdate(ctx context.Context, resourceIDString string, content []byte) error {
-	_, err := a.doRequest(ctx, http.MethodPut, resourceIDString, content)
+	resp, err := a.doRequest(ctx, http.MethodPut, resourceIDString, content)
+	if err != nil {
+		return err
+	}
+	_, err = DecodeResponseBody(resp)
 	return err
 }
 
 func (a *httpHTTPTestAccessor) Post(ctx context.Context, resourceIDString string, content []byte) error {
-	_, err := a.doRequest(ctx, http.MethodPost, resourceIDString, content)
+	resp, err := a.doRequest(ctx, http.MethodPost, resourceIDString, content)
+	if err != nil {
+		return err
+	}
+	_, err = DecodeResponseBody(resp)
 	return err
 }
 
 func (a *httpHTTPTestAccessor) Patch(ctx context.Context, resourceIDString string, content []byte) error {
-	_, err := a.doRequest(ctx, http.MethodPatch, resourceIDString, content)
+	resp, err := a.doRequest(ctx, http.MethodPatch, resourceIDString, content)
+	if err != nil {
+		return err
+	}
+	_, err = DecodeResponseBody(resp)
 	return err
 }
 
 func (a *httpHTTPTestAccessor) Delete(ctx context.Context, resourceIDString string) error {
-	_, err := a.doRequest(ctx, http.MethodDelete, resourceIDString, nil)
+	resp, err := a.doRequest(ctx, http.MethodDelete, resourceIDString, nil)
+	if err != nil {
+		return err
+	}
+	_, err = DecodeResponseBody(resp)
 	return err
 }
 
@@ -126,7 +150,11 @@ func (a *httpHTTPTestAccessor) Delete(ctx context.Context, resourceIDString stri
 // is not present in the stored resource ID.
 const operationStatusLocation = "fake-location"
 
-func (a *httpHTTPTestAccessor) doRequest(ctx context.Context, method, path string, body []byte) (any, error) {
+// doRequest issues the HTTP request and validates the status code. On a non-2xx
+// response it reads the body (to build a descriptive error) and closes it. On
+// success it returns the raw *http.Response with the body unread; the caller is
+// responsible for reading/decoding and closing the body.
+func (a *httpHTTPTestAccessor) doRequest(ctx context.Context, method, path string, body []byte) (*http.Response, error) {
 	logger := utils.LoggerFromContext(ctx)
 
 	var reqBody io.Reader
@@ -171,18 +199,17 @@ func (a *httpHTTPTestAccessor) doRequest(ctx context.Context, method, path strin
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
-	defer func() {
-		if err := resp.Body.Close(); err != nil {
-			logger.Error(err, "failed to close response body")
-		}
-	}()
-
-	bodyBytes, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, utils.TrackError(err)
-	}
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		defer func() {
+			if err := resp.Body.Close(); err != nil {
+				logger.Error(err, "failed to close response body")
+			}
+		}()
+		bodyBytes, readErr := io.ReadAll(resp.Body)
+		if readErr != nil {
+			return nil, utils.TrackError(readErr)
+		}
 		// Re-indent the response body with 2-space indent to match the
 		// format produced by the Azure SDK's ResponseError.Error(). This
 		// ensures expected-error.txt fixtures (written as substrings of
@@ -194,16 +221,32 @@ func (a *httpHTTPTestAccessor) doRequest(ctx context.Context, method, path strin
 		return nil, utils.TrackError(fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(bodyBytes)))
 	}
 
+	return resp, nil
+}
+
+// DecodeResponseBody reads and decodes (JSON or YAML) the body of a response
+// returned by HTTPTestAccessor.Get, and closes the body. An empty body yields a
+// nil result.
+//
+// The mutating verbs call this and discard the value. They do not need the
+// content, but reading to completion drains the connection for reuse and
+// surfaces a malformed 2xx body as an error — which is what doRequest did for
+// every verb before Get needed to hand back the raw response.
+func DecodeResponseBody(resp *http.Response) (any, error) {
+	defer resp.Body.Close()
+
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
 	if len(bodyBytes) == 0 {
 		return nil, nil
 	}
 
 	var result map[string]any
-
 	// handles both JSON and YAML
 	if err := yaml.Unmarshal(bodyBytes, &result); err != nil {
 		return nil, utils.TrackError(err)
 	}
-
 	return result, nil
 }
