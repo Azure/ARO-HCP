@@ -34,7 +34,6 @@ import (
 	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 
 	clusterversion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/version"
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controlplaneversion"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
@@ -75,7 +74,7 @@ var _ = Describe("ARO-HCP", func() {
 				Expect(err).NotTo(HaveOccurred(), "failed to resolve nightly install version for %s", version)
 				clusterParams.OpenshiftVersionId = resolved
 			} else {
-				desiredVersion, err := controlplaneversion.SelectControlPlaneVersion(ctx, http.DefaultTransport.RoundTrip, nil, fmt.Sprintf("%s-%s", channelGroup, version), clusterversion.GetZStreamOffset(channelGroup))
+				desiredVersion, err := framework.SelectControlPlaneVersion(ctx, http.DefaultTransport.RoundTrip, nil, fmt.Sprintf("%s-%s", channelGroup, version), clusterversion.GetZStreamOffset(channelGroup))
 				if err != nil {
 					Skip(fmt.Sprintf("failed to resolve a version for channel %s-%s: %v", channelGroup, version, err))
 				}

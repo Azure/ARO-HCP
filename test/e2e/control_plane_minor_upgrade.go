@@ -32,7 +32,6 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
 	clusterversion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/version"
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controlplaneversion"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
@@ -77,7 +76,7 @@ var _ = Describe("Customer", func() {
 				upgradeVersionId = resolvedUpgrade
 			} else {
 				for _, minorLine := range []string{installVersionId, upgradeVersionId} {
-					desiredVersion, err := controlplaneversion.SelectControlPlaneVersion(ctx, http.DefaultTransport.RoundTrip, nil, fmt.Sprintf("%s-%s", channelGroup, minorLine), clusterversion.GetZStreamOffset(channelGroup))
+					desiredVersion, err := framework.SelectControlPlaneVersion(ctx, http.DefaultTransport.RoundTrip, nil, fmt.Sprintf("%s-%s", channelGroup, minorLine), clusterversion.GetZStreamOffset(channelGroup))
 					if err != nil {
 						Skip(fmt.Sprintf("failed to resolve a version for channel %s-%s: %v", channelGroup, minorLine, err))
 					}
