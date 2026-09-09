@@ -256,3 +256,41 @@ func TestNodeReleaseImagesUpdated(t *testing.T) {
 		t.Errorf("expected the failure message to report the elided count, got: %s", got)
 	}
 }
+
+func TestExtractNodePoolName(t *testing.T) {
+	tests := []struct {
+		name          string
+		nodePoolLabel string
+		want          string
+	}{
+		{
+			name:          "standard format with cluster prefix",
+			nodePoolLabel: "np-delete-hcp-cluster-np-delete-main",
+			want:          "np-delete-main",
+		},
+		{
+			name:          "simple nodepool name",
+			nodePoolLabel: "cluster-workers",
+			want:          "workers",
+		},
+		{
+			name:          "single component fallback",
+			nodePoolLabel: "workers",
+			want:          "workers",
+		},
+		{
+			name:          "multiple dashes in cluster name",
+			nodePoolLabel: "my-long-cluster-name-np-1",
+			want:          "name-np-1",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := extractNodePoolName(tt.nodePoolLabel)
+			if got != tt.want {
+				t.Errorf("extractNodePoolName(%q) = %q, want %q", tt.nodePoolLabel, got, tt.want)
+			}
+		})
+	}
+}

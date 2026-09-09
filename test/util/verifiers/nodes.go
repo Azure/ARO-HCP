@@ -113,6 +113,58 @@ func VerifyNodeCount(clusterName string, expected int) HostedClusterVerifier {
 	}
 }
 
+type verifyAllNodesFromNodePool struct {
+	nodePoolName string
+}
+
+func (v verifyAllNodesFromNodePool) Name() string {
+	return fmt.Sprintf("VerifyAllNodesFromNodePool(nodePool=%s)", v.nodePoolName)
+}
+
+func (v verifyAllNodesFromNodePool) Verify(ctx context.Context, adminRESTConfig *rest.Config) error {
+	kubeClient, err := kubernetes.NewForConfig(adminRESTConfig)
+	if err != nil {
+		return fmt.Errorf("failed to create kubernetes client: %w", err)
+	}
+
+	nodes, err := kubeClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return fmt.Errorf("can't list nodes in the cluster: %w", err)
+	}
+
+	if len(nodes.Items) == 0 {
+		return fmt.Errorf("no nodes found in the cluster")
+	}
+
+	var nodesFromOtherPools []string
+	for i := range nodes.Items {
+		nodePoolLabel, ok := nodes.Items[i].Labels[hypershiftv1beta1.NodePoolLabel]
+		if !ok {
+			nodesFromOtherPools = append(nodesFromOtherPools, fmt.Sprintf("%s (no nodepool label)", nodes.Items[i].Name))
+			continue
+		}
+		nodePoolName := extractNodePoolName(nodePoolLabel)
+		if nodePoolName != v.nodePoolName {
+			nodesFromOtherPools = append(nodesFromOtherPools, fmt.Sprintf("%s (from nodepool %q)", nodes.Items[i].Name, nodePoolName))
+		}
+	}
+
+	if len(nodesFromOtherPools) > 0 {
+		return fmt.Errorf("expected all nodes to be from nodepool %q, but found nodes from other pools: %s; all nodes by pool: %s",
+			v.nodePoolName, strings.Join(nodesFromOtherPools, ", "), formatNodesByPool(nodes.Items))
+	}
+
+	return nil
+}
+
+// VerifyAllNodesFromNodePool verifies that all nodes in the cluster belong to the specified node pool.
+// This is useful after deleting a nodepool to ensure only nodes from the expected nodepool remain.
+func VerifyAllNodesFromNodePool(nodePoolName string) HostedClusterVerifier {
+	return verifyAllNodesFromNodePool{
+		nodePoolName: nodePoolName,
+	}
+}
+
 // nodePoolNameRegex matches valid ARO-HCP node pool resource names
 // Same pattern as internal/validation/validators.go nodePoolResourceName, which is unexported.
 var nodePoolNameRegex = regexp.MustCompile(`^[a-zA-Z][-a-zA-Z0-9]{1,13}[a-zA-Z0-9]$`)
