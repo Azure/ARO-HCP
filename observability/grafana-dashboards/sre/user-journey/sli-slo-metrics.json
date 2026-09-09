@@ -437,7 +437,7 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "Selected-window create outcomes by resource type. This mirrors the Create Health report section.",
+      "description": "Current operation inventory by resource type and phase.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -446,7 +446,7 @@
           "custom": {
             "axisCenteredZero": false,
             "axisColorMode": "text",
-            "axisLabel": "Resources",
+            "axisLabel": "Operations",
             "axisPlacement": "auto",
             "fillOpacity": 85,
             "gradientMode": "none",
@@ -487,10 +487,10 @@
         },
         "orientation": "horizontal",
         "showValue": "always",
-        "stacking": "normal",
+        "stacking": "none",
         "tooltip": {
           "hideZeros": true,
-          "mode": "multi",
+          "mode": "single",
           "sort": "desc"
         },
         "xTickLabelRotation": 0,
@@ -504,35 +504,13 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count by (resource_type) ((backend_resource_operation_phase_info{operation_type=\"create\",phase=\"succeeded\",resource_type=~\"microsoft.redhatopenshift/hcpopenshiftclusters($|/nodepools$|/externalauths$)\",subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{operation_type=\"create\",phase=\"succeeded\",resource_type=~\"microsoft.redhatopenshift/hcpopenshiftclusters($|/nodepools$|/externalauths$)\",subscription_id!~\"${exclude_subs:raw}\"}) < $__range_s))",
+          "expr": "count by (resource_type,phase) (backend_resource_operation_phase_info{resource_type=~\"microsoft.redhatopenshift/hcpopenshiftclusters($|/nodepools$|/externalauths$)\",operation_type=~\"create|delete|update\",subscription_id!~\"${exclude_subs:raw}\"} == 1)",
           "instant": true,
-          "legendFormat": "Succeeded / {{resource_type}}",
+          "legendFormat": "{{resource_type}} / {{phase}}",
           "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "$datasource"
-          },
-          "editorMode": "code",
-          "expr": "count by (resource_type) ((backend_resource_operation_phase_info{operation_type=\"create\",phase=\"failed\",resource_type=~\"microsoft.redhatopenshift/hcpopenshiftclusters($|/nodepools$|/externalauths$)\",subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{operation_type=\"create\",phase=\"failed\",resource_type=~\"microsoft.redhatopenshift/hcpopenshiftclusters($|/nodepools$|/externalauths$)\",subscription_id!~\"${exclude_subs:raw}\"}) < $__range_s))",
-          "instant": true,
-          "legendFormat": "Failed / {{resource_type}}",
-          "refId": "B"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "$datasource"
-          },
-          "editorMode": "code",
-          "expr": "count by (resource_type) ((backend_resource_operation_phase_info{operation_type=\"create\",phase=\"canceled\",resource_type=~\"microsoft.redhatopenshift/hcpopenshiftclusters($|/nodepools$|/externalauths$)\",subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{operation_type=\"create\",phase=\"canceled\",resource_type=~\"microsoft.redhatopenshift/hcpopenshiftclusters($|/nodepools$|/externalauths$)\",subscription_id!~\"${exclude_subs:raw}\"}) < $__range_s))",
-          "instant": true,
-          "legendFormat": "Canceled / {{resource_type}}",
-          "refId": "C"
         }
       ],
-      "title": "Create Outcomes by Resource Type",
+      "title": "Current Operations by Phase",
       "transformations": [
         {
           "id": "seriesToRows",
@@ -690,7 +668,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 28
+        "y": 41
       },
       "id": 20,
       "panels": [],
@@ -777,7 +755,7 @@
         "h": 10,
         "w": 24,
         "x": 0,
-        "y": 29
+        "y": 42
       },
       "id": 21,
       "options": {
@@ -949,7 +927,7 @@
         "h": 10,
         "w": 24,
         "x": 0,
-        "y": 39
+        "y": 52
       },
       "id": 22,
       "options": {
@@ -1143,7 +1121,7 @@
         "h": 10,
         "w": 24,
         "x": 0,
-        "y": 49
+        "y": 62
       },
       "id": 23,
       "options": {
@@ -1385,7 +1363,7 @@
         "h": 10,
         "w": 24,
         "x": 0,
-        "y": 59
+        "y": 72
       },
       "id": 24,
       "options": {
@@ -1502,19 +1480,6 @@
       "type": "bargauge"
     },
     {
-      "collapsed": false,
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 69
-      },
-      "id": 30,
-      "panels": [],
-      "title": "Delete and update health",
-      "type": "row"
-    },
-    {
       "datasource": {
         "type": "datasource",
         "uid": "-- Mixed --"
@@ -1584,7 +1549,7 @@
         "h": 13,
         "w": 24,
         "x": 0,
-        "y": 70
+        "y": 28
       },
       "id": 31,
       "options": {
@@ -1669,120 +1634,12 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 83
+        "y": 82
       },
       "id": 40,
       "panels": [],
       "title": "Latest phase and SLO breaches",
       "type": "row"
-    },
-    {
-      "datasource": {
-        "type": "datasource",
-        "uid": "-- Mixed --"
-      },
-      "description": "Current operation inventory by resource type and phase.",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "Operations",
-            "axisPlacement": "auto",
-            "fillOpacity": 85,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "lineWidth": 1,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 12,
-        "w": 12,
-        "x": 0,
-        "y": 84
-      },
-      "id": 41,
-      "options": {
-        "barRadius": 0,
-        "barWidth": 0.9,
-        "fullHighlight": false,
-        "groupWidth": 0.7,
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "orientation": "horizontal",
-        "showValue": "always",
-        "stacking": "none",
-        "tooltip": {
-          "hideZeros": true,
-          "mode": "single",
-          "sort": "desc"
-        },
-        "xTickLabelRotation": 0,
-        "xTickLabelSpacing": 0
-      },
-      "pluginVersion": "11.6.9",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "$datasource"
-          },
-          "editorMode": "code",
-          "expr": "count by (resource_type,phase) (backend_resource_operation_phase_info{resource_type=~\"microsoft.redhatopenshift/hcpopenshiftclusters($|/nodepools$|/externalauths$)\",operation_type=~\"create|delete|update\",subscription_id!~\"${exclude_subs:raw}\"} == 1)",
-          "instant": true,
-          "legendFormat": "{{resource_type}} / {{phase}}",
-          "refId": "A"
-        }
-      ],
-      "title": "Current Operations by Phase",
-      "transformations": [
-        {
-          "id": "seriesToRows",
-          "options": {}
-        },
-        {
-          "id": "merge",
-          "options": {}
-        },
-        {
-          "id": "groupBy",
-          "options": {
-            "fields": {
-              "Metric": {
-                "aggregations": [],
-                "operation": "groupby"
-              },
-              "Value": {
-                "aggregations": [
-                  "sum"
-                ],
-                "operation": "aggregate"
-              }
-            }
-          }
-        }
-      ],
-      "type": "barchart"
     },
     {
       "datasource": {
@@ -1813,9 +1670,9 @@
       },
       "gridPos": {
         "h": 12,
-        "w": 12,
-        "x": 12,
-        "y": 84
+        "w": 24,
+        "x": 0,
+        "y": 83
       },
       "id": 42,
       "options": {
@@ -1950,7 +1807,7 @@
         "h": 12,
         "w": 24,
         "x": 0,
-        "y": 96
+        "y": 95
       },
       "id": 43,
       "options": {
@@ -2028,7 +1885,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 108
+        "y": 107
       },
       "id": 50,
       "panels": [],
@@ -2120,7 +1977,7 @@
         "h": 13,
         "w": 24,
         "x": 0,
-        "y": 109
+        "y": 108
       },
       "id": 51,
       "options": {
@@ -2251,7 +2108,7 @@
         "h": 13,
         "w": 24,
         "x": 0,
-        "y": 122
+        "y": 121
       },
       "id": 52,
       "options": {
