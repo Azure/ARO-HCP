@@ -2,7 +2,7 @@ using '../modules/entra/app.bicep'
 
 // Dedicated Entra app granted Microsoft Graph Application.ReadWrite.All, used
 // by the cleanup-sweeper shared-leftovers workflow to purge aged soft-deleted
-// apps/SPs (see tooling/cleanup-sweeper/roleassignments/purge_aged_deleted.go).
+// apps/SPs (see docs/ci/cleanup.md).
 // Kept separate from the mock identities and the CI bots: it needs a
 // materially higher privilege than either, so it must not share an app with a
 // lower-privilege identity. Application.ReadWrite.All still requires manual

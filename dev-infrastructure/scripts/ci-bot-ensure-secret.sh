@@ -9,7 +9,9 @@ set -euo pipefail
 #
 # Required environment variables:
 #   APP_NAME       - Entra application display name (e.g. "OpenShift Release Bot - STG")
-#   ENV_NAME       - Environment label (e.g. "stg") used in KV secret names
+#   ENV_NAME       - Environment label (e.g. "stg") used to compute the
+#                    default SECRET_PREFIX (ci-bot-${ENV_NAME}); ignored if
+#                    SECRET_PREFIX is set explicitly
 #   KEY_VAULT_NAME - Target Azure Key Vault name
 #
 # Optional environment variables:
