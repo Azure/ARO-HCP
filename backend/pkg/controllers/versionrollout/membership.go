@@ -21,6 +21,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 // clusterMinor returns the minor version that places a cluster in a rollout: the
@@ -42,6 +43,7 @@ func clusterMinor(serviceProviderCluster *coreapi.ServiceProviderCluster) (strin
 // whose backing HCPOpenShiftCluster is gone, or which have no channel group, are
 // not matched (there is no default channel group).
 func serviceProviderClustersForChannel(ctx context.Context, serviceProviderClusterLister corelisters.ServiceProviderClusterLister, clusterLister corelisters.ClusterLister, yStreamChannel string) ([]*coreapi.ServiceProviderCluster, error) {
+	logger := utils.LoggerFromContext(ctx).WithValues("ystreamChannel", yStreamChannel)
 	channelGroup, minor, ok := parseYStreamChannel(yStreamChannel)
 	if !ok {
 		return nil, fmt.Errorf("invalid y-stream channel %q", yStreamChannel)
@@ -66,19 +68,24 @@ func serviceProviderClustersForChannel(ctx context.Context, serviceProviderClust
 		return nil, fmt.Errorf("failed to list ServiceProviderClusters: %w", err)
 	}
 
+	logger.Info("Matching clusters to rollout channel", "clusterCount", len(clusters), "serviceProviderClusterCount", len(serviceProviderClusters))
 	var matched []*coreapi.ServiceProviderCluster
 	for _, serviceProviderCluster := range serviceProviderClusters {
 		clusterMinorVersion, ok := clusterMinor(serviceProviderCluster)
 		if !ok || clusterMinorVersion != minor {
+			logger.Info("Excluding cluster from rollout: minor version unknown or does not match", "resourceID", serviceProviderCluster.ResourceID, "minorKnown", ok, "clusterMinor", clusterMinorVersion, "channelMinor", minor, "desiredVersion", versionString(serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion), "activeVersion", versionString(earliestActiveVersion(serviceProviderCluster.Status.ControlPlaneVersion.ActiveVersions)))
 			continue
 		}
 		if serviceProviderCluster.ResourceID == nil || serviceProviderCluster.ResourceID.Parent == nil {
+			logger.Info("Excluding cluster from rollout: missing cluster resource ID", "resourceID", serviceProviderCluster.ResourceID)
 			continue
 		}
 		clusterChannelGroup, ok := channelGroupByClusterID[strings.ToLower(serviceProviderCluster.ResourceID.Parent.String())]
 		if !ok || clusterChannelGroup != channelGroup {
+			logger.Info("Excluding cluster from rollout: backing cluster missing or channel group does not match", "resourceID", serviceProviderCluster.ResourceID, "clusterFound", ok, "clusterChannelGroup", clusterChannelGroup, "channelGroup", channelGroup)
 			continue
 		}
+		logger.Info("Including cluster in rollout channel", "resourceID", serviceProviderCluster.ResourceID)
 		matched = append(matched, serviceProviderCluster)
 	}
 	return matched, nil

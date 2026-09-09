@@ -145,9 +145,21 @@ func computeForcedDesiredVersion(current *coreapi.ServiceProviderCluster, best *
 }
 
 // SyncOnce applies the forced-assignment decision for one cluster.
-func (c *forcedClusterDesiredVersionSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
+func (c *forcedClusterDesiredVersionSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) (syncErr error) {
+	logger := utils.AddLoggerValues(utils.LoggerFromContext(ctx), key).WithValues(utils.LogValues{}.AddControllerName(ForcedClusterDesiredVersionControllerName)...)
+	ctx = utils.ContextWithLogger(ctx, logger)
+	logger.Info("Starting version rollout sync")
+	defer func() {
+		if syncErr != nil {
+			logger.Error(syncErr, "Version rollout sync failed")
+		} else {
+			logger.Info("Finished version rollout sync")
+		}
+	}()
+
 	serviceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if cosmosstorageutils.IsNotFoundError(err) {
+		logger.Info("Skipping sync because watched resource was not found")
 		return nil
 	}
 	if err != nil {
@@ -156,6 +168,7 @@ func (c *forcedClusterDesiredVersionSyncer) SyncOnce(ctx context.Context, key co
 
 	cluster, err := c.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if cosmosstorageutils.IsNotFoundError(err) {
+		logger.Info("Skipping sync because watched resource was not found")
 		return nil // the cluster is gone; the ServiceProviderCluster will be cleaned up
 	}
 	if err != nil {
@@ -169,6 +182,7 @@ func (c *forcedClusterDesiredVersionSyncer) SyncOnce(ctx context.Context, key co
 	// SRE PinnedVersion or the experimental ControlPlaneExactVersion. Otherwise
 	// normal rollout assignment owns the cluster.
 	if pin.ExactVersion == nil && experimentalExactVersion == nil {
+		logger.Info("Leaving desired version to normal rollout assignment; no pin or experimental override")
 		return nil
 	}
 
@@ -188,12 +202,16 @@ func (c *forcedClusterDesiredVersionSyncer) SyncOnce(ctx context.Context, key co
 		if err != nil && !cosmosstorageutils.IsNotFoundError(err) {
 			return utils.TrackError(fmt.Errorf("failed to get ControlPlaneVersionRollout %q: %w", yStreamChannel, err))
 		}
+		if cosmosstorageutils.IsNotFoundError(err) {
+			logger.Info("Pinned channel rollout is missing; retaining pin", "ystreamChannel", yStreamChannel)
+		}
 		if err == nil {
 			best = rollout.Spec.BestExactVersion
 		}
 	}
 
 	decision := computeForcedDesiredVersion(serviceProviderCluster, best, experimentalExactVersion)
+	logger.Info("Computed forced version decision", "currentDesired", versionString(serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion), "pinnedVersion", versionString(pin.ExactVersion), "untilVersion", versionString(pin.UntilExactVersion), "experimentalExactVersion", versionString(experimentalExactVersion), "best", versionString(best), "changed", decision.Changed, "clearPin", decision.ClearPin, "newDesired", versionString(decision.NewDesired))
 	if !decision.Changed {
 		return nil
 	}
@@ -210,10 +228,12 @@ func (c *forcedClusterDesiredVersionSyncer) SyncOnce(ctx context.Context, key co
 	}
 
 	if _, err := c.resourcesDBClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName).Replace(ctx, replacement, nil); cosmosstorageutils.IsPreconditionFailedError(err) {
+		utils.LoggerFromContext(ctx).Info("Write conflicted; waiting for informer to provide current resource")
 		// Someone else won the race; the informer will re-enqueue with the fresh etag.
 		return nil
 	} else if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to replace ServiceProviderCluster: %w", err))
 	}
+	logger.Info("Persisted forced desired version", "desiredVersion", versionString(decision.NewDesired), "clearedPin", decision.ClearPin)
 	return nil
 }

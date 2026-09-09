@@ -71,9 +71,21 @@ func selectBestExactVersion(graphBest, minimum *semver.Version) *semver.Version 
 }
 
 // SyncOnce recomputes Spec.BestExactVersion for one rollout channel.
-func (c *bestVersionSelectionSyncer) SyncOnce(ctx context.Context, key controllerutils.ControlPlaneVersionRolloutKey) error {
+func (c *bestVersionSelectionSyncer) SyncOnce(ctx context.Context, key controllerutils.ControlPlaneVersionRolloutKey) (syncErr error) {
+	logger := utils.AddLoggerValues(utils.LoggerFromContext(ctx), key).WithValues(utils.LogValues{}.AddControllerName(BestVersionSelectionControllerName)...)
+	ctx = utils.ContextWithLogger(ctx, logger)
+	logger.Info("Starting version rollout sync")
+	defer func() {
+		if syncErr != nil {
+			logger.Error(syncErr, "Version rollout sync failed")
+		} else {
+			logger.Info("Finished version rollout sync")
+		}
+	}()
+
 	rollout, err := c.rolloutLister.Get(ctx, key.YStreamChannel)
 	if cosmosstorageutils.IsNotFoundError(err) {
+		logger.Info("Skipping sync because watched resource was not found")
 		return nil
 	}
 	if err != nil {
@@ -91,10 +103,13 @@ func (c *bestVersionSelectionSyncer) SyncOnce(ctx context.Context, key controlle
 	}
 
 	best := selectBestExactVersion(graphBest, minimum)
+	logger.Info("Selected best version", "graphBest", versionString(graphBest), "minimum", versionString(minimum), "best", versionString(best), "currentBest", versionString(rollout.Spec.BestExactVersion))
 	if best == nil {
+		logger.Info("Skipping best version update because no version is selectable")
 		return nil // nothing selectable yet
 	}
 	if rollout.Spec.BestExactVersion != nil && rollout.Spec.BestExactVersion.EQ(*best) {
+		logger.Info("Best version is unchanged")
 		return nil // no change
 	}
 
@@ -102,9 +117,11 @@ func (c *bestVersionSelectionSyncer) SyncOnce(ctx context.Context, key controlle
 	bestCopy := *best
 	replacement.Spec.BestExactVersion = &bestCopy
 	if _, err := c.fleetDBClient.ControlPlaneVersionRollouts().Replace(ctx, replacement, rollout, nil); cosmosstorageutils.IsPreconditionFailedError(err) {
+		utils.LoggerFromContext(ctx).Info("Write conflicted; waiting for informer to provide current resource")
 		return nil
 	} else if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to replace ControlPlaneVersionRollout %q: %w", key.YStreamChannel, err))
 	}
+	logger.Info("Persisted best version", "best", versionString(best))
 	return nil
 }

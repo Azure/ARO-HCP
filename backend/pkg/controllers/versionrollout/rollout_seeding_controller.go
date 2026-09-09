@@ -81,9 +81,21 @@ func NewControlPlaneVersionRolloutSeedingController(
 }
 
 // SyncOnce ensures the rollout for the triggering cluster's y-stream channel exists.
-func (c *rolloutSeedingSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
+func (c *rolloutSeedingSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) (syncErr error) {
+	logger := utils.AddLoggerValues(utils.LoggerFromContext(ctx), key).WithValues(utils.LogValues{}.AddControllerName(RolloutSeedingControllerName)...)
+	ctx = utils.ContextWithLogger(ctx, logger)
+	logger.Info("Starting version rollout sync")
+	defer func() {
+		if syncErr != nil {
+			logger.Error(syncErr, "Version rollout sync failed")
+		} else {
+			logger.Info("Finished version rollout sync")
+		}
+	}()
+
 	cluster, err := c.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if cosmosstorageutils.IsNotFoundError(err) {
+		logger.Info("Skipping sync because watched resource was not found")
 		return nil
 	}
 	if err != nil {
@@ -92,17 +104,20 @@ func (c *rolloutSeedingSyncer) SyncOnce(ctx context.Context, key controllerutils
 	// A cluster on its way out does not need its channel seeded; any other
 	// (non-deleting) cluster in the same channel will seed it on its own sync.
 	if cluster.ServiceProviderProperties.DeletionTimestamp != nil {
+		logger.Info("Skipping rollout seeding because cluster is deleting")
 		return nil
 	}
 
 	channel, ok := clusterYStreamChannel(cluster)
 	if !ok {
+		logger.Info("Cannot determine rollout channel", "channelGroup", cluster.CustomerProperties.Version.ChannelGroup, "requestedVersion", cluster.CustomerProperties.Version.ID)
 		// No channel group or unparseable version — nothing to seed. version.id
 		// and version.channelGroup are required by static validation, so this only
 		// happens for malformed documents.
 		return nil
 	}
 
+	logger.Info("Ensuring rollout for cluster channel", "ystreamChannel", channel)
 	return c.ensureRollout(ctx, channel)
 }
 
@@ -128,8 +143,10 @@ func clusterYStreamChannel(cluster *coreapi.HCPOpenShiftCluster) (string, bool) 
 // avoid a Cosmos round-trip; a create that races another seeder (or a stale
 // lister) surfaces as a 409 conflict, which is treated as success.
 func (c *rolloutSeedingSyncer) ensureRollout(ctx context.Context, channel string) error {
+	logger := utils.LoggerFromContext(ctx).WithValues("ystreamChannel", channel)
 	_, err := c.rolloutLister.Get(ctx, channel)
 	if err == nil {
+		logger.Info("Rollout already exists")
 		return nil // already exists
 	}
 	if !cosmosstorageutils.IsNotFoundError(err) {
@@ -143,10 +160,12 @@ func (c *rolloutSeedingSyncer) ensureRollout(ctx context.Context, channel string
 
 	utils.LoggerFromContext(ctx).Info("creating ControlPlaneVersionRollout", "ystreamChannel", channel)
 	if _, err := c.fleetDBClient.ControlPlaneVersionRollouts().Create(ctx, rollout, nil); cosmosstorageutils.IsConflictError(err) {
+		logger.Info("Rollout created concurrently by another sync")
 		return nil // another seeder won the race; the rollout now exists
 	} else if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to create ControlPlaneVersionRollout %q: %w", channel, err))
 	}
+	logger.Info("Created rollout")
 	return nil
 }
 

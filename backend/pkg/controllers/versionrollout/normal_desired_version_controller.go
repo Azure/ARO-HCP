@@ -231,15 +231,28 @@ func rolloutDecision(rollout *fleetapi.ControlPlaneVersionRollout, totalClusters
 
 // SyncOnce advances clusters for one rollout channel and records the rollout
 // condition.
-func (c *normalClusterDesiredVersionSyncer) SyncOnce(ctx context.Context, key controllerutils.ControlPlaneVersionRolloutKey) error {
+func (c *normalClusterDesiredVersionSyncer) SyncOnce(ctx context.Context, key controllerutils.ControlPlaneVersionRolloutKey) (syncErr error) {
+	logger := utils.AddLoggerValues(utils.LoggerFromContext(ctx), key).WithValues(utils.LogValues{}.AddControllerName(NormalClusterDesiredVersionControllerName)...)
+	ctx = utils.ContextWithLogger(ctx, logger)
+	logger.Info("Starting version rollout sync")
+	defer func() {
+		if syncErr != nil {
+			logger.Error(syncErr, "Version rollout sync failed")
+		} else {
+			logger.Info("Finished version rollout sync")
+		}
+	}()
+
 	rollout, err := c.rolloutLister.Get(ctx, key.YStreamChannel)
 	if cosmosstorageutils.IsNotFoundError(err) {
+		logger.Info("Skipping sync because watched resource was not found")
 		return nil
 	}
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get ControlPlaneVersionRollout %q: %w", key.YStreamChannel, err))
 	}
 
+	logger.Info("Loaded rollout", "bestVersion", versionString(rollout.Spec.BestExactVersion), "conditions", rollout.Status.Conditions)
 	serviceProviderClusters, err := serviceProviderClustersForChannel(ctx, c.serviceProviderClusterLister, c.clusterLister, key.YStreamChannel)
 	if err != nil {
 		return utils.TrackError(err)
@@ -250,12 +263,59 @@ func (c *normalClusterDesiredVersionSyncer) SyncOnce(ctx context.Context, key co
 		return utils.TrackError(err)
 	}
 
+	logger.Info("Loaded rollout membership and overrides", "channelMemberCount", len(serviceProviderClusters), "experimentalOverrideCount", len(clustersWithExactVersion))
 	var eligible []*coreapi.ServiceProviderCluster
 	if rollout.Spec.BestExactVersion != nil {
 		eligible = eligibleClusters(serviceProviderClusters, *rollout.Spec.BestExactVersion, clustersWithExactVersion)
 	}
 
+	eligibleSet := make(map[*coreapi.ServiceProviderCluster]bool, len(eligible))
+	for _, cluster := range eligible {
+		eligibleSet[cluster] = true
+	}
+	for _, cluster := range serviceProviderClusters {
+		experimentalOverride := cluster.ResourceID != nil && cluster.ResourceID.Parent != nil && clustersWithExactVersion[strings.ToLower(cluster.ResourceID.Parent.String())]
+		reason := "unpinned cluster below best version"
+		best := rollout.Spec.BestExactVersion
+		desired := cluster.Spec.ControlPlaneVersion.DesiredVersion
+		pin := cluster.Spec.PinnedVersion
+		switch {
+		case best == nil:
+			reason = "no best version selected for channel"
+		case experimentalOverride:
+			reason = "experimental exact version is owned by forced assignment controller"
+		case desired != nil && !desired.LT(*best):
+			reason = "desired version is already at or above best version"
+		case pin.ExactVersion != nil && pin.UntilExactVersion == nil:
+			reason = "version pin has no release threshold"
+		case pin.ExactVersion != nil && pin.UntilExactVersion.GT(*best):
+			reason = "best version has not reached pin release threshold"
+		case pin.ExactVersion != nil:
+			reason = "best version has reached pin release threshold"
+		case desired == nil:
+			reason = "unpinned cluster needs its initial desired version"
+		}
+		logger.Info("Evaluated cluster rollout eligibility", "reason", reason, "bestVersion", versionString(best), "resourceID", cluster.ResourceID, "eligible", eligibleSet[cluster], "experimentalOverride", experimentalOverride, "desiredVersion", versionString(cluster.Spec.ControlPlaneVersion.DesiredVersion), "pinnedVersion", versionString(cluster.Spec.PinnedVersion.ExactVersion), "untilVersion", versionString(cluster.Spec.PinnedVersion.UntilExactVersion))
+	}
+	logger.Info("Evaluating rollout progress", "desired", rollout.Status.ClusterCountByDesiredExactVersion, "mismatched", rollout.Status.MismatchedClusterCountByDesiredExactVersion, "failed", rollout.Status.FailedClusterCountByDesiredExactVersion, "achieved", rollout.Status.ClusterCountByAchievedExactVersion, "successful", rollout.Status.SuccessfulClusterCountByAchievedExactVersion)
+	if best := rollout.Spec.BestExactVersion; best != nil {
+		version := best.String()
+		total := int64(len(serviceProviderClusters))
+		desired := rollout.Status.ClusterCountByDesiredExactVersion[version]
+		failed := rollout.Status.FailedClusterCountByDesiredExactVersion[version]
+		successful := rollout.Status.SuccessfulClusterCountByAchievedExactVersion[version]
+		inFlightOrDone := rollout.Status.MismatchedClusterCountByDesiredExactVersion[version] + rollout.Status.ClusterCountByAchievedExactVersion[version]
+		failureBudget := max(float64(failureBudgetAbsolute), failureBudgetFraction*float64(desired))
+		canarySuccessThreshold := percentOfCeil(c.config.CanaryPercentage, total)
+		canaryThreshold := canarySuccessThreshold + 2
+		rollingThreshold := percentOfCeil(c.config.RollingPercentage, total)
+		logger.Info("Evaluated rollout thresholds", "bestVersion", version, "failed", failed, "failureBudget", failureBudget, "failureBudgetExceeded", float64(failed) > failureBudget,
+			"inFlightOrDone", inFlightOrDone, "canaryThreshold", canaryThreshold, "canarySlotsRemaining", max(int64(0), canaryThreshold-inFlightOrDone),
+			"successful", successful, "canarySuccessThreshold", canarySuccessThreshold, "waitingForCanarySuccess", successful < canarySuccessThreshold,
+			"rollingThreshold", rollingThreshold, "rollingSlotsRemaining", max(int64(0), rollingThreshold-inFlightOrDone))
+	}
 	decision := rolloutDecision(rollout, len(serviceProviderClusters), len(eligible), c.config)
+	logger.Info("Computed rollout decision", "bestVersion", versionString(rollout.Spec.BestExactVersion), "totalClusters", len(serviceProviderClusters), "eligibleClusters", len(eligible), "outcome", decision.Outcome, "reason", decision.Message, "selectCount", decision.SelectCount, "canaryPercentage", c.config.CanaryPercentage, "rollingPercentage", c.config.RollingPercentage)
 
 	// Advance the selected clusters, accumulating errors so one failure does not
 	// stop the others; a partial failure still records the rollout condition and
@@ -264,12 +324,25 @@ func (c *normalClusterDesiredVersionSyncer) SyncOnce(ctx context.Context, key co
 	if decision.SelectCount > 0 {
 		best := *rollout.Spec.BestExactVersion
 		now := metav1.Time{Time: c.clock.Now()}
-		for _, serviceProviderCluster := range c.selector.Select(eligible, decision.SelectCount) {
+		selected := c.selector.Select(eligible, decision.SelectCount)
+		logger.Info("Selected clusters for desired version assignment", "requestedCount", decision.SelectCount, "selectedCount", len(selected), "eligibleCount", len(eligible), "desiredVersion", best.String())
+		selectedSet := make(map[*coreapi.ServiceProviderCluster]bool, len(selected))
+		for _, cluster := range selected {
+			selectedSet[cluster] = true
+		}
+		for _, cluster := range eligible {
+			logger.Info("Cluster selection result", "resourceID", cluster.ResourceID, "selected", selectedSet[cluster], "outcome", decision.Outcome, "selectCount", decision.SelectCount)
+		}
+		for _, serviceProviderCluster := range selected {
 			if assignErr := c.assignDesiredVersion(ctx, serviceProviderCluster, best, now); assignErr != nil {
+				logger.Error(assignErr, "Failed to assign desired version; continuing with remaining selected clusters", "resourceID", serviceProviderCluster.ResourceID, "desiredVersion", best.String())
 				assignErrs = append(assignErrs, assignErr)
 			}
 		}
+	} else {
+		logger.Info("No desired version assignments this sync", "outcome", decision.Outcome, "reason", decision.Message)
 	}
+	logger.Info("Finished desired version assignment attempts", "assignmentErrorCount", len(assignErrs))
 	assignErr := errors.Join(assignErrs...)
 
 	conditionErr := c.recordCondition(ctx, rollout, decision, assignErr)
@@ -279,6 +352,8 @@ func (c *normalClusterDesiredVersionSyncer) SyncOnce(ctx context.Context, key co
 // assignDesiredVersion sets a single cluster's desired version to best, recording
 // the transition time.
 func (c *normalClusterDesiredVersionSyncer) assignDesiredVersion(ctx context.Context, serviceProviderCluster *coreapi.ServiceProviderCluster, best semver.Version, now metav1.Time) error {
+	logger := utils.LoggerFromContext(ctx).WithValues("resourceID", serviceProviderCluster.ResourceID, "desiredVersion", best.String())
+	logger.Info("Assigning desired version", "previousDesiredVersion", versionString(serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion), "previousTransitionTime", serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersionLastTransitionTime, "transitionTime", now)
 	subscription, resourceGroup, cluster, ok := serviceProviderClusterCoords(serviceProviderCluster)
 	if !ok {
 		return fmt.Errorf("ServiceProviderCluster is missing a cluster-scoped resource ID")
@@ -287,10 +362,12 @@ func (c *normalClusterDesiredVersionSyncer) assignDesiredVersion(ctx context.Con
 	bestCopy := best
 	setDesiredVersion(replacement, &bestCopy, now)
 	if _, err := c.resourcesDBClient.ServiceProviderClusters(subscription, resourceGroup, cluster).Replace(ctx, replacement, nil); cosmosstorageutils.IsPreconditionFailedError(err) {
+		logger.Info("Desired version was not persisted because write conflicted; waiting for informer to provide current resource")
 		return nil
 	} else if err != nil {
 		return fmt.Errorf("failed to replace ServiceProviderCluster %s/%s/%s: %w", subscription, resourceGroup, cluster, err)
 	}
+	logger.Info("Persisted desired version")
 	return nil
 }
 
@@ -331,14 +408,18 @@ func (c *normalClusterDesiredVersionSyncer) recordCondition(ctx context.Context,
 		Message: degradedMessage,
 	})
 
+	utils.LoggerFromContext(ctx).Info("Evaluated rollout conditions", "previousConditions", rollout.Status.Conditions, "newConditions", replacement.Status.Conditions, "assignmentFailed", syncErr != nil)
 	if equality.Semantic.DeepEqual(rollout.Status.Conditions, replacement.Status.Conditions) {
+		utils.LoggerFromContext(ctx).Info("Rollout conditions are unchanged")
 		return nil
 	}
 	if _, err := c.fleetDBClient.ControlPlaneVersionRollouts().Replace(ctx, replacement, rollout, nil); cosmosstorageutils.IsPreconditionFailedError(err) {
+		utils.LoggerFromContext(ctx).Info("Write conflicted; waiting for informer to provide current resource")
 		return nil
 	} else if err != nil {
 		return fmt.Errorf("failed to replace ControlPlaneVersionRollout %q: %w", rollout.GetStampIdentifier(), err)
 	}
+	utils.LoggerFromContext(ctx).Info("Persisted rollout conditions", "progressing", progressing, "degraded", degraded, "reason", degradedReason)
 	return nil
 }
 
