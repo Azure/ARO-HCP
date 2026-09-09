@@ -239,8 +239,10 @@ func captureResourceGroupRetirement(ctx context.Context, rgID string, api retire
 // closed. Each DELETE is preceded by fresh ARM and Graph reads.
 func (r *ResourceGroupRetirement) Cleanup(ctx context.Context) error {
 	for _, captured := range r.assignments {
-		if _, err := r.api.group(ctx); !armNotFound(err) {
-			return fmt.Errorf("retiring resource group %q is not confirmed deleted: %v", r.rgID, err)
+		if _, err := r.api.group(ctx); err == nil {
+			return fmt.Errorf("retiring resource group %q still exists", r.rgID)
+		} else if !armNotFound(err) {
+			return fmt.Errorf("confirm retiring resource group %q is deleted: %w", r.rgID, err)
 		}
 		current, err := r.api.assignment(ctx, captured.ID)
 		if armNotFound(err) {
