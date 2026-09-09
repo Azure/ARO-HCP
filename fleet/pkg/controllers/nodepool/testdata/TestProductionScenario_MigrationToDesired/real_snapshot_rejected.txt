@@ -1,0 +1,46 @@
+conditional projection: proposed changes are assumed to succeed; no ARM writes are performed.
+Observed transitions and failed-pool reconciliation require a new observation; workload/autoscaler activity and external quota changes are not predicted.
+
+initial:
+  system     system  Standard_E8ds_v5   zone=1,2,3  max=4   count=1  autoscaled
+  infra1     infra   Standard_E32ds_v4  zone=1      max=3   count=1  autoscaled
+  infra2     infra   Standard_E32ds_v4  zone=2      max=3   count=1  autoscaled
+  userswft1  worker  Standard_E32ds_v5  zone=1      max=14  count=6  autoscaled
+  userswft2  worker  Standard_E32ds_v5  zone=2      max=14  count=6  autoscaled
+  userswft3  worker  Standard_E32ds_v5  zone=3      max=14  count=6  autoscaled
+
+desired:
+  s0-e8   system  Standard_E8ds_v5   zone=1,2,3  max=4
+  i1-e32  infra   Standard_E32ds_v5  zone=1      max=1
+  i2-e32  infra   Standard_E32ds_v5  zone=2      max=1
+  w1-e16  worker  Standard_E16ds_v5  zone=1      max=4
+  w2-e16  worker  Standard_E16ds_v5  zone=2      max=4
+  w3-e16  worker  Standard_E16ds_v5  zone=3      max=4
+  w1-e32  worker  Standard_E32ds_v5  zone=1      max=5
+  w2-e32  worker  Standard_E32ds_v5  zone=2      max=5
+  w3-e32  worker  Standard_E32ds_v5  zone=3      max=5
+
+budget (vCPUs):
+  standardEDSv5Family:  856
+  standardESv3Family:   100
+
+initial headroom (vCPUs):
+  standardEDSv5Family:  64
+  standardESv3Family:   100
+
+fully allocated: false
+
+initial capacity:
+  system:  cpu=32    memory=256GiB    swiftNICs=0
+  infra:   cpu=192   memory=1536GiB   swiftNICs=0
+  worker:  cpu=1344  memory=10752GiB  swiftNICs=294
+
+rejected desired plan: infra capacity {VCPUs:64 MemoryGiB:512 SwiftNICs:0} is below protected baseline {VCPUs:192 MemoryGiB:1536 SwiftNICs:0}
+
+actions:
+  (none)
+
+steps:      0
+converged:  false
+outcome:    rejected
+reason:     infra capacity {VCPUs:64 MemoryGiB:512 SwiftNICs:0} is below protected baseline {VCPUs:192 MemoryGiB:1536 SwiftNICs:0}

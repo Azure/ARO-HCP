@@ -292,6 +292,9 @@ fleet:
         memory: 512Mi
     serviceAccountName: fleet
   managedIdentityName: fleet
+  nodePoolPlanning:
+    profile: ci
+    zones: ""
   registration:
     autoApproveStamps: true
     stampIdentifier: "1"

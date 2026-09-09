@@ -20,11 +20,34 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v8"
 
 	"github.com/Azure/ARO-HCP/fleet/pkg/compute"
 )
+
+// ProvisioningTagKey and ProvisioningTagValue identify an optional cluster
+// provisioning marker. Observers may wait while it is present; its absence does
+// not establish ownership of the cluster or its pools.
+const (
+	ProvisioningTagKey   = "aro-hcp-provisioning"
+	ProvisioningTagValue = "true"
+)
+
+// NewClientFactory builds subscription-scoped agent pool clients and returns
+// the same ARM options for other subscription-scoped clients.
+func NewClientFactory(credential azcore.TokenCredential, clientOptions *policy.ClientOptions) (func(subscriptionID string) (*armcontainerservice.AgentPoolsClient, error), *azcorearm.ClientOptions) {
+	if clientOptions == nil {
+		clientOptions = &policy.ClientOptions{}
+	}
+	armClientOptions := &azcorearm.ClientOptions{ClientOptions: *clientOptions}
+	factory := func(subscriptionID string) (*armcontainerservice.AgentPoolsClient, error) {
+		return armcontainerservice.NewAgentPoolsClient(subscriptionID, credential, armClientOptions)
+	}
+	return factory, armClientOptions
+}
 
 // RoleFromAgentPool returns the role label value for the given agent pool.
 // Returns "" when the pool has no role label.

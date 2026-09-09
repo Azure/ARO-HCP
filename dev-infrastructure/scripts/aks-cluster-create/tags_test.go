@@ -27,6 +27,8 @@ import (
 	azfake "github.com/Azure/azure-sdk-for-go/sdk/azcore/fake"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v8"
 	armcontainerservicefake "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v8/fake"
+
+	"github.com/Azure/ARO-HCP/fleet/pkg/azure/agentpools"
 )
 
 func TestProvisioningMarkerPresence(t *testing.T) {
@@ -37,10 +39,10 @@ func TestProvisioningMarkerPresence(t *testing.T) {
 	}{
 		{name: "absent"},
 		{name: "unrelated", tags: map[string]*string{"other": ptr.To("true")}},
-		{name: "true", tags: map[string]*string{provisioningTagKey: ptr.To("true")}, want: true},
-		{name: "false", tags: map[string]*string{provisioningTagKey: ptr.To("false")}},
-		{name: "empty", tags: map[string]*string{provisioningTagKey: ptr.To("")}},
-		{name: "nil", tags: map[string]*string{provisioningTagKey: nil}},
+		{name: "true", tags: map[string]*string{agentpools.ProvisioningTagKey: ptr.To("true")}, want: true},
+		{name: "false", tags: map[string]*string{agentpools.ProvisioningTagKey: ptr.To("false")}},
+		{name: "empty", tags: map[string]*string{agentpools.ProvisioningTagKey: ptr.To("")}},
+		{name: "nil", tags: map[string]*string{agentpools.ProvisioningTagKey: nil}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			require.Equal(t, test.want, hasProvisioningTag(test.tags))
@@ -55,7 +57,7 @@ func TestInitialClusterTags(t *testing.T) {
 	}
 	require.Equal(t, map[string]*string{
 		"owningTeam": ptr.To("dedicated-team"), "custom": ptr.To("value"),
-		"ARO HCP": ptr.To("ordinary"), provisioningTagKey: ptr.To(provisioningTagValue),
+		"ARO HCP": ptr.To("ordinary"), agentpools.ProvisioningTagKey: ptr.To(agentpools.ProvisioningTagValue),
 	}, initialClusterTags(o.clusterTags))
 }
 
@@ -74,7 +76,7 @@ func newTagReconcileFixture(t *testing.T) *tagReconcileFixture {
 	f := &tagReconcileFixture{
 		cluster: &armcontainerservice.ManagedCluster{
 			ETag: ptr.To("observed-etag"),
-			Tags: map[string]*string{provisioningTagKey: ptr.To("true"), "external": ptr.To("keep")},
+			Tags: map[string]*string{agentpools.ProvisioningTagKey: ptr.To("true"), "external": ptr.To("keep")},
 			Properties: &armcontainerservice.ManagedClusterProperties{
 				ProvisioningState: ptr.To("Succeeded"),
 				AgentPoolProfiles: []*armcontainerservice.ManagedClusterAgentPoolProfile{
@@ -115,7 +117,7 @@ func TestReconcileClusterTagsFinalizesHandover(t *testing.T) {
 	f.o.clusterTags = map[string]string{"owner": "new-team"}
 	require.NoError(t, f.o.reconcileClusterTags(context.Background(), f.cluster))
 	require.Equal(t, 1, f.writes)
-	require.NotContains(t, f.written, provisioningTagKey)
+	require.NotContains(t, f.written, agentpools.ProvisioningTagKey)
 	require.Equal(t, "keep", *f.written["external"])
 	require.Equal(t, "new-team", *f.written["owner"])
 	require.True(t, hasProvisioningTag(f.cluster.Tags), "pre-update snapshot remains intact")
@@ -127,7 +129,7 @@ func TestReconcileClusterTagsClearsMarkerWithoutConfigChange(t *testing.T) {
 	f := newTagReconcileFixture(t)
 	require.NoError(t, f.o.reconcileClusterTags(context.Background(), f.cluster))
 	require.Equal(t, 1, f.writes)
-	require.NotContains(t, f.written, provisioningTagKey)
+	require.NotContains(t, f.written, agentpools.ProvisioningTagKey)
 	require.Equal(t, "keep", *f.written["external"])
 }
 
@@ -135,7 +137,7 @@ func TestReconcileClusterTagsClearsMarkerWithoutConfigChange(t *testing.T) {
 // is gone and the configured tags already match.
 func TestReconcileClusterTagsSkipsSettledCluster(t *testing.T) {
 	f := newTagReconcileFixture(t)
-	delete(f.cluster.Tags, provisioningTagKey)
+	delete(f.cluster.Tags, agentpools.ProvisioningTagKey)
 	f.cluster.Tags["owner"] = ptr.To("team")
 	f.o.clusterTags = map[string]string{"owner": "team"}
 	require.NoError(t, f.o.reconcileClusterTags(context.Background(), f.cluster))

@@ -1,0 +1,13 @@
+{
+  "fullyAllocated": false,
+  "pools": null,
+  "failures": [
+    {
+      "tierIndex": 0,
+      "cores": 32,
+      "reason": "NoZoneCoverage",
+      "message": "tier 0 (32 cores): no family has a SKU available in the required zones",
+      "required": false
+    }
+  ]
+}

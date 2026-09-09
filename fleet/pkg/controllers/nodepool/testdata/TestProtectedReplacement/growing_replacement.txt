@@ -1,0 +1,29 @@
+conditional projection: proposed changes are assumed to succeed; no ARM writes are performed.
+Observed transitions and failed-pool reconciliation require a new observation; workload/autoscaler activity and external quota changes are not predicted.
+
+initial:
+  old  worker  sku  zone=  max=10  count=5  autoscaled
+
+desired:
+  new  worker  sku  zone=  max=20
+
+budget (vCPUs):
+  family:  60
+
+initial headroom (vCPUs):
+  family:  40
+
+fully allocated: true
+
+initial capacity:
+  system:  cpu=0   memory=0GiB    swiftNICs=0
+  infra:   cpu=0   memory=0GiB    swiftNICs=0
+  worker:  cpu=40  memory=160GiB  swiftNICs=20
+
+actions:
+    1.  Create  worker  sku  new  min=0   max=10  floor: cpu=40  memory=160GiB  swiftNICs=20  capacity: cpu=80  (+40)  memory=320GiB  (+160GiB)  swiftNICs=40  (+20)  family:     0c remaining
+
+steps:      1
+converged:  false
+outcome:    blocked
+reason:     no safe planner action is available for the remaining configuration difference (quota, capacity floor, or pool safety constraints)
