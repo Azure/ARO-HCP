@@ -152,6 +152,14 @@ func testPrincipalID(id *azcorearm.ResourceID) string {
 	return "principal-" + id.Name
 }
 
+func testClientID(id *azcorearm.ResourceID) string {
+	return "client-" + id.Name
+}
+
+func testIdentityTenantID(id *azcorearm.ResourceID) string {
+	return "tenant-" + id.Name
+}
+
 // seedResolvedIdentities mirrors the cluster's managed identities onto the ServiceProviderCluster
 // status the same way the MSI and data-plane identity-resolution controllers do in production, so
 // resolvePrincipalID can find a resolved principal ID for every excluded identity.
@@ -162,12 +170,14 @@ func seedResolvedIdentities(spc *coreapi.ServiceProviderCluster) {
 	for _, id := range cpOps {
 		cpIdentities[strings.ToLower(id.String())] = &coreapi.ServiceProviderClusterControlPlaneOperatorIdentity{
 			ResourceID:  id,
+			ClientID:    ptr.To(testClientID(id)),
 			PrincipalID: ptr.To(testPrincipalID(id)),
 		}
 	}
 	spc.Status.MSIManagedIdentities.ControlPlaneOperatorsIdentities = cpIdentities
 	spc.Status.MSIManagedIdentities.ServiceManagedIdentity = &coreapi.ServiceProviderClusterServiceManagedIdentity{
 		ResourceID:  serviceManagedID,
+		ClientID:    ptr.To(testClientID(serviceManagedID)),
 		PrincipalID: ptr.To(testPrincipalID(serviceManagedID)),
 	}
 
@@ -175,10 +185,58 @@ func seedResolvedIdentities(spc *coreapi.ServiceProviderCluster) {
 	for _, id := range dpOps {
 		dpIdentities[strings.ToLower(id.String())] = &coreapi.ServiceProviderClusterDataPlaneOperatorManagedIdentity{
 			ResourceID:  id,
+			ClientID:    ptr.To(testClientID(id)),
 			PrincipalID: ptr.To(testPrincipalID(id)),
 		}
 	}
 	spc.Status.DataPlaneOperatorsManagedIdentities.Identities = dpIdentities
+
+	details := make(map[string]*coreapi.ManagedIdentityMetadata, len(cpOps)+len(dpOps)+1)
+	seedARM := func(id *azcorearm.ResourceID) {
+		details[strings.ToLower(id.String())] = &coreapi.ManagedIdentityMetadata{
+			ResourceID: id,
+			MetadataFromARMUserAssignedIdentitiesAPI: &coreapi.IdentityMetadataValue{
+				ClientID:    ptr.To(testClientID(id)),
+				PrincipalID: ptr.To(testPrincipalID(id)),
+				TenantID:    ptr.To(testIdentityTenantID(id)),
+			},
+		}
+	}
+	for _, id := range cpOps {
+		seedARM(id)
+	}
+	for _, id := range dpOps {
+		seedARM(id)
+	}
+	seedARM(serviceManagedID)
+	spc.Status.ManagedIdentityDetails = details
+}
+
+func seedTestExcludedIdentities(
+	cluster *coreapi.HCPOpenShiftCluster,
+	spc *coreapi.ServiceProviderCluster,
+	denyAssignmentType string,
+	phase coreapi.DenyAssignmentExcludedIdentityPhase,
+) map[coreapi.DenyAssignmentExcludedIdentityKey]*coreapi.DenyAssignmentExcludedIdentityStatus {
+	definition := denyAssignmentDefinitionsByType(cluster)[denyAssignmentType]
+	desired, unresolved, err := desiredExcludedIdentities(cluster, spc, definition)
+	if err != nil {
+		panic(err)
+	}
+	if len(unresolved) > 0 {
+		panic("test identities are unresolved")
+	}
+	identities := make(map[coreapi.DenyAssignmentExcludedIdentityKey]*coreapi.DenyAssignmentExcludedIdentityStatus, len(desired))
+	for key, observed := range desired {
+		identities[key] = &coreapi.DenyAssignmentExcludedIdentityStatus{
+			Phase:            phase,
+			ObservedIdentity: observed.DeepCopy(),
+		}
+	}
+	if len(identities) == 0 {
+		return nil
+	}
+	return identities
 }
 
 func newTestSPC(opts ...func(*coreapi.ServiceProviderCluster)) *coreapi.ServiceProviderCluster {
