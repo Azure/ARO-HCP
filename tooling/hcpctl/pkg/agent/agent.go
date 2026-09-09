@@ -157,6 +157,7 @@ type Session struct {
 	client          *CopilotClient
 	logger          logr.Logger
 	lastMessages    json.RawMessage
+	sendGate        chan struct{}
 	usageMu         sync.RWMutex
 	usage           UsageReport
 	usageProvider   string
@@ -219,6 +220,7 @@ func (c *CopilotClient) CreateSession(ctx context.Context, logger logr.Logger, c
 		inner:           session,
 		client:          c,
 		logger:          logger,
+		sendGate:        make(chan struct{}, 1),
 		usageProvider:   usageProvider,
 		usageDimensions: usageDimensions,
 		usageModel:      sessionCfg.Model,
@@ -336,7 +338,18 @@ func (s *Session) Usage() UsageReport {
 // If ctx is cancelled, the in-flight work is aborted.
 // Returns the final assistant message content.
 func (s *Session) SendAndWait(ctx context.Context, prompt string) (string, error) {
+	// A temporary event subscription associates provider errors with this
+	// request, so calls must not overlap on the same session.
+	if err := s.acquireSendGate(ctx); err != nil {
+		return "", err
+	}
+	defer s.releaseSendGate()
+
 	s.logger.V(1).Info("Sending message to Copilot session.", "promptLength", len(prompt))
+
+	errorCapture := &copilotSessionErrorCapture{provider: s.usageProvider}
+	unsubscribe := s.inner.On(errorCapture.record)
+	defer unsubscribe()
 
 	// The SDK applies a 60s default timeout when the context has no deadline.
 	// Analysis turns routinely take 10+ minutes, so set a generous deadline
@@ -376,7 +389,7 @@ func (s *Session) SendAndWait(ctx context.Context, prompt string) (string, error
 		return "", ctx.Err()
 	case r := <-ch:
 		if r.err != nil {
-			return "", fmt.Errorf("copilot session failed: %w", r.err)
+			return "", wrapCopilotSessionError(errorCapture, r.err)
 		}
 		if r.event == nil {
 			return "", fmt.Errorf("copilot session returned no response")
@@ -389,6 +402,26 @@ func (s *Session) SendAndWait(ctx context.Context, prompt string) (string, error
 		s.snapshotMessages()
 		return data.Content, nil
 	}
+}
+
+func (s *Session) acquireSendGate(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	select {
+	case s.sendGate <- struct{}{}:
+		if err := ctx.Err(); err != nil {
+			s.releaseSendGate()
+			return err
+		}
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func (s *Session) releaseSendGate() {
+	<-s.sendGate
 }
 
 // Disconnect releases in-memory session resources. Session state is preserved
