@@ -155,7 +155,8 @@ func (s *deleteOrphanedStep) Delete(ctx context.Context, target runner.Target, _
 	}
 
 	principalID := normalizeID(*response.Properties.PrincipalID)
-	active, err := newGraphActivePrincipalLookup(s.cfg.GraphClient)(ctx, principalID)
+	activePrincipalLookup := newGraphActivePrincipalLookup(s.cfg.GraphClient)
+	active, err := activePrincipalLookup(ctx, principalID)
 	if err != nil {
 		return fmt.Errorf("failed revalidating principal %q for role assignment %q: %w", principalID, target.ID, err)
 	}
