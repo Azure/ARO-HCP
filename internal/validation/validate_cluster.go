@@ -97,6 +97,10 @@ func ValidateCluster(ctx context.Context, op operation.Operation, newCluster, ol
 	// Private KAS requires OpenShift >= 4.22 (HyperShift gained private API server support in 4.22).
 	errs = append(errs, validatePrivateKASRequiresMinimumVersion(ctx, op, newCluster, oldCluster)...)
 
+	// Nightly installs must resolve to a full version; this needs both the customer
+	// version profile and the service-provider exact pin, so it lives at cluster level.
+	errs = append(errs, validateNightlyChannelRequiresFullVersion(ctx, op, newCluster, oldCluster)...)
+
 	// there are pieces of clusterProperties that are dependent upon values in .identity
 	errs = append(errs, validateOperatorAuthenticationAgainstIdentities(ctx, op, newCluster, oldCluster)...)
 
@@ -151,6 +155,55 @@ func validatePrivateKASRequiresMinimumVersion(_ context.Context, _ operation.Ope
 		)}
 	}
 
+	return nil
+}
+
+// validateNightlyChannelRequiresFullVersion enforces that a cluster in the
+// "nightly" channel group resolves to a full "<major>.<minor>.<patch>" version.
+// Nightly builds are published to the CI releasestream API rather than the
+// Cincinnati graph the control plane desired version controller resolves
+// against, so the controller cannot derive a nightly build from a bare
+// "<major>.<minor>" and would leave the cluster wedged in provisioning.
+//
+// Admission mutation runs before validation: for a full version.id (or an
+// exact-version tag) it moves the exact version onto
+// ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion and
+// reduces version.id to its "<major>.<minor>" release line. This validator
+// therefore maps that internal exact pin back to the external version.id it
+// represents and validates the mapped value, so a nightly install is accepted
+// only when the effective version.id is a full version.
+func validateNightlyChannelRequiresFullVersion(_ context.Context, op operation.Operation, newCluster, _ *coreapi.HCPOpenShiftCluster) field.ErrorList {
+	// Nightly is only selectable with the experimental feature; without it the
+	// channelGroup enum already rejects the request, so skip here to avoid a
+	// duplicate error.
+	if !op.HasOption(metadataapi.FeatureExperimentalReleaseFeatures) {
+		return nil
+	}
+	if newCluster.CustomerProperties.Version.ChannelGroup != metadataapi.ChannelGroupNightly {
+		return nil
+	}
+
+	// Map the internal exact pin back to the external version.id it represents:
+	// when a full version was supplied, mutation moved it to
+	// ControlPlaneExactVersion and reduced version.id to its release line.
+	effectiveVersionID := newCluster.CustomerProperties.Version.ID
+	if exact := newCluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion; exact != nil {
+		effectiveVersionID = exact.String()
+	}
+	if len(effectiveVersionID) == 0 {
+		// A missing version.id is reported by the required-value check.
+		return nil
+	}
+
+	// Strict semver parsing accepts a full "<major>.<minor>.<patch>" (optionally
+	// with a pre-release such as the nightly build suffix) while rejecting a bare
+	// "<major>.<minor>".
+	if _, err := semver.Parse(effectiveVersionID); err != nil {
+		return field.ErrorList{field.Invalid(
+			field.NewPath("customerProperties", "version", "id"), effectiveVersionID,
+			"must be specified as MAJOR.MINOR.PATCH (optionally with a pre-release, e.g. a nightly build suffix) when channelGroup is \"nightly\"",
+		)}
+	}
 	return nil
 }
 
