@@ -57,7 +57,6 @@ func BindOptions(opts *RawOptions, cmd *cobra.Command) error {
 	cmd.Flags().BoolVar(&opts.DryRun, "dry-run", opts.DryRun, "Print the resource groups that would be cleaned up without deleting them.")
 	cmd.Flags().BoolVar(&opts.Wait, "wait", opts.Wait, "Wait for the resource groups to be fully cleaned up.")
 	cmd.Flags().IntVar(&opts.Parallelism, "parallelism", opts.Parallelism, "Maximum number of deletions to run in parallel per cleanup step.")
-	cmd.Flags().BoolVar(&opts.RetireOwnedRoleAssignments, "retire-owned-role-assignments", false, "DEV only: reclaim same-subscription role assignments of identities owned by the retiring topology resource groups. Requires --wait and directory read access.")
 
 	return nil
 }
@@ -70,8 +69,7 @@ type RawOptions struct {
 	DryRun bool
 	Wait   bool
 
-	Parallelism                int
-	RetireOwnedRoleAssignments bool
+	Parallelism int
 }
 
 // validatedOptions is a private wrapper that enforces a call of Validate() before Complete() can be invoked.
@@ -97,8 +95,7 @@ type completedOptions struct {
 	DryRun bool
 	Wait   bool
 
-	Parallelism                int
-	RetireOwnedRoleAssignments bool
+	Parallelism int
 }
 
 type Options struct {
@@ -113,9 +110,6 @@ func (o *RawOptions) Validate(ctx context.Context) (*ValidatedOptions, error) {
 	}
 	if o.Parallelism < 1 {
 		return nil, fmt.Errorf("--parallelism must be >= 1, got %d", o.Parallelism)
-	}
-	if err := validateRoleAssignmentRetirement(o.RetireOwnedRoleAssignments, o.BaseOptions.Cloud, o.Wait); err != nil {
-		return nil, err
 	}
 
 	return &ValidatedOptions{
@@ -149,8 +143,7 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 			DryRun: o.DryRun,
 			Wait:   o.Wait,
 
-			Parallelism:                o.Parallelism,
-			RetireOwnedRoleAssignments: o.RetireOwnedRoleAssignments,
+			Parallelism: o.Parallelism,
 		},
 	}, nil
 }
@@ -209,13 +202,12 @@ func (o *Options) CleanUpResources(ctx context.Context) error {
 
 		// Create deleter for this resource group
 		deleter := &resourceGroupDeleter{
-			resourceGroupName:          resourceGroup.ResourceGroup,
-			subscriptionID:             subscriptionID,
-			credential:                 o.AzureCredential,
-			wait:                       o.Wait,
-			dryRun:                     o.DryRun,
-			parallelism:                o.Parallelism,
-			retireOwnedRoleAssignments: o.RetireOwnedRoleAssignments,
+			resourceGroupName: resourceGroup.ResourceGroup,
+			subscriptionID:    subscriptionID,
+			credential:        o.AzureCredential,
+			wait:              o.Wait,
+			dryRun:            o.DryRun,
+			parallelism:       o.Parallelism,
 		}
 
 		// Always execute in parallel via errgroup
@@ -235,13 +227,6 @@ func (o *Options) CleanUpResources(ctx context.Context) error {
 			return fmt.Errorf("failed to remove cache dir %s: %w", o.StepCacheDir, err)
 		}
 		logger.Info("Cleaned up step cache dir.", "dir", o.StepCacheDir)
-	}
-	return nil
-}
-
-func validateRoleAssignmentRetirement(enabled bool, cloud string, wait bool) error {
-	if enabled && (cloud != "dev" || !wait) {
-		return fmt.Errorf("--retire-owned-role-assignments requires --cloud=dev and --wait=true")
 	}
 	return nil
 }

@@ -15,8 +15,6 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armsubscriptions v1.3.0
 	github.com/dusted-go/logging v1.3.0
 	github.com/go-logr/logr v1.4.3
-	github.com/google/uuid v1.6.0
-	github.com/microsoft/kiota-abstractions-go v1.9.3
 	github.com/microsoft/kiota-authentication-azure-go v1.3.0
 	github.com/microsoftgraph/msgraph-sdk-go v1.69.0
 	github.com/spf13/cobra v1.10.2
@@ -34,8 +32,10 @@ require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
+	github.com/google/uuid v1.6.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/kylelemons/godebug v1.1.0 // indirect
+	github.com/microsoft/kiota-abstractions-go v1.9.3 // indirect
 	github.com/microsoft/kiota-http-go v1.5.5 // indirect
 	github.com/microsoft/kiota-serialization-form-go v1.1.2 // indirect
 	github.com/microsoft/kiota-serialization-json-go v1.1.2 // indirect

@@ -15,9 +15,6 @@
 package cleanup
 
 import (
-	"context"
-	"errors"
-	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -112,74 +109,5 @@ func TestResourceDeletionOrder(t *testing.T) {
 			criticalMarker = " [CRITICAL ORDER]"
 		}
 		t.Logf("  %s: %s%s", step.step, step.description, criticalMarker)
-	}
-}
-
-type fakeRetiredRoleAssignments struct {
-	calls *[]string
-	err   error
-}
-
-func (f fakeRetiredRoleAssignments) Cleanup(context.Context) error {
-	*f.calls = append(*f.calls, "roles")
-	return f.err
-}
-
-func TestWithRoleAssignmentRetirement(t *testing.T) {
-	failure := errors.New("failed")
-	for _, test := range []struct {
-		name                                string
-		enabled, dryRun                     bool
-		captureErr, teardownErr, cleanupErr error
-		wantCalls                           []string
-		wantError                           bool
-	}{
-		{"opt in", true, false, nil, nil, nil, []string{"capture", "teardown", "roles"}, false},
-		{"default", false, false, nil, nil, nil, []string{"teardown"}, false},
-		{"dry run", true, true, nil, nil, nil, []string{"capture", "teardown"}, false},
-		{"capture failure stops teardown", true, false, failure, nil, nil, []string{"capture"}, true},
-		{"teardown failure preserves roles", true, false, nil, failure, nil, []string{"capture", "teardown"}, true},
-		{"retirement failure is reported", true, false, nil, nil, failure, []string{"capture", "teardown", "roles"}, true},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			var calls []string
-			var capture func(context.Context) (retiredRoleAssignments, error)
-			if test.enabled {
-				capture = func(context.Context) (retiredRoleAssignments, error) {
-					calls = append(calls, "capture")
-					return fakeRetiredRoleAssignments{&calls, test.cleanupErr}, test.captureErr
-				}
-			}
-			err := withRoleAssignmentRetirement(context.Background(), test.dryRun, capture, func(context.Context) error {
-				calls = append(calls, "teardown")
-				return test.teardownErr
-			})
-			if (err != nil) != test.wantError || !reflect.DeepEqual(calls, test.wantCalls) {
-				t.Fatalf("error=%v calls=%v, want error=%t calls=%v", err, calls, test.wantError, test.wantCalls)
-			}
-		})
-	}
-}
-
-func TestValidateRoleAssignmentRetirement(t *testing.T) {
-	for _, test := range []struct {
-		name      string
-		enabled   bool
-		cloud     string
-		wait      bool
-		wantError bool
-	}{
-		{"default remains unchanged", false, "public", false, false},
-		{"explicit synchronous dev teardown", true, "dev", true, false},
-		{"public rejected", true, "public", true, true},
-		{"fairfax rejected", true, "fairfax", true, true},
-		{"unknown cloud rejected", true, "", true, true},
-		{"async rejected", true, "dev", false, true},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			if err := validateRoleAssignmentRetirement(test.enabled, test.cloud, test.wait); (err != nil) != test.wantError {
-				t.Fatalf("validation error=%v, want error=%t", err, test.wantError)
-			}
-		})
 	}
 }
