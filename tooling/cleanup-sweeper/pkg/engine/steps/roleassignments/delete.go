@@ -455,7 +455,10 @@ func newGraphActivePrincipalLookup(graphClient *msgraphsdk.GraphServiceClient) a
 		if err != nil {
 			return false, err
 		}
-		if response == nil || len(response.GetValue()) == 0 {
+		if response == nil {
+			return false, fmt.Errorf("active principal lookup for %q returned an empty response", principalID)
+		}
+		if len(response.GetValue()) == 0 {
 			return false, nil
 		}
 		if len(response.GetValue()) != 1 ||
