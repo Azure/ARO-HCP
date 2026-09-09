@@ -583,7 +583,7 @@ func UpdateHCPCluster20261001(
 	hcpClient *hcpsdk20261001preview.HcpOpenShiftClustersClient,
 	resourceGroupName string,
 	hcpClusterName string,
-	update hcpsdk20261001preview.HcpOpenShiftClusterUpdate,
+	update hcpsdk20261001preview.HcpOpenShiftCluster,
 	timeout time.Duration,
 ) (*hcpsdk20261001preview.HcpOpenShiftCluster, error) {
 	ctx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during UpdateHCPCluster20261001 for cluster %s in resource group %s", timeout.Minutes(), hcpClusterName, resourceGroupName))
