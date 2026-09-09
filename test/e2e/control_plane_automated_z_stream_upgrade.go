@@ -29,7 +29,6 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
 	clusterversion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/version"
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controlplaneversion"
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
@@ -62,7 +61,7 @@ var _ = Describe("Service Provider", func() {
 			// channel has no release at that offset (err) or none is resolved (nil), there is no
 			// automated z-stream upgrade to exercise, so skip.
 			normalOffset := clusterversion.GetZStreamOffset(channelGroup)
-			desiredVersion, err := controlplaneversion.SelectControlPlaneVersion(ctx, http.DefaultTransport.RoundTrip, nil, fmt.Sprintf("%s-%s", channelGroup, minorVersion), normalOffset+1)
+			desiredVersion, err := framework.SelectControlPlaneVersion(ctx, http.DefaultTransport.RoundTrip, nil, fmt.Sprintf("%s-%s", channelGroup, minorVersion), normalOffset+1)
 			if err != nil {
 				Skip(fmt.Sprintf("no version resolved for channel %s-%s at offset %d: %v", channelGroup, minorVersion, normalOffset+1, err))
 			}

@@ -31,7 +31,6 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
 	clusterversion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/version"
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controlplaneversion"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 )
 
@@ -119,7 +118,7 @@ func resolveDefaultControlPlaneVersion() (string, error) {
 			return
 		}
 
-		release, err := controlplaneversion.SelectControlPlaneVersion(context.Background(), http.DefaultTransport.RoundTrip, nil, fmt.Sprintf("%s-%s", channelGroup, resultingControlPlaneMinorVersion), zStreamOffset)
+		release, err := SelectControlPlaneVersion(context.Background(), http.DefaultTransport.RoundTrip, nil, fmt.Sprintf("%s-%s", channelGroup, resultingControlPlaneMinorVersion), zStreamOffset)
 		if err != nil {
 			defaultCPVersionErr = fmt.Errorf("failed getting controlPlaneVersion: %w", err)
 			return
@@ -201,8 +200,9 @@ func DefaultOpenshiftNodePoolVersionId() string {
 	}
 
 	// Every other channel group selects the tip of the channel via the OpenShift update
-	// service — the same selector the control plane version controller uses.
-	release, err := controlplaneversion.SelectControlPlaneVersion(context.Background(), http.DefaultTransport.RoundTrip, nil, fmt.Sprintf("%s-%s", channelGroup, minor), clusterversion.GetZStreamOffset(channelGroup))
+	// service — the same selector the control plane version controller uses. The framework
+	// wrapper retries transient DNS/network errors internally.
+	release, err := SelectControlPlaneVersion(context.Background(), http.DefaultTransport.RoundTrip, nil, fmt.Sprintf("%s-%s", channelGroup, minor), clusterversion.GetZStreamOffset(channelGroup))
 	if err != nil {
 		Fail(fmt.Sprintf("failed to select node pool install version for %s-%s channel: %s", channelGroup, minor, err.Error()))
 	}
