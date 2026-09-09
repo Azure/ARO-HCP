@@ -680,7 +680,7 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "Fleet-total cluster creates whose latest terminal transition falls within the dashboard time window. Each bar is the total for the selected window, not an hourly count.",
+      "description": "Selected-window terminal install volume for Cluster and NodePool resources. Light bars include CI/internal subscriptions; dark bars exclude subscriptions listed by internal_subscription:info and the optional Exclude Subscriptions regex.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -722,7 +722,22 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Succeeded"
+              "options": "Cluster / All / succeeded"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#A9D18E",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Cluster / CI-excluded / succeeded"
             },
             "properties": [
               {
@@ -737,13 +752,88 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Failed"
+              "options": "Cluster / All / failed"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#F4B183",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Cluster / CI-excluded / failed"
             },
             "properties": [
               {
                 "id": "color",
                 "value": {
                   "fixedColor": "#ED7D31",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "NodePool / All / succeeded"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#9DC3E6",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "NodePool / CI-excluded / succeeded"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#4472C4",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "NodePool / All / failed"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#FFD966",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "NodePool / CI-excluded / failed"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#FFC000",
                   "mode": "fixed"
                 }
               }
@@ -783,9 +873,9 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count((backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\",operation_type=\"create\",phase=\"succeeded\",subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\",operation_type=\"create\",phase=\"succeeded\",subscription_id!~\"${exclude_subs:raw}\"}) < $__range_s))",
+          "expr": "count by (phase) ((backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\",operation_type=\"create\",phase=~\"succeeded|failed\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\",operation_type=\"create\",phase=~\"succeeded|failed\"}) < $__range_s))",
           "instant": true,
-          "legendFormat": "Succeeded",
+          "legendFormat": "Cluster / All / {{phase}}",
           "range": false,
           "refId": "A"
         },
@@ -795,14 +885,38 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count((backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\",operation_type=\"create\",phase=\"failed\",subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\",operation_type=\"create\",phase=\"failed\",subscription_id!~\"${exclude_subs:raw}\"}) < $__range_s))",
+          "expr": "count by (phase) (((backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\",operation_type=\"create\",phase=~\"succeeded|failed\",subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\",operation_type=\"create\",phase=~\"succeeded|failed\",subscription_id!~\"${exclude_subs:raw}\"}) < $__range_s)) unless on(subscription_id) internal_subscription:info)",
           "instant": true,
-          "legendFormat": "Failed",
+          "legendFormat": "Cluster / CI-excluded / {{phase}}",
           "range": false,
           "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "count by (phase) ((backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/nodepools\",operation_type=\"create\",phase=~\"succeeded|failed\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/nodepools\",operation_type=\"create\",phase=~\"succeeded|failed\"}) < $__range_s))",
+          "instant": true,
+          "legendFormat": "NodePool / All / {{phase}}",
+          "range": false,
+          "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "count by (phase) (((backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/nodepools\",operation_type=\"create\",phase=~\"succeeded|failed\",subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/nodepools\",operation_type=\"create\",phase=~\"succeeded|failed\",subscription_id!~\"${exclude_subs:raw}\"}) < $__range_s)) unless on(subscription_id) internal_subscription:info)",
+          "instant": true,
+          "legendFormat": "NodePool / CI-excluded / {{phase}}",
+          "range": false,
+          "refId": "D"
         }
       ],
-      "title": "ARO HCP - Cluster Installs in Selected Window",
+      "title": "ARO HCP - Cluster and NodePool Install Volume (All vs CI-excluded)",
       "transformations": [
         {
           "id": "seriesToRows",
@@ -852,55 +966,38 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "Fleet-total NodePool creates whose latest terminal transition falls within the dashboard time window. Each bar is the total for the selected window, not an hourly count.",
+      "description": "Raw successful install-duration distributions for Cluster and NodePool resources in the selected window. This native Grafana histogram provides the outlier context of the program-call whisker chart. Light series include CI/internal subscriptions; dark series exclude subscriptions listed by internal_subscription:info and the optional Exclude Subscriptions regex.",
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "palette-classic"
           },
           "custom": {
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "NodePool creates",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "bars",
-            "fillOpacity": 85,
+            "fillOpacity": 55,
             "gradientMode": "none",
             "hideFrom": {
               "legend": false,
               "tooltip": false,
               "viz": false
             },
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 4,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "never",
-            "spanNulls": false,
             "stacking": {
               "group": "A",
-              "mode": "normal"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
+              "mode": "none"
             }
           },
-          "unit": "short"
+          "unit": "m"
         },
         "overrides": [
           {
             "matcher": {
               "id": "byName",
-              "options": "Succeeded"
+              "options": "Cluster / All"
             },
             "properties": [
               {
                 "id": "color",
                 "value": {
-                  "fixedColor": "#70AD47",
+                  "fixedColor": "#9DC3E6",
                   "mode": "fixed"
                 }
               }
@@ -909,7 +1006,37 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Failed"
+              "options": "Cluster / CI-excluded"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#4472C4",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "NodePool / All"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#F4B183",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "NodePool / CI-excluded"
             },
             "properties": [
               {
@@ -931,21 +1058,19 @@
       },
       "id": 22,
       "options": {
-        "displayMode": "gradient",
-        "minVizHeight": 16,
-        "minVizWidth": 8,
-        "namePlacement": "auto",
-        "orientation": "horizontal",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
+        "bucketSize": "1",
+        "combine": false,
+        "fillOpacity": 55,
+        "gradientMode": "none",
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
         },
-        "showUnfilled": true,
-        "sizing": "auto",
-        "valueMode": "color"
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
       },
       "pluginVersion": "11.6.9",
       "targets": [
@@ -955,69 +1080,30 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count((backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/nodepools\",operation_type=\"create\",phase=\"succeeded\",subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/nodepools\",operation_type=\"create\",phase=\"succeeded\",subscription_id!~\"${exclude_subs:raw}\"}) < $__range_s))",
+          "expr": "label_replace(((backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\",operation_type=\"create\",phase=\"succeeded\"} - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\",operation_type=\"create\",phase=\"succeeded\"}) / 60) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\",operation_type=\"create\",phase=\"succeeded\"}) < $__range_s), \"cohort\", \"Cluster / All\", \"\", \".*\") or label_replace(((((backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\",operation_type=\"create\",phase=\"succeeded\",subscription_id!~\"${exclude_subs:raw}\"} - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\",operation_type=\"create\",phase=\"succeeded\",subscription_id!~\"${exclude_subs:raw}\"}) / 60) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\",operation_type=\"create\",phase=\"succeeded\",subscription_id!~\"${exclude_subs:raw}\"}) < $__range_s)) unless on(subscription_id) internal_subscription:info), \"cohort\", \"Cluster / CI-excluded\", \"\", \".*\") or label_replace(((backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/nodepools\",operation_type=\"create\",phase=\"succeeded\"} - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/nodepools\",operation_type=\"create\",phase=\"succeeded\"}) / 60) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/nodepools\",operation_type=\"create\",phase=\"succeeded\"}) < $__range_s), \"cohort\", \"NodePool / All\", \"\", \".*\") or label_replace(((((backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/nodepools\",operation_type=\"create\",phase=\"succeeded\",subscription_id!~\"${exclude_subs:raw}\"} - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/nodepools\",operation_type=\"create\",phase=\"succeeded\",subscription_id!~\"${exclude_subs:raw}\"}) / 60) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/nodepools\",operation_type=\"create\",phase=\"succeeded\",subscription_id!~\"${exclude_subs:raw}\"}) < $__range_s)) unless on(subscription_id) internal_subscription:info), \"cohort\", \"NodePool / CI-excluded\", \"\", \".*\")",
+          "format": "table",
           "instant": true,
-          "legendFormat": "Succeeded",
+          "legendFormat": "__auto",
           "range": false,
           "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "$datasource"
-          },
-          "editorMode": "code",
-          "expr": "count((backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/nodepools\",operation_type=\"create\",phase=\"failed\",subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/nodepools\",operation_type=\"create\",phase=\"failed\",subscription_id!~\"${exclude_subs:raw}\"}) < $__range_s))",
-          "instant": true,
-          "legendFormat": "Failed",
-          "range": false,
-          "refId": "B"
         }
       ],
-      "title": "ARO HCP - NodePool Installs in Selected Window",
+      "title": "ARO HCP - Install Duration Distribution (All vs CI-excluded)",
       "transformations": [
-        {
-          "id": "seriesToRows",
-          "options": {}
-        },
         {
           "id": "merge",
           "options": {}
         },
         {
-          "id": "groupBy",
+          "id": "groupingToMatrix",
           "options": {
-            "fields": {
-              "Metric": {
-                "aggregations": [],
-                "operation": "groupby"
-              },
-              "Value": {
-                "aggregations": [
-                  "sum"
-                ],
-                "operation": "aggregate"
-              }
-            }
-          }
-        },
-        {
-          "id": "rowsToFields",
-          "options": {
-            "mappings": [
-              {
-                "fieldName": "Metric",
-                "handlerKey": "field.name"
-              },
-              {
-                "fieldName": "Value (sum)",
-                "handlerKey": "field.value"
-              }
-            ]
+            "columnField": "cohort",
+            "rowField": "resource_id",
+            "valueField": "Value"
           }
         }
       ],
-      "type": "bargauge"
+      "type": "histogram"
     },
     {
       "datasource": {
@@ -1218,7 +1304,7 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "Average regional p50 and p95 successful create durations across the selected datasources for the dashboard time window. Cluster p95 is compared with the 20-minute install SLO.",
+      "description": "Fleet-wide CI-excluded install percentiles computed from the raw successful durations across all selected regions. P05 and P95 are the whiskers, P25 and P75 are the box bounds, and P50 is the median. The filter uses internal_subscription:info and the optional Exclude Subscriptions regex.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1229,29 +1315,19 @@
             "axisColorMode": "text",
             "axisLabel": "Minutes",
             "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 10,
+            "fillOpacity": 75,
             "gradientMode": "none",
             "hideFrom": {
               "legend": false,
               "tooltip": false,
               "viz": false
             },
-            "lineInterpolation": "linear",
-            "lineWidth": 2,
-            "pointSize": 4,
+            "lineWidth": 1,
             "scaleDistribution": {
               "type": "linear"
             },
-            "showPoints": "always",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
             "thresholdsStyle": {
-              "mode": "line"
+              "mode": "line+area"
             }
           },
           "thresholds": {
@@ -1272,24 +1348,14 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Cluster p50"
+              "options": "Value (p5)"
             },
             "properties": [
               {
                 "id": "color",
                 "value": {
-                  "fixedColor": "#6D8FCA",
+                  "fixedColor": "#D9E2F3",
                   "mode": "fixed"
-                }
-              },
-              {
-                "id": "custom.lineStyle",
-                "value": {
-                  "dash": [
-                    6,
-                    6
-                  ],
-                  "fill": "dash"
                 }
               }
             ]
@@ -1297,7 +1363,22 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Cluster p95"
+              "options": "Value (p25)"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#9DC3E6",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Value (p50)"
             },
             "properties": [
               {
@@ -1306,34 +1387,20 @@
                   "fixedColor": "#4472C4",
                   "mode": "fixed"
                 }
-              },
-              {
-                "id": "custom.lineWidth",
-                "value": 3
               }
             ]
           },
           {
             "matcher": {
               "id": "byName",
-              "options": "NodePool p50"
+              "options": "Value (p75)"
             },
             "properties": [
               {
                 "id": "color",
                 "value": {
-                  "fixedColor": "#F2A270",
+                  "fixedColor": "#F4B183",
                   "mode": "fixed"
-                }
-              },
-              {
-                "id": "custom.lineStyle",
-                "value": {
-                  "dash": [
-                    6,
-                    6
-                  ],
-                  "fill": "dash"
                 }
               }
             ]
@@ -1341,7 +1408,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "NodePool p95"
+              "options": "Value (p95)"
             },
             "properties": [
               {
@@ -1350,10 +1417,6 @@
                   "fixedColor": "#ED7D31",
                   "mode": "fixed"
                 }
-              },
-              {
-                "id": "custom.lineWidth",
-                "value": 3
               }
             ]
           }
@@ -1367,21 +1430,26 @@
       },
       "id": 24,
       "options": {
-        "displayMode": "gradient",
-        "minVizHeight": 16,
-        "minVizWidth": 8,
-        "namePlacement": "auto",
-        "orientation": "horizontal",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
+        "barRadius": 0,
+        "barWidth": 0.9,
+        "fullHighlight": false,
+        "groupWidth": 0.7,
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
         },
-        "showUnfilled": true,
-        "sizing": "auto",
-        "valueMode": "color"
+        "orientation": "horizontal",
+        "showValue": "always",
+        "stacking": "none",
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "xTickLabelRotation": 0,
+        "xTickLabelSpacing": 0
       },
       "pluginVersion": "11.6.9",
       "targets": [
@@ -1391,9 +1459,9 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "quantile(0.50, ((backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\",operation_type=\"create\",phase=\"succeeded\",subscription_id!~\"${exclude_subs:raw}\"} - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\",operation_type=\"create\",phase=\"succeeded\",subscription_id!~\"${exclude_subs:raw}\"}) / 60) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\",operation_type=\"create\",phase=\"succeeded\",subscription_id!~\"${exclude_subs:raw}\"}) < $__range_s))",
+          "expr": "((((backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\",operation_type=\"create\",phase=\"succeeded\",subscription_id!~\"${exclude_subs:raw}\"} - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\",operation_type=\"create\",phase=\"succeeded\",subscription_id!~\"${exclude_subs:raw}\"}) / 60) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\",operation_type=\"create\",phase=\"succeeded\",subscription_id!~\"${exclude_subs:raw}\"}) < $__range_s)) unless on(subscription_id) internal_subscription:info)",
           "instant": true,
-          "legendFormat": "Cluster p50",
+          "legendFormat": "Cluster",
           "range": false,
           "refId": "A"
         },
@@ -1403,38 +1471,14 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "quantile(0.95, ((backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\",operation_type=\"create\",phase=\"succeeded\",subscription_id!~\"${exclude_subs:raw}\"} - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\",operation_type=\"create\",phase=\"succeeded\",subscription_id!~\"${exclude_subs:raw}\"}) / 60) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\",operation_type=\"create\",phase=\"succeeded\",subscription_id!~\"${exclude_subs:raw}\"}) < $__range_s))",
+          "expr": "((((backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/nodepools\",operation_type=\"create\",phase=\"succeeded\",subscription_id!~\"${exclude_subs:raw}\"} - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/nodepools\",operation_type=\"create\",phase=\"succeeded\",subscription_id!~\"${exclude_subs:raw}\"}) / 60) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/nodepools\",operation_type=\"create\",phase=\"succeeded\",subscription_id!~\"${exclude_subs:raw}\"}) < $__range_s)) unless on(subscription_id) internal_subscription:info)",
           "instant": true,
-          "legendFormat": "Cluster p95",
+          "legendFormat": "NodePool",
           "range": false,
           "refId": "B"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "$datasource"
-          },
-          "editorMode": "code",
-          "expr": "quantile(0.50, ((backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/nodepools\",operation_type=\"create\",phase=\"succeeded\",subscription_id!~\"${exclude_subs:raw}\"} - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/nodepools\",operation_type=\"create\",phase=\"succeeded\",subscription_id!~\"${exclude_subs:raw}\"}) / 60) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/nodepools\",operation_type=\"create\",phase=\"succeeded\",subscription_id!~\"${exclude_subs:raw}\"}) < $__range_s))",
-          "instant": true,
-          "legendFormat": "NodePool p50",
-          "range": false,
-          "refId": "C"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "$datasource"
-          },
-          "editorMode": "code",
-          "expr": "quantile(0.95, ((backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/nodepools\",operation_type=\"create\",phase=\"succeeded\",subscription_id!~\"${exclude_subs:raw}\"} - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/nodepools\",operation_type=\"create\",phase=\"succeeded\",subscription_id!~\"${exclude_subs:raw}\"}) / 60) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/nodepools\",operation_type=\"create\",phase=\"succeeded\",subscription_id!~\"${exclude_subs:raw}\"}) < $__range_s))",
-          "instant": true,
-          "legendFormat": "NodePool p95",
-          "range": false,
-          "refId": "D"
         }
       ],
-      "title": "ARO HCP - Selected-Window Install Time",
+      "title": "ARO HCP - Install Time Whisker Percentiles (CI-excluded)",
       "transformations": [
         {
           "id": "seriesToRows",
@@ -1454,30 +1498,19 @@
               },
               "Value": {
                 "aggregations": [
-                  "mean"
+                  "p5",
+                  "p25",
+                  "p50",
+                  "p75",
+                  "p95"
                 ],
                 "operation": "aggregate"
               }
             }
           }
-        },
-        {
-          "id": "rowsToFields",
-          "options": {
-            "mappings": [
-              {
-                "fieldName": "Metric",
-                "handlerKey": "field.name"
-              },
-              {
-                "fieldName": "Value (mean)",
-                "handlerKey": "field.value"
-              }
-            ]
-          }
         }
       ],
-      "type": "bargauge"
+      "type": "barchart"
     },
     {
       "datasource": {
@@ -2213,7 +2246,7 @@
         "options": [],
         "query": "prometheus",
         "refresh": 1,
-        "regex": "^Managed_Prometheus_services-.+$",
+        "regex": "^Managed_Prometheus_services-.*$",
         "type": "datasource"
       },
       {
@@ -2226,7 +2259,7 @@
         "options": [],
         "query": "prometheus",
         "refresh": 1,
-        "regex": "^Managed_Prometheus_hcps-.+$",
+        "regex": "^Managed_Prometheus_hcps-.*$",
         "type": "datasource"
       },
       {
@@ -2234,7 +2267,7 @@
           "text": "^$",
           "value": "^$"
         },
-        "description": "Pipe-separated subscription IDs to exclude from the report, such as internal test subscriptions. Keep ^$ to include all subscriptions.",
+        "description": "Pipe-separated subscription IDs to exclude in addition to internal_subscription:info. Keep ^$ to add no manual exclusions. Panels labeled CI-excluded apply the automatic and manual filters.",
         "hide": 0,
         "label": "Exclude Subscriptions",
         "name": "exclude_subs",
