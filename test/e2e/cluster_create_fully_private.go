@@ -18,6 +18,8 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"net"
+	"net/url"
 	"strings"
 	"time"
 
@@ -114,6 +116,22 @@ var _ = Describe("Customer", func() {
 			apiURL := *cluster.Properties.API.URL
 			GinkgoLogr.Info("Cluster created fully private", "clusterName", customerClusterName, "apiURL", apiURL)
 
+			By("verifying API hostname DNS resolves to a private IP")
+			// The public DNS A record for a private KAS cluster must point to the
+			// private IP of the internal load balancer — not the shared ingress
+			// public IP. Test this explicitly to catch regressions like ARO-29270.
+			parsedURL, err := url.Parse(apiURL)
+			Expect(err).NotTo(HaveOccurred(), "failed to parse API URL %q", apiURL)
+			apiHost := parsedURL.Hostname()
+			ips, err := net.LookupHost(apiHost)
+			Expect(err).NotTo(HaveOccurred(), "DNS lookup failed for API hostname %q", apiHost)
+			Expect(ips).NotTo(BeEmpty(), "DNS lookup returned no IPs for API hostname %q", apiHost)
+			resolvedIP := net.ParseIP(ips[0])
+			Expect(resolvedIP).NotTo(BeNil(), "DNS returned unparseable IP %q for %q", ips[0], apiHost)
+			Expect(resolvedIP.IsPrivate()).To(BeTrue(),
+				fmt.Sprintf("API hostname %q resolved to public IP %s — expected a private IP (RFC 1918) pointing to the internal LB", apiHost, resolvedIP))
+			GinkgoLogr.Info("API hostname DNS resolves to private IP", "hostname", apiHost, "ip", resolvedIP.String())
+
 			By("creating the node pool")
 			nodePoolParams := framework.NewDefaultNodePoolParams20260630()
 			nodePoolParams.ClusterName = customerClusterName
@@ -141,36 +159,21 @@ var _ = Describe("Customer", func() {
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to get admin REST config for fully private cluster %q", customerClusterName)
 
-			By("verifying KAS is reachable from VM inside the VNet")
-			internalIP, err := framework.GetPrivateKASInternalIP(ctx, tc, clusterParams.ManagedResourceGroupName)
-			Expect(err).NotTo(HaveOccurred(), "failed to find private KAS internal LB IP in managed resource group %q", clusterParams.ManagedResourceGroupName)
-			GinkgoLogr.Info("Found private KAS internal LB", "ip", internalIP, "managedRG", clusterParams.ManagedResourceGroupName)
-
-			// Connect to the internal LB IP to prove network reachability to KAS from
-			// inside the VNet. Skip TLS hostname verification because the server URL
-			// uses an IP address rather than the hostname the cert was issued for.
-			adminRESTConfig.Insecure = true
-			adminRESTConfig.Host = fmt.Sprintf("https://%s:443", internalIP)
-
+			By("verifying KAS is reachable from VM inside the VNet via DNS")
+			// The API hostname in the kubeconfig resolves (via public DNS) to the
+			// private IP of the internal load balancer, so kubectl on the VM
+			// connects through the private KAS endpoint without any host override.
 			kubeconfig, err := framework.GenerateKubeconfig(adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred(), "failed to generate kubeconfig from admin REST config")
 			kubeconfigB64 := base64.StdEncoding.EncodeToString([]byte(kubeconfig))
 
-			Eventually(func(g Gomega) {
-				versionCmd := fmt.Sprintf(
-					"KUBECONFIG=$(mktemp) && "+
-						"trap 'rm -f $KUBECONFIG' EXIT && "+
-						"echo '%s' | base64 -d > $KUBECONFIG && "+
-						"chmod 600 $KUBECONFIG && "+
-						"kubectl --kubeconfig=$KUBECONFIG version 2>&1",
-					kubeconfigB64,
-				)
-				versionOutput, runErr := framework.RunVMCommand(ctx, tc, *resourceGroup.Name, vmName, versionCmd, 2*time.Minute)
-				g.Expect(runErr).NotTo(HaveOccurred(), "RunVMCommand failed for kubectl version (output: %s)", versionOutput)
-				g.Expect(versionOutput).To(ContainSubstring("Server Version"),
-					"kubectl version should show Server Version, proving KAS is reachable from VM (output: %s)", versionOutput)
-			}, 15*time.Minute, 15*time.Second).Should(Succeed(), "KAS should be reachable from VM via internal LB")
-			GinkgoLogr.Info("KAS is reachable from VM inside VNet")
+			// kubectl version hits /version through the DNS-resolved private IP →
+			// internal LB → Swift → KAS pods, proving the private KAS network path
+			// is functional end-to-end.
+			versionOutput, err := framework.RunKubectlOnVM(ctx, tc, *resourceGroup.Name, vmName, kubeconfigB64, "version", 2*time.Minute)
+			Expect(err).NotTo(HaveOccurred(),
+				"kubectl version should succeed from VM via DNS-resolved private KAS (output: %s)", versionOutput)
+			GinkgoLogr.Info("KAS is reachable from VM inside VNet via DNS", "output", versionOutput)
 
 			By("verifying KAS is NOT reachable from outside the VNet")
 			Consistently(func(g Gomega) {
