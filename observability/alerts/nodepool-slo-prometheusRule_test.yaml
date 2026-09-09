@@ -103,7 +103,7 @@ tests:
         short_window: 5m
         slo: nodepool-errors
       exp_annotations:
-        summary: "Node Pool operation error rate critically high (>72%)"
+        summary: "mgmt-1: Node Pool operation error rate critically high (>72%)"
         description: "More than 72% of node pool operations are in failed state, indicating a fast error budget burn (14.4x) that would exhaust the 95% SLO budget in ~12 hours."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
   # Degradation also fires (15% threshold met at 80%)
@@ -116,7 +116,7 @@ tests:
         severity: info
         slo: nodepool-errors
       exp_annotations:
-        summary: "Node Pool operation failure rate exceeds 15% for 30 minutes"
+        summary: "mgmt-1: Node Pool operation failure rate exceeds 15% for 30 minutes"
         description: "The node pool operation failure rate has been above 15% for 30 minutes. This provides early warning of degradation before SLO-based burn rate alerts fire."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
 # ========================================
@@ -168,7 +168,7 @@ tests:
         severity: info
         slo: nodepool-errors
       exp_annotations:
-        summary: "Node Pool operation failure rate exceeds 15% for 30 minutes"
+        summary: "mgmt-1: Node Pool operation failure rate exceeds 15% for 30 minutes"
         description: "The node pool operation failure rate has been above 15% for 30 minutes. This provides early warning of degradation before SLO-based burn rate alerts fire."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
 # ========================================
@@ -199,7 +199,7 @@ tests:
         exclude_internal_subscriptions: "true"
         subscription_id: "sub-3"
       exp_annotations:
-        summary: "Node Pool operation for /sub/3/np/stuck stuck in updating for over 2 hours"
+        summary: "mgmt-1: Node Pool operation for /sub/3/np/stuck stuck in updating for over 2 hours"
         description: "Node pool operation for /sub/3/np/stuck has been in updating phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
 # ========================================
@@ -257,7 +257,7 @@ tests:
         name: "OperationNodePoolUpdate"
         severity: info
       exp_annotations:
-        summary: "Node Pool controller workqueue OperationNodePoolUpdate depth is high"
+        summary: "mgmt-1: Node Pool controller workqueue OperationNodePoolUpdate depth is high"
         description: "Node pool controller workqueue OperationNodePoolUpdate has had a depth > 10 for more than 5 minutes, indicating work is accumulating faster than it can be processed."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
 # ========================================
@@ -331,7 +331,7 @@ tests:
         short_window: 30m
         slo: nodepool-errors
       exp_annotations:
-        summary: "Node Pool operation error rate elevated (>30%) for 30+ minutes"
+        summary: "mgmt-1: Node Pool operation error rate elevated (>30%) for 30+ minutes"
         description: "More than 30% of node pool operations are in failed state sustained over 30 minutes, indicating a medium error budget burn (6x) that would exhaust the 95% SLO budget in ~28 hours."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
   # 50% < 72% → fast burn should NOT fire
@@ -362,7 +362,7 @@ tests:
         exclude_internal_subscriptions: "true"
         subscription_id: "sub-7"
       exp_annotations:
-        summary: "Node Pool operation for /sub/7/np/stuck-del stuck in deleting for over 2 hours"
+        summary: "mgmt-1: Node Pool operation for /sub/7/np/stuck-del stuck in deleting for over 2 hours"
         description: "Node pool operation for /sub/7/np/stuck-del has been in deleting phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
 # ========================================
@@ -400,7 +400,7 @@ tests:
         exclude_internal_subscriptions: "true"
         subscription_id: "sub-8"
       exp_annotations:
-        summary: "Node Pool operation for /sub/8/np/flap-del stuck in deleting for over 2 hours"
+        summary: "mgmt-1: Node Pool operation for /sub/8/np/flap-del stuck in deleting for over 2 hours"
         description: "Node pool operation for /sub/8/np/flap-del has been in deleting phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
   # Raw condition FALSE here (start_time reset → age < 7200s) but the resource is
@@ -419,7 +419,7 @@ tests:
         exclude_internal_subscriptions: "true"
         subscription_id: "sub-8"
       exp_annotations:
-        summary: "Node Pool operation for /sub/8/np/flap-del stuck in deleting for over 2 hours"
+        summary: "mgmt-1: Node Pool operation for /sub/8/np/flap-del stuck in deleting for over 2 hours"
         description: "Node pool operation for /sub/8/np/flap-del has been in deleting phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
   # Raw condition true again after re-crossing 7200s — still one continuous alert.
@@ -437,7 +437,7 @@ tests:
         exclude_internal_subscriptions: "true"
         subscription_id: "sub-8"
       exp_annotations:
-        summary: "Node Pool operation for /sub/8/np/flap-del stuck in deleting for over 2 hours"
+        summary: "mgmt-1: Node Pool operation for /sub/8/np/flap-del stuck in deleting for over 2 hours"
         description: "Node pool operation for /sub/8/np/flap-del has been in deleting phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
 # ========================================
@@ -469,7 +469,7 @@ tests:
         exclude_internal_subscriptions: "true"
         subscription_id: "sub-9"
       exp_annotations:
-        summary: "Node Pool operation for /sub/9/np/done-del stuck in deleting for over 2 hours"
+        summary: "mgmt-1: Node Pool operation for /sub/9/np/done-del stuck in deleting for over 2 hours"
         description: "Node pool operation for /sub/9/np/done-del has been in deleting phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
   # 6h after the last stuck sample (150m + 360m = 510m) the hold expires → resolved.
@@ -504,7 +504,7 @@ tests:
         component: slo
         exclude_internal_subscriptions: "true"
       exp_annotations:
-        summary: "Node Pool operation for /sub/e2e/np/stuck stuck in updating for over 2 hours"
+        summary: "mgmt-1: Node Pool operation for /sub/e2e/np/stuck stuck in updating for over 2 hours"
         description: "Node pool operation for /sub/e2e/np/stuck has been in updating phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
 # ========================================
@@ -546,6 +546,6 @@ tests:
         exclude_internal_subscriptions: "true"
         subscription_id: "sub-10"
       exp_annotations:
-        summary: "Node Pool operation for /sub/10/np/dup stuck in updating for over 2 hours"
+        summary: "mgmt-1: Node Pool operation for /sub/10/np/dup stuck in updating for over 2 hours"
         description: "Node pool operation for /sub/10/np/dup has been in updating phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"

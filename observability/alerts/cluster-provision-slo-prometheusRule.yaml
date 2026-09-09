@@ -50,7 +50,7 @@ spec:
         long_window: 1h
         short_window: 5m
       annotations:
-        summary: "Cluster provisioning error rate critically high (>72%)"
+        summary: "{{ $labels.cluster }}: Cluster provisioning error rate critically high (>72%)"
         description: "More than 72% of cluster create (install) operations are in failed state, indicating a fast error budget burn (14.4x) that would exhaust the 95% SLO budget in ~12 hours. A regional install failure of this magnitude typically points at a shared dependency (e.g. registry, DNS, or ARM) rather than individual clusters."
         runbook_url: "https://aka.ms/arohcp-runbook-cluster-provision"
     # ----------------------------------------
@@ -68,7 +68,7 @@ spec:
         long_window: 6h
         short_window: 30m
       annotations:
-        summary: "Cluster provisioning error rate elevated (>30%) for 30+ minutes"
+        summary: "{{ $labels.cluster }}: Cluster provisioning error rate elevated (>30%) for 30+ minutes"
         description: "More than 30% of cluster create (install) operations are in failed state sustained over 30 minutes, indicating a medium error budget burn (6x) that would exhaust the 95% SLO budget in ~28 hours."
         runbook_url: "https://aka.ms/arohcp-runbook-cluster-provision"
     # ----------------------------------------
@@ -86,7 +86,7 @@ spec:
         slo: cluster-provision-errors
         long_window: 3d
       annotations:
-        summary: "Cluster provisioning error rate exceeds SLO target (>5%) for 6+ hours"
+        summary: "{{ $labels.cluster }}: Cluster provisioning error rate exceeds SLO target (>5%) for 6+ hours"
         description: "More than 5% of cluster create (install) operations are in failed state sustained over 6 hours, indicating persistent degradation at the 95% SLO boundary that would exhaust the error budget in ~7 days."
         runbook_url: "https://aka.ms/arohcp-runbook-cluster-provision"
     # ----------------------------------------
@@ -103,6 +103,6 @@ spec:
         severity: "4"
         slo: cluster-provision-errors
       annotations:
-        summary: "Cluster provisioning failure rate exceeds 15% for 30 minutes"
+        summary: "{{ $labels.cluster }}: Cluster provisioning failure rate exceeds 15% for 30 minutes"
         description: "The cluster create (install) failure rate has been above 15% for 30 minutes. This provides early warning of degradation before SLO-based burn rate alerts fire."
         runbook_url: "https://aka.ms/arohcp-runbook-cluster-provision"
