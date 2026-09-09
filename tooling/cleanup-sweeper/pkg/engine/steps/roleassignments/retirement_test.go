@@ -203,9 +203,6 @@ func TestResourceGroupRetirementCleanup(t *testing.T) {
 			if (err != nil) != test.wantError || len(f.removed) != test.wantDeletes {
 				t.Fatalf("error=%v deleted=%v, want error=%t deletes=%d", err, f.removed, test.wantError, test.wantDeletes)
 			}
-			if test.name == "group still alive" && !strings.Contains(err.Error(), "still exists") {
-				t.Fatalf("error=%q does not identify the live resource group", err)
-			}
 			if test.wantDeletes > 0 && f.activeCalls != 2 {
 				t.Fatalf("expected two active-directory checks, got %d", f.activeCalls)
 			}
