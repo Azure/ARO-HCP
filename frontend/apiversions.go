@@ -20,4 +20,5 @@ import (
 	_ "github.com/Azure/ARO-HCP/internal/azureapi/v20240610preview"
 	_ "github.com/Azure/ARO-HCP/internal/azureapi/v20251223preview"
 	_ "github.com/Azure/ARO-HCP/internal/azureapi/v20260630preview"
+	_ "github.com/Azure/ARO-HCP/internal/azureapi/v20261001preview"
 )
