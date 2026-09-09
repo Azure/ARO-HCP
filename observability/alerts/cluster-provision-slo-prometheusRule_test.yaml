@@ -264,7 +264,7 @@ tests:
     values: "1+0x95"
   alert_rule_test:
   - eval_time: 90m
-    alertname: userJourneyClusterProvisionStuckOperation
+    alertname: UserJourneyClusterProvisionStuckOperation
     exp_alerts:
     - exp_labels:
         cluster: "mgmt-1"
@@ -294,7 +294,7 @@ tests:
     values: "1+0x55"
   alert_rule_test:
   - eval_time: 50m
-    alertname: userJourneyClusterProvisionStuckOperation
+    alertname: UserJourneyClusterProvisionStuckOperation
 # ========================================
 # Test 8: Isolation — nodepool and update operations do not fire stuck alert
 # ========================================
@@ -313,7 +313,7 @@ tests:
     values: "1+0x95"
   alert_rule_test:
   - eval_time: 90m
-    alertname: userJourneyClusterProvisionStuckOperation
+    alertname: UserJourneyClusterProvisionStuckOperation
 # ========================================
 # Test 9: Stuck operation that flaps (backend retry resets start_time)
 # ========================================
@@ -334,7 +334,7 @@ tests:
   alert_rule_test:
   # Raw condition true (age 5400s > 3600s) → firing.
   - eval_time: 90m
-    alertname: userJourneyClusterProvisionStuckOperation
+    alertname: UserJourneyClusterProvisionStuckOperation
     exp_alerts:
     - exp_labels:
         cluster: "mgmt-1"
@@ -353,7 +353,7 @@ tests:
   # Raw condition FALSE here (start_time reset → age < 3600s) but the resource is
   # still wedged. The 6h hold keeps the same alert firing → no resolve, no duplicate.
   - eval_time: 150m
-    alertname: userJourneyClusterProvisionStuckOperation
+    alertname: UserJourneyClusterProvisionStuckOperation
     exp_alerts:
     - exp_labels:
         cluster: "mgmt-1"
