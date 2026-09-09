@@ -1,4 +1,37 @@
 prometheusRules:
-  rulesFolders: []
+  rulesFolders:
+  - alerts/prometheus-prometheusRule.yaml
+  - ../frontend/alerts/frontend-prometheusRule.yaml
+  - ../backend/alerts/backend-prometheusRule.yaml
+  - ../backend/alerts/backend-async-operations-prometheusRule.yaml
+  - ../fleet/alerts/fleet-prometheusRule.yaml
+  - ../admin/alerts/admin-prometheusRule.yaml
+  - ../maestro/alerts/maestro-prometheusRule.yaml
+  - alerts/arobit-prometheusRule.yaml
+  - alerts/service-tag-public-ip-usage.yaml
+  - alerts/hcp-test-clusters-prometheusRule.yaml
+  - alerts/kubeContainerOOM-prometheusRule.yaml
+  - alerts/kubeNode-prometheusRule.yaml
+  - alerts/imageRegistryPolicy-prometheusRule.yaml
+  - alerts/kusto-logs-age-prometheusRule.yaml
+  - alerts/leaderelection-prometheusRule.yaml
+  - ../frontend/alerts/frontend-latency-prometheusRule.yaml
+  - ../backend/alerts/backend-retryhotloop-prometheusRule.yaml
   untestedRules: []
+  testDependencies:
+  - recording-rules-services.yaml
   outputBicep: ../dev-infrastructure/modules/metrics/rules/generatedDevServicesPrometheusAlertingRules.bicep
+  outputReplacements:
+  - from: 'job="kube-scheduler"'
+    to: 'job="controlplane-kube-scheduler"'
+  - from: 'job="apiserver"'
+    to: 'job="controlplane-apiserver"'
+  - from: 'job="etcd"'
+    to: 'job="controlplane-etcd"'
+  - from: 'job="cluster-autoscaler"'
+    to: 'job="controlplane-cluster-autoscaler"'
+  - from: 'job="kube-controller-manager"'
+    to: 'job="controlplane-kube-controller-manager"'
+internalSubscriptionFilter:
+  enabled: true
+  table: internal_subscription:info
