@@ -125,34 +125,7 @@ test_make_targets_exist() {
     fi
 }
 
-# Test 5: Validate kubectl commands are syntactically correct
-test_kubectl_commands() {
-    test_start "kubectl port-forward commands are valid"
-
-    local commands=(
-        "kubectl port-forward svc/aro-hcp-frontend 8443:8443 -n aro-hcp"
-        "kubectl port-forward svc/clusters-service 8000:8000 -n clusters-service"
-        "kubectl port-forward svc/maestro 8001:8000 -n maestro"
-        "kubectl port-forward svc/maestro-grpc 8090 -n maestro"
-    )
-
-    local all_valid=true
-
-    for cmd in "${commands[@]}"; do
-        # Dry-run syntax check
-        if ! ${cmd} --dry-run=client &>/dev/null 2>&1; then
-            # Check if kubectl is available
-            if command -v kubectl &>/dev/null; then
-                log_warn "  Command might be invalid: ${cmd}"
-                # Don't fail since we can't test without a cluster
-            fi
-        fi
-    done
-
-    test_pass
-}
-
-# Test 6: Check PERSIST environment variable is documented
+# Test 5: Check PERSIST environment variable is documented
 test_persist_documented() {
     test_start "PERSIST environment variable documented"
     if grep -q "PERSIST=true" "${README_FILE}"; then
@@ -162,7 +135,7 @@ test_persist_documented() {
     fi
 }
 
-# Test 7: Validate cleanup retention periods are correct
+# Test 6: Validate cleanup retention periods are correct
 test_cleanup_retention_documented() {
     test_start "Cleanup retention periods documented"
     if grep -q "48h" "${README_FILE}" && grep -q "15 days" "${README_FILE}"; then
@@ -172,7 +145,7 @@ test_cleanup_retention_documented() {
     fi
 }
 
-# Test 8: Check if resource group naming patterns are documented
+# Test 7: Check if resource group naming patterns are documented
 test_resource_group_patterns() {
     test_start "Resource group naming patterns documented"
     if grep -q "hcp-underlay-.*-svc" "${README_FILE}" &&
@@ -183,7 +156,7 @@ test_resource_group_patterns() {
     fi
 }
 
-# Test 9: Validate Azure tenant ID and subscription ID format
+# Test 8: Validate Azure tenant ID and subscription ID format
 test_azure_ids_format() {
     test_start "Azure IDs are valid GUIDs"
 
@@ -201,7 +174,7 @@ test_azure_ids_format() {
     fi
 }
 
-# Test 10: Check if observability section exists
+# Test 9: Check if observability section exists
 test_observability_section() {
     test_start "Observability section exists"
     if grep -q "## Observability" "${README_FILE}"; then
@@ -211,7 +184,7 @@ test_observability_section() {
     fi
 }
 
-# Test 11: Validate cleanup command syntax
+# Test 10: Validate cleanup command syntax
 test_cleanup_command() {
     test_start "Cleanup command is valid"
     if grep -q "make cleanup-entrypoint/Region CLEANUP_DRY_RUN=false CLEANUP_WAIT=true" "${README_FILE}"; then
@@ -221,7 +194,7 @@ test_cleanup_command() {
     fi
 }
 
-# Test 12: Check for broken internal links
+# Test 11: Check for broken internal links
 test_internal_links() {
     test_start "Internal documentation links are valid"
 
@@ -294,7 +267,6 @@ main() {
     test_prerequisites_documented
     test_az_version_documented
     test_make_targets_exist
-    test_kubectl_commands
     test_persist_documented
     test_cleanup_retention_documented
     test_resource_group_patterns
