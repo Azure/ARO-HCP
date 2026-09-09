@@ -1513,6 +1513,20 @@
         }
       ]
     },
+    "ClusterActiveVersion": {
+      "type": "object",
+      "description": "ClusterActiveVersion represents a version of a resource.",
+      "properties": {
+        "version": {
+          "type": "string",
+          "description": "The version of the resource. Specified in major.minor, same as the input",
+          "readOnly": true
+        }
+      },
+      "required": [
+        "version"
+      ]
+    },
     "ClusterAutoscalingProfile": {
       "type": "object",
       "description": "ClusterAutoscaling specifies auto-scaling behavior that\napplies to all NodePools associated with a control plane.",
@@ -1573,6 +1587,35 @@
           "x-ms-mutability": [
             "read",
             "create"
+          ]
+        }
+      }
+    },
+    "ClusterResourceStatus": {
+      "type": "object",
+      "description": "ClusterResourceStatus represents the observed status of the cluster resource.",
+      "properties": {
+        "conditions": {
+          "type": "array",
+          "description": "The conditions on the resource",
+          "maxItems": 10,
+          "items": {
+            "$ref": "#/definitions/Condition"
+          },
+          "readOnly": true,
+          "x-ms-identifiers": [
+            "type"
+          ]
+        },
+        "activeVersions": {
+          "type": "array",
+          "description": "The activeVersions of a resource. This field is an array because during upgrades there can be more than one active version.",
+          "items": {
+            "$ref": "#/definitions/ClusterActiveVersion"
+          },
+          "readOnly": true,
+          "x-ms-identifiers": [
+            "version"
           ]
         }
       }
@@ -2040,7 +2083,7 @@
           "readOnly": true
         },
         "status": {
-          "$ref": "#/definitions/ResourceStatus",
+          "$ref": "#/definitions/ExternalAuthResourceStatus",
           "description": "Status of the external auth resource",
           "readOnly": true
         },
@@ -2158,6 +2201,24 @@
         ]
       },
       "readOnly": true
+    },
+    "ExternalAuthResourceStatus": {
+      "type": "object",
+      "description": "ExternalAuthResourceStatus represents the observed status of the external auth resource.",
+      "properties": {
+        "conditions": {
+          "type": "array",
+          "description": "The conditions on the resource",
+          "maxItems": 10,
+          "items": {
+            "$ref": "#/definitions/Condition"
+          },
+          "readOnly": true,
+          "x-ms-identifiers": [
+            "type"
+          ]
+        }
+      }
     },
     "ExternalAuthUpdate": {
       "type": "object",
@@ -2401,7 +2462,7 @@
           ]
         },
         "status": {
-          "$ref": "#/definitions/ResourceStatus",
+          "$ref": "#/definitions/ClusterResourceStatus",
           "description": "Status of the cluster resource",
           "readOnly": true
         },
@@ -2972,6 +3033,20 @@
         }
       ]
     },
+    "NodePoolActiveVersion": {
+      "type": "object",
+      "description": "NodePoolActiveVersion represents a version of a resource.",
+      "properties": {
+        "version": {
+          "type": "string",
+          "description": "The version of the resource. Specified in major.minor.patch, same as the input",
+          "readOnly": true
+        }
+      },
+      "required": [
+        "version"
+      ]
+    },
     "NodePoolAutoScaling": {
       "type": "object",
       "description": "Node pool autoscaling",
@@ -3160,7 +3235,7 @@
           ]
         },
         "status": {
-          "$ref": "#/definitions/ResourceStatus",
+          "$ref": "#/definitions/NodePoolResourceStatus",
           "description": "Status of the node pool resource",
           "readOnly": true
         }
@@ -3243,6 +3318,35 @@
             "read",
             "update",
             "create"
+          ]
+        }
+      }
+    },
+    "NodePoolResourceStatus": {
+      "type": "object",
+      "description": "NodePoolResourceStatus represents the observed status of the nodepool resource.",
+      "properties": {
+        "conditions": {
+          "type": "array",
+          "description": "The conditions on the resource",
+          "maxItems": 10,
+          "items": {
+            "$ref": "#/definitions/Condition"
+          },
+          "readOnly": true,
+          "x-ms-identifiers": [
+            "type"
+          ]
+        },
+        "activeVersions": {
+          "type": "array",
+          "description": "The activeVersions of a resource. This field is an array because during upgrades there can be more than one active version.",
+          "items": {
+            "$ref": "#/definitions/NodePoolActiveVersion"
+          },
+          "readOnly": true,
+          "x-ms-identifiers": [
+            "version"
           ]
         }
       }
@@ -3635,24 +3739,6 @@
         ]
       },
       "readOnly": true
-    },
-    "ResourceStatus": {
-      "type": "object",
-      "description": "ResourceStatus represents the observed status of the resource.",
-      "properties": {
-        "conditions": {
-          "type": "array",
-          "description": "The conditions on the resource",
-          "maxItems": 10,
-          "items": {
-            "$ref": "#/definitions/Condition"
-          },
-          "readOnly": true,
-          "x-ms-identifiers": [
-            "type"
-          ]
-        }
-      }
     },
     "RoleDefinition": {
       "type": "object",
