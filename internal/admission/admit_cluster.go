@@ -618,6 +618,7 @@ func admitClusterVersionProfile(ctx context.Context, admissionContext *ClusterAd
 	// mirrored a non-empty channel list onto the ServiceProviderCluster; until
 	// then it fails open (see admitClusterVersionID).
 	errs = append(errs, admitClusterVersionID(ctx, admissionContext, op, fldPath, newObj, oldObj)...)
+	errs = append(errs, admitClusterV5DataPlaneMirror(ctx, admissionContext, op, fldPath, newObj, oldObj)...)
 
 	return errs
 }
@@ -726,6 +727,38 @@ func admitClusterVersionID(_ context.Context, admissionContext *ClusterAdmission
 			"a channel appears in the cluster's desired version channels only when an upgrade edge to a "+
 			"release in that channel exists", expectedChannel),
 	)}
+}
+
+// admitClusterV5DataPlaneMirror rejects a cross-major upgrade into OpenShift 5.x
+// when the backend has observed that the required data-plane mirror is absent.
+// The nil state is intentionally fail-open while the backend syncs the observation.
+func admitClusterV5DataPlaneMirror(_ context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.VersionProfile) field.ErrorList {
+	if op.Type != operation.Update || oldObj == nil {
+		return nil
+	}
+	if len(newObj.ID) == 0 || oldObj.ID == newObj.ID {
+		return nil
+	}
+	oldVersion, oldErr := semver.ParseTolerant(oldObj.ID)
+	newVersion, newErr := semver.ParseTolerant(newObj.ID)
+	if oldErr != nil || newErr != nil {
+		return nil
+	}
+	// This backstop intentionally covers only upgrades into OpenShift 5.x; a
+	// future major version needs its own mirror status and admission rule.
+	if newVersion.Major != 5 || oldVersion.Major >= newVersion.Major {
+		return nil
+	}
+	if admissionContext.ServiceProviderCluster == nil {
+		return nil
+	}
+	present := admissionContext.ServiceProviderCluster.Status.DataPlaneV5MirrorPresent
+	if present == nil || *present {
+		return nil
+	}
+	versionPath := fldPath.Child("id")
+	return field.ErrorList{field.Invalid(versionPath, newObj.ID,
+		"cannot upgrade to OpenShift 5.x: the data-plane image mirror (ocp-v5.0-art-dev) is not present on this cluster; contact support to remediate before upgrading")}
 }
 
 // minKmsKeyVersionRotationVersion is the minimum OCP version whose CPO

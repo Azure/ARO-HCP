@@ -332,10 +332,65 @@ func TestControlPlaneActiveVersionSyncer_NoReplaceWhenVersionsUnchanged(t *testi
 	)}
 
 	spcCRUD := mockResourcesDBClient.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName)
-	before, err := spcCRUD.Get(runCtx, coreapi.ServiceProviderClusterResourceName)
-	require.NoError(t, err)
-	beforeETag := before.CosmosETag
 
+	syncer := &controlPlaneActiveVersionSyncer{
+		resourcesDBClient:            mockResourcesDBClient,
+		readDesireLister:             &kubeapplierlistertesting.SliceReadDesireLister{Desires: desires},
+		serviceProviderClusterLister: &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
+	}
+	require.NoError(t, syncer.SyncOnce(runCtx, controllerutils.HCPClusterKey{
+		SubscriptionID:    testSubscriptionID,
+		ResourceGroupName: testResourceGroupName,
+		HCPClusterName:    testClusterName,
+	}))
+	// The first sync publishes the initially observed mirror state. A second
+	// sync with the same HostedCluster must not replace the document again.
+	afterFirstSync, err := spcCRUD.Get(runCtx, coreapi.ServiceProviderClusterResourceName)
+	require.NoError(t, err)
+	beforeETag := afterFirstSync.CosmosETag
+	require.NoError(t, syncer.SyncOnce(runCtx, controllerutils.HCPClusterKey{
+		SubscriptionID:    testSubscriptionID,
+		ResourceGroupName: testResourceGroupName,
+		HCPClusterName:    testClusterName,
+	}))
+
+	after, err := spcCRUD.Get(runCtx, coreapi.ServiceProviderClusterResourceName)
+	require.NoError(t, err)
+	assert.Equal(t, beforeETag, after.CosmosETag, "ServiceProviderCluster.CosmosETag changed despite identical observed state; the syncer wrote unnecessarily")
+}
+
+func TestGetHostedClusterV5MirrorPresent(t *testing.T) {
+	t.Parallel()
+
+	withoutMirror := &hsv1beta1.HostedCluster{}
+	assert.False(t, *getHostedClusterV5MirrorPresent(withoutMirror))
+
+	withMirror := &hsv1beta1.HostedCluster{}
+	withMirror.Spec.ImageContentSources = []hsv1beta1.ImageContentSource{{
+		Source: coreapi.OcpV5ArtDevMirrorSource,
+	}}
+	assert.True(t, *getHostedClusterV5MirrorPresent(withMirror))
+}
+
+func TestControlPlaneActiveVersionSyncer_ReplacesWhenV5MirrorChanges(t *testing.T) {
+	runCtx := utils.ContextWithLogger(context.Background(), logr.Discard())
+	mockResourcesDBClient := corecosmosstoragetesting.NewMockResourcesDBClient()
+
+	createTestHCPCluster(t, runCtx, mockResourcesDBClient)
+	createServiceProviderClusterWithVersion(t, runCtx, mockResourcesDBClient, "4.19.15")
+	spcCRUD := mockResourcesDBClient.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName)
+	spc, err := spcCRUD.Get(runCtx, coreapi.ServiceProviderClusterResourceName)
+	require.NoError(t, err)
+	spc.Status.DataPlaneV5MirrorPresent = ptr.To(true)
+	_, err = spcCRUD.Replace(runCtx, spc, nil)
+	require.NoError(t, err)
+	beforeETag := spc.CosmosETag
+
+	desires := []*kubeapplierapi.ReadDesire{newHostedClusterReadDesireWithVersions(t, nil,
+		hsv1beta1.ControlPlaneVersionStatus{History: []hsv1beta1.ControlPlaneUpdateHistory{
+			{Version: "4.19.15", State: configv1.CompletedUpdate},
+		}},
+	)}
 	syncer := &controlPlaneActiveVersionSyncer{
 		resourcesDBClient:            mockResourcesDBClient,
 		readDesireLister:             &kubeapplierlistertesting.SliceReadDesireLister{Desires: desires},
@@ -349,7 +404,8 @@ func TestControlPlaneActiveVersionSyncer_NoReplaceWhenVersionsUnchanged(t *testi
 
 	after, err := spcCRUD.Get(runCtx, coreapi.ServiceProviderClusterResourceName)
 	require.NoError(t, err)
-	assert.Equal(t, beforeETag, after.CosmosETag, "ServiceProviderCluster.CosmosETag changed despite identical ActiveVersions; the syncer wrote unnecessarily")
+	assert.NotEqual(t, beforeETag, after.CosmosETag)
+	assert.Equal(t, ptr.To(false), after.Status.DataPlaneV5MirrorPresent)
 }
 
 // createTestHCPCluster creates an HCP cluster in the mock database (no node pools).
@@ -400,6 +456,7 @@ func newHostedClusterReadDesireWithVersions(
 	t *testing.T,
 	version *hsv1beta1.ClusterVersionStatus,
 	controlPlaneVersion hsv1beta1.ControlPlaneVersionStatus,
+	imageContentSources ...hsv1beta1.ImageContentSource,
 ) *kubeapplierapi.ReadDesire {
 	t.Helper()
 
@@ -409,6 +466,7 @@ func newHostedClusterReadDesireWithVersions(
 	hc.SetName(testClusterName)
 	hc.Status.ControlPlaneVersion = controlPlaneVersion
 	hc.Status.Version = version
+	hc.Spec.ImageContentSources = imageContentSources
 	raw, err := json.Marshal(hc)
 	require.NoError(t, err)
 	return &kubeapplierapi.ReadDesire{
