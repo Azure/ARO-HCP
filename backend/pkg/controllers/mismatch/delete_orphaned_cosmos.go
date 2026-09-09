@@ -208,9 +208,6 @@ func (c *deleteOrphanedCosmosResources) sweepOrphanedDesires(
 	for _, mc := range managementClusters {
 		mcResourceID := mc.ResourceID
 		if mcResourceID == nil {
-			mcResourceID = mc.CosmosMetadata.ResourceID
-		}
-		if mcResourceID == nil {
 			continue
 		}
 		mcLogger := logger.WithValues("managementCluster", strings.ToLower(mcResourceID.String()))

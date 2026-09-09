@@ -18,15 +18,15 @@
 package fleetapi
 
 func (s *Stamp) GetStampIdentifier() string {
-	if s.CosmosMetadata.ResourceID == nil {
+	if s.ResourceID == nil {
 		return ""
 	}
-	return s.CosmosMetadata.ResourceID.Name
+	return s.ResourceID.Name
 }
 
 func (mc *ManagementCluster) GetStampIdentifier() string {
-	if mc.CosmosMetadata.ResourceID == nil || mc.CosmosMetadata.ResourceID.Parent == nil {
+	if mc.ResourceID == nil || mc.ResourceID.Parent == nil {
 		return ""
 	}
-	return mc.CosmosMetadata.ResourceID.Parent.Name
+	return mc.ResourceID.Parent.Name
 }

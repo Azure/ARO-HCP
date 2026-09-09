@@ -852,7 +852,6 @@ func ConvertCSManagementClusterToInternal(csShard *arohcpv1alpha1.ProvisionShard
 			ResourceID:   resourceID,
 			PartitionKey: strings.ToLower(stampIdentifier),
 		},
-		ResourceID: resourceID,
 		Spec: fleetapi.ManagementClusterSpec{
 			SchedulingPolicy: convertShardStatusToSchedulingPolicy(csShard.Status()),
 		},

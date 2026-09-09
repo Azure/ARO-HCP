@@ -108,7 +108,6 @@ func newTestManagementCluster() *fleetapi.ManagementCluster {
 			ResourceID:   resourceID,
 			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 		},
-		ResourceID: resourceID,
 		Status: fleetapi.ManagementClusterStatus{
 			ClusterServiceProvisionShardID: ptr.To(metadataapi.Must(metadataapi.NewInternalID(testProvisionShardHREF(testProvisionShardIDStr)))),
 		},

@@ -71,8 +71,7 @@ func createTestSubscription(t *testing.T, ctx context.Context, mockResourcesDBCl
 			ResourceID:   subResourceID,
 			PartitionKey: strings.ToLower(subResourceID.SubscriptionID),
 		},
-		ResourceID: subResourceID,
-		State:      coreapi.SubscriptionStateRegistered,
+		State: coreapi.SubscriptionStateRegistered,
 		Properties: &coreapi.SubscriptionProperties{
 			TenantId: ptr.To("test-tenant-id"),
 		},
@@ -1553,7 +1552,6 @@ func newTestSubscriptionLister() *corelistertesting.SliceSubscriptionLister {
 	return &corelistertesting.SliceSubscriptionLister{
 		Subscriptions: []*coreapi.Subscription{{
 			CosmosMetadata: coreapi.CosmosMetadata{ResourceID: subResourceID},
-			ResourceID:     subResourceID,
 			Properties:     &coreapi.SubscriptionProperties{},
 		}},
 	}

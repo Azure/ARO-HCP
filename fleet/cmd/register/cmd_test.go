@@ -122,7 +122,6 @@ func TestRun(t *testing.T) {
 			seed: func(t *testing.T) []any {
 				stamp := &fleetapi.Stamp{
 					CosmosMetadata: coreapi.CosmosMetadata{ResourceID: metadataapi.Must(fleetapi.ToStampResourceID(testStampIdentifier)), PartitionKey: strings.ToLower(testStampIdentifier)},
-					ResourceID:     metadataapi.Must(fleetapi.ToStampResourceID(testStampIdentifier)),
 					Status: fleetapi.StampStatus{
 						Conditions: []metav1.Condition{
 							{
@@ -152,11 +151,9 @@ func TestRun(t *testing.T) {
 			seed: func(t *testing.T) []any {
 				stamp := &fleetapi.Stamp{
 					CosmosMetadata: coreapi.CosmosMetadata{ResourceID: metadataapi.Must(fleetapi.ToStampResourceID(testStampIdentifier)), PartitionKey: strings.ToLower(testStampIdentifier)},
-					ResourceID:     metadataapi.Must(fleetapi.ToStampResourceID(testStampIdentifier)),
 				}
 				managementCluster := &fleetapi.ManagementCluster{
 					CosmosMetadata: coreapi.CosmosMetadata{ResourceID: metadataapi.Must(fleetapi.ToManagementClusterResourceID(testStampIdentifier)), PartitionKey: strings.ToLower(testStampIdentifier)},
-					ResourceID:     metadataapi.Must(fleetapi.ToManagementClusterResourceID(testStampIdentifier)),
 					Spec: fleetapi.ManagementClusterSpec{
 						SchedulingPolicy: fleetapi.ManagementClusterSchedulingPolicySchedulable,
 					},
@@ -188,11 +185,9 @@ func TestRun(t *testing.T) {
 			seed: func(t *testing.T) []any {
 				stamp := &fleetapi.Stamp{
 					CosmosMetadata: coreapi.CosmosMetadata{ResourceID: metadataapi.Must(fleetapi.ToStampResourceID(testStampIdentifier)), PartitionKey: strings.ToLower(testStampIdentifier)},
-					ResourceID:     metadataapi.Must(fleetapi.ToStampResourceID(testStampIdentifier)),
 				}
 				managementCluster := &fleetapi.ManagementCluster{
 					CosmosMetadata: coreapi.CosmosMetadata{ResourceID: metadataapi.Must(fleetapi.ToManagementClusterResourceID(testStampIdentifier)), PartitionKey: strings.ToLower(testStampIdentifier)},
-					ResourceID:     metadataapi.Must(fleetapi.ToManagementClusterResourceID(testStampIdentifier)),
 					Spec: fleetapi.ManagementClusterSpec{
 						SchedulingPolicy: fleetapi.ManagementClusterSchedulingPolicySchedulable,
 					},
@@ -221,11 +216,9 @@ func TestRun(t *testing.T) {
 			seed: func(t *testing.T) []any {
 				stamp := &fleetapi.Stamp{
 					CosmosMetadata: coreapi.CosmosMetadata{ResourceID: metadataapi.Must(fleetapi.ToStampResourceID(testStampIdentifier)), PartitionKey: strings.ToLower(testStampIdentifier)},
-					ResourceID:     metadataapi.Must(fleetapi.ToStampResourceID(testStampIdentifier)),
 				}
 				managementCluster := &fleetapi.ManagementCluster{
 					CosmosMetadata: coreapi.CosmosMetadata{ResourceID: metadataapi.Must(fleetapi.ToManagementClusterResourceID(testStampIdentifier)), PartitionKey: strings.ToLower(testStampIdentifier)},
-					ResourceID:     metadataapi.Must(fleetapi.ToManagementClusterResourceID(testStampIdentifier)),
 					Spec: fleetapi.ManagementClusterSpec{
 						SchedulingPolicy: fleetapi.ManagementClusterSchedulingPolicyUnschedulable,
 					},

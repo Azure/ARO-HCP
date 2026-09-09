@@ -191,8 +191,7 @@ func TestMiddlewareValidateSubscription(t *testing.T) {
 						ResourceID:   resourceID,
 						PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 					},
-					ResourceID: resourceID,
-					State:      tt.cachedState,
+					State: tt.cachedState,
 					Properties: &coreapi.SubscriptionProperties{
 						TenantId: &tenantId,
 					},

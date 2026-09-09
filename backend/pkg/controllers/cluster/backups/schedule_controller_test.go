@@ -83,7 +83,7 @@ func TestDeleteStaleApplyDesires(t *testing.T) {
 	newSyncer := func(clients *kubeappliercosmosstoragetesting.MockKubeApplierDBClients) *backupScheduleSyncer {
 		mcLister := &fleetlistertesting.SliceManagementClusterLister{
 			ManagementClusters: []*fleetapi.ManagementCluster{
-				{ResourceID: managementClusterResourceID},
+				{CosmosMetadata: coreapi.CosmosMetadata{ResourceID: managementClusterResourceID}},
 			},
 		}
 		return &backupScheduleSyncer{
@@ -246,7 +246,7 @@ func TestDeleteStaleReadDesires(t *testing.T) {
 	newSyncer := func(clients *kubeappliercosmosstoragetesting.MockKubeApplierDBClients) *backupScheduleSyncer {
 		mcLister := &fleetlistertesting.SliceManagementClusterLister{
 			ManagementClusters: []*fleetapi.ManagementCluster{
-				{ResourceID: managementClusterResourceID},
+				{CosmosMetadata: coreapi.CosmosMetadata{ResourceID: managementClusterResourceID}},
 			},
 		}
 		return &backupScheduleSyncer{
@@ -1180,7 +1180,7 @@ func TestBackupScheduleSyncer_SyncOnce(t *testing.T) {
 
 			mcLister := &fleetlistertesting.SliceManagementClusterLister{
 				ManagementClusters: []*fleetapi.ManagementCluster{
-					{ResourceID: testMgmtClusterResourceID()},
+					{CosmosMetadata: coreapi.CosmosMetadata{ResourceID: testMgmtClusterResourceID()}},
 				},
 			}
 

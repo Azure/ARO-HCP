@@ -263,16 +263,14 @@ func subscriptionInformerIntegrationTestCase() informerIntegrationTestCase {
 					ResourceID:   mustParseResourceID(t, "/subscriptions/sub-1"),
 					PartitionKey: "sub-1",
 				},
-				ResourceID: mustParseResourceID(t, "/subscriptions/sub-1"),
-				State:      coreapi.SubscriptionStateRegistered,
+				State: coreapi.SubscriptionStateRegistered,
 			}
 			sub2 := &coreapi.Subscription{
 				CosmosMetadata: coreapi.CosmosMetadata{
 					ResourceID:   mustParseResourceID(t, "/subscriptions/sub-2"),
 					PartitionKey: "sub-2",
 				},
-				ResourceID: mustParseResourceID(t, "/subscriptions/sub-2"),
-				State:      coreapi.SubscriptionStateRegistered,
+				State: coreapi.SubscriptionStateRegistered,
 			}
 			_, err := resourcesDBClient.Subscriptions().Create(ctx, sub1, nil)
 			require.NoError(t, err)
@@ -300,8 +298,7 @@ func subscriptionInformerIntegrationTestCase() informerIntegrationTestCase {
 					ResourceID:   mustParseResourceID(t, "/subscriptions/sub-3"),
 					PartitionKey: "sub-3",
 				},
-				ResourceID: mustParseResourceID(t, "/subscriptions/sub-3"),
-				State:      coreapi.SubscriptionStateRegistered,
+				State: coreapi.SubscriptionStateRegistered,
 			}
 			_, err = resourcesDBClient.Subscriptions().Create(ctx, sub3, nil)
 			require.NoError(t, err)
