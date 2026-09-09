@@ -508,9 +508,9 @@ func TestRoleAssignmentsSyncerSyncOnceReconcile(t *testing.T) {
 			assertResourceIDSetEqual(t, tc.expectPending, got.PendingAzureResources, "PendingAzureResources")
 			assertResourceIDSetEqual(t, tc.expectConfirmed, got.AzureResources, "AzureResources")
 			if tc.expectRecheckSet {
-				assertRecheckScheduled(t, got.EarliestRecheckTime)
+				assertRecheckScheduled(t, updated.Spec.EarliestRecheckTimesByController[RoleAssignmentsControllerName])
 			} else {
-				assert.Nil(t, got.EarliestRecheckTime, "EarliestRecheckTime must not be set while work remains")
+				assert.Nil(t, updated.Spec.EarliestRecheckTimesByController[RoleAssignmentsControllerName], "recheck time must not be set while work remains")
 			}
 		})
 	}
@@ -566,7 +566,7 @@ func TestRoleAssignmentsSyncerSyncOncePersistsPendingBeforeCreate(t *testing.T) 
 	// Freshly-created assignments stay pending this pass (they confirm on a later GetByID).
 	assertResourceIDSetEqual(t, expectedIDs, got.PendingAzureResources, "PendingAzureResources")
 	assertResourceIDSetEqual(t, nil, got.AzureResources, "AzureResources")
-	assert.Nil(t, got.EarliestRecheckTime, "no recheck window while work remains")
+	assert.Nil(t, updated.Spec.EarliestRecheckTimesByController[RoleAssignmentsControllerName], "no recheck window while work remains")
 }
 
 // preconditionFailingReplaceDB wraps a ResourcesDBClient so that
@@ -724,7 +724,7 @@ func TestRoleAssignmentsSyncerSyncOnceCreateErrorStaysPending(t *testing.T) {
 	got := updated.Status.AzureResources.RoleAssignments
 	assertResourceIDSetEqual(t, expectedIDs, got.PendingAzureResources, "PendingAzureResources")
 	assertResourceIDSetEqual(t, nil, got.AzureResources, "AzureResources")
-	assert.Nil(t, got.EarliestRecheckTime, "EarliestRecheckTime must not be set while work remains")
+	assert.Nil(t, updated.Spec.EarliestRecheckTimesByController[RoleAssignmentsControllerName], "recheck time must not be set while work remains")
 }
 
 // TestRoleAssignmentsSyncerSyncOnceStalePendingDropped verifies that a pending entry that is
@@ -775,7 +775,7 @@ func TestRoleAssignmentsSyncerSyncOnceStalePendingDropped(t *testing.T) {
 	// The stale entry is gone; only the expected (confirmed) assignments remain.
 	assertResourceIDSetEqual(t, nil, got.PendingAzureResources, "PendingAzureResources")
 	assertResourceIDSetEqual(t, expectedIDs, got.AzureResources, "AzureResources")
-	assertRecheckScheduled(t, got.EarliestRecheckTime)
+	assertRecheckScheduled(t, updated.Spec.EarliestRecheckTimesByController[RoleAssignmentsControllerName])
 }
 
 // TestRoleAssignmentsSyncerSyncOnceRecheckAllPresentReschedules verifies that when the
@@ -790,9 +790,9 @@ func TestRoleAssignmentsSyncerSyncOnceRecheckAllPresentReschedules(t *testing.T)
 	cluster := newTestCluster(false)
 	// The recheck window has already elapsed, so the confirmed set is re-verified.
 	serviceProviderCluster := newTestServiceProviderCluster(t, true, true, true, true, coreapi.AzureMultiReference{
-		AzureResources:      expectedIDs,
-		EarliestRecheckTime: &metav1.Time{Time: testFixedNow().Add(-time.Minute)},
+		AzureResources: expectedIDs,
 	})
+	serviceProviderCluster.Spec.EarliestRecheckTimesByController = map[string]*metav1.Time{RoleAssignmentsControllerName: {Time: testFixedNow().Add(-time.Minute)}}
 
 	mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, serviceProviderCluster})
 	require.NoError(t, err)
@@ -822,7 +822,7 @@ func TestRoleAssignmentsSyncerSyncOnceRecheckAllPresentReschedules(t *testing.T)
 	got := updated.Status.AzureResources.RoleAssignments
 	assertResourceIDSetEqual(t, expectedIDs, got.AzureResources, "AzureResources")
 	assertResourceIDSetEqual(t, nil, got.PendingAzureResources, "PendingAzureResources")
-	assertRecheckScheduled(t, got.EarliestRecheckTime)
+	assertRecheckScheduled(t, updated.Spec.EarliestRecheckTimesByController[RoleAssignmentsControllerName])
 }
 
 // TestRoleAssignmentsSyncerSyncOnceRecheckDisappearedRecreatesStaysPending verifies that when
@@ -839,9 +839,9 @@ func TestRoleAssignmentsSyncerSyncOnceRecheckDisappearedRecreatesStaysPending(t 
 	cluster := newTestCluster(false)
 	// The recheck window has already elapsed; the confirmed assignments have since disappeared.
 	serviceProviderCluster := newTestServiceProviderCluster(t, true, true, true, true, coreapi.AzureMultiReference{
-		AzureResources:      expectedIDs,
-		EarliestRecheckTime: &metav1.Time{Time: testFixedNow().Add(-time.Minute)},
+		AzureResources: expectedIDs,
 	})
+	serviceProviderCluster.Spec.EarliestRecheckTimesByController = map[string]*metav1.Time{RoleAssignmentsControllerName: {Time: testFixedNow().Add(-time.Minute)}}
 
 	mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, serviceProviderCluster})
 	require.NoError(t, err)
@@ -874,13 +874,14 @@ func TestRoleAssignmentsSyncerSyncOnceRecheckDisappearedRecreatesStaysPending(t 
 	// Recreated this pass -> pending (not yet confirmed); recheck cleared while work remains.
 	assertResourceIDSetEqual(t, expectedIDs, got.PendingAzureResources, "PendingAzureResources")
 	assertResourceIDSetEqual(t, nil, got.AzureResources, "AzureResources")
-	assert.Nil(t, got.EarliestRecheckTime, "EarliestRecheckTime must be cleared while work remains")
+	assert.Nil(t, updated.Spec.EarliestRecheckTimesByController[RoleAssignmentsControllerName], "recheck time must be cleared while work remains")
 }
 
-// TestRoleAssignmentsSyncerSyncOnceNilRecheckDoesOneRecheck verifies that a nil
-// EarliestRecheckTime is treated as due: an existing cluster confirmed before this controller
-// tracked the window does one reconcile pass on rollout (the accepted one-time recheck),
-// re-verifying every expected assignment and then scheduling a future window.
+// TestRoleAssignmentsSyncerSyncOnceNilRecheckDoesOneRecheck verifies that a nil recheck time
+// (no entry in Spec.EarliestRecheckTimesByController) is treated as due: an existing cluster
+// confirmed before this controller tracked the window does one reconcile pass on rollout (the
+// accepted one-time recheck), re-verifying every expected assignment and then scheduling a
+// future window.
 func TestRoleAssignmentsSyncerSyncOnceNilRecheckDoesOneRecheck(t *testing.T) {
 	t.Parallel()
 
@@ -888,7 +889,7 @@ func TestRoleAssignmentsSyncerSyncOnceNilRecheckDoesOneRecheck(t *testing.T) {
 	expectedIDs := testExpectedRoleAssignmentIDs(t)
 
 	cluster := newTestCluster(false)
-	// Confirmed and pending-empty, but EarliestRecheckTime is nil (never initialized).
+	// Confirmed and pending-empty, but the recheck time is nil (never initialized).
 	serviceProviderCluster := newTestServiceProviderCluster(t, true, true, true, true, coreapi.AzureMultiReference{
 		AzureResources: expectedIDs,
 	})
@@ -922,7 +923,7 @@ func TestRoleAssignmentsSyncerSyncOnceNilRecheckDoesOneRecheck(t *testing.T) {
 	// One recheck ran (all present -> confirmed) and a future window is now scheduled.
 	assertResourceIDSetEqual(t, expectedIDs, got.AzureResources, "AzureResources")
 	assertResourceIDSetEqual(t, nil, got.PendingAzureResources, "PendingAzureResources")
-	assertRecheckScheduled(t, got.EarliestRecheckTime)
+	assertRecheckScheduled(t, updated.Spec.EarliestRecheckTimesByController[RoleAssignmentsControllerName])
 }
 
 // TestRoleAssignmentsSyncerSyncOnceRecheckPartialDisappearance verifies that on an elapsed
@@ -941,9 +942,9 @@ func TestRoleAssignmentsSyncerSyncOnceRecheckPartialDisappearance(t *testing.T) 
 
 	cluster := newTestCluster(false)
 	serviceProviderCluster := newTestServiceProviderCluster(t, true, true, true, true, coreapi.AzureMultiReference{
-		AzureResources:      expectedIDs,
-		EarliestRecheckTime: &metav1.Time{Time: testFixedNow().Add(-time.Minute)},
+		AzureResources: expectedIDs,
 	})
+	serviceProviderCluster.Spec.EarliestRecheckTimesByController = map[string]*metav1.Time{RoleAssignmentsControllerName: {Time: testFixedNow().Add(-time.Minute)}}
 
 	mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, serviceProviderCluster})
 	require.NoError(t, err)
@@ -981,7 +982,7 @@ func TestRoleAssignmentsSyncerSyncOnceRecheckPartialDisappearance(t *testing.T) 
 	// The still-present assignment stays confirmed; the missing ones are re-created and pending.
 	assertResourceIDSetEqual(t, []*azcorearm.ResourceID{presentID}, got.AzureResources, "AzureResources")
 	assertResourceIDSetEqual(t, missingIDs, got.PendingAzureResources, "PendingAzureResources")
-	assert.Nil(t, got.EarliestRecheckTime, "EarliestRecheckTime must be cleared while work remains")
+	assert.Nil(t, updated.Spec.EarliestRecheckTimesByController[RoleAssignmentsControllerName], "recheck time must be cleared while work remains")
 }
 
 // TestRoleAssignmentsSyncerSyncOnceExtraConfirmedRetained verifies the accepted-leak handling:
@@ -1000,9 +1001,9 @@ func TestRoleAssignmentsSyncerSyncOnceExtraConfirmedRetained(t *testing.T) {
 	cluster := newTestCluster(false)
 	// A previously-confirmed assignment (extraID) is no longer expected; the recheck is due.
 	serviceProviderCluster := newTestServiceProviderCluster(t, true, true, true, true, coreapi.AzureMultiReference{
-		AzureResources:      confirmedWithExtra,
-		EarliestRecheckTime: &metav1.Time{Time: testFixedNow().Add(-time.Minute)},
+		AzureResources: confirmedWithExtra,
 	})
+	serviceProviderCluster.Spec.EarliestRecheckTimesByController = map[string]*metav1.Time{RoleAssignmentsControllerName: {Time: testFixedNow().Add(-time.Minute)}}
 
 	mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, serviceProviderCluster})
 	require.NoError(t, err)
@@ -1034,7 +1035,7 @@ func TestRoleAssignmentsSyncerSyncOnceExtraConfirmedRetained(t *testing.T) {
 	// is still scheduled (retained extras are not in the expected set, so they are not work).
 	assertResourceIDSetEqual(t, confirmedWithExtra, got.AzureResources, "AzureResources")
 	assertResourceIDSetEqual(t, nil, got.PendingAzureResources, "PendingAzureResources")
-	assertRecheckScheduled(t, got.EarliestRecheckTime)
+	assertRecheckScheduled(t, updated.Spec.EarliestRecheckTimesByController[RoleAssignmentsControllerName])
 }
 
 // TestRoleAssignmentsSyncerSyncOnceSteadyStateSkipsAzure verifies the NeedsWork
@@ -1049,9 +1050,9 @@ func TestRoleAssignmentsSyncerSyncOnceSteadyStateSkipsAzure(t *testing.T) {
 
 	cluster := newTestCluster(false)
 	serviceProviderCluster := newTestServiceProviderCluster(t, true, true, true, true, coreapi.AzureMultiReference{
-		AzureResources:      expectedIDs,
-		EarliestRecheckTime: &metav1.Time{Time: testFixedNow().Add(12 * time.Hour)},
+		AzureResources: expectedIDs,
 	})
+	serviceProviderCluster.Spec.EarliestRecheckTimesByController = map[string]*metav1.Time{RoleAssignmentsControllerName: {Time: testFixedNow().Add(12 * time.Hour)}}
 
 	mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, serviceProviderCluster})
 	require.NoError(t, err)
@@ -1212,6 +1213,7 @@ func TestRoleAssignmentsSyncerNeedsWork(t *testing.T) {
 		dpResolved   bool
 		smiResolved  bool
 		roleAssign   coreapi.AzureMultiReference
+		recheckTime  *metav1.Time
 		expect       bool
 	}{
 		{
@@ -1253,11 +1255,9 @@ func TestRoleAssignmentsSyncerNeedsWork(t *testing.T) {
 		{
 			name:         "all expected confirmed with future recheck has no work",
 			mrgConfirmed: true, cpResolved: true, dpResolved: true, smiResolved: true,
-			roleAssign: coreapi.AzureMultiReference{
-				AzureResources:      expectedIDs,
-				EarliestRecheckTime: &metav1.Time{Time: testFixedNow().Add(12 * time.Hour)},
-			},
-			expect: false,
+			roleAssign:  coreapi.AzureMultiReference{AzureResources: expectedIDs},
+			recheckTime: &metav1.Time{Time: testFixedNow().Add(12 * time.Hour)},
+			expect:      false,
 		},
 		{
 			name:         "all expected confirmed with nil recheck needs work",
@@ -1268,32 +1268,26 @@ func TestRoleAssignmentsSyncerNeedsWork(t *testing.T) {
 		{
 			name:         "all expected confirmed with elapsed recheck needs work",
 			mrgConfirmed: true, cpResolved: true, dpResolved: true, smiResolved: true,
-			roleAssign: coreapi.AzureMultiReference{
-				AzureResources:      expectedIDs,
-				EarliestRecheckTime: &metav1.Time{Time: testFixedNow().Add(-time.Minute)},
-			},
-			expect: true,
+			roleAssign:  coreapi.AzureMultiReference{AzureResources: expectedIDs},
+			recheckTime: &metav1.Time{Time: testFixedNow().Add(-time.Minute)},
+			expect:      true,
 		},
 		{
 			// A confirmed superset (leftover role from a previous operator identity) with a
 			// future recheck is steady state - not work.
 			name:         "confirmed superset of expected with future recheck has no work",
 			mrgConfirmed: true, cpResolved: true, dpResolved: true, smiResolved: true,
-			roleAssign: coreapi.AzureMultiReference{
-				AzureResources:      supersetIDs,
-				EarliestRecheckTime: &metav1.Time{Time: testFixedNow().Add(12 * time.Hour)},
-			},
-			expect: false,
+			roleAssign:  coreapi.AzureMultiReference{AzureResources: supersetIDs},
+			recheckTime: &metav1.Time{Time: testFixedNow().Add(12 * time.Hour)},
+			expect:      false,
 		},
 		{
 			// A confirmed superset still needs work once the recheck interval has elapsed.
 			name:         "confirmed superset of expected with elapsed recheck needs work",
 			mrgConfirmed: true, cpResolved: true, dpResolved: true, smiResolved: true,
-			roleAssign: coreapi.AzureMultiReference{
-				AzureResources:      supersetIDs,
-				EarliestRecheckTime: &metav1.Time{Time: testFixedNow().Add(-time.Minute)},
-			},
-			expect: true,
+			roleAssign:  coreapi.AzureMultiReference{AzureResources: supersetIDs},
+			recheckTime: &metav1.Time{Time: testFixedNow().Add(-time.Minute)},
+			expect:      true,
 		},
 	}
 
@@ -1306,6 +1300,9 @@ func TestRoleAssignmentsSyncerNeedsWork(t *testing.T) {
 			t.Parallel()
 			cluster := newTestCluster(false)
 			serviceProviderCluster := newTestServiceProviderCluster(t, tc.mrgConfirmed, tc.cpResolved, tc.dpResolved, tc.smiResolved, tc.roleAssign)
+			if tc.recheckTime != nil {
+				serviceProviderCluster.Spec.EarliestRecheckTimesByController = map[string]*metav1.Time{RoleAssignmentsControllerName: tc.recheckTime}
+			}
 			assert.Equal(t, tc.expect, syncer.NeedsWork(cluster, serviceProviderCluster))
 		})
 	}
@@ -1364,7 +1361,7 @@ func assertCreateParams(t *testing.T, expectedIDs []*azcorearm.ResourceID, creat
 // now+interval*(1+jitterFactor)].
 func assertRecheckScheduled(t *testing.T, earliest *metav1.Time) {
 	t.Helper()
-	require.NotNil(t, earliest, "EarliestRecheckTime must be set once the confirmed set is complete")
+	require.NotNil(t, earliest, "recheck time must be set once the confirmed set is complete")
 	got := earliest.Time
 	minTime := testFixedNow().Add(roleAssignmentRecheckInterval)
 	maxTime := testFixedNow().Add(roleAssignmentRecheckInterval + time.Duration(roleAssignmentRecheckJitterFactor*float64(roleAssignmentRecheckInterval)))

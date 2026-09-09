@@ -52,13 +52,13 @@ const RoleAssignmentsControllerName = "IdentityRoleAssignments"
 const (
 	// roleAssignmentRecheckInterval is the base interval after which the controller
 	// re-verifies that the confirmed role assignments still exist in Azure, so one that
-	// later disappears is re-created. Six hours follows the EarliestRecheckTime convention
-	// documented on AzureMultiReference (recheck times on the order of at least six hours,
-	// up to 24 hours, for resources outside their active phase).
+	// later disappears is re-created. Six hours follows the recheck convention documented on
+	// ServiceProviderClusterSpec.EarliestRecheckTimesByController (recheck times on the order
+	// of at least six hours, up to 24 hours, for resources outside their active phase).
 	roleAssignmentRecheckInterval = 6 * time.Hour
 	// roleAssignmentRecheckJitterFactor spreads rechecks over up to +50% of the interval so
 	// that clusters confirmed together do not re-query Azure in lockstep - the 50% jitter
-	// the EarliestRecheckTime convention recommends.
+	// the EarliestRecheckTimesByController convention recommends.
 	roleAssignmentRecheckJitterFactor = 0.5
 )
 
@@ -176,8 +176,9 @@ func (c *roleAssignmentsSyncer) NeedsWork(cluster *coreapi.HCPOpenShiftCluster, 
 		return true
 	}
 	// Every expected role assignment is confirmed and nothing is pending: re-verify only
-	// once the earliest-recheck interval has elapsed.
-	return c.recheckDue(roleAssignments.EarliestRecheckTime)
+	// once the earliest-recheck interval has elapsed. The recheck time is tracked centrally
+	// in Spec.EarliestRecheckTimesByController, keyed by this controller's name.
+	return c.recheckDue(serviceProviderCluster.Spec.EarliestRecheckTimesByController[RoleAssignmentsControllerName])
 }
 
 // principalIDsResolvable reports whether every control-plane operator, data-plane operator,
@@ -353,11 +354,17 @@ func (c *roleAssignmentsSyncer) syncRoleAssignments(ctx context.Context, cluster
 		// Every expected role assignment is confirmed with nothing pending: schedule the next
 		// recheck. This is the only thing that stops the sync re-running on every resync.
 		// Retained extras are not in the expected set, so they never affect this condition.
-		roleAssignments.EarliestRecheckTime = c.nextRoleAssignmentRecheckTime()
+		// The recheck time is tracked centrally in Spec.EarliestRecheckTimesByController,
+		// keyed by this controller's name (NeedsUpdate compares the whole document, so a
+		// recheck-time-only Spec change is still detected and persisted).
+		if replacement.Spec.EarliestRecheckTimesByController == nil {
+			replacement.Spec.EarliestRecheckTimesByController = map[string]*metav1.Time{}
+		}
+		replacement.Spec.EarliestRecheckTimesByController[RoleAssignmentsControllerName] = c.nextRoleAssignmentRecheckTime()
 	} else {
 		// Work remains: clear any window so the next resync re-runs promptly (NeedsWork also
 		// returns true while anything is pending).
-		roleAssignments.EarliestRecheckTime = nil
+		delete(replacement.Spec.EarliestRecheckTimesByController, RoleAssignmentsControllerName)
 	}
 
 	// Persist the classified pending/confirmed state BEFORE any Azure Create, but only when it
