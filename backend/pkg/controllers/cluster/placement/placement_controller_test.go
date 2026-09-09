@@ -17,22 +17,17 @@ package placement
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/mock/gomock"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-
-	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
-	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
@@ -43,7 +38,6 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/fleetlistertesting"
 	"github.com/Azure/ARO-HCP/internal/kuberesources"
-	"github.com/Azure/ARO-HCP/internal/ocm"
 )
 
 // mcForStamp builds an eligible/ineligible ManagementCluster for a stamp.
@@ -401,38 +395,6 @@ func TestSelectByCapacity(t *testing.T) {
 	}
 }
 
-func TestPlacementSyncer_SyncOnce_Backfill(t *testing.T) {
-	ctx := context.Background()
-
-	existing := newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
-		spc.Status.ManagementClusterResourceID = testMgmtClusterResourceID()
-	})
-
-	mockDB := corecosmosstoragetesting.NewMockResourcesDBClient()
-	spcCRUD := mockDB.ServiceProviderClusters(testClusterSubscriptionID, testClusterResourceGroup, testClusterName)
-	created, err := spcCRUD.Create(ctx, existing, nil)
-	require.NoError(t, err)
-
-	// No eligible MC and no fleet capacity data: proves backfill does NOT run
-	// fresh selection (which would fail). A non-deleting cluster is present so the
-	// deletion guard falls through to the status backfill.
-	syncer := &placementSyncer{
-		serviceProviderClusterLister: &corelistertesting.SliceServiceProviderClusterLister{ServiceProviderClusters: []*coreapi.ServiceProviderCluster{created}},
-		clusterLister:                &corelistertesting.SliceClusterLister{Clusters: []*coreapi.HCPOpenShiftCluster{newTestHCPCluster()}},
-		managementClusterLister:      &fleetlistertesting.SliceManagementClusterLister{},
-		cosmosClient:                 mockDB,
-		fleetDBClient:                fleetcosmosstoragetesting.NewMockFleetDBClient(),
-	}
-
-	key := controllerutils.HCPClusterKey{SubscriptionID: testClusterSubscriptionID, ResourceGroupName: testClusterResourceGroup, HCPClusterName: testClusterName}
-	require.NoError(t, syncer.SyncOnce(ctx, key))
-
-	updated, err := spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
-	require.NoError(t, err)
-	require.NotNil(t, updated.Spec.ManagementClusterResourceID, "Spec must be backfilled from Status")
-	assert.Equal(t, testMgmtClusterResourceID().String(), updated.Spec.ManagementClusterResourceID.String())
-}
-
 func TestPlacementSyncer_SyncOnce_FreshSelection(t *testing.T) {
 	ctx := context.Background()
 
@@ -509,199 +471,6 @@ func TestPlacementSyncer_SyncOnce_NoCapacityFails(t *testing.T) {
 	updated, err := spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
 	require.NoError(t, err)
 	assert.Nil(t, updated.Spec.ManagementClusterResourceID)
-}
-
-// TestPlacementSyncer_SyncOnce_PlacementSource is the tabular test for the three
-// placement sources SyncOnce chooses between when Spec is unset:
-//   - Status already set                     => backfill Spec from observed Status
-//   - both nil + PendingClusterServiceID set => backfill Spec from Cluster Service
-//     (rollout-race migration path; NOT a fresh capacity selection)
-//   - both nil + no PendingClusterServiceID  => fresh capacity selection
-//
-// It also covers the defer case: a pending CS ID exists but Cluster Service has
-// not reported a provision shard yet (Spec must stay nil, no error); and the
-// Cluster Service error cases for a pending CS ID: a 404 (the pending ID never
-// became a real cluster) falls through to a FRESH selection, while transient and
-// other non-404 errors are returned so the workqueue retries.
-func TestPlacementSyncer_SyncOnce_PlacementSource(t *testing.T) {
-	pendingCSID := metadataapi.Must(metadataapi.NewInternalID(testClusterServiceIDStr))
-
-	// freshMC is an eligible management cluster (distinct from the CS-mapped mc1)
-	// used only by the fresh-selection case.
-	const freshStamp = "fresh-mc"
-	freshMCResourceID := metadataapi.Must(fleetapi.ToManagementClusterResourceID(freshStamp))
-
-	tests := []struct {
-		name               string
-		spc                *coreapi.ServiceProviderCluster
-		cluster            *coreapi.HCPOpenShiftCluster // nil => not present in cache
-		managementClusters []*fleetapi.ManagementCluster
-		schedulings        []*fleetapi.ManagementClusterScheduling
-		csShard            *arohcpv1alpha1.ProvisionShard
-		csError            error
-		expectCSCall       bool
-		expectedSpec       string // "" => nil
-		expectError        bool
-	}{
-		{
-			name: "status set - backfill from status (no CS call, no fresh select)",
-			spc: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
-				spc.Status.ManagementClusterResourceID = testMgmtClusterResourceID()
-			}),
-			expectCSCall: false,
-			expectedSpec: testMgmtClusterResourceID().String(),
-		},
-		{
-			name: "both nil + pending CS ID - backfill from Cluster Service (not fresh select)",
-			spc:  newTestSPC(),
-			cluster: newTestHCPCluster(func(c *coreapi.HCPOpenShiftCluster) {
-				c.ServiceProviderProperties.ClusterServiceID = nil
-				c.ServiceProviderProperties.PendingClusterServiceID = &pendingCSID
-			}),
-			managementClusters: []*fleetapi.ManagementCluster{newTestManagementCluster()},
-			csShard: metadataapi.Must(arohcpv1alpha1.NewProvisionShard().
-				HREF(testProvisionShardHREF(testProvisionShardIDStr)).
-				Build()),
-			expectCSCall: true,
-			expectedSpec: testMgmtClusterResourceID().String(),
-		},
-		{
-			name: "both nil + pending CS ID + shard not allocated - defer (no fresh select, no error)",
-			spc:  newTestSPC(),
-			cluster: newTestHCPCluster(func(c *coreapi.HCPOpenShiftCluster) {
-				c.ServiceProviderProperties.ClusterServiceID = nil
-				c.ServiceProviderProperties.PendingClusterServiceID = &pendingCSID
-			}),
-			managementClusters: []*fleetapi.ManagementCluster{newTestManagementCluster()},
-			csShard:            metadataapi.Must(arohcpv1alpha1.NewProvisionShard().Build()), // empty HREF
-			expectCSCall:       true,
-			expectedSpec:       "",
-		},
-		{
-			name: "both nil + no pending CS ID - fresh selection",
-			spc:  newTestSPC(),
-			cluster: newTestHCPCluster(func(c *coreapi.HCPOpenShiftCluster) {
-				c.ServiceProviderProperties.ClusterServiceID = nil
-			}),
-			managementClusters: []*fleetapi.ManagementCluster{mcForStamp(freshStamp, true, true)},
-			schedulings:        []*fleetapi.ManagementClusterScheduling{schedulingDoc(freshStamp, 6, 0, 0, 0)},
-			expectCSCall:       false,
-			expectedSpec:       freshMCResourceID.String(),
-		},
-		{
-			// The pending CS ID is stale: an older backend recorded it then crashed
-			// before creating the cluster in Cluster Service, so CS returns 404.
-			// There is no committed placement to preserve, so SyncOnce must fall
-			// through to a FRESH capacity-aware selection (picks the eligible MC)
-			// rather than deferring forever.
-			name: "both nil + pending CS ID + CS 404 - fresh selection (stale pending ID)",
-			spc:  newTestSPC(),
-			cluster: newTestHCPCluster(func(c *coreapi.HCPOpenShiftCluster) {
-				c.ServiceProviderProperties.ClusterServiceID = nil
-				c.ServiceProviderProperties.PendingClusterServiceID = &pendingCSID
-			}),
-			managementClusters: []*fleetapi.ManagementCluster{mcForStamp(freshStamp, true, true)},
-			schedulings:        []*fleetapi.ManagementClusterScheduling{schedulingDoc(freshStamp, 6, 0, 0, 0)},
-			csError:            metadataapi.Must(ocmerrors.NewError().Status(http.StatusNotFound).Build()),
-			expectCSCall:       true,
-			expectedSpec:       freshMCResourceID.String(),
-		},
-		{
-			// A transient (non-404) Cluster Service error must NOT fresh-select: it
-			// is returned so the workqueue retries. An eligible MC is present to
-			// prove the error short-circuits before fresh selection (no placement
-			// is written).
-			name: "both nil + pending CS ID + CS transient error - return error (retry, no placement)",
-			spc:  newTestSPC(),
-			cluster: newTestHCPCluster(func(c *coreapi.HCPOpenShiftCluster) {
-				c.ServiceProviderProperties.ClusterServiceID = nil
-				c.ServiceProviderProperties.PendingClusterServiceID = &pendingCSID
-			}),
-			managementClusters: []*fleetapi.ManagementCluster{mcForStamp(freshStamp, true, true)},
-			schedulings:        []*fleetapi.ManagementClusterScheduling{schedulingDoc(freshStamp, 6, 0, 0, 0)},
-			csError:            fmt.Errorf("connection refused"),
-			expectCSCall:       true,
-			expectedSpec:       "",
-			expectError:        true,
-		},
-		{
-			// A non-404 Cluster Service HTTP error (e.g. 500) must also be returned
-			// for retry: only a 404 means the cluster was never created and is safe
-			// to fresh-select.
-			name: "both nil + pending CS ID + CS non-404 error - return error (only 404 falls through)",
-			spc:  newTestSPC(),
-			cluster: newTestHCPCluster(func(c *coreapi.HCPOpenShiftCluster) {
-				c.ServiceProviderProperties.ClusterServiceID = nil
-				c.ServiceProviderProperties.PendingClusterServiceID = &pendingCSID
-			}),
-			managementClusters: []*fleetapi.ManagementCluster{mcForStamp(freshStamp, true, true)},
-			schedulings:        []*fleetapi.ManagementClusterScheduling{schedulingDoc(freshStamp, 6, 0, 0, 0)},
-			csError:            metadataapi.Must(ocmerrors.NewError().Status(http.StatusInternalServerError).Build()),
-			expectCSCall:       true,
-			expectedSpec:       "",
-			expectError:        true,
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			ctx := context.Background()
-			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
-
-			mockDB := corecosmosstoragetesting.NewMockResourcesDBClient()
-			spcCRUD := mockDB.ServiceProviderClusters(testClusterSubscriptionID, testClusterResourceGroup, testClusterName)
-			created, err := spcCRUD.Create(ctx, tc.spc, nil)
-			require.NoError(t, err)
-
-			clusters := []*coreapi.HCPOpenShiftCluster{}
-			if tc.cluster != nil {
-				clusters = append(clusters, tc.cluster)
-			}
-
-			// The fleet DB backs the reservation write path (fresh selection only);
-			// seed it with the same scheduling docs used for scoring.
-			fleetDB := fleetcosmosstoragetesting.NewMockFleetDBClient()
-			for _, s := range tc.schedulings {
-				_, err := fleetDB.Stamps().ManagementClusters(s.PartitionKey).Scheduling().Create(ctx, s, nil)
-				require.NoError(t, err)
-			}
-
-			mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
-			if tc.expectCSCall {
-				mockCSClient.EXPECT().
-					GetClusterProvisionShard(gomock.Any(), pendingCSID).
-					Return(tc.csShard, tc.csError)
-			}
-
-			syncer := &placementSyncer{
-				serviceProviderClusterLister:      &corelistertesting.SliceServiceProviderClusterLister{ServiceProviderClusters: []*coreapi.ServiceProviderCluster{created}},
-				clusterLister:                     &corelistertesting.SliceClusterLister{Clusters: clusters},
-				managementClusterLister:           &fleetlistertesting.SliceManagementClusterLister{ManagementClusters: tc.managementClusters},
-				managementClusterSchedulingLister: &fleetlistertesting.SliceManagementClusterSchedulingLister{Schedulings: tc.schedulings},
-				cosmosClient:                      mockDB,
-				fleetDBClient:                     fleetDB,
-				clusterServiceClient:              mockCSClient,
-			}
-
-			key := controllerutils.HCPClusterKey{SubscriptionID: testClusterSubscriptionID, ResourceGroupName: testClusterResourceGroup, HCPClusterName: testClusterName}
-			err = syncer.SyncOnce(ctx, key)
-			if tc.expectError {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-			}
-
-			updated, err := spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
-			require.NoError(t, err)
-			if tc.expectedSpec != "" {
-				require.NotNil(t, updated.Spec.ManagementClusterResourceID)
-				assert.Equal(t, tc.expectedSpec, updated.Spec.ManagementClusterResourceID.String())
-			} else {
-				assert.Nil(t, updated.Spec.ManagementClusterResourceID, "no placement should be written")
-			}
-		})
-	}
 }
 
 // TestPlacementSyncer_SyncOnce_SkipsDeletingCluster proves a cluster whose

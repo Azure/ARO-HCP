@@ -16,9 +16,7 @@ package placement
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"net/http"
 	"strings"
 	"time"
 
@@ -29,12 +27,9 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
-
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
-	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
@@ -44,7 +39,6 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/listers/fleetlisters"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/kuberesources"
-	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -128,7 +122,6 @@ type placementSyncer struct {
 	managementClusterSchedulingLister fleetlisters.ManagementClusterSchedulingLister
 	cosmosClient                      corecosmosstorage.ResourcesDBClient
 	fleetDBClient                     fleetcosmosstorage.FleetDBClient
-	clusterServiceClient              ocm.ClusterServiceClientSpec
 }
 
 var _ controllerutils.ClusterSyncer = (*placementSyncer)(nil)
@@ -140,7 +133,6 @@ var _ controllerutils.ClusterSyncer = (*placementSyncer)(nil)
 func NewPlacementController(
 	cosmosClient corecosmosstorage.ResourcesDBClient,
 	fleetDBClient fleetcosmosstorage.FleetDBClient,
-	clusterServiceClient ocm.ClusterServiceClientSpec,
 	managementClusterLister fleetlisters.ManagementClusterLister,
 	managementClusterSchedulingLister fleetlisters.ManagementClusterSchedulingLister,
 	informers coreinformers.BackendInformers,
@@ -156,7 +148,6 @@ func NewPlacementController(
 		managementClusterSchedulingLister: managementClusterSchedulingLister,
 		cosmosClient:                      cosmosClient,
 		fleetDBClient:                     fleetDBClient,
-		clusterServiceClient:              clusterServiceClient,
 	}
 
 	return controllerutils.NewClusterWatchingController(
@@ -171,9 +162,7 @@ func NewPlacementController(
 
 // needsWork reports whether the ServiceProviderCluster still needs its
 // Spec.ManagementClusterResourceID (scheduler intent) resolved. There is work
-// whenever Spec is nil: either a fresh capacity-aware selection (Spec and Status
-// both nil) or a rollout backfill from the observed Status placement (Spec nil,
-// Status set).
+// whenever Spec.ManagementClusterResourceID is nil; once set, placement is resolved.
 func (c *placementSyncer) needsWork(serviceProviderCluster *coreapi.ServiceProviderCluster) bool {
 	return serviceProviderCluster.Spec.ManagementClusterResourceID == nil
 }
@@ -206,48 +195,6 @@ func (c *placementSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPC
 	}
 	if err == nil && cluster.ServiceProviderProperties.DeletionTimestamp != nil {
 		logger.V(1).Info("HCP is being deleted; skipping placement")
-		return nil
-	}
-
-	// Old records: the HCP was already placed by ManagementClusterPlacementSync
-	// (Status.ManagementClusterResourceID mirrors the Cluster Service placement)
-	// before the scheduler-intent Spec field existed, so Spec is nil while Status
-	// is set. Backfill Spec from the observed Status placement rather than
-	// fresh-scheduling, so downstream Cluster Service creation adopts the existing
-	// placement instead of selecting a possibly different management cluster.
-	if serviceProviderCluster.Status.ManagementClusterResourceID != nil {
-		if err := c.setSpecPlacement(ctx, key, serviceProviderCluster.Status.ManagementClusterResourceID); err != nil {
-			return err
-		}
-		logger.Info("backfilled management cluster placement intent from observed status",
-			"managementClusterID", serviceProviderCluster.Status.ManagementClusterResourceID.String())
-		return nil
-	}
-
-	// Rollout race: an old record created by a prior backend version can have a
-	// Cluster Service ID assigned — and a placement already decided by Cluster
-	// Service — while both Spec and Status ManagementClusterResourceID are still
-	// nil (the observed-placement mirror, ManagementClusterPlacementSync, has not
-	// caught up yet). Fresh-selecting here could pick a different management
-	// cluster than the one Cluster Service already committed to. Instead, ask
-	// Cluster Service where it placed the cluster (by the pending CS ID) and
-	// backfill Spec from that.
-	// This is migration behavior from CS driven placement to RP driven placement
-	// and can be removed once rollout completes.
-	if chosen, handled, err := c.backfillFromClusterService(ctx, cluster); err != nil {
-		return err
-	} else if handled {
-		if chosen == nil {
-			// A pending CS ID exists but Cluster Service has not reported a placement
-			// yet: defer rather than fresh-select, to avoid diverging from the
-			// placement Cluster Service will eventually report.
-			logger.Info("cluster has a pending Cluster Service ID but Cluster Service has not reported a placement yet; deferring placement")
-			return nil
-		}
-		if err := c.setSpecPlacement(ctx, key, chosen); err != nil {
-			return err
-		}
-		logger.Info("backfilled management cluster placement intent from Cluster Service", "managementClusterID", chosen.String())
 		return nil
 	}
 
@@ -284,91 +231,6 @@ func (c *placementSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPC
 	}
 	logger.Info("assigned management cluster placement", "managementClusterID", chosen.String())
 	return nil
-}
-
-// backfillFromClusterService handles the rollout-race migration edge case. When
-// the cluster document carries a PendingClusterServiceID (a placement already
-// decided by a prior backend version / Cluster Service), it resolves the
-// Cluster-Service-reported provision shard back to a management cluster resource
-// ID. cluster is the already-fetched cluster document (nil when the cluster does
-// not exist in the cache) — the caller has already read it for the deletion
-// guard, so this does not re-fetch it.
-//
-// It returns handled=true when the caller must NOT fresh-select: either the
-// placement was resolved (chosen set to the management cluster resource ID) or
-// Cluster Service knows the cluster but has not reported a placement yet (chosen
-// nil — the caller should defer to avoid diverging from the placement Cluster
-// Service will eventually report).
-//
-// It returns handled=false when the caller SHOULD fresh-select: cluster is nil,
-// there is no pending CS ID, or Cluster Service returns 404 (not found) for the
-// pending CS ID. A 404 means no Cluster Service cluster exists for the pending
-// ID yet. That is the normal case for a brand-new record too:
-// PendingClusterServiceID assignment is not gated on placement, so a new
-// cluster can carry a pending ID before its Cluster Service cluster is created
-// (creation happens in ClusterClusterServiceCreate, which waits for Spec). It
-// also covers the old rollout edge case where a prior backend recorded
-// PendingClusterServiceID then crashed / lost leadership before creating the
-// cluster in Cluster Service. In every 404 case there is no committed
-// placement to preserve, so a fresh capacity-aware selection is safe. Every
-// other error is transient and is returned so the workqueue retries.
-func (c *placementSyncer) backfillFromClusterService(ctx context.Context, cluster *coreapi.HCPOpenShiftCluster) (chosen *azcorearm.ResourceID, handled bool, err error) {
-	if cluster == nil {
-		return nil, false, nil
-	}
-	pendingClusterServiceID := cluster.ServiceProviderProperties.PendingClusterServiceID
-	if pendingClusterServiceID == nil {
-		return nil, false, nil
-	}
-
-	chosen, err = c.resolvePlacementFromClusterService(ctx, *pendingClusterServiceID)
-	if err != nil {
-		// A 404 from Cluster Service means no Cluster Service cluster exists for
-		// this pending ID yet. This is the normal case for a new record (the pending
-		// ID is assigned before placement, and the Cluster Service cluster is only
-		// created once Spec is resolved) as well as the old rollout case (a prior
-		// backend recorded PendingClusterServiceID then crashed before creating it
-		// in Cluster Service). Either way there is no committed placement to diverge
-		// from, so fall through to a fresh capacity-aware selection instead of
-		// deferring forever. Any other error is transient — propagate it so the
-		// workqueue retries.
-		var ocmError *ocmerrors.Error
-		if errors.As(err, &ocmError) && ocmError.Status() == http.StatusNotFound {
-			utils.LoggerFromContext(ctx).Info("pending Cluster Service ID has no cluster in Cluster Service (404); proceeding with fresh placement",
-				"clusterServiceID", pendingClusterServiceID.String())
-			return nil, false, nil
-		}
-		return nil, true, err
-	}
-	return chosen, true, nil
-}
-
-// resolvePlacementFromClusterService asks Cluster Service where it already placed
-// a cluster (by its Cluster Service ID) and maps the reported provision shard
-// back to a management cluster resource ID. It returns (nil, nil) when Cluster
-// Service has not yet reported a provision shard, or when no known management
-// cluster matches it yet — in both cases the caller should retry later rather
-// than fresh-select.
-func (c *placementSyncer) resolvePlacementFromClusterService(ctx context.Context, clusterServiceID metadataapi.InternalID) (*azcorearm.ResourceID, error) {
-	csShard, err := c.clusterServiceClient.GetClusterProvisionShard(ctx, clusterServiceID)
-	if err != nil {
-		return nil, utils.TrackError(fmt.Errorf("failed to get provision shard from Cluster Service for %q: %w", clusterServiceID.String(), err))
-	}
-	if len(csShard.HREF()) == 0 {
-		return nil, nil // provision shard not yet allocated by Cluster Service
-	}
-	provisionShardID, err := metadataapi.NewInternalID(csShard.HREF())
-	if err != nil {
-		return nil, utils.TrackError(fmt.Errorf("failed to parse provision shard href %q: %w", csShard.HREF(), err))
-	}
-	managementCluster, err := c.managementClusterLister.GetByCSProvisionShardID(ctx, provisionShardID.ID())
-	if cosmosstorageutils.IsNotFoundError(err) {
-		return nil, nil // provision shard not yet mapped to a known management cluster
-	}
-	if err != nil {
-		return nil, utils.TrackError(fmt.Errorf("failed to resolve provision shard %q to a management cluster: %w", provisionShardID.ID(), err))
-	}
-	return managementCluster.ResourceID, nil
 }
 
 // schedulingCandidate pairs a management cluster's resource ID with its
