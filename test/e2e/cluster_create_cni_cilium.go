@@ -104,6 +104,10 @@ var _ = Describe("Customer", func() {
 			kubeconfigContent, err := framework.GenerateKubeconfig(adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred(), "failed to generate kubeconfig for cluster %q", customerClusterName)
 
+			By("providing a Multus-compatible custom CNI conflist for Cilium")
+			err = framework.EnsureCiliumCNIConfigMap(ctx, adminRESTConfig, ciliumNamespace, framework.CiliumCNIConfigMapName, framework.CiliumConflistPortmap)
+			Expect(err).NotTo(HaveOccurred(), "failed to create Cilium CNI conflist ConfigMap")
+
 			By("installing Cilium via Helm")
 			ciliumValues := map[string]any{
 				"debug": map[string]any{
@@ -138,6 +142,7 @@ var _ = Describe("Customer", func() {
 					"binPath":      "/var/lib/cni/bin",
 					"confPath":     "/var/run/multus/cni/net.d",
 					"chainingMode": "portmap",
+					"configMap":    framework.CiliumCNIConfigMapName,
 				},
 				"prometheus": map[string]any{
 					"serviceMonitor": map[string]any{
