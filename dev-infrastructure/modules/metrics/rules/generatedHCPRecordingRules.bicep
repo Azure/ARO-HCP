@@ -271,3 +271,29 @@ resource hcpEtcdGrpcLatencyRecordingRules 'Microsoft.AlertsManagement/prometheus
     ]
   }
 }
+
+resource hcpKasProbeAvailabilityRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'hcp-kas-probe-availability-recording-rules'
+  location: location
+  properties: {
+    scopes: [
+      azureMonitoring
+    ]
+    enabled: true
+    interval: 'PT1M'
+    rules: [
+      {
+        record: 'kubeapiserver:probe_success'
+        expression: 'avg by (name, namespace, _id, resource_id, cluster, region) (hostedClusterAPI_kubeapiserver_available{status="True"}) and on (name, namespace, _id, resource_id, cluster) count by (name, namespace, _id, resource_id, cluster, region) (hostedClusterAPI_kubeapiserver_available)'
+      }
+      {
+        record: 'probe_availability:ratio_avg_7d'
+        expression: 'avg by (name, namespace, _id, resource_id, cluster, region) (avg_over_time(hostedClusterAPI_kubeapiserver_available{status="True"}[1w])) and on (name, namespace, _id, resource_id, cluster) count by (name, namespace, _id, resource_id, cluster, region) (hostedClusterAPI_kubeapiserver_available)'
+      }
+      {
+        record: 'probe_availability:ratio_avg_30d'
+        expression: 'avg by (name, namespace, _id, resource_id, cluster, region) (avg_over_time(hostedClusterAPI_kubeapiserver_available{status="True"}[30d])) and on (name, namespace, _id, resource_id, cluster) count by (name, namespace, _id, resource_id, cluster, region) (hostedClusterAPI_kubeapiserver_available)'
+      }
+    ]
+  }
+}
