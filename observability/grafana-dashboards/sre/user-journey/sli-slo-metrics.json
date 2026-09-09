@@ -694,7 +694,7 @@
       },
       "id": 20,
       "panels": [],
-      "title": "Report diagrams",
+      "title": "Program call charts",
       "type": "row"
     },
     {
@@ -702,7 +702,7 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "Fleet-total cluster create counts across the selected regional datasources over the latest 24 hours. The generated report provides the authoritative longer-window, start-time-bounded cohort totals.",
+      "description": "Fleet-total cluster create counts across the selected regional datasources over the latest 24 hours, styled after the SLI/SLO program-call chart. The generated report provides the authoritative longer-window, start-time-bounded cohort totals.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -740,11 +740,42 @@
           },
           "unit": "short"
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Succeeded"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#70AD47",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Failed"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#ED7D31",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
       },
       "gridPos": {
-        "h": 11,
-        "w": 12,
+        "h": 10,
+        "w": 24,
         "x": 0,
         "y": 29
       },
@@ -795,7 +826,7 @@
         }
       ],
       "timeFrom": "24h",
-      "title": "Cluster Install Volume",
+      "title": "ARO HCP - Cluster Install Volume and Success",
       "transformations": [
         {
           "id": "seriesToRows",
@@ -840,7 +871,7 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "Fleet-total NodePool create counts across the selected regional datasources over the latest 24 hours.",
+      "description": "Fleet-total NodePool create counts across the selected regional datasources over the latest 24 hours, styled after the SLI/SLO program-call chart.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -878,13 +909,44 @@
           },
           "unit": "short"
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Succeeded"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#70AD47",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Failed"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#ED7D31",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
       },
       "gridPos": {
-        "h": 11,
-        "w": 12,
-        "x": 12,
-        "y": 29
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 39
       },
       "id": 22,
       "interval": "1h",
@@ -933,7 +995,7 @@
         }
       ],
       "timeFrom": "24h",
-      "title": "NodePool Install Volume",
+      "title": "ARO HCP - NodePool Install Volume and Success",
       "transformations": [
         {
           "id": "seriesToRows",
@@ -1015,7 +1077,7 @@
             }
           },
           "max": 100,
-          "min": 80,
+          "min": 90,
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -1023,20 +1085,59 @@
                 "color": "red"
               },
               {
-                "color": "green",
+                "color": "#4472C4",
                 "value": 95
               }
             ]
           },
           "unit": "percent"
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Cluster"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#4472C4",
+                  "mode": "fixed"
+                }
+              },
+              {
+                "id": "custom.lineWidth",
+                "value": 3
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "NodePool"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#ED7D31",
+                  "mode": "fixed"
+                }
+              },
+              {
+                "id": "custom.lineWidth",
+                "value": 3
+              }
+            ]
+          }
+        ]
       },
       "gridPos": {
-        "h": 11,
-        "w": 12,
+        "h": 10,
+        "w": 24,
         "x": 0,
-        "y": 40
+        "y": 49
       },
       "id": 23,
       "interval": "1h",
@@ -1085,7 +1186,7 @@
         }
       ],
       "timeFrom": "24h",
-      "title": "Cluster vs NodePool Success Rate",
+      "title": "ARO HCP - Cluster vs NodePool Success Rate",
       "transformations": [
         {
           "id": "seriesToRows",
@@ -1180,13 +1281,102 @@
           },
           "unit": "m"
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Cluster p50"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#6D8FCA",
+                  "mode": "fixed"
+                }
+              },
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "dash": [
+                    6,
+                    6
+                  ],
+                  "fill": "dash"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Cluster p95"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#4472C4",
+                  "mode": "fixed"
+                }
+              },
+              {
+                "id": "custom.lineWidth",
+                "value": 3
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "NodePool p50"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#F2A270",
+                  "mode": "fixed"
+                }
+              },
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "dash": [
+                    6,
+                    6
+                  ],
+                  "fill": "dash"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "NodePool p95"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#ED7D31",
+                  "mode": "fixed"
+                }
+              },
+              {
+                "id": "custom.lineWidth",
+                "value": 3
+              }
+            ]
+          }
+        ]
       },
       "gridPos": {
-        "h": 11,
-        "w": 12,
-        "x": 12,
-        "y": 40
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 59
       },
       "id": 24,
       "interval": "1h",
@@ -1261,7 +1451,7 @@
         }
       ],
       "timeFrom": "24h",
-      "title": "Install Time Trend",
+      "title": "ARO HCP - Install Time Trend (Cluster vs NodePool)",
       "transformations": [
         {
           "id": "seriesToRows",
@@ -1307,7 +1497,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 51
+        "y": 69
       },
       "id": 30,
       "panels": [],
@@ -1347,13 +1537,44 @@
           },
           "unit": "short"
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "succeeded"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#70AD47",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "failed"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#ED7D31",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
       },
       "gridPos": {
         "h": 13,
         "w": 24,
         "x": 0,
-        "y": 52
+        "y": 70
       },
       "id": 31,
       "options": {
@@ -1386,18 +1607,16 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count by (resource_type,operation_type,phase) ((backend_resource_operation_phase_info{operation_type=~\"create|delete|update\",phase=~\"succeeded|failed\",resource_type=~\"microsoft.redhatopenshift/hcpopenshiftclusters($|/nodepools$|/externalauths$)\",subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{operation_type=~\"create|delete|update\",phase=~\"succeeded|failed\",resource_type=~\"microsoft.redhatopenshift/hcpopenshiftclusters($|/nodepools$|/externalauths$)\",subscription_id!~\"${exclude_subs:raw}\"}) < $__range_s))",
+          "expr": "label_join(label_replace(label_replace(label_replace(count by (resource_type,operation_type,phase) ((backend_resource_operation_phase_info{operation_type=~\"create|delete|update\",phase=~\"succeeded|failed\",resource_type=~\"microsoft.redhatopenshift/hcpopenshiftclusters($|/nodepools$|/externalauths$)\",subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{operation_type=~\"create|delete|update\",phase=~\"succeeded|failed\",resource_type=~\"microsoft.redhatopenshift/hcpopenshiftclusters($|/nodepools$|/externalauths$)\",subscription_id!~\"${exclude_subs:raw}\"}) < $__range_s)), \"resource\", \"Cluster\", \"resource_type\", \"microsoft.redhatopenshift/hcpopenshiftclusters\"), \"resource\", \"NodePool\", \"resource_type\", \"microsoft.redhatopenshift/hcpopenshiftclusters/nodepools\"), \"resource\", \"ExternalAuth\", \"resource_type\", \"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\"), \"operation\", \" / \", \"resource\", \"operation_type\")",
+          "format": "table",
           "instant": true,
-          "legendFormat": "{{resource_type}} / {{operation_type}} / {{phase}}",
+          "legendFormat": "__auto",
+          "range": false,
           "refId": "A"
         }
       ],
-      "title": "Per-Operation Outcomes",
+      "title": "ARO HCP - Per-Operation Outcomes",
       "transformations": [
-        {
-          "id": "seriesToRows",
-          "options": {}
-        },
         {
           "id": "merge",
           "options": {}
@@ -1406,7 +1625,11 @@
           "id": "groupBy",
           "options": {
             "fields": {
-              "Metric": {
+              "operation": {
+                "aggregations": [],
+                "operation": "groupby"
+              },
+              "phase": {
                 "aggregations": [],
                 "operation": "groupby"
               },
@@ -1418,6 +1641,14 @@
               }
             }
           }
+        },
+        {
+          "id": "groupingToMatrix",
+          "options": {
+            "columnField": "phase",
+            "rowField": "operation",
+            "valueField": "Value (sum)"
+          }
         }
       ],
       "type": "barchart"
@@ -1428,7 +1659,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 65
+        "y": 83
       },
       "id": 40,
       "panels": [],
@@ -1474,7 +1705,7 @@
         "h": 12,
         "w": 12,
         "x": 0,
-        "y": 66
+        "y": 84
       },
       "id": 41,
       "options": {
@@ -1574,7 +1805,7 @@
         "h": 12,
         "w": 12,
         "x": 12,
-        "y": 66
+        "y": 84
       },
       "id": 42,
       "options": {
@@ -1709,7 +1940,7 @@
         "h": 12,
         "w": 24,
         "x": 0,
-        "y": 78
+        "y": 96
       },
       "id": 43,
       "options": {
@@ -1787,7 +2018,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 90
+        "y": 108
       },
       "id": 50,
       "panels": [],
@@ -1827,13 +2058,59 @@
           },
           "unit": "short"
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "completed"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#70AD47",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "partial"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#4472C4",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "desired"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#6D8FCA",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
       },
       "gridPos": {
         "h": 13,
-        "w": 12,
+        "w": 24,
         "x": 0,
-        "y": 91
+        "y": 109
       },
       "id": 51,
       "options": {
@@ -1867,12 +2144,143 @@
           },
           "editorMode": "code",
           "expr": "count by (version,state) (backend_cluster_version_info{subscription_id!~\"${exclude_subs:raw}\"})",
+          "format": "table",
           "instant": true,
-          "legendFormat": "{{version}} / {{state}}",
+          "legendFormat": "__auto",
+          "range": false,
           "refId": "A"
         }
       ],
-      "title": "Install Version of Clusters",
+      "title": "ARO HCP - Install Version of Clusters",
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "groupBy",
+          "options": {
+            "fields": {
+              "state": {
+                "aggregations": [],
+                "operation": "groupby"
+              },
+              "version": {
+                "aggregations": [],
+                "operation": "groupby"
+              },
+              "Value": {
+                "aggregations": [
+                  "sum"
+                ],
+                "operation": "aggregate"
+              }
+            }
+          }
+        },
+        {
+          "id": "groupingToMatrix",
+          "options": {
+            "columnField": "state",
+            "rowField": "version",
+            "valueField": "Value (sum)"
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": {},
+            "sort": [
+              {
+                "desc": true,
+                "field": "version"
+              }
+            ]
+          }
+        }
+      ],
+      "type": "barchart"
+    },
+    {
+      "datasource": {
+        "type": "datasource",
+        "uid": "-- Mixed --"
+      },
+      "description": "Current ClusterVersion distribution from HCP management-cluster Prometheus datasources. This source is sparse and only includes HCPs actively reporting the metric.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "fixedColor": "#70AD47",
+            "mode": "fixed"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "HCPs",
+            "axisPlacement": "auto",
+            "fillOpacity": 85,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineWidth": 1,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 13,
+        "w": 24,
+        "x": 0,
+        "y": 122
+      },
+      "id": 52,
+      "options": {
+        "barRadius": 0,
+        "barWidth": 0.9,
+        "fullHighlight": false,
+        "groupWidth": 0.7,
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "orientation": "horizontal",
+        "showValue": "always",
+        "stacking": "normal",
+        "tooltip": {
+          "hideZeros": true,
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "xTickLabelRotation": 0,
+        "xTickLabelSpacing": 0
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$hcp_datasource"
+          },
+          "editorMode": "code",
+          "expr": "count by (version) (cluster_version{type=\"current\"})",
+          "instant": true,
+          "legendFormat": "{{version}}",
+          "refId": "A"
+        }
+      ],
+      "title": "ARO HCP - Control Plane Version Distribution",
       "transformations": [
         {
           "id": "seriesToRows",
@@ -1915,119 +2323,11 @@
       "type": "barchart"
     },
     {
-      "datasource": {
-        "type": "datasource",
-        "uid": "-- Mixed --"
-      },
-      "description": "Current ClusterVersion distribution from HCP management-cluster Prometheus datasources. This source is sparse and only includes HCPs actively reporting the metric.",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "HCPs",
-            "axisPlacement": "auto",
-            "fillOpacity": 85,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "lineWidth": 1,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 13,
-        "w": 12,
-        "x": 12,
-        "y": 91
-      },
-      "id": 52,
-      "options": {
-        "barRadius": 0,
-        "barWidth": 0.9,
-        "fullHighlight": false,
-        "groupWidth": 0.7,
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "orientation": "horizontal",
-        "showValue": "always",
-        "stacking": "normal",
-        "tooltip": {
-          "hideZeros": true,
-          "mode": "multi",
-          "sort": "desc"
-        },
-        "xTickLabelRotation": 0,
-        "xTickLabelSpacing": 0
-      },
-      "pluginVersion": "11.6.9",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "$hcp_datasource"
-          },
-          "editorMode": "code",
-          "expr": "count by (version) (cluster_version{type=\"current\"})",
-          "instant": true,
-          "legendFormat": "{{version}}",
-          "refId": "A"
-        }
-      ],
-      "title": "Control Plane Version Distribution",
-      "transformations": [
-        {
-          "id": "seriesToRows",
-          "options": {}
-        },
-        {
-          "id": "merge",
-          "options": {}
-        },
-        {
-          "id": "groupBy",
-          "options": {
-            "fields": {
-              "Metric": {
-                "aggregations": [],
-                "operation": "groupby"
-              },
-              "Value": {
-                "aggregations": [
-                  "sum"
-                ],
-                "operation": "aggregate"
-              }
-            }
-          }
-        }
-      ],
-      "type": "barchart"
-    },
-    {
       "gridPos": {
         "h": 7,
         "w": 24,
         "x": 0,
-        "y": 104
+        "y": 135
       },
       "id": 60,
       "options": {
