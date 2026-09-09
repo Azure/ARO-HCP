@@ -201,6 +201,49 @@ This is implemented in:
 
 This path starts from topology, selects the resource groups that belong to the chosen entrypoint or pipeline, and tears those down.
 
+DEV teardown can opt in to reclaiming role assignments for retiring
+user-assigned managed identities without purging directory objects:
+
+```bash
+make cleanup-entrypoint/Region DEPLOY_ENV=<dev-environment> \
+  CLEANUP_WAIT=true EXTRA_ARGS=--retire-owned-role-assignments
+```
+
+Use this only when retiring the entire selected environment, after its tests
+have finished. The option is rejected outside `--cloud=dev` or without
+`--wait=true`, and is off by default. It needs the existing ARM role-assignment
+read/delete permissions and Graph `Directory.Read.All`, not directory writes.
+
+Before teardown, the sweeper hook records the actual ARM principal IDs of
+user-assigned identities contained in each selected topology resource group,
+and their current role assignment IDs in that same subscription. It checks
+the subscription/identity tenant and positively resolves each principal in
+Graph. It rejects persistent, managed, and identity-pool resource groups.
+Identities merely referenced by resources, including leased identities from
+other resource groups, are not captured.
+
+After teardown it requires an explicit resource-group 404, re-reads each
+captured assignment, and checks that its principal is absent from the active
+directory both before and after the deleted-items lookup. A validated
+soft-deleted principal is allowed on this owned-retirement path only. Active
+or restored principals, changed assignment IDs/principals, malformed responses,
+and permission errors stop cleanup without deleting the affected assignment.
+Dry runs never delete assignments or directory objects.
+Teardown waits up to five minutes for ARM deletion to reach the active
+directory. It retries only principals that are still active on the first
+lookup, not permission errors, malformed responses, or a restoration observed
+between directory lookups.
+
+This prevents new same-subscription leaks from completed DEV teardown. It
+does not reclaim historical assignments whose ownership evidence has already
+been lost, cross-subscription assignments, system-assigned identities, or
+standalone application registrations. The snapshot is in memory: interrupted
+teardown or delayed directory convergence can still leave assignments for the
+conservative background sweeper. Do not broaden the background orphan rule to
+compensate. ARM and Graph do not offer an atomic restoration/deletion check;
+the final active-directory recheck narrows, but cannot eliminate, that race.
+No production or periodic workflow is opted in by this change.
+
 That makes it a good fit for:
 
 - personal-dev cleanup
