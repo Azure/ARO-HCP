@@ -221,12 +221,14 @@ the subscription/identity tenant and positively resolves each principal in
 Graph. It rejects persistent, managed, and identity-pool resource groups.
 Identities merely referenced by resources, including leased identities from
 other resource groups, are not captured.
+If ownership capture cannot safely complete, teardown continues and skips
+role-assignment retirement for that resource group.
 
 After teardown it requires an explicit resource-group 404, re-reads each
 captured assignment, and checks that its principal is absent from the active
 directory both before and after the deleted-items lookup. A validated
-soft-deleted principal is allowed on this owned-retirement path only. Active
-or restored principals, changed assignment IDs/principals, malformed responses,
+soft-deleted or permanently absent principal is allowed on this
+owned-retirement path only. Active or restored principals, changed assignment IDs/principals, malformed responses,
 and permission errors stop cleanup without deleting the affected assignment.
 Dry runs never delete assignments or directory objects.
 Teardown waits up to five minutes for ARM deletion to reach the active

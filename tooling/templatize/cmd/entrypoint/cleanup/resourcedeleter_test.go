@@ -137,7 +137,7 @@ func TestWithRoleAssignmentRetirement(t *testing.T) {
 		{"opt in", true, false, nil, nil, nil, []string{"capture", "teardown", "roles"}, false},
 		{"default", false, false, nil, nil, nil, []string{"teardown"}, false},
 		{"dry run", true, true, nil, nil, nil, []string{"capture", "teardown"}, false},
-		{"capture failure stops teardown", true, false, failure, nil, nil, []string{"capture"}, true},
+		{"capture failure preserves teardown", true, false, failure, nil, nil, []string{"capture", "teardown"}, false},
 		{"teardown failure preserves roles", true, false, nil, failure, nil, []string{"capture", "teardown"}, true},
 		{"retirement failure is reported", true, false, nil, nil, failure, []string{"capture", "teardown", "roles"}, true},
 	} {

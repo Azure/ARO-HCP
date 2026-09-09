@@ -92,7 +92,11 @@ func withRoleAssignmentRetirement(ctx context.Context, dryRun bool, capture func
 		var err error
 		retirement, err = capture(ctx)
 		if err != nil {
-			return fmt.Errorf("capture role assignment retirement before teardown: %w", err)
+			logr.FromContextOrDiscard(ctx).Error(
+				err,
+				"Skipping owned role-assignment retirement because ownership capture failed",
+			)
+			retirement = nil
 		}
 	}
 	if err := teardown(ctx); err != nil {
