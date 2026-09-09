@@ -123,9 +123,21 @@ func computeRolloutStatusCounts(serviceProviderClusters []*coreapi.ServiceProvid
 }
 
 // SyncOnce recomputes the status counts for one rollout channel.
-func (c *statusCollectorSyncer) SyncOnce(ctx context.Context, key controllerutils.ControlPlaneVersionRolloutKey) error {
+func (c *statusCollectorSyncer) SyncOnce(ctx context.Context, key controllerutils.ControlPlaneVersionRolloutKey) (syncErr error) {
+	logger := utils.AddLoggerValues(utils.LoggerFromContext(ctx), key).WithValues(utils.LogValues{}.AddControllerName(StatusCollectorControllerName)...)
+	ctx = utils.ContextWithLogger(ctx, logger)
+	logger.Info("Starting version rollout sync")
+	defer func() {
+		if syncErr != nil {
+			logger.Error(syncErr, "Version rollout sync failed")
+		} else {
+			logger.Info("Finished version rollout sync")
+		}
+	}()
+
 	rollout, err := c.rolloutLister.Get(ctx, key.YStreamChannel)
 	if cosmosstorageutils.IsNotFoundError(err) {
+		logger.Info("Skipping sync because watched resource was not found")
 		return nil
 	}
 	if err != nil {
@@ -138,6 +150,7 @@ func (c *statusCollectorSyncer) SyncOnce(ctx context.Context, key controllerutil
 	}
 
 	counts := computeRolloutStatusCounts(serviceProviderClusters, c.config, c.clock.Now())
+	logger.Info("Computed rollout status", "clusterCount", len(serviceProviderClusters), "desired", counts.Desired, "mismatched", counts.Mismatched, "failed", counts.Failed, "achieved", counts.Achieved, "successful", counts.Successful)
 
 	replacement := rollout.DeepCopy()
 	replacement.Status.ClusterCountByDesiredExactVersion = nilIfEmpty(counts.Desired)
@@ -147,14 +160,17 @@ func (c *statusCollectorSyncer) SyncOnce(ctx context.Context, key controllerutil
 	replacement.Status.SuccessfulClusterCountByAchievedExactVersion = nilIfEmpty(counts.Successful)
 
 	if equality.Semantic.DeepEqual(rollout, replacement) {
+		logger.Info("Rollout status is unchanged")
 		return nil
 	}
 
 	if _, err := c.fleetDBClient.ControlPlaneVersionRollouts().Replace(ctx, replacement, rollout, nil); cosmosstorageutils.IsPreconditionFailedError(err) {
+		utils.LoggerFromContext(ctx).Info("Write conflicted; waiting for informer to provide current resource")
 		return nil
 	} else if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to replace ControlPlaneVersionRollout %q: %w", key.YStreamChannel, err))
 	}
+	logger.Info("Persisted rollout status")
 	return nil
 }
 
