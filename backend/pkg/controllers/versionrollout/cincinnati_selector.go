@@ -51,6 +51,7 @@ func (cincinnatiBestVersionSelector) BestExactVersionForChannel(ctx context.Cont
 	if err != nil {
 		return nil, fmt.Errorf("invalid minor %q in channel %q: %w", minor, yStreamChannel, err)
 	}
+	utils.LoggerFromContext(ctx).Info("Querying upgrade graph for best version", "ystreamChannel", yStreamChannel, "channelGroup", channelGroup, "targetMinor", targetMinor.String(), "zStreamOffset", clusterversion.GetZStreamOffset(channelGroup))
 	best, err := clusterversion.SelectControlPlaneVersion(ctx, http.DefaultTransport.RoundTrip, channelGroup, targetMinor, clusterversion.GetZStreamOffset(channelGroup))
 	if err != nil {
 		return nil, utils.TrackError(fmt.Errorf("failed to select best version for channel %q: %w", yStreamChannel, err))
