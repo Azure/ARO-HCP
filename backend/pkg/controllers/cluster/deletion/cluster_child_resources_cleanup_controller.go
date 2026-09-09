@@ -301,11 +301,12 @@ func (c *clusterChildResourcesCleanupController) extraDeleteGateShouldDeleteServ
 		return false, nil
 	}
 
-	// We intentionally do not gate ServiceProviderCluster cleanup on the tracked deny assignments.
-	// Deny assignments are scoped to the managed resource group, so Azure deletes them in cascade
-	// when that resource group is removed during cluster teardown; the ClusterDenyAssignment
-	// controller therefore does nothing on delete and never clears these references. Gating here
-	// would block cleanup forever. (Per Manyanda Chitimbo's note on
+	// We intentionally do not gate ServiceProviderCluster cleanup on the tracked deny assignments
+	// (AzureResources.DenyAssignments or DenyAssignmentsV2). Deny assignments are scoped to the
+	// managed resource group, so Azure deletes them in cascade when that resource group is removed
+	// during cluster teardown; ClusterDenyAssignment and ClusterDenyAssignmentV2 therefore do
+	// nothing on delete and never clear these references. Gating here would block cleanup forever.
+	// (Per Manyanda Chitimbo's note on
 	// https://github.com/Azure/ARO-HCP/pull/6269#discussion_r3656341978.)
 
 	// Check if there are any Maestro readonly bundles remaining.

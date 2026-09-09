@@ -49,6 +49,7 @@ import (
 	credentialrevocationoperations "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/credentialrevocation/operations"
 	clusterdataplaneworkloads "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/dataplaneworkloads"
 	clusterdeletion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/deletion"
+	clusterdenyassignments "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/denyassignments"
 	clusteridentity "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/identity"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/legacycredentialrequest"
 	clusteroperations "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/operations"
@@ -117,8 +118,7 @@ type BackendOptions struct {
 	MaestroSourceEnvironmentIdentifier string
 	FPAClientBuilder                   azureclient.FirstPartyApplicationClientBuilder
 	// HasRealFPA indicates the backend runs against a real First Party Application rather than the
-	// insecure MI mock. Controllers that create Azure resources only a real FPA can create (e.g.
-	// deny assignments) are disabled when this is false (dev/int environments).
+	// insecure MI mock.
 	HasRealFPA                        bool
 	BackendIdentityAzureClients       *azureclient.BackendIdentityAzureClients
 	BackendIdentityAzureCachedReaders *cachedreader.BackendIdentityAzureCachedReaders
@@ -1118,6 +1118,18 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		b.options.DataPlaneOIDCIssuerBaseURL,
 	)
 
+	clusterDenyAssignmentIntentController := clusterdenyassignments.NewClusterDenyAssignmentIntentController(
+		b.clock,
+		b.options.ResourcesDBClient,
+		backendInformers,
+	)
+	clusterDenyAssignmentV2Controller := clusterdenyassignments.NewClusterDenyAssignmentV2Controller(
+		b.clock,
+		b.options.ResourcesDBClient,
+		b.options.FPAClientBuilder,
+		backendInformers,
+	)
+
 	observeRoleAssignmentsController := clusterroleassignments.NewRoleAssignmentsController(
 		b.options.ResourcesDBClient,
 		serviceProviderClusterLister,
@@ -1249,6 +1261,8 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go fetchDataPlaneOperatorsManagedIdentitiesInfoController.Run(ctx, 20)
 				go dataPlaneWorkloadsOIDCFederationIntentController.Run(ctx, 20)
 				go dataPlaneWorkloadsOIDCFederationController.Run(ctx, 20)
+				go clusterDenyAssignmentIntentController.Run(ctx, 20)
+				go clusterDenyAssignmentV2Controller.Run(ctx, 20)
 				go observeRoleAssignmentsController.Run(ctx, 20)
 				go keyRotationBackupController.Run(ctx, 20)
 			},
