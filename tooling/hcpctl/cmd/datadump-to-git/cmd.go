@@ -120,7 +120,7 @@ type dataDumpEntry struct {
 }
 
 func NewCommand(group string) (*cobra.Command, error) {
-	opts := defaultOptions()
+	opts := DefaultCosmosSnapshotToGitRepoOptions()
 
 	cmd := &cobra.Command{
 		Use:     "datadump-to-git",
@@ -370,6 +370,13 @@ func parseJSONLFile(path string) ([]dataDumpEntry, error) {
 	for scanner.Scan() {
 		line := scanner.Text()
 
+		// The must-gather Cosmos snapshot query emits the raw document and its
+		// metadata directly, rather than embedding it in a backend log entry.
+		if entry, ok := parseCosmosResourceSnapshot(line); ok {
+			entries = append(entries, entry)
+			continue
+		}
+
 		if !looksLikeDataDump(line) {
 			continue
 		}
@@ -385,6 +392,60 @@ func parseJSONLFile(path string) ([]dataDumpEntry, error) {
 	}
 
 	return entries, nil
+}
+
+// parseCosmosResourceSnapshot parses one row from
+// custom/custom-query_cosmosResourceSnapshots.jsonl in a must-gather.
+func parseCosmosResourceSnapshot(line string) (dataDumpEntry, bool) {
+	var snapshot struct {
+		Content         json.RawMessage `json:"content"`
+		CosmosContainer string          `json:"cosmosContainer"`
+		ResourceID      string          `json:"resourceID"`
+	}
+	if err := json.Unmarshal([]byte(line), &snapshot); err != nil ||
+		len(snapshot.Content) == 0 || snapshot.CosmosContainer == "" || snapshot.ResourceID == "" {
+		return dataDumpEntry{}, false
+	}
+
+	var cosmosDocument struct {
+		Timestamp          int64  `json:"_ts"`
+		LastTransitionTime string `json:"lastTransitionTime"`
+		StartTime          string `json:"startTime"`
+	}
+	if err := json.Unmarshal(snapshot.Content, &cosmosDocument); err != nil {
+		return dataDumpEntry{}, false
+	}
+	timestamp := ""
+	if cosmosDocument.Timestamp > 0 {
+		timestamp = time.Unix(cosmosDocument.Timestamp, 0).UTC().Format(time.RFC3339)
+	} else {
+		// Operation-status snapshots are serialized through their API type, which
+		// omits Cosmos system fields such as _ts. Their transition time is the
+		// closest equivalent timestamp, with startTime as a final fallback.
+		for _, candidate := range []string{cosmosDocument.LastTransitionTime, cosmosDocument.StartTime} {
+			if parsed, err := time.Parse(time.RFC3339Nano, candidate); err == nil {
+				timestamp = parsed.Format(time.RFC3339Nano)
+				break
+			}
+		}
+	}
+	if timestamp == "" {
+		return dataDumpEntry{}, false
+	}
+
+	container := strings.ToLower(snapshot.CosmosContainer)
+	result := dataDumpEntry{
+		Timestamp:  timestamp,
+		ResourceID: snapshot.ResourceID,
+		Content:    string(snapshot.Content),
+		FullMsg:    `{"content":` + string(snapshot.Content) + `}`,
+	}
+	if container == "billing" {
+		result.ContainerPrefix = container
+		result.RelativePath = resourceIDToPath(snapshot.ResourceID + "/billing")
+	}
+
+	return result, true
 }
 
 // unwrapLogEnvelope checks if the JSON is wrapped in a {"log": {...}} envelope

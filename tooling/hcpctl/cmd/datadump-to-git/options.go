@@ -36,16 +36,16 @@ const (
 	inputTypeCSV
 )
 
-type rawOptions struct {
+type CosmosSnapshotToGitRepoOptions struct {
 	LogPath   string
 	OutputDir string
 }
 
-func defaultOptions() *rawOptions {
-	return &rawOptions{}
+func DefaultCosmosSnapshotToGitRepoOptions() *CosmosSnapshotToGitRepoOptions {
+	return &CosmosSnapshotToGitRepoOptions{}
 }
 
-func (opts *rawOptions) Run(ctx context.Context) error {
+func (opts *CosmosSnapshotToGitRepoOptions) Run(ctx context.Context) error {
 	validated, err := opts.Validate(ctx)
 	if err != nil {
 		return err
@@ -59,7 +59,7 @@ func (opts *rawOptions) Run(ctx context.Context) error {
 	return completed.Run(ctx)
 }
 
-func bindOptions(opts *rawOptions, cmd *cobra.Command) error {
+func bindOptions(opts *CosmosSnapshotToGitRepoOptions, cmd *cobra.Command) error {
 	cmd.Flags().StringVar(&opts.LogPath, "log", opts.LogPath, "Path to backend log file, must-gather directory, or must-gather.tar.gz")
 	cmd.Flags().StringVar(&opts.OutputDir, "output", opts.OutputDir, "Path to output directory for git repo")
 
@@ -76,7 +76,7 @@ func bindOptions(opts *rawOptions, cmd *cobra.Command) error {
 }
 
 type validatedOptions struct {
-	*rawOptions
+	*CosmosSnapshotToGitRepoOptions
 	inputType inputType
 }
 
@@ -86,7 +86,7 @@ type options struct {
 	tempDir  string   // Temp directory for extracted files (if tar.gz)
 }
 
-func (opts *rawOptions) Validate(ctx context.Context) (*validatedOptions, error) {
+func (opts *CosmosSnapshotToGitRepoOptions) Validate(ctx context.Context) (*validatedOptions, error) {
 	if opts.LogPath == "" {
 		return nil, fmt.Errorf("log path is required")
 	}
@@ -117,8 +117,8 @@ func (opts *rawOptions) Validate(ctx context.Context) (*validatedOptions, error)
 	}
 
 	return &validatedOptions{
-		rawOptions: opts,
-		inputType:  iType,
+		CosmosSnapshotToGitRepoOptions: opts,
+		inputType:                      iType,
 	}, nil
 }
 
