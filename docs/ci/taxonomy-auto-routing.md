@@ -8,9 +8,10 @@
 
 The CI Failure Taxonomy (ARO-28136) classifies every LLM-analyzed failure with an L1 category and, for Product Failures, an L2 subcategory identifying the responsible component. Today this classification is produced by `hcpctl snapshot analyze` but nothing consumes it for routing — triage remains fully manual via Slack and Jira.
 
-This spike answers two questions:
+This spike answers three questions:
 1. **Where does routing run?**
 2. **How does L2 map to a team?**
+3. **How does the routing step find the Jira ticket to update?**
 
 ## L2 Subcategory → Team Mapping
 
@@ -53,12 +54,12 @@ The mapping must be configurable without code changes. Options for where it live
 
 ### Option A: Release Dashboard (post-classification hook)
 
-The Release Dashboard already calls `hcpctl snapshot analyze` for gating runs and displays the results. Add a post-analysis step that reads the classification and creates/updates a Jira ticket with the appropriate component.
+The Release Dashboard already calls `hcpctl snapshot analyze` for gating runs and displays the results. Add a post-analysis step that reads the classification and applies the appropriate component and labels to the corresponding Jira ticket.
 
 |              |                                                                                                                                                            |
 |--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | **Pros**     | Closest to where classification already happens; single integration point for gating runs                                                                  |
-| **Cons**     | Cross-tenant (lives in `sdp-pipelines`, Microsoft repo); ARO-HCP team has limited control over release cadence; only covers gating runs until batch lands  |
+| **Cons**     | Cross-repo (lives in `sdp-pipelines`); follows dashboard team's release cadence; only covers gating runs until batch lands                                 |
 | **Coupling** | Medium — depends on cross-repo changes, but ARO-HCP engineers have direct access                                                                           |
 
 ### Option B: Batch analyzer post-processing
@@ -85,7 +86,7 @@ Configure Jira automation rules that trigger when a taxonomy label (e.g., `taxon
 
 ### Option D: CIHealth auto-triage flow
 
-CIHealth already ingests CI run data from Sippy/Prow. Extend it to consume `analysis.json` from the analysis pipeline and create/route Jira tickets based on classification.
+CIHealth already ingests CI run data from Sippy/Prow. Extend it to consume `analysis.json` from the analysis pipeline and route existing Jira tickets based on classification.
 
 |              |                                                                                                                                                            |
 |--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -98,7 +99,7 @@ CIHealth already ingests CI run data from Sippy/Prow. Extend it to consume `anal
 ### Option E: Hybrid — Jira automation + config-driven labeling
 
 Separate the problem into two parts:
-1. **Labeling** — the analysis pipeline (Release Dashboard, batch analyzer) applies taxonomy labels to Jira tickets as part of its output. This is just `POST /label`.
+1. **Labeling** — the analysis pipeline (Release Dashboard, batch analyzer) applies taxonomy labels to Jira tickets as part of its output.
 2. **Routing** — Jira automation rules react to labels and set component/assignee. The rules are configured in Jira but documented in the repo.
 
 |              |                                                                                                                                                            |
@@ -106,6 +107,46 @@ Separate the problem into two parts:
 | **Pros**     | Clean separation of concerns; labeling is simple (each consumer just adds labels); routing logic is centralized in Jira; easy to adjust routing w/o deploy |
 | **Cons**     | Two moving parts (labeling + rules); Jira automation not version-controlled (mitigated by documenting rules in repo)                                       |
 | **Coupling** | Low — each analysis consumer just needs to apply labels                                                                                                    |
+
+## Ticket Linkage: How Routing Finds the Jira Ticket
+
+The routing mechanism needs to know which Jira ticket corresponds to a given CI failure analysis. This is the bridge between `analysis.json` (which contains the classification) and the Jira ticket (which needs the component/labels set). Three approaches:
+
+### Approach 1: Single-step — create and route in one operation
+
+The routing consumer (Release Dashboard or batch analyzer) creates the Jira ticket itself as part of the analysis workflow, setting the component and labels at creation time. No lookup needed — the ticket doesn't exist until the routing step creates it.
+
+|              |                                                                                                        |
+|--------------|--------------------------------------------------------------------------------------------------------|
+| **Pros**     | Simplest flow; no ticket discovery problem; classification is always present from the start             |
+| **Cons**     | Couples ticket creation to the analysis pipeline; may duplicate tickets if triage also creates them     |
+
+### Approach 2: Lookup by Prow job reference
+
+The triage workflow ([ARO-28141](https://redhat.atlassian.net/browse/ARO-28141)) creates the ticket first and includes a reference to the Prow job (URL or job ID) in a custom field or the description. The routing step searches Jira for tickets matching the Prow job that was analyzed.
+
+|              |                                                                                                        |
+|--------------|--------------------------------------------------------------------------------------------------------|
+| **Pros**     | Decouples ticket creation from routing; triage can add context before routing runs                      |
+| **Cons**     | Requires a consistent, searchable Prow job reference on every ticket; JQL search adds latency          |
+
+### Approach 3: Pipeline passes the ticket ID
+
+The workflow that triggers analysis (Release Dashboard, batch analyzer) already knows the Jira ticket ID because it created or received it earlier in the pipeline. The ticket ID is passed as an input to the routing step alongside the analysis output.
+
+|              |                                                                                                        |
+|--------------|--------------------------------------------------------------------------------------------------------|
+| **Pros**     | Direct; no search; no coupling to ticket creation                                                      |
+| **Cons**     | Requires the upstream pipeline to track and pass ticket IDs; assumes tickets exist before analysis runs |
+
+### Assessment
+
+The right approach depends on how ticket creation fits into the overall pipeline:
+
+- **If the analysis consumer (Release Dashboard, batch analyzer) creates tickets:** Approach 1 is the natural fit — create the ticket with classification already applied, no lookup needed.
+- **If tickets are created separately (by auto-triage, manual triage, or a future bot):** Approach 2 or 3 is needed. Approach 3 is preferred if the pipeline can be wired to pass the ticket ID; Approach 2 is the fallback.
+
+This should be aligned with the triage workflow design ([ARO-28141](https://redhat.atlassian.net/browse/ARO-28141)) to ensure both designs are compatible.
 
 ## Recommendation
 
@@ -123,7 +164,7 @@ Option E (Hybrid) relied on Jira automation rules for the routing half. Two find
 
 The Release Dashboard already runs `hcpctl snapshot analyze` for gating runs and displays results. It is also the destination for CIHealth's migrating functionality, making it the convergence point for all CI health and triage tooling. Routing in the Release Dashboard means:
 
-1. **Single integration point.** Classification and routing happen in the same system, avoiding the split-brain problem of labeling in one place and routing in another.
+1. **Single integration point.** Classification and routing happen in the same system, avoiding the split-brain problem of labeling in one place and routing in another. This also simplifies ticket linkage — the dashboard can create and route tickets in a single step (see Ticket Linkage, Approach 1).
 
 2. **Covers gating runs immediately.** The Release Dashboard already processes these. Once the batch analyzer (ARO-28327) lands, it can feed into the same routing path.
 
