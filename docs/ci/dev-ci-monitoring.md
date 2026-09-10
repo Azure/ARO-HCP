@@ -117,6 +117,44 @@ subscription requires an Azure support request instead; open one from the
 Azure portal's **Help + support** blade with the subscription, region, quota
 name, and target limit from the alert.
 
+### E2EExpiredResourceGroupsInfo: Expired E2E Resource Groups
+
+`E2EExpiredResourceGroupsInfo` fires when more than 10 E2E resource groups
+in a single subscription have a `deleteAfter` timestamp in the past for at
+least 2 hours.
+
+**Triage steps:**
+
+1. Identify the affected subscription from the alert's `subscription_name`
+   label (e.g. "ARO HCP E2E Hosted Clusters - Prod - 01").
+2. Map the subscription to its cleanup Prow job using
+   [`e2e-slots.yaml`](../../test/e2e-config/e2e-slots.yaml) and the naming
+   convention described in [CI Cleanup — Identifying the cleanup job for a
+   subscription](cleanup.md#identifying-the-cleanup-job-for-a-subscription).
+   Note that the legacy "ARO HCP E2E" subscription uses the indexless job
+   name
+   `periodic-ci-Azure-ARO-HCP-main-periodic-cleanup-delete-expired-prod-resource-groups`.
+3. Check recent runs of that job in Prow. If the job is passing, the
+   backlog may be clearing on its own. If the job is failing, examine
+   the build log for the most recent failure.
+4. Because the job attempts every discovered resource group in each run,
+   the build log contains the deletion outcome for all expired RGs, not
+   just one. Look for patterns: are all deletions failing with the same
+   error (systemic issue), or is only a subset failing (isolated
+   resource problem)?
+5. Common failure patterns:
+   - `InternalServerError` with `serviceProviderClusters` remaining:
+     Azure RP-side issue, likely regional. Check if other shards in the
+     same region are affected.
+   - `ResourceGroupDeletionBlocked`: a child resource or managed RG is
+     preventing deletion.
+   - Timeout waiting for already-deleting cluster: a prior deletion
+     request is stuck in Azure ARM.
+   - Deny assignment errors: managed RG deny assignments blocking
+     deletion (see AROSLSRE-10).
+6. For regional RP issues, check for active incidents in the affected
+   region and coordinate with the RP team.
+
 ## Exporter Health Checks
 
 Select the DEV subscription and obtain credentials for the `opstool` cluster:
