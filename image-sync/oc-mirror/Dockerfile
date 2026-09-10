@@ -34,6 +34,7 @@ FROM --platform=linux/amd64 mcr.microsoft.com/oss/go/microsoft/golang:1.26-azure
 ENV GOTOOLCHAIN=local
 WORKDIR /src
 COPY acrauth/go.mod acrauth/go.sum acrauth/
+ENV GOPROXY='https://proxy.golang.org|direct'
 RUN cd acrauth && go mod download
 COPY acrauth/ acrauth/
 # https://github.com/microsoft/go/tree/microsoft/main/eng/doc/fips#build-option-to-require-fips-mode

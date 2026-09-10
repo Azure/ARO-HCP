@@ -6,6 +6,7 @@ ENV GOTOOLCHAIN=local
 COPY internal/go.mod internal/go.sum internal/
 COPY mgmt-agent/go.mod mgmt-agent/go.sum mgmt-agent/
 COPY swift-recorder/go.mod swift-recorder/go.sum swift-recorder/
+ENV GOPROXY='https://proxy.golang.org|direct'
 RUN cd mgmt-agent && go mod download
 RUN cd swift-recorder && go mod download
 WORKDIR /app
