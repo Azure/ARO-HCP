@@ -1067,7 +1067,7 @@ func pemBlockDetail(blockIndex int, subject, detail string) string {
 // validateCACertificatePEM checks that a PEM-encoded certificate is a valid CA certificate.
 //   - only CERTIFICATE blocks are allowed (private keys and other types are rejected)
 //   - each certificate must parse as X.509, have the CA basic constraint, and
-//     satisfy NotBefore ≤ now ≤ NotAfter
+//     satisfy certificate is not expired
 //   - trailing non-PEM data after the last block is rejected
 func validateCACertificatePEM(fldPath *field.Path, value *string, now time.Time) field.ErrorList {
 	if value == nil || len(*value) == 0 {
@@ -1119,14 +1119,6 @@ func validateCACertificatePEM(fldPath *field.Path, value *string, now time.Time)
 			))
 		}
 
-		if now.Before(cert.NotBefore) {
-			notBefore := cert.NotBefore.UTC().Format(time.RFC3339)
-			errs = append(errs, field.Invalid(
-				fldPath,
-				diagnostic,
-				pemBlockDetail(blockIndex, subject, fmt.Sprintf("is not yet valid (NotBefore %s)", notBefore)),
-			))
-		}
 		if now.After(cert.NotAfter) {
 			notAfter := cert.NotAfter.UTC().Format(time.RFC3339)
 			errs = append(errs, field.Invalid(

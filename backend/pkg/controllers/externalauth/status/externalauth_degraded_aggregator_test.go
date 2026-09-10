@@ -269,113 +269,164 @@ func TestExternalAuthDegradedAggregator_SyncOnce(t *testing.T) {
 	}
 }
 
-// TestCACertExpiryCondition exercises the caCertExpiryCondition helper in isolation.
-func TestCACertExpiryCondition(t *testing.T) {
-	now := statusutils.FixedNow // 2026-06-04T12:00:00Z
+// TestCACertValidityConditions exercises the caCertValidityConditions helper in isolation,
+// covering both the expiry and not-yet-valid cases.
+func TestCACertValidityConditions(t *testing.T) {
+	now := statusutils.FixedNow
 
 	validCA := mustMakeCAPEM(t, "valid-ca", now.Add(-time.Hour), now.Add(90*24*time.Hour))
 	expiredCA := mustMakeCAPEM(t, "expired-ca", now.Add(-48*time.Hour), now.Add(-time.Hour))
+	futureCA := mustMakeCAPEM(t, "future-ca", now.Add(24*time.Hour), now.Add(90*24*time.Hour))
 
 	tests := []struct {
-		name          string
-		ca            string
-		expectNil     bool
-		expectStatus  metav1.ConditionStatus
-		expectReason  string
-		expectMessage string
+		name                 string
+		ca                   string
+		expectExpiryNil      bool
+		expectExpiryReason   string
+		expectExpiryMessage  string
+		expectNotYetValidNil bool
+		expectNYVReason      string
+		expectNYVMessage     string
 	}{
 		{
-			name:      "empty CA — condition not applicable",
-			ca:        "",
-			expectNil: true,
+			name:                 "empty CA — both conditions nil",
+			ca:                   "",
+			expectExpiryNil:      true,
+			expectNotYetValidNil: true,
 		},
 		{
-			name:      "valid CA — no user-facing condition",
-			ca:        validCA,
-			expectNil: true,
+			name:                 "currently valid CA — both conditions nil",
+			ca:                   validCA,
+			expectExpiryNil:      true,
+			expectNotYetValidNil: true,
 		},
 		{
-			name:      "CA valid at exactly NotAfter — no user-facing condition",
-			ca:        mustMakeCAPEM(t, "boundary-ca", now.Add(-time.Hour), now),
-			expectNil: true,
+			name:                 "CA valid starting exactly now — both nil",
+			ca:                   mustMakeCAPEM(t, "boundary-start", now, now.Add(time.Hour)),
+			expectExpiryNil:      true,
+			expectNotYetValidNil: true,
 		},
 		{
-			name:          "expired CA — condition True/Expired",
-			ca:            expiredCA,
-			expectStatus:  metav1.ConditionTrue,
-			expectReason:  "Expired",
-			expectMessage: `expired at`,
+			name:                 "CA valid until exactly now — both nil",
+			ca:                   mustMakeCAPEM(t, "boundary-end", now.Add(-time.Hour), now),
+			expectExpiryNil:      true,
+			expectNotYetValidNil: true,
 		},
 		{
-			// Bundle: expired cert drives the condition.
-			name:          "CA bundle: one valid, one expired — Expired wins",
-			ca:            validCA + expiredCA,
-			expectStatus:  metav1.ConditionTrue,
-			expectReason:  "Expired",
-			expectMessage: `expired at`,
+			name:                 "expired CA — expiry set, notYetValid nil",
+			ca:                   expiredCA,
+			expectExpiryNil:      false,
+			expectExpiryReason:   "Expired",
+			expectExpiryMessage:  "expired at",
+			expectNotYetValidNil: true,
 		},
 		{
-			name:      "unparseable PEM — no condition set",
-			ca:        "NOT A PEM",
-			expectNil: true,
+			name:                 "future CA — expiry nil, notYetValid set",
+			ca:                   futureCA,
+			expectExpiryNil:      true,
+			expectNotYetValidNil: false,
+			expectNYVReason:      "NotYetValid",
+			expectNYVMessage:     "is not yet valid",
+		},
+		{
+			name:                 "bundle: one valid, one expired — expiry set",
+			ca:                   validCA + expiredCA,
+			expectExpiryNil:      false,
+			expectExpiryReason:   "Expired",
+			expectExpiryMessage:  "expired at",
+			expectNotYetValidNil: true,
+		},
+		{
+			name:                 "bundle: one valid, one future — notYetValid set",
+			ca:                   validCA + futureCA,
+			expectExpiryNil:      true,
+			expectNotYetValidNil: false,
+			expectNYVReason:      "NotYetValid",
+			expectNYVMessage:     "is not yet valid",
+		},
+		{
+			name:                 "bundle: expired and future — both set",
+			ca:                   expiredCA + futureCA,
+			expectExpiryNil:      false,
+			expectExpiryReason:   "Expired",
+			expectExpiryMessage:  "expired at",
+			expectNotYetValidNil: false,
+			expectNYVReason:      "NotYetValid",
+			expectNYVMessage:     "is not yet valid",
+		},
+		{
+			name:                 "unparseable PEM — both nil",
+			ca:                   "NOT A PEM",
+			expectExpiryNil:      true,
+			expectNotYetValidNil: true,
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			cond := caCertExpiryCondition(tc.ca, now)
-			if tc.expectNil {
-				assert.Nil(t, cond, "expected no condition")
-				return
+			expiry, notYetValid := caCertValidityConditions(tc.ca, now)
+
+			if tc.expectExpiryNil {
+				assert.Nil(t, expiry, "expected no expiry condition")
+			} else {
+				require.NotNil(t, expiry, "expected expiry condition")
+				assert.Equal(t, CACertificateExpiryConditionType, expiry.Type)
+				assert.Equal(t, metav1.ConditionTrue, expiry.Status)
+				assert.Equal(t, tc.expectExpiryReason, expiry.Reason)
+				assert.Contains(t, expiry.Message, tc.expectExpiryMessage)
 			}
-			require.NotNil(t, cond, "expected a condition")
-			assert.Equal(t, CACertificateExpiryConditionType, cond.Type, "Type")
-			assert.Equal(t, tc.expectStatus, cond.Status, "Status")
-			assert.Equal(t, tc.expectReason, cond.Reason, "Reason")
-			assert.Contains(t, cond.Message, tc.expectMessage, "Message")
+
+			if tc.expectNotYetValidNil {
+				assert.Nil(t, notYetValid, "expected no notYetValid condition")
+			} else {
+				require.NotNil(t, notYetValid, "expected notYetValid condition")
+				assert.Equal(t, CACertificateNotYetValidConditionType, notYetValid.Type)
+				assert.Equal(t, metav1.ConditionTrue, notYetValid.Status)
+				assert.Equal(t, tc.expectNYVReason, notYetValid.Reason)
+				assert.Contains(t, notYetValid.Message, tc.expectNYVMessage)
+			}
 		})
 	}
 }
 
-// TestExternalAuthDegradedAggregator_SyncOnce_CACertExpiry verifies that
-// SyncOnce writes the CACertificateExpiry condition onto the ExternalAuth
-// when a CA is configured.
-func TestExternalAuthDegradedAggregator_SyncOnce_CACertExpiry(t *testing.T) {
+// TestExternalAuthDegradedAggregator_SyncOnce_CACertConditions verifies that SyncOnce
+// correctly sets/clears CACertificateExpiry and CACertificateNotYetValid conditions.
+func TestExternalAuthDegradedAggregator_SyncOnce_CACertConditions(t *testing.T) {
 	now := statusutils.FixedNow
 
 	validCA := mustMakeCAPEM(t, "valid-ca", now.Add(-time.Hour), now.Add(90*24*time.Hour))
 	expiredCA := mustMakeCAPEM(t, "expired-ca", now.Add(-48*time.Hour), now.Add(-time.Hour))
+	futureCA := mustMakeCAPEM(t, "future-ca", now.Add(24*time.Hour), now.Add(90*24*time.Hour))
 
 	tests := []struct {
-		name             string
-		ca               string
-		wantExpiryStatus metav1.ConditionStatus
-		wantExpiryReason string
-		wantConditionSet bool
+		name            string
+		ca              string
+		wantExpiry      bool
+		wantNotYetValid bool
 	}{
 		{
-			name:             "no CA — CACertificateExpiry condition not written",
-			ca:               "",
-			wantConditionSet: false,
+			name: "no CA — neither condition written",
+			ca:   "",
 		},
 		{
-			name:             "valid CA — CACertificateExpiry condition omitted",
-			ca:               validCA,
-			wantConditionSet: false,
+			name: "valid CA — neither condition written",
+			ca:   validCA,
 		},
 		{
-			name:             "expired CA — CACertificateExpiry condition True/Expired",
-			ca:               expiredCA,
-			wantConditionSet: true,
-			wantExpiryStatus: metav1.ConditionTrue,
-			wantExpiryReason: "Expired",
+			name:       "expired CA — expiry condition set",
+			ca:         expiredCA,
+			wantExpiry: true,
+		},
+		{
+			name:            "future CA — notYetValid condition set",
+			ca:              futureCA,
+			wantNotYetValid: true,
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := context.Background()
-
 			parentClusterID := metadataapi.Must(azcorearm.ParseResourceID(
 				"/subscriptions/" + statusutils.TestSubscriptionID +
 					"/resourceGroups/" + statusutils.TestResourceGroupName +
@@ -418,14 +469,23 @@ func TestExternalAuthDegradedAggregator_SyncOnce_CACertExpiry(t *testing.T) {
 			updated, err := mockDB.HCPClusters(statusutils.TestSubscriptionID, statusutils.TestResourceGroupName).ExternalAuth(statusutils.TestClusterName).Get(ctx, statusutils.TestExternalAuthName)
 			require.NoError(t, err)
 
-			cond := apimeta.FindStatusCondition(updated.Status.UserFacingConditions, CACertificateExpiryConditionType)
-			if !tc.wantConditionSet {
-				assert.Nil(t, cond, "expected no CACertificateExpiry user-facing condition when CA is empty")
-				return
+			expiryCond := apimeta.FindStatusCondition(updated.Status.UserFacingConditions, CACertificateExpiryConditionType)
+			if tc.wantExpiry {
+				require.NotNil(t, expiryCond, "expected CACertificateExpiry condition")
+				assert.Equal(t, metav1.ConditionTrue, expiryCond.Status)
+				assert.Equal(t, "Expired", expiryCond.Reason)
+			} else {
+				assert.Nil(t, expiryCond, "expected no CACertificateExpiry condition")
 			}
-			require.NotNil(t, cond, "expected CACertificateExpiry user-facing condition to be set")
-			assert.Equal(t, tc.wantExpiryStatus, cond.Status, "Status")
-			assert.Equal(t, tc.wantExpiryReason, cond.Reason, "Reason")
+
+			nyvCond := apimeta.FindStatusCondition(updated.Status.UserFacingConditions, CACertificateNotYetValidConditionType)
+			if tc.wantNotYetValid {
+				require.NotNil(t, nyvCond, "expected CACertificateNotYetValid condition")
+				assert.Equal(t, metav1.ConditionTrue, nyvCond.Status)
+				assert.Equal(t, "NotYetValid", nyvCond.Reason)
+			} else {
+				assert.Nil(t, nyvCond, "expected no CACertificateNotYetValid condition")
+			}
 		})
 	}
 }
