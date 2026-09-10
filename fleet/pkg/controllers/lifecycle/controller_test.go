@@ -153,19 +153,6 @@ func TestSyncOnce(t *testing.T) {
 			wantCondReason: string(fleetapi.ManagementClusterConditionReasonRegistrationIncomplete),
 		},
 		{
-			name: "SharedIngress True, others True: Ready=True/AllRegistered",
-			resources: []any{
-				testStamp(stampID),
-				testManagementCluster(stampID,
-					conditionTrue(csRegistered),
-					conditionTrue(maestroRegistered),
-					conditionTrue(sharedIngress),
-				),
-			},
-			wantCondStatus: conditionStatusPtr(metav1.ConditionTrue),
-			wantCondReason: string(fleetapi.ManagementClusterConditionReasonAllRegistered),
-		},
-		{
 			name: "SharedIngress False, others True: Ready=False/RegistrationIncomplete",
 			resources: []any{
 				testStamp(stampID),

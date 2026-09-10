@@ -104,7 +104,7 @@ func (s *sharedIngressReportingSyncer) SyncOnce(ctx context.Context, key fleetco
 		apimeta.SetStatusCondition(&updated.Status.Conditions, metav1.Condition{
 			Type:    string(fleetapi.ManagementClusterConditionSharedIngressAvailable),
 			Status:  metav1.ConditionFalse,
-			Reason:  string(fleetapi.ManagementClusterConditionReasonSharedIngressNotMirrored),
+			Reason:  string(fleetapi.ManagementClusterConditionReasonSharedIngressIPsNotMirrored),
 			Message: "shared ingress router Service has not been mirrored yet",
 		})
 	} else if ips := loadBalancerIPs(service); len(ips) > 0 {
@@ -112,7 +112,7 @@ func (s *sharedIngressReportingSyncer) SyncOnce(ctx context.Context, key fleetco
 		apimeta.SetStatusCondition(&updated.Status.Conditions, metav1.Condition{
 			Type:    string(fleetapi.ManagementClusterConditionSharedIngressAvailable),
 			Status:  metav1.ConditionTrue,
-			Reason:  string(fleetapi.ManagementClusterConditionReasonSharedIngressMirrored),
+			Reason:  string(fleetapi.ManagementClusterConditionReasonSharedIngressIPsAvailable),
 			Message: fmt.Sprintf("shared ingress is available with %d load balancer IP address(es)", len(ips)),
 		})
 	} else {
@@ -120,7 +120,7 @@ func (s *sharedIngressReportingSyncer) SyncOnce(ctx context.Context, key fleetco
 		apimeta.SetStatusCondition(&updated.Status.Conditions, metav1.Condition{
 			Type:    string(fleetapi.ManagementClusterConditionSharedIngressAvailable),
 			Status:  metav1.ConditionFalse,
-			Reason:  string(fleetapi.ManagementClusterConditionReasonSharedIngressUnavailable),
+			Reason:  string(fleetapi.ManagementClusterConditionReasonSharedIngressIPsUnavailable),
 			Message: "shared ingress router Service has no load balancer ingress IP addresses",
 		})
 	}

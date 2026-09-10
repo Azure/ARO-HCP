@@ -47,13 +47,14 @@ var SharedIngressTarget = kubeapplierapi.ResourceReference{
 
 // GetSharedIngressService reads and unmarshals the shared-ingress router
 // Service from the ReadDesire lister. It returns (nil, nil) when the ReadDesire
-// exists but its content has not been mirrored yet.
+// exists but its content has not been mirrored yet — either KubeContent is nil
+// or its Raw payload is empty (so json.Unmarshal is never called on empty bytes).
 func GetSharedIngressService(ctx context.Context, readDesireLister kubeapplierlisters.ReadDesireLister, stampIdentifier string) (*corev1.Service, error) {
 	readDesire, err := readDesireLister.GetForManagementCluster(ctx, stampIdentifier, ReadDesireName)
 	if err != nil {
 		return nil, err
 	}
-	if readDesire.Status.KubeContent == nil {
+	if readDesire.Status.KubeContent == nil || len(readDesire.Status.KubeContent.Raw) == 0 {
 		return nil, nil
 	}
 	var service corev1.Service

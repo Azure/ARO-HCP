@@ -96,20 +96,20 @@ const (
 	// sub-conditions are not True.
 	ManagementClusterConditionReasonRegistrationIncomplete ManagementClusterConditionReason = "RegistrationIncomplete"
 
-	// ManagementClusterConditionReasonSharedIngressMirrored indicates the
+	// ManagementClusterConditionReasonSharedIngressIPsAvailable indicates the
 	// shared-ingress router Service has been mirrored and exposes at least one
 	// load balancer ingress IP.
-	ManagementClusterConditionReasonSharedIngressMirrored ManagementClusterConditionReason = "SharedIngressMirrored"
+	ManagementClusterConditionReasonSharedIngressIPsAvailable ManagementClusterConditionReason = "SharedIngressIPsAvailable"
 
-	// ManagementClusterConditionReasonSharedIngressUnavailable indicates the
+	// ManagementClusterConditionReasonSharedIngressIPsUnavailable indicates the
 	// shared-ingress router Service has been mirrored but exposes no load
 	// balancer ingress IPs.
-	ManagementClusterConditionReasonSharedIngressUnavailable ManagementClusterConditionReason = "SharedIngressUnavailable"
+	ManagementClusterConditionReasonSharedIngressIPsUnavailable ManagementClusterConditionReason = "SharedIngressIPsUnavailable"
 
-	// ManagementClusterConditionReasonSharedIngressNotMirrored indicates the
+	// ManagementClusterConditionReasonSharedIngressIPsNotMirrored indicates the
 	// shared-ingress router Service has not been mirrored yet (the ReadDesire
 	// content is not yet populated).
-	ManagementClusterConditionReasonSharedIngressNotMirrored ManagementClusterConditionReason = "SharedIngressNotMirrored"
+	ManagementClusterConditionReasonSharedIngressIPsNotMirrored ManagementClusterConditionReason = "SharedIngressIPsNotMirrored"
 )
 
 // ManagementClusterSchedulingPolicy controls whether new hosted control planes
@@ -250,8 +250,8 @@ type ManagementClusterStatus struct {
 	// the shared-ingress router Service (namespace hypershift-sharedingress,
 	// name router) observed on the management cluster. It is cleared (nil) when
 	// shared ingress is not available.
-	// Owner: SharedIngressReportingController.
 	//
 	// +optional
+	// Written by: SharedIngressReportingController.
 	SharedIngressIPAddresses []string `json:"sharedIngressIPAddresses,omitempty"`
 }

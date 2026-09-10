@@ -146,7 +146,35 @@ func TestSyncOnce_NilKubeContent_SetsNotMirroredAndClears(t *testing.T) {
 	cond := apimeta.FindStatusCondition(mc.Status.Conditions, string(fleetapi.ManagementClusterConditionSharedIngressAvailable))
 	require.NotNil(t, cond)
 	assert.Equal(t, metav1.ConditionFalse, cond.Status)
-	assert.Equal(t, string(fleetapi.ManagementClusterConditionReasonSharedIngressNotMirrored), cond.Reason)
+	assert.Equal(t, string(fleetapi.ManagementClusterConditionReasonSharedIngressIPsNotMirrored), cond.Reason)
+}
+
+func TestSyncOnce_EmptyRawKubeContent_SetsNotMirroredAndClears(t *testing.T) {
+	ctx := context.Background()
+	// Seed with pre-existing IPs so we can prove they get cleared.
+	mockDB, mcLister := seedReportingDB(ctx, t, []string{"10.0.0.1"})
+
+	// KubeContent is non-nil but its Raw payload is empty — must be treated as
+	// "not mirrored yet" and must not attempt to unmarshal empty bytes.
+	desire := buildTestReadDesire(nil)
+	desire.Status.KubeContent = &runtime.RawExtension{Raw: []byte{}}
+
+	syncer := &sharedIngressReportingSyncer{
+		fleetDBClient:           mockDB,
+		readDesireLister:        &kubeapplierlistertesting.SliceReadDesireLister{Desires: []*kubeapplierapi.ReadDesire{desire}},
+		managementClusterLister: mcLister,
+	}
+
+	require.NoError(t, syncer.SyncOnce(ctx, testKey()))
+
+	mc, err := mockDB.Stamps().ManagementClusters(testStampIdentifier).Get(ctx, fleetapi.ManagementClusterResourceName)
+	require.NoError(t, err)
+
+	assert.Nil(t, mc.Status.SharedIngressIPAddresses, "IPs must be cleared when Raw is empty")
+	cond := apimeta.FindStatusCondition(mc.Status.Conditions, string(fleetapi.ManagementClusterConditionSharedIngressAvailable))
+	require.NotNil(t, cond)
+	assert.Equal(t, metav1.ConditionFalse, cond.Status)
+	assert.Equal(t, string(fleetapi.ManagementClusterConditionReasonSharedIngressIPsNotMirrored), cond.Reason)
 }
 
 func TestSyncOnce_WithIPs_SetsMirrored(t *testing.T) {
@@ -169,7 +197,7 @@ func TestSyncOnce_WithIPs_SetsMirrored(t *testing.T) {
 	cond := apimeta.FindStatusCondition(mc.Status.Conditions, string(fleetapi.ManagementClusterConditionSharedIngressAvailable))
 	require.NotNil(t, cond)
 	assert.Equal(t, metav1.ConditionTrue, cond.Status)
-	assert.Equal(t, string(fleetapi.ManagementClusterConditionReasonSharedIngressMirrored), cond.Reason)
+	assert.Equal(t, string(fleetapi.ManagementClusterConditionReasonSharedIngressIPsAvailable), cond.Reason)
 }
 
 func TestSyncOnce_NoIPs_SetsUnavailableAndClears(t *testing.T) {
@@ -193,7 +221,7 @@ func TestSyncOnce_NoIPs_SetsUnavailableAndClears(t *testing.T) {
 	cond := apimeta.FindStatusCondition(mc.Status.Conditions, string(fleetapi.ManagementClusterConditionSharedIngressAvailable))
 	require.NotNil(t, cond)
 	assert.Equal(t, metav1.ConditionFalse, cond.Status)
-	assert.Equal(t, string(fleetapi.ManagementClusterConditionReasonSharedIngressUnavailable), cond.Reason)
+	assert.Equal(t, string(fleetapi.ManagementClusterConditionReasonSharedIngressIPsUnavailable), cond.Reason)
 }
 
 func TestSyncOnce_PreconditionFailedOnReplaceReturnsNil(t *testing.T) {
