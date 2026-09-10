@@ -26,10 +26,10 @@ import (
 func newHardcodedIdentityFPAMIDataplaneClientBuilder(
 	azureMIMockCertBundlePath string, azureMIMockClientID string, azureMIMockPrincipalID string, azureMIMockTenantID string,
 	azureConfig *azureconfig.AzureConfig,
-) (azureclient.FPAMIDataplaneClientBuilder, error) {
+) (azureclient.FPAMIDataplaneClientBuilder, *azureclient.HardcodedIdentity, error) {
 	bundle, err := os.ReadFile(azureMIMockCertBundlePath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read bundle file: %w", err)
+		return nil, nil, fmt.Errorf("failed to read bundle file: %w", err)
 	}
 	bundleBase64Encoded := base64.StdEncoding.EncodeToString(bundle)
 	hardcodedIdentity := &azureclient.HardcodedIdentity{
@@ -38,7 +38,5 @@ func newHardcodedIdentityFPAMIDataplaneClientBuilder(
 		PrincipalID:  azureMIMockPrincipalID,
 		TenantID:     azureMIMockTenantID,
 	}
-	res := azureclient.NewHardcodedIdentityFPAMIDataplaneClientBuilder(azureConfig.CloudEnvironment.CloudConfiguration(), hardcodedIdentity)
-
-	return res, nil
+	return azureclient.NewHardcodedIdentityFPAMIDataplaneClientBuilder(azureConfig.CloudEnvironment.CloudConfiguration(), hardcodedIdentity), hardcodedIdentity, nil
 }

@@ -63,6 +63,10 @@ func (f *fakeSMIClientBuilder) SubnetsClient(context.Context, string, *azcorearm
 	return f.subnetsClient, nil
 }
 
+func (f *fakeSMIClientBuilder) FederatedIdentityCredentialsClient(context.Context, string, *azcorearm.ResourceID, string) (azureclient.FederatedIdentityCredentialsClient, error) {
+	return nil, nil
+}
+
 func testCluster() *coreapi.HCPOpenShiftCluster {
 	cluster := coreapitesting.MinimumValidClusterTestCase()
 	cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity = metadataapi.Must(azcorearm.ParseResourceID(
