@@ -1008,7 +1008,7 @@ func TestDescribeVersionHistory(t *testing.T) {
 			expected: "hosted cluster control plane version not yet completed: version 4.23.0 is Partial (want Completed); version 4.22.5 is Partial (want Completed)",
 		},
 		{
-			name: "completed version does not show elapsed duration",
+			name: "completed version is excluded from output",
 			history: []v1beta1.ControlPlaneUpdateHistory{
 				{
 					Version:     "4.23.0",
@@ -1016,7 +1016,7 @@ func TestDescribeVersionHistory(t *testing.T) {
 					StartedTime: metav1.NewTime(time.Now().Add(-5 * time.Minute)),
 				},
 			},
-			expected: "hosted cluster control plane version not yet completed: version 4.23.0 is Completed (want Completed)",
+			expected: "hosted cluster control plane version not yet completed: ",
 		},
 	}
 

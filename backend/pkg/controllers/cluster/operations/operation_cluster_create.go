@@ -462,8 +462,11 @@ func describeVersionHistory(history []v1beta1.ControlPlaneUpdateHistory) string 
 	}
 	descriptions := make([]string, 0, len(history))
 	for _, entry := range history {
+		if entry.State == configv1.CompletedUpdate {
+			continue // only describe versions still in flight
+		}
 		desc := fmt.Sprintf("version %s is %s (want %s)", entry.Version, entry.State, configv1.CompletedUpdate)
-		if !entry.StartedTime.IsZero() && entry.State != configv1.CompletedUpdate {
+		if !entry.StartedTime.IsZero() {
 			elapsed := time.Since(entry.StartedTime.Time).Truncate(time.Second)
 			if elapsed < 0 {
 				elapsed = 0
