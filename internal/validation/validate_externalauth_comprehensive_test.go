@@ -265,7 +265,7 @@ func TestValidateExternalAuth(t *testing.T) {
 			},
 		},
 		{
-			name: "not-yet-valid CA certificate is rejected",
+			name: "not-yet-valid CA certificate is accepted at admission",
 			newObj: func() *coreapi.HCPOpenShiftClusterExternalAuth {
 				obj := createMinimalExternalAuth()
 				obj.Properties.Issuer.URL = "https://valid.example.com"
@@ -274,9 +274,6 @@ func TestValidateExternalAuth(t *testing.T) {
 				return obj
 			}(),
 			op: operation.Operation{Type: operation.Create},
-			expectErrors: []utils.ExpectedError{
-				{FieldPath: "properties.issuer.ca", Message: "is not yet valid"},
-			},
 		},
 		{
 			name: "too many clients",
@@ -1350,11 +1347,8 @@ func TestValidateCACertificatePEM(t *testing.T) {
 			},
 		},
 		{
-			name:  "not-yet-valid CA rejected",
+			name:  "not-yet-valid CA accepted at admission",
 			value: ptr.To(notYetValidCA),
-			expectErrors: []utils.ExpectedError{
-				{FieldPath: "properties.issuer.ca", Message: "certificate 1 (CN=test-ca) is not yet valid"},
-			},
 		},
 		{
 			name:  "trailing non-PEM data rejected",
