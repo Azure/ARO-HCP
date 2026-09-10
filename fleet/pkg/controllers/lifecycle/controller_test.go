@@ -86,6 +86,7 @@ func TestSyncOnce(t *testing.T) {
 
 	csRegistered := string(fleetapi.ManagementClusterConditionClustersServiceRegistered)
 	maestroRegistered := string(fleetapi.ManagementClusterConditionMaestroRegistered)
+	sharedIngress := string(fleetapi.ManagementClusterConditionSharedIngressAvailable)
 	ready := string(fleetapi.ManagementClusterConditionReady)
 
 	tests := []struct {
@@ -100,12 +101,13 @@ func TestSyncOnce(t *testing.T) {
 			resources: []any{testStamp(stampID)},
 		},
 		{
-			name: "both True: Ready=True/AllRegistered",
+			name: "all three True: Ready=True/AllRegistered",
 			resources: []any{
 				testStamp(stampID),
 				testManagementCluster(stampID,
 					conditionTrue(csRegistered),
 					conditionTrue(maestroRegistered),
+					conditionTrue(sharedIngress),
 				),
 			},
 			wantCondStatus: conditionStatusPtr(metav1.ConditionTrue),
@@ -118,6 +120,7 @@ func TestSyncOnce(t *testing.T) {
 				testManagementCluster(stampID,
 					conditionFalse(csRegistered),
 					conditionTrue(maestroRegistered),
+					conditionTrue(sharedIngress),
 				),
 			},
 			wantCondStatus: conditionStatusPtr(metav1.ConditionFalse),
@@ -130,6 +133,7 @@ func TestSyncOnce(t *testing.T) {
 				testManagementCluster(stampID,
 					conditionTrue(csRegistered),
 					conditionFalse(maestroRegistered),
+					conditionTrue(sharedIngress),
 				),
 			},
 			wantCondStatus: conditionStatusPtr(metav1.ConditionFalse),
@@ -142,10 +146,65 @@ func TestSyncOnce(t *testing.T) {
 				testManagementCluster(stampID,
 					conditionFalse(csRegistered),
 					conditionFalse(maestroRegistered),
+					conditionTrue(sharedIngress),
 				),
 			},
 			wantCondStatus: conditionStatusPtr(metav1.ConditionFalse),
 			wantCondReason: string(fleetapi.ManagementClusterConditionReasonRegistrationIncomplete),
+		},
+		{
+			name: "SharedIngress True, others True: Ready=True/AllRegistered",
+			resources: []any{
+				testStamp(stampID),
+				testManagementCluster(stampID,
+					conditionTrue(csRegistered),
+					conditionTrue(maestroRegistered),
+					conditionTrue(sharedIngress),
+				),
+			},
+			wantCondStatus: conditionStatusPtr(metav1.ConditionTrue),
+			wantCondReason: string(fleetapi.ManagementClusterConditionReasonAllRegistered),
+		},
+		{
+			name: "SharedIngress False, others True: Ready=False/RegistrationIncomplete",
+			resources: []any{
+				testStamp(stampID),
+				testManagementCluster(stampID,
+					conditionTrue(csRegistered),
+					conditionTrue(maestroRegistered),
+					conditionFalse(sharedIngress),
+				),
+			},
+			wantCondStatus: conditionStatusPtr(metav1.ConditionFalse),
+			wantCondReason: string(fleetapi.ManagementClusterConditionReasonRegistrationIncomplete),
+		},
+		{
+			name: "SharedIngress absent, others True: preserve existing Ready=True (migration safety)",
+			resources: []any{
+				testStamp(stampID),
+				testManagementCluster(stampID,
+					conditionTrue(csRegistered),
+					conditionTrue(maestroRegistered),
+					metav1.Condition{
+						Type:   ready,
+						Status: metav1.ConditionTrue,
+						Reason: string(fleetapi.ManagementClusterConditionReasonAllRegistered),
+					},
+				),
+			},
+			wantCondStatus: conditionStatusPtr(metav1.ConditionTrue),
+			wantCondReason: string(fleetapi.ManagementClusterConditionReasonAllRegistered),
+			wantNoWrite:    true,
+		},
+		{
+			name: "SharedIngress absent, others True, no existing Ready: no Ready condition set",
+			resources: []any{
+				testStamp(stampID),
+				testManagementCluster(stampID,
+					conditionTrue(csRegistered),
+					conditionTrue(maestroRegistered),
+				),
+			},
 		},
 		{
 			name: "CS absent, Maestro present: preserve existing Ready=True (migration safety)",
@@ -188,12 +247,13 @@ func TestSyncOnce(t *testing.T) {
 			},
 		},
 		{
-			name: "both True, Ready already True/AllRegistered: skip write",
+			name: "all three True, Ready already True/AllRegistered: skip write",
 			resources: []any{
 				testStamp(stampID),
 				testManagementCluster(stampID,
 					conditionTrue(csRegistered),
 					conditionTrue(maestroRegistered),
+					conditionTrue(sharedIngress),
 					metav1.Condition{
 						Type:   ready,
 						Status: metav1.ConditionTrue,

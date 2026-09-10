@@ -41,6 +41,7 @@ type ManagementClusterStatus struct {
 	MaestroGRPCTarget                                    string             `json:"maestroGRPCTarget,omitempty"`
 	ClusterServiceProvisionShardID                       string             `json:"clusterServiceProvisionShardID"`
 	KubeApplierCosmosContainerName                       string             `json:"kubeApplierCosmosContainerName,omitempty"`
+	SharedIngressIPAddresses                             []string           `json:"sharedIngressIPAddresses,omitempty"`
 }
 
 // ManagementCluster is the API response for a management cluster,
@@ -88,6 +89,7 @@ func toManagementClusterStatus(status fleetapi.ManagementClusterStatus) (Managem
 		MaestroGRPCTarget:                                    status.MaestroGRPCTarget,
 		ClusterServiceProvisionShardID:                       status.ClusterServiceProvisionShardID.String(),
 		KubeApplierCosmosContainerName:                       status.KubeApplierCosmosContainerName,
+		SharedIngressIPAddresses:                             status.SharedIngressIPAddresses,
 	}, nil
 }
 

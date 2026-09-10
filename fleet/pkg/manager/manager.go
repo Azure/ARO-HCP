@@ -45,6 +45,7 @@ import (
 	"github.com/Azure/ARO-HCP/fleet/pkg/controllers/hcpresourcerequirements"
 	"github.com/Azure/ARO-HCP/fleet/pkg/controllers/lifecycle"
 	"github.com/Azure/ARO-HCP/fleet/pkg/controllers/maestroregistration"
+	"github.com/Azure/ARO-HCP/fleet/pkg/controllers/sharedingress"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/informers/fleetinformers"
@@ -226,6 +227,20 @@ func (m *Manager) runControllersUnderLeaderElection(
 		base.StampWatchingControllerConfig{CooldownPeriod: 5 * time.Minute},
 	)
 
+	ensureSharedIngressReadDesireController := sharedingress.NewEnsureSharedIngressReadDesireController(
+		managementClusterInformer,
+		m.KubeApplierDBClients,
+		base.StampWatchingControllerConfig{CooldownPeriod: 5 * time.Minute},
+	)
+
+	sharedIngressReportingController := sharedingress.NewSharedIngressReportingController(
+		readDesireInformer,
+		managementClusterInformer,
+		m.FleetDBClient,
+		readDesireLister,
+		base.StampWatchingControllerConfig{CooldownPeriod: 5 * time.Minute},
+	)
+
 	scaleCeilingReportingController := capacityreporting.NewManagementClusterScaleCeilingReportingController(
 		managementClusterInformer,
 		m.FleetDBClient,
@@ -274,6 +289,8 @@ func (m *Manager) runControllersUnderLeaderElection(
 				go dataDumpController.Run(ctx, 1)
 				go ensureCapacityReadDesireController.Run(ctx, 1)
 				go capacityReportingController.Run(ctx, 1)
+				go ensureSharedIngressReadDesireController.Run(ctx, 1)
+				go sharedIngressReportingController.Run(ctx, 1)
 				go scaleCeilingReportingController.Run(ctx, 1)
 				go hcpResourceRequirementsController.Run(ctx)
 				go amwScalingController.Run(ctx)
