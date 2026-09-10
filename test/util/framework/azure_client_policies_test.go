@@ -502,7 +502,7 @@ func TestLROPollerRetryPolicy(t *testing.T) {
 	}
 	newPolicyForTest := func(steps int) policy.Policy {
 		return azclient.NewLROPollerRetryPolicy(&azclient.LROPollerRetryPolicyOptions{
-			Backoff: wait.Backoff{
+			Backoff: &wait.Backoff{
 				Duration: time.Millisecond,
 				Factor:   2,
 				Steps:    steps,

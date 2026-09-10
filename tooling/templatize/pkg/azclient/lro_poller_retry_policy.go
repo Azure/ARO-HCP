@@ -39,7 +39,7 @@ type lroPollerRetryPolicy struct {
 
 // LROPollerRetryPolicyOptions configures the LRO poller retry policy.
 type LROPollerRetryPolicyOptions struct {
-	Backoff wait.Backoff
+	Backoff *wait.Backoff
 }
 
 // NewLROPollerRetryPolicy returns a policy scoped to GET requests for ARM
@@ -54,8 +54,8 @@ func NewLROPollerRetryPolicy(options *LROPollerRetryPolicyOptions) policy.Policy
 		Jitter:   0.1,
 		Steps:    6,
 	}
-	if options != nil {
-		backoff = options.Backoff
+	if options != nil && options.Backoff != nil {
+		backoff = *options.Backoff
 	}
 	return &lroPollerRetryPolicy{
 		backoff: backoff,

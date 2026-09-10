@@ -85,6 +85,18 @@ func unauthorizedResponse() (*http.Response, error) {
 func TestLROPollerRetryPolicy(t *testing.T) {
 	t.Parallel()
 
+	t.Run("uses defaults with empty options", func(t *testing.T) {
+		t.Parallel()
+
+		pol := NewLROPollerRetryPolicy(&LROPollerRetryPolicyOptions{})
+		retryPolicy, ok := pol.(*lroPollerRetryPolicy)
+		require.True(t, ok)
+		assert.Equal(t, 6, retryPolicy.backoff.Steps)
+		assert.Equal(t, 2*time.Second, retryPolicy.backoff.Duration)
+		assert.Equal(t, 2.0, retryPolicy.backoff.Factor)
+		assert.Equal(t, 0.1, retryPolicy.backoff.Jitter)
+	})
+
 	t.Run("passes through non-matching requests", func(t *testing.T) {
 		t.Parallel()
 
