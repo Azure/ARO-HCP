@@ -123,6 +123,14 @@ For the DEV e2e/customer subscriptions (`.ci.dev.e2eSubscriptions`), this policy
 
 This path is intentionally best-effort. If one run leaves something behind, the next run can pick it up.
 
+Within a single run, the expired resource-group job attempts deletion of
+every discovered resource group, regardless of earlier failures. A failed
+deletion sets the job exit code to non-zero to signal that work remains,
+but does not prevent subsequent resource groups from being attempted.
+This means that when the job reports failure, the build log contains the
+outcome for every expired resource group — not just the first one that
+failed.
+
 ## Why They Behave Differently
 
 ### Why periodic cleanup is best-effort
@@ -228,6 +236,24 @@ require a separate, explicitly scoped purge because the ownership query only
 returns active applications.
 
 The important point is that all of these are background hygiene jobs. They are there to keep shared environments healthy and reduce accumulation over time.
+
+### Identifying the cleanup job for a subscription
+
+The source of truth for the mapping between subscriptions and
+environments/shards is
+[`test/e2e-config/e2e-slots.yaml`](../../test/e2e-config/e2e-slots.yaml).
+Each pool entry lists a `subscription_name` that corresponds to the
+subscription shown in the PagerDuty alert payload.
+
+Cleanup job names follow the convention
+`periodic-ci-Azure-ARO-HCP-main-periodic-cleanup-delete-expired-<env>-<index>-resource-groups`,
+where `<env>` and `<index>` are derived from the subscription name
+(e.g. "Prod - 01" → `delete-expired-prod-01-resource-groups`).
+
+> **Exception:** The legacy cross-tenant subscription "ARO HCP E2E"
+> does not follow the `<env> - <index>` naming pattern. Its cleanup
+> job uses the indexless name
+> `periodic-ci-Azure-ARO-HCP-main-periodic-cleanup-delete-expired-prod-resource-groups`.
 
 ## Where To Look
 
