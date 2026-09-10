@@ -14,7 +14,7 @@ RUN mkdir -p /etc/yum.repos.art/ci/ /etc/yum.repos.art/localdev/ && \
     ln -s /etc/yum.repos.d/microsoft-prod.repo /etc/yum.repos.art/localdev/
 RUN dnf install -y azure-cli libicu make git procps-ng
 RUN ARCH=$([ "$(uname -m)" = "aarch64" ] && echo "arm64" || echo "x64") && \
-    curl -fsSL -o /usr/local/bin/bicep "https://github.com/Azure/bicep/releases/download/v${BICEP_VERSION}/bicep-linux-${ARCH}" && \
+    curl -fsSL --retry 3 -o /usr/local/bin/bicep "https://github.com/Azure/bicep/releases/download/v${BICEP_VERSION}/bicep-linux-${ARCH}" && \
     chmod +x /usr/local/bin/bicep
 # Install kubectl and kubelogin
 RUN ARCH=$([ "$(uname -m)" = "aarch64" ] && echo "arm64" || echo "amd64") && \
