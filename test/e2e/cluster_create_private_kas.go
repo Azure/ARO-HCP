@@ -17,7 +17,6 @@ package e2e
 import (
 	"context"
 	"encoding/base64"
-	"fmt"
 	"net"
 	"net/url"
 	"time"
@@ -109,23 +108,25 @@ var _ = Describe("Customer", func() {
 			apiURL := *cluster.Properties.API.URL
 			GinkgoLogr.Info("Cluster created with private KAS", "clusterName", customerClusterName, "apiURL", apiURL)
 
-			By("verifying API hostname DNS resolves to a private IP")
+			By("verifying API hostname DNS resolves to the internal LB private IP")
 			// The public DNS A record for a private KAS cluster must point
 			// to the private IP of the internal load balancer — not the
 			// shared ingress public IP. This is the customer-facing DNS
 			// path and must be tested explicitly to catch regressions like
 			// ARO-29270 where DNS pointed to the wrong IP.
+			lbIP, err := framework.GetPrivateKASInternalIP(ctx, tc, clusterParams.ManagedResourceGroupName)
+			Expect(err).NotTo(HaveOccurred(), "failed to find private KAS internal LB IP in managed resource group %q", clusterParams.ManagedResourceGroupName)
+			GinkgoLogr.Info("Found private KAS internal LB IP", "ip", lbIP, "managedRG", clusterParams.ManagedResourceGroupName)
+
 			parsedURL, err := url.Parse(apiURL)
 			Expect(err).NotTo(HaveOccurred(), "failed to parse API URL %q", apiURL)
 			apiHost := parsedURL.Hostname()
-			ips, err := net.LookupHost(apiHost)
+			ips, err := net.DefaultResolver.LookupHost(ctx, apiHost)
 			Expect(err).NotTo(HaveOccurred(), "DNS lookup failed for API hostname %q", apiHost)
 			Expect(ips).NotTo(BeEmpty(), "DNS lookup returned no IPs for API hostname %q", apiHost)
-			resolvedIP := net.ParseIP(ips[0])
-			Expect(resolvedIP).NotTo(BeNil(), "DNS returned unparseable IP %q for %q", ips[0], apiHost)
-			Expect(resolvedIP.IsPrivate()).To(BeTrue(),
-				fmt.Sprintf("API hostname %q resolved to public IP %s — expected a private IP (RFC 1918) pointing to the internal LB", apiHost, resolvedIP))
-			GinkgoLogr.Info("API hostname DNS resolves to private IP", "hostname", apiHost, "ip", resolvedIP.String())
+			GinkgoLogr.Info("API hostname DNS resolved", "hostname", apiHost, "ips", ips)
+			Expect(ips).To(ContainElement(lbIP),
+				"API hostname %q resolved to %v but expected it to include internal LB IP %s — DNS may be pointing to wrong endpoint (ARO-29270)", apiHost, ips, lbIP)
 
 			By("creating the node pool")
 			nodePoolParams := framework.NewDefaultNodePoolParams20251223()
@@ -166,10 +167,20 @@ var _ = Describe("Customer", func() {
 			// DNS-resolved private IP → internal LB → Swift → KAS pods.
 			// A successful response proves that DNS resolves to the private
 			// IP and the private KAS network path is functional end-to-end.
-			versionOutput, err := framework.RunKubectlOnVM(ctx, tc, *resourceGroup.Name, vmName, kubeconfigB64, "version", 2*time.Minute)
-			Expect(err).NotTo(HaveOccurred(),
-				"kubectl version should succeed from VM via DNS-resolved private KAS (output: %s)", versionOutput)
-			GinkgoLogr.Info("KAS is reachable from VM inside VNet via DNS", "output", versionOutput)
+			// Retry because the internal LB backend pool may take a short
+			// while to become healthy after node pool creation.
+			var lastKubectlErr error
+			Eventually(func(g Gomega) {
+				output, runErr := framework.RunKubectlOnVM(ctx, tc, *resourceGroup.Name, vmName, kubeconfigB64, "version", 2*time.Minute)
+				if runErr != nil && (lastKubectlErr == nil || runErr.Error() != lastKubectlErr.Error()) {
+					GinkgoLogr.Info("KAS not yet reachable from VM via DNS", "error", runErr, "output", output)
+					lastKubectlErr = runErr
+				}
+				g.Expect(runErr).NotTo(HaveOccurred(),
+					"kubectl version should succeed from VM via DNS-resolved private KAS (output: %s)", output)
+			}, 5*time.Minute, 15*time.Second).Should(Succeed(),
+				"KAS was never reachable from VM inside the VNet via DNS")
+			GinkgoLogr.Info("KAS is reachable from VM inside VNet via DNS")
 
 			By("verifying KAS is NOT reachable from outside the VNet")
 			err = framework.TestHTTPSConnectivity(ctx, apiURL+"/healthz", 10*time.Second, true)
