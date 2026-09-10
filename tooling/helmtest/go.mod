@@ -7,7 +7,7 @@ require (
 	github.com/Azure/ARO-Tools/pipelines v0.0.0-20260901142504-86903908c305
 	github.com/Azure/ARO-Tools/testutil v0.0.0-20260901142504-86903908c305
 	github.com/google/go-cmp v0.7.0
-	github.com/stretchr/testify v1.11.1
+	github.com/stretchr/testify v1.12.0
 	helm.sh/helm/v4 v4.1.4
 	k8s.io/api v0.35.3
 	k8s.io/apimachinery v0.35.3
@@ -19,9 +19,8 @@ require (
 	dario.cat/mergo v1.0.1 // indirect
 	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260901142504-86903908c305 // indirect
 	github.com/Azure/ARO-Tools/tools/yamlwrap v0.0.0-20260901142504-86903908c305 // indirect
-	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.21.1 // indirect
-	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.13.1 // indirect
-	github.com/Azure/azure-sdk-for-go/sdk/azidentity/cache v0.4.0 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.23.0 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.14.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.12.0 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c // indirect
 	github.com/AzureAD/microsoft-authentication-library-for-go v1.7.2 // indirect
