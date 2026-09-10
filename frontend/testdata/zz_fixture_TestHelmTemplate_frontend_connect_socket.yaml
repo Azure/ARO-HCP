@@ -163,8 +163,9 @@ spec:
             mountPath: /var/run/mdsd
         startupProbe:
           httpGet:
-            path: /healthz
+            path: /startupz
             port: 8443
+          timeoutSeconds: 6
           periodSeconds: 10
           failureThreshold: 30
         livenessProbe:
