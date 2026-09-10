@@ -35,6 +35,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/informers/fleetinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/database/listers/fleetlisters"
@@ -76,12 +77,15 @@ type normalClusterDesiredVersionSyncer struct {
 }
 
 // NewNormalClusterDesiredVersionController wires the syncer into a rollout
-// watching controller. selector defaults to RandomClusterSelector when nil.
-func NewNormalClusterDesiredVersionController(clock utilsclock.PassiveClock, resourcesDBClient corecosmosstorage.ResourcesDBClient, fleetDBClient fleetcosmosstorage.FleetDBClient, fleetInformers fleetinformers.FleetInformers, serviceProviderClusterLister corelisters.ServiceProviderClusterLister, clusterLister corelisters.ClusterLister, selector ClusterSelector, config RolloutConfig) controllerutils.Controller {
+// watching controller, with filtered cluster and ServiceProviderCluster watches
+// for candidate channels. selector defaults to RandomClusterSelector when nil.
+func NewNormalClusterDesiredVersionController(clock utilsclock.PassiveClock, resourcesDBClient corecosmosstorage.ResourcesDBClient, fleetDBClient fleetcosmosstorage.FleetDBClient, fleetInformers fleetinformers.FleetInformers, informers coreinformers.BackendInformers, selector ClusterSelector, config RolloutConfig) controllerutils.Controller {
 	if selector == nil {
 		selector = RandomClusterSelector{}
 	}
 	_, rolloutLister := fleetInformers.ControlPlaneVersionRollouts()
+	clusterInformer, clusterLister := informers.Clusters()
+	serviceProviderClusterInformer, serviceProviderClusterLister := informers.ServiceProviderClusters()
 	syncer := &normalClusterDesiredVersionSyncer{
 		clock:                        clock,
 		resourcesDBClient:            resourcesDBClient,
@@ -92,8 +96,12 @@ func NewNormalClusterDesiredVersionController(clock utilsclock.PassiveClock, res
 		selector:                     selector,
 		config:                       config,
 	}
-	return controllerutils.NewControlPlaneVersionRolloutWatchingController(
+	controller := controllerutils.NewControlPlaneVersionRolloutWatchingController(
 		NormalClusterDesiredVersionControllerName, fleetInformers, 5*time.Minute, syncer)
+	if err := syncer.watchVersionCandidates(clusterInformer, serviceProviderClusterInformer, controller); err != nil {
+		panic(err) // coding error
+	}
+	return controller
 }
 
 // CooldownChecker returns nil: the resync interval drives periodic rollout steps.

@@ -71,7 +71,7 @@ func NewControlPlaneVersionRolloutWatchingController(
 	fleetInformers fleetinformers.FleetInformers,
 	resyncDuration time.Duration,
 	syncer ControlPlaneVersionRolloutSyncer,
-) Controller {
+) *controllerutil.GenericWatchingController[ControlPlaneVersionRolloutKey] {
 	wrapper := &controlPlaneVersionRolloutWatchingController{
 		name:   name,
 		syncer: syncer,

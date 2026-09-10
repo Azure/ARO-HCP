@@ -948,14 +948,14 @@ run unconditionally — there is no feature gate.
 #### NormalClusterDesiredVersion
 
 **File:** [normal_desired_version_controller.go](../backend/pkg/controllers/versionrollout/normal_desired_version_controller.go)
-**Trigger:** ControlPlaneVersionRollout informer, 5-minute resync (per y-stream channel)
+**Trigger:** ControlPlaneVersionRollout informer, 5-minute resync (per y-stream channel). Also enqueues the candidate channel on ServiceProviderCluster add/update while `Spec.ControlPlaneVersion.DesiredVersion` is nil, and on cluster add or an update that changes its candidate channel (`CustomerProperties.Version.ChannelGroup` plus the minor of `CustomerProperties.Version.ID`). Patch-version-only and unrelated cluster updates do not enqueue; these additional watches have no periodic resync.
 **Gate:** No formal NeedsWork. Skips inside SyncOnce if the `ControlPlaneVersionRollout` does not exist. Advances only *eligible* clusters (desired version below `Spec.BestExactVersion` and either unpinned or with a pin whose release threshold is at/under best); clusters whose `HCPOpenShiftCluster` carries an experimental `ControlPlaneExactVersion` are owned by the forced controller and excluded. How many advance is bounded by the canary-then-rolling strategy and the failure budget.
 
 | | Object | Fields |
 |---|--------|--------|
 | Read | `ControlPlaneVersionRollout` (Fleet) | <ul><li>`Spec.BestExactVersion`</li><li>`Status.ClusterCountByDesiredExactVersion`</li><li>`Status.MismatchedClusterCountByDesiredExactVersion`</li><li>`Status.FailedClusterCountByDesiredExactVersion`</li><li>`Status.ClusterCountByAchievedExactVersion`</li><li>`Status.SuccessfulClusterCountByAchievedExactVersion`</li><li>`Status.Conditions` (compared to skip no-op writes)</li></ul> |
 | Read | `ServiceProviderCluster` | <ul><li>`Spec.ControlPlaneVersion.DesiredVersion` (eligibility: must be below best)</li><li>`Spec.PinnedVersion.ExactVersion`, `Spec.PinnedVersion.UntilExactVersion` (eligibility: unpinned or pin released)</li><li>`Status.ControlPlaneVersion.ActiveVersions` (channel matching)</li><li>`ResourceID` (subscription / resource group / parent cluster name)</li></ul> |
-| Read | `HCPOpenShiftCluster` | <ul><li>`CustomerProperties.Version.ChannelGroup`, `ID` (channel matching)</li><li>`ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion` (clusters with this set are excluded from advancement)</li></ul> |
+| Read | `HCPOpenShiftCluster` | <ul><li>`CustomerProperties.Version.ChannelGroup`, `ID` (channel matching)</li><li>`CustomerProperties.Version.ID` (candidate-channel event mapping)</li><li>`ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion` (clusters with this set are excluded from advancement)</li></ul> |
 | **Write** | **`ServiceProviderCluster`** (per selected cluster) | <ul><li>**`Spec.ControlPlaneVersion.DesiredVersion`** = `Spec.BestExactVersion`</li><li>**`Spec.ControlPlaneVersion.DesiredVersionLastTransitionTime`** = now (only when DesiredVersion actually changes)</li></ul> |
 | **Write** | **`ControlPlaneVersionRollout`** (Fleet) | <ul><li>**`Status.Conditions[Progressing]`** = True during canary/rolling/progressing</li><li>**`Status.Conditions[Degraded]`** = True when the failure budget is exceeded or a per-cluster assignment fails</li></ul> |
 

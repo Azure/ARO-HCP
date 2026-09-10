@@ -707,8 +707,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		b.options.ResourcesDBClient,
 		b.options.FleetDBClient,
 		fleetInformers,
-		serviceProviderClusterLister,
-		clusterLister,
+		backendInformers,
 		nil, // default random cluster selector
 		rolloutConfig,
 	)
