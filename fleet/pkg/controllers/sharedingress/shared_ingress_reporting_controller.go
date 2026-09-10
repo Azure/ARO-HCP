@@ -78,7 +78,8 @@ func (s *sharedIngressReportingSyncer) SyncOnce(ctx context.Context, key fleetco
 
 	service, err := GetSharedIngressService(ctx, s.readDesireLister, key.StampIdentifier)
 	if cosmosstorageutils.IsNotFoundError(err) {
-		logger.V(1).Info("shared ingress ReadDesire not found, waiting for ensure controller")
+		logger.V(1).Info("shared ingress ReadDesire not found, waiting for ensure controller",
+			"stampIdentifier", key.StampIdentifier, "readDesire", ReadDesireName)
 		return nil
 	}
 	if err != nil {
@@ -99,7 +100,8 @@ func (s *sharedIngressReportingSyncer) SyncOnce(ctx context.Context, key fleetco
 
 	if service == nil {
 		// The ReadDesire exists but its content has not been mirrored yet.
-		logger.V(1).Info("shared ingress service not mirrored yet, will retry on next change")
+		logger.V(1).Info("shared ingress service not mirrored yet, will retry on next change",
+			"stampIdentifier", key.StampIdentifier)
 		updated.Status.SharedIngressIPAddresses = nil
 		apimeta.SetStatusCondition(&updated.Status.Conditions, metav1.Condition{
 			Type:    string(fleetapi.ManagementClusterConditionSharedIngressAvailable),
@@ -108,6 +110,8 @@ func (s *sharedIngressReportingSyncer) SyncOnce(ctx context.Context, key fleetco
 			Message: "shared ingress router Service has not been mirrored yet",
 		})
 	} else if ips := loadBalancerIPs(service); len(ips) > 0 {
+		logger.V(1).Info("shared ingress mirrored",
+			"stampIdentifier", key.StampIdentifier, "ipCount", len(ips))
 		updated.Status.SharedIngressIPAddresses = ips
 		apimeta.SetStatusCondition(&updated.Status.Conditions, metav1.Condition{
 			Type:    string(fleetapi.ManagementClusterConditionSharedIngressAvailable),
@@ -116,6 +120,8 @@ func (s *sharedIngressReportingSyncer) SyncOnce(ctx context.Context, key fleetco
 			Message: fmt.Sprintf("shared ingress is available with %d load balancer IP address(es)", len(ips)),
 		})
 	} else {
+		logger.V(1).Info("shared ingress router Service observed with no non-empty load balancer ingress IPs",
+			"stampIdentifier", key.StampIdentifier)
 		updated.Status.SharedIngressIPAddresses = nil
 		apimeta.SetStatusCondition(&updated.Status.Conditions, metav1.Condition{
 			Type:    string(fleetapi.ManagementClusterConditionSharedIngressAvailable),

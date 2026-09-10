@@ -25,9 +25,11 @@ import (
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
+	apimeta "k8s.io/apimachinery/pkg/api/meta"
 
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 // ReadDesireName is the name of the management-cluster-scoped ReadDesire that
@@ -50,16 +52,48 @@ var SharedIngressTarget = kubeapplierapi.ResourceReference{
 // exists but its content has not been mirrored yet — either KubeContent is nil
 // or its Raw payload is empty (so json.Unmarshal is never called on empty bytes).
 func GetSharedIngressService(ctx context.Context, readDesireLister kubeapplierlisters.ReadDesireLister, stampIdentifier string) (*corev1.Service, error) {
+	logger := utils.LoggerFromContext(ctx)
+
 	readDesire, err := readDesireLister.GetForManagementCluster(ctx, stampIdentifier, ReadDesireName)
 	if err != nil {
 		return nil, err
 	}
-	if readDesire.Status.KubeContent == nil || len(readDesire.Status.KubeContent.Raw) == 0 {
+
+	// A nil KubeContent and an empty Raw payload are both treated as
+	// "not mirrored yet" (matching GetCachedHostedClusterForCluster); the
+	// control flow is identical, but they are logged distinctly for
+	// debuggability. Behavior is never branched on the logged values.
+	if readDesire.Status.KubeContent == nil {
+		logger.V(1).Info("shared ingress ReadDesire has no observed content yet (KubeContent nil)",
+			"stampIdentifier", stampIdentifier,
+			"readDesire", ReadDesireName,
+			"successfulCondition", successfulConditionStatus(readDesire),
+		)
 		return nil, nil
 	}
+	if len(readDesire.Status.KubeContent.Raw) == 0 {
+		logger.V(1).Info("shared ingress ReadDesire KubeContent has an empty Raw payload",
+			"stampIdentifier", stampIdentifier,
+			"readDesire", ReadDesireName,
+		)
+		return nil, nil
+	}
+
 	var service corev1.Service
 	if err := json.Unmarshal(readDesire.Status.KubeContent.Raw, &service); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal shared ingress Service: %w", err)
 	}
 	return &service, nil
+}
+
+// successfulConditionStatus returns the status of the ReadDesire's well-known
+// "Successful" condition as a string, or "<absent>" when it has not been
+// reported yet. It helps distinguish "not yet synced" (Unknown/absent) from
+// "successfully observed absent" (True) when KubeContent is nil. Read-only.
+func successfulConditionStatus(readDesire *kubeapplierapi.ReadDesire) string {
+	cond := apimeta.FindStatusCondition(readDesire.Status.Conditions, kubeapplierapi.ConditionTypeSuccessful)
+	if cond == nil {
+		return "<absent>"
+	}
+	return string(cond.Status)
 }
