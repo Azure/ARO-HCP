@@ -22,6 +22,7 @@ import (
 
 	"github.com/go-logr/logr"
 	msgraphsdk "github.com/microsoftgraph/msgraph-sdk-go"
+	"github.com/microsoftgraph/msgraph-sdk-go/models"
 	graphodataerrors "github.com/microsoftgraph/msgraph-sdk-go/models/odataerrors"
 
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -385,6 +386,57 @@ func TestSelectOrphanedRoleAssignments(t *testing.T) {
 	}
 	if got[0].ID != "absent-assignment" {
 		t.Fatalf("expected permanently absent principal's assignment, got %q", got[0].ID)
+	}
+}
+
+func TestDeletedPrincipalIsRetainable(t *testing.T) {
+	t.Parallel()
+
+	servicePrincipalOfType := func(spType *string) models.DirectoryObjectable {
+		sp := models.NewServicePrincipal()
+		sp.SetServicePrincipalType(spType)
+		return sp
+	}
+
+	testCases := []struct {
+		name   string
+		object models.DirectoryObjectable
+		want   bool
+	}{
+		{
+			name:   "managed identity service principal is not retained",
+			object: servicePrincipalOfType(strPtr("ManagedIdentity")),
+			want:   false,
+		},
+		{
+			name:   "managed identity type comparison is case-insensitive",
+			object: servicePrincipalOfType(strPtr("managedidentity")),
+			want:   false,
+		},
+		{
+			name:   "application service principal is retained",
+			object: servicePrincipalOfType(strPtr("Application")),
+			want:   true,
+		},
+		{
+			name:   "service principal without a type fails safe to retained",
+			object: servicePrincipalOfType(nil),
+			want:   true,
+		},
+		{
+			name:   "non service principal directory object is retained",
+			object: models.NewUser(),
+			want:   true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := deletedPrincipalIsRetainable(tc.object); got != tc.want {
+				t.Fatalf("expected retainable=%t, got %t", tc.want, got)
+			}
+		})
 	}
 }
 

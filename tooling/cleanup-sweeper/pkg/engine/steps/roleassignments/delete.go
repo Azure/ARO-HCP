@@ -26,6 +26,7 @@ import (
 	msgraphsdk "github.com/microsoftgraph/msgraph-sdk-go"
 	graphdirectoryobjects "github.com/microsoftgraph/msgraph-sdk-go/directoryobjects"
 	graphgroups "github.com/microsoftgraph/msgraph-sdk-go/groups"
+	"github.com/microsoftgraph/msgraph-sdk-go/models"
 	graphodataerrors "github.com/microsoftgraph/msgraph-sdk-go/models/odataerrors"
 
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -45,6 +46,11 @@ const (
 	graphGetByIDsBatchSize    = 1000
 	preflightGroupDisplayName = "aro-hcp-engineering-App Developer"
 	preflightFailureMessage   = "Refusing to run cleanup: directory visibility is insufficient. This tool must be run with directory read permissions (e.g. Directory.Read.All)."
+	// managedIdentityServicePrincipalType is the servicePrincipalType Microsoft
+	// Graph reports for the service principal backing a user-assigned managed
+	// identity. These are excluded from soft-delete retention (see
+	// newGraphDeletedPrincipalLookup).
+	managedIdentityServicePrincipalType = "ManagedIdentity"
 )
 
 // DeleteOrphanedStepConfig configures orphaned role-assignment cleanup.
@@ -181,11 +187,17 @@ func (s *deleteOrphanedStep) Delete(ctx context.Context, target runner.Target, _
 }
 
 // SAFETY CONTRACT:
-// A role assignment is deletable only when its principal is absent from both
-// the active directory and deletedItems. The active directory is checked again
-// after deletedItems to avoid deleting assignments while a principal is being
-// restored. An explicit Graph visibility preflight is also enforced and cannot
-// be bypassed.
+// A role assignment is deletable when its principal is absent from the active
+// directory and is not a retainable soft-deleted principal. A principal is
+// retainable while it is recoverable from deletedItems AND is of a type that is
+// actually restored back into service - app registrations, users, groups, and
+// service principals other than managed identities. Managed identities are
+// excluded: their backing object is system-managed and never restored (a
+// redeploy provisions a new principal ID), so retaining their assignments only
+// leaks quota (see deletedPrincipalIsRetainable). The active directory is
+// checked again after deletedItems to avoid deleting assignments while a
+// retainable principal is being restored. An explicit Graph visibility
+// preflight is also enforced and cannot be bypassed.
 func discoverOrphanedRoleAssignments(
 	ctx context.Context,
 	roleAssignmentsClient *armauthorization.RoleAssignmentsClient,
@@ -231,7 +243,11 @@ func discoverOrphanedRoleAssignments(
 		return nil, fmt.Errorf("failed resolving role assignment principals with Microsoft Graph getByIds: %w", err)
 	}
 
-	// 4) Protect principals that are still recoverable from Graph deletedItems.
+	// 4) Protect principals that are still recoverable from Graph deletedItems
+	// and are of a restorable type. The lookup treats a soft-deleted managed
+	// identity as not retainable (never restored into service), so its
+	// assignments remain eligible for cleanup; app registrations, users, and
+	// groups stay protected. See newGraphDeletedPrincipalLookup.
 	unresolvedPrincipalIDs := principalIDs.Difference(resolvedPrincipalIDs)
 	softDeletedPrincipalIDs, err := resolveSoftDeletedPrincipalIDs(
 		ctx,
@@ -478,6 +494,12 @@ func resolvePrincipalIDsWithGraphGetByIDs(
 	return resolvedPrincipalIDs, nil
 }
 
+// deletedPrincipalLookup reports whether a principal is a *retainable*
+// soft-deleted principal: recoverable from Graph deletedItems AND of a type that
+// is restored back into service. It returns false when the principal is absent
+// from deletedItems, or is present only as a managed identity (never restored),
+// so those assignments stay eligible for deletion. See
+// newGraphDeletedPrincipalLookup / deletedPrincipalIsRetainable.
 type deletedPrincipalLookup func(context.Context, string) (bool, error)
 
 type activePrincipalLookup func(context.Context, string) (bool, error)
@@ -531,8 +553,37 @@ func newGraphDeletedPrincipalLookup(graphClient *msgraphsdk.GraphServiceClient) 
 				resolvedID,
 			)
 		}
+		if !deletedPrincipalIsRetainable(object) {
+			return false, nil
+		}
 		return true, nil
 	}
+}
+
+// deletedPrincipalIsRetainable reports whether a soft-deleted directory object
+// should keep its role assignments while it remains recoverable.
+//
+// Managed-identity service principals are excluded: deleting the user-assigned
+// identity soft-deletes this backing object, but it is never restored to bring a
+// workload back - a redeploy provisions a brand-new identity with a new
+// principal ID and new role assignments. Retaining their assignments therefore
+// protects nothing and only leaks the subscription's role-assignment quota.
+//
+// Every other soft-deleted principal (app registrations, users, groups, and
+// service principals of any other type) is retained, since those can be restored
+// and would lose their access - that is the AROSLSRE-1969 case this guard exists
+// for. Anything that is not a service principal, or a service principal without a
+// reported type, fails safe to retained.
+func deletedPrincipalIsRetainable(object models.DirectoryObjectable) bool {
+	sp, ok := object.(models.ServicePrincipalable)
+	if !ok {
+		return true
+	}
+	spType := sp.GetServicePrincipalType()
+	if spType == nil {
+		return true
+	}
+	return !strings.EqualFold(*spType, managedIdentityServicePrincipalType)
 }
 
 func principalRequiresRoleAssignmentRetention(
