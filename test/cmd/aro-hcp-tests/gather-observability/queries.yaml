@@ -494,3 +494,96 @@ panels:
     unit: percent
     workspace: svc
     step: "60s"
+  - title: "MC Swift NIC Capacity"
+    # Pod requests come from kube-scheduler's /metrics/resources endpoint, not
+    # kube-state-metrics or the scheduler's ordinary /metrics endpoint:
+    # https://kubernetes.io/docs/concepts/cluster-administration/system-metrics/#kube-scheduler-metrics
+    # On AKS, enable Azure Managed Prometheus and control-plane metrics (for an
+    # existing cluster with Managed Prometheus: az aks update -g <rg> -n <name>
+    # --enable-control-plane-metrics), then enable the scheduler target in the
+    # kube-system/ama-metrics-settings-configmap. With schema v2, set
+    # controlplane-metrics.default-targets-scrape-enabled.kube-scheduler = true
+    # and controlplane-metrics.minimal-ingestion-profile.enabled = false.
+    # https://learn.microsoft.com/en-us/azure/aks/control-plane-metrics-monitor
+    # This project currently uses schema v1 in
+    # observability/prometheus/deploy/templates/ama-metrics-settings-configmap.yaml:
+    # default-scrape-settings-enabled has controlplane-kube-scheduler = true;
+    # default-targets-metrics-keep-list has minimalingestionprofile = false and
+    # an empty scheduler keep list. dev-infrastructure/mgmt-pipeline.yaml's
+    # prometheus step deploys that chart. Managed Prometheus itself is enabled
+    # by azureMonitorProfile.metrics.enabled in
+    # dev-infrastructure/modules/aks-cluster-base.bicep; that module does not
+    # explicitly enable control-plane metrics separately.
+    # These settings alone do not verify /metrics/resources ingestion: the AKS
+    # docs do not describe a separate switch for that endpoint. Before trusting
+    # this chart, query count by (resource) (kube_pod_resource_request{cluster=~".*-mgmt-.*"})
+    # in the svc workspace and inspect the live ConfigMap and AKS metrics profile.
+    # If the metric is absent, verify AKS support for collecting this endpoint;
+    # changing the KSM image or adding a keep-list entry cannot create it.
+    # Scheduler resource labels retain "aro.openshift.io/swift-nic"; only KSM
+    # node metrics use "aro_openshift_io_swift_nic". The zero fallback below
+    # masks missing/mismatched pod series as zero demand and full availability.
+    description: "Cluster-wide Swift NIC totals across all management-cluster nodes. Scheduled and unscheduled show Swift NIC requests from pods with and without a node assignment; available is total node allocatable Swift NICs minus scheduled requests."
+    query: |
+      label_replace(
+        (
+          sum by (cluster) (
+            max without (prometheus_replica) (
+              kube_pod_resource_request{cluster=~".*-mgmt-.*", resource="aro_openshift_io_swift_nic", node!=""}
+            )
+          )
+          or on (cluster)
+          0 * sum by (cluster) (
+            max without (prometheus_replica) (
+              kube_node_status_allocatable{cluster=~".*-mgmt-.*", resource="aro_openshift_io_swift_nic"}
+            )
+          )
+        ),
+        "state", "Scheduled", "", ""
+      )
+      or
+      label_replace(
+        (
+          sum by (cluster) (
+            max without (prometheus_replica) (
+              kube_pod_resource_request{cluster=~".*-mgmt-.*", resource="aro_openshift_io_swift_nic", node=""}
+            )
+          )
+          or on (cluster)
+          0 * sum by (cluster) (
+            max without (prometheus_replica) (
+              kube_node_status_allocatable{cluster=~".*-mgmt-.*", resource="aro_openshift_io_swift_nic"}
+            )
+          )
+        ),
+        "state", "Unscheduled", "", ""
+      )
+      or
+      label_replace(
+        clamp_min(
+          sum by (cluster) (
+            max without (prometheus_replica) (
+              kube_node_status_allocatable{cluster=~".*-mgmt-.*", resource="aro_openshift_io_swift_nic"}
+            )
+          )
+          -
+          (
+            sum by (cluster) (
+              max without (prometheus_replica) (
+                kube_pod_resource_request{cluster=~".*-mgmt-.*", resource="aro_openshift_io_swift_nic", node!=""}
+              )
+            )
+            or on (cluster)
+            0 * sum by (cluster) (
+              max without (prometheus_replica) (
+                kube_node_status_allocatable{cluster=~".*-mgmt-.*", resource="aro_openshift_io_swift_nic"}
+              )
+            )
+          ),
+          0
+        ),
+        "state", "Available", "", ""
+      )
+    unit: swift-nics
+    workspace: svc
+    step: "60s"
