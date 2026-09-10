@@ -319,7 +319,7 @@ frontend:
     locksContainerMaxScale: 4000
     name: arohcpdev-rp-usw3
     private: false
-    resourceContainerMaxScale: 15000
+    resourceContainerMaxScale: 19000
     zoneRedundantMode: Disabled
   exitOnPanic: true
   image:
@@ -523,7 +523,7 @@ imageSync:
   outboundServiceTags: ""
 keyVaultDNSSuffix: vault.azure.net
 kubeApplier:
-  cosmosContainerMaxScale: 15000
+  cosmosContainerMaxScale: 19000
   cosmosContainerName: Manifests-MC-1
   image:
     digest: sha256:bf05fa14daa56bd1275fd28da3c9348fdaa232b7f1f7cfe7e9cfa83072c63894
