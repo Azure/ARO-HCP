@@ -17,6 +17,8 @@ package denyassignments
 import (
 	"fmt"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
@@ -209,16 +211,11 @@ func denyAssignmentDefinitions(cluster *coreapi.HCPOpenShiftCluster) []denyAssig
 
 func allDenyAssignmentReferences(cluster *coreapi.HCPOpenShiftCluster) ([]coreapi.DenyAssignmentReference, error) {
 	defs := denyAssignmentDefinitions(cluster)
-	csClusterID := controllerutils.ClusterServiceIDForCluster(cluster)
-	subscriptionID := cluster.ID.SubscriptionID
-	managedResourceGroup := cluster.CustomerProperties.Platform.ManagedResourceGroup
-
 	denyAssignmentReferences := make([]coreapi.DenyAssignmentReference, 0, len(defs))
 	for _, d := range defs {
-		daUUID := generateDenyAssignmentUUID(csClusterID, d.denyAssignmentType)
-		azureResourceID, err := coreapi.ToDenyAssignmentResourceID(subscriptionID, managedResourceGroup, daUUID)
+		azureResourceID, err := denyAssignmentResourceID(cluster, d.denyAssignmentType)
 		if err != nil {
-			return nil, fmt.Errorf("failed to build deny assignment resource ID for %s: %w", d.denyAssignmentType, err)
+			return nil, err
 		}
 		denyAssignmentReferences = append(denyAssignmentReferences, coreapi.DenyAssignmentReference{
 			DenyAssignmentType:       d.denyAssignmentType,
@@ -226,6 +223,15 @@ func allDenyAssignmentReferences(cluster *coreapi.HCPOpenShiftCluster) ([]coreap
 		})
 	}
 	return denyAssignmentReferences, nil
+}
+
+func denyAssignmentResourceID(cluster *coreapi.HCPOpenShiftCluster, denyAssignmentType string) (*azcorearm.ResourceID, error) {
+	daUUID := generateDenyAssignmentUUID(controllerutils.ClusterServiceIDForCluster(cluster), denyAssignmentType)
+	azureResourceID, err := coreapi.ToDenyAssignmentResourceID(cluster.ID.SubscriptionID, cluster.CustomerProperties.Platform.ManagedResourceGroup, daUUID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build deny assignment resource ID for %s: %w", denyAssignmentType, err)
+	}
+	return azureResourceID, nil
 }
 
 func isKMSEncryptionEnabled(cluster *coreapi.HCPOpenShiftCluster) bool {
