@@ -33,12 +33,15 @@ import (
 	"k8s.io/client-go/tools/leaderelection"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 	utilsclock "k8s.io/utils/clock"
+	"k8s.io/utils/ptr"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/azure/cachedreader"
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	azureconfig "github.com/Azure/ARO-HCP/backend/pkg/azure/config"
 	clusterbackups "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/backups"
 	internalazure "github.com/Azure/ARO-HCP/internal/azure"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	sharedleaderelection "github.com/Azure/ARO-HCP/internal/leaderelection"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -86,6 +89,7 @@ type backendHealthzServer struct {
 	listenAddress     string
 	metricsRegisterer prometheus.Registerer
 	electionChecker   *leaderelection.HealthzAdaptor
+	resourcesDBClient corecosmosstorage.ResourcesDBClient
 }
 
 type backendMetricsServer struct {
@@ -204,6 +208,7 @@ func (b *Backend) Run(ctx context.Context) error {
 			listenAddress:     b.options.HealthzServerListenAddress,
 			metricsRegisterer: b.options.MetricsRegisterer,
 			electionChecker:   electionChecker,
+			resourcesDBClient: b.options.StorageFactory.ResourcesStorageClient(BackendInformersStorageName),
 		}
 		wg.Add(1)
 		go func() {
@@ -258,12 +263,20 @@ func (b *Backend) Run(ctx context.Context) error {
 }
 
 func (s *backendHealthzServer) Run(ctx context.Context) error {
-	logger := utils.LoggerFromContext(ctx)
-
 	listener, err := net.Listen("tcp", s.listenAddress)
 	if err != nil {
 		return fmt.Errorf("failed to listen on %s: %w", s.listenAddress, err)
 	}
+
+	addr := listener.Addr().String()
+	server := &http.Server{Addr: addr, Handler: s.handler(ctx)}
+	return runHTTPServer(ctx, "healthz server", addr, server, func() error {
+		return server.Serve(listener)
+	})
+}
+
+func (s *backendHealthzServer) handler(ctx context.Context) http.Handler {
+	logger := utils.LoggerFromContext(ctx)
 
 	backendHealthGauge := promauto.With(s.metricsRegisterer).NewGauge(prometheus.GaugeOpts{Name: "backend_health", Help: "backend_health is 1 when healthy"})
 
@@ -279,11 +292,26 @@ func (s *backendHealthzServer) Run(ctx context.Context) error {
 		backendHealthGauge.Set(1.0)
 	})
 
-	addr := listener.Addr().String()
-	server := &http.Server{Addr: addr, Handler: mux}
-	return runHTTPServer(ctx, "healthz server", addr, server, func() error {
-		return server.Serve(listener)
+	mux.HandleFunc("/startupz", func(w http.ResponseWriter, r *http.Request) {
+		queryCtx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+		defer cancel()
+		iterator, err := s.resourcesDBClient.ResourcesGlobalListers().Subscriptions().List(queryCtx, &cosmosstorageutils.DBClientListResourceDocsOptions{
+			PageSizeHint: ptr.To(int32(1)),
+		})
+		if err == nil {
+			for range iterator.Items(queryCtx) {
+				break
+			}
+			err = iterator.GetError()
+		}
+		if err != nil {
+			logger.Error(err, "Startup probe failed")
+			http.Error(w, "Cosmos DB query failed", http.StatusServiceUnavailable)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
 	})
+	return mux
 }
 
 func (s *backendMetricsServer) Run(ctx context.Context) error {
