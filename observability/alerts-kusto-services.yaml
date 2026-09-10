@@ -4,6 +4,7 @@ prometheusRules:
   - alerts/serviceMemoryResources-prometheusRule.yaml
   untestedRules:
   - alerts/kubernetesControlPlane-prometheusRule.yaml
+  prometheusOperatorVersion: e02554298cb62b5533f3407c8eacc664e80bc74b
   outputBicep: ../dev-infrastructure/modules/metrics/rules/generatedKustoOnlyServicePrometheusAlertingRules.bicep
   groupNamePrefix: "svc-"
   outputReplacements:
