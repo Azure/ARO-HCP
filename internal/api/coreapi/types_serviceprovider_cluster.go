@@ -15,7 +15,9 @@
 package coreapi
 
 import (
+	"encoding"
 	"fmt"
+	"strings"
 
 	"github.com/blang/semver/v4"
 
@@ -365,6 +367,25 @@ type ServiceProviderClusterStatus struct {
 	// is removed.
 	// Written by: ClusterDenyAssignmentIntent, ClusterDenyAssignmentV2
 	DenyAssignmentsV2 map[string]*DenyAssignmentStatus `json:"denyAssignmentsV2,omitempty"`
+
+	// RoleAssignmentsV2 tracks the desired and observed managed-resource-group
+	// scoped role assignments for each control-plane and data-plane operator
+	// identity and role definition. The map key is ResourceID, PrincipalID, and
+	// RoleDefinitionResourceID. A PrincipalID change is a new Azure role assignment (the
+	// ARM name is UUIDv5 of scope, principal, and role definition), so the old
+	// key is marked PendingDeconfigure.
+	// ClusterRoleAssignmentIntent adds desired keys as PendingConfigure once
+	// the identity's principal ID is resolved, copies ObservedIdentity from
+	// resolved ClientID/TenantID/PrincipalID, and marks leftovers
+	// PendingDeconfigure (stamping DeconfigureTimestamp). A ClientID or TenantID
+	// change on the same key updates ObservedIdentity and sets PendingConfigure;
+	// it does not deconfigure. Unresolved ResourceIDs are not deconfigured.
+	// ClusterRoleAssignmentV2 creates, repairs drift, and deletes Azure role
+	// assignments. Cluster deletion is a no-op: role assignments are scoped to
+	// the managed resource group, so Azure deletes them in cascade when that
+	// resource group is removed.
+	// Written by: ClusterRoleAssignmentIntent, ClusterRoleAssignmentV2
+	RoleAssignmentsV2 map[RoleAssignmentKey]*RoleAssignmentStatus `json:"roleAssignmentsV2,omitempty"`
 }
 
 // ManagedIdentityDataplaneOIDCFederationPhase is the reconciliation phase of
@@ -611,6 +632,134 @@ type DenyAssignmentExcludedObservedIdentity struct {
 	// PrincipalID is the Principal ID of the managed identity. It matches
 	// DenyAssignmentExcludedIdentityKey.PrincipalID.
 	// Written by: ClusterDenyAssignmentIntent
+	PrincipalID string `json:"principalId,omitempty"`
+}
+
+// RoleAssignmentPhase is the reconciliation phase of a single managed-resource-group
+// scoped role assignment.
+type RoleAssignmentPhase string
+
+const (
+	// RoleAssignmentPhasePendingConfigure means the role assignment is required
+	// and should be created or repaired in Azure.
+	RoleAssignmentPhasePendingConfigure RoleAssignmentPhase = "PendingConfigure"
+	// RoleAssignmentPhaseConfigured means the role assignment exists in Azure
+	// with the expected principal and role definition.
+	RoleAssignmentPhaseConfigured RoleAssignmentPhase = "Configured"
+	// RoleAssignmentPhasePendingDeconfigure means the role assignment is no longer
+	// required and should be deleted from Azure after the 24h wait.
+	RoleAssignmentPhasePendingDeconfigure RoleAssignmentPhase = "PendingDeconfigure"
+	// RoleAssignmentPhaseDeconfigured means the role assignment has been deleted
+	// from Azure.
+	RoleAssignmentPhaseDeconfigured RoleAssignmentPhase = "Deconfigured"
+)
+
+// RoleAssignmentKey is the key for RoleAssignmentsV2.
+// Fields are strings (not pointers) so the struct is a comparable map key and
+// two keys with the same values compare equal.
+type RoleAssignmentKey struct {
+	// ResourceID is the fully lowercased Azure Resource ID of the managed identity.
+	ResourceID string `json:"resourceId,omitempty"`
+	// PrincipalID is the Principal ID written to the Azure role assignment.
+	PrincipalID string `json:"principalId,omitempty"`
+	// RoleDefinitionResourceID is the tenant-level role definition resource ID
+	// ("/providers/Microsoft.Authorization/roleDefinitions/{guid}").
+	RoleDefinitionResourceID string `json:"roleDefinitionResourceId,omitempty"`
+}
+
+const (
+	roleAssignmentKeySeparator = "|"
+)
+
+var (
+	_ encoding.TextMarshaler   = RoleAssignmentKey{}
+	_ encoding.TextUnmarshaler = (*RoleAssignmentKey)(nil)
+)
+
+// MarshalText allows RoleAssignmentKey to be used as a JSON object key.
+// encoding/json requires encoding.TextMarshaler for non-string map keys. This
+// is needed so it can be serialized/deserialized to/from Cosmos DB, as well as
+// logged as a json representation.
+func (k RoleAssignmentKey) MarshalText() ([]byte, error) {
+	return []byte(strings.Join([]string{k.ResourceID, k.PrincipalID, k.RoleDefinitionResourceID}, roleAssignmentKeySeparator)), nil
+}
+
+// UnmarshalText reconstructs a RoleAssignmentKey from the text produced by
+// MarshalText. This is needed so it can be deserialized from Cosmos DB, as
+// well as logged as a json representation.
+func (k *RoleAssignmentKey) UnmarshalText(text []byte) error {
+	parts := strings.Split(string(text), roleAssignmentKeySeparator)
+	if len(parts) != 3 {
+		return fmt.Errorf("invalid RoleAssignmentKey %q: expected 3 parts separated by %q", text, roleAssignmentKeySeparator)
+	}
+	k.ResourceID = parts[0]
+	k.PrincipalID = parts[1]
+	k.RoleDefinitionResourceID = parts[2]
+	return nil
+}
+
+// RoleAssignmentStatus is the reconciliation state of one managed-resource-group
+// scoped role assignment on RoleAssignmentsV2. Each key maps to a single Azure
+// role assignment.
+type RoleAssignmentStatus struct {
+	// EarliestRecheckTime is the earliest time at which ClusterRoleAssignmentV2
+	// should re-query Azure for a Configured role assignment. Nil means recheck
+	// immediately. PendingConfigure and PendingDeconfigure ignore this field.
+	// Controllers should set this field with substantial jitter: without another
+	// concern, jitter of 50% is considered normal so that any storms are quickly
+	// dissipated. Additionally, long recheck times are recommended for resources
+	// outside of their active phases. Order of at least six hours is, with
+	// durations up to 24 hours considered normal.
+	// Written by: ClusterRoleAssignmentV2
+	EarliestRecheckTime *metav1.Time `json:"earliestRecheckTime,omitempty"`
+	// Phase is the reconciliation phase of this role assignment.
+	// Written by: ClusterRoleAssignmentIntent, ClusterRoleAssignmentV2
+	Phase RoleAssignmentPhase `json:"phase,omitempty"`
+	// DeconfigureTimestamp is the timestamp at which deconfigure of this role
+	// assignment was requested. The timestamp is in UTC. A nil value indicates
+	// that deconfigure has not been requested. On a live cluster
+	// ClusterRoleAssignmentV2 waits 24 hours from this timestamp before deleting
+	// the Azure role assignment. Cluster deletion skips Azure deletes because
+	// the managed resource group cascade removes the role assignments.
+	// Written by: ClusterRoleAssignmentIntent, ClusterRoleAssignmentV2
+	DeconfigureTimestamp *metav1.Time `json:"deconfigureTimestamp,omitempty"`
+	// ObservedIdentity is the ClientID, TenantID, and PrincipalID associated
+	// with this role assignment. The map key is ResourceID, PrincipalID, and
+	// RoleDefinitionResourceID; this snapshot lets other controllers wait until a specific
+	// identity generation is Configured. ClusterRoleAssignmentIntent writes it
+	// from resolved identity metadata while the key is still desired. A
+	// ClientID or TenantID change on the same principal and role definition sets
+	// Phase to PendingConfigure without starting a 24h deconfigure.
+	// PendingDeconfigure rows keep the snapshot from when the key left.
+	// Written by: ClusterRoleAssignmentIntent
+	ObservedIdentity *RoleAssignmentObservedIdentity `json:"observedIdentity,omitempty"`
+	// PendingAzureResource is the role assignment resource ID that has been
+	// requested but not yet confirmed to exist in Azure. ClusterRoleAssignmentV2
+	// persists this ID before Create, so a crash or replace failure cannot lose
+	// the tracked ID. PendingDeconfigure also deletes a leftover ID here from
+	// a previous incomplete configure.
+	// Written by: ClusterRoleAssignmentV2
+	PendingAzureResource *azcorearm.ResourceID `json:"pendingAzureResource,omitempty"`
+	// AzureResource is the role assignment resource ID that has been confirmed
+	// to exist in Azure. It moves from PendingAzureResource when the object
+	// exists with the expected principal and role definition. Cleared after a
+	// successful delete.
+	// Written by: ClusterRoleAssignmentV2
+	AzureResource *azcorearm.ResourceID `json:"azureResource,omitempty"`
+}
+
+// RoleAssignmentObservedIdentity is the identity generation associated with one
+// RoleAssignmentsV2 entry. PrincipalID matches the map key.
+type RoleAssignmentObservedIdentity struct {
+	// ClientID is the Client ID of the managed identity.
+	// Written by: ClusterRoleAssignmentIntent
+	ClientID string `json:"clientId,omitempty"`
+	// TenantID is the Tenant ID of the managed identity.
+	// Written by: ClusterRoleAssignmentIntent
+	TenantID string `json:"tenantId,omitempty"`
+	// PrincipalID is the Principal ID of the managed identity. It matches
+	// RoleAssignmentKey.PrincipalID.
+	// Written by: ClusterRoleAssignmentIntent
 	PrincipalID string `json:"principalId,omitempty"`
 }
 

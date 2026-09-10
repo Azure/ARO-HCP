@@ -1143,6 +1143,18 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		backendInformers,
 		unionKubeApplierInformers,
 	)
+	clusterRoleAssignmentIntentController := clusterroleassignments.NewClusterRoleAssignmentIntentController(
+		b.clock,
+		b.options.ResourcesDBClient,
+		b.options.ClusterScopedIdentitiesConfig,
+		backendInformers,
+	)
+	clusterRoleAssignmentV2Controller := clusterroleassignments.NewClusterRoleAssignmentV2Controller(
+		b.clock,
+		b.options.ResourcesDBClient,
+		b.options.FPAClientBuilder,
+		backendInformers,
+	)
 
 	clusterResourcesController := clusterresources.NewClusterResourcesController(
 		b.options.ResourcesDBClient,
@@ -1276,6 +1288,8 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go clusterDenyAssignmentIntentController.Run(ctx, 20)
 				go clusterDenyAssignmentV2Controller.Run(ctx, 20)
 				go observeRoleAssignmentsController.Run(ctx, 20)
+				go clusterRoleAssignmentIntentController.Run(ctx, 20)
+				go clusterRoleAssignmentV2Controller.Run(ctx, 20)
 				go keyRotationBackupController.Run(ctx, 20)
 				go clusterResourcesController.Run(ctx, 20)
 			},

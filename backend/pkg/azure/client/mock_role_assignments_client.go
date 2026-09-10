@@ -118,3 +118,42 @@ func (c *MockRoleAssignmentsClientGetByIDCall) DoAndReturn(f func(context.Contex
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
+
+// DeleteByID mocks base method.
+func (m *MockRoleAssignmentsClient) DeleteByID(ctx context.Context, roleAssignmentID string, options *armauthorization.RoleAssignmentsClientDeleteByIDOptions) (armauthorization.RoleAssignmentsClientDeleteByIDResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteByID", ctx, roleAssignmentID, options)
+	ret0, _ := ret[0].(armauthorization.RoleAssignmentsClientDeleteByIDResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeleteByID indicates an expected call of DeleteByID.
+func (mr *MockRoleAssignmentsClientMockRecorder) DeleteByID(ctx, roleAssignmentID, options any) *MockRoleAssignmentsClientDeleteByIDCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteByID", reflect.TypeOf((*MockRoleAssignmentsClient)(nil).DeleteByID), ctx, roleAssignmentID, options)
+	return &MockRoleAssignmentsClientDeleteByIDCall{Call: call}
+}
+
+// MockRoleAssignmentsClientDeleteByIDCall wrap *gomock.Call
+type MockRoleAssignmentsClientDeleteByIDCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockRoleAssignmentsClientDeleteByIDCall) Return(arg0 armauthorization.RoleAssignmentsClientDeleteByIDResponse, arg1 error) *MockRoleAssignmentsClientDeleteByIDCall {
+	c.Call = c.Call.Return(arg0, arg1)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockRoleAssignmentsClientDeleteByIDCall) Do(f func(context.Context, string, *armauthorization.RoleAssignmentsClientDeleteByIDOptions) (armauthorization.RoleAssignmentsClientDeleteByIDResponse, error)) *MockRoleAssignmentsClientDeleteByIDCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockRoleAssignmentsClientDeleteByIDCall) DoAndReturn(f func(context.Context, string, *armauthorization.RoleAssignmentsClientDeleteByIDOptions) (armauthorization.RoleAssignmentsClientDeleteByIDResponse, error)) *MockRoleAssignmentsClientDeleteByIDCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}

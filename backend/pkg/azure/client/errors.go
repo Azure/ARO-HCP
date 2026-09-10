@@ -43,6 +43,14 @@ func IsRoleAssignmentNotFoundErr(err error) bool {
 	return errors.As(err, &azErr) && azErr.ErrorCode == "RoleAssignmentNotFound"
 }
 
+// IsRoleAssignmentExistsErr is used to determine if Azure already has a role
+// assignment for the same principal, role definition, and scope (possibly
+// under a different name). Create returns RoleAssignmentExists in that case.
+func IsRoleAssignmentExistsErr(err error) bool {
+	var azErr *azcore.ResponseError
+	return errors.As(err, &azErr) && azErr.ErrorCode == "RoleAssignmentExists"
+}
+
 // IsFederatedCredentialNotFoundErr is used to determine if we are failing to find a federated credential
 func IsFederatedCredentialNotFoundErr(err error) bool {
 	var azErr *azcore.ResponseError
