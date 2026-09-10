@@ -58,13 +58,7 @@ func TestDesiredDenyAssignmentsV2(t *testing.T) {
 			require.Contains(t, got, denyAssignmentType)
 			require.NotNil(t, got[denyAssignmentType])
 			assert.Equal(t, coreapi.DenyAssignmentPhasePendingConfigure, got[denyAssignmentType].Phase)
-		}
-		require.NotEmpty(t, got[denyAssignmentSuffixResources].ExcludedIdentities)
-		for _, identityStatus := range got[denyAssignmentSuffixResources].ExcludedIdentities {
-			require.NotNil(t, identityStatus.ObservedIdentity)
-			assert.NotEmpty(t, identityStatus.ObservedIdentity.PrincipalID)
-			assert.NotEmpty(t, identityStatus.ObservedIdentity.ClientID)
-			assert.NotEmpty(t, identityStatus.ObservedIdentity.TenantID)
+			assert.Empty(t, got[denyAssignmentType].ExcludedIdentities)
 		}
 	})
 
@@ -89,14 +83,15 @@ func TestDesiredDenyAssignmentsV2(t *testing.T) {
 		assert.Equal(t, coreapi.DenyAssignmentPhaseConfigured, got[denyAssignmentSuffixResources].Phase)
 	})
 
-	t.Run("configured type that is still required is left Configured", func(t *testing.T) {
+	t.Run("configured type with missing observed identities becomes PendingConfigure", func(t *testing.T) {
 		t.Parallel()
 		current := map[string]*coreapi.DenyAssignmentStatus{
 			denyAssignmentSuffixResources: {Phase: coreapi.DenyAssignmentPhaseConfigured},
 		}
 		got, err := syncer.desiredDenyAssignmentsV2(cluster, readySPC, current)
 		require.NoError(t, err)
-		assert.Equal(t, coreapi.DenyAssignmentPhaseConfigured, got[denyAssignmentSuffixResources].Phase)
+		assert.Equal(t, coreapi.DenyAssignmentPhasePendingConfigure, got[denyAssignmentSuffixResources].Phase)
+		assert.Empty(t, got[denyAssignmentSuffixResources].ExcludedIdentities)
 		assert.Equal(t, coreapi.DenyAssignmentPhasePendingConfigure, got[denyAssignmentSuffixCompute].Phase)
 	})
 
@@ -159,35 +154,37 @@ func TestDesiredDenyAssignmentsV2(t *testing.T) {
 		assert.Contains(t, err.Error(), "nil status")
 	})
 
-	t.Run("principal ID change marks the old key PendingDeconfigure and adds the new key", func(t *testing.T) {
+	t.Run("principal ID change stamps cooldown on the old key and does not add the new key", func(t *testing.T) {
 		t.Parallel()
 		capi := testIdentityResourceID("capi-azure")
 		oldKey := coreapi.DenyAssignmentExcludedIdentityKey{
 			ResourceID:  strings.ToLower(capi.String()),
 			PrincipalID: "old-principal",
 		}
+		observed := seedTestExcludedIdentities(cluster, readySPC, denyAssignmentSuffixResources)
+		observed[oldKey] = &coreapi.DenyAssignmentExcludedIdentityStatus{
+			ObservedIdentity: &coreapi.DenyAssignmentExcludedObservedIdentity{
+				ClientID:    "old-client",
+				TenantID:    "old-tenant",
+				PrincipalID: "old-principal",
+			},
+		}
+		delete(observed, coreapi.DenyAssignmentExcludedIdentityKey{
+			ResourceID:  strings.ToLower(capi.String()),
+			PrincipalID: testPrincipalID(capi),
+		})
 		current := map[string]*coreapi.DenyAssignmentStatus{
 			denyAssignmentSuffixResources: {
-				Phase: coreapi.DenyAssignmentPhaseConfigured,
-				ExcludedIdentities: map[coreapi.DenyAssignmentExcludedIdentityKey]*coreapi.DenyAssignmentExcludedIdentityStatus{
-					oldKey: {
-						Phase: coreapi.DenyAssignmentExcludedIdentityPhaseConfigured,
-						ObservedIdentity: &coreapi.DenyAssignmentExcludedObservedIdentity{
-							ClientID:    "old-client",
-							TenantID:    "old-tenant",
-							PrincipalID: "old-principal",
-						},
-					},
-				},
+				Phase:              coreapi.DenyAssignmentPhaseConfigured,
+				ExcludedIdentities: observed,
 			},
 		}
 		got, err := syncer.desiredDenyAssignmentsV2(cluster, readySPC, current)
 		require.NoError(t, err)
 		require.Contains(t, got, denyAssignmentSuffixResources)
-		assert.Equal(t, coreapi.DenyAssignmentPhaseConfigured, got[denyAssignmentSuffixResources].Phase)
+		assert.Equal(t, coreapi.DenyAssignmentPhasePendingConfigure, got[denyAssignmentSuffixResources].Phase)
 		old := got[denyAssignmentSuffixResources].ExcludedIdentities[oldKey]
 		require.NotNil(t, old)
-		assert.Equal(t, coreapi.DenyAssignmentExcludedIdentityPhasePendingDeconfigure, old.Phase)
 		require.NotNil(t, old.DeconfigureTimestamp)
 		require.NotNil(t, old.ObservedIdentity)
 		assert.Equal(t, "old-client", old.ObservedIdentity.ClientID)
@@ -197,81 +194,80 @@ func TestDesiredDenyAssignmentsV2(t *testing.T) {
 			ResourceID:  strings.ToLower(capi.String()),
 			PrincipalID: testPrincipalID(capi),
 		}
-		newStatus := got[denyAssignmentSuffixResources].ExcludedIdentities[newKey]
-		require.NotNil(t, newStatus)
-		assert.Equal(t, coreapi.DenyAssignmentExcludedIdentityPhasePendingConfigure, newStatus.Phase)
-		require.NotNil(t, newStatus.ObservedIdentity)
-		assert.Equal(t, testPrincipalID(capi), newStatus.ObservedIdentity.PrincipalID)
-		assert.Equal(t, testClientID(capi), newStatus.ObservedIdentity.ClientID)
-		assert.Equal(t, testIdentityTenantID(capi), newStatus.ObservedIdentity.TenantID)
+		assert.NotContains(t, got[denyAssignmentSuffixResources].ExcludedIdentities, newKey)
 	})
 
-	t.Run("client ID change on the same principal sets PendingConfigure without a new key", func(t *testing.T) {
+	t.Run("client ID change on the same principal sets type PendingConfigure without rewriting ObservedIdentity", func(t *testing.T) {
 		t.Parallel()
 		capi := testIdentityResourceID("capi-azure")
 		key := coreapi.DenyAssignmentExcludedIdentityKey{
 			ResourceID:  strings.ToLower(capi.String()),
 			PrincipalID: testPrincipalID(capi),
 		}
+		observed := seedTestExcludedIdentities(cluster, readySPC, denyAssignmentSuffixResources)
+		observed[key] = &coreapi.DenyAssignmentExcludedIdentityStatus{
+			ObservedIdentity: &coreapi.DenyAssignmentExcludedObservedIdentity{
+				ClientID:    "old-client",
+				TenantID:    testIdentityTenantID(capi),
+				PrincipalID: testPrincipalID(capi),
+			},
+		}
 		current := map[string]*coreapi.DenyAssignmentStatus{
 			denyAssignmentSuffixResources: {
-				Phase: coreapi.DenyAssignmentPhaseConfigured,
-				ExcludedIdentities: map[coreapi.DenyAssignmentExcludedIdentityKey]*coreapi.DenyAssignmentExcludedIdentityStatus{
-					key: {
-						Phase: coreapi.DenyAssignmentExcludedIdentityPhaseConfigured,
-						ObservedIdentity: &coreapi.DenyAssignmentExcludedObservedIdentity{
-							ClientID:    "old-client",
-							TenantID:    testIdentityTenantID(capi),
-							PrincipalID: testPrincipalID(capi),
-						},
-					},
-				},
+				Phase:              coreapi.DenyAssignmentPhaseConfigured,
+				ExcludedIdentities: observed,
 			},
 		}
 		got, err := syncer.desiredDenyAssignmentsV2(cluster, readySPC, current)
 		require.NoError(t, err)
+		assert.Equal(t, coreapi.DenyAssignmentPhasePendingConfigure, got[denyAssignmentSuffixResources].Phase)
 		gotStatus := got[denyAssignmentSuffixResources].ExcludedIdentities[key]
 		require.NotNil(t, gotStatus)
-		assert.Equal(t, coreapi.DenyAssignmentExcludedIdentityPhasePendingConfigure, gotStatus.Phase)
 		assert.Nil(t, gotStatus.DeconfigureTimestamp)
 		require.NotNil(t, gotStatus.ObservedIdentity)
-		assert.Equal(t, testClientID(capi), gotStatus.ObservedIdentity.ClientID)
+		assert.Equal(t, "old-client", gotStatus.ObservedIdentity.ClientID)
 		assert.Equal(t, testIdentityTenantID(capi), gotStatus.ObservedIdentity.TenantID)
 		assert.Equal(t, testPrincipalID(capi), gotStatus.ObservedIdentity.PrincipalID)
 	})
 
-	t.Run("unchanged observed identity stays Configured", func(t *testing.T) {
+	t.Run("unchanged observed identities stay Configured", func(t *testing.T) {
 		t.Parallel()
+		current := map[string]*coreapi.DenyAssignmentStatus{
+			denyAssignmentSuffixResources: {
+				Phase:              coreapi.DenyAssignmentPhaseConfigured,
+				ExcludedIdentities: seedTestExcludedIdentities(cluster, readySPC, denyAssignmentSuffixResources),
+			},
+		}
+		got, err := syncer.desiredDenyAssignmentsV2(cluster, readySPC, current)
+		require.NoError(t, err)
+		assert.Equal(t, coreapi.DenyAssignmentPhaseConfigured, got[denyAssignmentSuffixResources].Phase)
+		assert.Equal(t, current[denyAssignmentSuffixResources].ExcludedIdentities, got[denyAssignmentSuffixResources].ExcludedIdentities)
+	})
+
+	t.Run("coming back during cooldown clears DeconfigureTimestamp without a type ensure", func(t *testing.T) {
+		t.Parallel()
+		observed := seedTestExcludedIdentities(cluster, readySPC, denyAssignmentSuffixResources)
 		capi := testIdentityResourceID("capi-azure")
 		key := coreapi.DenyAssignmentExcludedIdentityKey{
 			ResourceID:  strings.ToLower(capi.String()),
 			PrincipalID: testPrincipalID(capi),
 		}
+		stamped := metav1.NewTime(time.Date(2026, 9, 5, 11, 0, 0, 0, time.UTC))
+		observed[key].DeconfigureTimestamp = &stamped
 		current := map[string]*coreapi.DenyAssignmentStatus{
 			denyAssignmentSuffixResources: {
-				Phase: coreapi.DenyAssignmentPhaseConfigured,
-				ExcludedIdentities: map[coreapi.DenyAssignmentExcludedIdentityKey]*coreapi.DenyAssignmentExcludedIdentityStatus{
-					key: {
-						Phase: coreapi.DenyAssignmentExcludedIdentityPhaseConfigured,
-						ObservedIdentity: &coreapi.DenyAssignmentExcludedObservedIdentity{
-							ClientID:    testClientID(capi),
-							TenantID:    testIdentityTenantID(capi),
-							PrincipalID: testPrincipalID(capi),
-						},
-					},
-				},
+				Phase:              coreapi.DenyAssignmentPhaseConfigured,
+				ExcludedIdentities: observed,
 			},
 		}
 		got, err := syncer.desiredDenyAssignmentsV2(cluster, readySPC, current)
 		require.NoError(t, err)
+		assert.Equal(t, coreapi.DenyAssignmentPhaseConfigured, got[denyAssignmentSuffixResources].Phase)
 		gotStatus := got[denyAssignmentSuffixResources].ExcludedIdentities[key]
 		require.NotNil(t, gotStatus)
-		assert.Equal(t, coreapi.DenyAssignmentExcludedIdentityPhaseConfigured, gotStatus.Phase)
 		assert.Nil(t, gotStatus.DeconfigureTimestamp)
 		require.NotNil(t, gotStatus.ObservedIdentity)
 		assert.Equal(t, testClientID(capi), gotStatus.ObservedIdentity.ClientID)
-		assert.Equal(t, testIdentityTenantID(capi), gotStatus.ObservedIdentity.TenantID)
-		assert.Equal(t, testPrincipalID(capi), gotStatus.ObservedIdentity.PrincipalID)
 	})
 }
 

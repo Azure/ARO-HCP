@@ -15,7 +15,9 @@
 package coreapi
 
 import (
+	"encoding"
 	"fmt"
+	"strings"
 
 	"github.com/blang/semver/v4"
 
@@ -354,15 +356,20 @@ type ServiceProviderClusterStatus struct {
 	// ClusterDenyAssignmentIntent adds those types as PendingConfigure once the
 	// identities they exclude have resolved principal IDs, and marks types that
 	// have left the definition set as PendingDeconfigure. Nested
-	// ExcludedIdentities track which principals should stay on Azure
-	// ExcludePrincipals, including a 24h keep after an identity leaves or its
-	// PrincipalID changes. ClusterDenyAssignmentV2 creates or deletes the Azure
-	// deny assignment, writes ExcludePrincipals from those identity phases
-	// (dropping waiting principals early only when the 25-principal Azure
-	// limit requires it), and advances phases to Configured or Deconfigured.
-	// Cluster deletion is a no-op: deny assignments are scoped to the managed
-	// resource group, so Azure deletes them in cascade when that resource group
-	// is removed.
+	// ExcludedIdentities is the last successful Azure ExcludePrincipals set.
+	// ClusterDenyAssignmentIntent stamps DeconfigureTimestamp on observed
+	// principals that left (or whose PrincipalID changed) so
+	// ClusterDenyAssignmentV2 keeps them on Azure for 24 hours. Intent does not
+	// insert identity rows or write ObservedIdentity. A ClientID or TenantID
+	// change on a still-desired key leaves ObservedIdentity as-is and sets type
+	// Phase to PendingConfigure. ClusterDenyAssignmentV2 creates or deletes the
+	// Azure deny assignment, writes ExcludePrincipals from live desired
+	// principals plus observed cooldown waiters (dropping waiting principals
+	// early only when the 25-principal Azure limit requires it), and after a
+	// successful PUT writes ObservedIdentity for included principals and
+	// deletes omitted waiters. Cluster deletion is a no-op: deny assignments
+	// are scoped to the managed resource group, so Azure deletes them in cascade
+	// when that resource group is removed.
 	// Written by: ClusterDenyAssignmentIntent, ClusterDenyAssignmentV2
 	DenyAssignmentsV2 map[string]*DenyAssignmentStatus `json:"denyAssignmentsV2,omitempty"`
 }
@@ -455,8 +462,8 @@ const (
 	// required and should be created or repaired in Azure.
 	DenyAssignmentPhasePendingConfigure DenyAssignmentPhase = "PendingConfigure"
 	// DenyAssignmentPhaseConfigured means the deny assignment exists in Azure.
-	// Membership of ExcludePrincipals is tracked on ExcludedIdentities, not
-	// by this phase.
+	// Membership of ExcludePrincipals is tracked on ExcludedIdentities after
+	// each successful PUT, not by this phase.
 	DenyAssignmentPhaseConfigured DenyAssignmentPhase = "Configured"
 	// DenyAssignmentPhasePendingDeconfigure means the deny assignment type is
 	// no longer required and should be deleted from Azure.
@@ -491,47 +498,28 @@ type DenyAssignmentStatus struct {
 	PendingAzureResource *azcorearm.ResourceID `json:"pendingAzureResource,omitempty"`
 	// AzureResource is the deny assignment resource ID that has been confirmed
 	// to exist in Azure. It moves from PendingAzureResource when the object
-	// exists, not when every ExcludedIdentities entry is Configured. Cleared
-	// after a successful delete.
+	// exists. Cleared after a successful delete. Membership of ExcludePrincipals
+	// is tracked on ExcludedIdentities after each successful PUT.
 	// Written by: ClusterDenyAssignmentV2
 	AzureResource *azcorearm.ResourceID `json:"azureResource,omitempty"`
-	// ExcludedIdentities is the set of principals that should be on this deny
-	// assignment's Azure ExcludePrincipals. The map key is ResourceID and
-	// PrincipalID so a PrincipalID change is a new entry; the old key is marked
-	// PendingDeconfigure. ClusterDenyAssignmentIntent adds desired identities as
-	// PendingConfigure and marks identities that left (or whose PrincipalID
-	// changed) as PendingDeconfigure, stamping DeconfigureTimestamp. A ClientID
-	// or TenantID change on the same key updates ObservedIdentity and sets
-	// PendingConfigure so other controllers wait for a fresh ensure; it does
-	// not deconfigure the principal. ClusterDenyAssignmentV2 includes
-	// PendingConfigure, Configured, and PendingDeconfigure identities still
-	// inside the 24h wait, omits wait-elapsed or LRU-evicted waiters (Azure
-	// allows at most 25 ExcludePrincipals), and advances identity phases after
-	// a successful PUT.
+	// ExcludedIdentities is the last successful Azure ExcludePrincipals set for
+	// this type. Presence of a key means that principal was on the last PUT
+	// (or is still on Azure during the 24h keep). The map key is ResourceID and
+	// PrincipalID so a PrincipalID change is a new Azure principal; the old key
+	// keeps its row until ClusterDenyAssignmentV2 omits it. ClusterDenyAssignmentIntent
+	// stamps DeconfigureTimestamp when a principal leaves live desired set and
+	// clears it if that principal is desired again before the wait ends. Intent
+	// does not insert keys or write ObservedIdentity. A ClientID or TenantID
+	// change on a still-desired key leaves this map as-is and sets type Phase
+	// to PendingConfigure so other controllers wait for a fresh ensure.
+	// ClusterDenyAssignmentV2 builds ExcludePrincipals from live desired
+	// principals plus rows still inside the 24h wait, omits wait-elapsed or
+	// LRU-evicted waiters (Azure allows at most 25 ExcludePrincipals), and after
+	// a successful PUT writes ObservedIdentity for included principals and
+	// deletes omitted waiters.
 	// Written by: ClusterDenyAssignmentIntent, ClusterDenyAssignmentV2
 	ExcludedIdentities map[DenyAssignmentExcludedIdentityKey]*DenyAssignmentExcludedIdentityStatus `json:"excludedIdentities,omitempty"`
 }
-
-// DenyAssignmentExcludedIdentityPhase is the reconciliation phase of a single
-// excluded identity on one deny assignment type.
-type DenyAssignmentExcludedIdentityPhase string
-
-const (
-	// DenyAssignmentExcludedIdentityPhasePendingConfigure means this principal
-	// should be included in Azure ExcludePrincipals.
-	DenyAssignmentExcludedIdentityPhasePendingConfigure DenyAssignmentExcludedIdentityPhase = "PendingConfigure"
-	// DenyAssignmentExcludedIdentityPhaseConfigured means the last successful
-	// Azure PUT included this principal.
-	DenyAssignmentExcludedIdentityPhaseConfigured DenyAssignmentExcludedIdentityPhase = "Configured"
-	// DenyAssignmentExcludedIdentityPhasePendingDeconfigure means this principal
-	// is no longer desired. ClusterDenyAssignmentV2 still includes it in
-	// ExcludePrincipals until 24 hours after DeconfigureTimestamp, unless the
-	// 25-principal Azure limit requires dropping older waiters.
-	DenyAssignmentExcludedIdentityPhasePendingDeconfigure DenyAssignmentExcludedIdentityPhase = "PendingDeconfigure"
-	// DenyAssignmentExcludedIdentityPhaseDeconfigured means this principal is no
-	// longer on Azure ExcludePrincipals.
-	DenyAssignmentExcludedIdentityPhaseDeconfigured DenyAssignmentExcludedIdentityPhase = "Deconfigured"
-)
 
 // DenyAssignmentExcludedIdentityKey is the key for ExcludedIdentities.
 // Fields are strings (not pointers) so the struct is a comparable map key and
@@ -573,29 +561,30 @@ func (k *DenyAssignmentExcludedIdentityKey) UnmarshalText(text []byte) error {
 	return nil
 }
 
-// DenyAssignmentExcludedIdentityStatus is the reconciliation state of one
-// excluded identity on a deny assignment type.
+// DenyAssignmentExcludedIdentityStatus is the observed Azure exclusion of one
+// principal on a deny assignment type. A row exists only after a successful
+// PUT included this principal, or while ClusterDenyAssignmentV2 is still
+// keeping it on ExcludePrincipals during the 24h wait.
 type DenyAssignmentExcludedIdentityStatus struct {
-	// Phase is the reconciliation phase of this excluded identity.
-	// Written by: ClusterDenyAssignmentIntent, ClusterDenyAssignmentV2
-	Phase DenyAssignmentExcludedIdentityPhase `json:"phase,omitempty"`
 	// DeconfigureTimestamp is the timestamp at which deconfigure of this
 	// identity's exclusion was requested. The timestamp is in UTC.
-	// A nil value indicates that deconfigure has not been requested.
-	// On a live cluster ClusterDenyAssignmentV2 waits 24 hours from this
-	// timestamp before omitting the principal from ExcludePrincipals, unless
-	// the 25-principal Azure limit requires dropping older waiters sooner.
+	// A nil value indicates that deconfigure has not been requested and the
+	// principal is still desired. On a live cluster ClusterDenyAssignmentV2
+	// waits 24 hours from this timestamp before omitting the principal from
+	// ExcludePrincipals, unless the 25-principal Azure limit requires dropping
+	// older waiters sooner.
 	// Written by: ClusterDenyAssignmentIntent, ClusterDenyAssignmentV2
 	DeconfigureTimestamp *metav1.Time `json:"deconfigureTimestamp,omitempty"`
-	// ObservedIdentity is the ClientID, TenantID, and PrincipalID associated
-	// with this exclusion. The map key is ResourceID and PrincipalID; this
-	// snapshot lets other controllers wait until a specific identity generation
-	// is Configured. ClusterDenyAssignmentIntent writes it from resolved
-	// identity metadata while the key is still desired. A ClientID or
-	// TenantID change on the same principal sets Phase to PendingConfigure
-	// without starting a 24h deconfigure. PendingDeconfigure rows keep the
-	// snapshot from when the principal left.
-	// Written by: ClusterDenyAssignmentIntent
+	// ObservedIdentity is the ClientID, TenantID, and PrincipalID that were
+	// associated with this exclusion on the last successful Azure PUT. The map
+	// key is ResourceID and PrincipalID; this snapshot lets other controllers
+	// wait until a specific identity generation is on ExcludePrincipals.
+	// ClusterDenyAssignmentV2 writes it after that PUT. A ClientID or TenantID
+	// change on the same principal leaves this snapshot as-is until the next
+	// successful PUT; ClusterDenyAssignmentIntent sets type Phase to
+	// PendingConfigure without starting a 24h deconfigure. Cooldown rows keep
+	// the snapshot from when the principal left.
+	// Written by: ClusterDenyAssignmentV2
 	ObservedIdentity *DenyAssignmentExcludedObservedIdentity `json:"observedIdentity,omitempty"`
 }
 
@@ -603,14 +592,14 @@ type DenyAssignmentExcludedIdentityStatus struct {
 // with one ExcludedIdentities entry. PrincipalID matches the map key.
 type DenyAssignmentExcludedObservedIdentity struct {
 	// ClientID is the Client ID of the managed identity.
-	// Written by: ClusterDenyAssignmentIntent
+	// Written by: ClusterDenyAssignmentV2
 	ClientID string `json:"clientId,omitempty"`
 	// TenantID is the Tenant ID of the managed identity.
-	// Written by: ClusterDenyAssignmentIntent
+	// Written by: ClusterDenyAssignmentV2
 	TenantID string `json:"tenantId,omitempty"`
 	// PrincipalID is the Principal ID of the managed identity. It matches
 	// DenyAssignmentExcludedIdentityKey.PrincipalID.
-	// Written by: ClusterDenyAssignmentIntent
+	// Written by: ClusterDenyAssignmentV2
 	PrincipalID string `json:"principalId,omitempty"`
 }
 

@@ -39,43 +39,64 @@ func TestSelectExcludedPrincipalsForPUT(t *testing.T) {
 	waitC := coreapi.DenyAssignmentExcludedIdentityKey{ResourceID: "id-c", PrincipalID: "principal-c"}
 	waitD := coreapi.DenyAssignmentExcludedIdentityKey{ResourceID: "id-d", PrincipalID: "principal-d"}
 
-	t.Run("live identities are always included", func(t *testing.T) {
+	observed := func(principalID string) *coreapi.DenyAssignmentExcludedObservedIdentity {
+		return &coreapi.DenyAssignmentExcludedObservedIdentity{PrincipalID: principalID}
+	}
+
+	t.Run("live desired principals are always included", func(t *testing.T) {
 		t.Parallel()
-		status := &coreapi.DenyAssignmentStatus{
-			ExcludedIdentities: map[coreapi.DenyAssignmentExcludedIdentityKey]*coreapi.DenyAssignmentExcludedIdentityStatus{
-				liveA: {Phase: coreapi.DenyAssignmentExcludedIdentityPhaseConfigured},
-				liveB: {Phase: coreapi.DenyAssignmentExcludedIdentityPhasePendingConfigure},
-			},
+		desired := map[coreapi.DenyAssignmentExcludedIdentityKey]*coreapi.DenyAssignmentExcludedObservedIdentity{
+			liveA: observed("principal-a"),
+			liveB: observed("principal-b"),
 		}
-		included, dropped, err := selectExcludedPrincipalsForPUT(status, now, 25)
+		included, dropped, err := selectExcludedPrincipalsForPUT(&coreapi.DenyAssignmentStatus{}, desired, now, 25)
 		require.NoError(t, err)
 		assert.ElementsMatch(t, []string{"principal-a", "principal-b"}, included)
 		assert.Empty(t, dropped)
 	})
 
-	t.Run("PendingDeconfigure inside 24h is included", func(t *testing.T) {
+	t.Run("observed row with no timestamp is kept until Intent stamps cooldown", func(t *testing.T) {
 		t.Parallel()
 		status := &coreapi.DenyAssignmentStatus{
 			ExcludedIdentities: map[coreapi.DenyAssignmentExcludedIdentityKey]*coreapi.DenyAssignmentExcludedIdentityStatus{
-				liveA: {Phase: coreapi.DenyAssignmentExcludedIdentityPhaseConfigured},
-				waitC: {Phase: coreapi.DenyAssignmentExcludedIdentityPhasePendingDeconfigure, DeconfigureTimestamp: &insideWait},
+				liveA: {ObservedIdentity: observed("principal-a")},
 			},
 		}
-		included, dropped, err := selectExcludedPrincipalsForPUT(status, now, 25)
+		included, dropped, err := selectExcludedPrincipalsForPUT(status, nil, now, 25)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"principal-a"}, included)
+		assert.Empty(t, dropped)
+	})
+
+	t.Run("cooldown inside 24h is included", func(t *testing.T) {
+		t.Parallel()
+		desired := map[coreapi.DenyAssignmentExcludedIdentityKey]*coreapi.DenyAssignmentExcludedObservedIdentity{
+			liveA: observed("principal-a"),
+		}
+		status := &coreapi.DenyAssignmentStatus{
+			ExcludedIdentities: map[coreapi.DenyAssignmentExcludedIdentityKey]*coreapi.DenyAssignmentExcludedIdentityStatus{
+				liveA: {ObservedIdentity: observed("principal-a")},
+				waitC: {DeconfigureTimestamp: &insideWait, ObservedIdentity: observed("principal-c")},
+			},
+		}
+		included, dropped, err := selectExcludedPrincipalsForPUT(status, desired, now, 25)
 		require.NoError(t, err)
 		assert.ElementsMatch(t, []string{"principal-a", "principal-c"}, included)
 		assert.Empty(t, dropped)
 	})
 
-	t.Run("PendingDeconfigure after 24h is dropped", func(t *testing.T) {
+	t.Run("cooldown after 24h is dropped", func(t *testing.T) {
 		t.Parallel()
+		desired := map[coreapi.DenyAssignmentExcludedIdentityKey]*coreapi.DenyAssignmentExcludedObservedIdentity{
+			liveA: observed("principal-a"),
+		}
 		status := &coreapi.DenyAssignmentStatus{
 			ExcludedIdentities: map[coreapi.DenyAssignmentExcludedIdentityKey]*coreapi.DenyAssignmentExcludedIdentityStatus{
-				liveA: {Phase: coreapi.DenyAssignmentExcludedIdentityPhaseConfigured},
-				waitC: {Phase: coreapi.DenyAssignmentExcludedIdentityPhasePendingDeconfigure, DeconfigureTimestamp: &elapsedWait},
+				liveA: {ObservedIdentity: observed("principal-a")},
+				waitC: {DeconfigureTimestamp: &elapsedWait, ObservedIdentity: observed("principal-c")},
 			},
 		}
-		included, dropped, err := selectExcludedPrincipalsForPUT(status, now, 25)
+		included, dropped, err := selectExcludedPrincipalsForPUT(status, desired, now, 25)
 		require.NoError(t, err)
 		assert.Equal(t, []string{"principal-a"}, included)
 		assert.Equal(t, []coreapi.DenyAssignmentExcludedIdentityKey{waitC}, dropped)
@@ -83,15 +104,19 @@ func TestSelectExcludedPrincipalsForPUT(t *testing.T) {
 
 	t.Run("LRU drops older waiters when over the principal limit", func(t *testing.T) {
 		t.Parallel()
+		desired := map[coreapi.DenyAssignmentExcludedIdentityKey]*coreapi.DenyAssignmentExcludedObservedIdentity{
+			liveA: observed("principal-a"),
+			liveB: observed("principal-b"),
+		}
 		status := &coreapi.DenyAssignmentStatus{
 			ExcludedIdentities: map[coreapi.DenyAssignmentExcludedIdentityKey]*coreapi.DenyAssignmentExcludedIdentityStatus{
-				liveA: {Phase: coreapi.DenyAssignmentExcludedIdentityPhaseConfigured},
-				liveB: {Phase: coreapi.DenyAssignmentExcludedIdentityPhaseConfigured},
-				waitC: {Phase: coreapi.DenyAssignmentExcludedIdentityPhasePendingDeconfigure, DeconfigureTimestamp: &insideWait},
-				waitD: {Phase: coreapi.DenyAssignmentExcludedIdentityPhasePendingDeconfigure, DeconfigureTimestamp: &olderWait},
+				liveA: {ObservedIdentity: observed("principal-a")},
+				liveB: {ObservedIdentity: observed("principal-b")},
+				waitC: {DeconfigureTimestamp: &insideWait, ObservedIdentity: observed("principal-c")},
+				waitD: {DeconfigureTimestamp: &olderWait, ObservedIdentity: observed("principal-d")},
 			},
 		}
-		included, dropped, err := selectExcludedPrincipalsForPUT(status, now, 3)
+		included, dropped, err := selectExcludedPrincipalsForPUT(status, desired, now, 3)
 		require.NoError(t, err)
 		assert.ElementsMatch(t, []string{"principal-a", "principal-b", "principal-c"}, included)
 		assert.Equal(t, []coreapi.DenyAssignmentExcludedIdentityKey{waitD}, dropped)
@@ -99,14 +124,44 @@ func TestSelectExcludedPrincipalsForPUT(t *testing.T) {
 
 	t.Run("must-include over the limit is an error", func(t *testing.T) {
 		t.Parallel()
-		status := &coreapi.DenyAssignmentStatus{
-			ExcludedIdentities: map[coreapi.DenyAssignmentExcludedIdentityKey]*coreapi.DenyAssignmentExcludedIdentityStatus{
-				liveA: {Phase: coreapi.DenyAssignmentExcludedIdentityPhaseConfigured},
-				liveB: {Phase: coreapi.DenyAssignmentExcludedIdentityPhaseConfigured},
-			},
+		desired := map[coreapi.DenyAssignmentExcludedIdentityKey]*coreapi.DenyAssignmentExcludedObservedIdentity{
+			liveA: observed("principal-a"),
+			liveB: observed("principal-b"),
 		}
-		_, _, err := selectExcludedPrincipalsForPUT(status, now, 1)
+		_, _, err := selectExcludedPrincipalsForPUT(&coreapi.DenyAssignmentStatus{}, desired, now, 1)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "exceed Azure ExcludePrincipals limit")
 	})
+}
+
+func TestSyncObservedExcludedIdentities(t *testing.T) {
+	t.Parallel()
+
+	liveA := coreapi.DenyAssignmentExcludedIdentityKey{ResourceID: "id-a", PrincipalID: "principal-a"}
+	waitC := coreapi.DenyAssignmentExcludedIdentityKey{ResourceID: "id-c", PrincipalID: "principal-c"}
+	insideWait := metav1.NewTime(time.Date(2026, 9, 5, 11, 0, 0, 0, time.UTC))
+
+	status := &coreapi.DenyAssignmentStatus{
+		ExcludedIdentities: map[coreapi.DenyAssignmentExcludedIdentityKey]*coreapi.DenyAssignmentExcludedIdentityStatus{
+			waitC: {
+				DeconfigureTimestamp: &insideWait,
+				ObservedIdentity:     &coreapi.DenyAssignmentExcludedObservedIdentity{PrincipalID: "principal-c", ClientID: "old-c"},
+			},
+		},
+	}
+	desired := map[coreapi.DenyAssignmentExcludedIdentityKey]*coreapi.DenyAssignmentExcludedObservedIdentity{
+		liveA: {PrincipalID: "principal-a", ClientID: "client-a", TenantID: "tenant-a"},
+	}
+	syncObservedExcludedIdentities(status, desired, map[coreapi.DenyAssignmentExcludedIdentityKey]struct{}{})
+
+	require.Contains(t, status.ExcludedIdentities, liveA)
+	require.NotNil(t, status.ExcludedIdentities[liveA].ObservedIdentity)
+	assert.Equal(t, "client-a", status.ExcludedIdentities[liveA].ObservedIdentity.ClientID)
+	assert.Nil(t, status.ExcludedIdentities[liveA].DeconfigureTimestamp)
+	require.Contains(t, status.ExcludedIdentities, waitC)
+	require.NotNil(t, status.ExcludedIdentities[waitC].DeconfigureTimestamp)
+
+	syncObservedExcludedIdentities(status, desired, map[coreapi.DenyAssignmentExcludedIdentityKey]struct{}{waitC: {}})
+	require.Contains(t, status.ExcludedIdentities, liveA)
+	assert.NotContains(t, status.ExcludedIdentities, waitC)
 }

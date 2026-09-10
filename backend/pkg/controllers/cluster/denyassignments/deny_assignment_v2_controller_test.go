@@ -31,6 +31,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/azure/azuremockclient"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 )
@@ -41,6 +42,7 @@ func TestClusterDenyAssignmentV2NeedsWork(t *testing.T) {
 	now := time.Date(2026, 9, 5, 12, 0, 0, 0, time.UTC)
 	future := metav1.NewTime(now.Add(time.Hour))
 	past := metav1.NewTime(now.Add(-time.Hour))
+	elapsedWait := metav1.NewTime(now.Add(-25 * time.Hour))
 	syncer := &clusterDenyAssignmentV2Syncer{clock: clocktesting.NewFakePassiveClock(now)}
 
 	testCases := []struct {
@@ -75,14 +77,14 @@ func TestClusterDenyAssignmentV2NeedsWork(t *testing.T) {
 			expectedNeedsWork: true,
 		},
 		{
-			name: "Configured with future recheck and PendingConfigure identity needs work",
+			name: "Configured with future recheck and elapsed cooldown needs work",
 			denyAssignmentsV2: map[string]*coreapi.DenyAssignmentStatus{
 				denyAssignmentSuffixResources: {
 					Phase:               coreapi.DenyAssignmentPhaseConfigured,
 					EarliestRecheckTime: &future,
 					ExcludedIdentities: map[coreapi.DenyAssignmentExcludedIdentityKey]*coreapi.DenyAssignmentExcludedIdentityStatus{
 						{ResourceID: "id-a", PrincipalID: "principal-a"}: {
-							Phase: coreapi.DenyAssignmentExcludedIdentityPhasePendingConfigure,
+							DeconfigureTimestamp: &elapsedWait,
 						},
 					},
 				},
@@ -90,14 +92,13 @@ func TestClusterDenyAssignmentV2NeedsWork(t *testing.T) {
 			expectedNeedsWork: true,
 		},
 		{
-			name: "Configured with future recheck and PendingDeconfigure inside 24h does not need work",
+			name: "Configured with future recheck and cooldown inside 24h does not need work",
 			denyAssignmentsV2: map[string]*coreapi.DenyAssignmentStatus{
 				denyAssignmentSuffixResources: {
 					Phase:               coreapi.DenyAssignmentPhaseConfigured,
 					EarliestRecheckTime: &future,
 					ExcludedIdentities: map[coreapi.DenyAssignmentExcludedIdentityKey]*coreapi.DenyAssignmentExcludedIdentityStatus{
 						{ResourceID: "id-a", PrincipalID: "principal-a"}: {
-							Phase:                coreapi.DenyAssignmentExcludedIdentityPhasePendingDeconfigure,
 							DeconfigureTimestamp: &past,
 						},
 					},
@@ -191,8 +192,9 @@ func TestClusterDenyAssignmentV2SyncOncePersistsPendingBeforeAzure(t *testing.T)
 	require.NotNil(t, status)
 	assert.Equal(t, coreapi.DenyAssignmentPhasePendingConfigure, status.Phase)
 	require.NotNil(t, status.PendingAzureResource)
-	assert.True(t, resourceIDsEqual(desiredID, status.PendingAzureResource))
+	assert.True(t, controllerutil.ResourceIDsEqual(desiredID, status.PendingAzureResource))
 	assert.Nil(t, status.AzureResource)
+	assert.Empty(t, status.ExcludedIdentities)
 	require.NotEmpty(t, mockGeneric.CreateCalls)
 }
 
@@ -207,8 +209,7 @@ func TestClusterDenyAssignmentV2SyncOnceConfiguresWhenAzureAlreadyMatches(t *tes
 	serviceProviderCluster := newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
 		spc.Status.DenyAssignmentsV2 = map[string]*coreapi.DenyAssignmentStatus{
 			denyAssignmentSuffixResources: {
-				Phase:              coreapi.DenyAssignmentPhasePendingConfigure,
-				ExcludedIdentities: seedTestExcludedIdentities(cluster, spc, denyAssignmentSuffixResources, coreapi.DenyAssignmentExcludedIdentityPhasePendingConfigure),
+				Phase: coreapi.DenyAssignmentPhasePendingConfigure,
 			},
 		}
 	})
@@ -233,13 +234,16 @@ func TestClusterDenyAssignmentV2SyncOnceConfiguresWhenAzureAlreadyMatches(t *tes
 	require.NotNil(t, status)
 	assert.Equal(t, coreapi.DenyAssignmentPhaseConfigured, status.Phase)
 	require.NotNil(t, status.AzureResource)
-	assert.True(t, resourceIDsEqual(desiredID, status.AzureResource))
+	assert.True(t, controllerutil.ResourceIDsEqual(desiredID, status.AzureResource))
 	assert.Nil(t, status.PendingAzureResource)
 	assert.NotNil(t, status.EarliestRecheckTime)
 	assert.Empty(t, mockGeneric.CreateCalls)
+	require.NotEmpty(t, status.ExcludedIdentities)
 	for _, identityStatus := range status.ExcludedIdentities {
 		require.NotNil(t, identityStatus)
-		assert.Equal(t, coreapi.DenyAssignmentExcludedIdentityPhaseConfigured, identityStatus.Phase)
+		require.NotNil(t, identityStatus.ObservedIdentity)
+		assert.NotEmpty(t, identityStatus.ObservedIdentity.PrincipalID)
+		assert.Nil(t, identityStatus.DeconfigureTimestamp)
 	}
 }
 
@@ -255,6 +259,11 @@ func TestClusterDenyAssignmentV2SyncOnceDeconfiguresTrackedResource(t *testing.T
 			"stale-type-not-in-definitions": {
 				Phase:         coreapi.DenyAssignmentPhasePendingDeconfigure,
 				AzureResource: resourceID,
+				ExcludedIdentities: map[coreapi.DenyAssignmentExcludedIdentityKey]*coreapi.DenyAssignmentExcludedIdentityStatus{
+					{ResourceID: "id-a", PrincipalID: "principal-a"}: {
+						ObservedIdentity: &coreapi.DenyAssignmentExcludedObservedIdentity{PrincipalID: "principal-a"},
+					},
+				},
 			},
 		}
 	})
@@ -277,6 +286,7 @@ func TestClusterDenyAssignmentV2SyncOnceDeconfiguresTrackedResource(t *testing.T
 	assert.Equal(t, coreapi.DenyAssignmentPhaseDeconfigured, status.Phase)
 	assert.Nil(t, status.AzureResource)
 	assert.Nil(t, status.PendingAzureResource)
+	assert.Empty(t, status.ExcludedIdentities)
 	require.Equal(t, []string{resourceID.String()}, mockGeneric.DeleteCalls)
 }
 

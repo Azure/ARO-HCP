@@ -47,7 +47,6 @@ func TestDenyAssignmentExcludedIdentityKeyJSONMapRoundTrip(t *testing.T) {
 	}
 	original := map[DenyAssignmentExcludedIdentityKey]*DenyAssignmentExcludedIdentityStatus{
 		key: {
-			Phase: DenyAssignmentExcludedIdentityPhasePendingConfigure,
 			ObservedIdentity: &DenyAssignmentExcludedObservedIdentity{
 				ClientID:    "client-a",
 				TenantID:    "tenant-a",
@@ -62,7 +61,6 @@ func TestDenyAssignmentExcludedIdentityKeyJSONMapRoundTrip(t *testing.T) {
 	var decoded map[DenyAssignmentExcludedIdentityKey]*DenyAssignmentExcludedIdentityStatus
 	require.NoError(t, json.Unmarshal(encoded, &decoded))
 	require.Contains(t, decoded, key)
-	assert.Equal(t, DenyAssignmentExcludedIdentityPhasePendingConfigure, decoded[key].Phase)
 	require.NotNil(t, decoded[key].ObservedIdentity)
 	assert.Equal(t, "client-a", decoded[key].ObservedIdentity.ClientID)
 	assert.Equal(t, "tenant-a", decoded[key].ObservedIdentity.TenantID)

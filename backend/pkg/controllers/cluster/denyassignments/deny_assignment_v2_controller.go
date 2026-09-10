@@ -18,7 +18,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -51,8 +50,8 @@ const (
 	clusterDenyAssignmentV2RecheckJitter   = 0.5
 
 	// denyAssignmentExcludedIdentityDeconfigureDelay is how long a live
-	// cluster keeps a PendingDeconfigure principal on ExcludePrincipals
-	// after DeconfigureTimestamp. ClusterDenyAssignmentV2 may drop older
+	// cluster keeps a cooldown principal on ExcludePrincipals after
+	// DeconfigureTimestamp. ClusterDenyAssignmentV2 may drop older
 	// waiters sooner when Azure's 25-principal ExcludePrincipals limit
 	// would otherwise block currently desired principals.
 	denyAssignmentExcludedIdentityDeconfigureDelay = 24 * time.Hour
@@ -68,12 +67,13 @@ const (
 // PendingConfigure and Configured persist the deny assignment resource ID as
 // PendingAzureResource before CreateOrUpdate ("set pending before Azure").
 // Configured entries are rechecked on EarliestRecheckTime, or immediately when
-// ExcludedIdentities has PendingConfigure or a PendingDeconfigure wait that
-// has elapsed. Get the deny assignment and CreateOrUpdate only if it is
-// missing or permissions / excluded principals drifted.
-// ExcludePrincipals is built from ExcludedIdentities: live identities plus
-// PendingDeconfigure principals still inside the 24h wait, capped at 25
-// with oldest waiters dropped first.
+// ExcludedIdentities has a cooldown wait that has elapsed. Get the deny
+// assignment and CreateOrUpdate only if it is missing or permissions /
+// excluded principals drifted.
+// ExcludePrincipals is built from live desired principals plus observed
+// cooldown waiters still inside the 24h wait, capped at 25 with oldest
+// waiters dropped first. After a successful PUT, ObservedIdentity is written
+// for included principals and omitted waiters are deleted from the map.
 // PendingDeconfigure deletes the resource IDs already tracked on AzureResource
 // and PendingAzureResource.
 // Cluster deletion (DeletionTimestamp set) skips all work: deny assignments
@@ -163,23 +163,11 @@ func (s *clusterDenyAssignmentV2Syncer) excludedIdentityWorkNeeded(status *corea
 		if identityStatus == nil {
 			return true
 		}
-		switch identityStatus.Phase {
-		case coreapi.DenyAssignmentExcludedIdentityPhasePendingConfigure:
+		if excludedIdentityWaitElapsed(identityStatus, now) {
 			return true
-		case coreapi.DenyAssignmentExcludedIdentityPhasePendingDeconfigure:
-			if s.pendingDeconfigureReady(identityStatus, now) {
-				return true
-			}
 		}
 	}
 	return false
-}
-
-func (s *clusterDenyAssignmentV2Syncer) pendingDeconfigureReady(status *coreapi.DenyAssignmentExcludedIdentityStatus, now time.Time) bool {
-	if status.DeconfigureTimestamp == nil {
-		return true
-	}
-	return !now.Before(status.DeconfigureTimestamp.Time.Add(denyAssignmentExcludedIdentityDeconfigureDelay))
 }
 
 func (s *clusterDenyAssignmentV2Syncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
@@ -237,7 +225,7 @@ func (s *clusterDenyAssignmentV2Syncer) SyncOnce(ctx context.Context, key contro
 			if desiredResourceID == nil {
 				continue
 			}
-			if resourceIDsEqual(status.AzureResource, desiredResourceID) {
+			if controllerutil.ResourceIDsEqual(status.AzureResource, desiredResourceID) {
 				status.PendingAzureResource = nil
 				continue
 			}
@@ -277,7 +265,7 @@ func (s *clusterDenyAssignmentV2Syncer) SyncOnce(ctx context.Context, key contro
 		switch status.Phase {
 		case coreapi.DenyAssignmentPhasePendingConfigure,
 			coreapi.DenyAssignmentPhaseConfigured:
-			err := s.ensureType(ctx, existingCluster, denyAssignmentType, status, definitionsByType, getClients, timeNow)
+			err := s.ensureType(ctx, existingCluster, existingServiceProviderCluster, denyAssignmentType, status, definitionsByType, getClients, timeNow)
 			if err != nil {
 				errs = append(errs, err)
 			}
@@ -368,14 +356,15 @@ func (s *clusterDenyAssignmentV2Syncer) desiredResourceID(cluster *coreapi.HCPOp
 func (s *clusterDenyAssignmentV2Syncer) ensureType(
 	ctx context.Context,
 	cluster *coreapi.HCPOpenShiftCluster,
+	serviceProviderCluster *coreapi.ServiceProviderCluster,
 	denyAssignmentType string,
 	status *coreapi.DenyAssignmentStatus,
-	definitionsByType map[string]denyAssignmentDefinition,
+	definitionsByType map[string]*denyAssignmentDefinition,
 	getClients func() (*denyAssignmentAzureClients, error),
 	now time.Time,
 ) error {
 	definition, ok := definitionsByType[denyAssignmentType]
-	if !ok {
+	if !ok || definition == nil {
 		return utils.TrackError(fmt.Errorf("no definition for deny assignment type %q", denyAssignmentType))
 	}
 
@@ -387,7 +376,12 @@ func (s *clusterDenyAssignmentV2Syncer) ensureType(
 		return nil
 	}
 
-	excludedPrincipalIDs, droppedKeys, err := selectExcludedPrincipalsForPUT(status, now, denyAssignmentExcludePrincipalsLimit)
+	desiredIdentities, _, err := desiredExcludedIdentities(cluster, serviceProviderCluster, definition)
+	if err != nil {
+		return err
+	}
+
+	excludedPrincipalIDs, droppedKeys, err := selectExcludedPrincipalsForPUT(status, desiredIdentities, now, denyAssignmentExcludePrincipalsLimit)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to select excluded principals for %s: %w", denyAssignmentType, err))
 	}
@@ -404,15 +398,11 @@ func (s *clusterDenyAssignmentV2Syncer) ensureType(
 		return utils.TrackError(fmt.Errorf("failed to ensure deny assignment %s: %w", denyAssignmentType, err))
 	}
 
-	includedPrincipals := make(map[string]struct{}, len(excludedPrincipalIDs))
-	for _, principalID := range excludedPrincipalIDs {
-		includedPrincipals[principalID] = struct{}{}
-	}
 	droppedKeySet := make(map[coreapi.DenyAssignmentExcludedIdentityKey]struct{}, len(droppedKeys))
 	for _, key := range droppedKeys {
 		droppedKeySet[key] = struct{}{}
 	}
-	s.advanceExcludedIdentityPhases(status, includedPrincipals, droppedKeySet)
+	syncObservedExcludedIdentities(status, desiredIdentities, droppedKeySet)
 
 	status.AzureResource = desiredResourceID
 	status.PendingAzureResource = nil
@@ -421,31 +411,6 @@ func (s *clusterDenyAssignmentV2Syncer) ensureType(
 	status.EarliestRecheckTime = &recheckAt
 	utils.LoggerFromContext(ctx).Info("Ensured deny assignment", "denyAssignmentType", denyAssignmentType, "resourceID", desiredResourceID.String())
 	return nil
-}
-
-// advanceExcludedIdentityPhases updates identity phases after a successful
-// Azure PUT. It does not write ObservedIdentity.
-func (s *clusterDenyAssignmentV2Syncer) advanceExcludedIdentityPhases(
-	status *coreapi.DenyAssignmentStatus,
-	includedPrincipals map[string]struct{},
-	droppedKeys map[coreapi.DenyAssignmentExcludedIdentityKey]struct{},
-) {
-	for key, identityStatus := range status.ExcludedIdentities {
-		if identityStatus == nil {
-			continue
-		}
-		switch identityStatus.Phase {
-		case coreapi.DenyAssignmentExcludedIdentityPhasePendingConfigure:
-			identityStatus.Phase = coreapi.DenyAssignmentExcludedIdentityPhaseConfigured
-			identityStatus.DeconfigureTimestamp = nil
-		case coreapi.DenyAssignmentExcludedIdentityPhasePendingDeconfigure:
-			_, included := includedPrincipals[key.PrincipalID]
-			_, dropped := droppedKeys[key]
-			if !included || dropped {
-				identityStatus.Phase = coreapi.DenyAssignmentExcludedIdentityPhaseDeconfigured
-			}
-		}
-	}
 }
 
 func (s *clusterDenyAssignmentV2Syncer) deconfigureType(
@@ -464,7 +429,7 @@ func (s *clusterDenyAssignmentV2Syncer) deconfigureType(
 			remainingPending = nil
 		}
 	}
-	if status.AzureResource != nil && !resourceIDsEqual(status.AzureResource, status.PendingAzureResource) {
+	if status.AzureResource != nil && !controllerutil.ResourceIDsEqual(status.AzureResource, status.PendingAzureResource) {
 		if err := deleteDenyAssignment(ctx, genericResourcesClient, status.AzureResource); err != nil {
 			errs = append(errs, utils.TrackError(fmt.Errorf("failed to delete deny assignment %s: %w", status.AzureResource.String(), err)))
 		} else {
@@ -480,27 +445,10 @@ func (s *clusterDenyAssignmentV2Syncer) deconfigureType(
 
 	status.PendingAzureResource = nil
 	status.AzureResource = nil
+	status.ExcludedIdentities = nil
 	status.Phase = coreapi.DenyAssignmentPhaseDeconfigured
 	recheckAt := metav1.NewTime(s.clock.Now().Add(wait.Jitter(clusterDenyAssignmentV2RecheckInterval, clusterDenyAssignmentV2RecheckJitter)))
 	status.EarliestRecheckTime = &recheckAt
 	return nil
 }
 
-func denyAssignmentDefinitionsByType(cluster *coreapi.HCPOpenShiftCluster) map[string]denyAssignmentDefinition {
-	defs := denyAssignmentDefinitions(cluster)
-	byType := make(map[string]denyAssignmentDefinition, len(defs))
-	for _, definition := range defs {
-		byType[definition.denyAssignmentType] = definition
-	}
-	return byType
-}
-
-func resourceIDsEqual(a, b *azcorearm.ResourceID) bool {
-	if a == nil && b == nil {
-		return true
-	}
-	if a == nil || b == nil {
-		return false
-	}
-	return strings.EqualFold(a.String(), b.String())
-}

@@ -43,25 +43,27 @@ const ClusterDenyAssignmentIntentControllerName = "ClusterDenyAssignmentIntent"
 
 // clusterDenyAssignmentIntentSyncer keeps
 // ServiceProviderCluster.Status.DenyAssignmentsV2 in sync with the deny
-// assignment types and excluded identities required for the cluster.
+// assignment types required for the cluster.
 //
-// It does not call Azure. It only marks desired phases:
+// It does not call Azure. Nested ExcludedIdentities is observed Azure state,
+// so this controller does not insert identity rows or write ObservedIdentity.
 //   - Types from denyAssignmentDefinitions whose excluded identities have
 //     resolved principal IDs are added as PendingConfigure (or left Configured
-//     / PendingConfigure if already present). Types whose identities are not
-//     yet resolved are not added.
-//   - Nested ExcludedIdentities for a required type are added as
-//     PendingConfigure when resolved. ObservedIdentity is filled from
-//     resolved ClientID/TenantID/PrincipalID. Identities that left the type,
-//     or whose PrincipalID changed, are marked PendingDeconfigure unless they
-//     are already Deconfigured. The first transition stamps DeconfigureTimestamp.
-//     A ClientID or TenantID change on the same principal updates
-//     ObservedIdentity and sets PendingConfigure; it does not deconfigure.
+//     / PendingConfigure if already present and the observed identity set
+//     matches). Types whose identities are not yet resolved are not added.
+//   - A Configured type whose live desired principals are missing from
+//     ExcludedIdentities, or whose ObservedIdentity does not match, is set
+//     back to PendingConfigure. A ClientID or TenantID change on a
+//     still-desired key is that kind of drift; it does not deconfigure.
+//   - Identities that left the type, or whose PrincipalID changed, keep their
+//     observed row. The first transition stamps DeconfigureTimestamp. If the
+//     principal is desired again before the wait ends, the timestamp is cleared.
 //   - Types present in DenyAssignmentsV2 but no longer in the definition set
 //     are marked PendingDeconfigure unless they are already Deconfigured.
 //   - Types that are still required but whose identities are temporarily
 //     unresolved are left as-is so a transient fetch error does not
-//     deconfigure them.
+//     deconfigure them, except Configured types that already need an ensure
+//     for the resolved subset.
 //   - Cluster deletion is a no-op. Deny assignments are scoped to the managed
 //     resource group, so Azure deletes them in cascade when that resource
 //     group is removed.
@@ -163,7 +165,8 @@ func (s *clusterDenyAssignmentIntentSyncer) SyncOnce(ctx context.Context, key co
 // is added as PendingConfigure when its excluded identities have resolved
 // principal IDs. Missing types whose identities are not ready are not added.
 // Types that have left the definition set are marked PendingDeconfigure.
-// Nested ExcludedIdentities are merged the same way as OIDC identity keys.
+// Nested ExcludedIdentities rows are not created here; only DeconfigureTimestamp
+// is stamped or cleared on rows ClusterDenyAssignmentV2 already wrote.
 func (s *clusterDenyAssignmentIntentSyncer) desiredDenyAssignmentsV2(
 	cluster *coreapi.HCPOpenShiftCluster,
 	serviceProviderCluster *coreapi.ServiceProviderCluster,
@@ -176,11 +179,13 @@ func (s *clusterDenyAssignmentIntentSyncer) desiredDenyAssignmentsV2(
 	stillRequired := make(map[string]struct{}, len(requiredTypes))
 
 	// First loop: types that are currently required. Add PendingConfigure when
-	// identities are resolved. Types already PendingConfigure or Configured are
-	// left as-is at the type level. Types already PendingDeconfigure or
-	// Deconfigured are flipped back to PendingConfigure because they are desired
-	// again. If identities are not ready, existing required types are kept so a
-	// transient fetch error does not deconfigure them.
+	// identities are resolved. Types already PendingConfigure are left as-is at
+	// the type level. Configured types stay Configured unless live desired
+	// principals are missing from ExcludedIdentities or ObservedIdentity drifted.
+	// Types already PendingDeconfigure or Deconfigured are flipped back to
+	// PendingConfigure because they are desired again. If identities are not
+	// ready, existing required types are kept so a transient fetch error does
+	// not deconfigure them.
 	for denyAssignmentType := range requiredTypes {
 		existing, hasExisting := existingDenyAssignments[denyAssignmentType]
 		if hasExisting && existing == nil {
@@ -188,6 +193,9 @@ func (s *clusterDenyAssignmentIntentSyncer) desiredDenyAssignmentsV2(
 		}
 
 		definition := definitionsByType[denyAssignmentType]
+		if definition == nil {
+			return nil, utils.TrackError(fmt.Errorf("no definition for deny assignment type %s", denyAssignmentType))
+		}
 		desiredIdentities, unresolvedResourceIDs, err := desiredExcludedIdentities(cluster, serviceProviderCluster, definition)
 		if err != nil {
 			if hasExisting {
@@ -202,11 +210,14 @@ func (s *clusterDenyAssignmentIntentSyncer) desiredDenyAssignmentsV2(
 			if hasExisting {
 				stillRequired[denyAssignmentType] = struct{}{}
 				next := existing.DeepCopy()
-				merged, mergeErr := s.mergeExcludedIdentities(existing.ExcludedIdentities, desiredIdentities, unresolvedResourceIDs)
+				merged, needEnsure, mergeErr := s.mergeExcludedIdentities(existing.ExcludedIdentities, desiredIdentities, unresolvedResourceIDs)
 				if mergeErr != nil {
 					return nil, mergeErr
 				}
 				next.ExcludedIdentities = merged
+				if needEnsure && existing.Phase == coreapi.DenyAssignmentPhaseConfigured {
+					next.Phase = coreapi.DenyAssignmentPhasePendingConfigure
+				}
 				desired[denyAssignmentType] = next
 			}
 			continue
@@ -214,28 +225,27 @@ func (s *clusterDenyAssignmentIntentSyncer) desiredDenyAssignmentsV2(
 
 		stillRequired[denyAssignmentType] = struct{}{}
 		if !hasExisting {
-			excludedIdentities, mergeErr := s.mergeExcludedIdentities(nil, desiredIdentities, nil)
-			if mergeErr != nil {
-				return nil, mergeErr
-			}
 			desired[denyAssignmentType] = &coreapi.DenyAssignmentStatus{
-				Phase:              coreapi.DenyAssignmentPhasePendingConfigure,
-				ExcludedIdentities: excludedIdentities,
+				Phase: coreapi.DenyAssignmentPhasePendingConfigure,
 			}
 			continue
 		}
 
 		next := existing.DeepCopy()
-		switch existing.Phase {
-		case coreapi.DenyAssignmentPhasePendingDeconfigure,
-			coreapi.DenyAssignmentPhaseDeconfigured:
-			next.Phase = coreapi.DenyAssignmentPhasePendingConfigure
-		}
-		merged, mergeErr := s.mergeExcludedIdentities(existing.ExcludedIdentities, desiredIdentities, unresolvedResourceIDs)
+		merged, needEnsure, mergeErr := s.mergeExcludedIdentities(existing.ExcludedIdentities, desiredIdentities, unresolvedResourceIDs)
 		if mergeErr != nil {
 			return nil, mergeErr
 		}
 		next.ExcludedIdentities = merged
+		switch existing.Phase {
+		case coreapi.DenyAssignmentPhasePendingDeconfigure,
+			coreapi.DenyAssignmentPhaseDeconfigured:
+			next.Phase = coreapi.DenyAssignmentPhasePendingConfigure
+		case coreapi.DenyAssignmentPhaseConfigured:
+			if needEnsure {
+				next.Phase = coreapi.DenyAssignmentPhasePendingConfigure
+			}
+		}
 		desired[denyAssignmentType] = next
 	}
 
@@ -269,51 +279,44 @@ func (s *clusterDenyAssignmentIntentSyncer) desiredDenyAssignmentsV2(
 	return desired, nil
 }
 
-// mergeExcludedIdentities applies the OIDC-style first/second loops to one
-// type's ExcludedIdentities. desiredIdentities are identities that should be exempt.
+// mergeExcludedIdentities stamps or clears DeconfigureTimestamp on observed
+// Azure rows. It does not insert keys or write ObservedIdentity.
+// desiredIdentities are principals that should be exempt.
 // unresolvedResourceIDs must not be deconfigured (transient principal fetch).
-// A ClientID or TenantID change on a still-desired key updates ObservedIdentity
-// and sets PendingConfigure; it does not PendingDeconfigure the principal.
+// needEnsure is true when a desired principal is missing from the observed
+// map or ObservedIdentity does not match, so type Phase should become
+// PendingConfigure.
 func (s *clusterDenyAssignmentIntentSyncer) mergeExcludedIdentities(
 	existing map[coreapi.DenyAssignmentExcludedIdentityKey]*coreapi.DenyAssignmentExcludedIdentityStatus,
 	desiredIdentities map[coreapi.DenyAssignmentExcludedIdentityKey]*coreapi.DenyAssignmentExcludedObservedIdentity,
 	unresolvedResourceIDs map[string]struct{},
-) (map[coreapi.DenyAssignmentExcludedIdentityKey]*coreapi.DenyAssignmentExcludedIdentityStatus, error) {
-	next := make(map[coreapi.DenyAssignmentExcludedIdentityKey]*coreapi.DenyAssignmentExcludedIdentityStatus, len(desiredIdentities)+len(existing))
+) (map[coreapi.DenyAssignmentExcludedIdentityKey]*coreapi.DenyAssignmentExcludedIdentityStatus, bool, error) {
+	next := make(map[coreapi.DenyAssignmentExcludedIdentityKey]*coreapi.DenyAssignmentExcludedIdentityStatus, len(existing))
+	needEnsure := false
 
 	for key, observed := range desiredIdentities {
 		existingStatus, hasExisting := existing[key]
 		if hasExisting && existingStatus == nil {
-			return nil, utils.TrackError(fmt.Errorf("ExcludedIdentities has a nil status for resource ID %s principal ID %s", key.ResourceID, key.PrincipalID))
+			return nil, false, utils.TrackError(fmt.Errorf("ExcludedIdentities has a nil status for resource ID %s principal ID %s", key.ResourceID, key.PrincipalID))
 		}
 		if !hasExisting {
-			next[key] = &coreapi.DenyAssignmentExcludedIdentityStatus{
-				Phase:            coreapi.DenyAssignmentExcludedIdentityPhasePendingConfigure,
-				ObservedIdentity: observed.DeepCopy(),
-			}
+			needEnsure = true
 			continue
 		}
 
 		status := existingStatus.DeepCopy()
-		switch existingStatus.Phase {
-		case coreapi.DenyAssignmentExcludedIdentityPhasePendingDeconfigure,
-			coreapi.DenyAssignmentExcludedIdentityPhaseDeconfigured:
-			status.Phase = coreapi.DenyAssignmentExcludedIdentityPhasePendingConfigure
+		if existingStatus.DeconfigureTimestamp != nil {
 			status.DeconfigureTimestamp = nil
-			status.ObservedIdentity = observed.DeepCopy()
-		default:
-			if !observedIdentitiesEqual(existingStatus.ObservedIdentity, observed) {
-				status.Phase = coreapi.DenyAssignmentExcludedIdentityPhasePendingConfigure
-				status.DeconfigureTimestamp = nil
-				status.ObservedIdentity = observed.DeepCopy()
-			}
+		}
+		if !observedIdentitiesEqual(existingStatus.ObservedIdentity, observed) {
+			needEnsure = true
 		}
 		next[key] = status
 	}
 
 	for key, existingStatus := range existing {
 		if existingStatus == nil {
-			return nil, utils.TrackError(fmt.Errorf("ExcludedIdentities has a nil status for resource ID %s principal ID %s", key.ResourceID, key.PrincipalID))
+			return nil, false, utils.TrackError(fmt.Errorf("ExcludedIdentities has a nil status for resource ID %s principal ID %s", key.ResourceID, key.PrincipalID))
 		}
 		if _, stillDesired := desiredIdentities[key]; stillDesired {
 			continue
@@ -324,13 +327,7 @@ func (s *clusterDenyAssignmentIntentSyncer) mergeExcludedIdentities(
 		}
 
 		status := existingStatus.DeepCopy()
-		switch existingStatus.Phase {
-		case coreapi.DenyAssignmentExcludedIdentityPhasePendingDeconfigure,
-			coreapi.DenyAssignmentExcludedIdentityPhaseDeconfigured:
-			// Leave as-is. Restamping DeconfigureTimestamp would reset the
-			// 24h wait. A Deconfigured entry is terminal until desired again.
-		default:
-			status.Phase = coreapi.DenyAssignmentExcludedIdentityPhasePendingDeconfigure
+		if existingStatus.DeconfigureTimestamp == nil {
 			requestedAt := metav1.NewTime(s.clock.Now())
 			status.DeconfigureTimestamp = &requestedAt
 		}
@@ -338,9 +335,9 @@ func (s *clusterDenyAssignmentIntentSyncer) mergeExcludedIdentities(
 	}
 
 	if len(next) == 0 {
-		return nil, nil
+		return nil, needEnsure, nil
 	}
-	return next, nil
+	return next, needEnsure, nil
 }
 
 func observedIdentitiesEqual(a, b *coreapi.DenyAssignmentExcludedObservedIdentity) bool {
@@ -356,7 +353,7 @@ func observedIdentitiesEqual(a, b *coreapi.DenyAssignmentExcludedObservedIdentit
 func desiredExcludedIdentities(
 	cluster *coreapi.HCPOpenShiftCluster,
 	serviceProviderCluster *coreapi.ServiceProviderCluster,
-	definition denyAssignmentDefinition,
+	definition *denyAssignmentDefinition,
 ) (map[coreapi.DenyAssignmentExcludedIdentityKey]*coreapi.DenyAssignmentExcludedObservedIdentity, map[string]struct{}, error) {
 	identityResourceIDs, err := collectExcludedPrincipalIDs(cluster, definition)
 	if err != nil {

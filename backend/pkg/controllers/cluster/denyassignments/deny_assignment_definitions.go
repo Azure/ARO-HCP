@@ -209,6 +209,15 @@ func denyAssignmentDefinitions(cluster *coreapi.HCPOpenShiftCluster) []denyAssig
 	return defs
 }
 
+func denyAssignmentDefinitionsByType(cluster *coreapi.HCPOpenShiftCluster) map[string]*denyAssignmentDefinition {
+	defs := denyAssignmentDefinitions(cluster)
+	byType := make(map[string]*denyAssignmentDefinition, len(defs))
+	for i := range defs {
+		byType[defs[i].denyAssignmentType] = &defs[i]
+	}
+	return byType
+}
+
 func allDenyAssignmentReferences(cluster *coreapi.HCPOpenShiftCluster) ([]coreapi.DenyAssignmentReference, error) {
 	defs := denyAssignmentDefinitions(cluster)
 	denyAssignmentReferences := make([]coreapi.DenyAssignmentReference, 0, len(defs))

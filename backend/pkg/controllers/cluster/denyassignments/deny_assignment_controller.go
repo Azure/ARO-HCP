@@ -168,11 +168,7 @@ func (c *clusterDenyAssignmentSyncer) syncDenyAssignmentUpsert(ctx context.Conte
 	for _, ref := range requiredDenyAssignmentReferences {
 		requiredDenyAssignmentReferenceByType[ref.DenyAssignmentType] = ref
 	}
-	denyAssignmentDefs := denyAssignmentDefinitions(cluster)
-	denyAssignmentDefinitionsByType := make(map[string]denyAssignmentDefinition, len(denyAssignmentDefs))
-	for _, d := range denyAssignmentDefs {
-		denyAssignmentDefinitionsByType[d.denyAssignmentType] = d
-	}
+	definitionsByType := denyAssignmentDefinitionsByType(cluster)
 
 	genericResourcesClient, err := c.azureFPAClientBuilder.GenericResourcesClient(tenantID, key.SubscriptionID)
 	if err != nil {
@@ -204,7 +200,7 @@ func (c *clusterDenyAssignmentSyncer) syncDenyAssignmentUpsert(ctx context.Conte
 	// Ensure all existing deny assignments have correct content.
 	// Succeeded stay in AzureResources; failed move to pending for retry.
 	ensureExistingSucceeded, ensureExistingFailed, ensureExistingErr := c.ensureDenyAssignmentReferences(ctx, cluster, replacement, denyAssignmentsClient, genericResourcesClient,
-		managedResourceGroupID, denyAssignmentDefinitionsByType, replacement.Status.AzureResources.DenyAssignments.AzureResources)
+		managedResourceGroupID, definitionsByType, replacement.Status.AzureResources.DenyAssignments.AzureResources)
 	replacement.Status.AzureResources.DenyAssignments.AzureResources = ensureExistingSucceeded
 	replacement.Status.AzureResources.DenyAssignments.PendingAzureResources = appendDenyAssignmentReference(replacement.Status.AzureResources.DenyAssignments.PendingAzureResources, ensureExistingFailed...)
 	serviceProviderCluster, replacement, err = replaceServiceProviderClusterIfChanged(ctx, serviceProviderClusterCRUD, serviceProviderCluster, replacement, []error{ensureExistingErr})
@@ -233,7 +229,7 @@ func (c *clusterDenyAssignmentSyncer) syncDenyAssignmentUpsert(ctx context.Conte
 	// Ensure all pending deny assignments exist in Azure with correct content.
 	// Succeeded move to AzureResources; failed stay in pending.
 	ensurePendingSucceeded, ensurePendingFailed, ensurePendingErr := c.ensureDenyAssignmentReferences(ctx, cluster, replacement, denyAssignmentsClient, genericResourcesClient,
-		managedResourceGroupID, denyAssignmentDefinitionsByType, replacement.Status.AzureResources.DenyAssignments.PendingAzureResources)
+		managedResourceGroupID, definitionsByType, replacement.Status.AzureResources.DenyAssignments.PendingAzureResources)
 	replacement.Status.AzureResources.DenyAssignments.AzureResources = appendDenyAssignmentReference(replacement.Status.AzureResources.DenyAssignments.AzureResources, ensurePendingSucceeded...)
 	replacement.Status.AzureResources.DenyAssignments.PendingAzureResources = ensurePendingFailed
 	serviceProviderCluster, replacement, err = replaceServiceProviderClusterIfChanged(ctx, serviceProviderClusterCRUD, serviceProviderCluster, replacement, []error{ensurePendingErr})
@@ -285,14 +281,14 @@ func (c *clusterDenyAssignmentSyncer) ensureDenyAssignmentReferences(
 	denyAssignmentsClient azureclient.DenyAssignmentsClient,
 	genericResourcesClient azureclient.GenericResourcesClient,
 	scope *azcorearm.ResourceID,
-	denyAssignmentDefinitionsByType map[string]denyAssignmentDefinition,
+	definitionsByType map[string]*denyAssignmentDefinition,
 	refs []coreapi.DenyAssignmentReference,
 ) (succeeded, failed []coreapi.DenyAssignmentReference, err error) {
 	logger := utils.LoggerFromContext(ctx)
 	var errs []error
 
 	for _, ref := range refs {
-		definition, ok := denyAssignmentDefinitionsByType[ref.DenyAssignmentType]
+		definition, ok := definitionsByType[ref.DenyAssignmentType]
 		if !ok {
 			// A pending/tracked type with no matching definition can never be reconciled and would
 			// otherwise keep the cluster blocked while the controller reports success. Surface it as
@@ -604,8 +600,9 @@ func denyAssignmentIdentitiesReady(cluster *coreapi.HCPOpenShiftCluster, service
 	if len(serviceProviderCluster.Status.DataPlaneOperatorsManagedIdentities.Identities) == 0 {
 		return false
 	}
-	for _, definition := range denyAssignmentDefinitions(cluster) {
-		excludedIdentityResourceIDs, err := collectExcludedPrincipalIDs(cluster, definition)
+	defs := denyAssignmentDefinitions(cluster)
+	for i := range defs {
+		excludedIdentityResourceIDs, err := collectExcludedPrincipalIDs(cluster, &defs[i])
 		if err != nil {
 			return false
 		}
@@ -623,7 +620,7 @@ func denyAssignmentExcludedIdentityKey(identityResourceID *azcorearm.ResourceID,
 	}
 }
 
-func collectExcludedPrincipalIDs(cluster *coreapi.HCPOpenShiftCluster, definition denyAssignmentDefinition) ([]*azcorearm.ResourceID, error) {
+func collectExcludedPrincipalIDs(cluster *coreapi.HCPOpenShiftCluster, definition *denyAssignmentDefinition) ([]*azcorearm.ResourceID, error) {
 	var identityResourceIDs []*azcorearm.ResourceID
 
 	identities := cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities

@@ -216,7 +216,6 @@ func seedTestExcludedIdentities(
 	cluster *coreapi.HCPOpenShiftCluster,
 	spc *coreapi.ServiceProviderCluster,
 	denyAssignmentType string,
-	phase coreapi.DenyAssignmentExcludedIdentityPhase,
 ) map[coreapi.DenyAssignmentExcludedIdentityKey]*coreapi.DenyAssignmentExcludedIdentityStatus {
 	definition := denyAssignmentDefinitionsByType(cluster)[denyAssignmentType]
 	desired, unresolved, err := desiredExcludedIdentities(cluster, spc, definition)
@@ -229,7 +228,6 @@ func seedTestExcludedIdentities(
 	identities := make(map[coreapi.DenyAssignmentExcludedIdentityKey]*coreapi.DenyAssignmentExcludedIdentityStatus, len(desired))
 	for key, observed := range desired {
 		identities[key] = &coreapi.DenyAssignmentExcludedIdentityStatus{
-			Phase:            phase,
 			ObservedIdentity: observed.DeepCopy(),
 		}
 	}
@@ -273,11 +271,7 @@ func matchingGetResponseForAllTypes(cluster *coreapi.HCPOpenShiftCluster, spc *c
 		nameToType[ref.DenyAssignmentResourceID.Name] = ref.DenyAssignmentType
 	}
 
-	defs := denyAssignmentDefinitions(cluster)
-	defsByType := make(map[string]denyAssignmentDefinition, len(defs))
-	for _, d := range defs {
-		defsByType[d.denyAssignmentType] = d
-	}
+	defsByType := denyAssignmentDefinitionsByType(cluster)
 
 	return func(ctx context.Context, scope string, denyAssignmentID string, opts *armauthorization.DenyAssignmentsClientGetOptions) (armauthorization.DenyAssignmentsClientGetResponse, error) {
 		daType, ok := nameToType[denyAssignmentID]
@@ -800,11 +794,7 @@ func TestSyncDenyAssignmentUpsert(t *testing.T) {
 func TestEnsureDenyAssignmentReferences(t *testing.T) {
 	cluster := newTestCluster()
 	spc := newTestSPC()
-	defs := denyAssignmentDefinitions(cluster)
-	defsByType := make(map[string]denyAssignmentDefinition, len(defs))
-	for _, d := range defs {
-		defsByType[d.denyAssignmentType] = d
-	}
+	defsByType := denyAssignmentDefinitionsByType(cluster)
 
 	allRefs, err := allDenyAssignmentReferences(cluster)
 	require.NoError(t, err)
@@ -820,7 +810,7 @@ func TestEnsureDenyAssignmentReferences(t *testing.T) {
 	tests := []struct {
 		name                 string
 		refs                 []coreapi.DenyAssignmentReference
-		defsByType           map[string]denyAssignmentDefinition
+		defsByType           map[string]*denyAssignmentDefinition
 		mockDenyAssignments  *azuremockclient.DenyAssignmentsClientFunc
 		mockGenericResources *azuremockclient.GenericResourcesClientFunc
 		expectSucceeded      int
@@ -869,7 +859,7 @@ func TestEnsureDenyAssignmentReferences(t *testing.T) {
 					DenyAssignmentResourceID: metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID + "/resourceGroups/" + testManagedRG + "/providers/Microsoft.Authorization/denyAssignments/test-uuid")),
 				},
 			},
-			defsByType:           map[string]denyAssignmentDefinition{},
+			defsByType:           map[string]*denyAssignmentDefinition{},
 			mockDenyAssignments:  &azuremockclient.DenyAssignmentsClientFunc{},
 			mockGenericResources: &azuremockclient.GenericResourcesClientFunc{},
 			expectSucceeded:      0,
