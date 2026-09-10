@@ -4,6 +4,7 @@ ARG PLATFORM
 FROM --platform=${PLATFORM} mcr.microsoft.com/oss/go/microsoft/golang:1.25-azurelinux3.0 AS builder
 COPY internal/go.mod internal/go.sum internal/
 COPY kube-applier/go.mod kube-applier/go.sum kube-applier/
+ENV GOPROXY='https://proxy.golang.org|direct'
 RUN cd kube-applier && go mod download
 WORKDIR /app
 COPY internal/ internal/

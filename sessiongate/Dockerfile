@@ -4,6 +4,7 @@ ARG PLATFORM
 FROM --platform=${PLATFORM} mcr.microsoft.com/oss/go/microsoft/golang:1.25-azurelinux3.0 AS builder
 COPY internal/go.mod internal/go.sum internal/
 COPY sessiongate/go.mod sessiongate/go.sum sessiongate/
+ENV GOPROXY='https://proxy.golang.org|direct'
 RUN cd sessiongate && go mod download
 WORKDIR /app
 COPY internal/ internal/
