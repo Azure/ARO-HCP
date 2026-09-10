@@ -26,7 +26,6 @@ import (
 	msgraphsdk "github.com/microsoftgraph/msgraph-sdk-go"
 	graphdirectoryobjects "github.com/microsoftgraph/msgraph-sdk-go/directoryobjects"
 	graphgroups "github.com/microsoftgraph/msgraph-sdk-go/groups"
-	graphodataerrors "github.com/microsoftgraph/msgraph-sdk-go/models/odataerrors"
 
 	"k8s.io/apimachinery/pkg/util/sets"
 
@@ -156,17 +155,13 @@ func (s *deleteOrphanedStep) Delete(ctx context.Context, target runner.Target, _
 	}
 
 	principalID := normalizeID(*response.Properties.PrincipalID)
-	retain, err := principalRequiresRoleAssignmentRetention(
-		ctx,
-		principalID,
-		newGraphActivePrincipalLookup(s.cfg.GraphClient),
-		newGraphDeletedPrincipalLookup(s.cfg.GraphClient),
-	)
+	activePrincipalLookup := newGraphActivePrincipalLookup(s.cfg.GraphClient)
+	active, err := activePrincipalLookup(ctx, principalID)
 	if err != nil {
 		return fmt.Errorf("failed revalidating principal %q for role assignment %q: %w", principalID, target.ID, err)
 	}
-	if retain {
-		return fmt.Errorf("%w: principal %q exists in the active or deleted directory", runner.ErrTargetRetained, principalID)
+	if active {
+		return fmt.Errorf("%w: principal %q exists in the active directory", runner.ErrTargetRetained, principalID)
 	}
 
 	_, err = s.cfg.RoleAssignmentsClient.DeleteByID(ctx, target.ID, nil)
@@ -181,11 +176,9 @@ func (s *deleteOrphanedStep) Delete(ctx context.Context, target runner.Target, _
 }
 
 // SAFETY CONTRACT:
-// A role assignment is deletable only when its principal is absent from both
-// the active directory and deletedItems. The active directory is checked again
-// after deletedItems to avoid deleting assignments while a principal is being
-// restored. An explicit Graph visibility preflight is also enforced and cannot
-// be bypassed.
+// A role assignment is deletable only when its principal is absent from the
+// active directory at discovery and again immediately before deletion. An
+// explicit Graph visibility preflight is also enforced and cannot be bypassed.
 func discoverOrphanedRoleAssignments(
 	ctx context.Context,
 	roleAssignmentsClient *armauthorization.RoleAssignmentsClient,
@@ -231,35 +224,8 @@ func discoverOrphanedRoleAssignments(
 		return nil, fmt.Errorf("failed resolving role assignment principals with Microsoft Graph getByIds: %w", err)
 	}
 
-	// 4) Protect principals that are still recoverable from Graph deletedItems.
-	unresolvedPrincipalIDs := principalIDs.Difference(resolvedPrincipalIDs)
-	softDeletedPrincipalIDs, err := resolveSoftDeletedPrincipalIDs(
-		ctx,
-		unresolvedPrincipalIDs,
-		newGraphDeletedPrincipalLookup(graphClient),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed resolving soft-deleted role assignment principals with Microsoft Graph deletedItems: %w", err)
-	}
-	resolvedPrincipalIDs.Insert(sets.List(softDeletedPrincipalIDs)...)
-
-	// 5) Recheck the active directory in case a principal was restored between
-	// the initial active lookup and the deletedItems lookup.
-	stillUnresolvedPrincipalIDs := principalIDs.Difference(resolvedPrincipalIDs)
-	restoredPrincipalIDs, err := resolvePrincipalIDsWithGraphGetByIDs(
-		ctx,
-		graphClient,
-		stillUnresolvedPrincipalIDs,
-		logger,
-		skipReporter,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed rechecking unresolved role assignment principals with Microsoft Graph getByIds: %w", err)
-	}
-	resolvedPrincipalIDs.Insert(sets.List(restoredPrincipalIDs)...)
-
-	// 6) Keep an assignment only when its principal was absent from every
-	// directory lookup. Missing principal IDs are retained rather than guessed.
+	// 4) Keep an assignment only when its principal was absent from the active
+	// directory. Missing principal IDs are retained rather than guessed.
 	candidates := selectOrphanedRoleAssignments(assignments, resolvedPrincipalIDs)
 	targets := make([]runner.Target, 0, len(candidates))
 	for _, candidate := range candidates {
@@ -271,7 +237,7 @@ func discoverOrphanedRoleAssignments(
 			"No orphaned role assignments discovered",
 			"resourceType", ResourceType,
 			"objectType", unknownObjectTypeValue,
-			"strategy", "graph-getByIds-deletedItems-getById",
+			"strategy", "graph-getByIds",
 			"assignmentsScanned", len(assignments),
 		)
 		return targets, nil
@@ -282,7 +248,7 @@ func discoverOrphanedRoleAssignments(
 		"count", len(targets),
 		"resourceType", ResourceType,
 		"objectType", unknownObjectTypeValue,
-		"strategy", "graph-getByIds-deletedItems-getById",
+		"strategy", "graph-getByIds",
 		"assignmentsScanned", len(assignments),
 	)
 
@@ -478,8 +444,6 @@ func resolvePrincipalIDsWithGraphGetByIDs(
 	return resolvedPrincipalIDs, nil
 }
 
-type deletedPrincipalLookup func(context.Context, string) (bool, error)
-
 type activePrincipalLookup func(context.Context, string) (bool, error)
 
 func newGraphActivePrincipalLookup(graphClient *msgraphsdk.GraphServiceClient) activePrincipalLookup {
@@ -491,7 +455,10 @@ func newGraphActivePrincipalLookup(graphClient *msgraphsdk.GraphServiceClient) a
 		if err != nil {
 			return false, err
 		}
-		if response == nil || len(response.GetValue()) == 0 {
+		if response == nil {
+			return false, fmt.Errorf("active principal lookup for %q returned an empty response", principalID)
+		}
+		if len(response.GetValue()) == 0 {
 			return false, nil
 		}
 		if len(response.GetValue()) != 1 ||
@@ -509,77 +476,6 @@ func newGraphActivePrincipalLookup(graphClient *msgraphsdk.GraphServiceClient) a
 		}
 		return true, nil
 	}
-}
-
-func newGraphDeletedPrincipalLookup(graphClient *msgraphsdk.GraphServiceClient) deletedPrincipalLookup {
-	return func(ctx context.Context, principalID string) (bool, error) {
-		object, err := graphClient.Directory().DeletedItems().ByDirectoryObjectId(principalID).Get(ctx, nil)
-		if err != nil {
-			if isGraphNotFoundError(err) {
-				return false, nil
-			}
-			return false, err
-		}
-		if object == nil || object.GetId() == nil {
-			return false, fmt.Errorf("deleted principal %q was returned without a valid ID", principalID)
-		}
-		resolvedID := normalizeID(*object.GetId())
-		if resolvedID == "" || resolvedID != normalizeID(principalID) {
-			return false, fmt.Errorf(
-				"deleted principal lookup for %q returned unexpected ID %q",
-				principalID,
-				resolvedID,
-			)
-		}
-		return true, nil
-	}
-}
-
-func principalRequiresRoleAssignmentRetention(
-	ctx context.Context,
-	principalID string,
-	activeLookup activePrincipalLookup,
-	deletedLookup deletedPrincipalLookup,
-) (bool, error) {
-	active, err := activeLookup(ctx, principalID)
-	if err != nil {
-		return false, fmt.Errorf("failed checking active principal: %w", err)
-	}
-	if active {
-		return true, nil
-	}
-
-	softDeleted, err := deletedLookup(ctx, principalID)
-	if err != nil {
-		return false, fmt.Errorf("failed checking soft-deleted principal: %w", err)
-	}
-	if softDeleted {
-		return true, nil
-	}
-
-	active, err = activeLookup(ctx, principalID)
-	if err != nil {
-		return false, fmt.Errorf("failed rechecking active principal: %w", err)
-	}
-	return active, nil
-}
-
-func resolveSoftDeletedPrincipalIDs(
-	ctx context.Context,
-	principalIDs sets.Set[string],
-	lookup deletedPrincipalLookup,
-) (sets.Set[string], error) {
-	resolvedPrincipalIDs := sets.New[string]()
-	for _, principalID := range sets.List(principalIDs) {
-		softDeleted, err := lookup(ctx, principalID)
-		if err != nil {
-			return nil, fmt.Errorf("failed checking deleted principal %q: %w", principalID, err)
-		}
-		if softDeleted {
-			resolvedPrincipalIDs.Insert(principalID)
-		}
-	}
-	return resolvedPrincipalIDs, nil
 }
 
 func selectOrphanedRoleAssignments(
@@ -601,11 +497,6 @@ func selectOrphanedRoleAssignments(
 		candidates = append(candidates, assignment)
 	}
 	return candidates
-}
-
-func isGraphNotFoundError(err error) bool {
-	var odataErr *graphodataerrors.ODataError
-	return errors.As(err, &odataErr) && odataErr.ResponseStatusCode == http.StatusNotFound
 }
 
 func escapeODataString(raw string) string {
