@@ -53,6 +53,7 @@ rules:
   - get
   - list
   - watch
+  - update
 - apiGroups:
   - apps
   resources:
@@ -87,12 +88,26 @@ rules:
   - monitoring.coreos.com
   resources:
   - servicemonitors
+  - podmonitors
   verbs:
   - get
   - list
   - watch
   - create
   - patch
+  - update
+- apiGroups:
+  - azmonitoring.coreos.com
+  resources:
+  - servicemonitors
+  - podmonitors
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - patch
+  - delete
 - apiGroups:
   - mgmtagent.aro-hcp.azure.com
   resources:
@@ -108,6 +123,17 @@ rules:
   verbs:
   - get
   - patch
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - networkpolicies
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - patch
+  - delete
 - apiGroups:
   - metrics.k8s.io
   resources:

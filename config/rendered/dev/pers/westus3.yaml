@@ -704,6 +704,7 @@ mgmt:
     storageAccountContainerName: backups
   jaeger:
     deploy: false
+  monitoringApiGroup: monitoring.coreos.com
   nsp:
     accessMode: Learning
     name: nsp-usw3test-mgmt-1
