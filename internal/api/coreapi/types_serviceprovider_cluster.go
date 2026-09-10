@@ -15,11 +15,14 @@
 package coreapi
 
 import (
+	"encoding"
 	"fmt"
+	"strings"
 
 	"github.com/blang/semver/v4"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -300,6 +303,464 @@ type ServiceProviderClusterStatus struct {
 	// cannot lose the record. Empty means no backup has completed.
 	// Written by: KeyRotationBackup
 	KeyRotationBackupFingerprint string `json:"keyRotationBackupFingerprint,omitempty"`
+
+	// ManagedIdentityDetails is a map containing the details for the
+	// managed identities associated with the cluster. The key is the fully
+	// lowercased Azure Resource ID of the identity. Each entry stores metadata
+	// retrieved from the sources that apply to that identity: the ARM User
+	// Assigned Identities API, the real Managed Identities Dataplane Service,
+	// and/or the Hardcoded Identity used when the dataplane service is not
+	// available.
+	// Written by: FetchManagedIdentitiesInfo
+	ManagedIdentityDetails map[string]*ManagedIdentityMetadata `json:"managedIdentityDetails,omitempty"`
+	// ManagedIdentitiesEarliestRecheckTime is the earliest time at which
+	// FetchManagedIdentitiesInfo should re-query identity metadata sources.
+	// Nil means recheck immediately.
+	// This allows the controller to avoid repeatedly hitting Azure APIs to
+	// recheck that the desired state is true.
+	// Controllers should set this field with substantial jitter: without another
+	// concern, jitter of 50% is considered normal so that any storms are quickly
+	// dissipated. Additionally, long recheck times are recommended for resources
+	// outside of their active phases. Order of at least six hours is, with durations up to 24 hours considered normal.
+	// Written by: FetchManagedIdentitiesInfo
+	ManagedIdentitiesEarliestRecheckTime *metav1.Time `json:"managedIdentitiesEarliestRecheckTime,omitempty"`
+
+	// ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation tracks the desired
+	// and observed data-plane OIDC federation state for each fully resolved
+	// data-plane operator identity, using ManagedIdentityDetails as the identity
+	// metadata source. The map is keyed by the fully lowercased Azure Resource ID
+	// of the identity.
+	// Desired identities are the unique ResourceIDs in
+	// Cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators
+	// whose ManagedIdentityDetails entry has resolved
+	// MetadataFromARMUserAssignedIdentitiesAPI (ClientID, PrincipalID, and TenantID).
+	// Identities that only have dataplane or hardcoded-identity metadata
+	// (control-plane operators and the ServiceManagedIdentity) are ignored, even
+	// when the same UAMI is still used as CP or SMI.
+	// DataPlaneOIDCFederationIntent adds those identities as PendingConfigure and
+	// copies ObservedIdentity from the ARM ClientID/PrincipalID/TenantID. A change
+	// to those IDs on the same ResourceID updates ObservedIdentity and sets
+	// PendingConfigure on that entry; it does not deconfigure. Identities that
+	// have left the data-plane set are marked PendingDeconfigure (stamping
+	// DeconfigureTimestamp when that was requested so Azure FIC deletes wait 24
+	// hours on a live cluster). DataPlaneOIDCFederation then creates or deletes
+	// federated identity credentials in Azure (one per data-plane operator
+	// service account) and advances the phase to Configured or Deconfigured.
+	// Written by: DataPlaneOIDCFederationIntent, DataPlaneOIDCFederation
+	ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation map[string]*ManagedIdentityDataplaneOIDCFederationStatus `json:"managedIdentitiesWithDataPlaneWorkloadsOIDCFederation,omitempty"`
+
+	// DenyAssignmentsV2 tracks the desired and observed deny assignment state
+	// for each required deny assignment type. The map key is the deny assignment
+	// type (for example "resources-deny-assignment").
+	// Desired types are the deny assignment definitions for the cluster.
+	// ClusterDenyAssignmentIntent adds those types as PendingConfigure once the
+	// identities they exclude have resolved principal IDs, and marks types that
+	// have left the definition set as PendingDeconfigure. Nested
+	// ExcludedIdentities track which principals should stay on Azure
+	// ExcludePrincipals, including a 24h keep after an identity leaves or its
+	// PrincipalID changes. ClusterDenyAssignmentV2 creates or deletes the Azure
+	// deny assignment, writes ExcludePrincipals from those identity phases
+	// (dropping waiting principals early only when the 25-principal Azure
+	// limit requires it), and advances phases to Configured or Deconfigured.
+	// Cluster deletion is a no-op: deny assignments are scoped to the managed
+	// resource group, so Azure deletes them in cascade when that resource group
+	// is removed.
+	// Written by: ClusterDenyAssignmentIntent, ClusterDenyAssignmentV2
+	DenyAssignmentsV2 map[string]*DenyAssignmentStatus `json:"denyAssignmentsV2,omitempty"`
+
+	// RoleAssignmentsV2 tracks the desired and observed managed-resource-group
+	// scoped role assignments for each control-plane and data-plane operator
+	// identity and role definition. The map key is ResourceID, PrincipalID, and
+	// RoleDefinitionResourceID. A PrincipalID change is a new Azure role assignment (the
+	// ARM name is UUIDv5 of scope, principal, and role definition), so the old
+	// key is marked PendingDeconfigure.
+	// ClusterRoleAssignmentIntent adds desired keys as PendingConfigure once
+	// the identity's principal ID is resolved, copies ObservedIdentity from
+	// resolved ClientID/TenantID/PrincipalID, and marks leftovers
+	// PendingDeconfigure (stamping DeconfigureTimestamp). A ClientID or TenantID
+	// change on the same key updates ObservedIdentity and sets PendingConfigure;
+	// it does not deconfigure. Unresolved ResourceIDs are not deconfigured.
+	// ClusterRoleAssignmentV2 creates, repairs drift, and deletes Azure role
+	// assignments. Cluster deletion is a no-op: role assignments are scoped to
+	// the managed resource group, so Azure deletes them in cascade when that
+	// resource group is removed.
+	// Written by: ClusterRoleAssignmentIntent, ClusterRoleAssignmentV2
+	RoleAssignmentsV2 map[RoleAssignmentKey]*RoleAssignmentStatus `json:"roleAssignmentsV2,omitempty"`
+}
+
+// ManagedIdentityDataplaneOIDCFederationPhase is the reconciliation phase of
+// data-plane OIDC federation for a single managed identity.
+type ManagedIdentityDataplaneOIDCFederationPhase string
+
+const (
+	// ManagedIdentityDataplaneOIDCFederationPhasePendingConfigure means the
+	// identity is fully resolved and a federated identity credential should be created.
+	ManagedIdentityDataplaneOIDCFederationPhasePendingConfigure ManagedIdentityDataplaneOIDCFederationPhase = "PendingConfigure"
+	// ManagedIdentityDataplaneOIDCFederationPhaseConfigured means the federated
+	// identity credential has been created in Azure.
+	ManagedIdentityDataplaneOIDCFederationPhaseConfigured ManagedIdentityDataplaneOIDCFederationPhase = "Configured"
+	// ManagedIdentityDataplaneOIDCFederationPhasePendingDeconfigure means the
+	// identity is no longer a desired data-plane identity and the federated
+	// identity credential should be deleted.
+	ManagedIdentityDataplaneOIDCFederationPhasePendingDeconfigure ManagedIdentityDataplaneOIDCFederationPhase = "PendingDeconfigure"
+	// ManagedIdentityDataplaneOIDCFederationPhaseDeconfigured means the federated
+	// identity credential has been deleted from Azure.
+	ManagedIdentityDataplaneOIDCFederationPhaseDeconfigured ManagedIdentityDataplaneOIDCFederationPhase = "Deconfigured"
+)
+
+// ManagedIdentityDataplaneOIDCFederationObservedIdentity is the ARM User
+// Assigned Identities ClientID/PrincipalID/TenantID that intent last targeted
+// for this ResourceID. ResourceID is the map key and is not duplicated here.
+// Written only when ARM metadata is fully resolved. TenantID is the identity
+// tenant; it is not the OIDC issuer tenant. The executor builds the issuer
+// from the cluster subscription tenant.
+// Written by: DataPlaneOIDCFederationIntent
+type ManagedIdentityDataplaneOIDCFederationObservedIdentity struct {
+	ClientID    string `json:"clientId,omitempty"`
+	PrincipalID string `json:"principalId,omitempty"`
+	TenantID    string `json:"tenantId,omitempty"`
+}
+
+type ManagedIdentityDataplaneOIDCFederationStatus struct {
+	// EarliestRecheckTime is the earliest time at which the controller should
+	// re-query Azure for the managed identity's OIDC Federation status. Nil means recheck immediately.
+	// This allows the controller to avoid repeatedly hitting an Azure API to
+	// recheck that the desired state is true.
+	// Controllers should set this field with substantial jitter: without another
+	// concern, jitter of 50% is considered normal so that any storms are quickly
+	// dissipated. Additionally, long recheck times are recommended for resources outside of their active phases. Order of at least six hours is, with durations up to 24 hours considered normal.
+	// Written by: DataPlaneOIDCFederation
+	EarliestRecheckTime *metav1.Time `json:"earliestRecheckTime,omitempty"`
+	// Phase is the reconciliation phase of data-plane OIDC federation for this identity.
+	// Written by: DataPlaneOIDCFederationIntent, DataPlaneOIDCFederation
+	Phase ManagedIdentityDataplaneOIDCFederationPhase `json:"phase,omitempty"`
+	// ObservedIdentity is the ARM User Assigned Identities ClientID, PrincipalID,
+	// and TenantID that intent last targeted for this ResourceID. Intent copies
+	// these from ManagedIdentityDetails when ARM metadata is resolved. A change
+	// to any of these IDs updates this field and sets Phase to PendingConfigure
+	// in the same write so Configured is never paired with a new instance that
+	// has not been ensured. Other controllers join this field with live
+	// ManagedIdentityDetails and Phase to know which identity instance was
+	// federated.
+	// Written by: DataPlaneOIDCFederationIntent
+	ObservedIdentity ManagedIdentityDataplaneOIDCFederationObservedIdentity `json:"observedIdentity,omitempty"`
+	// DeconfigureTimestamp is the timestamp at which deconfigure of this
+	// identity's data-plane OIDC federation was requested. The timestamp is in UTC.
+	// A nil value indicates that deconfigure has not been requested.
+	// On a live cluster the executor waits 24 hours from this timestamp before
+	// deleting Azure FICs. Cluster deletion (DeletionTimestamp set) deconfigures
+	// immediately.
+	// Written by: DataPlaneOIDCFederationIntent, DataPlaneOIDCFederation
+	DeconfigureTimestamp *metav1.Time `json:"deconfigureTimestamp,omitempty"`
+	// PendingAzureResources contains federated identity credential resource IDs
+	// that have been requested but not yet confirmed to exist in Azure.
+	// DataPlaneOIDCFederation persists these IDs before CreateOrUpdate, so a crash
+	// or replace failure cannot lose the tracked set. After a partial Azure ensure,
+	// desired IDs that were not confirmed stay here. PendingDeconfigure also
+	// deletes leftover IDs here from a previous incomplete configure.
+	// Written by: DataPlaneOIDCFederation
+	PendingAzureResources []*azcorearm.ResourceID `json:"pendingFederatedIdentityCredentials,omitempty"`
+	// AzureResources contains federated identity credential resource IDs that
+	// have been confirmed to exist in Azure. After a partial Azure ensure this
+	// is the confirmed subset (plus extras Azure did not delete); after a
+	// partial deconfigure it is the IDs Azure did not delete.
+	// Written by: DataPlaneOIDCFederation
+	AzureResources []*azcorearm.ResourceID `json:"federatedIdentityCredentials,omitempty"`
+}
+
+// DenyAssignmentPhase is the reconciliation phase of a single deny assignment type.
+type DenyAssignmentPhase string
+
+const (
+	// DenyAssignmentPhasePendingConfigure means the deny assignment type is
+	// required and should be created or repaired in Azure.
+	DenyAssignmentPhasePendingConfigure DenyAssignmentPhase = "PendingConfigure"
+	// DenyAssignmentPhaseConfigured means the deny assignment exists in Azure.
+	// Membership of ExcludePrincipals is tracked on ExcludedIdentities, not
+	// by this phase.
+	DenyAssignmentPhaseConfigured DenyAssignmentPhase = "Configured"
+	// DenyAssignmentPhasePendingDeconfigure means the deny assignment type is
+	// no longer required and should be deleted from Azure.
+	DenyAssignmentPhasePendingDeconfigure DenyAssignmentPhase = "PendingDeconfigure"
+	// DenyAssignmentPhaseDeconfigured means the deny assignment has been
+	// deleted from Azure.
+	DenyAssignmentPhaseDeconfigured DenyAssignmentPhase = "Deconfigured"
+)
+
+// DenyAssignmentStatus is the reconciliation state of one deny assignment type
+// on DenyAssignmentsV2. Each type maps to a single Azure deny assignment.
+type DenyAssignmentStatus struct {
+	// EarliestRecheckTime is the earliest time at which ClusterDenyAssignmentV2
+	// should re-query Azure for a Configured deny assignment. Nil means recheck
+	// immediately. PendingConfigure and PendingDeconfigure ignore this field.
+	// Controllers should set this field with substantial jitter: without another
+	// concern, jitter of 50% is considered normal so that any storms are quickly
+	// dissipated. Additionally, long recheck times are recommended for resources
+	// outside of their active phases. Order of at least six hours is, with
+	// durations up to 24 hours considered normal.
+	// Written by: ClusterDenyAssignmentV2
+	EarliestRecheckTime *metav1.Time `json:"earliestRecheckTime,omitempty"`
+	// Phase is the reconciliation phase of this deny assignment type.
+	// Written by: ClusterDenyAssignmentIntent, ClusterDenyAssignmentV2
+	Phase DenyAssignmentPhase `json:"phase,omitempty"`
+	// PendingAzureResource is the deny assignment resource ID that has been
+	// requested but not yet confirmed to exist in Azure. ClusterDenyAssignmentV2
+	// persists this ID before CreateOrUpdate, so a crash or replace failure
+	// cannot lose the tracked set. PendingDeconfigure also deletes a leftover
+	// ID here from a previous incomplete configure.
+	// Written by: ClusterDenyAssignmentV2
+	PendingAzureResource *azcorearm.ResourceID `json:"pendingAzureResource,omitempty"`
+	// AzureResource is the deny assignment resource ID that has been confirmed
+	// to exist in Azure. It moves from PendingAzureResource when the object
+	// exists, not when every ExcludedIdentities entry is Configured. Cleared
+	// after a successful delete.
+	// Written by: ClusterDenyAssignmentV2
+	AzureResource *azcorearm.ResourceID `json:"azureResource,omitempty"`
+	// ExcludedIdentities is the set of principals that should be on this deny
+	// assignment's Azure ExcludePrincipals. The map key is ResourceID and
+	// PrincipalID so a PrincipalID change is a new entry; the old key is marked
+	// PendingDeconfigure. ClusterDenyAssignmentIntent adds desired identities as
+	// PendingConfigure and marks identities that left (or whose PrincipalID
+	// changed) as PendingDeconfigure, stamping DeconfigureTimestamp. A ClientID
+	// or TenantID change on the same key updates ObservedIdentity and sets
+	// PendingConfigure so other controllers wait for a fresh ensure; it does
+	// not deconfigure the principal. ClusterDenyAssignmentV2 includes
+	// PendingConfigure, Configured, and PendingDeconfigure identities still
+	// inside the 24h wait, omits wait-elapsed or LRU-evicted waiters (Azure
+	// allows at most 25 ExcludePrincipals), and advances identity phases after
+	// a successful PUT.
+	// Written by: ClusterDenyAssignmentIntent, ClusterDenyAssignmentV2
+	ExcludedIdentities map[DenyAssignmentExcludedIdentityKey]*DenyAssignmentExcludedIdentityStatus `json:"excludedIdentities,omitempty"`
+}
+
+// DenyAssignmentExcludedIdentityPhase is the reconciliation phase of a single
+// excluded identity on one deny assignment type.
+type DenyAssignmentExcludedIdentityPhase string
+
+const (
+	// DenyAssignmentExcludedIdentityPhasePendingConfigure means this principal
+	// should be included in Azure ExcludePrincipals.
+	DenyAssignmentExcludedIdentityPhasePendingConfigure DenyAssignmentExcludedIdentityPhase = "PendingConfigure"
+	// DenyAssignmentExcludedIdentityPhaseConfigured means the last successful
+	// Azure PUT included this principal.
+	DenyAssignmentExcludedIdentityPhaseConfigured DenyAssignmentExcludedIdentityPhase = "Configured"
+	// DenyAssignmentExcludedIdentityPhasePendingDeconfigure means this principal
+	// is no longer desired. ClusterDenyAssignmentV2 still includes it in
+	// ExcludePrincipals until 24 hours after DeconfigureTimestamp, unless the
+	// 25-principal Azure limit requires dropping older waiters.
+	DenyAssignmentExcludedIdentityPhasePendingDeconfigure DenyAssignmentExcludedIdentityPhase = "PendingDeconfigure"
+	// DenyAssignmentExcludedIdentityPhaseDeconfigured means this principal is no
+	// longer on Azure ExcludePrincipals.
+	DenyAssignmentExcludedIdentityPhaseDeconfigured DenyAssignmentExcludedIdentityPhase = "Deconfigured"
+)
+
+// DenyAssignmentExcludedIdentityKey is the key for ExcludedIdentities.
+// Fields are strings (not pointers) so the struct is a comparable map key and
+// two keys with the same values compare equal.
+type DenyAssignmentExcludedIdentityKey struct {
+	// ResourceID is the fully lowercased Azure Resource ID of the managed identity.
+	ResourceID string `json:"resourceId,omitempty"`
+	// PrincipalID is the Principal ID written to Azure ExcludePrincipals.
+	PrincipalID string `json:"principalId,omitempty"`
+}
+
+const (
+	denyAssignmentExcludedIdentityKeySeparator = "|"
+)
+
+var (
+	_ encoding.TextMarshaler   = DenyAssignmentExcludedIdentityKey{}
+	_ encoding.TextUnmarshaler = (*DenyAssignmentExcludedIdentityKey)(nil)
+)
+
+// MarshalText allows DenyAssignmentExcludedIdentityKey to be used as a JSON
+// object key. encoding/json requires encoding.TextMarshaler for non-string
+// map keys. This is needed so it can be serialized/deserialize to/from Cosmos DB,
+// as well as log it as a json representation.
+func (k DenyAssignmentExcludedIdentityKey) MarshalText() ([]byte, error) {
+	return []byte(strings.Join([]string{k.ResourceID, k.PrincipalID}, denyAssignmentExcludedIdentityKeySeparator)), nil
+}
+
+// UnmarshalText reconstructs a DenyAssignmentExcludedIdentityKey from the text
+// produced by MarshalText. This is needed so it can be deserialized from Cosmos DB,
+// as well as log it as a json representation.
+func (k *DenyAssignmentExcludedIdentityKey) UnmarshalText(text []byte) error {
+	parts := strings.Split(string(text), denyAssignmentExcludedIdentityKeySeparator)
+	if len(parts) != 2 {
+		return fmt.Errorf("invalid DenyAssignmentExcludedIdentityKey %q: expected 2 parts separated by %q", text, denyAssignmentExcludedIdentityKeySeparator)
+	}
+	k.ResourceID = parts[0]
+	k.PrincipalID = parts[1]
+	return nil
+}
+
+// DenyAssignmentExcludedIdentityStatus is the reconciliation state of one
+// excluded identity on a deny assignment type.
+type DenyAssignmentExcludedIdentityStatus struct {
+	// Phase is the reconciliation phase of this excluded identity.
+	// Written by: ClusterDenyAssignmentIntent, ClusterDenyAssignmentV2
+	Phase DenyAssignmentExcludedIdentityPhase `json:"phase,omitempty"`
+	// DeconfigureTimestamp is the timestamp at which deconfigure of this
+	// identity's exclusion was requested. The timestamp is in UTC.
+	// A nil value indicates that deconfigure has not been requested.
+	// On a live cluster ClusterDenyAssignmentV2 waits 24 hours from this
+	// timestamp before omitting the principal from ExcludePrincipals, unless
+	// the 25-principal Azure limit requires dropping older waiters sooner.
+	// Written by: ClusterDenyAssignmentIntent, ClusterDenyAssignmentV2
+	DeconfigureTimestamp *metav1.Time `json:"deconfigureTimestamp,omitempty"`
+	// ObservedIdentity is the ClientID, TenantID, and PrincipalID associated
+	// with this exclusion. The map key is ResourceID and PrincipalID; this
+	// snapshot lets other controllers wait until a specific identity generation
+	// is Configured. ClusterDenyAssignmentIntent writes it from resolved
+	// identity metadata while the key is still desired. A ClientID or
+	// TenantID change on the same principal sets Phase to PendingConfigure
+	// without starting a 24h deconfigure. PendingDeconfigure rows keep the
+	// snapshot from when the principal left.
+	// Written by: ClusterDenyAssignmentIntent
+	ObservedIdentity *DenyAssignmentExcludedObservedIdentity `json:"observedIdentity,omitempty"`
+}
+
+// DenyAssignmentExcludedObservedIdentity is the identity generation associated
+// with one ExcludedIdentities entry. PrincipalID matches the map key.
+type DenyAssignmentExcludedObservedIdentity struct {
+	// ClientID is the Client ID of the managed identity.
+	// Written by: ClusterDenyAssignmentIntent
+	ClientID string `json:"clientId,omitempty"`
+	// TenantID is the Tenant ID of the managed identity.
+	// Written by: ClusterDenyAssignmentIntent
+	TenantID string `json:"tenantId,omitempty"`
+	// PrincipalID is the Principal ID of the managed identity. It matches
+	// DenyAssignmentExcludedIdentityKey.PrincipalID.
+	// Written by: ClusterDenyAssignmentIntent
+	PrincipalID string `json:"principalId,omitempty"`
+}
+
+// RoleAssignmentPhase is the reconciliation phase of a single managed-resource-group
+// scoped role assignment.
+type RoleAssignmentPhase string
+
+const (
+	// RoleAssignmentPhasePendingConfigure means the role assignment is required
+	// and should be created or repaired in Azure.
+	RoleAssignmentPhasePendingConfigure RoleAssignmentPhase = "PendingConfigure"
+	// RoleAssignmentPhaseConfigured means the role assignment exists in Azure
+	// with the expected principal and role definition.
+	RoleAssignmentPhaseConfigured RoleAssignmentPhase = "Configured"
+	// RoleAssignmentPhasePendingDeconfigure means the role assignment is no longer
+	// required and should be deleted from Azure after the 24h wait.
+	RoleAssignmentPhasePendingDeconfigure RoleAssignmentPhase = "PendingDeconfigure"
+	// RoleAssignmentPhaseDeconfigured means the role assignment has been deleted
+	// from Azure.
+	RoleAssignmentPhaseDeconfigured RoleAssignmentPhase = "Deconfigured"
+)
+
+// RoleAssignmentKey is the key for RoleAssignmentsV2.
+// Fields are strings (not pointers) so the struct is a comparable map key and
+// two keys with the same values compare equal.
+type RoleAssignmentKey struct {
+	// ResourceID is the fully lowercased Azure Resource ID of the managed identity.
+	ResourceID string `json:"resourceId,omitempty"`
+	// PrincipalID is the Principal ID written to the Azure role assignment.
+	PrincipalID string `json:"principalId,omitempty"`
+	// RoleDefinitionResourceID is the tenant-level role definition resource ID
+	// ("/providers/Microsoft.Authorization/roleDefinitions/{guid}").
+	RoleDefinitionResourceID string `json:"roleDefinitionResourceId,omitempty"`
+}
+
+const (
+	roleAssignmentKeySeparator = "|"
+)
+
+var (
+	_ encoding.TextMarshaler   = RoleAssignmentKey{}
+	_ encoding.TextUnmarshaler = (*RoleAssignmentKey)(nil)
+)
+
+// MarshalText allows RoleAssignmentKey to be used as a JSON object key.
+// encoding/json requires encoding.TextMarshaler for non-string map keys. This
+// is needed so it can be serialized/deserialized to/from Cosmos DB, as well as
+// logged as a json representation.
+func (k RoleAssignmentKey) MarshalText() ([]byte, error) {
+	return []byte(strings.Join([]string{k.ResourceID, k.PrincipalID, k.RoleDefinitionResourceID}, roleAssignmentKeySeparator)), nil
+}
+
+// UnmarshalText reconstructs a RoleAssignmentKey from the text produced by
+// MarshalText. This is needed so it can be deserialized from Cosmos DB, as
+// well as logged as a json representation.
+func (k *RoleAssignmentKey) UnmarshalText(text []byte) error {
+	parts := strings.Split(string(text), roleAssignmentKeySeparator)
+	if len(parts) != 3 {
+		return fmt.Errorf("invalid RoleAssignmentKey %q: expected 3 parts separated by %q", text, roleAssignmentKeySeparator)
+	}
+	k.ResourceID = parts[0]
+	k.PrincipalID = parts[1]
+	k.RoleDefinitionResourceID = parts[2]
+	return nil
+}
+
+// RoleAssignmentStatus is the reconciliation state of one managed-resource-group
+// scoped role assignment on RoleAssignmentsV2. Each key maps to a single Azure
+// role assignment.
+type RoleAssignmentStatus struct {
+	// EarliestRecheckTime is the earliest time at which ClusterRoleAssignmentV2
+	// should re-query Azure for a Configured role assignment. Nil means recheck
+	// immediately. PendingConfigure and PendingDeconfigure ignore this field.
+	// Controllers should set this field with substantial jitter: without another
+	// concern, jitter of 50% is considered normal so that any storms are quickly
+	// dissipated. Additionally, long recheck times are recommended for resources
+	// outside of their active phases. Order of at least six hours is, with
+	// durations up to 24 hours considered normal.
+	// Written by: ClusterRoleAssignmentV2
+	EarliestRecheckTime *metav1.Time `json:"earliestRecheckTime,omitempty"`
+	// Phase is the reconciliation phase of this role assignment.
+	// Written by: ClusterRoleAssignmentIntent, ClusterRoleAssignmentV2
+	Phase RoleAssignmentPhase `json:"phase,omitempty"`
+	// DeconfigureTimestamp is the timestamp at which deconfigure of this role
+	// assignment was requested. The timestamp is in UTC. A nil value indicates
+	// that deconfigure has not been requested. On a live cluster
+	// ClusterRoleAssignmentV2 waits 24 hours from this timestamp before deleting
+	// the Azure role assignment. Cluster deletion skips Azure deletes because
+	// the managed resource group cascade removes the role assignments.
+	// Written by: ClusterRoleAssignmentIntent, ClusterRoleAssignmentV2
+	DeconfigureTimestamp *metav1.Time `json:"deconfigureTimestamp,omitempty"`
+	// ObservedIdentity is the ClientID, TenantID, and PrincipalID associated
+	// with this role assignment. The map key is ResourceID, PrincipalID, and
+	// RoleDefinitionResourceID; this snapshot lets other controllers wait until a specific
+	// identity generation is Configured. ClusterRoleAssignmentIntent writes it
+	// from resolved identity metadata while the key is still desired. A
+	// ClientID or TenantID change on the same principal and role definition sets
+	// Phase to PendingConfigure without starting a 24h deconfigure.
+	// PendingDeconfigure rows keep the snapshot from when the key left.
+	// Written by: ClusterRoleAssignmentIntent
+	ObservedIdentity *RoleAssignmentObservedIdentity `json:"observedIdentity,omitempty"`
+	// PendingAzureResource is the role assignment resource ID that has been
+	// requested but not yet confirmed to exist in Azure. ClusterRoleAssignmentV2
+	// persists this ID before Create, so a crash or replace failure cannot lose
+	// the tracked ID. PendingDeconfigure also deletes a leftover ID here from
+	// a previous incomplete configure.
+	// Written by: ClusterRoleAssignmentV2
+	PendingAzureResource *azcorearm.ResourceID `json:"pendingAzureResource,omitempty"`
+	// AzureResource is the role assignment resource ID that has been confirmed
+	// to exist in Azure. It moves from PendingAzureResource when the object
+	// exists with the expected principal and role definition. Cleared after a
+	// successful delete.
+	// Written by: ClusterRoleAssignmentV2
+	AzureResource *azcorearm.ResourceID `json:"azureResource,omitempty"`
+}
+
+// RoleAssignmentObservedIdentity is the identity generation associated with one
+// RoleAssignmentsV2 entry. PrincipalID matches the map key.
+type RoleAssignmentObservedIdentity struct {
+	// ClientID is the Client ID of the managed identity.
+	// Written by: ClusterRoleAssignmentIntent
+	ClientID string `json:"clientId,omitempty"`
+	// TenantID is the Tenant ID of the managed identity.
+	// Written by: ClusterRoleAssignmentIntent
+	TenantID string `json:"tenantId,omitempty"`
+	// PrincipalID is the Principal ID of the managed identity. It matches
+	// RoleAssignmentKey.PrincipalID.
+	// Written by: ClusterRoleAssignmentIntent
+	PrincipalID string `json:"principalId,omitempty"`
 }
 
 // ServiceProviderClusterMSIManagedIdentities holds Managed Service Identity (MSI)
@@ -598,3 +1059,81 @@ const (
 	// the cluster-autoscaler ControlPlaneComponent on the management cluster control plane namespace.
 	ReadonlyHypershiftControlPlaneComponentClusterAutoscaler MaestroBundleInternalName = "readonlyHypershiftControlPlaneComponentClusterAutoscaler"
 )
+
+// ManagedIdentityMetadata holds the metadata retrieved for a single managed
+// identity from each source that applies to it. Sources that do not apply
+// are left nil. ARM Get failures still set MetadataFromARMUserAssignedIdentitiesAPI
+// with RetrievalError.
+type ManagedIdentityMetadata struct {
+	// ResourceID is the Azure Resource ID of the managed identity.
+	// Written by: FetchManagedIdentitiesInfo
+	ResourceID *azcorearm.ResourceID `json:"resourceId,omitempty"`
+
+	// MetadataFromARMUserAssignedIdentitiesAPI is the metadata for the identity retrieved from
+	// the ARM User Assigned Identities API (https://learn.microsoft.com/en-us/rest/api/managedidentity/user-assigned-identities)
+	// as the source. Nil when ARM is not queried for this identity (the cluster's
+	// service managed identity cannot Get itself). When ARM is queried, this
+	// pointer is set even if the Get failed: ClientID, PrincipalID, and TenantID
+	// are then nil and RetrievalError records why.
+	// Written by: FetchManagedIdentitiesInfo
+	MetadataFromARMUserAssignedIdentitiesAPI *IdentityMetadataValue `json:"metadataFromARMUserAssignedIdentitiesAPI,omitempty"`
+	// MetadataFromManagedIdentitiesDataplaneService is the metadata for the identity retrieved from the **real**
+	// Managed Identities Dataplane Service as the source. Nil when the environment
+	// uses the hardcoded identity instead, or when this identity is not registered
+	// with the dataplane (it is not a control-plane operator identity or the
+	// service managed identity). When the source applies, the pointer is set
+	// even if this pass did not fill ClientID/PrincipalID/TenantID: an empty
+	// IdentityMetadataValue means not resolved yet or could not be resolved
+	// in this pass.
+	// Written by: FetchManagedIdentitiesInfo
+	MetadataFromManagedIdentitiesDataplaneService *IdentityMetadataValue `json:"metadataFromManagedIdentitiesDataplaneService,omitempty"`
+	// MetadataFromHardcodedIdentity is the metadata for the identity retrieved from the Hardcoded Identity as the source.
+	// Set only in environments where the real Managed Identities Data Plane
+	// service is not available, and only for identities registered with the
+	// dataplane (control-plane operator identities and the service managed identity).
+	// When the source applies, the pointer is set even if this pass did not
+	// fill ClientID/PrincipalID/TenantID: an empty IdentityMetadataValue means
+	// not resolved yet or could not be resolved in this pass.
+	// Written by: FetchManagedIdentitiesInfo
+	MetadataFromHardcodedIdentity *IdentityMetadataValue `json:"metadataFromHardcodedIdentity,omitempty"`
+}
+
+// IdentityMetadataValue is ClientID/PrincipalID/TenantID retrieved from one
+// identity metadata source, a RetrievalError from the last retrieval attempt,
+// or an empty value (all fields nil) when that source applies but has not
+// been resolved yet or could not be resolved in this pass.
+type IdentityMetadataValue struct {
+	// ClientID is the Client ID of the managed identity as returned by the source.
+	// Written by: FetchManagedIdentitiesInfo
+	ClientID *string `json:"clientId,omitempty"`
+	// PrincipalID is the Principal ID of the managed identity as returned by the source.
+	// Written by: FetchManagedIdentitiesInfo
+	PrincipalID *string `json:"principalId,omitempty"`
+	// TenantID is the Tenant ID of the managed identity as returned by the source.
+	// Written by: FetchManagedIdentitiesInfo
+	TenantID *string `json:"tenantId,omitempty"`
+	// RetrievalError, when non-nil, is the error (truncated to the first 1024
+	// characters) from the most recent attempt to retrieve this identity's
+	// metadata from this source. When set, ClientID, PrincipalID, and TenantID
+	// are nil because the last retrieval attempt failed, and any previously
+	// resolved values are no longer trustworthy. It is nil when the last
+	// retrieval succeeded.
+	// Written by: FetchManagedIdentitiesInfo
+	RetrievalError *string `json:"retrievalError,omitempty"`
+}
+
+// TODO here or as a function outside of this type/package?
+// HasResolvedIdentityInformation reports whether value has non-empty ClientID,
+// PrincipalID, and TenantID. A non-nil RetrievalError is unresolved. An empty
+// value (all fields nil) is also unresolved: that source applies but has not
+// been resolved yet or could not be resolved in this pass. The receiver must
+// be non-nil.
+func (v *IdentityMetadataValue) HasResolvedIdentityInformation() bool {
+	if v.RetrievalError != nil {
+		return false
+	}
+
+	return len(ptr.Deref(v.ClientID, "")) > 0 &&
+		len(ptr.Deref(v.PrincipalID, "")) > 0 &&
+		len(ptr.Deref(v.TenantID, "")) > 0
+}

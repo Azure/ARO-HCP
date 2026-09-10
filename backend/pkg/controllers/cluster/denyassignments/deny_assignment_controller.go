@@ -113,29 +113,7 @@ func (c *clusterDenyAssignmentSyncer) syncDenyAssignmentNeedsWork(cluster *corea
 		return false
 	}
 
-	// we need these identities to exclude them from deny assignments.
-	identities := cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities
-	if len(identities.ControlPlaneOperators) == 0 || len(identities.DataPlaneOperators) == 0 || identities.ServiceManagedIdentity == nil {
-		return false
-	}
-	for _, v := range identities.ControlPlaneOperators {
-		if v == nil {
-			return false
-		}
-	}
-	for _, v := range identities.DataPlaneOperators {
-		if v == nil {
-			return false
-		}
-	}
-
-	// Excluded principal IDs are resolved from the identities the MSI and data-plane identity
-	// controllers mirror onto the ServiceProviderCluster. If those maps are empty, resolution can
-	// only fail, so there is nothing to do yet; wait for the resolution controllers to populate them.
-	if len(serviceProviderCluster.Status.MSIManagedIdentities.ControlPlaneOperatorsIdentities) == 0 {
-		return false
-	}
-	if len(serviceProviderCluster.Status.DataPlaneOperatorsManagedIdentities.Identities) == 0 {
+	if !denyAssignmentIdentitiesReady(cluster, serviceProviderCluster) {
 		return false
 	}
 
@@ -359,16 +337,45 @@ func (c *clusterDenyAssignmentSyncer) ensureDenyAssignment(
 	notActions []string,
 	dataActions []string,
 ) error {
+	return ensureDenyAssignment(ctx, serviceProviderCluster, denyAssignmentsClient, genericResourcesClient,
+		resourceID, scope, excludedIdentityResourceIDs, actions, notActions, dataActions)
+}
+
+func ensureDenyAssignment(
+	ctx context.Context,
+	serviceProviderCluster *coreapi.ServiceProviderCluster,
+	denyAssignmentsClient azureclient.DenyAssignmentsClient,
+	genericResourcesClient azureclient.GenericResourcesClient,
+	resourceID *azcorearm.ResourceID,
+	scope *azcorearm.ResourceID,
+	excludedIdentityResourceIDs []*azcorearm.ResourceID,
+	actions []string,
+	notActions []string,
+	dataActions []string,
+) error {
+	excludedPrincipalIDs, err := resolvePrincipalIDs(serviceProviderCluster, excludedIdentityResourceIDs)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to resolve principal IDs: %w", err))
+	}
+	return applyDenyAssignment(ctx, denyAssignmentsClient, genericResourcesClient, resourceID, scope, excludedPrincipalIDs, actions, notActions, dataActions)
+}
+
+func applyDenyAssignment(
+	ctx context.Context,
+	denyAssignmentsClient azureclient.DenyAssignmentsClient,
+	genericResourcesClient azureclient.GenericResourcesClient,
+	resourceID *azcorearm.ResourceID,
+	scope *azcorearm.ResourceID,
+	excludedPrincipalIDs []string,
+	actions []string,
+	notActions []string,
+	dataActions []string,
+) error {
 	if notActions == nil {
 		notActions = []string{}
 	}
 	if dataActions == nil {
 		dataActions = []string{}
-	}
-
-	excludedPrincipalIDs, err := resolvePrincipalIDs(serviceProviderCluster, excludedIdentityResourceIDs)
-	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to resolve principal IDs: %w", err))
 	}
 
 	existing, err := denyAssignmentsClient.Get(ctx, scope.String(), resourceID.Name, nil)
@@ -505,6 +512,14 @@ func (c *clusterDenyAssignmentSyncer) deleteDenyAssignment(
 	client azureclient.GenericResourcesClient,
 	resourceID *azcorearm.ResourceID,
 ) error {
+	return deleteDenyAssignment(ctx, client, resourceID)
+}
+
+func deleteDenyAssignment(
+	ctx context.Context,
+	client azureclient.GenericResourcesClient,
+	resourceID *azcorearm.ResourceID,
+) error {
 	poller, err := client.BeginDeleteByID(ctx, resourceID.String(), denyAssignmentAzureAPIVersion, nil)
 	if isResourceNotFoundError(err) {
 		return nil
@@ -551,6 +566,61 @@ func generateDenyAssignmentUUID(clusterID, denyAssignmentType string) string {
 	namespace := uuid.MustParse(denyAssignmentNamespaceUUID)
 	// Equivalent to Cluster Service's strings.Join([]string{denyAssignmentType, clusterID}, "$").
 	return uuid.NewSHA1(namespace, []byte(denyAssignmentType+"$"+clusterID)).String()
+}
+
+// clusterIdentitiesPresent reports whether the cluster payload has every
+// control-plane operator, data-plane operator, and the service managed identity
+// that deny assignment exclusions need. Missing or nil entries mean identity
+// configuration is not complete yet.
+func clusterIdentitiesPresent(cluster *coreapi.HCPOpenShiftCluster) bool {
+	identities := cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities
+	if len(identities.ControlPlaneOperators) == 0 || len(identities.DataPlaneOperators) == 0 || identities.ServiceManagedIdentity == nil {
+		return false
+	}
+	for _, v := range identities.ControlPlaneOperators {
+		if v == nil {
+			return false
+		}
+	}
+	for _, v := range identities.DataPlaneOperators {
+		if v == nil {
+			return false
+		}
+	}
+	return true
+}
+
+// denyAssignmentIdentitiesReady reports whether every identity excluded by the
+// cluster's deny assignment definitions has a resolved principal ID on the
+// ServiceProviderCluster. Until that is true, deny assignments cannot be
+// created with the correct ExcludePrincipals set.
+func denyAssignmentIdentitiesReady(cluster *coreapi.HCPOpenShiftCluster, serviceProviderCluster *coreapi.ServiceProviderCluster) bool {
+	if !clusterIdentitiesPresent(cluster) {
+		return false
+	}
+	if len(serviceProviderCluster.Status.MSIManagedIdentities.ControlPlaneOperatorsIdentities) == 0 {
+		return false
+	}
+	if len(serviceProviderCluster.Status.DataPlaneOperatorsManagedIdentities.Identities) == 0 {
+		return false
+	}
+	for _, definition := range denyAssignmentDefinitions(cluster) {
+		excludedIdentityResourceIDs, err := collectExcludedPrincipalIDs(cluster, definition)
+		if err != nil {
+			return false
+		}
+		if _, err := resolvePrincipalIDs(serviceProviderCluster, excludedIdentityResourceIDs); err != nil {
+			return false
+		}
+	}
+	return true
+}
+
+func denyAssignmentExcludedIdentityKey(identityResourceID *azcorearm.ResourceID, principalID string) coreapi.DenyAssignmentExcludedIdentityKey {
+	return coreapi.DenyAssignmentExcludedIdentityKey{
+		ResourceID:  strings.ToLower(identityResourceID.String()),
+		PrincipalID: principalID,
+	}
 }
 
 func collectExcludedPrincipalIDs(cluster *coreapi.HCPOpenShiftCluster, definition denyAssignmentDefinition) ([]*azcorearm.ResourceID, error) {

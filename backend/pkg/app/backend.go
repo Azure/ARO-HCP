@@ -47,7 +47,9 @@ import (
 	credentialrevocationcreation "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/credentialrevocation/creation"
 	credentialrevocationdeletion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/credentialrevocation/deletion"
 	credentialrevocationoperations "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/credentialrevocation/operations"
+	clusterdataplaneworkloads "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/dataplaneworkloads"
 	clusterdeletion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/deletion"
+	clusterdenyassignments "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/denyassignments"
 	clusteridentity "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/identity"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/legacycredentialrequest"
 	clusteroperations "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/operations"
@@ -117,19 +119,29 @@ type BackendOptions struct {
 	MaestroSourceEnvironmentIdentifier string
 	FPAClientBuilder                   azureclient.FirstPartyApplicationClientBuilder
 	// HasRealFPA indicates the backend runs against a real First Party Application rather than the
-	// insecure MI mock. Controllers that create Azure resources only a real FPA can create (e.g.
-	// deny assignments) are disabled when this is false (dev/int environments).
-	HasRealFPA                                          bool
-	BackendIdentityAzureClients                         *azureclient.BackendIdentityAzureClients
-	BackendIdentityAzureCachedReaders                   *cachedreader.BackendIdentityAzureCachedReaders
-	ExitOnPanic                                         bool
-	FPAMIDataplaneClientBuilder                         azureclient.FPAMIDataplaneClientBuilder
+	// insecure MI mock.
+	HasRealFPA                        bool
+	BackendIdentityAzureClients       *azureclient.BackendIdentityAzureClients
+	BackendIdentityAzureCachedReaders *cachedreader.BackendIdentityAzureCachedReaders
+	ExitOnPanic                       bool
+	FPAMIDataplaneClientBuilder       azureclient.FPAMIDataplaneClientBuilder
+	// HardcodedIdentity is nil when the real Managed Identities Data Plane is available.
+	// An alternative could be a package-level function that takes a FPAMIDataplaneClientBuilder interface
+	// and that internally type converts to another interface that can give the
+	// Hardcoded Identity. But then you pass around the whole MIDataplaneClientBuilder
+	// where you might not need the dataplaneclient
+	HardcodedIdentity                                   *azureclient.HardcodedIdentity
 	MIDataplaneBasedIdentityAccessTokenRetrieverBuilder azureclient.MIDataplaneBasedIdentityAccessTokenRetrieverBuilder
 	BackupConfig                                        *clusterbackups.BackupConfig
 	SMIClientBuilder                                    azureclient.ServiceManagedIdentityClientBuilder
 	CheckAccessV2ClientBuilder                          azureclient.CheckAccessV2ClientBuilder
 	ClusterScopedIdentitiesConfig                       *internalazure.ClusterScopedIdentitiesConfig
 	CloudEnvironment                                    *azureconfig.AzureCloudEnvironment
+	// DataPlaneOIDCIssuerBaseURL is the OIDC issuer base URL used when creating
+	// federated identity credentials for data-plane operator identities. The
+	// issuer URL is <base><cluster tenant ID>/<Cluster Service cluster ID>. A
+	// trailing slash is added to the base URL if it is missing.
+	DataPlaneOIDCIssuerBaseURL string
 }
 
 const backendShutdownTimeout = 31 * time.Second
@@ -1074,11 +1086,52 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		b.options.FPAMIDataplaneClientBuilder,
 	)
 
+	var fetchManagedIdentitiesInfoDataplaneBuilder azureclient.FPAMIDataplaneClientBuilder
+	if b.options.HardcodedIdentity == nil {
+		fetchManagedIdentitiesInfoDataplaneBuilder = b.options.FPAMIDataplaneClientBuilder
+	}
+	fetchManagedIdentitiesInfoController := clusteridentity.NewFetchManagedIdentitiesInfoController(
+		b.clock,
+		b.options.ResourcesDBClient,
+		backendInformers,
+		b.options.HardcodedIdentity,
+		fetchManagedIdentitiesInfoDataplaneBuilder,
+		b.options.SMIClientBuilder,
+	)
+
 	fetchDataPlaneOperatorsManagedIdentitiesInfoController := clusteridentity.NewFetchDataPlaneOperatorsManagedIdentitiesInfoController(
 		b.clock,
 		b.options.ResourcesDBClient,
 		backendInformers,
 		b.options.SMIClientBuilder,
+	)
+
+	dataPlaneWorkloadsOIDCFederationIntentController := clusterdataplaneworkloads.NewDataPlaneOIDCFederationIntentController(
+		b.clock,
+		b.options.ResourcesDBClient,
+		backendInformers,
+	)
+
+	dataPlaneWorkloadsOIDCFederationController := clusterdataplaneworkloads.NewDataPlaneOIDCFederationController(
+		b.clock,
+		b.options.ResourcesDBClient,
+		backendInformers,
+		b.options.SMIClientBuilder,
+		b.options.FPAMIDataplaneClientBuilder,
+		b.options.ClusterScopedIdentitiesConfig,
+		b.options.DataPlaneOIDCIssuerBaseURL,
+	)
+
+	clusterDenyAssignmentIntentController := clusterdenyassignments.NewClusterDenyAssignmentIntentController(
+		b.clock,
+		b.options.ResourcesDBClient,
+		backendInformers,
+	)
+	clusterDenyAssignmentV2Controller := clusterdenyassignments.NewClusterDenyAssignmentV2Controller(
+		b.clock,
+		b.options.ResourcesDBClient,
+		b.options.FPAClientBuilder,
+		backendInformers,
 	)
 
 	observeRoleAssignmentsController := clusterroleassignments.NewRoleAssignmentsController(
@@ -1089,6 +1142,18 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		b.options.ClusterScopedIdentitiesConfig,
 		backendInformers,
 		unionKubeApplierInformers,
+	)
+	clusterRoleAssignmentIntentController := clusterroleassignments.NewClusterRoleAssignmentIntentController(
+		b.clock,
+		b.options.ResourcesDBClient,
+		b.options.ClusterScopedIdentitiesConfig,
+		backendInformers,
+	)
+	clusterRoleAssignmentV2Controller := clusterroleassignments.NewClusterRoleAssignmentV2Controller(
+		b.clock,
+		b.options.ResourcesDBClient,
+		b.options.FPAClientBuilder,
+		backendInformers,
 	)
 
 	clusterResourcesController := clusterresources.NewClusterResourcesController(
@@ -1216,8 +1281,15 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go virtualMachineResourceSKUsCachedReaderController.Run(ctx, 20)
 				go backupScheduleController.Run(ctx, 20)
 				go fetchMSIIdentitiesInfoController.Run(ctx, 20)
+				go fetchManagedIdentitiesInfoController.Run(ctx, 20)
 				go fetchDataPlaneOperatorsManagedIdentitiesInfoController.Run(ctx, 20)
+				go dataPlaneWorkloadsOIDCFederationIntentController.Run(ctx, 20)
+				go dataPlaneWorkloadsOIDCFederationController.Run(ctx, 20)
+				go clusterDenyAssignmentIntentController.Run(ctx, 20)
+				go clusterDenyAssignmentV2Controller.Run(ctx, 20)
 				go observeRoleAssignmentsController.Run(ctx, 20)
+				go clusterRoleAssignmentIntentController.Run(ctx, 20)
+				go clusterRoleAssignmentV2Controller.Run(ctx, 20)
 				go keyRotationBackupController.Run(ctx, 20)
 				go clusterResourcesController.Run(ctx, 20)
 			},
