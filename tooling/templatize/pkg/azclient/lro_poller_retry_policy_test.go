@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package pipeline
+package azclient
 
 import (
 	"context"
@@ -33,6 +33,14 @@ import (
 )
 
 const deploymentOperationStatusPath = "/subscriptions/sub-id/resourceGroups/rg/providers/Microsoft.Resources/deployments/my-deploy/operationStatuses/op-id"
+
+type fakeTransport struct {
+	interceptor func(*http.Request) (*http.Response, error)
+}
+
+func (f *fakeTransport) Do(req *http.Request) (*http.Response, error) {
+	return f.interceptor(req)
+}
 
 func newRetryPolicyTestPipeline(pol policy.Policy, transport policy.Transporter) runtime.Pipeline {
 	return runtime.NewPipeline("test", "v0.0.0",
@@ -64,7 +72,17 @@ func deploymentNotFoundResponse() (*http.Response, error) {
 	}, nil
 }
 
-func TestLROPollerRetryDeploymentNotFoundPolicy(t *testing.T) {
+func unauthorizedResponse() (*http.Response, error) {
+	return &http.Response{
+		StatusCode: http.StatusUnauthorized,
+		Header:     http.Header{"Content-Type": {"application/json"}},
+		Body: io.NopCloser(strings.NewReader(
+			`{"error":{"code":"AuthenticationFailed","message":"Authentication failed."}}`,
+		)),
+	}, nil
+}
+
+func TestLROPollerRetryPolicy(t *testing.T) {
 	t.Parallel()
 
 	t.Run("passes through non-matching requests", func(t *testing.T) {
@@ -101,7 +119,7 @@ func TestLROPollerRetryDeploymentNotFoundPolicy(t *testing.T) {
 						return successfulResponse()
 					},
 				}
-				pipeline := newRetryPolicyTestPipeline(newLROPollerRetryDeploymentNotFoundPolicy(), transport)
+				pipeline := newRetryPolicyTestPipeline(NewLROPollerRetryPolicy(nil), transport)
 				req, err := runtime.NewRequest(t.Context(), tt.method, "https://management.azure.com"+tt.path)
 				require.NoError(t, err)
 
@@ -117,7 +135,7 @@ func TestLROPollerRetryDeploymentNotFoundPolicy(t *testing.T) {
 		t.Parallel()
 
 		callCount := 0
-		pol := &lroPollerRetryDeploymentNotFoundPolicy{
+		pol := &lroPollerRetryPolicy{
 			backoff: wait.Backoff{
 				Duration: time.Millisecond,
 				Steps:    3,
@@ -146,7 +164,7 @@ func TestLROPollerRetryDeploymentNotFoundPolicy(t *testing.T) {
 		t.Parallel()
 
 		callCount := 0
-		pol := &lroPollerRetryDeploymentNotFoundPolicy{
+		pol := &lroPollerRetryPolicy{
 			backoff: wait.Backoff{
 				Duration: time.Millisecond,
 				Steps:    3,
@@ -175,7 +193,7 @@ func TestLROPollerRetryDeploymentNotFoundPolicy(t *testing.T) {
 		t.Parallel()
 
 		callCount := 0
-		pol := &lroPollerRetryDeploymentNotFoundPolicy{
+		pol := &lroPollerRetryPolicy{
 			backoff: wait.Backoff{
 				Duration: time.Millisecond,
 				Steps:    3,
@@ -207,7 +225,7 @@ func TestLROPollerRetryDeploymentNotFoundPolicy(t *testing.T) {
 		t.Parallel()
 
 		callCount := 0
-		pol := &lroPollerRetryDeploymentNotFoundPolicy{
+		pol := &lroPollerRetryPolicy{
 			backoff: wait.Backoff{
 				Duration: time.Millisecond,
 				Steps:    3,
@@ -233,11 +251,87 @@ func TestLROPollerRetryDeploymentNotFoundPolicy(t *testing.T) {
 		assert.Equal(t, 1, callCount)
 	})
 
+	t.Run("retries one Unauthorized response", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("then succeeds", func(t *testing.T) {
+			callCount := 0
+			transport := &fakeTransport{
+				interceptor: func(_ *http.Request) (*http.Response, error) {
+					callCount++
+					if callCount == 1 {
+						return unauthorizedResponse()
+					}
+					return successfulResponse()
+				},
+			}
+			pipeline := newRetryPolicyTestPipeline(&lroPollerRetryPolicy{
+				backoff: wait.Backoff{Duration: time.Millisecond, Steps: 6},
+			}, transport)
+			req, err := runtime.NewRequest(t.Context(), http.MethodGet, "https://management.azure.com"+deploymentOperationStatusPath)
+			require.NoError(t, err)
+
+			resp, err := pipeline.Do(req)
+			require.NoError(t, err)
+			assert.Equal(t, http.StatusOK, resp.StatusCode)
+			assert.Equal(t, 2, callCount)
+		})
+
+		t.Run("then returns persistent Unauthorized", func(t *testing.T) {
+			callCount := 0
+			transport := &fakeTransport{
+				interceptor: func(_ *http.Request) (*http.Response, error) {
+					callCount++
+					return unauthorizedResponse()
+				},
+			}
+			pipeline := newRetryPolicyTestPipeline(&lroPollerRetryPolicy{
+				backoff: wait.Backoff{Duration: time.Millisecond, Steps: 6},
+			}, transport)
+			req, err := runtime.NewRequest(t.Context(), http.MethodGet, "https://management.azure.com"+deploymentOperationStatusPath)
+			require.NoError(t, err)
+
+			resp, err := pipeline.Do(req)
+			require.NoError(t, err)
+			assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+			assert.Equal(t, 2, callCount)
+		})
+	})
+
+	t.Run("shares the retry budget across transient responses", func(t *testing.T) {
+		t.Parallel()
+
+		callCount := 0
+		transport := &fakeTransport{
+			interceptor: func(_ *http.Request) (*http.Response, error) {
+				callCount++
+				switch callCount {
+				case 1:
+					return unauthorizedResponse()
+				case 2, 3:
+					return deploymentNotFoundResponse()
+				default:
+					return successfulResponse()
+				}
+			},
+		}
+		pipeline := newRetryPolicyTestPipeline(&lroPollerRetryPolicy{
+			backoff: wait.Backoff{Duration: time.Millisecond, Steps: 4},
+		}, transport)
+		req, err := runtime.NewRequest(t.Context(), http.MethodGet, "https://management.azure.com"+deploymentOperationStatusPath)
+		require.NoError(t, err)
+
+		resp, err := pipeline.Do(req)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		assert.Equal(t, 4, callCount)
+	})
+
 	t.Run("respects context cancellation", func(t *testing.T) {
 		t.Parallel()
 
 		ctx, cancel := context.WithCancel(t.Context())
-		pol := &lroPollerRetryDeploymentNotFoundPolicy{
+		pol := &lroPollerRetryPolicy{
 			backoff: wait.Backoff{
 				Duration: time.Millisecond,
 				Steps:    3,

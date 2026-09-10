@@ -36,6 +36,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/streaming"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/azclient"
 )
 
 const frontendHost = "my-frontend.example.com:8443"
@@ -499,24 +500,19 @@ func TestLROPollerRetryPolicy(t *testing.T) {
 			)),
 		}, nil
 	}
-	newPolicyForTest := func(steps int) *lroPollerRetryPolicy {
-		return &lroPollerRetryPolicy{
-			deploymentNotFoundBackoff: wait.Backoff{
+	newPolicyForTest := func(steps int) policy.Policy {
+		return azclient.NewLROPollerRetryPolicy(&azclient.LROPollerRetryPolicyOptions{
+			Backoff: wait.Backoff{
 				Duration: time.Millisecond,
 				Factor:   2,
 				Steps:    steps,
 			},
-			unauthorizedBackoff: wait.Backoff{
-				Duration: time.Millisecond,
-				Factor:   2,
-				Steps:    2,
-			},
-		}
+		})
 	}
 
 	t.Run("passes through non-GET requests", func(t *testing.T) {
 		t.Parallel()
-		pol := NewLROPollerRetryPolicy()
+		pol := azclient.NewLROPollerRetryPolicy(nil)
 		transport := &fakeTransport{
 			do: func(r *http.Request) (*http.Response, error) {
 				return okResponse()
@@ -533,7 +529,7 @@ func TestLROPollerRetryPolicy(t *testing.T) {
 
 	t.Run("passes through non-matching paths", func(t *testing.T) {
 		t.Parallel()
-		pol := NewLROPollerRetryPolicy()
+		pol := azclient.NewLROPollerRetryPolicy(nil)
 		transport := &fakeTransport{
 			do: func(r *http.Request) (*http.Response, error) {
 				return okResponse()
@@ -720,7 +716,7 @@ func TestLROPollerRetryPolicy(t *testing.T) {
 	t.Run("retries mixed transient responses", func(t *testing.T) {
 		t.Parallel()
 		callCount := 0
-		pol := newPolicyForTest(3)
+		pol := newPolicyForTest(4)
 		transport := &fakeTransport{
 			do: func(r *http.Request) (*http.Response, error) {
 				callCount++
@@ -746,7 +742,7 @@ func TestLROPollerRetryPolicy(t *testing.T) {
 	t.Run("does not retry 401 on non-matching paths", func(t *testing.T) {
 		t.Parallel()
 		callCount := 0
-		pol := NewLROPollerRetryPolicy()
+		pol := azclient.NewLROPollerRetryPolicy(nil)
 		transport := &fakeTransport{
 			do: func(r *http.Request) (*http.Response, error) {
 				callCount++
