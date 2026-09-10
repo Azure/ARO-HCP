@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "InvalidRequestContent",
+    "message": "The request content was invalid and could not be deserialized: \"unmarshalling type *generated.NodePool: struct field Properties: unmarshalling type *generated.NodePoolProperties: struct field Platform: unmarshalling type *generated.NodePoolPlatformProfile: struct field AvailabilityZone: json: cannot unmarshal number into Go value of type string\""
+  }
+}

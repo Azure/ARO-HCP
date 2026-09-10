@@ -1,0 +1,4 @@
+{
+	"id": "c3d4e5f6-a7b8-9012-cdef-123456789012",
+	"resourceID": "/subscriptions/85176f51-8b54-4150-b6b5-b4ff5d007f5b/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/invalid-availability-zone-type/nodePools/worker"
+}
