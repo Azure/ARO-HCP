@@ -67,6 +67,34 @@ func TestAcquireAndReleaseLease(t *testing.T) {
 	}
 }
 
+func TestReleaseLeaseTreatsMissingLeaseAsReleased(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(`no resource name aro-hcp-dev-westus3-slot-00`))
+	}))
+	defer server.Close()
+
+	if err := ReleaseLease(context.Background(), server.URL, "aro-hcp-dev-westus3-slot-00", DefaultLeaseProxyTimeout); err != nil {
+		t.Fatalf("expected release of an already absent lease to succeed: %v", err)
+	}
+}
+
+func TestReleaseLeaseRetainsGenericServerFailures(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(`lease storage is unavailable`))
+	}))
+	defer server.Close()
+
+	if err := ReleaseLease(context.Background(), server.URL, "aro-hcp-dev-westus3-slot-00", 50*time.Millisecond); err == nil {
+		t.Fatal("expected generic server failure to remain an error")
+	}
+}
+
 func TestAcquireLeaseRetriesRetryableStatus(t *testing.T) {
 	t.Parallel()
 
