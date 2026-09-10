@@ -106,6 +106,10 @@ func (s *ensureReadDesireSyncer) SyncOnce(ctx context.Context, key fleetcontroll
 	replacement := existing.DeepCopy()
 	replacement.Spec = *desired.Spec.DeepCopy()
 	if _, err := crud.Replace(ctx, replacement, nil); err != nil {
+		if cosmosstorageutils.IsPreconditionFailedError(err) {
+			// Another writer won the race; a resync will reconcile any drift.
+			return nil
+		}
 		return utils.TrackError(err)
 	}
 	return nil

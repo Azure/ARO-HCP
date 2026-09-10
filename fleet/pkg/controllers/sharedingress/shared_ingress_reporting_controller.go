@@ -122,6 +122,11 @@ func (s *sharedIngressReportingSyncer) SyncOnce(ctx context.Context, key fleetco
 
 	if controllerutils.NeedsUpdate(managementCluster, updated) {
 		if _, err := managementClusterCRUD.Replace(ctx, updated, managementCluster, nil); err != nil {
+			if cosmosstorageutils.IsPreconditionFailedError(err) {
+				// The ManagementCluster was updated concurrently; a newer
+				// generation will re-trigger this sync, so treat as a no-op.
+				return nil
+			}
 			return utils.TrackError(err)
 		}
 	}

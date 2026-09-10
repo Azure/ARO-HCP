@@ -33,28 +33,15 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
-	fleetcontrollers "github.com/Azure/ARO-HCP/fleet/pkg/controllers/base"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/fleetcosmosstoragetesting"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/kubeappliercosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/kubeapplierlistertesting"
 )
-
-const testStampIdentifier = "s1"
-
-func testKey() fleetcontrollers.StampKey {
-	return fleetcontrollers.StampKey{StampIdentifier: testStampIdentifier}
-}
-
-func testManagementClusterResourceID() *azcorearm.ResourceID {
-	return metadataapi.Must(fleetapi.ToManagementClusterResourceID(testStampIdentifier))
-}
 
 // testManagementCluster builds a valid ManagementCluster (all required status
 // fields populated so the mock DB accepts it on create), with optional
@@ -105,73 +92,6 @@ func serviceWithIngressIPs(ips ...string) *corev1.Service {
 	}
 	return svc
 }
-
-// --- EnsureReadDesire tests ---
-
-func TestEnsureReadDesire_NilClient(t *testing.T) {
-	clients := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClients()
-	syncer := &ensureReadDesireSyncer{kubeApplierDBClients: clients}
-
-	err := syncer.SyncOnce(context.Background(), testKey())
-	require.NoError(t, err)
-}
-
-func TestEnsureReadDesire_CreatesReadDesireOnFirstCall(t *testing.T) {
-	mockClient := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClient()
-	clients := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClients()
-	clients.Register(testManagementClusterResourceID(), mockClient)
-
-	syncer := &ensureReadDesireSyncer{kubeApplierDBClients: clients}
-
-	err := syncer.SyncOnce(context.Background(), testKey())
-	require.NoError(t, err)
-
-	crud, err := mockClient.ReadDesiresForManagementCluster(testStampIdentifier)
-	require.NoError(t, err)
-
-	existing, err := crud.Get(context.Background(), ReadDesireName)
-	require.NoError(t, err)
-	assert.Equal(t, SharedIngressTarget, existing.Spec.TargetItem)
-}
-
-func TestEnsureReadDesire_UpdatesStaleSpec(t *testing.T) {
-	mockClient := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClient()
-	clients := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClients()
-	clients.Register(testManagementClusterResourceID(), mockClient)
-
-	staleTarget := kubeapplierapi.ResourceReference{
-		Group:    "old.group",
-		Version:  "v1",
-		Resource: "oldresources",
-		Name:     "old",
-	}
-	desireIDString := kubeapplierapi.ToManagementClusterScopedReadDesireResourceIDString(testStampIdentifier, ReadDesireName)
-	stale := controllerutil.BuildReadDesire(desireIDString, testManagementClusterResourceID(), staleTarget)
-
-	crud, err := mockClient.ReadDesiresForManagementCluster(testStampIdentifier)
-	require.NoError(t, err)
-	_, err = crud.Create(context.Background(), stale, nil)
-	require.NoError(t, err)
-
-	syncer := &ensureReadDesireSyncer{kubeApplierDBClients: clients}
-
-	err = syncer.SyncOnce(context.Background(), testKey())
-	require.NoError(t, err)
-
-	updated, err := crud.Get(context.Background(), ReadDesireName)
-	require.NoError(t, err)
-	assert.Equal(t, SharedIngressTarget, updated.Spec.TargetItem)
-}
-
-func TestEnsureReadDesire_ConflictOnCreateIsSwallowed(t *testing.T) {
-	clients := &conflictOnCreateDBClients{}
-	syncer := &ensureReadDesireSyncer{kubeApplierDBClients: clients}
-
-	err := syncer.SyncOnce(context.Background(), testKey())
-	require.NoError(t, err)
-}
-
-// --- SharedIngressReporting SyncOnce tests ---
 
 func TestSyncOnce_NotFoundReadDesire(t *testing.T) {
 	ctx := context.Background()
@@ -272,34 +192,51 @@ func TestSyncOnce_NoIPs_SetsUnavailableAndClears(t *testing.T) {
 	assert.Equal(t, string(fleetapi.ManagementClusterConditionReasonSharedIngressUnavailable), cond.Reason)
 }
 
-// --- Test doubles for conflict-on-create scenario ---
+func TestSyncOnce_PreconditionFailedOnReplaceReturnsNil(t *testing.T) {
+	ctx := context.Background()
+	realDB, err := fleetcosmosstoragetesting.NewMockFleetDBClientWithResources(ctx, []any{testManagementCluster(nil)})
+	require.NoError(t, err)
+	// Wrap the real mock so the ManagementCluster Replace fails with 412.
+	db := &preconditionReplaceFleetDB{FleetDBClient: realDB}
 
-// conflictOnCreateDBClients implements KubeApplierDBClients, returning a
-// client whose ReadDesiresForManagementCluster CRUD returns NotFound on Get
-// and Conflict on Create — simulating a race where another controller wins
-// the create.
-type conflictOnCreateDBClients struct{}
+	// A service with IPs so the syncer computes an update and attempts a Replace.
+	lister := &kubeapplierlistertesting.SliceReadDesireLister{
+		Desires: []*kubeapplierapi.ReadDesire{buildTestReadDesire(serviceWithIngressIPs("20.1.2.3"))},
+	}
+	syncer := &sharedIngressReportingSyncer{
+		fleetDBClient:    db,
+		readDesireLister: lister,
+	}
 
-func (c *conflictOnCreateDBClients) For(_ context.Context, _ *azcorearm.ResourceID) kubeappliercosmosstorage.KubeApplierDBClient {
-	return &conflictOnCreateDBClient{}
+	// Replace returns 412 Precondition Failed → swallowed, SyncOnce returns nil.
+	require.NoError(t, syncer.SyncOnce(ctx, testKey()))
 }
 
-type conflictOnCreateDBClient struct {
-	kubeappliercosmosstorage.KubeApplierDBClient // embedded nil — only ReadDesiresForManagementCluster is called
+// --- Test double: FleetDBClient whose ManagementCluster Replace fails with 412 ---
+
+// preconditionReplaceFleetDB delegates every operation to a real mock except
+// the ManagementCluster Replace, which returns PreconditionFailed to simulate a
+// lost optimistic-concurrency race.
+type preconditionReplaceFleetDB struct {
+	fleetcosmosstorage.FleetDBClient
 }
 
-func (c *conflictOnCreateDBClient) ReadDesiresForManagementCluster(_ string) (cosmosstorageutils.ResourceCRUD[kubeapplierapi.ReadDesire, *kubeapplierapi.ReadDesire], error) {
-	return &notFoundThenConflictCRUD{}, nil
+func (f *preconditionReplaceFleetDB) Stamps() fleetcosmosstorage.StampsCRUD {
+	return &preconditionReplaceStamps{StampsCRUD: f.FleetDBClient.Stamps()}
 }
 
-type notFoundThenConflictCRUD struct {
-	cosmosstorageutils.ResourceCRUD[kubeapplierapi.ReadDesire, *kubeapplierapi.ReadDesire] // embedded nil — only Get and Create are called
+type preconditionReplaceStamps struct {
+	fleetcosmosstorage.StampsCRUD
 }
 
-func (c *notFoundThenConflictCRUD) Get(_ context.Context, _ string) (*kubeapplierapi.ReadDesire, error) {
-	return nil, cosmosstorageutils.NewNotFoundError()
+func (s *preconditionReplaceStamps) ManagementClusters(stampIdentifier string) fleetcosmosstorage.ManagementClustersCRUD {
+	return &preconditionReplaceMCCRUD{ManagementClustersCRUD: s.StampsCRUD.ManagementClusters(stampIdentifier)}
 }
 
-func (c *notFoundThenConflictCRUD) Create(_ context.Context, _ *kubeapplierapi.ReadDesire, _ *azcosmos.ItemOptions) (*kubeapplierapi.ReadDesire, error) {
-	return nil, &azcore.ResponseError{StatusCode: http.StatusConflict}
+type preconditionReplaceMCCRUD struct {
+	fleetcosmosstorage.ManagementClustersCRUD
+}
+
+func (m *preconditionReplaceMCCRUD) Replace(_ context.Context, _, _ *fleetapi.ManagementCluster, _ *azcosmos.ItemOptions) (*fleetapi.ManagementCluster, error) {
+	return nil, &azcore.ResponseError{StatusCode: http.StatusPreconditionFailed}
 }
