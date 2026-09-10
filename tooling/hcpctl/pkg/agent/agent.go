@@ -22,6 +22,7 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -31,8 +32,6 @@ import (
 
 	copilot "github.com/github/copilot-sdk/go"
 	"github.com/go-logr/logr"
-
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
@@ -156,8 +155,9 @@ type Session struct {
 	inner           *copilot.Session
 	client          *CopilotClient
 	logger          logr.Logger
+	messagesMu      sync.RWMutex
 	lastMessages    json.RawMessage
-	sendGate        chan struct{}
+	sendDispatcher  *copilotSendDispatcher
 	usageMu         sync.RWMutex
 	usage           UsageReport
 	usageProvider   string
@@ -220,16 +220,15 @@ func (c *CopilotClient) CreateSession(ctx context.Context, logger logr.Logger, c
 		inner:           session,
 		client:          c,
 		logger:          logger,
-		sendGate:        make(chan struct{}, 1),
 		usageProvider:   usageProvider,
 		usageDimensions: usageDimensions,
 		usageModel:      sessionCfg.Model,
 		seenUsageKeys:   make(map[string]struct{}),
 	}
-	// Register before the first SendAndWait. The SDK dispatches handlers in
-	// registration order, so all preceding usage events are recorded before
-	// SendAndWait's temporary session.idle handler returns to the caller.
+	// Register before the dispatcher so usage is recorded before a terminal
+	// event wakes a SendAndWait caller.
 	s.inner.On(s.recordUsageEvent)
+	s.sendDispatcher = newCopilotSendDispatcher(s.inner, usageProvider)
 
 	// When verbosity is high enough, trace every session event for debugging.
 	if c.cfg.Verbosity >= 5 {
@@ -338,18 +337,7 @@ func (s *Session) Usage() UsageReport {
 // If ctx is cancelled, the in-flight work is aborted.
 // Returns the final assistant message content.
 func (s *Session) SendAndWait(ctx context.Context, prompt string) (string, error) {
-	// A temporary event subscription associates provider errors with this
-	// request, so calls must not overlap on the same session.
-	if err := s.acquireSendGate(ctx); err != nil {
-		return "", err
-	}
-	defer s.releaseSendGate()
-
 	s.logger.V(1).Info("Sending message to Copilot session.", "promptLength", len(prompt))
-
-	errorCapture := &copilotSessionErrorCapture{provider: s.usageProvider}
-	unsubscribe := s.inner.On(errorCapture.record)
-	defer unsubscribe()
 
 	// The SDK applies a 60s default timeout when the context has no deadline.
 	// Analysis turns routinely take 10+ minutes, so set a generous deadline
@@ -361,73 +349,37 @@ func (s *Session) SendAndWait(ctx context.Context, prompt string) (string, error
 		defer cancel()
 	}
 
-	// Run SendAndWait in a goroutine so we can select on ctx.Done() for abort.
-	type result struct {
-		event *copilot.SessionEvent
-		err   error
-	}
-	ch := make(chan result, 1)
-	go func() {
-		defer utilruntime.HandleCrash()
-		ev, err := s.inner.SendAndWait(ctx, copilot.MessageOptions{
-			Prompt: prompt,
-		})
-		ch <- result{event: ev, err: err}
-	}()
-
-	select {
-	case <-ctx.Done():
+	event, err := s.sendDispatcher.sendAndWait(ctx, copilot.MessageOptions{
+		Prompt: prompt,
+	}, func() {
 		s.logger.Info("Context cancelled, aborting Copilot session.")
 		if err := s.inner.Abort(context.Background()); err != nil {
 			s.logger.Error(err, "Failed to abort Copilot session.")
 		}
-		// Wait for SendAndWait to return after abort.
-		r := <-ch
-		if r.err != nil {
-			return "", fmt.Errorf("copilot session aborted: %w", r.err)
-		}
-		return "", ctx.Err()
-	case r := <-ch:
-		if r.err != nil {
-			return "", wrapCopilotSessionError(errorCapture, r.err)
-		}
-		if r.event == nil {
-			return "", fmt.Errorf("copilot session returned no response")
-		}
-		data, ok := r.event.Data.(*copilot.AssistantMessageData)
-		if !ok {
-			return "", fmt.Errorf("copilot session returned unexpected event type %T", r.event.Data)
-		}
-		s.logger.V(1).Info("Copilot session responded.", "responseLength", len(data.Content))
-		s.snapshotMessages()
-		return data.Content, nil
+	})
+	if err != nil {
+		return "", err
 	}
-}
-
-func (s *Session) acquireSendGate(ctx context.Context) error {
-	if err := ctx.Err(); err != nil {
-		return err
+	if event == nil {
+		return "", fmt.Errorf("copilot session returned no response")
 	}
-	select {
-	case s.sendGate <- struct{}{}:
-		if err := ctx.Err(); err != nil {
-			s.releaseSendGate()
-			return err
-		}
-		return nil
-	case <-ctx.Done():
-		return ctx.Err()
+	data, ok := event.Data.(*copilot.AssistantMessageData)
+	if !ok {
+		return "", fmt.Errorf("copilot session returned unexpected event type %T", event.Data)
 	}
-}
-
-func (s *Session) releaseSendGate() {
-	<-s.sendGate
+	s.logger.V(1).Info("Copilot session responded.", "responseLength", len(data.Content))
+	s.snapshotMessages()
+	return data.Content, nil
 }
 
 // Disconnect releases in-memory session resources. Session state is preserved
 // on disk and can be resumed later.
 func (s *Session) Disconnect() error {
-	return s.inner.Disconnect()
+	err := s.inner.Disconnect()
+	if s.sendDispatcher != nil {
+		s.sendDispatcher.failAll(errors.New("copilot session disconnected"))
+	}
+	return err
 }
 
 // Delete permanently removes all session data from disk.
@@ -454,6 +406,8 @@ func (s *Session) snapshotMessages() {
 		s.logger.Error(err, "Failed to marshal session messages for snapshot.")
 		return
 	}
+	s.messagesMu.Lock()
+	defer s.messagesMu.Unlock()
 	s.lastMessages = data
 }
 
@@ -642,7 +596,10 @@ func copilotUsageEventKeys(event copilot.SessionEvent) []string {
 // successful turn, this works even after the CLI subprocess has exited.
 // This is best-effort: errors are logged but not returned.
 func (s *Session) SaveConversation(path string) {
-	if s.lastMessages == nil {
+	s.messagesMu.RLock()
+	lastMessages := append(json.RawMessage(nil), s.lastMessages...)
+	s.messagesMu.RUnlock()
+	if lastMessages == nil {
 		s.logger.Info("No conversation messages to save.")
 		return
 	}
@@ -652,12 +609,12 @@ func (s *Session) SaveConversation(path string) {
 		return
 	}
 
-	if err := os.WriteFile(path, s.lastMessages, 0644); err != nil {
+	if err := os.WriteFile(path, lastMessages, 0644); err != nil {
 		s.logger.Error(err, "Failed to write conversation to disk.", "path", path)
 		return
 	}
 
-	s.logger.Info("Wrote conversation to disk.", "path", path, "size", len(s.lastMessages))
+	s.logger.Info("Wrote conversation to disk.", "path", path, "size", len(lastMessages))
 }
 
 // traceEvents subscribes to all session events and logs them at V(5) for

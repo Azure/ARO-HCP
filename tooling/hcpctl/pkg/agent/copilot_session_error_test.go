@@ -15,7 +15,6 @@
 package agent
 
 import (
-	"context"
 	"errors"
 	"testing"
 
@@ -30,23 +29,18 @@ func TestCopilotSessionErrorCapture(t *testing.T) {
 	stack := "provider stack"
 	url := "https://example.invalid/rate-limit"
 	eligibleForAutoSwitch := true
-	capture := &copilotSessionErrorCapture{provider: "github-copilot"}
-	capture.record(copilot.SessionEvent{
-		Data: &copilot.SessionErrorData{
-			ErrorType:             CopilotSessionErrorTypeRateLimit,
-			ErrorCode:             &errorCode,
-			StatusCode:            &statusCode,
-			Message:               "request rate limited",
-			ProviderCallID:        &providerCallID,
-			ServiceRequestID:      &serviceRequestID,
-			Stack:                 &stack,
-			URL:                   &url,
-			EligibleForAutoSwitch: &eligibleForAutoSwitch,
-		},
-	})
-
 	providerErr := errors.New("CAPIError: 429")
-	err := wrapCopilotSessionError(capture, providerErr)
+	err := wrapCopilotSessionErrorData("github-copilot", &copilot.SessionErrorData{
+		ErrorType:             CopilotSessionErrorTypeRateLimit,
+		ErrorCode:             &errorCode,
+		StatusCode:            &statusCode,
+		Message:               "request rate limited",
+		ProviderCallID:        &providerCallID,
+		ServiceRequestID:      &serviceRequestID,
+		Stack:                 &stack,
+		URL:                   &url,
+		EligibleForAutoSwitch: &eligibleForAutoSwitch,
+	}, providerErr)
 
 	var sessionErr *CopilotSessionError
 	if !errors.As(err, &sessionErr) {
@@ -91,17 +85,13 @@ func TestCopilotSessionErrorCapture(t *testing.T) {
 }
 
 func TestCopilotSessionErrorCapturePreservesMissingOptionalFields(t *testing.T) {
-	capture := &copilotSessionErrorCapture{provider: "github-copilot"}
-	capture.record(copilot.SessionEvent{
-		Data: &copilot.SessionErrorData{
-			ErrorType: CopilotSessionErrorTypeRateLimit,
-			Message:   "request rate limited",
-		},
-	})
-
-	sessionErr := capture.withCause(errors.New("session failed"))
-	if sessionErr == nil {
-		t.Fatal("withCause() = nil, want CopilotSessionError")
+	err := wrapCopilotSessionErrorData("github-copilot", &copilot.SessionErrorData{
+		ErrorType: CopilotSessionErrorTypeRateLimit,
+		Message:   "request rate limited",
+	}, errors.New("session failed"))
+	var sessionErr *CopilotSessionError
+	if !errors.As(err, &sessionErr) {
+		t.Fatal("errors.As() = false, want true")
 	}
 	if sessionErr.ErrorCode != nil ||
 		sessionErr.StatusCode != nil ||
@@ -111,67 +101,6 @@ func TestCopilotSessionErrorCapturePreservesMissingOptionalFields(t *testing.T) 
 		sessionErr.URL != nil ||
 		sessionErr.EligibleForAutoSwitch != nil {
 		t.Fatalf("optional fields = %#v, want all nil", sessionErr)
-	}
-}
-
-func TestCopilotSessionErrorCapturePreservesFirstError(t *testing.T) {
-	capture := &copilotSessionErrorCapture{provider: "github-copilot"}
-	capture.record(copilot.SessionEvent{
-		Data: &copilot.SessionErrorData{
-			ErrorType: CopilotSessionErrorTypeRateLimit,
-			Message:   "first error",
-		},
-	})
-	capture.record(copilot.SessionEvent{
-		Data: &copilot.SessionErrorData{
-			ErrorType: "authentication",
-			Message:   "second error",
-		},
-	})
-
-	sessionErr := capture.withCause(errors.New("session failed"))
-	if sessionErr == nil {
-		t.Fatal("withCause() = nil, want CopilotSessionError")
-	}
-	if sessionErr.ErrorType != CopilotSessionErrorTypeRateLimit {
-		t.Errorf("ErrorType = %q, want %q", sessionErr.ErrorType, CopilotSessionErrorTypeRateLimit)
-	}
-	if sessionErr.Message != "first error" {
-		t.Errorf("Message = %q, want %q", sessionErr.Message, "first error")
-	}
-}
-
-func TestCopilotSessionErrorCaptureIgnoresUnrelatedEvents(t *testing.T) {
-	capture := &copilotSessionErrorCapture{provider: "github-copilot"}
-	capture.record(copilot.SessionEvent{Data: &copilot.SessionIdleData{}})
-
-	providerErr := errors.New("session failed")
-	err := wrapCopilotSessionError(capture, providerErr)
-	var sessionErr *CopilotSessionError
-	if errors.As(err, &sessionErr) {
-		t.Fatalf("errors.As() = true with %#v, want false", sessionErr)
-	}
-	if !errors.Is(err, providerErr) {
-		t.Fatal("errors.Is() = false, want original provider error in the chain")
-	}
-	if got, want := err.Error(), "copilot session failed: session failed"; got != want {
-		t.Errorf("Error() = %q, want %q", got, want)
-	}
-}
-
-func TestCopilotSendGateHonorsContextCancellation(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-
-	for _, gateOccupied := range []bool{false, true} {
-		session := &Session{sendGate: make(chan struct{}, 1)}
-		if gateOccupied {
-			session.sendGate <- struct{}{}
-		}
-
-		if err := session.acquireSendGate(ctx); !errors.Is(err, context.Canceled) {
-			t.Errorf("acquireSendGate() with gateOccupied=%t error = %v, want context.Canceled", gateOccupied, err)
-		}
 	}
 }
 

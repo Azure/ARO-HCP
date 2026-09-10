@@ -16,7 +16,6 @@ package agent
 
 import (
 	"fmt"
-	"sync"
 
 	copilot "github.com/github/copilot-sdk/go"
 )
@@ -56,21 +55,9 @@ func (e *CopilotSessionError) Unwrap() error {
 	return e.Err
 }
 
-type copilotSessionErrorCapture struct {
-	provider string
-
-	mu    sync.Mutex
-	first *CopilotSessionError
-}
-
-func (c *copilotSessionErrorCapture) record(event copilot.SessionEvent) {
-	data, ok := event.Data.(*copilot.SessionErrorData)
-	if !ok {
-		return
-	}
-
+func wrapCopilotSessionErrorData(provider string, data *copilot.SessionErrorData, cause error) error {
 	captured := &CopilotSessionError{
-		Provider:              c.provider,
+		Provider:              provider,
 		ErrorType:             data.ErrorType,
 		ErrorCode:             clonePointer(data.ErrorCode),
 		StatusCode:            clonePointer(data.StatusCode),
@@ -80,32 +67,9 @@ func (c *copilotSessionErrorCapture) record(event copilot.SessionEvent) {
 		Stack:                 clonePointer(data.Stack),
 		URL:                   clonePointer(data.URL),
 		EligibleForAutoSwitch: clonePointer(data.EligibleForAutoSwitch),
+		Err:                   cause,
 	}
-
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.first == nil {
-		c.first = captured
-	}
-}
-
-func (c *copilotSessionErrorCapture) withCause(cause error) *CopilotSessionError {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.first == nil {
-		return nil
-	}
-
-	captured := *c.first
-	captured.Err = cause
-	return &captured
-}
-
-func wrapCopilotSessionError(capture *copilotSessionErrorCapture, cause error) error {
-	if sessionErr := capture.withCause(cause); sessionErr != nil {
-		return fmt.Errorf("copilot session failed: %w", sessionErr)
-	}
-	return fmt.Errorf("copilot session failed: %w", cause)
+	return fmt.Errorf("copilot session failed: %w", captured)
 }
 
 func clonePointer[T any](value *T) *T {
