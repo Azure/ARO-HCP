@@ -1055,13 +1055,11 @@ func registerStatusCollectorController() controllerconfig.ControllerRegistration
 }
 
 func instantiateStatusCollectorController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
-	_, serviceProviderClusterLister := controllerContext.BackendInformers.ServiceProviderClusters()
-	_, clusterLister := controllerContext.BackendInformers.Clusters()
+
 	return versionrollout.NewStatusCollectorController(
 		controllerContext.FleetDBClient,
 		controllerContext.FleetInformers,
-		serviceProviderClusterLister,
-		clusterLister,
+		controllerContext.BackendInformers,
 		controllerContext.Clock,
 		versionrollout.NewDefaultRolloutConfig(),
 	), nil
@@ -1075,15 +1073,13 @@ func registerNormalClusterDesiredVersionController() controllerconfig.Controller
 }
 
 func instantiateNormalClusterDesiredVersionController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
-	_, serviceProviderClusterLister := controllerContext.BackendInformers.ServiceProviderClusters()
-	_, clusterLister := controllerContext.BackendInformers.Clusters()
+
 	return versionrollout.NewNormalClusterDesiredVersionController(
 		controllerContext.Clock,
 		controllerContext.ResourcesDBClient,
 		controllerContext.FleetDBClient,
 		controllerContext.FleetInformers,
-		serviceProviderClusterLister,
-		clusterLister,
+		controllerContext.BackendInformers,
 		nil, // default random cluster selector
 		versionrollout.NewDefaultRolloutConfig(),
 	), nil

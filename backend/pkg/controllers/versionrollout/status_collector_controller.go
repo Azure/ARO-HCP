@@ -27,6 +27,7 @@ import (
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/informers/fleetinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/database/listers/fleetlisters"
@@ -49,8 +50,10 @@ type statusCollectorSyncer struct {
 }
 
 // NewStatusCollectorController wires the syncer into a rollout watching controller.
-func NewStatusCollectorController(fleetDBClient fleetcosmosstorage.FleetDBClient, fleetInformers fleetinformers.FleetInformers, serviceProviderClusterLister corelisters.ServiceProviderClusterLister, clusterLister corelisters.ClusterLister, clock utilsclock.PassiveClock, config RolloutConfig) controllerutils.Controller {
+func NewStatusCollectorController(fleetDBClient fleetcosmosstorage.FleetDBClient, fleetInformers fleetinformers.FleetInformers, informers coreinformers.BackendInformers, clock utilsclock.PassiveClock, config RolloutConfig) controllerutils.Controller {
 	_, rolloutLister := fleetInformers.ControlPlaneVersionRollouts()
+	clusterInformer, clusterLister := informers.Clusters()
+	serviceProviderClusterInformer, serviceProviderClusterLister := informers.ServiceProviderClusters()
 	syncer := &statusCollectorSyncer{
 		clock:                        clock,
 		rolloutLister:                rolloutLister,
@@ -59,8 +62,12 @@ func NewStatusCollectorController(fleetDBClient fleetcosmosstorage.FleetDBClient
 		clusterLister:                clusterLister,
 		config:                       config,
 	}
-	return controllerutils.NewControlPlaneVersionRolloutWatchingController(
+	controller := controllerutils.NewControlPlaneVersionRolloutWatchingController(
 		StatusCollectorControllerName, fleetInformers, 5*time.Minute, syncer)
+	if err := syncer.watchStatusInputs(clusterInformer, serviceProviderClusterInformer, controller); err != nil {
+		panic(err) // coding error
+	}
+	return controller
 }
 
 // CooldownChecker returns nil: the resync interval drives periodic recomputation.
