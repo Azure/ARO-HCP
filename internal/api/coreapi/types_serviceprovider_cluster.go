@@ -137,7 +137,7 @@ type ServiceProviderClusterSpec struct {
 	// dissipated. Additionally, long recheck times are recommended for resources
 	// outside of their active phases. Order of at least six hours is, with
 	// durations up to 24 hours considered normal.
-	// Written by: FetchMSIIdentitiesInfo, FetchDataPlaneOperatorsManagedIdentitiesInfoController
+	// Written by: FetchMSIIdentitiesInfo, FetchDataPlaneOperatorsManagedIdentitiesInfoController, IdentityRoleAssignments
 	EarliestRecheckTimesByController map[string]*metav1.Time `json:"earliestRecheckTimesByController,omitempty"`
 }
 
@@ -408,8 +408,9 @@ type AzureResources struct {
 	// Written by: EnsureManagedResourceGroup
 	ManagedResourceGroup AzureReference `json:"managedResourceGroup,omitempty"`
 	// RoleAssignments tracks the role assignments created on the managed resource group
-	// for the cluster's control-plane and data-plane managed identities.
-	// Written by: ObserveRoleAssignments
+	// for the cluster's control-plane and data-plane operator identities and its service
+	// managed identity.
+	// Written by: IdentityRoleAssignments
 	RoleAssignments AzureMultiReference `json:"roleAssignments,omitempty"`
 }
 
