@@ -29,6 +29,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/listers/fleetlisters"
 	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -40,8 +41,9 @@ const (
 )
 
 type sharedIngressReportingSyncer struct {
-	fleetDBClient    fleetcosmosstorage.FleetDBClient
-	readDesireLister kubeapplierlisters.ReadDesireLister
+	fleetDBClient           fleetcosmosstorage.FleetDBClient
+	readDesireLister        kubeapplierlisters.ReadDesireLister
+	managementClusterLister fleetlisters.ManagementClusterLister
 }
 
 func NewSharedIngressReportingController(
@@ -49,11 +51,13 @@ func NewSharedIngressReportingController(
 	managementClusterInformer cache.SharedIndexInformer,
 	fleetDBClient fleetcosmosstorage.FleetDBClient,
 	readDesireLister kubeapplierlisters.ReadDesireLister,
+	managementClusterLister fleetlisters.ManagementClusterLister,
 	cfg fleetcontrollers.StampWatchingControllerConfig,
 ) fleetcontrollers.Controller {
 	syncer := &sharedIngressReportingSyncer{
-		fleetDBClient:    fleetDBClient,
-		readDesireLister: readDesireLister,
+		fleetDBClient:           fleetDBClient,
+		readDesireLister:        readDesireLister,
+		managementClusterLister: managementClusterLister,
 	}
 
 	controller := fleetcontrollers.NewStampWatchingController(
@@ -81,8 +85,9 @@ func (s *sharedIngressReportingSyncer) SyncOnce(ctx context.Context, key fleetco
 		return utils.TrackError(err)
 	}
 
-	managementClusterCRUD := s.fleetDBClient.Stamps().ManagementClusters(key.StampIdentifier)
-	managementCluster, err := managementClusterCRUD.Get(ctx, fleetapi.ManagementClusterResourceName)
+	// Read the ManagementCluster from the lister; the fleet DB client is used
+	// only for the optimistic-concurrency Replace write below.
+	managementCluster, err := s.managementClusterLister.Get(ctx, key.StampIdentifier)
 	if err != nil {
 		if cosmosstorageutils.IsNotFoundError(err) {
 			return nil
@@ -121,7 +126,7 @@ func (s *sharedIngressReportingSyncer) SyncOnce(ctx context.Context, key fleetco
 	}
 
 	if controllerutils.NeedsUpdate(managementCluster, updated) {
-		if _, err := managementClusterCRUD.Replace(ctx, updated, managementCluster, nil); err != nil {
+		if _, err := s.fleetDBClient.Stamps().ManagementClusters(key.StampIdentifier).Replace(ctx, updated, managementCluster, nil); err != nil {
 			if cosmosstorageutils.IsPreconditionFailedError(err) {
 				// The ManagementCluster was updated concurrently; a newer
 				// generation will re-trigger this sync, so treat as a no-op.

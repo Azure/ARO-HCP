@@ -27,6 +27,7 @@ import (
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -42,15 +43,18 @@ const (
 
 type ensureReadDesireSyncer struct {
 	kubeApplierDBClients kubeappliercosmosstorage.KubeApplierDBClients
+	readDesireLister     kubeapplierlisters.ReadDesireLister
 }
 
 func NewEnsureSharedIngressReadDesireController(
 	managementClusterInformer cache.SharedIndexInformer,
 	kubeApplierDBClients kubeappliercosmosstorage.KubeApplierDBClients,
+	readDesireLister kubeapplierlisters.ReadDesireLister,
 	cfg fleetcontrollers.StampWatchingControllerConfig,
 ) fleetcontrollers.Controller {
 	syncer := &ensureReadDesireSyncer{
 		kubeApplierDBClients: kubeApplierDBClients,
+		readDesireLister:     readDesireLister,
 	}
 
 	controller := fleetcontrollers.NewStampWatchingController(
@@ -85,7 +89,9 @@ func (s *ensureReadDesireSyncer) SyncOnce(ctx context.Context, key fleetcontroll
 	desireIDString := kubeapplierapi.ToManagementClusterScopedReadDesireResourceIDString(key.StampIdentifier, ReadDesireName)
 	desired := controllerutil.BuildReadDesire(desireIDString, managementClusterResourceID, SharedIngressTarget)
 
-	existing, err := crud.Get(ctx, ReadDesireName)
+	// Read the existing ReadDesire from the lister; the kube-applier crud is used
+	// only for the Create/Replace writes below.
+	existing, err := s.readDesireLister.GetForManagementCluster(ctx, key.StampIdentifier, ReadDesireName)
 	if cosmosstorageutils.IsNotFoundError(err) {
 		if _, err := crud.Create(ctx, desired, nil); err != nil {
 			if cosmosstorageutils.IsConflictError(err) {

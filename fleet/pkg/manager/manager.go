@@ -230,6 +230,7 @@ func (m *Manager) runControllersUnderLeaderElection(
 	ensureSharedIngressReadDesireController := sharedingress.NewEnsureSharedIngressReadDesireController(
 		managementClusterInformer,
 		m.KubeApplierDBClients,
+		readDesireLister,
 		base.StampWatchingControllerConfig{CooldownPeriod: 5 * time.Minute},
 	)
 
@@ -238,6 +239,7 @@ func (m *Manager) runControllersUnderLeaderElection(
 		managementClusterInformer,
 		m.FleetDBClient,
 		readDesireLister,
+		managementClusterLister,
 		base.StampWatchingControllerConfig{CooldownPeriod: 5 * time.Minute},
 	)
 

@@ -31,11 +31,26 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/kubeappliercosmosstoragetesting"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/kubeapplierlistertesting"
 )
+
+func staleReadDesire() *kubeapplierapi.ReadDesire {
+	staleTarget := kubeapplierapi.ResourceReference{
+		Group:    "old.group",
+		Version:  "v1",
+		Resource: "oldresources",
+		Name:     "old",
+	}
+	desireIDString := kubeapplierapi.ToManagementClusterScopedReadDesireResourceIDString(testStampIdentifier, ReadDesireName)
+	return controllerutil.BuildReadDesire(desireIDString, testManagementClusterResourceID(), staleTarget)
+}
 
 func TestEnsureReadDesire_NilClient(t *testing.T) {
 	clients := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClients()
-	syncer := &ensureReadDesireSyncer{kubeApplierDBClients: clients}
+	syncer := &ensureReadDesireSyncer{
+		kubeApplierDBClients: clients,
+		readDesireLister:     &kubeapplierlistertesting.SliceReadDesireLister{},
+	}
 
 	err := syncer.SyncOnce(context.Background(), testKey())
 	require.NoError(t, err)
@@ -46,7 +61,11 @@ func TestEnsureReadDesire_CreatesReadDesireOnFirstCall(t *testing.T) {
 	clients := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClients()
 	clients.Register(testManagementClusterResourceID(), mockClient)
 
-	syncer := &ensureReadDesireSyncer{kubeApplierDBClients: clients}
+	// The lister is empty (not found) so the controller proceeds to Create.
+	syncer := &ensureReadDesireSyncer{
+		kubeApplierDBClients: clients,
+		readDesireLister:     &kubeapplierlistertesting.SliceReadDesireLister{},
+	}
 
 	err := syncer.SyncOnce(context.Background(), testKey())
 	require.NoError(t, err)
@@ -60,59 +79,63 @@ func TestEnsureReadDesire_CreatesReadDesireOnFirstCall(t *testing.T) {
 }
 
 func TestEnsureReadDesire_UpdatesStaleSpec(t *testing.T) {
+	ctx := context.Background()
 	mockClient := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClient()
 	clients := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClients()
 	clients.Register(testManagementClusterResourceID(), mockClient)
 
-	staleTarget := kubeapplierapi.ResourceReference{
-		Group:    "old.group",
-		Version:  "v1",
-		Resource: "oldresources",
-		Name:     "old",
-	}
-	desireIDString := kubeapplierapi.ToManagementClusterScopedReadDesireResourceIDString(testStampIdentifier, ReadDesireName)
-	stale := controllerutil.BuildReadDesire(desireIDString, testManagementClusterResourceID(), staleTarget)
-
 	crud, err := mockClient.ReadDesiresForManagementCluster(testStampIdentifier)
 	require.NoError(t, err)
-	_, err = crud.Create(context.Background(), stale, nil)
+	_, err = crud.Create(ctx, staleReadDesire(), nil)
 	require.NoError(t, err)
 
-	syncer := &ensureReadDesireSyncer{kubeApplierDBClients: clients}
+	// Seed the lister with the stored object (carrying the current etag) so the
+	// controller observes drift via the lister and Replaces via the crud.
+	stored, err := crud.Get(ctx, ReadDesireName)
+	require.NoError(t, err)
+	lister := &kubeapplierlistertesting.SliceReadDesireLister{Desires: []*kubeapplierapi.ReadDesire{stored}}
 
-	err = syncer.SyncOnce(context.Background(), testKey())
+	syncer := &ensureReadDesireSyncer{
+		kubeApplierDBClients: clients,
+		readDesireLister:     lister,
+	}
+
+	err = syncer.SyncOnce(ctx, testKey())
 	require.NoError(t, err)
 
-	updated, err := crud.Get(context.Background(), ReadDesireName)
+	updated, err := crud.Get(ctx, ReadDesireName)
 	require.NoError(t, err)
 	assert.Equal(t, SharedIngressTarget, updated.Spec.TargetItem)
 }
 
 func TestEnsureReadDesire_ConflictOnCreateIsSwallowed(t *testing.T) {
-	clients := &conflictOnCreateDBClients{}
-	syncer := &ensureReadDesireSyncer{kubeApplierDBClients: clients}
+	// Lister is empty (not found) so the controller attempts a Create, which
+	// loses the race and returns 409 Conflict — must be swallowed.
+	syncer := &ensureReadDesireSyncer{
+		kubeApplierDBClients: &conflictOnCreateDBClients{},
+		readDesireLister:     &kubeapplierlistertesting.SliceReadDesireLister{},
+	}
 
 	err := syncer.SyncOnce(context.Background(), testKey())
 	require.NoError(t, err)
 }
 
 func TestEnsureReadDesire_PreconditionFailedOnReplaceIsSwallowed(t *testing.T) {
-	clients := &preconditionOnReplaceDBClients{}
-	syncer := &ensureReadDesireSyncer{kubeApplierDBClients: clients}
+	// Lister returns a stale ReadDesire so the controller attempts a Replace,
+	// which loses the optimistic-concurrency check and returns 412 Precondition
+	// Failed — must be swallowed.
+	lister := &kubeapplierlistertesting.SliceReadDesireLister{Desires: []*kubeapplierapi.ReadDesire{staleReadDesire()}}
+	syncer := &ensureReadDesireSyncer{
+		kubeApplierDBClients: &preconditionOnReplaceDBClients{},
+		readDesireLister:     lister,
+	}
 
-	// The existing ReadDesire is stale (so a Replace is attempted) and the
-	// Replace loses the optimistic-concurrency check → 412 Precondition Failed,
-	// which must be swallowed as a no-op.
 	err := syncer.SyncOnce(context.Background(), testKey())
 	require.NoError(t, err)
 }
 
-// --- Test doubles for conflict-on-create scenario ---
+// --- Test double: kube-applier crud whose Create returns 409 Conflict ---
 
-// conflictOnCreateDBClients implements KubeApplierDBClients, returning a
-// client whose ReadDesiresForManagementCluster CRUD returns NotFound on Get
-// and Conflict on Create — simulating a race where another controller wins
-// the create.
 type conflictOnCreateDBClients struct{}
 
 func (c *conflictOnCreateDBClients) For(_ context.Context, _ *azcorearm.ResourceID) kubeappliercosmosstorage.KubeApplierDBClient {
@@ -124,27 +147,19 @@ type conflictOnCreateDBClient struct {
 }
 
 func (c *conflictOnCreateDBClient) ReadDesiresForManagementCluster(_ string) (cosmosstorageutils.ResourceCRUD[kubeapplierapi.ReadDesire, *kubeapplierapi.ReadDesire], error) {
-	return &notFoundThenConflictCRUD{}, nil
+	return &conflictOnCreateCRUD{}, nil
 }
 
-type notFoundThenConflictCRUD struct {
-	cosmosstorageutils.ResourceCRUD[kubeapplierapi.ReadDesire, *kubeapplierapi.ReadDesire] // embedded nil — only Get and Create are called
+type conflictOnCreateCRUD struct {
+	cosmosstorageutils.ResourceCRUD[kubeapplierapi.ReadDesire, *kubeapplierapi.ReadDesire] // embedded nil — only Create is called
 }
 
-func (c *notFoundThenConflictCRUD) Get(_ context.Context, _ string) (*kubeapplierapi.ReadDesire, error) {
-	return nil, cosmosstorageutils.NewNotFoundError()
-}
-
-func (c *notFoundThenConflictCRUD) Create(_ context.Context, _ *kubeapplierapi.ReadDesire, _ *azcosmos.ItemOptions) (*kubeapplierapi.ReadDesire, error) {
+func (c *conflictOnCreateCRUD) Create(_ context.Context, _ *kubeapplierapi.ReadDesire, _ *azcosmos.ItemOptions) (*kubeapplierapi.ReadDesire, error) {
 	return nil, &azcore.ResponseError{StatusCode: http.StatusConflict}
 }
 
-// --- Test doubles for precondition-failed-on-replace scenario ---
+// --- Test double: kube-applier crud whose Replace returns 412 Precondition Failed ---
 
-// preconditionOnReplaceDBClients implements KubeApplierDBClients, returning a
-// client whose ReadDesiresForManagementCluster CRUD returns a stale ReadDesire
-// on Get (so the controller attempts a Replace) and PreconditionFailed on
-// Replace — simulating a lost optimistic-concurrency race.
 type preconditionOnReplaceDBClients struct{}
 
 func (c *preconditionOnReplaceDBClients) For(_ context.Context, _ *azcorearm.ResourceID) kubeappliercosmosstorage.KubeApplierDBClient {
@@ -156,26 +171,13 @@ type preconditionOnReplaceDBClient struct {
 }
 
 func (c *preconditionOnReplaceDBClient) ReadDesiresForManagementCluster(_ string) (cosmosstorageutils.ResourceCRUD[kubeapplierapi.ReadDesire, *kubeapplierapi.ReadDesire], error) {
-	return &staleThenPreconditionReplaceCRUD{}, nil
+	return &preconditionOnReplaceCRUD{}, nil
 }
 
-type staleThenPreconditionReplaceCRUD struct {
-	cosmosstorageutils.ResourceCRUD[kubeapplierapi.ReadDesire, *kubeapplierapi.ReadDesire] // embedded nil — only Get and Replace are called
+type preconditionOnReplaceCRUD struct {
+	cosmosstorageutils.ResourceCRUD[kubeapplierapi.ReadDesire, *kubeapplierapi.ReadDesire] // embedded nil — only Replace is called
 }
 
-func (c *staleThenPreconditionReplaceCRUD) Get(_ context.Context, _ string) (*kubeapplierapi.ReadDesire, error) {
-	// Return a stale ReadDesire (different target) so ReadDesireNeedsWork is
-	// true and the controller proceeds to Replace.
-	staleTarget := kubeapplierapi.ResourceReference{
-		Group:    "old.group",
-		Version:  "v1",
-		Resource: "oldresources",
-		Name:     "old",
-	}
-	desireIDString := kubeapplierapi.ToManagementClusterScopedReadDesireResourceIDString(testStampIdentifier, ReadDesireName)
-	return controllerutil.BuildReadDesire(desireIDString, testManagementClusterResourceID(), staleTarget), nil
-}
-
-func (c *staleThenPreconditionReplaceCRUD) Replace(_ context.Context, _ *kubeapplierapi.ReadDesire, _ *azcosmos.ItemOptions) (*kubeapplierapi.ReadDesire, error) {
+func (c *preconditionOnReplaceCRUD) Replace(_ context.Context, _ *kubeapplierapi.ReadDesire, _ *azcosmos.ItemOptions) (*kubeapplierapi.ReadDesire, error) {
 	return nil, &azcore.ResponseError{StatusCode: http.StatusPreconditionFailed}
 }

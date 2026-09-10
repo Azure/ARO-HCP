@@ -40,6 +40,7 @@ import (
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/fleetcosmosstoragetesting"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/fleetlistertesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/kubeapplierlistertesting"
 )
 
@@ -93,15 +94,27 @@ func serviceWithIngressIPs(ips ...string) *corev1.Service {
 	return svc
 }
 
+// seedReportingDB creates a mock fleet DB seeded with a ManagementCluster and a
+// SliceManagementClusterLister backed by the stored object (carrying the current
+// etag) so lister reads and optimistic-concurrency Replaces stay consistent.
+func seedReportingDB(ctx context.Context, t *testing.T, existingIPs []string) (*fleetcosmosstoragetesting.MockFleetDBClient, *fleetlistertesting.SliceManagementClusterLister) {
+	t.Helper()
+	mockDB, err := fleetcosmosstoragetesting.NewMockFleetDBClientWithResources(ctx, []any{testManagementCluster(existingIPs)})
+	require.NoError(t, err)
+	stored, err := mockDB.Stamps().ManagementClusters(testStampIdentifier).Get(ctx, fleetapi.ManagementClusterResourceName)
+	require.NoError(t, err)
+	mcLister := &fleetlistertesting.SliceManagementClusterLister{ManagementClusters: []*fleetapi.ManagementCluster{stored}}
+	return mockDB, mcLister
+}
+
 func TestSyncOnce_NotFoundReadDesire(t *testing.T) {
 	ctx := context.Background()
-	mockDB, err := fleetcosmosstoragetesting.NewMockFleetDBClientWithResources(ctx, []any{testManagementCluster(nil)})
-	require.NoError(t, err)
+	mockDB, mcLister := seedReportingDB(ctx, t, nil)
 
-	lister := &kubeapplierlistertesting.SliceReadDesireLister{}
 	syncer := &sharedIngressReportingSyncer{
-		fleetDBClient:    mockDB,
-		readDesireLister: lister,
+		fleetDBClient:           mockDB,
+		readDesireLister:        &kubeapplierlistertesting.SliceReadDesireLister{},
+		managementClusterLister: mcLister,
 	}
 
 	require.NoError(t, syncer.SyncOnce(ctx, testKey()))
@@ -116,15 +129,12 @@ func TestSyncOnce_NotFoundReadDesire(t *testing.T) {
 func TestSyncOnce_NilKubeContent_SetsNotMirroredAndClears(t *testing.T) {
 	ctx := context.Background()
 	// Seed with pre-existing IPs so we can prove they get cleared.
-	mockDB, err := fleetcosmosstoragetesting.NewMockFleetDBClientWithResources(ctx, []any{testManagementCluster([]string{"10.0.0.1"})})
-	require.NoError(t, err)
+	mockDB, mcLister := seedReportingDB(ctx, t, []string{"10.0.0.1"})
 
-	lister := &kubeapplierlistertesting.SliceReadDesireLister{
-		Desires: []*kubeapplierapi.ReadDesire{buildTestReadDesire(nil)},
-	}
 	syncer := &sharedIngressReportingSyncer{
-		fleetDBClient:    mockDB,
-		readDesireLister: lister,
+		fleetDBClient:           mockDB,
+		readDesireLister:        &kubeapplierlistertesting.SliceReadDesireLister{Desires: []*kubeapplierapi.ReadDesire{buildTestReadDesire(nil)}},
+		managementClusterLister: mcLister,
 	}
 
 	require.NoError(t, syncer.SyncOnce(ctx, testKey()))
@@ -141,16 +151,13 @@ func TestSyncOnce_NilKubeContent_SetsNotMirroredAndClears(t *testing.T) {
 
 func TestSyncOnce_WithIPs_SetsMirrored(t *testing.T) {
 	ctx := context.Background()
-	mockDB, err := fleetcosmosstoragetesting.NewMockFleetDBClientWithResources(ctx, []any{testManagementCluster(nil)})
-	require.NoError(t, err)
+	mockDB, mcLister := seedReportingDB(ctx, t, nil)
 
 	// Includes an empty IP that must be skipped, plus two real IPs.
-	lister := &kubeapplierlistertesting.SliceReadDesireLister{
-		Desires: []*kubeapplierapi.ReadDesire{buildTestReadDesire(serviceWithIngressIPs("20.1.2.3", "", "20.4.5.6"))},
-	}
 	syncer := &sharedIngressReportingSyncer{
-		fleetDBClient:    mockDB,
-		readDesireLister: lister,
+		fleetDBClient:           mockDB,
+		readDesireLister:        &kubeapplierlistertesting.SliceReadDesireLister{Desires: []*kubeapplierapi.ReadDesire{buildTestReadDesire(serviceWithIngressIPs("20.1.2.3", "", "20.4.5.6"))}},
+		managementClusterLister: mcLister,
 	}
 
 	require.NoError(t, syncer.SyncOnce(ctx, testKey()))
@@ -168,16 +175,13 @@ func TestSyncOnce_WithIPs_SetsMirrored(t *testing.T) {
 func TestSyncOnce_NoIPs_SetsUnavailableAndClears(t *testing.T) {
 	ctx := context.Background()
 	// Seed with pre-existing IPs so we can prove they get cleared.
-	mockDB, err := fleetcosmosstoragetesting.NewMockFleetDBClientWithResources(ctx, []any{testManagementCluster([]string{"10.0.0.1"})})
-	require.NoError(t, err)
+	mockDB, mcLister := seedReportingDB(ctx, t, []string{"10.0.0.1"})
 
 	// Service present but with no (or only empty) load balancer ingress IPs.
-	lister := &kubeapplierlistertesting.SliceReadDesireLister{
-		Desires: []*kubeapplierapi.ReadDesire{buildTestReadDesire(serviceWithIngressIPs(""))},
-	}
 	syncer := &sharedIngressReportingSyncer{
-		fleetDBClient:    mockDB,
-		readDesireLister: lister,
+		fleetDBClient:           mockDB,
+		readDesireLister:        &kubeapplierlistertesting.SliceReadDesireLister{Desires: []*kubeapplierapi.ReadDesire{buildTestReadDesire(serviceWithIngressIPs(""))}},
+		managementClusterLister: mcLister,
 	}
 
 	require.NoError(t, syncer.SyncOnce(ctx, testKey()))
@@ -194,18 +198,15 @@ func TestSyncOnce_NoIPs_SetsUnavailableAndClears(t *testing.T) {
 
 func TestSyncOnce_PreconditionFailedOnReplaceReturnsNil(t *testing.T) {
 	ctx := context.Background()
-	realDB, err := fleetcosmosstoragetesting.NewMockFleetDBClientWithResources(ctx, []any{testManagementCluster(nil)})
-	require.NoError(t, err)
+	mockDB, mcLister := seedReportingDB(ctx, t, nil)
 	// Wrap the real mock so the ManagementCluster Replace fails with 412.
-	db := &preconditionReplaceFleetDB{FleetDBClient: realDB}
+	db := &preconditionReplaceFleetDB{FleetDBClient: mockDB}
 
 	// A service with IPs so the syncer computes an update and attempts a Replace.
-	lister := &kubeapplierlistertesting.SliceReadDesireLister{
-		Desires: []*kubeapplierapi.ReadDesire{buildTestReadDesire(serviceWithIngressIPs("20.1.2.3"))},
-	}
 	syncer := &sharedIngressReportingSyncer{
-		fleetDBClient:    db,
-		readDesireLister: lister,
+		fleetDBClient:           db,
+		readDesireLister:        &kubeapplierlistertesting.SliceReadDesireLister{Desires: []*kubeapplierapi.ReadDesire{buildTestReadDesire(serviceWithIngressIPs("20.1.2.3"))}},
+		managementClusterLister: mcLister,
 	}
 
 	// Replace returns 412 Precondition Failed → swallowed, SyncOnce returns nil.
@@ -214,9 +215,9 @@ func TestSyncOnce_PreconditionFailedOnReplaceReturnsNil(t *testing.T) {
 
 // --- Test double: FleetDBClient whose ManagementCluster Replace fails with 412 ---
 
-// preconditionReplaceFleetDB delegates every operation to a real mock except
-// the ManagementCluster Replace, which returns PreconditionFailed to simulate a
-// lost optimistic-concurrency race.
+// preconditionReplaceFleetDB delegates every operation to a real mock except the
+// ManagementCluster Replace, which returns PreconditionFailed to simulate a lost
+// optimistic-concurrency race.
 type preconditionReplaceFleetDB struct {
 	fleetcosmosstorage.FleetDBClient
 }
