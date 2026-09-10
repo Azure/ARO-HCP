@@ -30,20 +30,27 @@ This prefix is abbreviated as `{resourceId}` below.
 
 Authentication and authorization is layered across infrastructure and application:
 
-1. **MISE** (external authorization via Istio): validates the Geneva Actions bearer token, proving the request comes from an authorized Geneva Action. Applied to all paths except `/metrics`.
-2. **`WithClientPrincipal` middleware**: requires the `X-Ms-Client-Principal-Name` header on specific routes, returning 401 if missing. This header is set by Geneva Actions to identify the user or service principal who triggered the action. The Admin API trusts this header because MISE has already verified the caller is Geneva Actions.
+1. **Geneva Actions authenticates to Entra ID**: mints its bearer token by authenticating as our `arohcp-ga-{env}` Entra service principal, using a Subject Name/Issuer (SNI) certificate it reads from our `arohcp-{env}-geneva-kv` Key Vault — no client secret is shared with Geneva.
+2. **MISE** (external authorization via Istio): validates the Geneva Actions bearer token, proving the request comes from an authorized Geneva Action. Applied to all paths except `/metrics`.
+3. **`WithClientPrincipal` middleware**: requires the `X-Ms-Client-Principal-Name` header on specific routes, returning 401 if missing. This header is set by Geneva Actions to identify the user or service principal who triggered the action. The Admin API trusts this header because MISE has already verified the caller is Geneva Actions.
 
 ```mermaid
 sequenceDiagram
     participant User as User/SRE
     participant GA as Geneva Actions
+    participant KV as Geneva KV<br/>(arohcp-{env}-geneva-kv)
+    participant AAD as Entra ID
     participant Istio as Istio Ingress
     participant MISE as MISE (ext-authz)
     participant Admin as Admin API
 
     User->>GA: Initiate action
     Note over GA: Approval mechanisms<br/>(Lockbox, group membership, oncall)
-    GA->>Istio: Request with GA bearer token +<br/>X-Ms-Client-Principal-Name header
+    GA->>KV: Fetch SNI certificate
+    KV-->>GA: Certificate
+    GA->>AAD: Authenticate as arohcp-ga-{env}<br/>using cert (SNI trust)
+    AAD-->>GA: Bearer token
+    GA->>Istio: Request with bearer token +<br/>X-Ms-Client-Principal-Name header
     Istio->>MISE: Validate bearer token
     MISE-->>Istio: Token valid (caller is GA)
     Istio->>Admin: Forward request
