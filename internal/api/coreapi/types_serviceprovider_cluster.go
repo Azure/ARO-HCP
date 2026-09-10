@@ -15,11 +15,14 @@
 package coreapi
 
 import (
+	"encoding"
 	"fmt"
+	"strings"
 
 	"github.com/blang/semver/v4"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -300,6 +303,235 @@ type ServiceProviderClusterStatus struct {
 	// cannot lose the record. Empty means no backup has completed.
 	// Written by: KeyRotationBackup
 	KeyRotationBackupFingerprint string `json:"keyRotationBackupFingerprint,omitempty"`
+
+	// ManagedIdentityDetails is a map containing the details for the
+	// managed identities associated with the cluster. The key is a combination of
+	// the Azure Resource ID of the identity and a boolean indicating if the identity
+	// is an MSI-based identity.
+	// Written by: FetchManagedIdentitiesInfo
+	ManagedIdentityDetails map[ManagedIdentityDetailsKey]*ManagedIdentityDetails `json:"managedIdentityDetailsByResourceID,omitempty"`
+	// ManagedIdentitiesEarliestRecheckTime is the earliest time at which the controller should
+	// re-query Azure for ManagedIdentityDetails. Nil means recheck immediately.
+	// This allows the controller to avoid repeatedly hitting an Azure API to
+	// recheck that the desired state is true.
+	// Controllers should set this field with substantial jitter: without another
+	// concern, jitter of 50% is considered normal so that any storms are quickly
+	// dissipated. Additionally, long recheck times are recommended for resources
+	// outside of their active phases. Order of at least six hours is, with durations up to 24 hours considered normal.
+	// Written by: FetchManagedIdentitiesInfo
+	ManagedIdentitiesEarliestRecheckTime *metav1.Time `json:"managedIdentitiesEarliestRecheckTime,omitempty"`
+
+	// ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation tracks the desired and observed
+	// data-plane OIDC federation state for each fully resolved data-plane operator
+	// identity (ManagedIdentityDetails entries with MSIBasedDetails false).
+	// DataPlaneOIDCFederationDesiredState adds those identities whose ClientID, PrincipalID,
+	// and TenantID are all set as PendingConfigure, and marks identities that have
+	// left that data-plane set as PendingDeconfigure (stamping DeconfigureTimestamp
+	// when that was requested so Azure FIC deletes wait 24 hours on a live cluster). DataPlaneOIDCFederation
+	// then creates or deletes federated identity credentials in Azure (one per
+	// data-plane operator service account) and advances the phase to Configured
+	// or Deconfigured.
+	// Written by: DataPlaneOIDCFederationDesiredState, DataPlaneOIDCFederation
+	ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation map[ManagedIdentityDataplaneOIDCFederationKey]*ManagedIdentityDataplaneOIDCFederationStatus `json:"managedIdentitiesWithDataPlaneWorkloadsOIDCFederation,omitempty"`
+}
+
+type ManagedIdentityDetailsKey struct {
+	// ResourceID is the Azure Resource ID of the managed identity.
+	ResourceID string `json:"resourceId,omitempty"`
+	// MSIBasedDetails is true if the managed identity details information source is the Managed Identities Data Plane service.
+	// In ARO-HCP environments where the Managed Identities Data Plane service is not available for MSI-based identities we don't use the actual
+	// <clientid,principalid> associated to them, rather the "Hardcoded Identity" for all of them (also known as the "MI Mock").
+	// This is used as part of the key so we can distinguish and store between
+	// MSI-based (control plane operators identities and the service managed identity) and non-MSI-based identities (data plane operators identities).
+	// The reason for this is that in ARO-HCP for a single resource ID the <clientid,principalid,tenantid> can be different when it
+	// is used as a MSI-based identity and when it is used as a non-MSI-based identity. This is because in the ARO-HCP
+	// environments where the MI Dataplane service is not available for MSI-based identities we don't use the actual
+	// <clientid,principalid> associated to them, rather the "Hardcoded Identity" for all of them (also known as the "MI Mock")
+	MSIBasedDetails bool `json:"msiBasedDetails"`
+}
+
+const (
+	managedIdentityDetailsKeySeparator = "|"
+)
+
+var (
+	_ encoding.TextMarshaler   = ManagedIdentityDetailsKey{}
+	_ encoding.TextUnmarshaler = (*ManagedIdentityDetailsKey)(nil)
+)
+
+// MarshalText allows ManagedIdentityDetailsKey to be used as a JSON object key.
+// This is needed so it can be serialized/deserialize to/from Cosmos DB,
+// as well as log it as a json representation.
+func (k ManagedIdentityDetailsKey) MarshalText() ([]byte, error) {
+	msiBased := "false"
+	if k.MSIBasedDetails {
+		msiBased = "true"
+	}
+	return []byte(k.ResourceID + managedIdentityDetailsKeySeparator + msiBased), nil
+}
+
+// UnmarshalText reconstructs a ManagedIdentityDetailsKey from the text produced
+// by MarshalText. This is needed so it can be deserialized from Cosmos DB,
+// as well as log it as a json representation.
+func (k *ManagedIdentityDetailsKey) UnmarshalText(text []byte) error {
+	parts := strings.Split(string(text), managedIdentityDetailsKeySeparator)
+	if len(parts) != 2 {
+		return fmt.Errorf("invalid ManagedIdentityDetailsKey %q: expected 2 parts separated by %q", text, managedIdentityDetailsKeySeparator)
+	}
+	k.ResourceID = parts[0]
+	switch parts[1] {
+	case "true":
+		k.MSIBasedDetails = true
+	case "false":
+		k.MSIBasedDetails = false
+	default:
+		return fmt.Errorf("invalid ManagedIdentityDetailsKey %q: MSIBased must be true or false", text)
+	}
+	return nil
+}
+
+// HasResolvedIdentityInformation reports whether details has a ResourceID and non-empty
+// ClientID, PrincipalID, and TenantID. Identities that are not yet fully
+// resolved are not eligible for data-plane OIDC federation.
+func (d *ManagedIdentityDetails) HasResolvedIdentityInformation() bool {
+	if d.ResourceID == nil {
+		return false
+	}
+
+	return len(ptr.Deref(d.ClientID, "")) > 0 &&
+		len(ptr.Deref(d.PrincipalID, "")) > 0 &&
+		len(ptr.Deref(d.TenantID, "")) > 0
+}
+
+// AsDataplaneOIDCFederationKey returns the federation map key for details when
+// ClientID, PrincipalID, and TenantID are all set. ResourceID is lowercased
+// because ARM resource IDs are case-insensitive. ok is false when the identity
+// is not fully resolved.
+func (d *ManagedIdentityDetails) AsDataplaneOIDCFederationKey() (ManagedIdentityDataplaneOIDCFederationKey, bool) {
+	if !d.HasResolvedIdentityInformation() {
+		return ManagedIdentityDataplaneOIDCFederationKey{}, false
+	}
+	return ManagedIdentityDataplaneOIDCFederationKey{
+		ResourceID:  strings.ToLower(d.ResourceID.String()),
+		ClientID:    ptr.Deref(d.ClientID, ""),
+		PrincipalID: ptr.Deref(d.PrincipalID, ""),
+		TenantID:    ptr.Deref(d.TenantID, ""),
+	}, true
+}
+
+// ManagedIdentityDataplaneOIDCFederationPhase is the reconciliation phase of
+// data-plane OIDC federation for a single managed identity.
+type ManagedIdentityDataplaneOIDCFederationPhase string
+
+const (
+	// ManagedIdentityDataplaneOIDCFederationPhasePendingConfigure means the
+	// identity is fully resolved and a federated identity credential should be created.
+	ManagedIdentityDataplaneOIDCFederationPhasePendingConfigure ManagedIdentityDataplaneOIDCFederationPhase = "PendingConfigure"
+	// ManagedIdentityDataplaneOIDCFederationPhaseConfigured means the federated
+	// identity credential has been created in Azure.
+	ManagedIdentityDataplaneOIDCFederationPhaseConfigured ManagedIdentityDataplaneOIDCFederationPhase = "Configured"
+	// ManagedIdentityDataplaneOIDCFederationPhasePendingDeconfigure means the
+	// identity is no longer in ManagedIdentityDetails and the federated identity
+	// credential should be deleted.
+	ManagedIdentityDataplaneOIDCFederationPhasePendingDeconfigure ManagedIdentityDataplaneOIDCFederationPhase = "PendingDeconfigure"
+	// ManagedIdentityDataplaneOIDCFederationPhaseDeconfigured means the federated
+	// identity credential has been deleted from Azure.
+	ManagedIdentityDataplaneOIDCFederationPhaseDeconfigured ManagedIdentityDataplaneOIDCFederationPhase = "Deconfigured"
+)
+
+// ManagedIdentityDataplaneOIDCFederationKey is the key for the map of managed identities to perform Dataplane OIDC Federation for.
+// Fields are strings (not pointers) so the struct is a comparable map key and
+// two keys with the same values compare equal.
+type ManagedIdentityDataplaneOIDCFederationKey struct {
+	// ResourceID is the fully lowercased Azure Resource ID of the managed identity.
+	ResourceID string `json:"resourceId,omitempty"`
+	// ClientID is the Client ID of the managed identity.
+	ClientID string `json:"clientId,omitempty"`
+	// PrincipalID is the Principal ID of the managed identity.
+	PrincipalID string `json:"principalId,omitempty"`
+	// TenantID is the Tenant ID of the managed identity.
+	TenantID string `json:"tenantId,omitempty"`
+}
+
+const (
+	managedIdentityDataplaneOIDCFederationKeySeparator = "|"
+)
+
+var (
+	_ encoding.TextMarshaler   = ManagedIdentityDataplaneOIDCFederationKey{}
+	_ encoding.TextUnmarshaler = (*ManagedIdentityDataplaneOIDCFederationKey)(nil)
+)
+
+// MarshalText allows ManagedIdentityDataplaneOIDCFederationKey to be used as a
+// JSON object key. encoding/json requires encoding.TextMarshaler for non-string
+// map keys. This is needed so it can be serialized/deserialize to/from Cosmos DB,
+// as well as log it as a json representation.
+func (k ManagedIdentityDataplaneOIDCFederationKey) MarshalText() ([]byte, error) {
+	return []byte(strings.Join([]string{k.ResourceID, k.ClientID, k.PrincipalID, k.TenantID}, managedIdentityDataplaneOIDCFederationKeySeparator)), nil
+}
+
+// UnmarshalText reconstructs a ManagedIdentityDataplaneOIDCFederationKey from
+// the text produced by MarshalText. This is needed so it can be deserialized from Cosmos DB,
+// as well as log it as a json representation.
+func (k *ManagedIdentityDataplaneOIDCFederationKey) UnmarshalText(text []byte) error {
+	parts := strings.Split(string(text), managedIdentityDataplaneOIDCFederationKeySeparator)
+	if len(parts) != 4 {
+		return fmt.Errorf("invalid ManagedIdentityDataplaneOIDCFederationKey %q: expected 4 parts separated by %q", text, managedIdentityDataplaneOIDCFederationKeySeparator)
+	}
+	k.ResourceID = parts[0]
+	k.ClientID = parts[1]
+	k.PrincipalID = parts[2]
+	k.TenantID = parts[3]
+	return nil
+}
+
+type ManagedIdentityDataplaneOIDCFederationStatus struct {
+	// EarliestRecheckTime is the earliest time at which the controller should
+	// re-query Azure for the managed identity's OIDC Federation status. Nil means recheck immediately.
+	// This allows the controller to avoid repeatedly hitting an Azure API to
+	// recheck that the desired state is true.
+	// Controllers should set this field with substantial jitter: without another
+	// concern, jitter of 50% is considered normal so that any storms are quickly
+	// dissipated. Additionally, long recheck times are recommended for resources outside of their active phases. Order of at least six hours is, with durations up to 24 hours considered normal.
+	// Written by: DataPlaneOIDCFederation
+	EarliestRecheckTime *metav1.Time `json:"earliestRecheckTime,omitempty"`
+	// Phase is the reconciliation phase of data-plane OIDC federation for this identity.
+	// Written by: DataPlaneOIDCFederationDesiredState, DataPlaneOIDCFederation
+	Phase ManagedIdentityDataplaneOIDCFederationPhase `json:"phase,omitempty"`
+	// DeconfigureTimestamp is the timestamp at which deconfigure of this
+	// identity's data-plane OIDC federation was requested. The timestamp is in UTC.
+	// A nil value indicates that deconfigure has not been requested.
+	// On a live cluster the executor waits 24 hours from this timestamp before
+	// deleting Azure FICs. Cluster deletion (DeletionTimestamp set) deconfigures
+	// immediately.
+	// Written by: DataPlaneOIDCFederationDesiredState
+	DeconfigureTimestamp *metav1.Time `json:"deconfigureTimestamp,omitempty"`
+	// PendingAzureResources contains federated identity credential resource IDs
+	// that have been requested but not yet confirmed to exist in Azure.
+	// DataPlaneOIDCFederation persists these IDs before CreateOrUpdate, so a crash
+	// or replace failure cannot lose the tracked set. After a partial Azure ensure,
+	// desired IDs that were not confirmed stay here. PendingDeconfigure also
+	// deletes leftover IDs here from a previous incomplete configure.
+	// Written by: DataPlaneOIDCFederation
+	PendingAzureResources []*azcorearm.ResourceID `json:"pendingFederatedIdentityCredentials,omitempty"`
+	// AzureResources contains federated identity credential resource IDs that
+	// have been confirmed to exist in Azure. After a partial Azure ensure this
+	// is the confirmed subset (plus extras Azure did not delete); after a
+	// partial deconfigure it is the IDs Azure did not delete.
+	// Written by: DataPlaneOIDCFederation
+	AzureResources []*azcorearm.ResourceID `json:"federatedIdentityCredentials,omitempty"`
+}
+
+// ManagedIdentityDetails contains the details for a managed identity.
+type ManagedIdentityDetails struct {
+	// ResourceID is the Azure Resource ID of the managed identity.
+	ResourceID *azcorearm.ResourceID `json:"resourceId,omitempty"`
+	// ClientID is the Client ID of the managed identity.
+	ClientID *string `json:"clientId,omitempty"`
+	// PrincipalID is the Principal ID of the managed identity.
+	PrincipalID *string `json:"principalId,omitempty"`
+	// TenantID is the Tenant ID of the managed identity.
+	TenantID *string `json:"tenantId,omitempty"`
 }
 
 // ServiceProviderClusterMSIManagedIdentities holds Managed Service Identity (MSI)

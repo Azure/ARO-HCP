@@ -47,6 +47,7 @@ import (
 	credentialrevocationcreation "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/credentialrevocation/creation"
 	credentialrevocationdeletion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/credentialrevocation/deletion"
 	credentialrevocationoperations "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/credentialrevocation/operations"
+	clusterdataplaneworkloads "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/dataplaneworkloads"
 	clusterdeletion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/deletion"
 	clusteridentity "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/identity"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/legacycredentialrequest"
@@ -130,6 +131,11 @@ type BackendOptions struct {
 	CheckAccessV2ClientBuilder                          azureclient.CheckAccessV2ClientBuilder
 	ClusterScopedIdentitiesConfig                       *internalazure.ClusterScopedIdentitiesConfig
 	CloudEnvironment                                    *azureconfig.AzureCloudEnvironment
+	// DataPlaneOIDCIssuerBaseURL is the OIDC issuer base URL used when creating
+	// federated identity credentials for data-plane operator identities. The
+	// issuer URL is <base><cluster tenant ID>/<Cluster Service cluster ID>. A
+	// trailing slash is added to the base URL if it is missing.
+	DataPlaneOIDCIssuerBaseURL string
 }
 
 const backendShutdownTimeout = 31 * time.Second
@@ -1081,6 +1087,22 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		b.options.SMIClientBuilder,
 	)
 
+	dataPlaneWorkloadsOIDCFederationIntentController := clusterdataplaneworkloads.NewDataPlaneOIDCFederationIntentController(
+		b.clock,
+		b.options.ResourcesDBClient,
+		backendInformers,
+	)
+
+	dataPlaneWorkloadsOIDCFederationController := clusterdataplaneworkloads.NewDataPlaneOIDCFederationController(
+		b.clock,
+		b.options.ResourcesDBClient,
+		backendInformers,
+		b.options.SMIClientBuilder,
+		b.options.FPAMIDataplaneClientBuilder,
+		b.options.ClusterScopedIdentitiesConfig,
+		b.options.DataPlaneOIDCIssuerBaseURL,
+	)
+
 	observeRoleAssignmentsController := clusterroleassignments.NewRoleAssignmentsController(
 		b.options.ResourcesDBClient,
 		serviceProviderClusterLister,
@@ -1217,6 +1239,8 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go backupScheduleController.Run(ctx, 20)
 				go fetchMSIIdentitiesInfoController.Run(ctx, 20)
 				go fetchDataPlaneOperatorsManagedIdentitiesInfoController.Run(ctx, 20)
+				go dataPlaneWorkloadsOIDCFederationIntentController.Run(ctx, 20)
+				go dataPlaneWorkloadsOIDCFederationController.Run(ctx, 20)
 				go observeRoleAssignmentsController.Run(ctx, 20)
 				go keyRotationBackupController.Run(ctx, 20)
 				go clusterResourcesController.Run(ctx, 20)
