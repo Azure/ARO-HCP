@@ -206,6 +206,46 @@ func TestBuildGrafanaReconcileOptions(t *testing.T) {
 			t.Errorf("PublicNetworkAccess = %q, want %q", opts.PublicNetworkAccess, "Disabled")
 		}
 	})
+
+	t.Run("ADX options wired through from step.ADX", func(t *testing.T) {
+		step := baseGrafanaManageStep()
+		step.ADX = &types.GrafanaADXIntegrations{
+			Enabled:          types.Value{ConfigRef: "monitoring.enabled"},
+			Environment:      types.Value{ConfigRef: "monitoring.environment"},
+			Geographies:      types.Value{ConfigRef: "monitoring.geographies"},
+			Scenario:         types.Value{ConfigRef: "monitoring.scenario"},
+			TargetResourceID: types.Value{ConfigRef: "monitoring.targetResourceId"},
+		}
+		cfg := configtypes.Configuration{
+			"monitoring": map[string]any{
+				"enabled":          true,
+				"environment":      " int ",
+				"geographies":      " UK, eus2 ",
+				"scenario":         " AzureDataExplorer ",
+				"targetResourceId": " /subscriptions/example/targets/one ",
+			},
+		}
+
+		opts, err := buildGrafanaReconcileOptions(testID, step, cfg, Outputs{}, testExecutionTarget)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !opts.ADXIntegrationsEnabled {
+			t.Errorf("ADXIntegrationsEnabled = %v, want true", opts.ADXIntegrationsEnabled)
+		}
+		if opts.ADXEnvironment != "int" {
+			t.Errorf("ADXEnvironment = %q, want %q", opts.ADXEnvironment, "int")
+		}
+		if opts.ADXGeographies != "UK, eus2" {
+			t.Errorf("ADXGeographies = %q, want %q", opts.ADXGeographies, "UK, eus2")
+		}
+		if opts.ADXScenario != "AzureDataExplorer" {
+			t.Errorf("ADXScenario = %q, want %q", opts.ADXScenario, "AzureDataExplorer")
+		}
+		if opts.ADXTargetResourceID != "/subscriptions/example/targets/one" {
+			t.Errorf("ADXTargetResourceID = %q, want %q", opts.ADXTargetResourceID, "/subscriptions/example/targets/one")
+		}
+	})
 }
 
 func TestApplyGrafanaADXOptions(t *testing.T) {
