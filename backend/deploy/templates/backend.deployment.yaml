@@ -149,6 +149,19 @@ spec:
           runAsGroup: 65532
           seccompProfile:
             type: RuntimeDefault
+        startupProbe:
+          httpGet:
+            path: /startupz
+            port: 8083
+          timeoutSeconds: 6
+          periodSeconds: 10
+          failureThreshold: 30
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8083
+          periodSeconds: 20
+          failureThreshold: 3
         readinessProbe:
           httpGet:
             path: /healthz
