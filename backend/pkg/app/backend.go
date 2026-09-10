@@ -48,6 +48,7 @@ import (
 	credentialrevocationdeletion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/credentialrevocation/deletion"
 	credentialrevocationoperations "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/credentialrevocation/operations"
 	clusterdeletion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/deletion"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/denyassignments"
 	clusteridentity "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/identity"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/legacycredentialrequest"
 	clusteroperations "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/operations"
@@ -815,7 +816,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		backendInformers,
 	)
 
-	observeManagedResourceGroupController := clusterazureresources.NewManagedResourceGroupController(
+	ensureManagedResourceGroupController := clusterazureresources.NewManagedResourceGroupController(
 		b.options.ResourcesDBClient,
 		serviceProviderClusterLister,
 		subscriptionLister,
@@ -1002,6 +1003,19 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		backendInformers,
 	)
 
+	// The deny assignment controller creates Azure deny assignments through the FPA, which only
+	// exists in environments with a real First Party Application (stage/prod). Skip it entirely when
+	// running against the MI mock (dev/int), where deny assignments cannot be created.
+	var clusterDenyAssignmentController controllerutils.Controller
+	if b.options.HasRealFPA {
+		clusterDenyAssignmentController = denyassignments.NewClusterDenyAssignmentController(
+			utilsclock.RealClock{},
+			b.options.ResourcesDBClient,
+			b.options.FPAClientBuilder,
+			backendInformers,
+		)
+	}
+
 	clusterPendingClusterServiceIDAssignController := clustercreation.NewClusterPendingClusterServiceIDAssignController(
 		b.options.ResourcesDBClient,
 		backendInformers,
@@ -1136,6 +1150,9 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go systemAdminCredentialRevocationDesiresController.Run(ctx, 20)
 				go systemAdminCredentialRevocationCompletionController.Run(ctx, 20)
 				go systemAdminCredentialRevocationDeletionController.Run(ctx, 20)
+				if clusterDenyAssignmentController != nil {
+					go clusterDenyAssignmentController.Run(ctx, 20)
+				}
 				go clusterPendingClusterServiceIDAssignController.Run(ctx, 20)
 				go clusterClusterServiceCreateController.Run(ctx, 20)
 				go nodePoolClusterServiceCreateController.Run(ctx, 20)
@@ -1185,7 +1202,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go createServiceProviderClusterController.Run(ctx, 20)
 				go createServiceProviderNodePoolController.Run(ctx, 20)
 				go cleanOrphanedClusterManagedResourceGroupController.Run(ctx, 20)
-				go observeManagedResourceGroupController.Run(ctx, 20)
+				go ensureManagedResourceGroupController.Run(ctx, 20)
 				go triggerNodePoolUpgradeController.Run(ctx, 20)
 				go nodePoolDeletionClusterServiceDeleteDispatchController.Run(ctx, 20)
 				go nodePoolClusterServiceIDClearerController.Run(ctx, 20)

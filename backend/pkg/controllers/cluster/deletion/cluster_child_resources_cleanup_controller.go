@@ -266,7 +266,7 @@ func (c *clusterChildResourcesCleanupController) extraDeleteGateShouldDeleteServ
 
 	// Do not delete the ServiceProviderCluster while the cluster's managed
 	// resource group is still reflected as present (either confirmed or pending).
-	// The ObserveManagedResourceGroup controller clears both references once the
+	// The EnsureManagedResourceGroup controller clears both references once the
 	// MRG is gone in Azure; until then we keep the ServiceProviderCluster document
 	// alive so that reflected state remains available.
 	managedResourceGroup := spc.Status.AzureResources.ManagedResourceGroup

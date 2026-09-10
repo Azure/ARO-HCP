@@ -106,9 +106,10 @@ func (c *clusterDenyAssignmentSyncer) syncDenyAssignmentNeedsWork(cluster *corea
 	if len(controllerutils.ClusterServiceIDForCluster(cluster)) == 0 {
 		return false
 	}
-	// Deny assignments are scoped to the managed resource group, which is derived from the
-	// cluster's ManagedResourceGroup name. (Status.AzureResources.ManagedResourceGroup.AzureResource
-	// is not populated by any controller, so it cannot be relied on here.)
+	// Deny assignments are scoped to the managed resource group, so wait until it is confirmed.
+	if serviceProviderCluster.Status.AzureResources.ManagedResourceGroup.AzureResource == nil {
+		return false
+	}
 	if len(cluster.CustomerProperties.Platform.ManagedResourceGroup) == 0 {
 		return false
 	}

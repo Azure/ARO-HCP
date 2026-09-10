@@ -433,6 +433,23 @@ func TestSyncDenyAssignmentNeedsWork(t *testing.T) {
 			expected: false,
 		},
 		{
+			name:    "managed resource group not observed",
+			cluster: newTestCluster(),
+			spc: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
+				spc.Status.AzureResources.ManagedResourceGroup.AzureResource = nil
+			}),
+			expected: false,
+		},
+		{
+			name:    "managed resource group pending",
+			cluster: newTestCluster(),
+			spc: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
+				spc.Status.AzureResources.ManagedResourceGroup.AzureResource = nil
+				spc.Status.AzureResources.ManagedResourceGroup.PendingAzureResource = testManagedResourceGroupID()
+			}),
+			expected: false,
+		},
+		{
 			name: "no managed resource group",
 			cluster: newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
 				c.CustomerProperties.Platform.ManagedResourceGroup = ""
