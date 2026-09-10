@@ -153,46 +153,6 @@ func (c *clusterResourcesController) SyncOnce(ctx context.Context, key controlle
 	return nil
 }
 
-// deleteAllOwnedApplyDesires removes all ApplyDesire Cosmos documents owned by
-// this controller for the given cluster during cluster deletion.
-// Note: deleting an ApplyDesire document does not trigger deletion of the
-// underlying Kubernetes object;
-// TODO: Teardown of underlying Kubernetes resources.
-func (c *clusterResourcesController) deleteAllOwnedApplyDesires(ctx context.Context, key controllerutils.HCPClusterKey, managementCluster *azcorearm.ResourceID) error {
-	logger := utils.LoggerFromContext(ctx)
-
-	existing, err := c.applyDesireLister.ListForCluster(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
-	if err != nil {
-		return utils.TrackError(fmt.Errorf("list ApplyDesires for deletion cleanup: %w", err))
-	}
-
-	kubeApplierDBClient := c.kubeApplierDBClients.For(ctx, managementCluster)
-	if kubeApplierDBClient == nil {
-		return nil
-	}
-
-	for _, desire := range existing {
-		if desire.Tags == nil ||
-			desire.Tags[kubeapplierapi.TagControllerName] != ClusterResourcesControllerName {
-			continue
-		}
-		scope, err := kubeappliercosmosstorage.ParseDesireScope(desire.ResourceID.Parent)
-		if err != nil {
-			return utils.TrackError(fmt.Errorf("parse scope for ApplyDesire %s: %w", desire.ResourceID.Name, err))
-		}
-		crud, err := kubeApplierDBClient.ApplyDesiresFor(scope)
-		if err != nil {
-			return utils.TrackError(fmt.Errorf("get CRUD for ApplyDesire %s: %w", desire.ResourceID.Name, err))
-		}
-		if err := crud.Delete(ctx, desire.ResourceID.Name); err != nil && !cosmosstorageutils.IsNotFoundError(err) {
-			return utils.TrackError(fmt.Errorf("delete ApplyDesire %s: %w", desire.ResourceID.Name, err))
-		}
-		logger.Info("deleted ApplyDesire document", "desireName", desire.ResourceID.Name)
-	}
-
-	return nil
-}
-
 // fetchAndProcessClusterResources calls the Cluster Service SDK to get cluster resources information
 // and processes the resources.
 func (c *clusterResourcesController) fetchAndProcessClusterResources(ctx context.Context,
@@ -268,7 +228,10 @@ func (c *clusterResourcesController) processClusterResources(ctx context.Context
 				continue
 			}
 			// Skipping here drops the desire out of desiredResourceIDs, so
-			// deleteStaleApplyDesires reaps it below.
+			// deleteStaleApplyDesires reaps it below. This is the single-node-pool
+			// path only; when the whole cluster is deleting, SyncOnce never gets
+			// here and nodePoolRemovalStep does the same job from the teardown
+			// chain.
 			//
 			// While Cluster Service still owns the NodePool it is also still
 			// reporting it here, and its ManifestWork keeps the CR materialized
@@ -351,14 +314,14 @@ func classifyClusterResource(obj *unstructured.Unstructured) (classifiedResource
 
 	switch gvk.Kind {
 	case "HostedCluster":
-		return classifiedResource{desireName: "HostedCluster"}, nil
+		return classifiedResource{desireName: DesireNameHostedCluster}, nil
 
 	case "NodePool":
 		// HyperShift names kube NodePool CRs as "<spec.clusterName>-<armName>".
 		// Strip the prefix to recover the ARM nodepool name used in Cosmos.
 		clusterName, _, _ := unstructured.NestedString(obj.Object, "spec", "clusterName")
 		armName := strings.TrimPrefix(name, clusterName+"-")
-		return classifiedResource{desireName: "NodePool", nodePoolName: armName}, nil
+		return classifiedResource{desireName: DesireNameNodePool, nodePoolName: armName}, nil
 
 	case "Namespace":
 		// CS returns two Namespaces: the HostedCluster namespace
@@ -367,40 +330,40 @@ func classifyClusterResource(obj *unstructured.Unstructured) (classifiedResource
 		// (e.g. "ocm-arohcppers-2sdm6b8jke9sm3h8ukc8mbaahngnre5c-j7h3t4w0u1t3b4b").
 		// The ControlPlane namespace carries the "hypershift.openshift.io/cluster" label.
 		if _, ok := obj.GetLabels()["hypershift.openshift.io/cluster"]; ok {
-			return classifiedResource{desireName: "ControlPlaneNamespace"}, nil
+			return classifiedResource{desireName: DesireNameControlPlaneNamespace}, nil
 		}
-		return classifiedResource{desireName: "HostedClusterNamespace"}, nil
+		return classifiedResource{desireName: DesireNameHostedClusterNamespace}, nil
 
 	case "ConfigMap":
-		return classifiedResource{desireName: "DefaultIngressConfigMap"}, nil
+		return classifiedResource{desireName: DesireNameDefaultIngressConfigMap}, nil
 
 	case "Secret":
-		return classifiedResource{desireName: "OCPPullSecret"}, nil
+		return classifiedResource{desireName: DesireNameOCPPullSecret}, nil
 
 	case "PodNetwork":
-		return classifiedResource{desireName: "PodNetwork"}, nil
+		return classifiedResource{desireName: DesireNamePodNetwork}, nil
 
 	case "PodNetworkInstance":
-		return classifiedResource{desireName: "PodNetworkInstance"}, nil
+		return classifiedResource{desireName: DesireNamePodNetworkInstance}, nil
 
 	case "SecretSync":
 		switch {
 		case strings.Contains(name, "signing-key"):
-			return classifiedResource{desireName: "BoundServiceAccountSigningKeySecretSync"}, nil
+			return classifiedResource{desireName: DesireNameBoundServiceAccountSigningKeySecretSync}, nil
 		case strings.Contains(name, "default-ingress"):
-			return classifiedResource{desireName: "DefaultIngressWildcardCertSecretSync"}, nil
+			return classifiedResource{desireName: DesireNameDefaultIngressWildcardCertSecretSync}, nil
 		case strings.Contains(name, "kube-apiserver"):
-			return classifiedResource{desireName: "KubeAPIServerServingCertSecretSync"}, nil
+			return classifiedResource{desireName: DesireNameKubeAPIServerServingCertSecretSync}, nil
 		}
 
 	case "SecretProviderClass":
 		switch {
 		case strings.Contains(name, "signing-key"):
-			return classifiedResource{desireName: "BoundServiceAccountSigningKeySecretProviderClass"}, nil
+			return classifiedResource{desireName: DesireNameBoundServiceAccountSigningKeySecretProviderClass}, nil
 		case strings.Contains(name, "default-ingress"):
-			return classifiedResource{desireName: "DefaultIngressWildcardCertSecretProviderClass"}, nil
+			return classifiedResource{desireName: DesireNameDefaultIngressWildcardCertSecretProviderClass}, nil
 		case strings.Contains(name, "kube-apiserver"):
-			return classifiedResource{desireName: "KubeAPIServerServingCertSecretProviderClass"}, nil
+			return classifiedResource{desireName: DesireNameKubeAPIServerServingCertSecretProviderClass}, nil
 		}
 	}
 
@@ -411,14 +374,14 @@ func classifyClusterResource(obj *unstructured.Unstructured) (classifiedResource
 }
 
 func buildClusterResourceApplyDesire(
-	subscriptionID, resourceGroupName, clusterName, desireName string,
+	subscriptionID, resourceGroupName, clusterName, DesireName string,
 	managementCluster *azcorearm.ResourceID,
 	target kubeapplierapi.ResourceReference,
 	obj *unstructured.Unstructured,
 	tags map[string]string,
 ) (*kubeapplierapi.ApplyDesire, error) {
 	resourceIDStr := kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(
-		subscriptionID, resourceGroupName, clusterName, desireName,
+		subscriptionID, resourceGroupName, clusterName, DesireName,
 	)
 	resourceID, err := azcorearm.ParseResourceID(resourceIDStr)
 	if err != nil {
@@ -453,14 +416,14 @@ func buildClusterResourceApplyDesire(
 }
 
 func buildNodePoolResourceApplyDesire(
-	subscriptionID, resourceGroupName, clusterName, nodePoolName, desireName string,
+	subscriptionID, resourceGroupName, clusterName, nodePoolName, DesireName string,
 	managementCluster *azcorearm.ResourceID,
 	target kubeapplierapi.ResourceReference,
 	obj *unstructured.Unstructured,
 	tags map[string]string,
 ) (*kubeapplierapi.ApplyDesire, error) {
 	resourceIDStr := kubeapplierapi.ToNodePoolScopedApplyDesireResourceIDString(
-		subscriptionID, resourceGroupName, clusterName, nodePoolName, desireName,
+		subscriptionID, resourceGroupName, clusterName, nodePoolName, DesireName,
 	)
 	resourceID, err := azcorearm.ParseResourceID(resourceIDStr)
 	if err != nil {
@@ -534,9 +497,9 @@ func (c *clusterResourcesController) deleteStaleApplyDesires(
 			return err
 		}
 		if removed {
-			logger.Info("purged stale ApplyDesire", "desireName", desire.ResourceID.Name)
+			logger.Info("purged stale ApplyDesire", "DesireName", desire.ResourceID.Name)
 		} else {
-			logger.Info("stale ApplyDesire pending deletion", "desireName", desire.ResourceID.Name)
+			logger.Info("stale ApplyDesire pending deletion", "DesireName", desire.ResourceID.Name)
 		}
 	}
 
