@@ -69,6 +69,9 @@ type nodePoolValidationSyncer struct {
 	// policy in trackConsecutiveUnknowns, which avoids flapping a node pool's validation status
 	// to Unknown on a transient blip.
 	consecutiveUnknownCounts *lru.Cache
+
+	// controllerName is the workqueue / metric label for this validation controller.
+	controllerName string
 }
 
 var _ controllerutils.NodePoolSyncer = (*nodePoolValidationSyncer)(nil)
@@ -82,16 +85,18 @@ func NewNodePoolValidationController(
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 ) controllerutils.Controller {
 
+	controllerName := fmt.Sprintf("NodePoolValidation%s", validation.Name())
 	syncer := &nodePoolValidationSyncer{
 		retryCooldownChecker:          controllerutil.NewSettableCooldownChecker(),
 		resourcesDBClient:             resourcesDBClient,
 		serviceProviderNodePoolLister: serviceProviderNodePoolLister,
 		validation:                    validation,
 		consecutiveUnknownCounts:      lru.New(consecutiveUnknownCountsCacheCapacity),
+		controllerName:                controllerName,
 	}
 
 	controller := controllerutils.NewNodePoolWatchingController(
-		fmt.Sprintf("NodePoolValidation%s", validation.Name()),
+		controllerName,
 		resourcesDBClient,
 		informers,
 		kubeApplierInformers,
@@ -116,6 +121,9 @@ func (c *nodePoolValidationSyncer) SyncOnce(ctx context.Context, key controlleru
 	// Skip processing if the key is still within its cooldown window from a previous validation. All outcomes can schedule a cooldown via
 	// EarliestRetryAfter so validations run continuously without racing. Re-enqueue so the item is revisited once the cooldown expires.
 	if !c.retryCooldownChecker.CanSync(ctx, key) {
+		if c.controllerName != "" {
+			controllerutils.ReconcileCooldownSkips.WithLabelValues(c.controllerName).Inc()
+		}
 		if c.enqueueAfter != nil {
 			// Add a one-second buffer so the requeue lands strictly after the cooldown expires, avoiding a race where the item fires just before CanSync flips to true.
 			c.enqueueAfter.EnqueueAfter(key, c.retryCooldownChecker.TimeUntilReady(key)+time.Second)

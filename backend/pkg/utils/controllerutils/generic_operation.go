@@ -186,6 +186,7 @@ func (c *genericOperation) processNextWorkItem(ctx context.Context) bool {
 		return true
 	}
 
+	ReconcileErrors.WithLabelValues(c.name).Inc()
 	utilruntime.HandleErrorWithContext(ctx, err, "Error syncing; requeuing for later retry", "objectReference", ref)
 	c.queue.AddRateLimited(ref)
 

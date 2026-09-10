@@ -28,5 +28,5 @@ type (
 )
 
 func newGenericWatchingController[T comparable](name string, resourceType azcorearm.ResourceType, syncer controllerutil.GenericSyncer[T]) *controllerutil.GenericWatchingController[T] {
-	return controllerutil.NewGenericWatchingController(name, resourceType, syncer, ReconcileTotal)
+	return controllerutil.NewGenericWatchingController(name, resourceType, syncer, ReconcileTotal, ReconcileErrors)
 }
