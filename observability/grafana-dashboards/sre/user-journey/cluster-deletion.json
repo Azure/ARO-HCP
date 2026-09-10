@@ -104,7 +104,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count(backend_cluster_created_time_seconds{cluster=~\"$cluster\"}) or vector(0)",
+          "expr": "count(max without(prometheus_replica) (backend_cluster_created_time_seconds{cluster=~\"$cluster\"})) or vector(0)",
           "instant": true,
           "range": false,
           "legendFormat": "__auto",
@@ -208,7 +208,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count((backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=~\"succeeded|failed|canceled\", cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=~\"succeeded|failed|canceled\", cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"}) < $__range_s)) or vector(0)",
+          "expr": "count((max without(prometheus_replica) (backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=~\"succeeded|failed|canceled\", cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"}) == 1) and ((time() - max without(prometheus_replica) (backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=~\"succeeded|failed|canceled\", cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"})) < $__range_s)) or vector(0)",
           "instant": true,
           "legendFormat": "Completed",
           "range": false,
@@ -434,7 +434,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count((backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=~\"failed|canceled\", cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=~\"failed|canceled\", cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"}) < $__range_s)) or vector(0)",
+          "expr": "count((max without(prometheus_replica) (backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=~\"failed|canceled\", cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"}) == 1) and ((time() - max without(prometheus_replica) (backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=~\"failed|canceled\", cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"})) < $__range_s)) or vector(0)",
           "instant": true,
           "legendFormat": "Unsuccessful",
           "range": false,
@@ -1000,7 +1000,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count by (phase) (backend_cluster_provision_state{cluster=~\"$cluster\"} == 1)",
+          "expr": "count by (phase) (max without(prometheus_replica) (backend_cluster_provision_state{cluster=~\"$cluster\"}) == 1)",
           "instant": false,
           "legendFormat": "{{phase}}",
           "range": true,
@@ -1080,7 +1080,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count((backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=~\"accepted|awaitingsecret|provisioning|updating|deleting\", cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=~\"accepted|awaitingsecret|provisioning|updating|deleting\", cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"}) > 3600)) or vector(0)",
+          "expr": "count((max without(prometheus_replica) (backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=~\"accepted|awaitingsecret|provisioning|updating|deleting\", cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"}) == 1) and ((time() - max without(prometheus_replica) (backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=~\"accepted|awaitingsecret|provisioning|updating|deleting\", cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"})) > 3600)) or vector(0)",
           "instant": true,
           "legendFormat": "Stuck",
           "range": false,
@@ -1199,7 +1199,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count by (subscription_id) ((backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=~\"failed|canceled\", cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=~\"failed|canceled\", cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"}) < $__range_s))",
+          "expr": "count by (subscription_id) ((max without(prometheus_replica) (backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=~\"failed|canceled\", cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"}) == 1) and ((time() - max without(prometheus_replica) (backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=~\"failed|canceled\", cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"})) < $__range_s))",
           "instant": true,
           "legendFormat": "{{subscription_id}}",
           "range": false,
@@ -1375,7 +1375,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "(backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=~\"succeeded|failed|canceled\", cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=~\"succeeded|failed|canceled\", cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"}) < $__range_s)",
+          "expr": "(max without(prometheus_replica) (backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=~\"succeeded|failed|canceled\", cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"}) == 1) and ((time() - max without(prometheus_replica) (backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=~\"succeeded|failed|canceled\", cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"})) < $__range_s)",
           "format": "table",
           "instant": true,
           "legendFormat": "__auto",
@@ -1529,7 +1529,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=~\"accepted|awaitingsecret|provisioning|updating|deleting\", cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"} == 1",
+          "expr": "max without(prometheus_replica) (backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=~\"accepted|awaitingsecret|provisioning|updating|deleting\", cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"}) == 1",
           "format": "table",
           "instant": true,
           "legendFormat": "__auto",
