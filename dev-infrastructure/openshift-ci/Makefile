@@ -22,7 +22,7 @@ verify: ## Verify versions are consistent across config files
 		exit 1; \
 	fi; \
 	echo "  go version $$GO_WORK_MINOR OK"
-	@actual=$$(grep -oP 'ARG PROMTOOL_VERSION=\K.*' Dockerfile); \
+	@actual=$$(grep -oP 'ARG PROMTOOL_VERSION=\K\S*' Dockerfile); \
 	if [ "$$actual" != "$(PROMTOOL_VERSION)" ]; then \
 		echo "ERROR: Dockerfile ARG PROMTOOL_VERSION=$$actual ≠ versions.mk $(PROMTOOL_VERSION)"; \
 		exit 1; \
