@@ -251,19 +251,19 @@ tests:
     - labels: 'errors:backend_cluster_provision:error_rate{cluster="mgmt-1"}'
       value: 1
 # ========================================
-# Test 6: Stuck operation — cluster create in "provisioning" for > 1 hour
+# Test 6: Stuck operation — cluster create in "provisioning" for > 30 minutes
 # ========================================
-# start_time is 0 (epoch). At eval_time=90m (5400s), delta = 5400 > 3600 threshold.
+# start_time is 0 (epoch). At eval_time=50m (3000s), delta = 3000 > 1800 threshold.
 # The alert has for: 15m, so it fires after the threshold is crossed for 15 minutes.
-# Threshold crossed at 60m, plus 15m for duration = 75m. Eval at 90m confirms firing.
+# Threshold crossed at 30m, plus 15m for duration = 45m. Eval at 50m confirms firing.
 - interval: 1m
   input_series:
   - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/5/cluster/stuck", subscription_id="sub-5", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="provisioning", cluster="mgmt-1"}'
-    values: "0+0x95"
+    values: "0+0x55"
   - series: 'backend_resource_operation_phase_info{resource_id="/sub/5/cluster/stuck", subscription_id="sub-5", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="provisioning", cluster="mgmt-1"}'
-    values: "1+0x95"
+    values: "1+0x55"
   alert_rule_test:
-  - eval_time: 90m
+  - eval_time: 50m
     alertname: UserJourneyClusterProvisionStuckOperation
     exp_alerts:
     - exp_labels:
@@ -277,17 +277,17 @@ tests:
         exclude_internal_subscriptions: "true"
         subscription_id: "sub-5"
       exp_annotations:
-        summary: "mgmt-1: Cluster create operation for /sub/5/cluster/stuck stuck in provisioning for over 1 hour"
-        description: "Cluster create operation for /sub/5/cluster/stuck has been in provisioning phase for over 1 hour. Stuck operations are invisible to success/failure SLIs and require investigation."
+        summary: "mgmt-1: Cluster create operation for /sub/5/cluster/stuck stuck in provisioning for over 30 minutes"
+        description: "Cluster create operation for /sub/5/cluster/stuck has been in provisioning phase for over 30 minutes. Stuck operations are invisible to success/failure SLIs and require investigation."
         runbook_url: "https://aka.ms/arohcp-runbook-cluster-provision"
 # ========================================
-# Test 7: No stuck operation — cluster create in "provisioning" for < 1 hour
+# Test 7: No stuck operation — cluster create in "provisioning" for < 30 minutes
 # ========================================
 # Operation started recently, should not trigger stuck alert.
 - interval: 1m
   input_series:
   # start_time=1800 (started 30m into the test). At eval_time=50m, time()=3000.
-  # delta=3000-1800=1200 < 3600 threshold.
+  # delta=3000-1800=1200 < 1800 threshold.
   - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/6/cluster/recent", subscription_id="sub-6", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="provisioning", cluster="mgmt-1"}'
     values: "1800+0x55"
   - series: 'backend_resource_operation_phase_info{resource_id="/sub/6/cluster/recent", subscription_id="sub-6", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="provisioning", cluster="mgmt-1"}'
@@ -318,22 +318,22 @@ tests:
 # Test 9: Stuck operation that flaps (backend retry resets start_time)
 # ========================================
 # A genuinely-wedged create stays in "provisioning" the whole time, but the backend
-# retries the operation at t=120m and resets start_time, so (time() - start_time)
-# briefly drops below the 3600s threshold. The max_over_time(...[6h:]) hold must
+# retries the operation at t=60m and resets start_time, so (time() - start_time)
+# briefly drops below the 1800s threshold. The max_over_time(...[6h:]) hold must
 # keep the SAME alert firing across this gap so a continuously-stuck resource maps
 # to a single long-lived IcM incident instead of a fresh incident every few hours.
 - interval: 1m
   input_series:
   # phase stays "provisioning" throughout
   - series: 'backend_resource_operation_phase_info{resource_id="/sub/8/cluster/flap", subscription_id="sub-8", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="provisioning", cluster="mgmt-1"}'
-    values: "1+0x300"
-  # start_time=0 until t=119m (age crosses 3600s at t=60m); backend retries at
-  # t=120m so start_time jumps to 7200s and age re-crosses 3600s only at t=180m.
+    values: "1+0x200"
+  # start_time=0 until t=59m (age crosses 1800s at t=30m); backend retries at
+  # t=60m so start_time jumps to 3600s and age re-crosses 1800s only at t=90m.
   - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/8/cluster/flap", subscription_id="sub-8", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="provisioning", cluster="mgmt-1"}'
-    values: "0+0x119 7200+0x180"
+    values: "0+0x59 3600+0x140"
   alert_rule_test:
-  # Raw condition true (age 5400s > 3600s) → firing.
-  - eval_time: 90m
+  # Raw condition true (age 3000s > 1800s) → firing.
+  - eval_time: 50m
     alertname: UserJourneyClusterProvisionStuckOperation
     exp_alerts:
     - exp_labels:
@@ -347,12 +347,12 @@ tests:
         exclude_internal_subscriptions: "true"
         subscription_id: "sub-8"
       exp_annotations:
-        summary: "mgmt-1: Cluster create operation for /sub/8/cluster/flap stuck in provisioning for over 1 hour"
-        description: "Cluster create operation for /sub/8/cluster/flap has been in provisioning phase for over 1 hour. Stuck operations are invisible to success/failure SLIs and require investigation."
+        summary: "mgmt-1: Cluster create operation for /sub/8/cluster/flap stuck in provisioning for over 30 minutes"
+        description: "Cluster create operation for /sub/8/cluster/flap has been in provisioning phase for over 30 minutes. Stuck operations are invisible to success/failure SLIs and require investigation."
         runbook_url: "https://aka.ms/arohcp-runbook-cluster-provision"
-  # Raw condition FALSE here (start_time reset → age < 3600s) but the resource is
+  # Raw condition FALSE here (start_time reset → age < 1800s) but the resource is
   # still wedged. The 6h hold keeps the same alert firing → no resolve, no duplicate.
-  - eval_time: 150m
+  - eval_time: 75m
     alertname: UserJourneyClusterProvisionStuckOperation
     exp_alerts:
     - exp_labels:
@@ -366,6 +366,6 @@ tests:
         exclude_internal_subscriptions: "true"
         subscription_id: "sub-8"
       exp_annotations:
-        summary: "mgmt-1: Cluster create operation for /sub/8/cluster/flap stuck in provisioning for over 1 hour"
-        description: "Cluster create operation for /sub/8/cluster/flap has been in provisioning phase for over 1 hour. Stuck operations are invisible to success/failure SLIs and require investigation."
+        summary: "mgmt-1: Cluster create operation for /sub/8/cluster/flap stuck in provisioning for over 30 minutes"
+        description: "Cluster create operation for /sub/8/cluster/flap has been in provisioning phase for over 30 minutes. Stuck operations are invisible to success/failure SLIs and require investigation."
         runbook_url: "https://aka.ms/arohcp-runbook-cluster-provision"
