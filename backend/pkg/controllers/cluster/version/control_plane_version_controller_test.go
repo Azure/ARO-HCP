@@ -62,7 +62,7 @@ var testVersionClusterKey = controllerutils.HCPClusterKey{
 func TestValidateRequestedMinorVersionChange(t *testing.T) {
 	tests := []struct {
 		name                  string
-		activeVersions        []coreapi.HCPClusterActiveVersion
+		activeVersions        []coreapi.ServiceProviderClusterActiveVersion
 		customerDesiredMinor  string
 		cosmosResources       []any
 		expectedError         bool
@@ -76,41 +76,41 @@ func TestValidateRequestedMinorVersionChange(t *testing.T) {
 		},
 		{
 			name:                 "same minor (z-stream) is allowed",
-			activeVersions:       []coreapi.HCPClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.19.15")), State: configv1.CompletedUpdate}},
+			activeVersions:       []coreapi.ServiceProviderClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.19.15")), State: configv1.CompletedUpdate}},
 			customerDesiredMinor: "4.19",
 			expectedError:        false,
 		},
 		{
 			name:                  "downgrade not allowed (4.20 -> 4.19)",
-			activeVersions:        []coreapi.HCPClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.20.15")), State: configv1.CompletedUpdate}},
+			activeVersions:        []coreapi.ServiceProviderClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.20.15")), State: configv1.CompletedUpdate}},
 			customerDesiredMinor:  "4.19",
 			expectedError:         true,
 			expectedErrorContains: "only upgrades to the next minor version are allowed, no downgrades",
 		},
 		{
 			name:                  "major downgrade not allowed (5.1 -> 4.20)",
-			activeVersions:        []coreapi.HCPClusterActiveVersion{{Version: ptr.To(semver.MustParse("5.1.5")), State: configv1.CompletedUpdate}},
+			activeVersions:        []coreapi.ServiceProviderClusterActiveVersion{{Version: ptr.To(semver.MustParse("5.1.5")), State: configv1.CompletedUpdate}},
 			customerDesiredMinor:  "4.20",
 			expectedError:         true,
 			expectedErrorContains: "only upgrades to the next minor version are allowed, no downgrades",
 		},
 		{
 			name:                  "skip minor version not allowed (4.19 -> 4.21)",
-			activeVersions:        []coreapi.HCPClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.19.22")), State: configv1.CompletedUpdate}},
+			activeVersions:        []coreapi.ServiceProviderClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.19.22")), State: configv1.CompletedUpdate}},
 			customerDesiredMinor:  "4.21",
 			expectedError:         true,
 			expectedErrorContains: "only upgrade to the next minor is allowed",
 		},
 		{
 			name:                  "unsupported cross-major landing (4.21 -> 5.0)",
-			activeVersions:        []coreapi.HCPClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.21.10")), State: configv1.CompletedUpdate}},
+			activeVersions:        []coreapi.ServiceProviderClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.21.10")), State: configv1.CompletedUpdate}},
 			customerDesiredMinor:  "5.0",
 			expectedError:         true,
 			expectedErrorContains: "cross-major upgrade from 4.21 is only allowed to",
 		},
 		{
 			name:                  "node pool minor skew blocks supported cross-major (4.22 -> 5.0, node pool at 4.20)",
-			activeVersions:        []coreapi.HCPClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.22.0")), State: configv1.CompletedUpdate}},
+			activeVersions:        []coreapi.ServiceProviderClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.22.0")), State: configv1.CompletedUpdate}},
 			customerDesiredMinor:  "5.0",
 			cosmosResources:       testCosmosClusterWithWorkersNodePoolAtVersion("4.20.0"),
 			expectedError:         true,
@@ -118,14 +118,14 @@ func TestValidateRequestedMinorVersionChange(t *testing.T) {
 		},
 		{
 			name:                 "supported cross-major with compatible node pools (4.22 -> 5.0)",
-			activeVersions:       []coreapi.HCPClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.22.0")), State: configv1.CompletedUpdate}},
+			activeVersions:       []coreapi.ServiceProviderClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.22.0")), State: configv1.CompletedUpdate}},
 			customerDesiredMinor: "5.0",
 			cosmosResources:      testCosmosClusterWithWorkersNodePoolAtVersion("4.22.0"),
 			expectedError:        false,
 		},
 		{
 			name:                 "incompatible node pool being deleted is ignored (4.22 -> 5.0)",
-			activeVersions:       []coreapi.HCPClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.22.0")), State: configv1.CompletedUpdate}},
+			activeVersions:       []coreapi.ServiceProviderClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.22.0")), State: configv1.CompletedUpdate}},
 			customerDesiredMinor: "5.0",
 			cosmosResources:      testCosmosClusterWithActiveAndDeletingNodePools("infra", "4.22.0", "workers", "4.20.0"),
 			expectedError:        false,
@@ -421,7 +421,7 @@ func createServiceProviderClusterWithActiveAndDesiredVersion(t *testing.T, ctx c
 		},
 		Status: coreapi.ServiceProviderClusterStatus{
 			ControlPlaneVersion: coreapi.ServiceProviderClusterStatusVersion{
-				ActiveVersions: []coreapi.HCPClusterActiveVersion{
+				ActiveVersions: []coreapi.ServiceProviderClusterActiveVersion{
 					{Version: ptr.To(activeVersion), State: configv1.CompletedUpdate},
 				},
 			},

@@ -261,7 +261,7 @@ func validateNodePoolVersionChange(ctx context.Context, admissionContext *NodePo
 		return errs
 	}
 
-	var activeVersions []coreapi.HCPNodePoolActiveVersion
+	var activeVersions []coreapi.ServiceProviderNodePoolActiveVersion
 	if spNodePool != nil {
 		// Skip validation if the newVersion hasn't changed from the desired Version
 		if spNodePool.Spec.NodePoolVersion.DesiredVersion != nil &&
