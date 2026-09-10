@@ -1,303 +1,258 @@
-# Slot Manager — Design Context
+# Slot Manager
 
-## Status
+Slot manager assigns an E2E job a customer-subscription slot and an Azure
+runtime region. It uses Boskos for exclusive slot ownership and
+`test/e2e-config/e2e-slots.yaml` as the canonical inventory.
 
-The slot-based runtime leasing foundation is code complete but still
-pending test/merge. It scales customer-subscription usage and later
-enables deterministic failover/failback.
+Its responsibilities are:
 
-## Epic Goals (E2E-relevant subset)
+- select an eligible customer-subscription pool,
+- acquire one slot from that pool,
+- select the runtime region according to the pool's region mode,
+- resolve the cluster profile that owns the selected subscription,
+- export the non-secret runtime contract for downstream CI steps, and
+- release the exact Boskos resource acquired by the job.
 
-1. Support environment-appropriate use of subscription and region coordinates across E2E execution.
-2. Increase total CI throughput without sacrificing reproducibility or debuggability.
-3. Make subscription and region routing deterministic.
-4. Use provision-phase health rather than full test pass rate for region/pool health decisions.
-5. Leave room for future automation only after the signal quality is good enough.
+Slot manager does not enforce regional concurrency, evaluate region health, or
+change routing weights automatically.
 
-## Non-goals
+## Catalog contract
 
-- Full automation in phase 1.
-- Replacing Boskos global ownership model.
-- Solving all test flakes inside functional test logic.
+The catalog groups pools into logical environments and maps deploy environment
+names such as `ci01`, `int`, `stg`, and `prod` to one of them.
 
-## Design Principles
-
-- Determinism over randomness.
-- Manual controls first, automation after signal quality is proven.
-- Region health is based on provision outcomes only.
-- Model capacity as composite subscription+region cells where that is the natural execution unit.
-- Keep Boskos and CI global config minimal and stable.
-- Prefer config-driven and inventory-driven selection over ad hoc runtime overrides.
-
-## Vault Cluster Profile Secret Contract
-
-The cluster profile secret provides the authoritative customer-subscription
-inventory for slot-based routing.
-
-- **Customer subscription shard keys**
-  - `customer-shardN-subscription-id`
-  - `customer-shardN-subscription-name`
-  - Examples:
-    - `customer-shard1-subscription-id`
-    - `customer-shard1-subscription-name`
-    - `customer-shard2-subscription-id`
-  - These keys declare the pool of customer subscriptions that E2E jobs can consume through slot-based routing and leasing.
-
-- E2E slot logic and related tooling select from the `customer-shardN-*` inventory when deciding which customer subscription pool a leased slot belongs to.
-
-## E2E Tests: Multi-Subscription and Multi-Region
-
-### Why this workstream exists
-
-Even after infrastructure is decoupled, E2E scale is still limited by the
-**customer subscription** and sometimes the **region** where tests create
-and manage HCP clusters.
-
-The test-side design therefore introduces a runtime leasing model that can
-scale independently from the infrastructure-subscription work.
-
-### Current design
-
-- The canonical E2E slot inventory lives in ARO-HCP.
-- Runtime leasing is done through `aro-hcp-tests slot-manager` and the ci-operator Boskos proxy.
-- The E2E workflow in `openshift/release` uses dedicated acquire/release steps that wrap the CLI.
-- Pool selection is now driven by an explicit selector contract:
-  - `ALLOWED_SUBSCRIPTIONS`
-    - candidate-pool allowlist keyed by catalog `subscription_name`
-  - `ALLOWED_LOCATIONS`
-    - fixed-mode candidate-pool allowlist keyed by region
-  - `MULTISTAGE_PARAM_OVERRIDE_LOCATION`
-    - highest-precedence concrete runtime location
-    - when set it overrides `ALLOWED_LOCATIONS` for fixed-mode pool selection
-    - for runtime-selected pools it does not change pool identity, but it does become the concrete runtime location
-  - `CLUSTER_PROFILE_DIRS`
-    - optional comma/newline-separated list of cluster profile dirs to resolve the leased
-      subscription's owning tenant/service-principal across
-    - falls back to the single `CLUSTER_PROFILE_DIR` when unset (backward compatible)
-    - used by the cross-tenant prod gating job so a single job can lease slots that live
-      in more than one Azure tenant (RH-tenant subs + MSFT Test-Tenant sub); acquire matches
-      the leased `subscription_name` against the `customer-*-subscription-name` files across
-      all listed dirs and exports the single matching dir as `SELECTED_CLUSTER_PROFILE_DIR`
-- The runtime env contract is intentionally narrow and non-secret:
-  - `CUSTOMER_SUBSCRIPTION`
-  - `SELECTED_LOCATION`
-  - `SELECTED_CLUSTER_PROFILE_DIR`
-    - the single cluster profile dir whose `customer-*-subscription-name` matched the leased
-      subscription; downstream steps load the owning tenant/service-principal credentials from
-      it (`tenant`, `client-id`, `client-secret`) instead of a job-fixed profile
-  - `LEASED_MSI_CONTAINERS`
-  - `ARO_HCP_E2E_SLOT_NAME`
-  - `ARO_HCP_E2E_SLOT_RESOURCE_TYPE`
-- Downstream `openshift/release` steps still mostly consume `LOCATION` today, so the release-side scripts map `SELECTED_LOCATION` back into `LOCATION` where needed.
-
-### Coordinate model by environment
-
-- **Subscription coordinate**
-  - The main reason to add more customer subscriptions is to bypass Azure role-assignment limit pressure and unlock higher E2E suite parallelism while still keeping enough job concurrency.
-- **Region coordinate**
-  - **DEV**
-    - Start with one primary region and one backup region.
-    - Failover is manual first.
-    - Keep the door open to several active primary regions later if that becomes useful.
-  - **INT / STG**
-    - Region remains fixed to `uksouth` because these are persistent environments that only exist in `uksouth`.
-    - These environments use gating tests that are triggered on demand after service rollout through Gangway-backed execution of the `aro-hcp-e2e` jobs in `openshift/release`.
-    - `stg` also has periodic E2E jobs pinned to `uksouth` today, declared in `release/ci-operator/config/Azure/ARO-HCP/Azure-ARO-HCP-main__periodic.yaml`.
-  - **PROD**
-    - Prod has presence in many regions, so region is a real routing coordinate here.
-    - `prod` also has periodic E2E jobs pinned to `uksouth` today, declared in `release/ci-operator/config/Azure/ARO-HCP/Azure-ARO-HCP-main__periodic.yaml`.
-    - Concurrency for a particular region is usually `1` (although it can be higher for `uksouth` due to periodics), but several customer subscriptions are still needed to run tests against multiple prod regions concurrently.
-    - The expectation is that Gangway-triggered prod gating jobs set `MULTISTAGE_PARAM_OVERRIDE_LOCATION` per target region when invoking the job. `slot-manager acquire` gives that override precedence over `ALLOWED_LOCATIONS` on the acquire side, and the leased slot then exports the authoritative runtime `SELECTED_LOCATION` for downstream steps.
-    - This also means we need to watch for any step that bypasses that contract and accidentally uses a stale/default `LOCATION` instead of the release-mapped `SELECTED_LOCATION`.
-
-### Pool selection and lease acquisition flow
-
-```mermaid
-flowchart TD
-    Start["slot-manager acquire"]
-    --> LoadCatalog["Load e2e-slots.yaml catalog"]
-    --> ResolveEnv["Resolve --deploy-env to\nslot environment name"]
-    --> DetectMode["Read region_mode\nfrom environment pools"]
-
-    DetectMode --> IsFixed{region_mode?}
-
-    IsFixed -->|fixed| FixedFilter["Fixed-mode filter:\n1. allowed subscriptions\n2. override location if set\n3. else allowed locations"]
-    IsFixed -->|runtime-selected| RSFilter["Runtime-selected filter:\n1. allowed subscriptions\n2. ignore allowed locations\nfor pool identity"]
-
-    FixedFilter --> Candidates["Candidate pool list\nwith rotated starting point"]
-    RSFilter --> Candidates
-
-    Candidates --> PassStart["Start pass N over candidates"]
-    PassStart --> TryPool["Try AcquireLease for\nnext candidate pool"]
-    TryPool --> LeaseResult{Result?}
-
-    LeaseResult -->|success| ResolveRegion{region_mode?}
-    ResolveRegion -->|fixed| UsePoolRegion["Runtime region =\npool.Region"]
-    ResolveRegion -->|runtime-selected| HasOverride{Override location set?}
-    HasOverride -->|yes| UseOverride["Runtime region =\noverride location"]
-    HasOverride -->|no| UseFallback["Runtime region =\npool.Region as default"]
-
-    UsePoolRegion --> Finalize
-    UseOverride --> Finalize
-    UseFallback --> Finalize
-
-    Finalize["Finalize:\n1. Verify subscription in cluster profile\n2. Write state file\n3. Write env file"]
-
-    LeaseResult -->|no immediate lease| Unavailable["Temporarily unavailable now:\nproxy timeout,\nretry budget exhaustion,\nor retryable proxy response"]
-    Unavailable --> MorePools{More candidate\npools?}
-    MorePools -->|yes| TryPool
-    MorePools -->|no| WaitCheck{max_wait_for_lease\nexpired?}
-    WaitCheck -->|no| Sleep["Sleep lease_wait_interval"] --> PassStart
-    WaitCheck -->|yes| Fail["Fail: no pool yielded an\nimmediate lease within budget"]
-
-    LeaseResult -->|fatal error| Abort["Abort: non-retryable error"]
+```yaml
+version: 1
+environments:
+  dev:
+    deploy_envs:
+    - ci00
+    - ci01
+    pools:
+    - subscription_name: "ARO HCP E2E Hosted Clusters (EA Subscription)"
+      region_mode: weighted
+      regions:
+      - westus3
+      - centralus
+      - canadacentral
+      identity_provisioning_region: westus3
+      resource_type: aro-hcp-dev-shard0-slot
+      slot_count: 5
+      identity_container_prefix: aro-hcp-msi-container-dev-shard0
+      identity_container_count: 60
 ```
 
-### Current implementation state
+Each pool defines:
 
-- The current branch now implements the broader slot-based runtime leasing model:
-  - canonical slot catalog and `slot-manager` CLI,
-  - `region_mode: fixed|runtime-selected` plus optional `identity_provisioning_region`,
-  - Boskos managed-block sync/validation tooling,
-  - release step wiring,
-  - formalized non-secret runtime contract centered on `SELECTED_LOCATION`.
-- Multi-pool candidate selection and fallback are implemented:
-  - fixed-mode environments filter candidate pools by `ALLOWED_SUBSCRIPTIONS` and either `ALLOWED_LOCATIONS` or `MULTISTAGE_PARAM_OVERRIDE_LOCATION`, then rotate the starting pool once per acquire run while preserving the remaining catalog order for fallback,
-  - runtime-selected environments use `ALLOWED_SUBSCRIPTIONS` for pool identity, ignore `ALLOWED_LOCATIONS` for candidate selection, and use `MULTISTAGE_PARAM_OVERRIDE_LOCATION` only as the concrete runtime location; they use the same rotated-start probing model,
-  - the dev catalog now uses one runtime-selected pool per customer subscription, with `westus3` as the default runtime region,
-  - those shared dev pools provision their MSI container stacks in `westus3` via `identity_provisioning_region`,
-  - that intentionally optimizes the current rollout for multi-subscription, single-region operation first; multi-region CI behavior will need a follow-up job strategy.
-- Pool fallback is now adapted to the Boskos proxy's blocking acquire behavior:
-  - the proxy does not reliably give `slot-manager` a distinct immediate "pool exhausted" signal for candidate failover,
-  - each candidate pool probe is therefore bounded by `lease-proxy-timeout` and interpreted through the client-side `ErrLeasePoolUnavailableNow` classification,
-  - timeout-budget exhaustion and retryable proxy/server failures now mean "this pool did not yield an immediate lease now; try the next candidate pool",
-  - one full pass over the candidate pools is the retry unit when every candidate is temporarily unavailable.
-- Waiting is now explicit and separated from transient proxy/network retry handling:
-  - per-request `lease-proxy-timeout` plus exponential backoff covers one bounded probe of a single candidate pool,
-  - repeated full-pass waiting now uses `lease_wait_interval` and `max_wait_for_lease`,
-  - the default per-pool `lease-proxy-timeout` is now `30s`,
-  - the current defaults are `lease_wait_interval=1m` and `max_wait_for_lease=30m`,
-  - `max_wait_for_lease=0` means wait forever,
-  - `openshift/release` now exposes `ARO_HCP_SLOT_MANAGER_LEASE_WAIT_INTERVAL` and `ARO_HCP_SLOT_MANAGER_MAX_WAIT_FOR_LEASE` as optional per-job overrides.
-- Current rollout limitation:
-  - migration is still staged while legacy leases are retired, so the active slot inventory is being brought up gradually even though the code path now supports the broader multi-pool model.
+| Field | Meaning |
+| --- | --- |
+| `subscription_name` | Name used to resolve the customer subscription from cluster profiles. |
+| `region_mode` | `fixed`, `runtime-selected`, or `weighted`. Defaults to `fixed` when omitted. |
+| `region` | Required for `fixed` and `runtime-selected`; the fixed or fallback runtime region. |
+| `regions` | Ordered runtime-region allowlist for `weighted`. |
+| `resource_type` | Boskos resource type containing the pool's slots. |
+| `slot_count` | Number of independently leasable jobs in the pool. |
+| `identity_container_prefix` | Prefix used to derive identity-container resource-group names. |
+| `identity_container_count` | Number of identity containers assigned to each slot. |
+| `identity_provisioning_region` | Location for identity-pool infrastructure, independent of the runtime region. It defaults to `region`; weighted pools must set it explicitly. |
+| `identity_provisioning: unmanaged` | Marks identity infrastructure as externally managed. It does not remove the pool from runtime selection. |
 
-### Identity pool reconciliation and recovery
+All pools in one environment must use the same `region_mode`. Weighted pools
+must also declare the same non-empty, duplicate-free, ordered `regions` list.
+Resource types are unique across the complete catalog.
 
-An E2E job can fail before cluster provisioning when its leased managed identity
-container resource group is missing. The nested ARM error normally contains:
+For slot index `N`, slot manager expands a pool into:
 
 ```text
-ResourceGroupNotFound: Resource group '<identity-container-resource-group>' could not be found.
+resource name:             <resource_type>-<N, two digits>
+identity container prefix: <identity_container_prefix>-<N, two digits>
+identity containers:       <slot prefix>-<M, two digits>
 ```
 
-The canonical pool shape comes from `test/e2e-config/e2e-slots.yaml`. For each
-pool, the slot manager expands:
+## Acquire inputs
+
+The CI acquire step provides these selectors and runtime inputs:
+
+| Environment variable | Purpose |
+| --- | --- |
+| `ARO_HCP_DEPLOY_ENV` | Resolves the catalog environment. |
+| `ALLOWED_SUBSCRIPTIONS` | Optional comma/newline-separated allowlist of catalog `subscription_name` values. |
+| `ALLOWED_LOCATIONS` | Optional location allowlist used only by `fixed` mode. |
+| `MULTISTAGE_PARAM_OVERRIDE_LOCATION` | Highest-precedence concrete runtime location. |
+| `LOCATION_WEIGHTS` | Weighted-mode entries in `location=weight` form, required only when no explicit location override is set. |
+| `BUILD_ID` | Stable per-Prow-run key for deterministic weighted selection. |
+| `CLUSTER_PROFILE_DIRS` | Optional comma/newline-separated cluster profile directories. |
+| `CLUSTER_PROFILE_DIR` | Backward-compatible single profile directory used when `CLUSTER_PROFILE_DIRS` is unset. |
+| `LEASE_PROXY_SERVER_URL` | Ci-operator Boskos proxy endpoint. |
+| `SHARED_DIR` | Directory for the state and exported environment files. |
+
+Equivalent command-line flags exist for the acquire options. Explicit location
+override takes precedence over other location selectors.
+
+## Region modes
+
+### `fixed`
+
+The pool represents a subscription+region coordinate:
+
+- `region` is the runtime region.
+- `ALLOWED_SUBSCRIPTIONS` filters by subscription.
+- `MULTISTAGE_PARAM_OVERRIDE_LOCATION`, when set, filters pools to that region.
+- Otherwise `ALLOWED_LOCATIONS` can restrict eligible regions.
+
+The leased pool determines `SELECTED_LOCATION`.
+
+### `runtime-selected`
+
+The pool represents subscription capacity; the caller chooses the runtime
+region:
+
+- `ALLOWED_SUBSCRIPTIONS` filters candidate pools.
+- `ALLOWED_LOCATIONS` does not affect pool selection.
+- `MULTISTAGE_PARAM_OVERRIDE_LOCATION` becomes `SELECTED_LOCATION`.
+- If no override is supplied, the pool's `region` is the fallback.
+
+This mode is intended for jobs, such as regional gating, whose external caller
+already knows the target region.
+
+### `weighted`
+
+The pool represents subscription capacity and the job supplies the desired
+regional distribution:
+
+- `ALLOWED_SUBSCRIPTIONS` filters candidate pools.
+- The catalog `regions` list is the authoritative location allowlist.
+- Without an explicit override, `LOCATION_WEIGHTS` controls the approximate
+  distribution for new runs.
+- `ALLOWED_LOCATIONS` is ignored.
+- `MULTISTAGE_PARAM_OVERRIDE_LOCATION` bypasses weighted selection but must
+  name a catalog-allowed region.
+
+Example equal distribution:
 
 ```text
-<identity_container_prefix>-<two-digit-slot>-<two-digit-container>
+LOCATION_WEIGHTS=westus3=1,centralus=1,canadacentral=1
 ```
 
-For example, a pool with `slot_count: 5` and
-`identity_container_count: 60` expects slot suffixes `00` through `04`, each
-with container suffixes `00` through `59`.
-
-#### Reconcile a pool
-
-Use the Make target rather than invoking `go run` or a previously built binary.
-The target regenerates the Bicep-derived ARM template before rebuilding
-`aro-hcp-tests`, preventing a stale embedded `msi-pools.json` from being
-applied.
-
-```bash
-make -C test apply-identity-pool \
-  ENVIRONMENT=<dev|int|stg|prod> \
-  SUBSCRIPTION="<catalog subscription_name>"
-```
-
-`SUBSCRIPTION` limits the operation to matching catalog pools. Omitting it
-reconciles every managed pool in the selected environment and skips pools with
-`identity_provisioning: unmanaged`. Supplying it can include a matching
-unmanaged pool, so only do that when the subscription owner intends to manage
-that pool with this command.
-
-The command applies one subscription-scoped deployment stack per slot. Each
-stack creates or updates the slot's resource groups and the 13 well-known
-user-assigned managed identities in every group:
+Example drain:
 
 ```text
-cluster-api-azure
-control-plane
-cloud-controller-manager
-ingress
-disk-csi-driver
-file-csi-driver
-image-registry
-cloud-network-config
-kms
-dp-disk-csi-driver
-dp-file-csi-driver
-dp-image-registry
-service
+LOCATION_WEIGHTS=westus3=0,centralus=1,canadacentral=1
 ```
 
-Before applying, confirm that the selected Azure credential can resolve the
-catalog subscription and has permission to create subscription deployment
-stacks, resource groups, and managed identities. Also confirm required resource
-providers and subscription quotas are available.
+When an explicit override is set, `LOCATION_WEIGHTS` and `BUILD_ID` are not
+required and any supplied weights are ignored. This allows callers already
+pinned to a valid catalog region to continue working when an environment moves
+from `runtime-selected` to `weighted`.
 
-Deployment stacks use `ActionOnUnmanage: delete` for resources and resource
-groups. A later catalog change that reduces a pool or changes its naming can
-therefore delete resources no longer managed by the stack. Review the catalog
-diff and always scope a recovery to the intended subscription.
+Without an explicit override, weights are required and must be non-negative
+integers. Every catalog region must appear exactly once, unknown regions are
+rejected, and at least one weight must be non-zero. Duplicate, missing,
+negative, non-integer, and overflowing values are errors. `BUILD_ID` must also
+be non-empty. Slot manager uses 64-bit FNV-1a over its UTF-8 bytes:
 
-#### Validate the complete pool
-
-Do not validate only the resource group named in the original failure. Use the
-read-only validation target to compare the complete slot-expanded catalog
-inventory with Azure:
-
-```bash
-make -C test validate-identity-pool \
-  ENVIRONMENT=<dev|int|stg|prod> \
-  SUBSCRIPTION="<catalog subscription_name>"
+```text
+bucket = fnv1a64(BUILD_ID) % sum(weights)
 ```
 
-The target uses bulk Azure list operations and does not create, update, or
-delete resources. It validates every matching catalog pool in the subscription,
-including the complete resource-group inventory and the exact 13 identity names
-in every existing expected group. It reports sorted missing and unexpected
-resources, prints per-subscription counts, and exits non-zero when drift is
-detected.
+The selected region is the first region in catalog order whose cumulative
+positive weight contains `bucket`. Map iteration order must not affect the
+result.
 
-`SUBSCRIPTION` has the same selection semantics as the apply target. Omitting it
-validates every managed pool in the environment; setting it limits validation to
-matching pools and can include an externally managed pool.
+This produces a reproducible choice within one Prow run and approximate
+weighted distribution over time. It does not provide exact distribution or a
+hard per-region concurrency limit. A retry is a new Prow run and may select a
+different subscription or region. Setting a weight to zero affects new runs
+only.
 
-If reconciliation or validation fails, retain the deployment stack error and
-inspect the first nested Azure error rather than retrying blindly. Common
-blockers are insufficient RBAC, an unregistered `Microsoft.ManagedIdentity`
-provider, subscription quota exhaustion, or another deployment operation
-holding the stack in a non-terminal state.
+## Pool selection and lease acquisition
 
-This recovery procedure was added after
-[AROSLSRE-1895](https://redhat.atlassian.net/browse/AROSLSRE-1895).
+Acquire follows this sequence:
 
-### Dev subscription onboarding note
+1. Load and validate the catalog.
+2. Resolve `ARO_HCP_DEPLOY_ENV` to one slot environment.
+3. Validate mode-specific selectors before acquiring a lease.
+4. Build the candidate pool list:
+   - all modes apply `ALLOWED_SUBSCRIPTIONS`;
+   - only `fixed` applies location filtering to pool identity.
+5. Rotate the initial candidate once per acquire invocation, preserving catalog
+   order for the remaining candidates.
+6. Probe each candidate's Boskos resource type until one returns a lease.
+7. Resolve the leased resource name back to an expanded catalog slot.
+8. Resolve the runtime region according to the environment's region mode.
+9. Find exactly one cluster profile whose
+   `customer-*-subscription-name` matches the pool's `subscription_name`.
+10. Persist the acquired state, then write the downstream environment file.
 
-- Adding a new **dev** customer subscription to the slot catalog is **not** sufficient by itself.
-- Historical reference: commit `d6f6aede7eab13c9d591048d08f87ceb2cd1023e` ("Additional subscription for dev/operator roles") captured the same requirement when the original extra hosted-cluster/E2E subscription was introduced.
-- In addition to catalog, Vault, and Boskos updates, the new subscription must also be wired into the dev identity/bootstrap layer:
-  - add the subscription to the relevant `assignableScopes` for the dev mock/operator roles,
-  - grant the corresponding dev first-party, ARM-helper, and MSI-mock identities access on that subscription.
-- Without that bootstrap, local/dev flows can fail with Azure `AuthorizationFailed` errors even though the slot inventory itself is correct.
+Candidate rotation spreads subscription demand without changing the stable
+fallback order. Region selection is independent from subscription selection in
+`runtime-selected` and `weighted` modes.
 
-## Open Decisions and Deferred Work
+### Waiting and errors
 
-- **Lease timeout tuning**
-  - Lease acquisition timeout is no longer a platform unknown because the Boskos proxy client is under ARO-HCP control.
-  - Initial bounded waiting defaults are now implemented: `lease_wait_interval=1m`, `max_wait_for_lease=30m`, and `0` means wait forever.
-  - The remaining choice is whether real CI data justifies different defaults or per-job overrides for particular environments.
-- **Automation level**
-  - Manual controls and manual failover come first.
-  - Automated routing should only be introduced after enough telemetry and operational experience exist.
+One candidate probe is bounded by `lease-proxy-timeout`, which defaults to
+`30s`. Proxy timeouts and retryable proxy/server responses mean that the pool
+did not yield an immediate lease; slot manager continues with the next
+candidate.
+
+After every candidate is temporarily unavailable, slot manager waits
+`lease_wait_interval` (default `1m`) and retries the full candidate list.
+`max_wait_for_lease` defaults to `30m`; zero means wait indefinitely.
+
+Non-retryable proxy errors, invalid configuration, unknown leased resources,
+and ambiguous or missing cluster-profile matches fail immediately. If
+finalization fails before durable state is written, slot manager attempts to
+return the lease.
+
+## Runtime output contract
+
+Acquire writes `${SHARED_DIR}/aro-hcp-slot.env` with:
+
+| Variable | Meaning |
+| --- | --- |
+| `CUSTOMER_SUBSCRIPTION` | Selected catalog subscription name, verified against the cluster profile. |
+| `SELECTED_LOCATION` | Authoritative runtime region. |
+| `SELECTED_CLUSTER_PROFILE_DIR` | Profile containing the selected subscription's tenant and service-principal credentials. |
+| `LEASED_MSI_CONTAINERS` | Space-separated identity-container resource groups assigned to the slot. |
+| `ARO_HCP_E2E_SLOT_NAME` | Leased Boskos resource name. |
+| `ARO_HCP_E2E_SLOT_RESOURCE_TYPE` | Boskos resource type used for acquisition. |
+
+Downstream steps may map `SELECTED_LOCATION` to `LOCATION`, but must not repeat
+region selection or substitute a job default.
+
+The selection log must include the candidate pool, catalog region order,
+normalized weights when applicable, whether an override was used, the
+selection-key source, and the selected runtime region. These values are
+non-secret.
+
+## State and release
+
+Acquire writes `${SHARED_DIR}/aro-hcp-slot-state.yaml` before writing the env
+file. The state records:
+
+- deploy environment,
+- runtime region,
+- expanded slot,
+- exact Boskos resource name.
+
+Writing state first ensures the post-step can return the lease if the process
+stops before the env file is complete.
+
+`slot-manager release` loads the state file, returns the exact leased resource
+through the Boskos proxy, and removes both state files. A missing state file is
+treated as nothing to release. A failed lease return is an error; failure to
+remove local files after a successful return is logged.
+
+## Inventory maintenance
+
+The ARO-HCP catalog is the source of truth for slot shape. Slot-manager commands
+derive related infrastructure from it:
+
+- `sync-boskos-config` and `validate-boskos-config` reconcile the managed block
+  in `openshift/release`.
+- `apply-identity-pool` and `validate-identity-pool` reconcile or inspect the
+  slot-expanded managed identity containers.
+
+Operational onboarding, capacity calculations, and recovery procedures live in
+[`docs/ci/identity-leasing.md`](../../../../docs/ci/identity-leasing.md) and
+[`docs/ci/e2e-subscription-onboarding.md`](../../../../docs/ci/e2e-subscription-onboarding.md).

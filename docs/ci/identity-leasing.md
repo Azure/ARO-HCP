@@ -130,13 +130,15 @@ The current model is:
 - each slot pool has a Boskos `resource_type`, a customer `subscription_name`, slot count, and identity-container settings
 - `slot-manager acquire` maps `ARO_HCP_DEPLOY_ENV` to the catalog environment and builds an ordered candidate pool list
 - `ALLOWED_SUBSCRIPTIONS` narrows the candidate pool set when a job needs to pin or restrict shard selection
-- when `region_mode: runtime-selected` is used, the concrete runtime region is driven by the job's runtime override and exported as `SELECTED_LOCATION`
+- `fixed` pools take their runtime region from the catalog
+- `runtime-selected` pools take their runtime region from the job override, with the catalog region as fallback
+- `weighted` pools select deterministically from the catalog regions using per-job `LOCATION_WEIGHTS` and `BUILD_ID`; an explicit location override remains highest precedence
 
-The current slot-manager rollout intentionally keeps the implementation details in [slot-manager design](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md). For day-to-day CI understanding, the important points are:
+The implementation details live in [slot-manager design](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md). For day-to-day CI understanding, the important points are:
 
 - subscription sharding is driven by the slot catalog and slot-manager candidate pool selection
 - candidate pools are tried in catalog order when more than one pool is eligible
-- the active runtime region is controlled by the live `openshift/release` job configuration
+- the active runtime region is determined from the catalog mode and the live `openshift/release` job configuration
 
 This document intentionally does not freeze the current region value in prose. If you need the current runtime override for a job, inspect the live `openshift/release` config rather than relying on a doc snapshot.
 

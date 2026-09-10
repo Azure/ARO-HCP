@@ -252,6 +252,8 @@ func TestDefaultAcquireOptionsLeaseWaitDefaults(t *testing.T) {
 func TestDefaultAcquireOptionsSelectorDefaults(t *testing.T) {
 	t.Setenv("ALLOWED_SUBSCRIPTIONS", "dev-sub-a, dev-sub-b, dev-sub-a")
 	t.Setenv("ALLOWED_LOCATIONS", "centralus, eastus2")
+	t.Setenv("LOCATION_WEIGHTS", "westus3=1, centralus=2")
+	t.Setenv("BUILD_ID", "12345")
 
 	opts := DefaultAcquireOptions()
 
@@ -263,6 +265,180 @@ func TestDefaultAcquireOptionsSelectorDefaults(t *testing.T) {
 	}
 	if opts.SelectedLocation != "" {
 		t.Fatalf("expected empty selected location by default, got %q", opts.SelectedLocation)
+	}
+	if opts.LocationWeights != "westus3=1, centralus=2" {
+		t.Fatalf("expected location weights from environment, got %q", opts.LocationWeights)
+	}
+	if opts.BuildID != "12345" {
+		t.Fatalf("expected build ID from environment, got %q", opts.BuildID)
+	}
+}
+
+func TestResolveRegionSelectionWeightedOverride(t *testing.T) {
+	t.Parallel()
+
+	catalog := loadWeightedAcquireTestCatalog(t)
+	selection, err := resolveRegionSelection(
+		catalog,
+		"dev",
+		slots.RegionModeWeighted,
+		"canadacentral",
+		"not-valid-and-must-be-ignored",
+		"",
+	)
+	if err != nil {
+		t.Fatalf("expected valid override to bypass weighted inputs: %v", err)
+	}
+	if selection.RuntimeRegion != "canadacentral" {
+		t.Fatalf("expected override region %q, got %q", "canadacentral", selection.RuntimeRegion)
+	}
+	if len(selection.NormalizedWeights) != 0 {
+		t.Fatalf("expected override path to ignore weights, got %v", selection.NormalizedWeights)
+	}
+	if selection.SelectionKeySource != "" {
+		t.Fatalf("expected override path not to use a selection key, got %q", selection.SelectionKeySource)
+	}
+
+	_, err = resolveRegionSelection(catalog, "dev", slots.RegionModeWeighted, "eastus2", "", "")
+	if err == nil {
+		t.Fatal("expected override outside the catalog regions to fail")
+	}
+	if !strings.Contains(err.Error(), "is not allowed") {
+		t.Fatalf("expected invalid override error, got %v", err)
+	}
+}
+
+func TestResolveRegionSelectionWeightedDeterministic(t *testing.T) {
+	t.Parallel()
+
+	catalog := loadWeightedAcquireTestCatalog(t)
+	tests := []struct {
+		buildID string
+		want    string
+	}{
+		{buildID: "3", want: "westus3"},
+		{buildID: "1", want: "centralus"},
+		{buildID: "0", want: "canadacentral"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.buildID, func(t *testing.T) {
+			t.Parallel()
+			selection, err := resolveRegionSelection(
+				catalog,
+				"dev",
+				slots.RegionModeWeighted,
+				"",
+				"canadacentral=1,westus3=1,centralus=1",
+				tc.buildID,
+			)
+			if err != nil {
+				t.Fatalf("expected weighted selection to succeed: %v", err)
+			}
+			if selection.RuntimeRegion != tc.want {
+				t.Fatalf("expected build ID %q to select %q, got %q", tc.buildID, tc.want, selection.RuntimeRegion)
+			}
+			if got, want := selection.NormalizedWeights, []string{"westus3=1", "centralus=1", "canadacentral=1"}; !equalStrings(got, want) {
+				t.Fatalf("unexpected normalized weights: got %v want %v", got, want)
+			}
+			if selection.SelectionKeySource != "BUILD_ID" {
+				t.Fatalf("expected BUILD_ID selection source, got %q", selection.SelectionKeySource)
+			}
+		})
+	}
+}
+
+func TestParseLocationWeights(t *testing.T) {
+	t.Parallel()
+
+	regions := []string{"westus3", "centralus", "canadacentral"}
+	tests := []struct {
+		name      string
+		raw       string
+		want      []locationWeight
+		wantTotal uint64
+		wantError string
+	}{
+		{
+			name:      "catalog order and zero weight",
+			raw:       "canadacentral=0, westus3=2\ncentralus=1",
+			want:      []locationWeight{{Location: "westus3", Weight: 2}, {Location: "centralus", Weight: 1}, {Location: "canadacentral", Weight: 0}},
+			wantTotal: 3,
+		},
+		{name: "empty", wantError: "must not be empty"},
+		{name: "missing", raw: "westus3=1,centralus=1", wantError: "missing weight"},
+		{name: "unknown", raw: "westus3=1,centralus=1,eastus2=1", wantError: "unknown location"},
+		{name: "duplicate", raw: "westus3=1,centralus=1,canadacentral=1,westus3=2", wantError: "more than once"},
+		{name: "negative", raw: "westus3=-1,centralus=1,canadacentral=1", wantError: "non-negative integer"},
+		{name: "non-integer", raw: "westus3=1.5,centralus=1,canadacentral=1", wantError: "non-negative integer"},
+		{name: "all zero", raw: "westus3=0,centralus=0,canadacentral=0", wantError: "greater than zero"},
+		{name: "overflow", raw: "westus3=18446744073709551615,centralus=1,canadacentral=0", wantError: "overflows"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got, total, err := parseLocationWeights(tc.raw, regions)
+			if tc.wantError != "" {
+				if err == nil {
+					t.Fatalf("expected weight parsing to fail with %q", tc.wantError)
+				}
+				if !strings.Contains(err.Error(), tc.wantError) {
+					t.Fatalf("expected error to contain %q, got %v", tc.wantError, err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("expected weight parsing to succeed: %v", err)
+			}
+			if !equalLocationWeights(got, tc.want) {
+				t.Fatalf("unexpected parsed weights: got %v want %v", got, tc.want)
+			}
+			if total != tc.wantTotal {
+				t.Fatalf("expected total weight %d, got %d", tc.wantTotal, total)
+			}
+		})
+	}
+}
+
+func TestAcquireCompleteWeightedRequiresInputsWithoutOverride(t *testing.T) {
+	t.Parallel()
+
+	clusterProfileDir := writeAcquireTestClusterProfile(t, "dev-sub")
+	catalogPath := writeWeightedAcquireTestCatalog(t)
+	baseOptions := func() *RawAcquireOptions {
+		return &RawAcquireOptions{
+			ClusterProfileDir:   clusterProfileDir,
+			DeployEnv:           "ci01",
+			SharedDir:           t.TempDir(),
+			CatalogPath:         catalogPath,
+			LeaseProxyServerURL: "http://lease-proxy.example.com",
+			LeaseProxyTimeout:   slots.DefaultLeaseProxyTimeout,
+			MaxWaitForLease:     DefaultMaxWaitForLease,
+			LeaseWaitInterval:   DefaultLeaseWaitInterval,
+		}
+	}
+
+	opts := baseOptions()
+	opts.BuildID = "123"
+	if _, err := completeAcquireOptions(opts); err == nil || !strings.Contains(err.Error(), "LOCATION_WEIGHTS") {
+		t.Fatalf("expected missing weights error, got %v", err)
+	}
+
+	opts = baseOptions()
+	opts.LocationWeights = "westus3=1,centralus=1,canadacentral=1"
+	if _, err := completeAcquireOptions(opts); err == nil || !strings.Contains(err.Error(), "BUILD_ID") {
+		t.Fatalf("expected missing BUILD_ID error, got %v", err)
+	}
+
+	opts = baseOptions()
+	opts.SelectedLocation = "westus3"
+	opts.LocationWeights = "invalid"
+	completed, err := completeAcquireOptions(opts)
+	if err != nil {
+		t.Fatalf("expected override to bypass weighted inputs: %v", err)
+	}
+	if completed.RuntimeRegion != "westus3" {
+		t.Fatalf("expected override runtime region %q, got %q", "westus3", completed.RuntimeRegion)
 	}
 }
 
@@ -557,6 +733,90 @@ environments:
 	}
 	if state.Slot.Region != "uksouth" {
 		t.Fatalf("expected slot catalog region %q, got %q", "uksouth", state.Slot.Region)
+	}
+}
+
+func TestAcquireRunWeightedSelectsRegionAndFallsBackAcrossSubscriptions(t *testing.T) {
+	t.Parallel()
+
+	clusterProfileDir := writeAcquireTestClusterProfiles(t, "dev-sub-b")
+	catalogPath := writeAcquireTestCatalogFromYAML(t, `version: 1
+environments:
+  dev:
+    deploy_envs: [ci01]
+    pools:
+      - subscription_name: dev-sub-a
+        region_mode: weighted
+        regions: [westus3, centralus, canadacentral]
+        identity_provisioning_region: westus3
+        resource_type: aro-hcp-dev-shard0-slot
+        slot_count: 1
+        identity_container_prefix: aro-hcp-msi-container-dev-a
+        identity_container_count: 2
+      - subscription_name: dev-sub-b
+        region_mode: weighted
+        regions: [westus3, centralus, canadacentral]
+        identity_provisioning_region: westus3
+        resource_type: aro-hcp-dev-shard1-slot
+        slot_count: 1
+        identity_container_prefix: aro-hcp-msi-container-dev-b
+        identity_container_count: 2
+`)
+
+	server, acquireCalls, _ := newTestLeaseProxyServer(t, map[string][]leaseProxyReply{
+		"aro-hcp-dev-shard0-slot": {
+			unavailableAcquireReply("aro-hcp-dev-shard0-slot"),
+		},
+		"aro-hcp-dev-shard1-slot": {
+			successAcquireReply("aro-hcp-dev-shard1-slot-00"),
+		},
+	})
+	defer server.Close()
+
+	sharedDir := t.TempDir()
+	err := Acquire(context.Background(), &RawAcquireOptions{
+		ClusterProfileDir:   clusterProfileDir,
+		DeployEnv:           "ci01",
+		AllowedLocations:    []string{"eastus2"},
+		LocationWeights:     "westus3=1,centralus=1,canadacentral=1",
+		BuildID:             "0",
+		SharedDir:           sharedDir,
+		CatalogPath:         catalogPath,
+		LeaseProxyServerURL: server.URL,
+		LeaseProxyTimeout:   50 * time.Millisecond,
+		MaxWaitForLease:     DefaultMaxWaitForLease,
+		LeaseWaitInterval:   DefaultLeaseWaitInterval,
+		Now:                 staticNow(time.Unix(0, 0)),
+	})
+	if err != nil {
+		t.Fatalf("expected weighted acquire to succeed: %v", err)
+	}
+
+	if got, want := *acquireCalls, []string{"aro-hcp-dev-shard0-slot", "aro-hcp-dev-shard1-slot"}; !equalStrings(got, want) {
+		t.Fatalf("unexpected acquire call order: got %v want %v", got, want)
+	}
+
+	state, err := slots.LoadAcquiredSlotState(sharedDir)
+	if err != nil {
+		t.Fatalf("expected acquired slot state to load: %v", err)
+	}
+	if state.RuntimeRegion != "canadacentral" {
+		t.Fatalf("expected weighted runtime region %q, got %q", "canadacentral", state.RuntimeRegion)
+	}
+	if state.Slot.ResourceType != "aro-hcp-dev-shard1-slot" {
+		t.Fatalf("expected fallback subscription pool, got %q", state.Slot.ResourceType)
+	}
+
+	envFile, err := slots.EnvFile(sharedDir)
+	if err != nil {
+		t.Fatalf("expected env file path: %v", err)
+	}
+	envContents, err := os.ReadFile(envFile)
+	if err != nil {
+		t.Fatalf("expected env file read to succeed: %v", err)
+	}
+	if !strings.Contains(string(envContents), `export SELECTED_LOCATION='canadacentral'`) {
+		t.Fatalf("expected selected weighted location in env file, got:\n%s", envContents)
 	}
 }
 
@@ -1066,6 +1326,35 @@ environments:
 `, region, regionMode))
 }
 
+func writeWeightedAcquireTestCatalog(t *testing.T) string {
+	t.Helper()
+
+	return writeAcquireTestCatalogFromYAML(t, `version: 1
+environments:
+  dev:
+    deploy_envs: [ci00, ci01]
+    pools:
+      - subscription_name: dev-sub
+        region_mode: weighted
+        regions: [westus3, centralus, canadacentral]
+        identity_provisioning_region: westus3
+        resource_type: aro-hcp-dev-shard0-slot
+        slot_count: 2
+        identity_container_prefix: aro-hcp-msi-container-dev
+        identity_container_count: 2
+`)
+}
+
+func loadWeightedAcquireTestCatalog(t *testing.T) *slots.Catalog {
+	t.Helper()
+
+	catalog, err := slots.LoadCatalog(writeWeightedAcquireTestCatalog(t))
+	if err != nil {
+		t.Fatalf("expected weighted catalog to load: %v", err)
+	}
+	return catalog
+}
+
 func writeAcquireTestCatalogFromYAML(t *testing.T, catalog string) string {
 	t.Helper()
 
@@ -1098,15 +1387,31 @@ func writeAcquireTestClusterProfiles(t *testing.T, subscriptionNames ...string) 
 func completeAcquireForTest(t *testing.T, raw *RawAcquireOptions) *AcquireOptions {
 	t.Helper()
 
-	validated, err := raw.Validate()
-	if err != nil {
-		t.Fatalf("expected acquire options validation to succeed: %v", err)
-	}
-	completed, err := validated.Complete(context.Background())
+	completed, err := completeAcquireOptions(raw)
 	if err != nil {
 		t.Fatalf("expected acquire options completion to succeed: %v", err)
 	}
 	return completed
+}
+
+func completeAcquireOptions(raw *RawAcquireOptions) (*AcquireOptions, error) {
+	validated, err := raw.Validate()
+	if err != nil {
+		return nil, err
+	}
+	return validated.Complete(context.Background())
+}
+
+func equalLocationWeights(left, right []locationWeight) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for i := range left {
+		if left[i] != right[i] {
+			return false
+		}
+	}
+	return true
 }
 
 type leaseProxyReply struct {
