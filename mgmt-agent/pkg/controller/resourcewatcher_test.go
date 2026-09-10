@@ -15,6 +15,7 @@
 package controller
 
 import (
+	"reflect"
 	"testing"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -22,6 +23,47 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/sets"
 )
+
+func TestReflectorStoreLogsWithoutRetainingObjects(t *testing.T) {
+	var added, updated, deleted []interface{}
+	store := newReflectorStore(
+		func(obj interface{}) { added = append(added, obj) },
+		func(obj interface{}) { updated = append(updated, obj) },
+		func(obj interface{}) { deleted = append(deleted, obj) },
+	)
+
+	initial := []interface{}{"initial-1", "initial-2"}
+	if err := store.Replace(initial, "1"); err != nil {
+		t.Fatalf("Replace() error = %v", err)
+	}
+	if err := store.Add("added"); err != nil {
+		t.Fatalf("Add() error = %v", err)
+	}
+	if err := store.Update("updated"); err != nil {
+		t.Fatalf("Update() error = %v", err)
+	}
+	if err := store.Delete("deleted"); err != nil {
+		t.Fatalf("Delete() error = %v", err)
+	}
+	if err := store.Replace(nil, "2"); err != nil {
+		t.Fatalf("second Replace() error = %v", err)
+	}
+
+	if !reflect.DeepEqual(added, []interface{}{"initial-1", "initial-2", "added"}) {
+		t.Errorf("added = %#v", added)
+	}
+	if !reflect.DeepEqual(updated, []interface{}{"updated"}) {
+		t.Errorf("updated = %#v", updated)
+	}
+	if !reflect.DeepEqual(deleted, []interface{}{"deleted"}) {
+		t.Errorf("deleted = %#v", deleted)
+	}
+	select {
+	case <-store.synced:
+	default:
+		t.Error("store did not report initial synchronization")
+	}
+}
 
 func TestMatchesGroupSuffix(t *testing.T) {
 	tests := []struct {

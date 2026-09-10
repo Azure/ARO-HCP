@@ -18,7 +18,7 @@ import (
 	"context"
 	"os"
 	"strings"
-	"time"
+	"sync"
 
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -26,8 +26,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/dynamic"
-	"k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/klog/v2"
 )
@@ -74,7 +74,7 @@ type ServerResourceDiscoverer interface {
 
 // ResourceWatcher discovers API resources matching a set of group suffixes, also
 // watches a fixed set of additional GroupVersionResources (watchedExplicitGVRs), and
-// logs every event via dynamic informers as structured JSON.
+// logs every event via reflectors as structured JSON.
 type ResourceWatcher struct {
 	dynamicClient   dynamic.Interface
 	discoveryClient ServerResourceDiscoverer
@@ -89,9 +89,9 @@ func NewResourceWatcher(dynamicClient dynamic.Interface, discoveryClient ServerR
 }
 
 // Run discovers GVRs for the configured group suffixes, also watches the GVRs in
-// watchedExplicitGVRs, starts dynamic informers for each, and blocks until
-// the context is cancelled. Events are
-// logged as structured JSON via klog. A CRD informer watches for new CustomResourceDefinitions;
+// watchedExplicitGVRs, starts reflectors for each, and blocks until
+// the context is cancelled. Events are logged as structured JSON via klog. A
+// CRD reflector watches for new CustomResourceDefinitions;
 // if a new CRD is registered whose group matches the watched suffixes and introduces
 // GVRs not known at startup, the process exits so the pod restarts and picks them up.
 func (w *ResourceWatcher) Run(ctx context.Context) error {
@@ -106,8 +106,6 @@ func (w *ResourceWatcher) Run(ctx context.Context) error {
 	logger.Info("Discovered resources to watch", "count", len(gvrs))
 
 	knownGVRs := sets.New[schema.GroupVersionResource](gvrs...)
-
-	factory := dynamicinformer.NewDynamicSharedInformerFactory(w.dynamicClient, 10*time.Hour)
 
 	// Watch CRDs so we can detect when new API resources matching our group
 	// suffixes are registered in the cluster. When that happens, we exit the
@@ -126,42 +124,118 @@ func (w *ResourceWatcher) Run(ctx context.Context) error {
 			os.Exit(1)
 		}
 	}
-	crdInformer := factory.ForResource(crdGVR)
-	if _, err := crdInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc:    handleCRD,
-		UpdateFunc: func(_, obj interface{}) { handleCRD(obj) },
-	}); err != nil {
-		return err
-	}
+	var syncChannels []<-chan struct{}
+	crdStore := newReflectorStore(
+		handleCRD,
+		handleCRD,
+		func(interface{}) {},
+	)
+	syncChannels = append(syncChannels, crdStore.synced)
+	go newDynamicReflector(w.dynamicClient, crdGVR, crdStore).RunWithContext(ctx)
 
 	for _, gvr := range gvrs {
-		informer := factory.ForResource(gvr)
-		gvr := gvr // capture for closures
-		if _, err := informer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
-			AddFunc: func(obj interface{}) {
-				logResourceEvent(ctx, "Add", gvr, obj)
-			},
-			UpdateFunc: func(_, obj interface{}) {
-				logResourceEvent(ctx, "Update", gvr, obj)
-			},
-			DeleteFunc: func(obj interface{}) {
-				if tombstone, ok := obj.(cache.DeletedFinalStateUnknown); ok {
-					obj = tombstone.Obj
-				}
-				logResourceEvent(ctx, "Delete", gvr, obj)
-			},
-		}); err != nil {
-			return err
+		gvr := gvr
+		store := newReflectorStore(
+			func(obj interface{}) { logResourceEvent(ctx, "Add", gvr, obj) },
+			func(obj interface{}) { logResourceEvent(ctx, "Update", gvr, obj) },
+			func(obj interface{}) { logResourceEvent(ctx, "Delete", gvr, obj) },
+		)
+		syncChannels = append(syncChannels, store.synced)
+		go newDynamicReflector(w.dynamicClient, gvr, store).RunWithContext(ctx)
+	}
+
+	for _, synced := range syncChannels {
+		select {
+		case <-synced:
+		case <-ctx.Done():
+			logger.Info("Shutting down resource watcher")
+			return nil
 		}
 	}
 
-	factory.Start(ctx.Done())
-	factory.WaitForCacheSync(ctx.Done())
-
-	logger.Info("Resource watcher informers synced and running")
+	logger.Info("Resource watcher reflectors synced and running")
 	<-ctx.Done()
 	logger.Info("Shutting down resource watcher")
 	return nil
+}
+
+// reflectorStore implements cache.ReflectorStore without implementing a
+// cache. This is deliberately unusual: an informer normally retains the last
+// copy of every watched object so consumers can perform indexed reads and
+// compare old and new values. The resource watcher has no such consumers; its
+// only purpose is to emit every observed snapshot for later must-gather use.
+// Retaining another full copy of all management-cluster resources would waste
+// substantial memory, so each callback logs the object and immediately drops
+// the reference.
+type reflectorStore struct {
+	add      func(interface{})
+	update   func(interface{})
+	delete   func(interface{})
+	synced   chan struct{}
+	syncOnce sync.Once
+}
+
+var _ cache.ReflectorStore = &reflectorStore{}
+
+func newReflectorStore(add, update, delete func(interface{})) *reflectorStore {
+	return &reflectorStore{
+		add:    add,
+		update: update,
+		delete: delete,
+		synced: make(chan struct{}),
+	}
+}
+
+func (s *reflectorStore) Add(obj interface{}) error {
+	s.add(obj)
+	return nil
+}
+
+func (s *reflectorStore) Update(obj interface{}) error {
+	s.update(obj)
+	return nil
+}
+
+func (s *reflectorStore) Delete(obj interface{}) error {
+	s.delete(obj)
+	return nil
+}
+
+func (s *reflectorStore) Replace(objects []interface{}, _ string) error {
+	// Reflector delivers the initial LIST through Replace rather than Add. Log
+	// those objects as additions so startup still produces a complete snapshot,
+	// then release the slice without retaining any of its contents.
+	for _, obj := range objects {
+		s.add(obj)
+	}
+	s.syncOnce.Do(func() { close(s.synced) })
+	return nil
+}
+
+func (s *reflectorStore) Resync() error {
+	// There is intentionally no retained state to replay.
+	return nil
+}
+
+func newDynamicReflector(dynamicClient dynamic.Interface, gvr schema.GroupVersionResource, store cache.ReflectorStore) *cache.Reflector {
+	resourceClient := dynamicClient.Resource(gvr)
+	listWatch := &cache.ListWatch{
+		ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
+			return resourceClient.List(ctx, options)
+		},
+		WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
+			return resourceClient.Watch(ctx, options)
+		},
+	}
+	return cache.NewReflectorWithOptions(
+		listWatch,
+		&unstructured.Unstructured{},
+		store,
+		cache.ReflectorOptions{
+			Name:            "resource-watcher/" + gvr.String(),
+			TypeDescription: gvr.String(),
+		},
+	)
 }
 
 // discoverGVRs uses the discovery API to find all GVRs whose group matches
