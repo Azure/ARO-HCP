@@ -112,14 +112,15 @@ spec:
   # Cluster create operations stuck in non-terminal phases are invisible to
   # the Errors SLI (which only counts terminal phases) and require investigation.
   #
-  # Threshold: 1 hour (3600s). Cluster provisioning typically takes ~13
-  # minutes for HCP; 1 hour is ~5x the expected duration, matching the
-  # access-cluster stuck operation threshold.
+  # Threshold: 30 minutes (1800s). Cluster provisioning typically takes ~13
+  # minutes for HCP (P99 ~18 min). The 60-minute operation deadline
+  # (defaultCreateOperationCompletionDeadlineDuration) marks operations as
+  # failed, so the threshold must be well below 60 min to provide early detection. 
   #
   # Stickiness (max_over_time ... [6h:5m]): while a resource stays wedged,
   # the raw condition can transiently clear — most commonly when the backend
   # retries the operation and resets backend_resource_operation_start_time_seconds,
-  # briefly dropping (time() - start_time) below the 3600s threshold. Each clear
+  # briefly dropping (time() - start_time) below the 1800s threshold. Each clear
   # auto-resolves the IcM incident and the next re-fire opens a brand-new one.
   # Holding the condition firing over a 6h look-back collapses a
   # continuously-stuck resource into a single long-lived incident; genuinely
@@ -141,14 +142,16 @@ spec:
           phase
         ) (
           max_over_time(
-            (latency:backend_cluster_provision:inflight_duration_seconds > 3600)[6h:5m]
+            (latency:backend_cluster_provision:inflight_duration_seconds > 1800)[6h:5m]
           )
         )
+        and on (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase)
+        latency:backend_cluster_provision:inflight_duration_seconds
       for: 15m
       labels:
         exclude_internal_subscriptions: "true"
         severity: "4"
       annotations:
-        summary: "{{ $labels.cluster }}: Cluster create operation for {{ $labels.resource_id }} stuck in {{ $labels.phase }} for over 1 hour"
-        description: "Cluster create operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 1 hour. Stuck operations are invisible to success/failure SLIs and require investigation."
+        summary: "{{ $labels.cluster }}: Cluster create operation for {{ $labels.resource_id }} stuck in {{ $labels.phase }} for over 30 minutes"
+        description: "Cluster create operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 30 minutes. Stuck operations are invisible to success/failure SLIs and require investigation."
         runbook_url: "https://aka.ms/arohcp-runbook-cluster-provision"
