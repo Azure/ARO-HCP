@@ -44,6 +44,7 @@ func TestMatchesGroupSuffix(t *testing.T) {
 		{"fake-open-cluster-management.io", false},
 		{"notcluster.x-k8s.io", false},
 		{"x-k8s.io", false},
+		{"route.openshift.io", true},
 	}
 
 	for _, tt := range tests {
