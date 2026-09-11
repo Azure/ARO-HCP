@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"strings"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -202,32 +203,44 @@ func (c *operationNodePoolUpdate) hypershiftNodePoolNodeDrainTimeoutSpecMatchesD
 	return true, ""
 }
 
-// hypershiftNodePoolStatusMatchesDesired reports whether Hypershift NodePool .Status fields match desired state.
+// hypershiftNodePoolStatusMatchesDesired reports whether Hypershift NodePool .Status fields match desired
+// state. All applicable sub-checks (replicas, AllNodesHealthy, AllMachinesReady) are evaluated and every
+// failing one is included in the diagnostic message.
 func (c *operationNodePoolUpdate) hypershiftNodePoolStatusMatchesDesired(nodePool *coreapi.HCPOpenShiftClusterNodePool, observed v1beta1.NodePoolStatus) (bool, string) {
+	var messages []string
+
 	if matches, message := c.hypershiftNodePoolStatusReplicasMatchesDesired(nodePool, observed.Replicas); !matches {
-		return false, message
+		messages = append(messages, message)
 	}
-	// Skip AllMachinesReady check when scaling to zero -- there are no machines to be ready.
+
+	// Skip machine health condition checks when scaling to zero -- there are no machines to be ready.
 	if nodePool.Properties.Replicas > 0 || nodePool.Properties.AutoScaling != nil {
-		if matches, message := c.hypershiftNodePoolAllMachinesReadyConditionStatusMatchesDesired(observed.Conditions); !matches {
-			return false, message
+		if matches, message := c.hypershiftNodePoolConditionStatusMatchesDesired(observed.Conditions, v1beta1.NodePoolAllNodesHealthyConditionType); !matches {
+			messages = append(messages, message)
 		}
+		if matches, message := c.hypershiftNodePoolConditionStatusMatchesDesired(observed.Conditions, v1beta1.NodePoolAllMachinesReadyConditionType); !matches {
+			messages = append(messages, message)
+		}
+	}
+
+	if len(messages) > 0 {
+		return false, strings.Join(messages, "; ")
 	}
 	return true, ""
 }
 
-// hypershiftNodePoolAllMachinesReadyConditionStatusMatchesDesired reports whether Hypershift NodePool
-// AllMachinesReady condition status reflects that all machines are ready.
-func (c *operationNodePoolUpdate) hypershiftNodePoolAllMachinesReadyConditionStatusMatchesDesired(conditions []v1beta1.NodePoolCondition) (bool, string) {
+// hypershiftNodePoolConditionStatusMatchesDesired reports whether the named Hypershift NodePool condition
+// is reporting a healthy (ConditionTrue) status.
+func (c *operationNodePoolUpdate) hypershiftNodePoolConditionStatusMatchesDesired(conditions []v1beta1.NodePoolCondition, conditionType string) (bool, string) {
 	for _, condition := range conditions {
-		if condition.Type == v1beta1.NodePoolAllMachinesReadyConditionType {
+		if condition.Type == conditionType {
 			if condition.Status != corev1.ConditionTrue {
 				return false, fmt.Sprintf("hypershift NodePool condition %s is %s: %s", condition.Type, condition.Status, condition.Message)
 			}
 			return true, ""
 		}
 	}
-	return false, fmt.Sprintf("hypershift NodePool condition %s not yet reported", v1beta1.NodePoolAllMachinesReadyConditionType)
+	return false, fmt.Sprintf("hypershift NodePool condition %s not yet reported", conditionType)
 }
 
 // hypershiftNodePoolStatusReplicasMatchesDesired reports whether Hypershift NodePool status replicas
