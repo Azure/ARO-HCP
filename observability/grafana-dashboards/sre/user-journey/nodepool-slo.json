@@ -26,7 +26,7 @@
       "id": 1,
       "options": {
         "code": { "language": "plaintext", "showLineNumbers": false, "showMiniMap": false },
-        "content": "### Node Pool Management SLO Dashboard\n\nMonitors node pool operation health against defined SLOs.\n\n**SLO Targets (Proposed — pending baseline):**\n- Operation success rate: 95% over 7-day rolling window\n- Operation latency: 95% within 600s\n- Resource health: 99.5% non-failed provisioning state\n\n**Metrics Source:** `backend_resource_operation_phase_info`, `backend_nodepool_provision_state` (Cosmos DB-backed)\n\n**Jira:** [ARO-25967](https://redhat.atlassian.net/browse/ARO-25967) | **TSG:** [Node Pool Management TSG](https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/node-pool-management-tsg.html)",
+        "content": "### Node Pool Management SLO Dashboard\n\nMonitors node pool operation health against defined SLOs.\n\n**SLO Targets (Proposed, pending baseline):**\n- Operation success rate: 95%, measured over a 3-day rolling window aligned with the error-budget burn-rate alert\n- Operation latency: 95% within 600s\n- Resource health: 99.5% non-failed provisioning state\n\n**Metrics Source:** `backend_resource_operation_phase_info`, `backend_nodepool_provision_state` (Cosmos DB-backed)\n\n**Jira:** [ARO-25967](https://redhat.atlassian.net/browse/ARO-25967) | **TSG:** [Node Pool Management TSG](https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/node-pool-management-tsg.html)",
         "mode": "markdown"
       },
       "pluginVersion": "11.6.9",
@@ -68,7 +68,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "(\n  (count(backend_resource_operation_phase_info{resource_type=~\".*nodepools\", operation_type=~\"update|delete\", phase=\"succeeded\"}) or vector(0))\n  /\n  (count(backend_resource_operation_phase_info{resource_type=~\".*nodepools\", operation_type=~\"update|delete\", phase=~\"succeeded|failed\"}) > 0 or vector(1))\n) * 100",
+          "expr": "100 * (\n  count(\n    (backend_resource_operation_phase_info{resource_type=~\".*nodepools\", operation_type=~\"update|delete\", phase=\"succeeded\"} == 1)\n    and\n    ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=~\".*nodepools\", operation_type=~\"update|delete\"}) < 259200)\n  )\n  or\n  (count(\n    (backend_resource_operation_phase_info{resource_type=~\".*nodepools\", operation_type=~\"update|delete\", phase=~\"succeeded|failed\"} == 1)\n    and\n    ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=~\".*nodepools\", operation_type=~\"update|delete\"}) < 259200)\n  ) * 0)\n)\n/\ncount(\n    (backend_resource_operation_phase_info{resource_type=~\".*nodepools\", operation_type=~\"update|delete\", phase=~\"succeeded|failed\"} == 1)\n    and\n    ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=~\".*nodepools\", operation_type=~\"update|delete\"}) < 259200)\n)",
           "instant": true,
           "legendFormat": "Success Rate",
           "refId": "A"
@@ -262,7 +262,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "(\n  (count(backend_resource_operation_phase_info{resource_type=~\".*nodepools\", operation_type=~\"update|delete\", phase=\"succeeded\"}) or vector(0))\n  /\n  (count(backend_resource_operation_phase_info{resource_type=~\".*nodepools\", operation_type=~\"update|delete\", phase=~\"succeeded|failed\"}) > 0 or vector(1))\n) * 100",
+          "expr": "100 * (\n  count(\n    (backend_resource_operation_phase_info{resource_type=~\".*nodepools\", operation_type=~\"update|delete\", phase=\"succeeded\"} == 1)\n    and\n    ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=~\".*nodepools\", operation_type=~\"update|delete\"}) < 259200)\n  )\n  or\n  (count(\n    (backend_resource_operation_phase_info{resource_type=~\".*nodepools\", operation_type=~\"update|delete\", phase=~\"succeeded|failed\"} == 1)\n    and\n    ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=~\".*nodepools\", operation_type=~\"update|delete\"}) < 259200)\n  ) * 0)\n)\n/\ncount(\n    (backend_resource_operation_phase_info{resource_type=~\".*nodepools\", operation_type=~\"update|delete\", phase=~\"succeeded|failed\"} == 1)\n    and\n    ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=~\".*nodepools\", operation_type=~\"update|delete\"}) < 259200)\n)",
           "legendFormat": "Success Rate %",
           "refId": "A"
         }

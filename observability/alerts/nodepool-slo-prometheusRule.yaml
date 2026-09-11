@@ -11,155 +11,18 @@ metadata:
 spec:
   groups:
   # ========================================
-  # Node Pool SLO Recording Rules
-  # ========================================
-  # These rules track the Errors SLO for Node Pool operations.
-  # SLO: 95% of node pool operations should succeed (not reach "failed" terminal phase)
-  # Error Budget: 5% (1 - 0.95)
-  #
-  # Metrics are gauge-based (backend_resource_operation_phase_info) from Cosmos DB,
-  # so we use count() aggregations rather than rate() on counters.
-  #
-  # Scope: covers node pool update and delete operations.
-  # Node pool creation has its own SLI/SLO work tracked in ARO-26179 (owner: Rael).
-  - name: arohcp_nodepool_slo_recording_rules
-    interval: 1m
-    rules:
-    # Instantaneous count of succeeded node pool operations per cluster
-    - record: errors:backend_nodepool_operation:succeeded_total
-      expr: |
-        count by (cluster) (backend_resource_operation_phase_info{
-          resource_type=~".*nodepools",
-          operation_type=~"update|delete",
-          phase="succeeded"
-        })
-    # Instantaneous count of all terminal node pool operations per cluster
-    - record: errors:backend_nodepool_operation:terminal_total
-      expr: |
-        count by (cluster) (backend_resource_operation_phase_info{
-          resource_type=~".*nodepools",
-          operation_type=~"update|delete",
-          phase=~"succeeded|failed|canceled"
-        })
-    # Instantaneous error rate per cluster: fraction of terminal operations that failed
-    - record: errors:backend_nodepool_operation:error_rate
-      expr: |
-        (
-          count by (cluster) (backend_resource_operation_phase_info{
-            resource_type=~".*nodepools",
-            operation_type=~"update|delete",
-            phase="failed"
-          })
-          or
-          0 * count by (cluster) (backend_resource_operation_phase_info{
-            resource_type=~".*nodepools",
-            operation_type=~"update|delete",
-            phase=~"succeeded|failed|canceled"
-          })
-        )
-        /
-        clamp_min(
-          count by (cluster) (backend_resource_operation_phase_info{
-            resource_type=~".*nodepools",
-            operation_type=~"update|delete",
-            phase=~"succeeded|failed|canceled"
-          }),
-          1
-        )
-    # Node pool provisioning state distribution (for dashboards)
-    - record: nodepool:provision_state:count_by_phase
-      expr: |
-        count by (phase) (backend_nodepool_provision_state)
-  # ========================================
   # Node Pool SLO Alerts — Errors
   # ========================================
-  # Multi-window burn-rate-style alerting adapted for gauge metrics.
-  # Naming convention: {Scope}{Subject}{Metric}{BurnRateTier} per ADR-001.
-  #
-  # Burn rate thresholds calculated from 95% SLO (5% error budget):
-  #   Fast (14.4x): 14.4 * 0.05 = 0.72 → 72% error rate
-  #   Medium (6x):  6 * 0.05 = 0.30 → 30% error rate
-  #   Slow (1x):    1 * 0.05 = 0.05 → 5% error rate
-  #
-  # The 'for' duration enforces sustained observation, approximating the
-  # short window of multi-window burn rate alerting. For gauge metrics
-  # (point-in-time state rather than event rates), this provides equivalent
-  # protection against transient spikes.
+  # Error-rate burn-rate alerting for node pool operations lives in the
+  # windowed, volume-aware group arohcp_nodepool_slo_windowed_error_alerts,
+  # which counts only operations whose terminal transition landed inside the
+  # window instead of the trailing 7-day gauge ratio. This group retains the
+  # stuck-operation detector, which catches operations wedged in a non-terminal
+  # phase (invisible to the success/failure SLIs).
   - name: arohcp_nodepool_slo_error_alerts
     labels:
       component: slo
     rules:
-    # ----------------------------------------
-    # Fast Burn Alert (non-paging for now per approver request)
-    # ----------------------------------------
-    # 14.4x burn rate → >72% failure rate sustained for 5 minutes
-    # Would exhaust 7-day error budget in ~12 hours
-    - alert: UJNodePoolErrors1h5m
-      expr: |
-        errors:backend_nodepool_operation:error_rate > 0.72
-      for: 5m
-      labels:
-        severity: info
-        slo: nodepool-errors
-        long_window: 1h
-        short_window: 5m
-      annotations:
-        summary: "{{ $labels.cluster }}: Node Pool operation error rate critically high (>72%)"
-        description: "More than 72% of node pool operations are in failed state, indicating a fast error budget burn (14.4x) that would exhaust the 95% SLO budget in ~12 hours."
-        runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
-    # ----------------------------------------
-    # Medium Burn Alert (non-paging for now per approver request)
-    # ----------------------------------------
-    # 6x burn rate → >30% failure rate sustained for 30 minutes
-    # Would exhaust 7-day error budget in ~28 hours
-    - alert: UJNodePoolErrors6h30m
-      expr: |
-        errors:backend_nodepool_operation:error_rate > 0.30
-      for: 30m
-      labels:
-        severity: info
-        slo: nodepool-errors
-        long_window: 6h
-        short_window: 30m
-      annotations:
-        summary: "{{ $labels.cluster }}: Node Pool operation error rate elevated (>30%) for 30+ minutes"
-        description: "More than 30% of node pool operations are in failed state sustained over 30 minutes, indicating a medium error budget burn (6x) that would exhaust the 95% SLO budget in ~28 hours."
-        runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
-    # ----------------------------------------
-    # Slow Burn Alert (Sev 4 — ticket)
-    # ----------------------------------------
-    # Per ADR: slow burn alerts generate Jira ticket, not a page.
-    # 1x burn rate → >5% failure rate sustained for 6 hours
-    # Would exhaust 7-day error budget in ~7 days
-    - alert: UJNodePoolErrors3d
-      expr: |
-        errors:backend_nodepool_operation:error_rate > 0.05
-      for: 6h
-      labels:
-        severity: info
-        slo: nodepool-errors
-        long_window: 3d
-      annotations:
-        summary: "{{ $labels.cluster }}: Node Pool operation error rate exceeds SLO target (>5%) for 6+ hours"
-        description: "More than 5% of node pool operations are in failed state sustained over 6 hours, indicating persistent degradation at the 95% SLO boundary that would exhaust the error budget in ~7 days."
-        runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
-    # ----------------------------------------
-    # Degradation Alert (Sev 4 — ticket)
-    # ----------------------------------------
-    # With a 95% SLO, the fast-burn threshold only fires at ~72% failure rate.
-    # This provides early warning at 15% failure rate before burn-rate alerts fire.
-    # Precursor signal → Sev 4 per ADR.
-    - alert: UJNodePoolErrorsDegradation
-      expr: |
-        errors:backend_nodepool_operation:error_rate > 0.15
-      for: 30m
-      labels:
-        severity: info
-        slo: nodepool-errors
-      annotations:
-        summary: "{{ $labels.cluster }}: Node Pool operation failure rate exceeds 15% for 30 minutes"
-        description: "The node pool operation failure rate has been above 15% for 30 minutes. This provides early warning of degradation before SLO-based burn rate alerts fire."
-        runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
     # ----------------------------------------
     # Stuck Operations Alert (non-paging for now per approver request)
     # ----------------------------------------
@@ -231,7 +94,70 @@ spec:
         summary: "{{ $labels.cluster }}: Node Pool controller workqueue {{ $labels.name }} depth is high"
         description: "Node pool controller workqueue {{ $labels.name }} has had a depth > 10 for more than 5 minutes, indicating work is accumulating faster than it can be processed."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
-    # Retry hot loop alert removed (ARO-28637): the workqueue retry ratio
-    # encodes backend implementation detail (polling requeues count as retries),
-    # fires without customer impact, and is not actionable. The stuck operation
-    # alert covers the customer-visible outcome.
+        # Retry hot loop alert removed (ARO-28637): the workqueue retry ratio
+        # encodes backend implementation detail (polling requeues count as retries),
+        # fires without customer impact, and is not actionable. The stuck operation
+        # alert covers the customer-visible outcome.
+  # ========================================
+  # Node Pool SLO Alerts: Windowed Errors (burn-rate, volume-aware)
+  # ========================================
+  # Read the windowed recording rules
+  # (errors:backend_nodepool_operation:{failed,total,error_rate}_{1h,6h,3d}), so
+  # each tier evaluates a real event window instead of the trailing 7-day gauge
+  # ratio. Stateless, no new metric, no backend change. Severities mirror the
+  # existing node pool tiers (non-paging "info" per approver request) and are
+  # owner-tunable; volume floors mirror cluster-provision and should be tuned to
+  # real node pool traffic.
+  - name: arohcp_nodepool_slo_windowed_error_alerts
+    labels:
+      component: slo
+    rules:
+    # Fast Burn. 14.4x burn: >72% failures over 1h, >=3 failures.
+    - alert: UJNodePoolErrorBurst1h
+      expr: |
+        errors:backend_nodepool_operation:failed_1h >= 3
+        and
+        errors:backend_nodepool_operation:error_rate_1h > 0.72
+      for: 5m
+      labels:
+        severity: info
+        slo: nodepool-errors
+        long_window: 1h
+        short_window: 5m
+      annotations:
+        summary: "{{ $labels.cluster }}: Node Pool operations failing fast (>72% of recent operations)"
+        description: "More than 72% of completed node pool operations (update/delete) on {{ $labels.cluster }} failed over the last hour with at least 3 failures, a 14.4x burn of the 95% SLO budget."
+        runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
+    # Medium Burn. 6x burn: >30% failures over 6h, >=5 completions.
+    - alert: UJNodePoolErrorBurst6h
+      expr: |
+        errors:backend_nodepool_operation:total_6h >= 5
+        and
+        errors:backend_nodepool_operation:error_rate_6h > 0.30
+      for: 30m
+      labels:
+        severity: info
+        slo: nodepool-errors
+        long_window: 6h
+        short_window: 30m
+      annotations:
+        summary: "{{ $labels.cluster }}: Node Pool operation error rate elevated (>30% over 6h)"
+        description: "More than 30% of completed node pool operations on {{ $labels.cluster }} failed over the last 6 hours (at least 5 completions), a 6x burn of the 95% SLO budget."
+        runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
+    # Slow Burn / Budget. 1x burn: >5% failures over 3d, >=10 completions, >=2 failures.
+    - alert: UJNodePoolErrorBudget3d
+      expr: |
+        errors:backend_nodepool_operation:total_3d >= 10
+        and
+        errors:backend_nodepool_operation:failed_3d >= 2
+        and
+        errors:backend_nodepool_operation:error_rate_3d > 0.05
+      for: 6h
+      labels:
+        severity: info
+        slo: nodepool-errors
+        long_window: 3d
+      annotations:
+        summary: "{{ $labels.cluster }}: Node Pool operation error budget burning (>5% over 3d)"
+        description: "More than 5% of completed node pool operations on {{ $labels.cluster }} failed over the last 3 days (at least 10 completions and 2 failures), a 1x burn that exhausts the 95% SLO error budget over the window."
+        runbook_url: "https://aka.ms/arohcp-runbook-nodepool"

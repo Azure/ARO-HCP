@@ -18,11 +18,61 @@ resource arohcpAccessClusterSloRecordingRules 'Microsoft.AlertsManagement/promet
       }
       {
         record: 'errors:backend_credential_operation:terminal_total'
-        expression: 'count by (cluster, region) (backend_resource_operation_phase_info{operation_type=~"requestcredential|revokecredentials",phase=~"succeeded|failed|canceled",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})'
+        expression: 'count by (cluster, region) (backend_resource_operation_phase_info{operation_type=~"requestcredential|revokecredentials",phase=~"succeeded|failed",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})'
       }
       {
         record: 'errors:backend_credential_operation:error_rate'
-        expression: '(count by (cluster, region) (backend_resource_operation_phase_info{operation_type=~"requestcredential|revokecredentials",phase="failed",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) or 0 * count by (cluster, region) (backend_resource_operation_phase_info{operation_type=~"requestcredential|revokecredentials",phase=~"succeeded|failed|canceled",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) / clamp_min(count by (cluster, region) (backend_resource_operation_phase_info{operation_type=~"requestcredential|revokecredentials",phase=~"succeeded|failed|canceled",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}), 1)'
+        expression: '(count by (cluster, region) (backend_resource_operation_phase_info{operation_type=~"requestcredential|revokecredentials",phase="failed",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) or 0 * count by (cluster, region) (backend_resource_operation_phase_info{operation_type=~"requestcredential|revokecredentials",phase=~"succeeded|failed",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) / clamp_min(count by (cluster, region) (backend_resource_operation_phase_info{operation_type=~"requestcredential|revokecredentials",phase=~"succeeded|failed",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}), 1)'
+      }
+    ]
+  }
+}
+
+resource arohcpAccessClusterSloWindowedRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_access_cluster_slo_windowed_recording_rules'
+  location: location
+  properties: {
+    scopes: [
+      azureMonitoring
+    ]
+    enabled: true
+    interval: 'PT1M'
+    rules: [
+      {
+        record: 'errors:backend_credential_operation:failed_1h'
+        expression: 'count by (cluster, region) ((backend_resource_operation_phase_info{operation_type=~"requestcredential|revokecredentials",phase="failed",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{operation_type=~"requestcredential|revokecredentials",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) < 3600)) or 0 * count by (cluster, region) (backend_resource_operation_phase_info{operation_type=~"requestcredential|revokecredentials",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})'
+      }
+      {
+        record: 'errors:backend_credential_operation:total_1h'
+        expression: 'count by (cluster, region) ((backend_resource_operation_phase_info{operation_type=~"requestcredential|revokecredentials",phase=~"succeeded|failed",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{operation_type=~"requestcredential|revokecredentials",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) < 3600))'
+      }
+      {
+        record: 'errors:backend_credential_operation:error_rate_1h'
+        expression: 'errors:backend_credential_operation:failed_1h / clamp_min(errors:backend_credential_operation:total_1h, 1)'
+      }
+      {
+        record: 'errors:backend_credential_operation:failed_6h'
+        expression: 'count by (cluster, region) ((backend_resource_operation_phase_info{operation_type=~"requestcredential|revokecredentials",phase="failed",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{operation_type=~"requestcredential|revokecredentials",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) < 21600)) or 0 * count by (cluster, region) (backend_resource_operation_phase_info{operation_type=~"requestcredential|revokecredentials",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})'
+      }
+      {
+        record: 'errors:backend_credential_operation:total_6h'
+        expression: 'count by (cluster, region) ((backend_resource_operation_phase_info{operation_type=~"requestcredential|revokecredentials",phase=~"succeeded|failed",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{operation_type=~"requestcredential|revokecredentials",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) < 21600))'
+      }
+      {
+        record: 'errors:backend_credential_operation:error_rate_6h'
+        expression: 'errors:backend_credential_operation:failed_6h / clamp_min(errors:backend_credential_operation:total_6h, 1)'
+      }
+      {
+        record: 'errors:backend_credential_operation:failed_3d'
+        expression: 'count by (cluster, region) ((backend_resource_operation_phase_info{operation_type=~"requestcredential|revokecredentials",phase="failed",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{operation_type=~"requestcredential|revokecredentials",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) < 259200)) or 0 * count by (cluster, region) (backend_resource_operation_phase_info{operation_type=~"requestcredential|revokecredentials",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})'
+      }
+      {
+        record: 'errors:backend_credential_operation:total_3d'
+        expression: 'count by (cluster, region) ((backend_resource_operation_phase_info{operation_type=~"requestcredential|revokecredentials",phase=~"succeeded|failed",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{operation_type=~"requestcredential|revokecredentials",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) < 259200))'
+      }
+      {
+        record: 'errors:backend_credential_operation:error_rate_3d'
+        expression: 'errors:backend_credential_operation:failed_3d / clamp_min(errors:backend_credential_operation:total_3d, 1)'
       }
     ]
   }
@@ -49,6 +99,86 @@ resource arohcpClusterProvisionSloRecordingRules 'Microsoft.AlertsManagement/pro
       {
         record: 'errors:backend_cluster_provision:error_rate'
         expression: '(count by (cluster, region) (backend_resource_operation_phase_info{operation_type="create",phase="failed",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) or 0 * count by (cluster, region) (backend_resource_operation_phase_info{operation_type="create",phase=~"succeeded|failed|canceled",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) / clamp_min(count by (cluster, region) (backend_resource_operation_phase_info{operation_type="create",phase=~"succeeded|failed|canceled",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}), 1)'
+      }
+    ]
+  }
+}
+
+resource arohcpNodepoolSloRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_nodepool_slo_recording_rules'
+  location: location
+  properties: {
+    scopes: [
+      azureMonitoring
+    ]
+    enabled: true
+    interval: 'PT1M'
+    rules: [
+      {
+        record: 'errors:backend_nodepool_operation:succeeded_total'
+        expression: 'count by (cluster, region) (backend_resource_operation_phase_info{operation_type=~"update|delete",phase="succeeded",resource_type=~".*nodepools"})'
+      }
+      {
+        record: 'errors:backend_nodepool_operation:terminal_total'
+        expression: 'count by (cluster, region) (backend_resource_operation_phase_info{operation_type=~"update|delete",phase=~"succeeded|failed",resource_type=~".*nodepools"})'
+      }
+      {
+        record: 'errors:backend_nodepool_operation:error_rate'
+        expression: '(count by (cluster, region) (backend_resource_operation_phase_info{operation_type=~"update|delete",phase="failed",resource_type=~".*nodepools"}) or 0 * count by (cluster, region) (backend_resource_operation_phase_info{operation_type=~"update|delete",phase=~"succeeded|failed",resource_type=~".*nodepools"})) / clamp_min(count by (cluster, region) (backend_resource_operation_phase_info{operation_type=~"update|delete",phase=~"succeeded|failed",resource_type=~".*nodepools"}), 1)'
+      }
+      {
+        record: 'nodepool:provision_state:count_by_phase'
+        expression: 'count by (phase, region) (backend_nodepool_provision_state)'
+      }
+    ]
+  }
+}
+
+resource arohcpNodepoolSloWindowedRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_nodepool_slo_windowed_recording_rules'
+  location: location
+  properties: {
+    scopes: [
+      azureMonitoring
+    ]
+    enabled: true
+    interval: 'PT1M'
+    rules: [
+      {
+        record: 'errors:backend_nodepool_operation:failed_1h'
+        expression: 'count by (cluster, region) ((backend_resource_operation_phase_info{operation_type=~"update|delete",phase="failed",resource_type=~".*nodepools"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{operation_type=~"update|delete",resource_type=~".*nodepools"}) < 3600)) or 0 * count by (cluster, region) (backend_resource_operation_phase_info{operation_type=~"update|delete",resource_type=~".*nodepools"})'
+      }
+      {
+        record: 'errors:backend_nodepool_operation:total_1h'
+        expression: 'count by (cluster, region) ((backend_resource_operation_phase_info{operation_type=~"update|delete",phase=~"succeeded|failed",resource_type=~".*nodepools"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{operation_type=~"update|delete",resource_type=~".*nodepools"}) < 3600))'
+      }
+      {
+        record: 'errors:backend_nodepool_operation:error_rate_1h'
+        expression: 'errors:backend_nodepool_operation:failed_1h / clamp_min(errors:backend_nodepool_operation:total_1h, 1)'
+      }
+      {
+        record: 'errors:backend_nodepool_operation:failed_6h'
+        expression: 'count by (cluster, region) ((backend_resource_operation_phase_info{operation_type=~"update|delete",phase="failed",resource_type=~".*nodepools"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{operation_type=~"update|delete",resource_type=~".*nodepools"}) < 21600)) or 0 * count by (cluster, region) (backend_resource_operation_phase_info{operation_type=~"update|delete",resource_type=~".*nodepools"})'
+      }
+      {
+        record: 'errors:backend_nodepool_operation:total_6h'
+        expression: 'count by (cluster, region) ((backend_resource_operation_phase_info{operation_type=~"update|delete",phase=~"succeeded|failed",resource_type=~".*nodepools"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{operation_type=~"update|delete",resource_type=~".*nodepools"}) < 21600))'
+      }
+      {
+        record: 'errors:backend_nodepool_operation:error_rate_6h'
+        expression: 'errors:backend_nodepool_operation:failed_6h / clamp_min(errors:backend_nodepool_operation:total_6h, 1)'
+      }
+      {
+        record: 'errors:backend_nodepool_operation:failed_3d'
+        expression: 'count by (cluster, region) ((backend_resource_operation_phase_info{operation_type=~"update|delete",phase="failed",resource_type=~".*nodepools"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{operation_type=~"update|delete",resource_type=~".*nodepools"}) < 259200)) or 0 * count by (cluster, region) (backend_resource_operation_phase_info{operation_type=~"update|delete",resource_type=~".*nodepools"})'
+      }
+      {
+        record: 'errors:backend_nodepool_operation:total_3d'
+        expression: 'count by (cluster, region) ((backend_resource_operation_phase_info{operation_type=~"update|delete",phase=~"succeeded|failed",resource_type=~".*nodepools"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{operation_type=~"update|delete",resource_type=~".*nodepools"}) < 259200))'
+      }
+      {
+        record: 'errors:backend_nodepool_operation:error_rate_3d'
+        expression: 'errors:backend_nodepool_operation:failed_3d / clamp_min(errors:backend_nodepool_operation:total_3d, 1)'
       }
     ]
   }
@@ -100,27 +230,27 @@ resource arohcpFrontendSloRecordingRules 'Microsoft.AlertsManagement/prometheusR
     rules: [
       {
         record: 'sli:frontend_http:availability:rate5m'
-        expression: '((sum by (cluster) (max without (prometheus_replica) (rate(frontend_http_requests_total{code!~"5..",route!~".*hcpoperation(results|statuses).*"}[5m]))) or 0 * sum by (cluster) (max without (prometheus_replica) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[5m])))) / sum by (cluster) (max without (prometheus_replica) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[5m])))) and on (cluster) (sum by (cluster) (max without (prometheus_replica) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[5m]))) > 0)'
+        expression: '((sum by (cluster, region) (max without (prometheus_replica) (rate(frontend_http_requests_total{code!~"5..",route!~".*hcpoperation(results|statuses).*"}[5m]))) or 0 * sum by (cluster, region) (max without (prometheus_replica) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[5m])))) / sum by (cluster, region) (max without (prometheus_replica) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[5m])))) and on (cluster) (sum by (cluster, region) (max without (prometheus_replica) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[5m]))) > 0)'
       }
       {
         record: 'sli:frontend_http:good:rate5m'
-        expression: '(sum by (cluster) (max without (prometheus_replica) (rate(frontend_http_requests_total{code!~"5..",route!~".*hcpoperation(results|statuses).*"}[5m]))) or 0 * sum by (cluster) (max without (prometheus_replica) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[5m]))))'
+        expression: '(sum by (cluster, region) (max without (prometheus_replica) (rate(frontend_http_requests_total{code!~"5..",route!~".*hcpoperation(results|statuses).*"}[5m]))) or 0 * sum by (cluster, region) (max without (prometheus_replica) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[5m]))))'
       }
       {
         record: 'errors:frontend_http:error_rate:rate5m'
-        expression: '((sum by (cluster) (max without (prometheus_replica) (rate(frontend_http_requests_total{code=~"5..",route!~".*hcpoperation(results|statuses).*"}[5m]))) or 0 * sum by (cluster) (max without (prometheus_replica) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[5m])))) / sum by (cluster) (max without (prometheus_replica) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[5m])))) and on (cluster) (sum by (cluster) (max without (prometheus_replica) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[5m]))) > 0)'
+        expression: '((sum by (cluster, region) (max without (prometheus_replica) (rate(frontend_http_requests_total{code=~"5..",route!~".*hcpoperation(results|statuses).*"}[5m]))) or 0 * sum by (cluster, region) (max without (prometheus_replica) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[5m])))) / sum by (cluster, region) (max without (prometheus_replica) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[5m])))) and on (cluster) (sum by (cluster, region) (max without (prometheus_replica) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[5m]))) > 0)'
       }
       {
         record: 'sli:frontend_http:latency_p99:rate5m'
-        expression: 'histogram_quantile(0.99, sum by (cluster, le) (max without (prometheus_replica) (rate(frontend_http_requests_duration_seconds_bucket{route!~".*hcpoperation(results|statuses).*"}[5m])))) and on (cluster) (sum by (cluster) (max without (prometheus_replica) (rate(frontend_http_requests_duration_seconds_count{route!~".*hcpoperation(results|statuses).*"}[5m]))) > 0)'
+        expression: 'histogram_quantile(0.99, sum by (cluster, le, region) (max without (prometheus_replica) (rate(frontend_http_requests_duration_seconds_bucket{route!~".*hcpoperation(results|statuses).*"}[5m])))) and on (cluster) (sum by (cluster, region) (max without (prometheus_replica) (rate(frontend_http_requests_duration_seconds_count{route!~".*hcpoperation(results|statuses).*"}[5m]))) > 0)'
       }
       {
         record: 'sli:frontend_http:latency_p95:rate5m'
-        expression: 'histogram_quantile(0.95, sum by (cluster, le) (max without (prometheus_replica) (rate(frontend_http_requests_duration_seconds_bucket{route!~".*hcpoperation(results|statuses).*"}[5m])))) and on (cluster) (sum by (cluster) (max without (prometheus_replica) (rate(frontend_http_requests_duration_seconds_count{route!~".*hcpoperation(results|statuses).*"}[5m]))) > 0)'
+        expression: 'histogram_quantile(0.95, sum by (cluster, le, region) (max without (prometheus_replica) (rate(frontend_http_requests_duration_seconds_bucket{route!~".*hcpoperation(results|statuses).*"}[5m])))) and on (cluster) (sum by (cluster, region) (max without (prometheus_replica) (rate(frontend_http_requests_duration_seconds_count{route!~".*hcpoperation(results|statuses).*"}[5m]))) > 0)'
       }
       {
         record: 'traffic:frontend_http:request_rate:rate5m'
-        expression: 'sum by (cluster) (max without (prometheus_replica) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[5m])))'
+        expression: 'sum by (cluster, region) (max without (prometheus_replica) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[5m])))'
       }
       {
         record: 'sli:frontend_http:availability:rate_avg_30d'
@@ -128,15 +258,15 @@ resource arohcpFrontendSloRecordingRules 'Microsoft.AlertsManagement/prometheusR
       }
       {
         record: 'sli:frontend:ready:ratio5m'
-        expression: '(sum by (cluster) (max without (prometheus_replica) (kube_deployment_status_replicas_available{deployment="aro-hcp-frontend",namespace="aro-hcp"})) / sum by (cluster) (max without (prometheus_replica) (kube_deployment_spec_replicas{deployment="aro-hcp-frontend",namespace="aro-hcp"}))) and on (cluster) (sum by (cluster) (max without (prometheus_replica) (kube_deployment_spec_replicas{deployment="aro-hcp-frontend",namespace="aro-hcp"})) > 0)'
+        expression: '(sum by (cluster, region) (max without (prometheus_replica) (kube_deployment_status_replicas_available{deployment="aro-hcp-frontend",namespace="aro-hcp"})) / sum by (cluster, region) (max without (prometheus_replica) (kube_deployment_spec_replicas{deployment="aro-hcp-frontend",namespace="aro-hcp"}))) and on (cluster) (sum by (cluster, region) (max without (prometheus_replica) (kube_deployment_spec_replicas{deployment="aro-hcp-frontend",namespace="aro-hcp"})) > 0)'
       }
       {
         record: 'sli:frontend:saturation_cpu:ratio5m'
-        expression: '(sum by (cluster) (max without (prometheus_replica) (rate(container_cpu_usage_seconds_total{container="aro-hcp-frontend",namespace="aro-hcp"}[5m]))) / sum by (cluster) (max by (cluster, namespace, pod, container) (kube_pod_container_resource_requests{container="aro-hcp-frontend",job="kube-state-metrics",namespace="aro-hcp",resource="cpu"}))) and on (cluster) (sum by (cluster) (max by (cluster, namespace, pod, container) (kube_pod_container_resource_requests{container="aro-hcp-frontend",job="kube-state-metrics",namespace="aro-hcp",resource="cpu"})) > 0)'
+        expression: '(sum by (cluster, region) (max without (prometheus_replica) (rate(container_cpu_usage_seconds_total{container="aro-hcp-frontend",namespace="aro-hcp"}[5m]))) / sum by (cluster, region) (max by (cluster, namespace, pod, container, region) (kube_pod_container_resource_requests{container="aro-hcp-frontend",job="kube-state-metrics",namespace="aro-hcp",resource="cpu"}))) and on (cluster) (sum by (cluster, region) (max by (cluster, namespace, pod, container, region) (kube_pod_container_resource_requests{container="aro-hcp-frontend",job="kube-state-metrics",namespace="aro-hcp",resource="cpu"})) > 0)'
       }
       {
         record: 'sli:frontend:saturation_memory:ratio5m'
-        expression: '(sum by (cluster) (max without (prometheus_replica) (container_memory_working_set_bytes{container="aro-hcp-frontend",namespace="aro-hcp"})) / sum by (cluster) (max by (cluster, namespace, pod, container) (kube_pod_container_resource_limits{container="aro-hcp-frontend",job="kube-state-metrics",namespace="aro-hcp",resource="memory"}))) and on (cluster) (sum by (cluster) (max by (cluster, namespace, pod, container) (kube_pod_container_resource_limits{container="aro-hcp-frontend",job="kube-state-metrics",namespace="aro-hcp",resource="memory"})) > 0)'
+        expression: '(sum by (cluster, region) (max without (prometheus_replica) (container_memory_working_set_bytes{container="aro-hcp-frontend",namespace="aro-hcp"})) / sum by (cluster, region) (max by (cluster, namespace, pod, container, region) (kube_pod_container_resource_limits{container="aro-hcp-frontend",job="kube-state-metrics",namespace="aro-hcp",resource="memory"}))) and on (cluster) (sum by (cluster, region) (max by (cluster, namespace, pod, container, region) (kube_pod_container_resource_limits{container="aro-hcp-frontend",job="kube-state-metrics",namespace="aro-hcp",resource="memory"})) > 0)'
       }
     ]
   }
