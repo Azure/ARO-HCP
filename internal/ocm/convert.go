@@ -432,6 +432,10 @@ func BuildCSCluster(resourceID *azcorearm.ResourceID, tenantID string, hcpCluste
 		if err != nil {
 			return nil, err
 		}
+		if serviceProviderCluster.Status.HostedClusterName == "" {
+			return nil, fmt.Errorf("hosted cluster name is not set on the ServiceProviderCluster")
+		}
+		clusterBuilder.DomainPrefix(serviceProviderCluster.Status.HostedClusterName)
 		apiListening, err := convertVisibilityToListening(hcpCluster.CustomerProperties.API.Visibility)
 		if err != nil {
 			return nil, err
@@ -592,11 +596,6 @@ func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpC
 	}
 
 	azureBuilder.OperatorsAuthentication(arohcpv1alpha1.NewAzureOperatorsAuthentication().ManagedIdentities(managedIdentitiesBuilder))
-
-	// Cluster Service rejects an empty DomainPrefix string.
-	if hcpCluster.CustomerProperties.DNS.BaseDomainPrefix != "" {
-		clusterBuilder.DomainPrefix(hcpCluster.CustomerProperties.DNS.BaseDomainPrefix)
-	}
 
 	return clusterBuilder, azureBuilder, nil
 }
