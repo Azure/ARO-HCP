@@ -16,6 +16,7 @@ package e2e
 
 import (
 	"context"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -135,6 +136,30 @@ var _ = Describe("Customer", func() {
 			Expect(verifiers.VerifyNodeCount(customerClusterName, totalNodeCount).Verify(ctx, adminRESTConfig)).To(Succeed(), "failed to verify initial node count of %d", totalNodeCount)
 			Expect(verifiers.VerifyNodesReady().Verify(ctx, adminRESTConfig)).To(Succeed(), "failed to verify all nodes are ready after initial creation")
 
+			By("waiting for the OpenShift web console URL to become available")
+			var consoleURL string
+			hcpOpenShiftClustersClient := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
+			Eventually(func(g Gomega) {
+				cluster, err := hcpOpenShiftClustersClient.Get(ctx, *resourceGroup.Name, customerClusterName, nil)
+				g.Expect(err).NotTo(HaveOccurred(), "failed to get cluster %s for console URL", customerClusterName)
+				g.Expect(cluster.Properties).NotTo(BeNil(), "cluster %s Properties was nil", customerClusterName)
+				g.Expect(cluster.Properties.Console).NotTo(BeNil(), "cluster %s Properties.Console was nil", customerClusterName)
+				g.Expect(cluster.Properties.Console.URL).NotTo(BeNil(), "cluster %s Properties.Console.URL was nil", customerClusterName)
+				consoleURL = *cluster.Properties.Console.URL
+			}).WithContext(ctx).WithTimeout(15*time.Minute).WithPolling(30*time.Second).Should(Succeed(),
+				"console URL should become available for cluster %s", customerClusterName)
+
+			verifyConsoleAvailable := func() {
+				Eventually(func(g Gomega) {
+					err := framework.TestHTTPSConnectivity(ctx, consoleURL, 10*time.Second, true)
+					g.Expect(err).NotTo(HaveOccurred(), "OpenShift web console %s should be reachable, but got error: %v", consoleURL, err)
+				}).WithContext(ctx).WithTimeout(10*time.Minute).WithPolling(15*time.Second).Should(Succeed(),
+					"OpenShift web console should remain available for cluster %s", customerClusterName)
+			}
+
+			By("verifying the OpenShift web console is available before scaling")
+			verifyConsoleAvailable()
+
 			By("scaling up the nodepool replicas from 2 to 3 replicas")
 			mainNodeCount = 3
 			update := hcpsdk20240610preview.NodePoolUpdate{
@@ -159,6 +184,8 @@ var _ = Describe("Customer", func() {
 			totalNodeCount = mainNodeCount + oneNodeCount
 			Expect(verifiers.VerifyNodeCount(customerClusterName, totalNodeCount).Verify(ctx, adminRESTConfig)).To(Succeed(), "failed to verify node count of %d after scale up", totalNodeCount)
 			Expect(verifiers.VerifyNodesReady().Verify(ctx, adminRESTConfig)).To(Succeed(), "failed to verify all nodes are ready after scale up")
+			By("verifying the OpenShift web console remains available after scaling up")
+			verifyConsoleAvailable()
 
 			nodePoolsClient := tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient()
 
@@ -186,6 +213,8 @@ var _ = Describe("Customer", func() {
 			totalNodeCount = mainNodeCount + oneNodeCount
 			Expect(verifiers.VerifyNodeCount(customerClusterName, totalNodeCount).Verify(ctx, adminRESTConfig)).To(Succeed(), "failed to verify node count of %d after scale down", totalNodeCount)
 			Expect(verifiers.VerifyNodesReady().Verify(ctx, adminRESTConfig)).To(Succeed(), "failed to verify all nodes are ready after scale down")
+			By("verifying the OpenShift web console remains available after scaling down")
+			verifyConsoleAvailable()
 
 			By("updating the one-replica nodepool replicas to 0 and enabling autoscaling with a PATCH")
 			update = hcpsdk20240610preview.NodePoolUpdate{
@@ -218,5 +247,7 @@ var _ = Describe("Customer", func() {
 			totalNodeCount = mainNodeCount + oneNodeCount
 			Expect(verifiers.VerifyNodeCount(customerClusterName, totalNodeCount).Verify(ctx, adminRESTConfig)).To(Succeed(), "failed to verify node count of %d after enabling autoscaling", totalNodeCount)
 			Expect(verifiers.VerifyNodesReady().Verify(ctx, adminRESTConfig)).To(Succeed(), "failed to verify all nodes are ready after enabling autoscaling")
+			By("verifying the OpenShift web console remains available after enabling autoscaling")
+			verifyConsoleAvailable()
 		})
 })
