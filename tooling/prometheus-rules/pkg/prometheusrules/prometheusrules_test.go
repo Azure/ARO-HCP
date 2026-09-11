@@ -364,3 +364,62 @@ func TestRunRuleFolderBelowTestNamedDirectory(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, string(generated), "alert: 'TestAlert'", "rule was dropped during discovery")
 }
+
+// The deprecated package-level helpers are the API this module exposed before
+// the options refactor. They are kept so out-of-repo callers keep compiling, so
+// exercise them here rather than letting them rot untested.
+func TestDeprecatedValidate(t *testing.T) {
+	for _, tc := range []struct {
+		name         string
+		args         []string
+		configFile   string
+		promtoolPath string
+		expectedErr  string
+	}{
+		{
+			name:         "valid",
+			configFile:   "config.yaml",
+			promtoolPath: "promtool",
+		},
+		{
+			name:         "positional args rejected",
+			args:         []string{"stray"},
+			configFile:   "config.yaml",
+			promtoolPath: "promtool",
+			expectedErr:  "no arguments are supported",
+		},
+		{
+			name:         "config file required",
+			promtoolPath: "promtool",
+			expectedErr:  "--config-file is required",
+		},
+		{
+			name:        "promtool path required",
+			configFile:  "config.yaml",
+			expectedErr: "--promtool-path cannot be empty",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := Validate(tc.args, tc.configFile, tc.promtoolPath)
+			if tc.expectedErr == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.ErrorContains(t, err, tc.expectedErr)
+		})
+	}
+}
+
+func TestDeprecatedGenerateFromConfig(t *testing.T) {
+	tmpDir := writeRuleFixture(t)
+	promtool, marker := fakePromtool(t, 0)
+
+	require.NoError(t, GenerateFromConfig(filepath.Join(tmpDir, "config.yaml"), false, promtool, []string{"region"}))
+
+	_, err := os.Stat(marker)
+	require.NoError(t, err, "promtool was never invoked, but the deprecated helper always tests")
+
+	generated, err := os.ReadFile(filepath.Join(tmpDir, "zzz_generated_AlertingRules.bicep"))
+	require.NoError(t, err)
+	assert.Contains(t, string(generated), "alert: 'TestAlert'")
+}

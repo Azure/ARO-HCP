@@ -142,6 +142,42 @@ func (o *Options) Run() error {
 	return nil
 }
 
+// Validate checks CLI arguments for rule generation.
+//
+// Deprecated: use RawOptions.Validate instead. Retained so external callers of
+// this module keep compiling.
+func Validate(args []string, configFilePath, promtoolPath string) error {
+	if len(args) != 0 {
+		return errors.New("no arguments are supported")
+	}
+	opts := &RawOptions{ConfigFile: configFilePath, PromtoolPath: promtoolPath}
+	_, err := opts.Validate()
+	return err
+}
+
+// GenerateFromConfig validates and renders rule files into Bicep output,
+// running the promtool tests first.
+//
+// Deprecated: use RawOptions.Validate, ValidatedOptions.Complete and
+// Options.Run instead. Retained so external callers of this module keep
+// compiling. forceInfoSeverity is ignored.
+func GenerateFromConfig(configFilePath string, _ bool, promtoolPath string, preserveAggregationLabels []string) error {
+	opts := &RawOptions{
+		ConfigFile:                configFilePath,
+		PromtoolPath:              promtoolPath,
+		PreserveAggregationLabels: strings.Join(preserveAggregationLabels, ","),
+	}
+	validated, err := opts.Validate()
+	if err != nil {
+		return err
+	}
+	completed, err := validated.Complete()
+	if err != nil {
+		return err
+	}
+	return completed.Run()
+}
+
 // GenerateCorrelationMap loads rule configs and returns a structured mapping
 // from group/alert to parsed correlation ID segments.
 func GenerateCorrelationMap(configFilePaths []string) ([]CorrelationMapEntry, error) {
