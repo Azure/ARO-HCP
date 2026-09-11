@@ -221,24 +221,43 @@ spec:
     # Stuck Operations Alert (Sev 4)
     # ----------------------------------------
     # This alert fires when time in the CURRENT phase
-    #     (last_transition_time_seconds) > 1h, monitors all 5 active phases.
+    #     (last_transition_time_seconds) > 1h.
+    # Delete operations only transit accepted → deleting → terminal.
     - alert: userJourneyClusterDeletionStuckOperation
       expr: |
         (
-          max without(prometheus_replica) (
+          max by (
+            cluster,
+            environment,
+            region,
+            subscription_id,
+            resource_id,
+            resource_type,
+            operation_type,
+            phase
+          ) (
             backend_resource_operation_phase_info{
               resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
               operation_type="delete",
-              phase=~"accepted|awaitingsecret|provisioning|updating|deleting"
+              phase=~"accepted|deleting"
             } == 1
           )
           and
           (
-            time() - max without(prometheus_replica) (
+            time() - max by (
+              cluster,
+              environment,
+              region,
+              subscription_id,
+              resource_id,
+              resource_type,
+              operation_type,
+              phase
+            ) (
               backend_resource_operation_last_transition_time_seconds{
                 resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
                 operation_type="delete",
-                phase=~"accepted|awaitingsecret|provisioning|updating|deleting"
+                phase=~"accepted|deleting"
               }
             )
           ) > 3600

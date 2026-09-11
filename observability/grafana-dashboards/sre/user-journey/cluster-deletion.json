@@ -1021,7 +1021,7 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "Number of delete operations stuck in a non-terminal phase (accepted, awaitingsecret, provisioning, updating, deleting) for more than 1 hour, summed across the selected service-cluster datasources. Target: 0. Indicates operations that may be hung.",
+      "description": "Number of delete operations stuck in a non-terminal phase (accepted, deleting) for more than 1 hour, summed across the selected service-cluster datasources. Target: 0. Indicates operations that may be hung.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1080,7 +1080,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count((max without(prometheus_replica) (backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=~\"accepted|awaitingsecret|provisioning|updating|deleting\", cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"}) == 1) and ((time() - max without(prometheus_replica) (backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=~\"accepted|awaitingsecret|provisioning|updating|deleting\", cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"})) > 3600)) or vector(0)",
+          "expr": "count((max without(prometheus_replica) (backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=~\"accepted|deleting\", cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"}) == 1) and ((time() - max without(prometheus_replica) (backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=~\"accepted|deleting\", cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"})) > 3600)) or vector(0)",
           "instant": true,
           "legendFormat": "Stuck",
           "range": false,
@@ -1297,19 +1297,14 @@
                         "index": 4,
                         "text": "accepted"
                       },
-                      "awaitingsecret": {
-                        "color": "light-orange",
-                        "index": 7,
-                        "text": "awaitingsecret"
-                      },
                       "canceled": {
                         "color": "semi-dark-purple",
-                        "index": 6,
+                        "index": 3,
                         "text": "canceled"
                       },
                       "deleting": {
                         "color": "orange",
-                        "index": 3,
+                        "index": 2,
                         "text": "deleting"
                       },
                       "failed": {
@@ -1317,20 +1312,10 @@
                         "index": 1,
                         "text": "failed"
                       },
-                      "provisioning": {
-                        "color": "yellow",
-                        "index": 2,
-                        "text": "provisioning"
-                      },
                       "succeeded": {
                         "color": "green",
                         "index": 0,
                         "text": "succeeded"
-                      },
-                      "updating": {
-                        "color": "purple",
-                        "index": 5,
-                        "text": "updating"
                       }
                     },
                     "type": "value"
@@ -1463,28 +1448,13 @@
                     "options": {
                       "accepted": {
                         "color": "blue",
-                        "index": 1,
+                        "index": 0,
                         "text": "accepted"
-                      },
-                      "awaitingsecret": {
-                        "color": "light-orange",
-                        "index": 4,
-                        "text": "awaitingsecret"
                       },
                       "deleting": {
                         "color": "orange",
-                        "index": 3,
+                        "index": 1,
                         "text": "deleting"
-                      },
-                      "provisioning": {
-                        "color": "yellow",
-                        "index": 0,
-                        "text": "provisioning"
-                      },
-                      "updating": {
-                        "color": "purple",
-                        "index": 2,
-                        "text": "updating"
                       }
                     },
                     "type": "value"
@@ -1529,7 +1499,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "max without(prometheus_replica) (backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=~\"accepted|awaitingsecret|provisioning|updating|deleting\", cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"}) == 1",
+          "expr": "max without(prometheus_replica) (backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=~\"accepted|deleting\", cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"}) == 1",
           "format": "table",
           "instant": true,
           "legendFormat": "__auto",
