@@ -19,22 +19,31 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/blang/semver/v4"
+
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-// clusterMinor returns the minor version that places a cluster in a rollout: the
-// desired version's minor when set, otherwise the earliest active version's
-// minor. The boolean is false when neither is known.
-func clusterMinor(serviceProviderCluster *coreapi.ServiceProviderCluster) (string, bool) {
-	if desired := serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion; desired != nil {
-		return minorString(*desired), true
-	}
+// clusterMinor returns the rollout minor from the earliest active version, then
+// the desired version, then the backing cluster's requested version ID.
+// The boolean is false when none of those versions can be determined.
+func clusterMinor(serviceProviderCluster *coreapi.ServiceProviderCluster, cluster *coreapi.HCPOpenShiftCluster) (string, bool) {
 	if active := earliestActiveVersion(serviceProviderCluster.Status.ControlPlaneVersion.ActiveVersions); active != nil {
 		return minorString(*active), true
 	}
-	return "", false
+	if desired := serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion; desired != nil {
+		return minorString(*desired), true
+	}
+	if cluster == nil {
+		return "", false
+	}
+	requested, err := semver.ParseTolerant(cluster.CustomerProperties.Version.ID)
+	if err != nil {
+		return "", false
+	}
+	return minorString(requested), true
 }
 
 // serviceProviderClustersForChannel returns every ServiceProviderCluster that
@@ -55,12 +64,12 @@ func serviceProviderClustersForChannel(ctx context.Context, serviceProviderClust
 	}
 	// A cluster with no channel group is not defaulted to any group; it simply
 	// matches no rollout channel.
-	channelGroupByClusterID := make(map[string]string, len(clusters))
+	clustersByID := make(map[string]*coreapi.HCPOpenShiftCluster, len(clusters))
 	for _, cluster := range clusters {
 		if cluster.ID == nil {
 			continue
 		}
-		channelGroupByClusterID[strings.ToLower(cluster.ID.String())] = cluster.CustomerProperties.Version.ChannelGroup
+		clustersByID[strings.ToLower(cluster.ID.String())] = cluster
 	}
 
 	serviceProviderClusters, err := serviceProviderClusterLister.List(ctx)
@@ -71,18 +80,22 @@ func serviceProviderClustersForChannel(ctx context.Context, serviceProviderClust
 	logger.Info("Matching clusters to rollout channel", "clusterCount", len(clusters), "serviceProviderClusterCount", len(serviceProviderClusters))
 	var matched []*coreapi.ServiceProviderCluster
 	for _, serviceProviderCluster := range serviceProviderClusters {
-		clusterMinorVersion, ok := clusterMinor(serviceProviderCluster)
-		if !ok || clusterMinorVersion != minor {
-			logger.Info("Excluding cluster from rollout: minor version unknown or does not match", "resourceID", serviceProviderCluster.ResourceID, "minorKnown", ok, "clusterMinor", clusterMinorVersion, "channelMinor", minor, "desiredVersion", versionString(serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion), "activeVersion", versionString(earliestActiveVersion(serviceProviderCluster.Status.ControlPlaneVersion.ActiveVersions)))
-			continue
-		}
 		if serviceProviderCluster.ResourceID == nil || serviceProviderCluster.ResourceID.Parent == nil {
 			logger.Info("Excluding cluster from rollout: missing cluster resource ID", "resourceID", serviceProviderCluster.ResourceID)
 			continue
 		}
-		clusterChannelGroup, ok := channelGroupByClusterID[strings.ToLower(serviceProviderCluster.ResourceID.Parent.String())]
+		cluster, ok := clustersByID[strings.ToLower(serviceProviderCluster.ResourceID.Parent.String())]
+		clusterChannelGroup := ""
+		if ok {
+			clusterChannelGroup = cluster.CustomerProperties.Version.ChannelGroup
+		}
 		if !ok || clusterChannelGroup != channelGroup {
 			logger.Info("Excluding cluster from rollout: backing cluster missing or channel group does not match", "resourceID", serviceProviderCluster.ResourceID, "clusterFound", ok, "clusterChannelGroup", clusterChannelGroup, "channelGroup", channelGroup)
+			continue
+		}
+		clusterMinorVersion, ok := clusterMinor(serviceProviderCluster, cluster)
+		if !ok || clusterMinorVersion != minor {
+			logger.Info("Excluding cluster from rollout: minor version unknown or does not match", "resourceID", serviceProviderCluster.ResourceID, "requestedVersion", cluster.CustomerProperties.Version.ID, "minorKnown", ok, "clusterMinor", clusterMinorVersion, "channelMinor", minor, "desiredVersion", versionString(serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion), "activeVersion", versionString(earliestActiveVersion(serviceProviderCluster.Status.ControlPlaneVersion.ActiveVersions)))
 			continue
 		}
 		logger.Info("Including cluster in rollout channel", "resourceID", serviceProviderCluster.ResourceID)
