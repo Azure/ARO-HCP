@@ -24,7 +24,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	utilsclock "k8s.io/utils/clock"
 	clocktesting "k8s.io/utils/clock/testing"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
@@ -32,6 +31,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/fleetlistertesting"
 )
 
 func TestEligibleClusters(t *testing.T) {
@@ -46,7 +46,7 @@ func TestEligibleClusters(t *testing.T) {
 		newTestServiceProviderCluster("below", v("4.21.4"), nil, nil),                           // eligible: below, unpinned
 		newTestServiceProviderCluster("at-best", v("4.21.6"), nil, nil),                         // not eligible: already at best
 		newTestServiceProviderCluster("above", v("4.21.8"), nil, nil),                           // not eligible: above best
-		newTestServiceProviderCluster("no-desired", nil, nil, nil),                              // eligible: no desired yet
+		newTestServiceProviderCluster("no-desired", nil, nil, nil),                              // not eligible: initial assignment owns this
 		newTestServiceProviderCluster("pin-release", v("4.21.4"), nil, pin("4.21.2", "4.21.6")), // eligible: pin releases at best
 		newTestServiceProviderCluster("pin-hold", v("4.21.4"), nil, pin("4.21.2", "4.21.9")),    // not eligible: pin still holds
 		newTestServiceProviderCluster("pin-forever", v("4.21.4"), nil, pin("4.21.2", "")),       // not eligible: no release version
@@ -64,14 +64,14 @@ func TestEligibleClusters(t *testing.T) {
 		names[serviceProviderClusterName(serviceProviderCluster)] = true
 	}
 	assert.True(t, names["below"])
-	assert.True(t, names["no-desired"])
+	assert.False(t, names["no-desired"])
 	assert.True(t, names["pin-release"])
 	assert.False(t, names["at-best"])
 	assert.False(t, names["above"])
 	assert.False(t, names["pin-hold"])
 	assert.False(t, names["pin-forever"])
 	assert.False(t, names["has-exact"], "cluster with experimental exact version is excluded")
-	assert.Len(t, eligible, 3)
+	assert.Len(t, eligible, 2)
 }
 
 func rolloutWithCounts(bestStr string, desired, mismatched, achieved, successful, failed int64) *fleetapi.ControlPlaneVersionRollout {
@@ -168,11 +168,19 @@ func TestRolloutDecision(t *testing.T) {
 			totalClusters: 100,
 			eligibleCount: 50,
 			wantOutcome:   outcomeRolling,
-			wantSelect:    13, // 20 - 7
+			wantSelect:    18, // 20 - (7 - 5 successful)
+		},
+		{
+			name:          "successful window frees slots for the next batch",
+			rollout:       rolloutWithCounts("4.21.6", 20, 0, 20, 20, 0),
+			totalClusters: 100,
+			eligibleCount: 80,
+			wantOutcome:   outcomeRolling,
+			wantSelect:    20,
 		},
 		{
 			name:          "steady progressing once rolling target met",
-			rollout:       rolloutWithCounts("4.21.6", 20, 10, 10, 5, 0), // inFlight=20 >= rollingThreshold=20
+			rollout:       rolloutWithCounts("4.21.6", 25, 10, 15, 5, 0), // inFlight=25-5 >= rollingThreshold=20
 			totalClusters: 100,
 			eligibleCount: 50,
 			wantOutcome:   outcomeProgressing,
@@ -220,9 +228,16 @@ func TestNormalClusterDesiredVersionSyncer_SyncOnce_Canary(t *testing.T) {
 
 	// Fresh rollout at 4.21.6: canary threshold = ceil(6% of 4) + 2 = 3.
 	mockFleet, lister := newTestRolloutStore(t, newTestRollout(yStreamChannel, v("4.21.6"), fleetapi.ControlPlaneVersionRolloutStatus{}))
+	beforeRollout, err := lister.Get(ctx, yStreamChannel)
+	require.NoError(t, err)
+	beforeClusters, err := (&corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockDB}).List(ctx)
+	require.NoError(t, err)
 
+	clock := clocktesting.NewFakeClock(statusTestNow)
+	retryQueue := &initialVersionRetryQueue{}
 	syncer := &normalClusterDesiredVersionSyncer{
-		clock:                        utilsclock.RealClock{},
+		clock:                        clock,
+		enqueueAfter:                 retryQueue,
 		resourcesDBClient:            mockDB,
 		rolloutLister:                lister,
 		fleetDBClient:                mockFleet,
@@ -245,6 +260,37 @@ func TestNormalClusterDesiredVersionSyncer_SyncOnce_Canary(t *testing.T) {
 		}
 	}
 	assert.Equal(t, 3, atBest, "canary should have advanced exactly 3 of 4 clusters to best")
+
+	// Neither an immediate notification nor a restart may bypass the persisted
+	// reservation. After cooldown, stale collector counts must not add a batch.
+	key := controllerutils.ControlPlaneVersionRolloutKey{YStreamChannel: yStreamChannel}
+	restarted := *syncer
+	require.NoError(t, restarted.SyncOnce(ctx, key))
+	require.Equal(t, []time.Duration{time.Minute}, retryQueue.delays)
+	clock.Step(time.Minute)
+	require.NoError(t, restarted.SyncOnce(ctx, key))
+	atBest = 0
+	for _, name := range []string{"c1", "c2", "c3", "c4"} {
+		updated, err := mockDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, name).Get(ctx, coreapi.ServiceProviderClusterResourceName)
+		require.NoError(t, err)
+		if updated.Spec.ControlPlaneVersion.DesiredVersion.EQ(*v("4.21.6")) {
+			atBest++
+		}
+	}
+	require.Equal(t, 3, atBest, "a second batch must wait for successful canaries, including when collector counts lag")
+
+	// An entirely stale cache must lose the batch reservation before selection
+	// or any cluster writes, even after the time-based cooldown has elapsed.
+	selection := &countingRolloutSelector{}
+	restarted.selector = selection
+	restarted.rolloutLister = &fleetlistertesting.SliceControlPlaneVersionRolloutLister{ControlPlaneVersionRollouts: []*fleetapi.ControlPlaneVersionRollout{beforeRollout}}
+	restarted.serviceProviderClusterLister = &corelistertesting.SliceServiceProviderClusterLister{ServiceProviderClusters: beforeClusters}
+	require.NoError(t, restarted.SyncOnce(ctx, key))
+	require.Zero(t, selection.calls, "stale ETag must stop the batch before selecting clusters")
+}
+
+type countingRolloutSelector struct {
+	calls int
 }
 
 func TestRolloutControllersExcludeDeletingClusters(t *testing.T) {
@@ -292,4 +338,33 @@ func TestRolloutControllersExcludeDeletingClusters(t *testing.T) {
 	deleting, err := serviceProviderClusterLister.Get(ctx, testSubscriptionID, testResourceGroupName, "eligible")
 	require.NoError(t, err)
 	require.Equal(t, v("4.21.4"), deleting.Spec.ControlPlaneVersion.DesiredVersion, "deleting clusters must not receive assignments")
+}
+
+func TestNormalAssignmentLeavesInitialVersionToInitialController(t *testing.T) {
+	ctx := context.Background()
+	resourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{
+		newTestCluster("initial", "stable", "4.22"),
+		newTestServiceProviderCluster("initial", nil, []coreapi.ServiceProviderClusterActiveVersion{completed("4.21.4")}, nil),
+	})
+	require.NoError(t, err)
+	fleetDB, rolloutLister := newTestRolloutStore(t, newTestRollout("stable-4.21", v("4.21.6"), fleetapi.ControlPlaneVersionRolloutStatus{}))
+	serviceProviderClusterLister := &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: resourcesDB}
+	syncer := &normalClusterDesiredVersionSyncer{
+		clock: clocktesting.NewFakeClock(statusTestNow), config: NewDefaultRolloutConfig(),
+		resourcesDBClient: resourcesDB, fleetDBClient: fleetDB, rolloutLister: rolloutLister,
+		clusterLister:                &corelistertesting.DBClusterLister{ResourcesDBClient: resourcesDB},
+		serviceProviderClusterLister: serviceProviderClusterLister, selector: firstNSelector{},
+	}
+	require.NoError(t, syncer.SyncOnce(ctx, controllerutils.ControlPlaneVersionRolloutKey{YStreamChannel: "stable-4.21"}))
+	cluster, err := serviceProviderClusterLister.Get(ctx, testSubscriptionID, testResourceGroupName, "initial")
+	require.NoError(t, err)
+	require.Nil(t, cluster.Spec.ControlPlaneVersion.DesiredVersion, "the active minor must not override the requested minor during initial assignment")
+	rollout, err := rolloutLister.Get(ctx, "stable-4.21")
+	require.NoError(t, err)
+	require.Nil(t, rollout.Status.LastAssignmentTime)
+}
+
+func (s *countingRolloutSelector) Select(candidates []*coreapi.ServiceProviderCluster, n int) []*coreapi.ServiceProviderCluster {
+	s.calls++
+	return candidates[:n]
 }

@@ -1065,6 +1065,34 @@ func instantiateStatusCollectorController(controllerContext controllerconfig.Con
 	), nil
 }
 
+func registerInitialNormalClusterDesiredVersionController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{
+		Workers:     20,
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateInitialNormalClusterDesiredVersionController, false),
+	}
+}
+
+func instantiateInitialNormalClusterDesiredVersionController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	_, controlPlaneVersionRolloutLister := controllerContext.FleetInformers.ControlPlaneVersionRollouts()
+	return versionrollout.NewInitialNormalClusterDesiredVersionController(
+		controllerContext.Clock, controllerContext.ResourcesDBClient, controllerContext.BackendInformers, controlPlaneVersionRolloutLister,
+	), nil
+}
+
+func registerMinorUpgradeNormalClusterDesiredVersionController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{
+		Workers:     20,
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateMinorUpgradeNormalClusterDesiredVersionController, false),
+	}
+}
+
+func instantiateMinorUpgradeNormalClusterDesiredVersionController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	_, controlPlaneVersionRolloutLister := controllerContext.FleetInformers.ControlPlaneVersionRollouts()
+	return versionrollout.NewMinorUpgradeNormalClusterDesiredVersionController(
+		controllerContext.Clock, controllerContext.ResourcesDBClient, controllerContext.BackendInformers, controlPlaneVersionRolloutLister,
+	), nil
+}
+
 func registerNormalClusterDesiredVersionController() controllerconfig.ControllerRegistration {
 	return controllerconfig.ControllerRegistration{
 		Workers:     20,
@@ -1123,6 +1151,8 @@ func instantiateControlPlaneVersionRolloutSeedingController(controllerContext co
 func Register(registry map[string]controllerconfig.ControllerRegistration) {
 	registry[strings.ToLower(versionrollout.BestVersionSelectionControllerName)] = registerBestVersionSelectionController()
 	registry[strings.ToLower(versionrollout.StatusCollectorControllerName)] = registerStatusCollectorController()
+	registry[strings.ToLower(versionrollout.InitialNormalClusterDesiredVersionControllerName)] = registerInitialNormalClusterDesiredVersionController()
+	registry[strings.ToLower(versionrollout.MinorUpgradeNormalClusterDesiredVersionControllerName)] = registerMinorUpgradeNormalClusterDesiredVersionController()
 	registry[strings.ToLower(versionrollout.NormalClusterDesiredVersionControllerName)] = registerNormalClusterDesiredVersionController()
 	registry[strings.ToLower(versionrollout.ForcedClusterDesiredVersionControllerName)] = registerForcedClusterDesiredVersionController()
 	registry[strings.ToLower(versionrollout.RolloutSeedingControllerName)] = registerControlPlaneVersionRolloutSeedingController()

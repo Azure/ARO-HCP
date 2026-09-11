@@ -31,6 +31,7 @@ func TestEarliestActiveVersion(t *testing.T) {
 		want   *semver.Version
 	}{
 		{name: "empty", active: nil, want: nil},
+		{name: "partial update has not been achieved", active: []coreapi.ServiceProviderClusterActiveVersion{partial("4.21.6")}, want: nil},
 		{name: "single completed", active: []coreapi.ServiceProviderClusterActiveVersion{completed("4.21.6")}, want: v("4.21.6")},
 		{
 			name:   "upgrade in flight returns oldest completed base",

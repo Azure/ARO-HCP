@@ -40,7 +40,7 @@ func (c *normalClusterDesiredVersionSyncer) watchVersionCandidates(clusters, ser
 
 func (c *normalClusterDesiredVersionSyncer) versionCandidateHandlers(queue controllerutils.Enqueuer) (cache.ResourceEventHandlerFuncs, cache.ResourceEventHandlerFuncs) {
 	logger := utils.DefaultLogger().WithValues(utils.LogValues{}.AddControllerName(NormalClusterDesiredVersionControllerName)...)
-	enqueue := func(cluster *coreapi.HCPOpenShiftCluster, reason string) {
+	enqueue := func(cluster *coreapi.Cluster, reason string) {
 		yStreamChannel, ok := clusterYStreamChannel(cluster)
 		if !ok {
 			logger.Info("Cannot enqueue normal assignment: candidate channel is unknown", "resourceID", cluster.ID, "requestedVersion", cluster.CustomerProperties.Version.ID, "channelGroup", cluster.CustomerProperties.Version.ChannelGroup)
@@ -50,7 +50,7 @@ func (c *normalClusterDesiredVersionSyncer) versionCandidateHandlers(queue contr
 		queue.Enqueue(controllerutils.ControlPlaneVersionRolloutKey{YStreamChannel: yStreamChannel})
 	}
 	onClusterAdd := func(obj any) {
-		if cluster, ok := obj.(*coreapi.HCPOpenShiftCluster); ok {
+		if cluster, ok := obj.(*coreapi.Cluster); ok {
 			enqueue(cluster, "cluster added")
 		}
 	}
@@ -74,8 +74,8 @@ func (c *normalClusterDesiredVersionSyncer) versionCandidateHandlers(queue contr
 	return cache.ResourceEventHandlerFuncs{
 			AddFunc: onClusterAdd,
 			UpdateFunc: func(oldObj, newObj any) {
-				oldCluster, oldOK := oldObj.(*coreapi.HCPOpenShiftCluster)
-				newCluster, newOK := newObj.(*coreapi.HCPOpenShiftCluster)
+				oldCluster, oldOK := oldObj.(*coreapi.Cluster)
+				newCluster, newOK := newObj.(*coreapi.Cluster)
 				if !oldOK || !newOK {
 					return
 				}

@@ -46,9 +46,10 @@ const RolloutSeedingControllerName = "ControlPlaneVersionRolloutSeeding"
 // Status Collector, and Desired Version Assignment controllers own that — it only
 // creates the empty rollout so those controllers have something to reconcile.
 type rolloutSeedingSyncer struct {
-	clusterLister corelisters.ClusterLister
-	rolloutLister fleetlisters.ControlPlaneVersionRolloutLister
-	fleetDBClient fleetcosmosstorage.FleetDBClient
+	clusterLister                corelisters.ClusterLister
+	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
+	rolloutLister                fleetlisters.ControlPlaneVersionRolloutLister
+	fleetDBClient                fleetcosmosstorage.FleetDBClient
 }
 
 var _ controllerutils.ClusterSyncer = (*rolloutSeedingSyncer)(nil)
@@ -63,11 +64,13 @@ func NewControlPlaneVersionRolloutSeedingController(
 	fleetInformers fleetinformers.FleetInformers,
 ) controllerutils.Controller {
 	_, clusterLister := informers.Clusters()
+	_, serviceProviderClusterLister := informers.ServiceProviderClusters()
 	_, rolloutLister := fleetInformers.ControlPlaneVersionRollouts()
 	syncer := &rolloutSeedingSyncer{
-		clusterLister: clusterLister,
-		rolloutLister: rolloutLister,
-		fleetDBClient: fleetDBClient,
+		clusterLister:                clusterLister,
+		serviceProviderClusterLister: serviceProviderClusterLister,
+		rolloutLister:                rolloutLister,
+		fleetDBClient:                fleetDBClient,
 	}
 	// kubeApplierInformers is intentionally omitted: seeding depends only on the
 	// cluster's channel group and version, not on any management-cluster state.
@@ -108,6 +111,10 @@ func (c *rolloutSeedingSyncer) SyncOnce(ctx context.Context, key controllerutils
 		logger.Info("Skipping rollout seeding because cluster is deleting")
 		return nil
 	}
+	if cluster.CustomerProperties.Version.ChannelGroup == "nightly" {
+		// Nightlies use experimental exact versions rather than graph rollouts.
+		return nil
+	}
 
 	requestedYStreamChannel, ok := clusterYStreamChannel(cluster)
 	if !ok {
@@ -118,15 +125,30 @@ func (c *rolloutSeedingSyncer) SyncOnce(ctx context.Context, key controllerutils
 		return nil
 	}
 
-	logger.Info("Ensuring rollout for cluster channel", "ystreamChannel", yStreamChannel)
-	return c.ensureRollout(ctx, requestedYStreamChannel)
+	logger.Info("Ensuring rollout for cluster channel", "ystreamChannel", requestedYStreamChannel)
+	if err := c.ensureRollout(ctx, requestedYStreamChannel); err != nil {
+		return err
+	}
+	serviceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	if cosmosstorageutils.IsNotFoundError(err) {
+		return nil // The ServiceProviderCluster informer will enqueue it once created.
+	}
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster: %w", err))
+	}
+	if pin := serviceProviderCluster.Spec.PinnedVersion.ExactVersion; pin != nil {
+		// Forced assignment checks the pinned minor's best version for release,
+		// which can differ from the customer's requested minor.
+		return c.ensureRollout(ctx, yStreamChannel(cluster.CustomerProperties.Version.ChannelGroup, minorString(*pin)))
+	}
+	return nil
 }
 
 // clusterYStreamChannel returns the y-stream channel a cluster belongs to,
 // derived from its channel group and the minor of its customer-requested version
 // (e.g. channelGroup "stable" + version "4.21.5" -> "stable-4.21"). The boolean
 // is false when the channel cannot be determined.
-func clusterYStreamChannel(cluster *coreapi.HCPOpenShiftCluster) (string, bool) {
+func clusterYStreamChannel(cluster *coreapi.Cluster) (string, bool) {
 	channelGroup := cluster.CustomerProperties.Version.ChannelGroup
 	if channelGroup == "" {
 		return "", false
