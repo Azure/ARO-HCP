@@ -13,93 +13,16 @@ spec:
   # ========================================
   # Access the Cluster SLO Alerts — Errors
   # ========================================
-  # Multi-window burn-rate-style alerting adapted for gauge metrics.
-  # Naming convention: {Scope}{Subject}{Metric}{BurnRateTier} per ADR-001.
-  #
-  # Burn rate thresholds calculated from 95% SLO (5% error budget):
-  #   Fast (14.4x): 14.4 * 0.05 = 0.72 → 72% error rate
-  #   Medium (6x):  6 * 0.05 = 0.30 → 30% error rate
-  #   Slow (1x):    1 * 0.05 = 0.05 → 5% error rate
-  #
-  # The 'for' duration enforces sustained observation, approximating the
-  # short window of multi-window burn rate alerting. For gauge metrics
-  # (point-in-time state rather than event rates), this provides equivalent
-  # protection against transient spikes.
+  # Error-rate burn-rate alerting for credential operations lives in the
+  # windowed, volume-aware group arohcp_access_cluster_slo_windowed_error_alerts,
+  # which counts only operations whose terminal transition landed inside the
+  # window instead of the trailing 7-day gauge ratio. This group retains the
+  # stuck-operation detector, which catches operations wedged in a non-terminal
+  # phase (invisible to the success/failure SLIs).
   - name: arohcp_access_cluster_slo_error_alerts
     labels:
       component: slo
     rules:
-    # ----------------------------------------
-    # Fast Burn Alert (IcM Sev 3 — RP lane / customer-facing UJ)
-    # ----------------------------------------
-    # 14.4x burn rate → >72% failure rate sustained for 5 minutes
-    # Would exhaust 7-day error budget in ~12 hours
-    - alert: userJourneyAccessClusterErrors1h5m
-      expr: |
-        errors:backend_credential_operation:error_rate > 0.72
-      for: 5m
-      labels:
-        severity: "3"
-        slo: access-cluster-errors
-        long_window: 1h
-        short_window: 5m
-      annotations:
-        summary: "{{ $labels.cluster }}: Credential operation error rate critically high (>72%)"
-        description: "More than 72% of credential operations (requestcredential/revokecredentials) are in failed state, indicating a fast error budget burn (14.4x) that would exhaust the 95% SLO budget in ~12 hours."
-        runbook_url: "aka.ms/arohcp-runbook-access-cluster"
-    # ----------------------------------------
-    # Medium Burn Alert (IcM Sev 3)
-    # ----------------------------------------
-    # 6x burn rate → >30% failure rate sustained for 30 minutes
-    # Would exhaust 7-day error budget in ~28 hours
-    - alert: userJourneyAccessClusterErrors6h30m
-      expr: |
-        errors:backend_credential_operation:error_rate > 0.30
-      for: 30m
-      labels:
-        severity: "3"
-        slo: access-cluster-errors
-        long_window: 6h
-        short_window: 30m
-      annotations:
-        summary: "{{ $labels.cluster }}: Credential operation error rate elevated (>30%) for 30+ minutes"
-        description: "More than 30% of credential operations are in failed state sustained over 30 minutes, indicating a medium error budget burn (6x) that would exhaust the 95% SLO budget in ~28 hours."
-        runbook_url: "aka.ms/arohcp-runbook-access-cluster"
-    # ----------------------------------------
-    # Slow Burn Alert (IcM Sev 4 — ticket)
-    # ----------------------------------------
-    # Per ADR: slow burn alerts generate a ticket, not a page.
-    # 1x burn rate → >5% failure rate sustained for 6 hours
-    # Would exhaust 7-day error budget in ~7 days
-    - alert: userJourneyAccessClusterErrors3d
-      expr: |
-        errors:backend_credential_operation:error_rate > 0.05
-      for: 6h
-      labels:
-        severity: "4"
-        slo: access-cluster-errors
-        long_window: 3d
-      annotations:
-        summary: "{{ $labels.cluster }}: Credential operation error rate exceeds SLO target (>5%) for 6+ hours"
-        description: "More than 5% of credential operations are in failed state sustained over 6 hours, indicating persistent degradation at the 95% SLO boundary that would exhaust the error budget in ~7 days."
-        runbook_url: "aka.ms/arohcp-runbook-access-cluster"
-    # ----------------------------------------
-    # Degradation Alert (IcM Sev 4 — ticket)
-    # ----------------------------------------
-    # With a 95% SLO, the fast-burn threshold only fires at ~72% failure rate.
-    # This provides early warning at 15% failure rate before burn-rate alerts fire.
-    # Precursor signal → Sev 4 per ADR.
-    - alert: userJourneyAccessClusterErrorsDegradation
-      expr: |
-        errors:backend_credential_operation:error_rate > 0.15
-      for: 30m
-      labels:
-        severity: "4"
-        slo: access-cluster-errors
-      annotations:
-        summary: "{{ $labels.cluster }}: Credential operation failure rate exceeds 15% for 30 minutes"
-        description: "The credential operation failure rate has been above 15% for 30 minutes. This provides early warning of degradation before SLO-based burn rate alerts fire."
-        runbook_url: "aka.ms/arohcp-runbook-access-cluster"
     # ----------------------------------------
     # Stuck Operations Alert
     # ----------------------------------------
@@ -181,4 +104,72 @@ spec:
       annotations:
         summary: "{{ $labels.cluster }}: Credential controller workqueue {{ $labels.name }} retry hot loop"
         description: "Credential controller workqueue {{ $labels.name }} has a retry ratio > 50% sustained over 10 minutes, indicating most queue activity is failed retries rather than fresh work."
+        runbook_url: "aka.ms/arohcp-runbook-access-cluster"
+  # ========================================
+  # Access the Cluster SLO Alerts: Windowed Errors (burn-rate, volume-aware)
+  # ========================================
+  # These read the windowed recording rules
+  # (errors:backend_credential_operation:{failed,total,error_rate}_{1h,6h,3d}),
+  # which count only credential operations whose terminal transition landed
+  # inside the window, so each tier evaluates a real event window instead of the
+  # trailing 7-day gauge ratio. Stateless and level-driven: no new metric and no
+  # backend change, matching what the access-cluster SLO dashboard already does.
+  #
+  # Volume guard: credential operation volume per cluster is low, so a pure ratio
+  # is dominated by tiny denominators; each tier also requires an absolute floor
+  # of completions/failures in the window so a single failure cannot page. The
+  # floors below mirror cluster-provision and should be tuned to real credential
+  # traffic per region.
+  - name: arohcp_access_cluster_slo_windowed_error_alerts
+    labels:
+      component: slo
+    rules:
+    # Fast Burn (IcM Sev 3, page). 14.4x burn: >72% failures over 1h, >=3 failures.
+    - alert: UserJourneyAccessClusterErrorBurst1h
+      expr: |
+        errors:backend_credential_operation:failed_1h >= 3
+        and
+        errors:backend_credential_operation:error_rate_1h > 0.72
+      for: 5m
+      labels:
+        severity: "3"
+        slo: access-cluster-errors
+        long_window: 1h
+        short_window: 5m
+      annotations:
+        summary: "{{ $labels.cluster }}: Credential operations failing fast (>72% of recent operations)"
+        description: "More than 72% of completed credential operations (requestcredential/revokecredentials) on {{ $labels.cluster }} failed over the last hour with at least 3 failures, a 14.4x burn of the 95% SLO budget."
+        runbook_url: "aka.ms/arohcp-runbook-access-cluster"
+    # Medium Burn (IcM Sev 3, page). 6x burn: >30% failures over 6h, >=5 completions.
+    - alert: UserJourneyAccessClusterErrorBurst6h
+      expr: |
+        errors:backend_credential_operation:total_6h >= 5
+        and
+        errors:backend_credential_operation:error_rate_6h > 0.30
+      for: 30m
+      labels:
+        severity: "3"
+        slo: access-cluster-errors
+        long_window: 6h
+        short_window: 30m
+      annotations:
+        summary: "{{ $labels.cluster }}: Credential operation error rate elevated (>30% over 6h)"
+        description: "More than 30% of completed credential operations on {{ $labels.cluster }} failed over the last 6 hours (at least 5 completions), a 6x burn of the 95% SLO budget."
+        runbook_url: "aka.ms/arohcp-runbook-access-cluster"
+    # Slow Burn / Budget (IcM Sev 4, ticket). 1x burn: >5% failures over 3d, >=10 completions, >=2 failures.
+    - alert: UserJourneyAccessClusterErrorBudget3d
+      expr: |
+        errors:backend_credential_operation:total_3d >= 10
+        and
+        errors:backend_credential_operation:failed_3d >= 2
+        and
+        errors:backend_credential_operation:error_rate_3d > 0.05
+      for: 6h
+      labels:
+        severity: "4"
+        slo: access-cluster-errors
+        long_window: 3d
+      annotations:
+        summary: "{{ $labels.cluster }}: Credential operation error budget burning (>5% over 3d)"
+        description: "More than 5% of completed credential operations on {{ $labels.cluster }} failed over the last 3 days (at least 10 completions and 2 failures), a 1x burn that exhausts the 95% SLO error budget over the window."
         runbook_url: "aka.ms/arohcp-runbook-access-cluster"
