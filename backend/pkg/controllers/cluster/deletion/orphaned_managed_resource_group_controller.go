@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -57,24 +58,115 @@ var (
 	)
 )
 
+// AFECOwnershipMode determines how subscription ownership is checked based on AFEC flags.
+type AFECOwnershipMode string
+
+const (
+	// AFECOwnershipNone disables the controller (DEV environment).
+	AFECOwnershipNone AFECOwnershipMode = "None"
+	// AFECOwnershipMyAFEC requires subscriptions to have a specific AFEC flag (INT/STAGING environment).
+	AFECOwnershipMyAFEC AFECOwnershipMode = "MyAFEC"
+	// AFECOwnershipNotOtherAFECs requires subscriptions to NOT have any of the specified AFEC flags (PROD environment).
+	AFECOwnershipNotOtherAFECs AFECOwnershipMode = "NotOtherAFECs"
+)
+
+// AFECOwnershipConfig configures environment-based subscription ownership for orphaned MRG cleanup.
+type AFECOwnershipConfig struct {
+	Mode AFECOwnershipMode
+	// MyAFEC is the AFEC flag that identifies subscriptions owned by this environment.
+	// Used when Mode is AFECOwnershipMyAFEC.
+	MyAFEC string
+	// NotOtherAFECs is a set of AFEC flags that identify subscriptions owned by OTHER environments.
+	// Used when Mode is AFECOwnershipNotOtherAFECs.
+	NotOtherAFECs map[string]struct{}
+}
+
 // orphanedManagedResourceGroupController implements ManagedResourceGroupProcessor.
 type orphanedManagedResourceGroupController struct {
 	location              string
 	resourcesDBClient     corecosmosstorage.ResourcesDBClient
 	azureFPAClientBuilder azureclient.FirstPartyApplicationClientBuilder
+	afecOwnership         AFECOwnershipConfig
 }
 
 // NewOrphanedManagedResourceGroupController creates a controller that processes managed resource groups
 // and deletes them if they are orphaned.
+//
+// Environment-based cleanup is controlled by these environment variables:
+// - MY_AFEC: Single AFEC flag identifying subscriptions owned by this environment (e.g., "Microsoft.RedHatOpenShift/STAGING-APPROVED")
+// - OTHER_AFECS: Comma-separated list of AFEC flags identifying subscriptions owned by OTHER environments
+//
+// PROD: Set OTHER_AFECS to skip INT/STAGING subscriptions
+// STAGING/INT: Set MY_AFEC to only clean subscriptions with that AFEC
+// DEV: Leave both empty to disable the controller
 func NewOrphanedManagedResourceGroupController(
 	location string,
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	azureFPAClientBuilder azureclient.FirstPartyApplicationClientBuilder,
 ) *orphanedManagedResourceGroupController {
+	afecOwnership := parseAFECOwnershipFromEnv()
+
 	return &orphanedManagedResourceGroupController{
 		location:              location,
 		resourcesDBClient:     resourcesDBClient,
 		azureFPAClientBuilder: azureFPAClientBuilder,
+		afecOwnership:         afecOwnership,
+	}
+}
+
+// parseAFECOwnershipFromEnv constructs AFECOwnershipConfig from environment variables.
+func parseAFECOwnershipFromEnv() AFECOwnershipConfig {
+	myAFEC := os.Getenv("MY_AFEC")
+	otherAFECsStr := os.Getenv("OTHER_AFECS")
+
+	// Parse OTHER_AFECS
+	otherAFECs := make(map[string]struct{})
+	if otherAFECsStr != "" {
+		for _, afec := range strings.Split(otherAFECsStr, ",") {
+			trimmed := strings.TrimSpace(afec)
+			if trimmed != "" {
+				otherAFECs[trimmed] = struct{}{}
+			}
+		}
+	}
+
+	// Determine mode
+	if myAFEC == "" && len(otherAFECs) == 0 {
+		return AFECOwnershipConfig{Mode: AFECOwnershipNone}
+	}
+	if myAFEC != "" {
+		return AFECOwnershipConfig{
+			Mode:   AFECOwnershipMyAFEC,
+			MyAFEC: myAFEC,
+		}
+	}
+	return AFECOwnershipConfig{
+		Mode:          AFECOwnershipNotOtherAFECs,
+		NotOtherAFECs: otherAFECs,
+	}
+}
+
+// isSubscriptionOwnedByThisEnvironment checks if a subscription should be processed by this environment's controller.
+//
+// Ownership rules:
+// - Mode None: no subscriptions are owned (DEV - controller disabled)
+// - Mode MyAFEC: subscription MUST have the specified AFEC flag (INT/STAGING)
+// - Mode NotOtherAFECs: subscription MUST NOT have any of the specified AFEC flags (PROD)
+func (c *orphanedManagedResourceGroupController) isSubscriptionOwnedByThisEnvironment(subscription *coreapi.Subscription) bool {
+	switch c.afecOwnership.Mode {
+	case AFECOwnershipNone:
+		return false
+	case AFECOwnershipMyAFEC:
+		return subscription.HasRegisteredFeature(c.afecOwnership.MyAFEC)
+	case AFECOwnershipNotOtherAFECs:
+		for otherAFEC := range c.afecOwnership.NotOtherAFECs {
+			if subscription.HasRegisteredFeature(otherAFEC) {
+				return false // Belongs to another environment
+			}
+		}
+		return true
+	default:
+		return false
 	}
 }
 
@@ -93,6 +185,14 @@ func (c *orphanedManagedResourceGroupController) needsWork(ctx context.Context, 
 	}
 	if err != nil {
 		return false, nil, utils.TrackError(fmt.Errorf("failed to get subscription from database: %w", err))
+	}
+
+	// Check if this subscription is owned by this environment based on AFEC flags
+	if !c.isSubscriptionOwnedByThisEnvironment(subscription) {
+		logger.V(1).Info("Subscription not owned by this environment, skipping MRG",
+			"afecMode", c.afecOwnership.Mode,
+			"myAFEC", c.afecOwnership.MyAFEC)
+		return false, nil, nil
 	}
 
 	// Parse the managedBy resource ID to extract cluster details
