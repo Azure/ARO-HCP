@@ -123,9 +123,19 @@ resourceGroups:
     - resourceGroup: global
       step: mirror-image
     externalDependsOn:
+    # we wait for CS installation because fleet needs to register the MC with CS
+    - serviceGroup: Microsoft.Azure.ARO.HCP.ClusterService
+      resourceGroup: service
+      step: deploy
+    # we wait for Maestro Server installation because fleet needs to register the MC with Maestro Server
+    - serviceGroup: Microsoft.Azure.ARO.HCP.Maestro.Server
+      resourceGroup: service
+      step: deploy
+    # we wait for the fleet service because the registration runs towards that
     - serviceGroup: Microsoft.Azure.ARO.HCP.Fleet
       resourceGroup: service
       step: deploy
+    # the rest of the deps make sure the MC installation is complete
     - serviceGroup: Microsoft.Azure.ARO.HCP.ACM
       resourceGroup: management
       step: deploy-policies
@@ -136,6 +146,15 @@ resourceGroups:
       resourceGroup: management
       step: deploy
     - serviceGroup: Microsoft.Azure.ARO.HCP.Maestro.Agent
+      resourceGroup: management
+      step: deploy
+    - serviceGroup: Microsoft.Azure.ARO.HCP.MgmtAgent
+      resourceGroup: management
+      step: deploy
+    - serviceGroup: Microsoft.Azure.ARO.HCP.Velero
+      resourceGroup: management
+      step: deploy-velero
+    - serviceGroup: Microsoft.Azure.ARO.HCP.SecretSyncController
       resourceGroup: management
       step: deploy
     identityFrom:
