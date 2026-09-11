@@ -312,7 +312,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count((backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\",operation_type=\"create\",phase=\"failed\",subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\",operation_type=\"create\",phase=\"failed\",subscription_id!~\"${exclude_subs:raw}\"}) < $__range_s)) or vector(0)",
+          "expr": "count((max by (resource_id, subscription_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\",operation_type=\"create\",phase=\"failed\",subscription_id!~\"${exclude_subs:raw}\"} == 1)) and on(resource_id, subscription_id, resource_type, operation_type, phase) ((time() - max by (resource_id, subscription_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\",operation_type=\"create\",phase=\"failed\",subscription_id!~\"${exclude_subs:raw}\"})) < $__range_s)) or vector(0)",
           "instant": true,
           "legendFormat": "Failed Creates",
           "refId": "A"
@@ -437,7 +437,7 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "Current operation inventory by resource type and phase.",
+      "description": "Current operation inventory by resource type, operation type, and phase. This panel has no selected-window filter.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -504,13 +504,13 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count by (resource_type,phase) (backend_resource_operation_phase_info{resource_type=~\"microsoft.redhatopenshift/hcpopenshiftclusters($|/nodepools$|/externalauths$)\",operation_type=~\"create|delete|update\",subscription_id!~\"${exclude_subs:raw}\"} == 1)",
+          "expr": "count by (resource_type,operation_type,phase) (max by (resource_id, subscription_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{resource_type=~\"microsoft.redhatopenshift/hcpopenshiftclusters($|/nodepools$|/externalauths$)\",operation_type=~\"create|delete|update\",subscription_id!~\"${exclude_subs:raw}\"} == 1))",
           "instant": true,
-          "legendFormat": "{{resource_type}} / {{phase}}",
+          "legendFormat": "{{resource_type}} / {{operation_type}} / {{phase}}",
           "refId": "A"
         }
       ],
-      "title": "Current Operations by Phase",
+      "title": "Current Operations by Type and Phase",
       "transformations": [
         {
           "id": "seriesToRows",
@@ -873,7 +873,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count by (phase) ((backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\",operation_type=\"create\",phase=~\"succeeded|failed\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\",operation_type=\"create\",phase=~\"succeeded|failed\"}) < $__range_s))",
+          "expr": "count by (phase) ((max by (resource_id, subscription_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\",operation_type=\"create\",phase=~\"succeeded|failed\"} == 1)) and on(resource_id, subscription_id, resource_type, operation_type, phase) ((time() - max by (resource_id, subscription_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\",operation_type=\"create\",phase=~\"succeeded|failed\"})) < $__range_s))",
           "instant": true,
           "legendFormat": "Cluster / All / {{phase}}",
           "range": false,
@@ -885,7 +885,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count by (phase) (((backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\",operation_type=\"create\",phase=~\"succeeded|failed\",subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\",operation_type=\"create\",phase=~\"succeeded|failed\",subscription_id!~\"${exclude_subs:raw}\"}) < $__range_s)) unless on(subscription_id) internal_subscription:info)",
+          "expr": "count by (phase) (((max by (resource_id, subscription_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\",operation_type=\"create\",phase=~\"succeeded|failed\",subscription_id!~\"${exclude_subs:raw}\"} == 1)) and on(resource_id, subscription_id, resource_type, operation_type, phase) ((time() - max by (resource_id, subscription_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\",operation_type=\"create\",phase=~\"succeeded|failed\",subscription_id!~\"${exclude_subs:raw}\"})) < $__range_s)) unless on(subscription_id) internal_subscription:info)",
           "instant": true,
           "legendFormat": "Cluster / CI-excluded / {{phase}}",
           "range": false,
@@ -897,7 +897,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count by (phase) ((backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/nodepools\",operation_type=\"create\",phase=~\"succeeded|failed\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/nodepools\",operation_type=\"create\",phase=~\"succeeded|failed\"}) < $__range_s))",
+          "expr": "count by (phase) ((max by (resource_id, subscription_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/nodepools\",operation_type=\"create\",phase=~\"succeeded|failed\"} == 1)) and on(resource_id, subscription_id, resource_type, operation_type, phase) ((time() - max by (resource_id, subscription_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/nodepools\",operation_type=\"create\",phase=~\"succeeded|failed\"})) < $__range_s))",
           "instant": true,
           "legendFormat": "NodePool / All / {{phase}}",
           "range": false,
@@ -909,7 +909,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count by (phase) (((backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/nodepools\",operation_type=\"create\",phase=~\"succeeded|failed\",subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/nodepools\",operation_type=\"create\",phase=~\"succeeded|failed\",subscription_id!~\"${exclude_subs:raw}\"}) < $__range_s)) unless on(subscription_id) internal_subscription:info)",
+          "expr": "count by (phase) (((max by (resource_id, subscription_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/nodepools\",operation_type=\"create\",phase=~\"succeeded|failed\",subscription_id!~\"${exclude_subs:raw}\"} == 1)) and on(resource_id, subscription_id, resource_type, operation_type, phase) ((time() - max by (resource_id, subscription_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/nodepools\",operation_type=\"create\",phase=~\"succeeded|failed\",subscription_id!~\"${exclude_subs:raw}\"})) < $__range_s)) unless on(subscription_id) internal_subscription:info)",
           "instant": true,
           "legendFormat": "NodePool / CI-excluded / {{phase}}",
           "range": false,
