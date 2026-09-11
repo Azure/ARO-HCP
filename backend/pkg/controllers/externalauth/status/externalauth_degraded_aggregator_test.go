@@ -321,7 +321,7 @@ func TestCACertValidityConditions(t *testing.T) {
 			ca:                   expiredCA,
 			expectExpiryNil:      false,
 			expectExpiryReason:   "Expired",
-			expectExpiryMessage:  "expired at",
+			expectExpiryMessage:  "have expired",
 			expectNotYetValidNil: true,
 		},
 		{
@@ -330,14 +330,14 @@ func TestCACertValidityConditions(t *testing.T) {
 			expectExpiryNil:      true,
 			expectNotYetValidNil: false,
 			expectNYVReason:      "NotYetValid",
-			expectNYVMessage:     "is not yet valid",
+			expectNYVMessage:     "are not yet valid",
 		},
 		{
 			name:                 "bundle: one valid, one expired — expiry set",
 			ca:                   validCA + expiredCA,
 			expectExpiryNil:      false,
 			expectExpiryReason:   "Expired",
-			expectExpiryMessage:  "expired at",
+			expectExpiryMessage:  "have expired",
 			expectNotYetValidNil: true,
 		},
 		{
@@ -346,17 +346,17 @@ func TestCACertValidityConditions(t *testing.T) {
 			expectExpiryNil:      true,
 			expectNotYetValidNil: false,
 			expectNYVReason:      "NotYetValid",
-			expectNYVMessage:     "is not yet valid",
+			expectNYVMessage:     "are not yet valid",
 		},
 		{
 			name:                 "bundle: expired and future — both set",
 			ca:                   expiredCA + futureCA,
 			expectExpiryNil:      false,
 			expectExpiryReason:   "Expired",
-			expectExpiryMessage:  "expired at",
+			expectExpiryMessage:  "have expired",
 			expectNotYetValidNil: false,
 			expectNYVReason:      "NotYetValid",
-			expectNYVMessage:     "is not yet valid",
+			expectNYVMessage:     "are not yet valid",
 		},
 		{
 			name:                 "unparseable PEM — both nil",
@@ -366,15 +366,19 @@ func TestCACertValidityConditions(t *testing.T) {
 		},
 	}
 
+	agg := &externalAuthDegradedAggregator{
+		clock: clocktesting.NewFakePassiveClock(now),
+	}
+
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			expiry, notYetValid := caCertValidityConditions(tc.ca, now)
+			expiry, notYetValid := agg.getCaCertValidityConditions(tc.ca)
 
 			if tc.expectExpiryNil {
 				assert.Nil(t, expiry, "expected no expiry condition")
 			} else {
 				require.NotNil(t, expiry, "expected expiry condition")
-				assert.Equal(t, CACertificateExpiryConditionType, expiry.Type)
+				assert.Equal(t, CACertificateExpiredConditionType, expiry.Type)
 				assert.Equal(t, metav1.ConditionTrue, expiry.Status)
 				assert.Equal(t, tc.expectExpiryReason, expiry.Reason)
 				assert.Contains(t, expiry.Message, tc.expectExpiryMessage)
@@ -473,7 +477,7 @@ func TestExternalAuthDegradedAggregator_SyncOnce_CACertConditions(t *testing.T) 
 			updated, err := mockDB.HCPClusters(statusutils.TestSubscriptionID, statusutils.TestResourceGroupName).ExternalAuth(statusutils.TestClusterName).Get(ctx, statusutils.TestExternalAuthName)
 			require.NoError(t, err)
 
-			expiryCond := apimeta.FindStatusCondition(updated.Status.UserFacingConditions, CACertificateExpiryConditionType)
+			expiryCond := apimeta.FindStatusCondition(updated.Status.UserFacingConditions, CACertificateExpiredConditionType)
 			if tc.wantExpiry {
 				require.NotNil(t, expiryCond, "expected CACertificateExpiry condition")
 				assert.Equal(t, metav1.ConditionTrue, expiryCond.Status)
@@ -511,7 +515,7 @@ func TestExternalAuthDegradedAggregator_SyncOnce_CACertExpiry_clearsStaleConditi
 		ea.Properties.Issuer.CA = validCA
 		ea.Status.UserFacingConditions = []metav1.Condition{
 			{
-				Type:    CACertificateExpiryConditionType,
+				Type:    CACertificateExpiredConditionType,
 				Status:  metav1.ConditionFalse,
 				Reason:  "Valid",
 				Message: "stale healthy condition should be removed",
@@ -550,6 +554,6 @@ func TestExternalAuthDegradedAggregator_SyncOnce_CACertExpiry_clearsStaleConditi
 
 	updated, err := mockDB.HCPClusters(statusutils.TestSubscriptionID, statusutils.TestResourceGroupName).ExternalAuth(statusutils.TestClusterName).Get(ctx, statusutils.TestExternalAuthName)
 	require.NoError(t, err)
-	assert.Nil(t, apimeta.FindStatusCondition(updated.Status.UserFacingConditions, CACertificateExpiryConditionType),
+	assert.Nil(t, apimeta.FindStatusCondition(updated.Status.UserFacingConditions, CACertificateExpiredConditionType),
 		"healthy CA should remove CACertificateExpiry from user-facing conditions")
 }
