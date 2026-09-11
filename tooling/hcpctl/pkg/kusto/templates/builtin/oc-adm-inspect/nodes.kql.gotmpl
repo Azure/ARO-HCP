@@ -1,0 +1,24 @@
+{{- /*
+Reconstructs the state of a fixed set of cluster-scoped Node objects (identified
+by name) as of the requested timestamp (TimestampMax), the same way
+resource_snapshots.kql.gotmpl reconstructs namespaced resources: keep the most
+recent snapshot at or before the timestamp for each uid, then drop nodes that
+were actually deleted by then (a Delete event, or a deletionTimestamp whose
+grace period had already elapsed).
+*/ -}}
+{{- if .NoTruncation}}set notruncation;
+{{end -}}
+kubernetesResourceSnapshots
+| where timestamp between ({{ .TimestampMin }} .. {{ .TimestampMax }})
+| where cluster == '{{.ClusterName}}'
+| where objectKind == 'Node' and name in ({{.Names}})
+| summarize arg_max(timestamp, event, object) by apiVersion, objectKind, namespace, name, uid
+| where event != 'Delete'
+| extend deletionTimestamp = todatetime(object.metadata.deletionTimestamp)
+| extend gracePeriodSeconds = coalesce(tolong(object.metadata.deletionGracePeriodSeconds), 0)
+| where isnull(deletionTimestamp) or datetime_add('second', gracePeriodSeconds, deletionTimestamp) > {{ .TimestampMax }}
+| project timestamp, apiVersion, objectKind, namespace, name, uid, object
+| order by name asc
+{{- if gt .Limit 0}}
+| limit {{.Limit}}
+{{- end}}

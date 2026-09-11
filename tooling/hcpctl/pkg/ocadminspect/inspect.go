@@ -40,6 +40,8 @@ const (
 	eventsQueryName         = "ocAdmInspectEvents"
 	activeClustersQueryName = "ocAdmInspectActiveClusters"
 	namespacesQueryName     = "ocAdmInspectNamespaces"
+	podNodeNamesQueryName   = "ocAdmInspectPodNodeNames"
+	nodesQueryName          = "ocAdmInspectNodes"
 )
 
 // containerLogSourceQueries are the container-log queries run per namespace, one
@@ -89,6 +91,9 @@ type Writer interface {
 	WriteEvents(ctx context.Context, namespace string, events []map[string]any) error
 	// WriteContainerLog writes the log lines for a single pod container.
 	WriteContainerLog(ctx context.Context, namespace, pod, container string, lines []LogLine) error
+	// WriteClusterScopedResources writes cluster-scoped resources (e.g. Nodes)
+	// discovered alongside the requested namespaces.
+	WriteClusterScopedResources(ctx context.Context, resources []Resource) error
 	// NamespaceOutputPath returns a human-readable location (e.g. a directory
 	// path) where the namespace's content is written, for logging. It may be
 	// empty for writers that have no such location.
@@ -119,11 +124,14 @@ func NewInspector(exec QueryExecutor, factory *kusto.QueryFactory, baseOptions k
 }
 
 // InspectNamespaces gathers and writes the state, events, and container logs for
-// each namespace. Failures for one namespace do not abort the others; the joined
-// error is returned at the end.
+// each namespace, then collects the Node objects every namespace's pods ever ran
+// on in the window and writes them into the cluster-scoped-resources location.
+// Failures for one namespace or step do not abort the others; the joined error is
+// returned at the end.
 func (i *Inspector) InspectNamespaces(ctx context.Context, namespaces []string) error {
 	logger := logr.FromContextOrDiscard(ctx)
 	var errs []error
+	nodeNames := make(map[string]struct{})
 	for _, namespace := range namespaces {
 		logger.Info("running oc-adm-inspect for namespace",
 			"cluster", i.clusterName,
@@ -138,6 +146,23 @@ func (i *Inspector) InspectNamespaces(ctx context.Context, namespaces []string) 
 		}
 		if err := i.inspectContainerLogs(ctx, namespace); err != nil {
 			errs = append(errs, fmt.Errorf("failed to inspect container logs in %q: %w", namespace, err))
+		}
+		names, err := i.discoverPodNodeNames(ctx, namespace)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("failed to discover pod node names in %q: %w", namespace, err))
+		}
+		for _, name := range names {
+			nodeNames[name] = struct{}{}
+		}
+	}
+	if len(nodeNames) > 0 {
+		names := make([]string, 0, len(nodeNames))
+		for name := range nodeNames {
+			names = append(names, name)
+		}
+		sort.Strings(names)
+		if err := i.inspectNodes(ctx, names); err != nil {
+			errs = append(errs, fmt.Errorf("failed to inspect nodes %v: %w", names, err))
 		}
 	}
 	return joinErrors(errs)
@@ -160,6 +185,57 @@ func (i *Inspector) inspectResources(ctx context.Context, namespace string) erro
 		})
 	}
 	return i.writer.WriteResources(ctx, namespace, resources)
+}
+
+// discoverPodNodeNames returns the distinct node names of every pod snapshot
+// recorded for namespace in the time window, including pods that were deleted
+// before TimestampMax (unlike inspectResources, which reconstructs state as of
+// TimestampMax only).
+func (i *Inspector) discoverPodNodeNames(ctx context.Context, namespace string) ([]string, error) {
+	rows, err := i.runNamespaceQuery(ctx, podNodeNamesQueryName, namespace)
+	if err != nil {
+		return nil, err
+	}
+	names := make([]string, 0, len(rows))
+	for _, row := range rows {
+		if name := asString(row["nodeName"]); name != "" {
+			names = append(names, name)
+		}
+	}
+	return names, nil
+}
+
+// inspectNodes gathers the current state of the given Node objects and writes
+// them to the writer's cluster-scoped-resources location.
+func (i *Inspector) inspectNodes(ctx context.Context, nodeNames []string) error {
+	def, err := i.factory.GetBuiltinQueryDefinition(nodesQueryName)
+	if err != nil {
+		return err
+	}
+	data := kusto.NewTemplateDataFromOptions(i.baseOptions,
+		kusto.WithClusterName(i.clusterName),
+		kusto.WithNames(nodeNames),
+	)
+	queries, err := i.factory.Build(*def, data)
+	if err != nil {
+		return err
+	}
+	rows, err := runQuery(ctx, i.exec, queries[0])
+	if err != nil {
+		return err
+	}
+	resources := make([]Resource, 0, len(rows))
+	for _, row := range rows {
+		object, _ := row["object"].(map[string]any)
+		resources = append(resources, Resource{
+			APIVersion: asString(row["apiVersion"]),
+			Kind:       asString(row["objectKind"]),
+			Namespace:  asString(row["namespace"]),
+			Name:       asString(row["name"]),
+			Object:     object,
+		})
+	}
+	return i.writer.WriteClusterScopedResources(ctx, resources)
 }
 
 func (i *Inspector) inspectEvents(ctx context.Context, namespace string) error {

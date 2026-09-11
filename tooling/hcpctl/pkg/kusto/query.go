@@ -142,7 +142,10 @@ type TemplateData struct {
 	// oc-adm-inspect resource/event/log query). Single quotes are escaped for safe
 	// embedding inside a single-quoted KQL string literal; the template supplies
 	// the surrounding quotes (e.g. '{{.Namespace}}').
-	Namespace  string
+	Namespace string
+	// Names is a list of resource names to filter to (e.g. `name in (...)`),
+	// pre-escaped as KQL string literals.
+	Names      string
 	SplitByPod bool
 	OrderBy    string
 }
@@ -188,6 +191,12 @@ func WithClusterName(clusterName string) TemplateDataOptions {
 func WithNamespace(namespace string) TemplateDataOptions {
 	return func(d *TemplateData) {
 		d.Namespace = kqlEscStr(namespace)
+	}
+}
+
+func WithNames(names []string) TemplateDataOptions {
+	return func(d *TemplateData) {
+		d.Names = kqlEscStrList(names)
 	}
 }
 
