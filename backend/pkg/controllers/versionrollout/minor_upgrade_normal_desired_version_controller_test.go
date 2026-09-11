@@ -31,60 +31,70 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 )
 
-type initialVersionRetryQueue struct {
-	keys   []any
-	delays []time.Duration
-}
-
-func (q *initialVersionRetryQueue) EnqueueAfter(key any, delay time.Duration) {
-	q.keys = append(q.keys, key)
-	q.delays = append(q.delays, delay)
-}
-
-func TestInitialNormalDesiredVersion(t *testing.T) {
+func TestMinorUpgradeNormalDesiredVersionNeedsWork(t *testing.T) {
 	for _, tc := range []struct {
-		name, requested, desired, want          string
-		missingRollout, missingBest, concurrent bool
+		requested, desired string
+		want               bool
 	}{
-		{name: "initialize despite failed rollout", requested: "4.21", want: "4.21.6"},
-		{name: "requested exact version selects channel best", requested: "4.21.1", want: "4.21.6"},
-		{name: "preserve existing desired", requested: "4.21", desired: "4.21.1", want: "4.21.1"},
-		{name: "preserve concurrent assignment", requested: "4.21", concurrent: true, want: "4.21.8"},
-		{name: "requested channel has no rollout", requested: "4.22"},
-		{name: "invalid requested version", requested: "invalid"},
-		{name: "missing rollout", requested: "4.21", missingRollout: true},
-		{name: "missing best", requested: "4.21", missingBest: true},
+		{"4.22", "4.21.6", true},
+		{"4.22.1", "4.21.6", true},
+		{"4.21.9", "4.21.6", false},
+		{"4.21", "4.21.6", false},
+		{"5.21", "4.21.6", true},
+		{"4.20", "4.21.6", true},
+		{"invalid", "4.21.6", false},
+		{"4.22", "", false},
+	} {
+		t.Run(tc.requested+"/"+tc.desired, func(t *testing.T) {
+			serviceProviderCluster := newTestSPC("c1", nil, nil, nil)
+			if tc.desired != "" {
+				serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion = v(tc.desired)
+			}
+			syncer := &minorUpgradeNormalClusterDesiredVersionSyncer{}
+			require.Equal(t, tc.want, syncer.NeedsWork(newTestCluster("c1", "stable", tc.requested), serviceProviderCluster))
+		})
+	}
+}
+
+func TestMinorUpgradeNormalDesiredVersion(t *testing.T) {
+	for _, tc := range []struct {
+		name, requested, desired, want                 string
+		missingRollout, missingBest, concurrent, retry bool
+	}{
+		{name: "select requested minor best despite rollout failure", requested: "4.22", desired: "4.21.6", want: "4.22.8"},
+		{name: "requested patch selects channel best", requested: "4.22.1", desired: "4.21.6", want: "4.22.8"},
+		{name: "same minor unchanged", requested: "4.21.9", desired: "4.21.6", want: "4.21.6"},
+		{name: "missing desired belongs to initial controller", requested: "4.22"},
+		{name: "invalid requested unchanged", requested: "invalid", desired: "4.21.6", want: "4.21.6"},
+		{name: "wait for rollout", requested: "4.22", desired: "4.21.6", want: "4.21.6", missingRollout: true, retry: true},
+		{name: "wait for best", requested: "4.22", desired: "4.21.6", want: "4.21.6", missingBest: true, retry: true},
+		{name: "preserve concurrent assignment", requested: "4.22", desired: "4.21.6", want: "4.22.9", concurrent: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := context.Background()
 			now := time.Date(2026, 9, 11, 12, 0, 0, 0, time.UTC)
-			// Active version is deliberately in another minor: initial assignment uses
-			// the customer's requested channel, not normal rollout membership.
-			serviceProviderCluster := newTestSPC("c1", nil, []coreapi.HCPClusterActiveVersion{completed("4.20.8")}, nil)
+			serviceProviderCluster := newTestSPC("c1", nil, nil, nil)
 			if tc.desired != "" {
 				serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion = v(tc.desired)
 			}
-			db, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{
-				newTestCluster("c1", "stable", tc.requested), serviceProviderCluster,
-			})
+			db, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{newTestCluster("c1", "fast", tc.requested), serviceProviderCluster})
 			require.NoError(t, err)
-			rollout := newTestRollout("stable-4.21", v("4.21.6"), fleetapi.ControlPlaneVersionRolloutStatus{
-				FailedClusterCountByDesiredExactVersion: map[string]int64{"4.21.6": 100},
+			rollout := newTestRollout("fast-4.22", v("4.22.8"), fleetapi.ControlPlaneVersionRolloutStatus{
+				FailedClusterCountByDesiredExactVersion: map[string]int64{"4.22.8": 100},
 				Conditions:                              []metav1.Condition{{Type: ConditionDegraded, Status: metav1.ConditionTrue, Reason: "Failure", Message: "existing condition"}},
 			})
 			if tc.missingBest {
 				rollout.Spec.BestExactVersion = nil
 			}
-			rollouts := []*fleetapi.ControlPlaneVersionRollout{rollout}
+			rollouts := []*fleetapi.ControlPlaneVersionRollout{rollout, newTestRollout("stable-4.22", v("4.22.5"), fleetapi.ControlPlaneVersionRolloutStatus{})}
 			if tc.missingRollout {
-				rollouts = nil
+				rollouts = rollouts[1:]
 			}
 			fleet, rolloutLister := newTestRolloutStore(t, rollouts...)
-			beforeRollout, _ := fleet.ControlPlaneVersionRollouts().Get(ctx, "stable-4.21")
+			beforeRollout, _ := fleet.ControlPlaneVersionRollouts().Get(ctx, "fast-4.22")
 			retryQueue := &initialVersionRetryQueue{}
-			syncer := &initialNormalClusterDesiredVersionSyncer{
-				enqueueAfter: retryQueue,
-				clock:        clocktesting.NewFakeClock(now), resourcesDBClient: db, rolloutLister: rolloutLister,
+			syncer := &minorUpgradeNormalClusterDesiredVersionSyncer{
+				clock: clocktesting.NewFakeClock(now), resourcesDBClient: db, rolloutLister: rolloutLister, enqueueAfter: retryQueue,
 				clusterLister:                &corelistertesting.DBClusterLister{ResourcesDBClient: db},
 				serviceProviderClusterLister: &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: db},
 			}
@@ -94,7 +104,7 @@ func TestInitialNormalDesiredVersion(t *testing.T) {
 			if tc.concurrent {
 				syncer.serviceProviderClusterLister = &corelistertesting.SliceServiceProviderClusterLister{ServiceProviderClusters: []*coreapi.ServiceProviderCluster{before}}
 				updated := before.DeepCopy()
-				setDesiredVersion(updated, v("4.21.8"), metav1.Time{Time: now})
+				setDesiredVersion(updated, v("4.22.9"), metav1.Time{Time: now})
 				before, err = crud.Replace(ctx, updated, nil)
 				require.NoError(t, err)
 			}
@@ -104,7 +114,7 @@ func TestInitialNormalDesiredVersion(t *testing.T) {
 			} else {
 				require.NoError(t, syncer.SyncOnce(ctx, key))
 			}
-			if tc.missingRollout || tc.missingBest || tc.requested == "4.22" {
+			if tc.retry {
 				require.Equal(t, []any{key}, retryQueue.keys)
 				require.Equal(t, []time.Duration{10 * time.Second}, retryQueue.delays)
 			} else {
@@ -118,7 +128,7 @@ func TestInitialNormalDesiredVersion(t *testing.T) {
 				require.NotNil(t, current.Spec.ControlPlaneVersion.DesiredVersion)
 				require.Equal(t, tc.want, current.Spec.ControlPlaneVersion.DesiredVersion.String())
 			}
-			if tc.want == "" || tc.desired != "" || tc.concurrent {
+			if tc.want == tc.desired || tc.concurrent {
 				require.Equal(t, before, current)
 			} else {
 				require.NotNil(t, current.Spec.ControlPlaneVersion.DesiredVersionLastTransitionTime)
@@ -131,11 +141,11 @@ func TestInitialNormalDesiredVersion(t *testing.T) {
 			}
 			afterSecondSync, err := crud.Get(ctx, coreapi.ServiceProviderClusterResourceName)
 			require.NoError(t, err)
-			require.Equal(t, current, afterSecondSync, "repeated sync must not rewrite desired version")
+			require.Equal(t, current, afterSecondSync)
 			if !tc.missingRollout {
-				afterRollout, err := fleet.ControlPlaneVersionRollouts().Get(ctx, "stable-4.21")
+				afterRollout, err := fleet.ControlPlaneVersionRollouts().Get(ctx, "fast-4.22")
 				require.NoError(t, err)
-				require.Equal(t, beforeRollout, afterRollout, "initial assignment must not write rollout conditions or other rollout fields")
+				require.Equal(t, beforeRollout, afterRollout, "minor upgrade must not write rollout conditions")
 			}
 		})
 	}
