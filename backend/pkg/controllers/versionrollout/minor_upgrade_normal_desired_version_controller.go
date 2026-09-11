@@ -19,6 +19,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/blang/semver/v4"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilsclock "k8s.io/utils/clock"
 
@@ -32,12 +34,12 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-const InitialNormalClusterDesiredVersionControllerName = "InitialNormalClusterDesiredVersion"
+const MinorUpgradeNormalClusterDesiredVersionControllerName = "MinorUpgradeNormalClusterDesiredVersion"
 
-// initialNormalClusterDesiredVersionSyncer initializes a cluster's desired
+// minorUpgradeNormalClusterDesiredVersionSyncer updates a cluster's desired
 // version from its requested channel, without progressive rollout gates or writes
 // to ControlPlaneVersionRollout conditions.
-type initialNormalClusterDesiredVersionSyncer struct {
+type minorUpgradeNormalClusterDesiredVersionSyncer struct {
 	clock                        utilsclock.PassiveClock
 	resourcesDBClient            corecosmosstorage.ResourcesDBClient
 	clusterLister                corelisters.ClusterLister
@@ -46,30 +48,38 @@ type initialNormalClusterDesiredVersionSyncer struct {
 	enqueueAfter                 controllerutils.AfterEnqueuer
 }
 
-func NewInitialNormalClusterDesiredVersionController(clock utilsclock.PassiveClock, resourcesDBClient corecosmosstorage.ResourcesDBClient, informers coreinformers.BackendInformers, rolloutLister fleetlisters.ControlPlaneVersionRolloutLister) controllerutils.Controller {
+func NewMinorUpgradeNormalClusterDesiredVersionController(clock utilsclock.PassiveClock, resourcesDBClient corecosmosstorage.ResourcesDBClient, informers coreinformers.BackendInformers, rolloutLister fleetlisters.ControlPlaneVersionRolloutLister) controllerutils.Controller {
 	_, clusterLister := informers.Clusters()
 	_, serviceProviderClusterLister := informers.ServiceProviderClusters()
-	syncer := &initialNormalClusterDesiredVersionSyncer{
+	syncer := &minorUpgradeNormalClusterDesiredVersionSyncer{
 		clock: clock, resourcesDBClient: resourcesDBClient, clusterLister: clusterLister,
 		serviceProviderClusterLister: serviceProviderClusterLister, rolloutLister: rolloutLister,
 	}
 	controller := controllerutils.NewClusterWatchingController(
-		InitialNormalClusterDesiredVersionControllerName, resourcesDBClient, informers, nil, time.Minute, syncer)
+		MinorUpgradeNormalClusterDesiredVersionControllerName, resourcesDBClient, informers, nil, time.Minute, syncer)
 	if enqueuer, ok := controller.(controllerutils.AfterEnqueuer); ok {
 		syncer.enqueueAfter = enqueuer
 	} else {
-		panic(fmt.Sprintf("%s controller must implement AfterEnqueuer", InitialNormalClusterDesiredVersionControllerName))
+		panic(fmt.Sprintf("%s controller must implement AfterEnqueuer", MinorUpgradeNormalClusterDesiredVersionControllerName))
 	}
 	return controller
 }
 
-func (c *initialNormalClusterDesiredVersionSyncer) NeedsWork(serviceProviderCluster *coreapi.ServiceProviderCluster) bool {
-	return serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion == nil
+func (c *minorUpgradeNormalClusterDesiredVersionSyncer) NeedsWork(cluster *coreapi.HCPOpenShiftCluster, serviceProviderCluster *coreapi.ServiceProviderCluster) bool {
+	desired := serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion
+	if desired == nil {
+		return false
+	}
+	requested, err := semver.ParseTolerant(cluster.CustomerProperties.Version.ID)
+	if err != nil {
+		return false
+	}
+	return minorString(requested) != minorString(*desired)
 }
 
-func (c *initialNormalClusterDesiredVersionSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
+func (c *minorUpgradeNormalClusterDesiredVersionSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
 	logger := utils.LoggerFromContext(ctx)
-	logger.Info("Syncing initial desired version")
+	logger.Info("Syncing minor upgrade desired version")
 	serviceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if cosmosstorageutils.IsNotFoundError(err) {
 		logger.Info("Waiting for ServiceProviderCluster")
@@ -77,9 +87,6 @@ func (c *initialNormalClusterDesiredVersionSyncer) SyncOnce(ctx context.Context,
 	}
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster: %w", err))
-	}
-	if !c.NeedsWork(serviceProviderCluster) {
-		return nil
 	}
 	cluster, err := c.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if cosmosstorageutils.IsNotFoundError(err) {
@@ -92,6 +99,9 @@ func (c *initialNormalClusterDesiredVersionSyncer) SyncOnce(ctx context.Context,
 	channel, ok := clusterYStreamChannel(cluster)
 	if !ok {
 		return utils.TrackError(fmt.Errorf("cannot determine requested channel: channel group %q, requested version %q", cluster.CustomerProperties.Version.ChannelGroup, cluster.CustomerProperties.Version.ID))
+	}
+	if !c.NeedsWork(cluster, serviceProviderCluster) {
+		return nil
 	}
 	rollout, err := c.rolloutLister.Get(ctx, channel)
 	if cosmosstorageutils.IsNotFoundError(err) {
@@ -113,8 +123,8 @@ func (c *initialNormalClusterDesiredVersionSyncer) SyncOnce(ctx context.Context,
 	if _, err := c.resourcesDBClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName).Replace(ctx, replacement, nil); cosmosstorageutils.IsPreconditionFailedError(err) {
 		return nil
 	} else if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to initialize desired version: %w", err))
+		return utils.TrackError(fmt.Errorf("failed to update desired version for minor upgrade: %w", err))
 	}
-	logger.Info("Initialized desired version", "ystreamChannel", channel, "desiredVersion", best.String())
+	logger.Info("Updated desired version for minor upgrade", "ystreamChannel", channel, "desiredVersion", best.String())
 	return nil
 }
