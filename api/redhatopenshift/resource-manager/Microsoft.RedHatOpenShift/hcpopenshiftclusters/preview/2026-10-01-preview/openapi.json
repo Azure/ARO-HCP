@@ -1609,7 +1609,7 @@
         },
         "activeVersions": {
           "type": "array",
-          "description": "The activeVersions of a resource. This field is an array because during upgrades there can be more than one active version.",
+          "description": "The observed active versions of the cluster.\nDuring upgrades, both the previous and target versions may be\nactive simultaneously until the rollout completes, so this\narray can contain more than one entry. The ordering of entries\nhas no meaning.",
           "items": {
             "$ref": "#/definitions/ClusterActiveVersion"
           },
@@ -3340,7 +3340,7 @@
         },
         "activeVersions": {
           "type": "array",
-          "description": "The activeVersions of a resource. This field is an array because during upgrades there can be more than one active version.",
+          "description": "The observed active versions of the node pool.\nDuring upgrades, it is common for multiple versions to be active at the same time\nwhile old nodes are drained and replaced. The ordering of entries has no meaning.",
           "items": {
             "$ref": "#/definitions/NodePoolActiveVersion"
           },
