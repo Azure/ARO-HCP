@@ -40,8 +40,9 @@ var _ = Describe("Customer", func() {
 		labels.MIContainers(1),
 		func(ctx context.Context) {
 			const (
-				customerClusterName  = "np-update-nodes-hcp-cluster"
-				customerNodePoolName = "np-update-nodes"
+				customerClusterName = "np-update-nodes-hcp-cluster"
+				// Upper casing is intentional to regress casing bug: ARO-29572
+				customerNodePoolName = "np-update-NODES"
 				oneNodePoolName      = "np-one-node"
 			)
 
