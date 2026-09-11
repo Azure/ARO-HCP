@@ -98,7 +98,7 @@ func (c *statusCollectorSyncer) watchStatusInputs(clusters, serviceProviderClust
 		if tombstone, ok := obj.(cache.DeletedFinalStateUnknown); ok {
 			obj = tombstone.Obj
 		}
-		if _, ok := obj.(*coreapi.HCPOpenShiftCluster); ok {
+		if _, ok := obj.(*coreapi.Cluster); ok {
 			c.enqueueStatusChannels(queue, "")
 		}
 	}
@@ -115,8 +115,8 @@ func (c *statusCollectorSyncer) watchStatusInputs(clusters, serviceProviderClust
 	_, clusterErr := clusters.AddEventHandlerWithOptions(cache.ResourceEventHandlerFuncs{
 		AddFunc: onCluster, DeleteFunc: onCluster,
 		UpdateFunc: func(oldObj, newObj any) {
-			oldCluster, oldOK := oldObj.(*coreapi.HCPOpenShiftCluster)
-			newCluster, newOK := newObj.(*coreapi.HCPOpenShiftCluster)
+			oldCluster, oldOK := oldObj.(*coreapi.Cluster)
+			newCluster, newOK := newObj.(*coreapi.Cluster)
 			if !oldOK || !newOK {
 				return
 			}

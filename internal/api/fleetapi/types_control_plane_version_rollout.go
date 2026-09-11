@@ -59,6 +59,11 @@ type ControlPlaneVersionRolloutSpec struct {
 //
 // The count maps are keyed by exact-version string (semver.Version.String()).
 type ControlPlaneVersionRolloutStatus struct {
+	// LastAssignmentTime reserves an assignment batch before any cluster writes.
+	// It enforces a minimum interval between batches, including after restarts.
+	// Written by: NormalClusterDesiredVersion
+	LastAssignmentTime *metav1.Time `json:"lastAssignmentTime,omitempty"`
+
 	// Conditions tracks the rollout's progression. Known condition types:
 	// "Progressing" (rollout is advancing), "Degraded" (failure budget exceeded).
 	// Written by: NormalClusterDesiredVersion
@@ -70,8 +75,8 @@ type ControlPlaneVersionRolloutStatus struct {
 	ClusterCountByDesiredExactVersion map[string]int64 `json:"clusterCountByDesiredExactVersion,omitempty"`
 
 	// MismatchedClusterCountByDesiredExactVersion counts clusters that desire the
-	// keyed exact version but do not yet have it as the earliest version in their
-	// activeVersions (i.e. the upgrade is in flight).
+	// keyed exact version but do not yet have it as the oldest completed version
+	// in their activeVersions (i.e. the upgrade is in flight).
 	// Written by: ControlPlaneVersionStatusCollector
 	MismatchedClusterCountByDesiredExactVersion map[string]int64 `json:"mismatchedClusterCountByDesiredExactVersion,omitempty"`
 
@@ -82,7 +87,7 @@ type ControlPlaneVersionRolloutStatus struct {
 	FailedClusterCountByDesiredExactVersion map[string]int64 `json:"failedClusterCountByDesiredExactVersion,omitempty"`
 
 	// ClusterCountByAchievedExactVersion counts clusters that have the keyed exact
-	// version as the earliest version in their activeVersions.
+	// version as the oldest completed version in their activeVersions.
 	// Written by: ControlPlaneVersionStatusCollector
 	ClusterCountByAchievedExactVersion map[string]int64 `json:"clusterCountByAchievedExactVersion,omitempty"`
 
