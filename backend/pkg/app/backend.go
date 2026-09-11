@@ -813,7 +813,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		b.options.ResourcesDBClient,
 		b.options.FPAClientBuilder,
 	)
-	managedResourceGroupWatchingController := clusterdeletion.NewManagedResourceGroupWatchingController(
+	managedResourceGroupWatchingController := controllerutils.NewManagedResourceGroupWatchingController(
 		b.options.AzureLocation,
 		orphanedManagedResourceGroupController,
 		b.options.ResourcesDBClient,

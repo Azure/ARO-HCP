@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package deletion
+package controllerutils
 
 import (
 	"context"
@@ -31,7 +31,6 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
-	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
@@ -80,7 +79,7 @@ func NewManagedResourceGroupWatchingController(
 	azureFPAClientBuilder azureclient.FirstPartyApplicationClientBuilder,
 	backendInformers coreinformers.BackendInformers,
 	resyncDuration time.Duration,
-) controllerutils.Controller {
+) Controller {
 	c := &managedResourceGroupWatchingController{
 		name:                  "ManagedResourceGroupWatching",
 		location:              location,
@@ -221,7 +220,7 @@ func (c *managedResourceGroupWatchingController) processNextWorkItem(ctx context
 	logger = key.AddLoggerValues(logger)
 	ctx = utils.ContextWithLogger(ctx, logger)
 
-	controllerutils.ReconcileTotal.WithLabelValues(c.name).Inc()
+	ReconcileTotal.WithLabelValues(c.name).Inc()
 	err := c.processor.ProcessManagedResourceGroup(ctx, key)
 	if err == nil {
 		c.queue.Forget(key)
@@ -234,7 +233,7 @@ func (c *managedResourceGroupWatchingController) processNextWorkItem(ctx context
 	return true
 }
 
-func (c *managedResourceGroupWatchingController) QueueForInformers(resyncDuration time.Duration, notifiers ...controllerutils.Notifier) error {
+func (c *managedResourceGroupWatchingController) QueueForInformers(resyncDuration time.Duration, notifiers ...Notifier) error {
 	panic("not implemented")
 }
 
