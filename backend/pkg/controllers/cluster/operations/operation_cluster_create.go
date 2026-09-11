@@ -475,5 +475,8 @@ func describeVersionHistory(history []v1beta1.ControlPlaneUpdateHistory) string 
 		}
 		descriptions = append(descriptions, desc)
 	}
+	if len(descriptions) == 0 {
+		return "hosted cluster control plane version history has no in-flight entries"
+	}
 	return fmt.Sprintf("hosted cluster control plane version not yet completed: %s", strings.Join(descriptions, "; "))
 }

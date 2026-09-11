@@ -1016,7 +1016,7 @@ func TestDescribeVersionHistory(t *testing.T) {
 					StartedTime: metav1.NewTime(time.Now().Add(-5 * time.Minute)),
 				},
 			},
-			expected: "hosted cluster control plane version not yet completed: ",
+			expected: "hosted cluster control plane version history has no in-flight entries",
 		},
 	}
 
