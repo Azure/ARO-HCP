@@ -701,6 +701,9 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		b.clock,
 		rolloutConfig,
 	)
+	initialNormalDesiredVersionController := versionrollout.NewInitialNormalClusterDesiredVersionController(
+		b.clock, b.options.ResourcesDBClient, backendInformers, controlPlaneVersionRolloutLister,
+	)
 	normalDesiredVersionController := versionrollout.NewNormalClusterDesiredVersionController(
 		b.clock,
 		b.options.ResourcesDBClient,
@@ -1214,6 +1217,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go controlPlaneVersionRolloutSeedingController.Run(ctx, 20)
 				go bestVersionSelectionController.Run(ctx, 20)
 				go controlPlaneVersionStatusController.Run(ctx, 20)
+				go initialNormalDesiredVersionController.Run(ctx, 20)
 				go normalDesiredVersionController.Run(ctx, 20)
 				go forcedDesiredVersionController.Run(ctx, 20)
 				go triggerControlPlaneUpgradeController.Run(ctx, 20)

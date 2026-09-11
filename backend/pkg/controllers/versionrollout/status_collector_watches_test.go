@@ -55,7 +55,7 @@ func TestStatusCollectorServiceProviderClusterUpdates(t *testing.T) {
 	}{
 		{"unrelated pinned version", func(s *coreapi.ServiceProviderCluster) { s.Spec.PinnedVersion.ExactVersion = v("4.21.1") }, nil},
 		{"unrelated desired channels", func(s *coreapi.ServiceProviderCluster) { s.Status.DesiredVersionChannels = []string{"fast-4.22"} }, nil},
-		{"desired version", func(s *coreapi.ServiceProviderCluster) { s.Spec.ControlPlaneVersion.DesiredVersion = v("4.22.0") }, minor21},
+		{"desired version", func(s *coreapi.ServiceProviderCluster) { s.Spec.ControlPlaneVersion.DesiredVersion = v("4.22.0") }, []string{"stable-4.21", "candidate-4.21", "fast-4.22"}},
 		{"desired transition time", func(s *coreapi.ServiceProviderCluster) {
 			s.Spec.ControlPlaneVersion.DesiredVersionLastTransitionTime = &metav1.Time{Time: time.Unix(100, 0)}
 		}, minor21},
@@ -64,7 +64,7 @@ func TestStatusCollectorServiceProviderClusterUpdates(t *testing.T) {
 		}, minor21},
 		{"active minor", func(s *coreapi.ServiceProviderCluster) {
 			s.Status.ControlPlaneVersion.ActiveVersions[0].Version = v("4.22.0")
-		}, []string{"stable-4.21", "candidate-4.21", "fast-4.22"}},
+		}, minor21},
 		{"active transition time", func(s *coreapi.ServiceProviderCluster) {
 			s.Status.ControlPlaneVersion.ActiveVersions[0].LastTransitionTime = metav1.Time{Time: time.Unix(100, 0)}
 		}, minor21},

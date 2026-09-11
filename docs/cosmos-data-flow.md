@@ -900,11 +900,11 @@ which lives in the **Fleet** Cosmos container — not the per-subscription "Reso
 container that holds every other type in this document. There is one
 `ControlPlaneVersionRollout` document per y-stream channel (e.g. `stable-4.21`),
 whose top-level resource name is that channel; all rollouts share a single
-partition keyed by the provider namespace. The Rollout Seeding and Forced Cluster
+partition keyed by the provider namespace. The Rollout Seeding, Initial Normal Cluster Desired Version, and Forced Cluster
 Desired Version controllers are driven by the Cluster (`HCPOpenShiftCluster`)
 informer (one key per cluster); the Best Version Selection, Status Collector, and
 Normal Cluster Desired Version controllers are driven by a
-`ControlPlaneVersionRollout` watching controller (one key per channel). All five
+`ControlPlaneVersionRollout` watching controller (one key per channel). All six
 run unconditionally — there is no feature gate.
 
 #### ControlPlaneVersionRolloutSeeding
@@ -944,6 +944,20 @@ run unconditionally — there is no feature gate.
 | Read | `ServiceProviderCluster` | <ul><li>`Spec.ControlPlaneVersion.DesiredVersion`</li><li>`Spec.ControlPlaneVersion.DesiredVersionLastTransitionTime`</li><li>`Status.ControlPlaneVersion.ActiveVersions` (`Version`, `LastTransitionTime`)</li><li>`ResourceID` (parent cluster ID, for channel matching)</li></ul> |
 | Read | `HCPOpenShiftCluster` | <ul><li>`CustomerProperties.Version.ChannelGroup`, `ID` (maps each ServiceProviderCluster to its y-stream channel)</li></ul> |
 | **Write** | **`ControlPlaneVersionRollout`** (Fleet) | <ul><li>**`Status.ClusterCountByDesiredExactVersion`**</li><li>**`Status.MismatchedClusterCountByDesiredExactVersion`**</li><li>**`Status.FailedClusterCountByDesiredExactVersion`**</li><li>**`Status.ClusterCountByAchievedExactVersion`**</li><li>**`Status.SuccessfulClusterCountByAchievedExactVersion`**</li></ul> |
+
+#### InitialNormalClusterDesiredVersion
+
+**File:** [initial_normal_desired_version_controller.go](../backend/pkg/controllers/versionrollout/initial_normal_desired_version_controller.go)
+**Trigger:** Standard cluster/ServiceProviderCluster watches, 1-minute resync (per cluster). Explicit 10-second requeue (returning nil) retries when the requested rollout or its best version is not available yet.
+**Gate:** ServiceProviderCluster must exist and `Spec.ControlPlaneVersion.DesiredVersion` must be nil. The backing cluster must have a valid requested channel (`Version.ChannelGroup` plus the minor of `Version.ID`), and that rollout must have `Spec.BestExactVersion` set. No progressive rollout gates apply. This controller does not write ControlPlaneVersionRollout or its conditions.
+
+| | Object | Fields |
+|---|--------|--------|
+| Read | `ServiceProviderCluster` | <ul><li>`Spec.ControlPlaneVersion.DesiredVersion` (must be nil)</li><li>Cosmos ETag (conditional Replace protects concurrent assignments)</li></ul> |
+| Read | `HCPOpenShiftCluster` | <ul><li>`CustomerProperties.Version.ChannelGroup`, `CustomerProperties.Version.ID` (requested y-stream channel)</li></ul> |
+| Read | `ControlPlaneVersionRollout` (Fleet) | <ul><li>`Spec.BestExactVersion` (must be non-nil)</li></ul> |
+| **Write** | **`ServiceProviderCluster`** | <ul><li>**`Spec.ControlPlaneVersion.DesiredVersion`** = requested channel's best exact version</li><li>**`Spec.ControlPlaneVersion.DesiredVersionLastTransitionTime`** = current time</li></ul> |
+| **Write** | **`Controller`** | Standard per-cluster controller status written by the cluster watching wrapper |
 
 #### NormalClusterDesiredVersion
 
@@ -1356,7 +1370,7 @@ A configured managed resource group name or `PendingAzureResource` alone does no
               +----------------+----------------+
               |                                 |
               v                                 v
-  NormalClusterDesiredVersion         ManagementClusterPlacementSync
+  InitialNormalClusterDesiredVersion  ManagementClusterPlacementSync
   + ForcedClusterDesiredVersion       (sets SPC.Status.MgmtClusterResourceID)
   (fleet rollout sets SPC.Spec.DesiredVersion)
               |                                 |
@@ -1660,10 +1674,11 @@ Single writer today (`RequirementsValid` only).
 
 | Actor | When |
 |-------|------|
+| [InitialNormalClusterDesiredVersion](#initialnormalclusterdesiredversion) | Initializes missing desired versions from the requested channel's best version |
 | [NormalClusterDesiredVersion](#normalclusterdesiredversion) | Advances eligible clusters toward the rollout's `Spec.BestExactVersion` (canary then rolling, within the failure budget) |
 | [ForcedClusterDesiredVersion](#forcedclusterdesiredversion) | Holds an SRE-pinned cluster at its pinned exact version, then adopts fleet best once the pin releases |
 
-Read by `ClusterClusterServiceCreate` (gate), `OperationClusterUpdate`, and `TriggerControlPlaneUpgrade`. Both writers co-write `Spec.ControlPlaneVersion.DesiredVersionLastTransitionTime` in the same Replace.
+Read by `ClusterClusterServiceCreate` (gate), `OperationClusterUpdate`, and `TriggerControlPlaneUpgrade`. All three writers co-write `Spec.ControlPlaneVersion.DesiredVersionLastTransitionTime` in the same Replace.
 
 ### `ServiceProviderCluster.Spec.PinnedVersion`
 

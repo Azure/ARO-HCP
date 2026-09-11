@@ -80,9 +80,8 @@ func (c *statusCollectorSyncer) watchStatusInputs(clusters, serviceProviderClust
 	logger := utils.DefaultLogger().WithValues(utils.LogValues{}.AddControllerName(StatusCollectorControllerName)...)
 	options := cache.HandlerOptions{Logger: &logger, ResyncPeriod: ptr.To(time.Duration(0))}
 	serviceProviderClusterMinor := func(serviceProviderCluster *coreapi.ServiceProviderCluster) string {
-		// Without an active or desired version, the requested-version fallback is
-		// unknown from this event. Conservatively enqueue every existing rollout.
-		minor, _ := clusterMinor(serviceProviderCluster, nil)
+		// Without a desired or active version, conservatively enqueue every rollout.
+		minor, _ := clusterMinor(serviceProviderCluster)
 		return minor
 	}
 	onServiceProviderCluster := func(obj any) {
@@ -121,9 +120,9 @@ func (c *statusCollectorSyncer) watchStatusInputs(clusters, serviceProviderClust
 			if !oldOK || !newOK {
 				return
 			}
-			oldMinor, _ := clusterMinor(&coreapi.ServiceProviderCluster{}, oldCluster)
-			newMinor, _ := clusterMinor(&coreapi.ServiceProviderCluster{}, newCluster)
-			if oldMinor != newMinor || oldCluster.CustomerProperties.Version.ChannelGroup != newCluster.CustomerProperties.Version.ChannelGroup {
+			oldChannel, _ := clusterYStreamChannel(oldCluster)
+			newChannel, _ := clusterYStreamChannel(newCluster)
+			if oldChannel != newChannel || oldCluster.CustomerProperties.Version.ChannelGroup != newCluster.CustomerProperties.Version.ChannelGroup {
 				c.enqueueStatusChannels(queue, "")
 			}
 		},
