@@ -17,6 +17,7 @@ package fleetcosmosstorage
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
@@ -209,6 +210,7 @@ func (g *cosmosFleetGlobalListers) ManagementClusterSchedulings() cosmosstorageu
 func (g *cosmosFleetGlobalListers) ControlPlaneVersionRollouts() cosmosstorageutils.GlobalLister[fleetapi.ControlPlaneVersionRollout] {
 	return &cosmosstorageutils.CosmosGlobalLister[fleetapi.ControlPlaneVersionRollout, cosmosstorageutils.GenericDocument[fleetapi.ControlPlaneVersionRollout]]{
 		ContainerClient: g.container,
+		PartitionKey:    strings.ToLower(coreapi.ProviderNamespace),
 		ResourceTypes:   []azcorearm.ResourceType{fleetapi.ControlPlaneVersionRolloutResourceType},
 	}
 }

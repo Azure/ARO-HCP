@@ -59,15 +59,16 @@ func TestClusterYStreamChannel(t *testing.T) {
 	}
 }
 
-func newSeedingSyncer(t *testing.T, ctx context.Context, cluster *coreapi.HCPOpenShiftCluster, rollouts ...*fleetapi.ControlPlaneVersionRollout) (*rolloutSeedingSyncer, *fleetcosmosstoragetesting.MockFleetDBClient) {
+func newSeedingSyncer(t *testing.T, ctx context.Context, cluster *coreapi.Cluster, rollouts ...*fleetapi.ControlPlaneVersionRollout) (*rolloutSeedingSyncer, *fleetcosmosstoragetesting.MockFleetDBClient) {
 	t.Helper()
 	mockDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster})
 	require.NoError(t, err, "failed to build mock resources DB client")
 	mockFleet, lister := newTestRolloutStore(t, rollouts...)
 	return &rolloutSeedingSyncer{
-		clusterLister: &corelistertesting.DBClusterLister{ResourcesDBClient: mockDB},
-		rolloutLister: lister,
-		fleetDBClient: mockFleet,
+		clusterLister:                &corelistertesting.DBClusterLister{ResourcesDBClient: mockDB},
+		serviceProviderClusterLister: &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockDB},
+		rolloutLister:                lister,
+		fleetDBClient:                mockFleet,
 	}, mockFleet
 }
 
@@ -105,6 +106,30 @@ func TestRolloutSeedingSyncer_SyncOnce(t *testing.T) {
 		assert.Equal(t, int64(1), got.GetInstanceVersion(), "existing rollout must not be rewritten")
 		require.NotNil(t, got.Spec.BestExactVersion, "existing rollout content must be preserved")
 		assert.True(t, got.Spec.BestExactVersion.EQ(*v("4.21.6")))
+	})
+
+	t.Run("seeds pinned minor in addition to requested minor", func(t *testing.T) {
+		ctx := context.Background()
+		syncer, fleet := newSeedingSyncer(t, ctx, newTestCluster("c1", "stable", "4.22"))
+		syncer.serviceProviderClusterLister = &corelistertesting.SliceServiceProviderClusterLister{ServiceProviderClusters: []*coreapi.ServiceProviderCluster{
+			newTestServiceProviderCluster("c1", v("4.21.4"), nil, &coreapi.ServiceProviderClusterPinnedVersion{ExactVersion: v("4.21.4"), UntilExactVersion: v("4.21.6")}),
+		}}
+		require.NoError(t, syncer.SyncOnce(ctx, key))
+		for _, yStreamChannel := range []string{"stable-4.22", "stable-4.21"} {
+			_, err := fleet.ControlPlaneVersionRollouts().Get(ctx, yStreamChannel)
+			require.NoError(t, err, "requested and pinned channels must both exist")
+		}
+	})
+
+	t.Run("nightly uses exact override without a graph rollout", func(t *testing.T) {
+		ctx := context.Background()
+		syncer, fleet := newSeedingSyncer(t, ctx, newTestCluster("c1", "nightly", "4.22"))
+		require.NoError(t, syncer.SyncOnce(ctx, key))
+		_, err := fleet.ControlPlaneVersionRollouts().Get(ctx, "nightly-4.22")
+		require.True(t, cosmosstorageutils.IsNotFoundError(err))
+		best, err := NewCincinnatiBestVersionSelector().BestExactVersionForChannel(ctx, "nightly-4.22")
+		require.NoError(t, err)
+		require.Nil(t, best)
 	})
 
 	t.Run("skips a cluster with no channel group", func(t *testing.T) {

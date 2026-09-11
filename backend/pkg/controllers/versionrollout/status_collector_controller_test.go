@@ -97,6 +97,17 @@ func TestComputeRolloutStatusCounts_ZeroTransitionTimesLeaveFailedAndSuccessfulE
 	assert.Empty(t, counts.Failed, "zero transition times leave failed empty")
 }
 
+func TestComputeRolloutStatusCounts_PartialOnlyIsNotAchieved(t *testing.T) {
+	entry := partial("4.21.6")
+	entry.LastTransitionTime = metav1.NewTime(statusTestNow.Add(-5 * time.Hour))
+	cluster := desiredSince(newTestServiceProviderCluster("partial-only", v("4.21.6"), []coreapi.ServiceProviderClusterActiveVersion{entry}, nil), 3*time.Hour)
+	counts := computeRolloutStatusCounts([]*coreapi.ServiceProviderCluster{cluster}, NewDefaultRolloutConfig(), statusTestNow)
+	require.Empty(t, counts.Achieved)
+	require.Empty(t, counts.Successful)
+	require.Equal(t, int64(1), counts.Mismatched["4.21.6"])
+	require.Equal(t, int64(1), counts.Failed["4.21.6"])
+}
+
 func TestStatusCollectorSyncer_SyncOnce(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
