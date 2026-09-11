@@ -808,12 +808,18 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		backendInformers,
 	)
 
-	cleanOrphanedClusterManagedResourceGroupController := clusterdeletion.NewCleanOrphanedClusterManagedResourceGroupController(
+	orphanedManagedResourceGroupController := clusterdeletion.NewOrphanedManagedResourceGroupController(
 		b.options.AzureLocation,
-		activeOperationLister,
+		b.options.ResourcesDBClient,
+		b.options.FPAClientBuilder,
+	)
+	managedResourceGroupWatchingController := clusterdeletion.NewManagedResourceGroupWatchingController(
+		b.options.AzureLocation,
+		orphanedManagedResourceGroupController,
 		b.options.ResourcesDBClient,
 		b.options.FPAClientBuilder,
 		backendInformers,
+		10*time.Minute,
 	)
 
 	ensureManagedResourceGroupController := clusterazureresources.NewManagedResourceGroupController(
@@ -1202,7 +1208,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go createNodePoolScopedReadDesiresController.Run(ctx, 20)
 				go createServiceProviderClusterController.Run(ctx, 20)
 				go createServiceProviderNodePoolController.Run(ctx, 20)
-				go cleanOrphanedClusterManagedResourceGroupController.Run(ctx, 20)
+				go managedResourceGroupWatchingController.Run(ctx, 20)
 				go ensureManagedResourceGroupController.Run(ctx, 20)
 				go triggerNodePoolUpgradeController.Run(ctx, 20)
 				go nodePoolDeletionClusterServiceDeleteDispatchController.Run(ctx, 20)
