@@ -369,3 +369,41 @@ tests:
         summary: "mgmt-1: Cluster create operation for /sub/8/cluster/flap stuck in provisioning for over 30 minutes"
         description: "Cluster create operation for /sub/8/cluster/flap has been in provisioning phase for over 30 minutes. Stuck operations are invisible to success/failure SLIs and require investigation."
         runbook_url: "https://aka.ms/arohcp-runbook-cluster-provision"
+# ========================================
+# Test 10: Alert clears when operation reaches terminal state
+# ========================================
+# A stuck create fires the alert, then the operation succeeds. Even though
+# max_over_time would hold the stale value for up to 6h, the top-level
+# 'and on (...)' gate checks that the recording rule is still emitting
+# (non-terminal phase only). Once the operation completes, the recording
+# rule stops emitting → the 'and' gate filters it out → alert clears.
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/9/cluster/clears", subscription_id="sub-9", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="provisioning", cluster="mgmt-1"}'
+    values: "0+0x95"
+  # phase_info=1 (provisioning) until t=50m, then 0 (operation reached terminal state)
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/9/cluster/clears", subscription_id="sub-9", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="provisioning", cluster="mgmt-1"}'
+    values: "1+0x50 0+0x44"
+  alert_rule_test:
+  # Alert fires: threshold 1800s crossed at 30m + 15m for = 45m. Eval at 50m confirms.
+  - eval_time: 50m
+    alertname: UserJourneyClusterProvisionStuckOperation
+    exp_alerts:
+    - exp_labels:
+        cluster: "mgmt-1"
+        component: slo
+        operation_type: "create"
+        phase: "provisioning"
+        resource_id: "/sub/9/cluster/clears"
+        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters"
+        severity: "4"
+        exclude_internal_subscriptions: "true"
+        subscription_id: "sub-9"
+      exp_annotations:
+        summary: "mgmt-1: Cluster create operation for /sub/9/cluster/clears stuck in provisioning for over 30 minutes"
+        description: "Cluster create operation for /sub/9/cluster/clears has been in provisioning phase for over 30 minutes. Stuck operations are invisible to success/failure SLIs and require investigation."
+        runbook_url: "https://aka.ms/arohcp-runbook-cluster-provision"
+  # Alert clears: operation reached terminal state at t=51m, recording rule stopped
+  # emitting, 'and on (...)' gate removes the series despite max_over_time hold.
+  - eval_time: 60m
+    alertname: UserJourneyClusterProvisionStuckOperation
