@@ -99,27 +99,21 @@ func TestMinorStringAndChannel(t *testing.T) {
 
 func TestClusterMinor(t *testing.T) {
 	t.Parallel()
-	for _, tc := range []struct {
-		name, active, desired, requested, want string
-	}{
-		{"active takes precedence", "4.21.6", "4.22.0", "4.23", "4.21"},
-		{"desired fallback", "", "4.22.0", "4.23", "4.22"},
-		{"requested minor fallback", "", "", "4.23", "4.23"},
-		{"requested exact fallback", "", "", "4.23.7", "4.23"},
-		{"invalid requested", "", "", "invalid", ""},
-		{"no versions", "", "", "", ""},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			spc := newTestSPC("c1", nil, nil, nil)
-			if tc.desired != "" {
-				spc.Spec.ControlPlaneVersion.DesiredVersion = v(tc.desired)
-			}
-			if tc.active != "" {
-				spc.Status.ControlPlaneVersion.ActiveVersions = []coreapi.HCPClusterActiveVersion{completed("4.24.0"), completed(tc.active)}
-			}
-			minor, ok := clusterMinor(spc, newTestCluster("c1", "stable", tc.requested))
-			assert.Equal(t, tc.want != "", ok)
-			assert.Equal(t, tc.want, minor)
-		})
-	}
+
+	// desired takes precedence
+	spc := newTestSPC("c1", v("4.22.0"), []coreapi.HCPClusterActiveVersion{completed("4.21.6")}, nil)
+	m, ok := clusterMinor(spc)
+	assert.True(t, ok)
+	assert.Equal(t, "4.22", m)
+
+	// falls back to earliest active
+	spc = newTestSPC("c1", nil, []coreapi.HCPClusterActiveVersion{completed("4.21.6")}, nil)
+	m, ok = clusterMinor(spc)
+	assert.True(t, ok)
+	assert.Equal(t, "4.21", m)
+
+	// neither
+	spc = newTestSPC("c1", nil, nil, nil)
+	_, ok = clusterMinor(spc)
+	assert.False(t, ok)
 }
