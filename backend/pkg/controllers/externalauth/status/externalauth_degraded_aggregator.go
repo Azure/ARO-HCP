@@ -19,6 +19,7 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
+	"strings"
 	"time"
 
 	"k8s.io/apimachinery/pkg/api/equality"
@@ -36,12 +37,12 @@ import (
 )
 
 const (
-	// CACertificateExpiryConditionType is the user-facing condition type set when the issuer
+	// CACertificateExpiredConditionType is the user-facing condition type set when the
 	// CA certificate has expired. Written to Status.UserFacingConditions only while expired;
-	CACertificateExpiryConditionType = "CACertificateExpiry"
+	CACertificateExpiredConditionType = "CACertificateExpired"
 
 	// CACertificateNotYetValidConditionType is the user-facing condition type set when the
-	// issuer CA certificate has a NotBefore in the future. A future NotBefore is accepted at
+	// CA certificate has a NotBefore in the future. A future NotBefore is accepted at
 	// admission time but surfaced here so operators are aware.
 	CACertificateNotYetValidConditionType = "CACertificateNotYetValid"
 )
@@ -129,11 +130,11 @@ func (c *externalAuthDegradedAggregator) SyncOnce(ctx context.Context, key contr
 
 	// CACertificateExpiry is user-facing only when the CA has expired.
 	// CACertificateNotYetValid is user-facing only when the CA has a start date in the future.
-	expiryCond, notYetValidCond := caCertValidityConditions(existing.Properties.Issuer.CA, c.clock.Now())
+	expiryCond, notYetValidCond := c.getCaCertValidityConditions(existing.Properties.Issuer.CA)
 	if expiryCond != nil {
 		apimeta.SetStatusCondition(&replacement.Status.UserFacingConditions, *expiryCond)
 	} else {
-		apimeta.RemoveStatusCondition(&replacement.Status.UserFacingConditions, CACertificateExpiryConditionType)
+		apimeta.RemoveStatusCondition(&replacement.Status.UserFacingConditions, CACertificateExpiredConditionType)
 	}
 	if notYetValidCond != nil {
 		apimeta.SetStatusCondition(&replacement.Status.UserFacingConditions, *notYetValidCond)
@@ -162,21 +163,20 @@ func (c *externalAuthDegradedAggregator) SyncOnce(ctx context.Context, key contr
 }
 
 // caCertValidityConditions inspects all CERTIFICATE PEM blocks in ca and returns
-// two conditions: expiryCond (CACertificateExpiry) and notYetValidCond (CACertificateNotYetValid).
+// two conditions: expiryCond (CACertificateExpired) and notYetValidCond (CACertificateNotYetValid).
 // Each is nil when not applicable. Both are derived from a single pass over the PEM bundle:
-//   - expiryCond is set when any cert has expired; the cert with the earliest NotAfter drives
-//     the condition message.
+//   - expiryCond is set when any cert has expired;
 //   - notYetValidCond is set when any cert has a start date in the future;
 //
 // Missing, empty, or entirely unparseable input causes both to return nil.
-func caCertValidityConditions(ca string, now time.Time) (expiryCond, notYetValidCond *metav1.Condition) {
+func (c *externalAuthDegradedAggregator) getCaCertValidityConditions(ca string) (expiryCond, notYetValidCond *metav1.Condition) {
 	if ca == "" {
 		return nil, nil
 	}
 
-	// Single pass: track earliest-expiring cert and start date is in the future cert.
-	var earliestExpired *x509.Certificate     // drives CACertificateExpiry
-	var earliestNotYetValid *x509.Certificate // drives CACertificateNotYetValid
+	var expired []*x509.Certificate
+	var notYetValid []*x509.Certificate
+	now := c.clock.Now()
 
 	rest := []byte(ca)
 	for {
@@ -192,39 +192,47 @@ func caCertValidityConditions(ca string, now time.Time) (expiryCond, notYetValid
 		if err != nil {
 			continue
 		}
-		// Expiry: keep the cert with the earliest NotAfter.
 		if now.After(cert.NotAfter) {
-			if earliestExpired == nil || cert.NotAfter.Before(earliestExpired.NotAfter) {
-				earliestExpired = cert
-			}
+			expired = append(expired, cert)
 		}
-		// Not-yet-valid: keep the cert with the NotBefore that is start date still in the future.
 		if now.Before(cert.NotBefore) {
-			if earliestNotYetValid == nil || cert.NotBefore.After(earliestNotYetValid.NotBefore) {
-				earliestNotYetValid = cert
-			}
+			notYetValid = append(notYetValid, cert)
 		}
 	}
 
-	if earliestExpired != nil {
-		notAfter := earliestExpired.NotAfter.UTC().Format(time.RFC3339)
+	if len(expired) > 0 {
 		expiryCond = &metav1.Condition{
-			Type:    CACertificateExpiryConditionType,
+			Type:    CACertificateExpiredConditionType,
 			Status:  metav1.ConditionTrue,
 			Reason:  "Expired",
-			Message: fmt.Sprintf("issuer CA certificate (CN=%s) expired at %s", earliestExpired.Subject.CommonName, notAfter),
+			Message: formatCACertExpiredMessage(expired),
 		}
 	}
 
-	if earliestNotYetValid != nil {
-		notBefore := earliestNotYetValid.NotBefore.UTC().Format(time.RFC3339)
+	if len(notYetValid) > 0 {
 		notYetValidCond = &metav1.Condition{
 			Type:    CACertificateNotYetValidConditionType,
 			Status:  metav1.ConditionTrue,
 			Reason:  "NotYetValid",
-			Message: fmt.Sprintf("issuer CA certificate (CN=%s) is not yet valid (NotBefore %s)", earliestNotYetValid.Subject.CommonName, notBefore),
+			Message: formatCACertNotYetValidMessage(notYetValid),
 		}
 	}
 
 	return expiryCond, notYetValidCond
+}
+
+func formatCACertExpiredMessage(certs []*x509.Certificate) string {
+	parts := make([]string, len(certs))
+	for i, cert := range certs {
+		parts[i] = fmt.Sprintf("CN=%s (NotAfter %s)", cert.Subject.CommonName, cert.NotAfter.UTC().Format(time.RFC3339))
+	}
+	return fmt.Sprintf("%d CA certificate(s) in the issuer bundle have expired: %s", len(certs), strings.Join(parts, "; "))
+}
+
+func formatCACertNotYetValidMessage(certs []*x509.Certificate) string {
+	parts := make([]string, len(certs))
+	for i, cert := range certs {
+		parts[i] = fmt.Sprintf("CN=%s (NotBefore %s)", cert.Subject.CommonName, cert.NotBefore.UTC().Format(time.RFC3339))
+	}
+	return fmt.Sprintf("%d CA certificate(s) in the issuer bundle are not yet valid: %s", len(certs), strings.Join(parts, "; "))
 }
