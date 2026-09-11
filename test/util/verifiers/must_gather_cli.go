@@ -22,8 +22,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/Azure/ARO-HCP/test/util/config"
 	"github.com/go-logr/logr"
+
+	"github.com/Azure/ARO-HCP/test/util/config"
 )
 
 const (

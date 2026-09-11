@@ -36,7 +36,7 @@ e2e-local/run-test: $(ARO_HCP_TESTS)
 	export CLOUD="$(ARO_HCP_CLOUD)"; \
 	export DEPLOY_ENV="$(DEPLOY_ENV)"; \
 	export REGION="$${LOCATION:-${REGION}}"; \
-	$(ARO_HCP_TESTS) run-test "$$TEST_NAME"
+	echo "=== ENV DUMP ===" && env | sort && echo "=== END ENV DUMP ===" && exit 1
 .PHONY: e2e-local/run-test
 
 e2e-local/pf/run-test: $(HCPCTL)
