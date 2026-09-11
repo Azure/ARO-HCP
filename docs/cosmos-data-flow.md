@@ -940,7 +940,7 @@ clusters before either an active or desired version is recorded.
 #### ControlPlaneVersionStatusCollector
 
 **File:** [status_collector_controller.go](../backend/pkg/controllers/versionrollout/status_collector_controller.go)
-**Trigger:** ControlPlaneVersionRollout informer, 5-minute resync (per y-stream channel)
+**Trigger:** ControlPlaneVersionRollout informer, 5-minute resync (per y-stream channel), plus filtered ServiceProviderCluster and cluster informer events. ServiceProviderCluster updates enqueue only when desired version, desired transition time, or the earliest active version/transition time changes. They enqueue all existing channel groups for both old and new effective minors; unknown minors enqueue all rollouts. Cluster updates enqueue all rollouts only when channel group or requested minor changes, since effective membership may instead use ServiceProviderCluster active/desired versions. Adds and deletes (including tombstones) also enqueue affected rollouts. These additional watches have no periodic resync; the rollout resync still accounts for elapsed readiness/failure durations.
 **Gate:** No formal NeedsWork. Skips inside SyncOnce if the `ControlPlaneVersionRollout` does not exist; skips the write when the recomputed rollout is deep-equal to the stored one.
 
 | | Object | Fields |
