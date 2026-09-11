@@ -907,6 +907,11 @@ Normal Cluster Desired Version controllers are driven by a
 `ControlPlaneVersionRollout` watching controller (one key per channel). All five
 run unconditionally — there is no feature gate.
 
+Channel membership for normal assignment and status collection uses the earliest
+active version first, then the ServiceProviderCluster desired version, then the
+minor of `HCPOpenShiftCluster.CustomerProperties.Version.ID`. This includes new
+clusters before either an active or desired version is recorded.
+
 #### ControlPlaneVersionRolloutSeeding
 
 **File:** [rollout_seeding_controller.go](../backend/pkg/controllers/versionrollout/rollout_seeding_controller.go)
@@ -942,7 +947,7 @@ run unconditionally — there is no feature gate.
 |---|--------|--------|
 | Read | `ControlPlaneVersionRollout` (Fleet) | <ul><li>Entire document (deep-equal comparison to avoid no-op writes)</li></ul> |
 | Read | `ServiceProviderCluster` | <ul><li>`Spec.ControlPlaneVersion.DesiredVersion`</li><li>`Spec.ControlPlaneVersion.DesiredVersionLastTransitionTime`</li><li>`Status.ControlPlaneVersion.ActiveVersions` (`Version`, `LastTransitionTime`)</li><li>`ResourceID` (parent cluster ID, for channel matching)</li></ul> |
-| Read | `HCPOpenShiftCluster` | <ul><li>`CustomerProperties.Version.ChannelGroup`, `ID` (maps each ServiceProviderCluster to its y-stream channel)</li></ul> |
+| Read | `HCPOpenShiftCluster` | <ul><li>`CustomerProperties.Version.ChannelGroup`, `ID` (maps each ServiceProviderCluster to its y-stream channel)</li><li>`CustomerProperties.Version.ID` (minor fallback when active and desired versions are absent)</li></ul> |
 | **Write** | **`ControlPlaneVersionRollout`** (Fleet) | <ul><li>**`Status.ClusterCountByDesiredExactVersion`**</li><li>**`Status.MismatchedClusterCountByDesiredExactVersion`**</li><li>**`Status.FailedClusterCountByDesiredExactVersion`**</li><li>**`Status.ClusterCountByAchievedExactVersion`**</li><li>**`Status.SuccessfulClusterCountByAchievedExactVersion`**</li></ul> |
 
 #### NormalClusterDesiredVersion
@@ -955,7 +960,7 @@ run unconditionally — there is no feature gate.
 |---|--------|--------|
 | Read | `ControlPlaneVersionRollout` (Fleet) | <ul><li>`Spec.BestExactVersion`</li><li>`Status.ClusterCountByDesiredExactVersion`</li><li>`Status.MismatchedClusterCountByDesiredExactVersion`</li><li>`Status.FailedClusterCountByDesiredExactVersion`</li><li>`Status.ClusterCountByAchievedExactVersion`</li><li>`Status.SuccessfulClusterCountByAchievedExactVersion`</li><li>`Status.Conditions` (compared to skip no-op writes)</li></ul> |
 | Read | `ServiceProviderCluster` | <ul><li>`Spec.ControlPlaneVersion.DesiredVersion` (eligibility: must be below best)</li><li>`Spec.PinnedVersion.ExactVersion`, `Spec.PinnedVersion.UntilExactVersion` (eligibility: unpinned or pin released)</li><li>`Status.ControlPlaneVersion.ActiveVersions` (channel matching)</li><li>`ResourceID` (subscription / resource group / parent cluster name)</li></ul> |
-| Read | `HCPOpenShiftCluster` | <ul><li>`CustomerProperties.Version.ChannelGroup`, `ID` (channel matching)</li><li>`CustomerProperties.Version.ID` (candidate-channel event mapping)</li><li>`ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion` (clusters with this set are excluded from advancement)</li></ul> |
+| Read | `HCPOpenShiftCluster` | <ul><li>`CustomerProperties.Version.ChannelGroup`, `ID` (channel matching)</li><li>`CustomerProperties.Version.ID` (candidate-channel event mapping and membership fallback when active and desired versions are absent)</li><li>`ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion` (clusters with this set are excluded from advancement)</li></ul> |
 | **Write** | **`ServiceProviderCluster`** (per selected cluster) | <ul><li>**`Spec.ControlPlaneVersion.DesiredVersion`** = `Spec.BestExactVersion`</li><li>**`Spec.ControlPlaneVersion.DesiredVersionLastTransitionTime`** = now (only when DesiredVersion actually changes)</li></ul> |
 | **Write** | **`ControlPlaneVersionRollout`** (Fleet) | <ul><li>**`Status.Conditions[Progressing]`** = True during canary/rolling/progressing</li><li>**`Status.Conditions[Degraded]`** = True when the failure budget is exceeded or a per-cluster assignment fails</li></ul> |
 
