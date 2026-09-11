@@ -43,6 +43,12 @@ spec:
   # No-data behavior: when all canary series disappear, sum/count returns empty
   # (no series), consistent with kube-apiserver SLI pattern. A separate absent()
   # alert should detect canary liveness (follow-up in ARO-25969).
+  #
+  # On-call routing sequencing: burn-rate alerts (MWMBR) and the canary-absence
+  # alert are delivered in ARO-25969; the Ingress runbook and TSG will be
+  # published alongside those alerts. Until ARO-25969 merges, no on-call paging
+  # path exists for these SLI series -- these recording rules are a foundation
+  # only and do not route any alerts by themselves.
   - name: arohcp_ingress_availability_slo_recording_rules
     interval: 1m
     rules:
