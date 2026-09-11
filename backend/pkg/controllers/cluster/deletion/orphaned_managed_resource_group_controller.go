@@ -22,6 +22,11 @@ import (
 	"os"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+
+	"k8s.io/component-base/metrics/legacyregistry"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	azruntime "github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
@@ -32,6 +37,24 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
+)
+
+var (
+	orphanedMRGsFound = promauto.With(legacyregistry.Registerer()).NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "aro_hcp_orphaned_managed_resource_groups_found_total",
+			Help: "Total number of orphaned cluster managed resource groups found",
+		},
+		[]string{"location"},
+	)
+
+	orphanedMRGsDeletionFailed = promauto.With(legacyregistry.Registerer()).NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "aro_hcp_orphaned_managed_resource_groups_deletion_failed_total",
+			Help: "Total number of orphaned cluster managed resource groups where deletion failed",
+		},
+		[]string{"location"},
+	)
 )
 
 // orphanedManagedResourceGroupController implements ManagedResourceGroupProcessor.
@@ -125,7 +148,6 @@ func (c *orphanedManagedResourceGroupController) ProcessManagedResourceGroup(ctx
 	rgClient, err := c.azureFPAClientBuilder.ResourceGroupsClient(tenantID, key.SubscriptionID)
 	if err != nil {
 		logger.Error(err, "Failed to create resource groups client")
-		orphanedMRGsDeletionFailed.WithLabelValues(c.location).Inc()
 		return utils.TrackError(err)
 	}
 
