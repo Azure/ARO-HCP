@@ -53,7 +53,7 @@ var DefaultDeploymentTimeoutSeconds = 30 * 6
 
 // defaultStepContextTimeout is the outer sanity timeout for a pipeline step when
 // the step definition does not specify a type-specific override.
-const defaultStepContextTimeout = 30 * time.Minute
+const defaultStepContextTimeout = 45 * time.Minute
 
 func compressTimingMetadata() bool {
 	ret, _ := strconv.ParseBool(os.Getenv("COMPRESS_TIMING_METADATA"))
