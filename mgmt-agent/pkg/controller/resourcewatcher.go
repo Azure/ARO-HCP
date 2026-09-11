@@ -42,6 +42,7 @@ var watchedGroupSuffixes = []string{
 	"multicluster.openshift.io",
 	"multitenancy.acn.azure.com",
 	"velero.io",
+	"route.openshift.io",
 }
 
 // watchedBuiltinGVRs is the hardcoded list of built-in (non-CRD)
