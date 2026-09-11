@@ -256,9 +256,9 @@ require (
 	github.com/oklog/ulid/v2 v2.1.1 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.1 // indirect
-	github.com/openshift-online/ocm-api-model/clientapi v0.0.464 // indirect
-	github.com/openshift-online/ocm-api-model/model v0.0.464 // indirect
-	github.com/openshift-online/ocm-sdk-go v0.1.509 // indirect
+	github.com/openshift-online/ocm-api-model/clientapi v0.0.466 // indirect
+	github.com/openshift-online/ocm-api-model/model v0.0.466 // indirect
+	github.com/openshift-online/ocm-sdk-go v0.1.511 // indirect
 	github.com/openshift/cluster-version-operator v1.0.1-0.20260202115537-557510ea0603 // indirect
 	github.com/peterbourgon/diskv v2.0.1+incompatible // indirect
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c // indirect

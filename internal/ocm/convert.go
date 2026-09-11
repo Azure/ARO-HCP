@@ -619,20 +619,30 @@ func BuildCSNodePool(ctx context.Context, nodePool *coreapi.HCPOpenShiftClusterN
 		if err != nil {
 			return nil, utils.TrackError(err)
 		}
+		azureNodePoolBuilder := arohcpv1alpha1.NewAzureNodePool().
+			ResourceName(strings.ToLower(nodePool.Name)).
+			VMSize(nodePool.Properties.Platform.VMSize).
+			EncryptionAtHost(convertEnableEncryptionAtHostToCSBuilder(nodePool.Properties.Platform)).
+			OsDisk(arohcpv1alpha1.NewAzureNodePoolOsDisk().
+				SizeGibibytes(int(*nodePool.Properties.Platform.OSDisk.SizeGiB)).
+				StorageAccountType(csDiskStorageAccountType).
+				Persistence(csPersistence))
+
+		if img := nodePool.ServiceProviderProperties.MarketplaceImage; img != nil {
+			azureNodePoolBuilder.Image(arohcpv1alpha1.NewAzureNodePoolImage().
+				Publisher(img.Publisher).
+				Offer(img.Offer).
+				SKU(img.SKU).
+				Version(img.Version))
+		}
+
 		nodePoolBuilder.
 			ID(strings.ToLower(nodePool.Name)).
 			Version(arohcpv1alpha1.NewVersion().
 				ID(NewOpenShiftVersionXYZ(nodePool.Properties.Version.ID, nodePool.Properties.Version.ChannelGroup)).
 				ChannelGroup(nodePool.Properties.Version.ChannelGroup)).
 			Subnet(subnetResourceIDString).
-			AzureNodePool(arohcpv1alpha1.NewAzureNodePool().
-				ResourceName(strings.ToLower(nodePool.Name)).
-				VMSize(nodePool.Properties.Platform.VMSize).
-				EncryptionAtHost(convertEnableEncryptionAtHostToCSBuilder(nodePool.Properties.Platform)).
-				OsDisk(arohcpv1alpha1.NewAzureNodePoolOsDisk().
-					SizeGibibytes(int(*nodePool.Properties.Platform.OSDisk.SizeGiB)).
-					StorageAccountType(csDiskStorageAccountType).
-					Persistence(csPersistence))).
+			AzureNodePool(azureNodePoolBuilder).
 			AvailabilityZone(nodePool.Properties.Platform.AvailabilityZone).
 			AutoRepair(nodePool.Properties.AutoRepair)
 	}

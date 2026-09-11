@@ -90,4 +90,11 @@ const (
 	// ExperimentalReleaseFeatures AFEC is registered on the subscription.
 	// The value must be a valid Go time.Duration string (e.g. "19m", "30m").
 	TagNodePoolMaxCreationDuration = ExperimentalNodePoolTagPrefix + "max-creation-duration"
+
+	// TagNodePoolMarketplaceImage is the ARM resource tag that specifies a
+	// marketplace image URN to use for the node pool's virtual machines when
+	// the ExperimentalReleaseFeatures AFEC is registered on the subscription.
+	// The value must be a valid marketplace image URN in the format
+	// "publisher:offer:sku:version" (e.g. "azureopenshift:aro4:aro_5-0_x64_gen2:10.2.20260423").
+	TagNodePoolMarketplaceImage = ExperimentalNodePoolTagPrefix + "marketplace-image"
 )

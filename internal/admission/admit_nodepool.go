@@ -92,6 +92,7 @@ func mutateNodePoolServiceProviderProperties(ctx context.Context, admissionConte
 
 	errs = append(errs, mutateNodePoolExperimentalTags(ctx, admissionContext, op)...)
 	errs = append(errs, mutateNodePoolCreateOperationCompletionDeadline(ctx, admissionContext, op, fldPath.Child("createOperationCompletionDeadline"), &newObj.CreateOperationCompletionDeadline)...)
+	errs = append(errs, mutateNodePoolMarketplaceImage(ctx, admissionContext, op, fldPath.Child("marketplaceImage"), &newObj.MarketplaceImage)...)
 
 	return errs
 }
@@ -111,7 +112,7 @@ func mutateNodePoolExperimentalTags(_ context.Context, admissionContext *NodePoo
 	tagsPath := field.NewPath("tags")
 	var errs field.ErrorList
 
-	knownTags := sets.New(metadataapi.TagNodePoolMaxCreationDuration)
+	knownTags := sets.New(metadataapi.TagNodePoolMaxCreationDuration, metadataapi.TagNodePoolMarketplaceImage)
 	for k := range tags {
 		if strings.HasPrefix(strings.ToLower(k), metadataapi.ExperimentalNodePoolTagPrefix) && !knownTags.Has(strings.ToLower(k)) {
 			errs = append(errs, field.Invalid(tagsPath.Key(k), k, "unrecognized experimental tag"))
@@ -156,6 +157,44 @@ func mutateNodePoolCreateOperationCompletionDeadline(_ context.Context, admissio
 
 	deadline := metav1.NewTime(admissionContext.Clock.Now().Add(duration))
 	*newObj = &deadline
+	return nil
+}
+
+// mutateNodePoolMarketplaceImage sets the marketplace image from the experimental
+// tag on CREATE. The tag value must be a URN in "publisher:offer:sku:version" format.
+// Immutable after creation — ignored on UPDATE.
+func mutateNodePoolMarketplaceImage(_ context.Context, admissionContext *NodePoolAdmissionContext, op operation.Operation, _ *field.Path, newObj **coreapi.MarketplaceImage) field.ErrorList {
+	if op.Type != operation.Create {
+		return nil
+	}
+
+	subscription := admissionContext.Subscription
+	if subscription == nil || !subscription.HasRegisteredFeature(metadataapi.FeatureExperimentalReleaseFeatures) {
+		return nil
+	}
+
+	var tags map[string]string
+	if admissionContext.OriginalNodePool != nil {
+		tags = admissionContext.OriginalNodePool.Tags
+	}
+
+	urn := lookupTag(tags, metadataapi.TagNodePoolMarketplaceImage)
+	if urn == "" {
+		return nil
+	}
+
+	parts := strings.Split(urn, ":")
+	if len(parts) != 4 || parts[0] == "" || parts[1] == "" || parts[2] == "" || parts[3] == "" {
+		tagsPath := field.NewPath("tags")
+		return field.ErrorList{field.Invalid(tagsPath.Key(metadataapi.TagNodePoolMarketplaceImage), urn, "must be a valid marketplace image URN in the format \"publisher:offer:sku:version\"")}
+	}
+
+	*newObj = &coreapi.MarketplaceImage{
+		Publisher: parts[0],
+		Offer:     parts[1],
+		SKU:       parts[2],
+		Version:   parts[3],
+	}
 	return nil
 }
 

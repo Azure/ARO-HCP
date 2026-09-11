@@ -78,9 +78,9 @@ require (
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/onsi/ginkgo/v2 v2.28.3 // indirect
 	github.com/onsi/gomega v1.40.0 // indirect
-	github.com/openshift-online/ocm-api-model/clientapi v0.0.464 // indirect
-	github.com/openshift-online/ocm-api-model/model v0.0.464 // indirect
-	github.com/openshift-online/ocm-sdk-go v0.1.509 // indirect
+	github.com/openshift-online/ocm-api-model/clientapi v0.0.466 // indirect
+	github.com/openshift-online/ocm-api-model/model v0.0.466 // indirect
+	github.com/openshift-online/ocm-sdk-go v0.1.511 // indirect
 	github.com/openshift/api v0.0.0-20260429122012-1180c0f5c3e9 // indirect
 	github.com/openshift/hypershift/api v0.0.0-20260708113917-8b5103a5875b // indirect
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c // indirect

@@ -389,6 +389,71 @@ func VerifyNodePoolUpgrade(expectedVersion string, nodePoolName string, previous
 	}
 }
 
+// rhcosMajorVersionRegex extracts the major version from an RHCOS OS image
+// string like "Red Hat Enterprise Linux CoreOS 10.2.20260724-0 (Coughlan)".
+var rhcosMajorVersionRegex = regexp.MustCompile(`CoreOS (\d+)\.`)
+
+type verifyNodePoolOSImage struct {
+	nodePoolName         string
+	expectedMajorVersion string // "9" or "10"
+}
+
+func (v verifyNodePoolOSImage) Name() string {
+	return fmt.Sprintf("VerifyNodePoolOSImage(nodePool=%s, expectedRHEL=%s)", v.nodePoolName, v.expectedMajorVersion)
+}
+
+func (v verifyNodePoolOSImage) Verify(ctx context.Context, adminRESTConfig *rest.Config) error {
+	kubeClient, err := kubernetes.NewForConfig(adminRESTConfig)
+	if err != nil {
+		return fmt.Errorf("failed to create kubernetes client: %w", err)
+	}
+
+	nodes, err := kubeClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return fmt.Errorf("can't list nodes in the cluster: %w", err)
+	}
+
+	matchingNodes, err := framework.SelectNodesBelongingToNodePool(nodes.Items, v.nodePoolName)
+	if err != nil {
+		return fmt.Errorf("failed to select nodes for node pool %q: %w", v.nodePoolName, err)
+	}
+
+	if len(matchingNodes) == 0 {
+		return fmt.Errorf("no nodes found in node pool %q", v.nodePoolName)
+	}
+
+	var mismatches []string
+	for i := range matchingNodes {
+		osImage := matchingNodes[i].Status.NodeInfo.OSImage
+		m := rhcosMajorVersionRegex.FindStringSubmatch(osImage)
+		if len(m) < 2 {
+			mismatches = append(mismatches, fmt.Sprintf("%s (could not parse RHEL version from osImage=%q)",
+				matchingNodes[i].Name, osImage))
+			continue
+		}
+		if m[1] != v.expectedMajorVersion {
+			mismatches = append(mismatches, fmt.Sprintf("%s (osImage=%q, RHEL major=%s, expected=%s)",
+				matchingNodes[i].Name, osImage, m[1], v.expectedMajorVersion))
+		}
+	}
+
+	if len(mismatches) > 0 {
+		return fmt.Errorf("node pool %q OS image mismatch: %s", v.nodePoolName, strings.Join(mismatches, "; "))
+	}
+	return nil
+}
+
+// VerifyNodePoolOSImage verifies that all nodes in the specified node pool
+// are running the expected RHEL major version by checking
+// node.Status.NodeInfo.OSImage (e.g. "Red Hat Enterprise Linux CoreOS
+// 10.2.20260724-0 (Coughlan)"). expectedMajorVersion should be "9" or "10".
+func VerifyNodePoolOSImage(nodePoolName, expectedMajorVersion string) HostedClusterVerifier {
+	return verifyNodePoolOSImage{
+		nodePoolName:         nodePoolName,
+		expectedMajorVersion: expectedMajorVersion,
+	}
+}
+
 // nodeReady returns true if the node has NodeReady condition status True.
 func nodeReady(node *corev1.Node) bool {
 	for _, c := range node.Status.Conditions {
