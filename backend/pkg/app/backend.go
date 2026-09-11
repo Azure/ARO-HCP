@@ -699,8 +699,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	controlPlaneVersionStatusController := versionrollout.NewStatusCollectorController(
 		b.options.FleetDBClient,
 		fleetInformers,
-		serviceProviderClusterLister,
-		clusterLister,
+		backendInformers,
 		b.clock,
 		rolloutConfig,
 	)
