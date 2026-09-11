@@ -370,6 +370,11 @@ var (
 	diskEncryptionSetName            = `^[a-zA-Z0-9_-]+$`
 	diskEncryptionSetNameRegex       = regexp.MustCompile(diskEncryptionSetName)
 	diskEncryptionSetNameErrorString = `(must contain only alphanumeric characters, underscores, and hyphens)`
+
+	// keyVaultKeyVersion See https://github.com/Azure/azure-rest-api-specs/blob/main/specification/keyvault/resource-manager/Microsoft.KeyVault/KeyVault/stable/2026-02-01/openapi.json#L2141-L2146
+	keyVaultKeyVersion            = `^[0-9a-fA-F]{32}$`
+	keyVaultKeyVersionRegex       = regexp.MustCompile(keyVaultKeyVersion)
+	keyVaultKeyVersionErrorString = `(must be a 32-character hexadecimal key version)`
 )
 
 func MatchesRegex(_ context.Context, _ operation.Operation, fldPath *field.Path, value, _ *string, regex *regexp.Regexp, errorString string) field.ErrorList {
@@ -394,6 +399,19 @@ func ValidateUUID(_ context.Context, _ operation.Operation, fldPath *field.Path,
 	}
 	if err := uuid.Validate(*value); err != nil {
 		return field.ErrorList{field.Invalid(fldPath, *value, err.Error())}
+	}
+	return nil
+}
+
+func AzureKeyVaultKeyVersion(_ context.Context, _ operation.Operation, fldPath *field.Path, value, _ *string) field.ErrorList {
+	if value == nil {
+		return nil
+	}
+	if len(*value) == 0 {
+		return nil
+	}
+	if !keyVaultKeyVersionRegex.MatchString(*value) {
+		return field.ErrorList{field.Invalid(fldPath, *value, keyVaultKeyVersionErrorString)}
 	}
 	return nil
 }
