@@ -47,7 +47,7 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 6,
+        "h": 4,
         "w": 6,
         "x": 0,
         "y": 0
@@ -131,7 +131,7 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 6,
+        "h": 4,
         "w": 6,
         "x": 6,
         "y": 0
@@ -227,7 +227,7 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 6,
+        "h": 4,
         "w": 6,
         "x": 12,
         "y": 0
@@ -368,7 +368,7 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 6,
+        "h": 4,
         "w": 6,
         "x": 18,
         "y": 0
@@ -452,10 +452,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 6,
+        "h": 4,
         "w": 6,
         "x": 0,
-        "y": 6
+        "y": 4
       },
       "id": 31,
       "options": {
@@ -517,7 +517,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 12
+        "y": 8
       },
       "id": 6,
       "panels": [],
@@ -575,7 +575,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 13
+        "y": 9
       },
       "id": 7,
       "options": {
@@ -666,7 +666,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 13
+        "y": 9
       },
       "id": 8,
       "options": {
@@ -708,7 +708,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 21
+        "y": 17
       },
       "id": 9,
       "panels": [],
@@ -752,10 +752,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 6,
+        "h": 4,
         "w": 8,
         "x": 0,
-        "y": 22
+        "y": 18
       },
       "id": 10,
       "options": {
@@ -901,10 +901,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 6,
+        "h": 4,
         "w": 8,
         "x": 8,
-        "y": 22
+        "y": 18
       },
       "id": 11,
       "options": {
@@ -1112,10 +1112,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 6,
+        "h": 4,
         "w": 8,
         "x": 16,
-        "y": 22
+        "y": 18
       },
       "id": 12,
       "options": {
@@ -1177,7 +1177,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 28
+        "y": 22
       },
       "id": 13,
       "panels": [],
@@ -1212,10 +1212,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 8,
+        "h": 4,
         "w": 8,
         "x": 0,
-        "y": 29
+        "y": 23
       },
       "id": 14,
       "options": {
@@ -1295,10 +1295,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 8,
+        "h": 4,
         "w": 8,
         "x": 8,
-        "y": 29
+        "y": 23
       },
       "id": 15,
       "options": {
@@ -1351,7 +1351,7 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "Fleet p99 create duration in minutes for successful create attempts completed within the selected window.",
+      "description": "Fleet p99 create duration in minutes for successful create attempts completed within the selected window. Uses the same 15-minute reference as the p95 SLO target, since the stated SLO (\"99% of node pools created in under 15 minutes\") is itself a p99-style claim. Per Steven Clarkson's SLO definition in ARO-19995 (child of ARO-19992, comment dated 2025-09-25).",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1363,6 +1363,10 @@
             "steps": [
               {
                 "color": "green"
+              },
+              {
+                "color": "red",
+                "value": 15
               }
             ]
           },
@@ -1374,10 +1378,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 8,
+        "h": 4,
         "w": 8,
         "x": 16,
-        "y": 29
+        "y": 23
       },
       "id": 16,
       "options": {
@@ -1476,7 +1480,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 37
+        "y": 27
       },
       "id": 17,
       "options": {
@@ -1537,7 +1541,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 45
+        "y": 35
       },
       "id": 18,
       "panels": [],
@@ -1581,7 +1585,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 46
+        "y": 36
       },
       "id": 19,
       "options": {
@@ -1652,7 +1656,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 46
+        "y": 36
       },
       "id": 20,
       "options": {
@@ -1692,7 +1696,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 54
+        "y": 44
       },
       "id": 21,
       "panels": [],
@@ -1753,7 +1757,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 55
+        "y": 45
       },
       "id": 22,
       "options": {
@@ -1841,7 +1845,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 55
+        "y": 45
       },
       "id": 23,
       "options": {
@@ -1924,7 +1928,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 55
+        "y": 45
       },
       "id": 24,
       "options": {
@@ -2012,7 +2016,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 63
+        "y": 53
       },
       "id": 32,
       "options": {
@@ -2096,7 +2100,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 63
+        "y": 53
       },
       "id": 33,
       "options": {
@@ -2136,7 +2140,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 71
+        "y": 61
       },
       "id": 25,
       "panels": [],
@@ -2260,7 +2264,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 72
+        "y": 62
       },
       "id": 26,
       "options": {
@@ -2342,7 +2346,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 72
+        "y": 62
       },
       "id": 27,
       "options": {
@@ -2418,7 +2422,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 80
+        "y": 70
       },
       "id": 28,
       "panels": [],
@@ -2459,7 +2463,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 81
+        "y": 71
       },
       "id": 29,
       "options": {
@@ -2566,7 +2570,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 89
+        "y": 79
       },
       "id": 30,
       "options": {
