@@ -591,7 +591,7 @@ tests:
   interval: 1m
   input_series:
   # Operation stuck in "deleting" phase since epoch (last_transition_time=0)
-  # Two Prometheus replicas — max without(prometheus_replica) deduplicates to one alert
+  # Two Prometheus replicas — max by (...) deduplicates to one alert
   - series: 'backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="deleting",resource_id="stuck1",subscription_id="sub1",cluster="svc-1",prometheus_replica="prom-0"}'
     values: "1+0x100"
   - series: 'backend_resource_operation_last_transition_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="deleting",resource_id="stuck1",subscription_id="sub1",cluster="svc-1",prometheus_replica="prom-0"}'
@@ -620,6 +620,40 @@ tests:
         summary: "Cluster deletion operation stuck1 stuck in deleting for over 1 hour"
         correlationId: "userJourneyClusterDeletionStuckOperation/svc-1/sub1"
         description: "Cluster delete operation for stuck1 has been in deleting phase for over 1 hour. Stuck operations are invisible to success/failure SLIs and require investigation."
+        runbook_url: "aka.ms/arohcp-runbook-cluster-deletion"
+# Stuck dedup: two series for the same operation differing only by volatile
+# instance label must collapse into a single alert (validates max by drops instance).
+- name: stuck_dedup_instance_label
+  interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="deleting",resource_id="stuck2",subscription_id="sub1",cluster="svc-1",instance="backend-0:8080"}'
+    values: "1+0x100"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="deleting",resource_id="stuck2",subscription_id="sub1",cluster="svc-1",instance="backend-0:8080"}'
+    values: "0+0x100"
+  - series: 'backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="deleting",resource_id="stuck2",subscription_id="sub1",cluster="svc-1",instance="backend-1:8080"}'
+    values: "1+0x100"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="deleting",resource_id="stuck2",subscription_id="sub1",cluster="svc-1",instance="backend-1:8080"}'
+    values: "0+0x100"
+  alert_rule_test:
+  - eval_time: 80m
+    alertname: userJourneyClusterDeletionStuckOperation
+    exp_alerts:
+    - exp_labels:
+        cluster: svc-1
+        severity: "4"
+        slo: cluster-deletion-stuck
+        component: slo
+        exclude_internal_subscriptions: "true"
+        operation_type: delete
+        phase: deleting
+        resource_id: stuck2
+        resource_type: microsoft.redhatopenshift/hcpopenshiftclusters
+        subscription_id: sub1
+      exp_annotations:
+        title: "Cluster deletion operation stuck in non-terminal phase for over 1 hour"
+        summary: "Cluster deletion operation stuck2 stuck in deleting for over 1 hour"
+        correlationId: "userJourneyClusterDeletionStuckOperation/svc-1/sub1"
+        description: "Cluster delete operation for stuck2 has been in deleting phase for over 1 hour. Stuck operations are invisible to success/failure SLIs and require investigation."
         runbook_url: "aka.ms/arohcp-runbook-cluster-deletion"
 # Stuck does NOT fire for operations that are less than 1 hour old
 # last_transition_time = 0, eval at 30m → time()-0 = 1800 < 3600
