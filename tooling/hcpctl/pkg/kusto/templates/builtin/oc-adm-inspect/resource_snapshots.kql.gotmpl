@@ -1,7 +1,8 @@
 {{- /*
-Reconstructs the state of every resource in a namespace as of the requested
-timestamp (TimestampMax) from the management cluster's resource snapshots. For
-each object (identified by apiVersion/kind/namespace/name/uid) it keeps the most
+Reconstructs the state of every resource on the cluster (or, when Namespace is
+set, of every resource in that one namespace) as of the requested timestamp
+(TimestampMax) from the management cluster's resource snapshots. For each
+object (identified by apiVersion/kind/namespace/name/uid) it keeps the most
 recent snapshot at or before the timestamp, then drops objects that were actually
 deleted by then: either the latest event was a Delete, or the object carried a
 deletionTimestamp whose graceful-deletion deadline (deletionTimestamp +
@@ -13,7 +14,9 @@ grace period has not yet expired are kept, because they still existed.
 kubernetesResourceSnapshots
 | where timestamp between ({{ .TimestampMin }} .. {{ .TimestampMax }})
 | where cluster == '{{.ClusterName}}'
+{{- if .Namespace}}
 | where namespace == '{{.Namespace}}' or (objectKind == 'Namespace' and name == '{{.Namespace}}')
+{{- end}}
 | summarize arg_max(timestamp, event, object) by apiVersion, objectKind, namespace, name, uid
 | where event != 'Delete'
 | extend deletionTimestamp = todatetime(object.metadata.deletionTimestamp)

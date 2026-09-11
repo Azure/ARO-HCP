@@ -27,6 +27,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/go-logr/logr"
 	"golang.org/x/sync/errgroup"
@@ -36,10 +37,11 @@ import (
 
 // Builtin query definition names (registered in pkg/kusto/templates/builtin/queries.yaml).
 const (
-	resourcesQueryName      = "ocAdmInspectResources"
-	eventsQueryName         = "ocAdmInspectEvents"
-	activeClustersQueryName = "ocAdmInspectActiveClusters"
-	namespacesQueryName     = "ocAdmInspectNamespaces"
+	resourcesQueryName       = "ocAdmInspectResources"
+	resourceHistoryQueryName = "ocAdmInspectResourceHistory"
+	eventsQueryName          = "ocAdmInspectEvents"
+	activeClustersQueryName  = "ocAdmInspectActiveClusters"
+	namespacesQueryName      = "ocAdmInspectNamespaces"
 )
 
 // containerLogSourceQueries are the container-log queries run per namespace, one
@@ -79,13 +81,34 @@ type LogLine struct {
 	Log any
 }
 
-// Writer persists what the inspector gathers for a namespace. Implementations
-// choose the on-disk layout.
+// ResourceEvent is one raw Add/Update/Delete row from the resource-snapshot
+// changelog (the ocAdmInspectResourceHistory query), unsummarized. Unlike
+// Resource — a single object reconstructed as of one point in time — it
+// carries the event type and timestamp needed to build a watch-index.
+type ResourceEvent struct {
+	Timestamp time.Time
+	// Event is Kusto's kubernetesResourceSnapshots.event value: "Add",
+	// "Update", or "Delete".
+	Event    string
+	Resource Resource
+}
+
+// Writer persists what the inspector gathers for a namespace, or for the
+// whole cluster. Implementations choose the on-disk layout.
 type Writer interface {
-	// WriteResources writes all resources gathered for a namespace.
+	// WriteResources writes all resources gathered for a namespace, or (for a
+	// whole-cluster inspection) every resource gathered for the whole cluster
+	// at once, with namespace passed as "".
 	WriteResources(ctx context.Context, namespace string, resources []Resource) error
+	// WriteResourceHistory writes the raw Add/Update/Delete changelog for a
+	// whole-cluster inspection. Implementations that have no use for
+	// per-event history (e.g. FilesystemWriter) may no-op. Callers must
+	// invoke WriteResources before this, on writers that build cross-call
+	// state (e.g. CRD-derived resource names) from it.
+	WriteResourceHistory(ctx context.Context, events []ResourceEvent) error
 	// WriteEvents writes the namespace's Kubernetes events (each event is a
-	// column->value map from the events query).
+	// column->value map from the events query), or every event gathered for
+	// the whole cluster at once, with namespace passed as "".
 	WriteEvents(ctx context.Context, namespace string, events []map[string]any) error
 	// WriteContainerLog writes the log lines for a single pod container.
 	WriteContainerLog(ctx context.Context, namespace, pod, container string, lines []LogLine) error
@@ -143,11 +166,87 @@ func (i *Inspector) InspectNamespaces(ctx context.Context, namespaces []string) 
 	return joinErrors(errs)
 }
 
-func (i *Inspector) inspectResources(ctx context.Context, namespace string) error {
-	rows, err := i.runNamespaceQuery(ctx, resourcesQueryName, namespace)
+// InspectCluster gathers and writes the poll-baseline state, history, and
+// events for the entire cluster across [baseOptions.TimestampMin,
+// baseOptions.TimestampMax] — rather than one namespace at one point in time.
+// lookbackFloor bounds how far back the poll-baseline query searches for each
+// object's last known state before TimestampMin: an object whose last real
+// change predates it (or predates table retention entirely) is missing from
+// the baseline. In practice this only matters for long-lived, untouched
+// Pods — everything else gets a synthetic Update row at least every 10h from
+// mgmt-agent's informer resync (see resourcewatcher.go), so a lookback wider
+// than that makes them reliably present regardless of real server-side
+// activity. No amount of lookback fully eliminates the possibility; widen it
+// as far as practical and accept the gap.
+//
+// Unlike InspectNamespaces, this runs exactly three Kusto queries total — no
+// namespace loop, no DiscoverNamespaces call. Every underlying query's
+// namespace filter is left unset, so each one already spans every namespace
+// and every cluster-scoped resource in one pass; grouping the results back
+// into per-namespace/per-cluster-scope collections happens in the Writer
+// (see KshrkWriter), not here.
+func (i *Inspector) InspectCluster(ctx context.Context, lookbackFloor time.Time) error {
+	logger := logr.FromContextOrDiscard(ctx)
+	windowStart := i.baseOptions.TimestampMin
+	windowEnd := i.baseOptions.TimestampMax
+
+	logger.Info("inspecting whole cluster",
+		"cluster", i.clusterName,
+		"windowStart", windowStart.Format(time.RFC3339),
+		"windowEnd", windowEnd.Format(time.RFC3339),
+		"lookbackFloor", lookbackFloor.Format(time.RFC3339),
+	)
+
+	baselineRows, err := i.runClusterQuery(ctx, resourcesQueryName, lookbackFloor, windowStart)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to query poll-baseline resource snapshots: %w", err)
 	}
+	if err := i.writer.WriteResources(ctx, "", rowsToResources(baselineRows)); err != nil {
+		return fmt.Errorf("failed to write poll-baseline resources: %w", err)
+	}
+
+	historyRows, err := i.runClusterQuery(ctx, resourceHistoryQueryName, windowStart, windowEnd)
+	if err != nil {
+		return fmt.Errorf("failed to query resource history: %w", err)
+	}
+	if err := i.writer.WriteResourceHistory(ctx, rowsToResourceEvents(historyRows)); err != nil {
+		return fmt.Errorf("failed to write resource history: %w", err)
+	}
+
+	eventRows, err := i.runClusterQuery(ctx, eventsQueryName, windowStart, windowEnd)
+	if err != nil {
+		return fmt.Errorf("failed to query events: %w", err)
+	}
+	if err := i.writer.WriteEvents(ctx, "", eventRows); err != nil {
+		return fmt.Errorf("failed to write events: %w", err)
+	}
+
+	return nil
+}
+
+// runClusterQuery runs a builtin query definition across the whole cluster —
+// namespace left unset, so cluster-scoped resources and every namespace are
+// returned in one pass — over [timestampMin, timestampMax], overriding the
+// Inspector's base window for that one query.
+func (i *Inspector) runClusterQuery(ctx context.Context, defName string, timestampMin, timestampMax time.Time) ([]map[string]any, error) {
+	def, err := i.factory.GetBuiltinQueryDefinition(defName)
+	if err != nil {
+		return nil, err
+	}
+	data := kusto.NewTemplateDataFromOptions(i.baseOptions,
+		kusto.WithClusterName(i.clusterName),
+		kusto.WithTimestampMin(timestampMin),
+		kusto.WithTimestampMax(timestampMax),
+	)
+	queries, err := i.factory.Build(*def, data)
+	if err != nil {
+		return nil, err
+	}
+	return runQuery(ctx, i.exec, queries[0])
+}
+
+// rowsToResources converts ocAdmInspectResources rows into Resources.
+func rowsToResources(rows []map[string]any) []Resource {
 	resources := make([]Resource, 0, len(rows))
 	for _, row := range rows {
 		object, _ := row["object"].(map[string]any)
@@ -159,7 +258,37 @@ func (i *Inspector) inspectResources(ctx context.Context, namespace string) erro
 			Object:     object,
 		})
 	}
-	return i.writer.WriteResources(ctx, namespace, resources)
+	return resources
+}
+
+// rowsToResourceEvents converts ocAdmInspectResourceHistory rows into
+// ResourceEvents.
+func rowsToResourceEvents(rows []map[string]any) []ResourceEvent {
+	events := make([]ResourceEvent, 0, len(rows))
+	for _, row := range rows {
+		object, _ := row["object"].(map[string]any)
+		timestamp, _ := time.Parse(time.RFC3339, asString(row["timestamp"]))
+		events = append(events, ResourceEvent{
+			Timestamp: timestamp,
+			Event:     asString(row["event"]),
+			Resource: Resource{
+				APIVersion: asString(row["apiVersion"]),
+				Kind:       asString(row["objectKind"]),
+				Namespace:  asString(row["namespace"]),
+				Name:       asString(row["name"]),
+				Object:     object,
+			},
+		})
+	}
+	return events
+}
+
+func (i *Inspector) inspectResources(ctx context.Context, namespace string) error {
+	rows, err := i.runNamespaceQuery(ctx, resourcesQueryName, namespace)
+	if err != nil {
+		return err
+	}
+	return i.writer.WriteResources(ctx, namespace, rowsToResources(rows))
 }
 
 func (i *Inspector) inspectEvents(ctx context.Context, namespace string) error {

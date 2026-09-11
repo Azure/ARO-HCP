@@ -6,6 +6,10 @@
   queryType: oc-adm-inspect-resource
   database: ServiceLogs
   templatePath: templates/builtin/oc-adm-inspect/resource_snapshots.kql.gotmpl
+- name: ocAdmInspectResourceHistory
+  queryType: oc-adm-inspect-resource
+  database: ServiceLogs
+  templatePath: templates/builtin/oc-adm-inspect/resource_history.kql.gotmpl
 - name: ocAdmInspectEvents
   queryType: oc-adm-inspect-events
   database: ServiceLogs

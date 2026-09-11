@@ -96,7 +96,7 @@ func (w *FilesystemWriter) WriteResources(_ context.Context, namespace string, r
 			}
 		}
 		group := apiGroup(resource.APIVersion)
-		fileKey := filepath.Join(group, resourcePlural(resource.Kind)+".yaml")
+		fileKey := filepath.Join(group, ResourcePlural(resource.Kind)+".yaml")
 		byFile[fileKey] = append(byFile[fileKey], resource)
 	}
 
@@ -138,6 +138,12 @@ func (w *FilesystemWriter) writeObjectFile(path string, obj any) error {
 	if err := os.WriteFile(path, append([]byte("---\n"), data...), 0o644); err != nil {
 		return fmt.Errorf("failed to write %s: %w", path, err)
 	}
+	return nil
+}
+
+// WriteResourceHistory is a no-op: FilesystemWriter mirrors oc adm inspect's
+// point-in-time layout, which has no place for a per-event changelog.
+func (w *FilesystemWriter) WriteResourceHistory(_ context.Context, _ []ResourceEvent) error {
 	return nil
 }
 
@@ -184,44 +190,6 @@ func apiGroup(apiVersion string) string {
 		return apiVersion[:idx]
 	}
 	return "core"
-}
-
-// irregularResourcePlurals maps a lowercased Kind to its resource (plural) name
-// where the naive rules below would be wrong. oc derives this from discovery; the
-// snapshot telemetry only carries the Kind, so we approximate.
-var irregularResourcePlurals = map[string]string{
-	"endpoints": "endpoints", // already plural
-}
-
-// resourcePlural approximates the plural resource name for a Kind (e.g. "Pod" ->
-// "pods", "NetworkPolicy" -> "networkpolicies", "Ingress" -> "ingresses"), used
-// for the list file names. It is an approximation of the discovery-derived
-// resource name oc uses, sufficient for the file layout.
-func resourcePlural(kind string) string {
-	lower := strings.ToLower(kind)
-	if lower == "" {
-		return ""
-	}
-	if plural, ok := irregularResourcePlurals[lower]; ok {
-		return plural
-	}
-	switch {
-	case strings.HasSuffix(lower, "s"), strings.HasSuffix(lower, "x"),
-		strings.HasSuffix(lower, "ch"), strings.HasSuffix(lower, "sh"):
-		return lower + "es"
-	case strings.HasSuffix(lower, "y") && len(lower) > 1 && !isVowel(lower[len(lower)-2]):
-		return lower[:len(lower)-1] + "ies"
-	default:
-		return lower + "s"
-	}
-}
-
-func isVowel(b byte) bool {
-	switch b {
-	case 'a', 'e', 'i', 'o', 'u':
-		return true
-	}
-	return false
 }
 
 // renderLogLine renders a container log payload: a plain string is emitted as-is
