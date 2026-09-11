@@ -15,6 +15,7 @@
 package controller
 
 import (
+	"reflect"
 	"testing"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -22,6 +23,47 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/sets"
 )
+
+func TestReflectorStoreLogsWithoutRetainingObjects(t *testing.T) {
+	var added, updated, deleted []interface{}
+	store := newReflectorStore(
+		func(obj interface{}) { added = append(added, obj) },
+		func(obj interface{}) { updated = append(updated, obj) },
+		func(obj interface{}) { deleted = append(deleted, obj) },
+	)
+
+	initial := []interface{}{"initial-1", "initial-2"}
+	if err := store.Replace(initial, "1"); err != nil {
+		t.Fatalf("Replace() error = %v", err)
+	}
+	if err := store.Add("added"); err != nil {
+		t.Fatalf("Add() error = %v", err)
+	}
+	if err := store.Update("updated"); err != nil {
+		t.Fatalf("Update() error = %v", err)
+	}
+	if err := store.Delete("deleted"); err != nil {
+		t.Fatalf("Delete() error = %v", err)
+	}
+	if err := store.Replace(nil, "2"); err != nil {
+		t.Fatalf("second Replace() error = %v", err)
+	}
+
+	if !reflect.DeepEqual(added, []interface{}{"initial-1", "initial-2", "added"}) {
+		t.Errorf("added = %#v", added)
+	}
+	if !reflect.DeepEqual(updated, []interface{}{"updated"}) {
+		t.Errorf("updated = %#v", updated)
+	}
+	if !reflect.DeepEqual(deleted, []interface{}{"deleted"}) {
+		t.Errorf("deleted = %#v", deleted)
+	}
+	select {
+	case <-store.synced:
+	default:
+		t.Error("store did not report initial synchronization")
+	}
+}
 
 func TestMatchesGroupSuffix(t *testing.T) {
 	tests := []struct {
@@ -137,22 +179,32 @@ func TestDiscoverGVRs(t *testing.T) {
 	}
 }
 
-func TestWatchedBuiltinGVRs(t *testing.T) {
-	// These built-in (non-CRD) resources are not covered by watchedGroupSuffixes,
-	// so they must be listed explicitly in watchedBuiltinGVRs to be snapshotted.
+func TestWatchedExplicitGVRs(t *testing.T) {
+	// These resources are not covered by watchedGroupSuffixes, so they must be
+	// listed explicitly in watchedExplicitGVRs to be snapshotted.
 	required := []schema.GroupVersionResource{
 		{Group: "", Version: "v1", Resource: "namespaces"},
 		{Group: "", Version: "v1", Resource: "nodes"},
+		{Group: "", Version: "v1", Resource: "configmaps"},
+		{Group: "", Version: "v1", Resource: "endpoints"},
+		{Group: "", Version: "v1", Resource: "persistentvolumeclaims"},
+		{Group: "", Version: "v1", Resource: "services"},
 		{Group: "apps", Version: "v1", Resource: "deployments"},
 		{Group: "apps", Version: "v1", Resource: "daemonsets"},
 		{Group: "apps", Version: "v1", Resource: "statefulsets"},
 		{Group: "apps", Version: "v1", Resource: "replicasets"},
+		{Group: "batch", Version: "v1", Resource: "cronjobs"},
+		{Group: "batch", Version: "v1", Resource: "jobs"},
+		{Group: "monitoring.coreos.com", Version: "v1", Resource: "podmonitors"},
+		{Group: "monitoring.coreos.com", Version: "v1", Resource: "servicemonitors"},
+		{Group: "networking.k8s.io", Version: "v1", Resource: "networkpolicies"},
+		{Group: "policy", Version: "v1", Resource: "poddisruptionbudgets"},
 	}
 
-	have := sets.New[schema.GroupVersionResource](watchedBuiltinGVRs...)
+	have := sets.New[schema.GroupVersionResource](watchedExplicitGVRs...)
 	for _, want := range required {
 		if !have.Has(want) {
-			t.Errorf("watchedBuiltinGVRs is missing %v", want)
+			t.Errorf("watchedExplicitGVRs is missing %v", want)
 		}
 	}
 }
