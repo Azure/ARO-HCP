@@ -55,7 +55,9 @@ var _ = Describe("Customer", func() {
 				if time.Now().After(framework.V20260630PreviewDeploymentDeadline) {
 					Fail(fmt.Sprintf("API version 2026-06-30-preview should be fully available by %s", framework.V20260630PreviewDeploymentDeadline.Format(time.RFC3339)))
 				}
-				Skip("API version 2026-06-30-preview is not fully available in this environment")
+				skipMsg := "API version 2026-06-30-preview is not fully available in this environment"
+				GinkgoLogr.Info(skipMsg)
+				Skip(skipMsg)
 			}
 
 			if tc.UsePooledIdentities() {
@@ -72,7 +74,9 @@ var _ = Describe("Customer", func() {
 			clusterParams.ClusterName = clusterName
 			openshiftVersionID, err := framework.PickAtLeastOpenshiftVersionId(clusterParams.OpenshiftVersionId, "4.22")
 			if framework.IsIncompatibleNightlyVersionError(err) {
-				Skip(fmt.Sprintf("this test needs OCP >= 4.22, but default version %q does not satisfy it: %v", clusterParams.OpenshiftVersionId, err))
+				skipMsg := fmt.Sprintf("this test needs OCP >= 4.22, but default version %q does not satisfy it: %v", clusterParams.OpenshiftVersionId, err)
+				GinkgoLogr.Info(skipMsg)
+				Skip(skipMsg)
 			}
 			Expect(err).NotTo(HaveOccurred(), "failed to select OpenShift version >= 4.22 (default version: %q)", clusterParams.OpenshiftVersionId)
 			clusterParams.OpenshiftVersionId = openshiftVersionID
@@ -103,7 +107,9 @@ var _ = Describe("Customer", func() {
 			)
 			if isAPINotDeployedError(err) {
 				if time.Now().Before(framework.V20260630PreviewDeploymentDeadline) {
-					Skip(fmt.Sprintf("v20260630preview API not yet deployed; skipping until %s", framework.V20260630PreviewDeploymentDeadline.Format(time.RFC3339)))
+					skipMsg := fmt.Sprintf("v20260630preview API not yet deployed; skipping until %s", framework.V20260630PreviewDeploymentDeadline.Format(time.RFC3339))
+					GinkgoLogr.Info(skipMsg)
+					Skip(skipMsg)
 				}
 				Fail(fmt.Sprintf("v20260630preview API still not deployed as of %s deadline", framework.V20260630PreviewDeploymentDeadline.Format(time.RFC3339)))
 			}
