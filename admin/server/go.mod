@@ -6,7 +6,7 @@ require (
 	github.com/Azure/ARO-HCP/internal v0.0.0-00010101000000-000000000000
 	github.com/Azure/ARO-HCP/sessiongate v0.0.0-00010101000000-000000000000
 	github.com/Azure/azure-kusto-go v0.16.1
-	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.21.1
+	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.22.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5 v5.7.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v6 v6.2.0
 	github.com/go-logr/logr v1.4.3
