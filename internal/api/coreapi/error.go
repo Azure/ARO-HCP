@@ -47,6 +47,7 @@ const (
 	CloudErrorCodeInvalidResourceName      = "InvalidResourceName"
 	CloudErrorCodeInvalidResourceGroupName = "InvalidResourceGroupName"
 	CloudErrorCodeLockContention           = "LockContention"
+	CloudErrorCodeQuotaExceeded            = "QuotaExceeded"
 )
 
 // CloudError represents a complete resource provider error.

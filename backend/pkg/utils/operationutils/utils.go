@@ -614,8 +614,10 @@ func convertInflightCheck(inflightCheck *arohcpv1alpha1.InflightCheck, logger lo
 		logger.Error(nil, "error converting inflight check details", "name", inflightCheck.Name())
 	}
 
+	code := coreapi.CloudErrorCodeForMessage(message, coreapi.CloudErrorCodeInternalServerError)
+
 	return coreapi.CloudErrorBody{
-		Code:    coreapi.CloudErrorCodeInternalServerError,
+		Code:    code,
 		Message: message,
 	}
 }

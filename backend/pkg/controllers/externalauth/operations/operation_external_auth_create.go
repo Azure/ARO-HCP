@@ -145,10 +145,7 @@ func (c *operationExternalAuthCreate) SynchronizeOperation(ctx context.Context, 
 	var persistErr *coreapi.CloudErrorBody
 	if operationalState.ProvisioningState == coreapi.ProvisioningStateFailed {
 		persistErr = &coreapi.CloudErrorBody{
-			// TODO for now we always set the error code to InternalServerError, but we should improve to be able
-			// to be more specific than that when we calculate operationalState. When work is done to improve on this, we
-			// should design it in a way where no internal details are exposed to the operation's error.
-			Code:    coreapi.CloudErrorCodeInternalServerError,
+			Code:    coreapi.CloudErrorCodeForMessage(operationalState.Message, coreapi.CloudErrorCodeInternalServerError),
 			Message: operationalState.Message,
 		}
 	}
