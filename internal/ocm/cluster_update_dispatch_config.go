@@ -226,10 +226,15 @@ func clusterUpdateDispatchEtcdFromRP(etcd coreapi.EtcdProfile) clusterUpdateDisp
 
 	res := clusterUpdateDispatchConfigEtcd{}
 	if etcd.DataEncryption.CustomerManaged.EncryptionType == metadataapi.CustomerManagedEncryptionTypeKMS {
+		kms := etcd.DataEncryption.CustomerManaged.Kms
+		version := kms.ActiveKey.Version
+		if kms.KeyEncryptionKeyURL != "" {
+			_, _, version, _ = coreapi.ParseKeyEncryptionKeyURL(kms.KeyEncryptionKeyURL)
+		}
 		res.DataEncryption.CustomerManaged = &clusterUpdateDispatchConfigEtcdDataEncryptionCustomerManaged{
 			Kms: &clusterUpdateDispatchConfigEtcdDataEncryptionCustomerManagedKms{
 				ActiveKey: clusterUpdateDispatchConfigEtcdDataEncryptionCustomerManagedKmsActiveKey{
-					Version: etcd.DataEncryption.CustomerManaged.Kms.ActiveKey.Version,
+					Version: version,
 				},
 			},
 		}

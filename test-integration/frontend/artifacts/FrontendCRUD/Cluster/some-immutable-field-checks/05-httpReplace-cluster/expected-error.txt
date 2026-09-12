@@ -55,11 +55,11 @@
       }
       {
         "code": "InvalidRequestContent",
-        "message": "Forbidden: field is immutable",
-        "target": "properties.etcd.dataEncryption.customerManaged.kms.activeKey.name"
+        "message": "Forbidden: keyEncryptionKeyUrl vault name is immutable",
+        "target": "properties.etcd.dataEncryption.customerManaged.kms.keyEncryptionKeyUrl"
       }
       {
         "code": "InvalidRequestContent",
-        "message": "Forbidden: field is immutable",
-        "target": "properties.etcd.dataEncryption.customerManaged.kms.activeKey.vaultName"
+        "message": "Forbidden: keyEncryptionKeyUrl key name is immutable",
+        "target": "properties.etcd.dataEncryption.customerManaged.kms.keyEncryptionKeyUrl"
       }
