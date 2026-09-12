@@ -55,3 +55,7 @@
   database: ServiceLogs
   queryType: custom-logs
   templatePath: templates/custom/kube_applier_logs.kql.gotmpl
+- name: kubernetesResourceSnapshots
+  database: ServiceLogs
+  queryType: custom-logs
+  templatePath: templates/custom/kubernetes_resource_snapshots.kql.gotmpl
