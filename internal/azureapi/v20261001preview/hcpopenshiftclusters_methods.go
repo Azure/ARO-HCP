@@ -284,12 +284,34 @@ func newConditions(from []metav1.Condition) []*generated.Condition {
 	return out
 }
 
-func newClusterResourceStatus(from *coreapi.HCPOpenShiftClusterStatus) generated.ResourceStatus {
-	if from == nil {
-		return generated.ResourceStatus{}
+func newActiveVersions(from []coreapi.HCPClusterActiveVersion) []*generated.ClusterActiveVersion {
+	if len(from) == 0 {
+		return nil
 	}
-	return generated.ResourceStatus{
-		Conditions: newConditions(from.UserFacingConditions),
+	out := make([]*generated.ClusterActiveVersion, 0, len(from))
+	for _, av := range from {
+		if av.Version == "" {
+			continue
+		}
+		out = append(out, &generated.ClusterActiveVersion{
+			Version: metadataapi.PtrOrNil(av.Version),
+		})
+	}
+	return out
+}
+
+func newClusterResourceStatus(from *coreapi.HCPOpenShiftClusterStatus) *generated.ClusterResourceStatus {
+	if from == nil {
+		return nil
+	}
+	conditions := newConditions(from.UserFacingConditions)
+	activeVersions := newActiveVersions(from.ActiveVersions)
+	if conditions == nil && activeVersions == nil {
+		return nil
+	}
+	return &generated.ClusterResourceStatus{
+		Conditions:     conditions,
+		ActiveVersions: activeVersions,
 	}
 }
 
@@ -400,7 +422,7 @@ func (v version) NewHCPOpenShiftCluster(from *coreapi.HCPOpenShiftCluster) corea
 				ClusterImageRegistry:    metadataapi.PtrOrNil(newClusterImageRegistryProfile(&from.CustomerProperties.ClusterImageRegistry)),
 				Etcd:                    metadataapi.PtrOrNil(newEtcdProfile(&from.CustomerProperties.Etcd)),
 				ImageDigestMirrors:      newImageDigestMirrors(from.CustomerProperties.ImageDigestMirrors),
-				Status:                  metadataapi.PtrOrNil(newClusterResourceStatus(&from.Status)),
+				Status:                  newClusterResourceStatus(&from.Status),
 				CryptoRestrictions:      metadataapi.PtrOrNil(generated.CryptoRestrictions(from.CustomerProperties.CryptoRestrictions)),
 			},
 			Identity: newManagedServiceIdentity(from.Identity),

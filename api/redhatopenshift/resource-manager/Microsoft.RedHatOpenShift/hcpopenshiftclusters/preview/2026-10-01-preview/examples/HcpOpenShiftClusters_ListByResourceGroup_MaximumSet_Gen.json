@@ -94,7 +94,23 @@
               "clusterImageRegistry": {
                 "state": "Enabled"
               },
-              "cryptoRestrictions": "None"
+              "cryptoRestrictions": "None",
+              "status": {
+                "conditions": [
+                  {
+                    "type": "Available",
+                    "status": "True",
+                    "lastTransitionTime": "2024-03-27T14:57:32.578Z",
+                    "reason": "AsExpected",
+                    "message": "Cluster is available"
+                  }
+                ],
+                "activeVersions": [
+                  {
+                    "version": "4.12"
+                  }
+                ]
+              }
             },
             "identity": {
               "principalId": "e5867472-f0ed-4fc1-80e1-59b4c0256adb",
