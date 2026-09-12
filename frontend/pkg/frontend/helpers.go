@@ -134,7 +134,7 @@ func checkForProvisioningStateConflict(
 }
 
 func (f *Frontend) DeleteAllResourcesInSubscription(ctx context.Context, subscriptionID string) error {
-	transaction := f.resourcesDBClient.NewTransaction(subscriptionID)
+	transaction := f.resourcesDBClient.NewTransaction(subscriptionID, "delete_subscription_resources")
 
 	clusterIterator, err := f.resourcesDBClient.HCPClusters(subscriptionID, "").List(ctx, nil)
 	if err != nil {

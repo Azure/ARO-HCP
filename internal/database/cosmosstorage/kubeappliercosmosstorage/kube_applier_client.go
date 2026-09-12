@@ -20,6 +20,8 @@ import (
 	"strings"
 	"sync"
 
+	"k8s.io/component-base/metrics/legacyregistry"
+
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
@@ -254,9 +256,13 @@ func (c *kubeApplierCosmosDBClient) ApplyDesiresFor(parent DesireScope) (cosmoss
 	if parent.resourceID == nil {
 		return nil, errors.New("desire scope is not initialized")
 	}
-	return cosmosstorageutils.NewCosmosResourceCRUDWithStrategies[kubeapplierapi.ApplyDesire, *kubeapplierapi.ApplyDesire, cosmosstorageutils.GenericDocument[kubeapplierapi.ApplyDesire]](
-		c.kubeApplier, parent.resourceID, kubeapplierapi.ApplyDesireResourceTypeForParent(parent.resourceID),
-		cosmosstorageutils.KubeApplierPartitionKeyDeriver{ManagementClusterResourceID: c.managementClusterResourceID}, parent.ResourceIDBuilder(),
+	resourceType := kubeapplierapi.ApplyDesireResourceTypeForParent(parent.resourceID)
+	return cosmosstorageutils.NewInstrumentedCRUD[kubeapplierapi.ApplyDesire, *kubeapplierapi.ApplyDesire](
+		cosmosstorageutils.NewCosmosResourceCRUDWithStrategies[kubeapplierapi.ApplyDesire, *kubeapplierapi.ApplyDesire, cosmosstorageutils.GenericDocument[kubeapplierapi.ApplyDesire]](
+			c.kubeApplier, parent.resourceID, resourceType,
+			cosmosstorageutils.KubeApplierPartitionKeyDeriver{ManagementClusterResourceID: c.managementClusterResourceID}, parent.ResourceIDBuilder()),
+		resourceType,
+		legacyregistry.Registerer(),
 	), nil
 }
 
@@ -265,9 +271,13 @@ func (c *kubeApplierCosmosDBClient) ReadDesiresFor(parent DesireScope) (cosmosst
 	if parent.resourceID == nil {
 		return nil, errors.New("desire scope is not initialized")
 	}
-	return cosmosstorageutils.NewCosmosResourceCRUDWithStrategies[kubeapplierapi.ReadDesire, *kubeapplierapi.ReadDesire, cosmosstorageutils.GenericDocument[kubeapplierapi.ReadDesire]](
-		c.kubeApplier, parent.resourceID, kubeapplierapi.ReadDesireResourceTypeForParent(parent.resourceID),
-		cosmosstorageutils.KubeApplierPartitionKeyDeriver{ManagementClusterResourceID: c.managementClusterResourceID}, parent.ResourceIDBuilder(),
+	resourceType := kubeapplierapi.ReadDesireResourceTypeForParent(parent.resourceID)
+	return cosmosstorageutils.NewInstrumentedCRUD[kubeapplierapi.ReadDesire, *kubeapplierapi.ReadDesire](
+		cosmosstorageutils.NewCosmosResourceCRUDWithStrategies[kubeapplierapi.ReadDesire, *kubeapplierapi.ReadDesire, cosmosstorageutils.GenericDocument[kubeapplierapi.ReadDesire]](
+			c.kubeApplier, parent.resourceID, resourceType,
+			cosmosstorageutils.KubeApplierPartitionKeyDeriver{ManagementClusterResourceID: c.managementClusterResourceID}, parent.ResourceIDBuilder()),
+		resourceType,
+		legacyregistry.Registerer(),
 	), nil
 }
 

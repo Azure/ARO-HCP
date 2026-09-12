@@ -18,6 +18,8 @@ import (
 	"context"
 	"fmt"
 
+	"k8s.io/component-base/metrics/legacyregistry"
+
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
@@ -96,9 +98,13 @@ func (c *cosmosFleetDBClient) Stamps() StampsCRUD {
 		c.container, nil, fleetapi.StampResourceType,
 		cosmosstorageutils.FleetPartitionKeyDeriver{}, cosmosstorageutils.FleetResourceIDBuilder{})
 	return &cosmosStampsCRUD{
-		ValidatingResourceCRUD: cosmosstorageutils.NewValidatingCRUD(inner,
-			validation.ValidateStampCreate,
-			validation.ValidateStampUpdate,
+		ValidatingResourceCRUD: cosmosstorageutils.NewInstrumentedValidatingCRUD(
+			cosmosstorageutils.NewValidatingCRUD(inner,
+				validation.ValidateStampCreate,
+				validation.ValidateStampUpdate,
+			),
+			fleetapi.StampResourceType,
+			legacyregistry.Registerer(),
 		),
 		containerClient: c.container,
 	}
@@ -128,9 +134,13 @@ func (s *cosmosStampsCRUD) ManagementClusters(stampIdentifier string) Management
 		s.containerClient, stampResourceID, fleetapi.ManagementClusterResourceType,
 		cosmosstorageutils.FleetPartitionKeyDeriver{}, cosmosstorageutils.FleetResourceIDBuilder{})
 	return &cosmosManagementClustersCRUD{
-		ValidatingResourceCRUD: cosmosstorageutils.NewValidatingCRUD(inner,
-			validation.ValidateManagementClusterCreate,
-			validation.ValidateManagementClusterUpdate,
+		ValidatingResourceCRUD: cosmosstorageutils.NewInstrumentedValidatingCRUD(
+			cosmosstorageutils.NewValidatingCRUD(inner,
+				validation.ValidateManagementClusterCreate,
+				validation.ValidateManagementClusterUpdate,
+			),
+			fleetapi.ManagementClusterResourceType,
+			legacyregistry.Registerer(),
 		),
 		containerClient: s.containerClient,
 		stampIdentifier: stampIdentifier,
@@ -148,9 +158,13 @@ func (m *cosmosManagementClustersCRUD) Controllers() cosmosstorageutils.Resource
 	if err != nil {
 		panic(fmt.Sprintf("invalid stamp identifier %q: %v", m.stampIdentifier, err))
 	}
-	return cosmosstorageutils.NewCosmosResourceCRUDWithStrategies[coreapi.Controller, *coreapi.Controller, cosmosstorageutils.GenericDocument[coreapi.Controller]](
-		m.containerClient, managementClusterResourceID, fleetapi.ManagementClusterControllerResourceType,
-		cosmosstorageutils.FleetPartitionKeyDeriver{}, cosmosstorageutils.FleetResourceIDBuilder{})
+	return cosmosstorageutils.NewInstrumentedCRUD[coreapi.Controller, *coreapi.Controller](
+		cosmosstorageutils.NewCosmosResourceCRUDWithStrategies[coreapi.Controller, *coreapi.Controller, cosmosstorageutils.GenericDocument[coreapi.Controller]](
+			m.containerClient, managementClusterResourceID, fleetapi.ManagementClusterControllerResourceType,
+			cosmosstorageutils.FleetPartitionKeyDeriver{}, cosmosstorageutils.FleetResourceIDBuilder{}),
+		fleetapi.ManagementClusterControllerResourceType,
+		legacyregistry.Registerer(),
+	)
 }
 
 func (m *cosmosManagementClustersCRUD) Scheduling() cosmosstorageutils.ResourceCRUD[fleetapi.ManagementClusterScheduling, *fleetapi.ManagementClusterScheduling] {

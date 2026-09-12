@@ -402,7 +402,7 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 
 	logger.Info(fmt.Sprintf("creating resource %s", newInternalCluster.ID))
 
-	transaction := f.resourcesDBClient.NewTransaction(newInternalCluster.ID.SubscriptionID)
+	transaction := f.resourcesDBClient.NewTransaction(newInternalCluster.ID.SubscriptionID, "create_cluster")
 
 	// TODO extract to straight instance creation and then validation.
 	clusterCreateOperation := cosmosstorageutils.NewOperation(
@@ -662,7 +662,7 @@ func (f *Frontend) updateHCPClusterInCosmos(ctx context.Context, writer http.Res
 	}
 	completeClusterIdentity(newInternalCluster, existingUserAssignedIdentities)
 
-	transaction := f.resourcesDBClient.NewTransaction(oldInternalCluster.ID.SubscriptionID)
+	transaction := f.resourcesDBClient.NewTransaction(oldInternalCluster.ID.SubscriptionID, "update_cluster")
 	clusterUpdateOperation := cosmosstorageutils.NewOperation(
 		cosmosstorageutils.OperationRequestUpdate,
 		oldInternalCluster.ID,
@@ -743,7 +743,7 @@ func (f *Frontend) DeleteCluster(writer http.ResponseWriter, request *http.Reque
 
 	logger.Info(fmt.Sprintf("deleting resource %s", cluster.ID))
 
-	transaction := f.resourcesDBClient.NewTransaction(cluster.ID.SubscriptionID)
+	transaction := f.resourcesDBClient.NewTransaction(cluster.ID.SubscriptionID, "delete_cluster")
 	if err := f.addDeleteClusterToTransaction(ctx, writer, request, transaction, cluster); err != nil {
 		return utils.TrackError(err)
 	}

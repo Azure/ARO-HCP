@@ -282,7 +282,7 @@ func (f *Frontend) createExternalAuth(writer http.ResponseWriter, request *http.
 
 	operationRequest := cosmosstorageutils.OperationRequestCreate
 
-	transaction := f.resourcesDBClient.NewTransaction(newInternalExternalAuth.ID.SubscriptionID)
+	transaction := f.resourcesDBClient.NewTransaction(newInternalExternalAuth.ID.SubscriptionID, "create_external_auth")
 
 	createExternalAuthOperation := cosmosstorageutils.NewOperation(
 		operationRequest,
@@ -482,7 +482,7 @@ func (f *Frontend) updateExternalAuthInCosmos(ctx context.Context, writer http.R
 
 	logger.Info(fmt.Sprintf("updating resource %s", oldInternalExternalAuth.ID))
 
-	transaction := f.resourcesDBClient.NewTransaction(oldInternalExternalAuth.ID.SubscriptionID)
+	transaction := f.resourcesDBClient.NewTransaction(oldInternalExternalAuth.ID.SubscriptionID, "update_external_auth")
 
 	externalAuthUpdateOperation := cosmosstorageutils.NewOperation(
 		cosmosstorageutils.OperationRequestUpdate,
@@ -568,7 +568,7 @@ func (f *Frontend) DeleteExternalAuth(writer http.ResponseWriter, request *http.
 
 	logger.Info(fmt.Sprintf("deleting resource %s", externalAuth.ID))
 
-	transaction := f.resourcesDBClient.NewTransaction(externalAuth.ID.SubscriptionID)
+	transaction := f.resourcesDBClient.NewTransaction(externalAuth.ID.SubscriptionID, "delete_external_auth")
 	if err := f.addDeleteExternalAuthToTransaction(ctx, writer, request, transaction, externalAuth); err != nil {
 		return utils.TrackError(err)
 	}
