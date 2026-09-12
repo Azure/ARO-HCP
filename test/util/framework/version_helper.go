@@ -189,7 +189,7 @@ func getLatestInstallVersionForNightlyChannel(ctx context.Context, version strin
 // default and given minimal version constraint arguments.
 //   - If defaultVersion already satisfies the minimalVersion, the default is
 //     returned unchanged.
-//   - If it doesn't, the mimimal version is returned instead, with one
+//   - If it doesn't, the minimal version is returned instead, with one
 //     exception: For nightly builds, an error is returned instead (since
 //     nightly versions cannot be bumped to a different minor version).
 //
