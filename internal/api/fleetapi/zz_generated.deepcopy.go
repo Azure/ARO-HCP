@@ -342,6 +342,11 @@ func (in *ManagementClusterStatus) DeepCopyInto(out *ManagementClusterStatus) {
 		*out = new(metadataapi.InternalID)
 		**out = **in
 	}
+	if in.SharedIngressIPAddresses != nil {
+		in, out := &in.SharedIngressIPAddresses, &out.SharedIngressIPAddresses
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
 	return
 }
 
