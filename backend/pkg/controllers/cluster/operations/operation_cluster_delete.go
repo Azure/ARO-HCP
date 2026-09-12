@@ -179,6 +179,19 @@ func (c *operationClusterDelete) SynchronizeOperation(ctx context.Context, key c
 		return nil
 	}
 
+	// Hold the delete operation non-terminal until every ApplyDesire for the cluster
+	// has been removed. Placed after the deadline check above so the timeout-failure
+	// path still fires if this cleanup stalls; that path (buildDeletionTimeoutMessage)
+	// surfaces the same per-controller breakdown on the operation.
+	remainingApplyDesires, applyDesireBreakdown, err := c.countRemainingApplyDesires(ctx, cluster)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to check remaining ApplyDesires: %w", err))
+	}
+	if remainingApplyDesires > 0 {
+		logger.Info("waiting for ApplyDesires to be deleted before completing delete operation", "remaining", remainingApplyDesires, "breakdown", applyDesireBreakdown)
+		return nil
+	}
+
 	if !c.shouldReconcileOperationAndResourceStatus(cluster) {
 		return nil
 	}
@@ -194,6 +207,39 @@ func (c *operationClusterDelete) shouldReconcileOperationAndResourceStatus(clust
 	return cluster.ServiceProviderProperties.DeletionTimestamp != nil &&
 		cluster.ServiceProviderProperties.ClusterServiceDeletionTimestamp != nil &&
 		cluster.ServiceProviderProperties.ClusterServiceID != nil
+}
+
+// countRemainingApplyDesires returns how many ApplyDesires still exist for the
+// cluster, along with a stable, human-readable per-controller breakdown (see
+// kubeappliercosmosstorage.SummarizeApplyDesiresByController). It is the single source
+// used both to hold the delete operation non-terminal (SynchronizeOperation) and to
+// describe the remaining ApplyDesires in the delete-timeout message
+// (buildDeletionTimeoutMessage). A missing ServiceProviderCluster, a nil
+// ManagementClusterResourceID, or an unavailable kube-applier client is treated as
+// "no remaining ApplyDesires".
+func (c *operationClusterDelete) countRemainingApplyDesires(ctx context.Context, cluster *coreapi.HCPOpenShiftCluster) (int, string, error) {
+	spc, err := c.resourcesDBClient.ServiceProviderClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName, cluster.ID.Name).Get(ctx, coreapi.ServiceProviderClusterResourceName)
+	if cosmosstorageutils.IsNotFoundError(err) {
+		return 0, "", nil
+	}
+	if err != nil {
+		return 0, "", fmt.Errorf("failed to get ServiceProviderCluster: %w", err)
+	}
+	if spc.Status.ManagementClusterResourceID == nil {
+		return 0, "", nil
+	}
+
+	kubeApplierDBClient := c.kubeApplierDBClients.For(ctx, spc.Status.ManagementClusterResourceID)
+	if kubeApplierDBClient == nil {
+		return 0, "", nil
+	}
+
+	applyDesireCRUD, err := kubeApplierDBClient.ApplyDesiresForCluster(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName, cluster.ID.Name)
+	if err != nil {
+		return 0, "", fmt.Errorf("failed to get kube-applier CRUD for ApplyDesires: %w", err)
+	}
+
+	return kubeappliercosmosstorage.SummarizeApplyDesiresByController(ctx, applyDesireCRUD)
 }
 
 func (c *operationClusterDelete) reconcileOperationAndResourceStatus(ctx context.Context, operation *coreapi.Operation, cluster *coreapi.HCPOpenShiftCluster) error {
@@ -260,6 +306,15 @@ func (c *operationClusterDelete) buildDeletionTimeoutMessage(ctx context.Context
 		errs = append(errs, err)
 	} else {
 		states = append(states, currState.WithSource("hostedCluster"))
+	}
+
+	if remaining, breakdown, err := c.countRemainingApplyDesires(ctx, cluster); err != nil {
+		errs = append(errs, err)
+	} else if remaining > 0 {
+		states = append(states, operationbase.NewOperationState(coreapi.ProvisioningStateDeleting,
+			fmt.Sprintf("%d ApplyDesire(s) still exist: %s", remaining, breakdown)).WithSource("applyDesires"))
+	} else {
+		states = append(states, operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, "").WithSource("applyDesires"))
 	}
 
 	if err := errors.Join(errs...); err != nil {
