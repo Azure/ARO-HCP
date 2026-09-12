@@ -124,6 +124,13 @@ type HCPOpenShiftClusterNodePoolServiceProviderProperties struct {
 	// The operation node pool create controller uses this value to decide about marking the install as failed.
 	// The e2e tests set this value to one minute less than the default timeout.
 	CreateOperationCompletionDeadline *metav1.Time `json:"createOperationCompletionDeadline,omitempty"`
+
+	// ExperimentalFeaturesEnabled records whether the FeatureExperimentalReleaseFeatures AFEC was
+	// registered on the subscription at node pool creation time. Used by internal/ocm/convert.go
+	// to gate experimental CS fields (e.g. SseEncryptionSetResourceId on the OS disk) that are
+	// only sent to Cluster Service when the AFEC is registered.
+	// Written by: Frontend PUT NodePool (Create)
+	ExperimentalFeaturesEnabled bool `json:"experimentalFeaturesEnabled,omitempty"`
 }
 
 // NodePoolVersionProfile represents the worker node pool version.
