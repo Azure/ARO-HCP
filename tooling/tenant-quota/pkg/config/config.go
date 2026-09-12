@@ -33,6 +33,24 @@ const (
 	DefaultScope         = "https://graph.microsoft.com/.default"
 	DefaultProwInterval  = 5 * time.Minute
 	DefaultProwRetention = 24 * time.Hour
+
+	DefaultCIJobOutcomesInterval = 5 * time.Minute
+	// DefaultCIJobOutcomesWindow is how much recent history each pass reads.
+	// Runs already stored are subtracted, so this only has to be long enough to
+	// cover the slowest run completing after faster ones started later, and
+	// short enough that a pass does not fetch months of runs in one unpaginated
+	// response. A gap longer than this is not backfilled.
+	DefaultCIJobOutcomesWindow = 24 * time.Hour
+	// DefaultCIJobOutcomesTimeout bounds a single pass, so that one stuck
+	// network call cannot hold the collector past its next tick and stall
+	// collection indefinitely.
+	//
+	// It is far longer than the collector-wide timeout because a pass reads one
+	// set of artifacts per run it has not seen, and a first pass over an empty
+	// table has a day of runs to read. Cutting a pass short is safe - runs
+	// already stored are subtracted from the next one, so a long backlog is
+	// worked through over several passes rather than lost.
+	DefaultCIJobOutcomesTimeout = 10 * time.Minute
 )
 
 type Config struct {
@@ -42,9 +60,112 @@ type Config struct {
 	Tenants  []TenantConfig `yaml:"tenants"`
 	Prow     ProwConfig     `yaml:"prow,omitempty"`
 
+	CIJobOutcomes CIJobOutcomesConfig `yaml:"ciJobOutcomes,omitempty"`
+
 	intervalDuration time.Duration
 	timeoutDuration  time.Duration
 	cacheTTLDuration time.Duration
+}
+
+// KustoTableConfig names a destination table and the ingestion mapping declared
+// alongside it in the table's own .kql file. The two are separate because a
+// mapping is a distinct Kusto object whose name is not derivable from the
+// table's.
+type KustoTableConfig struct {
+	Table            string `yaml:"table"`
+	IngestionMapping string `yaml:"ingestionMapping"`
+}
+
+// CIJobOutcomesConfig configures recording CI job outcomes in Kusto.
+type CIJobOutcomesConfig struct {
+	Enabled      bool   `yaml:"enabled"`
+	ClusterURI   string `yaml:"clusterURI"`
+	IngestionURI string `yaml:"ingestionURI"`
+	Database     string `yaml:"database"`
+
+	// Outcomes holds one row per run; TestNames is the test dimension; and
+	// TestResults joins the two with the per-test outcome and timings.
+	Outcomes    KustoTableConfig `yaml:"outcomes"`
+	TestNames   KustoTableConfig `yaml:"testNames"`
+	TestResults KustoTableConfig `yaml:"testResults"`
+
+	SippyURI  string   `yaml:"sippyURI"`
+	Releases  []string `yaml:"releases"`
+	JobFilter string   `yaml:"jobFilter"`
+	Interval  string   `yaml:"interval,omitempty"`
+	Window    string   `yaml:"window,omitempty"`
+	Timeout   string   `yaml:"timeout,omitempty"`
+
+	intervalDuration time.Duration
+	windowDuration   time.Duration
+	timeoutDuration  time.Duration
+}
+
+func (c *CIJobOutcomesConfig) GetInterval() time.Duration {
+	return c.intervalDuration
+}
+
+func (c *CIJobOutcomesConfig) GetWindow() time.Duration {
+	return c.windowDuration
+}
+
+func (c *CIJobOutcomesConfig) GetTimeout() time.Duration {
+	return c.timeoutDuration
+}
+
+func (c *CIJobOutcomesConfig) validate() error {
+	if err := parseDuration(c.Interval, DefaultCIJobOutcomesInterval, &c.intervalDuration, "ciJobOutcomes.interval"); err != nil {
+		return err
+	}
+	if err := parseDuration(c.Window, DefaultCIJobOutcomesWindow, &c.windowDuration, "ciJobOutcomes.window"); err != nil {
+		return err
+	}
+	if err := parseDuration(c.Timeout, DefaultCIJobOutcomesTimeout, &c.timeoutDuration, "ciJobOutcomes.timeout"); err != nil {
+		return err
+	}
+	if !c.Enabled {
+		return nil
+	}
+
+	required := map[string]string{
+		"ciJobOutcomes.database":  c.Database,
+		"ciJobOutcomes.jobFilter": c.JobFilter,
+	}
+	for prefix, table := range map[string]KustoTableConfig{
+		"ciJobOutcomes.outcomes":    c.Outcomes,
+		"ciJobOutcomes.testNames":   c.TestNames,
+		"ciJobOutcomes.testResults": c.TestResults,
+	} {
+		required[prefix+".table"] = table.Table
+		required[prefix+".ingestionMapping"] = table.IngestionMapping
+	}
+	for name, value := range required {
+		if strings.TrimSpace(value) == "" {
+			return fmt.Errorf("%s is required", name)
+		}
+	}
+
+	// Every endpoint is checked here rather than left to fail on first use: a
+	// missing scheme is accepted by url.Parse and only surfaces as a connection
+	// error once the collector is already running.
+	for name, value := range map[string]string{
+		"ciJobOutcomes.clusterURI":   c.ClusterURI,
+		"ciJobOutcomes.ingestionURI": c.IngestionURI,
+		"ciJobOutcomes.sippyURI":     c.SippyURI,
+	} {
+		if err := validateHTTPURL(value); err != nil {
+			return fmt.Errorf("%s %w", name, err)
+		}
+	}
+	if len(c.Releases) == 0 {
+		return fmt.Errorf("ciJobOutcomes.releases requires at least one release")
+	}
+	for i, release := range c.Releases {
+		if strings.TrimSpace(release) == "" {
+			return fmt.Errorf("ciJobOutcomes.releases[%d] must not be empty", i)
+		}
+	}
+	return nil
 }
 
 type ProwConfig struct {
@@ -114,6 +235,9 @@ func (c *Config) Validate() error {
 	if err := c.Prow.validate(); err != nil {
 		return err
 	}
+	if err := c.CIJobOutcomes.validate(); err != nil {
+		return err
+	}
 
 	if len(c.Tenants) == 0 {
 		return fmt.Errorf("at least one tenant must be configured")
@@ -145,6 +269,19 @@ func (c *Config) Validate() error {
 		}
 	}
 
+	return nil
+}
+
+// validateHTTPURL reports whether value is a usable HTTP or HTTPS endpoint.
+func validateHTTPURL(value string) error {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return fmt.Errorf("is required")
+	}
+	parsed, err := url.Parse(trimmed)
+	if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
+		return fmt.Errorf("must be a valid HTTP or HTTPS URL, got %q", trimmed)
+	}
 	return nil
 }
 

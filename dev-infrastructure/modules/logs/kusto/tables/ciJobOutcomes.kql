@@ -1,0 +1,65 @@
+// Outcomes of CI jobs, one row per Prow run.
+//
+// Unlike most tables in this database, this one is not fed from Event Hub. The
+// tenant-quota collector on the opstool cluster writes it directly - see
+// tooling/tenant-quota/pkg/cijoboutcomes - so it needs no raw staging table and
+// no update policy.
+//
+// It exists to make the rest of the telemetry joinable to CI. Container logs,
+// Kubernetes events and alerts all record the cluster a run used, but nothing
+// records whether the run passed, which job it was, or which pull request it
+// tested - so questions like "which alerts fire on runs whose e2e tests passed"
+// cannot be asked. svcCluster and mgmtCluster bridge the two: they are the AKS
+// cluster names the run provisioned, read from the run's own config.yaml
+// artifact and stored verbatim, so joining needs no parsing:
+//
+//     database('MonitoringEvents').alertEvents
+//     | extend cluster = tostring(alertContext.labels.cluster)
+//     | join kind=inner (
+//         ciJobOutcomes
+//         | mv-expand cluster = pack_array(svcCluster, mgmtCluster) to typeof(string)
+//         | where isnotempty(cluster)
+//       ) on cluster
+//
+// Per-test detail lives in ciTestResults, keyed by the same buildId.
+//
+// Only runs that provision their own clusters carry cluster names. Runs against
+// a promoted environment use clusters that already exist, and their telemetry
+// lives in that environment's own Kusto rather than here, so both columns are
+// left empty for them.
+.create-merge table ciJobOutcomes (
+    buildId: string,
+    svcCluster: string,
+    mgmtCluster: string,
+    jobName: string,
+    prowUrl: string,
+    sippyRelease: string,
+    family: string,
+    overallResult: string,
+    failed: bool,
+    testFailures: int,
+    startedAt: datetime,
+    finishedAt: datetime
+)
+with (
+    docstring = "Outcome of a single CI job run, written by the opstool tenant-quota collector",
+    folder = "CI"
+)
+
+.create-or-alter table ciJobOutcomes ingestion json mapping "ciJobOutcomesMapping"
+```
+[
+  {"column":"buildId","path":"$['buildId']","datatype":"string"},
+  {"column":"svcCluster","path":"$['svcCluster']","datatype":"string"},
+  {"column":"mgmtCluster","path":"$['mgmtCluster']","datatype":"string"},
+  {"column":"jobName","path":"$['jobName']","datatype":"string"},
+  {"column":"prowUrl","path":"$['prowUrl']","datatype":"string"},
+  {"column":"sippyRelease","path":"$['sippyRelease']","datatype":"string"},
+  {"column":"family","path":"$['family']","datatype":"string"},
+  {"column":"overallResult","path":"$['overallResult']","datatype":"string"},
+  {"column":"failed","path":"$['failed']","datatype":"bool"},
+  {"column":"testFailures","path":"$['testFailures']","datatype":"int"},
+  {"column":"startedAt","path":"$['startedAt']","datatype":"datetime"},
+  {"column":"finishedAt","path":"$['finishedAt']","datatype":"datetime"}
+]
+```

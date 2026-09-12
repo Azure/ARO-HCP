@@ -31,6 +31,29 @@ prow:
 {{- else }}
   excludeJobs: []
 {{- end }}
+ciJobOutcomes:
+  enabled: {{ .opstool.tenantQuota.ciJobOutcomes.enabled }}
+  clusterURI: "{{ .opstool.tenantQuota.ciJobOutcomes.clusterURI }}"
+  ingestionURI: "{{ .opstool.tenantQuota.ciJobOutcomes.ingestionURI }}"
+  database: "{{ .opstool.tenantQuota.ciJobOutcomes.database }}"
+  outcomes:
+    table: "{{ .opstool.tenantQuota.ciJobOutcomes.outcomes.table }}"
+    ingestionMapping: "{{ .opstool.tenantQuota.ciJobOutcomes.outcomes.ingestionMapping }}"
+  testNames:
+    table: "{{ .opstool.tenantQuota.ciJobOutcomes.testNames.table }}"
+    ingestionMapping: "{{ .opstool.tenantQuota.ciJobOutcomes.testNames.ingestionMapping }}"
+  testResults:
+    table: "{{ .opstool.tenantQuota.ciJobOutcomes.testResults.table }}"
+    ingestionMapping: "{{ .opstool.tenantQuota.ciJobOutcomes.testResults.ingestionMapping }}"
+  sippyURI: "{{ .opstool.tenantQuota.ciJobOutcomes.sippyURI }}"
+  jobFilter: "{{ .opstool.tenantQuota.ciJobOutcomes.jobFilter }}"
+  interval: "{{ .opstool.tenantQuota.ciJobOutcomes.interval }}"
+  timeout: "{{ .opstool.tenantQuota.ciJobOutcomes.timeout }}"
+  window: "{{ .opstool.tenantQuota.ciJobOutcomes.window }}"
+  releases:
+{{- range .opstool.tenantQuota.ciJobOutcomes.releases }}
+  - "{{ . }}"
+{{- end }}
 tenants:
 {{- range .opstool.tenantQuota.tenants }}
 - tenantId: "{{ .tenantId }}"

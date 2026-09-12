@@ -274,6 +274,7 @@
               "properties": {
                 "image": { "$ref": "#/$defs/Image" },
                 "prow": { "$ref": "#/$defs/ProwMetricsConfig" },
+                "ciJobOutcomes": { "$ref": "#/$defs/CIJobOutcomesConfig" },
                 "tenants": {
                   "type": "array",
                   "description": "List of Azure AD tenants to monitor for directory and subscription quota",
@@ -558,6 +559,43 @@
         }
       },
       "required": ["tenantId", "tenantName", "servicePrincipalClientId", "keyVaultSecretName"]
+    },
+    "CIJobOutcomesConfig": {
+      "type": "object",
+      "description": "Configuration for recording CI job outcomes in Kusto, so that the alerts and logs already held there can be attributed to the run that produced them",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "kustoName": { "type": "string", "description": "Name of the Kusto cluster holding the table" },
+        "kustoResourceGroup": { "type": "string", "description": "Resource group of the Kusto cluster" },
+        "clusterURI": { "type": "string", "format": "uri", "description": "Kusto cluster URI, used to read which runs are already stored" },
+        "ingestionURI": { "type": "string", "format": "uri", "description": "Kusto ingestion URI, used to write rows" },
+        "database": { "type": "string" },
+        "outcomes": { "$ref": "#/$defs/KustoTableConfig", "description": "Table holding one row per CI job run" },
+        "testNames": { "$ref": "#/$defs/KustoTableConfig", "description": "Dimension table holding one row per distinct test name" },
+        "testResults": { "$ref": "#/$defs/KustoTableConfig", "description": "Join table holding one row per test executed in a run" },
+        "sippyURI": { "type": "string", "format": "uri", "description": "Sippy endpoint that runs are read from" },
+        "jobFilter": { "type": "string", "description": "Substring a job name must contain to be recorded" },
+        "interval": { "type": "string", "description": "How often outcomes are recorded, as a Go duration" },
+        "timeout": { "type": "string", "description": "Bounds a single pass, as a Go duration; longer than the collector-wide timeout because a pass reads artifacts per run" },
+        "window": { "type": "string", "description": "How much recent history each pass reads, as a Go duration; runs already stored are subtracted" },
+        "releases": {
+          "type": "array",
+          "description": "Sippy releases whose runs are recorded",
+          "items": { "type": "string" }
+        }
+      },
+      "required": ["enabled"]
+    },
+    "KustoTableConfig": {
+      "type": "object",
+      "description": "A destination Kusto table and the ingestion mapping declared alongside it",
+      "additionalProperties": false,
+      "properties": {
+        "table": { "type": "string" },
+        "ingestionMapping": { "type": "string", "description": "Ingestion mapping declared on the table" }
+      },
+      "required": ["table", "ingestionMapping"]
     },
     "ProwMetricsConfig": {
       "type": "object",

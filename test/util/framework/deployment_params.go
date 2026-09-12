@@ -208,6 +208,7 @@ func DefaultOpenshiftNodePoolVersionId() string {
 	}
 	if release == nil {
 		Fail(fmt.Sprintf("no node pool release resolved for channel %s-%s", channelGroup, minor))
+		return ""
 	}
 	version = release.Version
 
