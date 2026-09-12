@@ -189,10 +189,6 @@ panels:
     step: "60s"
 - title: "CosmosDB Metrics"
   queries:
-  # One panel (one iframe) with three per-container charts. Each is a single
-  # Azure Monitor platform metric (Microsoft.DocumentDB/databaseAccounts) split
-  # by CollectionName, so every legend entry is just the container name; the
-  # aggregation is stated here in the blurb rather than repeated per series.
   - title: "RU Consumption vs Provisioned"
     description: "Per-container peak utilization of currently-provisioned throughput (max NormalizedRUConsumption). Sustained values near 100% mean the container is saturating its provisioned RU/s and will start throttling (429). Same signal as the 'Normalized RU Consumption High' alert."
     source: azureMonitor
@@ -226,6 +222,273 @@ panels:
         StatusCode: "429"
     unit: requests
     step: "60s"
+  - title: "Client RU/s by Calling Service and Source Kind"
+    description: "Five-minute average reported RU/s by calling Kubernetes container and controller/informer/unattributed work. Legends always identify calling_service and source_kind. All manifests-mc-* containers are summed into one group; other Cosmos containers have separate charts. Includes charged retries and errors; this is neither provisioned RU/s nor a request count."
+    query: |
+      sum by (cosmosdb_container_group, cluster, container, source_kind) (
+        label_replace(
+          label_replace(
+            max without (prometheus_replica) (
+              rate(cosmos_request_units_total[5m])
+            ),
+            "cosmosdb_container_group", "$1", "cosmosdb_container", "(.+)"
+          ),
+          "cosmosdb_container_group", "manifests-mc-*", "cosmosdb_container", "(?i:manifests-mc-.+)"
+        )
+      )
+    unit: RU/s
+    workspace: svc
+    step: "60s"
+    chartType: faceted-line
+    facetBy: cosmosdb_container_group
+    legendLabels:
+      container: calling_service
+      source_kind: source_kind
+  - title: "Top 10 Controllers by RU/s"
+    description: "Show every Cosmos container separately, and sum every manifests-mc-* container into one group. Within each group, select the ten controller/calling-service/cluster combinations with the highest total RU over the report window, then plot five-minute average RU/s. All statuses are combined and HA scrapes are deduplicated before summing pods and manifest containers."
+    query: |
+      sum by (cosmosdb_container_group, cluster, container, source) (
+        label_replace(
+          label_replace(
+            max without (prometheus_replica) (
+              rate(cosmos_request_units_total{source_kind="controller"}[5m])
+            ),
+            "cosmosdb_container_group", "$1", "cosmosdb_container", "(.+)"
+          ),
+          "cosmosdb_container_group", "manifests-mc-*", "cosmosdb_container", "(?i:manifests-mc-.+)"
+        )
+      )
+      and
+      topk by (cosmosdb_container_group) (10,
+        sum by (cosmosdb_container_group, cluster, container, source) (
+          label_replace(
+            label_replace(
+              max without (prometheus_replica) (
+                increase(cosmos_request_units_total{source_kind="controller"}[$__range] @ end())
+              ),
+              "cosmosdb_container_group", "$1", "cosmosdb_container", "(.+)"
+            ),
+            "cosmosdb_container_group", "manifests-mc-*", "cosmosdb_container", "(?i:manifests-mc-.+)"
+          )
+        ) > 0
+      )
+    unit: RU/s
+    workspace: svc
+    step: "60s"
+    chartType: faceted-line
+    facetBy: cosmosdb_container_group
+    legendLabels:
+      container: calling_service
+  - title: "Top 10 Controller Operation Costs"
+    description: "For each Cosmos container group, plot the ten controller/operation/calling-service/cluster combinations with the highest total RU over the report window. All manifests-mc-* costs are summed before ranking. Values are five-minute average RU/s with all statuses combined. Operations rank independently, rather than showing every operation of the top-ten controllers."
+    query: |
+      sum by (cosmosdb_container_group, cluster, container, source, operation) (
+        label_replace(
+          label_replace(
+            max without (prometheus_replica) (
+              rate(cosmos_request_units_total{source_kind="controller"}[5m])
+            ),
+            "cosmosdb_container_group", "$1", "cosmosdb_container", "(.+)"
+          ),
+          "cosmosdb_container_group", "manifests-mc-*", "cosmosdb_container", "(?i:manifests-mc-.+)"
+        )
+      )
+      and
+      topk by (cosmosdb_container_group) (10,
+        sum by (cosmosdb_container_group, cluster, container, source, operation) (
+          label_replace(
+            label_replace(
+              max without (prometheus_replica) (
+                increase(cosmos_request_units_total{source_kind="controller"}[$__range] @ end())
+              ),
+              "cosmosdb_container_group", "$1", "cosmosdb_container", "(.+)"
+            ),
+            "cosmosdb_container_group", "manifests-mc-*", "cosmosdb_container", "(?i:manifests-mc-.+)"
+          )
+        ) > 0
+      )
+    unit: RU/s
+    workspace: svc
+    step: "60s"
+    chartType: faceted-line
+    facetBy: cosmosdb_container_group
+    legendLabels:
+      container: calling_service
+  - title: "Top 10 Informers by RU/s"
+    description: "For each Cosmos container group, select the ten informer/calling-service/cluster combinations with the highest total RU over the report window, across all operations and statuses. All manifests-mc-* costs are summed before ranking. Plot five-minute average RU/s with fixed membership and at most ten legend entries per group. Every pod contributes; ActiveOperations and AllOperations remain separate."
+    query: |
+      sum by (cosmosdb_container_group, cluster, container, source) (
+        label_replace(
+          label_replace(
+            max without (prometheus_replica) (
+              rate(cosmos_request_units_total{source_kind="informer"}[5m])
+            ),
+            "cosmosdb_container_group", "$1", "cosmosdb_container", "(.+)"
+          ),
+          "cosmosdb_container_group", "manifests-mc-*", "cosmosdb_container", "(?i:manifests-mc-.+)"
+        )
+      )
+      and
+      topk by (cosmosdb_container_group) (10,
+        sum by (cosmosdb_container_group, cluster, container, source) (
+          label_replace(
+            label_replace(
+              max without (prometheus_replica) (
+                increase(cosmos_request_units_total{source_kind="informer"}[$__range] @ end())
+              ),
+              "cosmosdb_container_group", "$1", "cosmosdb_container", "(.+)"
+            ),
+            "cosmosdb_container_group", "manifests-mc-*", "cosmosdb_container", "(?i:manifests-mc-.+)"
+          )
+        ) > 0
+      )
+    unit: RU/s
+    workspace: svc
+    step: "60s"
+    chartType: faceted-line
+    facetBy: cosmosdb_container_group
+    legendLabels:
+      container: calling_service
+  - title: "Top 10 Informer List and Query Costs"
+    description: "For each Cosmos container group, plot five-minute average list/query RU/s for the ten highest-cost informer/calling-service/cluster combinations over the report window. Manifest containers, query/query-plan charges, pages, and statuses are summed before ranking. Correlate repeated bursts with restarts and relist intervals; initial lists are included, so this is not a relist count or RU per list. Preserve recovery and freshness when changing intervals."
+    query: |
+      sum by (cosmosdb_container_group, cluster, container, source) (
+        label_replace(
+          label_replace(
+            max without (prometheus_replica) (
+              rate(cosmos_request_units_total{source_kind="informer", operation=~"query|query_plan"}[5m])
+            ),
+            "cosmosdb_container_group", "$1", "cosmosdb_container", "(.+)"
+          ),
+          "cosmosdb_container_group", "manifests-mc-*", "cosmosdb_container", "(?i:manifests-mc-.+)"
+        )
+      )
+      and
+      topk by (cosmosdb_container_group) (10,
+        sum by (cosmosdb_container_group, cluster, container, source) (
+          label_replace(
+            label_replace(
+              max without (prometheus_replica) (
+                increase(cosmos_request_units_total{source_kind="informer", operation=~"query|query_plan"}[$__range] @ end())
+              ),
+              "cosmosdb_container_group", "$1", "cosmosdb_container", "(.+)"
+            ),
+            "cosmosdb_container_group", "manifests-mc-*", "cosmosdb_container", "(?i:manifests-mc-.+)"
+          )
+        ) > 0
+      )
+    unit: RU/s
+    workspace: svc
+    step: "60s"
+    chartType: faceted-line
+    facetBy: cosmosdb_container_group
+    legendLabels:
+      container: calling_service
+  - title: "Top 10 Informer Changefeed Costs"
+    description: "For each Cosmos container group, plot five-minute average changefeed RU/s for the ten highest-cost informer/calling-service/cluster combinations over the report window. All manifests-mc-* containers and statuses are summed before ranking. Compare sustained changefeed cost with list/query bursts to distinguish polling costs from relist costs. RU does not measure poll count, delivered changes, or freshness lag; SDK background feed-range discovery remains unattributed."
+    query: |
+      sum by (cosmosdb_container_group, cluster, container, source) (
+        label_replace(
+          label_replace(
+            max without (prometheus_replica) (
+              rate(cosmos_request_units_total{source_kind="informer", operation="change_feed"}[5m])
+            ),
+            "cosmosdb_container_group", "$1", "cosmosdb_container", "(.+)"
+          ),
+          "cosmosdb_container_group", "manifests-mc-*", "cosmosdb_container", "(?i:manifests-mc-.+)"
+        )
+      )
+      and
+      topk by (cosmosdb_container_group) (10,
+        sum by (cosmosdb_container_group, cluster, container, source) (
+          label_replace(
+            label_replace(
+              max without (prometheus_replica) (
+                increase(cosmos_request_units_total{source_kind="informer", operation="change_feed"}[$__range] @ end())
+              ),
+              "cosmosdb_container_group", "$1", "cosmosdb_container", "(.+)"
+            ),
+            "cosmosdb_container_group", "manifests-mc-*", "cosmosdb_container", "(?i:manifests-mc-.+)"
+          )
+        ) > 0
+      )
+    unit: RU/s
+    workspace: svc
+    step: "60s"
+    chartType: faceted-line
+    facetBy: cosmosdb_container_group
+    legendLabels:
+      container: calling_service
+  - title: "Top 10 Charged Error Costs"
+    description: "For each Cosmos container group, plot five-minute average RU/s for the ten sources with the highest total charged-error cost over the report window. All manifests-mc-* containers and HTTP 4xx/5xx statuses are summed before ranking; charged attempts later recovered by retries are included. This is cost, not an error rate or count: missing or zero-charge errors are invisible. Use platform throttled-request counts to assess throughput pressure."
+    query: |
+      sum by (cosmosdb_container_group, cluster, container, source_kind, source) (
+        label_replace(
+          label_replace(
+            max without (prometheus_replica) (
+              rate(cosmos_request_units_total{status_code=~"4..|5.."}[5m])
+            ),
+            "cosmosdb_container_group", "$1", "cosmosdb_container", "(.+)"
+          ),
+          "cosmosdb_container_group", "manifests-mc-*", "cosmosdb_container", "(?i:manifests-mc-.+)"
+        )
+      )
+      and
+      topk by (cosmosdb_container_group) (10,
+        sum by (cosmosdb_container_group, cluster, container, source_kind, source) (
+          label_replace(
+            label_replace(
+              max without (prometheus_replica) (
+                increase(cosmos_request_units_total{status_code=~"4..|5.."}[$__range] @ end())
+              ),
+              "cosmosdb_container_group", "$1", "cosmosdb_container", "(.+)"
+            ),
+            "cosmosdb_container_group", "manifests-mc-*", "cosmosdb_container", "(?i:manifests-mc-.+)"
+          )
+        ) > 0
+      )
+    unit: RU/s
+    workspace: svc
+    step: "60s"
+    chartType: faceted-line
+    facetBy: cosmosdb_container_group
+    legendLabels:
+      container: calling_service
+  - title: "Top 10 Unattributed Operation Costs"
+    description: "For each Cosmos container group, plot five-minute average RU/s for the ten unattributed operation/calling-service/cluster combinations with the highest total RU over the report window. All manifests-mc-* containers and statuses are summed before ranking. Includes SDK background feed_ranges, metadata, and callers without attribution. These costs contribute to the overview but cannot honestly be assigned to a controller."
+    query: |
+      sum by (cosmosdb_container_group, cluster, container, operation) (
+        label_replace(
+          label_replace(
+            max without (prometheus_replica) (
+              rate(cosmos_request_units_total{source_kind="unattributed"}[5m])
+            ),
+            "cosmosdb_container_group", "$1", "cosmosdb_container", "(.+)"
+          ),
+          "cosmosdb_container_group", "manifests-mc-*", "cosmosdb_container", "(?i:manifests-mc-.+)"
+        )
+      )
+      and
+      topk by (cosmosdb_container_group) (10,
+        sum by (cosmosdb_container_group, cluster, container, operation) (
+          label_replace(
+            label_replace(
+              max without (prometheus_replica) (
+                increase(cosmos_request_units_total{source_kind="unattributed"}[$__range] @ end())
+              ),
+              "cosmosdb_container_group", "$1", "cosmosdb_container", "(.+)"
+            ),
+            "cosmosdb_container_group", "manifests-mc-*", "cosmosdb_container", "(?i:manifests-mc-.+)"
+          )
+        ) > 0
+      )
+    unit: RU/s
+    workspace: svc
+    step: "60s"
+    chartType: faceted-line
+    facetBy: cosmosdb_container_group
+    legendLabels:
+      container: calling_service
 - title: "Maestro Metrics"
   queries:
   - title: "REST API Request Rate by Status"

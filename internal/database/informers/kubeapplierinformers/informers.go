@@ -69,7 +69,7 @@ func NewApplyDesireInformerWithRelistDuration(
 		"kubeApplier",
 	)
 	return cache.NewSharedIndexInformerWithOptions(
-		&informerutils.ListWatchWithoutWatchListSemantics{ListWatch: lw.ToListWatch()},
+		&informerutils.ListWatchWithoutWatchListSemantics{ListWatch: lw.ToListWatch(), InformerName: "ApplyDesires"},
 		&kubeapplierapi.ApplyDesire{},
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod:      1 * time.Hour,
@@ -105,7 +105,7 @@ func NewReadDesireInformerWithRelistDuration(
 		"kubeApplier",
 	)
 	return cache.NewSharedIndexInformerWithOptions(
-		&informerutils.ListWatchWithoutWatchListSemantics{ListWatch: lw.ToListWatch()},
+		&informerutils.ListWatchWithoutWatchListSemantics{ListWatch: lw.ToListWatch(), InformerName: "ReadDesires"},
 		&kubeapplierapi.ReadDesire{},
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod:      1 * time.Hour,

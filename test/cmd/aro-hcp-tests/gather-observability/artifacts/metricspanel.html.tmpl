@@ -35,7 +35,7 @@
 </head>
 <body>
 {{range .Charts}}
-    <div class="chart-section" data-min-peak-threshold="{{.MinPeakThreshold}}"{{if ne .ChartType "line"}} data-no-slider="true"{{end}}>
+    <div class="chart-section" data-min-peak-threshold="{{.MinPeakThreshold}}"{{if eq .ChartType "faceted-stacked-area"}} data-no-slider="true"{{end}}>
     {{if .HasData}}
         {{.ChartHTML}}
     {{else}}

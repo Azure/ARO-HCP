@@ -52,6 +52,7 @@ type PanelSpec struct {
 
 const (
 	chartTypeLine               = "line"
+	chartTypeFacetedLine        = "faceted-line"
 	chartTypeFacetedStackedArea = "faceted-stacked-area"
 )
 
@@ -138,6 +139,9 @@ type QuerySpec struct {
 	FacetBy          string            `json:"facetBy,omitempty" yaml:"facetBy,omitempty"`
 	StackBy          string            `json:"stackBy,omitempty" yaml:"stackBy,omitempty"`
 	Colors           map[string]string `json:"colors,omitempty" yaml:"colors,omitempty"`
+	// LegendLabels keeps these labels visible even when common to every series,
+	// using the configured display names without changing the metric labels.
+	LegendLabels map[string]string `json:"legendLabels,omitempty" yaml:"legendLabels,omitempty"`
 }
 
 // PrometheusResponse is the top-level Prometheus HTTP API response.
@@ -206,14 +210,14 @@ func parseQueriesConfig(data []byte) (*QueriesConfig, error) {
 			if q.ChartType == "" {
 				cfg.Panels[pi].Queries[qi].ChartType = chartTypeLine
 			}
-			if cfg.Panels[pi].Queries[qi].ChartType != chartTypeLine && cfg.Panels[pi].Queries[qi].ChartType != chartTypeFacetedStackedArea {
-				return nil, fmt.Errorf("panel %d (%s), query %d (%s): chartType must be %q or %q, got %q", pi, p.Title, qi, q.Title, chartTypeLine, chartTypeFacetedStackedArea, cfg.Panels[pi].Queries[qi].ChartType)
+			if cfg.Panels[pi].Queries[qi].ChartType != chartTypeLine && cfg.Panels[pi].Queries[qi].ChartType != chartTypeFacetedLine && cfg.Panels[pi].Queries[qi].ChartType != chartTypeFacetedStackedArea {
+				return nil, fmt.Errorf("panel %d (%s), query %d (%s): chartType must be %q, %q, or %q", pi, p.Title, qi, q.Title, chartTypeLine, chartTypeFacetedLine, chartTypeFacetedStackedArea)
 			}
-			if cfg.Panels[pi].Queries[qi].ChartType == chartTypeFacetedStackedArea && q.FacetBy == "" {
-				return nil, fmt.Errorf("panel %d (%s), query %d (%s): facetBy is required when chartType is %q", pi, p.Title, qi, q.Title, chartTypeFacetedStackedArea)
+			if cfg.Panels[pi].Queries[qi].ChartType != chartTypeLine && q.FacetBy == "" {
+				return nil, fmt.Errorf("panel %d (%s), query %d (%s): facetBy is required when chartType is %q", pi, p.Title, qi, q.Title, cfg.Panels[pi].Queries[qi].ChartType)
 			}
-			if cfg.Panels[pi].Queries[qi].ChartType != chartTypeFacetedStackedArea && q.FacetBy != "" {
-				return nil, fmt.Errorf("panel %d (%s), query %d (%s): facetBy is only valid with chartType %q", pi, p.Title, qi, q.Title, chartTypeFacetedStackedArea)
+			if cfg.Panels[pi].Queries[qi].ChartType == chartTypeLine && q.FacetBy != "" {
+				return nil, fmt.Errorf("panel %d (%s), query %d (%s): facetBy is only valid with chartType %q or %q", pi, p.Title, qi, q.Title, chartTypeFacetedLine, chartTypeFacetedStackedArea)
 			}
 		}
 	}
@@ -262,8 +266,8 @@ func validateAzureMonitorQuery(pi, qi int, panelTitle string, q QuerySpec) error
 			return fmt.Errorf("panel %d (%s), query %d (%s), metric %d (%s): normalizeByAutoscaleMax requires splitBy %q", pi, panelTitle, qi, q.Title, mi, m.Name, dimensionCollectionName)
 		}
 	}
-	if q.FacetBy != "" {
-		return fmt.Errorf("panel %d (%s), query %d (%s): facetBy is not supported with source %q", pi, panelTitle, qi, q.Title, sourceAzureMonitor)
+	if q.FacetBy != "" && q.FacetBy != "metric" {
+		return fmt.Errorf("panel %d (%s), query %d (%s): facetBy must be %q with source %q", pi, panelTitle, qi, q.Title, "metric", sourceAzureMonitor)
 	}
 	return nil
 }
@@ -294,6 +298,16 @@ func lookupPrometheusEndpoint(ctx context.Context, cred azcore.TokenCredential, 
 	return *resp.Properties.Metrics.PrometheusQueryEndpoint, nil
 }
 
+// resolvePromQL expands $__range to the report duration, using the same
+// whole-second boundaries sent to Prometheus. Combined with @ end(), it
+// selects a fixed report-wide cohort rather than a new topk at every step.
+func resolvePromQL(query string, start, end time.Time) string {
+	if !strings.Contains(query, "$__range") {
+		return query
+	}
+	return strings.ReplaceAll(query, "$__range", strconv.FormatInt(end.Unix()-start.Unix(), 10)+"s")
+}
+
 // queryRange executes a Prometheus query_range request against an Azure Monitor
 // Prometheus endpoint using bearer token authentication. The caller should pass
 // a shared *http.Client to amortize connection setup across multiple queries.
@@ -312,7 +326,7 @@ func queryRange(ctx context.Context, httpClient *http.Client, cred azcore.TokenC
 	u.Path = strings.TrimRight(u.Path, "/") + "/api/v1/query_range"
 
 	params := url.Values{}
-	params.Set("query", query)
+	params.Set("query", resolvePromQL(query, start, end))
 	params.Set("start", strconv.FormatInt(start.Unix(), 10))
 	params.Set("end", strconv.FormatInt(end.Unix(), 10))
 	params.Set("step", step)
