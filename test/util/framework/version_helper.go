@@ -37,6 +37,7 @@ var (
 	ErrNightlyReleaseStreamNotFound = errors.New("nightly release stream not found")
 	ErrNoAcceptedNightlyTags        = errors.New("no accepted nightly tags found")
 	ErrNoParseableNightlyTags       = errors.New("no parseable nightly tags found")
+	ErrNightlyVersionTooOld         = errors.New("nightly version is too old")
 )
 
 const (
@@ -66,6 +67,12 @@ func retryOnTransientError[T any](ctx context.Context, f func() (T, error)) (T, 
 		}
 	}
 	return zero, fmt.Errorf("after %d attempts: %w", versionFetchMaxRetries+1, lastErr)
+}
+
+// IsIncompatibleNightlyVersionError returns true if the error indicates that
+// a nightly version doesn't satisfy given constraints.
+func IsIncompatibleNightlyVersionError(err error) bool {
+	return errors.Is(err, ErrNightlyVersionTooOld)
 }
 
 // IsVersionNotFoundError returns true if the error indicates a version was not found,
@@ -176,4 +183,47 @@ func getLatestInstallVersionForNightlyChannel(ctx context.Context, version strin
 	}
 
 	return latestTagName, nil
+}
+
+// PickAtLeastOpenshiftVersionId selects latest version based on a predefined
+// default and given minimal version constraint arguments.
+//   - If defaultVersion already satisfies the minimalVersion, the default is
+//     returned unchanged.
+//   - If it doesn't, the minimal version is returned instead, with one
+//     exception: For nightly builds, an error is returned instead (since
+//     nightly versions cannot be bumped to a different minor version).
+//
+// Nightly versions (e.g. "4.19.0-0.nightly-multi-2026-09-01-142156") are compared
+// by Major.Minor only, not by full semver, because the pre-release suffix would
+// otherwise rank them below the bare release (4.19.0) and produce false negatives.
+func PickAtLeastOpenshiftVersionId(defaultVersion, minimalVersion string) (string, error) {
+	defaultSemver, err := semver.ParseTolerant(defaultVersion)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse default version %q: %w", defaultVersion, err)
+	}
+	minimalSemver, err := semver.ParseTolerant(minimalVersion)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse minimal version %q: %w", minimalVersion, err)
+	}
+
+	if strings.Contains(defaultVersion, "nightly") {
+		// For nightly builds, ignore the pre-release suffix and compare Major.Minor.Patch
+		// directly. Bare semver ordering would rank "4.19.0-0.nightly-multi-..." below
+		// "4.19.0", producing false negatives for patch-zero minimums. Nightly builds are
+		// always patch 0 (X.Y.0-0.nightly-multi-...), so a patch-qualified minimum such
+		// as "4.22.1" correctly rejects a 4.22.0 nightly.
+		defaultAboveMin := defaultSemver.Major > minimalSemver.Major ||
+			(defaultSemver.Major == minimalSemver.Major && defaultSemver.Minor > minimalSemver.Minor) ||
+			(defaultSemver.Major == minimalSemver.Major && defaultSemver.Minor == minimalSemver.Minor && defaultSemver.Patch >= minimalSemver.Patch)
+		if defaultAboveMin {
+			return defaultVersion, nil
+		}
+		return "", fmt.Errorf("%w: nightly build %s does not satisfy minimum %s",
+			ErrNightlyVersionTooOld, defaultVersion, minimalVersion)
+	}
+
+	if defaultSemver.GTE(minimalSemver) {
+		return defaultVersion, nil
+	}
+	return minimalVersion, nil
 }
