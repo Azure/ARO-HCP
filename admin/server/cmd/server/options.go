@@ -44,6 +44,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/certificate"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosmetrics"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/fpa"
@@ -194,6 +195,9 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 	registry := prometheus.NewRegistry()
 	registry.MustRegister(collectors.NewGoCollector())
 	registry.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
+	if err := cosmosmetrics.RegisterMetrics(registry); err != nil {
+		return nil, fmt.Errorf("failed to register Cosmos DB metrics: %w", err)
+	}
 
 	// Create CS client
 	csConnection, err := sdk.NewUnauthenticatedConnectionBuilder().
