@@ -106,7 +106,7 @@ func queryFooter(q QuerySpec, resourceID string, tw timing.TimeWindow) (lang, bo
 	if q.Source == sourceAzureMonitor {
 		return "Azure Monitor", azMetricsCommand(q, resourceID, tw)
 	}
-	return "PromQL", q.Query
+	return "PromQL", resolvePromQL(q.Query, tw.Start, tw.End)
 }
 
 // azMetricsCommand renders a copy-pasteable `az monitor metrics list` invocation
@@ -201,6 +201,10 @@ func buildChartData(q QuerySpec, resourceID, queryErr, warning string, results [
 		return chartData{Title: q.Title, Description: q.Description, Query: body, QueryLang: lang, Error: queryErr, Warning: warning, MinPeakThreshold: q.MinPeakThreshold}
 	}
 	switch q.ChartType {
+	case chartTypeFacetedLine:
+		cd := buildFacetedLineChartData(q, resourceID, series, tw)
+		cd.Warning = warning
+		return cd
 	case chartTypeFacetedStackedArea:
 		cd := buildFacetedStackedAreaChartData(q, resourceID, series, tw)
 		cd.Warning = warning
@@ -220,10 +224,10 @@ func buildLineChartData(q QuerySpec, resourceID string, series []parsedSeries, t
 	}
 	subtitle := fmt.Sprintf("Window: %s — %s", tw.Start.UTC().Format(time.RFC3339), tw.End.UTC().Format(time.RFC3339))
 
-	// Build labels: strip label keys that are the same across all series
+	// Compact common labels unless the query explicitly keeps them visible.
 	commonLabels := findCommonLabels(series)
 	for i := range series {
-		series[i].label = compactMetricLabel(series[i].metric, commonLabels)
+		series[i].label = compactMetricLabel(series[i].metric, commonLabels, q.LegendLabels)
 	}
 	// Sort by label for consistent color assignment across charts
 	slices.SortFunc(series, func(a, b parsedSeries) int {
@@ -326,6 +330,41 @@ func extractChartBody(rendered []byte) []byte {
 		return rendered[start+len("<body>") : end]
 	}
 	return rendered
+}
+
+// buildFacetedLineChartData gives each facet its own plot and legend. A shared
+// legend would merge the independent top-N cohorts back into more than N names.
+func buildFacetedLineChartData(q QuerySpec, resourceID string, series []parsedSeries, tw timing.TimeWindow) chartData {
+	facets := make(map[string][]parsedSeries)
+	for _, s := range series {
+		name := s.metric[q.FacetBy]
+		facets[name] = append(facets[name], s)
+	}
+	names := make([]string, 0, len(facets))
+	for name := range facets {
+		names = append(names, name)
+	}
+	slices.Sort(names)
+
+	var html bytes.Buffer
+	for _, name := range names {
+		facetQuery := q
+		facetQuery.Title = q.Title + " — " + name
+		facetQuery.ChartType = chartTypeLine
+		chart := buildLineChartData(facetQuery, resourceID, facets[name], tw)
+		html.WriteString(string(chart.ChartHTML))
+	}
+	lang, body := queryFooter(q, resourceID, tw)
+	return chartData{
+		Title:            q.Title,
+		Description:      q.Description,
+		Query:            body,
+		QueryLang:        lang,
+		HasData:          true,
+		ChartHTML:        template.HTML(html.String()), //nolint:gosec // trusted go-echarts output
+		MinPeakThreshold: q.MinPeakThreshold,
+		ChartType:        q.ChartType,
+	}
 }
 
 func buildFacetedStackedAreaChartData(q QuerySpec, resourceID string, series []parsedSeries, tw timing.TimeWindow) chartData {
@@ -586,13 +625,12 @@ func findCommonLabels(series []parsedSeries) map[string]bool {
 	return common
 }
 
-// compactMetricLabel builds a short label showing only the label keys that
-// differ across series. If only one differentiating key exists, shows just
-// the value.
-func compactMetricLabel(metric map[string]string, common map[string]bool) string {
+// compactMetricLabel omits common labels except those explicitly named in
+// displayNames. Explicit labels retain their display name even when alone.
+func compactMetricLabel(metric map[string]string, common map[string]bool, displayNames map[string]string) string {
 	var keys []string
 	for k := range metric {
-		if !common[k] {
+		if _, explicit := displayNames[k]; explicit || !common[k] {
 			keys = append(keys, k)
 		}
 	}
@@ -603,11 +641,17 @@ func compactMetricLabel(metric map[string]string, common map[string]bool) string
 		return metricLabel(metric)
 	}
 	if len(keys) == 1 {
-		return metric[keys[0]]
+		if _, explicit := displayNames[keys[0]]; !explicit {
+			return metric[keys[0]]
+		}
 	}
 	var parts []string
 	for _, k := range keys {
-		parts = append(parts, fmt.Sprintf("%s=%s", k, metric[k]))
+		name := k
+		if displayName := displayNames[k]; displayName != "" {
+			name = displayName
+		}
+		parts = append(parts, fmt.Sprintf("%s=%s", name, metric[k]))
 	}
 	return strings.Join(parts, ", ")
 }
