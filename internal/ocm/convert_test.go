@@ -1083,7 +1083,8 @@ func TestBuildCSCluster(t *testing.T) {
 				cluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{
 					EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
 					Kms: &coreapi.KmsEncryptionProfile{
-						Visibility: metadataapi.KeyVaultVisibilityPublic,
+						Visibility:          metadataapi.KeyVaultVisibilityPublic,
+						KeyEncryptionKeyURL: "https://test-vault.vault.azure.net/keys/test-key/v1",
 						ActiveKey: coreapi.KmsKey{
 							Name:      "test-key",
 							VaultName: "test-vault",
