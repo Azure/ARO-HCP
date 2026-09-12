@@ -313,6 +313,10 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 										coreapi.ServiceProviderClusterResourceTypeName + "/" +
 										coreapi.ServiceProviderClusterResourceName)),
 							},
+							Spec: coreapi.ServiceProviderClusterSpec{
+								ManagementClusterResourceID: metadataapi.Must(azcorearm.ParseResourceID(
+									"/subscriptions/" + operationtesting.TestSubscriptionID + "/resourceGroups/service/providers/Microsoft.RedHatOpenShift/managementClusters/test")),
+							},
 							Status: coreapi.ServiceProviderClusterStatus{
 								ServingCABundle: "fake-ca-data",
 								AzureResources: coreapi.AzureResources{
@@ -346,6 +350,216 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 
 			if tc.verifyDB != nil {
 				tc.verifyDB(t, ctx, mockResourcesDBClient)
+			}
+		})
+	}
+}
+
+func TestOperationClusterCreate_PlacementDeadline(t *testing.T) {
+	startTime := operationtesting.MustParseTime("2026-09-09T10:00:00Z")
+	fixture := operationtesting.NewClusterTestFixture()
+	insufficientCapacity := &metav1.Condition{
+		Type:    coreapi.CapacityAvailableConditionType,
+		Status:  metav1.ConditionFalse,
+		Reason:  coreapi.CapacityReasonInsufficientCapacity,
+		Message: "internal-management-cluster-id",
+	}
+	noEligibleCluster := &metav1.Condition{
+		Type:    coreapi.CapacityAvailableConditionType,
+		Status:  metav1.ConditionFalse,
+		Reason:  coreapi.CapacityReasonNoEligibleManagementCluster,
+		Message: "internal-management-cluster-id",
+	}
+	for _, tc := range []struct {
+		name                            string
+		timeSinceOperationStart         time.Duration
+		overallTimeout                  time.Duration
+		managementClusterAssigned       bool
+		serviceProviderClusterNotCached bool
+		placementCondition              *metav1.Condition
+		wantOperationState              coreapi.ProvisioningState
+		wantErrorCode                   string
+	}{
+		{
+			name:                    "capacity shortage waits until overall deadline",
+			timeSinceOperationStart: time.Hour - time.Nanosecond,
+			overallTimeout:          time.Hour,
+			placementCondition:      insufficientCapacity,
+			wantOperationState:      coreapi.ProvisioningStateProvisioning,
+		},
+		{
+			name:                    "overall deadline fails placement with capacity shortage",
+			timeSinceOperationStart: time.Hour,
+			overallTimeout:          time.Hour,
+			placementCondition:      insufficientCapacity,
+			wantOperationState:      coreapi.ProvisioningStateFailed,
+			wantErrorCode:           coreapi.CloudErrorCodeCapacityHeavyUse,
+		},
+		{
+			name:                    "overall deadline fails placement without eligible cluster",
+			timeSinceOperationStart: 10 * time.Minute,
+			overallTimeout:          10 * time.Minute,
+			placementCondition:      noEligibleCluster,
+			wantOperationState:      coreapi.ProvisioningStateFailed,
+			wantErrorCode:           coreapi.CloudErrorCodeCapacityHeavyUse,
+		},
+		{
+			name:                    "placement keeps provisioning without overall deadline",
+			timeSinceOperationStart: 2 * time.Hour,
+			placementCondition:      noEligibleCluster,
+			wantOperationState:      coreapi.ProvisioningStateProvisioning,
+		},
+		{
+			name:                            "uncached service provider cluster times out with internal error",
+			timeSinceOperationStart:         time.Hour,
+			overallTimeout:                  time.Hour,
+			serviceProviderClusterNotCached: true,
+			wantOperationState:              coreapi.ProvisioningStateFailed,
+			wantErrorCode:                   coreapi.CloudErrorCodeInternalServerError,
+		},
+		{
+			name:                    "missing placement status times out with internal error",
+			timeSinceOperationStart: time.Hour,
+			overallTimeout:          time.Hour,
+			wantOperationState:      coreapi.ProvisioningStateFailed,
+			wantErrorCode:           coreapi.CloudErrorCodeInternalServerError,
+		},
+		{
+			name:                    "unknown capacity times out with internal error",
+			timeSinceOperationStart: time.Hour,
+			overallTimeout:          time.Hour,
+			placementCondition: &metav1.Condition{
+				Type:   coreapi.CapacityAvailableConditionType,
+				Status: metav1.ConditionUnknown,
+				Reason: coreapi.CapacityReasonEvaluationIncomplete,
+			},
+			wantOperationState: coreapi.ProvisioningStateFailed,
+			wantErrorCode:      coreapi.CloudErrorCodeInternalServerError,
+		},
+		{
+			name:                    "available capacity without assignment times out with internal error",
+			timeSinceOperationStart: time.Hour,
+			overallTimeout:          time.Hour,
+			placementCondition: &metav1.Condition{
+				Type:   coreapi.CapacityAvailableConditionType,
+				Status: metav1.ConditionTrue,
+				Reason: coreapi.CapacityReasonAvailable,
+			},
+			wantOperationState: coreapi.ProvisioningStateFailed,
+			wantErrorCode:      coreapi.CloudErrorCodeInternalServerError,
+		},
+		{
+			name:                    "unrelated false condition is not capacity exhaustion",
+			timeSinceOperationStart: time.Hour,
+			overallTimeout:          time.Hour,
+			placementCondition: &metav1.Condition{
+				Type:   "OtherCondition",
+				Status: metav1.ConditionFalse,
+				Reason: coreapi.CapacityReasonInsufficientCapacity,
+			},
+			wantOperationState: coreapi.ProvisioningStateFailed,
+			wantErrorCode:      coreapi.CloudErrorCodeInternalServerError,
+		},
+		{
+			name:                      "assignment overrides stale capacity shortage before overall deadline",
+			timeSinceOperationStart:   time.Hour - time.Nanosecond,
+			overallTimeout:            time.Hour,
+			managementClusterAssigned: true,
+			placementCondition:        insufficientCapacity,
+			wantOperationState:        coreapi.ProvisioningStateProvisioning,
+		},
+		{
+			name:                      "assigned cluster keeps provisioning without overall deadline",
+			timeSinceOperationStart:   2 * time.Hour,
+			managementClusterAssigned: true,
+			wantOperationState:        coreapi.ProvisioningStateProvisioning,
+		},
+		{
+			name:                      "overall timeout after assignment ignores stale capacity shortage",
+			timeSinceOperationStart:   time.Hour + time.Nanosecond,
+			overallTimeout:            time.Hour,
+			managementClusterAssigned: true,
+			placementCondition:        insufficientCapacity,
+			wantOperationState:        coreapi.ProvisioningStateFailed,
+			wantErrorCode:             coreapi.CloudErrorCodeInternalServerError,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+			cluster := fixture.NewCluster(nil)
+			cluster.ServiceProviderProperties.ClusterServiceID = nil
+			if tc.overallTimeout != 0 {
+				deadline := metav1.NewTime(startTime.Add(tc.overallTimeout))
+				cluster.ServiceProviderProperties.CreateOperationCompletionDeadline = &deadline
+			}
+			operation := fixture.NewOperation(cosmosstorageutils.OperationRequestCreate)
+			operation.StartTime = startTime
+			db, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, operation})
+			require.NoError(t, err)
+			operation, err = db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
+			require.NoError(t, err)
+
+			spcLister := &corelistertesting.SliceServiceProviderClusterLister{}
+			if !tc.serviceProviderClusterNotCached {
+				spc := &coreapi.ServiceProviderCluster{
+					CosmosMetadata: coreapi.CosmosMetadata{
+						ResourceID: metadataapi.Must(azcorearm.ParseResourceID(
+							fixture.ClusterResourceID.String() + "/" +
+								coreapi.ServiceProviderClusterResourceTypeName + "/" +
+								coreapi.ServiceProviderClusterResourceName)),
+					},
+				}
+				if tc.managementClusterAssigned {
+					spc.Spec.ManagementClusterResourceID = metadataapi.Must(azcorearm.ParseResourceID(
+						"/subscriptions/" + operationtesting.TestSubscriptionID + "/resourceGroups/service/providers/Microsoft.RedHatOpenShift/managementClusters/test"))
+				}
+				if tc.placementCondition != nil {
+					spc.Status.Placement = &coreapi.ServiceProviderClusterPlacementStatus{
+						Conditions: []metav1.Condition{*tc.placementCondition},
+					}
+				}
+				spcLister.ServiceProviderClusters = []*coreapi.ServiceProviderCluster{spc}
+			}
+			controller := &operationClusterCreate{
+				clock: clocktesting.NewFakePassiveClock(startTime.Add(tc.timeSinceOperationStart)),
+				activeOperationLister: &corelistertesting.SliceActiveOperationLister{
+					Operations: []*coreapi.Operation{operation},
+				},
+				clusterLister: &corelistertesting.SliceClusterLister{
+					Clusters: []*coreapi.HCPOpenShiftCluster{cluster},
+				},
+				serviceProviderClusterLister: spcLister,
+				readDesireLister:             &kubeapplierlistertesting.SliceReadDesireLister{},
+				resourcesDBClient:            db,
+			}
+			placementState, err := controller.placementOperationStatus(ctx, operation, cluster)
+			require.NoError(t, err)
+			if tc.managementClusterAssigned {
+				assert.Equal(t, coreapi.ProvisioningStateSucceeded, placementState.ProvisioningState)
+				assert.Nil(t, placementState.Error)
+			} else {
+				assert.Equal(t, tc.wantOperationState, placementState.ProvisioningState)
+				if tc.wantOperationState == coreapi.ProvisioningStateFailed {
+					require.NotNil(t, placementState.Error)
+					assert.Equal(t, tc.wantErrorCode, placementState.Error.Code)
+					assert.NotContains(t, placementState.Error.Message, "internal-management-cluster-id")
+				} else {
+					assert.Nil(t, placementState.Error)
+				}
+			}
+			require.NoError(t, controller.SynchronizeOperation(ctx, fixture.OperationKey()))
+			persisted, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
+			require.NoError(t, err)
+			assert.Equal(t, tc.wantOperationState, persisted.Status)
+			if tc.wantOperationState == coreapi.ProvisioningStateFailed {
+				require.NotNil(t, persisted.Error)
+				assert.Equal(t, tc.wantErrorCode, persisted.Error.Code)
+				assert.NotContains(t, persisted.Error.Message, "internal-management-cluster-id")
+				persistedCluster, err := db.HCPClusters(operationtesting.TestSubscriptionID, fixture.ClusterResourceID.ResourceGroupName).Get(ctx, fixture.ClusterResourceID.Name)
+				require.NoError(t, err)
+				assert.Equal(t, coreapi.ProvisioningStateFailed, persistedCluster.ServiceProviderProperties.ProvisioningState)
+			} else {
+				assert.Nil(t, persisted.Error)
 			}
 		})
 	}
@@ -802,6 +1016,10 @@ func TestDetermineOperationState(t *testing.T) {
 									fixture.ClusterResourceID.String() + "/" +
 										coreapi.ServiceProviderClusterResourceTypeName + "/" +
 										coreapi.ServiceProviderClusterResourceName)),
+							},
+							Spec: coreapi.ServiceProviderClusterSpec{
+								ManagementClusterResourceID: metadataapi.Must(azcorearm.ParseResourceID(
+									"/subscriptions/" + operationtesting.TestSubscriptionID + "/resourceGroups/service/providers/Microsoft.RedHatOpenShift/managementClusters/test")),
 							},
 							Status: coreapi.ServiceProviderClusterStatus{
 								ServingCABundle: "fake-ca-data",

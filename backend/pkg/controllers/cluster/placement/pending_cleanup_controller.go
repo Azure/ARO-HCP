@@ -43,9 +43,11 @@ const pendingCleanupResyncPeriod = 10 * time.Minute
 // placement — the observed Status.ManagementClusterResourceID when set (Cluster
 // Service reality), otherwise the Spec intent — and:
 //   - keeps it when the effective placement points at this management cluster;
-//   - keeps it when the effective placement is nil (placement still in progress);
-//   - removes it when the effective placement points at a different management
-//     cluster, or when the ServiceProviderCluster no longer exists.
+//   - keeps it when placement is unresolved and the cluster is not known to be
+//     deleting or terminal;
+//   - removes it when placement is unresolved and the cluster is deleting or
+//     terminal, when placement points at a different management cluster, or when
+//     the ServiceProviderCluster no longer exists.
 //
 // CapacityReportingController removes reservations once the HCP is observed
 // (Ready/NotReady); this controller handles the reservations that never get
@@ -53,6 +55,7 @@ const pendingCleanupResyncPeriod = 10 * time.Minute
 // cluster was deleted before it showed up).
 type pendingCleanupSyncer struct {
 	serviceProviderClusterLister      corelisters.ServiceProviderClusterLister
+	clusterLister                     corelisters.ClusterLister
 	managementClusterSchedulingLister fleetlisters.ManagementClusterSchedulingLister
 	fleetDBClient                     fleetcosmosstorage.FleetDBClient
 }
@@ -64,11 +67,13 @@ var _ controllerutils.ManagementClusterSyncer = (*pendingCleanupSyncer)(nil)
 func NewPendingCleanupController(
 	fleetDBClient fleetcosmosstorage.FleetDBClient,
 	serviceProviderClusterLister corelisters.ServiceProviderClusterLister,
+	clusterLister corelisters.ClusterLister,
 	fleetInformers fleetinformers.FleetInformers,
 ) controllerutils.Controller {
 	_, managementClusterSchedulingLister := fleetInformers.ManagementClusterSchedulings()
 	syncer := &pendingCleanupSyncer{
 		serviceProviderClusterLister:      serviceProviderClusterLister,
+		clusterLister:                     clusterLister,
 		managementClusterSchedulingLister: managementClusterSchedulingLister,
 		fleetDBClient:                     fleetDBClient,
 	}
@@ -167,8 +172,18 @@ func (c *pendingCleanupSyncer) shouldKeepPending(ctx context.Context, pending, m
 		effectivePlacement = serviceProviderCluster.Spec.ManagementClusterResourceID
 	}
 	if effectivePlacement == nil {
-		// Placement still in progress: keep the reservation so capacity stays held.
-		return true, nil
+		cluster, err := c.clusterLister.Get(ctx, pending.SubscriptionID, pending.ResourceGroupName, pending.Name)
+		if cosmosstorageutils.IsNotFoundError(err) {
+			// A cache miss does not establish that the create has ended.
+			return true, nil
+		}
+		if err != nil {
+			return false, utils.TrackError(fmt.Errorf("failed to get cluster for pending assignment %q: %w", pending.String(), err))
+		}
+		// Placement stops reconciling deleting or terminal clusters. Release
+		// reservations left by an interrupted Spec write once placement stops.
+		return cluster.ServiceProviderProperties.DeletionTimestamp == nil &&
+			!cluster.ServiceProviderProperties.ProvisioningState.IsTerminal(), nil
 	}
 	// Keep only when the effective placement still points at this management cluster.
 	return controllerutil.ResourceIDsEqual(effectivePlacement, managementClusterResourceID), nil

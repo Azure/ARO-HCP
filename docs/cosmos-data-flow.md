@@ -244,16 +244,17 @@ which performs a **transactional batch** to atomically update the operation and 
 
 **Gate (shouldReconcileOperationAndResourceStatus on Cluster):**
 - `Cluster.ServiceProviderProperties.DeletionTimestamp` == nil
-- `Cluster.ServiceProviderProperties.ClusterServiceID` != nil
+
+Placement is checked even before a Cluster Service ID exists. Until `ServiceProviderCluster.Spec.ManagementClusterResourceID` is set, placement uses the overall `ServiceProviderProperties.CreateOperationCompletionDeadline`; there is no separate placement timeout. If no overall deadline is set, unresolved placement continues provisioning. At or after that deadline, unresolved placement fails with the customer-safe `AROHCPCapacityHeavyUse` error when the recorded `Status.Placement.Conditions[CapacityAvailable]` is `False`; otherwise it fails with `InternalServerError`, including when the SPC or its condition is missing. Internal placement diagnostics are not copied into the customer error. Once Spec placement is assigned, the placement check succeeds regardless of a stale capacity condition; the other completion checks and overall create deadline still apply.
 
 | | Object | Fields |
 |---|--------|--------|
 | Read | `Operation` | <ul><li>`Status` (ShouldProcess: must not be terminal)</li><li>`Request` (ShouldProcess: must be `Create`)</li><li>`ExternalID` (ShouldProcess: resource type must be `ClusterResourceType`)</li><li>`OperationID.Name`</li></ul> |
-| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.ActiveOperationID` (mismatch check)</li><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.API.URL`</li><li>`ServiceProviderProperties.CreateOperationCompletionDeadline`</li></ul> |
+| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.ActiveOperationID` (mismatch check)</li><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (query Cluster Service only when populated)</li><li>`ServiceProviderProperties.API.URL`</li><li>`ServiceProviderProperties.CreateOperationCompletionDeadline`</li></ul> |
 | Read | ReadDesire (HostedCluster) | <ul><li>`Status.Conditions` (ConditionTypeSuccessful)</li><li>`Status.KubeContent` -> HostedCluster `status.controlPlaneVersion.history[].state`, `status.controlPlaneVersion.history[].version`, `status.conditions` (Available, Degraded), `status.controlPlaneEndpoint.host`, `status.controlPlaneEndpoint.port`</li></ul> |
 | Read | Cluster Service | <ul><li>cluster state, provision error</li></ul> |
-| Read | `ServiceProviderCluster` | <ul><li>`Status.ServingCABundle` (completion gate: must be populated)</li><li>`Status.AzureResources.RoleAssignments` (completion gate: at least one confirmed `AzureResources` and no `PendingAzureResources`)</li></ul> |
-| **Write** | **`Operation`** | <ul><li>**`Status`** -> `Provisioning`/`Succeeded`/`Failed`</li><li>**`Error`** (on failure)</li><li>**`LastTransitionTime`**</li><li>**`NotificationURI`** (cleared after ARM notification)</li></ul> |
+| Read | `ServiceProviderCluster` | <ul><li>`Spec.ManagementClusterResourceID` (placement completion)</li><li>`Status.Placement.Conditions[CapacityAvailable]` (classifies unresolved placement at the deadline)</li><li>`Status.ServingCABundle` (completion gate: must be populated)</li><li>`Status.AzureResources.RoleAssignments` (completion gate: at least one confirmed `AzureResources` and no `PendingAzureResources`)</li></ul> |
+| **Write** | **`Operation`** | <ul><li>**`Status`** -> `Provisioning`/`Succeeded`/`Failed`</li><li>**`Error`** (on failure; preserves classified customer-safe errors, aggregates multiple classified failures as `MultipleErrorsOccurred`, or falls back to `InternalServerError`)</li><li>**`LastTransitionTime`**</li><li>**`NotificationURI`** (cleared after ARM notification)</li></ul> |
 | **Write** | **`HCPOpenShiftCluster`** | <ul><li>**`ServiceProviderProperties.ProvisioningState`** = new status</li><li>**`.ActiveOperationID`** = `""` (on terminal)</li></ul> |
 
 #### OperationClusterUpdate
@@ -985,33 +986,44 @@ No Cosmos writes. Posts `NodePoolUpgradePolicy` to Cluster Service.
 #### PlacementController
 
 **File:** [placement_controller.go](../backend/pkg/controllers/cluster/placement/placement_controller.go)
-**Trigger:** Cluster informer, 5-minute resync (20 workers)
-**Gate (needsWork on ServiceProviderCluster):**
+**Trigger:** Cluster informer, 5-minute resync (20 workers); unresolved capacity decisions schedule a retry after 29 seconds
+**Gate (needsWork on ServiceProviderCluster and Cluster):**
 - `ServiceProviderCluster.Spec.ManagementClusterResourceID` == nil
+- Both `ServiceProviderCluster` and `HCPOpenShiftCluster` are present in the informer caches
+- `HCPOpenShiftCluster.ServiceProviderProperties.DeletionTimestamp` == nil
+- `HCPOpenShiftCluster.ServiceProviderProperties.ProvisioningState.IsTerminal()` == false
 
-Resolves the scheduler's *desired* placement (`Spec.ManagementClusterResourceID`). When the HCP was already placed by ManagementClusterPlacementSync (`Status.ManagementClusterResourceID` set) but Spec is still nil, it backfills Spec from Status (rollout, no re-scheduling). When instead both Spec and Status are nil but the HCP already carries a `PendingClusterServiceID` (a rollout-race record created by a prior backend version), it asks Cluster Service where that cluster was placed (`GetClusterProvisionShard` → provision shard → the matching `ManagementCluster` by `Status.ClusterServiceProvisionShardID`) and backfills Spec from that already-decided placement rather than fresh-scheduling — a migration-only targeted Cluster Service read; it defers (no write) when Cluster Service has not yet reported a shard. Otherwise it selects an eligible management cluster (`ManagementCluster.Spec.SchedulingPolicy == Schedulable` AND Ready condition True) with sufficient SWIFT-NIC capacity, where `available = ScaleCeiling.Capacity[swift-nic] - max(ObservedResources.Usage[swift-nic], ObservedResources.Requests[swift-nic]) - (non-empty NotReadyResourceIDs)*3 - (non-nil PendingAssignedClusters)*3` (empty-string / nil entries reserve 0), an HCP fits when `available >= 3`, and among fitting clusters it chooses the highest-available eligible cluster (spread load evenly across management clusters), breaking ties by lowest resource ID. All candidate elimination (eligibility and capacity) happens in one place (`selectByCapacity`), which surfaces the per-candidate elimination reasons in its error. The `ManagementCluster` and `ManagementClusterScheduling` reads come from the informer caches; it reserves capacity on the chosen cluster (a live etag-guarded read-modify-write) before recording the intent (`Spec.ManagementClusterResourceID`). A cluster whose deletion has already been requested (`HCPOpenShiftCluster.ServiceProviderProperties.DeletionTimestamp` is set) is skipped entirely — neither placed nor reserved — so the deletion path does not have to reclaim capacity reserved for a cluster that is going away.
+Resolves the scheduler's *desired* placement (`Spec.ManagementClusterResourceID`) from cached management-cluster and scheduling observations. Eligible management clusters are `Schedulable`, have `Ready=True`, and have a scheduling document with both `CapacityDataCurrent=True` and `ScalingDataCurrent=True`. Available SWIFT-NIC capacity is `ScaleCeiling.Capacity - max(ObservedResources.Usage, ObservedResources.Requests)`, reduced by each non-nil `NotReadyResourceIDs` and `PendingAssignedClusters` entry's NIC reservation. A SingleReplica HCP needs one NIC; other HCPs need three. Existing reservations use each HCP's cached control-plane availability, conservatively reserving three NICs when the HCP cannot be read. Among fitting management clusters, selection chooses the highest available capacity, breaking ties by lowest resource ID.
+
+Each completed selection records `Status.Placement.Conditions[CapacityAvailable]`:
+- `True` / `Available`: a suitable management cluster was found, even if other candidates have incomplete observations.
+- `False` / `InsufficientCapacity`: eligible candidates were evaluated, but none had enough capacity.
+- `False` / `NoEligibleManagementCluster`: all candidates were evaluated and none were eligible, or there were no candidates.
+- `Unknown` / `EvaluationIncomplete`: no fit was found and at least one candidate could not be assessed because required observations or configuration were unavailable.
+
+When no fit is found, the controller persists the condition with internal per-candidate diagnostics and schedules a 29-second retry without returning a reconciliation error. Operational failures, including read/write errors and write conflicts, still return errors for workqueue backoff. When a fit is found, it first reserves capacity on the chosen management cluster using a live, etag-guarded read-modify-write, then records `Spec.ManagementClusterResourceID` and `CapacityAvailable=True` in the same SPC `Replace`. Unchanged SPC state does not trigger a write. There are no rollout backfills from observed Status or Cluster Service.
 
 | | Object | Fields |
 |---|--------|--------|
-| Read | `ServiceProviderCluster` | <ul><li>`Spec.ManagementClusterResourceID` (NeedsWork: must be nil)</li><li>`Status.ManagementClusterResourceID` (rollout backfill source)</li></ul> |
-| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (skip placement/reservation when the HCP is being deleted)</li><li>`ServiceProviderProperties.PendingClusterServiceID` (rollout-race: triggers the Cluster Service backfill when both Spec and Status are nil)</li></ul> |
-| Read | Cluster Service (rollout-race only) | <ul><li>`GetClusterProvisionShard` for the pending CS ID → provision shard (mapped back to a `ManagementCluster` by `Status.ClusterServiceProvisionShardID`)</li></ul> |
-| Read | `ManagementCluster` (all) | <ul><li>`Spec.SchedulingPolicy`, `Status.Conditions[Ready]`, `ResourceID`, `Status.ClusterServiceProvisionShardID` (rollout-race shard→MC mapping)</li></ul> |
-| Read | `ManagementClusterScheduling` (per eligible MC) | <ul><li>`Status.ScaleCeiling.Capacity`, `Status.ObservedResources.Usage`, `Status.NotReadyResourceIDs`, `Status.PendingAssignedClusters`</li></ul> |
-| **Write** | **`ManagementClusterScheduling`** | <ul><li>**`Status.PendingAssignedClusters`** += chosen HCP cluster resource ID (capacity reservation; conflict-retried)</li></ul> |
-| **Write** | **`ServiceProviderCluster`** | <ul><li>**`Spec.ManagementClusterResourceID`** = chosen (or backfilled) management cluster resource ID (conflict-retried)</li></ul> |
+| Read | `ServiceProviderCluster` | <ul><li>`Spec.ManagementClusterResourceID` (NeedsWork: must be nil)</li><li>`Status.Placement.Conditions` (merge the capacity condition; skip unchanged state)</li></ul> |
+| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (skip deleting clusters)</li><li>`ServiceProviderProperties.ProvisioningState` (skip terminal clusters)</li><li>`ServiceProviderProperties.ExperimentalFeatures.ControlPlaneAvailability` (new HCP's NIC requirement; also read for existing NotReady/Pending HCP reservations)</li></ul> |
+| Read | `ManagementCluster` (all, cached) | <ul><li>`Spec.SchedulingPolicy`, `Status.Conditions[Ready]`, `ResourceID` (including parent stamp identifier)</li></ul> |
+| Read | `ManagementClusterScheduling` (cached for evaluation; live for reservation) | <ul><li>`Status.Conditions[CapacityDataCurrent]`, `Status.Conditions[ScalingDataCurrent]`</li><li>`Status.ScaleCeiling.Capacity`, `Status.ObservedResources.Usage`, `Status.ObservedResources.Requests`, `Status.NotReadyResourceIDs`, `Status.PendingAssignedClusters`</li></ul> |
+| **Write** | **`ManagementClusterScheduling`** | <ul><li>**`Status.PendingAssignedClusters`** += chosen HCP cluster resource ID (idempotent capacity reservation; conflicts retry the reconcile)</li></ul> |
+| **Write** | **`ServiceProviderCluster`** | <ul><li>**`Status.Placement.Conditions[CapacityAvailable]`** = selection result</li><li>**`Spec.ManagementClusterResourceID`** = chosen management cluster resource ID, when a fit is found (same `Replace` as the condition; conflicts retry the reconcile)</li></ul> |
 
 #### PendingCleanupController
 
 **File:** [pending_cleanup_controller.go](../backend/pkg/controllers/cluster/placement/pending_cleanup_controller.go)
 **Trigger:** ManagementCluster informer, 10-minute resync (5 workers)
 
-Garbage-collects stale entries from each management cluster's `Status.PendingAssignedClusters`. Each entry's *effective* placement is the referenced ServiceProviderCluster's `Status.ManagementClusterResourceID` (Cluster Service reality) when set, falling back to `Spec.ManagementClusterResourceID` only when Status is unset. An entry is kept when that effective placement points at this management cluster, or is still nil (placement in progress); it is removed when the effective placement points at a different management cluster or the ServiceProviderCluster no longer exists. Reservations that become observed (present in `ReadyResourceIDs`/`NotReadyResourceIDs`) are cleared by CapacityReportingController instead.
+Garbage-collects stale entries from each management cluster's `Status.PendingAssignedClusters`. Each entry's *effective* placement is the referenced ServiceProviderCluster's `Status.ManagementClusterResourceID` (Cluster Service reality) when set, falling back to `Spec.ManagementClusterResourceID` only when Status is unset. An entry is kept when effective placement points at this management cluster, even if the HCP is terminal; it is removed when placement points elsewhere or the ServiceProviderCluster no longer exists. For unresolved placement (both fields nil), the controller reads the HCP's provisioning state: it retains the reservation while the HCP is nonterminal or absent from the cluster cache, and removes it once the HCP is terminal. This releases reservations left by an interrupted Spec write without waiting for customer deletion. Other read errors abort the sweep without persisting removals. Reservations that become observed (present in `ReadyResourceIDs`/`NotReadyResourceIDs`) are cleared by CapacityReportingController instead.
 
 | | Object | Fields |
 |---|--------|--------|
 | Read | `ManagementClusterScheduling` | <ul><li>`Status.PendingAssignedClusters`</li></ul> |
 | Read | `ServiceProviderCluster` (per pending entry) | <ul><li>`Status.ManagementClusterResourceID` (effective placement; preferred when set)</li><li>`Spec.ManagementClusterResourceID` (fallback when Status unset)</li></ul> |
+| Read | `HCPOpenShiftCluster` (per unresolved pending entry) | <ul><li>`ServiceProviderProperties.ProvisioningState` (release only when known terminal; a cluster cache miss retains the reservation)</li></ul> |
 | **Write** | **`ManagementClusterScheduling`** | <ul><li>**`Status.PendingAssignedClusters`** = stale entries removed (conflict-retried)</li></ul> |
 
 #### ManagementClusterPlacementSync
@@ -1588,9 +1600,17 @@ Single writer, but read by `ClusterClusterServiceCreate` (gate), `OperationClust
 
 | Actor | When |
 |-------|------|
-| [PlacementController](#placementcontroller) | Sets the scheduler's placement intent: backfilled from `Status.ManagementClusterResourceID` when already placed, backfilled from Cluster Service (via `PendingClusterServiceID`) for rollout-race records, otherwise the capacity-selected eligible management cluster |
+| [PlacementController](#placementcontroller) | Sets the capacity-selected eligible management cluster after reserving capacity, in the same SPC write as `Status.Placement.Conditions[CapacityAvailable]=True` |
 
 This is the *desired* placement (scheduler intent), owned solely by the PlacementController. It is read by `ClusterClusterServiceCreate` (resolves the placed management cluster to pin the CS provision shard). It also drives the `backend_cluster_phase_info` metric: `phase="Scheduled"` once this field is set, otherwise `phase="Initializing"`.
+
+### `ServiceProviderCluster.Status.Placement.Conditions`
+
+| Actor | When |
+|-------|------|
+| [PlacementController](#placementcontroller) | Records `CapacityAvailable` for each completed placement assessment: `True` for a fit, `False` for known unavailability, or `Unknown` for incomplete observations |
+
+Single writer. Read by [OperationClusterCreate](#operationclustercreate) to classify unresolved placement at its deadline. `CapacityAvailable=False` yields the customer-safe `AROHCPCapacityHeavyUse` error; missing, unknown, or true conditions without a Spec assignment yield a generic failure. Diagnostics remain internal, and assigned placement takes precedence over stale conditions.
 
 ### `ServiceProviderCluster.Status.ManagementClusterResourceID`
 
@@ -1598,7 +1618,7 @@ This is the *desired* placement (scheduler intent), owned solely by the Placemen
 |-------|------|
 | [ManagementClusterPlacementSync](#managementclusterplacementsync) | Resolves from the CS provision shard when unset (the CS lookup is skipped once the shard has been observed) |
 
-This is the *observed* placement. It gates `CreateClusterScopedReadDesires` and deletion cleanup, and seeds `PlacementController`'s rollout backfill.
+This is the *observed* placement. It gates `CreateClusterScopedReadDesires` and deletion cleanup, and takes precedence over Spec when `PendingCleanupController` determines a reservation's effective placement.
 
 ### `ServiceProviderCluster.Status.HostedClusterNamespace`
 
