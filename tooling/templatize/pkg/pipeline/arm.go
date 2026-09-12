@@ -39,6 +39,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
 	"github.com/Azure/ARO-HCP/tooling/templatize/bicep"
+	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/azclient"
 )
 
 type armClient struct {
@@ -63,7 +64,7 @@ func newArmClient(subscriptionID, region string, bicepClient *bicep.LSPClient) (
 	deploymentClient, err := armresources.NewDeploymentsClient(subscriptionID, cred, &azcorearm.ClientOptions{
 		ClientOptions: azcore.ClientOptions{
 			PerCallPolicies: []policy.Policy{
-				newLROPollerRetryDeploymentNotFoundPolicy(),
+				azclient.NewLROPollerRetryPolicy(nil),
 			},
 		},
 	})
