@@ -34,6 +34,7 @@ const (
 	ComponentResourceCleaner Component = "resource-cleaner"
 	ComponentMgmtAgent       Component = "mgmt-agent"
 	ComponentE2E             Component = "e2e"
+	ComponentInfra           Component = "infra"
 )
 
 // ApplicationID returns a telemetry application ID for the given component,

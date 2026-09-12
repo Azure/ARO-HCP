@@ -1,5 +1,15 @@
 using '../templates/mgmt-infra.bicep'
 
+// AKS
+param aksClusterName = '{{ .mgmt.aks.name }}'
+param subnetPrefix = '{{ .mgmt.aks.subnetPrefix }}'
+param podSubnetPrefix = '{{ .mgmt.aks.podSubnetPrefix }}'
+param aksClusterOutboundIPAddressIPTags = '{{ .mgmt.aks.clusterOutboundIPAddressIPTags }}'
+param aksKeyVaultName = '{{ .mgmt.aks.etcd.name }}'
+param aksKeyVaultTagName = '{{ .mgmt.aks.etcd.tagKey }}'
+param aksKeyVaultTagValue = '{{ .mgmt.aks.etcd.tagValue }}'
+param aksEtcdKVEnableSoftDelete = {{ .mgmt.aks.etcd.softDelete }}
+
 // CX KV
 param cxKeyVaultName = '{{ .cxKeyVault.name }}'
 param cxKeyVaultPrivate = {{ .cxKeyVault.private }}
