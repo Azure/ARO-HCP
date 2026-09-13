@@ -25,7 +25,8 @@ import (
 // GetPrivateKASInternalIP finds the private IP address of the internal load
 // balancer created by HyperShift for a private KAS cluster. The internal LB
 // is in the cluster's managed resource group and has a frontend IP on the
-// customer's subnet. Returns the IP address or an error if not found.
+// customer's subnet (private IP, no public IP). Returns the IP address or an
+// error if not found.
 func GetPrivateKASInternalIP(ctx context.Context, tc interface {
 	SubscriptionID(ctx context.Context) (string, error)
 	AzureCredential() (azcore.TokenCredential, error)
@@ -59,7 +60,7 @@ func GetPrivateKASInternalIP(ctx context.Context, tc interface {
 				if fip.Properties == nil {
 					continue
 				}
-				// Internal LBs have a private IP and no public IP
+				// Internal LBs have a private IP and no public IP.
 				if fip.Properties.PrivateIPAddress != nil && fip.Properties.PublicIPAddress == nil {
 					return *fip.Properties.PrivateIPAddress, nil
 				}
