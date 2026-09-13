@@ -765,6 +765,7 @@ defaults:
         zones: ""
         zoneRedundantMode: "Auto"
       clusterOutboundIPAddressIPTags: ""
+    monitoringApiGroup: monitoring.coreos.com
     prometheus:
       namespace: prometheus
       namespaceNetworkPolicyGroup: monitoring

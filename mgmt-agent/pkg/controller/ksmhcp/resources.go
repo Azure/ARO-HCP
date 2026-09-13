@@ -223,6 +223,11 @@ func buildServiceMonitor(namespace string, ownerRef metav1.OwnerReference) (*uns
 							Regex:        "(.+)",
 							Action:       "replace",
 						},
+						{
+							TargetLabel: "microsoft_metrics_include_label",
+							Replacement: ptr.To("hcp"),
+							Action:      "replace",
+						},
 					},
 				},
 			},
