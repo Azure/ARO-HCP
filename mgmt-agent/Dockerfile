@@ -4,6 +4,7 @@ ARG PLATFORM
 FROM --platform=${PLATFORM} mcr.microsoft.com/oss/go/microsoft/golang:1.25-azurelinux3.0 AS builder
 COPY internal/go.mod internal/go.sum internal/
 COPY mgmt-agent/go.mod mgmt-agent/go.sum mgmt-agent/
+ENV GOPROXY='https://proxy.golang.org|direct'
 RUN cd mgmt-agent && go mod download
 WORKDIR /app
 COPY internal/ internal/

@@ -34,6 +34,10 @@ RUN ARCH=$([ "$(uname -m)" = "aarch64" ] && echo "arm64" || echo "amd64") && \
     mv prometheus-${PROMTOOL_VERSION}.linux-${ARCH}/promtool /usr/local/bin/promtool && \
     chmod +x /usr/local/bin/promtool && \
     rm -rf prometheus-${PROMTOOL_VERSION}.linux-${ARCH}
+# Fall back to direct VCS fetch on any proxy error (pipe separator), not just
+# 404/410 (comma separator). Mitigates chronic HTTP/2 INTERNAL_ERROR stream
+# resets from proxy.golang.org on CI build farms.
+ENV GOPROXY='https://proxy.golang.org|direct'
 # Install Go-based development tools (bingo-managed)
 COPY . /tmp/aro-hcp
 RUN cd /tmp/aro-hcp && \

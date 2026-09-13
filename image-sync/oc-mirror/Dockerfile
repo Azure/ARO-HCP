@@ -33,6 +33,7 @@ RUN curl -sfL https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq
 FROM --platform=linux/amd64 mcr.microsoft.com/oss/go/microsoft/golang:1.25-azurelinux3.0 AS gobuilder
 WORKDIR /src
 COPY acrauth/go.mod acrauth/go.sum acrauth/
+ENV GOPROXY='https://proxy.golang.org|direct'
 RUN cd acrauth && go mod download
 COPY acrauth/ acrauth/
 # https://github.com/microsoft/go/tree/microsoft/main/eng/doc/fips#build-option-to-require-fips-mode

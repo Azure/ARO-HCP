@@ -6,6 +6,7 @@ COPY internal/go.mod internal/go.sum internal/
 COPY tooling/azutils/go.mod tooling/azutils/go.sum tooling/azutils/
 COPY tooling/metricscache/go.mod tooling/metricscache/go.sum tooling/metricscache/
 COPY tooling/tenant-quota/go.mod tooling/tenant-quota/go.sum tooling/tenant-quota/
+ENV GOPROXY='https://proxy.golang.org|direct'
 RUN cd tooling/tenant-quota && go mod download
 WORKDIR /app
 COPY tooling/azutils/ tooling/azutils/
