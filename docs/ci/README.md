@@ -236,6 +236,7 @@ ARO HCP CI is split across this repository and the OpenShift CI configuration in
 ## Related Documentation
 
 - [Environments](../environments.md)
+- [Grafana Dashboards](../grafana-dashboards.md)
 - [Pipelines](../pipelines.md)
 - [EV2 Deployment](../ev2-deployment.md)
 - [Manually Trigger an E2E Gate Run](../sops/manual-e2e-gate-run.md)
