@@ -3632,32 +3632,17 @@
           "deploy": "boolean"
         },
         "istio": {
-          "description": "Consumed by the IstioUpgrade pipeline step, not by bicep — passing revisions through ARM would overwrite upgrades the pipeline step had already applied. istioctlVersion, targetVersion, and their CEL validations will be removed in a future cleanup.",
+          "description": "Consumed by the IstioUpgrade pipeline step, not by bicep — passing revisions through ARM would overwrite upgrades the pipeline step had already applied.",
           "type": "object",
           "properties": {
-            "istioctlVersion": {
-              "description": "Latest version of istioctl. This is used to download the istioctl. Will be removed in a future cleanup.",
-              "type": "string"
-            },
             "tag": {
-              "description": "The revision tag used in istioctl",
+              "description": "Stable revision tag alias reconciled by the IstioUpgrade pipeline step (e.g. prod-stable).",
               "type": "string"
             },
             "versions": {
-              "description": "Desired Istio revision for the IstioUpgrade pipeline step to reconcile (e.g. asm-1-29). Not an observed cluster field. CSV form retained for compatibility; will move to a single value/array once tooling is ready.",
+              "description": "Single target Istio revision for the IstioUpgrade pipeline step to reconcile (e.g. asm-1-29). Not an observed cluster field.",
               "type": "string",
-              "pattern": "^[a-zA-Z0-9-]+(,[a-zA-Z0-9-]+)*$"
-            },
-            "targetVersion": {
-              "description": "Must be included in the comma-separated versions list (may be one of several during upgrades). The versions field drives the upgrade; this field is required by schema today but will be removed in a future cleanup.",
-              "type": "string",
-              "enum": [
-                "asm-1-26",
-                "asm-1-27",
-                "asm-1-28",
-                "asm-1-29",
-                "asm-1-30"
-              ]
+              "pattern": "^asm-\\d+-\\d+$"
             },
             "ingressGatewayIPAddressName": {
               "type": "string"
@@ -3666,16 +3651,9 @@
               "$ref": "#/definitions/keyColonValueCSV"
             }
           },
-          "x-cel-validations": [
-            {
-              "rule": "self.versions.split(',').exists(v, v == self.targetVersion)",
-              "message": "targetVersion must be included in the versions list"
-            }
-          ],
           "additionalProperties": false,
           "required": [
             "ingressGatewayIPAddressName",
-            "targetVersion",
             "versions"
           ]
         },
@@ -3712,28 +3690,6 @@
           "$ref": "#/definitions/prometheus"
         }
       },
-      "x-cel-validations": [
-        {
-          "rule": "self.istio.targetVersion == 'asm-1-26' ? semver(self.aks.kubernetesVersion) >= semver('1.29.0') && semver(self.aks.kubernetesVersion) < semver('1.35.0') : true",
-          "message": "asm-1-26 requires AKS Kubernetes version between 1.29.0 (inclusive) and 1.35.0 (exclusive)"
-        },
-        {
-          "rule": "self.istio.targetVersion == 'asm-1-27' ? semver(self.aks.kubernetesVersion) >= semver('1.29.0') && semver(self.aks.kubernetesVersion) < semver('1.36.0') : true",
-          "message": "asm-1-27 requires AKS Kubernetes version between 1.29.0 (inclusive) and 1.36.0 (exclusive)"
-        },
-        {
-          "rule": "self.istio.targetVersion == 'asm-1-28' ? semver(self.aks.kubernetesVersion) >= semver('1.30.0') && semver(self.aks.kubernetesVersion) < semver('1.36.0') : true",
-          "message": "asm-1-28 requires AKS Kubernetes version between 1.30.0 (inclusive) and 1.36.0 (exclusive)"
-        },
-        {
-          "rule": "self.istio.targetVersion == 'asm-1-29' ? semver(self.aks.kubernetesVersion) >= semver('1.31.0') && semver(self.aks.kubernetesVersion) < semver('1.36.0') : true",
-          "message": "asm-1-29 requires AKS Kubernetes version between 1.31.0 (inclusive) and 1.36.0 (exclusive)"
-        },
-        {
-          "rule": "self.istio.targetVersion == 'asm-1-30' ? semver(self.aks.kubernetesVersion) >= semver('1.32.0') && semver(self.aks.kubernetesVersion) < semver('1.37.0') : true",
-          "message": "asm-1-30 requires AKS Kubernetes version between 1.32.0 (inclusive) and 1.37.0 (exclusive)"
-        }
-      ],
       "additionalProperties": false,
       "required": [
         "rg",
