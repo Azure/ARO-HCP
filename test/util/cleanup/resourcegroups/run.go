@@ -87,7 +87,7 @@ func (o *Options) Run(ctx context.Context) error {
 
 	if o.DryRun {
 		for _, rg := range resourceGroupsToDelete {
-			fmt.Println(rg)
+			logger.Info(rg)
 		}
 		return nil
 	}
