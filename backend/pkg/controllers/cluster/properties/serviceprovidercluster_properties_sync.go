@@ -103,6 +103,7 @@ func (c *serviceProviderClusterPropertiesSyncer) SyncOnce(ctx context.Context, k
 
 	replacement := existing.DeepCopy()
 	replacement.Status.HostedClusterNamespace = hostedClusterNamespace
+	replacement.Status.HostedClusterName = hostedClusterName
 	replacement.Status.ControlPlaneNamespace = controlPlaneNamespace
 
 	servingCABundle, err := c.resolveServingCABundle(ctx, key)

@@ -235,8 +235,13 @@ type ServiceProviderClusterStatus struct {
 	//  - User-provided secrets — pull secret, SSH key, cloud credentials, encryption secrets, etcd encryption key, audit webhook config, additional trust bundles, service account signing key
 	//  - Generated kubeconfig secrets — admin-kubeconfig (copied back from HCP namespace), kubeadmin-password
 	//  - EtcdBackup CRs (if used)
-	// Written by: ServiceProviderClusterPropertiesSync
+	// Written by: HostedClusterIdentity, HostedClusterIdentityBackfill, ServiceProviderClusterPropertiesSync
 	HostedClusterNamespace string `json:"hostedClusterNamespace,omitempty"`
+
+	// HostedClusterName is the name of the HostedCluster custom resource. Cluster Service calls
+	// this value the domain prefix (and stores it as CDName internally).
+	// Written by: HostedClusterIdentity, HostedClusterIdentityBackfill, ServiceProviderClusterPropertiesSync
+	HostedClusterName string `json:"hostedClusterName,omitempty"`
 
 	// ControlPlaneNamespace is the namespace containing the pods that manage and run the HostedCluster.  It contains things like
 	//  - etcd
