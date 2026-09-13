@@ -27,7 +27,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5"
 
-	hcpsdk20251223preview "github.com/Azure/ARO-HCP/test/sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	hcpsdk20260901preview "github.com/Azure/ARO-HCP/test/sdk/v20260901preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
@@ -73,13 +73,13 @@ var _ = Describe("Nodepool Ephemeral OS Disk", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create resource group for ephemeral OS disk test")
 
 			By("creating cluster parameters")
-			clusterParams := framework.NewDefaultClusterParams20240610()
+			clusterParams := framework.NewDefaultClusterParams20260901()
 			clusterParams.ClusterName = customerClusterName
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			clusterParams.ManagedResourceGroupName = managedResourceGroupName
 
 			By("creating customer resources (infrastructure and managed identities)")
-			clusterParams, err = tc.CreateClusterCustomerResources20240610(ctx,
+			clusterParams, err = tc.CreateClusterCustomerResources20260901(ctx,
 				resourceGroup,
 				clusterParams,
 				map[string]interface{}{},
@@ -89,10 +89,11 @@ var _ = Describe("Nodepool Ephemeral OS Disk", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create cluster customer resources")
 
 			By("creating the HCP cluster")
-			err = tc.CreateHCPClusterFromParam20240610(ctx,
+			err = tc.CreateHCPClusterFromParam20260901(ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
 				clusterParams,
+				nil,
 				framework.ClusterCreationTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %s", customerClusterName)
@@ -103,13 +104,13 @@ var _ = Describe("Nodepool Ephemeral OS Disk", func() {
 				"this typically indicates a SKU restriction or quota issue in the test subscription/region")
 
 			By("creating nodepool with ephemeral OS disk and autoRepair enabled")
-			nodePoolParams := framework.NewDefaultNodePoolParams20251223()
+			nodePoolParams := framework.NewDefaultNodePoolParams20260901()
 			nodePoolParams.ClusterName = customerClusterName
 			nodePoolParams.NodePoolName = customerNodePoolName
 			nodePoolParams.VMSize = vmSize
-			nodePoolParams.DiskType = hcpsdk20251223preview.OsDiskTypeEphemeral
+			nodePoolParams.DiskType = hcpsdk20260901preview.OsDiskTypeEphemeral
 			nodePoolParams.AutoRepair = true
-			err = tc.CreateNodePoolFromParam20251223(
+			err = tc.CreateNodePoolFromParam20260901(
 				ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
@@ -118,22 +119,22 @@ var _ = Describe("Nodepool Ephemeral OS Disk", func() {
 				nodePoolParams,
 				framework.NodePoolCreationTimeout)
 
-			client20251223 := tc.Get20251223ClientFactoryOrDie(ctx)
+			client20260901 := tc.Get20260901ClientFactoryOrDie(ctx)
 			Expect(err).NotTo(HaveOccurred(), "failed to create nodepool %s with ephemeral OS disk", customerNodePoolName)
 
 			By("verifying nodepool ARM resource has diskType=Ephemeral from LRO result")
-			created, err := framework.GetNodePool20251223(ctx, client20251223.NewNodePoolsClient(), *resourceGroup.Name, customerClusterName, customerNodePoolName)
+			created, err := framework.GetNodePool20260901(ctx, client20260901.NewNodePoolsClient(), *resourceGroup.Name, customerClusterName, customerNodePoolName)
 			Expect(err).NotTo(HaveOccurred(), "failed to get nodepool %s", customerNodePoolName)
 			Expect(created.Properties).ToNot(BeNil(), "created nodepool response Properties was nil")
 			Expect(created.Properties.Platform).ToNot(BeNil(), "created nodepool response Properties.Platform was nil")
 			Expect(created.Properties.Platform.OSDisk).ToNot(BeNil(), "created nodepool response Properties.Platform.OSDisk was nil")
 			Expect(created.Properties.Platform.OSDisk.DiskType).ToNot(BeNil(), "created nodepool response Properties.Platform.OSDisk.DiskType was nil")
-			Expect(*created.Properties.Platform.OSDisk.DiskType).To(Equal(hcpsdk20251223preview.OsDiskTypeEphemeral), "expected created nodepool OSDisk.DiskType to be Ephemeral")
+			Expect(*created.Properties.Platform.OSDisk.DiskType).To(Equal(hcpsdk20260901preview.OsDiskTypeEphemeral), "expected created nodepool OSDisk.DiskType to be Ephemeral")
 			Expect(created.Properties.AutoRepair).ToNot(BeNil(), "created nodepool response Properties.AutoRepair was nil")
 			Expect(*created.Properties.AutoRepair).To(BeTrue(), "expected created nodepool AutoRepair to be true")
 			By("confirming diskType and autoRepair persist via separate GET (round-trip verification)")
-			fetched, err := framework.GetNodePool20251223(ctx,
-				client20251223.NewNodePoolsClient(),
+			fetched, err := framework.GetNodePool20260901(ctx,
+				client20260901.NewNodePoolsClient(),
 				*resourceGroup.Name,
 				customerClusterName,
 				customerNodePoolName,
@@ -143,7 +144,7 @@ var _ = Describe("Nodepool Ephemeral OS Disk", func() {
 			Expect(fetched.Properties.Platform).ToNot(BeNil(), "fetched nodepool response Properties.Platform was nil")
 			Expect(fetched.Properties.Platform.OSDisk).ToNot(BeNil(), "fetched nodepool response Properties.Platform.OSDisk was nil")
 			Expect(fetched.Properties.Platform.OSDisk.DiskType).ToNot(BeNil(), "fetched nodepool response Properties.Platform.OSDisk.DiskType was nil")
-			Expect(*fetched.Properties.Platform.OSDisk.DiskType).To(Equal(hcpsdk20251223preview.OsDiskTypeEphemeral), "expected fetched nodepool OSDisk.DiskType to be Ephemeral")
+			Expect(*fetched.Properties.Platform.OSDisk.DiskType).To(Equal(hcpsdk20260901preview.OsDiskTypeEphemeral), "expected fetched nodepool OSDisk.DiskType to be Ephemeral")
 			Expect(fetched.Properties.AutoRepair).ToNot(BeNil(), "fetched nodepool response Properties.AutoRepair was nil")
 			Expect(*fetched.Properties.AutoRepair).To(BeTrue(), "expected fetched nodepool AutoRepair to be true")
 

@@ -30,7 +30,7 @@ import (
 
 	configv1 "github.com/openshift/api/config/v1"
 
-	hcpsdk20251223preview "github.com/Azure/ARO-HCP/test/sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	hcpsdk20260901preview "github.com/Azure/ARO-HCP/test/sdk/v20260901preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
@@ -70,13 +70,13 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create resource group for IDMS test")
 
 			By("creating cluster parameters")
-			clusterParams := framework.NewDefaultClusterParams20251223()
+			clusterParams := framework.NewDefaultClusterParams20260901()
 			clusterParams.ClusterName = customerClusterName
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "managed", 64)
 			clusterParams.ManagedResourceGroupName = managedResourceGroupName
 
 			By("creating customer resources")
-			clusterParams, err = tc.CreateClusterCustomerResources20251223(ctx,
+			clusterParams, err = tc.CreateClusterCustomerResources20260901(ctx,
 				resourceGroup,
 				clusterParams,
 				map[string]interface{}{
@@ -89,15 +89,15 @@ var _ = Describe("Customer", func() {
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for IDMS cluster")
 
-			By("creating the HCP cluster with ImageDigestMirrors via v20251223preview")
-			imageDigestMirrors := []*hcpsdk20251223preview.ImageDigestMirror{
+			By("creating the HCP cluster with ImageDigestMirrors via v20260901preview")
+			imageDigestMirrors := []*hcpsdk20260901preview.ImageDigestMirror{
 				{
 					Source:  to.Ptr(idmsSource),
 					Mirrors: []*string{to.Ptr(idmsMirror)},
 				},
 			}
 
-			createErr := tc.CreateHCPClusterFromParam20251223(
+			createErr := tc.CreateHCPClusterFromParam20260901(
 				ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
@@ -108,12 +108,12 @@ var _ = Describe("Customer", func() {
 
 			var respErr *azcore.ResponseError
 			if createErr != nil && errors.As(createErr, &respErr) && respErr.ErrorCode == "NoRegisteredProviderFound" {
-				Fail(fmt.Sprintf("v20251223preview should be available but cluster creation failed: %v", createErr))
+				Fail(fmt.Sprintf("v20260901preview should be available but cluster creation failed: %v", createErr))
 			}
 			Expect(createErr).NotTo(HaveOccurred(), "failed to create HCP cluster with ImageDigestMirrors")
 
 			By("verifying the cluster returns ImageDigestMirrors via GET")
-			hcpClient := tc.Get20251223ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
+			hcpClient := tc.Get20260901ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
 			actualCluster, err := hcpClient.Get(ctx, *resourceGroup.Name, customerClusterName, nil)
 			Expect(err).NotTo(HaveOccurred(), "failed to GET cluster %s to verify ImageDigestMirrors", customerClusterName)
 			Expect(actualCluster.Properties).NotTo(BeNil(), "cluster %s Properties was nil", customerClusterName)
@@ -154,9 +154,9 @@ var _ = Describe("Customer", func() {
 			}, 1*time.Minute, 15*time.Second).Should(Succeed(), "ImageDigestMirrorSet CRDs should exist on the hosted cluster")
 
 			By("updating the cluster to add a second ImageDigestMirror set")
-			updateAdd := hcpsdk20251223preview.HcpOpenShiftClusterUpdate{
-				Properties: &hcpsdk20251223preview.HcpOpenShiftClusterPropertiesUpdate{
-					ImageDigestMirrors: []*hcpsdk20251223preview.ImageDigestMirror{
+			updateAdd := hcpsdk20260901preview.HcpOpenShiftClusterUpdate{
+				Properties: &hcpsdk20260901preview.HcpOpenShiftClusterPropertiesUpdate{
+					ImageDigestMirrors: []*hcpsdk20260901preview.ImageDigestMirror{
 						{
 							Source:  to.Ptr(idmsSource),
 							Mirrors: []*string{to.Ptr(idmsMirror)},
@@ -169,7 +169,7 @@ var _ = Describe("Customer", func() {
 				},
 			}
 
-			updateAddResp, err := framework.UpdateHCPCluster20251223(
+			updateAddResp, err := framework.UpdateHCPCluster20260901(
 				ctx, hcpClient, *resourceGroup.Name, customerClusterName, updateAdd, framework.UpdateHCPClusterTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to update cluster with second ImageDigestMirror set")
@@ -207,9 +207,9 @@ var _ = Describe("Customer", func() {
 			}, 10*time.Minute, 15*time.Second).Should(Succeed(), "both ImageDigestMirrorSet entries should exist on the hosted cluster")
 
 			By("updating the cluster to remove the second ImageDigestMirror set")
-			updateRemove := hcpsdk20251223preview.HcpOpenShiftClusterUpdate{
-				Properties: &hcpsdk20251223preview.HcpOpenShiftClusterPropertiesUpdate{
-					ImageDigestMirrors: []*hcpsdk20251223preview.ImageDigestMirror{
+			updateRemove := hcpsdk20260901preview.HcpOpenShiftClusterUpdate{
+				Properties: &hcpsdk20260901preview.HcpOpenShiftClusterPropertiesUpdate{
+					ImageDigestMirrors: []*hcpsdk20260901preview.ImageDigestMirror{
 						{
 							Source:  to.Ptr(idmsSource),
 							Mirrors: []*string{to.Ptr(idmsMirror)},
@@ -218,7 +218,7 @@ var _ = Describe("Customer", func() {
 				},
 			}
 
-			updateRemoveResp, err := framework.UpdateHCPCluster20251223(
+			updateRemoveResp, err := framework.UpdateHCPCluster20260901(
 				ctx, hcpClient, *resourceGroup.Name, customerClusterName, updateRemove, framework.UpdateHCPClusterTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to update cluster to remove second ImageDigestMirror set")
