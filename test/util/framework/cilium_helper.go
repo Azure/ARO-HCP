@@ -16,6 +16,7 @@ package framework
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"time"
@@ -26,6 +27,7 @@ import (
 	"helm.sh/helm/v4/pkg/cli"
 	"helm.sh/helm/v4/pkg/kube"
 
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -34,6 +36,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/utils/ptr"
 
@@ -99,6 +102,86 @@ func InstallCiliumChart(ctx context.Context, chartVersion string, values map[str
 		return fmt.Errorf("failed to install cilium chart: %w", err)
 	}
 
+	return nil
+}
+
+const (
+	MultusCompatibleCNIVersion = "1.0.0"
+
+	// CiliumCNIConfigMapName is the ConfigMap name passed as Helm cni.configMap.
+	// Keep it in sync with EnsureCiliumCNIConfigMap callers and the Helm values.
+	CiliumCNIConfigMapName = "cilium-cni-conf"
+
+	ciliumCNIConfigMapKey = "cni-config"
+)
+
+// CiliumConflistNone is the CNI conflist Cilium writes when chaining is off.
+var CiliumConflistNone = map[string]any{
+	"cniVersion": MultusCompatibleCNIVersion,
+	"name":       "cilium",
+	"plugins": []any{
+		map[string]any{
+			"type":         "cilium-cni",
+			"enable-debug": false,
+			"log-file":     "/var/run/cilium/cilium-cni.log",
+		},
+	},
+}
+
+// CiliumConflistPortmap is the CNI conflist Cilium writes when portmap chaining is on.
+var CiliumConflistPortmap = map[string]any{
+	"cniVersion": MultusCompatibleCNIVersion,
+	"name":       "portmap",
+	"plugins": []any{
+		map[string]any{
+			"type":         "cilium-cni",
+			"enable-debug": false,
+			"log-file":     "/var/run/cilium/cilium-cni.log",
+		},
+		map[string]any{
+			"type":         "portmap",
+			"capabilities": map[string]any{"portMappings": true},
+		},
+	},
+}
+
+// EnsureCiliumCNIConfigMap creates (or updates, if already present) a
+// ConfigMap holding a custom CNI conflist for Cilium to write verbatim to
+// disk, bypassing its own built-in conflist generation. Pass
+// CiliumCNIConfigMapName as the "cni.configMap" Helm value (with
+// "cni.configMapKey" left at its default of "cni-config") when installing
+// the Cilium chart via InstallCiliumChart, so the agent reads the marshaled
+// conflist instead of rendering its hard-coded (and, as of Cilium v1.19.x,
+// Multus-incompatible) template. See MultusCompatibleCNIVersion for why
+// this is necessary.
+func EnsureCiliumCNIConfigMap(ctx context.Context, adminRESTConfig *rest.Config, namespace, name string, conflist map[string]any) error {
+	clientset, err := kubernetes.NewForConfig(adminRESTConfig)
+	if err != nil {
+		return fmt.Errorf("failed to create kubernetes clientset: %w", err)
+	}
+
+	conflistJSON, err := json.Marshal(conflist)
+	if err != nil {
+		return fmt.Errorf("failed to marshal CNI conflist for ConfigMap %s/%s: %w", namespace, name, err)
+	}
+
+	configMap := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Data: map[string]string{
+			ciliumCNIConfigMapKey: string(conflistJSON),
+		},
+	}
+
+	_, err = clientset.CoreV1().ConfigMaps(namespace).Create(ctx, configMap, metav1.CreateOptions{})
+	if apierrors.IsAlreadyExists(err) {
+		_, err = clientset.CoreV1().ConfigMaps(namespace).Update(ctx, configMap, metav1.UpdateOptions{})
+	}
+	if err != nil {
+		return fmt.Errorf("failed to create/update ConfigMap %s/%s: %w", namespace, name, err)
+	}
 	return nil
 }
 
