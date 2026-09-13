@@ -363,7 +363,7 @@ func (tc *perItOrDescribeTestContext) DeleteUserAssignedIdentities(ctx context.C
 	if err != nil {
 		return fmt.Errorf("failed to get Azure credentials: %w", err)
 	}
-	subscriptionID, err := tc.getSubscriptionIDUnlocked(ctx)
+	subscriptionID, err := tc.SubscriptionID(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get subscription ID: %w", err)
 	}
@@ -422,7 +422,7 @@ func (tc *perItOrDescribeTestContext) releaseLeasedIdentities(ctx context.Contex
 
 	if !tc.UsePooledIdentities() {
 		// For non-pooled mode, still clean up role assignments and custom role definitions
-		subscriptionID, err := tc.getSubscriptionIDUnlocked(ctx)
+		subscriptionID, err := tc.SubscriptionID(ctx)
 		if err != nil {
 			return fmt.Errorf("failed to get subscription ID: %w", err)
 		}
@@ -452,7 +452,7 @@ func (tc *perItOrDescribeTestContext) releaseLeasedIdentities(ctx context.Contex
 	if err != nil {
 		return err
 	}
-	subscriptionID, err := tc.getSubscriptionIDUnlocked(ctx)
+	subscriptionID, err := tc.SubscriptionID(ctx)
 	if err != nil {
 		return err
 	}
@@ -628,7 +628,7 @@ func (tc *perItOrDescribeTestContext) cleanupCustomE2ETestRolesAssignmentsForIde
 		return fmt.Errorf("failed to get Azure credentials: %w", err)
 	}
 
-	subscriptionID, err := tc.getSubscriptionIDUnlocked(ctx)
+	subscriptionID, err := tc.SubscriptionID(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get subscription ID: %w", err)
 	}
@@ -733,7 +733,7 @@ func (tc *perItOrDescribeTestContext) cleanupCustomE2ETestRolesAssignmentsForIde
 func (tc *perItOrDescribeTestContext) cleanupLeasedIdentityContainerRoleAssignments(ctx context.Context,
 	client *armauthorization.RoleAssignmentsClient, resourceGroup string) error {
 
-	subscriptionID, err := tc.getSubscriptionIDUnlocked(ctx)
+	subscriptionID, err := tc.SubscriptionID(ctx)
 	if err != nil {
 		return err
 	}
@@ -1273,7 +1273,7 @@ func (tc *perItOrDescribeTestContext) EnsureIdentityRoleAssignments(
 		return fmt.Errorf("failed to get Azure credentials: %w", err)
 	}
 
-	subscriptionID, err := tc.getSubscriptionIDUnlocked(ctx)
+	subscriptionID, err := tc.SubscriptionID(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get subscription ID: %w", err)
 	}
