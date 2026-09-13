@@ -124,6 +124,13 @@ type queryData struct {
 	ServiceClusterName    string
 	ManagementClusterName string
 
+	// ManagementClusterNames lists the management (AKS) cluster names that host
+	// the target HCP's control plane. It is seeded from ManagementClusterName
+	// (PR jobs) and otherwise discovered by the velero/mgmtCluster query. Velero
+	// runs per management cluster, so cluster-scoped velero queries (serverLogs)
+	// filter "| where cluster in (...)" on this list.
+	ManagementClusterNames []string
+
 	// FullStartTime and FullEndTime define the entire snapshot window. Use
 	// these for broad timestamp pre-filters (Kusto partition pruning) and
 	// for discovery queries that must see the complete time range.
@@ -413,6 +420,31 @@ var allQueries = []querySpec{
 			}
 			d.HostedClusterNamespace = rows[0].values[0]
 			d.HostedControlPlaneNamespace = rows[0].values[0] + "-" + rows[0].values[1]
+			return nil
+		},
+	},
+	{
+		// Discovers which management cluster(s) host this HCP's velero backups, so the
+		// cross-HCP velero serverLogs query can scope to them. Reads the cluster from the
+		// HCP's Velero Backup CRs (matched by the ARM resource-id annotation) — that is
+		// exactly the management cluster where velero runs for this HCP.
+		component:    "velero",
+		queryName:    "mgmtCluster",
+		templatePath: "queries/velero/mgmtCluster/query.kql",
+		database:     "service",
+		category:     categoryResourceDiscovery,
+		ready: func(d queryData) bool {
+			return isClusterType(d) && d.ClusterResourceID != "" && len(d.ManagementClusterNames) == 0
+		},
+		prerequisites: "ClusterResourceID, ResourceType is cluster, ManagementClusterNames not already seeded",
+		storeResult: func(d *queryData, rows []resultRow) error {
+			names := make([]string, 0, len(rows))
+			for _, r := range rows {
+				if len(r.values) > 0 && r.values[0] != "" {
+					names = append(names, r.values[0])
+				}
+			}
+			d.ManagementClusterNames = names
 			return nil
 		},
 	},
@@ -802,6 +834,74 @@ var allQueries = []querySpec{
 		},
 		prerequisites: "HostedControlPlaneNamespace, ResourceType is cluster",
 	},
+	// --- Velero: backup CRs and component logs (ARO-28989) ---
+	{
+		component:    "velero",
+		queryName:    "backups",
+		templatePath: "queries/velero/backups/query.kql",
+		database:     "service",
+		category:     categoryState,
+		ready: func(d queryData) bool {
+			return isClusterType(d) && d.ClusterResourceID != ""
+		},
+		prerequisites: "ClusterResourceID, ResourceType is cluster",
+	},
+	{
+		component:    "velero",
+		queryName:    "schedules",
+		templatePath: "queries/velero/schedules/query.kql",
+		database:     "service",
+		category:     categoryState,
+		ready: func(d queryData) bool {
+			return isClusterType(d) && d.ClusterResourceID != ""
+		},
+		prerequisites: "ClusterResourceID, ResourceType is cluster",
+	},
+	{
+		component:    "velero",
+		queryName:    "dataUploads",
+		templatePath: "queries/velero/dataUploads/query.kql",
+		database:     "service",
+		category:     categoryState,
+		ready: func(d queryData) bool {
+			return isClusterType(d) && d.HostedControlPlaneNamespace != ""
+		},
+		prerequisites: "HostedClusterNamespace, HostedControlPlaneNamespace, ResourceType is cluster",
+	},
+	{
+		component:    "velero",
+		queryName:    "deleteBackupRequests",
+		templatePath: "queries/velero/deleteBackupRequests/query.kql",
+		database:     "service",
+		category:     categoryState,
+		ready: func(d queryData) bool {
+			return isClusterType(d) && d.HostedClusterNamespace != ""
+		},
+		prerequisites: "HostedClusterNamespace, ResourceType is cluster",
+	},
+	{
+		component:    "velero",
+		queryName:    "logs",
+		templatePath: "queries/velero/logs/query.kql",
+		database:     "service",
+		category:     categoryLogs,
+		ready: func(d queryData) bool {
+			return isClusterType(d) && d.HostedControlPlaneNamespace != ""
+		},
+		prerequisites: "HostedClusterNamespace, HostedControlPlaneNamespace, ResourceType is cluster",
+	},
+	{
+		component:    "velero",
+		queryName:    "serverLogs",
+		templatePath: "queries/velero/serverLogs/query.kql",
+		database:     "service",
+		category:     categoryLogs,
+		ready: func(d queryData) bool {
+			return isClusterType(d) && len(d.ManagementClusterNames) > 0
+		},
+		prerequisites: "ManagementClusterNames (seeded or discovered), ResourceType is cluster",
+	},
+
 	{
 		component:    "alerts",
 		queryName:    "cluster",
