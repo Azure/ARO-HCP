@@ -274,6 +274,19 @@ ClusterServiceID *InternalID `json:"clusterServiceID,omitempty"`
 ```
 When adding or modifying a field, update this comment. When adding or modifying a controller or frontend endpoint that writes a field, update the comment on the field it writes.
 
+## HCP Cluster Creation Flow Documentation
+
+`docs/ops/hcp-cluster-creation-flow.md` documents the high-level cluster creation flow through the service components. Only the regions between `<!-- BEGIN GENERATED: ... -->` / `<!-- END GENERATED: ... -->` markers are generated from source (the happy-path steps, the mermaid flow diagram, and the kube-applier debug commands); the surrounding narrative and callouts are hand-maintained.
+
+### When to regenerate
+Regenerate the marked regions of `docs/ops/hcp-cluster-creation-flow.md` (using the generation prompt at the bottom of that file) whenever a change touches:
+- `frontend/pkg/frontend/` — the cluster creation request path
+- `backend/pkg/controllers/` — any controller in the creation/apply-desire/read-desire/management-cluster flow
+- `kube-applier/` — the cross-cluster apply/delete/read behavior
+- deployment manifests / topology config (`config/`) — namespace or deployment names referenced in the debug commands
+
+Keep the flow diagram consistent with the "Cluster Create Flow" digraph in `docs/cosmos-data-flow.md`.
+
 ## Subdirectory Guidance
 
 Several subdirectories have their own AI guidance files with domain-specific detail:
