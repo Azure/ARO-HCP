@@ -1,0 +1,46 @@
+database: ServiceLogs
+kql: |
+  // Velero DataUploads: per-volume data-mover upload operations (CSI snapshot -> object store) for
+  // the target HCP, captured on management clusters, for backup-failure debugging (ARO-28989). This
+  // is where PersistentVolume backup failures surface (e.g. etcd data volumes). DataUpload CRs carry
+  // NO ARM resource-id annotation, so the HCP is resolved the veleroHcpLogs way: read the HCP's
+  // control-plane namespaces from the watcher-captured Backup CRs (matched by the resource-id
+  // annotation), then match DataUpload.spec.sourceNamespace against that set. The namespace token is
+  // globally unique per HCP, so this also pins the result to the right mgmt cluster(s) implicitly.
+  // mgmtCluster is renamed off the reserved `cluster` column so it survives into the output (known
+  // columns are consumed by the gatherer and dropped). isFailed flags Failed/Canceled.
+  set notruncation;
+  let hcpNamespaces = (
+      kubernetesResourceSnapshots
+      | where timestamp between (datetime(2025-01-01T00:00:00.0000000Z) .. datetime(2025-01-02T00:00:00.0000000Z))
+      | where cluster has_any ('mgmt-cluster-1', 'mgmt-cluster-2')
+      | where objectKind == "Backup"
+      | where namespace == "velero"
+      | where tostring(object.metadata.annotations["azure.microsoft.com/hcp-cluster-azure-resource-id"]) has '/subscriptions/test-sub/resourceGroups/test-rg'
+      | mv-expand ns = object.spec.includedNamespaces to typeof(string)
+      | distinct ns
+  );
+  kubernetesResourceSnapshots
+  | where timestamp between (datetime(2025-01-01T00:00:00.0000000Z) .. datetime(2025-01-02T00:00:00.0000000Z))
+  | where cluster has_any ('mgmt-cluster-1', 'mgmt-cluster-2')
+  | where objectKind == "DataUpload"
+  | where namespace == "velero"
+  | where tostring(object.spec.sourceNamespace) has_any (hcpNamespaces)
+  | extend
+      capturedAt = timestamp,
+      mgmtCluster = cluster,
+      dataUpload = name,
+      backup = tostring(object.metadata.labels["velero.io/backup-name"]),
+      sourceNamespace = tostring(object.spec.sourceNamespace),
+      sourcePVC = tostring(object.spec.sourcePVC),
+      phase = tostring(object.status.phase),
+      node = tostring(object.status.node),
+      startTimestamp = todatetime(object.status.startTimestamp),
+      completionTimestamp = todatetime(object.status.completionTimestamp),
+      bytesDone = tolong(object.status.progress.bytesDone),
+      totalBytes = tolong(object.status.progress.totalBytes)
+  | extend isFailed = phase in ("Failed", "Canceled")
+  | project timestamp, capturedAt, event, mgmtCluster, dataUpload, backup, sourceNamespace, sourcePVC, phase, isFailed, node, startTimestamp, completionTimestamp, bytesDone, totalBytes
+  | order by timestamp asc
+name: veleroDataUploads
+unlimited: true
