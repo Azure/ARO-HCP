@@ -174,8 +174,12 @@ Onboarding a new E2E testing subscription requires two steps: registering the AF
 | INT         | `Microsoft.RedHatOpenShift/INT-APPROVED`, `Microsoft.RedHatOpenShift/ExperimentalReleaseFeatures` |
 | STG         | `Microsoft.RedHatOpenShift/STAGING-APPROVED`, `Microsoft.RedHatOpenShift/ExperimentalReleaseFeatures` |
 | PROD        | `Microsoft.RedHatOpenShift/HcpPrivatePreview`, `Microsoft.RedHatOpenShift/InProgress`, `Microsoft.RedHatOpenShift/ExperimentalReleaseFeatures` |
+| PROD (canary/EUAP regions only) | additionally `Microsoft.Resources/EUAPParticipation` — see [EUAP/Canary Region Access](#euapcanary-region-access) |
 
-The routing flag controls which RP instance ARM sends requests to. `ExperimentalReleaseFeatures` gates experimental features used by E2E tests (non-stable channel groups, single-replica control planes, etc.). PROD additionally requires `InProgress` to enable EUAP/canary region access.
+The routing flag controls which RP instance ARM sends requests to. `ExperimentalReleaseFeatures` gates experimental features used by E2E tests (non-stable channel groups, single-replica control planes, etc.). PROD additionally requires `InProgress` to route canary/EUAP traffic to the right RP.
+
+> [!IMPORTANT]
+> `InProgress` only controls ARM *routing*. It does not grant the subscription access to a EUAP region. Deploying into `eastus2euap` or `centraluseuap` additionally requires `Microsoft.Resources/EUAPParticipation`, which lives in a different namespace and uses a different approval path — see [EUAP/Canary Region Access](#euapcanary-region-access).
 
 ### Step 1: Register AFEC Flags
 
@@ -214,6 +218,71 @@ AFEC registration is a two-step process: first initiate the registration from th
 
 > [!NOTE]
 > Step 1 can be performed by anyone with write access to the subscription. Steps 2-3 require Microsoft PlatformServiceAdministrator access.
+
+### EUAP/Canary Region Access
+
+Subscriptions that run E2E in a canary/EUAP region (`eastus2euap`, `centraluseuap`) need `Microsoft.Resources/EUAPParticipation` registered on top of the `Microsoft.RedHatOpenShift` flags above. Without it, any resource group create in the region fails with `LocationNotAvailableForResourceGroup`.
+
+This flag is **ManualApprove**: `az feature register` only moves it to `Pending` and it never self-completes. Something has to approve it — either LionRock fulfillment or a Geneva Action. **File the LionRock request first; fall back to Geneva Actions if it stalls.**
+
+#### Step A: Initiate the registration
+
+```bash
+az feature register --namespace Microsoft.Resources --name EUAPParticipation \
+  --subscription <subscription-id>
+```
+
+This leaves the flag in `Pending`. That is expected.
+
+#### Step B: File a LionRock region-access request (preferred)
+
+This is the sanctioned self-service path and the one to try first.
+
+- File from a **b-account** (elevated / Service Tree owner).
+- One request per subscription, for the canary region.
+- Make it **region-access only**. Do not bundle SKU or quota line items — a single gated line item (GPU families in particular) holds up the whole request, including the region-access line.
+
+#### Step C: Approve via Geneva Actions (fallback)
+
+Switch to this path once the LionRock request lands in *Action Required* or is Backlogged. For subscriptions outside the Microsoft tenant, `Microsoft.RedHatOpenShift` is not treated as in-scope 1P, so LionRock handles them as **external subscriptions** and routes fulfillment to manual RDQuota, where it typically stalls. For Red Hat tenant subscriptions, treat the stall as the expected outcome rather than the exception — do not wait weeks on it.
+
+Recognisable failure signature in the request activity log:
+
+- `AutoApprove`: *"Requestor service is not in scope. Auto approve ARM requests for external subscriptions. Grant WAEAP approval."* — WAEAP approval looks like progress, but it is not the flag registration.
+- Repeated `CheckAutoComplete`: *"AFEC flag for region access is not registered. Proceeding to fulfillment.."*
+- `Fulfill` → manual RDQuota/ICM → *Action Required*, often with a generic *"The requested SKU/Region combination is not supported"* bot comment, and eventually Backlogged with an unrelated *"high demand for virtual machines in this region"* message.
+
+To register the flag directly:
+
+1. **Request JIT access** (in Teams) — note this is a *different* claim from the ARO one in Step 1:
+   - Resource type: `acis`
+   - Scope: `AFEC`
+   - Access level: `PlatformServiceOperator`
+
+   The claim auto-approves for members of the `TM-AFEC` security group. If you are not a member, ask someone who is to run the approval or to add you.
+
+2. **Approve the registration** via Geneva Actions:
+   - Azure Resource Manager → Feature Management → Approve Feature Registration
+   - Resource Provider: `Microsoft.Resources`
+   - Feature Name: `EUAPParticipation`
+   - Subscription: the subscription ID to onboard
+
+The Geneva Action registers the flag regardless of the LionRock request's state, so there is no need to cancel it first. Do close it out afterwards though — an open request blocks new ones from being filed for the same subscription and region, and you will need those for quota.
+
+> [!NOTE]
+> Most RPs have migrated to AFEC 2.0, where the owning RP holds the approver claim. `Microsoft.Resources` has not, which is why the `TM-AFEC` path still auto-approves — expect this procedure to need revisiting if that changes. See [AFEC 2.0 updates](https://eng.ms/docs/products/arm/rp_onboarding/afec/afec_20_updates).
+
+#### Step D: Verify and register the provider
+
+```bash
+az feature show --namespace Microsoft.Resources --name EUAPParticipation \
+  --subscription <subscription-id> --query properties.state -o tsv   # expect: Registered
+az provider register --namespace Microsoft.Resources --subscription <subscription-id>
+```
+
+#### Quota
+
+Region access is separate from quota. Once the flag is `Registered`, file the per-region quota increases for the canary region as described in step 2 of the DEV procedure above (Standard DSv3 Family vCPUs, Public IP Addresses, Role Assignments). File any GPU SKU (e.g. `NCasT4v3`) as its own request — GPU families are HPC-gated and need product-manager pre-approval, which will otherwise block the whole bundle.
 
 ### Step 2: CI Infrastructure Setup
 
