@@ -17,6 +17,7 @@ package slots
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -361,6 +362,120 @@ environments:
 	}
 	if pools[0].ResourceType != "aro-hcp-prod-shard0-slot" || pools[1].ResourceType != "aro-hcp-prod-shard1-slot" {
 		t.Fatalf("unexpected candidate pool ordering: %q, %q", pools[0].ResourceType, pools[1].ResourceType)
+	}
+}
+
+func TestLoadCatalogWeightedMode(t *testing.T) {
+	t.Parallel()
+
+	catalog := loadCatalogFromYAML(t, `version: 1
+environments:
+  dev:
+    deploy_envs: [ci01]
+    pools:
+      - subscription_name: dev-sub-1
+        region_mode: weighted
+        regions: [westus3, centralus, canadacentral]
+        identity_provisioning_region: westus3
+        resource_type: aro-hcp-dev-shard0-slot
+        slot_count: 1
+        identity_container_prefix: aro-hcp-msi-container-dev-a
+        identity_container_count: 1
+      - subscription_name: dev-sub-2
+        region_mode: weighted
+        regions: [westus3, centralus, canadacentral]
+        identity_provisioning_region: westus3
+        identity_provisioning: unmanaged
+        resource_type: aro-hcp-dev-shard1-slot
+        slot_count: 1
+        identity_container_prefix: aro-hcp-msi-container-dev-b
+        identity_container_count: 1
+`)
+
+	if got, want := catalog.Environments["dev"].Pools[0].EffectiveRegionMode(), RegionModeWeighted; got != want {
+		t.Fatalf("expected region mode %q, got %q", want, got)
+	}
+	regions, err := catalog.RegionsForEnvironment("dev")
+	if err != nil {
+		t.Fatalf("expected weighted regions to resolve: %v", err)
+	}
+	if got, want := regions, []string{"westus3", "centralus", "canadacentral"}; !equalValues(got, want) {
+		t.Fatalf("unexpected weighted regions: got %v want %v", got, want)
+	}
+
+	pools, err := catalog.CandidatePools("dev", nil, sets.New("eastus2"), "")
+	if err != nil {
+		t.Fatalf("expected weighted candidates to ignore ALLOWED_LOCATIONS: %v", err)
+	}
+	if len(pools) != 2 {
+		t.Fatalf("expected 2 weighted candidate pools, got %d", len(pools))
+	}
+}
+
+func TestLoadCatalogRejectsInvalidWeightedPools(t *testing.T) {
+	t.Parallel()
+
+	basePool := `      - subscription_name: dev-sub-1
+        region_mode: weighted
+        regions: [westus3, centralus, canadacentral]
+        identity_provisioning_region: westus3
+        resource_type: aro-hcp-dev-shard0-slot
+        slot_count: 1
+        identity_container_prefix: aro-hcp-msi-container-dev-a
+        identity_container_count: 1
+`
+	tests := []struct {
+		name      string
+		pools     string
+		wantError string
+	}{
+		{
+			name:      "region is not allowed",
+			pools:     strings.Replace(basePool, "        regions:", "        region: westus3\n        regions:", 1),
+			wantError: "must not declare region",
+		},
+		{
+			name:      "regions are required",
+			pools:     strings.Replace(basePool, "        regions: [westus3, centralus, canadacentral]\n", "", 1),
+			wantError: "has no regions",
+		},
+		{
+			name:      "regions must be unique",
+			pools:     strings.Replace(basePool, "[westus3, centralus, canadacentral]", "[westus3, centralus, westus3]", 1),
+			wantError: "empty or duplicate regions",
+		},
+		{
+			name:      "pool needs provisioning region",
+			pools:     strings.Replace(basePool, "        identity_provisioning_region: westus3\n", "        identity_provisioning: unmanaged\n", 1),
+			wantError: "must declare identity_provisioning_region",
+		},
+		{
+			name: "weighted pools use identical ordered regions",
+			pools: strings.Replace(basePool, "[westus3, centralus, canadacentral]", "[centralus, westus3, canadacentral]", 1) +
+				strings.ReplaceAll(
+					strings.Replace(basePool, "dev-sub-1", "dev-sub-2", 1),
+					"aro-hcp-dev-shard0-slot", "aro-hcp-dev-shard1-slot",
+				),
+			wantError: "same ordered regions",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			catalogPath := filepath.Join(t.TempDir(), "e2e-slots.yaml")
+			catalogYAML := "version: 1\nenvironments:\n  dev:\n    deploy_envs: [ci01]\n    pools:\n" + tc.pools
+			if err := os.WriteFile(catalogPath, []byte(catalogYAML), 0o644); err != nil {
+				t.Fatalf("expected invalid catalog write to succeed: %v", err)
+			}
+			_, err := LoadCatalog(catalogPath)
+			if err == nil {
+				t.Fatalf("expected weighted catalog validation to fail with %q", tc.wantError)
+			}
+			if !strings.Contains(err.Error(), tc.wantError) {
+				t.Fatalf("expected error to contain %q, got %v", tc.wantError, err)
+			}
+		})
 	}
 }
 

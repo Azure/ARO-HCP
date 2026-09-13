@@ -18,7 +18,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"hash/fnv"
+	"math"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -44,6 +47,8 @@ func DefaultAcquireOptions() *RawAcquireOptions {
 		AllowedSubscriptions: allowedSubscriptions,
 		AllowedLocations:     allowedLocations,
 		SelectedLocation:     selectedLocation,
+		LocationWeights:      strings.TrimSpace(os.Getenv("LOCATION_WEIGHTS")),
+		BuildID:              strings.TrimSpace(os.Getenv("BUILD_ID")),
 		SharedDir:            strings.TrimSpace(os.Getenv("SHARED_DIR")),
 
 		LeaseProxyServerURL: strings.TrimSpace(os.Getenv("LEASE_PROXY_SERVER_URL")),
@@ -95,6 +100,8 @@ func BindAcquireOptions(opts *RawAcquireOptions, cmd *cobra.Command) error {
 	cmd.Flags().StringVar(&opts.DeployEnv, "deploy-env", opts.DeployEnv, "Deploy environment name (ci00, ci01, int, stg, prod)")
 	cmd.Flags().StringSliceVar(&opts.AllowedSubscriptions, "allowed-subscriptions", opts.AllowedSubscriptions, "Optional catalog subscription_name values allowed for candidate pool selection.")
 	cmd.Flags().StringSliceVar(&opts.AllowedLocations, "allowed-locations", opts.AllowedLocations, "Optional Azure regions allowed for fixed-mode candidate pool selection.")
+	cmd.Flags().StringVar(&opts.LocationWeights, "location-weights", opts.LocationWeights, "Weighted-mode location weights as comma-separated location=weight entries.")
+	cmd.Flags().StringVar(&opts.BuildID, "build-id", opts.BuildID, "Stable per-run key used for deterministic weighted location selection.")
 	cmd.Flags().StringVar(&opts.SharedDir, "shared-dir", opts.SharedDir, "Path to SHARED_DIR")
 	cmd.Flags().StringVar(&opts.CatalogPath, "slot-catalog", opts.CatalogPath, "Path to the canonical E2E slot catalog")
 	cmd.Flags().StringVar(&opts.LeaseProxyServerURL, "lease-proxy-server-url", opts.LeaseProxyServerURL, "Lease proxy server URL")
@@ -111,6 +118,8 @@ type RawAcquireOptions struct {
 	AllowedSubscriptions []string
 	AllowedLocations     []string
 	SelectedLocation     string
+	LocationWeights      string
+	BuildID              string
 	SharedDir            string
 	CatalogPath          string
 	LeaseProxyServerURL  string
@@ -129,20 +138,23 @@ type ValidatedAcquireOptions struct {
 }
 
 type completedAcquireOptions struct {
-	ClusterProfileDirs []string
-	DeployEnvironment  string
-	SharedDir          string
-	LeaseProxyURL      string
-	LeaseProxyTimeout  time.Duration
-	MaxWaitForLease    time.Duration
-	LeaseWaitInterval  time.Duration
-	// RuntimeLocationOverride carries the concrete runtime region when pool
-	// identity is decoupled from region selection.
-	RuntimeLocationOverride string
-	CandidatePools          []slots.Pool
-	PoolEnvironment         string
-	Now                     func() time.Time
-	Sleep                   func(context.Context, time.Duration) error
+	ClusterProfileDirs   []string
+	DeployEnvironment    string
+	SharedDir            string
+	LeaseProxyURL        string
+	LeaseProxyTimeout    time.Duration
+	MaxWaitForLease      time.Duration
+	LeaseWaitInterval    time.Duration
+	RuntimeRegion        string
+	RegionMode           string
+	CatalogRegions       []string
+	NormalizedWeights    []string
+	LocationOverrideUsed bool
+	SelectionKeySource   string
+	CandidatePools       []slots.Pool
+	PoolEnvironment      string
+	Now                  func() time.Time
+	Sleep                func(context.Context, time.Duration) error
 }
 
 type AcquireOptions struct {
@@ -224,32 +236,164 @@ func (o *ValidatedAcquireOptions) Complete(_ context.Context) (*AcquireOptions, 
 		return nil, err
 	}
 
+	selectedLocation := strings.TrimSpace(o.SelectedLocation)
 	environment, err := catalog.ResolveEnvironmentForDeployEnv(o.DeployEnv)
 	if err != nil {
 		return nil, err
 	}
 
-	candidatePools, err := catalog.CandidatePools(environment, sets.New(o.AllowedSubscriptions...), sets.New(o.AllowedLocations...), o.SelectedLocation)
+	candidatePools, err := catalog.CandidatePools(environment, sets.New(o.AllowedSubscriptions...), sets.New(o.AllowedLocations...), selectedLocation)
+	if err != nil {
+		return nil, err
+	}
+
+	regionMode, err := catalog.RegionModeForEnvironment(environment)
+	if err != nil {
+		return nil, err
+	}
+	regionSelection, err := resolveRegionSelection(catalog, environment, regionMode, selectedLocation, o.LocationWeights, o.BuildID)
 	if err != nil {
 		return nil, err
 	}
 
 	return &AcquireOptions{
 		completedAcquireOptions: &completedAcquireOptions{
-			ClusterProfileDirs:      o.effectiveClusterProfileDirs(),
-			DeployEnvironment:       o.DeployEnv,
-			SharedDir:               o.SharedDir,
-			LeaseProxyURL:           o.LeaseProxyServerURL,
-			LeaseProxyTimeout:       o.LeaseProxyTimeout,
-			MaxWaitForLease:         o.MaxWaitForLease,
-			LeaseWaitInterval:       o.LeaseWaitInterval,
-			RuntimeLocationOverride: o.SelectedLocation,
-			CandidatePools:          candidatePools,
-			PoolEnvironment:         environment,
-			Now:                     o.Now,
-			Sleep:                   sleepContext,
+			ClusterProfileDirs:   o.effectiveClusterProfileDirs(),
+			DeployEnvironment:    o.DeployEnv,
+			SharedDir:            o.SharedDir,
+			LeaseProxyURL:        o.LeaseProxyServerURL,
+			LeaseProxyTimeout:    o.LeaseProxyTimeout,
+			MaxWaitForLease:      o.MaxWaitForLease,
+			LeaseWaitInterval:    o.LeaseWaitInterval,
+			RuntimeRegion:        regionSelection.RuntimeRegion,
+			RegionMode:           regionMode,
+			CatalogRegions:       regionSelection.CatalogRegions,
+			NormalizedWeights:    regionSelection.NormalizedWeights,
+			LocationOverrideUsed: selectedLocation != "",
+			SelectionKeySource:   regionSelection.SelectionKeySource,
+			CandidatePools:       candidatePools,
+			PoolEnvironment:      environment,
+			Now:                  o.Now,
+			Sleep:                sleepContext,
 		},
 	}, nil
+}
+
+type regionSelection struct {
+	RuntimeRegion      string
+	CatalogRegions     []string
+	NormalizedWeights  []string
+	SelectionKeySource string
+}
+
+type locationWeight struct {
+	Location string
+	Weight   uint64
+}
+
+func resolveRegionSelection(catalog *slots.Catalog, environment, regionMode, override, rawWeights, buildID string) (*regionSelection, error) {
+	if regionMode != slots.RegionModeWeighted {
+		return &regionSelection{RuntimeRegion: override}, nil
+	}
+
+	regions, err := catalog.RegionsForEnvironment(environment)
+	if err != nil {
+		return nil, err
+	}
+	if override != "" {
+		if !sets.New(regions...).Has(override) {
+			return nil, fmt.Errorf("location override %q is not allowed for weighted environment %q; allowed locations: %s", override, environment, strings.Join(regions, ","))
+		}
+		return &regionSelection{
+			RuntimeRegion:  override,
+			CatalogRegions: regions,
+		}, nil
+	}
+
+	weights, totalWeight, err := parseLocationWeights(rawWeights, regions)
+	if err != nil {
+		return nil, fmt.Errorf("invalid LOCATION_WEIGHTS for weighted environment %q: %w", environment, err)
+	}
+	buildID = strings.TrimSpace(buildID)
+	if buildID == "" {
+		return nil, fmt.Errorf("BUILD_ID must not be empty for weighted environment %q without a location override", environment)
+	}
+
+	hasher := fnv.New64a()
+	_, _ = hasher.Write([]byte(buildID))
+	bucket := hasher.Sum64() % totalWeight
+
+	var cumulative uint64
+	for _, weight := range weights {
+		cumulative += weight.Weight
+		if bucket < cumulative {
+			return &regionSelection{
+				RuntimeRegion:      weight.Location,
+				CatalogRegions:     regions,
+				NormalizedWeights:  normalizedWeightsForCatalog(weights),
+				SelectionKeySource: "BUILD_ID",
+			}, nil
+		}
+	}
+
+	return nil, errors.New("weighted location selection did not resolve a region")
+}
+
+func parseLocationWeights(raw string, regions []string) ([]locationWeight, uint64, error) {
+	if strings.TrimSpace(raw) == "" {
+		return nil, 0, errors.New("LOCATION_WEIGHTS must not be empty")
+	}
+
+	allowedRegions := sets.New(regions...)
+	parsedWeights := make(map[string]uint64, len(regions))
+	for _, entry := range strings.FieldsFunc(raw, func(r rune) bool {
+		return r == ',' || r == '\n'
+	}) {
+		location, rawWeight, found := strings.Cut(entry, "=")
+		location = strings.TrimSpace(location)
+		rawWeight = strings.TrimSpace(rawWeight)
+		switch {
+		case !found || location == "" || rawWeight == "":
+			return nil, 0, fmt.Errorf("entry %q must use location=weight format", strings.TrimSpace(entry))
+		case !allowedRegions.Has(location):
+			return nil, 0, fmt.Errorf("unknown location %q; allowed locations: %s", location, strings.Join(regions, ","))
+		}
+		if _, found := parsedWeights[location]; found {
+			return nil, 0, fmt.Errorf("location %q is declared more than once", location)
+		}
+
+		weight, err := strconv.ParseUint(rawWeight, 10, 64)
+		if err != nil {
+			return nil, 0, fmt.Errorf("weight for location %q must be a non-negative integer: %w", location, err)
+		}
+		parsedWeights[location] = weight
+	}
+
+	weights := make([]locationWeight, 0, len(regions))
+	var totalWeight uint64
+	for _, region := range regions {
+		weight, found := parsedWeights[region]
+		if !found {
+			return nil, 0, fmt.Errorf("missing weight for location %q", region)
+		}
+		if math.MaxUint64-totalWeight < weight {
+			return nil, 0, errors.New("location weight sum overflows uint64")
+		}
+		totalWeight += weight
+		weights = append(weights, locationWeight{Location: region, Weight: weight})
+	}
+	if totalWeight == 0 {
+		return nil, 0, errors.New("at least one location weight must be greater than zero")
+	}
+	return weights, totalWeight, nil
+}
+
+func normalizedWeightsForCatalog(weights []locationWeight) []string {
+	normalized := make([]string, 0, len(weights))
+	for _, weight := range weights {
+		normalized = append(normalized, fmt.Sprintf("%s=%d", weight.Location, weight.Weight))
+	}
+	return normalized
 }
 
 func (o *AcquireOptions) ResolveLeasedSlot(pool slots.Pool, resourceName string) (*slots.ExpandedSlot, error) {
@@ -385,8 +529,8 @@ func rotatedCandidatePools(pools []slots.Pool, now time.Time) []slots.Pool {
 }
 
 func (o *AcquireOptions) runtimeRegionForPool(pool slots.Pool) string {
-	if o.RuntimeLocationOverride != "" {
-		return o.RuntimeLocationOverride
+	if o.RuntimeRegion != "" {
+		return o.RuntimeRegion
 	}
 	return pool.Region
 }
@@ -439,6 +583,11 @@ func (o *AcquireOptions) finalizeAcquiredLease(ctx context.Context, logger logr.
 		"slotName", slot.ResourceName,
 		"environment", o.PoolEnvironment,
 		"pool", describePool(pool),
+		"regionMode", o.RegionMode,
+		"catalogRegions", strings.Join(o.CatalogRegions, ","),
+		"locationWeights", strings.Join(o.NormalizedWeights, ","),
+		"locationOverrideUsed", o.LocationOverrideUsed,
+		"selectionKeySource", o.SelectionKeySource,
 		"runtimeRegion", state.RuntimeRegion,
 		"sharedDir", o.SharedDir,
 	)
@@ -446,10 +595,14 @@ func (o *AcquireOptions) finalizeAcquiredLease(ctx context.Context, logger logr.
 }
 
 func describePool(pool slots.Pool) string {
-	if pool.EffectiveRegionMode() == slots.RegionModeRuntimeSelected {
+	switch pool.EffectiveRegionMode() {
+	case slots.RegionModeRuntimeSelected:
 		return fmt.Sprintf("subscription_name=%q, region_mode=%q, default_region=%q", pool.SubscriptionName, pool.EffectiveRegionMode(), pool.Region)
+	case slots.RegionModeWeighted:
+		return fmt.Sprintf("subscription_name=%q, region_mode=%q, regions=%q", pool.SubscriptionName, pool.EffectiveRegionMode(), strings.Join(pool.Regions, ","))
+	default:
+		return fmt.Sprintf("subscription_name=%q, region=%q", pool.SubscriptionName, pool.Region)
 	}
-	return fmt.Sprintf("subscription_name=%q, region=%q", pool.SubscriptionName, pool.Region)
 }
 
 func sleepContext(ctx context.Context, duration time.Duration) error {
