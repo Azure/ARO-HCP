@@ -184,6 +184,22 @@ defaults:
           memory: 256Mi
         limits:
           memory: 1248Mi
+    watson:
+      image:
+        registry: mcr.microsoft.com
+        repository: azure-watson/agent/azlinux3
+        digest: sha256:8e5ef3e76be33794cef7460712eb9ff0c73bce8b8e5ffc33c5c6bfe0762f5db0 # 1.24.128.0
+      securityContext:
+        privileged: true
+      resources:
+        requests:
+          cpu: 50m
+          memory: 128Mi
+        limits:
+          cpu: 250m
+          memory: 512Mi
+      volumes:
+        crashdumpHostPath: /home/docker/azure-watson
     kusto:
       enabled: false
       buffering: true
