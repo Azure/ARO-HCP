@@ -133,6 +133,85 @@ func TestRenderedResourceQuery(t *testing.T) {
 	}
 }
 
+// TestRenderedPodNodeNamesQuery verifies the pod-node-names template scopes by
+// cluster + namespace + time and does not apply the current-state delete
+// filtering that the resource-snapshot query uses (it must see every pod
+// snapshot ever recorded in the window, not just pods still live at TimestampMax).
+func TestRenderedPodNodeNamesQuery(t *testing.T) {
+	factory, err := kusto.NewQueryFactory()
+	if err != nil {
+		t.Fatalf("failed to build query factory: %v", err)
+	}
+	def, err := factory.GetBuiltinQueryDefinition("ocAdmInspectPodNodeNames")
+	if err != nil {
+		t.Fatalf("failed to get query definition: %v", err)
+	}
+	data := kusto.NewTemplateDataFromOptions(kusto.NewQueryOptions(),
+		kusto.WithClusterName("aro-hcp-mgmt-1"),
+		kusto.WithNamespace("ocm-stg-abc"),
+	)
+	queries, err := factory.Build(*def, data)
+	if err != nil {
+		t.Fatalf("failed to build query: %v", err)
+	}
+	rendered := queries[0].GetQuery().String()
+
+	for _, want := range []string{
+		"kubernetesResourceSnapshots",
+		"cluster == 'aro-hcp-mgmt-1'",
+		"namespace == 'ocm-stg-abc'",
+		"objectKind == 'Pod'",
+		"nodeName = tostring(object.spec.nodeName)",
+		"distinct nodeName",
+	} {
+		if !strings.Contains(rendered, want) {
+			t.Errorf("rendered pod-node-names query missing %q:\n%s", want, rendered)
+		}
+	}
+	for _, notWant := range []string{"event != 'Delete'", "deletionTimestamp"} {
+		if strings.Contains(rendered, notWant) {
+			t.Errorf("rendered pod-node-names query should not do current-state filtering, but contains %q:\n%s", notWant, rendered)
+		}
+	}
+}
+
+// TestRenderedNodesQuery verifies the nodes template filters by a name list
+// instead of a namespace, and applies the same current-state delete filtering
+// as the resource-snapshot query.
+func TestRenderedNodesQuery(t *testing.T) {
+	factory, err := kusto.NewQueryFactory()
+	if err != nil {
+		t.Fatalf("failed to build query factory: %v", err)
+	}
+	def, err := factory.GetBuiltinQueryDefinition("ocAdmInspectNodes")
+	if err != nil {
+		t.Fatalf("failed to get query definition: %v", err)
+	}
+	data := kusto.NewTemplateDataFromOptions(kusto.NewQueryOptions(),
+		kusto.WithClusterName("aro-hcp-mgmt-1"),
+		kusto.WithNames([]string{"aks-nodepool1-vmss000000", "aks-nodepool1-vmss000001"}),
+	)
+	queries, err := factory.Build(*def, data)
+	if err != nil {
+		t.Fatalf("failed to build query: %v", err)
+	}
+	rendered := queries[0].GetQuery().String()
+
+	for _, want := range []string{
+		"kubernetesResourceSnapshots",
+		"cluster == 'aro-hcp-mgmt-1'",
+		"objectKind == 'Node'",
+		"name in ('aks-nodepool1-vmss000000', 'aks-nodepool1-vmss000001')",
+		"event != 'Delete'",
+		"deletionTimestamp",
+		"deletionGracePeriodSeconds",
+	} {
+		if !strings.Contains(rendered, want) {
+			t.Errorf("rendered nodes query missing %q:\n%s", want, rendered)
+		}
+	}
+}
+
 func TestRenderedContainerLogsQuery(t *testing.T) {
 	factory, err := kusto.NewQueryFactory()
 	if err != nil {

@@ -5,6 +5,7 @@ ClusterNames: ''''''
 FilterClusterName: ""
 HCPNamespacePrefix: ""
 Limit: 0
+Names: ""
 Namespace: ""
 NoTruncation: true
 OrderBy: asc

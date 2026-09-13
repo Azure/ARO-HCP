@@ -107,6 +107,29 @@ func TestFilesystemWriter_Layout(t *testing.T) {
 	assertFileContains(t, filepath.Join(root, "namespaces", ns, "pods", "coredns-abc", "coredns", "coredns", "logs", "current.log"), "log line one")
 }
 
+func TestFilesystemWriter_WriteClusterScopedResources(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	w := NewFilesystemWriter(root)
+
+	nodes := []Resource{
+		{APIVersion: "v1", Kind: "Node", Name: "aks-nodepool1-vmss000000", Object: map[string]any{"apiVersion": "v1", "kind": "Node", "metadata": map[string]any{"name": "aks-nodepool1-vmss000000"}}},
+		{APIVersion: "v1", Kind: "Node", Name: "aks-nodepool1-vmss000001", Object: map[string]any{"apiVersion": "v1", "kind": "Node", "metadata": map[string]any{"name": "aks-nodepool1-vmss000001"}}},
+	}
+	if err := w.WriteClusterScopedResources(ctx, nodes); err != nil {
+		t.Fatalf("WriteClusterScopedResources: %v", err)
+	}
+
+	// Each node gets its own file: cluster-scoped-resources/core/nodes/<name>.yaml.
+	assertFileContains(t, filepath.Join(root, "cluster-scoped-resources", "core", "nodes", "aks-nodepool1-vmss000000.yaml"), "kind: Node")
+	assertFileContains(t, filepath.Join(root, "cluster-scoped-resources", "core", "nodes", "aks-nodepool1-vmss000001.yaml"), "kind: Node")
+
+	// Unlike namespaced resources, there is no aggregate List file.
+	if _, err := os.Stat(filepath.Join(root, "cluster-scoped-resources", "core", "nodes.yaml")); err == nil {
+		t.Errorf("expected no cluster-scoped-resources/core/nodes.yaml List file, but one was written")
+	}
+}
+
 func TestFilesystemWriter_RejectsPathTraversal(t *testing.T) {
 	ctx := context.Background()
 	root := t.TempDir()
