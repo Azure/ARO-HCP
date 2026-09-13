@@ -38,13 +38,15 @@ spec:
     #   * Absolute count/volume gates must NOT double, so they dedup replicas first with
     #     max without (prometheus_replica) ( increase(...) ) before summing (see
     #     test/.../gather-observability/queries.yaml for the same convention).
+    # Match both legacy and Prometheus 3 normalized one-second bucket labels.
+    # Use [.] for the literal dot so Bicep generation preserves the regex.
     - alert: FrontendPathLatency
       expr: |
         (
           (
             sum by (route, method, cluster) (rate(frontend_http_requests_duration_seconds_count{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m]))
             -
-            sum by (route, method, cluster) (rate(frontend_http_requests_duration_seconds_bucket{le="1", route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m]))
+            sum by (route, method, cluster) (rate(frontend_http_requests_duration_seconds_bucket{le=~"^1([.]0)?$", route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m]))
           )
           /
           sum by (route, method, cluster) (rate(frontend_http_requests_duration_seconds_count{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m]))
@@ -62,7 +64,7 @@ spec:
           )
           -
           sum by (route, method, cluster) (
-            max without (prometheus_replica) (increase(frontend_http_requests_duration_seconds_bucket{le="1", route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m]))
+            max without (prometheus_replica) (increase(frontend_http_requests_duration_seconds_bucket{le=~"^1([.]0)?$", route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m]))
           )
         ) >= 3
       for: 1m

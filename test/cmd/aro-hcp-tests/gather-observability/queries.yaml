@@ -12,6 +12,7 @@ panels:
   queries:
   - title: "Frontend Slow-Request Fraction (>1s)"
     description: "Fraction of frontend requests slower than 1 second, by method/route/cluster, over a trailing 30-minute window (matches the FrontendPathLatency alert's core signal). The alert fires at >0.05 (5%) but only for series that also clear its volume gate (>=50 requests/30m) and an absolute slow-call floor (>=3), so a single outlier on a low-traffic route cannot trip it. Uses count minus the le=1 bucket over count as the slow fraction; HA Prometheus replicas cancel in the ratio. Excludes hcpoperationresults (same as the alert)."
+    # Match both legacy and Prometheus 3 normalized one-second bucket labels.
     query: |
       (
         sum by (route, method, cluster) (
@@ -19,7 +20,7 @@ panels:
         )
         -
         sum by (route, method, cluster) (
-          rate(frontend_http_requests_duration_seconds_bucket{le="1", route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m])
+          rate(frontend_http_requests_duration_seconds_bucket{le=~"^1([.]0)?$", route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m])
         )
       )
       /

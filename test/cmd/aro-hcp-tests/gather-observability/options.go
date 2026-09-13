@@ -276,6 +276,20 @@ func (o Options) Run(ctx context.Context) error {
 		return fmt.Errorf("logger not found in context: %w", err)
 	}
 
+	evidence, err := newEvidenceCollector(o.OutputDir, o.TimeWindow)
+	if err != nil {
+		logger.Error(err, "failed to initialize observability evidence")
+	} else {
+		defer func() {
+			if err := evidence.writeManifest(); err != nil {
+				logger.Error(err, "failed to write observability evidence manifest")
+				return
+			}
+			logger.Info("wrote observability evidence manifest", "path", filepath.Join(o.OutputDir, "evidence", "manifest.json"))
+		}()
+	}
+	httpClient := &http.Client{Timeout: 30 * time.Second}
+
 	// Deduplicate resource groups across workspaces and fetch all alert
 	// data once per resource group, then subdivide into workspace-scoped
 	// (Prometheus) and infrastructure (metric) groups.
@@ -380,11 +394,20 @@ func (o Options) Run(ctx context.Context) error {
 
 	// Execute panel queries (Prometheus and Azure Monitor) and render timeseries charts
 	if o.Queries != nil {
-		panelTabs, err := o.runQueries(ctx, workspaces)
+		panelTabs, err := o.runQueries(ctx, workspaces, httpClient, evidence)
 		if err != nil {
 			return utils.TrackError(fmt.Errorf("panel query execution failed: %w", err))
 		}
 		tabs = append(tabs, panelTabs...)
+	}
+
+	if ws, ok := workspaces[workspaceSvc]; ok {
+		collectFrontendSamples(ctx, httpClient, o.cred, ws.PromEndpoint, o.TimeWindow, evidence)
+	} else if evidence != nil {
+		evidence.note(evidenceRequest{
+			Kind: "stored-samples", Source: sourcePrometheus, Workspace: workspaceSvc,
+			Title: "Frontend sample profile", Start: o.TimeWindow.Start, End: o.TimeWindow.End,
+		}, "skipped", "service workspace is unavailable")
 	}
 
 	// Emit a single tabbed HTML page. The filename must match the Spyglass HTML
@@ -407,12 +430,11 @@ func (o Options) Run(ctx context.Context) error {
 	return nil
 }
 
-func (o Options) runQueries(ctx context.Context, workspaces map[string]*workspaceData) ([]observabilityTab, error) {
+func (o Options) runQueries(ctx context.Context, workspaces map[string]*workspaceData, httpClient *http.Client, evidence *evidenceCollector) ([]observabilityTab, error) {
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("logger not found in context: %w", err)
 	}
-	httpClient := &http.Client{Timeout: 30 * time.Second}
 
 	var tabs []observabilityTab
 	for _, panel := range o.Queries.Panels {
@@ -433,7 +455,7 @@ func (o Options) runQueries(ctx context.Context, workspaces map[string]*workspac
 					return nil, fmt.Errorf("unknown metric resource %q for query %q", q.Resource, q.Title)
 				}
 				metricResourceID = resourceID.String()
-				res, warn, err := queryAzureMonitorMetrics(ctx, o.cred, resourceID, q, o.TimeWindow.Start, o.TimeWindow.End, o.cosmosAutoscaleMax)
+				res, warn, err := queryAzureMonitorMetrics(ctx, o.cred, resourceID, q, o.TimeWindow.Start, o.TimeWindow.End, o.cosmosAutoscaleMax, httpClient, evidence)
 				if err != nil {
 					logger.Error(err, "Azure Monitor metrics query failed", "title", q.Title)
 					queryErr = err.Error()
@@ -453,10 +475,18 @@ func (o Options) runQueries(ctx context.Context, workspaces map[string]*workspac
 
 				logger.Info("executing PromQL query", "panel", panel.Title, "title", q.Title, "workspace", q.Workspace)
 
-				resp, err := queryRange(ctx, httpClient, o.cred, endpoint, q.Query, o.TimeWindow.Start, o.TimeWindow.End, q.Step)
+				request := evidenceRequest{
+					Kind: "query-result", Source: sourcePrometheus, Workspace: q.Workspace,
+					Title: q.Title, Start: o.TimeWindow.Start, End: o.TimeWindow.End,
+				}
+				client := evidence.client(httpClient, request)
+				resp, err := queryRange(ctx, client, o.cred, endpoint, q.Query, o.TimeWindow.Start, o.TimeWindow.End, q.Step)
 				if err != nil {
 					logger.Error(err, "PromQL query failed", "title", q.Title)
 					queryErr = err.Error()
+					if evidence != nil {
+						evidence.note(request, "failed", "Prometheus query failed; inspect the native HTTP entry when available")
+					}
 				} else {
 					results = resp.Data.Result
 				}
