@@ -111,6 +111,7 @@ func (c *controlPlaneActiveVersionSyncer) SyncOnce(ctx context.Context, key cont
 	// mirroring here keeps the frontend (and therefore admission) free of any
 	// management-cluster access; see internal/admission/CLAUDE.md.
 	newDesiredChannels := getHostedClusterDesiredVersionChannels(hostedCluster)
+	newV5MirrorPresent := getHostedClusterV5MirrorPresent(hostedCluster)
 
 	cachedServiceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if cosmosstorageutils.IsNotFoundError(err) {
@@ -129,16 +130,19 @@ func (c *controlPlaneActiveVersionSyncer) SyncOnce(ctx context.Context, key cont
 	// DesiredVersionChannels is a plain []string, so slices.Equal compares it by value.
 	oldActiveVersions := cachedServiceProviderCluster.Status.ControlPlaneVersion.ActiveVersions
 	oldDesiredChannels := cachedServiceProviderCluster.Status.DesiredVersionChannels
-	if !controllerutil.NeedsUpdate(oldActiveVersions, newActiveVersions) && slices.Equal(oldDesiredChannels, newDesiredChannels) {
+	oldV5MirrorPresent := cachedServiceProviderCluster.Status.DataPlaneV5MirrorPresent
+	if !controllerutil.NeedsUpdate(oldActiveVersions, newActiveVersions) && slices.Equal(oldDesiredChannels, newDesiredChannels) && boolPtrEqual(oldV5MirrorPresent, newV5MirrorPresent) {
 		return nil
 	}
 	logger := utils.LoggerFromContext(ctx)
-	logger.Info("Active versions or desired channels changed",
+	logger.Info("Active versions, desired channels, or v5 data-plane mirror presence changed",
 		"oldActiveVersions", oldActiveVersions, "newActiveVersions", newActiveVersions,
-		"oldDesiredChannels", oldDesiredChannels, "newDesiredChannels", newDesiredChannels)
+		"oldDesiredChannels", oldDesiredChannels, "newDesiredChannels", newDesiredChannels,
+		"oldV5MirrorPresent", oldV5MirrorPresent, "newV5MirrorPresent", newV5MirrorPresent)
 	replacement := cachedServiceProviderCluster.DeepCopy()
 	replacement.Status.ControlPlaneVersion.ActiveVersions = newActiveVersions
 	replacement.Status.DesiredVersionChannels = newDesiredChannels
+	replacement.Status.DataPlaneV5MirrorPresent = newV5MirrorPresent
 	serviceProviderClustersCosmosClient := c.resourcesDBClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	_, err = serviceProviderClustersCosmosClient.Replace(ctx, replacement, nil)
 	if err != nil {
@@ -210,4 +214,22 @@ func getHostedClusterDesiredVersionChannels(hostedCluster *hsv1beta1.HostedClust
 		return nil
 	}
 	return hostedCluster.Status.Version.Desired.Channels
+}
+
+func getHostedClusterV5MirrorPresent(hostedCluster *hsv1beta1.HostedCluster) *bool {
+	present := false
+	for _, source := range hostedCluster.Spec.ImageContentSources {
+		if source.Source == coreapi.OcpV5ArtDevMirrorSource {
+			present = true
+			break
+		}
+	}
+	return &present
+}
+
+func boolPtrEqual(a, b *bool) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return *a == *b
 }

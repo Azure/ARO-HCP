@@ -2320,6 +2320,11 @@ func (in *ServiceProviderClusterStatus) DeepCopyInto(out *ServiceProviderCluster
 		*out = make([]string, len(*in))
 		copy(*out, *in)
 	}
+	if in.DataPlaneV5MirrorPresent != nil {
+		in, out := &in.DataPlaneV5MirrorPresent, &out.DataPlaneV5MirrorPresent
+		*out = new(bool)
+		**out = **in
+	}
 	if in.Validations != nil {
 		in, out := &in.Validations, &out.Validations
 		*out = make([]v1.Condition, len(*in))
