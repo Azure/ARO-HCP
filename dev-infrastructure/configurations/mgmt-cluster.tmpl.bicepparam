@@ -59,10 +59,7 @@ param maestroEventGridNamespaceId = '__maestroEventGridNamespaceId__'
 param kubeApplierMIName = '{{ .kubeApplier.managedIdentityName }}'
 param kubeApplierNamespace = '{{ .kubeApplier.k8s.namespace }}'
 param kubeApplierServiceAccountName = '{{ .kubeApplier.k8s.serviceAccountName }}'
-param kubeApplierContainerName = '{{ .kubeApplier.cosmosContainerName }}'
-param kubeApplierContainerMaxScale = {{ .kubeApplier.cosmosContainerMaxScale }}
 param rpCosmosDbAccountId = '__rpCosmosDbAccountId__'
-param csManagedIdentityPrincipalId = '__csManagedIdentityPrincipalId__'
 param rpCosmosDbPrivate = {{ .frontend.cosmosDB.private }}
 
 // ACR

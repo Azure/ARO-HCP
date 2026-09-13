@@ -401,11 +401,6 @@ resourceGroups:
         resourceGroup: regional
         step: output
         name: rpCosmosDbAccountId
-    - name: csManagedIdentityPrincipalId
-      input:
-        resourceGroup: service
-        step: output
-        name: csManagedIdentityPrincipalId
     - name: auditLogsEventHubAuthRuleId
       input:
         resourceGroup: auditLogs
@@ -436,6 +431,25 @@ resourceGroups:
       - "ForbiddenByRbac"
       maximumRetryCount: 3
       durationBetweenRetries: 2m
+  - name: kube-applier-cosmos
+    action: ARM
+    template: templates/kube-applier-cosmos.bicep
+    parameters: configurations/kube-applier-cosmos.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    variables:
+    - name: rpCosmosDbAccountId
+      input:
+        resourceGroup: regional
+        step: output
+        name: rpCosmosDbAccountId
+    - name: csManagedIdentityPrincipalId
+      input:
+        resourceGroup: service
+        step: output
+        name: csManagedIdentityPrincipalId
+    dependsOn:
+    - resourceGroup: management
+      step: cluster
   - name: svc-mgmt-aks-permissions
     action: ARM
     omitFromServiceGroupCompletion: true
