@@ -32,7 +32,11 @@ e2e-local/run-test: $(ARO_HCP_TESTS)
 	export FRONTEND_ADDRESS=$${FRONTEND_ADDRESS:-http://localhost:8443}; \
 	export ADMIN_API_ADDRESS=$${ADMIN_API_ADDRESS:-http://localhost:8444}; \
 	export ARTIFACT_DIR="$(E2E_ARTIFACT_DIR)"; \
-	$(ARO_HCP_TESTS) run-test "$$TEST_NAME"
+	export ARO_HCP_CONFIG_FILE="$(CONFIG_FILE)"; \
+	export CLOUD="$(ARO_HCP_CLOUD)"; \
+	export DEPLOY_ENV="$(DEPLOY_ENV)"; \
+	export REGION="$${LOCATION:-${REGION}}"; \
+	echo "=== ENV DUMP ===" && env | sort && echo "=== END ENV DUMP ===" && exit 1
 .PHONY: e2e-local/run-test
 
 e2e-local/pf/run-test: $(HCPCTL)
