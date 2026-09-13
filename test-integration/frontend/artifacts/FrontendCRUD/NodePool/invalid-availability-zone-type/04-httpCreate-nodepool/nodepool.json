@@ -1,0 +1,17 @@
+{
+	"name": "worker",
+	"properties": {
+		"autoScaling": {
+			"max": 3,
+			"min": 1
+		},
+		"platform": {
+			"availabilityZone": 1,
+			"vmSize": "Standard_D8s_v3"
+		},
+		"version": {
+			"id": "4.20"
+		}
+	},
+	"type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools"
+}
