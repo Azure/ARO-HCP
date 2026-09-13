@@ -101,3 +101,113 @@ tests:
     exp_samples:
     - labels: '{__name__="kas:apiserver_request_latency:sli_ratio:rate5m", cluster="test-mgmt-4", namespace="ocm-aro-test-04b"}'
       value: 0.25
+# Test 5: rate_avg_5m converges to base ratio with steady input
+- interval: 1m
+  input_series:
+  - series: 'apiserver_request_sli_duration_seconds_bucket{cluster="test-mgmt-5", namespace="ocm-aro-test-05", verb="POST", scope="resource", le="1.0"}'
+    values: "0+100x15"
+  - series: 'apiserver_request_sli_duration_seconds_count{cluster="test-mgmt-5", namespace="ocm-aro-test-05", verb="POST", scope="resource"}'
+    values: "0+100x15"
+  promql_expr_test:
+  - expr: kas:apiserver_request_latency:sli_ratio:rate_avg_5m{cluster="test-mgmt-5", namespace="ocm-aro-test-05"}
+    eval_time: 10m
+    exp_samples:
+    - labels: '{__name__="kas:apiserver_request_latency:sli_ratio:rate_avg_5m", cluster="test-mgmt-5", namespace="ocm-aro-test-05"}'
+      value: 1.0
+# Test 6: Termination rate — non-zero with terminations, namespace filtered
+- interval: 1m
+  input_series:
+  - series: 'apiserver_request_terminations_total{cluster="test-mgmt-6", namespace="ocm-aro-test-06"}'
+    values: "0+10x15"
+  - series: 'apiserver_request_terminations_total{cluster="test-mgmt-6", namespace="kube-system"}'
+    values: "0+100x15"
+  promql_expr_test:
+  - expr: kas:apiserver_request_terminations:rate5m{cluster="test-mgmt-6", namespace="ocm-aro-test-06"}
+    eval_time: 5m
+    exp_samples:
+    - labels: '{__name__="kas:apiserver_request_terminations:rate5m", cluster="test-mgmt-6", namespace="ocm-aro-test-06"}'
+      value: 0.16666666666666666
+  - expr: kas:apiserver_request_terminations:rate5m{cluster="test-mgmt-6", namespace="kube-system"}
+    eval_time: 5m
+    exp_samples: []
+# Test 7: In-flight request saturation — smoothed gauge by requestKind
+- interval: 1m
+  input_series:
+  - series: 'apiserver_current_inflight_requests{cluster="test-mgmt-7", namespace="ocm-aro-test-07", requestKind="mutating"}'
+    values: "10+0x15"
+  - series: 'apiserver_current_inflight_requests{cluster="test-mgmt-7", namespace="ocm-aro-test-07", requestKind="readOnly"}'
+    values: "20+0x15"
+  promql_expr_test:
+  - expr: kas:apiserver_inflight_requests:avg_5m{cluster="test-mgmt-7", namespace="ocm-aro-test-07", requestKind="mutating"}
+    eval_time: 5m
+    exp_samples:
+    - labels: '{__name__="kas:apiserver_inflight_requests:avg_5m", cluster="test-mgmt-7", namespace="ocm-aro-test-07", requestKind="mutating"}'
+      value: 10
+  - expr: kas:apiserver_inflight_requests:avg_5m{cluster="test-mgmt-7", namespace="ocm-aro-test-07", requestKind="readOnly"}
+    eval_time: 5m
+    exp_samples:
+    - labels: '{__name__="kas:apiserver_inflight_requests:avg_5m", cluster="test-mgmt-7", namespace="ocm-aro-test-07", requestKind="readOnly"}'
+      value: 20
+# Test 8: Per-category mutating ratio — 50% within 1s, proxy subresource excluded
+- interval: 1m
+  input_series:
+  - series: 'apiserver_request_sli_duration_seconds_bucket{cluster="test-mgmt-8", namespace="ocm-aro-test-08", verb="POST", scope="resource", le="1.0"}'
+    values: "0+50x15"
+  - series: 'apiserver_request_sli_duration_seconds_count{cluster="test-mgmt-8", namespace="ocm-aro-test-08", verb="POST", scope="resource"}'
+    values: "0+100x15"
+  - series: 'apiserver_request_sli_duration_seconds_bucket{cluster="test-mgmt-8", namespace="ocm-aro-test-08", verb="POST", scope="resource", subresource="proxy", le="1.0"}'
+    values: "0+200x15"
+  - series: 'apiserver_request_sli_duration_seconds_count{cluster="test-mgmt-8", namespace="ocm-aro-test-08", verb="POST", scope="resource", subresource="proxy"}'
+    values: "0+200x15"
+  promql_expr_test:
+  - expr: kas:apiserver_request_latency:sli_ratio_mutating:rate5m{cluster="test-mgmt-8", namespace="ocm-aro-test-08"}
+    eval_time: 5m
+    exp_samples:
+    - labels: '{__name__="kas:apiserver_request_latency:sli_ratio_mutating:rate5m", cluster="test-mgmt-8", namespace="ocm-aro-test-08"}'
+      value: 0.5
+# Test 9: Per-category resource-scope reads — 75% within 1s
+- interval: 1m
+  input_series:
+  - series: 'apiserver_request_sli_duration_seconds_bucket{cluster="test-mgmt-9", namespace="ocm-aro-test-09", verb="GET", scope="resource", le="1.0"}'
+    values: "0+75x15"
+  - series: 'apiserver_request_sli_duration_seconds_count{cluster="test-mgmt-9", namespace="ocm-aro-test-09", verb="GET", scope="resource"}'
+    values: "0+100x15"
+  promql_expr_test:
+  - expr: kas:apiserver_request_latency:sli_ratio_reads_resource:rate5m{cluster="test-mgmt-9", namespace="ocm-aro-test-09"}
+    eval_time: 5m
+    exp_samples:
+    - labels: '{__name__="kas:apiserver_request_latency:sli_ratio_reads_resource:rate5m", cluster="test-mgmt-9", namespace="ocm-aro-test-09"}'
+      value: 0.75
+# Test 10: Per-category namespace-scope reads — 50% within 5s
+- interval: 1m
+  input_series:
+  - series: 'apiserver_request_sli_duration_seconds_bucket{cluster="test-mgmt-10", namespace="ocm-aro-test-10", verb="LIST", scope="namespace", le="5.0"}'
+    values: "0+50x15"
+  - series: 'apiserver_request_sli_duration_seconds_count{cluster="test-mgmt-10", namespace="ocm-aro-test-10", verb="LIST", scope="namespace"}'
+    values: "0+100x15"
+  promql_expr_test:
+  - expr: kas:apiserver_request_latency:sli_ratio_reads_namespace:rate5m{cluster="test-mgmt-10", namespace="ocm-aro-test-10"}
+    eval_time: 5m
+    exp_samples:
+    - labels: '{__name__="kas:apiserver_request_latency:sli_ratio_reads_namespace:rate5m", cluster="test-mgmt-10", namespace="ocm-aro-test-10"}'
+      value: 0.5
+# Test 11: Per-category cluster-scope reads — 25% within 30s, namespace filter
+- interval: 1m
+  input_series:
+  - series: 'apiserver_request_sli_duration_seconds_bucket{cluster="test-mgmt-11", namespace="ocm-aro-test-11", verb="LIST", scope="cluster", le="30.0"}'
+    values: "0+25x15"
+  - series: 'apiserver_request_sli_duration_seconds_count{cluster="test-mgmt-11", namespace="ocm-aro-test-11", verb="LIST", scope="cluster"}'
+    values: "0+100x15"
+  - series: 'apiserver_request_sli_duration_seconds_bucket{cluster="test-mgmt-11", namespace="default", verb="LIST", scope="cluster", le="30.0"}'
+    values: "0+100x15"
+  - series: 'apiserver_request_sli_duration_seconds_count{cluster="test-mgmt-11", namespace="default", verb="LIST", scope="cluster"}'
+    values: "0+100x15"
+  promql_expr_test:
+  - expr: kas:apiserver_request_latency:sli_ratio_reads_cluster:rate5m{cluster="test-mgmt-11", namespace="ocm-aro-test-11"}
+    eval_time: 5m
+    exp_samples:
+    - labels: '{__name__="kas:apiserver_request_latency:sli_ratio_reads_cluster:rate5m", cluster="test-mgmt-11", namespace="ocm-aro-test-11"}'
+      value: 0.25
+  - expr: kas:apiserver_request_latency:sli_ratio_reads_cluster:rate5m{cluster="test-mgmt-11", namespace="default"}
+    eval_time: 5m
+    exp_samples: []
