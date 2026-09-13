@@ -33,6 +33,10 @@ spec:
       jsonPath: .status.desiredVersion
       name: DesiredVersion
       type: string
+    - description: Message from the most recent condition
+      jsonPath: .status.conditions[-1:].message
+      name: Message
+      type: string
     name: v1
     schema:
       openAPIV3Schema:
