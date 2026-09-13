@@ -153,46 +153,6 @@ func (c *clusterResourcesController) SyncOnce(ctx context.Context, key controlle
 	return nil
 }
 
-// deleteAllOwnedApplyDesires removes all ApplyDesire Cosmos documents owned by
-// this controller for the given cluster during cluster deletion.
-// Note: deleting an ApplyDesire document does not trigger deletion of the
-// underlying Kubernetes object;
-// TODO: Teardown of underlying Kubernetes resources.
-func (c *clusterResourcesController) deleteAllOwnedApplyDesires(ctx context.Context, key controllerutils.HCPClusterKey, managementCluster *azcorearm.ResourceID) error {
-	logger := utils.LoggerFromContext(ctx)
-
-	existing, err := c.applyDesireLister.ListForCluster(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
-	if err != nil {
-		return utils.TrackError(fmt.Errorf("list ApplyDesires for deletion cleanup: %w", err))
-	}
-
-	kubeApplierDBClient := c.kubeApplierDBClients.For(ctx, managementCluster)
-	if kubeApplierDBClient == nil {
-		return nil
-	}
-
-	for _, desire := range existing {
-		if desire.Tags == nil ||
-			desire.Tags[kubeapplierapi.TagControllerName] != ClusterResourcesControllerName {
-			continue
-		}
-		scope, err := kubeappliercosmosstorage.ParseDesireScope(desire.ResourceID.Parent)
-		if err != nil {
-			return utils.TrackError(fmt.Errorf("parse scope for ApplyDesire %s: %w", desire.ResourceID.Name, err))
-		}
-		crud, err := kubeApplierDBClient.ApplyDesiresFor(scope)
-		if err != nil {
-			return utils.TrackError(fmt.Errorf("get CRUD for ApplyDesire %s: %w", desire.ResourceID.Name, err))
-		}
-		if err := crud.Delete(ctx, desire.ResourceID.Name); err != nil && !cosmosstorageutils.IsNotFoundError(err) {
-			return utils.TrackError(fmt.Errorf("delete ApplyDesire %s: %w", desire.ResourceID.Name, err))
-		}
-		logger.Info("deleted ApplyDesire document", "desireName", desire.ResourceID.Name)
-	}
-
-	return nil
-}
-
 // fetchAndProcessClusterResources calls the Cluster Service SDK to get cluster resources information
 // and processes the resources.
 func (c *clusterResourcesController) fetchAndProcessClusterResources(ctx context.Context,

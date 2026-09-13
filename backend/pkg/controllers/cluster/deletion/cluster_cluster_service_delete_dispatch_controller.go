@@ -28,15 +28,12 @@ import (
 
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/clusterresources"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
-	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -64,7 +61,6 @@ type clusterClusterServiceDeleteDispatchSyncer struct {
 	clusterLister        corelisters.ClusterLister
 	resourcesDBClient    corecosmosstorage.ResourcesDBClient
 	clusterServiceClient ocm.ClusterServiceClientSpec
-	applyDesireLister    kubeapplierlisters.ApplyDesireLister
 	// firstSeenDeletionTimestampCache is a cache that contains the time the controller
 	// has first seen the serviceProviderProperties.deletionTimestamp being set
 	// for a cluster. The cache key is the lowercased cluster's resource ID and
@@ -82,13 +78,11 @@ func NewClusterClusterServiceDeleteDispatchController(
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 ) controllerutils.Controller {
 	_, clusterLister := informers.Clusters()
-	_, applyDesireLister := kubeApplierInformers.ApplyDesires()
 	syncer := &clusterClusterServiceDeleteDispatchSyncer{
 		clock:                           clock,
 		clusterLister:                   clusterLister,
 		resourcesDBClient:               resourcesDBClient,
 		clusterServiceClient:            clusterServiceClient,
-		applyDesireLister:               applyDesireLister,
 		firstSeenDeletionTimestampCache: lru.New(50000),
 	}
 
@@ -152,16 +146,6 @@ func (c *clusterClusterServiceDeleteDispatchSyncer) SyncOnce(ctx context.Context
 		return nil
 	}
 
-	// Wait until ClusterResourcesController has deleted all its tagged ApplyDesires.
-	hasTaggedDesires, err := c.hasClusterResourceApplyDesires(ctx, key)
-	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to check ClusterResource ApplyDesires: %w", err))
-	}
-	if hasTaggedDesires {
-		logger.Info("waiting for ClusterResourcesController to delete its ApplyDesires before dispatching CS delete")
-		return nil
-	}
-
 	clusterDeletionTimestamp := cluster.ServiceProviderProperties.DeletionTimestamp.Time
 	cacheKey := strings.ToLower(cluster.ID.String())
 	var firstSeenClusterDeletionTimestamp time.Time
@@ -215,18 +199,4 @@ func (c *clusterClusterServiceDeleteDispatchSyncer) SyncOnce(ctx context.Context
 	c.firstSeenDeletionTimestampCache.Remove(cacheKey)
 
 	return nil
-}
-
-func (c *clusterClusterServiceDeleteDispatchSyncer) hasClusterResourceApplyDesires(ctx context.Context, key controllerutils.HCPClusterKey) (bool, error) {
-	desires, err := c.applyDesireLister.ListForCluster(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
-	if err != nil {
-		return false, err
-	}
-	for _, desire := range desires {
-		if desire.Tags != nil &&
-			desire.Tags[kubeapplierapi.TagControllerName] == clusterresources.ClusterResourcesControllerName {
-			return true, nil
-		}
-	}
-	return false, nil
 }

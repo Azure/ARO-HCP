@@ -110,6 +110,19 @@ rules:
   - list
   - watch
 - apiGroups:
+  - multitenancy.acn.azure.com
+  resources:
+  - podnetworks
+  - podnetworkinstances
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
   - velero.io
   resources:
   - schedules
