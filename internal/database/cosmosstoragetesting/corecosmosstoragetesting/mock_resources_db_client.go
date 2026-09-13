@@ -141,6 +141,12 @@ func (m *MockResourcesDBClient) ServiceProviderNodePools(subscriptionID, resourc
 	return newMockServiceProviderNodePoolCRUD(m, nodePoolResourceID)
 }
 
+// ServiceProviderExternalAuths returns a CRUD interface for service provider external auth resources.
+func (m *MockResourcesDBClient) ServiceProviderExternalAuths(subscriptionID, resourceGroupName, clusterName, externalAuthName string) cosmosstorageutils.ResourceCRUD[coreapi.ServiceProviderExternalAuth, *coreapi.ServiceProviderExternalAuth] {
+	externalAuthResourceID := metadataapi.Must(coreapi.ToExternalAuthResourceID(subscriptionID, resourceGroupName, clusterName, externalAuthName))
+	return newMockServiceProviderExternalAuthCRUD(m, externalAuthResourceID)
+}
+
 // ReadChangeFeed reads the in-memory change-feed log. Each
 // successful StoreDocument call records a snapshot of the document;
 // reads return everything past the position encoded in
