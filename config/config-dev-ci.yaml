@@ -163,6 +163,40 @@ clouds:
             registry: "arohcpsvcdev.azurecr.io"
             repository: "tenant-quota-collector"
             digest: sha256:32c9a228ae21260bc4b25760793d93dafc0da93dc4014e5b32cd73eca32b7082 # 2d7a67b6fb974eddf922120679dabe397f292db8 (2026-08-26 21:51)
+          ciJobOutcomes:
+            # Records the outcome of each CI job run so the alerts and logs in
+            # the dev Kusto can be attributed to the run that produced them.
+            enabled: true
+            kustoName: "hcp-dev-us-2"
+            kustoResourceGroup: "hcp-kusto-us"
+            clusterURI: "https://hcp-dev-us-2.eastus2.kusto.windows.net"
+            ingestionURI: "https://ingest-hcp-dev-us-2.eastus2.kusto.windows.net"
+            database: "ServiceLogs"
+            outcomes:
+              table: "ciJobOutcomes"
+              ingestionMapping: "ciJobOutcomesMapping"
+            testNames:
+              table: "ciTestNames"
+              ingestionMapping: "ciTestNamesMapping"
+            testResults:
+              table: "ciTestResults"
+              ingestionMapping: "ciTestResultsMapping"
+            sippyURI: "https://sippy.dptools.openshift.org"
+            jobFilter: "e2e-parallel"
+            interval: "5m"
+            # Bounds a single pass, so a stuck read cannot stall collection.
+            # Longer than the collector-wide timeout because a pass reads one
+            # set of artifacts per run it has not seen.
+            timeout: "10m"
+            # How much recent history each pass reads. Runs already stored are
+            # subtracted, so this only has to cover a slow run completing after
+            # faster ones started later.
+            window: "24h"
+            releases:
+            - "Presubmits"
+            - "aro-integration"
+            - "aro-stage"
+            - "aro-production"
           prow:
             enabled: true
             baseURL: "https://prow.ci.openshift.org"

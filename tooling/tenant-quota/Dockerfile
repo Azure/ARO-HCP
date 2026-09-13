@@ -4,12 +4,16 @@ ARG PLATFORM
 FROM --platform=${PLATFORM} mcr.microsoft.com/oss/go/microsoft/golang:1.25-azurelinux3.0 AS builder
 COPY internal/go.mod internal/go.sum internal/
 COPY tooling/azutils/go.mod tooling/azutils/go.sum tooling/azutils/
+COPY tooling/hcpctl/go.mod tooling/hcpctl/go.sum tooling/hcpctl/
 COPY tooling/metricscache/go.mod tooling/metricscache/go.sum tooling/metricscache/
+COPY tooling/utilitytypes/go.mod tooling/utilitytypes/
 COPY tooling/tenant-quota/go.mod tooling/tenant-quota/go.sum tooling/tenant-quota/
 RUN cd tooling/tenant-quota && go mod download
 WORKDIR /app
 COPY tooling/azutils/ tooling/azutils/
+COPY --exclude=tooling/hcpctl/hcpctl tooling/hcpctl/ tooling/hcpctl/
 COPY tooling/metricscache/ tooling/metricscache/
+COPY tooling/utilitytypes/ tooling/utilitytypes/
 COPY tooling/tenant-quota/ tooling/tenant-quota/
 COPY internal/ internal/
 ARG TAG

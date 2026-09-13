@@ -155,9 +155,13 @@ func extractEV2Annotations(data []byte) (*ev2Annotations, error) {
 
 // TestResult represents a single test with its metadata.
 type TestResult struct {
-	Name             string
-	Output           string
-	Error            string
+	Name   string
+	Output string
+	Error  string
+	// Result is the verdict as reported: "passed", "skipped" or "failed".
+	// Failed collapses the first two, so callers that need to tell a test that
+	// ran from one that was skipped must read this.
+	Result           string
 	Failed           bool
 	StartTime        time.Time
 	EndTime          time.Time
@@ -422,6 +426,7 @@ func FetchProwJobTestResults(ctx context.Context, info *ProwJobInfo) ([]TestResu
 			Name:   result.Name,
 			Output: result.Output,
 			Error:  result.Error,
+			Result: string(result.Result),
 			Failed: result.Result == extensiontests.ResultFailed,
 		}
 		if result.StartTime != nil {
