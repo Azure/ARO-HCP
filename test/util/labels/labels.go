@@ -52,6 +52,11 @@ var (
 	// behavior. Selected by the hypershift-presubmit/parallel suite so that
 	// HyperShift presubmit PRs can run a targeted subset of ARO-HCP e2e tests.
 	HypershiftPresubmit = ginkgo.Label("Hypershift-Presubmit")
+	// MockMSIACL marks the DEV prototype that strips leased mock-MSI
+	// permissions. It is selected only by the development/mock-msi-acl suite
+	// (Parallelism 1) so it cannot run beside sibling specs that still need
+	// the job's mock SP. See docs/ci/mock-msi-acl-isolation.md (ARO-29287).
+	MockMSIACL = ginkgo.Label("Mock-MSI-ACL")
 )
 
 var (
