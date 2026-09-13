@@ -1362,6 +1362,180 @@ func TestValidateClusterCreate(t *testing.T) {
 				{Message: "Unsupported value", FieldPath: "customerProperties.ingress.type"},
 			},
 		},
+		{
+			name: "kms key version with full HTTPS URL - create",
+			cluster: func() *coreapi.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = metadataapi.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged
+				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{
+					EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
+					Kms: &coreapi.KmsEncryptionProfile{
+						Visibility: metadataapi.KeyVaultVisibilityPublic,
+						ActiveKey: coreapi.KmsKey{
+							Name:      "test-key",
+							VaultName: "test-vault",
+							Version:   "https://test-vault.vault.azure.net/keys/test-key/abc123",
+						},
+					},
+				}
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be a bare key-version identifier, not a complete Azure Key Vault key URL", FieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms.activeKey.version"},
+			},
+		},
+		{
+			name: "kms key version with full HTTP URL - create",
+			cluster: func() *coreapi.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = metadataapi.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged
+				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{
+					EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
+					Kms: &coreapi.KmsEncryptionProfile{
+						Visibility: metadataapi.KeyVaultVisibilityPublic,
+						ActiveKey: coreapi.KmsKey{
+							Name:      "test-key",
+							VaultName: "test-vault",
+							Version:   "http://test-vault.vault.azure.net/keys/test-key/abc123",
+						},
+					},
+				}
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be a bare key-version identifier, not a complete Azure Key Vault key URL", FieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms.activeKey.version"},
+			},
+		},
+		{
+			name: "kms key version with forward slashes - create",
+			cluster: func() *coreapi.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = metadataapi.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged
+				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{
+					EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
+					Kms: &coreapi.KmsEncryptionProfile{
+						Visibility: metadataapi.KeyVaultVisibilityPublic,
+						ActiveKey: coreapi.KmsKey{
+							Name:      "test-key",
+							VaultName: "test-vault",
+							Version:   "keys/test-key/abc123",
+						},
+					},
+				}
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be a bare key-version identifier, not a complete Azure Key Vault key URL", FieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms.activeKey.version"},
+			},
+		},
+		{
+			name: "kms key version with bare identifier - create",
+			cluster: func() *coreapi.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = metadataapi.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged
+				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{
+					EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
+					Kms: &coreapi.KmsEncryptionProfile{
+						Visibility: metadataapi.KeyVaultVisibilityPublic,
+						ActiveKey: coreapi.KmsKey{
+							Name:      "test-key",
+							VaultName: "test-vault",
+							Version:   "abc123def456",
+						},
+					},
+				}
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name: "kms key version with whitespace - create",
+			cluster: func() *coreapi.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = metadataapi.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged
+				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{
+					EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
+					Kms: &coreapi.KmsEncryptionProfile{
+						Visibility: metadataapi.KeyVaultVisibilityPublic,
+						ActiveKey: coreapi.KmsKey{
+							Name:      "test-key",
+							VaultName: "test-vault",
+							Version:   "abc 123",
+						},
+					},
+				}
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be a bare key-version identifier, not a complete Azure Key Vault key URL or path", FieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms.activeKey.version"},
+			},
+		},
+		{
+			name: "kms vault name with FQDN - create",
+			cluster: func() *coreapi.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = metadataapi.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged
+				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{
+					EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
+					Kms: &coreapi.KmsEncryptionProfile{
+						Visibility: metadataapi.KeyVaultVisibilityPublic,
+						ActiveKey: coreapi.KmsKey{
+							Name:      "test-key",
+							VaultName: "test-vault.vault.azure.net",
+							Version:   "abc123",
+						},
+					},
+				}
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be a bare Key Vault name, not a URL or FQDN", FieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms.activeKey.vaultName"},
+			},
+		},
+		{
+			name: "kms vault name with URL - create",
+			cluster: func() *coreapi.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = metadataapi.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged
+				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{
+					EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
+					Kms: &coreapi.KmsEncryptionProfile{
+						Visibility: metadataapi.KeyVaultVisibilityPublic,
+						ActiveKey: coreapi.KmsKey{
+							Name:      "test-key",
+							VaultName: "https://test-vault.vault.azure.net",
+							Version:   "abc123",
+						},
+					},
+				}
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be a bare Key Vault name, not a URL or FQDN", FieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms.activeKey.vaultName"},
+			},
+		},
+		{
+			name: "kms key name with URL - create",
+			cluster: func() *coreapi.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = metadataapi.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged
+				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{
+					EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
+					Kms: &coreapi.KmsEncryptionProfile{
+						Visibility: metadataapi.KeyVaultVisibilityPublic,
+						ActiveKey: coreapi.KmsKey{
+							Name:      "https://vault.vault.azure.net/keys/test-key",
+							VaultName: "test-vault",
+							Version:   "abc123",
+						},
+					},
+				}
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be a bare key name, not a URL or path", FieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms.activeKey.name"},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -1998,6 +2172,45 @@ func TestValidateClusterUpdate(t *testing.T) {
 			opOptions: []string{metadataapi.APIVersionOption(metadataapi.APIVersionV20251223Preview)},
 			expectErrors: []utils.ExpectedError{
 				{Message: "field is immutable", FieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms.activeKey.version"},
+			},
+		},
+		{
+			name: "kms key version with full URL - update",
+			newCluster: func() *coreapi.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = metadataapi.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged
+				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{
+					EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
+					Kms: &coreapi.KmsEncryptionProfile{
+						Visibility: metadataapi.KeyVaultVisibilityPublic,
+						ActiveKey: coreapi.KmsKey{
+							Name:      "test-key",
+							VaultName: "test-vault",
+							Version:   "https://test-vault.vault.azure.net/keys/test-key/newversion",
+						},
+					},
+				}
+				return c
+			}(),
+			oldCluster: func() *coreapi.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = metadataapi.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged
+				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{
+					EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
+					Kms: &coreapi.KmsEncryptionProfile{
+						Visibility: metadataapi.KeyVaultVisibilityPublic,
+						ActiveKey: coreapi.KmsKey{
+							Name:      "test-key",
+							VaultName: "test-vault",
+							Version:   "oldversion",
+						},
+					},
+				}
+				return c
+			}(),
+			opOptions: []string{metadataapi.APIVersionOption(metadataapi.APIVersionV20260630Preview)},
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be a bare key-version identifier, not a complete Azure Key Vault key URL", FieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms.activeKey.version"},
 			},
 		},
 		{
