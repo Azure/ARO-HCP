@@ -551,6 +551,16 @@ func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Gra
 			suite := suites.Suites[0]
 			for id, info := range timing {
 				thisLogger := logger.WithValues("id", id.String())
+				// Skip steps that were never started or finished (empty timestamps).
+				// This typically happens when a step was queued but not executed due to
+				// earlier failures or context cancellation. Without this check, time.Parse()
+				// would fail with: parsing time "" as "2006-01-02T15:04:05Z07:00": cannot parse "" as "2006"
+				if info.StartedAt == "" || info.FinishedAt == "" {
+					thisLogger.Info("Skipping JUnit report entry for step that was not executed",
+						"state", info.State, "preempted", info.Preempted,
+						"startedAt", info.StartedAt, "finishedAt", info.FinishedAt)
+					continue
+				}
 				startedAt, err := time.Parse(time.RFC3339, info.StartedAt)
 				if err != nil {
 					thisLogger.Error(err, "error parsing started at")
