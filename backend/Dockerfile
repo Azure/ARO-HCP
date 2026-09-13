@@ -1,7 +1,7 @@
 ARG PLATFORM
 
 # Builder image installs tools needed to build aro-hcp-backend
-FROM --platform=${PLATFORM} mcr.microsoft.com/oss/go/microsoft/golang:1.25-azurelinux3.0 AS builder
+FROM --platform=${PLATFORM} mcr.microsoft.com/oss/go/microsoft/golang:1.26-azurelinux3.0 AS builder
 COPY internal/go.mod internal/go.sum internal/
 COPY backend/go.mod backend/go.sum backend/
 RUN cd backend && go mod download
