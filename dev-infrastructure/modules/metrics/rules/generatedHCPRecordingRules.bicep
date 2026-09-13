@@ -1,3 +1,4 @@
+
 param azureMonitoring string
 
 param location string = resourceGroup().location
@@ -267,6 +268,50 @@ resource hcpEtcdGrpcLatencyRecordingRules 'Microsoft.AlertsManagement/prometheus
       {
         record: 'etcd:grpc_server_handling:write_latency_p95:rate5m'
         expression: 'histogram_quantile(0.95, sum by (namespace, cluster, le, region) (rate(grpc_server_handling_seconds_bucket{grpc_method="Txn",grpc_service="etcdserverpb.KV",namespace=~"ocm-.*"}[5m])))'
+      }
+    ]
+  }
+}
+
+resource arohcpIngressAvailabilitySloRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_ingress_availability_slo_recording_rules'
+  location: location
+  properties: {
+    scopes: [
+      azureMonitoring
+    ]
+    enabled: true
+    interval: 'PT1M'
+    rules: [
+      {
+        record: 'availability:ingress_canary:ratio'
+        expression: 'sum by (_id, cluster, region) (ingress_canary_route_reachable) / count by (_id, cluster, region) (ingress_canary_route_reachable)'
+      }
+      {
+        record: 'errors:ingress_canary:error_rate'
+        expression: '1 - availability:ingress_canary:ratio'
+      }
+    ]
+  }
+}
+
+resource arohcpIngressLatencySloRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_ingress_latency_slo_recording_rules'
+  location: location
+  properties: {
+    scopes: [
+      azureMonitoring
+    ]
+    enabled: true
+    interval: 'PT1M'
+    rules: [
+      {
+        record: 'latency:ingress_canary:ratio'
+        expression: 'sum by (_id, cluster, region) (rate(ingress_canary_check_duration_bucket{le="200"}[5m])) / sum by (_id, cluster, region) (rate(ingress_canary_check_duration_bucket{le="+Inf"}[5m]))'
+      }
+      {
+        record: 'errors:ingress_canary_latency:error_rate'
+        expression: '1 - latency:ingress_canary:ratio'
       }
     ]
   }
