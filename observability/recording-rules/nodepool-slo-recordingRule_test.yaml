@@ -1,0 +1,88 @@
+rule_files:
+- nodepool-slo-recordingRule.yaml
+evaluation_interval: 1m
+tests:
+# Verify the instantaneous recording rules produce expected output from input series.
+- interval: 1m
+  input_series:
+  # 8 succeeded, 2 failed node pool operations (mix of update and delete)
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/np/a", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", phase="succeeded", cluster="mgmt-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/np/b", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", phase="succeeded", cluster="mgmt-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/np/c", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", phase="succeeded", cluster="mgmt-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/np/d", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", phase="succeeded", cluster="mgmt-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/np/e", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="delete", phase="succeeded", cluster="mgmt-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/np/f", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="delete", phase="succeeded", cluster="mgmt-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/np/g", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="delete", phase="succeeded", cluster="mgmt-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/np/h", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="delete", phase="succeeded", cluster="mgmt-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/np/i", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/np/j", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="delete", phase="failed", cluster="mgmt-1"}'
+    values: "1+0x15"
+  promql_expr_test:
+  - expr: "errors:backend_nodepool_operation:succeeded_total"
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:backend_nodepool_operation:succeeded_total{cluster="mgmt-1"}'
+      value: 8
+  - expr: "errors:backend_nodepool_operation:terminal_total"
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:backend_nodepool_operation:terminal_total{cluster="mgmt-1"}'
+      value: 10
+  - expr: "errors:backend_nodepool_operation:error_rate"
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:backend_nodepool_operation:error_rate{cluster="mgmt-1"}'
+      value: 0.2
+# ========================================
+# Windowed recording rule tests (stateless, last_transition-windowed)
+# ========================================
+# A stale failure (transition t=0, still emitted within the 7-day TTL) plus a
+# recent failure and a recent success (transition t=90m). At eval 95m the stale
+# failure is outside the 1h window and excluded, so error_rate_1h = 1/2 = 0.5.
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/old", phase="failed"}'
+    values: "1x200"
+  - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/old", phase="failed"}'
+    values: "0x200"
+  - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/f1", phase="failed"}'
+    values: "_x89 1x111"
+  - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/f1", phase="failed"}'
+    values: "_x89 5400x111"
+  - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/s1", phase="succeeded"}'
+    values: "_x89 1x111"
+  - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/s1", phase="succeeded"}'
+    values: "_x89 5400x111"
+  promql_expr_test:
+  - expr: errors:backend_nodepool_operation:failed_1h
+    eval_time: 95m
+    exp_samples:
+    - labels: 'errors:backend_nodepool_operation:failed_1h{cluster="mgmt-1"}'
+      value: 1
+  - expr: errors:backend_nodepool_operation:error_rate_1h
+    eval_time: 95m
+    exp_samples:
+    - labels: 'errors:backend_nodepool_operation:error_rate_1h{cluster="mgmt-1"}'
+      value: 0.5
+# Zero in-window failures: the `or 0 * ...` term pins the failure rate to 0.
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/s1", phase="succeeded"}'
+    values: "1x200"
+  - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/s1", phase="succeeded"}'
+    values: "0x200"
+  promql_expr_test:
+  - expr: errors:backend_nodepool_operation:error_rate_1h
+    eval_time: 30m
+    exp_samples:
+    - labels: 'errors:backend_nodepool_operation:error_rate_1h{cluster="mgmt-1"}'
+      value: 0

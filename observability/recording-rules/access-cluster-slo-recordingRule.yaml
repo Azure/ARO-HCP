@@ -18,8 +18,21 @@ spec:
   # SLO: 95% of credential operations should succeed (not reach "failed" terminal phase)
   # Error Budget: 5% (1 - 0.95)
   #
+  # The SLO denominator counts only succeeded and failed operations. Canceled
+  # operations (superseded or aborted before completion) are excluded from both
+  # the numerator and the denominator, so a user-initiated cancellation neither
+  # counts as a failure nor dilutes the rate; success_rate and error_rate then
+  # sum to 1.
+  #
   # Metrics are gauge-based (backend_resource_operation_phase_info) from Cosmos DB,
   # so we use count() aggregations rather than rate() on counters.
+  #
+  # NOTE (prototype): the instantaneous records below are a trailing ~7-day
+  # cumulative ratio, because the phase gauge is retained for the Cosmos 7-day
+  # TTL, so a single stale failure keeps the ratio elevated for days (the same
+  # class of false-page issue as ARO-28723 / PR 6365). Prefer the windowed
+  # records in arohcp_access_cluster_slo_windowed_recording_rules for alerting;
+  # these instantaneous records are kept for dashboards / compatibility only.
   #
   # Scope: covers requestcredential and revokecredentials operations on
   # hcpOpenShiftClusters (not nodepools).
@@ -40,7 +53,7 @@ spec:
         count by (cluster) (backend_resource_operation_phase_info{
           resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
           operation_type=~"requestcredential|revokecredentials",
-          phase=~"succeeded|failed|canceled"
+          phase=~"succeeded|failed"
         })
     # Instantaneous error rate per cluster: fraction of terminal operations that failed
     - record: errors:backend_credential_operation:error_rate
@@ -55,7 +68,7 @@ spec:
           0 * count by (cluster) (backend_resource_operation_phase_info{
             resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
             operation_type=~"requestcredential|revokecredentials",
-            phase=~"succeeded|failed|canceled"
+            phase=~"succeeded|failed"
           })
         )
         /
@@ -63,7 +76,147 @@ spec:
           count by (cluster) (backend_resource_operation_phase_info{
             resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
             operation_type=~"requestcredential|revokecredentials",
-            phase=~"succeeded|failed|canceled"
+            phase=~"succeeded|failed"
           }),
           1
         )
+  # ========================================
+  # Access the Cluster SLO Recording Rules: Windowed Errors (stateless)
+  # ========================================
+  # These windowed records count only credential operations whose terminal
+  # transition landed inside the window, via
+  # (time() - backend_resource_operation_last_transition_time_seconds) < W,
+  # so a stale failure ages out of the window instead of smearing for the full
+  # Cosmos 7-day TTL. No new metric and no backend change. The `or 0 * ...` term
+  # pins the failure count to 0 (not absent) when a cluster has credential
+  # operations but none failed in-window.
+  #
+  # Caveat: the backend deletes the prior series for a (resource_id,
+  # operation_type) on every new emission, so for the repeatable credential
+  # request/revoke operations a failure followed by a later success on the same
+  # cluster leaves only the success series. These records therefore measure the
+  # failure state of the most recent in-window operation per cluster (a
+  # systemic-failure proxy), not an event-exact per-operation error rate, and
+  # can miss an individual failure that was quickly retried to success. The
+  # windowing still fixes the 7-day smear; an event-exact rate needs a monotonic
+  # completed-operations counter (the Tier 2 follow-up).
+  - name: arohcp_access_cluster_slo_windowed_recording_rules
+    interval: 1m
+    rules:
+    # --- 1h window (fast burn): terminal transition within 3600s ---
+    - record: errors:backend_credential_operation:failed_1h
+      expr: |
+        count by (cluster) (
+          (backend_resource_operation_phase_info{
+            resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
+            operation_type=~"requestcredential|revokecredentials",
+            phase="failed"
+          } == 1)
+          and
+          ((time() - backend_resource_operation_last_transition_time_seconds{
+            resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
+            operation_type=~"requestcredential|revokecredentials"
+          }) < 3600)
+        )
+        or
+        0 * count by (cluster) (backend_resource_operation_phase_info{
+          resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
+          operation_type=~"requestcredential|revokecredentials"
+        })
+    - record: errors:backend_credential_operation:total_1h
+      expr: |
+        count by (cluster) (
+          (backend_resource_operation_phase_info{
+            resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
+            operation_type=~"requestcredential|revokecredentials",
+            phase=~"succeeded|failed"
+          } == 1)
+          and
+          ((time() - backend_resource_operation_last_transition_time_seconds{
+            resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
+            operation_type=~"requestcredential|revokecredentials"
+          }) < 3600)
+        )
+    - record: errors:backend_credential_operation:error_rate_1h
+      expr: |
+        errors:backend_credential_operation:failed_1h
+        /
+        clamp_min(errors:backend_credential_operation:total_1h, 1)
+    # --- 6h window (medium burn): terminal transition within 21600s ---
+    - record: errors:backend_credential_operation:failed_6h
+      expr: |
+        count by (cluster) (
+          (backend_resource_operation_phase_info{
+            resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
+            operation_type=~"requestcredential|revokecredentials",
+            phase="failed"
+          } == 1)
+          and
+          ((time() - backend_resource_operation_last_transition_time_seconds{
+            resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
+            operation_type=~"requestcredential|revokecredentials"
+          }) < 21600)
+        )
+        or
+        0 * count by (cluster) (backend_resource_operation_phase_info{
+          resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
+          operation_type=~"requestcredential|revokecredentials"
+        })
+    - record: errors:backend_credential_operation:total_6h
+      expr: |
+        count by (cluster) (
+          (backend_resource_operation_phase_info{
+            resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
+            operation_type=~"requestcredential|revokecredentials",
+            phase=~"succeeded|failed"
+          } == 1)
+          and
+          ((time() - backend_resource_operation_last_transition_time_seconds{
+            resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
+            operation_type=~"requestcredential|revokecredentials"
+          }) < 21600)
+        )
+    - record: errors:backend_credential_operation:error_rate_6h
+      expr: |
+        errors:backend_credential_operation:failed_6h
+        /
+        clamp_min(errors:backend_credential_operation:total_6h, 1)
+    # --- 3d window (slow burn / budget): terminal transition within 259200s ---
+    - record: errors:backend_credential_operation:failed_3d
+      expr: |
+        count by (cluster) (
+          (backend_resource_operation_phase_info{
+            resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
+            operation_type=~"requestcredential|revokecredentials",
+            phase="failed"
+          } == 1)
+          and
+          ((time() - backend_resource_operation_last_transition_time_seconds{
+            resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
+            operation_type=~"requestcredential|revokecredentials"
+          }) < 259200)
+        )
+        or
+        0 * count by (cluster) (backend_resource_operation_phase_info{
+          resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
+          operation_type=~"requestcredential|revokecredentials"
+        })
+    - record: errors:backend_credential_operation:total_3d
+      expr: |
+        count by (cluster) (
+          (backend_resource_operation_phase_info{
+            resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
+            operation_type=~"requestcredential|revokecredentials",
+            phase=~"succeeded|failed"
+          } == 1)
+          and
+          ((time() - backend_resource_operation_last_transition_time_seconds{
+            resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
+            operation_type=~"requestcredential|revokecredentials"
+          }) < 259200)
+        )
+    - record: errors:backend_credential_operation:error_rate_3d
+      expr: |
+        errors:backend_credential_operation:failed_3d
+        /
+        clamp_min(errors:backend_credential_operation:total_3d, 1)
