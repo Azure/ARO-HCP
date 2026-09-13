@@ -68415,6 +68415,40 @@ webhooks:
     admissionReviewVersions: ["v1", "v1beta1"]
     sideEffects: None
 ---
+# Source: hcp-prometheus/templates/azure-cns.podmonitor.yaml
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  labels:
+    app.kubernetes.io/name: azure-cns
+  name: azure-cns
+  namespace: kube-system
+spec:
+  podMetricsEndpoints:
+  - port: metrics
+    path: /metrics
+  selector:
+    matchLabels:
+      k8s-app: azure-cns
+---
+# Source: hcp-prometheus/templates/konnectivity-server.podmonitor.yaml
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  labels:
+    app.kubernetes.io/name: konnectivity-server
+  name: konnectivity-server
+  namespace: 'prometheus'
+spec:
+  podMetricsEndpoints:
+  - portNumber: 8093
+    path: /metrics
+  namespaceSelector:
+    any: true
+  selector:
+    matchLabels:
+      app: kube-apiserver
+---
 # Source: hcp-prometheus/templates/prometheus.podmonitor.yaml
 apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor
