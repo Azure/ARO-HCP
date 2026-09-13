@@ -444,7 +444,7 @@ func TestDeploymentPreflight(t *testing.T) {
 									"activeKey": map[string]any{
 										"name":      "test-key",
 										"vaultName": "test-vault",
-										"version":   "test-version",
+										"version":   "4e832b5c8f1e4e3d9c6b2a1f3e7d9c5b",
 									},
 								},
 							},

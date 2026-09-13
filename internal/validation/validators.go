@@ -398,6 +398,19 @@ func ValidateUUID(_ context.Context, _ operation.Operation, fldPath *field.Path,
 	return nil
 }
 
+func AzureKeyVaultKeyVersion(_ context.Context, _ operation.Operation, fldPath *field.Path, value, _ *string) field.ErrorList {
+	if value == nil {
+		return nil
+	}
+	if len(*value) == 0 {
+		return nil
+	}
+	if strings.Contains(*value, "://") || strings.HasPrefix(*value, "https://") || strings.HasPrefix(*value, "http://") {
+		return field.ErrorList{field.Invalid(fldPath, *value, "must be the key version only, not a full key URL")}
+	}
+	return nil
+}
+
 func IsValidAzureVMName(name string) bool {
 	return azureVMNameRegex.MatchString(name)
 }

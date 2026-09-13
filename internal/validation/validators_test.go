@@ -451,3 +451,93 @@ func TestValidateNodePoolVersionChange(t *testing.T) {
 		})
 	}
 }
+
+func TestAzureKeyVaultKeyVersion(t *testing.T) {
+	ctx := context.Background()
+	op := operation.Operation{Type: operation.Create}
+	fldPath := field.NewPath("version")
+
+	tests := []struct {
+		name        string
+		value       *string
+		expectError bool
+		errContains string
+	}{
+		{
+			name:  "nil value accepted",
+			value: nil,
+		},
+		{
+			name:  "empty value accepted",
+			value: ptr.To(""),
+		},
+		{
+			name:  "valid 32-char hex string",
+			value: ptr.To("4e832b5c8f1e4e3d9c6b2a1f3e7d9c5b"),
+		},
+		{
+			name:  "valid short string",
+			value: ptr.To("abc123"),
+		},
+		{
+			name:  "valid with uppercase",
+			value: ptr.To("4E832B5C8F1E4E3D9C6B2A1F3E7D9C5B"),
+		},
+		{
+			name:  "valid with hyphens",
+			value: ptr.To("4e832b5c-8f1e-4e3d-9c6b-2a1f3e7d9c5b"),
+		},
+		{
+			name:  "valid with underscores",
+			value: ptr.To("version_1234567890_test_key"),
+		},
+		{
+			name:  "valid with periods",
+			value: ptr.To("1.2.3.4"),
+		},
+		{
+			name:        "full URL rejected - https",
+			value:       ptr.To("https://test-vault.vault.azure.net/keys/test-key/4e832b5c8f1e4e3d9c6b2a1f3e7d9c5b"),
+			expectError: true,
+			errContains: "must be the key version only, not a full key URL",
+		},
+		{
+			name:        "full URL rejected - http",
+			value:       ptr.To("http://test-vault.vault.azure.net/keys/test-key/version"),
+			expectError: true,
+			errContains: "must be the key version only, not a full key URL",
+		},
+		{
+			name:        "URL with scheme rejected - ftp",
+			value:       ptr.To("ftp://example.com/version"),
+			expectError: true,
+			errContains: "must be the key version only, not a full key URL",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			errs := AzureKeyVaultKeyVersion(ctx, op, fldPath, tt.value, nil)
+			if tt.expectError {
+				if len(errs) == 0 {
+					t.Errorf("expected error containing %q, got none", tt.errContains)
+					return
+				}
+				found := false
+				for _, e := range errs {
+					if strings.Contains(e.Error(), tt.errContains) {
+						found = true
+						break
+					}
+				}
+				if !found {
+					t.Errorf("expected error containing %q, got %v", tt.errContains, errs)
+				}
+			} else {
+				if len(errs) != 0 {
+					t.Errorf("expected no errors, got %v", errs)
+				}
+			}
+		})
+	}
+}

@@ -110,7 +110,7 @@ func MinimumValidClusterTestCase() *coreapi.HCPOpenShiftCluster {
 			ActiveKey: coreapi.KmsKey{
 				Name:      "test-key",
 				VaultName: "test-vault",
-				Version:   "test-version",
+				Version:   "4e832b5c8f1e4e3d9c6b2a1f3e7d9c5b",
 			},
 		},
 	}
