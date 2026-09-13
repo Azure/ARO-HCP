@@ -38,3 +38,7 @@ use (
 	./tooling/utilitytypes
 	./tooling/yamlwrap
 )
+
+replace github.com/Azure/ARO-Tools/pipelines => github.com/swiencki/ARO-Tools/pipelines v0.0.0-20260909171237-ff18d6249185
+
+replace github.com/Azure/ARO-Tools/tools/grafanactl => github.com/swiencki/ARO-Tools/tools/grafanactl v0.0.0-20260909171237-ff18d6249185
