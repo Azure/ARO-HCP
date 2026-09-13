@@ -1,0 +1,118 @@
+rule_files:
+- swift-networking-cns-recordingRule.yaml
+- swift-networking-cns-prometheusRule.yaml
+evaluation_interval: 1m
+tests:
+# Test 1: No CNS latency data — no alerts should fire.
+- interval: 1m
+  input_series: []
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: userJourneySwiftCNSLatencyP991h5m
+    exp_alerts: []
+  - eval_time: 10m
+    alertname: userJourneySwiftCNSLatencyP996h30m
+    exp_alerts: []
+
+# Test 2: CNS IP assignment latency p99 > 10s — fast-burn alert should fire.
+# Simulates ip_assignment_latency_seconds histogram with all observations in the (8s, 16s] bucket.
+# Buckets are cumulative: le="16" == le="+Inf" == 10 obs/min; all lower buckets = 0.
+# histogram_quantile(0.99, ...) interpolates within the (8s,16s] bucket → ≈15.92, not 16.
+- interval: 1m
+  input_series:
+  - series: 'ip_assignment_latency_seconds_bucket{cluster="mgmt-1", le="0.001"}'
+    values: "0+0x120"
+  - series: 'ip_assignment_latency_seconds_bucket{cluster="mgmt-1", le="0.01"}'
+    values: "0+0x120"
+  - series: 'ip_assignment_latency_seconds_bucket{cluster="mgmt-1", le="0.1"}'
+    values: "0+0x120"
+  - series: 'ip_assignment_latency_seconds_bucket{cluster="mgmt-1", le="1"}'
+    values: "0+0x120"
+  - series: 'ip_assignment_latency_seconds_bucket{cluster="mgmt-1", le="4"}'
+    values: "0+0x120"
+  - series: 'ip_assignment_latency_seconds_bucket{cluster="mgmt-1", le="8"}'
+    values: "0+0x120"
+  - series: 'ip_assignment_latency_seconds_bucket{cluster="mgmt-1", le="16"}'
+    values: "0+10x120"
+  - series: 'ip_assignment_latency_seconds_bucket{cluster="mgmt-1", le="+Inf"}'
+    values: "0+10x120"
+  alert_rule_test:
+  - eval_time: 72m
+    alertname: userJourneySwiftCNSLatencyP991h5m
+    exp_alerts:
+    - exp_labels:
+        severity: "3"
+        burn_rate_tier: fast
+        cluster: mgmt-1
+        component: slo
+        long_window: 1h
+        short_window: 5m
+      exp_annotations:
+        summary: "CNS IP assignment latency p99 critically elevated (fast burn)"
+        description: "CNS IP assignment latency p99 has exceeded 10s over the last hour and is still elevated. SWIFT secondary NIC assignment is slow. This SLI is fleet/node-scoped (not per hosted control plane) - use the runbook's blast-radius triage to narrow scope."
+        runbook_url: "https://aka.ms/arohcp-runbook-swift"
+        correlationId: "userJourneySwiftCNSLatency/mgmt-1"
+# Test 2b: CNS IP assignment latency p99 > 10s sustained — medium-burn alert fires.
+# Same elevated-latency input as Test 2 but held for long enough that both the 30m
+# and 6h window averages exceed 10s. for: 15m means eval at >= 6h + 30m + 15m = 415m.
+- interval: 1m
+  input_series:
+  - series: 'ip_assignment_latency_seconds_bucket{cluster="mgmt-1", le="0.001"}'
+    values: "0+0x420"
+  - series: 'ip_assignment_latency_seconds_bucket{cluster="mgmt-1", le="0.01"}'
+    values: "0+0x420"
+  - series: 'ip_assignment_latency_seconds_bucket{cluster="mgmt-1", le="0.1"}'
+    values: "0+0x420"
+  - series: 'ip_assignment_latency_seconds_bucket{cluster="mgmt-1", le="1"}'
+    values: "0+0x420"
+  - series: 'ip_assignment_latency_seconds_bucket{cluster="mgmt-1", le="4"}'
+    values: "0+0x420"
+  - series: 'ip_assignment_latency_seconds_bucket{cluster="mgmt-1", le="8"}'
+    values: "0+0x420"
+  - series: 'ip_assignment_latency_seconds_bucket{cluster="mgmt-1", le="16"}'
+    values: "0+10x420"
+  - series: 'ip_assignment_latency_seconds_bucket{cluster="mgmt-1", le="+Inf"}'
+    values: "0+10x420"
+  alert_rule_test:
+  - eval_time: 415m
+    alertname: userJourneySwiftCNSLatencyP996h30m
+    exp_alerts:
+    - exp_labels:
+        severity: "3"
+        burn_rate_tier: medium
+        cluster: mgmt-1
+        component: slo
+        long_window: 6h
+        short_window: 30m
+      exp_annotations:
+        summary: "CNS IP assignment latency p99 elevated (medium burn)"
+        description: "CNS IP assignment latency p99 has exceeded 10s over the last 6 hours and is still elevated."
+        runbook_url: "https://aka.ms/arohcp-runbook-swift"
+        correlationId: "userJourneySwiftCNSLatency/mgmt-1"
+# Test 3: CNS IP assignment latency healthy (all under 1s) — no alerts.
+- interval: 1m
+  input_series:
+  - series: 'ip_assignment_latency_seconds_bucket{cluster="mgmt-1", le="0.001"}'
+    values: "0+0x120"
+  - series: 'ip_assignment_latency_seconds_bucket{cluster="mgmt-1", le="0.01"}'
+    values: "0+0x120"
+  - series: 'ip_assignment_latency_seconds_bucket{cluster="mgmt-1", le="0.1"}'
+    values: "0+0x120"
+  - series: 'ip_assignment_latency_seconds_bucket{cluster="mgmt-1", le="1"}'
+    values: "0+10x120"
+  - series: 'ip_assignment_latency_seconds_bucket{cluster="mgmt-1", le="4"}'
+    values: "0+10x120"
+  - series: 'ip_assignment_latency_seconds_bucket{cluster="mgmt-1", le="8"}'
+    values: "0+10x120"
+  - series: 'ip_assignment_latency_seconds_bucket{cluster="mgmt-1", le="16"}'
+    values: "0+10x120"
+  - series: 'ip_assignment_latency_seconds_bucket{cluster="mgmt-1", le="+Inf"}'
+    values: "0+10x120"
+  alert_rule_test:
+  - eval_time: 72m
+    alertname: userJourneySwiftCNSLatencyP991h5m
+    exp_alerts: []
+  - eval_time: 72m
+    alertname: userJourneySwiftCNSLatencyP996h30m
+    exp_alerts: []
+
