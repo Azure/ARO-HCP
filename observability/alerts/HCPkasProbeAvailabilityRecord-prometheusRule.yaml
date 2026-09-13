@@ -1,0 +1,33 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: hcp-kas-probe-availability-recording-rules
+  namespace: prometheus
+spec:
+  groups:
+  - name: hcp-kas-probe-availability-recording-rules
+    interval: 1m
+    rules:
+    # Compatibility series for the kas-monitor API SLO dashboard.
+    # The dashboard still queries the historical blackbox-probe names;
+    # these rules record them from the HostedCluster kube-apiserver
+    # Available condition without changing existing KSM recording rules.
+    #
+    # All rules are gated on the raw KSM metric currently being reported.
+    # This prevents stale data from deleted clusters.
+
+    - record: probe_success
+      expr: |
+        avg by (name, namespace, _id, resource_id, cluster) (hostedClusterAPI_kubeapiserver_available{status="True"})
+        and on (name, namespace, _id, resource_id, cluster)
+        count by (name, namespace, _id, resource_id, cluster) (hostedClusterAPI_kubeapiserver_available)
+    - record: probe_availability:ratio_avg_7d
+      expr: |
+        avg by (name, namespace, _id, resource_id, cluster) (avg_over_time(hostedClusterAPI_kubeapiserver_available{status="True"}[7d]))
+        and on (name, namespace, _id, resource_id, cluster)
+        count by (name, namespace, _id, resource_id, cluster) (hostedClusterAPI_kubeapiserver_available)
+    - record: probe_availability:ratio_avg_30d
+      expr: |
+        avg by (name, namespace, _id, resource_id, cluster) (avg_over_time(hostedClusterAPI_kubeapiserver_available{status="True"}[30d]))
+        and on (name, namespace, _id, resource_id, cluster)
+        count by (name, namespace, _id, resource_id, cluster) (hostedClusterAPI_kubeapiserver_available)
