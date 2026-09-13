@@ -1119,6 +1119,17 @@ Records the observed placement (`Status.ManagementClusterResourceID`) from the C
 | **Write** | **`HCPOpenShiftClusterNodePool`** | <ul><li>**`Status.Conditions[Degraded]`** = aggregated union</li></ul> |
 | **Write** | **`HCPOpenShiftClusterExternalAuth`** | <ul><li>**`Status.Conditions[Degraded]`** = aggregated union</li></ul> |
 
+#### ExternalAuthDegradedAggregator — CA Certificate Validity
+
+**File:** [externalauth_degraded_aggregator.go](../backend/pkg/controllers/externalauth/status/externalauth_degraded_aggregator.go)
+**Trigger:** ExternalAuth informer, 1-minute resync
+**Writes user-facing conditions** (visible to end-users via the ARM API) whenever the CA certificate bundle in an `ExternalAuth` resource is expired or not yet valid. These complement the `Status.Conditions[Degraded]` entry above.
+
+| | Object | Fields |
+|---|--------|--------|
+| Read | `HCPOpenShiftClusterExternalAuth` | <ul><li>`Properties.Issuer.CA` (PEM bundle — inspected for expired / not-yet-valid X.509 certificates)</li><li>`Status.UserFacingConditions` (skip write when unchanged)</li></ul> |
+| **Write** | **`HCPOpenShiftClusterExternalAuth`** | <ul><li>**`Status.UserFacingConditions[CACertificateExpired]`** = True when ≥1 cert in the bundle has `NotAfter < now`; message lists every expired cert as `CN=… (NotAfter …)`; condition removed when all certs are valid</li><li>**`Status.UserFacingConditions[CACertificateNotYetValid]`** = True when ≥1 cert has `NotBefore > now`; message lists every not-yet-valid cert as `CN=… (NotBefore …)`; condition removed when all certs are valid</li></ul> |
+
 #### ClusterRequirementsValidAggregator
 
 **File:** [cluster_requirements_valid_aggregator.go](../backend/pkg/controllers/statuscontrollers/cluster_requirements_valid_aggregator.go)
@@ -1519,6 +1530,14 @@ Single writer today (`RequirementsValid` only).
 | [NodePoolRequirementsValidAggregator](#nodepoolrequirementsvalidaggregator) | Aggregated `RequirementsValid` condition from `ServiceProviderNodePool.Status.Validations` |
 
 Single writer today (`RequirementsValid` only).
+
+### `HCPOpenShiftClusterExternalAuth.Status.UserFacingConditions`
+
+| Actor | When |
+|-------|------|
+| [ExternalAuthDegradedAggregator — CA Certificate Validity](#externalauthdegradedaggregator--ca-certificate-validity) | Sets `CACertificateExpired` when ≥1 cert in `Properties.Issuer.CA` is expired; sets `CACertificateNotYetValid` when ≥1 cert has a future `NotBefore`; clears both when all certs are valid |
+
+Single writer. Both conditions are written (or cleared) on every reconcile of the ExternalAuth resource.
 
 ### `HCPOpenShiftClusterNodePool.Properties.ProvisioningState`
 
