@@ -40,6 +40,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/kubeapplierlistertesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -1712,6 +1713,71 @@ func TestClusterServiceClusterSpecOperationState(t *testing.T) {
 			wantState:         coreapi.ProvisioningStateUpdating,
 			wantMessageSubstr: `k8sAPIServerAuthorizedCIDRs is allow_all, want allow_list`,
 		},
+		{
+			name: "matching container registry pull MI returns Succeeded",
+			cluster: &coreapi.HCPOpenShiftCluster{
+				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+					Platform: coreapi.CustomerPlatformProfile{
+						ContainerRegistry: coreapi.ContainerRegistryProfile{
+							PullManagedIdentity: coreapitesting.NewTestUserAssignedIdentity("cr-pull-mi"),
+						},
+					},
+				},
+			},
+			csCluster: func() *arohcpv1alpha1.Cluster {
+				c, err := arohcpv1alpha1.NewCluster().
+					API(arohcpv1alpha1.NewClusterAPI().
+						CIDRBlockAccess(arohcpv1alpha1.NewCIDRBlockAccess().
+							Allow(arohcpv1alpha1.NewCIDRBlockAllowAccess().Mode(ocm.CSCIDRBlockAllowAccessModeAllowAll)))).
+					Azure(arohcpv1alpha1.NewAzure().
+						ContainerRegistry(arohcpv1alpha1.NewAzureContainerRegistry().
+							Credentials(arohcpv1alpha1.NewAzureContainerRegistryCredentials().
+								Type(arohcpv1alpha1.AzureContainerRegistryCredentialTypeManagedIdentity).
+								ManagedIdentity(arohcpv1alpha1.NewAzureUserAssignedManagedIdentity().
+									ResourceID(coreapitesting.NewTestUserAssignedIdentity("cr-pull-mi").String()))))).
+					Build()
+				require.NoError(t, err)
+				return c
+			}(),
+			wantState: coreapi.ProvisioningStateSucceeded,
+		},
+		{
+			name: "container registry pull MI mismatch returns Updating",
+			cluster: &coreapi.HCPOpenShiftCluster{
+				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+					Platform: coreapi.CustomerPlatformProfile{
+						ContainerRegistry: coreapi.ContainerRegistryProfile{
+							PullManagedIdentity: coreapitesting.NewTestUserAssignedIdentity("new-mi"),
+						},
+					},
+				},
+			},
+			csCluster: func() *arohcpv1alpha1.Cluster {
+				c, err := arohcpv1alpha1.NewCluster().
+					API(arohcpv1alpha1.NewClusterAPI().
+						CIDRBlockAccess(arohcpv1alpha1.NewCIDRBlockAccess().
+							Allow(arohcpv1alpha1.NewCIDRBlockAllowAccess().Mode(ocm.CSCIDRBlockAllowAccessModeAllowAll)))).
+					Azure(arohcpv1alpha1.NewAzure().
+						ContainerRegistry(arohcpv1alpha1.NewAzureContainerRegistry().
+							Credentials(arohcpv1alpha1.NewAzureContainerRegistryCredentials().
+								Type(arohcpv1alpha1.AzureContainerRegistryCredentialTypeManagedIdentity).
+								ManagedIdentity(arohcpv1alpha1.NewAzureUserAssignedManagedIdentity().
+									ResourceID(coreapitesting.NewTestUserAssignedIdentity("old-mi").String()))))).
+					Build()
+				require.NoError(t, err)
+				return c
+			}(),
+			wantState:         coreapi.ProvisioningStateUpdating,
+			wantMessageSubstr: `containerRegistryPullManagedIdentity`,
+		},
+		{
+			name: "nil desired with unset CS container registry returns Succeeded",
+			cluster: &coreapi.HCPOpenShiftCluster{
+				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{},
+			},
+			csCluster: newCSClusterWithAllowAll(t),
+			wantState: coreapi.ProvisioningStateSucceeded,
+		},
 	}
 
 	for _, tt := range tests {
@@ -2044,5 +2110,92 @@ func TestHypershiftControlPlaneClusterAutoscalerState(t *testing.T) {
 			assert.Equal(t, tt.wantState, got.ProvisioningState)
 			assert.Equal(t, tt.wantMessage, got.Message)
 		})
+	}
+}
+
+func TestHypershiftHostedClusterContainerRegistrySpecMatchesDesired(t *testing.T) {
+	t.Parallel()
+
+	controller := &operationClusterUpdate{}
+
+	validMI := coreapitesting.NewTestUserAssignedIdentity("acr-pull-mi")
+	otherMI := coreapitesting.NewTestUserAssignedIdentity("other-mi")
+
+	tests := []struct {
+		name       string
+		desired    *azcorearm.ResourceID
+		observed   v1beta1.HostedCluster
+		wantMatch  bool
+		wantSubstr string
+	}{
+		{
+			name:      "both unset matches",
+			desired:   nil,
+			observed:  v1beta1.HostedCluster{},
+			wantMatch: true,
+		},
+		{
+			name:       "desired set but observed empty",
+			desired:    validMI,
+			observed:   v1beta1.HostedCluster{},
+			wantMatch:  false,
+			wantSubstr: "want " + validMI.String(),
+		},
+		{
+			name:       "desired unset but observed set",
+			desired:    nil,
+			observed:   hostedClusterWithContainerRegistryMI(validMI.String()),
+			wantMatch:  false,
+			wantSubstr: "want unset",
+		},
+		{
+			name:      "matching managed identity",
+			desired:   validMI,
+			observed:  hostedClusterWithContainerRegistryMI(validMI.String()),
+			wantMatch: true,
+		},
+		{
+			name:      "case-insensitive match",
+			desired:   validMI,
+			observed:  hostedClusterWithContainerRegistryMI(strings.ToUpper(validMI.String())),
+			wantMatch: true,
+		},
+		{
+			name:       "mismatched managed identity",
+			desired:    validMI,
+			observed:   hostedClusterWithContainerRegistryMI(otherMI.String()),
+			wantMatch:  false,
+			wantSubstr: "want " + validMI.String(),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			matches, msg := controller.hypershiftHostedClusterContainerRegistrySpecMatchesDesired(tt.desired, &tt.observed)
+			assert.Equal(t, tt.wantMatch, matches)
+			if tt.wantSubstr != "" {
+				assert.Contains(t, msg, tt.wantSubstr)
+			}
+		})
+	}
+}
+
+func hostedClusterWithContainerRegistryMI(resourceID string) v1beta1.HostedCluster {
+	return v1beta1.HostedCluster{
+		Spec: v1beta1.HostedClusterSpec{
+			Platform: v1beta1.PlatformSpec{
+				Azure: &v1beta1.AzurePlatformSpec{
+					ContainerRegistry: v1beta1.AzureContainerRegistryConfig{
+						Credentials: v1beta1.AzureContainerRegistryCredentialConfig{
+							Type: v1beta1.AzureContainerRegistryCredentialManagedIdentity,
+							ManagedIdentity: v1beta1.UserAssignedManagedIdentity{
+								ResourceID: v1beta1.AzureManagedIdentityResourceID(resourceID),
+							},
+						},
+					},
+				},
+			},
+		},
 	}
 }

@@ -1,0 +1,1 @@
+"message": "Invalid value: \"/subscriptions/aaaaaaaa-0000-0000-0000-000000000000/resourceGroups/customer-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/acr-pull-mi\": must be in the same Azure subscription
