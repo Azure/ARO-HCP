@@ -310,10 +310,10 @@ func createServiceProviderNodePoolWithActiveAndDesiredVersion(
 		"/nodePools/" + testNodePoolName
 	spNodePoolResourceID := nodePoolResourceID + "/" + coreapi.ServiceProviderNodePoolResourceTypeName + "/" + coreapi.ServiceProviderNodePoolResourceName
 
-	var activeVersionEntries []coreapi.HCPNodePoolActiveVersion
+	var activeVersionEntries []coreapi.ServiceProviderNodePoolActiveVersion
 	for _, activeVersion := range activeVersions {
 		version := semver.MustParse(activeVersion)
-		activeVersionEntries = append(activeVersionEntries, coreapi.HCPNodePoolActiveVersion{Version: &version})
+		activeVersionEntries = append(activeVersionEntries, coreapi.ServiceProviderNodePoolActiveVersion{Version: &version})
 	}
 
 	spNodePool := &coreapi.ServiceProviderNodePool{

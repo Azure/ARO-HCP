@@ -22,7 +22,7 @@ import (
 
 // FindLowestAndHighestClusterVersion returns (lowest, highest) *semver.Version from activeVersions.
 // When activeVersions is empty, it returns (nil, nil).
-func FindLowestAndHighestClusterVersion(activeVersions []coreapi.HCPClusterActiveVersion) (*semver.Version, *semver.Version) {
+func FindLowestAndHighestClusterVersion(activeVersions []coreapi.ServiceProviderClusterActiveVersion) (*semver.Version, *semver.Version) {
 	var low, high *semver.Version
 	for _, activeVersion := range activeVersions {
 		if low == nil || activeVersion.Version.LT(*low) {
@@ -37,7 +37,7 @@ func FindLowestAndHighestClusterVersion(activeVersions []coreapi.HCPClusterActiv
 
 // FindLowestAndHighestNodePoolVersion returns the lowest and highest versions from the node pool active versions.
 // ActiveVersions can be in any order, so we iterate to find the actual minimum and maximum.
-func FindLowestAndHighestNodePoolVersion(activeVersions []coreapi.HCPNodePoolActiveVersion) (*semver.Version, *semver.Version) {
+func FindLowestAndHighestNodePoolVersion(activeVersions []coreapi.ServiceProviderNodePoolActiveVersion) (*semver.Version, *semver.Version) {
 	var lowest, highest *semver.Version
 	for _, av := range activeVersions {
 		if lowest == nil || av.Version.LT(*lowest) {
