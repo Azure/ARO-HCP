@@ -218,6 +218,36 @@ resource arohcpAccessClusterSloWindowedErrorAlerts 'Microsoft.AlertsManagement/p
         for: 'PT6H'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyAccessClusterErrorsDegradation'
+        enabled: true
+        labels: {
+          component: 'slo'
+          long_window: '6h'
+          severity: '4'
+          slo: 'access-cluster-errors'
+        }
+        annotations: {
+          correlationId: 'userJourneyAccessClusterErrorsDegradation/{{ $labels.cluster }}'
+          description: 'More than 15% of completed credential operations on {{ $labels.cluster }} failed over the last 6 hours (at least 5 completions), an early warning of degradation before the burn-rate alerts fire.'
+          info: 'More than 15% of completed credential operations on {{ $labels.cluster }} failed over the last 6 hours (at least 5 completions), an early warning of degradation before the burn-rate alerts fire.'
+          runbook_url: 'aka.ms/arohcp-runbook-access-cluster'
+          summary: '{{ $labels.cluster }}: Credential operation failure rate exceeds 15% over 6h'
+          title: '{{ $labels.cluster }}: Credential operation failure rate exceeds 15% over 6h'
+        }
+        expression: 'errors:backend_credential_operation:total_6h >= 5 and errors:backend_credential_operation:error_rate_6h > 0.15'
+        for: 'PT30M'
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
+      }
     ]
     scopes: [
       azureMonitoring
@@ -616,6 +646,36 @@ resource arohcpNodepoolSloWindowedErrorAlerts 'Microsoft.AlertsManagement/promet
         }
         expression: 'errors:backend_nodepool_operation:total_3d >= 10 and errors:backend_nodepool_operation:failed_3d >= 2 and errors:backend_nodepool_operation:error_rate_3d > 0.05'
         for: 'PT6H'
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'UJNodePoolErrorsDegradation'
+        enabled: true
+        labels: {
+          component: 'slo'
+          long_window: '6h'
+          severity: 'info'
+          slo: 'nodepool-errors'
+        }
+        annotations: {
+          correlationId: 'UJNodePoolErrorsDegradation/{{ $labels.cluster }}'
+          description: 'More than 15% of completed node pool operations on {{ $labels.cluster }} failed over the last 6 hours (at least 5 completions), an early warning of degradation before the burn-rate alerts fire.'
+          info: 'More than 15% of completed node pool operations on {{ $labels.cluster }} failed over the last 6 hours (at least 5 completions), an early warning of degradation before the burn-rate alerts fire.'
+          runbook_url: 'https://aka.ms/arohcp-runbook-nodepool'
+          summary: '{{ $labels.cluster }}: Node Pool operation failure rate exceeds 15% over 6h'
+          title: '{{ $labels.cluster }}: Node Pool operation failure rate exceeds 15% over 6h'
+        }
+        expression: 'errors:backend_nodepool_operation:total_6h >= 5 and errors:backend_nodepool_operation:error_rate_6h > 0.15'
+        for: 'PT30M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
     ]

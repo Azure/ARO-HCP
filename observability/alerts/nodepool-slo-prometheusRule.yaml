@@ -161,3 +161,18 @@ spec:
         summary: "{{ $labels.cluster }}: Node Pool operation error budget burning (>5% over 3d)"
         description: "More than 5% of completed node pool operations on {{ $labels.cluster }} failed over the last 3 days (at least 10 completions and 2 failures), a 1x burn that exhausts the 95% SLO error budget over the window."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
+    # Early Warning / Degradation. Precursor: >15% failures over 6h before the burn-rate alerts fire.
+    - alert: UJNodePoolErrorsDegradation
+      expr: |
+        errors:backend_nodepool_operation:total_6h >= 5
+        and
+        errors:backend_nodepool_operation:error_rate_6h > 0.15
+      for: 30m
+      labels:
+        severity: info
+        slo: nodepool-errors
+        long_window: 6h
+      annotations:
+        summary: "{{ $labels.cluster }}: Node Pool operation failure rate exceeds 15% over 6h"
+        description: "More than 15% of completed node pool operations on {{ $labels.cluster }} failed over the last 6 hours (at least 5 completions), an early warning of degradation before the burn-rate alerts fire."
+        runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
