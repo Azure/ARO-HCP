@@ -544,7 +544,7 @@ func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Gra
 			suites := &junit.TestSuites{
 				Suites: []*junit.TestSuite{
 					{
-						Name: "step graph",
+						Name: "templatize-pipeline",
 					},
 				},
 			}
