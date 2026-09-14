@@ -1117,7 +1117,6 @@ defaults:
       address: ""
       exporter: ""
     environment: "arohcp{{ .ctx.environment }}"
-    denyAssignments: "disabled"
     # The image used to override the HAProxy image of the worker node API server proxy.
     # Defaults to matching sharedIngressImage so the decoupled image starts identical.
     # Override only `digest` per-region in sdp-pipelines overlays when regions need pinning.
