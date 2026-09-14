@@ -113,6 +113,11 @@ func (c *clusterValidationSyncer) SyncOnce(ctx context.Context, key controllerut
 	// Skip processing if the key is still within its cooldown window from a previous validation. All outcomes can schedule a cooldown via
 	// EarliestRetryAfter so validations run continuously without racing. Re-enqueue so the item is revisited once the cooldown expires.
 	if !c.retryCooldownChecker.CanSync(ctx, key) {
+		// TODO: temporary debug log to confirm continuous validation is gated (not skipped) for Passed results. Remove after verification.
+		logger.Info("Validation cooldown active; skipping Validate",
+			"validation", c.validation.Name(),
+			"retryAfter", c.retryCooldownChecker.TimeUntilReady(key),
+		)
 		if c.enqueueAfter != nil {
 			// Add a one-second buffer so the requeue lands strictly after the cooldown expires, avoiding a race where the item fires just before CanSync flips to true.
 			c.enqueueAfter.EnqueueAfter(key, c.retryCooldownChecker.TimeUntilReady(key)+time.Second)
@@ -151,9 +156,8 @@ func (c *clusterValidationSyncer) SyncOnce(ctx context.Context, key controllerut
 		return utils.TrackError(fmt.Errorf("validation %s returned invalid ValidationResult: %w", c.validation.Name(), err))
 	}
 
-	if result.Outcome.Type != validationutils.OutcomeTypePassed {
-		logger.Info("Validation outcome", "validation", c.validation.Name(), "result", result)
-	}
+	// TODO: temporary debug log — emit all outcomes including Passed so we can confirm continuous re-runs. Remove after verification (restore the != Passed guard).
+	logger.Info("Validation outcome", "validation", c.validation.Name(), "outcome", result.Outcome.Type, "result", result)
 
 	replacement := existingServiceProviderCluster.DeepCopy()
 
