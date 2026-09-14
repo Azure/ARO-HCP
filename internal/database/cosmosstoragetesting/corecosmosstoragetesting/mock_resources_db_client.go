@@ -144,7 +144,7 @@ func (m *MockResourcesDBClient) ServiceProviderNodePools(subscriptionID, resourc
 
 // ServiceProviderExternalAuths returns a CRUD interface for service provider external auth resources.
 func (m *MockResourcesDBClient) ServiceProviderExternalAuths(subscriptionID, resourceGroupName, clusterName, externalAuthName string) cosmosstorageutils.ResourceCRUD[coreapi.ServiceProviderExternalAuth, *coreapi.ServiceProviderExternalAuth] {
-	externalAuthResourceID := metadataapi.Must(coreapi.ToExternalAuthResourceID(subscriptionID, resourceGroupName, clusterName, externalAuthName))
+	externalAuthResourceID := metadataapi.Must(coreapihelpers.ToExternalAuthResourceID(subscriptionID, resourceGroupName, clusterName, externalAuthName))
 	return newMockServiceProviderExternalAuthCRUD(m, externalAuthResourceID)
 }
 

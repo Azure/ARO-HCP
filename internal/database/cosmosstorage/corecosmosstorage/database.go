@@ -135,7 +135,7 @@ func (d *resourcesCosmosDBClient) ServiceProviderNodePools(subscriptionID, resou
 }
 
 func (d *resourcesCosmosDBClient) ServiceProviderExternalAuths(subscriptionID, resourceGroupName, clusterName, externalAuthName string) cosmosstorageutils.ResourceCRUD[coreapi.ServiceProviderExternalAuth, *coreapi.ServiceProviderExternalAuth] {
-	externalAuthResourceID := metadataapi.Must(coreapi.ToExternalAuthResourceID(subscriptionID, resourceGroupName, clusterName, externalAuthName))
+	externalAuthResourceID := metadataapi.Must(coreapihelpers.ToExternalAuthResourceID(subscriptionID, resourceGroupName, clusterName, externalAuthName))
 	return cosmosstorageutils.NewCosmosResourceCRUD[coreapi.ServiceProviderExternalAuth, *coreapi.ServiceProviderExternalAuth, cosmosstorageutils.GenericDocument[coreapi.ServiceProviderExternalAuth]](
 		d.resources, externalAuthResourceID, coreapi.ServiceProviderExternalAuthResourceType)
 }

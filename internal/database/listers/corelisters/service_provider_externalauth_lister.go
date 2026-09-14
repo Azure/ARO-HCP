@@ -20,6 +20,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/listerutils"
 )
 
@@ -27,7 +28,6 @@ import (
 type ServiceProviderExternalAuthLister interface {
 	List(ctx context.Context) ([]*coreapi.ServiceProviderExternalAuth, error)
 	Get(ctx context.Context, subscriptionID, resourceGroupName, clusterName, externalAuthName string) (*coreapi.ServiceProviderExternalAuth, error)
-	ListForExternalAuth(ctx context.Context, subscriptionID, resourceGroupName, clusterName, externalAuthName string) ([]*coreapi.ServiceProviderExternalAuth, error)
 }
 
 type serviceProviderExternalAuthLister struct {
@@ -43,11 +43,6 @@ func (l *serviceProviderExternalAuthLister) List(ctx context.Context) ([]*coreap
 }
 
 func (l *serviceProviderExternalAuthLister) Get(ctx context.Context, subscriptionID, resourceGroupName, clusterName, externalAuthName string) (*coreapi.ServiceProviderExternalAuth, error) {
-	key := coreapi.ToServiceProviderExternalAuthResourceIDString(subscriptionID, resourceGroupName, clusterName, externalAuthName)
+	key := coreapihelpers.ToServiceProviderExternalAuthResourceIDString(subscriptionID, resourceGroupName, clusterName, externalAuthName)
 	return listerutils.GetByKey[coreapi.ServiceProviderExternalAuth](l.indexer, key)
-}
-
-func (l *serviceProviderExternalAuthLister) ListForExternalAuth(ctx context.Context, subscriptionID, resourceGroupName, clusterName, externalAuthName string) ([]*coreapi.ServiceProviderExternalAuth, error) {
-	key := coreapi.ToExternalAuthResourceIDString(subscriptionID, resourceGroupName, clusterName, externalAuthName)
-	return listerutils.ListFromIndex[coreapi.ServiceProviderExternalAuth](l.indexer, ByExternalAuth, key)
 }

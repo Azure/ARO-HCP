@@ -144,14 +144,6 @@ func (l *DBServiceProviderExternalAuthLister) Get(ctx context.Context, subscript
 		Get(ctx, coreapi.ServiceProviderExternalAuthResourceName)
 }
 
-func (l *DBServiceProviderExternalAuthLister) ListForExternalAuth(ctx context.Context, subscriptionID, resourceGroupName, clusterName, externalAuthName string) ([]*coreapi.ServiceProviderExternalAuth, error) {
-	iter, err := l.ResourcesDBClient.ServiceProviderExternalAuths(subscriptionID, resourceGroupName, clusterName, externalAuthName).List(ctx, nil)
-	if err != nil {
-		return nil, err
-	}
-	return listertestingutils.CollectFromIterator(ctx, iter)
-}
-
 // DBActiveOperationLister implements corelisters.ActiveOperationLister backed by a corecosmosstorage.ResourcesDBClient.
 type DBActiveOperationLister struct {
 	ResourcesDBClient corecosmosstorage.ResourcesDBClient
