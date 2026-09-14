@@ -36,6 +36,7 @@ import (
 	clocktesting "k8s.io/utils/clock/testing"
 
 	apisconfigv1 "github.com/Azure/ARO-HCP/backend/pkg/apis/config/v1"
+	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	azureconfig "github.com/Azure/ARO-HCP/backend/pkg/azure/config"
 	clusterbackups "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/backups"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/billingcosmosstoragetesting"
@@ -156,6 +157,7 @@ var expectedControllerLaunches = []struct {
 	{"backupschedule", 20},
 	{"fetchmsiidentitiesinfo", 20},
 	{"fetchdataplaneoperatorsmanagedidentitiesinfo", 20},
+	{"fetchmanagedidentitiesinfo", 20},
 	{"identityroleassignments", 20},
 	{"keyrotationbackup", 20},
 	{"clusterresources", 20},
@@ -205,6 +207,7 @@ func testControllerContext(t *testing.T, hasRealFPA bool) (ControllerContext, St
 			BackupConfig:      &clusterbackups.BackupConfig{},
 			CloudEnvironment:  cloudEnvironment,
 			HasRealFPA:        hasRealFPA,
+			HardcodedIdentity: &azureclient.HardcodedIdentity{},
 		},
 	}
 	controllerContext := backend.newControllerContext(t.Context())
