@@ -47,13 +47,17 @@ type ManagedResourceGroupKey struct {
 
 func (k ManagedResourceGroupKey) AddLoggerValues(logger logr.Logger) logr.Logger {
 	return logger.WithValues(
-		utils.LogValues{}.AddSubscriptionID(k.SubscriptionID)...,
+		utils.LogValues{}.AddLogValuesForResourceIDString(k.ManagedBy)...,
 	).WithValues(
 		"resourceGroup", k.ResourceGroupName,
 		"managedBy", k.ManagedBy,
 		"location", k.Location,
 	)
 }
+
+// ManagedResourceGroupWatchingControllerName is the name of the controller that
+// discovers managed resource groups in Azure by watching subscription changes.
+const ManagedResourceGroupWatchingControllerName = "ManagedResourceGroupWatching"
 
 // ManagedResourceGroupProcessor processes discovered managed resource groups.
 type ManagedResourceGroupProcessor interface {
@@ -81,7 +85,7 @@ func NewManagedResourceGroupWatchingController(
 	resyncDuration time.Duration,
 ) Controller {
 	c := &managedResourceGroupWatchingController{
-		name:                  "ManagedResourceGroupWatching",
+		name:                  ManagedResourceGroupWatchingControllerName,
 		location:              location,
 		processor:             processor,
 		resourcesDBClient:     resourcesDBClient,
@@ -89,7 +93,7 @@ func NewManagedResourceGroupWatchingController(
 		queue: workqueue.NewTypedRateLimitingQueueWithConfig(
 			workqueue.DefaultTypedControllerRateLimiter[ManagedResourceGroupKey](),
 			workqueue.TypedRateLimitingQueueConfig[ManagedResourceGroupKey]{
-				Name: "ManagedResourceGroupWatching",
+				Name: ManagedResourceGroupWatchingControllerName,
 			},
 		),
 	}
@@ -134,6 +138,10 @@ func (c *managedResourceGroupWatchingController) discoverAndEnqueueManagedResour
 	ctx = utils.ContextWithLogger(ctx, logger)
 
 	subscriptionID := subscription.ResourceID.SubscriptionID
+	if subscription.Properties == nil || subscription.Properties.TenantId == nil {
+		logger.Error(nil, "Subscription has no tenantId, skipping MRG discovery")
+		return
+	}
 	tenantID := *subscription.Properties.TenantId
 
 	rgClient, err := c.azureFPAClientBuilder.ResourceGroupsClient(tenantID, subscriptionID)

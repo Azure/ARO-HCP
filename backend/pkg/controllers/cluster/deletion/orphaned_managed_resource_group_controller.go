@@ -247,6 +247,9 @@ func (c *orphanedManagedResourceGroupController) ProcessManagedResourceGroup(ctx
 	orphanedMRGsFound.WithLabelValues(c.location).Inc()
 
 	// Get resource group client
+	if subscription.Properties == nil || subscription.Properties.TenantId == nil {
+		return utils.TrackError(fmt.Errorf("subscription %s has no tenantId", key.SubscriptionID))
+	}
 	tenantID := *subscription.Properties.TenantId
 	rgClient, err := c.azureFPAClientBuilder.ResourceGroupsClient(tenantID, key.SubscriptionID)
 	if err != nil {
