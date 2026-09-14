@@ -64,6 +64,10 @@ func NewBackendIdentityAzureClients(ctx context.Context, azureConfig *azureconfi
 	clients := &azureclient.BackendIdentityAzureClients{
 		DataplaneIdentitiesOIDCConfigurationBlobStorageClient: blobStorageClient,
 		RoleDefinitionsClient: roleDefinitionsClient,
+		KeyVaultSecretsClientBuilder: azureclient.NewBackendIdentityKeyVaultSecretsClientBuilder(
+			defaultAzureCredential,
+			azureConfig.CloudEnvironment.AZCoreClientOptions(),
+		),
 	}
 
 	return clients, nil

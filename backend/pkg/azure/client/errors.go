@@ -62,3 +62,18 @@ func IsAzureAuthorizationFailedError(err error) bool {
 	var azErr *azcore.ResponseError
 	return errors.As(err, &azErr) && azErr.ErrorCode == "AuthorizationFailed"
 }
+
+// IsKeyVaultSecretNotFoundErr is used to determine if we are failing to find a
+// Key Vault secret. The Key Vault secrets API returns SecretNotFound when the
+// secret does not exist.
+func IsKeyVaultSecretNotFoundErr(err error) bool {
+	var azErr *azcore.ResponseError
+	return errors.As(err, &azErr) && azErr.ErrorCode == "SecretNotFound"
+}
+
+// IsKeyVaultSecretDeletedButRecoverableErr is used to determine if a SetSecret
+// failed because a secret of that name is soft-deleted and can be recovered.
+func IsKeyVaultSecretDeletedButRecoverableErr(err error) bool {
+	var azErr *azcore.ResponseError
+	return errors.As(err, &azErr) && azErr.ErrorCode == "Conflict"
+}

@@ -50,6 +50,34 @@ type HardcodedIdentity struct {
 	TenantID string
 }
 
+// UserAssignedIdentityCredentials returns the User Assigned Managed Identity
+// credentials that represent this hardcoded identity for the given resource ID.
+// The Managed Identities Data Plane is not available in this environment, so
+// every requested identity is backed by the same hardcoded Service Principal.
+func (h *HardcodedIdentity) UserAssignedIdentityCredentials(resourceID string, cloudConfiguration *cloud.Configuration, now time.Time) dataplane.UserAssignedIdentityCredentials {
+	aHundredYearsFromNow := now.UTC().AddDate(100, 0, 0).Format(time.RFC3339)
+	aDayAgo := now.UTC().AddDate(0, 0, -1).Format(time.RFC3339)
+	placeholder := "placeholder"
+	return dataplane.UserAssignedIdentityCredentials{
+		ClientID:                   ptr.To(h.ClientID),
+		ClientSecret:               ptr.To(h.ClientSecret),
+		TenantID:                   ptr.To(h.TenantID),
+		ResourceID:                 ptr.To(resourceID),
+		AuthenticationEndpoint:     ptr.To(cloudConfiguration.ActiveDirectoryAuthorityHost),
+		ClientSecretURL:            &placeholder,
+		MtlsAuthenticationEndpoint: &placeholder,
+		NotBefore:                  ptr.To(aDayAgo),
+		CannotRenewAfter:           ptr.To(aHundredYearsFromNow),
+		RenewAfter:                 ptr.To(aHundredYearsFromNow),
+		NotAfter:                   ptr.To(aHundredYearsFromNow),
+		CustomClaims: &dataplane.CustomClaims{
+			XMSAzNwperimid: []string{placeholder},
+			XMSAzTm:        &placeholder,
+		},
+		ObjectID: ptr.To(h.PrincipalID),
+	}
+}
+
 // hardcodedIdentityManagedIdentitiesDataplaneClient is a mock implementation of the
 // ManagedIdentitiesDataplaneClient interface. The Managed Identities Data
 // Plane service is only available in Azure tenants where Microsoft's
@@ -85,30 +113,9 @@ func (c *hardcodedIdentityManagedIdentitiesDataplaneClient) GetUserAssignedIdent
 		NotAfter:               ptr.To(aHundredYearsFromNow),
 	}
 
-	placeholder := "placeholder"
 	identities := make([]dataplane.UserAssignedIdentityCredentials, len(request.IdentityIDs))
 	for i, miResourceID := range request.IdentityIDs {
-		identity := dataplane.UserAssignedIdentityCredentials{
-			ClientID:                   ptr.To(c.hardcodedIdentity.ClientID),
-			ClientSecret:               ptr.To(c.hardcodedIdentity.ClientSecret),
-			TenantID:                   ptr.To(c.hardcodedIdentity.TenantID),
-			ResourceID:                 ptr.To(miResourceID),
-			AuthenticationEndpoint:     ptr.To(c.cloudConfiguration.ActiveDirectoryAuthorityHost),
-			ClientSecretURL:            &placeholder,
-			MtlsAuthenticationEndpoint: &placeholder,
-			NotBefore:                  ptr.To(aDayAgo),
-			CannotRenewAfter:           ptr.To(aHundredYearsFromNow),
-			RenewAfter:                 ptr.To(aHundredYearsFromNow),
-			NotAfter:                   ptr.To(aHundredYearsFromNow),
-			CustomClaims: &dataplane.CustomClaims{
-				XMSAzNwperimid: []string{placeholder},
-				XMSAzTm:        &placeholder,
-			},
-			// In this specific context Object ID is equivalent to Principal ID
-			ObjectID: ptr.To(c.hardcodedIdentity.PrincipalID),
-		}
-
-		identities[i] = identity
+		identities[i] = c.hardcodedIdentity.UserAssignedIdentityCredentials(miResourceID, c.cloudConfiguration, now)
 	}
 
 	managedIdentityCredentials.ExplicitIdentities = identities

@@ -372,6 +372,30 @@ type ServiceProviderClusterStatus struct {
 	// when that resource group is removed.
 	// Written by: ClusterDenyAssignmentIntent, ClusterDenyAssignmentV2
 	DenyAssignmentsV2 map[string]*DenyAssignmentStatus `json:"denyAssignmentsV2,omitempty"`
+
+	// MSIBasedOperatorCredentials tracks the desired and observed Key Vault
+	// secrets that hold the initial Managed Identities Data Plane credentials
+	// for each control-plane operator. The map is keyed by operator name from
+	// Cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators
+	// because the Key Vault secret name is "<cs_cluster_id>-<operatorName>":
+	// one secret per operator, overwritten when that operator's identity
+	// mapping changes. ObservedIdentity is the identity last targeted for
+	// that operator. MSIBasedOperatorCredentialsIntent adds those operators
+	// as PendingConfigure once ManagedIdentityDetails has resolved ClientID
+	// and PrincipalID from MetadataFromHardcodedIdentity (hardcoded-identity
+	// environments) or MetadataFromManagedIdentitiesDataplaneService (real
+	// Managed Identities Data Plane), and marks operators that have left the
+	// control-plane set (or during cluster deletion after Cluster Service is
+	// gone) as PendingDeconfigure. A change to the identity ResourceID,
+	// ClientID, PrincipalID, or TenantID on the same operator updates
+	// ObservedIdentity and sets PendingConfigure; it does not deconfigure.
+	// MSIBasedOperatorCredentials then writes or deletes secrets in the
+	// hosted-clusters managed identities Key Vault from the cluster's
+	// provision shard (ManagementCluster.Status.HostedClustersManagedIdentitiesKeyVaultURL).
+	// Configure and refresh wait until ObserveRoleAssignments has confirmed
+	// the managed-resource-group role assignments for that operator.
+	// Written by: MSIBasedOperatorCredentialsIntent, MSIBasedOperatorCredentials
+	MSIBasedOperatorCredentials map[string]*MSIBasedOperatorCredentialsStatus `json:"msiBasedOperatorCredentials,omitempty"`
 }
 
 // ManagedIdentityDataplaneOIDCFederationPhase is the reconciliation phase of
@@ -452,6 +476,91 @@ type ManagedIdentityDataplaneOIDCFederationStatus struct {
 	// partial deconfigure it is the IDs Azure did not delete.
 	// Written by: DataPlaneOIDCFederation
 	AzureResources []*azcorearm.ResourceID `json:"federatedIdentityCredentials,omitempty"`
+}
+
+// MSIBasedOperatorCredentialsPhase is the reconciliation phase of the initial
+// MSI dataplane credentials secret for a single control-plane operator.
+type MSIBasedOperatorCredentialsPhase string
+
+const (
+	// MSIBasedOperatorCredentialsPhasePendingConfigure means the operator is
+	// desired and its initial credentials should be written to the managed
+	// identities Key Vault.
+	MSIBasedOperatorCredentialsPhasePendingConfigure MSIBasedOperatorCredentialsPhase = "PendingConfigure"
+	// MSIBasedOperatorCredentialsPhaseConfigured means the operator's initial
+	// credentials secret exists in the managed identities Key Vault.
+	MSIBasedOperatorCredentialsPhaseConfigured MSIBasedOperatorCredentialsPhase = "Configured"
+	// MSIBasedOperatorCredentialsPhasePendingDeconfigure means the operator is
+	// no longer desired (or the cluster is being deleted) and the credentials
+	// secret should be deleted from the managed identities Key Vault.
+	MSIBasedOperatorCredentialsPhasePendingDeconfigure MSIBasedOperatorCredentialsPhase = "PendingDeconfigure"
+	// MSIBasedOperatorCredentialsPhaseDeconfigured means the operator's
+	// credentials secret has been deleted from the managed identities Key Vault.
+	MSIBasedOperatorCredentialsPhaseDeconfigured MSIBasedOperatorCredentialsPhase = "Deconfigured"
+)
+
+// MSIBasedOperatorCredentialsObservedIdentity is the control-plane operator
+// identity that intent last targeted for this operator name. ResourceID is the
+// Azure User Assigned Managed Identity. ClientID, PrincipalID, and TenantID
+// are copied from Status.ManagedIdentityDetails: MetadataFromHardcodedIdentity
+// in hardcoded-identity environments, otherwise
+// MetadataFromManagedIdentitiesDataplaneService.
+// Written by: MSIBasedOperatorCredentialsIntent
+type MSIBasedOperatorCredentialsObservedIdentity struct {
+	// Written by: MSIBasedOperatorCredentialsIntent
+	ResourceID *azcorearm.ResourceID `json:"resourceId,omitempty"`
+	// Written by: MSIBasedOperatorCredentialsIntent
+	ClientID string `json:"clientId,omitempty"`
+	// Written by: MSIBasedOperatorCredentialsIntent
+	PrincipalID string `json:"principalId,omitempty"`
+	// Written by: MSIBasedOperatorCredentialsIntent
+	TenantID string `json:"tenantId,omitempty"`
+}
+
+// MSIBasedOperatorCredentialsStatus is the reconciliation state of one
+// control-plane operator's initial MSI credentials secret on
+// MSIBasedOperatorCredentials. The map key is the operator name.
+type MSIBasedOperatorCredentialsStatus struct {
+	// EarliestRecheckTime is the earliest time at which MSIBasedOperatorCredentials
+	// should re-query the Managed Identities Data Plane and refresh the Key Vault
+	// secret. Nil means recheck immediately.
+	// Controllers should set this field with substantial jitter: without another
+	// concern, jitter of 50% is considered normal so that any storms are quickly
+	// dissipated. Additionally, long recheck times are recommended for resources
+	// outside of their active phases. Order of at least six hours is, with durations
+	// up to 24 hours considered normal.
+	// Written by: MSIBasedOperatorCredentials
+	EarliestRecheckTime *metav1.Time `json:"earliestRecheckTime,omitempty"`
+	// Phase is the reconciliation phase of this operator's credentials secret.
+	// Written by: MSIBasedOperatorCredentialsIntent, MSIBasedOperatorCredentials
+	Phase MSIBasedOperatorCredentialsPhase `json:"phase,omitempty"`
+	// ObservedIdentity is the control-plane operator identity that intent last
+	// targeted for this operator. Intent copies these from ManagedIdentityDetails
+	// when ClientID, PrincipalID, and TenantID are resolved from the hardcoded
+	// identity or the real Managed Identities Data Plane. A change to ResourceID,
+	// ClientID, PrincipalID, or TenantID updates this field and sets Phase to
+	// PendingConfigure in the same write so Configured is never paired with a
+	// new instance that has not been ensured. Replacement overwrites the same
+	// Key Vault secret; it does not deconfigure.
+	// Written by: MSIBasedOperatorCredentialsIntent
+	ObservedIdentity MSIBasedOperatorCredentialsObservedIdentity `json:"observedIdentity,omitempty"`
+	// PendingSecretName is the Key Vault secret name that has been requested
+	// but not yet confirmed to exist. MSIBasedOperatorCredentials persists this
+	// name before SetSecret, so a crash or replace failure cannot lose the
+	// tracked secret. PendingDeconfigure also deletes leftover names here from
+	// a previous incomplete configure.
+	// Written by: MSIBasedOperatorCredentials
+	PendingSecretName string `json:"pendingSecretName,omitempty"`
+	// SecretName is the Key Vault secret name confirmed to exist after a
+	// successful SetSecret. After a partial deconfigure it remains set until
+	// Azure deletes the secret.
+	// Written by: MSIBasedOperatorCredentials
+	SecretName string `json:"secretName,omitempty"`
+	// KeyVaultURL is the hosted-clusters managed identities Key Vault URL the
+	// secret was written to, taken from the cluster's provision shard
+	// (ManagementCluster.Status.HostedClustersManagedIdentitiesKeyVaultURL).
+	// Written by: MSIBasedOperatorCredentials
+	KeyVaultURL string `json:"keyVaultURL,omitempty"`
 }
 
 // DenyAssignmentPhase is the reconciliation phase of a single deny assignment type.

@@ -34,6 +34,8 @@ import (
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 	utilsclock "k8s.io/utils/clock"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
+
 	"github.com/Azure/ARO-HCP/backend/pkg/azure/cachedreader"
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	azureconfig "github.com/Azure/ARO-HCP/backend/pkg/azure/config"
@@ -52,6 +54,7 @@ import (
 	clusterdenyassignments "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/denyassignments"
 	clusteridentity "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/identity"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/legacycredentialrequest"
+	clustermsicredentials "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/msicredentials"
 	clusteroperations "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/operations"
 	clusterplacement "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/placement"
 	clusterproperties "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/properties"
@@ -1122,6 +1125,34 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		b.options.DataPlaneOIDCIssuerBaseURL,
 	)
 
+	var msiCredentialsDataplaneBuilder azureclient.FPAMIDataplaneClientBuilder
+	if b.options.HardcodedIdentity == nil {
+		msiCredentialsDataplaneBuilder = b.options.FPAMIDataplaneClientBuilder
+	}
+	var msiCredentialsCloudConfiguration *cloud.Configuration
+	if b.options.CloudEnvironment != nil {
+		msiCredentialsCloudConfiguration = b.options.CloudEnvironment.CloudConfiguration()
+	}
+	var keyVaultSecretsClientBuilder azureclient.KeyVaultSecretsClientBuilder
+	if b.options.BackendIdentityAzureClients != nil {
+		keyVaultSecretsClientBuilder = b.options.BackendIdentityAzureClients.KeyVaultSecretsClientBuilder
+	}
+	msiBasedOperatorCredentialsIntentController := clustermsicredentials.NewMSIBasedOperatorCredentialsIntentController(
+		b.options.ResourcesDBClient,
+		backendInformers,
+	)
+	msiBasedOperatorCredentialsController := clustermsicredentials.NewMSIBasedOperatorCredentialsController(
+		b.clock,
+		b.options.ResourcesDBClient,
+		backendInformers,
+		managementClusterLister,
+		b.options.HardcodedIdentity,
+		msiCredentialsDataplaneBuilder,
+		msiCredentialsCloudConfiguration,
+		keyVaultSecretsClientBuilder,
+		b.options.ClusterScopedIdentitiesConfig,
+	)
+
 	clusterDenyAssignmentIntentController := clusterdenyassignments.NewClusterDenyAssignmentIntentController(
 		b.clock,
 		b.options.ResourcesDBClient,
@@ -1273,6 +1304,8 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go fetchDataPlaneOperatorsManagedIdentitiesInfoController.Run(ctx, 20)
 				go dataPlaneWorkloadsOIDCFederationIntentController.Run(ctx, 20)
 				go dataPlaneWorkloadsOIDCFederationController.Run(ctx, 20)
+				go msiBasedOperatorCredentialsIntentController.Run(ctx, 20)
+				go msiBasedOperatorCredentialsController.Run(ctx, 20)
 				go clusterDenyAssignmentIntentController.Run(ctx, 20)
 				go clusterDenyAssignmentV2Controller.Run(ctx, 20)
 				go observeRoleAssignmentsController.Run(ctx, 20)

@@ -214,3 +214,92 @@ func TestExtraDeleteGateShouldDeleteServiceProviderClusterOIDCFederation(t *test
 		})
 	}
 }
+
+func TestExtraDeleteGateShouldDeleteServiceProviderClusterMSIBasedOperatorCredentials(t *testing.T) {
+	const (
+		subscriptionID    = "00000000-0000-0000-0000-000000000000"
+		resourceGroupName = "test-rg"
+		clusterName       = "test-cluster"
+	)
+
+	serviceProviderClusterResourceID := metadataapi.Must(azcorearm.ParseResourceID(
+		"/subscriptions/" + subscriptionID +
+			"/resourceGroups/" + resourceGroupName +
+			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + clusterName +
+			"/" + coreapi.ServiceProviderClusterResourceTypeName +
+			"/" + coreapi.ServiceProviderClusterResourceName,
+	))
+
+	testCases := []struct {
+		name               string
+		credentials        map[string]*coreapi.MSIBasedOperatorCredentialsStatus
+		expectShouldDelete bool
+	}{
+		{
+			name: "confirmed secret remaining blocks deletion",
+			credentials: map[string]*coreapi.MSIBasedOperatorCredentialsStatus{
+				"control-plane": {
+					Phase:      coreapi.MSIBasedOperatorCredentialsPhasePendingDeconfigure,
+					SecretName: "uamsi-cs-cluster-control-plane",
+				},
+			},
+			expectShouldDelete: false,
+		},
+		{
+			name: "pending secret remaining blocks deletion",
+			credentials: map[string]*coreapi.MSIBasedOperatorCredentialsStatus{
+				"control-plane": {
+					Phase:             coreapi.MSIBasedOperatorCredentialsPhasePendingDeconfigure,
+					PendingSecretName: "uamsi-cs-cluster-control-plane",
+				},
+			},
+			expectShouldDelete: false,
+		},
+		{
+			name: "remaining secret on one operator blocks deletion",
+			credentials: map[string]*coreapi.MSIBasedOperatorCredentialsStatus{
+				"control-plane": {
+					Phase: coreapi.MSIBasedOperatorCredentialsPhaseDeconfigured,
+				},
+				"ingress": {
+					Phase:      coreapi.MSIBasedOperatorCredentialsPhasePendingDeconfigure,
+					SecretName: "uamsi-cs-cluster-ingress",
+				},
+			},
+			expectShouldDelete: false,
+		},
+		{
+			name: "deconfigured operators with no remaining secrets allow deletion",
+			credentials: map[string]*coreapi.MSIBasedOperatorCredentialsStatus{
+				"control-plane": {Phase: coreapi.MSIBasedOperatorCredentialsPhaseDeconfigured},
+				"ingress":       {Phase: coreapi.MSIBasedOperatorCredentialsPhaseDeconfigured},
+			},
+			expectShouldDelete: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+
+			serviceProviderCluster := &coreapi.ServiceProviderCluster{
+				CosmosMetadata: coreapi.CosmosMetadata{
+					ResourceID:   serviceProviderClusterResourceID,
+					PartitionKey: strings.ToLower(serviceProviderClusterResourceID.SubscriptionID),
+				},
+			}
+			serviceProviderCluster.Status.MSIBasedOperatorCredentials = tc.credentials
+
+			mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{serviceProviderCluster})
+			require.NoError(t, err)
+
+			controller := &clusterChildResourcesCleanupController{
+				resourcesDBClient: mockResourcesDB,
+			}
+
+			shouldDelete, err := controller.extraDeleteGateShouldDeleteServiceProviderCluster(ctx, serviceProviderClusterResourceID)
+			require.NoError(t, err)
+			assert.Equal(t, tc.expectShouldDelete, shouldDelete)
+		})
+	}
+}

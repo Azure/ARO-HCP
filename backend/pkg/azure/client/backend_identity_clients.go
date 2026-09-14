@@ -26,4 +26,9 @@ type BackendIdentityAzureClients struct {
 	// RoleDefinitionsClient is the client used to get Azure RBAC role definitions
 	// (e.g. for resolving role definition IDs to allowed actions).
 	RoleDefinitionsClient RoleDefinitionsClient
+	// KeyVaultSecretsClientBuilder creates Key Vault secrets clients
+	// authenticating as the backend identity. Used to write MSI-based
+	// control-plane operator credentials into the hosted-clusters managed
+	// identities Key Vault on each management cluster.
+	KeyVaultSecretsClientBuilder KeyVaultSecretsClientBuilder
 }

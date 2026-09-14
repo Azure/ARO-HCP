@@ -241,8 +241,9 @@ func hasSkippedResourceTypePrefix(resourceID *azcorearm.ResourceID, skipSubtreeT
 
 // extraDeleteGateShouldDeleteServiceProviderCluster returns false while the
 // ServiceProviderCluster still has a managed resource group, remaining
-// data-plane OIDC federation credentials, Maestro readonly bundles, or
-// cluster-scoped kube-applier *Desire documents.
+// data-plane OIDC federation credentials, remaining MSI-based operator
+// credential secrets, Maestro readonly bundles, or cluster-scoped kube-applier
+// *Desire documents.
 func (c *clusterChildResourcesCleanupController) extraDeleteGateShouldDeleteServiceProviderCluster(ctx context.Context, serviceProviderClusterResourceID *azcorearm.ResourceID) (bool, error) {
 	logger := utils.LoggerFromContext(ctx)
 
@@ -298,6 +299,30 @@ func (c *clusterChildResourcesCleanupController) extraDeleteGateShouldDeleteServ
 		logger.Info("waiting for data-plane OIDC federation to be deleted before removing the ServiceProviderCluster document",
 			"serviceProviderClusterResourceID", spc.ResourceID.String(),
 			"federatedIdentityCredentialResourceIDs", remainingFederatedIdentityCredentialIDStrs)
+		return false, nil
+	}
+
+	// Do not delete the ServiceProviderCluster while there are any remaining MSI-based
+	// operator credential secrets still reflected as present (either confirmed or pending).
+	// We keep the ServiceProviderCluster document alive so that reflected state remains
+	// available for MSIBasedOperatorCredentials to delete those Key Vault secrets.
+	remainingMSIBasedOperatorCredentialSecrets := make([]string, 0)
+	for _, status := range spc.Status.MSIBasedOperatorCredentials {
+		if status == nil {
+			continue
+		}
+		if len(status.SecretName) > 0 {
+			remainingMSIBasedOperatorCredentialSecrets = append(remainingMSIBasedOperatorCredentialSecrets, status.SecretName)
+		}
+		if len(status.PendingSecretName) > 0 && status.PendingSecretName != status.SecretName {
+			remainingMSIBasedOperatorCredentialSecrets = append(remainingMSIBasedOperatorCredentialSecrets, status.PendingSecretName)
+		}
+	}
+	if len(remainingMSIBasedOperatorCredentialSecrets) > 0 {
+		slices.Sort(remainingMSIBasedOperatorCredentialSecrets)
+		logger.Info("waiting for MSI-based operator credentials to be deleted before removing the ServiceProviderCluster document",
+			"serviceProviderClusterResourceID", spc.ResourceID.String(),
+			"secretNames", remainingMSIBasedOperatorCredentialSecrets)
 		return false, nil
 	}
 
