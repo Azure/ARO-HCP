@@ -86,3 +86,50 @@ tests:
     exp_samples:
     - labels: 'errors:backend_nodepool_operation:error_rate_1h{cluster="mgmt-1"}'
       value: 0
+# Duplicate prometheus_replica scrapes (HA) must collapse: max by(<identity>)
+# de-dups the two replica series per operation, so one succeeded plus one failed
+# op count as terminal_total=2 (not 4) and failed_1h=1 (not 2).
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/f1", phase="failed", prometheus_replica="0"}'
+    values: "1x200"
+  - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/f1", phase="failed", prometheus_replica="1"}'
+    values: "1x200"
+  - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/f1", phase="failed", prometheus_replica="0"}'
+    values: "0x200"
+  - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/f1", phase="failed", prometheus_replica="1"}'
+    values: "0x200"
+  - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/s1", phase="succeeded", prometheus_replica="0"}'
+    values: "1x200"
+  - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/s1", phase="succeeded", prometheus_replica="1"}'
+    values: "1x200"
+  - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/s1", phase="succeeded", prometheus_replica="0"}'
+    values: "0x200"
+  - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/s1", phase="succeeded", prometheus_replica="1"}'
+    values: "0x200"
+  promql_expr_test:
+  - expr: errors:backend_nodepool_operation:succeeded_total
+    eval_time: 30m
+    exp_samples:
+    - labels: 'errors:backend_nodepool_operation:succeeded_total{cluster="mgmt-1"}'
+      value: 1
+  - expr: errors:backend_nodepool_operation:terminal_total
+    eval_time: 30m
+    exp_samples:
+    - labels: 'errors:backend_nodepool_operation:terminal_total{cluster="mgmt-1"}'
+      value: 2
+  - expr: errors:backend_nodepool_operation:failed_1h
+    eval_time: 30m
+    exp_samples:
+    - labels: 'errors:backend_nodepool_operation:failed_1h{cluster="mgmt-1"}'
+      value: 1
+  - expr: errors:backend_nodepool_operation:total_1h
+    eval_time: 30m
+    exp_samples:
+    - labels: 'errors:backend_nodepool_operation:total_1h{cluster="mgmt-1"}'
+      value: 2
+  - expr: errors:backend_nodepool_operation:error_rate_1h
+    eval_time: 30m
+    exp_samples:
+    - labels: 'errors:backend_nodepool_operation:error_rate_1h{cluster="mgmt-1"}'
+      value: 0.5
