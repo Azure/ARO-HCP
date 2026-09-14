@@ -154,7 +154,7 @@ Velero runs on each management cluster and performs the actual backup and restor
 Two cadence tiers are available, selected at backend deployment time:
 
 - **production** — Three overlapping schedules with progressively longer retention:
-  - `hourly` — cron `0 */1 * * *`, TTL 168 hours (7 days)
+  - `hourly` — cron `0 */1 * * *`, TTL 48 hours (2 days)
   - `daily` — cron `0 2 * * *`, TTL 720 hours (30 days)
   - `weekly` — cron `0 3 * * 0`, TTL 2160 hours (90 days)
 - **testing** — A single accelerated schedule suitable for CI and development environments:
