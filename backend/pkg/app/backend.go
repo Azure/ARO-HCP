@@ -131,6 +131,9 @@ type BackendOptions struct {
 	CheckAccessV2ClientBuilder                          azureclient.CheckAccessV2ClientBuilder
 	ClusterScopedIdentitiesConfig                       *internalazure.ClusterScopedIdentitiesConfig
 	CloudEnvironment                                    *azureconfig.AzureCloudEnvironment
+	OrphanedMRGMyAFEC                                   string
+	OrphanedMRGOtherAFECs                               string
+	OrphanedMRGReadWrite                                bool
 }
 
 const backendShutdownTimeout = 31 * time.Second
@@ -812,6 +815,9 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		b.options.AzureLocation,
 		b.options.ResourcesDBClient,
 		b.options.FPAClientBuilder,
+		b.options.OrphanedMRGMyAFEC,
+		b.options.OrphanedMRGOtherAFECs,
+		b.options.OrphanedMRGReadWrite,
 	)
 	managedResourceGroupWatchingController := controllerutils.NewManagedResourceGroupWatchingController(
 		b.options.AzureLocation,

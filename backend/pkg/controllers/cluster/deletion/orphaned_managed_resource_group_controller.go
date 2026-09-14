@@ -19,7 +19,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 
@@ -85,6 +84,7 @@ type AFECOwnershipConfig struct {
 // orphanedManagedResourceGroupController implements ManagedResourceGroupProcessor.
 type orphanedManagedResourceGroupController struct {
 	location              string
+	readOnly              bool
 	resourcesDBClient     corecosmosstorage.ResourcesDBClient
 	azureFPAClientBuilder azureclient.FirstPartyApplicationClientBuilder
 	afecOwnership         AFECOwnershipConfig
@@ -93,34 +93,37 @@ type orphanedManagedResourceGroupController struct {
 // NewOrphanedManagedResourceGroupController creates a controller that processes managed resource groups
 // and deletes them if they are orphaned.
 //
-// Environment-based cleanup is controlled by these environment variables:
-// - MY_AFEC: Single AFEC flag identifying subscriptions owned by this environment (e.g., "Microsoft.RedHatOpenShift/STAGING-APPROVED")
-// - OTHER_AFECS: Comma-separated list of AFEC flags identifying subscriptions owned by OTHER environments
+// Environment-based cleanup is controlled by these parameters:
+// - myAFEC: Single AFEC flag identifying subscriptions owned by this environment (e.g., "Microsoft.RedHatOpenShift/STAGING-APPROVED")
+// - otherAFECs: Comma-separated list of AFEC flags identifying subscriptions owned by OTHER environments
+// - readWrite: When true, the controller will actually delete orphaned MRGs. When false, it operates in read-only mode.
 //
-// PROD: Set OTHER_AFECS to skip INT/STAGING subscriptions
-// STAGING/INT: Set MY_AFEC to only clean subscriptions with that AFEC
+// PROD: Set otherAFECs to skip INT/STAGING subscriptions
+// STAGING/INT: Set myAFEC to only clean subscriptions with that AFEC
 // DEV: Leave both empty to disable the controller
 func NewOrphanedManagedResourceGroupController(
 	location string,
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	azureFPAClientBuilder azureclient.FirstPartyApplicationClientBuilder,
+	myAFEC string,
+	otherAFECs string,
+	readWrite bool,
 ) *orphanedManagedResourceGroupController {
-	afecOwnership := parseAFECOwnershipFromEnv()
+	afecOwnership := parseAFECOwnership(myAFEC, otherAFECs)
 
 	return &orphanedManagedResourceGroupController{
 		location:              location,
+		readOnly:              !readWrite,
 		resourcesDBClient:     resourcesDBClient,
 		azureFPAClientBuilder: azureFPAClientBuilder,
 		afecOwnership:         afecOwnership,
 	}
 }
 
-// parseAFECOwnershipFromEnv constructs AFECOwnershipConfig from environment variables.
-func parseAFECOwnershipFromEnv() AFECOwnershipConfig {
-	myAFEC := os.Getenv("MY_AFEC")
-	otherAFECsStr := os.Getenv("OTHER_AFECS")
-
-	// Parse OTHER_AFECS
+// parseAFECOwnership constructs AFECOwnershipConfig from the provided AFEC configuration.
+// The caller must ensure that myAFEC and otherAFECsStr are not both set (mutually exclusive).
+func parseAFECOwnership(myAFEC, otherAFECsStr string) AFECOwnershipConfig {
+	// Parse otherAFECs
 	otherAFECs := make(map[string]struct{})
 	if otherAFECsStr != "" {
 		for _, afec := range strings.Split(otherAFECsStr, ",") {
@@ -229,8 +232,7 @@ func (c *orphanedManagedResourceGroupController) needsWork(ctx context.Context, 
 func (c *orphanedManagedResourceGroupController) ProcessManagedResourceGroup(ctx context.Context, key controllerutils.ManagedResourceGroupKey) error {
 	logger := utils.LoggerFromContext(ctx)
 
-	// Check if we're in read-write mode (default is read-only for safety)
-	readOnly := os.Getenv("CLEAN_ORPHANED_MANAGED_RESOURCE_GROUPS_MODE") != "readwrite"
+	readOnly := c.readOnly
 
 	// Check if this MRG needs cleanup
 	shouldCleanup, subscription, err := c.needsWork(ctx, key)

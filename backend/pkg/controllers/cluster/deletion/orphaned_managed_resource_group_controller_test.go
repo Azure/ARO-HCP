@@ -405,7 +405,7 @@ func TestIsSubscriptionOwnedByThisEnvironment(t *testing.T) {
 	}
 }
 
-func TestParseAFECOwnershipFromEnv(t *testing.T) {
+func TestParseAFECOwnership(t *testing.T) {
 	tests := []struct {
 		name           string
 		myAFEC         string
@@ -451,15 +451,7 @@ func TestParseAFECOwnershipFromEnv(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Set env vars
-			if tt.myAFEC != "" {
-				t.Setenv("MY_AFEC", tt.myAFEC)
-			}
-			if tt.otherAFECs != "" {
-				t.Setenv("OTHER_AFECS", tt.otherAFECs)
-			}
-
-			config := parseAFECOwnershipFromEnv()
+			config := parseAFECOwnership(tt.myAFEC, tt.otherAFECs)
 
 			assert.Equal(t, tt.expectedMode, config.Mode)
 			if tt.expectedMyAFEC != "" {
