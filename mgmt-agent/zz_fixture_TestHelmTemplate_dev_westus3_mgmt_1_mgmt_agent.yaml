@@ -456,7 +456,7 @@ spec:
         args:
         - controller
         - "--health-address=:8080"
-        - "--ksm-image=mcr.microsoft.com/oss/v2/kubernetes/kube-state-metrics@sha256:1234567890"
+        - "--ksm-image=mcr.microsoft.com/oss/v2/kubernetes/kube-state-metrics@sha256:sha256:1234567890"
         - "--log-verbosity=2"
         - "--node-health-configmap=mgmt-agent-node-health"
         - "--node-health-config-key=config.yaml"

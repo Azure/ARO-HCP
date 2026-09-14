@@ -34,27 +34,32 @@ var (
 
 // GetServiceConfig returns the service configuration, loading it from
 // environment variables on first call. Subsequent calls return the
-// cached result.
+// cached result. Required env vars: ARO_HCP_CONFIG_FILE, ARO_HCP_CLOUD,
+// DEPLOY_ENV, REGION. Missing vars cause an error.
 func GetServiceConfig() (types.Configuration, error) {
 	configOnce.Do(func() {
-		configFile := os.Getenv("ARO_HCP_CONFIG_FILE")
-		if configFile == "" {
+		required := map[string]string{
+			"ARO_HCP_CONFIG_FILE": os.Getenv("ARO_HCP_CONFIG_FILE"),
+			"ARO_HCP_CLOUD":      os.Getenv("ARO_HCP_CLOUD"),
+			"DEPLOY_ENV":         os.Getenv("DEPLOY_ENV"),
+			"REGION":             os.Getenv("REGION"),
+		}
+		var missing []string
+		for k, v := range required {
+			if v == "" {
+				missing = append(missing, k)
+			}
+		}
+		if len(missing) > 0 {
+			configErr = fmt.Errorf("required environment variables not set: %v", missing)
 			return
 		}
-		cloud := os.Getenv("ARO_HCP_CLOUD")
-		if cloud == "" {
-			cloud = "dev"
-		}
-		region := os.Getenv("REGION")
-		if region == "" {
-			region = "centralus"
-		}
 		opts := ConfigOptions{
-			ConfigFile:         configFile,
+			ConfigFile:         required["ARO_HCP_CONFIG_FILE"],
 			ConfigFileOverride: os.Getenv("ARO_HCP_CONFIG_FILE_OVERRIDE"),
-			Cloud:              cloud,
-			DeployEnv:          os.Getenv("DEPLOY_ENV"),
-			Region:             region,
+			Cloud:              required["ARO_HCP_CLOUD"],
+			DeployEnv:          required["DEPLOY_ENV"],
+			Region:             required["REGION"],
 		}
 		configErr = LoadConfig(opts)
 	})
