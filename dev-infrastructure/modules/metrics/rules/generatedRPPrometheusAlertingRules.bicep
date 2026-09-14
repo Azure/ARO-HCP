@@ -241,140 +241,6 @@ resource arohcpAccessClusterSaturationAlerts 'Microsoft.AlertsManagement/prometh
   }
 }
 
-resource arohcpClusterProvisionSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
-  name: 'arohcp_cluster_provision_slo_error_alerts'
-  location: location
-  properties: {
-    interval: 'PT1M'
-    rules: [
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'UserJourneyClusterProvisionErrors1h5m'
-        enabled: true
-        labels: {
-          component: 'slo'
-          long_window: '1h'
-          severity: '3'
-          short_window: '5m'
-          slo: 'cluster-provision-errors'
-        }
-        annotations: {
-          correlationId: 'UserJourneyClusterProvisionErrors1h5m/{{ $labels.cluster }}'
-          description: 'More than 72% of cluster create (install) operations are in failed state, indicating a fast error budget burn (14.4x) that would exhaust the 95% SLO budget in ~12 hours. A regional install failure of this magnitude typically points at a shared dependency (e.g. registry, DNS, or ARM) rather than individual clusters.'
-          info: 'More than 72% of cluster create (install) operations are in failed state, indicating a fast error budget burn (14.4x) that would exhaust the 95% SLO budget in ~12 hours. A regional install failure of this magnitude typically points at a shared dependency (e.g. registry, DNS, or ARM) rather than individual clusters.'
-          runbook_url: 'https://aka.ms/arohcp-runbook-cluster-provision'
-          summary: '{{ $labels.cluster }}: Cluster provisioning error rate critically high (>72%)'
-          title: '{{ $labels.cluster }}: Cluster provisioning error rate critically high (>72%)'
-        }
-        expression: 'errors:backend_cluster_provision:error_rate > 0.72'
-        for: 'PT5M'
-        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
-      }
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'UserJourneyClusterProvisionErrors6h30m'
-        enabled: true
-        labels: {
-          component: 'slo'
-          long_window: '6h'
-          severity: '3'
-          short_window: '30m'
-          slo: 'cluster-provision-errors'
-        }
-        annotations: {
-          correlationId: 'UserJourneyClusterProvisionErrors6h30m/{{ $labels.cluster }}'
-          description: 'More than 30% of cluster create (install) operations are in failed state sustained over 30 minutes, indicating a medium error budget burn (6x) that would exhaust the 95% SLO budget in ~28 hours.'
-          info: 'More than 30% of cluster create (install) operations are in failed state sustained over 30 minutes, indicating a medium error budget burn (6x) that would exhaust the 95% SLO budget in ~28 hours.'
-          runbook_url: 'https://aka.ms/arohcp-runbook-cluster-provision'
-          summary: '{{ $labels.cluster }}: Cluster provisioning error rate elevated (>30%) for 30+ minutes'
-          title: '{{ $labels.cluster }}: Cluster provisioning error rate elevated (>30%) for 30+ minutes'
-        }
-        expression: 'errors:backend_cluster_provision:error_rate > 0.3'
-        for: 'PT30M'
-        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
-      }
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'UserJourneyClusterProvisionErrors3d'
-        enabled: true
-        labels: {
-          component: 'slo'
-          long_window: '3d'
-          severity: '4'
-          slo: 'cluster-provision-errors'
-        }
-        annotations: {
-          correlationId: 'UserJourneyClusterProvisionErrors3d/{{ $labels.cluster }}'
-          description: 'More than 5% of cluster create (install) operations are in failed state sustained over 6 hours, indicating persistent degradation at the 95% SLO boundary that would exhaust the error budget in ~7 days.'
-          info: 'More than 5% of cluster create (install) operations are in failed state sustained over 6 hours, indicating persistent degradation at the 95% SLO boundary that would exhaust the error budget in ~7 days.'
-          runbook_url: 'https://aka.ms/arohcp-runbook-cluster-provision'
-          summary: '{{ $labels.cluster }}: Cluster provisioning error rate exceeds SLO target (>5%) for 6+ hours'
-          title: '{{ $labels.cluster }}: Cluster provisioning error rate exceeds SLO target (>5%) for 6+ hours'
-        }
-        expression: 'errors:backend_cluster_provision:error_rate > 0.05'
-        for: 'PT6H'
-        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
-      }
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'UserJourneyClusterProvisionErrorsDegradation'
-        enabled: true
-        labels: {
-          component: 'slo'
-          severity: '4'
-          slo: 'cluster-provision-errors'
-        }
-        annotations: {
-          correlationId: 'UserJourneyClusterProvisionErrorsDegradation/{{ $labels.cluster }}'
-          description: 'The cluster create (install) failure rate has been above 15% for 30 minutes. This provides early warning of degradation before SLO-based burn rate alerts fire.'
-          info: 'The cluster create (install) failure rate has been above 15% for 30 minutes. This provides early warning of degradation before SLO-based burn rate alerts fire.'
-          runbook_url: 'https://aka.ms/arohcp-runbook-cluster-provision'
-          summary: '{{ $labels.cluster }}: Cluster provisioning failure rate exceeds 15% for 30 minutes'
-          title: '{{ $labels.cluster }}: Cluster provisioning failure rate exceeds 15% for 30 minutes'
-        }
-        expression: 'errors:backend_cluster_provision:error_rate > 0.15'
-        for: 'PT30M'
-        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
-      }
-    ]
-    scopes: [
-      azureMonitoring
-    ]
-  }
-}
-
 resource arohcpClusterProvisionSloLatencyAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'arohcp_cluster_provision_slo_latency_alerts'
   location: location
@@ -407,6 +273,111 @@ resource arohcpClusterProvisionSloLatencyAlerts 'Microsoft.AlertsManagement/prom
         }
         expression: '(max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((latency:backend_cluster_provision:inflight_duration_seconds > 1800)[6h:5m])) and on (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) latency:backend_cluster_provision:inflight_duration_seconds) unless on (subscription_id) internal_subscription:info'
         for: 'PT15M'
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
+
+resource arohcpClusterProvisionSloWindowedErrorAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_cluster_provision_slo_windowed_error_alerts'
+  location: location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'UserJourneyClusterProvisionErrorBurst1h'
+        enabled: true
+        labels: {
+          component: 'slo'
+          long_window: '1h'
+          severity: '3'
+          short_window: '5m'
+          slo: 'cluster-provision-errors'
+        }
+        annotations: {
+          correlationId: 'UserJourneyClusterProvisionErrorBurst1h/{{ $labels.cluster }}'
+          description: 'More than 72% of completed cluster create (install) operations on {{ $labels.cluster }} failed over the last hour with at least 3 failures, a 14.4x burn of the 95% SLO budget.'
+          info: 'More than 72% of completed cluster create (install) operations on {{ $labels.cluster }} failed over the last hour with at least 3 failures, a 14.4x burn of the 95% SLO budget.'
+          runbook_url: 'https://aka.ms/arohcp-runbook-cluster-provision'
+          summary: '{{ $labels.cluster }}: Cluster create operations failing fast (>72% of recent operations)'
+          title: '{{ $labels.cluster }}: Cluster create operations failing fast (>72% of recent operations)'
+        }
+        expression: 'errors:backend_cluster_provision:failed_1h >= 3 and errors:backend_cluster_provision:error_rate_1h > 0.72'
+        for: 'PT5M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'UserJourneyClusterProvisionErrorBurst6h'
+        enabled: true
+        labels: {
+          component: 'slo'
+          long_window: '6h'
+          severity: '3'
+          short_window: '30m'
+          slo: 'cluster-provision-errors'
+        }
+        annotations: {
+          correlationId: 'UserJourneyClusterProvisionErrorBurst6h/{{ $labels.cluster }}'
+          description: 'More than 30% of completed cluster create (install) operations on {{ $labels.cluster }} failed over the last 6 hours (at least 5 completions), a 6x burn of the 95% SLO budget.'
+          info: 'More than 30% of completed cluster create (install) operations on {{ $labels.cluster }} failed over the last 6 hours (at least 5 completions), a 6x burn of the 95% SLO budget.'
+          runbook_url: 'https://aka.ms/arohcp-runbook-cluster-provision'
+          summary: '{{ $labels.cluster }}: Cluster create operation error rate elevated (>30% over 6h)'
+          title: '{{ $labels.cluster }}: Cluster create operation error rate elevated (>30% over 6h)'
+        }
+        expression: 'errors:backend_cluster_provision:total_6h >= 5 and errors:backend_cluster_provision:error_rate_6h > 0.3'
+        for: 'PT30M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'UserJourneyClusterProvisionErrorBudget3d'
+        enabled: true
+        labels: {
+          component: 'slo'
+          long_window: '3d'
+          severity: '4'
+          slo: 'cluster-provision-errors'
+        }
+        annotations: {
+          correlationId: 'UserJourneyClusterProvisionErrorBudget3d/{{ $labels.cluster }}'
+          description: 'More than 5% of completed cluster create (install) operations on {{ $labels.cluster }} failed over the last 3 days (at least 10 completions and 2 failures), a 1x burn that exhausts the 95% SLO error budget over the window.'
+          info: 'More than 5% of completed cluster create (install) operations on {{ $labels.cluster }} failed over the last 3 days (at least 10 completions and 2 failures), a 1x burn that exhausts the 95% SLO error budget over the window.'
+          runbook_url: 'https://aka.ms/arohcp-runbook-cluster-provision'
+          summary: '{{ $labels.cluster }}: Cluster create operation error budget burning (>5% over 3d)'
+          title: '{{ $labels.cluster }}: Cluster create operation error budget burning (>5% over 3d)'
+        }
+        expression: 'errors:backend_cluster_provision:total_3d >= 10 and errors:backend_cluster_provision:failed_3d >= 2 and errors:backend_cluster_provision:error_rate_3d > 0.05'
+        for: 'PT6H'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
     ]
