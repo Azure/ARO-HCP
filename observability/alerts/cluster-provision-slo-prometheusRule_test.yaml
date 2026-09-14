@@ -7,40 +7,35 @@ tests:
 # Test 1: Normal operation — all installs succeeded, no alerts
 # ========================================
 # 10 cluster create operations in "succeeded" phase, 0 in "failed".
-# Error rate = 0%, well below 95% SLO. No alerts should fire.
+# All transition times are recent (in-window). No alerts should fire.
 - interval: 1m
   input_series:
   - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/a", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1"}'
     values: "1+0x70"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/sub/1/cluster/a", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1"}'
+    values: "0+0x70"
   - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/b", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1"}'
     values: "1+0x70"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/sub/1/cluster/b", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1"}'
+    values: "0+0x70"
   - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/c", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1"}'
     values: "1+0x70"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/sub/1/cluster/c", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1"}'
+    values: "0+0x70"
   - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/d", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1"}'
     values: "1+0x70"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/sub/1/cluster/d", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1"}'
+    values: "0+0x70"
   - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/e", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1"}'
     values: "1+0x70"
-  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/f", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1"}'
-    values: "1+0x70"
-  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/g", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1"}'
-    values: "1+0x70"
-  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/h", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1"}'
-    values: "1+0x70"
-  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/i", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1"}'
-    values: "1+0x70"
-  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/j", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1"}'
-    values: "1+0x70"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/sub/1/cluster/e", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1"}'
+    values: "0+0x70"
   promql_expr_test:
   - expr: errors:backend_cluster_provision:succeeded_total
     eval_time: 10m
     exp_samples:
     - labels: 'errors:backend_cluster_provision:succeeded_total{cluster="mgmt-1"}'
-      value: 10
-  - expr: errors:backend_cluster_provision:terminal_total
-    eval_time: 10m
-    exp_samples:
-    - labels: 'errors:backend_cluster_provision:terminal_total{cluster="mgmt-1"}'
-      value: 10
+      value: 5
   - expr: errors:backend_cluster_provision:error_rate
     eval_time: 10m
     exp_samples:
@@ -48,49 +43,47 @@ tests:
       value: 0
   alert_rule_test:
   - eval_time: 10m
-    alertname: UserJourneyClusterProvisionErrors1h5m
+    alertname: UserJourneyClusterProvisionErrorBurst1h
   - eval_time: 10m
-    alertname: UserJourneyClusterProvisionErrors6h30m
+    alertname: UserJourneyClusterProvisionErrorBurst6h
   - eval_time: 10m
-    alertname: UserJourneyClusterProvisionErrors3d
-  - eval_time: 10m
-    alertname: UserJourneyClusterProvisionErrorsDegradation
+    alertname: UserJourneyClusterProvisionErrorBudget3d
 # ========================================
-# Test 2: Fast burn — 80% failure rate, fast + degradation fire
+# Test 2: Fast burn — ErrorBurst1h fires (>72%, >=3 failures in 1h)
 # ========================================
-# 2 succeeded, 8 failed → error rate = 80% > 72% threshold (14.4x burn).
+# 1 succeeded, 4 failed → error rate = 80% > 72%, 4 failures >= 3 floor.
 - interval: 1m
   input_series:
-  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/a", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1"}'
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/2/cluster/a", subscription_id="sub-2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1"}'
     values: "1+0x40"
-  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/b", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1"}'
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/sub/2/cluster/a", subscription_id="sub-2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1"}'
+    values: "0+0x40"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/2/cluster/b", subscription_id="sub-2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="failed", cluster="mgmt-1"}'
     values: "1+0x40"
-  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/c", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="failed", cluster="mgmt-1"}'
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/sub/2/cluster/b", subscription_id="sub-2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="failed", cluster="mgmt-1"}'
+    values: "0+0x40"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/2/cluster/c", subscription_id="sub-2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="failed", cluster="mgmt-1"}'
     values: "1+0x40"
-  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/d", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="failed", cluster="mgmt-1"}'
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/sub/2/cluster/c", subscription_id="sub-2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="failed", cluster="mgmt-1"}'
+    values: "0+0x40"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/2/cluster/d", subscription_id="sub-2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="failed", cluster="mgmt-1"}'
     values: "1+0x40"
-  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/e", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="failed", cluster="mgmt-1"}'
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/sub/2/cluster/d", subscription_id="sub-2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="failed", cluster="mgmt-1"}'
+    values: "0+0x40"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/2/cluster/e", subscription_id="sub-2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="failed", cluster="mgmt-1"}'
     values: "1+0x40"
-  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/f", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="failed", cluster="mgmt-1"}'
-    values: "1+0x40"
-  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/g", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="failed", cluster="mgmt-1"}'
-    values: "1+0x40"
-  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/h", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="failed", cluster="mgmt-1"}'
-    values: "1+0x40"
-  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/i", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="failed", cluster="mgmt-1"}'
-    values: "1+0x40"
-  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/j", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="failed", cluster="mgmt-1"}'
-    values: "1+0x40"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/sub/2/cluster/e", subscription_id="sub-2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="failed", cluster="mgmt-1"}'
+    values: "0+0x40"
   promql_expr_test:
-  - expr: errors:backend_cluster_provision:error_rate
+  - expr: errors:backend_cluster_provision:error_rate_1h
     eval_time: 10m
     exp_samples:
-    - labels: 'errors:backend_cluster_provision:error_rate{cluster="mgmt-1"}'
+    - labels: 'errors:backend_cluster_provision:error_rate_1h{cluster="mgmt-1"}'
       value: 0.8
   alert_rule_test:
   # Fast burn fires after 5m 'for' duration
   - eval_time: 7m
-    alertname: UserJourneyClusterProvisionErrors1h5m
+    alertname: UserJourneyClusterProvisionErrorBurst1h
     exp_alerts:
     - exp_labels:
         cluster: "mgmt-1"
@@ -100,109 +93,67 @@ tests:
         short_window: 5m
         slo: cluster-provision-errors
       exp_annotations:
-        summary: "mgmt-1: Cluster provisioning error rate critically high (>72%)"
-        description: "More than 72% of cluster create (install) operations are in failed state, indicating a fast error budget burn (14.4x) that would exhaust the 95% SLO budget in ~12 hours. A regional install failure of this magnitude typically points at a shared dependency (e.g. registry, DNS, or ARM) rather than individual clusters."
-        runbook_url: "https://aka.ms/arohcp-runbook-cluster-provision"
-  # Degradation also fires (15% threshold met at 80%)
-  - eval_time: 35m
-    alertname: UserJourneyClusterProvisionErrorsDegradation
-    exp_alerts:
-    - exp_labels:
-        cluster: "mgmt-1"
-        component: slo
-        severity: "4"
-        slo: cluster-provision-errors
-      exp_annotations:
-        summary: "mgmt-1: Cluster provisioning failure rate exceeds 15% for 30 minutes"
-        description: "The cluster create (install) failure rate has been above 15% for 30 minutes. This provides early warning of degradation before SLO-based burn rate alerts fire."
+        summary: "mgmt-1: Cluster create operations failing fast (>72% of recent operations)"
+        description: "More than 72% of completed cluster create (install) operations on mgmt-1 failed over the last hour with at least 3 failures, a 14.4x burn of the 95% SLO budget."
         runbook_url: "https://aka.ms/arohcp-runbook-cluster-provision"
 # ========================================
-# Test 3: Degradation — 20% failure rate, only degradation fires
+# Test 3: Volume floor — 100% rate but only 2 failures, below floor
 # ========================================
-# 8 succeeded, 2 failed → error rate = 20% (> 15% degradation, < 30% medium).
+# 2 failed, 0 succeeded → 100% error rate. But 2 < 3 failure floor.
+# ErrorBurst1h must NOT fire.
 - interval: 1m
   input_series:
-  - series: 'backend_resource_operation_phase_info{resource_id="/sub/2/cluster/a", subscription_id="sub-2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1"}'
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/3/cluster/a", subscription_id="sub-3", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="failed", cluster="mgmt-1"}'
     values: "1+0x40"
-  - series: 'backend_resource_operation_phase_info{resource_id="/sub/2/cluster/b", subscription_id="sub-2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1"}'
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/sub/3/cluster/a", subscription_id="sub-3", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="failed", cluster="mgmt-1"}'
+    values: "0+0x40"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/3/cluster/b", subscription_id="sub-3", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="failed", cluster="mgmt-1"}'
     values: "1+0x40"
-  - series: 'backend_resource_operation_phase_info{resource_id="/sub/2/cluster/c", subscription_id="sub-2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1"}'
-    values: "1+0x40"
-  - series: 'backend_resource_operation_phase_info{resource_id="/sub/2/cluster/d", subscription_id="sub-2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1"}'
-    values: "1+0x40"
-  - series: 'backend_resource_operation_phase_info{resource_id="/sub/2/cluster/e", subscription_id="sub-2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1"}'
-    values: "1+0x40"
-  - series: 'backend_resource_operation_phase_info{resource_id="/sub/2/cluster/f", subscription_id="sub-2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1"}'
-    values: "1+0x40"
-  - series: 'backend_resource_operation_phase_info{resource_id="/sub/2/cluster/g", subscription_id="sub-2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1"}'
-    values: "1+0x40"
-  - series: 'backend_resource_operation_phase_info{resource_id="/sub/2/cluster/h", subscription_id="sub-2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1"}'
-    values: "1+0x40"
-  - series: 'backend_resource_operation_phase_info{resource_id="/sub/2/cluster/i", subscription_id="sub-2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="failed", cluster="mgmt-1"}'
-    values: "1+0x40"
-  - series: 'backend_resource_operation_phase_info{resource_id="/sub/2/cluster/j", subscription_id="sub-2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="failed", cluster="mgmt-1"}'
-    values: "1+0x40"
-  promql_expr_test:
-  - expr: errors:backend_cluster_provision:error_rate
-    eval_time: 10m
-    exp_samples:
-    - labels: 'errors:backend_cluster_provision:error_rate{cluster="mgmt-1"}'
-      value: 0.2
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/sub/3/cluster/b", subscription_id="sub-3", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="failed", cluster="mgmt-1"}'
+    values: "0+0x40"
   alert_rule_test:
-  # Degradation fires at 20%
-  - eval_time: 35m
-    alertname: UserJourneyClusterProvisionErrorsDegradation
-    exp_alerts:
-    - exp_labels:
-        cluster: "mgmt-1"
-        component: slo
-        severity: "4"
-        slo: cluster-provision-errors
-      exp_annotations:
-        summary: "mgmt-1: Cluster provisioning failure rate exceeds 15% for 30 minutes"
-        description: "The cluster create (install) failure rate has been above 15% for 30 minutes. This provides early warning of degradation before SLO-based burn rate alerts fire."
-        runbook_url: "https://aka.ms/arohcp-runbook-cluster-provision"
-  # Fast and medium burn must NOT fire at 20%
-  - eval_time: 35m
-    alertname: UserJourneyClusterProvisionErrors1h5m
-  - eval_time: 35m
-    alertname: UserJourneyClusterProvisionErrors6h30m
+  - eval_time: 10m
+    alertname: UserJourneyClusterProvisionErrorBurst1h
 # ========================================
-# Test 4: Medium burn — 40% failure rate, medium + degradation fire, fast does not
+# Test 4: Medium burn — ErrorBurst6h fires (>30%, >=5 total in 6h)
 # ========================================
-# 6 succeeded, 4 failed → error rate = 40% (> 30% medium, < 72% fast).
+# 3 succeeded, 3 failed → error rate = 50% > 30%, 6 total >= 5 floor.
 - interval: 1m
   input_series:
-  - series: 'backend_resource_operation_phase_info{resource_id="/sub/3/cluster/a", subscription_id="sub-3", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1"}'
-    values: "1+0x40"
-  - series: 'backend_resource_operation_phase_info{resource_id="/sub/3/cluster/b", subscription_id="sub-3", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1"}'
-    values: "1+0x40"
-  - series: 'backend_resource_operation_phase_info{resource_id="/sub/3/cluster/c", subscription_id="sub-3", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1"}'
-    values: "1+0x40"
-  - series: 'backend_resource_operation_phase_info{resource_id="/sub/3/cluster/d", subscription_id="sub-3", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1"}'
-    values: "1+0x40"
-  - series: 'backend_resource_operation_phase_info{resource_id="/sub/3/cluster/e", subscription_id="sub-3", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1"}'
-    values: "1+0x40"
-  - series: 'backend_resource_operation_phase_info{resource_id="/sub/3/cluster/f", subscription_id="sub-3", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1"}'
-    values: "1+0x40"
-  - series: 'backend_resource_operation_phase_info{resource_id="/sub/3/cluster/g", subscription_id="sub-3", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="failed", cluster="mgmt-1"}'
-    values: "1+0x40"
-  - series: 'backend_resource_operation_phase_info{resource_id="/sub/3/cluster/h", subscription_id="sub-3", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="failed", cluster="mgmt-1"}'
-    values: "1+0x40"
-  - series: 'backend_resource_operation_phase_info{resource_id="/sub/3/cluster/i", subscription_id="sub-3", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="failed", cluster="mgmt-1"}'
-    values: "1+0x40"
-  - series: 'backend_resource_operation_phase_info{resource_id="/sub/3/cluster/j", subscription_id="sub-3", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="failed", cluster="mgmt-1"}'
-    values: "1+0x40"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/4/cluster/a", subscription_id="sub-4", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1"}'
+    values: "1+0x70"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/sub/4/cluster/a", subscription_id="sub-4", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1"}'
+    values: "0+0x70"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/4/cluster/b", subscription_id="sub-4", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1"}'
+    values: "1+0x70"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/sub/4/cluster/b", subscription_id="sub-4", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1"}'
+    values: "0+0x70"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/4/cluster/c", subscription_id="sub-4", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1"}'
+    values: "1+0x70"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/sub/4/cluster/c", subscription_id="sub-4", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1"}'
+    values: "0+0x70"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/4/cluster/d", subscription_id="sub-4", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="failed", cluster="mgmt-1"}'
+    values: "1+0x70"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/sub/4/cluster/d", subscription_id="sub-4", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="failed", cluster="mgmt-1"}'
+    values: "0+0x70"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/4/cluster/e", subscription_id="sub-4", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="failed", cluster="mgmt-1"}'
+    values: "1+0x70"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/sub/4/cluster/e", subscription_id="sub-4", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="failed", cluster="mgmt-1"}'
+    values: "0+0x70"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/4/cluster/f", subscription_id="sub-4", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="failed", cluster="mgmt-1"}'
+    values: "1+0x70"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/sub/4/cluster/f", subscription_id="sub-4", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="failed", cluster="mgmt-1"}'
+    values: "0+0x70"
   promql_expr_test:
-  - expr: errors:backend_cluster_provision:error_rate
+  - expr: errors:backend_cluster_provision:error_rate_6h
     eval_time: 10m
     exp_samples:
-    - labels: 'errors:backend_cluster_provision:error_rate{cluster="mgmt-1"}'
-      value: 0.4
+    - labels: 'errors:backend_cluster_provision:error_rate_6h{cluster="mgmt-1"}'
+      value: 0.5
   alert_rule_test:
-  # Medium burn fires after 30m 'for' duration
+  # Medium burn fires after 30m 'for' duration (50% > 30%, 6 total >= 5)
   - eval_time: 35m
-    alertname: UserJourneyClusterProvisionErrors6h30m
+    alertname: UserJourneyClusterProvisionErrorBurst6h
     exp_alerts:
     - exp_labels:
         cluster: "mgmt-1"
@@ -212,32 +163,43 @@ tests:
         short_window: 30m
         slo: cluster-provision-errors
       exp_annotations:
-        summary: "mgmt-1: Cluster provisioning error rate elevated (>30%) for 30+ minutes"
-        description: "More than 30% of cluster create (install) operations are in failed state sustained over 30 minutes, indicating a medium error budget burn (6x) that would exhaust the 95% SLO budget in ~28 hours."
+        summary: "mgmt-1: Cluster create operation error rate elevated (>30% over 6h)"
+        description: "More than 30% of completed cluster create (install) operations on mgmt-1 failed over the last 6 hours (at least 5 completions), a 6x burn of the 95% SLO budget."
         runbook_url: "https://aka.ms/arohcp-runbook-cluster-provision"
-  # Fast burn must NOT fire at 40%
+  # Degradation fires after 30m 'for' duration (50% > 15%, 6 total >= 5, 3 failed >= 2)
   - eval_time: 35m
-    alertname: UserJourneyClusterProvisionErrors1h5m
+    alertname: UserJourneyClusterProvisionErrorsDegradation
+    exp_alerts:
+    - exp_labels:
+        cluster: "mgmt-1"
+        component: slo
+        long_window: 6h
+        severity: "4"
+        slo: cluster-provision-errors
+      exp_annotations:
+        summary: "mgmt-1: Cluster create operation failure rate exceeds 15% over 6h"
+        description: "More than 15% of completed cluster create (install) operations on mgmt-1 failed over the last 6 hours (at least 5 completions and 2 failures), an early warning of degradation before the burn-rate alerts fire."
+        runbook_url: "https://aka.ms/arohcp-runbook-cluster-provision"
 # ========================================
-# Test 5: Isolation — node pool and in-flight (non-terminal) ops are excluded
+# Test 5: Isolation — nodepool, update, and in-flight ops excluded
 # ========================================
-# Only 1 failed cluster create is terminal. The node pool create and the
-# in-flight (provisioning) cluster create must NOT contribute to the SLI, so the
-# error rate is 100% (1 failed / 1 terminal), proving the selectors are scoped
-# to terminal hcpOpenShiftCluster create operations only.
+# Only 1 failed cluster create is terminal. Nodepool, update, and in-flight
+# operations must NOT contribute to the SLI.
 - interval: 1m
   input_series:
   # terminal cluster create failure (counts)
-  - series: 'backend_resource_operation_phase_info{resource_id="/sub/4/cluster/a", subscription_id="sub-4", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="failed", cluster="mgmt-1"}'
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/5/cluster/a", subscription_id="sub-5", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="failed", cluster="mgmt-1"}'
     values: "1+0x40"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/sub/5/cluster/a", subscription_id="sub-5", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="failed", cluster="mgmt-1"}'
+    values: "0+0x40"
   # in-flight cluster create (must NOT count — non-terminal)
-  - series: 'backend_resource_operation_phase_info{resource_id="/sub/4/cluster/b", subscription_id="sub-4", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="provisioning", cluster="mgmt-1"}'
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/5/cluster/b", subscription_id="sub-5", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="provisioning", cluster="mgmt-1"}'
     values: "1+0x40"
   # node pool create failure (must NOT count — different resource_type)
-  - series: 'backend_resource_operation_phase_info{resource_id="/sub/4/np/a", subscription_id="sub-4", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="create", phase="failed", cluster="mgmt-1"}'
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/5/np/a", subscription_id="sub-5", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="create", phase="failed", cluster="mgmt-1"}'
     values: "1+0x40"
   # cluster update failure (must NOT count — different operation_type)
-  - series: 'backend_resource_operation_phase_info{resource_id="/sub/4/cluster/c", subscription_id="sub-4", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/5/cluster/c", subscription_id="sub-5", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
     values: "1+0x40"
   promql_expr_test:
   - expr: errors:backend_cluster_provision:terminal_total
@@ -258,9 +220,9 @@ tests:
 # Threshold crossed at 30m, plus 15m for duration = 45m. Eval at 50m confirms firing.
 - interval: 1m
   input_series:
-  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/5/cluster/stuck", subscription_id="sub-5", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="provisioning", cluster="mgmt-1"}'
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/6/cluster/stuck", subscription_id="sub-6", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="provisioning", cluster="mgmt-1"}'
     values: "0+0x55"
-  - series: 'backend_resource_operation_phase_info{resource_id="/sub/5/cluster/stuck", subscription_id="sub-5", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="provisioning", cluster="mgmt-1"}'
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/6/cluster/stuck", subscription_id="sub-6", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="provisioning", cluster="mgmt-1"}'
     values: "1+0x55"
   alert_rule_test:
   - eval_time: 50m
@@ -271,14 +233,14 @@ tests:
         component: slo
         operation_type: "create"
         phase: "provisioning"
-        resource_id: "/sub/5/cluster/stuck"
+        resource_id: "/sub/6/cluster/stuck"
         resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters"
         severity: "4"
         exclude_internal_subscriptions: "true"
-        subscription_id: "sub-5"
+        subscription_id: "sub-6"
       exp_annotations:
-        summary: "mgmt-1: Cluster create operation for /sub/5/cluster/stuck stuck in provisioning for over 30 minutes"
-        description: "Cluster create operation for /sub/5/cluster/stuck has been in provisioning phase for over 30 minutes. Stuck operations are invisible to success/failure SLIs and require investigation."
+        summary: "mgmt-1: Cluster create operation for /sub/6/cluster/stuck stuck in provisioning for over 30 minutes"
+        description: "Cluster create operation for /sub/6/cluster/stuck has been in provisioning phase for over 30 minutes. Stuck operations are invisible to success/failure SLIs and require investigation."
         runbook_url: "https://aka.ms/arohcp-runbook-cluster-provision"
 # ========================================
 # Test 7: No stuck operation — cluster create in "provisioning" for < 30 minutes
@@ -288,9 +250,9 @@ tests:
   input_series:
   # start_time=1800 (started 30m into the test). At eval_time=50m, time()=3000.
   # delta=3000-1800=1200 < 1800 threshold.
-  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/6/cluster/recent", subscription_id="sub-6", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="provisioning", cluster="mgmt-1"}'
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/7/cluster/recent", subscription_id="sub-7", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="provisioning", cluster="mgmt-1"}'
     values: "1800+0x55"
-  - series: 'backend_resource_operation_phase_info{resource_id="/sub/6/cluster/recent", subscription_id="sub-6", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="provisioning", cluster="mgmt-1"}'
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/7/cluster/recent", subscription_id="sub-7", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="provisioning", cluster="mgmt-1"}'
     values: "1+0x55"
   alert_rule_test:
   - eval_time: 50m
@@ -302,20 +264,50 @@ tests:
 - interval: 1m
   input_series:
   # Nodepool create stuck (different resource_type — excluded)
-  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/7/np/stuck", subscription_id="sub-7", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="create", phase="provisioning", cluster="mgmt-1"}'
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/8/np/stuck", subscription_id="sub-8", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="create", phase="provisioning", cluster="mgmt-1"}'
     values: "0+0x95"
-  - series: 'backend_resource_operation_phase_info{resource_id="/sub/7/np/stuck", subscription_id="sub-7", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="create", phase="provisioning", cluster="mgmt-1"}'
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/8/np/stuck", subscription_id="sub-8", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="create", phase="provisioning", cluster="mgmt-1"}'
     values: "1+0x95"
   # Cluster update stuck (different operation_type — excluded)
-  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/7/cluster/update", subscription_id="sub-7", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="provisioning", cluster="mgmt-1"}'
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/8/cluster/update", subscription_id="sub-8", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="provisioning", cluster="mgmt-1"}'
     values: "0+0x95"
-  - series: 'backend_resource_operation_phase_info{resource_id="/sub/7/cluster/update", subscription_id="sub-7", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="provisioning", cluster="mgmt-1"}'
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/8/cluster/update", subscription_id="sub-8", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="provisioning", cluster="mgmt-1"}'
     values: "1+0x95"
   alert_rule_test:
   - eval_time: 90m
     alertname: UserJourneyClusterProvisionStuckOperation
 # ========================================
-# Test 9: Stuck operation that flaps (backend retry resets start_time)
+# Test 9: Stuck operation in "accepted" phase fires alert
+# ========================================
+# The latency recording rule covers phase=~"accepted|provisioning". This test
+# verifies that accepted-phase operations also produce the latency metric and
+# fire the stuck alert.
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/9a/cluster/accepted", subscription_id="sub-9a", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="accepted", cluster="mgmt-1"}'
+    values: "0+0x55"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/9a/cluster/accepted", subscription_id="sub-9a", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="accepted", cluster="mgmt-1"}'
+    values: "1+0x55"
+  alert_rule_test:
+  - eval_time: 50m
+    alertname: UserJourneyClusterProvisionStuckOperation
+    exp_alerts:
+    - exp_labels:
+        cluster: "mgmt-1"
+        component: slo
+        operation_type: "create"
+        phase: "accepted"
+        resource_id: "/sub/9a/cluster/accepted"
+        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters"
+        severity: "4"
+        exclude_internal_subscriptions: "true"
+        subscription_id: "sub-9a"
+      exp_annotations:
+        summary: "mgmt-1: Cluster create operation for /sub/9a/cluster/accepted stuck in accepted for over 30 minutes"
+        description: "Cluster create operation for /sub/9a/cluster/accepted has been in accepted phase for over 30 minutes. Stuck operations are invisible to success/failure SLIs and require investigation."
+        runbook_url: "https://aka.ms/arohcp-runbook-cluster-provision"
+# ========================================
+# Test 10: Stuck operation that flaps (backend retry resets start_time)
 # ========================================
 # A genuinely-wedged create stays in "provisioning" the whole time, but the backend
 # retries the operation at t=60m and resets start_time, so (time() - start_time)
@@ -325,11 +317,11 @@ tests:
 - interval: 1m
   input_series:
   # phase stays "provisioning" throughout
-  - series: 'backend_resource_operation_phase_info{resource_id="/sub/8/cluster/flap", subscription_id="sub-8", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="provisioning", cluster="mgmt-1"}'
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/9/cluster/flap", subscription_id="sub-9", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="provisioning", cluster="mgmt-1"}'
     values: "1+0x200"
   # start_time=0 until t=59m (age crosses 1800s at t=30m); backend retries at
   # t=60m so start_time jumps to 3600s and age re-crosses 1800s only at t=90m.
-  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/8/cluster/flap", subscription_id="sub-8", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="provisioning", cluster="mgmt-1"}'
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/9/cluster/flap", subscription_id="sub-9", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="provisioning", cluster="mgmt-1"}'
     values: "0+0x59 3600+0x140"
   alert_rule_test:
   # Raw condition true (age 3000s > 1800s) → firing.
@@ -341,14 +333,14 @@ tests:
         component: slo
         operation_type: "create"
         phase: "provisioning"
-        resource_id: "/sub/8/cluster/flap"
+        resource_id: "/sub/9/cluster/flap"
         resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters"
         severity: "4"
         exclude_internal_subscriptions: "true"
-        subscription_id: "sub-8"
+        subscription_id: "sub-9"
       exp_annotations:
-        summary: "mgmt-1: Cluster create operation for /sub/8/cluster/flap stuck in provisioning for over 30 minutes"
-        description: "Cluster create operation for /sub/8/cluster/flap has been in provisioning phase for over 30 minutes. Stuck operations are invisible to success/failure SLIs and require investigation."
+        summary: "mgmt-1: Cluster create operation for /sub/9/cluster/flap stuck in provisioning for over 30 minutes"
+        description: "Cluster create operation for /sub/9/cluster/flap has been in provisioning phase for over 30 minutes. Stuck operations are invisible to success/failure SLIs and require investigation."
         runbook_url: "https://aka.ms/arohcp-runbook-cluster-provision"
   # Raw condition FALSE here (start_time reset → age < 1800s) but the resource is
   # still wedged. The 6h hold keeps the same alert firing → no resolve, no duplicate.
@@ -360,14 +352,14 @@ tests:
         component: slo
         operation_type: "create"
         phase: "provisioning"
-        resource_id: "/sub/8/cluster/flap"
+        resource_id: "/sub/9/cluster/flap"
         resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters"
         severity: "4"
         exclude_internal_subscriptions: "true"
-        subscription_id: "sub-8"
+        subscription_id: "sub-9"
       exp_annotations:
-        summary: "mgmt-1: Cluster create operation for /sub/8/cluster/flap stuck in provisioning for over 30 minutes"
-        description: "Cluster create operation for /sub/8/cluster/flap has been in provisioning phase for over 30 minutes. Stuck operations are invisible to success/failure SLIs and require investigation."
+        summary: "mgmt-1: Cluster create operation for /sub/9/cluster/flap stuck in provisioning for over 30 minutes"
+        description: "Cluster create operation for /sub/9/cluster/flap has been in provisioning phase for over 30 minutes. Stuck operations are invisible to success/failure SLIs and require investigation."
         runbook_url: "https://aka.ms/arohcp-runbook-cluster-provision"
 # ========================================
 # Test 10: Alert clears when operation reaches terminal state
@@ -379,10 +371,10 @@ tests:
 # rule stops emitting → the 'and' gate filters it out → alert clears.
 - interval: 1m
   input_series:
-  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/9/cluster/clears", subscription_id="sub-9", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="provisioning", cluster="mgmt-1"}'
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/10/cluster/clears", subscription_id="sub-10", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="provisioning", cluster="mgmt-1"}'
     values: "0+0x95"
   # phase_info=1 (provisioning) until t=50m, then 0 (operation reached terminal state)
-  - series: 'backend_resource_operation_phase_info{resource_id="/sub/9/cluster/clears", subscription_id="sub-9", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="provisioning", cluster="mgmt-1"}'
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/10/cluster/clears", subscription_id="sub-10", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="provisioning", cluster="mgmt-1"}'
     values: "1+0x50 0+0x44"
   alert_rule_test:
   # Alert fires: threshold 1800s crossed at 30m + 15m for = 45m. Eval at 50m confirms.
@@ -394,14 +386,14 @@ tests:
         component: slo
         operation_type: "create"
         phase: "provisioning"
-        resource_id: "/sub/9/cluster/clears"
+        resource_id: "/sub/10/cluster/clears"
         resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters"
         severity: "4"
         exclude_internal_subscriptions: "true"
-        subscription_id: "sub-9"
+        subscription_id: "sub-10"
       exp_annotations:
-        summary: "mgmt-1: Cluster create operation for /sub/9/cluster/clears stuck in provisioning for over 30 minutes"
-        description: "Cluster create operation for /sub/9/cluster/clears has been in provisioning phase for over 30 minutes. Stuck operations are invisible to success/failure SLIs and require investigation."
+        summary: "mgmt-1: Cluster create operation for /sub/10/cluster/clears stuck in provisioning for over 30 minutes"
+        description: "Cluster create operation for /sub/10/cluster/clears has been in provisioning phase for over 30 minutes. Stuck operations are invisible to success/failure SLIs and require investigation."
         runbook_url: "https://aka.ms/arohcp-runbook-cluster-provision"
   # Alert clears: operation reached terminal state at t=51m, recording rule stopped
   # emitting, 'and on (...)' gate removes the series despite max_over_time hold.
