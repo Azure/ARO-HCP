@@ -463,7 +463,7 @@ resource metricsProxy 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-0
           summary: 'Maestro agent metrics-proxy scrape is down'
           title: 'Maestro agent metrics-proxy scrape is down'
         }
-        expression: 'group by (cluster) (up{cluster=~".*-mgmt(-[0-9]+)?$",job="kube-state-metrics"}) unless on (cluster) group by (cluster) (up{endpoint="metrics",namespace="maestro",pod=~"maestro-agent-.*"} == 1)'
+        expression: 'group by (cluster, region) (up{cluster=~".*-mgmt(-[0-9]+)?$",job="kube-state-metrics"}) unless on (cluster) group by (cluster, region) (up{endpoint="metrics",namespace="maestro",pod=~"maestro-agent-.*"} == 1)'
         for: 'PT10M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }

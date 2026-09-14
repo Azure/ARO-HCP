@@ -38,7 +38,8 @@ This is **not**:
 The expression is the same shape as `MiseEnvoyScrapeDown`: cluster existence
 via kube-state-metrics, then `unless` a healthy scrape. Service clusters are
 excluded (`cluster=~".*-mgmt(-[0-9]+)?$"`) because they run maestro-**server**,
-not maestro-agent.
+not maestro-agent. `make -C observability alerts` rewrites aggregations to
+`group by (cluster, region)` in the generated Bicep (same as `PrometheusJobUp`).
 
 ## Time to page
 
