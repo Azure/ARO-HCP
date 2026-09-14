@@ -244,7 +244,7 @@ resource arohcpAccessClusterSloWindowedErrorAlerts 'Microsoft.AlertsManagement/p
           summary: '{{ $labels.cluster }}: Credential operation failure rate exceeds 15% over 6h'
           title: '{{ $labels.cluster }}: Credential operation failure rate exceeds 15% over 6h'
         }
-        expression: 'errors:backend_credential_operation:total_6h >= 5 and errors:backend_credential_operation:error_rate_6h > 0.15'
+        expression: 'errors:backend_credential_operation:total_6h >= 5 and errors:backend_credential_operation:failed_6h >= 2 and errors:backend_credential_operation:error_rate_6h > 0.15'
         for: 'PT30M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
@@ -674,7 +674,7 @@ resource arohcpNodepoolSloWindowedErrorAlerts 'Microsoft.AlertsManagement/promet
           summary: '{{ $labels.cluster }}: Node Pool operation failure rate exceeds 15% over 6h'
           title: '{{ $labels.cluster }}: Node Pool operation failure rate exceeds 15% over 6h'
         }
-        expression: 'errors:backend_nodepool_operation:total_6h >= 5 and errors:backend_nodepool_operation:error_rate_6h > 0.15'
+        expression: 'errors:backend_nodepool_operation:total_6h >= 5 and errors:backend_nodepool_operation:failed_6h >= 2 and errors:backend_nodepool_operation:error_rate_6h > 0.15'
         for: 'PT30M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }

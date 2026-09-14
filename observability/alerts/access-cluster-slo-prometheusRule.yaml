@@ -178,6 +178,8 @@ spec:
       expr: |
         errors:backend_credential_operation:total_6h >= 5
         and
+        errors:backend_credential_operation:failed_6h >= 2
+        and
         errors:backend_credential_operation:error_rate_6h > 0.15
       for: 30m
       labels:

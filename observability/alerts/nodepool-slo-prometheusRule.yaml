@@ -166,6 +166,8 @@ spec:
       expr: |
         errors:backend_nodepool_operation:total_6h >= 5
         and
+        errors:backend_nodepool_operation:failed_6h >= 2
+        and
         errors:backend_nodepool_operation:error_rate_6h > 0.15
       for: 30m
       labels:

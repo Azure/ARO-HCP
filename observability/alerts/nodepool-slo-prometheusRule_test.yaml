@@ -561,17 +561,21 @@ tests:
   alert_rule_test:
   - eval_time: 365m
     alertname: UJNodePoolErrors3d
-# Degradation (early warning) positive: 1 failed + 4 succeeded node pool ops reach
-# terminal at 40m (ltt at 40m), so from 40m they sit in the 6h window. total_6h = 5
-# (>= 5) and error_rate_6h = 0.2, which is above the 15% degradation threshold but
-# below the 30% medium-burn threshold, so only the degradation tier fires. The alert
-# holds for 30m, so it is still pending at 60m and firing by 140m, while the 6h30m
-# tier stays silent because the rate never crosses 30%.
+# Degradation (early warning) positive: 2 failed + 6 succeeded node pool ops reach
+# terminal at 40m (ltt at 40m), so from 40m they sit in the 6h window. total_6h = 8
+# (>= 5), failed_6h = 2 (meets the 2-failure floor) and error_rate_6h = 0.25, which is
+# above the 15% degradation threshold but below the 30% medium-burn threshold, so only
+# the degradation tier fires. The alert holds for 30m, so it is still pending at 60m and
+# firing by 140m, while the 6h30m tier stays silent because the rate never crosses 30%.
 - interval: 1m
   input_series:
   - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/wdgf1", phase="failed"}'
     values: "_x40 1x101"
   - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/wdgf1", phase="failed"}'
+    values: "_x40 2400x101"
+  - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/wdgf2", phase="failed"}'
+    values: "_x40 1x101"
+  - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/wdgf2", phase="failed"}'
     values: "_x40 2400x101"
   - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/wdgs1", phase="succeeded"}'
     values: "_x40 1x101"
@@ -589,22 +593,30 @@ tests:
     values: "_x40 1x101"
   - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/wdgs4", phase="succeeded"}'
     values: "_x40 2400x101"
+  - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/wdgs5", phase="succeeded"}'
+    values: "_x40 1x101"
+  - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/wdgs5", phase="succeeded"}'
+    values: "_x40 2400x101"
+  - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/wdgs6", phase="succeeded"}'
+    values: "_x40 1x101"
+  - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/wdgs6", phase="succeeded"}'
+    values: "_x40 2400x101"
   promql_expr_test:
   - expr: errors:backend_nodepool_operation:failed_6h
     eval_time: 140m
     exp_samples:
     - labels: 'errors:backend_nodepool_operation:failed_6h{cluster="mgmt-1"}'
-      value: 1
+      value: 2
   - expr: errors:backend_nodepool_operation:total_6h
     eval_time: 140m
     exp_samples:
     - labels: 'errors:backend_nodepool_operation:total_6h{cluster="mgmt-1"}'
-      value: 5
+      value: 8
   - expr: errors:backend_nodepool_operation:error_rate_6h
     eval_time: 140m
     exp_samples:
     - labels: 'errors:backend_nodepool_operation:error_rate_6h{cluster="mgmt-1"}'
-      value: 0.2
+      value: 0.25
   alert_rule_test:
   - eval_time: 60m
     alertname: UJNodePoolErrorsDegradation
@@ -624,3 +636,43 @@ tests:
         summary: "mgmt-1: Node Pool operation failure rate exceeds 15% over 6h"
         description: "More than 15% of completed node pool operations on mgmt-1 failed over the last 6 hours (at least 5 completions), an early warning of degradation before the burn-rate alerts fire."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
+# Degradation (early warning) negative: a single failure on an otherwise quiet window
+# must not fire. 1 failed + 4 succeeded node pool ops reach terminal at 40m, so
+# total_6h = 5 (>= 5) and error_rate_6h = 0.2 (> 0.15), but failed_6h = 1 is below the
+# 2-failure floor, so the degradation tier stays silent through 140m.
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/wdnf1", phase="failed"}'
+    values: "_x40 1x101"
+  - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/wdnf1", phase="failed"}'
+    values: "_x40 2400x101"
+  - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/wdns1", phase="succeeded"}'
+    values: "_x40 1x101"
+  - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/wdns1", phase="succeeded"}'
+    values: "_x40 2400x101"
+  - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/wdns2", phase="succeeded"}'
+    values: "_x40 1x101"
+  - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/wdns2", phase="succeeded"}'
+    values: "_x40 2400x101"
+  - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/wdns3", phase="succeeded"}'
+    values: "_x40 1x101"
+  - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/wdns3", phase="succeeded"}'
+    values: "_x40 2400x101"
+  - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/wdns4", phase="succeeded"}'
+    values: "_x40 1x101"
+  - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/wdns4", phase="succeeded"}'
+    values: "_x40 2400x101"
+  promql_expr_test:
+  - expr: errors:backend_nodepool_operation:failed_6h
+    eval_time: 140m
+    exp_samples:
+    - labels: 'errors:backend_nodepool_operation:failed_6h{cluster="mgmt-1"}'
+      value: 1
+  - expr: errors:backend_nodepool_operation:total_6h
+    eval_time: 140m
+    exp_samples:
+    - labels: 'errors:backend_nodepool_operation:total_6h{cluster="mgmt-1"}'
+      value: 5
+  alert_rule_test:
+  - eval_time: 140m
+    alertname: UJNodePoolErrorsDegradation

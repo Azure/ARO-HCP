@@ -133,3 +133,57 @@ tests:
     exp_samples:
     - labels: 'errors:backend_nodepool_operation:error_rate_1h{cluster="mgmt-1"}'
       value: 0.5
+# Canceled operations must never count toward the windowed SLIs. One recent
+# succeeded, one recent failed and one recent canceled op all land inside the
+# 1h/6h/3d windows; total_* stays 2 and error_rate_* stays 0.5, so a future
+# selector that counted `canceled` would flip these values and fail here.
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/s1", phase="succeeded"}'
+    values: "1x200"
+  - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/s1", phase="succeeded"}'
+    values: "0x200"
+  - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/f1", phase="failed"}'
+    values: "1x200"
+  - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/f1", phase="failed"}'
+    values: "0x200"
+  - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/c1", phase="canceled"}'
+    values: "1x200"
+  - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/c1", phase="canceled"}'
+    values: "0x200"
+  promql_expr_test:
+  - expr: errors:backend_nodepool_operation:failed_1h
+    eval_time: 30m
+    exp_samples:
+    - labels: 'errors:backend_nodepool_operation:failed_1h{cluster="mgmt-1"}'
+      value: 1
+  - expr: errors:backend_nodepool_operation:total_1h
+    eval_time: 30m
+    exp_samples:
+    - labels: 'errors:backend_nodepool_operation:total_1h{cluster="mgmt-1"}'
+      value: 2
+  - expr: errors:backend_nodepool_operation:error_rate_1h
+    eval_time: 30m
+    exp_samples:
+    - labels: 'errors:backend_nodepool_operation:error_rate_1h{cluster="mgmt-1"}'
+      value: 0.5
+  - expr: errors:backend_nodepool_operation:total_6h
+    eval_time: 30m
+    exp_samples:
+    - labels: 'errors:backend_nodepool_operation:total_6h{cluster="mgmt-1"}'
+      value: 2
+  - expr: errors:backend_nodepool_operation:error_rate_6h
+    eval_time: 30m
+    exp_samples:
+    - labels: 'errors:backend_nodepool_operation:error_rate_6h{cluster="mgmt-1"}'
+      value: 0.5
+  - expr: errors:backend_nodepool_operation:total_3d
+    eval_time: 30m
+    exp_samples:
+    - labels: 'errors:backend_nodepool_operation:total_3d{cluster="mgmt-1"}'
+      value: 2
+  - expr: errors:backend_nodepool_operation:error_rate_3d
+    eval_time: 30m
+    exp_samples:
+    - labels: 'errors:backend_nodepool_operation:error_rate_3d{cluster="mgmt-1"}'
+      value: 0.5
