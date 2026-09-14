@@ -75,6 +75,7 @@ func newTestExternalAuthForAvailable(opts ...func(*coreapi.HCPOpenShiftClusterEx
 						Name:                testComponentName,
 						AuthClientNamespace: testComponentNamespace,
 					},
+					Type: metadataapi.ExternalAuthClientTypeConfidential,
 				},
 			},
 		},
@@ -132,75 +133,23 @@ func newHostedClusterReadDesire(t *testing.T, hc *v1beta1.HostedCluster) *kubeap
 
 func ptrTo[T any](v T) *T { return &v }
 
-func TestMatchingOIDCClientStatuses(t *testing.T) {
-	controller := &externalAuthAvailableController{}
-	observed := []configv1.OIDCClientStatus{
-		{ComponentName: "console", ComponentNamespace: "openshift-console"},
-		{ComponentName: "cli", ComponentNamespace: "openshift-console"},
-	}
-
-	t.Run("no external auth clients returns all observed", func(t *testing.T) {
-		ea := newTestExternalAuthForAvailable(func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
-			ea.Properties.Clients = nil
-		})
-		got := controller.matchingOIDCClientStatuses(ea, observed)
-		assert.Equal(t, observed, got)
-	})
-
-	t.Run("filters to matching component name and namespace", func(t *testing.T) {
-		ea := newTestExternalAuthForAvailable(func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
-			ea.Properties.Clients = []coreapi.ExternalAuthClientProfile{
-				{
-					Component: coreapi.ExternalAuthClientComponentProfile{
-						Name:                "console",
-						AuthClientNamespace: "openshift-console",
-					},
-				},
-			}
-		})
-		got := controller.matchingOIDCClientStatuses(ea, observed)
-		require.Len(t, got, 1)
-		assert.Equal(t, "console", got[0].ComponentName)
-	})
-
-	t.Run("case-insensitive matching", func(t *testing.T) {
-		ea := newTestExternalAuthForAvailable(func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
-			ea.Properties.Clients = []coreapi.ExternalAuthClientProfile{
-				{
-					Component: coreapi.ExternalAuthClientComponentProfile{
-						Name:                "Console",
-						AuthClientNamespace: "OpenShift-Console",
-					},
-				},
-			}
-		})
-		got := controller.matchingOIDCClientStatuses(ea, observed)
-		require.Len(t, got, 1)
-		assert.Equal(t, "console", got[0].ComponentName)
-	})
-
-	t.Run("no match returns empty", func(t *testing.T) {
-		ea := newTestExternalAuthForAvailable(func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
-			ea.Properties.Clients = []coreapi.ExternalAuthClientProfile{
-				{
-					Component: coreapi.ExternalAuthClientComponentProfile{
-						Name:                "nonexistent",
-						AuthClientNamespace: "nonexistent-ns",
-					},
-				},
-			}
-		})
-		got := controller.matchingOIDCClientStatuses(ea, observed)
-		assert.Empty(t, got)
-	})
-}
-
 func TestExternalAuthAvailableController_SyncOnce(t *testing.T) {
 	parentClusterID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + statusutils.TestSubscriptionID +
 			"/resourceGroups/" + statusutils.TestResourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + statusutils.TestClusterName,
 	))
+
+	// consoleCondType is the per-client condition type for the default
+	// "console" component.
+	consoleCondType := coreapi.PerClientAvailableConditionType(testComponentName)
+
+	type expectedCondition struct {
+		condType string
+		status   metav1.ConditionStatus
+		reason   string
+		message  string
+	}
 
 	tests := []struct {
 		name string
@@ -209,10 +158,9 @@ func TestExternalAuthAvailableController_SyncOnce(t *testing.T) {
 		serviceProviderExternalAuth *coreapi.ServiceProviderExternalAuth
 		hostedCluster               *v1beta1.HostedCluster
 
-		expectNoWrite bool
-		expectStatus  metav1.ConditionStatus
-		expectReason  string
-		expectMessage string
+		expectNoWrite      bool
+		expectConditions   []expectedCondition
+		expectNoConditions bool
 	}{
 		{
 			name: "skip when external auth is being deleted",
@@ -238,160 +186,227 @@ func TestExternalAuthAvailableController_SyncOnce(t *testing.T) {
 			expectNoWrite:               true,
 		},
 		{
-			name:                        "HostedCluster not found -> Available: False, Reason: HostedClusterNotReady",
+			name: "no clients defined -> no conditions written",
+			externalAuth: newTestExternalAuthForAvailable(func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
+				ea.Properties.Clients = nil
+			}),
+			serviceProviderExternalAuth: newTestServiceProviderExternalAuth(),
+			expectNoConditions:          true,
+		},
+		{
+			name:                        "confidential client: HC not found -> False/HostedClusterNotReady",
 			externalAuth:                newTestExternalAuthForAvailable(),
 			serviceProviderExternalAuth: newTestServiceProviderExternalAuth(),
 			hostedCluster:               nil,
-			expectStatus:                metav1.ConditionFalse,
-			expectReason:                coreapi.ExternalAuthReasonHostedClusterNotReady,
-			expectMessage:               "Waiting for HostedCluster to be observed",
+			expectConditions: []expectedCondition{{
+				condType: consoleCondType,
+				status:   metav1.ConditionFalse,
+				reason:   coreapi.ExternalAuthReasonHostedClusterNotReady,
+				message:  "Waiting for HostedCluster to be observed",
+			}},
 		},
 		{
-			name:                        "HostedCluster found, no Configuration -> Available: Unknown, Reason: HostedClusterNotReady",
+			name:                        "confidential client: HC found, no Configuration -> Unknown/HostedClusterNotReady",
 			externalAuth:                newTestExternalAuthForAvailable(),
 			serviceProviderExternalAuth: newTestServiceProviderExternalAuth(),
 			hostedCluster: &v1beta1.HostedCluster{
-				Status: v1beta1.HostedClusterStatus{
-					Configuration: nil,
-				},
+				Status: v1beta1.HostedClusterStatus{Configuration: nil},
 			},
-			expectStatus:  metav1.ConditionUnknown,
-			expectReason:  coreapi.ExternalAuthReasonHostedClusterNotReady,
-			expectMessage: "HostedCluster authentication status not yet available",
+			expectConditions: []expectedCondition{{
+				condType: consoleCondType,
+				status:   metav1.ConditionUnknown,
+				reason:   coreapi.ExternalAuthReasonHostedClusterNotReady,
+				message:  "HostedCluster authentication status not yet available",
+			}},
 		},
 		{
-			name:                        "OIDCClientStatus Available: True, Reason: OIDCConfigAvailable -> Available: True",
-			externalAuth:                newTestExternalAuthForAvailable(),
-			serviceProviderExternalAuth: newTestServiceProviderExternalAuth(),
-			hostedCluster: &v1beta1.HostedCluster{
-				Status: v1beta1.HostedClusterStatus{
-					Configuration: &v1beta1.ConfigurationStatus{
-						Authentication: configv1.AuthenticationStatus{
-							OIDCClients: []configv1.OIDCClientStatus{
-								{
-									ComponentName:      testComponentName,
-									ComponentNamespace: testComponentNamespace,
-									Conditions: []metav1.Condition{
-										{Type: "Available", Status: metav1.ConditionTrue, Reason: coreapi.HCReasonOIDCConfigAvailable},
-										{Type: "Degraded", Status: metav1.ConditionFalse, Reason: coreapi.HCReasonOIDCConfigAvailable},
-										{Type: "Progressing", Status: metav1.ConditionFalse, Reason: coreapi.HCReasonOIDCConfigAvailable},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-			expectStatus: metav1.ConditionTrue,
-			expectReason: coreapi.ExternalAuthReasonOIDCConfigAvailable,
-		},
-		{
-			name:                        "OIDCClientStatus Degraded: True, Reason: OIDCClientSecretGet -> Available: False, Reason: AwaitingSecret",
+			name:                        "confidential client: Available True -> ConsoleAvailable True",
 			externalAuth:                newTestExternalAuthForAvailable(),
 			serviceProviderExternalAuth: newTestServiceProviderExternalAuth(),
 			hostedCluster: &v1beta1.HostedCluster{
 				Status: v1beta1.HostedClusterStatus{
 					Configuration: &v1beta1.ConfigurationStatus{
 						Authentication: configv1.AuthenticationStatus{
-							OIDCClients: []configv1.OIDCClientStatus{
-								{
-									ComponentName:      testComponentName,
-									ComponentNamespace: testComponentNamespace,
-									Conditions: []metav1.Condition{
-										{Type: "Available", Status: metav1.ConditionFalse, Reason: "SomeReason"},
-										{Type: "Degraded", Status: metav1.ConditionTrue, Reason: coreapi.HCReasonOIDCClientSecretGet, Message: "secret not found"},
-										{Type: "Progressing", Status: metav1.ConditionFalse, Reason: "SomeReason"},
-									},
+							OIDCClients: []configv1.OIDCClientStatus{{
+								ComponentName:      testComponentName,
+								ComponentNamespace: testComponentNamespace,
+								Conditions: []metav1.Condition{
+									{Type: "Available", Status: metav1.ConditionTrue, Reason: coreapi.HostedClusterOIDCConfigAvailable},
+									{Type: "Degraded", Status: metav1.ConditionFalse, Reason: coreapi.HostedClusterOIDCConfigAvailable},
 								},
-							},
+							}},
 						},
 					},
 				},
 			},
-			expectStatus:  metav1.ConditionFalse,
-			expectReason:  coreapi.ExternalAuthReasonAwaitingSecret,
-			expectMessage: "The external auth provider is waiting for the client secret to be created in the openshift-config namespace",
+			expectConditions: []expectedCondition{{
+				condType: consoleCondType,
+				status:   metav1.ConditionTrue,
+				reason:   coreapi.ExternalAuthReasonOIDCConfigAvailable,
+			}},
 		},
 		{
-			name:                        "OIDCClientStatus Degraded: True with other reason -> Available: False, forward HC reason/message",
+			name:                        "confidential client: Degraded OIDCClientSecretGet -> AwaitingSecret",
 			externalAuth:                newTestExternalAuthForAvailable(),
 			serviceProviderExternalAuth: newTestServiceProviderExternalAuth(),
 			hostedCluster: &v1beta1.HostedCluster{
 				Status: v1beta1.HostedClusterStatus{
 					Configuration: &v1beta1.ConfigurationStatus{
 						Authentication: configv1.AuthenticationStatus{
-							OIDCClients: []configv1.OIDCClientStatus{
-								{
-									ComponentName:      testComponentName,
-									ComponentNamespace: testComponentNamespace,
-									Conditions: []metav1.Condition{
-										{Type: "Available", Status: metav1.ConditionFalse, Reason: "SomeReason"},
-										{Type: "Degraded", Status: metav1.ConditionTrue, Reason: "OtherDegraded", Message: "something else is wrong"},
-										{Type: "Progressing", Status: metav1.ConditionFalse, Reason: "SomeReason"},
-									},
+							OIDCClients: []configv1.OIDCClientStatus{{
+								ComponentName:      testComponentName,
+								ComponentNamespace: testComponentNamespace,
+								Conditions: []metav1.Condition{
+									{Type: "Available", Status: metav1.ConditionFalse, Reason: "SomeReason"},
+									{Type: "Degraded", Status: metav1.ConditionTrue, Reason: coreapi.HostedClusterOIDCClientSecretGet, Message: "secret not found"},
 								},
-							},
+							}},
 						},
 					},
 				},
 			},
-			expectStatus:  metav1.ConditionFalse,
-			expectReason:  "OtherDegraded",
-			expectMessage: "something else is wrong",
+			expectConditions: []expectedCondition{{
+				condType: consoleCondType,
+				status:   metav1.ConditionFalse,
+				reason:   coreapi.ExternalAuthReasonAwaitingSecret,
+				message:  "The external auth provider is waiting for the client secret to be created in the openshift-config namespace",
+			}},
 		},
 		{
-			name:                        "OIDCClientStatus Available: False, no Degraded -> Available: False, forward HC reason",
+			name:                        "confidential client: Degraded with other reason -> forward reason",
 			externalAuth:                newTestExternalAuthForAvailable(),
 			serviceProviderExternalAuth: newTestServiceProviderExternalAuth(),
 			hostedCluster: &v1beta1.HostedCluster{
 				Status: v1beta1.HostedClusterStatus{
 					Configuration: &v1beta1.ConfigurationStatus{
 						Authentication: configv1.AuthenticationStatus{
-							OIDCClients: []configv1.OIDCClientStatus{
-								{
-									ComponentName:      testComponentName,
-									ComponentNamespace: testComponentNamespace,
-									Conditions: []metav1.Condition{
-										{Type: "Available", Status: metav1.ConditionFalse, Reason: "SomeReason", Message: "not available yet"},
-										{Type: "Degraded", Status: metav1.ConditionFalse, Reason: "SomeReason"},
-									},
+							OIDCClients: []configv1.OIDCClientStatus{{
+								ComponentName:      testComponentName,
+								ComponentNamespace: testComponentNamespace,
+								Conditions: []metav1.Condition{
+									{Type: "Degraded", Status: metav1.ConditionTrue, Reason: "OtherDegraded", Message: "something else is wrong"},
 								},
-							},
+							}},
 						},
 					},
 				},
 			},
-			expectStatus:  metav1.ConditionFalse,
-			expectReason:  "SomeReason",
-			expectMessage: "not available yet",
+			expectConditions: []expectedCondition{{
+				condType: consoleCondType,
+				status:   metav1.ConditionFalse,
+				reason:   "OtherDegraded",
+				message:  "something else is wrong",
+			}},
 		},
 		{
-			name:                        "no matching OIDCClientStatus -> Available: False, Reason: HostedClusterNotReady",
+			name:                        "confidential client: Available False, no Degraded -> forward reason",
 			externalAuth:                newTestExternalAuthForAvailable(),
 			serviceProviderExternalAuth: newTestServiceProviderExternalAuth(),
 			hostedCluster: &v1beta1.HostedCluster{
 				Status: v1beta1.HostedClusterStatus{
 					Configuration: &v1beta1.ConfigurationStatus{
 						Authentication: configv1.AuthenticationStatus{
-							OIDCClients: []configv1.OIDCClientStatus{
-								{
-									ComponentName:      "other-component",
-									ComponentNamespace: "other-namespace",
-									Conditions: []metav1.Condition{
-										{Type: "Available", Status: metav1.ConditionTrue, Reason: coreapi.HCReasonOIDCConfigAvailable},
-									},
+							OIDCClients: []configv1.OIDCClientStatus{{
+								ComponentName:      testComponentName,
+								ComponentNamespace: testComponentNamespace,
+								Conditions: []metav1.Condition{
+									{Type: "Available", Status: metav1.ConditionFalse, Reason: "SomeReason", Message: "not available yet"},
+									{Type: "Degraded", Status: metav1.ConditionFalse, Reason: "SomeReason"},
 								},
-							},
+							}},
 						},
 					},
 				},
 			},
-			expectStatus:  metav1.ConditionFalse,
-			expectReason:  coreapi.ExternalAuthReasonHostedClusterNotReady,
-			expectMessage: "OIDC client status not yet reported by the hosted cluster",
+			expectConditions: []expectedCondition{{
+				condType: consoleCondType,
+				status:   metav1.ConditionFalse,
+				reason:   "SomeReason",
+				message:  "not available yet",
+			}},
 		},
 		{
-			name: "multi-client: worst condition wins when one Available and one AwaitingSecret",
+			name:                        "confidential client: no matching OIDC status -> HostedClusterNotReady",
+			externalAuth:                newTestExternalAuthForAvailable(),
+			serviceProviderExternalAuth: newTestServiceProviderExternalAuth(),
+			hostedCluster: &v1beta1.HostedCluster{
+				Status: v1beta1.HostedClusterStatus{
+					Configuration: &v1beta1.ConfigurationStatus{
+						Authentication: configv1.AuthenticationStatus{
+							OIDCClients: []configv1.OIDCClientStatus{{
+								ComponentName:      "other-component",
+								ComponentNamespace: "other-namespace",
+								Conditions: []metav1.Condition{
+									{Type: "Available", Status: metav1.ConditionTrue, Reason: coreapi.HostedClusterOIDCConfigAvailable},
+								},
+							}},
+						},
+					},
+				},
+			},
+			expectConditions: []expectedCondition{{
+				condType: consoleCondType,
+				status:   metav1.ConditionFalse,
+				reason:   coreapi.ExternalAuthReasonHostedClusterNotReady,
+				message:  "OIDC client status not yet reported by the hosted cluster",
+			}},
+		},
+		{
+			name: "public client always available regardless of HC status",
+			externalAuth: newTestExternalAuthForAvailable(func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
+				ea.Properties.Clients = []coreapi.ExternalAuthClientProfile{{
+					Component: coreapi.ExternalAuthClientComponentProfile{
+						Name:                "cli",
+						AuthClientNamespace: "openshift-console",
+					},
+					Type: metadataapi.ExternalAuthClientTypePublic,
+				}}
+			}),
+			serviceProviderExternalAuth: newTestServiceProviderExternalAuth(),
+			hostedCluster:               nil, // HC not even found
+			expectConditions: []expectedCondition{{
+				condType: coreapi.PerClientAvailableConditionType("cli"),
+				status:   metav1.ConditionTrue,
+				reason:   coreapi.ExternalAuthReasonOIDCConfigAvailable,
+				message:  "Public client does not require a secret",
+			}},
+		},
+		{
+			name: "public client available even when HC reports degraded",
+			externalAuth: newTestExternalAuthForAvailable(func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
+				ea.Properties.Clients = []coreapi.ExternalAuthClientProfile{{
+					Component: coreapi.ExternalAuthClientComponentProfile{
+						Name:                "cli",
+						AuthClientNamespace: "openshift-console",
+					},
+					Type: metadataapi.ExternalAuthClientTypePublic,
+				}}
+			}),
+			serviceProviderExternalAuth: newTestServiceProviderExternalAuth(),
+			hostedCluster: &v1beta1.HostedCluster{
+				Status: v1beta1.HostedClusterStatus{
+					Configuration: &v1beta1.ConfigurationStatus{
+						Authentication: configv1.AuthenticationStatus{
+							OIDCClients: []configv1.OIDCClientStatus{{
+								ComponentName:      "cli",
+								ComponentNamespace: "openshift-console",
+								Conditions: []metav1.Condition{
+									{Type: "Degraded", Status: metav1.ConditionTrue, Reason: coreapi.HostedClusterOIDCClientSecretGet},
+								},
+							}},
+						},
+					},
+				},
+			},
+			expectConditions: []expectedCondition{{
+				condType: coreapi.PerClientAvailableConditionType("cli"),
+				status:   metav1.ConditionTrue,
+				reason:   coreapi.ExternalAuthReasonOIDCConfigAvailable,
+				message:  "Public client does not require a secret",
+			}},
+		},
+		{
+			name: "multi-client: console (confidential) awaiting + cli (public) available",
 			externalAuth: newTestExternalAuthForAvailable(func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
 				ea.Properties.Clients = []coreapi.ExternalAuthClientProfile{
 					{
@@ -399,12 +414,14 @@ func TestExternalAuthAvailableController_SyncOnce(t *testing.T) {
 							Name:                "console",
 							AuthClientNamespace: "openshift-console",
 						},
+						Type: metadataapi.ExternalAuthClientTypeConfidential,
 					},
 					{
 						Component: coreapi.ExternalAuthClientComponentProfile{
 							Name:                "cli",
 							AuthClientNamespace: "openshift-console",
 						},
+						Type: metadataapi.ExternalAuthClientTypePublic,
 					},
 				}
 			}),
@@ -418,16 +435,7 @@ func TestExternalAuthAvailableController_SyncOnce(t *testing.T) {
 									ComponentName:      "console",
 									ComponentNamespace: "openshift-console",
 									Conditions: []metav1.Condition{
-										{Type: "Available", Status: metav1.ConditionTrue, Reason: coreapi.HCReasonOIDCConfigAvailable},
-										{Type: "Degraded", Status: metav1.ConditionFalse, Reason: coreapi.HCReasonOIDCConfigAvailable},
-									},
-								},
-								{
-									ComponentName:      "cli",
-									ComponentNamespace: "openshift-console",
-									Conditions: []metav1.Condition{
-										{Type: "Available", Status: metav1.ConditionFalse, Reason: "SomeReason"},
-										{Type: "Degraded", Status: metav1.ConditionTrue, Reason: coreapi.HCReasonOIDCClientSecretGet, Message: "secret not found"},
+										{Type: "Degraded", Status: metav1.ConditionTrue, Reason: coreapi.HostedClusterOIDCClientSecretGet, Message: "secret not found"},
 									},
 								},
 							},
@@ -435,37 +443,96 @@ func TestExternalAuthAvailableController_SyncOnce(t *testing.T) {
 					},
 				},
 			},
-			expectStatus:  metav1.ConditionFalse,
-			expectReason:  coreapi.ExternalAuthReasonAwaitingSecret,
-			expectMessage: "The external auth provider is waiting for the client secret to be created in the openshift-config namespace",
+			expectConditions: []expectedCondition{
+				{
+					condType: coreapi.PerClientAvailableConditionType("console"),
+					status:   metav1.ConditionFalse,
+					reason:   coreapi.ExternalAuthReasonAwaitingSecret,
+					message:  "The external auth provider is waiting for the client secret to be created in the openshift-config namespace",
+				},
+				{
+					condType: coreapi.PerClientAvailableConditionType("cli"),
+					status:   metav1.ConditionTrue,
+					reason:   coreapi.ExternalAuthReasonOIDCConfigAvailable,
+					message:  "Public client does not require a secret",
+				},
+			},
 		},
 		{
-			name:         "no-op when SPEA conditions already match",
-			externalAuth: newTestExternalAuthForAvailable(),
-			serviceProviderExternalAuth: newTestServiceProviderExternalAuth(func(spea *coreapi.ServiceProviderExternalAuth) {
-				spea.Status.Conditions = []metav1.Condition{
+			name: "multi-client: both available",
+			externalAuth: newTestExternalAuthForAvailable(func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
+				ea.Properties.Clients = []coreapi.ExternalAuthClientProfile{
 					{
-						Type:    coreapi.ExternalAuthAvailableCondition,
-						Status:  metav1.ConditionTrue,
-						Reason:  coreapi.ExternalAuthReasonOIDCConfigAvailable,
-						Message: "",
+						Component: coreapi.ExternalAuthClientComponentProfile{
+							Name:                "console",
+							AuthClientNamespace: "openshift-console",
+						},
+						Type: metadataapi.ExternalAuthClientTypeConfidential,
+					},
+					{
+						Component: coreapi.ExternalAuthClientComponentProfile{
+							Name:                "cli",
+							AuthClientNamespace: "openshift-console",
+						},
+						Type: metadataapi.ExternalAuthClientTypePublic,
 					},
 				}
 			}),
+			serviceProviderExternalAuth: newTestServiceProviderExternalAuth(),
 			hostedCluster: &v1beta1.HostedCluster{
 				Status: v1beta1.HostedClusterStatus{
 					Configuration: &v1beta1.ConfigurationStatus{
 						Authentication: configv1.AuthenticationStatus{
 							OIDCClients: []configv1.OIDCClientStatus{
 								{
-									ComponentName:      testComponentName,
-									ComponentNamespace: testComponentNamespace,
+									ComponentName:      "console",
+									ComponentNamespace: "openshift-console",
 									Conditions: []metav1.Condition{
-										{Type: "Available", Status: metav1.ConditionTrue, Reason: coreapi.HCReasonOIDCConfigAvailable},
-										{Type: "Degraded", Status: metav1.ConditionFalse, Reason: coreapi.HCReasonOIDCConfigAvailable},
+										{Type: "Available", Status: metav1.ConditionTrue, Reason: coreapi.HostedClusterOIDCConfigAvailable},
+										{Type: "Degraded", Status: metav1.ConditionFalse, Reason: coreapi.HostedClusterOIDCConfigAvailable},
 									},
 								},
 							},
+						},
+					},
+				},
+			},
+			expectConditions: []expectedCondition{
+				{
+					condType: coreapi.PerClientAvailableConditionType("console"),
+					status:   metav1.ConditionTrue,
+					reason:   coreapi.ExternalAuthReasonOIDCConfigAvailable,
+				},
+				{
+					condType: coreapi.PerClientAvailableConditionType("cli"),
+					status:   metav1.ConditionTrue,
+					reason:   coreapi.ExternalAuthReasonOIDCConfigAvailable,
+					message:  "Public client does not require a secret",
+				},
+			},
+		},
+		{
+			name:         "no-op when SPEA conditions already match",
+			externalAuth: newTestExternalAuthForAvailable(),
+			serviceProviderExternalAuth: newTestServiceProviderExternalAuth(func(spea *coreapi.ServiceProviderExternalAuth) {
+				spea.Status.Conditions = []metav1.Condition{{
+					Type:   consoleCondType,
+					Status: metav1.ConditionTrue,
+					Reason: coreapi.ExternalAuthReasonOIDCConfigAvailable,
+				}}
+			}),
+			hostedCluster: &v1beta1.HostedCluster{
+				Status: v1beta1.HostedClusterStatus{
+					Configuration: &v1beta1.ConfigurationStatus{
+						Authentication: configv1.AuthenticationStatus{
+							OIDCClients: []configv1.OIDCClientStatus{{
+								ComponentName:      testComponentName,
+								ComponentNamespace: testComponentNamespace,
+								Conditions: []metav1.Condition{
+									{Type: "Available", Status: metav1.ConditionTrue, Reason: coreapi.HostedClusterOIDCConfigAvailable},
+									{Type: "Degraded", Status: metav1.ConditionFalse, Reason: coreapi.HostedClusterOIDCConfigAvailable},
+								},
+							}},
 						},
 					},
 				},
@@ -523,45 +590,72 @@ func TestExternalAuthAvailableController_SyncOnce(t *testing.T) {
 				}
 				updatedSPEA, err := mockDB.ServiceProviderExternalAuths(statusutils.TestSubscriptionID, statusutils.TestResourceGroupName, statusutils.TestClusterName, statusutils.TestExternalAuthName).Get(ctx, coreapi.ServiceProviderExternalAuthResourceName)
 				require.NoError(t, err)
-				cond := apimeta.FindStatusCondition(updatedSPEA.Status.Conditions, coreapi.ExternalAuthAvailableCondition)
-				if len(tc.serviceProviderExternalAuth.Status.Conditions) == 0 {
-					assert.Nil(t, cond, "expected no Available condition to be set on SPEA")
-				} else {
-					existing := apimeta.FindStatusCondition(tc.serviceProviderExternalAuth.Status.Conditions, coreapi.ExternalAuthAvailableCondition)
-					require.NotNil(t, cond, "expected existing Available condition to be preserved on SPEA")
-					assert.Equal(t, existing.Status, cond.Status, "status should not change")
-					assert.Equal(t, existing.Reason, cond.Reason, "reason should not change")
-				}
+				assert.Equal(t, tc.serviceProviderExternalAuth.Status.Conditions, updatedSPEA.Status.Conditions,
+					"conditions should not have changed")
 				return
 			}
 
 			updatedSPEA, err := mockDB.ServiceProviderExternalAuths(statusutils.TestSubscriptionID, statusutils.TestResourceGroupName, statusutils.TestClusterName, statusutils.TestExternalAuthName).Get(ctx, coreapi.ServiceProviderExternalAuthResourceName)
 			require.NoError(t, err)
 
-			cond := apimeta.FindStatusCondition(updatedSPEA.Status.Conditions, coreapi.ExternalAuthAvailableCondition)
-			require.NotNil(t, cond, "controller must set the Available condition on SPEA")
-			assert.Equal(t, tc.expectStatus, cond.Status, "status")
-			assert.Equal(t, tc.expectReason, cond.Reason, "reason")
-			assert.Equal(t, tc.expectMessage, cond.Message, "message")
+			if tc.expectNoConditions {
+				assert.Empty(t, updatedSPEA.Status.Conditions, "expected no conditions on SPEA")
+				return
+			}
+
+			for _, expected := range tc.expectConditions {
+				cond := apimeta.FindStatusCondition(updatedSPEA.Status.Conditions, expected.condType)
+				require.NotNil(t, cond, fmt.Sprintf("controller must set the %s condition on SPEA", expected.condType))
+				assert.Equal(t, expected.status, cond.Status, "status for %s", expected.condType)
+				assert.Equal(t, expected.reason, cond.Reason, "reason for %s", expected.condType)
+				if expected.message != "" {
+					assert.Equal(t, expected.message, cond.Message, "message for %s", expected.condType)
+				}
+			}
 		})
 	}
 }
 
-func TestExternalAuthUserFacingAggregator_SyncOnce(t *testing.T) {
+func TestIsUserFacingCondition(t *testing.T) {
+	tests := []struct {
+		condType string
+		want     bool
+	}{
+		{"ConsoleAvailable", true},
+		{"CliAvailable", true},
+		{"Available", true},
+		{"SomeOtherCondition", false},
+		{"Degraded", false},
+		{"", false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.condType, func(t *testing.T) {
+			assert.Equal(t, tc.want, isUserFacingCondition(tc.condType))
+		})
+	}
+}
+
+func TestExternalAuthUserFacingConditionsAggregator_SyncOnce(t *testing.T) {
 	parentClusterID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + statusutils.TestSubscriptionID +
 			"/resourceGroups/" + statusutils.TestResourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + statusutils.TestClusterName,
 	))
 
-	availableTrue := metav1.Condition{
-		Type:    coreapi.ExternalAuthAvailableCondition,
+	consoleAvailableTrue := metav1.Condition{
+		Type:    coreapi.PerClientAvailableConditionType("console"),
 		Status:  metav1.ConditionTrue,
 		Reason:  coreapi.ExternalAuthReasonOIDCConfigAvailable,
 		Message: "OIDC config is available",
 	}
-	availableFalse := metav1.Condition{
-		Type:    coreapi.ExternalAuthAvailableCondition,
+	cliAvailableTrue := metav1.Condition{
+		Type:    coreapi.PerClientAvailableConditionType("cli"),
+		Status:  metav1.ConditionTrue,
+		Reason:  coreapi.ExternalAuthReasonOIDCConfigAvailable,
+		Message: "Public client does not require a secret",
+	}
+	consoleAvailableFalse := metav1.Condition{
+		Type:    coreapi.PerClientAvailableConditionType("console"),
 		Status:  metav1.ConditionFalse,
 		Reason:  coreapi.ExternalAuthReasonAwaitingSecret,
 		Message: "Waiting for secret",
@@ -573,24 +667,57 @@ func TestExternalAuthUserFacingAggregator_SyncOnce(t *testing.T) {
 		externalAuth                *coreapi.HCPOpenShiftClusterExternalAuth
 		serviceProviderExternalAuth *coreapi.ServiceProviderExternalAuth
 
-		expectNoWrite bool
-		wantCondition *metav1.Condition
+		expectNoWrite  bool
+		wantConditions []metav1.Condition
 	}{
 		{
-			name:         "lifts Available condition from SPEA to ExternalAuth.Status.UserFacingConditions",
+			name:         "lifts ConsoleAvailable condition from SPEA to ExternalAuth",
 			externalAuth: newTestExternalAuthForAvailable(),
 			serviceProviderExternalAuth: newTestServiceProviderExternalAuth(func(spea *coreapi.ServiceProviderExternalAuth) {
-				spea.Status.Conditions = []metav1.Condition{availableTrue}
+				spea.Status.Conditions = []metav1.Condition{consoleAvailableTrue}
 			}),
-			wantCondition: &availableTrue,
+			wantConditions: []metav1.Condition{consoleAvailableTrue},
 		},
 		{
 			name:         "lifts AwaitingSecret condition from SPEA to ExternalAuth",
 			externalAuth: newTestExternalAuthForAvailable(),
 			serviceProviderExternalAuth: newTestServiceProviderExternalAuth(func(spea *coreapi.ServiceProviderExternalAuth) {
-				spea.Status.Conditions = []metav1.Condition{availableFalse}
+				spea.Status.Conditions = []metav1.Condition{consoleAvailableFalse}
 			}),
-			wantCondition: &availableFalse,
+			wantConditions: []metav1.Condition{consoleAvailableFalse},
+		},
+		{
+			name:         "lifts multiple per-client Available conditions",
+			externalAuth: newTestExternalAuthForAvailable(),
+			serviceProviderExternalAuth: newTestServiceProviderExternalAuth(func(spea *coreapi.ServiceProviderExternalAuth) {
+				spea.Status.Conditions = []metav1.Condition{consoleAvailableTrue, cliAvailableTrue}
+			}),
+			wantConditions: []metav1.Condition{consoleAvailableTrue, cliAvailableTrue},
+		},
+		{
+			name:         "does not promote non-Available conditions",
+			externalAuth: newTestExternalAuthForAvailable(),
+			serviceProviderExternalAuth: newTestServiceProviderExternalAuth(func(spea *coreapi.ServiceProviderExternalAuth) {
+				spea.Status.Conditions = []metav1.Condition{
+					consoleAvailableTrue,
+					{Type: "InternalOnly", Status: metav1.ConditionTrue, Reason: "Internal"},
+				}
+			}),
+			wantConditions: []metav1.Condition{consoleAvailableTrue},
+		},
+		{
+			name: "removes stale conditions no longer on SPEA",
+			externalAuth: newTestExternalAuthForAvailable(func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
+				ea.Status.UserFacingConditions = []metav1.Condition{
+					consoleAvailableTrue,
+					cliAvailableTrue,
+				}
+			}),
+			serviceProviderExternalAuth: newTestServiceProviderExternalAuth(func(spea *coreapi.ServiceProviderExternalAuth) {
+				// Only console condition remains on SPEA; cli was removed.
+				spea.Status.Conditions = []metav1.Condition{consoleAvailableTrue}
+			}),
+			wantConditions: []metav1.Condition{consoleAvailableTrue},
 		},
 		{
 			name:                        "no-op when SPEA not found",
@@ -601,10 +728,10 @@ func TestExternalAuthUserFacingAggregator_SyncOnce(t *testing.T) {
 		{
 			name: "no-op when UserFacingConditions already match SPEA",
 			externalAuth: newTestExternalAuthForAvailable(func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
-				ea.Status.UserFacingConditions = []metav1.Condition{availableTrue}
+				ea.Status.UserFacingConditions = []metav1.Condition{consoleAvailableTrue}
 			}),
 			serviceProviderExternalAuth: newTestServiceProviderExternalAuth(func(spea *coreapi.ServiceProviderExternalAuth) {
-				spea.Status.Conditions = []metav1.Condition{availableTrue}
+				spea.Status.Conditions = []metav1.Condition{consoleAvailableTrue}
 			}),
 			expectNoWrite: true,
 		},
@@ -637,7 +764,7 @@ func TestExternalAuthUserFacingAggregator_SyncOnce(t *testing.T) {
 			mockDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, seed)
 			require.NoError(t, err)
 
-			syncer := &externalAuthUserFacingAggregator{
+			syncer := &externalAuthUserFacingConditionsAggregator{
 				externalAuthLister:                &corelistertesting.DBExternalAuthLister{ResourcesDBClient: mockDB},
 				serviceProviderExternalAuthLister: &corelistertesting.DBServiceProviderExternalAuthLister{ResourcesDBClient: mockDB},
 				resourcesDBClient:                 mockDB,
@@ -660,12 +787,15 @@ func TestExternalAuthUserFacingAggregator_SyncOnce(t *testing.T) {
 				return
 			}
 
-			require.NotNil(t, tc.wantCondition, "test must specify wantCondition when expectNoWrite is false")
-			cond := apimeta.FindStatusCondition(updatedEA.Status.UserFacingConditions, tc.wantCondition.Type)
-			require.NotNil(t, cond, fmt.Sprintf("aggregator must set the %s condition on ExternalAuth.Status.UserFacingConditions", tc.wantCondition.Type))
-			assert.Equal(t, tc.wantCondition.Status, cond.Status, "status")
-			assert.Equal(t, tc.wantCondition.Reason, cond.Reason, "reason")
-			assert.Equal(t, tc.wantCondition.Message, cond.Message, "message")
+			require.Len(t, updatedEA.Status.UserFacingConditions, len(tc.wantConditions),
+				"expected %d user-facing conditions", len(tc.wantConditions))
+			for _, want := range tc.wantConditions {
+				cond := apimeta.FindStatusCondition(updatedEA.Status.UserFacingConditions, want.Type)
+				require.NotNil(t, cond, fmt.Sprintf("aggregator must set the %s condition", want.Type))
+				assert.Equal(t, want.Status, cond.Status, "status for %s", want.Type)
+				assert.Equal(t, want.Reason, cond.Reason, "reason for %s", want.Type)
+				assert.Equal(t, want.Message, cond.Message, "message for %s", want.Type)
+			}
 		})
 	}
 }

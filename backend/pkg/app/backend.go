@@ -783,7 +783,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		unionReadDesireLister,
 		backendInformers,
 	)
-	externalAuthUserFacingAggregatorController := externalauthstatus.NewExternalAuthUserFacingAggregatorController(
+	externalAuthUserFacingAggregatorController := externalauthstatus.NewExternalAuthUserFacingConditionsAggregatorController(
 		b.options.ResourcesDBClient,
 		externalAuthLister,
 		serviceProviderExternalAuthLister,

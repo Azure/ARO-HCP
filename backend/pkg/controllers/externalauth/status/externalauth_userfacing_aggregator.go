@@ -17,10 +17,12 @@ package status
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"k8s.io/apimachinery/pkg/api/equality"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
@@ -32,49 +34,47 @@ import (
 )
 
 const (
-	externalAuthUserFacingAggregatorControllerName = "ExternalAuthUserFacingAggregator"
+	externalAuthUserFacingConditionsAggregatorControllerName = "ExternalAuthUserFacingConditionsAggregator"
 )
 
-// userFacingConditionTypes is the whitelist of condition types that are
-// promoted from ServiceProviderExternalAuth.Status.Conditions onto
-// ExternalAuth.Status.UserFacingConditions. Only conditions whose Type
-// appears in this set are surfaced through the ARM API.
-var userFacingConditionTypes = map[string]struct{}{
-	coreapi.ExternalAuthAvailableCondition: {},
-}
-
-// externalAuthUserFacingAggregator promotes whitelisted conditions from
-// ServiceProviderExternalAuth.Status.Conditions onto
+// externalAuthUserFacingConditionsAggregator promotes whitelisted conditions
+// from ServiceProviderExternalAuth.Status.Conditions onto
 // HCPOpenShiftClusterExternalAuth.Status.UserFacingConditions.
+//
+// A condition is promoted when its Type ends with the "Available" suffix
+// (e.g. "ConsoleAvailable", "CliAvailable"). Stale conditions that existed on
+// the ExternalAuth but are no longer present on the ServiceProviderExternalAuth
+// are removed, so that conditions for clients that have been removed from the
+// ExternalAuth spec do not linger.
 //
 // Backend controllers (e.g. ExternalAuthAvailableController) write conditions
 // onto ServiceProviderExternalAuth; this aggregator selectively lifts the
 // user-facing subset up to the ExternalAuth resource where they are visible
 // through the ARM API.
-type externalAuthUserFacingAggregator struct {
+type externalAuthUserFacingConditionsAggregator struct {
 	externalAuthLister                corelisters.ExternalAuthLister
 	serviceProviderExternalAuthLister corelisters.ServiceProviderExternalAuthLister
 	resourcesDBClient                 corecosmosstorage.ResourcesDBClient
 }
 
-var _ controllerutils.ExternalAuthSyncer = (*externalAuthUserFacingAggregator)(nil)
+var _ controllerutils.ExternalAuthSyncer = (*externalAuthUserFacingConditionsAggregator)(nil)
 
-// NewExternalAuthUserFacingAggregatorController creates a controller that
-// promotes whitelisted ServiceProviderExternalAuth conditions onto the
+// NewExternalAuthUserFacingConditionsAggregatorController creates a controller
+// that promotes whitelisted ServiceProviderExternalAuth conditions onto the
 // external auth's Status.UserFacingConditions.
-func NewExternalAuthUserFacingAggregatorController(
+func NewExternalAuthUserFacingConditionsAggregatorController(
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	externalAuthLister corelisters.ExternalAuthLister,
 	serviceProviderExternalAuthLister corelisters.ServiceProviderExternalAuthLister,
 	informers coreinformers.BackendInformers,
 ) controllerutils.Controller {
-	syncer := &externalAuthUserFacingAggregator{
+	syncer := &externalAuthUserFacingConditionsAggregator{
 		externalAuthLister:                externalAuthLister,
 		serviceProviderExternalAuthLister: serviceProviderExternalAuthLister,
 		resourcesDBClient:                 resourcesDBClient,
 	}
 	return controllerutils.NewExternalAuthWatchingController(
-		externalAuthUserFacingAggregatorControllerName,
+		externalAuthUserFacingConditionsAggregatorControllerName,
 		resourcesDBClient,
 		informers,
 		1*time.Minute,
@@ -82,7 +82,14 @@ func NewExternalAuthUserFacingAggregatorController(
 	)
 }
 
-func (c *externalAuthUserFacingAggregator) SyncOnce(ctx context.Context, key controllerutils.HCPExternalAuthKey) error {
+// isUserFacingCondition returns true if the condition type should be surfaced
+// through the ARM API. Currently, any condition whose Type ends with
+// "Available" is considered user-facing.
+func isUserFacingCondition(condType string) bool {
+	return strings.HasSuffix(condType, coreapi.ExternalAuthAvailableConditionSuffix)
+}
+
+func (c *externalAuthUserFacingConditionsAggregator) SyncOnce(ctx context.Context, key controllerutils.HCPExternalAuthKey) error {
 	existing, err := c.externalAuthLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPExternalAuthName)
 	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
@@ -100,11 +107,29 @@ func (c *externalAuthUserFacingAggregator) SyncOnce(ctx context.Context, key con
 	}
 
 	replacement := existing.DeepCopy()
+
+	// Collect the set of condition types being promoted from SPEA.
+	promoted := make(map[string]struct{})
 	for _, condition := range serviceProviderExternalAuth.Status.Conditions {
-		if _, ok := userFacingConditionTypes[condition.Type]; ok {
+		if isUserFacingCondition(condition.Type) {
 			apimeta.SetStatusCondition(&replacement.Status.UserFacingConditions, condition)
+			promoted[condition.Type] = struct{}{}
 		}
 	}
+
+	// Remove stale conditions that are no longer on the ServiceProviderExternalAuth (e.g. a
+	// client was removed from the ExternalAuth spec).
+	cleaned := make([]metav1.Condition, 0, len(replacement.Status.UserFacingConditions))
+	for _, condition := range replacement.Status.UserFacingConditions {
+		if isUserFacingCondition(condition.Type) {
+			if _, ok := promoted[condition.Type]; !ok {
+				continue
+			}
+		}
+		cleaned = append(cleaned, condition)
+	}
+	replacement.Status.UserFacingConditions = cleaned
+
 	if equality.Semantic.DeepEqual(existing.Status.UserFacingConditions, replacement.Status.UserFacingConditions) {
 		return nil
 	}
