@@ -25,10 +25,12 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	configv1 "github.com/openshift/api/config/v1"
+	"github.com/openshift/hypershift/api/hypershift/v1beta1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
@@ -42,10 +44,15 @@ const (
 )
 
 // externalAuthAvailableController reads the HostedCluster's OIDCClientStatus
-// conditions from the ReadDesire cache and maps them onto
-// ServiceProviderExternalAuth.Status.Conditions as an "Available" condition.
-// The ExternalAuthUserFacingAggregator then promotes selected conditions onto
-// ExternalAuth.Status.UserFacingConditions for ARM API visibility.
+// conditions from the ReadDesire cache and maps them onto a single Available
+// condition on ServiceProviderExternalAuth.Status.Conditions.
+//
+// The controller evaluates all declared clients and produces a single
+// worst-condition-wins Available condition. Public clients are always
+// considered ready. Confidential clients reflect the HostedCluster's OIDC
+// status. The ExternalAuthUserFacingConditionsAggregator then promotes
+// the Available condition onto ExternalAuth.Status.UserFacingConditions
+// for ARM API visibility.
 type externalAuthAvailableController struct {
 	externalAuthLister                corelisters.ExternalAuthLister
 	serviceProviderExternalAuthLister corelisters.ServiceProviderExternalAuthLister
@@ -57,8 +64,9 @@ var _ controllerutils.ExternalAuthSyncer = (*externalAuthAvailableController)(ni
 
 // NewExternalAuthAvailableController creates a controller that reads
 // HostedCluster OIDCClientStatus conditions via the ReadDesire cache and maps
-// them onto ServiceProviderExternalAuth.Status.Conditions as an "Available"
-// condition. The aggregator is responsible for promoting these to user-facing.
+// them onto a single Available condition on
+// ServiceProviderExternalAuth.Status.Conditions. The aggregator is responsible
+// for promoting this to user-facing.
 func NewExternalAuthAvailableController(
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	externalAuthLister corelisters.ExternalAuthLister,
@@ -110,9 +118,12 @@ func (c *externalAuthAvailableController) SyncOnce(ctx context.Context, key cont
 	if err != nil {
 		return err
 	}
+	if condition == nil {
+		return nil
+	}
 
 	replacement := serviceProviderExternalAuth.DeepCopy()
-	apimeta.SetStatusCondition(&replacement.Status.Conditions, condition)
+	apimeta.SetStatusCondition(&replacement.Status.Conditions, *condition)
 	if equality.Semantic.DeepEqual(serviceProviderExternalAuth.Status.Conditions, replacement.Status.Conditions) {
 		return nil
 	}
@@ -128,10 +139,45 @@ func (c *externalAuthAvailableController) SyncOnce(ctx context.Context, key cont
 	return nil
 }
 
-// determineAvailableCondition reads HostedCluster OIDC client status from the ReadDesire
-// cache and maps it to an Available condition. When err is nil, the returned condition is
-// always populated with a valid Type, Status, Reason, and Message.
-func (c *externalAuthAvailableController) determineAvailableCondition(ctx context.Context, externalAuth *coreapi.HCPOpenShiftClusterExternalAuth, key controllerutils.HCPExternalAuthKey) (metav1.Condition, error) {
+// conditionPriority defines the priority order for worst-condition-wins
+// aggregation. Lower numbers are worse (take precedence).
+func conditionPriority(c metav1.Condition) int {
+	switch {
+	case c.Status == metav1.ConditionFalse && c.Reason == coreapi.ExternalAuthReasonAwaitingSecret:
+		return 0
+	case c.Status == metav1.ConditionFalse:
+		return 1
+	case c.Status == metav1.ConditionUnknown:
+		return 2
+	case c.Status == metav1.ConditionTrue:
+		return 3
+	default:
+		return 1
+	}
+}
+
+// clientResult pairs a component name with the condition evaluated for it.
+type clientResult struct {
+	componentName string
+	condition     metav1.Condition
+}
+
+// determineAvailableCondition reads HostedCluster OIDC client status from the
+// ReadDesire cache and returns a single Available condition using
+// worst-condition-wins aggregation across all declared clients. Returns nil
+// when no clients are declared.
+//
+// The returned condition's Message is a composite of all per-client messages
+// in "componentName: message" format, joined by "; ". This preserves
+// per-component information within the single user-facing condition.
+//
+// Public clients are always True/OIDCConfigAvailable (they do not need secrets).
+// Confidential clients reflect the HostedCluster's OIDC status.
+func (c *externalAuthAvailableController) determineAvailableCondition(ctx context.Context, externalAuth *coreapi.HCPOpenShiftClusterExternalAuth, key controllerutils.HCPExternalAuthKey) (*metav1.Condition, error) {
+	if len(externalAuth.Properties.Clients) == 0 {
+		return nil, nil
+	}
+
 	hostedCluster, err := kubeapplierhelpers.GetCachedHostedClusterForCluster(
 		ctx,
 		c.readDesireLister,
@@ -140,15 +186,50 @@ func (c *externalAuthAvailableController) determineAvailableCondition(ctx contex
 		key.HCPClusterName,
 	)
 	if err != nil {
-		return metav1.Condition{}, utils.TrackError(err)
+		return nil, utils.TrackError(err)
 	}
+
+	var worst *clientResult
+	results := make([]clientResult, 0, len(externalAuth.Properties.Clients))
+
+	for _, client := range externalAuth.Properties.Clients {
+		candidate := c.evaluateClient(client, hostedCluster)
+		cr := clientResult{componentName: client.Component.Name, condition: candidate}
+		results = append(results, cr)
+		if worst == nil || conditionPriority(candidate) < conditionPriority(worst.condition) {
+			worst = &results[len(results)-1]
+		}
+	}
+
+	parts := make([]string, 0, len(results))
+	for _, r := range results {
+		parts = append(parts, fmt.Sprintf("%s: %s", r.componentName, r.condition.Message))
+	}
+	worst.condition.Message = strings.Join(parts, "; ")
+
+	return &worst.condition, nil
+}
+
+// evaluateClient produces an Available condition for a single client.
+// Public clients always return True/OIDCConfigAvailable. Confidential
+// clients depend on the HostedCluster's OIDC status.
+func (c *externalAuthAvailableController) evaluateClient(client coreapi.ExternalAuthClientProfile, hostedCluster *v1beta1.HostedCluster) metav1.Condition {
+	if client.Type == metadataapi.ExternalAuthClientTypePublic {
+		return metav1.Condition{
+			Type:    coreapi.ExternalAuthAvailableCondition,
+			Status:  metav1.ConditionTrue,
+			Reason:  coreapi.ExternalAuthReasonOIDCConfigAvailable,
+			Message: "Public client does not require a secret",
+		}
+	}
+
 	if hostedCluster == nil {
 		return metav1.Condition{
 			Type:    coreapi.ExternalAuthAvailableCondition,
 			Status:  metav1.ConditionFalse,
 			Reason:  coreapi.ExternalAuthReasonHostedClusterNotReady,
 			Message: "Waiting for HostedCluster to be observed",
-		}, nil
+		}
 	}
 
 	if hostedCluster.Status.Configuration == nil {
@@ -157,79 +238,44 @@ func (c *externalAuthAvailableController) determineAvailableCondition(ctx contex
 			Status:  metav1.ConditionUnknown,
 			Reason:  coreapi.ExternalAuthReasonHostedClusterNotReady,
 			Message: "HostedCluster authentication status not yet available",
-		}, nil
+		}
 	}
 
-	oidcClientStatusByComponent := c.matchingOIDCClientStatuses(externalAuth, hostedCluster.Status.Configuration.Authentication.OIDCClients)
-	if len(oidcClientStatusByComponent) == 0 {
+	oidcStatus := c.findOIDCClientStatus(client.Component.Name, client.Component.AuthClientNamespace, hostedCluster.Status.Configuration.Authentication.OIDCClients)
+	if oidcStatus == nil {
 		return metav1.Condition{
 			Type:    coreapi.ExternalAuthAvailableCondition,
 			Status:  metav1.ConditionFalse,
 			Reason:  coreapi.ExternalAuthReasonHostedClusterNotReady,
 			Message: "OIDC client status not yet reported by the hosted cluster",
-		}, nil
-	}
-
-	return c.worstAvailableCondition(oidcClientStatusByComponent), nil
-}
-
-// matchingOIDCClientStatuses returns HostedCluster OIDC client statuses that
-// correspond to this ExternalAuth's clients (component name + namespace).
-// Matching is case-insensitive. When the ExternalAuth has no clients, all
-// observed OIDC clients are returned.
-func (c *externalAuthAvailableController) matchingOIDCClientStatuses(externalAuth *coreapi.HCPOpenShiftClusterExternalAuth, observed []configv1.OIDCClientStatus) []configv1.OIDCClientStatus {
-	if len(externalAuth.Properties.Clients) == 0 {
-		return observed
-	}
-	wanted := make(map[string]struct{}, len(externalAuth.Properties.Clients))
-	for _, client := range externalAuth.Properties.Clients {
-		wanted[c.oidcClientKey(client.Component.Name, client.Component.AuthClientNamespace)] = struct{}{}
-	}
-	oidcClientStatusByComponent := make([]configv1.OIDCClientStatus, 0, len(observed))
-	for _, client := range observed {
-		if _, ok := wanted[c.oidcClientKey(client.ComponentName, client.ComponentNamespace)]; ok {
-			oidcClientStatusByComponent = append(oidcClientStatusByComponent, client)
 		}
 	}
-	return oidcClientStatusByComponent
+
+	return c.mapSingleClientConditions(oidcStatus.Conditions, client.Type)
+}
+
+// findOIDCClientStatus returns the OIDCClientStatus matching the given
+// component name and namespace (case-insensitive), or nil if not found.
+func (c *externalAuthAvailableController) findOIDCClientStatus(name, namespace string, observed []configv1.OIDCClientStatus) *configv1.OIDCClientStatus {
+	key := c.oidcClientKey(name, namespace)
+	for i := range observed {
+		if c.oidcClientKey(observed[i].ComponentName, observed[i].ComponentNamespace) == key {
+			return &observed[i]
+		}
+	}
+	return nil
 }
 
 func (c *externalAuthAvailableController) oidcClientKey(name, namespace string) string {
 	return strings.ToLower(name) + "/" + strings.ToLower(namespace)
 }
 
-// conditionPriority returns a numeric priority for a mapped Available condition.
-// Lower values are worse (and win in aggregation).
-func (c *externalAuthAvailableController) conditionPriority(cond metav1.Condition) int {
-	switch {
-	case cond.Status == metav1.ConditionFalse && cond.Reason == coreapi.ExternalAuthReasonAwaitingSecret:
-		return 0
-	case cond.Status == metav1.ConditionFalse:
-		return 1
-	default:
-		return 2
-	}
-}
-
-// worstAvailableCondition maps each matched OIDCClientStatus's conditions to
-// an Available condition and returns the worst across all clients.
-func (c *externalAuthAvailableController) worstAvailableCondition(oidcClientStatusByComponent []configv1.OIDCClientStatus) metav1.Condition {
-	worst := c.mapSingleClientConditions(oidcClientStatusByComponent[0].Conditions)
-	for _, client := range oidcClientStatusByComponent[1:] {
-		candidate := c.mapSingleClientConditions(client.Conditions)
-		if c.conditionPriority(candidate) < c.conditionPriority(worst) {
-			worst = candidate
-		}
-	}
-	return worst
-}
-
 // mapSingleClientConditions translates one OIDCClientStatus's conditions into
 // an Available condition for the ServiceProviderExternalAuth.
-func (c *externalAuthAvailableController) mapSingleClientConditions(conditions []metav1.Condition) metav1.Condition {
+func (c *externalAuthAvailableController) mapSingleClientConditions(conditions []metav1.Condition, clientType metadataapi.ExternalAuthClientType) metav1.Condition {
 	degraded := apimeta.FindStatusCondition(conditions, "Degraded")
 	if degraded != nil && degraded.Status == metav1.ConditionTrue {
-		if degraded.Reason == coreapi.HCReasonOIDCClientSecretGet {
+		if degraded.Reason == coreapi.HostedClusterOIDCClientSecretGet && clientType == metadataapi.ExternalAuthClientTypeConfidential {
 			return metav1.Condition{
 				Type:    coreapi.ExternalAuthAvailableCondition,
 				Status:  metav1.ConditionFalse,
@@ -247,7 +293,7 @@ func (c *externalAuthAvailableController) mapSingleClientConditions(conditions [
 
 	available := apimeta.FindStatusCondition(conditions, "Available")
 	if available != nil && available.Status == metav1.ConditionTrue &&
-		available.Reason == coreapi.HCReasonOIDCConfigAvailable {
+		available.Reason == coreapi.HostedClusterOIDCConfigAvailable {
 		return metav1.Condition{
 			Type:    coreapi.ExternalAuthAvailableCondition,
 			Status:  metav1.ConditionTrue,

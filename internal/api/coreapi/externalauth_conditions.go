@@ -14,17 +14,15 @@
 
 package coreapi
 
-// ExternalAuth availability condition Type values. These are written by the
-// ExternalAuthAvailableController onto ServiceProviderExternalAuth.Status.Conditions,
-// then promoted to ExternalAuth.Status.UserFacingConditions by the aggregator.
+// ExternalAuth user-facing condition Type written by the
+// ExternalAuthAvailableController onto ServiceProviderExternalAuth and
+// promoted to ExternalAuth.Status.UserFacingConditions by the aggregator.
 const (
-	// ExternalAuthAvailableCondition tracks whether the external auth OIDC
-	// configuration is fully operational on the hosted cluster.
 	ExternalAuthAvailableCondition = "Available"
 )
 
-// ExternalAuth availability condition Reason values used with
-// ExternalAuthAvailableCondition.
+// ExternalAuth availability condition Reason values used with the
+// Available condition.
 const (
 	// ExternalAuthReasonOIDCConfigAvailable indicates the OIDC client
 	// configuration is fully operational.
@@ -32,7 +30,8 @@ const (
 
 	// ExternalAuthReasonAwaitingSecret indicates the hosted cluster is
 	// waiting for the user to create the client secret in the
-	// openshift-config namespace.
+	// openshift-config namespace. Applies when any confidential client
+	// is waiting for its secret.
 	ExternalAuthReasonAwaitingSecret = "AwaitingSecret"
 
 	// ExternalAuthReasonHostedClusterNotReady indicates the hosted cluster
@@ -45,10 +44,10 @@ const (
 // operator at runtime. These are matched against when reading the
 // HostedCluster ReadDesire cache.
 const (
-	HCReasonOIDCConfigAvailable = "OIDCConfigAvailable"
+	HostedClusterOIDCConfigAvailable = "OIDCConfigAvailable"
 
-	// HCReasonOIDCClientSecretGet is the Hypershift Degraded condition reason
-	// when the operator cannot find/read the client secret the user must
-	// create in the openshift-config namespace.
-	HCReasonOIDCClientSecretGet = "OIDCClientSecretGet"
+	// HostedClusterOIDCClientSecretGet is the Hypershift Degraded condition
+	// reason when the operator cannot find/read the client secret the user
+	// must create in the openshift-config namespace.
+	HostedClusterOIDCClientSecretGet = "OIDCClientSecretGet"
 )

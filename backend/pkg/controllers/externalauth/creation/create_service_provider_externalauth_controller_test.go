@@ -31,6 +31,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
@@ -57,7 +58,7 @@ func newCreatorTestExternalAuthKey() controllerutils.HCPExternalAuthKey {
 
 func newCreatorTestExternalAuth(t *testing.T) *coreapi.HCPOpenShiftClusterExternalAuth {
 	t.Helper()
-	resourceID := metadataapi.Must(coreapi.ToExternalAuthResourceID(creatorTestSubscriptionID, creatorTestResourceGroup, creatorTestClusterName, creatorTestExternalAuthName))
+	resourceID := metadataapi.Must(coreapihelpers.ToExternalAuthResourceID(creatorTestSubscriptionID, creatorTestResourceGroup, creatorTestClusterName, creatorTestExternalAuthName))
 	return &coreapi.HCPOpenShiftClusterExternalAuth{
 		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: resourceID},
 		ProxyResource: coreapi.ProxyResource{
@@ -89,7 +90,7 @@ func (b *boomServiceProviderExternalAuthLister) Get(_ context.Context, _, _, _, 
 }
 
 func TestCreateServiceProviderExternalAuthSyncer_SyncOnce(t *testing.T) {
-	externalAuthResourceID := metadataapi.Must(coreapi.ToExternalAuthResourceID(creatorTestSubscriptionID, creatorTestResourceGroup, creatorTestClusterName, creatorTestExternalAuthName))
+	externalAuthResourceID := metadataapi.Must(coreapihelpers.ToExternalAuthResourceID(creatorTestSubscriptionID, creatorTestResourceGroup, creatorTestClusterName, creatorTestExternalAuthName))
 	listerBoom := errors.New("lister exploded")
 
 	tests := []struct {
@@ -125,7 +126,7 @@ func TestCreateServiceProviderExternalAuthSyncer_SyncOnce(t *testing.T) {
 		{
 			name: "ServiceProviderExternalAuth already in lister is a no-op",
 			buildSyncer: func(t *testing.T, mockDB *corecosmosstoragetesting.MockResourcesDBClient) *createServiceProviderExternalAuthSyncer {
-				speaResourceID := metadataapi.Must(azcorearm.ParseResourceID(externalAuthResourceID.String() + "/" + coreapi.ServiceProviderExternalAuthResourceTypeName + "/" + coreapi.ServiceProviderExternalAuthResourceName))
+				ServiceProviderExternalAuthResourceID := metadataapi.Must(azcorearm.ParseResourceID(externalAuthResourceID.String() + "/" + coreapi.ServiceProviderExternalAuthResourceTypeName + "/" + coreapi.ServiceProviderExternalAuthResourceName))
 				return &createServiceProviderExternalAuthSyncer{
 					resourcesDBClient: mockDB,
 					externalAuthLister: &corelistertesting.SliceExternalAuthLister{
@@ -133,7 +134,7 @@ func TestCreateServiceProviderExternalAuthSyncer_SyncOnce(t *testing.T) {
 					},
 					serviceProviderExternalAuthLister: &corelistertesting.SliceServiceProviderExternalAuthLister{
 						ServiceProviderExternalAuths: []*coreapi.ServiceProviderExternalAuth{{
-							CosmosMetadata: coreapi.CosmosMetadata{ResourceID: speaResourceID},
+							CosmosMetadata: coreapi.CosmosMetadata{ResourceID: ServiceProviderExternalAuthResourceID},
 						}},
 					},
 				}

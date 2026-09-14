@@ -27,6 +27,10 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+const (
+	CreateServiceProviderExternalAuthControllerName = "CreateServiceProviderExternalAuth"
+)
+
 // createServiceProviderExternalAuthSyncer ensures a ServiceProviderExternalAuth
 // document exists for every HCPOpenShiftClusterExternalAuth. Consumer backend
 // controllers (status, aggregation) read the ServiceProviderExternalAuth through
@@ -55,7 +59,7 @@ func NewCreateServiceProviderExternalAuthController(
 	}
 
 	return controllerutils.NewExternalAuthWatchingController(
-		"CreateServiceProviderExternalAuth",
+		CreateServiceProviderExternalAuthControllerName,
 		resourcesDBClient,
 		backendInformers,
 		1*time.Minute,

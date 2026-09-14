@@ -366,7 +366,7 @@ func NewServiceProviderExternalAuthInformerWithRelistDuration(lister cosmosstora
 	)
 
 	return cache.NewSharedIndexInformerWithOptions(
-		&informerutils.ListWatchWithoutWatchListSemantics{ListWatch: lw.ToListWatch()},
+		&informerutils.ListWatchWithoutWatchListSemantics{ListWatch: lw.ToListWatch(), InformerName: "ServiceProviderExternalAuths"},
 		&coreapi.ServiceProviderExternalAuth{},
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod: 1 * time.Hour,
