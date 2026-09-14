@@ -238,6 +238,7 @@ func TestClusterDenyAssignmentV2SyncOnceConfiguresWhenAzureAlreadyMatches(t *tes
 	assert.Nil(t, status.PendingAzureResource)
 	assert.NotNil(t, status.EarliestRecheckTime)
 	assert.Empty(t, mockGeneric.CreateCalls)
+	assert.Equal(t, seedTestObservedPermissions(cluster, denyAssignmentSuffixResources), status.ObservedPermissions)
 	require.NotEmpty(t, status.ExcludedIdentities)
 	for _, identityStatus := range status.ExcludedIdentities {
 		require.NotNil(t, identityStatus)
@@ -287,6 +288,7 @@ func TestClusterDenyAssignmentV2SyncOnceDeconfiguresTrackedResource(t *testing.T
 	assert.Nil(t, status.AzureResource)
 	assert.Nil(t, status.PendingAzureResource)
 	assert.Empty(t, status.ExcludedIdentities)
+	assert.Nil(t, status.ObservedPermissions)
 	require.Equal(t, []string{resourceID.String()}, mockGeneric.DeleteCalls)
 }
 

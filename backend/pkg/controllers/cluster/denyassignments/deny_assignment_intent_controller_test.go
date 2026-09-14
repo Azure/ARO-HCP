@@ -16,6 +16,7 @@ package denyassignments
 
 import (
 	"context"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -234,8 +235,9 @@ func TestDesiredDenyAssignmentsV2(t *testing.T) {
 		t.Parallel()
 		current := map[string]*coreapi.DenyAssignmentStatus{
 			denyAssignmentSuffixResources: {
-				Phase:              coreapi.DenyAssignmentPhaseConfigured,
-				ExcludedIdentities: seedTestExcludedIdentities(cluster, readySPC, denyAssignmentSuffixResources),
+				Phase:               coreapi.DenyAssignmentPhaseConfigured,
+				ExcludedIdentities:  seedTestExcludedIdentities(cluster, readySPC, denyAssignmentSuffixResources),
+				ObservedPermissions: seedTestObservedPermissions(cluster, denyAssignmentSuffixResources),
 			},
 		}
 		got, err := syncer.desiredDenyAssignmentsV2(cluster, readySPC, current)
@@ -256,8 +258,9 @@ func TestDesiredDenyAssignmentsV2(t *testing.T) {
 		observed[key].DeconfigureTimestamp = &stamped
 		current := map[string]*coreapi.DenyAssignmentStatus{
 			denyAssignmentSuffixResources: {
-				Phase:              coreapi.DenyAssignmentPhaseConfigured,
-				ExcludedIdentities: observed,
+				Phase:               coreapi.DenyAssignmentPhaseConfigured,
+				ExcludedIdentities:  observed,
+				ObservedPermissions: seedTestObservedPermissions(cluster, denyAssignmentSuffixResources),
 			},
 		}
 		got, err := syncer.desiredDenyAssignmentsV2(cluster, readySPC, current)
@@ -268,6 +271,36 @@ func TestDesiredDenyAssignmentsV2(t *testing.T) {
 		assert.Nil(t, gotStatus.DeconfigureTimestamp)
 		require.NotNil(t, gotStatus.ObservedIdentity)
 		assert.Equal(t, testClientID(capi), gotStatus.ObservedIdentity.ClientID)
+	})
+
+	t.Run("configured type with missing observed permissions becomes PendingConfigure", func(t *testing.T) {
+		t.Parallel()
+		current := map[string]*coreapi.DenyAssignmentStatus{
+			denyAssignmentSuffixResources: {
+				Phase:              coreapi.DenyAssignmentPhaseConfigured,
+				ExcludedIdentities: seedTestExcludedIdentities(cluster, readySPC, denyAssignmentSuffixResources),
+			},
+		}
+		got, err := syncer.desiredDenyAssignmentsV2(cluster, readySPC, current)
+		require.NoError(t, err)
+		assert.Equal(t, coreapi.DenyAssignmentPhasePendingConfigure, got[denyAssignmentSuffixResources].Phase)
+	})
+
+	t.Run("configured type with drifted observed permissions becomes PendingConfigure", func(t *testing.T) {
+		t.Parallel()
+		observedPermissions := seedTestObservedPermissions(cluster, denyAssignmentSuffixResources)
+		observedPermissions.Actions = append(slices.Clone(observedPermissions.Actions), "Microsoft.Example/drifted")
+		current := map[string]*coreapi.DenyAssignmentStatus{
+			denyAssignmentSuffixResources: {
+				Phase:               coreapi.DenyAssignmentPhaseConfigured,
+				ExcludedIdentities:  seedTestExcludedIdentities(cluster, readySPC, denyAssignmentSuffixResources),
+				ObservedPermissions: observedPermissions,
+			},
+		}
+		got, err := syncer.desiredDenyAssignmentsV2(cluster, readySPC, current)
+		require.NoError(t, err)
+		assert.Equal(t, coreapi.DenyAssignmentPhasePendingConfigure, got[denyAssignmentSuffixResources].Phase)
+		assert.Equal(t, observedPermissions, got[denyAssignmentSuffixResources].ObservedPermissions)
 	})
 }
 

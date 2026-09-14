@@ -73,7 +73,8 @@ const (
 // ExcludePrincipals is built from live desired principals plus observed
 // cooldown waiters still inside the 24h wait, capped at 25 with oldest
 // waiters dropped first. After a successful PUT, ObservedIdentity is written
-// for included principals and omitted waiters are deleted from the map.
+// for included principals, ObservedPermissions is written from the live
+// definition, and omitted waiters are deleted from the map.
 // PendingDeconfigure deletes the resource IDs already tracked on AzureResource
 // and PendingAzureResource.
 // Cluster deletion (DeletionTimestamp set) skips all work: deny assignments
@@ -406,6 +407,7 @@ func (s *clusterDenyAssignmentV2Syncer) ensureType(
 
 	status.AzureResource = desiredResourceID
 	status.PendingAzureResource = nil
+	status.ObservedPermissions = observedPermissionsFromDefinition(definition)
 	status.Phase = coreapi.DenyAssignmentPhaseConfigured
 	recheckAt := metav1.NewTime(s.clock.Now().Add(wait.Jitter(clusterDenyAssignmentV2RecheckInterval, clusterDenyAssignmentV2RecheckJitter)))
 	status.EarliestRecheckTime = &recheckAt
@@ -446,6 +448,7 @@ func (s *clusterDenyAssignmentV2Syncer) deconfigureType(
 	status.PendingAzureResource = nil
 	status.AzureResource = nil
 	status.ExcludedIdentities = nil
+	status.ObservedPermissions = nil
 	status.Phase = coreapi.DenyAssignmentPhaseDeconfigured
 	recheckAt := metav1.NewTime(s.clock.Now().Add(wait.Jitter(clusterDenyAssignmentV2RecheckInterval, clusterDenyAssignmentV2RecheckJitter)))
 	status.EarliestRecheckTime = &recheckAt

@@ -237,6 +237,14 @@ func seedTestExcludedIdentities(
 	return identities
 }
 
+func seedTestObservedPermissions(cluster *coreapi.HCPOpenShiftCluster, denyAssignmentType string) *coreapi.DenyAssignmentObservedPermissions {
+	definition := denyAssignmentDefinitionsByType(cluster)[denyAssignmentType]
+	if definition == nil {
+		panic("no definition for deny assignment type " + denyAssignmentType)
+	}
+	return observedPermissionsFromDefinition(definition)
+}
+
 func newTestSPC(opts ...func(*coreapi.ServiceProviderCluster)) *coreapi.ServiceProviderCluster {
 	resourceID := metadataapi.Must(azcorearm.ParseResourceID(fmt.Sprintf("%s/%s/%s",
 		testClusterResourceID().String(),

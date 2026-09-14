@@ -16,6 +16,7 @@ package denyassignments
 
 import (
 	"fmt"
+	"slices"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -216,6 +217,40 @@ func denyAssignmentDefinitionsByType(cluster *coreapi.HCPOpenShiftCluster) map[s
 		byType[defs[i].denyAssignmentType] = &defs[i]
 	}
 	return byType
+}
+
+func observedPermissionsFromDefinition(definition *denyAssignmentDefinition) *coreapi.DenyAssignmentObservedPermissions {
+	if definition == nil {
+		return nil
+	}
+	return &coreapi.DenyAssignmentObservedPermissions{
+		Actions:     slices.Clone(definition.actions),
+		NotActions:  slices.Clone(definition.notActions),
+		DataActions: slices.Clone(definition.dataActions),
+	}
+}
+
+func observedPermissionsMatch(observed *coreapi.DenyAssignmentObservedPermissions, definition *denyAssignmentDefinition) bool {
+	if observed == nil || definition == nil {
+		return false
+	}
+	return denyAssignmentStringSlicesEqual(observed.Actions, definition.actions) &&
+		denyAssignmentStringSlicesEqual(observed.NotActions, definition.notActions) &&
+		denyAssignmentStringSlicesEqual(observed.DataActions, definition.dataActions)
+}
+
+func denyAssignmentStringSlicesEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	if len(a) == 0 {
+		return true
+	}
+	left := slices.Clone(a)
+	right := slices.Clone(b)
+	slices.Sort(left)
+	slices.Sort(right)
+	return slices.Equal(left, right)
 }
 
 func allDenyAssignmentReferences(cluster *coreapi.HCPOpenShiftCluster) ([]coreapi.DenyAssignmentReference, error) {

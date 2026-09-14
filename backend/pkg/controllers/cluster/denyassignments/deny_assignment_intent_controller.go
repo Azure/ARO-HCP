@@ -52,9 +52,11 @@ const ClusterDenyAssignmentIntentControllerName = "ClusterDenyAssignmentIntent"
 //     / PendingConfigure if already present and the observed identity set
 //     matches). Types whose identities are not yet resolved are not added.
 //   - A Configured type whose live desired principals are missing from
-//     ExcludedIdentities, or whose ObservedIdentity does not match, is set
-//     back to PendingConfigure. A ClientID or TenantID change on a
-//     still-desired key is that kind of drift; it does not deconfigure.
+//     ExcludedIdentities, whose ObservedIdentity does not match, or whose
+//     ObservedPermissions do not match the live definition (including a
+//     missing snapshot), is set back to PendingConfigure. A ClientID or
+//     TenantID change on a still-desired key is identity drift; it does not
+//     deconfigure.
 //   - Identities that left the type, or whose PrincipalID changed, keep their
 //     observed row. The first transition stamps DeconfigureTimestamp. If the
 //     principal is desired again before the wait ends, the timestamp is cleared.
@@ -181,7 +183,8 @@ func (s *clusterDenyAssignmentIntentSyncer) desiredDenyAssignmentsV2(
 	// First loop: types that are currently required. Add PendingConfigure when
 	// identities are resolved. Types already PendingConfigure are left as-is at
 	// the type level. Configured types stay Configured unless live desired
-	// principals are missing from ExcludedIdentities or ObservedIdentity drifted.
+	// principals are missing from ExcludedIdentities, ObservedIdentity drifted,
+	// or ObservedPermissions do not match the live definition.
 	// Types already PendingDeconfigure or Deconfigured are flipped back to
 	// PendingConfigure because they are desired again. If identities are not
 	// ready, existing required types are kept so a transient fetch error does
@@ -242,7 +245,7 @@ func (s *clusterDenyAssignmentIntentSyncer) desiredDenyAssignmentsV2(
 			coreapi.DenyAssignmentPhaseDeconfigured:
 			next.Phase = coreapi.DenyAssignmentPhasePendingConfigure
 		case coreapi.DenyAssignmentPhaseConfigured:
-			if needEnsure {
+			if needEnsure || !observedPermissionsMatch(existing.ObservedPermissions, definition) {
 				next.Phase = coreapi.DenyAssignmentPhasePendingConfigure
 			}
 		}

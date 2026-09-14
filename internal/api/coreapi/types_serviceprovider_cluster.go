@@ -502,6 +502,15 @@ type DenyAssignmentStatus struct {
 	// is tracked on ExcludedIdentities after each successful PUT.
 	// Written by: ClusterDenyAssignmentV2
 	AzureResource *azcorearm.ResourceID `json:"azureResource,omitempty"`
+	// ObservedPermissions is the Actions / NotActions / DataActions written on
+	// the last successful Azure PUT for this type. ClusterDenyAssignmentIntent
+	// compares this snapshot to the live deny assignment definition and sets
+	// type Phase to PendingConfigure when they differ, so a definition change
+	// does not wait for EarliestRecheckTime. Missing on a Configured type is
+	// also PendingConfigure so the snapshot is populated. Cleared after a
+	// successful type delete. Intent does not write this field.
+	// Written by: ClusterDenyAssignmentV2
+	ObservedPermissions *DenyAssignmentObservedPermissions `json:"observedPermissions,omitempty"`
 	// ExcludedIdentities is the last successful Azure ExcludePrincipals set for
 	// this type. Presence of a key means that principal was on the last PUT
 	// (or is still on Azure during the 24h keep). The map key is ResourceID and
@@ -519,6 +528,20 @@ type DenyAssignmentStatus struct {
 	// deletes omitted waiters.
 	// Written by: ClusterDenyAssignmentIntent, ClusterDenyAssignmentV2
 	ExcludedIdentities map[DenyAssignmentExcludedIdentityKey]*DenyAssignmentExcludedIdentityStatus `json:"excludedIdentities,omitempty"`
+}
+
+// DenyAssignmentObservedPermissions is the permission set associated with one
+// deny assignment type on the last successful Azure PUT.
+type DenyAssignmentObservedPermissions struct {
+	// Actions is the deny assignment Actions list written to Azure.
+	// Written by: ClusterDenyAssignmentV2
+	Actions []string `json:"actions,omitempty"`
+	// NotActions is the deny assignment NotActions list written to Azure.
+	// Written by: ClusterDenyAssignmentV2
+	NotActions []string `json:"notActions,omitempty"`
+	// DataActions is the deny assignment DataActions list written to Azure.
+	// Written by: ClusterDenyAssignmentV2
+	DataActions []string `json:"dataActions,omitempty"`
 }
 
 // DenyAssignmentExcludedIdentityKey is the key for ExcludedIdentities.
