@@ -122,3 +122,16 @@ rules:
   - update
   - patch
   - delete
+- apiGroups:
+  - multitenancy.acn.azure.com
+  resources:
+  - podnetworks
+  - podnetworkinstances
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
