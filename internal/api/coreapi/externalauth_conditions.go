@@ -14,26 +14,39 @@
 
 package coreapi
 
-// ExternalAuth availability condition Type values. These are written by the
-// ExternalAuthAvailableController onto ServiceProviderExternalAuth.Status.Conditions,
-// then promoted to ExternalAuth.Status.UserFacingConditions by the aggregator.
+import "strings"
+
+// ExternalAuth per-client availability condition Type suffix. The
+// ExternalAuthAvailableController writes one condition per declared client
+// onto ServiceProviderExternalAuth.Status.Conditions with Type =
+// "<ComponentName>Available" (e.g. "ConsoleAvailable",
+// "CliAvailable"). The aggregator promotes conditions ending in this suffix
+// to ExternalAuth.Status.UserFacingConditions.
 const (
-	// ExternalAuthAvailableCondition tracks whether the external auth OIDC
-	// configuration is fully operational on the hosted cluster.
-	ExternalAuthAvailableCondition = "Available"
+	ExternalAuthAvailableConditionSuffix = "Available"
 )
 
-// ExternalAuth availability condition Reason values used with
-// ExternalAuthAvailableCondition.
+// PerClientAvailableConditionType returns the per-client condition type for a
+// given component name. For example "console" -> "ConsoleAvailable",
+// "cli" -> "CliAvailable".
+func PerClientAvailableConditionType(componentName string) string {
+	if componentName == "" {
+		return ExternalAuthAvailableConditionSuffix
+	}
+	return strings.ToUpper(componentName[:1]) + componentName[1:] + ExternalAuthAvailableConditionSuffix
+}
+
+// ExternalAuth availability condition Reason values used with per-client
+// Available conditions.
 const (
 	// ExternalAuthReasonOIDCConfigAvailable indicates the OIDC client
 	// configuration is fully operational.
 	ExternalAuthReasonOIDCConfigAvailable = "OIDCConfigAvailable"
 
-	// ExternalAuthReasonAwaitingSecret indicates the hosted cluster is
-	// waiting for the user to create the client secret in the
-	// openshift-config namespace.
-	ExternalAuthReasonAwaitingSecret = "AwaitingSecret"
+	// ExternalAuthConfidentialReasonAwaitingSecret indicates the hosted
+	// cluster is waiting for the user to create the client secret in the
+	// openshift-config namespace. Only applies to confidential clients.
+	ExternalAuthConfidentialReasonAwaitingSecret = "AwaitingSecret"
 
 	// ExternalAuthReasonHostedClusterNotReady indicates the hosted cluster
 	// status has not yet been observed or does not report authentication
@@ -45,10 +58,10 @@ const (
 // operator at runtime. These are matched against when reading the
 // HostedCluster ReadDesire cache.
 const (
-	HCReasonOIDCConfigAvailable = "OIDCConfigAvailable"
+	HostedClusterOIDCConfigAvailable = "OIDCConfigAvailable"
 
-	// HCReasonOIDCClientSecretGet is the Hypershift Degraded condition reason
-	// when the operator cannot find/read the client secret the user must
-	// create in the openshift-config namespace.
-	HCReasonOIDCClientSecretGet = "OIDCClientSecretGet"
+	// HostedClusterOIDCClientSecretGet is the Hypershift Degraded condition
+	// reason when the operator cannot find/read the client secret the user
+	// must create in the openshift-config namespace.
+	HostedClusterOIDCClientSecretGet = "OIDCClientSecretGet"
 )
