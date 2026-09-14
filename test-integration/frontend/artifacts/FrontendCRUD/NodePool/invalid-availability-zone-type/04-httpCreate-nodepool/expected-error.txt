@@ -1,1 +1,3 @@
-AvailabilityZone: json: cannot unmarshal number into Go value of type string
+HTTP 400: {
+  "error": {
+    "code": "InvalidRequestContent",
