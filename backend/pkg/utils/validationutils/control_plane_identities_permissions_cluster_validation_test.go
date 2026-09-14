@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/blang/semver/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -1018,6 +1019,343 @@ func TestCheckMissingPermissionsForRouteTable(t *testing.T) {
 	}
 }
 
+func TestCheckMissingPermissionsForConditionalRequirements(t *testing.T) {
+	identityResourceID, err := azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-operator-identity")
+	require.NoError(t, err)
+
+	targetResourceID, err := azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-target")
+	require.NoError(t, err)
+
+	fakeToken := azcore.AccessToken{Token: "fake-jwt-token"}
+	const operatorName = "test-operator"
+	const assignAction = "Microsoft.ManagedIdentity/userAssignedIdentities/assign/action"
+
+	tests := []struct {
+		name         string
+		requirements []*azure.ConditionalResourcePermissionRequirement
+		setupMock    func(*azureclient.MockCheckAccessV2Client)
+		wantResult   []*identityResourceMissingPermissions
+		wantErr      bool
+	}{
+		{
+			name: "requirement not applicable is skipped without resolving a target",
+			requirements: []*azure.ConditionalResourcePermissionRequirement{
+				{
+					Name:    "not-applicable",
+					Applies: func(*coreapi.HCPOpenShiftCluster) bool { return false },
+					ResolveTarget: func(*coreapi.HCPOpenShiftCluster) (*azcorearm.ResourceID, error) {
+						t.Fatal("ResolveTarget must not be called when Applies returns false")
+						return nil, nil
+					},
+				},
+			},
+			wantResult: nil,
+		},
+		{
+			name: "resolve target error is propagated",
+			requirements: []*azure.ConditionalResourcePermissionRequirement{
+				{
+					Name:    "resolve-error",
+					Applies: func(*coreapi.HCPOpenShiftCluster) bool { return true },
+					ResolveTarget: func(*coreapi.HCPOpenShiftCluster) (*azcorearm.ResourceID, error) {
+						return nil, fmt.Errorf("boom")
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "violated precondition short-circuits CheckAccess",
+			requirements: []*azure.ConditionalResourcePermissionRequirement{
+				{
+					Name:    "precondition-violated",
+					Applies: func(*coreapi.HCPOpenShiftCluster) bool { return true },
+					ResolveTarget: func(*coreapi.HCPOpenShiftCluster) (*azcorearm.ResourceID, error) {
+						return targetResourceID, nil
+					},
+					Precondition: func(*coreapi.HCPOpenShiftCluster, *azcorearm.ResourceID) (bool, string, string) {
+						return true, "TestPreconditionViolated", "precondition violated message"
+					},
+					Actions: []string{assignAction},
+				},
+			},
+			wantResult: []*identityResourceMissingPermissions{
+				{
+					Resource: targetResourceID,
+					Identity: identityResourceID,
+					Reason:   "TestPreconditionViolated",
+					Message:  "precondition violated message",
+				},
+			},
+		},
+		{
+			name: "missing action produces result with remediation",
+			requirements: []*azure.ConditionalResourcePermissionRequirement{
+				{
+					Name:    "missing-action",
+					Applies: func(*coreapi.HCPOpenShiftCluster) bool { return true },
+					ResolveTarget: func(*coreapi.HCPOpenShiftCluster) (*azcorearm.ResourceID, error) {
+						return targetResourceID, nil
+					},
+					Actions: []string{assignAction},
+					Remediation: func(identity, target *azcorearm.ResourceID) string {
+						return fmt.Sprintf("grant assign/action on %s to %s", target, identity)
+					},
+				},
+			},
+			setupMock: func(m *azureclient.MockCheckAccessV2Client) {
+				m.EXPECT().CreateAuthorizationRequest(targetResourceID.String(), []string{assignAction}, fakeToken.Token).
+					Return(&azurecheckaccessv2client.AuthorizationRequest{
+						Actions: []azurecheckaccessv2client.ActionInfo{{Id: assignAction}},
+					}, nil)
+				m.EXPECT().CheckAccess(gomock.Any(), gomock.Any()).
+					Return(&azurecheckaccessv2client.AuthorizationDecisionResponse{
+						Value: []azurecheckaccessv2client.AuthorizationDecision{
+							{ActionId: assignAction, AccessDecision: azurecheckaccessv2client.NotAllowed},
+						},
+					}, nil)
+			},
+			wantResult: []*identityResourceMissingPermissions{
+				{
+					Resource: targetResourceID,
+					Identity: identityResourceID,
+					Decisions: []*checkaccessv2AuthorizationDecisionData{
+						{ActionID: assignAction, IsDataAction: false, AccessDecision: azurecheckaccessv2client.NotAllowed},
+					},
+					Remediation: fmt.Sprintf("grant assign/action on %s to %s", targetResourceID, identityResourceID),
+				},
+			},
+		},
+		{
+			name: "action granted returns nil",
+			requirements: []*azure.ConditionalResourcePermissionRequirement{
+				{
+					Name:    "granted",
+					Applies: func(*coreapi.HCPOpenShiftCluster) bool { return true },
+					ResolveTarget: func(*coreapi.HCPOpenShiftCluster) (*azcorearm.ResourceID, error) {
+						return targetResourceID, nil
+					},
+					Actions: []string{assignAction},
+				},
+			},
+			setupMock: func(m *azureclient.MockCheckAccessV2Client) {
+				m.EXPECT().CreateAuthorizationRequest(gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(&azurecheckaccessv2client.AuthorizationRequest{
+						Actions: []azurecheckaccessv2client.ActionInfo{{Id: assignAction}},
+					}, nil)
+				m.EXPECT().CheckAccess(gomock.Any(), gomock.Any()).
+					Return(&azurecheckaccessv2client.AuthorizationDecisionResponse{
+						Value: []azurecheckaccessv2client.AuthorizationDecision{
+							{ActionId: assignAction, AccessDecision: azurecheckaccessv2client.Allowed},
+						},
+					}, nil)
+			},
+			wantResult: nil,
+		},
+		{
+			name:         "operator with no requirements returns nil",
+			requirements: nil,
+			wantResult:   nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			mockClient := azureclient.NewMockCheckAccessV2Client(ctrl)
+			if tt.setupMock != nil {
+				tt.setupMock(mockClient)
+			}
+
+			v := &ControlPlaneIdentitiesPermissionsClusterValidation{
+				clusterScopedIdentitiesConfig: &azure.ClusterScopedIdentitiesConfig{
+					ControlPlaneOperatorsIdentities: azure.ControlPlaneOperatorsIdentities{
+						azure.ClusterOperatorIdentifier(operatorName): {
+							BaseClusterScopedOperatorIdentity: azure.BaseClusterScopedOperatorIdentity{
+								AdditionalPermissionRequirements: tt.requirements,
+							},
+						},
+					},
+				},
+			}
+			result, err := v.checkMissingPermissionsForConditionalRequirements(context.Background(), mockClient, &coreapi.HCPOpenShiftCluster{}, operatorName, identityResourceID, fakeToken)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+			assert.Equal(t, tt.wantResult, result)
+		})
+	}
+}
+
+func TestCheckMissingPermissionsForConditionalRequirementsVersionGating(t *testing.T) {
+	identityResourceID, err := azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-operator-identity")
+	require.NoError(t, err)
+
+	const operatorName = "test-operator"
+	minVersion := metadataapi.Must(semver.ParseTolerant("4.19"))
+	fakeToken := azcore.AccessToken{Token: "fake-jwt-token"}
+
+	// Applies always returns true and ResolveTarget always errors, so these cases distinguish
+	// "skipped by the version gate" (nil, nil) from "evaluated normally" (an error from
+	// ResolveTarget) without needing a full CheckAccess mock.
+	config := &azure.ClusterScopedIdentitiesConfig{
+		ControlPlaneOperatorsIdentities: azure.ControlPlaneOperatorsIdentities{
+			azure.ClusterOperatorIdentifier(operatorName): {
+				BaseClusterScopedOperatorIdentity: azure.BaseClusterScopedOperatorIdentity{
+					MinVersionInclusive: &minVersion,
+					AdditionalPermissionRequirements: []*azure.ConditionalResourcePermissionRequirement{
+						{
+							Name:    "always-applies",
+							Applies: func(*coreapi.HCPOpenShiftCluster) bool { return true },
+							ResolveTarget: func(*coreapi.HCPOpenShiftCluster) (*azcorearm.ResourceID, error) {
+								return nil, fmt.Errorf("resolve should not be reached when skipped by version")
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	tests := []struct {
+		name      string
+		versionID string
+		wantErr   bool
+	}{
+		{
+			name:      "version below floor is skipped entirely, no error",
+			versionID: "4.15.0",
+			wantErr:   false,
+		},
+		{
+			name:      "version at floor proceeds to normal evaluation",
+			versionID: "4.19.0",
+			wantErr:   true,
+		},
+		{
+			name:      "unparseable version fails open and proceeds to normal evaluation, matching pre-gate behavior",
+			versionID: "",
+			wantErr:   true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			v := &ControlPlaneIdentitiesPermissionsClusterValidation{
+				clusterScopedIdentitiesConfig: config,
+			}
+			cluster := &coreapi.HCPOpenShiftCluster{
+				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+					Version: coreapi.VersionProfile{ID: tt.versionID},
+				},
+			}
+
+			result, err := v.checkMissingPermissionsForConditionalRequirements(context.Background(), nil, cluster, operatorName, identityResourceID, fakeToken)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+			assert.Nil(t, result)
+		})
+	}
+}
+
+// TestFindMissingActionsForIdentityFixedChecksIgnoreVersion is a regression test: the fixed
+// NSG/VNet/Subnet/RouteTable checks ran unconditionally before ConditionalResourcePermissionRequirement
+// existed, and must keep doing so even when the operator identity's version range excludes the
+// cluster's version - only the new conditional-requirement checks are version-gated. Proven here
+// by asserting the NSG CheckAccess call still happens for an operator whose MinVersionInclusive is
+// above the cluster's version.
+func TestFindMissingActionsForIdentityFixedChecksIgnoreVersion(t *testing.T) {
+	identityResourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-operator-identity"))
+	nsgResourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.Network/networkSecurityGroups/test-nsg"))
+	subnetResourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/test-subnet"))
+	roleDefID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/providers/Microsoft.Authorization/roleDefinitions/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"))
+	const operatorName = "test-operator"
+	const testIdentityURL = "https://identity.example.com"
+
+	minVersion := metadataapi.Must(semver.ParseTolerant("4.19"))
+	config := &azure.ClusterScopedIdentitiesConfig{
+		ControlPlaneOperatorsIdentities: azure.ControlPlaneOperatorsIdentities{
+			azure.ClusterOperatorIdentifier(operatorName): {
+				BaseClusterScopedOperatorIdentity: azure.BaseClusterScopedOperatorIdentity{
+					MinVersionInclusive: &minVersion,
+					BaseClusterScopedIdentity: azure.BaseClusterScopedIdentity{
+						RoleDefinitions: []*azure.ClusterScopedIdentityRoleDefinition{
+							{DescriptiveName: "TestRole", ResourceID: roleDefID},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	cluster := &coreapi.HCPOpenShiftCluster{
+		// Below the operator's MinVersionInclusive (4.19) - would previously (incorrectly) have
+		// skipped every check for this operator, not just the conditional ones.
+		CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+			Version: coreapi.VersionProfile{ID: "4.15.0"},
+			Platform: coreapi.CustomerPlatformProfile{
+				SubnetID:               subnetResourceID,
+				NetworkSecurityGroupID: nsgResourceID,
+			},
+		},
+		ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+			ManagedIdentitiesDataPlaneIdentityURL: testIdentityURL,
+		},
+	}
+
+	roleDefResponse := armauthorization.RoleDefinitionsClientGetByIDResponse{
+		RoleDefinition: armauthorization.RoleDefinition{
+			ID: ptr.To(roleDefID.String()),
+			Properties: &armauthorization.RoleDefinitionProperties{
+				Permissions: []*armauthorization.Permission{
+					{Actions: []*string{ptr.To("Microsoft.Network/networkSecurityGroups/read")}},
+				},
+			},
+		},
+	}
+
+	ctrl := gomock.NewController(t)
+	mockCheckAccessClient := azureclient.NewMockCheckAccessV2Client(ctrl)
+	mockTokenBuilder := azureclient.NewMockMIDataplaneBasedIdentityAccessTokenRetrieverBuilder(ctrl)
+	mockTokenRetriever := azureclient.NewMockMIDataplaneBasedIdentityAccessTokenRetriever(ctrl)
+	mockCachedReader := cachedreader.NewMockRoleDefinitionsCachedReader(ctrl)
+
+	mockCachedReader.EXPECT().GetCachedByID(gomock.Any(), roleDefID.String(), nil).Return(roleDefResponse, nil).Times(2)
+	mockTokenBuilder.EXPECT().Build(testIdentityURL, identityResourceID).Return(mockTokenRetriever, nil)
+	mockTokenRetriever.EXPECT().GetToken(gomock.Any(), gomock.Any()).Return(azcore.AccessToken{Token: "fake-token"}, nil)
+	// The NSG check must still run despite the cluster being below the operator's MinVersionInclusive.
+	mockCheckAccessClient.EXPECT().CreateAuthorizationRequest(nsgResourceID.String(), gomock.Any(), "fake-token").
+		Return(&azurecheckaccessv2client.AuthorizationRequest{
+			Actions: []azurecheckaccessv2client.ActionInfo{{Id: "Microsoft.Network/networkSecurityGroups/read"}},
+		}, nil)
+	mockCheckAccessClient.EXPECT().CheckAccess(gomock.Any(), gomock.Any()).
+		Return(&azurecheckaccessv2client.AuthorizationDecisionResponse{
+			Value: []azurecheckaccessv2client.AuthorizationDecision{
+				{ActionId: "Microsoft.Network/networkSecurityGroups/read", AccessDecision: azurecheckaccessv2client.Allowed},
+			},
+		}, nil)
+
+	v := &ControlPlaneIdentitiesPermissionsClusterValidation{
+		clusterScopedIdentitiesConfig:               config,
+		backendIdentityAzureCachedReaders:           &cachedreader.BackendIdentityAzureCachedReaders{RoleDefinitionsCachedReader: mockCachedReader},
+		miDataplaneBasedAccessTokenRetrieverBuilder: mockTokenBuilder,
+		checkAccessV2Scope:                          "https://management.azure.com/.default",
+	}
+
+	clusterSubnet := &armnetwork.Subnet{Properties: &armnetwork.SubnetPropertiesFormat{}}
+	result, err := v.findMissingActionsForIdentity(context.Background(), mockCheckAccessClient, cluster, operatorName, identityResourceID, clusterSubnet)
+
+	require.NoError(t, err)
+	assert.Nil(t, result)
+}
+
 func TestRoleActionsForOperator(t *testing.T) {
 	roleDefID1, err := azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/providers/Microsoft.Authorization/roleDefinitions/11111111-1111-1111-1111-111111111111")
 	require.NoError(t, err)
@@ -1341,6 +1679,7 @@ func TestValidate(t *testing.T) {
 			ManagedIdentitiesDataPlaneIdentityURL: testIdentityURL,
 		},
 		CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+			Version: coreapi.VersionProfile{ID: "4.19.0"},
 			Platform: coreapi.CustomerPlatformProfile{
 				SubnetID:               subnetResourceID,
 				NetworkSecurityGroupID: nsgResourceID,
@@ -1478,4 +1817,142 @@ func TestValidate(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestValidateAggregatesConditionalRequirements(t *testing.T) {
+	const (
+		testTenantID         = "11111111-1111-1111-1111-111111111111"
+		testSubscriptionID   = "00000000-0000-0000-0000-000000000000"
+		testIdentityURL      = "https://identity.example.com"
+		testCheckAccessScope = "https://management.azure.com/.default"
+		assignAction         = "Microsoft.ManagedIdentity/userAssignedIdentities/assign/action"
+	)
+
+	clusterResourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID + "/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster"))
+	subnetResourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID + "/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/test-subnet"))
+	nsgResourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID + "/resourceGroups/test-rg/providers/Microsoft.Network/networkSecurityGroups/test-nsg"))
+	operatorIdentityResourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID + "/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-operator-identity"))
+	smiResourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID + "/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-smi"))
+	roleDefID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID + "/providers/Microsoft.Authorization/roleDefinitions/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"))
+	targetResourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID + "/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-target"))
+
+	clusterSubscription := &coreapi.Subscription{
+		Properties: &coreapi.SubscriptionProperties{
+			TenantId: ptr.To(testTenantID),
+		},
+	}
+
+	cluster := &coreapi.HCPOpenShiftCluster{
+		TrackedResource: coreapi.TrackedResource{
+			Resource: coreapi.Resource{ID: clusterResourceID},
+		},
+		ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+			ManagedIdentitiesDataPlaneIdentityURL: testIdentityURL,
+		},
+		CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+			Version: coreapi.VersionProfile{ID: "4.19.0"},
+			Platform: coreapi.CustomerPlatformProfile{
+				SubnetID:               subnetResourceID,
+				NetworkSecurityGroupID: nsgResourceID,
+				OperatorsAuthentication: coreapi.OperatorsAuthenticationProfile{
+					UserAssignedIdentities: coreapi.UserAssignedIdentitiesProfile{
+						ControlPlaneOperators: map[string]*azcorearm.ResourceID{
+							string(azure.ClusterOperatorIdentifierClusterAPIAzure): operatorIdentityResourceID,
+						},
+						ServiceManagedIdentity: smiResourceID,
+					},
+				},
+			},
+		},
+	}
+
+	// A role definition action unrelated to NSG/VNet/Subnet/RouteTable so those fixed checks
+	// have nothing to check (0 required actions) and skip CheckAccess entirely - isolating the
+	// aggregation being tested here to the conditional requirement below.
+	roleDefResponse := armauthorization.RoleDefinitionsClientGetByIDResponse{
+		RoleDefinition: armauthorization.RoleDefinition{
+			ID: ptr.To(roleDefID.String()),
+			Properties: &armauthorization.RoleDefinitionProperties{
+				Permissions: []*armauthorization.Permission{
+					{Actions: []*string{ptr.To("Microsoft.Storage/storageAccounts/read")}},
+				},
+			},
+		},
+	}
+
+	subnetGetResponse := armnetwork.SubnetsClientGetResponse{
+		Subnet: armnetwork.Subnet{
+			Properties: &armnetwork.SubnetPropertiesFormat{RouteTable: nil},
+		},
+	}
+
+	config := &azure.ClusterScopedIdentitiesConfig{
+		ControlPlaneOperatorsIdentities: azure.ControlPlaneOperatorsIdentities{
+			azure.ClusterOperatorIdentifierClusterAPIAzure: {
+				BaseClusterScopedOperatorIdentity: azure.BaseClusterScopedOperatorIdentity{
+					BaseClusterScopedIdentity: azure.BaseClusterScopedIdentity{
+						RoleDefinitions: []*azure.ClusterScopedIdentityRoleDefinition{
+							{DescriptiveName: "TestRole", ResourceID: roleDefID},
+						},
+					},
+					AdditionalPermissionRequirements: []*azure.ConditionalResourcePermissionRequirement{
+						{
+							Name:    "test-conditional-requirement",
+							Applies: func(*coreapi.HCPOpenShiftCluster) bool { return true },
+							ResolveTarget: func(*coreapi.HCPOpenShiftCluster) (*azcorearm.ResourceID, error) {
+								return targetResourceID, nil
+							},
+							Actions: []string{assignAction},
+							Remediation: func(identity, target *azcorearm.ResourceID) string {
+								return fmt.Sprintf("grant assign/action on %s to %s", target, identity)
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	ctrl := gomock.NewController(t)
+
+	mockCheckAccessBuilder := azureclient.NewMockCheckAccessV2ClientBuilder(ctrl)
+	mockCheckAccessClient := azureclient.NewMockCheckAccessV2Client(ctrl)
+	mockSMIBuilder := azureclient.NewMockServiceManagedIdentityClientBuilder(ctrl)
+	mockSubnetsClient := azureclient.NewMockSubnetsClient(ctrl)
+	mockTokenBuilder := azureclient.NewMockMIDataplaneBasedIdentityAccessTokenRetrieverBuilder(ctrl)
+	mockTokenRetriever := azureclient.NewMockMIDataplaneBasedIdentityAccessTokenRetriever(ctrl)
+	mockCachedReader := cachedreader.NewMockRoleDefinitionsCachedReader(ctrl)
+
+	mockCheckAccessBuilder.EXPECT().Build(testTenantID).Return(mockCheckAccessClient, nil)
+	mockSMIBuilder.EXPECT().SubnetsClient(gomock.Any(), testIdentityURL, smiResourceID, testSubscriptionID).Return(mockSubnetsClient, nil)
+	mockSubnetsClient.EXPECT().Get(gomock.Any(), subnetResourceID.ResourceGroupName, subnetResourceID.Parent.Name, subnetResourceID.Name, nil).Return(subnetGetResponse, nil)
+	mockCachedReader.EXPECT().GetCachedByID(gomock.Any(), roleDefID.String(), nil).Return(roleDefResponse, nil).Times(2)
+	mockTokenBuilder.EXPECT().Build(testIdentityURL, operatorIdentityResourceID).Return(mockTokenRetriever, nil)
+	mockTokenRetriever.EXPECT().GetToken(gomock.Any(), gomock.Any()).Return(azcore.AccessToken{Token: "fake-token"}, nil)
+
+	mockCheckAccessClient.EXPECT().CreateAuthorizationRequest(targetResourceID.String(), []string{assignAction}, "fake-token").
+		Return(&azurecheckaccessv2client.AuthorizationRequest{
+			Actions: []azurecheckaccessv2client.ActionInfo{{Id: assignAction}},
+		}, nil)
+	mockCheckAccessClient.EXPECT().CheckAccess(gomock.Any(), gomock.Any()).
+		Return(&azurecheckaccessv2client.AuthorizationDecisionResponse{
+			Value: []azurecheckaccessv2client.AuthorizationDecision{
+				{ActionId: assignAction, AccessDecision: azurecheckaccessv2client.NotAllowed},
+			},
+		}, nil)
+
+	v := NewControlPlaneIdentitiesPermissionsClusterValidation(
+		mockSMIBuilder,
+		config,
+		&cachedreader.BackendIdentityAzureCachedReaders{RoleDefinitionsCachedReader: mockCachedReader},
+		mockCheckAccessBuilder,
+		mockTokenBuilder,
+		testCheckAccessScope,
+	)
+
+	result := v.Validate(context.Background(), clusterSubscription, cluster)
+	require.NoError(t, result.Validate())
+	assert.Equal(t, OutcomeTypeFailed, result.Outcome.Type)
+	assert.Contains(t, result.InternalMessage(), `"resource":"`+targetResourceID.String()+`"`)
+	assert.Contains(t, result.InternalMessage(), `"remediation":"grant assign/action on `+targetResourceID.String()+" to "+operatorIdentityResourceID.String()+`"`)
 }
