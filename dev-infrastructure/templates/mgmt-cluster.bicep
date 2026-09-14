@@ -4,7 +4,6 @@ import {
 } from '../modules/common.bicep'
 
 import * as mi from '../modules/managed-identities.bicep'
-import * as res from '../modules/resource.bicep'
 
 @description('Azure Region Location')
 param location string = resourceGroup().location
@@ -172,15 +171,6 @@ param kubeApplierNamespace string
 
 @description('The service account name for kube-applier.')
 param kubeApplierServiceAccountName string
-
-@description('The CosmosDB container name for kube-applier.')
-param kubeApplierContainerName string
-
-@description('The autoscale max throughput for the kube-applier CosmosDB container.')
-param kubeApplierContainerMaxScale int
-
-@description('The principal ID of the Clusters Service (CS) managed identity, sourced from the service resource group. Granted read/write on the per-management-cluster kube-applier CosmosDB container.')
-param csManagedIdentityPrincipalId string
 
 @description('The name of the mgmt-agent managed identity.')
 param mgmtAgentMIName string
@@ -558,27 +548,6 @@ module eventGrindPrivateEndpoint '../modules/private-endpoint.bicep' = {
     vnetId: vnetCreation.outputs.vnetId
     serviceType: 'eventgrid'
     groupId: 'topicspace'
-  }
-}
-
-//
-//   K U B E   A P P L I E R
-//
-
-var rpCosmosDbAccountRef = res.cosmosDBAccountRefFromId(rpCosmosDbAccountId)
-
-module kubeApplierCosmos '../modules/rp-cosmos-kube-applier.bicep' = if (rpCosmosDbAccountId != '') {
-  name: 'kube-applier-cosmos-${uniqueString(resourceGroup().name)}'
-  scope: resourceGroup(rpCosmosDbAccountRef.resourceGroup.subscriptionId, rpCosmosDbAccountRef.resourceGroup.name)
-  params: {
-    cosmosDBAccountName: rpCosmosDbAccountRef.name
-    containerName: kubeApplierContainerName
-    containerMaxScale: kubeApplierContainerMaxScale
-    kubeApplierManagedIdentityPrincipalId: mi.getManagedIdentityByName(
-      managedIdentities.outputs.managedIdentities,
-      kubeApplierMIName
-    ).uamiPrincipalID
-    csManagedIdentityPrincipalId: csManagedIdentityPrincipalId
   }
 }
 
