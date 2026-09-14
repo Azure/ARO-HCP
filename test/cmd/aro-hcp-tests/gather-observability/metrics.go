@@ -26,6 +26,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/monitor/armmonitor"
 )
 
@@ -97,15 +98,22 @@ func stepToISO8601(step string) string {
 // the successful series are still returned so the chart renders, and the
 // warning surfaces the partial failures so they are not silently hidden. A
 // non-nil error is returned only when the query produced no data at all.
-func queryAzureMonitorMetrics(ctx context.Context, cred azcore.TokenCredential, resourceID azcorearm.ResourceID, q QuerySpec, start, end time.Time, maxFor autoscaleMaxLookup) (results []PrometheusResult, warning string, err error) {
-	client, err := armmonitor.NewMetricsClient(resourceID.SubscriptionID, cred, nil)
-	if err != nil {
-		return nil, "", fmt.Errorf("failed to create metrics client: %w", err)
-	}
-
+func queryAzureMonitorMetrics(ctx context.Context, cred azcore.TokenCredential, resourceID azcorearm.ResourceID, q QuerySpec, start, end time.Time, maxFor autoscaleMaxLookup, client policy.Transporter, evidence *evidenceCollector) (results []PrometheusResult, warning string, err error) {
 	selectValue, err := metricValueSelector(q.Aggregation)
 	if err != nil {
 		return nil, "", err
+	}
+
+	metadata := evidenceRequest{
+		Kind: "query-result", Source: sourceAzureMonitor, Workspace: resourceID.String(),
+		Title: q.Title, Start: start, End: end,
+	}
+	metricsClient, err := armmonitor.NewMetricsClient(resourceID.SubscriptionID, cred, &azcorearm.ClientOptions{
+		ClientOptions: azcore.ClientOptions{Transport: evidence.client(client, metadata)},
+	})
+	if err != nil {
+		evidence.note(metadata, "failed", "failed to create metrics client")
+		return nil, "", fmt.Errorf("failed to create metrics client: %w", err)
 	}
 
 	namespace := metricNamespaceForResource[q.Resource]
@@ -130,8 +138,9 @@ func queryAzureMonitorMetrics(ctx context.Context, cred azcore.TokenCredential, 
 		if filter := buildMetricFilter(m); filter != "" {
 			opts.Filter = &filter
 		}
-		resp, err := client.List(ctx, resourceID.String(), opts)
+		resp, err := metricsClient.List(ctx, resourceID.String(), opts)
 		if err != nil {
+			evidence.note(metadata, "failed", "Azure Monitor metric query failed; any HTTP attempts are recorded separately")
 			errs = append(errs, fmt.Sprintf("%s: %v", m.Name, err))
 			continue
 		}

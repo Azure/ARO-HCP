@@ -42,6 +42,20 @@ tests:
         description: 'More than 5% of frontend requests for GET /api/clusters exceeded 1 second over the past 30 minutes (cluster test).'
         runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/frontend-tsg.html'
         summary: 'Frontend latency is high: over 5% of GET /api/clusters requests on cluster test exceeded 1 second over the past 30 minutes'
+# Prometheus 3 normalizes integer bucket labels to floats. A slow route must
+# still fire with le="1.0"; the preceding firing case covers legacy le="1".
+- interval: 1m
+  input_series:
+  - series: 'frontend_http_requests_duration_seconds_count{route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+10x45'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="1.0", route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+9x45'
+  promql_expr_test:
+  - expr: 'ALERTS{alertname="FrontendPathLatency", alertstate="firing"}'
+    eval_time: 40m
+    exp_samples:
+    - labels: 'ALERTS{alertname="FrontendPathLatency", alertstate="firing", component="frontend", severity="warning", method="GET", route="/api/clusters", cluster="test"}'
+      value: 1
 # High volume and ≥3 slow calls, but the slow fraction (4%) is under 5% — the
 # fraction gate suppresses it (a small, stable tail is not a regression).
 - interval: 1m

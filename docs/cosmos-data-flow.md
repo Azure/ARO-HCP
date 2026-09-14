@@ -8,6 +8,60 @@ All resources live in a single Cosmos container ("Resources"). Every write is a 
 replacement with ETag-based optimistic concurrency. The `InstanceVersion` field is
 auto-incremented on each Replace.
 
+## RU attribution
+
+Clients constructed through `corecosmosstorage.NewCosmosDatabaseClient` record
+`cosmos_request_units_total` in a shared process-wide collector. It is registered
+with the legacy Prometheus registry by default; the admin service also registers
+the same collector with its private metrics registry using
+`cosmosmetrics.RegisterMetrics`.
+The shared Cosmos per-retry pipeline policy sums the `x-ms-request-charge`
+response header once per HTTP attempt, including charged failures, query pages,
+and idle changefeed responses. It does not instrument credential requests.
+Missing, malformed, negative, or non-finite charges are ignored; this counter
+measures reported RUs, not provisioned throughput or request count.
+
+| Label | Meaning |
+|-------|---------|
+| `source_kind` | `controller`, `informer`, or `unattributed` |
+| `source` | Explicit informer name, otherwise the existing controller context name, otherwise `unknown` |
+| `cosmosdb_container` | Actual Cosmos container name, preserving casing; `unknown` when the request has no identifiable container |
+| `operation` | `read`, `create`, `upsert`, `replace`, `patch`, `delete`, `query`, `query_plan`, `batch`, `change_feed`, `feed_ranges`, `metadata`, or `unknown` |
+| `status_code` | HTTP response status, including failures and `304` |
+
+Informer attribution is installed at the List/Watch boundary and takes precedence
+over inherited controller identity. Initial lists, relists, query pages, and
+asynchronous feed polls belong to the informer, not to each consuming controller.
+`ActiveOperations` and `AllOperations` have separate identities. Controller CRUD,
+including controller-status persistence, retains the controller's existing context.
+
+Per-management-cluster containers retain their actual `Manifests-MC-<stamp>`
+names; there is no container-family grouping or allowlist. Resource, subscription,
+document, and activity IDs are not metric labels. Use scrape-target labels to
+separate components and deployments.
+The `cosmosdb_container` label is distinct from the scrape target's Kubernetes
+`container` label, avoiding Prometheus's `exported_container` collision renaming.
+
+The SDK's shared partition-range cache refresh uses a background context without
+caller identity. Its charges are still recorded under `unattributed` / `unknown`.
+Other callers without identity use that same bucket. Requests whose responses
+never reach the client cannot contribute a reported charge; compare with Cosmos
+platform metrics when investigating discrepancies.
+
+Average RU/s by source, deduplicating HA scrapes before summing targets:
+
+```promql
+sum by (source_kind, source) (
+  max without (prometheus_replica) (
+    rate(cosmos_request_units_total[5m])
+  )
+)
+```
+
+To separate query, feed, and write costs, group by `cosmosdb_container` and `operation`
+instead. Do not also add SDK response-level `RequestCharge` values to this
+counter: those may aggregate HTTP responses already counted by the policy.
+
 ---
 
 ## 1. Frontend Endpoint Writes

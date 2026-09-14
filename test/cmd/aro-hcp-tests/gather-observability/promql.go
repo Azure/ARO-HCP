@@ -52,6 +52,7 @@ type PanelSpec struct {
 
 const (
 	chartTypeLine               = "line"
+	chartTypeFacetedLine        = "faceted-line"
 	chartTypeFacetedStackedArea = "faceted-stacked-area"
 )
 
@@ -138,6 +139,9 @@ type QuerySpec struct {
 	FacetBy          string            `json:"facetBy,omitempty" yaml:"facetBy,omitempty"`
 	StackBy          string            `json:"stackBy,omitempty" yaml:"stackBy,omitempty"`
 	Colors           map[string]string `json:"colors,omitempty" yaml:"colors,omitempty"`
+	// LegendLabels keeps these labels visible even when common to every series,
+	// using the configured display names without changing the metric labels.
+	LegendLabels map[string]string `json:"legendLabels,omitempty" yaml:"legendLabels,omitempty"`
 }
 
 // PrometheusResponse is the top-level Prometheus HTTP API response.
@@ -146,6 +150,8 @@ type PrometheusResponse struct {
 	Data      PrometheusData `json:"data"`
 	ErrorType string         `json:"errorType,omitempty"`
 	Error     string         `json:"error,omitempty"`
+	Warnings  []string       `json:"warnings,omitempty"`
+	Infos     []string       `json:"infos,omitempty"`
 }
 
 // PrometheusData holds the result set from a query_range call.
@@ -206,14 +212,14 @@ func parseQueriesConfig(data []byte) (*QueriesConfig, error) {
 			if q.ChartType == "" {
 				cfg.Panels[pi].Queries[qi].ChartType = chartTypeLine
 			}
-			if cfg.Panels[pi].Queries[qi].ChartType != chartTypeLine && cfg.Panels[pi].Queries[qi].ChartType != chartTypeFacetedStackedArea {
-				return nil, fmt.Errorf("panel %d (%s), query %d (%s): chartType must be %q or %q, got %q", pi, p.Title, qi, q.Title, chartTypeLine, chartTypeFacetedStackedArea, cfg.Panels[pi].Queries[qi].ChartType)
+			if cfg.Panels[pi].Queries[qi].ChartType != chartTypeLine && cfg.Panels[pi].Queries[qi].ChartType != chartTypeFacetedLine && cfg.Panels[pi].Queries[qi].ChartType != chartTypeFacetedStackedArea {
+				return nil, fmt.Errorf("panel %d (%s), query %d (%s): chartType must be %q, %q, or %q", pi, p.Title, qi, q.Title, chartTypeLine, chartTypeFacetedLine, chartTypeFacetedStackedArea)
 			}
-			if cfg.Panels[pi].Queries[qi].ChartType == chartTypeFacetedStackedArea && q.FacetBy == "" {
-				return nil, fmt.Errorf("panel %d (%s), query %d (%s): facetBy is required when chartType is %q", pi, p.Title, qi, q.Title, chartTypeFacetedStackedArea)
+			if cfg.Panels[pi].Queries[qi].ChartType != chartTypeLine && q.FacetBy == "" {
+				return nil, fmt.Errorf("panel %d (%s), query %d (%s): facetBy is required when chartType is %q", pi, p.Title, qi, q.Title, cfg.Panels[pi].Queries[qi].ChartType)
 			}
-			if cfg.Panels[pi].Queries[qi].ChartType != chartTypeFacetedStackedArea && q.FacetBy != "" {
-				return nil, fmt.Errorf("panel %d (%s), query %d (%s): facetBy is only valid with chartType %q", pi, p.Title, qi, q.Title, chartTypeFacetedStackedArea)
+			if cfg.Panels[pi].Queries[qi].ChartType == chartTypeLine && q.FacetBy != "" {
+				return nil, fmt.Errorf("panel %d (%s), query %d (%s): facetBy is only valid with chartType %q or %q", pi, p.Title, qi, q.Title, chartTypeFacetedLine, chartTypeFacetedStackedArea)
 			}
 		}
 	}
@@ -262,8 +268,8 @@ func validateAzureMonitorQuery(pi, qi int, panelTitle string, q QuerySpec) error
 			return fmt.Errorf("panel %d (%s), query %d (%s), metric %d (%s): normalizeByAutoscaleMax requires splitBy %q", pi, panelTitle, qi, q.Title, mi, m.Name, dimensionCollectionName)
 		}
 	}
-	if q.FacetBy != "" {
-		return fmt.Errorf("panel %d (%s), query %d (%s): facetBy is not supported with source %q", pi, panelTitle, qi, q.Title, sourceAzureMonitor)
+	if q.FacetBy != "" && q.FacetBy != "metric" {
+		return fmt.Errorf("panel %d (%s), query %d (%s): facetBy must be %q with source %q", pi, panelTitle, qi, q.Title, "metric", sourceAzureMonitor)
 	}
 	return nil
 }
@@ -294,10 +300,37 @@ func lookupPrometheusEndpoint(ctx context.Context, cred azcore.TokenCredential, 
 	return *resp.Properties.Metrics.PrometheusQueryEndpoint, nil
 }
 
+// resolvePromQL expands $__range to the report duration, using the same
+// whole-second boundaries sent to Prometheus. Combined with @ end(), it
+// selects a fixed report-wide cohort rather than a new topk at every step.
+func resolvePromQL(query string, start, end time.Time) string {
+	if !strings.Contains(query, "$__range") {
+		return query
+	}
+	return strings.ReplaceAll(query, "$__range", strconv.FormatInt(end.Unix()-start.Unix(), 10)+"s")
+}
+
 // queryRange executes a Prometheus query_range request against an Azure Monitor
 // Prometheus endpoint using bearer token authentication. The caller should pass
-// a shared *http.Client to amortize connection setup across multiple queries.
-func queryRange(ctx context.Context, httpClient *http.Client, cred azcore.TokenCredential, endpoint, query string, start, end time.Time, step string) (*PrometheusResponse, error) {
+// a shared transport to amortize connection setup across multiple queries.
+func queryRange(ctx context.Context, client policy.Transporter, cred azcore.TokenCredential, endpoint, query string, start, end time.Time, step string) (*PrometheusResponse, error) {
+	params := url.Values{}
+	params.Set("query", resolvePromQL(query, start, end))
+	params.Set("start", strconv.FormatInt(start.Unix(), 10))
+	params.Set("end", strconv.FormatInt(end.Unix(), 10))
+	params.Set("step", step)
+	return queryPrometheus(ctx, client, cred, endpoint, "query_range", params, 0)
+}
+
+// queryInstant can return a matrix when query is a range-vector selector.
+func queryInstant(ctx context.Context, client policy.Transporter, cred azcore.TokenCredential, endpoint, query string, at time.Time) (*PrometheusResponse, error) {
+	params := url.Values{}
+	params.Set("query", query)
+	params.Set("time", at.UTC().Format(time.RFC3339Nano))
+	return queryPrometheus(ctx, client, cred, endpoint, "query", params, maxEvidenceResponseBytes)
+}
+
+func queryPrometheus(ctx context.Context, client policy.Transporter, cred azcore.TokenCredential, endpoint, operation string, params url.Values, responseLimit int64) (*PrometheusResponse, error) {
 	token, err := cred.GetToken(ctx, policy.TokenRequestOptions{
 		Scopes: []string{"https://prometheus.monitor.azure.com/.default"},
 	})
@@ -309,13 +342,7 @@ func queryRange(ctx context.Context, httpClient *http.Client, cred azcore.TokenC
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse endpoint URL %q: %w", endpoint, err)
 	}
-	u.Path = strings.TrimRight(u.Path, "/") + "/api/v1/query_range"
-
-	params := url.Values{}
-	params.Set("query", query)
-	params.Set("start", strconv.FormatInt(start.Unix(), 10))
-	params.Set("end", strconv.FormatInt(end.Unix(), 10))
-	params.Set("step", step)
+	u.Path = strings.TrimRight(u.Path, "/") + "/api/v1/" + operation
 	u.RawQuery = params.Encode()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
@@ -324,19 +351,28 @@ func queryRange(ctx context.Context, httpClient *http.Client, cred azcore.TokenC
 	}
 	req.Header.Set("Authorization", "Bearer "+token.Token)
 
-	resp, err := httpClient.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("prometheus query_range request failed: %w", err)
+		return nil, fmt.Errorf("prometheus %s request failed: %w", operation, err)
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
+	var reader io.Reader = resp.Body
+	if responseLimit > 0 {
+		// Only extra stored-sample requests are bounded here. Panel query_range
+		// responses must remain readable even when evidence capture is limited.
+		reader = io.LimitReader(reader, responseLimit+1)
+	}
+	body, err := io.ReadAll(reader)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}
+	if responseLimit > 0 && int64(len(body)) > responseLimit {
+		return nil, fmt.Errorf("prometheus %s response exceeds the %d byte limit", operation, responseLimit)
+	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("prometheus query_range returned %d: %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("prometheus %s returned %d: %s", operation, resp.StatusCode, string(body))
 	}
 
 	var promResp PrometheusResponse
