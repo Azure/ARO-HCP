@@ -320,10 +320,10 @@ tests:
     values: "_x85 5100x115"
   alert_rule_test:
   - eval_time: 95m
-    alertname: UJNodePoolErrorBurst1h
+    alertname: UJNodePoolErrors1h5m
     exp_alerts:
     - exp_labels:
-        alertname: UJNodePoolErrorBurst1h
+        alertname: UJNodePoolErrors1h5m
         cluster: mgmt-1
         component: slo
         severity: info
@@ -344,11 +344,11 @@ tests:
     values: "_x85 5100x115"
   alert_rule_test:
   - eval_time: 95m
-    alertname: UJNodePoolErrorBurst1h
+    alertname: UJNodePoolErrors1h5m
   - eval_time: 95m
-    alertname: UJNodePoolErrorBurst6h
+    alertname: UJNodePoolErrors6h30m
   - eval_time: 95m
-    alertname: UJNodePoolErrorBudget3d
+    alertname: UJNodePoolErrors3d
 # Medium burn (6h) positive: 3 failed + 2 succeeded node pool ops reach terminal ~2h
 # ago (ltt at 40m), so from 40m they sit in the 6h window; by 100m they age out of
 # the 1h window. total_6h = 5 (>= 5) and error_rate_6h = 0.6 (> 0.30). The alert
@@ -394,12 +394,12 @@ tests:
       value: 0.6
   alert_rule_test:
   - eval_time: 60m
-    alertname: UJNodePoolErrorBurst6h
+    alertname: UJNodePoolErrors6h30m
   - eval_time: 140m
-    alertname: UJNodePoolErrorBurst6h
+    alertname: UJNodePoolErrors6h30m
     exp_alerts:
     - exp_labels:
-        alertname: UJNodePoolErrorBurst6h
+        alertname: UJNodePoolErrors6h30m
         cluster: mgmt-1
         component: slo
         severity: info
@@ -411,7 +411,7 @@ tests:
         description: "More than 30% of completed node pool operations on mgmt-1 failed over the last 6 hours (at least 5 completions), a 6x burn of the 95% SLO budget."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
   - eval_time: 140m
-    alertname: UJNodePoolErrorBurst1h
+    alertname: UJNodePoolErrors1h5m
 # Slow burn (3d) positive: 2 failed + 8 succeeded node pool ops complete inside the 3d
 # window (ltt at t=0). total_3d = 10 (>= 10) and error_rate_3d = 0.2 (> 0.05 but
 # < 0.30). The alert holds for 6h, so it is still pending at 300m and firing by
@@ -477,12 +477,12 @@ tests:
       value: 0.2
   alert_rule_test:
   - eval_time: 300m
-    alertname: UJNodePoolErrorBudget3d
+    alertname: UJNodePoolErrors3d
   - eval_time: 365m
-    alertname: UJNodePoolErrorBudget3d
+    alertname: UJNodePoolErrors3d
     exp_alerts:
     - exp_labels:
-        alertname: UJNodePoolErrorBudget3d
+        alertname: UJNodePoolErrors3d
         cluster: mgmt-1
         component: slo
         severity: info
@@ -493,9 +493,9 @@ tests:
         description: "More than 5% of completed node pool operations on mgmt-1 failed over the last 3 days (at least 10 completions and 2 failures), a 1x burn that exhausts the 95% SLO error budget over the window."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
   - eval_time: 365m
-    alertname: UJNodePoolErrorBurst6h
+    alertname: UJNodePoolErrors6h30m
   - eval_time: 365m
-    alertname: UJNodePoolErrorBurst1h
+    alertname: UJNodePoolErrors1h5m
 # Slow burn (3d) negative: 1 failed + 9 succeeded terminals inside the 3d window
 # (ltt at t=0). total_3d = 10 (>= 10) and error_rate_3d = 0.1 (> 0.05), but
 # failed_3d = 1 (< 2), so the added failed-count floor keeps a single failure
@@ -560,4 +560,4 @@ tests:
       value: 0.1
   alert_rule_test:
   - eval_time: 365m
-    alertname: UJNodePoolErrorBudget3d
+    alertname: UJNodePoolErrors3d

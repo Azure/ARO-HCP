@@ -113,7 +113,7 @@ spec:
       component: slo
     rules:
     # Fast Burn. 14.4x burn: >72% failures over 1h, >=3 failures.
-    - alert: UJNodePoolErrorBurst1h
+    - alert: UJNodePoolErrors1h5m
       expr: |
         errors:backend_nodepool_operation:failed_1h >= 3
         and
@@ -129,7 +129,7 @@ spec:
         description: "More than 72% of completed node pool operations (update/delete) on {{ $labels.cluster }} failed over the last hour with at least 3 failures, a 14.4x burn of the 95% SLO budget."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
     # Medium Burn. 6x burn: >30% failures over 6h, >=5 completions.
-    - alert: UJNodePoolErrorBurst6h
+    - alert: UJNodePoolErrors6h30m
       expr: |
         errors:backend_nodepool_operation:total_6h >= 5
         and
@@ -145,7 +145,7 @@ spec:
         description: "More than 30% of completed node pool operations on {{ $labels.cluster }} failed over the last 6 hours (at least 5 completions), a 6x burn of the 95% SLO budget."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
     # Slow Burn / Budget. 1x burn: >5% failures over 3d, >=10 completions, >=2 failures.
-    - alert: UJNodePoolErrorBudget3d
+    - alert: UJNodePoolErrors3d
       expr: |
         errors:backend_nodepool_operation:total_3d >= 10
         and

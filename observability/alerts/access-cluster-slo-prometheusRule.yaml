@@ -125,7 +125,7 @@ spec:
       component: slo
     rules:
     # Fast Burn (IcM Sev 3, page). 14.4x burn: >72% failures over 1h, >=3 failures.
-    - alert: UserJourneyAccessClusterErrorBurst1h
+    - alert: userJourneyAccessClusterErrors1h5m
       expr: |
         errors:backend_credential_operation:failed_1h >= 3
         and
@@ -141,7 +141,7 @@ spec:
         description: "More than 72% of completed credential operations (requestcredential/revokecredentials) on {{ $labels.cluster }} failed over the last hour with at least 3 failures, a 14.4x burn of the 95% SLO budget."
         runbook_url: "aka.ms/arohcp-runbook-access-cluster"
     # Medium Burn (IcM Sev 3, page). 6x burn: >30% failures over 6h, >=5 completions.
-    - alert: UserJourneyAccessClusterErrorBurst6h
+    - alert: userJourneyAccessClusterErrors6h30m
       expr: |
         errors:backend_credential_operation:total_6h >= 5
         and
@@ -157,7 +157,7 @@ spec:
         description: "More than 30% of completed credential operations on {{ $labels.cluster }} failed over the last 6 hours (at least 5 completions), a 6x burn of the 95% SLO budget."
         runbook_url: "aka.ms/arohcp-runbook-access-cluster"
     # Slow Burn / Budget (IcM Sev 4, ticket). 1x burn: >5% failures over 3d, >=10 completions, >=2 failures.
-    - alert: UserJourneyAccessClusterErrorBudget3d
+    - alert: userJourneyAccessClusterErrors3d
       expr: |
         errors:backend_credential_operation:total_3d >= 10
         and

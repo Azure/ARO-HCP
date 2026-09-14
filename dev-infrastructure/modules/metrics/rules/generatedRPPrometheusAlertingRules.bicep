@@ -136,7 +136,7 @@ resource arohcpAccessClusterSloWindowedErrorAlerts 'Microsoft.AlertsManagement/p
             }
           }
         ]
-        alert: 'UserJourneyAccessClusterErrorBurst1h'
+        alert: 'userJourneyAccessClusterErrors1h5m'
         enabled: true
         labels: {
           component: 'slo'
@@ -146,7 +146,7 @@ resource arohcpAccessClusterSloWindowedErrorAlerts 'Microsoft.AlertsManagement/p
           slo: 'access-cluster-errors'
         }
         annotations: {
-          correlationId: 'UserJourneyAccessClusterErrorBurst1h/{{ $labels.cluster }}'
+          correlationId: 'userJourneyAccessClusterErrors1h5m/{{ $labels.cluster }}'
           description: 'More than 72% of completed credential operations (requestcredential/revokecredentials) on {{ $labels.cluster }} failed over the last hour with at least 3 failures, a 14.4x burn of the 95% SLO budget.'
           info: 'More than 72% of completed credential operations (requestcredential/revokecredentials) on {{ $labels.cluster }} failed over the last hour with at least 3 failures, a 14.4x burn of the 95% SLO budget.'
           runbook_url: 'aka.ms/arohcp-runbook-access-cluster'
@@ -167,7 +167,7 @@ resource arohcpAccessClusterSloWindowedErrorAlerts 'Microsoft.AlertsManagement/p
             }
           }
         ]
-        alert: 'UserJourneyAccessClusterErrorBurst6h'
+        alert: 'userJourneyAccessClusterErrors6h30m'
         enabled: true
         labels: {
           component: 'slo'
@@ -177,7 +177,7 @@ resource arohcpAccessClusterSloWindowedErrorAlerts 'Microsoft.AlertsManagement/p
           slo: 'access-cluster-errors'
         }
         annotations: {
-          correlationId: 'UserJourneyAccessClusterErrorBurst6h/{{ $labels.cluster }}'
+          correlationId: 'userJourneyAccessClusterErrors6h30m/{{ $labels.cluster }}'
           description: 'More than 30% of completed credential operations on {{ $labels.cluster }} failed over the last 6 hours (at least 5 completions), a 6x burn of the 95% SLO budget.'
           info: 'More than 30% of completed credential operations on {{ $labels.cluster }} failed over the last 6 hours (at least 5 completions), a 6x burn of the 95% SLO budget.'
           runbook_url: 'aka.ms/arohcp-runbook-access-cluster'
@@ -198,7 +198,7 @@ resource arohcpAccessClusterSloWindowedErrorAlerts 'Microsoft.AlertsManagement/p
             }
           }
         ]
-        alert: 'UserJourneyAccessClusterErrorBudget3d'
+        alert: 'userJourneyAccessClusterErrors3d'
         enabled: true
         labels: {
           component: 'slo'
@@ -207,7 +207,7 @@ resource arohcpAccessClusterSloWindowedErrorAlerts 'Microsoft.AlertsManagement/p
           slo: 'access-cluster-errors'
         }
         annotations: {
-          correlationId: 'UserJourneyAccessClusterErrorBudget3d/{{ $labels.cluster }}'
+          correlationId: 'userJourneyAccessClusterErrors3d/{{ $labels.cluster }}'
           description: 'More than 5% of completed credential operations on {{ $labels.cluster }} failed over the last 3 days (at least 10 completions and 2 failures), a 1x burn that exhausts the 95% SLO error budget over the window.'
           info: 'More than 5% of completed credential operations on {{ $labels.cluster }} failed over the last 3 days (at least 10 completions and 2 failures), a 1x burn that exhausts the 95% SLO error budget over the window.'
           runbook_url: 'aka.ms/arohcp-runbook-access-cluster'
@@ -536,7 +536,7 @@ resource arohcpNodepoolSloWindowedErrorAlerts 'Microsoft.AlertsManagement/promet
             }
           }
         ]
-        alert: 'UJNodePoolErrorBurst1h'
+        alert: 'UJNodePoolErrors1h5m'
         enabled: true
         labels: {
           component: 'slo'
@@ -546,7 +546,7 @@ resource arohcpNodepoolSloWindowedErrorAlerts 'Microsoft.AlertsManagement/promet
           slo: 'nodepool-errors'
         }
         annotations: {
-          correlationId: 'UJNodePoolErrorBurst1h/{{ $labels.cluster }}'
+          correlationId: 'UJNodePoolErrors1h5m/{{ $labels.cluster }}'
           description: 'More than 72% of completed node pool operations (update/delete) on {{ $labels.cluster }} failed over the last hour with at least 3 failures, a 14.4x burn of the 95% SLO budget.'
           info: 'More than 72% of completed node pool operations (update/delete) on {{ $labels.cluster }} failed over the last hour with at least 3 failures, a 14.4x burn of the 95% SLO budget.'
           runbook_url: 'https://aka.ms/arohcp-runbook-nodepool'
@@ -567,7 +567,7 @@ resource arohcpNodepoolSloWindowedErrorAlerts 'Microsoft.AlertsManagement/promet
             }
           }
         ]
-        alert: 'UJNodePoolErrorBurst6h'
+        alert: 'UJNodePoolErrors6h30m'
         enabled: true
         labels: {
           component: 'slo'
@@ -577,7 +577,7 @@ resource arohcpNodepoolSloWindowedErrorAlerts 'Microsoft.AlertsManagement/promet
           slo: 'nodepool-errors'
         }
         annotations: {
-          correlationId: 'UJNodePoolErrorBurst6h/{{ $labels.cluster }}'
+          correlationId: 'UJNodePoolErrors6h30m/{{ $labels.cluster }}'
           description: 'More than 30% of completed node pool operations on {{ $labels.cluster }} failed over the last 6 hours (at least 5 completions), a 6x burn of the 95% SLO budget.'
           info: 'More than 30% of completed node pool operations on {{ $labels.cluster }} failed over the last 6 hours (at least 5 completions), a 6x burn of the 95% SLO budget.'
           runbook_url: 'https://aka.ms/arohcp-runbook-nodepool'
@@ -598,7 +598,7 @@ resource arohcpNodepoolSloWindowedErrorAlerts 'Microsoft.AlertsManagement/promet
             }
           }
         ]
-        alert: 'UJNodePoolErrorBudget3d'
+        alert: 'UJNodePoolErrors3d'
         enabled: true
         labels: {
           component: 'slo'
@@ -607,7 +607,7 @@ resource arohcpNodepoolSloWindowedErrorAlerts 'Microsoft.AlertsManagement/promet
           slo: 'nodepool-errors'
         }
         annotations: {
-          correlationId: 'UJNodePoolErrorBudget3d/{{ $labels.cluster }}'
+          correlationId: 'UJNodePoolErrors3d/{{ $labels.cluster }}'
           description: 'More than 5% of completed node pool operations on {{ $labels.cluster }} failed over the last 3 days (at least 10 completions and 2 failures), a 1x burn that exhausts the 95% SLO error budget over the window.'
           info: 'More than 5% of completed node pool operations on {{ $labels.cluster }} failed over the last 3 days (at least 10 completions and 2 failures), a 1x burn that exhausts the 95% SLO error budget over the window.'
           runbook_url: 'https://aka.ms/arohcp-runbook-nodepool'
