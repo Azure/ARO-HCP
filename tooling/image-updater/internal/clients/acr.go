@@ -17,6 +17,7 @@ package clients
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -30,6 +31,13 @@ type ACRClient struct {
 	client      *azcontainerregistry.Client
 	registryURL string
 	useAuth     bool
+
+	// authClientOnce lazily builds the authenticated client on first use, so
+	// construction (NewACRClient) doesn't require a token-backed Azure identity
+	// to already be present. The restricted RequireAzureTokenCredentials chain
+	// is still enforced once an authenticated request actually needs a client.
+	authClientOnce sync.Once
+	authClientErr  error
 }
 
 // NewACRClient creates a new Azure Container Registry client
@@ -41,25 +49,19 @@ func NewACRClient(registryURL string, useAuth bool) (*ACRClient, error) {
 		useAuth:     useAuth,
 	}
 
-	var client *azcontainerregistry.Client
-	var err error
-
 	if useAuth {
-		cred, err := azidentity.NewDefaultAzureCredential(&azidentity.DefaultAzureCredentialOptions{RequireAzureTokenCredentials: true})
-		if err != nil {
-			return nil, fmt.Errorf("failed to create Azure credential: %w", err)
-		}
+		// Defer credential/client construction until the client is actually used
+		// for an authenticated request (see getClient). This lets config
+		// validation and dry-run/setup flows construct the ACRClient without a
+		// token-backed Azure identity present yet, while still enforcing
+		// RequireAzureTokenCredentials for real authenticated calls.
+		return acr, nil
+	}
 
-		client, err = azcontainerregistry.NewClient("https://"+registryURL, cred, nil)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create authenticated ACR client: %w", err)
-		}
-	} else {
-		// Create anonymous client (no credentials)
-		client, err = azcontainerregistry.NewClient("https://"+registryURL, nil, nil)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create anonymous ACR client: %w", err)
-		}
+	// Create anonymous client (no credentials)
+	client, err := azcontainerregistry.NewClient("https://"+registryURL, nil, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create anonymous ACR client: %w", err)
 	}
 
 	acr.client = client
@@ -67,7 +69,11 @@ func NewACRClient(registryURL string, useAuth bool) (*ACRClient, error) {
 }
 
 func (c *ACRClient) getAllTags(ctx context.Context, repository string) ([]Tag, error) {
-	return c.getAllTagsWithClient(ctx, repository, c.client)
+	client, err := c.getClient()
+	if err != nil {
+		return nil, err
+	}
+	return c.getAllTagsWithClient(ctx, repository, client)
 }
 
 func (c *ACRClient) getAllTagsWithClient(ctx context.Context, repository string, client *azcontainerregistry.Client) ([]Tag, error) {
@@ -130,8 +136,33 @@ func (c *ACRClient) getAllTagsWithClient(ctx context.Context, repository string,
 	return allTags, nil
 }
 
-func (c *ACRClient) getClient() *azcontainerregistry.Client {
-	return c.client
+// getClient returns the underlying ACR client, lazily constructing the
+// authenticated credential/client on first call when useAuth is true. The
+// credential is always built with RequireAzureTokenCredentials: true so the
+// restricted, token-backed chain is enforced for every real authenticated
+// request, regardless of how early or late that first request happens.
+func (c *ACRClient) getClient() (*azcontainerregistry.Client, error) {
+	if !c.useAuth {
+		return c.client, nil
+	}
+
+	c.authClientOnce.Do(func() {
+		cred, err := azidentity.NewDefaultAzureCredential(&azidentity.DefaultAzureCredentialOptions{RequireAzureTokenCredentials: true})
+		if err != nil {
+			c.authClientErr = fmt.Errorf("failed to create Azure credential: %w", err)
+			return
+		}
+
+		client, err := azcontainerregistry.NewClient("https://"+c.registryURL, cred, nil)
+		if err != nil {
+			c.authClientErr = fmt.Errorf("failed to create authenticated ACR client: %w", err)
+			return
+		}
+
+		c.client = client
+	})
+
+	return c.client, c.authClientErr
 }
 
 func (c *ACRClient) GetArchSpecificDigest(ctx context.Context, repository string, tagPattern string, arch string, wantMultiArch bool, versionLabel string) (*Tag, error) {
@@ -157,7 +188,10 @@ func (c *ACRClient) GetArchSpecificDigest(ctx context.Context, repository string
 
 	logger.V(2).Info("filtered tags by pattern", "registry", c.registryURL, "repository", repository, "tagPattern", tagPattern, "matchingTags", len(tags))
 
-	client := c.getClient()
+	client, err := c.getClient()
+	if err != nil {
+		return nil, err
+	}
 
 	for _, tag := range tags {
 		// Check if context is cancelled before processing each tag
@@ -230,7 +264,10 @@ func (c *ACRClient) GetDigestForTag(ctx context.Context, repository string, tagN
 	default:
 	}
 
-	client := c.getClient()
+	client, err := c.getClient()
+	if err != nil {
+		return nil, err
+	}
 
 	// Get tag properties to get the digest
 	tagProps, err := client.GetTagProperties(ctx, repository, tagName, nil)

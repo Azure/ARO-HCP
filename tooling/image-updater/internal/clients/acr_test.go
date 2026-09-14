@@ -48,6 +48,14 @@ func TestNewACRClient(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			if tt.useAuth {
+				// Authenticated construction is deferred until first use (see
+				// getClient), but satisfying RequireAzureTokenCredentials still
+				// needs AZURE_TOKEN_CREDENTIALS to have a value; it does not
+				// require a live Azure login.
+				t.Setenv("AZURE_TOKEN_CREDENTIALS", "prod")
+			}
+
 			client, err := NewACRClient(tt.registryURL, tt.useAuth)
 			if err != nil {
 				t.Errorf("NewACRClient() unexpected error = %v", err)
@@ -63,7 +71,7 @@ func TestNewACRClient(t *testing.T) {
 				t.Errorf("NewACRClient() registryURL = %v, want %v", client.registryURL, tt.registryURL)
 			}
 
-			if client.client == nil {
+			if !tt.useAuth && client.client == nil {
 				t.Error("NewACRClient() client should not be nil")
 			}
 		})
@@ -95,12 +103,19 @@ func TestACRClient_GetClient(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			if tt.useAuth {
+				t.Setenv("AZURE_TOKEN_CREDENTIALS", "prod")
+			}
+
 			client, err := NewACRClient(tt.registryURL, tt.useAuth)
 			if err != nil {
 				t.Fatalf("NewACRClient() unexpected error = %v", err)
 			}
 
-			selectedClient := client.getClient()
+			selectedClient, err := client.getClient()
+			if err != nil {
+				t.Fatalf("getClient() unexpected error = %v", err)
+			}
 
 			if selectedClient == nil {
 				t.Fatal("getClient() returned nil client")
@@ -143,6 +158,10 @@ func TestACRClient_RegistryURLVariants(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			if tt.useAuth {
+				t.Setenv("AZURE_TOKEN_CREDENTIALS", "prod")
+			}
+
 			client, err := NewACRClient(tt.registryURL, tt.useAuth)
 			if err != nil {
 				t.Errorf("NewACRClient() failed for %s: %v", tt.registryURL, err)
@@ -158,8 +177,14 @@ func TestACRClient_RegistryURLVariants(t *testing.T) {
 				t.Errorf("NewACRClient() registryURL = %v, want %v", client.registryURL, tt.registryURL)
 			}
 
-			if client.client == nil {
-				t.Error("NewACRClient() client should be initialized")
+			selectedClient, err := client.getClient()
+			if err != nil {
+				t.Errorf("getClient() unexpected error for %s: %v", tt.registryURL, err)
+				return
+			}
+
+			if selectedClient == nil {
+				t.Error("getClient() client should be initialized")
 			}
 		})
 	}
