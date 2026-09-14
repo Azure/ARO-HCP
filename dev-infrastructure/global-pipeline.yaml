@@ -218,7 +218,7 @@ resourceGroups:
     automatedRetry:
       errorContainsAny:
       - "Failed to update one or more relationships in 'owners'"
-      maximumRetryCount: 3
+      maximumRetryCount: 4
       durationBetweenRetries: 1m
       honorRetryBudgetWhenFailingFast: true
   - name: mise-identity
@@ -232,7 +232,7 @@ resourceGroups:
     automatedRetry:
       errorContainsAny:
       - "Failed to update one or more relationships in 'owners'"
-      maximumRetryCount: 3
+      maximumRetryCount: 4
       durationBetweenRetries: 1m
       honorRetryBudgetWhenFailingFast: true
   - name: housekeeping
