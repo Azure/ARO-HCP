@@ -47,42 +47,42 @@ spec:
     # Instantaneous count of succeeded cluster create operations per cluster
     - record: errors:backend_cluster_provision:succeeded_total
       expr: |
-        count by (cluster) (backend_resource_operation_phase_info{
+        count by (cluster) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{
           resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
           operation_type="create",
           phase="succeeded"
-        })
+        }))
     # Instantaneous count of all terminal cluster create operations per cluster
     - record: errors:backend_cluster_provision:terminal_total
       expr: |
-        count by (cluster) (backend_resource_operation_phase_info{
+        count by (cluster) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{
           resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
           operation_type="create",
           phase=~"succeeded|failed"
-        })
+        }))
     # Instantaneous error rate per cluster: fraction of terminal operations that failed
     - record: errors:backend_cluster_provision:error_rate
       expr: |
         (
-          count by (cluster) (backend_resource_operation_phase_info{
+          count by (cluster) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{
             resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
             operation_type="create",
             phase="failed"
-          })
+          }))
           or
-          0 * count by (cluster) (backend_resource_operation_phase_info{
+          0 * count by (cluster) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{
             resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
             operation_type="create",
             phase=~"succeeded|failed"
-          })
+          }))
         )
         /
         clamp_min(
-          count by (cluster) (backend_resource_operation_phase_info{
+          count by (cluster) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{
             resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
             operation_type="create",
             phase=~"succeeded|failed"
-          }),
+          })),
           1
         )
   # ========================================
@@ -103,35 +103,35 @@ spec:
     - record: errors:backend_cluster_provision:failed_1h
       expr: |
         count by (cluster) (
-          (backend_resource_operation_phase_info{
+          (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{
             resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
             operation_type="create",
             phase="failed"
-          } == 1)
+          }) == 1)
           and
-          ((time() - backend_resource_operation_last_transition_time_seconds{
+          ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{
             resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
             operation_type="create"
-          }) < 3600)
+          })) < 3600)
         )
         or
-        0 * count by (cluster) (backend_resource_operation_phase_info{
+        0 * count by (cluster) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{
           resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
           operation_type="create"
-        })
+        }))
     - record: errors:backend_cluster_provision:total_1h
       expr: |
         count by (cluster) (
-          (backend_resource_operation_phase_info{
+          (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{
             resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
             operation_type="create",
             phase=~"succeeded|failed"
-          } == 1)
+          }) == 1)
           and
-          ((time() - backend_resource_operation_last_transition_time_seconds{
+          ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{
             resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
             operation_type="create"
-          }) < 3600)
+          })) < 3600)
         )
     - record: errors:backend_cluster_provision:error_rate_1h
       expr: |
@@ -142,35 +142,35 @@ spec:
     - record: errors:backend_cluster_provision:failed_6h
       expr: |
         count by (cluster) (
-          (backend_resource_operation_phase_info{
+          (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{
             resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
             operation_type="create",
             phase="failed"
-          } == 1)
+          }) == 1)
           and
-          ((time() - backend_resource_operation_last_transition_time_seconds{
+          ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{
             resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
             operation_type="create"
-          }) < 21600)
+          })) < 21600)
         )
         or
-        0 * count by (cluster) (backend_resource_operation_phase_info{
+        0 * count by (cluster) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{
           resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
           operation_type="create"
-        })
+        }))
     - record: errors:backend_cluster_provision:total_6h
       expr: |
         count by (cluster) (
-          (backend_resource_operation_phase_info{
+          (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{
             resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
             operation_type="create",
             phase=~"succeeded|failed"
-          } == 1)
+          }) == 1)
           and
-          ((time() - backend_resource_operation_last_transition_time_seconds{
+          ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{
             resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
             operation_type="create"
-          }) < 21600)
+          })) < 21600)
         )
     - record: errors:backend_cluster_provision:error_rate_6h
       expr: |
@@ -181,35 +181,35 @@ spec:
     - record: errors:backend_cluster_provision:failed_3d
       expr: |
         count by (cluster) (
-          (backend_resource_operation_phase_info{
+          (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{
             resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
             operation_type="create",
             phase="failed"
-          } == 1)
+          }) == 1)
           and
-          ((time() - backend_resource_operation_last_transition_time_seconds{
+          ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{
             resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
             operation_type="create"
-          }) < 259200)
+          })) < 259200)
         )
         or
-        0 * count by (cluster) (backend_resource_operation_phase_info{
+        0 * count by (cluster) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{
           resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
           operation_type="create"
-        })
+        }))
     - record: errors:backend_cluster_provision:total_3d
       expr: |
         count by (cluster) (
-          (backend_resource_operation_phase_info{
+          (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{
             resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
             operation_type="create",
             phase=~"succeeded|failed"
-          } == 1)
+          }) == 1)
           and
-          ((time() - backend_resource_operation_last_transition_time_seconds{
+          ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{
             resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
             operation_type="create"
-          }) < 259200)
+          })) < 259200)
         )
     - record: errors:backend_cluster_provision:error_rate_3d
       expr: |

@@ -380,6 +380,36 @@ resource arohcpClusterProvisionSloWindowedErrorAlerts 'Microsoft.AlertsManagemen
         for: 'PT6H'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'UserJourneyClusterProvisionErrorsDegradation'
+        enabled: true
+        labels: {
+          component: 'slo'
+          long_window: '6h'
+          severity: '4'
+          slo: 'cluster-provision-errors'
+        }
+        annotations: {
+          correlationId: 'UserJourneyClusterProvisionErrorsDegradation/{{ $labels.cluster }}'
+          description: 'More than 15% of completed cluster create (install) operations on {{ $labels.cluster }} failed over the last 6 hours (at least 5 completions and 2 failures), an early warning of degradation before the burn-rate alerts fire.'
+          info: 'More than 15% of completed cluster create (install) operations on {{ $labels.cluster }} failed over the last 6 hours (at least 5 completions and 2 failures), an early warning of degradation before the burn-rate alerts fire.'
+          runbook_url: 'https://aka.ms/arohcp-runbook-cluster-provision'
+          summary: '{{ $labels.cluster }}: Cluster create operation failure rate exceeds 15% over 6h'
+          title: '{{ $labels.cluster }}: Cluster create operation failure rate exceeds 15% over 6h'
+        }
+        expression: 'errors:backend_cluster_provision:total_6h >= 5 and errors:backend_cluster_provision:failed_6h >= 2 and errors:backend_cluster_provision:error_rate_6h > 0.15'
+        for: 'PT30M'
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
+      }
     ]
     scopes: [
       azureMonitoring

@@ -137,3 +137,20 @@ spec:
         summary: "{{ $labels.cluster }}: Cluster create operation error budget burning (>5% over 3d)"
         description: "More than 5% of completed cluster create (install) operations on {{ $labels.cluster }} failed over the last 3 days (at least 10 completions and 2 failures), a 1x burn that exhausts the 95% SLO error budget over the window."
         runbook_url: "https://aka.ms/arohcp-runbook-cluster-provision"
+    # Early Warning / Degradation (IcM Sev 4, ticket). Precursor: >15% failures over 6h before the burn-rate alerts fire.
+    - alert: UserJourneyClusterProvisionErrorsDegradation
+      expr: |
+        errors:backend_cluster_provision:total_6h >= 5
+        and
+        errors:backend_cluster_provision:failed_6h >= 2
+        and
+        errors:backend_cluster_provision:error_rate_6h > 0.15
+      for: 30m
+      labels:
+        severity: "4"
+        slo: cluster-provision-errors
+        long_window: 6h
+      annotations:
+        summary: "{{ $labels.cluster }}: Cluster create operation failure rate exceeds 15% over 6h"
+        description: "More than 15% of completed cluster create (install) operations on {{ $labels.cluster }} failed over the last 6 hours (at least 5 completions and 2 failures), an early warning of degradation before the burn-rate alerts fire."
+        runbook_url: "https://aka.ms/arohcp-runbook-cluster-provision"

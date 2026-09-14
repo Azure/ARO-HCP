@@ -2008,6 +2008,18 @@
           "legendFormat": "Slow Burn (3d/6h)",
           "range": false,
           "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "max(ALERTS{alertname=\"UserJourneyClusterProvisionErrorsDegradation\", alertstate=\"firing\"}) or vector(0)",
+          "instant": true,
+          "legendFormat": "Degradation (15%/30m)",
+          "range": false,
+          "refId": "D"
         }
       ],
       "transformations": [
