@@ -59,11 +59,11 @@ func FetchAndMergeKeyVaultPullSecret(ctx context.Context, kvConfig KeyVaultConfi
 
 	// Create Azure credential using DefaultAzureCredential
 	// This supports Azure CLI, managed identity, environment variables, etc.
-	// RequireAzureTokenCredentials is left unset (false) so credential
-	// construction doesn't hard-fail just because AZURE_TOKEN_CREDENTIALS
-	// isn't exported in the current shell; the SDK only needs a real token
-	// once the client actually makes an authenticated request below.
-	cred, err := azidentity.NewDefaultAzureCredential(&azidentity.DefaultAzureCredentialOptions{})
+	// RequireAzureTokenCredentials restricts the chain to token-backed
+	// credential sources. Unlike ACRClient's construction path, this function
+	// immediately performs an authenticated GetSecret call below, so there's
+	// no deferred-construction case here and the restriction must stay on.
+	cred, err := azidentity.NewDefaultAzureCredential(&azidentity.DefaultAzureCredentialOptions{RequireAzureTokenCredentials: true})
 	if err != nil {
 		return fmt.Errorf("failed to create Azure credential: %w", err)
 	}
