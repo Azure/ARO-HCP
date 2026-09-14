@@ -18,7 +18,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -33,69 +32,11 @@ var (
 	e2eSetup integration.SetupModel
 )
 
-func findRepoRoot() string {
-	dir, err := os.Getwd()
-	if err != nil {
-		return ""
-	}
-	for {
-		if _, err := os.Stat(filepath.Join(dir, "go.work")); err == nil {
-			return dir
-		}
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			return ""
-		}
-		dir = parent
-	}
-}
-
-func envOrDefault(envVar, defaultVal string) string {
-	if v := os.Getenv(envVar); v != "" {
-		return v
-	}
-	return defaultVal
-}
-
 func setup(ctx context.Context) error {
 	labelFilter := GinkgoLabelFilter()
 
-	configFile := os.Getenv("ARO_HCP_CONFIG_FILE")
-	if configFile == "" {
-		if root := findRepoRoot(); root != "" {
-			candidate := filepath.Join(root, "config", "config.yaml")
-			if _, err := os.Stat(candidate); err == nil {
-				configFile = candidate
-			}
-		}
-	}
-
-	// Load templated configuration
-	opts := config.ConfigOptions{
-		ConfigFile:         configFile,
-		ConfigFileOverride: os.Getenv("ARO_HCP_CONFIG_FILE_OVERRIDE"),
-		Cloud:              envOrDefault("ARO_HCP_CLOUD", "dev"),
-		DeployEnv:          os.Getenv("DEPLOY_ENV"),
-		Region:             envOrDefault("REGION", "centralus"),
-	}
-
-	if opts.ConfigFileOverride != "" && opts.ConfigFile == "" {
-		return fmt.Errorf("ARO_HCP_CONFIG_FILE_OVERRIDE is set but ARO_HCP_CONFIG_FILE is not set")
-	}
-
-	requiresConfig := strings.Contains(labelFilter, labels.RequiresConfig[0])
-	if requiresConfig && opts.ConfigFile == "" {
-		return fmt.Errorf("test requires config but ARO_HCP_CONFIG_FILE is not set")
-	}
-	if requiresConfig && (opts.Cloud == "" || opts.DeployEnv == "" || opts.Region == "") {
-		return fmt.Errorf("test requires config but ARO_HCP_CLOUD/DEPLOY_ENV/REGION are not all set (ARO_HCP_CLOUD=%q, DEPLOY_ENV=%q, REGION=%q)", opts.Cloud, opts.DeployEnv, opts.Region)
-	}
-
-	// Only fail if a config file is explicitly supplied but fails to render
-	if opts.ConfigFile != "" {
-		if err := config.LoadConfig(opts); err != nil {
-			return fmt.Errorf("failed to load service config: %w", err)
-		}
+	if _, err := config.GetServiceConfig(); err != nil {
+		return fmt.Errorf("failed to load service config: %w", err)
 	}
 
 	// Use GinkgoLabelFilter to determine if the test should load the e2e setup file
