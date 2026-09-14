@@ -363,13 +363,13 @@ func TestGetHostedClusterV5MirrorPresent(t *testing.T) {
 	t.Parallel()
 
 	withoutMirror := &hsv1beta1.HostedCluster{}
-	assert.False(t, *getHostedClusterV5MirrorPresent(withoutMirror))
+	assert.False(t, getHostedClusterV5MirrorPresent(withoutMirror))
 
 	withMirror := &hsv1beta1.HostedCluster{}
 	withMirror.Spec.ImageContentSources = []hsv1beta1.ImageContentSource{{
 		Source: coreapi.OcpV5ArtDevMirrorSource,
 	}}
-	assert.True(t, *getHostedClusterV5MirrorPresent(withMirror))
+	assert.True(t, getHostedClusterV5MirrorPresent(withMirror))
 }
 
 func TestControlPlaneActiveVersionSyncer_ReplacesWhenV5MirrorChanges(t *testing.T) {

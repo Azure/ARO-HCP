@@ -22,6 +22,8 @@ import (
 
 	"github.com/blang/semver/v4"
 
+	"k8s.io/utils/ptr"
+
 	configv1 "github.com/openshift/api/config/v1"
 	hsv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
 
@@ -131,18 +133,19 @@ func (c *controlPlaneActiveVersionSyncer) SyncOnce(ctx context.Context, key cont
 	oldActiveVersions := cachedServiceProviderCluster.Status.ControlPlaneVersion.ActiveVersions
 	oldDesiredChannels := cachedServiceProviderCluster.Status.DesiredVersionChannels
 	oldV5MirrorPresent := cachedServiceProviderCluster.Status.DataPlaneV5MirrorPresent
-	if !controllerutil.NeedsUpdate(oldActiveVersions, newActiveVersions) && slices.Equal(oldDesiredChannels, newDesiredChannels) && boolPtrEqual(oldV5MirrorPresent, newV5MirrorPresent) {
+	newV5MirrorPresentPtr := ptr.To(newV5MirrorPresent)
+	if !controllerutil.NeedsUpdate(oldActiveVersions, newActiveVersions) && slices.Equal(oldDesiredChannels, newDesiredChannels) && boolPtrEqual(oldV5MirrorPresent, newV5MirrorPresentPtr) {
 		return nil
 	}
 	logger := utils.LoggerFromContext(ctx)
 	logger.Info("Active versions, desired channels, or v5 data-plane mirror presence changed",
 		"oldActiveVersions", oldActiveVersions, "newActiveVersions", newActiveVersions,
 		"oldDesiredChannels", oldDesiredChannels, "newDesiredChannels", newDesiredChannels,
-		"oldV5MirrorPresent", oldV5MirrorPresent, "newV5MirrorPresent", newV5MirrorPresent)
+		"oldV5MirrorPresent", oldV5MirrorPresent, "newV5MirrorPresent", newV5MirrorPresentPtr)
 	replacement := cachedServiceProviderCluster.DeepCopy()
 	replacement.Status.ControlPlaneVersion.ActiveVersions = newActiveVersions
 	replacement.Status.DesiredVersionChannels = newDesiredChannels
-	replacement.Status.DataPlaneV5MirrorPresent = newV5MirrorPresent
+	replacement.Status.DataPlaneV5MirrorPresent = newV5MirrorPresentPtr
 	serviceProviderClustersCosmosClient := c.resourcesDBClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	_, err = serviceProviderClustersCosmosClient.Replace(ctx, replacement, nil)
 	if err != nil {
@@ -216,7 +219,7 @@ func getHostedClusterDesiredVersionChannels(hostedCluster *hsv1beta1.HostedClust
 	return hostedCluster.Status.Version.Desired.Channels
 }
 
-func getHostedClusterV5MirrorPresent(hostedCluster *hsv1beta1.HostedCluster) *bool {
+func getHostedClusterV5MirrorPresent(hostedCluster *hsv1beta1.HostedCluster) bool {
 	present := false
 	for _, source := range hostedCluster.Spec.ImageContentSources {
 		if source.Source == coreapi.OcpV5ArtDevMirrorSource {
@@ -224,7 +227,7 @@ func getHostedClusterV5MirrorPresent(hostedCluster *hsv1beta1.HostedCluster) *bo
 			break
 		}
 	}
-	return &present
+	return present
 }
 
 func boolPtrEqual(a, b *bool) bool {
