@@ -9,6 +9,7 @@ Grafana dashboards for ARO-HCP SRE oncall and fleet health monitoring.
 | `resource-state.json` | Fleet-wide cluster provisioning state, clusters per region, nodepool health |
 | `operations-overview.json` | Fleet-wide in-flight operations, stuck/failed ops, duration distribution |
 | `per-cluster-drill-in.json` | Single-cluster oncall triage: KAS, etcd, provisioning state, nodepools |
+| `etcd-fsync-performance.json` | etcd disk-level deep-dive: fsync latency heatmaps, tail latencies (P99→P99.99), throughput, DB size/quota/fragmentation, read/write operation rates, per-pod breakdown, fleet-wide comparison |
 
 ## Datasource Model
 
