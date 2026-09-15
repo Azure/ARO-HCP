@@ -274,7 +274,7 @@ func TestDefaultAcquireOptionsSelectorDefaults(t *testing.T) {
 	}
 }
 
-func TestResolveRegionSelectionWeightedOverride(t *testing.T) {
+func TestResolveRegionSelectionWeightedIgnoresOverrideAndDefaultsWeights(t *testing.T) {
 	t.Parallel()
 
 	catalog := loadWeightedAcquireTestCatalog(t)
@@ -283,28 +283,31 @@ func TestResolveRegionSelectionWeightedOverride(t *testing.T) {
 		"dev",
 		slots.RegionModeWeighted,
 		"canadacentral",
-		"not-valid-and-must-be-ignored",
 		"",
+		"3",
 	)
 	if err != nil {
-		t.Fatalf("expected valid override to bypass weighted inputs: %v", err)
+		t.Fatalf("expected weighted selection with default weights to succeed: %v", err)
 	}
-	if selection.RuntimeRegion != "canadacentral" {
-		t.Fatalf("expected override region %q, got %q", "canadacentral", selection.RuntimeRegion)
+	if selection.RuntimeRegion != "westus3" {
+		t.Fatalf("expected override to be ignored and build ID to select %q, got %q", "westus3", selection.RuntimeRegion)
 	}
-	if len(selection.NormalizedWeights) != 0 {
-		t.Fatalf("expected override path to ignore weights, got %v", selection.NormalizedWeights)
+	if got, want := selection.NormalizedWeights, []string{"westus3=1", "centralus=1", "canadacentral=1"}; !equalStrings(got, want) {
+		t.Fatalf("unexpected default weights: got %v want %v", got, want)
 	}
-	if selection.SelectionKeySource != "" {
-		t.Fatalf("expected override path not to use a selection key, got %q", selection.SelectionKeySource)
+	if selection.LocationOverrideUsed {
+		t.Fatal("expected weighted selection to ignore the location override")
+	}
+	if selection.SelectionKeySource != "BUILD_ID" {
+		t.Fatalf("expected BUILD_ID selection source, got %q", selection.SelectionKeySource)
 	}
 
-	_, err = resolveRegionSelection(catalog, "dev", slots.RegionModeWeighted, "eastus2", "", "")
-	if err == nil {
-		t.Fatal("expected override outside the catalog regions to fail")
+	selection, err = resolveRegionSelection(catalog, "dev", slots.RegionModeWeighted, "eastus2", "", "0")
+	if err != nil {
+		t.Fatalf("expected invalid override to be ignored: %v", err)
 	}
-	if !strings.Contains(err.Error(), "is not allowed") {
-		t.Fatalf("expected invalid override error, got %v", err)
+	if selection.RuntimeRegion != "canadacentral" {
+		t.Fatalf("expected build ID to select %q, got %q", "canadacentral", selection.RuntimeRegion)
 	}
 }
 
@@ -400,7 +403,7 @@ func TestParseLocationWeights(t *testing.T) {
 	}
 }
 
-func TestAcquireCompleteWeightedRequiresInputsWithoutOverride(t *testing.T) {
+func TestAcquireCompleteWeightedDefaultsWeightsAndRequiresBuildID(t *testing.T) {
 	t.Parallel()
 
 	clusterProfileDir := writeAcquireTestClusterProfile(t, "dev-sub")
@@ -420,8 +423,12 @@ func TestAcquireCompleteWeightedRequiresInputsWithoutOverride(t *testing.T) {
 
 	opts := baseOptions()
 	opts.BuildID = "123"
-	if _, err := completeAcquireOptions(opts); err == nil || !strings.Contains(err.Error(), "LOCATION_WEIGHTS") {
-		t.Fatalf("expected missing weights error, got %v", err)
+	completed, err := completeAcquireOptions(opts)
+	if err != nil {
+		t.Fatalf("expected missing weights to default to equal weights: %v", err)
+	}
+	if got, want := completed.RegionSelection.NormalizedWeights, []string{"westus3=1", "centralus=1", "canadacentral=1"}; !equalStrings(got, want) {
+		t.Fatalf("unexpected default weights: got %v want %v", got, want)
 	}
 
 	opts = baseOptions()
@@ -432,13 +439,13 @@ func TestAcquireCompleteWeightedRequiresInputsWithoutOverride(t *testing.T) {
 
 	opts = baseOptions()
 	opts.SelectedLocation = "westus3"
-	opts.LocationWeights = "invalid"
-	completed, err := completeAcquireOptions(opts)
+	opts.BuildID = "0"
+	completed, err = completeAcquireOptions(opts)
 	if err != nil {
-		t.Fatalf("expected override to bypass weighted inputs: %v", err)
+		t.Fatalf("expected weighted selection to ignore override and use default weights: %v", err)
 	}
-	if completed.RegionSelection.RuntimeRegion != "westus3" {
-		t.Fatalf("expected override runtime region %q, got %q", "westus3", completed.RegionSelection.RuntimeRegion)
+	if completed.RegionSelection.RuntimeRegion != "canadacentral" {
+		t.Fatalf("expected weighted runtime region %q, got %q", "canadacentral", completed.RegionSelection.RuntimeRegion)
 	}
 }
 
