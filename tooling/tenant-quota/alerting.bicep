@@ -129,7 +129,7 @@ resource tenantQuotaAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         }
         annotations: {
           summary: 'Tenant quota collector is unreachable'
-          description: 'tenant-quota-collector has not been reachable for 15 minutes. Check the pod status, service endpoints, and Prometheus scrape target health in the tenant-quota namespace.'
+          description: 'tenant-quota-collector has not been reachable for 30 minutes. Check the pod status, service endpoints, and Prometheus scrape target health in the tenant-quota namespace.'
           runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/ci/dev-ci-monitoring.md#exporter-health-checks'
         }
         actions: [
