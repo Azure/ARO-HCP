@@ -204,6 +204,13 @@ type ServiceProviderClusterStatus struct {
 	// Written by: ControlPlaneActiveVersions
 	DesiredVersionChannels []string `json:"desiredVersionChannels,omitempty"`
 
+	// DataPlaneV5MirrorPresent reports whether the observed HostedCluster carries the
+	// ocp-v5.0-art-dev data-plane image mirror in Spec.ImageContentSources. Mirrored by the
+	// backend so DB-free admission can block a 4->5 upgrade when the mirror is missing.
+	// nil means "not yet observed" (admission treats it as allow / fail-open).
+	// Written by: ControlPlaneActiveVersions
+	DataPlaneV5MirrorPresent *bool `json:"dataPlaneV5MirrorPresent,omitempty"`
+
 	// Validations is a list of conditions that tracks the status of each cluster validation.
 	// Each Condition Type represents a validation and it should be unique among all validations.
 	// A Condition Status of True means that the validation passed successfully, and a Condition Status of False means that the validation failed.
@@ -301,6 +308,10 @@ type ServiceProviderClusterStatus struct {
 	// Written by: KeyRotationBackup
 	KeyRotationBackupFingerprint string `json:"keyRotationBackupFingerprint,omitempty"`
 }
+
+// OcpV5ArtDevMirrorSource is the platform-managed image source required by
+// OpenShift 5.x data-plane releases.
+const OcpV5ArtDevMirrorSource = "quay.io/openshift-release-dev/ocp-v5.0-art-dev"
 
 // ServiceProviderClusterMSIManagedIdentities holds Managed Service Identity (MSI)
 // based identity metadata resolved by FetchMSIIdentitiesInfo and consumed by ClusterIdentitySync to

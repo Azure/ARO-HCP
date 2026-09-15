@@ -1521,3 +1521,41 @@ func TestAdmitClusterVersionID(t *testing.T) {
 		})
 	}
 }
+
+func TestAdmitClusterV5DataPlaneMirror(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	fldPath := field.NewPath("properties", "version")
+	boolPtr := func(value bool) *bool { return &value }
+
+	tests := []struct {
+		name         string
+		oldID        string
+		newID        string
+		mirror       *bool
+		spcPresent   bool
+		expectErrors []utils.ExpectedError
+	}{
+		{name: "nil mirror state fails open", oldID: "4.22", newID: "5.0", spcPresent: true},
+		{name: "missing mirror rejects cross-major upgrade", oldID: "4.22", newID: "5.0", mirror: boolPtr(false), spcPresent: true, expectErrors: []utils.ExpectedError{{FieldPath: "properties.version.id", Message: "data-plane image mirror"}}},
+		{name: "present mirror allows cross-major upgrade", oldID: "4.22", newID: "5.0", mirror: boolPtr(true), spcPresent: true},
+		{name: "later v5 minor is also gated", oldID: "4.23", newID: "5.1", mirror: boolPtr(false), spcPresent: true, expectErrors: []utils.ExpectedError{{FieldPath: "properties.version.id", Message: "data-plane image mirror"}}},
+		{name: "minor upgrade is not gated", oldID: "4.21", newID: "4.22", mirror: boolPtr(false), spcPresent: true},
+		{name: "z-stream upgrade is not gated", oldID: "5.0.1", newID: "5.0.2", mirror: boolPtr(false), spcPresent: true},
+		{name: "missing service provider cluster fails open", oldID: "4.22", newID: "5.0"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			var spc *coreapi.ServiceProviderCluster
+			if tt.spcPresent {
+				spc = &coreapi.ServiceProviderCluster{Status: coreapi.ServiceProviderClusterStatus{DataPlaneV5MirrorPresent: tt.mirror}}
+			}
+			errs := admitClusterV5DataPlaneMirror(ctx, &ClusterAdmissionContext{ServiceProviderCluster: spc}, operation.Operation{Type: operation.Update}, fldPath,
+				&coreapi.VersionProfile{ID: tt.newID}, &coreapi.VersionProfile{ID: tt.oldID})
+			utils.VerifyErrorsMatch(t, tt.expectErrors, errs)
+		})
+	}
+}
