@@ -7,6 +7,8 @@
 # Upstream release pages:
 #   Builder:   .ci-operator.yaml (build_root_image.tag)
 #   promtool:  https://github.com/prometheus/prometheus/releases
+#   bicep:     https://github.com/Azure/bicep/releases
 
 BUILDER_IMAGE_TAG ?= $(shell yq '.build_root_image.tag' ../../.ci-operator.yaml)
 PROMTOOL_VERSION  ?= 3.2.1
+BICEP_VERSION     ?= 0.47.16

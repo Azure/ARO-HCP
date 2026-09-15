@@ -8,7 +8,7 @@ PLATFORM ?= "linux/amd64"
 
 GO_WORK_VERSION := $(shell sed -n 's/^go //p' ../../go.work)
 
-VERSION_ARGS = BUILDER_IMAGE_TAG PROMTOOL_VERSION
+VERSION_ARGS = BUILDER_IMAGE_TAG PROMTOOL_VERSION BICEP_VERSION
 
 .PHONY: verify build test
 
@@ -22,12 +22,18 @@ verify: ## Verify versions are consistent across config files
 		exit 1; \
 	fi; \
 	echo "  go version $$GO_WORK_MINOR OK"
-	@actual=$$(grep -oP 'ARG PROMTOOL_VERSION=\K.*' Dockerfile); \
+	@actual=$$(grep -oP 'ARG PROMTOOL_VERSION=\K\S*' Dockerfile); \
 	if [ "$$actual" != "$(PROMTOOL_VERSION)" ]; then \
 		echo "ERROR: Dockerfile ARG PROMTOOL_VERSION=$$actual ≠ versions.mk $(PROMTOOL_VERSION)"; \
 		exit 1; \
 	fi
 	@echo "  promtool   $(PROMTOOL_VERSION) OK"
+	@actual=$$(grep -oP 'ARG BICEP_VERSION=\K\S*' Dockerfile); \
+	if [ "$$actual" != "$(BICEP_VERSION)" ]; then \
+		echo "ERROR: Dockerfile ARG BICEP_VERSION=$$actual ≠ versions.mk $(BICEP_VERSION)"; \
+		exit 1; \
+	fi
+	@echo "  bicep      $(BICEP_VERSION) OK"
 
 ##@ Build
 
