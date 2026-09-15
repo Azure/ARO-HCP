@@ -44,13 +44,15 @@ func TestDesiredDataPlaneOIDCFederationStatus(t *testing.T) {
 
 	resolvedA := resolvedARMManagedIdentityMetadata(identityA, "client-a", "principal-a", "tenant-a")
 	keyA := strings.ToLower(identityA.String())
-	observedA := coreapi.ManagedIdentityDataplaneOIDCFederationObservedIdentity{
+	targetA := coreapi.DataplaneOIDCFederationIdentityInstance{
 		ClientID:    "client-a",
 		PrincipalID: "principal-a",
 		TenantID:    "tenant-a",
 	}
 
 	keyB := strings.ToLower(identityB.String())
+	ficA := metadataapi.Must(azcorearm.ParseResourceID(identityA.String() + "/federatedIdentityCredentials/fic-a"))
+	ficB := metadataapi.Must(azcorearm.ParseResourceID(identityB.String() + "/federatedIdentityCredentials/fic-b"))
 
 	unresolvedA := &coreapi.ManagedIdentityMetadata{
 		ResourceID: identityA,
@@ -70,9 +72,10 @@ func TestDesiredDataPlaneOIDCFederationStatus(t *testing.T) {
 		dataPlaneOperators                map[string]*azcorearm.ResourceID
 		details                           map[string]*coreapi.ManagedIdentityMetadata
 		current                           map[string]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus
-		expectedPhases                    map[string]coreapi.ManagedIdentityDataplaneOIDCFederationPhase
-		expectedObserved                  map[string]coreapi.ManagedIdentityDataplaneOIDCFederationObservedIdentity
+		expectedStates                    map[string]string
+		expectedTarget                    map[string]coreapi.DataplaneOIDCFederationIdentityInstance
 		expectStampedDeconfigureTimestamp []string
+		expectIdentityChangeClear         []string
 		expectNilWhenEmpty                bool
 	}{
 		{
@@ -87,11 +90,11 @@ func TestDesiredDataPlaneOIDCFederationStatus(t *testing.T) {
 			details: map[string]*coreapi.ManagedIdentityMetadata{
 				strings.ToLower(identityA.String()): resolvedA,
 			},
-			expectedPhases: map[string]coreapi.ManagedIdentityDataplaneOIDCFederationPhase{
-				keyA: coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingConfigure,
+			expectedStates: map[string]string{
+				keyA: "pending",
 			},
-			expectedObserved: map[string]coreapi.ManagedIdentityDataplaneOIDCFederationObservedIdentity{
-				keyA: observedA,
+			expectedTarget: map[string]coreapi.DataplaneOIDCFederationIdentityInstance{
+				keyA: targetA,
 			},
 		},
 		{
@@ -103,11 +106,11 @@ func TestDesiredDataPlaneOIDCFederationStatus(t *testing.T) {
 			details: map[string]*coreapi.ManagedIdentityMetadata{
 				strings.ToLower(identityA.String()): resolvedA,
 			},
-			expectedPhases: map[string]coreapi.ManagedIdentityDataplaneOIDCFederationPhase{
-				keyA: coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingConfigure,
+			expectedStates: map[string]string{
+				keyA: "pending",
 			},
-			expectedObserved: map[string]coreapi.ManagedIdentityDataplaneOIDCFederationObservedIdentity{
-				keyA: observedA,
+			expectedTarget: map[string]coreapi.DataplaneOIDCFederationIdentityInstance{
+				keyA: targetA,
 			},
 		},
 		{
@@ -154,15 +157,15 @@ func TestDesiredDataPlaneOIDCFederationStatus(t *testing.T) {
 			},
 			current: map[string]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
 				keyA: {
-					Phase:            coreapi.ManagedIdentityDataplaneOIDCFederationPhaseConfigured,
-					ObservedIdentity: observedA,
+					TargetIdentity:  targetA,
+					EnsuredIdentity: ptr.To(targetA),
 				},
 			},
-			expectedPhases: map[string]coreapi.ManagedIdentityDataplaneOIDCFederationPhase{
-				keyA: coreapi.ManagedIdentityDataplaneOIDCFederationPhaseConfigured,
+			expectedStates: map[string]string{
+				keyA: "ensured",
 			},
-			expectedObserved: map[string]coreapi.ManagedIdentityDataplaneOIDCFederationObservedIdentity{
-				keyA: observedA,
+			expectedTarget: map[string]coreapi.DataplaneOIDCFederationIdentityInstance{
+				keyA: targetA,
 			},
 		},
 		{
@@ -175,15 +178,14 @@ func TestDesiredDataPlaneOIDCFederationStatus(t *testing.T) {
 			},
 			current: map[string]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
 				keyA: {
-					Phase:                coreapi.ManagedIdentityDataplaneOIDCFederationPhaseDeconfigured,
 					DeconfigureTimestamp: &metav1.Time{Time: time.Date(2026, 9, 4, 12, 0, 0, 0, time.UTC)},
 				},
 			},
-			expectedPhases: map[string]coreapi.ManagedIdentityDataplaneOIDCFederationPhase{
-				keyA: coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingConfigure,
+			expectedStates: map[string]string{
+				keyA: "pending",
 			},
-			expectedObserved: map[string]coreapi.ManagedIdentityDataplaneOIDCFederationObservedIdentity{
-				keyA: observedA,
+			expectedTarget: map[string]coreapi.DataplaneOIDCFederationIdentityInstance{
+				keyA: targetA,
 			},
 		},
 		{
@@ -196,26 +198,27 @@ func TestDesiredDataPlaneOIDCFederationStatus(t *testing.T) {
 			},
 			current: map[string]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
 				keyA: {
-					Phase:                coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingDeconfigure,
 					DeconfigureTimestamp: &metav1.Time{Time: time.Date(2026, 9, 4, 12, 0, 0, 0, time.UTC)},
 				},
 			},
-			expectedPhases: map[string]coreapi.ManagedIdentityDataplaneOIDCFederationPhase{
-				keyA: coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingConfigure,
+			expectedStates: map[string]string{
+				keyA: "pending",
 			},
-			expectedObserved: map[string]coreapi.ManagedIdentityDataplaneOIDCFederationObservedIdentity{
-				keyA: observedA,
+			expectedTarget: map[string]coreapi.DataplaneOIDCFederationIdentityInstance{
+				keyA: targetA,
 			},
 		},
 		{
 			name: "identity that left data-plane operators is marked PendingDeconfigure",
 			current: map[string]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
 				keyA: {
-					Phase: coreapi.ManagedIdentityDataplaneOIDCFederationPhaseConfigured,
+					TargetIdentity:  targetA,
+					EnsuredIdentity: ptr.To(targetA),
+					AzureResources:  []*azcorearm.ResourceID{ficA},
 				},
 			},
-			expectedPhases: map[string]coreapi.ManagedIdentityDataplaneOIDCFederationPhase{
-				keyA: coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingDeconfigure,
+			expectedStates: map[string]string{
+				keyA: "deconfigure",
 			},
 			expectStampedDeconfigureTimestamp: []string{keyA},
 		},
@@ -223,18 +226,17 @@ func TestDesiredDataPlaneOIDCFederationStatus(t *testing.T) {
 			name: "already PendingDeconfigure identity that left operators stays PendingDeconfigure",
 			current: map[string]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
 				keyA: {
-					Phase:                coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingDeconfigure,
 					DeconfigureTimestamp: &metav1.Time{Time: time.Date(2026, 9, 7, 12, 0, 0, 0, time.UTC)},
 				},
 			},
-			expectedPhases: map[string]coreapi.ManagedIdentityDataplaneOIDCFederationPhase{
-				keyA: coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingDeconfigure,
+			expectedStates: map[string]string{
+				keyA: "deconfigure",
 			},
 		},
 		{
 			name: "already deconfigured identity that left operators is dropped",
 			current: map[string]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
-				keyA: {Phase: coreapi.ManagedIdentityDataplaneOIDCFederationPhaseDeconfigured},
+				keyA: {},
 			},
 			expectNilWhenEmpty: true,
 		},
@@ -247,14 +249,14 @@ func TestDesiredDataPlaneOIDCFederationStatus(t *testing.T) {
 				strings.ToLower(identityA.String()): unresolvedA,
 			},
 			current: map[string]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
-				keyA: {Phase: coreapi.ManagedIdentityDataplaneOIDCFederationPhaseConfigured},
+				keyA: {TargetIdentity: targetA, EnsuredIdentity: ptr.To(targetA)},
 			},
-			expectedPhases: map[string]coreapi.ManagedIdentityDataplaneOIDCFederationPhase{
-				keyA: coreapi.ManagedIdentityDataplaneOIDCFederationPhaseConfigured,
+			expectedStates: map[string]string{
+				keyA: "ensured",
 			},
 		},
 		{
-			name: "client and principal id change updates ObservedIdentity and sets PendingConfigure on the same key",
+			name: "client and principal id change updates TargetIdentity and clears ensured FIC state on the same key",
 			dataPlaneOperators: map[string]*azcorearm.ResourceID{
 				"cloud-controller-manager": identityA,
 			},
@@ -263,20 +265,23 @@ func TestDesiredDataPlaneOIDCFederationStatus(t *testing.T) {
 			},
 			current: map[string]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
 				keyA: {
-					Phase:            coreapi.ManagedIdentityDataplaneOIDCFederationPhaseConfigured,
-					ObservedIdentity: observedA,
+					TargetIdentity:        targetA,
+					EnsuredIdentity:       ptr.To(targetA),
+					AzureResources:        []*azcorearm.ResourceID{ficA},
+					PendingAzureResources: []*azcorearm.ResourceID{ficA},
 				},
 			},
-			expectedPhases: map[string]coreapi.ManagedIdentityDataplaneOIDCFederationPhase{
-				keyA: coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingConfigure,
+			expectedStates: map[string]string{
+				keyA: "pending",
 			},
-			expectedObserved: map[string]coreapi.ManagedIdentityDataplaneOIDCFederationObservedIdentity{
+			expectedTarget: map[string]coreapi.DataplaneOIDCFederationIdentityInstance{
 				keyA: {
 					ClientID:    "client-a-rotated",
 					PrincipalID: "principal-a-rotated",
 					TenantID:    "tenant-a",
 				},
 			},
+			expectIdentityChangeClear: []string{keyA},
 		},
 		{
 			name: "one identity added and another removed",
@@ -287,14 +292,18 @@ func TestDesiredDataPlaneOIDCFederationStatus(t *testing.T) {
 				strings.ToLower(identityA.String()): resolvedA,
 			},
 			current: map[string]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
-				keyB: {Phase: coreapi.ManagedIdentityDataplaneOIDCFederationPhaseConfigured},
+				keyB: {
+					TargetIdentity:  targetA,
+					EnsuredIdentity: ptr.To(targetA),
+					AzureResources:  []*azcorearm.ResourceID{ficB},
+				},
 			},
-			expectedPhases: map[string]coreapi.ManagedIdentityDataplaneOIDCFederationPhase{
-				keyA: coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingConfigure,
-				keyB: coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingDeconfigure,
+			expectedStates: map[string]string{
+				keyA: "pending",
+				keyB: "deconfigure",
 			},
-			expectedObserved: map[string]coreapi.ManagedIdentityDataplaneOIDCFederationObservedIdentity{
-				keyA: observedA,
+			expectedTarget: map[string]coreapi.DataplaneOIDCFederationIdentityInstance{
+				keyA: targetA,
 			},
 			expectStampedDeconfigureTimestamp: []string{keyB},
 		},
@@ -304,10 +313,14 @@ func TestDesiredDataPlaneOIDCFederationStatus(t *testing.T) {
 				strings.ToLower(identityA.String()): resolvedA,
 			},
 			current: map[string]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
-				keyA: {Phase: coreapi.ManagedIdentityDataplaneOIDCFederationPhaseConfigured},
+				keyA: {
+					TargetIdentity:  targetA,
+					EnsuredIdentity: ptr.To(targetA),
+					AzureResources:  []*azcorearm.ResourceID{ficA},
+				},
 			},
-			expectedPhases: map[string]coreapi.ManagedIdentityDataplaneOIDCFederationPhase{
-				keyA: coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingDeconfigure,
+			expectedStates: map[string]string{
+				keyA: "deconfigure",
 			},
 			expectStampedDeconfigureTimestamp: []string{keyA},
 		},
@@ -331,11 +344,11 @@ func TestDesiredDataPlaneOIDCFederationStatus(t *testing.T) {
 					},
 				},
 			},
-			expectedPhases: map[string]coreapi.ManagedIdentityDataplaneOIDCFederationPhase{
-				keyA: coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingConfigure,
+			expectedStates: map[string]string{
+				keyA: "pending",
 			},
-			expectedObserved: map[string]coreapi.ManagedIdentityDataplaneOIDCFederationObservedIdentity{
-				keyA: observedA,
+			expectedTarget: map[string]coreapi.DataplaneOIDCFederationIdentityInstance{
+				keyA: targetA,
 			},
 		},
 	}
@@ -349,22 +362,32 @@ func TestDesiredDataPlaneOIDCFederationStatus(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := syncer.desiredDataPlaneOIDCFederationStatus(tc.dataPlaneOperators, tc.details, tc.current)
+			got, err := syncer.desiredDataPlaneOIDCFederationStatus(context.Background(), tc.dataPlaneOperators, tc.details, tc.current)
 			require.NoError(t, err)
 			if tc.expectNilWhenEmpty {
 				assert.Nil(t, got)
 				return
 			}
 
-			require.Len(t, got, len(tc.expectedPhases))
-			for key, expectedPhase := range tc.expectedPhases {
+			require.Len(t, got, len(tc.expectedStates))
+			for key, expectedState := range tc.expectedStates {
 				require.Contains(t, got, key)
 				require.NotNil(t, got[key])
-				assert.Equal(t, expectedPhase, got[key].Phase)
+				switch expectedState {
+				case "pending":
+					assert.Nil(t, got[key].DeconfigureTimestamp, "key %s should not be deconfiguring", key)
+					assert.False(t, got[key].TargetIdentityEnsured(), "key %s should not be ensured", key)
+				case "ensured":
+					assert.True(t, got[key].TargetIdentityEnsured(), "key %s should be ensured", key)
+				case "deconfigure":
+					assert.NotNil(t, got[key].DeconfigureTimestamp, "key %s should be deconfiguring", key)
+				default:
+					t.Fatalf("unknown expected state %q for key %s", expectedState, key)
+				}
 			}
-			for key, expectedObserved := range tc.expectedObserved {
+			for key, expectedTarget := range tc.expectedTarget {
 				require.Contains(t, got, key)
-				assert.Equal(t, expectedObserved, got[key].ObservedIdentity)
+				assert.Equal(t, expectedTarget, got[key].TargetIdentity)
 			}
 			stamped := map[string]struct{}{}
 			for _, key := range tc.expectStampedDeconfigureTimestamp {
@@ -372,11 +395,11 @@ func TestDesiredDataPlaneOIDCFederationStatus(t *testing.T) {
 				require.NotNil(t, got[key].DeconfigureTimestamp)
 				assert.Equal(t, since, *got[key].DeconfigureTimestamp)
 			}
-			for key := range tc.expectedPhases {
+			for key := range tc.expectedStates {
 				if _, ok := stamped[key]; ok {
 					continue
 				}
-				if got[key].Phase == coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingConfigure {
+				if tc.expectedStates[key] == "pending" {
 					assert.Nil(t, got[key].DeconfigureTimestamp)
 					continue
 				}
@@ -385,6 +408,12 @@ func TestDesiredDataPlaneOIDCFederationStatus(t *testing.T) {
 					continue
 				}
 				assert.Equal(t, tc.current[key].DeconfigureTimestamp, got[key].DeconfigureTimestamp)
+			}
+			for _, key := range tc.expectIdentityChangeClear {
+				require.Contains(t, got, key)
+				assert.Nil(t, got[key].EnsuredIdentity)
+				assert.Empty(t, got[key].AzureResources)
+				assert.Empty(t, got[key].PendingAzureResources)
 			}
 		})
 	}
@@ -400,7 +429,7 @@ func TestDesiredDataPlaneOIDCFederationStatusNilEntryErrors(t *testing.T) {
 		t.Parallel()
 		_, err := (&dataPlaneOIDCFederationIntentSyncer{
 			clock: clocktesting.NewFakePassiveClock(time.Time{}),
-		}).desiredDataPlaneOIDCFederationStatus(nil, nil, map[string]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
+		}).desiredDataPlaneOIDCFederationStatus(context.Background(), nil, nil, map[string]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
 			keyA: nil,
 		})
 		require.Error(t, err)
@@ -411,7 +440,7 @@ func TestDesiredDataPlaneOIDCFederationStatusNilEntryErrors(t *testing.T) {
 		t.Parallel()
 		_, err := (&dataPlaneOIDCFederationIntentSyncer{
 			clock: clocktesting.NewFakePassiveClock(time.Time{}),
-		}).desiredDataPlaneOIDCFederationStatus(map[string]*azcorearm.ResourceID{
+		}).desiredDataPlaneOIDCFederationStatus(context.Background(), map[string]*azcorearm.ResourceID{
 			"cloud-controller-manager": identityA,
 		}, map[string]*coreapi.ManagedIdentityMetadata{
 			strings.ToLower(identityA.String()): nil,
@@ -458,12 +487,12 @@ func TestDataPlaneOIDCFederationIntentSyncOnce(t *testing.T) {
 	updated, err := mockResourcesDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
 	require.NoError(t, err)
 	require.Contains(t, updated.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation, keyA)
-	assert.Equal(t, coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingConfigure, updated.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation[keyA].Phase)
-	assert.Equal(t, coreapi.ManagedIdentityDataplaneOIDCFederationObservedIdentity{
+	assert.False(t, updated.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation[keyA].TargetIdentityEnsured())
+	assert.Equal(t, coreapi.DataplaneOIDCFederationIdentityInstance{
 		ClientID:    "client-a",
 		PrincipalID: "principal-a",
 		TenantID:    "tenant-a",
-	}, updated.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation[keyA].ObservedIdentity)
+	}, updated.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation[keyA].TargetIdentity)
 }
 
 func TestDataPlaneOIDCFederationIntentSyncOnceStampsDeconfigureTimestampOnLiveCluster(t *testing.T) {
@@ -473,11 +502,21 @@ func TestDataPlaneOIDCFederationIntentSyncOnceStampsDeconfigureTimestampOnLiveCl
 	now := time.Date(2026, 9, 5, 12, 0, 0, 0, time.UTC)
 	identityA := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID + "/resourceGroups/" + testResourceGroupName + "/providers/Microsoft.ManagedIdentity/userAssignedIdentities/identity-a"))
 	keyA := strings.ToLower(identityA.String())
+	ficA := metadataapi.Must(azcorearm.ParseResourceID(identityA.String() + "/federatedIdentityCredentials/fic-a"))
+	targetA := coreapi.DataplaneOIDCFederationIdentityInstance{
+		ClientID:    "client-a",
+		PrincipalID: "principal-a",
+		TenantID:    "tenant-a",
+	}
 
 	cluster := newTestClusterWithIdentities(t, testClusterName, nil, nil)
 	serviceProviderCluster := newTestServiceProviderClusterWithIdentities(testClusterName, nil, nil)
 	serviceProviderCluster.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation = map[string]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
-		keyA: {Phase: coreapi.ManagedIdentityDataplaneOIDCFederationPhaseConfigured},
+		keyA: {
+			TargetIdentity:  targetA,
+			EnsuredIdentity: ptr.To(targetA),
+			AzureResources:  []*azcorearm.ResourceID{ficA},
+		},
 	}
 
 	mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, serviceProviderCluster})
@@ -501,7 +540,7 @@ func TestDataPlaneOIDCFederationIntentSyncOnceStampsDeconfigureTimestampOnLiveCl
 	require.NoError(t, err)
 	got := updated.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation[keyA]
 	require.NotNil(t, got)
-	assert.Equal(t, coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingDeconfigure, got.Phase)
+	assert.NotNil(t, got.DeconfigureTimestamp)
 	require.NotNil(t, got.DeconfigureTimestamp)
 	assert.True(t, got.DeconfigureTimestamp.Time.Equal(now))
 }
@@ -512,6 +551,12 @@ func TestDataPlaneOIDCFederationIntentSyncOnceMarksPendingDeconfigureOnClusterDe
 	identityA := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID + "/resourceGroups/" + testResourceGroupName + "/providers/Microsoft.ManagedIdentity/userAssignedIdentities/identity-a"))
 	resolvedA := resolvedARMManagedIdentityMetadata(identityA, "client-a", "principal-a", "tenant-a")
 	keyA := strings.ToLower(identityA.String())
+	ficA := metadataapi.Must(azcorearm.ParseResourceID(identityA.String() + "/federatedIdentityCredentials/fic-a"))
+	targetA := coreapi.DataplaneOIDCFederationIdentityInstance{
+		ClientID:    "client-a",
+		PrincipalID: "principal-a",
+		TenantID:    "tenant-a",
+	}
 
 	deletionTimestamp := &metav1.Time{Time: time.Date(2026, 9, 5, 12, 0, 0, 0, time.UTC)}
 	clusterServiceDeletionTimestamp := &metav1.Time{Time: time.Date(2026, 9, 5, 12, 2, 0, 0, time.UTC)}
@@ -520,9 +565,9 @@ func TestDataPlaneOIDCFederationIntentSyncOnceMarksPendingDeconfigureOnClusterDe
 	now := deletionTimestamp.Time
 
 	testCases := []struct {
-		name          string
-		mutateCluster func(cluster *coreapi.HCPOpenShiftCluster)
-		expectedPhase coreapi.ManagedIdentityDataplaneOIDCFederationPhase
+		name              string
+		mutateCluster     func(cluster *coreapi.HCPOpenShiftCluster)
+		expectDeconfigure bool
 	}{
 		{
 			name: "new deletion approach deconfigures after CS is confirmed gone even if PendingClusterServiceID is still set",
@@ -532,7 +577,7 @@ func TestDataPlaneOIDCFederationIntentSyncOnceMarksPendingDeconfigureOnClusterDe
 				cluster.ServiceProviderProperties.ClusterServiceDeletionTimestamp = clusterServiceDeletionTimestamp
 				cluster.ServiceProviderProperties.PendingClusterServiceID = pendingClusterServiceID
 			},
-			expectedPhase: coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingDeconfigure,
+			expectDeconfigure: true,
 		},
 		{
 			name: "new deletion approach does not deconfigure before ClusterServiceDeletionTimestamp is set",
@@ -540,7 +585,7 @@ func TestDataPlaneOIDCFederationIntentSyncOnceMarksPendingDeconfigureOnClusterDe
 				cluster.ServiceProviderProperties.UsesNewClusterDeletionApproach = true
 				cluster.ServiceProviderProperties.DeletionTimestamp = deletionTimestamp
 			},
-			expectedPhase: coreapi.ManagedIdentityDataplaneOIDCFederationPhaseConfigured,
+			expectDeconfigure: false,
 		},
 		{
 			name: "new deletion approach does not deconfigure while ClusterServiceID is still set",
@@ -550,14 +595,14 @@ func TestDataPlaneOIDCFederationIntentSyncOnceMarksPendingDeconfigureOnClusterDe
 				cluster.ServiceProviderProperties.ClusterServiceDeletionTimestamp = clusterServiceDeletionTimestamp
 				cluster.ServiceProviderProperties.ClusterServiceID = clusterServiceID
 			},
-			expectedPhase: coreapi.ManagedIdentityDataplaneOIDCFederationPhaseConfigured,
+			expectDeconfigure: false,
 		},
 		{
 			name: "legacy deletion approach does not deconfigure while ClusterServiceID is already cleared",
 			mutateCluster: func(cluster *coreapi.HCPOpenShiftCluster) {
 				cluster.ServiceProviderProperties.DeletionTimestamp = deletionTimestamp
 			},
-			expectedPhase: coreapi.ManagedIdentityDataplaneOIDCFederationPhaseConfigured,
+			expectDeconfigure: false,
 		},
 		{
 			name: "legacy deletion approach does not deconfigure while ClusterServiceID is still set",
@@ -565,7 +610,7 @@ func TestDataPlaneOIDCFederationIntentSyncOnceMarksPendingDeconfigureOnClusterDe
 				cluster.ServiceProviderProperties.DeletionTimestamp = deletionTimestamp
 				cluster.ServiceProviderProperties.ClusterServiceID = clusterServiceID
 			},
-			expectedPhase: coreapi.ManagedIdentityDataplaneOIDCFederationPhaseConfigured,
+			expectDeconfigure: false,
 		},
 	}
 
@@ -585,12 +630,9 @@ func TestDataPlaneOIDCFederationIntentSyncOnceMarksPendingDeconfigureOnClusterDe
 			}
 			serviceProviderCluster.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation = map[string]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
 				keyA: {
-					Phase: coreapi.ManagedIdentityDataplaneOIDCFederationPhaseConfigured,
-					ObservedIdentity: coreapi.ManagedIdentityDataplaneOIDCFederationObservedIdentity{
-						ClientID:    "client-a",
-						PrincipalID: "principal-a",
-						TenantID:    "tenant-a",
-					},
+					TargetIdentity:  targetA,
+					EnsuredIdentity: ptr.To(targetA),
+					AzureResources:  []*azcorearm.ResourceID{ficA},
 				},
 			}
 
@@ -615,8 +657,8 @@ func TestDataPlaneOIDCFederationIntentSyncOnceMarksPendingDeconfigureOnClusterDe
 			require.NoError(t, err)
 			require.Contains(t, updated.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation, keyA)
 			got := updated.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation[keyA]
-			assert.Equal(t, tc.expectedPhase, got.Phase)
-			if tc.expectedPhase == coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingDeconfigure {
+			assert.Equal(t, tc.expectDeconfigure, got.DeconfigureTimestamp != nil)
+			if tc.expectDeconfigure {
 				require.NotNil(t, got.DeconfigureTimestamp)
 				assert.True(t, got.DeconfigureTimestamp.Time.Equal(now))
 			}
@@ -624,7 +666,7 @@ func TestDataPlaneOIDCFederationIntentSyncOnceMarksPendingDeconfigureOnClusterDe
 	}
 }
 
-func TestObservedIdentityFromARMUserAssignedIdentities(t *testing.T) {
+func TestTargetIdentityFromARMUserAssignedIdentities(t *testing.T) {
 	t.Parallel()
 
 	syncer := &dataPlaneOIDCFederationIntentSyncer{}
@@ -645,13 +687,13 @@ func TestObservedIdentityFromARMUserAssignedIdentities(t *testing.T) {
 				TenantID:    ptr.To("hardcoded-tenant"),
 			},
 		}
-		observed, ok := syncer.observedIdentityFromARMUserAssignedIdentities(metadata)
+		target, ok := syncer.targetIdentityFromARMUserAssignedIdentities(metadata)
 		require.True(t, ok)
-		assert.Equal(t, coreapi.ManagedIdentityDataplaneOIDCFederationObservedIdentity{
+		assert.Equal(t, coreapi.DataplaneOIDCFederationIdentityInstance{
 			ClientID:    "arm-client",
 			PrincipalID: "arm-principal",
 			TenantID:    "arm-tenant",
-		}, observed)
+		}, target)
 	})
 
 	t.Run("missing ARM user assigned identities metadata", func(t *testing.T) {
@@ -664,7 +706,7 @@ func TestObservedIdentityFromARMUserAssignedIdentities(t *testing.T) {
 				TenantID:    ptr.To("hardcoded-tenant"),
 			},
 		}
-		_, ok := syncer.observedIdentityFromARMUserAssignedIdentities(metadata)
+		_, ok := syncer.targetIdentityFromARMUserAssignedIdentities(metadata)
 		assert.False(t, ok)
 	})
 
@@ -676,7 +718,7 @@ func TestObservedIdentityFromARMUserAssignedIdentities(t *testing.T) {
 				RetrievalError: ptr.To("ResourceNotFound"),
 			},
 		}
-		_, ok := syncer.observedIdentityFromARMUserAssignedIdentities(metadata)
+		_, ok := syncer.targetIdentityFromARMUserAssignedIdentities(metadata)
 		assert.False(t, ok)
 	})
 }

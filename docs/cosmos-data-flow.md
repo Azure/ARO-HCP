@@ -1363,34 +1363,34 @@ A configured managed resource group name or `PendingAzureResource` alone does no
 **Trigger:** Cluster informer, 1-minute resync
 **Gate:** none (always computes the desired federation map; replace is skipped when unchanged)
 
-Marks desired data-plane OIDC federation phases from Cluster `DataPlaneOperators` and `Status.ManagedIdentityDetails` ARM User Assigned Identities metadata. Does not call Azure.
+Marks data-plane OIDC federation entries from Cluster `DataPlaneOperators` and `Status.ManagedIdentityDetails` ARM User Assigned Identities metadata. Does not call Azure.
 
 | | Object | Fields |
 |---|--------|--------|
 | Read | `HCPOpenShiftCluster` | <ul><li>`CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators`</li><li>`ServiceProviderProperties.DeletionTimestamp` / `ClusterServiceDeletionTimestamp` / `ClusterServiceID` / `UsesNewClusterDeletionApproach` (clusterServiceGone: treat desired set as empty when CS is gone)</li><li>`ID` (subscription / resource group / name)</li></ul> |
-| Read | `ServiceProviderCluster` | <ul><li>`Status.ManagedIdentityDetails` (ARM ClientID/PrincipalID/TenantID must be resolved before an identity is added as PendingConfigure)</li><li>`Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation` (compared before write)</li></ul> |
-| **Write** | **`ServiceProviderCluster`** | <ul><li>**`Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation[<lowercased resourceID>]`** = `{Phase, ObservedIdentity, DeconfigureTimestamp, AzureResources, PendingAzureResources}` — desired identities become PendingConfigure (or stay Configured/PendingConfigure when ObservedIdentity is unchanged); identities that left DataPlaneOperators become PendingDeconfigure (first transition stamps `DeconfigureTimestamp`); leftover Deconfigured entries are dropped. Does not write `Spec.EarliestRecheckTimesByController`</li></ul> |
+| Read | `ServiceProviderCluster` | <ul><li>`Status.ManagedIdentityDetails` (ARM ClientID/PrincipalID/TenantID must be resolved before an identity is added)</li><li>`Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation` (compared before write)</li></ul> |
+| **Write** | **`ServiceProviderCluster`** | <ul><li>**`Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation[<lowercased resourceID>]`** = `{TargetIdentity, EnsuredIdentity, DeconfigureTimestamp, AzureResources, PendingAzureResources}` — desired identities get TargetIdentity from ARM metadata (or stay as-is when TargetIdentity is unchanged); a TargetIdentity change clears EnsuredIdentity, AzureResources, and PendingAzureResources (identity recreation removes child Azure FederatedIdentityCredential resources); identities that left DataPlaneOperators get `DeconfigureTimestamp` on first transition (entries with nothing tracked to delete are dropped). Does not write `Spec.EarliestRecheckTimesByController`</li></ul> |
 
 #### DataPlaneOIDCFederation
 
 **File:** [oidc_federation_controller.go](../backend/pkg/controllers/cluster/dataplaneworkloads/oidc_federation_controller.go)
 **Trigger:** Cluster informer, 1-minute resync
 **Gate (needsWork):**
-- `PendingConfigure` and not deleting: true (ignores `Spec.EarliestRecheckTimesByController["DataPlaneOIDCFederation"]`)
-- `PendingDeconfigure` ready (24h after `DeconfigureTimestamp`, or cluster deleting): true (ignores that recheck time)
-- `Configured` with desired FIC set drift and not deleting: true (ignores that recheck time)
-- `Configured` and not deleting: false while `Spec.EarliestRecheckTimesByController["DataPlaneOIDCFederation"]` is in the future; true when it is nil or already past
+- TargetIdentity not yet ensured (`EnsuredIdentity` is nil or does not equal TargetIdentity) and not deleting: true (ignores `Spec.EarliestRecheckTimesByController["DataPlaneOIDCFederation"]`)
+- Deconfigure ready (`DeconfigureTimestamp` set and 24h elapsed, or cluster deleting): true (ignores that recheck time)
+- Ensured identity with desired FIC set drift and not deleting: true (ignores that recheck time)
+- Ensured identity and not deleting: false while `Spec.EarliestRecheckTimesByController["DataPlaneOIDCFederation"]` is in the future; true when it is nil or already past
 - empty federation map: false
 
-Creates and deletes Azure federated identity credentials for `Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation`. Configured identities are skipped this pass when the controller recheck is in the future and the desired FIC set is unchanged. The recheck time is set to now + jittered 12h when Azure work this pass succeeded and remaining entries are idle (all Configured, or Configured plus PendingDeconfigure still inside the 24h wait). The entry is deleted when the federation map is empty. Immediate work remaining leaves any existing recheck time in place.
+Creates and deletes Azure federated identity credentials for `Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation`. When needsWork is true, every desired identity is reconciled this pass (Get/CreateOrUpdate/delete extras). Deconfigure still waits 24h on a live cluster. The recheck time is set to now + jittered 1h when Azure work this pass succeeded and remaining entries are idle (all ensured, or ensured plus deconfigure still inside the 24h wait). The entry is deleted when the federation map is empty. Immediate work remaining leaves any existing recheck time in place.
 
 | | Object | Fields |
 |---|--------|--------|
-| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: skip PendingConfigure/Configured; PendingDeconfigure is immediately ready)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: desired FIC set; credential names)</li><li>`CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators`</li><li>`CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity` (SyncOnce: must not be nil)</li><li>`ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL`</li><li>`ID` (subscription / resource group / name)</li></ul> |
+| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: skip ensure; deconfigure is immediately ready)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: desired FIC set; credential names)</li><li>`CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators`</li><li>`CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity` (SyncOnce: must not be nil)</li><li>`ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL`</li><li>`ID` (subscription / resource group / name)</li></ul> |
 | Read | `Subscription` | <ul><li>`Properties.TenantId` (OIDC issuer URL)</li></ul> |
-| Read | `ServiceProviderCluster` | <ul><li>`Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation` (NeedsWork: phase, AzureResources vs desired FIC set, DeconfigureTimestamp)</li><li>`Spec.EarliestRecheckTimesByController["DataPlaneOIDCFederation"]` (NeedsWork: honored only for Configured when the desired FIC set is unchanged)</li></ul> |
+| Read | `ServiceProviderCluster` | <ul><li>`Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation` (NeedsWork: TargetIdentity vs EnsuredIdentity, AzureResources vs desired FIC set, DeconfigureTimestamp)</li><li>`Spec.EarliestRecheckTimesByController["DataPlaneOIDCFederation"]` (NeedsWork: honored only for ensured identities when the desired FIC set is unchanged)</li></ul> |
 | Read | Azure (FederatedIdentityCredentialsClient) | <ul><li>`Get` / `CreateOrUpdate` / `Delete` per desired or tracked FIC</li></ul> |
-| **Write** | **`ServiceProviderCluster`** | <ul><li>**`Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation[<lowercased resourceID>].Phase`** = Configured after a successful ensure; the map key is deleted after a successful deconfigure</li><li>**`Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation[<lowercased resourceID>].PendingAzureResources`** = FIC IDs persisted before CreateOrUpdate; cleared on full ensure success</li><li>**`Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation[<lowercased resourceID>].AzureResources`** = confirmed FIC IDs</li><li>**`Spec.EarliestRecheckTimesByController["DataPlaneOIDCFederation"]`** = now + jittered 12h interval when remaining entries are idle after a successful pass; deleted when the federation map is empty; left unchanged when immediate work remains or Azure errors were accumulated</li></ul> |
+| **Write** | **`ServiceProviderCluster`** | <ul><li>**`Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation[<lowercased resourceID>].EnsuredIdentity`** = copy of TargetIdentity after every desired FIC is ensured; the map key is deleted after a successful deconfigure</li><li>**`Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation[<lowercased resourceID>].PendingAzureResources`** = FIC IDs persisted before CreateOrUpdate; cleared on full ensure success</li><li>**`Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation[<lowercased resourceID>].AzureResources`** = confirmed FIC IDs</li><li>**`Spec.EarliestRecheckTimesByController["DataPlaneOIDCFederation"]`** = now + jittered 1h interval when remaining entries are idle after a successful pass; deleted when the federation map is empty; left unchanged when immediate work remains or Azure errors were accumulated</li></ul> |
 
 ---
 
@@ -1797,10 +1797,10 @@ Single writer. Read by [OperationClusterCreate](#operationclustercreate) to gate
 
 | Actor | When |
 |-------|------|
-| [DataPlaneOIDCFederationIntent](#dataplaneoidcfederationintent) | Adds desired data-plane identities as PendingConfigure, copies ObservedIdentity from ARM metadata, and marks identities that left DataPlaneOperators as PendingDeconfigure (stamping DeconfigureTimestamp on first transition) |
-| [DataPlaneOIDCFederation](#dataplaneoidcfederation) | Persists pending/confirmed FIC resource IDs, advances Phase to Configured after Azure ensure, and removes the map entry after a successful deconfigure. Sets `Spec.EarliestRecheckTimesByController["DataPlaneOIDCFederation"]` when remaining entries are idle |
+| [DataPlaneOIDCFederationIntent](#dataplaneoidcfederationintent) | Adds desired data-plane identities with TargetIdentity from ARM metadata, clears EnsuredIdentity and FIC lists when that instance changes, and stamps DeconfigureTimestamp when identities leave DataPlaneOperators |
+| [DataPlaneOIDCFederation](#dataplaneoidcfederation) | Persists pending/confirmed FIC resource IDs, copies TargetIdentity into EnsuredIdentity after every desired FIC is ensured, and removes the map entry after a successful deconfigure. Sets `Spec.EarliestRecheckTimesByController["DataPlaneOIDCFederation"]` when remaining entries are idle |
 
-Two writers. Intent owns phase intent and ObservedIdentity; the executor owns Azure FIC tracking and the controller recheck time.
+Two writers. Intent owns TargetIdentity, DeconfigureTimestamp, and clearing EnsuredIdentity plus FIC lists on instance change; the executor owns EnsuredIdentity after a successful ensure, Azure FIC tracking, and the controller recheck time.
 
 ### `ServiceProviderCluster.Status.Validations`
 

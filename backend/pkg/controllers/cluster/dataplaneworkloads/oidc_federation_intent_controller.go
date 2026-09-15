@@ -20,7 +20,6 @@ import (
 	"strings"
 	"time"
 
-	"k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilsclock "k8s.io/utils/clock"
 
@@ -28,6 +27,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
@@ -45,28 +45,27 @@ const DataPlaneOIDCFederationIntentControllerName = "DataPlaneOIDCFederationInte
 // in sync with Cluster data-plane operators and
 // ServiceProviderCluster.Status.ManagedIdentityDetails.
 //
-// It does not call Azure. It only marks desired phases:
+// It does not call Azure. It only marks desired federation entries:
 //   - Unique ResourceIDs from
 //     CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators
 //     whose ManagedIdentityDetails entry has resolved
 //     MetadataFromARMUserAssignedIdentitiesAPI (ClientID, PrincipalID, and
-//     TenantID) are added as PendingConfigure (or left Configured /
-//     PendingConfigure if already present with the same ObservedIdentity).
-//     ObservedIdentity is copied from that ARM metadata. A change to those
-//     IDs on the same ResourceID updates ObservedIdentity and sets
-//     PendingConfigure; it does not deconfigure. Identities that only have
-//     dataplane or hardcoded-identity metadata (control plane operators and the
+//     TenantID) are added with TargetIdentity copied from that ARM metadata
+//     (or left as-is when already present with the same TargetIdentity).
+//     A change to those IDs on the same ResourceID updates TargetIdentity and
+//     clears EnsuredIdentity, AzureResources, and PendingAzureResources; it
+//     does not deconfigure. Identities that only have dataplane or
+//     hardcoded-identity metadata (control plane operators and the
 //     ServiceManagedIdentity) are ignored, even when the same UAMI is still
 //     used as CP or SMI.
 //   - Identities present in ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation
-//     but no longer among those data-plane operator identities are marked
-//     PendingDeconfigure. Already Deconfigured entries are dropped: the
-//     executor removes the key after successful deconfigure, and this loop
-//     also prunes leftover Deconfigured documents. The first transition to
-//     PendingDeconfigure stamps DeconfigureTimestamp to now (when deconfigure
-//     was requested). The executor waits 24h from that time on a live cluster.
-//     Cluster deletion still stamps the request time; the executor ignores
-//     the wait when DeletionTimestamp is set.
+//     but no longer among those data-plane operator identities get
+//     DeconfigureTimestamp stamped on first transition. Entries with nothing
+//     tracked to delete are dropped: the executor removes the key after
+//     successful deconfigure, and this loop also prunes leftover empty
+//     documents. The executor waits 24h from DeconfigureTimestamp on a live
+//     cluster. Cluster deletion still stamps the request time; the executor
+//     ignores the wait when DeletionTimestamp is set.
 //   - Data-plane operators whose ARM User Assigned Identities metadata is
 //     temporarily unset are left as-is so a transient fetch error does not
 //     deconfigure them.
@@ -80,9 +79,11 @@ type dataPlaneOIDCFederationIntentSyncer struct {
 var _ controllerutils.ClusterSyncer = (*dataPlaneOIDCFederationIntentSyncer)(nil)
 
 // NewDataPlaneOIDCFederationIntentController creates a cluster-watching
-// controller that marks data-plane OIDC federation phases from
-// ManagedIdentityDetails ARM User Assigned Identities metadata for identities
-// listed as data-plane operators.
+// controller that marks for data-plane OIDC federation entries from the
+// ServiceProviderCluster.Status.ManagedIdentityDetails map that have
+// metadata resolved from the MetadataFromARMUserAssignedIdentitiesAPI source and
+// that are listed as data-plane operators in the Cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators
+// map. It also marks for deconfiguration entries that have left the data-plane operators set and are not desired anymore.
 func NewDataPlaneOIDCFederationIntentController(
 	clock utilsclock.PassiveClock,
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
@@ -119,8 +120,7 @@ func (s *dataPlaneOIDCFederationIntentSyncer) SyncOnce(ctx context.Context, key 
 
 	existingServiceProviderCluster, err := s.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if cosmosstorageutils.IsNotFoundError(err) {
-		// The ServiceProviderCluster has not been created yet. The dedicated
-		// CreateServiceProviderCluster controller creates it; we pick it up on a
+		// The ServiceProviderCluster has not been created yet. We will pick it up on a
 		// later requeue once it exists.
 		return nil
 	}
@@ -128,18 +128,17 @@ func (s *dataPlaneOIDCFederationIntentSyncer) SyncOnce(ctx context.Context, key 
 		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster: %w", err))
 	}
 
-	dataPlaneOperators := existingCluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators
-	// Deconfigure only after Cluster Service is gone. PendingClusterServiceID is
-	// a create-time reservation and is not cleared on delete, so it is not part
-	// of this signal.
+	desiredDataplaneOperators := existingCluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators
+	// When Cluster Service's Cluster is gone during the cluster deletion process, we mark all data-plane operator identities for deconfiguration.
 	if s.clusterServiceGone(existingCluster) {
 		// Treat deletion as an empty desired identity set so in-flight federation
-		// is marked PendingDeconfigure and the executor can remove Azure FICs.
-		dataPlaneOperators = nil
+		// is marked for deconfigure and the DataPlaneOIDCFederation controller can deconfigure the data-plane operator identities.
+		desiredDataplaneOperators = nil
 	}
 
 	desiredManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation, err := s.desiredDataPlaneOIDCFederationStatus(
-		dataPlaneOperators,
+		ctx,
+		desiredDataplaneOperators,
 		existingServiceProviderCluster.Status.ManagedIdentityDetails,
 		existingServiceProviderCluster.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation,
 	)
@@ -149,8 +148,7 @@ func (s *dataPlaneOIDCFederationIntentSyncer) SyncOnce(ctx context.Context, key 
 
 	replacement := existingServiceProviderCluster.DeepCopy()
 	replacement.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation = desiredManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation
-
-	if equality.Semantic.DeepEqual(existingServiceProviderCluster, replacement) {
+	if !controllerutil.NeedsUpdate(existingServiceProviderCluster, replacement) {
 		return nil
 	}
 
@@ -165,28 +163,15 @@ func (s *dataPlaneOIDCFederationIntentSyncer) SyncOnce(ctx context.Context, key 
 	return nil
 }
 
-// clusterServiceGone reports whether Cluster Service no longer has a cluster
-// for this HCP, so data-plane OIDC federation can be torn down.
-//
-// ClusterServiceID still set means ClusterDeletionClusterServiceIDClearer has
-// not confirmed a CS 404 yet. That check is the "CS existed and is not gone"
-// signal; this function never reaches the timestamp check while the ID is set.
-//
-// ClusterServiceID already nil is ambiguous: either CS was never created, or
-// the clearer already dropped the ID after a 404. ClusterServiceDeletionTimestamp
-// distinguishes those. While it is unset, ClusterClusterServiceDeleteDispatch is
-// still in its 120s wait for an in-flight CS create to write ClusterServiceID.
-// Once it is set, dispatch has issued DeleteCluster or concluded CS was never
-// created. PendingClusterServiceID is not used: it is a create-time reservation
-// and is not cleared on delete.
-//
-// UsesNewClusterDeletionApproach is required because dispatch never stamps
-// ClusterServiceDeletionTimestamp for pre-existing in-flight deletes. Those
-// clusters skip the 120s wait. Their ClusterServiceID is typically still set,
-// so the ID check already holds teardown; the fallback only matters when that
-// ID was never assigned.
+// clusterServiceGone reports whether Cluster Service's Cluster is no longer there as
+// part of the deletion process of this cluster.
+
+// UsesNewClusterDeletionApproach being set to true is required because the old deletion approach
+// never stamped ClusterServiceDeletionTimestamp and there might be pre-existing in-flifght deletes with the
+// old approach. That means that we never deconfigure clusters that have been marked for deletion with the old approach. Although in those
+// cases the cluster service side should perform the deconfiguration on its side.
 func (s *dataPlaneOIDCFederationIntentSyncer) clusterServiceGone(cluster *coreapi.HCPOpenShiftCluster) bool {
-	// TODO temporary check to skip the new deletion approach for Clusters that were created before the new approach was implemented.
+	// TODO temporary check to skip the new deletion approach for Clusters that were created before the new deletion approach was implemented.
 	// This will be removed once all clusters whose deletion was triggered before the new approach is fully rolled out have been
 	// fully deleted in all ARO-HCP permanent environments, for all regions.
 	if !cluster.ServiceProviderProperties.UsesNewClusterDeletionApproach {
@@ -198,94 +183,104 @@ func (s *dataPlaneOIDCFederationIntentSyncer) clusterServiceGone(cluster *coreap
 		cluster.ServiceProviderProperties.ClusterServiceID == nil
 }
 
-// desiredDataPlaneOIDCFederationStatus computes the federation map that should
+// desiredDataPlaneOIDCFederationStatus computes the data plane oidc federation map that should
 // be stored on the ServiceProviderCluster.
 //
 // Only data-plane operator identities are considered: unique ResourceIDs from
 // DataPlaneOperators whose ManagedIdentityDetails entry has resolved
-// MetadataFromARMUserAssignedIdentitiesAPI. Control-plane operators and the
-// ServiceManagedIdentity are skipped even when they have ARM metadata, so a
-// UAMI that is still CP or SMI does not keep data-plane OIDC federation after
-// the last data-plane operator leaves it.
+// MetadataFromARMUserAssignedIdentitiesAPI metadata source.
 //
 // The map is keyed by lowercased ResourceID. A change to ClientID, PrincipalID,
-// or TenantID on the same ResourceID is identity instance rotation: the first
-// loop updates ObservedIdentity and sets PendingConfigure. The second loop
-// deconfigures only when the ResourceID left DataPlaneOperators.
+// or TenantID on the same ResourceID means that the identity itself has changed (for example, it has been deleted and recreated with the same
+// resource ID), and it needs to be oidc federated again: the first
+// loop updates TargetIdentity and clears EnsuredIdentity, AzureResources, and
+// PendingAzureResources. The second loop deconfigures only when the ResourceID
+// left DataPlaneOperators.
 //
-// The first transition to PendingDeconfigure stamps DeconfigureTimestamp from
-// the controller clock (when deconfigure was requested). The executor waits
-// 24h from that event on a live cluster. Already PendingDeconfigure entries
+// The first transition to deconfigure stamps DeconfigureTimestamp. The DataPlaneOIDCFederation controller waits
+// 24h from that event to start the actual deconfiguration process. Already deconfiguring entries
 // keep their existing stamp so the wait is not reset.
 func (s *dataPlaneOIDCFederationIntentSyncer) desiredDataPlaneOIDCFederationStatus(
+	ctx context.Context,
 	dataPlaneOperators map[string]*azcorearm.ResourceID,
 	existingManagedIdentityDetails map[string]*coreapi.ManagedIdentityMetadata,
-	existingFederation map[string]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus,
+	existingManagedIdentityDataplaneOIDCFederationStatus map[string]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus,
 ) (map[string]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus, error) {
-	desiredDataPlaneOperatorResourceIDs := uniqueDataPlaneOperatorResourceIDs(dataPlaneOperators)
-	desired := make(map[string]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus, len(desiredDataPlaneOperatorResourceIDs)+len(existingFederation))
+	logger := utils.LoggerFromContext(ctx)
 
-	resolvedResourceIDs := make(map[string]struct{}, len(desiredDataPlaneOperatorResourceIDs))
-	unresolvedResourceIDs := map[string]struct{}{}
+	desiredDataPlaneOperatorIdentityResourceIDs := s.uniqueDataPlaneOperatorIdentityResourceIDs(dataPlaneOperators)
+	desiredManagedIdentityDataplaneOIDCFederationStatus := make(map[string]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus)
+
+	resourceIDsWithResolvedIdentityMetadata := make(map[string]struct{})
+	resourceIDsWithUnresolvedIdentityMetadata := make(map[string]struct{})
 
 	// First loop: data-plane operators that currently have resolved ARM User
 	// Assigned Identities metadata in ManagedIdentityDetails. These are the
-	// ResourceIDs that should be federated. Missing entries become
-	// PendingConfigure. PendingConfigure or Configured entries with the same
-	// ObservedIdentity are left as-is. A change to ClientID, PrincipalID, or
-	// TenantID updates ObservedIdentity and sets PendingConfigure.
-	// PendingDeconfigure or Deconfigured entries that are desired again are
-	// flipped back to PendingConfigure.
-	for resourceIDKey := range desiredDataPlaneOperatorResourceIDs {
+	// ResourceIDs that should be considered for data plane oidc federation configuration/deconfiguration. Missing entries in ManagedIdentityDetails
+	// get TargetIdentity set. Entries with the same TargetIdentity are left as-is except
+	// DeconfigureTimestamp is cleared if they were draining. A change to
+	// ClientID, PrincipalID, or TenantID updates TargetIdentity and clears
+	// EnsuredIdentity and the FIC lists (the UAMI was recreated, so child FICs
+	// are already gone). Entries that were deconfiguring and
+	// are desired again are flipped back by clearing DeconfigureTimestamp.
+	for resourceIDKey := range desiredDataPlaneOperatorIdentityResourceIDs {
 		metadata, hasMetadata := existingManagedIdentityDetails[resourceIDKey]
 		if !hasMetadata {
-			// FetchManagedIdentitiesInfo has not written this identity yet.
-			unresolvedResourceIDs[resourceIDKey] = struct{}{}
+			// FetchManagedIdentitiesInfo controller has not written this identity yet.
+			resourceIDsWithUnresolvedIdentityMetadata[resourceIDKey] = struct{}{}
 			continue
 		}
 		if metadata == nil {
 			return nil, utils.TrackError(fmt.Errorf("ManagedIdentityDetails has a nil metadata entry for resource ID %s", resourceIDKey))
 		}
-		observedIdentity, ok := s.observedIdentityFromARMUserAssignedIdentities(metadata)
+		targetIdentity, ok := s.targetIdentityFromARMUserAssignedIdentities(metadata)
 		if !ok {
 			// ARM User Assigned Identities metadata is not resolved. That happens
-			// when FetchManagedIdentitiesInfo has not written this identity yet,
-			// ARM was not queried this pass (MetadataFromARMUserAssignedIdentitiesAPI
-			// is nil), RetrievalError is set, or a successful Get returned empty
-			// ClientID, PrincipalID, or TenantID. Do not deconfigure existing
-			// entries for this ResourceID in the second loop.
-			unresolvedResourceIDs[resourceIDKey] = struct{}{}
+			// when the FetchManagedIdentitiesInfo controller has not written this identity yet, when the metadata source
+			// has not been queried yet, when RetrievalError is set, or when the identity does not exist anymore in Azure.
+			// Do not deconfigure existing entries for this ResourceID in the second loop.
+			resourceIDsWithUnresolvedIdentityMetadata[resourceIDKey] = struct{}{}
 			continue
 		}
-		resolvedResourceIDs[resourceIDKey] = struct{}{}
+		resourceIDsWithResolvedIdentityMetadata[resourceIDKey] = struct{}{}
 
-		existing, hasExisting := existingFederation[resourceIDKey]
+		existing, hasExisting := existingManagedIdentityDataplaneOIDCFederationStatus[resourceIDKey]
 		if hasExisting && existing == nil {
 			return nil, utils.TrackError(fmt.Errorf("ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation has a nil status for resource ID %s", resourceIDKey))
 		}
 		if !hasExisting {
-			desired[resourceIDKey] = &coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
-				Phase:            coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingConfigure,
-				ObservedIdentity: observedIdentity,
+			// If the identity is not yet tracked for data plane oidc federation configuration/deconfiguration, set it with the TargetIdentity.
+			desiredManagedIdentityDataplaneOIDCFederationStatus[resourceIDKey] = &coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
+				TargetIdentity: targetIdentity,
 			}
 			continue
 		}
 
 		next := existing.DeepCopy()
-		identityChanged := existing.ObservedIdentity != observedIdentity
-		next.ObservedIdentity = observedIdentity
-		switch existing.Phase {
-		case coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingDeconfigure,
-			coreapi.ManagedIdentityDataplaneOIDCFederationPhaseDeconfigured:
-			next.Phase = coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingConfigure
-			next.DeconfigureTimestamp = nil
-		default:
-			if identityChanged {
-				next.Phase = coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingConfigure
-				next.DeconfigureTimestamp = nil
-			}
+		// To determine if the identity has changed, we can compare the TargetIdentity of the existing entry with the new TargetIdentity using the
+		// != operator because it will compare the values of the fields of the TargetIdentity struct, which are all string values.
+		identityChanged := existing.TargetIdentity != targetIdentity
+		next.TargetIdentity = targetIdentity
+		// If the identity is already tracked for data plane oidc federation configuration/deconfiguration, ensure the DeconfigureTimestamp is cleared.
+		// This covers the case where the identity is desired again after being deconfigured while still being in the process of deconfiguration.
+		next.DeconfigureTimestamp = nil
+		// If TargetIdentity has changed, the UAMI was recreated. Child FICs are
+		// gone with the old resource, so clear EnsuredIdentity and the FIC lists.
+		if identityChanged {
+			logger.Info("data-plane OIDC federation identity instance changed. Clearing ensured identity and FIC lists",
+				"managedIdentityResourceID", resourceIDKey,
+				"previousTargetClientID", existing.TargetIdentity.ClientID,
+				"previousTargetPrincipalID", existing.TargetIdentity.PrincipalID,
+				"previousTargetTenantID", existing.TargetIdentity.TenantID,
+				"targetClientID", targetIdentity.ClientID,
+				"targetPrincipalID", targetIdentity.PrincipalID,
+				"targetTenantID", targetIdentity.TenantID,
+			)
+			next.EnsuredIdentity = nil
+			next.AzureResources = nil
+			next.PendingAzureResources = nil
 		}
-		desired[resourceIDKey] = next
+		desiredManagedIdentityDataplaneOIDCFederationStatus[resourceIDKey] = next
 	}
 
 	// Second loop: federation ResourceIDs that the first loop did not mark as
@@ -295,12 +290,12 @@ func (s *dataPlaneOIDCFederationIntentSyncer) desiredDataPlaneOIDCFederationStat
 	// a data-plane operator but ARM IDs are unset, keep the existing entry. A
 	// transient Azure error in FetchManagedIdentitiesInfo must not start
 	// deconfiguration.
-	for resourceIDKey, existing := range existingFederation {
+	for resourceIDKey, existing := range existingManagedIdentityDataplaneOIDCFederationStatus {
 		if existing == nil {
 			return nil, utils.TrackError(fmt.Errorf("ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation has a nil status for resource ID %s", resourceIDKey))
 		}
 		//  If the key is still desired, keep the existing entry.
-		if _, stillDesired := resolvedResourceIDs[resourceIDKey]; stillDesired {
+		if _, stillDesired := resourceIDsWithResolvedIdentityMetadata[resourceIDKey]; stillDesired {
 			continue
 		}
 		// ARM User Assigned Identities metadata is unresolved for this
@@ -308,48 +303,48 @@ func (s *dataPlaneOIDCFederationIntentSyncer) desiredDataPlaneOIDCFederationStat
 		// absent from resolvedResourceIDs even though it has not left the
 		// desired set. Keep the existing status. A transient fetch failure
 		// must not start deconfiguration.
-		if _, unresolved := unresolvedResourceIDs[resourceIDKey]; unresolved {
-			desired[resourceIDKey] = existing.DeepCopy()
+		if _, unresolved := resourceIDsWithUnresolvedIdentityMetadata[resourceIDKey]; unresolved {
+			desiredManagedIdentityDataplaneOIDCFederationStatus[resourceIDKey] = existing.DeepCopy()
 			continue
 		}
 
 		// This ResourceID is no longer desired: it left DataPlaneOperators,
 		// or Cluster Service is gone and the desired set is empty. Start
 		// deconfiguration unless it is already in progress. Drop leftover
-		// Deconfigured entries. ClientID, PrincipalID, or TenantID changes
-		// are handled in the first loop on this same key and must not
-		// deconfigure.
-		next := existing.DeepCopy()
-		switch existing.Phase {
-		case coreapi.ManagedIdentityDataplaneOIDCFederationPhaseDeconfigured:
-			// Drop leftover Deconfigured entries. The executor removes the key
-			// after successful deconfigure; this also prunes documents that
-			// still have the terminal phase from before that change.
+		// entries with nothing tracked to delete. ClientID, PrincipalID, or
+		// TenantID changes are handled in the first loop on this same key
+		// and must not deconfigure.
+		if existing.DeconfigureTimestamp != nil {
+			// If the identity is already marked for deconfiguration, keep the existing entry.
+			desiredManagedIdentityDataplaneOIDCFederationStatus[resourceIDKey] = existing.DeepCopy()
 			continue
-		case coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingDeconfigure:
-			// Leave as-is. Restamping DeconfigureTimestamp would reset the
-			// live-cluster 24h wait.
-		default:
-			// PendingConfigure or Configured: first request to deconfigure.
-			// Stamp DeconfigureTimestamp from the controller clock so the
-			// executor can wait 24h on a live cluster.
-			next.Phase = coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingDeconfigure
-			requestedAt := metav1.NewTime(s.clock.Now())
-			next.DeconfigureTimestamp = &requestedAt
 		}
-		desired[resourceIDKey] = next
+		// TODO is this correct, or should we keep the entry and start a 24h deconfigure? is race condition possible here if
+		// we do what the current code codes?
+		// Empty FederatedIdentityCredential lists mean nothing exists in Azure to delete: never
+		// configured, or the identity was recreated and child FederatedIdentityCredential resources are already gone.
+		// Drop the map entry completely instead of starting a 24h deconfigure.
+		if len(existing.AzureResources) == 0 && len(existing.PendingAzureResources) == 0 {
+			continue
+		}
+		// If the identity has Azure resources or pending Azure resources, mark it for deconfiguration.
+		next := existing.DeepCopy()
+		deconfigureRequestedAt := metav1.NewTime(s.clock.Now())
+		next.DeconfigureTimestamp = &deconfigureRequestedAt
+		desiredManagedIdentityDataplaneOIDCFederationStatus[resourceIDKey] = next
 	}
 
-	if len(desired) == 0 {
+	if len(desiredManagedIdentityDataplaneOIDCFederationStatus) == 0 {
 		return nil, nil
 	}
-	return desired, nil
+
+	return desiredManagedIdentityDataplaneOIDCFederationStatus, nil
 }
 
-// uniqueDataPlaneOperatorResourceIDs returns the unique data-plane operator
+// uniqueDataPlaneOperatorIdentityResourceIDs returns the unique data-plane operator
 // identity ResourceIDs, keyed by the fully lowercased string form. Empty operator
 // names and nil ResourceIDs are skipped.
-func uniqueDataPlaneOperatorResourceIDs(dataPlaneOperators map[string]*azcorearm.ResourceID) map[string]*azcorearm.ResourceID {
+func (s *dataPlaneOIDCFederationIntentSyncer) uniqueDataPlaneOperatorIdentityResourceIDs(dataPlaneOperators map[string]*azcorearm.ResourceID) map[string]*azcorearm.ResourceID {
 	unique := make(map[string]*azcorearm.ResourceID, len(dataPlaneOperators))
 	for operatorName, resourceID := range dataPlaneOperators {
 		if len(operatorName) == 0 || resourceID == nil {
@@ -360,20 +355,18 @@ func uniqueDataPlaneOperatorResourceIDs(dataPlaneOperators map[string]*azcorearm
 	return unique
 }
 
-// observedIdentityFromARMUserAssignedIdentities returns the ObservedIdentity
+// targetIdentityFromARMUserAssignedIdentities returns the TargetIdentity
 // snapshot when MetadataFromARMUserAssignedIdentitiesAPI has ClientID,
 // PrincipalID, and TenantID. ok is false when ARM User Assigned Identities
-// metadata is not fully resolved. Dataplane and hardcoded-identity metadata
-// are ignored: data-plane OIDC federation uses the ARM User Assigned
-// Identities IDs.
-func (s *dataPlaneOIDCFederationIntentSyncer) observedIdentityFromARMUserAssignedIdentities(metadata *coreapi.ManagedIdentityMetadata) (coreapi.ManagedIdentityDataplaneOIDCFederationObservedIdentity, bool) {
-	arm := metadata.MetadataFromARMUserAssignedIdentitiesAPI
-	if arm == nil || !arm.HasResolvedIdentityInformation() {
-		return coreapi.ManagedIdentityDataplaneOIDCFederationObservedIdentity{}, false
+// metadata is not fully resolved.
+func (s *dataPlaneOIDCFederationIntentSyncer) targetIdentityFromARMUserAssignedIdentities(metadata *coreapi.ManagedIdentityMetadata) (coreapi.DataplaneOIDCFederationIdentityInstance, bool) {
+	metadataFromARMUserAssignedIdentitiesAPI := metadata.MetadataFromARMUserAssignedIdentitiesAPI
+	if metadataFromARMUserAssignedIdentitiesAPI == nil || !metadataFromARMUserAssignedIdentitiesAPI.HasResolvedIdentityInformation() {
+		return coreapi.DataplaneOIDCFederationIdentityInstance{}, false
 	}
-	return coreapi.ManagedIdentityDataplaneOIDCFederationObservedIdentity{
-		ClientID:    *arm.ClientID,
-		PrincipalID: *arm.PrincipalID,
-		TenantID:    *arm.TenantID,
+	return coreapi.DataplaneOIDCFederationIdentityInstance{
+		ClientID:    *metadataFromARMUserAssignedIdentitiesAPI.ClientID,
+		PrincipalID: *metadataFromARMUserAssignedIdentitiesAPI.PrincipalID,
+		TenantID:    *metadataFromARMUserAssignedIdentitiesAPI.TenantID,
 	}, true
 }
