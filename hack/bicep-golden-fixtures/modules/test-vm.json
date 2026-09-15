@@ -1,0 +1,179 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep"
+    }
+  },
+  "outputs": {
+    "privateIP": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Network/networkInterfaces', format('{0}-nic', parameters('vmName'))), '2022-07-01').ipConfigurations[0].properties.privateIPAddress]"
+    },
+    "publicIP": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Network/publicIPAddresses', format('{0}-pip', parameters('vmName'))), '2022-07-01').ipAddress]"
+    },
+    "vmName": {
+      "type": "string",
+      "value": "[parameters('vmName')]"
+    }
+  },
+  "parameters": {
+    "adminUsername": {
+      "defaultValue": "azureuser",
+      "metadata": {
+        "description": "Admin username for the VM"
+      },
+      "type": "string"
+    },
+    "location": {
+      "defaultValue": "[resourceGroup().location]",
+      "metadata": {
+        "description": "Location for the VM"
+      },
+      "type": "string"
+    },
+    "sshPublicKey": {
+      "metadata": {
+        "description": "SSH public key for the VM"
+      },
+      "type": "string"
+    },
+    "subnetName": {
+      "metadata": {
+        "description": "The subnet name for the VM"
+      },
+      "type": "string"
+    },
+    "vmName": {
+      "metadata": {
+        "description": "Name of the virtual machine"
+      },
+      "type": "string"
+    },
+    "vmSize": {
+      "defaultValue": "Standard_D2s_v3",
+      "metadata": {
+        "description": "VM size"
+      },
+      "type": "string"
+    },
+    "vnetName": {
+      "metadata": {
+        "description": "The virtual network name"
+      },
+      "type": "string"
+    }
+  },
+  "resources": [
+    {
+      "apiVersion": "2022-07-01",
+      "location": "[parameters('location')]",
+      "name": "[format('{0}-pip', parameters('vmName'))]",
+      "properties": {
+        "publicIPAddressVersion": "IPv4",
+        "publicIPAllocationMethod": "Static"
+      },
+      "sku": {
+        "name": "Standard"
+      },
+      "type": "Microsoft.Network/publicIPAddresses"
+    },
+    {
+      "apiVersion": "2022-07-01",
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/publicIPAddresses', format('{0}-pip', parameters('vmName')))]"
+      ],
+      "location": "[parameters('location')]",
+      "name": "[format('{0}-nic', parameters('vmName'))]",
+      "properties": {
+        "ipConfigurations": [
+          {
+            "name": "ipconfig1",
+            "properties": {
+              "privateIPAllocationMethod": "Dynamic",
+              "publicIPAddress": {
+                "id": "[resourceId('Microsoft.Network/publicIPAddresses', format('{0}-pip', parameters('vmName')))]"
+              },
+              "subnet": {
+                "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('vnetName'), parameters('subnetName'))]"
+              }
+            }
+          }
+        ]
+      },
+      "type": "Microsoft.Network/networkInterfaces"
+    },
+    {
+      "apiVersion": "2023-03-01",
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/networkInterfaces', format('{0}-nic', parameters('vmName')))]"
+      ],
+      "location": "[parameters('location')]",
+      "name": "[parameters('vmName')]",
+      "properties": {
+        "hardwareProfile": {
+          "vmSize": "[parameters('vmSize')]"
+        },
+        "networkProfile": {
+          "networkInterfaces": [
+            {
+              "id": "[resourceId('Microsoft.Network/networkInterfaces', format('{0}-nic', parameters('vmName')))]"
+            }
+          ]
+        },
+        "osProfile": {
+          "adminUsername": "[parameters('adminUsername')]",
+          "computerName": "[parameters('vmName')]",
+          "linuxConfiguration": {
+            "disablePasswordAuthentication": true,
+            "ssh": {
+              "publicKeys": [
+                {
+                  "keyData": "[parameters('sshPublicKey')]",
+                  "path": "[format('/home/{0}/.ssh/authorized_keys', parameters('adminUsername'))]"
+                }
+              ]
+            }
+          }
+        },
+        "storageProfile": {
+          "imageReference": {
+            "offer": "0001-com-ubuntu-server-jammy",
+            "publisher": "Canonical",
+            "sku": "22_04-lts-gen2",
+            "version": "latest"
+          },
+          "osDisk": {
+            "createOption": "FromImage",
+            "managedDisk": {
+              "storageAccountType": "Premium_LRS"
+            }
+          }
+        }
+      },
+      "type": "Microsoft.Compute/virtualMachines"
+    },
+    {
+      "apiVersion": "2023-03-01",
+      "dependsOn": [
+        "[resourceId('Microsoft.Compute/virtualMachines', parameters('vmName'))]"
+      ],
+      "location": "[parameters('location')]",
+      "name": "[format('{0}/{1}', parameters('vmName'), 'installTools')]",
+      "properties": {
+        "autoUpgradeMinorVersion": true,
+        "protectedSettings": {
+          "commandToExecute": "KUBECTL_VERSION=$(curl -L -s https://dl.k8s.io/release/stable.txt) && curl -LO \"https://dl.k8s.io/release/$KUBECTL_VERSION/bin/linux/amd64/kubectl\" && chmod +x kubectl && sudo mv kubectl /usr/local/bin/"
+        },
+        "publisher": "Microsoft.Azure.Extensions",
+        "settings": {},
+        "type": "CustomScript",
+        "typeHandlerVersion": "2.1"
+      },
+      "type": "Microsoft.Compute/virtualMachines/extensions"
+    }
+  ]
+}

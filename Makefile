@@ -96,10 +96,22 @@ verify-kql:
 	hack/kql-verify.sh
 .PHONY: verify-kql
 
+verify-bicep-fixtures:
+	hack/verify-bicep-fixtures.sh
+.PHONY: verify-bicep-fixtures
+
+update-bicep-golden:
+	hack/generate-bicep-golden.sh
+.PHONY: update-bicep-golden
+
+verify-tool-versions:
+	$(MAKE) -C dev-infrastructure/openshift-ci verify
+.PHONY: verify-tool-versions
+
 update: deepcopy json-format
 .PHONY: update
 
-verify: verify-deepcopy verify-json-format verify-generate verify-yamlfmt verify-materialize verify-gomega-assertions verify-mi-containers verify-schema
+verify: verify-deepcopy verify-json-format verify-generate verify-yamlfmt verify-materialize verify-gomega-assertions verify-mi-containers verify-schema verify-bicep-fixtures verify-tool-versions
 .PHONY: verify
 
 verify-schema:
