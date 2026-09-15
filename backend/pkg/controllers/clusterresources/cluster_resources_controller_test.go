@@ -415,6 +415,7 @@ func TestSyncOnce(t *testing.T) {
 				clustersServiceClient:        tt.setupCSMock(ctrl),
 				kubeApplierDBClients:         mockKubeApplierDBClients,
 				applyDesireLister:            &kubeapplierlistertesting.DBApplyDesireLister{Clients: mockKubeApplierDBClients, Lister: mcLister},
+				readDesireLister:             &kubeapplierlistertesting.DBReadDesireLister{Clients: mockKubeApplierDBClients, Lister: mcLister},
 			}
 
 			err := syncer.SyncOnce(ctx, testKey())
@@ -487,6 +488,7 @@ func TestDeleteStaleApplyDesires(t *testing.T) {
 		syncer := &clusterResourcesController{
 			kubeApplierDBClients: mockClients,
 			applyDesireLister:    &kubeapplierlistertesting.DBApplyDesireLister{Clients: mockClients, Lister: mcLister},
+			readDesireLister:     &kubeapplierlistertesting.DBReadDesireLister{Clients: mockClients, Lister: mcLister},
 		}
 
 		currentResourceID := kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(
@@ -529,6 +531,7 @@ func TestDeleteStaleApplyDesires(t *testing.T) {
 		syncer := &clusterResourcesController{
 			kubeApplierDBClients: mockClients,
 			applyDesireLister:    &kubeapplierlistertesting.DBApplyDesireLister{Clients: mockClients, Lister: mcLister},
+			readDesireLister:     &kubeapplierlistertesting.DBReadDesireLister{Clients: mockClients, Lister: mcLister},
 		}
 
 		err := syncer.deleteStaleApplyDesires(ctx, testKey(), testManagementClusterResourceID, map[string]bool{})
@@ -566,6 +569,7 @@ func TestDeleteStaleApplyDesires(t *testing.T) {
 		syncer := &clusterResourcesController{
 			kubeApplierDBClients: mockClients,
 			applyDesireLister:    &kubeapplierlistertesting.DBApplyDesireLister{Clients: mockClients, Lister: mcLister},
+			readDesireLister:     &kubeapplierlistertesting.DBReadDesireLister{Clients: mockClients, Lister: mcLister},
 		}
 
 		err := syncer.deleteStaleApplyDesires(ctx, testKey(), testManagementClusterResourceID, map[string]bool{})
@@ -605,6 +609,7 @@ func TestDeleteStaleApplyDesires(t *testing.T) {
 		syncer := &clusterResourcesController{
 			kubeApplierDBClients: mockClients,
 			applyDesireLister:    &kubeapplierlistertesting.DBApplyDesireLister{Clients: mockClients, Lister: mcLister},
+			readDesireLister:     &kubeapplierlistertesting.DBReadDesireLister{Clients: mockClients, Lister: mcLister},
 		}
 
 		err := syncer.deleteStaleApplyDesires(ctx, testKey(), testManagementClusterResourceID, map[string]bool{})
@@ -833,6 +838,7 @@ func TestProcessClusterResourcesNodePoolPath(t *testing.T) {
 				nodePoolLister:       &corelistertesting.SliceNodePoolLister{NodePools: []*coreapi.HCPOpenShiftClusterNodePool{tt.nodePool}},
 				kubeApplierDBClients: mockClients,
 				applyDesireLister:    &kubeapplierlistertesting.DBApplyDesireLister{Clients: mockClients, Lister: mcLister},
+				readDesireLister:     &kubeapplierlistertesting.DBReadDesireLister{Clients: mockClients, Lister: mcLister},
 			}
 
 			// Seed the desire with a pass over a healthy NodePool, so the deletion

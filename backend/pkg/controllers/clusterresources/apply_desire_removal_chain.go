@@ -206,6 +206,22 @@ func ensureMatchingApplyDesiresRemoved(
 			continue
 		}
 		logger.Info("deleted ApplyDesire", "step", stepName, "desireName", desireName)
+
+		// Now that the ApplyDesire is removed and the object is gone from the
+		// management cluster, delete the corresponding ReadDesire. It was only
+		// needed for observability during deletion; now that deletion is complete,
+		// it's no longer useful.
+		readDesireCRUD, readErr := readDesireCRUDFor(kubeApplierDBClient, desire)
+		if readErr != nil {
+			// Log but don't fail the step - ReadDesire cleanup is best-effort
+			logger.Error(readErr, "failed to get ReadDesire CRUD", "desireName", desireName)
+		} else {
+			if delErr := readDesireCRUD.Delete(ctx, desireName); delErr != nil && !cosmosstorageutils.IsNotFoundError(delErr) {
+				logger.Error(delErr, "failed to delete ReadDesire", "desireName", desireName)
+			} else {
+				logger.Info("deleted ReadDesire", "step", stepName, "desireName", desireName)
+			}
+		}
 	}
 
 	// Report errors ahead of the wait list: a step that could not be fully
@@ -287,6 +303,26 @@ func applyDesireCRUDFor(
 	crud, err := kubeApplierDBClient.ApplyDesiresFor(scope)
 	if err != nil {
 		return nil, utils.TrackError(fmt.Errorf("get CRUD for ApplyDesire %s: %w", desireName, err))
+	}
+
+	return crud, nil
+}
+
+// readDesireCRUDFor resolves the Cosmos handle for a ReadDesire at the same
+// scope as the given ApplyDesire (cluster- or nodepool-scoped).
+func readDesireCRUDFor(
+	kubeApplierDBClient kubeappliercosmosstorage.KubeApplierDBClient,
+	applyDesire *kubeapplierapi.ApplyDesire,
+) (cosmosstorageutils.ResourceCRUD[kubeapplierapi.ReadDesire, *kubeapplierapi.ReadDesire], error) {
+	desireName := applyDesire.ResourceID.Name
+
+	scope, err := kubeappliercosmosstorage.ParseDesireScope(applyDesire.ResourceID.Parent)
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("parse scope for ReadDesire %s: %w", desireName, err))
+	}
+	crud, err := kubeApplierDBClient.ReadDesiresFor(scope)
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("get CRUD for ReadDesire %s: %w", desireName, err))
 	}
 
 	return crud, nil
