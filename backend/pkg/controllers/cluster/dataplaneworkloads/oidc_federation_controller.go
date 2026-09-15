@@ -52,9 +52,10 @@ const DataPlaneOIDCFederationControllerName = "DataPlaneOIDCFederation"
 
 const (
 	// dataPlaneOIDCFederationRecheckInterval is the base interval before
-	// re-querying Azure for a federated identity credential that is already in
-	// a terminal phase. Combined with dataPlaneOIDCFederationRecheckJitter via
-	// wait.Jitter.
+	// re-querying Azure for federated identity credentials that are already
+	// Configured. Combined with dataPlaneOIDCFederationRecheckJitter via
+	// wait.Jitter. The resulting time is stored on
+	// Spec.EarliestRecheckTimesByController[DataPlaneOIDCFederationControllerName].
 	dataPlaneOIDCFederationRecheckInterval = 12 * time.Hour
 	dataPlaneOIDCFederationRecheckJitter   = 0.5
 
@@ -83,11 +84,13 @@ type dataPlaneOIDCFederatedIdentityCredential struct {
 // is assigned to on the Cluster payload. For each of those operators, a
 // federated identity credential is created for every Kubernetes service
 // account listed in the cluster-scoped identities config. Configured entries
-// are rechecked on EarliestRecheckTime (or immediately when the desired FIC
-// set changes): Get each desired FIC and CreateOrUpdate only if it is missing
-// or Issuer/Subject/Audiences drifted, and delete tracked FICs that are no
-// longer desired while the identity stays Configured. See ensureFederation
-// for the cases that shrink the desired set.
+// are rechecked on Spec.EarliestRecheckTimesByController[DataPlaneOIDCFederation]
+// (or immediately when the desired FIC set changes, a PendingConfigure
+// identity exists, or a PendingDeconfigure identity is ready): Get each
+// desired FIC and CreateOrUpdate only if it is missing or Issuer/Subject/Audiences
+// drifted, and delete tracked FICs that are no longer desired while the
+// identity stays Configured. See ensureFederation for the cases that shrink
+// the desired set.
 // PendingDeconfigure deletes the credentials already tracked
 // on the status (AzureResources and PendingAzureResources). On a live cluster
 // Azure deletes wait until 24h after DeconfigureTimestamp. Cluster deletion
@@ -160,6 +163,7 @@ func NewDataPlaneOIDCFederationController(
 func (s *dataPlaneOIDCFederationSyncer) needsWork(cluster *coreapi.HCPOpenShiftCluster, serviceProviderCluster *coreapi.ServiceProviderCluster) bool {
 	csClusterID := controllerutils.ClusterServiceIDForCluster(cluster)
 	now := s.clock.Now()
+	earliestRecheckTime := serviceProviderCluster.Spec.EarliestRecheckTimesByController[DataPlaneOIDCFederationControllerName]
 	for federationKey, status := range serviceProviderCluster.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation {
 		switch status.Phase {
 		case coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingConfigure:
@@ -179,10 +183,7 @@ func (s *dataPlaneOIDCFederationSyncer) needsWork(cluster *coreapi.HCPOpenShiftC
 			if cluster.ServiceProviderProperties.DeletionTimestamp != nil {
 				continue
 			}
-			if len(csClusterID) > 0 && s.desiredFICSetDiffers(cluster, federationKey, status, csClusterID) {
-				return true
-			}
-			if status.EarliestRecheckTime != nil && now.Before(status.EarliestRecheckTime.Time) {
+			if s.skipConfiguredBecauseRecheckNotDue(cluster, federationKey, status, csClusterID, now, earliestRecheckTime) {
 				continue
 			}
 			return true
@@ -216,6 +217,88 @@ func (s *dataPlaneOIDCFederationSyncer) pendingDeconfigureReady(
 		return true
 	}
 	return !now.Before(status.DeconfigureTimestamp.Time.Add(dataPlaneOIDCFederationDeconfigureDelay))
+}
+
+// skipConfiguredBecauseRecheckNotDue reports whether a Configured identity
+// should skip Azure this pass. PendingConfigure and ready PendingDeconfigure
+// never skip: those bypass Spec.EarliestRecheckTimesByController. A Configured
+// identity whose desired FIC set drifted also does not skip.
+func (s *dataPlaneOIDCFederationSyncer) skipConfiguredBecauseRecheckNotDue(
+	cluster *coreapi.HCPOpenShiftCluster,
+	federationKey string,
+	status *coreapi.ManagedIdentityDataplaneOIDCFederationStatus,
+	csClusterID string,
+	now time.Time,
+	earliestRecheckTime *metav1.Time,
+) bool {
+	if status.Phase != coreapi.ManagedIdentityDataplaneOIDCFederationPhaseConfigured {
+		return false
+	}
+	if earliestRecheckTime == nil || !now.Before(earliestRecheckTime.Time) {
+		return false
+	}
+	if len(csClusterID) > 0 && s.desiredFICSetDiffers(cluster, federationKey, status, csClusterID) {
+		return false
+	}
+	return true
+}
+
+// federationAzureIdle reports whether Azure FIC work is finished for this
+// cluster aside from Configured identities sleeping until the controller
+// recheck and PendingDeconfigure identities still inside the 24h wait.
+func (s *dataPlaneOIDCFederationSyncer) federationAzureIdle(
+	cluster *coreapi.HCPOpenShiftCluster,
+	serviceProviderCluster *coreapi.ServiceProviderCluster,
+	csClusterID string,
+	now time.Time,
+) bool {
+	for federationKey, status := range serviceProviderCluster.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation {
+		switch status.Phase {
+		case coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingConfigure:
+			if cluster.ServiceProviderProperties.DeletionTimestamp == nil {
+				return false
+			}
+		case coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingDeconfigure:
+			if s.pendingDeconfigureReady(cluster, status, now) {
+				return false
+			}
+		case coreapi.ManagedIdentityDataplaneOIDCFederationPhaseConfigured:
+			if cluster.ServiceProviderProperties.DeletionTimestamp != nil {
+				continue
+			}
+			if len(csClusterID) > 0 && s.desiredFICSetDiffers(cluster, federationKey, status, csClusterID) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+// syncFederationRecheckTime sets Spec.EarliestRecheckTimesByController[DataPlaneOIDCFederation]
+// when remaining entries are idle (all Configured, or Configured plus
+// PendingDeconfigure still inside the 24h wait). An empty federation map
+// deletes the entry: there is nothing to re-query. Immediate work remaining
+// (PendingConfigure, ready PendingDeconfigure, or Configured FIC-set drift)
+// leaves any existing time in place so a future recheck can still skip
+// Configured siblings while that work retries.
+func (s *dataPlaneOIDCFederationSyncer) syncFederationRecheckTime(
+	replacement *coreapi.ServiceProviderCluster,
+	cluster *coreapi.HCPOpenShiftCluster,
+	csClusterID string,
+	now time.Time,
+) {
+	if len(replacement.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation) == 0 {
+		delete(replacement.Spec.EarliestRecheckTimesByController, DataPlaneOIDCFederationControllerName)
+		return
+	}
+	if !s.federationAzureIdle(cluster, replacement, csClusterID, now) {
+		return
+	}
+	recheckAt := metav1.NewTime(now.Add(wait.Jitter(dataPlaneOIDCFederationRecheckInterval, dataPlaneOIDCFederationRecheckJitter)))
+	if replacement.Spec.EarliestRecheckTimesByController == nil {
+		replacement.Spec.EarliestRecheckTimesByController = map[string]*metav1.Time{}
+	}
+	replacement.Spec.EarliestRecheckTimesByController[DataPlaneOIDCFederationControllerName] = &recheckAt
 }
 
 func (s *dataPlaneOIDCFederationSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
@@ -257,6 +340,7 @@ func (s *dataPlaneOIDCFederationSyncer) SyncOnce(ctx context.Context, key contro
 	// We store the current time in-memory and use this value so all the logic within a reconcile pass
 	// sees the same value for the current time.
 	timeNow := s.clock.Now()
+	earliestRecheckTime := replacement.Spec.EarliestRecheckTimesByController[DataPlaneOIDCFederationControllerName]
 
 	var errs []error
 
@@ -267,16 +351,12 @@ func (s *dataPlaneOIDCFederationSyncer) SyncOnce(ctx context.Context, key contro
 	// IDs are already on AzureResources or leftover PendingAzureResources.
 	// Cluster deletion skips PendingConfigure and Configured so Cluster Service
 	// can deconfigure FICs without this controller recreating them.
-	// Configured is skipped only when EarliestRecheckTime is in the future and the
-	// desired FIC set is unchanged. A drift is processed immediately.
+	// Configured is skipped only when Spec.EarliestRecheckTimesByController[DataPlaneOIDCFederation]
+	// is in the future and the desired FIC set is unchanged. A drift is processed immediately.
 	for federationKey := range replacement.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation {
 		status := replacement.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation[federationKey]
 
-		// Configured is skipped only when EarliestRecheckTime is in the future and the
-		// desired FIC set is unchanged. A drift is processed immediately.
-		if status.Phase == coreapi.ManagedIdentityDataplaneOIDCFederationPhaseConfigured &&
-			status.EarliestRecheckTime != nil && timeNow.Before(status.EarliestRecheckTime.Time) &&
-			(len(csClusterID) == 0 || !s.desiredFICSetDiffers(existingCluster, federationKey, status, csClusterID)) {
+		if s.skipConfiguredBecauseRecheckNotDue(existingCluster, federationKey, status, csClusterID, timeNow, earliestRecheckTime) {
 			continue
 		}
 
@@ -337,11 +417,7 @@ func (s *dataPlaneOIDCFederationSyncer) SyncOnce(ctx context.Context, key contro
 	for federationKey := range replacement.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation {
 		status := replacement.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation[federationKey]
 
-		// Configured is skipped only when EarliestRecheckTime is in the future and the
-		// desired FIC set is unchanged. A drift is processed immediately.
-		if status.Phase == coreapi.ManagedIdentityDataplaneOIDCFederationPhaseConfigured &&
-			status.EarliestRecheckTime != nil && timeNow.Before(status.EarliestRecheckTime.Time) &&
-			(len(csClusterID) == 0 || !s.desiredFICSetDiffers(existingCluster, federationKey, status, csClusterID)) {
+		if s.skipConfiguredBecauseRecheckNotDue(existingCluster, federationKey, status, csClusterID, timeNow, earliestRecheckTime) {
 			continue
 		}
 
@@ -380,6 +456,10 @@ func (s *dataPlaneOIDCFederationSyncer) SyncOnce(ctx context.Context, key contro
 	}
 	if len(replacement.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation) == 0 {
 		replacement.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation = nil
+	}
+
+	if len(errs) == 0 {
+		s.syncFederationRecheckTime(replacement, existingCluster, csClusterID, timeNow)
 	}
 
 	if controllerutil.NeedsUpdate(existingServiceProviderCluster, replacement) {
@@ -526,8 +606,6 @@ func (s *dataPlaneOIDCFederationSyncer) ensureFederation(
 	status.AzureResources = desiredIDs
 	status.PendingAzureResources = nil
 	status.Phase = coreapi.ManagedIdentityDataplaneOIDCFederationPhaseConfigured
-	recheckAt := metav1.NewTime(s.clock.Now().Add(wait.Jitter(dataPlaneOIDCFederationRecheckInterval, dataPlaneOIDCFederationRecheckJitter)))
-	status.EarliestRecheckTime = &recheckAt
 	return nil
 }
 
