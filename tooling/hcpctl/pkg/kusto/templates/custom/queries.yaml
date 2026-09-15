@@ -55,3 +55,33 @@
   database: ServiceLogs
   queryType: custom-logs
   templatePath: templates/custom/kube_applier_logs.kql.gotmpl
+- name: veleroBackups
+  database: ServiceLogs
+  queryType: custom-logs
+  includeInMustGather: true
+  templatePath: templates/custom/velero_backups.kql.gotmpl
+- name: veleroSchedules
+  database: ServiceLogs
+  queryType: custom-logs
+  includeInMustGather: true
+  templatePath: templates/custom/velero_schedules.kql.gotmpl
+- name: veleroDataUploads
+  database: ServiceLogs
+  queryType: custom-logs
+  includeInMustGather: true
+  templatePath: templates/custom/velero_data_uploads.kql.gotmpl
+- name: veleroDeleteBackupRequests
+  database: ServiceLogs
+  queryType: custom-logs
+  includeInMustGather: true
+  templatePath: templates/custom/velero_delete_backup_requests.kql.gotmpl
+- name: veleroHcpLogs
+  database: ServiceLogs
+  queryType: custom-logs
+  includeInMustGather: true
+  templatePath: templates/custom/velero_hcp_logs.kql.gotmpl
+- name: veleroServerLogs
+  database: ServiceLogs
+  queryType: custom-logs
+  includeInMustGather: true
+  templatePath: templates/custom/velero_server_logs.kql.gotmpl

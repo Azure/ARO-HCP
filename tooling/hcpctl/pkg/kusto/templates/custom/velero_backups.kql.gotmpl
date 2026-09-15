@@ -1,0 +1,32 @@
+// Velero Backups: full snapshot history of Velero Backup CRs captured on management
+// clusters, for backup-failure debugging (ARO-28989). One row per captured snapshot event,
+// time-ordered so phase transitions are visible. isFailed flags failed/partially-failed phases.
+// A mgmt cluster hosts many HCPs, so ClusterNames alone is not enough — the rows are pinned to
+// the target HCP via the Azure resource-id annotation (Backup CRs carry it).
+{{if .NoTruncation}}set notruncation;
+{{end -}}
+kubernetesResourceSnapshots
+| where timestamp between ({{.TimestampMin}} .. {{.TimestampMax}})
+| where cluster has_any ({{.ClusterNames}})
+| where objectKind == "Backup"
+| where namespace == "velero"
+| where tostring(object.metadata.annotations["azure.microsoft.com/hcp-cluster-azure-resource-id"]) has '{{.SubResourceGroupId}}'
+| extend
+    capturedAt = timestamp,
+    backup = name,
+    schedule = tostring(object.metadata.labels["velero.io/schedule-name"]),
+    resourceID = tostring(object.metadata.annotations["azure.microsoft.com/hcp-cluster-azure-resource-id"]),
+    phase = tostring(object.status.phase),
+    startTimestamp = todatetime(object.status.startTimestamp),
+    completionTimestamp = todatetime(object.status.completionTimestamp),
+    expiration = todatetime(object.status.expiration),
+    errors = toint(object.status.errors),
+    warnings = toint(object.status.warnings),
+    failureReason = tostring(object.status.failureReason),
+    validationErrors = object.status.validationErrors
+| extend isFailed = phase in ("Failed", "PartiallyFailed", "FailedValidation", "WaitingForPluginOperationsPartiallyFailed", "FinalizingPartiallyFailed")
+| project timestamp, capturedAt, event, cluster, backup, schedule, resourceID, phase, isFailed, startTimestamp, completionTimestamp, expiration, errors, warnings, failureReason, validationErrors
+| order by timestamp asc
+{{- if gt .Limit 0}}
+| limit {{.Limit}}
+{{- end}}

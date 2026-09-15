@@ -1,0 +1,29 @@
+database: ServiceLogs
+kql: |
+  // Velero Schedules: snapshot history of Velero Schedule CRs captured on management clusters, for
+  // backup-failure debugging (ARO-28989). Mirrors veleroBackups: scoped to the mgmt cluster(s)
+  // hosting the HCP (ClusterNames) and pinned to the target HCP via the Azure resource-id annotation
+  // (a mgmt cluster hosts many HCPs, so ClusterNames alone is not enough). One row per captured
+  // snapshot event, time-ordered. The cron/paused/phase fields explain whether backups are being
+  // scheduled at all; isHealthy flags the Enabled phase.
+  kubernetesResourceSnapshots
+  | where timestamp between (datetime(2025-01-01T00:00:00.0000000Z) .. datetime(2025-01-02T00:00:00.0000000Z))
+  | where cluster has_any ('mgmt-cluster-1', 'mgmt-cluster-2')
+  | where objectKind == "Schedule"
+  | where namespace == "velero"
+  | where tostring(object.metadata.annotations["azure.microsoft.com/hcp-cluster-azure-resource-id"]) has '/subscriptions/test-sub/resourceGroups/test-rg'
+  | extend
+      capturedAt = timestamp,
+      schedule = name,
+      cron = tostring(object.spec.schedule),
+      paused = tobool(object.spec.paused),
+      resourceID = tostring(object.metadata.annotations["azure.microsoft.com/hcp-cluster-azure-resource-id"]),
+      phase = tostring(object.status.phase),
+      lastBackup = todatetime(object.status.lastBackup),
+      validationErrors = object.status.validationErrors
+  | extend isHealthy = phase == "Enabled"
+  | project timestamp, capturedAt, event, cluster, schedule, cron, paused, resourceID, phase, isHealthy, lastBackup, validationErrors
+  | order by timestamp asc
+  | limit 100
+name: veleroSchedules
+unlimited: false
