@@ -297,6 +297,7 @@ func newDestructFixture(t *testing.T, ctx context.Context, nodePoolName string, 
 		controller: &clusterResourcesController{
 			kubeApplierDBClients: mockClients,
 			applyDesireLister:    &kubeapplierlistertesting.DBApplyDesireLister{Clients: mockClients, Lister: mcLister},
+			readDesireLister:     &kubeapplierlistertesting.DBReadDesireLister{Clients: mockClients, Lister: mcLister},
 		},
 		clusterCRUD:  clusterCRUD,
 		nodePoolCRUD: nodePoolCRUD,

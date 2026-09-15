@@ -61,6 +61,7 @@ type clusterResourcesController struct {
 	clustersServiceClient        ocm.ClusterServiceClientSpec
 	kubeApplierDBClients         kubeappliercosmosstorage.KubeApplierDBClients
 	applyDesireLister            kubeapplierlisters.ApplyDesireLister
+	readDesireLister             kubeapplierlisters.ReadDesireLister
 }
 
 var _ controllerutils.ClusterSyncer = (*clusterResourcesController)(nil)
@@ -76,6 +77,7 @@ func NewClusterResourcesController(
 	_, serviceProviderClusterLister := informers.ServiceProviderClusters()
 	_, nodePoolLister := informers.NodePools()
 	_, applyDesireLister := kubeApplierInformers.ApplyDesires()
+	_, readDesireLister := kubeApplierInformers.ReadDesires()
 
 	syncer := &clusterResourcesController{
 		clusterLister:                clusterLister,
@@ -84,6 +86,7 @@ func NewClusterResourcesController(
 		clustersServiceClient:        clustersServiceClient,
 		kubeApplierDBClients:         kubeApplierDBClients,
 		applyDesireLister:            applyDesireLister,
+		readDesireLister:             readDesireLister,
 	}
 
 	return controllerutils.NewClusterWatchingController(
@@ -185,7 +188,9 @@ func (c *clusterResourcesController) processClusterResources(ctx context.Context
 		return utils.TrackError(fmt.Errorf("failed to get kube-applier CRUD: %w", err))
 	}
 
-	tags := map[string]string{kubeapplierapi.TagControllerName: ClusterResourcesControllerName}
+	tags := map[string]string{
+		kubeapplierapi.TagControllerName: ClusterResourcesControllerName,
+	}
 
 	resourceMap := resources.Resources()
 	desiredResourceIDs := make(map[string]bool, len(resourceMap))
@@ -277,6 +282,53 @@ func (c *clusterResourcesController) processClusterResources(ctx context.Context
 
 		if err := kubeapplierhelpers.EnsureApplyDesire(ctx, crud, c.applyDesireLister, desire); err != nil {
 			errs = append(errs, err)
+		}
+
+		// Ensure ReadDesire exists for resources that go through
+		// ensureMatchingApplyDesiresRemoved during deletion, so operators can
+		// observe their state and debug deletion issues (e.g., stuck finalizers).
+		if shouldCreateReadDesireFor(classified.desireName) {
+			var readDesire *kubeapplierapi.ReadDesire
+			var readErr error
+			var readCRUD cosmosstorageutils.ResourceCRUD[kubeapplierapi.ReadDesire, *kubeapplierapi.ReadDesire]
+
+			if len(classified.nodePoolName) != 0 {
+				readCRUD, readErr = kubeApplierDBClient.ReadDesiresForNodePool(
+					key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, classified.nodePoolName,
+				)
+				if readErr != nil {
+					errs = append(errs, utils.TrackError(fmt.Errorf("failed to get node pool ReadDesire CRUD for %s: %w", classified.nodePoolName, readErr)))
+					continue
+				}
+
+				readDesire, readErr = buildNodePoolResourceReadDesire(
+					key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName,
+					classified.nodePoolName, classified.desireName,
+					managementCluster, target, tags,
+				)
+			} else {
+				readCRUD, readErr = kubeApplierDBClient.ReadDesiresForCluster(
+					key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName,
+				)
+				if readErr != nil {
+					errs = append(errs, utils.TrackError(fmt.Errorf("failed to get cluster ReadDesire CRUD: %w", readErr)))
+					continue
+				}
+
+				readDesire, readErr = buildClusterResourceReadDesire(
+					key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName,
+					classified.desireName, managementCluster, target, tags,
+				)
+			}
+
+			if readErr != nil {
+				errs = append(errs, readErr)
+				continue
+			}
+
+			if err := kubeapplierhelpers.EnsureReadDesire(ctx, readCRUD, c.readDesireLister, readDesire); err != nil {
+				errs = append(errs, err)
+			}
 		}
 	}
 	if err := c.deleteStaleApplyDesires(ctx, key, managementCluster, desiredResourceIDs); err != nil {
@@ -457,6 +509,78 @@ func buildNodePoolResourceApplyDesire(
 	}, nil
 }
 
+func buildClusterResourceReadDesire(
+	subscriptionID, resourceGroupName, clusterName, DesireName string,
+	managementCluster *azcorearm.ResourceID,
+	target kubeapplierapi.ResourceReference,
+	tags map[string]string,
+) (*kubeapplierapi.ReadDesire, error) {
+	resourceIDStr := kubeapplierapi.ToClusterScopedReadDesireResourceIDString(
+		subscriptionID, resourceGroupName, clusterName, DesireName,
+	)
+	resourceID, err := azcorearm.ParseResourceID(resourceIDStr)
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to parse ReadDesire resource ID %q: %w", resourceIDStr, err))
+	}
+
+	return &kubeapplierapi.ReadDesire{
+		CosmosMetadata: coreapi.CosmosMetadata{
+			ResourceID:   resourceID,
+			PartitionKey: strings.ToLower(managementCluster.String()),
+		},
+		Spec: kubeapplierapi.ReadDesireSpec{
+			ManagementCluster: managementCluster,
+			TargetItem:        target,
+		},
+		Tags: tags,
+	}, nil
+}
+
+func buildNodePoolResourceReadDesire(
+	subscriptionID, resourceGroupName, clusterName, nodePoolName, DesireName string,
+	managementCluster *azcorearm.ResourceID,
+	target kubeapplierapi.ResourceReference,
+	tags map[string]string,
+) (*kubeapplierapi.ReadDesire, error) {
+	resourceIDStr := kubeapplierapi.ToNodePoolScopedReadDesireResourceIDString(
+		subscriptionID, resourceGroupName, clusterName, nodePoolName, DesireName,
+	)
+	resourceID, err := azcorearm.ParseResourceID(resourceIDStr)
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to parse ReadDesire resource ID %q: %w", resourceIDStr, err))
+	}
+
+	return &kubeapplierapi.ReadDesire{
+		CosmosMetadata: coreapi.CosmosMetadata{
+			ResourceID:   resourceID,
+			PartitionKey: strings.ToLower(managementCluster.String()),
+		},
+		Spec: kubeapplierapi.ReadDesireSpec{
+			ManagementCluster: managementCluster,
+			TargetItem:        target,
+		},
+		Tags: tags,
+	}, nil
+}
+
+// shouldCreateReadDesireFor determines if a ReadDesire should be created for a
+// given desire name. ReadDesires are created for resources that go through
+// ensureMatchingApplyDesiresRemoved during deletion, so operators can observe
+// their state (e.g., stuck finalizers) and debug deletion issues.
+func shouldCreateReadDesireFor(DesireName string) bool {
+	lowerName := strings.ToLower(DesireName)
+	switch lowerName {
+	case strings.ToLower(DesireNameNodePool),
+		strings.ToLower(DesireNamePodNetworkInstance),
+		strings.ToLower(DesireNamePodNetwork),
+		strings.ToLower(DesireNameHostedClusterNamespace),
+		strings.ToLower(DesireNameControlPlaneNamespace):
+		return true
+	default:
+		return false
+	}
+}
+
 func (c *clusterResourcesController) deleteStaleApplyDesires(
 	ctx context.Context,
 	key controllerutils.HCPClusterKey,
@@ -497,9 +621,25 @@ func (c *clusterResourcesController) deleteStaleApplyDesires(
 			return err
 		}
 		if removed {
-			logger.Info("purged stale ApplyDesire", "DesireName", desire.ResourceID.Name)
+			logger.Info("purged stale ApplyDesire", "desireName", desire.ResourceID.Name)
+
+			// Also delete the corresponding ReadDesire if it exists. ReadDesires
+			// created by this controller outlive their ApplyDesire when
+			// deleteStaleApplyDesires removes a resource no longer returned by Cluster
+			// Service. Without this cleanup, the orphaned ReadDesire would be preserved
+			// by the ownership gate during cluster deletion and never get cleaned up.
+			readDesireCRUD, readErr := kubeApplierDBClient.ReadDesiresFor(scope)
+			if readErr != nil {
+				logger.Error(readErr, "failed to get ReadDesire CRUD for stale cleanup", "desireName", desire.ResourceID.Name)
+			} else {
+				if delErr := readDesireCRUD.Delete(ctx, desire.ResourceID.Name); delErr != nil && !cosmosstorageutils.IsNotFoundError(delErr) {
+					logger.Error(delErr, "failed to delete stale ReadDesire", "desireName", desire.ResourceID.Name)
+				} else if delErr == nil {
+					logger.Info("purged stale ReadDesire", "desireName", desire.ResourceID.Name)
+				}
+			}
 		} else {
-			logger.Info("stale ApplyDesire pending deletion", "DesireName", desire.ResourceID.Name)
+			logger.Info("stale ApplyDesire pending deletion", "desireName", desire.ResourceID.Name)
 		}
 	}
 

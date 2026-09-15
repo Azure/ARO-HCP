@@ -37,7 +37,7 @@ var (
 // desireNameSet is a step's claim: the exact desire names it is responsible for.
 type desireNameSet map[string]struct{}
 
-// NewDesireNameSet folds names to lower case, because that is the only form a
+// newDesireNameSet folds names to lower case, because that is the only form a
 // step will ever see: ToClusterScopedApplyDesireResourceIDString lowercases the
 // resource ID it builds, so a desire created as "HostedCluster" reads back with
 // ResourceID.Name == "hostedcluster". The constants keep their original casing
