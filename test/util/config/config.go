@@ -112,7 +112,7 @@ func LoadConfig(opts ConfigOptions) error {
 
 	// 3. Supply replacements for templated values (e.g. {{ .ctx.region }}, {{ .ev2.geoShortId }})
 	replacements := config.ConfigReplacements{
-		CloudReplacement:       opts.Cloud,
+		CloudReplacement:       "dev",
 		EnvironmentReplacement: opts.DeployEnv,
 		RegionReplacement:      opts.Region,
 		RegionShortReplacement: regionShort,
