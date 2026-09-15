@@ -15,6 +15,7 @@
 package config
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -23,6 +24,8 @@ import (
 	"github.com/Azure/ARO-Tools/config"
 	"github.com/Azure/ARO-Tools/config/ev2config"
 	"github.com/Azure/ARO-Tools/config/types"
+
+	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/settings"
 )
 
 var ServiceConfig types.Configuration
@@ -109,10 +112,11 @@ func LoadConfig(opts ConfigOptions) error {
 			regionShort = rsStr
 		}
 	}
+	regionShort = applyDevEnvironmentRegionShort(opts, regionShort)
 
 	// 3. Supply replacements for templated values (e.g. {{ .ctx.region }}, {{ .ev2.geoShortId }})
 	replacements := config.ConfigReplacements{
-		CloudReplacement:       opts.Cloud,
+		CloudReplacement:       "dev",
 		EnvironmentReplacement: opts.DeployEnv,
 		RegionReplacement:      opts.Region,
 		RegionShortReplacement: regionShort,
@@ -133,4 +137,34 @@ func LoadConfig(opts ConfigOptions) error {
 	// 5. Evaluate region specific overrides/values and expose globally
 	ServiceConfig, err = resolver.GetRegionConfiguration(opts.Region)
 	return err
+}
+
+// applyDevEnvironmentRegionShort mirrors the regionShort resolution performed
+// by tooling/templatize's rollout/configuration commands (see
+// ValidatedRolloutOptions.Complete in tooling/templatize/cmd/rolloutoptions.go):
+// ephemeral dev environments (e.g. ci00, ci01, pers, perf) declare a
+// regionShortOverride/regionShortSuffix in tooling/templatize/settings.yaml
+// that replaces or extends the static ev2 regionShortName. Without this,
+// resource names computed here (e.g. hcp-underlay-<env>-<regionShort>) would
+// never match what was actually deployed for those environments.
+//
+// This is best-effort: environments not present in settings.yaml (e.g. the
+// shared "dev"/"cspr" environments, or production clouds) keep using the
+// static ev2 regionShort unchanged.
+func applyDevEnvironmentRegionShort(opts ConfigOptions, regionShort string) string {
+	settingsFile := filepath.Join(filepath.Dir(filepath.Dir(opts.ConfigFile)), "tooling", "templatize", "settings.yaml")
+	devSettings, err := settings.Load(settingsFile)
+	if err != nil {
+		return regionShort
+	}
+
+	env, err := devSettings.Resolve(context.Background(), opts.Cloud, opts.DeployEnv)
+	if err != nil {
+		return regionShort
+	}
+
+	if env.RegionShortOverride != "" {
+		regionShort = env.RegionShortOverride
+	}
+	return regionShort + env.RegionShortSuffix
 }
