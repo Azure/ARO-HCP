@@ -15,7 +15,18 @@
 package clients
 
 import (
+	"context"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+	"github.com/Azure/azure-sdk-for-go/sdk/containers/azcontainerregistry"
+	"github.com/go-logr/logr"
 )
 
 func TestNewACRClient(t *testing.T) {
@@ -187,5 +198,107 @@ func TestACRClient_RegistryURLVariants(t *testing.T) {
 				t.Error("getClient() client should be initialized")
 			}
 		})
+	}
+}
+
+func TestACRClientGetAllTagsUsesListMetadata(t *testing.T) {
+	const createdOn = "2026-09-15T10:11:12Z"
+	var requests atomic.Int64
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests.Add(1)
+		if r.URL.Path != "/acr/v1/test/repository/_tags" {
+			t.Errorf("unexpected ACR request path %q", r.URL.Path)
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"registry":"test.azurecr.io","imageName":"test/repository","tags":[{"name":"latest","digest":"sha256:digest","createdTime":"` + createdOn + `","lastUpdateTime":"` + createdOn + `","changeableAttributes":{}}]}`))
+	}))
+	defer server.Close()
+
+	sdkClient, err := azcontainerregistry.NewClient(server.URL, nil, &azcontainerregistry.ClientOptions{ClientOptions: azcore.ClientOptions{Transport: server.Client()}})
+	if err != nil {
+		t.Fatalf("failed to create ACR SDK client: %v", err)
+	}
+	ctx := logr.NewContext(context.Background(), logr.Discard())
+	tags, err := (&ACRClient{}).getAllTagsWithClient(ctx, "test/repository", sdkClient)
+	if err != nil {
+		t.Fatalf("getAllTagsWithClient() unexpected error = %v", err)
+	}
+	if got := requests.Load(); got != 1 {
+		t.Fatalf("ACR requests = %d, want one list request and no per-tag property requests", got)
+	}
+	if len(tags) != 1 || tags[0].Name != "latest" || tags[0].Digest != "sha256:digest" {
+		t.Fatalf("getAllTagsWithClient() tags = %#v", tags)
+	}
+	wantCreatedOn, err := time.Parse(time.RFC3339, createdOn)
+	if err != nil {
+		t.Fatalf("failed to parse fixture timestamp: %v", err)
+	}
+	if !tags[0].LastModified.Equal(wantCreatedOn) {
+		t.Fatalf("tag timestamp = %v, want %v", tags[0].LastModified, wantCreatedOn)
+	}
+}
+
+func TestPrepareACRTagsForArchValidationChecksMatchingCandidates(t *testing.T) {
+	now := time.Now()
+	tags := []Tag{
+		{Name: "unrelated", Digest: "sha256:unrelated"},
+		{Name: "abcdef0", Digest: "sha256:matching", LastModified: now},
+	}
+
+	prepared, err := prepareACRTagsForArchValidation(tags, "test/repository", `^[a-f0-9]{7}$`)
+	if err != nil {
+		t.Fatalf("prepareACRTagsForArchValidation() unexpected error = %v", err)
+	}
+	if len(prepared) != 1 || prepared[0].Name != "abcdef0" {
+		t.Fatalf("prepareACRTagsForArchValidation() tags = %#v, want matching candidate", prepared)
+	}
+
+	tags[1].LastModified = time.Time{}
+	_, err = prepareACRTagsForArchValidation(tags, "test/repository", `^[a-f0-9]{7}$`)
+	if err == nil || !strings.Contains(err.Error(), "tag abcdef0") || !strings.Contains(err.Error(), "no creation timestamp") {
+		t.Fatalf("prepareACRTagsForArchValidation() error = %v, want matching candidate timestamp failure", err)
+	}
+
+	equivalentVersions := []Tag{
+		{Name: "v1.2.3+build1", Digest: "sha256:missing"},
+		{Name: "v1.2.3+build2", Digest: "sha256:present", LastModified: now},
+	}
+	_, err = prepareACRTagsForArchValidation(equivalentVersions, "test/repository", `^v\d+\.\d+\.\d+\+build\d+$`)
+	if err == nil || !strings.Contains(err.Error(), "v1.2.3+build1") {
+		t.Fatalf("prepareACRTagsForArchValidation() error = %v, want tied candidate timestamp failure", err)
+	}
+}
+
+func TestACRClientDoesNotFallBackAfterCandidateMetadataFailure(t *testing.T) {
+	var requests atomic.Int64
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests.Add(1)
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/acr/v1/test/repository/_tags":
+			_, _ = w.Write([]byte(`{"registry":"test.azurecr.io","imageName":"test/repository","tags":[{"name":"v1.0.0","digest":"sha256:old","createdTime":"2026-09-14T00:00:00Z","changeableAttributes":{}},{"name":"v2.0.0","digest":"sha256:latest","createdTime":"2026-09-15T00:00:00Z","changeableAttributes":{}}]}`))
+		case "/acr/v1/test/repository/_manifests/sha256:latest":
+			http.Error(w, `{"errors":[{"code":"UNAVAILABLE","message":"temporary failure"}]}`, http.StatusServiceUnavailable)
+		default:
+			t.Errorf("unexpected fallback request path %q", r.URL.Path)
+			http.Error(w, `{"errors":[{"code":"UNAVAILABLE","message":"unexpected fallback"}]}`, http.StatusServiceUnavailable)
+		}
+	}))
+	defer server.Close()
+
+	sdkClient, err := azcontainerregistry.NewClient(server.URL, nil, &azcontainerregistry.ClientOptions{ClientOptions: azcore.ClientOptions{Transport: server.Client(), Retry: policy.RetryOptions{MaxRetries: -1}}})
+	if err != nil {
+		t.Fatalf("failed to create ACR SDK client: %v", err)
+	}
+	client := &ACRClient{client: sdkClient, registryURL: "test.azurecr.io"}
+	ctx := logr.NewContext(context.Background(), logr.Discard())
+	_, err = client.GetArchSpecificDigest(ctx, "test/repository", `^v\d+\.\d+\.\d+$`, "amd64", false, "")
+	if err == nil || !strings.Contains(err.Error(), "candidate tag v2.0.0") {
+		t.Fatalf("GetArchSpecificDigest() error = %v, want latest candidate metadata failure", err)
+	}
+	if got := requests.Load(); got != 2 {
+		t.Fatalf("ACR requests = %d, want tag listing plus latest candidate only", got)
 	}
 }

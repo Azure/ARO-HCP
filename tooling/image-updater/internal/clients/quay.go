@@ -19,12 +19,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"regexp"
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
 	"github.com/go-logr/logr"
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
+	"github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
 )
 
@@ -81,43 +83,33 @@ type quayTagsResponse struct {
 	HasAdditional bool      `json:"has_additional"`
 }
 
-// addAuth adds authentication headers to the request using Docker credentials
-// It follows the Docker Registry V2 authentication flow: get token, then use it
-func (c *QuayClient) addAuth(req *http.Request, repository string) error {
-	// Parse the registry reference to get the resource name
+// getAuthorizationHeader resolves Docker credentials and exchanges them for a bearer token.
+func (c *QuayClient) getAuthorizationHeader(ctx context.Context, repository string) (string, error) {
 	ref, err := name.NewRepository(fmt.Sprintf("quay.io/%s", repository))
 	if err != nil {
-		return fmt.Errorf("failed to parse repository: %w", err)
+		return "", fmt.Errorf("failed to parse repository: %w", err)
 	}
-
-	// Get authenticator from the default keychain (reads from ~/.docker/config.json)
 	authenticator, err := authn.DefaultKeychain.Resolve(ref.Registry)
 	if err != nil {
-		return fmt.Errorf("failed to resolve authenticator: %w", err)
+		return "", fmt.Errorf("failed to resolve authenticator: %w", err)
 	}
-
-	// Get the auth config
 	authConfig, err := authenticator.Authorization()
 	if err != nil {
-		return fmt.Errorf("failed to get authorization: %w", err)
+		return "", fmt.Errorf("failed to get authorization: %w", err)
 	}
-
-	// Get a bearer token using the Registry V2 auth flow
-	token, err := c.getBearerToken(repository, *authConfig)
+	token, err := c.getBearerToken(ctx, repository, *authConfig)
 	if err != nil {
-		return fmt.Errorf("failed to get bearer token: %w", err)
+		return "", fmt.Errorf("failed to get bearer token: %w", err)
 	}
-
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
-	return nil
+	return fmt.Sprintf("Bearer %s", token), nil
 }
 
 // getBearerToken exchanges credentials for a bearer token following the Docker Registry V2 auth spec
-func (c *QuayClient) getBearerToken(repository string, authConfig authn.AuthConfig) (string, error) {
+func (c *QuayClient) getBearerToken(ctx context.Context, repository string, authConfig authn.AuthConfig) (string, error) {
 	// The auth endpoint for Quay.io
 	tokenURL := fmt.Sprintf("https://quay.io/v2/auth?service=quay.io&scope=repository:%s:pull", repository)
 
-	tokenReq, err := http.NewRequest("GET", tokenURL, nil)
+	tokenReq, err := http.NewRequestWithContext(ctx, "GET", tokenURL, nil)
 	if err != nil {
 		return "", fmt.Errorf("failed to create token request: %w", err)
 	}
@@ -224,18 +216,26 @@ func (c *QuayClient) doRequestWithRetry(ctx context.Context, req *http.Request) 
 	return resp, nil
 }
 
-func (c *QuayClient) getAllTagsWithCache(ctx context.Context, repository string, descriptorCache map[string]*remote.Descriptor, versionLabel string) ([]Tag, error) {
-	// If authentication is required, use Docker Registry V2 API instead of Quay's proprietary API
-	// This is because Quay's API requires different credentials (OAuth2 tokens) than registry access
+func (c *QuayClient) getAllTags(ctx context.Context, repository, tagPattern string) ([]Tag, error) {
+	// If authentication is required, use Docker Registry V2 API instead of Quay's proprietary API.
 	if c.useAuth {
-		return c.getAllTagsViaRegistryAPIWithCache(ctx, repository, descriptorCache, versionLabel)
+		return c.getAllTagsViaRegistryAPI(ctx, repository)
+	}
+
+	var pattern *regexp.Regexp
+	if tagPattern != "" {
+		var err error
+		pattern, err = regexp.Compile(tagPattern)
+		if err != nil {
+			return nil, fmt.Errorf("invalid tag pattern %s: %w", tagPattern, err)
+		}
 	}
 
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("logger not found in context: %w", err)
 	}
-	// For public repositories, use Quay's proprietary API which provides timestamps
+	// For public repositories, use Quay's proprietary API which provides timestamps.
 	var allTags []Tag
 	page := 1
 
@@ -275,16 +275,22 @@ func (c *QuayClient) getAllTagsWithCache(ctx context.Context, repository string,
 
 		for _, quayTag := range tagsResp.Tags {
 			timestamp, err := ParseTimestamp(quayTag.LastModified)
-			if err != nil {
-				timestamp = time.Time{}
+			isCandidate := pattern == nil || pattern.MatchString(quayTag.Name)
+			if err != nil && isCandidate {
+				return nil, fmt.Errorf("failed to parse timestamp for candidate tag %s: %w", quayTag.Name, err)
+			}
+			if isCandidate {
+				timestamp, err = validateCreationTimestamp(quayTag.Name, timestamp)
+				if err != nil {
+					return nil, err
+				}
 			}
 
-			tag := Tag{
+			allTags = append(allTags, Tag{
 				Name:         quayTag.Name,
 				Digest:       quayTag.ManifestDigest,
 				LastModified: timestamp,
-			}
-			allTags = append(allTags, tag)
+			})
 		}
 
 		if !tagsResp.HasAdditional {
@@ -298,144 +304,100 @@ func (c *QuayClient) getAllTagsWithCache(ctx context.Context, repository string,
 	return allTags, nil
 }
 
-func (c *QuayClient) getAllTagsViaRegistryAPIWithCache(ctx context.Context, repository string, descriptorCache map[string]*remote.Descriptor, versionLabel string) ([]Tag, error) {
-	logger, err := logr.FromContext(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("logger not found in context: %w", err)
-	}
-	url := fmt.Sprintf("https://quay.io/v2/%s/tags/list", repository)
-
-	// Check if context is cancelled
-	select {
-	case <-ctx.Done():
-		return nil, fmt.Errorf("operation cancelled while fetching Quay tags via registry API: %w", ctx.Err())
-	default:
-	}
-
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
-	}
-
-	if err := c.addAuth(req, repository); err != nil {
-		return nil, fmt.Errorf("failed to add authentication: %w", err)
-	}
-
-	resp, err := c.doRequestWithRetry(ctx, req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to request registry API: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("registry API returned status %d for repository %s", resp.StatusCode, repository)
-	}
-
-	var tagsResp struct {
-		Name string   `json:"name"`
-		Tags []string `json:"tags"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&tagsResp); err != nil {
-		return nil, fmt.Errorf("failed to decode registry API response: %w", err)
+func (c *QuayClient) getAllTagsViaRegistryAPI(ctx context.Context, repository string) ([]Tag, error) {
+	var authorizationHeader string
+	if c.useAuth {
+		var err error
+		authorizationHeader, err = c.getAuthorizationHeader(ctx, repository)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	var allTags []Tag
-	for _, tagName := range tagsResp.Tags {
-		tag := Tag{
-			Name: tagName,
-			// Registry V2 API doesn't provide timestamps in tags list
-			// They will be enriched from image config
-			LastModified: time.Time{},
+	nextURL := fmt.Sprintf("https://quay.io/v2/%s/tags/list", repository)
+	for nextURL != "" {
+		req, err := http.NewRequestWithContext(ctx, "GET", nextURL, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create request (url: %s): %w", nextURL, err)
 		}
-		allTags = append(allTags, tag)
+		if authorizationHeader != "" {
+			req.Header.Set("Authorization", authorizationHeader)
+		}
+
+		resp, err := c.doRequestWithRetry(ctx, req)
+		if err != nil {
+			return nil, fmt.Errorf("failed to request registry API (url: %s): %w", nextURL, err)
+		}
+		if resp.StatusCode != http.StatusOK {
+			resp.Body.Close()
+			return nil, fmt.Errorf("registry API returned status %d for repository %s (url: %s)", resp.StatusCode, repository, nextURL)
+		}
+
+		var tagsResp dockerRegistryTagsResponse
+		if err := json.NewDecoder(resp.Body).Decode(&tagsResp); err != nil {
+			resp.Body.Close()
+			return nil, fmt.Errorf("failed to decode registry API response (url: %s): %w", nextURL, err)
+		}
+		for _, tagName := range tagsResp.Tags {
+			allTags = append(allTags, Tag{Name: tagName})
+		}
+		nextURL = parseNextLink(resp.Header.Get("Link"), "quay.io")
+		resp.Body.Close()
+	}
+	return allTags, nil
+}
+
+func (c *QuayClient) enrichTagsViaRegistryAPI(ctx context.Context, repository string, tags []Tag, versionLabel string) ([]Tag, map[string]*remote.Descriptor, error) {
+	logger, err := logr.FromContext(ctx)
+	if err != nil {
+		return nil, nil, fmt.Errorf("logger not found in context: %w", err)
 	}
 
-	// Enrich tags with timestamp information from image configs
-	logger.V(2).Info("enriching tags with timestamp information", "repository", repository, "totalTags", len(allTags))
-	remoteOpts := GetRemoteOptions(c.useAuth)
-	enrichedTags := make([]Tag, 0, len(allTags))
-
-	for _, tag := range allTags {
-		// Check if context is cancelled before processing each tag
-		select {
-		case <-ctx.Done():
-			return nil, fmt.Errorf("operation cancelled while enriching tags: %w", ctx.Err())
-		default:
-		}
-
-		ref, err := name.ParseReference(fmt.Sprintf("quay.io/%s:%s", repository, tag.Name))
+	logger.V(2).Info("enriching tags with timestamp information", "repository", repository, "totalTags", len(tags))
+	metadata, err := fetchTagMetadataConcurrently(ctx, tags, func(fetchCtx context.Context, candidate Tag) (fetchedTagMetadata, error) {
+		ref, err := name.ParseReference(fmt.Sprintf("quay.io/%s:%s", repository, candidate.Name))
 		if err != nil {
-			logger.V(2).Info("failed to parse reference, skipping", "tag", tag.Name, "error", err)
-			continue
+			return fetchedTagMetadata{}, fmt.Errorf("failed to parse reference for tag %s: %w", candidate.Name, err)
 		}
-
-		desc, err := remote.Get(ref, remoteOpts...)
+		desc, err := remote.Get(ref, append(GetRemoteOptions(c.useAuth), remote.WithContext(fetchCtx))...)
 		if err != nil {
-			logger.V(2).Info("failed to fetch image descriptor, skipping", "tag", tag.Name, "error", err)
-			continue
+			return fetchedTagMetadata{}, fmt.Errorf("failed to fetch image descriptor for tag %s: %w", candidate.Name, err)
 		}
 
-		// Cache the descriptor for later use if cache is provided
-		if descriptorCache != nil {
-			descriptorCache[tag.Name] = desc
-		}
-
-		// Try to get creation time from config
-		// For multi-arch manifests, get the timestamp from the first platform-specific image
+		tag := candidate
 		if desc.MediaType.IsIndex() {
-			// Multi-arch manifest - get timestamp from first platform image
-			logger.V(2).Info("processing multi-arch manifest", "tag", tag.Name, "mediaType", desc.MediaType)
-			if idx, err := desc.ImageIndex(); err == nil {
-				if manifest, err := idx.IndexManifest(); err == nil && len(manifest.Manifests) > 0 {
-					// Try to get the config from the first manifest
-					if platformDesc := manifest.Manifests[0]; platformDesc.MediaType.IsImage() {
-						platformRef, err := name.ParseReference(fmt.Sprintf("quay.io/%s@%s", repository, platformDesc.Digest.String()))
-						if err == nil {
-							if platformDescriptor, err := remote.Get(platformRef, remoteOpts...); err == nil {
-								if platformImg, err := platformDescriptor.Image(); err == nil {
-									if configFile, err := platformImg.ConfigFile(); err == nil {
-										tag.LastModified = configFile.Created.Time
-										logger.V(2).Info("got timestamp from multi-arch manifest", "tag", tag.Name, "timestamp", tag.LastModified)
-										tag.Version = extractVersionFromConfigLabels(configFile.Config.Labels, versionLabel)
-										if tag.Version != "" {
-											logger.V(2).Info("extracted version from label", "tag", tag.Name, "label", versionLabel, "version", tag.Version)
-										}
-									}
-								}
-							}
-						}
-					}
-				}
-			}
+			tag.LastModified, tag.Version, err = extractMetadataFromMultiArchManifest(desc, tag.Name, tag.LastModified, versionLabel)
 		} else {
-			// Single-arch image
-			logger.V(2).Info("processing single-arch image", "tag", tag.Name, "mediaType", desc.MediaType)
-			if img, err := desc.Image(); err == nil {
-				if configFile, err := img.ConfigFile(); err == nil {
-					tag.LastModified = configFile.Created.Time
-					logger.V(2).Info("got timestamp from single-arch image", "tag", tag.Name, "timestamp", tag.LastModified)
+			var img v1.Image
+			img, err = desc.Image()
+			if err == nil {
+				var configFile *v1.ConfigFile
+				configFile, err = img.ConfigFile()
+				if err == nil {
+					tag.LastModified, err = validateCreationTimestamp(tag.Name, configFile.Created.Time)
 					tag.Version = extractVersionFromConfigLabels(configFile.Config.Labels, versionLabel)
-					if tag.Version != "" {
-						logger.V(2).Info("extracted version from label", "tag", tag.Name, "label", versionLabel, "version", tag.Version)
-					}
-				} else {
-					logger.V(2).Info("failed to get config file", "tag", tag.Name, "error", err)
 				}
-			} else {
-				logger.V(2).Info("failed to get image", "tag", tag.Name, "error", err)
 			}
 		}
-
-		if tag.LastModified.IsZero() {
-			logger.V(2).Info("warning: tag has zero timestamp after enrichment", "tag", tag.Name, "mediaType", desc.MediaType)
+		if err != nil {
+			return fetchedTagMetadata{}, fmt.Errorf("failed to enrich metadata for tag %s: %w", tag.Name, err)
 		}
-
 		tag.Digest = desc.Digest.String()
-		enrichedTags = append(enrichedTags, tag)
+		return fetchedTagMetadata{tag: tag, descriptor: desc}, nil
+	})
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to enrich tag metadata: %w", err)
 	}
 
+	enrichedTags := make([]Tag, 0, len(metadata))
+	descriptorCache := make(map[string]*remote.Descriptor, len(metadata))
+	for _, result := range metadata {
+		enrichedTags = append(enrichedTags, result.tag)
+		descriptorCache[result.tag.Name] = result.descriptor
+	}
 	logger.V(2).Info("enriched tags with timestamp information", "repository", repository, "enrichedTags", len(enrichedTags))
-	return enrichedTags, nil
+	return enrichedTags, descriptorCache, nil
 }
 
 func (c *QuayClient) GetArchSpecificDigest(ctx context.Context, repository string, tagPattern string, arch string, wantMultiArch bool, versionLabel string) (*Tag, error) {
@@ -449,9 +411,28 @@ func (c *QuayClient) GetArchSpecificDigest(ctx context.Context, repository strin
 	// Cache for remote descriptors to avoid duplicate remote.Get calls
 	descriptorCache := make(map[string]*remote.Descriptor)
 
-	allTags, err := c.getAllTagsWithCache(ctx, repository, descriptorCache, versionLabel)
+	allTags, err := c.getAllTags(ctx, repository, tagPattern)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch all tags: %w", err)
+	}
+	if c.useAuth {
+		candidates := allTags
+		if tagPattern != "" {
+			candidates, err = FilterTagsByPattern(allTags, tagPattern)
+			if err != nil {
+				return nil, fmt.Errorf("failed to pre-filter tags: %w", err)
+			}
+			if len(candidates) == 0 {
+				_, err := PrepareTagsForArchValidation(allTags, repository, tagPattern)
+				return nil, err
+			}
+			logger.V(2).Info("pre-filtered tags by pattern", "repository", repository, "tagPattern", tagPattern, "totalTags", len(allTags), "matchingTags", len(candidates))
+		}
+
+		allTags, descriptorCache, err = c.enrichTagsViaRegistryAPI(ctx, repository, candidates, versionLabel)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	logger.V(2).Info("fetched tags from Quay", "image", repository, "repository", repository, "totalTags", len(allTags))
@@ -464,7 +445,7 @@ func (c *QuayClient) GetArchSpecificDigest(ctx context.Context, repository strin
 
 	logger.V(2).Info("filtered tags by pattern", "repository", repository, "tagPattern", tagPattern, "matchingTags", len(tags))
 
-	remoteOpts := GetRemoteOptions(c.useAuth)
+	remoteOpts := append(GetRemoteOptions(c.useAuth), remote.WithContext(ctx))
 
 	for _, tag := range tags {
 		// Check if context is cancelled before processing each tag
@@ -479,14 +460,12 @@ func (c *QuayClient) GetArchSpecificDigest(ctx context.Context, repository strin
 		if !ok {
 			ref, err := name.ParseReference(fmt.Sprintf("quay.io/%s:%s", repository, tag.Name))
 			if err != nil {
-				logger.V(2).Error(err, "failed to parse reference", "tag", tag.Name)
-				continue
+				return nil, fmt.Errorf("failed to parse reference for candidate tag %s: %w", tag.Name, err)
 			}
 
 			desc, err = remote.Get(ref, remoteOpts...)
 			if err != nil {
-				logger.V(2).Error(err, "failed to fetch image descriptor", "tag", tag.Name)
-				continue
+				return nil, fmt.Errorf("failed to fetch image descriptor for candidate tag %s: %w", tag.Name, err)
 			}
 			descriptorCache[tag.Name] = desc
 		}
@@ -504,14 +483,12 @@ func (c *QuayClient) GetArchSpecificDigest(ctx context.Context, repository strin
 
 		img, err := desc.Image()
 		if err != nil {
-			logger.V(2).Error(err, "failed to get image", "tag", tag.Name)
-			continue
+			return nil, fmt.Errorf("failed to read image for candidate tag %s: %w", tag.Name, err)
 		}
 
 		configFile, err := img.ConfigFile()
 		if err != nil {
-			logger.V(2).Error(err, "failed to get config", "tag", tag.Name)
-			continue
+			return nil, fmt.Errorf("failed to read image config for candidate tag %s: %w", tag.Name, err)
 		}
 
 		normalizedArch := NormalizeArchitecture(configFile.Architecture)
@@ -519,8 +496,7 @@ func (c *QuayClient) GetArchSpecificDigest(ctx context.Context, repository strin
 		if normalizedArch == arch && configFile.OS == "linux" {
 			digest, err := img.Digest()
 			if err != nil {
-				logger.V(2).Error(err, "failed to get image digest", "tag", tag.Name)
-				continue
+				return nil, fmt.Errorf("failed to read image digest for candidate tag %s: %w", tag.Name, err)
 			}
 			tag.Digest = digest.String()
 			logger.V(2).Info("found matching image", "image", repository, "tag", tag.Name, "arch", arch, "digest", digest.String(), "date", tag.LastModified.Format("2006-01-02 15:04"))
@@ -552,7 +528,7 @@ func (c *QuayClient) GetDigestForTag(ctx context.Context, repository string, tag
 	default:
 	}
 
-	remoteOpts := GetRemoteOptions(c.useAuth)
+	remoteOpts := append(GetRemoteOptions(c.useAuth), remote.WithContext(ctx))
 	ref, err := name.ParseReference(fmt.Sprintf("quay.io/%s:%s", repository, tagName))
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse reference for tag %s: %w", tagName, err)
@@ -568,21 +544,13 @@ func (c *QuayClient) GetDigestForTag(ctx context.Context, repository string, tag
 		Digest: desc.Digest.String(),
 	}
 
-	// Try to get creation time and version label from config
-	if img, err := desc.Image(); err == nil {
-		if configFile, err := img.ConfigFile(); err == nil {
-			tag.LastModified = configFile.Created.Time
-			tag.Version = extractVersionFromConfigLabels(configFile.Config.Labels, versionLabel)
-			if tag.Version != "" {
-				logger.V(2).Info("extracted version from label", "tag", tagName, "label", versionLabel, "version", tag.Version)
-			}
-		}
-	}
-
-	// If multiArch is requested, return the multi-arch manifest list digest
 	if wantMultiArch {
 		if !desc.MediaType.IsIndex() {
 			return nil, fmt.Errorf("tag %s is not a multi-arch manifest (mediaType: %s)", tagName, desc.MediaType)
+		}
+		tag.LastModified, tag.Version, err = extractMetadataFromMultiArchManifest(desc, tagName, tag.LastModified, versionLabel)
+		if err != nil {
+			return nil, err
 		}
 		logger.V(2).Info("found multi-arch manifest", "repository", repository, "tag", tagName, "mediaType", desc.MediaType, "digest", desc.Digest.String())
 		return &tag, nil
@@ -602,6 +570,11 @@ func (c *QuayClient) GetDigestForTag(ctx context.Context, repository string, tag
 	if err != nil {
 		return nil, fmt.Errorf("failed to get config for tag %s: %w", tagName, err)
 	}
+	tag.LastModified, err = validateCreationTimestamp(tagName, configFile.Created.Time)
+	if err != nil {
+		return nil, err
+	}
+	tag.Version = extractVersionFromConfigLabels(configFile.Config.Labels, versionLabel)
 
 	normalizedArch := NormalizeArchitecture(configFile.Architecture)
 
