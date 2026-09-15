@@ -25,10 +25,12 @@ import (
 
 // GetPrivateKASInternalIP finds the private IP address of the internal load
 // balancer created by HyperShift for the KAS in a private cluster. The KAS LB
-// is identified by the presence of a load balancing rule named "kube-apiserver"
-// - the name HyperShift assigns to the KAS rule, verified against a real
-// cluster. This check is unambiguous even when multiple internal LBs exist
-// (e.g. a private ingress LB in a fully-private cluster).
+// is identified by two checks, both verified against a real cluster:
+//   - LB name starts with "int-" (HyperShift's naming convention for the KAS LB)
+//   - frontend IP has a load balancing rule named "kube-apiserver"
+//
+// Using both checks together makes the lookup robust even when multiple
+// internal LBs exist (e.g. a private ingress LB in a fully-private cluster).
 func GetPrivateKASInternalIP(ctx context.Context, tc interface {
 	SubscriptionID(ctx context.Context) (string, error)
 	AzureCredential() (azcore.TokenCredential, error)
@@ -55,6 +57,9 @@ func GetPrivateKASInternalIP(ctx context.Context, tc interface {
 			return "", fmt.Errorf("failed to list load balancers in %q: %w", managedResourceGroup, err)
 		}
 		for _, lb := range page.Value {
+			if lb.Name == nil || !strings.HasPrefix(*lb.Name, "int-") {
+				continue
+			}
 			if lb.Properties == nil || lb.Properties.FrontendIPConfigurations == nil {
 				continue
 			}
