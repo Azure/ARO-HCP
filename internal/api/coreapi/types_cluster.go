@@ -69,6 +69,18 @@ type HCPOpenShiftClusterStatus struct {
 	// +listType=map
 	// +listMapKey=type
 	UserFacingConditions []metav1.Condition `json:"userFacingConditions,omitempty" patchStrategy:"merge" patchMergeKey:"type"`
+
+	// ActiveVersions are the active versions of the cluster control plane, ordered newest first.
+	// Written by: ControlPlaneActiveVersions
+	// +optional
+	// +listType=set
+	ActiveVersions []HCPClusterActiveVersion `json:"activeVersions,omitempty"`
+}
+
+type HCPClusterActiveVersion struct {
+	// Version is the user-facing version in x.y format (e.g., "4.20")
+	// Written by: ControlPlaneActiveVersions
+	Version string `json:"version,omitempty"`
 }
 
 var _ CosmosPersistable = &HCPOpenShiftCluster{}

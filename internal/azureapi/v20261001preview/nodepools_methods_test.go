@@ -20,6 +20,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"k8s.io/apimachinery/pkg/util/validation/field"
@@ -387,6 +388,104 @@ func TestNewOSDiskProfile(t *testing.T) {
 			if !reflect.DeepEqual(result, tt.expected) {
 				t.Errorf("newOSDiskProfile() mismatch:\n%s", cmp.Diff(tt.expected, result))
 			}
+		})
+	}
+}
+
+func TestNewNodePoolActiveVersions(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    []coreapi.HCPNodePoolActiveVersion
+		expected []*generated.NodePoolActiveVersion
+	}{
+		{
+			name:     "nil input returns nil",
+			input:    nil,
+			expected: nil,
+		},
+		{
+			name:     "empty input returns nil",
+			input:    []coreapi.HCPNodePoolActiveVersion{},
+			expected: nil,
+		},
+		{
+			name: "single version is passed through",
+			input: []coreapi.HCPNodePoolActiveVersion{
+				{Version: "4.19.15"},
+			},
+			expected: []*generated.NodePoolActiveVersion{
+				{Version: ptr.To("4.19.15")},
+			},
+		},
+		{
+			name: "multiple versions are passed through",
+			input: []coreapi.HCPNodePoolActiveVersion{
+				{Version: "4.20.8"},
+				{Version: "4.19.15"},
+			},
+			expected: []*generated.NodePoolActiveVersion{
+				{Version: ptr.To("4.20.8")},
+				{Version: ptr.To("4.19.15")},
+			},
+		},
+		{
+			name: "empty version entry is skipped",
+			input: []coreapi.HCPNodePoolActiveVersion{
+				{Version: "4.19.15"},
+				{Version: ""},
+				{Version: "4.20.8"},
+			},
+			expected: []*generated.NodePoolActiveVersion{
+				{Version: ptr.To("4.19.15")},
+				{Version: ptr.To("4.20.8")},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := newNodePoolActiveVersions(tt.input)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestNewNodePoolResourceStatus(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    *coreapi.HCPOpenShiftClusterNodePoolStatus
+		expected *generated.NodePoolResourceStatus
+	}{
+		{
+			name:     "nil input returns nil",
+			input:    nil,
+			expected: nil,
+		},
+		{
+			name:     "empty status returns nil",
+			input:    &coreapi.HCPOpenShiftClusterNodePoolStatus{},
+			expected: nil,
+		},
+		{
+			name: "status with active versions only",
+			input: &coreapi.HCPOpenShiftClusterNodePoolStatus{
+				ActiveVersions: []coreapi.HCPNodePoolActiveVersion{
+					{Version: "4.20.8"},
+				},
+			},
+			expected: &generated.NodePoolResourceStatus{
+				Conditions: nil,
+				ActiveVersions: []*generated.NodePoolActiveVersion{
+					{Version: ptr.To("4.20.8")},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := newNodePoolResourceStatus(tt.input)
+			assert.Equal(t, tt.expected, result)
 		})
 	}
 }
