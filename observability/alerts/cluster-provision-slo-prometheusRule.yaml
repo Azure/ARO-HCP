@@ -32,7 +32,7 @@ spec:
   # Threshold: 30 minutes (1800s). Cluster provisioning typically takes ~13
   # minutes for HCP (P99 ~18 min). The 60-minute operation deadline
   # (defaultCreateOperationCompletionDeadlineDuration) marks operations as
-  # failed, so the threshold must be well below 60 min to provide early detection. 
+  # failed, so the threshold must be well below 60 min to provide early detection.
   #
   # Stickiness (max_over_time ... [6h:5m]): while a resource stays wedged,
   # the raw condition can transiently clear — most commonly when the backend

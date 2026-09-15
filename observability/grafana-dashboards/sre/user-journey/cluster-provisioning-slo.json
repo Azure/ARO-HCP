@@ -258,7 +258,7 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "Fleet-weighted Success SLO: successful terminal create attempts divided by all terminal create attempts across the selected service-cluster datasources.",
+      "description": "Fleet-weighted Success SLO: successful create attempts divided by succeeded and failed create attempts (canceled excluded) across the selected service-cluster datasources.",
       "fieldConfig": {
         "defaults": {
           "decimals": 1,

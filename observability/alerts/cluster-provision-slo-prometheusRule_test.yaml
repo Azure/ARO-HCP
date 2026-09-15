@@ -166,6 +166,20 @@ tests:
         summary: "mgmt-1: Cluster create operation error rate elevated (>30% over 6h)"
         description: "More than 30% of completed cluster create (install) operations on mgmt-1 failed over the last 6 hours (at least 5 completions), a 6x burn of the 95% SLO budget."
         runbook_url: "https://aka.ms/arohcp-runbook-cluster-provision"
+  # Degradation fires after 30m 'for' duration (50% > 15%, 6 total >= 5, 3 failed >= 2)
+  - eval_time: 35m
+    alertname: UserJourneyClusterProvisionErrorsDegradation
+    exp_alerts:
+    - exp_labels:
+        cluster: "mgmt-1"
+        component: slo
+        long_window: 6h
+        severity: "4"
+        slo: cluster-provision-errors
+      exp_annotations:
+        summary: "mgmt-1: Cluster create operation failure rate exceeds 15% over 6h"
+        description: "More than 15% of completed cluster create (install) operations on mgmt-1 failed over the last 6 hours (at least 5 completions and 2 failures), an early warning of degradation before the burn-rate alerts fire."
+        runbook_url: "https://aka.ms/arohcp-runbook-cluster-provision"
 # ========================================
 # Test 5: Isolation — nodepool, update, and in-flight ops excluded
 # ========================================
@@ -263,7 +277,37 @@ tests:
   - eval_time: 90m
     alertname: UserJourneyClusterProvisionStuckOperation
 # ========================================
-# Test 9: Stuck operation that flaps (backend retry resets start_time)
+# Test 9: Stuck operation in "accepted" phase fires alert
+# ========================================
+# The latency recording rule covers phase=~"accepted|provisioning". This test
+# verifies that accepted-phase operations also produce the latency metric and
+# fire the stuck alert.
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/9a/cluster/accepted", subscription_id="sub-9a", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="accepted", cluster="mgmt-1"}'
+    values: "0+0x55"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/9a/cluster/accepted", subscription_id="sub-9a", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="accepted", cluster="mgmt-1"}'
+    values: "1+0x55"
+  alert_rule_test:
+  - eval_time: 50m
+    alertname: UserJourneyClusterProvisionStuckOperation
+    exp_alerts:
+    - exp_labels:
+        cluster: "mgmt-1"
+        component: slo
+        operation_type: "create"
+        phase: "accepted"
+        resource_id: "/sub/9a/cluster/accepted"
+        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters"
+        severity: "4"
+        exclude_internal_subscriptions: "true"
+        subscription_id: "sub-9a"
+      exp_annotations:
+        summary: "mgmt-1: Cluster create operation for /sub/9a/cluster/accepted stuck in accepted for over 30 minutes"
+        description: "Cluster create operation for /sub/9a/cluster/accepted has been in accepted phase for over 30 minutes. Stuck operations are invisible to success/failure SLIs and require investigation."
+        runbook_url: "https://aka.ms/arohcp-runbook-cluster-provision"
+# ========================================
+# Test 10: Stuck operation that flaps (backend retry resets start_time)
 # ========================================
 # A genuinely-wedged create stays in "provisioning" the whole time, but the backend
 # retries the operation at t=60m and resets start_time, so (time() - start_time)
