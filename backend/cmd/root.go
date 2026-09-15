@@ -71,6 +71,9 @@ type BackendRootCmdFlags struct {
 	AzureClusterScopedIdentitiesRoleSetName                                                       string
 	BackupScheduleCadence                                                                         string
 	BackupScheduleState                                                                           string
+	OrphanedMRGMyAFEC                                                                             string
+	OrphanedMRGOtherAFECs                                                                         string
+	OrphanedMRGReadWrite                                                                          bool
 }
 
 func (f *BackendRootCmdFlags) AddFlags(cmd *cobra.Command) {
@@ -345,6 +348,10 @@ func (f *BackendRootCmdFlags) validate() error {
 		return utils.TrackError(fmt.Errorf("--backup-schedule-state must be '%s' or '%s'", coreapi.BackupScheduleStateEnabled, coreapi.BackupScheduleStateDisabled))
 	}
 
+	if len(f.OrphanedMRGMyAFEC) != 0 && len(f.OrphanedMRGOtherAFECs) != 0 {
+		return utils.TrackError(fmt.Errorf("MY_AFEC and OTHER_AFECS are mutually exclusive"))
+	}
+
 	return nil
 }
 
@@ -583,6 +590,9 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 		CloudEnvironment:              azureConfig.CloudEnvironment,
 		MetricsRegisterer:             legacyregistry.Registerer(),
 		MetricsGatherer:               legacyregistry.DefaultGatherer,
+		OrphanedMRGMyAFEC:             f.OrphanedMRGMyAFEC,
+		OrphanedMRGOtherAFECs:         f.OrphanedMRGOtherAFECs,
+		OrphanedMRGReadWrite:          f.OrphanedMRGReadWrite,
 	}
 
 	return backendOptions, nil
@@ -606,6 +616,9 @@ func NewBackendRootCmdFlags() *BackendRootCmdFlags {
 		ExitOnPanic:                                     true,
 		BackupScheduleCadence:                           string(backups.BackupCadenceProduction),
 		BackupScheduleState:                             string(coreapi.BackupScheduleStateEnabled),
+		OrphanedMRGMyAFEC:                               os.Getenv("MY_AFEC"),
+		OrphanedMRGOtherAFECs:                           os.Getenv("OTHER_AFECS"),
+		OrphanedMRGReadWrite:                            os.Getenv("CLEAN_ORPHANED_MANAGED_RESOURCE_GROUPS_MODE") == "readwrite",
 	}
 
 	return flags
