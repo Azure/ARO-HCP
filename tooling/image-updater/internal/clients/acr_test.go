@@ -23,10 +23,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-logr/logr"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/containers/azcontainerregistry"
-	"github.com/go-logr/logr"
 )
 
 func TestNewACRClient(t *testing.T) {
