@@ -474,3 +474,4 @@ If the Admin API returns `200 OK` but the ManifestWork on the MC does not contai
 - **ARO-27679**: First validated on `jude-hcp-eastus2` — ephemeral override Small → Large during Adobe load testing incident (IcM 814707269)
 - **ARO-28258**: Admin API persistent override validated on `jude-hcp-eastus2` — Small → Xlarge via `POST /desiredcontrolplanesize`, confirmed durable across ~5 hours of Maestro reconciliation (July 2025)
 - **ARO-28342**: Production resize of `arohcp4` (Canada Central) — Large → Xlarge via Admin API for Adobe/IBM customer APF throttling. Encountered and resolved SSA field ownership conflict from prior manual annotation (July 2025)
+- **[IcM 866501941](https://portal.microsofticm.com/imp/v5/incidents/details/866501941/summary)**: Procedure validated end to end from SAW during a production incident (September 2026)
