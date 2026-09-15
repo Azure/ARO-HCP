@@ -1,0 +1,23 @@
+{
+  "error": {
+    "code": "MultipleErrorsOccurred",
+    "message": "3 errors occurred",
+    "details": [
+      {
+        "code": "InvalidRequestContent",
+        "message": "Invalid value: \"4.20.0-0.nightly-2026-08-05-123456\": must be at least 4.20",
+        "target": "properties.version.id"
+      },
+      {
+        "code": "InvalidRequestContent",
+        "message": "Invalid value: \"4.20.0-0.nightly-2026-08-05-123456\": must be specified as MAJOR.MINOR; pin an exact build with the \"aro-hcp.experimental.cluster.control-plane-exact-version\" resource tag",
+        "target": "properties.version.id"
+      },
+      {
+        "code": "InvalidRequestContent",
+        "message": "Required value: nightly builds are not published to the update graph, so the exact build must be pinned with this tag when channelGroup is \"nightly\" (e.g. \"4.21.0-0.nightly-2026-08-05-123456\")",
+        "target": "tags[aro-hcp.experimental.cluster.control-plane-exact-version]"
+      }
+    ]
+  }
+}

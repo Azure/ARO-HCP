@@ -43,8 +43,11 @@
 		},
 		"version": {
 			"channelGroup": "nightly",
-			"id": "4.20.0-0.nightly-2026-08-05-123456"
+			"id": "4.20"
 		}
+	},
+	"tags": {
+		"aro-hcp.experimental.cluster.control-plane-exact-version": "4.20.0-0.nightly-2026-08-05-123456"
 	},
 	"type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
 }
