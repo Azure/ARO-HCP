@@ -91,7 +91,7 @@ images:
     group: platform-utils
     source:
       image: mcr.microsoft.com/aks/command/runtime
-      tag: "master.260813.1" # Pinned: master.260901.1 breaks mgmt provisioning (AROSLSRE-2021). Revert to tagPattern: AROSLSRE-2025
+      tagPattern: "^master\\.\\d+\\.\\d+$"
       multiArch: true
     targets:
     - jsonPath: defaults.aksCommandRuntime.image.digest
