@@ -28,6 +28,12 @@ type AzureResourceManagerCommonTypesManagedServiceIdentityUpdate struct {
 	UserAssignedIdentities map[string]*UserAssignedIdentity
 }
 
+// ClusterActiveVersion represents a version of a resource.
+type ClusterActiveVersion struct {
+	// READ-ONLY; The version of the resource. Specified in major.minor, same as the input
+	Version *string
+}
+
 // ClusterAutoscalingProfile - ClusterAutoscaling specifies auto-scaling behavior that applies to all NodePools associated
 // with a control plane.
 type ClusterAutoscalingProfile struct {
@@ -57,6 +63,16 @@ type ClusterImageRegistryProfile struct {
 	// ImageStream-backed image registry will be run as pods on worker nodes in the cluster. Disabled means the ImageStream-backed
 	// image registry will not be present in the cluster. The default is Enabled.
 	State *ClusterImageRegistryState
+}
+
+// ClusterResourceStatus represents the observed status of the cluster resource.
+type ClusterResourceStatus struct {
+	// READ-ONLY; The activeVersions of a resource. This field is an array because during upgrades there can be more than one
+	// active version.
+	ActiveVersions []*ClusterActiveVersion
+
+	// READ-ONLY; The conditions on the resource
+	Conditions []*Condition
 }
 
 // Condition represents an observation of a resource's state.
@@ -229,7 +245,7 @@ type ExternalAuthProperties struct {
 	ProvisioningState *ExternalAuthProvisioningState
 
 	// READ-ONLY; Status of the external auth resource
-	Status *ResourceStatus
+	Status *ExternalAuthResourceStatus
 }
 
 // ExternalAuthPropertiesUpdate - External Auth profile
@@ -242,6 +258,12 @@ type ExternalAuthPropertiesUpdate struct {
 
 	// Token Issuer profile
 	Issuer *TokenIssuerProfileUpdate
+}
+
+// ExternalAuthResourceStatus represents the observed status of the external auth resource.
+type ExternalAuthResourceStatus struct {
+	// READ-ONLY; The conditions on the resource
+	Conditions []*Condition
 }
 
 // ExternalAuthUpdate - ExternalAuth resource
@@ -390,7 +412,7 @@ type HcpOpenShiftClusterProperties struct {
 	ProvisioningState *ProvisioningState
 
 	// READ-ONLY; Status of the cluster resource
-	Status *ResourceStatus
+	Status *ClusterResourceStatus
 }
 
 // HcpOpenShiftClusterPropertiesUpdate - HCP cluster properties
@@ -672,6 +694,12 @@ type NodePool struct {
 	Type *string
 }
 
+// NodePoolActiveVersion represents a version of a resource.
+type NodePoolActiveVersion struct {
+	// READ-ONLY; The version of the resource. Specified in major.minor.patch, same as the input
+	Version *string
+}
+
 // NodePoolAutoScaling - Node pool autoscaling
 type NodePoolAutoScaling struct {
 	// The maximum number of nodes in the node pool. Validation:
@@ -761,7 +789,7 @@ type NodePoolProperties struct {
 	ProvisioningState *ProvisioningState
 
 	// READ-ONLY; Status of the node pool resource
-	Status *ResourceStatus
+	Status *NodePoolResourceStatus
 }
 
 // NodePoolPropertiesUpdate - Represents the node pool properties
@@ -792,6 +820,16 @@ type NodePoolPropertiesUpdate struct {
 
 	// OpenShift version for the nodepool
 	Version *NodePoolVersionProfileUpdate
+}
+
+// NodePoolResourceStatus represents the observed status of the nodepool resource.
+type NodePoolResourceStatus struct {
+	// READ-ONLY; The activeVersions of a resource. This field is an array because during upgrades there can be more than one
+	// active version.
+	ActiveVersions []*NodePoolActiveVersion
+
+	// READ-ONLY; The conditions on the resource
+	Conditions []*Condition
 }
 
 // NodePoolUpdate - Concrete tracked resource types can be created by aliasing this type using a specific property type.
@@ -972,12 +1010,6 @@ type PlatformProfile struct {
 type PlatformProfileUpdate struct {
 	// The configuration that the operators of the cluster have to authenticate to Azure
 	OperatorsAuthentication *OperatorsAuthenticationProfileUpdate
-}
-
-// ResourceStatus represents the observed status of the resource.
-type ResourceStatus struct {
-	// READ-ONLY; The conditions on the resource
-	Conditions []*Condition
 }
 
 // RoleDefinition - A single role definition required by a given operator
