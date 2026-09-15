@@ -389,11 +389,26 @@ func (c *clusterChildResourcesCleanupController) ensureClusterScopedKubeApplierR
 		return skipBackupDesires(ctx, resourceID)
 	}
 
+	// Combined gate for ClusterScopedReadDesire: first check ownership (owned ReadDesires
+	// must be torn down by their controller), then check if it's a backup desire.
+	readDesireGate := func(ctx context.Context, resourceID *azcorearm.ResourceID) (bool, error) {
+		// Check ownership first
+		shouldDeleteBasedOnOwnership, err := c.extraDeleteGateShouldDeleteReadDesire(kaClient, clusterResourceID)(ctx, resourceID)
+		if err != nil {
+			return false, err
+		}
+		if !shouldDeleteBasedOnOwnership {
+			return false, nil
+		}
+		// Then check if it's a backup desire
+		return skipBackupDesires(ctx, resourceID)
+	}
+
 	// extraDeleteGates uses lowercased kubeapplier.*DesireResourceTypeName keys. Types not
 	// in the map are deleted unconditionally.
 	extraDeleteGates := map[string]func(ctx context.Context, resourceID *azcorearm.ResourceID) (bool, error){
 		strings.ToLower(kubeapplierapi.ClusterScopedApplyDesireResourceType.String()): applyDesireGate,
-		strings.ToLower(kubeapplierapi.ClusterScopedReadDesireResourceType.String()):  skipBackupDesires,
+		strings.ToLower(kubeapplierapi.ClusterScopedReadDesireResourceType.String()):  readDesireGate,
 	}
 
 	desireCRUD, err := kaClient.UntypedCRUD(*clusterResourceID)
@@ -538,3 +553,49 @@ func (c *clusterChildResourcesCleanupController) extraDeleteGateShouldDeleteAppl
 		return true, nil
 	}
 }
+
+// extraDeleteGateShouldDeleteReadDesire reports whether a cluster-scoped
+// ReadDesire document may be removed here.
+//
+// A ReadDesire that records an owning controller in Tags[TagControllerName]
+// belongs to that controller's teardown: the owner removes it as part of its
+// cleanup sequence. Deleting the document here would interfere with the owner's
+// lifecycle management. So we leave those alone and let the owner converge -
+// today that is the ClusterResources controller, via deleteAllOwnedReadDesires.
+//
+// Untagged desires have no owner left to reap them, so they are deleted here.
+func (c *clusterChildResourcesCleanupController) extraDeleteGateShouldDeleteReadDesire(
+	kaClient kubeappliercosmosstorage.KubeApplierDBClient,
+	clusterResourceID *azcorearm.ResourceID,
+) func(ctx context.Context, readDesireResourceID *azcorearm.ResourceID) (bool, error) {
+	return func(ctx context.Context, readDesireResourceID *azcorearm.ResourceID) (bool, error) {
+		logger := utils.LoggerFromContext(ctx)
+
+		readDesireCRUD, err := kaClient.ReadDesiresForCluster(
+			clusterResourceID.SubscriptionID,
+			clusterResourceID.ResourceGroupName,
+			clusterResourceID.Name,
+		)
+		if err != nil {
+			return false, utils.TrackError(fmt.Errorf("failed to create cluster-scoped ReadDesire CRUD: %w", err))
+		}
+
+		readDesire, err := readDesireCRUD.Get(ctx, strings.ToLower(readDesireResourceID.Name))
+		if cosmosstorageutils.IsNotFoundError(err) {
+			// Raced with the owner purging it; nothing left to delete.
+			return false, nil
+		}
+		if err != nil {
+			return false, utils.TrackError(fmt.Errorf("failed to get ReadDesire %q: %w", readDesireResourceID.String(), err))
+		}
+
+		if owningController := readDesire.Tags[kubeapplierapi.TagControllerName]; len(owningController) > 0 {
+			logger.Info("waiting for owning controller to tear down cluster-scoped ReadDesire",
+				"readDesireResourceID", readDesireResourceID.String(), "owningController", owningController)
+			return false, nil
+		}
+
+		return true, nil
+	}
+}
+
