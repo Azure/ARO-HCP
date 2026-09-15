@@ -95,6 +95,46 @@ func TestValidateClusterCreate(t *testing.T) {
 			},
 		},
 		{
+			name: "unrecognized control plane operator name - create",
+			cluster: func() *coreapi.HCPOpenShiftCluster {
+				c := createValidCluster()
+				identity := metadataapi.Must(azcorearm.ParseResourceID(testOperatorIdentityPrefix + "extra-identity"))
+				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators["not-an-operator"] = identity
+				c.Identity.UserAssignedIdentities[identity.String()] = &coreapi.UserAssignedIdentity{}
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "unrecognized operator name", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[not-an-operator]"},
+			},
+		},
+		{
+			// The reported incident reproduces with a mis-cased name too: it satisfies the
+			// case-insensitive requirement check, but the backend looks operators up by exact
+			// name, so the create is accepted and then stalls.
+			name: "mis-cased control plane operator name - create",
+			cluster: func() *coreapi.HCPOpenShiftCluster {
+				c := createValidCluster()
+				operators := c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators
+				operators["KMS"] = operators["kms"]
+				delete(operators, "kms")
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "unrecognized operator name", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[KMS]"},
+			},
+		},
+		{
+			name: "unrecognized data plane operator name - create",
+			cluster: func() *coreapi.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators["not-an-operator"] = metadataapi.Must(azcorearm.ParseResourceID(testOperatorIdentityPrefix + "extra-dataplane-identity"))
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "unrecognized operator name", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.dataPlaneOperators[not-an-operator]"},
+			},
+		},
+		{
 			name: "OpenShift 5 rejected on create without experimental release features (no prior version id)",
 			cluster: func() *coreapi.HCPOpenShiftCluster {
 				c := createValidCluster()
@@ -631,13 +671,13 @@ func TestValidateClusterCreate(t *testing.T) {
 			name: "invalid user assigned identity resource type - create",
 			cluster: func() *coreapi.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators["test-operator"] = metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet"))
+				repointControlPlaneOperator(c, "ingress", metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet")))
 				return c
 			}(),
 			expectErrors: []utils.ExpectedError{
-				{Message: "resource ID must reference an instance of type", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
-				{Message: "must be in the same Azure subscription", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
-				{Message: "identity is not assigned to this resource", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
+				{Message: "resource ID must reference an instance of type", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[ingress]"},
+				{Message: "must be in the same Azure subscription", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[ingress]"},
+				{Message: "identity is not assigned to this resource", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[ingress]"},
 			},
 		},
 		{
@@ -707,11 +747,11 @@ func TestValidateClusterCreate(t *testing.T) {
 			cluster: func() *coreapi.HCPOpenShiftCluster {
 				c := createValidCluster()
 				// Reference an identity that's not assigned
-				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators["test-operator"] = metadataapi.Must(azcorearm.ParseResourceID(testOperatorIdentityPrefix + "unassigned-identity"))
+				repointControlPlaneOperator(c, "ingress", metadataapi.Must(azcorearm.ParseResourceID(testOperatorIdentityPrefix+"unassigned-identity")))
 				return c
 			}(),
 			expectErrors: []utils.ExpectedError{
-				{Message: "identity is not assigned to this resource", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
+				{Message: "identity is not assigned to this resource", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[ingress]"},
 			},
 		},
 		{
@@ -722,8 +762,8 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.Identity.UserAssignedIdentities[identityID] = &coreapi.UserAssignedIdentity{}
 				// Use the same identity in multiple places
 				identityResourceID := metadataapi.Must(azcorearm.ParseResourceID(identityID))
-				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators["operator1"] = identityResourceID
-				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators["operator2"] = identityResourceID
+				repointControlPlaneOperator(c, "ingress", identityResourceID)
+				repointControlPlaneOperator(c, "control-plane", identityResourceID)
 				return c
 			}(),
 			expectErrors: []utils.ExpectedError{
@@ -736,8 +776,8 @@ func TestValidateClusterCreate(t *testing.T) {
 			cluster: func() *coreapi.HCPOpenShiftCluster {
 				c := createValidCluster()
 				sharedIdentity := metadataapi.Must(azcorearm.ParseResourceID(testOperatorIdentityPrefix + "shared-dataplane-identity"))
-				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators["dataplane-operator-1"] = sharedIdentity
-				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators["dataplane-operator-2"] = sharedIdentity
+				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators["disk-csi-driver"] = sharedIdentity
+				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators["file-csi-driver"] = sharedIdentity
 				return c
 			}(),
 			expectErrors: []utils.ExpectedError{
@@ -751,7 +791,7 @@ func TestValidateClusterCreate(t *testing.T) {
 				identityID := testOperatorIdentityPrefix + "shared-identity"
 				identityResourceID := metadataapi.Must(azcorearm.ParseResourceID(identityID))
 				c.Identity.UserAssignedIdentities[identityID] = &coreapi.UserAssignedIdentity{}
-				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators["test-operator"] = identityResourceID
+				repointControlPlaneOperator(c, "ingress", identityResourceID)
 				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity = identityResourceID
 				return c
 			}(),
@@ -767,11 +807,11 @@ func TestValidateClusterCreate(t *testing.T) {
 				identityID := testOperatorIdentityPrefix + "dataplane-identity"
 				c.Identity.UserAssignedIdentities[identityID] = &coreapi.UserAssignedIdentity{}
 				// Data plane operators cannot use assigned identities
-				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators["dataplane-operator"] = metadataapi.Must(azcorearm.ParseResourceID(identityID))
+				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators["disk-csi-driver"] = metadataapi.Must(azcorearm.ParseResourceID(identityID))
 				return c
 			}(),
 			expectErrors: []utils.ExpectedError{
-				{Message: "cannot use identity assigned to this resource by .identities.userAssignedIdentities", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.dataPlaneOperators[dataplane-operator]"},
+				{Message: "cannot use identity assigned to this resource by .identities.userAssignedIdentities", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.dataPlaneOperators[disk-csi-driver]"},
 				{Message: "identity is assigned to this resource but not used", FieldPath: "identity.userAssignedIdentities[" + testOperatorIdentityPrefix + "dataplane-identity]"},
 			},
 		},
@@ -794,7 +834,7 @@ func TestValidateClusterCreate(t *testing.T) {
 				upperCaseID := testOperatorIdentityPrefix + "case-test-identity"
 				c.Identity.UserAssignedIdentities[lowerCaseID] = &coreapi.UserAssignedIdentity{}
 				// Reference with different casing should work
-				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators["test-operator"] = metadataapi.Must(azcorearm.ParseResourceID(upperCaseID))
+				repointControlPlaneOperator(c, "ingress", metadataapi.Must(azcorearm.ParseResourceID(upperCaseID)))
 				return c
 			}(),
 			expectErrors: []utils.ExpectedError{},
@@ -911,12 +951,12 @@ func TestValidateClusterCreate(t *testing.T) {
 			cluster: func() *coreapi.HCPOpenShiftCluster {
 				c := createValidCluster()
 				// Identity in different subscription
-				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators["test-operator"] = metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/different-sub/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity"))
+				repointControlPlaneOperator(c, "ingress", metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/different-sub/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity")))
 				return c
 			}(),
 			expectErrors: []utils.ExpectedError{
-				{Message: "must be in the same Azure subscription", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
-				{Message: "identity is not assigned to this resource", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
+				{Message: "must be in the same Azure subscription", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[ingress]"},
+				{Message: "identity is not assigned to this resource", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[ingress]"},
 			},
 		},
 		{
@@ -924,11 +964,11 @@ func TestValidateClusterCreate(t *testing.T) {
 			cluster: func() *coreapi.HCPOpenShiftCluster {
 				c := createValidCluster()
 				// Data plane operator identity validation
-				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators["dataplane-operator"] = metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/different-sub/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/dataplane-identity"))
+				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators["disk-csi-driver"] = metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/different-sub/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/dataplane-identity"))
 				return c
 			}(),
 			expectErrors: []utils.ExpectedError{
-				{Message: "must be in the same Azure subscription", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.dataPlaneOperators[dataplane-operator]"},
+				{Message: "must be in the same Azure subscription", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.dataPlaneOperators[disk-csi-driver]"},
 			},
 		},
 		{
@@ -2674,6 +2714,17 @@ func withAllRequiredOperatorIdentities(cluster *coreapi.HCPOpenShiftCluster) *co
 	}
 
 	return cluster
+}
+
+// repointControlPlaneOperator aims an existing operator at a different identity and drops the one
+// it previously used, so the swap doesn't leave an unused assignment behind. Tests probing identity
+// semantics use a real operator name because unrecognized names are rejected on their own.
+func repointControlPlaneOperator(cluster *coreapi.HCPOpenShiftCluster, operatorName string, identity *azcorearm.ResourceID) {
+	operators := cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators
+	if previous, ok := operators[operatorName]; ok {
+		delete(cluster.Identity.UserAssignedIdentities, previous.String())
+	}
+	operators[operatorName] = identity
 }
 
 func createValidCluster() *coreapi.HCPOpenShiftCluster {
