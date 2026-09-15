@@ -170,7 +170,7 @@ defaults:
     image:
       registry: mcr.microsoft.com
       repository: aks/command/runtime
-      digest: sha256:1fa09488bf407f4b1bfd44f02ff60af191218075be0a2050d737165acfcbda23 # master.260813.1 (2026-08-13 00:00)
+      digest: sha256:161971cdd3bfe66be6a9b96d67fabf8c4b54a88b841add1aaced26b0a00358b4 # master.260914.1 (2026-09-14 00:00)
   # Arobit
   arobit:
     forwarder:
