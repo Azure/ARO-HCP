@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"os"
 	"regexp"
 	"time"
 
@@ -42,6 +43,11 @@ var _ = Describe("KSM HCP Metrics", func() {
 		func(ctx context.Context) {
 			tc := framework.NewTestContext()
 
+			GinkgoLogr.Info("ARO_HCP_CONFIG_FILE", "value", os.Getenv("ARO_HCP_CONFIG_FILE"))
+			GinkgoLogr.Info("ARO_HCP_CLOUD", "value", os.Getenv("ARO_HCP_CLOUD"))
+			GinkgoLogr.Info("DEPLOY_ENV", "value", os.Getenv("DEPLOY_ENV"))
+			GinkgoLogr.Info("REGION", "value", os.Getenv("REGION"))
+			GinkgoLogr.Info("ARO_HCP_CONFIG_FILE_OVERRIDE", "value", os.Getenv("ARO_HCP_CONFIG_FILE_OVERRIDE"))
 			serviceConfig, err := config.GetServiceConfig()
 			Expect(err).NotTo(HaveOccurred(), "failed to load service config")
 
