@@ -1048,11 +1048,25 @@ func validateKmsKey(ctx context.Context, op operation.Operation, fldPath *field.
 	errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("name"), &newObj.Name, safe.Field(oldObj, toKmsKeyName))...)
 	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("name"), &newObj.Name, nil)...)
 	errs = append(errs, MaxLen(ctx, op, fldPath.Child("name"), &newObj.Name, nil, 255)...)
+	// Reject URLs or paths in key name to prevent similar confusion as with version field
+	if strings.Contains(newObj.Name, "://") || strings.Contains(newObj.Name, "/") {
+		errs = append(errs, field.Invalid(fldPath.Child("name"), newObj.Name, "must be a bare key name, not a URL or path"))
+	}
 
 	//VaultName string `json:"vaultName"`
 	errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("vaultName"), &newObj.VaultName, safe.Field(oldObj, toKmsKeyVaultName))...)
 	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("vaultName"), &newObj.VaultName, nil)...)
 	errs = append(errs, MaxLen(ctx, op, fldPath.Child("vaultName"), &newObj.VaultName, nil, 255)...)
+	// Azure Key Vault names have specific constraints:
+	// - 3-24 characters
+	// - Alphanumeric and hyphens only
+	// - Must start with a letter
+	// - Must not end with a hyphen
+	// - No consecutive hyphens
+	// Reject URLs or paths in vaultName to prevent similar confusion as with version field
+	if strings.Contains(newObj.VaultName, "://") || strings.Contains(newObj.VaultName, "/") || strings.Contains(newObj.VaultName, ".") {
+		errs = append(errs, field.Invalid(fldPath.Child("vaultName"), newObj.VaultName, "must be a bare Key Vault name, not a URL or FQDN (e.g., 'myvault' not 'myvault.vault.azure.net')"))
+	}
 
 	//Version   string `json:"version"`
 	// The version field was made mutable in version 2026-06-30-preview.
@@ -1062,6 +1076,16 @@ func validateKmsKey(ctx context.Context, op operation.Operation, fldPath *field.
 	}
 	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("version"), &newObj.Version, nil)...)
 	errs = append(errs, MaxLen(ctx, op, fldPath.Child("version"), &newObj.Version, nil, 255)...)
+	// Reject complete Azure Key Vault key URLs; only accept bare key-version identifiers.
+	// Azure Key Vault key URLs follow the pattern: https://{vault-name}.vault.azure.net/keys/{key-name}/{key-version}
+	// The version field must contain only the key-version identifier, not the full URL.
+	// We check for:
+	// 1. URL scheme indicators (://)
+	// 2. Path separators (/)
+	// 3. Whitespace characters (which are never valid in key versions)
+	if strings.Contains(newObj.Version, "://") || strings.Contains(newObj.Version, "/") || strings.ContainsAny(newObj.Version, " \t\n\r\f\v") {
+		errs = append(errs, field.Invalid(fldPath.Child("version"), newObj.Version, "must be a bare key-version identifier, not a complete Azure Key Vault key URL or path"))
+	}
 
 	return errs
 }
