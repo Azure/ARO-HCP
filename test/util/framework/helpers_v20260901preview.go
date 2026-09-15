@@ -125,6 +125,9 @@ func NewDefaultClusterParams20260901() ClusterParams20260901 {
 		},
 	}
 	applyCPOImageOverride(params.Tags)
+	// The RP only accepts a bare "<major>.<minor>" in version.id; an exact build
+	// is requested through the exact-version tag.
+	params.OpenshiftVersionId = ApplyControlPlaneExactVersionPin(params.OpenshiftVersionId, params.Tags)
 	return params
 }
 
