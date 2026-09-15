@@ -25,10 +25,21 @@ import (
 func TestPickAtLeastOpenshiftVersionId(t *testing.T) {
 	t.Parallel()
 
+	// For examples of latest OpenShift versions, see OpenShift Release Status
+	// page at https://openshift-release.apps.ci.l2s4.p1.openshiftapps.com/
 	const (
+		// examples of OCP Nightly versions
 		nightly419 = "4.19.0-0.nightly-multi-2026-09-01-142156"
 		nightly421 = "4.21.0-0.nightly-multi-2026-09-03-080000"
 		nightly500 = "5.0.0-0.nightly-multi-2026-09-09-181844"
+		// examples of OCP Dev Preview versions
+		devprev419 = "4.19.0-ec.1"
+		devprev421 = "4.21.0-ec.3"
+		devprev500 = "5.0.0-ec.6"
+		// examples of OCP Release Candidate versions
+		rc419 = "4.19.0-rc.1"
+		rc421 = "4.21.0-rc.3"
+		rc500 = "5.0.0-rc.0"
 	)
 
 	tests := []struct {
@@ -75,6 +86,76 @@ func TestPickAtLeastOpenshiftVersionId(t *testing.T) {
 		},
 
 		//
+		// dev preview: defaultVersion satisfies the minimum
+		//
+		{
+			name:           "dev preview default higher minor satisfies minimum",
+			defaultVersion: devprev421,
+			minimalVersion: "4.19",
+			wantVersion:    devprev421,
+		},
+		{
+			name:           "dev prevew default same minor satisfies minimum",
+			defaultVersion: devprev419,
+			minimalVersion: "4.19",
+			wantVersion:    devprev419,
+		},
+		{
+			name:           "dev preview default same minor satisfies patch-zero minimum",
+			defaultVersion: devprev419,
+			minimalVersion: "4.19.0",
+			wantVersion:    devprev419,
+		},
+		{
+			name:           "dev preview default patch 0 does not satisfy patch-qualified minimum",
+			defaultVersion: devprev419,
+			minimalVersion: "4.19.1",
+			wantErr:        true,
+			wantSkippable:  true,
+		},
+		{
+			name:           "dev preview default higher major satisfies minimum",
+			defaultVersion: devprev500,
+			minimalVersion: "4.21",
+			wantVersion:    devprev500,
+		},
+
+		//
+		// release candidate: defaultVersion satisfies the minimum
+		//
+		{
+			name:           "rc default higher minor satisfies minimum",
+			defaultVersion: rc421,
+			minimalVersion: "4.19",
+			wantVersion:    rc421,
+		},
+		{
+			name:           "rc default same minor satisfies minimum",
+			defaultVersion: rc419,
+			minimalVersion: "4.19",
+			wantVersion:    rc419,
+		},
+		{
+			name:           "rc default same minor satisfies patch-zero minimum",
+			defaultVersion: rc419,
+			minimalVersion: "4.19.0",
+			wantVersion:    rc419,
+		},
+		{
+			name:           "rc default patch 0 does not satisfy patch-qualified minimum",
+			defaultVersion: rc419,
+			minimalVersion: "4.19.1",
+			wantErr:        true,
+			wantSkippable:  true,
+		},
+		{
+			name:           "rc default higher major satisfies minimum",
+			defaultVersion: rc500,
+			minimalVersion: "4.21",
+			wantVersion:    rc500,
+		},
+
+		//
 		// nightly: defaultVersion does NOT satisfy the minimum → skippable error
 		//
 		{
@@ -93,7 +174,25 @@ func TestPickAtLeastOpenshiftVersionId(t *testing.T) {
 		},
 
 		//
-		// non-nightly: defaultVersion satisfies the minimum
+		// rc: defaultVersion does NOT satisfy the minimum → skippable error
+		//
+		{
+			name:           "rc default lower minor does not satisfy minimum",
+			defaultVersion: rc500,
+			minimalVersion: "5.1",
+			wantErr:        true,
+			wantSkippable:  true,
+		},
+		{
+			name:           "rc default lower major does not satisfy minimum",
+			defaultVersion: rc419,
+			minimalVersion: "5.0",
+			wantErr:        true,
+			wantSkippable:  true,
+		},
+
+		//
+		// stable: defaultVersion satisfies the minimum
 		//
 		{
 			name:           "candidate default higher version satisfies minimum",
@@ -115,7 +214,7 @@ func TestPickAtLeastOpenshiftVersionId(t *testing.T) {
 		},
 
 		//
-		// non-nightly: defaultVersion does NOT satisfy the minimum → fallback to minimal
+		// stable: defaultVersion does NOT satisfy the minimum → fallback to minimal
 		//
 		{
 			name:           "candidate default lower minor falls back to minimal",
