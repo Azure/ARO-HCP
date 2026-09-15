@@ -1038,6 +1038,26 @@ No Cosmos writes. Posts `NodePoolUpgradePolicy` to Cluster Service.
 | Read | Managed Identities Data Plane | <ul><li>`GetUserAssignedIdentitiesCredentials`</li></ul> |
 | **Write** | **`ServiceProviderCluster`** | <ul><li>**`Status.MSIManagedIdentities.ControlPlaneOperatorsIdentities`** = map keyed by lowercased resource ID (`ResourceID`, `ClientID`, `PrincipalID`)</li><li>**`Status.MSIManagedIdentities.ServiceManagedIdentity`** = `ResourceID`, `ClientID`, `PrincipalID`</li><li>**`Spec.EarliestRecheckTimesByController["FetchMSIIdentitiesInfo"]`** = now + jittered 12h interval</li></ul> |
 
+#### FetchManagedIdentitiesInfo
+
+**File:** [fetch_managed_identities_info.go](../backend/pkg/controllers/cluster/identity/fetch_managed_identities_info.go)
+**Trigger:** Cluster informer, 1-minute resync
+**Gate (needsWork):**
+- Skipped entirely when `HCPOpenShiftCluster.ServiceProviderProperties.DeletionTimestamp` != nil
+- Honors `ServiceProviderCluster.Spec.EarliestRecheckTimesByController["FetchManagedIdentitiesInfo"]` only when the unique lowercased ResourceID set on `Status.ManagedIdentityDetails` still matches the desired set from `CustomerProperties` (control plane operators, data plane operators, and service managed identity); returns true (query sources) immediately on any mismatch
+- When identities match: returns false while that recheck time is in the future; true when it is nil or already past
+
+Resolves ClientID/PrincipalID/TenantID for every unique cluster managed identity into `Status.ManagedIdentityDetails`, filling each source that applies. Source failures are accumulated and processing continues so successfully resolved sources and identities are still persisted; the accumulated error is returned so the workqueue retries. ARM `ResourceNotFound` keeps `MetadataFromARMUserAssignedIdentitiesAPI` with `RetrievalError` set and is not treated as a sync failure. Other ARM Get failures persist `RetrievalError` and are accumulated. Malformed `CustomerProperties` identity entries (nil ResourceID, empty operator name) are accumulated and returned without writing `ManagedIdentityDetails`, so a partial collect cannot prune stored identities.
+
+| | Object | Fields |
+|---|--------|--------|
+| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (SyncOnce: must be nil)</li><li>`ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL` (used to build the real MI dataplane client and the SMI-authenticated ARM client)</li><li>`CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators`</li><li>`CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators`</li><li>`CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity`</li><li>`ID` (subscription / resource group / name)</li></ul> |
+| Read | `ServiceProviderCluster` | <ul><li>`Status.ManagedIdentityDetails` (needsWork: compared to the desired ResourceID set)</li><li>`Spec.EarliestRecheckTimesByController["FetchManagedIdentitiesInfo"]` (needsWork: honored only when identities match)</li></ul> |
+| Read | Hardcoded identity (environments without the real MI dataplane) | <ul><li>ClientID, PrincipalID, TenantID of the hardcoded identity, applied only to dataplane-registered identities (control plane operators and the service managed identity)</li></ul> |
+| Read | Managed Identities Data Plane (environments with the real service) | <ul><li>`GetUserAssignedIdentitiesCredentials` for dataplane-registered identities only (control plane operators and the service managed identity)</li></ul> |
+| Read | Azure (UserAssignedIdentitiesClient authenticated as the SMI) | <ul><li>`Get` once per unique ResourceID that is a control-plane or data-plane operator identity -> `Properties.ClientID`, `Properties.PrincipalID`, `Properties.TenantID`. SMI-only identities are skipped. If the same ResourceID is also a control-plane or data-plane operator, ARM still applies</li></ul> |
+| **Write** | **`ServiceProviderCluster`** | <ul><li>**`Status.ManagedIdentityDetails[<lowercased resourceID>]`** = `{ResourceID, MetadataFromARMUserAssignedIdentitiesAPI, MetadataFromManagedIdentitiesDataplaneService, MetadataFromHardcodedIdentity}` — dataplane and hardcoded source pointers are set when that source applies. An empty `IdentityMetadataValue` (nil ClientID/PrincipalID/TenantID, no RetrievalError) means this pass did not resolve that source. ARM is set whenever it is queried, including Get failures (`RetrievalError`, nil ClientID/PrincipalID/TenantID). Identities no longer present on the cluster are pruned</li><li>**`Spec.EarliestRecheckTimesByController["FetchManagedIdentitiesInfo"]`** = now + jittered 1h interval when every applicable source succeeded (ARM ResourceNotFound is not a source failure); left cleared (absent) when any source error is accumulated, so the next needsWork re-queries</li></ul> |
+
 ---
 
 ### Other Controllers
@@ -1683,6 +1703,14 @@ Single writer, but tracks the namespace containing control plane pods (etcd, kub
 | [FetchMSIIdentitiesInfo](#fetchmsiidentitiesinfo) | Sets ControlPlaneOperatorsIdentities (lowercased resource ID keys) and ServiceManagedIdentity from Managed Identities Data Plane, plus its `Spec.EarliestRecheckTimesByController` entry |
 
 Single writer. Read by [ClusterIdentitySync](#clusteridentitysync) to populate `HCPOpenShiftCluster.Identity.UserAssignedIdentities`.
+
+### `ServiceProviderCluster.Status.ManagedIdentityDetails`
+
+| Actor | When |
+|-------|------|
+| [FetchManagedIdentitiesInfo](#fetchmanagedidentitiesinfo) | Sets per-resource-ID metadata from the ARM User Assigned Identities API (control-plane and data-plane operator identities, including RetrievalError on Get failure; SMI-only identities are skipped), the real Managed Identities Data Plane (dataplane-registered identities when that service is available), and/or the hardcoded identity (those same identities when the real dataplane is not available), and sets its `Spec.EarliestRecheckTimesByController` entry for the next recheck |
+
+Single writer. One map entry per unique lowercased identity ResourceID, with each applicable source stored independently so a failure of one source does not drop metadata already retrieved from another. No Cosmos reader currently consumes this field: IdentityRoleAssignments and ClusterIdentitySync still read `MSIManagedIdentities` and `DataPlaneOperatorsManagedIdentities`.
 
 ### `ServiceProviderCluster.Status.DataPlaneOperatorsManagedIdentities`
 
