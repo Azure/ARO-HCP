@@ -20,6 +20,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"k8s.io/utils/ptr"
 )
 
 func TestManagedIdentitiesWithDataPlaneWorkloadsOIDCFederationJSONMapRoundTrip(t *testing.T) {
@@ -31,10 +33,15 @@ func TestManagedIdentitiesWithDataPlaneWorkloadsOIDCFederationJSONMapRoundTrip(t
 		PrincipalID: "principal-a",
 		TenantID:    "tenant-a",
 	}
+	operatorName := "azure-disk-csi-driver"
 	original := map[string]*ManagedIdentityDataplaneOIDCFederationStatus{
 		key: {
-			TargetIdentity:  identity,
-			EnsuredIdentity: &identity,
+			TargetIdentity: identity,
+			Operators: map[string]*DataplaneOIDCFederationOperatorStatus{
+				operatorName: {
+					EnsuredIdentity: &identity,
+				},
+			},
 		},
 	}
 
@@ -44,10 +51,46 @@ func TestManagedIdentitiesWithDataPlaneWorkloadsOIDCFederationJSONMapRoundTrip(t
 	var decoded map[string]*ManagedIdentityDataplaneOIDCFederationStatus
 	require.NoError(t, json.Unmarshal(encoded, &decoded))
 	require.Contains(t, decoded, key)
+	assert.True(t, decoded[key].OperatorEnsured(operatorName))
 	assert.True(t, decoded[key].TargetIdentityEnsured())
 	assert.Equal(t, identity, decoded[key].TargetIdentity)
-	require.NotNil(t, decoded[key].EnsuredIdentity)
-	assert.Equal(t, identity, *decoded[key].EnsuredIdentity)
+	require.NotNil(t, decoded[key].Operators[operatorName])
+	require.NotNil(t, decoded[key].Operators[operatorName].EnsuredIdentity)
+	assert.Equal(t, identity, *decoded[key].Operators[operatorName].EnsuredIdentity)
+}
+
+func TestManagedIdentityDataplaneOIDCFederationStatusOperatorEnsured(t *testing.T) {
+	t.Parallel()
+
+	identity := DataplaneOIDCFederationIdentityInstance{
+		ClientID:    "client-a",
+		PrincipalID: "principal-a",
+		TenantID:    "tenant-a",
+	}
+	rotated := identity
+	rotated.ClientID = "client-b"
+	operatorName := "azure-disk-csi-driver"
+
+	assert.False(t, (*ManagedIdentityDataplaneOIDCFederationStatus)(nil).OperatorEnsured(operatorName))
+	assert.False(t, (&ManagedIdentityDataplaneOIDCFederationStatus{TargetIdentity: identity}).OperatorEnsured(operatorName))
+	assert.True(t, (&ManagedIdentityDataplaneOIDCFederationStatus{
+		TargetIdentity: identity,
+		Operators: map[string]*DataplaneOIDCFederationOperatorStatus{
+			operatorName: {EnsuredIdentity: ptr.To(identity)},
+		},
+	}).OperatorEnsured(operatorName))
+	assert.False(t, (&ManagedIdentityDataplaneOIDCFederationStatus{
+		TargetIdentity: identity,
+		Operators: map[string]*DataplaneOIDCFederationOperatorStatus{
+			operatorName: {EnsuredIdentity: ptr.To(rotated)},
+		},
+	}).OperatorEnsured(operatorName))
+	assert.False(t, (&ManagedIdentityDataplaneOIDCFederationStatus{
+		TargetIdentity: identity,
+		Operators: map[string]*DataplaneOIDCFederationOperatorStatus{
+			"other-operator": {EnsuredIdentity: ptr.To(identity)},
+		},
+	}).OperatorEnsured(operatorName))
 }
 
 func TestManagedIdentityDataplaneOIDCFederationStatusTargetIdentityEnsured(t *testing.T) {
@@ -64,11 +107,22 @@ func TestManagedIdentityDataplaneOIDCFederationStatusTargetIdentityEnsured(t *te
 	assert.False(t, (*ManagedIdentityDataplaneOIDCFederationStatus)(nil).TargetIdentityEnsured())
 	assert.False(t, (&ManagedIdentityDataplaneOIDCFederationStatus{TargetIdentity: identity}).TargetIdentityEnsured())
 	assert.True(t, (&ManagedIdentityDataplaneOIDCFederationStatus{
-		TargetIdentity:  identity,
-		EnsuredIdentity: &identity,
+		TargetIdentity: identity,
+		Operators: map[string]*DataplaneOIDCFederationOperatorStatus{
+			"azure-disk-csi-driver": {EnsuredIdentity: ptr.To(identity)},
+		},
 	}).TargetIdentityEnsured())
 	assert.False(t, (&ManagedIdentityDataplaneOIDCFederationStatus{
-		TargetIdentity:  identity,
-		EnsuredIdentity: &rotated,
+		TargetIdentity: identity,
+		Operators: map[string]*DataplaneOIDCFederationOperatorStatus{
+			"azure-disk-csi-driver": {EnsuredIdentity: ptr.To(identity)},
+			"azure-file-csi-driver": {},
+		},
+	}).TargetIdentityEnsured())
+	assert.False(t, (&ManagedIdentityDataplaneOIDCFederationStatus{
+		TargetIdentity: identity,
+		Operators: map[string]*DataplaneOIDCFederationOperatorStatus{
+			"azure-disk-csi-driver": {EnsuredIdentity: ptr.To(rotated)},
+		},
 	}).TargetIdentityEnsured())
 }

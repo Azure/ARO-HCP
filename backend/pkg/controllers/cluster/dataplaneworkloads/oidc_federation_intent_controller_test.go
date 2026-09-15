@@ -67,6 +67,8 @@ func TestDesiredDataPlaneOIDCFederationStatus(t *testing.T) {
 		},
 	}
 
+	testOperatorCCM := "cloud-controller-manager"
+
 	testCases := []struct {
 		name                              string
 		dataPlaneOperators                map[string]*azcorearm.ResourceID
@@ -76,6 +78,7 @@ func TestDesiredDataPlaneOIDCFederationStatus(t *testing.T) {
 		expectedTarget                    map[string]coreapi.DataplaneOIDCFederationIdentityInstance
 		expectStampedDeconfigureTimestamp []string
 		expectIdentityChangeClear         []string
+		expectOperatorDeconfigure         map[string][]string
 		expectNilWhenEmpty                bool
 	}{
 		{
@@ -111,6 +114,57 @@ func TestDesiredDataPlaneOIDCFederationStatus(t *testing.T) {
 			},
 			expectedTarget: map[string]coreapi.DataplaneOIDCFederationIdentityInstance{
 				keyA: targetA,
+			},
+		},
+		{
+			name: "one operator leaving a shared identity stamps only that operator",
+			dataPlaneOperators: map[string]*azcorearm.ResourceID{
+				"cloud-controller-manager": identityA,
+			},
+			details: map[string]*coreapi.ManagedIdentityMetadata{
+				strings.ToLower(identityA.String()): resolvedA,
+			},
+			current: map[string]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
+				keyA: {
+					TargetIdentity: targetA,
+					Operators: map[string]*coreapi.DataplaneOIDCFederationOperatorStatus{
+						"cloud-controller-manager": oidcOperatorEnsured(targetA, []*azcorearm.ResourceID{ficA}),
+						"ingress":                  oidcOperatorEnsured(targetA, []*azcorearm.ResourceID{ficB}),
+					},
+				},
+			},
+			expectedStates: map[string]string{
+				keyA: "ensured",
+			},
+			expectedTarget: map[string]coreapi.DataplaneOIDCFederationIdentityInstance{
+				keyA: targetA,
+			},
+			expectOperatorDeconfigure: map[string][]string{
+				keyA: {"ingress"},
+			},
+		},
+		{
+			name: "one operator leaving a shared identity with unresolved ARM stamps only that operator",
+			dataPlaneOperators: map[string]*azcorearm.ResourceID{
+				"cloud-controller-manager": identityA,
+			},
+			details: map[string]*coreapi.ManagedIdentityMetadata{
+				strings.ToLower(identityA.String()): unresolvedA,
+			},
+			current: map[string]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
+				keyA: {
+					TargetIdentity: targetA,
+					Operators: map[string]*coreapi.DataplaneOIDCFederationOperatorStatus{
+						"cloud-controller-manager": oidcOperatorEnsured(targetA, []*azcorearm.ResourceID{ficA}),
+						"ingress":                  oidcOperatorEnsured(targetA, []*azcorearm.ResourceID{ficB}),
+					},
+				},
+			},
+			expectedStates: map[string]string{
+				keyA: "ensured",
+			},
+			expectOperatorDeconfigure: map[string][]string{
+				keyA: {"ingress"},
 			},
 		},
 		{
@@ -156,10 +210,7 @@ func TestDesiredDataPlaneOIDCFederationStatus(t *testing.T) {
 				strings.ToLower(identityA.String()): resolvedA,
 			},
 			current: map[string]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
-				keyA: {
-					TargetIdentity:  targetA,
-					EnsuredIdentity: ptr.To(targetA),
-				},
+				keyA: oidcIdentityStatus(targetA, testOperatorCCM, oidcOperatorEnsured(targetA, nil)),
 			},
 			expectedStates: map[string]string{
 				keyA: "ensured",
@@ -177,9 +228,7 @@ func TestDesiredDataPlaneOIDCFederationStatus(t *testing.T) {
 				strings.ToLower(identityA.String()): resolvedA,
 			},
 			current: map[string]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
-				keyA: {
-					DeconfigureTimestamp: &metav1.Time{Time: time.Date(2026, 9, 4, 12, 0, 0, 0, time.UTC)},
-				},
+				keyA: oidcIdentityStatus(targetA, testOperatorCCM, oidcOperatorDeconfigure(&metav1.Time{Time: time.Date(2026, 9, 4, 12, 0, 0, 0, time.UTC)}, nil, nil)),
 			},
 			expectedStates: map[string]string{
 				keyA: "pending",
@@ -197,9 +246,7 @@ func TestDesiredDataPlaneOIDCFederationStatus(t *testing.T) {
 				strings.ToLower(identityA.String()): resolvedA,
 			},
 			current: map[string]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
-				keyA: {
-					DeconfigureTimestamp: &metav1.Time{Time: time.Date(2026, 9, 4, 12, 0, 0, 0, time.UTC)},
-				},
+				keyA: oidcIdentityStatus(targetA, testOperatorCCM, oidcOperatorDeconfigure(&metav1.Time{Time: time.Date(2026, 9, 4, 12, 0, 0, 0, time.UTC)}, nil, nil)),
 			},
 			expectedStates: map[string]string{
 				keyA: "pending",
@@ -211,11 +258,7 @@ func TestDesiredDataPlaneOIDCFederationStatus(t *testing.T) {
 		{
 			name: "identity that left data-plane operators is marked PendingDeconfigure",
 			current: map[string]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
-				keyA: {
-					TargetIdentity:  targetA,
-					EnsuredIdentity: ptr.To(targetA),
-					AzureResources:  []*azcorearm.ResourceID{ficA},
-				},
+				keyA: oidcIdentityStatus(targetA, testOperatorCCM, oidcOperatorEnsured(targetA, []*azcorearm.ResourceID{ficA})),
 			},
 			expectedStates: map[string]string{
 				keyA: "deconfigure",
@@ -225,9 +268,7 @@ func TestDesiredDataPlaneOIDCFederationStatus(t *testing.T) {
 		{
 			name: "already PendingDeconfigure identity that left operators stays PendingDeconfigure",
 			current: map[string]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
-				keyA: {
-					DeconfigureTimestamp: &metav1.Time{Time: time.Date(2026, 9, 7, 12, 0, 0, 0, time.UTC)},
-				},
+				keyA: oidcIdentityStatus(targetA, testOperatorCCM, oidcOperatorDeconfigure(&metav1.Time{Time: time.Date(2026, 9, 7, 12, 0, 0, 0, time.UTC)}, []*azcorearm.ResourceID{ficA}, nil)),
 			},
 			expectedStates: map[string]string{
 				keyA: "deconfigure",
@@ -249,7 +290,7 @@ func TestDesiredDataPlaneOIDCFederationStatus(t *testing.T) {
 				strings.ToLower(identityA.String()): unresolvedA,
 			},
 			current: map[string]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
-				keyA: {TargetIdentity: targetA, EnsuredIdentity: ptr.To(targetA)},
+				keyA: oidcIdentityStatus(targetA, testOperatorCCM, oidcOperatorEnsured(targetA, nil)),
 			},
 			expectedStates: map[string]string{
 				keyA: "ensured",
@@ -265,10 +306,14 @@ func TestDesiredDataPlaneOIDCFederationStatus(t *testing.T) {
 			},
 			current: map[string]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
 				keyA: {
-					TargetIdentity:        targetA,
-					EnsuredIdentity:       ptr.To(targetA),
-					AzureResources:        []*azcorearm.ResourceID{ficA},
-					PendingAzureResources: []*azcorearm.ResourceID{ficA},
+					TargetIdentity: targetA,
+					Operators: map[string]*coreapi.DataplaneOIDCFederationOperatorStatus{
+						testOperatorCCM: {
+							EnsuredIdentity:       ptr.To(targetA),
+							AzureResources:        []*azcorearm.ResourceID{ficA},
+							PendingAzureResources: []*azcorearm.ResourceID{ficA},
+						},
+					},
 				},
 			},
 			expectedStates: map[string]string{
@@ -292,11 +337,7 @@ func TestDesiredDataPlaneOIDCFederationStatus(t *testing.T) {
 				strings.ToLower(identityA.String()): resolvedA,
 			},
 			current: map[string]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
-				keyB: {
-					TargetIdentity:  targetA,
-					EnsuredIdentity: ptr.To(targetA),
-					AzureResources:  []*azcorearm.ResourceID{ficB},
-				},
+				keyB: oidcIdentityStatus(targetA, testOperatorCCM, oidcOperatorEnsured(targetA, []*azcorearm.ResourceID{ficB})),
 			},
 			expectedStates: map[string]string{
 				keyA: "pending",
@@ -313,11 +354,7 @@ func TestDesiredDataPlaneOIDCFederationStatus(t *testing.T) {
 				strings.ToLower(identityA.String()): resolvedA,
 			},
 			current: map[string]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
-				keyA: {
-					TargetIdentity:  targetA,
-					EnsuredIdentity: ptr.To(targetA),
-					AzureResources:  []*azcorearm.ResourceID{ficA},
-				},
+				keyA: oidcIdentityStatus(targetA, testOperatorCCM, oidcOperatorEnsured(targetA, []*azcorearm.ResourceID{ficA})),
 			},
 			expectedStates: map[string]string{
 				keyA: "deconfigure",
@@ -375,12 +412,21 @@ func TestDesiredDataPlaneOIDCFederationStatus(t *testing.T) {
 				require.NotNil(t, got[key])
 				switch expectedState {
 				case "pending":
-					assert.Nil(t, got[key].DeconfigureTimestamp, "key %s should not be deconfiguring", key)
-					assert.False(t, got[key].TargetIdentityEnsured(), "key %s should not be ensured", key)
+					require.NotEmpty(t, got[key].Operators, "key %s should have operators", key)
+					assert.False(t, got[key].TargetIdentityEnsured(), "key %s should not be fully ensured", key)
+					for operatorName, operatorStatus := range got[key].Operators {
+						assert.Nil(t, operatorStatus.DeconfigureTimestamp, "key %s operator %s should not be deconfiguring", key, operatorName)
+					}
 				case "ensured":
 					assert.True(t, got[key].TargetIdentityEnsured(), "key %s should be ensured", key)
 				case "deconfigure":
-					assert.NotNil(t, got[key].DeconfigureTimestamp, "key %s should be deconfiguring", key)
+					hasStampedOperator := false
+					for _, operatorStatus := range got[key].Operators {
+						if operatorStatus.DeconfigureTimestamp != nil {
+							hasStampedOperator = true
+						}
+					}
+					assert.True(t, hasStampedOperator, "key %s should have a deconfiguring operator", key)
 				default:
 					t.Fatalf("unknown expected state %q for key %s", expectedState, key)
 				}
@@ -392,28 +438,31 @@ func TestDesiredDataPlaneOIDCFederationStatus(t *testing.T) {
 			stamped := map[string]struct{}{}
 			for _, key := range tc.expectStampedDeconfigureTimestamp {
 				stamped[key] = struct{}{}
-				require.NotNil(t, got[key].DeconfigureTimestamp)
-				assert.Equal(t, since, *got[key].DeconfigureTimestamp)
-			}
-			for key := range tc.expectedStates {
-				if _, ok := stamped[key]; ok {
-					continue
+				require.NotNil(t, got[key])
+				foundStamp := false
+				for _, operatorStatus := range got[key].Operators {
+					if operatorStatus.DeconfigureTimestamp != nil {
+						assert.Equal(t, since, *operatorStatus.DeconfigureTimestamp)
+						foundStamp = true
+					}
 				}
-				if tc.expectedStates[key] == "pending" {
-					assert.Nil(t, got[key].DeconfigureTimestamp)
-					continue
-				}
-				if tc.current[key] == nil {
-					assert.Nil(t, got[key].DeconfigureTimestamp)
-					continue
-				}
-				assert.Equal(t, tc.current[key].DeconfigureTimestamp, got[key].DeconfigureTimestamp)
+				assert.True(t, foundStamp, "key %s should have a newly stamped operator", key)
 			}
 			for _, key := range tc.expectIdentityChangeClear {
 				require.Contains(t, got, key)
-				assert.Nil(t, got[key].EnsuredIdentity)
-				assert.Empty(t, got[key].AzureResources)
-				assert.Empty(t, got[key].PendingAzureResources)
+				for operatorName, operatorStatus := range got[key].Operators {
+					assert.Nil(t, operatorStatus.EnsuredIdentity, "key %s operator %s", key, operatorName)
+					assert.Empty(t, operatorStatus.AzureResources, "key %s operator %s", key, operatorName)
+					assert.Empty(t, operatorStatus.PendingAzureResources, "key %s operator %s", key, operatorName)
+				}
+			}
+			for key, operatorNames := range tc.expectOperatorDeconfigure {
+				require.Contains(t, got, key)
+				for _, operatorName := range operatorNames {
+					require.Contains(t, got[key].Operators, operatorName)
+					require.NotNil(t, got[key].Operators[operatorName].DeconfigureTimestamp)
+					assert.Equal(t, since, *got[key].Operators[operatorName].DeconfigureTimestamp)
+				}
 			}
 		})
 	}
@@ -488,6 +537,7 @@ func TestDataPlaneOIDCFederationIntentSyncOnce(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, updated.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation, keyA)
 	assert.False(t, updated.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation[keyA].TargetIdentityEnsured())
+	assert.Contains(t, updated.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation[keyA].Operators, "cloud-controller-manager")
 	assert.Equal(t, coreapi.DataplaneOIDCFederationIdentityInstance{
 		ClientID:    "client-a",
 		PrincipalID: "principal-a",
@@ -512,11 +562,7 @@ func TestDataPlaneOIDCFederationIntentSyncOnceStampsDeconfigureTimestampOnLiveCl
 	cluster := newTestClusterWithIdentities(t, testClusterName, nil, nil)
 	serviceProviderCluster := newTestServiceProviderClusterWithIdentities(testClusterName, nil, nil)
 	serviceProviderCluster.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation = map[string]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
-		keyA: {
-			TargetIdentity:  targetA,
-			EnsuredIdentity: ptr.To(targetA),
-			AzureResources:  []*azcorearm.ResourceID{ficA},
-		},
+		keyA: oidcIdentityStatus(targetA, "cloud-controller-manager", oidcOperatorEnsured(targetA, []*azcorearm.ResourceID{ficA})),
 	}
 
 	mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, serviceProviderCluster})
@@ -540,9 +586,9 @@ func TestDataPlaneOIDCFederationIntentSyncOnceStampsDeconfigureTimestampOnLiveCl
 	require.NoError(t, err)
 	got := updated.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation[keyA]
 	require.NotNil(t, got)
-	assert.NotNil(t, got.DeconfigureTimestamp)
-	require.NotNil(t, got.DeconfigureTimestamp)
-	assert.True(t, got.DeconfigureTimestamp.Time.Equal(now))
+	operatorStatus := requireOperatorStatus(t, got, "cloud-controller-manager")
+	assert.NotNil(t, operatorStatus.DeconfigureTimestamp)
+	assert.True(t, operatorStatus.DeconfigureTimestamp.Time.Equal(now))
 }
 
 func TestDataPlaneOIDCFederationIntentSyncOnceMarksPendingDeconfigureOnClusterDeletion(t *testing.T) {
@@ -629,11 +675,7 @@ func TestDataPlaneOIDCFederationIntentSyncOnceMarksPendingDeconfigureOnClusterDe
 				strings.ToLower(identityA.String()): resolvedA,
 			}
 			serviceProviderCluster.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation = map[string]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
-				keyA: {
-					TargetIdentity:  targetA,
-					EnsuredIdentity: ptr.To(targetA),
-					AzureResources:  []*azcorearm.ResourceID{ficA},
-				},
+				keyA: oidcIdentityStatus(targetA, "cloud-controller-manager", oidcOperatorEnsured(targetA, []*azcorearm.ResourceID{ficA})),
 			}
 
 			mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, serviceProviderCluster})
@@ -657,10 +699,11 @@ func TestDataPlaneOIDCFederationIntentSyncOnceMarksPendingDeconfigureOnClusterDe
 			require.NoError(t, err)
 			require.Contains(t, updated.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation, keyA)
 			got := updated.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation[keyA]
-			assert.Equal(t, tc.expectDeconfigure, got.DeconfigureTimestamp != nil)
+			operatorStatus := requireOperatorStatus(t, got, "cloud-controller-manager")
+			assert.Equal(t, tc.expectDeconfigure, operatorStatus.DeconfigureTimestamp != nil)
 			if tc.expectDeconfigure {
-				require.NotNil(t, got.DeconfigureTimestamp)
-				assert.True(t, got.DeconfigureTimestamp.Time.Equal(now))
+				require.NotNil(t, operatorStatus.DeconfigureTimestamp)
+				assert.True(t, operatorStatus.DeconfigureTimestamp.Time.Equal(now))
 			}
 		})
 	}

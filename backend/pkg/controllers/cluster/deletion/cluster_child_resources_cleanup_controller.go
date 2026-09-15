@@ -288,10 +288,18 @@ func (c *clusterChildResourcesCleanupController) extraDeleteGateShouldDeleteServ
 	// so that reflected state remains available.
 	remainingFederatedIdentityCredentialIDStrs := make([]string, 0)
 	for _, status := range spc.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation {
-		remainingFederatedIdentityCredentialIDStrs = append(remainingFederatedIdentityCredentialIDStrs,
-			c.resourceIDStrings(status.AzureResources)...)
-		remainingFederatedIdentityCredentialIDStrs = append(remainingFederatedIdentityCredentialIDStrs,
-			c.resourceIDStrings(status.PendingAzureResources)...)
+		if status == nil {
+			continue
+		}
+		for _, operatorStatus := range status.Operators {
+			if operatorStatus == nil {
+				continue
+			}
+			remainingFederatedIdentityCredentialIDStrs = append(remainingFederatedIdentityCredentialIDStrs,
+				c.resourceIDStrings(operatorStatus.AzureResources)...)
+			remainingFederatedIdentityCredentialIDStrs = append(remainingFederatedIdentityCredentialIDStrs,
+				c.resourceIDStrings(operatorStatus.PendingAzureResources)...)
+		}
 	}
 	if len(remainingFederatedIdentityCredentialIDStrs) > 0 {
 		slices.Sort(remainingFederatedIdentityCredentialIDStrs)

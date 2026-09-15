@@ -49,7 +49,7 @@ func IsFederatedCredentialNotFoundErr(err error) bool {
 	return errors.As(err, &azErr) && azErr.ErrorCode == "NotFound"
 }
 
-// IsFederatedCredentialParentResourceNotFoundErr is used to determine if we are failing to find a
+// IsFederatedCredentialParentResourceNotFoundErr is used to determine if we are failing to find
 // the parent resource of the federated credential
 func IsFederatedCredentialParentResourceNotFoundErr(err error) bool {
 	var azErr *azcore.ResponseError

@@ -139,7 +139,11 @@ func TestExtraDeleteGateShouldDeleteServiceProviderClusterOIDCFederation(t *test
 			name: "azure resources remaining blocks deletion",
 			federation: map[string]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
 				keyA: {
-					AzureResources: []*azcorearm.ResourceID{federatedIdentityCredentialA},
+					Operators: map[string]*coreapi.DataplaneOIDCFederationOperatorStatus{
+						"azure-disk-csi-driver-operator": {
+							AzureResources: []*azcorearm.ResourceID{federatedIdentityCredentialA},
+						},
+					},
 				},
 			},
 			expectShouldDelete: false,
@@ -148,7 +152,11 @@ func TestExtraDeleteGateShouldDeleteServiceProviderClusterOIDCFederation(t *test
 			name: "pending azure resources remaining blocks deletion",
 			federation: map[string]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
 				keyA: {
-					PendingAzureResources: []*azcorearm.ResourceID{federatedIdentityCredentialA},
+					Operators: map[string]*coreapi.DataplaneOIDCFederationOperatorStatus{
+						"azure-disk-csi-driver-operator": {
+							PendingAzureResources: []*azcorearm.ResourceID{federatedIdentityCredentialA},
+						},
+					},
 				},
 			},
 			expectShouldDelete: false,
@@ -158,7 +166,11 @@ func TestExtraDeleteGateShouldDeleteServiceProviderClusterOIDCFederation(t *test
 			federation: map[string]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
 				keyA: {},
 				keyB: {
-					AzureResources: []*azcorearm.ResourceID{federatedIdentityCredentialB},
+					Operators: map[string]*coreapi.DataplaneOIDCFederationOperatorStatus{
+						"azure-disk-csi-driver-operator": {
+							AzureResources: []*azcorearm.ResourceID{federatedIdentityCredentialB},
+						},
+					},
 				},
 			},
 			expectShouldDelete: false,
@@ -167,8 +179,12 @@ func TestExtraDeleteGateShouldDeleteServiceProviderClusterOIDCFederation(t *test
 			name: "empty resource slices allow deletion",
 			federation: map[string]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
 				keyA: {
-					AzureResources:        []*azcorearm.ResourceID{},
-					PendingAzureResources: []*azcorearm.ResourceID{},
+					Operators: map[string]*coreapi.DataplaneOIDCFederationOperatorStatus{
+						"azure-disk-csi-driver-operator": {
+							AzureResources:        []*azcorearm.ResourceID{},
+							PendingAzureResources: []*azcorearm.ResourceID{},
+						},
+					},
 				},
 			},
 			expectShouldDelete: true,

@@ -236,6 +236,64 @@ func imageRegistryServiceAccounts(t *testing.T) []*azure.KubernetesServiceAccoun
 	return operator.KubernetesServiceAccounts
 }
 
+func oidcOperatorPending() *coreapi.DataplaneOIDCFederationOperatorStatus {
+	return &coreapi.DataplaneOIDCFederationOperatorStatus{}
+}
+
+func oidcOperatorEnsured(identity coreapi.DataplaneOIDCFederationIdentityInstance, azure []*azcorearm.ResourceID) *coreapi.DataplaneOIDCFederationOperatorStatus {
+	return &coreapi.DataplaneOIDCFederationOperatorStatus{
+		EnsuredIdentity: ptr.To(identity),
+		AzureResources:  azure,
+	}
+}
+
+func oidcOperatorDeconfigure(ts *metav1.Time, azure, pending []*azcorearm.ResourceID) *coreapi.DataplaneOIDCFederationOperatorStatus {
+	return &coreapi.DataplaneOIDCFederationOperatorStatus{
+		DeconfigureTimestamp:  ts,
+		AzureResources:        azure,
+		PendingAzureResources: pending,
+	}
+}
+
+func oidcIdentityStatus(target coreapi.DataplaneOIDCFederationIdentityInstance, operatorName string, operatorStatus *coreapi.DataplaneOIDCFederationOperatorStatus) *coreapi.ManagedIdentityDataplaneOIDCFederationStatus {
+	return oidcIdentityStatusOperators(target, map[string]*coreapi.DataplaneOIDCFederationOperatorStatus{
+		operatorName: operatorStatus,
+	})
+}
+
+func oidcIdentityStatusOperators(target coreapi.DataplaneOIDCFederationIdentityInstance, operators map[string]*coreapi.DataplaneOIDCFederationOperatorStatus) *coreapi.ManagedIdentityDataplaneOIDCFederationStatus {
+	return &coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
+		TargetIdentity: target,
+		Operators:      operators,
+	}
+}
+
+func seedDesiredDataPlaneOperators(cluster *coreapi.HCPOpenShiftCluster, federation map[string]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus) {
+	if cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators == nil {
+		cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators = map[string]*azcorearm.ResourceID{}
+	}
+	for identityKey, status := range federation {
+		if status == nil {
+			continue
+		}
+		identityResourceID := metadataapi.Must(azcorearm.ParseResourceID(identityKey))
+		for operatorName, operatorStatus := range status.Operators {
+			if operatorStatus == nil || operatorStatus.DeconfigureTimestamp != nil {
+				continue
+			}
+			cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators[operatorName] = identityResourceID
+		}
+	}
+}
+
+func requireOperatorStatus(t *testing.T, identityStatus *coreapi.ManagedIdentityDataplaneOIDCFederationStatus, operatorName string) *coreapi.DataplaneOIDCFederationOperatorStatus {
+	t.Helper()
+	require.NotNil(t, identityStatus)
+	require.Contains(t, identityStatus.Operators, operatorName)
+	require.NotNil(t, identityStatus.Operators[operatorName])
+	return identityStatus.Operators[operatorName]
+}
+
 func resourceIDStrings(ids []*azcorearm.ResourceID) []string {
 	out := make([]string, 0, len(ids))
 	for _, id := range ids {
