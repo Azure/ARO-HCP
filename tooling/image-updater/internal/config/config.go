@@ -53,7 +53,7 @@ type Source struct {
 	Architecture        string              `yaml:"architecture,omitempty"`        // Specific architecture to use (e.g., "amd64", "arm64"). Mutually exclusive with MultiArch.
 	MultiArch           bool                `yaml:"multiArch,omitempty"`           // If true, fetch the multi-arch manifest list digest instead of a specific architecture
 	UseAuth             *bool               `yaml:"useAuth,omitempty"`             // true = use auth, nil/false = anonymous (default)
-	KeyVault            *KeyVaultConfig     `yaml:"keyVault,omitempty"`            // Optional: Azure Key Vault config for fetching pull secrets
+	LegacyKeyVault      *yaml.Node          `yaml:"keyVault,omitempty"`            // Rejected during validation; retained only to report a clear migration error
 	RepoVersionUpgrade  *RepoVersionUpgrade `yaml:"repoVersionUpgrade,omitempty"`  // Optional: enables repository version upgrade checks for this component
 }
 
@@ -61,12 +61,6 @@ type Source struct {
 // When set, the update --repositories mode will check Quay for next-version repos.
 type RepoVersionUpgrade struct {
 	RepoPrefix string `yaml:"repoPrefix"` // The repo name prefix before the version suffix (e.g. "acm-operator-bundle-acm-")
-}
-
-// KeyVaultConfig holds Azure Key Vault configuration for fetching pull secrets
-type KeyVaultConfig struct {
-	URL        string `yaml:"url"`        // Azure Key Vault URL (e.g., https://vault.vault.azure.net/)
-	SecretName string `yaml:"secretName"` // Name of the pull secret
 }
 
 // Target defines where to update the image digest
@@ -77,6 +71,9 @@ type Target struct {
 
 // Validate checks if the Source configuration is valid
 func (s *Source) Validate() error {
+	if s.LegacyKeyVault != nil {
+		return fmt.Errorf("keyVault is no longer supported; use Azure credentials for private ACRs or Docker config for other private registries")
+	}
 	if s.GitHubLatestRelease != "" {
 		// GitHub latest release: require "owner/repo" format with non-empty parts
 		parts := strings.SplitN(s.GitHubLatestRelease, "/", 2)
@@ -93,8 +90,8 @@ func (s *Source) Validate() error {
 		if s.Architecture != "" || s.MultiArch {
 			return fmt.Errorf("architecture/multiArch must not be set when githubLatestRelease is used")
 		}
-		if s.UseAuth != nil || s.KeyVault != nil || s.VersionLabel != "" {
-			return fmt.Errorf("useAuth/keyVault/versionLabel must not be set when githubLatestRelease is used")
+		if s.UseAuth != nil || s.VersionLabel != "" {
+			return fmt.Errorf("useAuth/versionLabel must not be set when githubLatestRelease is used")
 		}
 		return nil
 	}
