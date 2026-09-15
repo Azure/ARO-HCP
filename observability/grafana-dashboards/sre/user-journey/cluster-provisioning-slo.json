@@ -19,7 +19,7 @@
           "uid": "$datasource"
         },
         "enable": true,
-        "expr": "ALERTS{alertname=~\"UJClusterProvision.*\", alertstate=\"firing\"}",
+        "expr": "ALERTS{alertname=~\"UserJourneyClusterProvision.*\", alertstate=\"firing\"}",
         "iconColor": "red",
         "name": "Cluster Provision SLO Alerts",
         "titleFormat": "{{alertname}}",
@@ -53,7 +53,7 @@
           "showLineNumbers": false,
           "showMiniMap": false
         },
-        "content": "### Cluster Provisioning SLO - Fleet Wide\n\nFleet-wide view of HCP cluster provisioning health from backend create-operation and cluster provisioning-state metrics.\n\n**SLO targets**\n- `Success SLO: Successful Creates` target is **95%** successful completed creates in the selected lookback window.\n- `Timeliness SLO: Successful Creates Within 20m` target is **95%** of successful creates completing within 20 minutes.\n- Create latency target is **p95 within 20 minutes** for successful creates.\n\n**How the time range works**\n- The dashboard time picker is the lookback window (default `last 24 hours`).\n- `Completed`, `Successful`, `Failed / Canceled`, `Success SLO`, `Timeliness SLO`, and `Create Duration p50/p95/p99` use cluster `operation_type=create` attempts that reached a terminal phase within the selected window.\n- `Successful` means `phase=\"succeeded\"`; `Failed / Canceled` means `phase=~\"failed|canceled\"`.\n- `24h` is the normal default; `7d` is the practical upper bound for the current retained operation history.\n\n**Top-level panels**\n- The top summary rows show fleet size, completed attempts, failed/canceled attempts, fleet-weighted success and timeliness SLOs, and create-duration percentiles.\n- `Clusters by Provisioning State` shows the current cluster fleet mix over time.\n- `Create Ops Stuck > 20 min` highlights in-flight create operations that may be hung.\n- `Subscription Breakdown` highlights where failed or canceled attempts are concentrated.\n- `Detail Tables` provides the exact terminal and active create operations behind the summary panels.\n\n**Datasource**\n- Select a single service-cluster Prometheus datasource from the top bar, or choose `All` to fan out across all matching service-cluster datasources.\n- Top-level fleet SLO panels sum raw counts across the selected datasources before calculating ratios.\n- Metrics come from backend service clusters (`Managed_Prometheus_services-*`).",
+        "content": "### Cluster Provisioning SLO - Fleet Wide\n\nFleet-wide view of HCP cluster provisioning health from backend create-operation and cluster provisioning-state metrics.\n\n**SLO targets**\n- `Success SLO: Successful Creates` target is **95%** successful completed creates in the selected lookback window.\n- `Timeliness SLO: Successful Creates Within 20m` target is **95%** of successful creates completing within 20 minutes.\n- Create latency target is **p95 within 20 minutes** for successful creates.\n\n**How the time range works**\n- The dashboard time picker is the lookback window (default `last 24 hours`).\n- `Completed`, `Successful`, `Failed / Canceled`, `Success SLO`, `Timeliness SLO`, and `Create Duration p50/p95/p99` use cluster `operation_type=create` attempts that reached a terminal phase within the selected window.\n- `Successful` means `phase=\"succeeded\"`; `Failed / Canceled` means `phase=~\"failed|canceled\"`. The SLO denominator counts only `succeeded` and `failed` — canceled operations are excluded so cancellations do not affect the SLO ratio.\n- `24h` is the normal default; `7d` is the practical upper bound for the current retained operation history.\n\n**Top-level panels**\n- The top summary rows show fleet size, completed attempts, failed/canceled attempts, fleet-weighted success and timeliness SLOs, and create-duration percentiles.\n- `Clusters by Provisioning State` shows the current cluster fleet mix over time.\n- `Create Ops Stuck > 20 min` highlights in-flight create operations that may be hung.\n- `Subscription Breakdown` highlights where failed or canceled attempts are concentrated.\n- `Detail Tables` provides the exact terminal and active create operations behind the summary panels.\n\n**Datasource**\n- Select a single service-cluster Prometheus datasource from the top bar, or choose `All` to fan out across all matching service-cluster datasources.\n- Top-level fleet SLO panels sum raw counts across the selected datasources before calculating ratios.\n- Metrics come from backend service clusters (`Managed_Prometheus_services-*`).",
         "mode": "markdown"
       },
       "pluginVersion": "11.6.9",
@@ -225,7 +225,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count((backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"create\", phase=~\"succeeded|failed|canceled\", subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"create\", phase=~\"succeeded|failed|canceled\", subscription_id!~\"${exclude_subs:raw}\"}) < $__range_s)) or vector(0)",
+          "expr": "count((backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"create\", phase=~\"succeeded|failed\", subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"create\", phase=~\"succeeded|failed\", subscription_id!~\"${exclude_subs:raw}\"}) < $__range_s)) or vector(0)",
           "instant": true,
           "legendFormat": "Completed",
           "range": false,
@@ -258,7 +258,7 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "Fleet-weighted Success SLO: successful terminal create attempts divided by all terminal create attempts across the selected service-cluster datasources.",
+      "description": "Fleet-weighted Success SLO: successful create attempts divided by succeeded and failed create attempts (canceled excluded) across the selected service-cluster datasources.",
       "fieldConfig": {
         "defaults": {
           "decimals": 1,
@@ -330,7 +330,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count((backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"create\", phase=~\"succeeded|failed|canceled\", subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"create\", phase=~\"succeeded|failed|canceled\", subscription_id!~\"${exclude_subs:raw}\"}) < $__range_s))",
+          "expr": "count((backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"create\", phase=~\"succeeded|failed\", subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"create\", phase=~\"succeeded|failed\", subscription_id!~\"${exclude_subs:raw}\"}) < $__range_s))",
           "instant": true,
           "legendFormat": "Completed",
           "range": false,
@@ -1979,7 +1979,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "max(ALERTS{alertname=\"UJClusterProvisionErrors1h5m\", alertstate=\"firing\"}) or vector(0)",
+          "expr": "max(ALERTS{alertname=\"UserJourneyClusterProvisionErrorBurst1h\", alertstate=\"firing\"}) or vector(0)",
           "instant": true,
           "legendFormat": "Fast Burn (1h/5m)",
           "range": false,
@@ -1991,7 +1991,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "max(ALERTS{alertname=\"UJClusterProvisionErrors6h30m\", alertstate=\"firing\"}) or vector(0)",
+          "expr": "max(ALERTS{alertname=\"UserJourneyClusterProvisionErrorBurst6h\", alertstate=\"firing\"}) or vector(0)",
           "instant": true,
           "legendFormat": "Medium Burn (6h/30m)",
           "range": false,
@@ -2003,7 +2003,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "max(ALERTS{alertname=\"UJClusterProvisionErrors3d\", alertstate=\"firing\"}) or vector(0)",
+          "expr": "max(ALERTS{alertname=\"UserJourneyClusterProvisionErrorBudget3d\", alertstate=\"firing\"}) or vector(0)",
           "instant": true,
           "legendFormat": "Slow Burn (3d/6h)",
           "range": false,
@@ -2015,7 +2015,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "max(ALERTS{alertname=\"UJClusterProvisionErrorsDegradation\", alertstate=\"firing\"}) or vector(0)",
+          "expr": "max(ALERTS{alertname=\"UserJourneyClusterProvisionErrorsDegradation\", alertstate=\"firing\"}) or vector(0)",
           "instant": true,
           "legendFormat": "Degradation (15%/30m)",
           "range": false,
