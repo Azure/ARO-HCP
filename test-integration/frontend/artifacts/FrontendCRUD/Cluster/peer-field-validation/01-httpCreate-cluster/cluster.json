@@ -44,7 +44,8 @@
 				}
 			},
 			"outboundType": "LoadBalancer",
-			"subnetId": "/subscriptions/different-sub/resourceGroups/some-resource-group/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/test-subnet"
+			"subnetId": "/subscriptions/different-sub/resourceGroups/some-resource-group/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/test-subnet",
+			"vnetIntegrationSubnetId": "/subscriptions/different-sub/resourceGroups/some-resource-group/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/swift-subnet"
 		},
 		"version": {
 			"channelGroup": "stable",
