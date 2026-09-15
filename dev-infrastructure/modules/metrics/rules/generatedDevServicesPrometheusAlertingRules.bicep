@@ -433,6 +433,47 @@ resource prometheusOperatorRules 'Microsoft.AlertsManagement/prometheusRuleGroup
   }
 }
 
+resource metricsProxy 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'metrics-proxy'
+  location: location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'MaestroAgentMetricsProxyDown'
+        enabled: true
+        labels: {
+          component: 'monitoring-infrastructure'
+          severity: '3'
+        }
+        annotations: {
+          correlationId: 'MaestroAgentMetricsProxyDown/{{ $labels.cluster }}'
+          description: 'Prometheus has not scraped maestro-agent /metrics through the metrics-proxy sidecar (namespace=maestro, endpoint=metrics) for 10 minutes, while a kube-state-metrics scrape series still exists for this management cluster. Maestro agent metrics and any alerts that depend on them may be missing.'
+          info: 'Prometheus has not scraped maestro-agent /metrics through the metrics-proxy sidecar (namespace=maestro, endpoint=metrics) for 10 minutes, while a kube-state-metrics scrape series still exists for this management cluster. Maestro agent metrics and any alerts that depend on them may be missing.'
+          runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/metrics-proxy.md'
+          summary: 'Maestro agent metrics-proxy scrape is down'
+          title: 'Maestro agent metrics-proxy scrape is down'
+        }
+        expression: 'group by (cluster, region) (up{cluster=~".*-mgmt(-[0-9]+)?$",job="kube-state-metrics"}) unless on (cluster) group by (cluster, region) (up{endpoint="metrics",namespace="maestro",pod=~"maestro-agent-.*"} == 1)'
+        for: 'PT10M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
+
 resource frontend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'frontend'
   location: location
