@@ -437,8 +437,8 @@ func TestAcquireCompleteWeightedRequiresInputsWithoutOverride(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected override to bypass weighted inputs: %v", err)
 	}
-	if completed.RuntimeRegion != "westus3" {
-		t.Fatalf("expected override runtime region %q, got %q", "westus3", completed.RuntimeRegion)
+	if completed.RegionSelection.RuntimeRegion != "westus3" {
+		t.Fatalf("expected override runtime region %q, got %q", "westus3", completed.RegionSelection.RuntimeRegion)
 	}
 }
 
