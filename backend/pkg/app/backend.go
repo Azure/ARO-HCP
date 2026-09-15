@@ -79,6 +79,7 @@ import (
 	nodepoolupdate "github.com/Azure/ARO-HCP/backend/pkg/controllers/nodepool/update"
 	nodepoolvalidation "github.com/Azure/ARO-HCP/backend/pkg/controllers/nodepool/validation"
 	nodepoolversion "github.com/Azure/ARO-HCP/backend/pkg/controllers/nodepool/version"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/versionrollout"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/validationutils"
 	internalazure "github.com/Azure/ARO-HCP/internal/azure"
@@ -665,22 +666,12 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		"CreateBillingDoc", b.options.ResourcesDBClient, backendInformers, unionKubeApplierInformers, 60*time.Second,
 		billing.NewCreateBillingDocController(b.clock, b.options.AzureLocation, b.options.ResourcesDBClient, b.options.BillingDBClient, clusterLister, billingLister))
 	controlPlaneActiveVersionController := clusterversion.NewControlPlaneActiveVersionController(
+		b.clock,
 		b.options.ResourcesDBClient,
 		serviceProviderClusterLister,
 		backendInformers,
 		unionKubeApplierInformers,
 		unionReadDesireLister,
-	)
-	controlPlaneDesiredVersionController := clusterversion.NewControlPlaneDesiredVersionController(
-		b.clock,
-		b.options.ResourcesDBClient,
-		clusterLister,
-		b.options.ClustersServiceClient,
-		activeOperationLister,
-		serviceProviderClusterLister,
-		nodePoolLister,
-		serviceProviderNodePoolLister,
-		backendInformers,
 	)
 	triggerControlPlaneUpgradeController := clusterversion.NewTriggerControlPlaneUpgradeController(
 		b.clock,
@@ -690,6 +681,55 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		serviceProviderClusterLister,
 		backendInformers,
 		unionKubeApplierInformers,
+	)
+
+	// Fleet control-plane version rollout controllers. These own the
+	// ServiceProviderCluster desired version; they replaced the per-cluster
+	// ControlPlaneDesiredVersion controller, which has been removed.
+	rolloutConfig := versionrollout.NewDefaultRolloutConfig()
+	_, controlPlaneVersionRolloutLister := fleetInformers.ControlPlaneVersionRollouts()
+	bestVersionSelectionController := versionrollout.NewBestVersionSelectionController(
+		b.options.FleetDBClient,
+		fleetInformers,
+		versionrollout.NewCincinnatiBestVersionSelector(),
+		rolloutConfig,
+	)
+	controlPlaneVersionStatusController := versionrollout.NewStatusCollectorController(
+		b.options.FleetDBClient,
+		fleetInformers,
+		backendInformers,
+		b.clock,
+		rolloutConfig,
+	)
+	initialNormalDesiredVersionController := versionrollout.NewInitialNormalClusterDesiredVersionController(
+		b.clock, b.options.ResourcesDBClient, backendInformers, controlPlaneVersionRolloutLister,
+	)
+	minorUpgradeNormalDesiredVersionController := versionrollout.NewMinorUpgradeNormalClusterDesiredVersionController(
+		b.clock, b.options.ResourcesDBClient, backendInformers, controlPlaneVersionRolloutLister,
+	)
+	normalDesiredVersionController := versionrollout.NewNormalClusterDesiredVersionController(
+		b.clock,
+		b.options.ResourcesDBClient,
+		b.options.FleetDBClient,
+		fleetInformers,
+		backendInformers,
+		nil, // default random cluster selector
+		rolloutConfig,
+	)
+	forcedDesiredVersionController := versionrollout.NewForcedClusterDesiredVersionController(
+		b.clock,
+		b.options.ResourcesDBClient,
+		backendInformers,
+		unionKubeApplierInformers,
+		controlPlaneVersionRolloutLister,
+	)
+	// Ensures a ControlPlaneVersionRollout document exists for every cluster's
+	// y-stream channel, so the rollout controllers above have something to drive.
+	controlPlaneVersionRolloutSeedingController := versionrollout.NewControlPlaneVersionRolloutSeedingController(
+		b.options.ResourcesDBClient,
+		b.options.FleetDBClient,
+		backendInformers,
+		fleetInformers,
 	)
 	clusterBaseDomainPrefixSyncController := clusterproperties.NewClusterBaseDomainPrefixSyncController(
 		b.options.ResourcesDBClient,
@@ -1176,7 +1216,15 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go orphanedBillingCleanupController.Run(ctx, 20)
 				go createBillingDocController.Run(ctx, 20)
 				go controlPlaneActiveVersionController.Run(ctx, 20)
-				go controlPlaneDesiredVersionController.Run(ctx, 20)
+				// The fleet rollout controllers own ServiceProviderCluster desired
+				// version; they replaced the removed per-cluster ControlPlaneDesiredVersion controller.
+				go controlPlaneVersionRolloutSeedingController.Run(ctx, 20)
+				go bestVersionSelectionController.Run(ctx, 20)
+				go controlPlaneVersionStatusController.Run(ctx, 20)
+				go initialNormalDesiredVersionController.Run(ctx, 20)
+				go minorUpgradeNormalDesiredVersionController.Run(ctx, 20)
+				go normalDesiredVersionController.Run(ctx, 20)
+				go forcedDesiredVersionController.Run(ctx, 20)
 				go triggerControlPlaneUpgradeController.Run(ctx, 20)
 				go clusterBaseDomainPrefixSyncController.Run(ctx, 20)
 				go clusterPropertiesSyncController.Run(ctx, 20)
