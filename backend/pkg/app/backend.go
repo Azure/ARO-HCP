@@ -928,7 +928,6 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	placementController := clusterplacement.NewPlacementController(
 		b.options.ResourcesDBClient,
 		b.options.FleetDBClient,
-		b.options.ClustersServiceClient,
 		managementClusterLister,
 		managementClusterSchedulingLister,
 		backendInformers,
@@ -937,6 +936,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	pendingCleanupController := clusterplacement.NewPendingCleanupController(
 		b.options.FleetDBClient,
 		serviceProviderClusterLister,
+		clusterLister,
 		fleetInformers,
 	)
 

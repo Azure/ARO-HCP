@@ -161,12 +161,10 @@ func (c *operationClusterCreate) SynchronizeOperation(ctx context.Context, key c
 		return utils.TrackError(err)
 	}
 
-	var persistErr *coreapi.CloudErrorBody
-	if operationalState.ProvisioningState == coreapi.ProvisioningStateFailed {
+	persistErr := operationalState.Error
+	if operationalState.ProvisioningState == coreapi.ProvisioningStateFailed && persistErr == nil {
 		persistErr = &coreapi.CloudErrorBody{
-			// TODO for now we always set the error code to InternalServerError, but we should improve to be able
-			// to be more specific than that when we calculate operationalState. When work is done to improve on this, we
-			// should design it in a way where no internal details are exposed to the operation's error.
+			// TODO: classify other provisioning failures without exposing internal details.
 			Code:    coreapi.CloudErrorCodeInternalServerError,
 			Message: operationalState.Message,
 		}
@@ -222,6 +220,11 @@ func (c *operationClusterCreate) determineOperationState(ctx context.Context, op
 		errs = append(errs, utils.TrackError(err))
 	} else {
 		operationStates = append(operationStates, currState.WithSource("clusterServiceClusterStatus"))
+	}
+	if currState, err := c.placementOperationStatus(ctx, operation, cluster); err != nil {
+		errs = append(errs, utils.TrackError(err))
+	} else {
+		operationStates = append(operationStates, currState.WithSource("placement"))
 	}
 	if currState, err := c.servingCABundleOperationStatus(ctx, operation); err != nil {
 		errs = append(errs, utils.TrackError(err))
@@ -301,6 +304,39 @@ func (c *operationClusterCreate) clusterOperationStatus(ctx context.Context, ope
 	}
 
 	return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, ""), nil
+}
+
+func (c *operationClusterCreate) placementOperationStatus(ctx context.Context, operation *coreapi.Operation, cluster *coreapi.HCPOpenShiftCluster) (*operationbase.OperationState, error) {
+	serviceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Name)
+	if err != nil && !cosmosstorageutils.IsNotFoundError(err) {
+		return nil, utils.TrackError(err)
+	}
+	if serviceProviderCluster != nil && serviceProviderCluster.Spec.ManagementClusterResourceID != nil {
+		return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, ""), nil
+	}
+
+	message := "waiting for management cluster placement"
+	if serviceProviderCluster == nil {
+		message = "ServiceProviderCluster not cached yet"
+	}
+	deadline := cluster.ServiceProviderProperties.CreateOperationCompletionDeadline
+	if deadline == nil || c.clock.Now().Before(deadline.Time) {
+		return operationbase.NewOperationState(coreapi.ProvisioningStateProvisioning, message), nil
+	}
+
+	message = "cluster placement did not complete before the deadline"
+	operationError := &coreapi.CloudErrorBody{
+		Code:    coreapi.CloudErrorCodeInternalServerError,
+		Message: message,
+	}
+	if serviceProviderCluster != nil && serviceProviderCluster.Status.Placement != nil {
+		if meta.IsStatusConditionFalse(serviceProviderCluster.Status.Placement.Conditions, coreapi.CapacityAvailableConditionType) {
+			operationError.Code = coreapi.CloudErrorCodeCapacityHeavyUse
+			// Placement diagnostics contain internal information; do not expose them.
+			operationError.Message = "ARO HCP is currently experiencing capacity constraints. Try again later."
+		}
+	}
+	return operationbase.NewFailedOperationState(message, operationError), nil
 }
 
 // minVersionsWithValidSuccessCondition maps from <major>.<micro> to the first z-stream version that includes the fix for
