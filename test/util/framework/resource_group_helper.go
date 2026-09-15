@@ -17,18 +17,18 @@ package framework
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v6"
 )
 
 // GetPrivateKASInternalIP finds the private IP address of the internal load
-// balancer created by HyperShift for a private KAS cluster. The internal LB
-// is in the cluster's managed resource group and has a frontend IP on the
-// customer's subnet (private IP, no public IP). For clusters with private KAS
-// only (no private ingress), there is exactly one internal LB in the managed
-// RG, so the lookup is unambiguous. Returns the IP address or an error if not
-// found.
+// balancer created by HyperShift for the KAS in a private cluster. The KAS LB
+// is identified by the presence of a load balancing rule named "kube-apiserver"
+// - the name HyperShift assigns to the KAS rule, verified against a real
+// cluster. This check is unambiguous even when multiple internal LBs exist
+// (e.g. a private ingress LB in a fully-private cluster).
 func GetPrivateKASInternalIP(ctx context.Context, tc interface {
 	SubscriptionID(ctx context.Context) (string, error)
 	AzureCredential() (azcore.TokenCredential, error)
@@ -59,16 +59,17 @@ func GetPrivateKASInternalIP(ctx context.Context, tc interface {
 				continue
 			}
 			for _, fip := range lb.Properties.FrontendIPConfigurations {
-				if fip.Properties == nil {
+				if fip.Properties == nil || fip.Properties.PrivateIPAddress == nil || fip.Properties.PublicIPAddress != nil {
 					continue
 				}
-				// Internal LBs have a private IP and no public IP.
-				if fip.Properties.PrivateIPAddress != nil && fip.Properties.PublicIPAddress == nil {
-					return *fip.Properties.PrivateIPAddress, nil
+				for _, rule := range fip.Properties.LoadBalancingRules {
+					if rule.ID != nil && strings.HasSuffix(*rule.ID, "/kube-apiserver") {
+						return *fip.Properties.PrivateIPAddress, nil
+					}
 				}
 			}
 		}
 	}
 
-	return "", fmt.Errorf("no internal load balancer found in managed resource group %q", managedResourceGroup)
+	return "", fmt.Errorf("no KAS internal load balancer found in managed resource group %q", managedResourceGroup)
 }
