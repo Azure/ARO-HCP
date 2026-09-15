@@ -53,6 +53,12 @@ This procedure uses the Admin API on the service cluster to set a persistent siz
 
 **Data flow:** Admin API → Cosmos DB (`ServiceProviderCluster.Spec.DesiredHostedClusterControlPlaneSize`) → Backend controller → Cluster Service (`CSPropertySizeOverride`) → Maestro ResourceBundle → ManifestWork → HostedCluster annotation on MC
 
+Keep three terminals open during the procedure:
+
+1. **Service cluster** — obtains and retains the service-cluster kubeconfig.
+2. **Management cluster** — captures the baseline and verifies the resize.
+3. **Admin API port-forward** — uses the service-cluster kubeconfig and remains blocked while forwarding port 8443.
+
 ### Step 1: Get Service Cluster Access
 
 **Linux/macOS (Bash):**
@@ -120,13 +126,23 @@ $HC_NS = "<namespace>"
 $HC_NAME = "<name>"
 $hc = kubectl get hostedcluster $HC_NAME -n $HC_NS -o json | ConvertFrom-Json
 
-[PSCustomObject]@{
-    size         = $hc.metadata.labels.'hypershift.openshift.io/hosted-cluster-size'
-    sizeOverride = $hc.metadata.annotations.'hypershift.openshift.io/cluster-size-override'
-    maxRequests  = $hc.metadata.annotations.'hypershift.openshift.io/kube-apiserver-max-requests-inflight'
-    maxMutating  = $hc.metadata.annotations.'hypershift.openshift.io/kube-apiserver-max-mutating-requests-inflight'
-    kasMemory    = $hc.metadata.annotations.'resource-request-override.hypershift.openshift.io/kube-apiserver.kube-apiserver'
-} | Format-List
+$hc.metadata | Select-Object `
+  @{Name='size'; Expression={
+    $_.labels.'hypershift.openshift.io/hosted-cluster-size'
+  }},
+  @{Name='sizeOverride'; Expression={
+    $_.annotations.'hypershift.openshift.io/cluster-size-override'
+  }},
+  @{Name='maxRequests'; Expression={
+    $_.annotations.'hypershift.openshift.io/kube-apiserver-max-requests-inflight'
+  }},
+  @{Name='maxMutating'; Expression={
+    $_.annotations.'hypershift.openshift.io/kube-apiserver-max-mutating-requests-inflight'
+  }},
+  @{Name='kasMemory'; Expression={
+    $_.annotations.'resource-request-override.hypershift.openshift.io/kube-apiserver.kube-apiserver'
+  }} |
+  Format-List
 ```
 
 Check the readiness of KAS. Only proceed if the KAS is healthy.
@@ -149,9 +165,23 @@ kubectl get pods -l app=kube-apiserver -n $CP_NS -o wide
 
 All 3 KAS replicas should be `Running` with all containers ready (typically `6/6`).
 
+Record the HostedCluster metadata and KAS readiness output in the incident or change record before proceeding. For an upsize, choose a target tier higher than the current effective `size`; do not continue if the baseline is unhealthy or the requested tier is the same as or lower than the current tier. Use the [rollback procedure](#rollback) to remove an existing override.
+
 ### Step 4: Port-Forward to the Admin API
 
-Open the service cluster terminal.
+Open a third terminal and configure it with the service-cluster kubeconfig created in Step 1.
+
+**Linux/macOS (Bash):**
+
+```bash
+export KUBECONFIG=/tmp/sc.kubeconfig
+```
+
+**Windows (PowerShell):**
+
+```powershell
+$env:KUBECONFIG = "C:\temp\sc.kubeconfig"
+```
 
 The Admin API runs in the `aro-hcp-admin-api` namespace on port 8443 (HTTP, not HTTPS):
 
@@ -159,7 +189,7 @@ The Admin API runs in the `aro-hcp-admin-api` namespace on port 8443 (HTTP, not 
 kubectl port-forward -n aro-hcp-admin-api deployment/admin-api 8443:8443
 ```
 
-Leave this running in a separate terminal. (The command is same for bash and powershell)
+Leave this command running in the third terminal. Run the request in Step 5 from the original service-cluster terminal.
 
 ### Step 5: Set the Size Override
 
@@ -226,13 +256,23 @@ $HC_NS = "<namespace>"
 $HC_NAME = "<name>"
 $hc = kubectl get hostedcluster $HC_NAME -n $HC_NS -o json | ConvertFrom-Json
 
-[PSCustomObject]@{
-    size         = $hc.metadata.labels.'hypershift.openshift.io/hosted-cluster-size'
-    sizeOverride = $hc.metadata.annotations.'hypershift.openshift.io/cluster-size-override'
-    maxRequests  = $hc.metadata.annotations.'hypershift.openshift.io/kube-apiserver-max-requests-inflight'
-    maxMutating  = $hc.metadata.annotations.'hypershift.openshift.io/kube-apiserver-max-mutating-requests-inflight'
-    kasMemory    = $hc.metadata.annotations.'resource-request-override.hypershift.openshift.io/kube-apiserver.kube-apiserver'
-} | Format-List
+$hc.metadata | Select-Object `
+  @{Name='size'; Expression={
+    $_.labels.'hypershift.openshift.io/hosted-cluster-size'
+  }},
+  @{Name='sizeOverride'; Expression={
+    $_.annotations.'hypershift.openshift.io/cluster-size-override'
+  }},
+  @{Name='maxRequests'; Expression={
+    $_.annotations.'hypershift.openshift.io/kube-apiserver-max-requests-inflight'
+  }},
+  @{Name='maxMutating'; Expression={
+    $_.annotations.'hypershift.openshift.io/kube-apiserver-max-mutating-requests-inflight'
+  }},
+  @{Name='kasMemory'; Expression={
+    $_.annotations.'resource-request-override.hypershift.openshift.io/kube-apiserver.kube-apiserver'
+  }} |
+  Format-List
 ```
 
 Confirm KAS rolled out with the new settings:
@@ -412,8 +452,8 @@ The annotation will briefly disappear, then ManifestWork will reapply it with th
 If the Admin API returns `200 OK` but the ManifestWork on the MC does not contain the new size override, the pipeline has stalled between Cosmos DB and Maestro. Check:
 
 1. **Backend controller logs** (service cluster):
-  - Linux/macOS: `kubectl logs -n aro-hcp deployment/backend -c backend --since=10m | grep -i "size"`
-  - Windows: `kubectl logs -n aro-hcp deployment/backend -c backend --since=10m | Select-String "size"`
+  - Linux/macOS: `kubectl logs -n aro-hcp deployment/aro-hcp-backend -c aro-hcp-backend --since=10m | grep -i "size"`
+  - Windows: `kubectl logs -n aro-hcp deployment/aro-hcp-backend -c aro-hcp-backend --since=10m | Select-String "size"`
 2. **Cluster Service ResourceBundle**: Port-forward to Maestro and check the ResourceBundle contains the updated annotation
 3. **ManifestWork content**: `kubectl get manifestwork -n local-cluster -o json | jq '.items[] | select(.spec.workload.manifests[]? | select(.kind=="HostedCluster" and .metadata.name=="<hc-name>")) | .status.conditions'`
 
@@ -423,7 +463,7 @@ If the Admin API returns `200 OK` but the ManifestWork on the MC does not contai
 
 - **ClusterSizingConfiguration**: [hypershiftoperator/deploy/templates/cluster.clustersizingconfiguration.yaml](../../hypershiftoperator/deploy/templates/cluster.clustersizingconfiguration.yaml) — defines available size tiers and their effects
 - **Admin API handler**: [admin/server/handlers/hcp/desiredcontrolplanesize.go](../../admin/server/handlers/hcp/desiredcontrolplanesize.go) — writes `DesiredHostedClusterControlPlaneSize` to Cosmos DB
-- **Backend syncer**: [backend/pkg/controllers/clusterpropertiescontroller/desired_control_plane_size_sync.go](../../backend/pkg/controllers/clusterpropertiescontroller/desired_control_plane_size_sync.go) — syncs size override to Cluster Service
+- **Backend syncer**: [backend/pkg/controllers/cluster/properties/desired_control_plane_size_sync.go](../../backend/pkg/controllers/cluster/properties/desired_control_plane_size_sync.go) — syncs size override to Cluster Service
 - **ARM tag admission**: [internal/admission/admit_cluster.go](../../internal/admission/admit_cluster.go) — handles `aro-hcp.experimental.cluster.size-override` tag
 - **HyperShift sizing controller**: upstream `hostedclustersizing_controller.go` — consumes the annotation
 - **Grafana APF dashboard**: `observability/grafana-dashboards/perfscale-dashboards/api-performance.json` — monitor `apiserver_flowcontrol_*` metrics after override
