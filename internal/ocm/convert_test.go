@@ -70,6 +70,7 @@ func spcWithDesiredVersion(version string) *coreapi.ServiceProviderCluster {
 				DesiredVersion: ptr.To(semver.MustParse(normalizeDesiredVersionForSemver(version))),
 			},
 		},
+		Status: coreapi.ServiceProviderClusterStatus{HostedClusterName: "testcluster"},
 	}
 }
 
