@@ -26,7 +26,6 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/validationutils"
-	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
@@ -116,6 +115,11 @@ func (c *nodePoolValidationSyncer) SyncOnce(ctx context.Context, key controlleru
 	// Skip processing if the key is still within its cooldown window from a previous validation. All outcomes can schedule a cooldown via
 	// EarliestRetryAfter so validations run continuously without racing. Re-enqueue so the item is revisited once the cooldown expires.
 	if !c.retryCooldownChecker.CanSync(ctx, key) {
+		// TODO: temporary debug log to confirm continuous validation is gated (not skipped) for Passed results. Remove after verification.
+		logger.Info("Validation cooldown active; skipping Validate",
+			"validation", c.validation.Name(),
+			"retryAfter", c.retryCooldownChecker.TimeUntilReady(key),
+		)
 		if c.enqueueAfter != nil {
 			// Add a one-second buffer so the requeue lands strictly after the cooldown expires, avoiding a race where the item fires just before CanSync flips to true.
 			c.enqueueAfter.EnqueueAfter(key, c.retryCooldownChecker.TimeUntilReady(key)+time.Second)
@@ -154,9 +158,6 @@ func (c *nodePoolValidationSyncer) SyncOnce(ctx context.Context, key controlleru
 		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderNodePool: %w", err))
 	}
 
-	if !c.shouldProcess(cachedServiceProviderNodePool) {
-		return nil // no work to do
-	}
 	existingServiceProviderNodePool := cachedServiceProviderNodePool.DeepCopy()
 	subscription, err := c.resourcesDBClient.Subscriptions().Get(ctx, existingNodePool.ID.SubscriptionID)
 	if err != nil {
@@ -168,9 +169,8 @@ func (c *nodePoolValidationSyncer) SyncOnce(ctx context.Context, key controlleru
 		return utils.TrackError(fmt.Errorf("validation %s returned invalid ValidationResult: %w", c.validation.Name(), err))
 	}
 
-	if result.Outcome.Type != validationutils.OutcomeTypePassed {
-		logger.Info("Validation outcome", "validation", c.validation.Name(), "result", result)
-	}
+	// TODO: temporary debug log — emit all outcomes including Passed so we can confirm continuous re-runs. Remove after verification (restore the != Passed guard).
+	logger.Info("Validation outcome", "validation", c.validation.Name(), "outcome", result.Outcome.Type, "result", result)
 
 	replacement := existingServiceProviderNodePool.DeepCopy()
 
@@ -225,12 +225,6 @@ func (c *nodePoolValidationSyncer) handleRequeue(key controllerutils.HCPNodePool
 	if c.enqueueAfter != nil && (result.Outcome.Type == validationutils.OutcomeTypeFailed || result.Outcome.Type == validationutils.OutcomeTypeUnknown) {
 		c.enqueueAfter.EnqueueAfter(key, *result.EarliestRetryAfter+time.Second)
 	}
-}
-
-// shouldProcess returns true when the condition associated to the validation does not exist or when it exists but
-// its status is not True.
-func (c *nodePoolValidationSyncer) shouldProcess(serviceProviderNodePool *coreapi.ServiceProviderNodePool) bool {
-	return !meta.IsStatusConditionTrue(serviceProviderNodePool.Status.Validations, c.validation.Name())
 }
 
 // shouldWriteCondition reports whether the newly computed validation condition should be written, versus

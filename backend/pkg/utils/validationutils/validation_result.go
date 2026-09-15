@@ -27,7 +27,8 @@ const (
 	// nonpassedRetryBase is the base retry delay for non-passed outcomes (Failed, Unknown, Skipped).
 	nonpassedRetryBase = 60 * time.Second
 	// passedRetryBase is the base retry delay for passed outcomes.
-	passedRetryBase = 12 * time.Hour
+	// TODO: temporary — originally 12 * time.Hour. Shortened so Passed re-runs can be verified from logs without waiting overnight. Restore after verification.
+	passedRetryBase = 60 * time.Second
 	// jitterFactor is the maxFactor passed to wait.Jitter; 0.5 means up to +50% of the base.
 	jitterFactor = 0.5
 )
