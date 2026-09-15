@@ -44,6 +44,29 @@ environments:
       identity_container_prefix: aro-hcp-msi-container-dev
       identity_container_count: 20
       identity_provisioning: unmanaged
+  # dev-upgrade is a separate environment for the upgrade/in-place test suite
+  # and CAPZ on-demand testing. It uses deploy_env ci02 so upgrade jobs and
+  # e2e-parallel jobs (ci00/ci01) never compete for the same Boskos pools.
+  # ci02 maps to a dedicated templatize environment with cluster sizing tuned
+  # for upgrade workloads (10 concurrent HCPs vs 50 in e2e-parallel).
+  dev-upgrade:
+    deploy_envs:
+    - ci02
+    pools:
+    # Dedicated subscription for upgrade and CAPZ on-demand testing.
+    # 30 slots support peak concurrent PR activity + merge pool.
+    # Each slot supports up to 10 concurrent HCPs (matching ci02 MGMT sizing).
+    # After the 10th spec is merged, no additional specs can be added without
+    # first increasing identity_container_count here (and resyncing the boskos
+    # config) — otherwise excess specs block waiting for a free identity
+    # container and the suite eventually times out.
+    - subscription_name: "ARO HCP E2E Hosted Clusters - Dev - 04"
+      region: westus3
+      region_mode: runtime-selected
+      resource_type: aro-hcp-dev-shard4-slot
+      slot_count: 30
+      identity_container_prefix: aro-hcp-msi-container-dev-shard4
+      identity_container_count: 10
   int:
     deploy_envs:
     - int
