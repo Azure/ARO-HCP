@@ -53,7 +53,7 @@ func NewStampInformerWithRelistDuration(lister cosmosstorageutils.GlobalLister[f
 	)
 
 	return cache.NewSharedIndexInformerWithOptions(
-		&informerutils.ListWatchWithoutWatchListSemantics{ListWatch: lw.ToListWatch()},
+		&informerutils.ListWatchWithoutWatchListSemantics{ListWatch: lw.ToListWatch(), InformerName: "Stamps"},
 		&fleetapi.Stamp{},
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod:      1 * time.Hour,
@@ -81,7 +81,7 @@ func NewManagementClusterInformerWithRelistDuration(lister cosmosstorageutils.Gl
 	)
 
 	return cache.NewSharedIndexInformerWithOptions(
-		&informerutils.ListWatchWithoutWatchListSemantics{ListWatch: lw.ToListWatch()},
+		&informerutils.ListWatchWithoutWatchListSemantics{ListWatch: lw.ToListWatch(), InformerName: "ManagementClusters"},
 		&fleetapi.ManagementCluster{},
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod: 1 * time.Hour,
@@ -113,7 +113,7 @@ func NewManagementClusterSchedulingInformerWithRelistDuration(lister cosmosstora
 	)
 
 	return cache.NewSharedIndexInformerWithOptions(
-		&informerutils.ListWatchWithoutWatchListSemantics{ListWatch: lw.ToListWatch()},
+		&informerutils.ListWatchWithoutWatchListSemantics{ListWatch: lw.ToListWatch(), InformerName: "ManagementClusterSchedulings"},
 		&fleetapi.ManagementClusterScheduling{},
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod:      1 * time.Hour,

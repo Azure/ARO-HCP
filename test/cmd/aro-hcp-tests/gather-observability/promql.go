@@ -52,6 +52,7 @@ type PanelSpec struct {
 
 const (
 	chartTypeLine               = "line"
+	chartTypeFacetedLine        = "faceted-line"
 	chartTypeFacetedStackedArea = "faceted-stacked-area"
 )
 
@@ -138,6 +139,9 @@ type QuerySpec struct {
 	FacetBy          string            `json:"facetBy,omitempty" yaml:"facetBy,omitempty"`
 	StackBy          string            `json:"stackBy,omitempty" yaml:"stackBy,omitempty"`
 	Colors           map[string]string `json:"colors,omitempty" yaml:"colors,omitempty"`
+	// LegendLabels keeps these labels visible even when common to every series,
+	// using the configured display names without changing the metric labels.
+	LegendLabels map[string]string `json:"legendLabels,omitempty" yaml:"legendLabels,omitempty"`
 }
 
 // PrometheusResponse is the top-level Prometheus HTTP API response.
@@ -206,14 +210,14 @@ func parseQueriesConfig(data []byte) (*QueriesConfig, error) {
 			if q.ChartType == "" {
 				cfg.Panels[pi].Queries[qi].ChartType = chartTypeLine
 			}
-			if cfg.Panels[pi].Queries[qi].ChartType != chartTypeLine && cfg.Panels[pi].Queries[qi].ChartType != chartTypeFacetedStackedArea {
-				return nil, fmt.Errorf("panel %d (%s), query %d (%s): chartType must be %q or %q, got %q", pi, p.Title, qi, q.Title, chartTypeLine, chartTypeFacetedStackedArea, cfg.Panels[pi].Queries[qi].ChartType)
+			if cfg.Panels[pi].Queries[qi].ChartType != chartTypeLine && cfg.Panels[pi].Queries[qi].ChartType != chartTypeFacetedLine && cfg.Panels[pi].Queries[qi].ChartType != chartTypeFacetedStackedArea {
+				return nil, fmt.Errorf("panel %d (%s), query %d (%s): chartType must be %q, %q, or %q", pi, p.Title, qi, q.Title, chartTypeLine, chartTypeFacetedLine, chartTypeFacetedStackedArea)
 			}
-			if cfg.Panels[pi].Queries[qi].ChartType == chartTypeFacetedStackedArea && q.FacetBy == "" {
-				return nil, fmt.Errorf("panel %d (%s), query %d (%s): facetBy is required when chartType is %q", pi, p.Title, qi, q.Title, chartTypeFacetedStackedArea)
+			if cfg.Panels[pi].Queries[qi].ChartType != chartTypeLine && q.FacetBy == "" {
+				return nil, fmt.Errorf("panel %d (%s), query %d (%s): facetBy is required when chartType is %q", pi, p.Title, qi, q.Title, cfg.Panels[pi].Queries[qi].ChartType)
 			}
-			if cfg.Panels[pi].Queries[qi].ChartType != chartTypeFacetedStackedArea && q.FacetBy != "" {
-				return nil, fmt.Errorf("panel %d (%s), query %d (%s): facetBy is only valid with chartType %q", pi, p.Title, qi, q.Title, chartTypeFacetedStackedArea)
+			if cfg.Panels[pi].Queries[qi].ChartType == chartTypeLine && q.FacetBy != "" {
+				return nil, fmt.Errorf("panel %d (%s), query %d (%s): facetBy is only valid with chartType %q or %q", pi, p.Title, qi, q.Title, chartTypeFacetedLine, chartTypeFacetedStackedArea)
 			}
 		}
 	}
@@ -262,8 +266,8 @@ func validateAzureMonitorQuery(pi, qi int, panelTitle string, q QuerySpec) error
 			return fmt.Errorf("panel %d (%s), query %d (%s), metric %d (%s): normalizeByAutoscaleMax requires splitBy %q", pi, panelTitle, qi, q.Title, mi, m.Name, dimensionCollectionName)
 		}
 	}
-	if q.FacetBy != "" {
-		return fmt.Errorf("panel %d (%s), query %d (%s): facetBy is not supported with source %q", pi, panelTitle, qi, q.Title, sourceAzureMonitor)
+	if q.FacetBy != "" && q.FacetBy != "metric" {
+		return fmt.Errorf("panel %d (%s), query %d (%s): facetBy must be %q with source %q", pi, panelTitle, qi, q.Title, "metric", sourceAzureMonitor)
 	}
 	return nil
 }
@@ -292,6 +296,29 @@ func lookupPrometheusEndpoint(ctx context.Context, cred azcore.TokenCredential, 
 		return "", fmt.Errorf("workspace %s has no Prometheus query endpoint", workspaceName)
 	}
 	return *resp.Properties.Metrics.PrometheusQueryEndpoint, nil
+}
+
+// reportRangePlaceholder is substituted, in Prometheus queries, with a
+// duration literal spanning the report's exact [start,end] window before
+// execution. Ranking queries (topk over an increase()/rate() lookback) use it
+// instead of a hardcoded duration like "[3h]": a fixed lookback shorter than
+// the report silently excludes any source whose cost was concentrated outside
+// that trailing window, even though the raw data is present and visible in an
+// un-ranked chart. See resolveReportRange.
+const reportRangePlaceholder = "__REPORT_RANGE__"
+
+// resolveReportRange replaces reportRangePlaceholder in query with a
+// Prometheus duration literal covering exactly [start,end], in milliseconds.
+// Millisecond precision (rather than rounding up to a coarser unit like a
+// minute) matters here: rounding up would push the effective lookback
+// earlier than start, letting a spike that happened just before the report
+// began enter a ranking that claims to cover only the report's own window.
+func resolveReportRange(query string, start, end time.Time) string {
+	ms := end.Sub(start).Milliseconds()
+	if ms < 1 {
+		ms = 1
+	}
+	return strings.ReplaceAll(query, reportRangePlaceholder, fmt.Sprintf("%dms", ms))
 }
 
 // queryRange executes a Prometheus query_range request against an Azure Monitor

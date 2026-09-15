@@ -16,6 +16,7 @@ package corecosmosstorage
 
 import (
 	"context"
+	"slices"
 
 	"k8s.io/utils/ptr"
 
@@ -26,6 +27,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosmetrics"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -182,12 +184,16 @@ func NewCosmosDatabaseClient(url string, dbName string, clientOptions azcore.Cli
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
+	// Keep Cosmos accounting out of the credential pipeline and preserve the
+	// caller's policies without modifying their shared backing array.
+	cosmosClientOptions := clientOptions
+	cosmosClientOptions.PerRetryPolicies = append(slices.Clone(clientOptions.PerRetryPolicies), cosmosmetrics.NewRequestChargePolicy())
 
 	client, err := azcosmos.NewClient(
 		url,
 		credential,
 		&azcosmos.ClientOptions{
-			ClientOptions: clientOptions,
+			ClientOptions: cosmosClientOptions,
 		})
 	if err != nil {
 		return nil, utils.TrackError(err)

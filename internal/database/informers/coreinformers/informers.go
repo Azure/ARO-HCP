@@ -74,7 +74,7 @@ func NewSubscriptionInformerWithRelistDuration(lister cosmosstorageutils.GlobalL
 	)
 
 	return cache.NewSharedIndexInformerWithOptions(
-		&informerutils.ListWatchWithoutWatchListSemantics{ListWatch: lw.ToListWatch()},
+		&informerutils.ListWatchWithoutWatchListSemantics{ListWatch: lw.ToListWatch(), InformerName: "Subscriptions"},
 		&coreapi.Subscription{},
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod:      1 * time.Hour, // this is only a default.  Shorter resyncs can be added when registering handlers.
@@ -121,7 +121,7 @@ func NewBillingInformerWithRelistDuration(lister cosmosstorageutils.GlobalLister
 	}
 
 	return cache.NewSharedIndexInformerWithOptions(
-		&informerutils.ListWatchWithoutWatchListSemantics{ListWatch: lw},
+		&informerutils.ListWatchWithoutWatchListSemantics{ListWatch: lw, InformerName: "BillingDocs"},
 		&billingcosmosstorage.BillingDocument{},
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod: 1 * time.Hour, // this is only a default.  Shorter resyncs can be added when registering handlers.
@@ -152,7 +152,7 @@ func NewClusterInformerWithRelistDuration(lister cosmosstorageutils.GlobalLister
 	)
 
 	return cache.NewSharedIndexInformerWithOptions(
-		&informerutils.ListWatchWithoutWatchListSemantics{ListWatch: lw.ToListWatch()},
+		&informerutils.ListWatchWithoutWatchListSemantics{ListWatch: lw.ToListWatch(), InformerName: "Clusters"},
 		&coreapi.HCPOpenShiftCluster{},
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod: 1 * time.Hour, // this is only a default.  Shorter resyncs can be added when registering handlers.
@@ -183,7 +183,7 @@ func NewNodePoolInformerWithRelistDuration(lister cosmosstorageutils.GlobalListe
 	)
 
 	return cache.NewSharedIndexInformerWithOptions(
-		&informerutils.ListWatchWithoutWatchListSemantics{ListWatch: lw.ToListWatch()},
+		&informerutils.ListWatchWithoutWatchListSemantics{ListWatch: lw.ToListWatch(), InformerName: "NodePools"},
 		&coreapi.HCPOpenShiftClusterNodePool{},
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod: 1 * time.Hour, // this is only a default.  Shorter resyncs can be added when registering handlers.
@@ -215,7 +215,7 @@ func NewExternalAuthInformerWithRelistDuration(lister cosmosstorageutils.GlobalL
 	)
 
 	return cache.NewSharedIndexInformerWithOptions(
-		&informerutils.ListWatchWithoutWatchListSemantics{ListWatch: lw.ToListWatch()},
+		&informerutils.ListWatchWithoutWatchListSemantics{ListWatch: lw.ToListWatch(), InformerName: "ExternalAuths"},
 		&coreapi.HCPOpenShiftClusterExternalAuth{},
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod: 1 * time.Hour, // this is only a default.  Shorter resyncs can be added when registering handlers.
@@ -247,7 +247,7 @@ func NewServiceProviderClusterInformerWithRelistDuration(lister cosmosstorageuti
 	)
 
 	return cache.NewSharedIndexInformerWithOptions(
-		&informerutils.ListWatchWithoutWatchListSemantics{ListWatch: lw.ToListWatch()},
+		&informerutils.ListWatchWithoutWatchListSemantics{ListWatch: lw.ToListWatch(), InformerName: "ServiceProviderClusters"},
 		&coreapi.ServiceProviderCluster{},
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod: 1 * time.Hour, // this is only a default.  Shorter resyncs can be added when registering handlers.
@@ -296,7 +296,7 @@ func NewManagementClusterContentInformerWithRelistDuration(lister cosmosstorageu
 	}
 
 	return cache.NewSharedIndexInformerWithOptions(
-		&informerutils.ListWatchWithoutWatchListSemantics{ListWatch: lw},
+		&informerutils.ListWatchWithoutWatchListSemantics{ListWatch: lw, InformerName: "ManagementClusterContents"},
 		&coreapi.ManagementClusterContent{},
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod: 1 * time.Hour, // this is only a default.  Shorter resyncs can be added when registering handlers.
@@ -328,7 +328,7 @@ func NewServiceProviderNodePoolInformerWithRelistDuration(lister cosmosstorageut
 	)
 
 	return cache.NewSharedIndexInformerWithOptions(
-		&informerutils.ListWatchWithoutWatchListSemantics{ListWatch: lw.ToListWatch()},
+		&informerutils.ListWatchWithoutWatchListSemantics{ListWatch: lw.ToListWatch(), InformerName: "ServiceProviderNodePools"},
 		&coreapi.ServiceProviderNodePool{},
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod: 1 * time.Hour, // this is only a default.  Shorter resyncs can be added when registering handlers.
@@ -359,7 +359,7 @@ func NewSystemAdminCredentialRequestInformerWithRelistDuration(lister cosmosstor
 	)
 
 	return cache.NewSharedIndexInformerWithOptions(
-		&informerutils.ListWatchWithoutWatchListSemantics{ListWatch: lw.ToListWatch()},
+		&informerutils.ListWatchWithoutWatchListSemantics{ListWatch: lw.ToListWatch(), InformerName: "SystemAdminCredentialRequests"},
 		&coreapi.SystemAdminCredentialRequest{},
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod: 1 * time.Hour, // this is only a default.  Shorter resyncs can be added when registering handlers.
@@ -390,7 +390,7 @@ func NewSystemAdminCredentialRevocationInformerWithRelistDuration(lister cosmoss
 	)
 
 	return cache.NewSharedIndexInformerWithOptions(
-		&informerutils.ListWatchWithoutWatchListSemantics{ListWatch: lw.ToListWatch()},
+		&informerutils.ListWatchWithoutWatchListSemantics{ListWatch: lw.ToListWatch(), InformerName: "SystemAdminCredentialRevocations"},
 		&coreapi.SystemAdminCredentialRevocation{},
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod: 1 * time.Hour, // this is only a default.  Shorter resyncs can be added when registering handlers.
@@ -429,7 +429,7 @@ func NewControllerInformerWithRelistDuration(lister cosmosstorageutils.GlobalLis
 	)
 
 	return cache.NewSharedIndexInformerWithOptions(
-		&informerutils.ListWatchWithoutWatchListSemantics{ListWatch: lw.ToListWatch()},
+		&informerutils.ListWatchWithoutWatchListSemantics{ListWatch: lw.ToListWatch(), InformerName: "Controllers"},
 		&coreapi.Controller{},
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod: 1 * time.Hour,
@@ -465,7 +465,7 @@ func NewOperationInformerWithRelistDuration(lister cosmosstorageutils.GlobalList
 	)
 
 	return cache.NewSharedIndexInformerWithOptions(
-		&informerutils.ListWatchWithoutWatchListSemantics{ListWatch: lw.ToListWatch()},
+		&informerutils.ListWatchWithoutWatchListSemantics{ListWatch: lw.ToListWatch(), InformerName: "AllOperations"},
 		&coreapi.Operation{},
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod:      1 * time.Hour,
@@ -497,7 +497,7 @@ func NewActiveOperationInformerWithRelistDuration(lister cosmosstorageutils.Glob
 	})
 
 	return cache.NewSharedIndexInformerWithOptions(
-		&informerutils.ListWatchWithoutWatchListSemantics{ListWatch: lw.ToListWatch()},
+		&informerutils.ListWatchWithoutWatchListSemantics{ListWatch: lw.ToListWatch(), InformerName: "ActiveOperations"},
 		&coreapi.Operation{},
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod: 1 * time.Hour, // this is only a default.  Shorter resyncs can be added when registering handlers.
