@@ -16,7 +16,10 @@ package status
 
 import (
 	"context"
+	"crypto/x509"
+	"encoding/pem"
 	"fmt"
+	"strings"
 	"time"
 
 	"k8s.io/apimachinery/pkg/api/equality"
@@ -31,6 +34,17 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
+)
+
+const (
+	// CACertificateExpiredConditionType is the user-facing condition type set when the
+	// CA certificate has expired. Written to Status.UserFacingConditions only while expired;
+	CACertificateExpiredConditionType = "CACertificateExpired"
+
+	// CACertificateNotYetValidConditionType is the user-facing condition type set when the
+	// CA certificate has a NotBefore in the future. A future NotBefore is accepted at
+	// admission time but surfaced here so operators are aware.
+	CACertificateNotYetValidConditionType = "CACertificateNotYetValid"
 )
 
 // externalAuthDegradedAggregator rolls per-controller Degraded conditions
@@ -117,7 +131,24 @@ func (c *externalAuthDegradedAggregator) SyncOnce(ctx context.Context, key contr
 
 	replacement := existing.DeepCopy()
 	apimeta.SetStatusCondition(&replacement.Status.Conditions, aggregated)
-	if equality.Semantic.DeepEqual(existing.Status.Conditions, replacement.Status.Conditions) {
+
+	// CACertificateExpiry is user-facing only when the CA has expired.
+	// CACertificateNotYetValid is user-facing only when the CA has a start date in the future.
+	expiryCond, notYetValidCond := c.getCaCertValidityConditions(existing.Properties.Issuer.CA)
+	if expiryCond != nil {
+		apimeta.SetStatusCondition(&replacement.Status.UserFacingConditions, *expiryCond)
+	} else {
+		apimeta.RemoveStatusCondition(&replacement.Status.UserFacingConditions, CACertificateExpiredConditionType)
+	}
+	if notYetValidCond != nil {
+		apimeta.SetStatusCondition(&replacement.Status.UserFacingConditions, *notYetValidCond)
+	} else {
+		apimeta.RemoveStatusCondition(&replacement.Status.UserFacingConditions, CACertificateNotYetValidConditionType)
+	}
+
+	conditionsChanged := !equality.Semantic.DeepEqual(existing.Status.Conditions, replacement.Status.Conditions)
+	userFacingChanged := !equality.Semantic.DeepEqual(existing.Status.UserFacingConditions, replacement.Status.UserFacingConditions)
+	if !conditionsChanged && !userFacingChanged {
 		return nil
 	}
 
@@ -133,4 +164,79 @@ func (c *externalAuthDegradedAggregator) SyncOnce(ctx context.Context, key contr
 		return utils.TrackError(fmt.Errorf("failed to replace ExternalAuth: %w", err))
 	}
 	return nil
+}
+
+// caCertValidityConditions inspects all CERTIFICATE PEM blocks in ca and returns
+// two conditions: expiryCond (CACertificateExpired) and notYetValidCond (CACertificateNotYetValid).
+// Each is nil when not applicable. Both are derived from a single pass over the PEM bundle:
+//   - expiryCond is set when any cert has expired;
+//   - notYetValidCond is set when any cert has a start date in the future;
+//
+// Missing, empty, or entirely unparseable input causes both to return nil.
+func (c *externalAuthDegradedAggregator) getCaCertValidityConditions(ca string) (expiryCond, notYetValidCond *metav1.Condition) {
+	if ca == "" {
+		return nil, nil
+	}
+
+	var expired []*x509.Certificate
+	var notYetValid []*x509.Certificate
+	now := c.clock.Now()
+
+	rest := []byte(ca)
+	for {
+		var block *pem.Block
+		block, rest = pem.Decode(rest)
+		if block == nil {
+			break
+		}
+		if block.Type != "CERTIFICATE" {
+			continue
+		}
+		cert, err := x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			continue
+		}
+		if now.After(cert.NotAfter) {
+			expired = append(expired, cert)
+		}
+		if now.Before(cert.NotBefore) {
+			notYetValid = append(notYetValid, cert)
+		}
+	}
+
+	if len(expired) > 0 {
+		expiryCond = &metav1.Condition{
+			Type:    CACertificateExpiredConditionType,
+			Status:  metav1.ConditionTrue,
+			Reason:  "Expired",
+			Message: formatCACertExpiredMessage(expired),
+		}
+	}
+
+	if len(notYetValid) > 0 {
+		notYetValidCond = &metav1.Condition{
+			Type:    CACertificateNotYetValidConditionType,
+			Status:  metav1.ConditionTrue,
+			Reason:  "NotYetValid",
+			Message: formatCACertNotYetValidMessage(notYetValid),
+		}
+	}
+
+	return expiryCond, notYetValidCond
+}
+
+func formatCACertExpiredMessage(certs []*x509.Certificate) string {
+	parts := make([]string, len(certs))
+	for i, cert := range certs {
+		parts[i] = fmt.Sprintf("CN=%s (NotAfter %s)", cert.Subject.CommonName, cert.NotAfter.UTC().Format(time.RFC3339))
+	}
+	return fmt.Sprintf("%d CA certificate(s) in the issuer bundle have expired: %s", len(certs), strings.Join(parts, "; "))
+}
+
+func formatCACertNotYetValidMessage(certs []*x509.Certificate) string {
+	parts := make([]string, len(certs))
+	for i, cert := range certs {
+		parts[i] = fmt.Sprintf("CN=%s (NotBefore %s)", cert.Subject.CommonName, cert.NotBefore.UTC().Format(time.RFC3339))
+	}
+	return fmt.Sprintf("%d CA certificate(s) in the issuer bundle are not yet valid: %s", len(certs), strings.Join(parts, "; "))
 }
