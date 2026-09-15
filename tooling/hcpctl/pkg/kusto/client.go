@@ -16,6 +16,7 @@ package kusto
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/url"
 	"time"
@@ -24,7 +25,13 @@ import (
 
 	"github.com/Azure/azure-kusto-go/azkustodata"
 	azkquery "github.com/Azure/azure-kusto-go/azkustodata/query"
+	queryv2 "github.com/Azure/azure-kusto-go/azkustodata/query/v2"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+)
+
+const (
+	queryPageDuration  = 5 * time.Minute
+	kustoTimePrecision = 100 * time.Nanosecond
 )
 
 type KustoClient interface {
@@ -101,8 +108,17 @@ func NewClient(endpoint *url.URL, queryTimeout time.Duration) (*Client, error) {
 
 // ExecutePreconfiguredQuery executes a KQL query against the Azure Data Explorer cluster
 func (c *Client) ExecutePreconfiguredQuery(ctx context.Context, query Query, outputChannel chan<- TaggedRow) (*QueryResult, error) {
+	if timeRangeQuery, ok := query.(TimeRangeQuery); ok && query.IsUnlimited() && timeRangeQuery.IsPageable() {
+		return c.executeTimeRangeQuery(ctx, timeRangeQuery, outputChannel)
+	}
+
+	return c.executeQuery(ctx, query, outputChannel, true)
+}
+
+func (c *Client) executeQuery(ctx context.Context, query Query, outputChannel chan<- TaggedRow, logCompletion bool) (*QueryResult, error) {
 	queryCtx, cancel := context.WithTimeout(ctx, c.QueryTimeout)
 	defer cancel()
+	startTime := time.Now()
 
 	logger := logr.FromContextOrDiscard(ctx)
 
@@ -110,20 +126,31 @@ func (c *Client) ExecutePreconfiguredQuery(ctx context.Context, query Query, out
 
 	logger.V(2).Info("Query", "query", query.GetQuery().String())
 
-	dataset, err := c.kustoClient.IterativeQuery(queryCtx, query.GetDatabase(), query.GetQuery())
+	var queryOptions []azkustodata.QueryOption
+	if query.IsUnlimited() {
+		// Set notruncation as a client request property in addition to any KQL
+		// statement emitted by the query template. This applies the setting to
+		// every unlimited query and allows IterativeQuery to stream results larger
+		// than Kusto's default result limits.
+		queryOptions = append(queryOptions, azkustodata.NoTruncation())
+	}
+
+	dataset, err := c.kustoClient.IterativeQuery(queryCtx, query.GetDatabase(), query.GetQuery(), queryOptions...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute query: %w", err)
 	}
+	defer dataset.Close()
 
 	// Process results
 	var columns azkquery.Columns
 	var totalRows int
 	var dataSize int64
-	startTime := time.Now()
-
 	// Process the first table (primary result)
 	logger.V(6).Info("Processing primary result")
-	primaryResult := <-dataset.Tables()
+	primaryResult, ok := <-dataset.Tables()
+	if !ok {
+		return nil, fmt.Errorf("query result contained no tables")
+	}
 
 	err = primaryResult.Err()
 	if err != nil {
@@ -135,22 +162,23 @@ func (c *Client) ExecutePreconfiguredQuery(ctx context.Context, query Query, out
 	}
 
 	columnsSet := false
-	for row := range primaryResult.Table().Rows() {
+	for rowResult := range primaryResult.Table().Rows() {
 		logger.V(8).Info("Processing row", "rowNumber", totalRows)
-		row := row.Row()
+		if err := rowResult.Err(); err != nil {
+			return nil, fmt.Errorf("failed while streaming query results: %w", err)
+		}
+
+		row := rowResult.Row()
 		if row == nil {
-			if query.IsUnlimited() {
-				logger.Error(fmt.Errorf("query is unlimited and result is nil, most likely a server-side error occurred. Try rerunning the query with limits"), "error while getting result")
-			}
-			continue
+			return nil, fmt.Errorf("query result contained a nil row")
 		}
 		if !columnsSet && row.Columns() != nil {
 			columns = row.Columns()
 			columnsSet = true
 		}
 		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
+		case <-queryCtx.Done():
+			return nil, queryCtx.Err()
 		case outputChannel <- TaggedRow{Row: row, QueryName: query.GetName(), QueryType: query.GetQueryType()}:
 		}
 		totalRows++
@@ -159,7 +187,9 @@ func (c *Client) ExecutePreconfiguredQuery(ctx context.Context, query Query, out
 
 	executionTime := time.Since(startTime)
 
-	logger.V(1).Info("Query completed", "query", query.GetName(), "rows", totalRows, "KiloBytes", dataSize/1024, "executionTime", executionTime)
+	if logCompletion {
+		logger.Info("Query completed", "query", query.GetName(), "rows", totalRows, "KiloBytes", dataSize/1024, "executionTime", executionTime)
+	}
 
 	return &QueryResult{
 		Columns: columns,
@@ -169,6 +199,139 @@ func (c *Client) ExecutePreconfiguredQuery(ctx context.Context, query Query, out
 			DataSize:      dataSize,
 		},
 	}, nil
+}
+
+type queryTimeRange struct {
+	start time.Time
+	end   time.Time
+}
+
+func (c *Client) executeTimeRangeQuery(ctx context.Context, query TimeRangeQuery, outputChannel chan<- TaggedRow) (*QueryResult, error) {
+	logger := logr.FromContextOrDiscard(ctx)
+	start, end := query.GetTimeRange()
+	if start.IsZero() || end.IsZero() || end.Before(start) {
+		return nil, fmt.Errorf("query %q has an invalid timestamp range", query.GetName())
+	}
+
+	ranges := splitTimeRange(start, end, queryPageDuration)
+	if query.GetOrderBy() == OrderByDesc {
+		for i, j := 0, len(ranges)-1; i < j; i, j = i+1, j-1 {
+			ranges[i], ranges[j] = ranges[j], ranges[i]
+		}
+	}
+
+	combined := &QueryResult{}
+	for _, queryRange := range ranges {
+		result, err := c.executeTimeRangePage(ctx, query, queryRange, outputChannel)
+		if err != nil {
+			return nil, err
+		}
+		mergeQueryResult(combined, result)
+	}
+	logger.Info("Query completed", "query", query.GetName(), "rows", combined.QueryStats.TotalRows, "KiloBytes", combined.QueryStats.DataSize/1024, "executionTime", combined.QueryStats.ExecutionTime)
+	return combined, nil
+}
+
+func (c *Client) executeTimeRangePage(ctx context.Context, query TimeRangeQuery, queryRange queryTimeRange, outputChannel chan<- TaggedRow) (*QueryResult, error) {
+	pageQuery, err := query.WithTimeRange(queryRange.start, queryRange.end)
+	if err != nil {
+		return nil, err
+	}
+
+	result, rows, err := c.executeBufferedQuery(ctx, pageQuery)
+	if err == nil {
+		for _, row := range rows {
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case outputChannel <- row:
+			}
+		}
+		return result, nil
+	}
+	if !isLimitsExceeded(err) {
+		return nil, err
+	}
+
+	left, right, ok := bisectTimeRange(queryRange)
+	if !ok {
+		return nil, fmt.Errorf("query %q exceeded Kusto limits for the smallest timestamp range %s through %s: %w", query.GetName(), queryRange.start, queryRange.end, err)
+	}
+
+	orderedRanges := []queryTimeRange{left, right}
+	if query.GetOrderBy() == OrderByDesc {
+		orderedRanges[0], orderedRanges[1] = orderedRanges[1], orderedRanges[0]
+	}
+
+	combined := &QueryResult{}
+	for _, childRange := range orderedRanges {
+		childResult, childErr := c.executeTimeRangePage(ctx, query, childRange, outputChannel)
+		if childErr != nil {
+			return nil, childErr
+		}
+		mergeQueryResult(combined, childResult)
+	}
+	return combined, nil
+}
+
+func (c *Client) executeBufferedQuery(ctx context.Context, query Query) (*QueryResult, []TaggedRow, error) {
+	rowChannel := make(chan TaggedRow)
+	done := make(chan struct{})
+	var rows []TaggedRow
+	go func() {
+		defer close(done)
+		for row := range rowChannel {
+			rows = append(rows, row)
+		}
+	}()
+
+	result, err := c.executeQuery(ctx, query, rowChannel, false)
+	close(rowChannel)
+	<-done
+	return result, rows, err
+}
+
+func splitTimeRange(start, end time.Time, pageDuration time.Duration) []queryTimeRange {
+	var ranges []queryTimeRange
+	for pageStart := start; !pageStart.After(end); {
+		pageEnd := pageStart.Add(pageDuration - kustoTimePrecision)
+		if pageEnd.After(end) {
+			pageEnd = end
+		}
+		ranges = append(ranges, queryTimeRange{start: pageStart, end: pageEnd})
+		if pageEnd.Equal(end) {
+			break
+		}
+		pageStart = pageEnd.Add(kustoTimePrecision)
+	}
+	return ranges
+}
+
+func bisectTimeRange(queryRange queryTimeRange) (queryTimeRange, queryTimeRange, bool) {
+	if queryRange.end.Sub(queryRange.start) < kustoTimePrecision {
+		return queryTimeRange{}, queryTimeRange{}, false
+	}
+
+	leftEnd := queryRange.start.Add(queryRange.end.Sub(queryRange.start) / 2).Truncate(kustoTimePrecision)
+	rightStart := leftEnd.Add(kustoTimePrecision)
+	if rightStart.After(queryRange.end) {
+		return queryTimeRange{}, queryTimeRange{}, false
+	}
+	return queryTimeRange{start: queryRange.start, end: leftEnd}, queryTimeRange{start: rightStart, end: queryRange.end}, true
+}
+
+func isLimitsExceeded(err error) bool {
+	var oneAPIError *queryv2.OneApiError
+	return errors.As(err, &oneAPIError) && oneAPIError.ErrorMessage.Code == "LimitsExceeded"
+}
+
+func mergeQueryResult(destination, source *QueryResult) {
+	if len(destination.Columns) == 0 {
+		destination.Columns = source.Columns
+	}
+	destination.QueryStats.ExecutionTime += source.QueryStats.ExecutionTime
+	destination.QueryStats.TotalRows += source.QueryStats.TotalRows
+	destination.QueryStats.DataSize += source.QueryStats.DataSize
 }
 
 // Close closes the Kusto client connection
