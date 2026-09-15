@@ -22,6 +22,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 
+	"github.com/Azure/ARO-HCP/test/util/config"
 	"github.com/Azure/ARO-HCP/test/util/integration"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/log"
@@ -32,8 +33,13 @@ var (
 )
 
 func setup(ctx context.Context) error {
-	// Use GinkgoLabelFilter to determine if the test should load the e2e setup file
 	labelFilter := GinkgoLabelFilter()
+
+	if _, err := config.GetServiceConfig(); err != nil {
+		return fmt.Errorf("failed to load service config: %w", err)
+	}
+
+	// Use GinkgoLabelFilter to determine if the test should load the e2e setup file
 	if strings.Contains(labelFilter, labels.RequireNothing[0]) ||
 		strings.Contains(labelFilter, labels.UpgradeInPlace[0]) {
 		// Skip loading the e2esetup file
