@@ -99,6 +99,26 @@ var _ = Describe("Customer", func() {
 			_, err = nodePoolPager.NextPage(ctx)
 			checkExpectedError(&errs, "node pool listing in non-existent resource group", err, "resource group not found")
 
+			// TEST CASE: ARO-29314. The admission validation is implemented in #6692.
+			for _, version := range []string{"4.20", "4.21"} {
+				By(fmt.Sprintf("attempting to create a private KAS cluster on OCP %s", version))
+				versionSuffix := strings.ReplaceAll(version, ".", "")
+				privateKASClusterParams := clusterParams
+				privateKASClusterParams.ClusterName = fmt.Sprintf("private-kas-%s", versionSuffix)
+				privateKASClusterParams.ManagedResourceGroupName = framework.SuffixName(*resourceGroup.Name, fmt.Sprintf("-private-kas-%s-managed", versionSuffix), 64)
+				privateKASClusterParams.APIVisibility = "Private"
+				privateKASClusterParams.OpenshiftVersionId = version
+				privateKASCluster := framework.BuildHCPClusterFromParams20240610(privateKASClusterParams, tc.Location())
+				_, err = clusterClient.BeginCreateOrUpdate(
+					ctx,
+					*resourceGroup.Name,
+					privateKASClusterParams.ClusterName,
+					privateKASCluster,
+					nil,
+				)
+				checkExpectedError(&errs, fmt.Sprintf("private KAS cluster creation on OCP %s", version), err, "private KAS visibility requires OpenShift version 4.22")
+			}
+
 			By("creating the HCP cluster")
 			err = tc.CreateHCPClusterFromParam20240610(
 				ctx,
