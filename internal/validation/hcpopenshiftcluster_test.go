@@ -242,7 +242,7 @@ func TestClusterRequired(t *testing.T) {
 			name: "Cluster with identity",
 			resource: clusterWithOperatorIdentities(func(c *coreapi.HCPOpenShiftCluster) {
 				identity := coreapitesting.NewTestUserAssignedIdentity("MyManagedIdentity")
-				repointOperator(c, "ingress", identity)
+				repointControlPlaneOperator(c, "ingress", identity)
 				c.Identity.UserAssignedIdentities[identity.String()] = &coreapi.UserAssignedIdentity{}
 			}),
 			expectErrors: []utils.ExpectedError{},
@@ -270,16 +270,6 @@ func clusterWithOperatorIdentities(mutate func(*coreapi.HCPOpenShiftCluster)) *c
 	cluster := coreapitesting.MinimumValidClusterTestCase()
 	mutate(cluster)
 	return cluster
-}
-
-// repointOperator aims an existing control plane operator at a different identity and drops the
-// one it previously used, so the swap doesn't leave an unused assignment behind.
-func repointOperator(cluster *coreapi.HCPOpenShiftCluster, operatorName string, identity *azcorearm.ResourceID) {
-	operators := cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators
-	if previous, ok := operators[operatorName]; ok {
-		delete(cluster.Identity.UserAssignedIdentities, previous.String())
-	}
-	operators[operatorName] = identity
 }
 
 func TestClusterValidate(t *testing.T) {
@@ -851,7 +841,7 @@ func TestClusterValidate(t *testing.T) {
 		{
 			name: "Cluster with differently-cased identities",
 			resource: clusterWithOperatorIdentities(func(c *coreapi.HCPOpenShiftCluster) {
-				repointOperator(c, "ingress", metadataapi.Must(azcorearm.ParseResourceID(strings.ToLower(managedIdentity1.String()))))
+				repointControlPlaneOperator(c, "ingress", metadataapi.Must(azcorearm.ParseResourceID(strings.ToLower(managedIdentity1.String()))))
 				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity = metadataapi.Must(azcorearm.ParseResourceID(strings.ToLower(managedIdentity2.String())))
 				c.Identity.UserAssignedIdentities[strings.ToUpper(managedIdentity1.String())] = &coreapi.UserAssignedIdentity{}
 				c.Identity.UserAssignedIdentities[strings.ToUpper(managedIdentity2.String())] = &coreapi.UserAssignedIdentity{}
@@ -860,7 +850,7 @@ func TestClusterValidate(t *testing.T) {
 		{
 			name: "Cluster with broken identities",
 			resource: clusterWithOperatorIdentities(func(c *coreapi.HCPOpenShiftCluster) {
-				repointOperator(c, "ingress", managedIdentity1)
+				repointControlPlaneOperator(c, "ingress", managedIdentity1)
 				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity = managedIdentity2
 				c.Identity.UserAssignedIdentities[managedIdentity3.String()] = &coreapi.UserAssignedIdentity{}
 			}),
@@ -882,8 +872,8 @@ func TestClusterValidate(t *testing.T) {
 		{
 			name: "Cluster with multiple identities",
 			resource: clusterWithOperatorIdentities(func(c *coreapi.HCPOpenShiftCluster) {
-				repointOperator(c, "ingress", managedIdentity1)
-				repointOperator(c, "control-plane", managedIdentity1)
+				repointControlPlaneOperator(c, "ingress", managedIdentity1)
+				repointControlPlaneOperator(c, "control-plane", managedIdentity1)
 				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity = managedIdentity1
 				c.Identity.UserAssignedIdentities[managedIdentity1.String()] = &coreapi.UserAssignedIdentity{}
 			}),
