@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
 	"slices"
 	"strings"
@@ -319,4 +320,58 @@ func (c *operationNodePoolUpdate) clusterServiceNodePoolStatusOperationState(ctx
 		msg = opError.Message
 	}
 	return operationbase.NewOperationState(newOperationStatus, msg), nil
+}
+
+// hypershiftNodePoolOperationState contains the node pool update operation state calculation comparing desired state
+// against Hypershift's NodePool in the management cluster. The comparison logic is shared with the create operation
+// controller in operation_node_pool_state_calculation.go.
+func (c *operationNodePoolUpdate) hypershiftNodePoolOperationState(ctx context.Context, nodePool *coreapi.HCPOpenShiftClusterNodePool, csNodePool *arohcpv1alpha1.NodePool) (*operationbase.OperationState, error) {
+	return hypershiftNodePoolOperationState(ctx, c.readDesireLister, nodePool, csNodePool, coreapi.ProvisioningStateUpdating)
+}
+
+// clusterServiceNodePoolSpecOperationState reports whether Cluster Service node pool spec fields
+// match desired state intent for the node pool update operation. Only checks outside CS .status.
+// Labels and taints are checked here because Hypershift subset checks cannot detect removals -- a
+// check that only makes sense for update, since create has no prior applied state to have regressed
+// from. Add checks against the management cluster state when possible instead of here, to reduce the
+// number of checks against Cluster Service, as CS will be removed in the future.
+func (c *operationNodePoolUpdate) clusterServiceNodePoolSpecOperationState(nodePool *coreapi.HCPOpenShiftClusterNodePool, csNodePool *arohcpv1alpha1.NodePool) (*operationbase.OperationState, error) {
+	if matches, message := c.clusterServiceNodePoolSpecMatchesDesired(nodePool, csNodePool); !matches {
+		return operationbase.NewOperationState(coreapi.ProvisioningStateUpdating, message), nil
+	}
+	return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, ""), nil
+}
+
+// clusterServiceNodePoolSpecMatchesDesired reports whether Cluster Service node pool spec fields
+// relevant to the node pool update operation match desired state. Returns false and a diagnostic
+// message when any leaf check fails.
+func (c *operationNodePoolUpdate) clusterServiceNodePoolSpecMatchesDesired(nodePool *coreapi.HCPOpenShiftClusterNodePool, csNodePool *arohcpv1alpha1.NodePool) (bool, string) {
+	if matches, message := c.clusterServiceNodePoolLabelsSpecMatchesDesired(nodePool.Properties.Labels, csNodePool); !matches {
+		return false, message
+	}
+	if matches, message := c.clusterServiceNodePoolTaintsSpecMatchesDesired(nodePool.Properties.Taints, csNodePool); !matches {
+		return false, message
+	}
+	return true, ""
+}
+
+// clusterServiceNodePoolLabelsSpecMatchesDesired reports whether Cluster Service node pool
+// labels exactly match RP desired labels.
+func (c *operationNodePoolUpdate) clusterServiceNodePoolLabelsSpecMatchesDesired(desired map[string]string, csNodePool *arohcpv1alpha1.NodePool) (bool, string) {
+	observed := ocm.NodePoolUpdateDispatchConfigLabelsFromCS(csNodePool)
+	if !maps.Equal(desired, observed) {
+		return false, fmt.Sprintf("Cluster Service node pool labels are %v, want %v", observed, desired)
+	}
+	return true, ""
+}
+
+// clusterServiceNodePoolTaintsSpecMatchesDesired reports whether Cluster Service node pool
+// taints exactly match RP desired taints.
+func (c *operationNodePoolUpdate) clusterServiceNodePoolTaintsSpecMatchesDesired(desired []coreapi.Taint, csNodePool *arohcpv1alpha1.NodePool) (bool, string) {
+	desiredTaints := ocm.NodePoolUpdateDispatchConfigTaintsFromRP(desired)
+	observedTaints := ocm.NodePoolUpdateDispatchConfigTaintsFromCS(csNodePool)
+	if !slices.Equal(desiredTaints, observedTaints) {
+		return false, fmt.Sprintf("Cluster Service node pool taints are %v, want %v", observedTaints, desiredTaints)
+	}
+	return true, ""
 }

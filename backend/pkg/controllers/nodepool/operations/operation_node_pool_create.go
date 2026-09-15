@@ -26,6 +26,8 @@ import (
 	"k8s.io/client-go/tools/cache"
 	utilsclock "k8s.io/utils/clock"
 
+	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
+
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	operationbase "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
@@ -33,6 +35,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -43,6 +46,7 @@ type operationNodePoolCreate struct {
 	activeOperationsLister corelisters.ActiveOperationLister
 	nodePoolLister         corelisters.NodePoolLister
 	clusterServiceClient   ocm.ClusterServiceClientSpec
+	readDesireLister       kubeapplierlisters.ReadDesireLister
 	notificationClient     *http.Client
 }
 
@@ -64,6 +68,7 @@ func NewOperationNodePoolCreateController(
 	clock utilsclock.PassiveClock,
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
+	readDesireLister kubeapplierlisters.ReadDesireLister,
 	notificationClient *http.Client,
 	activeOperationInformer cache.SharedIndexInformer,
 	backendInformers coreinformers.BackendInformers,
@@ -77,6 +82,7 @@ func NewOperationNodePoolCreateController(
 		nodePoolLister:         nodePoolLister,
 		activeOperationsLister: activeOperationsLister,
 		clusterServiceClient:   clusterServiceClient,
+		readDesireLister:       readDesireLister,
 		notificationClient:     notificationClient,
 	}
 
@@ -201,6 +207,15 @@ func (c *operationNodePoolCreate) determineOperationState(ctx context.Context, o
 		operationStates = append(operationStates, state.WithSource("clusterServiceNodePoolStatus"))
 	}
 
+	existingCSNodePool, err := c.clusterServiceClient.GetNodePool(ctx, *nodePool.ServiceProviderProperties.ClusterServiceID)
+	if err != nil {
+		errs = append(errs, utils.TrackError(fmt.Errorf("failed to get node pool from cluster service: %w", err)))
+	} else if state, hsErr := c.hypershiftNodePoolOperationState(ctx, nodePool, existingCSNodePool); hsErr != nil {
+		errs = append(errs, utils.TrackError(hsErr))
+	} else {
+		operationStates = append(operationStates, state.WithSource("hypershiftNodePool"))
+	}
+
 	if err := errors.Join(errs...); err != nil {
 		return nil, err
 	}
@@ -237,4 +252,10 @@ func (c *operationNodePoolCreate) nodePoolServiceCreateOperationState(ctx contex
 		msg = newOperationError.Message
 	}
 	return operationbase.NewOperationState(newOperationStatus, msg), nil
+}
+
+// hypershiftNodePoolOperationState contains the node pool create operation state calculation comparing desired state
+// against Hypershift's NodePool in the management cluster.
+func (c *operationNodePoolCreate) hypershiftNodePoolOperationState(ctx context.Context, nodePool *coreapi.HCPOpenShiftClusterNodePool, csNodePool *arohcpv1alpha1.NodePool) (*operationbase.OperationState, error) {
+	return hypershiftNodePoolOperationState(ctx, c.readDesireLister, nodePool, csNodePool, coreapi.ProvisioningStateProvisioning)
 }
