@@ -1,0 +1,855 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "description": "",
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "code": {
+          "language": "plaintext",
+          "showLineNumbers": false,
+          "showMiniMap": false
+        },
+        "content": "### SWIFT Networking\n\nUser-journey health for SWIFT-attached management cluster networking: secondary NIC assignment (router pod startup) and the Konnectivity tunnel/data path.\n\n**Sections:**\n- **Router / NIC Assignment** \u2014 per-HCP router pod startup latency, plus shared CNS pending-IP-programming state.\n- **NIC Capacity and CNS DaemonSet** \u2014 management-cluster/node health for the shared SWIFT NIC-assignment infrastructure.\n- **Konnectivity Tunnel** \u2014 per-HCP stream error rate, dial failure rate, and packet volume.\n\n**Filters:**\n- Select a management cluster to scope every panel.\n- Optionally select one or more HCP namespaces to narrow the per-HCP Router and Konnectivity panels. Shared CNS and NIC-capacity panels remain management-cluster/node scoped because their telemetry has no HCP identity.\n\n**Datasources:**\n- Router and Konnectivity panels use the **HCP AMW** (`Managed_Prometheus_hcps-*`).\n- CNS and NIC-capacity panels use the **services AMW** (`Managed_Prometheus_services-*`).\n\n**Usage:** referenced from the SWIFT TSG (`swift-tsg.md`) Step 1 blast-radius triage. Compare management clusters to identify regional patterns; then select HCP namespaces to distinguish tenant-specific impact from a shared management-cluster issue.",
+        "mode": "markdown"
+      },
+      "pluginVersion": "11.6.9",
+      "title": "Dashboard Info",
+      "type": "text"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 10
+      },
+      "id": 2,
+      "panels": [],
+      "title": "Router / NIC Assignment",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource_hcp}"
+      },
+      "description": "p99 duration router pods have been stuck in ContainerCreating/Pending. No series = healthy (no router pods stuck).",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 11
+      },
+      "id": 3,
+      "options": {
+        "legend": {
+          "calcs": ["lastNotNull", "max"],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource_hcp}"
+          },
+          "editorMode": "code",
+          "expr": "router:startup_latency:p99{cluster=~\"$cluster\", namespace=~\"$hcp_namespace\"}",
+          "legendFormat": "{{namespace}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Router Startup Latency p99 (by HCP namespace)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource_hcp}"
+      },
+      "description": "Count of the selected HCP namespaces with any router pod stuck longer than the 300-second SLO threshold.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          },
+          "unit": "none",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 12,
+        "y": 11
+      },
+      "id": 4,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name"
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource_hcp}"
+          },
+          "editorMode": "code",
+          "expr": "count(router:startup_latency:p99{cluster=~\"$cluster\", namespace=~\"$hcp_namespace\"} > 300) or vector(0)",
+          "instant": true,
+          "range": false,
+          "legendFormat": "HCPs affected",
+          "refId": "A"
+        }
+      ],
+      "title": "HCPs With Router Pods Stuck > 300s",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource_svc}"
+      },
+      "description": "Reserved IPs that have not completed secondary-NIC attachment. One series per CNS pod (management cluster worker node). A non-zero value can be normal during concurrent provisioning; investigate only when sustained and correlated with router startup latency, MTPNC state, or CNS logs.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 18,
+        "y": 11
+      },
+      "id": 5,
+      "options": {
+        "legend": {
+          "calcs": ["lastNotNull", "max"],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource_svc}"
+          },
+          "editorMode": "code",
+          "expr": "cx_pending_programming_ips_v2{cluster=~\"$cluster\"}",
+          "legendFormat": "{{pod}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Pending IP Programming",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 19
+      },
+      "id": 12,
+      "panels": [],
+      "title": "NIC Capacity",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource_svc}"
+      },
+      "description": "Management cluster worker nodes reporting zero advertised SWIFT NIC capacity. No series is healthy; any result means the node cannot schedule a SWIFT-backed router pod until capacity is restored or reported.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 20
+      },
+      "id": 13,
+      "options": {
+        "legend": {
+          "calcs": ["lastNotNull", "max"],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource_svc}"
+          },
+          "editorMode": "code",
+          "expr": "kube_node_status_capacity{cluster=~\"$cluster\", resource=\"aro_openshift_io_swift_nic\"} == 0",
+          "legendFormat": "{{node}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Management Cluster Worker Nodes With Zero SWIFT NIC Capacity",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource_svc}"
+      },
+      "description": "Difference between advertised SWIFT NIC capacity and allocatable capacity on each management cluster worker node. A non-zero value indicates a capacity-reporting inconsistency; compare the node and VMSS SKU limit before choosing remediation.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 20
+      },
+      "id": 14,
+      "options": {
+        "legend": {
+          "calcs": ["lastNotNull", "max"],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource_svc}"
+          },
+          "editorMode": "code",
+          "expr": "max without (prometheus_replica) (kube_node_status_capacity{cluster=~\"$cluster\", resource=\"aro_openshift_io_swift_nic\"}) - on(cluster, node) max without (prometheus_replica) (kube_node_status_allocatable{cluster=~\"$cluster\", resource=\"aro_openshift_io_swift_nic\"})",
+          "legendFormat": "{{node}}",
+          "refId": "A"
+        }
+      ],
+      "title": "SWIFT NIC Capacity vs. Allocatable Divergence",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 28
+      },
+      "id": 6,
+      "panels": [],
+      "title": "CNS DaemonSet",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource_svc}"
+      },
+      "description": "Ratio of ready to desired azure-cns DaemonSet pods on the selected management cluster. SLO: >= 99.9% over 28 days. A drop indicates node-level or management-cluster-wide CNS unavailability.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "max": 1,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.9
+              },
+              {
+                "color": "green",
+                "value": 0.999
+              }
+            ]
+          },
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 29
+      },
+      "id": 7,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name"
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource_svc}"
+          },
+          "editorMode": "code",
+          "expr": "cns:daemonset_availability:ratio{cluster=~\"$cluster\"}",
+          "instant": true,
+          "range": false,
+          "legendFormat": "Availability",
+          "refId": "A"
+        }
+      ],
+      "title": "CNS DaemonSet Availability",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource_svc}"
+      },
+      "description": "p99 latency of CNS secondary IP assignment on the selected management cluster. SLO: <= 10 seconds p99 over 28 days. This is shared CNS infrastructure and cannot be attributed to an individual HCP.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 29
+      },
+      "id": 8,
+      "options": {
+        "legend": {
+          "calcs": ["lastNotNull", "max"],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource_svc}"
+          },
+          "editorMode": "code",
+          "expr": "cns:ip_assignment_latency:p99{cluster=~\"$cluster\"}",
+          "legendFormat": "p99",
+          "refId": "A"
+        }
+      ],
+      "title": "CNS IP Assignment Latency p99",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource_svc}"
+      },
+      "description": "Incoming CNS IP-assignment requests compared with assignments that completed successfully. Both are management-cluster-wide signals: zero can be normal when no router pods are being created or rescheduled. A sustained gap between demand and completions indicates failed or stalled assignment work.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 37
+      },
+      "id": 16,
+      "options": {
+        "legend": {
+          "calcs": ["lastNotNull", "max"],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource_svc}"
+          },
+          "editorMode": "code",
+          "expr": "sum by (cluster) (rate(http_request_latency_seconds_count{cluster=~\"$cluster\", verb=\"POST\", url=~\".*/network/requestipconfigs?.*\"}[5m]))",
+          "legendFormat": "Requests received",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource_svc}"
+          },
+          "editorMode": "code",
+          "expr": "sum by (cluster) (rate(ip_assignment_latency_seconds_count{cluster=~\"$cluster\"}[5m]))",
+          "legendFormat": "Assignments completed",
+          "refId": "B"
+        }
+      ],
+      "title": "CNS IP Assignment Demand and Completion Rate",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 45
+      },
+      "id": 9,
+      "panels": [],
+      "title": "Konnectivity Tunnel",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource_hcp}"
+      },
+      "description": "Konnectivity server-side stream error rate. Elevated errors with router pods otherwise Running indicate a tunnel/data-path issue, not NIC assignment.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "max": 1,
+          "min": 0,
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 46
+      },
+      "id": 10,
+      "options": {
+        "legend": {
+          "calcs": ["lastNotNull", "max"],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource_hcp}"
+          },
+          "editorMode": "code",
+          "expr": "konnectivity:stream_error_rate:5m{cluster=~\"$cluster\", namespace=~\"$hcp_namespace\"}",
+          "legendFormat": "{{namespace}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Konnectivity Stream Error Rate",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource_hcp}"
+      },
+      "description": "Konnectivity dial failure rate (failures / (failures + successful dials)). Elevated dial failures with router pods otherwise Running indicate a tunnel/data-path issue, not NIC assignment.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "max": 1,
+          "min": 0,
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 46
+      },
+      "id": 11,
+      "options": {
+        "legend": {
+          "calcs": ["lastNotNull", "max"],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource_hcp}"
+          },
+          "editorMode": "code",
+          "expr": "konnectivity:dial_failure_rate:5m{cluster=~\"$cluster\", namespace=~\"$hcp_namespace\"}",
+          "legendFormat": "{{namespace}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Konnectivity Dial Failure Rate",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource_hcp}"
+      },
+      "description": "Konnectivity protocol packet volume for each selected HCP. Use it to interpret tunnel error and dial-failure rates in context. It is a dashboard-only traffic indicator for the SWIFT tunnel, not a request-level SLO.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "unit": "pps"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 54
+      },
+      "id": 15,
+      "options": {
+        "legend": {
+          "calcs": ["lastNotNull", "max"],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource_hcp}"
+          },
+          "editorMode": "code",
+          "expr": "sum by (cluster, namespace) (rate(konnectivity_network_proxy_server_stream_packets_total{cluster=~\"$cluster\", namespace=~\"$hcp_namespace\"}[5m]))",
+          "legendFormat": "{{namespace}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Konnectivity Packet Volume (by HCP namespace)",
+      "type": "timeseries"
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "includeAll": true,
+        "label": "HCP Datasource",
+        "name": "datasource_hcp",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "regex": "^Managed_Prometheus_hcps-.*$",
+        "type": "datasource"
+      },
+      {
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "includeAll": true,
+        "label": "Services Datasource",
+        "name": "datasource_svc",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "regex": "^Managed_Prometheus_services-.*$",
+        "type": "datasource"
+      },
+      {
+        "current": {},
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource_hcp}"
+        },
+        "includeAll": true,
+        "label": "Management Cluster (all panels)",
+        "multi": false,
+        "name": "cluster",
+        "options": [],
+        "query": "label_values(hostedClusterAPI_kubeapiserver_available, cluster)",
+        "refresh": 2,
+        "regex": "",
+        "type": "query"
+      },
+      {
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource_hcp}"
+        },
+        "includeAll": true,
+        "label": "HCP Namespace",
+        "multi": true,
+        "name": "hcp_namespace",
+        "options": [],
+        "query": "label_values(hostedClusterAPI_kubeapiserver_available{cluster=~\"$cluster\"}, namespace)",
+        "refresh": 2,
+        "regex": "",
+        "type": "query"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "utc",
+  "title": "SWIFT Networking",
+  "uid": "swift-networking",
+  "version": 1,
+  "weekStart": ""
+}
