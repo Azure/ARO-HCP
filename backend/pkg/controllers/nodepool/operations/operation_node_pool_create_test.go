@@ -244,6 +244,8 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 				assert.Equal(t, coreapi.ProvisioningStateFailed, op.Status)
 				require.NotNil(t, op.Error)
 				assert.Equal(t, coreapi.CloudErrorCodeInternalServerError, op.Error.Code)
+				assert.Contains(t, op.Error.Message, "node pool creation did not complete before the deadline")
+				assert.Contains(t, op.Error.Message, "cluster service node pool is installing")
 			},
 		},
 		{

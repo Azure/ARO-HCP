@@ -78,6 +78,15 @@ func CompareOperationState(lhs, rhs *OperationState) int {
 	return strings.Compare(lhs.Message, rhs.Message)
 }
 
+// DeadlineExceededMessage returns deadlineSentence, appending remainingChecks
+// when it is non-empty.
+func DeadlineExceededMessage(deadlineSentence, remainingChecks string) string {
+	if remainingChecks == "" {
+		return deadlineSentence
+	}
+	return deadlineSentence + "; " + remainingChecks
+}
+
 // PickWorstOperationState expects states pre-sorted and returns the worst state with merged messages.
 //
 // Only sources that report an actual message are included in the merged message: a source tied

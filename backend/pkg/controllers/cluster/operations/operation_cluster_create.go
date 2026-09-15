@@ -176,10 +176,10 @@ func (c *operationClusterCreate) SynchronizeOperation(ctx context.Context, key c
 		cluster.ServiceProviderProperties.CreateOperationCompletionDeadline != nil &&
 		c.clock.Now().After(cluster.ServiceProviderProperties.CreateOperationCompletionDeadline.Time) {
 
-		message := "cluster creation did not complete before the deadline"
-		if len(operationalState.Message) > 0 {
-			message = operationalState.Message
-		}
+		message := operationbase.DeadlineExceededMessage(
+			"cluster creation did not complete before the deadline",
+			operationalState.Message,
+		)
 		logger.Info("create operation deadline exceeded, marking as failed",
 			"deadline", cluster.ServiceProviderProperties.CreateOperationCompletionDeadline.Time,
 			"message", message)
@@ -277,11 +277,7 @@ func (c *operationClusterCreate) clusterServiceCreateOperationState(ctx context.
 		return nil, utils.TrackError(err)
 	}
 	logger.Info("new status via cluster-service", "newStatus", newOperationStatus, "newOperationError", opError)
-	msg := ""
-	if opError != nil {
-		msg = opError.Message
-	}
-	return operationbase.NewOperationState(newOperationStatus, msg), nil
+	return operationbase.NewOperationState(newOperationStatus, operationbase.ClusterServiceOperationMessage(clusterStatus, opError)), nil
 }
 
 func (c *operationClusterCreate) clusterOperationStatus(ctx context.Context, operation *coreapi.Operation) (*operationbase.OperationState, error) {
