@@ -26,14 +26,15 @@ func TestManagedIdentitiesWithDataPlaneWorkloadsOIDCFederationJSONMapRoundTrip(t
 	t.Parallel()
 
 	key := "/subscriptions/00000000-0000-0000-0000-000000000000/resourcegroups/test-rg/providers/microsoft.managedidentity/userassignedidentities/identity-a"
+	identity := DataplaneOIDCFederationIdentityInstance{
+		ClientID:    "client-a",
+		PrincipalID: "principal-a",
+		TenantID:    "tenant-a",
+	}
 	original := map[string]*ManagedIdentityDataplaneOIDCFederationStatus{
 		key: {
-			Phase: ManagedIdentityDataplaneOIDCFederationPhasePendingConfigure,
-			ObservedIdentity: ManagedIdentityDataplaneOIDCFederationObservedIdentity{
-				ClientID:    "client-a",
-				PrincipalID: "principal-a",
-				TenantID:    "tenant-a",
-			},
+			TargetIdentity:  identity,
+			EnsuredIdentity: &identity,
 		},
 	}
 
@@ -43,10 +44,31 @@ func TestManagedIdentitiesWithDataPlaneWorkloadsOIDCFederationJSONMapRoundTrip(t
 	var decoded map[string]*ManagedIdentityDataplaneOIDCFederationStatus
 	require.NoError(t, json.Unmarshal(encoded, &decoded))
 	require.Contains(t, decoded, key)
-	assert.Equal(t, ManagedIdentityDataplaneOIDCFederationPhasePendingConfigure, decoded[key].Phase)
-	assert.Equal(t, ManagedIdentityDataplaneOIDCFederationObservedIdentity{
+	assert.True(t, decoded[key].TargetIdentityEnsured())
+	assert.Equal(t, identity, decoded[key].TargetIdentity)
+	require.NotNil(t, decoded[key].EnsuredIdentity)
+	assert.Equal(t, identity, *decoded[key].EnsuredIdentity)
+}
+
+func TestManagedIdentityDataplaneOIDCFederationStatusTargetIdentityEnsured(t *testing.T) {
+	t.Parallel()
+
+	identity := DataplaneOIDCFederationIdentityInstance{
 		ClientID:    "client-a",
 		PrincipalID: "principal-a",
 		TenantID:    "tenant-a",
-	}, decoded[key].ObservedIdentity)
+	}
+	rotated := identity
+	rotated.ClientID = "client-b"
+
+	assert.False(t, (*ManagedIdentityDataplaneOIDCFederationStatus)(nil).TargetIdentityEnsured())
+	assert.False(t, (&ManagedIdentityDataplaneOIDCFederationStatus{TargetIdentity: identity}).TargetIdentityEnsured())
+	assert.True(t, (&ManagedIdentityDataplaneOIDCFederationStatus{
+		TargetIdentity:  identity,
+		EnsuredIdentity: &identity,
+	}).TargetIdentityEnsured())
+	assert.False(t, (&ManagedIdentityDataplaneOIDCFederationStatus{
+		TargetIdentity:  identity,
+		EnsuredIdentity: &rotated,
+	}).TargetIdentityEnsured())
 }

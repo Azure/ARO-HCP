@@ -321,107 +321,85 @@ type ServiceProviderClusterStatus struct {
 	// to use this at the point those are updated to support identity replacement.
 	ManagedIdentityDetails map[string]*ManagedIdentityMetadata `json:"managedIdentityDetails,omitempty"`
 
-	// ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation tracks the desired
-	// and observed data-plane OIDC federation state for each fully resolved
-	// data-plane operator identity, using ManagedIdentityDetails as the identity
-	// metadata source. The map is keyed by the fully lowercased Azure Resource ID
-	// of the identity.
+	// ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation tracks the set of Azure identities by resource id
+	// for which data-plane workload identity federation configuration/deconfiguration is desired, along with its state.
+	// The map is keyed by the fully lowercased Azure Resource ID of the identity.
 	// Desired identities are the unique ResourceIDs in
 	// Cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators
-	// whose ManagedIdentityDetails entry has resolved
-	// MetadataFromARMUserAssignedIdentitiesAPI (ClientID, PrincipalID, and TenantID).
-	// Identities that only have dataplane or hardcoded-identity metadata
-	// (control-plane operators and the ServiceManagedIdentity) are ignored, even
-	// when the same UAMI is still used as CP or SMI.
-	// DataPlaneOIDCFederationIntent adds those identities as PendingConfigure and
-	// copies ObservedIdentity from the ARM ClientID/PrincipalID/TenantID. A change
-	// to those IDs on the same ResourceID updates ObservedIdentity and sets
-	// PendingConfigure on that entry; it does not deconfigure. Identities that
-	// have left the data-plane set are marked PendingDeconfigure (stamping
-	// DeconfigureTimestamp when that was requested so Azure FIC deletes wait 24
-	// hours on a live cluster). DataPlaneOIDCFederation then creates or deletes
-	// federated identity credentials in Azure (one per data-plane operator
-	// service account) and advances the phase to Configured, or removes the
-	// identity from this map after a successful deconfigure.
+	// whose ManagedIdentityDetails entry has resolved from the MetadataFromARMUserAssignedIdentitiesAPI identity metadata source (containing ClientID, PrincipalID, and TenantID).
+	// The DataPlaneOIDCFederationIntent controller copies TargetIdentity from the MetadataFromARMUserAssignedIdentitiesAPI metadata source (ClientID/PrincipalID/TenantID).
+	// A change to those IDs on the same ResourceID updates TargetIdentity and clears EnsuredIdentity, AzureResources, and
+	// PendingAzureResources. In that case it does not deconfigure.
+	// Identities that have left the desired data plane operators set get DeconfigureTimestamp stamped so that deconfiguration is triggered after
+	// 24 hours since the stamp.
+	// DataPlaneOIDCFederation then creates or deletes federated identity credentials in Azure (one per data-plane operator
+	// service account) and copies TargetIdentity into EnsuredIdentity after every
+	// desired Azure FederatedIdentityCredential is ensured, or removes the identity from this map after a successful deconfigure.
 	// Written by: DataPlaneOIDCFederationIntent, DataPlaneOIDCFederation
 	ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation map[string]*ManagedIdentityDataplaneOIDCFederationStatus `json:"managedIdentitiesWithDataPlaneWorkloadsOIDCFederation,omitempty"`
 }
 
-// ManagedIdentityDataplaneOIDCFederationPhase is the reconciliation phase of
-// data-plane OIDC federation for a single managed identity.
-type ManagedIdentityDataplaneOIDCFederationPhase string
-
-const (
-	// ManagedIdentityDataplaneOIDCFederationPhasePendingConfigure means the
-	// identity is fully resolved and a federated identity credential should be created.
-	ManagedIdentityDataplaneOIDCFederationPhasePendingConfigure ManagedIdentityDataplaneOIDCFederationPhase = "PendingConfigure"
-	// ManagedIdentityDataplaneOIDCFederationPhaseConfigured means the federated
-	// identity credential has been created in Azure.
-	ManagedIdentityDataplaneOIDCFederationPhaseConfigured ManagedIdentityDataplaneOIDCFederationPhase = "Configured"
-	// ManagedIdentityDataplaneOIDCFederationPhasePendingDeconfigure means the
-	// identity is no longer a desired data-plane identity and the federated
-	// identity credential should be deleted.
-	ManagedIdentityDataplaneOIDCFederationPhasePendingDeconfigure ManagedIdentityDataplaneOIDCFederationPhase = "PendingDeconfigure"
-	// ManagedIdentityDataplaneOIDCFederationPhaseDeconfigured means the federated
-	// identity credential has been deleted from Azure. New reconciles remove the
-	// identity from ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation instead
-	// of persisting this phase. The value may still appear on existing documents
-	// until DataPlaneOIDCFederationIntent drops the entry, or until the identity
-	// is desired again and flipped back to PendingConfigure.
-	ManagedIdentityDataplaneOIDCFederationPhaseDeconfigured ManagedIdentityDataplaneOIDCFederationPhase = "Deconfigured"
-)
-
-// ManagedIdentityDataplaneOIDCFederationObservedIdentity is the ARM User
-// Assigned Identities ClientID/PrincipalID/TenantID that intent last targeted
-// for this ResourceID. ResourceID is the map key and is not duplicated here.
-// Written only when ARM metadata is fully resolved. TenantID is the identity
-// tenant; it is not the OIDC issuer tenant. The executor builds the issuer
-// from the cluster subscription tenant.
-// Written by: DataPlaneOIDCFederationIntent
-type ManagedIdentityDataplaneOIDCFederationObservedIdentity struct {
-	ClientID    string `json:"clientId,omitempty"`
-	PrincipalID string `json:"principalId,omitempty"`
-	TenantID    string `json:"tenantId,omitempty"`
-}
-
+// ManagedIdentityDataplaneOIDCFederationStatus tracks the state of the data plane workload identity oidc federation process for a particular identity.
 type ManagedIdentityDataplaneOIDCFederationStatus struct {
-	// Phase is the reconciliation phase of data-plane OIDC federation for this identity.
-	// Written by: DataPlaneOIDCFederationIntent, DataPlaneOIDCFederation
-	Phase ManagedIdentityDataplaneOIDCFederationPhase `json:"phase,omitempty"`
-	// ObservedIdentity is the ARM User Assigned Identities ClientID, PrincipalID,
-	// and TenantID that intent last targeted for this ResourceID. Intent copies
-	// these from ManagedIdentityDetails when ARM metadata is resolved. A change
-	// to any of these IDs updates this field and sets Phase to PendingConfigure
-	// in the same write so Configured is never paired with a new instance that
-	// has not been ensured. Other controllers join this field with live
-	// ManagedIdentityDetails and Phase to know which identity instance was
-	// federated.
+	// TargetIdentity is the metadata of the identity to which perform data data plane workload identity oidc federation.
+	// A change to any of the attributes of TargetIdentity clears EnsuredIdentity, AzureResources, and PendingAzureResources
+	// in the same write so a new instance is never treated as ensured. Other controllers join this field
+	// with EnsuredIdentity to know whether federation completed for this instance.
 	// Written by: DataPlaneOIDCFederationIntent
-	ObservedIdentity ManagedIdentityDataplaneOIDCFederationObservedIdentity `json:"observedIdentity,omitempty"`
+	TargetIdentity DataplaneOIDCFederationIdentityInstance `json:"targetIdentity,omitempty"`
+	// EnsuredIdentity is the TargetIdentity from the last pass that
+	// ensured every desired federated identity credential for a particular ResourceID,
+	// The DataPlaneOIDCFederation controller copies TargetIdentity here when every desired Azure FederatedIdentityCredential
+	// has been configured for the TargetIdentity. The DataPlaneOIDCFederationIntent controller clears it when
+	// TargetIdentity changes. Federation for a still-desired identity is
+	// complete when EnsuredIdentity is non-nil, equals TargetIdentity, and
+	// DeconfigureTimestamp is nil.
+	// Written by: DataPlaneOIDCFederationIntent, DataPlaneOIDCFederation
+	EnsuredIdentity *DataplaneOIDCFederationIdentityInstance `json:"ensuredIdentity,omitempty"`
 	// DeconfigureTimestamp is the timestamp at which deconfigure of this
-	// identity's data-plane OIDC federation was requested. The timestamp is in UTC.
+	// identity's data-plane OIDC federation was requested.
 	// A nil value indicates that deconfigure has not been requested.
-	// On a live cluster the executor waits 24 hours from this timestamp before
-	// deleting Azure FICs. Cluster deletion (DeletionTimestamp set) deconfigures
-	// immediately. Cleared when the identity is desired again and flipped back
-	// to PendingConfigure. Successful deconfigure removes the map entry rather
-	// than clearing this field in place.
+	// Once set, the DataPlaneOIDCFederation controller waits 24 hours from this timestamp before
+	// starting the actual deletion of the associated Azure FederatedIdentityCredentials. Cluster deletion (DeletionTimestamp set) starts the
+	// deconfiguration process immediately.
+	// Cleared when the identity is desired again if it wasn't fully deconfigured yet.
+	// Successful deconfigure removes the map entry rather than clearing this field in place.
 	// Written by: DataPlaneOIDCFederationIntent
 	DeconfigureTimestamp *metav1.Time `json:"deconfigureTimestamp,omitempty"`
-	// PendingAzureResources contains federated identity credential resource IDs
-	// that have been requested but not yet confirmed to exist in Azure.
-	// DataPlaneOIDCFederation persists these IDs before CreateOrUpdate, so a crash
-	// or replace failure cannot lose the tracked set. After a partial Azure ensure,
-	// desired IDs that were not confirmed stay here. PendingDeconfigure also
-	// deletes leftover IDs here from a previous incomplete configure.
-	// Written by: DataPlaneOIDCFederation
+	// PendingAzureResources contains Azure FederatedIdentityCredential resource IDs that have been requested but not yet
+	// confirmed to exist in Azure. This is so a crash or replace failure cannot lose the tracked set.
+	// After a partial Azure configuration desired IDs that were not confirmed stay here.
+	// Deconfiguration also deletes leftover IDs from a previous incomplete configure.
+	// The DataPlaneOIDCFederationIntent controller clears this when TargetIdentity changes
+	// because the identity was recreated and child FederatedIdentityCredential resources are already gone.
+	// Written by: DataPlaneOIDCFederationIntent, DataPlaneOIDCFederation
 	PendingAzureResources []*azcorearm.ResourceID `json:"pendingFederatedIdentityCredentials,omitempty"`
-	// AzureResources contains federated identity credential resource IDs that
-	// have been confirmed to exist in Azure. After a partial Azure ensure this
-	// is the confirmed subset (plus extras Azure did not delete); after a
+	// AzureResources contains Azyre FederatedIdentityCredential resorce IDs identity credential resource IDs that
+	// have been confirmed to exist in Azure. After a partial configure this
+	// is the confirmed subset (plus extras Azure did not delete). After a
 	// partial deconfigure it is the IDs Azure did not delete.
-	// Written by: DataPlaneOIDCFederation
+	// The DataPlaneOIDCFederationIntent controller clears this when TargetIdentity changes
+	// because the identity was recreated and child federated identity credentials are already gone.
+	// Written by: DataPlaneOIDCFederationIntent, DataPlaneOIDCFederation
 	AzureResources []*azcorearm.ResourceID `json:"federatedIdentityCredentials,omitempty"`
+}
+
+// DataplaneOIDCFederationIdentityInstance is the resolved metadata of an identity involved in the data plane workload identity oidc federation process.
+// ClientID/PrincipalID/TenantID within it are always set.
+type DataplaneOIDCFederationIdentityInstance struct {
+	// ClientID is the Client ID of the Azure identity.
+	ClientID string `json:"clientId,omitempty"`
+	// PrincipalID is the Principal ID of the Azure identity.
+	PrincipalID string `json:"principalId,omitempty"`
+	// TenantID is the tenant ID of the Azure identity. This is not the same tenant as the one used to build the OIDC issuer URL, which is the cluster's tenant.
+	TenantID string `json:"tenantId,omitempty"`
+}
+
+// TargetIdentityEnsured reports whether OIDC Federation configuration for the current TargetIdentity is complete. This
+// includes the creation of the desired Azure FederatedIdentityCredentials for the current TargetIdentity.
+// A ManagedIdentityDataplaneOIDCFederationStatus that has a DeconfigureTimestamp does not consider its TargetIdentity to be ensured.
+func (s *ManagedIdentityDataplaneOIDCFederationStatus) TargetIdentityEnsured() bool {
+	return s.DeconfigureTimestamp == nil && s.EnsuredIdentity != nil && *s.EnsuredIdentity == s.TargetIdentity
 }
 
 // ServiceProviderClusterPlacementStatus holds placement-specific status for a

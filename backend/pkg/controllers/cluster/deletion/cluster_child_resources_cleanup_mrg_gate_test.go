@@ -139,7 +139,6 @@ func TestExtraDeleteGateShouldDeleteServiceProviderClusterOIDCFederation(t *test
 			name: "azure resources remaining blocks deletion",
 			federation: map[string]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
 				keyA: {
-					Phase:          coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingDeconfigure,
 					AzureResources: []*azcorearm.ResourceID{federatedIdentityCredentialA},
 				},
 			},
@@ -149,7 +148,6 @@ func TestExtraDeleteGateShouldDeleteServiceProviderClusterOIDCFederation(t *test
 			name: "pending azure resources remaining blocks deletion",
 			federation: map[string]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
 				keyA: {
-					Phase:                 coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingDeconfigure,
 					PendingAzureResources: []*azcorearm.ResourceID{federatedIdentityCredentialA},
 				},
 			},
@@ -158,11 +156,8 @@ func TestExtraDeleteGateShouldDeleteServiceProviderClusterOIDCFederation(t *test
 		{
 			name: "remaining resources on one identity blocks deletion",
 			federation: map[string]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
-				keyA: {
-					Phase: coreapi.ManagedIdentityDataplaneOIDCFederationPhaseDeconfigured,
-				},
+				keyA: {},
 				keyB: {
-					Phase:          coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingDeconfigure,
 					AzureResources: []*azcorearm.ResourceID{federatedIdentityCredentialB},
 				},
 			},
@@ -172,7 +167,6 @@ func TestExtraDeleteGateShouldDeleteServiceProviderClusterOIDCFederation(t *test
 			name: "empty resource slices allow deletion",
 			federation: map[string]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
 				keyA: {
-					Phase:                 coreapi.ManagedIdentityDataplaneOIDCFederationPhaseDeconfigured,
 					AzureResources:        []*azcorearm.ResourceID{},
 					PendingAzureResources: []*azcorearm.ResourceID{},
 				},
@@ -182,8 +176,8 @@ func TestExtraDeleteGateShouldDeleteServiceProviderClusterOIDCFederation(t *test
 		{
 			name: "deconfigured identities with no remaining resources allow deletion",
 			federation: map[string]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
-				keyA: {Phase: coreapi.ManagedIdentityDataplaneOIDCFederationPhaseDeconfigured},
-				keyB: {Phase: coreapi.ManagedIdentityDataplaneOIDCFederationPhaseDeconfigured},
+				keyA: {},
+				keyB: {},
 			},
 			expectShouldDelete: true,
 		},
