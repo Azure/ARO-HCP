@@ -436,7 +436,7 @@
         "id": { "type": "string" },
         "isGlobalSubscription": {
           "type": "boolean",
-          "description": "Marks where shared infra lives; the bot gets extra data-plane roles (Key Vault Admin, Grafana Admin) here"
+          "description": "Marks where shared infra lives; the bot gets extra global-only data-plane roles (Grafana Admin) here"
         }
       },
       "required": ["name", "id"]

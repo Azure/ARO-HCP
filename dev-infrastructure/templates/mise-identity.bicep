@@ -7,6 +7,7 @@ module miseApp '../modules/entra/app.bicep' = if (miseApplicationDeploy) {
   params: {
     applicationName: miseApplicationName
     ownerIds: entraAppOwnerIds
+    ownerRelationshipSemantics: 'replace'
     manageSp: false
     serviceManagementReference: 'b8e9ef87-cd63-4085-ab14-1c637806568c'
     isFallbackPublicClient: false
