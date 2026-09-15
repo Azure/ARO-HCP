@@ -26,6 +26,55 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 )
 
+func TestParseNextLink(t *testing.T) {
+	tests := []struct {
+		name        string
+		linkHeader  string
+		registryURL string
+		want        string
+	}{
+		{
+			name:        "relative path is resolved against registryURL",
+			linkHeader:  `</v2/repo/tags/list?n=100&last=tag>; rel="next"`,
+			registryURL: "quay.io",
+			want:        "https://quay.io/v2/repo/tags/list?n=100&last=tag",
+		},
+		{
+			name:        "absolute URL on the same host is followed",
+			linkHeader:  `<https://quay.io/v2/repo/tags/list?n=100&last=tag>; rel="next"`,
+			registryURL: "quay.io",
+			want:        "https://quay.io/v2/repo/tags/list?n=100&last=tag",
+		},
+		{
+			name:        "absolute URL on a different host is rejected",
+			linkHeader:  `<https://evil.example.com/v2/repo/tags/list?n=100&last=tag>; rel="next"`,
+			registryURL: "quay.io",
+			want:        "",
+		},
+		{
+			name:        "no rel=next entry returns empty",
+			linkHeader:  `</v2/repo/tags/list?n=100&last=tag>; rel="prev"`,
+			registryURL: "quay.io",
+			want:        "",
+		},
+		{
+			name:        "empty header returns empty",
+			linkHeader:  "",
+			registryURL: "quay.io",
+			want:        "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := parseNextLink(tt.linkHeader, tt.registryURL)
+			if got != tt.want {
+				t.Errorf("parseNextLink(%q, %q) = %q, want %q", tt.linkHeader, tt.registryURL, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestFetchTagMetadataConcurrentlyPreservesInputOrder(t *testing.T) {
 	secondFinished := make(chan struct{})
 	tags := []Tag{{Name: "first"}, {Name: "second"}}

@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -420,6 +421,9 @@ func (c *GenericRegistryClient) getAllTags(ctx context.Context, repository strin
 
 // parseNextLink extracts the next page URL from a Docker Registry V2 Link header.
 // The header format is: `</v2/repo/tags/list?n=100&last=tag>; rel="next"`
+// Only relative paths, or absolute URLs whose host matches registryURL, are
+// followed, so a malicious or misconfigured response can't redirect the
+// caller (and its Authorization header) to a different host.
 func parseNextLink(linkHeader string, registryURL string) string {
 	if linkHeader == "" {
 		return ""
@@ -437,6 +441,10 @@ func parseNextLink(linkHeader string, registryURL string) string {
 		path := part[start+1 : end]
 		if strings.HasPrefix(path, "/") {
 			return fmt.Sprintf("https://%s%s", registryURL, path)
+		}
+		parsed, err := url.Parse(path)
+		if err != nil || parsed.Host != registryURL {
+			return ""
 		}
 		return path
 	}
