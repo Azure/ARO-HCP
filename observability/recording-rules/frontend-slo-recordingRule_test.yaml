@@ -37,17 +37,17 @@ tests:
   - series: 'frontend_http_requests_duration_seconds_count{cluster="svc-1", method="GET", route="/subscriptions/{subscriptionid}/resourcegroups/{resourcegroupname}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/{resourcename}", prometheus_replica="a"}'
     values: "0+60x15"
   - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-1", le="0.8", method="GET", route="/subscriptions/{subscriptionid}/resourcegroups/{resourcegroupname}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/{resourcename}", prometheus_replica="b"}'
-    # Histogram replicas are summed; duplicated bucket counts cancel in quantiles.
-
-    values: "0+50x15"
+    # Replica b has a different valid distribution and volume. Summing both
+    # histograms yields p99=0.964 and p95=0.82; max per bucket does not.
+    values: "0+120x15"
   - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-1", le="1", method="GET", route="/subscriptions/{subscriptionid}/resourcegroups/{resourcegroupname}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/{resourcename}", prometheus_replica="b"}'
-    values: "0+60x15"
+    values: "0+120x15"
   - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-1", le="15", method="GET", route="/subscriptions/{subscriptionid}/resourcegroups/{resourcegroupname}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/{resourcename}", prometheus_replica="b"}'
-    values: "0+60x15"
+    values: "0+120x15"
   - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-1", le="+Inf", method="GET", route="/subscriptions/{subscriptionid}/resourcegroups/{resourcegroupname}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/{resourcename}", prometheus_replica="b"}'
-    values: "0+60x15"
+    values: "0+120x15"
   - series: 'frontend_http_requests_duration_seconds_count{cluster="svc-1", method="GET", route="/subscriptions/{subscriptionid}/resourcegroups/{resourcegroupname}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/{resourcename}", prometheus_replica="b"}'
-    values: "0+60x15"
+    values: "0+120x15"
   - series: 'kube_deployment_status_replicas_available{cluster="svc-1", namespace="aro-hcp", deployment="aro-hcp-frontend", prometheus_replica="a"}'
     values: "2+0x15"
   - series: 'kube_deployment_spec_replicas{cluster="svc-1", namespace="aro-hcp", deployment="aro-hcp-frontend", prometheus_replica="a"}'
@@ -87,12 +87,12 @@ tests:
     eval_time: 10m
     exp_samples:
     - labels: '{__name__="sli:frontend_http:latency_p99:rate5m", cluster="svc-1"}'
-      value: 0.988
+      value: 0.9639999999999997
   - expr: sli:frontend_http:latency_p95:rate5m{cluster="svc-1"}
     eval_time: 10m
     exp_samples:
     - labels: '{__name__="sli:frontend_http:latency_p95:rate5m", cluster="svc-1"}'
-      value: 0.94
+      value: 0.8199999999999994
   - expr: sli:frontend:ready:ratio5m{cluster="svc-1"}
     eval_time: 5m
     exp_samples:

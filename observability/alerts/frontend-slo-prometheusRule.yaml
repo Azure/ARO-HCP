@@ -37,10 +37,11 @@ spec:
   # Frontend outage (ready=0) from an ARM traffic drought (HTTP SLIs absent).
   #
   # Multi-window multi-burn-rate (ADR 79 / Google MWMBR): fast and medium
-  # require BOTH long-window and short-window avg_over_time on the rate5m
-  # series (same pattern as kube-apiserver burnrate1h AND burnrate5m). `for`
-  # is a short pending duration only - not a substitute for the short window.
-  # Slow uses 3d long + 6h short at 1x.
+  # require BOTH long-window and short-window conditions. Errors and
+  # availability use avg_over_time on their rate5m series; latency calculates
+  # request-weighted histogram ratios directly over each window. `for` is a
+  # short pending duration only - not a substitute for the short window. Slow
+  # uses 3d long + 6h short at 1x.
   #
   # Fast/medium Errors + Latency page Sev 3 (customer-facing UJ).
   # Availability is Sev 4 only - complementary to Errors on the same denominator,
