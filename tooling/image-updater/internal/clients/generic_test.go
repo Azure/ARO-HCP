@@ -52,6 +52,12 @@ func TestParseNextLink(t *testing.T) {
 			want:        "",
 		},
 		{
+			name:        "absolute URL downgrading to http is rejected",
+			linkHeader:  `<http://quay.io/v2/repo/tags/list?n=100&last=tag>; rel="next"`,
+			registryURL: "quay.io",
+			want:        "",
+		},
+		{
 			name:        "no rel=next entry returns empty",
 			linkHeader:  `</v2/repo/tags/list?n=100&last=tag>; rel="prev"`,
 			registryURL: "quay.io",
