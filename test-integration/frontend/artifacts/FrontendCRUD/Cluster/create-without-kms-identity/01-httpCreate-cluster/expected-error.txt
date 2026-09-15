@@ -1,0 +1,5 @@
+{
+    "code": "InvalidRequestContent",
+    "message": "Required value: a user-assigned identity for the \"kms\" control plane operator is required when properties.etcd.dataEncryption.keyManagementMode is CustomerManaged",
+    "target": "properties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[kms]"
+  }

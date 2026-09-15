@@ -236,7 +236,69 @@ func testCrossVersionRoundTrip(t *testing.T, withMock bool) {
 	}
 }
 
+// alwaysRequiredControlPlaneOperators and alwaysRequiredDataPlaneOperators mirror the identity
+// config's Always requirements. They are spelled out rather than derived so that a change to the
+// config shows up here as a deliberate edit.
+var (
+	alwaysRequiredControlPlaneOperators = []string{
+		"cloud-controller-manager", "cloud-network-config", "cluster-api-azure",
+		"control-plane", "disk-csi-driver", "file-csi-driver", "image-registry", "ingress",
+	}
+	alwaysRequiredDataPlaneOperators = []string{"disk-csi-driver", "file-csi-driver", "image-registry"}
+)
+
+// withRequiredOperatorIdentities fills in the operator identities a create requires, so the
+// inline payloads below only have to spell out the fields each round-trip case is about.
+// Control plane identities are also assigned under .identity; data plane identities must not be.
+func withRequiredOperatorIdentities(payload []byte, subscriptionID string) []byte {
+	identityResourceID := func(name string) string {
+		return fmt.Sprintf("/subscriptions/%s/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/%s", subscriptionID, name)
+	}
+
+	var doc map[string]any
+	if err := json.Unmarshal(payload, &doc); err != nil {
+		panic(err)
+	}
+
+	identity := doc["identity"].(map[string]any)
+	assigned := identity["userAssignedIdentities"].(map[string]any)
+	userAssignedIdentities := doc["properties"].(map[string]any)["platform"].(map[string]any)["operatorsAuthentication"].(map[string]any)["userAssignedIdentities"].(map[string]any)
+	controlPlaneOperators := userAssignedIdentities["controlPlaneOperators"].(map[string]any)
+
+	for _, operatorName := range alwaysRequiredControlPlaneOperators {
+		if _, ok := controlPlaneOperators[operatorName]; ok {
+			continue
+		}
+		resourceID := identityResourceID(operatorName + "-identity")
+		controlPlaneOperators[operatorName] = resourceID
+		assigned[resourceID] = map[string]any{}
+	}
+
+	dataPlaneOperators, ok := userAssignedIdentities["dataPlaneOperators"].(map[string]any)
+	if !ok {
+		dataPlaneOperators = map[string]any{}
+		userAssignedIdentities["dataPlaneOperators"] = dataPlaneOperators
+	}
+	for _, operatorName := range alwaysRequiredDataPlaneOperators {
+		if _, ok := dataPlaneOperators[operatorName]; ok {
+			continue
+		}
+		dataPlaneOperators[operatorName] = identityResourceID(operatorName + "-dataplane-identity")
+	}
+
+	out, err := json.Marshal(doc)
+	if err != nil {
+		panic(err)
+	}
+	return out
+}
+
 func clusterCreatePayload(clusterName, apiVersion string) []byte {
+	const subscriptionID = "6b690bec-0c16-4ecb-8f67-781caf40bba7"
+	return withRequiredOperatorIdentities(clusterCreatePayloadTemplate(clusterName, apiVersion), subscriptionID)
+}
+
+func clusterCreatePayloadTemplate(clusterName, apiVersion string) []byte {
 	subscriptionID := "6b690bec-0c16-4ecb-8f67-781caf40bba7"
 
 	switch apiVersion {
@@ -245,7 +307,9 @@ func clusterCreatePayload(clusterName, apiVersion string) []byte {
 		return []byte(fmt.Sprintf(`{
   "identity": {
     "type": "UserAssigned",
-    "userAssignedIdentities": {}
+    "userAssignedIdentities": {
+      "/subscriptions/%s/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/kms-identity": {}
+    }
   },
   "name": "%s",
   "properties": {
@@ -280,6 +344,13 @@ func clusterCreatePayload(clusterName, apiVersion string) []byte {
     "platform": {
       "managedResourceGroup": "managed-rg-xvrt",
       "networkSecurityGroupId": "/subscriptions/%s/resourceGroups/bar/providers/Microsoft.Network/networkSecurityGroups/nsg",
+      "operatorsAuthentication": {
+        "userAssignedIdentities": {
+          "controlPlaneOperators": {
+            "kms": "/subscriptions/%s/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/kms-identity"
+          }
+        }
+      },
       "outboundType": "LoadBalancer",
       "subnetId": "/subscriptions/%s/resourceGroups/bar/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet"
     },
@@ -292,14 +363,16 @@ func clusterCreatePayload(clusterName, apiVersion string) []byte {
     "env": "test"
   },
   "type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
-}`, clusterName, subscriptionID, subscriptionID))
+}`, subscriptionID, clusterName, subscriptionID, subscriptionID, subscriptionID))
 
 	case v20251223:
 		// v20251223 payload — includes all optional fields (autoscaling, nodeDrainTimeoutMinutes)
 		return []byte(fmt.Sprintf(`{
   "identity": {
     "type": "UserAssigned",
-    "userAssignedIdentities": {}
+    "userAssignedIdentities": {
+      "/subscriptions/%s/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/kms-identity": {}
+    }
   },
   "name": "%s",
   "properties": {
@@ -342,6 +415,13 @@ func clusterCreatePayload(clusterName, apiVersion string) []byte {
     "platform": {
       "managedResourceGroup": "managed-rg-xvrt",
       "networkSecurityGroupId": "/subscriptions/%s/resourceGroups/bar/providers/Microsoft.Network/networkSecurityGroups/nsg",
+      "operatorsAuthentication": {
+        "userAssignedIdentities": {
+          "controlPlaneOperators": {
+            "kms": "/subscriptions/%s/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/kms-identity"
+          }
+        }
+      },
       "outboundType": "LoadBalancer",
       "subnetId": "/subscriptions/%s/resourceGroups/bar/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet",
       "vnetIntegrationSubnetId": "/subscriptions/%s/resourceGroups/bar/providers/Microsoft.Network/virtualNetworks/vnet/subnets/swift-subnet"
@@ -355,14 +435,16 @@ func clusterCreatePayload(clusterName, apiVersion string) []byte {
     "env": "test"
   },
   "type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
-}`, clusterName, subscriptionID, subscriptionID, subscriptionID))
+}`, subscriptionID, clusterName, subscriptionID, subscriptionID, subscriptionID, subscriptionID))
 
 	case v20260630:
 		// v20260630 payload — includes all optional fields (autoscaling, nodeDrainTimeoutMinutes, ingress)
 		return []byte(fmt.Sprintf(`{
   "identity": {
     "type": "UserAssigned",
-    "userAssignedIdentities": {}
+    "userAssignedIdentities": {
+      "/subscriptions/%s/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/kms-identity": {}
+    }
   },
   "name": "%s",
   "properties": {
@@ -408,6 +490,13 @@ func clusterCreatePayload(clusterName, apiVersion string) []byte {
     "platform": {
       "managedResourceGroup": "managed-rg-xvrt",
       "networkSecurityGroupId": "/subscriptions/%s/resourceGroups/bar/providers/Microsoft.Network/networkSecurityGroups/nsg",
+      "operatorsAuthentication": {
+        "userAssignedIdentities": {
+          "controlPlaneOperators": {
+            "kms": "/subscriptions/%s/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/kms-identity"
+          }
+        }
+      },
       "outboundType": "LoadBalancer",
       "subnetId": "/subscriptions/%s/resourceGroups/bar/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet",
       "vnetIntegrationSubnetId": "/subscriptions/%s/resourceGroups/bar/providers/Microsoft.Network/virtualNetworks/vnet/subnets/swift-subnet"
@@ -421,14 +510,16 @@ func clusterCreatePayload(clusterName, apiVersion string) []byte {
     "env": "test"
   },
   "type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
-}`, clusterName, subscriptionID, subscriptionID, subscriptionID))
+}`, subscriptionID, clusterName, subscriptionID, subscriptionID, subscriptionID, subscriptionID))
 
 	case v20260901, v20261001:
 		// v20260901 / v20261001 payload (v20261001 is an identical copy of v20260901)
 		return []byte(fmt.Sprintf(`{
   "identity": {
     "type": "UserAssigned",
-    "userAssignedIdentities": {}
+    "userAssignedIdentities": {
+      "/subscriptions/%s/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/kms-identity": {}
+    }
   },
   "name": "%s",
   "properties": {
@@ -474,6 +565,13 @@ func clusterCreatePayload(clusterName, apiVersion string) []byte {
     "platform": {
       "managedResourceGroup": "managed-rg-xvrt",
       "networkSecurityGroupId": "/subscriptions/%s/resourceGroups/bar/providers/Microsoft.Network/networkSecurityGroups/nsg",
+      "operatorsAuthentication": {
+        "userAssignedIdentities": {
+          "controlPlaneOperators": {
+            "kms": "/subscriptions/%s/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/kms-identity"
+          }
+        }
+      },
       "outboundType": "LoadBalancer",
       "subnetId": "/subscriptions/%s/resourceGroups/bar/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet",
       "vnetIntegrationSubnetId": "/subscriptions/%s/resourceGroups/bar/providers/Microsoft.Network/virtualNetworks/vnet/subnets/swift-subnet"
@@ -487,7 +585,7 @@ func clusterCreatePayload(clusterName, apiVersion string) []byte {
     "env": "test"
   },
   "type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
-}`, clusterName, subscriptionID, subscriptionID, subscriptionID))
+}`, subscriptionID, clusterName, subscriptionID, subscriptionID, subscriptionID, subscriptionID))
 
 	default:
 		panic(fmt.Sprintf("unsupported apiVersion: %s", apiVersion))
