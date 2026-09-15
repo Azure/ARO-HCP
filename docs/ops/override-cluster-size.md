@@ -14,9 +14,11 @@ Hosted Cluster control plane sizing is driven by worker node count via the `Clus
 ## Prerequisites
 
 - JIT access to the target environment's service cluster and management cluster
-- `kubectl` and `jq` available
+- `kubectl` available; `jq` for Bash commands or PowerShell 7 for Windows commands
 - Service cluster access via `hcpctl sc breakglass <sc-name>`
 - Management cluster access via `hcpctl mc breakglass <mc-name>` (for verification)
+
+Commands without an operating-system label work unchanged in both Bash and PowerShell.
 
 ## Size Tiers
 
@@ -26,13 +28,21 @@ The Admin API requires **PascalCase** size names: `Small`, `Medium`, `Large`, `X
 
 To check the currently deployed tiers on a management cluster:
 
+**Linux/macOS (Bash):**
+
 ```bash
 kubectl get clustersizingconfiguration cluster -o json | \
   jq '.spec.sizes[] | {name, criteria, effects}'
 ```
 
-> **Important**: The value must be an **exact size name** (e.g. `Large`), **not** a boolean. Setting it to `true` will silently fail — the sizing controller will log an error and apply no size.
+**Windows (PowerShell):**
 
+```powershell
+$config = kubectl get clustersizingconfiguration cluster -o json | ConvertFrom-Json
+$config.spec.sizes | Select-Object name, criteria, effects | ConvertTo-Json -Depth 10
+```
+
+> **Important**: The value must be an **exact size name** (e.g. `Large`), **not** a boolean. Setting it to `true` will silently fail — the sizing controller will log an error and apply no size.
 ---
 
 ## Procedure
@@ -43,14 +53,149 @@ This procedure uses the Admin API on the service cluster to set a persistent siz
 
 **Data flow:** Admin API → Cosmos DB (`ServiceProviderCluster.Spec.DesiredHostedClusterControlPlaneSize`) → Backend controller → Cluster Service (`CSPropertySizeOverride`) → Maestro ResourceBundle → ManifestWork → HostedCluster annotation on MC
 
+Keep three terminals open during the procedure:
+
+1. **Service cluster** — obtains and retains the service-cluster kubeconfig.
+2. **Management cluster** — captures the baseline and verifies the resize.
+3. **Admin API port-forward** — uses the service-cluster kubeconfig and remains blocked while forwarding port 8443.
+
 ### Step 1: Get Service Cluster Access
 
+**Linux/macOS (Bash):**
+
 ```bash
+# Optional: verify interactive service-cluster access.
 hcpctl sc breakglass <sc-name>
-export KUBECONFIG=<path-from-output>
+
+# Generate the kubeconfig used by the remaining steps.
+hcpctl sc breakglass <sc-name> --output /tmp/sc.kubeconfig --no-shell
+export KUBECONFIG=/tmp/sc.kubeconfig
 ```
 
-### Step 2: Port-Forward to the Admin API
+**Windows (PowerShell):**
+
+```powershell
+# Optional: verify interactive service-cluster access.
+hcpctl sc breakglass <sc-name>
+
+# Generate the kubeconfig used by the remaining steps.
+$SC_KUBECONFIG = Join-Path $env:TEMP "sc.kubeconfig"
+hcpctl sc breakglass <sc-name> --output $SC_KUBECONFIG --no-shell
+$env:KUBECONFIG = $SC_KUBECONFIG
+```
+
+### Step 2: Get Management Cluster Access
+
+In a new terminal, breakglass into management cluster.
+
+**Linux/macOS (Bash):**
+
+```bash
+# Optional: verify interactive management-cluster access.
+hcpctl mc breakglass <mc-name>
+
+# Generate the kubeconfig used by the remaining steps.
+hcpctl mc breakglass <mc-name> --output /tmp/mc.kubeconfig --no-shell
+export KUBECONFIG=/tmp/mc.kubeconfig
+```
+
+**Windows (PowerShell):**
+
+```powershell
+# Optional: verify interactive management-cluster access.
+hcpctl mc breakglass <mc-name>
+
+# Generate the kubeconfig used by the remaining steps.
+$MC_KUBECONFIG = Join-Path $env:TEMP "mc.kubeconfig"
+hcpctl mc breakglass <mc-name> --output $MC_KUBECONFIG --no-shell
+$env:KUBECONFIG = $MC_KUBECONFIG
+```
+
+### Step 3: Validate existing setup before proceeding
+
+Perform validation of existing setup in management cluster before taking any action.
+(see [Identifying the HostedCluster](#identifying-the-hostedcluster-on-the-management-cluster) for how to find the HC name):
+
+**Linux/macOS (Bash):**
+
+```bash
+HC_NS="<namespace>"
+HC_NAME="<name>"
+
+kubectl get hostedcluster "$HC_NAME" -n "$HC_NS" \
+  -o json | jq '{
+    size: .metadata.labels["hypershift.openshift.io/hosted-cluster-size"],
+    sizeOverride: .metadata.annotations["hypershift.openshift.io/cluster-size-override"],
+    maxRequests: .metadata.annotations["hypershift.openshift.io/kube-apiserver-max-requests-inflight"],
+    maxMutating: .metadata.annotations["hypershift.openshift.io/kube-apiserver-max-mutating-requests-inflight"],
+    kasMemory: .metadata.annotations["resource-request-override.hypershift.openshift.io/kube-apiserver.kube-apiserver"]
+  }'
+```
+
+**Windows (PowerShell):**
+
+```powershell
+
+$HC_NS = "<namespace>"
+$HC_NAME = "<name>"
+$hc = kubectl get hostedcluster $HC_NAME -n $HC_NS -o json | ConvertFrom-Json
+
+$hc.metadata | Select-Object `
+  @{Name='size'; Expression={
+    $_.labels.'hypershift.openshift.io/hosted-cluster-size'
+  }},
+  @{Name='sizeOverride'; Expression={
+    $_.annotations.'hypershift.openshift.io/cluster-size-override'
+  }},
+  @{Name='maxRequests'; Expression={
+    $_.annotations.'hypershift.openshift.io/kube-apiserver-max-requests-inflight'
+  }},
+  @{Name='maxMutating'; Expression={
+    $_.annotations.'hypershift.openshift.io/kube-apiserver-max-mutating-requests-inflight'
+  }},
+  @{Name='kasMemory'; Expression={
+    $_.annotations.'resource-request-override.hypershift.openshift.io/kube-apiserver.kube-apiserver'
+  }} |
+  Format-List
+```
+
+Check the readiness of KAS. Only proceed if the KAS is healthy.
+
+**Linux/macOS (Bash):**
+
+```bash
+CP_NS="${HC_NS}-${HC_NAME}"
+kubectl rollout status deployment/kube-apiserver -n "$CP_NS"
+kubectl get pods -l app=kube-apiserver -n "$CP_NS" -o wide
+```
+
+**Windows (PowerShell):**
+
+```powershell
+$CP_NS = "$HC_NS-$HC_NAME"
+kubectl rollout status deployment/kube-apiserver -n $CP_NS
+kubectl get pods -l app=kube-apiserver -n $CP_NS -o wide
+```
+
+All 3 KAS replicas should be `Running` with all containers ready (typically `6/6`).
+
+Record the HostedCluster metadata and KAS readiness output in the incident or change record before proceeding. For an upsize, choose a target tier higher than the current effective `size`; do not continue if the baseline is unhealthy or the requested tier is the same as or lower than the current tier. Use the [rollback procedure](#rollback) to remove an existing override.
+
+### Step 4: Port-Forward to the Admin API
+
+Open a third terminal and configure it with the service-cluster kubeconfig created in Step 1.
+
+**Linux/macOS (Bash):**
+
+```bash
+export KUBECONFIG=/tmp/sc.kubeconfig
+```
+
+**Windows (PowerShell):**
+
+```powershell
+$env:KUBECONFIG = Join-Path $env:TEMP "sc.kubeconfig"
+```
 
 The Admin API runs in the `aro-hcp-admin-api` namespace on port 8443 (HTTP, not HTTPS):
 
@@ -58,11 +203,13 @@ The Admin API runs in the `aro-hcp-admin-api` namespace on port 8443 (HTTP, not 
 kubectl port-forward -n aro-hcp-admin-api deployment/admin-api 8443:8443
 ```
 
-Leave this running in a separate terminal.
+Leave this command running in the third terminal. Run the request in Step 5 from the original service-cluster terminal.
 
-### Step 3: Set the Size Override
+### Step 5: Set the Size Override
 
 The Admin API requires Geneva Actions authentication headers. Construct the request using the cluster's ARM resource path:
+
+**Linux/macOS (Bash):**
 
 ```bash
 curl -s -X POST \
@@ -71,6 +218,19 @@ curl -s -X POST \
   -H "X-Ms-Client-Principal-Name: <your-email>" \
   -H "X-Ms-Client-Principal-Type: dstsUser" \
   -d '{"size": "Xlarge"}' | jq .
+```
+
+**Windows (PowerShell):**
+
+```powershell
+$uri = "http://localhost:8443/admin/v1/hcp/subscriptions/<subscription-id>/resourcegroups/<resource-group>/providers/microsoft.redhatopenshift/hcpopenshiftclusters/<cluster-name>/desiredcontrolplanesize"
+$headers = @{
+    "X-Ms-Client-Principal-Name" = "<your-email>"
+    "X-Ms-Client-Principal-Type" = "dstsUser"
+}
+$body = @{ size = "Xlarge" } | ConvertTo-Json
+
+Invoke-RestMethod -Method Post -Uri $uri -ContentType "application/json" -Headers $headers -Body $body
 ```
 
 **Parameters:**
@@ -86,19 +246,13 @@ A `200 OK` response confirms the override was written to Cosmos DB.
 
 > **Important**: Port 8443 serves HTTP, not HTTPS. Using `https://` will produce a TLS error.
 
-### Step 4: Verify on the Management Cluster
+### Step 6: Verify on the Management Cluster
 
 The override propagates through the full pipeline (Cosmos DB → Backend → Cluster Service → Maestro → ManifestWork → HostedCluster). This typically takes 1–3 minutes.
 
-Get management cluster access and verify (see [Identifying the HostedCluster](#identifying-the-hostedcluster-on-the-management-cluster) for how to find the HC name):
+**Linux/macOS (Bash):**
 
 ```bash
-hcpctl mc breakglass <mc-name>
-export KUBECONFIG=<path-from-output>
-
-HC_NS="<namespace>"
-HC_NAME="<name>"
-
 kubectl get hostedcluster "$HC_NAME" -n "$HC_NS" \
   -o json | jq '{
     size: .metadata.labels["hypershift.openshift.io/hosted-cluster-size"],
@@ -109,12 +263,48 @@ kubectl get hostedcluster "$HC_NAME" -n "$HC_NS" \
   }'
 ```
 
+**Windows (PowerShell):**
+
+```powershell
+$HC_NS = "<namespace>"
+$HC_NAME = "<name>"
+$hc = kubectl get hostedcluster $HC_NAME -n $HC_NS -o json | ConvertFrom-Json
+
+$hc.metadata | Select-Object `
+  @{Name='size'; Expression={
+    $_.labels.'hypershift.openshift.io/hosted-cluster-size'
+  }},
+  @{Name='sizeOverride'; Expression={
+    $_.annotations.'hypershift.openshift.io/cluster-size-override'
+  }},
+  @{Name='maxRequests'; Expression={
+    $_.annotations.'hypershift.openshift.io/kube-apiserver-max-requests-inflight'
+  }},
+  @{Name='maxMutating'; Expression={
+    $_.annotations.'hypershift.openshift.io/kube-apiserver-max-mutating-requests-inflight'
+  }},
+  @{Name='kasMemory'; Expression={
+    $_.annotations.'resource-request-override.hypershift.openshift.io/kube-apiserver.kube-apiserver'
+  }} |
+  Format-List
+```
+
 Confirm KAS rolled out with the new settings:
+
+**Linux/macOS (Bash):**
 
 ```bash
 CP_NS="${HC_NS}-${HC_NAME}"
 kubectl rollout status deployment/kube-apiserver -n "$CP_NS"
 kubectl get pods -l app=kube-apiserver -n "$CP_NS" -o wide
+```
+
+**Windows (PowerShell):**
+
+```powershell
+$CP_NS = "$HC_NS-$HC_NAME"
+kubectl rollout status deployment/kube-apiserver -n $CP_NS
+kubectl get pods -l app=kube-apiserver -n $CP_NS -o wide
 ```
 
 All 3 KAS replicas should be `Running` with all containers ready (typically `6/6`).
@@ -127,6 +317,8 @@ After the override is confirmed, monitor the [Grafana APF dashboard](../../obser
 
 To remove the override and let the cluster revert to node-count-based sizing, send `null` for the size:
 
+**Linux/macOS (Bash):**
+
 ```bash
 curl -s -X POST \
   "http://localhost:8443/admin/v1/hcp/subscriptions/<subscription-id>/resourcegroups/<resource-group>/providers/microsoft.redhatopenshift/hcpopenshiftclusters/<cluster-name>/desiredcontrolplanesize" \
@@ -134,6 +326,19 @@ curl -s -X POST \
   -H "X-Ms-Client-Principal-Name: <your-email>" \
   -H "X-Ms-Client-Principal-Type: dstsUser" \
   -d '{"size": null}' | jq .
+```
+
+**Windows (PowerShell):**
+
+```powershell
+$uri = "http://localhost:8443/admin/v1/hcp/subscriptions/<subscription-id>/resourcegroups/<resource-group>/providers/microsoft.redhatopenshift/hcpopenshiftclusters/<cluster-name>/desiredcontrolplanesize"
+$headers = @{
+    "X-Ms-Client-Principal-Name" = "<your-email>"
+    "X-Ms-Client-Principal-Type" = "dstsUser"
+}
+$body = @{ size = $null } | ConvertTo-Json
+
+Invoke-RestMethod -Method Post -Uri $uri -ContentType "application/json" -Headers $headers -Body $body
 ```
 
 > **Note**: The `transitionDelay.decrease` is `20m`, so the cluster will take up to 20 minutes to scale back down after the override is cleared.
@@ -146,17 +351,37 @@ HostedCluster names on the management cluster are opaque internal IDs (e.g. `c8h
 
 ### Search by subscription ID or resource name
 
+**Linux/macOS (Bash):**
+
 ```bash
 kubectl get hostedclusters -A -o json | \
   jq -r '.items[] | select(tostring | test("<subscription-id-or-resource-name>")) |
     "\(.metadata.namespace)/\(.metadata.name)  \(.metadata.labels["api.openshift.com/name"] // "unknown")"'
 ```
 
+**Windows (PowerShell):**
+
+```powershell
+$needle = "<subscription-id-or-resource-name>"
+$clusters = kubectl get hostedclusters -A -o json | ConvertFrom-Json
+$clusters.items |
+    Where-Object { ($_ | ConvertTo-Json -Depth 100 -Compress) -match [regex]::Escape($needle) } |
+    ForEach-Object { "{0}/{1}  {2}" -f $_.metadata.namespace, $_.metadata.name, $_.metadata.labels.'api.openshift.com/name' }
+```
+
 ### Search by display name label
+
+**Linux/macOS (Bash):**
 
 ```bash
 kubectl get hostedclusters -A -l "api.openshift.com/name=<display-name>" \
   -o custom-columns='NAMESPACE:.metadata.namespace,NAME:.metadata.name'
+```
+
+**Windows (PowerShell):**
+
+```powershell
+kubectl get hostedclusters -A -l "api.openshift.com/name=<display-name>" -o "custom-columns=NAMESPACE:.metadata.namespace,NAME:.metadata.name"
 ```
 
 ### Namespace conventions
@@ -186,25 +411,52 @@ conflict with "kubectl-annotate" using hypershift.openshift.io/v1beta1:
 
 **Check for the conflict:**
 
+**Linux/macOS (Bash):**
+
 ```bash
 kubectl get hostedcluster "$HC_NAME" -n "$HC_NS" -o json | \
   jq '.metadata.managedFields[] | select(.manager=="kubectl-annotate") | {manager, operation, time}'
+```
+
+**Windows (PowerShell):**
+
+```powershell
+$hc = kubectl get hostedcluster $HC_NAME -n $HC_NS -o json | ConvertFrom-Json
+$hc.metadata.managedFields |
+    Where-Object manager -EQ "kubectl-annotate" |
+    Select-Object manager, operation, time
 ```
 
 If this returns results, the conflict exists.
 
 **Fix:** Remove the annotation to release field manager ownership, then ManifestWork will immediately reapply it:
 
+**Linux/macOS (Bash):**
+
 ```bash
 kubectl annotate hostedcluster "$HC_NAME" -n "$HC_NS" \
   hypershift.openshift.io/cluster-size-override-
 ```
 
+**Windows (PowerShell):**
+
+```powershell
+kubectl annotate hostedcluster $HC_NAME -n $HC_NS "hypershift.openshift.io/cluster-size-override-"
+```
+
 Watch for ManifestWork to reapply:
+
+**Linux/macOS (Bash):**
 
 ```bash
 kubectl get hostedcluster "$HC_NAME" -n "$HC_NS" -w \
   -o jsonpath='{.metadata.annotations.hypershift\.openshift\.io/cluster-size-override}{"\t"}{.metadata.labels.hypershift\.openshift\.io/hosted-cluster-size}{"\n"}'
+```
+
+**Windows (PowerShell):**
+
+```powershell
+kubectl get hostedcluster $HC_NAME -n $HC_NS -w -o 'jsonpath={.metadata.annotations.hypershift\.openshift\.io/cluster-size-override}{"\t"}{.metadata.labels.hypershift\.openshift\.io/hosted-cluster-size}{"\n"}'
 ```
 
 The annotation will briefly disappear, then ManifestWork will reapply it with the correct value within seconds.
@@ -213,9 +465,24 @@ The annotation will briefly disappear, then ManifestWork will reapply it with th
 
 If the Admin API returns `200 OK` but the ManifestWork on the MC does not contain the new size override, the pipeline has stalled between Cosmos DB and Maestro. Check:
 
-1. **Backend controller logs** (service cluster): `kubectl logs -n aro-hcp deployment/backend -c backend --since=10m | grep -i "size"`
+1. **Backend controller logs** (service cluster):
+  - Linux/macOS: `kubectl logs -n aro-hcp deployment/aro-hcp-backend -c aro-hcp-backend --since=10m | grep -i "size"`
+  - Windows: `kubectl logs -n aro-hcp deployment/aro-hcp-backend -c aro-hcp-backend --since=10m | Select-String "size"`
 2. **Cluster Service ResourceBundle**: Port-forward to Maestro and check the ResourceBundle contains the updated annotation
-3. **ManifestWork content**: `kubectl get manifestwork -n local-cluster -o json | jq '.items[] | select(.spec.workload.manifests[]? | select(.kind=="HostedCluster" and .metadata.name=="<hc-name>")) | .status.conditions'`
+3. **ManifestWork content**:
+   - Linux/macOS:
+     `kubectl get manifestwork -n local-cluster -o json | jq '.items[] | select(.spec.workload.manifests[]? | select(.kind=="HostedCluster" and .metadata.name=="<hc-name>")) | .status.conditions'`
+   - Windows:
+     ```powershell
+     $HC_NAME = "<hc-name>"
+     $manifestWorks = kubectl get manifestwork -n local-cluster -o json | ConvertFrom-Json
+     $manifestWorks.items |
+         Where-Object {
+             $_.spec.workload.manifests |
+                 Where-Object { $_.kind -eq "HostedCluster" -and $_.metadata.name -eq $HC_NAME }
+         } |
+         ForEach-Object { $_.status.conditions }
+     ```
 
 ---
 
@@ -223,7 +490,7 @@ If the Admin API returns `200 OK` but the ManifestWork on the MC does not contai
 
 - **ClusterSizingConfiguration**: [hypershiftoperator/deploy/templates/cluster.clustersizingconfiguration.yaml](../../hypershiftoperator/deploy/templates/cluster.clustersizingconfiguration.yaml) — defines available size tiers and their effects
 - **Admin API handler**: [admin/server/handlers/hcp/desiredcontrolplanesize.go](../../admin/server/handlers/hcp/desiredcontrolplanesize.go) — writes `DesiredHostedClusterControlPlaneSize` to Cosmos DB
-- **Backend syncer**: [backend/pkg/controllers/clusterpropertiescontroller/desired_control_plane_size_sync.go](../../backend/pkg/controllers/clusterpropertiescontroller/desired_control_plane_size_sync.go) — syncs size override to Cluster Service
+- **Backend syncer**: [backend/pkg/controllers/cluster/properties/desired_control_plane_size_sync.go](../../backend/pkg/controllers/cluster/properties/desired_control_plane_size_sync.go) — syncs size override to Cluster Service
 - **ARM tag admission**: [internal/admission/admit_cluster.go](../../internal/admission/admit_cluster.go) — handles `aro-hcp.experimental.cluster.size-override` tag
 - **HyperShift sizing controller**: upstream `hostedclustersizing_controller.go` — consumes the annotation
 - **Grafana APF dashboard**: `observability/grafana-dashboards/perfscale-dashboards/api-performance.json` — monitor `apiserver_flowcontrol_*` metrics after override
@@ -234,3 +501,4 @@ If the Admin API returns `200 OK` but the ManifestWork on the MC does not contai
 - **ARO-27679**: First validated on `jude-hcp-eastus2` — ephemeral override Small → Large during Adobe load testing incident (IcM 814707269)
 - **ARO-28258**: Admin API persistent override validated on `jude-hcp-eastus2` — Small → Xlarge via `POST /desiredcontrolplanesize`, confirmed durable across ~5 hours of Maestro reconciliation (July 2025)
 - **ARO-28342**: Production resize of `arohcp4` (Canada Central) — Large → Xlarge via Admin API for Adobe/IBM customer APF throttling. Encountered and resolved SSA field ownership conflict from prior manual annotation (July 2025)
+- **IcM 866501941**: Procedure validated end to end from SAW during a production incident (September 2026)
