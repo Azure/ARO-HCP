@@ -31,20 +31,26 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	operationbase "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 // Node pool update operation state calculation for the node pool update operation controller.
+//
+// The hypershiftNodePool* functions below are free functions (not methods) so that both the
+// node pool update and create operation controllers can share this state calculation.
 
-// hypershiftNodePoolOperationState contains the node pool update operation state calculation comparing desired state
-// against Hypershift's NodePool in the management cluster.
-func (c *operationNodePoolUpdate) hypershiftNodePoolOperationState(ctx context.Context, nodePool *coreapi.HCPOpenShiftClusterNodePool, csNodePool *arohcpv1alpha1.NodePool) (*operationbase.OperationState, error) {
+// hypershiftNodePoolOperationState contains the node pool operation state calculation comparing desired state
+// against Hypershift's NodePool in the management cluster. inProgressState is the ProvisioningState reported
+// while the Hypershift NodePool has not yet converged (e.g. Provisioning for the create operation, Updating
+// for the update operation).
+func hypershiftNodePoolOperationState(ctx context.Context, readDesireLister kubeapplierlisters.ReadDesireLister, inProgressState coreapi.ProvisioningState, nodePool *coreapi.HCPOpenShiftClusterNodePool, csNodePool *arohcpv1alpha1.NodePool) (*operationbase.OperationState, error) {
 	logger := utils.LoggerFromContext(ctx)
 
 	hypershiftNodePool, err := kubeapplierhelpers.GetCachedNodePoolForNodePool(
 		ctx,
-		c.readDesireLister,
+		readDesireLister,
 		nodePool.ID.SubscriptionID,
 		nodePool.ID.ResourceGroupName,
 		nodePool.ID.Parent.Name,
@@ -54,17 +60,17 @@ func (c *operationNodePoolUpdate) hypershiftNodePoolOperationState(ctx context.C
 		return nil, utils.TrackError(err)
 	}
 	if hypershiftNodePool == nil {
-		return operationbase.NewOperationState(coreapi.ProvisioningStateUpdating, "Hypershift NodePool has not been observed yet"), nil
+		return operationbase.NewOperationState(inProgressState, "Hypershift NodePool has not been observed yet"), nil
 	}
 
-	if matches, message := c.hypershiftNodePoolSpecMatchesDesired(nodePool, csNodePool, hypershiftNodePool); !matches {
+	if matches, message := hypershiftNodePoolSpecMatchesDesired(nodePool, csNodePool, hypershiftNodePool); !matches {
 		logger.Info("hypershift NodePool spec does not match desired configuration", "message", message)
-		return operationbase.NewOperationState(coreapi.ProvisioningStateUpdating, message), nil
+		return operationbase.NewOperationState(inProgressState, message), nil
 	}
 
-	if matches, message := c.hypershiftNodePoolStatusMatchesDesired(nodePool, hypershiftNodePool.Status); !matches {
+	if matches, message := hypershiftNodePoolStatusMatchesDesired(nodePool, hypershiftNodePool.Status); !matches {
 		logger.Info("hypershift NodePool status does not match desired configuration", "message", message)
-		return operationbase.NewOperationState(coreapi.ProvisioningStateUpdating, message), nil
+		return operationbase.NewOperationState(inProgressState, message), nil
 	}
 
 	return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, ""), nil
@@ -73,17 +79,17 @@ func (c *operationNodePoolUpdate) hypershiftNodePoolOperationState(ctx context.C
 // hypershiftNodePoolSpecMatchesDesired reports whether Hypershift NodePool .Spec fields
 // and other non status configuration matches desired state. Returns false and a diagnostic message
 // when any leaf check fails. NodePool .status is not checked here.
-func (c *operationNodePoolUpdate) hypershiftNodePoolSpecMatchesDesired(nodePool *coreapi.HCPOpenShiftClusterNodePool, csNodePool *arohcpv1alpha1.NodePool, hypershiftNodePool *v1beta1.NodePool) (bool, string) {
-	if matches, message := c.hypershiftNodePoolLabelsSpecMatchesDesired(nodePool.Properties.Labels, hypershiftNodePool.Spec.NodeLabels); !matches {
+func hypershiftNodePoolSpecMatchesDesired(nodePool *coreapi.HCPOpenShiftClusterNodePool, csNodePool *arohcpv1alpha1.NodePool, hypershiftNodePool *v1beta1.NodePool) (bool, string) {
+	if matches, message := hypershiftNodePoolLabelsSpecMatchesDesired(nodePool.Properties.Labels, hypershiftNodePool.Spec.NodeLabels); !matches {
 		return false, message
 	}
-	if matches, message := c.hypershiftNodePoolReplicasOrAutoscalingSpecMatchesDesired(nodePool, hypershiftNodePool.Spec); !matches {
+	if matches, message := hypershiftNodePoolReplicasOrAutoscalingSpecMatchesDesired(nodePool, hypershiftNodePool.Spec); !matches {
 		return false, message
 	}
-	if matches, message := c.hypershiftNodePoolTaintsSpecMatchesDesired(nodePool.Properties.Taints, hypershiftNodePool.Spec.Taints); !matches {
+	if matches, message := hypershiftNodePoolTaintsSpecMatchesDesired(nodePool.Properties.Taints, hypershiftNodePool.Spec.Taints); !matches {
 		return false, message
 	}
-	if matches, message := c.hypershiftNodePoolNodeDrainTimeoutSpecMatchesDesired(nodePool, csNodePool, hypershiftNodePool.Spec.NodeDrainTimeout); !matches {
+	if matches, message := hypershiftNodePoolNodeDrainTimeoutSpecMatchesDesired(nodePool, csNodePool, hypershiftNodePool.Spec.NodeDrainTimeout); !matches {
 		return false, message
 	}
 	return true, ""
@@ -97,7 +103,7 @@ func (c *operationNodePoolUpdate) hypershiftNodePoolSpecMatchesDesired(nodePool 
 // contain labels managed by other controllers that we should not interfere with.
 // clusterServiceNodePoolSpecMatchesDesired partially compensates with an exact
 // Cluster Service labels check.
-func (c *operationNodePoolUpdate) hypershiftNodePoolLabelsSpecMatchesDesired(desired map[string]string, observed map[string]string) (bool, string) {
+func hypershiftNodePoolLabelsSpecMatchesDesired(desired map[string]string, observed map[string]string) (bool, string) {
 	for k, v := range desired {
 		if observed[k] != v {
 			return false, fmt.Sprintf("hypershift NodePool nodeLabels are %v, want at least %v", observed, desired)
@@ -108,7 +114,7 @@ func (c *operationNodePoolUpdate) hypershiftNodePoolLabelsSpecMatchesDesired(des
 
 // hypershiftNodePoolReplicasOrAutoscalingSpecMatchesDesired reports whether Hypershift NodePool
 // replicas or autoscaling spec matches desired state.
-func (c *operationNodePoolUpdate) hypershiftNodePoolReplicasOrAutoscalingSpecMatchesDesired(desired *coreapi.HCPOpenShiftClusterNodePool, observed v1beta1.NodePoolSpec) (bool, string) {
+func hypershiftNodePoolReplicasOrAutoscalingSpecMatchesDesired(desired *coreapi.HCPOpenShiftClusterNodePool, observed v1beta1.NodePoolSpec) (bool, string) {
 	if desired.Properties.AutoScaling != nil {
 		if observed.AutoScaling == nil {
 			return false, fmt.Sprintf("hypershift NodePool autoscaling is unset, want min=%d max=%d", desired.Properties.AutoScaling.Min, desired.Properties.AutoScaling.Max)
@@ -150,7 +156,7 @@ func (c *operationNodePoolUpdate) hypershiftNodePoolReplicasOrAutoscalingSpecMat
 // contain taints managed by other controllers that we should not interfere with.
 // clusterServiceNodePoolSpecMatchesDesired partially compensates with an exact
 // Cluster Service taints check.
-func (c *operationNodePoolUpdate) hypershiftNodePoolTaintsSpecMatchesDesired(desired []coreapi.Taint, observed []v1beta1.Taint) (bool, string) {
+func hypershiftNodePoolTaintsSpecMatchesDesired(desired []coreapi.Taint, observed []v1beta1.Taint) (bool, string) {
 	for _, want := range desired {
 		found := false
 		for _, got := range observed {
@@ -168,7 +174,7 @@ func (c *operationNodePoolUpdate) hypershiftNodePoolTaintsSpecMatchesDesired(des
 
 // hypershiftNodePoolNodeDrainTimeoutSpecMatchesDesired reports whether Hypershift NodePool
 // nodeDrainTimeout spec matches desired state's nodeDrainTimeoutMinutes.
-func (c *operationNodePoolUpdate) hypershiftNodePoolNodeDrainTimeoutSpecMatchesDesired(desired *coreapi.HCPOpenShiftClusterNodePool, csNodePool *arohcpv1alpha1.NodePool, observed *metav1.Duration) (bool, string) {
+func hypershiftNodePoolNodeDrainTimeoutSpecMatchesDesired(desired *coreapi.HCPOpenShiftClusterNodePool, csNodePool *arohcpv1alpha1.NodePool, observed *metav1.Duration) (bool, string) {
 	// If the desired node drain timeout is nil it means that the node pool drain timeout is inherited from the parent
 	// cluster's default that was set at the moment of the node pool creation. In that case, we
 	// want to compare the observed node drain timeout with cluster's service returned value. This is because CS does not
@@ -206,19 +212,19 @@ func (c *operationNodePoolUpdate) hypershiftNodePoolNodeDrainTimeoutSpecMatchesD
 // hypershiftNodePoolStatusMatchesDesired reports whether Hypershift NodePool .Status fields match desired
 // state. All applicable sub-checks (replicas, AllNodesHealthy, AllMachinesReady) are evaluated and every
 // failing one is included in the diagnostic message.
-func (c *operationNodePoolUpdate) hypershiftNodePoolStatusMatchesDesired(nodePool *coreapi.HCPOpenShiftClusterNodePool, observed v1beta1.NodePoolStatus) (bool, string) {
+func hypershiftNodePoolStatusMatchesDesired(nodePool *coreapi.HCPOpenShiftClusterNodePool, observed v1beta1.NodePoolStatus) (bool, string) {
 	var messages []string
 
-	if matches, message := c.hypershiftNodePoolStatusReplicasMatchesDesired(nodePool, observed.Replicas); !matches {
+	if matches, message := hypershiftNodePoolStatusReplicasMatchesDesired(nodePool, observed.Replicas); !matches {
 		messages = append(messages, message)
 	}
 
 	// Skip machine health condition checks when scaling to zero -- there are no machines to be ready.
 	if nodePool.Properties.Replicas > 0 || nodePool.Properties.AutoScaling != nil {
-		if matches, message := c.hypershiftNodePoolConditionStatusMatchesDesired(observed.Conditions, v1beta1.NodePoolAllNodesHealthyConditionType); !matches {
+		if matches, message := hypershiftNodePoolConditionStatusMatchesDesired(observed.Conditions, v1beta1.NodePoolAllNodesHealthyConditionType); !matches {
 			messages = append(messages, message)
 		}
-		if matches, message := c.hypershiftNodePoolConditionStatusMatchesDesired(observed.Conditions, v1beta1.NodePoolAllMachinesReadyConditionType); !matches {
+		if matches, message := hypershiftNodePoolConditionStatusMatchesDesired(observed.Conditions, v1beta1.NodePoolAllMachinesReadyConditionType); !matches {
 			messages = append(messages, message)
 		}
 	}
@@ -231,7 +237,7 @@ func (c *operationNodePoolUpdate) hypershiftNodePoolStatusMatchesDesired(nodePoo
 
 // hypershiftNodePoolConditionStatusMatchesDesired reports whether the named Hypershift NodePool condition
 // is reporting a healthy (ConditionTrue) status.
-func (c *operationNodePoolUpdate) hypershiftNodePoolConditionStatusMatchesDesired(conditions []v1beta1.NodePoolCondition, conditionType string) (bool, string) {
+func hypershiftNodePoolConditionStatusMatchesDesired(conditions []v1beta1.NodePoolCondition, conditionType string) (bool, string) {
 	for _, condition := range conditions {
 		if condition.Type == conditionType {
 			if condition.Status != corev1.ConditionTrue {
@@ -245,7 +251,7 @@ func (c *operationNodePoolUpdate) hypershiftNodePoolConditionStatusMatchesDesire
 
 // hypershiftNodePoolStatusReplicasMatchesDesired reports whether Hypershift NodePool status replicas
 // match desired state's replicas or autoscaling bounds.
-func (c *operationNodePoolUpdate) hypershiftNodePoolStatusReplicasMatchesDesired(desired *coreapi.HCPOpenShiftClusterNodePool, observedReplicas int32) (bool, string) {
+func hypershiftNodePoolStatusReplicasMatchesDesired(desired *coreapi.HCPOpenShiftClusterNodePool, observedReplicas int32) (bool, string) {
 	if desired.Properties.AutoScaling != nil {
 		if observedReplicas < desired.Properties.AutoScaling.Min {
 			return false, fmt.Sprintf("hypershift NodePool status replicas is %d, want >= %d (autoscaling min)", observedReplicas, desired.Properties.AutoScaling.Min)

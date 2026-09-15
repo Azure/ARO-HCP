@@ -3,7 +3,7 @@
 This reference covers every concrete controller in the current checkout: backend,
 fleet, kube-applier, management-agent, sessiongate, and shared informer management.
 It maps their inputs, decisions and effects across Cosmos DB, Azure, Cluster Service
-and Kubernetes. Source baseline: `7997fa34a240560a792c3dd410396cd7651a9f39`.
+and Kubernetes. Source baseline: `4486e894cf6c3735e56e2e67eb3e79b4ec154ecf`.
 
 The generation instructions are maintained in [controller-data-flow.md](prompts/controller-data-flow.md).
 The historical filename is retained for existing links.
@@ -1304,7 +1304,7 @@ The [operation poller](../backend/pkg/controllers/cluster/operations/operation_c
 
 ![Node pool create controller digraph](diagrams/controller-flows/nodepool-create.png)
 
-[Node-pool creation](../backend/pkg/controllers/nodepool/creation/node_pool_cluster_service_create_controller.go) needs the parent Cluster Service ID, but POST does not wait for the service-provider desired version. [Create-operation completion](../backend/pkg/controllers/nodepool/operations/operation_node_pool_create.go) uses Cluster Service node-pool status; Kubernetes version observation feeds subsequent upgrade decisions independently.
+[Node-pool creation](../backend/pkg/controllers/nodepool/creation/node_pool_cluster_service_create_controller.go) needs the parent Cluster Service ID, but POST does not wait for the service-provider desired version. [Create-operation completion](../backend/pkg/controllers/nodepool/operations/operation_node_pool_create.go) combines Cluster Service node-pool status with the mirrored HyperShift NodePool spec/status (replicas plus AllNodesHealthy and AllMachinesReady, both health checks skipped for fixed zero replicas), reusing the update poller's shared check and reporting `Provisioning` until it converges. Kubernetes version observation feeds subsequent upgrade decisions independently.
 
 ### Node pool update
 

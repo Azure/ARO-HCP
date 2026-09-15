@@ -29,6 +29,7 @@ digraph nodepool_create {
   read -> mirror [label="ReadDesire"];
   mirror -> active [label="observed version"];
   cs -> op [label="external state"];
+  mirror -> op [label="spec + replicas + health conditions\n(health skipped at fixed zero)"];
   op -> done [label="complete or fail"];
   observed [label="Customer resource Status.ActiveVersions\nfull OCP versions", fillcolor="#e4f2e5", color="#4c8053"];
   active -> observed [label="separate Cosmos replace"];

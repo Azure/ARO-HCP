@@ -494,13 +494,11 @@ func TestHypershiftNodePoolOperationState(t *testing.T) {
 			ctx := context.Background()
 			ctx = utils.ContextWithLogger(ctx, testr.New(t))
 
-			controller := &operationNodePoolUpdate{
-				readDesireLister: &kubeapplierlistertesting.SliceReadDesireLister{
-					Desires: tt.readDesires,
-				},
+			readDesireLister := &kubeapplierlistertesting.SliceReadDesireLister{
+				Desires: tt.readDesires,
 			}
 
-			state, err := controller.hypershiftNodePoolOperationState(ctx, tt.nodePool, tt.csNodePool)
+			state, err := hypershiftNodePoolOperationState(ctx, readDesireLister, coreapi.ProvisioningStateUpdating, tt.nodePool, tt.csNodePool)
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantState, state.ProvisioningState)
 			if tt.wantMessageSubstr != "" {
@@ -621,8 +619,6 @@ func TestClusterServiceNodePoolSpecOperationState(t *testing.T) {
 func TestHypershiftNodePoolLabelsSpecMatchesDesired(t *testing.T) {
 	t.Parallel()
 
-	controller := &operationNodePoolUpdate{}
-
 	tests := []struct {
 		name       string
 		desired    map[string]string
@@ -673,7 +669,7 @@ func TestHypershiftNodePoolLabelsSpecMatchesDesired(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			match, msg := controller.hypershiftNodePoolLabelsSpecMatchesDesired(tt.desired, tt.observed)
+			match, msg := hypershiftNodePoolLabelsSpecMatchesDesired(tt.desired, tt.observed)
 			assert.Equal(t, tt.wantMatch, match)
 			if tt.wantSubstr != "" {
 				assert.Contains(t, msg, tt.wantSubstr)
@@ -684,8 +680,6 @@ func TestHypershiftNodePoolLabelsSpecMatchesDesired(t *testing.T) {
 
 func TestHypershiftNodePoolReplicasOrAutoscalingSpecMatchesDesired(t *testing.T) {
 	t.Parallel()
-
-	controller := &operationNodePoolUpdate{}
 
 	tests := []struct {
 		name       string
@@ -785,7 +779,7 @@ func TestHypershiftNodePoolReplicasOrAutoscalingSpecMatchesDesired(t *testing.T)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			match, msg := controller.hypershiftNodePoolReplicasOrAutoscalingSpecMatchesDesired(tt.desired, tt.observed)
+			match, msg := hypershiftNodePoolReplicasOrAutoscalingSpecMatchesDesired(tt.desired, tt.observed)
 			assert.Equal(t, tt.wantMatch, match)
 			if tt.wantSubstr != "" {
 				assert.Contains(t, msg, tt.wantSubstr)
@@ -796,8 +790,6 @@ func TestHypershiftNodePoolReplicasOrAutoscalingSpecMatchesDesired(t *testing.T)
 
 func TestHypershiftNodePoolTaintsSpecMatchesDesired(t *testing.T) {
 	t.Parallel()
-
-	controller := &operationNodePoolUpdate{}
 
 	tests := []struct {
 		name       string
@@ -864,7 +856,7 @@ func TestHypershiftNodePoolTaintsSpecMatchesDesired(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			match, msg := controller.hypershiftNodePoolTaintsSpecMatchesDesired(tt.desired, tt.observed)
+			match, msg := hypershiftNodePoolTaintsSpecMatchesDesired(tt.desired, tt.observed)
 			assert.Equal(t, tt.wantMatch, match)
 			if tt.wantSubstr != "" {
 				assert.Contains(t, msg, tt.wantSubstr)
@@ -875,8 +867,6 @@ func TestHypershiftNodePoolTaintsSpecMatchesDesired(t *testing.T) {
 
 func TestHypershiftNodePoolNodeDrainTimeoutSpecMatchesDesired(t *testing.T) {
 	t.Parallel()
-
-	controller := &operationNodePoolUpdate{}
 
 	baseDesired := &coreapi.HCPOpenShiftClusterNodePool{
 		Properties: coreapi.HCPOpenShiftClusterNodePoolProperties{},
@@ -1037,7 +1027,7 @@ func TestHypershiftNodePoolNodeDrainTimeoutSpecMatchesDesired(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			match, msg := controller.hypershiftNodePoolNodeDrainTimeoutSpecMatchesDesired(tt.desired, tt.cs(t), tt.observed)
+			match, msg := hypershiftNodePoolNodeDrainTimeoutSpecMatchesDesired(tt.desired, tt.cs(t), tt.observed)
 			assert.Equal(t, tt.wantMatch, match)
 			if tt.wantSubstr != "" {
 				assert.Contains(t, msg, tt.wantSubstr)
@@ -1048,8 +1038,6 @@ func TestHypershiftNodePoolNodeDrainTimeoutSpecMatchesDesired(t *testing.T) {
 
 func TestHypershiftNodePoolStatusReplicasMatchesDesired(t *testing.T) {
 	t.Parallel()
-
-	controller := &operationNodePoolUpdate{}
 
 	tests := []struct {
 		name             string
@@ -1112,7 +1100,7 @@ func TestHypershiftNodePoolStatusReplicasMatchesDesired(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			match, msg := controller.hypershiftNodePoolStatusReplicasMatchesDesired(tt.desired, tt.observedReplicas)
+			match, msg := hypershiftNodePoolStatusReplicasMatchesDesired(tt.desired, tt.observedReplicas)
 			assert.Equal(t, tt.wantMatch, match)
 			if tt.wantSubstr != "" {
 				assert.Contains(t, msg, tt.wantSubstr)
@@ -1123,8 +1111,6 @@ func TestHypershiftNodePoolStatusReplicasMatchesDesired(t *testing.T) {
 
 func TestHypershiftNodePoolConditionStatusMatchesDesired(t *testing.T) {
 	t.Parallel()
-
-	controller := &operationNodePoolUpdate{}
 
 	tests := []struct {
 		name          string
@@ -1186,7 +1172,7 @@ func TestHypershiftNodePoolConditionStatusMatchesDesired(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			match, msg := controller.hypershiftNodePoolConditionStatusMatchesDesired(tt.conditions, tt.conditionType)
+			match, msg := hypershiftNodePoolConditionStatusMatchesDesired(tt.conditions, tt.conditionType)
 			assert.Equal(t, tt.wantMatch, match)
 			if tt.wantSubstr != "" {
 				assert.Contains(t, msg, tt.wantSubstr)
@@ -1197,8 +1183,6 @@ func TestHypershiftNodePoolConditionStatusMatchesDesired(t *testing.T) {
 
 func TestHypershiftNodePoolStatusMatchesDesired(t *testing.T) {
 	t.Parallel()
-
-	controller := &operationNodePoolUpdate{}
 
 	tests := []struct {
 		name        string
@@ -1344,7 +1328,7 @@ func TestHypershiftNodePoolStatusMatchesDesired(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			match, msg := controller.hypershiftNodePoolStatusMatchesDesired(tt.desired, tt.observed)
+			match, msg := hypershiftNodePoolStatusMatchesDesired(tt.desired, tt.observed)
 			assert.Equal(t, tt.wantMatch, match)
 			for _, wantSubstr := range tt.wantSubstrs {
 				assert.Contains(t, msg, wantSubstr)
