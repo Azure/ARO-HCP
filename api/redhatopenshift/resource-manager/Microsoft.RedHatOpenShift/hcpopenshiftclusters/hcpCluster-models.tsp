@@ -122,7 +122,7 @@ model HcpOpenShiftClusterProperties {
    * Valid values are in minutes and from 0 to 10080 minutes (1 week).
    * 0 means that the MachinePool can be drained without any time limitation.
    *
-   * This is the value is used a default for all NodePools. It can be overridden
+   * This value is used as a default for all NodePools. It can be overridden
    * by specifying nodeDrainTimeoutMinutes for a given NodePool
    */
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
@@ -229,8 +229,8 @@ model DnsProfile {
   @visibility(Lifecycle.Read)
   baseDomain?: string;
 
-  /**  BaseDomainPrefix is the unique name of the cluster representing the OpenShift's cluster name.
-   * BaseDomainPrefix is the name that will appear in the cluster's DNS, provisioned cloud providers resources
+  /**  BaseDomainPrefix is a prefix used in cluster endpoint DNS names
+   * and the names of related Azure resources.
    * */
   @visibility(Lifecycle.Read, Lifecycle.Create)
   @maxLength(15)
@@ -339,7 +339,7 @@ union IngressType {
 
 /** Azure specific configuration */
 model PlatformProfile {
-  /** Resource group name to put cluster resources
+  /** The name of the resource group to put cluster resources in.
    *
    * If not specified then a unique name is generated from the
    * following pattern
@@ -353,7 +353,7 @@ model PlatformProfile {
   @visibility(Lifecycle.Read, Lifecycle.Create)
   managedResourceGroup?: string;
 
-  /** The Azure resource ID of the worker subnet
+  /** The Azure resource ID of the worker subnet.
    * Note that a subnet cannot be reused between ARO-HCP Clusters.
    */
   @visibility(Lifecycle.Read, Lifecycle.Create)
@@ -393,12 +393,12 @@ model PlatformProfile {
 /** ClusterAutoscaling specifies auto-scaling behavior that
  *  applies to all NodePools associated with a control plane. */
 model ClusterAutoscalingProfile {
-  /** maxNodesTotal is the maximum allowable number of nodes for the Autoscaler scale out to be operational.
-   * The autoscaler will not grow the cluster beyond this number. If omitted, the autoscaler will not have a maximum limit. */
+  /** maxNodesTotal is the maximum allowable number of nodes. The autoscaler will not grow the cluster beyond this number.
+   * If omitted, the autoscaler will not have a maximum limit. */
   @minValue(0)
   maxNodesTotal?: int32;
 
-  /** maxPodGracePeriod is the maximum seconds to wait for graceful pod termination before scaling down a NodePool.
+  /** maxPodGracePeriodSeconds is the maximum amount of time in seconds to wait for graceful pod termination before scaling down a NodePool.
    * The default is 600 seconds.
    */
   // Note: The default value is not declared in the API specification because
@@ -784,15 +784,15 @@ model NodePoolProperties {
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   autoScaling?: NodePoolAutoScaling;
 
-  /** Kubernetes labels to propagate to the NodePool Nodes
+  /** Kubernetes labels to propagate to the NodePool Nodes.
    * Note that when the labels are updated this is only applied to newly
-   * created nodes in the Nodepool, existing node labels remain unchanged.
+   * created nodes in the NodePool, existing node labels remain unchanged.
    */
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   @identifiers(#["key", "value"])
   labels?: Label[];
 
-  /** Taints for the nodes */
+  /** Taints for the nodes. */
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   @identifiers(#["key", "value", "effect"])
   taints?: Taint[];
@@ -893,7 +893,7 @@ model NodePoolVersionProfile {
 
 /** Azure node pool platform configuration */
 model NodePoolPlatformProfile {
-  /** The Azure resource ID of the worker subnet
+  /** The Azure resource ID of the worker subnet.
    * Note that a subnet cannot be reused between ARO-HCP Clusters, however the
    * same subnet can be used for NodePools of the same cluster.
    */
@@ -1295,17 +1295,16 @@ model TokenIssuerProfile {
    * */
   url: url;
 
-  /** This configures the acceptable audiences the JWT token, issued by the identity
-   * provider, must be issued to. At least one of the entries must match the
-   * 'aud' claim in the JWT token.
+  /** This configures the acceptable audiences for JWT tokens issued by the identity provider.
+   * At least one of the entries must match the 'aud' claim in the JWT token.
    *
-   * audiences must contain at least one entry and must not exceed ten entries.
+   * Audiences must contain at least one entry and must not exceed ten entries.
    */
   @minItems(1)
   @maxItems(10)
   audiences: string[];
 
-  /** The issuer of the token
+  /** The issuer of the token.
    *
    * Certificate bundle to use to validate server certificates for the configured URL.
    * It must be PEM encoded and when not specified, the system trust is used.
@@ -1382,10 +1381,10 @@ model ExternalAuthClientComponentProfile {
 
 /** External Auth claim profile */
 model ExternalAuthClaimProfile {
-  /** The claim mappings */
+  /** The claim mappings. */
   mappings: TokenClaimMappingsProfile;
 
-  /** The claim validation rules */
+  /** The claim validation rules. */
   @identifiers(#["type", "requiredClaim"])
   validationRules?: TokenClaimValidationRule[];
 }
@@ -1415,8 +1414,8 @@ model GroupClaimProfile {
   @maxLength(256)
   claim: string;
 
-  /** Prefix for the claim external profile
-   * If this is specified prefixPolicy will be set to "Prefix" by default
+  /** Prefix for the claim external profile.
+   * If this is specified, prefixPolicy will be set to "Prefix" by default.
    */
   prefix?: string;
 }
@@ -1431,7 +1430,7 @@ model UsernameClaimProfile {
   @maxLength(256)
   claim: string;
 
-  /** Prefix for the claim external profile
+  /** Prefix for the claim external profile.
    * Must be set when the prefixPolicy field is set to 'Prefix' and must be unset
    * otherwise.
    */

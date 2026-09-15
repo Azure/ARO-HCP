@@ -31,11 +31,12 @@ type ClusterAutoscalingProfile struct {
 	// provisioning to be unsuccessful. The default is 900 seconds, or 15 minutes.
 	MaxNodeProvisionTimeSeconds *int32
 
-	// maxNodesTotal is the maximum allowable number of nodes for the Autoscaler scale out to be operational.
-	// The autoscaler will not grow the cluster beyond this number. If omitted, the autoscaler will not have a maximum limit.
+	// maxNodesTotal is the maximum allowable number of nodes. The autoscaler will not grow the cluster beyond this number.
+	// If omitted, the autoscaler will not have a maximum limit.
 	MaxNodesTotal *int32
 
-	// maxPodGracePeriod is the maximum seconds to wait for graceful pod termination before scaling down a NodePool.
+	// maxPodGracePeriodSeconds is the maximum amount of time in seconds to wait for graceful pod termination before scaling down
+	// a NodePool.
 	// The default is 600 seconds.
 	MaxPodGracePeriodSeconds *int32
 
@@ -106,8 +107,8 @@ type CustomerManagedEncryptionProfile struct {
 
 // DNSProfile - DNS contains the DNS settings of the cluster
 type DNSProfile struct {
-	// BaseDomainPrefix is the unique name of the cluster representing the OpenShift's cluster name.
-	// BaseDomainPrefix is the name that will appear in the cluster's DNS, provisioned cloud providers resources
+	// BaseDomainPrefix is a prefix used in cluster endpoint DNS names
+	// and the names of related Azure resources.
 	BaseDomainPrefix *string
 
 	// READ-ONLY; BaseDomain is the base DNS domain of the cluster.
@@ -151,10 +152,10 @@ type ExternalAuth struct {
 
 // ExternalAuthClaimProfile - External Auth claim profile
 type ExternalAuthClaimProfile struct {
-	// REQUIRED; The claim mappings
+	// REQUIRED; The claim mappings.
 	Mappings *TokenClaimMappingsProfile
 
-	// The claim validation rules
+	// The claim validation rules.
 	ValidationRules []*TokenClaimValidationRule
 }
 
@@ -239,8 +240,8 @@ type GroupClaimProfile struct {
 	// REQUIRED; Claim name of the external profile
 	Claim *string
 
-	// Prefix for the claim external profile
-	// If this is specified prefixPolicy will be set to "Prefix" by default
+	// Prefix for the claim external profile.
+	// If this is specified, prefixPolicy will be set to "Prefix" by default.
 	Prefix *string
 }
 
@@ -338,7 +339,7 @@ type HcpOpenShiftClusterProperties struct {
 	// especially relevant to cluster upgrades.
 	// Valid values are in minutes and from 0 to 10080 minutes (1 week).
 	// 0 means that the MachinePool can be drained without any time limitation.
-	// This is the value is used a default for all NodePools. It can be overridden
+	// This value is used as a default for all NodePools. It can be overridden
 	// by specifying nodeDrainTimeoutMinutes for a given NodePool
 	NodeDrainTimeoutMinutes *int32
 
@@ -619,7 +620,7 @@ type NodePoolPlatformProfile struct {
 	// The settings and configuration options for OSDisk
 	OSDisk *OsDiskProfile
 
-	// The Azure resource ID of the worker subnet
+	// The Azure resource ID of the worker subnet.
 	// Note that a subnet cannot be reused between ARO-HCP Clusters, however the
 	// same subnet can be used for NodePools of the same cluster.
 	SubnetID *string
@@ -642,9 +643,9 @@ type NodePoolProperties struct {
 	// Representation of a autoscaling in a node pool.
 	AutoScaling *NodePoolAutoScaling
 
-	// Kubernetes labels to propagate to the NodePool Nodes
+	// Kubernetes labels to propagate to the NodePool Nodes.
 	// Note that when the labels are updated this is only applied to newly
-	// created nodes in the Nodepool, existing node labels remain unchanged.
+	// created nodes in the NodePool, existing node labels remain unchanged.
 	Labels []*Label
 
 	// nodeDrainTimeoutMinutes is the grace period for how long Pod Disruption Budget-protected workloads will be
@@ -663,7 +664,7 @@ type NodePoolProperties struct {
 	// - No maximum when availabilityZone is specified
 	Replicas *int32
 
-	// Taints for the nodes
+	// Taints for the nodes.
 	Taints []*Taint
 
 	// OpenShift version for the nodepool
@@ -800,7 +801,7 @@ type PlatformProfile struct {
 	// REQUIRED; The configuration that the operators of the cluster have to authenticate to Azure
 	OperatorsAuthentication *OperatorsAuthenticationProfile
 
-	// REQUIRED; The Azure resource ID of the worker subnet
+	// REQUIRED; The Azure resource ID of the worker subnet.
 	// Note that a subnet cannot be reused between ARO-HCP Clusters.
 	SubnetID *string
 
@@ -810,7 +811,7 @@ type PlatformProfile struct {
 	// and cannot be shared with the cluster subnet or any node pool subnets.
 	VnetIntegrationSubnetID *string
 
-	// Resource group name to put cluster resources
+	// The name of the resource group to put cluster resources in.
 	// If not specified then a unique name is generated from the
 	// following pattern
 	// "aro-hcp-" + clusterName + "-" + UUID
@@ -893,10 +894,9 @@ type TokenClaimValidationRule struct {
 // This configures how the platform interacts with the identity provider and
 // how tokens issued from the identity provider are evaluated by the Kubernetes API server.
 type TokenIssuerProfile struct {
-	// REQUIRED; This configures the acceptable audiences the JWT token, issued by the identity
-	// provider, must be issued to. At least one of the entries must match the
-	// 'aud' claim in the JWT token.
-	// audiences must contain at least one entry and must not exceed ten entries.
+	// REQUIRED; This configures the acceptable audiences for JWT tokens issued by the identity provider.
+	// At least one of the entries must match the 'aud' claim in the JWT token.
+	// Audiences must contain at least one entry and must not exceed ten entries.
 	Audiences []*string
 
 	// REQUIRED; This configures the URL used to issue tokens by the identity provider.
@@ -905,7 +905,7 @@ type TokenIssuerProfile struct {
 	// issuerURL must use the 'https' scheme.
 	URL *string
 
-	// The issuer of the token
+	// The issuer of the token.
 	// Certificate bundle to use to validate server certificates for the configured URL.
 	// It must be PEM encoded and when not specified, the system trust is used.
 	CA *string
@@ -959,7 +959,7 @@ type UsernameClaimProfile struct {
 	// REQUIRED; Claim name of the external profile
 	Claim *string
 
-	// Prefix for the claim external profile
+	// Prefix for the claim external profile.
 	// Must be set when the prefixPolicy field is set to 'Prefix' and must be unset
 	// otherwise.
 	Prefix *string
