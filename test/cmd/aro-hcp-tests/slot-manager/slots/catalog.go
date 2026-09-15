@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
@@ -165,6 +166,7 @@ func (c *Catalog) Validate() error {
 			pool.SubscriptionName = strings.TrimSpace(pool.SubscriptionName)
 			pool.Region = strings.TrimSpace(pool.Region)
 			pool.Regions = trimValues(pool.Regions)
+			poolRegions := sets.New(pool.Regions...)
 			pool.RegionMode = strings.TrimSpace(pool.RegionMode)
 			if pool.RegionMode == "" {
 				pool.RegionMode = RegionModeFixed
@@ -185,7 +187,7 @@ func (c *Catalog) Validate() error {
 				return fmt.Errorf("environment %q weighted pool %s must not declare region", environmentName, describePool(*pool))
 			case pool.RegionMode == RegionModeWeighted && len(pool.Regions) == 0:
 				return fmt.Errorf("environment %q weighted pool %s has no regions", environmentName, describePool(*pool))
-			case pool.RegionMode == RegionModeWeighted && hasDuplicateOrEmptyValue(pool.Regions):
+			case pool.RegionMode == RegionModeWeighted && (poolRegions.Has("") || poolRegions.Len() != len(pool.Regions)):
 				return fmt.Errorf("environment %q weighted pool %s has empty or duplicate regions", environmentName, describePool(*pool))
 			case pool.RegionMode == RegionModeWeighted && pool.IdentityProvisioningRegion == "":
 				return fmt.Errorf("environment %q weighted pool %s must declare identity_provisioning_region", environmentName, describePool(*pool))
@@ -213,7 +215,7 @@ func (c *Catalog) Validate() error {
 					environmentRegionMode,
 					pool.RegionMode,
 				)
-			} else if pool.RegionMode == RegionModeWeighted && !equalValues(pool.Regions, environmentRegions) {
+			} else if pool.RegionMode == RegionModeWeighted && !slices.Equal(pool.Regions, environmentRegions) {
 				return fmt.Errorf(
 					"environment %q weighted pools must declare the same ordered regions; got %q and %q",
 					environmentName,
@@ -246,29 +248,6 @@ func trimValues(values []string) []string {
 		trimmed[i] = strings.TrimSpace(value)
 	}
 	return trimmed
-}
-
-func hasDuplicateOrEmptyValue(values []string) bool {
-	seen := sets.New[string]()
-	for _, value := range values {
-		if value == "" || seen.Has(value) {
-			return true
-		}
-		seen.Insert(value)
-	}
-	return false
-}
-
-func equalValues(left, right []string) bool {
-	if len(left) != len(right) {
-		return false
-	}
-	for i := range left {
-		if left[i] != right[i] {
-			return false
-		}
-	}
-	return true
 }
 
 func (c *Catalog) EnvironmentNames() []string {

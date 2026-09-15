@@ -17,6 +17,7 @@ package slots
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -399,7 +400,7 @@ environments:
 	if err != nil {
 		t.Fatalf("expected weighted regions to resolve: %v", err)
 	}
-	if got, want := regions, []string{"westus3", "centralus", "canadacentral"}; !equalValues(got, want) {
+	if got, want := regions, []string{"westus3", "centralus", "canadacentral"}; !slices.Equal(got, want) {
 		t.Fatalf("unexpected weighted regions: got %v want %v", got, want)
 	}
 
