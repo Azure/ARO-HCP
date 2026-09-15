@@ -74,6 +74,38 @@ Customer should be able to successfully upgrade control plane minor version from
 Customer should be able to successfully upgrade control plane minor version from 5.9 minor to 5.10 minor
 Customer should be able to successfully upgrade control plane minor version from 5.10 minor to 5.11 minor
 Customer should be able to successfully upgrade control plane minor version from 5.11 minor to 5.12 minor
+Customer should upgrade control plane minor version when dataplane is degraded from 4.20 minor to 4.21 minor with cordoned nodes
+Customer should upgrade control plane minor version when dataplane is degraded from 4.21 minor to 4.22 minor with cordoned nodes
+Customer should upgrade control plane minor version when dataplane is degraded from 4.22 minor to 4.23 minor with cordoned nodes
+Customer should upgrade control plane minor version when dataplane is degraded from 4.22 minor to 5.0 minor with cordoned nodes
+Customer should upgrade control plane minor version when dataplane is degraded from 5.0 minor to 5.1 minor with cordoned nodes
+Customer should upgrade control plane minor version when dataplane is degraded from 5.1 minor to 5.2 minor with cordoned nodes
+Customer should upgrade control plane minor version when dataplane is degraded from 5.2 minor to 5.3 minor with cordoned nodes
+Customer should upgrade control plane minor version when dataplane is degraded from 5.3 minor to 5.4 minor with cordoned nodes
+Customer should upgrade control plane minor version when dataplane is degraded from 5.4 minor to 5.5 minor with cordoned nodes
+Customer should upgrade control plane minor version when dataplane is degraded from 5.5 minor to 5.6 minor with cordoned nodes
+Customer should upgrade control plane minor version when dataplane is degraded from 5.6 minor to 5.7 minor with cordoned nodes
+Customer should upgrade control plane minor version when dataplane is degraded from 5.7 minor to 5.8 minor with cordoned nodes
+Customer should upgrade control plane minor version when dataplane is degraded from 5.8 minor to 5.9 minor with cordoned nodes
+Customer should upgrade control plane minor version when dataplane is degraded from 5.9 minor to 5.10 minor with cordoned nodes
+Customer should upgrade control plane minor version when dataplane is degraded from 5.10 minor to 5.11 minor with cordoned nodes
+Customer should upgrade control plane minor version when dataplane is degraded from 5.11 minor to 5.12 minor with cordoned nodes
+Customer should upgrade control plane minor version when dataplane is degraded from 4.20 minor to 4.21 minor with pod-deny webhook
+Customer should upgrade control plane minor version when dataplane is degraded from 4.21 minor to 4.22 minor with pod-deny webhook
+Customer should upgrade control plane minor version when dataplane is degraded from 4.22 minor to 4.23 minor with pod-deny webhook
+Customer should upgrade control plane minor version when dataplane is degraded from 4.22 minor to 5.0 minor with pod-deny webhook
+Customer should upgrade control plane minor version when dataplane is degraded from 5.0 minor to 5.1 minor with pod-deny webhook
+Customer should upgrade control plane minor version when dataplane is degraded from 5.1 minor to 5.2 minor with pod-deny webhook
+Customer should upgrade control plane minor version when dataplane is degraded from 5.2 minor to 5.3 minor with pod-deny webhook
+Customer should upgrade control plane minor version when dataplane is degraded from 5.3 minor to 5.4 minor with pod-deny webhook
+Customer should upgrade control plane minor version when dataplane is degraded from 5.4 minor to 5.5 minor with pod-deny webhook
+Customer should upgrade control plane minor version when dataplane is degraded from 5.5 minor to 5.6 minor with pod-deny webhook
+Customer should upgrade control plane minor version when dataplane is degraded from 5.6 minor to 5.7 minor with pod-deny webhook
+Customer should upgrade control plane minor version when dataplane is degraded from 5.7 minor to 5.8 minor with pod-deny webhook
+Customer should upgrade control plane minor version when dataplane is degraded from 5.8 minor to 5.9 minor with pod-deny webhook
+Customer should upgrade control plane minor version when dataplane is degraded from 5.9 minor to 5.10 minor with pod-deny webhook
+Customer should upgrade control plane minor version when dataplane is degraded from 5.10 minor to 5.11 minor with pod-deny webhook
+Customer should upgrade control plane minor version when dataplane is degraded from 5.11 minor to 5.12 minor with pod-deny webhook
 Engineering should be able to retrieve expected metrics from the /metrics endpoint
 Customer should be able to create a cluster with an external auth config and get the external auth config
 Customer should be able to lifecycle and confirm external auth on a cluster
