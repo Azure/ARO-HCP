@@ -11,8 +11,14 @@ tests:
     values: "0.0001+0x80"
   - series: 'sli:frontend_http:availability:rate5m{cluster="svc-1"}'
     values: "0.9999+0x80"
-  - series: 'sli:frontend_http:latency_p99:rate5m{cluster="svc-1"}'
-    values: "0.5+0x80"
+  - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-1", le="+Inf", route="/test", prometheus_replica="a"}'
+    values: "0+100x80"
+  - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-1", le="1.0", route="/test", prometheus_replica="a"}'
+    values: "0+100x80"
+  - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-1", le="+Inf", route="/test", prometheus_replica="b"}'
+    values: "0+100x80"
+  - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-1", le="1.0", route="/test", prometheus_replica="b"}'
+    values: "0+100x80"
   - series: 'sli:frontend:ready:ratio5m{cluster="svc-1"}'
     values: "1+0x80"
   - series: 'sli:frontend:saturation_cpu:ratio5m{cluster="svc-1"}'
@@ -41,13 +47,13 @@ tests:
     alertname: userJourneyFrontendAvailability3d6h
     exp_alerts: []
   - eval_time: 70m
-    alertname: userJourneyFrontendLatencyP991h5m
+    alertname: userJourneyFrontendLatency1h5m
     exp_alerts: []
   - eval_time: 70m
-    alertname: userJourneyFrontendLatencyP996h30m
+    alertname: userJourneyFrontendLatency6h30m
     exp_alerts: []
   - eval_time: 70m
-    alertname: userJourneyFrontendLatencyP993d6h
+    alertname: userJourneyFrontendLatency3d6h
     exp_alerts: []
   - eval_time: 70m
     alertname: userJourneyFrontendSaturationCPU
@@ -151,17 +157,22 @@ tests:
     alertname: userJourneyFrontendAvailability1h5m
     exp_alerts: []
 - interval: 5m
-  # Latency medium (p99 > 1s) - not fast (p99 > 5s).
-  # 5m step x90 covers 7h30m so avg_over_time[6h] is populated; eval after 6h+for:15m.
+  # Latency medium burn: 7% slow exceeds 6%, but remains below the 14.4% fast threshold.
   input_series:
-  - series: 'sli:frontend_http:latency_p99:rate5m{cluster="svc-1"}'
-    values: "1.2x90"
+  - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-1", le="+Inf", route="/test", prometheus_replica="a"}'
+    values: "0+100x90"
+  - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-1", le="1.0", route="/test", prometheus_replica="a"}'
+    values: "0+93x90"
+  - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-1", le="+Inf", route="/test", prometheus_replica="b"}'
+    values: "0+100x90"
+  - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-1", le="1.0", route="/test", prometheus_replica="b"}'
+    values: "0+93x90"
   alert_rule_test:
-  - eval_time: 6h20m
-    alertname: userJourneyFrontendLatencyP996h30m
+  - eval_time: 6h25m
+    alertname: userJourneyFrontendLatency6h30m
     exp_alerts:
     - exp_labels:
-        alertname: userJourneyFrontendLatencyP996h30m
+        alertname: userJourneyFrontendLatency6h30m
         cluster: svc-1
         component: slo
         severity: "3"
@@ -169,23 +180,29 @@ tests:
         long_window: 6h
         short_window: 30m
       exp_annotations:
-        summary: "svc-1: Frontend HTTP p99 latency above SLO (>1s)"
-        description: "Frontend p99 latency on cluster svc-1 is above 1s on both the 6h and 30m windows (p99 < 1s ARM sync SLO miss)."
+        summary: "svc-1: Frontend HTTP latency budget burning fast (>6% over 1s)"
+        description: "More than 6% of Frontend requests on cluster svc-1 exceeded 1s on both the 6h and 30m windows (6x burn of the 1% latency budget)."
         runbook_url: "https://aka.ms/arohcp-runbook-frontend"
-  - eval_time: 6h20m
-    alertname: userJourneyFrontendLatencyP991h5m
+  - eval_time: 6h25m
+    alertname: userJourneyFrontendLatency1h5m
     exp_alerts: []
 - interval: 1m
-  # Latency fast (p99 > 5s). eval_time 62m = 1h window + for:2m.
+  # Latency fast burn: 20% slow exceeds the 14.4% threshold.
   input_series:
-  - series: 'sli:frontend_http:latency_p99:rate5m{cluster="svc-1"}'
-    values: "6+0x80"
+  - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-1", le="+Inf", route="/test", prometheus_replica="a"}'
+    values: "0+100x80"
+  - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-1", le="1.0", route="/test", prometheus_replica="a"}'
+    values: "0+80x80"
+  - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-1", le="+Inf", route="/test", prometheus_replica="b"}'
+    values: "0+100x80"
+  - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-1", le="1.0", route="/test", prometheus_replica="b"}'
+    values: "0+80x80"
   alert_rule_test:
-  - eval_time: 62m
-    alertname: userJourneyFrontendLatencyP991h5m
+  - eval_time: 1h7m
+    alertname: userJourneyFrontendLatency1h5m
     exp_alerts:
     - exp_labels:
-        alertname: userJourneyFrontendLatencyP991h5m
+        alertname: userJourneyFrontendLatency1h5m
         cluster: svc-1
         component: slo
         severity: "3"
@@ -193,9 +210,136 @@ tests:
         long_window: 1h
         short_window: 5m
       exp_annotations:
-        summary: "svc-1: Frontend HTTP p99 latency critically high (>5s)"
-        description: "Frontend p99 latency on cluster svc-1 is above 5s on both the 1h and 5m windows (severe miss of the p99 < 1s ARM sync SLO)."
+        summary: "svc-1: Frontend HTTP latency budget burning critically fast (>14.4% over 1s)"
+        description: "More than 14.4% of Frontend requests on cluster svc-1 exceeded 1s on both the 1h and 5m windows (14.4x burn of the 1% latency budget)."
         runbook_url: "https://aka.ms/arohcp-runbook-frontend"
+- interval: 1m
+  # Divergent HA replicas remain below the fast threshold when their bucket
+  # counts are summed. Independently taking max per bucket would report 20%.
+  input_series:
+  - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-ha-divergent", le="+Inf", route="/test", prometheus_replica="a"}'
+    values: "0+100x80"
+  - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-ha-divergent", le="1.0", route="/test", prometheus_replica="a"}'
+    values: "0+80x80"
+  - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-ha-divergent", le="+Inf", route="/test", prometheus_replica="b"}'
+    values: "0+80x80"
+  - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-ha-divergent", le="1.0", route="/test", prometheus_replica="b"}'
+    values: "0+80x80"
+  alert_rule_test:
+  - eval_time: 1h7m
+    alertname: userJourneyFrontendLatency1h5m
+    exp_alerts: []
+- interval: 5m
+  # Five percent slow traffic stays below the six-percent medium threshold.
+  input_series:
+  - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-below", le="+Inf", route="/test", prometheus_replica="a"}'
+    values: "0+100x90"
+  - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-below", le="1.0", route="/test", prometheus_replica="a"}'
+    values: "0+95x90"
+  - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-below", le="+Inf", route="/test", prometheus_replica="b"}'
+    values: "0+100x90"
+  - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-below", le="1.0", route="/test", prometheus_replica="b"}'
+    values: "0+95x90"
+  alert_rule_test:
+  - eval_time: 6h25m
+    alertname: userJourneyFrontendLatency6h30m
+    exp_alerts: []
+- interval: 1m
+  # The lower bucket is inconsistent only in the newest five minutes.
+  # Traffic rises at the same time, so without offset the false condition lasts
+  # beyond the alert's 2m pending period. offset 5m evaluates settled data.
+  input_series:
+  - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-delay", le="+Inf", route="/test", prometheus_replica="a"}'
+    values: "0+10x25 250+100x5"
+  - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-delay", le="1.0", route="/test", prometheus_replica="a"}'
+    values: "0+10x25 250+0x5"
+  promql_expr_test:
+  - expr: |
+      (
+        sum by (cluster) (
+          rate(frontend_http_requests_duration_seconds_bucket{le="+Inf"}[5m])
+        )
+        -
+        sum by (cluster) (
+          rate(frontend_http_requests_duration_seconds_bucket{le="1.0"}[5m])
+        )
+      )
+      /
+      sum by (cluster) (
+        rate(frontend_http_requests_duration_seconds_bucket{le="+Inf"}[5m])
+      )
+    eval_time: 30m
+    exp_samples:
+    - labels: '{cluster="svc-delay"}'
+      value: 1
+  - expr: |
+      (
+        sum by (cluster) (
+          rate(frontend_http_requests_duration_seconds_bucket{le="+Inf"}[5m] offset 5m)
+        )
+        -
+        sum by (cluster) (
+          rate(frontend_http_requests_duration_seconds_bucket{le="1.0"}[5m] offset 5m)
+        )
+      )
+      /
+      sum by (cluster) (
+        rate(frontend_http_requests_duration_seconds_bucket{le="+Inf"}[5m] offset 5m)
+      )
+    eval_time: 30m
+    exp_samples:
+    - labels: '{cluster="svc-delay"}'
+      value: 0
+  alert_rule_test:
+  - eval_time: 30m
+    alertname: userJourneyFrontendLatency1h5m
+    exp_alerts: []
+  - eval_time: 30m
+    alertname: userJourneyFrontendLatency6h30m
+    exp_alerts: []
+- interval: 5m
+  # A quiet window with one slow request followed by 1,000 fast requests
+  # remains within the request-weighted one-percent latency budget. The
+  # misleading stored p99 proves the previous averaged-p99 alert would fire.
+  input_series:
+  - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-skew", le="+Inf", route="/test", prometheus_replica="a"}'
+    values: "0 1 1001 2001"
+  - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-skew", le="1.0", route="/test", prometheus_replica="a"}'
+    values: "0 0 1000 2000"
+  - series: 'sli:frontend_http:latency_p99:rate5m{cluster="svc-skew"}'
+    values: "8+0x3"
+  promql_expr_test:
+  - expr: avg_over_time(sli:frontend_http:latency_p99:rate5m[1h])
+    eval_time: 15m
+    exp_samples:
+    - labels: '{cluster="svc-skew"}'
+      value: 8
+  alert_rule_test:
+  - eval_time: 15m
+    alertname: userJourneyFrontendLatency1h5m
+    exp_alerts: []
+- interval: 1m
+  # ARM async poll routes are excluded even when all of their requests exceed
+  # one second. Alert rules query raw histograms, so test the filter directly.
+  input_series:
+  - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-async-only", le="+Inf", route="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}", prometheus_replica="a"}'
+    values: "0+100x4700"
+  - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-async-only", le="1.0", route="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}", prometheus_replica="a"}'
+    values: "0+0x4700"
+  - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-async-only", le="+Inf", route="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationstatuses/{operationid}", prometheus_replica="a"}'
+    values: "0+100x4700"
+  - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-async-only", le="1.0", route="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationstatuses/{operationid}", prometheus_replica="a"}'
+    values: "0+0x4700"
+  alert_rule_test:
+  - eval_time: 77h
+    alertname: userJourneyFrontendLatency1h5m
+    exp_alerts: []
+  - eval_time: 77h
+    alertname: userJourneyFrontendLatency6h30m
+    exp_alerts: []
+  - eval_time: 77h
+    alertname: userJourneyFrontendLatency3d6h
+    exp_alerts: []
 - interval: 1m
   # ----------------------------------------
 
@@ -298,8 +442,14 @@ tests:
     values: "0.001x80"
   - series: 'sli:frontend_http:availability:rate5m{cluster="svc-1"}'
     values: "0.999x80"
-  - series: 'sli:frontend_http:latency_p99:rate5m{cluster="svc-1"}'
-    values: "1.2x80"
+  - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-1", le="+Inf", route="/test", prometheus_replica="a"}'
+    values: "0+1000x80"
+  - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-1", le="1.0", route="/test", prometheus_replica="a"}'
+    values: "0+980x80"
+  - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-1", le="+Inf", route="/test", prometheus_replica="b"}'
+    values: "0+1000x80"
+  - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-1", le="1.0", route="/test", prometheus_replica="b"}'
+    values: "0+980x80"
   alert_rule_test:
   - eval_time: 73h
     alertname: userJourneyFrontendErrors3d6h
@@ -344,10 +494,10 @@ tests:
     alertname: userJourneyFrontendAvailability1h5m
     exp_alerts: []
   - eval_time: 73h
-    alertname: userJourneyFrontendLatencyP993d6h
+    alertname: userJourneyFrontendLatency3d6h
     exp_alerts:
     - exp_labels:
-        alertname: userJourneyFrontendLatencyP993d6h
+        alertname: userJourneyFrontendLatency3d6h
         cluster: svc-1
         component: slo
         severity: "4"
@@ -355,11 +505,11 @@ tests:
         long_window: 3d
         short_window: 6h
       exp_annotations:
-        summary: "svc-1: Frontend HTTP p99 latency above SLO (>1s)"
-        description: "Frontend p99 latency on cluster svc-1 is above 1s on both the 3d and 6h windows (1x burn of the p99 < 1s SLO)."
+        summary: "svc-1: Frontend HTTP latency exceeds its SLO budget (>1% over 1s)"
+        description: "More than 1% of Frontend requests on cluster svc-1 exceeded 1s on both the 3d and 6h windows (1x burn of the latency budget)."
         runbook_url: "https://aka.ms/arohcp-runbook-frontend"
   - eval_time: 73h
-    alertname: userJourneyFrontendLatencyP991h5m
+    alertname: userJourneyFrontendLatency1h5m
     exp_alerts: []
 - interval: 1h
   # Short window only: last 7h above 1x, rest of 3d healthy. MWMBR AND must
@@ -370,8 +520,10 @@ tests:
     values: "0.0001x66 0.001x14"
   - series: 'sli:frontend_http:availability:rate5m{cluster="svc-1"}'
     values: "0.9999x66 0.999x14"
-  - series: 'sli:frontend_http:latency_p99:rate5m{cluster="svc-1"}'
-    values: "0.5x66 1.2x14"
+  - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-1", le="+Inf", route="/test", prometheus_replica="a"}'
+    values: "0+1000x80"
+  - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-1", le="1.0", route="/test", prometheus_replica="a"}'
+    values: "0+999x66 66914+980x14"
   alert_rule_test:
   - eval_time: 73h
     alertname: userJourneyFrontendErrors3d6h
@@ -380,5 +532,5 @@ tests:
     alertname: userJourneyFrontendAvailability3d6h
     exp_alerts: []
   - eval_time: 73h
-    alertname: userJourneyFrontendLatencyP993d6h
+    alertname: userJourneyFrontendLatency3d6h
     exp_alerts: []
