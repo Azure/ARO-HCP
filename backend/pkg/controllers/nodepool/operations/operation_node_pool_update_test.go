@@ -553,6 +553,10 @@ func nodePoolToHypershiftNodePool(nodePool *coreapi.HCPOpenShiftClusterNodePool,
 			Replicas: nodePool.Properties.Replicas,
 			Conditions: []v1beta1.NodePoolCondition{
 				{
+					Type:   v1beta1.NodePoolAllNodesHealthyConditionType,
+					Status: corev1.ConditionTrue,
+				},
+				{
 					Type:   v1beta1.NodePoolAllMachinesReadyConditionType,
 					Status: corev1.ConditionTrue,
 				},
