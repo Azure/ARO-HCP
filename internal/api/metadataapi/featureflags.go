@@ -65,14 +65,21 @@ const (
 	TagClusterCPOImageOverride = ExperimentalClusterTagPrefix + "control-plane-operator-image-override"
 
 	// TagClusterControlPlaneExactVersion is the ARM resource tag that pins the
-	// control plane to an exact OpenShift release (e.g. "4.17.3") when the
+	// control plane to an exact OpenShift release (e.g. "4.17.3", or a full
+	// nightly build such as "4.21.0-0.nightly-2026-08-05-123456") when the
 	// ExperimentalReleaseFeatures AFEC is registered on the subscription. When
 	// set, the desired control plane version controllers use the exact version
-	// directly and skip Cincinnati/gateway version resolution. The value may be
-	// a full semantic version; alternatively the tag may be present while the
-	// exact version is supplied through the cluster's version.id, in which case
-	// admission relocates the patch version here and reduces version.id to its
-	// "<major>.<minor>" release line.
+	// directly and skip Cincinnati/gateway version resolution.
+	//
+	// This tag is the only way to express an exact version, for every channel
+	// group. version.id always carries the bare "<major>.<minor>" release line
+	// and a patch-bearing version.id is rejected, because version.id does not
+	// round-trip (a GET would return only "<major>.<minor>") while an ARM tag
+	// does. The tag's release line must match version.id.
+	//
+	// The tag is required for the "nightly" channel group: nightly builds are
+	// published to the CI releasestream API rather than the Cincinnati graph,
+	// so the backend cannot resolve a build from a bare "<major>.<minor>".
 	TagClusterControlPlaneExactVersion = ExperimentalClusterTagPrefix + "control-plane-exact-version"
 
 	// TagClusterMaxCreationDuration is the ARM resource tag that overrides
