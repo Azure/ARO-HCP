@@ -42,6 +42,14 @@ rules:
   - patch
   - delete
 - apiGroups:
+  - ''
+  resources:
+  - services
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
   - certificates.k8s.io
   resources:
   - certificatesigningrequests

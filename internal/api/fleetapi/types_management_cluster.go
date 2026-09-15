@@ -38,7 +38,8 @@ type ManagementClusterConditionReason string
 const (
 	// ManagementClusterConditionReady indicates the management cluster is
 	// provisioned and operational. This is an aggregate condition: True only
-	// when both ClustersServiceRegistered and MaestroRegistered are True.
+	// when ClustersServiceRegistered, MaestroRegistered, and
+	// SharedIngressAvailable are all True.
 	// Owner: ManagementClusterLifecycleController.
 	ManagementClusterConditionReady ManagementClusterConditionType = "Ready"
 
@@ -51,6 +52,12 @@ const (
 	// exists and is configured correctly in Maestro.
 	// Owner: MaestroRegistrationController.
 	ManagementClusterConditionMaestroRegistered ManagementClusterConditionType = "MaestroRegistered"
+
+	// ManagementClusterConditionSharedIngressAvailable indicates whether the
+	// shared-ingress router Service on the management cluster has been observed
+	// with at least one load balancer ingress IP.
+	// Owner: SharedIngressReportingController.
+	ManagementClusterConditionSharedIngressAvailable ManagementClusterConditionType = "SharedIngressAvailable"
 
 	// ManagementClusterConditionReasonProvisionShardActive indicates the CS provision
 	// shard is active and the management cluster is ready for scheduling.
@@ -88,6 +95,21 @@ const (
 	// ManagementClusterConditionReasonRegistrationIncomplete indicates one or more
 	// sub-conditions are not True.
 	ManagementClusterConditionReasonRegistrationIncomplete ManagementClusterConditionReason = "RegistrationIncomplete"
+
+	// ManagementClusterConditionReasonSharedIngressIPsAvailable indicates the
+	// shared-ingress router Service has been mirrored and exposes at least one
+	// load balancer ingress IP.
+	ManagementClusterConditionReasonSharedIngressIPsAvailable ManagementClusterConditionReason = "SharedIngressIPsAvailable"
+
+	// ManagementClusterConditionReasonSharedIngressIPsUnavailable indicates the
+	// shared-ingress router Service has been mirrored but exposes no load
+	// balancer ingress IPs.
+	ManagementClusterConditionReasonSharedIngressIPsUnavailable ManagementClusterConditionReason = "SharedIngressIPsUnavailable"
+
+	// ManagementClusterConditionReasonSharedIngressIPsNotMirrored indicates the
+	// shared-ingress router Service has not been mirrored yet (the ReadDesire
+	// content is not yet populated).
+	ManagementClusterConditionReasonSharedIngressIPsNotMirrored ManagementClusterConditionReason = "SharedIngressIPsNotMirrored"
 )
 
 // ManagementClusterSchedulingPolicy controls whether new hosted control planes
@@ -153,7 +175,7 @@ type ManagementClusterSpec struct {
 type ManagementClusterStatus struct {
 	// Conditions is a list of conditions tracking the lifecycle of the management cluster.
 	// Known condition types are defined as ManagementClusterConditionType constants:
-	// Ready, ClustersServiceRegistered, MaestroRegistered.
+	// Ready, ClustersServiceRegistered, MaestroRegistered, SharedIngressAvailable.
 	//
 	// Conditions are added on first evaluation and never removed. Status is toggled
 	// between True/False/Unknown. Absence of a condition means "not yet evaluated."
@@ -223,4 +245,13 @@ type ManagementClusterStatus struct {
 	//
 	// +required, immutable once set.
 	KubeApplierCosmosContainerName string `json:"kubeApplierCosmosContainerName,omitempty"`
+
+	// SharedIngressIPAddresses holds the load balancer ingress IP addresses of
+	// the shared-ingress router Service (namespace hypershift-sharedingress,
+	// name router) observed on the management cluster. It is cleared (nil) when
+	// shared ingress is not available.
+	//
+	// +optional
+	// Written by: SharedIngressReportingController.
+	SharedIngressIPAddresses []string `json:"sharedIngressIPAddresses,omitempty"`
 }
