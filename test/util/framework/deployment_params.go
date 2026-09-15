@@ -253,6 +253,49 @@ func applyCPOImageOverride(tags map[string]*string) {
 	}
 }
 
+// ApplyControlPlaneExactVersionPin reconciles a resolved control plane version
+// with the exact-version tag and returns the value to put in version.id.
+//
+// The RP accepts only a bare "<major>.<minor>" in version.id and resolves an
+// exact build only from the control-plane-exact-version tag, which (unlike
+// version.id's patch component) round-trips through GET. So an exact version
+// ("4.21.7", "5.0.0-0.nightly-2026-09-03-214615") is split: the tag carries the
+// build and version.id carries the release line. A bare "<major>.<minor>" clears
+// any pin inherited from NewDefaultClusterParams*, so an override can never leave
+// a tag that contradicts version.id.
+//
+// Call this after the params literal, like applyCPOImageOverride, and again at
+// any site that overrides OpenshiftVersionId. It is idempotent.
+func ApplyControlPlaneExactVersionPin(versionID string, tags map[string]*string) string {
+	if tags == nil {
+		return versionID
+	}
+	// Strict Parse (not ParseTolerant) is the reliable "is this an exact build"
+	// test: it accepts pre-release/build suffixes and rejects a bare "4.21".
+	exact, err := semver.Parse(versionID)
+	if err != nil {
+		delete(tags, metadataapi.TagClusterControlPlaneExactVersion)
+		return versionID
+	}
+	tags[metadataapi.TagClusterControlPlaneExactVersion] = to.Ptr(versionID)
+	return fmt.Sprintf("%d.%d", exact.Major, exact.Minor)
+}
+
+// ControlPlaneExactVersionPatchTags is the PATCH-time counterpart of
+// ApplyControlPlaneExactVersionPin. It returns the release line to send in
+// version.id plus the tag map to send alongside it.
+//
+// Because PATCH bodies are RFC 7396 merge patches, an existing pin is removed by
+// sending the tag as JSON null (a nil *string), not by omitting it — omitting it
+// preserves the stored value.
+func ControlPlaneExactVersionPatchTags(versionID string) (string, map[string]*string) {
+	if exact, err := semver.Parse(versionID); err == nil {
+		return fmt.Sprintf("%d.%d", exact.Major, exact.Minor),
+			map[string]*string{metadataapi.TagClusterControlPlaneExactVersion: to.Ptr(versionID)}
+	}
+	return versionID, map[string]*string{metadataapi.TagClusterControlPlaneExactVersion: nil}
+}
+
 // NodePoolAutoScalingParams contains min/max node counts for nodepool autoscaling
 type NodePoolAutoScalingParams struct {
 	Min int32

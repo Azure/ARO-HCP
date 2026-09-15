@@ -76,7 +76,7 @@ var _ = Describe("Customer", func() {
 			}
 			Expect(err).NotTo(HaveOccurred(), "failed to select OpenShift version >= 4.22 for private KAS test (default version: %q)", clusterParams.OpenshiftVersionId)
 			// Otherwise, just use the selected version
-			clusterParams.OpenshiftVersionId = openshiftVersionID
+			clusterParams.OpenshiftVersionId = framework.ApplyControlPlaneExactVersionPin(openshiftVersionID, clusterParams.Tags)
 
 			By("creating customer resources (infrastructure and managed identities)")
 			clusterParams, err = tc.CreateClusterCustomerResources20251223(ctx,

@@ -116,7 +116,9 @@ var _ = Describe("Customer", func() {
 			By("creating cluster parameters at control plane version")
 			clusterParams := framework.NewDefaultClusterParams20240610()
 			clusterParams.ClusterName = clusterName
-			clusterParams.OpenshiftVersionId = clusterInstallVersion
+			// clusterInstallVersion is an exact build; version.id carries only the
+			// release line and the build is pinned with the exact-version tag.
+			clusterParams.OpenshiftVersionId = framework.ApplyControlPlaneExactVersionPin(clusterInstallVersion, clusterParams.Tags)
 			clusterParams.ChannelGroup = channelGroup
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name+"-np-upgrade-"+suffix, "-managed", 64)
 			clusterParams.ManagedResourceGroupName = managedResourceGroupName
@@ -274,7 +276,9 @@ var _ = Describe("Customer", func() {
 			By("creating cluster parameters at control plane version")
 			clusterParams := framework.NewDefaultClusterParams20240610()
 			clusterParams.ClusterName = clusterName
-			clusterParams.OpenshiftVersionId = clusterInstallVersion
+			// clusterInstallVersion is an exact build; version.id carries only the
+			// release line and the build is pinned with the exact-version tag.
+			clusterParams.OpenshiftVersionId = framework.ApplyControlPlaneExactVersionPin(clusterInstallVersion, clusterParams.Tags)
 			clusterParams.ChannelGroup = channelGroup
 			clusterParams.ManagedResourceGroupName = framework.SuffixName(*resourceGroup.Name+"-np-ne-"+suffix, "-managed", 64)
 
@@ -413,7 +417,9 @@ var _ = Describe("Customer", func() {
 			By("creating cluster parameters at control plane version")
 			clusterParams := framework.NewDefaultClusterParams20240610()
 			clusterParams.ClusterName = clusterName
-			clusterParams.OpenshiftVersionId = clusterInstallVersion
+			// clusterInstallVersion is an exact build; version.id carries only the
+			// release line and the build is pinned with the exact-version tag.
+			clusterParams.OpenshiftVersionId = framework.ApplyControlPlaneExactVersionPin(clusterInstallVersion, clusterParams.Tags)
 			clusterParams.ChannelGroup = channelGroup
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name+"-np-sm-"+suffix, "-managed", 64)
 			clusterParams.ManagedResourceGroupName = managedResourceGroupName
@@ -552,7 +558,9 @@ var _ = Describe("Customer", func() {
 			By("creating cluster parameters at control plane version")
 			clusterParams := framework.NewDefaultClusterParams20240610()
 			clusterParams.ClusterName = clusterName
-			clusterParams.OpenshiftVersionId = clusterInstallVersion
+			// clusterInstallVersion is an exact build; version.id carries only the
+			// release line and the build is pinned with the exact-version tag.
+			clusterParams.OpenshiftVersionId = framework.ApplyControlPlaneExactVersionPin(clusterInstallVersion, clusterParams.Tags)
 			clusterParams.ChannelGroup = channelGroup
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name+"-np-dg-"+suffix, "-managed", 64)
 			clusterParams.ManagedResourceGroupName = managedResourceGroupName
@@ -692,7 +700,9 @@ var _ = Describe("Customer", func() {
 			By("creating cluster parameters at control plane version")
 			clusterParams := framework.NewDefaultClusterParams20240610()
 			clusterParams.ClusterName = clusterName
-			clusterParams.OpenshiftVersionId = clusterInstallVersion
+			// clusterInstallVersion is an exact build; version.id carries only the
+			// release line and the build is pinned with the exact-version tag.
+			clusterParams.OpenshiftVersionId = framework.ApplyControlPlaneExactVersionPin(clusterInstallVersion, clusterParams.Tags)
 			clusterParams.ChannelGroup = channelGroup
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name+"-np-dgm-"+suffix, "-managed", 64)
 			clusterParams.ManagedResourceGroupName = managedResourceGroupName

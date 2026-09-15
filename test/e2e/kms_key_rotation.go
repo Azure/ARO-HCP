@@ -67,7 +67,7 @@ var _ = Describe("Customer", func() {
 				Skip(skipMsg)
 			}
 			Expect(err).NotTo(HaveOccurred(), "failed to select OpenShift version >= 4.22 (default version: %q)", clusterParams.OpenshiftVersionId)
-			clusterParams.OpenshiftVersionId = openshiftVersionID
+			clusterParams.OpenshiftVersionId = framework.ApplyControlPlaneExactVersionPin(openshiftVersionID, clusterParams.Tags)
 
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			clusterParams.ManagedResourceGroupName = managedResourceGroupName
