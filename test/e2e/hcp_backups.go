@@ -54,13 +54,13 @@ func createBackupTestCluster(ctx context.Context, cfg backupTestClusterConfig) b
 	Expect(err).NotTo(HaveOccurred(), "failed to create resource group")
 
 	By("creating cluster parameters")
-	clusterParams := framework.NewDefaultClusterParams20251223()
+	clusterParams := framework.NewDefaultClusterParams20260901()
 	clusterParams.ClusterName = cfg.clusterName
 	managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 	clusterParams.ManagedResourceGroupName = managedResourceGroupName
 
 	By("creating customer resources")
-	clusterParams, err = tc.CreateClusterCustomerResources20251223(ctx,
+	clusterParams, err = tc.CreateClusterCustomerResources20260901(ctx,
 		resourceGroup,
 		clusterParams,
 		map[string]interface{}{
@@ -74,7 +74,7 @@ func createBackupTestCluster(ctx context.Context, cfg backupTestClusterConfig) b
 	Expect(err).NotTo(HaveOccurred(), "failed to create customer resources")
 
 	By("creating the HCP cluster")
-	err = tc.CreateHCPClusterFromParam20251223(
+	err = tc.CreateHCPClusterFromParam20260901(
 		ctx,
 		GinkgoLogr,
 		*resourceGroup.Name,
