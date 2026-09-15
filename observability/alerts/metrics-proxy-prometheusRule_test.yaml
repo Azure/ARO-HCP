@@ -18,7 +18,7 @@ tests:
         severity: "3"
       exp_annotations:
         summary: "Maestro agent metrics-proxy scrape is down"
-        description: "Prometheus has not scraped maestro-agent /metrics through the metrics-proxy sidecar (namespace=maestro, endpoint=metrics) for 10 minutes, while kube-state-metrics is still up on this management cluster. Maestro agent metrics and any alerts that depend on them may be missing."
+        description: "Prometheus has not scraped maestro-agent /metrics through the metrics-proxy sidecar (namespace=maestro, endpoint=metrics) for 10 minutes, while a kube-state-metrics scrape series still exists for this management cluster. Maestro agent metrics and any alerts that depend on them may be missing."
         runbook_url: "https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/metrics-proxy.md"
 # Management cluster exists and scrape is healthy — no alert
 - interval: 1m
@@ -49,7 +49,7 @@ tests:
         severity: "3"
       exp_annotations:
         summary: "Maestro agent metrics-proxy scrape is down"
-        description: "Prometheus has not scraped maestro-agent /metrics through the metrics-proxy sidecar (namespace=maestro, endpoint=metrics) for 10 minutes, while kube-state-metrics is still up on this management cluster. Maestro agent metrics and any alerts that depend on them may be missing."
+        description: "Prometheus has not scraped maestro-agent /metrics through the metrics-proxy sidecar (namespace=maestro, endpoint=metrics) for 10 minutes, while a kube-state-metrics scrape series still exists for this management cluster. Maestro agent metrics and any alerts that depend on them may be missing."
         runbook_url: "https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/metrics-proxy.md"
 # Service cluster has no maestro-agent — must not fire
 - interval: 1m
@@ -60,11 +60,13 @@ tests:
   - eval_time: 10m
     alertname: MaestroAgentMetricsProxyDown
     exp_alerts: []
-# Down for less than for: 10m — must not fire
+# Scrape was healthy then up=0 for less than for: 10m — must not fire
 - interval: 1m
   input_series:
   - series: 'up{job="kube-state-metrics", cluster="int-uksouth-mgmt-1"}'
     values: "1+0x12"
+  - series: 'up{namespace="maestro", endpoint="metrics", pod="maestro-agent-abc-123", cluster="int-uksouth-mgmt-1"}'
+    values: "1+0x5 0+0x7"
   alert_rule_test:
   - eval_time: 9m
     alertname: MaestroAgentMetricsProxyDown

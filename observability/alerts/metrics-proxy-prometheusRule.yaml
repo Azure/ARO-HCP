@@ -21,10 +21,11 @@ spec:
     # HyperShift CP metrics-proxy (guest CMO metrics-forwarding in ocm-*
     # namespaces) is not deployed by ARO-HCP today; do not page on its absence.
     #
-    # Pattern matches MiseEnvoyScrapeDown: management cluster still reporting
-    # kube-state-metrics, but the maestro-agent metrics scrape is not up==1.
-    # Catches both up=0 and a completely missing target. Svc clusters do not
-    # run maestro-agent, so the existence signal is scoped to *-mgmt-*.
+    # Pattern matches MiseEnvoyScrapeDown: kube-state-metrics up series exists
+    # for the management cluster (existence signal; value 0 still counts), but
+    # the maestro-agent metrics scrape is not up==1. Catches both up=0 and a
+    # missing target. Svc clusters do not run maestro-agent, so the existence
+    # signal is scoped to *-mgmt-*.
     - alert: MaestroAgentMetricsProxyDown
       expr: |
         group by (cluster) (up{job="kube-state-metrics", cluster=~".*-mgmt(-[0-9]+)?$"})
@@ -35,5 +36,5 @@ spec:
         severity: "3"
       annotations:
         summary: "Maestro agent metrics-proxy scrape is down"
-        description: "Prometheus has not scraped maestro-agent /metrics through the metrics-proxy sidecar (namespace=maestro, endpoint=metrics) for 10 minutes, while kube-state-metrics is still up on this management cluster. Maestro agent metrics and any alerts that depend on them may be missing."
+        description: "Prometheus has not scraped maestro-agent /metrics through the metrics-proxy sidecar (namespace=maestro, endpoint=metrics) for 10 minutes, while a kube-state-metrics scrape series still exists for this management cluster. Maestro agent metrics and any alerts that depend on them may be missing."
         runbook_url: "https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/metrics-proxy.md"

@@ -4,6 +4,10 @@ This page describes `MaestroAgentMetricsProxyDown` in
 `observability/alerts/metrics-proxy-prometheusRule.yaml`, registered in
 `observability/alerts-dev-services.yaml`
 ([ARO-26256](https://redhat.atlassian.net/browse/ARO-26256)).
+That file feeds the DEV IcM action group (`devServicesAlerts` in
+`monitoring.bicep`), which is how this class of service alert is deployed in
+int/stg/prod. Maestro is not on the MSFT allowlist in
+`alerts-msft-services.yaml`.
 
 Incident response for Cluster Monitoring lives in the
 [Cluster Monitoring TSG](https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/user-journey/cluster-monitoring-tsg.html).
@@ -33,7 +37,7 @@ This is **not**:
 
 | Alert | `for:` | Severity | What it indicates |
 |---|---:|---|---|
-| `MaestroAgentMetricsProxyDown` | 10m | `"3"` | A management cluster is still reporting `up{job="kube-state-metrics"}`, but `up{namespace="maestro", endpoint="metrics", pod=~"maestro-agent-.*"} == 1` is missing. The sidecar is down, returning errors, or the PodMonitor target disappeared. |
+| `MaestroAgentMetricsProxyDown` | 10m | `"3"` | A kube-state-metrics `up` series exists for the management cluster, but `up{namespace="maestro", endpoint="metrics", pod=~"maestro-agent-.*"} == 1` is missing. The sidecar is down, returning errors, or the PodMonitor target disappeared. The left-hand side is an existence signal (same as `MiseEnvoyScrapeDown`); a series with value `0` still counts. |
 
 The expression is the same shape as `MiseEnvoyScrapeDown`: cluster existence
 via kube-state-metrics, then `unless` a healthy scrape. Service clusters are
@@ -55,14 +59,16 @@ Primary alert: `MaestroAgentMetricsProxyDown`.
 
 Typical causes: nginx sidecar crash loop, bad metrics-access token in the
 nginx config, PodMonitor dropped, or the whole `maestro-agent` pod not
-Running. The sidecar has **no** HTTP readiness probe, so Kubernetes Ready can
+running. The sidecar has **no** HTTP readiness probe, so Kubernetes Ready can
 stay true while `/metrics` fails — `up` is the signal that matters.
 
 ### Prometheus agent itself is down
 
 Do **not** debug metrics-proxy first. Use [Prometheus.md](Prometheus.md) /
-`PrometheusJobUp`. If the agent is down, this alert may also fire on mgmt
-clusters as a consequence.
+`PrometheusJobUp`. This rule needs a current kube-state-metrics `up` series
+from the same scraper as its left-hand anchor. If PrometheusAgent is down,
+that series disappears and `MaestroAgentMetricsProxyDown` will not become
+pending.
 
 ### HyperShift CP metrics-proxy
 
