@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
@@ -34,10 +35,46 @@ const (
 
 	defaultSlotIndexWidth      = 2
 	defaultContainerIndexWidth = 2
-
-	RegionModeFixed           = "fixed"
-	RegionModeRuntimeSelected = "runtime-selected"
 )
+
+const (
+	RegionModeFixed RegionMode = iota
+	RegionModeRuntimeSelected
+	RegionModeWeighted
+)
+
+type RegionMode int
+
+func (m RegionMode) String() string {
+	switch m {
+	case RegionModeFixed:
+		return "fixed"
+	case RegionModeRuntimeSelected:
+		return "runtime-selected"
+	case RegionModeWeighted:
+		return "weighted"
+	default:
+		return fmt.Sprintf("RegionMode(%d)", m)
+	}
+}
+
+func (m *RegionMode) UnmarshalYAML(node *yaml.Node) error {
+	switch value := strings.TrimSpace(node.Value); value {
+	case "", RegionModeFixed.String():
+		*m = RegionModeFixed
+	case RegionModeRuntimeSelected.String():
+		*m = RegionModeRuntimeSelected
+	case RegionModeWeighted.String():
+		*m = RegionModeWeighted
+	default:
+		return fmt.Errorf("invalid region_mode %q", value)
+	}
+	return nil
+}
+
+func (m RegionMode) MarshalYAML() (any, error) {
+	return m.String(), nil
+}
 
 type Catalog struct {
 	Version      int                    `yaml:"version"`
@@ -50,15 +87,16 @@ type Environment struct {
 }
 
 type Pool struct {
-	SubscriptionName           string `yaml:"subscription_name"`
-	Region                     string `yaml:"region"`
-	RegionMode                 string `yaml:"region_mode,omitempty"`
-	IdentityProvisioningRegion string `yaml:"identity_provisioning_region,omitempty"`
-	IdentityProvisioning       string `yaml:"identity_provisioning,omitempty"`
-	ResourceType               string `yaml:"resource_type"`
-	SlotCount                  int    `yaml:"slot_count"`
-	IdentityContainerPrefix    string `yaml:"identity_container_prefix"`
-	IdentityContainerCount     int    `yaml:"identity_container_count"`
+	SubscriptionName           string     `yaml:"subscription_name"`
+	Region                     string     `yaml:"region,omitempty"`
+	Regions                    []string   `yaml:"regions,omitempty"`
+	RegionMode                 RegionMode `yaml:"region_mode,omitempty"`
+	IdentityProvisioningRegion string     `yaml:"identity_provisioning_region,omitempty"`
+	IdentityProvisioning       string     `yaml:"identity_provisioning,omitempty"`
+	ResourceType               string     `yaml:"resource_type"`
+	SlotCount                  int        `yaml:"slot_count"`
+	IdentityContainerPrefix    string     `yaml:"identity_container_prefix"`
+	IdentityContainerCount     int        `yaml:"identity_container_count"`
 }
 
 const (
@@ -156,15 +194,15 @@ func (c *Catalog) Validate() error {
 		}
 
 		seenPoolKeys := map[string]struct{}{}
-		environmentRegionMode := ""
+		environmentRegionMode := RegionModeFixed
+		environmentRegionModeSet := false
+		var environmentRegions []string
 		for i := range environment.Pools {
 			pool := &environment.Pools[i]
 			pool.SubscriptionName = strings.TrimSpace(pool.SubscriptionName)
 			pool.Region = strings.TrimSpace(pool.Region)
-			pool.RegionMode = strings.TrimSpace(pool.RegionMode)
-			if pool.RegionMode == "" {
-				pool.RegionMode = RegionModeFixed
-			}
+			pool.Regions = trimValues(pool.Regions)
+			poolRegions := sets.New(pool.Regions...)
 			pool.IdentityProvisioningRegion = strings.TrimSpace(pool.IdentityProvisioningRegion)
 			pool.ResourceType = strings.TrimSpace(pool.ResourceType)
 			pool.IdentityContainerPrefix = strings.TrimSpace(pool.IdentityContainerPrefix)
@@ -175,10 +213,18 @@ func (c *Catalog) Validate() error {
 				return fmt.Errorf("environment %q has a pool with empty subscription_name", environmentName)
 			case pool.IdentityProvisioning != "" && pool.IdentityProvisioning != IdentityProvisioningUnmanaged:
 				return fmt.Errorf("environment %q pool %s has invalid identity_provisioning %q (must be empty or %q)", environmentName, describePool(*pool), pool.IdentityProvisioning, IdentityProvisioningUnmanaged)
-			case pool.Region == "":
+			case pool.RegionMode == RegionModeWeighted && pool.Region != "":
+				return fmt.Errorf("environment %q weighted pool %s must not declare region", environmentName, describePool(*pool))
+			case pool.RegionMode == RegionModeWeighted && len(pool.Regions) == 0:
+				return fmt.Errorf("environment %q weighted pool %s has no regions", environmentName, describePool(*pool))
+			case pool.RegionMode == RegionModeWeighted && (poolRegions.Has("") || poolRegions.Len() != len(pool.Regions)):
+				return fmt.Errorf("environment %q weighted pool %s has empty or duplicate regions", environmentName, describePool(*pool))
+			case pool.RegionMode == RegionModeWeighted && pool.IdentityProvisioningRegion == "":
+				return fmt.Errorf("environment %q weighted pool %s must declare identity_provisioning_region", environmentName, describePool(*pool))
+			case pool.RegionMode != RegionModeWeighted && pool.Region == "":
 				return fmt.Errorf("environment %q has a pool with empty region", environmentName)
-			case pool.RegionMode != RegionModeFixed && pool.RegionMode != RegionModeRuntimeSelected:
-				return fmt.Errorf("environment %q pool %s has invalid region_mode %q", environmentName, describePool(*pool), pool.RegionMode)
+			case pool.RegionMode != RegionModeWeighted && len(pool.Regions) > 0:
+				return fmt.Errorf("environment %q non-weighted pool %s must not declare regions", environmentName, describePool(*pool))
 			case pool.ResourceType == "":
 				return fmt.Errorf("environment %q has a pool with empty resource_type", environmentName)
 			case pool.SlotCount <= 0:
@@ -189,14 +235,23 @@ func (c *Catalog) Validate() error {
 				return fmt.Errorf("environment %q pool %s has invalid identity_container_count %d", environmentName, describePool(*pool), pool.IdentityContainerCount)
 			}
 
-			if environmentRegionMode == "" {
+			if !environmentRegionModeSet {
 				environmentRegionMode = pool.RegionMode
+				environmentRegionModeSet = true
+				environmentRegions = append([]string(nil), pool.Regions...)
 			} else if pool.RegionMode != environmentRegionMode {
 				return fmt.Errorf(
 					"environment %q mixes region_mode values %q and %q; keep a single selection mode per environment",
 					environmentName,
 					environmentRegionMode,
 					pool.RegionMode,
+				)
+			} else if pool.RegionMode == RegionModeWeighted && !slices.Equal(pool.Regions, environmentRegions) {
+				return fmt.Errorf(
+					"environment %q weighted pools must declare the same ordered regions; got %q and %q",
+					environmentName,
+					strings.Join(environmentRegions, ","),
+					strings.Join(pool.Regions, ","),
 				)
 			}
 
@@ -216,6 +271,14 @@ func (c *Catalog) Validate() error {
 	}
 
 	return nil
+}
+
+func trimValues(values []string) []string {
+	trimmed := make([]string, len(values))
+	for i, value := range values {
+		trimmed[i] = strings.TrimSpace(value)
+	}
+	return trimmed
 }
 
 func (c *Catalog) EnvironmentNames() []string {
@@ -266,7 +329,7 @@ func (c *Catalog) ResolvePool(environment string, allowedSubscriptions, allowedL
 		if err != nil {
 			return Pool{}, err
 		}
-		if environmentRegionMode == RegionModeRuntimeSelected {
+		if environmentRegionMode == RegionModeRuntimeSelected || environmentRegionMode == RegionModeWeighted {
 			return Pool{}, fmt.Errorf("environment %q has %d matching pools; narrow ALLOWED_SUBSCRIPTIONS to a single pool", environment, len(matches))
 		}
 		return Pool{}, fmt.Errorf("environment %q has %d matching pools; narrow ALLOWED_SUBSCRIPTIONS and/or ALLOWED_LOCATIONS to a single pool", environment, len(matches))
@@ -321,22 +384,37 @@ func (c *Catalog) CandidatePools(environment string, allowedSubscriptions, allow
 	return nil, fmt.Errorf("no pool found for environment %q matching %s", environment, strings.Join(selectors, ", "))
 }
 
-func (c *Catalog) RegionModeForEnvironment(environment string) (string, error) {
+func (c *Catalog) RegionModeForEnvironment(environment string) (RegionMode, error) {
 	environmentConfig, found := c.Environments[environment]
 	if !found {
-		return "", fmt.Errorf("unknown environment %q", environment)
+		return RegionModeFixed, fmt.Errorf("unknown environment %q", environment)
 	}
 	if len(environmentConfig.Pools) == 0 {
-		return "", fmt.Errorf("environment %q has no pools", environment)
+		return RegionModeFixed, fmt.Errorf("environment %q has no pools", environment)
 	}
 
 	regionMode := environmentConfig.Pools[0].EffectiveRegionMode()
 	for _, pool := range environmentConfig.Pools[1:] {
 		if candidate := pool.EffectiveRegionMode(); candidate != regionMode {
-			return "", fmt.Errorf("environment %q mixes region_mode values %q and %q", environment, regionMode, candidate)
+			return RegionModeFixed, fmt.Errorf("environment %q mixes region_mode values %q and %q", environment, regionMode, candidate)
 		}
 	}
 	return regionMode, nil
+}
+
+func (c *Catalog) RegionsForEnvironment(environment string) ([]string, error) {
+	environmentConfig, found := c.Environments[environment]
+	if !found {
+		return nil, fmt.Errorf("unknown environment %q", environment)
+	}
+	if len(environmentConfig.Pools) == 0 {
+		return nil, fmt.Errorf("environment %q has no pools", environment)
+	}
+
+	if environmentConfig.Pools[0].EffectiveRegionMode() != RegionModeWeighted {
+		return nil, fmt.Errorf("environment %q is not in weighted region mode", environment)
+	}
+	return append([]string(nil), environmentConfig.Pools[0].Regions...), nil
 }
 
 func ExpandSlotsForPool(environment string, pool Pool) []ExpandedSlot {
@@ -391,11 +469,8 @@ func (p Pool) IsUnmanaged() bool {
 	return p.IdentityProvisioning == IdentityProvisioningUnmanaged
 }
 
-func (p Pool) EffectiveRegionMode() string {
-	if p.RegionMode != "" {
-		return p.RegionMode
-	}
-	return RegionModeFixed
+func (p Pool) EffectiveRegionMode() RegionMode {
+	return p.RegionMode
 }
 
 func (p Pool) EffectiveIdentityProvisioningRegion() string {
@@ -437,14 +512,18 @@ func SlotStateFile(sharedDir string) (string, error) {
 }
 
 func describePool(pool Pool) string {
-	if pool.EffectiveRegionMode() == RegionModeRuntimeSelected {
+	switch pool.EffectiveRegionMode() {
+	case RegionModeRuntimeSelected:
 		return fmt.Sprintf("(subscription_name=%q, region_mode=%q, default_region=%q)", pool.SubscriptionName, pool.EffectiveRegionMode(), pool.Region)
+	case RegionModeWeighted:
+		return fmt.Sprintf("(subscription_name=%q, region_mode=%q, regions=%q)", pool.SubscriptionName, pool.EffectiveRegionMode(), strings.Join(pool.Regions, ","))
+	default:
+		return fmt.Sprintf("(subscription_name=%q, region=%q)", pool.SubscriptionName, pool.Region)
 	}
-	return fmt.Sprintf("(subscription_name=%q, region=%q)", pool.SubscriptionName, pool.Region)
 }
 
 func poolIdentity(pool Pool) string {
-	if pool.EffectiveRegionMode() == RegionModeRuntimeSelected {
+	if pool.EffectiveRegionMode() == RegionModeRuntimeSelected || pool.EffectiveRegionMode() == RegionModeWeighted {
 		return pool.SubscriptionName
 	}
 	return fmt.Sprintf("%s/%s", pool.SubscriptionName, pool.Region)
