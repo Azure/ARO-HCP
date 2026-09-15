@@ -112,7 +112,7 @@ func runIstioUpgradeStep(id graph.Identifier, step *types.IstioUpgradeStep, ctx 
 		opts.OverallTimeout = d
 	} else {
 		// Rely on the pipeline runner context; DefaultUpgradeOptions uses 60m which would
-		// disagree with the runner's 30m default when timeout is unset in YAML.
+		// disagree with the runner's 45m default when timeout is unset in YAML.
 		opts.OverallTimeout = 0
 	}
 
