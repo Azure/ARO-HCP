@@ -240,25 +240,11 @@ func TestClusterRequired(t *testing.T) {
 		},
 		{
 			name: "Cluster with identity",
-			tweaks: &coreapi.HCPOpenShiftCluster{
-				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
-					Platform: coreapi.CustomerPlatformProfile{
-						OperatorsAuthentication: coreapi.OperatorsAuthenticationProfile{
-							UserAssignedIdentities: coreapi.UserAssignedIdentitiesProfile{
-								ControlPlaneOperators: map[string]*azcorearm.ResourceID{
-									"operatorX": coreapitesting.NewTestUserAssignedIdentity("MyManagedIdentity"),
-								},
-							},
-						},
-					},
-				},
-				Identity: &coreapi.ManagedServiceIdentity{
-					Type: coreapi.ManagedServiceIdentityTypeUserAssigned,
-					UserAssignedIdentities: map[string]*coreapi.UserAssignedIdentity{
-						coreapitesting.NewTestUserAssignedIdentity("MyManagedIdentity").String(): {},
-					},
-				},
-			},
+			resource: clusterWithOperatorIdentities(func(c *coreapi.HCPOpenShiftCluster) {
+				identity := coreapitesting.NewTestUserAssignedIdentity("MyManagedIdentity")
+				repointOperator(c, "ingress", identity)
+				c.Identity.UserAssignedIdentities[identity.String()] = &coreapi.UserAssignedIdentity{}
+			}),
 			expectErrors: []utils.ExpectedError{},
 		},
 	}
@@ -275,6 +261,25 @@ func TestClusterRequired(t *testing.T) {
 			utils.VerifyErrorsMatch(t, tt.expectErrors, actualErrors)
 		})
 	}
+}
+
+// clusterWithOperatorIdentities builds a valid cluster and applies mutate. Cases that need to
+// change an operator identity the base fixture already sets cannot use tweaks, because tweaks
+// merge maps rather than overwrite entries.
+func clusterWithOperatorIdentities(mutate func(*coreapi.HCPOpenShiftCluster)) *coreapi.HCPOpenShiftCluster {
+	cluster := coreapitesting.MinimumValidClusterTestCase()
+	mutate(cluster)
+	return cluster
+}
+
+// repointOperator aims an existing control plane operator at a different identity and drops the
+// one it previously used, so the swap doesn't leave an unused assignment behind.
+func repointOperator(cluster *coreapi.HCPOpenShiftCluster, operatorName string, identity *azcorearm.ResourceID) {
+	operators := cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators
+	if previous, ok := operators[operatorName]; ok {
+		delete(cluster.Identity.UserAssignedIdentities, previous.String())
+	}
+	operators[operatorName] = identity
 }
 
 func TestClusterValidate(t *testing.T) {
@@ -845,54 +850,24 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Cluster with differently-cased identities",
-			tweaks: &coreapi.HCPOpenShiftCluster{
-				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
-					Platform: coreapi.CustomerPlatformProfile{
-						OperatorsAuthentication: coreapi.OperatorsAuthenticationProfile{
-							UserAssignedIdentities: coreapi.UserAssignedIdentitiesProfile{
-								ControlPlaneOperators: map[string]*azcorearm.ResourceID{
-									"operatorX": metadataapi.Must(azcorearm.ParseResourceID(strings.ToLower(managedIdentity1.String()))),
-								},
-								ServiceManagedIdentity: metadataapi.Must(azcorearm.ParseResourceID(strings.ToLower(managedIdentity2.String()))),
-							},
-						},
-					},
-				},
-				Identity: &coreapi.ManagedServiceIdentity{
-					Type: coreapi.ManagedServiceIdentityTypeUserAssigned,
-					UserAssignedIdentities: map[string]*coreapi.UserAssignedIdentity{
-						strings.ToUpper(managedIdentity1.String()): {},
-						strings.ToUpper(managedIdentity2.String()): {},
-					},
-				},
-			},
+			resource: clusterWithOperatorIdentities(func(c *coreapi.HCPOpenShiftCluster) {
+				repointOperator(c, "ingress", metadataapi.Must(azcorearm.ParseResourceID(strings.ToLower(managedIdentity1.String()))))
+				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity = metadataapi.Must(azcorearm.ParseResourceID(strings.ToLower(managedIdentity2.String())))
+				c.Identity.UserAssignedIdentities[strings.ToUpper(managedIdentity1.String())] = &coreapi.UserAssignedIdentity{}
+				c.Identity.UserAssignedIdentities[strings.ToUpper(managedIdentity2.String())] = &coreapi.UserAssignedIdentity{}
+			}),
 		},
 		{
 			name: "Cluster with broken identities",
-			tweaks: &coreapi.HCPOpenShiftCluster{
-				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
-					Platform: coreapi.CustomerPlatformProfile{
-						OperatorsAuthentication: coreapi.OperatorsAuthenticationProfile{
-							UserAssignedIdentities: coreapi.UserAssignedIdentitiesProfile{
-								ControlPlaneOperators: map[string]*azcorearm.ResourceID{
-									"operatorX": managedIdentity1,
-								},
-								ServiceManagedIdentity: managedIdentity2,
-							},
-						},
-					},
-				},
-				Identity: &coreapi.ManagedServiceIdentity{
-					Type: coreapi.ManagedServiceIdentityTypeUserAssigned,
-					UserAssignedIdentities: map[string]*coreapi.UserAssignedIdentity{
-						managedIdentity3.String(): {},
-					},
-				},
-			},
+			resource: clusterWithOperatorIdentities(func(c *coreapi.HCPOpenShiftCluster) {
+				repointOperator(c, "ingress", managedIdentity1)
+				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity = managedIdentity2
+				c.Identity.UserAssignedIdentities[managedIdentity3.String()] = &coreapi.UserAssignedIdentity{}
+			}),
 			expectErrors: []utils.ExpectedError{
 				{
 					Message:   "identity is not assigned to this resource",
-					FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[operatorX]",
+					FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[ingress]",
 				},
 				{
 					Message:   "identity is assigned to this resource but not used",
@@ -906,27 +881,12 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Cluster with multiple identities",
-			tweaks: &coreapi.HCPOpenShiftCluster{
-				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
-					Platform: coreapi.CustomerPlatformProfile{
-						OperatorsAuthentication: coreapi.OperatorsAuthenticationProfile{
-							UserAssignedIdentities: coreapi.UserAssignedIdentitiesProfile{
-								ControlPlaneOperators: map[string]*azcorearm.ResourceID{
-									"operatorX": managedIdentity1,
-									"operatorY": managedIdentity1,
-								},
-								ServiceManagedIdentity: managedIdentity1,
-							},
-						},
-					},
-				},
-				Identity: &coreapi.ManagedServiceIdentity{
-					Type: coreapi.ManagedServiceIdentityTypeUserAssigned,
-					UserAssignedIdentities: map[string]*coreapi.UserAssignedIdentity{
-						managedIdentity1.String(): {},
-					},
-				},
-			},
+			resource: clusterWithOperatorIdentities(func(c *coreapi.HCPOpenShiftCluster) {
+				repointOperator(c, "ingress", managedIdentity1)
+				repointOperator(c, "control-plane", managedIdentity1)
+				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity = managedIdentity1
+				c.Identity.UserAssignedIdentities[managedIdentity1.String()] = &coreapi.UserAssignedIdentity{}
+			}),
 			expectErrors: []utils.ExpectedError{
 				{
 					Message:   "must be unique within the cluster",
@@ -944,25 +904,10 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Cluster with invalid data plane operator identities",
-			tweaks: &coreapi.HCPOpenShiftCluster{
-				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
-					Platform: coreapi.CustomerPlatformProfile{
-						OperatorsAuthentication: coreapi.OperatorsAuthenticationProfile{
-							UserAssignedIdentities: coreapi.UserAssignedIdentitiesProfile{
-								DataPlaneOperators: map[string]*azcorearm.ResourceID{
-									"operatorX": managedIdentity1,
-								},
-							},
-						},
-					},
-				},
-				Identity: &coreapi.ManagedServiceIdentity{
-					Type: coreapi.ManagedServiceIdentityTypeUserAssigned,
-					UserAssignedIdentities: map[string]*coreapi.UserAssignedIdentity{
-						managedIdentity1.String(): {},
-					},
-				},
-			},
+			resource: clusterWithOperatorIdentities(func(c *coreapi.HCPOpenShiftCluster) {
+				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators["disk-csi-driver"] = managedIdentity1
+				c.Identity.UserAssignedIdentities[managedIdentity1.String()] = &coreapi.UserAssignedIdentity{}
+			}),
 			expectErrors: []utils.ExpectedError{
 				{
 					Message:   "identity is assigned to this resource but not used",
@@ -970,7 +915,7 @@ func TestClusterValidate(t *testing.T) {
 				},
 				{
 					Message:   "cannot use identity assigned to this resource by .identities.userAssignedIdentities",
-					FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.dataPlaneOperators[operatorX]",
+					FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.dataPlaneOperators[disk-csi-driver]",
 				},
 			},
 		},

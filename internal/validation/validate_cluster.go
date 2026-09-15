@@ -102,6 +102,9 @@ func ValidateCluster(ctx context.Context, op operation.Operation, newCluster, ol
 	// some operator identities only become required once the feature that uses them is enabled
 	errs = append(errs, validateRequiredOperatorIdentities(ctx, op, newCluster, oldCluster)...)
 
+	// an operator name the service does not recognize is accepted here and then fails later
+	errs = append(errs, validateOperatorIdentityNames(ctx, op, newCluster, oldCluster)...)
+
 	// there are pieces of clusterProperties that are dependent upon values in .identity
 	errs = append(errs, validateOperatorAuthenticationAgainstIdentities(ctx, op, newCluster, oldCluster)...)
 
@@ -333,6 +336,59 @@ func validateRequiredOperatorIdentities(_ context.Context, op operation.Operatio
 		errs = append(errs, field.Required(controlPlanePath.Key(operator.operatorName), fmt.Sprintf("a user-assigned identity for the %q control plane operator is required when %s", operator.operatorName, operator.enabledBy)))
 	}
 
+	return errs
+}
+
+// validateOperatorIdentityNames rejects operator names the service does not recognize.
+//
+// The backend indexes operators by exact name, so a mis-cased or misspelled key is accepted at
+// create time and then fails asynchronously -- the same silent failure this validation exists to
+// prevent. Matching is therefore exact, unlike the requirement check, which stays case-insensitive
+// so that a mis-cased key reports one clear error rather than two.
+//
+// Create-only, for the same reason as validateRequiredOperatorIdentities.
+func validateOperatorIdentityNames(_ context.Context, op operation.Operation, newCluster, _ *coreapi.HCPOpenShiftCluster) field.ErrorList {
+	if op.Type != operation.Create {
+		return nil
+	}
+
+	userAssignedIdentities := newCluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities
+	basePath := field.NewPath("customerProperties", "platform", "operatorsAuthentication", "userAssignedIdentities")
+
+	recognizedControlPlane := make([]string, 0, len(clusterScopedIdentities.ControlPlaneOperatorsIdentities))
+	for operatorName := range clusterScopedIdentities.ControlPlaneOperatorsIdentities {
+		recognizedControlPlane = append(recognizedControlPlane, string(operatorName))
+	}
+	recognizedDataPlane := make([]string, 0, len(clusterScopedIdentities.DataPlaneOperatorsIdentities))
+	for operatorName := range clusterScopedIdentities.DataPlaneOperatorsIdentities {
+		recognizedDataPlane = append(recognizedDataPlane, string(operatorName))
+	}
+	slices.Sort(recognizedControlPlane)
+	slices.Sort(recognizedDataPlane)
+
+	errs := field.ErrorList{}
+	errs = append(errs, unrecognizedOperatorNameErrors(userAssignedIdentities.ControlPlaneOperators, basePath.Child("controlPlaneOperators"), recognizedControlPlane)...)
+	errs = append(errs, unrecognizedOperatorNameErrors(userAssignedIdentities.DataPlaneOperators, basePath.Child("dataPlaneOperators"), recognizedDataPlane)...)
+	return errs
+}
+
+func unrecognizedOperatorNameErrors(supplied map[string]*azcorearm.ResourceID, fldPath *field.Path, recognized []string) field.ErrorList {
+	unrecognized := make([]string, 0, len(supplied))
+	for operatorName := range supplied {
+		// An empty name is already reported by validateUserAssignedIdentitiesProfile.
+		if operatorName == "" || slices.Contains(recognized, operatorName) {
+			continue
+		}
+		unrecognized = append(unrecognized, operatorName)
+	}
+	// Sorted so error ordering does not depend on map iteration order.
+	slices.Sort(unrecognized)
+
+	errs := field.ErrorList{}
+	for _, operatorName := range unrecognized {
+		errs = append(errs, field.Invalid(fldPath.Key(operatorName), operatorName,
+			fmt.Sprintf("unrecognized operator name; supported values: %s", strings.Join(recognized, ", "))))
+	}
 	return errs
 }
 
