@@ -348,10 +348,10 @@ func (c *QuayClient) getAllTagsViaRegistryAPI(ctx context.Context, repository st
 	return allTags, nil
 }
 
-func (c *QuayClient) enrichTagsViaRegistryAPI(ctx context.Context, repository string, tags []Tag, versionLabel string) ([]Tag, map[string]*remote.Descriptor, error) {
+func (c *QuayClient) enrichTagsViaRegistryAPI(ctx context.Context, repository string, tags []Tag, versionLabel string) ([]Tag, map[string]*remote.Descriptor, map[string]*v1.ConfigFile, error) {
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
-		return nil, nil, fmt.Errorf("logger not found in context: %w", err)
+		return nil, nil, nil, fmt.Errorf("logger not found in context: %w", err)
 	}
 
 	logger.V(2).Info("enriching tags with timestamp information", "repository", repository, "totalTags", len(tags))
@@ -366,13 +366,13 @@ func (c *QuayClient) enrichTagsViaRegistryAPI(ctx context.Context, repository st
 		}
 
 		tag := candidate
+		var configFile *v1.ConfigFile
 		if desc.MediaType.IsIndex() {
 			tag.LastModified, tag.Version, err = extractMetadataFromMultiArchManifest(desc, tag.Name, tag.LastModified, versionLabel)
 		} else {
 			var img v1.Image
 			img, err = desc.Image()
 			if err == nil {
-				var configFile *v1.ConfigFile
 				configFile, err = img.ConfigFile()
 				if err == nil {
 					tag.LastModified, err = validateCreationTimestamp(tag.Name, configFile.Created.Time)
@@ -384,20 +384,24 @@ func (c *QuayClient) enrichTagsViaRegistryAPI(ctx context.Context, repository st
 			return fetchedTagMetadata{}, fmt.Errorf("failed to enrich metadata for tag %s: %w", tag.Name, err)
 		}
 		tag.Digest = desc.Digest.String()
-		return fetchedTagMetadata{tag: tag, descriptor: desc}, nil
+		return fetchedTagMetadata{tag: tag, descriptor: desc, configFile: configFile}, nil
 	})
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to enrich tag metadata: %w", err)
+		return nil, nil, nil, fmt.Errorf("failed to enrich tag metadata: %w", err)
 	}
 
 	enrichedTags := make([]Tag, 0, len(metadata))
 	descriptorCache := make(map[string]*remote.Descriptor, len(metadata))
+	configFileCache := make(map[string]*v1.ConfigFile, len(metadata))
 	for _, result := range metadata {
 		enrichedTags = append(enrichedTags, result.tag)
 		descriptorCache[result.tag.Name] = result.descriptor
+		if result.configFile != nil {
+			configFileCache[result.tag.Name] = result.configFile
+		}
 	}
 	logger.V(2).Info("enriched tags with timestamp information", "repository", repository, "enrichedTags", len(enrichedTags))
-	return enrichedTags, descriptorCache, nil
+	return enrichedTags, descriptorCache, configFileCache, nil
 }
 
 func (c *QuayClient) GetArchSpecificDigest(ctx context.Context, repository string, tagPattern string, arch string, wantMultiArch bool, versionLabel string) (*Tag, error) {
@@ -410,6 +414,7 @@ func (c *QuayClient) GetArchSpecificDigest(ctx context.Context, repository strin
 
 	// Cache for remote descriptors to avoid duplicate remote.Get calls
 	descriptorCache := make(map[string]*remote.Descriptor)
+	configFileCache := make(map[string]*v1.ConfigFile)
 
 	allTags, err := c.getAllTags(ctx, repository, tagPattern)
 	if err != nil {
@@ -429,7 +434,7 @@ func (c *QuayClient) GetArchSpecificDigest(ctx context.Context, repository strin
 			logger.V(2).Info("pre-filtered tags by pattern", "repository", repository, "tagPattern", tagPattern, "totalTags", len(allTags), "matchingTags", len(candidates))
 		}
 
-		allTags, descriptorCache, err = c.enrichTagsViaRegistryAPI(ctx, repository, candidates, versionLabel)
+		allTags, descriptorCache, configFileCache, err = c.enrichTagsViaRegistryAPI(ctx, repository, candidates, versionLabel)
 		if err != nil {
 			return nil, err
 		}
@@ -486,9 +491,16 @@ func (c *QuayClient) GetArchSpecificDigest(ctx context.Context, repository strin
 			return nil, fmt.Errorf("failed to read image for candidate tag %s: %w", tag.Name, err)
 		}
 
-		configFile, err := img.ConfigFile()
-		if err != nil {
-			return nil, fmt.Errorf("failed to read image config for candidate tag %s: %w", tag.Name, err)
+		// Prefer a configFile fetched during concurrent enrichment: cached
+		// descriptors carry the errgroup's fetchCtx, which is already
+		// canceled by the time we get here (group.Wait() has returned), so
+		// calling img.ConfigFile() again on a cache hit would fail.
+		configFile, ok := configFileCache[tag.Name]
+		if !ok {
+			configFile, err = img.ConfigFile()
+			if err != nil {
+				return nil, fmt.Errorf("failed to read image config for candidate tag %s: %w", tag.Name, err)
+			}
 		}
 
 		normalizedArch := NormalizeArchitecture(configFile.Architecture)

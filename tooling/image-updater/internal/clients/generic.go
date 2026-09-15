@@ -47,6 +47,13 @@ type GenericRegistryClient struct {
 type fetchedTagMetadata struct {
 	tag        Tag
 	descriptor *remote.Descriptor
+	// configFile is populated for non-index descriptors during concurrent
+	// enrichment, while the errgroup's context is still valid. It is cached
+	// here and reused by later cache-hit reads so we never call
+	// descriptor.Image().ConfigFile() again with a descriptor whose bound
+	// context (the errgroup's fetchCtx) has already been canceled by
+	// group.Wait() returning.
+	configFile *v1.ConfigFile
 }
 
 func runMetadataWorker(label string, worker func() error) (err error) {
@@ -485,6 +492,7 @@ func (c *GenericRegistryClient) GetArchSpecificDigest(ctx context.Context, repos
 	}
 
 	descriptorCache := make(map[string]*remote.Descriptor, len(allTags))
+	configFileCache := make(map[string]*v1.ConfigFile, len(allTags))
 	enrichedTags := allTags
 	if !usesSemanticVersionOrdering(allTags, tagPattern) || hasEquivalentSemanticVersions(allTags) || versionLabel != "" {
 		metadata, err := fetchTagMetadataConcurrently(ctx, allTags, func(fetchCtx context.Context, candidate Tag) (fetchedTagMetadata, error) {
@@ -498,13 +506,13 @@ func (c *GenericRegistryClient) GetArchSpecificDigest(ctx context.Context, repos
 			}
 
 			tag := candidate
+			var configFile *v1.ConfigFile
 			if desc.MediaType.IsIndex() {
 				tag.LastModified, tag.Version, err = extractMetadataFromMultiArchManifest(desc, tag.Name, tag.LastModified, versionLabel)
 			} else {
 				var img v1.Image
 				img, err = desc.Image()
 				if err == nil {
-					var configFile *v1.ConfigFile
 					configFile, err = img.ConfigFile()
 					if err == nil {
 						tag.LastModified, err = validateCreationTimestamp(tag.Name, configFile.Created.Time)
@@ -516,16 +524,20 @@ func (c *GenericRegistryClient) GetArchSpecificDigest(ctx context.Context, repos
 				return fetchedTagMetadata{}, fmt.Errorf("failed to enrich metadata for tag %s: %w", tag.Name, err)
 			}
 			tag.Digest = desc.Digest.String()
-			return fetchedTagMetadata{tag: tag, descriptor: desc}, nil
+			return fetchedTagMetadata{tag: tag, descriptor: desc, configFile: configFile}, nil
 		})
 		if err != nil {
 			return nil, fmt.Errorf("failed to enrich tag metadata: %w", err)
 		}
 
 		descriptorCache = make(map[string]*remote.Descriptor, len(metadata))
+		configFileCache = make(map[string]*v1.ConfigFile, len(metadata))
 		enrichedTags = make([]Tag, 0, len(metadata))
 		for _, result := range metadata {
 			descriptorCache[result.tag.Name] = result.descriptor
+			if result.configFile != nil {
+				configFileCache[result.tag.Name] = result.configFile
+			}
 			enrichedTags = append(enrichedTags, result.tag)
 		}
 	}
@@ -580,9 +592,16 @@ func (c *GenericRegistryClient) GetArchSpecificDigest(ctx context.Context, repos
 			return nil, fmt.Errorf("failed to read image for candidate tag %s: %w", tag.Name, err)
 		}
 
-		configFile, err := img.ConfigFile()
-		if err != nil {
-			return nil, fmt.Errorf("failed to read image config for candidate tag %s: %w", tag.Name, err)
+		// Prefer a configFile fetched during concurrent enrichment: cached
+		// descriptors carry the errgroup's fetchCtx, which is already
+		// canceled by the time we get here (group.Wait() has returned), so
+		// calling img.ConfigFile() again on a cache hit would fail.
+		configFile, ok := configFileCache[tag.Name]
+		if !ok {
+			configFile, err = img.ConfigFile()
+			if err != nil {
+				return nil, fmt.Errorf("failed to read image config for candidate tag %s: %w", tag.Name, err)
+			}
 		}
 		tag.LastModified, err = validateCreationTimestamp(tag.Name, configFile.Created.Time)
 		if err != nil {
