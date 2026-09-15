@@ -211,8 +211,7 @@ func TestDesiredDataPlaneOIDCFederationStatus(t *testing.T) {
 			name: "identity that left data-plane operators is marked PendingDeconfigure",
 			current: map[string]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
 				keyA: {
-					Phase:               coreapi.ManagedIdentityDataplaneOIDCFederationPhaseConfigured,
-					EarliestRecheckTime: &metav1.Time{Time: time.Date(2026, 9, 6, 12, 0, 0, 0, time.UTC)},
+					Phase: coreapi.ManagedIdentityDataplaneOIDCFederationPhaseConfigured,
 				},
 			},
 			expectedPhases: map[string]coreapi.ManagedIdentityDataplaneOIDCFederationPhase{
@@ -226,7 +225,6 @@ func TestDesiredDataPlaneOIDCFederationStatus(t *testing.T) {
 				keyA: {
 					Phase:                coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingDeconfigure,
 					DeconfigureTimestamp: &metav1.Time{Time: time.Date(2026, 9, 7, 12, 0, 0, 0, time.UTC)},
-					EarliestRecheckTime:  &metav1.Time{Time: time.Date(2026, 9, 7, 18, 0, 0, 0, time.UTC)},
 				},
 			},
 			expectedPhases: map[string]coreapi.ManagedIdentityDataplaneOIDCFederationPhase{
@@ -375,11 +373,6 @@ func TestDesiredDataPlaneOIDCFederationStatus(t *testing.T) {
 				assert.Equal(t, since, *got[key].DeconfigureTimestamp)
 			}
 			for key := range tc.expectedPhases {
-				if tc.current[key] == nil {
-					assert.Nil(t, got[key].EarliestRecheckTime)
-				} else {
-					assert.Equal(t, tc.current[key].EarliestRecheckTime, got[key].EarliestRecheckTime)
-				}
 				if _, ok := stamped[key]; ok {
 					continue
 				}
@@ -511,7 +504,6 @@ func TestDataPlaneOIDCFederationIntentSyncOnceStampsDeconfigureTimestampOnLiveCl
 	assert.Equal(t, coreapi.ManagedIdentityDataplaneOIDCFederationPhasePendingDeconfigure, got.Phase)
 	require.NotNil(t, got.DeconfigureTimestamp)
 	assert.True(t, got.DeconfigureTimestamp.Time.Equal(now))
-	assert.Nil(t, got.EarliestRecheckTime)
 }
 
 func TestDataPlaneOIDCFederationIntentSyncOnceMarksPendingDeconfigureOnClusterDeletion(t *testing.T) {

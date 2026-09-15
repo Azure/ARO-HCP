@@ -138,7 +138,7 @@ type ServiceProviderClusterSpec struct {
 	// dissipated. Additionally, long recheck times are recommended for resources
 	// outside of their active phases. Order of at least six hours is, with
 	// durations up to 24 hours considered normal.
-	// Written by: FetchMSIIdentitiesInfo, FetchDataPlaneOperatorsManagedIdentitiesInfoController, FetchManagedIdentitiesInfo, IdentityRoleAssignments
+	// Written by: FetchMSIIdentitiesInfo, FetchDataPlaneOperatorsManagedIdentitiesInfoController, FetchManagedIdentitiesInfo, IdentityRoleAssignments, DataPlaneOIDCFederation
 	EarliestRecheckTimesByController map[string]*metav1.Time `json:"earliestRecheckTimesByController,omitempty"`
 }
 
@@ -385,15 +385,6 @@ type ManagedIdentityDataplaneOIDCFederationObservedIdentity struct {
 }
 
 type ManagedIdentityDataplaneOIDCFederationStatus struct {
-	// EarliestRecheckTime is the earliest time at which the controller should
-	// re-query Azure for the managed identity's OIDC Federation status. Nil means recheck immediately.
-	// This allows the controller to avoid repeatedly hitting an Azure API to
-	// recheck that the desired state is true.
-	// Controllers should set this field with substantial jitter: without another
-	// concern, jitter of 50% is considered normal so that any storms are quickly
-	// dissipated. Additionally, long recheck times are recommended for resources outside of their active phases. Order of at least six hours is, with durations up to 24 hours considered normal.
-	// Written by: DataPlaneOIDCFederation
-	EarliestRecheckTime *metav1.Time `json:"earliestRecheckTime,omitempty"`
 	// Phase is the reconciliation phase of data-plane OIDC federation for this identity.
 	// Written by: DataPlaneOIDCFederationIntent, DataPlaneOIDCFederation
 	Phase ManagedIdentityDataplaneOIDCFederationPhase `json:"phase,omitempty"`
