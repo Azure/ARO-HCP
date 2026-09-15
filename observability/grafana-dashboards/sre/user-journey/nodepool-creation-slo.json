@@ -78,7 +78,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count(backend_nodepool_provision_state{subscription_id!~\"${exclude_subs:raw}\"} == 1) or vector(0)",
+          "expr": "count(max by (cluster, environment, region, subscription_id, resource_id, phase) (backend_nodepool_provision_state{subscription_id!~\"${exclude_subs:raw}\"} == 1)) or vector(0)",
           "instant": true,
           "range": false,
           "legendFormat": "__auto",
@@ -111,7 +111,7 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "Terminal node pool create attempts that completed within the selected dashboard time window. Denominator for the lookback SLO panels.",
+      "description": "Terminal node pool create attempts (succeeded or failed) that completed within the selected dashboard time window. Denominator for the lookback SLO panels. Canceled creates are excluded from this SLO -- a customer-initiated cancellation isn't a service failure. See \"Failed / Canceled Create Attempts\" for combined operational tracking of both. Reflects whichever create attempt the backend's informer processed last for this resource on its most recent relist/resync -- not guaranteed to be the temporally most recent attempt, since informer iteration order is unordered (see operation_phase_metrics_controller.go:42-50).",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -162,7 +162,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count((backend_resource_operation_phase_info{resource_type=\"$resource_type\", operation_type=\"create\", phase=~\"succeeded|failed|canceled\", subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"$resource_type\", operation_type=\"create\", phase=~\"succeeded|failed|canceled\", subscription_id!~\"${exclude_subs:raw}\"}) < $__range_s)) or vector(0)",
+          "expr": "count((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{resource_type=\"$resource_type\", operation_type=\"create\", phase=~\"succeeded|failed\", subscription_id!~\"${exclude_subs:raw}\"}) == 1) and ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type=\"$resource_type\", operation_type=\"create\", phase=~\"succeeded|failed\", subscription_id!~\"${exclude_subs:raw}\"})) < $__range_s)) or vector(0)",
           "instant": true,
           "range": false,
           "legendFormat": "Completed",
@@ -195,7 +195,7 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "Windowed Success SLO: successful terminal create attempts divided by all terminal create attempts. Target: 99%. Per Steven Clarkson's SLO definition in ARO-19995 (child of ARO-19992, comment dated 2025-09-25): \"Percentage of Node Pools created in less than 15 minutes greater than 99%.\"",
+      "description": "Windowed Success SLO: successful terminal create attempts divided by all terminal create attempts. Target: 99%. Canceled creates are excluded from this SLO -- a customer-initiated cancellation isn't a service failure. See \"Failed / Canceled Create Attempts\" for combined operational tracking of both. Per Steven Clarkson's SLO definition in ARO-19995 (child of ARO-19992, comment dated 2025-09-25): \"Percentage of Node Pools created in less than 15 minutes greater than 99%.\" Reflects whichever create attempt the backend's informer processed last for this resource on its most recent relist/resync -- not guaranteed to be the temporally most recent attempt, since informer iteration order is unordered (see operation_phase_metrics_controller.go:42-50).",
       "fieldConfig": {
         "defaults": {
           "decimals": 1,
@@ -258,7 +258,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count((backend_resource_operation_phase_info{resource_type=\"$resource_type\", operation_type=\"create\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"$resource_type\", operation_type=\"create\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"}) < $__range_s)) * 100",
+          "expr": "count((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{resource_type=\"$resource_type\", operation_type=\"create\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"}) == 1) and ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type=\"$resource_type\", operation_type=\"create\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"})) < $__range_s)) * 100 or vector(0)",
           "legendFormat": "Successful x100",
           "refId": "A",
           "instant": true,
@@ -270,7 +270,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count((backend_resource_operation_phase_info{resource_type=\"$resource_type\", operation_type=\"create\", phase=~\"succeeded|failed|canceled\", subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"$resource_type\", operation_type=\"create\", phase=~\"succeeded|failed|canceled\", subscription_id!~\"${exclude_subs:raw}\"}) < $__range_s))",
+          "expr": "count((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{resource_type=\"$resource_type\", operation_type=\"create\", phase=~\"succeeded|failed\", subscription_id!~\"${exclude_subs:raw}\"}) == 1) and ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type=\"$resource_type\", operation_type=\"create\", phase=~\"succeeded|failed\", subscription_id!~\"${exclude_subs:raw}\"})) < $__range_s))",
           "legendFormat": "Completed",
           "refId": "B",
           "instant": true,
@@ -344,7 +344,7 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "Failed or canceled node pool create attempts that completed within the selected dashboard time window. Any non-zero value means there were unsuccessful creates in the window.",
+      "description": "Failed or canceled node pool create attempts that completed within the selected dashboard time window. Any non-zero value means there were unsuccessful creates in the window. Reflects whichever create attempt the backend's informer processed last for this resource on its most recent relist/resync -- not guaranteed to be the temporally most recent attempt, since informer iteration order is unordered (see operation_phase_metrics_controller.go:42-50).",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -399,7 +399,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count((backend_resource_operation_phase_info{resource_type=\"$resource_type\", operation_type=\"create\", phase=~\"failed|canceled\", subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"$resource_type\", operation_type=\"create\", phase=~\"failed|canceled\", subscription_id!~\"${exclude_subs:raw}\"}) < $__range_s)) or vector(0)",
+          "expr": "count((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{resource_type=\"$resource_type\", operation_type=\"create\", phase=~\"failed|canceled\", subscription_id!~\"${exclude_subs:raw}\"}) == 1) and ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type=\"$resource_type\", operation_type=\"create\", phase=~\"failed|canceled\", subscription_id!~\"${exclude_subs:raw}\"})) < $__range_s)) or vector(0)",
           "instant": true,
           "range": false,
           "legendFormat": "Unsuccessful",
@@ -432,7 +432,7 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "Node pools deleted within the selected window, fleet-wide. Shown so a drop in Total Node Pools isn't mistaken for lost data -- deletes aren't part of the create SLO tracked by this dashboard (see the Node Pool Management SLO dashboard for delete-specific health).",
+      "description": "Node pools deleted within the selected window, fleet-wide. Shown so a drop in Total Node Pools isn't mistaken for lost data -- deletes aren't part of the create SLO tracked by this dashboard (see the Node Pool Management SLO dashboard for delete-specific health). Reflects whichever delete attempt the backend's informer processed last for this resource on its most recent relist/resync -- not guaranteed to be the temporally most recent attempt, since informer iteration order is unordered (see operation_phase_metrics_controller.go:42-50).",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -483,7 +483,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count((backend_resource_operation_phase_info{resource_type=\"$resource_type\", operation_type=\"delete\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"$resource_type\", operation_type=\"delete\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"}) < $__range_s)) or vector(0)",
+          "expr": "count((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{resource_type=\"$resource_type\", operation_type=\"delete\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"}) == 1) and ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type=\"$resource_type\", operation_type=\"delete\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"})) < $__range_s)) or vector(0)",
           "instant": true,
           "range": false,
           "legendFormat": "Deleted",
@@ -529,7 +529,7 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "Fraction of terminal create attempts that succeeded. Green line marks the 99% SLO target. Gaps mean no terminal attempts in that window, not 0%. Per Steven Clarkson's SLO definition in ARO-19995 (child of ARO-19992, comment dated 2025-09-25): \"Percentage of Node Pools created in less than 15 minutes greater than 99%.\"",
+      "description": "Fraction of terminal create attempts, in the trailing 1h as of each point on the graph, that succeeded. Green line marks the 99% SLO target. Gaps mean no terminal attempts in that rolling window, not 0%. Canceled creates are excluded from this SLO -- a customer-initiated cancellation isn't a service failure. See \"Failed / Canceled Create Attempts\" for combined operational tracking of both. Reflects whichever create attempt the backend's informer processed last for this resource on its most recent relist/resync -- not guaranteed to be the temporally most recent attempt, since informer iteration order is unordered (see operation_phase_metrics_controller.go:42-50). Per Steven Clarkson's SLO definition in ARO-19995 (child of ARO-19992, comment dated 2025-09-25): \"Percentage of Node Pools created in less than 15 minutes greater than 99%.\"",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -603,7 +603,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "(\n  (count by (cluster) (backend_resource_operation_phase_info{resource_type=\"$resource_type\", operation_type=\"create\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"}) or (count by (cluster) (backend_resource_operation_phase_info{resource_type=\"$resource_type\", operation_type=\"create\", phase=~\"succeeded|failed\", subscription_id!~\"${exclude_subs:raw}\"}) * 0))\n  /\n  count by (cluster) (backend_resource_operation_phase_info{resource_type=\"$resource_type\", operation_type=\"create\", phase=~\"succeeded|failed\", subscription_id!~\"${exclude_subs:raw}\"})\n) * 100",
+          "expr": "(\n  (count by (cluster) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{resource_type=\"$resource_type\", operation_type=\"create\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"}) and (time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type=\"$resource_type\", operation_type=\"create\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"}) < 3600)) or (count by (cluster) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{resource_type=\"$resource_type\", operation_type=\"create\", phase=~\"succeeded|failed\", subscription_id!~\"${exclude_subs:raw}\"}) and (time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type=\"$resource_type\", operation_type=\"create\", phase=~\"succeeded|failed\", subscription_id!~\"${exclude_subs:raw}\"}) < 3600)) * 0))\n  /\n  count by (cluster) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{resource_type=\"$resource_type\", operation_type=\"create\", phase=~\"succeeded|failed\", subscription_id!~\"${exclude_subs:raw}\"}) and (time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type=\"$resource_type\", operation_type=\"create\", phase=~\"succeeded|failed\", subscription_id!~\"${exclude_subs:raw}\"}) < 3600))\n) * 100",
           "legendFormat": "Availability % ({{cluster}})",
           "refId": "A"
         }
@@ -616,7 +616,7 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "Fraction of terminal create attempts that failed. Threshold line marks the 1% error budget implied by the 99% success SLO. Gaps mean no terminal attempts in that window, not 0%. Per Steven Clarkson's SLO definition in ARO-19995 (child of ARO-19992, comment dated 2025-09-25): \"Percentage of Node Pools created in less than 15 minutes greater than 99%.\"",
+      "description": "Fraction of terminal create attempts, in the trailing 1h as of each point on the graph, that failed. Threshold line marks the 1% error budget implied by the 99% success SLO. Gaps mean no terminal attempts in that rolling window, not 0%. Canceled creates are excluded from this SLO -- a customer-initiated cancellation isn't a service failure. See \"Failed / Canceled Create Attempts\" for combined operational tracking of both. Reflects whichever create attempt the backend's informer processed last for this resource on its most recent relist/resync -- not guaranteed to be the temporally most recent attempt, since informer iteration order is unordered (see operation_phase_metrics_controller.go:42-50). Per Steven Clarkson's SLO definition in ARO-19995 (child of ARO-19992, comment dated 2025-09-25): \"Percentage of Node Pools created in less than 15 minutes greater than 99%.\"",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -694,7 +694,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "(\n  (count by (cluster) (backend_resource_operation_phase_info{resource_type=\"$resource_type\", operation_type=\"create\", phase=\"failed\", subscription_id!~\"${exclude_subs:raw}\"}) or (count by (cluster) (backend_resource_operation_phase_info{resource_type=\"$resource_type\", operation_type=\"create\", phase=~\"succeeded|failed\", subscription_id!~\"${exclude_subs:raw}\"}) * 0))\n  /\n  count by (cluster) (backend_resource_operation_phase_info{resource_type=\"$resource_type\", operation_type=\"create\", phase=~\"succeeded|failed\", subscription_id!~\"${exclude_subs:raw}\"})\n) * 100",
+          "expr": "(\n  (count by (cluster) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{resource_type=\"$resource_type\", operation_type=\"create\", phase=\"failed\", subscription_id!~\"${exclude_subs:raw}\"}) and (time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type=\"$resource_type\", operation_type=\"create\", phase=\"failed\", subscription_id!~\"${exclude_subs:raw}\"}) < 3600)) or (count by (cluster) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{resource_type=\"$resource_type\", operation_type=\"create\", phase=~\"succeeded|failed\", subscription_id!~\"${exclude_subs:raw}\"}) and (time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type=\"$resource_type\", operation_type=\"create\", phase=~\"succeeded|failed\", subscription_id!~\"${exclude_subs:raw}\"}) < 3600)) * 0))\n  /\n  count by (cluster) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{resource_type=\"$resource_type\", operation_type=\"create\", phase=~\"succeeded|failed\", subscription_id!~\"${exclude_subs:raw}\"}) and (time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type=\"$resource_type\", operation_type=\"create\", phase=~\"succeeded|failed\", subscription_id!~\"${exclude_subs:raw}\"}) < 3600))\n) * 100",
           "legendFormat": "Error Rate % ({{cluster}})",
           "refId": "A"
         }
@@ -720,7 +720,7 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "Fixed 30-day rolling Availability, independent of the dashboard time picker. Used as the input to the Error Budget Remaining panel.",
+      "description": "Rolling 7-day Availability (matches the Cosmos operation-document TTL -- the metric has no history beyond 7 days), independent of the dashboard time picker. Used as the input to the Error Budget Remaining panel. Canceled creates are excluded from this SLO -- a customer-initiated cancellation isn't a service failure. See \"Failed / Canceled Create Attempts\" for combined operational tracking of both. Reflects whichever create attempt the backend's informer processed last for this resource on its most recent relist/resync -- not guaranteed to be the temporally most recent attempt, since informer iteration order is unordered (see operation_phase_metrics_controller.go:42-50).",
       "fieldConfig": {
         "defaults": {
           "decimals": 1,
@@ -783,7 +783,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count((backend_resource_operation_phase_info{resource_type=\"$resource_type\", operation_type=\"create\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"$resource_type\", operation_type=\"create\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"}) < $slo_window_seconds)) * 100",
+          "expr": "count((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{resource_type=\"$resource_type\", operation_type=\"create\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"}) == 1) and ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type=\"$resource_type\", operation_type=\"create\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"})) < $slo_window_seconds)) * 100 or vector(0)",
           "legendFormat": "Successful x100",
           "refId": "A",
           "instant": true,
@@ -795,14 +795,14 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count((backend_resource_operation_phase_info{resource_type=\"$resource_type\", operation_type=\"create\", phase=~\"succeeded|failed|canceled\", subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"$resource_type\", operation_type=\"create\", phase=~\"succeeded|failed|canceled\", subscription_id!~\"${exclude_subs:raw}\"}) < $slo_window_seconds))",
+          "expr": "count((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{resource_type=\"$resource_type\", operation_type=\"create\", phase=~\"succeeded|failed\", subscription_id!~\"${exclude_subs:raw}\"}) == 1) and ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type=\"$resource_type\", operation_type=\"create\", phase=~\"succeeded|failed\", subscription_id!~\"${exclude_subs:raw}\"})) < $slo_window_seconds))",
           "legendFormat": "Completed",
           "refId": "B",
           "instant": true,
           "range": false
         }
       ],
-      "title": "Availability (30d)",
+      "title": "Availability (7d)",
       "transformations": [
         {
           "id": "seriesToRows",
@@ -847,7 +847,7 @@
         {
           "id": "calculateField",
           "options": {
-            "alias": "Availability 30d %",
+            "alias": "Availability 7d %",
             "binary": {
               "left": "Successful x100",
               "operator": "/",
@@ -869,7 +869,7 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "Remaining error budget against the 99% availability SLO, fixed 30-day window. 100% = no budget consumed, 0% = fully consumed. Floor-at-zero convention matches frontend-slo.json's Error Budget Remaining panel. Per Steven Clarkson's SLO definition in ARO-19995 (child of ARO-19992, comment dated 2025-09-25): \"Percentage of Node Pools created in less than 15 minutes greater than 99%.\"",
+      "description": "Remaining error budget against the 99% availability SLO, fixed 7-day window (matches the Cosmos operation-document TTL). 100% = no budget consumed, 0% = fully consumed. Floor-at-zero convention matches frontend-slo.json's Error Budget Remaining panel. Canceled creates are excluded from this SLO -- a customer-initiated cancellation isn't a service failure. This budget tracks the Availability SLI only (success vs. failure) -- it does not account for the Timeliness dimension of the original compound SLO (\"success AND within 15 min, 99% of the time\"). A create that succeeds slowly still consumes zero budget here. See the Timeliness SLO panel for that dimension separately. Reflects whichever create attempt the backend's informer processed last for this resource on its most recent relist/resync -- not guaranteed to be the temporally most recent attempt, since informer iteration order is unordered (see operation_phase_metrics_controller.go:42-50).",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -932,7 +932,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count((backend_resource_operation_phase_info{resource_type=\"$resource_type\", operation_type=\"create\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"$resource_type\", operation_type=\"create\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"}) < $slo_window_seconds)) * 100",
+          "expr": "count((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{resource_type=\"$resource_type\", operation_type=\"create\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"}) == 1) and ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type=\"$resource_type\", operation_type=\"create\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"})) < $slo_window_seconds)) * 100 or vector(0)",
           "legendFormat": "Successful x100",
           "refId": "A",
           "instant": true,
@@ -944,14 +944,14 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count((backend_resource_operation_phase_info{resource_type=\"$resource_type\", operation_type=\"create\", phase=~\"succeeded|failed|canceled\", subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"$resource_type\", operation_type=\"create\", phase=~\"succeeded|failed|canceled\", subscription_id!~\"${exclude_subs:raw}\"}) < $slo_window_seconds))",
+          "expr": "count((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{resource_type=\"$resource_type\", operation_type=\"create\", phase=~\"succeeded|failed\", subscription_id!~\"${exclude_subs:raw}\"}) == 1) and ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type=\"$resource_type\", operation_type=\"create\", phase=~\"succeeded|failed\", subscription_id!~\"${exclude_subs:raw}\"})) < $slo_window_seconds))",
           "legendFormat": "Completed",
           "refId": "B",
           "instant": true,
           "range": false
         }
       ],
-      "title": "Error Budget Remaining (30d)",
+      "title": "Error Budget Remaining (7d)",
       "type": "stat",
       "transformations": [
         {
@@ -1084,7 +1084,7 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "Number of create operations stuck in a non-terminal phase (accepted, provisioning, updating, deleting) for more than 30 minutes -- double the 15 minute SLO target, used as a distinct \"clearly hung\" signal rather than an SLO breach line. Target: 0.",
+      "description": "Number of create operations stuck in a non-terminal phase (accepted, provisioning, updating, deleting) for more than 30 minutes -- double the 15 minute SLO target, used as a distinct \"clearly hung\" signal rather than an SLO breach line. Target: 0. Reflects whichever create attempt the backend's informer processed last for this resource on its most recent relist/resync -- not guaranteed to be the temporally most recent attempt, since informer iteration order is unordered (see operation_phase_metrics_controller.go:42-50).",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1143,7 +1143,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count((backend_resource_operation_phase_info{resource_type=\"$resource_type\", operation_type=\"create\", phase=~\"accepted|provisioning|updating|deleting\", subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"$resource_type\", operation_type=\"create\", phase=~\"accepted|provisioning|updating|deleting\", subscription_id!~\"${exclude_subs:raw}\"}) > 1800)) or vector(0)",
+          "expr": "count((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{resource_type=\"$resource_type\", operation_type=\"create\", phase=~\"accepted|provisioning|updating|deleting\", subscription_id!~\"${exclude_subs:raw}\"}) == 1) and ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type=\"$resource_type\", operation_type=\"create\", phase=~\"accepted|provisioning|updating|deleting\", subscription_id!~\"${exclude_subs:raw}\"})) > 1800)) or vector(0)",
           "instant": true,
           "range": false,
           "legendFormat": "Stuck",
@@ -1189,7 +1189,7 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "Fleet p50 create duration in minutes for successful create attempts completed within the selected window.",
+      "description": "Fleet p50 create duration in minutes for successful create attempts completed within the selected window. Reflects whichever create attempt the backend's informer processed last for this resource on its most recent relist/resync -- not guaranteed to be the temporally most recent attempt, since informer iteration order is unordered (see operation_phase_metrics_controller.go:42-50).",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1243,7 +1243,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "((backend_resource_operation_last_transition_time_seconds{resource_type=\"$resource_type\", operation_type=\"create\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"} - backend_resource_operation_start_time_seconds{resource_type=\"$resource_type\", operation_type=\"create\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"}) / 60) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"$resource_type\", operation_type=\"create\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"}) < $__range_s)",
+          "expr": "(max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type=\"$resource_type\", operation_type=\"create\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"}) - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_start_time_seconds{resource_type=\"$resource_type\", operation_type=\"create\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"})) / 60 and ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type=\"$resource_type\", operation_type=\"create\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"})) < $__range_s)",
           "instant": true,
           "range": false,
           "legendFormat": "p50",
@@ -1268,7 +1268,7 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "Fleet p95 create duration in minutes for successful create attempts completed within the selected window. SLO: p95 within 15 minutes. Per Steven Clarkson's SLO definition in ARO-19995 (child of ARO-19992, comment dated 2025-09-25): \"Percentage of Node Pools created in less than 15 minutes greater than 99%.\"",
+      "description": "Fleet p95 create duration in minutes for successful create attempts completed within the selected window. Shown for context alongside p99 -- the stated SLO (\"more than 99% of node pools created in under 15 minutes\") corresponds to a p99 threshold, not p95; p95 < 15 min only guarantees 95% compliance, a weaker bar than the actual requirement. See Create Duration p99 for the SLO-relevant percentile. Reflects whichever create attempt the backend's informer processed last for this resource on its most recent relist/resync -- not guaranteed to be the temporally most recent attempt, since informer iteration order is unordered (see operation_phase_metrics_controller.go:42-50).",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1326,7 +1326,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "((backend_resource_operation_last_transition_time_seconds{resource_type=\"$resource_type\", operation_type=\"create\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"} - backend_resource_operation_start_time_seconds{resource_type=\"$resource_type\", operation_type=\"create\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"}) / 60) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"$resource_type\", operation_type=\"create\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"}) < $__range_s)",
+          "expr": "(max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type=\"$resource_type\", operation_type=\"create\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"}) - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_start_time_seconds{resource_type=\"$resource_type\", operation_type=\"create\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"})) / 60 and ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type=\"$resource_type\", operation_type=\"create\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"})) < $__range_s)",
           "instant": true,
           "range": false,
           "legendFormat": "p95",
@@ -1351,7 +1351,7 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "Fleet p99 create duration in minutes for successful create attempts completed within the selected window. Uses the same 15-minute reference as the p95 SLO target, since the stated SLO (\"99% of node pools created in under 15 minutes\") is itself a p99-style claim. Per Steven Clarkson's SLO definition in ARO-19995 (child of ARO-19992, comment dated 2025-09-25).",
+      "description": "Fleet p99 create duration in minutes for successful create attempts completed within the selected window. This is the SLO-relevant percentile: the stated SLO (\"more than 99% of node pools created in under 15 minutes\") corresponds directly to a p99 < 15 minute threshold. Per Steven Clarkson's SLO definition in ARO-19995 (child of ARO-19992, comment dated 2025-09-25). Reflects whichever create attempt the backend's informer processed last for this resource on its most recent relist/resync -- not guaranteed to be the temporally most recent attempt, since informer iteration order is unordered (see operation_phase_metrics_controller.go:42-50).",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1409,7 +1409,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "((backend_resource_operation_last_transition_time_seconds{resource_type=\"$resource_type\", operation_type=\"create\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"} - backend_resource_operation_start_time_seconds{resource_type=\"$resource_type\", operation_type=\"create\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"}) / 60) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"$resource_type\", operation_type=\"create\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"}) < $__range_s)",
+          "expr": "(max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type=\"$resource_type\", operation_type=\"create\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"}) - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_start_time_seconds{resource_type=\"$resource_type\", operation_type=\"create\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"})) / 60 and ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type=\"$resource_type\", operation_type=\"create\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"})) < $__range_s)",
           "instant": true,
           "range": false,
           "legendFormat": "p99",
@@ -1434,7 +1434,156 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "Rolling 1h successful create duration percentiles. With datasource=All, each selected service-cluster datasource computes its own percentiles. Red dashed line = 15 minute p95 SLO target. Per Steven Clarkson's SLO definition in ARO-19995 (child of ARO-19992, comment dated 2025-09-25): \"Percentage of Node Pools created in less than 15 minutes greater than 99%.\"",
+      "description": "Timeliness, kept separate from Availability per review feedback -- Availability measures whether a create succeeded at all; this measures whether successful creates were also fast enough. Successful creates completed within 15 minutes, divided by all successful creates in the window. The 99% threshold shown here is a borrowed placeholder, not an independently derived target: Steven Clarkson's ARO-19995 SLO is a single compound statement (\"success AND within 15 min, 99% of the time\"), and Availability alone inherits 99% as a real mathematical floor from that compound statement, but Timeliness specifically does not -- P(timely | success) isn't bounded the same way. Treat this threshold as provisional pending an independent target from ARO-26179. Reflects whichever create attempt the backend's informer processed last for this resource on its most recent relist/resync -- not guaranteed to be the temporally most recent attempt, since informer iteration order is unordered (see operation_phase_metrics_controller.go:42-50).",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 1,
+          "mappings": [],
+          "max": 100,
+          "min": 0,
+          "noValue": "No successful creates",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red"
+              },
+              {
+                "color": "orange",
+                "value": 97
+              },
+              {
+                "color": "green",
+                "value": 99
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 24,
+        "x": 0,
+        "y": 27
+      },
+      "id": 34,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "count((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{resource_type=\"$resource_type\", operation_type=\"create\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"}) == 1) and ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type=\"$resource_type\", operation_type=\"create\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"})) < $__range_s) and ((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type=\"$resource_type\", operation_type=\"create\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"}) - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_start_time_seconds{resource_type=\"$resource_type\", operation_type=\"create\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"})) < 900)) * 100",
+          "instant": true,
+          "range": false,
+          "legendFormat": "Timely x100",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "count((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{resource_type=\"$resource_type\", operation_type=\"create\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"}) == 1) and ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type=\"$resource_type\", operation_type=\"create\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"})) < $__range_s))",
+          "instant": true,
+          "range": false,
+          "legendFormat": "Successful",
+          "refId": "B"
+        }
+      ],
+      "title": "Timeliness SLO: Successful Creates Within 15m",
+      "transformations": [
+        {
+          "id": "seriesToRows",
+          "options": {}
+        },
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "groupBy",
+          "options": {
+            "fields": {
+              "Metric": {
+                "operation": "groupby",
+                "aggregations": []
+              },
+              "Value": {
+                "operation": "aggregate",
+                "aggregations": [
+                  "sum"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": "rowsToFields",
+          "options": {
+            "mappings": [
+              {
+                "fieldName": "Metric",
+                "handlerKey": "field.name"
+              },
+              {
+                "fieldName": "Value (sum)",
+                "handlerKey": "field.value"
+              }
+            ]
+          }
+        },
+        {
+          "id": "calculateField",
+          "options": {
+            "alias": "Timeliness SLO %",
+            "binary": {
+              "left": "Timely x100",
+              "operator": "/",
+              "reducer": "sum",
+              "right": "Successful"
+            },
+            "mode": "binary",
+            "reduce": {
+              "reducer": "sum"
+            },
+            "replaceFields": true
+          }
+        }
+      ],
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "datasource",
+        "uid": "-- Mixed --"
+      },
+      "description": "Rolling 1h successful create duration percentiles. With datasource=All, each selected service-cluster datasource computes its own percentiles. Red dashed line = 15 minute SLO target, most directly relevant to the p99 line -- the stated >99% requirement corresponds to a p99 threshold, not p95. Per Steven Clarkson's SLO definition in ARO-19995 (child of ARO-19992, comment dated 2025-09-25): \"Percentage of Node Pools created in less than 15 minutes greater than 99%.\" Reflects whichever create attempt the backend's informer processed last for this resource on its most recent relist/resync -- not guaranteed to be the temporally most recent attempt, since informer iteration order is unordered (see operation_phase_metrics_controller.go:42-50).",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1480,7 +1629,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 27
+        "y": 31
       },
       "id": 17,
       "options": {
@@ -1507,7 +1656,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "(quantile(0.50, ((backend_resource_operation_last_transition_time_seconds{resource_type=\"$resource_type\", operation_type=\"create\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"} - backend_resource_operation_start_time_seconds{resource_type=\"$resource_type\", operation_type=\"create\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"}) / 60) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"$resource_type\", operation_type=\"create\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"}) < 3600)) by (cluster)) or (count by (cluster) (backend_resource_operation_phase_info{resource_type=\"$resource_type\", operation_type=\"create\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"}) * 0)",
+          "expr": "(quantile(0.50, ((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type=\"$resource_type\", operation_type=\"create\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"}) - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_start_time_seconds{resource_type=\"$resource_type\", operation_type=\"create\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"})) / 60) and ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type=\"$resource_type\", operation_type=\"create\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"})) < 3600)) by (cluster)) or (count by (cluster) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{resource_type=\"$resource_type\", operation_type=\"create\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"}) and (time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type=\"$resource_type\", operation_type=\"create\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"}) < 3600)) * 0)",
           "legendFormat": "p50 ({{cluster}})",
           "refId": "A"
         },
@@ -1517,7 +1666,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "(quantile(0.95, ((backend_resource_operation_last_transition_time_seconds{resource_type=\"$resource_type\", operation_type=\"create\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"} - backend_resource_operation_start_time_seconds{resource_type=\"$resource_type\", operation_type=\"create\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"}) / 60) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"$resource_type\", operation_type=\"create\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"}) < 3600)) by (cluster)) or (count by (cluster) (backend_resource_operation_phase_info{resource_type=\"$resource_type\", operation_type=\"create\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"}) * 0)",
+          "expr": "(quantile(0.95, ((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type=\"$resource_type\", operation_type=\"create\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"}) - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_start_time_seconds{resource_type=\"$resource_type\", operation_type=\"create\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"})) / 60) and ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type=\"$resource_type\", operation_type=\"create\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"})) < 3600)) by (cluster)) or (count by (cluster) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{resource_type=\"$resource_type\", operation_type=\"create\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"}) and (time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type=\"$resource_type\", operation_type=\"create\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"}) < 3600)) * 0)",
           "legendFormat": "p95 ({{cluster}})",
           "refId": "B"
         },
@@ -1527,7 +1676,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "(quantile(0.99, ((backend_resource_operation_last_transition_time_seconds{resource_type=\"$resource_type\", operation_type=\"create\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"} - backend_resource_operation_start_time_seconds{resource_type=\"$resource_type\", operation_type=\"create\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"}) / 60) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"$resource_type\", operation_type=\"create\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"}) < 3600)) by (cluster)) or (count by (cluster) (backend_resource_operation_phase_info{resource_type=\"$resource_type\", operation_type=\"create\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"}) * 0)",
+          "expr": "(quantile(0.99, ((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type=\"$resource_type\", operation_type=\"create\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"}) - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_start_time_seconds{resource_type=\"$resource_type\", operation_type=\"create\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"})) / 60) and ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type=\"$resource_type\", operation_type=\"create\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"})) < 3600)) by (cluster)) or (count by (cluster) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{resource_type=\"$resource_type\", operation_type=\"create\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"}) and (time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type=\"$resource_type\", operation_type=\"create\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"}) < 3600)) * 0)",
           "legendFormat": "p99 ({{cluster}})",
           "refId": "C"
         }
@@ -1541,7 +1690,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 35
+        "y": 39
       },
       "id": 18,
       "panels": [],
@@ -1553,7 +1702,7 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "Count of node pool creates started in the trailing 5 minutes, evaluated at each point on the graph.",
+      "description": "Count of node pool creates started in the trailing 5 minutes, evaluated at each point on the graph. Reflects whichever create attempt the backend's informer processed last for this resource on its most recent relist/resync -- not guaranteed to be the temporally most recent attempt, since informer iteration order is unordered (see operation_phase_metrics_controller.go:42-50).",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1585,7 +1734,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 36
+        "y": 40
       },
       "id": 19,
       "options": {
@@ -1611,7 +1760,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count by (cluster) (backend_resource_operation_start_time_seconds{resource_type=\"$resource_type\", operation_type=\"create\", subscription_id!~\"${exclude_subs:raw}\"} > (time() - 300)) or (count by (cluster) (backend_resource_operation_start_time_seconds{resource_type=\"$resource_type\", operation_type=\"create\", subscription_id!~\"${exclude_subs:raw}\"}) * 0)",
+          "expr": "count by (cluster) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_start_time_seconds{resource_type=\"$resource_type\", operation_type=\"create\", subscription_id!~\"${exclude_subs:raw}\"}) > (time() - 300)) or (count by (cluster) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_start_time_seconds{resource_type=\"$resource_type\", operation_type=\"create\", subscription_id!~\"${exclude_subs:raw}\"})) * 0)",
           "legendFormat": "Create Attempts Started ({{cluster}})",
           "refId": "A"
         }
@@ -1656,7 +1805,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 36
+        "y": 40
       },
       "id": 20,
       "options": {
@@ -1696,7 +1845,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 44
+        "y": 48
       },
       "id": 21,
       "panels": [],
@@ -1757,7 +1906,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 45
+        "y": 49
       },
       "id": 22,
       "options": {
@@ -1783,7 +1932,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "sum by (cluster) (rate(container_cpu_usage_seconds_total{namespace=\"aro-hcp\", pod=~\"aro-hcp-backend-.*\", container!=\"\", container!=\"POD\"}[5m])) / sum by (cluster) (kube_pod_container_resource_requests{namespace=\"aro-hcp\", pod=~\"aro-hcp-backend-.*\", resource=\"cpu\"}) * 100",
+          "expr": "sum by (cluster) (max without (prometheus_replica) (rate(container_cpu_usage_seconds_total{namespace=\"aro-hcp\", pod=~\"aro-hcp-backend-.*\", container!=\"\", container!=\"POD\"}[5m]))) / sum by (cluster) (max by (cluster, namespace, pod, container) (kube_pod_container_resource_requests{namespace=\"aro-hcp\", pod=~\"aro-hcp-backend-.*\", resource=\"cpu\", job=\"kube-state-metrics\"})) * 100",
           "legendFormat": "CPU % of request ({{cluster}})",
           "refId": "A"
         }
@@ -1845,7 +1994,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 45
+        "y": 49
       },
       "id": 23,
       "options": {
@@ -1871,7 +2020,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "sum by (cluster) (container_memory_working_set_bytes{namespace=\"aro-hcp\", pod=~\"aro-hcp-backend-.*\", container!=\"\", container!=\"POD\"}) / sum by (cluster) (kube_pod_container_resource_requests{namespace=\"aro-hcp\", pod=~\"aro-hcp-backend-.*\", resource=\"memory\"}) * 100",
+          "expr": "sum by (cluster) (max without (prometheus_replica) (container_memory_working_set_bytes{namespace=\"aro-hcp\", pod=~\"aro-hcp-backend-.*\", container!=\"\", container!=\"POD\"})) / sum by (cluster) (max by (cluster, namespace, pod, container) (kube_pod_container_resource_requests{namespace=\"aro-hcp\", pod=~\"aro-hcp-backend-.*\", resource=\"memory\", job=\"kube-state-metrics\"})) * 100",
           "legendFormat": "Memory % of request ({{cluster}})",
           "refId": "A"
         }
@@ -1928,7 +2077,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 45
+        "y": 49
       },
       "id": 24,
       "options": {
@@ -2016,7 +2165,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 53
+        "y": 57
       },
       "id": 32,
       "options": {
@@ -2100,7 +2249,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 53
+        "y": 57
       },
       "id": 33,
       "options": {
@@ -2140,7 +2289,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 61
+        "y": 65
       },
       "id": 25,
       "panels": [],
@@ -2264,7 +2413,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 62
+        "y": 66
       },
       "id": 26,
       "options": {
@@ -2290,8 +2439,8 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count by (phase) (backend_nodepool_provision_state == 1)",
-          "legendFormat": "{{ phase }}",
+          "expr": "count by (phase, cluster) (max by (cluster, environment, region, subscription_id, resource_id, phase) (backend_nodepool_provision_state == 1))",
+          "legendFormat": "{{ phase }} ({{ cluster }})",
           "refId": "A"
         }
       ],
@@ -2303,7 +2452,7 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "Failed or canceled create attempts in the selected window, grouped by subscription. Shows as \"No data\" when there are zero failures, not an error.",
+      "description": "Failed or canceled create attempts in the selected window, grouped by subscription. Shows as \"No data\" when there are zero failures, not an error. Reflects whichever create attempt the backend's informer processed last for this resource on its most recent relist/resync -- not guaranteed to be the temporally most recent attempt, since informer iteration order is unordered (see operation_phase_metrics_controller.go:42-50).",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -2346,7 +2495,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 62
+        "y": 66
       },
       "id": 27,
       "options": {
@@ -2379,7 +2528,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count by (subscription_id) ((backend_resource_operation_phase_info{resource_type=\"$resource_type\", operation_type=\"create\", phase=~\"failed|canceled\", subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"$resource_type\", operation_type=\"create\", phase=~\"failed|canceled\", subscription_id!~\"${exclude_subs:raw}\"}) < $__range_s))",
+          "expr": "count by (subscription_id) ((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{resource_type=\"$resource_type\", operation_type=\"create\", phase=~\"failed|canceled\", subscription_id!~\"${exclude_subs:raw}\"}) == 1) and ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type=\"$resource_type\", operation_type=\"create\", phase=~\"failed|canceled\", subscription_id!~\"${exclude_subs:raw}\"})) < $__range_s))",
           "legendFormat": "{{subscription_id}}",
           "refId": "A",
           "instant": true,
@@ -2422,7 +2571,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 70
+        "y": 74
       },
       "id": 28,
       "panels": [],
@@ -2434,7 +2583,7 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "Terminal node pool create attempts that completed within the selected dashboard time window. Shows resource ID, subscription, and terminal phase.",
+      "description": "Terminal node pool create attempts that completed within the selected dashboard time window. Shows resource ID, subscription, and terminal phase -- including canceled, unlike the Completed/Successful Creates stat panels above, which exclude canceled from the SLO denominator. This table's row count can be higher than those stats for that reason; it is a full drill-down view, not an SLO number. Reflects whichever create attempt the backend's informer processed last for this resource on its most recent relist/resync -- not guaranteed to be the temporally most recent attempt, since informer iteration order is unordered (see operation_phase_metrics_controller.go:42-50).",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -2463,7 +2612,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 71
+        "y": 75
       },
       "id": 29,
       "options": {
@@ -2493,7 +2642,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "(backend_resource_operation_phase_info{resource_type=\"$resource_type\", operation_type=\"create\", phase=~\"succeeded|failed|canceled\", subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"$resource_type\", operation_type=\"create\", phase=~\"succeeded|failed|canceled\", subscription_id!~\"${exclude_subs:raw}\"}) < $__range_s)",
+          "expr": "(max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{resource_type=\"$resource_type\", operation_type=\"create\", phase=~\"succeeded|failed|canceled\", subscription_id!~\"${exclude_subs:raw}\"}) == 1) and ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type=\"$resource_type\", operation_type=\"create\", phase=~\"succeeded|failed|canceled\", subscription_id!~\"${exclude_subs:raw}\"})) < $__range_s)",
           "legendFormat": "__auto",
           "refId": "A",
           "instant": true,
@@ -2541,7 +2690,7 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "All active node pool create operations across the fleet. Shows resource ID, subscription, and current phase. Shows as \"No data\" when nothing is currently in flight, not an error.",
+      "description": "All active node pool create operations across the fleet. Shows resource ID, subscription, and current phase. Shows as \"No data\" when nothing is currently in flight, not an error. Reflects whichever create attempt the backend's informer processed last for this resource on its most recent relist/resync -- not guaranteed to be the temporally most recent attempt, since informer iteration order is unordered (see operation_phase_metrics_controller.go:42-50).",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -2570,7 +2719,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 79
+        "y": 83
       },
       "id": 30,
       "options": {
@@ -2600,7 +2749,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "backend_resource_operation_phase_info{resource_type=\"$resource_type\", operation_type=\"create\", phase=~\"accepted|provisioning|updating|deleting\", subscription_id!~\"${exclude_subs:raw}\"} == 1",
+          "expr": "max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{resource_type=\"$resource_type\", operation_type=\"create\", phase=~\"accepted|provisioning|updating|deleting\", subscription_id!~\"${exclude_subs:raw}\"}) == 1",
           "legendFormat": "__auto",
           "refId": "A",
           "instant": true,
@@ -2696,12 +2845,12 @@
       },
       {
         "current": {
-          "value": "2592000",
-          "text": "30d"
+          "value": "604800",
+          "text": "7d"
         },
         "hide": 2,
         "name": "slo_window_seconds",
-        "query": "2592000",
+        "query": "604800",
         "skipUrlSync": true,
         "type": "constant"
       }
