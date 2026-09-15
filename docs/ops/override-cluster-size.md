@@ -64,7 +64,10 @@ Keep three terminals open during the procedure:
 **Linux/macOS (Bash):**
 
 ```bash
+# Optional: verify interactive service-cluster access.
 hcpctl sc breakglass <sc-name>
+
+# Generate the kubeconfig used by the remaining steps.
 hcpctl sc breakglass <sc-name> --output /tmp/sc.kubeconfig --no-shell
 export KUBECONFIG=/tmp/sc.kubeconfig
 ```
@@ -72,9 +75,13 @@ export KUBECONFIG=/tmp/sc.kubeconfig
 **Windows (PowerShell):**
 
 ```powershell
+# Optional: verify interactive service-cluster access.
 hcpctl sc breakglass <sc-name>
-hcpctl sc breakglass <sc-name> --output "C:\temp\sc.kubeconfig" --no-shell
-$env:KUBECONFIG = "C:\temp\sc.kubeconfig"
+
+# Generate the kubeconfig used by the remaining steps.
+$SC_KUBECONFIG = Join-Path $env:TEMP "sc.kubeconfig"
+hcpctl sc breakglass <sc-name> --output $SC_KUBECONFIG --no-shell
+$env:KUBECONFIG = $SC_KUBECONFIG
 ```
 
 ### Step 2: Get Management Cluster Access
@@ -84,7 +91,10 @@ In a new terminal, breakglass into management cluster.
 **Linux/macOS (Bash):**
 
 ```bash
+# Optional: verify interactive management-cluster access.
 hcpctl mc breakglass <mc-name>
+
+# Generate the kubeconfig used by the remaining steps.
 hcpctl mc breakglass <mc-name> --output /tmp/mc.kubeconfig --no-shell
 export KUBECONFIG=/tmp/mc.kubeconfig
 ```
@@ -92,9 +102,13 @@ export KUBECONFIG=/tmp/mc.kubeconfig
 **Windows (PowerShell):**
 
 ```powershell
+# Optional: verify interactive management-cluster access.
 hcpctl mc breakglass <mc-name>
-hcpctl mc breakglass <mc-name> --output "C:\temp\mc.kubeconfig" --no-shell
-$env:KUBECONFIG = "C:\temp\mc.kubeconfig"
+
+# Generate the kubeconfig used by the remaining steps.
+$MC_KUBECONFIG = Join-Path $env:TEMP "mc.kubeconfig"
+hcpctl mc breakglass <mc-name> --output $MC_KUBECONFIG --no-shell
+$env:KUBECONFIG = $MC_KUBECONFIG
 ```
 
 ### Step 3: Validate existing setup before proceeding
@@ -180,7 +194,7 @@ export KUBECONFIG=/tmp/sc.kubeconfig
 **Windows (PowerShell):**
 
 ```powershell
-$env:KUBECONFIG = "C:\temp\sc.kubeconfig"
+$env:KUBECONFIG = Join-Path $env:TEMP "sc.kubeconfig"
 ```
 
 The Admin API runs in the `aro-hcp-admin-api` namespace on port 8443 (HTTP, not HTTPS):
@@ -455,7 +469,20 @@ If the Admin API returns `200 OK` but the ManifestWork on the MC does not contai
   - Linux/macOS: `kubectl logs -n aro-hcp deployment/aro-hcp-backend -c aro-hcp-backend --since=10m | grep -i "size"`
   - Windows: `kubectl logs -n aro-hcp deployment/aro-hcp-backend -c aro-hcp-backend --since=10m | Select-String "size"`
 2. **Cluster Service ResourceBundle**: Port-forward to Maestro and check the ResourceBundle contains the updated annotation
-3. **ManifestWork content**: `kubectl get manifestwork -n local-cluster -o json | jq '.items[] | select(.spec.workload.manifests[]? | select(.kind=="HostedCluster" and .metadata.name=="<hc-name>")) | .status.conditions'`
+3. **ManifestWork content**:
+   - Linux/macOS:
+     `kubectl get manifestwork -n local-cluster -o json | jq '.items[] | select(.spec.workload.manifests[]? | select(.kind=="HostedCluster" and .metadata.name=="<hc-name>")) | .status.conditions'`
+   - Windows:
+     ```powershell
+     $HC_NAME = "<hc-name>"
+     $manifestWorks = kubectl get manifestwork -n local-cluster -o json | ConvertFrom-Json
+     $manifestWorks.items |
+         Where-Object {
+             $_.spec.workload.manifests |
+                 Where-Object { $_.kind -eq "HostedCluster" -and $_.metadata.name -eq $HC_NAME }
+         } |
+         ForEach-Object { $_.status.conditions }
+     ```
 
 ---
 
@@ -474,4 +501,4 @@ If the Admin API returns `200 OK` but the ManifestWork on the MC does not contai
 - **ARO-27679**: First validated on `jude-hcp-eastus2` — ephemeral override Small → Large during Adobe load testing incident (IcM 814707269)
 - **ARO-28258**: Admin API persistent override validated on `jude-hcp-eastus2` — Small → Xlarge via `POST /desiredcontrolplanesize`, confirmed durable across ~5 hours of Maestro reconciliation (July 2025)
 - **ARO-28342**: Production resize of `arohcp4` (Canada Central) — Large → Xlarge via Admin API for Adobe/IBM customer APF throttling. Encountered and resolved SSA field ownership conflict from prior manual annotation (July 2025)
-- **[IcM 866501941](https://portal.microsofticm.com/imp/v5/incidents/details/866501941/summary)**: Procedure validated end to end from SAW during a production incident (September 2026)
+- **IcM 866501941**: Procedure validated end to end from SAW during a production incident (September 2026)
