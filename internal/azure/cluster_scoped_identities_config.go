@@ -22,6 +22,7 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 )
 
@@ -227,6 +228,32 @@ func (b *BaseClusterScopedIdentity) RoleDefinitionsResourceIDs() []*azcorearm.Re
 	return ids
 }
 
+// ConditionalResourcePermissionRequirement is an additional Azure permission requirement for a
+// control-plane operator identity, checked against a resource resolved dynamically from the
+// cluster (as opposed to a fixed cluster-topology resource such as the cluster subnet), and only
+// evaluated when Applies(cluster) is true. Unlike RoleDefinitions, the required Actions are not
+// derived from the identity's Azure role definitions - they are a fixed platform requirement.
+type ConditionalResourcePermissionRequirement struct {
+	// Name identifies the requirement for logging and error messages.
+	Name string
+	// Applies reports whether this requirement is active for the given cluster, e.g. because a
+	// feature's configuration field is set. If it returns false, the requirement is skipped
+	// entirely and ResolveTarget/Precondition are not called.
+	Applies func(cluster *coreapi.HCPOpenShiftCluster) bool
+	// ResolveTarget returns the resource ID the identity needs the required Actions on. Only
+	// called when Applies returns true.
+	ResolveTarget func(cluster *coreapi.HCPOpenShiftCluster) (*azcorearm.ResourceID, error)
+	// Precondition optionally reports a hard topology or policy violation (e.g. the resolved
+	// target being in a different subscription than the cluster) that should fail validation
+	// without attempting a CheckAccess call. A nil Precondition means there is none to check.
+	Precondition func(cluster *coreapi.HCPOpenShiftCluster, target *azcorearm.ResourceID) (violated bool, reason string, message string)
+	// Actions are the explicit Azure actions required on the resolved target.
+	Actions []string
+	// Remediation optionally builds a customer-facing remediation message for when the required
+	// Actions are missing on the resolved target.
+	Remediation func(identity, target *azcorearm.ResourceID) string
+}
+
 // BaseClusterScopedOperatorIdentity is the base configuration for all cluster scoped identities
 // that are used by cluster operators.
 type BaseClusterScopedOperatorIdentity struct {
@@ -236,6 +263,11 @@ type BaseClusterScopedOperatorIdentity struct {
 	// Note: it is the same value as the key in the corresponding controlPlaneOperatorsIdentities or dataPlaneOperatorsIdentities map.
 	// However, we set it here too so BaseOperatorIdentity can be used by itself and have the information contained within it.
 	ClusterOperatorIdentifier ClusterOperatorIdentifier
+	// AdditionalPermissionRequirements is the list of conditional, dynamically-resolved permission
+	// requirements for the identity, on top of the fixed cluster-topology resources
+	// (network security group, VNet, subnet, route table) that are always checked. Only consumed
+	// for control-plane operator identities.
+	AdditionalPermissionRequirements []*ConditionalResourcePermissionRequirement
 	// MinVersionInclusive is the minimum OpenShift version supported by the identity, inclusive.
 	// When not set (nil), it indicates that the cluster scoped operator identity is supported for all OpenShift versions,
 	// or up to MaxVersionInclusive if MaxVersionInclusive is set.

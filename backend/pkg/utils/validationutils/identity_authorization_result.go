@@ -27,11 +27,19 @@ type checkaccessv2AuthorizationDecisionData struct {
 }
 
 // identityResourceMissingPermissions records the set of actions that an identity was denied or not granted on a specific Azure resource.
-// It is only instantiated when at least one action is missing; Decisions is always non-empty and contains only NotAllowed or Denied entries.
+// It is only instantiated when at least one action is missing or a precondition was violated. Decisions contains only NotAllowed or
+// Denied entries and is empty when the entry instead represents a Precondition violation (Reason is set in that case).
 type identityResourceMissingPermissions struct {
 	Resource  *azcorearm.ResourceID                     `json:"resource"`
 	Identity  *azcorearm.ResourceID                     `json:"identity"`
-	Decisions []*checkaccessv2AuthorizationDecisionData `json:"decisions"`
+	Decisions []*checkaccessv2AuthorizationDecisionData `json:"decisions,omitempty"`
+	// Reason and Message are set instead of Decisions when a ConditionalResourcePermissionRequirement's
+	// Precondition was violated: Reason is a short code, Message is the descriptive text.
+	Reason  string `json:"reason,omitempty"`
+	Message string `json:"message,omitempty"`
+	// Remediation optionally carries a customer-facing remediation message for a
+	// ConditionalResourcePermissionRequirement's missing Actions.
+	Remediation string `json:"remediation,omitempty"`
 }
 
 // collectNotAllowedAndDeniedActions returns CheckAccessV2 decisions where access was not granted.
