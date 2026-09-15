@@ -162,7 +162,7 @@ func (c *operationNodePoolUpdate) SynchronizeOperation(ctx context.Context, key 
 	var persistErr *coreapi.CloudErrorBody
 	if operationalState.ProvisioningState == coreapi.ProvisioningStateFailed {
 		persistErr = &coreapi.CloudErrorBody{
-			Code:    coreapi.CloudErrorCodeInvalidRequestContent,
+			Code:    coreapi.CloudErrorCodeForMessage(operationalState.Message, coreapi.CloudErrorCodeInvalidRequestContent),
 			Message: operationalState.Message,
 		}
 	}
