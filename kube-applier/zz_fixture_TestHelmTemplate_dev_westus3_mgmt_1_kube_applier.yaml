@@ -147,6 +147,19 @@ rules:
   - update
   - patch
   - delete
+- apiGroups:
+  - multitenancy.acn.azure.com
+  resources:
+  - podnetworks
+  - podnetworkinstances
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
 ---
 # Source: kube-applier/templates/clusterrolebinding.yaml
 apiVersion: rbac.authorization.k8s.io/v1
