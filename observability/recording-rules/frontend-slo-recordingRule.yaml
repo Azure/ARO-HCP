@@ -17,12 +17,13 @@ spec:
   # Availability and errors are good/total (or 5xx/total) ratios at 5m.
   # 30d availability is request-weighted: avg(good RPS)/avg(total RPS), not
   # avg_over_time of the 5m ratio (that ignores per-window request volume).
-  # Latency is histogram_quantile p99/p95 in seconds (not a ≤1s share).
+  # Latency p99/p95 are diagnostic seconds values. Alerts use the
+  # request-weighted share over 1s directly from the histogram.
   # Traffic is absolute RPS. Ready is kube available/spec.
   # ARO-28705. Proposed SLOs (formal burn-rate alerts: ARO-28707):
   #   Availability: >= 99.95% over 30d (non-5xx / total)
   #   Errors:       < 0.05% 5xx share (same budget as availability)
-  #   Latency:      p99 < 1s ARM sync — histogram_quantile (p99 / p95 seconds)
+  #   Latency:      p99 < 1s ARM sync (no more than 1% of requests over 1s)
   #   Traffic:      request rate (anomaly detection is alert-side)
   #   Ready:        kube Deployment available/spec (kube /healthz probes)
   #   Saturation:   Frontend pod CPU vs request, memory vs limit (Istio /
@@ -38,8 +39,10 @@ spec:
   # no ARM-path blackbox of /healthz (MISE/POP); kube ready is the probe we have.
   #
   # Metrics: frontend_http_requests_total / _duration_seconds (histogram has a
-  # 1s bucket — see frontend/pkg/frontend/metrics.go). HA scrapes are deduped
-  # with max without (prometheus_replica).
+  # 1s bucket — see frontend/pkg/frontend/metrics.go). Ratios and quantiles sum
+  # HA replicas because duplicate bucket counts cancel. Selecting max per
+  # bucket can mix replicas and break cumulative histogram monotonicity
+  # (AROSLSRE-1746).
   - name: arohcp_frontend_slo_recording_rules
     interval: 1m
     rules:
@@ -153,53 +156,43 @@ spec:
           > 0
         )
     - record: sli:frontend_http:latency_p99:rate5m
-      # Latency p99 in seconds (ADR LatencyP99). SLO: p99 < 1s.
-
-      # histogram_quantile distinguishes 1.01s vs 50s; a 1s-bucket share cannot.
+      # Diagnostic latency p99 in seconds. The offset avoids evaluating
+      # histogram buckets at the unsettled ingestion edge.
       expr: |
         histogram_quantile(
           0.99,
           sum by (cluster, le) (
-            max without (prometheus_replica) (
-              rate(frontend_http_requests_duration_seconds_bucket{
-                route!~".*hcpoperation(results|statuses).*"
-              }[5m])
-            )
+            rate(frontend_http_requests_duration_seconds_bucket{
+              route!~".*hcpoperation(results|statuses).*"
+            }[5m] offset 5m)
           )
         )
         and on (cluster)
         (
           sum by (cluster) (
-            max without (prometheus_replica) (
-              rate(frontend_http_requests_duration_seconds_count{
-                route!~".*hcpoperation(results|statuses).*"
-              }[5m])
-            )
+            rate(frontend_http_requests_duration_seconds_count{
+              route!~".*hcpoperation(results|statuses).*"
+            }[5m] offset 5m)
           )
           > 0
         )
     - record: sli:frontend_http:latency_p95:rate5m
-      # Latency p95 in seconds (ADR LatencyP95). Same histogram / route filter as p99.
-
+      # Diagnostic latency p95 in seconds. Same histogram / route filter as p99.
       expr: |
         histogram_quantile(
           0.95,
           sum by (cluster, le) (
-            max without (prometheus_replica) (
-              rate(frontend_http_requests_duration_seconds_bucket{
-                route!~".*hcpoperation(results|statuses).*"
-              }[5m])
-            )
+            rate(frontend_http_requests_duration_seconds_bucket{
+              route!~".*hcpoperation(results|statuses).*"
+            }[5m] offset 5m)
           )
         )
         and on (cluster)
         (
           sum by (cluster) (
-            max without (prometheus_replica) (
-              rate(frontend_http_requests_duration_seconds_count{
-                route!~".*hcpoperation(results|statuses).*"
-              }[5m])
-            )
+            rate(frontend_http_requests_duration_seconds_count{
+              route!~".*hcpoperation(results|statuses).*"
+            }[5m] offset 5m)
           )
           > 0
         )
