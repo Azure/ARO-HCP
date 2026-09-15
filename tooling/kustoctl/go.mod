@@ -3,7 +3,7 @@ module github.com/Azure/ARO-HCP/tooling/kustoctl
 go 1.25.5
 
 require (
-	github.com/Azure/ARO-Tools/tools/kustoctl v0.0.0-20260901142504-86903908c305
+	github.com/Azure/ARO-Tools/tools/kustoctl v0.0.0-20260910130057-2373eafe0bdc
 	github.com/Azure/azure-kusto-go/azkustodata v1.2.1
 	github.com/dusted-go/logging v1.3.0
 	github.com/go-logr/logr v1.4.3
@@ -11,10 +11,9 @@ require (
 )
 
 require (
-	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260901142504-86903908c305 // indirect
-	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.21.1 // indirect
-	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.13.1 // indirect
-	github.com/Azure/azure-sdk-for-go/sdk/azidentity/cache v0.4.0 // indirect
+	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260910130057-2373eafe0bdc // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.23.0 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.14.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.12.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resourcegraph/armresourcegraph v0.10.0 // indirect
 	github.com/AzureAD/microsoft-authentication-library-for-go v1.7.2 // indirect

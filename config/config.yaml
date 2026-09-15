@@ -28,7 +28,7 @@ defaults:
   region: "{{ .ctx.region }}"
   regionRG: "{{ .ctx.region }}-shared-resources"
   cloud: "{{ .ev2.cloudName }}"
-  azureRegionAvailabilityZoneCount: {{ .ev2.availabilityZoneCount }}
+  azureRegionAvailabilityZoneCount: {{ .ev2.availabilityZoneLiveCount }}
   keyVaultDNSSuffix: "{{ .ev2.keyVault.domainNameSuffix }}"
   acrDNSSuffix: "{{ .ev2.azureContainerRegistry.domainNameSuffix }}"
   administration:
@@ -1615,25 +1615,6 @@ clouds:
             oidc:
               storageAccount:
                 privateLinkLocation: westus3
-          westeurope:
-            svc:
-              aks:
-                userAgentPool:
-                  zones: '1'
-                infraAgentPool:
-                  zones: '1'
-                  vmSize: 'Standard_D2s_v3'
-                systemAgentPool:
-                  zones: '1'
-            mgmt:
-              aks:
-                userAgentPool:
-                  zones: '1'
-                infraAgentPool:
-                  zones: '1'
-                  vmSize: 'Standard_D2s_v3'
-                systemAgentPool:
-                  zones: '1'
         # this is the personal DEV environment
         defaults:
           kusto:

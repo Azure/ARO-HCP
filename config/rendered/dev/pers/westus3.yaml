@@ -111,7 +111,7 @@ auditLogsEventHub:
   rg: westus3-shared-resources
 automationDryRun: false
 azureGeoShortId: us
-azureRegionAvailabilityZoneCount: 4
+azureRegionAvailabilityZoneCount: 3
 backend:
   azureRuntimeConfig:
     tlsCertificatesIssuer: Self
