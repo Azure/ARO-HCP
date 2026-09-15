@@ -29,6 +29,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
 	clusterversion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/version"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
@@ -81,7 +82,9 @@ var _ = Describe("Service Provider", func() {
 			clusterName := customerClusterNamePrefix + versionLabel + "-" + suffix
 			clusterParams := framework.NewDefaultClusterParams20240610()
 			clusterParams.ClusterName = clusterName
-			clusterParams.OpenshiftVersionId = installVersion
+			// An exact install version is pinned with the exact-version tag; version.id
+			// carries only the release line.
+			clusterParams.OpenshiftVersionId = framework.ApplyControlPlaneExactVersionPin(installVersion, clusterParams.Tags)
 			clusterParams.ChannelGroup = channelGroup
 
 			By("creating resource group")
@@ -135,8 +138,13 @@ var _ = Describe("Service Provider", func() {
 			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred(), "failed to verify HCP cluster %q is viable", clusterName)
 
-			By(fmt.Sprintf("pinning the cluster to minor version %s to trigger an automated z-stream upgrade", minorVersion))
+			By(fmt.Sprintf("removing the exact-version pin so the cluster follows minor version %s and takes an automated z-stream upgrade", minorVersion))
+			// PATCH bodies are RFC 7396 merge patches, so the pin is removed by sending
+			// the tag as JSON null; omitting it would preserve the stored value.
 			update := hcpsdk20240610preview.HcpOpenShiftClusterUpdate{
+				Tags: map[string]*string{
+					metadataapi.TagClusterControlPlaneExactVersion: nil,
+				},
 				Properties: &hcpsdk20240610preview.HcpOpenShiftClusterPropertiesUpdate{
 					Version: &hcpsdk20240610preview.VersionProfile{
 						ID:           to.Ptr(minorVersion),
@@ -145,7 +153,7 @@ var _ = Describe("Service Provider", func() {
 				},
 			}
 			_, err = framework.UpdateHCPCluster20240610(ctx, hcpClient, *resourceGroup.Name, clusterName, update, framework.HCPClusterVersionUpgradeTimeout)
-			Expect(err).NotTo(HaveOccurred(), "failed to pin cluster %q to minor version %s", clusterName, minorVersion)
+			Expect(err).NotTo(HaveOccurred(), "failed to remove the exact-version pin from cluster %q so it follows minor version %s", clusterName, minorVersion)
 
 			By("verifying that only a z-stream upgrade was performed")
 			Eventually(func() error {

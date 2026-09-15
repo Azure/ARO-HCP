@@ -62,9 +62,10 @@ var _ = Describe("ARO-HCP", func() {
 
 			// Resolve the install version up front so a missing version skips before we burn resources
 			// on cluster creation. Nightly cannot be resolved by the RP from a bare major.minor, so we
-			// look up the exact build tag. For every other channel group we install with the bare
-			// major.minor line and let the RP resolve it, verifying resolvability first via the
-			// OpenShift update service at the channel's z-stream offset.
+			// look up the exact build and pin it with the exact-version tag. For every other
+			// channel group we install with the bare major.minor line and let the RP resolve
+			// it, verifying resolvability first via the OpenShift update service at the
+			// channel's z-stream offset.
 			channelGroup := clusterParams.ChannelGroup
 			clusterParams.OpenshiftVersionId = version
 			if channelGroup == "nightly" {
@@ -83,6 +84,9 @@ var _ = Describe("ARO-HCP", func() {
 					Skip(fmt.Sprintf("no version resolved for channel %s-%s", channelGroup, version))
 				}
 			}
+			// version.id carries only the release line; an exact build (nightly) is
+			// pinned with the exact-version tag instead.
+			clusterParams.OpenshiftVersionId = framework.ApplyControlPlaneExactVersionPin(clusterParams.OpenshiftVersionId, clusterParams.Tags)
 
 			tc := framework.NewTestContext()
 			if tc.UsePooledIdentities() {
