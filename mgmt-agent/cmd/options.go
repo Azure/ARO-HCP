@@ -56,8 +56,10 @@ import (
 
 	sharedleaderelection "github.com/Azure/ARO-HCP/internal/leaderelection"
 	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller"
+	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller/amanetpolicy"
 	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller/capacityreporting"
 	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller/ksmhcp"
+	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller/monitortranslator"
 	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller/nodehealth"
 	capacityreportclient "github.com/Azure/ARO-HCP/mgmt-agent/pkg/generated/clientset/versioned"
 )
@@ -76,6 +78,7 @@ type RawControllerOptions struct {
 
 	NodeHealthConfigMapName string
 	NodeHealthConfigKey     string
+	MonitoringAPIGroup      string
 }
 
 func DefaultControllerOptions() *RawControllerOptions {
@@ -100,6 +103,8 @@ func (o *RawControllerOptions) BindFlags(cmd *cobra.Command) error {
 		"Name of the ConfigMap (in --namespace) holding the node-health configuration. The controller is disabled until this ConfigMap enables it.")
 	cmd.Flags().StringVar(&o.NodeHealthConfigKey, "node-health-config-key", o.NodeHealthConfigKey,
 		"Key within the node-health ConfigMap that holds the YAML configuration.")
+	cmd.Flags().StringVar(&o.MonitoringAPIGroup, "monitoring-api-group", o.MonitoringAPIGroup,
+		"API group for monitoring CRDs (e.g. azmonitoring.coreos.com). Enables AMA NetworkPolicy controller when set to azmonitoring.coreos.com.")
 
 	return nil
 }
@@ -115,6 +120,8 @@ type ValidatedControllerOptions struct {
 type completedControllerOptions struct {
 	ctrl                     *controller.SwiftNICController
 	ksmCtrl                  *ksmhcp.KSMHCPController
+	monitorTranslatorCtrl    *monitortranslator.MonitorTranslatorController
+	amaNetPolicyCtrl         *amanetpolicy.AMANetworkPolicyController
 	nodeHealth               *nodehealth.Controller
 	capacityReport           *capacityreporting.CapacityReportController
 	resourceWatcher          *controller.ResourceWatcher
@@ -128,6 +135,8 @@ type completedControllerOptions struct {
 	nodeHealthCMInformers    kubeinformers.SharedInformerFactory
 	hypershiftInformers      hypershiftinformers.SharedInformerFactory
 	dynamicInformers         dynamicinformer.DynamicSharedInformerFactory
+	translatorDynInformers   dynamicinformer.DynamicSharedInformerFactory
+	amaNetPolicyInformers    kubeinformers.SharedInformerFactory
 	workers                  int
 	healthAddress            string
 	leaderElectionLock       resourcelock.Interface
@@ -328,6 +337,39 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 		if err != nil {
 			return nil, fmt.Errorf("failed to create KSM HCP controller: %w", err)
 		}
+
+	}
+
+	var amaNetPolicyCtrl *amanetpolicy.AMANetworkPolicyController
+	var amaNetPolicyInformers kubeinformers.SharedInformerFactory
+	var monitorTranslatorCtrl *monitortranslator.MonitorTranslatorController
+	var translatorDynInformers dynamicinformer.DynamicSharedInformerFactory
+	if o.MonitoringAPIGroup == "azmonitoring.coreos.com" {
+		amaNetPolicyInformers = kubeinformers.NewSharedInformerFactoryWithOptions(kubeClientset, 10*time.Minute,
+			kubeinformers.WithTweakListOptions(func(opts *metav1.ListOptions) {
+				opts.LabelSelector = amanetpolicy.LabelSelector
+			}),
+		)
+
+		amaNetPolicyCtrl, err = amanetpolicy.NewAMANetworkPolicyController(
+			kubeClientset,
+			hsClient,
+			hsInformers.Hypershift().V1beta1().HostedControlPlanes(),
+			amaNetPolicyInformers.Networking().V1().NetworkPolicies().Informer(),
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create AMA NetworkPolicy controller: %w", err)
+		}
+
+		translatorDynInformers = dynamicinformer.NewDynamicSharedInformerFactory(dynamicClient, 10*time.Minute)
+		monitorTranslatorCtrl, err = monitortranslator.NewMonitorTranslatorController(
+			dynamicClient,
+			translatorDynInformers.ForResource(monitortranslator.SourceServiceMonitorGVR).Informer(),
+			translatorDynInformers.ForResource(monitortranslator.SourcePodMonitorGVR).Informer(),
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create monitor translator controller: %w", err)
+		}
 	}
 
 	hostname, err := os.Hostname()
@@ -344,6 +386,7 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 		completedControllerOptions: &completedControllerOptions{
 			ctrl:                     ctrl,
 			ksmCtrl:                  ksmCtrl,
+			monitorTranslatorCtrl:    monitorTranslatorCtrl,
 			nodeHealth:               nodeHealth,
 			capacityReport:           capacityReportCtrl,
 			resourceWatcher:          resourceWatcher,
@@ -357,6 +400,9 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 			nodeHealthCMInformers:    nodeHealthCMInformers,
 			hypershiftInformers:      hsInformers,
 			dynamicInformers:         dynInformers,
+			translatorDynInformers:   translatorDynInformers,
+			amaNetPolicyCtrl:         amaNetPolicyCtrl,
+			amaNetPolicyInformers:    amaNetPolicyInformers,
 			workers:                  o.Workers,
 			healthAddress:            o.HealthAddress,
 			leaderElectionLock:       leaderElectionLock,
@@ -465,6 +511,12 @@ func (o *ControllerOptions) runControllersUnderLeaderElection(ctx context.Contex
 				if o.dynamicInformers != nil {
 					o.dynamicInformers.Start(ctx.Done())
 				}
+				if o.translatorDynInformers != nil {
+					o.translatorDynInformers.Start(ctx.Done())
+				}
+				if o.amaNetPolicyInformers != nil {
+					o.amaNetPolicyInformers.Start(ctx.Done())
+				}
 				if o.cmWatcherInformers != nil {
 					o.cmWatcherInformers.Start(ctx.Done())
 				}
@@ -508,6 +560,22 @@ func (o *ControllerOptions) runControllersUnderLeaderElection(ctx context.Contex
 						defer utilruntime.HandleCrash()
 						if err := o.ksmCtrl.Run(ctx, o.workers); err != nil {
 							logger.Error(err, "KSM HCP controller failed")
+						}
+					}()
+				}
+				if o.monitorTranslatorCtrl != nil {
+					go func() {
+						defer utilruntime.HandleCrash()
+						if err := o.monitorTranslatorCtrl.Run(ctx, o.workers); err != nil {
+							logger.Error(err, "monitor translator controller failed")
+						}
+					}()
+				}
+				if o.amaNetPolicyCtrl != nil {
+					go func() {
+						defer utilruntime.HandleCrash()
+						if err := o.amaNetPolicyCtrl.Run(ctx, o.workers); err != nil {
+							logger.Error(err, "AMA NetworkPolicy controller failed")
 						}
 					}()
 				}

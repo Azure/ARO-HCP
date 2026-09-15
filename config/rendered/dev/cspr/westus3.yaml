@@ -702,6 +702,7 @@ mgmt:
       public: false
       zoneRedundantMode: Auto
     storageAccountContainerName: backups
+  monitoringApiGroup: monitoring.coreos.com
   nsp:
     accessMode: Learning
     name: nsp-usw3-mgmt-1

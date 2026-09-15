@@ -1,3 +1,4 @@
+monitoringApiGroup: "{{ .mgmt.monitoringApiGroup }}"
 image:
   registry: "{{ .acr.svc.name }}.{{ .acrDNSSuffix }}"
   repository: "{{ .mgmtAgent.image.repository }}"
