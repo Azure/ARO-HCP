@@ -8,6 +8,66 @@ All resources live in a single Cosmos container ("Resources"). Every write is a 
 replacement with ETag-based optimistic concurrency. The `InstanceVersion` field is
 auto-incremented on each Replace.
 
+## Request Unit (RU) attribution
+
+Clients constructed through `corecosmosstorage.NewCosmosDatabaseClient` record two
+shared, process-wide counters through the same per-retry pipeline policy:
+
+- `cosmos_request_units_total` sums the `x-ms-request-charge` response header
+  once per HTTP attempt, including charged failures, query pages, and idle
+  changefeed responses. Missing, malformed, negative, or non-finite charges
+  are ignored, so this measures reported RUs, not request count.
+- `cosmos_requests_total` counts every HTTP attempt that received a response,
+  regardless of whether a charge was reported. It exists because a `429` is
+  typically rejected before Cosmos DB does any work and usually reports a
+  zero or absent charge — `cosmos_request_units_total` alone cannot answer
+  "how often was this source throttled", only "how much RU did its throttled
+  attempts happen to cost" (usually ~0 regardless of frequency).
+
+Neither instruments credential requests. Both share the same labels:
+
+| Label | Meaning |
+|-------|---------|
+| `source_kind` | `controller`, `informer`, or `unattributed` |
+| `source` | Explicit informer name, otherwise the existing controller context name, otherwise `unknown` |
+| `cosmosdb_container` | Actual Cosmos container name, preserving casing; `unknown` when the request has no identifiable container |
+| `operation` | `read`, `create`, `upsert`, `replace`, `patch`, `delete`, `query`, `query_plan`, `batch`, `change_feed`, `feed_ranges`, `metadata`, or `unknown` |
+| `status_code` | HTTP response status, including failures and `304` |
+
+Cosmos requests made by an informer’s List/Watch operations are attributed to that
+informer, even if the context also contains a controller name. Initial lists,
+relists, query pages, and asynchronous feed polls belong to the informer, not
+to each consuming controller. `ActiveOperations` and `AllOperations` have separate
+identities. Controller CRUD, including controller-status persistence, retains
+the controller's existing context.
+
+The SDK refreshes its partition-range cache in the background, so those
+charges cannot be attributed. They land in `unattributed` / `unknown` and
+the amount is small.
+Other callers without identity use that same bucket. Requests whose responses
+never reach the client cannot contribute to either counter; compare with Cosmos
+platform metrics when investigating discrepancies.
+
+Average RU/s by source, deduplicating HA scrapes before summing targets:
+
+```promql
+sum by (source_kind, source) (
+  max without (prometheus_replica) (
+    rate(cosmos_request_units_total[5m])
+  )
+)
+```
+
+Rate of `429` responses by source — a request count, not RU cost:
+
+```promql
+sum by (source_kind, source) (
+  max without (prometheus_replica) (
+    rate(cosmos_requests_total{status_code="429"}[5m])
+  )
+)
+```
+
 ---
 
 ## 1. Frontend Endpoint Writes

@@ -19,6 +19,11 @@
 package informerutils
 
 import (
+	"context"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/tools/cache"
 )
 
@@ -28,6 +33,23 @@ import (
 // the bookmark protocol that WatchListClient requires.
 type ListWatchWithoutWatchListSemantics struct {
 	*cache.ListWatch
+	// InformerName attributes lists, query pages, and asynchronous change-feed
+	// reads to the informer, independently of its consuming controllers.
+	InformerName string
 }
 
 func (ListWatchWithoutWatchListSemantics) IsWatchListSemanticsUnSupported() bool { return true }
+
+func (lw ListWatchWithoutWatchListSemantics) ListWithContext(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
+	if lw.InformerName == "" {
+		panic("ListWatchWithoutWatchListSemantics: InformerName must be set for RU attribution")
+	}
+	return lw.ListWatch.ListWithContext(ContextWithInformerName(ctx, lw.InformerName), options)
+}
+
+func (lw ListWatchWithoutWatchListSemantics) WatchWithContext(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
+	if lw.InformerName == "" {
+		panic("ListWatchWithoutWatchListSemantics: InformerName must be set for RU attribution")
+	}
+	return lw.ListWatch.WatchWithContext(ContextWithInformerName(ctx, lw.InformerName), options)
+}

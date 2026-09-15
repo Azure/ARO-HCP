@@ -189,10 +189,6 @@ panels:
     step: "60s"
 - title: "CosmosDB Metrics"
   queries:
-  # One panel (one iframe) with three per-container charts. Each is a single
-  # Azure Monitor platform metric (Microsoft.DocumentDB/databaseAccounts) split
-  # by CollectionName, so every legend entry is just the container name; the
-  # aggregation is stated here in the blurb rather than repeated per series.
   - title: "RU Consumption vs Provisioned"
     description: "Per-container peak utilization of currently-provisioned throughput (max NormalizedRUConsumption). Sustained values near 100% mean the container is saturating its provisioned RU/s and will start throttling (429). Same signal as the 'Normalized RU Consumption High' alert."
     source: azureMonitor
@@ -226,6 +222,95 @@ panels:
         StatusCode: "429"
     unit: requests
     step: "60s"
+  - title: "RU/s by Container"
+    description: "Five-minute average reported RU/s per Cosmos container, summed across every calling source, operation, and status. All manifests-mc-* containers are summed into one group. First stop for 'where do we spend most RUs': whichever container's line is highest is where the cost concentrates. Includes charged retries and errors; this is neither provisioned RU/s nor a request count."
+    query: |
+      sum by (cosmosdb_container_group, cluster) (
+        label_replace(
+          label_replace(
+            max without (prometheus_replica) (
+              rate(cosmos_request_units_total[5m])
+            ),
+            "cosmosdb_container_group", "$1", "cosmosdb_container", "(.+)"
+          ),
+          "cosmosdb_container_group", "manifests-mc-*", "cosmosdb_container", "(?i:manifests-mc-.+)"
+        )
+      )
+    unit: RU/s
+    workspace: svc
+    step: "60s"
+  - title: "Top RU Cost Drivers by Container"
+    description: "For each Cosmos container group, the ten (source-kind, source) combinations with the highest total RU across the entire report window, plotted as five-minute average RU/s across every operation and status. Ranking uses the report's exact [start,end] span, not a fixed lookback, so a spike anywhere in the report surfaces its source here, not only one near the report's end. To find who was responsible for a spike: locate its timestamp on the line, read that line's legend entry. 'unattributed / unknown' rows are real, un-assignable cost (e.g. SDK background feed-range discovery) ranked alongside named sources rather than hidden in a separate chart."
+    query: |
+      sum by (cosmosdb_container_group, cluster, container, source_kind, source) (
+        label_replace(
+          label_replace(
+            max without (prometheus_replica) (
+              rate(cosmos_request_units_total[5m])
+            ),
+            "cosmosdb_container_group", "$1", "cosmosdb_container", "(.+)"
+          ),
+          "cosmosdb_container_group", "manifests-mc-*", "cosmosdb_container", "(?i:manifests-mc-.+)"
+        )
+      )
+      and
+      topk by (cosmosdb_container_group) (10,
+        sum by (cosmosdb_container_group, cluster, container, source_kind, source) (
+          label_replace(
+            label_replace(
+              max without (prometheus_replica) (
+                increase(cosmos_request_units_total[__REPORT_RANGE__] @ end())
+              ),
+              "cosmosdb_container_group", "$1", "cosmosdb_container", "(.+)"
+            ),
+            "cosmosdb_container_group", "manifests-mc-*", "cosmosdb_container", "(?i:manifests-mc-.+)"
+          )
+        ) > 0
+      )
+    unit: RU/s
+    workspace: svc
+    step: "60s"
+    chartType: faceted-line
+    facetBy: cosmosdb_container_group
+    legendLabels:
+      container: calling_service
+      source_kind: source_kind
+  - title: "Throttled (429) Requests by Source"
+    description: "For each Cosmos container group, the ten (source-kind, source) combinations with the most HTTP 429 responses across the entire report window, plotted as a five-minute average rate of 429s per second. This is a request count, not RU cost: a 429 is typically rejected before Cosmos DB does any work and usually carries a zero or absent request charge, so RU-based ranking cannot tell who was throttled. Use 'Throttled Requests (429)' as the authoritative per-container count; this chart narrows that down to a likely contributor within a flagged container."
+    query: |
+      sum by (cosmosdb_container_group, cluster, container, source_kind, source) (
+        label_replace(
+          label_replace(
+            max without (prometheus_replica) (
+              rate(cosmos_requests_total{status_code="429"}[5m])
+            ),
+            "cosmosdb_container_group", "$1", "cosmosdb_container", "(.+)"
+          ),
+          "cosmosdb_container_group", "manifests-mc-*", "cosmosdb_container", "(?i:manifests-mc-.+)"
+        )
+      )
+      and
+      topk by (cosmosdb_container_group) (10,
+        sum by (cosmosdb_container_group, cluster, container, source_kind, source) (
+          label_replace(
+            label_replace(
+              max without (prometheus_replica) (
+                increase(cosmos_requests_total{status_code="429"}[__REPORT_RANGE__] @ end())
+              ),
+              "cosmosdb_container_group", "$1", "cosmosdb_container", "(.+)"
+            ),
+            "cosmosdb_container_group", "manifests-mc-*", "cosmosdb_container", "(?i:manifests-mc-.+)"
+          )
+        ) > 0
+      )
+    unit: requests/s
+    workspace: svc
+    step: "60s"
+    chartType: faceted-line
+    facetBy: cosmosdb_container_group
+    legendLabels:
+      container: calling_service
+      source_kind: source_kind
 - title: "Maestro Metrics"
   queries:
   - title: "REST API Request Rate by Status"
