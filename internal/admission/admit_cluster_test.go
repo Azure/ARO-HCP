@@ -60,6 +60,7 @@ func TestMutateCluster(t *testing.T) {
 		expectedControlPlaneAvailability  coreapi.ControlPlaneAvailability
 		expectedControlPlanePodSizing     coreapi.ControlPlanePodSizing
 		expectedControlPlaneOperatorImage string
+		expectedControlPlaneExactVersion  string
 	}{
 		{
 			name:               "nil subscription ignores all tags",
@@ -258,6 +259,19 @@ func TestMutateCluster(t *testing.T) {
 			expectErrors:       []utils.ExpectedError{},
 			expectZeroFeatures: true,
 		},
+		{
+			// The exact-version tag is translated in the same pass as every other
+			// experimental tag, so it composes with them.
+			name:         "AFEC registered with exact-version tag alongside single-replica",
+			subscription: afecRegistered,
+			tags: map[string]string{
+				metadataapi.TagClusterControlPlaneExactVersion: "4.17.3",
+				metadataapi.TagClusterSingleReplica:            string(coreapi.SingleReplicaControlPlane),
+			},
+			expectErrors:                     []utils.ExpectedError{},
+			expectedControlPlaneAvailability: coreapi.SingleReplicaControlPlane,
+			expectedControlPlaneExactVersion: "4.17.3",
+		},
 	}
 
 	for _, tt := range tests {
@@ -293,6 +307,13 @@ func TestMutateCluster(t *testing.T) {
 			if cluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneOperatorImage != tt.expectedControlPlaneOperatorImage {
 				t.Errorf("expected ControlPlaneOperatorImage %q, got %q",
 					tt.expectedControlPlaneOperatorImage, cluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneOperatorImage)
+			}
+			gotExact := ""
+			if exact := cluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion; exact != nil {
+				gotExact = exact.String()
+			}
+			if gotExact != tt.expectedControlPlaneExactVersion {
+				t.Errorf("expected ControlPlaneExactVersion %q, got %q", tt.expectedControlPlaneExactVersion, gotExact)
 			}
 		})
 	}
@@ -373,22 +394,22 @@ func TestMutateClusterControlPlaneExactVersion(t *testing.T) {
 			},
 		},
 		{
-			name:              "AFEC without exact-version tag relocates patch version.id",
-			subscription:      afecRegistered,
-			tags:              map[string]string{},
-			versionID:         "4.17.3",
-			expectErrors:      []utils.ExpectedError{},
-			expectExactString: "4.17.3",
-			expectVersionID:   "4.17",
+			name:            "AFEC without exact-version tag does not pin from patch version.id",
+			subscription:    afecRegistered,
+			tags:            map[string]string{},
+			versionID:       "4.17.3",
+			expectErrors:    []utils.ExpectedError{},
+			expectExactNil:  true,
+			expectVersionID: "4.17.3",
 		},
 		{
-			name:              "tag value is authoritative over patch version.id",
+			name:              "tag pins the exact version and leaves a patch version.id untouched",
 			subscription:      afecRegistered,
 			tags:              map[string]string{exactTag: "4.17.3"},
 			versionID:         "4.17.9",
 			expectErrors:      []utils.ExpectedError{},
 			expectExactString: "4.17.3",
-			expectVersionID:   "4.17",
+			expectVersionID:   "4.17.9",
 		},
 		{
 			name:         "AFEC with present-but-empty exact-version tag is rejected",
@@ -409,19 +430,41 @@ func TestMutateClusterControlPlaneExactVersion(t *testing.T) {
 			expectVersionID: "4.20.garbage",
 		},
 		{
-			name:              "AFEC with nightly version.id (no tag) is relocated and stripped to major.minor",
+			name:            "AFEC with nightly version.id (no tag) does not pin and is left untouched",
+			subscription:    afecRegistered,
+			tags:            map[string]string{},
+			versionID:       "5.0.0-0.nightly-multi-2026-07-09-124132",
+			expectErrors:    []utils.ExpectedError{},
+			expectExactNil:  true,
+			expectVersionID: "5.0.0-0.nightly-multi-2026-07-09-124132",
+		},
+		{
+			name:              "AFEC with nightly build in the tag pins the exact version",
 			subscription:      afecRegistered,
-			tags:              map[string]string{},
-			versionID:         "5.0.0-0.nightly-multi-2026-07-09-124132",
+			tags:              map[string]string{exactTag: "5.0.0-0.nightly-multi-2026-07-09-124132"},
+			versionID:         "5.0",
 			expectErrors:      []utils.ExpectedError{},
 			expectExactString: "5.0.0-0.nightly-multi-2026-07-09-124132",
 			expectVersionID:   "5.0",
 		},
 		{
-			name:            "AFEC with neither tag nor patch version.id clears an existing exact pin",
+			name:            "AFEC without the exact-version tag clears an existing exact pin on UPDATE",
 			subscription:    afecRegistered,
 			op:              operation.Operation{Type: operation.Update},
 			tags:            map[string]string{},
+			versionID:       "4.17",
+			oldExactVersion: "4.17.3",
+			expectErrors:    []utils.ExpectedError{},
+			expectExactNil:  true,
+			expectVersionID: "4.17",
+		},
+		{
+			// The pin is derived from tags on every pass, so an unrelated tag does
+			// not resurrect a pin whose tag is gone.
+			name:            "AFEC clears an existing exact pin on UPDATE even when other tags are present",
+			subscription:    afecRegistered,
+			op:              operation.Operation{Type: operation.Update},
+			tags:            map[string]string{metadataapi.TagClusterSingleReplica: string(coreapi.SingleReplicaControlPlane)},
 			versionID:       "4.17",
 			oldExactVersion: "4.17.3",
 			expectErrors:    []utils.ExpectedError{},
@@ -438,13 +481,22 @@ func TestMutateClusterControlPlaneExactVersion(t *testing.T) {
 			expectVersionID:   "4.20",
 		},
 		{
-			name:              "pre-release patch version.id (no tag) is relocated and stripped to major.minor",
+			name:              "pre-release build in the tag pins the exact version",
 			subscription:      afecRegistered,
-			tags:              map[string]string{},
-			versionID:         "4.20.0-rc.1",
+			tags:              map[string]string{exactTag: "4.20.0-rc.1"},
+			versionID:         "4.20",
 			expectErrors:      []utils.ExpectedError{},
 			expectExactString: "4.20.0-rc.1",
 			expectVersionID:   "4.20",
+		},
+		{
+			name:            "pre-release patch version.id (no tag) does not pin and is left untouched",
+			subscription:    afecRegistered,
+			tags:            map[string]string{},
+			versionID:       "4.20.0-rc.1",
+			expectErrors:    []utils.ExpectedError{},
+			expectExactNil:  true,
+			expectVersionID: "4.20.0-rc.1",
 		},
 	}
 
