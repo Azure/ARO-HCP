@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	copilot "github.com/github/copilot-sdk/go"
 )
@@ -30,7 +31,8 @@ func TestCopilotSessionErrorCapture(t *testing.T) {
 	stack := "provider stack"
 	url := "https://example.invalid/rate-limit"
 	eligibleForAutoSwitch := true
-	capture := &copilotSessionErrorCapture{provider: "github-copilot"}
+	retryAfterSeconds := int64(120)
+	capture := newCopilotSessionErrorCapture("github-copilot")
 	capture.record(copilot.SessionEvent{
 		Data: &copilot.SessionErrorData{
 			ErrorType:             CopilotSessionErrorTypeRateLimit,
@@ -44,9 +46,16 @@ func TestCopilotSessionErrorCapture(t *testing.T) {
 			EligibleForAutoSwitch: &eligibleForAutoSwitch,
 		},
 	})
+	capture.record(copilot.SessionEvent{
+		Data: &copilot.AutoModeSwitchRequestedData{
+			ErrorCode:         &errorCode,
+			RequestID:         "auto-mode-switch-request-id",
+			RetryAfterSeconds: &retryAfterSeconds,
+		},
+	})
 
 	providerErr := errors.New("CAPIError: 429")
-	err := wrapCopilotSessionError(capture, providerErr)
+	err := wrapCopilotSessionError(context.Background(), capture, providerErr)
 
 	var sessionErr *CopilotSessionError
 	if !errors.As(err, &sessionErr) {
@@ -82,6 +91,9 @@ func TestCopilotSessionErrorCapture(t *testing.T) {
 	if sessionErr.EligibleForAutoSwitch == nil || *sessionErr.EligibleForAutoSwitch != eligibleForAutoSwitch {
 		t.Errorf("EligibleForAutoSwitch = %v, want %t", sessionErr.EligibleForAutoSwitch, eligibleForAutoSwitch)
 	}
+	if sessionErr.RetryAfterSeconds == nil || *sessionErr.RetryAfterSeconds != retryAfterSeconds {
+		t.Errorf("RetryAfterSeconds = %v, want %d", sessionErr.RetryAfterSeconds, retryAfterSeconds)
+	}
 	if !errors.Is(err, providerErr) {
 		t.Fatal("errors.Is() = false, want original provider error in the chain")
 	}
@@ -91,7 +103,7 @@ func TestCopilotSessionErrorCapture(t *testing.T) {
 }
 
 func TestCopilotSessionErrorCapturePreservesMissingOptionalFields(t *testing.T) {
-	capture := &copilotSessionErrorCapture{provider: "github-copilot"}
+	capture := newCopilotSessionErrorCapture("github-copilot")
 	capture.record(copilot.SessionEvent{
 		Data: &copilot.SessionErrorData{
 			ErrorType: CopilotSessionErrorTypeRateLimit,
@@ -99,7 +111,7 @@ func TestCopilotSessionErrorCapturePreservesMissingOptionalFields(t *testing.T) 
 		},
 	})
 
-	sessionErr := capture.withCause(errors.New("session failed"))
+	sessionErr := capture.withCause(context.Background(), errors.New("session failed"))
 	if sessionErr == nil {
 		t.Fatal("withCause() = nil, want CopilotSessionError")
 	}
@@ -109,13 +121,88 @@ func TestCopilotSessionErrorCapturePreservesMissingOptionalFields(t *testing.T) 
 		sessionErr.ServiceRequestID != nil ||
 		sessionErr.Stack != nil ||
 		sessionErr.URL != nil ||
-		sessionErr.EligibleForAutoSwitch != nil {
+		sessionErr.EligibleForAutoSwitch != nil ||
+		sessionErr.RetryAfterSeconds != nil {
 		t.Fatalf("optional fields = %#v, want all nil", sessionErr)
 	}
 }
 
+func TestCopilotSessionErrorCapturePreservesMissingRetryAfter(t *testing.T) {
+	errorCode := "user_global_rate_limited"
+	eligibleForAutoSwitch := true
+	capture := newCopilotSessionErrorCapture("github-copilot")
+	capture.record(copilot.SessionEvent{
+		Data: &copilot.SessionErrorData{
+			ErrorType:             CopilotSessionErrorTypeRateLimit,
+			ErrorCode:             &errorCode,
+			Message:               "request rate limited",
+			EligibleForAutoSwitch: &eligibleForAutoSwitch,
+		},
+	})
+	capture.record(copilot.SessionEvent{
+		Data: &copilot.AutoModeSwitchRequestedData{
+			ErrorCode: &errorCode,
+			RequestID: "auto-mode-switch-request-id",
+		},
+	})
+
+	sessionErr := capture.withCause(context.Background(), errors.New("session failed"))
+	if sessionErr == nil {
+		t.Fatal("withCause() = nil, want CopilotSessionError")
+	}
+	if sessionErr.RetryAfterSeconds != nil {
+		t.Errorf("RetryAfterSeconds = %v, want nil", sessionErr.RetryAfterSeconds)
+	}
+}
+
+func TestCopilotSessionErrorCaptureWaitsForRetryAfterEvent(t *testing.T) {
+	errorCode := "user_global_rate_limited"
+	eligibleForAutoSwitch := true
+	retryAfterSeconds := int64(120)
+	capture := newCopilotSessionErrorCapture("github-copilot")
+	capture.record(copilot.SessionEvent{
+		Data: &copilot.SessionErrorData{
+			ErrorType:             CopilotSessionErrorTypeRateLimit,
+			ErrorCode:             &errorCode,
+			Message:               "request rate limited",
+			EligibleForAutoSwitch: &eligibleForAutoSwitch,
+		},
+	})
+
+	result := make(chan *CopilotSessionError, 1)
+	go func() {
+		result <- capture.withCause(context.Background(), errors.New("session failed"))
+	}()
+
+	select {
+	case <-result:
+		t.Fatal("withCause() returned before auto-mode-switch event")
+	case <-time.After(10 * time.Millisecond):
+	}
+
+	capture.record(copilot.SessionEvent{
+		Data: &copilot.AutoModeSwitchRequestedData{
+			ErrorCode:         &errorCode,
+			RequestID:         "auto-mode-switch-request-id",
+			RetryAfterSeconds: &retryAfterSeconds,
+		},
+	})
+
+	select {
+	case sessionErr := <-result:
+		if sessionErr == nil {
+			t.Fatal("withCause() = nil, want CopilotSessionError")
+		}
+		if sessionErr.RetryAfterSeconds == nil || *sessionErr.RetryAfterSeconds != retryAfterSeconds {
+			t.Fatalf("RetryAfterSeconds = %v, want %d", sessionErr.RetryAfterSeconds, retryAfterSeconds)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("withCause() did not return after auto-mode-switch event")
+	}
+}
+
 func TestCopilotSessionErrorCapturePreservesFirstError(t *testing.T) {
-	capture := &copilotSessionErrorCapture{provider: "github-copilot"}
+	capture := newCopilotSessionErrorCapture("github-copilot")
 	capture.record(copilot.SessionEvent{
 		Data: &copilot.SessionErrorData{
 			ErrorType: CopilotSessionErrorTypeRateLimit,
@@ -129,7 +216,7 @@ func TestCopilotSessionErrorCapturePreservesFirstError(t *testing.T) {
 		},
 	})
 
-	sessionErr := capture.withCause(errors.New("session failed"))
+	sessionErr := capture.withCause(context.Background(), errors.New("session failed"))
 	if sessionErr == nil {
 		t.Fatal("withCause() = nil, want CopilotSessionError")
 	}
@@ -142,11 +229,11 @@ func TestCopilotSessionErrorCapturePreservesFirstError(t *testing.T) {
 }
 
 func TestCopilotSessionErrorCaptureIgnoresUnrelatedEvents(t *testing.T) {
-	capture := &copilotSessionErrorCapture{provider: "github-copilot"}
+	capture := newCopilotSessionErrorCapture("github-copilot")
 	capture.record(copilot.SessionEvent{Data: &copilot.SessionIdleData{}})
 
 	providerErr := errors.New("session failed")
-	err := wrapCopilotSessionError(capture, providerErr)
+	err := wrapCopilotSessionError(context.Background(), capture, providerErr)
 	var sessionErr *CopilotSessionError
 	if errors.As(err, &sessionErr) {
 		t.Fatalf("errors.As() = true with %#v, want false", sessionErr)

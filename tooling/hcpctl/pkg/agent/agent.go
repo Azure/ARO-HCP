@@ -347,7 +347,7 @@ func (s *Session) SendAndWait(ctx context.Context, prompt string) (string, error
 
 	s.logger.V(1).Info("Sending message to Copilot session.", "promptLength", len(prompt))
 
-	errorCapture := &copilotSessionErrorCapture{provider: s.usageProvider}
+	errorCapture := newCopilotSessionErrorCapture(s.usageProvider)
 	unsubscribe := s.inner.On(errorCapture.record)
 	defer unsubscribe()
 
@@ -389,7 +389,7 @@ func (s *Session) SendAndWait(ctx context.Context, prompt string) (string, error
 		return "", ctx.Err()
 	case r := <-ch:
 		if r.err != nil {
-			return "", wrapCopilotSessionError(errorCapture, r.err)
+			return "", wrapCopilotSessionError(ctx, errorCapture, r.err)
 		}
 		if r.event == nil {
 			return "", fmt.Errorf("copilot session returned no response")

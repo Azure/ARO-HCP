@@ -15,8 +15,10 @@
 package agent
 
 import (
+	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	copilot "github.com/github/copilot-sdk/go"
 )
@@ -24,6 +26,11 @@ import (
 const (
 	// CopilotSessionErrorTypeRateLimit identifies a Copilot rate-limit response.
 	CopilotSessionErrorTypeRateLimit = "rate_limit"
+
+	// The Copilot runtime emits auto_mode_switch.requested immediately after an
+	// eligible rate-limit error. Keep the error path bounded if that follow-up
+	// event is absent because of a runtime or connection failure.
+	copilotRetryAfterWait = time.Second
 )
 
 // CopilotSessionError preserves structured error details reported by the
@@ -40,7 +47,10 @@ type CopilotSessionError struct {
 	Stack                 *string
 	URL                   *string
 	EligibleForAutoSwitch *bool
-	Err                   error
+	// RetryAfterSeconds is the number of seconds until the rate limit resets,
+	// when reported by the Copilot runtime.
+	RetryAfterSeconds *int64
+	Err               error
 }
 
 // Error returns the underlying provider error text when available.
@@ -61,35 +71,69 @@ type copilotSessionErrorCapture struct {
 
 	mu    sync.Mutex
 	first *CopilotSessionError
+	// retryAfterReady is closed once no retry metadata is expected or the
+	// follow-up auto-mode-switch event has been captured.
+	retryAfterReady chan struct{}
+	retryAfterOnce  sync.Once
+}
+
+func newCopilotSessionErrorCapture(provider string) *copilotSessionErrorCapture {
+	return &copilotSessionErrorCapture{
+		provider:        provider,
+		retryAfterReady: make(chan struct{}),
+	}
 }
 
 func (c *copilotSessionErrorCapture) record(event copilot.SessionEvent) {
-	data, ok := event.Data.(*copilot.SessionErrorData)
-	if !ok {
-		return
-	}
+	switch data := event.Data.(type) {
+	case *copilot.SessionErrorData:
+		captured := &CopilotSessionError{
+			Provider:              c.provider,
+			ErrorType:             data.ErrorType,
+			ErrorCode:             clonePointer(data.ErrorCode),
+			StatusCode:            clonePointer(data.StatusCode),
+			Message:               data.Message,
+			ProviderCallID:        clonePointer(data.ProviderCallID),
+			ServiceRequestID:      clonePointer(data.ServiceRequestID),
+			Stack:                 clonePointer(data.Stack),
+			URL:                   clonePointer(data.URL),
+			EligibleForAutoSwitch: clonePointer(data.EligibleForAutoSwitch),
+		}
 
-	captured := &CopilotSessionError{
-		Provider:              c.provider,
-		ErrorType:             data.ErrorType,
-		ErrorCode:             clonePointer(data.ErrorCode),
-		StatusCode:            clonePointer(data.StatusCode),
-		Message:               data.Message,
-		ProviderCallID:        clonePointer(data.ProviderCallID),
-		ServiceRequestID:      clonePointer(data.ServiceRequestID),
-		Stack:                 clonePointer(data.Stack),
-		URL:                   clonePointer(data.URL),
-		EligibleForAutoSwitch: clonePointer(data.EligibleForAutoSwitch),
-	}
-
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.first == nil {
+		c.mu.Lock()
+		if c.first != nil {
+			c.mu.Unlock()
+			return
+		}
 		c.first = captured
+		c.mu.Unlock()
+
+		if data.EligibleForAutoSwitch == nil || !*data.EligibleForAutoSwitch {
+			c.markRetryAfterReady()
+		}
+	case *copilot.AutoModeSwitchRequestedData:
+		c.mu.Lock()
+		matched := c.first != nil &&
+			c.first.EligibleForAutoSwitch != nil &&
+			*c.first.EligibleForAutoSwitch &&
+			sameOptionalString(c.first.ErrorCode, data.ErrorCode)
+		if matched {
+			c.first.RetryAfterSeconds = clonePointer(data.RetryAfterSeconds)
+		}
+		c.mu.Unlock()
+		if matched {
+			c.markRetryAfterReady()
+		}
 	}
 }
 
-func (c *copilotSessionErrorCapture) withCause(cause error) *CopilotSessionError {
+func sameOptionalString(left, right *string) bool {
+	return left == nil || right == nil || *left == *right
+}
+
+func (c *copilotSessionErrorCapture) withCause(ctx context.Context, cause error) *CopilotSessionError {
+	c.waitForRetryAfter(ctx)
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.first == nil {
@@ -101,8 +145,31 @@ func (c *copilotSessionErrorCapture) withCause(cause error) *CopilotSessionError
 	return &captured
 }
 
-func wrapCopilotSessionError(capture *copilotSessionErrorCapture, cause error) error {
-	if sessionErr := capture.withCause(cause); sessionErr != nil {
+func (c *copilotSessionErrorCapture) waitForRetryAfter(ctx context.Context) {
+	c.mu.Lock()
+	first := c.first
+	c.mu.Unlock()
+	if first == nil || first.EligibleForAutoSwitch == nil || !*first.EligibleForAutoSwitch {
+		return
+	}
+
+	timer := time.NewTimer(copilotRetryAfterWait)
+	defer timer.Stop()
+	select {
+	case <-c.retryAfterReady:
+	case <-ctx.Done():
+	case <-timer.C:
+	}
+}
+
+func (c *copilotSessionErrorCapture) markRetryAfterReady() {
+	c.retryAfterOnce.Do(func() {
+		close(c.retryAfterReady)
+	})
+}
+
+func wrapCopilotSessionError(ctx context.Context, capture *copilotSessionErrorCapture, cause error) error {
+	if sessionErr := capture.withCause(ctx, cause); sessionErr != nil {
 		return fmt.Errorf("copilot session failed: %w", sessionErr)
 	}
 	return fmt.Errorf("copilot session failed: %w", cause)
