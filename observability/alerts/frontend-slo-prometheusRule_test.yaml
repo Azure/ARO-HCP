@@ -11,8 +11,6 @@ tests:
     values: "0.0001+0x80"
   - series: 'sli:frontend_http:availability:rate5m{cluster="svc-1"}'
     values: "0.9999+0x80"
-  - series: 'sli:frontend_http:latency_p99:rate5m{cluster="svc-1"}'
-    values: "0.5+0x80"
   - series: 'sli:frontend:ready:ratio5m{cluster="svc-1"}'
     values: "1+0x80"
   - series: 'sli:frontend:saturation_cpu:ratio5m{cluster="svc-1"}'
@@ -39,15 +37,6 @@ tests:
     exp_alerts: []
   - eval_time: 70m
     alertname: userJourneyFrontendAvailability3d6h
-    exp_alerts: []
-  - eval_time: 70m
-    alertname: userJourneyFrontendLatencyP991h5m
-    exp_alerts: []
-  - eval_time: 70m
-    alertname: userJourneyFrontendLatencyP996h30m
-    exp_alerts: []
-  - eval_time: 70m
-    alertname: userJourneyFrontendLatencyP993d6h
     exp_alerts: []
   - eval_time: 70m
     alertname: userJourneyFrontendSaturationCPU
@@ -150,52 +139,6 @@ tests:
   - eval_time: 6h20m
     alertname: userJourneyFrontendAvailability1h5m
     exp_alerts: []
-- interval: 5m
-  # Latency medium (p99 > 1s) - not fast (p99 > 5s).
-  # 5m step x90 covers 7h30m so avg_over_time[6h] is populated; eval after 6h+for:15m.
-  input_series:
-  - series: 'sli:frontend_http:latency_p99:rate5m{cluster="svc-1"}'
-    values: "1.2x90"
-  alert_rule_test:
-  - eval_time: 6h20m
-    alertname: userJourneyFrontendLatencyP996h30m
-    exp_alerts:
-    - exp_labels:
-        alertname: userJourneyFrontendLatencyP996h30m
-        cluster: svc-1
-        component: slo
-        severity: "3"
-        slo: frontend-latency
-        long_window: 6h
-        short_window: 30m
-      exp_annotations:
-        summary: "svc-1: Frontend HTTP p99 latency above SLO (>1s)"
-        description: "Frontend p99 latency on cluster svc-1 is above 1s on both the 6h and 30m windows (p99 < 1s ARM sync SLO miss)."
-        runbook_url: "https://aka.ms/arohcp-runbook-frontend"
-  - eval_time: 6h20m
-    alertname: userJourneyFrontendLatencyP991h5m
-    exp_alerts: []
-- interval: 1m
-  # Latency fast (p99 > 5s). eval_time 62m = 1h window + for:2m.
-  input_series:
-  - series: 'sli:frontend_http:latency_p99:rate5m{cluster="svc-1"}'
-    values: "6+0x80"
-  alert_rule_test:
-  - eval_time: 62m
-    alertname: userJourneyFrontendLatencyP991h5m
-    exp_alerts:
-    - exp_labels:
-        alertname: userJourneyFrontendLatencyP991h5m
-        cluster: svc-1
-        component: slo
-        severity: "3"
-        slo: frontend-latency
-        long_window: 1h
-        short_window: 5m
-      exp_annotations:
-        summary: "svc-1: Frontend HTTP p99 latency critically high (>5s)"
-        description: "Frontend p99 latency on cluster svc-1 is above 5s on both the 1h and 5m windows (severe miss of the p99 < 1s ARM sync SLO)."
-        runbook_url: "https://aka.ms/arohcp-runbook-frontend"
 - interval: 1m
   # ----------------------------------------
 
@@ -298,8 +241,6 @@ tests:
     values: "0.001x80"
   - series: 'sli:frontend_http:availability:rate5m{cluster="svc-1"}'
     values: "0.999x80"
-  - series: 'sli:frontend_http:latency_p99:rate5m{cluster="svc-1"}'
-    values: "1.2x80"
   alert_rule_test:
   - eval_time: 73h
     alertname: userJourneyFrontendErrors3d6h
@@ -343,24 +284,6 @@ tests:
   - eval_time: 73h
     alertname: userJourneyFrontendAvailability1h5m
     exp_alerts: []
-  - eval_time: 73h
-    alertname: userJourneyFrontendLatencyP993d6h
-    exp_alerts:
-    - exp_labels:
-        alertname: userJourneyFrontendLatencyP993d6h
-        cluster: svc-1
-        component: slo
-        severity: "4"
-        slo: frontend-latency
-        long_window: 3d
-        short_window: 6h
-      exp_annotations:
-        summary: "svc-1: Frontend HTTP p99 latency above SLO (>1s)"
-        description: "Frontend p99 latency on cluster svc-1 is above 1s on both the 3d and 6h windows (1x burn of the p99 < 1s SLO)."
-        runbook_url: "https://aka.ms/arohcp-runbook-frontend"
-  - eval_time: 73h
-    alertname: userJourneyFrontendLatencyP991h5m
-    exp_alerts: []
 - interval: 1h
   # Short window only: last 7h above 1x, rest of 3d healthy. MWMBR AND must
 
@@ -370,15 +293,10 @@ tests:
     values: "0.0001x66 0.001x14"
   - series: 'sli:frontend_http:availability:rate5m{cluster="svc-1"}'
     values: "0.9999x66 0.999x14"
-  - series: 'sli:frontend_http:latency_p99:rate5m{cluster="svc-1"}'
-    values: "0.5x66 1.2x14"
   alert_rule_test:
   - eval_time: 73h
     alertname: userJourneyFrontendErrors3d6h
     exp_alerts: []
   - eval_time: 73h
     alertname: userJourneyFrontendAvailability3d6h
-    exp_alerts: []
-  - eval_time: 73h
-    alertname: userJourneyFrontendLatencyP993d6h
     exp_alerts: []

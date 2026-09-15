@@ -21,10 +21,11 @@ spec:
   #   Medium (6x):  6 * 0.0005 = 0.003 -> 0.30% 5xx share
   #   Slow (1x):    1 * 0.0005 = 0.0005 -> 0.05% 5xx share
   #
-  # Latency SLO p99 < 1s (histogram_quantile seconds, not a 1s-bucket share):
-  #   Fast 1h/5m:   p99 > 5s (severe miss)
-  #   Medium 6h/30m: p99 > 1s (SLO miss)
-  #   Slow 3d/6h:   p99 > 1s (ticket)
+  # Latency p99 burn-rate alerts (userJourneyFrontendLatencyP99*) are paused.
+  # Recorded sli:frontend_http:latency_p99:rate5m spikes (histogram_quantile +
+  # rate() on incomplete/non-monotonic buckets) while raw histograms and Kusto
+  # stay <1s. Recording rules remain; do not page on the recorded p99 until the
+  # SLI is fixed. Path alerts FrontendLatency / FrontendPathLatency still exist.
   #
   # Ready: kube /healthz via Deployment available/spec. Distinguishes a
   # Frontend outage (ready=0) from an ARM traffic drought (HTTP SLIs absent).
@@ -35,7 +36,7 @@ spec:
   # is a short pending duration only - not a substitute for the short window.
   # Slow uses 3d long + 6h short at 1x.
   #
-  # Fast/medium Errors + Latency page Sev 3 (customer-facing UJ).
+  # Fast/medium Errors page Sev 3 (customer-facing UJ).
   # Availability is Sev 4 only - complementary to Errors on the same denominator,
   # so dual Sev3 would open two IcMs per 5xx event (review feedback).
   # Slow/traffic/saturation Sev 4 ticket.
@@ -151,61 +152,6 @@ spec:
       annotations:
         summary: "{{ $labels.cluster }}: Frontend HTTP availability below SLO (<99.95%)"
         description: "Frontend availability on cluster {{ $labels.cluster }} is below the 99.95% SLO on both the 3d and 6h windows (1x burn)."
-        runbook_url: "https://aka.ms/arohcp-runbook-frontend"
-  - name: arohcp_frontend_slo_latency_alerts
-    labels:
-      component: slo
-    rules:
-    - alert: userJourneyFrontendLatencyP991h5m
-      expr: |
-        (
-          avg_over_time(sli:frontend_http:latency_p99:rate5m[1h]) > 5
-          and
-          avg_over_time(sli:frontend_http:latency_p99:rate5m[5m]) > 5
-        )
-      for: 2m
-      labels:
-        severity: "3"
-        slo: frontend-latency
-        long_window: 1h
-        short_window: 5m
-      annotations:
-        summary: "{{ $labels.cluster }}: Frontend HTTP p99 latency critically high (>5s)"
-        description: "Frontend p99 latency on cluster {{ $labels.cluster }} is above 5s on both the 1h and 5m windows (severe miss of the p99 < 1s ARM sync SLO)."
-        runbook_url: "https://aka.ms/arohcp-runbook-frontend"
-    - alert: userJourneyFrontendLatencyP996h30m
-      expr: |
-        (
-          avg_over_time(sli:frontend_http:latency_p99:rate5m[6h]) > 1
-          and
-          avg_over_time(sli:frontend_http:latency_p99:rate5m[30m]) > 1
-        )
-      for: 15m
-      labels:
-        severity: "3"
-        slo: frontend-latency
-        long_window: 6h
-        short_window: 30m
-      annotations:
-        summary: "{{ $labels.cluster }}: Frontend HTTP p99 latency above SLO (>1s)"
-        description: "Frontend p99 latency on cluster {{ $labels.cluster }} is above 1s on both the 6h and 30m windows (p99 < 1s ARM sync SLO miss)."
-        runbook_url: "https://aka.ms/arohcp-runbook-frontend"
-    - alert: userJourneyFrontendLatencyP993d6h
-      expr: |
-        (
-          avg_over_time(sli:frontend_http:latency_p99:rate5m[3d]) > 1
-          and
-          avg_over_time(sli:frontend_http:latency_p99:rate5m[6h]) > 1
-        )
-      for: 1h
-      labels:
-        severity: "4"
-        slo: frontend-latency
-        long_window: 3d
-        short_window: 6h
-      annotations:
-        summary: "{{ $labels.cluster }}: Frontend HTTP p99 latency above SLO (>1s)"
-        description: "Frontend p99 latency on cluster {{ $labels.cluster }} is above 1s on both the 3d and 6h windows (1x burn of the p99 < 1s SLO)."
         runbook_url: "https://aka.ms/arohcp-runbook-frontend"
   - name: arohcp_frontend_slo_ready_alerts
     labels:
