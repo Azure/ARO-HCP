@@ -211,22 +211,6 @@ func OpenshiftVersionAtMostOneMinorSkewWithField(_ context.Context, _ operation.
 	return nil
 }
 
-func OpenshiftVersionWithOptionalMicro(_ context.Context, op operation.Operation, fldPath *field.Path, value, _ *string) field.ErrorList {
-	if value == nil {
-		return nil
-	}
-	if len(*value) == 0 {
-		return nil
-	}
-
-	_, err := semver.ParseTolerant(*value)
-	if err != nil {
-		return field.ErrorList{field.Invalid(fldPath, value, err.Error())}
-	}
-
-	return nil
-}
-
 func OpenShiftWithOptionalPrerelease(_ context.Context, op operation.Operation, fldPath *field.Path, value, _ *string) field.ErrorList {
 	if value == nil {
 		return nil
@@ -247,7 +231,10 @@ func OpenShiftWithOptionalPrerelease(_ context.Context, op operation.Operation, 
 	return nil
 }
 
-func OpenshiftVersionWithoutMicro(_ context.Context, op operation.Operation, fldPath *field.Path, value, _ *string) field.ErrorList {
+// OpenshiftVersionWithoutMicroDetail rejects a version ID that carries a PATCH
+// component, reporting the supplied detail. Callers differ only in how they tell
+// the user where the PATCH value belongs.
+func OpenshiftVersionWithoutMicroDetail(_ context.Context, _ operation.Operation, fldPath *field.Path, value, _ *string, detail string) field.ErrorList {
 	if value == nil {
 		return nil
 	}
@@ -262,10 +249,17 @@ func OpenshiftVersionWithoutMicro(_ context.Context, op operation.Operation, fld
 
 	// The version ID has already passed syntax validation so we know it's a valid semantic version.
 	if len(strings.SplitN(*value, ".", 3)) > 2 {
-		return field.ErrorList{field.Invalid(fldPath, value, "must be specified as MAJOR.MINOR; the PATCH value is managed")}
+		return field.ErrorList{field.Invalid(fldPath, value, detail)}
 	}
 
 	return nil
+}
+
+// OpenshiftVersionWithoutMicro rejects a PATCH component for subscriptions
+// without the experimental AFEC, where no exact pin is available at all.
+func OpenshiftVersionWithoutMicro(ctx context.Context, op operation.Operation, fldPath *field.Path, value, oldValue *string) field.ErrorList {
+	return OpenshiftVersionWithoutMicroDetail(ctx, op, fldPath, value, oldValue,
+		"must be specified as MAJOR.MINOR; the PATCH value is managed")
 }
 
 func MinItems[T any](_ context.Context, _ operation.Operation, fldPath *field.Path, value, _ []T, minLen int) field.ErrorList {
