@@ -1207,6 +1207,63 @@ Records the observed placement (`Status.ManagementClusterResourceID`) from the C
 | Read | `ServiceProviderNodePool` | <ul><li>`Status.Validations` (non-True = Status False or Unknown)</li></ul> |
 | **Write** | **`HCPOpenShiftClusterNodePool`** | <ul><li>**`Status.UserFacingConditions[RequirementsValid]`** = True/Valid when no failures; False/Degraded with unioned failed validation messages otherwise</li></ul> |
 
+#### ExternalAuthAvailableController
+
+**File:** [externalauth_available_controller.go](../backend/pkg/controllers/externalauth/status/externalauth_available_controller.go)
+**Trigger:** ExternalAuth / ServiceProviderExternalAuth informer, 1-minute resync
+**Gate (SyncOnce preconditions):**
+
+- `ExternalAuth.ServiceProviderProperties.DeletionTimestamp` == nil
+- `ExternalAuth.ServiceProviderProperties.ClusterServiceID` != nil
+- `ServiceProviderExternalAuth` exists (created by CreateServiceProviderExternalAuth)
+
+|           | Object                             | Fields |
+| --------- | ---------------------------------- | ------ |
+| Read      | `HCPOpenShiftClusterExternalAuth`  | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (needsWork: must be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (needsWork: must not be nil)</li><li>`Properties.Clients` (component name, namespace, type — Public vs Confidential)</li></ul> |
+| Read      | `ServiceProviderExternalAuth`      | <ul><li>`Status.Conditions` (compared to skip no-op writes)</li></ul> |
+| Read      | ReadDesire (HostedCluster)         | <ul><li>`Status.Configuration.Authentication.OIDCClients` (ComponentName, ComponentNamespace, Conditions — Available, Degraded)</li></ul> |
+| **Write** | **`ServiceProviderExternalAuth`**  | <ul><li>**`Status.Conditions[<Component>Available]`** — one per declared client: Public clients always True/OIDCConfigAvailable; confidential clients mapped from HostedCluster OIDC status (True/OIDCConfigAvailable, False/AwaitingSecret, False/HostedClusterNotReady, etc.)</li></ul> |
+
+
+
+
+#### CreateServiceProviderExternalAuth
+
+**File:** [create_service_provider_externalauth_controller.go](../backend/pkg/controllers/externalauth/creation/create_service_provider_externalauth_controller.go)
+**Trigger:** ExternalAuth / ServiceProviderExternalAuth informer, 1-minute resync
+**Gate (SyncOnce preconditions):**
+
+- `ExternalAuth` exists and not deleting
+- `ServiceProviderExternalAuth` not yet in lister
+
+|           | Object                             | Fields |
+| --------- | ---------------------------------- | ------ |
+| Read      | `HCPOpenShiftClusterExternalAuth`  | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (must be nil — skip when deleting)</li></ul> |
+| Read      | `ServiceProviderExternalAuth`      | <ul><li>existence check only (skip when already exists)</li></ul> |
+| **Write** | **`ServiceProviderExternalAuth`**  | <ul><li>Creates the document via `GetOrCreateServiceProviderExternalAuth` (all default fields)</li></ul> |
+
+
+
+
+#### ExternalAuthUserFacingConditionsAggregator
+
+**File:** [externalauth_userfacing_aggregator.go](../backend/pkg/controllers/externalauth/status/externalauth_userfacing_aggregator.go)
+**Trigger:** ExternalAuth / ServiceProviderExternalAuth informer, 1-minute resync
+**Gate (SyncOnce preconditions):**
+
+- `ExternalAuth` exists
+- `ServiceProviderExternalAuth` exists
+- `ServiceProviderExternalAuth.Status.Conditions` differ from `ExternalAuth.Status.UserFacingConditions`
+
+|           | Object                             | Fields |
+| --------- | ---------------------------------- | ------ |
+| Read      | `HCPOpenShiftClusterExternalAuth`  | <ul><li>`Status.UserFacingConditions` (compared to skip no-op writes)</li></ul> |
+| Read      | `ServiceProviderExternalAuth`      | <ul><li>`Status.Conditions` (filtered: only conditions with Type ending in "Available" are promoted)</li></ul> |
+| **Write** | **`HCPOpenShiftClusterExternalAuth`** | <ul><li>**`Status.UserFacingConditions`** — set to promoted conditions from SPEA; stale conditions (no longer on SPEA) are removed</li></ul> |
+
+
+
+
 #### BackupScheduleSyncer
 
 **File:** [schedule_controller.go](../backend/pkg/controllers/backupcontroller/schedule_controller.go)

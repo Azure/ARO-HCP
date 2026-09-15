@@ -34,6 +34,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	hcpsdk20260901preview "github.com/Azure/ARO-HCP/test/sdk/v20260901preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
@@ -249,5 +250,46 @@ var _ = Describe("Customer", func() {
 			By("verifying cluster operators are available after external auth config creation")
 			err = verifiers.VerifyAllClusterOperatorsAvailable().Verify(ctx, adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred(), "failed to verify cluster operators are available after external auth config creation")
+
+			By("verifying per-client Available conditions via v20260901preview API")
+			eaClient20260901 := tc.Get20260901ClientFactoryOrDie(ctx).NewExternalAuthsClient()
+			Eventually(func(g Gomega) {
+				resp, err := eaClient20260901.Get(ctx, *resourceGroup.Name, customerClusterName, customerExternalAuthName, nil)
+				g.Expect(err).NotTo(HaveOccurred(), "failed to get external auth via v20260901preview API")
+				g.Expect(resp.Properties).NotTo(BeNil(), "external auth Properties was nil")
+				g.Expect(resp.Properties.Status).NotTo(BeNil(), "external auth Properties.Status was nil")
+				g.Expect(resp.Properties.Status.Conditions).NotTo(BeEmpty(), "external auth Properties.Status.Conditions was empty")
+
+				condByType := make(map[string]*hcpsdk20260901preview.Condition)
+				for _, c := range resp.Properties.Status.Conditions {
+					if c != nil && c.Type != nil {
+						condByType[string(*c.Type)] = c
+					}
+				}
+
+				consoleAvailable := condByType["ConsoleAvailable"]
+				g.Expect(consoleAvailable).NotTo(BeNil(), "ConsoleAvailable condition not found")
+				g.Expect(consoleAvailable.Status).NotTo(BeNil(), "ConsoleAvailable Status was nil")
+				g.Expect(string(*consoleAvailable.Status)).To(Equal("True"),
+					fmt.Sprintf("ConsoleAvailable status should be True after secret creation, got %s (reason: %s, message: %s)",
+						safeDerefString((*string)(consoleAvailable.Status)),
+						safeDerefString(consoleAvailable.Reason),
+						safeDerefString(consoleAvailable.Message)))
+
+				cliAvailable := condByType["CliAvailable"]
+				g.Expect(cliAvailable).NotTo(BeNil(), "CliAvailable condition not found")
+				g.Expect(cliAvailable.Status).NotTo(BeNil(), "CliAvailable Status was nil")
+				g.Expect(string(*cliAvailable.Status)).To(Equal("True"),
+					fmt.Sprintf("CliAvailable status should always be True for public client, got %s (reason: %s)",
+						safeDerefString((*string)(cliAvailable.Status)),
+						safeDerefString(cliAvailable.Reason)))
+			}, 5*time.Minute, 15*time.Second).Should(Succeed(), "per-client Available conditions did not converge")
 		})
 })
+
+func safeDerefString(s *string) string {
+	if s == nil {
+		return "<nil>"
+	}
+	return *s
+}
