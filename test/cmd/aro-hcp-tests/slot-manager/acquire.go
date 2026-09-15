@@ -146,7 +146,7 @@ type completedAcquireOptions struct {
 	MaxWaitForLease      time.Duration
 	LeaseWaitInterval    time.Duration
 	RuntimeRegion        string
-	RegionMode           string
+	RegionMode           slots.RegionMode
 	CatalogRegions       []string
 	NormalizedWeights    []string
 	LocationOverrideUsed bool
@@ -291,7 +291,7 @@ type locationWeight struct {
 	Weight   uint64
 }
 
-func resolveRegionSelection(catalog *slots.Catalog, environment, regionMode, override, rawWeights, buildID string) (*regionSelection, error) {
+func resolveRegionSelection(catalog *slots.Catalog, environment string, regionMode slots.RegionMode, override, rawWeights, buildID string) (*regionSelection, error) {
 	if regionMode != slots.RegionModeWeighted {
 		return &regionSelection{RuntimeRegion: override}, nil
 	}

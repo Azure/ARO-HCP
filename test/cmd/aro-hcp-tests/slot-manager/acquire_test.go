@@ -88,7 +88,7 @@ func TestAcquireCompleteRegionModeMatrix(t *testing.T) {
 	alternateRegion := "eastus2"
 
 	type testCase struct {
-		regionMode         string
+		regionMode         slots.RegionMode
 		allowedLocations   string
 		override           string
 		wantRuntimeRegion  string
@@ -1308,7 +1308,7 @@ environments:
 	}
 }
 
-func writeAcquireTestCatalog(t *testing.T, regionMode, region string) string {
+func writeAcquireTestCatalog(t *testing.T, regionMode slots.RegionMode, region string) string {
 	t.Helper()
 
 	return writeAcquireTestCatalogFromYAML(t, fmt.Sprintf(`version: 1

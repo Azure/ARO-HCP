@@ -208,6 +208,24 @@ func TestLoadCatalogDefaultsRegionModeToFixed(t *testing.T) {
 	}
 }
 
+func TestLoadCatalogRejectsInvalidRegionMode(t *testing.T) {
+	t.Parallel()
+
+	catalogPath := filepath.Join(t.TempDir(), "e2e-slots.yaml")
+	catalogYAML := strings.Replace(syntheticCatalogYAML, "region: westus3", "region: westus3\n        region_mode: invalid", 1)
+	if err := os.WriteFile(catalogPath, []byte(catalogYAML), 0o644); err != nil {
+		t.Fatalf("expected invalid catalog write to succeed: %v", err)
+	}
+
+	_, err := LoadCatalog(catalogPath)
+	if err == nil {
+		t.Fatal("expected invalid region mode to fail catalog loading")
+	}
+	if !strings.Contains(err.Error(), `invalid region_mode "invalid"`) {
+		t.Fatalf("expected invalid region mode error, got %v", err)
+	}
+}
+
 func TestLoadCatalogRejectsMixedRegionModesWithinEnvironment(t *testing.T) {
 	t.Parallel()
 
