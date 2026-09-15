@@ -263,7 +263,7 @@ func clusterCreatePayload(clusterName, apiVersion string) []byte {
             "activeKey": {
               "name": "vc-encryption-key",
               "vaultName": "vc-key-vault",
-              "version": "2024-12-01-preview"
+              "version": "4e832b5c8f1e4e3d9c6b2a1f3e7d9c5b"
             }
           }
         },
@@ -322,7 +322,7 @@ func clusterCreatePayload(clusterName, apiVersion string) []byte {
           "kms": {
             "activeKey": {
               "name": "vc-encryption-key",
-              "version": "2024-12-01-preview"
+              "version": "4e832b5c8f1e4e3d9c6b2a1f3e7d9c5b"
             },
             "vaultName": "vc-key-vault",
             "visibility": "Public"
@@ -385,7 +385,7 @@ func clusterCreatePayload(clusterName, apiVersion string) []byte {
           "kms": {
             "activeKey": {
               "name": "vc-encryption-key",
-              "version": "2024-12-01-preview"
+              "version": "4e832b5c8f1e4e3d9c6b2a1f3e7d9c5b"
             },
             "vaultName": "vc-key-vault",
             "visibility": "Public"
@@ -451,7 +451,7 @@ func clusterCreatePayload(clusterName, apiVersion string) []byte {
           "kms": {
             "activeKey": {
               "name": "vc-encryption-key",
-              "version": "2024-12-01-preview"
+              "version": "4e832b5c8f1e4e3d9c6b2a1f3e7d9c5b"
             },
             "vaultName": "vc-key-vault",
             "visibility": "Public"
