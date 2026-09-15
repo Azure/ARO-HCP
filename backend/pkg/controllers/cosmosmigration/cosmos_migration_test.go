@@ -97,6 +97,108 @@ func newPreconditionFailedError() error {
 	}
 }
 
+func TestMigrateClusterKMS(t *testing.T) {
+	tests := []struct {
+		name    string
+		cluster *coreapi.HCPOpenShiftCluster
+		wantURL string
+	}{
+		{
+			name:    "nil CustomerManaged - no change",
+			cluster: &coreapi.HCPOpenShiftCluster{},
+			wantURL: "",
+		},
+		{
+			name: "nil Kms - no change",
+			cluster: &coreapi.HCPOpenShiftCluster{
+				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+					Etcd: coreapi.EtcdProfile{
+						DataEncryption: coreapi.EtcdDataEncryptionProfile{
+							CustomerManaged: &coreapi.CustomerManagedEncryptionProfile{},
+						},
+					},
+				},
+			},
+			wantURL: "",
+		},
+		{
+			name: "URL already set - no change",
+			cluster: &coreapi.HCPOpenShiftCluster{
+				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+					Etcd: coreapi.EtcdProfile{
+						DataEncryption: coreapi.EtcdDataEncryptionProfile{
+							CustomerManaged: &coreapi.CustomerManagedEncryptionProfile{
+								Kms: &coreapi.KmsEncryptionProfile{
+									KeyEncryptionKeyURL: "https://existing.vault.azure.net/keys/mykey/myversion",
+									ActiveKey: coreapi.KmsKey{
+										VaultName: "other-vault",
+										Name:      "other-key",
+										Version:   "other-version",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			wantURL: "https://existing.vault.azure.net/keys/mykey/myversion",
+		},
+		{
+			name: "missing VaultName - no change",
+			cluster: &coreapi.HCPOpenShiftCluster{
+				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+					Etcd: coreapi.EtcdProfile{
+						DataEncryption: coreapi.EtcdDataEncryptionProfile{
+							CustomerManaged: &coreapi.CustomerManagedEncryptionProfile{
+								Kms: &coreapi.KmsEncryptionProfile{
+									ActiveKey: coreapi.KmsKey{
+										Name:    "mykey",
+										Version: "myversion",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			wantURL: "",
+		},
+		{
+			name: "backfills URL from ActiveKey fields",
+			cluster: &coreapi.HCPOpenShiftCluster{
+				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+					Etcd: coreapi.EtcdProfile{
+						DataEncryption: coreapi.EtcdDataEncryptionProfile{
+							CustomerManaged: &coreapi.CustomerManagedEncryptionProfile{
+								Kms: &coreapi.KmsEncryptionProfile{
+									ActiveKey: coreapi.KmsKey{
+										VaultName: "myvault",
+										Name:      "mykey",
+										Version:   "abc123",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			wantURL: "https://myvault.vault.azure.net/keys/mykey/abc123",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			migrateClusterKMS(tt.cluster)
+			kms := tt.cluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged
+			if kms == nil || kms.Kms == nil {
+				assert.Equal(t, tt.wantURL, "")
+				return
+			}
+			assert.Equal(t, tt.wantURL, kms.Kms.KeyEncryptionKeyURL)
+		})
+	}
+}
+
 func TestReplaceWithRetry(t *testing.T) {
 	ctx := context.Background()
 	logger := testr.New(t)

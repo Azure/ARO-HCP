@@ -1014,7 +1014,7 @@ func validateCustomerManagedEncryptionProfile(ctx context.Context, op operation.
 
 var (
 	toKmsEncryptionProfileVisibility = func(oldObj *coreapi.KmsEncryptionProfile) *metadataapi.KeyVaultVisibility { return &oldObj.Visibility }
-	toKmsEncryptionProfileActiveKey  = func(oldObj *coreapi.KmsEncryptionProfile) *coreapi.KmsKey { return &oldObj.ActiveKey }
+	toKmsEncryptionProfileKeyURL     = func(oldObj *coreapi.KmsEncryptionProfile) *string { return &oldObj.KeyEncryptionKeyURL }
 )
 
 func validateKmsEncryptionProfile(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.KmsEncryptionProfile) field.ErrorList {
@@ -1029,39 +1029,40 @@ func validateKmsEncryptionProfile(ctx context.Context, op operation.Operation, f
 	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("visibility"), &newObj.Visibility, safe.Field(oldObj, toKmsEncryptionProfileVisibility))...)
 	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("visibility"), &newObj.Visibility, safe.Field(oldObj, toKmsEncryptionProfileVisibility), metadataapi.ValidKeyVaultVisibility, nil)...)
 
-	//ActiveKey KmsKey `json:"activeKey,omitempty"`
-	errs = append(errs, validateKmsKey(ctx, op, fldPath.Child("activeKey"), &newObj.ActiveKey, safe.Field(oldObj, toKmsEncryptionProfileActiveKey))...)
+	// KeyEncryptionKeyURL is the canonical identifier for the KMS key.
+	// It is required, immutable (vault and key name), and version is mutable for key rotation.
+	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("keyEncryptionKeyUrl"), &newObj.KeyEncryptionKeyURL, safe.Field(oldObj, toKmsEncryptionProfileKeyURL))...)
+	if newObj.KeyEncryptionKeyURL != "" {
+		errs = append(errs, validateKeyEncryptionKeyURL(ctx, op, fldPath.Child("keyEncryptionKeyUrl"), newObj.KeyEncryptionKeyURL, safe.Field(oldObj, toKmsEncryptionProfileKeyURL))...)
+	}
 
 	return errs
 }
 
-var (
-	toKmsKeyName      = func(oldObj *coreapi.KmsKey) *string { return &oldObj.Name }
-	toKmsKeyVaultName = func(oldObj *coreapi.KmsKey) *string { return &oldObj.VaultName }
-	toKmsKeyVersion   = func(oldObj *coreapi.KmsKey) *string { return &oldObj.Version }
-)
-
-func validateKmsKey(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.KmsKey) field.ErrorList {
+func validateKeyEncryptionKeyURL(ctx context.Context, op operation.Operation, fldPath *field.Path, newURL string, oldURL *string) field.ErrorList {
 	errs := field.ErrorList{}
 
-	//Name      string `json:"name"`
-	errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("name"), &newObj.Name, safe.Field(oldObj, toKmsKeyName))...)
-	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("name"), &newObj.Name, nil)...)
-	errs = append(errs, MaxLen(ctx, op, fldPath.Child("name"), &newObj.Name, nil, 255)...)
-
-	//VaultName string `json:"vaultName"`
-	errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("vaultName"), &newObj.VaultName, safe.Field(oldObj, toKmsKeyVaultName))...)
-	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("vaultName"), &newObj.VaultName, nil)...)
-	errs = append(errs, MaxLen(ctx, op, fldPath.Child("vaultName"), &newObj.VaultName, nil, 255)...)
-
-	//Version   string `json:"version"`
-	// The version field was made mutable in version 2026-06-30-preview.
-	apiVersion := metadataapi.APIVersionFromOptions(op.Options)
-	if len(apiVersion) > 0 && apiVersion.LT(metadataapi.APIVersionV20260630Preview) {
-		errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("version"), &newObj.Version, safe.Field(oldObj, toKmsKeyVersion))...)
+	newVaultName, newKeyName, newVersion, err := coreapi.ParseKeyEncryptionKeyURL(newURL)
+	if err != nil {
+		errs = append(errs, field.Invalid(fldPath, newURL, err.Error()))
+		return errs
 	}
-	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("version"), &newObj.Version, nil)...)
-	errs = append(errs, MaxLen(ctx, op, fldPath.Child("version"), &newObj.Version, nil, 255)...)
+
+	if oldURL != nil && *oldURL != "" {
+		oldVaultName, oldKeyName, oldVersion, _ := coreapi.ParseKeyEncryptionKeyURL(*oldURL)
+		// vaultName and keyName are immutable; version is mutable for key rotation.
+		if newVaultName != oldVaultName {
+			errs = append(errs, field.Forbidden(fldPath, "keyEncryptionKeyUrl vault name is immutable"))
+		}
+		if newKeyName != oldKeyName {
+			errs = append(errs, field.Forbidden(fldPath, "keyEncryptionKeyUrl key name is immutable"))
+		}
+		// Version mutability follows the same rule as before: immutable before v20260630preview.
+		apiVersion := metadataapi.APIVersionFromOptions(op.Options)
+		if len(apiVersion) > 0 && apiVersion.LT(metadataapi.APIVersionV20260630Preview) && newVersion != oldVersion {
+			errs = append(errs, field.Forbidden(fldPath, "keyEncryptionKeyUrl key version is immutable in this API version"))
+		}
+	}
 
 	return errs
 }

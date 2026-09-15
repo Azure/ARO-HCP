@@ -50,6 +50,10 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 		original.ResourceID = original.ID
 		original.InstanceVersion = 0
 		original.PartitionKey = ""
+		// ActiveKey fields are no longer written by any API version; clear them before round-trip.
+		if original.CustomerProperties.Etcd.DataEncryption.CustomerManaged != nil && original.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms != nil {
+			original.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.ActiveKey = coreapi.KmsKey{}
+		}
 		roundTripHCPCluster(t, original)
 	}
 
