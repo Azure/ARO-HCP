@@ -28,7 +28,7 @@ tests:
 
     # Finite le="15" is required so histogram_quantile can interpolate (not +Inf).
     values: "0+50x15"
-  - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-1", le="1", method="GET", route="/subscriptions/{subscriptionid}/resourcegroups/{resourcegroupname}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/{resourcename}", prometheus_replica="a"}'
+  - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-1", le="1.0", method="GET", route="/subscriptions/{subscriptionid}/resourcegroups/{resourcegroupname}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/{resourcename}", prometheus_replica="a"}'
     values: "0+60x15"
   - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-1", le="15", method="GET", route="/subscriptions/{subscriptionid}/resourcegroups/{resourcegroupname}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/{resourcename}", prometheus_replica="a"}'
     values: "0+60x15"
@@ -144,7 +144,7 @@ tests:
   # Slow p99: 45/min in the 1s bucket, 15/min in (1s, 15s] → p99 interpolates near 15s.
 
   input_series:
-  - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-slow", le="1", method="GET", route="/subscriptions/{subscriptionid}/resourcegroups/{resourcegroupname}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/{resourcename}", prometheus_replica="a"}'
+  - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-slow", le="1.0", method="GET", route="/subscriptions/{subscriptionid}/resourcegroups/{resourcegroupname}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/{resourcename}", prometheus_replica="a"}'
     values: "0+45x15"
   - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-slow", le="15", method="GET", route="/subscriptions/{subscriptionid}/resourcegroups/{resourcegroupname}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/{resourcename}", prometheus_replica="a"}'
     values: "0+60x15"
