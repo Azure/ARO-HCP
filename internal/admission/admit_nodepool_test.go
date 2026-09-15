@@ -536,7 +536,7 @@ func TestAdmitNodePool_VersionValidation(t *testing.T) {
 			clusterVersions: []string{"5.0.1"},
 			desiredVersion:  "5.0.1",
 			expectErrors: []utils.ExpectedError{
-				{FieldPath: "properties.version.id", Message: "major version changes are not supported"},
+				{FieldPath: "properties.version.id", Message: "node pool version changes are not supported while the control plane is on a different major version (node pool major version 4 vs control plane major version 5)"},
 			},
 		},
 		{
