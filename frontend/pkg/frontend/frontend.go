@@ -220,6 +220,26 @@ func (f *Frontend) Healthz(writer http.ResponseWriter, request *http.Request) {
 	f.healthGauge.Set(1.0)
 }
 
+func (f *Frontend) Startupz(writer http.ResponseWriter, request *http.Request) {
+	ctx, cancel := context.WithTimeout(request.Context(), 5*time.Second)
+	defer cancel()
+	iterator, err := f.resourcesDBClient.ResourcesGlobalListers().Subscriptions().List(ctx, &cosmosstorageutils.DBClientListResourceDocsOptions{
+		PageSizeHint: metadataapi.Ptr(int32(1)),
+	})
+	if err == nil {
+		for range iterator.Items(ctx) {
+			break
+		}
+		err = iterator.GetError()
+	}
+	if err != nil {
+		utils.LoggerFromContext(request.Context()).Error(err, "Startup probe failed")
+		http.Error(writer, "Cosmos DB query failed", http.StatusServiceUnavailable)
+		return
+	}
+	writer.WriteHeader(http.StatusOK)
+}
+
 func (f *Frontend) Location(writer http.ResponseWriter, request *http.Request) {
 	// This is strictly for development environments to help discover
 	// the frontend's Azure region when port forwarding with kubectl.

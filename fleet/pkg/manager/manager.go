@@ -33,6 +33,7 @@ import (
 	"k8s.io/client-go/tools/leaderelection"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 	"k8s.io/component-base/metrics/legacyregistry"
+	"k8s.io/utils/ptr"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
@@ -45,6 +46,7 @@ import (
 	"github.com/Azure/ARO-HCP/fleet/pkg/controllers/hcpresourcerequirements"
 	"github.com/Azure/ARO-HCP/fleet/pkg/controllers/lifecycle"
 	"github.com/Azure/ARO-HCP/fleet/pkg/controllers/maestroregistration"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/informers/fleetinformers"
@@ -79,7 +81,7 @@ type Manager struct {
 	AzureClientOptions           *policy.ClientOptions
 }
 
-// Run starts the fleet controller manager. It serves /healthz and /metrics,
+// Run starts the fleet controller manager. It serves /healthz, /startupz and /metrics,
 // then runs the controllers under a leader-election lease.
 func (m *Manager) Run(ctx context.Context) error {
 	logger := utils.LoggerFromContext(ctx)
@@ -97,21 +99,7 @@ func (m *Manager) Run(ctx context.Context) error {
 	)
 
 	if len(m.HealthzListenAddr) > 0 {
-		healthGauge := promauto.With(legacyregistry.Registerer()).NewGauge(prometheus.GaugeOpts{
-			Name: "fleet_controller_health", Help: "fleet_controller_health is 1 when healthy",
-		})
-		mux := http.NewServeMux()
-		mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
-			if err := electionChecker.Check(r); err != nil {
-				logger.V(1).Info("readiness probe failed", "error", err)
-				http.Error(w, "lease not renewed", http.StatusServiceUnavailable)
-				healthGauge.Set(0)
-				return
-			}
-			w.WriteHeader(http.StatusOK)
-			healthGauge.Set(1)
-		})
-		server := &http.Server{Addr: m.HealthzListenAddr, Handler: mux}
+		server := &http.Server{Addr: m.HealthzListenAddr, Handler: m.healthHandler(ctx, electionChecker, legacyregistry.Registerer())}
 		wg.Add(1)
 		go func() {
 			defer cancel(fmt.Errorf("healthz server exited"))
@@ -160,6 +148,45 @@ func (m *Manager) Run(ctx context.Context) error {
 	wg.Wait()
 	logger.Info("stopped", "component", name, "commit", version.CommitSHA)
 	return errors.Join(errs...)
+}
+
+func (m *Manager) healthHandler(ctx context.Context, electionChecker *leaderelection.HealthzAdaptor, registerer prometheus.Registerer) http.Handler {
+	logger := utils.LoggerFromContext(ctx)
+	healthGauge := promauto.With(registerer).NewGauge(prometheus.GaugeOpts{
+		Name: "fleet_controller_health", Help: "fleet_controller_health is 1 when healthy",
+	})
+	mux := http.NewServeMux()
+	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+		if err := electionChecker.Check(r); err != nil {
+			logger.V(1).Info("readiness probe failed", "error", err)
+			http.Error(w, "lease not renewed", http.StatusServiceUnavailable)
+			healthGauge.Set(0)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		healthGauge.Set(1)
+	})
+	mux.HandleFunc("/startupz", func(w http.ResponseWriter, r *http.Request) {
+		queryCtx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+		defer cancel()
+		iterator, err := m.FleetDBClient.GlobalListers().Stamps().List(queryCtx, &cosmosstorageutils.DBClientListResourceDocsOptions{
+			PageSizeHint: ptr.To(int32(1)),
+		})
+		if err == nil {
+			for range iterator.Items(queryCtx) {
+				break
+			}
+			err = iterator.GetError()
+		}
+		if err != nil {
+			logger.Error(err, "Startup probe failed")
+			http.Error(w, "Cosmos DB query failed", http.StatusServiceUnavailable)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	})
+
+	return mux
 }
 
 func (m *Manager) runControllersUnderLeaderElection(
