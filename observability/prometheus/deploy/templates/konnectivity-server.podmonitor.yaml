@@ -1,0 +1,16 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  labels:
+    app.kubernetes.io/name: konnectivity-server
+  name: konnectivity-server
+  namespace: '{{ .Release.Namespace }}'
+spec:
+  podMetricsEndpoints:
+  - portNumber: 8093
+    path: /metrics
+  namespaceSelector:
+    any: true
+  selector:
+    matchLabels:
+      app: kube-apiserver
