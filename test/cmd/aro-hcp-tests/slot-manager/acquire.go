@@ -339,9 +339,10 @@ func parseLocationWeights(raw string, regions []string) ([]locationWeight, uint6
 
 	allowedRegions := sets.New(regions...)
 	parsedWeights := make(map[string]uint64, len(regions))
-	for _, entry := range strings.FieldsFunc(raw, func(r rune) bool {
-		return r == ',' || r == '\n'
-	}) {
+	normalized := strings.ReplaceAll(raw, "\r\n", "\n")
+	normalized = strings.ReplaceAll(normalized, "\r", "\n")
+	normalized = strings.ReplaceAll(normalized, "\n", ",")
+	for _, entry := range strings.Split(normalized, ",") {
 		location, rawWeight, found := strings.Cut(entry, "=")
 		location = strings.TrimSpace(location)
 		rawWeight = strings.TrimSpace(rawWeight)

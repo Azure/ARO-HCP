@@ -305,6 +305,36 @@ For the live DEV slot-managed path:
   Always apply through this Make target rather than `go run` or a hand-built binary. The target rebuilds `aro-hcp-tests` and, as part of that, regenerates the Bicep-derived ARM artifacts (e.g. `msi-pools.json`) from the source-of-truth Bicep in `test/e2e-setup/bicep/`. The generated artifacts under `test/e2e/test-artifacts/generated-test-artifacts/` are git-ignored build outputs, so bypassing the Make build can embed and apply a stale template — which manifests as resource groups being deleted and recreated instead of updated in place.
 - follow [DEV E2E Subscription Onboarding](dev-e2e-subscription-onboarding.md) for the full operator runbook when adding another customer subscription
 
+#### Reconcile And Validate An Identity Pool
+
+If a job fails because a leased identity-container resource group is missing or
+incomplete, reconcile only the affected subscription:
+
+```bash
+make -C test apply-identity-pool \
+  ENVIRONMENT=<dev|int|stg|prod> \
+  SUBSCRIPTION="<catalog subscription_name>"
+```
+
+The command applies one subscription-scoped deployment stack per slot. Review
+the catalog diff before running it: deployment stacks use
+`ActionOnUnmanage: delete`, so reducing a pool or changing its resource names can
+delete resources that are no longer managed by the stack.
+
+Then validate the complete expected inventory against Azure:
+
+```bash
+make -C test validate-identity-pool \
+  ENVIRONMENT=<dev|int|stg|prod> \
+  SUBSCRIPTION="<catalog subscription_name>"
+```
+
+If either command fails, preserve the deployment-stack error and inspect the
+first nested Azure error instead of retrying blindly. Common blockers are
+insufficient RBAC, an unregistered `Microsoft.ManagedIdentity` provider,
+subscription quota exhaustion, or another deployment operation holding the
+stack in a non-terminal state.
+
 For higher environments, the identity-container acquisition path is still the older ci-operator `leases:` model. Those jobs are not yet wired to slot-manager acquire or release, so changes there still have to respect the existing `openshift/release` Boskos inventory and job configuration.
 
 ### Operational Notes And Troubleshooting

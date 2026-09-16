@@ -58,6 +58,15 @@ func (m RegionMode) String() string {
 	}
 }
 
+func (m RegionMode) IsValid() bool {
+	switch m {
+	case RegionModeFixed, RegionModeRuntimeSelected, RegionModeWeighted:
+		return true
+	default:
+		return false
+	}
+}
+
 func (m *RegionMode) UnmarshalYAML(node *yaml.Node) error {
 	switch value := strings.TrimSpace(node.Value); value {
 	case "", RegionModeFixed.String():
@@ -213,6 +222,8 @@ func (c *Catalog) Validate() error {
 				return fmt.Errorf("environment %q has a pool with empty subscription_name", environmentName)
 			case pool.IdentityProvisioning != "" && pool.IdentityProvisioning != IdentityProvisioningUnmanaged:
 				return fmt.Errorf("environment %q pool %s has invalid identity_provisioning %q (must be empty or %q)", environmentName, describePool(*pool), pool.IdentityProvisioning, IdentityProvisioningUnmanaged)
+			case !pool.RegionMode.IsValid():
+				return fmt.Errorf("environment %q pool %s has invalid region_mode %q", environmentName, describePool(*pool), pool.RegionMode)
 			case pool.RegionMode == RegionModeWeighted && pool.Region != "":
 				return fmt.Errorf("environment %q weighted pool %s must not declare region", environmentName, describePool(*pool))
 			case pool.RegionMode == RegionModeWeighted && len(pool.Regions) == 0:

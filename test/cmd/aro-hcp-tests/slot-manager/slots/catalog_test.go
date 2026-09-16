@@ -226,6 +226,23 @@ func TestLoadCatalogRejectsInvalidRegionMode(t *testing.T) {
 	}
 }
 
+func TestCatalogValidateRejectsInvalidProgrammaticRegionMode(t *testing.T) {
+	t.Parallel()
+
+	catalog := loadSyntheticCatalog(t)
+	environment := catalog.Environments["dev"]
+	environment.Pools[0].RegionMode = RegionMode(99)
+	catalog.Environments["dev"] = environment
+
+	err := catalog.Validate()
+	if err == nil {
+		t.Fatal("expected invalid programmatic region mode to fail validation")
+	}
+	if !strings.Contains(err.Error(), "invalid region_mode") {
+		t.Fatalf("expected invalid region mode error, got %v", err)
+	}
+}
+
 func TestLoadCatalogRejectsMixedRegionModesWithinEnvironment(t *testing.T) {
 	t.Parallel()
 
