@@ -25,12 +25,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type staticSubscriptionState string
-
-func (s staticSubscriptionState) GetSubscriptionState(string) string {
-	return string(s)
-}
-
 func TestMetricsMiddlewareUserAgent(t *testing.T) {
 	t.Parallel()
 
@@ -61,7 +55,7 @@ func TestMetricsMiddlewareUserAgent(t *testing.T) {
 			t.Parallel()
 
 			reg := prometheus.NewRegistry()
-			mm := NewMetricsMiddleware(reg, staticSubscriptionState("Registered"))
+			mm := NewMetricsMiddleware(reg)
 			middleware := mm.Metrics()
 
 			req := httptest.NewRequest(http.MethodGet, "/subscriptions/00000000-0000-0000-0000-000000000000?api-version=2024-01-01", nil)
