@@ -59,6 +59,17 @@
                     }
                   }
                 ]
+              },
+              "status": {
+                "conditions": [
+                  {
+                    "type": "Available",
+                    "status": "True",
+                    "lastTransitionTime": "2024-03-27T14:57:32.578Z",
+                    "reason": "AsExpected",
+                    "message": "External auth is available"
+                  }
+                ]
               }
             },
             "id": "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/resourceType/resourceName",

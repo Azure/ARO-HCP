@@ -104,7 +104,7 @@ func createServiceProviderClusterWithVersion(t *testing.T, ctx context.Context, 
 	existing, getErr := spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
 	if getErr == nil {
 		replacement := existing.DeepCopy()
-		replacement.Status.ControlPlaneVersion.ActiveVersions = []coreapi.HCPClusterActiveVersion{
+		replacement.Status.ControlPlaneVersion.ActiveVersions = []coreapi.ServiceProviderClusterActiveVersion{
 			{Version: &cpVersion, State: configv1.CompletedUpdate},
 		}
 		_, err := spcCRUD.Replace(ctx, replacement, nil)
@@ -120,7 +120,7 @@ func createServiceProviderClusterWithVersion(t *testing.T, ctx context.Context, 
 		},
 		Status: coreapi.ServiceProviderClusterStatus{
 			ControlPlaneVersion: coreapi.ServiceProviderClusterStatusVersion{
-				ActiveVersions: []coreapi.HCPClusterActiveVersion{
+				ActiveVersions: []coreapi.ServiceProviderClusterActiveVersion{
 					{Version: &cpVersion, State: configv1.CompletedUpdate},
 				},
 			},

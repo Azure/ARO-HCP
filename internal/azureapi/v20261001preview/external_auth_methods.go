@@ -322,11 +322,11 @@ func (v version) NewHCPOpenShiftClusterExternalAuth(from *coreapi.HCPOpenShiftCl
 	return out
 }
 
-func newExternalAuthResourceStatus(from *coreapi.HCPOpenShiftClusterExternalAuthStatus) generated.ResourceStatus {
+func newExternalAuthResourceStatus(from *coreapi.HCPOpenShiftClusterExternalAuthStatus) generated.ExternalAuthResourceStatus {
 	if from == nil {
-		return generated.ResourceStatus{}
+		return generated.ExternalAuthResourceStatus{}
 	}
-	return generated.ResourceStatus{
+	return generated.ExternalAuthResourceStatus{
 		Conditions: newConditions(from.UserFacingConditions),
 	}
 }
