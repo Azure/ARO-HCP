@@ -32,7 +32,6 @@ import (
 
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -59,16 +58,15 @@ func (k ManagedResourceGroupKey) AddLoggerValues(logger logr.Logger) logr.Logger
 // discovers managed resource groups in Azure by watching subscription changes.
 const ManagedResourceGroupWatchingControllerName = "ManagedResourceGroupWatching"
 
-// ManagedResourceGroupProcessor processes discovered managed resource groups.
-type ManagedResourceGroupProcessor interface {
-	ProcessManagedResourceGroup(ctx context.Context, key ManagedResourceGroupKey) error
+// ManagedResourceGroupSyncer processes discovered managed resource groups.
+type ManagedResourceGroupSyncer interface {
+	SyncOnce(ctx context.Context, key ManagedResourceGroupKey) error
 }
 
 type managedResourceGroupWatchingController struct {
 	name                  string
 	location              string
-	processor             ManagedResourceGroupProcessor
-	resourcesDBClient     corecosmosstorage.ResourcesDBClient
+	syncer                ManagedResourceGroupSyncer
 	azureFPAClientBuilder azureclient.FirstPartyApplicationClientBuilder
 
 	queue workqueue.TypedRateLimitingInterface[ManagedResourceGroupKey]
@@ -78,8 +76,7 @@ type managedResourceGroupWatchingController struct {
 // in Azure by watching subscription changes and listing resource groups for each subscription.
 func NewManagedResourceGroupWatchingController(
 	location string,
-	processor ManagedResourceGroupProcessor,
-	resourcesDBClient corecosmosstorage.ResourcesDBClient,
+	syncer ManagedResourceGroupSyncer,
 	azureFPAClientBuilder azureclient.FirstPartyApplicationClientBuilder,
 	backendInformers coreinformers.BackendInformers,
 	resyncDuration time.Duration,
@@ -87,8 +84,7 @@ func NewManagedResourceGroupWatchingController(
 	c := &managedResourceGroupWatchingController{
 		name:                  ManagedResourceGroupWatchingControllerName,
 		location:              location,
-		processor:             processor,
-		resourcesDBClient:     resourcesDBClient,
+		syncer:                syncer,
 		azureFPAClientBuilder: azureFPAClientBuilder,
 		queue: workqueue.NewTypedRateLimitingQueueWithConfig(
 			workqueue.DefaultTypedControllerRateLimiter[ManagedResourceGroupKey](),
@@ -229,7 +225,7 @@ func (c *managedResourceGroupWatchingController) processNextWorkItem(ctx context
 	ctx = utils.ContextWithLogger(ctx, logger)
 
 	ReconcileTotal.WithLabelValues(c.name).Inc()
-	err := c.processor.ProcessManagedResourceGroup(ctx, key)
+	err := c.syncer.SyncOnce(ctx, key)
 	if err == nil {
 		c.queue.Forget(key)
 		return true

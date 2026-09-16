@@ -238,6 +238,13 @@ func (f *BackendRootCmdFlags) AddFlags(cmd *cobra.Command) {
 		fmt.Sprintf("Backup schedule cadence. Accepted values: '%s', '%s',", backups.BackupCadenceProduction, backups.BackupCadenceTesting))
 	cmd.Flags().StringVar(&f.BackupScheduleState, "backup-schedule-state", f.BackupScheduleState,
 		fmt.Sprintf("Backup schedule state. Accepted values: %s, %s", coreapi.BackupScheduleStateEnabled, coreapi.BackupScheduleStateDisabled))
+	cmd.Flags().StringVar(&f.OrphanedMRGMyAFEC, "orphaned-mrg-my-afec", f.OrphanedMRGMyAFEC,
+		"AFEC flag identifying subscriptions owned by this environment for orphaned MRG cleanup (e.g. Microsoft.RedHatOpenShift/STAGING-APPROVED)")
+	cmd.Flags().StringVar(&f.OrphanedMRGOtherAFECs, "orphaned-mrg-other-afecs", f.OrphanedMRGOtherAFECs,
+		"Comma-separated AFEC flags identifying subscriptions owned by OTHER environments for orphaned MRG cleanup")
+	cmd.Flags().BoolVar(&f.OrphanedMRGReadWrite, "orphaned-mrg-read-write", f.OrphanedMRGReadWrite,
+		"When true, actually delete orphaned managed resource groups. Default is read-only mode.")
+	cmd.MarkFlagsMutuallyExclusive("orphaned-mrg-my-afec", "orphaned-mrg-other-afecs")
 
 	cmd.MarkFlagsRequiredTogether("cosmos-name", "cosmos-url")
 }
@@ -616,9 +623,9 @@ func NewBackendRootCmdFlags() *BackendRootCmdFlags {
 		ExitOnPanic:                                     true,
 		BackupScheduleCadence:                           string(backups.BackupCadenceProduction),
 		BackupScheduleState:                             string(coreapi.BackupScheduleStateEnabled),
-		OrphanedMRGMyAFEC:                               os.Getenv("MY_AFEC"),
-		OrphanedMRGOtherAFECs:                           os.Getenv("OTHER_AFECS"),
-		OrphanedMRGReadWrite:                            os.Getenv("CLEAN_ORPHANED_MANAGED_RESOURCE_GROUPS_MODE") == "readwrite",
+		OrphanedMRGMyAFEC:                               "",
+		OrphanedMRGOtherAFECs:                           "",
+		OrphanedMRGReadWrite:                            false,
 	}
 
 	return flags

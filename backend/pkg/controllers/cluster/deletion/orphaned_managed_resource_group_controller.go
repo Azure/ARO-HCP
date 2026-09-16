@@ -37,6 +37,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -86,6 +87,8 @@ type orphanedManagedResourceGroupController struct {
 	location              string
 	readOnly              bool
 	resourcesDBClient     corecosmosstorage.ResourcesDBClient
+	subscriptionLister    corelisters.SubscriptionLister
+	clusterLister         corelisters.ClusterLister
 	azureFPAClientBuilder azureclient.FirstPartyApplicationClientBuilder
 	afecOwnership         AFECOwnershipConfig
 }
@@ -104,6 +107,8 @@ type orphanedManagedResourceGroupController struct {
 func NewOrphanedManagedResourceGroupController(
 	location string,
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
+	subscriptionLister corelisters.SubscriptionLister,
+	clusterLister corelisters.ClusterLister,
 	azureFPAClientBuilder azureclient.FirstPartyApplicationClientBuilder,
 	myAFEC string,
 	otherAFECs string,
@@ -115,6 +120,8 @@ func NewOrphanedManagedResourceGroupController(
 		location:              location,
 		readOnly:              !readWrite,
 		resourcesDBClient:     resourcesDBClient,
+		subscriptionLister:    subscriptionLister,
+		clusterLister:         clusterLister,
 		azureFPAClientBuilder: azureFPAClientBuilder,
 		afecOwnership:         afecOwnership,
 	}
@@ -179,16 +186,16 @@ func (c *orphanedManagedResourceGroupController) isSubscriptionOwnedByThisEnviro
 func (c *orphanedManagedResourceGroupController) needsWork(ctx context.Context, key controllerutils.ManagedResourceGroupKey) (bool, *coreapi.Subscription, error) {
 	logger := utils.LoggerFromContext(ctx)
 
-	// Load subscription from Cosmos - this provides race protection.
-	// If subscription doesn't exist in Cosmos yet, we skip processing to avoid
+	// Load subscription from the informer cache.
+	// If subscription doesn't exist yet, we skip processing to avoid
 	// deleting MRGs before cluster data has been fully synced.
-	subscription, err := c.resourcesDBClient.Subscriptions().Get(ctx, key.SubscriptionID)
+	subscription, err := c.subscriptionLister.Get(ctx, key.SubscriptionID)
 	if cosmosstorageutils.IsNotFoundError(err) {
-		logger.Info("Subscription not found in Cosmos, skipping MRG (race protection)")
+		logger.Info("Subscription not found, skipping MRG (race protection)")
 		return false, nil, nil
 	}
 	if err != nil {
-		return false, nil, utils.TrackError(fmt.Errorf("failed to get subscription from database: %w", err))
+		return false, nil, utils.TrackError(fmt.Errorf("failed to get subscription: %w", err))
 	}
 
 	// Check if this subscription is owned by this environment based on AFEC flags
@@ -206,7 +213,17 @@ func (c *orphanedManagedResourceGroupController) needsWork(ctx context.Context, 
 		return false, nil, nil // Invalid managedBy, skip
 	}
 
-	// Check if cluster exists in Cosmos
+	// Check if cluster exists - first via the lister (cache), then via Cosmos.
+	// If the lister has the cluster, we know it exists and avoid a Cosmos read.
+	// If the lister cache is cold, we double-verify via Cosmos before declaring orphaned.
+	_, err = c.clusterLister.Get(ctx, managedByID.SubscriptionID, managedByID.ResourceGroupName, managedByID.Name)
+	if err == nil {
+		// Cluster found in cache - MRG is not orphaned
+		logger.V(1).Info("Cluster exists (lister) - MRG is not orphaned")
+		return false, subscription, nil
+	}
+
+	// Cluster not in cache - verify via Cosmos
 	_, err = c.resourcesDBClient.HCPClusters(
 		managedByID.SubscriptionID,
 		managedByID.ResourceGroupName,
@@ -222,17 +239,15 @@ func (c *orphanedManagedResourceGroupController) needsWork(ctx context.Context, 
 		return false, nil, utils.TrackError(fmt.Errorf("failed to get cluster from database: %w", err))
 	}
 
-	// Cluster exists - MRG is not orphaned
-	logger.V(1).Info("Cluster exists - MRG is not orphaned")
+	// Cluster exists in Cosmos - MRG is not orphaned
+	logger.V(1).Info("Cluster exists (Cosmos) - MRG is not orphaned")
 	return false, subscription, nil
 }
 
-// ProcessManagedResourceGroup implements ManagedResourceGroupProcessor.
+// SyncOnce implements ManagedResourceGroupSyncer.
 // It checks if the MRG is orphaned and deletes it if necessary.
-func (c *orphanedManagedResourceGroupController) ProcessManagedResourceGroup(ctx context.Context, key controllerutils.ManagedResourceGroupKey) error {
+func (c *orphanedManagedResourceGroupController) SyncOnce(ctx context.Context, key controllerutils.ManagedResourceGroupKey) error {
 	logger := utils.LoggerFromContext(ctx)
-
-	readOnly := c.readOnly
 
 	// Check if this MRG needs cleanup
 	shouldCleanup, subscription, err := c.needsWork(ctx, key)
@@ -257,7 +272,7 @@ func (c *orphanedManagedResourceGroupController) ProcessManagedResourceGroup(ctx
 		return utils.TrackError(err)
 	}
 
-	return c.deleteOrphanedManagedResourceGroup(ctx, rgClient, key, readOnly)
+	return c.deleteOrphanedManagedResourceGroup(ctx, rgClient, key, c.readOnly)
 }
 
 // deleteOrphanedManagedResourceGroup attempts to delete an orphaned managed resource group.
