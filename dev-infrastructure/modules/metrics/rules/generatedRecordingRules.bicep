@@ -128,7 +128,7 @@ resource arohcpNodepoolSloRecordingRules 'Microsoft.AlertsManagement/prometheusR
       }
       {
         record: 'nodepool:provision_state:count_by_phase'
-        expression: 'count by (phase, region) (backend_nodepool_provision_state)'
+        expression: 'count by (phase, region) (max by (phase, resource_id, subscription_id, region) (backend_nodepool_provision_state))'
       }
     ]
   }
