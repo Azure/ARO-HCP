@@ -19,7 +19,6 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
-	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 )
 
 const (
@@ -33,25 +32,15 @@ const (
 	operatorIngress                = "ingress"
 	operatorCloudNetworkConfig     = "cloud-network-config"
 
-	denyAssignmentSuffixResources                = "resources-deny-assignment"
-	denyAssignmentSuffixDenyAllOtherRPs          = "deny-all-other-rps-deny-assignment"
-	denyAssignmentSuffixCompute                  = "compute-deny-assignment"
-	denyAssignmentSuffixResourceHealth           = "resourcehealth-deny-assignment"
-	denyAssignmentSuffixAPIManagement            = "apimanagement-deny-assignment"
-	denyAssignmentSuffixStorage                  = "storage-deny-assignment"
-	denyAssignmentSuffixManagedIdentity          = "managedidentity-deny-assignment"
-	denyAssignmentSuffixKeyVault                 = "keyvault-deny-assignment"
-	denyAssignmentSuffixContainerService         = "containerservice-deny-assignment"
-	denyAssignmentSuffixNetworkVnetMgmt          = "network-vnet-mgmt-deny-assignment"
-	denyAssignmentSuffixNetworkVnetRead          = "network-vnet-read-deny-assignment"
-	denyAssignmentSuffixNetworkVnetJoin          = "network-vnet-join-deny-assignment"
-	denyAssignmentSuffixNetworkLoadBalancing     = "network-loadbalancing-deny-assignment"
-	denyAssignmentSuffixNetworkPrivateConn       = "network-privateconn-deny-assignment"
-	denyAssignmentSuffixNetworkSecurityGroups    = "network-securitygroups-deny-assignment"
-	denyAssignmentSuffixNetworkAppSecurityGroups = "network-appsecuritygroups-deny-assignment"
-	denyAssignmentSuffixNetworkInterfaces        = "network-interfaces-deny-assignment"
-	denyAssignmentSuffixNetworkPoliciesServices  = "network-policies-services-deny-assignment"
-	denyAssignmentSuffixNetworkBastionHosts      = "network-bastionhosts-deny-assignment"
+	// denyAssignmentSuffixComplete is intentionally the SAME suffix Cluster Service
+	// uses for its consolidated deny assignment (see aro-hcp-clusters-service
+	// pkg/azure/denyassignmentcreator/deny_assignment_creator.go). The suffix feeds
+	// the shared deterministic UUID (generateDenyAssignmentUUID), so it must stay
+	// byte-for-byte identical to CS.
+	// TODO: now that the backend is the sole owner of deny assignments, do we still
+	// want to reuse CS's "complete-deny-assignment" suffix, or mint our own? Changing
+	// it changes the UUID, so decide before GA.
+	denyAssignmentSuffixComplete = "complete-deny-assignment"
 
 	denyAssignmentNamespaceUUID   = "f75040b8-d8aa-4311-bda6-ba8af06db258"
 	denyAssignmentAzureAPIVersion = "2022-04-01"
@@ -66,145 +55,74 @@ type denyAssignmentDefinition struct {
 	actions                 []string
 	notActions              []string
 	dataActions             []string
-	conditionalKMS          bool
 }
 
+// denyAssignmentDefinitions returns the single "complete" deny assignment modeled on classic
+// ARO-RP: AllPrincipals as the (system-defined) principal, every operator managed identity in
+// ExcludePrincipals, and IsSystemProtected set by the controller. Collapsing the former per-service
+// deny assignments into one keeps the backend in lockstep with Cluster Service, which writes the
+// same consolidated assignment under the same suffix (see denyAssignmentSuffixComplete).
 func denyAssignmentDefinitions(cluster *coreapi.HCPOpenShiftCluster) []denyAssignmentDefinition {
-	defs := []denyAssignmentDefinition{
-		{
-			denyAssignmentType:      denyAssignmentSuffixResources,
-			controlPlaneOperators:   []string{operatorClusterAPIAzure, operatorControlPlane, operatorImageRegistry, operatorDiskCSIDriver},
-			dataPlaneOperators:      []string{operatorImageRegistry, operatorDiskCSIDriver},
-			includeServiceManagedID: false,
-			actions:                 resourcesActions(),
-			notActions:              resourcesNotActions(),
+	def := denyAssignmentDefinition{
+		denyAssignmentType: denyAssignmentSuffixComplete,
+		controlPlaneOperators: []string{
+			operatorClusterAPIAzure,
+			operatorCloudControllerManager,
+			operatorControlPlane,
+			operatorImageRegistry,
+			operatorIngress,
+			operatorCloudNetworkConfig,
+			operatorDiskCSIDriver,
+			operatorFileCSIDriver,
 		},
-		{
-			denyAssignmentType:      denyAssignmentSuffixCompute,
-			controlPlaneOperators:   []string{operatorClusterAPIAzure, operatorCloudControllerManager, operatorDiskCSIDriver, operatorCloudNetworkConfig},
-			dataPlaneOperators:      []string{operatorDiskCSIDriver},
-			includeServiceManagedID: false,
-			actions:                 computeActions(),
-			notActions:              computeNotActions(),
+		dataPlaneOperators: []string{
+			operatorImageRegistry,
+			operatorDiskCSIDriver,
+			operatorFileCSIDriver,
 		},
-		{
-			denyAssignmentType:    denyAssignmentSuffixResourceHealth,
-			controlPlaneOperators: []string{operatorClusterAPIAzure},
-			actions:               resourceHealthActions(),
+		includeServiceManagedID: true,
+		actions: []string{
+			"*/action",
+			"*/delete",
+			"*/write",
 		},
-		{
-			denyAssignmentType:    denyAssignmentSuffixAPIManagement,
-			controlPlaneOperators: []string{operatorClusterAPIAzure},
-			actions:               apiManagementActions(),
-		},
-		{
-			denyAssignmentType:      denyAssignmentSuffixStorage,
-			controlPlaneOperators:   []string{operatorImageRegistry, operatorFileCSIDriver},
-			dataPlaneOperators:      []string{operatorImageRegistry, operatorFileCSIDriver},
-			includeServiceManagedID: true,
-			actions:                 storageActions(),
-			dataActions:             storageDataActions(),
-		},
-		{
-			denyAssignmentType:      denyAssignmentSuffixManagedIdentity,
-			controlPlaneOperators:   []string{operatorControlPlane, operatorDiskCSIDriver},
-			dataPlaneOperators:      []string{operatorDiskCSIDriver},
-			includeServiceManagedID: true,
-			actions:                 managedIdentityActions(),
-		},
-		{
-			denyAssignmentType:    denyAssignmentSuffixKeyVault,
-			controlPlaneOperators: []string{operatorDiskCSIDriver},
-			dataPlaneOperators:    []string{operatorDiskCSIDriver},
-			actions:               keyVaultActions(),
-			dataActions:           keyVaultDataActions(),
-			conditionalKMS:        true,
-		},
-		{
-			denyAssignmentType:    denyAssignmentSuffixContainerService,
-			controlPlaneOperators: []string{operatorClusterAPIAzure},
-			actions:               containerServiceActions(),
-		},
-		{
-			denyAssignmentType:      denyAssignmentSuffixNetworkVnetMgmt,
-			controlPlaneOperators:   []string{operatorClusterAPIAzure, operatorFileCSIDriver, operatorCloudControllerManager},
-			dataPlaneOperators:      []string{operatorFileCSIDriver},
-			includeServiceManagedID: true,
-			actions:                 networkVirtualNetworksManagementActions(),
-		},
-		{
-			denyAssignmentType:      denyAssignmentSuffixNetworkVnetRead,
-			controlPlaneOperators:   []string{operatorClusterAPIAzure, operatorCloudControllerManager, operatorControlPlane, operatorImageRegistry, operatorIngress, operatorFileCSIDriver, operatorCloudNetworkConfig},
-			dataPlaneOperators:      []string{operatorImageRegistry, operatorFileCSIDriver},
-			includeServiceManagedID: true,
-			actions:                 networkVirtualNetworksReadActions(),
-		},
-		{
-			denyAssignmentType:    denyAssignmentSuffixNetworkVnetJoin,
-			controlPlaneOperators: []string{operatorClusterAPIAzure, operatorCloudControllerManager, operatorImageRegistry, operatorIngress, operatorCloudNetworkConfig, operatorDiskCSIDriver, operatorFileCSIDriver},
-			dataPlaneOperators:    []string{operatorImageRegistry, operatorFileCSIDriver, operatorDiskCSIDriver},
-			actions:               networkVirtualNetworksJoinActions(),
-		},
-		{
-			denyAssignmentType:      denyAssignmentSuffixNetworkLoadBalancing,
-			controlPlaneOperators:   []string{operatorClusterAPIAzure, operatorCloudControllerManager, operatorControlPlane, operatorCloudNetworkConfig, operatorDiskCSIDriver, operatorFileCSIDriver},
-			dataPlaneOperators:      []string{operatorDiskCSIDriver, operatorFileCSIDriver},
-			includeServiceManagedID: true,
-			actions:                 networkLoadBalancingPublicIPAndRouteTablesActions(),
-		},
-		{
-			denyAssignmentType:      denyAssignmentSuffixNetworkPrivateConn,
-			controlPlaneOperators:   []string{operatorClusterAPIAzure, operatorImageRegistry, operatorIngress, operatorFileCSIDriver, operatorCloudControllerManager},
-			dataPlaneOperators:      []string{operatorImageRegistry, operatorFileCSIDriver},
-			includeServiceManagedID: true,
-			actions:                 networkPrivateConnectivityActions(),
-		},
-		{
-			denyAssignmentType:      denyAssignmentSuffixNetworkSecurityGroups,
-			controlPlaneOperators:   []string{operatorClusterAPIAzure, operatorCloudControllerManager, operatorControlPlane, operatorDiskCSIDriver, operatorFileCSIDriver},
-			dataPlaneOperators:      []string{operatorDiskCSIDriver, operatorFileCSIDriver},
-			includeServiceManagedID: true,
-			actions:                 networkSecurityGroupsAndNatGatewaysActions(),
-		},
-		{
-			denyAssignmentType:    denyAssignmentSuffixNetworkAppSecurityGroups,
-			controlPlaneOperators: []string{operatorClusterAPIAzure, operatorCloudControllerManager, operatorControlPlane, operatorDiskCSIDriver},
-			dataPlaneOperators:    []string{operatorDiskCSIDriver},
-			actions:               applicationSecurityGroupsActions(),
-		},
-		{
-			denyAssignmentType:    denyAssignmentSuffixNetworkInterfaces,
-			controlPlaneOperators: []string{operatorClusterAPIAzure, operatorCloudControllerManager, operatorControlPlane, operatorImageRegistry, operatorCloudNetworkConfig, operatorDiskCSIDriver},
-			dataPlaneOperators:    []string{operatorImageRegistry, operatorDiskCSIDriver},
-			actions:               networkInterfacesActions(),
-			notActions:            networkInterfacesNotActions(),
-		},
-		{
-			denyAssignmentType:    denyAssignmentSuffixNetworkPoliciesServices,
-			controlPlaneOperators: []string{operatorFileCSIDriver, operatorCloudControllerManager},
-			dataPlaneOperators:    []string{operatorFileCSIDriver},
-			actions:               networkPoliciesAndServicesActions(),
-		},
-		{
-			denyAssignmentType:    denyAssignmentSuffixNetworkBastionHosts,
-			controlPlaneOperators: []string{operatorClusterAPIAzure},
-			actions:               bastionHostsActions(),
-		},
-		{
-			denyAssignmentType: denyAssignmentSuffixDenyAllOtherRPs,
-			actions:            denyAllOtherRPsActions(),
-			notActions:         denyAllOtherRPsNotActions(),
+		notActions: []string{
+			"Microsoft.Compute/disks/beginGetAccess/action",
+			"Microsoft.Compute/disks/endGetAccess/action",
+			"Microsoft.Compute/disks/write",
+			"Microsoft.Insights/ActionGroups/write",
+			"Microsoft.Insights/ActionGroups/delete",
+			"Microsoft.Insights/MetricAlerts/write",
+			"Microsoft.Insights/MetricAlerts/delete",
+			"Microsoft.Insights/ActivityLogAlerts/write",
+			"Microsoft.Insights/ActivityLogAlerts/delete",
+			"Microsoft.Compute/snapshots/beginGetAccess/action",
+			"Microsoft.Compute/snapshots/delete",
+			"Microsoft.Compute/snapshots/endGetAccess/action",
+			"Microsoft.Compute/snapshots/write",
+			"Microsoft.Network/networkInterfaces/effectiveRouteTable/action",
+			"Microsoft.Network/networkSecurityGroups/join/action",
+			"Microsoft.Resources/tags/*", // Enable tagging for Resources RP only
+			"Microsoft.PolicyInsights/remediations/write",
+			"Microsoft.PolicyInsights/remediations/delete",
+			"Microsoft.Authorization/roleAssignments/write",
+			"Microsoft.Network/dnszones/CAA/write",
+			"Microsoft.Network/dnszones/CAA/delete",
+			"Microsoft.Network/dnszones/TXT/write",
+			"Microsoft.Network/dnszones/TXT/delete",
+			"Microsoft.Compute/virtualMachines/retrieveBootDiagnosticsData/action",
 		},
 	}
 
-	// For KeyVault, conditionally add KMS operator exclusion
-	for i := range defs {
-		if defs[i].conditionalKMS && isKMSEncryptionEnabled(cluster) {
-			defs[i].controlPlaneOperators = append(defs[i].controlPlaneOperators, operatorKMS)
-		}
+	// Exclude the KMS managed identity whenever it is DEFINED on the cluster. This mirrors classic
+	// ARO-RP, which excludes every operator identity it hands out; it is a presence check and is
+	// deliberately NOT gated on whether KMS etcd encryption is currently enabled.
+	if _, ok := cluster.CustomerProperties.Platform.OperatorsAuthentication.
+		UserAssignedIdentities.ControlPlaneOperators[operatorKMS]; ok {
+		def.controlPlaneOperators = append(def.controlPlaneOperators, operatorKMS)
 	}
 
-	return defs
+	return []denyAssignmentDefinition{def}
 }
 
 func allDenyAssignmentReferences(cluster *coreapi.HCPOpenShiftCluster) ([]coreapi.DenyAssignmentReference, error) {
@@ -226,10 +144,4 @@ func allDenyAssignmentReferences(cluster *coreapi.HCPOpenShiftCluster) ([]coreap
 		})
 	}
 	return denyAssignmentReferences, nil
-}
-
-func isKMSEncryptionEnabled(cluster *coreapi.HCPOpenShiftCluster) bool {
-	return cluster.CustomerProperties.Etcd.DataEncryption.KeyManagementMode == metadataapi.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged &&
-		cluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged != nil &&
-		cluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms != nil
 }
