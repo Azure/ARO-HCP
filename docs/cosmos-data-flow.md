@@ -918,7 +918,7 @@ No Cosmos writes. Dispatches updates to Cluster Service via PATCH.
 #### TriggerControlPlaneUpgrade
 
 **File:** [trigger_control_plane_upgrade_controller.go](../backend/pkg/controllers/cluster/version/trigger_control_plane_upgrade_controller.go)
-**Trigger:** Cluster informer, 5-minute resync
+**Trigger:** Cluster informer, 1-minute resync
 
 | | Object | Fields |
 |---|--------|--------|
@@ -963,6 +963,7 @@ No Cosmos writes. Posts `ControlPlaneUpgradePolicy` to Cluster Service.
 | | Object | Fields |
 |---|--------|--------|
 | Read | `HCPOpenShiftClusterNodePool` (informer cache) | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (skip when set)</li><li>`ServiceProviderProperties.ClusterServiceID` (skip when unset/empty; target of the upgrade policy)</li></ul> |
+| Read | `ServiceProviderNodePool` (informer cache) | <ul><li>`Spec.NodePoolVersion.DesiredVersion` (skip when unset)</li><li>`Status.NodePoolVersion.ActiveVersions` (skip when empty; `[0]` is the current version compared to desired)</li></ul> |
 
 No Cosmos writes. Posts `NodePoolUpgradePolicy` to Cluster Service.
 
