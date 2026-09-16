@@ -187,7 +187,6 @@ tests:
     exp_samples:
     - labels: 'errors:backend_nodepool_operation:error_rate_3d{cluster="mgmt-1"}'
       value: 0.5
-
 # HA replica dedup: backend_nodepool_provision_state is scraped once per
 # prometheus_replica, so counting the raw gauge would inflate the phase
 # distribution. The rule collapses replicas via max by (identity labels), so two
