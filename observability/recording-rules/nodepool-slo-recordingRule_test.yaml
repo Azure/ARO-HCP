@@ -187,3 +187,30 @@ tests:
     exp_samples:
     - labels: 'errors:backend_nodepool_operation:error_rate_3d{cluster="mgmt-1"}'
       value: 0.5
+
+# HA replica dedup: backend_nodepool_provision_state is scraped once per
+# prometheus_replica, so counting the raw gauge would inflate the phase
+# distribution. The rule collapses replicas via max by (identity labels), so two
+# node pools succeeded and one failed count as 2 and 1, not 4 and 2.
+- interval: 1m
+  input_series:
+  - series: 'backend_nodepool_provision_state{phase="succeeded", resource_id="/sub/1/np/a", subscription_id="sub-1", prometheus_replica="0"}'
+    values: "1+0x5"
+  - series: 'backend_nodepool_provision_state{phase="succeeded", resource_id="/sub/1/np/a", subscription_id="sub-1", prometheus_replica="1"}'
+    values: "1+0x5"
+  - series: 'backend_nodepool_provision_state{phase="succeeded", resource_id="/sub/1/np/b", subscription_id="sub-1", prometheus_replica="0"}'
+    values: "1+0x5"
+  - series: 'backend_nodepool_provision_state{phase="succeeded", resource_id="/sub/1/np/b", subscription_id="sub-1", prometheus_replica="1"}'
+    values: "1+0x5"
+  - series: 'backend_nodepool_provision_state{phase="failed", resource_id="/sub/1/np/c", subscription_id="sub-1", prometheus_replica="0"}'
+    values: "1+0x5"
+  - series: 'backend_nodepool_provision_state{phase="failed", resource_id="/sub/1/np/c", subscription_id="sub-1", prometheus_replica="1"}'
+    values: "1+0x5"
+  promql_expr_test:
+  - expr: "nodepool:provision_state:count_by_phase"
+    eval_time: 5m
+    exp_samples:
+    - labels: 'nodepool:provision_state:count_by_phase{phase="succeeded"}'
+      value: 2
+    - labels: 'nodepool:provision_state:count_by_phase{phase="failed"}'
+      value: 1
