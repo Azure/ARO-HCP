@@ -19,6 +19,7 @@ import (
 
 	utilsclock "k8s.io/utils/clock"
 
+	clusteractualhostedcluster "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/actualhostedcluster"
 	clusterazureresources "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/azureresources"
 	clusterbackups "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/backups"
 	clustercreation "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/creation"
@@ -505,6 +506,23 @@ func registerClusterPropertiesSyncController() controllerconfig.ControllerRegist
 func instantiateClusterPropertiesSyncController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
 	_, unionReadDesireLister := controllerContext.UnionKubeApplierInformers.ReadDesires()
 	return clusterproperties.NewClusterPropertiesSyncController(
+		controllerContext.ResourcesDBClient,
+		controllerContext.BackendInformers,
+		controllerContext.UnionKubeApplierInformers,
+		unionReadDesireLister,
+	), nil
+}
+
+func registerActualHostedClusterController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{
+		Workers:     20,
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateActualHostedClusterController, true),
+	}
+}
+
+func instantiateActualHostedClusterController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	_, unionReadDesireLister := controllerContext.UnionKubeApplierInformers.ReadDesires()
+	return clusteractualhostedcluster.NewActualHostedClusterController(
 		controllerContext.ResourcesDBClient,
 		controllerContext.BackendInformers,
 		controllerContext.UnionKubeApplierInformers,
@@ -1180,6 +1198,7 @@ func Register(registry map[string]controllerconfig.ControllerRegistration) {
 	registry[strings.ToLower(clusterversion.TriggerControlPlaneUpgradeControllerName)] = registerTriggerControlPlaneUpgradeController()
 	registry[strings.ToLower(clusterproperties.ClusterBaseDomainPrefixSyncControllerName)] = registerClusterBaseDomainPrefixSyncController()
 	registry[strings.ToLower(clusterproperties.ClusterPropertiesSyncControllerName)] = registerClusterPropertiesSyncController()
+	registry[strings.ToLower(clusteractualhostedcluster.ActualHostedClusterControllerName)] = registerActualHostedClusterController()
 	registry[strings.ToLower(clusteridentity.ClusterIdentitySyncControllerName)] = registerClusterIdentitySyncController()
 	registry[strings.ToLower(clusterstatus.ClusterDegradedAggregatorControllerName)] = registerClusterDegradedAggregatorController()
 	registry[strings.ToLower(clusterstatus.ClusterRequirementsValidAggregatorControllerName)] = registerClusterRequirementsValidAggregatorController()

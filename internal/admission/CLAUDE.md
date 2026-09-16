@@ -105,6 +105,31 @@ cluster to obtain it. Any future "admission needs live cluster state" case must
 follow the same pattern: backend observes → mirrors onto `ServiceProviderCluster`
 → frontend prefetches → admission reads from context.
 
+The general-purpose landing spot for that state is
+`ServiceProviderCluster.Status.ActualHostedCluster`, which the backend
+`ActualHostedCluster` controller keeps as a copy of the whole observed
+HostedCluster (spec and status). Prefer reading a fact out of it over adding a
+new distilled field per check: a per-check field has to be named, versioned and
+backfilled, and single-purpose booleans in particular do not survive contact
+with the next release (`DataPlaneV5MirrorPresent` would need a sibling for every
+future major version). `admitClusterV5DataPlaneMirror` is the worked example —
+it reads `Spec.ImageContentSources` straight off the mirrored HostedCluster.
+
+Two rules when consuming it:
+
+- **Read actual, not desired.** Admission decides against what exists on the
+  management cluster today. `Spec.DesiredHostedCluster` is intent and may not be
+  reality; do not gate on it.
+- **Fail open while unobserved.** `ActualHostedCluster` is nil until the backend
+  has seen the HostedCluster. nil means "unknown", never "absent" — treating it
+  as absent would reject every affected request until the mirror converges.
+  Once it is non-nil, an empty field within it is a real answer and can be
+  enforced.
+
+Why the mirror exists at all (frontend has no kube-applier container access, so
+a frontend compromise cannot create management-cluster resources) is written up
+in [docs/cosmos-data-flow.md](../../docs/cosmos-data-flow.md#why-management-cluster-state-is-mirrored-onto-serviceprovidercluster).
+
 ## Tests
 
 - Unit tests live next to the implementation (`admit_xxx_test.go`).
