@@ -1001,6 +1001,10 @@ sessiongate:
   k8s:
     namespace: sessiongate
     replicas: 2
+    resources:
+      requests:
+        cpu: 250m
+        memory: 512Mi
     serviceAccountName: sessiongate
   managedIdentityName: sessiongate
 stgGlobalV2:
