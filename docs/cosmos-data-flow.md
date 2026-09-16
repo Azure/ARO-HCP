@@ -909,6 +909,7 @@ No Cosmos writes. Dispatches updates to Cluster Service via PATCH.
 
 | | Object | Fields |
 |---|--------|--------|
+| Read | `HCPOpenShiftCluster` (informer cache) | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (skip when set)</li><li>`Status.ActiveVersions` (compared before write)</li></ul> |
 | Read | ReadDesire (HostedCluster) | <ul><li>`Status.ControlPlaneVersion.History`</li></ul> |
 | Read | ReadDesire (HostedCluster) | <ul><li>`Status.Version.Desired.Channels`</li></ul> |
 | **Write** | **`ServiceProviderCluster`** | <ul><li>**`Status.ControlPlaneVersion.ActiveVersions`** = [{Version, State}, ...]</li><li>**`Status.DesiredVersionChannels`** = ["stable-4.19", ...] (mirrored from HostedCluster `status.version.desired.channels` for DB-free cluster admission)</li></ul> |
@@ -916,7 +917,12 @@ No Cosmos writes. Dispatches updates to Cluster Service via PATCH.
 
 #### TriggerControlPlaneUpgrade
 
+**File:** [trigger_control_plane_upgrade_controller.go](../backend/pkg/controllers/cluster/version/trigger_control_plane_upgrade_controller.go)
 **Trigger:** Cluster informer, 5-minute resync
+
+| | Object | Fields |
+|---|--------|--------|
+| Read | `HCPOpenShiftCluster` (informer cache) | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (skip when set)</li><li>`ServiceProviderProperties.ClusterServiceID` (skip when unset; target of the upgrade policy)</li><li>`ServiceProviderProperties.ActiveOperationID` (active-Create gate)</li><li>`SystemData.CreatedAt` (create grace-period gate)</li></ul> |
 
 No Cosmos writes. Posts `ControlPlaneUpgradePolicy` to Cluster Service.
 
@@ -951,7 +957,12 @@ No Cosmos writes. Posts `ControlPlaneUpgradePolicy` to Cluster Service.
 
 #### TriggerNodePoolUpgrade
 
+**File:** [trigger_node_pool_upgrade_controller.go](../backend/pkg/controllers/nodepool/version/trigger_node_pool_upgrade_controller.go)
 **Trigger:** NodePool informer, 5-minute resync
+
+| | Object | Fields |
+|---|--------|--------|
+| Read | `HCPOpenShiftClusterNodePool` (informer cache) | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (skip when set)</li><li>`ServiceProviderProperties.ClusterServiceID` (skip when unset/empty; target of the upgrade policy)</li></ul> |
 
 No Cosmos writes. Posts `NodePoolUpgradePolicy` to Cluster Service.
 
