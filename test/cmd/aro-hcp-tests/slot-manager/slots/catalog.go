@@ -68,6 +68,10 @@ func (m RegionMode) IsValid() bool {
 }
 
 func (m *RegionMode) UnmarshalYAML(node *yaml.Node) error {
+	if node.Kind != yaml.ScalarNode || node.Tag != "!!str" {
+		return fmt.Errorf("region_mode must be a string")
+	}
+
 	switch value := strings.TrimSpace(node.Value); value {
 	case "", RegionModeFixed.String():
 		*m = RegionModeFixed

@@ -226,6 +226,48 @@ func TestLoadCatalogRejectsInvalidRegionMode(t *testing.T) {
 	}
 }
 
+func TestLoadCatalogValidatesRegionModeYAMLType(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		value      string
+		shouldLoad bool
+	}{
+		{name: "explicit empty string", value: `""`, shouldLoad: true},
+		{name: "mapping", value: `{}`},
+		{name: "sequence", value: `[]`},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			catalogPath := filepath.Join(t.TempDir(), "e2e-slots.yaml")
+			catalogYAML := strings.Replace(syntheticCatalogYAML, "region: westus3", "region: westus3\n        region_mode: "+test.value, 1)
+			if err := os.WriteFile(catalogPath, []byte(catalogYAML), 0o644); err != nil {
+				t.Fatalf("expected catalog write to succeed: %v", err)
+			}
+
+			catalog, err := LoadCatalog(catalogPath)
+			if test.shouldLoad {
+				if err != nil {
+					t.Fatalf("expected catalog to load: %v", err)
+				}
+				if got := catalog.Environments["dev"].Pools[0].RegionMode; got != RegionModeFixed {
+					t.Fatalf("expected empty region_mode to default to %q, got %q", RegionModeFixed, got)
+				}
+				return
+			}
+
+			if err == nil {
+				t.Fatal("expected non-string region_mode to fail catalog loading")
+			}
+			if !strings.Contains(err.Error(), "region_mode must be a string") {
+				t.Fatalf("expected region mode type error, got %v", err)
+			}
+		})
+	}
+}
+
 func TestCatalogValidateRejectsInvalidProgrammaticRegionMode(t *testing.T) {
 	t.Parallel()
 

@@ -86,8 +86,9 @@ The CI acquire step provides these selectors and runtime inputs:
 | `LEASE_PROXY_SERVER_URL` | Ci-operator Boskos proxy endpoint. |
 | `SHARED_DIR` | Directory for the state and exported environment files. |
 
-Equivalent command-line flags exist for the acquire options. Explicit location
-override takes precedence over other location selectors.
+Command-line flags exist for the acquire options except the explicit location
+override, which is supplied through the CI environment contract. The override
+takes precedence over other location selectors.
 
 ## Region modes
 
