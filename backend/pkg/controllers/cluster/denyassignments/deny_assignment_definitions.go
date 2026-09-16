@@ -19,6 +19,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 )
 
@@ -38,9 +39,6 @@ const (
 	// pkg/azure/denyassignmentcreator/deny_assignment_creator.go). The suffix feeds
 	// the shared deterministic UUID (generateDenyAssignmentUUID), so it must stay
 	// byte-for-byte identical to CS.
-	// TODO: now that the backend is the sole owner of deny assignments, do we still
-	// want to reuse CS's "complete-deny-assignment" suffix, or mint our own? Changing
-	// it changes the UUID, so decide before GA.
 	denyAssignmentSuffixComplete = "complete-deny-assignment"
 
 	denyAssignmentNamespaceUUID   = "f75040b8-d8aa-4311-bda6-ba8af06db258"
@@ -58,11 +56,10 @@ type denyAssignmentDefinition struct {
 	dataActions             []string
 }
 
-// denyAssignmentDefinitions returns the single "complete" deny assignment modeled on classic
-// ARO-RP: AllPrincipals as the (system-defined) principal, every operator managed identity in
-// ExcludePrincipals, and IsSystemProtected set by the controller. Collapsing the former per-service
-// deny assignments into one keeps the backend in lockstep with Cluster Service, which writes the
-// same consolidated assignment under the same suffix (see denyAssignmentSuffixComplete).
+// denyAssignmentDefinitions returns the single consolidated "complete" deny assignment: the
+// AllPrincipals system-defined principal, every operator managed identity in ExcludePrincipals, and
+// IsSystemProtected set by the controller. It is kept in lockstep with Cluster Service, which writes
+// the same consolidated assignment under the same suffix (see denyAssignmentSuffixComplete).
 func denyAssignmentDefinitions(cluster *coreapi.Cluster) []denyAssignmentDefinition {
 	def := denyAssignmentDefinition{
 		denyAssignmentType: denyAssignmentSuffixComplete,
@@ -81,6 +78,7 @@ func denyAssignmentDefinitions(cluster *coreapi.Cluster) []denyAssignmentDefinit
 			operatorDiskCSIDriver,
 			operatorFileCSIDriver,
 		},
+		// The service managed identity is always excluded from the complete deny assignment.
 		includeServiceManagedID: true,
 		actions: []string{
 			"*/action",
@@ -115,11 +113,8 @@ func denyAssignmentDefinitions(cluster *coreapi.Cluster) []denyAssignmentDefinit
 		},
 	}
 
-	// Exclude the KMS managed identity whenever it is DEFINED on the cluster. This mirrors classic
-	// ARO-RP, which excludes every operator identity it hands out; it is a presence check and is
-	// deliberately NOT gated on whether KMS etcd encryption is currently enabled.
-	if _, ok := cluster.CustomerProperties.Platform.OperatorsAuthentication.
-		UserAssignedIdentities.ControlPlaneOperators[operatorKMS]; ok {
+	// Include the KMS managed identity in the exclusions only when KMS etcd encryption is enabled.
+	if isKMSEncryptionEnabled(cluster) {
 		def.controlPlaneOperators = append(def.controlPlaneOperators, operatorKMS)
 	}
 
@@ -145,4 +140,10 @@ func allDenyAssignmentReferences(cluster *coreapi.Cluster) ([]coreapi.DenyAssign
 		})
 	}
 	return denyAssignmentReferences, nil
+}
+
+func isKMSEncryptionEnabled(cluster *coreapi.Cluster) bool {
+	return cluster.CustomerProperties.Etcd.DataEncryption.KeyManagementMode == metadataapi.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged &&
+		cluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged != nil &&
+		cluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms != nil
 }

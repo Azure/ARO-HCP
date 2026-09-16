@@ -68,7 +68,8 @@ func TestDenyAssignmentDefinitionsSingleComplete(t *testing.T) {
 	}
 	assert.Equal(t, expectedNotActions, def.notActions, "notActions must be the merged classic ARO-RP list in order")
 
-	// KMS is defined on the default test cluster, so it is excluded (appended after the base set).
+	// KMS etcd encryption is enabled on the default test cluster, so KMS is excluded (appended
+	// after the base set).
 	assert.Equal(t, []string{
 		operatorClusterAPIAzure,
 		operatorCloudControllerManager,
@@ -79,7 +80,7 @@ func TestDenyAssignmentDefinitionsSingleComplete(t *testing.T) {
 		operatorDiskCSIDriver,
 		operatorFileCSIDriver,
 		operatorKMS,
-	}, def.controlPlaneOperators, "control plane operators must be the base set plus KMS when KMS is defined")
+	}, def.controlPlaneOperators, "control plane operators must be the base set plus KMS when KMS encryption is enabled")
 
 	assert.Equal(t, []string{
 		operatorImageRegistry,
@@ -88,19 +89,24 @@ func TestDenyAssignmentDefinitionsSingleComplete(t *testing.T) {
 	}, def.dataPlaneOperators, "data plane operators must match the classic set")
 }
 
-// TestDenyAssignmentDefinitionsKMSExclusionPresenceGated verifies the KMS exclusion is driven by
-// the identity being DEFINED on the cluster, not by whether KMS etcd encryption is enabled.
-func TestDenyAssignmentDefinitionsKMSExclusionPresenceGated(t *testing.T) {
-	// KMS defined -> excluded, regardless of etcd encryption mode.
+// TestDenyAssignmentDefinitionsKMSExclusionGatedOnEncryption verifies the KMS exclusion is driven
+// by whether KMS etcd encryption is ENABLED on the cluster, not merely by the identity being
+// defined.
+func TestDenyAssignmentDefinitionsKMSExclusionGatedOnEncryption(t *testing.T) {
+	// KMS etcd encryption enabled (the default test cluster) -> excluded.
 	def := denyAssignmentDefinitions(newTestCluster())[0]
-	assert.Contains(t, def.controlPlaneOperators, operatorKMS, "KMS must be excluded whenever it is defined on the cluster")
+	assert.Contains(t, def.controlPlaneOperators, operatorKMS, "KMS must be excluded when KMS etcd encryption is enabled")
 
-	// KMS not defined -> not excluded.
-	clusterWithoutKMS := newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
-		delete(c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators, operatorKMS)
+	// KMS etcd encryption disabled -> not excluded, even though the KMS identity is still defined.
+	clusterWithoutKMSEncryption := newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
+		c.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = ""
+		c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = nil
 	})
-	def = denyAssignmentDefinitions(clusterWithoutKMS)[0]
-	assert.NotContains(t, def.controlPlaneOperators, operatorKMS, "KMS must not be excluded when it is not defined on the cluster")
+	require.NotNil(t,
+		clusterWithoutKMSEncryption.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators[operatorKMS],
+		"the KMS identity must still be defined so the test exercises encryption-gating, not presence")
+	def = denyAssignmentDefinitions(clusterWithoutKMSEncryption)[0]
+	assert.NotContains(t, def.controlPlaneOperators, operatorKMS, "KMS must not be excluded when KMS etcd encryption is disabled")
 }
 
 // TestDenyAssignmentCompleteExclusionSet verifies the full exclusion set resolved from the single
