@@ -313,9 +313,20 @@ func TestControlPlaneActiveVersionSyncer_SyncOnce(t *testing.T) {
 				desires = tt.readDesires(t)
 			}
 
+			// The cluster read goes through a slice-backed cache lister rather than a
+			// DB-backed double. We seed the cache from whatever seedDB placed in the DB
+			// (empty for the not-found case). The cluster document remains in the DB only
+			// because this controller writes it back (step 5); the read itself is served
+			// from the cache. See TestControlPlaneActiveVersionSyncer_SyncOnce_ReadsClusterFromCache
+			// for the revert-proof guard that keeps the cluster out of the DB entirely.
+			var cachedClusters []*coreapi.HCPOpenShiftCluster
+			if cluster, getErr := mockResourcesDBClient.HCPClusters(testSubscriptionID, testResourceGroupName).Get(runCtx, testClusterName); getErr == nil {
+				cachedClusters = append(cachedClusters, cluster)
+			}
+
 			syncer := &controlPlaneActiveVersionSyncer{
 				resourcesDBClient:            mockResourcesDBClient,
-				clusterLister:                &corelistertesting.DBClusterLister{ResourcesDBClient: mockResourcesDBClient},
+				clusterLister:                &corelistertesting.SliceClusterLister{Clusters: cachedClusters},
 				readDesireLister:             &kubeapplierlistertesting.SliceReadDesireLister{Desires: desires},
 				serviceProviderClusterLister: &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
 			}
@@ -343,6 +354,11 @@ func TestControlPlaneActiveVersionSyncer_NoReplaceWhenVersionsUnchanged(t *testi
 
 	createTestHCPCluster(t, runCtx, mockResourcesDBClient)
 	createServiceProviderClusterWithVersion(t, runCtx, mockResourcesDBClient, "4.19.15")
+
+	// Serve the cluster read from a slice-backed cache lister rather than a DB double.
+	cachedCluster, err := mockResourcesDBClient.HCPClusters(testSubscriptionID, testResourceGroupName).Get(runCtx, testClusterName)
+	require.NoError(t, err)
+
 	desires := []*kubeapplierapi.ReadDesire{newHostedClusterReadDesireWithVersions(t, nil,
 		hsv1beta1.ControlPlaneVersionStatus{History: []hsv1beta1.ControlPlaneUpdateHistory{
 			{Version: "4.19.15", State: configv1.CompletedUpdate},
@@ -356,7 +372,7 @@ func TestControlPlaneActiveVersionSyncer_NoReplaceWhenVersionsUnchanged(t *testi
 
 	syncer := &controlPlaneActiveVersionSyncer{
 		resourcesDBClient:            mockResourcesDBClient,
-		clusterLister:                &corelistertesting.DBClusterLister{ResourcesDBClient: mockResourcesDBClient},
+		clusterLister:                &corelistertesting.SliceClusterLister{Clusters: []*coreapi.HCPOpenShiftCluster{cachedCluster}},
 		readDesireLister:             &kubeapplierlistertesting.SliceReadDesireLister{Desires: desires},
 		serviceProviderClusterLister: &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
 	}
@@ -369,6 +385,63 @@ func TestControlPlaneActiveVersionSyncer_NoReplaceWhenVersionsUnchanged(t *testi
 	after, err := spcCRUD.Get(runCtx, coreapi.ServiceProviderClusterResourceName)
 	require.NoError(t, err)
 	assert.Equal(t, beforeETag, after.CosmosETag, "ServiceProviderCluster.CosmosETag changed despite identical ActiveVersions; the syncer wrote unnecessarily")
+}
+
+// TestControlPlaneActiveVersionSyncer_SyncOnce_ReadsClusterFromCache proves the
+// cluster read is served from the informer cache, not a live Cosmos read. The
+// cluster exists ONLY in the slice-backed cache lister and is deliberately absent
+// from the mock ResourcesDBClient. Its Status.ActiveVersions already matches the
+// value derived from the ReadDesire, so the customer-facing cluster write (step 5)
+// is skipped and the cluster never needs to be in the DB. The ServiceProviderCluster
+// (in the DB) must still be updated from the ReadDesire, so if the cluster read is
+// reverted to c.resourcesDBClient.HCPClusters(...).Get(...) it resolves NotFound,
+// SyncOnce returns early, and this assertion fails.
+func TestControlPlaneActiveVersionSyncer_SyncOnce_ReadsClusterFromCache(t *testing.T) {
+	runCtx := utils.ContextWithLogger(context.Background(), logr.Discard())
+	mockResourcesDBClient := corecosmosstoragetesting.NewMockResourcesDBClient()
+
+	// ServiceProviderCluster is in the DB with no active versions (the step-4 write target).
+	createServiceProviderClusterNoActiveVersions(t, runCtx, mockResourcesDBClient)
+
+	// Cluster lives ONLY in the cache. Its ActiveVersions already equal "4.19"
+	// (the value derived from the ReadDesire below), so the cluster write is a no-op
+	// and the cluster never has to exist in the DB.
+	clusterResourceID := metadataapi.Must(coreapi.ToClusterResourceID(testSubscriptionID, testResourceGroupName, testClusterName))
+	cachedCluster := &coreapi.HCPOpenShiftCluster{
+		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: clusterResourceID},
+		TrackedResource: coreapi.TrackedResource{
+			Resource: coreapi.Resource{ID: clusterResourceID, Name: testClusterName, Type: coreapi.ClusterResourceType.String()},
+		},
+		Status: coreapi.HCPOpenShiftClusterStatus{
+			ActiveVersions: []coreapi.HCPClusterActiveVersion{{Version: "4.19"}},
+		},
+	}
+
+	desires := []*kubeapplierapi.ReadDesire{newHostedClusterReadDesireWithVersions(t, nil,
+		hsv1beta1.ControlPlaneVersionStatus{History: []hsv1beta1.ControlPlaneUpdateHistory{
+			{Version: "4.19.15", State: configv1.CompletedUpdate},
+		}},
+	)}
+
+	syncer := &controlPlaneActiveVersionSyncer{
+		resourcesDBClient:            mockResourcesDBClient,
+		clusterLister:                &corelistertesting.SliceClusterLister{Clusters: []*coreapi.HCPOpenShiftCluster{cachedCluster}},
+		readDesireLister:             &kubeapplierlistertesting.SliceReadDesireLister{Desires: desires},
+		serviceProviderClusterLister: &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
+	}
+
+	require.NoError(t, syncer.SyncOnce(runCtx, controllerutils.HCPClusterKey{
+		SubscriptionID:    testSubscriptionID,
+		ResourceGroupName: testResourceGroupName,
+		HCPClusterName:    testClusterName,
+	}))
+
+	spc, err := mockResourcesDBClient.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(runCtx, coreapi.ServiceProviderClusterResourceName)
+	require.NoError(t, err)
+	assert.Equal(t, []coreapi.ServiceProviderClusterActiveVersion{
+		{Version: ptr.To(semver.MustParse("4.19.15")), State: configv1.CompletedUpdate},
+	}, spc.Status.ControlPlaneVersion.ActiveVersions,
+		"ServiceProviderCluster ActiveVersions must be written from the ReadDesire; empty means the cluster read did not resolve from the cache")
 }
 
 func TestHCPClusterActiveVersionFromServiceProviderActiveVersions(t *testing.T) {

@@ -17,13 +17,11 @@ package version
 import (
 	"context"
 	"fmt"
-	"strings"
 	"testing"
 
 	"github.com/blang/semver/v4"
 	"github.com/go-logr/logr"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -36,97 +34,51 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 func TestTriggerNodePoolUpgradeSyncer_SyncOnce(t *testing.T) {
+	// Both the NodePool and its ServiceProviderNodePool live ONLY in slice-backed
+	// cache listers, never in a mock ResourcesDBClient. This controller performs no
+	// Cosmos writes, so no DB is needed. Because the objects live only in the cache,
+	// reverting SyncOnce to a live c.resourcesDBClient...Get read would resolve
+	// NotFound and return early — so these tests genuinely guard the cached reads.
 	tests := []struct {
-		name   string
-		seedDB func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient)
+		name        string
+		nodePools   []*coreapi.HCPOpenShiftClusterNodePool
+		spNodePools []*coreapi.ServiceProviderNodePool
 	}{
 		{
-			name: "node pool not found in cosmos returns nil",
-			seedDB: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient) {
-				t.Helper()
-			},
+			name: "node pool absent from cache returns nil",
 		},
 		{
 			name: "node pool with deletion timestamp returns nil",
-			seedDB: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient) {
-				t.Helper()
-				createTestNodePoolWithVersion(t, ctx, mockDB, "4.21.0")
-
-				nodePool, err := mockDB.HCPClusters(testSubscriptionID, testResourceGroupName).
-					NodePools(testClusterName).Get(ctx, testNodePoolName)
-				require.NoError(t, err)
-				nodePool.ServiceProviderProperties.DeletionTimestamp = ptr.To(metav1.Now())
-
-				_, err = mockDB.HCPClusters(testSubscriptionID, testResourceGroupName).
-					NodePools(testClusterName).Replace(ctx, nodePool, nil)
-				require.NoError(t, err)
-			},
+			nodePools: []*coreapi.HCPOpenShiftClusterNodePool{nodePoolInCache(func(np *coreapi.HCPOpenShiftClusterNodePool) {
+				np.ServiceProviderProperties.DeletionTimestamp = ptr.To(metav1.Now())
+			})},
 		},
 		{
 			name: "missing NodePool ClusterServiceID returns nil",
-			seedDB: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient) {
-				t.Helper()
-
-				nodePoolResourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID +
-					"/resourceGroups/" + testResourceGroupName +
-					"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
-					"/nodePools/" + testNodePoolName))
-				nodePool := &coreapi.HCPOpenShiftClusterNodePool{
-					CosmosMetadata: coreapi.CosmosMetadata{
-						ResourceID:   nodePoolResourceID,
-						PartitionKey: strings.ToLower(nodePoolResourceID.SubscriptionID),
-					},
-					TrackedResource: coreapi.TrackedResource{
-						Resource: coreapi.Resource{
-							ID:   nodePoolResourceID,
-							Name: testNodePoolName,
-							Type: coreapi.NodePoolResourceType.String(),
-						},
-						Location: "eastus",
-					},
-					ServiceProviderProperties: coreapi.HCPOpenShiftClusterNodePoolServiceProviderProperties{},
-				}
-
-				_, err := mockDB.HCPClusters(testSubscriptionID, testResourceGroupName).
-					NodePools(testClusterName).Create(ctx, nodePool, nil)
-				require.NoError(t, err)
-			},
+			nodePools: []*coreapi.HCPOpenShiftClusterNodePool{nodePoolInCache(func(np *coreapi.HCPOpenShiftClusterNodePool) {
+				np.ServiceProviderProperties.ClusterServiceID = nil
+			})},
 		},
 		{
-			name: "no desired version on ServiceProviderNodePool returns nil",
-			seedDB: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient) {
-				t.Helper()
-				createTestNodePoolWithVersion(t, ctx, mockDB, "4.21.0")
-				createServiceProviderNodePoolWithVersion(t, ctx, mockDB, "4.21.0")
-			},
+			name:        "no desired version on ServiceProviderNodePool returns nil",
+			nodePools:   []*coreapi.HCPOpenShiftClusterNodePool{nodePoolInCache(nil)},
+			spNodePools: []*coreapi.ServiceProviderNodePool{spNodePoolInCache(nil, "4.21.0")},
 		},
 		{
-			name: "no active versions during installation returns nil",
-			seedDB: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient) {
-				t.Helper()
-				createTestNodePoolWithVersion(t, ctx, mockDB, "4.21.0")
-				createServiceProviderNodePoolWithActiveAndDesiredVersion(
-					t, ctx, mockDB, ptr.To(semver.MustParse("4.21.0")),
-				)
-			},
+			name:        "no active versions during installation returns nil",
+			nodePools:   []*coreapi.HCPOpenShiftClusterNodePool{nodePoolInCache(nil)},
+			spNodePools: []*coreapi.ServiceProviderNodePool{spNodePoolInCache(ptr.To(semver.MustParse("4.21.0")))},
 		},
 		{
-			name: "desired version matches latest actual version returns nil",
-			seedDB: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient) {
-				t.Helper()
-				createTestNodePoolWithVersion(t, ctx, mockDB, "4.21.0")
-				createServiceProviderNodePoolWithActiveAndDesiredVersion(
-					t, ctx, mockDB, ptr.To(semver.MustParse("4.21.0")),
-					"4.21.0", "4.20.15",
-				)
-			},
+			name:        "desired version matches latest actual version returns nil",
+			nodePools:   []*coreapi.HCPOpenShiftClusterNodePool{nodePoolInCache(nil)},
+			spNodePools: []*coreapi.ServiceProviderNodePool{spNodePoolInCache(ptr.To(semver.MustParse("4.21.0")), "4.21.0", "4.20.15")},
 		},
 	}
 
@@ -135,12 +87,10 @@ func TestTriggerNodePoolUpgradeSyncer_SyncOnce(t *testing.T) {
 			t.Parallel()
 
 			runCtx := utils.ContextWithLogger(context.Background(), logr.Discard())
-			mockDB := corecosmosstoragetesting.NewMockResourcesDBClient()
-			tt.seedDB(t, runCtx, mockDB)
 
 			syncer := &triggerNodePoolUpgradeSyncer{
-				nodePoolLister:                &corelistertesting.DBNodePoolLister{ResourcesDBClient: mockDB},
-				serviceProviderNodePoolLister: &corelistertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockDB},
+				nodePoolLister:                &corelistertesting.SliceNodePoolLister{NodePools: tt.nodePools},
+				serviceProviderNodePoolLister: &corelistertesting.SliceServiceProviderNodePoolLister{ServiceProviderNodePools: tt.spNodePools},
 			}
 
 			err := syncer.SyncOnce(runCtx, controllerutils.HCPNodePoolKey{
@@ -156,23 +106,22 @@ func TestTriggerNodePoolUpgradeSyncer_SyncOnce(t *testing.T) {
 
 // TestTriggerNodePoolUpgradeSyncer_SyncOnce_TriggersUpgradeFromCache drives the
 // full SyncOnce path where the node pool is read from the informer-backed
-// NodePoolLister (DBNodePoolLister here) and its desired version differs from the
-// active one, so an upgrade policy is posted to Cluster Service. This proves the
-// cached read returns a usable node pool; a nil/miswired nodePoolLister would panic
-// on the first Get.
+// NodePoolLister (a slice-backed cache lister here, with nothing in any mock DB)
+// and its desired version differs from the active one, so an upgrade policy is
+// posted to Cluster Service. Because the objects live only in the cache, reverting
+// either read to a live Cosmos Get would resolve NotFound and skip the post.
 func TestTriggerNodePoolUpgradeSyncer_SyncOnce_TriggersUpgradeFromCache(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	runCtx := utils.ContextWithLogger(context.Background(), logr.Discard())
-	mockDB := corecosmosstoragetesting.NewMockResourcesDBClient()
 
-	// Node pool present in the cache with a cluster-service ID, and a
-	// ServiceProviderNodePool whose desired version differs from the active one.
-	createTestNodePoolWithVersion(t, runCtx, mockDB, "4.21.0")
-	createServiceProviderNodePoolWithActiveAndDesiredVersion(
-		t, runCtx, mockDB, ptr.To(semver.MustParse("4.21.5")), "4.21.0",
-	)
+	// Node pool + ServiceProviderNodePool live ONLY in the slice-backed cache
+	// listers (never a mock DB). Desired (4.21.5) differs from active (4.21.0), so
+	// an upgrade policy is posted. Reverting either read to a live Cosmos Get would
+	// resolve NotFound and skip the post, failing this test.
+	nodePools := []*coreapi.HCPOpenShiftClusterNodePool{nodePoolInCache(nil)}
+	spNodePools := []*coreapi.ServiceProviderNodePool{spNodePoolInCache(ptr.To(semver.MustParse("4.21.5")), "4.21.0")}
 
 	nodePoolServiceID := metadataapi.Must(metadataapi.NewInternalID(testCSNodePoolIDStr))
 	mockClusterServiceClient := ocm.NewMockClusterServiceClientSpec(ctrl)
@@ -185,9 +134,9 @@ func TestTriggerNodePoolUpgradeSyncer_SyncOnce_TriggersUpgradeFromCache(t *testi
 		Return(metadataapi.Must(expectedBuilder.Build()), nil)
 
 	syncer := &triggerNodePoolUpgradeSyncer{
-		nodePoolLister:                &corelistertesting.DBNodePoolLister{ResourcesDBClient: mockDB},
+		nodePoolLister:                &corelistertesting.SliceNodePoolLister{NodePools: nodePools},
 		clusterServiceClient:          mockClusterServiceClient,
-		serviceProviderNodePoolLister: &corelistertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockDB},
+		serviceProviderNodePoolLister: &corelistertesting.SliceServiceProviderNodePoolLister{ServiceProviderNodePools: spNodePools},
 	}
 
 	err := syncer.SyncOnce(runCtx, controllerutils.HCPNodePoolKey{
@@ -337,46 +286,46 @@ func TestTriggerNodePoolUpgradeSyncer_CreateUpgradePolicyIfNeeded(t *testing.T) 
 	}
 }
 
-// createServiceProviderNodePoolWithActiveAndDesiredVersion seeds a
-// ServiceProviderNodePool with the given desired version and zero or more
-// active versions (newest first).
-func createServiceProviderNodePoolWithActiveAndDesiredVersion(
-	t *testing.T,
-	ctx context.Context,
-	mockResourcesDBClient *corecosmosstoragetesting.MockResourcesDBClient,
-	desiredVersion *semver.Version,
-	activeVersions ...string,
-) {
-	t.Helper()
-
-	nodePoolResourceID := "/subscriptions/" + testSubscriptionID +
+// nodePoolInCache builds a NodePool (with a cluster-service ID and no SystemData)
+// intended to live only in a slice-backed cache lister — never written to a mock
+// ResourcesDBClient — so tests can prove SyncOnce reads it from the informer cache
+// rather than a live Cosmos read. Pass a mutate func to tweak the result.
+func nodePoolInCache(mutate func(*coreapi.HCPOpenShiftClusterNodePool)) *coreapi.HCPOpenShiftClusterNodePool {
+	nodePoolResourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID +
 		"/resourceGroups/" + testResourceGroupName +
 		"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
-		"/nodePools/" + testNodePoolName
-	spNodePoolResourceID := nodePoolResourceID + "/" + coreapi.ServiceProviderNodePoolResourceTypeName + "/" + coreapi.ServiceProviderNodePoolResourceName
+		"/nodePools/" + testNodePoolName))
+	np := &coreapi.HCPOpenShiftClusterNodePool{
+		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: nodePoolResourceID},
+		TrackedResource: coreapi.TrackedResource{
+			Resource: coreapi.Resource{ID: nodePoolResourceID, Name: testNodePoolName, Type: coreapi.NodePoolResourceType.String()},
+		},
+		ServiceProviderProperties: coreapi.HCPOpenShiftClusterNodePoolServiceProviderProperties{
+			ClusterServiceID: metadataapi.Ptr(metadataapi.Must(metadataapi.NewInternalID(testCSNodePoolIDStr))),
+		},
+	}
+	if mutate != nil {
+		mutate(np)
+	}
+	return np
+}
 
+// spNodePoolInCache builds a ServiceProviderNodePool for a slice-backed cache
+// lister with the given desired version and zero or more active versions (newest first).
+func spNodePoolInCache(desiredVersion *semver.Version, activeVersions ...string) *coreapi.ServiceProviderNodePool {
+	spNodePoolResourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID +
+		"/resourceGroups/" + testResourceGroupName +
+		"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
+		"/nodePools/" + testNodePoolName +
+		"/" + coreapi.ServiceProviderNodePoolResourceTypeName + "/" + coreapi.ServiceProviderNodePoolResourceName))
 	var activeVersionEntries []coreapi.ServiceProviderNodePoolActiveVersion
 	for _, activeVersion := range activeVersions {
 		version := semver.MustParse(activeVersion)
 		activeVersionEntries = append(activeVersionEntries, coreapi.ServiceProviderNodePoolActiveVersion{Version: &version})
 	}
-
-	spNodePool := &coreapi.ServiceProviderNodePool{
-		CosmosMetadata: coreapi.CosmosMetadata{
-			ResourceID:   metadataapi.Must(azcorearm.ParseResourceID(spNodePoolResourceID)),
-			PartitionKey: strings.ToLower(testSubscriptionID),
-		},
-		Spec: coreapi.ServiceProviderNodePoolSpec{
-			NodePoolVersion: coreapi.ServiceProviderNodePoolSpecVersion{
-				DesiredVersion: desiredVersion,
-			},
-		},
-		Status: coreapi.ServiceProviderNodePoolStatus{
-			NodePoolVersion: coreapi.ServiceProviderNodePoolStatusVersion{
-				ActiveVersions: activeVersionEntries,
-			},
-		},
+	return &coreapi.ServiceProviderNodePool{
+		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: spNodePoolResourceID},
+		Spec:           coreapi.ServiceProviderNodePoolSpec{NodePoolVersion: coreapi.ServiceProviderNodePoolSpecVersion{DesiredVersion: desiredVersion}},
+		Status:         coreapi.ServiceProviderNodePoolStatus{NodePoolVersion: coreapi.ServiceProviderNodePoolStatusVersion{ActiveVersions: activeVersionEntries}},
 	}
-	_, err := mockResourcesDBClient.ServiceProviderNodePools(testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName).Create(ctx, spNodePool, nil)
-	require.NoError(t, err)
 }
