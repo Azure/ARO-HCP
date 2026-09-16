@@ -1,3 +1,4 @@
+
 param azureMonitoring string
 
 param location string = resourceGroup().location
@@ -66,11 +67,11 @@ resource arohcpClusterDeletionSloRecordingRules 'Microsoft.AlertsManagement/prom
     rules: [
       {
         record: 'errors:backend_cluster_deletion_operation:error_rate'
-        expression: '(count by (cluster) (backend_resource_operation_phase_info{operation_type="delete",phase=~"failed|canceled",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) or 0 * count by (cluster) (backend_resource_operation_phase_info{operation_type="delete",phase=~"succeeded|failed|canceled",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) / clamp_min(count by (cluster) (backend_resource_operation_phase_info{operation_type="delete",phase=~"succeeded|failed|canceled",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}), 1)'
+        expression: '(count by (cluster, region) (backend_resource_operation_phase_info{operation_type="delete",phase=~"failed|canceled",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) or 0 * count by (cluster, region) (backend_resource_operation_phase_info{operation_type="delete",phase=~"succeeded|failed|canceled",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) / clamp_min(count by (cluster, region) (backend_resource_operation_phase_info{operation_type="delete",phase=~"succeeded|failed|canceled",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}), 1)'
       }
       {
         record: 'errors:backend_cluster_deletion_operation:latency_error_rate'
-        expression: '(count by (cluster) ((backend_resource_operation_last_transition_time_seconds{operation_type="delete",phase="succeeded",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} - backend_resource_operation_start_time_seconds{operation_type="delete",phase="succeeded",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) > 1800 and backend_resource_operation_phase_info{operation_type="delete",phase="succeeded",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} == 1) or 0 * count by (cluster) (backend_resource_operation_phase_info{operation_type="delete",phase="succeeded",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} == 1)) / clamp_min(count by (cluster) (backend_resource_operation_phase_info{operation_type="delete",phase="succeeded",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} == 1), 1)'
+        expression: '(count by (cluster, region) ((backend_resource_operation_last_transition_time_seconds{operation_type="delete",phase="succeeded",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} - backend_resource_operation_start_time_seconds{operation_type="delete",phase="succeeded",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) > 1800 and backend_resource_operation_phase_info{operation_type="delete",phase="succeeded",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} == 1) or 0 * count by (cluster, region) (backend_resource_operation_phase_info{operation_type="delete",phase="succeeded",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} == 1)) / clamp_min(count by (cluster, region) (backend_resource_operation_phase_info{operation_type="delete",phase="succeeded",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} == 1), 1)'
       }
     ]
   }
@@ -122,27 +123,27 @@ resource arohcpFrontendSloRecordingRules 'Microsoft.AlertsManagement/prometheusR
     rules: [
       {
         record: 'sli:frontend_http:availability:rate5m'
-        expression: '((sum by (cluster) (max without (prometheus_replica) (rate(frontend_http_requests_total{code!~"5..",route!~".*hcpoperation(results|statuses).*"}[5m]))) or 0 * sum by (cluster) (max without (prometheus_replica) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[5m])))) / sum by (cluster) (max without (prometheus_replica) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[5m])))) and on (cluster) (sum by (cluster) (max without (prometheus_replica) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[5m]))) > 0)'
+        expression: '((sum by (cluster, region) (max without (prometheus_replica) (rate(frontend_http_requests_total{code!~"5..",route!~".*hcpoperation(results|statuses).*"}[5m]))) or 0 * sum by (cluster, region) (max without (prometheus_replica) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[5m])))) / sum by (cluster, region) (max without (prometheus_replica) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[5m])))) and on (cluster) (sum by (cluster, region) (max without (prometheus_replica) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[5m]))) > 0)'
       }
       {
         record: 'sli:frontend_http:good:rate5m'
-        expression: '(sum by (cluster) (max without (prometheus_replica) (rate(frontend_http_requests_total{code!~"5..",route!~".*hcpoperation(results|statuses).*"}[5m]))) or 0 * sum by (cluster) (max without (prometheus_replica) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[5m]))))'
+        expression: '(sum by (cluster, region) (max without (prometheus_replica) (rate(frontend_http_requests_total{code!~"5..",route!~".*hcpoperation(results|statuses).*"}[5m]))) or 0 * sum by (cluster, region) (max without (prometheus_replica) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[5m]))))'
       }
       {
         record: 'errors:frontend_http:error_rate:rate5m'
-        expression: '((sum by (cluster) (max without (prometheus_replica) (rate(frontend_http_requests_total{code=~"5..",route!~".*hcpoperation(results|statuses).*"}[5m]))) or 0 * sum by (cluster) (max without (prometheus_replica) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[5m])))) / sum by (cluster) (max without (prometheus_replica) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[5m])))) and on (cluster) (sum by (cluster) (max without (prometheus_replica) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[5m]))) > 0)'
+        expression: '((sum by (cluster, region) (max without (prometheus_replica) (rate(frontend_http_requests_total{code=~"5..",route!~".*hcpoperation(results|statuses).*"}[5m]))) or 0 * sum by (cluster, region) (max without (prometheus_replica) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[5m])))) / sum by (cluster, region) (max without (prometheus_replica) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[5m])))) and on (cluster) (sum by (cluster, region) (max without (prometheus_replica) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[5m]))) > 0)'
       }
       {
         record: 'sli:frontend_http:latency_p99:rate5m'
-        expression: 'histogram_quantile(0.99, sum by (cluster, le) (max without (prometheus_replica) (rate(frontend_http_requests_duration_seconds_bucket{route!~".*hcpoperation(results|statuses).*"}[5m])))) and on (cluster) (sum by (cluster) (max without (prometheus_replica) (rate(frontend_http_requests_duration_seconds_count{route!~".*hcpoperation(results|statuses).*"}[5m]))) > 0)'
+        expression: 'histogram_quantile(0.99, sum by (cluster, le, region) (max without (prometheus_replica) (rate(frontend_http_requests_duration_seconds_bucket{route!~".*hcpoperation(results|statuses).*"}[5m])))) and on (cluster) (sum by (cluster, region) (max without (prometheus_replica) (rate(frontend_http_requests_duration_seconds_count{route!~".*hcpoperation(results|statuses).*"}[5m]))) > 0)'
       }
       {
         record: 'sli:frontend_http:latency_p95:rate5m'
-        expression: 'histogram_quantile(0.95, sum by (cluster, le) (max without (prometheus_replica) (rate(frontend_http_requests_duration_seconds_bucket{route!~".*hcpoperation(results|statuses).*"}[5m])))) and on (cluster) (sum by (cluster) (max without (prometheus_replica) (rate(frontend_http_requests_duration_seconds_count{route!~".*hcpoperation(results|statuses).*"}[5m]))) > 0)'
+        expression: 'histogram_quantile(0.95, sum by (cluster, le, region) (max without (prometheus_replica) (rate(frontend_http_requests_duration_seconds_bucket{route!~".*hcpoperation(results|statuses).*"}[5m])))) and on (cluster) (sum by (cluster, region) (max without (prometheus_replica) (rate(frontend_http_requests_duration_seconds_count{route!~".*hcpoperation(results|statuses).*"}[5m]))) > 0)'
       }
       {
         record: 'traffic:frontend_http:request_rate:rate5m'
-        expression: 'sum by (cluster) (max without (prometheus_replica) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[5m])))'
+        expression: 'sum by (cluster, region) (max without (prometheus_replica) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[5m])))'
       }
       {
         record: 'sli:frontend_http:availability:rate_avg_30d'
@@ -150,15 +151,15 @@ resource arohcpFrontendSloRecordingRules 'Microsoft.AlertsManagement/prometheusR
       }
       {
         record: 'sli:frontend:ready:ratio5m'
-        expression: '(sum by (cluster) (max without (prometheus_replica) (kube_deployment_status_replicas_available{deployment="aro-hcp-frontend",namespace="aro-hcp"})) / sum by (cluster) (max without (prometheus_replica) (kube_deployment_spec_replicas{deployment="aro-hcp-frontend",namespace="aro-hcp"}))) and on (cluster) (sum by (cluster) (max without (prometheus_replica) (kube_deployment_spec_replicas{deployment="aro-hcp-frontend",namespace="aro-hcp"})) > 0)'
+        expression: '(sum by (cluster, region) (max without (prometheus_replica) (kube_deployment_status_replicas_available{deployment="aro-hcp-frontend",namespace="aro-hcp"})) / sum by (cluster, region) (max without (prometheus_replica) (kube_deployment_spec_replicas{deployment="aro-hcp-frontend",namespace="aro-hcp"}))) and on (cluster) (sum by (cluster, region) (max without (prometheus_replica) (kube_deployment_spec_replicas{deployment="aro-hcp-frontend",namespace="aro-hcp"})) > 0)'
       }
       {
         record: 'sli:frontend:saturation_cpu:ratio5m'
-        expression: '(sum by (cluster) (max without (prometheus_replica) (rate(container_cpu_usage_seconds_total{container="aro-hcp-frontend",namespace="aro-hcp"}[5m]))) / sum by (cluster) (max by (cluster, namespace, pod, container) (kube_pod_container_resource_requests{container="aro-hcp-frontend",job="kube-state-metrics",namespace="aro-hcp",resource="cpu"}))) and on (cluster) (sum by (cluster) (max by (cluster, namespace, pod, container) (kube_pod_container_resource_requests{container="aro-hcp-frontend",job="kube-state-metrics",namespace="aro-hcp",resource="cpu"})) > 0)'
+        expression: '(sum by (cluster, region) (max without (prometheus_replica) (rate(container_cpu_usage_seconds_total{container="aro-hcp-frontend",namespace="aro-hcp"}[5m]))) / sum by (cluster, region) (max by (cluster, namespace, pod, container, region) (kube_pod_container_resource_requests{container="aro-hcp-frontend",job="kube-state-metrics",namespace="aro-hcp",resource="cpu"}))) and on (cluster) (sum by (cluster, region) (max by (cluster, namespace, pod, container, region) (kube_pod_container_resource_requests{container="aro-hcp-frontend",job="kube-state-metrics",namespace="aro-hcp",resource="cpu"})) > 0)'
       }
       {
         record: 'sli:frontend:saturation_memory:ratio5m'
-        expression: '(sum by (cluster) (max without (prometheus_replica) (container_memory_working_set_bytes{container="aro-hcp-frontend",namespace="aro-hcp"})) / sum by (cluster) (max by (cluster, namespace, pod, container) (kube_pod_container_resource_limits{container="aro-hcp-frontend",job="kube-state-metrics",namespace="aro-hcp",resource="memory"}))) and on (cluster) (sum by (cluster) (max by (cluster, namespace, pod, container) (kube_pod_container_resource_limits{container="aro-hcp-frontend",job="kube-state-metrics",namespace="aro-hcp",resource="memory"})) > 0)'
+        expression: '(sum by (cluster, region) (max without (prometheus_replica) (container_memory_working_set_bytes{container="aro-hcp-frontend",namespace="aro-hcp"})) / sum by (cluster, region) (max by (cluster, namespace, pod, container, region) (kube_pod_container_resource_limits{container="aro-hcp-frontend",job="kube-state-metrics",namespace="aro-hcp",resource="memory"}))) and on (cluster) (sum by (cluster, region) (max by (cluster, namespace, pod, container, region) (kube_pod_container_resource_limits{container="aro-hcp-frontend",job="kube-state-metrics",namespace="aro-hcp",resource="memory"})) > 0)'
       }
     ]
   }
