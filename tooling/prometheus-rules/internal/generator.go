@@ -27,6 +27,7 @@ import (
 	"regexp"
 	"strings"
 	"text/template"
+	"time"
 
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	"github.com/prometheus/common/model"
@@ -860,8 +861,20 @@ func parseToAzureDurationString(d *monitoringv1.Duration) *string {
 		return ptr.To("PT1M")
 	}
 
-	// TODO: this is likely not precisely correct, but /shrug
-	return ptr.To("PT" + strings.ToUpper(parsedDuration.String()))
+	// Build a strict ISO-8601 time duration (PTnHnM). Do not prefix Prometheus'
+	// Duration.String() with "PT": for 24h Prometheus returns "1d", which would
+	// become the invalid "PT1D" (days must appear before T, e.g. P1D, or as hours).
+	td := time.Duration(parsedDuration)
+	hours := int(td / time.Hour)
+	minutes := int((td % time.Hour) / time.Minute)
+	switch {
+	case hours > 0 && minutes > 0:
+		return ptr.To(fmt.Sprintf("PT%dH%dM", hours, minutes))
+	case hours > 0:
+		return ptr.To(fmt.Sprintf("PT%dH", hours))
+	default:
+		return ptr.To(fmt.Sprintf("PT%dM", minutes))
+	}
 }
 
 func requireLabel(labels map[string]*string, name, alert, group string) error {
