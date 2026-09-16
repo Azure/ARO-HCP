@@ -43,7 +43,7 @@ import (
 )
 
 const (
-	gcsBucket          = "test-platform-results"
+	gcsBucket          = "test-platform-results-public"
 	testStepPersistent = "aro-hcp-test-persistent"
 	testStepLocal      = "aro-hcp-test-local"
 )
