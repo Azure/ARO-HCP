@@ -285,11 +285,11 @@ type locationWeight struct {
 
 func resolveRegionSelection(catalog *slots.Catalog, environment string, regionMode slots.RegionMode, override, rawWeights, buildID string) (RegionSelection, error) {
 	selection := RegionSelection{
-		Mode: regionMode,
+		Mode:                 regionMode,
+		RuntimeRegion:        override,
+		LocationOverrideUsed: override != "",
 	}
 	if regionMode != slots.RegionModeWeighted {
-		selection.RuntimeRegion = override
-		selection.LocationOverrideUsed = override != ""
 		return selection, nil
 	}
 
@@ -298,15 +298,11 @@ func resolveRegionSelection(catalog *slots.Catalog, environment string, regionMo
 		return RegionSelection{}, err
 	}
 	selection.CatalogRegions = regions
-
-	// Temporary PR validation behavior: exercise weighted selection even while
-	// existing jobs still set a location override and do not define weights.
-	if strings.TrimSpace(rawWeights) == "" {
-		equalWeights := make([]string, 0, len(regions))
-		for _, region := range regions {
-			equalWeights = append(equalWeights, region+"=1")
+	if override != "" {
+		if !sets.New(regions...).Has(override) {
+			return RegionSelection{}, fmt.Errorf("location override %q is not allowed for weighted environment %q; allowed locations: %s", override, environment, strings.Join(regions, ","))
 		}
-		rawWeights = strings.Join(equalWeights, ",")
+		return selection, nil
 	}
 
 	weights, totalWeight, err := parseLocationWeights(rawWeights, regions)
