@@ -17,7 +17,6 @@ module entraApp '../modules/entra/app.bicep' = if (genevaActionApplicationManage
   params: {
     applicationName: genevaActionApplicationName
     ownerIds: entraAppOwnerIds
-    ownerRelationshipSemantics: 'replace'
     isFallbackPublicClient: true
     manageSp: true
     trustedSubjectNameAndIssuers: genevaActionApplicationUseSNI
