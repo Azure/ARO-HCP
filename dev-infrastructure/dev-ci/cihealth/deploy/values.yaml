@@ -67,7 +67,8 @@ httpRoute:
   blockReviewPath: true
 controllers:
   replicas: 1
-  historyWeeks: 4
+  # Reconcile recent source data while retaining the app's longer analysis horizon.
+  historyWeeks: 1
   source:
     envs:
     - dev
