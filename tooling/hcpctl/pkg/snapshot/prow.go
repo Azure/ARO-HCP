@@ -43,7 +43,6 @@ import (
 )
 
 const (
-	defaultGCSBucket   = "test-platform-results-public"
 	testStepPersistent = "aro-hcp-test-persistent"
 	testStepLocal      = "aro-hcp-test-local"
 )
@@ -62,10 +61,7 @@ type ProwJobInfo struct {
 	JobName   string
 	ProwID    string
 	GCSPrefix string
-	// Bucket is the GCS bucket parsed from the Deck URL's /view/gs/<bucket>/
-	// segment. Falls back to defaultGCSBucket when the URL does not contain
-	// a bucket segment.
-	Bucket string
+	GCSBucket string
 }
 
 // IsPullRequest reports whether the job is a pull-ci (PR) job,
@@ -186,79 +182,64 @@ func ParseProwURL(rawURL string) (*ProwJobInfo, error) {
 		return nil, fmt.Errorf("failed to parse URL: %w", err)
 	}
 
-	var segments []string
-	for _, s := range strings.Split(u.Path, "/") {
-		if s != "" {
-			segments = append(segments, s)
-		}
+	_, after, ok := strings.Cut(u.Path, "/view/gs/")
+	if !ok {
+		return nil, fmt.Errorf("URL path missing /view/gs/ prefix: %q", u.Path)
 	}
-
-	// Deck URLs are shaped /view/gs/<bucket>/<rest...>; extract the bucket
-	// when present so all object reads go to the same bucket the caller
-	// pasted, without hardcoding a specific one.
-	bucket := defaultGCSBucket
-	for i, seg := range segments {
-		if seg == "gs" && i+1 < len(segments) {
-			bucket = segments[i+1]
-			break
-		}
+	bucket, gcsPrefix, ok := strings.Cut(after, "/")
+	if !ok || bucket == "" {
+		return nil, fmt.Errorf("URL path missing bucket segment after /view/gs/: %q", u.Path)
 	}
+	parts := strings.Split(strings.TrimSuffix(gcsPrefix, "/"), "/")
 
-	for i, seg := range segments {
-		if seg == "pr-logs" {
-			if i+2 >= len(segments) || segments[i+1] != "pull" {
-				return nil, fmt.Errorf("expected \"pull\" after \"pr-logs\" in URL path, got %q", u.Path)
+	switch parts[0] {
+	case "pr-logs":
+		if len(parts) < 3 || parts[1] != "pull" {
+			return nil, fmt.Errorf("expected \"pull\" after \"pr-logs\" in URL path, got %q", u.Path)
+		}
+		if parts[2] == "batch" {
+			if len(parts) < 5 {
+				return nil, fmt.Errorf("URL path must contain pr-logs/pull/batch/<job>/<prow-id>, got %q", u.Path)
 			}
-			// Batch jobs use "batch" instead of <org_repo>/<pr>:
-			//   pr-logs/pull/batch/<job>/<prow-id>
-			if segments[i+2] == "batch" {
-				if i+4 >= len(segments) {
-					return nil, fmt.Errorf("URL path must contain pr-logs/pull/batch/<job>/<prow-id>, got %q", u.Path)
-				}
-				prowID := segments[i+4]
-				if _, err := strconv.ParseUint(prowID, 10, 64); err != nil {
-					return nil, fmt.Errorf("prow ID %q is not a valid number", prowID)
-				}
-				return &ProwJobInfo{
-					URL:       rawURL,
-					JobName:   segments[i+3],
-					ProwID:    prowID,
-					GCSPrefix: strings.Join(segments[i:i+5], "/"),
-					Bucket:    bucket,
-				}, nil
-			}
-			// Regular PR jobs: pr-logs/pull/<org_repo>/<pr>/<job>/<prow-id>
-			if i+5 >= len(segments) {
-				return nil, fmt.Errorf("URL path must contain pr-logs/pull/<org_repo>/<pr>/<job>/<prow-id>, got %q", u.Path)
-			}
-			prowID := segments[i+5]
-			if _, err := strconv.ParseUint(prowID, 10, 64); err != nil {
-				return nil, fmt.Errorf("prow ID %q is not a valid number", prowID)
+			if _, err := strconv.ParseUint(parts[4], 10, 64); err != nil {
+				return nil, fmt.Errorf("prow ID %q is not a valid number", parts[4])
 			}
 			return &ProwJobInfo{
 				URL:       rawURL,
-				JobName:   segments[i+4],
-				ProwID:    prowID,
-				GCSPrefix: strings.Join(segments[i:i+6], "/"),
-				Bucket:    bucket,
+				JobName:   parts[3],
+				ProwID:    parts[4],
+				GCSPrefix: strings.Join(parts[:5], "/"),
+				GCSBucket: bucket,
 			}, nil
 		}
-		if seg == "logs" {
-			if i+2 >= len(segments) {
-				return nil, fmt.Errorf("URL path must contain logs/<job>/<prow-id>, got %q", u.Path)
-			}
-			prowID := segments[i+2]
-			if _, err := strconv.ParseUint(prowID, 10, 64); err != nil {
-				return nil, fmt.Errorf("prow ID %q is not a valid number", prowID)
-			}
-			return &ProwJobInfo{
-				URL:       rawURL,
-				JobName:   segments[i+1],
-				ProwID:    prowID,
-				GCSPrefix: strings.Join(segments[i:i+3], "/"),
-				Bucket:    bucket,
-			}, nil
+		if len(parts) < 6 {
+			return nil, fmt.Errorf("URL path must contain pr-logs/pull/<org_repo>/<pr>/<job>/<prow-id>, got %q", u.Path)
 		}
+		if _, err := strconv.ParseUint(parts[5], 10, 64); err != nil {
+			return nil, fmt.Errorf("prow ID %q is not a valid number", parts[5])
+		}
+		return &ProwJobInfo{
+			URL:       rawURL,
+			JobName:   parts[4],
+			ProwID:    parts[5],
+			GCSPrefix: strings.Join(parts[:6], "/"),
+			GCSBucket: bucket,
+		}, nil
+
+	case "logs":
+		if len(parts) < 3 {
+			return nil, fmt.Errorf("URL path must contain logs/<job>/<prow-id>, got %q", u.Path)
+		}
+		if _, err := strconv.ParseUint(parts[2], 10, 64); err != nil {
+			return nil, fmt.Errorf("prow ID %q is not a valid number", parts[2])
+		}
+		return &ProwJobInfo{
+			URL:       rawURL,
+			JobName:   parts[1],
+			ProwID:    parts[2],
+			GCSPrefix: strings.Join(parts[:3], "/"),
+			GCSBucket: bucket,
+		}, nil
 	}
 
 	return nil, fmt.Errorf("URL path does not contain a \"logs\" or \"pr-logs\" segment: %q", u.Path)
@@ -288,7 +269,7 @@ func fetchPRJobConfig(ctx context.Context, info *ProwJobInfo, logger logr.Logger
 	}
 	defer gcsClient.Close()
 
-	artifactDir, err := findArtifactDir(ctx, gcsClient, info.Bucket, info.JobName, info.GCSPrefix)
+	artifactDir, err := findArtifactDir(ctx, gcsClient, info.GCSBucket, info.JobName, info.GCSPrefix)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find artifact directory: %w", err)
 	}
@@ -297,7 +278,7 @@ func fetchPRJobConfig(ctx context.Context, info *ProwJobInfo, logger logr.Logger
 	var configData []byte
 	for _, configPath := range prConfigPaths {
 		configGCSPath := fmt.Sprintf("%s/artifacts/%s/%s", info.GCSPrefix, artifactDir, configPath)
-		configData, err = downloadObject(ctx, gcsClient, info.Bucket, configGCSPath)
+		configData, err = downloadObject(ctx, gcsClient, info.GCSBucket, configGCSPath)
 		if err == nil {
 			logger.V(1).Info("Found config.yaml", "path", configPath)
 			break
@@ -336,7 +317,7 @@ func fetchNonPRJobConfig(ctx context.Context, info *ProwJobInfo, sdpPipelinesDir
 
 	// Download and parse prowjob.json for EV2 annotations.
 	prowJobPath := fmt.Sprintf("%s/prowjob.json", info.GCSPrefix)
-	prowJobData, err := downloadObject(ctx, gcsClient, info.Bucket, prowJobPath)
+	prowJobData, err := downloadObject(ctx, gcsClient, info.GCSBucket, prowJobPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to download prowjob.json: %w", err)
 	}
@@ -399,7 +380,7 @@ func FetchProwJobTestResults(ctx context.Context, info *ProwJobInfo) ([]TestResu
 	defer gcsClient.Close()
 
 	// Find the artifact directory.
-	artifactDir, err := findArtifactDir(ctx, gcsClient, info.Bucket, info.JobName, info.GCSPrefix)
+	artifactDir, err := findArtifactDir(ctx, gcsClient, info.GCSBucket, info.JobName, info.GCSPrefix)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find artifact directory: %w", err)
 	}
@@ -413,7 +394,7 @@ func FetchProwJobTestResults(ctx context.Context, info *ProwJobInfo) ([]TestResu
 		testStep = testStepLocal
 	}
 	testResultsPrefix := fmt.Sprintf("%s/%s/artifacts/extension_test_result_e2e_", artifactPrefix, testStep)
-	testResultFiles, err := listObjects(ctx, gcsClient, info.Bucket, testResultsPrefix)
+	testResultFiles, err := listObjects(ctx, gcsClient, info.GCSBucket, testResultsPrefix)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list test result files: %w", err)
 	}
@@ -423,7 +404,7 @@ func FetchProwJobTestResults(ctx context.Context, info *ProwJobInfo) ([]TestResu
 
 	var allResults extensiontests.ExtensionTestResults
 	for _, objPath := range testResultFiles {
-		data, err := downloadObject(ctx, gcsClient, info.Bucket, objPath)
+		data, err := downloadObject(ctx, gcsClient, info.GCSBucket, objPath)
 		if err != nil {
 			logger.Error(err, "Failed to download test result file, skipping", "path", objPath)
 			continue
@@ -463,7 +444,7 @@ func FetchProwJobTestResults(ctx context.Context, info *ProwJobInfo) ([]TestResu
 	logger.Info("Found test results", "total", len(tests), "failed", numFailed)
 
 	// Enrich test results with timing boundaries from timing metadata.
-	testTimings := fetchTestTimings(ctx, gcsClient, info.Bucket, artifactPrefix, logger)
+	testTimings := fetchTestTimings(ctx, gcsClient, info.GCSBucket, artifactPrefix, logger)
 	for i := range tests {
 		if t, ok := testTimings[tests[i].Name]; ok {
 			tests[i].SetupFinishTime = t.SetupFinishTime
@@ -788,7 +769,7 @@ func FetchNodeConsoleLogs(ctx context.Context, info *ProwJobInfo, testName strin
 	}
 	defer gcsClient.Close()
 
-	artifactDir, err := findArtifactDir(ctx, gcsClient, info.Bucket, info.JobName, info.GCSPrefix)
+	artifactDir, err := findArtifactDir(ctx, gcsClient, info.GCSBucket, info.JobName, info.GCSPrefix)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find artifact directory: %w", err)
 	}
@@ -802,7 +783,7 @@ func FetchNodeConsoleLogs(ctx context.Context, info *ProwJobInfo, testName strin
 	prefix := fmt.Sprintf("%s/artifacts/%s/%s/artifacts/%s/", info.GCSPrefix, artifactDir, testStep, sanitizedName)
 
 	logger.V(1).Info("Searching for console logs", "prefix", prefix)
-	objects, err := listObjects(ctx, gcsClient, info.Bucket, prefix)
+	objects, err := listObjects(ctx, gcsClient, info.GCSBucket, prefix)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list console log objects: %w", err)
 	}
@@ -814,7 +795,7 @@ func FetchNodeConsoleLogs(ctx context.Context, info *ProwJobInfo, testName strin
 			continue
 		}
 
-		data, err := downloadObject(ctx, gcsClient, info.Bucket, objPath)
+		data, err := downloadObject(ctx, gcsClient, info.GCSBucket, objPath)
 		if err != nil {
 			logger.Error(err, "Failed to download console log, skipping", "path", objPath)
 			continue
@@ -824,7 +805,7 @@ func FetchNodeConsoleLogs(ctx context.Context, info *ProwJobInfo, testName strin
 		artifactURL := (&url.URL{
 			Scheme: "https",
 			Host:   "gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com",
-			Path:   "/gcs/" + info.Bucket + "/" + objPath,
+			Path:   "/gcs/" + info.GCSBucket + "/" + objPath,
 		}).String()
 
 		consoleLogs = append(consoleLogs, NodeConsoleLogFile{
@@ -855,7 +836,7 @@ func FetchAzureLog(ctx context.Context, info *ProwJobInfo, testName string) (*Az
 	}
 	defer gcsClient.Close()
 
-	artifactDir, err := findArtifactDir(ctx, gcsClient, info.Bucket, info.JobName, info.GCSPrefix)
+	artifactDir, err := findArtifactDir(ctx, gcsClient, info.GCSBucket, info.JobName, info.GCSPrefix)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find artifact directory: %w", err)
 	}
@@ -869,7 +850,7 @@ func FetchAzureLog(ctx context.Context, info *ProwJobInfo, testName string) (*Az
 	objPath := fmt.Sprintf("%s/artifacts/%s/%s/artifacts/%s/azure.log", info.GCSPrefix, artifactDir, testStep, sanitizedName)
 
 	logger.V(1).Info("Fetching azure.log", "path", objPath)
-	data, err := downloadObject(ctx, gcsClient, info.Bucket, objPath)
+	data, err := downloadObject(ctx, gcsClient, info.GCSBucket, objPath)
 	if err != nil {
 		if errors.Is(err, storage.ErrObjectNotExist) {
 			logger.V(1).Info("No azure.log found for test", "path", objPath)
@@ -881,7 +862,7 @@ func FetchAzureLog(ctx context.Context, info *ProwJobInfo, testName string) (*Az
 	artifactURL := (&url.URL{
 		Scheme: "https",
 		Host:   "gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com",
-		Path:   "/gcs/" + info.Bucket + "/" + objPath,
+		Path:   "/gcs/" + info.GCSBucket + "/" + objPath,
 	}).String()
 
 	logger.Info("Found azure.log", "size", len(data))
