@@ -81,7 +81,9 @@ spec:
     # Node pool provisioning state distribution (for dashboards)
     - record: nodepool:provision_state:count_by_phase
       expr: |
-        count by (phase) (backend_nodepool_provision_state)
+        count by (phase) (
+          max by (phase, resource_id, subscription_id) (backend_nodepool_provision_state)
+        )
   # ========================================
   # Node Pool SLO Recording Rules: Windowed Errors (stateless)
   # ========================================
