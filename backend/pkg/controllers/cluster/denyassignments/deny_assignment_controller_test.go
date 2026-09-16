@@ -840,10 +840,10 @@ func TestEnsureDenyAssignmentReferences(t *testing.T) {
 	allRefs, err := allDenyAssignmentReferences(cluster)
 	require.NoError(t, err)
 
-	var resourcesRef coreapi.DenyAssignmentReference
+	var completeRef coreapi.DenyAssignmentReference
 	for _, ref := range allRefs {
-		if ref.DenyAssignmentType == denyAssignmentSuffixResources {
-			resourcesRef = ref
+		if ref.DenyAssignmentType == denyAssignmentSuffixComplete {
+			completeRef = ref
 			break
 		}
 	}
@@ -860,7 +860,7 @@ func TestEnsureDenyAssignmentReferences(t *testing.T) {
 	}{
 		{
 			name:       "existing content up to date",
-			refs:       []coreapi.DenyAssignmentReference{resourcesRef},
+			refs:       []coreapi.DenyAssignmentReference{completeRef},
 			defsByType: defsByType,
 			mockDenyAssignments: &azuremockclient.DenyAssignmentsClientFunc{
 				GetFunc: matchingGetResponseForAllTypes(cluster, spc),
@@ -872,7 +872,7 @@ func TestEnsureDenyAssignmentReferences(t *testing.T) {
 		},
 		{
 			name:       "content mismatch triggers update attempt",
-			refs:       []coreapi.DenyAssignmentReference{resourcesRef},
+			refs:       []coreapi.DenyAssignmentReference{completeRef},
 			defsByType: defsByType,
 			mockDenyAssignments: &azuremockclient.DenyAssignmentsClientFunc{
 				GetFunc: func(ctx context.Context, scope string, id string, opts *armauthorization.DenyAssignmentsClientGetOptions) (armauthorization.DenyAssignmentsClientGetResponse, error) {
@@ -909,7 +909,7 @@ func TestEnsureDenyAssignmentReferences(t *testing.T) {
 		},
 		{
 			name:       "deny assignment not found triggers create",
-			refs:       []coreapi.DenyAssignmentReference{resourcesRef},
+			refs:       []coreapi.DenyAssignmentReference{completeRef},
 			defsByType: defsByType,
 			mockDenyAssignments: &azuremockclient.DenyAssignmentsClientFunc{
 				GetFunc: func(ctx context.Context, scope string, id string, opts *armauthorization.DenyAssignmentsClientGetOptions) (armauthorization.DenyAssignmentsClientGetResponse, error) {
