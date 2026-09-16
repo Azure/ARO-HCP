@@ -417,6 +417,23 @@ Requires both cached cluster documents, unresolved `Spec.ManagementClusterResour
 
 Reserves `ManagementClusterScheduling.Status.PendingAssignedClusters` before replacing `ServiceProviderCluster` with both `Spec.ManagementClusterResourceID` and `Status.Placement.Conditions[CapacityAvailable]=True`. If no fit exists, records False for known blockers/exhaustion or Unknown for incomplete evaluation and enqueues a retry after 29s. The create-operation poller owns the overall deadline and customer-visible failure.
 
+#### ActualHostedCluster
+
+**File:** [actual_hosted_cluster_controller.go](../backend/pkg/controllers/cluster/actualhostedcluster/actual_hosted_cluster_controller.go)
+**Trigger:** Cluster informer, 5-minute resync
+
+Mirrors the observed HostedCluster so the frontend has a source of management-cluster
+state it is allowed to read (see [Why management-cluster state is mirrored onto
+ServiceProviderCluster](#why-management-cluster-state-is-mirrored-onto-serviceprovidercluster)).
+Skips clusters with a `DeletionTimestamp`, leaves the field `nil` until the HostedCluster is
+observed, and only writes when the sanitized object changes.
+
+| | Object | Fields |
+|---|--------|--------|
+| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp`</li></ul> |
+| Read | ReadDesire (HostedCluster) | <ul><li>Whole object (`Spec` + `Status`)</li></ul> |
+| **Write** | **`ServiceProviderCluster`** | <ul><li>**`Status.ActualHostedCluster`** = observed HostedCluster, minus `metadata.managedFields`, `metadata.resourceVersion` and the kubectl last-applied-configuration annotation</li></ul> |
+
 #### FetchMSIIdentitiesInfo
 
 [Source](../backend/pkg/controllers/cluster/identity/fetch_msi_identities_info.go) · **Trigger:** Cluster; 1m, 12h recheck.

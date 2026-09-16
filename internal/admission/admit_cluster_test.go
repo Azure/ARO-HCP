@@ -31,6 +31,8 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
+	hsv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
+
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -1534,6 +1536,180 @@ func TestAdmitClusterVersionID(t *testing.T) {
 			}
 
 			errs := admitClusterVersionID(ctx, admissionContext, tt.op, fldPath, tt.newVersion, tt.oldVersion)
+
+			utils.VerifyErrorsMatch(t, tt.expectErrors, errs)
+		})
+	}
+}
+
+func TestAdmitClusterV5DataPlaneMirror(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	// Matches the path admitClusterCustomerProperties passes down in production
+	// (field.NewPath("properties").Child("version")).
+	fldPath := field.NewPath("properties", "version")
+
+	// spcWithMirrors models a ServiceProviderCluster whose ActualHostedCluster has
+	// been mirrored by the backend, carrying the given image content sources.
+	spcWithMirrors := func(sources ...string) *coreapi.ServiceProviderCluster {
+		hostedCluster := &hsv1beta1.HostedCluster{}
+		for _, source := range sources {
+			hostedCluster.Spec.ImageContentSources = append(hostedCluster.Spec.ImageContentSources,
+				hsv1beta1.ImageContentSource{Source: source})
+		}
+		return &coreapi.ServiceProviderCluster{
+			Status: coreapi.ServiceProviderClusterStatus{ActualHostedCluster: hostedCluster},
+		}
+	}
+	// spcUnmirrored models a ServiceProviderCluster the backend has not yet
+	// observed a HostedCluster for.
+	spcUnmirrored := &coreapi.ServiceProviderCluster{}
+
+	const v4Mirror = "quay.io/openshift-release-dev/ocp-v4.0-art-dev"
+	missingMirror := []utils.ExpectedError{
+		{FieldPath: "properties.version.id", Message: "missing the required data-plane image mirror"},
+	}
+
+	tests := []struct {
+		name         string
+		op           operation.Operation
+		oldVersion   *coreapi.VersionProfile
+		newVersion   *coreapi.VersionProfile
+		spc          *coreapi.ServiceProviderCluster // nil models a missing ServiceProviderCluster prefetch
+		expectErrors []utils.ExpectedError
+	}{
+		{
+			name:         "4->5 upgrade with the v5 mirror present passes",
+			op:           operation.Operation{Type: operation.Update},
+			oldVersion:   &coreapi.VersionProfile{ID: "4.22"},
+			newVersion:   &coreapi.VersionProfile{ID: "5.0"},
+			spc:          spcWithMirrors(v4Mirror, coreapi.OcpV5ArtDevMirrorSource),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			// The observed HostedCluster has image content sources, but not the
+			// v5 one: nodes could not pull 5.x images, so the upgrade is blocked.
+			name:         "4->5 upgrade without the v5 mirror is rejected",
+			op:           operation.Operation{Type: operation.Update},
+			oldVersion:   &coreapi.VersionProfile{ID: "4.22"},
+			newVersion:   &coreapi.VersionProfile{ID: "5.0"},
+			spc:          spcWithMirrors(v4Mirror),
+			expectErrors: missingMirror,
+		},
+		{
+			// An observed HostedCluster with no image content sources at all is a
+			// real answer, not an unknown one, so it is enforced.
+			name:         "4->5 upgrade with no image content sources at all is rejected",
+			op:           operation.Operation{Type: operation.Update},
+			oldVersion:   &coreapi.VersionProfile{ID: "4.22"},
+			newVersion:   &coreapi.VersionProfile{ID: "5.0"},
+			spc:          spcWithMirrors(),
+			expectErrors: missingMirror,
+		},
+		{
+			// The gate is about crossing into 5.x, not about landing on 5.0
+			// specifically.
+			name:         "4->5.1 upgrade without the v5 mirror is rejected",
+			op:           operation.Operation{Type: operation.Update},
+			oldVersion:   &coreapi.VersionProfile{ID: "4.23"},
+			newVersion:   &coreapi.VersionProfile{ID: "5.1"},
+			spc:          spcWithMirrors(v4Mirror),
+			expectErrors: missingMirror,
+		},
+		{
+			name:         "pre-release 5.x target without the v5 mirror is rejected",
+			op:           operation.Operation{Type: operation.Update},
+			oldVersion:   &coreapi.VersionProfile{ID: "4.22"},
+			newVersion:   &coreapi.VersionProfile{ID: "5.0.0-ec.6"},
+			spc:          spcWithMirrors(v4Mirror),
+			expectErrors: missingMirror,
+		},
+		{
+			// Fail open: nil ActualHostedCluster means "not observed yet", which is
+			// not evidence the mirror is absent. Enforcing here would block every
+			// 4->5 upgrade until the backend converges.
+			name:         "4->5 upgrade with an unmirrored hosted cluster skips (fail open until synced)",
+			op:           operation.Operation{Type: operation.Update},
+			oldVersion:   &coreapi.VersionProfile{ID: "4.22"},
+			newVersion:   &coreapi.VersionProfile{ID: "5.0"},
+			spc:          spcUnmirrored,
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			// The missing-prefetch condition is separately surfaced as an
+			// InternalError by the version-skew check in admitClusterVersionProfile.
+			name:         "4->5 upgrade with missing service provider cluster skips (fail open)",
+			op:           operation.Operation{Type: operation.Update},
+			oldVersion:   &coreapi.VersionProfile{ID: "4.22"},
+			newVersion:   &coreapi.VersionProfile{ID: "5.0"},
+			spc:          nil,
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name:         "minor upgrade within 4.x is not gated",
+			op:           operation.Operation{Type: operation.Update},
+			oldVersion:   &coreapi.VersionProfile{ID: "4.21"},
+			newVersion:   &coreapi.VersionProfile{ID: "4.22"},
+			spc:          spcWithMirrors(v4Mirror),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			// Already on 5.x: the cluster is demonstrably able to pull 5.x images,
+			// so z-stream and minor moves within 5.x are not our concern.
+			name:         "z-stream upgrade within 5.x is not gated",
+			op:           operation.Operation{Type: operation.Update},
+			oldVersion:   &coreapi.VersionProfile{ID: "5.0.1"},
+			newVersion:   &coreapi.VersionProfile{ID: "5.0.2"},
+			spc:          spcWithMirrors(v4Mirror),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name:         "downgrade out of 5.x is not gated",
+			op:           operation.Operation{Type: operation.Update},
+			oldVersion:   &coreapi.VersionProfile{ID: "5.0"},
+			newVersion:   &coreapi.VersionProfile{ID: "4.22"},
+			spc:          spcWithMirrors(v4Mirror),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name:         "unchanged version.id is a no-op",
+			op:           operation.Operation{Type: operation.Update},
+			oldVersion:   &coreapi.VersionProfile{ID: "5.0"},
+			newVersion:   &coreapi.VersionProfile{ID: "5.0"},
+			spc:          spcWithMirrors(v4Mirror),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			// On CREATE there is no prior version to cross a major boundary from.
+			name:         "create operation is a no-op",
+			op:           operation.Operation{Type: operation.Create},
+			oldVersion:   nil,
+			newVersion:   &coreapi.VersionProfile{ID: "5.0"},
+			spc:          spcWithMirrors(v4Mirror),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			// admitClusterVersionProfile already reports the parse failure; we must
+			// not duplicate it.
+			name:         "unparseable version skips without a duplicate error",
+			op:           operation.Operation{Type: operation.Update},
+			oldVersion:   &coreapi.VersionProfile{ID: "4.22"},
+			newVersion:   &coreapi.VersionProfile{ID: "not-a-version"},
+			spc:          spcWithMirrors(v4Mirror),
+			expectErrors: []utils.ExpectedError{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			admissionContext := &ClusterAdmissionContext{
+				ServiceProviderCluster: tt.spc,
+			}
+
+			errs := admitClusterV5DataPlaneMirror(ctx, admissionContext, tt.op, fldPath, tt.newVersion, tt.oldVersion)
 
 			utils.VerifyErrorsMatch(t, tt.expectErrors, errs)
 		})

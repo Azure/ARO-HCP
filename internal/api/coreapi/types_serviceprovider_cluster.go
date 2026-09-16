@@ -191,6 +191,33 @@ type ServiceProviderClusterStatus struct {
 	// Written by: ControlPlaneActiveVersions
 	DesiredVersionChannels []string `json:"desiredVersionChannels,omitempty"`
 
+	// ActualHostedCluster is the HostedCluster as it currently exists on the
+	// management cluster, mirrored here from the kube-applier ReadDesire by the
+	// backend. Both spec and status are carried, so this is the single place the
+	// frontend can consult for observed management-cluster state.
+	//
+	// The frontend is deliberately denied any path to a management cluster (no
+	// kube-applier container access, no ReadDesireLister, no Maestro), so a
+	// frontend compromise cannot create arbitrary resources on a management
+	// cluster. Anything admission needs to know about the real HostedCluster has
+	// to travel through this field; see internal/admission/CLAUDE.md.
+	//
+	// Mirrored verbatim except for server-side bookkeeping that carries no
+	// meaning for consumers and would otherwise force a Cosmos write on every
+	// observed revision: metadata.managedFields, metadata.resourceVersion and the
+	// kubectl last-applied-configuration annotation are cleared before storing.
+	//
+	// nil means the backend has not observed the HostedCluster yet (the cluster
+	// is still being created, or the first sync has not run). Consumers must
+	// treat nil as "unknown", never as "absent" — in particular, admission checks
+	// built on this field have to fail open while it is nil.
+	//
+	// Backend controllers must NOT read this field. They have first-class access
+	// to the ReadDesire mirror and are expected to read that instead, staying as
+	// close to the source as possible rather than waiting for this copy to catch up.
+	// Written by: ActualHostedCluster
+	ActualHostedCluster *v1beta1.HostedCluster `json:"actualHostedCluster,omitempty"`
+
 	// Validations is a list of conditions that tracks the status of each cluster validation.
 	// Each Condition Type represents a validation and it should be unique among all validations.
 	// A Condition Status of True means that the validation passed successfully, and a Condition Status of False means that the validation failed.
@@ -294,6 +321,12 @@ type ServiceProviderClusterStatus struct {
 	// Written by: KeyRotationBackup
 	KeyRotationBackupFingerprint string `json:"keyRotationBackupFingerprint,omitempty"`
 }
+
+// OcpV5ArtDevMirrorSource is the platform-managed image source that OpenShift
+// 5.x data-plane releases are published under. A cluster whose HostedCluster
+// spec.imageContentSources lacks this entry cannot pull 5.x data-plane images,
+// so an upgrade into 5.x would strand its nodes.
+const OcpV5ArtDevMirrorSource = "quay.io/openshift-release-dev/ocp-v5.0-art-dev"
 
 // ServiceProviderClusterPlacementStatus holds placement-specific status for a
 // ServiceProviderCluster. It is kept off the top-level Status.Conditions per the
