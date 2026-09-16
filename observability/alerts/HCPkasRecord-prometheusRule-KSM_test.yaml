@@ -160,3 +160,37 @@ tests:
   - expr: hostedClusterAPI_kubeapiserver_available:sli_count_15m{name="test-cluster-6"}
     eval_time: 10m
     exp_samples: []
+# Test 7: SLI deletion suppression - deleting cluster excluded from SLI
+# When hostedClusterAPI_deleting is present for a cluster, the `unless` clause
+# on the SLI recording rules suppresses all SLI output for that cluster.
+# This prevents zombie-deleting clusters from consuming KAS SLO error budget.
+# Non-SLI recording rules (ratio_avg, sum_over_time, count_over_time) are NOT
+# affected — they still produce output for deleting clusters to preserve
+# dashboard visibility. (ARO-29170)
+- interval: 1m
+  name: "Test 7: SLI deletion suppression - deleting cluster excluded from SLI"
+  input_series:
+  - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="deleting-cluster", namespace="clusters", _id="del-999", cluster="mgmt-cluster", resource_id="test-resource-del"}'
+    values: "0+0x60"
+  - series: 'hostedClusterAPI_deleting{name="deleting-cluster", namespace="clusters", _id="del-999", cluster="mgmt-cluster", resource_id="test-resource-del", deletion_timestamp="2026-07-10T08:36:42Z"}'
+    values: "1+0x60"
+  promql_expr_test:
+  # SLI rules should produce NO output for the deleting cluster
+  - expr: hostedClusterAPI_kubeapiserver_available:sli_sum_15m{name="deleting-cluster"}
+    eval_time: 35m
+    exp_samples: []
+  - expr: hostedClusterAPI_kubeapiserver_available:sli_count_15m{name="deleting-cluster"}
+    eval_time: 35m
+    exp_samples: []
+  - expr: hostedClusterAPI_kubeapiserver_available:sli_sum_6h{name="deleting-cluster"}
+    eval_time: 35m
+    exp_samples: []
+  - expr: hostedClusterAPI_kubeapiserver_available:sli_count_6h{name="deleting-cluster"}
+    eval_time: 35m
+    exp_samples: []
+  # Non-SLI recording rules should STILL produce output for the deleting cluster
+  - expr: hostedClusterAPI_kubeapiserver_available:ratio_avg_1d{name="deleting-cluster"}
+    eval_time: 35m
+    exp_samples:
+    - labels: '{__name__="hostedClusterAPI_kubeapiserver_available:ratio_avg_1d", name="deleting-cluster", namespace="clusters", _id="del-999", cluster="mgmt-cluster", resource_id="test-resource-del"}'
+      value: 0

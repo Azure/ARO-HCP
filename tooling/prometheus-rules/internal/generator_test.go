@@ -1404,6 +1404,11 @@ func TestParseToAzureDurationString(t *testing.T) {
 		{(*monitoringv1.Duration)(ptr.To("30s")), ptr.To("PT1M")}, // too short, gets default
 		{(*monitoringv1.Duration)(ptr.To("5m")), ptr.To("PT5M")},
 		{(*monitoringv1.Duration)(ptr.To("1h")), ptr.To("PT1H")},
+		{(*monitoringv1.Duration)(ptr.To("1h30m")), ptr.To("PT1H30M")},
+		// Prometheus Duration.String() normalizes 24h to "1d"; must not emit PT1D.
+		{(*monitoringv1.Duration)(ptr.To("24h")), ptr.To("PT24H")},
+		{(*monitoringv1.Duration)(ptr.To("1d")), ptr.To("PT24H")},
+		{(*monitoringv1.Duration)(ptr.To("25h")), ptr.To("PT25H")},
 	}
 
 	for _, tt := range tests {

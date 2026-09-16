@@ -9,6 +9,8 @@ spec:
     labels:
       component: slo
     rules:
+    # Deleting clusters do not page: SLI recording rules exclude them via
+    # `unless on (...) hostedClusterAPI_deleting`.
     - alert: userJourneyKubeApiserverAvailability1h5m
       expr: |
         (
