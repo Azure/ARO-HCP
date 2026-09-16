@@ -1979,7 +1979,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "max(ALERTS{alertname=\"UserJourneyClusterProvisionErrorBurst1h\", alertstate=\"firing\"}) or vector(0)",
+          "expr": "max(ALERTS{alertname=\"UserJourneyClusterProvisionErrors1h5m\", alertstate=\"firing\"}) or vector(0)",
           "instant": true,
           "legendFormat": "Fast Burn (1h/5m)",
           "range": false,
@@ -1991,7 +1991,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "max(ALERTS{alertname=\"UserJourneyClusterProvisionErrorBurst6h\", alertstate=\"firing\"}) or vector(0)",
+          "expr": "max(ALERTS{alertname=\"UserJourneyClusterProvisionErrors6h30m\", alertstate=\"firing\"}) or vector(0)",
           "instant": true,
           "legendFormat": "Medium Burn (6h/30m)",
           "range": false,
@@ -2003,7 +2003,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "max(ALERTS{alertname=\"UserJourneyClusterProvisionErrorBudget3d\", alertstate=\"firing\"}) or vector(0)",
+          "expr": "max(ALERTS{alertname=\"UserJourneyClusterProvisionErrors3d\", alertstate=\"firing\"}) or vector(0)",
           "instant": true,
           "legendFormat": "Slow Burn (3d/6h)",
           "range": false,

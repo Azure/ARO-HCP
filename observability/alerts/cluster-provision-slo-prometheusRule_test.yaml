@@ -43,13 +43,13 @@ tests:
       value: 0
   alert_rule_test:
   - eval_time: 10m
-    alertname: UserJourneyClusterProvisionErrorBurst1h
+    alertname: UserJourneyClusterProvisionErrors1h5m
   - eval_time: 10m
-    alertname: UserJourneyClusterProvisionErrorBurst6h
+    alertname: UserJourneyClusterProvisionErrors6h30m
   - eval_time: 10m
-    alertname: UserJourneyClusterProvisionErrorBudget3d
+    alertname: UserJourneyClusterProvisionErrors3d
 # ========================================
-# Test 2: Fast burn — ErrorBurst1h fires (>72%, >=3 failures in 1h)
+# Test 2: Fast burn — Errors1h5m fires (>72%, >=3 failures in 1h)
 # ========================================
 # 1 succeeded, 4 failed → error rate = 80% > 72%, 4 failures >= 3 floor.
 - interval: 1m
@@ -83,7 +83,7 @@ tests:
   alert_rule_test:
   # Fast burn fires after 5m 'for' duration
   - eval_time: 7m
-    alertname: UserJourneyClusterProvisionErrorBurst1h
+    alertname: UserJourneyClusterProvisionErrors1h5m
     exp_alerts:
     - exp_labels:
         cluster: "mgmt-1"
@@ -100,7 +100,7 @@ tests:
 # Test 3: Volume floor — 100% rate but only 2 failures, below floor
 # ========================================
 # 2 failed, 0 succeeded → 100% error rate. But 2 < 3 failure floor.
-# ErrorBurst1h must NOT fire.
+# Errors1h5m must NOT fire.
 - interval: 1m
   input_series:
   - series: 'backend_resource_operation_phase_info{resource_id="/sub/3/cluster/a", subscription_id="sub-3", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="failed", cluster="mgmt-1"}'
@@ -113,9 +113,9 @@ tests:
     values: "0+0x40"
   alert_rule_test:
   - eval_time: 10m
-    alertname: UserJourneyClusterProvisionErrorBurst1h
+    alertname: UserJourneyClusterProvisionErrors1h5m
 # ========================================
-# Test 4: Medium burn — ErrorBurst6h fires (>30%, >=5 total in 6h)
+# Test 4: Medium burn — Errors6h30m fires (>30%, >=5 total in 6h)
 # ========================================
 # 3 succeeded, 3 failed → error rate = 50% > 30%, 6 total >= 5 floor.
 - interval: 1m
@@ -153,7 +153,7 @@ tests:
   alert_rule_test:
   # Medium burn fires after 30m 'for' duration (50% > 30%, 6 total >= 5)
   - eval_time: 35m
-    alertname: UserJourneyClusterProvisionErrorBurst6h
+    alertname: UserJourneyClusterProvisionErrors6h30m
     exp_alerts:
     - exp_labels:
         cluster: "mgmt-1"

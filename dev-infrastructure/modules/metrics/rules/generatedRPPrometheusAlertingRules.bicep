@@ -298,7 +298,7 @@ resource arohcpClusterProvisionSloWindowedErrorAlerts 'Microsoft.AlertsManagemen
             }
           }
         ]
-        alert: 'UserJourneyClusterProvisionErrorBurst1h'
+        alert: 'UserJourneyClusterProvisionErrors1h5m'
         enabled: true
         labels: {
           component: 'slo'
@@ -308,7 +308,7 @@ resource arohcpClusterProvisionSloWindowedErrorAlerts 'Microsoft.AlertsManagemen
           slo: 'cluster-provision-errors'
         }
         annotations: {
-          correlationId: 'UserJourneyClusterProvisionErrorBurst1h/{{ $labels.cluster }}'
+          correlationId: 'UserJourneyClusterProvisionErrors1h5m/{{ $labels.cluster }}'
           description: 'More than 72% of completed cluster create (install) operations on {{ $labels.cluster }} failed over the last hour with at least 3 failures, a 14.4x burn of the 95% SLO budget.'
           info: 'More than 72% of completed cluster create (install) operations on {{ $labels.cluster }} failed over the last hour with at least 3 failures, a 14.4x burn of the 95% SLO budget.'
           runbook_url: 'https://aka.ms/arohcp-runbook-cluster-provision'
@@ -329,7 +329,7 @@ resource arohcpClusterProvisionSloWindowedErrorAlerts 'Microsoft.AlertsManagemen
             }
           }
         ]
-        alert: 'UserJourneyClusterProvisionErrorBurst6h'
+        alert: 'UserJourneyClusterProvisionErrors6h30m'
         enabled: true
         labels: {
           component: 'slo'
@@ -339,7 +339,7 @@ resource arohcpClusterProvisionSloWindowedErrorAlerts 'Microsoft.AlertsManagemen
           slo: 'cluster-provision-errors'
         }
         annotations: {
-          correlationId: 'UserJourneyClusterProvisionErrorBurst6h/{{ $labels.cluster }}'
+          correlationId: 'UserJourneyClusterProvisionErrors6h30m/{{ $labels.cluster }}'
           description: 'More than 30% of completed cluster create (install) operations on {{ $labels.cluster }} failed over the last 6 hours (at least 5 completions), a 6x burn of the 95% SLO budget.'
           info: 'More than 30% of completed cluster create (install) operations on {{ $labels.cluster }} failed over the last 6 hours (at least 5 completions), a 6x burn of the 95% SLO budget.'
           runbook_url: 'https://aka.ms/arohcp-runbook-cluster-provision'
@@ -360,7 +360,7 @@ resource arohcpClusterProvisionSloWindowedErrorAlerts 'Microsoft.AlertsManagemen
             }
           }
         ]
-        alert: 'UserJourneyClusterProvisionErrorBudget3d'
+        alert: 'UserJourneyClusterProvisionErrors3d'
         enabled: true
         labels: {
           component: 'slo'
@@ -369,7 +369,7 @@ resource arohcpClusterProvisionSloWindowedErrorAlerts 'Microsoft.AlertsManagemen
           slo: 'cluster-provision-errors'
         }
         annotations: {
-          correlationId: 'UserJourneyClusterProvisionErrorBudget3d/{{ $labels.cluster }}'
+          correlationId: 'UserJourneyClusterProvisionErrors3d/{{ $labels.cluster }}'
           description: 'More than 5% of completed cluster create (install) operations on {{ $labels.cluster }} failed over the last 3 days (at least 10 completions and 2 failures), a 1x burn that exhausts the 95% SLO error budget over the window.'
           info: 'More than 5% of completed cluster create (install) operations on {{ $labels.cluster }} failed over the last 3 days (at least 10 completions and 2 failures), a 1x burn that exhausts the 95% SLO error budget over the window.'
           runbook_url: 'https://aka.ms/arohcp-runbook-cluster-provision'
