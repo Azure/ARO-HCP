@@ -154,6 +154,51 @@ func TestTriggerNodePoolUpgradeSyncer_SyncOnce(t *testing.T) {
 	}
 }
 
+// TestTriggerNodePoolUpgradeSyncer_SyncOnce_TriggersUpgradeFromCache drives the
+// full SyncOnce path where the node pool is read from the informer-backed
+// NodePoolLister (DBNodePoolLister here) and its desired version differs from the
+// active one, so an upgrade policy is posted to Cluster Service. This proves the
+// cached read returns a usable node pool; a nil/miswired nodePoolLister would panic
+// on the first Get.
+func TestTriggerNodePoolUpgradeSyncer_SyncOnce_TriggersUpgradeFromCache(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	runCtx := utils.ContextWithLogger(context.Background(), logr.Discard())
+	mockDB := corecosmosstoragetesting.NewMockResourcesDBClient()
+
+	// Node pool present in the cache with a cluster-service ID, and a
+	// ServiceProviderNodePool whose desired version differs from the active one.
+	createTestNodePoolWithVersion(t, runCtx, mockDB, "4.21.0")
+	createServiceProviderNodePoolWithActiveAndDesiredVersion(
+		t, runCtx, mockDB, ptr.To(semver.MustParse("4.21.5")), "4.21.0",
+	)
+
+	nodePoolServiceID := metadataapi.Must(metadataapi.NewInternalID(testCSNodePoolIDStr))
+	mockClusterServiceClient := ocm.NewMockClusterServiceClientSpec(ctrl)
+	mockClusterServiceClient.EXPECT().
+		ListNodePoolUpgradePolicies(nodePoolServiceID, "creation_timestamp desc").
+		Return(ocm.NewSimpleNodePoolUpgradePolicyListIterator([]*arohcpv1alpha1.NodePoolUpgradePolicy{}, nil))
+	expectedBuilder := arohcpv1alpha1.NewNodePoolUpgradePolicy().Version("4.21.5")
+	mockClusterServiceClient.EXPECT().
+		PostNodePoolUpgradePolicy(gomock.Any(), nodePoolServiceID, expectedBuilder).
+		Return(metadataapi.Must(expectedBuilder.Build()), nil)
+
+	syncer := &triggerNodePoolUpgradeSyncer{
+		nodePoolLister:                &corelistertesting.DBNodePoolLister{ResourcesDBClient: mockDB},
+		clusterServiceClient:          mockClusterServiceClient,
+		serviceProviderNodePoolLister: &corelistertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockDB},
+	}
+
+	err := syncer.SyncOnce(runCtx, controllerutils.HCPNodePoolKey{
+		SubscriptionID:    testSubscriptionID,
+		ResourceGroupName: testResourceGroupName,
+		HCPClusterName:    testClusterName,
+		HCPNodePoolName:   testNodePoolName,
+	})
+	assertSyncResult(t, err, false, "")
+}
+
 func TestTriggerNodePoolUpgradeSyncer_CreateUpgradePolicyIfNeeded(t *testing.T) {
 	testNodePoolServiceID, _ := metadataapi.NewInternalID("/api/aro_hcp/v1alpha1/clusters/test-cluster-id/node_pools/test-nodepool-id")
 
