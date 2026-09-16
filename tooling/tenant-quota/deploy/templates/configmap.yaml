@@ -18,6 +18,8 @@ data:
         org: "{{ .Values.prow.repository.org }}"
         name: "{{ .Values.prow.repository.name }}"
       excludeJobs: {{ .Values.prow.excludeJobs | toJson }}
+    ciJobOutcomes:
+      {{- toYaml .Values.ciJobOutcomes | nindent 6 }}
     tenants:
       {{- range .Values.tenants }}
       - tenantId: "{{ .tenantId }}"
