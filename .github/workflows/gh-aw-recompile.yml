@@ -1,0 +1,47 @@
+# Keeps the compiled agentic workflow lock files fresh so the gh-aw runtime
+# guardrail never blocks a scheduled run.
+#
+# Background: gh-aw compiles each .md workflow into a pinned *.lock.yml. The
+# gh-aw runtime refuses to run a lock file compiled with a version that upstream
+# later adds to its blockedVersions list (see
+# https://raw.githubusercontent.com/github/gh-aw-actions/main/.github/aw/compat.json).
+# When that happens the activation job fails and the automation silently stops.
+#
+# This workflow runs `gh aw upgrade` on a schedule: it self-upgrades the gh-aw
+# extension to the latest release, recompiles every .md workflow, refreshes the
+# action pins, and opens a pull request with the result. A human still reviews
+# and merges the PR, so the compiled artifact stays pinned and reviewable.
+name: gh-aw recompile
+on:
+  # Weekly, ahead of the nightly agentic runs, so a fresh recompile can land
+  # before upstream blocks the current compiler version.
+  schedule:
+  - cron: "0 6 * * 1"
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: gh-aw-recompile
+  cancel-in-progress: false
+jobs:
+  recompile:
+    runs-on: ubuntu-slim
+    steps:
+    - name: Mint aro-hcp-robot App token
+      id: app-token
+      uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+      with:
+        client-id: ${{ secrets.DEPENDABOT_APP_CLIENT_ID }}
+        private-key: ${{ secrets.DEPENDABOT_APP_PRIVATE_KEY }}
+    - name: Checkout
+      uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      with:
+        token: ${{ steps.app-token.outputs.token }}
+    - name: Install gh-aw extension
+      env:
+        GH_TOKEN: ${{ steps.app-token.outputs.token }}
+      run: gh extension install github/gh-aw
+    - name: Upgrade and recompile, open a PR if anything changed
+      env:
+        GH_TOKEN: ${{ steps.app-token.outputs.token }}
+      run: gh aw upgrade --create-pull-request --yes
