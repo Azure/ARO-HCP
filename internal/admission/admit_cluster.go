@@ -619,6 +619,11 @@ func admitClusterVersionProfile(ctx context.Context, admissionContext *ClusterAd
 	// then it fails open (see admitClusterVersionID).
 	errs = append(errs, admitClusterVersionID(ctx, admissionContext, op, fldPath, newObj, oldObj)...)
 
+	// Reject an upgrade into OpenShift 5.x when the observed HostedCluster has
+	// no 5.x data-plane image mirror. Fails open until the backend has mirrored
+	// the HostedCluster (see admitClusterV5DataPlaneMirror).
+	errs = append(errs, admitClusterV5DataPlaneMirror(ctx, admissionContext, op, fldPath, newObj, oldObj)...)
+
 	return errs
 }
 
@@ -725,6 +730,83 @@ func admitClusterVersionID(_ context.Context, admissionContext *ClusterAdmission
 		fmt.Sprintf("no upgrade path to update channel %q is currently available for this cluster; "+
 			"a channel appears in the cluster's desired version channels only when an upgrade edge to a "+
 			"release in that channel exists", expectedChannel),
+	)}
+}
+
+// admitClusterV5DataPlaneMirror rejects a major upgrade into OpenShift 5.x when
+// the cluster's observed HostedCluster does not carry the 5.x data-plane image
+// mirror (coreapi.OcpV5ArtDevMirrorSource) in spec.imageContentSources.
+//
+// 5.x data-plane images are published under a different source than 4.x. A
+// cluster created before that source was added to the platform's image content
+// sources cannot pull them, so letting the upgrade start would strand its nodes
+// on images they cannot fetch. Recovering the missing mirror is a separate,
+// Cluster Service-side concern; this check only prevents the cluster from
+// entering that state in the first place.
+//
+// The fact is read from the mirrored HostedCluster rather than from any desired
+// state: what matters is what actually exists on the management cluster today,
+// not what we intend to be true. Admission reaches neither the management
+// cluster nor the DB for it — the backend's ActualHostedCluster controller
+// observes the HostedCluster and copies it onto
+// ServiceProviderCluster.Status.ActualHostedCluster, which the frontend
+// prefetches into the admission context. See internal/admission/CLAUDE.md.
+//
+// Fail-open until synced: ActualHostedCluster is populated asynchronously and is
+// nil on freshly created clusters and until the first sync completes. nil means
+// "we have not looked yet", which is not evidence of a missing mirror, so we
+// skip the check rather than block every 4->5 upgrade until the mirror
+// converges. Once the HostedCluster has been observed, an empty
+// spec.imageContentSources is a real answer and is enforced as such.
+func admitClusterV5DataPlaneMirror(_ context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.VersionProfile) field.ErrorList {
+	// Only enforce on UPDATE, and only when the customer is actually changing
+	// version.id. On CREATE there is no prior version to cross a major boundary
+	// from, and an unchanged version is not an upgrade.
+	if op.Type != operation.Update || oldObj == nil {
+		return nil
+	}
+	if len(newObj.ID) == 0 || oldObj.ID == newObj.ID {
+		return nil
+	}
+
+	oldVersion, oldErr := semver.ParseTolerant(oldObj.ID)
+	newVersion, newErr := semver.ParseTolerant(newObj.ID)
+	if oldErr != nil || newErr != nil {
+		// admitClusterVersionProfile already reports parse failures; do not
+		// duplicate them here.
+		return nil
+	}
+	// Scoped to upgrades that cross into 5.x. A future major version ships its
+	// own mirror and needs its own rule rather than a widened one here.
+	if newVersion.Major != 5 || oldVersion.Major >= newVersion.Major {
+		return nil
+	}
+
+	// Not observed yet: fail open (see the doc comment above). A genuinely
+	// missing ServiceProviderCluster prefetch is already surfaced as an
+	// InternalError by the version-skew check in admitClusterVersionProfile.
+	if admissionContext.ServiceProviderCluster == nil {
+		return nil
+	}
+	actualHostedCluster := admissionContext.ServiceProviderCluster.Status.ActualHostedCluster
+	if actualHostedCluster == nil {
+		return nil
+	}
+
+	for _, imageContentSource := range actualHostedCluster.Spec.ImageContentSources {
+		if imageContentSource.Source == coreapi.OcpV5ArtDevMirrorSource {
+			return nil
+		}
+	}
+
+	versionPath := fldPath.Child("id")
+	return field.ErrorList{field.Invalid(
+		versionPath,
+		newObj.ID,
+		fmt.Sprintf("cannot upgrade to OpenShift %d.x: this cluster is missing the required data-plane image "+
+			"mirror %q, so its nodes would be unable to pull %d.x images; contact support to have the mirror "+
+			"added before upgrading",
+			newVersion.Major, coreapi.OcpV5ArtDevMirrorSource, newVersion.Major),
 	)}
 }
 

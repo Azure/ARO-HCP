@@ -38,6 +38,7 @@ import (
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	azureconfig "github.com/Azure/ARO-HCP/backend/pkg/azure/config"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/billing"
+	clusteractualhostedcluster "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/actualhostedcluster"
 	clusterazureresources "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/azureresources"
 	clusterbackups "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/backups"
 	clustercreation "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/creation"
@@ -671,6 +672,12 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		unionKubeApplierInformers,
 		unionReadDesireLister,
 	)
+	actualHostedClusterController := clusteractualhostedcluster.NewActualHostedClusterController(
+		b.options.ResourcesDBClient,
+		backendInformers,
+		unionKubeApplierInformers,
+		unionReadDesireLister,
+	)
 	controlPlaneDesiredVersionController := clusterversion.NewControlPlaneDesiredVersionController(
 		b.clock,
 		b.options.ResourcesDBClient,
@@ -1176,6 +1183,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go orphanedBillingCleanupController.Run(ctx, 20)
 				go createBillingDocController.Run(ctx, 20)
 				go controlPlaneActiveVersionController.Run(ctx, 20)
+				go actualHostedClusterController.Run(ctx, 20)
 				go controlPlaneDesiredVersionController.Run(ctx, 20)
 				go triggerControlPlaneUpgradeController.Run(ctx, 20)
 				go clusterBaseDomainPrefixSyncController.Run(ctx, 20)
