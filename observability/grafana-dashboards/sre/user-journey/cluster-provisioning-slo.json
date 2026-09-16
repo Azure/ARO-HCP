@@ -19,7 +19,7 @@
           "uid": "$datasource"
         },
         "enable": true,
-        "expr": "ALERTS{alertname=~\"UserJourneyClusterProvision.*\", alertstate=\"firing\"}",
+        "expr": "ALERTS{alertname=~\"userJourneyClusterProvision.*\", alertstate=\"firing\"}",
         "iconColor": "red",
         "name": "Cluster Provision SLO Alerts",
         "titleFormat": "{{alertname}}",
@@ -1979,7 +1979,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "max(ALERTS{alertname=\"UserJourneyClusterProvisionErrors1h5m\", alertstate=\"firing\"}) or vector(0)",
+          "expr": "max(ALERTS{alertname=\"userJourneyClusterProvisionErrors1h5m\", alertstate=\"firing\"}) or vector(0)",
           "instant": true,
           "legendFormat": "Fast Burn (1h/5m)",
           "range": false,
@@ -1991,7 +1991,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "max(ALERTS{alertname=\"UserJourneyClusterProvisionErrors6h30m\", alertstate=\"firing\"}) or vector(0)",
+          "expr": "max(ALERTS{alertname=\"userJourneyClusterProvisionErrors6h30m\", alertstate=\"firing\"}) or vector(0)",
           "instant": true,
           "legendFormat": "Medium Burn (6h/30m)",
           "range": false,
@@ -2003,7 +2003,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "max(ALERTS{alertname=\"UserJourneyClusterProvisionErrors3d\", alertstate=\"firing\"}) or vector(0)",
+          "expr": "max(ALERTS{alertname=\"userJourneyClusterProvisionErrors3d\", alertstate=\"firing\"}) or vector(0)",
           "instant": true,
           "legendFormat": "Slow Burn (3d/6h)",
           "range": false,
@@ -2015,7 +2015,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "max(ALERTS{alertname=\"UserJourneyClusterProvisionErrorsDegradation\", alertstate=\"firing\"}) or vector(0)",
+          "expr": "max(ALERTS{alertname=\"userJourneyClusterProvisionErrorsDegradation\", alertstate=\"firing\"}) or vector(0)",
           "instant": true,
           "legendFormat": "Degradation (15%/30m)",
           "range": false,
