@@ -139,7 +139,7 @@ func TestTriggerNodePoolUpgradeSyncer_SyncOnce(t *testing.T) {
 			tt.seedDB(t, runCtx, mockDB)
 
 			syncer := &triggerNodePoolUpgradeSyncer{
-				resourcesDBClient:             mockDB,
+				nodePoolLister:                &corelistertesting.DBNodePoolLister{ResourcesDBClient: mockDB},
 				serviceProviderNodePoolLister: &corelistertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockDB},
 			}
 

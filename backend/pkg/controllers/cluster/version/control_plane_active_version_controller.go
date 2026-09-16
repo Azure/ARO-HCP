@@ -44,6 +44,7 @@ import (
 // management cluster's HostedCluster).
 type controlPlaneActiveVersionSyncer struct {
 	resourcesDBClient            corecosmosstorage.ResourcesDBClient
+	clusterLister                corelisters.ClusterLister
 	readDesireLister             kubeapplierlisters.ReadDesireLister
 	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
 }
@@ -55,6 +56,7 @@ var _ controllerutils.ClusterSyncer = (*controlPlaneActiveVersionSyncer)(nil)
 // observed HostedCluster.
 func NewControlPlaneActiveVersionController(
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
+	clusterLister corelisters.ClusterLister,
 	serviceProviderClusterLister corelisters.ServiceProviderClusterLister,
 	informers coreinformers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
@@ -62,6 +64,7 @@ func NewControlPlaneActiveVersionController(
 ) controllerutils.Controller {
 	syncer := &controlPlaneActiveVersionSyncer{
 		resourcesDBClient:            resourcesDBClient,
+		clusterLister:                clusterLister,
 		readDesireLister:             readDesireLister,
 		serviceProviderClusterLister: serviceProviderClusterLister,
 	}
@@ -80,7 +83,7 @@ func NewControlPlaneActiveVersionController(
 // from the per-cluster ReadDesire's observed HostedCluster. Each active version
 // includes Version and State (Completed or Partial) and is persisted on replace.
 func (c *controlPlaneActiveVersionSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
-	existingCluster, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Get(ctx, key.HCPClusterName)
+	existingCluster, err := c.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}

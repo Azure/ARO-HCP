@@ -36,7 +36,7 @@ import (
 
 // triggerNodePoolUpgradeSyncer is a NodePool syncer that triggers node pool upgrades
 type triggerNodePoolUpgradeSyncer struct {
-	resourcesDBClient             corecosmosstorage.ResourcesDBClient
+	nodePoolLister                corelisters.NodePoolLister
 	clusterServiceClient          ocm.ClusterServiceClientSpec
 	serviceProviderNodePoolLister corelisters.ServiceProviderNodePoolLister
 }
@@ -48,13 +48,14 @@ var _ controllerutils.NodePoolSyncer = (*triggerNodePoolUpgradeSyncer)(nil)
 // a NodePoolUpgradePolicy in Cluster Service to initiate the upgrade.
 func NewTriggerNodePoolUpgradeController(
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
+	nodePoolLister corelisters.NodePoolLister,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
 	serviceProviderNodePoolLister corelisters.ServiceProviderNodePoolLister,
 	informers coreinformers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 ) controllerutils.Controller {
 	syncer := &triggerNodePoolUpgradeSyncer{
-		resourcesDBClient:             resourcesDBClient,
+		nodePoolLister:                nodePoolLister,
 		clusterServiceClient:          clusterServiceClient,
 		serviceProviderNodePoolLister: serviceProviderNodePoolLister,
 	}
@@ -79,8 +80,7 @@ func NewTriggerNodePoolUpgradeController(
 //  3. Check if desiredVersion differs from latest actual version
 //  4. If different, create a NodePoolUpgradePolicy to trigger upgrade
 func (c *triggerNodePoolUpgradeSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPNodePoolKey) error {
-	existingNodePool, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).
-		NodePools(key.HCPClusterName).Get(ctx, key.HCPNodePoolName)
+	existingNodePool, err := c.nodePoolLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)
 	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil // node pool doesn't exist, no work to do
 	}

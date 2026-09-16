@@ -315,6 +315,7 @@ func TestControlPlaneActiveVersionSyncer_SyncOnce(t *testing.T) {
 
 			syncer := &controlPlaneActiveVersionSyncer{
 				resourcesDBClient:            mockResourcesDBClient,
+				clusterLister:                &corelistertesting.DBClusterLister{ResourcesDBClient: mockResourcesDBClient},
 				readDesireLister:             &kubeapplierlistertesting.SliceReadDesireLister{Desires: desires},
 				serviceProviderClusterLister: &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
 			}
@@ -355,6 +356,7 @@ func TestControlPlaneActiveVersionSyncer_NoReplaceWhenVersionsUnchanged(t *testi
 
 	syncer := &controlPlaneActiveVersionSyncer{
 		resourcesDBClient:            mockResourcesDBClient,
+		clusterLister:                &corelistertesting.DBClusterLister{ResourcesDBClient: mockResourcesDBClient},
 		readDesireLister:             &kubeapplierlistertesting.SliceReadDesireLister{Desires: desires},
 		serviceProviderClusterLister: &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
 	}

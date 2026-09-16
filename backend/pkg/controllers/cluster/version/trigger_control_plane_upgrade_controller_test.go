@@ -276,7 +276,6 @@ func TestTriggerControlPlaneUpgradeSyncer_ShouldTriggerUpgrade(t *testing.T) {
 			}
 			syncer := &triggerControlPlaneUpgradeSyncer{
 				clock:                 clocktesting.NewFakePassiveClock(now),
-				resourcesDBClient:     mockDB,
 				activeOperationLister: opLister,
 			}
 
