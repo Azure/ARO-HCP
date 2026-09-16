@@ -912,6 +912,7 @@ No Cosmos writes. Dispatches updates to Cluster Service via PATCH.
 | Read | `HCPOpenShiftCluster` (informer cache) | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (skip when set)</li><li>`Status.ActiveVersions` (compared before write)</li></ul> |
 | Read | ReadDesire (HostedCluster) | <ul><li>`Status.ControlPlaneVersion.History`</li></ul> |
 | Read | ReadDesire (HostedCluster) | <ul><li>`Status.Version.Desired.Channels`</li></ul> |
+| Read | `ServiceProviderCluster` (informer cache) | <ul><li>`Status.ControlPlaneVersion.ActiveVersions` (compared before write)</li><li>`Status.DesiredVersionChannels` (compared before write)</li></ul> |
 | **Write** | **`ServiceProviderCluster`** | <ul><li>**`Status.ControlPlaneVersion.ActiveVersions`** = [{Version, State}, ...]</li><li>**`Status.DesiredVersionChannels`** = ["stable-4.19", ...] (mirrored from HostedCluster `status.version.desired.channels` for DB-free cluster admission)</li></ul> |
 | **Write** | **`HCPOpenShiftCluster`** | <ul><li>**`Status.ActiveVersions`** = [{Version},...]</li></ul> |
 
@@ -923,6 +924,8 @@ No Cosmos writes. Dispatches updates to Cluster Service via PATCH.
 | | Object | Fields |
 |---|--------|--------|
 | Read | `HCPOpenShiftCluster` (informer cache) | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (skip when set)</li><li>`ServiceProviderProperties.ClusterServiceID` (skip when unset; target of the upgrade policy)</li><li>`ServiceProviderProperties.ActiveOperationID` (active-Create gate)</li><li>`SystemData.CreatedAt` (create grace-period gate)</li></ul> |
+| Read | `ServiceProviderCluster` (informer cache) | <ul><li>`Spec.ControlPlaneVersion.DesiredVersion` (skip when unset)</li><li>`Status.ControlPlaneVersion.ActiveVersions` (skip when empty; `[0]` is the current version compared to desired)</li></ul> |
+| Read | `Operation` (informer cache) | <ul><li>`Request` (active-Create gate; read only when `ActiveOperationID` is set and the cluster is within the create grace period)</li><li>`Status` (terminal check)</li></ul> |
 
 No Cosmos writes. Posts `ControlPlaneUpgradePolicy` to Cluster Service.
 
