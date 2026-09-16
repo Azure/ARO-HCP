@@ -15,8 +15,10 @@
 package clients
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -25,9 +27,16 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
 )
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
+}
 
 func TestGetRemoteOptionsUsesDockerConfig(t *testing.T) {
 	const (
@@ -65,5 +74,20 @@ func TestGetRemoteOptionsUsesDockerConfig(t *testing.T) {
 	options := append(GetRemoteOptions(true), remote.WithTransport(server.Client().Transport))
 	if _, err := remote.Get(ref, options...); err != nil {
 		t.Fatalf("authenticated registry request failed: %v", err)
+	}
+}
+
+func TestGenericBearerTokenHonorsCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	client := NewGenericRegistryClient("registry.example", true)
+	client.httpClient = &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		<-req.Context().Done()
+		return nil, req.Context().Err()
+	})}
+
+	_, err := client.getBearerToken(ctx, "test/repository", authn.AuthConfig{Username: "user", Password: "password"})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("getBearerToken() error = %v, want context cancellation", err)
 	}
 }
