@@ -49,6 +49,7 @@ type Request struct {
 	AllNamespaces bool
 	Output        OutputFormat
 	ShowKind      bool
+	TimestampOut  io.Writer
 }
 
 type Result struct {
@@ -96,7 +97,7 @@ func (g *Getter) Get(ctx context.Context, request Request, out io.Writer) (*Resu
 	result := &Result{Snapshots: selected, Items: items}
 	switch request.Output {
 	case OutputDefault, OutputWide:
-		err = printTables(out, selected, items, request.Output == OutputWide, request.ShowKind || request.Resource == "all", request.AllNamespaces)
+		err = printTables(out, request.TimestampOut, selected, items, request.Output == OutputWide, request.ShowKind || request.Resource == "all", request.AllNamespaces)
 	case OutputName:
 		err = printNames(out, items)
 	case OutputJSON, OutputYAML:
@@ -109,6 +110,11 @@ func (g *Getter) Get(ctx context.Context, request Request, out io.Writer) (*Resu
 	}
 	if err != nil {
 		return nil, err
+	}
+	if request.TimestampOut != nil && request.Output != OutputDefault && request.Output != OutputWide {
+		if err := WriteSourceMetadata(request.TimestampOut, result); err != nil {
+			return nil, err
+		}
 	}
 	return result, nil
 }
@@ -175,7 +181,7 @@ func sortSnapshots(snapshots []Snapshot) {
 	})
 }
 
-func printTables(out io.Writer, snapshots []Snapshot, items []Item, wide, showKind, allNamespaces bool) error {
+func printTables(out, timestampOut io.Writer, snapshots []Snapshot, items []Item, wide, showKind, allNamespaces bool) error {
 	itemsBySnapshot := make(map[string][]Item, len(snapshots))
 	for _, item := range items {
 		itemsBySnapshot[item.Snapshot.ID] = append(itemsBySnapshot[item.Snapshot.ID], item)
@@ -209,6 +215,11 @@ func printTables(out io.Writer, snapshots []Snapshot, items []Item, wide, showKi
 		})
 		if err := printer.PrintObj(table, out); err != nil {
 			return fmt.Errorf("print %s table: %w", snapshot.Resource, err)
+		}
+		if timestampOut != nil {
+			if err := writeSnapshotMetadata(timestampOut, snapshot, nil); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -299,27 +310,26 @@ func fullAPIVersion(snapshot Snapshot) string {
 }
 
 func WriteSourceMetadata(out io.Writer, result *Result) error {
-	var timestamps []time.Time
-	if len(result.Details) > 0 {
-		timestamps = make([]time.Time, 0, len(result.Details))
-		for _, detail := range result.Details {
-			timestamps = append(timestamps, detail.Timestamp)
-		}
-	} else {
-		timestamps = make([]time.Time, 0, len(result.Snapshots))
-		for _, snapshot := range result.Snapshots {
-			timestamps = append(timestamps, snapshot.Time)
+	for _, snapshot := range result.Snapshots {
+		if err := writeSnapshotMetadata(out, snapshot, result.Details); err != nil {
+			return err
 		}
 	}
-	if len(timestamps) == 0 {
-		return nil
-	}
-	timestamp := timestamps[0]
-	for _, candidate := range timestamps[1:] {
-		if candidate.Before(timestamp) {
-			timestamp = candidate
+	return nil
+}
+
+func writeSnapshotMetadata(out io.Writer, snapshot Snapshot, details []Detail) error {
+	timestamp := snapshot.Time
+	detailFound := false
+	for _, detail := range details {
+		if detail.APIVersion != fullAPIVersion(snapshot) || !strings.EqualFold(detail.ObjectKind, snapshot.ObjectKind) {
+			continue
+		}
+		if !detailFound || detail.Timestamp.Before(timestamp) {
+			timestamp = detail.Timestamp
+			detailFound = true
 		}
 	}
-	_, err := fmt.Fprintf(out, "KUSTO_TIMESTAMP: %s\n", timestamp.UTC().Format(time.RFC3339Nano))
+	_, err := fmt.Fprintf(out, "KUSTO_TIMESTAMP: %s %s\n", snapshot.Resource, timestamp.UTC().Format(time.RFC3339Nano))
 	return err
 }

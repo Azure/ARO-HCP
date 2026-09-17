@@ -120,7 +120,7 @@ func (o *Options) Run(ctx context.Context, stdout, stderr io.Writer, resource, n
 	defer client.Close()
 
 	getter := kubeget.NewGetter(kubeget.NewKustoRepository(client))
-	result, err := getter.Get(ctx, kubeget.Request{
+	request := kubeget.Request{
 		Cluster:       o.Cluster,
 		Resource:      resource,
 		Name:          name,
@@ -128,14 +128,12 @@ func (o *Options) Run(ctx context.Context, stdout, stderr io.Writer, resource, n
 		AllNamespaces: o.AllNamespaces,
 		Output:        output,
 		ShowKind:      o.ShowKind,
-	}, stdout)
-	if err != nil {
-		return err
 	}
 	if !o.NoKustoTimestamp {
-		return kubeget.WriteSourceMetadata(stderr, result)
+		request.TimestampOut = stderr
 	}
-	return nil
+	_, err = getter.Get(ctx, request, stdout)
+	return err
 }
 
 func parseResourceArgs(args []string) (string, string, error) {

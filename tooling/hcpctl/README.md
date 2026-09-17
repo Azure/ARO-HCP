@@ -39,7 +39,7 @@ hcpctl get pod my-pod -n my-namespace \
 
 The server may be a short Azure Data Explorer resource name, a hostname, or a full URL. Short names are resolved with Azure Resource Graph. Supported output formats are the native table, `wide`, `name`, `json`, and `yaml`. `all` returns every resource type present in the Kusto inventory rather than kubectl's predefined `all` set.
 
-The source time is written to stderr as `KUSTO_TIMESTAMP: <timestamp>` by default. Table and `name` output use the inventory snapshot time; JSON and YAML use the full-object timestamp from `kubernetesResourceSnapshots`. Pass `--no-kusto-timestamp` (or its alias `--no-ts`) to suppress it. When output combines records with different timestamps, the footer uses the oldest one. JSON and YAML require a matching full object; the command returns an error rather than silently omitting objects without detailed snapshots.
+The source time is written to stderr as `KUSTO_TIMESTAMP: <resource-type> <timestamp>` by default. Table and `name` output use the inventory snapshot time; JSON and YAML use the full-object timestamp from `kubernetesResourceSnapshots`. For `all` table output, each resource table is immediately followed by its timestamp on stderr. Pass `--no-kusto-timestamp` (or its alias `--no-ts`) to suppress it. When detailed output combines objects of one type with different timestamps, the footer uses the oldest one. JSON and YAML require a matching full object; the command returns an error rather than silently omitting objects without detailed snapshots.
 
 ### Service Cluster Operations (`sc`)
 

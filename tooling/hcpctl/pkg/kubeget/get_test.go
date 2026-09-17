@@ -184,12 +184,12 @@ func TestWriteSourceMetadata(t *testing.T) {
 	if err := WriteSourceMetadata(&output, result); err != nil {
 		t.Fatalf("WriteSourceMetadata returned an error: %v", err)
 	}
-	if got, want := output.String(), "KUSTO_TIMESTAMP: 2026-09-17T10:00:00Z\n"; got != want {
+	if got, want := output.String(), "KUSTO_TIMESTAMP: pods 2026-09-17T10:00:00Z\n"; got != want {
 		t.Errorf("metadata = %q, want %q", got, want)
 	}
 }
 
-func TestWriteSourceMetadataUsesOldestSnapshot(t *testing.T) {
+func TestWriteSourceMetadataWritesEverySnapshot(t *testing.T) {
 	newer := podSnapshot()
 	newer.Time = time.Date(2026, 9, 17, 10, 5, 0, 0, time.UTC)
 	older := podSnapshot()
@@ -199,7 +199,9 @@ func TestWriteSourceMetadataUsesOldestSnapshot(t *testing.T) {
 	if err := WriteSourceMetadata(&output, &Result{Snapshots: []Snapshot{newer, older}}); err != nil {
 		t.Fatalf("WriteSourceMetadata returned an error: %v", err)
 	}
-	if got, want := output.String(), "KUSTO_TIMESTAMP: 2026-09-17T10:00:00Z\n"; got != want {
+	want := "KUSTO_TIMESTAMP: pods 2026-09-17T10:05:00Z\n" +
+		"KUSTO_TIMESTAMP: secrets 2026-09-17T10:00:00Z\n"
+	if got := output.String(); got != want {
 		t.Errorf("metadata = %q, want %q", got, want)
 	}
 }
@@ -210,15 +212,15 @@ func TestWriteSourceMetadataUsesOldestDetailTimestamp(t *testing.T) {
 	result := &Result{
 		Snapshots: []Snapshot{snapshot},
 		Details: []Detail{
-			{Timestamp: time.Date(2026, 9, 17, 10, 4, 0, 0, time.UTC)},
-			{Timestamp: time.Date(2026, 9, 17, 10, 3, 0, 0, time.UTC)},
+			{APIVersion: "v1", ObjectKind: "Pod", Timestamp: time.Date(2026, 9, 17, 10, 4, 0, 0, time.UTC)},
+			{APIVersion: "v1", ObjectKind: "Pod", Timestamp: time.Date(2026, 9, 17, 10, 3, 0, 0, time.UTC)},
 		},
 	}
 	var output bytes.Buffer
 	if err := WriteSourceMetadata(&output, result); err != nil {
 		t.Fatalf("WriteSourceMetadata returned an error: %v", err)
 	}
-	if got, want := output.String(), "KUSTO_TIMESTAMP: 2026-09-17T10:03:00Z\n"; got != want {
+	if got, want := output.String(), "KUSTO_TIMESTAMP: pods 2026-09-17T10:03:00Z\n"; got != want {
 		t.Errorf("metadata = %q, want %q", got, want)
 	}
 }
