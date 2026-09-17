@@ -1288,6 +1288,11 @@ clouds:
       tenantId: "64dc69e4-d083-49fc-9569-ebece1dd1408"
       automationDryRun: false
       arobit:
+        forwarder:
+          resources:
+            requests:
+              cpu: 450m
+              memory: 416Mi
         mdsd:
           enabled: false
         kusto:
@@ -1358,6 +1363,10 @@ clouds:
           enhancedMetricsEnabled: true
       # Cluster Service
       clustersService:
+        k8s:
+          resources:
+            requests:
+              cpu: 630m
         azureOperatorsManagedIdentities:
           roleSetName: dev
         azureRuntimeConfig:
@@ -1384,10 +1393,20 @@ clouds:
           issuer: Self
       # Backend
       backend:
+        k8s:
+          resources:
+            requests:
+              cpu: 700m
         azureRuntimeConfig:
           tlsCertificatesIssuer: Self
         clusterScopedIdentitiesConfig:
           roleSetName: dev
+      # Management Agent
+      mgmtAgent:
+        k8s:
+          resources:
+            requests:
+              cpu: 180m
       # Image Sync
       imageSync:
         ocMirror:
