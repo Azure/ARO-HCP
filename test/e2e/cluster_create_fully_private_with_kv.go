@@ -220,6 +220,43 @@ var _ = Describe("Customer", func() {
 				"KAS was never reachable from VM inside the VNet via DNS")
 			GinkgoLogr.Info("KAS is reachable from VM inside VNet via DNS")
 
+			By("verifying initial node count and ready status")
+			Eventually(func(g Gomega) {
+				output, runErr := framework.RunKubectlOnVM(ctx, tc, *resourceGroup.Name, vmName, kubeconfigB64, "get nodes --no-headers", 2*time.Minute)
+				g.Expect(runErr).NotTo(HaveOccurred(), "failed to get nodes via VM")
+				var nodeLines []string
+				for _, l := range strings.Split(strings.TrimSpace(output), "\n") {
+					if strings.TrimSpace(l) != "" {
+						nodeLines = append(nodeLines, l)
+					}
+				}
+				g.Expect(nodeLines).To(HaveLen(2), "expected 2 nodes, got output: %s", output)
+				for _, line := range nodeLines {
+					g.Expect(line).To(ContainSubstring(" Ready "), "node not in Ready state: %s", line)
+				}
+			}, framework.NodePoolScalingTimeout, 30*time.Second).Should(Succeed(), "all 2 nodes should be Ready")
+			GinkgoLogr.Info("Initial nodes verified as Ready")
+
+			By("verifying KAS→kubelet path by fetching logs of a DNS pod")
+			// kubectl logs proxies the request through KAS to the kubelet on the
+			// worker node — a separate Swift connection from the kubelet→KAS
+			// registration path. openshift-dns DaemonSet pods run on every worker
+			// node and are guaranteed to be present once nodes are Ready.
+			Eventually(func(g Gomega) {
+				podList, runErr := framework.RunKubectlOnVM(ctx, tc, *resourceGroup.Name, vmName, kubeconfigB64,
+					"get pods -n openshift-dns -o name --field-selector=status.phase=Running", 2*time.Minute)
+				g.Expect(runErr).NotTo(HaveOccurred(), "failed to list running pods in openshift-dns")
+				podNames := strings.Split(strings.TrimSpace(podList), "\n")
+				g.Expect(podNames[0]).NotTo(BeEmpty(), "no running pods found in openshift-dns")
+				pod := strings.TrimPrefix(podNames[0], "pod/")
+				_, logErr := framework.RunKubectlOnVM(ctx, tc, *resourceGroup.Name, vmName, kubeconfigB64,
+					fmt.Sprintf("logs -n openshift-dns %s --tail=1", pod), 2*time.Minute)
+				g.Expect(logErr).NotTo(HaveOccurred(),
+					"kubectl logs should succeed — KAS→kubelet path must be working for pod %q", pod)
+			}, 5*time.Minute, 15*time.Second).Should(Succeed(),
+				"KAS→kubelet log path never became reachable from VM inside the VNet")
+			GinkgoLogr.Info("KAS→kubelet path verified via kubectl logs on DNS pod")
+
 			By("verifying KAS is NOT reachable from outside the VNet")
 			Consistently(func(g Gomega) {
 				err := framework.TestHTTPSConnectivity(ctx, apiURL+"/healthz", 10*time.Second, true)
