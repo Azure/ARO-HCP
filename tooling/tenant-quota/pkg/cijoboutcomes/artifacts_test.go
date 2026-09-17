@@ -16,8 +16,11 @@ package cijoboutcomes
 
 import (
 	"context"
+	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -114,17 +117,30 @@ func TestFetchFinishedAtToleratesAMissingRecord(t *testing.T) {
 }
 
 func TestFetchFinishedAtReadsTheCompletionTime(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, _ = w.Write([]byte(`{"timestamp":1787696844,"passed":false,"result":"ABORTED"}`))
-	}))
-	defer server.Close()
-
-	finishedAt, err := fetchFinishedAtFrom(context.Background(), server.Client(), server.URL)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	want := time.Unix(1787696844, 0).UTC()
-	if !finishedAt.Equal(want) {
-		t.Errorf("got %v, want %v", finishedAt, want)
+	for _, bucket := range []string{"test-platform-results", "test-platform-results-public"} {
+		t.Run(bucket, func(t *testing.T) {
+			const prefix = "logs/periodic-ci-Azure-ARO-HCP-main-e2e-parallel/1234567890"
+			info, err := snapshot.ParseProwURL("https://prow.ci.openshift.org/view/gs/" + bucket + "/" + prefix)
+			if err != nil {
+				t.Fatal(err)
+			}
+			client := &http.Client{Transport: ingestionTransport(func(r *http.Request) (*http.Response, error) {
+				wantURL := "https://storage.googleapis.com/" + bucket + "/" + prefix + "/finished.json"
+				if r.Method != http.MethodGet || r.URL.String() != wantURL {
+					return nil, fmt.Errorf("unexpected completion request: %s %s", r.Method, r.URL)
+				}
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Body:       io.NopCloser(strings.NewReader(`{"timestamp":1787696844,"passed":false,"result":"ABORTED"}`)),
+				}, nil
+			})}
+			finishedAt, err := fetchFinishedAt(t.Context(), client, info.GCSBucket, info.GCSPrefix)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if want := time.Unix(1787696844, 0).UTC(); !finishedAt.Equal(want) {
+				t.Errorf("got %v, want %v", finishedAt, want)
+			}
+		})
 	}
 }
