@@ -18,7 +18,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"os"
 	"regexp"
 	"time"
 
@@ -43,11 +42,6 @@ var _ = Describe("KSM HCP Metrics", func() {
 		func(ctx context.Context) {
 			tc := framework.NewTestContext()
 
-			GinkgoLogr.Info("ARO_HCP_CONFIG_FILE", "value", os.Getenv("ARO_HCP_CONFIG_FILE"))
-			GinkgoLogr.Info("ARO_HCP_CLOUD", "value", os.Getenv("ARO_HCP_CLOUD"))
-			GinkgoLogr.Info("DEPLOY_ENV", "value", os.Getenv("DEPLOY_ENV"))
-			GinkgoLogr.Info("REGION", "value", os.Getenv("REGION"))
-			GinkgoLogr.Info("ARO_HCP_CONFIG_FILE_OVERRIDE", "value", os.Getenv("ARO_HCP_CONFIG_FILE_OVERRIDE"))
 			serviceConfig, err := config.GetServiceConfig()
 			Expect(err).NotTo(HaveOccurred(), "failed to load service config")
 
@@ -63,11 +57,23 @@ var _ = Describe("KSM HCP Metrics", func() {
 			Expect(ok).To(BeTrue(), "hcpWorkspaceName is not a string")
 			Expect(hcpWorkspaceNameStr).NotTo(BeEmpty(), "hcpWorkspaceName is empty")
 
-			subscriptionID, err := tc.SubscriptionID(ctx)
-			Expect(err).NotTo(HaveOccurred(), "failed to get subscription ID")
+			// The HCP workspace lives in the mgmt (underlay infra) subscription, not the
+			// customer subscription that tc.SubscriptionID resolves to (the one the e2e
+			// test's own HCP cluster is created in), so it must be looked up separately.
+			mgmtSubscriptionName, err := serviceConfig.GetByPath("mgmt.subscription.key")
+			Expect(err).NotTo(HaveOccurred(), "failed to get mgmt.subscription.key from config")
+			mgmtSubscriptionNameStr, ok := mgmtSubscriptionName.(string)
+			Expect(ok).To(BeTrue(), "mgmt.subscription.key is not a string")
+			Expect(mgmtSubscriptionNameStr).NotTo(BeEmpty(), "mgmt.subscription.key is empty")
 
 			cred, err := tc.AzureCredential()
 			Expect(err).NotTo(HaveOccurred(), "failed to get Azure credential")
+
+			subscriptionsClientFactory, err := tc.GetARMSubscriptionsClientFactory()
+			Expect(err).NotTo(HaveOccurred(), "failed to get ARM subscriptions client factory")
+
+			subscriptionID, err := framework.GetSubscriptionID(ctx, subscriptionsClientFactory.NewClient(), mgmtSubscriptionNameStr)
+			Expect(err).NotTo(HaveOccurred(), "failed to look up mgmt subscription ID for %q", mgmtSubscriptionNameStr)
 
 			By("Resolving HCP workspace Prometheus endpoint")
 			endpoint, err := promutil.LookupPrometheusEndpoint(ctx, cred, subscriptionID, regionRGStr, hcpWorkspaceNameStr)
