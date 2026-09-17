@@ -420,6 +420,26 @@ func TestDeploymentPreflight(t *testing.T) {
 			"platform": map[string]any{
 				"subnetId":               coreapitesting.TestSubnetResourceID,
 				"networkSecurityGroupId": coreapitesting.TestNetworkSecurityGroupResourceID,
+				"operatorsAuthentication": map[string]any{
+					"userAssignedIdentities": map[string]any{
+						"controlPlaneOperators": map[string]any{
+							"cluster-api-azure":        coreapitesting.NewTestOperatorUserAssignedIdentity("cluster-api-azure").String(),
+							"control-plane":            coreapitesting.NewTestOperatorUserAssignedIdentity("control-plane").String(),
+							"cloud-controller-manager": coreapitesting.NewTestOperatorUserAssignedIdentity("cloud-controller-manager").String(),
+							"ingress":                  coreapitesting.NewTestOperatorUserAssignedIdentity("ingress").String(),
+							"disk-csi-driver":          coreapitesting.NewTestOperatorUserAssignedIdentity("disk-csi-driver").String(),
+							"file-csi-driver":          coreapitesting.NewTestOperatorUserAssignedIdentity("file-csi-driver").String(),
+							"image-registry":           coreapitesting.NewTestOperatorUserAssignedIdentity("image-registry").String(),
+							"cloud-network-config":     coreapitesting.NewTestOperatorUserAssignedIdentity("cloud-network-config").String(),
+							"kms":                      coreapitesting.NewTestOperatorUserAssignedIdentity("kms").String(),
+						},
+						"dataPlaneOperators": map[string]any{
+							"disk-csi-driver": coreapitesting.NewTestOperatorUserAssignedIdentity("dp-disk-csi-driver").String(),
+							"file-csi-driver": coreapitesting.NewTestOperatorUserAssignedIdentity("dp-file-csi-driver").String(),
+							"image-registry":  coreapitesting.NewTestOperatorUserAssignedIdentity("dp-image-registry").String(),
+						},
+					},
+				},
 			},
 			"etcd": map[string]any{
 				"dataEncryption": map[string]any{
@@ -436,6 +456,20 @@ func TestDeploymentPreflight(t *testing.T) {
 						},
 					},
 				},
+			},
+		},
+		"identity": map[string]any{
+			"type": "UserAssigned",
+			"userAssignedIdentities": map[string]any{
+				coreapitesting.NewTestOperatorUserAssignedIdentity("cluster-api-azure").String():        map[string]any{},
+				coreapitesting.NewTestOperatorUserAssignedIdentity("control-plane").String():            map[string]any{},
+				coreapitesting.NewTestOperatorUserAssignedIdentity("cloud-controller-manager").String(): map[string]any{},
+				coreapitesting.NewTestOperatorUserAssignedIdentity("ingress").String():                  map[string]any{},
+				coreapitesting.NewTestOperatorUserAssignedIdentity("disk-csi-driver").String():          map[string]any{},
+				coreapitesting.NewTestOperatorUserAssignedIdentity("file-csi-driver").String():          map[string]any{},
+				coreapitesting.NewTestOperatorUserAssignedIdentity("image-registry").String():           map[string]any{},
+				coreapitesting.NewTestOperatorUserAssignedIdentity("cloud-network-config").String():     map[string]any{},
+				coreapitesting.NewTestOperatorUserAssignedIdentity("kms").String():                      map[string]any{},
 			},
 		},
 	}
@@ -461,8 +495,14 @@ func TestDeploymentPreflight(t *testing.T) {
 			expectStatus: coreapi.DeploymentPreflightStatusSucceeded,
 		},
 		{
-			name:         "Well-formed cluster resource returns no error",
-			resource:     wellFormedClusterResource,
+			name:     "Well-formed cluster resource returns no error",
+			resource: wellFormedClusterResource,
+			mutateResource: func(resource map[string]any) {
+				// TestAPIVersion has no kms.visibility. Leaving it in fails strict unmarshal, and
+				// the handler then skips the resource instead of validating it.
+				kms := resource["properties"].(map[string]any)["etcd"].(map[string]any)["dataEncryption"].(map[string]any)["customerManaged"].(map[string]any)["kms"].(map[string]any)
+				delete(kms, "visibility")
+			},
 			expectStatus: coreapi.DeploymentPreflightStatusSucceeded,
 		},
 		{
