@@ -33,3 +33,23 @@
         "message": "Invalid value: \"/invalid7\": invalid resource ID: /invalid7",
         "target": "properties.platform.operatorsAuthentication.userAssignedIdentities.serviceManagedIdentity"
       }
+      {
+        "code": "InvalidRequestContent",
+        "message": "Invalid value: \"serviceManagedIdentity11\": unrecognized operator name; supported values: cloud-controller-manager, cloud-network-config, cluster-api-azure, control-plane, disk-csi-driver, file-csi-driver, image-registry, ingress, kms",
+        "target": "properties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[serviceManagedIdentity11]"
+      }
+      {
+        "code": "InvalidRequestContent",
+        "message": "Invalid value: \"serviceManagedIdentity22\": unrecognized operator name; supported values: cloud-controller-manager, cloud-network-config, cluster-api-azure, control-plane, disk-csi-driver, file-csi-driver, image-registry, ingress, kms",
+        "target": "properties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[serviceManagedIdentity22]"
+      }
+      {
+        "code": "InvalidRequestContent",
+        "message": "Invalid value: \"serviceManagedIdentity33\": unrecognized operator name; supported values: disk-csi-driver, file-csi-driver, image-registry",
+        "target": "properties.platform.operatorsAuthentication.userAssignedIdentities.dataPlaneOperators[serviceManagedIdentity33]"
+      }
+      {
+        "code": "InvalidRequestContent",
+        "message": "Invalid value: \"serviceManagedIdentity43\": unrecognized operator name; supported values: disk-csi-driver, file-csi-driver, image-registry",
+        "target": "properties.platform.operatorsAuthentication.userAssignedIdentities.dataPlaneOperators[serviceManagedIdentity43]"
+      }
