@@ -737,8 +737,12 @@ func (f *Frontend) DeleteCluster(writer http.ResponseWriter, request *http.Reque
 		return utils.TrackError(err)
 	}
 
-	if err := checkForProvisioningStateConflict(ctx, f.resourcesDBClient, cosmosstorageutils.OperationRequestDelete, cluster.ID, cluster.ServiceProviderProperties.ProvisioningState); err != nil {
-		return utils.TrackError(err)
+	// TODO: TEMPORARY - Skip conflict check for clusters stuck in legacy deletion.
+	// Remove once all legacy deletion clusters are cleaned up.
+	if !allowRepeatedClusterDeletion(cluster.ServiceProviderProperties.ProvisioningState, cluster.ServiceProviderProperties.UsesNewClusterDeletionApproach) {
+		if err := checkForProvisioningStateConflict(ctx, f.resourcesDBClient, cosmosstorageutils.OperationRequestDelete, cluster.ID, cluster.ServiceProviderProperties.ProvisioningState); err != nil {
+			return utils.TrackError(err)
+		}
 	}
 
 	logger.Info(fmt.Sprintf("deleting resource %s", cluster.ID))

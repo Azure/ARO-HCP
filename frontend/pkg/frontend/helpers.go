@@ -48,6 +48,18 @@ func addOperationResponseHeaders(writer http.ResponseWriter, request *http.Reque
 	}
 }
 
+// TODO: TEMPORARY - allowRepeatedClusterDeletion is temporary and should be removed
+// once all clusters stuck in legacy deletion have been cleaned up.
+// Returns true if the cluster is stuck in Deleting state with legacy deletion approach
+// and should be allowed to receive another DELETE request.
+func allowRepeatedClusterDeletion(provisioningState coreapi.ProvisioningState, usesNewClusterDeletionApproach bool) bool {
+	// Allow re-submitting DELETE for clusters stuck in legacy deletion approach.
+	// Since the first DELETE sets UsesNewClusterDeletionApproach to true, only pre-existing
+	// clusters that were deleted before the new approach can have this field as false
+	// while in Deleting state.
+	return provisioningState == coreapi.ProvisioningStateDeleting && !usesNewClusterDeletionApproach
+}
+
 // checkForProvisioningStateConflict returns a "409 Conflict" error response if the
 // provisioning state of the resource is non-terminal, or any of its parent resources
 // within the same provider namespace are in a "Provisioning" or "Deleting" state.
