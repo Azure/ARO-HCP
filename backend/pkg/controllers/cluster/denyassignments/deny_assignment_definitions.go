@@ -34,10 +34,10 @@ const (
 	operatorCloudNetworkConfig     = "cloud-network-config"
 
 	// denyAssignmentSuffixComplete is intentionally the SAME suffix Cluster Service
-	// uses for its consolidated deny assignment (see aro-hcp-clusters-service
-	// pkg/azure/denyassignmentcreator/deny_assignment_creator.go). The suffix feeds
-	// the shared deterministic UUID (generateDenyAssignmentUUID), so it must stay
-	// byte-for-byte identical to CS.
+	// uses for its consolidated deny assignment (see
+	// https://github.com/openshift-online/aro-hcp-clusters-service/blob/730252528ea634920f5ed029d8b7f95347569a83/pkg/azure/denyassignmentcreator/deny_assignment_creator.go#L62).
+	// The suffix feeds the shared deterministic UUID (generateDenyAssignmentUUID), so
+	// it must stay byte-for-byte identical to CS.
 	denyAssignmentSuffixComplete = "complete-deny-assignment"
 
 	denyAssignmentNamespaceUUID   = "f75040b8-d8aa-4311-bda6-ba8af06db258"
