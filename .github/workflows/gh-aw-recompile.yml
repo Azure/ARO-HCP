@@ -18,6 +18,8 @@ on:
   schedule:
   - cron: "0 6 * * 1"
   workflow_dispatch:
+# Job default GITHUB_TOKEN stays read-only. The write side (branch push + PR)
+# uses the scoped aro-hcp-robot App token minted below, never GITHUB_TOKEN.
 permissions:
   contents: read
 concurrency:
@@ -33,15 +35,61 @@ jobs:
       with:
         client-id: ${{ secrets.DEPENDABOT_APP_CLIENT_ID }}
         private-key: ${{ secrets.DEPENDABOT_APP_PRIVATE_KEY }}
+        # Only what `gh aw upgrade --create-pull-request` needs: push a branch
+        # and open the PR. Without these inputs the token inherits every App
+        # permission; keep it minimal.
+        permission-contents: write
+        permission-pull-requests: write
     - name: Checkout
       uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       with:
-        token: ${{ steps.app-token.outputs.token }}
+        # Do not persist the App token in .git/config. gh-aw is installed and run
+        # in later steps; keeping the write token out of the repo config means it
+        # is never readable by the extension's git plumbing. Push auth is wired up
+        # explicitly via `gh auth setup-git` below.
+        persist-credentials: false
+    - name: Configure git and gh auth for the App identity
+      env:
+        GH_TOKEN: ${{ steps.app-token.outputs.token }}
+      run: |
+        set -euo pipefail
+        # gh aw upgrade runs `git commit` locally, which fails with
+        # "Author identity unknown" on a clean runner. Attribute the commit to
+        # the aro-hcp-robot App bot so it matches the PR author.
+        app_slug=aro-hcp-robot
+        bot_login="${app_slug}[bot]"
+        bot_id=$(gh api "/users/${bot_login}" --jq '.id')
+        git config --global user.name "${bot_login}"
+        git config --global user.email "${bot_id}+${bot_login}@users.noreply.github.com"
+        # Let git push over https authenticate with the scoped App token without
+        # persisting it in the checked-out repo's .git/config.
+        gh auth setup-git
     - name: Install gh-aw extension
       env:
         GH_TOKEN: ${{ steps.app-token.outputs.token }}
+      # Installs the latest published gh-aw release (an immutable tagged
+      # artifact), not the moving default branch. This is the same tool we
+      # already trust to compile the security-critical lock files.
       run: gh extension install github/gh-aw
+    - name: Skip if an upgrade PR is already open
+      id: guard
+      env:
+        GH_TOKEN: ${{ steps.app-token.outputs.token }}
+      run: |
+        set -euo pipefail
+        # gh aw upgrade opens a new randomly-suffixed upgrade-agentic-workflows-*
+        # branch every run. If a previous PR is still awaiting review, opening a
+        # duplicate is just noise, so skip this run.
+        open=$(gh pr list --state open --json headRefName \
+          --jq '[.[] | select(.headRefName | startswith("upgrade-agentic-workflows"))] | length')
+        if [ "${open}" -gt 0 ]; then
+          echo "An upgrade PR is already open; skipping."
+          echo "skip=true" >> "${GITHUB_OUTPUT}"
+        else
+          echo "skip=false" >> "${GITHUB_OUTPUT}"
+        fi
     - name: Upgrade and recompile, open a PR if anything changed
+      if: steps.guard.outputs.skip != 'true'
       env:
         GH_TOKEN: ${{ steps.app-token.outputs.token }}
       run: gh aw upgrade --create-pull-request --yes
