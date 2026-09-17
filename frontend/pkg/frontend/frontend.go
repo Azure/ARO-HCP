@@ -43,7 +43,6 @@ import (
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 
-	"github.com/Azure/ARO-HCP/frontend/pkg/metrics"
 	"github.com/Azure/ARO-HCP/internal/admission"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
@@ -70,7 +69,6 @@ type Frontend struct {
 	metricsServer        http.Server
 	resourcesDBClient    corecosmosstorage.ResourcesDBClient
 	auditClient          audit.Client
-	collector            *metrics.SubscriptionCollector
 	healthGauge          prometheus.Gauge
 	// this is the azure location for this instance of the frontend
 	azureLocation string
@@ -119,7 +117,6 @@ func NewFrontend(
 		},
 		auditClient:       auditClient,
 		resourcesDBClient: resourcesDBClient,
-		collector:         metrics.NewSubscriptionCollector(registerer, resourcesDBClient, azureLocation),
 		healthGauge: promauto.With(registerer).NewGauge(
 			prometheus.GaugeOpts{
 				Name: healthGaugeName,
@@ -165,7 +162,7 @@ func (f *Frontend) Run(ctx context.Context) error {
 
 	errCh := make(chan error, 2)
 	wg := sync.WaitGroup{}
-	wg.Add(3)
+	wg.Add(2)
 	go func() {
 		defer k8sutilruntime.HandleCrash()
 		defer wg.Done()
@@ -175,11 +172,6 @@ func (f *Frontend) Run(ctx context.Context) error {
 		defer k8sutilruntime.HandleCrash()
 		defer wg.Done()
 		errCh <- f.metricsServer.Serve(f.metricsListener)
-	}()
-	go func() {
-		defer k8sutilruntime.HandleCrash()
-		defer wg.Done()
-		f.collector.Run(ctx)
 	}()
 
 	<-ctx.Done()

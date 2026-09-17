@@ -215,7 +215,7 @@ func TestSubscriptionsGET(t *testing.T) {
 			assert.Equal(t, test.expectedStatusCode, rs.StatusCode)
 
 			lintMetrics(t, reg)
-			assertHTTPMetrics(t, reg, test.subDoc)
+			assertHTTPMetrics(t, reg)
 		})
 	}
 }
@@ -372,7 +372,7 @@ func TestSubscriptionsPUT(t *testing.T) {
 
 			lintMetrics(t, reg)
 			if test.expectedStatusCode != http.StatusBadRequest {
-				assertHTTPMetrics(t, reg, test.subDoc)
+				assertHTTPMetrics(t, reg)
 			}
 		})
 	}
@@ -918,7 +918,7 @@ func lintMetrics(t *testing.T, r prometheus.Gatherer) {
 }
 
 // assertHTTPMetrics ensures that HTTP metrics have been recorded.
-func assertHTTPMetrics(t *testing.T, r prometheus.Gatherer, subscription *coreapi.Subscription) {
+func assertHTTPMetrics(t *testing.T, r prometheus.Gatherer) {
 	t.Helper()
 
 	metrics, err := r.Gather()
@@ -936,7 +936,6 @@ func assertHTTPMetrics(t *testing.T, r prometheus.Gatherer, subscription *coreap
 			var (
 				route      string
 				apiVersion string
-				state      string
 				userAgent  string
 			)
 			for _, l := range m.GetLabel() {
@@ -945,8 +944,6 @@ func assertHTTPMetrics(t *testing.T, r prometheus.Gatherer, subscription *coreap
 					route = l.GetValue()
 				case "api_version":
 					apiVersion = l.GetValue()
-				case "state":
-					state = l.GetValue()
 				case "user_agent":
 					userAgent = l.GetValue()
 				}
@@ -958,15 +955,6 @@ func assertHTTPMetrics(t *testing.T, r prometheus.Gatherer, subscription *coreap
 			assert.NotEmpty(t, apiVersion)
 			assert.NotEqual(t, apiVersion, unknownVersionLabel)
 			assert.Equal(t, userAgentOther, userAgent)
-
-			if mf.GetName() == requestCounterName {
-				assert.NotEmpty(t, state)
-				if subscription != nil {
-					assert.Equal(t, string(subscription.State), state)
-				} else {
-					assert.Equal(t, "Unknown", state)
-				}
-			}
 		}
 	}
 
@@ -975,24 +963,16 @@ func assertHTTPMetrics(t *testing.T, r prometheus.Gatherer, subscription *coreap
 }
 
 // newHTTPServer returns a test HTTP server. The mock DB client will be
-// bootstrapped with the provided subscription documents for the
-// subscription collector.
+// bootstrapped with the provided subscription documents.
 func newHTTPServer(ctx context.Context, f *Frontend, mockResourcesDBClient *corecosmosstoragetesting.MockResourcesDBClient, subs map[string]*coreapi.Subscription) *httptest.Server {
 	ts := httptest.NewUnstartedServer(f.server.Handler)
 	ts.Config.BaseContext = f.server.BaseContext
 	ts.Start()
 
-	// Pre-populate subscriptions in the mock database for the collector
+	// Pre-populate subscriptions in the mock database
 	for _, sub := range subs {
 		_, _ = mockResourcesDBClient.Subscriptions().Create(ctx, sub, nil)
 	}
-
-	// The initialization of the subscriptions collector is normally part of
-	// the Run() method but the method doesn't get called in the tests so it's
-	// executed here.
-	localCtx, localCancel := context.WithCancel(ctx)
-	localCancel()
-	f.collector.Run(localCtx)
 
 	return ts
 }
