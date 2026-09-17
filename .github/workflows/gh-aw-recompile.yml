@@ -35,11 +35,14 @@ jobs:
       with:
         client-id: ${{ secrets.DEPENDABOT_APP_CLIENT_ID }}
         private-key: ${{ secrets.DEPENDABOT_APP_PRIVATE_KEY }}
-        # Only what `gh aw upgrade --create-pull-request` needs: push a branch
-        # and open the PR. Without these inputs the token inherits every App
-        # permission; keep it minimal.
+        # Only what `gh aw upgrade --create-pull-request` needs: push a branch,
+        # update the compiled *.lock.yml files (which live under
+        # .github/workflows, so a GitHub App push requires the separate
+        # `workflows` permission), and open the PR. Without these inputs the
+        # token inherits every App permission; keep it minimal.
         permission-contents: write
         permission-pull-requests: write
+        permission-workflows: write
     - name: Checkout
       uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       with:
@@ -78,10 +81,12 @@ jobs:
       run: |
         set -euo pipefail
         # gh aw upgrade opens a new randomly-suffixed upgrade-agentic-workflows-*
-        # branch every run. If a previous PR is still awaiting review, opening a
-        # duplicate is just noise, so skip this run.
-        open=$(gh pr list --state open --json headRefName \
-          --jq '[.[] | select(.headRefName | startswith("upgrade-agentic-workflows"))] | length')
+        # branch every run, authored by the aro-hcp-robot App. If a previous PR
+        # is still awaiting review, opening a duplicate is just noise, so skip
+        # this run. Filter by both the bot author and the branch prefix so an
+        # unrelated contributor's branch cannot make every run skip forever.
+        open=$(gh pr list --state open --json headRefName,author \
+          --jq '[.[] | select(.author.login == "aro-hcp-robot[bot]" and (.headRefName | startswith("upgrade-agentic-workflows")))] | length')
         if [ "${open}" -gt 0 ]; then
           echo "An upgrade PR is already open; skipping."
           echo "skip=true" >> "${GITHUB_OUTPUT}"
