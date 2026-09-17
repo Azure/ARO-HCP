@@ -85,6 +85,17 @@ func TestRequiredOperatorIdentitiesContract(t *testing.T) {
 			dataPlaneOperatorNames(config.AlwaysRequiredDataPlaneOperators(&minSupportedVersion)),
 			dataPlaneOperatorNames(public.AlwaysRequiredDataPlaneOperators(&minSupportedVersion)))
 
+		// Name validation rejects anything outside the recognized set, so an operator present in
+		// only one config set would be valid at runtime and rejected here, or the reverse.
+		require.ElementsMatch(t,
+			controlPlaneOperatorNames(config.ControlPlaneOperatorsIdentities),
+			controlPlaneOperatorNames(public.ControlPlaneOperatorsIdentities),
+			"the recognized control plane operators differ between config sets")
+		require.ElementsMatch(t,
+			dataPlaneOperatorNames(config.DataPlaneOperatorsIdentities),
+			dataPlaneOperatorNames(public.DataPlaneOperatorsIdentities),
+			"the recognized data plane operators differ between config sets")
+
 		for operatorName, devOperator := range config.ControlPlaneOperatorsIdentities {
 			publicOperator, ok := public.ControlPlaneOperatorsIdentities[operatorName]
 			require.True(t, ok, "control plane operator %q is missing from the public config set", operatorName)
@@ -94,6 +105,17 @@ func TestRequiredOperatorIdentitiesContract(t *testing.T) {
 				"minimum version for control plane operator %q differs between config sets", operatorName)
 			require.Equal(t, devOperator.MaxVersionInclusive, publicOperator.MaxVersionInclusive,
 				"maximum version for control plane operator %q differs between config sets", operatorName)
+		}
+
+		for operatorName, devOperator := range config.DataPlaneOperatorsIdentities {
+			publicOperator, ok := public.DataPlaneOperatorsIdentities[operatorName]
+			require.True(t, ok, "data plane operator %q is missing from the public config set", operatorName)
+			require.Equal(t, devOperator.Requirement.Type, publicOperator.Requirement.Type,
+				"requirement type for data plane operator %q differs between config sets", operatorName)
+			require.Equal(t, devOperator.MinVersionInclusive, publicOperator.MinVersionInclusive,
+				"minimum version for data plane operator %q differs between config sets", operatorName)
+			require.Equal(t, devOperator.MaxVersionInclusive, publicOperator.MaxVersionInclusive,
+				"maximum version for data plane operator %q differs between config sets", operatorName)
 		}
 	})
 }
