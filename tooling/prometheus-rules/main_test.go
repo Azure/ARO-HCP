@@ -15,6 +15,7 @@
 package main
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"strings"
@@ -50,6 +51,24 @@ func copyFile(fileToCopy, targetDir string) error {
 	return os.WriteFile(filepath.Join(targetDir, filepath.Base(fileToCopy)), input, 0644)
 }
 
+func runGenerator(configFile, promtoolPath string, skipTests bool) error {
+	opts := &prometheusrules.RawOptions{
+		ConfigFile:                configFile,
+		PromtoolPath:              promtoolPath,
+		SkipTests:                 skipTests,
+		PreserveAggregationLabels: "region",
+	}
+	validated, err := opts.Validate()
+	if err != nil {
+		return err
+	}
+	completed, err := validated.Complete()
+	if err != nil {
+		return err
+	}
+	return completed.Run()
+}
+
 func TestPrometheusRules(t *testing.T) {
 
 	testCases := []struct {
@@ -72,7 +91,7 @@ func TestPrometheusRules(t *testing.T) {
 			} {
 				require.NoError(t, copyFile(testfile, filepath.Join(tmpDir, "alerts")))
 			}
-			err := prometheusrules.GenerateFromConfig(filepath.Join(tmpDir, "config.yaml"), false, "promtool", []string{"region"})
+			err := runGenerator(filepath.Join(tmpDir, "config.yaml"), "promtool", false)
 			require.NoError(t, err)
 
 			generatedFile, err := os.ReadFile(filepath.Join(tmpDir, "zzz_generated_AlertingRules.bicep"))
@@ -100,7 +119,7 @@ func TestPrometheusRulesMissingTest(t *testing.T) {
 	} {
 		require.NoError(t, copyFile(testfile, filepath.Join(tmpDir, "alerts")))
 	}
-	err := prometheusrules.GenerateFromConfig(filepath.Join(tmpDir, "config.yaml"), false, "promtool", []string{"region"})
+	err := runGenerator(filepath.Join(tmpDir, "config.yaml"), "promtool", false)
 	require.ErrorContains(t, err, "missing testfile")
 }
 
@@ -108,7 +127,6 @@ func TestPrometheusRulesMixedRulesNotAllowed(t *testing.T) {
 	tmpDir := t.TempDir()
 	require.NoError(t, setupTestFiles(tmpDir, ""))
 
-	// Create a rule file with mixed alert and recording rules in the same group
 	mixedRulesContent := `apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
@@ -126,7 +144,6 @@ spec:
       expr: rate(test_metric[5m])
 `
 
-	// Create a corresponding test file (required by the generator)
 	testFileContent := `rule_files:
 - mixed-prometheusRule.yaml
 tests: []
@@ -138,17 +155,98 @@ tests: []
 	err = os.WriteFile(filepath.Join(tmpDir, "alerts", "mixed-prometheusRule_test.yaml"), []byte(testFileContent), 0644)
 	require.NoError(t, err)
 
-	// Run the generator - it should handle mixed rules based on file type
-	// Since we're using AlertingRules filename, it should process only alerts
-	err = prometheusrules.GenerateFromConfig(filepath.Join(tmpDir, "config.yaml"), false, "promtool", []string{"region"})
+	err = runGenerator(filepath.Join(tmpDir, "config.yaml"), "promtool", false)
 	require.NoError(t, err)
 
-	// Verify the generated file exists and contains only alert rules
 	generatedFile, err := os.ReadFile(filepath.Join(tmpDir, "zzz_generated_AlertingRules.bicep"))
 	require.NoError(t, err)
 
-	// The generated content should contain alert-related configuration
 	require.Contains(t, string(generatedFile), "alert: 'TestAlert'")
-	// Recording rules should be ignored when generating AlertingRules file
 	require.NotContains(t, string(generatedFile), "record: 'test:metric:rate5m'")
+}
+
+// executeCommand builds the real cobra command and runs it with the given
+// arguments, returning anything the command wrote to its output stream. This
+// exercises the flag binding and RunE dispatch that main() relies on, which
+// calling prometheusrules.RawOptions directly would bypass.
+func executeCommand(t *testing.T, args ...string) (string, error) {
+	t.Helper()
+
+	cmd, err := newCommand()
+	require.NoError(t, err)
+
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs(args)
+
+	execErr := cmd.Execute()
+	return out.String(), execErr
+}
+
+func TestCommandGenerates(t *testing.T) {
+	tmpDir := t.TempDir()
+	require.NoError(t, setupTestFiles(tmpDir, ""))
+
+	for _, testfile := range []string{
+		"./testdata/alerts/testing-prometheusRule_test.yaml",
+		"./testdata/alerts/testing-prometheusRule.yaml",
+	} {
+		require.NoError(t, copyFile(testfile, filepath.Join(tmpDir, "alerts")))
+	}
+
+	_, err := executeCommand(t, "--config-file", filepath.Join(tmpDir, "config.yaml"), "--skip-tests")
+	require.NoError(t, err)
+
+	generated, err := os.ReadFile(filepath.Join(tmpDir, "zzz_generated_AlertingRules.bicep"))
+	require.NoError(t, err)
+	require.Contains(t, string(generated), "alert:")
+}
+
+func TestCommandCorrelationMap(t *testing.T) {
+	tmpDir := t.TempDir()
+	require.NoError(t, setupTestFiles(tmpDir, ""))
+
+	for _, testfile := range []string{
+		"./testdata/alerts/testing-prometheusRule_test.yaml",
+		"./testdata/alerts/testing-prometheusRule.yaml",
+	} {
+		require.NoError(t, copyFile(testfile, filepath.Join(tmpDir, "alerts")))
+	}
+
+	configPath := filepath.Join(tmpDir, "config.yaml")
+
+	// The Makefile drives correlation-map mode with positional args rather than
+	// --config-file, so both spellings need to keep working.
+	t.Run("positional config", func(t *testing.T) {
+		out, err := executeCommand(t, "--correlation-map", configPath)
+		require.NoError(t, err)
+		require.Contains(t, out, "alert: InstancesDownV1/")
+		require.Contains(t, out, "correlationId:")
+	})
+
+	t.Run("config-file flag", func(t *testing.T) {
+		out, err := executeCommand(t, "--correlation-map", "--config-file", configPath)
+		require.NoError(t, err)
+		require.Contains(t, out, "alert: InstancesDownV1/")
+		require.Contains(t, out, "correlationId:")
+	})
+
+	t.Run("no config at all", func(t *testing.T) {
+		_, err := executeCommand(t, "--correlation-map")
+		require.ErrorContains(t, err, "at least one config file must be provided")
+	})
+}
+
+func TestCommandRejectsUnexpectedArgs(t *testing.T) {
+	tmpDir := t.TempDir()
+	require.NoError(t, setupTestFiles(tmpDir, ""))
+
+	_, err := executeCommand(t, "--config-file", filepath.Join(tmpDir, "config.yaml"), "--skip-tests", "stray-arg")
+	require.ErrorContains(t, err, "unexpected positional arguments")
+}
+
+func TestCommandRequiresConfigFile(t *testing.T) {
+	_, err := executeCommand(t, "--skip-tests")
+	require.ErrorContains(t, err, "--config-file is required")
 }
