@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -165,6 +166,14 @@ func (c *clusterResourcesController) deleteAllOwnedApplyDesires(ctx context.Cont
 		}
 	}
 
+	// All ApplyDesire teardown steps are complete. Sweep for orphaned ReadDesires:
+	// if a ReadDesire deletion failed after its ApplyDesire was purged, the
+	// step loop above cannot retry (the ApplyDesire is gone from owned). This
+	// sweep catches those orphans and deletes them now.
+	if err := c.sweepOrphanedReadDesires(ctx, key, kubeApplierDBClient); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -211,17 +220,21 @@ func ensureMatchingApplyDesiresRemoved(
 		// management cluster, delete the corresponding ReadDesire. It was only
 		// needed for observability during deletion; now that deletion is complete,
 		// it's no longer useful.
+		//
+		// ReadDesire deletion errors are fatal: if we log and continue, the step
+		// reports done=true while the ReadDesire is still live. The cleanup gate
+		// preserves ClusterResources-owned ReadDesires and ServiceProviderCluster
+		// deletion waits for every desire, so a transient Cosmos failure here would
+		// permanently block cluster deletion. Return the error so the step stays
+		// incomplete and retries on the next reconcile.
 		readDesireCRUD, readErr := readDesireCRUDFor(kubeApplierDBClient, desire)
 		if readErr != nil {
-			// Log but don't fail the step - ReadDesire cleanup is best-effort
-			logger.Error(readErr, "failed to get ReadDesire CRUD", "desireName", desireName)
-		} else {
-			if delErr := readDesireCRUD.Delete(ctx, desireName); delErr != nil && !cosmosstorageutils.IsNotFoundError(delErr) {
-				logger.Error(delErr, "failed to delete ReadDesire", "desireName", desireName)
-			} else {
-				logger.Info("deleted ReadDesire", "step", stepName, "desireName", desireName)
-			}
+			return false, readErr
 		}
+		if delErr := readDesireCRUD.Delete(ctx, desireName); delErr != nil && !cosmosstorageutils.IsNotFoundError(delErr) {
+			return false, utils.TrackError(fmt.Errorf("delete ReadDesire %s: %w", desireName, delErr))
+		}
+		logger.Info("deleted ReadDesire", "step", stepName, "desireName", desireName)
 	}
 
 	// Report errors ahead of the wait list: a step that could not be fully
@@ -326,4 +339,66 @@ func readDesireCRUDFor(
 	}
 
 	return crud, nil
+}
+
+// sweepOrphanedReadDesires deletes any ReadDesires owned by this controller
+// that no longer have a corresponding ApplyDesire. This catches orphans that
+// arose from a transient ReadDesire deletion failure after the ApplyDesire was
+// already purged (the normal paired cleanup in ensureMatchingApplyDesiresRemoved
+// cannot retry once the ApplyDesire is gone).
+func (c *clusterResourcesController) sweepOrphanedReadDesires(
+	ctx context.Context,
+	key controllerutils.HCPClusterKey,
+	kubeApplierDBClient kubeappliercosmosstorage.KubeApplierDBClient,
+) error {
+	logger := utils.LoggerFromContext(ctx)
+
+	// Build the set of ApplyDesire names we still own
+	applyDesires, err := c.applyDesireLister.ListForCluster(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("list ApplyDesires for orphan ReadDesire sweep: %w", err))
+	}
+	ownedApplyDesireNames := make(map[string]bool)
+	for _, desire := range applyDesires {
+		if desire.Tags == nil || desire.Tags[kubeapplierapi.TagControllerName] != ClusterResourcesControllerName {
+			continue
+		}
+		ownedApplyDesireNames[strings.ToLower(desire.ResourceID.Name)] = true
+	}
+
+	// List ReadDesires and delete any owned by this controller that have no
+	// corresponding ApplyDesire
+	readDesires, err := c.readDesireLister.ListForCluster(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("list ReadDesires for orphan sweep: %w", err))
+	}
+
+	for _, readDesire := range readDesires {
+		if readDesire.Tags == nil || readDesire.Tags[kubeapplierapi.TagControllerName] != ClusterResourcesControllerName {
+			continue
+		}
+
+		desireName := strings.ToLower(readDesire.ResourceID.Name)
+		if ownedApplyDesireNames[desireName] {
+			// ApplyDesire still exists; this ReadDesire is not orphaned
+			continue
+		}
+
+		// Orphaned ReadDesire: ApplyDesire is gone but ReadDesire remains
+		scope, err := kubeappliercosmosstorage.ParseDesireScope(readDesire.ResourceID.Parent)
+		if err != nil {
+			return utils.TrackError(fmt.Errorf("parse scope for orphaned ReadDesire %s: %w", desireName, err))
+		}
+		crud, err := kubeApplierDBClient.ReadDesiresFor(scope)
+		if err != nil {
+			return utils.TrackError(fmt.Errorf("get CRUD for orphaned ReadDesire %s: %w", desireName, err))
+		}
+
+		if err := crud.Delete(ctx, desireName); err != nil && !cosmosstorageutils.IsNotFoundError(err) {
+			return utils.TrackError(fmt.Errorf("delete orphaned ReadDesire %s: %w", desireName, err))
+		}
+		logger.Info("swept orphaned ReadDesire", "desireName", desireName)
+	}
+
+	return nil
 }

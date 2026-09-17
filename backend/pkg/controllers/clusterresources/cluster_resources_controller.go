@@ -282,6 +282,7 @@ func (c *clusterResourcesController) processClusterResources(ctx context.Context
 
 		if err := kubeapplierhelpers.EnsureApplyDesire(ctx, crud, c.applyDesireLister, desire); err != nil {
 			errs = append(errs, err)
+			continue
 		}
 
 		// Ensure ReadDesire exists for resources that go through
@@ -636,8 +637,10 @@ func (c *clusterResourcesController) deleteStaleApplyDesires(
 			if readErr != nil {
 				return utils.TrackError(fmt.Errorf("get ReadDesire CRUD for stale cleanup of %s: %w", desire.ResourceID.Name, readErr))
 			}
-			if delErr := readDesireCRUD.Delete(ctx, desire.ResourceID.Name); delErr != nil && !cosmosstorageutils.IsNotFoundError(delErr) {
-				return utils.TrackError(fmt.Errorf("delete stale ReadDesire %s: %w", desire.ResourceID.Name, delErr))
+			if delErr := readDesireCRUD.Delete(ctx, desire.ResourceID.Name); delErr != nil &&
+				!cosmosstorageutils.IsNotFoundError(delErr) {
+				return utils.TrackError(
+					fmt.Errorf("delete stale ReadDesire %s: %w", desire.ResourceID.Name, delErr))
 			}
 			logger.Info("purged stale ReadDesire", "desireName", desire.ResourceID.Name)
 		} else {
