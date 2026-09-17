@@ -8235,7 +8235,7 @@ spec:
         resources:
           requests:
             memory: '150Mi'
-            cpu: '50m'
+            cpu: '500m'
 ---
 # Source: clusters-service/templates/postgres-breakglass.deployment.yaml
 apiVersion: apps/v1
