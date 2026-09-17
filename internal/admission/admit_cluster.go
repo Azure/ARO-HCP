@@ -348,7 +348,91 @@ func AdmitCluster(ctx context.Context, admissionContext *ClusterAdmissionContext
 	// CustomerProperties ClusterCustomerProperties `json:"customerProperties,omitempty"`
 	errs = append(errs, admitClusterCustomerProperties(ctx, admissionContext, op, field.NewPath("properties"), &newObj.CustomerProperties, safe.Field(oldObj, validation.ToClusterCustomerProperties))...)
 
+	// ServiceProviderProperties ClusterServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
+	errs = append(errs, admitClusterServiceProviderProperties(ctx, admissionContext, op, field.NewPath("serviceProviderProperties"), &newObj.ServiceProviderProperties, safe.Field(oldObj, validation.ToClusterServiceProviderProperties))...)
+
 	return errs
+}
+
+// admitClusterServiceProviderProperties drills down into the service-provider
+// half of the cluster, mirroring mutateClusterServiceProviderProperties.
+func admitClusterServiceProviderProperties(ctx context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.ClusterServiceProviderProperties) field.ErrorList {
+	errs := field.ErrorList{}
+
+	errs = append(errs, admitClusterExperimentalFeatures(ctx, admissionContext, op, fldPath.Child("experimentalFeatures"), &newObj.ExperimentalFeatures, safe.Field(oldObj, toSPExperimentalFeatures))...)
+
+	return errs
+}
+
+// admitClusterExperimentalFeatures admits the experimental-feature state that
+// mutateClusterExperimentalFeatures projected from the cluster's ARM tags.
+//
+// No explicit AFEC gate is needed here: without the feature registered
+// mutateClusterExperimentalFeatures zeroes ExperimentalFeatures outright, so
+// every field this sees is already nil and each check returns early.
+func admitClusterExperimentalFeatures(_ context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, _ *field.Path, newObj, oldObj *coreapi.ExperimentalFeatures) field.ErrorList {
+	errs := field.ErrorList{}
+
+	errs = append(errs, admitClusterControlPlaneExactVersion(admissionContext, op, newObj, oldObj)...)
+
+	return errs
+}
+
+// admitClusterControlPlaneExactVersion rejects an exact-version pin below
+// ServiceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion — the version the
+// desired-version controller resolved and the trigger-upgrade controller acts on.
+//
+// Static validation compares a new pin against the old pin, so it misses the first
+// pin on a previously unpinned cluster; it also cannot reach DesiredVersion, which
+// lives on a separate Cosmos document the frontend prefetches into the admission
+// context (see internal/admission/CLAUDE.md).
+//
+// Racy by construction: DesiredVersion is read before the write, so a graph advance
+// in between still lowers it — the controller's pin branch has no guard of its own.
+// Errors report against the tag, the only thing the customer can change.
+func admitClusterControlPlaneExactVersion(admissionContext *ClusterAdmissionContext, op operation.Operation, newObj, oldObj *coreapi.ExperimentalFeatures) field.ErrorList {
+	// On CREATE (and preflight) nothing has been desired yet, and the frontend
+	// does not prefetch a ServiceProviderCluster at all.
+	if op.Type != operation.Update {
+		return nil
+	}
+
+	newExact := newObj.ControlPlaneExactVersion
+	if newExact == nil {
+		// Dropping the pin is not a decrease: the pin simply stops applying and
+		// the controllers fall back to resolving from version.id.
+		return nil
+	}
+
+	// An unchanged pin must not be re-litigated. A cluster pinned before this
+	// check existed may already sit below its stored desired version, and
+	// rejecting it here would fail every unrelated update to that cluster —
+	// the same wedge this whole change set exists to remove. Lowering an
+	// existing pin is caught by static validation instead.
+	if oldObj != nil && oldObj.ControlPlaneExactVersion != nil && newExact.EQ(*oldObj.ControlPlaneExactVersion) {
+		return nil
+	}
+
+	// Nothing to compare against. A genuinely missing prefetch is already
+	// surfaced as an InternalError by admitClusterVersionProfile, so we do not
+	// duplicate that here.
+	if admissionContext.ServiceProviderCluster == nil {
+		return nil
+	}
+	desiredVersion := admissionContext.ServiceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion
+	if desiredVersion == nil {
+		return nil
+	}
+
+	if newExact.LT(*desiredVersion) {
+		return field.ErrorList{field.Invalid(
+			field.NewPath("tags").Key(metadataapi.TagClusterControlPlaneExactVersion),
+			newExact.String(),
+			fmt.Sprintf("may not decrease the desired control plane version from %s", desiredVersion),
+		)}
+	}
+
+	return nil
 }
 
 // admitClusterCustomerProperties drills down into the customer-facing portion
