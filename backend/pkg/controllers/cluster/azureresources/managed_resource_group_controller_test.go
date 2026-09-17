@@ -437,6 +437,9 @@ func TestManagedResourceGroupSyncerSyncOnce(t *testing.T) {
 		},
 	}
 
+	// Additional test cases for orphaned MRG deletion logic will be added in a separate test
+	// since they require mocking BeginDelete calls which the table-driven test doesn't handle well
+
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -786,4 +789,235 @@ func assertResourceIDEqual(t *testing.T, expected, actual *azcorearm.ResourceID,
 	}
 	require.NotNil(t, actual, "%s should not be nil", field)
 	assert.Equal(t, expected.String(), actual.String(), "%s resource ID mismatch", field)
+}
+
+// TestManagedResourceGroupSyncerOrphanedMRGDeletion tests the orphaned MRG deletion
+// logic: when Cluster Service has finished but the MRG still exists, the controller should delete it.
+func TestManagedResourceGroupSyncerOrphanedMRGDeletion(t *testing.T) {
+	t.Parallel()
+
+	mrgID := testManagedResourceGroupID(t)
+	ownerClusterID := newTestCluster(false).ID.String()
+	csClusterID := ptr.To(metadataapi.Must(metadataapi.NewInternalID("/api/aro_hcp/v1alpha1/clusters/test-cs-cluster-id")))
+
+	testCases := []struct {
+		name                            string
+		clusterServiceDeletionTimestamp *metav1.Time
+		clusterServiceID                *metadataapi.InternalID
+		getResponse                     armresources.ResourceGroupsClientGetResponse
+		expectBeginDelete               bool
+		beginDeleteErr                  error
+		expectErr                       bool
+		expectErrContains               string
+	}{
+		{
+			name:                            "CS finished and MRG in Succeeded state deletes it",
+			clusterServiceDeletionTimestamp: &metav1.Time{Time: time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC)},
+			clusterServiceID:                nil,
+			getResponse:                     resourceGroupPresentResponseWithState(ownerClusterID, "Succeeded"),
+			expectBeginDelete:               true,
+		},
+		{
+			name:                            "CS finished and MRG already Deleting does not call BeginDelete",
+			clusterServiceDeletionTimestamp: &metav1.Time{Time: time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC)},
+			clusterServiceID:                nil,
+			getResponse:                     resourceGroupPresentResponseWithState(ownerClusterID, "Deleting"),
+			expectBeginDelete:               false,
+		},
+		{
+			name:                            "CS not finished yet (ClusterServiceID set) does not delete",
+			clusterServiceDeletionTimestamp: &metav1.Time{Time: time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC)},
+			clusterServiceID:                csClusterID,
+			getResponse:                     resourceGroupPresentResponseWithState(ownerClusterID, "Succeeded"),
+			expectBeginDelete:               false,
+		},
+		{
+			name:                            "ClusterServiceDeletionTimestamp not set does not delete",
+			clusterServiceDeletionTimestamp: nil,
+			clusterServiceID:                nil,
+			getResponse:                     resourceGroupPresentResponseWithState(ownerClusterID, "Succeeded"),
+			expectBeginDelete:               false,
+		},
+		{
+			name:                            "CS finished but BeginDelete fails returns error",
+			clusterServiceDeletionTimestamp: &metav1.Time{Time: time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC)},
+			clusterServiceID:                nil,
+			getResponse:                     resourceGroupPresentResponseWithState(ownerClusterID, "Succeeded"),
+			expectBeginDelete:               true,
+			beginDeleteErr:                  errors.New("azure error"),
+			expectErr:                       true,
+			expectErrContains:               "failed to delete managed resource group",
+		},
+		{
+			name:                            "CS finished but Properties is nil does not call BeginDelete",
+			clusterServiceDeletionTimestamp: &metav1.Time{Time: time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC)},
+			clusterServiceID:                nil,
+			getResponse: armresources.ResourceGroupsClientGetResponse{
+				ResourceGroup: armresources.ResourceGroup{
+					Name:       ptr.To(testManagedRGName),
+					ManagedBy:  ptr.To(ownerClusterID),
+					Properties: nil, // nil Properties
+				},
+			},
+			expectBeginDelete: false,
+		},
+		{
+			name:                            "CS finished but ProvisioningState is nil does not call BeginDelete",
+			clusterServiceDeletionTimestamp: &metav1.Time{Time: time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC)},
+			clusterServiceID:                nil,
+			getResponse: armresources.ResourceGroupsClientGetResponse{
+				ResourceGroup: armresources.ResourceGroup{
+					Name:      ptr.To(testManagedRGName),
+					ManagedBy: ptr.To(ownerClusterID),
+					Properties: &armresources.ResourceGroupProperties{
+						ProvisioningState: nil, // nil ProvisioningState
+					},
+				},
+			},
+			expectBeginDelete: false,
+		},
+		{
+			name:                            "CS not finished and Properties is nil does not call BeginDelete",
+			clusterServiceDeletionTimestamp: &metav1.Time{Time: time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC)},
+			clusterServiceID:                csClusterID,
+			getResponse: armresources.ResourceGroupsClientGetResponse{
+				ResourceGroup: armresources.ResourceGroup{
+					Name:       ptr.To(testManagedRGName),
+					ManagedBy:  ptr.To(ownerClusterID),
+					Properties: nil,
+				},
+			},
+			expectBeginDelete: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+
+			cluster := newTestCluster(true) // creates cluster with deletion timestamp set
+			cluster.ServiceProviderProperties.ClusterServiceDeletionTimestamp = tc.clusterServiceDeletionTimestamp
+			cluster.ServiceProviderProperties.ClusterServiceID = tc.clusterServiceID
+			serviceProviderCluster := newTestServiceProviderCluster(coreapi.AzureReference{AzureResource: mrgID})
+
+			mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, serviceProviderCluster})
+			require.NoError(t, err)
+
+			ctrl := gomock.NewController(t)
+			mockRGClient := azureclient.NewMockResourceGroupsClient(ctrl)
+			mockRGClient.EXPECT().
+				Get(gomock.Any(), mrgID.Name, nil).
+				Return(tc.getResponse, nil).
+				Times(1)
+
+			if tc.expectBeginDelete {
+				mockRGClient.EXPECT().
+					BeginDelete(gomock.Any(), mrgID.Name, nil).
+					Return(nil, tc.beginDeleteErr).
+					Times(1)
+			}
+
+			fpaClientBuilder := azureclient.NewMockFirstPartyApplicationClientBuilder(ctrl)
+			fpaClientBuilder.EXPECT().
+				ResourceGroupsClient(testTenantID, testSubscriptionID).
+				Return(mockRGClient, nil).
+				Times(1)
+
+			syncer := &managedResourceGroupSyncer{
+				resourcesDBClient:            mockResourcesDB,
+				clusterLister:                &corelistertesting.DBClusterLister{ResourcesDBClient: mockResourcesDB},
+				serviceProviderClusterLister: &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDB},
+				subscriptionLister:           &corelistertesting.SliceSubscriptionLister{Subscriptions: []*coreapi.Subscription{newTestSubscription(ptr.To(testTenantID))}},
+				azureFPAClientBuilder:        fpaClientBuilder,
+			}
+
+			key := controllerutils.HCPClusterKey{
+				SubscriptionID:    testSubscriptionID,
+				ResourceGroupName: testResourceGroupName,
+				HCPClusterName:    testClusterName,
+			}
+
+			err = syncer.SyncOnce(ctx, key)
+			if tc.expectErr {
+				require.Error(t, err)
+				if tc.expectErrContains != "" {
+					assert.Contains(t, err.Error(), tc.expectErrContains)
+				}
+			} else {
+				require.NoError(t, err)
+			}
+
+			// References should stay in place until MRG is gone (404)
+			updated, err := mockResourcesDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
+			require.NoError(t, err)
+			gotReference := updated.Status.AzureResources.ManagedResourceGroup
+			assertResourceIDEqual(t, mrgID, gotReference.AzureResource, "AzureResource")
+			assertResourceIDEqual(t, nil, gotReference.PendingAzureResource, "PendingAzureResource")
+		})
+	}
+}
+
+func TestManagedResourceGroupSyncerOrphanedMRGDeletion_BeginDelete404(t *testing.T) {
+	t.Parallel()
+
+	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+
+	mrgID := testManagedResourceGroupID(t)
+	ownerClusterID := newTestCluster(false).ID.String()
+
+	cluster := newTestCluster(true)
+	cluster.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{Time: time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC)}
+	cluster.ServiceProviderProperties.ClusterServiceID = nil
+	serviceProviderCluster := newTestServiceProviderCluster(coreapi.AzureReference{AzureResource: mrgID})
+
+	mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, serviceProviderCluster})
+	require.NoError(t, err)
+
+	ctrl := gomock.NewController(t)
+	mockRGClient := azureclient.NewMockResourceGroupsClient(ctrl)
+	mockRGClient.EXPECT().
+		Get(gomock.Any(), mrgID.Name, nil).
+		Return(resourceGroupPresentResponseWithState(ownerClusterID, "Succeeded"), nil).
+		Times(1)
+
+	beginDeleteErr := &azcore.ResponseError{
+		StatusCode: http.StatusNotFound,
+		RawResponse: &http.Response{
+			StatusCode: http.StatusNotFound,
+		},
+	}
+	mockRGClient.EXPECT().
+		BeginDelete(gomock.Any(), mrgID.Name, nil).
+		Return(nil, beginDeleteErr).
+		Times(1)
+
+	fpaClientBuilder := azureclient.NewMockFirstPartyApplicationClientBuilder(ctrl)
+	fpaClientBuilder.EXPECT().
+		ResourceGroupsClient(testTenantID, testSubscriptionID).
+		Return(mockRGClient, nil).
+		Times(1)
+
+	syncer := &managedResourceGroupSyncer{
+		resourcesDBClient:            mockResourcesDB,
+		clusterLister:                &corelistertesting.DBClusterLister{ResourcesDBClient: mockResourcesDB},
+		serviceProviderClusterLister: &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDB},
+		subscriptionLister:           &corelistertesting.SliceSubscriptionLister{Subscriptions: []*coreapi.Subscription{newTestSubscription(ptr.To(testTenantID))}},
+		azureFPAClientBuilder:        fpaClientBuilder,
+	}
+
+	key := controllerutils.HCPClusterKey{
+		SubscriptionID:    testSubscriptionID,
+		ResourceGroupName: testResourceGroupName,
+		HCPClusterName:    testClusterName,
+	}
+
+	require.NoError(t, syncer.SyncOnce(ctx, key))
+
+	updated, err := mockResourcesDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
+	require.NoError(t, err)
+	gotReference := updated.Status.AzureResources.ManagedResourceGroup
+	assertResourceIDEqual(t, nil, gotReference.AzureResource, "AzureResource")
+	assertResourceIDEqual(t, nil, gotReference.PendingAzureResource, "PendingAzureResource")
 }
