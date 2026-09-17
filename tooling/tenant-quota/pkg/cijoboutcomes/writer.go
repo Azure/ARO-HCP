@@ -504,10 +504,14 @@ func ingestRows[T any](ctx context.Context, target *tableIngestor, rows []T, tag
 		azkustoingest.FileFormat(azkustoingest.MultiJSON),
 	}
 	if tag != "" {
+		ifNotExists, err := json.Marshal([]string{tag})
+		if err != nil {
+			return fmt.Errorf("failed to encode ingestion tag for %s: %w", target.name, err)
+		}
 		ingestBy := "ingest-by:" + tag
 		options = append(options,
 			azkustoingest.Tags([]string{ingestBy}),
-			azkustoingest.IfNotExists(tag),
+			azkustoingest.IfNotExists(string(ifNotExists)),
 		)
 	}
 
