@@ -45,19 +45,19 @@ var defaultResourceInventoryTargets = []resourceInventoryTarget{
 		gvr:      schema.GroupVersionResource{Group: "", Version: "v1", Resource: "pods"},
 		kind:     "Pod",
 		scope:    "Namespaced",
-		interval: 5 * time.Minute,
+		interval: 30 * time.Minute,
 	},
 	{
 		gvr:      schema.GroupVersionResource{Group: "", Version: "v1", Resource: "secrets"},
 		kind:     "Secret",
 		scope:    "Namespaced",
-		interval: 5 * time.Minute,
+		interval: 30 * time.Minute,
 	},
 	{
 		gvr:      schema.GroupVersionResource{Group: "", Version: "v1", Resource: "namespaces"},
 		kind:     "Namespace",
 		scope:    "Cluster",
-		interval: 10 * time.Minute,
+		interval: time.Hour,
 	},
 }
 

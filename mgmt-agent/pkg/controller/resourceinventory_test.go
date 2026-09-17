@@ -173,7 +173,7 @@ func TestResourceInventoryCaptureEmitsCompletionLast(t *testing.T) {
 		emitSummary: func(summary resourceInventorySummary) { summaries = append(summaries, summary) },
 	}
 
-	c.capture(context.Background(), defaultResourceInventoryTargets[0], now.Add(-time.Second), now, now.Add(5*time.Minute))
+	c.capture(context.Background(), defaultResourceInventoryTargets[0], now.Add(-time.Second), now, now.Add(30*time.Minute))
 
 	if len(items) != 2 || len(summaries) != 1 {
 		t.Fatalf("emitted %d items and %d summaries", len(items), len(summaries))
@@ -201,7 +201,7 @@ func TestResourceInventoryCaptureRecordsListFailure(t *testing.T) {
 		emitSummary: func(summary resourceInventorySummary) { summaries = append(summaries, summary) },
 	}
 
-	c.capture(context.Background(), defaultResourceInventoryTargets[1], now, now, now.Add(5*time.Minute))
+	c.capture(context.Background(), defaultResourceInventoryTargets[1], now, now, now.Add(30*time.Minute))
 
 	if len(summaries) != 1 || summaries[0].Status != "Failed" || summaries[0].ErrorMessage == "" {
 		t.Fatalf("failure summary = %#v", summaries)
@@ -219,7 +219,7 @@ func TestResourceInventoryInitialSchedulesAreSpread(t *testing.T) {
 	if len(schedules) != 3 {
 		t.Fatalf("initialSchedules() returned %d schedules", len(schedules))
 	}
-	wantSpacing := 5 * time.Minute / 3
+	wantSpacing := 30 * time.Minute / 3
 	for i := range schedules {
 		want := start.Add(time.Duration(i) * wantSpacing)
 		if !schedules[i].next.Equal(want) {
