@@ -226,7 +226,7 @@ spec:
           protocol: TCP
         resources:
           requests:
-            cpu: 100m
+            cpu: 700m
             memory: 1Gi
         securityContext:
           allowPrivilegeEscalation: false

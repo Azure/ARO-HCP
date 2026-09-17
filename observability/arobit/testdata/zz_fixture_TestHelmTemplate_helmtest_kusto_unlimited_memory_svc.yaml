@@ -705,8 +705,8 @@ spec:
               drop: ['ALL']
           resources:
             requests:
-              cpu: 100m
-              memory: 256Mi
+              cpu: 450m
+              memory: 416Mi
           volumeMounts:
             - name: var-kusto
               mountPath: /var/kusto
