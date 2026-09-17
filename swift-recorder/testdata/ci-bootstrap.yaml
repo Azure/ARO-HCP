@@ -1,0 +1,18 @@
+# Synthetic release-style mgmt-agent override; never deploy this image.
+clouds:
+  dev:
+    environments:
+      ci00:
+        defaults:
+          mgmtAgent:
+            image:
+              registry: registry.ci.openshift.org
+              repository: ci-op-test/pr-built-mgmt-agent
+              digest: sha256:2222222222222222222222222222222222222222222222222222222222222222
+      ci01:
+        defaults:
+          mgmtAgent:
+            image:
+              registry: registry.ci.openshift.org
+              repository: ci-op-test/pr-built-mgmt-agent
+              digest: sha256:2222222222222222222222222222222222222222222222222222222222222222

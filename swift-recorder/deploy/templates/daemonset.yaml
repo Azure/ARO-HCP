@@ -1,0 +1,121 @@
+{{- if .Values.enabled }}
+{{- if not (has .Values.captureMode (list "slow" "all")) }}
+{{- fail "captureMode must be slow or all" }}
+{{- end }}
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: swift-recorder
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: swift-recorder
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: swift-recorder
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: swift-recorder
+    spec:
+      serviceAccountName: {{ .Values.serviceAccount.name }}
+      priorityClassName: service-lifecycle-critical
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      nodeSelector:
+        kubernetes.io/os: linux
+        kubernetes.azure.com/podnetwork-swiftv2-enabled: "true"
+      tolerations:
+      - operator: Exists
+      terminationGracePeriodSeconds: 30
+      containers:
+      - name: swift-recorder
+        image: "{{ .Values.image.registry }}/{{ .Values.image.repository }}@{{ required "swift-recorder requires an image digest when enabled" .Values.image.digest }}"
+        command:
+        - /swift-recorder
+        args:
+        - controller
+        - --node-name=$(NODE_NAME)
+        - --health-address=:8091
+        - --capture-mode={{ .Values.captureMode }}
+        - --startup-dwell=30s
+        - --post-success-capture=10s
+        - --sample-interval=1s
+        - --capture-timeout=500ms
+        - --max-pods=32
+        - --max-buffer-bytes=16777216
+        - --max-record-bytes=65536
+        - --episode-timeout=15m
+        - --cni-log=/host/var/log/azure-vnet.log
+        - --netns-dir=/var/run/netns
+        - --boot-id-file=/host/boot-id
+        - --cluster-name={{ .Values.clusterName }}
+        - --region={{ .Values.region }}
+        - --environment={{ .Values.environment }}
+        env:
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        ports:
+        - name: metrics
+          containerPort: 8091
+          protocol: TCP
+        securityContext:
+          runAsUser: 0
+          runAsGroup: 0
+          runAsNonRoot: false
+          privileged: false
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          seccompProfile:
+            type: RuntimeDefault
+          capabilities:
+            drop:
+            - ALL
+            # The helper enters an existing network namespace with setns.
+            add:
+            - SYS_ADMIN
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: metrics
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: metrics
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          {{- toYaml .Values.resources | nindent 10 }}
+        volumeMounts:
+        - name: cni-logs
+          mountPath: /host/var/log
+          readOnly: true
+        - name: netns
+          mountPath: /var/run/netns
+          readOnly: true
+          mountPropagation: HostToContainer
+        - name: boot-id
+          mountPath: /host/boot-id
+          readOnly: true
+      volumes:
+      - name: cni-logs
+        hostPath:
+          path: /var/log
+          type: Directory
+      - name: netns
+        hostPath:
+          path: /var/run/netns
+          type: Directory
+      - name: boot-id
+        hostPath:
+          path: /proc/sys/kernel/random/boot_id
+          type: File
+{{- end }}

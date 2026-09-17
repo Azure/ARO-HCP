@@ -250,6 +250,24 @@ defaults:
         requests:
           cpu: 50m
           memory: 768Mi
+  # SWIFT-v2 node-local startup recorder. Dedicated image pending; CI bootstraps below.
+  swiftRecorder:
+    enabled: false
+    useMgmtAgentImage: false
+    captureMode: slow
+    image:
+      registry: arohcpsvcdev.azurecr.io
+      repository: swift-recorder
+      digest: ""
+    k8s:
+      namespace: swift-recorder
+      serviceAccountName: swift-recorder
+      resources:
+        requests:
+          cpu: 20m
+          memory: 64Mi
+        limits:
+          memory: 256Mi
   # Kube Applier Controller
   kubeApplier:
     image:
@@ -1764,6 +1782,12 @@ clouds:
                 secondaryNicCount: 7
       ci00:
         defaults:
+          # Temporary bootstrap: the PR-built mgmt-agent image carries /swift-recorder.
+          # Remove this image switch after dedicated image onboarding (stage 2).
+          swiftRecorder:
+            enabled: true
+            captureMode: all
+            useMgmtAgentImage: true
           customExporter:
             clusterNameFilter: "{{ .ctx.environment }}-{{ .ctx.regionShort }}"
           kusto:
@@ -1864,6 +1888,12 @@ clouds:
       ci01:
         # prow infra shard1 - deploys into "ARO HCP E2E Infrastructure" subscription
         defaults:
+          # Temporary bootstrap: the PR-built mgmt-agent image carries /swift-recorder.
+          # Remove this image switch after dedicated image onboarding (stage 2).
+          swiftRecorder:
+            enabled: true
+            captureMode: all
+            useMgmtAgentImage: true
           customExporter:
             clusterNameFilter: "{{ .ctx.environment }}-{{ .ctx.regionShort }}"
           auditLogsEventHub:

@@ -335,7 +335,7 @@ services_all = $(join services_svc,services_mgmt)
 # This sections is used to reference pipeline runs and should replace
 # the usage of `svc-deploy.sh` script in the future.
 services_svc_pipelines = backend frontend cluster-service maestro.server observability.tracing
-services_mgmt_pipelines = secret-sync-controller acm hypershiftoperator maestro.agent mgmt-agent observability.tracing
+services_mgmt_pipelines = secret-sync-controller acm hypershiftoperator maestro.agent mgmt-agent swift-recorder observability.tracing
 %.deploy_pipeline: $(ORAS_LINK) $(YQ)
 	$(eval export dirname=$(subst .,/,$(basename $@)))
 	./templatize.sh $(DEPLOY_ENV) -p $(shell $(YQ) .serviceGroup ./$(dirname)/pipeline.yaml) -P run
@@ -374,10 +374,12 @@ ARO-Tools:
 update-helm-fixtures:
 	find * -name 'zz_fixture_TestHelmTemplate*' | xargs rm -rf
 	$(MAKE) -C tooling/helmtest update
+	UPDATE=true $(MAKE) -C swift-recorder test-deploy
 .PHONY: update-helm-fixtures
 
 test-helm-fixtures:
 	$(MAKE) -C tooling/helmtest test
+	$(MAKE) -C swift-recorder test-deploy
 .PHONY: test-helmcharts
 
 verify-materialize:
@@ -399,7 +401,7 @@ generate-kiota:
 PERS_OVERRIDE_FILE ?= /tmp/personal-dev-override.yaml
 
 build-services: $(TEMPLATIZE)
-	$(MAKE) $(BUILD_SERVICES_OPTS) build-frontend build-backend build-admin build-sessiongate build-mgmt-agent build-kube-applier build-fleet build-aro-hcp-exporter
+	$(MAKE) $(BUILD_SERVICES_OPTS) build-frontend build-backend build-admin build-sessiongate build-mgmt-agent build-swift-recorder build-kube-applier build-fleet build-aro-hcp-exporter
 .PHONY: build-services
 
 build-frontend:
@@ -422,6 +424,10 @@ build-mgmt-agent:
 	$(MAKE) -C mgmt-agent build-and-push
 .PHONY: build-mgmt-agent
 
+build-swift-recorder:
+	$(MAKE) -C swift-recorder build-and-push
+.PHONY: build-swift-recorder
+
 build-kube-applier:
 	$(MAKE) -C kube-applier build-and-push
 .PHONY: build-kube-applier
@@ -440,6 +446,7 @@ record-services-override: $(YQ) $(ORAS)
 	$(MAKE) -C admin record-override OVERRIDE_CONFIG_FILE=/tmp/_admin-override.yaml
 	$(MAKE) -C sessiongate record-override OVERRIDE_CONFIG_FILE=/tmp/_sessiongate-override.yaml
 	$(MAKE) -C mgmt-agent record-override OVERRIDE_CONFIG_FILE=/tmp/_mgmt-agent-override.yaml
+	$(MAKE) -C swift-recorder record-override OVERRIDE_CONFIG_FILE=/tmp/_swift-recorder-override.yaml
 	$(MAKE) -C kube-applier record-override OVERRIDE_CONFIG_FILE=/tmp/_kube-applier-override.yaml
 	$(MAKE) -C fleet record-override OVERRIDE_CONFIG_FILE=/tmp/_fleet-override.yaml
 	$(MAKE) -C tooling/aro-hcp-exporter record-override OVERRIDE_CONFIG_FILE=/tmp/_aro-hcp-exporter-override.yaml
@@ -449,6 +456,7 @@ record-services-override: $(YQ) $(ORAS)
 	  /tmp/_admin-override.yaml \
 	  /tmp/_sessiongate-override.yaml \
 	  /tmp/_mgmt-agent-override.yaml \
+	  /tmp/_swift-recorder-override.yaml \
 	  /tmp/_kube-applier-override.yaml \
 	  /tmp/_fleet-override.yaml \
 	  /tmp/_aro-hcp-exporter-override.yaml \
