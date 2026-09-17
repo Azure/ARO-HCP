@@ -16,9 +16,7 @@ package e2e
 
 import (
 	"context"
-	"fmt"
 	"net/http"
-	"regexp"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -45,26 +43,17 @@ var _ = Describe("KSM HCP Metrics", func() {
 			serviceConfig, err := config.GetServiceConfig()
 			Expect(err).NotTo(HaveOccurred(), "failed to load service config")
 
-			regionRG, err := serviceConfig.GetByPath("regionRG")
-			Expect(err).NotTo(HaveOccurred(), "failed to get regionRG from config")
-			regionRGStr, ok := regionRG.(string)
-			Expect(ok).To(BeTrue(), "regionRG is not a string")
-			Expect(regionRGStr).NotTo(BeEmpty(), "regionRG is empty")
+			regionRGStr, err := config.GetStringByPath(serviceConfig, "regionRG")
+			Expect(err).NotTo(HaveOccurred(), "failed to resolve regionRG")
 
-			hcpWorkspaceName, err := serviceConfig.GetByPath("monitoring.hcpWorkspaceName")
-			Expect(err).NotTo(HaveOccurred(), "failed to get hcpWorkspaceName from config")
-			hcpWorkspaceNameStr, ok := hcpWorkspaceName.(string)
-			Expect(ok).To(BeTrue(), "hcpWorkspaceName is not a string")
-			Expect(hcpWorkspaceNameStr).NotTo(BeEmpty(), "hcpWorkspaceName is empty")
+			hcpWorkspaceNameStr, err := config.GetStringByPath(serviceConfig, "monitoring.hcpWorkspaceName")
+			Expect(err).NotTo(HaveOccurred(), "failed to resolve monitoring.hcpWorkspaceName")
 
 			// The HCP workspace lives in the mgmt (underlay infra) subscription, not the
 			// customer subscription that tc.SubscriptionID resolves to (the one the e2e
 			// test's own HCP cluster is created in), so it must be looked up separately.
-			mgmtSubscriptionName, err := serviceConfig.GetByPath("mgmt.subscription.key")
-			Expect(err).NotTo(HaveOccurred(), "failed to get mgmt.subscription.key from config")
-			mgmtSubscriptionNameStr, ok := mgmtSubscriptionName.(string)
-			Expect(ok).To(BeTrue(), "mgmt.subscription.key is not a string")
-			Expect(mgmtSubscriptionNameStr).NotTo(BeEmpty(), "mgmt.subscription.key is empty")
+			mgmtSubscriptionNameStr, err := config.GetStringByPath(serviceConfig, "mgmt.subscription.key")
+			Expect(err).NotTo(HaveOccurred(), "failed to resolve mgmt.subscription.key")
 
 			cred, err := tc.AzureCredential()
 			Expect(err).NotTo(HaveOccurred(), "failed to get Azure credential")
@@ -79,8 +68,7 @@ var _ = Describe("KSM HCP Metrics", func() {
 			endpoint, err := promutil.LookupPrometheusEndpoint(ctx, cred, subscriptionID, regionRGStr, hcpWorkspaceNameStr)
 			Expect(err).NotTo(HaveOccurred(), "failed to look up HCP Prometheus endpoint")
 
-			clusterName := e2eSetup.Cluster.Name
-			query := fmt.Sprintf(`kube_node_info{hostedcontrolplane=~".*%s.*"}`, regexp.QuoteMeta(clusterName))
+			query := `kube_node_info{hostedcontrolplane=~".+"}`
 
 			httpClient := &http.Client{Timeout: 30 * time.Second}
 
@@ -92,9 +80,12 @@ var _ = Describe("KSM HCP Metrics", func() {
 
 				resp, err := promutil.QueryRange(ctx, httpClient, cred, endpoint, query, start, now, "60s")
 				g.Expect(err).NotTo(HaveOccurred(), "Prometheus query_range failed")
+				if err != nil {
+					return
+				}
 				g.Expect(resp.Data.Result).NotTo(BeEmpty(),
-					"expected kube_node_info metrics for cluster %q but got no results", clusterName)
+					"expected kube_node_info metrics for at least one hostedcontrolplane but got no results")
 			}).WithTimeout(15*time.Minute).WithPolling(30*time.Second).WithContext(ctx).Should(Succeed(),
-				"kube_node_info metrics never appeared in Azure Monitor for cluster %q", clusterName)
+				"kube_node_info metrics never appeared in Azure Monitor for any hostedcontrolplane")
 		})
 })

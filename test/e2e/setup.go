@@ -35,8 +35,10 @@ var (
 func setup(ctx context.Context) error {
 	labelFilter := GinkgoLabelFilter()
 
-	if _, err := config.GetServiceConfig(); err != nil {
-		return fmt.Errorf("failed to load service config: %w", err)
+	if strings.Contains(labelFilter, labels.RequiresConfig[0]) {
+		if _, err := config.GetServiceConfig(); err != nil {
+			return fmt.Errorf("failed to load service config: %w", err)
+		}
 	}
 
 	// Use GinkgoLabelFilter to determine if the test should load the e2e setup file

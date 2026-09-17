@@ -42,8 +42,10 @@ func (p *amaPrometheusClient) expectMetric(ctx context.Context, g Gomega, query,
 
 	resp, err := promutil.QueryRange(ctx, p.httpClient, p.cred, p.endpoint, query, start, now, "60s")
 	g.Expect(err).NotTo(HaveOccurred(), "Prometheus query_range failed for %s", description)
+	if err != nil {
+		return
+	}
 	g.Expect(resp.Data.Result).NotTo(BeEmpty(), "expected %s metrics but got no results (query: %s)", description, query)
-	GinkgoWriter.Printf("  [OK] %s: %d series\n", description, len(resp.Data.Result))
 }
 
 var _ = Describe("AMA Metrics", func() {
@@ -62,21 +64,26 @@ var _ = Describe("AMA Metrics", func() {
 			serviceConfig, err := config.GetServiceConfig()
 			Expect(err).NotTo(HaveOccurred(), "failed to load service config")
 
-			regionRG, err := serviceConfig.GetByPath("regionRG")
-			Expect(err).NotTo(HaveOccurred(), "failed to get regionRG from config")
-			regionRGStr, ok := regionRG.(string)
-			Expect(ok).To(BeTrue(), "regionRG is not a string")
+			regionRGStr, err := config.GetStringByPath(serviceConfig, "regionRG")
+			Expect(err).NotTo(HaveOccurred(), "failed to resolve regionRG")
 
-			svcWorkspaceName, err := serviceConfig.GetByPath("monitoring.svcWorkspaceName")
-			Expect(err).NotTo(HaveOccurred(), "failed to get monitoring.svcWorkspaceName from config")
-			svcWorkspaceNameStr, ok := svcWorkspaceName.(string)
-			Expect(ok).To(BeTrue(), "monitoring.svcWorkspaceName is not a string")
+			svcWorkspaceNameStr, err := config.GetStringByPath(serviceConfig, "monitoring.svcWorkspaceName")
+			Expect(err).NotTo(HaveOccurred(), "failed to resolve monitoring.svcWorkspaceName")
 
-			subscriptionID, err := tc.SubscriptionID(ctx)
-			Expect(err).NotTo(HaveOccurred(), "failed to get subscription ID")
+			// The SVC workspace lives in the mgmt (underlay infra) subscription, not the
+			// customer subscription that tc.SubscriptionID resolves to (the one the e2e
+			// test's own HCP cluster is created in), so it must be looked up separately.
+			mgmtSubscriptionNameStr, err := config.GetStringByPath(serviceConfig, "mgmt.subscription.key")
+			Expect(err).NotTo(HaveOccurred(), "failed to resolve mgmt.subscription.key")
 
 			cred, err := tc.AzureCredential()
 			Expect(err).NotTo(HaveOccurred(), "failed to get Azure credential")
+
+			subscriptionsClientFactory, err := tc.GetARMSubscriptionsClientFactory()
+			Expect(err).NotTo(HaveOccurred(), "failed to get ARM subscriptions client factory")
+
+			subscriptionID, err := framework.GetSubscriptionID(ctx, subscriptionsClientFactory.NewClient(), mgmtSubscriptionNameStr)
+			Expect(err).NotTo(HaveOccurred(), "failed to look up mgmt subscription ID for %q", mgmtSubscriptionNameStr)
 
 			By("Resolving SVC workspace Prometheus endpoint")
 			endpoint, err := promutil.LookupPrometheusEndpoint(ctx, cred, subscriptionID, regionRGStr, svcWorkspaceNameStr)
@@ -114,5 +121,9 @@ var _ = Describe("AMA Metrics", func() {
 				}
 			}).WithTimeout(15*time.Minute).WithPolling(30*time.Second).WithContext(ctx).Should(Succeed(),
 				"not all expected service metrics appeared in Azure Monitor")
+
+			for _, c := range checks {
+				GinkgoWriter.Printf("  [OK] %s\n", c.description)
+			}
 		})
 })

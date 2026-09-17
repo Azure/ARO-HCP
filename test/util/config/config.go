@@ -30,14 +30,16 @@ import (
 
 var ServiceConfig types.Configuration
 
-var configOnce sync.Once
+var (
+	configOnce sync.Once
+	configErr  error
+)
 
 // GetServiceConfig returns the service configuration, loading it from
 // environment variables on first call. Subsequent calls return the
 // cached result. Required env vars: ARO_HCP_CONFIG_FILE, ARO_HCP_CLOUD,
 // DEPLOY_ENV, REGION. Missing vars cause an error.
 func GetServiceConfig() (types.Configuration, error) {
-	var configErr error
 	configOnce.Do(func() {
 		required := map[string]string{
 			"ARO_HCP_CONFIG_FILE": os.Getenv("ARO_HCP_CONFIG_FILE"),
@@ -65,6 +67,24 @@ func GetServiceConfig() (types.Configuration, error) {
 		configErr = LoadConfig(opts)
 	})
 	return ServiceConfig, configErr
+}
+
+// GetStringByPath resolves path in cfg and returns it as a non-empty string.
+// It replaces the common GetByPath + type-assert + empty-check boilerplate
+// with a single call that returns one error describing whatever went wrong.
+func GetStringByPath(cfg types.Configuration, path string) (string, error) {
+	value, err := cfg.GetByPath(path)
+	if err != nil {
+		return "", fmt.Errorf("failed to get %s from config: %w", path, err)
+	}
+	str, ok := value.(string)
+	if !ok {
+		return "", fmt.Errorf("%s is not a string", path)
+	}
+	if str == "" {
+		return "", fmt.Errorf("%s is empty", path)
+	}
+	return str, nil
 }
 
 type ConfigOptions struct {
@@ -131,12 +151,15 @@ func LoadConfig(opts ConfigOptions) error {
 	}
 
 	if resolver == nil {
-		return fmt.Errorf("resolver is nil!")
+		return fmt.Errorf("resolver is nil")
 	}
 
 	// 5. Evaluate region specific overrides/values and expose globally
 	ServiceConfig, err = resolver.GetRegionConfiguration(opts.Region)
-	return err
+	if err != nil {
+		return fmt.Errorf("failed to get region configuration for region %q: %w", opts.Region, err)
+	}
+	return nil
 }
 
 // applyDevEnvironmentRegionShort mirrors the regionShort resolution performed
