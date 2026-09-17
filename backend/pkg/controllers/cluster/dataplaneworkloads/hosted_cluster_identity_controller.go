@@ -288,12 +288,29 @@ func (c *hostedClusterDataPlaneIdentitySyncer) resolveAndGateClientIDs(
 			)
 		}
 
-		// Gate 2: OIDC federation must be complete for this operator on the
-		// current target identity before we write the ClientID to the
-		// HostedCluster. Writing an unconfirmed ClientID would route operator
-		// pods to authenticate as the new identity before the FIC exists,
-		// causing Azure token exchange failures.
+		// Gate 2: the ARM-resolved ClientID must match the ClientID that OIDC
+		// federation is targeting (TargetIdentity.ClientID). The two sources
+		// are written by independent controllers and can transiently diverge:
+		// FetchManagedIdentitiesInfo can refresh ARM to a new ClientID before
+		// DataPlaneOIDCFederationIntent has run to update TargetIdentity. If we
+		// wrote the new ARM ClientID in that window, the HostedCluster would
+		// reference an identity for which no FIC has been created yet, causing
+		// Azure token exchange failures. We wait until both sources agree.
 		oidcStatus := oidcFederation[identityKey]
+		var oidcTargetClientID string
+		if oidcStatus != nil {
+			oidcTargetClientID = oidcStatus.TargetIdentity.ClientID
+		}
+		if *armMetadata.ClientID != oidcTargetClientID {
+			return nil, fmt.Errorf(
+				"ARM ClientID %q for operator %q does not yet match OIDC TargetIdentity ClientID %q; will retry",
+				*armMetadata.ClientID, slot.operator, oidcTargetClientID,
+			)
+		}
+
+		// Gate 3: OIDC federation must be complete for this operator on the
+		// current TargetIdentity. At this point we know ARM and OIDC agree on
+		// the ClientID; OperatorEnsured confirms the FIC exists for it.
 		if !oidcStatus.OperatorEnsured(string(slot.operator)) {
 			return nil, fmt.Errorf(
 				"OIDC federation not yet complete for operator %q (identity %s); will retry",

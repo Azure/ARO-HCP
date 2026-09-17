@@ -299,6 +299,28 @@ func TestResolveAndGateClientIDs(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		{
+			// ARM metadata and OIDC TargetIdentity can transiently diverge: if
+			// FetchManagedIdentitiesInfo refreshes ARM before
+			// DataPlaneOIDCFederationIntent has run to update TargetIdentity, the
+			// ARM ClientID is ahead of what OIDC has configured. Writing the new
+			// ARM ClientID in that window would set an identity on the HostedCluster
+			// for which no FIC exists yet. We must wait until both agree.
+			name:        "error when ARM ClientID and OIDC TargetIdentity ClientID diverge",
+			dpOperators: allOperators,
+			details: map[string]*coreapi.ManagedIdentityMetadata{
+				imageKey: resolved(imageRegistryID, "client-img-v2", "p1"), // ARM refreshed to v2
+				diskKey:  resolved(diskID, "client-disk", "p2"),
+				fileKey:  resolved(fileID, "client-file", "p3"),
+			},
+			oidc: map[string]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
+				// TargetIdentity still at v1 (intent controller has not yet run)
+				imageKey: ensuredStatus("client-img-v1", "p1", testImageRegistryOp),
+				diskKey:  ensuredStatus("client-disk", "p2", testDiskCSIOperator),
+				fileKey:  ensuredStatus("client-file", "p3", testFileCSIOperator),
+			},
+			wantErr: true, // must wait for OIDC to sync to v2 before writing
+		},
 	}
 
 	for _, tc := range cases {
