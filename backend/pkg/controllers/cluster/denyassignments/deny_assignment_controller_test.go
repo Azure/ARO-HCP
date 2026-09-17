@@ -856,6 +856,73 @@ func TestSyncDenyAssignmentUpsertRetainsLegacyWhenCompleteEnsureFails(t *testing
 	assert.True(t, hasLegacy, "legacy deny assignment must remain in AzureResources so the resource group stays protected")
 }
 
+// TestSyncDenyAssignmentUpsertPrunesObsoletePending proves that an obsolete legacy type left in
+// PendingAzureResources (which has no definition after the migration to the single "complete" deny
+// assignment) is deleted from Azure and removed from the pending list, rather than being retried
+// forever as a "no definition" failure that would keep the cluster permanently pending.
+func TestSyncDenyAssignmentUpsertPrunesObsoletePending(t *testing.T) {
+	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+	fakeClock := clocktesting.NewFakeClock(time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC))
+
+	cluster := newTestCluster()
+	requiredRefs, err := allDenyAssignmentReferences(cluster)
+	require.NoError(t, err)
+
+	legacyPendingRef := legacyDenyAssignmentRef("compute-deny-assignment", "legacy-pending-uuid")
+	existingSPC := newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
+		// The required complete assignment is already present and up to date; a legacy per-service type
+		// is stuck in pending with no matching definition.
+		spc.Status.AzureResources.DenyAssignments.AzureResources = requiredRefs
+		spc.Status.AzureResources.DenyAssignments.PendingAzureResources = []coreapi.DenyAssignmentReference{legacyPendingRef}
+	})
+
+	mockDB := corecosmosstoragetesting.NewMockResourcesDBClient()
+	_, err = mockDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Create(ctx, existingSPC, nil)
+	require.NoError(t, err)
+
+	// The complete assignment already matches (ensure is a no-op); the obsolete pending delete succeeds
+	// (404 -> no-op).
+	mockGenericResources := &azuremockclient.GenericResourcesClientFunc{DeleteErr: resourceNotFoundError()}
+	syncer := &clusterDenyAssignmentSyncer{
+		clock:              fakeClock,
+		resourcesDBClient:  mockDB,
+		clusterLister:      &corelistertesting.SliceClusterLister{Clusters: []*coreapi.HCPOpenShiftCluster{cluster}},
+		subscriptionLister: &corelistertesting.SliceSubscriptionLister{Subscriptions: []*coreapi.Subscription{testSubscription()}},
+		azureFPAClientBuilder: &azuremockclient.FirstPartyApplicationClientBuilderFunc{
+			GenericResourcesClientVal: mockGenericResources,
+			DenyAssignmentsClientVal:  &azuremockclient.DenyAssignmentsClientFunc{GetFunc: matchingGetResponseForAllTypes(cluster, newTestSPC())},
+		},
+	}
+
+	// The obsolete pending type must NOT surface a "no definition" error.
+	require.NoError(t, syncer.SyncOnce(ctx, testKey()))
+
+	// It is deleted from Azure...
+	assert.Contains(t, mockGenericResources.DeleteCalls, legacyPendingRef.DenyAssignmentResourceID.String(),
+		"obsolete pending deny assignment should be deleted from Azure")
+
+	spc, err := mockDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
+	require.NoError(t, err)
+
+	// ...and removed from BOTH status lists, so the cluster is not stuck pending.
+	for _, ref := range spc.Status.AzureResources.DenyAssignments.PendingAzureResources {
+		assert.NotEqual(t, "compute-deny-assignment", ref.DenyAssignmentType, "obsolete type should be removed from PendingAzureResources")
+	}
+	for _, ref := range spc.Status.AzureResources.DenyAssignments.AzureResources {
+		assert.NotEqual(t, "compute-deny-assignment", ref.DenyAssignmentType, "obsolete type should not appear in AzureResources")
+	}
+	assert.Empty(t, spc.Status.AzureResources.DenyAssignments.PendingAzureResources, "pending should be cleared once the obsolete type is pruned")
+	assert.NotNil(t, spc.Status.AzureResources.DenyAssignments.EarliestRecheckTime, "cluster should settle with a recheck time, not stay pending")
+
+	hasComplete := false
+	for _, ref := range spc.Status.AzureResources.DenyAssignments.AzureResources {
+		if ref.DenyAssignmentType == denyAssignmentSuffixComplete {
+			hasComplete = true
+		}
+	}
+	assert.True(t, hasComplete, "required complete assignment should remain")
+}
+
 func TestEnsureDenyAssignmentReferences(t *testing.T) {
 	cluster := newTestCluster()
 	spc := newTestSPC()
