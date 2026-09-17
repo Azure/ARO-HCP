@@ -28,6 +28,12 @@ concurrency:
 jobs:
   recompile:
     runs-on: ubuntu-slim
+    # Only run the privileged (App-token) job when the definition is the one on
+    # the default branch. Scheduled runs always are. This blocks an accidental
+    # workflow_dispatch from a feature branch. It is a guardrail, not a hard
+    # security control: the real control is that pushing branches to this repo
+    # is restricted to maintainers, so only trusted actors can dispatch at all.
+    if: github.event_name == 'schedule' || github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
     steps:
     - name: Mint aro-hcp-robot App token
       id: app-token
