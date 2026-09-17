@@ -359,6 +359,64 @@ func TestVeleroDeleteBackupRequests_NoTruncation(t *testing.T) {
 	testutil.CompareWithFixture(t, queryToFixture(queries[0]))
 }
 
+func TestVeleroBackupStorageLocations(t *testing.T) {
+	f, err := NewQueryFactory()
+	require.NoError(t, err)
+	opts := baseOptions()
+	def, err := f.GetCustomQueryDefinition("veleroBackupStorageLocations")
+	require.NoError(t, err)
+	require.NotNil(t, def, "veleroBackupStorageLocations custom query not found")
+	queries, err := f.Build(*def, NewTemplateDataFromOptions(opts, WithClusterNames([]string{"mgmt-cluster-1", "mgmt-cluster-2"})))
+	require.NoError(t, err)
+	require.Len(t, queries, 1)
+
+	testutil.CompareWithFixture(t, queryToFixture(queries[0]))
+}
+
+func TestVeleroBackupStorageLocations_NoTruncation(t *testing.T) {
+	f, err := NewQueryFactory()
+	require.NoError(t, err)
+	opts := baseOptions()
+	opts.Limit = -1
+	def, err := f.GetCustomQueryDefinition("veleroBackupStorageLocations")
+	require.NoError(t, err)
+	require.NotNil(t, def, "veleroBackupStorageLocations custom query not found")
+	queries, err := f.Build(*def, NewTemplateDataFromOptions(opts, WithClusterNames([]string{"mgmt-cluster-1", "mgmt-cluster-2"})))
+	require.NoError(t, err)
+	require.Len(t, queries, 1)
+
+	testutil.CompareWithFixture(t, queryToFixture(queries[0]))
+}
+
+func TestVeleroVolumeSnapshotLocations(t *testing.T) {
+	f, err := NewQueryFactory()
+	require.NoError(t, err)
+	opts := baseOptions()
+	def, err := f.GetCustomQueryDefinition("veleroVolumeSnapshotLocations")
+	require.NoError(t, err)
+	require.NotNil(t, def, "veleroVolumeSnapshotLocations custom query not found")
+	queries, err := f.Build(*def, NewTemplateDataFromOptions(opts, WithClusterNames([]string{"mgmt-cluster-1", "mgmt-cluster-2"})))
+	require.NoError(t, err)
+	require.Len(t, queries, 1)
+
+	testutil.CompareWithFixture(t, queryToFixture(queries[0]))
+}
+
+func TestVeleroVolumeSnapshotLocations_NoTruncation(t *testing.T) {
+	f, err := NewQueryFactory()
+	require.NoError(t, err)
+	opts := baseOptions()
+	opts.Limit = -1
+	def, err := f.GetCustomQueryDefinition("veleroVolumeSnapshotLocations")
+	require.NoError(t, err)
+	require.NotNil(t, def, "veleroVolumeSnapshotLocations custom query not found")
+	queries, err := f.Build(*def, NewTemplateDataFromOptions(opts, WithClusterNames([]string{"mgmt-cluster-1", "mgmt-cluster-2"})))
+	require.NoError(t, err)
+	require.Len(t, queries, 1)
+
+	testutil.CompareWithFixture(t, queryToFixture(queries[0]))
+}
+
 func TestClusterIdQuery(t *testing.T) {
 	f, err := NewQueryFactory()
 	require.NoError(t, err)

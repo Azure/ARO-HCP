@@ -75,6 +75,16 @@
   queryType: custom-logs
   includeInMustGather: true
   templatePath: templates/custom/velero_delete_backup_requests.kql.gotmpl
+- name: veleroBackupStorageLocations
+  database: ServiceLogs
+  queryType: custom-logs
+  includeInMustGather: true
+  templatePath: templates/custom/velero_backup_storage_locations.kql.gotmpl
+- name: veleroVolumeSnapshotLocations
+  database: ServiceLogs
+  queryType: custom-logs
+  includeInMustGather: true
+  templatePath: templates/custom/velero_volume_snapshot_locations.kql.gotmpl
 - name: veleroHcpLogs
   database: ServiceLogs
   queryType: custom-logs
