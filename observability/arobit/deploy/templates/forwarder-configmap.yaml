@@ -1,5 +1,5 @@
 {{- define "buffer_settings" }}
-        buffering_enabled           {{ .Values.forwarder.kusto.buffering_enabled }} 
+        buffering_enabled           {{ .Values.forwarder.kusto.buffering_enabled }}
         upload_timeout              {{ .Values.forwarder.kusto.upload_timeout }}
         upload_file_size            {{ .Values.forwarder.kusto.upload_file_size }}
         buffer_file_delete_early    {{ .Values.forwarder.kusto.buffer_file_delete_early }}
@@ -56,6 +56,14 @@ data:
         HC_Period                 60
   parsers_custom.conf: |
     [PARSER]
+        Name        azure_vnet_json
+        Format      json
+        Time_Key    ts
+        Time_Format %Y-%m-%dT%H:%M:%S.%LZ
+        Time_Offset +0000
+        Time_Keep   On
+
+    [PARSER]
         Name        containerlogs
         Format      json
         Time_Key    time
@@ -84,6 +92,28 @@ data:
         rule          "cont"         "/^\d(?!\d{3}-\d{2}-\d{2}T\d{2}:)/"  "cont"
 
   input.conf: |
+{{- if .Values.forwarder.kusto.enabled }}
+    [INPUT]
+        Name              tail
+        Alias             tail.azure_vnet
+        Tag               azure-vnet.logs
+        # Follow the active file, not numeric or timestamp-named backups.
+        Path              /var/log/azure-vnet.log
+        Path_Key          sourcePath
+        Parser            azure_vnet_json
+        DB                /var/log/flb-azure-vnet.db
+        DB.sync           normal
+        DB.locking        true
+        Refresh_Interval  5
+        Rotate_Wait       30
+        Read_From_Head    Off
+        Buffer_Chunk_Size 32K
+        Buffer_Max_Size   256K
+        Skip_Long_Lines   On
+        storage.type      filesystem
+        Threaded          On
+
+{{- end }}
     [INPUT]
         Name              tail
         Alias             tail.container
@@ -152,6 +182,27 @@ data:
         Threaded          On
         storage.type      filesystem
   filter.conf: |
+{{- if .Values.forwarder.kusto.enabled }}
+    [FILTER]
+        Name  grep
+        Match azure-vnet.logs
+        # Unparsed/truncated payloads cannot be safely stripped field by field.
+        Exclude log (stdinData|args)
+
+    [FILTER]
+        Name  modify
+        Match azure-vnet.logs
+        # Failed JSON parses remain under log; normalize them without losing text.
+        Rename log msg
+        # CNI invocation arguments can contain complete network configuration.
+        Remove stdinData
+        Remove args
+        Set environment {{ .Values.forwarder.environment }}
+        Set region {{ .Values.forwarder.region }}
+        Set cluster {{ .Values.forwarder.clusterName }}
+        Set hostname ${NODE_NAME}
+
+{{- end }}
     [FILTER]
         Name                  multiline
         Alias                 filter.multiline_klog
@@ -790,6 +841,24 @@ data:
         Table_Name systemdLogs
         ingestion_mapping_reference ingestionMapping
         azure_kusto_buffer_key systemdLogs
+        buffer_dir "{{ .Values.forwarder.kusto.buffer_dir }}"
+{{- if .Values.forwarder.kusto.buffering }}
+        {{- template "buffer_settings" . }}
+{{- end }}
+
+    [OUTPUT]
+        Match azure-vnet.logs
+        Name azure_kusto
+        Retry_Limit 5
+        auth_type workload_identity
+        tenant_id {{ .Values.forwarder.tenantId }}
+        client_id {{ .Values.forwarder.msiClientId }}
+        workload_identity_token_file ${AZURE_FEDERATED_TOKEN_FILE}
+        Ingestion_Endpoint {{ .Values.forwarder.kusto.ingestionEndpoint }}
+        Database_Name {{ .Values.forwarder.kusto.serviceLogsDatabase }}
+        Table_Name azureVnetLogs
+        ingestion_mapping_reference ingestionMapping
+        azure_kusto_buffer_key azureVnetLogs
         buffer_dir "{{ .Values.forwarder.kusto.buffer_dir }}"
 {{- if .Values.forwarder.kusto.buffering }}
         {{- template "buffer_settings" . }}

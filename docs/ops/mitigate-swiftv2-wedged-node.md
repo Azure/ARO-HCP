@@ -7,7 +7,7 @@ Azure SWIFT v2 management-cluster nodes can enter a failure state where every po
 Two things to know before you start digging:
 
 - **CNS is not the culprit, so do not spend time there.** On the cases we have analysed, `azure-cns` assigned and released the pod's IP cleanly on every single retry with `ReturnCode:Success`, and the `MultitenantPodNetworkConfig` resolved a secondary IP within about a second of the pod being scheduled. IP pool exhaustion is ruled out too. The fault is in the `azure-vnet` CNI plugin's endpoint-creation step, which consumes the CNS response and programs the interface into the pod netns.
-- **`azure-vnet` has no logs in Kusto.** It runs as a host binary invoked by containerd, not as a pod, so nothing it emits is ingested into ServiceLogs. That is exactly why the log-collection script in the appendix exists: if Cloudnet/RNC want evidence, it has to be pulled off the node before you recycle it.
+- **`azure-vnet` is a host binary, not a pod.** After the Azure VNet file collector is deployed, its active log is available in `ServiceLogs.azureVnetLogs`; filter by both `cluster` and `hostname` (see [query and coverage details](../logging.md#azure-vnet-cni-logs)). This does not backfill rotated files or earlier incidents. Keep using the appendix's collection script to preserve retained files and CNS state before recycling a node.
 
 The node will not self-heal in the hard-wedge variant. In the intermittent flapping variant (AROSLSRE-1717), the node alternates between healthy and failing states, self-resolving between bursts but recurring under pod scheduling pressure. The standing mitigation for both variants is to **cordon and delete the VMSS instance** so pods reschedule onto healthy nodes and AKS replaces the instance.
 
