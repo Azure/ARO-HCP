@@ -837,6 +837,9 @@ defaults:
     backupScheduleState: Enabled
     exitOnPanic: true
     logVerbosity: 4
+    orphanedMRGMyAFEC: ""
+    orphanedMRGOtherAFECs: ""
+    orphanedMRGReadWrite: false
     clusterScopedIdentitiesConfig:
       roleSetName: "public"
   # Fleet

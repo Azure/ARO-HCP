@@ -72,6 +72,15 @@ spec:
         - "{{ .Values.maestro.sourceEnvironmentIdentifier }}"
         - "--exit-on-panic={{ .Values.exitOnPanic }}"
         - "--log-verbosity={{ .Values.logVerbosity }}"
+        - "--orphaned-mrg-read-write={{ .Values.orphanedMRGReadWrite }}"
+        {{- if .Values.orphanedMRGMyAFEC }}
+        - "--orphaned-mrg-my-afec"
+        - "{{ .Values.orphanedMRGMyAFEC }}"
+        {{- end }}
+        {{- if .Values.orphanedMRGOtherAFECs }}
+        - "--orphaned-mrg-other-afecs"
+        - "{{ .Values.orphanedMRGOtherAFECs }}"
+        {{- end }}
        {{- if and .Values.miMock.certName (or .Values.miMock.clientId .Values.miMock.clientIdSecretName) (or .Values.miMock.principalId .Values.miMock.principalIdSecretName) .Values.miMock.tenantId
                   .Values.armPermissionsManagerIdentity.certName .Values.armPermissionsManagerIdentity.clientId .Values.armPermissionsManagerIdentity.tenantId
         }}

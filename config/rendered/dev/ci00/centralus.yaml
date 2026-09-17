@@ -138,6 +138,9 @@ backend:
   maestro:
     sourceEnvironmentIdentifier: arohcpci00
   managedIdentityName: backend
+  orphanedMRGMyAFEC: ""
+  orphanedMRGOtherAFECs: ""
+  orphanedMRGReadWrite: false
   tracing:
     address: http://ingest.observability:4318
     exporter: otlp
