@@ -62,7 +62,10 @@ func ToClusterServiceProviderProperties(oldObj *coreapi.HCPOpenShiftCluster) *co
 }
 
 var (
-	toClusterIdentity = func(oldObj *coreapi.HCPOpenShiftCluster) *coreapi.ManagedServiceIdentity { return oldObj.Identity }
+	toClusterIdentity                                                       = func(oldObj *coreapi.HCPOpenShiftCluster) *coreapi.ManagedServiceIdentity { return oldObj.Identity }
+	toServiceProviderPropertiesExperimentalFeaturesControlPlaneExactVersion = func(oldObj *coreapi.HCPOpenShiftCluster) *semver.Version {
+		return oldObj.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion
+	}
 )
 
 func ValidateCluster(ctx context.Context, op operation.Operation, newCluster, oldCluster *coreapi.HCPOpenShiftCluster, validationPathMapper coreapi.ValidationPathMapperFunc) field.ErrorList {
@@ -166,7 +169,7 @@ var exactVersionTagDetail = fmt.Sprintf(
 	"must be specified as MAJOR.MINOR; pin an exact build with the %q resource tag",
 	metadataapi.TagClusterControlPlaneExactVersion)
 
-// validateControlPlaneExactVersionPin enforces the two cross-cutting rules for
+// validateControlPlaneExactVersionPin enforces the three cross-cutting rules for
 // the control-plane-exact-version ARM tag, which admission translates into
 // ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion:
 //
@@ -180,10 +183,21 @@ var exactVersionTagDetail = fmt.Sprintf(
 //     version.id's major.minor against the resolved desired version and fails
 //     the operation when they differ, so a mismatch is rejected up front with an
 //     actionable message rather than timing out partway through the update.
+//  3. The pin may not decrease. validateVersionProfile already applies
+//     VersionMayNotDecrease to version.id, but a non-nil pin supersedes
+//     version.id as the desired control plane version — the control plane
+//     version controllers consume it directly and skip graph resolution — so
+//     without the same rule here the no-downgrade guarantee on version.id could
+//     be sidestepped by lowering the tag alone. The comparison is semver, which
+//     orders a prerelease below its release: moving between channel groups at
+//     the same z-stream (for example "4.21.0" to "4.21.0-0.nightly-...") is
+//     therefore a decrease and is rejected. Dropping the tag entirely is not a
+//     decrease and is not checked here; the pin stops applying and the
+//     controllers fall back to resolving from version.id.
 //
 // Errors are reported against the tag, not version.id: the tag is the only way
 // to express an exact version and the only thing the customer can change.
-func validateControlPlaneExactVersionPin(_ context.Context, op operation.Operation, newCluster, _ *coreapi.HCPOpenShiftCluster) field.ErrorList {
+func validateControlPlaneExactVersionPin(ctx context.Context, op operation.Operation, newCluster, oldCluster *coreapi.HCPOpenShiftCluster) field.ErrorList {
 	// The pin and the nightly channel group are both gated on the experimental
 	// AFEC; without it the channelGroup enum already rejects nightly and
 	// ExperimentalFeatures is zeroed, so there is nothing to check.
@@ -191,16 +205,18 @@ func validateControlPlaneExactVersionPin(_ context.Context, op operation.Operati
 		return nil
 	}
 
-	tagPath := field.NewPath("tags").Key(metadataapi.TagClusterControlPlaneExactVersion)
-	exact := newCluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion
+	errs := field.ErrorList{}
 
-	if newCluster.CustomerProperties.Version.ChannelGroup == metadataapi.ChannelGroupNightly && exact == nil {
+	tagPath := field.NewPath("tags").Key(metadataapi.TagClusterControlPlaneExactVersion)
+	newExact := newCluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion
+
+	if newCluster.CustomerProperties.Version.ChannelGroup == metadataapi.ChannelGroupNightly && newExact == nil {
 		return field.ErrorList{field.Required(tagPath,
 			"nightly builds are not published to the update graph, so the exact build must be pinned with this tag "+
 				"when channelGroup is \"nightly\" (e.g. \"4.21.0-0.nightly-2026-08-05-123456\")")}
 	}
 
-	if exact == nil {
+	if newExact == nil {
 		return nil
 	}
 
@@ -210,13 +226,22 @@ func validateControlPlaneExactVersionPin(_ context.Context, op operation.Operati
 	if err != nil {
 		return nil
 	}
-	if requested.Major != exact.Major || requested.Minor != exact.Minor {
-		return field.ErrorList{field.Invalid(tagPath, exact.String(),
+	if requested.Major != newExact.Major || requested.Minor != newExact.Minor {
+		errs = append(errs, field.Invalid(tagPath, newExact.String(),
 			fmt.Sprintf("must pin a build of the %d.%d release line requested by version.id, got %d.%d",
-				requested.Major, requested.Minor, exact.Major, exact.Minor))}
+				requested.Major, requested.Minor, newExact.Major, newExact.Minor)))
 	}
 
-	return nil
+	oldExact := safe.Field(oldCluster, toServiceProviderPropertiesExperimentalFeaturesControlPlaneExactVersion)
+	if oldExact == nil {
+		return errs
+	}
+
+	newExactStr := newExact.String()
+	oldExactStr := oldExact.String()
+	errs = append(errs, VersionMayNotDecrease(ctx, op, tagPath, &newExactStr, &oldExactStr)...)
+
+	return errs
 }
 
 func validateOperatorAuthenticationAgainstIdentities(ctx context.Context, op operation.Operation, newCluster, _ *coreapi.HCPOpenShiftCluster) field.ErrorList {
