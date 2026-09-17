@@ -40,7 +40,7 @@ import (
 // finishedJSONURL is the run's completion record, written by Prow itself rather
 // than by a test step. It is fetched directly because it needs none of the
 // artifact-directory discovery the other files do.
-const finishedJSONURL = "https://storage.googleapis.com/test-platform-results/%s/finished.json"
+const finishedJSONURL = "https://storage.googleapis.com/test-platform-results-public/%s/finished.json"
 
 // prowFinished is the subset of finished.json that reaches Kusto.
 type prowFinished struct {
