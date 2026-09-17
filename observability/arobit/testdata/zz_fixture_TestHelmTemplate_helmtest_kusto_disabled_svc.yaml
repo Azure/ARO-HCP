@@ -700,8 +700,8 @@ spec:
               drop: ['ALL']
           resources:
             requests:
-              cpu: 100m
-              memory: 256Mi
+              cpu: 450m
+              memory: 416Mi
             limits:
               memory: 1248Mi
           volumeMounts:
