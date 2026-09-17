@@ -28,16 +28,13 @@ spec:
       nodeSelector:
         aro-hcp.azure.com/role: worker
       containers:
+      # The host root filesystem is mounted at /host and we chroot into it, so
+      # every binary the script below uses (sh, sed, grep, systemctl) comes from
+      # the node, not from the container image. The image only has to provide
+      # chroot itself, which keeps us free to use a pinned MCR image.
       - command:
-        - nsenter
-        - --target
-        - "1"
-        - --mount
-        - --uts
-        - --ipc
-        - --net
-        - --pid
-        - --
+        - /usr/sbin/chroot
+        - /host
         - sh
         - -c
         - |
@@ -66,9 +63,17 @@ spec:
             cpu: 10m
         securityContext:
           privileged: true
+          # chroot(2) and writing the node's systemd/kubelet config require uid 0;
+          # set it explicitly so an image whose USER is non-root cannot break this.
+          runAsUser: 0
         terminationMessagePath: /dev/termination-log
         terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /host
+          name: host-root
       dnsPolicy: ClusterFirst
+      # Kept so systemd can resolve the caller's pid over its private socket
+      # when the chrooted script runs systemctl.
       hostPID: true
       restartPolicy: Always
       schedulerName: default-scheduler
@@ -77,6 +82,11 @@ spec:
       tolerations:
       - effect: NoSchedule
         operator: Exists
+      volumes:
+      - hostPath:
+          path: /
+          type: Directory
+        name: host-root
   updateStrategy:
     rollingUpdate:
       maxSurge: 0
