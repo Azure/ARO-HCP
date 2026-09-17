@@ -119,6 +119,7 @@ type completedControllerOptions struct {
 	capacityReport           *capacityreporting.CapacityReportController
 	resourceWatcher          *controller.ResourceWatcher
 	podWatcher               *controller.PodWatcher
+	resourceInventory        *controller.ResourceInventory
 	configMapWatcher         *controller.ConfigMapWatcher
 	kubeInformers            kubeinformers.SharedInformerFactory
 	ksmKubeInformers         kubeinformers.SharedInformerFactory
@@ -199,6 +200,7 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 	if err != nil {
 		return nil, fmt.Errorf("failed to create pod watcher: %w", err)
 	}
+	resourceInventory := controller.NewResourceInventory(kubeClientset.CoreV1().RESTClient())
 
 	cmWatcherInformers := kubeinformers.NewSharedInformerFactoryWithOptions(kubeClientset, 0,
 		kubeinformers.WithTweakListOptions(func(opts *metav1.ListOptions) {
@@ -348,6 +350,7 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 			capacityReport:           capacityReportCtrl,
 			resourceWatcher:          resourceWatcher,
 			podWatcher:               podWatcher,
+			resourceInventory:        resourceInventory,
 			configMapWatcher:         configMapWatcher,
 			kubeInformers:            kubeInformers,
 			ksmKubeInformers:         ksmKubeInformers,
@@ -516,6 +519,15 @@ func (o *ControllerOptions) runControllersUnderLeaderElection(ctx context.Contex
 						defer utilruntime.HandleCrash()
 						if err := o.podWatcher.Run(ctx); err != nil {
 							logger.Error(err, "pod watcher failed")
+						}
+					}()
+				}
+
+				if o.resourceInventory != nil {
+					go func() {
+						defer utilruntime.HandleCrash()
+						if err := o.resourceInventory.Run(ctx); err != nil {
+							logger.Error(err, "resource inventory failed")
 						}
 					}()
 				}
