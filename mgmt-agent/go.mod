@@ -4,7 +4,7 @@ go 1.25.7
 
 require (
 	github.com/Azure/ARO-HCP/internal v0.0.0-00010101000000-000000000000
-	github.com/Azure/ARO-Tools/testutil v0.0.0-20260915180124-1f517432829c
+	github.com/Azure/ARO-Tools/testutil v0.0.0-20260917062117-27fb5fa3a294
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.23.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.14.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6 v6.3.0
