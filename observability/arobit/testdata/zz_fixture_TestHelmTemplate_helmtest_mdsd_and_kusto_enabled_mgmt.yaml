@@ -122,6 +122,10 @@ data:
         Tag             systemd.*
         Systemd_Filter  _SYSTEMD_UNIT=containerd.service
         Systemd_Filter  _SYSTEMD_UNIT=kubelet.service
+        # Capture systemd-networkd unit logs (equivalent to `journalctl -u
+        # systemd-networkd`) for diagnosing node networking issues (link/DHCP
+        # renewal failures, DNS config changes) alongside kubelet/containerd.
+        Systemd_Filter  _SYSTEMD_UNIT=systemd-networkd.service
         # AROSLSRE-1465: capture kernel ring-buffer (kmsg) messages so we can see
         # the guest kernel stack (hung_task/soft-lockup/panic) in the seconds
         # before a userswft node hard-freezes into NodeNotReady. Kernel journal
@@ -982,7 +986,7 @@ spec:
         app: arobit-forwarder
         azure.workload.identity/use: "true"
       annotations:
-        checksum/configmap: d77a6291a229aa8716de1277492ff62e103f4434d7bf9406c24716740b5a8435
+        checksum/configmap: ed18cdf6756286c8d022ba7aa9eacc4ffec669b610d8fceb0deae7ee1c17cfd5
     spec:
       priorityClassName: service-lifecycle-critical
       serviceAccountName: 'arobit-forwarder'
