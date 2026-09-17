@@ -1145,6 +1145,13 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		b.options.SMIClientBuilder,
 	)
 
+	hostedClusterDataPlaneIdentitiesController := clusterdataplaneworkloads.NewHostedClusterDataPlaneIdentitiesController(
+		b.options.ResourcesDBClient,
+		b.options.KubeApplierDBClients,
+		backendInformers,
+		unionKubeApplierInformers,
+	)
+
 	clusterResourcesController := clusterresources.NewClusterResourcesController(
 		b.options.ResourcesDBClient,
 		b.options.KubeApplierDBClients,
@@ -1279,6 +1286,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go dataPlaneWorkloadsOIDCFederationController.Run(ctx, 20)
 				go identityRoleAssignmentsController.Run(ctx, 20)
 				go keyRotationBackupController.Run(ctx, 20)
+				go hostedClusterDataPlaneIdentitiesController.Run(ctx, 20)
 				go clusterResourcesController.Run(ctx, 20)
 			},
 			OnStoppedLeading: func() {

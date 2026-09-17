@@ -1312,6 +1312,28 @@ No writes to the Cosmos Resources container.
 | Read | Azure (UserAssignedIdentitiesClient) | <ul><li>`Get` once per unique ResourceID -> `Properties.ClientID`, `Properties.PrincipalID`</li></ul> |
 | **Write** | **`ServiceProviderCluster`** | <ul><li>**`Status.DataPlaneOperatorsManagedIdentities.Identities[<lowercased resourceID>]`** = `{ResourceID, ClientID, PrincipalID, RetrievalError}` — ClientID/PrincipalID from Azure on success (RetrievalError nil); on any Get failure (including ResourceNotFound) ClientID/PrincipalID are cleared (nil) and RetrievalError is set to the first 1024 chars of the error. Identities no longer present on the cluster are pruned.</li><li>**`Spec.EarliestRecheckTimesByController["FetchDataPlaneOperatorsManagedIdentitiesInfo"]`** = now + jittered 12h interval when all Gets succeed; left cleared (absent) when any Get error is accumulated, so the next needsWork re-queries Azure</li></ul> |
 
+#### HostedClusterDataPlaneIdentities
+
+**File:** [hosted_cluster_identity_controller.go](../backend/pkg/controllers/cluster/dataplaneworkloads/hosted_cluster_identity_controller.go)
+**Trigger:** Cluster informer + ServiceProviderCluster informer + ReadDesire informer, 30-second resync
+**Gate (SyncOnce preconditions):**
+- `ServiceProviderCluster.Status.ManagementClusterResourceID` != nil (not yet placed)
+- `HCPOpenShiftCluster.ServiceProviderProperties.DeletionTimestamp` == nil (not deleting — deletion path removes the desire document and returns)
+- `HCPOpenShiftCluster.ServiceProviderProperties.ClusterServiceID` != nil (not yet provisioned in CS)
+- All three data-plane operator identities (`image-registry`, `disk-csi-driver`, `file-csi-driver`) must be present in `CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators`
+- `ServiceProviderCluster.Status.ManagedIdentityDetails[<identityKey>].MetadataFromARMUserAssignedIdentitiesAPI.ClientID` != nil and RetrievalError == nil for each operator (transient error, workqueue retry otherwise)
+- `ServiceProviderCluster.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation[<identityKey>].OperatorEnsured(<operatorName>)` == true for each operator — FIC must exist on Azure before the new ClientID is written to the HostedCluster (transient error, workqueue retry otherwise)
+- ReadDesire-cached HostedCluster must be available (not yet observed = silent skip, re-triggered when ReadDesire updates)
+
+| | Object | Fields |
+|---|--------|--------|
+| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (deletion path gate)</li><li>`ServiceProviderProperties.ClusterServiceID` (SyncOnce: must not be nil)</li><li>`CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators` (operator → identity ResourceID mapping)</li></ul> |
+| Read | `ServiceProviderCluster` | <ul><li>`Status.ManagementClusterResourceID` (must not be nil)</li><li>`Status.ManagedIdentityDetails[<lowercased ResourceID>].MetadataFromARMUserAssignedIdentitiesAPI.{ClientID, RetrievalError}` (resolved ClientIDs for each data-plane operator)</li><li>`Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation[<lowercased ResourceID>]` (OIDC federation completion gate, via `OperatorEnsured`)</li></ul> |
+| Read | `ReadDesire` (kube-applier DB) | <ul><li>`Status.KubeContent` of the HostedCluster ReadDesire — unmarshaled to get `metadata.name` and `metadata.namespace` of the management-cluster HostedCluster object, needed to target the SSA patch</li></ul> |
+| **Write** | `ApplyDesire` (kube-applier DB) | <ul><li>Creates or replaces one `HostedClusterDataPlaneIdentities` ApplyDesire per cluster, containing a minimal HostedCluster SSA patch with only the three `spec.platform.azure.azureAuthenticationConfig.managedIdentities.dataPlane.{imageRegistryMSIClientID, diskMSIClientID, fileMSIClientID}` fields. Uses `FieldManager: "aro-hcp-mi-controller"` so SSA field ownership of the identity fields is cleanly separate from the base HostedCluster desire (`work-agent` / `aro-hcp-kube-applier`). On cluster deletion, removes the document directly (does not flip to Type=Delete, preserving the ClientID values for HyperShift teardown).</li></ul> |
+
+No writes to the Cosmos Resources container.
+
 #### EnsureManagedResourceGroup
 
 The [ClusterDenyAssignment controller](../backend/pkg/controllers/cluster/denyassignments/deny_assignment_controller.go)
