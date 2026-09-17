@@ -125,6 +125,21 @@ func TestValidateClusterCreate(t *testing.T) {
 			},
 		},
 		{
+			// Both keys collapse to "kms" in the case-insensitive lookup, so without preferring the
+			// supplied identity the required-identity error depends on map iteration order.
+			name: "control plane operator name supplied in two cases - create",
+			cluster: func() *coreapi.HCPOpenShiftCluster {
+				c := createValidCluster()
+				operators := c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators
+				operators["KMS"] = operators["kms"]
+				operators["kms"] = nil
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "unrecognized operator name", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[KMS]"},
+			},
+		},
+		{
 			name: "unrecognized data plane operator name - create",
 			cluster: func() *coreapi.HCPOpenShiftCluster {
 				c := createValidCluster()
