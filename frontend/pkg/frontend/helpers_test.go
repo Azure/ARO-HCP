@@ -206,3 +206,50 @@ func TestCheckForProvisioningStateConflict(t *testing.T) {
 		}
 	}
 }
+
+func TestAllowRepeatedClusterDeletion(t *testing.T) {
+	tests := []struct {
+		name                           string
+		provisioningState              coreapi.ProvisioningState
+		usesNewClusterDeletionApproach bool
+		expectAllow                    bool
+	}{
+		{
+			name:                           "Deleting state with legacy deletion - should allow",
+			provisioningState:              coreapi.ProvisioningStateDeleting,
+			usesNewClusterDeletionApproach: false,
+			expectAllow:                    true,
+		},
+		{
+			name:                           "Deleting state with new deletion - should not allow",
+			provisioningState:              coreapi.ProvisioningStateDeleting,
+			usesNewClusterDeletionApproach: true,
+			expectAllow:                    false,
+		},
+		{
+			name:                           "Succeeded state with legacy deletion - should not allow",
+			provisioningState:              coreapi.ProvisioningStateSucceeded,
+			usesNewClusterDeletionApproach: false,
+			expectAllow:                    false,
+		},
+		{
+			name:                           "Failed state with legacy deletion - should not allow",
+			provisioningState:              coreapi.ProvisioningStateFailed,
+			usesNewClusterDeletionApproach: false,
+			expectAllow:                    false,
+		},
+		{
+			name:                           "Provisioning state with legacy deletion - should not allow",
+			provisioningState:              coreapi.ProvisioningStateProvisioning,
+			usesNewClusterDeletionApproach: false,
+			expectAllow:                    false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := allowRepeatedClusterDeletion(tt.provisioningState, tt.usesNewClusterDeletionApproach)
+			require.Equal(t, tt.expectAllow, result)
+		})
+	}
+}
