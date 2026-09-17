@@ -1,0 +1,38 @@
+.create-merge table kubernetesResourceInventory (
+  timestamp: datetime,
+  environment: string,
+  region: string,
+  cluster: string,
+  snapshotId: string,
+  snapshotTime: datetime,
+  apiGroup: string,
+  apiVersion: string,
+  resource: string,
+  objectKind: string,
+  scope: string,
+  namespace: string,
+  name: string,
+  itemIndex: long,
+  display: dynamic
+)
+
+.create-or-alter table kubernetesResourceInventory ingestion json mapping 'ingestionMapping'
+```
+[
+  {"column":"timestamp","Properties":{"path":"$.timestamp"}},
+  {"column":"environment","Properties":{"path":"$.log.environment"}},
+  {"column":"region","Properties":{"path":"$.log.region"}},
+  {"column":"cluster","Properties":{"path":"$.log.cluster"}},
+  {"column":"snapshotId","Properties":{"path":"$.log.snapshotId"}},
+  {"column":"snapshotTime","Properties":{"path":"$.log.snapshotTime"}},
+  {"column":"apiGroup","Properties":{"path":"$.log.apiGroup"}},
+  {"column":"apiVersion","Properties":{"path":"$.log.apiVersion"}},
+  {"column":"resource","Properties":{"path":"$.log.resource"}},
+  {"column":"objectKind","Properties":{"path":"$.log.objectKind"}},
+  {"column":"scope","Properties":{"path":"$.log.scope"}},
+  {"column":"namespace","Properties":{"path":"$.log.namespace"}},
+  {"column":"name","Properties":{"path":"$.log.name"}},
+  {"column":"itemIndex","Properties":{"path":"$.log.itemIndex"}},
+  {"column":"display","Properties":{"path":"$.log.display"}}
+]
+```

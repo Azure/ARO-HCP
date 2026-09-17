@@ -268,6 +268,29 @@ data:
         Emitter_Storage.type   filesystem
 
     [FILTER]
+        # Route the server-side Kubernetes Table rows emitted by mgmt-agent to
+        # the resource inventory item table. These records contain only the
+        # normal/wide printer cells, never the underlying Kubernetes object.
+        Name            rewrite_tag
+        Alias           filter.resource_inventory_router
+        Match           mgmt-agent.logs
+        Rule            $snapshotType ^kubernetes-inventory-item$ resource-inventory.logs false
+        Emitter_Name    re_emitted_resource_inventory_router
+        Emitter_Mem_Buf_Limit  20M
+        Emitter_Storage.type   filesystem
+
+    [FILTER]
+        # Route one performance/completeness summary per inventory attempt to
+        # its own narrow Kusto table.
+        Name            rewrite_tag
+        Alias           filter.resource_inventory_snapshot_router
+        Match           mgmt-agent.logs
+        Rule            $snapshotType ^kubernetes-inventory-snapshot$ resource-inventory-snapshots.logs false
+        Emitter_Name    re_emitted_resource_inventory_snapshot_router
+        Emitter_Mem_Buf_Limit  20M
+        Emitter_Storage.type   filesystem
+
+    [FILTER]
         # Drop kube-applier logs that carry a resource-snapshot payload
         # (snapshotType=kubernetes or cosmos) entirely. kube-applier is not a source
         # of kubernetesResourceSnapshots or cosmosResourceSnapshots, so these records
@@ -448,7 +471,7 @@ data:
         ingestion_mapping_reference ingestionMapping
         azure_kusto_buffer_key containerLogsOcm
         buffer_dir "/var/kusto"
-        buffering_enabled           true 
+        buffering_enabled           true
         upload_timeout              1m
         upload_file_size            16M
         buffer_file_delete_early    false
@@ -473,7 +496,7 @@ data:
         ingestion_mapping_reference ingestionMapping
         buffer_dir "/var/kusto"
         azure_kusto_buffer_key frontendLogs
-        buffering_enabled           true 
+        buffering_enabled           true
         upload_timeout              1m
         upload_file_size            16M
         buffer_file_delete_early    false
@@ -498,7 +521,7 @@ data:
         ingestion_mapping_reference ingestionMapping
         azure_kusto_buffer_key backendLogs
         buffer_dir "/var/kusto"
-        buffering_enabled           true 
+        buffering_enabled           true
         upload_timeout              1m
         upload_file_size            16M
         buffer_file_delete_early    false
@@ -523,7 +546,7 @@ data:
         ingestion_mapping_reference ingestionMapping
         azure_kusto_buffer_key fleetLogs
         buffer_dir "/var/kusto"
-        buffering_enabled           true 
+        buffering_enabled           true
         upload_timeout              1m
         upload_file_size            16M
         buffer_file_delete_early    false
@@ -548,7 +571,7 @@ data:
         ingestion_mapping_reference ingestionMapping
         azure_kusto_buffer_key kubeApplierLogs
         buffer_dir "/var/kusto"
-        buffering_enabled           true 
+        buffering_enabled           true
         upload_timeout              1m
         upload_file_size            16M
         buffer_file_delete_early    false
@@ -573,7 +596,7 @@ data:
         ingestion_mapping_reference ingestionMapping
         azure_kusto_buffer_key clustersServiceLogs
         buffer_dir "/var/kusto"
-        buffering_enabled           true 
+        buffering_enabled           true
         upload_timeout              1m
         upload_file_size            16M
         buffer_file_delete_early    false
@@ -598,7 +621,57 @@ data:
         ingestion_mapping_reference ingestionMapping
         azure_kusto_buffer_key resourceSnapshots
         buffer_dir "/var/kusto"
-        buffering_enabled           true 
+        buffering_enabled           true
+        upload_timeout              1m
+        upload_file_size            16M
+        buffer_file_delete_early    false
+        unify_tag                   true
+        store_dir_limit_size        1.8GB
+        blob_uri_length             128
+        scheduler_max_retries       9
+        delete_on_max_upload_error  true
+        io_timeout                  60s
+
+    [OUTPUT]
+        Match resource-inventory.logs
+        Name azure_kusto
+        Retry_Limit 5
+        auth_type workload_identity
+        tenant_id __tenantId__
+        client_id __msiClientId__
+        workload_identity_token_file ${AZURE_FEDERATED_TOKEN_FILE}
+        Ingestion_Endpoint __kustoDataIngestionUri__
+        Database_Name ServiceLogs
+        Table_Name kubernetesResourceInventory
+        ingestion_mapping_reference ingestionMapping
+        azure_kusto_buffer_key resourceInventory
+        buffer_dir "/var/kusto"
+        buffering_enabled           true
+        upload_timeout              1m
+        upload_file_size            16M
+        buffer_file_delete_early    false
+        unify_tag                   true
+        store_dir_limit_size        1.8GB
+        blob_uri_length             128
+        scheduler_max_retries       9
+        delete_on_max_upload_error  true
+        io_timeout                  60s
+
+    [OUTPUT]
+        Match resource-inventory-snapshots.logs
+        Name azure_kusto
+        Retry_Limit 5
+        auth_type workload_identity
+        tenant_id __tenantId__
+        client_id __msiClientId__
+        workload_identity_token_file ${AZURE_FEDERATED_TOKEN_FILE}
+        Ingestion_Endpoint __kustoDataIngestionUri__
+        Database_Name ServiceLogs
+        Table_Name kubernetesResourceInventorySnapshots
+        ingestion_mapping_reference ingestionMapping
+        azure_kusto_buffer_key resourceInventorySnapshots
+        buffer_dir "/var/kusto"
+        buffering_enabled           true
         upload_timeout              1m
         upload_file_size            16M
         buffer_file_delete_early    false
@@ -623,7 +696,7 @@ data:
         ingestion_mapping_reference ingestionMapping
         azure_kusto_buffer_key cosmosResourceSnapshots
         buffer_dir "/var/kusto"
-        buffering_enabled           true 
+        buffering_enabled           true
         upload_timeout              1m
         upload_file_size            16M
         buffer_file_delete_early    false
@@ -648,7 +721,7 @@ data:
         ingestion_mapping_reference ingestionMapping
         azure_kusto_buffer_key containerLogs
         buffer_dir "/var/kusto"
-        buffering_enabled           true 
+        buffering_enabled           true
         upload_timeout              1m
         upload_file_size            16M
         buffer_file_delete_early    false
@@ -673,7 +746,7 @@ data:
         ingestion_mapping_reference ingestionMapping
         azure_kusto_buffer_key kubernetesEvents
         buffer_dir "/var/kusto"
-        buffering_enabled           true 
+        buffering_enabled           true
         upload_timeout              1m
         upload_file_size            16M
         buffer_file_delete_early    false
@@ -698,7 +771,7 @@ data:
         ingestion_mapping_reference ingestionMapping
         azure_kusto_buffer_key systemdLogs
         buffer_dir "/var/kusto"
-        buffering_enabled           true 
+        buffering_enabled           true
         upload_timeout              1m
         upload_file_size            16M
         buffer_file_delete_early    false
@@ -813,7 +886,7 @@ spec:
         app: arobit-forwarder
         azure.workload.identity/use: "true"
       annotations:
-        checksum/configmap: f8e52cebcc1b2cf167053c89c90acf477eebba8961840d2f59e612e6c894d8d6
+        checksum/configmap: 287cfb406ef4a5147d8c8a26ac295e37b5320e07bb53734d05ca5b396d099778
     spec:
       priorityClassName: service-lifecycle-critical
       serviceAccountName: 'arobit-forwarder'

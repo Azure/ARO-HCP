@@ -1,5 +1,5 @@
 {{- define "buffer_settings" }}
-        buffering_enabled           {{ .Values.forwarder.kusto.buffering_enabled }} 
+        buffering_enabled           {{ .Values.forwarder.kusto.buffering_enabled }}
         upload_timeout              {{ .Values.forwarder.kusto.upload_timeout }}
         upload_file_size            {{ .Values.forwarder.kusto.upload_file_size }}
         buffer_file_delete_early    {{ .Values.forwarder.kusto.buffer_file_delete_early }}
@@ -274,6 +274,29 @@ data:
         Match           mgmt-agent.logs
         Rule            $snapshotType ^kubernetes$ resource-snapshots.logs false
         Emitter_Name    re_emitted_resource_snapshot_router
+        Emitter_Mem_Buf_Limit  20M
+        Emitter_Storage.type   filesystem
+
+    [FILTER]
+        # Route the server-side Kubernetes Table rows emitted by mgmt-agent to
+        # the resource inventory item table. These records contain only the
+        # normal/wide printer cells, never the underlying Kubernetes object.
+        Name            rewrite_tag
+        Alias           filter.resource_inventory_router
+        Match           mgmt-agent.logs
+        Rule            $snapshotType ^kubernetes-inventory-item$ resource-inventory.logs false
+        Emitter_Name    re_emitted_resource_inventory_router
+        Emitter_Mem_Buf_Limit  20M
+        Emitter_Storage.type   filesystem
+
+    [FILTER]
+        # Route one performance/completeness summary per inventory attempt to
+        # its own narrow Kusto table.
+        Name            rewrite_tag
+        Alias           filter.resource_inventory_snapshot_router
+        Match           mgmt-agent.logs
+        Rule            $snapshotType ^kubernetes-inventory-snapshot$ resource-inventory-snapshots.logs false
+        Emitter_Name    re_emitted_resource_inventory_snapshot_router
         Emitter_Mem_Buf_Limit  20M
         Emitter_Storage.type   filesystem
 
@@ -697,6 +720,42 @@ data:
         Table_Name kubernetesResourceSnapshots
         ingestion_mapping_reference ingestionMapping
         azure_kusto_buffer_key resourceSnapshots
+        buffer_dir "{{ .Values.forwarder.kusto.buffer_dir }}"
+{{- if .Values.forwarder.kusto.buffering }}
+        {{- template "buffer_settings" . }}
+{{- end }}
+
+    [OUTPUT]
+        Match resource-inventory.logs
+        Name azure_kusto
+        Retry_Limit 5
+        auth_type workload_identity
+        tenant_id {{ .Values.forwarder.tenantId }}
+        client_id {{ .Values.forwarder.msiClientId }}
+        workload_identity_token_file ${AZURE_FEDERATED_TOKEN_FILE}
+        Ingestion_Endpoint {{ .Values.forwarder.kusto.ingestionEndpoint }}
+        Database_Name {{ .Values.forwarder.kusto.serviceLogsDatabase }}
+        Table_Name kubernetesResourceInventory
+        ingestion_mapping_reference ingestionMapping
+        azure_kusto_buffer_key resourceInventory
+        buffer_dir "{{ .Values.forwarder.kusto.buffer_dir }}"
+{{- if .Values.forwarder.kusto.buffering }}
+        {{- template "buffer_settings" . }}
+{{- end }}
+
+    [OUTPUT]
+        Match resource-inventory-snapshots.logs
+        Name azure_kusto
+        Retry_Limit 5
+        auth_type workload_identity
+        tenant_id {{ .Values.forwarder.tenantId }}
+        client_id {{ .Values.forwarder.msiClientId }}
+        workload_identity_token_file ${AZURE_FEDERATED_TOKEN_FILE}
+        Ingestion_Endpoint {{ .Values.forwarder.kusto.ingestionEndpoint }}
+        Database_Name {{ .Values.forwarder.kusto.serviceLogsDatabase }}
+        Table_Name kubernetesResourceInventorySnapshots
+        ingestion_mapping_reference ingestionMapping
+        azure_kusto_buffer_key resourceInventorySnapshots
         buffer_dir "{{ .Values.forwarder.kusto.buffer_dir }}"
 {{- if .Values.forwarder.kusto.buffering }}
         {{- template "buffer_settings" . }}
