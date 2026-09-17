@@ -126,6 +126,17 @@ func isTransientUpdateError(err error) bool {
 	return false
 }
 
+// IsAPINotDeployedError returns true if the error indicates the API version
+// has not been rolled out to this region yet.
+func IsAPINotDeployedError(err error) bool {
+	var respErr *azcore.ResponseError
+	if !errors.As(err, &respErr) {
+		return false
+	}
+	return respErr.StatusCode == http.StatusNotFound ||
+		strings.Contains(respErr.ErrorCode, "NoRegisteredProviderFound")
+}
+
 type NonConformingClustersError struct {
 	clusters []string
 }

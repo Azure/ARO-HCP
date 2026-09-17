@@ -79,7 +79,7 @@ var _ = Describe("Customer", func() {
 				nil,
 				framework.ClusterCreationTimeout,
 			)
-			if isAPINotDeployedError(err) {
+			if framework.IsAPINotDeployedError(err) {
 				if time.Now().Before(timeBombDeadline) {
 					Skip(fmt.Sprintf("v20261001preview API not yet deployed; skipping until %s", timeBombDeadline.Format(time.RFC3339)))
 				}
