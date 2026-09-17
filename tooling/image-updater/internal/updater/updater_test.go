@@ -21,9 +21,13 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/go-logr/logr"
+
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 
 	"github.com/Azure/ARO-HCP/tooling/image-updater/internal/clients"
 	"github.com/Azure/ARO-HCP/tooling/image-updater/internal/config"
@@ -66,7 +70,30 @@ func (m *mockRegistryClient) GetDigestForTag(ctx context.Context, repository str
 	return &clients.Tag{Digest: m.digest, Name: tag}, nil
 }
 
+type controlledRegistryClient struct {
+	fetch func(context.Context, string) (*clients.Tag, error)
+}
+
+func (c *controlledRegistryClient) GetArchSpecificDigest(ctx context.Context, repository string, _ string, _ string, _ bool, _ string) (*clients.Tag, error) {
+	return c.fetch(ctx, repository)
+}
+
+func (c *controlledRegistryClient) GetDigestForTag(ctx context.Context, repository string, _ string, _ string, _ bool, _ string) (*clients.Tag, error) {
+	return c.fetch(ctx, repository)
+}
+
+func TestRunDiscoveryWorkerConvertsPanicToError(t *testing.T) {
+	previousReallyCrash := utilruntime.ReallyCrash
+	utilruntime.ReallyCrash = false
+	defer func() { utilruntime.ReallyCrash = previousReallyCrash }()
+
+	err := runDiscoveryWorker("test-image", func() error { panic("discovery panic") })
+	if err == nil || !strings.Contains(err.Error(), "panic while fetching latest value for test-image") {
+		t.Fatalf("runDiscoveryWorker() error = %v, want panic error", err)
+	}
+}
 func TestUpdater_UpdateImages(t *testing.T) {
+
 	tests := []struct {
 		name            string
 		config          *config.Config
@@ -319,6 +346,137 @@ image:
 				}
 			}
 		})
+	}
+}
+
+func TestUpdaterUpdateImagesBoundsConcurrentDiscovery(t *testing.T) {
+	const imageCount = maxConcurrentRepositories + 2
+
+	ctx := logr.NewContext(context.Background(), testLogger())
+	yamlPath := filepath.Join(t.TempDir(), "test.yaml")
+	if err := os.WriteFile(yamlPath, []byte("image:\n  digest: sha256:old\n"), 0644); err != nil {
+		t.Fatalf("failed to create temp yaml: %v", err)
+	}
+	editor, err := yaml.NewEditor(yamlPath)
+	if err != nil {
+		t.Fatalf("failed to create YAML editor: %v", err)
+	}
+
+	started := make(chan string, imageCount)
+	release := make(chan struct{}, imageCount)
+	var active atomic.Int64
+	var maximum atomic.Int64
+	client := &controlledRegistryClient{fetch: func(ctx context.Context, repository string) (*clients.Tag, error) {
+		current := active.Add(1)
+		defer active.Add(-1)
+		for observed := maximum.Load(); current > observed && !maximum.CompareAndSwap(observed, current); observed = maximum.Load() {
+		}
+		select {
+		case started <- repository:
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+		select {
+		case <-release:
+			return &clients.Tag{Name: "latest", Digest: "sha256:" + repository}, nil
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}}
+
+	cfg := &config.Config{Images: make(map[string]config.ImageConfig, imageCount)}
+	for i := 0; i < imageCount; i++ {
+		name := fmt.Sprintf("image-%d", i)
+		cfg.Images[name] = config.ImageConfig{
+			Source:  config.Source{Image: "quay.io/test/" + name},
+			Targets: []config.Target{{FilePath: yamlPath, JsonPath: "image.digest"}},
+		}
+	}
+	u := New(cfg, true, false, map[string]clients.RegistryClient{"quay.io:false": client}, map[string]yaml.EditorInterface{yamlPath: editor}, "", "table")
+
+	errCh := make(chan error, 1)
+	go func() { errCh <- u.UpdateImages(ctx) }()
+	for i := 0; i < maxConcurrentRepositories; i++ {
+		select {
+		case <-started:
+		case <-time.After(time.Second):
+			t.Fatal("timed out waiting for initial discoveries")
+		}
+	}
+	select {
+	case repository := <-started:
+		t.Fatalf("discovery exceeded limit: %s started while %d requests were blocked", repository, maxConcurrentRepositories)
+	default:
+	}
+
+	release <- struct{}{}
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("a queued discovery did not start after capacity became available")
+	}
+	for i := 0; i < imageCount; i++ {
+		release <- struct{}{}
+	}
+	if err := <-errCh; err != nil {
+		t.Fatalf("UpdateImages() unexpected error = %v", err)
+	}
+	if got := maximum.Load(); got != maxConcurrentRepositories {
+		t.Fatalf("maximum concurrent discoveries = %d, want %d", got, maxConcurrentRepositories)
+	}
+
+	gotDigests := make(map[string]string, imageCount)
+	for _, update := range u.Updates[yamlPath] {
+		gotDigests[update.Name] = update.NewDigest
+	}
+	for name := range cfg.Images {
+		want := "sha256:test/" + name
+		if gotDigests[name] != want {
+			t.Errorf("update digest for %s = %q, want %q", name, gotDigests[name], want)
+		}
+	}
+}
+
+func TestUpdaterUpdateImagesCancelsDiscoveryBeforeUpdates(t *testing.T) {
+	ctx, cancel := context.WithCancel(logr.NewContext(context.Background(), testLogger()))
+	started := make(chan struct{}, maxConcurrentRepositories)
+	client := &controlledRegistryClient{fetch: func(ctx context.Context, _ string) (*clients.Tag, error) {
+		select {
+		case started <- struct{}{}:
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+		<-ctx.Done()
+		return nil, ctx.Err()
+	}}
+
+	cfg := &config.Config{Images: make(map[string]config.ImageConfig, maxConcurrentRepositories+1)}
+	for i := 0; i < maxConcurrentRepositories+1; i++ {
+		name := fmt.Sprintf("image-%d", i)
+		cfg.Images[name] = config.ImageConfig{Source: config.Source{Image: "quay.io/test/" + name}}
+	}
+	u := New(cfg, true, false, map[string]clients.RegistryClient{"quay.io:false": client}, nil, "", "table")
+	errCh := make(chan error, 1)
+	go func() { errCh <- u.UpdateImages(ctx) }()
+	for i := 0; i < maxConcurrentRepositories; i++ {
+		select {
+		case <-started:
+		case <-time.After(time.Second):
+			t.Fatal("timed out waiting for discoveries")
+		}
+	}
+	cancel()
+
+	select {
+	case err := <-errCh:
+		if err == nil || !strings.Contains(err.Error(), context.Canceled.Error()) {
+			t.Fatalf("UpdateImages() error = %v, want context cancellation", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("UpdateImages() did not stop after cancellation")
+	}
+	if len(u.Updates) != 0 {
+		t.Fatalf("UpdateImages() recorded updates after a failed discovery: %v", u.Updates)
 	}
 }
 

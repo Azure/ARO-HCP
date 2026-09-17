@@ -693,15 +693,15 @@ func TestAdmitCluster_Update(t *testing.T) {
 	serviceProviderClusterStatusWithActiveControlPlaneVersion := func(fullVersion string) coreapi.ServiceProviderClusterStatus {
 		return coreapi.ServiceProviderClusterStatus{
 			ControlPlaneVersion: coreapi.ServiceProviderClusterStatusVersion{
-				ActiveVersions: []coreapi.HCPClusterActiveVersion{{Version: ptr.To(metadataapi.Must(semver.ParseTolerant(fullVersion)))}},
+				ActiveVersions: []coreapi.ServiceProviderClusterActiveVersion{{Version: ptr.To(metadataapi.Must(semver.ParseTolerant(fullVersion)))}},
 			},
 		}
 	}
 
 	serviceProviderClusterStatusWithActiveControlPlaneVersions := func(fullVersions ...string) coreapi.ServiceProviderClusterStatus {
-		active := make([]coreapi.HCPClusterActiveVersion, 0, len(fullVersions))
+		active := make([]coreapi.ServiceProviderClusterActiveVersion, 0, len(fullVersions))
 		for _, v := range fullVersions {
-			active = append(active, coreapi.HCPClusterActiveVersion{Version: ptr.To(metadataapi.Must(semver.ParseTolerant(v)))})
+			active = append(active, coreapi.ServiceProviderClusterActiveVersion{Version: ptr.To(metadataapi.Must(semver.ParseTolerant(v)))})
 		}
 		return coreapi.ServiceProviderClusterStatus{
 			ControlPlaneVersion: coreapi.ServiceProviderClusterStatusVersion{ActiveVersions: active},
@@ -727,9 +727,9 @@ func TestAdmitCluster_Update(t *testing.T) {
 		npResourceID := metadataapi.Must(azcorearm.ParseResourceID(clusterResourceID.String() + "/nodePools/" + nodePoolName))
 		spResourceID := metadataapi.Must(azcorearm.ParseResourceID(fmt.Sprintf("%s/%s/%s",
 			npResourceID.String(), coreapi.ServiceProviderNodePoolResourceTypeName, coreapi.ServiceProviderNodePoolResourceName)))
-		active := make([]coreapi.HCPNodePoolActiveVersion, 0, len(activeFullVersions))
+		active := make([]coreapi.ServiceProviderNodePoolActiveVersion, 0, len(activeFullVersions))
 		for _, v := range activeFullVersions {
-			active = append(active, coreapi.HCPNodePoolActiveVersion{Version: ptr.To(metadataapi.Must(semver.ParseTolerant(v)))})
+			active = append(active, coreapi.ServiceProviderNodePoolActiveVersion{Version: ptr.To(metadataapi.Must(semver.ParseTolerant(v)))})
 		}
 		return &coreapi.ServiceProviderNodePool{
 			CosmosMetadata: coreapi.CosmosMetadata{ResourceID: spResourceID, PartitionKey: strings.ToLower(spResourceID.SubscriptionID)},

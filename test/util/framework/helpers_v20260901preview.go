@@ -447,6 +447,25 @@ func (tc *perItOrDescribeTestContext) CreateNodePoolFromParam20260901(
 
 // --- Functions from hcp_helper.go ---
 
+// ClearUserAssignedIdentityValues20260901 resets every value in a
+// ManagedServiceIdentity's UserAssignedIdentities map to an empty struct,
+// preserving only the map keys (identity resource IDs).
+//
+// ARM requires that on a PUT of an existing resource, UserAssignedIdentities
+// map values for identities that should be kept unchanged are sent back as
+// empty objects ({}); the client/PrincipalID values a prior GET populated
+// must not be echoed back. Callers that Get a cluster, mutate an unrelated
+// field, and then BeginCreateOrUpdate the full object must call this first
+// or ARM rejects the request with error code InvalidIdentityValues.
+func ClearUserAssignedIdentityValues20260901(identity *hcpsdk20260901preview.ManagedServiceIdentity) {
+	if identity == nil {
+		return
+	}
+	for id := range identity.UserAssignedIdentities {
+		identity.UserAssignedIdentities[id] = &hcpsdk20260901preview.UserAssignedIdentity{}
+	}
+}
+
 func BuildHCPClusterFromParams20260901(
 	parameters ClusterParams20260901,
 	location string,

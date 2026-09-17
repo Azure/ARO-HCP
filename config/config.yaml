@@ -893,6 +893,10 @@ defaults:
       replicas: 2
       namespace: sessiongate
       serviceAccountName: sessiongate
+      resources:
+        requests:
+          cpu: 250m
+          memory: 512Mi
     cert:
       name: sessiongate-cert-{{ .ctx.environment }}-{{ .ctx.regionShort }}
       san: ''
@@ -1086,7 +1090,7 @@ defaults:
     image:
       registry: quay.io
       repository: redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
-      digest: sha256:d2c2575bfd77308b83ee403b3940fb6f2827c1b2d1f67eca5c8fbf9472c6e42c # c4701a7b74b4f21cfa3aa42102fc9bf6bc02b0ba (2026-09-10 13:09)
+      digest: sha256:b152aafe7bc84db9f4eeeb60dd6f39050f03756ed289f1ad2cc8c9940d920eea # d3a71561ee8e41050d3b20a499908f1734a03962 (2026-09-15 13:31)
   # ACM
   acm:
     operator:
@@ -1484,7 +1488,7 @@ clouds:
       kvCertOfficerPrincipalId: 'c9b1819d-bb29-4ac2-9abe-39e4fe9b59eb'
       kvCertAccessPrincipalId: 'c9b1819d-bb29-4ac2-9abe-39e4fe9b59eb'
       kvCertAccessRoleId: ""
-      entraAppOwnerIds: "d8837611-f550-4f0a-af48-575a7178adfb,16ea1e12-7ef3-4613-bea4-3d4a20cbc38c,770ce6b0-5afe-472d-ac0d-1fae72acc4e4" # aro-github-actions-identity, bvesel, goberlec
+      entraAppOwnerIds: "d8837611-f550-4f0a-af48-575a7178adfb,770ce6b0-5afe-472d-ac0d-1fae72acc4e4" # aro-github-actions-identity, goberlec
       geneva:
         actions:
           application:

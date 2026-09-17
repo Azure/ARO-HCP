@@ -50,7 +50,7 @@ resource tenantQuotaAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         alert: 'TenantQuotaCritical'
         enabled: true
         expression: 'tenant_quota_usage_percentage >= 95'
-        for: 'PT5M'
+        for: 'PT30M'
         severity: 2
         labels: {
           severity: 'critical'
@@ -74,7 +74,7 @@ resource tenantQuotaAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         alert: 'TenantQuotaWarning'
         enabled: true
         expression: 'tenant_quota_usage_percentage >= 90 and tenant_quota_usage_percentage < 95'
-        for: 'PT10M'
+        for: 'PT30M'
         severity: 3
         labels: {
           severity: 'warning'
@@ -98,7 +98,7 @@ resource tenantQuotaAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         alert: 'TenantQuotaInfo'
         enabled: true
         expression: 'tenant_quota_usage_percentage >= 80 and tenant_quota_usage_percentage < 90'
-        for: 'PT15M'
+        for: 'PT30M'
         severity: 4
         labels: {
           severity: 'info'
@@ -122,14 +122,14 @@ resource tenantQuotaAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         alert: 'TenantQuotaCollectorUp'
         enabled: true
         expression: 'absent(up{job="tenant-quota-collector",namespace="tenant-quota"} == 1)'
-        for: 'PT15M'
+        for: 'PT30M'
         severity: 3
         labels: {
           severity: 'warning'
         }
         annotations: {
           summary: 'Tenant quota collector is unreachable'
-          description: 'tenant-quota-collector has not been reachable for 15 minutes. Check the pod status, service endpoints, and Prometheus scrape target health in the tenant-quota namespace.'
+          description: 'tenant-quota-collector has not been reachable for 30 minutes. Check the pod status, service endpoints, and Prometheus scrape target health in the tenant-quota namespace.'
           runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/ci/dev-ci-monitoring.md#exporter-health-checks'
         }
         actions: [
@@ -184,7 +184,7 @@ resource subscriptionQuotaAlerts 'Microsoft.AlertsManagement/prometheusRuleGroup
         alert: 'AzureQuotaCritical'
         enabled: true
         expression: '${azureQuotaUsageRatioFiltered} > 0.95'
-        for: 'PT5M'
+        for: 'PT30M'
         severity: 2
         labels: {
           severity: 'critical'
@@ -208,7 +208,7 @@ resource subscriptionQuotaAlerts 'Microsoft.AlertsManagement/prometheusRuleGroup
         alert: 'AzureQuotaWarning'
         enabled: true
         expression: '${azureQuotaUsageRatioFiltered} > 0.80 and ${azureQuotaUsageRatioFiltered} <= 0.95'
-        for: 'PT10M'
+        for: 'PT30M'
         severity: 3
         labels: {
           severity: 'warning'

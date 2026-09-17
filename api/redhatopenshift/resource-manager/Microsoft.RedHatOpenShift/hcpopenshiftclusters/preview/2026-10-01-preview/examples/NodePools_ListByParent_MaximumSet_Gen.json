@@ -33,6 +33,22 @@
               "autoScaling": {
                 "min": 6,
                 "max": 29
+              },
+              "status": {
+                "conditions": [
+                  {
+                    "type": "Available",
+                    "status": "True",
+                    "lastTransitionTime": "2024-03-27T14:57:32.578Z",
+                    "reason": "AsExpected",
+                    "message": "Node pool is available"
+                  }
+                ],
+                "activeVersions": [
+                  {
+                    "version": "4.12.36"
+                  }
+                ]
               }
             },
             "tags": {

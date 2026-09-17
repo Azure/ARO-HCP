@@ -850,110 +850,29 @@ func boolPtr(b bool) *bool {
 	return &b
 }
 
-func TestConfigLoad_WithKeyVault(t *testing.T) {
-	tests := []struct {
-		name              string
-		configContent     string
-		wantImageName     string
-		wantKeyVaultURL   string
-		wantKeyVaultName  string
-		wantKeyVaultIsNil bool
-	}{
-		{
-			name: "keyVault configured for image",
-			configContent: `
-images:
-  clusters-service:
-    group: test-group
-    source:
-      image: quay.io/app-sre/aro-hcp-clusters-service
-      useAuth: true
-      keyVault:
-        url: "https://arohcpdev-global.vault.azure.net/"
-        secretName: "component-sync-pull-secret"
-    targets:
-      - filePath: config.yaml
-        jsonPath: image.digest
-`,
-			wantImageName:     "clusters-service",
-			wantKeyVaultURL:   "https://arohcpdev-global.vault.azure.net/",
-			wantKeyVaultName:  "component-sync-pull-secret",
-			wantKeyVaultIsNil: false,
-		},
-		{
-			name: "keyVault not configured",
-			configContent: `
-images:
-  maestro:
-    group: test-group
-    source:
-      image: quay.io/maestro/maestro
-      useAuth: false
-    targets:
-      - filePath: config.yaml
-        jsonPath: image.digest
-`,
-			wantImageName:     "maestro",
-			wantKeyVaultIsNil: true,
-		},
-		{
-			name: "keyVault with empty fields",
-			configContent: `
+func TestConfigLoadRejectsLegacyKeyVault(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "config.yaml")
+	configContent := `
 images:
   test:
     group: test-group
     source:
       image: quay.io/test/app
+      useAuth: true
       keyVault:
-        url: ""
-        secretName: ""
+        url: https://example.vault.azure.net/
+        secretName: pull-secret
     targets:
-      - filePath: config.yaml
-        jsonPath: image.digest
-`,
-			wantImageName:     "test",
-			wantKeyVaultURL:   "",
-			wantKeyVaultName:  "",
-			wantKeyVaultIsNil: false,
-		},
+    - filePath: config.yaml
+      jsonPath: image.digest
+`
+	if err := os.WriteFile(configPath, []byte(configContent), 0600); err != nil {
+		t.Fatalf("failed to create config file: %v", err)
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			tmpDir := t.TempDir()
-			configPath := filepath.Join(tmpDir, "config.yaml")
-
-			if err := os.WriteFile(configPath, []byte(tt.configContent), 0644); err != nil {
-				t.Fatalf("failed to create config file: %v", err)
-			}
-
-			cfg, err := Load(configPath)
-			if err != nil {
-				t.Fatalf("Load() unexpected error = %v", err)
-			}
-
-			img, exists := cfg.Images[tt.wantImageName]
-			if !exists {
-				t.Fatalf("Load() missing expected image %s", tt.wantImageName)
-			}
-
-			if tt.wantKeyVaultIsNil {
-				if img.Source.KeyVault != nil {
-					t.Errorf("Load() KeyVault = %v, want nil", img.Source.KeyVault)
-				}
-			} else {
-				if img.Source.KeyVault == nil {
-					t.Errorf("Load() KeyVault = nil, want non-nil")
-					return
-				}
-				if img.Source.KeyVault.URL != tt.wantKeyVaultURL {
-					t.Errorf("Load() KeyVault.URL = %v, want %v", img.Source.KeyVault.URL, tt.wantKeyVaultURL)
-				}
-				if img.Source.KeyVault.SecretName != tt.wantKeyVaultName {
-					t.Errorf("Load() KeyVault.SecretName = %v, want %v", img.Source.KeyVault.SecretName, tt.wantKeyVaultName)
-				}
-			}
-		})
+	_, err := Load(configPath)
+	if err == nil || !strings.Contains(err.Error(), "keyVault is no longer supported") {
+		t.Fatalf("Load() error = %v, want unsupported keyVault error", err)
 	}
 }
 
@@ -1081,16 +1000,7 @@ func TestSource_Validate(t *testing.T) {
 				UseAuth:             boolPtr(true),
 			},
 			wantErr:    true,
-			wantErrMsg: "useAuth/keyVault/versionLabel must not be set",
-		},
-		{
-			name: "invalid: githubLatestRelease with keyVault",
-			source: Source{
-				GitHubLatestRelease: "istio/istio",
-				KeyVault:            &KeyVaultConfig{URL: "https://example.vault.azure.net/"},
-			},
-			wantErr:    true,
-			wantErrMsg: "useAuth/keyVault/versionLabel must not be set",
+			wantErrMsg: "useAuth/versionLabel must not be set",
 		},
 		{
 			name: "invalid: githubLatestRelease with versionLabel",
@@ -1099,7 +1009,7 @@ func TestSource_Validate(t *testing.T) {
 				VersionLabel:        "org.opencontainers.image.revision",
 			},
 			wantErr:    true,
-			wantErrMsg: "useAuth/keyVault/versionLabel must not be set",
+			wantErrMsg: "useAuth/versionLabel must not be set",
 		},
 	}
 

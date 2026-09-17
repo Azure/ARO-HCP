@@ -22,6 +22,8 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	"github.com/blang/semver/v4"
+
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
@@ -30,7 +32,7 @@ import (
 var _ = Describe("Customer", func() {
 	timeBombDeadline := framework.Must(time.Parse(time.RFC3339, "2026-11-01T00:00:00Z"))
 
-	It("should create a cluster using v20261001preview API and verify cluster health",
+	It("should be able to retrieve cluster and nodepool status active versions",
 		labels.RequireNothing,
 		labels.Critical,
 		labels.Positive,
@@ -111,6 +113,40 @@ var _ = Describe("Customer", func() {
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create node pool %q for v20261001preview cluster %q",
 				customerNodePoolName, customerClusterName)
+
+			By("verifying active versions are returned for the cluster")
+			clusterResp, err := tc.Get20261001ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient().Get(ctx, *resourceGroup.Name, customerClusterName, nil)
+			Expect(err).NotTo(HaveOccurred(), "failed to GET cluster %q", customerClusterName)
+			Expect(clusterResp.Properties).NotTo(BeNil(), "cluster %q response Properties was nil", customerClusterName)
+			Expect(clusterResp.Properties.Status).NotTo(BeNil(), "cluster %q response Properties.Status was nil", customerClusterName)
+			Expect(clusterResp.Properties.Status.ActiveVersions).NotTo(BeEmpty(), "cluster %q should have at least one active version", customerClusterName)
+			var clusterActiveVersions []string
+			for _, v := range clusterResp.Properties.Status.ActiveVersions {
+				Expect(v.Version).NotTo(BeNil(), "cluster %q active version entry should have a non-nil Version", customerClusterName)
+				Expect(*v.Version).NotTo(BeEmpty(), "cluster %q active version should not be empty", customerClusterName)
+				clusterActiveVersions = append(clusterActiveVersions, *v.Version)
+			}
+			parsed, err := semver.ParseTolerant(clusterParams.OpenshiftVersionId)
+			Expect(err).NotTo(HaveOccurred(), "failed to parse cluster version %q as semver", clusterParams.OpenshiftVersionId)
+			expectedClusterVersion := fmt.Sprintf("%d.%d", parsed.Major, parsed.Minor)
+			Expect(clusterActiveVersions).To(ContainElement(expectedClusterVersion),
+				"cluster %q active versions %v should contain requested version %q (major.minor of %q)",
+				customerClusterName, clusterActiveVersions, expectedClusterVersion, clusterParams.OpenshiftVersionId)
+
+			By("verifying active versions are returned for the node pool")
+			nodePool, err := framework.GetNodePool20261001(ctx,
+				tc.Get20261001ClientFactoryOrDie(ctx).NewNodePoolsClient(),
+				*resourceGroup.Name, customerClusterName, customerNodePoolName,
+			)
+			Expect(err).NotTo(HaveOccurred(), "failed to GET node pool %q", customerNodePoolName)
+			Expect(nodePool.Properties).NotTo(BeNil(), "node pool %q response Properties was nil", customerNodePoolName)
+			Expect(nodePool.Properties.Status).NotTo(BeNil(), "node pool %q response Properties.Status was nil", customerNodePoolName)
+			Expect(nodePool.Properties.Status.ActiveVersions).To(HaveLen(1),
+				"node pool %q should have exactly one active version after initial creation", customerNodePoolName)
+			Expect(nodePool.Properties.Status.ActiveVersions[0].Version).NotTo(BeNil(),
+				"node pool %q active version entry should have a non-nil Version", customerNodePoolName)
+			Expect(*nodePool.Properties.Status.ActiveVersions[0].Version).To(Equal(nodePoolParams.OpenshiftVersionId),
+				"node pool %q active version should match requested version", customerNodePoolName)
 
 			By("getting admin credentials for the cluster")
 			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20261001(

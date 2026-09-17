@@ -212,7 +212,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 			},
 		},
 		{
-			name: "version ID lower than minimum version without experimental flag - create",
+			name: "version ID lower than minimum version - create",
 			nodePool: func() *coreapi.HCPOpenShiftClusterNodePool {
 				np := createValidNodePool()
 				np.Properties.Version.ID = "4.20.0"
@@ -1789,7 +1789,7 @@ func TestValidateNodePoolVersionWithFeatureFlags(t *testing.T) {
 			name: "X.Y format rejected for stable channel ",
 			nodePool: func() *coreapi.HCPOpenShiftClusterNodePool {
 				np := createValidNodePool()
-				np.Properties.Version.ID = "4.20"
+				np.Properties.Version.ID = "4.21"
 				np.Properties.Version.ChannelGroup = "stable"
 				return np
 			}(),
@@ -1808,6 +1808,7 @@ func TestValidateNodePoolVersionWithFeatureFlags(t *testing.T) {
 			}(),
 			opOptions: testNodePoolFeatureOptions(metadataapi.FeatureExperimentalReleaseFeatures),
 			expectErrors: []utils.ExpectedError{
+				{Message: "Invalid character(s) found in patch number", FieldPath: "properties.version.id"},
 				{Message: "Invalid character(s) found in patch number", FieldPath: "properties.version.id"},
 			},
 		},
@@ -1857,16 +1858,6 @@ func TestValidateNodePoolVersionWithFeatureFlags(t *testing.T) {
 				{Message: "No Major.Minor.Patch elements found", FieldPath: "properties.version.id"},
 				{Message: "Short version cannot contain PreRelease/Build meta data", FieldPath: "properties.version.id"},
 			},
-		},
-		{
-			name: "version ID lower than minimum version with experimental flag - create",
-			nodePool: func() *coreapi.HCPOpenShiftClusterNodePool {
-				np := createValidNodePool()
-				np.Properties.Version.ID = "4.20.0"
-				return np
-			}(),
-			opOptions:    testNodePoolFeatureOptions(metadataapi.FeatureExperimentalReleaseFeatures),
-			expectErrors: []utils.ExpectedError{},
 		},
 	}
 

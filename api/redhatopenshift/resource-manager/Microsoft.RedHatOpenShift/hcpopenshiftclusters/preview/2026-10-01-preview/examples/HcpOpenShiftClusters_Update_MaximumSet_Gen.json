@@ -107,6 +107,22 @@
           "nodeDrainTimeoutMinutes": 20,
           "clusterImageRegistry": {
             "state": "Enabled"
+          },
+          "status": {
+            "conditions": [
+              {
+                "type": "Available",
+                "status": "True",
+                "lastTransitionTime": "2024-03-27T14:57:32.578Z",
+                "reason": "AsExpected",
+                "message": "Cluster is available"
+              }
+            ],
+            "activeVersions": [
+              {
+                "version": "4.12"
+              }
+            ]
           }
         },
         "identity": {
