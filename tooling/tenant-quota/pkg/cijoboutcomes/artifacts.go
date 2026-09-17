@@ -40,7 +40,7 @@ import (
 // finishedJSONURL is the run's completion record, written by Prow itself rather
 // than by a test step. It is fetched directly because it needs none of the
 // artifact-directory discovery the other files do.
-const finishedJSONURL = "https://storage.googleapis.com/test-platform-results-public/%s/finished.json"
+const finishedJSONURL = "https://storage.googleapis.com/%s/%s/finished.json"
 
 // prowFinished is the subset of finished.json that reaches Kusto.
 type prowFinished struct {
@@ -91,7 +91,7 @@ func fetchRunDetail(ctx context.Context, client *http.Client, prowURL string) (r
 		}
 	}
 
-	finishedAt, err := fetchFinishedAt(ctx, client, info.GCSPrefix)
+	finishedAt, err := fetchFinishedAt(ctx, client, info.GCSBucket, info.GCSPrefix)
 	if err != nil {
 		failures = append(failures, err)
 	} else {
@@ -109,8 +109,8 @@ func fetchRunDetail(ctx context.Context, client *http.Client, prowURL string) (r
 }
 
 // fetchFinishedAt reads when the run completed.
-func fetchFinishedAt(ctx context.Context, client *http.Client, gcsPrefix string) (time.Time, error) {
-	return fetchFinishedAtFrom(ctx, client, fmt.Sprintf(finishedJSONURL, gcsPrefix))
+func fetchFinishedAt(ctx context.Context, client *http.Client, bucket, gcsPrefix string) (time.Time, error) {
+	return fetchFinishedAtFrom(ctx, client, fmt.Sprintf(finishedJSONURL, bucket, gcsPrefix))
 }
 
 func fetchFinishedAtFrom(ctx context.Context, client *http.Client, url string) (time.Time, error) {
