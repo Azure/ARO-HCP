@@ -120,11 +120,11 @@ Two rules when consuming it:
 - **Read actual, not desired.** Admission decides against what exists on the
   management cluster today. `Spec.DesiredHostedCluster` is intent and may not be
   reality; do not gate on it.
-- **Fail open while unobserved.** `ActualHostedCluster` is nil until the backend
-  has seen the HostedCluster. nil means "unknown", never "absent" — treating it
-  as absent would reject every affected request until the mirror converges.
-  Once it is non-nil, an empty field within it is a real answer and can be
-  enforced.
+- **Fail closed while unobserved for safety-critical upgrade gates.**
+  `ActualHostedCluster` is nil until the backend has seen the HostedCluster.
+  For the v5 data-plane mirror gate, nil means the required mirror cannot be
+  proven present, so the upgrade must be rejected. Once it is non-nil, an empty
+  field within it is a real answer and is also rejected.
 
 Why the mirror exists at all (frontend has no kube-applier container access, so
 a frontend compromise cannot create management-cluster resources) is written up

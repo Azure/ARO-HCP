@@ -36,6 +36,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/utils"
+	"github.com/Azure/ARO-HCP/internal/utils/apihelpers"
 )
 
 func TestMutateCluster(t *testing.T) {
@@ -691,12 +692,20 @@ func TestAdmitCluster_Update(t *testing.T) {
 
 	serviceProviderResourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		clusterResourceID.String() + "/serviceProviderClusters/default"))
+	observedHostedClusterWithV5Mirror := func() *hsv1beta1.HostedCluster {
+		return &hsv1beta1.HostedCluster{
+			Spec: hsv1beta1.HostedClusterSpec{
+				ImageContentSources: []hsv1beta1.ImageContentSource{{Source: apihelpers.OcpV5ArtDevMirrorSource}},
+			},
+		}
+	}
 
 	serviceProviderClusterStatusWithActiveControlPlaneVersion := func(fullVersion string) coreapi.ServiceProviderClusterStatus {
 		return coreapi.ServiceProviderClusterStatus{
 			ControlPlaneVersion: coreapi.ServiceProviderClusterStatusVersion{
 				ActiveVersions: []coreapi.ServiceProviderClusterActiveVersion{{Version: ptr.To(metadataapi.Must(semver.ParseTolerant(fullVersion)))}},
 			},
+			ActualHostedCluster: observedHostedClusterWithV5Mirror(),
 		}
 	}
 
@@ -707,6 +716,7 @@ func TestAdmitCluster_Update(t *testing.T) {
 		}
 		return coreapi.ServiceProviderClusterStatus{
 			ControlPlaneVersion: coreapi.ServiceProviderClusterStatusVersion{ActiveVersions: active},
+			ActualHostedCluster: observedHostedClusterWithV5Mirror(),
 		}
 	}
 
@@ -1545,7 +1555,8 @@ func TestAdmitClusterV5DataPlaneMirror(t *testing.T) {
 		}
 	}
 	// spcUnmirrored models a ServiceProviderCluster the backend has not yet
-	// observed a HostedCluster for.
+	// observed a HostedCluster for. A v5 upgrade must fail closed until the
+	// required mirror is proven present.
 	spcUnmirrored := &coreapi.ServiceProviderCluster{}
 
 	const v4Mirror = "quay.io/openshift-release-dev/ocp-v4.0-art-dev"
@@ -1566,12 +1577,12 @@ func TestAdmitClusterV5DataPlaneMirror(t *testing.T) {
 			op:           operation.Operation{Type: operation.Update},
 			oldVersion:   &coreapi.VersionProfile{ID: "4.22"},
 			newVersion:   &coreapi.VersionProfile{ID: "5.0"},
-			spc:          spcWithMirrors(v4Mirror, coreapi.OcpV5ArtDevMirrorSource),
+			spc:          spcWithMirrors(v4Mirror, apihelpers.OcpV5ArtDevMirrorSource),
 			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			// The observed HostedCluster has image content sources, but not the
-			// v5 one: nodes could not pull 5.x images, so the upgrade is blocked.
+			// v5 one: nodes could not pull 5.y images, so the upgrade is blocked.
 			name:         "4->5 upgrade without the v5 mirror is rejected",
 			op:           operation.Operation{Type: operation.Update},
 			oldVersion:   &coreapi.VersionProfile{ID: "4.22"},
@@ -1590,7 +1601,7 @@ func TestAdmitClusterV5DataPlaneMirror(t *testing.T) {
 			expectErrors: missingMirror,
 		},
 		{
-			// The gate is about crossing into 5.x, not about landing on 5.0
+			// The gate is about crossing into 5.y, not about landing on 5.0
 			// specifically.
 			name:         "4->5.1 upgrade without the v5 mirror is rejected",
 			op:           operation.Operation{Type: operation.Update},
@@ -1600,7 +1611,7 @@ func TestAdmitClusterV5DataPlaneMirror(t *testing.T) {
 			expectErrors: missingMirror,
 		},
 		{
-			name:         "pre-release 5.x target without the v5 mirror is rejected",
+			name:         "pre-release 5.y target without the v5 mirror is rejected",
 			op:           operation.Operation{Type: operation.Update},
 			oldVersion:   &coreapi.VersionProfile{ID: "4.22"},
 			newVersion:   &coreapi.VersionProfile{ID: "5.0.0-ec.6"},
@@ -1608,28 +1619,26 @@ func TestAdmitClusterV5DataPlaneMirror(t *testing.T) {
 			expectErrors: missingMirror,
 		},
 		{
-			// Fail open: nil ActualHostedCluster means "not observed yet", which is
-			// not evidence the mirror is absent. Enforcing here would block every
-			// 4->5 upgrade until the backend converges.
-			name:         "4->5 upgrade with an unmirrored hosted cluster skips (fail open until synced)",
+			// Fail closed: nil ActualHostedCluster means the required mirror has not
+			// been proven present yet.
+			name:         "4->5 upgrade with an unmirrored hosted cluster is rejected until synced",
 			op:           operation.Operation{Type: operation.Update},
 			oldVersion:   &coreapi.VersionProfile{ID: "4.22"},
 			newVersion:   &coreapi.VersionProfile{ID: "5.0"},
 			spc:          spcUnmirrored,
-			expectErrors: []utils.ExpectedError{},
+			expectErrors: missingMirror,
 		},
 		{
-			// The missing-prefetch condition is separately surfaced as an
-			// InternalError by the version-skew check in admitClusterVersionProfile.
-			name:         "4->5 upgrade with missing service provider cluster skips (fail open)",
+			// Missing observed state cannot prove that the required mirror exists.
+			name:         "4->5 upgrade with missing service provider cluster is rejected",
 			op:           operation.Operation{Type: operation.Update},
 			oldVersion:   &coreapi.VersionProfile{ID: "4.22"},
 			newVersion:   &coreapi.VersionProfile{ID: "5.0"},
 			spc:          nil,
-			expectErrors: []utils.ExpectedError{},
+			expectErrors: missingMirror,
 		},
 		{
-			name:         "minor upgrade within 4.x is not gated",
+			name:         "minor upgrade within 4.y is not gated",
 			op:           operation.Operation{Type: operation.Update},
 			oldVersion:   &coreapi.VersionProfile{ID: "4.21"},
 			newVersion:   &coreapi.VersionProfile{ID: "4.22"},
@@ -1637,9 +1646,9 @@ func TestAdmitClusterV5DataPlaneMirror(t *testing.T) {
 			expectErrors: []utils.ExpectedError{},
 		},
 		{
-			// Already on 5.x: the cluster is demonstrably able to pull 5.x images,
-			// so z-stream and minor moves within 5.x are not our concern.
-			name:         "z-stream upgrade within 5.x is not gated",
+			// Already on 5.y: the cluster is demonstrably able to pull 5.y images,
+			// so z-stream and minor moves within 5.y are not our concern.
+			name:         "z-stream upgrade within 5.y is not gated",
 			op:           operation.Operation{Type: operation.Update},
 			oldVersion:   &coreapi.VersionProfile{ID: "5.0.1"},
 			newVersion:   &coreapi.VersionProfile{ID: "5.0.2"},
@@ -1647,7 +1656,7 @@ func TestAdmitClusterV5DataPlaneMirror(t *testing.T) {
 			expectErrors: []utils.ExpectedError{},
 		},
 		{
-			name:         "downgrade out of 5.x is not gated",
+			name:         "downgrade out of 5.y is not gated",
 			op:           operation.Operation{Type: operation.Update},
 			oldVersion:   &coreapi.VersionProfile{ID: "5.0"},
 			newVersion:   &coreapi.VersionProfile{ID: "4.22"},
@@ -1655,19 +1664,13 @@ func TestAdmitClusterV5DataPlaneMirror(t *testing.T) {
 			expectErrors: []utils.ExpectedError{},
 		},
 		{
-			name:         "unchanged version.id is a no-op",
+			// Both ends of the crossing are pinned: a future major ships its own
+			// mirror under its own source, so the v5 mirror must neither gate nor
+			// wave through a jump into 6.y.
+			name:         "4->6 upgrade is not gated by the v5 mirror",
 			op:           operation.Operation{Type: operation.Update},
-			oldVersion:   &coreapi.VersionProfile{ID: "5.0"},
-			newVersion:   &coreapi.VersionProfile{ID: "5.0"},
-			spc:          spcWithMirrors(v4Mirror),
-			expectErrors: []utils.ExpectedError{},
-		},
-		{
-			// On CREATE there is no prior version to cross a major boundary from.
-			name:         "create operation is a no-op",
-			op:           operation.Operation{Type: operation.Create},
-			oldVersion:   nil,
-			newVersion:   &coreapi.VersionProfile{ID: "5.0"},
+			oldVersion:   &coreapi.VersionProfile{ID: "4.22"},
+			newVersion:   &coreapi.VersionProfile{ID: "6.0"},
 			spc:          spcWithMirrors(v4Mirror),
 			expectErrors: []utils.ExpectedError{},
 		},
@@ -1683,6 +1686,10 @@ func TestAdmitClusterV5DataPlaneMirror(t *testing.T) {
 		},
 	}
 
+	// Every case here satisfies admitClusterV5DataPlaneMirror's precondition: an
+	// UPDATE carrying a non-empty version.id that differs from the old one. That
+	// gate lives in admitClusterVersionProfile and is covered by its own tests, so
+	// CREATE and unchanged-version.id are deliberately not re-tested here.
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()

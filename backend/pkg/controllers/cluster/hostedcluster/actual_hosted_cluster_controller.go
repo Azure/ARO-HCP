@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package actualhostedcluster
+package hostedcluster
 
 import (
 	"context"
@@ -20,8 +20,6 @@ import (
 	"time"
 
 	"k8s.io/apimachinery/pkg/api/equality"
-
-	hsv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
@@ -39,11 +37,6 @@ import (
 // label), the controller name on the context, and the log field.
 const ActualHostedClusterControllerName = "ActualHostedCluster"
 
-// lastAppliedConfigurationAnnotation is kubectl's copy of the whole object,
-// stored as a JSON string on the object itself. Mirroring it would roughly
-// double the stored size for no benefit to any consumer.
-const lastAppliedConfigurationAnnotation = "kubectl.kubernetes.io/last-applied-configuration"
-
 // actualHostedClusterSyncer copies the observed HostedCluster from the
 // per-cluster ReadDesire (the kube-applier's mirror of the management cluster)
 // onto ServiceProviderCluster.Status.ActualHostedCluster.
@@ -59,6 +52,7 @@ const lastAppliedConfigurationAnnotation = "kubectl.kubernetes.io/last-applied-c
 // directly, which is closer to the source and does not wait on this copy.
 type actualHostedClusterSyncer struct {
 	resourcesDBClient            corecosmosstorage.ResourcesDBClient
+	clusterLister                corelisters.ClusterLister
 	readDesireLister             kubeapplierlisters.ReadDesireLister
 	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
 }
@@ -69,6 +63,7 @@ var _ controllerutils.ClusterSyncer = (*actualHostedClusterSyncer)(nil)
 // observed HostedCluster onto ServiceProviderCluster.Status.ActualHostedCluster.
 func NewActualHostedClusterController(
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
+	clusterLister corelisters.ClusterLister,
 	informers coreinformers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 	readDesireLister kubeapplierlisters.ReadDesireLister,
@@ -77,6 +72,7 @@ func NewActualHostedClusterController(
 
 	syncer := &actualHostedClusterSyncer{
 		resourcesDBClient:            resourcesDBClient,
+		clusterLister:                clusterLister,
 		readDesireLister:             readDesireLister,
 		serviceProviderClusterLister: serviceProviderClusterLister,
 	}
@@ -92,9 +88,9 @@ func NewActualHostedClusterController(
 }
 
 // SyncOnce mirrors the observed HostedCluster onto the ServiceProviderCluster,
-// writing only when the sanitized object differs from what is already stored.
+// writing only when the observed object differs from what is already stored.
 func (c *actualHostedClusterSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
-	existingCluster, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Get(ctx, key.HCPClusterName)
+	existingCluster, err := c.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
@@ -129,12 +125,11 @@ func (c *actualHostedClusterSyncer) SyncOnce(ctx context.Context, key controller
 	}
 
 	replacement := existing.DeepCopy()
-	replacement.Status.ActualHostedCluster = sanitizeHostedCluster(hostedCluster)
+	replacement.Status.ActualHostedCluster = hostedCluster
 
-	// The HostedCluster status changes far more often than anything a consumer
-	// of this mirror cares about, and every Replace here costs RUs and wakes
-	// every controller watching the ServiceProviderCluster changefeed. Only
-	// write when the sanitized object actually differs.
+	// Every Replace costs RUs and wakes every controller watching the
+	// ServiceProviderCluster changefeed, so only write when the observed
+	// HostedCluster actually differs from what is already stored.
 	if equality.Semantic.DeepEqual(existing.Status.ActualHostedCluster, replacement.Status.ActualHostedCluster) {
 		return nil
 	}
@@ -151,20 +146,4 @@ func (c *actualHostedClusterSyncer) SyncOnce(ctx context.Context, key controller
 	utils.LoggerFromContext(ctx).Info("mirrored actual HostedCluster onto ServiceProviderCluster",
 		"hostedClusterNamespace", hostedCluster.Namespace, "hostedClusterName", hostedCluster.Name)
 	return nil
-}
-
-// sanitizeHostedCluster returns a copy of the observed HostedCluster with
-// server-side bookkeeping removed. None of what it strips means anything to a
-// consumer of the mirror, and all of it changes on writes that are otherwise
-// no-ops for us — keeping it would turn every observed revision into a Cosmos
-// write and a changefeed event.
-func sanitizeHostedCluster(hostedCluster *hsv1beta1.HostedCluster) *hsv1beta1.HostedCluster {
-	sanitized := hostedCluster.DeepCopy()
-	sanitized.ManagedFields = nil
-	sanitized.ResourceVersion = ""
-	delete(sanitized.Annotations, lastAppliedConfigurationAnnotation)
-	if len(sanitized.Annotations) == 0 {
-		sanitized.Annotations = nil
-	}
-	return sanitized
 }

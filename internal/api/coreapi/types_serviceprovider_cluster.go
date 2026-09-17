@@ -215,15 +215,15 @@ type ServiceProviderClusterStatus struct {
 	// cluster. Anything admission needs to know about the real HostedCluster has
 	// to travel through this field; see internal/admission/CLAUDE.md.
 	//
-	// Mirrored verbatim except for server-side bookkeeping that carries no
-	// meaning for consumers and would otherwise force a Cosmos write on every
-	// observed revision: metadata.managedFields, metadata.resourceVersion and the
-	// kubectl last-applied-configuration annotation are cleared before storing.
+	// The object is mirrored verbatim, exactly as observed on the management
+	// cluster. Nothing is stripped or rewritten on the way in, so a consumer can
+	// read any field without having to know a mirroring policy.
 	//
 	// nil means the backend has not observed the HostedCluster yet (the cluster
 	// is still being created, or the first sync has not run). Consumers must
-	// treat nil as "unknown", never as "absent" — in particular, admission checks
-	// built on this field have to fail open while it is nil.
+	// treat nil as unavailable observed state. Safety-critical admission checks
+	// must fail closed while it is nil; they cannot assume a required property
+	// such as a data-plane image mirror is present.
 	//
 	// Backend controllers must NOT read this field. They have first-class access
 	// to the ReadDesire mirror and are expected to read that instead, staying as
@@ -334,12 +334,6 @@ type ServiceProviderClusterStatus struct {
 	// Written by: KeyRotationBackup
 	KeyRotationBackupFingerprint string `json:"keyRotationBackupFingerprint,omitempty"`
 }
-
-// OcpV5ArtDevMirrorSource is the platform-managed image source that OpenShift
-// 5.x data-plane releases are published under. A cluster whose HostedCluster
-// spec.imageContentSources lacks this entry cannot pull 5.x data-plane images,
-// so an upgrade into 5.x would strand its nodes.
-const OcpV5ArtDevMirrorSource = "quay.io/openshift-release-dev/ocp-v5.0-art-dev"
 
 // ServiceProviderClusterPlacementStatus holds placement-specific status for a
 // ServiceProviderCluster. It is kept off the top-level Status.Conditions per the
