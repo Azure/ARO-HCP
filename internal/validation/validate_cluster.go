@@ -373,7 +373,13 @@ func unrecognizedOperatorNameErrors(supplied map[string]*azcorearm.ResourceID, f
 func operatorIdentitiesByLowercaseName(operators map[string]*azcorearm.ResourceID) map[string]*azcorearm.ResourceID {
 	byLowercaseName := make(map[string]*azcorearm.ResourceID, len(operators))
 	for operatorName, identity := range operators {
-		byLowercaseName[strings.ToLower(operatorName)] = identity
+		lowercaseName := strings.ToLower(operatorName)
+		// Keys differing only in case collapse together here, so keep any supplied identity rather
+		// than letting map iteration order decide whether the operator counts as supplied.
+		if existing, ok := byLowercaseName[lowercaseName]; ok && existing != nil {
+			continue
+		}
+		byLowercaseName[lowercaseName] = identity
 	}
 	return byLowercaseName
 }
