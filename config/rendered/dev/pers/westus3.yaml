@@ -1,12 +1,12 @@
 acm:
   mce:
     bundle:
-      digest: sha256:1cbf1082bea365f4906455ce99d7eba2aabb9dc408b75aec27b0dc7b76d36694
+      digest: sha256:d47eb7185efec0efb3b369e80ea0612394a46d9e87dbb1f7424ae3a564c976a6
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-211
   operator:
     bundle:
-      digest: sha256:72e9895204ee567b5a2c1923a98970386ab3d59da7e5c15f10b574ef6268a946
+      digest: sha256:c8a3ecddafcc71fcc5d56d09ceed198f269bd112e86e646548983f9406bfc169
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-216
 acr:
@@ -490,7 +490,7 @@ hcpRecovery:
 hypershift:
   additionalInstallArg: --enable-cpo-overrides --disable-capi-migration
   image:
-    digest: sha256:780ac707f44d1dcda3836d0b58037a58be4dbc0ade79c46a12016fc55187f378
+    digest: sha256:0daee271276923d8ecab324963c6ad530bcd0135ce33ece7ec90bfe3962f694c
     registry: quay.io
     repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
   limitClusterSizes: true
@@ -605,7 +605,7 @@ maestro:
     name: arohcp-pers-maestro-usw3test
     private: false
   image:
-    digest: sha256:8a3df6664d71c63e9e7c1ba2658860c712b76877f791f105f4b06725ba2e0103
+    digest: sha256:1a10b3e34fd5549bd649de68bad1af603245b2e623e1b98c87efc0c72fabf37e
     registry: quay.io
     repository: redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
   postgres:
@@ -734,7 +734,7 @@ mgmt:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus
-        sha: 8909adfae38ca9980e3e47c1fdd8a327f2406c64560cfd61dcc5607c76724d04
+        sha: 92fa8f5e91a0e02e0107c346f6c66657738dbf394946e52c208150fd498554bd
       replicas: 2
       resources:
         limits:
@@ -1111,7 +1111,7 @@ svc:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus
-        sha: 8909adfae38ca9980e3e47c1fdd8a327f2406c64560cfd61dcc5607c76724d04
+        sha: 92fa8f5e91a0e02e0107c346f6c66657738dbf394946e52c208150fd498554bd
       replicas: 2
       resources:
         limits:
