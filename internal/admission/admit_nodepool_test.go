@@ -347,6 +347,68 @@ func TestMutateNodePoolCreateOperationCompletionDeadline(t *testing.T) {
 	}
 }
 
+func TestMutateNodePoolExperimentalFeaturesEnabled(t *testing.T) {
+	afecRegistered := &coreapi.Subscription{
+		Properties: &coreapi.SubscriptionProperties{
+			RegisteredFeatures: &[]coreapi.Feature{
+				{
+					Name:  ptr.To(metadataapi.FeatureExperimentalReleaseFeatures),
+					State: ptr.To("Registered"),
+				},
+			},
+		},
+	}
+
+	tests := []struct {
+		name         string
+		op           operation.Type
+		subscription *coreapi.Subscription
+		expected     bool
+	}{
+		{
+			name:         "create: AFEC registered sets ExperimentalFeaturesEnabled=true",
+			op:           operation.Create,
+			subscription: afecRegistered,
+			expected:     true,
+		},
+		{
+			name:         "create: no AFEC leaves ExperimentalFeaturesEnabled=false",
+			op:           operation.Create,
+			subscription: &coreapi.Subscription{Properties: &coreapi.SubscriptionProperties{}},
+			expected:     false,
+		},
+		{
+			name:         "create: nil subscription leaves ExperimentalFeaturesEnabled=false",
+			op:           operation.Create,
+			subscription: nil,
+			expected:     false,
+		},
+		{
+			name:         "update: AFEC registered does not set ExperimentalFeaturesEnabled",
+			op:           operation.Update,
+			subscription: afecRegistered,
+			expected:     false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			nodePool := &coreapi.HCPOpenShiftClusterNodePool{}
+			admissionContext := &NodePoolAdmissionContext{
+				Clock:        utilsclock.RealClock{},
+				Subscription: tt.subscription,
+				Cluster:      &coreapi.HCPOpenShiftCluster{},
+			}
+			if tt.op == operation.Update {
+				admissionContext.OriginalNodePool = &coreapi.HCPOpenShiftClusterNodePool{}
+			}
+			errs := MutateNodePool(context.Background(), admissionContext, operation.Operation{Type: tt.op}, nodePool, admissionContext.OriginalNodePool)
+			require.Empty(t, errs)
+			assert.Equal(t, tt.expected, nodePool.ServiceProviderProperties.ExperimentalFeaturesEnabled)
+		})
+	}
+}
+
 func TestAdmitNodePool_SubnetVNet(t *testing.T) {
 	const (
 		clusterSubnet       = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.Network/virtualNetworks/cluster-vnet/subnets/cluster-subnet"
