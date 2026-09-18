@@ -10,7 +10,7 @@ GO_WORK_VERSION := $(shell sed -n 's/^go //p' ../../go.work)
 
 VERSION_ARGS = BUILDER_IMAGE_TAG PROMTOOL_VERSION BICEP_VERSION
 
-.PHONY: verify build test
+.PHONY: verify build test update-tool-versions
 
 ##@ Verification
 
@@ -62,3 +62,8 @@ test: build ## Build and smoke-test all tools in the image
 		echo "jq:        $$(jq --version 2>&1)" && \
 		echo "oras:      $$(oras version 2>&1 | head -1)" && \
 		echo "=== All tools OK ==="'
+
+##@ Maintenance
+
+update-tool-versions: ## Bump every pinned tool in versions.mk/Dockerfile to its latest GitHub release
+	./update-tool-versions.sh

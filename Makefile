@@ -657,3 +657,8 @@ cleanup: $(TEMPLATIZE)
 image-updater:
 	@$(MAKE) -C tooling/image-updater update
 .PHONY: image-updater
+
+# Tool version bumper
+update-tool-versions:
+	@$(MAKE) -C dev-infrastructure/openshift-ci update-tool-versions
+.PHONY: update-tool-versions
