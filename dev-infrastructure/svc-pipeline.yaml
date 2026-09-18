@@ -73,6 +73,27 @@ resourceGroups:
     dependsOn:
     - resourceGroup: service
       step: cluster
+  - name: adminapi-alert-rule-role
+    action: ARM
+    template: templates/adminapi-alert-processing-rule-role.bicep
+    parameters: configurations/adminapi-alert-processing-rule-role.tmpl.bicepparam
+    deploymentLevel: Subscription
+  - name: adminapi-alert-rule-permissions
+    action: ARM
+    template: templates/adminapi-alert-processing-rule-permissions.bicep
+    parameters: configurations/adminapi-alert-processing-rule-permissions.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    variables:
+    - name: adminApiPrincipalId
+      input:
+        resourceGroup: service
+        step: cluster-output
+        name: adminApiPrincipalId
+    dependsOn:
+    - resourceGroup: service
+      step: cluster-output
+    - resourceGroup: regional
+      step: adminapi-alert-rule-role
 - name: auditLogs
   resourceGroup: '{{ .auditLogsEventHub.rg }}'
   subscription: '{{ .svc.subscription.key }}'
