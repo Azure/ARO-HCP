@@ -381,6 +381,15 @@ func validateClusterCustomerProperties(ctx context.Context, op operation.Operati
 	errs = append(errs, validate.Minimum(ctx, op, fldPath.Child("nodeDrainTimeoutMinutes"), &newObj.NodeDrainTimeoutMinutes, safe.Field(oldObj, toNodeDrainTimeoutMinutes), 0)...)
 	errs = append(errs, Maximum(ctx, op, fldPath.Child("nodeDrainTimeoutMinutes"), &newObj.NodeDrainTimeoutMinutes, safe.Field(oldObj, toNodeDrainTimeoutMinutes), 10080)...)
 
+	//NodeSshPublicKeys       []SshPublicKey              `json:"nodeSshPublicKeys,omitempty"`
+	if len(newObj.NodeSshPublicKeys) > 5 {
+		errs = append(errs, field.TooMany(fldPath.Child("nodeSshPublicKeys"), len(newObj.NodeSshPublicKeys), 5))
+	}
+	for i, key := range newObj.NodeSshPublicKeys {
+		keyCopy := key.Key
+		errs = append(errs, ValidateSSHPublicKey(ctx, op, fldPath.Child("nodeSshPublicKeys").Index(i).Child("key"), &keyCopy, nil)...)
+	}
+
 	//Etcd                    EtcdProfile                 `json:"etcd,omitempty"`
 	errs = append(errs, validateEtcdProfile(ctx, op, fldPath.Child("etcd"), &newObj.Etcd, safe.Field(oldObj, toEtcd))...)
 

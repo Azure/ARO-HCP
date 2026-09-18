@@ -104,6 +104,8 @@ type HCPOpenShiftClusterCustomerProperties struct {
 	// Written by: Frontend PUT/PATCH Cluster
 	NodeDrainTimeoutMinutes int32 `json:"nodeDrainTimeoutMinutes,omitempty"`
 	// Written by: Frontend PUT/PATCH Cluster
+	NodeSshPublicKeys []SshPublicKey `json:"nodeSshPublicKeys,omitempty"`
+	// Written by: Frontend PUT/PATCH Cluster
 	Etcd EtcdProfile `json:"etcd,omitempty"`
 	// Written by: Frontend PUT/PATCH Cluster
 	ClusterImageRegistry ClusterImageRegistryProfile `json:"clusterImageRegistry,omitempty"`
@@ -339,6 +341,16 @@ type ImageDigestMirror struct {
 	// ever do expose this field, existing cluster documents in CosmosDB
 	// will not need to be migrated.
 	MirrorSourcePolicy metadataapi.MirrorSourcePolicy `json:"mirrorSourcePolicy,omitempty"`
+}
+
+// SshPublicKey is a single SSH public key entry for NodeSshPublicKeys.
+// It mirrors the discriminated "sshPublicKey" API type; only the inline
+// form (the key material provided directly) is currently supported.
+type SshPublicKey struct {
+	// Key is the SSH public key material.
+	// Format: <algorithm> <base64-encoded-key> [comment].
+	// Written by: Frontend PUT/PATCH Cluster
+	Key string `json:"key,omitempty"`
 }
 
 // Creates an HCPOpenShiftCluster with any non-zero default values.

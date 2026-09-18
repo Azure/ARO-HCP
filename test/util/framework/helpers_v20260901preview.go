@@ -74,6 +74,7 @@ type ClusterParams20260901 struct {
 	Autoscaling                   *hcpsdk20260901preview.ClusterAutoscalingProfile
 	CryptoRestrictions            *hcpsdk20260901preview.CryptoRestrictions
 	Tags                          map[string]*string
+	NodeSSHPublicKeys             []*string
 }
 
 type NodePoolParams20260901 struct {
@@ -490,6 +491,11 @@ func BuildHCPClusterFromParams20260901(
 		}
 	}
 
+	var nodeSSHPublicKeys []*hcpsdk20260901preview.InlineSSHPublicKey
+	for _, key := range parameters.NodeSSHPublicKeys {
+		nodeSSHPublicKeys = append(nodeSSHPublicKeys, &hcpsdk20260901preview.InlineSSHPublicKey{Key: key})
+	}
+
 	return hcpsdk20260901preview.HcpOpenShiftCluster{
 		Location: to.Ptr(location),
 		Identity: identity,
@@ -543,6 +549,7 @@ func BuildHCPClusterFromParams20260901(
 				},
 			},
 			ImageDigestMirrors: imageDigestMirrors,
+			NodeSSHPublicKeys:  nodeSSHPublicKeys,
 		},
 	}, nil
 }
