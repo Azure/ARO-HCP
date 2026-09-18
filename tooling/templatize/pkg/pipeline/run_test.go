@@ -1140,12 +1140,14 @@ func TestStepContextTimeout(t *testing.T) {
 	t.Run("helm with timeout still uses default outer", func(t *testing.T) {
 		d, err := stepContextTimeout(&types.HelmStep{Timeout: "10m"})
 		assert.NoError(t, err)
+		assert.Equal(t, 45*time.Minute, d)
 		assert.Equal(t, defaultStepContextTimeout, d)
 	})
 
 	t.Run("shell uses default outer", func(t *testing.T) {
 		d, err := stepContextTimeout(&types.ShellStep{Timeout: "10m"})
 		assert.NoError(t, err)
+		assert.Equal(t, 45*time.Minute, d)
 		assert.Equal(t, defaultStepContextTimeout, d)
 	})
 
@@ -1155,9 +1157,10 @@ func TestStepContextTimeout(t *testing.T) {
 		assert.Equal(t, 60*time.Minute, d)
 	})
 
-	t.Run("istio upgrade unset defaults to 30m", func(t *testing.T) {
+	t.Run("istio upgrade unset defaults to 45m", func(t *testing.T) {
 		d, err := stepContextTimeout(&types.IstioUpgradeStep{})
 		assert.NoError(t, err)
+		assert.Equal(t, 45*time.Minute, d)
 		assert.Equal(t, defaultStepContextTimeout, d)
 	})
 
