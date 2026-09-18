@@ -54,6 +54,9 @@ type ServiceManagedIdentityClientBuilder interface {
 	// SubnetsClient returns a new Subnets client authenticated as the cluster's
 	// Service Managed Identity.
 	SubnetsClient(ctx context.Context, clusterIdentityURL string, smiResourceID *azcorearm.ResourceID, subscriptionID string) (SubnetsClient, error)
+	// FederatedIdentityCredentialsClient returns a new Federated Identity Credentials
+	// client authenticated as the cluster's Service Managed Identity.
+	FederatedIdentityCredentialsClient(ctx context.Context, clusterIdentityURL string, smiResourceID *azcorearm.ResourceID, subscriptionID string) (FederatedIdentityCredentialsClient, error)
 }
 
 type serviceManagedIdentityClientBuilder struct {
@@ -114,6 +117,14 @@ func (b *serviceManagedIdentityClientBuilder) NetworkSecurityGroupsClient(ctx co
 	// We instantiate the SecurityGroupsClient using the
 	// credentials we obtained from the Managed Identities Data Plane Service.
 	return armnetwork.NewSecurityGroupsClient(subscriptionID, creds, b.azCoreARMClientOptions)
+}
+
+func (b *serviceManagedIdentityClientBuilder) FederatedIdentityCredentialsClient(ctx context.Context, clusterIdentityURL string, smiResourceID *azcorearm.ResourceID, subscriptionID string) (FederatedIdentityCredentialsClient, error) {
+	creds, err := b.credentialsForServiceManagedIdentity(ctx, clusterIdentityURL, smiResourceID)
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to get credentials for service managed identity: %w", err))
+	}
+	return armmsi.NewFederatedIdentityCredentialsClient(subscriptionID, creds, b.azCoreARMClientOptions)
 }
 
 func NewServiceManagedIdentityClientBuilder(fpaMIdataplaneClientBuilder FPAMIDataplaneClientBuilder, options *azcorearm.ClientOptions) ServiceManagedIdentityClientBuilder {

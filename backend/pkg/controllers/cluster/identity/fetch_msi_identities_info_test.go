@@ -33,10 +33,10 @@ import (
 )
 
 const (
-	testOperatorName               = "cloud-controller-manager"
-	testOperatorIdentityResourceID = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/ccm"
-	testServiceManagedIdentityID   = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/smi"
-	testOtherOperatorIdentityID    = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/other"
+	testControlPlaneOperatorName               = "cloud-controller-manager"
+	testControlPlaneOperatorIdentityResourceID = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/ccm"
+	testServiceManagedIdentityID               = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/smi"
+	testOtherOperatorIdentityID                = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/other"
 )
 
 func TestDesiredMSIResourceIDsMatchServiceProviderCluster(t *testing.T) {
@@ -63,8 +63,8 @@ func TestDesiredMSIResourceIDsMatchServiceProviderCluster(t *testing.T) {
 			name: "resource ID casing differences still match",
 			toFetch: func() *msiBasedIdentitiesToFetch {
 				cluster, _ := newMatchingClusterAndServiceProviderCluster()
-				cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators[testOperatorName] =
-					metadataapi.Must(azcorearm.ParseResourceID(strings.ToUpper(testOperatorIdentityResourceID)))
+				cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators[testControlPlaneOperatorName] =
+					metadataapi.Must(azcorearm.ParseResourceID(strings.ToUpper(testControlPlaneOperatorIdentityResourceID)))
 				cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity =
 					metadataapi.Must(azcorearm.ParseResourceID(strings.ToUpper(testServiceManagedIdentityID)))
 				toFetch, err := syncer.collectMSIBasedIdentitiesToFetch(cluster)
@@ -91,7 +91,7 @@ func TestDesiredMSIResourceIDsMatchServiceProviderCluster(t *testing.T) {
 			name: "control plane operator resource ID changed",
 			toFetch: func() *msiBasedIdentitiesToFetch {
 				cluster, _ := newMatchingClusterAndServiceProviderCluster()
-				cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators[testOperatorName] =
+				cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators[testControlPlaneOperatorName] =
 					metadataapi.Must(azcorearm.ParseResourceID(testOtherOperatorIdentityID))
 				toFetch, err := syncer.collectMSIBasedIdentitiesToFetch(cluster)
 				require.NoError(t, err, "collect diverged control-plane identities")
@@ -104,9 +104,9 @@ func TestDesiredMSIResourceIDsMatchServiceProviderCluster(t *testing.T) {
 			name: "control plane operator name rebound to same resource ID still matches",
 			toFetch: func() *msiBasedIdentitiesToFetch {
 				cluster, _ := newMatchingClusterAndServiceProviderCluster()
-				delete(cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators, testOperatorName)
+				delete(cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators, testControlPlaneOperatorName)
 				cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators["ingress"] =
-					metadataapi.Must(azcorearm.ParseResourceID(testOperatorIdentityResourceID))
+					metadataapi.Must(azcorearm.ParseResourceID(testControlPlaneOperatorIdentityResourceID))
 				toFetch, err := syncer.collectMSIBasedIdentitiesToFetch(cluster)
 				require.NoError(t, err, "collect rebound operator identities")
 				return toFetch
@@ -208,9 +208,9 @@ func TestNeedsWorkIgnoresEarliestRecheckWhenIdentitiesDiverge(t *testing.T) {
 }
 
 func newMatchingClusterAndServiceProviderCluster() (*coreapi.HCPOpenShiftCluster, *coreapi.ServiceProviderCluster) {
-	operatorResourceID := metadataapi.Must(azcorearm.ParseResourceID(testOperatorIdentityResourceID))
+	operatorResourceID := metadataapi.Must(azcorearm.ParseResourceID(testControlPlaneOperatorIdentityResourceID))
 	serviceManagedIdentity := metadataapi.Must(azcorearm.ParseResourceID(testServiceManagedIdentityID))
-	lowerOperatorResourceIDStr := strings.ToLower(testOperatorIdentityResourceID)
+	lowerOperatorResourceIDStr := strings.ToLower(testControlPlaneOperatorIdentityResourceID)
 	lowerServiceManagedIdentityStr := strings.ToLower(testServiceManagedIdentityID)
 
 	cluster := &coreapi.HCPOpenShiftCluster{
@@ -219,7 +219,7 @@ func newMatchingClusterAndServiceProviderCluster() (*coreapi.HCPOpenShiftCluster
 				OperatorsAuthentication: coreapi.OperatorsAuthenticationProfile{
 					UserAssignedIdentities: coreapi.UserAssignedIdentitiesProfile{
 						ControlPlaneOperators: map[string]*azcorearm.ResourceID{
-							testOperatorName: operatorResourceID,
+							testControlPlaneOperatorName: operatorResourceID,
 						},
 						ServiceManagedIdentity: serviceManagedIdentity,
 					},
