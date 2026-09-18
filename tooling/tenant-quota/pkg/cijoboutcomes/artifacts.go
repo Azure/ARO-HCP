@@ -42,6 +42,8 @@ import (
 // artifact-directory discovery the other files do.
 const finishedJSONURL = "https://storage.googleapis.com/%s/%s/finished.json"
 
+var errArtifactNotFound = errors.New("artifact not found")
+
 // prowFinished is the subset of finished.json that reaches Kusto.
 type prowFinished struct {
 	Timestamp int64  `json:"timestamp"`
@@ -53,6 +55,7 @@ type runDetail struct {
 	SvcCluster  string
 	MgmtCluster string
 	FinishedAt  time.Time
+	ADOBuildID  string
 	Tests       []ciTestResult
 	Names       []ciTestName
 }
@@ -74,6 +77,13 @@ func fetchRunDetail(ctx context.Context, client *http.Client, prowURL string) (r
 	}
 
 	var failures []error
+
+	adoBuildID, err := fetchADOBuildID(ctx, client, info.GCSBucket, info.GCSPrefix)
+	if err != nil {
+		failures = append(failures, err)
+	} else {
+		detail.ADOBuildID = adoBuildID
+	}
 
 	// Only runs that provision their own clusters have a config.yaml artifact.
 	// The rest resolve their configuration from the sdp-pipelines repository,
@@ -114,39 +124,62 @@ func fetchFinishedAt(ctx context.Context, client *http.Client, bucket, gcsPrefix
 }
 
 func fetchFinishedAtFrom(ctx context.Context, client *http.Client, url string) (time.Time, error) {
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return time.Time{}, fmt.Errorf("failed to build request for %s: %w", url, err)
-	}
-
-	response, err := client.Do(request)
-	if err != nil {
-		return time.Time{}, fmt.Errorf("failed to fetch %s: %w", url, err)
-	}
-	defer func() { _ = response.Body.Close() }()
-
-	// A run still in progress has no finished.json. That is not an error: the
-	// next pass will find it once the run completes.
-	if response.StatusCode == http.StatusNotFound {
+	var finished prowFinished
+	err := fetchJSONArtifact(ctx, client, url, &finished)
+	// A run still in progress has no finished.json.
+	if errors.Is(err, errArtifactNotFound) {
 		return time.Time{}, nil
 	}
-	if response.StatusCode != http.StatusOK {
-		return time.Time{}, fmt.Errorf("unexpected status %d fetching %s", response.StatusCode, url)
-	}
-
-	body, err := io.ReadAll(response.Body)
 	if err != nil {
-		return time.Time{}, fmt.Errorf("failed to read %s: %w", url, err)
-	}
-
-	var finished prowFinished
-	if err := json.Unmarshal(body, &finished); err != nil {
-		return time.Time{}, fmt.Errorf("failed to parse %s: %w", url, err)
+		return time.Time{}, err
 	}
 	if finished.Timestamp <= 0 {
 		return time.Time{}, nil
 	}
 	return time.Unix(finished.Timestamp, 0).UTC(), nil
+}
+
+func fetchADOBuildID(ctx context.Context, client *http.Client, bucket, gcsPrefix string) (string, error) {
+	var job struct {
+		Metadata struct {
+			Annotations map[string]string `json:"annotations"`
+		} `json:"metadata"`
+	}
+	url := fmt.Sprintf("https://storage.googleapis.com/%s/%s/prowjob.json", bucket, gcsPrefix)
+	if err := fetchJSONArtifact(ctx, client, url, &job); err != nil {
+		return "", err
+	}
+	return job.Metadata.Annotations["ev2.rollout/build"], nil
+}
+
+func fetchJSONArtifact(ctx context.Context, client *http.Client, url string, into any) error {
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return fmt.Errorf("failed to build request for %s: %w", url, err)
+	}
+
+	response, err := client.Do(request)
+	if err != nil {
+		return fmt.Errorf("failed to fetch %s: %w", url, err)
+	}
+	defer func() { _ = response.Body.Close() }()
+
+	if response.StatusCode == http.StatusNotFound {
+		return fmt.Errorf("%w: %s", errArtifactNotFound, url)
+	}
+	if response.StatusCode != http.StatusOK {
+		return fmt.Errorf("unexpected status %d fetching %s", response.StatusCode, url)
+	}
+
+	body, err := io.ReadAll(response.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read %s: %w", url, err)
+	}
+
+	if err := json.Unmarshal(body, into); err != nil {
+		return fmt.Errorf("failed to parse %s: %w", url, err)
+	}
+	return nil
 }
 
 // testRowsFor converts a run's test results into join rows and the distinct
