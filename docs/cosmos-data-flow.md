@@ -571,7 +571,7 @@ Records pending managed resource group intent, gets/creates the Azure resource g
 
 Requires a pending/confirmed Cluster Service ID, confirmed managed resource group and resolved identities. Gets, creates/updates and removes stale Azure deny assignments; tracks pending/confirmed IDs and recheck time in the service-provider cluster. Enabled with the real FPA client; skips deleting clusters.
 
-#### IdentityRoleAssignments
+#### ClusterRoleAssignments
 
 [Source](../backend/pkg/controllers/cluster/roleassignments/role_assignments_controller.go) · **Trigger:** Cluster; 5m, jittered 6h recheck.
 
