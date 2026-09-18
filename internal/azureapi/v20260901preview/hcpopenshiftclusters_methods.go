@@ -547,6 +547,8 @@ func (c *HcpOpenShiftCluster) ConvertToInternal(existing *coreapi.HCPOpenShiftCl
 // this API version doesn't know about. Currently empty — no cross-version
 // customer fields exist yet between v20240610preview and v20260630preview.
 func preserveUnknownClusterFields(from, to *coreapi.HCPOpenShiftCluster) {
+	// ContainerRegistry was added in v20261001preview.
+	to.CustomerProperties.Platform.ContainerRegistry = from.CustomerProperties.Platform.ContainerRegistry
 }
 
 func normalizeManagedIdentity(identity *generated.ManagedServiceIdentity) *coreapi.ManagedServiceIdentity {

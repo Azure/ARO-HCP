@@ -581,7 +581,7 @@ Placement is checked even before a Cluster Service ID exists. Until `ServiceProv
 
 | | Object | Fields |
 |---|--------|--------|
-| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must not be nil and non-empty)</li><li>`CustomerProperties.API.AuthorizedCIDRs`</li><li>`CustomerProperties.NodeDrainTimeoutMinutes`</li><li>`CustomerProperties.Autoscaling.*`</li><li>`CustomerProperties.ImageDigestMirrors`</li><li>`ServiceProviderProperties.ExperimentalFeatures.*`</li></ul> |
+| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must not be nil and non-empty)</li><li>`CustomerProperties.API.AuthorizedCIDRs`</li><li>`CustomerProperties.NodeDrainTimeoutMinutes`</li><li>`CustomerProperties.Autoscaling.*`</li><li>`CustomerProperties.ImageDigestMirrors`</li><li>`CustomerProperties.Platform.ContainerRegistry.PullManagedIdentity` (dispatched to CS via `clusterUpdateDispatchConfig`; day-2 set/change/clear)</li><li>`ServiceProviderProperties.ExperimentalFeatures.*`</li></ul> |
 | Read | `ServiceProviderCluster` | <ul><li>`Spec.DesiredHostedClusterControlPlaneSize`</li></ul> |
 | Read | `Subscription` | <ul><li>`Properties.TenantId`</li></ul> |
 | Read | Cluster Service | <ul><li>`GetCluster` (for config comparison)</li></ul> |
