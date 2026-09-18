@@ -681,6 +681,9 @@ resourceGroups:
       - "500 Internal Server Error"
       - "Internal error occurred"
       - "not ready. status: Unknown"
+      # Transient AKS API server connection loss (no HTTP status, 5xx patterns miss). AROSLSRE-2130.
+      - "client connection lost"
+      - "unexpected error when reading response body"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
   - name: cleanup-prometheus-pvc
@@ -754,6 +757,9 @@ resourceGroups:
       errorContainsAny:
       - "500 Internal Server Error"
       - "Internal error occurred"
+      # Transient AKS API server connection loss (no HTTP status, 5xx patterns miss). AROSLSRE-2130.
+      - "client connection lost"
+      - "unexpected error when reading response body"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
   - name: acrpull
@@ -780,6 +786,9 @@ resourceGroups:
       errorContainsAny:
       - "500 Internal Server Error"
       - "Internal error occurred"
+      # Transient AKS API server connection loss (no HTTP status, 5xx patterns miss). AROSLSRE-2130.
+      - "client connection lost"
+      - "unexpected error when reading response body"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
   - name: service-lifecycle
@@ -806,6 +815,9 @@ resourceGroups:
       errorContainsAny:
       - "500 Internal Server Error"
       - "Internal error occurred"
+      # Transient AKS API server connection loss (no HTTP status, 5xx patterns miss). AROSLSRE-2130.
+      - "client connection lost"
+      - "unexpected error when reading response body"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
   - name: image-registry-policy
@@ -834,6 +846,9 @@ resourceGroups:
       errorContainsAny:
       - "500 Internal Server Error"
       - "Internal error occurred"
+      # Transient AKS API server connection loss (no HTTP status, 5xx patterns miss). AROSLSRE-2130.
+      - "client connection lost"
+      - "unexpected error when reading response body"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
   - name: arobit-output
@@ -884,6 +899,9 @@ resourceGroups:
       - "500 Internal Server Error"
       - "Internal error occurred"
       - "arobit-forwarder not ready. status: InProgress"
+      # Transient AKS API server connection loss (no HTTP status, 5xx patterns miss). AROSLSRE-2130.
+      - "client connection lost"
+      - "unexpected error when reading response body"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
   - name: kube-events
@@ -912,6 +930,9 @@ resourceGroups:
       errorContainsAny:
       - "500 Internal Server Error"
       - "Internal error occurred"
+      # Transient AKS API server connection loss (no HTTP status, 5xx patterns miss). AROSLSRE-2130.
+      - "client connection lost"
+      - "unexpected error when reading response body"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
   - name: mirror-exporter-image
@@ -941,6 +962,9 @@ resourceGroups:
       # Transient ACR pull/push failures during image mirroring (docker registry RegistryErrorResponse, "Please retry later").
       - "RegistryErrorResponse"
       - "Please retry later"
+      # Network-level failure reaching the registry (no registry response to match). AROSLSRE-2070.
+      - "connection refused"
+      - "i/o timeout"
       maximumRetryCount: 5
       durationBetweenRetries: 1m
   - name: exporter-output

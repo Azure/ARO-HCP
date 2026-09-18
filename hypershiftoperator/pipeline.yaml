@@ -39,6 +39,9 @@ resourceGroups:
       # Transient ACR pull/push failures during image mirroring (docker registry RegistryErrorResponse, "Please retry later").
       - "RegistryErrorResponse"
       - "Please retry later"
+      # Network-level failure reaching the registry (no registry response to match). AROSLSRE-2070.
+      - "connection refused"
+      - "i/o timeout"
       maximumRetryCount: 5
       durationBetweenRetries: 1m
   - name: mirror-shared-ingress-image
@@ -68,6 +71,9 @@ resourceGroups:
       # Transient ACR pull/push failures during image mirroring (docker registry RegistryErrorResponse, "Please retry later").
       - "RegistryErrorResponse"
       - "Please retry later"
+      # Network-level failure reaching the registry (no registry response to match). AROSLSRE-2070.
+      - "connection refused"
+      - "i/o timeout"
       maximumRetryCount: 5
       durationBetweenRetries: 1m
 - name: kusto

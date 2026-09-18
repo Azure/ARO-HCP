@@ -634,6 +634,9 @@ resourceGroups:
       - "500 Internal Server Error"
       - "Internal error occurred"
       - "not ready. status: Unknown"
+      # Transient AKS API server connection loss (no HTTP status, 5xx patterns miss). AROSLSRE-2130.
+      - "client connection lost"
+      - "unexpected error when reading response body"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
   - name: cleanup-prometheus-pvc
@@ -673,6 +676,9 @@ resourceGroups:
       errorContainsAny:
       - "500 Internal Server Error"
       - "Internal error occurred"
+      # Transient AKS API server connection loss (no HTTP status, 5xx patterns miss). AROSLSRE-2130.
+      - "client connection lost"
+      - "unexpected error when reading response body"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
   - name: image-registry-policy
@@ -701,6 +707,9 @@ resourceGroups:
       errorContainsAny:
       - "500 Internal Server Error"
       - "Internal error occurred"
+      # Transient AKS API server connection loss (no HTTP status, 5xx patterns miss). AROSLSRE-2130.
+      - "client connection lost"
+      - "unexpected error when reading response body"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
   - name: storageclass
@@ -729,6 +738,9 @@ resourceGroups:
       errorContainsAny:
       - "500 Internal Server Error"
       - "Internal error occurred"
+      # Transient AKS API server connection loss (no HTTP status, 5xx patterns miss). AROSLSRE-2130.
+      - "client connection lost"
+      - "unexpected error when reading response body"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
   - name: mitigations
@@ -759,6 +771,9 @@ resourceGroups:
       errorContainsAny:
       - "500 Internal Server Error"
       - "Internal error occurred"
+      # Transient AKS API server connection loss (no HTTP status, 5xx patterns miss). AROSLSRE-2130.
+      - "client connection lost"
+      - "unexpected error when reading response body"
       # Retry when the shell extension's backing ACI container is stuck pending
       # and never actually runs (empty log, exit code -1), a transient ACI-side
       # provisioning failure distinct from an app-level script error. Matches
@@ -793,6 +808,9 @@ resourceGroups:
       errorContainsAny:
       - "500 Internal Server Error"
       - "Internal error occurred"
+      # Transient AKS API server connection loss (no HTTP status, 5xx patterns miss). AROSLSRE-2130.
+      - "client connection lost"
+      - "unexpected error when reading response body"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
   - name: service-lifecycle
@@ -819,6 +837,9 @@ resourceGroups:
       errorContainsAny:
       - "500 Internal Server Error"
       - "Internal error occurred"
+      # Transient AKS API server connection loss (no HTTP status, 5xx patterns miss). AROSLSRE-2130.
+      - "client connection lost"
+      - "unexpected error when reading response body"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
   - name: arobit-output
@@ -869,6 +890,9 @@ resourceGroups:
       - "500 Internal Server Error"
       - "Internal error occurred"
       - "arobit-forwarder not ready. status: InProgress"
+      # Transient AKS API server connection loss (no HTTP status, 5xx patterns miss). AROSLSRE-2130.
+      - "client connection lost"
+      - "unexpected error when reading response body"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
   - name: kube-events
@@ -897,5 +921,8 @@ resourceGroups:
       errorContainsAny:
       - "500 Internal Server Error"
       - "Internal error occurred"
+      # Transient AKS API server connection loss (no HTTP status, 5xx patterns miss). AROSLSRE-2130.
+      - "client connection lost"
+      - "unexpected error when reading response body"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
