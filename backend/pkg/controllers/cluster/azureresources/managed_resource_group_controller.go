@@ -57,8 +57,8 @@ const managedResourceGroupProvisioningRequeueInterval = 10 * time.Second
 // DB-consuming code (for example the cluster child-resources cleanup gate) can
 // reason about the MRG without reaching into Azure directly.
 //
-// Deletion is still owned by Cluster Service: the deletion path is observe-only
-// (it never calls BeginDelete) and merely mirrors the observed state so the
+// Deletion is still owned by Cluster Service: the deletion path is observe-only, unless
+// the managed resource group has been orphaned, and merely mirrors the observed state so the
 // cluster deletion gate can decide when it is safe to proceed.
 type managedResourceGroupSyncer struct {
 	resourcesDBClient            corecosmosstorage.ResourcesDBClient
@@ -140,7 +140,8 @@ func (c *managedResourceGroupSyncer) NeedsWork(cluster *coreapi.HCPOpenShiftClus
 // SyncOnce reads the cluster and ServiceProviderCluster from the informer caches,
 // short-circuits via NeedsWork, and then dispatches to the deletion or
 // non-deletion (reconcile) path. The non-deletion path creates the resource group
-// when it is missing; deletion remains observe-only (Cluster Service owns it).
+// when it is missing; deletion remains observe-only (Cluster Service owns it), unless the managed
+// resource group has been orphaned.
 func (c *managedResourceGroupSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
 	cluster, err := c.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if cosmosstorageutils.IsNotFoundError(err) {
@@ -332,7 +333,7 @@ func (c *managedResourceGroupSyncer) persistManagedResourceGroup(ctx context.Con
 	return utils.TrackError(err)
 }
 
-// deleteManagedResourceGroup observes the managed resource group while the cluster
+// deleteManagedResourceGroup observes the managed resource group, unless orphaned, while the cluster
 // is being deleted and reflects its state so the cluster child-resources cleanup
 // gate can decide when it is safe to remove the ServiceProviderCluster document.
 //
@@ -348,6 +349,9 @@ func (c *managedResourceGroupSyncer) persistManagedResourceGroup(ctx context.Con
 //   - exists and owned by this cluster: do nothing and leave the reference in place so the
 //     gate stays closed. Cluster Service owns the resource group's deletion. TODO: begin
 //     deletion.
+//
+// If the cluster service deletion has completed and the managed resource group still exists and
+// is not in a deleting state, it has been orphaned. In such cases, this function will delete it.
 func (c *managedResourceGroupSyncer) deleteManagedResourceGroup(ctx context.Context, cluster *coreapi.HCPOpenShiftCluster, existingServiceProviderCluster *coreapi.ServiceProviderCluster) error {
 	// A reference is guaranteed set here (see NeedsWork). Prefer the confirmed
 	// AzureResource, falling back to the PendingAzureResource marker.
@@ -378,9 +382,34 @@ func (c *managedResourceGroupSyncer) deleteManagedResourceGroup(ctx context.Cont
 		return utils.TrackError(c.clearManagedResourceGroupReferences(ctx, cluster, existingServiceProviderCluster))
 	default:
 		// The managed resource group still exists and is owned by this cluster.
-		// Cluster Service owns its deletion; leave the reference in place so the
-		// deletion gate stays closed.
-		// TODO: begin deletion of the managed resource group.
+		if getResponse.Properties == nil || getResponse.Properties.ProvisioningState == nil {
+			utils.LoggerFromContext(ctx).Info("managed resource group has no provisioning state", "managedResourceGroup", managedResourceGroupID.Name,
+				"managedBy", getResponse.ManagedBy)
+			return nil
+		}
+		provisioningState := *getResponse.Properties.ProvisioningState
+
+		// If Cluster Service deletion has completed and the managed resource group
+		// is still not in a deleting state, it has been orphaned and therefore we
+		// should delete it.
+		if cluster.ServiceProviderProperties.DeletionTimestamp != nil &&
+			cluster.ServiceProviderProperties.ClusterServiceDeletionTimestamp != nil &&
+			cluster.ServiceProviderProperties.ClusterServiceID == nil &&
+			provisioningState != string(armresources.ProvisioningStateDeleting) {
+			utils.LoggerFromContext(ctx).Info("deleting orphaned managed resource group", "managedResourceGroup", managedResourceGroupID.Name,
+				"managedBy", getResponse.ManagedBy)
+			_, err := rgClient.BeginDelete(ctx, managedResourceGroupID.Name, nil)
+			if err != nil {
+				return utils.TrackError(fmt.Errorf("failed to delete managed resource group %q: %w", managedResourceGroupID.Name, err))
+			}
+			// do not poll for deletion completion here which will block this thread.
+			// on the next sync(s) the reference will be cleared once the MRG no longer exists.
+		}
+
+		// TODO: The above logic is only to remove orphaned managed resource groups
+		// while Cluster Service is still responsible for processing the deletion.
+		// Changes here are still required to move the responsibility of deleting the
+		// managed resource group to the RP.
 		return nil
 	}
 }
