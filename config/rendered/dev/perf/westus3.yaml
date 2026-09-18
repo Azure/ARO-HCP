@@ -89,7 +89,7 @@ arobit:
       limits:
         memory: 1248Mi
       requests:
-        cpu: 100m
+        cpu: 250m
         memory: 256Mi
   kusto:
     buffering: true
@@ -131,7 +131,7 @@ backend:
       limits:
         memory: unlimited
       requests:
-        cpu: 100m
+        cpu: 475m
         memory: 1Gi
     serviceAccountName: backend
   logVerbosity: 4
@@ -202,7 +202,7 @@ clustersService:
       limits:
         memory: unlimited
       requests:
-        cpu: 50m
+        cpu: 450m
         memory: 150Mi
     serviceAccountName: clusters-service
   managedIdentityName: clusters-service
@@ -794,7 +794,7 @@ mgmtAgent:
     replicas: 2
     resources:
       requests:
-        cpu: 50m
+        cpu: 100m
         memory: 768Mi
     serviceAccountName: mgmt-agent
   managedIdentityName: mgmt-agent

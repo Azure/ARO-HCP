@@ -180,7 +180,7 @@ defaults:
         digest: sha256:94cee54eb85d08891b179bd74be48632bf6e7968f046225abb6074b4655891d0 # v5.0.4 (2026-08-24 10:04)
       resources:
         requests:
-          cpu: 100m
+          cpu: 250m
           memory: 256Mi
         limits:
           memory: 1248Mi
@@ -248,7 +248,7 @@ defaults:
       replicas: 2
       resources:
         requests:
-          cpu: 50m
+          cpu: 100m
           memory: 768Mi
   # Kube Applier Controller
   kubeApplier:
@@ -825,7 +825,7 @@ defaults:
       serviceAccountName: backend
       resources:
         requests:
-          cpu: 100m
+          cpu: 475m
           memory: 1Gi
         limits:
           memory: unlimited
@@ -1153,7 +1153,7 @@ defaults:
       serviceAccountName: clusters-service
       resources:
         requests:
-          cpu: 50m
+          cpu: 450m
           memory: 150Mi
         limits:
           memory: unlimited
