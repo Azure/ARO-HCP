@@ -3,15 +3,15 @@ module github.com/Azure/ARO-HCP/tooling/grafanactl
 go 1.25.7
 
 require (
-	github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20260915180124-1f517432829c
+	github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20260917062117-27fb5fa3a294
 	github.com/dusted-go/logging v1.3.0
 	github.com/go-logr/logr v1.4.3
 	github.com/spf13/cobra v1.10.2
 )
 
 require (
-	github.com/Azure/ARO-Tools/testutil v0.0.0-20260915180124-1f517432829c // indirect
-	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260915180124-1f517432829c // indirect
+	github.com/Azure/ARO-Tools/testutil v0.0.0-20260917062117-27fb5fa3a294 // indirect
+	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260917062117-27fb5fa3a294 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.23.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.14.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.12.0 // indirect

@@ -1,7 +1,7 @@
-github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260915180124-1f517432829c h1:lLhbZfxP4be0KjHKkPY4chuymN5jo1Xta7AW1HGioQU=
-github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260915180124-1f517432829c/go.mod h1:VXe6ebzlygTmHWMtFk+cHcjXWH6jp4Dkk8K8hSpEQVc=
-github.com/Azure/ARO-Tools/tools/kustoctl v0.0.0-20260915180124-1f517432829c h1:6FZhmX9eqn66Vg35dFKWwbNuXoPNxlUjVYw5GZMou1s=
-github.com/Azure/ARO-Tools/tools/kustoctl v0.0.0-20260915180124-1f517432829c/go.mod h1:F3yKCxHhnQJdUh1nOrUgICKIDG5JXlBnV/SFV72raV0=
+github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260917062117-27fb5fa3a294 h1:nMqNb3vJ1IgMLqR4b+mQym1l/VkN4gJ2JIMCr1w04CU=
+github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260917062117-27fb5fa3a294/go.mod h1:VXe6ebzlygTmHWMtFk+cHcjXWH6jp4Dkk8K8hSpEQVc=
+github.com/Azure/ARO-Tools/tools/kustoctl v0.0.0-20260917062117-27fb5fa3a294 h1:tGtap4BHQW/0ceSdmZub84QcBL6BcI5OuITnrJJ3sks=
+github.com/Azure/ARO-Tools/tools/kustoctl v0.0.0-20260917062117-27fb5fa3a294/go.mod h1:F3yKCxHhnQJdUh1nOrUgICKIDG5JXlBnV/SFV72raV0=
 github.com/Azure/azure-kusto-go/azkustodata v1.2.1 h1:De25JIENJVLYUMB4Z9LfAFzbgjGz1ozYJiL2zprs1KA=
 github.com/Azure/azure-kusto-go/azkustodata v1.2.1/go.mod h1:pYbM6A7z4XDU+3S0+OgoyUOuCOWPUe/hyEfnOCT6Gok=
 github.com/Azure/azure-sdk-for-go/sdk/azcore v1.23.0 h1:4gRPBpN1f6xt88yi4WR26m7XaD9OlWtVT6bWPdGUIok=
