@@ -45,7 +45,11 @@ for var in "${!TOOL_REPOS[@]}"; do
     exit 1
   fi
 
-  latest_tag="$(curl -fsSL --retry 3 "https://api.github.com/repos/${repo}/releases/latest" | jq -r '.tag_name')"
+  curl_auth_args=()
+  if [[ -n "${GITHUB_TOKEN:-}" ]]; then
+    curl_auth_args=(-H "Authorization: Bearer ${GITHUB_TOKEN}")
+  fi
+  latest_tag="$(curl -fsSL --show-error --retry 3 "${curl_auth_args[@]}" "https://api.github.com/repos/${repo}/releases/latest" | jq -r '.tag_name')"
   latest="${latest_tag#v}"
 
   if [[ -z "$latest" || "$latest" == "null" ]]; then
@@ -59,8 +63,8 @@ for var in "${!TOOL_REPOS[@]}"; do
   fi
 
   echo "  ${var}: ${current} -> ${latest}"
-  sed -i -E "s/^(${var}[[:space:]]*\?=[[:space:]]*)${current}$/\1${latest}/" "$VERSIONS_MK"
-  sed -i -E "s/^(ARG ${var}=)${current}$/\1${latest}/" "$REPO_ROOT/Dockerfile"
+  sed -i -E "s/^(${var}[[:space:]]*\?=[[:space:]]*).*$/\1${latest}/" "$VERSIONS_MK"
+  sed -i -E "s/^(ARG ${var}=).*$/\1${latest}/" "$REPO_ROOT/Dockerfile"
   changed=1
 done
 
