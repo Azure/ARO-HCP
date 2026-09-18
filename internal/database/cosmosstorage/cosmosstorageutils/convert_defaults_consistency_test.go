@@ -28,6 +28,7 @@ import (
 	v20260630preview "github.com/Azure/ARO-HCP/internal/azureapi/v20260630preview"
 	v20260901preview "github.com/Azure/ARO-HCP/internal/azureapi/v20260901preview"
 	v20261001preview "github.com/Azure/ARO-HCP/internal/azureapi/v20261001preview"
+	v20261003preview "github.com/Azure/ARO-HCP/internal/azureapi/v20261003preview"
 )
 
 // TestEnsureDefaultsConsistencyNodePool verifies that the defaults applied by
@@ -120,6 +121,22 @@ func TestEnsureDefaultsConsistencyNodePool(t *testing.T) {
 	t.Run("v20261001preview", func(t *testing.T) {
 		externalDefault := &v20261001preview.NodePool{}
 		v20261001preview.SetDefaultValuesNodePool(externalDefault)
+
+		if string(ensuredDefault.Properties.Platform.OSDisk.DiskStorageAccountType) != string(ptr.Deref(externalDefault.Properties.Platform.OSDisk.DiskStorageAccountType, "")) {
+			t.Errorf("ensured default DiskStorageAccountType = %q, versioned default = %q",
+				ensuredDefault.Properties.Platform.OSDisk.DiskStorageAccountType,
+				ptr.Deref(externalDefault.Properties.Platform.OSDisk.DiskStorageAccountType, ""))
+		}
+		if string(ensuredDefault.Properties.Platform.OSDisk.DiskType) != string(ptr.Deref(externalDefault.Properties.Platform.OSDisk.DiskType, "")) {
+			t.Errorf("ensured default DiskType = %q, versioned default = %q",
+				ensuredDefault.Properties.Platform.OSDisk.DiskType,
+				ptr.Deref(externalDefault.Properties.Platform.OSDisk.DiskType, ""))
+		}
+	})
+
+	t.Run("v20261003preview", func(t *testing.T) {
+		externalDefault := &v20261003preview.NodePool{}
+		v20261003preview.SetDefaultValuesNodePool(externalDefault)
 
 		if string(ensuredDefault.Properties.Platform.OSDisk.DiskStorageAccountType) != string(ptr.Deref(externalDefault.Properties.Platform.OSDisk.DiskStorageAccountType, "")) {
 			t.Errorf("ensured default DiskStorageAccountType = %q, versioned default = %q",
@@ -313,6 +330,54 @@ func TestEnsureDefaultsConsistencyCluster(t *testing.T) {
 			})
 		}
 	})
+	for _, tc := range []struct {
+		name    string
+		cluster func() (*string, *string, *string, *string, *string)
+	}{
+		{"v20260901preview", func() (*string, *string, *string, *string, *string) {
+			d := &v20260901preview.HcpOpenShiftCluster{}
+			v20260901preview.SetDefaultValuesCluster(d)
+			return stringPtrFromGenerated(d.Properties.Network.NetworkType),
+				stringPtrFromGenerated(d.Properties.API.Visibility),
+				stringPtrFromGenerated(d.Properties.Platform.OutboundType),
+				stringPtrFromGenerated(d.Properties.ClusterImageRegistry.State),
+				stringPtrFromGenerated(d.Properties.Ingress.Type)
+		}},
+		{"v20261003preview", func() (*string, *string, *string, *string, *string) {
+			d := &v20261003preview.HcpOpenShiftCluster{}
+			v20261003preview.SetDefaultValuesCluster(d)
+			return stringPtrFromGenerated(d.Properties.Network.NetworkType),
+				stringPtrFromGenerated(d.Properties.API.Visibility),
+				stringPtrFromGenerated(d.Properties.Platform.OutboundType),
+				stringPtrFromGenerated(d.Properties.ClusterImageRegistry.State),
+				stringPtrFromGenerated(d.Properties.Ingress.Type)
+		}},
+	} {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			networkType, visibility, outboundType, imageRegState, ingressType := tc.cluster()
+			checks := []struct {
+				name           string
+				canonicalVal   string
+				externalPtrVal *string
+			}{
+				{"NetworkType", string(ensuredDefault.CustomerProperties.Network.NetworkType), networkType},
+				{"Visibility", string(ensuredDefault.CustomerProperties.API.Visibility), visibility},
+				{"OutboundType", string(ensuredDefault.CustomerProperties.Platform.OutboundType), outboundType},
+				{"ClusterImageRegistry.State", string(ensuredDefault.CustomerProperties.ClusterImageRegistry.State), imageRegState},
+				{"Ingress.Type", string(ensuredDefault.CustomerProperties.Ingress.Type), ingressType},
+			}
+			for _, c := range checks {
+				t.Run(c.name, func(t *testing.T) {
+					if c.externalPtrVal == nil {
+						t.Errorf("versioned default is nil, expected %q", c.canonicalVal)
+					} else if c.canonicalVal != *c.externalPtrVal {
+						t.Errorf("ensured default = %q, versioned default = %q", c.canonicalVal, *c.externalPtrVal)
+					}
+				})
+			}
+		})
+	}
 }
 
 // TestPreExistingDataCluster verifies that CosmosToInternalCluster applies
@@ -624,6 +689,18 @@ func TestEnsureDefaultsConsistencyExternalAuth(t *testing.T) {
 	t.Run("v20261001preview", func(t *testing.T) {
 		externalDefault := &v20261001preview.ExternalAuth{}
 		v20261001preview.SetDefaultValuesExternalAuth(externalDefault)
+
+		if stringPtrFromGenerated(externalDefault.Properties.Claim.Mappings.Username.PrefixPolicy) == nil {
+			t.Errorf("versioned default PrefixPolicy is nil, expected %q", ensuredDefault.Properties.Claim.Mappings.Username.PrefixPolicy)
+		} else if string(ensuredDefault.Properties.Claim.Mappings.Username.PrefixPolicy) != *stringPtrFromGenerated(externalDefault.Properties.Claim.Mappings.Username.PrefixPolicy) {
+			t.Errorf("ensured default PrefixPolicy = %q, versioned default = %q",
+				ensuredDefault.Properties.Claim.Mappings.Username.PrefixPolicy,
+				*stringPtrFromGenerated(externalDefault.Properties.Claim.Mappings.Username.PrefixPolicy))
+		}
+	})
+	t.Run("v20261003preview", func(t *testing.T) {
+		externalDefault := &v20261003preview.ExternalAuth{}
+		v20261003preview.SetDefaultValuesExternalAuth(externalDefault)
 
 		if stringPtrFromGenerated(externalDefault.Properties.Claim.Mappings.Username.PrefixPolicy) == nil {
 			t.Errorf("versioned default PrefixPolicy is nil, expected %q", ensuredDefault.Properties.Claim.Mappings.Username.PrefixPolicy)

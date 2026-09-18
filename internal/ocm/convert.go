@@ -296,9 +296,19 @@ func convertEtcdRPToCS(in coreapi.EtcdProfile, activeKeyBuilder *arohcpv1alpha1.
 			EncryptionType(encryptionType)
 
 		if in.DataEncryption.CustomerManaged.Kms != nil {
+			kms := in.DataEncryption.CustomerManaged.Kms
+			vaultName := kms.ActiveKey.VaultName
+			keyName := kms.ActiveKey.Name
+			if kms.KeyEncryptionKeyURL != "" {
+				var parseErr error
+				vaultName, keyName, _, parseErr = coreapi.ParseKeyEncryptionKeyURL(kms.KeyEncryptionKeyURL)
+				if parseErr != nil {
+					return nil, fmt.Errorf("parsing keyEncryptionKeyUrl: %w", parseErr)
+				}
+			}
 			activeKeyBuilder.
-				KeyName(in.DataEncryption.CustomerManaged.Kms.ActiveKey.Name).
-				KeyVaultName(in.DataEncryption.CustomerManaged.Kms.ActiveKey.VaultName)
+				KeyName(keyName).
+				KeyVaultName(vaultName)
 			azureKmsEncryptionBuilder := arohcpv1alpha1.NewAzureKmsEncryption().ActiveKey(activeKeyBuilder)
 
 			if len(in.DataEncryption.CustomerManaged.Kms.Visibility) != 0 {

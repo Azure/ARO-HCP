@@ -497,12 +497,8 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{
 					EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
 					Kms: &coreapi.KmsEncryptionProfile{
-						// Visibility is omitted (empty string) - EnsureDefaults will fill it in before validation
-						ActiveKey: coreapi.KmsKey{
-							Name:      "test-key",
-							VaultName: "test-vault",
-							Version:   "test-version",
-						},
+						// Visibility is omitted (empty string)
+						KeyEncryptionKeyURL: "https://test-vault.vault.azure.net/keys/test-key/test-version",
 					},
 				}
 				return c
@@ -526,12 +522,8 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{
 					EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
 					Kms: &coreapi.KmsEncryptionProfile{
-						Visibility: "InvalidVisibility",
-						ActiveKey: coreapi.KmsKey{
-							Name:      "test-key",
-							VaultName: "test-vault",
-							Version:   "test-version",
-						},
+						Visibility:          "InvalidVisibility",
+						KeyEncryptionKeyURL: "https://test-vault.vault.azure.net/keys/test-key/test-version",
 					},
 				}
 				return c
@@ -548,12 +540,8 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{
 					EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
 					Kms: &coreapi.KmsEncryptionProfile{
-						Visibility: metadataapi.KeyVaultVisibilityPublic,
-						ActiveKey: coreapi.KmsKey{
-							Name:      "test-key",
-							VaultName: "test-vault",
-							Version:   "test-version",
-						},
+						Visibility:          metadataapi.KeyVaultVisibilityPublic,
+						KeyEncryptionKeyURL: "https://test-vault.vault.azure.net/keys/test-key/test-version",
 					},
 				}
 				return c
@@ -567,12 +555,8 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{
 					EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
 					Kms: &coreapi.KmsEncryptionProfile{
-						Visibility: metadataapi.KeyVaultVisibilityPrivate,
-						ActiveKey: coreapi.KmsKey{
-							Name:      "test-key",
-							VaultName: "test-vault",
-							Version:   "test-version",
-						},
+						Visibility:          metadataapi.KeyVaultVisibilityPrivate,
+						KeyEncryptionKeyURL: "https://test-vault.vault.azure.net/keys/test-key/test-version",
 					},
 				}
 				return c
@@ -1894,12 +1878,8 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{
 					EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
 					Kms: &coreapi.KmsEncryptionProfile{
-						Visibility: metadataapi.KeyVaultVisibilityPrivate,
-						ActiveKey: coreapi.KmsKey{
-							Name:      "test-key",
-							VaultName: "test-vault",
-							Version:   "test-version",
-						},
+						Visibility:          metadataapi.KeyVaultVisibilityPrivate,
+						KeyEncryptionKeyURL: "https://test-vault.vault.azure.net/keys/test-key/test-version",
 					},
 				}
 				return c
@@ -1910,12 +1890,8 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{
 					EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
 					Kms: &coreapi.KmsEncryptionProfile{
-						Visibility: metadataapi.KeyVaultVisibilityPublic,
-						ActiveKey: coreapi.KmsKey{
-							Name:      "test-key",
-							VaultName: "test-vault",
-							Version:   "test-version",
-						},
+						Visibility:          metadataapi.KeyVaultVisibilityPublic,
+						KeyEncryptionKeyURL: "https://test-vault.vault.azure.net/keys/test-key/test-version",
 					},
 				}
 				return c
@@ -1932,12 +1908,8 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{
 					EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
 					Kms: &coreapi.KmsEncryptionProfile{
-						Visibility: metadataapi.KeyVaultVisibilityPublic,
-						ActiveKey: coreapi.KmsKey{
-							Name:      "test-key",
-							VaultName: "test-vault",
-							Version:   "new-version",
-						},
+						Visibility:          metadataapi.KeyVaultVisibilityPublic,
+						KeyEncryptionKeyURL: "https://test-vault.vault.azure.net/keys/test-key/new-version",
 					},
 				}
 				return c
@@ -1948,12 +1920,8 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{
 					EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
 					Kms: &coreapi.KmsEncryptionProfile{
-						Visibility: metadataapi.KeyVaultVisibilityPublic,
-						ActiveKey: coreapi.KmsKey{
-							Name:      "test-key",
-							VaultName: "test-vault",
-							Version:   "old-version",
-						},
+						Visibility:          metadataapi.KeyVaultVisibilityPublic,
+						KeyEncryptionKeyURL: "https://test-vault.vault.azure.net/keys/test-key/old-version",
 					},
 				}
 				return c
@@ -1969,12 +1937,8 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{
 					EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
 					Kms: &coreapi.KmsEncryptionProfile{
-						Visibility: metadataapi.KeyVaultVisibilityPublic,
-						ActiveKey: coreapi.KmsKey{
-							Name:      "test-key",
-							VaultName: "test-vault",
-							Version:   "new-version",
-						},
+						Visibility:          metadataapi.KeyVaultVisibilityPublic,
+						KeyEncryptionKeyURL: "https://test-vault.vault.azure.net/keys/test-key/new-version",
 					},
 				}
 				return c
@@ -1985,19 +1949,15 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{
 					EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
 					Kms: &coreapi.KmsEncryptionProfile{
-						Visibility: metadataapi.KeyVaultVisibilityPublic,
-						ActiveKey: coreapi.KmsKey{
-							Name:      "test-key",
-							VaultName: "test-vault",
-							Version:   "old-version",
-						},
+						Visibility:          metadataapi.KeyVaultVisibilityPublic,
+						KeyEncryptionKeyURL: "https://test-vault.vault.azure.net/keys/test-key/old-version",
 					},
 				}
 				return c
 			}(),
 			opOptions: []string{metadataapi.APIVersionOption(metadataapi.APIVersionV20251223Preview)},
 			expectErrors: []utils.ExpectedError{
-				{Message: "field is immutable", FieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms.activeKey.version"},
+				{Message: "immutable in this API version", FieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms.keyEncryptionKeyUrl"},
 			},
 		},
 		{
@@ -2691,12 +2651,8 @@ func createValidCluster() *coreapi.HCPOpenShiftCluster {
 	cluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{
 		EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
 		Kms: &coreapi.KmsEncryptionProfile{
-			Visibility: metadataapi.KeyVaultVisibilityPublic,
-			ActiveKey: coreapi.KmsKey{
-				Name:      coreapitesting.TestKMSKeyName,
-				VaultName: coreapitesting.TestKMSKeyVaultName,
-				Version:   coreapitesting.TestKMSKeyVersion,
-			},
+			Visibility:          metadataapi.KeyVaultVisibilityPublic,
+			KeyEncryptionKeyURL: "https://" + coreapitesting.TestKMSKeyVaultName + ".vault.azure.net/keys/" + coreapitesting.TestKMSKeyName + "/" + coreapitesting.TestKMSKeyVersion,
 		},
 	}
 	// Use different resource group for subnet to ensure same subscription validation
@@ -2731,20 +2687,6 @@ func createValidCluster() *coreapi.HCPOpenShiftCluster {
 	}
 
 	cluster.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL = coreapitesting.TestManagedIdentitiesDataPlaneIdentityURL
-
-	// PlatformManaged etcd encryption is not currently supported; require CustomerManaged for a valid cluster.
-	cluster.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = metadataapi.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged
-	cluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{
-		EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
-		Kms: &coreapi.KmsEncryptionProfile{
-			Visibility: metadataapi.KeyVaultVisibilityPublic,
-			ActiveKey: coreapi.KmsKey{
-				Name:      "test-key",
-				VaultName: "test-vault",
-				Version:   "test-version",
-			},
-		},
-	}
 
 	return cluster
 }

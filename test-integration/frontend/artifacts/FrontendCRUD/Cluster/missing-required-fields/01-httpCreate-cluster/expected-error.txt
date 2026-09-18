@@ -26,17 +26,7 @@
       {
         "code": "InvalidRequestContent",
         "message": "Required value",
-        "target": "properties.etcd.dataEncryption.customerManaged.kms.activeKey.name"
-      }
-      {
-        "code": "InvalidRequestContent",
-        "message": "Required value",
-        "target": "properties.etcd.dataEncryption.customerManaged.kms.activeKey.vaultName"
-      }
-      {
-        "code": "InvalidRequestContent",
-        "message": "Required value",
-        "target": "properties.etcd.dataEncryption.customerManaged.kms.activeKey.version"
+        "target": "properties.etcd.dataEncryption.customerManaged.kms.keyEncryptionKeyUrl"
       }
       {
         "code": "InvalidRequestContent",
