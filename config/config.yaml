@@ -443,6 +443,10 @@ defaults:
     alertRuleOwningTeamTag: ""
     alertsEnabled: true
     alertSeverityCeiling: 0
+    # Azure subscription IDs for internal (e2e/CI/dev/integration) workloads to
+    # exclude from customer-facing alert lanes via the internal_subscription:info
+    # recording rule. Real IDs live only in the private sdp-pipelines overlay.
+    internalSubscriptions: []
     eventHubAlerting:
       enabled: false
     icm:
