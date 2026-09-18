@@ -38,6 +38,7 @@ type ciJobOutcome struct {
 	TestFailures  int       `json:"testFailures"`
 	StartedAt     time.Time `json:"startedAt"`
 	FinishedAt    time.Time `json:"finishedAt"`
+	ADOBuildID    string    `json:"adoBuildId"`
 }
 
 // ciTestName is one row of the ciTestNames table: a distinct test.
