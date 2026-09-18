@@ -30,7 +30,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
-	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	hcpsdk20260901preview "github.com/Azure/ARO-HCP/test/sdk/v20260901preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
@@ -123,9 +123,9 @@ var _ = Describe("Customer", func() {
 				Expect(err).NotTo(HaveOccurred(), "failed to get userAssignedIdentitiesValue output from managed identities deployment")
 				identityValue, err := framework.GetOutputValue(managedIdentitiesDeployment, "identityValue")
 				Expect(err).NotTo(HaveOccurred(), "failed to get identityValue output from managed identities deployment")
-				userAssignedIdentitiesProfile, err := framework.ConvertToUserAssignedIdentitiesProfile20240610(userAssignedIdentitiesValue)
+				userAssignedIdentitiesProfile, err := framework.ConvertToUserAssignedIdentitiesProfile20260901(userAssignedIdentitiesValue)
 				Expect(err).NotTo(HaveOccurred(), "failed to convert userAssignedIdentitiesValue to profile")
-				identityProfile, err := framework.ConvertToManagedServiceIdentity20240610(identityValue)
+				identityProfile, err := framework.ConvertToManagedServiceIdentity20260901(identityValue)
 				Expect(err).NotTo(HaveOccurred(), "failed to convert identityValue to ManagedServiceIdentity")
 
 				By("creating HCP cluster version " + version.controlPlaneVersion)
@@ -139,8 +139,8 @@ var _ = Describe("Customer", func() {
 					identityProfile,
 				)
 				Expect(err).NotTo(HaveOccurred(), "failed to build HCP cluster request for version %s", version.controlPlaneVersion)
-				hcpClient := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
-				_, err = framework.CreateHCPClusterAndWait20240610(
+				hcpClient := tc.Get20260901ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
+				_, err = framework.CreateHCPClusterAndWait20260901(
 					ctx,
 					GinkgoLogr,
 					hcpClient,
@@ -186,8 +186,8 @@ var _ = Describe("Customer", func() {
 						nodePoolDefaults,
 					)
 					Expect(err).NotTo(HaveOccurred(), "failed to build node pool request for version %s", matchingNodePoolVersion)
-					nodePoolClient := tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient()
-					_, err = framework.CreateNodePoolAndWait20240610(ctx,
+					nodePoolClient := tc.Get20260901ClientFactoryOrDie(ctx).NewNodePoolsClient()
+					_, err = framework.CreateNodePoolAndWait20260901(ctx,
 						nodePoolClient,
 						*resourceGroup.Name,
 						clusterName,
@@ -238,6 +238,7 @@ type customerInfraOutputs struct {
 	etcdEncryptionKeyVersion string
 	nsgID                    string
 	subnetID                 string
+	vnetIntegrationSubnetID  string
 	vnetName                 string
 	nsgName                  string
 	subnetName               string
@@ -249,15 +250,15 @@ func buildHCPClusterRequest(
 	controlPlaneVersion string,
 	channelGroup string,
 	customerInfra customerInfraOutputs,
-	userAssignedIdentitiesProfile *hcpsdk20240610preview.UserAssignedIdentitiesProfile,
-	identityProfile *hcpsdk20240610preview.ManagedServiceIdentity,
-) (hcpsdk20240610preview.HcpOpenShiftCluster, error) {
+	userAssignedIdentitiesProfile *hcpsdk20260901preview.UserAssignedIdentitiesProfile,
+	identityProfile *hcpsdk20260901preview.ManagedServiceIdentity,
+) (hcpsdk20260901preview.HcpOpenShiftCluster, error) {
 
 	switch controlPlaneVersion {
 	case "4.20":
 		return buildHCPClusterRequest_4_20(location, managedResourceGroupName, controlPlaneVersion, channelGroup, customerInfra, userAssignedIdentitiesProfile, identityProfile), nil
 	default:
-		return hcpsdk20240610preview.HcpOpenShiftCluster{}, fmt.Errorf("unsupported control plane version: %s", controlPlaneVersion)
+		return hcpsdk20260901preview.HcpOpenShiftCluster{}, fmt.Errorf("unsupported control plane version: %s", controlPlaneVersion)
 	}
 }
 
@@ -267,51 +268,53 @@ func buildHCPClusterRequest_4_20(
 	controlPlaneVersion string,
 	channelGroup string,
 	customerInfra customerInfraOutputs,
-	userAssignedIdentitiesProfile *hcpsdk20240610preview.UserAssignedIdentitiesProfile,
-	identityProfile *hcpsdk20240610preview.ManagedServiceIdentity,
-) hcpsdk20240610preview.HcpOpenShiftCluster {
-	return hcpsdk20240610preview.HcpOpenShiftCluster{
+	userAssignedIdentitiesProfile *hcpsdk20260901preview.UserAssignedIdentitiesProfile,
+	identityProfile *hcpsdk20260901preview.ManagedServiceIdentity,
+) hcpsdk20260901preview.HcpOpenShiftCluster {
+	return hcpsdk20260901preview.HcpOpenShiftCluster{
 		Location: to.Ptr(location),
 		Identity: identityProfile,
 		Tags: map[string]*string{
 			metadataapi.TagClusterSizeOverride: to.Ptr(string(coreapi.MinimalControlPlanePodSizing)),
 		},
-		Properties: &hcpsdk20240610preview.HcpOpenShiftClusterProperties{
-			Version: &hcpsdk20240610preview.VersionProfile{
+		Properties: &hcpsdk20260901preview.HcpOpenShiftClusterProperties{
+			Version: &hcpsdk20260901preview.VersionProfile{
 				ID:           to.Ptr(controlPlaneVersion),
 				ChannelGroup: to.Ptr(channelGroup),
 			},
-			Platform: &hcpsdk20240610preview.PlatformProfile{
-				ManagedResourceGroup:   to.Ptr(managedResourceGroupName),
-				NetworkSecurityGroupID: to.Ptr(customerInfra.nsgID),
-				SubnetID:               to.Ptr(customerInfra.subnetID),
-				OperatorsAuthentication: &hcpsdk20240610preview.OperatorsAuthenticationProfile{
+			Platform: &hcpsdk20260901preview.PlatformProfile{
+				ManagedResourceGroup:    to.Ptr(managedResourceGroupName),
+				NetworkSecurityGroupID:  to.Ptr(customerInfra.nsgID),
+				SubnetID:                to.Ptr(customerInfra.subnetID),
+				VnetIntegrationSubnetID: to.Ptr(customerInfra.vnetIntegrationSubnetID),
+				OperatorsAuthentication: &hcpsdk20260901preview.OperatorsAuthenticationProfile{
 					UserAssignedIdentities: userAssignedIdentitiesProfile,
 				},
 			},
-			Network: &hcpsdk20240610preview.NetworkProfile{
-				NetworkType: to.Ptr(hcpsdk20240610preview.NetworkType("OVNKubernetes")),
+			Network: &hcpsdk20260901preview.NetworkProfile{
+				NetworkType: to.Ptr(hcpsdk20260901preview.NetworkType("OVNKubernetes")),
 				PodCIDR:     to.Ptr("10.128.0.0/14"),
 				ServiceCIDR: to.Ptr("172.30.0.0/16"),
 				MachineCIDR: to.Ptr("10.0.0.0/16"),
 				HostPrefix:  to.Ptr(int32(23)),
 			},
-			API: &hcpsdk20240610preview.APIProfile{
-				Visibility: to.Ptr(hcpsdk20240610preview.Visibility("Public")),
+			API: &hcpsdk20260901preview.APIProfile{
+				Visibility: to.Ptr(hcpsdk20260901preview.Visibility("Public")),
 			},
-			ClusterImageRegistry: &hcpsdk20240610preview.ClusterImageRegistryProfile{
-				State: to.Ptr(hcpsdk20240610preview.ClusterImageRegistryState("Enabled")),
+			ClusterImageRegistry: &hcpsdk20260901preview.ClusterImageRegistryProfile{
+				State: to.Ptr(hcpsdk20260901preview.ClusterImageRegistryState("Enabled")),
 			},
-			Etcd: &hcpsdk20240610preview.EtcdProfile{
-				DataEncryption: &hcpsdk20240610preview.EtcdDataEncryptionProfile{
-					KeyManagementMode: to.Ptr(hcpsdk20240610preview.EtcdDataEncryptionKeyManagementModeType("CustomerManaged")),
-					CustomerManaged: &hcpsdk20240610preview.CustomerManagedEncryptionProfile{
-						EncryptionType: to.Ptr(hcpsdk20240610preview.CustomerManagedEncryptionType("KMS")),
-						Kms: &hcpsdk20240610preview.KmsEncryptionProfile{
-							ActiveKey: &hcpsdk20240610preview.KmsKey{
-								VaultName: to.Ptr(customerInfra.keyVaultName),
-								Name:      to.Ptr(customerInfra.etcdEncryptionKeyName),
-								Version:   to.Ptr(customerInfra.etcdEncryptionKeyVersion),
+			Etcd: &hcpsdk20260901preview.EtcdProfile{
+				DataEncryption: &hcpsdk20260901preview.EtcdDataEncryptionProfile{
+					KeyManagementMode: to.Ptr(hcpsdk20260901preview.EtcdDataEncryptionKeyManagementModeType("CustomerManaged")),
+					CustomerManaged: &hcpsdk20260901preview.CustomerManagedEncryptionProfile{
+						EncryptionType: to.Ptr(hcpsdk20260901preview.CustomerManagedEncryptionType("KMS")),
+						Kms: &hcpsdk20260901preview.KmsEncryptionProfile{
+							VaultName:  to.Ptr(customerInfra.keyVaultName),
+							Visibility: to.Ptr(hcpsdk20260901preview.KeyVaultVisibilityPublic),
+							ActiveKey: &hcpsdk20260901preview.KmsKey{
+								Name:    to.Ptr(customerInfra.etcdEncryptionKeyName),
+								Version: to.Ptr(customerInfra.etcdEncryptionKeyVersion),
 							},
 						},
 					},
@@ -325,12 +328,12 @@ func buildNodePoolRequest(
 	location string,
 	nodePoolVersion string,
 	defaults nodePoolDefaults,
-) (hcpsdk20240610preview.NodePool, error) {
+) (hcpsdk20260901preview.NodePool, error) {
 	switch nodePoolVersion {
 	case "4.20.32":
 		return buildNodePoolRequest_4_20(location, nodePoolVersion, defaults), nil
 	default:
-		return hcpsdk20240610preview.NodePool{}, fmt.Errorf("unsupported node pool version: %s", nodePoolVersion)
+		return hcpsdk20260901preview.NodePool{}, fmt.Errorf("unsupported node pool version: %s", nodePoolVersion)
 	}
 }
 
@@ -338,20 +341,20 @@ func buildNodePoolRequest_4_20(
 	location string,
 	nodePoolVersion string,
 	defaults nodePoolDefaults,
-) hcpsdk20240610preview.NodePool {
-	return hcpsdk20240610preview.NodePool{
+) hcpsdk20260901preview.NodePool {
+	return hcpsdk20260901preview.NodePool{
 		Location: to.Ptr(location),
-		Properties: &hcpsdk20240610preview.NodePoolProperties{
-			Version: &hcpsdk20240610preview.NodePoolVersionProfile{
+		Properties: &hcpsdk20260901preview.NodePoolProperties{
+			Version: &hcpsdk20260901preview.NodePoolVersionProfile{
 				ID:           to.Ptr(nodePoolVersion),
 				ChannelGroup: to.Ptr(defaults.channelGroup),
 			},
 			Replicas: to.Ptr(defaults.replicas),
-			Platform: &hcpsdk20240610preview.NodePoolPlatformProfile{
+			Platform: &hcpsdk20260901preview.NodePoolPlatformProfile{
 				VMSize: to.Ptr(defaults.vmSize),
-				OSDisk: &hcpsdk20240610preview.OsDiskProfile{
+				OSDisk: &hcpsdk20260901preview.OsDiskProfile{
 					SizeGiB:                to.Ptr(defaults.osDiskSizeGiB),
-					DiskStorageAccountType: to.Ptr(hcpsdk20240610preview.DiskStorageAccountType(defaults.diskStorageAccountType)),
+					DiskStorageAccountType: to.Ptr(hcpsdk20260901preview.DiskStorageAccountType(defaults.diskStorageAccountType)),
 				},
 			},
 		},
@@ -379,6 +382,10 @@ func readCustomerInfraOutputs(deployment *armresources.DeploymentExtended) (cust
 	if err != nil {
 		return customerInfraOutputs{}, fmt.Errorf("failed to get vnetSubnetID: %w", err)
 	}
+	vnetIntegrationSubnetID, err := framework.GetOutputValueString(deployment, "vnetIntegrationSubnetID")
+	if err != nil {
+		return customerInfraOutputs{}, fmt.Errorf("failed to get vnetIntegrationSubnetID: %w", err)
+	}
 	vnetName, err := framework.GetOutputValueString(deployment, "vnetName")
 	if err != nil {
 		return customerInfraOutputs{}, fmt.Errorf("failed to get vnetName: %w", err)
@@ -398,6 +405,7 @@ func readCustomerInfraOutputs(deployment *armresources.DeploymentExtended) (cust
 		etcdEncryptionKeyVersion: etcdEncryptionKeyVersion,
 		nsgID:                    nsgID,
 		subnetID:                 subnetID,
+		vnetIntegrationSubnetID:  vnetIntegrationSubnetID,
 		vnetName:                 vnetName,
 		nsgName:                  nsgName,
 		subnetName:               subnetName,

@@ -51,11 +51,11 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create resource group for NSG/subnet reuse test")
 
 			By("creating customer resources")
-			clusterParams1 := framework.NewDefaultClusterParams20240610()
+			clusterParams1 := framework.NewDefaultClusterParams20260901()
 			clusterParams1.ClusterName = "basic-cluster"
 			clusterParams1.ManagedResourceGroupName = framework.SuffixName(*resourceGroup.Name, "-managed-1", 64)
 
-			clusterParams2 := framework.NewDefaultClusterParams20240610()
+			clusterParams2 := framework.NewDefaultClusterParams20260901()
 			clusterParams2.ClusterName = "cluster-subnet-reuse"
 			clusterParams2.ManagedResourceGroupName = framework.SuffixName(*resourceGroup.Name, "-managed-2", 64)
 
@@ -66,7 +66,7 @@ var _ = Describe("Customer", func() {
 
 			go func() {
 				defer close(customerRes1DoneCh)
-				clusterParams1, err1 = tc.CreateClusterCustomerResources20240610(ctx,
+				clusterParams1, err1 = tc.CreateClusterCustomerResources20260901(ctx,
 					resourceGroup,
 					clusterParams1,
 					map[string]any{
@@ -80,7 +80,7 @@ var _ = Describe("Customer", func() {
 			}()
 			go func() {
 				defer close(customerRes2DoneCh)
-				clusterParams2, err2 = tc.CreateClusterCustomerResources20240610(ctx,
+				clusterParams2, err2 = tc.CreateClusterCustomerResources20260901(ctx,
 					resourceGroup,
 					clusterParams2,
 					map[string]any{
@@ -97,11 +97,12 @@ var _ = Describe("Customer", func() {
 			Expect(err1).NotTo(HaveOccurred(), "failed to create customer resources for basic-cluster")
 
 			By("seeding HCP cluster")
-			err = tc.CreateHCPClusterFromParam20240610(
+			err = tc.CreateHCPClusterFromParam20260901(
 				ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
 				clusterParams1,
+				nil,
 				framework.ClusterCreationTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create seed HCP cluster basic-cluster")
@@ -113,11 +114,12 @@ var _ = Describe("Customer", func() {
 			originalSubnetResourceID := clusterParams2.SubnetResourceID
 			clusterParams2.SubnetResourceID = clusterParams1.SubnetResourceID
 
-			err = tc.CreateHCPClusterFromParam20240610(
+			err = tc.CreateHCPClusterFromParam20260901(
 				ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
 				clusterParams2,
+				nil,
 				5*time.Minute,
 			)
 			Expect(err).To(HaveOccurred(), "expected error when creating cluster with already-used subnet")
@@ -129,11 +131,12 @@ var _ = Describe("Customer", func() {
 
 			clusterParams2.NsgResourceID = clusterParams1.NsgResourceID
 			clusterParams2.ClusterName = "cluster-nsg-reuse"
-			err = tc.CreateHCPClusterFromParam20240610(
+			err = tc.CreateHCPClusterFromParam20260901(
 				ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
 				clusterParams2,
+				nil,
 				5*time.Minute,
 			)
 			Expect(err).To(HaveOccurred(), "expected error when creating cluster with already-used NSG")
