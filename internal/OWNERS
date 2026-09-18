@@ -3,3 +3,5 @@ approvers:
 - mociarain
 - deads2k
 - miguelsorianod
+labels:
+- area/internal

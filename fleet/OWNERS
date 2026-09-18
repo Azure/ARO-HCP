@@ -2,3 +2,5 @@ approvers:
 - geoberle
 - deads2k
 - stevekuznetsov
+labels:
+- area/fleet
