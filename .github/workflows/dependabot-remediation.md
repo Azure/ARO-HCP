@@ -36,7 +36,7 @@ model: sonnet
 # Give the agent up to 45 minutes: it runs the go.work tidy ritual (module
 # download + `make all-tidy` + license regeneration) across the ARO-HCP workspace
 # (~30 modules plus npm manifests), which does not fit the default 20-minute budget.
-timeout-minutes: 45
+timeout-minutes: 120
 
 # The agent runs behind the AWF egress firewall. `defaults` covers base infra but
 # NOT the Go module proxy or the npm registry, so `make all-tidy` cannot download the
