@@ -133,7 +133,7 @@ clouds:
           image:
             registry: "quay.io"
             repository: "roivaz/cihealth"
-            digest: sha256:f3fd1b3ecd57eb87ababdcfb6439ff2b4b9f0dca2ff342dd4cb4cbf0b8552ac6 # 4d50a6e (2026-09-16 07:24)
+            digest: sha256:f751a515aa35ccd836f67c7e6e6530374552cffe73b21e6a89b7442ab5d4a72c # 882f173 (2026-09-18 15:00)
           disableRuntimeWorkloads: false
           app:
             replicas: 2
