@@ -388,7 +388,7 @@ spec:
               -
               sum by (cluster) (
                 rate(frontend_http_requests_duration_seconds_bucket{
-                  le=~"^1(\\.0)?$",
+                  le=~"^1([.]0)?$",
                   route!~".*hcpoperation(results|statuses).*"
                 }[1h] offset 5m)
               )
@@ -413,7 +413,7 @@ spec:
               -
               sum by (cluster) (
                 rate(frontend_http_requests_duration_seconds_bucket{
-                  le=~"^1(\\.0)?$",
+                  le=~"^1([.]0)?$",
                   route!~".*hcpoperation(results|statuses).*"
                 }[5m] offset 5m)
               )
@@ -451,7 +451,7 @@ spec:
               -
               sum by (cluster) (
                 rate(frontend_http_requests_duration_seconds_bucket{
-                  le=~"^1(\\.0)?$",
+                  le=~"^1([.]0)?$",
                   route!~".*hcpoperation(results|statuses).*"
                 }[6h] offset 5m)
               )
@@ -476,7 +476,7 @@ spec:
               -
               sum by (cluster) (
                 rate(frontend_http_requests_duration_seconds_bucket{
-                  le=~"^1(\\.0)?$",
+                  le=~"^1([.]0)?$",
                   route!~".*hcpoperation(results|statuses).*"
                 }[30m] offset 5m)
               )
@@ -514,7 +514,7 @@ spec:
               -
               sum by (cluster) (
                 rate(frontend_http_requests_duration_seconds_bucket{
-                  le=~"^1(\\.0)?$",
+                  le=~"^1([.]0)?$",
                   route!~".*hcpoperation(results|statuses).*"
                 }[3d] offset 5m)
               )
@@ -539,7 +539,7 @@ spec:
               -
               sum by (cluster) (
                 rate(frontend_http_requests_duration_seconds_bucket{
-                  le=~"^1(\\.0)?$",
+                  le=~"^1([.]0)?$",
                   route!~".*hcpoperation(results|statuses).*"
                 }[6h] offset 5m)
               )
