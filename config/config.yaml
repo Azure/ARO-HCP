@@ -538,6 +538,7 @@ defaults:
       artifactName: "empty-sentinel"
       buildId: 0
   velero:
+    enableInstantAccess: true
     server:
       registry: registry.stage.redhat.io
       repository: oadp/oadp-velero-rhel9
@@ -1767,6 +1768,9 @@ clouds:
             enabled: true
             captureMode: all
             useMgmtAgentImage: true
+          # Avoid per-restore instant-access fees while retaining backup coverage.
+          velero:
+            enableInstantAccess: false
           customExporter:
             clusterNameFilter: "{{ .ctx.environment }}-{{ .ctx.regionShort }}"
           kusto:
@@ -1873,6 +1877,9 @@ clouds:
             enabled: true
             captureMode: all
             useMgmtAgentImage: true
+          # Avoid per-restore instant-access fees while retaining backup coverage.
+          velero:
+            enableInstantAccess: false
           customExporter:
             clusterNameFilter: "{{ .ctx.environment }}-{{ .ctx.regionShort }}"
           auditLogsEventHub:

@@ -3454,6 +3454,10 @@
       "type": "object",
       "description": "Velero configuration",
       "properties": {
+        "enableInstantAccess": {
+          "type": "boolean",
+          "description": "Enable 60-minute instant access for Azure disk snapshots. Disabling this omits the parameter and requires normal snapshot copy completion before restore."
+        },
         "server": {
           "$ref": "#/definitions/containerImage"
         },
@@ -3468,7 +3472,8 @@
       "required": [
         "server",
         "azurePlugin",
-        "hypershiftPlugin"
+        "hypershiftPlugin",
+        "enableInstantAccess"
       ]
     },
     "logs": {
