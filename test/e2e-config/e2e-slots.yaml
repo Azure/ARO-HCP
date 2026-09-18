@@ -87,11 +87,11 @@ environments:
     deploy_envs:
     - stg
     pools:
-    # shard0: Stage-00 subscription, fixed uksouth region.
+    # shard0: Stage-00 subscription, runtime-selected region with uksouth as the default.
     # identity_container_count set to 25 to support running the full E2E suite in parallel.
     - subscription_name: "ARO HCP E2E Hosted Clusters - Stage - 00"
       region: uksouth
-      region_mode: fixed
+      region_mode: runtime-selected
       resource_type: aro-hcp-stg-shard0-slot
       slot_count: 1
       identity_container_prefix: aro-hcp-msi-container-stg-shard0

@@ -249,6 +249,7 @@ clouds:
             - name: "ARO HCP E2E Hosted Clusters - Stage - 00"
               regions:
               - uksouth
+              - westus3
             - name: "ARO HCP E2E Hosted Clusters - Prod - 00"
               regions:
               - uksouth
