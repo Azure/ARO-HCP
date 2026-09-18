@@ -1023,6 +1023,18 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		b.options.ResourcesDBClient,
 		backendInformers,
 	)
+	hostedClusterIdentityController := clustercreation.NewHostedClusterIdentityController(
+		b.options.ResourcesDBClient,
+		b.options.ClustersServiceClient,
+		backendInformers,
+		b.options.MaestroSourceEnvironmentIdentifier,
+	)
+	hostedClusterIdentityBackfillController := clusterproperties.NewHostedClusterIdentityBackfillController(
+		b.options.ResourcesDBClient,
+		b.options.ClustersServiceClient,
+		backendInformers,
+		b.options.MaestroSourceEnvironmentIdentifier,
+	)
 
 	clusterClusterServiceCreateController := clustercreation.NewClusterClusterServiceCreateController(
 		b.options.ResourcesDBClient,
@@ -1158,6 +1170,8 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 					go clusterDenyAssignmentController.Run(ctx, 20)
 				}
 				go clusterPendingClusterServiceIDAssignController.Run(ctx, 20)
+				go hostedClusterIdentityController.Run(ctx, 20)
+				go hostedClusterIdentityBackfillController.Run(ctx, 20)
 				go clusterClusterServiceCreateController.Run(ctx, 20)
 				go nodePoolClusterServiceCreateController.Run(ctx, 20)
 				go externalAuthClusterServiceCreateController.Run(ctx, 20)

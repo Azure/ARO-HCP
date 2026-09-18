@@ -133,6 +133,10 @@ func newTestSPC(opts ...func(*coreapi.ServiceProviderCluster)) *coreapi.ServiceP
 	spc := &coreapi.ServiceProviderCluster{
 		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: resourceID},
 		Spec:           coreapi.ServiceProviderClusterSpec{},
+		Status: coreapi.ServiceProviderClusterStatus{
+			HostedClusterNamespace: "ocm-test-abc123",
+			HostedClusterName:      "testcluster",
+		},
 	}
 	spc.SetPartitionKey(testSubscriptionID)
 	for _, opt := range opts {
@@ -191,6 +195,7 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 						built, buildErr := builder.Build()
 						require.NoError(t, buildErr)
 						assert.Equal(t, pendingClusterServiceID.ID(), built.ID(), "PostCluster should use the final segment of PendingClusterServiceID")
+						assert.Equal(t, "testcluster", built.DomainPrefix(), "PostCluster should use the precomputed HostedCluster name")
 						assert.Equal(t, testProvisionShardID, built.ProvisionShardID(), "PostCluster should pin the provision shard from the placed management cluster")
 						csCluster, err := arohcpv1alpha1.NewCluster().
 							ID(pendingClusterServiceID.ID()).

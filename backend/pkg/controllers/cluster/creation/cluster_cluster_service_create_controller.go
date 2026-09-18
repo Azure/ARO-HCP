@@ -105,7 +105,9 @@ func (c *clusterClusterServiceCreateSyncer) needsWork(ctx context.Context, clust
 		}
 		return false
 	}
-	return serviceProviderCluster.Spec.ManagementClusterResourceID != nil
+	return serviceProviderCluster.Spec.ManagementClusterResourceID != nil &&
+		serviceProviderCluster.Status.HostedClusterNamespace != "" &&
+		serviceProviderCluster.Status.HostedClusterName != ""
 }
 
 func (c *clusterClusterServiceCreateSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
