@@ -457,6 +457,11 @@ func (c *ApplyDesireController) evaluateDelete(ctx context.Context, d *kubeappli
 
 	if delErr := kubeResourceAccessor.Delete(ctx, target.Name, metav1.DeleteOptions{}); delErr != nil {
 		if apierrors.IsNotFound(delErr) {
+			logger := utils.LoggerFromContext(ctx)
+			logger.Info("successfully deleted target resource",
+				"group", target.Group, "version", target.Version, "resource", target.Resource,
+				"namespace", target.Namespace, "name", target.Name)
+
 			return deletionSettled(nil)
 		}
 		return deletionSettled(fmt.Errorf("delete target: %w", delErr))

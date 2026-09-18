@@ -257,9 +257,10 @@ func newOwnedDesire(resourceIDStr, name string) *kubeapplierapi.ApplyDesire {
 // destructFixture wires a controller against mock Cosmos storage and hands back
 // the CRUD handles the assertions read through.
 type destructFixture struct {
-	controller   *clusterResourcesController
-	clusterCRUD  applyDesireCRUD
-	nodePoolCRUD applyDesireCRUD
+	controller            *clusterResourcesController
+	clusterCRUD           applyDesireCRUD
+	nodePoolCRUD          applyDesireCRUD
+	mockKubeApplierClient *kubeappliercosmosstoragetesting.MockKubeApplierDBClient
 }
 
 type applyDesireCRUD = interface {
@@ -299,9 +300,66 @@ func newDestructFixture(t *testing.T, ctx context.Context, nodePoolName string, 
 			applyDesireLister:    &kubeapplierlistertesting.DBApplyDesireLister{Clients: mockClients, Lister: mcLister},
 			readDesireLister:     &kubeapplierlistertesting.DBReadDesireLister{Clients: mockClients, Lister: mcLister},
 		},
-		clusterCRUD:  clusterCRUD,
-		nodePoolCRUD: nodePoolCRUD,
+		clusterCRUD:           clusterCRUD,
+		nodePoolCRUD:          nodePoolCRUD,
+		mockKubeApplierClient: mockKubeApplierClient,
 	}
+}
+
+// newDestructFixtureWithReadDesires seeds both ApplyDesires and ReadDesires.
+// Use this when testing ReadDesire cleanup paths.
+func newDestructFixtureWithReadDesires(t *testing.T, ctx context.Context, nodePoolName string, applyDesires []*kubeapplierapi.ApplyDesire, readDesireNames ...string) *destructFixture {
+	t.Helper()
+
+	fixture := newDestructFixture(t, ctx, nodePoolName, applyDesires...)
+
+	// Create ReadDesires for the specified names
+	clusterReadDesireCRUD, err := fixture.mockKubeApplierClient.ReadDesiresForCluster(testSubscriptionID, testResourceGroupName, testClusterName)
+	require.NoError(t, err, "cluster-scoped ReadDesire CRUD")
+
+	nodePoolReadDesireCRUD, err := fixture.mockKubeApplierClient.ReadDesiresForNodePool(testSubscriptionID, testResourceGroupName, testClusterName, nodePoolName)
+	require.NoError(t, err, "nodepool-scoped ReadDesire CRUD")
+
+	for _, name := range readDesireNames {
+		var resourceIDStr string
+
+		// Determine scope based on name
+		isNodePoolScoped := name == DesireNameNodePool
+		if isNodePoolScoped {
+			resourceIDStr = kubeapplierapi.ToNodePoolScopedReadDesireResourceIDString(
+				testSubscriptionID, testResourceGroupName, testClusterName, nodePoolName, name,
+			)
+		} else {
+			resourceIDStr = kubeapplierapi.ToClusterScopedReadDesireResourceIDString(
+				testSubscriptionID, testResourceGroupName, testClusterName, name,
+			)
+		}
+
+		readDesire := &kubeapplierapi.ReadDesire{
+			CosmosMetadata: coreapi.CosmosMetadata{
+				ResourceID:   metadataapi.Must(azcorearm.ParseResourceID(resourceIDStr)),
+				PartitionKey: strings.ToLower(testManagementClusterResourceID.String()),
+			},
+			Tags: map[string]string{kubeapplierapi.TagControllerName: ClusterResourcesControllerName},
+			Spec: kubeapplierapi.ReadDesireSpec{
+				ManagementCluster: testManagementClusterResourceID,
+				TargetItem: kubeapplierapi.ResourceReference{
+					Group: "", Version: "v1", Resource: "configmaps",
+					Name: name, Namespace: "ns",
+				},
+			},
+		}
+
+		if isNodePoolScoped {
+			_, err := nodePoolReadDesireCRUD.Create(ctx, readDesire, nil)
+			require.NoError(t, err, "seed ReadDesire %s", name)
+		} else {
+			_, err := clusterReadDesireCRUD.Create(ctx, readDesire, nil)
+			require.NoError(t, err, "seed ReadDesire %s", name)
+		}
+	}
+
+	return fixture
 }
 
 // TestDeleteAllOwnedApplyDesires walks the chain and pins the behaviours that
@@ -524,5 +582,74 @@ func TestDeleteAllOwnedApplyDesires(t *testing.T) {
 		require.NoError(t, err, "untagged desire should still exist")
 		assert.Equal(t, kubeapplierapi.ApplyDesireTypeServerSideApply, desire.Spec.Type,
 			"untagged desire should be untouched")
+	})
+
+	t.Run("deletes paired ReadDesires when ApplyDesires are removed", func(t *testing.T) {
+		t.Parallel()
+		ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+
+		desires := seedDesires()
+		markDeleted(desires, DesireNameNodePool, DesireNameHostedCluster,
+			DesireNamePodNetworkInstance, DesireNamePodNetwork)
+
+		fixture := newDestructFixtureWithReadDesires(t, ctx, testNodePoolName, desires,
+			DesireNameNodePool, DesireNamePodNetworkInstance, DesireNamePodNetwork)
+
+		err := fixture.controller.deleteAllOwnedApplyDesires(ctx, testKey(), testManagementClusterResourceID)
+		require.NoError(t, err, "deleteAllOwnedApplyDesires should succeed")
+
+		// Verify ReadDesires were deleted along with their ApplyDesires
+		readDesireCRUD, err := fixture.mockKubeApplierClient.ReadDesiresForCluster(testSubscriptionID, testResourceGroupName, testClusterName)
+		require.NoError(t, err, "get ReadDesire CRUD")
+
+		_, err = readDesireCRUD.Get(ctx, DesireNamePodNetworkInstance)
+		assert.Error(t, err, "PodNetworkInstance ReadDesire should be deleted with its ApplyDesire")
+
+		_, err = readDesireCRUD.Get(ctx, DesireNamePodNetwork)
+		assert.Error(t, err, "PodNetwork ReadDesire should be deleted with its ApplyDesire")
+
+		nodePoolReadDesireCRUD, err := fixture.mockKubeApplierClient.ReadDesiresForNodePool(testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName)
+		require.NoError(t, err, "get NodePool ReadDesire CRUD")
+
+		_, err = nodePoolReadDesireCRUD.Get(ctx, DesireNameNodePool)
+		assert.Error(t, err, "NodePool ReadDesire should be deleted with its ApplyDesire")
+	})
+
+	t.Run("sweeps orphaned ReadDesires after ApplyDesires are gone", func(t *testing.T) {
+		t.Parallel()
+		ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+
+		// Seed only namespaces as ApplyDesires (fully drained chain),
+		// but add orphaned ReadDesires for resources whose ApplyDesires are already gone
+		desires := []*kubeapplierapi.ApplyDesire{
+			newOwnedClusterDesire(DesireNameHostedClusterNamespace),
+			newOwnedClusterDesire(DesireNameControlPlaneNamespace),
+		}
+		// Mark namespace desires as deleted so the chain completes and sweep runs
+		markDeleted(desires, DesireNameHostedClusterNamespace, DesireNameControlPlaneNamespace)
+
+		fixture := newDestructFixtureWithReadDesires(t, ctx, testNodePoolName, desires,
+			DesireNamePodNetworkInstance, DesireNamePodNetwork)
+
+		// Verify orphaned ReadDesires exist before cleanup
+		readDesireCRUD, err := fixture.mockKubeApplierClient.ReadDesiresForCluster(testSubscriptionID, testResourceGroupName, testClusterName)
+		require.NoError(t, err, "get ReadDesire CRUD")
+
+		_, err = readDesireCRUD.Get(ctx, DesireNamePodNetworkInstance)
+		require.NoError(t, err, "orphaned PodNetworkInstance ReadDesire should exist before sweep")
+
+		_, err = readDesireCRUD.Get(ctx, DesireNamePodNetwork)
+		require.NoError(t, err, "orphaned PodNetwork ReadDesire should exist before sweep")
+
+		// Run deletion - should sweep orphans
+		err = fixture.controller.deleteAllOwnedApplyDesires(ctx, testKey(), testManagementClusterResourceID)
+		require.NoError(t, err, "deleteAllOwnedApplyDesires should succeed")
+
+		// Verify orphaned ReadDesires were swept
+		_, err = readDesireCRUD.Get(ctx, DesireNamePodNetworkInstance)
+		assert.Error(t, err, "orphaned PodNetworkInstance ReadDesire should be swept")
+
+		_, err = readDesireCRUD.Get(ctx, DesireNamePodNetwork)
+		assert.Error(t, err, "orphaned PodNetwork ReadDesire should be swept")
 	})
 }
