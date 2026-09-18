@@ -459,7 +459,7 @@ resource metricsProxy 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-0
           correlationId: 'MaestroAgentMetricsProxyDown/{{ $labels.cluster }}'
           description: 'Prometheus has not scraped maestro-agent /metrics through the metrics-proxy sidecar (namespace=maestro, endpoint=metrics) for 10 minutes, while a kube-state-metrics scrape series still exists for this management cluster. Maestro agent metrics and any alerts that depend on them may be missing.'
           info: 'Prometheus has not scraped maestro-agent /metrics through the metrics-proxy sidecar (namespace=maestro, endpoint=metrics) for 10 minutes, while a kube-state-metrics scrape series still exists for this management cluster. Maestro agent metrics and any alerts that depend on them may be missing.'
-          runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/metrics-proxy.md'
+          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/user-journey/cluster-monitoring-tsg.html#step-3a-maestro-agent-metrics-proxy-mgmt-only'
           summary: 'Maestro agent metrics-proxy scrape is down'
           title: 'Maestro agent metrics-proxy scrape is down'
         }
