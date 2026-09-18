@@ -34,6 +34,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/kubeappliercosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/fleetlistertesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/kubeapplierlistertesting"
@@ -354,7 +355,7 @@ func TestEnsureReadDesireTagsDrift(t *testing.T) {
 func buildTestApplyDesire(t *testing.T, desireName string, obj systemadmincredential.KubeObject) *kubeapplierapi.ApplyDesire {
 	t.Helper()
 	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
-		kubeapplierapi.ToSystemAdminCredentialRequestScopedApplyDesireResourceIDString(
+		kubeapplierapihelpers.ToSystemAdminCredentialRequestScopedApplyDesireResourceIDString(
 			testSubscriptionID, testResourceGroupName, testClusterName, testCredentialName, desireName),
 	))
 	target := targetRefForKubeObject(obj)
@@ -384,7 +385,7 @@ func buildTestApplyDesire(t *testing.T, desireName string, obj systemadmincreden
 func buildTestReadDesire(t *testing.T, desireName string, target kubeapplierapi.ResourceReference) *kubeapplierapi.ReadDesire {
 	t.Helper()
 	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
-		kubeapplierapi.ToSystemAdminCredentialRequestScopedReadDesireResourceIDString(
+		kubeapplierapihelpers.ToSystemAdminCredentialRequestScopedReadDesireResourceIDString(
 			testSubscriptionID, testResourceGroupName, testClusterName, testCredentialName, desireName),
 	))
 	return &kubeapplierapi.ReadDesire{
@@ -471,7 +472,7 @@ func TestEnsureDesireScopes(t *testing.T) {
 		require.NoError(t, err)
 
 		desire := newTestReadDesire(t,
-			kubeapplierapi.ToClusterScopedReadDesireResourceIDString(testSubscriptionID, testResourceGroupName, testClusterName, "clusterscoped"),
+			kubeapplierapihelpers.ToClusterScopedReadDesireResourceIDString(testSubscriptionID, testResourceGroupName, testClusterName, "clusterscoped"),
 			target, map[string]string{kubeapplierapi.TagControllerName: testControllerName})
 		require.NoError(t, EnsureReadDesire(ctx, crud, readLister, desire))
 
@@ -479,7 +480,7 @@ func TestEnsureDesireScopes(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, target, got.Spec.TargetItem)
 		assert.Equal(t,
-			kubeapplierapi.ToClusterScopedReadDesireResourceIDString(testSubscriptionID, testResourceGroupName, testClusterName, "clusterscoped"),
+			kubeapplierapihelpers.ToClusterScopedReadDesireResourceIDString(testSubscriptionID, testResourceGroupName, testClusterName, "clusterscoped"),
 			strings.ToLower(got.ResourceID.String()))
 
 		// The DB-backed lister now observes the created desire, so a second
@@ -494,7 +495,7 @@ func TestEnsureDesireScopes(t *testing.T) {
 		tags := map[string]string{kubeapplierapi.TagControllerName: testControllerName, "owner": "nodepool"}
 
 		desire := newTestReadDesire(t,
-			kubeapplierapi.ToNodePoolScopedReadDesireResourceIDString(testSubscriptionID, testResourceGroupName, testClusterName, nodePoolName, "nodepoolscoped"),
+			kubeapplierapihelpers.ToNodePoolScopedReadDesireResourceIDString(testSubscriptionID, testResourceGroupName, testClusterName, nodePoolName, "nodepoolscoped"),
 			target, tags)
 		require.NoError(t, EnsureReadDesire(ctx, crud, readLister, desire))
 
@@ -503,7 +504,7 @@ func TestEnsureDesireScopes(t *testing.T) {
 		assert.Equal(t, target, got.Spec.TargetItem)
 		assert.Equal(t, tags, got.Tags, "tags must be stamped onto the desire")
 		assert.Equal(t,
-			kubeapplierapi.ToNodePoolScopedReadDesireResourceIDString(testSubscriptionID, testResourceGroupName, testClusterName, nodePoolName, "nodepoolscoped"),
+			kubeapplierapihelpers.ToNodePoolScopedReadDesireResourceIDString(testSubscriptionID, testResourceGroupName, testClusterName, nodePoolName, "nodepoolscoped"),
 			strings.ToLower(got.ResourceID.String()),
 			"desire must be nested under the node pool")
 	})

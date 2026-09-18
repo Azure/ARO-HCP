@@ -16,7 +16,7 @@ package v20261001preview
 
 import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
-	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
 	"github.com/Azure/ARO-HCP/internal/azureapi/v20261001preview/generated"
 )
 
@@ -32,14 +32,14 @@ func (v version) NewHCPOpenShiftVersion(from *coreapi.HCPOpenShiftVersion) corea
 
 	return &HcpOpenShiftVersion{
 		generated.HcpOpenShiftVersion{
-			ID:   metadataapi.PtrOrNil(idString),
-			Name: metadataapi.PtrOrNil(from.Name),
-			Type: metadataapi.PtrOrNil(from.Type),
+			ID:   metadataapihelpers.PtrOrNil(idString),
+			Name: metadataapihelpers.PtrOrNil(from.Name),
+			Type: metadataapihelpers.PtrOrNil(from.Type),
 			Properties: &generated.HcpOpenShiftVersionProperties{
-				ChannelGroup: metadataapi.PtrOrNil(from.Properties.ChannelGroup),
+				ChannelGroup: metadataapihelpers.PtrOrNil(from.Properties.ChannelGroup),
 				// Use Ptr (not PtrOrNil) to ensure boolean is always present in JSON response, even when false
-				Enabled:            metadataapi.Ptr(from.Properties.Enabled),
-				EndOfLifeTimestamp: metadataapi.PtrOrNil(from.Properties.EndOfLifeTimestamp),
+				Enabled:            metadataapihelpers.Ptr(from.Properties.Enabled),
+				EndOfLifeTimestamp: metadataapihelpers.PtrOrNil(from.Properties.EndOfLifeTimestamp),
 			},
 		},
 	}

@@ -17,6 +17,7 @@ package cosmosstorageutils
 import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
 )
 
 // ObjectMetadataForTypedDocument builds ObjectMetadata for a stored TypedDocument. The document
@@ -26,7 +27,7 @@ func ObjectMetadataForTypedDocument(container string, doc *TypedDocument) metada
 	if doc == nil || doc.ResourceID == nil {
 		return metadataapi.ObjectMetadata{CosmosContainer: container}
 	}
-	metadata := metadataapi.ObjectMetadataForResourceID(container, doc.ResourceID)
+	metadata := metadataapihelpers.ObjectMetadataForResourceID(container, doc.ResourceID)
 	metadata.ResourceType = doc.ResourceType
 	return metadata
 }
@@ -40,10 +41,10 @@ func ObjectMetadataForOperation(operation *coreapi.Operation) metadataapi.Object
 	if operation == nil {
 		return metadataapi.ObjectMetadata{CosmosContainer: "resources"}
 	}
-	metadata := metadataapi.ObjectMetadataForResourceID("resources", operation.ResourceID)
+	metadata := metadataapihelpers.ObjectMetadataForResourceID("resources", operation.ResourceID)
 	if operation.ExternalID != nil {
 		metadata.ResourceGroup = operation.ExternalID.ResourceGroupName
-		metadata.ClusterResourceID = metadataapi.ClusterNameFromResourceID(operation.ExternalID)
+		metadata.ClusterResourceID = metadataapihelpers.ClusterNameFromResourceID(operation.ExternalID)
 	}
 	return metadata
 }

@@ -30,6 +30,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/fleetcosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/fleetlistertesting"
@@ -72,8 +73,8 @@ func TestPendingCleanupSyncer_SyncOnce(t *testing.T) {
 	ctx := context.Background()
 
 	const thisStamp = "1"
-	thisMC := metadataapi.Must(fleetapi.ToManagementClusterResourceID(thisStamp))
-	otherMC := metadataapi.Must(fleetapi.ToManagementClusterResourceID("2"))
+	thisMC := metadataapi.Must(fleetapihelpers.ToManagementClusterResourceID(thisStamp))
+	otherMC := metadataapi.Must(fleetapihelpers.ToManagementClusterResourceID("2"))
 
 	// Effective placement = Status (CS reality) when set, else Spec.
 	//   a: Status here, Spec nil                 => keep
@@ -102,7 +103,7 @@ func TestPendingCleanupSyncer_SyncOnce(t *testing.T) {
 	fleetDB := fleetcosmosstoragetesting.NewMockFleetDBClient()
 	doc := &fleetapi.ManagementClusterScheduling{
 		CosmosMetadata: coreapi.CosmosMetadata{
-			ResourceID:   metadataapi.Must(fleetapi.ToManagementClusterSchedulingResourceID(thisStamp)),
+			ResourceID:   metadataapi.Must(fleetapihelpers.ToManagementClusterSchedulingResourceID(thisStamp)),
 			PartitionKey: thisStamp,
 		},
 		Status: fleetapi.ManagementClusterSchedulingStatus{PendingAssignedClusters: pending},
@@ -132,7 +133,7 @@ func TestPendingCleanupSyncer_SyncOnce_NoChangeWhenAllValid(t *testing.T) {
 	ctx := context.Background()
 
 	const thisStamp = "1"
-	thisMC := metadataapi.Must(fleetapi.ToManagementClusterResourceID(thisStamp))
+	thisMC := metadataapi.Must(fleetapihelpers.ToManagementClusterResourceID(thisStamp))
 
 	spcLister := &corelistertesting.SliceServiceProviderClusterLister{
 		ServiceProviderClusters: []*coreapi.ServiceProviderCluster{spcForCluster("a", nil, thisMC)},
@@ -141,7 +142,7 @@ func TestPendingCleanupSyncer_SyncOnce_NoChangeWhenAllValid(t *testing.T) {
 	fleetDB := fleetcosmosstoragetesting.NewMockFleetDBClient()
 	doc := &fleetapi.ManagementClusterScheduling{
 		CosmosMetadata: coreapi.CosmosMetadata{
-			ResourceID:   metadataapi.Must(fleetapi.ToManagementClusterSchedulingResourceID(thisStamp)),
+			ResourceID:   metadataapi.Must(fleetapihelpers.ToManagementClusterSchedulingResourceID(thisStamp)),
 			PartitionKey: thisStamp,
 		},
 		Status: fleetapi.ManagementClusterSchedulingStatus{PendingAssignedClusters: []*azcorearm.ResourceID{pendingClusterResourceID("a")}},
@@ -171,7 +172,7 @@ func TestPendingCleanupSyncer_ReservationAfterPlacementStops(t *testing.T) {
 				t.Run(placement, func(t *testing.T) {
 					ctx := context.Background()
 					const stamp = "1"
-					mc := metadataapi.Must(fleetapi.ToManagementClusterResourceID(stamp))
+					mc := metadataapi.Must(fleetapihelpers.ToManagementClusterResourceID(stamp))
 					clusterID := pendingClusterResourceID("interrupted-create")
 					cluster := &coreapi.HCPOpenShiftCluster{
 						CosmosMetadata: coreapi.CosmosMetadata{ResourceID: clusterID},

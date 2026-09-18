@@ -43,6 +43,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
 	"github.com/Azure/ARO-HCP/internal/azureapi/v20240610preview"
 	"github.com/Azure/ARO-HCP/internal/azureapi/v20251223preview"
 	"github.com/Azure/ARO-HCP/internal/azureapi/v20260630preview"
@@ -199,7 +200,7 @@ func NewIntegrationTestInfoFromEnv(ctx context.Context, t *testing.T, withMock b
 	}
 
 	hcReadDesireName := strings.ToLower(string(coreapi.MaestroBundleInternalNameReadonlyHypershiftHostedCluster))
-	hcRDResourceIDStr := kubeapplierapi.ToClusterScopedReadDesireResourceIDString(
+	hcRDResourceIDStr := kubeapplierapihelpers.ToClusterScopedReadDesireResourceIDString(
 		"0465bc32-c654-41b8-8d87-9815d7abe8f6", "some-resource-group", "some-hcp-cluster", hcReadDesireName,
 	)
 	hcRDResourceID, err := azcorearm.ParseResourceID(hcRDResourceIDStr)

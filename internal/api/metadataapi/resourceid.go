@@ -24,30 +24,3 @@ import (
 func ResourceTypeEqual(lhs, rhs azcorearm.ResourceType) bool {
 	return strings.EqualFold(lhs.String(), rhs.String())
 }
-
-// ResourceTypeStringEqual reports whether a resource-type string equals an ARM resource type,
-// case-insensitively.
-func ResourceTypeStringEqual(s string, rt azcorearm.ResourceType) bool {
-	return strings.EqualFold(s, rt.String())
-}
-
-// ClusterNameFromResourceID walks up the resource ID parent chain to find an HCP cluster ancestor.
-// It returns the cluster's resource ID string if found, or the empty string otherwise. The provider
-// namespace and cluster resource type are compared as string literals to avoid an import cycle with
-// the coreapi package that defines those constants (coreapi imports metadataapi).
-func ClusterNameFromResourceID(resourceID *azcorearm.ResourceID) string {
-	if resourceID == nil {
-		return ""
-	}
-
-	// Check if this resource is in our provider namespace.
-	if !strings.EqualFold(resourceID.ResourceType.Namespace, "Microsoft.RedHatOpenShift") {
-		return ""
-	}
-	// Check if this is an HCP cluster resource type.
-	if strings.EqualFold(resourceID.ResourceType.Type, "hcpOpenShiftClusters") {
-		return resourceID.String()
-	}
-	// Walk up the parent chain.
-	return ClusterNameFromResourceID(resourceID.Parent)
-}

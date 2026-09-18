@@ -37,6 +37,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/fleetcosmosstoragetesting"
@@ -77,7 +78,7 @@ func testManagementCluster(existingIPs []string, conditions ...metav1.Condition)
 }
 
 func buildTestReadDesire(service *corev1.Service) *kubeapplierapi.ReadDesire {
-	desireIDString := kubeapplierapi.ToManagementClusterScopedReadDesireResourceIDString(testStampIdentifier, ReadDesireName)
+	desireIDString := kubeapplierapihelpers.ToManagementClusterScopedReadDesireResourceIDString(testStampIdentifier, ReadDesireName)
 	desired := controllerutil.BuildReadDesire(desireIDString, testManagementClusterResourceID(), SharedIngressTarget)
 	if service != nil {
 		raw, _ := json.Marshal(service)

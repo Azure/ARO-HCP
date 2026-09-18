@@ -23,8 +23,8 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
-	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
 )
 
 func TestNeedsWork(t *testing.T) {
@@ -43,7 +43,7 @@ func TestNeedsWork(t *testing.T) {
 	makeServiceProviderCluster := func() coreapi.ServiceProviderCluster {
 		return coreapi.ServiceProviderCluster{
 			Status: coreapi.ServiceProviderClusterStatus{
-				ManagementClusterResourceID: metadataapi.Must(fleetapi.ToManagementClusterResourceID("mc1")),
+				ManagementClusterResourceID: metadataapi.Must(fleetapihelpers.ToManagementClusterResourceID("mc1")),
 				ControlPlaneNamespace:       "cp-ns",
 				HostedClusterNamespace:      "hc-ns",
 			},

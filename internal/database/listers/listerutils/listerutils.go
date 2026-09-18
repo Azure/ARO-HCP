@@ -26,7 +26,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -84,11 +84,11 @@ func ListFromIndex[T any](indexer cache.Indexer, indexName, key string) ([]*T, e
 // ClusterIndexKey returns the canonical (lower-cased) ByCluster index key for an
 // HCPOpenShiftCluster identified by subscription, resource group, and name.
 func ClusterIndexKey(subscriptionID, resourceGroupName, clusterName string) string {
-	return strings.ToLower(coreapi.ToClusterResourceIDString(subscriptionID, resourceGroupName, clusterName))
+	return strings.ToLower(coreapihelpers.ToClusterResourceIDString(subscriptionID, resourceGroupName, clusterName))
 }
 
 // NodePoolIndexKey returns the canonical (lower-cased) ByNodePool index key for a
 // NodePool identified by its containing cluster plus its own name.
 func NodePoolIndexKey(subscriptionID, resourceGroupName, clusterName, nodePoolName string) string {
-	return strings.ToLower(coreapi.ToNodePoolResourceIDString(subscriptionID, resourceGroupName, clusterName, nodePoolName))
+	return strings.ToLower(coreapihelpers.ToNodePoolResourceIDString(subscriptionID, resourceGroupName, clusterName, nodePoolName))
 }

@@ -37,6 +37,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
 	"github.com/Azure/ARO-HCP/kube-applier/pkg/controllers/conditions"
 	"github.com/Azure/ARO-HCP/kube-applier/pkg/controllers/desirestatuswriter"
 	"github.com/Azure/ARO-HCP/kube-applier/pkg/controllers/keys"
@@ -130,7 +131,7 @@ func newApplyDesire(t *testing.T, name string, target kubeapplierapi.ResourceRef
 	t.Helper()
 	d := &kubeapplierapi.ApplyDesire{
 		CosmosMetadata: coreapi.CosmosMetadata{
-			ResourceID: mustParseID(t, kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(
+			ResourceID: mustParseID(t, kubeapplierapihelpers.ToClusterScopedApplyDesireResourceIDString(
 				"00000000-0000-0000-0000-000000000001", "rg", "cluster", name,
 			)),
 		},
@@ -525,7 +526,7 @@ func newDeleteDesire(t *testing.T, name string, target kubeapplierapi.ResourceRe
 	t.Helper()
 	return &kubeapplierapi.ApplyDesire{
 		CosmosMetadata: coreapi.CosmosMetadata{
-			ResourceID: mustParseID(t, kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(
+			ResourceID: mustParseID(t, kubeapplierapihelpers.ToClusterScopedApplyDesireResourceIDString(
 				"00000000-0000-0000-0000-000000000001", "rg", "cluster", name,
 			)),
 		},

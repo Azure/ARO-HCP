@@ -33,6 +33,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/admission"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/conversion"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
@@ -60,7 +61,7 @@ func (f *Frontend) GetNodePool(writer http.ResponseWriter, request *http.Request
 	if err != nil {
 		return utils.TrackError(err)
 	}
-	_, err = coreapi.WriteJSONResponse(writer, http.StatusOK, responseBytes)
+	_, err = coreapihelpers.WriteJSONResponse(writer, http.StatusOK, responseBytes)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -111,7 +112,7 @@ func (f *Frontend) ArmResourceListNodePools(writer http.ResponseWriter, request 
 		return utils.TrackError(err)
 	}
 
-	_, err = coreapi.WriteJSONResponse(writer, http.StatusOK, pagedResponse)
+	_, err = coreapihelpers.WriteJSONResponse(writer, http.StatusOK, pagedResponse)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -365,7 +366,7 @@ func (f *Frontend) createNodePool(writer http.ResponseWriter, request *http.Requ
 		return utils.TrackError(err)
 	}
 
-	_, err = coreapi.WriteJSONResponse(writer, http.StatusCreated, responseBytes)
+	_, err = coreapihelpers.WriteJSONResponse(writer, http.StatusCreated, responseBytes)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -485,7 +486,7 @@ func decodeDesiredNodePoolPatch(ctx context.Context, oldInternalNodePool *coreap
 	// TODO find a way to represent the desired change without starting from internal state here (very confusing)
 	// TODO we appear to lack a test, but this seems to take an original, apply the patch and unmarshal the result, meaning the above patch step is just incorrect.
 	newExternalNodePool := versionedInterface.NewHCPOpenShiftClusterNodePool(oldInternalNodePool)
-	if err := coreapi.ApplyRequestBody(http.MethodPatch, body, newExternalNodePool); err != nil {
+	if err := coreapihelpers.ApplyRequestBody(http.MethodPatch, body, newExternalNodePool); err != nil {
 		return nil, utils.TrackError(err)
 	}
 	newInternalNodePool, err := newExternalNodePool.ConvertToInternal(oldInternalNodePool)
@@ -641,7 +642,7 @@ func (f *Frontend) updateNodePoolInCosmos(ctx context.Context, writer http.Respo
 		return utils.TrackError(err)
 	}
 
-	_, err = coreapi.WriteJSONResponse(writer, httpStatusCode, responseBytes)
+	_, err = coreapihelpers.WriteJSONResponse(writer, httpStatusCode, responseBytes)
 	if err != nil {
 		return utils.TrackError(err)
 	}

@@ -23,7 +23,7 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
 )
 
 type ContextError struct {
@@ -232,7 +232,7 @@ func (lv LogValues) AddLogValuesForResourceID(resourceID *azcorearm.ResourceID) 
 		AddResourceName(resourceID.Name).
 		AddResourceID(resourceID.String())
 
-	if hcpClusterName := metadataapi.ClusterNameFromResourceID(resourceID); hcpClusterName != "" {
+	if hcpClusterName := metadataapihelpers.ClusterNameFromResourceID(resourceID); hcpClusterName != "" {
 		lv = lv.AddHCPClusterName(hcpClusterName)
 	}
 	return lv

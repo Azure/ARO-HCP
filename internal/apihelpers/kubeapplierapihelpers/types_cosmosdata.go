@@ -12,14 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package kubeapplierapi
+package kubeapplierapihelpers
 
 import (
 	"path"
 	"strings"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
-	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
 )
 
 // ToClusterScopedApplyDesireResourceIDString returns the resource ID string for an ApplyDesire
@@ -30,7 +31,7 @@ func ToClusterScopedApplyDesireResourceIDString(subscriptionName, resourceGroupN
 		"/subscriptions", subscriptionName,
 		"resourceGroups", resourceGroupName,
 		"providers", coreapi.ClusterResourceType.String(), clusterName,
-		ApplyDesireResourceTypeName, applyDesireName,
+		kubeapplierapi.ApplyDesireResourceTypeName, applyDesireName,
 	))
 }
 
@@ -43,7 +44,7 @@ func ToNodePoolScopedApplyDesireResourceIDString(subscriptionName, resourceGroup
 		"resourceGroups", resourceGroupName,
 		"providers", coreapi.ClusterResourceType.String(), clusterName,
 		coreapi.NodePoolResourceTypeName, nodePoolName,
-		ApplyDesireResourceTypeName, applyDesireName,
+		kubeapplierapi.ApplyDesireResourceTypeName, applyDesireName,
 	))
 }
 
@@ -55,7 +56,7 @@ func ToClusterScopedReadDesireResourceIDString(subscriptionName, resourceGroupNa
 		"/subscriptions", subscriptionName,
 		"resourceGroups", resourceGroupName,
 		"providers", coreapi.ClusterResourceType.String(), clusterName,
-		ReadDesireResourceTypeName, readDesireName,
+		kubeapplierapi.ReadDesireResourceTypeName, readDesireName,
 	))
 }
 
@@ -68,7 +69,7 @@ func ToNodePoolScopedReadDesireResourceIDString(subscriptionName, resourceGroupN
 		"resourceGroups", resourceGroupName,
 		"providers", coreapi.ClusterResourceType.String(), clusterName,
 		coreapi.NodePoolResourceTypeName, nodePoolName,
-		ReadDesireResourceTypeName, readDesireName,
+		kubeapplierapi.ReadDesireResourceTypeName, readDesireName,
 	))
 }
 
@@ -81,7 +82,7 @@ func ToSystemAdminCredentialRequestScopedApplyDesireResourceIDString(subscriptio
 		"resourceGroups", resourceGroupName,
 		"providers", coreapi.ClusterResourceType.String(), clusterName,
 		coreapi.SystemAdminCredentialRequestResourceTypeName, credentialRequestName,
-		ApplyDesireResourceTypeName, applyDesireName,
+		kubeapplierapi.ApplyDesireResourceTypeName, applyDesireName,
 	))
 }
 
@@ -94,7 +95,7 @@ func ToSystemAdminCredentialRequestScopedReadDesireResourceIDString(subscription
 		"resourceGroups", resourceGroupName,
 		"providers", coreapi.ClusterResourceType.String(), clusterName,
 		coreapi.SystemAdminCredentialRequestResourceTypeName, credentialRequestName,
-		ReadDesireResourceTypeName, readDesireName,
+		kubeapplierapi.ReadDesireResourceTypeName, readDesireName,
 	))
 }
 
@@ -107,7 +108,7 @@ func ToSystemAdminCredentialRevocationScopedApplyDesireResourceIDString(subscrip
 		"resourceGroups", resourceGroupName,
 		"providers", coreapi.ClusterResourceType.String(), clusterName,
 		coreapi.SystemAdminCredentialRevocationResourceTypeName, revocationName,
-		ApplyDesireResourceTypeName, applyDesireName,
+		kubeapplierapi.ApplyDesireResourceTypeName, applyDesireName,
 	))
 }
 
@@ -120,7 +121,7 @@ func ToSystemAdminCredentialRevocationScopedReadDesireResourceIDString(subscript
 		"resourceGroups", resourceGroupName,
 		"providers", coreapi.ClusterResourceType.String(), clusterName,
 		coreapi.SystemAdminCredentialRevocationResourceTypeName, revocationName,
-		ReadDesireResourceTypeName, readDesireName,
+		kubeapplierapi.ReadDesireResourceTypeName, readDesireName,
 	))
 }
 
@@ -128,8 +129,8 @@ func ToSystemAdminCredentialRevocationScopedReadDesireResourceIDString(subscript
 // nested under a ManagementCluster under a Stamp.
 func ToManagementClusterScopedApplyDesireResourceIDString(stampIdentifier, applyDesireName string) string {
 	return strings.ToLower(path.Join(
-		fleetapi.ToManagementClusterResourceIDString(stampIdentifier),
-		ApplyDesireResourceTypeName, applyDesireName,
+		fleetapihelpers.ToManagementClusterResourceIDString(stampIdentifier),
+		kubeapplierapi.ApplyDesireResourceTypeName, applyDesireName,
 	))
 }
 
@@ -137,7 +138,7 @@ func ToManagementClusterScopedApplyDesireResourceIDString(stampIdentifier, apply
 // nested under a ManagementCluster under a Stamp.
 func ToManagementClusterScopedReadDesireResourceIDString(stampIdentifier, readDesireName string) string {
 	return strings.ToLower(path.Join(
-		fleetapi.ToManagementClusterResourceIDString(stampIdentifier),
-		ReadDesireResourceTypeName, readDesireName,
+		fleetapihelpers.ToManagementClusterResourceIDString(stampIdentifier),
+		kubeapplierapi.ReadDesireResourceTypeName, readDesireName,
 	))
 }

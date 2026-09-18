@@ -26,8 +26,8 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 )
@@ -113,7 +113,7 @@ func TestNodePoolWatchingControllerApplyDesireEnqueue(t *testing.T) {
 	// A node-pool-scoped ApplyDesire sits one hop below the node pool, so
 	// maxDepth 1 reaches the node pool and enqueues it.
 	nodePoolScopedID := metadataapi.Must(azcorearm.ParseResourceID(
-		kubeapplierapi.ToNodePoolScopedApplyDesireResourceIDString(subscriptionID, resourceGroup, clusterName, nodePoolName, "cfg")))
+		kubeapplierapihelpers.ToNodePoolScopedApplyDesireResourceIDString(subscriptionID, resourceGroup, clusterName, nodePoolName, "cfg")))
 	notifier.addFunc(&coreapi.CosmosMetadata{ResourceID: nodePoolScopedID})
 
 	select {
@@ -129,7 +129,7 @@ func TestNodePoolWatchingControllerApplyDesireEnqueue(t *testing.T) {
 	// A cluster-scoped ApplyDesire lives above the node pool, so a maxDepth-1
 	// walk from the desire never reaches a node pool -> must NOT enqueue.
 	clusterScopedID := metadataapi.Must(azcorearm.ParseResourceID(
-		kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(subscriptionID, resourceGroup, clusterName, "cfg")))
+		kubeapplierapihelpers.ToClusterScopedApplyDesireResourceIDString(subscriptionID, resourceGroup, clusterName, "cfg")))
 	notifier.addFunc(&coreapi.CosmosMetadata{ResourceID: clusterScopedID})
 
 	select {

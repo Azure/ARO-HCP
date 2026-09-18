@@ -34,6 +34,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -301,7 +302,7 @@ func nodePoolInCache(mutate func(*coreapi.HCPOpenShiftClusterNodePool)) *coreapi
 			Resource: coreapi.Resource{ID: nodePoolResourceID, Name: testNodePoolName, Type: coreapi.NodePoolResourceType.String()},
 		},
 		ServiceProviderProperties: coreapi.HCPOpenShiftClusterNodePoolServiceProviderProperties{
-			ClusterServiceID: metadataapi.Ptr(metadataapi.Must(metadataapi.NewInternalID(testCSNodePoolIDStr))),
+			ClusterServiceID: metadataapihelpers.Ptr(metadataapi.Must(metadataapi.NewInternalID(testCSNodePoolIDStr))),
 		},
 	}
 	if mutate != nil {

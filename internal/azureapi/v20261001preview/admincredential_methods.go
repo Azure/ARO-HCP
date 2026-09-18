@@ -18,14 +18,14 @@ import (
 	"encoding/json"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
-	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
 	"github.com/Azure/ARO-HCP/internal/azureapi/v20261001preview/generated"
 )
 
 func newHCPOpenShiftClusterAdminCredential(from *coreapi.HCPOpenShiftClusterAdminCredential) *generated.HcpOpenShiftClusterAdminCredential {
 	return &generated.HcpOpenShiftClusterAdminCredential{
-		ExpirationTimestamp: metadataapi.PtrOrNil(from.ExpirationTimestamp),
-		Kubeconfig:          metadataapi.PtrOrNil(from.Kubeconfig),
+		ExpirationTimestamp: metadataapihelpers.PtrOrNil(from.ExpirationTimestamp),
+		Kubeconfig:          metadataapihelpers.PtrOrNil(from.Kubeconfig),
 	}
 }
 
@@ -39,6 +39,6 @@ func (v version) UnmarshalHCPOpenShiftClusterAdminCredentialRequest(data []byte)
 		return nil, err
 	}
 	return &coreapi.HCPOpenShiftClusterAdminCredentialRequest{
-		CertificateSigningRequest: metadataapi.Deref(versionedRequest.CertificateSigningRequest),
+		CertificateSigningRequest: metadataapihelpers.Deref(versionedRequest.CertificateSigningRequest),
 	}, nil
 }

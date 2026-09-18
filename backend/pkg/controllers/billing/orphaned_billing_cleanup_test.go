@@ -31,6 +31,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/billingcosmosstoragetesting"
@@ -146,7 +147,7 @@ func TestOrphanedBillingCleanup_SyncOnce(t *testing.T) {
 					ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
 						ProvisioningState: coreapi.ProvisioningStateSucceeded,
 						ClusterUID:        "billing-doc-2",
-						ClusterServiceID:  metadataapi.Ptr(metadataapi.Must(metadataapi.NewInternalID(testClusterServiceIDStr))),
+						ClusterServiceID:  metadataapihelpers.Ptr(metadataapi.Must(metadataapi.NewInternalID(testClusterServiceIDStr))),
 					},
 				},
 			},

@@ -39,6 +39,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
@@ -55,11 +57,11 @@ func testKey() fleetcontrollers.StampKey {
 }
 
 func testManagementClusterResourceID() *azcorearm.ResourceID {
-	return metadataapi.Must(fleetapi.ToManagementClusterResourceID(testStampIdentifier))
+	return metadataapi.Must(fleetapihelpers.ToManagementClusterResourceID(testStampIdentifier))
 }
 
 func buildTestReadDesire(report *capacityreportv1alpha1.CapacityReport) *kubeapplierapi.ReadDesire {
-	desireIDString := kubeapplierapi.ToManagementClusterScopedReadDesireResourceIDString(testStampIdentifier, ReadDesireName)
+	desireIDString := kubeapplierapihelpers.ToManagementClusterScopedReadDesireResourceIDString(testStampIdentifier, ReadDesireName)
 	desired := controllerutil.BuildReadDesire(desireIDString, testManagementClusterResourceID(), CapacityReportTarget)
 	if report != nil {
 		raw, _ := json.Marshal(report)
@@ -107,7 +109,7 @@ func TestEnsureReadDesire_UpdatesStaleSpec(t *testing.T) {
 		Resource: "oldresources",
 		Name:     "old",
 	}
-	desireIDString := kubeapplierapi.ToManagementClusterScopedReadDesireResourceIDString(testStampIdentifier, ReadDesireName)
+	desireIDString := kubeapplierapihelpers.ToManagementClusterScopedReadDesireResourceIDString(testStampIdentifier, ReadDesireName)
 	stale := controllerutil.BuildReadDesire(desireIDString, testManagementClusterResourceID(), staleTarget)
 
 	crud, err := mockClient.ReadDesiresForManagementCluster(testStampIdentifier)
@@ -315,7 +317,7 @@ func TestSyncOnce_DropsObservedPendingAssignments(t *testing.T) {
 	// report now observes (Ready) and one that is still pending.
 	_, err := fleetDB.Stamps().ManagementClusters(testStampIdentifier).Scheduling().Create(ctx, &fleetapi.ManagementClusterScheduling{
 		CosmosMetadata: coreapi.CosmosMetadata{
-			ResourceID:   metadataapi.Must(fleetapi.ToManagementClusterSchedulingResourceID(testStampIdentifier)),
+			ResourceID:   metadataapi.Must(fleetapihelpers.ToManagementClusterSchedulingResourceID(testStampIdentifier)),
 			PartitionKey: testStampIdentifier,
 		},
 		Status: fleetapi.ManagementClusterSchedulingStatus{

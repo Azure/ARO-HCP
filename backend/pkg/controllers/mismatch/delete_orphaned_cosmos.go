@@ -31,6 +31,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
@@ -87,7 +88,7 @@ func NewDeleteOrphanedCosmosResourcesController(
 func (c *deleteOrphanedCosmosResources) synchronizeSubscription(ctx context.Context, subscription string) error {
 	logger := utils.LoggerFromContext(ctx)
 
-	subscriptionResourceID, err := coreapi.ToSubscriptionResourceID(subscription)
+	subscriptionResourceID, err := coreapihelpers.ToSubscriptionResourceID(subscription)
 	if err != nil {
 		return utils.TrackError(err)
 	}

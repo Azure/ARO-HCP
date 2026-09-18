@@ -25,6 +25,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
@@ -151,7 +152,7 @@ func (c *createBillingDoc) SyncOnce(ctx context.Context, keyObj controllerutils.
 		if len(existingCluster.CustomerProperties.Platform.ManagedResourceGroup) != 0 {
 			managedRGName = existingCluster.CustomerProperties.Platform.ManagedResourceGroup
 		}
-		doc.ManagedResourceGroup = coreapi.ToResourceGroupResourceIDString(existingCluster.ID.SubscriptionID, managedRGName)
+		doc.ManagedResourceGroup = coreapihelpers.ToResourceGroupResourceIDString(existingCluster.ID.SubscriptionID, managedRGName)
 
 		err = billingDocCRUD.Create(ctx, doc)
 		if err != nil {

@@ -12,13 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package fleetapi
+package fleetapihelpers
 
 import (
 	"path"
 	"strings"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
+	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 )
 
 // ToStampResourceID constructs the resource ID for a stamp:
@@ -30,7 +32,7 @@ func ToStampResourceID(stampIdentifier string) (*azcorearm.ResourceID, error) {
 // ToStampResourceIDString returns the lowercased stamp resource ID string.
 func ToStampResourceIDString(stampIdentifier string) string {
 	return strings.ToLower(path.Join(
-		"/providers", StampResourceType.String(), stampIdentifier,
+		"/providers", fleetapi.StampResourceType.String(), stampIdentifier,
 	))
 }
 
@@ -45,8 +47,8 @@ func ToManagementClusterResourceID(stampIdentifier string) (*azcorearm.ResourceI
 // for a management cluster singleton.
 func ToManagementClusterResourceIDString(stampIdentifier string) string {
 	return strings.ToLower(path.Join(
-		"/providers", StampResourceType.String(), stampIdentifier,
-		ManagementClusterResourceTypeName, ManagementClusterResourceName,
+		"/providers", fleetapi.StampResourceType.String(), stampIdentifier,
+		fleetapi.ManagementClusterResourceTypeName, fleetapi.ManagementClusterResourceName,
 	))
 }
 
@@ -61,9 +63,9 @@ func ToManagementClusterSchedulingResourceID(stampIdentifier string) (*azcorearm
 // ID string for a management cluster scheduling singleton.
 func ToManagementClusterSchedulingResourceIDString(stampIdentifier string) string {
 	return strings.ToLower(path.Join(
-		"/providers", StampResourceType.String(), stampIdentifier,
-		ManagementClusterResourceTypeName, ManagementClusterResourceName,
-		SchedulingResourceTypeName, SchedulingResourceName,
+		"/providers", fleetapi.StampResourceType.String(), stampIdentifier,
+		fleetapi.ManagementClusterResourceTypeName, fleetapi.ManagementClusterResourceName,
+		fleetapi.SchedulingResourceTypeName, fleetapi.SchedulingResourceName,
 	))
 }
 
@@ -78,6 +80,6 @@ func ToHCPResourceRequirementsResourceID(name string) (*azcorearm.ResourceID, er
 // string for an HCP resource requirements document.
 func ToHCPResourceRequirementsResourceIDString(name string) string {
 	return strings.ToLower(path.Join(
-		"/providers", HCPResourceRequirementsResourceType.String(), name,
+		"/providers", fleetapi.HCPResourceRequirementsResourceType.String(), name,
 	))
 }

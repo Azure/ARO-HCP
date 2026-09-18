@@ -40,6 +40,8 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
@@ -166,7 +168,7 @@ func testCosmosClusterWithWorkersNodePoolAtVersion(nodePoolVersionId string) []a
 }
 
 func testCosmosClusterResource() (*azcorearm.ResourceID, *coreapi.HCPOpenShiftCluster) {
-	clusterResourceId := metadataapi.Must(coreapi.ToClusterResourceID("6b690bec-0c16-4ecb-8f67-781caf40bba7", "test-rg", "test-cluster"))
+	clusterResourceId := metadataapi.Must(coreapihelpers.ToClusterResourceID("6b690bec-0c16-4ecb-8f67-781caf40bba7", "test-rg", "test-cluster"))
 	cluster := &coreapi.HCPOpenShiftCluster{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   clusterResourceId,
@@ -180,7 +182,7 @@ func testCosmosClusterResource() (*azcorearm.ResourceID, *coreapi.HCPOpenShiftCl
 			},
 		},
 		ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
-			ClusterServiceID: metadataapi.Ptr(metadataapi.Must(metadataapi.NewInternalID("/api/clusters_mgmt/v1/clusters/test-cluster"))),
+			ClusterServiceID: metadataapihelpers.Ptr(metadataapi.Must(metadataapi.NewInternalID("/api/clusters_mgmt/v1/clusters/test-cluster"))),
 		},
 	}
 	return clusterResourceId, cluster
@@ -212,7 +214,7 @@ func testCosmosNodePool(clusterResourceId *azcorearm.ResourceID, name, nodePoolV
 			Version: coreapi.NodePoolVersionProfile{ID: nodePoolVersionId},
 		},
 		ServiceProviderProperties: coreapi.HCPOpenShiftClusterNodePoolServiceProviderProperties{
-			ClusterServiceID: metadataapi.Ptr(metadataapi.Must(metadataapi.NewInternalID("/api/clusters_mgmt/v1/clusters/test-cluster/node_pools/" + name))),
+			ClusterServiceID: metadataapihelpers.Ptr(metadataapi.Must(metadataapi.NewInternalID("/api/clusters_mgmt/v1/clusters/test-cluster/node_pools/" + name))),
 		},
 	}
 	if deleting {
@@ -411,7 +413,7 @@ func createServiceProviderClusterWithActiveAndDesiredVersion(t *testing.T, ctx c
 	serviceProviderCluster := &coreapi.ServiceProviderCluster{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID: metadataapi.Must(azcorearm.ParseResourceID(
-				coreapi.ToServiceProviderClusterResourceIDString(testSubscriptionID, testResourceGroupName, testClusterName),
+				coreapihelpers.ToServiceProviderClusterResourceIDString(testSubscriptionID, testResourceGroupName, testClusterName),
 			)),
 		},
 		Spec: coreapi.ServiceProviderClusterSpec{
@@ -463,7 +465,7 @@ func TestControlPlaneDesiredVersionSyncer_SyncOnceSkipsWhenGated(t *testing.T) {
 	createServiceProviderClusterWithActiveAndDesiredVersion(t, ctx, mockDB, semver.MustParse("4.19.15"), ptr.To(semver.MustParse("4.19.22")))
 
 	// Active Create operation pinned to the cluster itself.
-	clusterResourceID := metadataapi.Must(coreapi.ToClusterResourceID(testSubscriptionID, testResourceGroupName, testClusterName))
+	clusterResourceID := metadataapi.Must(coreapihelpers.ToClusterResourceID(testSubscriptionID, testResourceGroupName, testClusterName))
 	seedClusterCreateOperation(t, ctx, mockDB, clusterResourceID, "op-create-1")
 
 	ctrl := gomock.NewController(t)
@@ -514,7 +516,7 @@ func (b *boomActiveOperationLister) ListActiveOperationsForCluster(_ context.Con
 // can find it.
 func seedClusterCreateOperation(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient, externalID *azcorearm.ResourceID, opName string) {
 	t.Helper()
-	opResourceID := metadataapi.Must(azcorearm.ParseResourceID(coreapi.ToOperationResourceIDString(externalID.SubscriptionID, opName)))
+	opResourceID := metadataapi.Must(azcorearm.ParseResourceID(coreapihelpers.ToOperationResourceIDString(externalID.SubscriptionID, opName)))
 	operationID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + externalID.SubscriptionID +
 			"/providers/Microsoft.RedHatOpenShift/locations/eastus/hcpOperationStatuses/" + opName,
@@ -534,7 +536,7 @@ func seedClusterCreateOperation(t *testing.T, ctx context.Context, mockDB *corec
 }
 
 func TestControlPlaneDesiredVersionSyncer_ShouldDetermineDesiredVersion(t *testing.T) {
-	clusterResourceID := metadataapi.Must(coreapi.ToClusterResourceID(testSubscriptionID, testResourceGroupName, testClusterName))
+	clusterResourceID := metadataapi.Must(coreapihelpers.ToClusterResourceID(testSubscriptionID, testResourceGroupName, testClusterName))
 	now := time.Date(2026, 6, 25, 12, 0, 0, 0, time.UTC)
 	listerBoom := errors.New("active operation lister exploded")
 

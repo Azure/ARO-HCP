@@ -36,6 +36,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/fleetcosmosstoragetesting"
@@ -46,7 +47,7 @@ import (
 
 // mcForStamp builds an eligible/ineligible ManagementCluster for a stamp.
 func mcForStamp(stamp string, schedulable, ready bool) *fleetapi.ManagementCluster {
-	resourceID := metadataapi.Must(fleetapi.ToManagementClusterResourceID(stamp))
+	resourceID := metadataapi.Must(fleetapihelpers.ToManagementClusterResourceID(stamp))
 	policy := fleetapi.ManagementClusterSchedulingPolicyUnschedulable
 	if schedulable {
 		policy = fleetapi.ManagementClusterSchedulingPolicySchedulable
@@ -131,7 +132,7 @@ func clusterListerForAvailability(ids []*azcorearm.ResourceID) *corelistertestin
 }
 
 func schedulingDoc(stamp string, ceiling, usage, notReady, pending int64) *fleetapi.ManagementClusterScheduling {
-	resourceID := metadataapi.Must(fleetapi.ToManagementClusterSchedulingResourceID(stamp))
+	resourceID := metadataapi.Must(fleetapihelpers.ToManagementClusterSchedulingResourceID(stamp))
 	notReadyIDs := make([]*azcorearm.ResourceID, notReady)
 	for i := range notReadyIDs {
 		notReadyIDs[i] = clusterResourceIDWithName(fmt.Sprintf("nr-%s-%d", stamp, i))
@@ -260,7 +261,7 @@ func TestAvailableResources_IgnoresNilEntries(t *testing.T) {
 			// One nil entry (must not reserve) + one real entry (reserves 3).
 			PendingAssignedClusters: []*azcorearm.ResourceID{
 				nil,
-				metadataapi.Must(fleetapi.ToManagementClusterResourceID("x")),
+				metadataapi.Must(fleetapihelpers.ToManagementClusterResourceID("x")),
 			},
 			// One nil entry (must not reserve) + one real entry (reserves 3).
 			NotReadyResourceIDs: []*azcorearm.ResourceID{
@@ -278,7 +279,7 @@ func TestAvailableResources_IgnoresNilEntries(t *testing.T) {
 // resolved available capacity is `available` swift NICs.
 func eligibleCandidate(stamp string, available int64) managementClusterEvaluation {
 	return managementClusterEvaluation{
-		resourceID:         metadataapi.Must(fleetapi.ToManagementClusterResourceID(stamp)),
+		resourceID:         metadataapi.Must(fleetapihelpers.ToManagementClusterResourceID(stamp)),
 		eligibility:        eligible,
 		availableResources: swiftResourceList(available),
 	}
@@ -288,7 +289,7 @@ func eligibleCandidate(stamp string, available int64) managementClusterEvaluatio
 // must eliminate, recording the given reason.
 func ineligibleCandidate(stamp, reason string) managementClusterEvaluation {
 	return managementClusterEvaluation{
-		resourceID:  metadataapi.Must(fleetapi.ToManagementClusterResourceID(stamp)),
+		resourceID:  metadataapi.Must(fleetapihelpers.ToManagementClusterResourceID(stamp)),
 		eligibility: ineligible,
 		reason:      reason,
 	}
@@ -306,7 +307,7 @@ func unknownCandidate(stamp string) managementClusterEvaluation {
 // spread/tie-breaking.
 func TestSelectByCapacity(t *testing.T) {
 	rid := func(stamp string) *azcorearm.ResourceID {
-		return metadataapi.Must(fleetapi.ToManagementClusterResourceID(stamp))
+		return metadataapi.Must(fleetapihelpers.ToManagementClusterResourceID(stamp))
 	}
 
 	tests := []struct {
@@ -501,7 +502,7 @@ func TestPlacementSyncer_SyncOnce_FreshSelection(t *testing.T) {
 	updated, err := spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
 	require.NoError(t, err)
 	require.NotNil(t, updated.Spec.ManagementClusterResourceID)
-	assert.Equal(t, metadataapi.Must(fleetapi.ToManagementClusterResourceID("2")).String(), updated.Spec.ManagementClusterResourceID.String())
+	assert.Equal(t, metadataapi.Must(fleetapihelpers.ToManagementClusterResourceID("2")).String(), updated.Spec.ManagementClusterResourceID.String())
 
 	// Pending reservation recorded on the chosen MC's scheduling doc.
 	scheduling, err := fleetDB.Stamps().ManagementClusters("2").Scheduling().Get(ctx, fleetapi.SchedulingResourceName)
@@ -726,7 +727,7 @@ func TestPlacementSyncer_recordPlacementDecision_PreconditionFailureReturnsError
 func TestPlacementSyncer_reservePendingAssignment_CaseInsensitiveIdempotent(t *testing.T) {
 	ctx := context.Background()
 	const stamp = "1"
-	mcResourceID := metadataapi.Must(fleetapi.ToManagementClusterResourceID(stamp))
+	mcResourceID := metadataapi.Must(fleetapihelpers.ToManagementClusterResourceID(stamp))
 
 	clusterResourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + testClusterSubscriptionID + "/resourceGroups/" + testClusterResourceGroup +
@@ -740,7 +741,7 @@ func TestPlacementSyncer_reservePendingAssignment_CaseInsensitiveIdempotent(t *t
 	fleetDB := fleetcosmosstoragetesting.NewMockFleetDBClient()
 	doc := &fleetapi.ManagementClusterScheduling{
 		CosmosMetadata: coreapi.CosmosMetadata{
-			ResourceID:   metadataapi.Must(fleetapi.ToManagementClusterSchedulingResourceID(stamp)),
+			ResourceID:   metadataapi.Must(fleetapihelpers.ToManagementClusterSchedulingResourceID(stamp)),
 			PartitionKey: stamp,
 		},
 		Status: fleetapi.ManagementClusterSchedulingStatus{PendingAssignedClusters: []*azcorearm.ResourceID{alreadyReserved}},

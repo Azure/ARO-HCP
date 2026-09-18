@@ -30,6 +30,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
 )
 
 func TestStampKeyGetResourceID(t *testing.T) {
@@ -106,7 +107,7 @@ func (n *capturingStampNotifier) AddEventHandlerWithOptions(handler cache.Resour
 }
 
 func testStamp(stampID string, etag azcore.ETag) *fleetapi.Stamp {
-	rid, _ := fleetapi.ToStampResourceID(stampID)
+	rid, _ := fleetapihelpers.ToStampResourceID(stampID)
 	s := &fleetapi.Stamp{
 		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: rid},
 	}
@@ -130,7 +131,7 @@ func TestStampQueueForInformers(t *testing.T) {
 		{
 			name: "add management cluster resolves stamp via parent walk",
 			fire: func(n *capturingStampNotifier) {
-				rid, _ := fleetapi.ToManagementClusterResourceID("s2")
+				rid, _ := fleetapihelpers.ToManagementClusterResourceID("s2")
 				n.addFunc(&coreapi.CosmosMetadata{ResourceID: rid})
 			},
 			wantKey: "s2",

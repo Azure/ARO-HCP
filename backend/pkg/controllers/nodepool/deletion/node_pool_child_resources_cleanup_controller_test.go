@@ -32,6 +32,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/kubeappliercosmosstoragetesting"
@@ -97,7 +98,7 @@ func TestNodePoolChildResourcesCleanupController_SyncOnce(t *testing.T) {
 	}
 	newTestNodePoolScopedReadDesire := func(name string) *kubeapplierapi.ReadDesire {
 		resourceID := metadataapi.Must(azcorearm.ParseResourceID(
-			kubeapplierapi.ToNodePoolScopedReadDesireResourceIDString(
+			kubeapplierapihelpers.ToNodePoolScopedReadDesireResourceIDString(
 				testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName, name)))
 		return &kubeapplierapi.ReadDesire{
 			CosmosMetadata: coreapi.CosmosMetadata{
@@ -111,7 +112,7 @@ func TestNodePoolChildResourcesCleanupController_SyncOnce(t *testing.T) {
 	}
 	newTestClusterScopedReadDesire := func(name string) *kubeapplierapi.ReadDesire {
 		resourceID := metadataapi.Must(azcorearm.ParseResourceID(
-			kubeapplierapi.ToClusterScopedReadDesireResourceIDString(
+			kubeapplierapihelpers.ToClusterScopedReadDesireResourceIDString(
 				testSubscriptionID, testResourceGroupName, testClusterName, name)))
 		return &kubeapplierapi.ReadDesire{
 			CosmosMetadata: coreapi.CosmosMetadata{
@@ -125,7 +126,7 @@ func TestNodePoolChildResourcesCleanupController_SyncOnce(t *testing.T) {
 	}
 	newTestClusterScopedApplyDesire := func(name string) *kubeapplierapi.ApplyDesire {
 		resourceID := metadataapi.Must(azcorearm.ParseResourceID(
-			kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(
+			kubeapplierapihelpers.ToClusterScopedApplyDesireResourceIDString(
 				testSubscriptionID, testResourceGroupName, testClusterName, name)))
 		return &kubeapplierapi.ApplyDesire{
 			CosmosMetadata: coreapi.CosmosMetadata{
@@ -139,7 +140,7 @@ func TestNodePoolChildResourcesCleanupController_SyncOnce(t *testing.T) {
 	}
 	newTestNodePoolScopedApplyDesire := func(name string) *kubeapplierapi.ApplyDesire {
 		resourceID := metadataapi.Must(azcorearm.ParseResourceID(
-			kubeapplierapi.ToNodePoolScopedApplyDesireResourceIDString(
+			kubeapplierapihelpers.ToNodePoolScopedApplyDesireResourceIDString(
 				testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName, name)))
 		return &kubeapplierapi.ApplyDesire{
 			CosmosMetadata: coreapi.CosmosMetadata{
@@ -497,10 +498,10 @@ func TestNodePoolChildResourcesCleanupController_SyncOnce(t *testing.T) {
 			verifyDB: func(t *testing.T, ctx context.Context, _ *corecosmosstoragetesting.MockResourcesDBClient, kubeApplierDBClients *kubeappliercosmosstoragetesting.MockKubeApplierDBClients) {
 				assertNoNodePoolScopedKubeApplierResources(t, ctx, kubeApplierDBClients)
 				assertClusterScopedKubeApplierResourceExists(t, ctx, kubeApplierDBClients,
-					kubeapplierapi.ToClusterScopedReadDesireResourceIDString(
+					kubeapplierapihelpers.ToClusterScopedReadDesireResourceIDString(
 						testSubscriptionID, testResourceGroupName, testClusterName, "readonly-hostedcluster"))
 				assertClusterScopedKubeApplierResourceExists(t, ctx, kubeApplierDBClients,
-					kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(
+					kubeapplierapihelpers.ToClusterScopedApplyDesireResourceIDString(
 						testSubscriptionID, testResourceGroupName, testClusterName, "apply-example"))
 			},
 		},
@@ -523,7 +524,7 @@ func TestNodePoolChildResourcesCleanupController_SyncOnce(t *testing.T) {
 			},
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, kubeApplierDBClients *kubeappliercosmosstoragetesting.MockKubeApplierDBClients) {
 				assertNodePoolScopedKubeApplierResourceExists(t, ctx, kubeApplierDBClients,
-					kubeapplierapi.ToNodePoolScopedApplyDesireResourceIDString(
+					kubeapplierapihelpers.ToNodePoolScopedApplyDesireResourceIDString(
 						testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName, "apply-nodepool"))
 
 				spnpCRUD := db.ServiceProviderNodePools(

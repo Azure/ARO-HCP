@@ -38,6 +38,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -411,7 +412,7 @@ func newTestNodePoolWithNewDeletionApproach(t *testing.T, opts func(*coreapi.HCP
 			"/resourceGroups/" + testResourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
 			"/nodePools/" + testNodePoolName))
-	nodePoolInternalID := metadataapi.Ptr(metadataapi.Must(metadataapi.NewInternalID(testNodePoolCSIDStr)))
+	nodePoolInternalID := metadataapihelpers.Ptr(metadataapi.Must(metadataapi.NewInternalID(testNodePoolCSIDStr)))
 	np := &coreapi.HCPOpenShiftClusterNodePool{
 		TrackedResource: coreapi.TrackedResource{
 			Resource: coreapi.Resource{

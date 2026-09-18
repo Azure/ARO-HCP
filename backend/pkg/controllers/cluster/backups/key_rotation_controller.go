@@ -32,6 +32,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
 	"github.com/Azure/ARO-HCP/internal/backup"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
@@ -461,7 +462,7 @@ func buildOnDemandBackupApplyDesire(
 	veleroBackup *velerov1.Backup,
 ) (*kubeapplierapi.ApplyDesire, error) {
 	desireName := keyRotationDesireName(veleroBackup.Name)
-	resourceIDStr := kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(
+	resourceIDStr := kubeapplierapihelpers.ToClusterScopedApplyDesireResourceIDString(
 		subscriptionID, resourceGroupName, clusterName, desireName,
 	)
 	resourceID, err := azcorearm.ParseResourceID(resourceIDStr)

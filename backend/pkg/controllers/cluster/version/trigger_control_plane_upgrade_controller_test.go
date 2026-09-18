@@ -37,6 +37,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
@@ -183,7 +184,7 @@ func TestTriggerControlPlaneUpgradeSyncer_CreateUpgradePolicyIfNeeded(t *testing
 }
 
 func TestTriggerControlPlaneUpgradeSyncer_ShouldTriggerUpgrade(t *testing.T) {
-	clusterResourceID := metadataapi.Must(coreapi.ToClusterResourceID(testSubscriptionID, testResourceGroupName, testClusterName))
+	clusterResourceID := metadataapi.Must(coreapihelpers.ToClusterResourceID(testSubscriptionID, testResourceGroupName, testClusterName))
 	now := time.Date(2026, 6, 26, 12, 0, 0, 0, time.UTC)
 	listerBoom := errors.New("active operation lister exploded")
 
@@ -312,7 +313,7 @@ func TestTriggerControlPlaneUpgradeSyncer_SyncOnce(t *testing.T) {
 	// (so shouldTriggerUpgrade passes the grace-period gate without consulting the
 	// active-operation lister). It is only ever stored in the slice cache lister.
 	clusterInCache := func() *coreapi.HCPOpenShiftCluster {
-		clusterResourceID := metadataapi.Must(coreapi.ToClusterResourceID(testSubscriptionID, testResourceGroupName, testClusterName))
+		clusterResourceID := metadataapi.Must(coreapihelpers.ToClusterResourceID(testSubscriptionID, testResourceGroupName, testClusterName))
 		return &coreapi.HCPOpenShiftCluster{
 			CosmosMetadata: coreapi.CosmosMetadata{ResourceID: clusterResourceID},
 			TrackedResource: coreapi.TrackedResource{
@@ -324,7 +325,7 @@ func TestTriggerControlPlaneUpgradeSyncer_SyncOnce(t *testing.T) {
 		}
 	}
 	spcInCache := func(activeVersion, desiredVersion string) *coreapi.ServiceProviderCluster {
-		spcResourceID := metadataapi.Must(azcorearm.ParseResourceID(coreapi.ToServiceProviderClusterResourceIDString(testSubscriptionID, testResourceGroupName, testClusterName)))
+		spcResourceID := metadataapi.Must(azcorearm.ParseResourceID(coreapihelpers.ToServiceProviderClusterResourceIDString(testSubscriptionID, testResourceGroupName, testClusterName)))
 		active := semver.MustParse(activeVersion)
 		desired := semver.MustParse(desiredVersion)
 		return &coreapi.ServiceProviderCluster{

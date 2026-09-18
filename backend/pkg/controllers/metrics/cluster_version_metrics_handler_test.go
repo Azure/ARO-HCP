@@ -40,6 +40,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/kubeapplierlistertesting"
 )
@@ -74,7 +75,7 @@ func newTestHostedClusterReadDesireLister(t *testing.T, clusterUUID string) kube
 	require.NoError(t, err)
 
 	readDesireResourceID := metadataapi.Must(azcorearm.ParseResourceID(
-		kubeapplierapi.ToClusterScopedReadDesireResourceIDString(
+		kubeapplierapihelpers.ToClusterScopedReadDesireResourceIDString(
 			"sub-1", "rg", "cluster-1", kubeapplierhelpers.ReadDesireNameReadonlyHostedCluster,
 		),
 	))

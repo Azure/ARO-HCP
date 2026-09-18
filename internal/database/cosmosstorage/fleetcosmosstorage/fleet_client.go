@@ -23,6 +23,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/internal/validation"
@@ -120,7 +121,7 @@ type cosmosStampsCRUD struct {
 }
 
 func (s *cosmosStampsCRUD) ManagementClusters(stampIdentifier string) ManagementClustersCRUD {
-	stampResourceID, err := fleetapi.ToStampResourceID(stampIdentifier)
+	stampResourceID, err := fleetapihelpers.ToStampResourceID(stampIdentifier)
 	if err != nil {
 		panic(fmt.Sprintf("invalid stamp identifier %q: %v", stampIdentifier, err))
 	}
@@ -144,7 +145,7 @@ type cosmosManagementClustersCRUD struct {
 }
 
 func (m *cosmosManagementClustersCRUD) Controllers() cosmosstorageutils.ResourceCRUD[coreapi.Controller, *coreapi.Controller] {
-	managementClusterResourceID, err := fleetapi.ToManagementClusterResourceID(m.stampIdentifier)
+	managementClusterResourceID, err := fleetapihelpers.ToManagementClusterResourceID(m.stampIdentifier)
 	if err != nil {
 		panic(fmt.Sprintf("invalid stamp identifier %q: %v", m.stampIdentifier, err))
 	}
@@ -154,7 +155,7 @@ func (m *cosmosManagementClustersCRUD) Controllers() cosmosstorageutils.Resource
 }
 
 func (m *cosmosManagementClustersCRUD) Scheduling() cosmosstorageutils.ResourceCRUD[fleetapi.ManagementClusterScheduling, *fleetapi.ManagementClusterScheduling] {
-	managementClusterResourceID, err := fleetapi.ToManagementClusterResourceID(m.stampIdentifier)
+	managementClusterResourceID, err := fleetapihelpers.ToManagementClusterResourceID(m.stampIdentifier)
 	if err != nil {
 		panic(fmt.Sprintf("invalid stamp identifier %q: %v", m.stampIdentifier, err))
 	}

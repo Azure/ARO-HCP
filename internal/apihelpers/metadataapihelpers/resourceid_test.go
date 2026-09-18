@@ -12,12 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package metadataapi
+package metadataapihelpers
 
 import (
 	"testing"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 )
 
 const (
@@ -27,7 +29,7 @@ const (
 )
 
 func TestClusterNameFromResourceID(t *testing.T) {
-	wantCluster := Must(azcorearm.ParseResourceID(testClusterResourceID)).String()
+	wantCluster := metadataapi.Must(azcorearm.ParseResourceID(testClusterResourceID)).String()
 
 	tests := []struct {
 		name  string
@@ -40,7 +42,7 @@ func TestClusterNameFromResourceID(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			id := Must(azcorearm.ParseResourceID(tt.input))
+			id := metadataapi.Must(azcorearm.ParseResourceID(tt.input))
 			if got := ClusterNameFromResourceID(id); got != tt.want {
 				t.Errorf("ClusterNameFromResourceID(%q) = %q, want %q", tt.input, got, tt.want)
 			}
@@ -53,9 +55,9 @@ func TestClusterNameFromResourceID(t *testing.T) {
 }
 
 func TestObjectMetadataForResourceID_FillsClusterResourceID(t *testing.T) {
-	clusterID := Must(azcorearm.ParseResourceID(testClusterResourceID))
-	nodePoolID := Must(azcorearm.ParseResourceID(testNodePoolResourceID))
-	resourceGroupID := Must(azcorearm.ParseResourceID(testResourceGroupID))
+	clusterID := metadataapi.Must(azcorearm.ParseResourceID(testClusterResourceID))
+	nodePoolID := metadataapi.Must(azcorearm.ParseResourceID(testNodePoolResourceID))
+	resourceGroupID := metadataapi.Must(azcorearm.ParseResourceID(testResourceGroupID))
 
 	if md := ObjectMetadataForResourceID("resources", clusterID); md.ClusterResourceID != clusterID.String() {
 		t.Errorf("cluster: ClusterResourceID = %q, want %q", md.ClusterResourceID, clusterID.String())
@@ -72,10 +74,10 @@ func TestObjectMetadataForResourceID_FillsClusterResourceID(t *testing.T) {
 }
 
 func TestResourceTypeEquality(t *testing.T) {
-	clusterType := Must(azcorearm.ParseResourceID(testClusterResourceID)).ResourceType
+	clusterType := metadataapi.Must(azcorearm.ParseResourceID(testClusterResourceID)).ResourceType
 
-	if !ResourceTypeEqual(clusterType, clusterType) {
-		t.Error("ResourceTypeEqual should be true for identical types")
+	if !metadataapi.ResourceTypeEqual(clusterType, clusterType) {
+		t.Error("metadataapi.ResourceTypeEqual should be true for identical types")
 	}
 	if !ResourceTypeStringEqual("microsoft.redhatopenshift/hcpopenshiftclusters", clusterType) {
 		t.Error("ResourceTypeStringEqual should match case-insensitively")

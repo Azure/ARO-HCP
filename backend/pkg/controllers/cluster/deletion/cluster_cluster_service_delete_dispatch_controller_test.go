@@ -38,6 +38,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	kubeapplierlistertesting "github.com/Azure/ARO-HCP/internal/database/listertesting/kubeapplierlistertesting"
@@ -63,7 +64,7 @@ func newTestClusterWithNewDeletionApproach(t *testing.T, opts func(*coreapi.HCPO
 		"/subscriptions/" + testSubscriptionID +
 			"/resourceGroups/" + testResourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName))
-	clusterInternalID := metadataapi.Ptr(metadataapi.Must(metadataapi.NewInternalID(testClusterServiceIDStr)))
+	clusterInternalID := metadataapihelpers.Ptr(metadataapi.Must(metadataapi.NewInternalID(testClusterServiceIDStr)))
 	cluster := &coreapi.HCPOpenShiftCluster{
 		TrackedResource: coreapi.TrackedResource{
 			Resource: coreapi.Resource{

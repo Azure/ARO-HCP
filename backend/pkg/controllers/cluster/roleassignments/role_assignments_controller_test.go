@@ -43,6 +43,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/azure"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
@@ -93,14 +94,14 @@ func testConfig() *azure.ClusterScopedIdentitiesConfig {
 // the cluster's CustomerProperties.Platform.ManagedResourceGroup.
 func testManagedResourceGroupScope(t *testing.T) string {
 	t.Helper()
-	return metadataapi.Must(coreapi.ToResourceGroupResourceID(testSubscriptionID, testManagedRGName)).String()
+	return metadataapi.Must(coreapihelpers.ToResourceGroupResourceID(testSubscriptionID, testManagedRGName)).String()
 }
 
 // testManagedResourceGroupID returns the confirmed managed resource group reference
 // resource ID used to open the observation gate.
 func testManagedResourceGroupID(t *testing.T) *azcorearm.ResourceID {
 	t.Helper()
-	return metadataapi.Must(coreapi.ToResourceGroupResourceID(testSubscriptionID, testManagedRGName))
+	return metadataapi.Must(coreapihelpers.ToResourceGroupResourceID(testSubscriptionID, testManagedRGName))
 }
 
 // testExpectedRoleAssignmentIDs returns the role assignment IDs the controller expects

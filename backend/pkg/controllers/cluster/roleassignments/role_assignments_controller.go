@@ -34,6 +34,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/azure/roleassignment"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/azure"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
@@ -441,7 +442,7 @@ func (c *roleAssignmentsSyncer) expectedRoleAssignments(cluster *coreapi.HCPOpen
 	if len(managedResourceGroupName) == 0 {
 		return nil, fmt.Errorf("managed resource group name is empty for cluster %q", cluster.ID.String())
 	}
-	scopeID, err := coreapi.ToResourceGroupResourceID(cluster.ID.SubscriptionID, managedResourceGroupName)
+	scopeID, err := coreapihelpers.ToResourceGroupResourceID(cluster.ID.SubscriptionID, managedResourceGroupName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build managed resource group scope for cluster %q: %w", cluster.ID.String(), err)
 	}

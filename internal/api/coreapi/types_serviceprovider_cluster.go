@@ -58,19 +58,6 @@ const (
 	HostedClusterControlPlaneSizeXXlarge HostedClusterControlPlaneSize = "XXlarge"
 )
 
-// IsValidHostedClusterControlPlaneSize reports whether s names a known tier.
-func IsValidHostedClusterControlPlaneSize(s string) bool {
-	switch HostedClusterControlPlaneSize(s) {
-	case HostedClusterControlPlaneSizeSmall,
-		HostedClusterControlPlaneSizeMedium,
-		HostedClusterControlPlaneSizeLarge,
-		HostedClusterControlPlaneSizeXlarge,
-		HostedClusterControlPlaneSizeXXlarge:
-		return true
-	}
-	return false
-}
-
 // ServiceProviderCluster is used internally by controllers to track and pass information between them.
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type ServiceProviderCluster struct {

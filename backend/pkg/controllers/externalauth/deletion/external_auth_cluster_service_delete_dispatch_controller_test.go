@@ -38,6 +38,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -406,7 +407,7 @@ func newTestExternalAuthWithNewDeletionApproach(t *testing.T, opts func(*coreapi
 			"/resourceGroups/" + testResourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
 			"/externalAuths/" + testExternalAuthName))
-	externalAuthInternalID := metadataapi.Ptr(metadataapi.Must(metadataapi.NewInternalID(testExternalAuthCSIDStr)))
+	externalAuthInternalID := metadataapihelpers.Ptr(metadataapi.Must(metadataapi.NewInternalID(testExternalAuthCSIDStr)))
 	ea := &coreapi.HCPOpenShiftClusterExternalAuth{
 		ProxyResource: coreapi.ProxyResource{
 			Resource: coreapi.Resource{

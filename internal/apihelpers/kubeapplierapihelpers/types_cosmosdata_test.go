@@ -12,12 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package kubeapplierapi
+package kubeapplierapihelpers
 
 import (
 	"testing"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 )
 
 const (
@@ -127,52 +129,52 @@ func TestResourceIDsParseToExpectedTypes(t *testing.T) {
 		{
 			name:     "cluster-scoped ApplyDesire",
 			idStr:    ToClusterScopedApplyDesireResourceIDString(sub, rg, cluster, name),
-			wantType: ClusterScopedApplyDesireResourceType.String(),
+			wantType: kubeapplierapi.ClusterScopedApplyDesireResourceType.String(),
 		},
 		{
 			name:     "nodepool-scoped ApplyDesire",
 			idStr:    ToNodePoolScopedApplyDesireResourceIDString(sub, rg, cluster, np, name),
-			wantType: NodePoolScopedApplyDesireResourceType.String(),
+			wantType: kubeapplierapi.NodePoolScopedApplyDesireResourceType.String(),
 		},
 		{
 			name:     "cluster-scoped ReadDesire",
 			idStr:    ToClusterScopedReadDesireResourceIDString(sub, rg, cluster, name),
-			wantType: ClusterScopedReadDesireResourceType.String(),
+			wantType: kubeapplierapi.ClusterScopedReadDesireResourceType.String(),
 		},
 		{
 			name:     "nodepool-scoped ReadDesire",
 			idStr:    ToNodePoolScopedReadDesireResourceIDString(sub, rg, cluster, np, name),
-			wantType: NodePoolScopedReadDesireResourceType.String(),
+			wantType: kubeapplierapi.NodePoolScopedReadDesireResourceType.String(),
 		},
 		{
 			name:     "credential-request-scoped ApplyDesire",
 			idStr:    ToSystemAdminCredentialRequestScopedApplyDesireResourceIDString(sub, rg, cluster, cred, name),
-			wantType: SystemAdminCredentialRequestScopedApplyDesireResourceType.String(),
+			wantType: kubeapplierapi.SystemAdminCredentialRequestScopedApplyDesireResourceType.String(),
 		},
 		{
 			name:     "credential-request-scoped ReadDesire",
 			idStr:    ToSystemAdminCredentialRequestScopedReadDesireResourceIDString(sub, rg, cluster, cred, name),
-			wantType: SystemAdminCredentialRequestScopedReadDesireResourceType.String(),
+			wantType: kubeapplierapi.SystemAdminCredentialRequestScopedReadDesireResourceType.String(),
 		},
 		{
 			name:     "revocation-scoped ApplyDesire",
 			idStr:    ToSystemAdminCredentialRevocationScopedApplyDesireResourceIDString(sub, rg, cluster, revocation, name),
-			wantType: SystemAdminCredentialRevocationScopedApplyDesireResourceType.String(),
+			wantType: kubeapplierapi.SystemAdminCredentialRevocationScopedApplyDesireResourceType.String(),
 		},
 		{
 			name:     "revocation-scoped ReadDesire",
 			idStr:    ToSystemAdminCredentialRevocationScopedReadDesireResourceIDString(sub, rg, cluster, revocation, name),
-			wantType: SystemAdminCredentialRevocationScopedReadDesireResourceType.String(),
+			wantType: kubeapplierapi.SystemAdminCredentialRevocationScopedReadDesireResourceType.String(),
 		},
 		{
 			name:     "management-cluster-scoped ApplyDesire",
 			idStr:    ToManagementClusterScopedApplyDesireResourceIDString(stamp, name),
-			wantType: ManagementClusterScopedApplyDesireResourceType.String(),
+			wantType: kubeapplierapi.ManagementClusterScopedApplyDesireResourceType.String(),
 		},
 		{
 			name:     "management-cluster-scoped ReadDesire",
 			idStr:    ToManagementClusterScopedReadDesireResourceIDString(stamp, name),
-			wantType: ManagementClusterScopedReadDesireResourceType.String(),
+			wantType: kubeapplierapi.ManagementClusterScopedReadDesireResourceType.String(),
 		},
 	}
 	for _, tc := range cases {

@@ -21,6 +21,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/listers/listerutils"
 )
@@ -50,7 +51,7 @@ func (l *informerBasedManagementClusterLister) List(ctx context.Context) ([]*fle
 
 // Get retrieves a single management cluster by stamp identifier.
 func (l *informerBasedManagementClusterLister) Get(ctx context.Context, stampIdentifier string) (*fleetapi.ManagementCluster, error) {
-	key := fleetapi.ToManagementClusterResourceIDString(stampIdentifier)
+	key := fleetapihelpers.ToManagementClusterResourceIDString(stampIdentifier)
 	return listerutils.GetByKey[fleetapi.ManagementCluster](l.indexer, key)
 }
 

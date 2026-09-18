@@ -24,6 +24,7 @@ import (
 	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/backup"
 	"github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
@@ -183,7 +184,7 @@ func (h *HCPGetBackupScheduleHandler) ServeHTTP(writer http.ResponseWriter, requ
 		return utils.TrackError(fmt.Errorf("failed to iterate ReadDesires: %w", err))
 	}
 
-	_, err = coreapi.WriteJSONResponse(writer, http.StatusOK, response)
+	_, err = coreapihelpers.WriteJSONResponse(writer, http.StatusOK, response)
 	return utils.TrackError(err)
 }
 
@@ -224,7 +225,7 @@ func (h *HCPPatchBackupScheduleHandler) ServeHTTP(writer http.ResponseWriter, re
 		State: serviceProviderCluster.Spec.BackupScheduleState,
 	}
 
-	_, err = coreapi.WriteJSONResponse(writer, http.StatusOK, response)
+	_, err = coreapihelpers.WriteJSONResponse(writer, http.StatusOK, response)
 	return utils.TrackError(err)
 }
 
@@ -316,6 +317,6 @@ func (h *HCPGetOnDemandBackupsHandler) ServeHTTP(writer http.ResponseWriter, req
 		return utils.TrackError(fmt.Errorf("failed to iterate ReadDesires: %w", err))
 	}
 
-	_, writeErr := coreapi.WriteJSONResponse(writer, http.StatusOK, response)
+	_, writeErr := coreapihelpers.WriteJSONResponse(writer, http.StatusOK, response)
 	return utils.TrackError(writeErr)
 }

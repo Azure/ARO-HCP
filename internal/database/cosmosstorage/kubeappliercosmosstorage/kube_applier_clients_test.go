@@ -27,6 +27,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
 )
 
 // fakeManagementClusterLister is the minimal in-memory ManagementClusterLister
@@ -53,7 +54,7 @@ func (f *fakeManagementClusterLister) List(ctx context.Context) ([]*fleetapi.Man
 
 func newFakeMC(t *testing.T, stampIdentifier, containerName, consumerName string) *fleetapi.ManagementCluster {
 	t.Helper()
-	rid := metadataapi.Must(fleetapi.ToManagementClusterResourceID(stampIdentifier))
+	rid := metadataapi.Must(fleetapihelpers.ToManagementClusterResourceID(stampIdentifier))
 	return &fleetapi.ManagementCluster{
 		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: rid},
 		Status: fleetapi.ManagementClusterStatus{

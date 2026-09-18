@@ -39,6 +39,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/kubeappliercosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	fleetlistertesting "github.com/Azure/ARO-HCP/internal/database/listertesting/fleetlistertesting"
@@ -85,7 +87,7 @@ func newCluster(opts ...func(*coreapi.HCPOpenShiftCluster)) *coreapi.HCPOpenShif
 			},
 		},
 		ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
-			ClusterServiceID: metadataapi.Ptr(metadataapi.Must(metadataapi.NewInternalID(testClusterServiceID))),
+			ClusterServiceID: metadataapihelpers.Ptr(metadataapi.Must(metadataapi.NewInternalID(testClusterServiceID))),
 		},
 	}
 	for _, opt := range opts {
@@ -434,7 +436,7 @@ func TestDeleteStaleApplyDesires(t *testing.T) {
 	t.Parallel()
 
 	makeTaggedDesire := func(name string) *kubeapplierapi.ApplyDesire {
-		resourceIDStr := kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(
+		resourceIDStr := kubeapplierapihelpers.ToClusterScopedApplyDesireResourceIDString(
 			testSubscriptionID, testResourceGroupName, testClusterName, name,
 		)
 		return &kubeapplierapi.ApplyDesire{
@@ -489,7 +491,7 @@ func TestDeleteStaleApplyDesires(t *testing.T) {
 			applyDesireLister:    &kubeapplierlistertesting.DBApplyDesireLister{Clients: mockClients, Lister: mcLister},
 		}
 
-		currentResourceID := kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(
+		currentResourceID := kubeapplierapihelpers.ToClusterScopedApplyDesireResourceIDString(
 			testSubscriptionID, testResourceGroupName, testClusterName, "configmaps.ns.current",
 		)
 		err := syncer.deleteStaleApplyDesires(ctx, testKey(), testManagementClusterResourceID,
@@ -778,7 +780,7 @@ func TestProcessClusterResourcesNodePoolPath(t *testing.T) {
 				},
 			},
 		}
-		np.ServiceProviderProperties.ClusterServiceID = metadataapi.Ptr(metadataapi.Must(
+		np.ServiceProviderProperties.ClusterServiceID = metadataapihelpers.Ptr(metadataapi.Must(
 			metadataapi.NewInternalID("/api/clusters_mgmt/v1/clusters/abc123/node_pools/np123")))
 		if deleting {
 			now := metav1.Now()

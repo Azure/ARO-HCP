@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package metadataapi
+package metadataapihelpers
 
 import (
 	"reflect"
@@ -25,6 +25,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 )
 
 func TestTrimStringSlice(t *testing.T) {
@@ -68,7 +70,7 @@ func TestMergeStringPtrMapIntoResourceIDMap(t *testing.T) {
 		return "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/" + name
 	}
 	parseResourceID := func(name string) *azcorearm.ResourceID {
-		return Must(azcorearm.ParseResourceID(makeResourceID(name)))
+		return metadataapi.Must(azcorearm.ParseResourceID(makeResourceID(name)))
 	}
 
 	tests := []struct {
@@ -233,7 +235,7 @@ func TestIsEmptyValue(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := isEmptyValue(reflect.ValueOf(tt.value))
+			got := IsEmptyValue(reflect.ValueOf(tt.value))
 			assert.Equal(t, tt.expect, got)
 		})
 	}
@@ -362,8 +364,8 @@ func TestNextMinorReleaseLine(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := NextMinorReleaseLine(Must(semver.ParseTolerant(tt.in)))
-			assert.Equal(t, Must(semver.ParseTolerant(tt.want)), got)
+			got := NextMinorReleaseLine(metadataapi.Must(semver.ParseTolerant(tt.in)))
+			assert.Equal(t, metadataapi.Must(semver.ParseTolerant(tt.want)), got)
 		})
 	}
 }

@@ -31,6 +31,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/kubeappliercosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/informers/kubeapplierinformers"
 	unionkubeapplier "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
@@ -412,15 +413,15 @@ func TestUnionKubeApplierInformers_EndToEnd(t *testing.T) {
 
 	subA := buildPerMCInformers(t, ctx,
 		newApplyDesire(t,
-			kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(testSub, testRG, testCluster, "a1"),
+			kubeapplierapihelpers.ToClusterScopedApplyDesireResourceIDString(testSub, testRG, testCluster, "a1"),
 			mgmtAID),
 		newApplyDesire(t,
-			kubeapplierapi.ToNodePoolScopedApplyDesireResourceIDString(testSub, testRG, testCluster, testNodePool, "a2"),
+			kubeapplierapihelpers.ToNodePoolScopedApplyDesireResourceIDString(testSub, testRG, testCluster, testNodePool, "a2"),
 			mgmtAID),
 	)
 	subB := buildPerMCInformers(t, ctx,
 		newApplyDesire(t,
-			kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(testSub, testRG, "other-cluster", "b1"),
+			kubeapplierapihelpers.ToClusterScopedApplyDesireResourceIDString(testSub, testRG, "other-cluster", "b1"),
 			mgmtBID),
 	)
 

@@ -30,12 +30,13 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/fleetcosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 func newStamp(stampIdentifier string) *fleetapi.Stamp {
-	stampResourceID, _ := fleetapi.ToStampResourceID(stampIdentifier)
+	stampResourceID, _ := fleetapihelpers.ToStampResourceID(stampIdentifier)
 	return &fleetapi.Stamp{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   stampResourceID,
@@ -45,7 +46,7 @@ func newStamp(stampIdentifier string) *fleetapi.Stamp {
 }
 
 func newStampWithConditions(stampIdentifier string, conditions ...metav1.Condition) *fleetapi.Stamp {
-	stampResourceID, _ := fleetapi.ToStampResourceID(stampIdentifier)
+	stampResourceID, _ := fleetapihelpers.ToStampResourceID(stampIdentifier)
 	return &fleetapi.Stamp{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   stampResourceID,

@@ -22,7 +22,7 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
@@ -109,7 +109,7 @@ func DumpDataToLogger(
 		// An operation's own ResourceID is subscription/location-scoped, so derive the HCP
 		// cluster name from its ExternalID (the targeted cluster/node pool) when possible.
 		opLogger := logger
-		if hcpClusterName := metadataapi.ClusterNameFromResourceID(operation.ExternalID); hcpClusterName != "" {
+		if hcpClusterName := metadataapihelpers.ClusterNameFromResourceID(operation.ExternalID); hcpClusterName != "" {
 			opLogger = logger.WithValues(utils.LogValues{}.AddHCPClusterName(hcpClusterName)...)
 		}
 		opLogger.Info(fmt.Sprintf("dumping resourceID %v", operation.ResourceID),
@@ -230,7 +230,7 @@ func DumpBillingToLogger(ctx context.Context, resourcesDBClient corecosmosstorag
 	logger.Info(fmt.Sprintf("dumping billing document for resourceID %v", billingDoc.ResourceID),
 		"snapshotType", "cosmos",
 		"currentResourceID", billingDoc.ResourceID.String(),
-		"objectMetadata", metadataapi.ObjectMetadataForResourceID("billing", billingDoc.ResourceID),
+		"objectMetadata", metadataapihelpers.ObjectMetadataForResourceID("billing", billingDoc.ResourceID),
 		"content", billingDoc,
 	)
 

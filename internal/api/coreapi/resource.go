@@ -15,8 +15,6 @@
 package coreapi
 
 import (
-	"iter"
-	"slices"
 	"time"
 
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -135,19 +133,4 @@ func (s ProvisioningState) IsTerminal() bool {
 	default:
 		return false
 	}
-}
-
-// ListProvisioningStates returns an iterator that yields all recognized
-// ProvisioningState values. This function is intended as a test aid.
-func ListProvisioningStates() iter.Seq[ProvisioningState] {
-	return slices.Values([]ProvisioningState{
-		ProvisioningStateSucceeded,
-		ProvisioningStateFailed,
-		ProvisioningStateCanceled,
-		ProvisioningStateAccepted,
-		ProvisioningStateDeleting,
-		ProvisioningStateProvisioning,
-		ProvisioningStateUpdating,
-		ProvisioningStateAwaitingSecret,
-	})
 }

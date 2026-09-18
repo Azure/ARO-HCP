@@ -37,6 +37,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
 	"github.com/Azure/ARO-HCP/internal/backup"
 	internalcontrollerutils "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
@@ -48,7 +50,7 @@ import (
 )
 
 func TestDeleteStaleApplyDesires(t *testing.T) {
-	managementClusterResourceID := metadataapi.Must(fleetapi.ToManagementClusterResourceID("mc1"))
+	managementClusterResourceID := metadataapi.Must(fleetapihelpers.ToManagementClusterResourceID("mc1"))
 
 	testKey := controllerutils.HCPClusterKey{
 		SubscriptionID:    "test-sub",
@@ -57,7 +59,7 @@ func TestDeleteStaleApplyDesires(t *testing.T) {
 	}
 
 	makeDesiredApplyDesire := func(name string) *kubeapplierapi.ApplyDesire {
-		resourceIDStr := kubeapplierapi.ToClusterScopedApplyDesireResourceIDString("test-sub", "test-rg", "test-cluster", name)
+		resourceIDStr := kubeapplierapihelpers.ToClusterScopedApplyDesireResourceIDString("test-sub", "test-rg", "test-cluster", name)
 		resourceID := metadataapi.Must(azcorearm.ParseResourceID(resourceIDStr))
 		return &kubeapplierapi.ApplyDesire{
 			CosmosMetadata: coreapi.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(managementClusterResourceID.String())},
@@ -69,7 +71,7 @@ func TestDeleteStaleApplyDesires(t *testing.T) {
 	}
 
 	makeReadDesire := func(name string) *kubeapplierapi.ReadDesire {
-		resourceIDStr := kubeapplierapi.ToClusterScopedReadDesireResourceIDString("test-sub", "test-rg", "test-cluster", name)
+		resourceIDStr := kubeapplierapihelpers.ToClusterScopedReadDesireResourceIDString("test-sub", "test-rg", "test-cluster", name)
 		resourceID := metadataapi.Must(azcorearm.ParseResourceID(resourceIDStr))
 		return &kubeapplierapi.ReadDesire{
 			CosmosMetadata: coreapi.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(managementClusterResourceID.String())},
@@ -223,7 +225,7 @@ func TestDeleteStaleApplyDesires(t *testing.T) {
 }
 
 func TestDeleteStaleReadDesires(t *testing.T) {
-	managementClusterResourceID := metadataapi.Must(fleetapi.ToManagementClusterResourceID("mc1"))
+	managementClusterResourceID := metadataapi.Must(fleetapihelpers.ToManagementClusterResourceID("mc1"))
 
 	testKey := controllerutils.HCPClusterKey{
 		SubscriptionID:    "test-sub",
@@ -232,7 +234,7 @@ func TestDeleteStaleReadDesires(t *testing.T) {
 	}
 
 	makeDesiredReadDesire := func(name string) *kubeapplierapi.ReadDesire {
-		resourceIDStr := kubeapplierapi.ToClusterScopedReadDesireResourceIDString("test-sub", "test-rg", "test-cluster", name)
+		resourceIDStr := kubeapplierapihelpers.ToClusterScopedReadDesireResourceIDString("test-sub", "test-rg", "test-cluster", name)
 		resourceID := metadataapi.Must(azcorearm.ParseResourceID(resourceIDStr))
 		return &kubeapplierapi.ReadDesire{
 			CosmosMetadata: coreapi.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(managementClusterResourceID.String())},
@@ -256,7 +258,7 @@ func TestDeleteStaleReadDesires(t *testing.T) {
 	}
 
 	makeApplyDesire := func(name string) *kubeapplierapi.ApplyDesire {
-		resourceIDStr := kubeapplierapi.ToClusterScopedApplyDesireResourceIDString("test-sub", "test-rg", "test-cluster", name)
+		resourceIDStr := kubeapplierapihelpers.ToClusterScopedApplyDesireResourceIDString("test-sub", "test-rg", "test-cluster", name)
 		resourceID := metadataapi.Must(azcorearm.ParseResourceID(resourceIDStr))
 		return &kubeapplierapi.ApplyDesire{
 			CosmosMetadata: coreapi.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(managementClusterResourceID.String())},
@@ -299,7 +301,7 @@ func TestDeleteStaleReadDesires(t *testing.T) {
 		readDesireCRUD, _ := mockKubeApplier.ReadDesiresForCluster("test-sub", "test-rg", "test-cluster")
 
 		desireName := backup.BackupScheduleDesireNamePrefix + "old"
-		adResourceIDStr := kubeapplierapi.ToClusterScopedApplyDesireResourceIDString("test-sub", "test-rg", "test-cluster", desireName)
+		adResourceIDStr := kubeapplierapihelpers.ToClusterScopedApplyDesireResourceIDString("test-sub", "test-rg", "test-cluster", desireName)
 		adResourceID := metadataapi.Must(azcorearm.ParseResourceID(adResourceIDStr))
 		_, _ = applyDesireCRUD.Create(context.Background(), &kubeapplierapi.ApplyDesire{
 			CosmosMetadata: coreapi.CosmosMetadata{ResourceID: adResourceID, PartitionKey: strings.ToLower(managementClusterResourceID.String())},
@@ -392,7 +394,7 @@ func TestBackupScheduleSyncer_SyncOnce(t *testing.T) {
 	}
 
 	testMgmtClusterResourceID := func() *azcorearm.ResourceID {
-		return metadataapi.Must(fleetapi.ToManagementClusterResourceID(testStampID))
+		return metadataapi.Must(fleetapihelpers.ToManagementClusterResourceID(testStampID))
 	}
 
 	testKey := controllerutils.HCPClusterKey{
@@ -471,7 +473,7 @@ func TestBackupScheduleSyncer_SyncOnce(t *testing.T) {
 		}
 		raw, err := json.Marshal(hc)
 		require.NoError(t, err)
-		rdResourceIDStr := kubeapplierapi.ToClusterScopedReadDesireResourceIDString(
+		rdResourceIDStr := kubeapplierapihelpers.ToClusterScopedReadDesireResourceIDString(
 			testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName,
 			kubeapplierhelpers.ReadDesireNameReadonlyHostedCluster,
 		)
@@ -511,7 +513,7 @@ func TestBackupScheduleSyncer_SyncOnce(t *testing.T) {
 		require.NoError(t, err)
 		var readDesires []*kubeapplierapi.ReadDesire
 		for _, applyDesire := range applyDesires {
-			rdResourceIDStr := kubeapplierapi.ToClusterScopedReadDesireResourceIDString(
+			rdResourceIDStr := kubeapplierapihelpers.ToClusterScopedReadDesireResourceIDString(
 				testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName, applyDesire.ResourceID.Name,
 			)
 			rdResourceID := metadataapi.Must(azcorearm.ParseResourceID(rdResourceIDStr))
@@ -769,7 +771,7 @@ func TestBackupScheduleSyncer_SyncOnce(t *testing.T) {
 				for _, name := range []string{"hourly", "daily", "weekly"} {
 					scheduleName := fmt.Sprintf("%s-%s", testSchedulePrefix, name)
 					desireName := backupApplyDesireName(scheduleName)
-					resourceIDStr := kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName, desireName)
+					resourceIDStr := kubeapplierapihelpers.ToClusterScopedApplyDesireResourceIDString(testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName, desireName)
 					resourceID := metadataapi.Must(azcorearm.ParseResourceID(resourceIDStr))
 					applyDesire := &kubeapplierapi.ApplyDesire{
 						CosmosMetadata: coreapi.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(managementClusterResourceID.String())},
@@ -790,7 +792,7 @@ func TestBackupScheduleSyncer_SyncOnce(t *testing.T) {
 					require.NoError(t, err)
 					applyDesires = append(applyDesires, created)
 
-					readDesireResourceIDStr := kubeapplierapi.ToClusterScopedReadDesireResourceIDString(testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName, desireName)
+					readDesireResourceIDStr := kubeapplierapihelpers.ToClusterScopedReadDesireResourceIDString(testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName, desireName)
 					readDesireResourceID := metadataapi.Must(azcorearm.ParseResourceID(readDesireResourceIDStr))
 					readDesire := &kubeapplierapi.ReadDesire{
 						CosmosMetadata: coreapi.CosmosMetadata{ResourceID: readDesireResourceID, PartitionKey: strings.ToLower(managementClusterResourceID.String())},
@@ -972,7 +974,7 @@ func TestBackupScheduleSyncer_SyncOnce(t *testing.T) {
 				require.NoError(t, err)
 				var readDesires []*kubeapplierapi.ReadDesire
 				for _, applyDesire := range applyDesires {
-					rdResourceIDStr := kubeapplierapi.ToClusterScopedReadDesireResourceIDString(
+					rdResourceIDStr := kubeapplierapihelpers.ToClusterScopedReadDesireResourceIDString(
 						testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName, applyDesire.ResourceID.Name,
 					)
 					rdResourceID := metadataapi.Must(azcorearm.ParseResourceID(rdResourceIDStr))
@@ -1111,7 +1113,7 @@ func TestBackupScheduleSyncer_SyncOnce(t *testing.T) {
 				require.NoError(t, err)
 				var readDesires []*kubeapplierapi.ReadDesire
 				for _, applyDesire := range applyDesires {
-					rdResourceIDStr := kubeapplierapi.ToClusterScopedReadDesireResourceIDString(
+					rdResourceIDStr := kubeapplierapihelpers.ToClusterScopedReadDesireResourceIDString(
 						testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName, applyDesire.ResourceID.Name,
 					)
 					rdResourceID := metadataapi.Must(azcorearm.ParseResourceID(rdResourceIDStr))

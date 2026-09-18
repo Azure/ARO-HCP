@@ -41,6 +41,8 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
 	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
@@ -62,14 +64,14 @@ func newClusterInternalID(t *testing.T) ocm.InternalID {
 
 // newTestSubscription creates a properly-formed subscription with CosmosMetadata set
 func newTestSubscription(subscriptionID string, state coreapi.SubscriptionState, props *coreapi.SubscriptionProperties) *coreapi.Subscription {
-	resourceID := metadataapi.Must(coreapi.ToSubscriptionResourceID(subscriptionID))
+	resourceID := metadataapi.Must(coreapihelpers.ToSubscriptionResourceID(subscriptionID))
 	return &coreapi.Subscription{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   resourceID,
 			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 		},
 		State:            state,
-		RegistrationDate: metadataapi.Ptr(time.Now().String()),
+		RegistrationDate: metadataapihelpers.Ptr(time.Now().String()),
 		Properties:       props,
 	}
 }
@@ -233,11 +235,11 @@ func TestSubscriptionsPUT(t *testing.T) {
 			name:    "PUT Subscription - Doc does not exist",
 			urlPath: coreapitesting.TestSubscriptionResourceID,
 			subscription: &coreapi.Subscription{
-				CosmosMetadata:   coreapi.CosmosMetadata{ResourceID: metadataapi.Must(coreapi.ToSubscriptionResourceID(coreapitesting.TestSubscriptionID))},
+				CosmosMetadata:   coreapi.CosmosMetadata{ResourceID: metadataapi.Must(coreapihelpers.ToSubscriptionResourceID(coreapitesting.TestSubscriptionID))},
 				State:            coreapi.SubscriptionStateRegistered,
-				RegistrationDate: metadataapi.Ptr(time.Now().String()),
+				RegistrationDate: metadataapihelpers.Ptr(time.Now().String()),
 				Properties: &coreapi.SubscriptionProperties{
-					TenantId: metadataapi.Ptr("12345678-1234-1234-1234-123456789abc"),
+					TenantId: metadataapihelpers.Ptr("12345678-1234-1234-1234-123456789abc"),
 					AdditionalProperties: &map[string]any{
 						"foo": "bar",
 						"baz": []int{1, 2, 3, 4},
@@ -259,9 +261,9 @@ func TestSubscriptionsPUT(t *testing.T) {
 			name:    "PUT Subscription - Update with no changes",
 			urlPath: coreapitesting.TestSubscriptionResourceID,
 			subscription: &coreapi.Subscription{
-				CosmosMetadata:   coreapi.CosmosMetadata{ResourceID: metadataapi.Must(coreapi.ToSubscriptionResourceID(coreapitesting.TestSubscriptionID))},
+				CosmosMetadata:   coreapi.CosmosMetadata{ResourceID: metadataapi.Must(coreapihelpers.ToSubscriptionResourceID(coreapitesting.TestSubscriptionID))},
 				State:            coreapi.SubscriptionStateRegistered,
-				RegistrationDate: metadataapi.Ptr(time.Now().String()),
+				RegistrationDate: metadataapihelpers.Ptr(time.Now().String()),
 				Properties:       nil,
 			},
 			subDoc:             newTestSubscription(coreapitesting.TestSubscriptionID, coreapi.SubscriptionStateRegistered, nil),
@@ -272,14 +274,14 @@ func TestSubscriptionsPUT(t *testing.T) {
 			name:    "PUT Subscription - Update registered features",
 			urlPath: coreapitesting.TestSubscriptionResourceID,
 			subscription: &coreapi.Subscription{
-				CosmosMetadata:   coreapi.CosmosMetadata{ResourceID: metadataapi.Must(coreapi.ToSubscriptionResourceID(coreapitesting.TestSubscriptionID))},
+				CosmosMetadata:   coreapi.CosmosMetadata{ResourceID: metadataapi.Must(coreapihelpers.ToSubscriptionResourceID(coreapitesting.TestSubscriptionID))},
 				State:            coreapi.SubscriptionStateRegistered,
-				RegistrationDate: metadataapi.Ptr(time.Now().String()),
+				RegistrationDate: metadataapihelpers.Ptr(time.Now().String()),
 				Properties: &coreapi.SubscriptionProperties{
 					RegisteredFeatures: &[]coreapi.Feature{
 						{
-							Name:  metadataapi.Ptr("Microsoft.RedHatOpenShift/TestFeature"),
-							State: metadataapi.Ptr("Registered"),
+							Name:  metadataapihelpers.Ptr("Microsoft.RedHatOpenShift/TestFeature"),
+							State: metadataapihelpers.Ptr("Registered"),
 						},
 					},
 				},
@@ -293,7 +295,7 @@ func TestSubscriptionsPUT(t *testing.T) {
 			urlPath: "/subscriptions/oopsie-i-no-good0",
 			subscription: &coreapi.Subscription{
 				State:            coreapi.SubscriptionStateRegistered,
-				RegistrationDate: metadataapi.Ptr(time.Now().String()),
+				RegistrationDate: metadataapihelpers.Ptr(time.Now().String()),
 				Properties:       nil,
 			},
 			subDoc:             nil,
@@ -303,7 +305,7 @@ func TestSubscriptionsPUT(t *testing.T) {
 			name:    "PUT Subscription - Missing State",
 			urlPath: coreapitesting.TestSubscriptionResourceID,
 			subscription: &coreapi.Subscription{
-				RegistrationDate: metadataapi.Ptr(time.Now().String()),
+				RegistrationDate: metadataapihelpers.Ptr(time.Now().String()),
 				Properties:       nil,
 			},
 			subDoc:             nil,
@@ -314,7 +316,7 @@ func TestSubscriptionsPUT(t *testing.T) {
 			urlPath: coreapitesting.TestSubscriptionResourceID,
 			subscription: &coreapi.Subscription{
 				State:            "Bogus",
-				RegistrationDate: metadataapi.Ptr(time.Now().String()),
+				RegistrationDate: metadataapihelpers.Ptr(time.Now().String()),
 				Properties:       nil,
 			},
 			subDoc:             nil,
@@ -676,7 +678,7 @@ func TestRequestAdminCredential(t *testing.T) {
 		},
 	}
 
-	for clusterProvisioningState := range coreapi.ListProvisioningStates() {
+	for clusterProvisioningState := range coreapihelpers.ListProvisioningStates() {
 		test := testCase{
 			clusterProvisioningState: clusterProvisioningState,
 		}
@@ -790,7 +792,7 @@ func TestRevokeCredentials(t *testing.T) {
 		},
 	}
 
-	for clusterProvisioningState := range coreapi.ListProvisioningStates() {
+	for clusterProvisioningState := range coreapihelpers.ListProvisioningStates() {
 		test := testCase{
 			clusterProvisioningState: clusterProvisioningState,
 		}

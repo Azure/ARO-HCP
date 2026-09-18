@@ -31,6 +31,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -711,7 +712,7 @@ func newMockSubscriptionCRUD(client *MockResourcesDBClient) *mockSubscriptionCRU
 
 	// Override MakeResourceIDPath for subscription-specific resource ID construction
 	base.MakeResourceIDPath = func(resourceID string) (*azcorearm.ResourceID, error) {
-		return coreapi.ToSubscriptionResourceID(resourceID)
+		return coreapihelpers.ToSubscriptionResourceID(resourceID)
 	}
 
 	// Override GetListPrefix for subscription-specific listing (no parent prefix)

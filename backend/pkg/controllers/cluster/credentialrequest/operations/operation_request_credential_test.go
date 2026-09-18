@@ -34,6 +34,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -44,7 +45,7 @@ func TestOperationRequestCredentialPoll_ShouldProcess(t *testing.T) {
 	}
 
 	credResourceID := metadataapi.Must(azcorearm.ParseResourceID(
-		coreapi.ToSystemAdminCredentialRequestResourceIDString(testSubscriptionID, testResourceGroupName, testClusterName, testCredentialName),
+		coreapihelpers.ToSystemAdminCredentialRequestResourceIDString(testSubscriptionID, testResourceGroupName, testClusterName, testCredentialName),
 	))
 
 	tests := []struct {
@@ -116,7 +117,7 @@ func TestOperationRequestCredentialPoll_SynchronizeOperation(t *testing.T) {
 	fakeClock := clocktesting.NewFakeClock(fixedTime)
 
 	credResourceID := metadataapi.Must(azcorearm.ParseResourceID(
-		coreapi.ToSystemAdminCredentialRequestResourceIDString(testSubscriptionID, testResourceGroupName, testClusterName, testCredentialName),
+		coreapihelpers.ToSystemAdminCredentialRequestResourceIDString(testSubscriptionID, testResourceGroupName, testClusterName, testCredentialName),
 	))
 
 	tests := []struct {

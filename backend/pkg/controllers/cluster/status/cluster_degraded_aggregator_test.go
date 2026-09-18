@@ -35,6 +35,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/kubeapplierlistertesting"
@@ -87,15 +88,15 @@ func TestClusterDegradedAggregator_SyncOnce(t *testing.T) {
 
 	// Collision-safe desire source names: the source prefix followed by the
 	// desire's full lowercased resource ID (see CollectDegradedConditions).
-	applyXName := statusutils.ApplyDesireSourcePrefix + kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(
+	applyXName := statusutils.ApplyDesireSourcePrefix + kubeapplierapihelpers.ToClusterScopedApplyDesireResourceIDString(
 		statusutils.TestSubscriptionID, statusutils.TestResourceGroupName, statusutils.TestClusterName, "apply-x")
-	readYName := statusutils.ReadDesireSourcePrefix + kubeapplierapi.ToClusterScopedReadDesireResourceIDString(
+	readYName := statusutils.ReadDesireSourcePrefix + kubeapplierapihelpers.ToClusterScopedReadDesireResourceIDString(
 		statusutils.TestSubscriptionID, statusutils.TestResourceGroupName, statusutils.TestClusterName, "read-y")
-	applyZName := statusutils.ApplyDesireSourcePrefix + kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(
+	applyZName := statusutils.ApplyDesireSourcePrefix + kubeapplierapihelpers.ToClusterScopedApplyDesireResourceIDString(
 		statusutils.TestSubscriptionID, statusutils.TestResourceGroupName, statusutils.TestClusterName, "apply-z")
-	applyNoneName := statusutils.ApplyDesireSourcePrefix + kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(
+	applyNoneName := statusutils.ApplyDesireSourcePrefix + kubeapplierapihelpers.ToClusterScopedApplyDesireResourceIDString(
 		statusutils.TestSubscriptionID, statusutils.TestResourceGroupName, statusutils.TestClusterName, "apply-none")
-	readNoneName := statusutils.ReadDesireSourcePrefix + kubeapplierapi.ToClusterScopedReadDesireResourceIDString(
+	readNoneName := statusutils.ReadDesireSourcePrefix + kubeapplierapihelpers.ToClusterScopedReadDesireResourceIDString(
 		statusutils.TestSubscriptionID, statusutils.TestResourceGroupName, statusutils.TestClusterName, "read-none")
 
 	tests := []struct {

@@ -28,8 +28,9 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
@@ -117,7 +118,7 @@ func TestClusterWatchingControllerSyncHasLoggerContextValues(t *testing.T) {
 	notifier := &capturingNotifier{}
 	require.NoError(t, gwc.QueueForInformers(time.Minute, notifier))
 
-	clusterResourceID := metadataapi.Must(coreapi.ToClusterResourceID(subscriptionID, resourceGroup, clusterName))
+	clusterResourceID := metadataapi.Must(coreapihelpers.ToClusterResourceID(subscriptionID, resourceGroup, clusterName))
 	notifier.addFunc(&coreapi.CosmosMetadata{ResourceID: clusterResourceID})
 
 	var logOutput strings.Builder
@@ -201,7 +202,7 @@ func TestClusterWatchingControllerApplyDesireEnqueue(t *testing.T) {
 	// A cluster-scoped ApplyDesire sits one hop below the cluster, so maxDepth 1
 	// reaches the cluster and enqueues it.
 	clusterScopedID := metadataapi.Must(azcorearm.ParseResourceID(
-		kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(subscriptionID, resourceGroup, clusterName, "cfg")))
+		kubeapplierapihelpers.ToClusterScopedApplyDesireResourceIDString(subscriptionID, resourceGroup, clusterName, "cfg")))
 	notifier.addFunc(&coreapi.CosmosMetadata{ResourceID: clusterScopedID})
 
 	select {
@@ -216,7 +217,7 @@ func TestClusterWatchingControllerApplyDesireEnqueue(t *testing.T) {
 	// A node-pool-nested ApplyDesire is two hops from the cluster, beyond
 	// maxDepth 1, so it must NOT enqueue the cluster.
 	nodePoolNestedID := metadataapi.Must(azcorearm.ParseResourceID(
-		kubeapplierapi.ToNodePoolScopedApplyDesireResourceIDString(subscriptionID, resourceGroup, clusterName, "np", "cfg")))
+		kubeapplierapihelpers.ToNodePoolScopedApplyDesireResourceIDString(subscriptionID, resourceGroup, clusterName, "np", "cfg")))
 	notifier.addFunc(&coreapi.CosmosMetadata{ResourceID: nodePoolNestedID})
 
 	select {

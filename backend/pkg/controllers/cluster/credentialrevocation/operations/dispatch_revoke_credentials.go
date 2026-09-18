@@ -25,6 +25,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
@@ -125,7 +126,7 @@ func (c *dispatchRevokeCredentials) SynchronizeOperation(ctx context.Context, ke
 		operation.ExternalID.Name,
 	)
 
-	revocationResourceID, err := coreapi.ToSystemAdminCredentialRevocationResourceID(
+	revocationResourceID, err := coreapihelpers.ToSystemAdminCredentialRevocationResourceID(
 		operation.ExternalID.SubscriptionID,
 		operation.ExternalID.ResourceGroupName,
 		operation.ExternalID.Name,

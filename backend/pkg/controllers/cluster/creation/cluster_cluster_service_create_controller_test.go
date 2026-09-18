@@ -37,6 +37,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
 	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
@@ -63,7 +64,7 @@ const (
 
 // testManagementClusterResourceID returns the resource ID of the placed management cluster.
 func testManagementClusterResourceID() *azcorearm.ResourceID {
-	return metadataapi.Must(fleetapi.ToManagementClusterResourceID(testStampIdentifier))
+	return metadataapi.Must(fleetapihelpers.ToManagementClusterResourceID(testStampIdentifier))
 }
 
 // newTestManagementCluster returns a management cluster carrying the CS provision

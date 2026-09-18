@@ -27,12 +27,22 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 )
 
+// Canonical (lowercased) resource ID strings used by the fixtures below. These
+// mirror what the kubeapplierapihelpers.To*Scoped*ResourceIDString builders
+// produce; they are inlined here so this test (which validates the kubeapplierapi
+// runtime methods) does not import the apihelpers package.
+const (
+	testApplyDesireClusterScopedID  = "/subscriptions/00000000-0000-0000-0000-000000000001/resourcegroups/myrg/providers/microsoft.redhatopenshift/hcpopenshiftclusters/mycluster/applydesires/mydesire"
+	testReadDesireNodePoolScopedID  = "/subscriptions/00000000-0000-0000-0000-000000000001/resourcegroups/myrg/providers/microsoft.redhatopenshift/hcpopenshiftclusters/mycluster/nodepools/mynodepool/readdesires/mydesire"
+	testMgmtClusterResourceIDString = "/providers/microsoft.redhatopenshift/stamps/1/managementclusters/mgmt-1"
+)
+
 // fixtureMgmtClusterID is the parsed-once test management cluster resourceID
 // (stamp "1", management cluster "mgmt-1"). The fixtures below use it for
 // Spec.ManagementCluster.
 func fixtureMgmtClusterID(t *testing.T) *azcorearm.ResourceID {
 	t.Helper()
-	rid, err := azcorearm.ParseResourceID("/providers/microsoft.redhatopenshift/stamps/1/managementclusters/mgmt-1")
+	rid, err := azcorearm.ParseResourceID(testMgmtClusterResourceIDString)
 	if err != nil {
 		t.Fatalf("parse mgmt cluster resource id: %v", err)
 	}
@@ -43,9 +53,7 @@ func fixtureMgmtClusterID(t *testing.T) *azcorearm.ResourceID {
 // every nontrivial field, so deep-copy and round-trip tests can compare bytes.
 func fixtureApplyDesire(t *testing.T) *ApplyDesire {
 	t.Helper()
-	id, err := azcorearm.ParseResourceID(ToClusterScopedApplyDesireResourceIDString(
-		"00000000-0000-0000-0000-000000000001", "myRG", "myCluster", "myDesire",
-	))
+	id, err := azcorearm.ParseResourceID(testApplyDesireClusterScopedID)
 	if err != nil {
 		t.Fatalf("parse resource id: %v", err)
 	}
@@ -70,9 +78,7 @@ func fixtureApplyDesire(t *testing.T) *ApplyDesire {
 
 func fixtureReadDesire(t *testing.T) *ReadDesire {
 	t.Helper()
-	id, err := azcorearm.ParseResourceID(ToNodePoolScopedReadDesireResourceIDString(
-		"00000000-0000-0000-0000-000000000001", "myRG", "myCluster", "myNodePool", "myDesire",
-	))
+	id, err := azcorearm.ParseResourceID(testReadDesireNodePoolScopedID)
 	if err != nil {
 		t.Fatalf("parse resource id: %v", err)
 	}
