@@ -84,6 +84,9 @@ type costReport struct {
 	Option, Runtime         template.JS
 	TypeData                template.JS
 	InventoryData           template.JS
+	FilteredData            template.JS
+	SubscriptionData        template.JS
+	SubscriptionMode        bool
 	License, Notice         string
 }
 
@@ -102,7 +105,51 @@ func Render(w io.Writer, snapshot *Snapshot) error {
 	if snapshot.CostBasis != "" && snapshot.CostBasis != "AmortizedCost" && !strings.EqualFold(snapshot.CostBasis, "amortized") {
 		return fmt.Errorf("render cost report: unsupported cost basis %q", snapshot.CostBasis)
 	}
-	view := costReport{Snapshot: snapshot, License: echartsLicense + "\n\n" + d3License, Notice: echartsNotice}
+	if snapshot.Mode != "" && snapshot.Mode != "subscriptions" {
+		return fmt.Errorf("render cost report: unsupported mode %q", snapshot.Mode)
+	}
+	view := costReport{Snapshot: snapshot, SubscriptionMode: snapshot.Mode == "subscriptions", License: echartsLicense + "\n\n" + d3License, Notice: echartsNotice}
+	subscriptions := make(map[string]SubscriptionSummary)
+	retained := make(map[string]float64)
+	excluded := make(map[string]float64)
+	for _, sub := range snapshot.Subscriptions {
+		for _, amount := range []float64{sub.TotalUSD, sub.RetainedUSD, sub.ExcludedUSD} {
+			if math.IsNaN(amount) || math.IsInf(amount, 0) {
+				return fmt.Errorf("render cost report: subscription %q has non-finite cost", sub.ID)
+			}
+		}
+		if !view.SubscriptionMode {
+			continue
+		}
+		id := strings.ToLower(sub.ID)
+		if _, exists := subscriptions[id]; exists || id == "" {
+			return fmt.Errorf("render cost report: empty or duplicate subscription %q", sub.ID)
+		}
+		subscriptions[id] = sub
+		switch sub.BillingStatus {
+		case "complete":
+			// A successful subscription query can explicitly return no charges.
+			view.HasCharges = true
+		case "", "pending", "partial", "unavailable":
+			view.Incomplete = true
+		default:
+			return fmt.Errorf("render cost report: subscription %q has invalid billing status %q", sub.ID, sub.BillingStatus)
+		}
+	}
+	for _, group := range snapshot.FilteredGroups {
+		if math.IsNaN(group.CostUSD) || math.IsInf(group.CostUSD, 0) {
+			return fmt.Errorf("render cost report: filtered group %q has non-finite cost", group.Name)
+		}
+		if view.SubscriptionMode {
+			id := strings.ToLower(group.SubscriptionID)
+			if _, exists := subscriptions[id]; !exists {
+				return fmt.Errorf("render cost report: filtered group %q has unknown subscription %q", group.Name, group.SubscriptionID)
+			}
+			excluded[id] += group.CostUSD
+			// Recorded exclusions establish a known retained zero even if nothing remains.
+			view.HasCharges = true
+		}
+	}
 	for _, d := range snapshot.Diagnostics {
 		if d.Severity == "info" {
 			view.InfoDiagnostics = append(view.InfoDiagnostics, d)
@@ -124,12 +171,17 @@ func Render(w io.Writer, snapshot *Snapshot) error {
 		groupSubscriptions[name][strings.ToLower(group.SubscriptionID)] = true
 	}
 	finishDay := ""
-	if !snapshot.Job.FinishedAt.IsZero() {
+	if !view.SubscriptionMode && !snapshot.Job.FinishedAt.IsZero() {
 		finishDay = snapshot.Job.FinishedAt.UTC().Format(time.DateOnly)
 	}
 	for gi, group := range snapshot.Groups {
-		if group.Category != "Infra" && group.Category != "Tests" {
+		if (view.SubscriptionMode && group.Category != "Residual") || (!view.SubscriptionMode && group.Category != "Infra" && group.Category != "Tests") {
 			return fmt.Errorf("render cost report: group %q has invalid category %q", group.Name, group.Category)
+		}
+		if view.SubscriptionMode {
+			if _, exists := subscriptions[strings.ToLower(group.SubscriptionID)]; !exists {
+				return fmt.Errorf("render cost report: group %q has unknown subscription %q", group.Name, group.SubscriptionID)
+			}
 		}
 		switch group.BillingStatus {
 		case "complete":
@@ -199,11 +251,20 @@ func Render(w io.Writer, snapshot *Snapshot) error {
 			view.Net += row.Net
 			if row.Net > 0 {
 				view.Positive += row.Net
-				categoryNode := childCostNode(root, group.Category)
-				ownerNode := childCostNode(categoryNode, chartOwner)
+				var parents []*costNode
+				if view.SubscriptionMode {
+					parents = []*costNode{childCostNode(root, subscriptions[strings.ToLower(group.SubscriptionID)].ID)}
+				} else {
+					categoryNode := childCostNode(root, group.Category)
+					parents = []*costNode{categoryNode, childCostNode(categoryNode, chartOwner)}
+				}
 				if groupNode == nil {
 					groupNode = &costNode{Name: groupLabel}
-					ownerNode.Children = append(ownerNode.Children, groupNode)
+					if view.SubscriptionMode {
+						groupNode.Name = group.Name
+					}
+					parent := parents[len(parents)-1]
+					parent.Children = append(parent.Children, groupNode)
 				}
 				typeNode := childCostNode(groupNode, row.Type)
 				leaf := &costNode{Name: row.Name, Value: row.Net, Resource: row.Anchor}
@@ -216,7 +277,7 @@ func Render(w io.Writer, snapshot *Snapshot) error {
 				typeLeaf.Name = row.Name + " (" + groupLabel + ")"
 				resourceType.Children = append(resourceType.Children, &typeLeaf)
 				resourceType.Value += row.Net
-				for _, node := range []*costNode{categoryNode, ownerNode, groupNode, typeNode} {
+				for _, node := range append(parents, groupNode, typeNode) {
 					node.Value += row.Net
 				}
 			} else {
@@ -224,6 +285,23 @@ func Render(w io.Writer, snapshot *Snapshot) error {
 			}
 		}
 		view.Inventory = append(view.Inventory, inventory)
+		retained[strings.ToLower(group.SubscriptionID)] += inventory.Net
+	}
+	if view.SubscriptionMode {
+		for _, sub := range snapshot.Subscriptions {
+			id := strings.ToLower(sub.ID)
+			for _, pair := range [][2]float64{
+				{sub.TotalUSD, sub.ExcludedUSD + sub.RetainedUSD},
+				{sub.RetainedUSD, retained[id]},
+				{sub.ExcludedUSD, excluded[id]},
+			} {
+				// Allow floating-point accumulation noise, not missing accounting rows.
+				tolerance := 1e-6 + 1e-9*math.Max(math.Abs(pair[0]), math.Abs(pair[1]))
+				if math.IsNaN(pair[1]) || math.IsInf(pair[1], 0) || math.Abs(pair[0]-pair[1]) > tolerance {
+					return fmt.Errorf("render cost report: subscription %q reconciliation mismatch (%g vs %g)", sub.ID, pair[0], pair[1])
+				}
+			}
+		}
 	}
 	for _, total := range []float64{view.Positive, view.Negative, view.Net, view.PostJobNet} {
 		if math.IsNaN(total) || math.IsInf(total, 0) {
@@ -231,10 +309,10 @@ func Render(w io.Writer, snapshot *Snapshot) error {
 		}
 	}
 	job := snapshot.Job
-	if !job.StartedAt.IsZero() && !job.FinishedAt.IsZero() && job.FinishedAt.After(job.StartedAt) {
+	if !view.SubscriptionMode && !job.StartedAt.IsZero() && !job.FinishedAt.IsZero() && job.FinishedAt.After(job.StartedAt) {
 		view.JobDuration = job.FinishedAt.Sub(job.StartedAt).String()
 	}
-	if view.HasCharges && !job.InfraStartedAt.IsZero() && !job.InfraEndedAt.IsZero() && job.InfraEndedAt.After(job.InfraStartedAt) {
+	if !view.SubscriptionMode && view.HasCharges && !job.InfraStartedAt.IsZero() && !job.InfraEndedAt.IsZero() && job.InfraEndedAt.After(job.InfraStartedAt) {
 		rate := view.Net / job.InfraEndedAt.Sub(job.InfraStartedAt).Hours()
 		if !math.IsInf(rate, 0) && !math.IsNaN(rate) {
 			view.InfraRate = fmt.Sprintf("$%.4f", rate)
@@ -278,6 +356,18 @@ func Render(w io.Writer, snapshot *Snapshot) error {
 		return fmt.Errorf("render cost report: encode inventory: %w", err)
 	}
 	view.InventoryData = template.JS(inventoryData)
+	if view.SubscriptionMode {
+		filteredData, err := json.Marshal(snapshot.FilteredGroups)
+		if err != nil {
+			return fmt.Errorf("render cost report: encode filtered groups: %w", err)
+		}
+		view.FilteredData = template.JS(filteredData)
+		subscriptionData, err := json.Marshal(snapshot.Subscriptions)
+		if err != nil {
+			return fmt.Errorf("render cost report: encode subscriptions: %w", err)
+		}
+		view.SubscriptionData = template.JS(subscriptionData)
+	}
 	view.Runtime = template.JS(echartsRuntime)
 	tmpl, err := template.New("report").Funcs(template.FuncMap{
 		"usd": func(v float64) string { return fmt.Sprintf("$%.4f", v) },
