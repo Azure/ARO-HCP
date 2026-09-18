@@ -76,6 +76,82 @@ Because of that, it is more tolerant than per-test cleanup:
 
 ### Background hygiene
 
+#### Disposable service certificates
+
+CI service certificates live in the shared `aro-hcp-dev-svc-kv` vault, in the
+`global` resource group. Regional `templatize` teardown deliberately excludes
+that group: it also contains long-lived services and shared credentials. Do not
+enable global RG deletion to remove individual job certificates. Teardown starts
+RG deletion asynchronously, and certificate steps reference runtime vault outputs,
+so the periodic backstop handles these leftovers independently of the topology
+cleanup rather than assuming its consumers have already disappeared.
+
+For new `dev/ci00` and `dev/ci01` runs, `templatize` uses an explicit
+`EmailContacts` lifetime action instead of `AutoRenew` for job-named frontend,
+admin API, sessiongate, and Maestro server certificates in that shared vault.
+Validity remains six months. Changing only this lifetime action updates an
+existing CI certificate policy without issuing another version. Persistent
+environments, public cloud, shared identities, and other vaults retain their
+existing renewal behavior. This prevents new disposable certificates from
+incurring recurring renewals but does not clean up the legacy backlog by itself.
+
+The dedicated backstop is:
+
+```bash
+# Read-only rehearsal with an existing developer login:
+AZURE_CONFIG_DIR="$HOME/.azure-redhat" AZURE_TOKEN_CREDENTIALS=AzureCLICredential \
+  go run ./tooling/cleanup-sweeper ci-certificates \
+    --dry-run --min-age=168h --max-deletions=1000 --timeout=30m
+
+# Apply only after reviewing candidates and confirming the fixed DEV scope:
+AZURE_CONFIG_DIR="$HOME/.azure-redhat" AZURE_TOKEN_CREDENTIALS=AzureCLICredential \
+  go run ./tooling/cleanup-sweeper ci-certificates \
+    --dry-run=false --min-age=168h --max-deletions=1000 --timeout=30m
+```
+
+The command defaults to dry-run and has no vault or subscription override. It
+targets only `aro-hcp-dev-svc-kv` and checks resource groups in both DEV
+infrastructure subscriptions, `1d3378d3-5a3f-4712-85a1-2485495dfc4b` and
+`0ef1ad54-9296-44cd-9600-5dc8e9a74034`. Certificate metadata access and RG read
+access to both are required; apply additionally needs certificate delete access.
+No Graph credential or private key/secret reads are required.
+
+Deletion requires all of the following:
+
+- An exact `frontend-cert`, `admin-api-cert`, or `sessiongate-cert` name followed
+  by `-(prow|ci00|ci01)-jNNNNNNN`, or `maestro-server-jNNNNNNN`. Legacy `prow`
+  names are intentionally included in backlog cleanup.
+- Neither `persist=true` nor `doNotDelete=true`. Personal, shared DEV, CSPR, and
+  mock-identity certificate names do not match. Placeholder suffixes `0000000`
+  through `0000099` and fixture suffix `7654321` are always protected.
+- Both latest-version creation and update timestamps strictly older than the
+  cutoff (seven days by default; the minimum supported threshold is 24 hours).
+  Renewal or recent reuse postpones cleanup by another grace period. This is
+  deliberately more conservative than first-version age and avoids enumerating
+  version histories for tens of thousands of certificates.
+- No RG containing that exact job token in either subscription, including RGs
+  still being deleted. Any incomplete/failed RG inventory aborts deletion.
+- Unchanged, still-eligible latest certificate metadata immediately before delete,
+  with owner inventory refreshed before apply and no more than 30 seconds old.
+
+The command consumes every certificate inventory page before attempting deletes,
+caps selected candidates at `--max-deletions`, and emits JSON candidate and summary
+logs. It soft-deletes complete certificate objects, including all versions and
+their policy; backing certificate material can become unavailable. It never
+purges certificates or issues separate key/secret delete calls. Failed deletes
+are reported and retried only on a later run, after repeating safety checks.
+
+Azure does not provide an atomic owner-check/certificate-delete operation, so
+concurrent reuse of a seven-digit job suffix remains a race. The age guard, recent
+metadata revalidation, cross-subscription owner veto, and protected placeholders
+reduce that risk; a live owner or uncertain metadata always favors retention.
+
+The companion `openshift/release` periodic job
+`delete-expired-dev-ci-certificates` runs this command hourly with explicit apply,
+seven-day age, and a 1,000-certificate cap. The reusable step defaults to dry-run
+and forces dry-run for rehearsals/non-periodic invocations. Its rollout must follow
+the merge of this command; no certificate deletions are performed by unit tests.
+
 ```mermaid
 ---
 title: "BEST-EFFORT - background hygiene"
