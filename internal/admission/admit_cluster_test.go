@@ -60,6 +60,7 @@ func TestMutateCluster(t *testing.T) {
 		expectedControlPlaneAvailability  coreapi.ControlPlaneAvailability
 		expectedControlPlanePodSizing     coreapi.ControlPlanePodSizing
 		expectedControlPlaneOperatorImage string
+		expectedControlPlaneExactVersion  string
 	}{
 		{
 			name:               "nil subscription ignores all tags",
@@ -258,6 +259,19 @@ func TestMutateCluster(t *testing.T) {
 			expectErrors:       []utils.ExpectedError{},
 			expectZeroFeatures: true,
 		},
+		{
+			// The exact-version tag is translated in the same pass as every other
+			// experimental tag, so it composes with them.
+			name:         "AFEC registered with exact-version tag alongside single-replica",
+			subscription: afecRegistered,
+			tags: map[string]string{
+				metadataapi.TagClusterControlPlaneExactVersion: "4.17.3",
+				metadataapi.TagClusterSingleReplica:            string(coreapi.SingleReplicaControlPlane),
+			},
+			expectErrors:                     []utils.ExpectedError{},
+			expectedControlPlaneAvailability: coreapi.SingleReplicaControlPlane,
+			expectedControlPlaneExactVersion: "4.17.3",
+		},
 	}
 
 	for _, tt := range tests {
@@ -293,6 +307,13 @@ func TestMutateCluster(t *testing.T) {
 			if cluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneOperatorImage != tt.expectedControlPlaneOperatorImage {
 				t.Errorf("expected ControlPlaneOperatorImage %q, got %q",
 					tt.expectedControlPlaneOperatorImage, cluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneOperatorImage)
+			}
+			gotExact := ""
+			if exact := cluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion; exact != nil {
+				gotExact = exact.String()
+			}
+			if gotExact != tt.expectedControlPlaneExactVersion {
+				t.Errorf("expected ControlPlaneExactVersion %q, got %q", tt.expectedControlPlaneExactVersion, gotExact)
 			}
 		})
 	}
@@ -373,22 +394,22 @@ func TestMutateClusterControlPlaneExactVersion(t *testing.T) {
 			},
 		},
 		{
-			name:              "AFEC without exact-version tag relocates patch version.id",
-			subscription:      afecRegistered,
-			tags:              map[string]string{},
-			versionID:         "4.17.3",
-			expectErrors:      []utils.ExpectedError{},
-			expectExactString: "4.17.3",
-			expectVersionID:   "4.17",
+			name:            "AFEC without exact-version tag does not pin from patch version.id",
+			subscription:    afecRegistered,
+			tags:            map[string]string{},
+			versionID:       "4.17.3",
+			expectErrors:    []utils.ExpectedError{},
+			expectExactNil:  true,
+			expectVersionID: "4.17.3",
 		},
 		{
-			name:              "tag value is authoritative over patch version.id",
+			name:              "tag pins the exact version and leaves a patch version.id untouched",
 			subscription:      afecRegistered,
 			tags:              map[string]string{exactTag: "4.17.3"},
 			versionID:         "4.17.9",
 			expectErrors:      []utils.ExpectedError{},
 			expectExactString: "4.17.3",
-			expectVersionID:   "4.17",
+			expectVersionID:   "4.17.9",
 		},
 		{
 			name:         "AFEC with present-but-empty exact-version tag is rejected",
@@ -409,19 +430,41 @@ func TestMutateClusterControlPlaneExactVersion(t *testing.T) {
 			expectVersionID: "4.20.garbage",
 		},
 		{
-			name:              "AFEC with nightly version.id (no tag) is relocated and stripped to major.minor",
+			name:            "AFEC with nightly version.id (no tag) does not pin and is left untouched",
+			subscription:    afecRegistered,
+			tags:            map[string]string{},
+			versionID:       "5.0.0-0.nightly-multi-2026-07-09-124132",
+			expectErrors:    []utils.ExpectedError{},
+			expectExactNil:  true,
+			expectVersionID: "5.0.0-0.nightly-multi-2026-07-09-124132",
+		},
+		{
+			name:              "AFEC with nightly build in the tag pins the exact version",
 			subscription:      afecRegistered,
-			tags:              map[string]string{},
-			versionID:         "5.0.0-0.nightly-multi-2026-07-09-124132",
+			tags:              map[string]string{exactTag: "5.0.0-0.nightly-multi-2026-07-09-124132"},
+			versionID:         "5.0",
 			expectErrors:      []utils.ExpectedError{},
 			expectExactString: "5.0.0-0.nightly-multi-2026-07-09-124132",
 			expectVersionID:   "5.0",
 		},
 		{
-			name:            "AFEC with neither tag nor patch version.id clears an existing exact pin",
+			name:            "AFEC without the exact-version tag clears an existing exact pin on UPDATE",
 			subscription:    afecRegistered,
 			op:              operation.Operation{Type: operation.Update},
 			tags:            map[string]string{},
+			versionID:       "4.17",
+			oldExactVersion: "4.17.3",
+			expectErrors:    []utils.ExpectedError{},
+			expectExactNil:  true,
+			expectVersionID: "4.17",
+		},
+		{
+			// The pin is derived from tags on every pass, so an unrelated tag does
+			// not resurrect a pin whose tag is gone.
+			name:            "AFEC clears an existing exact pin on UPDATE even when other tags are present",
+			subscription:    afecRegistered,
+			op:              operation.Operation{Type: operation.Update},
+			tags:            map[string]string{metadataapi.TagClusterSingleReplica: string(coreapi.SingleReplicaControlPlane)},
 			versionID:       "4.17",
 			oldExactVersion: "4.17.3",
 			expectErrors:    []utils.ExpectedError{},
@@ -438,13 +481,22 @@ func TestMutateClusterControlPlaneExactVersion(t *testing.T) {
 			expectVersionID:   "4.20",
 		},
 		{
-			name:              "pre-release patch version.id (no tag) is relocated and stripped to major.minor",
+			name:              "pre-release build in the tag pins the exact version",
 			subscription:      afecRegistered,
-			tags:              map[string]string{},
-			versionID:         "4.20.0-rc.1",
+			tags:              map[string]string{exactTag: "4.20.0-rc.1"},
+			versionID:         "4.20",
 			expectErrors:      []utils.ExpectedError{},
 			expectExactString: "4.20.0-rc.1",
 			expectVersionID:   "4.20",
+		},
+		{
+			name:            "pre-release patch version.id (no tag) does not pin and is left untouched",
+			subscription:    afecRegistered,
+			tags:            map[string]string{},
+			versionID:       "4.20.0-rc.1",
+			expectErrors:    []utils.ExpectedError{},
+			expectExactNil:  true,
+			expectVersionID: "4.20.0-rc.1",
 		},
 	}
 
@@ -763,6 +815,7 @@ func TestAdmitCluster_Update(t *testing.T) {
 		etcd                         coreapi.EtcdProfile
 		options                      []string
 		serviceProviderClusterStatus coreapi.ServiceProviderClusterStatus
+		serviceProviderClusterSpec   coreapi.ServiceProviderClusterSpec
 		nodePools                    []*coreapi.HCPOpenShiftClusterNodePool
 		serviceProviderNodePools     []*coreapi.ServiceProviderNodePool
 		newClusterFromOld            func(*coreapi.HCPOpenShiftCluster) //This method uses a copy of the oldCluster, changes are applied to that copy.
@@ -1120,6 +1173,28 @@ func TestAdmitCluster_Update(t *testing.T) {
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.21.0"),
 			expectErrors:                 []utils.ExpectedError{},
 		},
+		{
+			// Proves AdmitCluster reaches the exact-version pin check through
+			// serviceProviderProperties, which no other case in this table
+			// exercises. The unit coverage of the rule itself lives in
+			// TestAdmitClusterControlPlaneExactVersion.
+			name:                "first exact-version pin below the desired version is rejected",
+			oldClusterVersionID: "4.21",
+			serviceProviderClusterSpec: coreapi.ServiceProviderClusterSpec{
+				ControlPlaneVersion: coreapi.ServiceProviderClusterSpecVersion{
+					DesiredVersion: ptr.To(semver.MustParse("4.21.9")),
+				},
+			},
+			newClusterFromOld: func(c *coreapi.HCPOpenShiftCluster) {
+				c.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion = ptr.To(semver.MustParse("4.21.0"))
+			},
+			expectErrors: []utils.ExpectedError{
+				{
+					FieldPath: "tags[aro-hcp.experimental.cluster.control-plane-exact-version]",
+					Message:   "may not decrease the desired control plane version from 4.21.9",
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -1128,6 +1203,7 @@ func TestAdmitCluster_Update(t *testing.T) {
 
 			serviceProviderCluster := &coreapi.ServiceProviderCluster{
 				CosmosMetadata: coreapi.CosmosMetadata{ResourceID: serviceProviderResourceID, PartitionKey: strings.ToLower(serviceProviderResourceID.SubscriptionID)},
+				Spec:           tt.serviceProviderClusterSpec,
 				Status:         tt.serviceProviderClusterStatus,
 			}
 
@@ -1516,6 +1592,166 @@ func TestAdmitClusterVersionID(t *testing.T) {
 			}
 
 			errs := admitClusterVersionID(ctx, admissionContext, tt.op, fldPath, tt.newVersion, tt.oldVersion)
+
+			utils.VerifyErrorsMatch(t, tt.expectErrors, errs)
+		})
+	}
+}
+
+// TestAdmitClusterControlPlaneExactVersion covers the rule that an exact-version
+// pin may not lower the version the control plane is already headed for
+// (ServiceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion).
+//
+// The case static validation cannot reach is the *first* pin on a previously
+// unpinned cluster: its "the pin may not decrease" rule compares the new pin
+// against the old pin, and with no old pin it is skipped entirely. Desired
+// version lives on a separate Cosmos document, so only admission — which the
+// frontend hands a prefetched ServiceProviderCluster — can see it.
+func TestAdmitClusterControlPlaneExactVersion(t *testing.T) {
+	t.Parallel()
+
+	// Matches the path validateControlPlaneExactVersionPin reports against: the
+	// tag is the only way to express an exact version and the only thing the
+	// customer can change.
+	const tagPath = "tags[aro-hcp.experimental.cluster.control-plane-exact-version]"
+
+	spcWithDesiredVersion := func(desired string) *coreapi.ServiceProviderCluster {
+		return &coreapi.ServiceProviderCluster{
+			Spec: coreapi.ServiceProviderClusterSpec{
+				ControlPlaneVersion: coreapi.ServiceProviderClusterSpecVersion{
+					DesiredVersion: ptr.To(semver.MustParse(desired)),
+				},
+			},
+		}
+	}
+	pinned := func(exact string) *coreapi.ExperimentalFeatures {
+		return &coreapi.ExperimentalFeatures{ControlPlaneExactVersion: ptr.To(semver.MustParse(exact))}
+	}
+	unpinned := func() *coreapi.ExperimentalFeatures {
+		return &coreapi.ExperimentalFeatures{}
+	}
+
+	tests := []struct {
+		name         string
+		op           operation.Operation
+		oldFeatures  *coreapi.ExperimentalFeatures
+		newFeatures  *coreapi.ExperimentalFeatures
+		spc          *coreapi.ServiceProviderCluster // nil models a missing/un-prefetched ServiceProviderCluster
+		expectErrors []utils.ExpectedError
+	}{
+		{
+			// The gap this check exists to close: no old pin, so static
+			// validation waves it through, while the graph controller has
+			// already advanced desired to 4.21.9.
+			name:        "first pin below the desired version is rejected",
+			op:          operation.Operation{Type: operation.Update},
+			oldFeatures: unpinned(),
+			newFeatures: pinned("4.21.0"),
+			spc:         spcWithDesiredVersion("4.21.9"),
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: tagPath, Message: "may not decrease the desired control plane version from 4.21.9"},
+			},
+		},
+		{
+			name:         "first pin equal to the desired version passes",
+			op:           operation.Operation{Type: operation.Update},
+			oldFeatures:  unpinned(),
+			newFeatures:  pinned("4.21.9"),
+			spc:          spcWithDesiredVersion("4.21.9"),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name:         "first pin above the desired version passes",
+			op:           operation.Operation{Type: operation.Update},
+			oldFeatures:  unpinned(),
+			newFeatures:  pinned("4.21.12"),
+			spc:          spcWithDesiredVersion("4.21.9"),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			// Lowering an existing pin is also caught here, since desired
+			// tracks the pin for an already-pinned cluster. Static validation
+			// reports its own error for the same request; both are correct.
+			name:        "lowering an existing pin below the desired version is rejected",
+			op:          operation.Operation{Type: operation.Update},
+			oldFeatures: pinned("4.21.9"),
+			newFeatures: pinned("4.21.5"),
+			spc:         spcWithDesiredVersion("4.21.9"),
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: tagPath, Message: "may not decrease the desired control plane version from 4.21.9"},
+			},
+		},
+		{
+			// A cluster pinned before this check existed may already sit below
+			// its stored desired version. Re-litigating an unchanged pin would
+			// fail every unrelated update to that cluster — exactly the wedge
+			// this change set removes — so the pin is only checked when it moves.
+			name:         "unchanged pin below the desired version passes",
+			op:           operation.Operation{Type: operation.Update},
+			oldFeatures:  pinned("4.21.0"),
+			newFeatures:  pinned("4.21.0"),
+			spc:          spcWithDesiredVersion("4.21.9"),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			// Dropping the tag is not a decrease: the pin stops applying and the
+			// controllers resolve from version.id again.
+			name:         "removing the pin passes",
+			op:           operation.Operation{Type: operation.Update},
+			oldFeatures:  pinned("4.21.9"),
+			newFeatures:  unpinned(),
+			spc:          spcWithDesiredVersion("4.21.9"),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			// Without AFEC, mutateClusterExperimentalFeatures zeroes the struct,
+			// so the pin is nil here and the check never runs.
+			name:         "no pin at all passes",
+			op:           operation.Operation{Type: operation.Update},
+			oldFeatures:  unpinned(),
+			newFeatures:  unpinned(),
+			spc:          spcWithDesiredVersion("4.21.9"),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			// Nothing to compare against. The missing prefetch is separately
+			// surfaced as an InternalError by admitClusterVersionProfile.
+			name:         "missing service provider cluster skips the check",
+			op:           operation.Operation{Type: operation.Update},
+			oldFeatures:  unpinned(),
+			newFeatures:  pinned("4.21.0"),
+			spc:          nil,
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name:         "unseeded desired version skips the check",
+			op:           operation.Operation{Type: operation.Update},
+			oldFeatures:  unpinned(),
+			newFeatures:  pinned("4.21.0"),
+			spc:          &coreapi.ServiceProviderCluster{},
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			// On CREATE (and preflight) nothing is desired yet and the frontend
+			// does not prefetch a ServiceProviderCluster.
+			name:         "create operation is a no-op",
+			op:           operation.Operation{Type: operation.Create},
+			oldFeatures:  nil,
+			newFeatures:  pinned("4.21.0"),
+			spc:          nil,
+			expectErrors: []utils.ExpectedError{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			admissionContext := &ClusterAdmissionContext{
+				ServiceProviderCluster: tt.spc,
+			}
+
+			errs := admitClusterControlPlaneExactVersion(admissionContext, tt.op, tt.newFeatures, tt.oldFeatures)
 
 			utils.VerifyErrorsMatch(t, tt.expectErrors, errs)
 		})

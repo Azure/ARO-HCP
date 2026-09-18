@@ -62,8 +62,10 @@ var _ = Describe("Customer", func() {
 			clusterParams.ClusterName = customerClusterName
 			clusterParams.ManagedResourceGroupName = framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			clusterParams.APIVisibility = "Private"
-			// Private KAS requires OCP >= 4.22 (CS validation rejects lower versions)
-			clusterParams.OpenshiftVersionId = "4.22"
+			// Private KAS requires OCP >= 4.22 (CS validation rejects lower versions).
+			// A bare release line clears the exact-version pin the defaults carry, which
+			// would otherwise contradict version.id.
+			clusterParams.OpenshiftVersionId = framework.ApplyControlPlaneExactVersionPin("4.22", clusterParams.Tags)
 
 			By("creating customer resources (infrastructure and managed identities)")
 			clusterParams, err = tc.CreateClusterCustomerResources20251223(ctx,

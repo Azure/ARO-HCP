@@ -87,102 +87,7 @@ func MutateCluster(ctx context.Context, admissionContext *ClusterAdmissionContex
 	// ServiceProviderProperties HCPOpenShiftClusterServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
 	errs = append(errs, mutateClusterServiceProviderProperties(ctx, admissionContext, op, field.NewPath("serviceProviderProperties"), &newObj.ServiceProviderProperties, safe.Field(oldObj, validation.ToClusterServiceProviderProperties))...)
 
-	// Relocate an exact version supplied through version.id onto the
-	// experimental features. Runs after mutateClusterServiceProviderProperties
-	// (which seeds ExperimentalFeatures from tags) because it needs both the
-	// customer-facing version.id and the service-provider ExperimentalFeatures.
-	errs = append(errs, mutateClusterControlPlaneExactVersion(ctx, admissionContext, op, newObj, oldObj)...)
-
 	return errs
-}
-
-// mutateClusterControlPlaneExactVersion pins the control plane to an exact
-// OpenShift version onto
-// ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion.
-//
-// It only acts when the ExperimentalReleaseFeatures AFEC is registered. With the
-// AFEC registered a customer may express an exact pin two ways:
-//   - the control-plane-exact-version tag carrying a full semantic version, or
-//   - a full "<major>.<minor>.<patch>" version.id (a value that parses as strict
-//     semver, including pre-release/build metadata such as nightly or ec builds).
-//
-// When either source is present, version.id is reduced to its "<major>.<minor>"
-// release line and the exact version is stored on ExperimentalFeatures. When
-// both the tag and a full version.id are supplied, the tag is authoritative: the
-// full-semver tag value determines the exact version and version.id's patch is
-// discarded.
-//
-// The tag must carry a value — a present-but-empty tag is rejected with a field
-// error rather than acting as a bare enable flag. A version.id that is not a full
-// version (a bare "<major>.<minor>", or malformed) is left untouched here; static
-// validation reports a malformed version.id.
-//
-// When neither source is present but the old cluster carried an exact pin, the
-// customer is removing it, so the exact version is cleared.
-//
-// Tags are read from admissionContext.OriginalCluster (the pre-mutation source
-// of truth) while version.id is read from and written back to the object being
-// mutated.
-func mutateClusterControlPlaneExactVersion(_ context.Context, admissionContext *ClusterAdmissionContext, _ operation.Operation, newObj, oldObj *coreapi.HCPOpenShiftCluster) field.ErrorList {
-	subscription := admissionContext.Subscription
-	if subscription == nil || !subscription.HasRegisteredFeature(metadataapi.FeatureExperimentalReleaseFeatures) {
-		return nil
-	}
-
-	var tags map[string]string
-	if admissionContext.OriginalCluster != nil {
-		tags = admissionContext.OriginalCluster.Tags
-	}
-	tagPresent := hasTag(tags, metadataapi.TagClusterControlPlaneExactVersion)
-	tagValue := lookupTag(tags, metadataapi.TagClusterControlPlaneExactVersion)
-
-	versionID := newObj.CustomerProperties.Version.ID
-	// version.id carries an exact pin only when it is a full "<major>.<minor>.<patch>"
-	// version. Strict semver parsing is the reliable test: it accepts pre-release
-	// and build metadata such as nightly or ec builds (e.g. "5.0.0-ec.6",
-	// "5.0.0-0.nightly-multi-2026-07-09-124132") while rejecting a bare
-	// "<major>.<minor>" like "4.17".
-	parsedVersionID, versionIDErr := semver.Parse(versionID)
-	versionIDIsExact := versionIDErr == nil
-
-	tagsPath := field.NewPath("tags")
-
-	switch {
-	case tagPresent && len(tagValue) == 0:
-		// The tag is authoritative and must carry a value; a present-but-empty tag
-		// is not a valid enable flag.
-		return field.ErrorList{field.Invalid(
-			tagsPath.Key(metadataapi.TagClusterControlPlaneExactVersion), tagValue,
-			"must specify an exact \"<major>.<minor>.<patch>\" version",
-		)}
-	case len(tagValue) > 0:
-		// The tag value is the authoritative exact version. version.id's patch (if
-		// any) is discarded and version.id reduced to the tag's release line.
-		parsed, err := semver.Parse(tagValue)
-		if err != nil {
-			return field.ErrorList{field.Invalid(
-				tagsPath.Key(metadataapi.TagClusterControlPlaneExactVersion), tagValue,
-				"must be a valid semantic version (e.g. \"4.17.3\")",
-			)}
-		}
-		newObj.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion = &parsed
-		newObj.CustomerProperties.Version.ID = fmt.Sprintf("%d.%d", parsed.Major, parsed.Minor)
-	case versionIDIsExact:
-		// No tag, but the customer pinned an exact version directly through a full
-		// version.id. A version.id that is not a full version (a bare
-		// "<major>.<minor>", or malformed) is left untouched here and validated by
-		// static validation.
-		exact := parsedVersionID
-		newObj.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion = &exact
-		newObj.CustomerProperties.Version.ID = fmt.Sprintf("%d.%d", parsedVersionID.Major, parsedVersionID.Minor)
-	default:
-		// Neither the tag nor a patch-bearing version.id is present. If the old
-		// cluster carried an exact pin, the customer is removing it, so clear it.
-		if oldObj != nil && oldObj.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion != nil {
-			newObj.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion = nil
-		}
-	}
-	return nil
 }
 
 // mutateClusterServiceProviderProperties applies mutations that live on the
@@ -285,9 +190,30 @@ func mutateClusterExperimentalFeatures(_ context.Context, admissionContext *Clus
 		}
 	}
 
-	// The control-plane-exact-version tag is handled entirely by
-	// mutateClusterControlPlaneExactVersion (which also reconciles it against
-	// version.id), so it is intentionally not translated here.
+	// ControlPlaneExactVersion is expressed only through this tag. version.id
+	// always carries the bare "<major>.<minor>" release line (static validation
+	// rejects a patch-bearing version.id), so the tag is the sole source of an
+	// exact build and, unlike version.id's patch component, it round-trips
+	// through GET. A present-but-empty tag is rejected rather than treated as a
+	// bare enable flag.
+	if hasTag(tags, metadataapi.TagClusterControlPlaneExactVersion) {
+		exactVersionValue := lookupTag(tags, metadataapi.TagClusterControlPlaneExactVersion)
+		parsed, err := semver.Parse(exactVersionValue)
+		switch {
+		case len(exactVersionValue) == 0:
+			errs = append(errs, field.Invalid(
+				tagsPath.Key(metadataapi.TagClusterControlPlaneExactVersion), exactVersionValue,
+				"must specify an exact \"<major>.<minor>.<patch>\" version",
+			))
+		case err != nil:
+			errs = append(errs, field.Invalid(
+				tagsPath.Key(metadataapi.TagClusterControlPlaneExactVersion), exactVersionValue,
+				"must be a valid semantic version (e.g. \"4.17.3\")",
+			))
+		default:
+			experimentalFeatures.ControlPlaneExactVersion = &parsed
+		}
+	}
 
 	if len(errs) > 0 {
 		return errs
@@ -419,7 +345,91 @@ func AdmitCluster(ctx context.Context, admissionContext *ClusterAdmissionContext
 	// CustomerProperties HCPOpenShiftClusterCustomerProperties `json:"customerProperties,omitempty"`
 	errs = append(errs, admitClusterCustomerProperties(ctx, admissionContext, op, field.NewPath("properties"), &newObj.CustomerProperties, safe.Field(oldObj, validation.ToClusterCustomerProperties))...)
 
+	// ServiceProviderProperties HCPOpenShiftClusterServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
+	errs = append(errs, admitClusterServiceProviderProperties(ctx, admissionContext, op, field.NewPath("serviceProviderProperties"), &newObj.ServiceProviderProperties, safe.Field(oldObj, validation.ToClusterServiceProviderProperties))...)
+
 	return errs
+}
+
+// admitClusterServiceProviderProperties drills down into the service-provider
+// half of the cluster, mirroring mutateClusterServiceProviderProperties.
+func admitClusterServiceProviderProperties(ctx context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.HCPOpenShiftClusterServiceProviderProperties) field.ErrorList {
+	errs := field.ErrorList{}
+
+	errs = append(errs, admitClusterExperimentalFeatures(ctx, admissionContext, op, fldPath.Child("experimentalFeatures"), &newObj.ExperimentalFeatures, safe.Field(oldObj, toSPExperimentalFeatures))...)
+
+	return errs
+}
+
+// admitClusterExperimentalFeatures admits the experimental-feature state that
+// mutateClusterExperimentalFeatures projected from the cluster's ARM tags.
+//
+// No explicit AFEC gate is needed here: without the feature registered
+// mutateClusterExperimentalFeatures zeroes ExperimentalFeatures outright, so
+// every field this sees is already nil and each check returns early.
+func admitClusterExperimentalFeatures(_ context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, _ *field.Path, newObj, oldObj *coreapi.ExperimentalFeatures) field.ErrorList {
+	errs := field.ErrorList{}
+
+	errs = append(errs, admitClusterControlPlaneExactVersion(admissionContext, op, newObj, oldObj)...)
+
+	return errs
+}
+
+// admitClusterControlPlaneExactVersion rejects an exact-version pin below
+// ServiceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion — the version the
+// desired-version controller resolved and the trigger-upgrade controller acts on.
+//
+// Static validation compares a new pin against the old pin, so it misses the first
+// pin on a previously unpinned cluster; it also cannot reach DesiredVersion, which
+// lives on a separate Cosmos document the frontend prefetches into the admission
+// context (see internal/admission/CLAUDE.md).
+//
+// Racy by construction: DesiredVersion is read before the write, so a graph advance
+// in between still lowers it — the controller's pin branch has no guard of its own.
+// Errors report against the tag, the only thing the customer can change.
+func admitClusterControlPlaneExactVersion(admissionContext *ClusterAdmissionContext, op operation.Operation, newObj, oldObj *coreapi.ExperimentalFeatures) field.ErrorList {
+	// On CREATE (and preflight) nothing has been desired yet, and the frontend
+	// does not prefetch a ServiceProviderCluster at all.
+	if op.Type != operation.Update {
+		return nil
+	}
+
+	newExact := newObj.ControlPlaneExactVersion
+	if newExact == nil {
+		// Dropping the pin is not a decrease: the pin simply stops applying and
+		// the controllers fall back to resolving from version.id.
+		return nil
+	}
+
+	// An unchanged pin must not be re-litigated. A cluster pinned before this
+	// check existed may already sit below its stored desired version, and
+	// rejecting it here would fail every unrelated update to that cluster —
+	// the same wedge this whole change set exists to remove. Lowering an
+	// existing pin is caught by static validation instead.
+	if oldObj != nil && oldObj.ControlPlaneExactVersion != nil && newExact.EQ(*oldObj.ControlPlaneExactVersion) {
+		return nil
+	}
+
+	// Nothing to compare against. A genuinely missing prefetch is already
+	// surfaced as an InternalError by admitClusterVersionProfile, so we do not
+	// duplicate that here.
+	if admissionContext.ServiceProviderCluster == nil {
+		return nil
+	}
+	desiredVersion := admissionContext.ServiceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion
+	if desiredVersion == nil {
+		return nil
+	}
+
+	if newExact.LT(*desiredVersion) {
+		return field.ErrorList{field.Invalid(
+			field.NewPath("tags").Key(metadataapi.TagClusterControlPlaneExactVersion),
+			newExact.String(),
+			fmt.Sprintf("may not decrease the desired control plane version from %s", desiredVersion),
+		)}
+	}
+
+	return nil
 }
 
 // admitClusterCustomerProperties drills down into the customer-facing portion

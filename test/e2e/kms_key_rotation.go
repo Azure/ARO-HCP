@@ -60,7 +60,9 @@ var _ = Describe("Customer", func() {
 			By("creating cluster parameters with version 4.22")
 			clusterParams := framework.NewDefaultClusterParams20260901()
 			clusterParams.ClusterName = clusterName
-			clusterParams.OpenshiftVersionId = "4.22"
+			// A bare release line clears the exact-version pin the defaults carry, which
+			// would otherwise contradict version.id.
+			clusterParams.OpenshiftVersionId = framework.ApplyControlPlaneExactVersionPin("4.22", clusterParams.Tags)
 
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			clusterParams.ManagedResourceGroupName = managedResourceGroupName

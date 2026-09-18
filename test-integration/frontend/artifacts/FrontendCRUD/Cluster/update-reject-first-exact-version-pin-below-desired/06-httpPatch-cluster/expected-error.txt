@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": "InvalidRequestContent",
+    "message": "Invalid value: \"4.21.0\": may not decrease the desired control plane version from 4.21.9",
+    "target": "tags[aro-hcp.experimental.cluster.control-plane-exact-version]"
+  }
+}
