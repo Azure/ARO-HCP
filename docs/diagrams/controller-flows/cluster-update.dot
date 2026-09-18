@@ -1,0 +1,30 @@
+digraph cluster_update {
+  graph [rankdir=TB, bgcolor="white", pad="0.3", nodesep="0.4", ranksep="0.55", fontname="DejaVu Sans", fontsize=18, labelloc=t, label="Cluster update · configuration and version feedback", dpi=110];
+  node [shape=box, style="rounded,filled", fillcolor="#e6f0fa", color="#35648a", fontname="DejaVu Sans", fontsize=12, margin="0.16,0.10"];
+  edge [color="#536577", fontname="DejaVu Sans", fontsize=10, arrowsize=0.7];
+  put [label="Frontend PUT / PATCH cluster\nreplace desired state + Update Operation", fillcolor="#eee7fb", color="#7b59a4"];
+  dispatch [label="ClusterClusterServiceUpdate\nDispatch", fillcolor="#e6f0fa", color="#35648a"];
+  desired [label="ControlPlaneDesiredVersion", fillcolor="#e6f0fa", color="#35648a"];
+  upgrade [label="TriggerControlPlaneUpgrade", fillcolor="#e6f0fa", color="#35648a"];
+  cs [label="Cluster Service\nconfiguration / upgrade policy", fillcolor="#fff0da", color="#b27624"];
+  kube [label="ClusterResources → ApplyDesireController\nKubernetes / HyperShift convergence", fillcolor="#fff0da", color="#b27624"];
+  mirror [label="ReadDesireKubernetesController", fillcolor="#e6f0fa", color="#35648a"];
+  active [label="ControlPlaneActiveVersions", fillcolor="#e6f0fa", color="#35648a"];
+  op [label="OperationClusterUpdate", fillcolor="#e6f0fa", color="#35648a"];
+  done [label="ARM terminal operation state\nSucceeded or Failed", fillcolor="#e4f2e5", color="#4c8053"];
+  put -> dispatch [label="changed dispatchable\nconfiguration"];
+  put -> desired [label="requested version / channel"];
+  desired -> upgrade [label="desired exact version"];
+  dispatch -> cs [label="PATCH"];
+  upgrade -> cs [label="submit upgrade policy"];
+  cs -> kube [label="desired manifests"];
+  kube -> mirror [label="observed HostedCluster"];
+  mirror -> active [label="version history"];
+  cs -> op [label="Cluster Service state"];
+  mirror -> op [label="observed readiness / version"];
+  upgrade -> op [label="upgrade intent failure, if\nrejected"];
+  op -> done [label="completion or failure checks"];
+  active -> upgrade [label="active versus desired", style=dashed, color="#857456", constraint=false];
+  active -> desired [label="observed versions constrain\nnext selection", style=dashed, color="#857456", constraint=false];
+  op -> op [label="still progressing: poll again", style=dashed, color="#857456", constraint=false];
+}

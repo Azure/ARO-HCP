@@ -1,0 +1,28 @@
+digraph nodepool_update {
+  graph [rankdir=TB, bgcolor="white", pad="0.3", nodesep="0.4", ranksep="0.55", fontname="DejaVu Sans", fontsize=18, labelloc=t, label="Node pool update · controller flow", dpi=110];
+  node [shape=box, style="rounded,filled", fillcolor="#e6f0fa", color="#35648a", fontname="DejaVu Sans", fontsize=12, margin="0.16,0.10"];
+  edge [color="#536577", fontname="DejaVu Sans", fontsize=10, arrowsize=0.7];
+  api [label="Frontend PUT / PATCH node pool\ndesired state + Update Operation", fillcolor="#eee7fb", color="#7b59a4"];
+  dispatch [label="NodePoolClusterServiceUpdate\nDispatch", fillcolor="#e6f0fa", color="#35648a"];
+  version [label="NodePoolVersion", fillcolor="#e6f0fa", color="#35648a"];
+  upgrade [label="TriggerNodePoolUpgrade", fillcolor="#e6f0fa", color="#35648a"];
+  cs [label="Cluster Service node pool", fillcolor="#fff0da", color="#b27624"];
+  kube [label="ClusterResources / ApplyDesireController\nKubernetes NodePool convergence", fillcolor="#fff0da", color="#b27624"];
+  mirror [label="ReadDesireKubernetesController", fillcolor="#e6f0fa", color="#35648a"];
+  active [label="NodePoolActiveVersions", fillcolor="#e6f0fa", color="#35648a"];
+  op [label="OperationNodePoolUpdate", fillcolor="#e6f0fa", color="#35648a"];
+  done [label="ARM operation terminal state", fillcolor="#e4f2e5", color="#4c8053"];
+  api -> dispatch [label="changed dispatchable\nconfiguration"];
+  api -> version [label="requested version"];
+  version -> upgrade [label="desired version"];
+  dispatch -> cs [label="PATCH"];
+  upgrade -> cs [label="upgrade policy"];
+  cs -> kube [label="desired manifests"];
+  kube -> mirror [label="observed NodePool"];
+  mirror -> active [label="observed version"];
+  cs -> op [label="state / upgrade status"];
+  mirror -> op [label="observed NodePool status"];
+  op -> done [label="complete or fail"];
+  active -> upgrade [label="active versus desired", style=dashed, color="#857456", constraint=false];
+  op -> op [label="pending: poll again", style=dashed, color="#857456", constraint=false];
+}

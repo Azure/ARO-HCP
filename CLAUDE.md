@@ -257,13 +257,14 @@ Custom tools in `tooling/`:
 
 ## Cosmos Data Flow Documentation
 
-`docs/cosmos-data-flow.md` documents every Cosmos DB read and write performed by frontend endpoints and backend controllers. It must be kept in sync with the code.
+`docs/cosmos-data-flow.md` documents every controller, endpoint writes, external resource effects, and cluster/node-pool/external-auth lifecycles. Keep the reference and its Graphviz sources/PNGs in sync with the code.
 
 ### When to regenerate
-Regenerate `docs/cosmos-data-flow.md` (using the generation prompt at the bottom of that file) whenever a change touches:
+Regenerate `docs/cosmos-data-flow.md` (using [the generation prompt](docs/prompts/controller-data-flow.md)) whenever a change touches:
 - `frontend/pkg/frontend/` — any handler that writes to Cosmos
-- `backend/pkg/controllers/` — any controller that reads or writes Cosmos fields
-- `internal/api/types_*.go` — any struct field that is stored in Cosmos
+- Controller implementations or startup registration in backend, fleet, kube-applier, mgmt-agent, sessiongate, or shared informer management — including controllers without Cosmos writes
+- Azure/Cluster Service/Kubernetes effects, reconciliation gates, or resource lifecycle dependencies
+- `internal/api/` — any struct field that is stored in Cosmos
 - `internal/database/` — any change to CRUD operations or precondition logic
 
 ### Field-level writer annotations

@@ -1,0 +1,19 @@
+digraph externalauth_create {
+  graph [rankdir=TB, bgcolor="white", pad="0.3", nodesep="0.4", ranksep="0.55", fontname="DejaVu Sans", fontsize=18, labelloc=t, label="External auth create · controller flow", dpi=110];
+  node [shape=box, style="rounded,filled", fillcolor="#e6f0fa", color="#35648a", fontname="DejaVu Sans", fontsize=12, margin="0.16,0.10"];
+  edge [color="#536577", fontname="DejaVu Sans", fontsize=10, arrowsize=0.7];
+  api [label="Frontend PUT external auth\nresource + Create Operation", fillcolor="#eee7fb", color="#7b59a4"];
+  parent [label="Parent cluster ClusterServiceID", fillcolor="#e4f2e5", color="#4c8053"];
+  create [label="ExternalAuthClusterServiceCreate", fillcolor="#e6f0fa", color="#35648a"];
+  cs [label="Cluster Service external auth", fillcolor="#fff0da", color="#b27624"];
+  op [label="OperationExternalAuthCreate", fillcolor="#e6f0fa", color="#35648a"];
+  done [label="ARM Create Operation Succeeded", fillcolor="#e4f2e5", color="#4c8053"];
+  external [label="Downstream authentication rollout\nmanaged outside this poller", fillcolor="#fff0da", color="#b27624"];
+  api -> create [label="not deleting; child ID absent"];
+  parent -> create [label="parent ID required"];
+  create -> cs [label="adopt or POST; persist child\nID"];
+  cs -> op [label="GET succeeds"];
+  op -> done [label="resource existence confirms\ncompletion"];
+  cs -> external [label="external desired configuration"];
+  op -> op [label="pending: observe again", style=dashed, color="#857456", constraint=false];
+}

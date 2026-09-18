@@ -1,0 +1,35 @@
+digraph nodepool_create {
+  graph [rankdir=TB, bgcolor="white", pad="0.3", nodesep="0.4", ranksep="0.55", fontname="DejaVu Sans", fontsize=18, labelloc=t, label="Node pool create · controller flow", dpi=110];
+  node [shape=box, style="rounded,filled", fillcolor="#e6f0fa", color="#35648a", fontname="DejaVu Sans", fontsize=12, margin="0.16,0.10"];
+  edge [color="#536577", fontname="DejaVu Sans", fontsize=10, arrowsize=0.7];
+  api [label="Frontend PUT node pool\nresource + Create Operation", fillcolor="#eee7fb", color="#7b59a4"];
+  parent [label="Parent cluster\nClusterServiceID + placement", fillcolor="#e4f2e5", color="#4c8053"];
+  create [label="NodePoolClusterServiceCreate", fillcolor="#e6f0fa", color="#35648a"];
+  sp [label="CreateServiceProviderNodePool", fillcolor="#e6f0fa", color="#35648a"];
+  version [label="NodePoolVersion", fillcolor="#e6f0fa", color="#35648a"];
+  upgrade [label="TriggerNodePoolUpgrade", fillcolor="#e6f0fa", color="#35648a"];
+  cs [label="Cluster Service node pool", fillcolor="#fff0da", color="#b27624"];
+  resources [label="ClusterResources / ApplyDesireController\nKubernetes NodePool convergence", fillcolor="#fff0da", color="#b27624"];
+  read [label="CreateNodePoolScopedReadDesires", fillcolor="#e6f0fa", color="#35648a"];
+  mirror [label="ReadDesireKubernetesController", fillcolor="#e6f0fa", color="#35648a"];
+  active [label="NodePoolActiveVersions", fillcolor="#e6f0fa", color="#35648a"];
+  op [label="OperationNodePoolCreate", fillcolor="#e6f0fa", color="#35648a"];
+  done [label="ARM operation terminal state", fillcolor="#e4f2e5", color="#4c8053"];
+  api -> create [label="live resource; ID absent"];
+  parent -> create [label="parent ID required"];
+  api -> sp [label="missing service-provider\ndocument"];
+  sp -> version [label="requested version / cluster\nconstraints"];
+  version -> upgrade [label="desired exact version"];
+  create -> cs [label="adopt or POST; persist ID"];
+  upgrade -> cs [label="upgrade policy when needed"];
+  cs -> resources [label="desired manifests"];
+  parent -> read [label="placement / namespace"];
+  create -> read [label="node-pool identity"];
+  resources -> mirror [label="observed NodePool"];
+  read -> mirror [label="ReadDesire"];
+  mirror -> active [label="observed version"];
+  cs -> op [label="external state"];
+  op -> done [label="complete or fail"];
+  active -> upgrade [label="active versus desired", style=dashed, color="#857456", constraint=false];
+  op -> op [label="pending: poll again", style=dashed, color="#857456", constraint=false];
+}
