@@ -49,3 +49,10 @@ func IsAzureCoreResponseErrorHTTP404(err error) bool {
 	var azErr *azcore.ResponseError
 	return errors.As(err, &azErr) && azErr.StatusCode == http.StatusNotFound
 }
+
+// IsRoleAssignmentExistsErr is used during creation of a role assignment to determine if the creation error
+// occurred because the role assignment already existing.
+func IsRoleAssignmentExistsErr(err error) bool {
+	var azErr *azcore.ResponseError
+	return errors.As(err, &azErr) && azErr.ErrorCode == "RoleAssignmentExists"
+}
