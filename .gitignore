@@ -12,6 +12,7 @@ node_modules
 /*.pem
 .DS_Store
 .idea
+.scratch
 env
 */archive.tar.gz
 tooling/bin
