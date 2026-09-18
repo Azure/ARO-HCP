@@ -145,8 +145,9 @@ type ServiceProviderClusterSpec struct {
 	// Assignment controller holds this cluster at PinnedVersion.ExactVersion until
 	// the fleet's bestExactVersion reaches PinnedVersion.UntilExactVersion, after
 	// which the pin is cleared and normal rollout selection resumes. An empty
-	// PinnedVersion (nil ExactVersion) means no pin.
-	// Written by: Admin API (set), Forced Cluster Desired Version Assignment (clear)
+	// PinnedVersion (nil ExactVersion) means no pin and serializes as {}. The
+	// Admin API setter is a follow-up; this change only implements consuming pins.
+	// Written by: Forced Cluster Desired Version Assignment (clear)
 	PinnedVersion ServiceProviderClusterPinnedVersion `json:"pinnedVersion,omitempty"`
 }
 
@@ -160,8 +161,10 @@ type ServiceProviderClusterSpecVersion struct {
 	// DesiredVersionLastTransitionTime is when DesiredVersion last changed. It is
 	// used to decide when a cluster has been mismatched (desired set but not yet
 	// achieved) for longer than the allowed upgrade duration.
+	// Legacy missing/zero timestamps are initialized at first observation by
+	// InitialNormalClusterDesiredVersion without changing the desired version.
 	// TODO: align DesiredVersion with its transition time into a better structure
-	// (mirroring HCPClusterActiveVersion), instead of two loosely-coupled fields.
+	// (mirroring ServiceProviderClusterActiveVersion), instead of two loosely-coupled fields.
 	// Written by: Forced Cluster Desired Version Assignment, Normal Cluster Desired Version Assignment, InitialNormalClusterDesiredVersion, MinorUpgradeNormalClusterDesiredVersion
 	DesiredVersionLastTransitionTime *metav1.Time `json:"desired_version_last_transition_time,omitempty"`
 }
@@ -171,12 +174,12 @@ type ServiceProviderClusterSpecVersion struct {
 type ServiceProviderClusterPinnedVersion struct {
 	// ExactVersion is the exact z-stream this cluster is pinned to regardless of
 	// its previous version.
-	// Written by: Admin API
+	// Written by: Forced Cluster Desired Version Assignment (clear); Admin API setter planned
 	ExactVersion *semver.Version `json:"exactVersion,omitempty"`
 
 	// UntilExactVersion is the fleet bestExactVersion at or above which the pin is
 	// released and normal upgrade selection may continue.
-	// Written by: Admin API
+	// Written by: Forced Cluster Desired Version Assignment (clear); Admin API setter planned
 	UntilExactVersion *semver.Version `json:"untilExactVersion,omitempty"`
 }
 
@@ -539,10 +542,12 @@ type ServiceProviderClusterActiveVersion struct {
 	// Written by: ControlPlaneActiveVersions
 	Version *semver.Version `json:"version,omitempty"`
 	// State is the update state from OpenShift (e.g. configv1.CompletedUpdate or configv1.PartialUpdate).
+	// Written by: ControlPlaneActiveVersions
 	State configv1.UpdateState `json:"state,omitempty"`
 	// LastTransitionTime is when we last observed this version enter its current
 	// State. It is used to decide when a cluster has held an achieved version
 	// long enough to be considered successfully upgraded.
+	// Written by: ControlPlaneActiveVersions
 	LastTransitionTime metav1.Time `json:"lastTransitionTime,omitempty"`
 }
 

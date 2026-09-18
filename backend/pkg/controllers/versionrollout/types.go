@@ -14,7 +14,7 @@
 
 // Package versionrollout implements the fleet control plane version rollout
 // described in docs/controllers/fleet-control-plane-version-rollout.md and the
-// implementation plan alongside it. It contains four controllers:
+// implementation plan alongside it. It contains seven controllers:
 //
 //   - Best Version Selection (per rollout): computes Spec.BestExactVersion for a
 //     y-stream channel from the upgrade graph and SRE minimum-version floor.
@@ -26,6 +26,11 @@
 //   - Forced Cluster Desired Version Assignment (per cluster): holds an
 //     SRE-pinned cluster at its pinned exact version until the fleet best version
 //     reaches the pin's release threshold.
+//   - Rollout Seeding (per cluster): creates requested and pinned channel rollouts.
+//   - Initial Normal Desired Version (per cluster): assigns initial versions and
+//     backfills legacy desired-version timestamps.
+//   - Minor Upgrade Normal Desired Version (per cluster): assigns the requested
+//     minor's best version, while respecting forced overrides.
 //
 // The decision logic of every controller is factored into pure functions so it
 // can be unit-tested without Cosmos or informers.

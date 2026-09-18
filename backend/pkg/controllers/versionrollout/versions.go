@@ -22,6 +22,8 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	configv1 "github.com/openshift/api/config/v1"
+
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 )
 
@@ -52,10 +54,10 @@ func parseYStreamChannel(channel string) (channelGroup, minor string, ok bool) {
 // completed update, so the last element is the completed base the control plane
 // is currently running. A cluster has "achieved" version v when its earliest
 // active version equals v (i.e. the list has collapsed to just the completed
-// target). Returns nil when there are no active versions.
-func earliestActiveVersionEntry(activeVersions []coreapi.HCPClusterActiveVersion) *coreapi.HCPClusterActiveVersion {
+// target). Returns nil when there is no completed active version.
+func earliestActiveVersionEntry(activeVersions []coreapi.ServiceProviderClusterActiveVersion) *coreapi.ServiceProviderClusterActiveVersion {
 	for i := len(activeVersions) - 1; i >= 0; i-- {
-		if activeVersions[i].Version != nil {
+		if activeVersions[i].Version != nil && activeVersions[i].State == configv1.CompletedUpdate {
 			return &activeVersions[i]
 		}
 	}
@@ -63,8 +65,8 @@ func earliestActiveVersionEntry(activeVersions []coreapi.HCPClusterActiveVersion
 }
 
 // earliestActiveVersion returns the earliest (oldest) version present in a
-// cluster's active versions, or nil when there are none.
-func earliestActiveVersion(activeVersions []coreapi.HCPClusterActiveVersion) *semver.Version {
+// cluster's completed active versions, or nil when there are none.
+func earliestActiveVersion(activeVersions []coreapi.ServiceProviderClusterActiveVersion) *semver.Version {
 	if entry := earliestActiveVersionEntry(activeVersions); entry != nil {
 		return entry.Version
 	}
@@ -87,15 +89,22 @@ func maxVersion(a, b *semver.Version) *semver.Version {
 }
 
 // setDesiredVersion sets the cluster's desired control-plane version and, when
-// the version actually changes, records the transition time. This transition
-// time feeds the rollout's mismatch/failure accounting.
+// the version changes or its timestamp is missing, records the transition time.
+// This transition time feeds the rollout's mismatch/failure accounting.
 func setDesiredVersion(serviceProviderCluster *coreapi.ServiceProviderCluster, newDesired *semver.Version, now metav1.Time) {
 	current := serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion
-	if current != nil && newDesired != nil && current.EQ(*newDesired) {
+	if current != nil && newDesired != nil && current.EQ(*newDesired) && !serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersionLastTransitionTime.IsZero() {
 		return
 	}
 	serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion = newDesired
 	serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersionLastTransitionTime = &now
+}
+
+// hasForcedVersion identifies clusters owned by forced assignment, even before
+// that controller has persisted the override as their desired version.
+func hasForcedVersion(cluster *coreapi.HCPOpenShiftCluster, serviceProviderCluster *coreapi.ServiceProviderCluster) bool {
+	return serviceProviderCluster.Spec.PinnedVersion.ExactVersion != nil ||
+		cluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion != nil
 }
 
 // versionString renders a possibly-nil version for logging.

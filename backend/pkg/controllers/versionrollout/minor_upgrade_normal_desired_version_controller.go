@@ -66,6 +66,9 @@ func NewMinorUpgradeNormalClusterDesiredVersionController(clock utilsclock.Passi
 }
 
 func (c *minorUpgradeNormalClusterDesiredVersionSyncer) NeedsWork(cluster *coreapi.HCPOpenShiftCluster, serviceProviderCluster *coreapi.ServiceProviderCluster) bool {
+	if hasForcedVersion(cluster, serviceProviderCluster) {
+		return false
+	}
 	desired := serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion
 	if desired == nil {
 		return false

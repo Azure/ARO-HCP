@@ -45,12 +45,12 @@ func v(s string) *semver.Version {
 }
 
 // completed / partial build active-version entries.
-func completed(version string) coreapi.HCPClusterActiveVersion {
-	return coreapi.HCPClusterActiveVersion{Version: v(version), State: configv1.CompletedUpdate}
+func completed(version string) coreapi.ServiceProviderClusterActiveVersion {
+	return coreapi.ServiceProviderClusterActiveVersion{Version: v(version), State: configv1.CompletedUpdate}
 }
 
-func partial(version string) coreapi.HCPClusterActiveVersion {
-	return coreapi.HCPClusterActiveVersion{Version: v(version), State: configv1.PartialUpdate}
+func partial(version string) coreapi.ServiceProviderClusterActiveVersion {
+	return coreapi.ServiceProviderClusterActiveVersion{Version: v(version), State: configv1.PartialUpdate}
 }
 
 func newTestCluster(name, channelGroup, versionID string) *coreapi.HCPOpenShiftCluster {
@@ -73,7 +73,7 @@ func newTestCluster(name, channelGroup, versionID string) *coreapi.HCPOpenShiftC
 	}
 }
 
-func newTestSPC(clusterName string, desired *semver.Version, active []coreapi.HCPClusterActiveVersion, pinned *coreapi.ServiceProviderClusterPinnedVersion) *coreapi.ServiceProviderCluster {
+func newTestSPC(clusterName string, desired *semver.Version, active []coreapi.ServiceProviderClusterActiveVersion, pinned *coreapi.ServiceProviderClusterPinnedVersion) *coreapi.ServiceProviderCluster {
 	var pinnedValue coreapi.ServiceProviderClusterPinnedVersion
 	if pinned != nil {
 		pinnedValue = *pinned

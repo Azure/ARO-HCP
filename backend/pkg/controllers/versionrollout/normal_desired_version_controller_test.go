@@ -18,17 +18,19 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	utilsclock "k8s.io/utils/clock"
+	clocktesting "k8s.io/utils/clock/testing"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/fleetlistertesting"
 )
 
 func TestEligibleClusters(t *testing.T) {
@@ -165,11 +167,19 @@ func TestRolloutDecision(t *testing.T) {
 			totalClusters: 100,
 			eligibleCount: 50,
 			wantOutcome:   outcomeRolling,
-			wantSelect:    13, // 20 - 7
+			wantSelect:    18, // 20 - (7 - 5 successful)
+		},
+		{
+			name:          "successful window frees slots for the next batch",
+			rollout:       rolloutWithCounts("4.21.6", 20, 0, 20, 20, 0),
+			totalClusters: 100,
+			eligibleCount: 80,
+			wantOutcome:   outcomeRolling,
+			wantSelect:    20,
 		},
 		{
 			name:          "steady progressing once rolling target met",
-			rollout:       rolloutWithCounts("4.21.6", 20, 10, 10, 5, 0), // inFlight=20 >= rollingThreshold=20
+			rollout:       rolloutWithCounts("4.21.6", 25, 10, 15, 5, 0), // inFlight=25-5 >= rollingThreshold=20
 			totalClusters: 100,
 			eligibleCount: 50,
 			wantOutcome:   outcomeProgressing,
@@ -217,9 +227,16 @@ func TestNormalClusterDesiredVersionSyncer_SyncOnce_Canary(t *testing.T) {
 
 	// Fresh rollout at 4.21.6: canary threshold = ceil(6% of 4) + 2 = 3.
 	mockFleet, lister := newTestRolloutStore(t, newTestRollout(channel, v("4.21.6"), fleetapi.ControlPlaneVersionRolloutStatus{}))
+	beforeRollout, err := lister.Get(ctx, channel)
+	require.NoError(t, err)
+	beforeClusters, err := (&corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockDB}).List(ctx)
+	require.NoError(t, err)
 
+	clock := clocktesting.NewFakeClock(statusTestNow)
+	retryQueue := &initialVersionRetryQueue{}
 	syncer := &normalClusterDesiredVersionSyncer{
-		clock:                        utilsclock.RealClock{},
+		clock:                        clock,
+		enqueueAfter:                 retryQueue,
 		resourcesDBClient:            mockDB,
 		rolloutLister:                lister,
 		fleetDBClient:                mockFleet,
@@ -242,4 +259,40 @@ func TestNormalClusterDesiredVersionSyncer_SyncOnce_Canary(t *testing.T) {
 		}
 	}
 	assert.Equal(t, 3, atBest, "canary should have advanced exactly 3 of 4 clusters to best")
+
+	// Neither an immediate notification nor a restart may bypass the persisted
+	// reservation. After cooldown, stale collector counts must not add a batch.
+	key := controllerutils.ControlPlaneVersionRolloutKey{YStreamChannel: channel}
+	restarted := *syncer
+	require.NoError(t, restarted.SyncOnce(ctx, key))
+	require.Equal(t, []time.Duration{time.Minute}, retryQueue.delays)
+	clock.Step(time.Minute)
+	require.NoError(t, restarted.SyncOnce(ctx, key))
+	atBest = 0
+	for _, name := range []string{"c1", "c2", "c3", "c4"} {
+		updated, err := mockDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, name).Get(ctx, coreapi.ServiceProviderClusterResourceName)
+		require.NoError(t, err)
+		if updated.Spec.ControlPlaneVersion.DesiredVersion.EQ(*v("4.21.6")) {
+			atBest++
+		}
+	}
+	require.Equal(t, 3, atBest, "a second batch must wait for successful canaries, including when collector counts lag")
+
+	// An entirely stale cache must lose the batch reservation before selection
+	// or any cluster writes, even after the time-based cooldown has elapsed.
+	selection := &countingRolloutSelector{}
+	restarted.selector = selection
+	restarted.rolloutLister = &fleetlistertesting.SliceControlPlaneVersionRolloutLister{ControlPlaneVersionRollouts: []*fleetapi.ControlPlaneVersionRollout{beforeRollout}}
+	restarted.serviceProviderClusterLister = &corelistertesting.SliceServiceProviderClusterLister{ServiceProviderClusters: beforeClusters}
+	require.NoError(t, restarted.SyncOnce(ctx, key))
+	require.Zero(t, selection.calls, "stale ETag must stop the batch before selecting clusters")
+}
+
+type countingRolloutSelector struct {
+	calls int
+}
+
+func (s *countingRolloutSelector) Select(candidates []*coreapi.ServiceProviderCluster, n int) []*coreapi.ServiceProviderCluster {
+	s.calls++
+	return candidates[:n]
 }

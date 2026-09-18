@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/blang/semver/v4"
 	"github.com/go-logr/logr"
@@ -49,14 +50,14 @@ import (
 // assertActiveVersionsIgnoringTransitionTime compares active versions ignoring
 // LastTransitionTime, which is stamped from a clock and is not the subject of
 // these assertions.
-func assertActiveVersionsIgnoringTransitionTime(t *testing.T, expected, actual []coreapi.ServiceProviderClusterActiveVersion) {
+func assertActiveVersionsIgnoringTransitionTime(t *testing.T, expected, actual []coreapi.ServiceProviderClusterActiveVersion, msgAndArgs ...any) {
 	t.Helper()
 	normalized := make([]coreapi.ServiceProviderClusterActiveVersion, len(actual))
 	copy(normalized, actual)
 	for i := range normalized {
 		normalized[i].LastTransitionTime = metav1.Time{}
 	}
-	assert.Equal(t, expected, normalized)
+	assert.Equal(t, expected, normalized, msgAndArgs...)
 }
 
 func TestControlPlaneActiveVersionSyncer_SyncOnce(t *testing.T) {
@@ -384,6 +385,9 @@ func TestControlPlaneActiveVersionSyncer_NoReplaceWhenVersionsUnchanged(t *testi
 	spcCRUD := mockResourcesDBClient.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName)
 	before, err := spcCRUD.Get(runCtx, coreapi.ServiceProviderClusterResourceName)
 	require.NoError(t, err)
+	before.Status.ControlPlaneVersion.ActiveVersions[0].LastTransitionTime = metav1.Now()
+	before, err = spcCRUD.Replace(runCtx, before, nil)
+	require.NoError(t, err)
 	beforeETag := before.CosmosETag
 
 	syncer := &controlPlaneActiveVersionSyncer{
@@ -418,7 +422,11 @@ func TestControlPlaneActiveVersionSyncer_SyncOnce_ReadsClusterFromCache(t *testi
 	mockResourcesDBClient := corecosmosstoragetesting.NewMockResourcesDBClient()
 
 	// ServiceProviderCluster is in the DB with no active versions (the step-4 write target).
-	createServiceProviderClusterNoActiveVersions(t, runCtx, mockResourcesDBClient)
+	spcID := metadataapi.Must(azcorearm.ParseResourceID(coreapi.ToServiceProviderClusterResourceIDString(testSubscriptionID, testResourceGroupName, testClusterName)))
+	_, err := mockResourcesDBClient.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Create(runCtx, &coreapi.ServiceProviderCluster{
+		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: spcID, PartitionKey: strings.ToLower(testSubscriptionID)},
+	}, nil)
+	require.NoError(t, err)
 
 	// Cluster lives ONLY in the cache. Its ActiveVersions already equal "4.19"
 	// (the value derived from the ReadDesire below), so the cluster write is a no-op
@@ -460,6 +468,33 @@ func TestControlPlaneActiveVersionSyncer_SyncOnce_ReadsClusterFromCache(t *testi
 		{Version: ptr.To(semver.MustParse("4.19.15")), State: configv1.CompletedUpdate},
 	}, spc.Status.ControlPlaneVersion.ActiveVersions,
 		"ServiceProviderCluster ActiveVersions must be written from the ReadDesire; empty means the cluster read did not resolve from the cache")
+}
+
+func TestMergeActiveVersionLastTransitionTimes(t *testing.T) {
+	now := metav1.Now()
+	for _, tc := range []struct {
+		name     string
+		state    configv1.UpdateState
+		previous metav1.Time
+		preserve bool
+	}{
+		{name: "backfill unchanged legacy record", state: configv1.CompletedUpdate},
+		{name: "preserve known age", state: configv1.CompletedUpdate, previous: metav1.NewTime(now.Add(-time.Hour)), preserve: true},
+		{name: "stamp newly completed version", state: configv1.PartialUpdate, previous: metav1.NewTime(now.Add(-time.Hour))},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			old := []coreapi.ServiceProviderClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.21.6")), State: tc.state, LastTransitionTime: tc.previous}}
+			fresh := []coreapi.ServiceProviderClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.21.6")), State: configv1.CompletedUpdate}}
+			got := mergeActiveVersionLastTransitionTimes(old, fresh, now)
+			want := now
+			if tc.preserve {
+				want = tc.previous
+			}
+			require.Equal(t, want, got[0].LastTransitionTime)
+			later := mergeActiveVersionLastTransitionTimes(got, []coreapi.ServiceProviderClusterActiveVersion{{Version: fresh[0].Version, State: configv1.CompletedUpdate}}, metav1.NewTime(now.Add(time.Hour)))
+			require.Equal(t, want, later[0].LastTransitionTime, "the persisted age must survive subsequent observations")
+		})
+	}
 }
 
 func TestHCPClusterActiveVersionFromServiceProviderActiveVersions(t *testing.T) {

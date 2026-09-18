@@ -69,7 +69,7 @@ func TestStatusCollectorServiceProviderClusterUpdates(t *testing.T) {
 			s.Status.ControlPlaneVersion.ActiveVersions[0].LastTransitionTime = metav1.Time{Time: time.Unix(100, 0)}
 		}, minor21},
 		{"newer active entry ignored", func(s *coreapi.ServiceProviderCluster) {
-			s.Status.ControlPlaneVersion.ActiveVersions = append([]coreapi.HCPClusterActiveVersion{completed("4.22.0")}, s.Status.ControlPlaneVersion.ActiveVersions...)
+			s.Status.ControlPlaneVersion.ActiveVersions = append([]coreapi.ServiceProviderClusterActiveVersion{completed("4.22.0")}, s.Status.ControlPlaneVersion.ActiveVersions...)
 		}, nil},
 		{"versions cleared", func(s *coreapi.ServiceProviderCluster) {
 			s.Status.ControlPlaneVersion.ActiveVersions = nil
@@ -79,7 +79,7 @@ func TestStatusCollectorServiceProviderClusterUpdates(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			q, _, h := statusWatchFixture(t)
-			old := newTestSPC("c1", v("4.21.6"), []coreapi.HCPClusterActiveVersion{completed("4.21.6")}, nil)
+			old := newTestSPC("c1", v("4.21.6"), []coreapi.ServiceProviderClusterActiveVersion{completed("4.21.6")}, nil)
 			updated := old.DeepCopy()
 			tc.mutate(updated)
 			h.OnUpdate(old, updated)

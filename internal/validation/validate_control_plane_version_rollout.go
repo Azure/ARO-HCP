@@ -16,6 +16,10 @@ package validation
 
 import (
 	"context"
+	"regexp"
+	"strings"
+
+	"github.com/blang/semver/v4"
 
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
@@ -36,13 +40,23 @@ func ValidateControlPlaneVersionRolloutUpdate(_ context.Context, newRollout *fle
 	return errs
 }
 
+var rolloutChannelPattern = regexp.MustCompile(`^(stable|fast|candidate|nightly)-(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$`)
+
 func validateControlPlaneVersionRolloutIdentifier(rollout *fleetapi.ControlPlaneVersionRollout) field.ErrorList {
 	var errs field.ErrorList
-	if len(rollout.GetStampIdentifier()) == 0 {
+	channel := rollout.GetStampIdentifier()
+	path := field.NewPath("cosmosMetadata", "resourceID")
+	if len(channel) == 0 {
 		errs = append(errs, field.Required(
-			field.NewPath("cosmosMetadata", "resourceID"),
+			path,
 			"y-stream channel (top-level resource name) is required",
 		))
+		return errs
+	}
+	_, minor, _ := strings.Cut(channel, "-")
+	_, parseErr := semver.Parse(minor + ".0")
+	if !rolloutChannelPattern.MatchString(channel) || parseErr != nil {
+		errs = append(errs, field.Invalid(path, channel, "y-stream channel must be <stable|fast|candidate|nightly>-<major>.<minor>"))
 	}
 	return errs
 }

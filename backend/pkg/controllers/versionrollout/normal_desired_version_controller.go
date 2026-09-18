@@ -74,6 +74,7 @@ type normalClusterDesiredVersionSyncer struct {
 	clusterLister                corelisters.ClusterLister
 	selector                     ClusterSelector
 	config                       RolloutConfig
+	enqueueAfter                 controllerutils.AfterEnqueuer
 }
 
 // NewNormalClusterDesiredVersionController wires the syncer into a rollout
@@ -98,13 +99,15 @@ func NewNormalClusterDesiredVersionController(clock utilsclock.PassiveClock, res
 	}
 	controller := controllerutils.NewControlPlaneVersionRolloutWatchingController(
 		NormalClusterDesiredVersionControllerName, fleetInformers, 5*time.Minute, syncer)
+	syncer.enqueueAfter = controller
 	if err := syncer.watchVersionCandidates(clusterInformer, serviceProviderClusterInformer, controller); err != nil {
 		panic(err) // coding error
 	}
 	return controller
 }
 
-// CooldownChecker returns nil: the resync interval drives periodic rollout steps.
+// CooldownChecker returns nil: SyncOnce checks a persisted assignment cooldown,
+// including for changed-resource notifications that bypass the queue cooldown.
 func (c *normalClusterDesiredVersionSyncer) CooldownChecker() controllerutil.CooldownChecker {
 	return nil
 }
@@ -229,8 +232,9 @@ func rolloutDecision(rollout *fleetapi.ControlPlaneVersionRollout, totalClusters
 
 	// Step 6: rolling — select until in-flight reaches rolling%.
 	rollingThreshold := percentOfCeil(config.RollingPercentage, total)
-	if inFlightOrDone < rollingThreshold {
-		n := int(min(rollingThreshold-inFlightOrDone, int64(eligibleCount)))
+	inFlight := max(int64(0), inFlightOrDone-successful)
+	if inFlight < rollingThreshold {
+		n := int(min(rollingThreshold-inFlight, int64(eligibleCount)))
 		return rolloutDecisionResult{Outcome: outcomeRolling, SelectCount: n, Message: fmt.Sprintf("selecting %d rolling clusters for %s", n, key)}
 	}
 
@@ -261,10 +265,28 @@ func (c *normalClusterDesiredVersionSyncer) SyncOnce(ctx context.Context, key co
 	}
 
 	logger.Info("Loaded rollout", "bestVersion", versionString(rollout.Spec.BestExactVersion), "conditions", rollout.Status.Conditions)
+	if last := rollout.Status.LastAssignmentTime; last != nil {
+		if remaining := last.Add(time.Minute).Sub(c.clock.Now()); remaining > 0 {
+			if c.enqueueAfter != nil {
+				c.enqueueAfter.EnqueueAfter(key, remaining)
+			}
+			return nil
+		}
+	}
 	serviceProviderClusters, err := serviceProviderClustersForChannel(ctx, c.serviceProviderClusterLister, c.clusterLister, key.YStreamChannel)
 	if err != nil {
 		return utils.TrackError(err)
 	}
+	// Evaluate counts and eligibility from the same cluster snapshot. Persisted
+	// status can lag behind assignments even after the cooldown has elapsed.
+	counts := computeRolloutStatusCounts(serviceProviderClusters, c.config, c.clock.Now())
+	observedRollout := rollout
+	rollout = rollout.DeepCopy()
+	rollout.Status.ClusterCountByDesiredExactVersion = counts.Desired
+	rollout.Status.MismatchedClusterCountByDesiredExactVersion = counts.Mismatched
+	rollout.Status.FailedClusterCountByDesiredExactVersion = counts.Failed
+	rollout.Status.ClusterCountByAchievedExactVersion = counts.Achieved
+	rollout.Status.SuccessfulClusterCountByAchievedExactVersion = counts.Successful
 
 	clustersWithExactVersion, err := c.clustersWithExperimentalExactVersion(ctx)
 	if err != nil {
@@ -320,7 +342,7 @@ func (c *normalClusterDesiredVersionSyncer) SyncOnce(ctx context.Context, key co
 		logger.Info("Evaluated rollout thresholds", "bestVersion", version, "failed", failed, "failureBudget", failureBudget, "failureBudgetExceeded", float64(failed) > failureBudget,
 			"inFlightOrDone", inFlightOrDone, "canaryThreshold", canaryThreshold, "canarySlotsRemaining", max(int64(0), canaryThreshold-inFlightOrDone),
 			"successful", successful, "canarySuccessThreshold", canarySuccessThreshold, "waitingForCanarySuccess", successful < canarySuccessThreshold,
-			"rollingThreshold", rollingThreshold, "rollingSlotsRemaining", max(int64(0), rollingThreshold-inFlightOrDone))
+			"rollingThreshold", rollingThreshold, "rollingSlotsRemaining", max(int64(0), rollingThreshold-max(int64(0), inFlightOrDone-successful)))
 	}
 	decision := rolloutDecision(rollout, len(serviceProviderClusters), len(eligible), c.config)
 	logger.Info("Computed rollout decision", "bestVersion", versionString(rollout.Spec.BestExactVersion), "totalClusters", len(serviceProviderClusters), "eligibleClusters", len(eligible), "outcome", decision.Outcome, "reason", decision.Message, "selectCount", decision.SelectCount, "canaryPercentage", c.config.CanaryPercentage, "rollingPercentage", c.config.RollingPercentage)
@@ -328,10 +350,23 @@ func (c *normalClusterDesiredVersionSyncer) SyncOnce(ctx context.Context, key co
 	// Advance the selected clusters, accumulating errors so one failure does not
 	// stop the others; a partial failure still records the rollout condition and
 	// marks it degraded.
+	// The refreshed counts above are only a decision input; the status collector
+	// remains their sole persistent writer.
+	rollout = observedRollout.DeepCopy()
 	var assignErrs []error
 	if decision.SelectCount > 0 {
 		best := *rollout.Spec.BestExactVersion
 		now := metav1.Time{Time: c.clock.Now()}
+		// Reserve the batch with an ETag-guarded write before changing clusters.
+		// A stale rollout cache or a competing writer cannot start another batch.
+		rollout.Status.LastAssignmentTime = &now
+		rollout, err = c.fleetDBClient.ControlPlaneVersionRollouts().Replace(ctx, rollout, observedRollout, nil)
+		if cosmosstorageutils.IsPreconditionFailedError(err) {
+			return nil
+		}
+		if err != nil {
+			return utils.TrackError(fmt.Errorf("failed to reserve rollout assignment batch: %w", err))
+		}
 		selected := c.selector.Select(eligible, decision.SelectCount)
 		logger.Info("Selected clusters for desired version assignment", "requestedCount", decision.SelectCount, "selectedCount", len(selected), "eligibleCount", len(eligible), "desiredVersion", best.String())
 		selectedSet := make(map[*coreapi.ServiceProviderCluster]bool, len(selected))

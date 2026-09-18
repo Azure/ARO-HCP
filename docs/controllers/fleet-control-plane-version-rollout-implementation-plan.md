@@ -6,15 +6,15 @@ This plan maps the design in
 identifies what already exists, what is net-new, and the concrete controllers,
 types, config, wiring, and tests required.
 
-> Status: living document. The controller logic and unit tests described in the
-> "This PR" scope below are implemented under
-> `backend/pkg/controllers/versionrollout/`. Full Cosmos/informer/backend wiring
-> and SRE config plumbing are tracked as follow-up phases.
+> Status: the seven controllers, Cosmos storage, informers, and backend wiring
+> are implemented. They run unconditionally. Production policy is hardcoded;
+> environment configuration and the Admin API pin setter remain follow-ups.
 
-## 1. Background: what already exists
+## 1. Background: the pipeline before this change
 
-The **per-cluster** control-plane version pipeline is already built and running in
-the backend binary:
+Before this change, the backend used this per-cluster pipeline. The
+`ControlPlaneDesiredVersion` controller has now been removed; its graph selection
+helpers remain in `select_control_plane_version.go`.
 
 | Concern | Existing code | Reads | Writes |
 |---|---|---|---|
@@ -27,12 +27,12 @@ the backend binary:
 Relevant existing API types (`internal/api/coreapi/types_serviceprovider_cluster.go`):
 
 - `ServiceProviderClusterSpec.ControlPlaneVersion.DesiredVersion *semver.Version` — **exists** (design's `spec.control_plane_version.desired_version`).
-- `ServiceProviderClusterStatus.ControlPlaneVersion.ActiveVersions []HCPClusterActiveVersion` (each `{Version *semver.Version, State configv1.UpdateState}`) — **exists** (design's `status.control_plane_version.active_versions`).
+- `ServiceProviderClusterStatus.ControlPlaneVersion.ActiveVersions []ServiceProviderClusterActiveVersion` (each `{Version *semver.Version, State configv1.UpdateState, LastTransitionTime metav1.Time}`) — **exists** (design's `status.control_plane_version.active_versions`).
 - `ServiceProviderClusterStatus.DesiredVersionChannels []string` — **exists**.
 
 ### The key architectural change
 
-Today, **every cluster independently** resolves and owns its
+Previously, **every cluster independently** resolved and owned its
 `Spec…DesiredVersion` via `ControlPlaneDesiredVersion`. The design replaces this
 with a **fleet-coordinated** rollout: a per-y-stream-channel
 `ControlPlaneVersionRollout` object computes one `bestExactVersion`, and rollout
@@ -40,17 +40,17 @@ controllers assign that version to clusters gradually (canary → rolling),
 respecting SRE pins and failure budgets.
 
 **Ownership of `ServiceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion`
-moves** from `ControlPlaneDesiredVersion` (per-cluster, immediate) to the two new
-assignment controllers (Forced + Normal). This is the single most important
-integration risk and is addressed in §6 (Coexistence & cutover).
+moves** from `ControlPlaneDesiredVersion` (per-cluster, immediate) to the four
+assignment controllers (Forced, Normal, Initial Normal, and Minor Upgrade Normal). This is the single most important
+integration risk and is addressed in §6 (Ownership and cutover).
 
 ## 2. What is net-new
 
-Confirmed by searching the whole tree — none of these exist today:
+This change introduces:
 
 - The `ControlPlaneVersionRollout` type (fleet/region-wide, per y-stream channel).
 - `ServiceProviderCluster.Spec.PinnedVersion.{ExactVersion,UntilExactVersion}`.
-- SRE-tunable rollout config: `minimumVersions[channel]`, `maxUpgradeDuration[minor]`, `minVersionReadyDuration`, `canaryPercentage`, `rollingPercentage`, `zStreamOffset`.
+- A hardcoded rollout policy with per-channel minimum-version and per-minor timeout maps; environment tuning is a follow-up.
 - A fleet-level (as opposed to per-cluster/on-demand) "best version per channel" cache.
 
 ## 3. New API types
@@ -60,15 +60,15 @@ Confirmed by searching the whole tree — none of these exist today:
 The design says it is region-wide and "the name is the y-stream channel it is
 associated with" (e.g. `stable-4.21`). That is fleet scope, so it belongs in
 `internal/api/fleetapi` (stored in the separate `"Fleet"` Cosmos container,
-partition key = its own top-level resource name), templated on `fleetapi.Stamp`.
+partition key = lowercased provider namespace). The resource name identifies the
+channel; every rollout shares the same partition, including informer list queries.
 
 ```go
 // internal/api/fleetapi/types_control_plane_version_rollout.go
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type ControlPlaneVersionRollout struct {
-    // PartitionKey / top-level resource name is the y-stream channel, e.g. "stable-4.21".
+    // The top-level name is the channel; CosmosMetadata contains the resource ID.
     coreapi.CosmosMetadata `json:"cosmosMetadata"`
-    ResourceID *azcorearm.ResourceID `json:"resourceId,omitempty"`
     Spec   ControlPlaneVersionRolloutSpec   `json:"spec"`
     Status ControlPlaneVersionRolloutStatus `json:"status"`
 }
@@ -81,6 +81,7 @@ type ControlPlaneVersionRolloutSpec struct {
 
 type ControlPlaneVersionRolloutStatus struct {
     Conditions []metav1.Condition `json:"conditions,omitempty"`
+    LastAssignmentTime *metav1.Time `json:"lastAssignmentTime,omitempty"`
     // keys are exact-version strings (semver.String()).
     ClusterCountByDesiredExactVersion            map[string]int64 `json:"clusterCountByDesiredExactVersion,omitempty"`
     MismatchedClusterCountByDesiredExactVersion  map[string]int64 `json:"mismatchedClusterCountByDesiredExactVersion,omitempty"`
@@ -93,8 +94,7 @@ type ControlPlaneVersionRolloutStatus struct {
 Wiring checklist (templated on `Stamp`, see the research notes):
 `types_control_plane_version_rollout.go`, `types_runtime.go` (`GetObjectKind`,
 `GetObjectMeta`, `ControlPlaneVersionRolloutList`), `registry.go` (resource-type
-constants), `partition.go` (resource-id builders), `FleetPartitionKeyDeriver`
-type switch, `make deepcopy`, `fleetcosmosstorage` CRUD +
+constants), `partition.go` (resource-id builders), `ProviderNamespacePartitionKeyDeriver`, `make deepcopy`, `fleetcosmosstorage` CRUD +
 `fleetcosmosstoragetesting` mock, validation, `fleetinformers` +
 `fleetlisters`.
 
@@ -106,7 +106,7 @@ type ServiceProviderClusterSpec struct {
     ...
     // PinnedVersion, when set, forces this cluster to an SRE-chosen exact version
     // until the fleet's best version reaches UntilExactVersion.
-    PinnedVersion *ServiceProviderClusterPinnedVersion `json:"pinnedVersion,omitempty"`
+    PinnedVersion ServiceProviderClusterPinnedVersion `json:"pinnedVersion,omitempty"`
 }
 
 type ServiceProviderClusterPinnedVersion struct {
@@ -115,19 +115,21 @@ type ServiceProviderClusterPinnedVersion struct {
 }
 ```
 
+An unset pin is a value with nil `ExactVersion` and serializes as `{}`. This is
+intentional. Consuming and clearing pins is implemented; the Admin API setter is
+not yet available and remains a follow-up.
+
 Update the `// Written by:` field annotations (see CLAUDE.md cosmos-data-flow
 rule) and run `make deepcopy`.
 
-## 4. SRE-tunable config
+## 4. Rollout policy
 
-Model the design's `Code.ControlPlaneUpgradeController.*` as a plain Go config
-struct threaded from backend cobra flags, following the existing
-`backups.BackupConfig` precedent (`backend/cmd/root.go`).
+`RolloutConfig` is passed directly from backend construction. This change has no
+rollout flags or environment-config plumbing.
 
 ```go
 // backend/pkg/controllers/versionrollout/config.go
 type RolloutConfig struct {
-    ZStreamOffset           int
     CanaryPercentage        int
     RollingPercentage       int
     MinVersionReadyDuration time.Duration
@@ -138,13 +140,15 @@ type RolloutConfig struct {
 }
 ```
 
-Defaults per the design: `ZStreamOffset=2`, `CanaryPercentage=5`,
-`RollingPercentage=5`. Later phases add config-schema + `config/config.yaml`
-plumbing; this PR passes a value in code.
+Production defaults are `CanaryPercentage=6`, `RollingPercentage=12`, one hour
+of readiness, and a two-hour upgrade timeout unless overridden for a minor.
+`GetZStreamOffset` selects one version behind for stable and zero for other graph
+channels. Nightly versions come from the experimental exact-version override;
+they neither seed rollouts nor query Cincinnati.
 
 ## 5. Controllers
 
-All run in the `backend` binary. Two are per-cluster (use
+All seven run in the `backend` binary. Four are per-cluster (use
 `controllerutils.NewClusterWatchingController` + `HCPClusterKey`); three are
 per-`ControlPlaneVersionRollout` (use a new fleet watching controller keyed by
 the rollout channel name, or `genericWatchingController[T]` on the rollout
@@ -166,16 +170,18 @@ controller** — the plan reuses the existing path. Input
 - **Output**: `SPC.Spec.ControlPlaneVersion.DesiredVersion`.
 - **Sync** (pure fn `computeForcedDesiredVersion`):
   1. If `bestExactVersion >= pinnedVersion.untilExactVersion`: set desired = best, clear both pinned fields, return.
-  2. Else if `desiredVersion != pinnedVersion.exactVersion`: set desired = pinned.exactVersion (the design says "best" here; see Open Questions §8), return.
+  2. Else if `desiredVersion != pinnedVersion.exactVersion`: set desired = pinned.exactVersion, return.
   3. Else: no-op.
-- Only acts on clusters that have a `PinnedVersion`.
+- Also assigns `ExperimentalFeatures.ControlPlaneExactVersion` indefinitely when
+  there is no SRE pin. An SRE pin takes precedence.
 
 ### 5.3 Control Plane Version Status Collector (per-rollout)
 - Fires when any SPC `active_versions`/`desired_version` changes or `BestExactVersion` changes.
 - **Output**: `rollout.Status.{ClusterCountByDesiredExactVersion, MismatchedClusterCountByDesiredExactVersion, FailedClusterCountByDesiredExactVersion, ClusterCountByAchievedExactVersion, SuccessfulClusterCountByAchievedExactVersion}`.
 - **Sync** (pure fn `computeRolloutStatusCounts` over the list of SPCs in the channel's minor):
   - *Desired*: count by `Spec…DesiredVersion`.
-  - *Achieved*: `Spec…DesiredVersion == earliest(active_versions)` (design: "earliest version in activeVersions"; the active list is newest-first so "earliest" = the completed base — see §8).
+  - *Achieved*: count the oldest completed active-version entry. Partial-only
+    histories are mismatched, never achieved or successful.
   - *Mismatched*: desired set but not achieved.
   - *Failed*: mismatched for longer than `maxUpgradeDuration[minor]` (requires an observation timestamp — see §8).
   - *Successful*: achieved and stable for longer than `minVersionReadyDuration`.
@@ -191,29 +197,50 @@ controller** — the plan reuses the existing path. Input
 - **Inputs**: `rollout.Spec.BestExactVersion`, `rollout.Status.*`, per-SPC `desired_version`/`active_versions`/`pinnedVersion`.
 - **Output**: `SPC.Spec…DesiredVersion` for a bounded set of clusters.
 - **Sync** (pure fns `eligibleClusters`, `rolloutDecision`):
-  1. Failure budget: if `FailedClusterCount[best] > 2` **or** `> 5%` of clusters at `best` → failure condition, return.
+  1. Failure budget: if `FailedClusterCount[best] > max(2, 5% of clusters desiring best)` → failure condition, return.
   2. `EligibleClusters` = clusters in the channel's minor with `desired < best`, and either no pin, or pinned with `untilExactVersion <= best`.
   3. If no eligible → stable condition, return.
   4. Canary: if `(Mismatched+Achieved)[best] < canaryPercentage%+2` → pick N (random for now) eligible, set desired=best, return.
   5. Gate: if `Successful[best] < canaryPercentage%` → progressing condition, return.
-  6. Rolling: if `(Mismatched+Achieved)[best] < rollingPercentage%` → pick N eligible, set desired=best, return.
-- Respect the "≥60s since last rollout" NeedsWork guard so caches settle (a cooldown on the syncer).
+  6. Rolling: if `(Mismatched+Achieved-Successful)[best] < rollingPercentage%` → pick N eligible, set desired=best, return. Successful clusters free window slots.
+- Compute decision counts from the same cluster snapshot as eligibility so a
+  lagging status collector cannot authorize another batch.
+- Reserve each batch by persisting `Status.LastAssignmentTime` before cluster
+  writes. Enforce at least 60 seconds between batches inside `SyncOnce`, including
+  changed-resource notifications and controller restarts. ETag conflicts stop the
+  assignment, and partial failures retain the reservation.
 
-## 6. Coexistence & cutover with `ControlPlaneDesiredVersion`
+### 5.6 Rollout Seeding (per-cluster)
 
-`ControlPlaneDesiredVersion` and the new assignment controllers both write
-`SPC.Spec…DesiredVersion`; running both would fight. Options (recommend **B**):
+Creates a rollout for the customer's requested channel and, when pinned, the
+pinned minor's channel. Existing rollout contents are preserved. Nightly and
+deleting clusters are skipped.
 
-- **A. Hard replace** — delete `ControlPlaneDesiredVersion`, rely entirely on the
-  rollout controllers. Simplest but riskiest; requires rollouts to exist for
-  every active channel before cutover.
-- **B. Feature-flagged handoff** — a backend flag selects which owns
-  `DesiredVersion`. Ship the rollout controllers dark, enable per-region. The
-  existing controller's Cincinnati logic is reused by 5.4, so this is mostly
-  moving the write site.
-- **C. Layered** — `ControlPlaneDesiredVersion` keeps handling initial install /
-  y-stream (customer-chosen minor); rollout controllers own z-stream progression
-  within a minor. More moving parts.
+### 5.7 Initial Normal Desired Version (per-cluster)
+
+Assigns the requested channel's best to an uninitialized cluster, excluding pins
+and experimental exact-version overrides. It also backfills missing or zero
+desired-version transition times on existing clusters without changing their
+desired versions. The backfill starts a conservative failure clock at observation.
+
+### 5.8 Minor Upgrade Normal Desired Version (per-cluster)
+
+When requested and desired major/minor differ, assigns the requested channel's
+best. Pins and experimental exact overrides are owned exclusively by forced
+assignment. Both initial and minor assignment retry missing rollout/best data
+after ten seconds and bypass progressive z-stream gates.
+
+## 6. Ownership and cutover
+
+This implementation deliberately replaces `ControlPlaneDesiredVersion`; all
+seven rollout controllers run unconditionally. The earlier feature-flag proposal
+was removed during review. Restoring it would reintroduce the removed owner and
+is not part of this change.
+
+`OperationClusterUpdate` observes the desired version resolved on the SPC by the
+current assignment controllers. It reports incompatible forced overrides directly,
+bounds unresolved version waits, and no longer reads or creates a legacy
+`ControlPlaneDesiredVersion` controller document.
 
 ## 7. Testing strategy
 
@@ -229,61 +256,33 @@ controller** — the plan reuses the existing path. Input
   closure).
 - No `FRONTEND_SIMULATION_TESTING`; unit tests use fakes only.
 
-## 8. Open questions (flagged for the author)
+## 8. Persisted transition times
 
-1. **5.2 step 2** and **5.5** both say to set desired to `bestExactVersion` even
-   in the "still pinned" branch — but the pin's purpose is to hold at
-   `exactVersion`. This implementation pins to `exactVersion` in the still-pinned
-   branch and treats the doc as a typo; confirm.
-2. **"earliest version in activeVersions"** — `ActiveVersions` is documented
-   newest-first, so "earliest" = last element (the completed base). Confirm
-   whether "achieved" means the newest completed equals `best`, or the base does.
-3. **Failed/Successful counts** need a per-cluster timestamp of when the
-   desired/achieved transition happened (for `maxUpgradeDuration` /
-   `minVersionReadyDuration`). Proposed: derive from existing SPC status
-   conditions / `HCPClusterActiveVersion`, else add a `LastTransitionTime`.
-4. **Rollout object lifecycle** — who creates a `ControlPlaneVersionRollout` per
-   active channel (a discovery controller vs. on-demand from
-   `DesiredVersionChannels`)?
+`ServiceProviderClusterActiveVersion.LastTransitionTime` records when a version
+entered its current state. `ControlPlaneActiveVersions` preserves nonzero
+timestamps on unchanged entries and backfills legacy zero timestamps.
+`DesiredVersionLastTransitionTime` is written by the four assignment controllers;
+initial assignment also backfills it for legacy desired versions.
 
-## 9. Implementation status
+The status collector uses these persisted timestamps for achieved readiness and
+upgrade failure durations. A restart does not reset either age. Backfilled ages
+begin at observation, so historical durations are conservatively underestimated.
 
-Implemented (compiles + unit-tested + linted):
-- New API types (`ControlPlaneVersionRollout`, SPC `PinnedVersion`) + deepcopy.
-- `RolloutConfig`.
-- The four new controllers (5.2–5.5) as syncers with factored pure logic, depending on lister/DB interfaces.
-- Exhaustive unit tests for the pure logic and `SyncOnce` happy/precondition paths.
-- **Full fleet Cosmos wiring** for `ControlPlaneVersionRollout`: `fleetcosmosstorage`
-  CRUD + global lister, `FleetPartitionKeyDeriver`, validation, and the
-  `fleetcosmosstoragetesting` mock (CRUD, seeding, global lister).
-- **Fleet informer + lister**: `fleetinformers.ControlPlaneVersionRollouts()` and
-  `fleetlisters.ControlPlaneVersionRolloutLister` (+ slice test fake).
-- **Fleet watching controller**: `controllerutils.NewControlPlaneVersionRolloutWatchingController`
-  (keyed by `ControlPlaneVersionRolloutKey`), and per-controller
-  `New…Controller` constructors wrapping the syncers.
-- **Backend registration under leader election** (`backend/pkg/app/backend.go`),
-  gated by the `--enable-version-rollout` flag.
-- **Backend flags/config** (`backend/cmd/root.go`): `--enable-version-rollout`,
-  `--version-rollout-zstream-offset`, `--version-rollout-canary-percentage`,
-  `--version-rollout-rolling-percentage`, `--version-rollout-min-version-ready-duration`,
-  threaded into `app.BackendOptions.VersionRolloutConfig`.
-- **Real Cincinnati `BestVersionSelector`** (`NewCincinnatiBestVersionSelector`)
-  reusing the exported `version.FindAllUpgradeTargetVersionsInMinor` enumeration
-  plus a pure `selectVersionWithOffset` for the z-stream offset.
-- **Version-transition ages** via an in-process `inMemoryVersionAgeSource` (feeds
-  the Failed/Successful counts without persisting a timestamp on the API — see
-  the caveat below).
-- **Coexistence cutover** (§6 option B): when `--enable-version-rollout` is set,
-  the backend runs the rollout controllers and does **not** run the per-cluster
-  `ControlPlaneDesiredVersion` controller, so they never both write
-  `SPC.Spec…DesiredVersion`.
+## 9. Implementation status and follow-ups
 
-Remaining follow-ups (design-gated or ops):
-- `config.yaml`/schema plumbing to set the flags per environment, and populating
-  `RolloutConfig.MinimumVersions` / `MaxUpgradeDuration` (currently default-empty:
-  no SRE floor and no upgrade-failure timeout until configured).
-- A **persisted** per-cluster version-transition timestamp to replace the
-  in-memory age source (survives restarts; enables accurate `MaxUpgradeDuration`
-  failure detection). The in-memory source only makes detection more
-  conservative on restart, never wrong.
-- Admission/data-flow-doc updates and the open questions in §8.
+Implemented:
+
+- Fleet API, validation of supported channel groups and major/minor names,
+  Cosmos CRUD, partition-scoped listing, informers, listers, and mocks.
+- Seven controllers, backend registration under leader election, and unit tests.
+- Shared Cincinnati selection with the existing per-channel offset policy.
+- Persisted transition ages and assignment cooldown reservations.
+- Forced-version precedence, pinned-channel seeding, and completed-only progress.
+- Cosmos field ownership and data-flow documentation.
+
+Follow-ups:
+
+- Admin API contract for setting and releasing SRE pins. The consumer exists,
+  but this change does not provide an operational pin-setting endpoint.
+- Environment-specific configuration for rollout policy and per-channel minimum
+  versions. Production values currently come from `NewDefaultRolloutConfig`.

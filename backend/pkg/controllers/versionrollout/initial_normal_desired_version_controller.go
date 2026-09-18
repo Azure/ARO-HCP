@@ -64,7 +64,8 @@ func NewInitialNormalClusterDesiredVersionController(clock utilsclock.PassiveClo
 }
 
 func (c *initialNormalClusterDesiredVersionSyncer) NeedsWork(serviceProviderCluster *coreapi.ServiceProviderCluster) bool {
-	return serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion == nil
+	version := serviceProviderCluster.Spec.ControlPlaneVersion
+	return version.DesiredVersion == nil || version.DesiredVersionLastTransitionTime.IsZero()
 }
 
 func (c *initialNormalClusterDesiredVersionSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
@@ -81,6 +82,18 @@ func (c *initialNormalClusterDesiredVersionSyncer) SyncOnce(ctx context.Context,
 	if !c.NeedsWork(serviceProviderCluster) {
 		return nil
 	}
+	if desired := serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion; desired != nil {
+		// Legacy documents predate persisted transition times. Start their failure
+		// clock conservatively at first observation, without changing the version.
+		replacement := serviceProviderCluster.DeepCopy()
+		setDesiredVersion(replacement, desired, metav1.Time{Time: c.clock.Now()})
+		if _, err := c.resourcesDBClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName).Replace(ctx, replacement, nil); cosmosstorageutils.IsPreconditionFailedError(err) {
+			return nil
+		} else if err != nil {
+			return utils.TrackError(fmt.Errorf("failed to initialize desired version transition time: %w", err))
+		}
+		return nil
+	}
 	cluster, err := c.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if cosmosstorageutils.IsNotFoundError(err) {
 		logger.Info("Cluster no longer exists")
@@ -88,6 +101,9 @@ func (c *initialNormalClusterDesiredVersionSyncer) SyncOnce(ctx context.Context,
 	}
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get cluster: %w", err))
+	}
+	if hasForcedVersion(cluster, serviceProviderCluster) {
+		return nil
 	}
 	channel, ok := clusterYStreamChannel(cluster)
 	if !ok {

@@ -130,7 +130,7 @@ func (c *controlPlaneActiveVersionSyncer) SyncOnce(ctx context.Context, key cont
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster: %w", err))
 	}
-	// Use NeedsUpdate (semantic equality) instead of slices.Equal: HCPClusterActiveVersion holds
+	// Use NeedsUpdate (semantic equality) instead of slices.Equal: ServiceProviderClusterActiveVersion holds
 	// *semver.Version, and Go's `==` (which slices.Equal relies on) compares those pointers, not
 	// the represented version. Two independent reads/parses of the same version produce different
 	// pointer addresses, which previously caused a Replace on every reconciliation cycle even
@@ -234,7 +234,7 @@ func mergeActiveVersionLastTransitionTimes(oldVersions, newVersions []coreapi.Se
 		newVersions[i].LastTransitionTime = now
 		for _, old := range oldVersions {
 			if old.Version != nil && newVersions[i].Version != nil &&
-				old.Version.EQ(*newVersions[i].Version) && old.State == newVersions[i].State {
+				old.Version.EQ(*newVersions[i].Version) && old.State == newVersions[i].State && !old.LastTransitionTime.IsZero() {
 				newVersions[i].LastTransitionTime = old.LastTransitionTime
 				break
 			}

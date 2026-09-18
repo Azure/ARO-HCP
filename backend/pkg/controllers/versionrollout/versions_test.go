@@ -27,24 +27,25 @@ func TestEarliestActiveVersion(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name   string
-		active []coreapi.HCPClusterActiveVersion
+		active []coreapi.ServiceProviderClusterActiveVersion
 		want   *semver.Version
 	}{
 		{name: "empty", active: nil, want: nil},
-		{name: "single completed", active: []coreapi.HCPClusterActiveVersion{completed("4.21.6")}, want: v("4.21.6")},
+		{name: "partial update has not been achieved", active: []coreapi.ServiceProviderClusterActiveVersion{partial("4.21.6")}, want: nil},
+		{name: "single completed", active: []coreapi.ServiceProviderClusterActiveVersion{completed("4.21.6")}, want: v("4.21.6")},
 		{
 			name:   "upgrade in flight returns oldest completed base",
-			active: []coreapi.HCPClusterActiveVersion{partial("4.21.6"), completed("4.21.4")},
+			active: []coreapi.ServiceProviderClusterActiveVersion{partial("4.21.6"), completed("4.21.4")},
 			want:   v("4.21.4"),
 		},
 		{
 			name:   "sequential upgrades return oldest base",
-			active: []coreapi.HCPClusterActiveVersion{partial("4.21.8"), partial("4.21.6"), completed("4.21.4")},
+			active: []coreapi.ServiceProviderClusterActiveVersion{partial("4.21.8"), partial("4.21.6"), completed("4.21.4")},
 			want:   v("4.21.4"),
 		},
 		{
 			name:   "skips nil versions",
-			active: []coreapi.HCPClusterActiveVersion{completed("4.21.6"), {Version: nil}},
+			active: []coreapi.ServiceProviderClusterActiveVersion{completed("4.21.6"), {Version: nil}},
 			want:   v("4.21.6"),
 		},
 	}
@@ -101,13 +102,13 @@ func TestClusterMinor(t *testing.T) {
 	t.Parallel()
 
 	// desired takes precedence
-	spc := newTestSPC("c1", v("4.22.0"), []coreapi.HCPClusterActiveVersion{completed("4.21.6")}, nil)
+	spc := newTestSPC("c1", v("4.22.0"), []coreapi.ServiceProviderClusterActiveVersion{completed("4.21.6")}, nil)
 	m, ok := clusterMinor(spc)
 	assert.True(t, ok)
 	assert.Equal(t, "4.22", m)
 
 	// falls back to earliest active
-	spc = newTestSPC("c1", nil, []coreapi.HCPClusterActiveVersion{completed("4.21.6")}, nil)
+	spc = newTestSPC("c1", nil, []coreapi.ServiceProviderClusterActiveVersion{completed("4.21.6")}, nil)
 	m, ok = clusterMinor(spc)
 	assert.True(t, ok)
 	assert.Equal(t, "4.21", m)

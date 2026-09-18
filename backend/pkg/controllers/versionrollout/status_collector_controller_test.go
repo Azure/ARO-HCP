@@ -35,7 +35,7 @@ var statusTestNow = time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
 
 // completedAgo builds a completed active-version entry whose LastTransitionTime
 // is ago before statusTestNow.
-func completedAgo(version string, ago time.Duration) coreapi.HCPClusterActiveVersion {
+func completedAgo(version string, ago time.Duration) coreapi.ServiceProviderClusterActiveVersion {
 	entry := completed(version)
 	entry.LastTransitionTime = metav1.Time{Time: statusTestNow.Add(-ago)}
 	return entry
@@ -58,13 +58,13 @@ func TestComputeRolloutStatusCounts(t *testing.T) {
 
 	serviceProviderClusters := []*coreapi.ServiceProviderCluster{
 		// achieved 4.21.6, stable > MinVersionReadyDuration -> successful
-		newTestSPC("done-stable", v("4.21.6"), []coreapi.HCPClusterActiveVersion{completedAgo("4.21.6", 2*time.Hour)}, nil),
+		newTestSPC("done-stable", v("4.21.6"), []coreapi.ServiceProviderClusterActiveVersion{completedAgo("4.21.6", 2*time.Hour)}, nil),
 		// achieved 4.21.6, but not stable long enough -> achieved, not successful
-		newTestSPC("done-fresh", v("4.21.6"), []coreapi.HCPClusterActiveVersion{completedAgo("4.21.6", 10*time.Minute)}, nil),
+		newTestSPC("done-fresh", v("4.21.6"), []coreapi.ServiceProviderClusterActiveVersion{completedAgo("4.21.6", 10*time.Minute)}, nil),
 		// desires 4.21.6, in flight (base 4.21.4) within max upgrade duration -> mismatched
-		desiredSince(newTestSPC("upgrading", v("4.21.6"), []coreapi.HCPClusterActiveVersion{partial("4.21.6"), completedAgo("4.21.4", 5*time.Hour)}, nil), 30*time.Minute),
+		desiredSince(newTestSPC("upgrading", v("4.21.6"), []coreapi.ServiceProviderClusterActiveVersion{partial("4.21.6"), completedAgo("4.21.4", 5*time.Hour)}, nil), 30*time.Minute),
 		// desires 4.21.6, in flight beyond max upgrade duration -> failed
-		desiredSince(newTestSPC("stuck", v("4.21.6"), []coreapi.HCPClusterActiveVersion{partial("4.21.6"), completedAgo("4.21.4", 5*time.Hour)}, nil), 3*time.Hour),
+		desiredSince(newTestSPC("stuck", v("4.21.6"), []coreapi.ServiceProviderClusterActiveVersion{partial("4.21.6"), completedAgo("4.21.4", 5*time.Hour)}, nil), 3*time.Hour),
 	}
 
 	counts := computeRolloutStatusCounts(serviceProviderClusters, cfg, statusTestNow)
@@ -85,8 +85,8 @@ func TestComputeRolloutStatusCounts_ZeroTransitionTimesLeaveFailedAndSuccessfulE
 
 	serviceProviderClusters := []*coreapi.ServiceProviderCluster{
 		// no LastTransitionTime / DesiredVersionLastTransitionTime set
-		newTestSPC("done", v("4.21.6"), []coreapi.HCPClusterActiveVersion{completed("4.21.6")}, nil),
-		newTestSPC("upgrading", v("4.21.6"), []coreapi.HCPClusterActiveVersion{partial("4.21.6"), completed("4.21.4")}, nil),
+		newTestSPC("done", v("4.21.6"), []coreapi.ServiceProviderClusterActiveVersion{completed("4.21.6")}, nil),
+		newTestSPC("upgrading", v("4.21.6"), []coreapi.ServiceProviderClusterActiveVersion{partial("4.21.6"), completed("4.21.4")}, nil),
 	}
 
 	counts := computeRolloutStatusCounts(serviceProviderClusters, cfg, statusTestNow)
@@ -95,6 +95,17 @@ func TestComputeRolloutStatusCounts_ZeroTransitionTimesLeaveFailedAndSuccessfulE
 	assert.Equal(t, int64(1), counts.Mismatched["4.21.6"])
 	assert.Empty(t, counts.Successful, "zero transition times leave successful empty")
 	assert.Empty(t, counts.Failed, "zero transition times leave failed empty")
+}
+
+func TestComputeRolloutStatusCounts_PartialOnlyIsNotAchieved(t *testing.T) {
+	entry := partial("4.21.6")
+	entry.LastTransitionTime = metav1.NewTime(statusTestNow.Add(-5 * time.Hour))
+	cluster := desiredSince(newTestSPC("partial-only", v("4.21.6"), []coreapi.ServiceProviderClusterActiveVersion{entry}, nil), 3*time.Hour)
+	counts := computeRolloutStatusCounts([]*coreapi.ServiceProviderCluster{cluster}, NewDefaultRolloutConfig(), statusTestNow)
+	require.Empty(t, counts.Achieved)
+	require.Empty(t, counts.Successful)
+	require.Equal(t, int64(1), counts.Mismatched["4.21.6"])
+	require.Equal(t, int64(1), counts.Failed["4.21.6"])
 }
 
 func TestStatusCollectorSyncer_SyncOnce(t *testing.T) {
@@ -109,8 +120,8 @@ func TestStatusCollectorSyncer_SyncOnce(t *testing.T) {
 		newTestCluster("other-minor", "stable", "4.22"),
 	}
 	serviceProviderClusters := []*coreapi.ServiceProviderCluster{
-		newTestSPC("c1", v("4.21.6"), []coreapi.HCPClusterActiveVersion{completed("4.21.6")}, nil),
-		newTestSPC("c2", v("4.21.6"), []coreapi.HCPClusterActiveVersion{partial("4.21.6"), completed("4.21.4")}, nil),
+		newTestSPC("c1", v("4.21.6"), []coreapi.ServiceProviderClusterActiveVersion{completed("4.21.6")}, nil),
+		newTestSPC("c2", v("4.21.6"), []coreapi.ServiceProviderClusterActiveVersion{partial("4.21.6"), completed("4.21.4")}, nil),
 		newTestSPC("other-group", v("4.21.6"), nil, nil),
 		newTestSPC("other-minor", v("4.22.0"), nil, nil),
 	}

@@ -57,6 +57,11 @@ type ControlPlaneVersionRolloutSpec struct {
 //
 // The count maps are keyed by exact-version string (semver.Version.String()).
 type ControlPlaneVersionRolloutStatus struct {
+	// LastAssignmentTime reserves an assignment batch before any cluster writes.
+	// It enforces a minimum interval between batches, including after restarts.
+	// Written by: NormalClusterDesiredVersion
+	LastAssignmentTime *metav1.Time `json:"lastAssignmentTime,omitempty"`
+
 	// Conditions tracks the rollout's progression. Known condition types:
 	// "Progressing" (rollout is advancing), "Degraded" (failure budget exceeded).
 	Conditions []metav1.Condition `json:"conditions,omitempty"`

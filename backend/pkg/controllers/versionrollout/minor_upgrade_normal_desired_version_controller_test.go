@@ -60,6 +60,7 @@ func TestMinorUpgradeNormalDesiredVersion(t *testing.T) {
 	for _, tc := range []struct {
 		name, requested, desired, want                 string
 		missingRollout, missingBest, concurrent, retry bool
+		pinned, experimental                           bool
 	}{
 		{name: "select requested minor best despite rollout failure", requested: "4.22", desired: "4.21.6", want: "4.22.8"},
 		{name: "requested patch selects channel best", requested: "4.22.1", desired: "4.21.6", want: "4.22.8"},
@@ -69,6 +70,8 @@ func TestMinorUpgradeNormalDesiredVersion(t *testing.T) {
 		{name: "wait for rollout", requested: "4.22", desired: "4.21.6", want: "4.21.6", missingRollout: true, retry: true},
 		{name: "wait for best", requested: "4.22", desired: "4.21.6", want: "4.21.6", missingBest: true, retry: true},
 		{name: "preserve concurrent assignment", requested: "4.22", desired: "4.21.6", want: "4.22.9", concurrent: true},
+		{name: "pinned minor belongs to forced controller", requested: "4.22", desired: "4.21.6", want: "4.21.6", pinned: true},
+		{name: "experimental minor belongs to forced controller", requested: "4.22", desired: "4.21.6", want: "4.21.6", experimental: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := context.Background()
@@ -77,7 +80,14 @@ func TestMinorUpgradeNormalDesiredVersion(t *testing.T) {
 			if tc.desired != "" {
 				serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion = v(tc.desired)
 			}
-			db, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{newTestCluster("c1", "fast", tc.requested), serviceProviderCluster})
+			if tc.pinned {
+				serviceProviderCluster.Spec.PinnedVersion.ExactVersion = v("4.21.6")
+			}
+			cluster := newTestCluster("c1", "fast", tc.requested)
+			if tc.experimental {
+				cluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion = v("4.21.6")
+			}
+			db, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, serviceProviderCluster})
 			require.NoError(t, err)
 			rollout := newTestRollout("fast-4.22", v("4.22.8"), fleetapi.ControlPlaneVersionRolloutStatus{
 				FailedClusterCountByDesiredExactVersion: map[string]int64{"4.22.8": 100},

@@ -47,6 +47,11 @@ func (cincinnatiBestVersionSelector) BestExactVersionForChannel(ctx context.Cont
 	if !ok {
 		return nil, fmt.Errorf("invalid y-stream channel %q", yStreamChannel)
 	}
+	// Nightly builds are assigned through the experimental exact-version
+	// override; Cincinnati does not publish a graph for them.
+	if channelGroup == "nightly" {
+		return nil, nil
+	}
 	targetMinor, err := semver.ParseTolerant(minor)
 	if err != nil {
 		return nil, fmt.Errorf("invalid minor %q in channel %q: %w", minor, yStreamChannel, err)

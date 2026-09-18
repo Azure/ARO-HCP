@@ -91,7 +91,7 @@ type rolloutCounts struct {
 //   - Desired[v]: clusters whose resolved desired version is v.
 //   - Achieved[v]: clusters whose earliest active version is v.
 //   - Mismatched[v]: clusters desiring v that have not achieved v (upgrade in flight).
-//   - Successful[v]: achieved clusters that have held v (HCPClusterActiveVersion.LastTransitionTime)
+//   - Successful[v]: achieved clusters that have held v (ServiceProviderClusterActiveVersion.LastTransitionTime)
 //     longer than MinVersionReadyDuration.
 //   - Failed[v]: mismatched clusters whose DesiredVersionLastTransitionTime is older
 //     than the minor's max upgrade duration (per-minor override or the 2h default).
