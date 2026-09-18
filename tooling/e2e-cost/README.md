@@ -1,6 +1,6 @@
 # E2E Cost Reports
 
-Two small CLIs collect Azure-reported amortized costs for an ARO HCP
+Small CLIs collect Azure-reported amortized costs for an ARO HCP
 `pull-ci-Azure-ARO-HCP-main-e2e-parallel` PR job and render an offline HTML report.
 Collection and rendering are separate so UI changes need no Azure refetch.
 
@@ -75,6 +75,77 @@ To try the renderer without Azure access, use the fictional example:
 
 To iterate on the UI, rebuild only `e2e-cost-render` and rerun it against your saved
 JSON. Do not rerun gather unless you want refreshed artifacts and billing data.
+
+## Subscription Residual Costs
+
+`subscription-cost-gather` examines any explicit list of Azure subscription UUIDs
+without needing a Prow job or Kusto access. It filters out resource groups whose
+names look e2e-owned and reports the remaining shared infrastructure and other
+costs. **Residual is not proof of non-e2e ownership**: unfamiliar test names can
+remain, and unrelated names can accidentally match a heuristic.
+
+```bash
+go build -o subscription-cost-gather ./cmd/subscription-cost-gather
+
+AZURE_CONFIG_DIR="$HOME/.azure-redhat" ./subscription-cost-gather \
+  --subscription 0ef1ad54-9296-44cd-9600-5dc8e9a74034 \
+  --subscription 974ebd46-8ad3-41e3-afef-7ef25fd5c371 \
+  --output subscription-data.json
+
+./e2e-cost-render --input subscription-data.json --output subscription-summary.html
+```
+
+By default, this queries **two complete UTC usage dates: today minus three days
+through today minus two days, inclusive**. For example, September 18 selects
+September 15 and 16. Specify both `--from YYYY-MM-DD` and `--to YYYY-MM-DD` to
+change the interval; use the same date for a single day. Billing still may be
+revised after collection.
+
+The default exclusions recognize job-specific `hcp-underlay-ci00/ci01-jNNNNNNN`
+groups (including AKS node groups), Kubernetes-style random12 test names and
+managed variants, and 64-character `rg-` names ending in the framework's
+eight-hex-character truncation hash. These are **name heuristics**, not an
+inventory of every test. Old random6 names are deliberately not excluded broadly.
+Shared `aro-hcp-msi-container-*` pools are retained by the defaults, as are unknown
+groups, unassigned charges, and costs without normal ARM resource IDs.
+
+Use repeatable Go regex flags to adjust filtering. Expressions match normalized
+**lowercase** RG names, and should normally use `^` and `$` anchors. Precedence is
+`--keep-rg-regex`, then `--exclude-rg-regex`, then the defaults. An explicit exclude
+can remove a shared group; a keep expression protects it. To turn off all
+exclusions, use `--keep-rg-regex '.*'`.
+
+```bash
+# Example of explicitly excluding a legacy test naming convention while
+# protecting a known non-test RG that happens to have a random-looking suffix:
+./subscription-cost-gather --subscription <uuid> \
+  --from 2026-09-15 --to 2026-09-16 \
+  --exclude-rg-regex '^oidc-wi-[bcdfghjklmnpqrstvwxz2456789]{6}--managed$' \
+  --keep-rg-regex '^my-persistent-group-bcdfgh245678$' \
+  --output subscription-data.json
+```
+
+The report reconciles **subscription total = excluded e2e-looking cost + retained
+cost**, preserving negative adjustments. A collapsed, searchable audit lists
+every excluded group, rule, and amount. The retained treemap drills down by
+subscription, RG, resource type, and resource; the alternative type view works
+across subscriptions. All inventories remain lazy and paginated. Shared overhead
+is retained but is **not apportioned to runs**.
+
+The reconciliation and filtered-group tables show subscription display names in
+bold above their UUIDs; the exclusion audit also searches these names. Collection
+optionally reads ARM subscription metadata (`Microsoft.Resources/subscriptions/read`)
+for only the supplied UUIDs, using the existing credential and a 30-second overall
+lookup timeout. Missing access or failed lookups add informational notes, not
+billing failures, and leave UUID-only labels. Names are stored once per subscription;
+older snapshots without names still render without any metadata lookup.
+
+Authentication, private output permissions, USD-only handling, and provisional
+billing semantics are the same as job collection. Queries are subscription-wide
+Cost Details downloads, not live-resource inventory scans. Invalid inputs or
+failed partitions are saved as diagnostics; independently retrieved costs remain
+available as known subtotals. Re-run collection to change filters or refresh data;
+excluded groups retain totals/reasons, not their per-resource inventory.
 
 ## Attribution
 

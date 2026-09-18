@@ -17,16 +17,36 @@ const SchemaVersion = 1
 // Snapshot serializes only the information required by the offline report.
 type Snapshot struct {
 	infraLookup    *infraLookup
-	Version        int          `json:"version"`
-	CollectedAt    time.Time    `json:"collectedAt"`
-	Currency       string       `json:"currency"`
-	CostBasis      string       `json:"costBasis"`
-	QueryStart     string       `json:"queryStart"`
-	QueryEnd       string       `json:"queryEnd"`
-	Job            Job          `json:"job"`
-	Groups         []Group      `json:"groups"`
-	ExcludedGroups []string     `json:"excludedGroups,omitempty"`
-	Diagnostics    []Diagnostic `json:"diagnostics"`
+	Version        int                   `json:"version"`
+	Mode           string                `json:"mode,omitempty"` // empty for job reports; subscriptions for residual cost
+	Subscriptions  []SubscriptionSummary `json:"subscriptions,omitempty"`
+	FilteredGroups []FilteredGroup       `json:"filteredGroups,omitempty"`
+	CollectedAt    time.Time             `json:"collectedAt"`
+	Currency       string                `json:"currency"`
+	CostBasis      string                `json:"costBasis"`
+	QueryStart     string                `json:"queryStart"`
+	QueryEnd       string                `json:"queryEnd"`
+	Job            Job                   `json:"job"`
+	Groups         []Group               `json:"groups"`
+	ExcludedGroups []string              `json:"excludedGroups,omitempty"`
+	Diagnostics    []Diagnostic          `json:"diagnostics"`
+}
+
+type SubscriptionSummary struct {
+	ID            string  `json:"id"`
+	DisplayName   string  `json:"displayName,omitempty"`
+	BillingStatus string  `json:"billingStatus"`
+	TotalUSD      float64 `json:"totalUSD"`
+	RetainedUSD   float64 `json:"retainedUSD"`
+	ExcludedUSD   float64 `json:"excludedUSD"`
+}
+
+// FilteredGroup makes heuristic exclusions inspectable without retaining their resource inventory.
+type FilteredGroup struct {
+	SubscriptionID string  `json:"subscriptionID"`
+	Name           string  `json:"name"`
+	Reason         string  `json:"reason"`
+	CostUSD        float64 `json:"costUSD"`
 }
 
 type Job struct {
@@ -45,9 +65,9 @@ type Job struct {
 type Group struct {
 	SubscriptionID string     `json:"subscriptionID,omitempty"`
 	Name           string     `json:"name"`
-	Category       string     `json:"category"` // Infra or Tests
-	Owner          string     `json:"owner"`    // cluster, Regional, or full test name
-	Kind           string     `json:"kind"`     // primary, aks-managed, customer, hcp-managed
+	Category       string     `json:"category"` // Infra, Tests, or Residual
+	Owner          string     `json:"owner"`    // cluster, Regional, full test name, or subscription ID
+	Kind           string     `json:"kind"`     // primary, aks-managed, customer, hcp-managed, retained, unassigned
 	Attribution    string     `json:"attribution,omitempty"`
 	Attempts       int        `json:"attempts,omitempty"`
 	Outcomes       []string   `json:"outcomes,omitempty"`
