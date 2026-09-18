@@ -447,6 +447,7 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 	}
 
 	var fpaMIDataplaneClientBuilder azureclient.FPAMIDataplaneClientBuilder
+	var hardcodedIdentity *azureclient.HardcodedIdentity
 	var checkAccessV2ClientBuilder azureclient.CheckAccessV2ClientBuilder
 	if !f.InsecureIgnoreUserAzureManagedIdentitiesThatNeedManagedIdentitiesDataplaneAvailableAndUseMock {
 		// In ARO-HCP environments where we have a real FPA, we use the FPA identity to create the FPA MI dataplane client builder
@@ -491,14 +492,18 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 			azureclient.CheckAccessV2InsecureARMPermissionsManagerRateLimiterBurst,
 		)
 
-		// In ARO-HCP environments where we don't have a real FPA, we use the HardcodedIdentityFPAMIDataplaneClientBuilder to create the FPA MI dataplane client builder
-		fpaMIDataplaneClientBuilder, err = newHardcodedIdentityFPAMIDataplaneClientBuilder(
+		// In ARO-HCP environments where we don't have a real FPA, we load the hardcoded identity
+		// and use it both as the mock MI dataplane source and as the identity metadata source.
+		hardcodedIdentity, err = newHardcodedIdentity(
 			f.InsecureAzureManagedIdentityMockCertificateBundlePath, f.InsecureAzureManagedIdentityMockClientID, f.InsecureAzureManagedIdentityMockServicePrincipalID, f.InsecureAzureManagedIdentityMockTenantID,
-			azureConfig,
 		)
 		if err != nil {
-			return nil, utils.TrackError(fmt.Errorf("error getting hardcoded identity FPA MI dataplane client builder: %w", err))
+			return nil, utils.TrackError(fmt.Errorf("error loading hardcoded identity: %w", err))
 		}
+		fpaMIDataplaneClientBuilder = azureclient.NewHardcodedIdentityFPAMIDataplaneClientBuilder(
+			azureConfig.CloudEnvironment.CloudConfiguration(),
+			hardcodedIdentity,
+		)
 	}
 
 	smiClientBuilder := app.NewServiceManagedIdentityClientBuilder(fpaMIDataplaneClientBuilder, azureConfig)
@@ -576,6 +581,7 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 		ExitOnPanic:                        f.ExitOnPanic,
 		BackupConfig:                       backupConfig,
 		FPAMIDataplaneClientBuilder:        fpaMIDataplaneClientBuilder,
+		HardcodedIdentity:                  hardcodedIdentity,
 		MIDataplaneBasedIdentityAccessTokenRetrieverBuilder: miDataplaneBasedIdentityAccessTokenRetrieverBuilder,
 		SMIClientBuilder:              smiClientBuilder,
 		CheckAccessV2ClientBuilder:    checkAccessV2ClientBuilder,
@@ -583,6 +589,7 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 		CloudEnvironment:              azureConfig.CloudEnvironment,
 		MetricsRegisterer:             legacyregistry.Registerer(),
 		MetricsGatherer:               legacyregistry.DefaultGatherer,
+		ClusterOIDCIssuerBaseURL:      azureConfig.AzureRuntimeConfig.DataPlaneIdentitiesOIDCConfiguration.OIDCIssuerBaseURL,
 	}
 
 	return backendOptions, nil

@@ -299,6 +299,28 @@ func (c *clusterResourcesController) processClusterResources(ctx context.Context
 		default:
 			crud = applyDesireCRUD
 
+			// For HostedCluster objects, strip the data plane identity fields
+			// before writing the base desire. Those fields are owned exclusively
+			// by HostedClusterDataPlaneIdentitiesController under a distinct SSA
+			// field manager ("aro-hcp-mi-controller"), which gates on OIDC
+			// federation completion before writing new ClientIDs. Leaving them
+			// in the base desire would cause work-agent to re-claim them on
+			// every CS reconcile, creating a permanent ownership conflict once
+			// the two controllers diverge on values during identity replacement.
+			//
+			// Stripping is safe even while CS still sends these fields via
+			// Maestro (pre-ARO-27507): omitting a field in an SSA apply means
+			// "I don't manage this field", so work-agent stops claiming it and
+			// aro-hcp-mi-controller's next apply takes exclusive ownership.
+			//
+			// After ARO-27507 (CS stops writing HC via Maestro entirely), this
+			// strip is a no-op defensive measure preventing CS's resources
+			// endpoint response (which may still include the fields) from leaking
+			// stale identity values through the base desire.
+			if classified.desireName == "HostedCluster" {
+				stripHostedClusterDataPlaneIdentityFields(&unstructuredObj)
+			}
+
 			desire, err = buildClusterResourceApplyDesire(
 				key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName,
 				classified.desireName, managementCluster, target, &unstructuredObj, tags,
@@ -492,6 +514,23 @@ func buildNodePoolResourceApplyDesire(
 		},
 		Tags: tags,
 	}, nil
+}
+
+// stripHostedClusterDataPlaneIdentityFields removes the
+// spec.platform.azure.azureAuthenticationConfig.managedIdentities.dataPlane
+// sub-object from the HostedCluster manifest before it is written as the base
+// ApplyDesire. This transfers SSA field ownership of the three data plane
+// ClientID fields from work-agent (this controller) to aro-hcp-mi-controller
+// (HostedClusterDataPlaneIdentitiesController), which gates on OIDC federation
+// completion before writing new values during identity replacement.
+//
+// The function is a no-op when the path does not exist (e.g. WorkloadIdentities
+// clusters, or manifests that CS has already omitted the field from).
+func stripHostedClusterDataPlaneIdentityFields(obj *unstructured.Unstructured) {
+	unstructured.RemoveNestedField(
+		obj.Object,
+		"spec", "platform", "azure", "azureAuthenticationConfig", "managedIdentities", "dataPlane",
+	)
 }
 
 func (c *clusterResourcesController) deleteStaleApplyDesires(
