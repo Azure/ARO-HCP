@@ -123,6 +123,34 @@ func (l *DBServiceProviderNodePoolLister) ListForNodePool(ctx context.Context, s
 	return listertestingutils.CollectFromIterator(ctx, iter)
 }
 
+// DBServiceProviderExternalAuthLister implements corelisters.ServiceProviderExternalAuthLister backed by a corecosmosstorage.ResourcesDBClient.
+type DBServiceProviderExternalAuthLister struct {
+	ResourcesDBClient corecosmosstorage.ResourcesDBClient
+}
+
+var _ corelisters.ServiceProviderExternalAuthLister = &DBServiceProviderExternalAuthLister{}
+
+func (l *DBServiceProviderExternalAuthLister) List(ctx context.Context) ([]*coreapi.ServiceProviderExternalAuth, error) {
+	iter, err := l.ResourcesDBClient.ResourcesGlobalListers().ServiceProviderExternalAuths().List(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	return listertestingutils.CollectFromIterator(ctx, iter)
+}
+
+func (l *DBServiceProviderExternalAuthLister) Get(ctx context.Context, subscriptionID, resourceGroupName, clusterName, externalAuthName string) (*coreapi.ServiceProviderExternalAuth, error) {
+	return l.ResourcesDBClient.ServiceProviderExternalAuths(subscriptionID, resourceGroupName, clusterName, externalAuthName).
+		Get(ctx, coreapi.ServiceProviderExternalAuthResourceName)
+}
+
+func (l *DBServiceProviderExternalAuthLister) ListForExternalAuth(ctx context.Context, subscriptionID, resourceGroupName, clusterName, externalAuthName string) ([]*coreapi.ServiceProviderExternalAuth, error) {
+	iter, err := l.ResourcesDBClient.ServiceProviderExternalAuths(subscriptionID, resourceGroupName, clusterName, externalAuthName).List(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	return listertestingutils.CollectFromIterator(ctx, iter)
+}
+
 // DBActiveOperationLister implements corelisters.ActiveOperationLister backed by a corecosmosstorage.ResourcesDBClient.
 type DBActiveOperationLister struct {
 	ResourcesDBClient corecosmosstorage.ResourcesDBClient
