@@ -276,7 +276,6 @@ ev2:
     certificate:
       keyVault: empty-sentinel
       name: ""
-    dstsHost: usnorth-dsts.dsts.core.windows.net
 firstPartyAppCertificate:
   contentType: x-pkcs12
   issuer: Self
