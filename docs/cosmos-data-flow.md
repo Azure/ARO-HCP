@@ -377,7 +377,8 @@ Placement is checked even before a Cluster Service ID exists. Until `ServiceProv
 |---|--------|--------|
 | Read | `Operation` | <ul><li>`Status` (ShouldProcess: must not be terminal)</li><li>`Request` (ShouldProcess: must be `Create`)</li><li>`ExternalID` (ShouldProcess: resource type must be `NodePoolResourceType`)</li><li>`ResourceID.Name`</li></ul> |
 | Read | `HCPOpenShiftClusterNodePool` | <ul><li>`ServiceProviderProperties.ActiveOperationID` (mismatch check)</li><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.CreateOperationCompletionDeadline`</li></ul> |
-| Read | Cluster Service | <ul><li>node pool status</li></ul> |
+| Read | ReadDesire (NodePool) | <ul><li>`Spec.NodeLabels`</li><li>`Spec.AutoScaling` (Min, Max)</li><li>`Spec.Replicas`</li><li>`Spec.Taints`</li><li>`Spec.NodeDrainTimeout`</li><li>`Status.Replicas`</li><li>`Status.Conditions` (AllMachinesReadyConditionType, AllNodesHealthyConditionType)</li></ul> |
+| Read | Cluster Service | <ul><li>node pool status, nodeDrainGracePeriod</li></ul> |
 | **Write** | **`Operation`** | <ul><li>**`Status`** -> `Provisioning`/`Succeeded`/`Failed`</li><li>**`Error`** (on failure)</li><li>**`LastTransitionTime`**</li><li>**`NotificationURI`** (cleared after ARM notification)</li></ul> |
 | **Write** | **`HCPOpenShiftClusterNodePool`** | <ul><li>**`Properties.ProvisioningState`** = new status</li><li>**`ServiceProviderProperties.ActiveOperationID`** = `""` (on terminal)</li></ul> |
 
