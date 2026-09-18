@@ -9,10 +9,10 @@ That file feeds the DEV IcM action group (`devServicesAlerts` in
 int/stg/prod. Maestro is not on the MSFT allowlist in
 `alerts-msft-services.yaml`.
 
-IcM `runbook_url` points at the
-[Cluster Monitoring TSG](https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/user-journey/cluster-monitoring-tsg.html#step-3a-maestro-agent-metrics-proxy-mgmt-only)
-(Step 3a). This page is implementation notes for the rule, not the on-call
-entry. There is no `aka.ms` shortlink for that TSG yet.
+IcM `runbook_url` points at
+[aka.ms/arohcp-runbook-cluster-monitoring](https://aka.ms/arohcp-runbook-cluster-monitoring)
+(Cluster Monitoring TSG, Step 3a). This page is implementation notes for the
+rule, not the on-call entry.
 
 The generator maps severity `"3"` to IcM Sev 3 (pre-ceiling). Effective IcM
 severity is `max(severity, alertSeverityCeiling)`.
