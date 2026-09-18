@@ -74,6 +74,16 @@ for var in "${!TOOL_REPOS[@]}"; do
   echo "  ${var}: ${current} -> ${latest}"
   sed -i -E "s/^(${var}[[:space:]]*\?=[[:space:]]*).*$/\1${latest}/" "$VERSIONS_MK"
   sed -i -E "s/^(ARG ${var}=).*$/\1${latest}/" "$REPO_ROOT/Dockerfile"
+
+  if ! grep -qE "^${var}[[:space:]]*\?=[[:space:]]*${latest}$" "$VERSIONS_MK"; then
+    echo "ERROR: failed to update ${var} in $VERSIONS_MK" >&2
+    exit 1
+  fi
+  if ! grep -qE "^ARG ${var}=${latest}$" "$REPO_ROOT/Dockerfile"; then
+    echo "ERROR: failed to update ARG ${var} in $REPO_ROOT/Dockerfile" >&2
+    exit 1
+  fi
+
   changed=1
 done
 
