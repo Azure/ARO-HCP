@@ -72,8 +72,8 @@ func decodeQueryFromLinkURL(t *testing.T, linkURL string) string {
 func assertAllServiceLinkQueriesContainTimeWindow(t *testing.T, links []LinkDetails, expectedStart, expectedEnd string) {
 	t.Helper()
 
-	if len(links) != 10 {
-		t.Fatalf("expected 10 service links, got %d", len(links))
+	if len(links) != 11 {
+		t.Fatalf("expected 11 service links, got %d", len(links))
 	}
 
 	startDateTime := "datetime(" + expectedStart + ")"
@@ -179,6 +179,21 @@ func TestGetServiceLogLinksWithExplicitTimeWindow(t *testing.T) {
 	}
 
 	assertAllServiceLinkQueriesContainTimeWindow(t, links, "2022-03-17T16:00:00.0000000Z", "2022-03-17T19:30:00.0000000Z")
+
+	for _, link := range links {
+		if link.DisplayName != "Kubernetes Resource Snapshots" {
+			continue
+		}
+		query := decodeQueryFromLinkURL(t, link.URL)
+		if !strings.Contains(query, "kubernetesResourceSnapshots") {
+			t.Fatalf("resource snapshots link queries the wrong table: %s", query)
+		}
+		if !strings.Contains(query, "cluster == 'mgmt-cluster'") {
+			t.Fatalf("resource snapshots link is not scoped to the management cluster: %s", query)
+		}
+		return
+	}
+	t.Fatal("Kubernetes Resource Snapshots link not found")
 }
 
 func TestComputeTimeWindowErrorsWithNoTimingData(t *testing.T) {

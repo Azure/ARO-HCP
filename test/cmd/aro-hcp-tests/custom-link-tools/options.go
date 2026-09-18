@@ -575,5 +575,15 @@ func getServiceLogLinks(tw timing.TimeWindow, svcClusterName, mgmtClusterName st
 	}
 	allLinks = append(allLinks, createLink("HyperShift Operator Image", hoImageQuery, kustoInfo))
 
+	resourceSnapshotsDef, err := factory.GetCustomQueryDefinition("kubernetesResourceSnapshots")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get Kubernetes resource snapshots query definition: %w", err)
+	}
+	resourceSnapshotsQuery, err := factory.BuildMerged(*resourceSnapshotsDef, kusto.NewTemplateDataFromOptions(mgmtOpts))
+	if err != nil {
+		return nil, fmt.Errorf("failed to build Kubernetes resource snapshots query: %w", err)
+	}
+	allLinks = append(allLinks, createLink("Kubernetes Resource Snapshots", resourceSnapshotsQuery, kustoInfo))
+
 	return allLinks, nil
 }

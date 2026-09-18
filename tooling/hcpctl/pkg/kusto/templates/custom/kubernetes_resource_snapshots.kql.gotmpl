@@ -1,0 +1,7 @@
+{{- if .NoTruncation}}set notruncation;
+{{end -}}
+kubernetesResourceSnapshots
+| where timestamp between ({{.TimestampMin}} .. {{.TimestampMax}})
+| where cluster == '{{.ClusterName}}'
+| project timestamp, event, apiVersion, objectKind, namespace, name, uid, object
+| order by timestamp {{.OrderBy}}
