@@ -5,6 +5,7 @@ COPY hcpctl/go.mod hcpctl/go.sum hcpctl/
 COPY metricscache/go.mod metricscache/go.sum metricscache/
 COPY utilitytypes/go.mod utilitytypes/
 COPY aro-hcp-exporter/go.mod aro-hcp-exporter/go.sum aro-hcp-exporter/
+ENV GOPROXY='https://proxy.golang.org|direct'
 RUN cd aro-hcp-exporter && go mod download
 WORKDIR /app
 COPY --exclude=hcpctl/hcpctl hcpctl/ hcpctl/

@@ -8,6 +8,7 @@ COPY tooling/hcpctl/go.mod tooling/hcpctl/go.sum tooling/hcpctl/
 COPY tooling/metricscache/go.mod tooling/metricscache/go.sum tooling/metricscache/
 COPY tooling/utilitytypes/go.mod tooling/utilitytypes/
 COPY tooling/tenant-quota/go.mod tooling/tenant-quota/go.sum tooling/tenant-quota/
+ENV GOPROXY='https://proxy.golang.org|direct'
 RUN cd tooling/tenant-quota && go mod download
 WORKDIR /app
 COPY tooling/azutils/ tooling/azutils/
