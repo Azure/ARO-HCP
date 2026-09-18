@@ -31,6 +31,9 @@ type RoleAssignmentsClient interface {
 	// (for example "{scope}/providers/Microsoft.Authorization/roleAssignments/{name}").
 	GetByID(ctx context.Context, roleAssignmentID string, options *armauthorization.RoleAssignmentsClientGetByIDOptions) (armauthorization.RoleAssignmentsClientGetByIDResponse, error)
 	Create(ctx context.Context, scope string, roleAssignmentName string, parameters armauthorization.RoleAssignmentCreateParameters, options *armauthorization.RoleAssignmentsClientCreateOptions) (armauthorization.RoleAssignmentsClientCreateResponse, error)
+	// DeleteByID deletes a role assignment by its fully qualified role assignment resource ID
+	// (for example "{scope}/providers/Microsoft.Authorization/roleAssignments/{name}").
+	DeleteByID(ctx context.Context, roleAssignmentID string, options *armauthorization.RoleAssignmentsClientDeleteByIDOptions) (armauthorization.RoleAssignmentsClientDeleteByIDResponse, error)
 }
 
 var _ RoleAssignmentsClient = (*armauthorization.RoleAssignmentsClient)(nil)

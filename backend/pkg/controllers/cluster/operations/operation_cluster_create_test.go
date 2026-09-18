@@ -315,14 +315,7 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 							},
 							Status: coreapi.ServiceProviderClusterStatus{
 								ServingCABundle: "fake-ca-data",
-								AzureResources: coreapi.AzureResources{
-									RoleAssignments: coreapi.AzureMultiReference{
-										AzureResources: []*azcorearm.ResourceID{
-											metadataapi.Must(azcorearm.ParseResourceID(
-												"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/managed-rg/providers/Microsoft.Authorization/roleAssignments/11111111-1111-1111-1111-111111111111")),
-										},
-									},
-								},
+								RoleAssignments: configuredRoleAssignments(roleAssignmentID("11111111-1111-1111-1111-111111111111")),
 							},
 						},
 					},
@@ -805,14 +798,7 @@ func TestDetermineOperationState(t *testing.T) {
 							},
 							Status: coreapi.ServiceProviderClusterStatus{
 								ServingCABundle: "fake-ca-data",
-								AzureResources: coreapi.AzureResources{
-									RoleAssignments: coreapi.AzureMultiReference{
-										AzureResources: []*azcorearm.ResourceID{
-											metadataapi.Must(azcorearm.ParseResourceID(
-												"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/managed-rg/providers/Microsoft.Authorization/roleAssignments/11111111-1111-1111-1111-111111111111")),
-										},
-									},
-								},
+								RoleAssignments: configuredRoleAssignments(roleAssignmentID("11111111-1111-1111-1111-111111111111")),
 							},
 						},
 					},
@@ -904,16 +890,34 @@ func TestServingCABundleOperationStatus(t *testing.T) {
 	}
 }
 
+func roleAssignmentID(name string) *azcorearm.ResourceID {
+	return metadataapi.Must(azcorearm.ParseResourceID(
+		"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/managed-rg/providers/Microsoft.Authorization/roleAssignments/" + name))
+}
+
+func roleAssignmentKey(name string) coreapi.RoleAssignmentKey {
+	return coreapi.RoleAssignmentKey{
+		ResourceID:               "/subscriptions/00000000-0000-0000-0000-000000000000/resourcegroups/rg/providers/microsoft.managedidentity/userassignedidentities/" + name,
+		PrincipalID:              name + "-principal",
+		RoleDefinitionResourceID: "/providers/Microsoft.Authorization/roleDefinitions/11111111-1111-1111-1111-111111111111",
+	}
+}
+
+func configuredRoleAssignments(ids ...*azcorearm.ResourceID) map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus {
+	result := make(map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus, len(ids))
+	for i, id := range ids {
+		result[roleAssignmentKey(fmt.Sprintf("identity-%d", i))] = &coreapi.RoleAssignmentStatus{
+			AzureResource: id,
+		}
+	}
+	return result
+}
+
 func TestRoleAssignmentsOperationStatus(t *testing.T) {
 	fixture := operationtesting.NewClusterTestFixture()
 	operation := fixture.NewOperation(cosmosstorageutils.OperationRequestCreate)
 
-	roleAssignmentID := func(name string) *azcorearm.ResourceID {
-		return metadataapi.Must(azcorearm.ParseResourceID(
-			"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/managed-rg/providers/Microsoft.Authorization/roleAssignments/" + name))
-	}
-
-	spcLister := func(ra coreapi.AzureMultiReference) corelisters.ServiceProviderClusterLister {
+	spcLister := func(roleAssignments map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus) corelisters.ServiceProviderClusterLister {
 		return &corelistertesting.SliceServiceProviderClusterLister{
 			ServiceProviderClusters: []*coreapi.ServiceProviderCluster{
 				{
@@ -924,42 +928,57 @@ func TestRoleAssignmentsOperationStatus(t *testing.T) {
 								coreapi.ServiceProviderClusterResourceName)),
 					},
 					Status: coreapi.ServiceProviderClusterStatus{
-						AzureResources: coreapi.AzureResources{
-							RoleAssignments: ra,
-						},
+						RoleAssignments: roleAssignments,
 					},
 				},
 			},
 		}
 	}
 
+	confirmed := roleAssignmentID("11111111-1111-1111-1111-111111111111")
+	pending := roleAssignmentID("22222222-2222-2222-2222-222222222222")
+	desiredConfiguredKey := roleAssignmentKey("cpo")
+	desiredPendingKey := roleAssignmentKey("smi")
+	drainingKey := roleAssignmentKey("old-cpo")
+
 	tests := []struct {
 		name            string
-		roleAssignments coreapi.AzureMultiReference
+		roleAssignments map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus
 		expectedState   coreapi.ProvisioningState
 		wantMsgSubstr   string
 	}{
 		{
-			name: "all confirmed and none pending → Succeeded",
-			roleAssignments: coreapi.AzureMultiReference{
-				AzureResources: []*azcorearm.ResourceID{roleAssignmentID("11111111-1111-1111-1111-111111111111")},
+			name: "all desired configured → Succeeded",
+			roleAssignments: map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus{
+				desiredConfiguredKey: {AzureResource: confirmed},
 			},
 			expectedState: coreapi.ProvisioningStateSucceeded,
 		},
 		{
-			name:            "none confirmed → Provisioning",
-			roleAssignments: coreapi.AzureMultiReference{},
+			name:            "none desired → Provisioning",
+			roleAssignments: map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus{},
 			expectedState:   coreapi.ProvisioningStateProvisioning,
 			wantMsgSubstr:   "role assignments not yet confirmed",
 		},
 		{
-			name: "some still pending → Provisioning",
-			roleAssignments: coreapi.AzureMultiReference{
-				AzureResources:        []*azcorearm.ResourceID{roleAssignmentID("11111111-1111-1111-1111-111111111111")},
-				PendingAzureResources: []*azcorearm.ResourceID{roleAssignmentID("22222222-2222-2222-2222-222222222222")},
+			name: "desired still pending → Provisioning",
+			roleAssignments: map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus{
+				desiredConfiguredKey: {AzureResource: confirmed},
+				desiredPendingKey:    {PendingAzureResource: pending},
 			},
 			expectedState: coreapi.ProvisioningStateProvisioning,
 			wantMsgSubstr: "role assignments not yet confirmed",
+		},
+		{
+			name: "draining leftovers are ignored when desired are configured → Succeeded",
+			roleAssignments: map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus{
+				desiredConfiguredKey: {AzureResource: confirmed},
+				drainingKey: {
+					AzureResource:        confirmed,
+					DeconfigureTimestamp: &metav1.Time{Time: time.Now()},
+				},
+			},
+			expectedState: coreapi.ProvisioningStateSucceeded,
 		},
 	}
 

@@ -1099,15 +1099,18 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		b.options.SMIClientBuilder,
 	)
 
-	identityRoleAssignmentsController := clusterroleassignments.NewRoleAssignmentsController(
+	clusterRoleAssignmentsIntentController := clusterroleassignments.NewClusterRoleAssignmentIntentController(
 		b.clock,
 		b.options.ResourcesDBClient,
-		serviceProviderClusterLister,
-		subscriptionLister,
-		b.options.FPAClientBuilder,
 		b.options.ClusterScopedIdentitiesConfig,
 		backendInformers,
-		unionKubeApplierInformers,
+		b.options.HardcodedIdentity == nil, // When hardcodedIdentity is nil, it means that the real Managed Identities Data Plane is available
+	)
+	clusterRoleAssignmentsController := clusterroleassignments.NewClusterRoleAssignmentsController(
+		b.clock,
+		b.options.ResourcesDBClient,
+		b.options.FPAClientBuilder,
+		backendInformers,
 	)
 
 	var fetchManagedIdentitiesInfoDataplaneBuilder azureclient.FPAMIDataplaneClientBuilder
@@ -1253,7 +1256,8 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go fetchMSIIdentitiesInfoController.Run(ctx, 20)
 				go fetchDataPlaneOperatorsManagedIdentitiesInfoController.Run(ctx, 20)
 				go fetchManagedIdentitiesInfoController.Run(ctx, 20)
-				go identityRoleAssignmentsController.Run(ctx, 20)
+				go clusterRoleAssignmentsIntentController.Run(ctx, 20)
+				go clusterRoleAssignmentsController.Run(ctx, 20)
 				go keyRotationBackupController.Run(ctx, 20)
 				go clusterResourcesController.Run(ctx, 20)
 			},

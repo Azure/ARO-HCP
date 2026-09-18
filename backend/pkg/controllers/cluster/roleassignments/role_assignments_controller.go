@@ -18,703 +18,450 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"slices"
-	"strings"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	utilsclock "k8s.io/utils/clock"
+	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v2"
 
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	"github.com/Azure/ARO-HCP/backend/pkg/azure/roleassignment"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
-	"github.com/Azure/ARO-HCP/internal/azure"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
-	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-// RoleAssignmentsControllerName is the single source of truth for this
+// ClusterRoleAssignmentsControllerName is the single source of truth for this
 // controller's name. It is used for the workqueue name (a Prometheus label),
 // context/logger controller name, and log fields.
-const RoleAssignmentsControllerName = "IdentityRoleAssignments"
+const ClusterRoleAssignmentsControllerName = "ClusterRoleAssignments"
 
 const (
-	// roleAssignmentRecheckInterval is the base interval after which the controller
-	// re-verifies that the confirmed role assignments still exist in Azure, so one that
-	// later disappears is re-created. Six hours follows the recheck convention documented on
-	// ServiceProviderClusterSpec.EarliestRecheckTimesByController (recheck times on the order
-	// of at least six hours, up to 24 hours, for resources outside their active phase).
-	roleAssignmentRecheckInterval = 6 * time.Hour
-	// roleAssignmentRecheckJitterFactor spreads rechecks over up to +50% of the interval so
-	// that clusters confirmed together do not re-query Azure in lockstep - the 50% jitter
-	// the EarliestRecheckTimesByController convention recommends.
-	roleAssignmentRecheckJitterFactor = 0.5
+	// clusterRoleAssignmentsRecheckInterval is the base interval before
+	// re-querying Azure for role assignments that are already ensured.
+	// Combined with clusterRoleAssignmentsRecheckJitter via wait.Jitter. The
+	// resulting time is stored on
+	// Spec.EarliestRecheckTimesByController[ClusterRoleAssignmentsControllerName].
+	clusterRoleAssignmentsRecheckInterval = 1 * time.Hour
+	// clusterRoleAssignmentsRecheckJitter is the wait.Jitter factor applied to
+	// clusterRoleAssignmentsRecheckInterval when setting this controller's
+	// Spec.EarliestRecheckTimesByController entry.
+	clusterRoleAssignmentsRecheckJitter = 0.5
+
+	// roleAssignmentDeconfigureDelay is how long a live cluster waits after
+	// DeconfigureTimestamp before deleting a draining role assignment.
+	roleAssignmentDeconfigureDelay = 24 * time.Hour
 )
 
-// roleAssignmentsSyncer MANAGES the Azure role assignments on a cluster's managed
-// resource group (MRG) for each control-plane operator, data-plane operator, and the
-// service managed identity: it creates the ones that do not exist yet and reflects their
-// existence onto ServiceProviderCluster.Status.AzureResources.RoleAssignments.
+// clusterRoleAssignmentsSyncer creates, repairs, and deletes Azure role
+// assignments for entries in ServiceProviderCluster.Status.RoleAssignmentsV2.
 //
-// Creates are idempotent: the role assignment names are deterministic, so re-creating the
-// same assignment is an update (PUT) rather than a conflict - any create error is therefore
-// surfaced (not swallowed) so the sync retries. Reflecting the confirmed state onto the
-// ServiceProviderCluster lets DB-consuming code (for example the cluster-create completion
-// gate) reason about the role assignments without reaching into Azure directly.
-//
-// Deletion is a deliberate no-op: when the cluster is deleted its managed resource group is
-// deleted, and that cascade removes the MRG-scoped role assignments with it. There is
-// therefore nothing to create or delete (and no Azure call to make) on the delete path.
-type roleAssignmentsSyncer struct {
-	resourcesDBClient             corecosmosstorage.ResourcesDBClient
-	clusterLister                 corelisters.ClusterLister
-	serviceProviderClusterLister  corelisters.ServiceProviderClusterLister
-	subscriptionLister            corelisters.SubscriptionLister
-	azureFPAClientBuilder         azureclient.FirstPartyApplicationClientBuilder
-	clusterScopedIdentitiesConfig *azure.ClusterScopedIdentitiesConfig
-	clock                         utilsclock.PassiveClock
+// Desired keys persist the role assignment resource ID as PendingAzureResource
+// before Create ("set pending before Azure"). Ensured keys are rechecked on
+// Spec.EarliestRecheckTimesByController[ClusterRoleAssignmentV2], or
+// immediately when AzureResource is missing. Get the role assignment and
+// Create only if it is missing.
+// Keys with DeconfigureTimestamp set delete the resource IDs already tracked
+// on AzureResource and PendingAzureResource after the 24h wait, then drop the
+// key. Azure work is skipped until the managed resource group is confirmed.
+// Cluster deletion (DeletionTimestamp set) skips all work: role assignments
+// are scoped to the managed resource group, so Azure deletes them in cascade
+// when that resource group is removed.
+type clusterRoleAssignmentsSyncer struct {
+	clock                        utilsclock.PassiveClock
+	clusterLister                corelisters.ClusterLister
+	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
+	subscriptionLister           corelisters.SubscriptionLister
+	resourcesDBClient            corecosmosstorage.ResourcesDBClient
+	azureFPAClientBuilder        azureclient.FirstPartyApplicationClientBuilder
 }
 
-var _ controllerutils.ClusterSyncer = (*roleAssignmentsSyncer)(nil)
+var _ controllerutils.ClusterSyncer = (*clusterRoleAssignmentsSyncer)(nil)
 
-// NewRoleAssignmentsController creates a cluster-watching controller that manages the
-// managed-resource-group-scoped role assignments for the cluster's control-plane operator,
-// data-plane operator, and service managed identity: it creates the ones Azure reports
-// missing and keeps ServiceProviderCluster.Status.AzureResources.RoleAssignments in sync
-// with their confirmed existence.
-func NewRoleAssignmentsController(
+// NewClusterRoleAssignmentsController creates a cluster-watching controller
+// that creates, repairs, and deletes Azure role assignments using
+// ServiceProviderCluster.Status.RoleAssignmentsV2.
+func NewClusterRoleAssignmentsController(
 	clock utilsclock.PassiveClock,
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
-	serviceProviderClusterLister corelisters.ServiceProviderClusterLister,
-	subscriptionLister corelisters.SubscriptionLister,
 	azureFPAClientBuilder azureclient.FirstPartyApplicationClientBuilder,
-	clusterScopedIdentitiesConfig *azure.ClusterScopedIdentitiesConfig,
-	informers coreinformers.BackendInformers,
-	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
+	backendInformers coreinformers.BackendInformers,
 ) controllerutils.Controller {
-	_, clusterLister := informers.Clusters()
+	_, clusterLister := backendInformers.Clusters()
+	_, serviceProviderClusterLister := backendInformers.ServiceProviderClusters()
+	_, subscriptionLister := backendInformers.Subscriptions()
 
-	syncer := &roleAssignmentsSyncer{
-		resourcesDBClient:             resourcesDBClient,
-		clusterLister:                 clusterLister,
-		serviceProviderClusterLister:  serviceProviderClusterLister,
-		subscriptionLister:            subscriptionLister,
-		azureFPAClientBuilder:         azureFPAClientBuilder,
-		clusterScopedIdentitiesConfig: clusterScopedIdentitiesConfig,
-		clock:                         clock,
+	syncer := &clusterRoleAssignmentsSyncer{
+		clock:                        clock,
+		clusterLister:                clusterLister,
+		serviceProviderClusterLister: serviceProviderClusterLister,
+		subscriptionLister:           subscriptionLister,
+		resourcesDBClient:            resourcesDBClient,
+		azureFPAClientBuilder:        azureFPAClientBuilder,
 	}
 
-	controller := controllerutils.NewClusterWatchingController(
-		RoleAssignmentsControllerName,
+	return controllerutils.NewClusterWatchingController(
+		ClusterRoleAssignmentsControllerName,
 		resourcesDBClient,
-		informers,
-		kubeApplierInformers,
-		5*time.Minute,
+		backendInformers,
+		nil,
+		1*time.Minute,
 		syncer,
 	)
-
-	return controller
 }
 
-// NeedsWork reports whether SyncOnce has anything to do for a cluster that is not
-// being deleted.
-//
-// There is work until every expected role assignment has been confirmed (moved to
-// AzureResources) and nothing is left pending. Once the managed resource group is
-// confirmed, every expected role assignment is confirmed, and the pending list is empty,
-// steady-state resyncs skip all Azure calls until the earliest-recheck interval elapses;
-// at that point the confirmed set is re-verified so an assignment that later disappears is
-// re-created.
-//
-// The deletion path is handled entirely in SyncOnce (a genuine no-op), so NeedsWork
-// only reasons about the non-deletion case.
-func (c *roleAssignmentsSyncer) NeedsWork(cluster *coreapi.HCPOpenShiftCluster, serviceProviderCluster *coreapi.ServiceProviderCluster) bool {
-	// Gate: only manage role assignments once the managed resource group they are
-	// scoped to has been confirmed to exist. Until then there is no scope to build
-	// their resource IDs against, so there is nothing to do.
+func (s *clusterRoleAssignmentsSyncer) needsWork(cluster *coreapi.HCPOpenShiftCluster, serviceProviderCluster *coreapi.ServiceProviderCluster) bool {
+	// If the cluster is being deleted, we skip the role assignment work. Because the role assignments are scoped to the managed resource group, when
+	// the managed resource group is deleted, the role assignments are also deleted so no need to do anything in this controller in that case.
+	if cluster.ServiceProviderProperties.DeletionTimestamp != nil {
+		return false
+	}
+
+	// If the managed resource group is not yet created, we skip the role assignment work, as we can't create role assignments
+	// over the Managed Resource Group if it doesn't exist.
 	if serviceProviderCluster.Status.AzureResources.ManagedResourceGroup.AzureResource == nil {
 		return false
 	}
 
-	// Gate: only do work once the principal IDs for every expected control-plane operator,
-	// data-plane operator, AND the service managed identity are resolved. Until then we could
-	// only compute a partial expected set, so skip entirely rather than persist partial pending
-	// state; the identity-resolution controllers re-enqueue us once the principal IDs are
-	// populated.
-	if !c.principalIDsResolvable(cluster, serviceProviderCluster) {
+	now := s.clock.Now()
+	earliestRecheckTime := serviceProviderCluster.Spec.EarliestRecheckTimesByController[ClusterRoleAssignmentsControllerName]
+
+	// If there are no role assignments to process, we consider there's no need to work.
+	if len(serviceProviderCluster.Status.RoleAssignments) == 0 {
 		return false
 	}
 
-	expected, err := c.expectedRoleAssignments(cluster, serviceProviderCluster)
-	if err != nil {
-		// Principal IDs are resolvable (checked above), so any error here is a genuine
-		// configuration problem (for example an operator with no role definitions).
-		// Treat that as "work to do" so SyncOnce runs and surfaces the error for a retry.
-		return true
-	}
-
-	roleAssignments := serviceProviderCluster.Status.AzureResources.RoleAssignments
-	if len(roleAssignments.PendingAzureResources) != 0 {
-		return true
-	}
-	// "No work" means every expected role assignment is present in the confirmed set with
-	// nothing pending. A confirmed set that is a superset of the expected set (for example
-	// leftover role assignments from a previous operator identity) is NOT work: those extras
-	// are tolerated and must not defeat the steady-state short-circuit.
-	if !c.roleAssignmentsPreviouslyCreated(roleAssignments.AzureResources, expected) {
-		return true
-	}
-	// Every expected role assignment is confirmed and nothing is pending: re-verify only
-	// once the earliest-recheck interval has elapsed. The recheck time is tracked centrally
-	// in Spec.EarliestRecheckTimesByController, keyed by this controller's name.
-	return c.recheckDue(serviceProviderCluster.Spec.EarliestRecheckTimesByController[RoleAssignmentsControllerName])
-}
-
-// principalIDsResolvable reports whether every control-plane operator, data-plane operator,
-// and the service managed identity configured on the cluster has a resolved (present,
-// non-empty) principal ID on the ServiceProviderCluster status. It is the NeedsWork gate
-// that ensures the controller only ever computes and persists the full expected role
-// assignment set, never a partial one.
-func (c *roleAssignmentsSyncer) principalIDsResolvable(cluster *coreapi.HCPOpenShiftCluster, serviceProviderCluster *coreapi.ServiceProviderCluster) bool {
-	userAssignedIdentities := cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities
-	for _, identityResourceID := range userAssignedIdentities.ControlPlaneOperators {
-		if _, ok := controlPlaneOperatorPrincipalID(serviceProviderCluster, identityResourceID); !ok {
-			return false
+	// If there are role assignments to process, we need to check if there's any immediate work to do. If there is at
+	// least one assignment that needs immediate work, we return true.
+	for _, status := range serviceProviderCluster.Status.RoleAssignments {
+		if s.roleAssignmentNeedsImmediateWork(status, now) {
+			return true
 		}
 	}
-	for _, identityResourceID := range userAssignedIdentities.DataPlaneOperators {
-		if _, ok := dataPlaneOperatorPrincipalID(serviceProviderCluster, identityResourceID); !ok {
-			return false
-		}
-	}
-	// The service managed identity is a single identity (not a map) and is always configured
-	// on a cluster; its principal ID must be resolved too before the expected set is complete.
-	if _, ok := serviceManagedIdentityPrincipalID(serviceProviderCluster, userAssignedIdentities.ServiceManagedIdentity); !ok {
-		return false
-	}
-	return true
+
+	// If there is no immediate work to do, we check if we need to recheck the role assignments based on the earliest recheck time.
+	return earliestRecheckTime == nil || now.Compare(earliestRecheckTime.Time) >= 0
 }
 
-// SyncOnce reads the cluster and ServiceProviderCluster from the informer caches,
-// short-circuits deletion (a no-op) and the NeedsWork gate, and then reconciles the
-// role assignment state, creating any that Azure reports missing. This controller never
-// deletes a role assignment (the managed resource group deletion cascade handles that).
-func (c *roleAssignmentsSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
-	cluster, err := c.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+func (s *clusterRoleAssignmentsSyncer) roleAssignmentNeedsImmediateWork(status *coreapi.RoleAssignmentStatus, now time.Time) bool {
+	if status.DeconfigureTimestamp != nil {
+		return s.deconfigureCanStartForRoleAssignment(status, now)
+	}
+	return status.AzureResource == nil
+}
+
+// deconfigureCanStartForRoleAssignment reports whether a draining role
+// assignment may be deleted. The 24h wait is measured from DeconfigureTimestamp.
+func (s *clusterRoleAssignmentsSyncer) deconfigureCanStartForRoleAssignment(status *coreapi.RoleAssignmentStatus, now time.Time) bool {
+	return !s.clock.Now().Before(status.DeconfigureTimestamp.Add(roleAssignmentDeconfigureDelay))
+}
+
+func (s *clusterRoleAssignmentsSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
+	logger := utils.LoggerFromContext(ctx)
+	existingCluster, err := s.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get Cluster: %w", err))
+		return utils.TrackError(fmt.Errorf("failed to get Cluster from cache: %w", err))
 	}
 
-	// Deletion is a genuine no-op: the managed resource group deletion cascades and
-	// removes the role assignments scoped to it. We do not gate deletion and we make
-	// no Azure calls on the delete path.
-	if cluster.ServiceProviderProperties.DeletionTimestamp != nil {
-		return nil
-	}
-
-	existingServiceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	existingServiceProviderCluster, err := s.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if cosmosstorageutils.IsNotFoundError(err) {
-		// CreateServiceProviderCluster will populate it; we'll be re-enqueued via the
-		// ServiceProviderCluster informer.
 		return nil
 	}
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster: %w", err))
 	}
 
-	// Short-circuit on the cheap lister reads before doing anything fallible.
-	if !c.NeedsWork(cluster, existingServiceProviderCluster) {
+	if !s.needsWork(existingCluster, existingServiceProviderCluster) {
 		return nil
 	}
 
-	return c.syncRoleAssignments(ctx, cluster, existingServiceProviderCluster)
-}
-
-// syncRoleAssignments reconciles the role assignments for a cluster that is not being
-// deleted in two passes and reflects the result onto the ServiceProviderCluster.
-//
-// It runs only when the NeedsWork recheck-window guard says there is work to do or the
-// earliest-recheck window is due; steady-state resyncs are skipped there and make no Azure
-// calls.
-//
-// Pass 1 (classify - GetByID only, no Azure writes) queries Azure once per expected role
-// assignment:
-//
-//   - exists: recorded as confirmed (AzureResources).
-//   - not found: recorded as pending (PendingAzureResources) and queued for creation.
-//   - other error: recorded as pending but NOT queued for creation - its existence is unknown,
-//     so it self-heals on a later GetByID rather than being created blind - and the error is
-//     collected.
-//
-// The classified pending/confirmed state is then persisted BEFORE any Azure write, so a role
-// assignment that is about to be created is durably recorded as pending first: if the create
-// then succeeds but the process crashes before the next persist, a later GetByID still finds
-// and confirms it. When nothing is pending (every expected assignment confirmed) the
-// earliest-recheck window is set to a future time - the only thing that stops the sync
-// re-running on every resync. If that persist fails with a Cosmos precondition
-// (optimistic-concurrency) conflict, the state was not recorded and the inputs are now stale, so
-// the sync returns without creating this pass and relies on the watch event from the conflicting
-// write to re-enqueue it; any other persist error is returned to retry via the rate-limited requeue.
-//
-// Pass 2 (create - Azure writes) creates the queued missing assignments. The assignment names
-// are deterministic, so re-creating is an idempotent update rather than a conflict; any create
-// error is surfaced so the sync retries. Freshly-created assignments stay pending this pass
-// (already persisted above) and confirm on a later GetByID.
-//
-// Any previously-confirmed assignment that is no longer expected (for example after an identity
-// or name-scheme change) is retained in AzureResources, not dropped; its deletion is deferred
-// to managed identity replacement support.
-func (c *roleAssignmentsSyncer) syncRoleAssignments(ctx context.Context, cluster *coreapi.HCPOpenShiftCluster, existingServiceProviderCluster *coreapi.ServiceProviderCluster) error {
-	expected, err := c.expectedRoleAssignments(cluster, existingServiceProviderCluster)
-	if err != nil {
-		return utils.TrackError(err)
-	}
-	if len(expected) == 0 {
-		// A real cluster always has control-plane operators, so this should not
-		// happen; there is simply nothing to manage.
-		return nil
-	}
-
-	// Snapshot the previously-confirmed set before it is overwritten, so we can retain any
-	// assignment that is no longer expected.
-	previouslyConfirmed := existingServiceProviderCluster.Status.AzureResources.RoleAssignments.AzureResources
-
-	roleAssignmentsClient, err := c.roleAssignmentsClient(ctx, cluster.ID.SubscriptionID)
-	if err != nil {
-		return utils.TrackError(err)
-	}
-
-	// Pass 1: classify each expected role assignment with GetByID only (no Azure writes).
-	// Invariant: every expected assignment ends up in exactly one of pendingList / confirmedList.
-	var (
-		pendingList   []*azcorearm.ResourceID
-		confirmedList []*azcorearm.ResourceID
-		toCreateList  []roleAssignmentDefinition
-		errs          []error
-	)
-	for _, assignment := range expected {
-		_, getErr := roleAssignmentsClient.GetByID(ctx, assignment.resourceID.String(), nil)
-		switch {
-		case getErr == nil:
-			// Exists in Azure: confirmed.
-			confirmedList = append(confirmedList, assignment.resourceID)
-		case azureclient.IsRoleAssignmentNotFoundErr(getErr):
-			// Not found: record it pending and queue it for creation in pass 2.
-			pendingList = append(pendingList, assignment.resourceID)
-			toCreateList = append(toCreateList, assignment)
-		default:
-			// Any other Get error: existence is unknown, so record it pending but do NOT queue
-			// a create (creating blind could race); it self-heals on a later GetByID.
-			pendingList = append(pendingList, assignment.resourceID)
-			errs = append(errs, utils.TrackError(fmt.Errorf("failed to get role assignment %q: %w", assignment.resourceID.String(), getErr)))
-		}
-	}
-
-	// If classification hit an unknown (non-nil, non-not-found) GetByID error above, we could not
-	// cleanly classify every expected assignment. Bail and retry rather than persisting partial
-	// state or creating off an incomplete view.
-	if len(errs) > 0 {
-		return errors.Join(errs...)
-	}
-
-	// Persist the classified state BEFORE any Azure Create, so the pending intent is durably
-	// recorded first. Every expected assignment is in exactly one of pendingList / confirmedList.
 	replacement := existingServiceProviderCluster.DeepCopy()
-	roleAssignments := &replacement.Status.AzureResources.RoleAssignments
-	roleAssignments.PendingAzureResources = pendingList
-	roleAssignments.AzureResources = confirmedList
+	timeNow := s.clock.Now()
+	var errs []error
 
-	// TODO(MI-replacement): these previously-confirmed role assignments are no longer in the
-	// expected set (e.g. after an identity/name-scheme change). Retain them for now; deletion
-	// will be handled as part of managed identity replacement support (landing soon).
-	for _, confirmedID := range previouslyConfirmed {
-		if slices.ContainsFunc(expected, func(e roleAssignmentDefinition) bool {
-			return controllerutil.ResourceIDsEqual(e.resourceID, confirmedID)
-		}) {
+	// Loop 1: persist role assignment resource IDs that are not yet on the
+	// document before any Azure Create. Desired keys record the ID when it is
+	// not already AzureResource. Draining keys are skipped: their IDs are
+	// already on AzureResource or leftover PendingAzureResource.
+	// Cluster deletion is handled by needsWork and never reaches here.
+	for assignmentKey, status := range replacement.Status.RoleAssignments {
+		if status.DeconfigureTimestamp != nil {
+			// If the role assignment is marked for deconfiguration, we skip it, as we will handle it in the next loop.
 			continue
 		}
-		roleAssignments.AzureResources = append(roleAssignments.AzureResources, confirmedID)
-	}
 
-	if len(pendingList) == 0 {
-		// Every expected role assignment is confirmed with nothing pending: schedule the next
-		// recheck. This is the only thing that stops the sync re-running on every resync.
-		// Retained extras are not in the expected set, so they never affect this condition.
-		// The recheck time is tracked centrally in Spec.EarliestRecheckTimesByController,
-		// keyed by this controller's name (NeedsUpdate compares the whole document, so a
-		// recheck-time-only Spec change is still detected and persisted).
-		if replacement.Spec.EarliestRecheckTimesByController == nil {
-			replacement.Spec.EarliestRecheckTimesByController = map[string]*metav1.Time{}
+		desiredResourceID, err := s.desiredRoleAssignmentResourceID(existingServiceProviderCluster, assignmentKey)
+		if err != nil {
+			errs = append(errs, err)
+			continue
 		}
-		replacement.Spec.EarliestRecheckTimesByController[RoleAssignmentsControllerName] = c.nextRoleAssignmentRecheckTime()
-	} else {
-		// Work remains: clear any window so the next resync re-runs promptly (NeedsWork also
-		// returns true while anything is pending).
-		delete(replacement.Spec.EarliestRecheckTimesByController, RoleAssignmentsControllerName)
+		if controllerutil.ResourceIDsEqual(status.AzureResource, desiredResourceID) {
+			// Already confirmed at this ID. PendingAzureResource means an
+			// unconfirmed Create. Leaving it set would restamp pending on
+			// every recheck. Clear a leftover that duplicates AzureResource.
+			status.PendingAzureResource = nil
+			continue
+		}
+		status.PendingAzureResource = desiredResourceID
 	}
 
-	// Persist the classified pending/confirmed state BEFORE any Azure Create, but only when it
-	// actually changed, so an unchanged SET does not trigger a redundant Cosmos write. A Cosmos
-	// precondition (optimistic-concurrency) failure MUST NOT be treated as success: the state was
-	// not persisted, so we must not proceed to create.
 	if controllerutil.NeedsUpdate(existingServiceProviderCluster, replacement) {
-		_, persistErr := c.resourcesDBClient.ServiceProviderClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName, cluster.ID.Name).Replace(ctx, replacement, nil)
-		if persistErr != nil {
-			if cosmosstorageutils.IsPreconditionFailedError(persistErr) {
-				// Optimistic-concurrency conflict: another writer updated the document, so our
-				// classified pending/confirmed state was NOT persisted and our in-memory inputs are
-				// now stale. Do NOT proceed to pass 2 (that would Create before persisting the pending
-				// intent). Just return: the conflicting write fired a watch event that re-enqueues us
-				// almost immediately, so no explicit timed re-enqueue is needed.
-				return nil
+		logger.Info("persisting pending role assignments onto ServiceProviderCluster")
+
+		persistedServiceProviderCluster, err := s.resourcesDBClient.ServiceProviderClusters(existingCluster.ID.SubscriptionID, existingCluster.ID.ResourceGroupName, existingCluster.ID.Name).Replace(ctx, replacement, nil)
+		if err != nil {
+			return utils.TrackError(fmt.Errorf("failed to replace ServiceProviderCluster: %w", err))
+		}
+		existingServiceProviderCluster = persistedServiceProviderCluster
+		replacement = existingServiceProviderCluster.DeepCopy()
+	}
+
+	roleAssignmentsClientGetter := s.newRoleAssignmentsClientGetter(ctx, key)
+	// Loop 2: create, repair, or delete role assignments in Azure, then update
+	// each entry in memory. Azure errors on one key do not skip the rest:
+	// remaining keys still run so a partial update can be persisted.
+	// AzureResource is written only when the Azure call for that key succeeds.
+	// Successful key deconfigure removes the map entry. Draining keys wait
+	// 24h (deconfigureCanStartForRoleAssignment) before Delete.
+	for assignmentKey := range replacement.Status.RoleAssignments {
+		status := replacement.Status.RoleAssignments[assignmentKey]
+		if status == nil {
+			errs = append(errs, utils.TrackError(fmt.Errorf("RoleAssignmentsV2 has a nil status for resource ID %s principal ID %s role definition resource ID %s", assignmentKey.ResourceID, assignmentKey.PrincipalID, assignmentKey.RoleDefinitionResourceID)))
+			continue
+		}
+
+		if status.DeconfigureTimestamp != nil {
+			if !s.deconfigureCanStartForRoleAssignment(status, timeNow) {
+				continue
 			}
-			// Any other persist error: do not create; return it so it retries via the normal
-			// rate-limited requeue. Each collected error is wrapped where it is appended, so the
-			// join is not re-wrapped.
-			errs = append(errs, utils.TrackError(fmt.Errorf("failed to replace ServiceProviderCluster: %w", persistErr)))
-			return errors.Join(errs...)
+			client, err := roleAssignmentsClientGetter()
+			if err != nil {
+				errs = append(errs, err)
+				continue
+			}
+			err = s.deconfigureRoleAssignment(ctx, status, client)
+			if err != nil {
+				errs = append(errs, err)
+				continue
+			}
+			delete(replacement.Status.RoleAssignments, assignmentKey)
+			continue
+		}
+
+		client, err := roleAssignmentsClientGetter()
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		err = s.ensureRoleAssignment(ctx, existingServiceProviderCluster, assignmentKey, status, client)
+		if err != nil {
+			errs = append(errs, err)
 		}
 	}
 
-	// Pass 2: create the queued missing role assignments, now that the pending intent is
-	// persisted. Freshly-created assignments stay pending this pass and confirm on a later
-	// GetByID; any create error is surfaced (createRoleAssignment wraps it) so the sync retries.
-	for _, assignment := range toCreateList {
-		if createErr := c.createRoleAssignment(ctx, roleAssignmentsClient, assignment); createErr != nil {
-			errs = append(errs, createErr)
+	if len(replacement.Status.RoleAssignments) == 0 {
+		replacement.Status.RoleAssignments = nil
+	}
+
+	if len(errs) == 0 {
+		s.syncRoleAssignmentRecheckTime(replacement)
+	}
+
+	if controllerutil.NeedsUpdate(existingServiceProviderCluster, replacement) {
+		logger.Info("persisting role assignment configure/deconfigure result onto ServiceProviderCluster")
+
+		_, err := s.resourcesDBClient.ServiceProviderClusters(existingCluster.ID.SubscriptionID, existingCluster.ID.ResourceGroupName, existingCluster.ID.Name).Replace(ctx, replacement, nil)
+		if err != nil {
+			return utils.TrackError(fmt.Errorf("failed to replace ServiceProviderCluster: %w", err))
 		}
 	}
-	// Every collected error is wrapped with utils.TrackError where it is appended, so the join
-	// is returned without re-wrapping.
+
 	return errors.Join(errs...)
 }
 
-// roleAssignmentDefinition describes a single managed-resource-group-scoped role assignment
-// the backend expects to exist for the cluster. It carries both what is needed to recognize
-// the assignment (resourceID) and what is needed to create it with the deterministic
-// identity from the roleassignment package (scope, name, principalID, roleDefinitionID) -
-// the hashed name cannot be reversed from the resource ID, so these inputs are retained.
-type roleAssignmentDefinition struct {
-	resourceID       *azcorearm.ResourceID
-	scope            string
-	name             string
-	principalID      string
-	roleDefinitionID string
-}
-
-// expectedRoleAssignments computes the managed-resource-group-scoped role assignments the
-// backend expects to exist for the cluster's control-plane operator, data-plane operator,
-// and service managed identity.
-//
-// For each control-plane and data-plane operator configured on the cluster it pairs
-// the operator identity's resolved principal ID (read from the ServiceProviderCluster
-// status) with each of that operator's role definitions (read from the cluster-scoped
-// identities config) and derives the deterministic role assignment name and resource ID
-// using the algorithm in the roleassignment package. The service managed identity - a
-// single identity rather than a map - is handled the same way: its resolved principal ID
-// is paired with each of its configured role definitions at the same managed resource group
-// scope.
-//
-// Enumerating from the cluster's actual operators (rather than the whole config)
-// naturally excludes operators that are not provisioned on this cluster (for example
-// on-enablement operators whose feature is disabled).
-//
-// A missing or unresolved required input (empty managed resource group name,
-// unresolved principal ID, or an identity with no configured role definitions)
-// returns an error so the caller retries rather than computing an incomplete set.
-func (c *roleAssignmentsSyncer) expectedRoleAssignments(cluster *coreapi.HCPOpenShiftCluster, serviceProviderCluster *coreapi.ServiceProviderCluster) ([]roleAssignmentDefinition, error) {
-	managedResourceGroupName := cluster.CustomerProperties.Platform.ManagedResourceGroup
-	if len(managedResourceGroupName) == 0 {
-		return nil, fmt.Errorf("managed resource group name is empty for cluster %q", cluster.ID.String())
-	}
-	scopeID, err := coreapi.ToResourceGroupResourceID(cluster.ID.SubscriptionID, managedResourceGroupName)
-	if err != nil {
-		return nil, fmt.Errorf("failed to build managed resource group scope for cluster %q: %w", cluster.ID.String(), err)
-	}
-
-	userAssignedIdentities := cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities
-
-	var expected []roleAssignmentDefinition
-
-	// Control-plane operators.
-	for operatorName, identityResourceID := range userAssignedIdentities.ControlPlaneOperators {
-		principalID, ok := controlPlaneOperatorPrincipalID(serviceProviderCluster, identityResourceID)
-		if !ok {
-			return nil, fmt.Errorf("principal ID not yet resolved for control plane operator %q (identity %q)", operatorName, identityResourceID.String())
+func (s *clusterRoleAssignmentsSyncer) newRoleAssignmentsClientGetter(ctx context.Context, key controllerutils.HCPClusterKey) func() (azureclient.RoleAssignmentsClient, error) {
+	var client azureclient.RoleAssignmentsClient
+	return func() (azureclient.RoleAssignmentsClient, error) {
+		if client != nil {
+			return client, nil
 		}
-		roleDefinitionIDs, err := c.controlPlaneOperatorRoleDefinitionIDs(operatorName)
+
+		subscription, err := s.subscriptionLister.Get(ctx, key.SubscriptionID)
 		if err != nil {
-			return nil, err
+			return nil, utils.TrackError(err)
 		}
-		expected, err = appendRoleAssignments(expected, scopeID.String(), principalID, roleDefinitionIDs)
+		if subscription.Properties == nil || subscription.Properties.TenantId == nil {
+			return nil, utils.TrackError(fmt.Errorf("subscription %s has no tenantId", key.SubscriptionID))
+		}
+
+		built, err := s.azureFPAClientBuilder.RoleAssignmentsClient(*subscription.Properties.TenantId, key.SubscriptionID)
 		if err != nil {
-			return nil, err
+			return nil, utils.TrackError(fmt.Errorf("failed to create role assignments client: %w", err))
 		}
+		client = built
+		return client, nil
 	}
+}
 
-	// Data-plane operators.
-	for operatorName, identityResourceID := range userAssignedIdentities.DataPlaneOperators {
-		principalID, ok := dataPlaneOperatorPrincipalID(serviceProviderCluster, identityResourceID)
-		if !ok {
-			return nil, fmt.Errorf("principal ID not yet resolved for data plane operator %q (identity %q)", operatorName, identityResourceID.String())
-		}
-		roleDefinitionIDs, err := c.dataPlaneOperatorRoleDefinitionIDs(operatorName)
-		if err != nil {
-			return nil, err
-		}
-		expected, err = appendRoleAssignments(expected, scopeID.String(), principalID, roleDefinitionIDs)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	// Service managed identity (a single identity, not a map) and always configured on a
-	// cluster; its role assignment is scoped to the same managed resource group as the
-	// operator identities above.
-	serviceManagedIdentityResourceID := userAssignedIdentities.ServiceManagedIdentity
-	principalID, ok := serviceManagedIdentityPrincipalID(serviceProviderCluster, serviceManagedIdentityResourceID)
-	if !ok {
-		return nil, fmt.Errorf("principal ID not yet resolved for service managed identity (identity %q)", serviceManagedIdentityResourceID.String())
-	}
-	roleDefinitionIDs, err := c.serviceManagedIdentityRoleDefinitionIDs()
+// desiredRoleAssignmentResourceID builds the deterministic managed-resource-group
+// scoped role assignment resource ID. The scope is
+// Status.AzureResources.ManagedResourceGroup.AzureResource. Callers run after
+// needsWork, which already requires that field.
+func (s *clusterRoleAssignmentsSyncer) desiredRoleAssignmentResourceID(serviceProviderCluster *coreapi.ServiceProviderCluster, key coreapi.RoleAssignmentKey) (*azcorearm.ResourceID, error) {
+	scopeID := serviceProviderCluster.Status.AzureResources.ManagedResourceGroup.AzureResource
+	generatedRoleAssignmentResourceIDStr := roleassignment.ManagedResourceGroupScopedRoleAssignmentResourceID(scopeID.String(), key.PrincipalID, key.RoleDefinitionResourceID)
+	parsedRoleAssignmentResourceID, err := azcorearm.ParseResourceID(generatedRoleAssignmentResourceIDStr)
 	if err != nil {
-		return nil, err
+		return nil, utils.TrackError(fmt.Errorf("failed to parse role assignment resource ID %q: %w", generatedRoleAssignmentResourceIDStr, err))
 	}
-	expected, err = appendRoleAssignments(expected, scopeID.String(), principalID, roleDefinitionIDs)
+	return parsedRoleAssignmentResourceID, nil
+}
+
+func (s *clusterRoleAssignmentsSyncer) ensureRoleAssignment(
+	ctx context.Context,
+	serviceProviderCluster *coreapi.ServiceProviderCluster,
+	key coreapi.RoleAssignmentKey,
+	status *coreapi.RoleAssignmentStatus,
+	client azureclient.RoleAssignmentsClient,
+) error {
+	desiredResourceID, err := s.desiredRoleAssignmentResourceID(serviceProviderCluster, key)
 	if err != nil {
-		return nil, err
+		return utils.TrackError(fmt.Errorf("failed to calculate desired role assignment resource ID: %w", err))
 	}
 
-	// The operator maps above iterate in a non-deterministic order, so sort the expected
-	// assignments by their canonical (case-insensitive, matching ResourceIDsEqual) resource ID.
-	// This keeps the persisted PendingAzureResources / AzureResources ordering stable across
-	// passes, so an unchanged SET does not look changed to the slice-order-sensitive
-	// controllerutil.NeedsUpdate - which would otherwise cause redundant Cosmos writes (and
-	// spurious optimistic-concurrency conflicts). The de-dup in appendRoleAssignments guarantees
-	// the sort key is unique, so the ordering is total and deterministic.
-	slices.SortFunc(expected, func(a, b roleAssignmentDefinition) int {
-		return strings.Compare(strings.ToLower(a.resourceID.String()), strings.ToLower(b.resourceID.String()))
-	})
+	scopeID := serviceProviderCluster.Status.AzureResources.ManagedResourceGroup.AzureResource
 
-	return expected, nil
-}
+	_, getErr := client.GetByID(ctx, desiredResourceID.String(), nil)
 
-// controlPlaneOperatorPrincipalID returns the resolved Azure principal ID for a
-// control-plane operator identity, looked up on the ServiceProviderCluster status by
-// the lowercased identity resource ID. The bool is false when the principal ID has not
-// been resolved yet. The identity resource ID is always set on a cluster's operators,
-// so it is not nil-guarded.
-func controlPlaneOperatorPrincipalID(serviceProviderCluster *coreapi.ServiceProviderCluster, identityResourceID *azcorearm.ResourceID) (string, bool) {
-	key := strings.ToLower(identityResourceID.String())
-	identity, ok := serviceProviderCluster.Status.MSIManagedIdentities.ControlPlaneOperatorsIdentities[key]
-	if !ok || identity == nil || identity.PrincipalID == nil || len(*identity.PrincipalID) == 0 {
-		return "", false
+	if getErr != nil && !azureclient.IsRoleAssignmentNotFoundErr(getErr) {
+		return utils.TrackError(fmt.Errorf("failed to get role assignment %s: %w", desiredResourceID.String(), getErr))
 	}
-	return *identity.PrincipalID, true
-}
 
-// dataPlaneOperatorPrincipalID returns the resolved Azure principal ID for a
-// data-plane operator identity, looked up on the ServiceProviderCluster status by
-// the lowercased identity resource ID. The bool is false when the principal ID has not
-// been resolved yet. The identity resource ID is always set on a cluster's operators,
-// so it is not nil-guarded.
-func dataPlaneOperatorPrincipalID(serviceProviderCluster *coreapi.ServiceProviderCluster, identityResourceID *azcorearm.ResourceID) (string, bool) {
-	key := strings.ToLower(identityResourceID.String())
-	identity, ok := serviceProviderCluster.Status.DataPlaneOperatorsManagedIdentities.Identities[key]
-	if !ok || identity == nil || identity.PrincipalID == nil || len(*identity.PrincipalID) == 0 {
-		return "", false
-	}
-	return *identity.PrincipalID, true
-}
-
-// serviceManagedIdentityPrincipalID returns the resolved Azure principal ID for the
-// cluster's service managed identity, read from the ServiceProviderCluster status. Unlike
-// the control-plane and data-plane operators (which are maps keyed by identity resource ID),
-// the service managed identity is a single identity, so its resolved metadata is a single
-// status field rather than a map entry. The bool is false when the principal ID has not been
-// resolved yet, or when the resolved identity's resource ID does not match the configured one
-// (which guards against reading a stale principal ID after an identity replacement).
-func serviceManagedIdentityPrincipalID(serviceProviderCluster *coreapi.ServiceProviderCluster, identityResourceID *azcorearm.ResourceID) (string, bool) {
-	smi := serviceProviderCluster.Status.MSIManagedIdentities.ServiceManagedIdentity
-	if smi == nil || smi.ResourceID == nil {
-		return "", false
-	}
-	if !strings.EqualFold(smi.ResourceID.String(), identityResourceID.String()) {
-		return "", false
-	}
-	if smi.PrincipalID == nil || len(*smi.PrincipalID) == 0 {
-		return "", false
-	}
-	return *smi.PrincipalID, true
-}
-
-// controlPlaneOperatorRoleDefinitionIDs returns the role definition resource IDs
-// configured for a control-plane operator. It returns an error for an unknown
-// operator or one with no configured role definitions.
-func (c *roleAssignmentsSyncer) controlPlaneOperatorRoleDefinitionIDs(operatorName string) ([]*azcorearm.ResourceID, error) {
-	operatorIdentity, ok := c.clusterScopedIdentitiesConfig.ControlPlaneOperatorsIdentities[azure.ClusterOperatorIdentifier(operatorName)]
-	if !ok || operatorIdentity == nil {
-		return nil, fmt.Errorf("no control plane operator identity configuration for operator %q", operatorName)
-	}
-	roleDefinitionIDs := operatorIdentity.RoleDefinitionsResourceIDs()
-	if len(roleDefinitionIDs) == 0 {
-		return nil, fmt.Errorf("no role definitions configured for control plane operator %q", operatorName)
-	}
-	return roleDefinitionIDs, nil
-}
-
-// dataPlaneOperatorRoleDefinitionIDs returns the role definition resource IDs
-// configured for a data-plane operator. It returns an error for an unknown operator
-// or one with no configured role definitions.
-func (c *roleAssignmentsSyncer) dataPlaneOperatorRoleDefinitionIDs(operatorName string) ([]*azcorearm.ResourceID, error) {
-	operatorIdentity, ok := c.clusterScopedIdentitiesConfig.DataPlaneOperatorsIdentities[azure.ClusterOperatorIdentifier(operatorName)]
-	if !ok || operatorIdentity == nil {
-		return nil, fmt.Errorf("no data plane operator identity configuration for operator %q", operatorName)
-	}
-	roleDefinitionIDs := operatorIdentity.RoleDefinitionsResourceIDs()
-	if len(roleDefinitionIDs) == 0 {
-		return nil, fmt.Errorf("no role definitions configured for data plane operator %q", operatorName)
-	}
-	return roleDefinitionIDs, nil
-}
-
-// serviceManagedIdentityRoleDefinitionIDs returns the role definition resource IDs
-// configured for the service managed identity. It returns an error when the service
-// managed identity is not configured or has no configured role definitions.
-func (c *roleAssignmentsSyncer) serviceManagedIdentityRoleDefinitionIDs() ([]*azcorearm.ResourceID, error) {
-	serviceManagedIdentity := c.clusterScopedIdentitiesConfig.ServiceManagedIdentity
-	if serviceManagedIdentity == nil {
-		return nil, fmt.Errorf("no service managed identity configuration")
-	}
-	roleDefinitionIDs := serviceManagedIdentity.RoleDefinitionsResourceIDs()
-	if len(roleDefinitionIDs) == 0 {
-		return nil, fmt.Errorf("no role definitions configured for service managed identity")
-	}
-	return roleDefinitionIDs, nil
-}
-
-// appendRoleAssignments derives the deterministic role assignment name and resource ID for
-// principalID paired with each role definition at scope and appends the resulting expected
-// assignments to expected, skipping duplicates (a shared identity + role definition would
-// otherwise produce the same deterministic ID twice).
-func appendRoleAssignments(expected []roleAssignmentDefinition, scope, principalID string, roleDefinitionIDs []*azcorearm.ResourceID) ([]roleAssignmentDefinition, error) {
-	for _, roleDefinitionID := range roleDefinitionIDs {
-		if roleDefinitionID == nil {
-			continue
+	if getErr != nil && azureclient.IsRoleAssignmentNotFoundErr(getErr) {
+		if err := s.createRoleAssignment(ctx, client, scopeID.String(), desiredResourceID.Name, key); err != nil {
+			return err
 		}
-		roleDefID := roleDefinitionID.String()
-		name := roleassignment.GenerateManagedResourceGroupScopedRoleAssignmentName(scope, principalID, roleDefID)
-		fullID := roleassignment.ManagedResourceGroupScopedRoleAssignmentResourceID(scope, principalID, roleDefID)
-		parsed, err := azcorearm.ParseResourceID(fullID)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse role assignment resource ID %q: %w", fullID, err)
-		}
-		if slices.ContainsFunc(expected, func(e roleAssignmentDefinition) bool {
-			return controllerutil.ResourceIDsEqual(e.resourceID, parsed)
-		}) {
-			continue
-		}
-		expected = append(expected, roleAssignmentDefinition{
-			resourceID:       parsed,
-			scope:            scope,
-			name:             name,
-			principalID:      principalID,
-			roleDefinitionID: roleDefID,
-		})
 	}
-	return expected, nil
+
+	status.AzureResource = desiredResourceID
+	status.PendingAzureResource = nil
+	utils.LoggerFromContext(ctx).Info("Ensured role assignment", "resourceID", desiredResourceID.String(), "principalID", key.PrincipalID, "roleDefinitionResourceID", key.RoleDefinitionResourceID)
+
+	return nil
 }
 
-// roleAssignmentsClient builds an FPA-credentialed Azure RoleAssignments client for
-// the given subscription, resolving the tenant ID from the subscription document.
-func (c *roleAssignmentsSyncer) roleAssignmentsClient(ctx context.Context, subscriptionID string) (azureclient.RoleAssignmentsClient, error) {
-	subscription, err := c.subscriptionLister.Get(ctx, subscriptionID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get subscription %q: %w", subscriptionID, err)
-	}
-	if subscription.Properties == nil || subscription.Properties.TenantId == nil {
-		return nil, fmt.Errorf("subscription %q has no tenant ID", subscriptionID)
-	}
-
-	client, err := c.azureFPAClientBuilder.RoleAssignmentsClient(*subscription.Properties.TenantId, subscriptionID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to build role assignments client: %w", err)
-	}
-	return client, nil
-}
-
-// createRoleAssignment creates the managed-resource-group-scoped role assignment described by
-// assignment with its deterministic name and parameters (PrincipalID, RoleDefinitionID,
-// PrincipalType=ServicePrincipal).
-//
-// The assignment name is deterministic (a UUIDv5 derived from the scope, principal, and role
-// definition), so re-creating the same assignment is an idempotent update (PUT) rather than a
-// conflict. Azure only returns the RoleAssignmentExists (409) error when a role assignment for
-// the same principal + role definition at the same scope already exists under a DIFFERENT name,
-// which is not expected here. Any create error is therefore surfaced (wrapped) so the sync
-// retries instead of silently treating the failure as success.
-//
-// TODO(https://github.com/Azure/ARO-HCP/pull/6784#pullrequestreview-5093255837): if a
-// RoleAssignmentExists error is ever observed - an equivalent assignment (same principal + scope
-// + role definition) already exists under a different name - adopt (import) that existing
-// assignment instead of returning an error.
-func (c *roleAssignmentsSyncer) createRoleAssignment(ctx context.Context, client azureclient.RoleAssignmentsClient, assignment roleAssignmentDefinition) error {
-	logger := utils.LoggerFromContext(ctx)
-	logger.Info("creating role assignment",
-		"roleAssignmentID", assignment.resourceID.String())
-
-	_, err := client.Create(ctx, assignment.scope, assignment.name, armauthorization.RoleAssignmentCreateParameters{
+func (s *clusterRoleAssignmentsSyncer) createRoleAssignment(
+	ctx context.Context,
+	client azureclient.RoleAssignmentsClient,
+	scope string,
+	roleAssignmentName string,
+	key coreapi.RoleAssignmentKey,
+) error {
+	parameters := armauthorization.RoleAssignmentCreateParameters{
 		Properties: &armauthorization.RoleAssignmentProperties{
-			PrincipalID:      to.Ptr(assignment.principalID),
-			RoleDefinitionID: to.Ptr(assignment.roleDefinitionID),
-			PrincipalType:    to.Ptr(armauthorization.PrincipalTypeServicePrincipal),
+			PrincipalID:      ptr.To(key.PrincipalID),
+			RoleDefinitionID: ptr.To(key.RoleDefinitionResourceID),
+			PrincipalType:    ptr.To(armauthorization.PrincipalTypeServicePrincipal),
 		},
-	}, nil)
+	}
+	_, err := client.Create(ctx, scope, roleAssignmentName, parameters, nil)
+	if azureclient.IsRoleAssignmentExistsErr(err) {
+		return nil
+	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to create role assignment %q: %w", assignment.resourceID.String(), err))
+		return utils.TrackError(fmt.Errorf("failed to create role assignment %s: %w", roleAssignmentName, err))
 	}
 	return nil
 }
 
-// roleAssignmentsPreviouslyCreated reports whether every expected role assignment has already
-// been created - i.e. every expected assignment is present in the confirmed set.
-func (c *roleAssignmentsSyncer) roleAssignmentsPreviouslyCreated(confirmed []*azcorearm.ResourceID, expected []roleAssignmentDefinition) bool {
-	for _, assignment := range expected {
-		if !slices.ContainsFunc(confirmed, func(id *azcorearm.ResourceID) bool {
-			return controllerutil.ResourceIDsEqual(id, assignment.resourceID)
-		}) {
+func (s *clusterRoleAssignmentsSyncer) deleteRoleAssignment(ctx context.Context, client azureclient.RoleAssignmentsClient, resourceID *azcorearm.ResourceID) error {
+	_, err := client.DeleteByID(ctx, resourceID.String(), nil)
+	if azureclient.IsRoleAssignmentNotFoundErr(err) {
+		return nil
+	}
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to delete role assignment %s: %w", resourceID.String(), err))
+	}
+	return nil
+}
+
+func (s *clusterRoleAssignmentsSyncer) deconfigureRoleAssignment(
+	ctx context.Context,
+	status *coreapi.RoleAssignmentStatus,
+	client azureclient.RoleAssignmentsClient,
+) error {
+	var errs []error
+
+	remainingPendingAzureResource := status.PendingAzureResource
+	remainingAzureResource := status.AzureResource
+
+	if status.PendingAzureResource != nil {
+		err := s.deleteRoleAssignment(ctx, client, status.PendingAzureResource)
+		if err != nil {
+			errs = append(errs, err)
+		} else {
+			remainingPendingAzureResource = nil
+		}
+	}
+
+	if status.AzureResource != nil && !controllerutil.ResourceIDsEqual(status.AzureResource, status.PendingAzureResource) {
+		if err := s.deleteRoleAssignment(ctx, client, status.AzureResource); err != nil {
+			errs = append(errs, err)
+		} else {
+			remainingAzureResource = nil
+		}
+	}
+
+	status.PendingAzureResource = remainingPendingAzureResource
+	status.AzureResource = remainingAzureResource
+	if len(errs) > 0 {
+		return errors.Join(errs...)
+	}
+
+	return nil
+}
+
+// syncRoleAssignmentRecheckTime sets Spec.EarliestRecheckTimesByController[ClusterRoleAssignments]
+// when remaining keys are idle (desired keys have AzureResource set, and
+// draining keys are still inside the 24h wait). An empty role assignment map
+// deletes the entry: there is nothing to re-query. Immediate work remaining
+// leaves any existing time in place so needsWork stays true until that work
+// finishes.
+func (s *clusterRoleAssignmentsSyncer) syncRoleAssignmentRecheckTime(replacement *coreapi.ServiceProviderCluster) {
+	if len(replacement.Status.RoleAssignments) == 0 {
+		delete(replacement.Spec.EarliestRecheckTimesByController, ClusterRoleAssignmentsControllerName)
+		return
+	}
+
+	if !s.roleAssignmentsAzureIdle(replacement) {
+		return
+	}
+
+	recheckAt := metav1.NewTime(s.clock.Now().Add(wait.Jitter(clusterRoleAssignmentsRecheckInterval, clusterRoleAssignmentsRecheckJitter)))
+	if replacement.Spec.EarliestRecheckTimesByController == nil {
+		replacement.Spec.EarliestRecheckTimesByController = map[string]*metav1.Time{}
+	}
+	replacement.Spec.EarliestRecheckTimesByController[ClusterRoleAssignmentsControllerName] = &recheckAt
+}
+
+func (s *clusterRoleAssignmentsSyncer) roleAssignmentsAzureIdle(serviceProviderCluster *coreapi.ServiceProviderCluster) bool {
+	now := s.clock.Now()
+	for _, status := range serviceProviderCluster.Status.RoleAssignments {
+		if s.roleAssignmentNeedsImmediateWork(status, now) {
 			return false
 		}
 	}
 	return true
-}
-
-// recheckDue reports whether the earliest-recheck time has elapsed. A nil time reports true:
-// a cluster that has never had a recheck window set does one reconcile pass on rollout (an
-// accepted one-time recheck), after which that pass sets a future window.
-func (c *roleAssignmentsSyncer) recheckDue(earliest *metav1.Time) bool {
-	return earliest == nil || !c.clock.Now().Before(earliest.Time)
-}
-
-// nextRoleAssignmentRecheckTime returns the next earliest-recheck time: roughly one recheck
-// interval from now, with up to 50% positive jitter so rechecks spread out over time rather
-// than storming Azure in lockstep.
-func (c *roleAssignmentsSyncer) nextRoleAssignmentRecheckTime() *metav1.Time {
-	jittered := wait.Jitter(roleAssignmentRecheckInterval, roleAssignmentRecheckJitterFactor)
-	recheck := metav1.NewTime(c.clock.Now().Add(jittered))
-	return &recheck
 }

@@ -44,6 +44,54 @@ func (m *DenyAssignmentsClientFunc) NewListForResourceGroupPager(_ string, _ *ar
 	return nil
 }
 
+// RoleAssignmentsClientFunc adapts functions to the RoleAssignmentsClient interface.
+// Tests set the function fields to control the response per call.
+type RoleAssignmentsClientFunc struct {
+	GetByIDFunc    func(ctx context.Context, roleAssignmentID string, options *armauthorization.RoleAssignmentsClientGetByIDOptions) (armauthorization.RoleAssignmentsClientGetByIDResponse, error)
+	CreateFunc     func(ctx context.Context, scope, roleAssignmentName string, parameters armauthorization.RoleAssignmentCreateParameters, options *armauthorization.RoleAssignmentsClientCreateOptions) (armauthorization.RoleAssignmentsClientCreateResponse, error)
+	DeleteByIDFunc func(ctx context.Context, roleAssignmentID string, options *armauthorization.RoleAssignmentsClientDeleteByIDOptions) (armauthorization.RoleAssignmentsClientDeleteByIDResponse, error)
+
+	GetByIDCalls    []string
+	CreateCalls     []RoleAssignmentCreateCall
+	DeleteByIDCalls []string
+}
+
+type RoleAssignmentCreateCall struct {
+	Scope              string
+	RoleAssignmentName string
+	Parameters         armauthorization.RoleAssignmentCreateParameters
+}
+
+var _ azureclient.RoleAssignmentsClient = (*RoleAssignmentsClientFunc)(nil)
+
+func (m *RoleAssignmentsClientFunc) GetByID(ctx context.Context, roleAssignmentID string, options *armauthorization.RoleAssignmentsClientGetByIDOptions) (armauthorization.RoleAssignmentsClientGetByIDResponse, error) {
+	m.GetByIDCalls = append(m.GetByIDCalls, roleAssignmentID)
+	if m.GetByIDFunc != nil {
+		return m.GetByIDFunc(ctx, roleAssignmentID, options)
+	}
+	return armauthorization.RoleAssignmentsClientGetByIDResponse{}, fmt.Errorf("GetByIDFunc not set")
+}
+
+func (m *RoleAssignmentsClientFunc) Create(ctx context.Context, scope string, roleAssignmentName string, parameters armauthorization.RoleAssignmentCreateParameters, options *armauthorization.RoleAssignmentsClientCreateOptions) (armauthorization.RoleAssignmentsClientCreateResponse, error) {
+	m.CreateCalls = append(m.CreateCalls, RoleAssignmentCreateCall{
+		Scope:              scope,
+		RoleAssignmentName: roleAssignmentName,
+		Parameters:         parameters,
+	})
+	if m.CreateFunc != nil {
+		return m.CreateFunc(ctx, scope, roleAssignmentName, parameters, options)
+	}
+	return armauthorization.RoleAssignmentsClientCreateResponse{}, fmt.Errorf("CreateFunc not set")
+}
+
+func (m *RoleAssignmentsClientFunc) DeleteByID(ctx context.Context, roleAssignmentID string, options *armauthorization.RoleAssignmentsClientDeleteByIDOptions) (armauthorization.RoleAssignmentsClientDeleteByIDResponse, error) {
+	m.DeleteByIDCalls = append(m.DeleteByIDCalls, roleAssignmentID)
+	if m.DeleteByIDFunc != nil {
+		return m.DeleteByIDFunc(ctx, roleAssignmentID, options)
+	}
+	return armauthorization.RoleAssignmentsClientDeleteByIDResponse{}, fmt.Errorf("DeleteByIDFunc not set")
+}
+
 // GenericResourcesClientFunc adapts functions to the GenericResourcesClient interface.
 // Tests set the function fields to control the response.
 // BeginCreateOrUpdateByID and BeginDeleteByID return a nil *Poller and an error — to simulate
@@ -93,6 +141,8 @@ type FirstPartyApplicationClientBuilderFunc struct {
 	GenericResourcesClientErr error
 	DenyAssignmentsClientVal  azureclient.DenyAssignmentsClient
 	DenyAssignmentsClientErr  error
+	RoleAssignmentsClientVal  azureclient.RoleAssignmentsClient
+	RoleAssignmentsClientErr  error
 }
 
 var _ azureclient.FirstPartyApplicationClientBuilder = (*FirstPartyApplicationClientBuilderFunc)(nil)
@@ -126,5 +176,11 @@ func (m *FirstPartyApplicationClientBuilderFunc) DenyAssignmentsClient(tenantID 
 }
 
 func (m *FirstPartyApplicationClientBuilderFunc) RoleAssignmentsClient(tenantID string, subscriptionID string) (azureclient.RoleAssignmentsClient, error) {
+	if m.RoleAssignmentsClientErr != nil {
+		return nil, m.RoleAssignmentsClientErr
+	}
+	if m.RoleAssignmentsClientVal != nil {
+		return m.RoleAssignmentsClientVal, nil
+	}
 	return nil, fmt.Errorf("not implemented")
 }

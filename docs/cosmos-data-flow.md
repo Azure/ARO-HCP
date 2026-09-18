@@ -252,7 +252,7 @@ which performs a **transactional batch** to atomically update the operation and 
 | Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.ActiveOperationID` (mismatch check)</li><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.API.URL`</li><li>`ServiceProviderProperties.CreateOperationCompletionDeadline`</li></ul> |
 | Read | ReadDesire (HostedCluster) | <ul><li>`Status.Conditions` (ConditionTypeSuccessful)</li><li>`Status.KubeContent` -> HostedCluster `status.controlPlaneVersion.history[].state`, `status.controlPlaneVersion.history[].version`, `status.conditions` (Available, Degraded), `status.controlPlaneEndpoint.host`, `status.controlPlaneEndpoint.port`</li></ul> |
 | Read | Cluster Service | <ul><li>cluster state, provision error</li></ul> |
-| Read | `ServiceProviderCluster` | <ul><li>`Status.ServingCABundle` (completion gate: must be populated)</li><li>`Status.AzureResources.RoleAssignments` (completion gate: at least one confirmed `AzureResources` and no `PendingAzureResources`)</li></ul> |
+| Read | `ServiceProviderCluster` | <ul><li>`Status.ServingCABundle` (completion gate: must be populated)</li><li>`Status.RoleAssignments` (completion gate: every currently desired assignment is `Configured()`)</li></ul> |
 | **Write** | **`Operation`** | <ul><li>**`Status`** -> `Provisioning`/`Succeeded`/`Failed`</li><li>**`Error`** (on failure)</li><li>**`LastTransitionTime`**</li><li>**`NotificationURI`** (cleared after ARM notification)</li></ul> |
 | **Write** | **`HCPOpenShiftCluster`** | <ul><li>**`ServiceProviderProperties.ProvisioningState`** = new status</li><li>**`.ActiveOperationID`** = `""` (on terminal)</li></ul> |
 
@@ -1262,26 +1262,52 @@ A configured managed resource group name or `PendingAzureResource` alone does no
 | Read/Write | Azure (ResourceGroupsClient) | <ul><li>`Get` on the managed resource group -> exists / ResourceGroupNotFound; `ManagedBy` (ownership check) is inspected only in the non-deletion path when the resource group exists</li><li>`CreateOrUpdate` on the managed resource group (non-deletion path only) when the Get returns ResourceGroupNotFound: sets `Location` and `ManagedBy` = this cluster's ID</li></ul> |
 | **Write** | **`ServiceProviderCluster`** | <ul><li>**`Status.AzureResources.ManagedResourceGroup.PendingAzureResource`** = managed resource group resource ID, recorded (and persisted) before the Azure Get in the non-deletion path; kept while the resource group is missing; cleared once `AzureResource` is set, or during deletion once the resource group is gone</li><li>**`Status.AzureResources.ManagedResourceGroup.AzureResource`** = managed resource group resource ID when it exists and is not owned by another cluster (non-deletion path only); cleared during deletion once the resource group is gone</li></ul> |
 
-#### IdentityRoleAssignments
+#### ClusterRoleAssignmentIntent
 
-**File:** [role_assignments_controller.go](../backend/pkg/controllers/cluster/roleassignments/role_assignments_controller.go)
-**Trigger:** Cluster informer, 5-minute resync
-**Behavior:** Manages (creates + observes) the managed-resource-group-scoped role assignments for each control-plane operator, data-plane operator, and the service managed identity: it creates the ones Azure reports missing and mirrors their confirmed existence onto `ServiceProviderCluster.Status.AzureResources.RoleAssignments` so the cluster-create gate can confirm they are present. Creates are idempotent because the assignment names are deterministic — re-creating the same assignment is an update (PUT), not a conflict — so any create error is surfaced (not swallowed) and the sync retries. A `NeedsWork` gate skips the sync when there is nothing to do: it is a no-op until the managed resource group is confirmed (`Status.AzureResources.ManagedResourceGroup.AzureResource` != nil), and thereafter once every expected role assignment is present in `AzureResources` (a superset — for example leftover assignments from a previous operator identity — is tolerated) with nothing pending and the earliest-recheck window not yet elapsed. Only when the gate reports work (or the recheck window is due) does the two-pass reconcile run and make Azure calls, so steady-state resyncs make none.
-- **Deletion is a genuine no-op**: while the cluster is being deleted the controller returns immediately and makes no Azure calls. The managed resource group is deleted on cluster delete, and that cascade removes the role assignments scoped to it, so there is nothing to create or delete and no deletion gate.
-- Not deleting (reconcile): computes the expected role assignments by pairing each control-plane operator (`CustomerProperties...UserAssignedIdentities.ControlPlaneOperators`), data-plane operator (`...DataPlaneOperators`), and the service managed identity (`...ServiceManagedIdentity`, a single identity rather than a map) resolved `PrincipalID` (from `Status.MSIManagedIdentities.ControlPlaneOperatorsIdentities` / `Status.DataPlaneOperatorsManagedIdentities` / `Status.MSIManagedIdentities.ServiceManagedIdentity`) with that identity's role definitions (from the cluster-scoped identities config), scoped to the managed resource group. The role assignment name is generated with a deterministic UUIDv5 algorithm (see the `roleassignment` package). It then reconciles in **two passes**. Pass 1 classifies each expected assignment with `GetByID` only (no Azure writes):
-  - **exists** → recorded as confirmed (`AzureResources`).
-  - **not found** (`RoleAssignmentNotFound`) → recorded as pending (`PendingAzureResources`) and queued for creation.
-  - **other error** → recorded as pending but **not** queued for creation (its existence is unknown, so it self-heals on a later `GetByID` rather than being created blind); the error is collected.
-- The classified pending/confirmed state is then persisted **before** any Azure `Create`, so a role assignment about to be created is durably recorded as pending first (if the create succeeds but the process crashes before the next persist, a later `GetByID` still finds and confirms it). `PendingAzureResources` and `AzureResources` are overwritten from this pass (the write is skipped when those references are unchanged, to avoid a redundant Cosmos write). If that persist hits a Cosmos precondition (optimistic-concurrency) conflict, the state was not written, so the sync returns without creating and relies on the watch event from the conflicting write to re-run it. When nothing is pending (every expected assignment confirmed) this controller's entry in `Spec.EarliestRecheckTimesByController` (keyed `"IdentityRoleAssignments"`) is set to a future time — the only thing that stops the sync re-running on every resync; while work remains the entry is deleted. **Pass 2** then creates the queued missing assignments (`PrincipalID`, `RoleDefinitionID`, `PrincipalType=ServicePrincipal`); because the names are deterministic a repeated create is an idempotent update rather than a conflict, so any create error is surfaced (the sync retries) rather than swallowed, and freshly-created assignments stay **pending** this pass (already persisted) and confirm on a later `GetByID`. A `nil` recheck time (no entry in `Spec.EarliestRecheckTimesByController`) is treated as due, so an existing cluster does one recheck pass on rollout. Any previously-confirmed assignment that is no longer expected (for example after an identity or name-scheme change) is **retained** in `AzureResources` — carried forward from the previous confirmed set, not re-queried and not dropped; its deletion is deferred to managed identity replacement support.
+**File:** [role_assignments_intent_controller.go](../backend/pkg/controllers/cluster/roleassignments/role_assignments_intent_controller.go)
+**Trigger:** Cluster informer, 1-minute resync
+**Gate (SyncOnce preconditions):**
+- `Cluster.ServiceProviderProperties.DeletionTimestamp` == nil (deletion is a no-op)
+- `ServiceProviderCluster` exists (CreateServiceProviderCluster creates it; this controller waits)
+
+**Behavior:** Cosmos-only. It does not call Azure. It keeps `ServiceProviderCluster.Status.RoleAssignments` in sync with the control-plane operator, data-plane operator, and service managed identity role definitions from the cluster-scoped identities config.
+- Desired keys are added only when `Status.ManagedIdentityDetails` has a fully resolved source for that use. Control-plane operators and the service managed identity use Managed Identities Dataplane Service when `managedIdentitiesDataPlaneServiceAvailable` is true (the same environment signal as FetchManagedIdentitiesInfo: `HardcodedIdentity == nil`), otherwise hardcoded identity. A nil or unresolved value on that chosen source waits; the other MSI source is not consulted. They do not use ARM. Data-plane operators use ARM User Assigned Identities only. The same UAMI used as both a control-plane operator and a data-plane operator can therefore produce two PrincipalIDs. `TargetIdentity` is copied from that source. `AzureResource` stays nil until ClusterRoleAssignments writes it after a successful ensure.
+- A ClientID or TenantID change on the same key updates `TargetIdentity`; it does not deconfigure.
+- Keys present in `RoleAssignments` but no longer desired keep their row when `AzureResource` or `PendingAzureResource` is set. The first transition stamps `DeconfigureTimestamp`. A row that was never ensured is dropped. If the key is desired again before the wait ends, the timestamp is cleared.
+- ResourceIDs that are still required but whose principal IDs are temporarily unresolved are left as-is so a transient fetch error does not deconfigure them.
+- A nil `ServiceManagedIdentity` ResourceID is an error. Nil control-plane identity ResourceIDs are skipped. A nil data-plane identity ResourceID or empty operator name is an error.
+- Cluster deletion is a no-op. Role assignments are scoped to the managed resource group, so Azure deletes them in cascade when that resource group is removed. This controller does not stamp `DeconfigureTimestamp` on delete.
 
 | | Object | Fields |
 |---|--------|--------|
-| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (SyncOnce: deletion is a no-op)</li><li>`CustomerProperties.Platform.ManagedResourceGroup` (managed resource group scope; error when empty)</li><li>`CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators` / `DataPlaneOperators` / `ServiceManagedIdentity` (identities to enumerate)</li><li>`ID` (subscription / resource group / name)</li></ul> |
+| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (SyncOnce: must be nil)</li><li>`CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators`</li><li>`CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators`</li><li>`CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity` (SyncOnce: must not be nil)</li><li>`ID` (subscription / resource group / name)</li></ul> |
+| Read | `ServiceProviderCluster` | <ul><li>`Status.ManagedIdentityDetails[<lowercased resourceID>]` (dataplane or hardcoded source for MSI-based keys; ARM source for data-plane operators; missing or unresolved source records the ResourceID as unresolved rather than deconfiguring)</li><li>`Status.RoleAssignments` (merged against desired keys; compared before write to skip no-op replacements)</li></ul> |
+| **Write** | **`ServiceProviderCluster`** | <ul><li>**`Status.RoleAssignments`** = the merged map. New desired keys are `{TargetIdentity}` with `AzureResource`/`PendingAzureResource`/`DeconfigureTimestamp` unset. Still-desired existing keys have `DeconfigureTimestamp` cleared and `TargetIdentity` replaced. Leftovers with `AzureResource` or `PendingAzureResource` set get `DeconfigureTimestamp` = now (kept if already stamped). Leftovers that were never ensured are dropped. Unresolved-ResourceID leftovers are copied unchanged. The field is written `nil` when the merged map is empty.</li></ul> |
+
+#### ClusterRoleAssignments
+
+**File:** [role_assignments_controller.go](../backend/pkg/controllers/cluster/roleassignments/role_assignments_controller.go)
+**Trigger:** Cluster informer, 1-minute resync
+**Gate (needsWork):**
+- `Cluster.ServiceProviderProperties.DeletionTimestamp` == nil (deletion is a no-op)
+- `ServiceProviderCluster.Status.AzureResources.ManagedResourceGroup.AzureResource` != nil
+- `len(ServiceProviderCluster.Status.RoleAssignments)` > 0
+- Immediate work exists (a desired key has `AzureResource` == nil, or a draining key's 24h wait from `DeconfigureTimestamp` has elapsed), OR `Spec.EarliestRecheckTimesByController["ClusterRoleAssignments"]` is nil or in the past
+
+**Behavior:** Creates, repairs, and deletes Azure role assignments for entries already on `Status.RoleAssignments`. It does not compute which keys should exist; ClusterRoleAssignmentIntent owns that.
+- **Deletion is a genuine no-op**: while the cluster is being deleted the controller returns immediately and makes no Azure calls. The managed resource group cascade removes the role assignments scoped to it.
+- **Loop 1 (persist pending before Azure):** for each desired key (`DeconfigureTimestamp` nil), compute the deterministic managed-resource-group scoped role assignment ID (UUIDv5 of scope, principal, and role definition; see the `roleassignment` package). If `AzureResource` already equals that ID, clear a leftover `PendingAzureResource`. Otherwise set `PendingAzureResource` to that ID. Persist before any Azure Create. A replace failure returns without creating.
+- **Loop 2 (Azure then status):** remaining keys still run if one key errors, so a partial update can be persisted. Desired keys `GetByID` the pending ID and `Create` only when Azure reports not found (`PrincipalID`, `RoleDefinitionID`, `PrincipalType=ServicePrincipal`). `RoleAssignmentExists` on Create is treated as success. On success, `AzureResource` is set to that ID and `PendingAzureResource` is cleared. Draining keys wait 24h from `DeconfigureTimestamp`, then `DeleteByID` `PendingAzureResource` and `AzureResource` (skipping a duplicate ID) and drop the map key only when both deletes succeed. `RoleAssignmentNotFound` on Delete is treated as success.
+- When remaining keys are idle (desired keys have `AzureResource` set, draining keys are still inside the 24h wait), `Spec.EarliestRecheckTimesByController["ClusterRoleAssignments"]` is set to now + a jittered 1h interval (jitter 0.5). An empty map deletes that entry. Immediate work remaining leaves any existing time in place so needsWork stays true.
+
+| | Object | Fields |
+|---|--------|--------|
+| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must be nil)</li><li>`ID` (subscription / resource group / name)</li></ul> |
 | Read | `Subscription` | <ul><li>`Properties.TenantId` (to build the FPA RoleAssignments client)</li></ul> |
-| Read | `ServiceProviderCluster` | <ul><li>`Status.AzureResources.ManagedResourceGroup.AzureResource` (gate: must be confirmed before managing)</li><li>`Status.MSIManagedIdentities.ControlPlaneOperatorsIdentities[<lowercased resourceID>].PrincipalID`</li><li>`Status.DataPlaneOperatorsManagedIdentities.Identities[<lowercased resourceID>].PrincipalID`</li><li>`Status.MSIManagedIdentities.ServiceManagedIdentity.PrincipalID` (matched by `ResourceID`)</li><li>`Status.AzureResources.RoleAssignments` (compared before write to skip no-op replacements)</li><li>`Spec.EarliestRecheckTimesByController["IdentityRoleAssignments"]` (NeedsWork: earliest-recheck gate)</li></ul> |
-| Read | Azure (RoleAssignmentsClient) | <ul><li>`GetByID` once per expected role assignment in pass 1 (classify; also serves as the earliest-recheck verification) -> exists / `RoleAssignmentNotFound`</li></ul> |
-| **Write** | Azure (RoleAssignmentsClient) | <ul><li>`Create` in pass 2 (after the pending intent is persisted) per expected role assignment Azure reported missing (`PrincipalID`, `RoleDefinitionID`, `PrincipalType=ServicePrincipal`); the deterministic name makes a repeated same-name create an idempotent update (PUT), not a conflict, so any `Create` error (including `RoleAssignmentExists`) is surfaced and retried</li></ul> |
-| **Write** | **`ServiceProviderCluster`** | <ul><li>**`Status.AzureResources.RoleAssignments.PendingAzureResources`** = overwritten each pass with the expected role assignment IDs not confirmed this pass (freshly-created ones stay pending until a later pass confirms them); confirmed or no-longer-expected IDs drop out</li><li>**`Status.AzureResources.RoleAssignments.AzureResources`** = overwritten each pass with the expected role assignment IDs confirmed to exist in Azure, plus any previously-confirmed assignment no longer expected which is retained (carried forward, pending managed identity replacement deletion)</li><li>**`Spec.EarliestRecheckTimesByController["IdentityRoleAssignments"]`** = now + a jittered recheck interval when nothing is pending (every expected assignment confirmed); the entry is deleted while work remains</li></ul> |
+| Read | `ServiceProviderCluster` | <ul><li>`Status.AzureResources.ManagedResourceGroup.AzureResource` (NeedsWork: must be confirmed before managing; used as the role assignment scope)</li><li>`Status.RoleAssignments` (NeedsWork: must be non-empty; each key's `DeconfigureTimestamp`, `AzureResource`, `PendingAzureResource`)</li><li>`Spec.EarliestRecheckTimesByController["ClusterRoleAssignments"]` (NeedsWork: earliest-recheck gate when there is no immediate work)</li></ul> |
+| Read | Azure (RoleAssignmentsClient) | <ul><li>`GetByID` once per desired key in loop 2 -> exists / `RoleAssignmentNotFound`</li></ul> |
+| **Write** | Azure (RoleAssignmentsClient) | <ul><li>`Create` in loop 2 after pending is persisted, per desired key Azure reported missing (`PrincipalID`, `RoleDefinitionID`, `PrincipalType=ServicePrincipal`); `RoleAssignmentExists` is treated as success; other Create errors are collected and retried</li><li>`DeleteByID` in loop 2 for draining keys after the 24h wait (`PendingAzureResource` then `AzureResource` if it is a different ID); `RoleAssignmentNotFound` is treated as success</li></ul> |
+| **Write** | **`ServiceProviderCluster`** | <ul><li>**`Status.RoleAssignments[key].PendingAzureResource`** = deterministic role assignment resource ID, persisted in loop 1 before Create on desired keys whose `AzureResource` is not already that ID; cleared on successful ensure; cleared when `AzureResource` already matches (leftover pending); left set on a failed deconfigure delete</li><li>**`Status.RoleAssignments[key].AzureResource`** = that same ID after GetByID finds it or Create succeeds; left set on a failed deconfigure delete of `AzureResource`</li><li>**`Status.RoleAssignments[key]`** = deleted from the map after both deconfigure deletes succeed; the map is written `nil` when empty</li><li>**`Spec.EarliestRecheckTimesByController["ClusterRoleAssignments"]`** = now + jittered 1h when remaining keys are idle; deleted when the map is empty; left unchanged while immediate work remains</li></ul> |
 
 ---
 
@@ -1317,7 +1343,8 @@ A configured managed resource group name or `PendingAzureResource` alone does no
               |                                                       (sets SPC.Status.Validations)
               v
   OperationClusterCreate
-  (polls CS + ReadDesire status -> sets Operation.Status -> sets Cluster.SP.ProvisioningState)
+  (polls CS + ReadDesire + ServingCABundle + RoleAssignments Configured
+   -> sets Operation.Status -> sets Cluster.SP.ProvisioningState)
               |
               v
   BackfillClusterUID (gates on ClusterUID empty)
@@ -1326,6 +1353,26 @@ A configured managed resource group name or `PendingAzureResource` alone does no
               v
   CreateBillingDoc (gates on ProvisioningState=Succeeded + ClusterUID non-empty)
   (creates BillingDocument, sets Cluster.SP.BillingDocumentCosmosID)
+```
+
+Role assignment create gate (parallel to CS create; OperationClusterCreate waits):
+
+```
+  FetchManagedIdentitiesInfo                 EnsureManagedResourceGroup
+  (sets SPC.Status.ManagedIdentityDetails)   (sets ManagedResourceGroup.AzureResource)
+              |                                           |
+              v                                           |
+  ClusterRoleAssignmentIntent                             |
+  (writes SPC.Status.RoleAssignments desired keys)        |
+              |                                           |
+              +---------------------+---------------------+
+                                    v
+                        ClusterRoleAssignments
+                        (sets RoleAssignments[].AzureResource)
+                                    |
+                                    v
+                        OperationClusterCreate
+                        (gates on DesiredRoleAssignmentsConfigured)
 ```
 
 ### Cluster Update Flow
@@ -1650,7 +1697,7 @@ Single writer. Read by [ClusterIdentitySync](#clusteridentitysync) to populate `
 |-------|------|
 | [FetchManagedIdentitiesInfo](#fetchmanagedidentitiesinfo) | Sets per-resource-ID metadata from the ARM User Assigned Identities API (control-plane and data-plane operator identities, including RetrievalError on Get failure; SMI-only identities are skipped), the real Managed Identities Data Plane (dataplane-registered identities when that service is available), and/or the hardcoded identity (those same identities when the real dataplane is not available), and sets its `Spec.EarliestRecheckTimesByController` entry for the next recheck |
 
-Single writer. One map entry per unique lowercased identity ResourceID, with each applicable source stored independently so a failure of one source does not drop metadata already retrieved from another. No Cosmos reader currently consumes this field: IdentityRoleAssignments and ClusterIdentitySync still read `MSIManagedIdentities` and `DataPlaneOperatorsManagedIdentities`.
+Single writer. One map entry per unique lowercased identity ResourceID, with each applicable source stored independently so a failure of one source does not drop metadata already retrieved from another. Read by [ClusterRoleAssignmentIntent](#clusterroleassignmentintent) to copy a fully resolved source into `RoleAssignments[].TargetIdentity` (dataplane or hardcoded for MSI-based keys, ARM for data-plane operators). ClusterIdentitySync still reads `MSIManagedIdentities`.
 
 ### `ServiceProviderCluster.Status.DataPlaneOperatorsManagedIdentities`
 
@@ -1666,15 +1713,16 @@ Single writer. Mirrors the customer's data plane operator managed identities (`C
 |-------|------|
 | [EnsureManagedResourceGroup](#ensuremanagedresourcegroup) | Creates the managed resource group when missing: while the cluster is not being deleted, records `PendingAzureResource` before querying Azure, then creates the resource group via `CreateOrUpdate` (claiming ownership via `ManagedBy`) when it is missing; before confirming (in both the create and already-exists cases) it gates on the resource group's provisioning state — `Succeeded` sets `AzureResource` (clearing pending) unless it is owned by another cluster (`ManagedBy` set to a different cluster ID, which returns an error), an in-progress state schedules a 10s requeue and keeps the pending marker, and a failed/terminal state returns an error; while the cluster is being deleted, clears both references once the resource group is gone and otherwise does nothing |
 
-Single writer. Read by [ClusterChildResourcesCleanupController](#clusterchildresourcescleanupcontroller) to gate deletion of the `ServiceProviderCluster` document until the managed resource group is gone.
+Single writer. Read by [ClusterChildResourcesCleanupController](#clusterchildresourcescleanupcontroller) to gate deletion of the `ServiceProviderCluster` document until the managed resource group is gone, by ClusterDenyAssignment as a NeedsWork prerequisite, and by [ClusterRoleAssignments](#clusterroleassignments) (`AzureResource` must be set before any Azure role assignment work).
 
-### `ServiceProviderCluster.Status.AzureResources.RoleAssignments`
+### `ServiceProviderCluster.Status.RoleAssignments`
 
 | Actor | When |
 |-------|------|
-| [IdentityRoleAssignments](#identityroleassignments) | Manages (creates + observes): while the cluster is not being deleted and the managed resource group is confirmed, reconciles the expected control-plane operator / data-plane operator / service managed identity role assignments in two passes — pass 1 classifies each with `GetByID` (existing → confirmed in `AzureResources`; missing → recorded pending and queued for creation), the pending/confirmed state is persisted **before** any create, then pass 2 creates the queued missing ones (idempotent by deterministic name — a repeated same-name create is an update/PUT, not a conflict — so any create error, including `RoleAssignmentExists`, is surfaced and retried). A freshly-created assignment stays pending until a later pass confirms it. `PendingAzureResources` / `AzureResources` are overwritten each pass; when nothing is pending its `Spec.EarliestRecheckTimesByController["IdentityRoleAssignments"]` entry is set to a jittered future time (the sync otherwise re-runs on that cadence, re-verifying the confirmed set). A previously-confirmed assignment no longer expected is retained (deletion deferred to managed identity replacement support). Deletion is a no-op (the managed resource group deletion cascade removes the role assignments). |
+| [ClusterRoleAssignmentIntent](#clusterroleassignmentintent) | Overwrites the map from currently desired operator/SMI keys: adds missing keys with `TargetIdentity`; on still-desired keys clears `DeconfigureTimestamp` and replaces `TargetIdentity`; stamps `DeconfigureTimestamp` on leftovers that already have `AzureResource` or `PendingAzureResource`; drops leftovers that were never ensured; copies unresolved-ResourceID keys unchanged. Does not write `AzureResource` or `PendingAzureResource`. Writes `nil` when the merged map is empty. |
+| [ClusterRoleAssignments](#clusterroleassignments) | On desired keys, persists `PendingAzureResource` (the deterministic managed-resource-group scoped role assignment ID) before Azure Create, then on successful GetByID/Create sets `AzureResource` and clears `PendingAzureResource`. After the 24h wait, deletes the Azure objects tracked on `PendingAzureResource`/`AzureResource` and removes the map key. Sets `Spec.EarliestRecheckTimesByController["ClusterRoleAssignments"]` when remaining keys are idle. |
 
-Single writer. Read by [OperationClusterCreate](#operationclustercreate) to gate cluster-create completion until at least one role assignment is confirmed and none remain pending.
+Read by [OperationClusterCreate](#operationclustercreate) via `DesiredRoleAssignmentsConfigured()`: every currently desired key (`DeconfigureTimestamp` nil) must have `AzureResource` set, and at least one such key must exist.
 
 ### `ServiceProviderCluster.Status.Validations`
 
@@ -1769,6 +1817,7 @@ Key source locations to examine:
 - backend/pkg/controllers/validationcontrollers/*.go
 - backend/pkg/controllers/statuscontrollers/*.go
 - backend/pkg/controllers/billing/*.go
+- backend/pkg/controllers/cluster/roleassignments/*.go
 - backend/pkg/controllers/cluster/placement/*.go
 - backend/pkg/controllers/mismatch/*.go
 - backend/pkg/controllers/create_*_read_desires_controller.go
