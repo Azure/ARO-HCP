@@ -132,10 +132,17 @@ What is gathered?
 - Cosmos DB document snapshots (`cosmosResourceSnapshots`) for resources in the resource group, written to the custom logs directory
 - Frontend operation-status and operation-result requests, including requests without a resource group in their URL. Operation IDs are discovered from Cosmos snapshot metadata for the subscription and resource group, narrowed to the selected clusters when `--cluster-id` or `--cluster-name` is specified.
 - Version rollout controller logs (`versionRolloutLogs`) and fleet rollout document snapshots (`versionRolloutSnapshots`) from the discovered infrastructure clusters. These include channel-wide decisions and other clusters' assignments because canary readiness and failure budgets can delay the target cluster's upgrade.
+- A Git history of the Cosmos DB snapshots under `cosmosContent/`, generated post-gather (skip with `--skip-cosmos-git` if you only need the raw JSONL in the custom logs directory)
 - Optionally: Systemd logs from the management and service cluster (turn on using --collect-systemd-logs)
 
 ```bash
 hcpctl must-gather  query --kusto $kusto --region $region  --subscription-id $subscription_id --resource-group $resource_group
+```
+
+Generating the `cosmosContent/` Git history makes one commit per snapshot change, which can dominate gather runtime for busy resource groups or wide time windows. Skip it with `--skip-cosmos-git` (the raw JSONL is still gathered unless `--skip-custom-logs` is also set):
+
+```bash
+hcpctl must-gather  query --kusto $kusto --region $region  --subscription-id $subscription_id --resource-group $resource_group --skip-cosmos-git
 ```
 
 To split output files by pod name (useful for investigating timing and concurrency issues), add `--split-by-pod`:

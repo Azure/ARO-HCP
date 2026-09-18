@@ -74,7 +74,12 @@ func (opts *CompletedQueryOptions) RunQuery(ctx context.Context) error {
 	logger.Info("gathering must-gather logs", "output", opts.OutputPath)
 	gatherErr := gatherer.GatherLogs(ctx)
 
-	cosmosContentErr := generateCosmosContent(ctx, opts.OutputPath)
+	var cosmosContentErr error
+	if opts.SkipCosmosGit {
+		logger.V(1).Info("skipping Cosmos content Git history generation")
+	} else {
+		cosmosContentErr = generateCosmosContent(ctx, opts.OutputPath)
+	}
 
 	// For every HCP cluster discovered in the resource group, oc-adm-inspect the
 	// hosted-cluster namespace (which pulls in the paired control-plane namespace)
