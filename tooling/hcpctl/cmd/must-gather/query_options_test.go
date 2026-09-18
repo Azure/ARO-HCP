@@ -18,8 +18,21 @@ import (
 	"testing"
 	"time"
 
+	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
+
+func TestBindQueryOptions_SkipCosmosGit(t *testing.T) {
+	opts := DefaultQueryOptions()
+	assert.False(t, opts.SkipCosmosGit, "SkipCosmosGit should default to false")
+
+	cmd := &cobra.Command{Use: "query"}
+	require.NoError(t, BindQueryOptions(opts, cmd))
+
+	require.NoError(t, cmd.ParseFlags([]string{"--skip-cosmos-git"}))
+	assert.True(t, opts.SkipCosmosGit, "--skip-cosmos-git should set SkipCosmosGit")
+}
 
 func TestValidate_ClusterIds_RejectsEmpty(t *testing.T) {
 	opts := &RawQueryOptions{
