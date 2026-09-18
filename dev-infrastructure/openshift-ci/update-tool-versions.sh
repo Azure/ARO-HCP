@@ -62,6 +62,15 @@ for var in "${!TOOL_REPOS[@]}"; do
     continue
   fi
 
+  # Only bump forward: if the pinned version is already ahead of the latest
+  # GitHub release (e.g. a pre-release or hotfix tag), leave it untouched
+  # instead of downgrading it.
+  highest="$(printf '%s\n%s\n' "$current" "$latest" | sort -V | tail -1)"
+  if [[ "$highest" == "$current" ]]; then
+    echo "  ${var}: ${current} is already ahead of latest release ${latest}, leaving as-is"
+    continue
+  fi
+
   echo "  ${var}: ${current} -> ${latest}"
   sed -i -E "s/^(${var}[[:space:]]*\?=[[:space:]]*).*$/\1${latest}/" "$VERSIONS_MK"
   sed -i -E "s/^(ARG ${var}=).*$/\1${latest}/" "$REPO_ROOT/Dockerfile"
