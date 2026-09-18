@@ -666,6 +666,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		billing.NewCreateBillingDocController(b.clock, b.options.AzureLocation, b.options.ResourcesDBClient, b.options.BillingDBClient, clusterLister, billingLister))
 	controlPlaneActiveVersionController := clusterversion.NewControlPlaneActiveVersionController(
 		b.options.ResourcesDBClient,
+		clusterLister,
 		serviceProviderClusterLister,
 		backendInformers,
 		unionKubeApplierInformers,
@@ -685,6 +686,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	triggerControlPlaneUpgradeController := clusterversion.NewTriggerControlPlaneUpgradeController(
 		b.clock,
 		b.options.ResourcesDBClient,
+		clusterLister,
 		b.options.ClustersServiceClient,
 		activeOperationLister,
 		serviceProviderClusterLister,
@@ -912,6 +914,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	)
 	triggerNodePoolUpgradeController := nodepoolversion.NewTriggerNodePoolUpgradeController(
 		b.options.ResourcesDBClient,
+		nodePoolLister,
 		b.options.ClustersServiceClient,
 		serviceProviderNodePoolLister,
 		backendInformers,
