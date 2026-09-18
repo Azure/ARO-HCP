@@ -364,13 +364,28 @@ func billingRequest(ctx context.Context, client *http.Client, credential azcore.
 
 func collectBillingWindow(ctx context.Context, client *http.Client, credential azcore.TokenCredential, sub string, owned map[string]int, window billingWindow) (map[int]map[billingKey]float64, map[int]string, error) {
 	rows, bad := map[int]map[billingKey]float64{}, map[int]string{}
+	err := consumeBillingWindow(ctx, client, credential, sub, window, func(body io.Reader) error {
+		return readBillingCSV(ctx, body, sub, owned, window, rows, bad)
+	})
+	return rows, bad, err
+}
+
+// consumeBillingWindow shares report generation, polling and streaming downloads
+// without coupling them to job ownership or subscription filtering.
+func consumeBillingWindow(ctx context.Context, client *http.Client, credential azcore.TokenCredential, sub string, window billingWindow, consume func(io.Reader) error) error {
+	return consumeBillingWindowBlobs(ctx, client, credential, sub, window, consume, false)
+}
+
+// Subscription reports retain independent blobs after a failure. Job reports
+// keep their original fail-fast, whole-window attribution policy.
+func consumeBillingWindowBlobs(ctx context.Context, client *http.Client, credential azcore.TokenCredential, sub string, window billingWindow, consume func(io.Reader) error, continueBlobs bool) error {
 	body := fmt.Sprintf(`{"metric":"AmortizedCost","timePeriod":{"start":%q,"end":%q}}`, window.Start, window.End)
 	target := "https://management.azure.com/subscriptions/" + sub + "/providers/Microsoft.CostManagement/generateCostDetailsReport?api-version=2025-03-01"
 	method := http.MethodPost
 	for poll := 0; poll < 180; poll++ {
 		resp, err := billingRequest(ctx, client, credential, method, target, body, true)
 		if err != nil {
-			return rows, bad, err
+			return err
 		}
 		if resp.StatusCode == http.StatusAccepted {
 			resp.Body.Close()
@@ -378,24 +393,24 @@ func collectBillingWindow(ctx context.Context, client *http.Client, credential a
 			if location != "" {
 				target = location
 			} else if method == http.MethodPost {
-				return rows, bad, errors.New("billing asynchronous response has no polling location")
+				return errors.New("billing asynchronous response has no polling location")
 			}
 			if !billingURL(target, true) {
-				return rows, bad, errors.New("rejected untrusted billing polling endpoint")
+				return errors.New("rejected untrusted billing polling endpoint")
 			}
 			method, body = http.MethodGet, ""
 			if err := billingWait(ctx, resp.Header.Get("Retry-After"), 5*time.Second); err != nil {
-				return rows, bad, err
+				return err
 			}
 			continue
 		}
 		if resp.StatusCode == http.StatusNoContent {
 			resp.Body.Close()
-			return rows, bad, nil
+			return nil
 		}
 		if resp.StatusCode != http.StatusOK {
 			resp.Body.Close()
-			return rows, bad, fmt.Errorf("billing HTTP %d; verify Cost Management access and EA/MCA subscription support (response details omitted)", resp.StatusCode)
+			return fmt.Errorf("billing HTTP %d; verify Cost Management access and EA/MCA subscription support (response details omitted)", resp.StatusCode)
 		}
 		var report struct {
 			Status   string `json:"status"`
@@ -411,33 +426,48 @@ func collectBillingWindow(ctx context.Context, client *http.Client, credential a
 		err = json.NewDecoder(io.LimitReader(resp.Body, 8<<20)).Decode(&report)
 		resp.Body.Close()
 		if err != nil || report.Manifest == nil || (report.Status != "" && !strings.EqualFold(report.Status, "Completed")) {
-			return rows, bad, errors.New("billing report failed or returned an invalid completion manifest (response details omitted)")
+			return errors.New("billing report failed or returned an invalid completion manifest (response details omitted)")
 		}
 		manifest := report.Manifest
 		if manifest.CompressData || (manifest.DataFormat != "" && !strings.EqualFold(manifest.DataFormat, "Csv")) || (manifest.BlobCount != nil && *manifest.BlobCount != len(manifest.Blobs)) {
-			return rows, bad, errors.New("unsupported billing report format or incomplete blob manifest")
+			return errors.New("unsupported billing report format or incomplete blob manifest")
 		}
+		var blobErrors []error
 		for _, blob := range manifest.Blobs {
 			resp, err := billingRequest(ctx, client, nil, http.MethodGet, blob.BlobLink, "", false)
-			if err != nil {
-				return rows, bad, err
-			}
-			if resp.StatusCode != http.StatusOK {
+			if err == nil {
+				if resp.StatusCode != http.StatusOK {
+					err = fmt.Errorf("billing blob download HTTP %d (response details omitted)", resp.StatusCode)
+				} else {
+					err = consume(resp.Body)
+				}
 				resp.Body.Close()
-				return rows, bad, fmt.Errorf("billing blob download HTTP %d (response details omitted)", resp.StatusCode)
 			}
-			err = readBillingCSV(ctx, resp.Body, sub, owned, window, rows, bad)
-			resp.Body.Close()
 			if err != nil {
-				return rows, bad, err
+				if !continueBlobs {
+					return err
+				}
+				blobErrors = append(blobErrors, err)
+				if ctx.Err() != nil {
+					break
+				}
 			}
 		}
-		return rows, bad, nil
+		return errors.Join(blobErrors...)
 	}
-	return rows, bad, errors.New("billing report polling limit exceeded")
+	return errors.New("billing report polling limit exceeded")
 }
 
 func readBillingCSV(ctx context.Context, body io.Reader, sub string, owned map[string]int, window billingWindow, rows map[int]map[billingKey]float64, bad map[int]string) error {
+	return readBillingCSVGroups(ctx, body, sub, window, func(name string) (int, bool) {
+		i, ok := owned[strings.ToLower(name)]
+		return i, ok
+	}, false, rows, bad)
+}
+
+// Subscription reports accept scoped purchases without ARM IDs. Job reports
+// still require an exact resource-group/ARM-ID ownership match.
+func readBillingCSVGroups(ctx context.Context, body io.Reader, sub string, window billingWindow, selectGroup func(string) (int, bool), subscriptionMode bool, rows map[int]map[billingKey]float64, bad map[int]string) error {
 	r := csv.NewReader(body)
 	r.FieldsPerRecord = -1
 	header, err := r.Read()
@@ -460,6 +490,21 @@ func readBillingCSV(ctx context.Context, body io.Reader, sub string, owned map[s
 	if _, ok := columns["resourcegroup"]; !ok {
 		return errors.New("billing CSV is missing ResourceGroup")
 	}
+	_, hasDate := columns["date"]
+	_, hasUsageDate := columns["usagedatetime"]
+	if !hasDate && !hasUsageDate {
+		return errors.New("billing CSV is missing Date/UsageDateTime")
+	}
+	_, hasUSD := columns["costinusd"]
+	_, hasCost := columns["cost"]
+	_, hasBillingCost := columns["costinbillingcurrency"]
+	_, hasCurrency := columns["currency"]
+	_, hasBillingCurrency := columns["billingcurrency"]
+	_, hasBillingCurrencyCode := columns["billingcurrencycode"]
+	hasBillingAmount := (hasCost || hasBillingCost) && (hasCurrency || hasBillingCurrency || hasBillingCurrencyCode)
+	if !hasUSD && !hasBillingAmount {
+		return errors.New("billing CSV is missing supported USD cost/currency columns")
+	}
 	get := func(row []string, names ...string) string {
 		for _, name := range names {
 			if i, ok := columns[name]; ok && i < len(row) && strings.TrimSpace(row[i]) != "" {
@@ -479,11 +524,21 @@ func readBillingCSV(ctx context.Context, body io.Reader, sub string, owned map[s
 		if err != nil {
 			return errors.New("malformed or unreadable billing CSV (row contents omitted)")
 		}
-		i, ok := owned[strings.ToLower(get(row, "resourcegroup"))]
-		if !ok {
+		rowSub := get(row, "subscriptionid")
+		if subscriptionMode && rowSub != "" && !strings.EqualFold(rowSub, sub) {
+			bad[-1] = "Billing row subscription conflicts with the queried subscription; row excluded"
 			continue
 		}
-		rowSub := get(row, "subscriptionid")
+		// Job ownership is selected first so unrelated malformed rows remain
+		// ignored. Subscription classification waits until date/scope validation.
+		i := -1
+		if !subscriptionMode {
+			var ok bool
+			i, ok = selectGroup(get(row, "resourcegroup"))
+			if !ok {
+				continue
+			}
+		}
 		if rowSub != "" && !strings.EqualFold(rowSub, sub) {
 			continue
 		}
@@ -511,16 +566,50 @@ func readBillingCSV(ctx context.Context, body io.Reader, sub string, owned map[s
 		}
 		id := get(row, "resourceid", "instanceid")
 		name, resourceType := "Unspecified", get(row, "metercategory")
+		groupConflict := false
 		if id != "" {
+			// Even malformed ARM IDs can carry an explicit subscription scope;
+			// accepting non-ARM purchases must not bypass that boundary.
+			if subscriptionMode && strings.HasPrefix(strings.ToLower(id), "/subscriptions/") {
+				idSub := strings.SplitN(id[len("/subscriptions/"):], "/", 2)[0]
+				if !strings.EqualFold(idSub, sub) {
+					bad[i] = "Billing resource ID conflicts with the queried subscription; row excluded"
+					continue
+				}
+			}
 			parsed, err := azcorearm.ParseResourceID(id)
-			if err != nil || !strings.EqualFold(parsed.SubscriptionID, sub) || !strings.EqualFold(parsed.ResourceGroupName, get(row, "resourcegroup")) {
+			if !subscriptionMode && (err != nil || !strings.EqualFold(parsed.SubscriptionID, sub) || !strings.EqualFold(parsed.ResourceGroupName, get(row, "resourcegroup"))) {
 				bad[i] = "Attributed billing row has an invalid or conflicting ARM resource ID"
 				continue
 			}
-			id, name, resourceType = strings.ToLower(id), parsed.Name, parsed.ResourceType.String()
+			if err == nil {
+				if parsed.SubscriptionID != "" && !strings.EqualFold(parsed.SubscriptionID, sub) {
+					bad[i] = "Billing ARM resource ID conflicts with the queried subscription; row excluded"
+					continue
+				}
+				if !strings.EqualFold(parsed.ResourceGroupName, get(row, "resourcegroup")) {
+					groupConflict = true
+				}
+				id, name, resourceType = strings.ToLower(id), parsed.Name, parsed.ResourceType.String()
+			} else {
+				name = id
+			}
+		}
+		if subscriptionMode {
+			var ok bool
+			i, ok = selectGroup(get(row, "resourcegroup"))
+			if !ok {
+				continue
+			}
+		}
+		if groupConflict {
+			bad[i] = "Billing resource group conflicts with the ARM resource ID; charge retained under the billing resource group"
 		}
 		if resourceType == "" {
 			resourceType = "Unspecified"
+			if subscriptionMode {
+				resourceType = "Unknown"
+			}
 		}
 		amount := get(row, "costinusd")
 		if strings.EqualFold(get(row, "billingcurrency", "billingcurrencycode", "currency"), "USD") {
