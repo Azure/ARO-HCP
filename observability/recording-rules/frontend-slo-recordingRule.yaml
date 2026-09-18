@@ -39,9 +39,11 @@ spec:
   # no ARM-path blackbox of /healthz (MISE/POP); kube ready is the probe we have.
   #
   # Metrics: frontend_http_requests_total / _duration_seconds (histogram has a
-  # 1s bucket, see frontend/pkg/frontend/metrics.go). Ratios and quantiles sum
-  # HA replicas because duplicate bucket counts cancel. Selecting max per
-  # bucket can mix replicas and break cumulative histogram monotonicity
+  # 1s bucket, see frontend/pkg/frontend/metrics.go). Availability and error
+  # ratios dedup HA replicas with max without (prometheus_replica), since both
+  # replicas scrape the same pods. Latency quantiles instead sum replicas across
+  # le, because duplicate bucket counts cancel in the quantile and taking max
+  # per bucket can mix replicas and break cumulative histogram monotonicity
   # (AROSLSRE-1746).
   - name: arohcp_frontend_slo_recording_rules
     interval: 1m
