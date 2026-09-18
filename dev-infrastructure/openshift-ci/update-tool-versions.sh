@@ -39,7 +39,7 @@ changed=0
 for var in "${!TOOL_REPOS[@]}"; do
   repo="${TOOL_REPOS[$var]}"
 
-  current="$(grep -oP "^${var}\s*\?=\s*\K\S*" "$VERSIONS_MK")"
+  current="$(grep -oP "^${var}\s*\?=\s*\K\S*" "$VERSIONS_MK" || true)"
   if [[ -z "$current" ]]; then
     echo "ERROR: could not find ${var} in $VERSIONS_MK" >&2
     exit 1
