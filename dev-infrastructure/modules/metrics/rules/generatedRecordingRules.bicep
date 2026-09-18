@@ -180,11 +180,11 @@ resource arohcpFrontendSloRecordingRules 'Microsoft.AlertsManagement/prometheusR
       }
       {
         record: 'sli:frontend_http:latency_p99:rate5m'
-        expression: 'histogram_quantile(0.99, sum by (cluster, le, region) (max without (prometheus_replica) (rate(frontend_http_requests_duration_seconds_bucket{route!~".*hcpoperation(results|statuses).*"}[5m])))) and on (cluster) (sum by (cluster, region) (max without (prometheus_replica) (rate(frontend_http_requests_duration_seconds_count{route!~".*hcpoperation(results|statuses).*"}[5m]))) > 0)'
+        expression: 'histogram_quantile(0.99, sum by (cluster, le, region) (rate(frontend_http_requests_duration_seconds_bucket{route!~".*hcpoperation(results|statuses).*"}[5m] offset 5m))) and on (cluster) (sum by (cluster, region) (rate(frontend_http_requests_duration_seconds_count{route!~".*hcpoperation(results|statuses).*"}[5m] offset 5m)) > 0)'
       }
       {
         record: 'sli:frontend_http:latency_p95:rate5m'
-        expression: 'histogram_quantile(0.95, sum by (cluster, le, region) (max without (prometheus_replica) (rate(frontend_http_requests_duration_seconds_bucket{route!~".*hcpoperation(results|statuses).*"}[5m])))) and on (cluster) (sum by (cluster, region) (max without (prometheus_replica) (rate(frontend_http_requests_duration_seconds_count{route!~".*hcpoperation(results|statuses).*"}[5m]))) > 0)'
+        expression: 'histogram_quantile(0.95, sum by (cluster, le, region) (rate(frontend_http_requests_duration_seconds_bucket{route!~".*hcpoperation(results|statuses).*"}[5m] offset 5m))) and on (cluster) (sum by (cluster, region) (rate(frontend_http_requests_duration_seconds_count{route!~".*hcpoperation(results|statuses).*"}[5m] offset 5m)) > 0)'
       }
       {
         record: 'traffic:frontend_http:request_rate:rate5m'
