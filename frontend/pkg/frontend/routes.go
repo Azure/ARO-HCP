@@ -499,6 +499,7 @@ func (f *Frontend) routes(r prometheus.Registerer) http.Handler {
 	// These endpoints do not use middleware. They are only called
 	// from within the service cluster or via kubectl port forwarding.
 	mux.HandleFunc(MuxPattern(http.MethodGet, "healthz"), f.Healthz)
+	mux.HandleFunc(MuxPattern(http.MethodGet, "startupz"), f.Startupz)
 	mux.HandleFunc(MuxPattern(http.MethodGet, "location"), f.Location)
 
 	return mux
