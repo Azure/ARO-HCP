@@ -54,10 +54,11 @@ type Notifier interface {
 }
 
 type GenericWatchingController[T comparable] struct {
-	name           string
-	resourceType   azcorearm.ResourceType
-	syncer         GenericSyncer[T]
-	reconcileTotal *prometheus.CounterVec
+	name            string
+	resourceType    azcorearm.ResourceType
+	syncer          GenericSyncer[T]
+	reconcileTotal  *prometheus.CounterVec
+	reconcileErrors *prometheus.CounterVec
 
 	// queue is where incoming work is placed to de-dup and to allow "easy"
 	// rate limited requeues on errors
@@ -66,12 +67,14 @@ type GenericWatchingController[T comparable] struct {
 
 // NewGenericWatchingController creates a controller that watches Cosmos-backed
 // informers and delegates reconciliation to syncer.
-func NewGenericWatchingController[T comparable](name string, resourceType azcorearm.ResourceType, syncer GenericSyncer[T], reconcileTotal *prometheus.CounterVec) *GenericWatchingController[T] {
+// reconcileTotal and reconcileErrors are optional; nil skips the corresponding increment.
+func NewGenericWatchingController[T comparable](name string, resourceType azcorearm.ResourceType, syncer GenericSyncer[T], reconcileTotal, reconcileErrors *prometheus.CounterVec) *GenericWatchingController[T] {
 	c := &GenericWatchingController[T]{
-		name:           name,
-		resourceType:   resourceType,
-		syncer:         syncer,
-		reconcileTotal: reconcileTotal,
+		name:            name,
+		resourceType:    resourceType,
+		syncer:          syncer,
+		reconcileTotal:  reconcileTotal,
+		reconcileErrors: reconcileErrors,
 		queue: workqueue.NewTypedRateLimitingQueueWithConfig(
 			workqueue.DefaultTypedControllerRateLimiter[T](),
 			workqueue.TypedRateLimitingQueueConfig[T]{
@@ -154,6 +157,9 @@ func (c *GenericWatchingController[T]) processNextWorkItem(ctx context.Context) 
 		return true
 	}
 
+	if c.reconcileErrors != nil {
+		c.reconcileErrors.WithLabelValues(c.name).Inc()
+	}
 	utilruntime.HandleErrorWithContext(ctx, err, "Error syncing; requeuing for later retry", "objectReference", ref)
 	c.queue.AddRateLimited(ref)
 

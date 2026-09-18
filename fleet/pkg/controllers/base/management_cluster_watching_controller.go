@@ -97,7 +97,7 @@ func NewManagementClusterWatchingController(
 		fleetDBClient: fleetDBClient,
 	}
 	mcController := controllerutils.NewGenericWatchingController(
-		name, fleetapi.ManagementClusterResourceType, mcSyncer, ReconcileTotal,
+		name, fleetapi.ManagementClusterResourceType, mcSyncer, ReconcileTotal, nil,
 	)
 
 	if err := mcController.QueueForInformers(resyncDuration, managementClusterInformer); err != nil {
