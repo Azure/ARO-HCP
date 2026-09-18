@@ -21,25 +21,65 @@ import (
 	"fmt"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v6"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v8"
+
+	"github.com/Azure/ARO-HCP/fleet/pkg/compute"
 )
 
-// WorkerPoolLabel is the AKS node label key that identifies HCP worker pools.
-// Pools with aro-hcp.azure.com/role=worker are the only pools considered for
-// scheduling capacity. This must match the label selector used by the
-// mgmt-agent CapacityReport controller to filter nodes.
-const WorkerPoolLabel = "aro-hcp.azure.com/role"
-
-// WorkerPoolLabelValue is the expected value for WorkerPoolLabel on HCP worker pools.
-const WorkerPoolLabelValue = "worker"
-
-// IsWorkerPool returns true if the AKS agent pool is labeled as an HCP worker.
-func IsWorkerPool(pool armcontainerservice.AgentPool) bool {
+// RoleFromAgentPool returns the role label value for the given agent pool.
+// Returns "" when the pool has no role label.
+func RoleFromAgentPool(pool armcontainerservice.AgentPool) string {
 	if pool.Properties == nil || pool.Properties.NodeLabels == nil {
-		return false
+		return ""
 	}
-	role := pool.Properties.NodeLabels[WorkerPoolLabel]
-	return role != nil && *role == WorkerPoolLabelValue
+	role := pool.Properties.NodeLabels[compute.RoleLabel]
+	if role == nil {
+		return ""
+	}
+	return *role
+}
+
+// IsManagedPool returns true if the agent pool has a role label, meaning it
+// is managed by the controller (system, infra, or worker).
+func IsManagedPool(pool armcontainerservice.AgentPool) bool {
+	return len(RoleFromAgentPool(pool)) > 0
+}
+
+// RoleFromAgentPoolProfile returns the role label value for an inline agent
+// pool profile. Returns "" when the profile is nil or has no role label.
+func RoleFromAgentPoolProfile(pool *armcontainerservice.ManagedClusterAgentPoolProfile) string {
+	if pool == nil || pool.NodeLabels == nil {
+		return ""
+	}
+	role := pool.NodeLabels[compute.RoleLabel]
+	if role == nil {
+		return ""
+	}
+	return *role
+}
+
+// IsManagedPoolProfile returns true if the inline agent pool profile has a
+// role label, meaning it is managed (system, infra, or worker).
+func IsManagedPoolProfile(pool *armcontainerservice.ManagedClusterAgentPoolProfile) bool {
+	return len(RoleFromAgentPoolProfile(pool)) > 0
+}
+
+// IsWorkerPool returns true if the agent pool carries the worker role label.
+func IsWorkerPool(pool armcontainerservice.AgentPool) bool {
+	return RoleFromAgentPool(pool) == string(compute.PoolRoleWorker)
+}
+
+// PoolMaxCount returns the pool's node ceiling: MaxCount when autoscaling is
+// enabled, otherwise the static Count. Returns 0 when Count is unset.
+func PoolMaxCount(pool armcontainerservice.AgentPool) int64 {
+	if pool.Properties == nil || pool.Properties.Count == nil {
+		return 0
+	}
+	count := int64(*pool.Properties.Count)
+	if pool.Properties.EnableAutoScaling != nil && *pool.Properties.EnableAutoScaling && pool.Properties.MaxCount != nil {
+		count = int64(*pool.Properties.MaxCount)
+	}
+	return count
 }
 
 // ListAgentPools lists the current AKS agent pools of a management cluster.
