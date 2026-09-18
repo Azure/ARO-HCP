@@ -15,8 +15,8 @@ spec:
     metadata:
       labels:
         app: tenant-quota-collector
-      annotations:
         azure.workload.identity/use: "true"
+      annotations:
         checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
     spec:
       serviceAccountName: tenant-quota-collector
@@ -36,6 +36,8 @@ spec:
           value: "info"
         - name: AZURE_CLIENT_ID
           value: "{{ .Values.msiClientId }}"
+        - name: AZURE_TOKEN_CREDENTIALS
+          value: "WorkloadIdentityCredential"
         volumeMounts:
         - name: config
           mountPath: /etc/config

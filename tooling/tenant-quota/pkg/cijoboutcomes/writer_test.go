@@ -15,9 +15,71 @@
 package cijoboutcomes
 
 import (
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/Azure/azure-kusto-go/azkustodata"
+
+	"github.com/Azure/ARO-HCP/tooling/tenant-quota/pkg/config"
 )
+
+func TestOutcomeMappingMustIncludeADOBuildID(t *testing.T) {
+	for _, tc := range []struct {
+		name, mapping, wantErr string
+	}{
+		{"flat mapping", `[{"column":"adoBuildId","datatype":"string","path":"$['adoBuildId']"}]`, ""},
+		{"migrated", `[{"Column":"adoBuildId","DataType":"string","Properties":{"Path":"$['adoBuildId']"}}]`, ""},
+		{"missing mapping", `[]`, "deploy the Kusto schema migration first"},
+		{"old mapping", `[{"Column":"buildId","DataType":"string","Properties":{"Path":"$['buildId']"}}]`, "deploy the Kusto schema migration first"},
+		{"wrong path", `[{"Column":"adoBuildId","DataType":"string","Properties":{"Path":"$['buildId']"}}]`, "deploy the Kusto schema migration first"},
+		{"wrong type", `[{"Column":"adoBuildId","DataType":"long","Properties":{"Path":"$['adoBuildId']"}}]`, "deploy the Kusto schema migration first"},
+		{"malformed", `{`, "failed to decode"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			encoded, err := json.Marshal(tc.mapping)
+			require.NoError(t, err)
+			client, err := azkustodata.New(azkustodata.NewConnectionStringBuilder("http://localhost"),
+				azkustodata.WithHttpClient(&http.Client{Transport: ingestionTransport(func(r *http.Request) (*http.Response, error) {
+					if r.Method == http.MethodGet && r.URL.Path == "/v1/rest/auth/metadata" {
+						return &http.Response{StatusCode: http.StatusNotFound, Body: http.NoBody}, nil
+					}
+					if r.Method != http.MethodPost || r.URL.Path != "/v1/rest/mgmt" {
+						return nil, fmt.Errorf("unexpected request: %s %s", r.Method, r.URL)
+					}
+					var request struct {
+						DB, CSL string
+					}
+					if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+						return nil, err
+					}
+					if request.DB != "ServiceLogs" || !strings.Contains(request.CSL, "ingestion json mapping") || !strings.Contains(request.CSL, "ciJobOutcomesMapping") {
+						return nil, fmt.Errorf("unexpected mapping query: %+v", request)
+					}
+					body := fmt.Sprintf(`{"Tables":[{"TableName":"Table","Columns":[{"ColumnName":"Mapping","ColumnType":"string"}],"Rows":[[%s]]}]}`, encoded)
+					return &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": []string{"application/json"}}, Body: io.NopCloser(strings.NewReader(body))}, nil
+				})}))
+			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, client.Close()) })
+			w := &Writer{config: &config.Config{CIJobOutcomes: config.CIJobOutcomesConfig{
+				Database: "ServiceLogs",
+				Outcomes: config.KustoTableConfig{Table: "ciJobOutcomes", IngestionMapping: "ciJobOutcomesMapping"},
+			}}}
+			err = w.checkOutcomeMapping(t.Context(), client)
+			if tc.wantErr == "" {
+				require.NoError(t, err)
+			} else {
+				require.ErrorContains(t, err, tc.wantErr)
+			}
+		})
+	}
+}
 
 // Runs written but not yet visible to a query must not be written again, and the
 // set that remembers them must not grow without bound.

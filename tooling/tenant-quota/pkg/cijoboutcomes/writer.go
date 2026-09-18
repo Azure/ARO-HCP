@@ -152,6 +152,10 @@ func (w *Writer) write(ctx context.Context) error {
 		}
 	}()
 
+	if err := w.checkOutcomeMapping(ctx, queryClient); err != nil {
+		return err
+	}
+
 	// Runs are read from a fixed recent window rather than resumed from the
 	// newest row stored. A run only appears in Sippy once it completes, and runs
 	// complete out of order - a fast provisioning failure is recorded while a
@@ -237,6 +241,7 @@ func (w *Writer) write(ctx context.Context) error {
 			outcome.SvcCluster = detail.SvcCluster
 			outcome.MgmtCluster = detail.MgmtCluster
 			outcome.FinishedAt = detail.FinishedAt
+			outcome.ADOBuildID = detail.ADOBuildID
 
 			recorded[outcome.BuildID] = struct{}{}
 			pending = append(pending, runRows{outcome: outcome, tests: detail.Tests})
@@ -321,6 +326,40 @@ func (w *Writer) shouldRetryArtifacts(outcome ciJobOutcome) bool {
 	attempt.startedAt = outcome.StartedAt
 	w.artifactAttempts[outcome.BuildID] = attempt
 	return attempt.count < maxArtifactAttempts
+}
+
+// The schema and collector roll out independently; an old mapping would silently
+// drop adoBuildId and leave those runs permanently marked as recorded.
+func (w *Writer) checkOutcomeMapping(ctx context.Context, client *azkustodata.Client) error {
+	target := w.config.CIJobOutcomes.Outcomes
+	statement := kql.New(".show table ").AddTable(target.Table).
+		AddLiteral(" ingestion json mapping ").AddString(target.IngestionMapping)
+	dataset, err := client.Mgmt(ctx, w.config.CIJobOutcomes.Database, statement)
+	if err != nil {
+		return fmt.Errorf("failed to read outcome ingestion mapping: %w", err)
+	}
+	for _, table := range dataset.Tables() {
+		for _, row := range table.Rows() {
+			mapping, err := row.StringByName("Mapping")
+			if err != nil {
+				return fmt.Errorf("failed to read outcome ingestion mapping definition: %w", err)
+			}
+			var columns []struct {
+				Column, DataType, Path string
+				Properties             struct{ Path string }
+			}
+			if err := json.Unmarshal([]byte(mapping), &columns); err != nil {
+				return fmt.Errorf("failed to decode outcome ingestion mapping: %w", err)
+			}
+			for _, column := range columns {
+				if column.Column == "adoBuildId" && column.DataType == "string" &&
+					(column.Path == "$['adoBuildId']" || column.Properties.Path == "$['adoBuildId']") {
+					return nil
+				}
+			}
+		}
+	}
+	return fmt.Errorf("outcome ingestion mapping %q is missing adoBuildId; deploy the Kusto schema migration first", target.IngestionMapping)
 }
 
 // recordedBuildIDs reports which runs are already stored from the given time on,
@@ -504,10 +543,14 @@ func ingestRows[T any](ctx context.Context, target *tableIngestor, rows []T, tag
 		azkustoingest.FileFormat(azkustoingest.MultiJSON),
 	}
 	if tag != "" {
+		ifNotExists, err := json.Marshal([]string{tag})
+		if err != nil {
+			return fmt.Errorf("failed to encode ingestion tag for %s: %w", target.name, err)
+		}
 		ingestBy := "ingest-by:" + tag
 		options = append(options,
 			azkustoingest.Tags([]string{ingestBy}),
-			azkustoingest.IfNotExists(tag),
+			azkustoingest.IfNotExists(string(ifNotExists)),
 		)
 	}
 
