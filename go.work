@@ -16,6 +16,7 @@ use (
 	./internal
 	./kube-applier
 	./mgmt-agent
+	./observability/metric-check
 	./sessiongate
 	./test
 	./test-integration
