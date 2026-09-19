@@ -71,6 +71,20 @@ func TestCompareOperationState(t *testing.T) {
 	}
 }
 
+func TestDeadlineExceededMessage(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "cluster creation did not complete before the deadline",
+		DeadlineExceededMessage("cluster creation did not complete before the deadline", ""))
+	assert.Equal(t,
+		"cluster creation did not complete before the deadline; [clusterServiceClusterStatus] cluster service is installing",
+		DeadlineExceededMessage(
+			"cluster creation did not complete before the deadline",
+			"[clusterServiceClusterStatus] cluster service is installing",
+		),
+	)
+}
+
 func TestPickWorstOperationState(t *testing.T) {
 	t.Parallel()
 
