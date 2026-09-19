@@ -244,7 +244,7 @@ func TestAggregatePodRequests(t *testing.T) {
 		{
 			name: "no pods",
 			pods: nil,
-			want: corev1.ResourceList{},
+			want: newZeroFloorResourceList(),
 		},
 		{
 			name: "pod in HCP namespace",
@@ -268,7 +268,7 @@ func TestAggregatePodRequests(t *testing.T) {
 					corev1.ResourceMemory: resource.MustParse("4Gi"),
 				}),
 			},
-			want: corev1.ResourceList{},
+			want: newZeroFloorResourceList(),
 		},
 		{
 			name: "succeeded and failed pods excluded",
@@ -280,7 +280,7 @@ func TestAggregatePodRequests(t *testing.T) {
 					corev1.ResourceMemory: resource.MustParse("4Gi"),
 				}),
 			},
-			want: corev1.ResourceList{},
+			want: newZeroFloorResourceList(),
 		},
 		{
 			name: "multiple containers summed",
@@ -323,6 +323,7 @@ func TestAggregatePodRequests(t *testing.T) {
 				}),
 			},
 			want: corev1.ResourceList{
+				corev1.ResourceCPU:              resource.MustParse("0"),
 				corev1.ResourceMemory:           resource.MustParse("6Gi"),
 				controller.SwiftNICResourceName: resource.MustParse("6"),
 			},
@@ -353,7 +354,7 @@ func TestAggregatePodMetrics(t *testing.T) {
 		{
 			name:    "no metrics",
 			metrics: nil,
-			want:    corev1.ResourceList{},
+			want:    newZeroFloorResourceList(),
 		},
 		{
 			name: "metrics in HCP namespace",
@@ -364,8 +365,9 @@ func TestAggregatePodMetrics(t *testing.T) {
 				}),
 			},
 			want: corev1.ResourceList{
-				corev1.ResourceCPU:    *resource.NewMilliQuantity(750, resource.DecimalSI),
-				corev1.ResourceMemory: resource.MustParse("3Gi"),
+				corev1.ResourceCPU:              *resource.NewMilliQuantity(750, resource.DecimalSI),
+				corev1.ResourceMemory:           resource.MustParse("3Gi"),
+				controller.SwiftNICResourceName: resource.MustParse("0"),
 			},
 		},
 		{
@@ -375,7 +377,7 @@ func TestAggregatePodMetrics(t *testing.T) {
 					corev1.ResourceMemory: resource.MustParse("3Gi"),
 				}),
 			},
-			want: corev1.ResourceList{},
+			want: newZeroFloorResourceList(),
 		},
 		{
 			name: "multiple pods summed with CPU",
@@ -390,8 +392,9 @@ func TestAggregatePodMetrics(t *testing.T) {
 				}),
 			},
 			want: corev1.ResourceList{
-				corev1.ResourceCPU:    *resource.NewMilliQuantity(3500, resource.DecimalSI),
-				corev1.ResourceMemory: resource.MustParse("5Gi"),
+				corev1.ResourceCPU:              *resource.NewMilliQuantity(3500, resource.DecimalSI),
+				corev1.ResourceMemory:           resource.MustParse("5Gi"),
+				controller.SwiftNICResourceName: resource.MustParse("0"),
 			},
 		},
 	}
