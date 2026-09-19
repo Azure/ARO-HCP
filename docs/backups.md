@@ -74,6 +74,26 @@ Captured resources include:
 
 Volume snapshots are enabled. Snapshot data is moved to the backup storage location so it is durable outside of the originating Azure region.
 
+### Snapshot instant access
+
+`velero.enableInstantAccess` controls whether `azure-disk-snapclass` requests
+60 minutes of Azure instant access. It defaults to `true`, but is `false` for
+the dev `ci00` and `ci01` e2e environments. When disabled, the snapshot class
+omits `instantAccessDurationMinutes`; it does not set a zero duration.
+
+Velero's CSI data mover restores snapshots into temporary PVCs before uploading
+their data. Azure charges a one-time, provisioned-capacity-based fee for each
+instant-access disk restore, even when that temporary disk is short-lived.
+Disabling instant access avoids opting into that restore path, but normal snapshot
+copy completion must precede restore, so backups may take longer. See
+[Azure instant-access snapshot billing](https://learn.microsoft.com/en-us/azure/virtual-machines/disks-instant-access-snapshots#billing-for-ultra-disk-and-premium-ssd-v2-instant-access-snapshots).
+
+This e2e opt-out leaves backup schedules, CSI snapshots, snapshot data movement,
+timeouts, and existing e2e tests unchanged. The current tests check scheduling and
+backup creation, not completed data uploads or full restores, so those outcomes
+must also be inspected when validating the slower path against existing timeouts.
+The setting does not disable backup coverage. Other environments retain instant access.
+
 ### etcd snapshot hooks
 
 A raw block-level snapshot of etcd PVCs does not provide a method to reset informer/kubelet caches on the dataplane, therefore backup hooks

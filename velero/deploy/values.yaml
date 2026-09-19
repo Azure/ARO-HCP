@@ -19,6 +19,7 @@ azurePlugin:
 hypershiftPlugin:
   repository: "{{ .velero.hypershiftPlugin.repository }}"
   digest: "{{ .velero.hypershiftPlugin.digest }}"
+enableInstantAccess: "{{ .velero.enableInstantAccess }}"
 configuration:
   features: EnableCSI
   uploaderType: kopia
