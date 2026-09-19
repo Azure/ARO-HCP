@@ -3,3 +3,5 @@ approvers:
 - janboll
 - stevekuznetsov
 - service-lifecycle-approvers
+labels:
+- area/infrastructure

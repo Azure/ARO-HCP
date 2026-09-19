@@ -2,3 +2,5 @@ approvers:
 - patriksuba
 - miquelsi
 - mgahagan73
+labels:
+- area/test

@@ -1,3 +1,5 @@
 approvers:
 - deads2k
 - geoberle
+labels:
+- area/kube-applier

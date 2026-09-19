@@ -3,3 +3,5 @@ approvers:
 - geoberle
 - janboll
 - miguelsorianod
+labels:
+- area/backend

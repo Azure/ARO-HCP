@@ -1,3 +1,5 @@
 approvers:
 - mbarnes
 - twolff-gh
+labels:
+- area/api
