@@ -70,7 +70,9 @@ same CI/security review as changes to the manifest. Behavioral tests in
 sandbox paths and command stubs; they never enter host namespaces or restart
 real services.
 
-The host script is fail-fast, including the existing node-exporter adjustment:
-a failed command fails initialization. Host curl must support `--retry-all-errors`
+The host script is fail-fast. The legacy node-exporter adjustment is skipped
+when `/usr/local/bin/node-exporter-startup.sh` is absent, as on newer AKS images;
+it must not block successful kubelet initialization. When the script exists,
+adjustment failures still fail initialization. Host curl must support `--retry-all-errors`
 and kubelet's localhost health endpoint must be enabled; otherwise rollout
 stops rather than reporting readiness without a health check.

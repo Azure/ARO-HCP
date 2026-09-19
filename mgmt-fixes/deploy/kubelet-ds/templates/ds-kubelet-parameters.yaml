@@ -39,7 +39,10 @@ spec:
         - -c
         - |
 {{ regexReplaceAll "(?m)^ +$" (.Files.Get "files/system-reserved.sh" | indent 10) "" }}
-          if grep -q '\-\-collector.netclass.netlink' /usr/local/bin/node-exporter-startup.sh;then
+          # Newer AKS images do not have the legacy host node-exporter script.
+          if [ ! -e /usr/local/bin/node-exporter-startup.sh ]; then
+             echo "legacy node-exporter startup script absent; skipping netclass workaround"
+          elif grep -Fq -- '--collector.netclass.netlink' /usr/local/bin/node-exporter-startup.sh;then
              echo "collector.netclass.netlink parameter already updated in node-exporter configuration"
           else
              sed -i 's/--no-collector.arp.netlink/--no-collector.arp.netlink --collector.netclass.netlink/g' /usr/local/bin/node-exporter-startup.sh
