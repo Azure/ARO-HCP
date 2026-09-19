@@ -33,6 +33,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/azure"
 )
 
 const (
@@ -100,6 +101,12 @@ func ValidateCluster(ctx context.Context, op operation.Operation, newCluster, ol
 	// Nightly installs must resolve to a full version; this needs both the customer
 	// version profile and the service-provider exact pin, so it lives at cluster level.
 	errs = append(errs, validateNightlyChannelRequiresFullVersion(ctx, op, newCluster, oldCluster)...)
+
+	// some operator identities only become required once the feature that uses them is enabled
+	errs = append(errs, validateRequiredOperatorIdentities(ctx, op, newCluster, oldCluster)...)
+
+	// an operator name the service does not recognize is accepted here and then fails later
+	errs = append(errs, validateOperatorIdentityNames(ctx, op, newCluster, oldCluster)...)
 
 	// there are pieces of clusterProperties that are dependent upon values in .identity
 	errs = append(errs, validateOperatorAuthenticationAgainstIdentities(ctx, op, newCluster, oldCluster)...)
@@ -205,6 +212,181 @@ func validateNightlyChannelRequiresFullVersion(_ context.Context, op operation.O
 		)}
 	}
 	return nil
+}
+
+// clusterScopedIdentities is the source of truth for which operator identities a cluster needs.
+// The role definition config set only affects the Azure role IDs attached to each identity, which
+// are irrelevant here, so either set yields the same requirements.
+var clusterScopedIdentities = azure.NewClusterScopedIdentitiesConfig(azure.RoleDefinitionConfigSetNameDev)
+
+// conditionallyRequiredControlPlaneOperator names a control plane operator identity that is
+// only required once the cluster enables the feature that uses it, mirroring
+// azure.IdentityRequirementTypeOnEnablement. Operators marked
+// azure.IdentityRequirementTypeAlways are read from clusterScopedIdentities instead.
+//
+// Note that CustomerManaged is currently the only accepted etcd key management mode, so the
+// kms entry below is required on every create in practice.
+type conditionallyRequiredControlPlaneOperator struct {
+	operatorName string
+	isEnabled    func(newCluster *coreapi.HCPOpenShiftCluster) bool
+	// enabledBy names the configuration that made the identity required, using the
+	// customer-facing field path rather than the internal one.
+	enabledBy string
+}
+
+// Add an entry here when a new feature needs its own operator identity, so an incomplete
+// create fails synchronously instead of being accepted and stalling until the deadline.
+var conditionallyRequiredControlPlaneOperators = []conditionallyRequiredControlPlaneOperator{
+	{
+		operatorName: string(azure.ClusterOperatorIdentifierKMS),
+		isEnabled: func(newCluster *coreapi.HCPOpenShiftCluster) bool {
+			return newCluster.CustomerProperties.Etcd.DataEncryption.KeyManagementMode == metadataapi.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged
+		},
+		enabledBy: "properties.etcd.dataEncryption.keyManagementMode is CustomerManaged",
+	},
+}
+
+// validateRequiredOperatorIdentities rejects a create that omits an operator identity the cluster
+// cannot come up without. The existing cross-check only compares the two customer-supplied identity
+// lists against each other, so omitting an operator from both leaves them consistent and passes.
+//
+// Create-only: operatorsAuthentication is immutable, so running this on update would permanently
+// block clusters created before this check existed.
+func validateRequiredOperatorIdentities(_ context.Context, op operation.Operation, newCluster, _ *coreapi.HCPOpenShiftCluster) field.ErrorList {
+	if op.Type != operation.Create {
+		return nil
+	}
+
+	// An unparseable version is already rejected by the version validation, so skip rather than
+	// guess which operators a version we cannot interpret would require.
+	version, err := semver.ParseTolerant(newCluster.CustomerProperties.Version.ID)
+	if err != nil {
+		return nil
+	}
+
+	userAssignedIdentities := newCluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities
+	controlPlaneSupplied := operatorIdentitiesByLowercaseName(userAssignedIdentities.ControlPlaneOperators)
+	dataPlaneSupplied := operatorIdentitiesByLowercaseName(userAssignedIdentities.DataPlaneOperators)
+
+	basePath := field.NewPath("customerProperties", "platform", "operatorsAuthentication", "userAssignedIdentities")
+	controlPlanePath := basePath.Child("controlPlaneOperators")
+	dataPlanePath := basePath.Child("dataPlaneOperators")
+
+	errs := field.ErrorList{}
+
+	controlPlaneRequired := make([]string, 0, len(clusterScopedIdentities.ControlPlaneOperatorsIdentities))
+	for operatorName := range clusterScopedIdentities.AlwaysRequiredControlPlaneOperators(&version) {
+		controlPlaneRequired = append(controlPlaneRequired, string(operatorName))
+	}
+	// Sorted so error ordering does not depend on map iteration order.
+	slices.Sort(controlPlaneRequired)
+	for _, operatorName := range controlPlaneRequired {
+		if operatorIdentitySupplied(controlPlaneSupplied, operatorName) {
+			continue
+		}
+		errs = append(errs, field.Required(controlPlanePath.Key(operatorName), fmt.Sprintf("a user-assigned identity for the %q control plane operator is required", operatorName)))
+	}
+
+	dataPlaneRequired := make([]string, 0, len(clusterScopedIdentities.DataPlaneOperatorsIdentities))
+	for operatorName := range clusterScopedIdentities.AlwaysRequiredDataPlaneOperators(&version) {
+		dataPlaneRequired = append(dataPlaneRequired, string(operatorName))
+	}
+	slices.Sort(dataPlaneRequired)
+	for _, operatorName := range dataPlaneRequired {
+		if operatorIdentitySupplied(dataPlaneSupplied, operatorName) {
+			continue
+		}
+		errs = append(errs, field.Required(dataPlanePath.Key(operatorName), fmt.Sprintf("a user-assigned identity for the %q data plane operator is required", operatorName)))
+	}
+
+	for _, operator := range conditionallyRequiredControlPlaneOperators {
+		if !operator.isEnabled(newCluster) {
+			continue
+		}
+		if operatorConfig, ok := clusterScopedIdentities.ControlPlaneOperatorsIdentities[azure.ClusterOperatorIdentifier(operator.operatorName)]; ok && !operatorConfig.IsSupportedForOpenshiftVersion(&version) {
+			continue
+		}
+		if operatorIdentitySupplied(controlPlaneSupplied, operator.operatorName) {
+			continue
+		}
+		errs = append(errs, field.Required(controlPlanePath.Key(operator.operatorName), fmt.Sprintf("a user-assigned identity for the %q control plane operator is required when %s", operator.operatorName, operator.enabledBy)))
+	}
+
+	return errs
+}
+
+// validateOperatorIdentityNames rejects operator names the service does not recognize.
+//
+// The backend indexes operators by exact name, so a mis-cased or misspelled key is accepted at
+// create time and then fails asynchronously -- the same silent failure this validation exists to
+// prevent. Matching is therefore exact, unlike the requirement check, which stays case-insensitive
+// so that a mis-cased key reports one clear error rather than two.
+//
+// Create-only, for the same reason as validateRequiredOperatorIdentities.
+func validateOperatorIdentityNames(_ context.Context, op operation.Operation, newCluster, _ *coreapi.HCPOpenShiftCluster) field.ErrorList {
+	if op.Type != operation.Create {
+		return nil
+	}
+
+	userAssignedIdentities := newCluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities
+	basePath := field.NewPath("customerProperties", "platform", "operatorsAuthentication", "userAssignedIdentities")
+
+	recognizedControlPlane := make([]string, 0, len(clusterScopedIdentities.ControlPlaneOperatorsIdentities))
+	for operatorName := range clusterScopedIdentities.ControlPlaneOperatorsIdentities {
+		recognizedControlPlane = append(recognizedControlPlane, string(operatorName))
+	}
+	recognizedDataPlane := make([]string, 0, len(clusterScopedIdentities.DataPlaneOperatorsIdentities))
+	for operatorName := range clusterScopedIdentities.DataPlaneOperatorsIdentities {
+		recognizedDataPlane = append(recognizedDataPlane, string(operatorName))
+	}
+	slices.Sort(recognizedControlPlane)
+	slices.Sort(recognizedDataPlane)
+
+	errs := field.ErrorList{}
+	errs = append(errs, unrecognizedOperatorNameErrors(userAssignedIdentities.ControlPlaneOperators, basePath.Child("controlPlaneOperators"), recognizedControlPlane)...)
+	errs = append(errs, unrecognizedOperatorNameErrors(userAssignedIdentities.DataPlaneOperators, basePath.Child("dataPlaneOperators"), recognizedDataPlane)...)
+	return errs
+}
+
+func unrecognizedOperatorNameErrors(supplied map[string]*azcorearm.ResourceID, fldPath *field.Path, recognized []string) field.ErrorList {
+	unrecognized := make([]string, 0, len(supplied))
+	for operatorName := range supplied {
+		// An empty name is already reported by validateUserAssignedIdentitiesProfile.
+		if operatorName == "" || slices.Contains(recognized, operatorName) {
+			continue
+		}
+		unrecognized = append(unrecognized, operatorName)
+	}
+	// Sorted so error ordering does not depend on map iteration order.
+	slices.Sort(unrecognized)
+
+	errs := field.ErrorList{}
+	for _, operatorName := range unrecognized {
+		errs = append(errs, field.Invalid(fldPath.Key(operatorName), operatorName,
+			fmt.Sprintf("unrecognized operator name; supported values: %s", strings.Join(recognized, ", "))))
+	}
+	return errs
+}
+
+// operatorIdentitiesByLowercaseName rekeys operator identities so lookups are case-insensitive,
+// consistent with the resource ID comparisons in validateOperatorAuthenticationAgainstIdentities.
+func operatorIdentitiesByLowercaseName(operators map[string]*azcorearm.ResourceID) map[string]*azcorearm.ResourceID {
+	byLowercaseName := make(map[string]*azcorearm.ResourceID, len(operators))
+	for operatorName, identity := range operators {
+		lowercaseName := strings.ToLower(operatorName)
+		// Keys differing only in case collapse together here, so keep any supplied identity rather
+		// than letting map iteration order decide whether the operator counts as supplied.
+		if existing, ok := byLowercaseName[lowercaseName]; ok && existing != nil {
+			continue
+		}
+		byLowercaseName[lowercaseName] = identity
+	}
+	return byLowercaseName
+}
+
+func operatorIdentitySupplied(operators map[string]*azcorearm.ResourceID, operatorName string) bool {
+	identity, ok := operators[strings.ToLower(operatorName)]
+	return ok && identity != nil
 }
 
 func validateOperatorAuthenticationAgainstIdentities(ctx context.Context, op operation.Operation, newCluster, _ *coreapi.HCPOpenShiftCluster) field.ErrorList {

@@ -1,7 +1,17 @@
 {
 	"identity": {
 		"type": "UserAssigned",
-		"userAssignedIdentities": {}
+		"userAssignedIdentities": {
+			"/subscriptions/32350638-2403-4bc9-a36e-4922c8c99b52/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/cloud-controller-manager-identity": {},
+			"/subscriptions/32350638-2403-4bc9-a36e-4922c8c99b52/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/cloud-network-config-identity": {},
+			"/subscriptions/32350638-2403-4bc9-a36e-4922c8c99b52/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/cluster-api-azure-identity": {},
+			"/subscriptions/32350638-2403-4bc9-a36e-4922c8c99b52/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/control-plane-identity": {},
+			"/subscriptions/32350638-2403-4bc9-a36e-4922c8c99b52/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/disk-csi-driver-identity": {},
+			"/subscriptions/32350638-2403-4bc9-a36e-4922c8c99b52/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/file-csi-driver-identity": {},
+			"/subscriptions/32350638-2403-4bc9-a36e-4922c8c99b52/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/image-registry-identity": {},
+			"/subscriptions/32350638-2403-4bc9-a36e-4922c8c99b52/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/ingress-identity": {},
+			"/subscriptions/32350638-2403-4bc9-a36e-4922c8c99b52/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/kms-identity": {}
+		}
 	},
 	"name": "basic",
 	"properties": {
@@ -38,6 +48,26 @@
 		"platform": {
 			"managedResourceGroup": "managed-resource-group-name",
 			"networkSecurityGroupId": "/subscriptions/32350638-2403-4bc9-a36e-4922c8c99b52/resourceGroups/bar/providers/Microsoft.Network/networkSecurityGroups/nsg",
+			"operatorsAuthentication": {
+				"userAssignedIdentities": {
+					"controlPlaneOperators": {
+						"cloud-controller-manager": "/subscriptions/32350638-2403-4bc9-a36e-4922c8c99b52/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/cloud-controller-manager-identity",
+						"cloud-network-config": "/subscriptions/32350638-2403-4bc9-a36e-4922c8c99b52/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/cloud-network-config-identity",
+						"cluster-api-azure": "/subscriptions/32350638-2403-4bc9-a36e-4922c8c99b52/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/cluster-api-azure-identity",
+						"control-plane": "/subscriptions/32350638-2403-4bc9-a36e-4922c8c99b52/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/control-plane-identity",
+						"disk-csi-driver": "/subscriptions/32350638-2403-4bc9-a36e-4922c8c99b52/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/disk-csi-driver-identity",
+						"file-csi-driver": "/subscriptions/32350638-2403-4bc9-a36e-4922c8c99b52/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/file-csi-driver-identity",
+						"image-registry": "/subscriptions/32350638-2403-4bc9-a36e-4922c8c99b52/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/image-registry-identity",
+						"ingress": "/subscriptions/32350638-2403-4bc9-a36e-4922c8c99b52/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/ingress-identity",
+						"kms": "/subscriptions/32350638-2403-4bc9-a36e-4922c8c99b52/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/kms-identity"
+					},
+					"dataPlaneOperators": {
+						"disk-csi-driver": "/subscriptions/32350638-2403-4bc9-a36e-4922c8c99b52/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/disk-csi-driver-dataplane-identity",
+						"file-csi-driver": "/subscriptions/32350638-2403-4bc9-a36e-4922c8c99b52/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/file-csi-driver-dataplane-identity",
+						"image-registry": "/subscriptions/32350638-2403-4bc9-a36e-4922c8c99b52/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/image-registry-dataplane-identity"
+					}
+				}
+			},
 			"outboundType": "LoadBalancer",
 			"subnetId": "/subscriptions/32350638-2403-4bc9-a36e-4922c8c99b52/resourceGroups/bar/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet"
 		},
