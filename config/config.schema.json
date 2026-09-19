@@ -3213,6 +3213,14 @@
           "maximum": 4,
           "description": "The minimum IcM severity level (highest priority) that alerts can fire at. Alerts with a severity more critical (lower number) than this ceiling will be degraded to this value. For example, setting this to 3 means SEV2 alerts will fire as SEV3. A value of 0 means no ceiling is applied."
         },
+        "internalSubscriptions": {
+          "type": "array",
+          "description": "Azure subscription IDs for internal (e2e/CI/dev/integration) workloads to exclude from customer-facing alert lanes. Consumed via the internal_subscription:info recording rule using `unless on(subscription_id)`. The real IDs live only in the private sdp-pipelines overlay; this repo keeps the list empty.",
+          "items": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+          }
+        },
         "eventHubAlerting": {
           "type": "object",
           "description": "Configuration for sending alert events to an Event Hub for Kusto ingestion",
