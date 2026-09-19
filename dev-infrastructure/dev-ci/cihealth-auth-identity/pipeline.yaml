@@ -1,0 +1,49 @@
+$schema: "pipeline.schema.v1"
+serviceGroup: Microsoft.Azure.ARO.HCP.DevCI.CIHealthAuthIdentity
+rolloutName: CIHealth Auth Identity Rollout
+# Entra directory writes are isolated in the manually run privileged entrypoint.
+resourceGroups:
+- name: identity
+  resourceGroup: '{{ .global.rg }}'
+  subscription: '{{ .global.subscription.key }}'
+  steps:
+  - name: global-identity
+    action: ARM
+    template: ../../templates/output-opstool-global-identity.bicep
+    parameters: ../../configurations/output-opstool-global-identity.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+  - name: app
+    action: ARM
+    template: ../../templates/cihealth-auth-identity.bicep
+    parameters: ../../configurations/cihealth-auth-identity.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+  - name: secrets
+    action: Shell
+    command: ./cihealth-auth-ensure-secrets.sh
+    workingDir: ../../scripts
+    shellIdentity:
+      input:
+        resourceGroup: identity
+        step: global-identity
+        name: globalMSIId
+    variables:
+    - name: APP_OBJECT_ID
+      input:
+        resourceGroup: identity
+        step: app
+        name: appObjectId
+    - name: APP_ID
+      input:
+        resourceGroup: identity
+        step: app
+        name: appId
+    - name: KEY_VAULT_NAME
+      configRef: global.keyVault.name
+    - name: CLIENT_ID_NAME
+      configRef: opstool.cihealthAuth.authProxy.clientIdKeyVaultSecretName
+    - name: CLIENT_SECRET_NAME
+      configRef: opstool.cihealthAuth.authProxy.clientSecretKeyVaultSecretName
+    dependsOn:
+    - resourceGroup: identity
+      step: app
