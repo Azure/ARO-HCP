@@ -140,7 +140,12 @@ The implementation details live in [slot-manager design](../../test/cmd/aro-hcp-
 - candidate pools are tried in catalog order when more than one pool is eligible
 - the active runtime region is determined from the catalog mode and the live `openshift/release` job configuration
 
-This document intentionally does not freeze the current region value in prose. If you need the current runtime override for a job, inspect the live `openshift/release` config rather than relying on a doc snapshot.
+For procedures to drain, rebalance, or restore regional traffic, see
+[DEV CI Regional Load Management](dev-region-failover.md).
+
+This document intentionally does not freeze current weights or pinned regions
+in prose. Inspect the live `openshift/release` config rather than relying on a
+doc snapshot.
 
 ### Toggling Pooled Vs Non-Pooled Identities
 
