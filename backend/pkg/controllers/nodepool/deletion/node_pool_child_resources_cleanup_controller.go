@@ -22,6 +22,7 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/clusterresources"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
@@ -278,11 +279,10 @@ func (c *nodePoolChildResourcesCleanupController) ensureNodePoolScopedKubeApplie
 	}
 
 	// extraDeleteGates uses lowercased kubeapplierapi.*DesireResourceType keys. Types not
-	// in the map are deleted unconditionally. ReadDesires are only observed, so
-	// dropping their documents has no effect on the management cluster and needs
-	// no gate; ApplyDesires do, hence the gate below.
+	// in the map are deleted unconditionally.
 	extraDeleteGates := map[string]func(ctx context.Context, resourceID *azcorearm.ResourceID) (bool, error){
 		strings.ToLower(kubeapplierapi.NodePoolScopedApplyDesireResourceType.String()): c.extraDeleteGateShouldDeleteApplyDesire(kaClient, nodePoolResourceID),
+		strings.ToLower(kubeapplierapi.NodePoolScopedReadDesireResourceType.String()):  c.extraDeleteGateShouldDeleteReadDesire(kaClient, nodePoolResourceID),
 	}
 
 	desireCRUD, err := kaClient.UntypedCRUD(*nodePoolResourceID)
@@ -366,6 +366,56 @@ func (c *nodePoolChildResourcesCleanupController) extraDeleteGateShouldDeleteApp
 		if owningController := applyDesire.Tags[kubeapplierapi.TagControllerName]; len(owningController) > 0 {
 			logger.Info("waiting for owning controller to tear down nodepool-scoped ApplyDesire",
 				"applyDesireResourceID", applyDesireResourceID.String(), "owningController", owningController)
+			return false, nil
+		}
+
+		return true, nil
+	}
+}
+
+// extraDeleteGateShouldDeleteReadDesire reports whether a nodepool-scoped
+// ReadDesire document may be removed here.
+//
+// ReadDesires owned by ClusterResourcesController have their own cleanup path
+// (paired with ApplyDesire removal), so we skip them here. All other ReadDesires
+// are deleted here, including those from controllers that don't implement their
+// own cleanup.
+//
+// Untagged desires have no owner left to reap them, so they are deleted here.
+func (c *nodePoolChildResourcesCleanupController) extraDeleteGateShouldDeleteReadDesire(
+	kaClient kubeappliercosmosstorage.KubeApplierDBClient,
+	nodePoolResourceID *azcorearm.ResourceID,
+) func(ctx context.Context, readDesireResourceID *azcorearm.ResourceID) (bool, error) {
+	return func(ctx context.Context, readDesireResourceID *azcorearm.ResourceID) (bool, error) {
+		logger := utils.LoggerFromContext(ctx)
+
+		clusterResourceID := nodePoolResourceID.Parent
+		if clusterResourceID == nil {
+			return false, utils.TrackError(fmt.Errorf(
+				"node pool resource ID missing cluster parent: %s", nodePoolResourceID.String()))
+		}
+
+		readDesireCRUD, err := kaClient.ReadDesiresForNodePool(
+			clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName, clusterResourceID.Name, nodePoolResourceID.Name)
+		if err != nil {
+			return false, utils.TrackError(fmt.Errorf("failed to create nodepool-scoped ReadDesire CRUD: %w", err))
+		}
+
+		readDesire, err := readDesireCRUD.Get(ctx, strings.ToLower(readDesireResourceID.Name))
+		if cosmosstorageutils.IsNotFoundError(err) {
+			// Raced with the owner purging it; nothing left to delete.
+			return false, nil
+		}
+		if err != nil {
+			return false, utils.TrackError(fmt.Errorf("failed to get ReadDesire %q: %w", readDesireResourceID.String(), err))
+		}
+
+		// Only skip ReadDesires owned by ClusterResourcesController, which has its own
+		// cleanup path (paired with ApplyDesire removal). All other ReadDesires are
+		// cleaned up here since those controllers don't implement their own deletion logic.
+		if owningController := readDesire.Tags[kubeapplierapi.TagControllerName]; owningController == clusterresources.ClusterResourcesControllerName {
+			logger.Info("waiting for ClusterResources controller to tear down nodepool-scoped ReadDesire",
+				"readDesireResourceID", readDesireResourceID.String())
 			return false, nil
 		}
 
