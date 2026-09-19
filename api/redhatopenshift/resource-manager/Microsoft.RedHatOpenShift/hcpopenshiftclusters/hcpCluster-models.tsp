@@ -1131,7 +1131,12 @@ model ClusterResourceStatus {
   /** The conditions on the resource */
   ...ResourceStatus;
 
-  /** The activeVersions of a resource. This field is an array because during upgrades there can be more than one active version. */
+  /** The observed active versions of the cluster.
+   * During upgrades, both the previous and target versions may be
+   * active simultaneously until the rollout completes, so this
+   * array can contain more than one entry. The ordering of entries
+   * has no meaning.
+   */
   @added(Versions.v2026_10_01_preview)
   @visibility(Lifecycle.Read)
   @identifiers(#["version"])
@@ -1151,7 +1156,10 @@ model ClusterActiveVersion {
 model NodePoolResourceStatus {
   ...ResourceStatus;
 
-  /** The activeVersions of a resource. This field is an array because during upgrades there can be more than one active version. */
+  /** The observed active versions of the node pool.
+   * During upgrades, it is common for multiple versions to be active at the same time
+   * while old nodes are drained and replaced. The ordering of entries has no meaning.
+   */
   @added(Versions.v2026_10_01_preview)
   @visibility(Lifecycle.Read)
   @identifiers(#["version"])
