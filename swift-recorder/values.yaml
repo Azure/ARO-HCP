@@ -1,0 +1,21 @@
+{{- $image := .swiftRecorder.image }}
+{{- if .swiftRecorder.useMgmtAgentImage }}
+{{- $image = .mgmtAgent.image }}
+{{- end }}
+enabled: {{ .swiftRecorder.enabled }}
+image:
+  registry: "{{ .acr.svc.name }}.{{ .acrDNSSuffix }}"
+  repository: "{{ $image.repository }}"
+  digest: "{{ $image.digest }}"
+captureMode: "{{ .swiftRecorder.captureMode }}"
+clusterName: "{{ .mgmt.aks.name }}"
+region: "{{ .region }}"
+environment: "{{ .environmentName }}"
+serviceAccount:
+  name: "{{ .swiftRecorder.k8s.serviceAccountName }}"
+resources:
+  requests:
+    cpu: "{{ .swiftRecorder.k8s.resources.requests.cpu }}"
+    memory: "{{ .swiftRecorder.k8s.resources.requests.memory }}"
+  limits:
+    memory: "{{ .swiftRecorder.k8s.resources.limits.memory }}"

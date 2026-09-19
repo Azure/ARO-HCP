@@ -1,0 +1,196 @@
+---
+# Source: swift-recorder/templates/rbac.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: swift-recorder
+  namespace: swift-recorder
+---
+# Source: swift-recorder/templates/rbac.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: swift-recorder
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - get
+  - list
+  - watch
+---
+# Source: swift-recorder/templates/rbac.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: swift-recorder
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: swift-recorder
+subjects:
+- kind: ServiceAccount
+  name: swift-recorder
+  namespace: swift-recorder
+---
+# Source: swift-recorder/templates/metrics.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: swift-recorder-metrics
+  namespace: swift-recorder
+  labels:
+    app.kubernetes.io/name: swift-recorder
+    port: metrics
+spec:
+  selector:
+    app.kubernetes.io/name: swift-recorder
+  ports:
+  - name: metrics
+    port: 8091
+    targetPort: metrics
+    protocol: TCP
+---
+# Source: swift-recorder/templates/daemonset.yaml
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: swift-recorder
+  namespace: swift-recorder
+  labels:
+    app.kubernetes.io/name: swift-recorder
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: swift-recorder
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: swift-recorder
+    spec:
+      serviceAccountName: swift-recorder
+      priorityClassName: service-lifecycle-critical
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      nodeSelector:
+        kubernetes.io/os: linux
+        kubernetes.azure.com/podnetwork-swiftv2-enabled: "true"
+      tolerations:
+      - operator: Exists
+      terminationGracePeriodSeconds: 30
+      containers:
+      - name: swift-recorder
+        image: "arohcpsvcdev.azurecr.io/swift-recorder@sha256:1111111111111111111111111111111111111111111111111111111111111111"
+        command:
+        - /swift-recorder
+        args:
+        - controller
+        - --node-name=$(NODE_NAME)
+        - --health-address=:8091
+        - --capture-mode=all
+        - --startup-dwell=30s
+        - --post-success-capture=10s
+        - --sample-interval=1s
+        - --capture-timeout=500ms
+        - --max-pods=32
+        - --max-buffer-bytes=16777216
+        - --max-record-bytes=65536
+        - --episode-timeout=15m
+        - --cni-log=/host/var/log/azure-vnet.log
+        - --netns-dir=/var/run/netns
+        - --boot-id-file=/host/boot-id
+        - --cluster-name=dev-westus3-mgmt-1
+        - --region=westus3
+        - --environment=dev
+        env:
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        ports:
+        - name: metrics
+          containerPort: 8091
+          protocol: TCP
+        securityContext:
+          runAsUser: 0
+          runAsGroup: 0
+          runAsNonRoot: false
+          privileged: false
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          seccompProfile:
+            type: RuntimeDefault
+          capabilities:
+            drop:
+            - ALL
+            # The helper enters an existing network namespace with setns.
+            add:
+            - SYS_ADMIN
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: metrics
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: metrics
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          limits:
+            memory: 256Mi
+          requests:
+            cpu: 20m
+            memory: 64Mi
+        volumeMounts:
+        - name: cni-logs
+          mountPath: /host/var/log
+          readOnly: true
+        - name: netns
+          mountPath: /var/run/netns
+          readOnly: true
+          mountPropagation: HostToContainer
+        - name: boot-id
+          mountPath: /host/boot-id
+          readOnly: true
+      volumes:
+      - name: cni-logs
+        hostPath:
+          path: /var/log
+          type: Directory
+      - name: netns
+        hostPath:
+          path: /var/run/netns
+          type: Directory
+      - name: boot-id
+        hostPath:
+          path: /proc/sys/kernel/random/boot_id
+          type: File
+---
+# Source: swift-recorder/templates/metrics.yaml
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: swift-recorder
+  namespace: swift-recorder
+spec:
+  endpoints:
+  - interval: 30s
+    path: /metrics
+    port: metrics
+    scheme: http
+  namespaceSelector:
+    matchNames:
+    - swift-recorder
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: swift-recorder
+      port: metrics

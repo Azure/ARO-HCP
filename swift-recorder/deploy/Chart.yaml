@@ -1,0 +1,5 @@
+apiVersion: v2
+name: swift-recorder
+description: Node-local SWIFT-v2 startup diagnostics for ARO HCP management clusters.
+type: application
+version: 0.1.0

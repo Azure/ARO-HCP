@@ -1593,6 +1593,46 @@
         "nodeHealth"
       ]
     },
+    "swiftRecorder": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Disabled pipelines skip image mirroring and deployment."
+        },
+        "useMgmtAgentImage": {
+          "type": "boolean",
+          "description": "Temporary ci00/ci01 bootstrap: use the resolved mgmt-agent image containing /swift-recorder. Remove after dedicated image onboarding."
+        },
+        "captureMode": {
+          "type": "string",
+          "enum": ["slow", "all"]
+        },
+        "image": {
+          "$ref": "#/definitions/containerImage"
+        },
+        "k8s": {
+          "$ref": "#/definitions/k8sDeployment"
+        }
+      },
+      "additionalProperties": false,
+      "required": ["enabled", "useMgmtAgentImage", "captureMode", "image", "k8s"],
+      "if": {
+        "properties": {
+          "enabled": {"const": true},
+          "useMgmtAgentImage": {"const": false}
+        }
+      },
+      "then": {
+        "properties": {
+          "image": {
+            "properties": {
+              "digest": {"minLength": 1}
+            }
+          }
+        }
+      }
+    },
     "kubeApplier": {
       "type": "object",
       "properties": {
@@ -3930,6 +3970,7 @@
     "maestro",
     "mgmt",
     "mgmtAgent",
+    "swiftRecorder",
     "fleet",
     "kubeApplier",
     "mgmtKeyVault",

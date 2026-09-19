@@ -74,6 +74,11 @@ services:
         - serviceGroup: Microsoft.Azure.ARO.HCP.MgmtAgent
           pipelinePath: mgmt-agent/pipeline.yaml
           purpose: Deploy the Management Agent.
+          children:
+          # Optional diagnostics follow mgmt-agent without gating fleet registration.
+          - serviceGroup: Microsoft.Azure.ARO.HCP.SwiftRecorder
+            pipelinePath: swift-recorder/pipeline.yaml
+            purpose: Deploy the opt-in SWIFT-v2 node-local startup recorder.
         - serviceGroup: Microsoft.Azure.ARO.HCP.Fleet.Registration
           pipelinePath: fleet/registration/pipeline.yaml
           purpose: Register the stamp and management cluster in CosmosDB.

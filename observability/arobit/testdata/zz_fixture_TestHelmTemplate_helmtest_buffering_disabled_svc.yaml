@@ -56,6 +56,12 @@ data:
         Time_Format %Y-%m-%dT%H:%M:%S.%L
         Time_Keep   On
 
+    [PARSER]
+        Name            swift-recorder
+        Format          regex
+        Regex           \A(?<log>[\s\S]*)\z
+        Decode_Field_As json log
+
     [MULTILINE_PARSER]
         name          klog
         type          regex
@@ -220,6 +226,7 @@ data:
         Rule            $kubernetes['container_name'] ^kube-applier* kube-applier.logs false
         Rule            $kubernetes['container_name'] ^kube-events* kube-events.logs false
         Rule            $kubernetes['container_name'] ^mgmt-agent-controller* mgmt-agent.logs true
+        Rule            $kubernetes['container_name'] ^swift-recorder$ kubernetes.swift-recorder.logs false
         Emitter_Name    re_emitted_container_name_router
         Emitter_Mem_Buf_Limit  20M
         Emitter_Storage.type   filesystem
@@ -231,6 +238,16 @@ data:
         Key_Name log
         Parser containerlogs
         Preserve_Key On
+        Reserve_Data On
+
+    [FILTER]
+        # containerLogs maps $.log.log: decode in place, not at the record root.
+        # Keep all payload fields inside log and Kubernetes/cluster metadata outside.
+        Name         parser
+        Match        kubernetes.swift-recorder.logs
+        Key_Name     log
+        Parser       swift-recorder
+        Preserve_Key Off
         Reserve_Data On
 
     [FILTER]
@@ -550,7 +567,7 @@ spec:
         app: arobit-forwarder
         azure.workload.identity/use: "true"
       annotations:
-        checksum/configmap: 4aa633ef26fc4c0ac4b944ec7f63a8c46ad5538a901514124163a22dcffab30b
+        checksum/configmap: fa5ce038eba71435d7edf427273dcff072aa370cb50cd0c13e8018d3eb55853e
     spec:
       priorityClassName: service-lifecycle-critical
       serviceAccountName: 'arobit-forwarder'
