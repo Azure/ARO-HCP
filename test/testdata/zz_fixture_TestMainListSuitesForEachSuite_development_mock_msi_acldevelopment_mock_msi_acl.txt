@@ -1,0 +1,1 @@
+Customer should be able to delete an HCP cluster after stripping DEV mock-MSI permissions
