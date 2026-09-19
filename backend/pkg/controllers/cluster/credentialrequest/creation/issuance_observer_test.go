@@ -37,6 +37,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/kubeapplierlistertesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -193,7 +194,7 @@ func makeReadDesireListerWithCSR(t *testing.T, credName string, csr *certificate
 	require.NoError(t, err)
 
 	desireName := kubeapplierhelpers.ReadDesireNameForSystemAdminCredentialRequestCSR()
-	resourceIDStr := kubeapplierapi.ToSystemAdminCredentialRequestScopedReadDesireResourceIDString(
+	resourceIDStr := kubeapplierapihelpers.ToSystemAdminCredentialRequestScopedReadDesireResourceIDString(
 		testSubscriptionID, testResourceGroupName, testClusterName, credName, desireName,
 	)
 	resourceID := metadataapi.Must(azcorearm.ParseResourceID(resourceIDStr))

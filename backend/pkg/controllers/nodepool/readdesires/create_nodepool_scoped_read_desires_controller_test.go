@@ -29,6 +29,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/kubeappliercosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
@@ -78,7 +79,7 @@ func newTestNodePoolCluster(opts ...func(*coreapi.HCPOpenShiftCluster)) *coreapi
 			},
 		},
 		ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
-			ClusterServiceID: metadataapi.Ptr(metadataapi.Must(metadataapi.NewInternalID(nodePoolReadDesireTestClusterServiceID))),
+			ClusterServiceID: metadataapihelpers.Ptr(metadataapi.Must(metadataapi.NewInternalID(nodePoolReadDesireTestClusterServiceID))),
 		},
 		CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
 			DNS: coreapi.CustomerDNSProfile{
@@ -137,7 +138,7 @@ func newTestNodePool(name string, opts ...func(*coreapi.HCPOpenShiftClusterNodeP
 			},
 		},
 		ServiceProviderProperties: coreapi.HCPOpenShiftClusterNodePoolServiceProviderProperties{
-			ClusterServiceID: metadataapi.Ptr(metadataapi.Must(metadataapi.NewInternalID(
+			ClusterServiceID: metadataapihelpers.Ptr(metadataapi.Must(metadataapi.NewInternalID(
 				nodePoolReadDesireTestClusterServiceID + "/node_pools/" + name,
 			))),
 		},

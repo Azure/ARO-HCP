@@ -20,6 +20,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/listerutils"
 )
 
@@ -62,21 +63,21 @@ func (l *activeOperationLister) List(ctx context.Context) ([]*coreapi.Operation,
 //
 //	/subscriptions/<sub>/providers/microsoft.redhatopenshift/hcpoperationstatuses/<name>
 func (l *activeOperationLister) Get(ctx context.Context, subscriptionID, name string) (*coreapi.Operation, error) {
-	key := coreapi.ToOperationResourceIDString(subscriptionID, name)
+	key := coreapihelpers.ToOperationResourceIDString(subscriptionID, name)
 	return listerutils.GetByKey[coreapi.Operation](l.indexer, key)
 }
 
 func (l *activeOperationLister) ListActiveOperationsForCluster(ctx context.Context, subscriptionName, resourceGroupName, clusterName string) ([]*coreapi.Operation, error) {
-	key := coreapi.ToClusterResourceIDString(subscriptionName, resourceGroupName, clusterName)
+	key := coreapihelpers.ToClusterResourceIDString(subscriptionName, resourceGroupName, clusterName)
 	return listerutils.ListFromIndex[coreapi.Operation](l.indexer, ByCluster, key)
 }
 
 func (l *activeOperationLister) ListActiveOperationsForNodePool(ctx context.Context, subscriptionName, resourceGroupName, clusterName, nodePoolName string) ([]*coreapi.Operation, error) {
-	key := coreapi.ToNodePoolResourceIDString(subscriptionName, resourceGroupName, clusterName, nodePoolName)
+	key := coreapihelpers.ToNodePoolResourceIDString(subscriptionName, resourceGroupName, clusterName, nodePoolName)
 	return listerutils.ListFromIndex[coreapi.Operation](l.indexer, ByNodePool, key)
 }
 
 func (l *activeOperationLister) ListActiveOperationsForExternalAuth(ctx context.Context, subscriptionName, resourceGroupName, clusterName, externalAuthName string) ([]*coreapi.Operation, error) {
-	key := coreapi.ToExternalAuthResourceIDString(subscriptionName, resourceGroupName, clusterName, externalAuthName)
+	key := coreapihelpers.ToExternalAuthResourceIDString(subscriptionName, resourceGroupName, clusterName, externalAuthName)
 	return listerutils.ListFromIndex[coreapi.Operation](l.indexer, ByExternalAuth, key)
 }

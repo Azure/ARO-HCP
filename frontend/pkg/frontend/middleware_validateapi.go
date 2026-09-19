@@ -21,6 +21,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -40,13 +41,13 @@ func (h *middlewareValidatedAPIVersion) handleRequest(w http.ResponseWriter, r *
 
 	apiVersion := r.URL.Query().Get(APIVersionKey)
 	if apiVersion == "" {
-		coreapi.WriteError(
+		coreapihelpers.WriteError(
 			w, http.StatusBadRequest,
 			coreapi.CloudErrorCodeInvalidParameter, "",
 			"The request is missing required parameter '%s'.",
 			APIVersionKey)
 	} else if version, ok := h.apiRegistry.Lookup(apiVersion); !ok {
-		coreapi.WriteError(
+		coreapihelpers.WriteError(
 			w, http.StatusBadRequest,
 			coreapi.CloudErrorCodeInvalidResourceType, "",
 			"The resource type '%s' could not be found API version '%s'.",

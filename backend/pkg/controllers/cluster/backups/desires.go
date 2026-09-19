@@ -28,6 +28,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
 	"github.com/Azure/ARO-HCP/internal/backup"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -65,7 +66,7 @@ func buildApplyDesiresFromSchedules(
 	desires := make([]*kubeapplierapi.ApplyDesire, 0, len(schedules))
 	for _, schedule := range schedules {
 		desireName := backupApplyDesireName(schedule.Name)
-		resourceIDStr := kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(
+		resourceIDStr := kubeapplierapihelpers.ToClusterScopedApplyDesireResourceIDString(
 			subscriptionID, resourceGroupName, clusterName, desireName,
 		)
 		resourceID, err := azcorearm.ParseResourceID(resourceIDStr)
@@ -106,7 +107,7 @@ func buildReadDesireFromApplyDesire(
 	applyDesire *kubeapplierapi.ApplyDesire,
 ) (*kubeapplierapi.ReadDesire, error) {
 	desireName := applyDesire.ResourceID.Name
-	resourceIDStr := kubeapplierapi.ToClusterScopedReadDesireResourceIDString(
+	resourceIDStr := kubeapplierapihelpers.ToClusterScopedReadDesireResourceIDString(
 		subscriptionID, resourceGroupName, clusterName, desireName,
 	)
 	resourceID, err := azcorearm.ParseResourceID(resourceIDStr)

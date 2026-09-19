@@ -16,7 +16,6 @@ package coreapi
 
 import (
 	"encoding/json"
-	"net/http"
 	"path"
 	"strings"
 )
@@ -29,21 +28,6 @@ import (
 // failing the whole operation.
 type DeploymentPreflight struct {
 	Resources []json.RawMessage `json:"resources"`
-}
-
-// UnmarshalDeploymentPreflight unmarshals JSON-encoded data and returns
-// either a DeploymentPreflight instance or an appropriate CloudError with
-// a 200 OK HTTP status code.
-func UnmarshalDeploymentPreflight(data []byte) (*DeploymentPreflight, error) {
-	deploymentPreflight := &DeploymentPreflight{}
-	err := json.Unmarshal(data, deploymentPreflight)
-	if err != nil {
-		cloudError := NewInvalidRequestContentError(err)
-		// Status code for preflight content errors must always be OK.
-		cloudError.StatusCode = http.StatusOK
-		return nil, cloudError
-	}
-	return deploymentPreflight, nil
 }
 
 // DeploymentPreflightResource represents a desired resource in a deployment preflight request.
@@ -94,26 +78,6 @@ const (
 type DeploymentPreflightResponse struct {
 	Status DeploymentPreflightStatus `json:"status"`
 	Error  *CloudErrorBody           `json:"error,omitempty"`
-}
-
-// WriteDeploymentPreflightResponse writes an appropriately structured
-// response body to a deployment preflight request using the given error
-// slice. An empty error slice indicates successful validation.
-func WriteDeploymentPreflightResponse(w http.ResponseWriter, preflightErrors []CloudErrorBody) {
-	var response *DeploymentPreflightResponse
-
-	if len(preflightErrors) == 0 {
-		response = &DeploymentPreflightResponse{
-			Status: DeploymentPreflightStatusSucceeded,
-		}
-	} else {
-		response = &DeploymentPreflightResponse{
-			Status: DeploymentPreflightStatusFailed,
-			Error:  NewCloudErrorBodyFromSlice(preflightErrors, "Preflight validation failed on multiple resources"),
-		}
-	}
-
-	_, _ = WriteJSONResponse(w, http.StatusOK, response)
 }
 
 func recurseDetectTLE(v any) bool {

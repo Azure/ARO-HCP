@@ -39,6 +39,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
 	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
 )
 
@@ -1518,7 +1519,7 @@ func TestConvertCSManagementClusterToInternal(t *testing.T) {
 			},
 			validate: func(t *testing.T, mc *fleetapi.ManagementCluster) {
 				// ResourceID
-				expectedResourceID := metadataapi.Must(fleetapi.ToManagementClusterResourceID("1"))
+				expectedResourceID := metadataapi.Must(fleetapihelpers.ToManagementClusterResourceID("1"))
 				require.NotNil(t, mc.ResourceID)
 				assert.Equal(t, expectedResourceID.String(), mc.ResourceID.String())
 

@@ -37,6 +37,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
@@ -417,7 +418,7 @@ func buildClusterResourceApplyDesire(
 	obj *unstructured.Unstructured,
 	tags map[string]string,
 ) (*kubeapplierapi.ApplyDesire, error) {
-	resourceIDStr := kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(
+	resourceIDStr := kubeapplierapihelpers.ToClusterScopedApplyDesireResourceIDString(
 		subscriptionID, resourceGroupName, clusterName, desireName,
 	)
 	resourceID, err := azcorearm.ParseResourceID(resourceIDStr)
@@ -459,7 +460,7 @@ func buildNodePoolResourceApplyDesire(
 	obj *unstructured.Unstructured,
 	tags map[string]string,
 ) (*kubeapplierapi.ApplyDesire, error) {
-	resourceIDStr := kubeapplierapi.ToNodePoolScopedApplyDesireResourceIDString(
+	resourceIDStr := kubeapplierapihelpers.ToNodePoolScopedApplyDesireResourceIDString(
 		subscriptionID, resourceGroupName, clusterName, nodePoolName, desireName,
 	)
 	resourceID, err := azcorearm.ParseResourceID(resourceIDStr)

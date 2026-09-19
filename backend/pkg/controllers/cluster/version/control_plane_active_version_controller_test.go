@@ -37,6 +37,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
@@ -406,7 +407,7 @@ func TestControlPlaneActiveVersionSyncer_SyncOnce_ReadsClusterFromCache(t *testi
 	// Cluster lives ONLY in the cache. Its ActiveVersions already equal "4.19"
 	// (the value derived from the ReadDesire below), so the cluster write is a no-op
 	// and the cluster never has to exist in the DB.
-	clusterResourceID := metadataapi.Must(coreapi.ToClusterResourceID(testSubscriptionID, testResourceGroupName, testClusterName))
+	clusterResourceID := metadataapi.Must(coreapihelpers.ToClusterResourceID(testSubscriptionID, testResourceGroupName, testClusterName))
 	cachedCluster := &coreapi.HCPOpenShiftCluster{
 		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: clusterResourceID},
 		TrackedResource: coreapi.TrackedResource{

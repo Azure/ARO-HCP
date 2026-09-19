@@ -35,6 +35,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/kubeapplierlistertesting"
@@ -92,11 +93,11 @@ func TestNodePoolDegradedAggregator_SyncOnce(t *testing.T) {
 
 	// Collision-safe node-pool desire source names: source prefix + the desire's
 	// full lowercased resource ID (see CollectDegradedConditions).
-	npApplyName := statusutils.ApplyDesireSourcePrefix + kubeapplierapi.ToNodePoolScopedApplyDesireResourceIDString(
+	npApplyName := statusutils.ApplyDesireSourcePrefix + kubeapplierapihelpers.ToNodePoolScopedApplyDesireResourceIDString(
 		statusutils.TestSubscriptionID, statusutils.TestResourceGroupName, statusutils.TestClusterName, statusutils.TestNodePoolName, "np-apply")
-	npReadName := statusutils.ReadDesireSourcePrefix + kubeapplierapi.ToNodePoolScopedReadDesireResourceIDString(
+	npReadName := statusutils.ReadDesireSourcePrefix + kubeapplierapihelpers.ToNodePoolScopedReadDesireResourceIDString(
 		statusutils.TestSubscriptionID, statusutils.TestResourceGroupName, statusutils.TestClusterName, statusutils.TestNodePoolName, "np-read")
-	npNoneName := statusutils.ApplyDesireSourcePrefix + kubeapplierapi.ToNodePoolScopedApplyDesireResourceIDString(
+	npNoneName := statusutils.ApplyDesireSourcePrefix + kubeapplierapihelpers.ToNodePoolScopedApplyDesireResourceIDString(
 		statusutils.TestSubscriptionID, statusutils.TestResourceGroupName, statusutils.TestClusterName, statusutils.TestNodePoolName, "np-none")
 
 	tests := []struct {

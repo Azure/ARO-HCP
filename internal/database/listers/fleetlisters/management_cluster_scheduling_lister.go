@@ -20,6 +20,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/listerutils"
 )
 
@@ -50,6 +51,6 @@ func (l *informerBasedManagementClusterSchedulingLister) List(ctx context.Contex
 
 // Get retrieves a single management cluster scheduling document by stamp identifier.
 func (l *informerBasedManagementClusterSchedulingLister) Get(ctx context.Context, stampIdentifier string) (*fleetapi.ManagementClusterScheduling, error) {
-	key := fleetapi.ToManagementClusterSchedulingResourceIDString(stampIdentifier)
+	key := fleetapihelpers.ToManagementClusterSchedulingResourceIDString(stampIdentifier)
 	return listerutils.GetByKey[fleetapi.ManagementClusterScheduling](l.indexer, key)
 }

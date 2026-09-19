@@ -21,7 +21,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
-	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
 )
 
 func TestFindLowestAndHighestClusterVersion(t *testing.T) {
@@ -47,19 +47,19 @@ func TestFindLowestAndHighestClusterVersion(t *testing.T) {
 		},
 		{
 			name:       "single entry returns that control plane version for both bounds",
-			versions:   []coreapi.ServiceProviderClusterActiveVersion{{Version: metadataapi.Ptr(semver.MustParse("4.22.0"))}},
-			wantLowest: metadataapi.Ptr(semver.MustParse("4.22.0")),
-			wantHigh:   metadataapi.Ptr(semver.MustParse("4.22.0")),
+			versions:   []coreapi.ServiceProviderClusterActiveVersion{{Version: metadataapihelpers.Ptr(semver.MustParse("4.22.0"))}},
+			wantLowest: metadataapihelpers.Ptr(semver.MustParse("4.22.0")),
+			wantHigh:   metadataapihelpers.Ptr(semver.MustParse("4.22.0")),
 		},
 		{
 			name: "unsorted active versions return semantic min and max",
 			versions: []coreapi.ServiceProviderClusterActiveVersion{
-				{Version: metadataapi.Ptr(semver.MustParse("4.20.0"))},
-				{Version: metadataapi.Ptr(semver.MustParse("4.23.0"))},
-				{Version: metadataapi.Ptr(semver.MustParse("4.22.0"))},
+				{Version: metadataapihelpers.Ptr(semver.MustParse("4.20.0"))},
+				{Version: metadataapihelpers.Ptr(semver.MustParse("4.23.0"))},
+				{Version: metadataapihelpers.Ptr(semver.MustParse("4.22.0"))},
 			},
-			wantLowest: metadataapi.Ptr(semver.MustParse("4.20.0")),
-			wantHigh:   metadataapi.Ptr(semver.MustParse("4.23.0")),
+			wantLowest: metadataapihelpers.Ptr(semver.MustParse("4.20.0")),
+			wantHigh:   metadataapihelpers.Ptr(semver.MustParse("4.23.0")),
 		},
 	}
 
@@ -103,19 +103,19 @@ func TestFindLowestAndHighestNodePoolVersion(t *testing.T) {
 		},
 		{
 			name:       "single entry returns that version for both bounds",
-			versions:   []coreapi.ServiceProviderNodePoolActiveVersion{{Version: metadataapi.Ptr(semver.MustParse("4.22.0"))}},
-			wantLowest: metadataapi.Ptr(semver.MustParse("4.22.0")),
-			wantHigh:   metadataapi.Ptr(semver.MustParse("4.22.0")),
+			versions:   []coreapi.ServiceProviderNodePoolActiveVersion{{Version: metadataapihelpers.Ptr(semver.MustParse("4.22.0"))}},
+			wantLowest: metadataapihelpers.Ptr(semver.MustParse("4.22.0")),
+			wantHigh:   metadataapihelpers.Ptr(semver.MustParse("4.22.0")),
 		},
 		{
 			name: "unsorted active versions return semantic min and max",
 			versions: []coreapi.ServiceProviderNodePoolActiveVersion{
-				{Version: metadataapi.Ptr(semver.MustParse("4.20.0"))},
-				{Version: metadataapi.Ptr(semver.MustParse("4.23.0"))},
-				{Version: metadataapi.Ptr(semver.MustParse("4.22.0"))},
+				{Version: metadataapihelpers.Ptr(semver.MustParse("4.20.0"))},
+				{Version: metadataapihelpers.Ptr(semver.MustParse("4.23.0"))},
+				{Version: metadataapihelpers.Ptr(semver.MustParse("4.22.0"))},
 			},
-			wantLowest: metadataapi.Ptr(semver.MustParse("4.20.0")),
-			wantHigh:   metadataapi.Ptr(semver.MustParse("4.23.0")),
+			wantLowest: metadataapihelpers.Ptr(semver.MustParse("4.20.0")),
+			wantHigh:   metadataapihelpers.Ptr(semver.MustParse("4.23.0")),
 		},
 	}
 

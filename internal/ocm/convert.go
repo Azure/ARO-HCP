@@ -33,6 +33,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -842,7 +843,7 @@ func ConvertCSManagementClusterToInternal(csShard *arohcpv1alpha1.ProvisionShard
 	}
 	stampIdentifier := aksName[lastDash+1:]
 
-	resourceID, err := fleetapi.ToManagementClusterResourceID(stampIdentifier)
+	resourceID, err := fleetapihelpers.ToManagementClusterResourceID(stampIdentifier)
 	if err != nil {
 		return nil, fmt.Errorf("failed to construct management cluster resource ID from stamp identifier %q: %w", stampIdentifier, err)
 	}

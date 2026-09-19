@@ -31,6 +31,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 )
@@ -227,7 +228,7 @@ func newTestNodePool(name, clusterServiceIDStr string) *coreapi.HCPOpenShiftClus
 	}
 	if clusterServiceIDStr != "" {
 		np.ServiceProviderProperties = coreapi.HCPOpenShiftClusterNodePoolServiceProviderProperties{
-			ClusterServiceID: metadataapi.Ptr(metadataapi.Must(metadataapi.NewInternalID(clusterServiceIDStr))),
+			ClusterServiceID: metadataapihelpers.Ptr(metadataapi.Must(metadataapi.NewInternalID(clusterServiceIDStr))),
 		}
 	}
 	return np

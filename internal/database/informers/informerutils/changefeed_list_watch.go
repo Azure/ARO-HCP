@@ -36,6 +36,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -53,7 +54,7 @@ func changeFeedItemObjectMetadata(cosmosContainerName string, internalObj any, r
 		objectMetadata := cosmosstorageutils.ObjectMetadataForOperation(operation)
 		return objectMetadata
 	}
-	return metadataapi.ObjectMetadataForResourceID(cosmosContainerName, resourceID)
+	return metadataapihelpers.ObjectMetadataForResourceID(cosmosContainerName, resourceID)
 }
 
 const feedRangePollInterval = 1 * time.Second
@@ -419,7 +420,7 @@ func (c *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPITyp
 
 	matchesDesiredType := false
 	for _, desiredResourceType := range c.desiredResourceTypes {
-		if metadataapi.ResourceTypeStringEqual(objAsTypedDocument.ResourceType, desiredResourceType) {
+		if metadataapihelpers.ResourceTypeStringEqual(objAsTypedDocument.ResourceType, desiredResourceType) {
 			matchesDesiredType = true
 			break
 		}
@@ -588,15 +589,15 @@ func (c *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPITyp
 
 	for changeFeedStatus != http.StatusNotModified {
 		options := &azcosmos.ChangeFeedOptions{
-			StartFrom: metadataapi.Ptr(c.startFrom),
+			StartFrom: metadataapihelpers.Ptr(c.startFrom),
 		}
 
 		if continuation, ok := c.continuationTokens.Load(feedRange); ok {
 			// Continue from a previous read of this feed range.
-			options.Continuation = metadataapi.Ptr(continuation.(string))
+			options.Continuation = metadataapihelpers.Ptr(continuation.(string))
 		} else {
 			// First read for this feed range.
-			options.FeedRange = metadataapi.Ptr(feedRange)
+			options.FeedRange = metadataapihelpers.Ptr(feedRange)
 		}
 
 		logger.V(4).Info("reading feed range", "options", options)

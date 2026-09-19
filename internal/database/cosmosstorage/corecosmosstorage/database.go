@@ -27,6 +27,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosmetrics"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -120,13 +121,13 @@ func (d *resourcesCosmosDBClient) Subscriptions() cosmosstorageutils.ResourceCRU
 }
 
 func (d *resourcesCosmosDBClient) ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName string) cosmosstorageutils.ResourceCRUD[coreapi.ServiceProviderCluster, *coreapi.ServiceProviderCluster] {
-	clusterResourceID := metadataapi.Must(coreapi.ToClusterResourceID(subscriptionID, resourceGroupName, clusterName))
+	clusterResourceID := metadataapi.Must(coreapihelpers.ToClusterResourceID(subscriptionID, resourceGroupName, clusterName))
 	return cosmosstorageutils.NewCosmosResourceCRUD[coreapi.ServiceProviderCluster, *coreapi.ServiceProviderCluster, cosmosstorageutils.GenericDocument[coreapi.ServiceProviderCluster]](
 		d.resources, clusterResourceID, coreapi.ServiceProviderClusterResourceType)
 }
 
 func (d *resourcesCosmosDBClient) ServiceProviderNodePools(subscriptionID, resourceGroupName, clusterName, nodePoolName string) cosmosstorageutils.ResourceCRUD[coreapi.ServiceProviderNodePool, *coreapi.ServiceProviderNodePool] {
-	nodePoolResourceID := metadataapi.Must(coreapi.ToNodePoolResourceID(subscriptionID, resourceGroupName, clusterName, nodePoolName))
+	nodePoolResourceID := metadataapi.Must(coreapihelpers.ToNodePoolResourceID(subscriptionID, resourceGroupName, clusterName, nodePoolName))
 	return cosmosstorageutils.NewCosmosResourceCRUD[coreapi.ServiceProviderNodePool, *coreapi.ServiceProviderNodePool, cosmosstorageutils.GenericDocument[coreapi.ServiceProviderNodePool]](
 		d.resources, nodePoolResourceID, coreapi.ServiceProviderNodePoolResourceType)
 }

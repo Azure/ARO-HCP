@@ -31,6 +31,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/kubeappliercosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/informers/kubeapplierinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/fleetlistertesting"
@@ -173,13 +175,13 @@ func (s *stubFactory) runs() []*stubFactoryRun {
 // --- fixtures -------------------------------------------------------------
 
 // stamp identifiers and canonical management-cluster resourceIDs. The
-// SliceManagementClusterLister.Get uses fleetapi.ToManagementClusterResourceIDString,
+// SliceManagementClusterLister.Get uses fleetapihelpers.ToManagementClusterResourceIDString,
 // so MCs registered with the lister must carry the matching canonical form.
 var (
 	ctlMgmtAStamp = "1"
 	ctlMgmtBStamp = "2"
-	ctlMgmtAID    = metadataapi.Must(fleetapi.ToManagementClusterResourceID(ctlMgmtAStamp))
-	ctlMgmtBID    = metadataapi.Must(fleetapi.ToManagementClusterResourceID(ctlMgmtBStamp))
+	ctlMgmtAID    = metadataapi.Must(fleetapihelpers.ToManagementClusterResourceID(ctlMgmtAStamp))
+	ctlMgmtBID    = metadataapi.Must(fleetapihelpers.ToManagementClusterResourceID(ctlMgmtBStamp))
 )
 
 const (
@@ -232,10 +234,10 @@ func TestController_AddRegistersSubInformer(t *testing.T) {
 
 	mockA, err := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClientWithResources(ctx, []any{
 		ctlNewApplyDesire(t,
-			kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(ctlSub, ctlRG, ctlCluster, "a1"),
+			kubeapplierapihelpers.ToClusterScopedApplyDesireResourceIDString(ctlSub, ctlRG, ctlCluster, "a1"),
 			ctlMgmtAID),
 		ctlNewApplyDesire(t,
-			kubeapplierapi.ToNodePoolScopedApplyDesireResourceIDString(ctlSub, ctlRG, ctlCluster, ctlNodePool, "a2"),
+			kubeapplierapihelpers.ToNodePoolScopedApplyDesireResourceIDString(ctlSub, ctlRG, ctlCluster, ctlNodePool, "a2"),
 			ctlMgmtAID),
 	})
 	if err != nil {
@@ -281,10 +283,10 @@ func TestController_RemoveDropsSubInformer(t *testing.T) {
 
 	mockA, err := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClientWithResources(ctx, []any{
 		ctlNewApplyDesire(t,
-			kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(ctlSub, ctlRG, ctlCluster, "a1"),
+			kubeapplierapihelpers.ToClusterScopedApplyDesireResourceIDString(ctlSub, ctlRG, ctlCluster, "a1"),
 			ctlMgmtAID),
 		ctlNewApplyDesire(t,
-			kubeapplierapi.ToNodePoolScopedApplyDesireResourceIDString(ctlSub, ctlRG, ctlCluster, ctlNodePool, "a2"),
+			kubeapplierapihelpers.ToNodePoolScopedApplyDesireResourceIDString(ctlSub, ctlRG, ctlCluster, ctlNodePool, "a2"),
 			ctlMgmtAID),
 	})
 	if err != nil {
@@ -294,7 +296,7 @@ func TestController_RemoveDropsSubInformer(t *testing.T) {
 
 	mockB, err := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClientWithResources(ctx, []any{
 		ctlNewApplyDesire(t,
-			kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(ctlSub, ctlRG, "other-cluster", "b1"),
+			kubeapplierapihelpers.ToClusterScopedApplyDesireResourceIDString(ctlSub, ctlRG, "other-cluster", "b1"),
 			ctlMgmtBID),
 	})
 	if err != nil {
@@ -374,7 +376,7 @@ func TestController_FactoryNilSkipsRegistrationAndRetries(t *testing.T) {
 	// Wire up the factory and emit Update so the controller retries.
 	mockA, err := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClientWithResources(ctx, []any{
 		ctlNewApplyDesire(t,
-			kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(ctlSub, ctlRG, ctlCluster, "a1"),
+			kubeapplierapihelpers.ToClusterScopedApplyDesireResourceIDString(ctlSub, ctlRG, ctlCluster, "a1"),
 			ctlMgmtAID),
 	})
 	if err != nil {

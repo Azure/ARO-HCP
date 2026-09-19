@@ -20,6 +20,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/listerutils"
 )
 
@@ -52,16 +53,16 @@ func (l *hcpOpenShiftClusterNodePoolLister) List(ctx context.Context) ([]*coreap
 //
 //	/subscriptions/<sub>/resourcegroups/<rg>/providers/microsoft.redhatopenshift/hcpopenshiftclusters/<cluster>/nodepools/<name>
 func (l *hcpOpenShiftClusterNodePoolLister) Get(ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName string) (*coreapi.HCPOpenShiftClusterNodePool, error) {
-	key := coreapi.ToNodePoolResourceIDString(subscriptionID, resourceGroupName, clusterName, nodePoolName)
+	key := coreapihelpers.ToNodePoolResourceIDString(subscriptionID, resourceGroupName, clusterName, nodePoolName)
 	return listerutils.GetByKey[coreapi.HCPOpenShiftClusterNodePool](l.indexer, key)
 }
 
 func (l *hcpOpenShiftClusterNodePoolLister) ListForResourceGroup(ctx context.Context, subscriptionName, resourceGroupName string) ([]*coreapi.HCPOpenShiftClusterNodePool, error) {
-	key := coreapi.ToResourceGroupResourceIDString(subscriptionName, resourceGroupName)
+	key := coreapihelpers.ToResourceGroupResourceIDString(subscriptionName, resourceGroupName)
 	return listerutils.ListFromIndex[coreapi.HCPOpenShiftClusterNodePool](l.indexer, ByResourceGroup, key)
 }
 
 func (l *hcpOpenShiftClusterNodePoolLister) ListForCluster(ctx context.Context, subscriptionName, resourceGroupName, clusterName string) ([]*coreapi.HCPOpenShiftClusterNodePool, error) {
-	key := coreapi.ToClusterResourceIDString(subscriptionName, resourceGroupName, clusterName)
+	key := coreapihelpers.ToClusterResourceIDString(subscriptionName, resourceGroupName, clusterName)
 	return listerutils.ListFromIndex[coreapi.HCPOpenShiftClusterNodePool](l.indexer, ByCluster, key)
 }

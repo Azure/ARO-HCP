@@ -24,6 +24,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 )
 
@@ -54,7 +55,7 @@ func (f *fakeManagementClusterLister) GetByCSProvisionShardID(_ context.Context,
 func boolPtr(b bool) *bool { return &b }
 
 func testManagementCluster(stampIdentifier string, ready *bool) *fleetapi.ManagementCluster {
-	resourceID, _ := fleetapi.ToManagementClusterResourceID(stampIdentifier)
+	resourceID, _ := fleetapihelpers.ToManagementClusterResourceID(stampIdentifier)
 	managementCluster := &fleetapi.ManagementCluster{
 		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: resourceID},
 	}

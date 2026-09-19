@@ -27,6 +27,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
@@ -41,7 +42,7 @@ func staleReadDesire() *kubeapplierapi.ReadDesire {
 		Resource: "oldresources",
 		Name:     "old",
 	}
-	desireIDString := kubeapplierapi.ToManagementClusterScopedReadDesireResourceIDString(testStampIdentifier, ReadDesireName)
+	desireIDString := kubeapplierapihelpers.ToManagementClusterScopedReadDesireResourceIDString(testStampIdentifier, ReadDesireName)
 	return controllerutil.BuildReadDesire(desireIDString, testManagementClusterResourceID(), staleTarget)
 }
 

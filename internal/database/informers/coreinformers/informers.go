@@ -30,6 +30,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/informerutils"
@@ -518,12 +519,12 @@ func resourceGroupIndexFunc(obj interface{}) ([]string, error) {
 		if castObj.GetResourceID() == nil {
 			return nil, utils.TrackError(fmt.Errorf("obj is missing resourceID: %T %v", obj, obj))
 		}
-		return []string{coreapi.ToResourceGroupResourceIDString(castObj.GetResourceID().SubscriptionID, castObj.GetResourceID().ResourceGroupName)}, nil
+		return []string{coreapihelpers.ToResourceGroupResourceIDString(castObj.GetResourceID().SubscriptionID, castObj.GetResourceID().ResourceGroupName)}, nil
 	case coreapi.CosmosPersistable:
 		if castObj.GetCosmosData() == nil || castObj.GetCosmosData().ResourceID == nil {
 			return nil, utils.TrackError(fmt.Errorf("obj is missing resourceID: %T %v", obj, obj))
 		}
-		return []string{coreapi.ToResourceGroupResourceIDString(castObj.GetCosmosData().ResourceID.SubscriptionID, castObj.GetCosmosData().ResourceID.ResourceGroupName)}, nil
+		return []string{coreapihelpers.ToResourceGroupResourceIDString(castObj.GetCosmosData().ResourceID.SubscriptionID, castObj.GetCosmosData().ResourceID.ResourceGroupName)}, nil
 	default:
 		return nil, utils.TrackError(fmt.Errorf("unexpected type %T, expected coreapi.CosmosMetadataAccessor or coreapi.CosmosPersistable", obj))
 	}
@@ -594,7 +595,7 @@ func activeOperationResourceGroupIndexFunc(obj interface{}) ([]string, error) {
 		return nil, nil
 	}
 
-	return []string{coreapi.ToResourceGroupResourceIDString(op.ExternalID.SubscriptionID, op.ExternalID.ResourceGroupName)}, nil
+	return []string{coreapihelpers.ToResourceGroupResourceIDString(op.ExternalID.SubscriptionID, op.ExternalID.ResourceGroupName)}, nil
 }
 
 // activeOperationClusterIndexFunc indexes operations by their associated cluster

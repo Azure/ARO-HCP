@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package coreapi
+package coreapihelpers
 
 import (
 	"encoding/json"
@@ -22,6 +22,7 @@ import (
 	"dario.cat/mergo"
 	jsonpatch "github.com/evanphx/json-patch"
 
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -32,7 +33,7 @@ import (
 func ApplyRequestBody(requestMethod string, body []byte, v any) error {
 	rv := reflect.ValueOf(v)
 	if rv.Kind() != reflect.Pointer || rv.IsNil() {
-		return NewInvalidRequestContentError(&json.InvalidUnmarshalError{Type: rv.Type()})
+		return coreapi.NewInvalidRequestContentError(&json.InvalidUnmarshalError{Type: rv.Type()})
 	}
 
 	switch requestMethod {
@@ -52,7 +53,7 @@ func ApplyRequestBody(requestMethod string, body []byte, v any) error {
 
 		err = json.Unmarshal(modifiedData, v)
 		if err != nil {
-			return NewInvalidRequestContentError(err)
+			return coreapi.NewInvalidRequestContentError(err)
 		}
 
 	default:
@@ -76,7 +77,7 @@ func ApplyRequestBody(requestMethod string, body []byte, v any) error {
 
 		err := json.Unmarshal(body, src)
 		if err != nil {
-			return NewInvalidRequestContentError(err)
+			return coreapi.NewInvalidRequestContentError(err)
 		}
 
 		err = mergo.Merge(v, src, mergo.WithOverride)

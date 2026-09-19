@@ -18,6 +18,7 @@ import (
 	"net/http"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -47,6 +48,6 @@ func (h *HCPResourceRequirementsGetHandler) ServeHTTP(w http.ResponseWriter, r *
 		return utils.TrackError(err)
 	}
 
-	_, err = coreapi.WriteJSONResponse(w, http.StatusOK, requirements.Status)
+	_, err = coreapihelpers.WriteJSONResponse(w, http.StatusOK, requirements.Status)
 	return utils.TrackError(err)
 }

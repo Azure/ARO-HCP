@@ -29,6 +29,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
@@ -218,7 +219,7 @@ func buildRevocationApplyDesire(
 	target kubeapplierapi.ResourceReference,
 	obj systemadmincredential.KubeObject,
 ) (*kubeapplierapi.ApplyDesire, error) {
-	resourceIDStr := kubeapplierapi.ToSystemAdminCredentialRevocationScopedApplyDesireResourceIDString(
+	resourceIDStr := kubeapplierapihelpers.ToSystemAdminCredentialRevocationScopedApplyDesireResourceIDString(
 		subscriptionID, resourceGroupName, clusterName, revocationName, desireName,
 	)
 	resourceID, err := azcorearm.ParseResourceID(resourceIDStr)
@@ -255,7 +256,7 @@ func buildRevocationReadDesire(
 	managementCluster *azcorearm.ResourceID,
 	target kubeapplierapi.ResourceReference,
 ) (*kubeapplierapi.ReadDesire, error) {
-	resourceIDStr := kubeapplierapi.ToSystemAdminCredentialRevocationScopedReadDesireResourceIDString(
+	resourceIDStr := kubeapplierapihelpers.ToSystemAdminCredentialRevocationScopedReadDesireResourceIDString(
 		subscriptionID, resourceGroupName, clusterName, revocationName, desireName,
 	)
 	resourceID, err := azcorearm.ParseResourceID(resourceIDStr)

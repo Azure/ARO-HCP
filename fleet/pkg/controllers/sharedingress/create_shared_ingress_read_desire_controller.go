@@ -21,9 +21,9 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	fleetcontrollers "github.com/Azure/ARO-HCP/fleet/pkg/controllers/base"
-	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
@@ -73,7 +73,7 @@ func NewEnsureSharedIngressReadDesireController(
 func (s *ensureReadDesireSyncer) SyncOnce(ctx context.Context, key fleetcontrollers.StampKey) error {
 	logger := utils.LoggerFromContext(ctx)
 
-	managementClusterResourceID := metadataapi.Must(fleetapi.ToManagementClusterResourceID(key.StampIdentifier))
+	managementClusterResourceID := metadataapi.Must(fleetapihelpers.ToManagementClusterResourceID(key.StampIdentifier))
 
 	kubeApplierClient := s.kubeApplierDBClients.For(ctx, managementClusterResourceID)
 	if kubeApplierClient == nil {
@@ -86,7 +86,7 @@ func (s *ensureReadDesireSyncer) SyncOnce(ctx context.Context, key fleetcontroll
 		return utils.TrackError(err)
 	}
 
-	desireIDString := kubeapplierapi.ToManagementClusterScopedReadDesireResourceIDString(key.StampIdentifier, ReadDesireName)
+	desireIDString := kubeapplierapihelpers.ToManagementClusterScopedReadDesireResourceIDString(key.StampIdentifier, ReadDesireName)
 	desired := controllerutil.BuildReadDesire(desireIDString, managementClusterResourceID, SharedIngressTarget)
 
 	// Read the existing ReadDesire from the lister; the kube-applier crud is used

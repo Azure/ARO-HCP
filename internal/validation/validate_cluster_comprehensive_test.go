@@ -27,6 +27,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
 	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -2294,7 +2295,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 					Type: coreapi.ManagedServiceIdentityTypeUserAssigned,
 					UserAssignedIdentities: map[string]*coreapi.UserAssignedIdentity{
 						"/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity": {
-							ClientID: metadataapi.Ptr("new-client-id"),
+							ClientID: metadataapihelpers.Ptr("new-client-id"),
 						},
 					},
 				}
@@ -2306,7 +2307,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 					Type: coreapi.ManagedServiceIdentityTypeUserAssigned,
 					UserAssignedIdentities: map[string]*coreapi.UserAssignedIdentity{
 						"/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity": {
-							ClientID: metadataapi.Ptr("old-client-id"),
+							ClientID: metadataapihelpers.Ptr("old-client-id"),
 						},
 					},
 				}
@@ -2326,7 +2327,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 					Type: coreapi.ManagedServiceIdentityTypeUserAssigned,
 					UserAssignedIdentities: map[string]*coreapi.UserAssignedIdentity{
 						"/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity": {
-							PrincipalID: metadataapi.Ptr("new-principal-id"),
+							PrincipalID: metadataapihelpers.Ptr("new-principal-id"),
 						},
 					},
 				}
@@ -2338,7 +2339,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 					Type: coreapi.ManagedServiceIdentityTypeUserAssigned,
 					UserAssignedIdentities: map[string]*coreapi.UserAssignedIdentity{
 						"/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity": {
-							PrincipalID: metadataapi.Ptr("old-principal-id"),
+							PrincipalID: metadataapihelpers.Ptr("old-principal-id"),
 						},
 					},
 				}

@@ -37,6 +37,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -94,7 +95,7 @@ func TestNodePoolClusterServiceCreateSyncer_SyncOnce(t *testing.T) {
 			name:          "when ClusterServiceID is already set no-op is performed",
 			listerCluster: newTestCluster(t, nil),
 			existingNodePool: newTestNodePoolForCreate(t, func(np *coreapi.HCPOpenShiftClusterNodePool) {
-				np.ServiceProviderProperties.ClusterServiceID = metadataapi.Ptr(metadataapi.Must(metadataapi.NewInternalID(testNodePoolCSIDStr)))
+				np.ServiceProviderProperties.ClusterServiceID = metadataapihelpers.Ptr(metadataapi.Must(metadataapi.NewInternalID(testNodePoolCSIDStr)))
 			}),
 			verifyDB: verifyClusterServiceIDIsSet,
 		},
@@ -113,7 +114,7 @@ func TestNodePoolClusterServiceCreateSyncer_SyncOnce(t *testing.T) {
 			name:          "when lister is stale but DB already has ClusterServiceID no-op is performed",
 			listerCluster: newTestCluster(t, nil),
 			existingNodePool: newTestNodePoolForCreate(t, func(np *coreapi.HCPOpenShiftClusterNodePool) {
-				np.ServiceProviderProperties.ClusterServiceID = metadataapi.Ptr(metadataapi.Must(metadataapi.NewInternalID(testNodePoolCSIDStr)))
+				np.ServiceProviderProperties.ClusterServiceID = metadataapihelpers.Ptr(metadataapi.Must(metadataapi.NewInternalID(testNodePoolCSIDStr)))
 			}),
 			listerNodePool: newTestNodePoolForCreate(t, nil),
 			verifyDB:       verifyClusterServiceIDIsSet,
@@ -297,7 +298,7 @@ func newTestCluster(t *testing.T, opts func(*coreapi.HCPOpenShiftCluster)) *core
 		"/subscriptions/" + testSubscriptionID +
 			"/resourceGroups/" + testResourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName))
-	clusterInternalID := metadataapi.Ptr(metadataapi.Must(metadataapi.NewInternalID(testClusterServiceIDStr)))
+	clusterInternalID := metadataapihelpers.Ptr(metadataapi.Must(metadataapi.NewInternalID(testClusterServiceIDStr)))
 	cluster := &coreapi.HCPOpenShiftCluster{
 		TrackedResource: coreapi.TrackedResource{
 			Resource: coreapi.Resource{

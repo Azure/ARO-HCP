@@ -20,6 +20,8 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -33,7 +35,7 @@ type Stamp struct {
 }
 
 func validateStampIdentifier(stampIdentifier string) error {
-	if _, err := fleetapi.ToStampResourceID(stampIdentifier); err != nil {
+	if _, err := fleetapihelpers.ToStampResourceID(stampIdentifier); err != nil {
 		return coreapi.NewCloudError(
 			http.StatusBadRequest,
 			coreapi.CloudErrorCodeInvalidRequestContent, "stampIdentifier",
@@ -89,7 +91,7 @@ func (h *StampListHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) err
 		stamps = []Stamp{}
 	}
 
-	_, err = coreapi.WriteJSONResponse(w, http.StatusOK, stamps)
+	_, err = coreapihelpers.WriteJSONResponse(w, http.StatusOK, stamps)
 	return utils.TrackError(err)
 }
 
@@ -125,6 +127,6 @@ func (h *StampGetHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) erro
 		return utils.TrackError(fmt.Errorf("failed to convert stamp: %w", err))
 	}
 
-	_, err = coreapi.WriteJSONResponse(w, http.StatusOK, resp)
+	_, err = coreapihelpers.WriteJSONResponse(w, http.StatusOK, resp)
 	return utils.TrackError(err)
 }

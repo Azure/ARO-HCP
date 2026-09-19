@@ -24,6 +24,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
 	"github.com/Azure/ARO-HCP/internal/azsdk"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
@@ -112,11 +113,11 @@ func (o *RawRegisterOptions) Validate(ctx context.Context) (*ValidatedRegisterOp
 		return nil, fmt.Errorf("--cloud-environment: %w", err)
 	}
 
-	stampResourceID, err := fleetapi.ToStampResourceID(o.StampIdentifier)
+	stampResourceID, err := fleetapihelpers.ToStampResourceID(o.StampIdentifier)
 	if err != nil {
 		return nil, fmt.Errorf("invalid stamp identifier %q: %w", o.StampIdentifier, err)
 	}
-	managementClusterResourceID, err := fleetapi.ToManagementClusterResourceID(o.StampIdentifier)
+	managementClusterResourceID, err := fleetapihelpers.ToManagementClusterResourceID(o.StampIdentifier)
 	if err != nil {
 		return nil, fmt.Errorf("invalid stamp identifier %q: %w", o.StampIdentifier, err)
 	}

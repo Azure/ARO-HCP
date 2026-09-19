@@ -21,12 +21,13 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 func newInitialManagementClusterScheduling(stampIdentifier string) *fleetapi.ManagementClusterScheduling {
-	resourceID := metadataapi.Must(fleetapi.ToManagementClusterSchedulingResourceID(stampIdentifier))
+	resourceID := metadataapi.Must(fleetapihelpers.ToManagementClusterSchedulingResourceID(stampIdentifier))
 	return &fleetapi.ManagementClusterScheduling{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   resourceID,

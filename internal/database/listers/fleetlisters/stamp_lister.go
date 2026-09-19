@@ -20,6 +20,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/listerutils"
 )
 
@@ -45,6 +46,6 @@ func (l *informerBasedStampLister) List(ctx context.Context) ([]*fleetapi.Stamp,
 }
 
 func (l *informerBasedStampLister) Get(ctx context.Context, stampIdentifier string) (*fleetapi.Stamp, error) {
-	key := fleetapi.ToStampResourceIDString(stampIdentifier)
+	key := fleetapihelpers.ToStampResourceIDString(stampIdentifier)
 	return listerutils.GetByKey[fleetapi.Stamp](l.indexer, key)
 }

@@ -30,6 +30,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 )
@@ -78,9 +79,9 @@ func (m *MockResourcesDBClient) UntypedCRUD(parentResourceID azcorearm.ResourceI
 func (m *MockResourcesDBClient) HCPClusters(subscriptionID, resourceGroupName string) corecosmosstorage.HCPClusterCRUD {
 	var parentResourceID *azcorearm.ResourceID
 	if len(resourceGroupName) > 0 {
-		parentResourceID = metadataapi.Must(coreapi.ToResourceGroupResourceID(subscriptionID, resourceGroupName))
+		parentResourceID = metadataapi.Must(coreapihelpers.ToResourceGroupResourceID(subscriptionID, resourceGroupName))
 	} else {
-		parentResourceID = metadataapi.Must(coreapi.ToSubscriptionResourceID(subscriptionID))
+		parentResourceID = metadataapi.Must(coreapihelpers.ToSubscriptionResourceID(subscriptionID))
 	}
 
 	return newMockHCPClusterCRUD(m, parentResourceID)
@@ -88,7 +89,7 @@ func (m *MockResourcesDBClient) HCPClusters(subscriptionID, resourceGroupName st
 
 // Operations returns a CRUD interface for operation resources.
 func (m *MockResourcesDBClient) Operations(subscriptionID string) corecosmosstorage.OperationCRUD {
-	parentResourceID := metadataapi.Must(coreapi.ToSubscriptionResourceID(subscriptionID))
+	parentResourceID := metadataapi.Must(coreapihelpers.ToSubscriptionResourceID(subscriptionID))
 
 	return newMockOperationCRUD(m, parentResourceID)
 }
@@ -131,13 +132,13 @@ func (m *MockResourcesDBClient) ResourcesGlobalListers() corecosmosstorage.Resou
 
 // ServiceProviderClusters returns a CRUD interface for service provider cluster resources.
 func (m *MockResourcesDBClient) ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName string) cosmosstorageutils.ResourceCRUD[coreapi.ServiceProviderCluster, *coreapi.ServiceProviderCluster] {
-	clusterResourceID := metadataapi.Must(coreapi.ToClusterResourceID(subscriptionID, resourceGroupName, clusterName))
+	clusterResourceID := metadataapi.Must(coreapihelpers.ToClusterResourceID(subscriptionID, resourceGroupName, clusterName))
 	return newMockServiceProviderClusterCRUD(m, clusterResourceID)
 }
 
 // ServiceProviderNodePools returns a CRUD interface for service provider node pool resources.
 func (m *MockResourcesDBClient) ServiceProviderNodePools(subscriptionID, resourceGroupName, clusterName, nodePoolName string) cosmosstorageutils.ResourceCRUD[coreapi.ServiceProviderNodePool, *coreapi.ServiceProviderNodePool] {
-	nodePoolResourceID := metadataapi.Must(coreapi.ToNodePoolResourceID(subscriptionID, resourceGroupName, clusterName, nodePoolName))
+	nodePoolResourceID := metadataapi.Must(coreapihelpers.ToNodePoolResourceID(subscriptionID, resourceGroupName, clusterName, nodePoolName))
 	return newMockServiceProviderNodePoolCRUD(m, nodePoolResourceID)
 }
 

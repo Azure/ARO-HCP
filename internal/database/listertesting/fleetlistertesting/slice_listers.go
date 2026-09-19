@@ -22,6 +22,7 @@ import (
 	"strings"
 
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/listers/fleetlisters"
 )
@@ -38,7 +39,7 @@ func (l *SliceStampLister) List(ctx context.Context) ([]*fleetapi.Stamp, error) 
 }
 
 func (l *SliceStampLister) Get(ctx context.Context, stampIdentifier string) (*fleetapi.Stamp, error) {
-	key := fleetapi.ToStampResourceIDString(stampIdentifier)
+	key := fleetapihelpers.ToStampResourceIDString(stampIdentifier)
 	for _, s := range l.Stamps {
 		if s.ResourceID != nil && strings.EqualFold(s.ResourceID.String(), key) {
 			return s, nil
@@ -59,7 +60,7 @@ func (l *SliceManagementClusterLister) List(ctx context.Context) ([]*fleetapi.Ma
 }
 
 func (l *SliceManagementClusterLister) Get(ctx context.Context, stampIdentifier string) (*fleetapi.ManagementCluster, error) {
-	key := fleetapi.ToManagementClusterResourceIDString(stampIdentifier)
+	key := fleetapihelpers.ToManagementClusterResourceIDString(stampIdentifier)
 	for _, mc := range l.ManagementClusters {
 		if mc.ResourceID != nil && strings.EqualFold(mc.ResourceID.String(), key) {
 			return mc, nil
@@ -98,7 +99,7 @@ func (l *SliceManagementClusterSchedulingLister) List(ctx context.Context) ([]*f
 }
 
 func (l *SliceManagementClusterSchedulingLister) Get(ctx context.Context, stampIdentifier string) (*fleetapi.ManagementClusterScheduling, error) {
-	key := fleetapi.ToManagementClusterSchedulingResourceIDString(stampIdentifier)
+	key := fleetapihelpers.ToManagementClusterSchedulingResourceIDString(stampIdentifier)
 	for _, s := range l.Schedulings {
 		if s.ResourceID != nil && strings.EqualFold(s.ResourceID.String(), key) {
 			return s, nil

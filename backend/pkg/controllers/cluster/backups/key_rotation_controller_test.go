@@ -37,6 +37,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
 	"github.com/Azure/ARO-HCP/internal/backup"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
@@ -201,7 +203,7 @@ func TestKeyRotationBackupSyncer_SyncOnce(t *testing.T) {
 	}
 
 	testMgmtClusterResourceID := func() *azcorearm.ResourceID {
-		return metadataapi.Must(fleetapi.ToManagementClusterResourceID(testStampID))
+		return metadataapi.Must(fleetapihelpers.ToManagementClusterResourceID(testStampID))
 	}
 
 	testKey := controllerutils.HCPClusterKey{
@@ -234,7 +236,7 @@ func TestKeyRotationBackupSyncer_SyncOnce(t *testing.T) {
 		}
 		raw, err := json.Marshal(hc)
 		require.NoError(t, err)
-		rdResourceIDStr := kubeapplierapi.ToClusterScopedReadDesireResourceIDString(
+		rdResourceIDStr := kubeapplierapihelpers.ToClusterScopedReadDesireResourceIDString(
 			testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName,
 			kubeapplierhelpers.ReadDesireNameReadonlyHostedCluster,
 		)
@@ -265,7 +267,7 @@ func TestKeyRotationBackupSyncer_SyncOnce(t *testing.T) {
 		}
 		raw, err := json.Marshal(hc)
 		require.NoError(t, err)
-		rdResourceIDStr := kubeapplierapi.ToClusterScopedReadDesireResourceIDString(
+		rdResourceIDStr := kubeapplierapihelpers.ToClusterScopedReadDesireResourceIDString(
 			testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName,
 			kubeapplierhelpers.ReadDesireNameReadonlyHostedCluster,
 		)
@@ -307,7 +309,7 @@ func TestKeyRotationBackupSyncer_SyncOnce(t *testing.T) {
 		if !withReadDesire {
 			return
 		}
-		rdResourceIDStr := kubeapplierapi.ToClusterScopedReadDesireResourceIDString(
+		rdResourceIDStr := kubeapplierapihelpers.ToClusterScopedReadDesireResourceIDString(
 			testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName, ad.ResourceID.Name,
 		)
 		rd := &kubeapplierapi.ReadDesire{
@@ -348,7 +350,7 @@ func TestKeyRotationBackupSyncer_SyncOnce(t *testing.T) {
 			require.NoError(t, err)
 			kubeContent = &runtime.RawExtension{Raw: raw}
 		}
-		rdResourceIDStr := kubeapplierapi.ToClusterScopedReadDesireResourceIDString(
+		rdResourceIDStr := kubeapplierapihelpers.ToClusterScopedReadDesireResourceIDString(
 			testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName, ad.ResourceID.Name,
 		)
 		rd := &kubeapplierapi.ReadDesire{
@@ -525,7 +527,7 @@ func TestKeyRotationBackupSyncer_SyncOnce(t *testing.T) {
 				_, err = applyDesireCRUD.Create(ctx, ad, nil)
 				require.NoError(t, err)
 
-				rdResourceIDStr := kubeapplierapi.ToClusterScopedReadDesireResourceIDString(
+				rdResourceIDStr := kubeapplierapihelpers.ToClusterScopedReadDesireResourceIDString(
 					testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName, ad.ResourceID.Name,
 				)
 				rd := &kubeapplierapi.ReadDesire{
@@ -585,7 +587,7 @@ func TestKeyRotationBackupSyncer_SyncOnce(t *testing.T) {
 			seedKubeApplier: func(t *testing.T, ctx context.Context, mockKubeApplier *kubeappliercosmosstoragetesting.MockKubeApplierDBClient) {
 				t.Helper()
 				managementClusterResourceID := testMgmtClusterResourceID()
-				rdResourceIDStr := kubeapplierapi.ToClusterScopedReadDesireResourceIDString(
+				rdResourceIDStr := kubeapplierapihelpers.ToClusterScopedReadDesireResourceIDString(
 					testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName, expectedDesireName,
 				)
 				rd := &kubeapplierapi.ReadDesire{
@@ -857,7 +859,7 @@ func TestKeyRotationBackupSyncer_SyncOnce(t *testing.T) {
 				// ApplyDesire: kube-applier has confirmed the Backup absent (Velero purged it
 				// via TTL) and the ApplyDesire was already purged. Nil KubeContent alone is
 				// ambiguous ("not observed yet"); the Successful condition disambiguates it.
-				rdResourceIDStr := kubeapplierapi.ToClusterScopedReadDesireResourceIDString(
+				rdResourceIDStr := kubeapplierapihelpers.ToClusterScopedReadDesireResourceIDString(
 					testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName, staleDesireName,
 				)
 				rd := &kubeapplierapi.ReadDesire{

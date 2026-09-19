@@ -40,6 +40,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/kubeapplierlistertesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -1375,7 +1376,7 @@ func newHypershiftNodePoolReadDesire(t *testing.T, nodePool *v1beta1.NodePool) *
 	require.NoError(t, err)
 
 	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
-		kubeapplierapi.ToNodePoolScopedReadDesireResourceIDString(
+		kubeapplierapihelpers.ToNodePoolScopedReadDesireResourceIDString(
 			operationtesting.TestSubscriptionID, operationtesting.TestResourceGroupName, operationtesting.TestClusterName, operationtesting.TestNodePoolName,
 			kubeapplierhelpers.ReadDesireNameReadonlyNodePool)))
 

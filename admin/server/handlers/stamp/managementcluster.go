@@ -22,6 +22,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -127,6 +128,6 @@ func (h *ManagementClusterGetHandler) ServeHTTP(w http.ResponseWriter, r *http.R
 		return utils.TrackError(fmt.Errorf("failed to convert management cluster: %w", err))
 	}
 
-	_, err = coreapi.WriteJSONResponse(w, http.StatusOK, resp)
+	_, err = coreapihelpers.WriteJSONResponse(w, http.StatusOK, resp)
 	return utils.TrackError(err)
 }

@@ -42,6 +42,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
 	"github.com/Azure/ARO-HCP/internal/cincinnati"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
@@ -120,7 +122,7 @@ func createTestNodePoolWithVersion(t *testing.T, ctx context.Context, mockResour
 		"/resourceGroups/" + testResourceGroupName +
 		"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
 		"/nodePools/" + testNodePoolName))
-	nodePoolInternalID := metadataapi.Ptr(metadataapi.Must(metadataapi.NewInternalID(testCSNodePoolIDStr)))
+	nodePoolInternalID := metadataapihelpers.Ptr(metadataapi.Must(metadataapi.NewInternalID(testCSNodePoolIDStr)))
 
 	nodePool := &coreapi.HCPOpenShiftClusterNodePool{
 		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: nodePoolResourceID, PartitionKey: strings.ToLower(nodePoolResourceID.SubscriptionID)},
@@ -153,7 +155,7 @@ func createTestNodePoolWithVersion(t *testing.T, ctx context.Context, mockResour
 func hostedClusterReadDesireResourceID(t *testing.T) *azcorearm.ResourceID {
 	t.Helper()
 	return metadataapi.Must(azcorearm.ParseResourceID(
-		kubeapplierapi.ToClusterScopedReadDesireResourceIDString(
+		kubeapplierapihelpers.ToClusterScopedReadDesireResourceIDString(
 			testSubscriptionID, testResourceGroupName, testClusterName, kubeapplierhelpers.ReadDesireNameReadonlyHostedCluster)))
 }
 

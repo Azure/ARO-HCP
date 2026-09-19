@@ -32,6 +32,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -40,7 +41,7 @@ import (
 func newTestCredentialRequest(t *testing.T, credName string, opts ...func(*coreapi.SystemAdminCredentialRequest)) *coreapi.SystemAdminCredentialRequest {
 	t.Helper()
 	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
-		coreapi.ToSystemAdminCredentialRequestResourceIDString(testSubscriptionID, testResourceGroupName, testClusterName, credName),
+		coreapihelpers.ToSystemAdminCredentialRequestResourceIDString(testSubscriptionID, testResourceGroupName, testClusterName, credName),
 	))
 	cred := &coreapi.SystemAdminCredentialRequest{
 		CosmosMetadata: coreapi.CosmosMetadata{
@@ -60,7 +61,7 @@ func newTestCredentialRequest(t *testing.T, credName string, opts ...func(*corea
 func newTestCredentialRevocation(t *testing.T, revocationName string, opts ...func(*coreapi.SystemAdminCredentialRevocation)) *coreapi.SystemAdminCredentialRevocation {
 	t.Helper()
 	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
-		coreapi.ToSystemAdminCredentialRevocationResourceIDString(testSubscriptionID, testResourceGroupName, testClusterName, revocationName),
+		coreapihelpers.ToSystemAdminCredentialRevocationResourceIDString(testSubscriptionID, testResourceGroupName, testClusterName, revocationName),
 	))
 	revocation := &coreapi.SystemAdminCredentialRevocation{
 		CosmosMetadata: coreapi.CosmosMetadata{

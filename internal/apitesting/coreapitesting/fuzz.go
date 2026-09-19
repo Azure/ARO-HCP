@@ -33,6 +33,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
 )
 
 // FuzzArmResourceID constructs a lexically valid *azcorearm.ResourceID for the
@@ -274,22 +275,22 @@ func CommonDeepCopyFuzzFuncs() []interface{} {
 			if j == nil {
 				return
 			}
-			j.ClusterServiceID = metadataapi.Ptr(FuzzInternalID(GenName(c)))
-			j.PendingClusterServiceID = metadataapi.Ptr(FuzzInternalID(GenName(c)))
+			j.ClusterServiceID = metadataapihelpers.Ptr(FuzzInternalID(GenName(c)))
+			j.PendingClusterServiceID = metadataapihelpers.Ptr(FuzzInternalID(GenName(c)))
 		},
 		func(j *coreapi.HCPOpenShiftClusterNodePoolServiceProviderProperties, c randfill.Continue) {
 			c.FillNoCustom(j)
 			if j == nil {
 				return
 			}
-			j.ClusterServiceID = metadataapi.Ptr(FuzzInternalID(GenName(c)))
+			j.ClusterServiceID = metadataapihelpers.Ptr(FuzzInternalID(GenName(c)))
 		},
 		func(j *coreapi.HCPOpenShiftClusterExternalAuthServiceProviderProperties, c randfill.Continue) {
 			c.FillNoCustom(j)
 			if j == nil {
 				return
 			}
-			j.ClusterServiceID = metadataapi.Ptr(FuzzInternalID(GenName(c)))
+			j.ClusterServiceID = metadataapihelpers.Ptr(FuzzInternalID(GenName(c)))
 		},
 		func(j *coreapi.Operation, c randfill.Continue) {
 			c.FillNoCustom(j)

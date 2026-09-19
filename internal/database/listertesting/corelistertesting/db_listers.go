@@ -19,6 +19,7 @@ import (
 	"strings"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/listertestingutils"
@@ -145,17 +146,17 @@ func (l *DBActiveOperationLister) Get(ctx context.Context, subscriptionID, name 
 // ListActiveOperationsForCluster returns active operations for the cluster and its
 // child resources (node pools, external auths), matching production lister semantics.
 func (l *DBActiveOperationLister) ListActiveOperationsForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) ([]*coreapi.Operation, error) {
-	clusterKey := coreapi.ToClusterResourceIDString(subscriptionID, resourceGroupName, clusterName)
+	clusterKey := coreapihelpers.ToClusterResourceIDString(subscriptionID, resourceGroupName, clusterName)
 	return l.listByPrefix(ctx, clusterKey)
 }
 
 func (l *DBActiveOperationLister) ListActiveOperationsForNodePool(ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName string) ([]*coreapi.Operation, error) {
-	nodePoolKey := coreapi.ToNodePoolResourceIDString(subscriptionID, resourceGroupName, clusterName, nodePoolName)
+	nodePoolKey := coreapihelpers.ToNodePoolResourceIDString(subscriptionID, resourceGroupName, clusterName, nodePoolName)
 	return l.listByPrefix(ctx, nodePoolKey)
 }
 
 func (l *DBActiveOperationLister) ListActiveOperationsForExternalAuth(ctx context.Context, subscriptionID, resourceGroupName, clusterName, externalAuthName string) ([]*coreapi.Operation, error) {
-	externalAuthKey := coreapi.ToExternalAuthResourceIDString(subscriptionID, resourceGroupName, clusterName, externalAuthName)
+	externalAuthKey := coreapihelpers.ToExternalAuthResourceIDString(subscriptionID, resourceGroupName, clusterName, externalAuthName)
 	return l.listByPrefix(ctx, externalAuthKey)
 }
 
@@ -259,22 +260,22 @@ func (l *DBControllerLister) List(ctx context.Context) ([]*coreapi.Controller, e
 }
 
 func (l *DBControllerLister) ListForResourceGroup(ctx context.Context, subscriptionID, resourceGroupName string) ([]*coreapi.Controller, error) {
-	prefix := coreapi.ToResourceGroupResourceIDString(subscriptionID, resourceGroupName)
+	prefix := coreapihelpers.ToResourceGroupResourceIDString(subscriptionID, resourceGroupName)
 	return l.listWithPrefix(ctx, prefix)
 }
 
 func (l *DBControllerLister) ListForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) ([]*coreapi.Controller, error) {
-	prefix := coreapi.ToClusterResourceIDString(subscriptionID, resourceGroupName, clusterName)
+	prefix := coreapihelpers.ToClusterResourceIDString(subscriptionID, resourceGroupName, clusterName)
 	return l.listWithPrefix(ctx, prefix)
 }
 
 func (l *DBControllerLister) ListForNodePool(ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName string) ([]*coreapi.Controller, error) {
-	prefix := coreapi.ToNodePoolResourceIDString(subscriptionID, resourceGroupName, clusterName, nodePoolName)
+	prefix := coreapihelpers.ToNodePoolResourceIDString(subscriptionID, resourceGroupName, clusterName, nodePoolName)
 	return l.listWithPrefix(ctx, prefix)
 }
 
 func (l *DBControllerLister) ListForExternalAuth(ctx context.Context, subscriptionID, resourceGroupName, clusterName, externalAuthName string) ([]*coreapi.Controller, error) {
-	prefix := coreapi.ToExternalAuthResourceIDString(subscriptionID, resourceGroupName, clusterName, externalAuthName)
+	prefix := coreapihelpers.ToExternalAuthResourceIDString(subscriptionID, resourceGroupName, clusterName, externalAuthName)
 	return l.listWithPrefix(ctx, prefix)
 }
 
@@ -312,12 +313,12 @@ func (l *DBManagementClusterContentLister) GetForCluster(ctx context.Context, su
 }
 
 func (l *DBManagementClusterContentLister) ListForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) ([]*coreapi.ManagementClusterContent, error) {
-	prefix := coreapi.ToClusterResourceIDString(subscriptionID, resourceGroupName, clusterName)
+	prefix := coreapihelpers.ToClusterResourceIDString(subscriptionID, resourceGroupName, clusterName)
 	return l.listMCCWithPrefix(ctx, prefix)
 }
 
 func (l *DBManagementClusterContentLister) ListForNodePool(ctx context.Context, subscriptionName, resourceGroupName, clusterName, nodePoolName string) ([]*coreapi.ManagementClusterContent, error) {
-	prefix := coreapi.ToNodePoolResourceIDString(subscriptionName, resourceGroupName, clusterName, nodePoolName)
+	prefix := coreapihelpers.ToNodePoolResourceIDString(subscriptionName, resourceGroupName, clusterName, nodePoolName)
 	return l.listMCCWithPrefix(ctx, prefix)
 }
 

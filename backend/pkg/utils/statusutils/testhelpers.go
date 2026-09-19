@@ -25,6 +25,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
 )
 
 // Shared resource-identity constants used across the aggregator tests.
@@ -86,7 +87,7 @@ func DegradedConditionAged(status metav1.ConditionStatus, reason, message string
 // Degraded condition yet. The resource ID is built with the canonical
 // kubeapplierapi builder rather than manual string concatenation.
 func ApplyDesireUnder(clusterResourceID *azcorearm.ResourceID, name string, conditions ...metav1.Condition) *kubeapplierapi.ApplyDesire {
-	rid := metadataapi.Must(azcorearm.ParseResourceID(kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(
+	rid := metadataapi.Must(azcorearm.ParseResourceID(kubeapplierapihelpers.ToClusterScopedApplyDesireResourceIDString(
 		clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName, clusterResourceID.Name, name)))
 	return &kubeapplierapi.ApplyDesire{
 		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: rid},
@@ -100,7 +101,7 @@ func ApplyDesireUnder(clusterResourceID *azcorearm.ResourceID, name string, cond
 // condition yet. The resource ID is built with the canonical kubeapplierapi
 // builder rather than manual string concatenation.
 func ReadDesireUnder(clusterResourceID *azcorearm.ResourceID, name string, conditions ...metav1.Condition) *kubeapplierapi.ReadDesire {
-	rid := metadataapi.Must(azcorearm.ParseResourceID(kubeapplierapi.ToClusterScopedReadDesireResourceIDString(
+	rid := metadataapi.Must(azcorearm.ParseResourceID(kubeapplierapihelpers.ToClusterScopedReadDesireResourceIDString(
 		clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName, clusterResourceID.Name, name)))
 	return &kubeapplierapi.ReadDesire{
 		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: rid},
@@ -114,7 +115,7 @@ func ReadDesireUnder(clusterResourceID *azcorearm.ResourceID, name string, condi
 // so tests can prove that node-pool-nested desires are excluded from
 // cluster-scoped aggregation.
 func NodePoolScopedApplyDesireUnder(clusterResourceID *azcorearm.ResourceID, nodePoolName, name string, conditions ...metav1.Condition) *kubeapplierapi.ApplyDesire {
-	rid := metadataapi.Must(azcorearm.ParseResourceID(kubeapplierapi.ToNodePoolScopedApplyDesireResourceIDString(
+	rid := metadataapi.Must(azcorearm.ParseResourceID(kubeapplierapihelpers.ToNodePoolScopedApplyDesireResourceIDString(
 		clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName, clusterResourceID.Name, nodePoolName, name)))
 	return &kubeapplierapi.ApplyDesire{
 		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: rid},
@@ -125,7 +126,7 @@ func NodePoolScopedApplyDesireUnder(clusterResourceID *azcorearm.ResourceID, nod
 // NodePoolScopedReadDesireUnder is the ReadDesire parallel of
 // NodePoolScopedApplyDesireUnder.
 func NodePoolScopedReadDesireUnder(clusterResourceID *azcorearm.ResourceID, nodePoolName, name string, conditions ...metav1.Condition) *kubeapplierapi.ReadDesire {
-	rid := metadataapi.Must(azcorearm.ParseResourceID(kubeapplierapi.ToNodePoolScopedReadDesireResourceIDString(
+	rid := metadataapi.Must(azcorearm.ParseResourceID(kubeapplierapihelpers.ToNodePoolScopedReadDesireResourceIDString(
 		clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName, clusterResourceID.Name, nodePoolName, name)))
 	return &kubeapplierapi.ReadDesire{
 		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: rid},

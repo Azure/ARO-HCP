@@ -26,6 +26,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
 	"github.com/Azure/ARO-HCP/internal/azureapi/v20240610preview/generated"
 )
 
@@ -122,8 +123,8 @@ func newVersionProfile(from *coreapi.VersionProfile) generated.VersionProfile {
 		return generated.VersionProfile{}
 	}
 	return generated.VersionProfile{
-		ID:           metadataapi.PtrOrNil(from.ID),
-		ChannelGroup: metadataapi.PtrOrNil(from.ChannelGroup),
+		ID:           metadataapihelpers.PtrOrNil(from.ID),
+		ChannelGroup: metadataapihelpers.PtrOrNil(from.ChannelGroup),
 	}
 }
 
@@ -132,8 +133,8 @@ func newDNSProfile(from *coreapi.CustomerDNSProfile, from2 *coreapi.ServiceProvi
 		return generated.DNSProfile{}
 	}
 	return generated.DNSProfile{
-		BaseDomain:       metadataapi.PtrOrNil(from2.BaseDomain),
-		BaseDomainPrefix: metadataapi.PtrOrNil(from.BaseDomainPrefix),
+		BaseDomain:       metadataapihelpers.PtrOrNil(from2.BaseDomain),
+		BaseDomainPrefix: metadataapihelpers.PtrOrNil(from.BaseDomainPrefix),
 	}
 }
 
@@ -142,11 +143,11 @@ func newNetworkProfile(from *coreapi.NetworkProfile) generated.NetworkProfile {
 		return generated.NetworkProfile{}
 	}
 	return generated.NetworkProfile{
-		NetworkType: metadataapi.PtrOrNil(generated.NetworkType(from.NetworkType)),
-		PodCIDR:     metadataapi.PtrOrNil(from.PodCIDR),
-		ServiceCIDR: metadataapi.PtrOrNil(from.ServiceCIDR),
-		MachineCIDR: metadataapi.PtrOrNil(from.MachineCIDR),
-		HostPrefix:  metadataapi.PtrOrNil(from.HostPrefix),
+		NetworkType: metadataapihelpers.PtrOrNil(generated.NetworkType(from.NetworkType)),
+		PodCIDR:     metadataapihelpers.PtrOrNil(from.PodCIDR),
+		ServiceCIDR: metadataapihelpers.PtrOrNil(from.ServiceCIDR),
+		MachineCIDR: metadataapihelpers.PtrOrNil(from.MachineCIDR),
+		HostPrefix:  metadataapihelpers.PtrOrNil(from.HostPrefix),
 	}
 }
 
@@ -155,7 +156,7 @@ func newConsoleProfile(from *coreapi.ServiceProviderConsoleProfile) generated.Co
 		return generated.ConsoleProfile{}
 	}
 	return generated.ConsoleProfile{
-		URL: metadataapi.PtrOrNil(from.URL),
+		URL: metadataapihelpers.PtrOrNil(from.URL),
 	}
 }
 
@@ -164,9 +165,9 @@ func newAPIProfile(from *coreapi.CustomerAPIProfile, from2 *coreapi.ServiceProvi
 		return generated.APIProfile{}
 	}
 	return generated.APIProfile{
-		URL:             metadataapi.PtrOrNil(from2.URL),
-		Visibility:      metadataapi.PtrOrNil(generated.Visibility(from.Visibility)),
-		AuthorizedCIDRs: metadataapi.StringSliceToStringPtrSlice(from.AuthorizedCIDRs),
+		URL:             metadataapihelpers.PtrOrNil(from2.URL),
+		Visibility:      metadataapihelpers.PtrOrNil(generated.Visibility(from.Visibility)),
+		AuthorizedCIDRs: metadataapihelpers.StringSliceToStringPtrSlice(from.AuthorizedCIDRs),
 	}
 }
 
@@ -175,12 +176,12 @@ func newPlatformProfile(from *coreapi.CustomerPlatformProfile, from2 *coreapi.Se
 		return generated.PlatformProfile{}
 	}
 	return generated.PlatformProfile{
-		ManagedResourceGroup:    metadataapi.PtrOrNil(from.ManagedResourceGroup),
-		SubnetID:                metadataapi.ResourceIDToStringPtr(from.SubnetID),
-		OutboundType:            metadataapi.PtrOrNil(generated.OutboundType(from.OutboundType)),
-		NetworkSecurityGroupID:  metadataapi.ResourceIDToStringPtr(from.NetworkSecurityGroupID),
-		OperatorsAuthentication: metadataapi.PtrOrNil(newOperatorsAuthenticationProfile(&from.OperatorsAuthentication)),
-		IssuerURL:               metadataapi.PtrOrNil(from2.IssuerURL),
+		ManagedResourceGroup:    metadataapihelpers.PtrOrNil(from.ManagedResourceGroup),
+		SubnetID:                metadataapihelpers.ResourceIDToStringPtr(from.SubnetID),
+		OutboundType:            metadataapihelpers.PtrOrNil(generated.OutboundType(from.OutboundType)),
+		NetworkSecurityGroupID:  metadataapihelpers.ResourceIDToStringPtr(from.NetworkSecurityGroupID),
+		OperatorsAuthentication: metadataapihelpers.PtrOrNil(newOperatorsAuthenticationProfile(&from.OperatorsAuthentication)),
+		IssuerURL:               metadataapihelpers.PtrOrNil(from2.IssuerURL),
 	}
 }
 
@@ -189,10 +190,10 @@ func newClusterAutoscalingProfile(from *coreapi.ClusterAutoscalingProfile) gener
 		return generated.ClusterAutoscalingProfile{}
 	}
 	return generated.ClusterAutoscalingProfile{
-		MaxNodeProvisionTimeSeconds: metadataapi.PtrOrNil(from.MaxNodeProvisionTimeSeconds),
-		MaxNodesTotal:               metadataapi.PtrOrNil(from.MaxNodesTotal),
-		MaxPodGracePeriodSeconds:    metadataapi.PtrOrNil(from.MaxPodGracePeriodSeconds),
-		PodPriorityThreshold:        metadataapi.PtrOrNil(from.PodPriorityThreshold),
+		MaxNodeProvisionTimeSeconds: metadataapihelpers.PtrOrNil(from.MaxNodeProvisionTimeSeconds),
+		MaxNodesTotal:               metadataapihelpers.PtrOrNil(from.MaxNodesTotal),
+		MaxPodGracePeriodSeconds:    metadataapihelpers.PtrOrNil(from.MaxPodGracePeriodSeconds),
+		PodPriorityThreshold:        metadataapihelpers.PtrOrNil(from.PodPriorityThreshold),
 	}
 }
 
@@ -201,7 +202,7 @@ func newEtcdProfile(from *coreapi.EtcdProfile) generated.EtcdProfile {
 		return generated.EtcdProfile{}
 	}
 	return generated.EtcdProfile{
-		DataEncryption: metadataapi.PtrOrNil(newEtcdDataEncryptionProfile(&from.DataEncryption)),
+		DataEncryption: metadataapihelpers.PtrOrNil(newEtcdDataEncryptionProfile(&from.DataEncryption)),
 	}
 }
 func newEtcdDataEncryptionProfile(from *coreapi.EtcdDataEncryptionProfile) generated.EtcdDataEncryptionProfile {
@@ -210,7 +211,7 @@ func newEtcdDataEncryptionProfile(from *coreapi.EtcdDataEncryptionProfile) gener
 	}
 	return generated.EtcdDataEncryptionProfile{
 		CustomerManaged:   newCustomerManagedEncryptionProfile(from.CustomerManaged),
-		KeyManagementMode: metadataapi.PtrOrNil(generated.EtcdDataEncryptionKeyManagementModeType(from.KeyManagementMode)),
+		KeyManagementMode: metadataapihelpers.PtrOrNil(generated.EtcdDataEncryptionKeyManagementModeType(from.KeyManagementMode)),
 	}
 }
 func newCustomerManagedEncryptionProfile(from *coreapi.CustomerManagedEncryptionProfile) *generated.CustomerManagedEncryptionProfile {
@@ -218,8 +219,8 @@ func newCustomerManagedEncryptionProfile(from *coreapi.CustomerManagedEncryption
 		return nil
 	}
 	return &generated.CustomerManagedEncryptionProfile{
-		Kms:            metadataapi.PtrOrNil(newKmsEncryptionProfile(from.Kms)),
-		EncryptionType: metadataapi.PtrOrNil(generated.CustomerManagedEncryptionType(from.EncryptionType)),
+		Kms:            metadataapihelpers.PtrOrNil(newKmsEncryptionProfile(from.Kms)),
+		EncryptionType: metadataapihelpers.PtrOrNil(generated.CustomerManagedEncryptionType(from.EncryptionType)),
 	}
 }
 func newKmsEncryptionProfile(from *coreapi.KmsEncryptionProfile) generated.KmsEncryptionProfile {
@@ -227,7 +228,7 @@ func newKmsEncryptionProfile(from *coreapi.KmsEncryptionProfile) generated.KmsEn
 		return generated.KmsEncryptionProfile{}
 	}
 	return generated.KmsEncryptionProfile{
-		ActiveKey: metadataapi.PtrOrNil(newKmsKey(&from.ActiveKey)),
+		ActiveKey: metadataapihelpers.PtrOrNil(newKmsKey(&from.ActiveKey)),
 	}
 }
 func newKmsKey(from *coreapi.KmsKey) generated.KmsKey {
@@ -235,9 +236,9 @@ func newKmsKey(from *coreapi.KmsKey) generated.KmsKey {
 		return generated.KmsKey{}
 	}
 	return generated.KmsKey{
-		Name:      metadataapi.PtrOrNil(from.Name),
-		VaultName: metadataapi.PtrOrNil(from.VaultName),
-		Version:   metadataapi.PtrOrNil(from.Version),
+		Name:      metadataapihelpers.PtrOrNil(from.Name),
+		VaultName: metadataapihelpers.PtrOrNil(from.VaultName),
+		Version:   metadataapihelpers.PtrOrNil(from.Version),
 	}
 }
 
@@ -246,7 +247,7 @@ func newClusterImageRegistryProfile(from *coreapi.ClusterImageRegistryProfile) g
 		return generated.ClusterImageRegistryProfile{}
 	}
 	return generated.ClusterImageRegistryProfile{
-		State: metadataapi.PtrOrNil(generated.ClusterImageRegistryState(from.State)),
+		State: metadataapihelpers.PtrOrNil(generated.ClusterImageRegistryState(from.State)),
 	}
 }
 
@@ -255,7 +256,7 @@ func newOperatorsAuthenticationProfile(from *coreapi.OperatorsAuthenticationProf
 		return generated.OperatorsAuthenticationProfile{}
 	}
 	return generated.OperatorsAuthenticationProfile{
-		UserAssignedIdentities: metadataapi.PtrOrNil(newUserAssignedIdentitiesProfile(&from.UserAssignedIdentities)),
+		UserAssignedIdentities: metadataapihelpers.PtrOrNil(newUserAssignedIdentitiesProfile(&from.UserAssignedIdentities)),
 	}
 }
 
@@ -264,9 +265,9 @@ func newUserAssignedIdentitiesProfile(from *coreapi.UserAssignedIdentitiesProfil
 		return generated.UserAssignedIdentitiesProfile{}
 	}
 	return generated.UserAssignedIdentitiesProfile{
-		ControlPlaneOperators:  metadataapi.ResourceIDMapToStringPtrMap(from.ControlPlaneOperators),
-		DataPlaneOperators:     metadataapi.ResourceIDMapToStringPtrMap(from.DataPlaneOperators),
-		ServiceManagedIdentity: metadataapi.ResourceIDToStringPtr(from.ServiceManagedIdentity),
+		ControlPlaneOperators:  metadataapihelpers.ResourceIDMapToStringPtrMap(from.ControlPlaneOperators),
+		DataPlaneOperators:     metadataapihelpers.ResourceIDMapToStringPtrMap(from.DataPlaneOperators),
+		ServiceManagedIdentity: metadataapihelpers.ResourceIDToStringPtr(from.ServiceManagedIdentity),
 	}
 }
 
@@ -275,11 +276,11 @@ func newSystemData(from *coreapi.SystemData) generated.SystemData {
 		return generated.SystemData{}
 	}
 	return generated.SystemData{
-		CreatedBy:          metadataapi.PtrOrNil(from.CreatedBy),
-		CreatedByType:      metadataapi.PtrOrNil(generated.CreatedByType(from.CreatedByType)),
+		CreatedBy:          metadataapihelpers.PtrOrNil(from.CreatedBy),
+		CreatedByType:      metadataapihelpers.PtrOrNil(generated.CreatedByType(from.CreatedByType)),
 		CreatedAt:          from.CreatedAt,
-		LastModifiedBy:     metadataapi.PtrOrNil(from.LastModifiedBy),
-		LastModifiedByType: metadataapi.PtrOrNil(generated.CreatedByType(from.LastModifiedByType)),
+		LastModifiedBy:     metadataapihelpers.PtrOrNil(from.LastModifiedBy),
+		LastModifiedByType: metadataapihelpers.PtrOrNil(generated.CreatedByType(from.LastModifiedByType)),
 		LastModifiedAt:     from.LastModifiedAt,
 	}
 }
@@ -289,9 +290,9 @@ func newManagedServiceIdentity(from *coreapi.ManagedServiceIdentity) *generated.
 		return nil
 	}
 	return &generated.ManagedServiceIdentity{
-		Type:                   metadataapi.PtrOrNil(generated.ManagedServiceIdentityType(from.Type)),
-		PrincipalID:            metadataapi.PtrOrNil(from.PrincipalID),
-		TenantID:               metadataapi.PtrOrNil(from.TenantID),
+		Type:                   metadataapihelpers.PtrOrNil(generated.ManagedServiceIdentityType(from.Type)),
+		PrincipalID:            metadataapihelpers.PtrOrNil(from.PrincipalID),
+		TenantID:               metadataapihelpers.PtrOrNil(from.TenantID),
 		UserAssignedIdentities: convertUserAssignedIdentities(from.UserAssignedIdentities),
 	}
 }
@@ -313,24 +314,24 @@ func (v version) NewHCPOpenShiftCluster(from *coreapi.HCPOpenShiftCluster) corea
 
 	out := &HcpOpenShiftCluster{
 		generated.HcpOpenShiftCluster{
-			ID:         metadataapi.PtrOrNil(idString),
-			Name:       metadataapi.PtrOrNil(from.Name),
-			Type:       metadataapi.PtrOrNil(from.Type),
-			SystemData: metadataapi.PtrOrNil(newSystemData(from.SystemData)),
-			Location:   metadataapi.PtrOrNil(from.Location),
-			Tags:       metadataapi.StringMapToStringPtrMap(from.Tags),
+			ID:         metadataapihelpers.PtrOrNil(idString),
+			Name:       metadataapihelpers.PtrOrNil(from.Name),
+			Type:       metadataapihelpers.PtrOrNil(from.Type),
+			SystemData: metadataapihelpers.PtrOrNil(newSystemData(from.SystemData)),
+			Location:   metadataapihelpers.PtrOrNil(from.Location),
+			Tags:       metadataapihelpers.StringMapToStringPtrMap(from.Tags),
 			Properties: &generated.HcpOpenShiftClusterProperties{
-				ProvisioningState:       metadataapi.PtrOrNil(generated.ProvisioningState(from.ServiceProviderProperties.ProvisioningState)),
-				Version:                 metadataapi.PtrOrNil(newVersionProfile(&from.CustomerProperties.Version)),
-				DNS:                     metadataapi.PtrOrNil(newDNSProfile(&from.CustomerProperties.DNS, &from.ServiceProviderProperties.DNS)),
-				Network:                 metadataapi.PtrOrNil(newNetworkProfile(&from.CustomerProperties.Network)),
-				Console:                 metadataapi.PtrOrNil(newConsoleProfile(&from.ServiceProviderProperties.Console)),
-				API:                     metadataapi.PtrOrNil(newAPIProfile(&from.CustomerProperties.API, &from.ServiceProviderProperties.API)),
-				Platform:                metadataapi.PtrOrNil(newPlatformProfile(&from.CustomerProperties.Platform, &from.ServiceProviderProperties.Platform)),
-				Autoscaling:             metadataapi.PtrOrNil(newClusterAutoscalingProfile(&from.CustomerProperties.Autoscaling)),
-				NodeDrainTimeoutMinutes: metadataapi.PtrOrNil(from.CustomerProperties.NodeDrainTimeoutMinutes),
-				ClusterImageRegistry:    metadataapi.PtrOrNil(newClusterImageRegistryProfile(&from.CustomerProperties.ClusterImageRegistry)),
-				Etcd:                    metadataapi.PtrOrNil(newEtcdProfile(&from.CustomerProperties.Etcd)),
+				ProvisioningState:       metadataapihelpers.PtrOrNil(generated.ProvisioningState(from.ServiceProviderProperties.ProvisioningState)),
+				Version:                 metadataapihelpers.PtrOrNil(newVersionProfile(&from.CustomerProperties.Version)),
+				DNS:                     metadataapihelpers.PtrOrNil(newDNSProfile(&from.CustomerProperties.DNS, &from.ServiceProviderProperties.DNS)),
+				Network:                 metadataapihelpers.PtrOrNil(newNetworkProfile(&from.CustomerProperties.Network)),
+				Console:                 metadataapihelpers.PtrOrNil(newConsoleProfile(&from.ServiceProviderProperties.Console)),
+				API:                     metadataapihelpers.PtrOrNil(newAPIProfile(&from.CustomerProperties.API, &from.ServiceProviderProperties.API)),
+				Platform:                metadataapihelpers.PtrOrNil(newPlatformProfile(&from.CustomerProperties.Platform, &from.ServiceProviderProperties.Platform)),
+				Autoscaling:             metadataapihelpers.PtrOrNil(newClusterAutoscalingProfile(&from.CustomerProperties.Autoscaling)),
+				NodeDrainTimeoutMinutes: metadataapihelpers.PtrOrNil(from.CustomerProperties.NodeDrainTimeoutMinutes),
+				ClusterImageRegistry:    metadataapihelpers.PtrOrNil(newClusterImageRegistryProfile(&from.CustomerProperties.ClusterImageRegistry)),
+				Etcd:                    metadataapihelpers.PtrOrNil(newEtcdProfile(&from.CustomerProperties.Etcd)),
 			},
 			Identity: newManagedServiceIdentity(from.Identity),
 		},
@@ -385,7 +386,7 @@ func (c *HcpOpenShiftCluster) ConvertToInternal(existing *coreapi.HCPOpenShiftCl
 	//   When Tags are patched, the tags from the request
 	//   replace all existing tags for the resource
 	//
-	out.Tags = metadataapi.StringPtrMapToStringMap(c.Tags)
+	out.Tags = metadataapihelpers.StringPtrMapToStringMap(c.Tags)
 	if c.Properties != nil {
 		if c.Properties.ProvisioningState != nil {
 			out.ServiceProviderProperties.ProvisioningState = coreapi.ProvisioningState(*c.Properties.ProvisioningState)
@@ -525,7 +526,7 @@ func normalizeAPI(p *generated.APIProfile, out *coreapi.CustomerAPIProfile, out2
 	if p.Visibility != nil {
 		out.Visibility = metadataapi.Visibility(*p.Visibility)
 	}
-	out.AuthorizedCIDRs = metadataapi.StringPtrSliceToStringSlice(p.AuthorizedCIDRs)
+	out.AuthorizedCIDRs = metadataapihelpers.StringPtrSliceToStringSlice(p.AuthorizedCIDRs)
 }
 
 func normalizePlatform(fldPath *field.Path, p *generated.PlatformProfile, out *coreapi.CustomerPlatformProfile, out2 *coreapi.ServiceProviderPlatformProfile) field.ErrorList {
@@ -647,8 +648,8 @@ func normalizeUserAssignedIdentities(fldPath *field.Path, p *generated.UserAssig
 		out.DataPlaneOperators = nil
 	}
 
-	errs = append(errs, metadataapi.MergeStringPtrMapIntoResourceIDMap(fldPath.Child("controlPlaneOperators"), p.ControlPlaneOperators, &out.ControlPlaneOperators)...)
-	errs = append(errs, metadataapi.MergeStringPtrMapIntoResourceIDMap(fldPath.Child("dataPlaneOperators"), p.DataPlaneOperators, &out.DataPlaneOperators)...)
+	errs = append(errs, metadataapihelpers.MergeStringPtrMapIntoResourceIDMap(fldPath.Child("controlPlaneOperators"), p.ControlPlaneOperators, &out.ControlPlaneOperators)...)
+	errs = append(errs, metadataapihelpers.MergeStringPtrMapIntoResourceIDMap(fldPath.Child("dataPlaneOperators"), p.DataPlaneOperators, &out.DataPlaneOperators)...)
 	if p.ServiceManagedIdentity != nil && len(*p.ServiceManagedIdentity) > 0 {
 		if resourceID, err := azcorearm.ParseResourceID(*p.ServiceManagedIdentity); err != nil {
 			errs = append(errs, field.Invalid(fldPath.Child("serviceManagedIdentity"), *p.ServiceManagedIdentity, err.Error()))

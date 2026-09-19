@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package coreapi
+package coreapihelpers
 
 import (
 	"io"
@@ -24,13 +24,15 @@ import (
 	"github.com/stretchr/testify/require"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 )
 
 func TestWriteJSONResponse(t *testing.T) {
 	resourceID, err := azcorearm.ParseResourceID("/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/change-channel")
 	require.NoError(t, err)
-	resourceStruct := &TrackedResource{
-		Resource: Resource{
+	resourceStruct := &coreapi.TrackedResource{
+		Resource: coreapi.Resource{
 			ID:   resourceID,
 			Name: "testVM",
 			Type: "Microsoft.Compute/virtualMachines",
@@ -42,7 +44,7 @@ func TestWriteJSONResponse(t *testing.T) {
 		},
 	}
 
-	resourceBytes, err := MarshalJSON(resourceStruct)
+	resourceBytes, err := coreapi.MarshalJSON(resourceStruct)
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -78,7 +80,7 @@ func TestWriteJSONResponse(t *testing.T) {
 				assert.Equal(t, "application/json", contentType)
 			}
 
-			expectBody, err := MarshalJSON(resourceStruct)
+			expectBody, err := coreapi.MarshalJSON(resourceStruct)
 			require.NoError(t, err)
 
 			actualBody, err := io.ReadAll(result.Body)

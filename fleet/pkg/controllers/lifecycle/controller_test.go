@@ -28,11 +28,12 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/fleetcosmosstoragetesting"
 )
 
 func testManagementCluster(stampIdentifier string, conditions ...metav1.Condition) *fleetapi.ManagementCluster {
-	resourceID := metadataapi.Must(fleetapi.ToManagementClusterResourceID(stampIdentifier))
+	resourceID := metadataapi.Must(fleetapihelpers.ToManagementClusterResourceID(stampIdentifier))
 	aksResourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/mc"))
 	dnsResourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dns-rg/providers/Microsoft.Network/dnszones/example.com"))
 	placeholderShardID := metadataapi.Must(metadataapi.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/placeholder"))
@@ -59,7 +60,7 @@ func testManagementCluster(stampIdentifier string, conditions ...metav1.Conditio
 }
 
 func testStamp(identifier string) *fleetapi.Stamp {
-	resourceID := metadataapi.Must(fleetapi.ToStampResourceID(identifier))
+	resourceID := metadataapi.Must(fleetapihelpers.ToStampResourceID(identifier))
 	return &fleetapi.Stamp{
 		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(identifier)},
 	}

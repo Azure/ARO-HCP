@@ -30,8 +30,8 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
@@ -99,7 +99,7 @@ func TestControllerNotifications(t *testing.T) {
 		clusterResourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/32350638-2403-4bc9-a36e-4922c8c99b52/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/basic"))
 		frontendClientAccessor := databasemutationhelpers.NewVersionedHTTPTestAccessor(testInfo.FrontendURL, "2024-06-10-preview")
 
-		subscriptionResourceID := metadataapi.Must(coreapi.ToSubscriptionResourceID(clusterResourceID.SubscriptionID))
+		subscriptionResourceID := metadataapi.Must(coreapihelpers.ToSubscriptionResourceID(clusterResourceID.SubscriptionID))
 		subscriptionJSONBytes := metadataapi.Must(artifacts.ReadFile("artifacts/subscription-32350638-2403-4bc9-a36e-4922c8c99b52.json"))
 		require.NoError(t, frontendClientAccessor.CreateOrUpdate(ctx, subscriptionResourceID.String(), subscriptionJSONBytes))
 		clusterJSONBytes := metadataapi.Must(artifacts.ReadFile("artifacts/cluster-basic.json"))

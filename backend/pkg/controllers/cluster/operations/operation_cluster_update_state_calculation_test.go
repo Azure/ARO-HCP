@@ -40,6 +40,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/kubeapplierlistertesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -1749,7 +1750,7 @@ func newControlPlaneClusterAutoscalerReadDesire(t *testing.T, controlPlaneCompon
 	}
 
 	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
-		kubeapplierapi.ToClusterScopedReadDesireResourceIDString(
+		kubeapplierapihelpers.ToClusterScopedReadDesireResourceIDString(
 			operationtesting.TestSubscriptionID, operationtesting.TestResourceGroupName, operationtesting.TestClusterName, kubeapplierhelpers.ReadDesireNameReadonlyHypershiftControlPlaneComponentClusterAutoscaler)))
 
 	return &kubeapplierapi.ReadDesire{

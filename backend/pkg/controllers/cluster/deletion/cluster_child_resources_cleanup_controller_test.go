@@ -32,6 +32,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
 	"github.com/Azure/ARO-HCP/internal/backup"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
@@ -109,16 +110,16 @@ func TestClusterChildResourcesCleanupController_SyncOnce(t *testing.T) {
 		}
 	}
 	newTestClusterScopedReadDesire := func(name string) *kubeapplierapi.ReadDesire {
-		return newTestReadDesire(kubeapplierapi.ToClusterScopedReadDesireResourceIDString(
+		return newTestReadDesire(kubeapplierapihelpers.ToClusterScopedReadDesireResourceIDString(
 			testSubscriptionID, testResourceGroupName, testClusterName, name))
 	}
 	newTestNodePoolScopedReadDesire := func(nodePoolName, name string) *kubeapplierapi.ReadDesire {
-		return newTestReadDesire(kubeapplierapi.ToNodePoolScopedReadDesireResourceIDString(
+		return newTestReadDesire(kubeapplierapihelpers.ToNodePoolScopedReadDesireResourceIDString(
 			testSubscriptionID, testResourceGroupName, testClusterName, nodePoolName, name))
 	}
 	newTestClusterScopedApplyDesire := func(name string) *kubeapplierapi.ApplyDesire {
 		resourceID := metadataapi.Must(azcorearm.ParseResourceID(
-			kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(
+			kubeapplierapihelpers.ToClusterScopedApplyDesireResourceIDString(
 				testSubscriptionID, testResourceGroupName, testClusterName, name)))
 		return &kubeapplierapi.ApplyDesire{
 			CosmosMetadata: coreapi.CosmosMetadata{
@@ -351,7 +352,7 @@ func TestClusterChildResourcesCleanupController_SyncOnce(t *testing.T) {
 
 				assertNoClusterScopedKubeApplierResources(t, ctx, kubeApplierDBClients)
 				assertClusterScopedKubeApplierResourceExists(t, ctx, kubeApplierDBClients,
-					kubeapplierapi.ToNodePoolScopedReadDesireResourceIDString(
+					kubeapplierapihelpers.ToNodePoolScopedReadDesireResourceIDString(
 						testSubscriptionID, testResourceGroupName, testClusterName, "workers", "readonly-nodepool"))
 			},
 		},

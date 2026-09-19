@@ -36,6 +36,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/kubeapplierlistertesting"
@@ -48,7 +49,7 @@ import (
 func nodePoolReadDesireResourceID(t *testing.T) *azcorearm.ResourceID {
 	t.Helper()
 	return metadataapi.Must(azcorearm.ParseResourceID(
-		kubeapplierapi.ToNodePoolScopedReadDesireResourceIDString(
+		kubeapplierapihelpers.ToNodePoolScopedReadDesireResourceIDString(
 			testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName,
 			kubeapplierhelpers.ReadDesireNameReadonlyNodePool)))
 }

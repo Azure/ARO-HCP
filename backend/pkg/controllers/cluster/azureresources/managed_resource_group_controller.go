@@ -27,6 +27,7 @@ import (
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
@@ -201,7 +202,7 @@ func (c *managedResourceGroupSyncer) reconcileManagedResourceGroup(ctx context.C
 		return utils.TrackError(fmt.Errorf("managed resource group name is empty for cluster %q", cluster.ID.String()))
 	}
 
-	managedResourceGroupID, err := coreapi.ToResourceGroupResourceID(cluster.ID.SubscriptionID, managedResourceGroupName)
+	managedResourceGroupID, err := coreapihelpers.ToResourceGroupResourceID(cluster.ID.SubscriptionID, managedResourceGroupName)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to build managed resource group resource ID: %w", err))
 	}

@@ -31,6 +31,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/test-integration/utils/databasemutationhelpers"
 	"github.com/Azure/ARO-HCP/test-integration/utils/integrationutils"
@@ -221,7 +222,7 @@ func testCrossVersionRoundTrip(t *testing.T, withMock bool) {
 
 			// Register subscription
 			subscriptionID := "6b690bec-0c16-4ecb-8f67-781caf40bba7"
-			subscriptionResourceID := metadataapi.Must(coreapi.ToSubscriptionResourceID(subscriptionID))
+			subscriptionResourceID := metadataapi.Must(coreapihelpers.ToSubscriptionResourceID(subscriptionID))
 			subscriptionJSON := []byte(`{
 				"resourceId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7",
 				"state": "Registered",

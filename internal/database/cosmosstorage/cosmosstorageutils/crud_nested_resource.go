@@ -26,6 +26,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 )
 
 type ResourceCRUD[InternalAPIType any, InternalAPITypePointer coreapi.CosmosMetadataAccessorPtr[InternalAPIType]] interface {
@@ -198,7 +199,7 @@ type ClusterNestedResourceIDBuilder struct{}
 
 func (ClusterNestedResourceIDBuilder) BuildResourceID(ParentResourceID *azcorearm.ResourceID, ResourceType azcorearm.ResourceType, resourceName string) (*azcorearm.ResourceID, error) {
 	if ParentResourceID == nil {
-		return coreapi.ToSubscriptionResourceID(resourceName)
+		return coreapihelpers.ToSubscriptionResourceID(resourceName)
 	}
 
 	if len(ParentResourceID.SubscriptionID) == 0 {

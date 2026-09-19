@@ -35,6 +35,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
@@ -610,7 +611,7 @@ func newClusterFixture(resourceID *azcorearm.ResourceID) *coreapi.HCPOpenShiftCl
 		},
 		ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
 			ProvisioningState: coreapi.ProvisioningStateAccepted,
-			ClusterServiceID:  metadataapi.Ptr(metadataapi.Must(metadataapi.NewInternalID("/api/clusters_mgmt/v1/clusters/changefeed-test"))),
+			ClusterServiceID:  metadataapihelpers.Ptr(metadataapi.Must(metadataapi.NewInternalID("/api/clusters_mgmt/v1/clusters/changefeed-test"))),
 		},
 	}
 }
@@ -634,7 +635,7 @@ func newNodePoolFixture(resourceID *azcorearm.ResourceID) *coreapi.HCPOpenShiftC
 			Replicas:          3,
 		},
 		ServiceProviderProperties: coreapi.HCPOpenShiftClusterNodePoolServiceProviderProperties{
-			ClusterServiceID: metadataapi.Ptr(metadataapi.Must(metadataapi.NewInternalID("/api/aro_hcp/v1alpha1/clusters/changefeed-test/node_pools/" + resourceID.Name))),
+			ClusterServiceID: metadataapihelpers.Ptr(metadataapi.Must(metadataapi.NewInternalID("/api/aro_hcp/v1alpha1/clusters/changefeed-test/node_pools/" + resourceID.Name))),
 		},
 	}
 }

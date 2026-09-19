@@ -24,11 +24,12 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
 )
 
 func validStamp(t *testing.T) *fleetapi.Stamp {
 	t.Helper()
-	resourceID := metadataapi.Must(fleetapi.ToStampResourceID("1"))
+	resourceID := metadataapi.Must(fleetapihelpers.ToStampResourceID("1"))
 	return &fleetapi.Stamp{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID: resourceID,
@@ -58,7 +59,7 @@ func TestValidateStampCreate(t *testing.T) {
 		{
 			name: "valid two chars letters",
 			modify: func(t *testing.T, s *fleetapi.Stamp) {
-				resourceID := metadataapi.Must(fleetapi.ToStampResourceID("ab"))
+				resourceID := metadataapi.Must(fleetapihelpers.ToStampResourceID("ab"))
 				s.ResourceID = resourceID
 			},
 			expectErrors: nil,
@@ -66,7 +67,7 @@ func TestValidateStampCreate(t *testing.T) {
 		{
 			name: "valid three chars mixed",
 			modify: func(t *testing.T, s *fleetapi.Stamp) {
-				resourceID := metadataapi.Must(fleetapi.ToStampResourceID("1a2"))
+				resourceID := metadataapi.Must(fleetapihelpers.ToStampResourceID("1a2"))
 				s.ResourceID = resourceID
 			},
 			expectErrors: nil,
@@ -74,7 +75,7 @@ func TestValidateStampCreate(t *testing.T) {
 		{
 			name: "valid three chars all digits",
 			modify: func(t *testing.T, s *fleetapi.Stamp) {
-				resourceID := metadataapi.Must(fleetapi.ToStampResourceID("123"))
+				resourceID := metadataapi.Must(fleetapihelpers.ToStampResourceID("123"))
 				s.ResourceID = resourceID
 			},
 			expectErrors: nil,
@@ -82,7 +83,7 @@ func TestValidateStampCreate(t *testing.T) {
 		{
 			name: "valid three chars all letters",
 			modify: func(t *testing.T, s *fleetapi.Stamp) {
-				resourceID := metadataapi.Must(fleetapi.ToStampResourceID("abc"))
+				resourceID := metadataapi.Must(fleetapihelpers.ToStampResourceID("abc"))
 				s.ResourceID = resourceID
 			},
 			expectErrors: nil,
@@ -190,7 +191,7 @@ func TestValidateStampUpdate(t *testing.T) {
 		{
 			name: "valid two chars letters",
 			modify: func(t *testing.T, s *fleetapi.Stamp) {
-				resourceID := metadataapi.Must(fleetapi.ToStampResourceID("ab"))
+				resourceID := metadataapi.Must(fleetapihelpers.ToStampResourceID("ab"))
 				s.ResourceID = resourceID
 			},
 			expectErrors: nil,
@@ -198,7 +199,7 @@ func TestValidateStampUpdate(t *testing.T) {
 		{
 			name: "valid three chars mixed",
 			modify: func(t *testing.T, s *fleetapi.Stamp) {
-				resourceID := metadataapi.Must(fleetapi.ToStampResourceID("1a2"))
+				resourceID := metadataapi.Must(fleetapihelpers.ToStampResourceID("1a2"))
 				s.ResourceID = resourceID
 			},
 			expectErrors: nil,
@@ -206,7 +207,7 @@ func TestValidateStampUpdate(t *testing.T) {
 		{
 			name: "valid three chars all digits",
 			modify: func(t *testing.T, s *fleetapi.Stamp) {
-				resourceID := metadataapi.Must(fleetapi.ToStampResourceID("123"))
+				resourceID := metadataapi.Must(fleetapihelpers.ToStampResourceID("123"))
 				s.ResourceID = resourceID
 			},
 			expectErrors: nil,
@@ -214,7 +215,7 @@ func TestValidateStampUpdate(t *testing.T) {
 		{
 			name: "valid three chars all letters",
 			modify: func(t *testing.T, s *fleetapi.Stamp) {
-				resourceID := metadataapi.Must(fleetapi.ToStampResourceID("abc"))
+				resourceID := metadataapi.Must(fleetapihelpers.ToStampResourceID("abc"))
 				s.ResourceID = resourceID
 			},
 			expectErrors: nil,

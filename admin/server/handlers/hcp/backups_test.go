@@ -37,6 +37,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
 	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
 	"github.com/Azure/ARO-HCP/internal/backup"
 	"github.com/Azure/ARO-HCP/internal/controllerutils"
@@ -227,7 +228,7 @@ func TestGetBackupScheduleHandler(t *testing.T) {
 	))
 
 	makeReadDesire := func(name string) *kubeapplierapi.ReadDesire {
-		resourceIDStr := kubeapplierapi.ToClusterScopedReadDesireResourceIDString(
+		resourceIDStr := kubeapplierapihelpers.ToClusterScopedReadDesireResourceIDString(
 			coreapitesting.TestSubscriptionID, coreapitesting.TestResourceGroupName, coreapitesting.TestClusterName, name,
 		)
 		resourceID := metadataapi.Must(azcorearm.ParseResourceID(resourceIDStr))
@@ -505,7 +506,7 @@ func TestGetOnDemandBackupsHandler(t *testing.T) {
 	))
 
 	makeReadDesire := func(name string) *kubeapplierapi.ReadDesire {
-		resourceIDStr := kubeapplierapi.ToClusterScopedReadDesireResourceIDString(
+		resourceIDStr := kubeapplierapihelpers.ToClusterScopedReadDesireResourceIDString(
 			coreapitesting.TestSubscriptionID, coreapitesting.TestResourceGroupName, coreapitesting.TestClusterName, name,
 		)
 		resourceID := metadataapi.Must(azcorearm.ParseResourceID(resourceIDStr))

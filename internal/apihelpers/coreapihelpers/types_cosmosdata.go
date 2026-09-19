@@ -12,13 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package coreapi
+package coreapihelpers
 
 import (
 	"path"
 	"strings"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 )
 
 // The ToXxxResourceIDString helpers form ARM resource ID strings by
@@ -43,7 +45,7 @@ func ToClusterResourceID(subscriptionName, resourceGroupName, clusterName string
 func ToClusterResourceIDString(subscriptionName, resourceGroupName, clusterName string) string {
 	return strings.ToLower(path.Join(
 		ToResourceGroupResourceIDString(subscriptionName, resourceGroupName),
-		"providers", ClusterResourceType.String(), clusterName,
+		"providers", coreapi.ClusterResourceType.String(), clusterName,
 	))
 }
 
@@ -54,7 +56,7 @@ func ToNodePoolResourceID(subscriptionName, resourceGroupName, clusterName, node
 func ToNodePoolResourceIDString(subscriptionName, resourceGroupName, clusterName, nodePoolName string) string {
 	return strings.ToLower(path.Join(
 		ToClusterResourceIDString(subscriptionName, resourceGroupName, clusterName),
-		leafTypeName(NodePoolResourceType), nodePoolName,
+		LeafTypeName(coreapi.NodePoolResourceType), nodePoolName,
 	))
 }
 
@@ -65,28 +67,28 @@ func ToExternalAuthResourceID(subscriptionName, resourceGroupName, clusterName, 
 func ToExternalAuthResourceIDString(subscriptionName, resourceGroupName, clusterName, externalAuthName string) string {
 	return strings.ToLower(path.Join(
 		ToClusterResourceIDString(subscriptionName, resourceGroupName, clusterName),
-		leafTypeName(ExternalAuthResourceType), externalAuthName,
+		LeafTypeName(coreapi.ExternalAuthResourceType), externalAuthName,
 	))
 }
 
 func ToServiceProviderClusterResourceIDString(subscriptionName, resourceGroupName, clusterName string) string {
 	return strings.ToLower(path.Join(
 		ToClusterResourceIDString(subscriptionName, resourceGroupName, clusterName),
-		leafTypeName(ServiceProviderClusterResourceType), ServiceProviderClusterResourceName,
+		LeafTypeName(coreapi.ServiceProviderClusterResourceType), coreapi.ServiceProviderClusterResourceName,
 	))
 }
 
 func ToOperationResourceIDString(subscriptionName, operationName string) string {
 	return strings.ToLower(path.Join(
 		"/subscriptions", subscriptionName,
-		"providers", OperationStatusResourceType.String(), operationName,
+		"providers", coreapi.OperationStatusResourceType.String(), operationName,
 	))
 }
 
 func ToManagementClusterContentResourceIDString(subscriptionName, resourceGroupName, clusterName, managementClusterContentName string) string {
 	return strings.ToLower(path.Join(
 		ToClusterResourceIDString(subscriptionName, resourceGroupName, clusterName),
-		ManagementClusterContentResourceTypeName, managementClusterContentName,
+		coreapi.ManagementClusterContentResourceTypeName, managementClusterContentName,
 	))
 }
 
@@ -94,8 +96,8 @@ func ToSystemAdminCredentialRequestResourceIDString(subscriptionName, resourceGr
 	return strings.ToLower(path.Join(
 		"/subscriptions", subscriptionName,
 		"resourceGroups", resourceGroupName,
-		"providers", ClusterResourceType.String(), clusterName,
-		SystemAdminCredentialRequestResourceTypeName, credentialName,
+		"providers", coreapi.ClusterResourceType.String(), clusterName,
+		coreapi.SystemAdminCredentialRequestResourceTypeName, credentialName,
 	))
 }
 
@@ -107,8 +109,8 @@ func ToSystemAdminCredentialRevocationResourceIDString(subscriptionName, resourc
 	return strings.ToLower(path.Join(
 		"/subscriptions", subscriptionName,
 		"resourceGroups", resourceGroupName,
-		"providers", ClusterResourceType.String(), clusterName,
-		SystemAdminCredentialRevocationResourceTypeName, revocationName,
+		"providers", coreapi.ClusterResourceType.String(), clusterName,
+		coreapi.SystemAdminCredentialRevocationResourceTypeName, revocationName,
 	))
 }
 
@@ -130,15 +132,15 @@ func ToDenyAssignmentResourceIDString(subscriptionID, resourceGroupName, denyAss
 func ToServiceProviderNodePoolResourceIDString(subscriptionName, resourceGroupName, clusterName, nodePoolName string) string {
 	return strings.ToLower(path.Join(
 		ToNodePoolResourceIDString(subscriptionName, resourceGroupName, clusterName, nodePoolName),
-		leafTypeName(ServiceProviderNodePoolResourceType), ServiceProviderNodePoolResourceName,
+		LeafTypeName(coreapi.ServiceProviderNodePoolResourceType), coreapi.ServiceProviderNodePoolResourceName,
 	))
 }
 
-// leafTypeName returns the trailing segment of an ARM ResourceType (the
+// LeafTypeName returns the trailing segment of an ARM ResourceType (the
 // part after the last slash). Using it in the per-level helpers prevents
 // callers from accidentally embedding the full `namespace/type/...` form
 // twice in the same ID — see the original ToServiceProviderNodePoolResourceIDString
 // bug.
-func leafTypeName(rt azcorearm.ResourceType) string {
+func LeafTypeName(rt azcorearm.ResourceType) string {
 	return rt.Types[len(rt.Types)-1]
 }

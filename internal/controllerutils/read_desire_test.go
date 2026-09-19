@@ -26,6 +26,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
 )
 
 const testStampIdentifier = "eastus"
@@ -48,7 +49,7 @@ func TestBuildReadDesire(t *testing.T) {
 		Resource: "capacityreports",
 		Name:     "cluster",
 	}
-	desireIDString := kubeapplierapi.ToManagementClusterScopedReadDesireResourceIDString(testStampIdentifier, "capacity")
+	desireIDString := kubeapplierapihelpers.ToManagementClusterScopedReadDesireResourceIDString(testStampIdentifier, "capacity")
 
 	desire := BuildReadDesire(desireIDString, managementCluster, target)
 
@@ -81,7 +82,7 @@ func TestReadDesireNeedsWork(t *testing.T) {
 		Name:     "old",
 	}
 
-	desireIDString := kubeapplierapi.ToManagementClusterScopedReadDesireResourceIDString(testStampIdentifier, "capacity")
+	desireIDString := kubeapplierapihelpers.ToManagementClusterScopedReadDesireResourceIDString(testStampIdentifier, "capacity")
 	desired := BuildReadDesire(desireIDString, managementCluster, target)
 
 	tests := []struct {

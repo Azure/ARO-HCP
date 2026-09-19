@@ -18,8 +18,8 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	fleetcontrollers "github.com/Azure/ARO-HCP/fleet/pkg/controllers/base"
-	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
 )
 
 // testStampIdentifier is a short (1-3 char) stamp identifier so the mock fleet
@@ -31,5 +31,5 @@ func testKey() fleetcontrollers.StampKey {
 }
 
 func testManagementClusterResourceID() *azcorearm.ResourceID {
-	return metadataapi.Must(fleetapi.ToManagementClusterResourceID(testStampIdentifier))
+	return metadataapi.Must(fleetapihelpers.ToManagementClusterResourceID(testStampIdentifier))
 }
