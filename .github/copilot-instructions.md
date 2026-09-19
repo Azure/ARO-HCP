@@ -26,7 +26,7 @@ When reviewing a PR, these checks are **always blocking** — regardless of the 
 - **Do not expose internal URLs.** Neither in commits nor PR descriptions.
   - Flag as critical any URLs matching the following rules:
     - direct links to icm portal
-    - *.window.net, *.visualstudio.com, *.azure.com;
+    - *.windows.net, *.visualstudio.com, *.azure.com;
       - exceptions: links to sdp-pipelines repo are allowed
 - **Do not leak internal information for Red Hat or Microsoft systems.** Neither in commits nor PR descriptions.
   - Discussions of internal Microsoft systems (e.g. dsts or ev2) must be flagged for review (critical priority).
