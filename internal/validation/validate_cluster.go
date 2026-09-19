@@ -1061,7 +1061,7 @@ func validateKmsKey(ctx context.Context, op operation.Operation, fldPath *field.
 		errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("version"), &newObj.Version, safe.Field(oldObj, toKmsKeyVersion))...)
 	}
 	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("version"), &newObj.Version, nil)...)
-	errs = append(errs, MaxLen(ctx, op, fldPath.Child("version"), &newObj.Version, nil, 255)...)
+	errs = append(errs, AzureKeyVaultKeyVersion(ctx, op, fldPath.Child("version"), &newObj.Version, nil)...)
 
 	return errs
 }

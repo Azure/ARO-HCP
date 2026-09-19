@@ -653,7 +653,7 @@ func defaultTestKMSUpdateAzureBuilder() *arohcpv1alpha1.AzureBuilder {
 				CustomerManaged(arohcpv1alpha1.NewAzureEtcdDataEncryptionCustomerManaged().
 					Kms(arohcpv1alpha1.NewAzureKmsEncryption().
 						ActiveKey(arohcpv1alpha1.NewAzureKmsKey().
-							KeyVersion("test-version"))))))
+							KeyVersion("4e832b5c8f1e4e3d9c6b2a1f3e7d9c5b"))))))
 }
 
 func getBaseCSClusterBuilder(updating bool) *arohcpv1alpha1.ClusterBuilder {
@@ -680,7 +680,7 @@ func getBaseCSClusterBuilder(updating bool) *arohcpv1alpha1.ClusterBuilder {
 							ActiveKey(arohcpv1alpha1.NewAzureKmsKey().
 								KeyName("test-key").
 								KeyVaultName("test-vault").
-								KeyVersion("test-version"),
+								KeyVersion("4e832b5c8f1e4e3d9c6b2a1f3e7d9c5b"),
 							),
 						),
 					))).
