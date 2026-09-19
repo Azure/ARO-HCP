@@ -24,6 +24,8 @@ import (
 	"sort"
 	"strconv"
 	"time"
+
+	"github.com/go-logr/logr"
 )
 
 const utilizationTimeout = 10 * time.Minute
@@ -76,11 +78,16 @@ func collectUtilization(ctx context.Context, start, end, now time.Time, query ut
 	report.Warnings = append(report.Warnings, utilizationQueryWarnings(results)...)
 	history, clusters := utilizationBuildHistory(results, first, last)
 	report.Clusters = clusters
+	report.Snapshots, report.Coverage, report.Warnings = utilizationSelectSnapshots(history, clusters, first, last, report.Warnings)
 	if len(clusters) == 0 {
 		report.Warnings = append(report.Warnings, "expected underlay cluster inventory unavailable; no peaks selected")
 		return report
 	}
-	report.Snapshots, report.Warnings = utilizationSelectSnapshots(history, clusters, first, last, report.Warnings)
+	logger := logr.FromContextOrDiscard(ctx)
+	logger.Info("selected utilization snapshots", "clusters", clusters, "snapshots", len(report.Snapshots), "start", first, "end", last)
+	for _, warning := range report.Warnings {
+		logger.Info("utilization coverage warning", "warning", warning)
+	}
 	queries := utilizationSnapshotQueries(clusters)
 	for i := range report.Snapshots {
 		snapshot := &report.Snapshots[i]
@@ -91,6 +98,7 @@ func collectUtilization(ctx context.Context, start, end, now time.Time, query ut
 		results := utilizationQueryBatch(ctx, query, queries, snapshot.Time, snapshot.Time)
 		snapshot.Warnings = append(snapshot.Warnings, utilizationQueryWarnings(results)...)
 		snapshot.Workloads = utilizationBuildWorkloads(results, clusters, snapshot.Time, &snapshot.Warnings)
+		logger.Info("collected utilization snapshot", "time", snapshot.Time, "reasons", snapshot.Reasons, "nodes", len(snapshot.Nodes), "workloads", len(snapshot.Workloads), "warnings", len(snapshot.Warnings))
 	}
 	if ctx.Err() != nil {
 		report.Warnings = append(report.Warnings, "utilization collection incomplete: "+ctx.Err().Error())
@@ -257,21 +265,46 @@ func utilizationBuildHistory(results []utilizationQueryResult, start, end time.T
 	return history, names
 }
 
-func utilizationSelectSnapshots(history map[int64]*utilizationMinute, clusters []string, start, end time.Time, warnings []string) ([]utilizationSnapshot, []string) {
+func utilizationSelectSnapshots(history map[int64]*utilizationMinute, clusters []string, start, end time.Time, warnings []string) ([]utilizationSnapshot, []utilizationCoverage, []string) {
 	type peak struct {
 		ts    int64
 		ratio float64
 	}
 	peaks := map[string]peak{}
 	missing := map[string]int{}
-	consider := func(reason string, ts int64, usage, capacity float64, complete bool) {
-		if !complete || capacity <= 0 {
+	type coverageKey struct{ scope, resource string }
+	coverageByKey := map[coverageKey]*utilizationCoverage{}
+	consider := func(scope string, resource int, t time.Time, usage, capacity float64, status utilizationCoverageInterval) {
+		reason := scope + " " + [2]string{"CPU", "memory"}[resource] + " peak"
+		key := coverageKey{scope, [2]string{"cpu", "memory"}[resource]}
+		coverage := coverageByKey[key]
+		if coverage == nil {
+			coverage = &utilizationCoverage{Scope: key.scope, Resource: key.resource}
+			coverageByKey[key] = coverage
+		}
+		status.Start, status.End = t.UTC(), t.UTC()
+		status.Eligible = status.Eligible && capacity > 0
+		coalesced := false
+		if len(coverage.Intervals) > 0 {
+			last := &coverage.Intervals[len(coverage.Intervals)-1]
+			// Compare all diagnostics while ignoring the interval's time bounds.
+			previous := *last
+			previous.Start, previous.End = status.Start, status.End
+			if last.End.Add(time.Minute).Equal(status.Start) && previous == status {
+				last.End = status.End
+				coalesced = true
+			}
+		}
+		if !coalesced {
+			coverage.Intervals = append(coverage.Intervals, status)
+		}
+		if !status.Eligible {
 			missing[reason]++
 			return
 		}
 		ratio := usage / capacity
 		if old, found := peaks[reason]; !found || ratio > old.ratio {
-			peaks[reason] = peak{ts, ratio}
+			peaks[reason] = peak{t.Unix(), ratio}
 		}
 	}
 	for t := start; !t.After(end); t = t.Add(time.Minute) {
@@ -287,10 +320,10 @@ func utilizationSelectSnapshots(history map[int64]*utilizationMinute, clusters [
 			return nodeKeys[i].node < nodeKeys[j].node
 		})
 		var overallUsage, overallCapacity [2]float64
-		overallComplete := [2]bool{true, true}
+		overall := [2]utilizationCoverageInterval{{Eligible: true}, {Eligible: true}}
 		for _, cluster := range clusters {
 			usage, capacity := [2]float64{}, [2]float64{}
-			complete := [2]bool{minute.expected[cluster], minute.expected[cluster]}
+			status := [2]utilizationCoverageInterval{{Eligible: minute.expected[cluster]}, {Eligible: minute.expected[cluster]}}
 			count := 0
 			for _, key := range nodeKeys {
 				if key.cluster != cluster {
@@ -299,24 +332,44 @@ func utilizationSelectSnapshots(history map[int64]*utilizationMinute, clusters [
 				node := minute.nodes[key]
 				count++
 				for i, metric := range []struct{ use, cap, ksm *float64 }{{node.Usage.CPU, node.Capacity.CPU, node.Capacity.CPU}, {node.Usage.Memory, node.Capacity.Memory, node.ksmMemory}} {
-					if !node.inventory || metric.use == nil || metric.cap == nil || *metric.cap <= 0 || metric.ksm == nil || *metric.ksm <= 0 {
-						complete[i] = false
+					missingUsage := metric.use == nil
+					missingCapacity := metric.cap == nil || *metric.cap <= 0 || metric.ksm == nil || *metric.ksm <= 0
+					if !node.inventory {
+						status[i].MissingInventory++
+					}
+					if missingUsage {
+						status[i].MissingUsage++
+					}
+					if missingCapacity {
+						status[i].MissingCapacity++
+					}
+					if !node.inventory || missingUsage || missingCapacity {
+						status[i].Eligible = false
 						continue
 					}
 					usage[i] += *metric.use
 					capacity[i] += *metric.cap
 				}
 			}
-			for i, resource := range []string{"CPU", "memory"} {
-				complete[i] = complete[i] && count > 0
-				consider(cluster+" "+resource+" peak", t.Unix(), usage[i], capacity[i], complete[i])
-				overallComplete[i] = overallComplete[i] && complete[i]
+			for i := range status {
+				status[i].Nodes = count
+				if !minute.expected[cluster] || count == 0 {
+					status[i].MissingClusters = 1
+				}
+				status[i].Eligible = status[i].Eligible && count > 0
+				consider(cluster, i, t, usage[i], capacity[i], status[i])
+				overall[i].Eligible = overall[i].Eligible && status[i].Eligible
+				overall[i].Nodes += status[i].Nodes
+				overall[i].MissingInventory += status[i].MissingInventory
+				overall[i].MissingUsage += status[i].MissingUsage
+				overall[i].MissingCapacity += status[i].MissingCapacity
+				overall[i].MissingClusters += status[i].MissingClusters
 				overallUsage[i] += usage[i]
 				overallCapacity[i] += capacity[i]
 			}
 		}
-		for i, resource := range []string{"CPU", "memory"} {
-			consider("overall "+resource+" peak", t.Unix(), overallUsage[i], overallCapacity[i], overallComplete[i])
+		for i := range overall {
+			consider("overall", i, t, overallUsage[i], overallCapacity[i], overall[i])
 		}
 	}
 	byTime := map[int64][]string{}
@@ -365,5 +418,15 @@ func utilizationSelectSnapshots(history map[int64]*utilizationMinute, clusters [
 		snapshots = append(snapshots, snapshot)
 	}
 	sort.Slice(snapshots, func(i, j int) bool { return snapshots[i].Time.Before(snapshots[j].Time) })
-	return snapshots, warnings
+	coverage := make([]utilizationCoverage, 0, len(coverageByKey))
+	for _, entry := range coverageByKey {
+		coverage = append(coverage, *entry)
+	}
+	sort.Slice(coverage, func(i, j int) bool {
+		if coverage[i].Scope != coverage[j].Scope {
+			return coverage[i].Scope < coverage[j].Scope
+		}
+		return coverage[i].Resource < coverage[j].Resource
+	})
+	return snapshots, coverage, warnings
 }

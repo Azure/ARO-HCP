@@ -24,6 +24,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 )
@@ -53,6 +54,53 @@ func renderUtilizationHTML(report utilizationReport) ([]byte, error) {
 			return nil, fmt.Errorf("clusters must contain unique nonempty names")
 		}
 		clusters[cluster] = true
+	}
+	first, last := report.Start.UTC().Truncate(time.Minute), report.End.UTC().Truncate(time.Minute)
+	if first.Before(report.Start) {
+		first = first.Add(time.Minute)
+	}
+	coverageKeys := map[[2]string]bool{}
+	for i, coverage := range report.Coverage {
+		key := [2]string{coverage.Scope, coverage.Resource}
+		if (coverage.Scope != "overall" && !clusters[coverage.Scope]) || (coverage.Resource != "cpu" && coverage.Resource != "memory") || coverageKeys[key] {
+			return nil, fmt.Errorf("coverage %d: scope/resource must be valid and unique", i)
+		}
+		coverageKeys[key] = true
+		clusterCount := 1
+		if coverage.Scope == "overall" {
+			clusterCount = len(clusters)
+		}
+		if len(coverage.Intervals) == 0 || first.After(last) {
+			return nil, fmt.Errorf("coverage %d: intervals must cover the evaluated minute grid and cannot be empty", i)
+		}
+		next := first
+		for j, interval := range coverage.Intervals {
+			path := fmt.Sprintf("coverage %d interval %d", i, j)
+			for _, timestamp := range []time.Time{interval.Start, interval.End} {
+				_, offset := timestamp.Zone()
+				if timestamp.IsZero() || offset != 0 || !timestamp.Equal(timestamp.Truncate(time.Minute)) || timestamp.Before(first) || timestamp.After(last) {
+					return nil, fmt.Errorf("%s: times must be UTC-minute samples within the report grid", path)
+				}
+			}
+			if !interval.Start.Equal(next) || interval.End.Before(interval.Start) {
+				return nil, fmt.Errorf("%s: intervals must be ordered, contiguous and cover the evaluated minute grid", path)
+			}
+			next = interval.End.Add(time.Minute)
+			if interval.Nodes < 0 || interval.MissingClusters < 0 || interval.MissingClusters > clusterCount {
+				return nil, fmt.Errorf("%s: node and missing cluster counts must be nonnegative and within scope", path)
+			}
+			for _, count := range []int{interval.MissingInventory, interval.MissingUsage, interval.MissingCapacity} {
+				if count < 0 || count > interval.Nodes {
+					return nil, fmt.Errorf("%s: missing node counts must be nonnegative and cannot exceed nodes", path)
+				}
+			}
+			if interval.Eligible && (interval.Nodes == 0 || clusterCount == 0 || interval.MissingInventory != 0 || interval.MissingUsage != 0 || interval.MissingCapacity != 0 || interval.MissingClusters != 0) {
+				return nil, fmt.Errorf("%s: eligible samples cannot have coverage gaps or zero nodes", path)
+			}
+		}
+		if !next.Equal(last.Add(time.Minute)) {
+			return nil, fmt.Errorf("coverage %d: intervals must cover the evaluated minute grid", i)
+		}
 	}
 	for i, snapshot := range report.Snapshots {
 		if snapshot.Time.IsZero() || snapshot.Time.Before(report.Start) || snapshot.Time.After(report.End) {

@@ -563,6 +563,12 @@ func TestUtilizationHTTPIntegrationAndUnavailableWorkspace(t *testing.T) {
 	var requests atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requests.Add(1)
+		// Reproduce the managed endpoint's restriction observed in PR 7021:
+		// local mocks must not silently accept unsupported metric-name regexes.
+		if strings.Contains(r.URL.Query().Get("query"), "__name__=~") {
+			http.Error(w, `{"status":"error","errorType":"Not Implemented","error":"Not implemented: Metric name only support equality(=) filter."}`, http.StatusNotImplemented)
+			return
+		}
 		if r.URL.Path != "/api/v1/query_range" || r.Header.Get("Authorization") != "Bearer test" || r.URL.Query().Get("step") != "60s" {
 			t.Errorf("invalid query_range request: %s", r.URL)
 		}
@@ -604,7 +610,10 @@ func TestUtilizationQueriesScopeAndDedup(t *testing.T) {
 		if !strings.Contains(query.expression, "max by (") {
 			t.Errorf("query missing HA dedup: %s", query.expression)
 		}
-		if strings.Contains(query.expression, " on (") && !strings.Contains(query.expression, "on (cluster,") {
+		if strings.Contains(query.expression, "__name__=~") || strings.Contains(query.expression, "__name__!=") || strings.Contains(query.expression, "__name__!~") {
+			t.Errorf("Azure requires exact metric-name selectors: %s", query.expression)
+		}
+		if strings.Contains(strings.ReplaceAll(query.expression, "or on (__name__)", "or"), " on (") && !strings.Contains(query.expression, "on (cluster,") {
 			t.Errorf("join is not cluster-qualified: %s", query.expression)
 		}
 		if strings.Contains(query.expression, "kube_") && !strings.Contains(query.expression, `hostedcontrolplane=""`) {

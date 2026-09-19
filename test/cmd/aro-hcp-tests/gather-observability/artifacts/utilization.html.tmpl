@@ -18,11 +18,17 @@
     select { min-width: 130px; } button, summary { cursor: pointer; } button:hover { border-color: #58a6ff; } :focus-visible { outline: 2px solid #58a6ff; outline-offset: 2px; }
     #snapshot { max-width: 650px; } #cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
     dl { margin: 0; } .metric { display: flex; justify-content: space-between; gap: 12px; padding: 5px 0; border-bottom: 1px solid #30363d; } dt { color: #9da7b3; } dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+    .resource-section { margin: 14px 0; border-top: 2px solid var(--resource-accent); } .resource-section.cpu { --resource-accent: #79b8ff; --resource-tint: #1b2b40; } .resource-section.memory { --resource-accent: #c4a4ef; --resource-tint: #2b2338; }
+    .resource-heading { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px; background: var(--resource-tint); color: var(--resource-accent); } .resource-heading h4 { margin: 0; font-size: 14px; } .peak-badge { border: 1px solid var(--resource-accent); border-radius: 3px; padding: 1px 6px; font-size: 11px; font-weight: 600; }
     .warning { border-left: 4px solid #d29922; background: #292315; padding: 12px 16px; margin: 12px 0; overflow-wrap: anywhere; } .warning h2 { color: #e3b341; } .warning ul { margin: 0; padding-left: 20px; }
-    .chart { width: 100%; height: 500px; } #composition-chart { height: 330px; } .legend { display: flex; flex-wrap: wrap; gap: 18px; margin: 10px 0; } .swatch { display: inline-block; width: 12px; height: 12px; margin-right: 5px; } .used { background: #316dca; } .unused { background: #28534a; } .unknown { background: #656b75; }
+    .coverage-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; } .coverage-grid p { margin-bottom: 0; } .diagnostics { width: 100%; height: 260px; background: #161b22; color: #e6edf3; border: 1px solid #484f58; padding: 8px; font: 12px/1.5 monospace; }
+    .timeline { height: 18px; width: 100%; border: 1px solid #9da7b3; border-radius: 3px; position: relative; } .timeline-peak { position: absolute; top: -4px; bottom: -4px; border-left: 2px solid #fff; } .coverage-resource { margin: 16px 0; } .coverage-resource textarea { height: 150px; }
+    .chart-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; } .chart-pair > div { min-width: 0; } .chart { width: 100%; height: 360px; } .legend { display: flex; flex-wrap: wrap; gap: 18px; margin: 10px 0; } .swatch { display: inline-block; width: 12px; height: 12px; margin-right: 5px; } .used { background: #316dca; } .unused { background: #303944; } .unknown { background: #99752d; }
+    .breadcrumbs { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0; align-items: center; } .breadcrumbs button { overflow-wrap: anywhere; text-align: left; } .scope { font-variant-numeric: tabular-nums; } .metric dd { min-width: 0; } .metric dd span { display: block; }
     .table-scroll { width: 100%; overflow-x: auto; } table { border-collapse: collapse; width: 100%; font-size: 13px; } th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid #30363d; vertical-align: top; } th { color: #9da7b3; white-space: nowrap; } td { overflow-wrap: anywhere; } td.numeric { white-space: nowrap; font-variant-numeric: tabular-nums; } th button { border: 0; background: none; padding: 0; color: inherit; }
     details { margin: 8px 0; } summary { color: #79c0ff; } .detail { padding: 8px; border-left: 2px solid #30363d; min-width: 620px; } .selected { background: #1b304a; } #selection { color: #79c0ff; } .empty { padding: 20px; color: #9da7b3; }
-    @media (max-width: 650px) { main { padding: 12px; } .panel { padding: 12px; } .controls > label { width: 100%; } select, input { width: 100%; } #cards { grid-template-columns: 1fr; } .chart { height: 420px; } h1 { font-size: 23px; } }
+    @media (max-width: 800px) { .chart-pair { grid-template-columns: 1fr; } }
+    @media (max-width: 650px) { main { padding: 12px; } .panel { padding: 12px; } .controls > label { width: 100%; } select, input { width: 100%; } #cards { grid-template-columns: 1fr; } .chart { height: 320px; } h1 { font-size: 23px; } }
   </style>
 </head>
 <body>
@@ -31,28 +37,35 @@
   <noscript><p class="warning">JavaScript is required to explore this embedded report. No Azure credentials are needed.</p></noscript>
   <div class="controls">
     <label>Snapshot and selection reason<select id="snapshot"></select></label>
-    <label>Resource<select id="resource"><option value="cpu">CPU (cores)</option><option value="memory">Memory (GiB)</option></select></label>
-    <label>Cluster<select id="cluster"></select></label>
-    <label>Pool<select id="pool"></select></label>
   </div>
   <div id="warnings" class="warning" role="status"></div>
   <section aria-labelledby="totals-title"><h2 id="totals-title">Cluster totals</h2><p class="muted">Whole-cluster totals at the selected snapshot, independent of workload filters. Unknown measurements are never zero; partial sums show measured coverage.</p><div id="cards"></div></section>
   <section class="panel" aria-labelledby="capacity-title">
     <div class="eyebrow">01 / Physical footprint</div><h2 id="capacity-title">Capacity by cluster, pool and node</h2>
-    <p>Each node is sized by physical capacity, not allocatable or workload requests. Select a node to inspect its workloads. Filters dim nodes, but never resize tiles or turn hidden workloads into free resources.</p>
-    <div class="legend"><span><i class="swatch used"></i>Node usage</span><span><i class="swatch unused"></i><span id="unused-label">Unused CPU</span></span><span><i class="swatch unknown"></i>Unknown usage, not free</span></div>
+    <p>Explore fleet clusters, then node pools, then nodes. Both charts share one path. Area is physical capacity, not allocatable or requests. Select a node to scope workload detail below. Workload search and area basis never change capacity.</p>
+    <nav id="capacity-path" class="breadcrumbs" aria-label="Capacity path"></nav>
+    <div class="legend"><span><i class="swatch used"></i>Known node usage</span><span><i class="swatch unused"></i>Known unused CPU / available memory</span><span><i class="swatch unknown"></i>Unknown usage, not free</span></div>
     <p id="chart-status" class="muted" role="status">Charts are loading. All totals and tables work without the chart CDN.</p>
-    <div id="capacity-chart" class="chart" hidden role="img" aria-label="Physical capacity treemap. Equivalent values and node selection are in the table below."></div>
-    <p id="coverage" class="muted"></p><div id="missing-capacity"></div>
-    <details open><summary>Node measurements and accessible node selection</summary><div class="table-scroll"><table><thead><tr><th>Cluster / pool / SKU</th><th>Node</th><th>Capacity</th><th>Allocatable</th><th>Node usage</th><th id="remainder-heading">Unused CPU</th></tr></thead><tbody id="nodes"></tbody></table></div></details>
+    <div class="chart-pair">
+      <div><h3>CPU capacity</h3><p id="capacity-total-cpu" class="scope"></p><div id="capacity-chart-cpu" class="chart" hidden role="img" aria-label="CPU capacity. Navigate using the equivalent table below."></div><p id="coverage-cpu" class="muted"></p></div>
+      <div><h3>Memory capacity</h3><p id="capacity-total-memory" class="scope"></p><div id="capacity-chart-memory" class="chart" hidden role="img" aria-label="Memory capacity. Navigate using the equivalent table below."></div><p id="coverage-memory" class="muted"></p></div>
+    </div>
+    <div id="capacity-pages" class="controls"></div><div class="table-scroll"><table><thead><tr><th>Drill into scope</th><th>CPU capacity / known used / known unused / unknown</th><th>Memory capacity / known used / known available / unknown</th></tr></thead><tbody id="capacity-rows"></tbody></table></div>
+    <details id="node-details"><summary>Node measurements in this capacity scope</summary><div id="node-pages" class="controls"></div><div class="table-scroll"><table><thead><tr><th>Cluster / pool / SKU</th><th>Node</th><th>CPU capacity</th><th>CPU allocatable</th><th>CPU usage</th><th>Unused CPU</th><th>Memory capacity</th><th>Memory allocatable</th><th>Memory usage</th><th>Available memory</th></tr></thead><tbody id="nodes"></tbody></table></div></details>
   </section>
   <section class="panel" aria-labelledby="workloads-title">
     <div class="eyebrow">02 / Workload composition</div><h2 id="workloads-title">HCP components and exact owners</h2>
-    <p>Components use the collector's component attribution across namespaces, within each cluster. Expand a group for exact namespace, owner, node placement and per-container aggregates. Replica counts are aggregated, not individual pod identities.</p>
+    <p>Explore svc and mgmt roles, then workloads aggregated across clusters, then each cluster's workload and its exact namespace, owner, placement and container records. HCP components use the collector's attribution across namespaces; platform workloads retain exact namespace / kind / name. Unrecognized cluster roles appear as Other. ReplicaSet names are never guessed into Deployment names.</p>
     <p class="muted">Finite limits sum only configured limits. Confirmed unlimited instances contribute zero to that sum and are counted separately. Unknown limit-query coverage is shown as Unknown, never as zero unlimited instances.</p>
     <div class="controls"><label>Workload search<input id="search" type="search" placeholder="Component, namespace, owner or node"></label><label>Composition area<select id="basis"><option value="usage">Container usage</option><option value="requests">Container requests</option></select></label><button id="clear-node" type="button">Clear node selection</button><span id="selection" role="status"></span></div>
-    <p id="composition-note" class="muted"></p><div id="composition-chart" class="chart" hidden role="img" aria-label="Workload composition treemap. Equivalent values are in the sortable table below."></div>
-    <div class="table-scroll"><table id="workloads"><thead><tr><th aria-sort="ascending"><button data-sort="name">Component / owner</button></th><th><button data-sort="pods">Pods</button></th><th><button data-sort="pending">Pending</button></th><th><button data-sort="usage">Usage</button></th><th><button data-sort="requests">Requests</button></th><th><button data-sort="limits">Finite limits</button></th><th>Unlimited instances</th></tr></thead><tbody id="workload-rows"></tbody></table></div>
+    <nav id="workload-path" class="breadcrumbs" aria-label="Workload path"></nav>
+    <p id="composition-note" class="muted"></p>
+    <div class="chart-pair">
+      <div><h3>CPU workloads</h3><p id="workload-total-cpu" class="scope"></p><div id="composition-chart-cpu" class="chart" hidden role="img" aria-label="CPU workloads. Navigate using the equivalent table below."></div></div>
+      <div><h3>Memory workloads</h3><p id="workload-total-memory" class="scope"></p><div id="composition-chart-memory" class="chart" hidden role="img" aria-label="Memory workloads. Navigate using the equivalent table below."></div></div>
+    </div>
+    <div id="workload-pages" class="controls"></div>
+    <div class="table-scroll"><table id="workloads"><thead><tr><th aria-sort="ascending"><button data-sort="name">Role / workload / cluster</button></th><th><button data-sort="pods">Pods</button></th><th><button data-sort="pending">Pending</button></th><th><button data-sort="cpu.usage">CPU usage</button></th><th><button data-sort="cpu.requests">CPU requests</button></th><th><button data-sort="cpu.limits">CPU finite limits</button></th><th>CPU unlimited</th><th><button data-sort="memory.usage">Memory usage</button></th><th><button data-sort="memory.requests">Memory requests</button></th><th><button data-sort="memory.limits">Memory finite limits</button></th><th>Memory unlimited</th></tr></thead><tbody id="workload-rows"></tbody></table></div>
   </section>
   <section class="panel"><h2>How to read this report</h2><p id="measurement-windows"></p><p>CPU is measured in cores; memory is displayed in GiB (1 GiB = 1,073,741,824 bytes). Node CPU usage includes host activity; node memory usage is node-exporter total minus available memory. Memory capacity uses the smoothed node-exporter total, so the available-memory tile equals that total minus node usage. Available memory is not safely removable capacity. Whole-node utilization percentages use physical capacity, not allocatable, and require complete usage and positive capacity for all observed nodes. Container CPU and memory working-set metrics have different accounting and coverage, so their sums need not equal node usage. They are not subtracted from node capacity in the main treemap.</p><p>Requests are sums of observed container requests, not scheduler-effective pod reservations: init containers, pod overhead and scheduling constraints can differ. Pending / unscheduled demand is listed separately, never assigned to a fictional pool. Finite limits exclude unlimited instances; a missing limit is not a zero limit. Unlimited counts come from observed container instances; missing container detail means unknown coverage.</p><p class="muted">These are observational snapshots, not a scheduling simulation or a recommendation about safe capacity. Missing capacity, unknown usage, stale samples and incomplete collection can prevent a complete comparison.</p></section>
 </main>
@@ -64,43 +77,40 @@ const $ = id => document.getElementById(id);
 const list = value => value || [];
 const known = value => typeof value === 'number' && Number.isFinite(value);
 const nodeKey = (cluster, node) => JSON.stringify([cluster, node]);
-let selectedNode = '', sortKey = 'name', sortDirection = 1, capacityChart, compositionChart;
-let currentNodes = [], currentGroups = [];
+const resources = ['cpu', 'memory'], capacityCharts = {}, compositionCharts = {};
+let selectedNode = '', sortKey = 'name', sortDirection = 1, capacityPath = [], workloadPath = [];
+let currentNodes = [], capacityGroups = [], currentGroups = [], currentWorkloads = [];
+const groupPageSize = 25, detailPageSize = 20, nodePageSize = 25;
+let capacityPage = 0, workloadPage = 0, nodePage = 0, activeDetails, searchTimer;
+const quantityFormat = new Intl.NumberFormat('en-US', {maximumFractionDigits: 2});
+const percentFormat = new Intl.NumberFormat('en-US', {maximumFractionDigits: 1});
 function el(tag, text, className) {
   const element = document.createElement(tag);
   if (text !== undefined) element.textContent = text;
   if (className) element.className = className;
   return element;
 }
-function metric(row, field) { return row[field]?.[$('resource').value]; }
-function quantity(value) {
+function metric(row, field, resource) { return row[field]?.[resource]; }
+function quantity(value, resource) {
   if (!known(value)) return 'Unknown';
-  return (value / ($('resource').value === 'memory' ? 1073741824 : 1)).toLocaleString('en-US', {maximumFractionDigits: 2}) + ($('resource').value === 'memory' ? ' GiB' : ' cores');
+  return quantityFormat.format(value / (resource === 'memory' ? 1073741824 : 1)) + (resource === 'memory' ? ' GiB' : ' cores');
 }
-function sum(rows, field) {
-  const values = rows.map(row => metric(row, field)).filter(known);
+function sum(rows, field, resource) {
+  const values = rows.map(row => metric(row, field, resource)).filter(known);
   return {value: values.length ? values.reduce((a, b) => a + b, 0) : null, count: values.length, total: rows.length};
 }
-function totalText(total) {
-  return quantity(total.value) + (total.count < total.total ? ' (partial: ' + total.count + '/' + total.total + ')' : '');
+function totalText(total, resource) {
+  return quantity(total.value, resource) + (total.count < total.total ? ' (partial: ' + total.count + '/' + total.total + ')' : '');
 }
-function nodeUtilization(nodes) {
+function nodeUtilization(nodes, resource) {
   if (!nodes.length) return 'Unknown';
-  if (nodes.some(node => !known(metric(node, 'capacity')) || metric(node, 'capacity') <= 0 || !known(metric(node, 'usage')))) return 'Unknown (incomplete coverage or capacity)';
-  return (100 * sum(nodes, 'usage').value / sum(nodes, 'capacity').value).toLocaleString('en-US', {maximumFractionDigits: 1}) + '%';
-}
-function choices(id, values, label) {
-  const select = $(id), old = select.value;
-  select.replaceChildren(new Option(label, ''));
-  [...new Set(values)].sort().forEach(value => select.add(new Option(value || '(unknown pool)', value || '__unknown__')));
-  if ([...select.options].some(option => option.value === old)) select.value = old;
+  if (nodes.some(node => !known(metric(node, 'capacity', resource)) || metric(node, 'capacity', resource) <= 0 || !known(metric(node, 'usage', resource)))) return 'Unknown (incomplete coverage or capacity)';
+  return percentFormat.format(100 * sum(nodes, 'usage', resource).value / sum(nodes, 'capacity', resource).value) + '%';
 }
 function snapshot() { return list(report.snapshots)[Number($('snapshot').value)] || {nodes: [], workloads: []}; }
-function clusterMatches(cluster) { return !$('cluster').value || $('cluster').value === cluster; }
-function nodeMatches(node) { return clusterMatches(node.cluster) && (!$('pool').value || $('pool').value === (node.pool || '__unknown__')); }
-function unlimited(rows) {
+function unlimited(rows, resource) {
   const containers = rows.flatMap(row => list(row.containers));
-  const key = $('resource').value === 'cpu' ? 'unlimitedCPU' : 'unlimitedMemory';
+  const key = resource === 'cpu' ? 'unlimitedCPU' : 'unlimitedMemory';
   const counts = containers.map(container => container[key]).filter(known);
   if (!counts.length) return 'Unknown';
   const count = counts.reduce((total, value) => total + value, 0);
@@ -109,142 +119,411 @@ function unlimited(rows) {
 function addMetric(parent, title, text) {
   const line = el('div', undefined, 'metric'); line.append(el('dt', title), el('dd', text)); parent.append(line);
 }
-function chooseNode(key) { selectedNode = key; render(); }
+function chooseNode(key) {
+  const node = list(snapshot().nodes).find(n => nodeKey(n.cluster, n.name) === key);
+  navigateCapacity(node ? [node.cluster, node.pool || '', node.name] : capacityPath.slice(0, 2));
+}
+function coverageStats(coverage) {
+  const intervals = coverage.intervals, first = intervals.findIndex(i => i.eligible), last = intervals.findLastIndex(i => i.eligible);
+  const counts = {eligible: 0, leading: 0, trailing: 0, interior: 0, allmissing: 0};
+  const gaps = [];
+  intervals.forEach((interval, index) => {
+    const kind = interval.eligible ? 'eligible' : first < 0 ? 'allmissing' : index < first ? 'leading' : index > last ? 'trailing' : 'interior';
+    const minutes = (Date.parse(interval.end) - Date.parse(interval.start)) / 60000 + 1;
+    counts[kind] += minutes;
+    if (!interval.eligible) gaps.push({...interval, kind, minutes});
+  });
+  return {...counts, gaps, total: Object.values(counts).reduce((a, b) => a + b, 0)};
+}
+function coveragePeak(coverage) {
+  const reason = coverage.scope + ' ' + (coverage.resource === 'cpu' ? 'CPU' : 'memory') + ' peak';
+  return list(report.snapshots).find(s => list(s.reasons).includes(reason))?.time;
+}
+function adjacentGap(stats, peak) {
+  const time = Date.parse(peak);
+  return stats.gaps.some(i => Math.min(Math.abs(time - Date.parse(i.start)), Math.abs(time - Date.parse(i.end))) <= 120000);
+}
+function renderCoverageTimeline(host) {
+  const coverage = list(report.coverage);
+  const summary = el('p'); summary.id = 'timeline-summary'; host.append(summary);
+  if (!coverage.length) {
+    summary.textContent = 'Missing timestamps were not saved in this artifact. Cannot distinguish startup/teardown gaps from intermittent loss.';
+    return;
+  }
+  const stats = coverage.map(coverageStats), interior = stats.filter(s => s.interior).length, edges = stats.filter(s => !s.interior && (s.leading || s.trailing)).length, missing = stats.filter(s => s.allmissing).length;
+  summary.textContent = 'Recorded peak-search coverage: ' + coverage.length + ' scope/resource timelines; ' + stats.filter(s => s.eligible === s.total).length + ' complete, ' + edges + ' edge-only gaps, ' + interior + ' with interior gaps, ' + missing + ' all missing. ' +
+    (edges ? 'Edge-only gaps are compatible with startup/teardown, not proof of either. ' : '') +
+    (interior ? 'Interior gaps indicate spotty coverage; the run peak is uncertain. ' : '') +
+    (missing ? 'All-missing timelines have no eligible sample; no peak or startup/teardown explanation can be established. ' : '') +
+    'Counts refer to overlapping scopes and resources, not independent time windows. Unrecorded scopes are unknown.';
+  const details = el('details'), title = el('summary', 'Coverage timeline by scope: CPU and memory'); details.id = 'coverage-timelines'; details.append(title); host.append(details);
+  details.ontoggle = () => {
+    details.replaceChildren(title);
+    if (!details.open) return;
+    const scopes = [...new Set(coverage.map(c => c.scope))], content = el('div'); details.append(content);
+    const page = index => {
+      content.replaceChildren(); const controls = el('div', undefined, 'controls'); content.append(controls);
+      pageControls(controls, index, 25, scopes.length, page, 'coverage scopes');
+      for (const scope of scopes.slice(index * 25, (index + 1) * 25)) {
+        const group = el('details'), heading = el('summary', scope); group.append(heading); content.append(group);
+        group.ontoggle = () => {
+          group.replaceChildren(heading);
+          if (!group.open) return;
+          for (const resource of resources) {
+            const row = coverage.find(c => c.scope === scope && c.resource === resource), box = el('div', undefined, 'coverage-resource'); group.append(box);
+            box.append(el('strong', resource === 'cpu' ? 'CPU' : 'Memory'));
+            if (!row) { box.append(el('p', 'Coverage timeline not saved for this resource.')); continue; }
+            const s = coverageStats(row), peak = coveragePeak(row), start = Date.parse(row.intervals[0].start);
+            box.append(el('p', s.eligible + '/' + s.total + ' eligible minute samples; ' + (s.total - s.eligible) + ' excluded. Leading: ' + s.leading + '; trailing: ' + s.trailing + '; interior: ' + s.interior + '; all missing: ' + s.allmissing + '.'));
+            const bar = el('div', undefined, 'timeline'); bar.setAttribute('role', 'img'); bar.setAttribute('aria-label', resource + ' coverage: blue eligible, amber incomplete; exact inclusive UTC intervals below');
+            bar.style.background = 'linear-gradient(to right, ' + row.intervals.map(i => {
+              const color = i.eligible ? '#316dca' : '#99752d';
+              return color + ' ' + ((Date.parse(i.start) - start) / 60000 / s.total * 100) + '% ' + (((Date.parse(i.end) - start) / 60000 + 1) / s.total * 100) + '%';
+            }).join(', ') + ')'; box.append(bar);
+            box.append(el('p', row.intervals[0].start + ' to ' + row.intervals[row.intervals.length - 1].end + ' (inclusive UTC minute samples). Blue: eligible; amber: incomplete.'));
+            if (peak) {
+              const marker = el('span', undefined, 'timeline-peak'); marker.style.left = ((Date.parse(peak) - start) / 60000 + 0.5) / s.total * 100 + '%'; bar.append(marker);
+              box.append(el('p', 'White marker: selected peak ' + peak + '. ' + (adjacentGap(s, peak) ? 'Adjacent incomplete sample within 2 minutes of this peak. ' : '') + (s.gaps.length ? 'Highest eligible sample, not a proven run maximum.' : 'Shorter bursts can fall between samples.')));
+            }
+            if (!s.gaps.length) { box.append(el('p', 'No excluded minute samples.')); continue; }
+            box.append(el('p', 'Gap intervals below are inclusive. Reason counts are nodes affected at EACH minute, not totals across time; reasons may overlap. Missing clusters are counted separately. Node counts describe observed nodes, not a known fleet size.'));
+            const raw = el('textarea', undefined, 'diagnostics'); raw.readOnly = true; raw.setAttribute('aria-label', scope + ' ' + resource + ' gap intervals');
+            raw.value = s.gaps.map(i => i.start + ' to ' + i.end + ' | ' + i.minutes + ' minute samples | ' + i.kind + ' | nodes=' + i.nodes + ' | missing inventory=' + (i.missingInventory || 0) + ' | missing usage=' + (i.missingUsage || 0) + ' | missing capacity=' + (i.missingCapacity || 0) + ' | missing clusters=' + (i.missingClusters || 0)).join('\n'); box.append(raw);
+          }
+        };
+      }
+    };
+    page(0);
+  };
+}
+function renderCoverage(nodes, workloads, warnings) {
+  const host = $('warnings'); host.replaceChildren(el('h2', 'What can I trust?'));
+  renderCoverageTimeline(host);
+  if (!list(report.snapshots).length) host.append(el('p', 'No snapshots were collected. Measurements are Unknown.'));
+  const grid = el('div', undefined, 'coverage-grid'); host.append(grid);
+  const section = (title, text) => { const item = el('div'); item.append(el('strong', title), el('p', text)); grid.append(item); };
+  const absentClusters = list(report.clusters).filter(cluster => !nodes.some(n => n.cluster === cluster));
+  section('Node measurements', (nodes.length ? resources.map(resource => {
+    const complete = nodes.filter(n => known(metric(n, 'usage', resource)) && known(metric(n, 'capacity', resource)) && metric(n, 'capacity', resource) > 0 && metric(n, 'usage', resource) <= metric(n, 'capacity', resource)).length;
+    return complete + '/' + nodes.length + ' observed nodes have usable ' + resource + ' usage and capacity at this snapshot. ';
+  }).join('') : 'No node measurements at this snapshot. Capacity and node usage are Unknown. ') + (absentClusters.length ? absentClusters.length + ' expected clusters have no node records. ' : '') + 'These are sampled measurements, not a guarantee that capacity can safely be removed. Unknown usage is never shown as unused space.');
+  const minutes = Math.max(0, Math.floor(Date.parse(report.end) / 60000) - Math.ceil(Date.parse(report.start) / 60000) + 1);
+  const peaks = list(report.warnings).map(w => w.match(/^(.*) (CPU|memory) peak: incomplete history at (\d+) minute\(s\)/)).filter(Boolean);
+  const incomplete = peaks.length || list(report.coverage).some(c => c.intervals.some(i => !i.eligible));
+  section('Peak search' + (incomplete ? ' is incomplete' : ''), incomplete ? 'Some minutes were excluded because node coverage was incomplete. Selected peaks are the highest fully covered samples, not proven maxima for the entire run. See eligible minutes in coverage details.' : 'Peaks are selected from fully covered minute samples. Shorter bursts can still fall between samples or be smoothed by the measurement window.');
+  const partial = workloads.some(w => resources.some(resource => !known(metric(w, 'usage', resource)) || !known(metric(w, 'requests', resource))));
+  section('Workload totals' + (partial ? ' are partial' : ''), (workloads.length ? resources.map(resource => workloads.filter(w => known(metric(w, 'usage', resource))).length + '/' + workloads.length + ' observed workload records have ' + resource + ' usage; ' + workloads.filter(w => known(metric(w, 'requests', resource))).length + '/' + workloads.length + ' have requests. ').join('') : 'No workload measurements at this snapshot. Workload demand is Unknown. ') + 'Partial sums omit unknown records. Record coverage is not the percentage of resource consumption captured, and node and container accounting differ.');
+  const unresolved = workloads.filter(w => (w.kind || '').toLowerCase() === 'replicaset').length;
+  if (unresolved) section('Owner grouping is incomplete', unresolved + ' records retain ReplicaSet owners rather than Deployment parents. Their measured values are retained, but component demand can be split across replica sets. Saved data cannot reconstruct missing parent mappings.');
+  const failures = warnings.filter(w => /query unavailable|collection unavailable|collection incomplete/.test(w));
+  if (failures.length) section('Collection errors', failures.length + ' query or collection diagnostics affect coverage. Missing data is not zero; inspect details below.');
+  if (peaks.length && !list(report.coverage).length) {
+    const details = el('details'), summary = el('summary', 'Peak-search coverage by cluster and resource'); details.append(summary);
+    details.ontoggle = () => {
+      details.replaceChildren(summary);
+      if (!details.open) return;
+      const table = el('table'), head = el('tr'); ['Scope', 'Resource', 'Eligible minutes', 'Excluded minutes'].forEach(s => head.append(el('th', s))); table.append(head);
+      peaks.forEach(p => { const row = el('tr'); [p[1], p[2], Math.max(0, minutes - Number(p[3])) + '/' + minutes, p[3]].forEach(s => row.append(el('td', s))); table.append(row); });
+      const scroll = el('div', undefined, 'table-scroll'); scroll.append(table); details.append(scroll);
+    };
+    host.append(details);
+  }
+  const categories = [
+    ['Missing workload measurements', /partial workload metrics|container inventory unavailable; workload totals/, 'Some saved totals are unknown. Other measured rows remain usable.'],
+    ['Usage excluded from attribution', /usage placement unavailable|usage container absent|usage incarnation|multiple container incarnations/, 'Samples without a reliable node, container or identity match were excluded rather than assigned speculatively.'],
+    ['Inventory or placement gaps', /runtime container inventory unavailable|placement unavailable; not classified|pod phase unavailable|owner unavailable/, 'Demand or identity metadata is incomplete; these diagnostics do not invalidate independently measured node load.'],
+    ['Node or label gaps', /incomplete node metrics|node pool or SKU labels unavailable|node inventory unavailable/, 'Inspect the node coverage above. Missing enrichment and missing usage have different effects.']
+  ];
+  const details = el('details'), summary = el('summary', 'Diagnostics: ' + warnings.length + ' messages (grouped, not a count of bad measurements)'); details.append(summary);
+  details.ontoggle = () => {
+    details.replaceChildren(summary);
+    if (!details.open) return;
+    const groups = el('ul');
+    categories.forEach(([label, pattern, meaning]) => { const count = warnings.filter(w => pattern.test(w)).length; if (count) groups.append(el('li', label + ': ' + count + ' messages. ' + meaning)); });
+    details.append(groups, el('p', 'Messages are often repeated per namespace. They do not count missing pods or quantify missing consumption. Full original diagnostics:'));
+    const raw = el('textarea', undefined, 'diagnostics'); raw.readOnly = true; raw.setAttribute('aria-label', 'Original collection diagnostics'); raw.value = warnings.join('\n'); details.append(raw);
+  };
+  host.append(details);
+}
 function render() {
+  clearTimeout(searchTimer);
   const snap = snapshot(), nodes = list(snap.nodes), workloads = list(snap.workloads);
   const clusters = [...new Set([...list(report.clusters), ...nodes.map(n => n.cluster), ...workloads.map(w => w.cluster)])].sort();
-  choices('cluster', clusters, 'All clusters');
-  choices('pool', nodes.filter(n => clusterMatches(n.cluster)).map(n => n.pool), 'All pools');
-  const memory = $('resource').value === 'memory', remainder = memory ? 'Available memory' : 'Unused CPU';
-  $('unused-label').textContent = remainder; $('remainder-heading').textContent = remainder;
   const warnings = [...list(report.warnings), ...list(snap.warnings)];
   if (!list(report.snapshots).length) warnings.push('No snapshots were collected. Measurements are unknown.');
   if (!nodes.length) warnings.push('No node measurements at this snapshot. Capacity and node usage are unknown.');
   if (!workloads.length) warnings.push('No workload measurements at this snapshot. Workload demand is unknown.');
-  const missing = nodes.filter(n => !known(metric(n, 'capacity')) || metric(n, 'capacity') <= 0);
-  const unknownUsage = nodes.filter(n => !known(metric(n, 'usage')));
-  const overflow = nodes.filter(n => known(metric(n, 'capacity')) && known(metric(n, 'usage')) && metric(n, 'usage') > metric(n, 'capacity'));
-  if (missing.length) warnings.push(missing.length + ' nodes have missing or zero capacity and cannot be sized in the capacity treemap.');
-  if (unknownUsage.length) warnings.push(unknownUsage.length + ' nodes have unknown usage; their capacity is not reported as free.');
-  if (overflow.length) warnings.push(overflow.length + ' nodes report usage above capacity. Tiles are capped at physical capacity; exact values remain in the table.');
-  $('warnings').replaceChildren(el('h2', warnings.length ? 'Coverage and collection warnings' : 'Collection status'));
-  const warningList = el('ul'); warnings.forEach(warning => warningList.append(el('li', warning))); $('warnings').append(warnings.length ? warningList : el('p', 'No collection warnings reported. Coverage below refers only to observed records, not proof of complete collection.'));
+  for (const resource of resources) {
+    const missing = nodes.filter(n => !known(metric(n, 'capacity', resource)) || metric(n, 'capacity', resource) <= 0);
+    const unknownUsage = nodes.filter(n => !known(metric(n, 'usage', resource)));
+    const overflow = nodes.filter(n => known(metric(n, 'capacity', resource)) && known(metric(n, 'usage', resource)) && metric(n, 'usage', resource) > metric(n, 'capacity', resource));
+    if (missing.length) warnings.push(resource + ': ' + missing.length + ' nodes have missing or zero capacity and cannot be sized in the capacity treemap.');
+    if (unknownUsage.length) warnings.push(resource + ': ' + unknownUsage.length + ' nodes have unknown usage; their capacity is not reported as free.');
+    if (overflow.length) warnings.push(resource + ': ' + overflow.length + ' nodes report usage above capacity. Tiles are capped at physical capacity; exact values remain in the table.');
+  }
+  renderCoverage(nodes, workloads, warnings);
   $('cards').replaceChildren();
   for (const cluster of clusters) {
     const clusterNodes = nodes.filter(n => n.cluster === cluster), clusterWorkloads = workloads.filter(w => w.cluster === cluster);
     const pending = clusterWorkloads.filter(w => w.unscheduled), placed = clusterWorkloads.filter(w => !w.unscheduled);
-    const card = el('article', undefined, 'card'); card.append(el('h3', cluster)); const metrics = el('dl');
-    for (const [title, field] of [['Physical capacity', 'capacity'], ['Allocatable', 'allocatable'], ['Node usage', 'usage']]) addMetric(metrics, title, totalText(sum(clusterNodes, field)));
-    addMetric(metrics, 'Whole-node utilization', nodeUtilization(clusterNodes));
-    addMetric(metrics, 'Container usage', totalText(sum(clusterWorkloads, 'usage')));
-    addMetric(metrics, 'Total requests', totalText(sum(clusterWorkloads, 'requests')));
-    addMetric(metrics, 'Placed requests', totalText(sum(placed, 'requests')));
-    addMetric(metrics, 'Pending demand (unscheduled)', pending.length ? totalText(sum(pending, 'requests')) : (clusterWorkloads.length ? 'None observed' : 'Unknown'));
+    const card = el('article', undefined, 'card'); card.append(el('h3', cluster));
+    for (const resource of resources) {
+      const section = el('section', undefined, 'resource-section ' + resource), heading = el('div', undefined, 'resource-heading'), metrics = el('dl');
+      heading.append(el('h4', resource === 'cpu' ? 'CPU' : 'Memory'));
+      const domain = resource === 'cpu' ? 'CPU' : 'memory';
+      if (list(snap.reasons).includes(cluster + ' ' + domain + ' peak')) heading.append(el('span', 'Cluster peak', 'peak-badge'));
+      if (list(snap.reasons).includes('overall ' + domain + ' peak')) heading.append(el('span', 'At fleet peak', 'peak-badge'));
+      section.append(heading, metrics); card.append(section);
+      const titlePrefix = resource === 'cpu' ? 'CPU ' : 'Memory ';
+      for (const [title, field] of [['physical capacity', 'capacity'], ['allocatable', 'allocatable'], ['node usage', 'usage']]) addMetric(metrics, titlePrefix + title, totalText(sum(clusterNodes, field, resource), resource));
+      addMetric(metrics, titlePrefix + 'whole-node utilization', nodeUtilization(clusterNodes, resource));
+      addMetric(metrics, titlePrefix + 'container usage', totalText(sum(clusterWorkloads, 'usage', resource), resource));
+      addMetric(metrics, titlePrefix + 'total requests', totalText(sum(clusterWorkloads, 'requests', resource), resource));
+      addMetric(metrics, titlePrefix + 'placed requests', totalText(sum(placed, 'requests', resource), resource));
+      addMetric(metrics, titlePrefix + 'pending demand (unscheduled)', pending.length ? totalText(sum(pending, 'requests', resource), resource) : (clusterWorkloads.length ? 'None observed' : 'Unknown'));
+    }
+    const metrics = el('dl');
     addMetric(metrics, 'Pods / pending', clusterWorkloads.length ? clusterWorkloads.reduce((n, w) => n + w.pods, 0) + ' / ' + clusterWorkloads.reduce((n, w) => n + w.pendingPods, 0) : 'Unknown');
     card.append(metrics, el('small', clusterNodes.length + ' observed nodes; ' + clusterWorkloads.length + ' workload records.')); $('cards').append(card);
   }
   if (!clusters.length) $('cards').append(el('p', 'No cluster data available.', 'empty'));
-  $('coverage').textContent = (nodes.length - missing.length) + '/' + nodes.length + ' observed nodes have positive capacity; ' + (nodes.length - unknownUsage.length) + '/' + nodes.length + ' have node usage. Scope: all clusters. Snapshot: ' + (snap.time || 'Unknown');
-  $('missing-capacity').replaceChildren();
-  if (missing.length) {
-    $('missing-capacity').append(el('h3', 'Nodes without drawable capacity'));
-    const entries = el('ul'); missing.forEach(node => { const item = el('li'), button = el('button', node.cluster + ' / ' + (node.pool || '(unknown pool)') + ' / ' + node.name); button.onclick = () => chooseNode(nodeKey(node.cluster, node.name)); item.append(button); entries.append(item); }); $('missing-capacity').append(entries);
-  }
-  $('nodes').replaceChildren();
+  renderCapacity(); renderWorkloads();
+}
+function breadcrumbs(id, path, labels, navigate) {
+  const host = $(id), back = el('button', 'Back'); back.disabled = !path.length;
+  back.onclick = () => navigate(path.slice(0, -1)); host.replaceChildren(back);
+  ['Fleet', ...labels].forEach((label, index) => {
+    const button = el('button', label || '(unknown pool)'); button.disabled = index === path.length;
+    if (button.disabled) button.setAttribute('aria-current', 'page');
+    button.onclick = () => navigate(path.slice(0, index)); host.append(button);
+  });
+}
+function navigateCapacity(path) {
+  capacityPath = path; selectedNode = path.length === 3 ? nodeKey(path[0], path[2]) : '';
+  workloadPath = []; renderCapacity(); renderWorkloads();
+}
+function capacityParts(nodes, resource) {
+  const result = {capacity: 0, used: 0, unused: 0, unknown: 0, drawable: 0, measured: 0, overflow: 0};
   for (const node of nodes) {
+    const cap = metric(node, 'capacity', resource), used = metric(node, 'usage', resource);
+    if (!known(cap) || cap <= 0) continue;
+    result.capacity += cap; result.drawable++;
+    if (!known(used)) { result.unknown += cap; continue; }
+    result.measured++; if (used > cap) result.overflow++;
+    result.used += Math.min(used, cap); result.unused += Math.max(0, cap - used);
+  }
+  return result;
+}
+function capacityText(parts, resource) {
+  if (!parts.drawable) return 'Unknown capacity; no drawable nodes';
+  return quantity(parts.capacity, resource) + ' capacity | ' + quantity(parts.used, resource) + ' known used' + (parts.overflow ? ' (capped)' : '') + ' | ' + quantity(parts.unused, resource) + (resource === 'memory' ? ' known available' : ' known unused') + ' | ' + quantity(parts.unknown, resource) + ' unknown usage';
+}
+function renderCapacity() {
+  currentNodes = list(snapshot().nodes).filter(n => (!capacityPath.length || n.cluster === capacityPath[0]) && (capacityPath.length < 2 || (n.pool || '') === capacityPath[1]) && (capacityPath.length < 3 || n.name === capacityPath[2]));
+  const groups = new Map();
+  for (const node of currentNodes) {
+    const name = capacityPath.length === 0 ? node.cluster : capacityPath.length === 1 ? node.pool || '' : node.name;
+    if (!groups.has(name)) groups.set(name, {name: name || '(unknown pool)', path: capacityPath.length < 3 ? [...capacityPath, name] : capacityPath, nodes: []});
+    groups.get(name).nodes.push(node);
+  }
+  capacityGroups = [...groups.values()].map(group => ({...group, cpu: capacityParts(group.nodes, 'cpu'), memory: capacityParts(group.nodes, 'memory')}));
+  breadcrumbs('capacity-path', capacityPath, capacityPath, navigateCapacity);
+  for (const resource of resources) {
+    const parts = capacityParts(currentNodes, resource);
+    $('capacity-total-' + resource).textContent = capacityText(parts, resource);
+    $('coverage-' + resource).textContent = currentNodes.length ? parts.drawable + '/' + currentNodes.length + ' nodes have positive capacity; ' + parts.measured + '/' + parts.drawable + ' drawable nodes have known usage. ' + (currentNodes.length - parts.drawable) + ' nodes excluded from area for missing or zero capacity (retained in tables). Unknown usage is not unused. ' + (parts.overflow ? parts.overflow + ' nodes exceed capacity; used areas are capped, exact usage is in node measurements.' : '') : 'No nodes in this scope. Capacity and usage are Unknown.';
+  }
+  capacityPage = nodePage = 0; renderCapacityPage(); renderNodes(); drawCharts(true, false);
+}
+function renderCapacityPage() {
+  $('capacity-rows').replaceChildren();
+  pageControls($('capacity-pages'), capacityPage, groupPageSize, capacityGroups.length, page => { capacityPage = page; renderCapacityPage(); }, 'capacity groups');
+  for (const group of capacityGroups.slice(capacityPage * groupPageSize, (capacityPage + 1) * groupPageSize)) {
+    const row = el('tr'), name = el('td'), button = el('button', group.name);
+    button.onclick = () => navigateCapacity(group.path); name.append(button); row.append(name);
+    for (const resource of resources) row.append(el('td', capacityText(group[resource], resource) + ' (' + group[resource].drawable + '/' + group.nodes.length + ' nodes sized)'));
+    $('capacity-rows').append(row);
+  }
+}
+function pageControls(parent, page, size, total, change, label) {
+  const previous = el('button', 'Previous'), next = el('button', 'Next');
+  previous.type = next.type = 'button';
+  previous.setAttribute('aria-label', 'Previous ' + label); next.setAttribute('aria-label', 'Next ' + label);
+  previous.disabled = page === 0; next.disabled = (page + 1) * size >= total;
+  previous.onclick = () => change(page - 1); next.onclick = () => change(page + 1);
+  const status = el('span', total ? (page * size + 1) + '-' + Math.min((page + 1) * size, total) + ' of ' + total + ' ' + label : 'No ' + label);
+  status.setAttribute('role', 'status'); parent.replaceChildren(previous, status, next);
+}
+function renderNodes() {
+  $('nodes').replaceChildren();
+  $('node-pages').replaceChildren();
+  if (!$('node-details').open) return;
+  pageControls($('node-pages'), nodePage, nodePageSize, currentNodes.length, page => { nodePage = page; renderNodes(); }, 'nodes');
+  for (const node of currentNodes.slice(nodePage * nodePageSize, (nodePage + 1) * nodePageSize)) {
     const key = nodeKey(node.cluster, node.name), row = el('tr'); if (key === selectedNode) row.className = 'selected';
     row.append(el('td', node.cluster + ' / ' + (node.pool || '(unknown pool)') + ' / ' + (node.sku || 'Unknown SKU')));
     const name = el('td'), button = el('button', node.name); button.onclick = () => chooseNode(key); name.append(button); row.append(name);
-    const cap = metric(node, 'capacity'), used = metric(node, 'usage');
-    for (const field of ['capacity', 'allocatable', 'usage']) row.append(el('td', quantity(metric(node, field)) + (field === 'usage' && known(cap) && cap > 0 && known(used) ? ' (' + nodeUtilization([node]) + ')' : ''), 'numeric'));
-    row.append(el('td', known(cap) && known(used) ? (used > cap ? 'Inconsistent: usage > capacity' : quantity(cap - used)) : 'Unknown', 'numeric')); $('nodes').append(row);
+    for (const resource of resources) {
+      const cap = metric(node, 'capacity', resource), used = metric(node, 'usage', resource);
+      for (const field of ['capacity', 'allocatable', 'usage']) row.append(el('td', quantity(metric(node, field, resource), resource) + (field === 'usage' && known(cap) && cap > 0 && known(used) ? ' (' + nodeUtilization([node], resource) + ')' : ''), 'numeric'));
+      row.append(el('td', known(cap) && known(used) ? (used > cap ? 'Inconsistent: usage > capacity' : quantity(cap - used, resource)) : 'Unknown', 'numeric'));
+    }
+    $('nodes').append(row);
   }
-  const lookup = new Map(nodes.map(node => [nodeKey(node.cluster, node.name), node]));
+}
+function renderWorkloads() {
+  clearTimeout(searchTimer);
   const search = $('search').value.toLowerCase();
-  const filtered = workloads.filter(w => clusterMatches(w.cluster) && (!$('pool').value || (!w.unscheduled && lookup.has(nodeKey(w.cluster, w.node)) && nodeMatches(lookup.get(nodeKey(w.cluster, w.node))))) && (!selectedNode || (!w.unscheduled && nodeKey(w.cluster, w.node) === selectedNode)) && [w.component, w.namespace, w.kind, w.name, w.node].join(' ').toLowerCase().includes(search));
+  const filtered = list(snapshot().workloads).filter(w => (!selectedNode || (!w.unscheduled && nodeKey(w.cluster, w.node) === selectedNode)) && [w.component, w.namespace, w.kind, w.name, w.node, w.cluster].join(' ').toLowerCase().includes(search) && (!workloadPath.length || clusterRole(w.cluster) === workloadPath[0]) && (workloadPath.length < 2 || workloadKey(w) === workloadPath[1]) && (workloadPath.length < 3 || w.cluster === workloadPath[2]));
+  currentWorkloads = filtered;
   const groups = new Map();
   for (const workload of filtered) {
-    const key = JSON.stringify(workload.component ? [workload.cluster, 'component', workload.component] : [workload.cluster, 'owner', workload.namespace, workload.kind, workload.name]);
-    if (!groups.has(key)) groups.set(key, {name: workload.component || workload.namespace + ' / ' + workload.kind + ' / ' + workload.name, cluster: workload.cluster, rows: []});
+    const key = workloadPath.length === 0 ? clusterRole(workload.cluster) : workloadPath.length === 1 ? workloadKey(workload) : workload.cluster;
+    const name = workloadPath.length === 1 ? workloadName(workload) : key;
+    if (!groups.has(key)) groups.set(key, {key, name, rows: []});
     groups.get(key).rows.push(workload);
   }
-  currentGroups = [...groups.values()].map(group => ({...group, pods: group.rows.reduce((n, w) => n + w.pods, 0), pending: group.rows.reduce((n, w) => n + w.pendingPods, 0), usage: sum(group.rows, 'usage'), requests: sum(group.rows, 'requests'), limits: sum(group.rows, 'limits')}));
+  currentGroups = [...groups.values()].map(group => ({...group, pods: group.rows.reduce((n, w) => n + w.pods, 0), pending: group.rows.reduce((n, w) => n + w.pendingPods, 0), ...Object.fromEntries(resources.map(resource => [resource, Object.fromEntries(['usage', 'requests', 'limits'].map(field => [field, sum(group.rows, field, resource)]))]))}));
+  sortGroups(); workloadPage = 0;
+  $('selection').textContent = selectedNode ? 'Node: ' + JSON.parse(selectedNode).join(' / ') : 'All node placements, including pending demand';
+  $('clear-node').disabled = !selectedNode;
+  const labels = workloadPath.map((key, index) => index === 1 ? workloadNameFromKey(key) : key);
+  breadcrumbs('workload-path', workloadPath, labels, navigateWorkloads);
+  renderWorkloadPage(); renderComposition();
+}
+function clusterRole(cluster) {
+  if (/(?:^|-)mgmt(?:-|$)/.test(cluster)) return 'mgmt';
+  if (/(?:^|-)svc(?:-|$)/.test(cluster)) return 'svc';
+  return 'Other';
+}
+function workloadKey(w) { return JSON.stringify(w.component && (w.namespace || '').startsWith('ocm-') ? ['component', w.component] : ['owner', w.namespace, w.kind, w.name]); }
+function workloadNameFromKey(key) { return JSON.parse(key).slice(1).join(' / '); }
+function workloadName(w) { return workloadNameFromKey(workloadKey(w)); }
+function navigateWorkloads(path) { workloadPath = path; renderWorkloads(); }
+function sortGroups() {
   currentGroups.sort((a, b) => {
-    if (sortKey === 'name') return sortDirection * (a.name.localeCompare(b.name) || a.cluster.localeCompare(b.cluster));
-    const x = typeof a[sortKey] === 'object' ? a[sortKey].value : a[sortKey], y = typeof b[sortKey] === 'object' ? b[sortKey].value : b[sortKey];
+    if (sortKey === 'name') return sortDirection * a.name.localeCompare(b.name);
+    const [resource, field] = sortKey.split('.');
+    const x = field ? a[resource][field].value : a[sortKey], y = field ? b[resource][field].value : b[sortKey];
     if (x === null) return y === null ? 0 : 1; if (y === null) return -1;
     return sortDirection * (x - y);
   });
-  $('selection').textContent = selectedNode ? 'Node: ' + JSON.parse(selectedNode).join(' / ') : 'All node placements, including pending demand';
-  $('clear-node').disabled = !selectedNode;
-  $('workload-rows').replaceChildren();
-  for (const group of currentGroups) {
-    const row = el('tr'), name = el('td'), details = el('details');
-    name.append(el('strong', group.name), el('div', group.cluster, 'muted'));
-    const namespaces = new Set(group.rows.map(w => w.namespace)), owners = new Set(group.rows.map(w => JSON.stringify([w.namespace, w.kind, w.name]))), placements = new Set(group.rows.map(w => w.unscheduled ? '(unscheduled)' : w.node));
-    details.append(el('summary', namespaces.size + ' namespaces / ' + owners.size + ' owners / ' + placements.size + ' placements'));
-    for (const workload of group.rows) {
-      const detail = el('div', undefined, 'detail');
-      detail.append(el('strong', workload.namespace + ' / ' + workload.kind + ' / ' + workload.name), el('p', 'Node: ' + (workload.unscheduled ? 'Unscheduled (pending demand)' : workload.node || 'Unknown placement') + ' | Pods: ' + workload.pods + ' | Pending: ' + workload.pendingPods));
-      detail.append(el('p', 'Usage: ' + quantity(metric(workload, 'usage')) + ' | Requests: ' + quantity(metric(workload, 'requests')) + ' | Finite limits: ' + quantity(metric(workload, 'limits'))));
-      const table = el('table'), head = el('thead'), headings = el('tr');
-      ['Container aggregate', 'Usage', 'Requests', 'Finite limits', 'Unlimited instances'].forEach(text => headings.append(el('th', text))); head.append(headings); table.append(head);
-      const body = el('tbody');
-      for (const container of list(workload.containers)) {
-        const cr = el('tr'); cr.append(el('td', container.name)); for (const field of ['usage', 'requests', 'limits']) cr.append(el('td', quantity(metric(container, field)), 'numeric'));
-        const count = container[memory ? 'unlimitedMemory' : 'unlimitedCPU'];
-        cr.append(el('td', known(count) ? String(count) : 'Unknown')); body.append(cr);
-      }
-      table.append(body); detail.append(list(workload.containers).length ? table : el('p', 'Container aggregates unavailable.')); details.append(detail);
-    }
-    name.append(details); row.append(name, el('td', String(group.pods)), el('td', String(group.pending)));
-    for (const field of ['usage', 'requests', 'limits']) row.append(el('td', totalText(group[field]), 'numeric'));
-    row.append(el('td', unlimited(group.rows))); $('workload-rows').append(row);
-  }
-  if (!currentGroups.length) { const row = el('tr'), cell = el('td', 'No workload records match these filters. This does not establish zero demand.', 'empty'); cell.colSpan = 7; row.append(cell); $('workload-rows').append(row); }
-  const basis = $('basis').value, values = filtered.map(w => metric(w, basis));
-  $('composition-note').textContent = filtered.length + ' workload records match; ' + values.filter(known).length + '/' + values.length + ' have ' + basis + '. Area shows known ' + basis + ' only, not physical capacity. Zero / unknown values are retained in the table, not drawn. Pending demand is included unless a pool or node is selected.';
-  currentNodes = nodes;
-  drawCharts();
 }
-function drawCharts() {
-  if (!window.echarts) return;
-  $('capacity-chart').hidden = false; $('composition-chart').hidden = false;
-  $('chart-status').textContent = 'Select a node tile or use the node table. Capacity area always includes all observed clusters and pools.';
-  capacityChart ||= echarts.init($('capacity-chart'), 'dark'); compositionChart ||= echarts.init($('composition-chart'), 'dark');
-  const clusters = new Map(), memory = $('resource').value === 'memory';
-  for (const node of currentNodes) {
-    const capacity = metric(node, 'capacity'), usage = metric(node, 'usage');
-    if (!known(capacity) || capacity <= 0) continue;
-    if (!clusters.has(node.cluster)) clusters.set(node.cluster, new Map());
-    const pools = clusters.get(node.cluster), pool = node.pool || '(unknown pool)'; if (!pools.has(pool)) pools.set(pool, []);
-    const key = nodeKey(node.cluster, node.name), opacity = nodeMatches(node) && (!selectedNode || selectedNode === key) ? 1 : .25;
-    const children = known(usage) ? [
-      {name: (memory ? 'Used memory' : 'Used CPU') + ': ' + quantity(usage), value: Math.min(usage, capacity), itemStyle: {color: '#316dca'}},
-      {name: (memory ? 'Available memory' : 'Unused CPU') + ': ' + quantity(Math.max(0, capacity - usage)), value: Math.max(0, capacity - usage), itemStyle: {color: '#28534a'}}
-    ] : [{name: 'Unknown usage (not free)', value: capacity, itemStyle: {color: '#656b75'}}];
-    children.forEach(child => { child.nodeKey = key; child.itemStyle.opacity = opacity; child.pathLabel = node.cluster + ' / ' + pool + ' / ' + node.name + '\n' + (node.sku || 'Unknown SKU') + ' | ' + quantity(capacity) + ' capacity'; });
-    pools.get(pool).push({name: node.name + ' / ' + (node.sku || 'Unknown SKU') + '\n' + quantity(capacity), value: capacity, nodeKey: key, itemStyle: {opacity}, children: children.filter(child => child.value > 0)});
+function renderWorkloadPage() {
+  activeDetails = undefined;
+  $('workload-rows').replaceChildren();
+  pageControls($('workload-pages'), workloadPage, groupPageSize, currentGroups.length, page => { workloadPage = page; renderWorkloadPage(); }, 'groups');
+  for (const group of currentGroups.slice(workloadPage * groupPageSize, (workloadPage + 1) * groupPageSize)) {
+    const row = el('tr'), name = el('td');
+    if (workloadPath.length < 3) {
+      const button = el('button', group.name); button.onclick = () => navigateWorkloads([...workloadPath, group.key]); name.append(button);
+    } else name.append(el('strong', group.name));
+    const namespaces = new Set(group.rows.map(w => w.namespace)), owners = new Set(group.rows.map(w => JSON.stringify([w.namespace, w.kind, w.name]))), placements = new Set(group.rows.map(w => w.unscheduled ? '(unscheduled)' : w.node));
+    name.append(el('div', new Set(group.rows.map(w => w.cluster)).size + ' clusters / ' + namespaces.size + ' namespaces / ' + owners.size + ' owners / ' + placements.size + ' placements', 'muted'));
+    if (workloadPath.length === 3) {
+      const details = el('details');
+      details.append(el('summary', 'Namespace, owner, placement and containers'));
+      const content = el('div');
+      details.append(content);
+      details.ontoggle = () => {
+        if (!details.isConnected) return;
+        if (!details.open) { content.replaceChildren(); if (activeDetails === details) activeDetails = undefined; return; }
+        if (activeDetails && activeDetails !== details) {
+          activeDetails.open = false;
+          activeDetails.lastElementChild.replaceChildren();
+        }
+        activeDetails = details;
+        renderGroupDetails(content, group, 0);
+      };
+      name.append(details);
+    }
+    row.append(name, el('td', String(group.pods)), el('td', String(group.pending)));
+    for (const resource of resources) {
+      for (const field of ['usage', 'requests', 'limits']) row.append(el('td', totalText(group[resource][field], resource), 'numeric'));
+      row.append(el('td', unlimited(group.rows, resource)));
+    }
+    $('workload-rows').append(row);
   }
-  const capacityData = [...clusters].map(([cluster, pools]) => ({name: cluster, children: [...pools].map(([pool, nodes]) => ({name: pool, children: nodes}))}));
+  if (!currentGroups.length) { const row = el('tr'), cell = el('td', 'No workload records match this path and search. This does not establish zero demand.', 'empty'); cell.colSpan = 11; row.append(cell); $('workload-rows').append(row); }
+}
+function renderGroupDetails(content, group, page) {
+  content.replaceChildren();
+  const controls = el('div', undefined, 'controls'); content.append(controls);
+  pageControls(controls, page, detailPageSize, group.rows.length, next => renderGroupDetails(content, group, next), 'workload records');
+  for (const workload of group.rows.slice(page * detailPageSize, (page + 1) * detailPageSize)) {
+    const detail = el('div', undefined, 'detail');
+    detail.append(el('strong', workload.namespace + ' / ' + workload.kind + ' / ' + workload.name), el('p', 'Node: ' + (workload.unscheduled ? 'Unscheduled (pending demand)' : workload.node || 'Unknown placement') + ' | Pods: ' + workload.pods + ' | Pending: ' + workload.pendingPods));
+    for (const resource of resources) detail.append(el('p', resource + ' usage: ' + quantity(metric(workload, 'usage', resource), resource) + ' | Requests: ' + quantity(metric(workload, 'requests', resource), resource) + ' | Finite limits: ' + quantity(metric(workload, 'limits', resource), resource)));
+    const table = el('table'), head = el('thead'), headings = el('tr');
+    ['Container aggregate', 'CPU usage', 'CPU requests', 'CPU finite limits', 'CPU unlimited', 'Memory usage', 'Memory requests', 'Memory finite limits', 'Memory unlimited'].forEach(text => headings.append(el('th', text))); head.append(headings); table.append(head);
+    const body = el('tbody');
+    for (const container of list(workload.containers)) {
+      const cr = el('tr'); cr.append(el('td', container.name));
+      for (const resource of resources) {
+        for (const field of ['usage', 'requests', 'limits']) cr.append(el('td', quantity(metric(container, field, resource), resource), 'numeric'));
+        const count = container[resource === 'memory' ? 'unlimitedMemory' : 'unlimitedCPU'];
+        cr.append(el('td', known(count) ? String(count) : 'Unknown'));
+      }
+      body.append(cr);
+    }
+    table.append(body); detail.append(list(workload.containers).length ? table : el('p', 'Container aggregates unavailable.')); content.append(detail);
+  }
+}
+function renderComposition() {
+  const basis = $('basis').value;
+  $('composition-note').textContent = currentWorkloads.length + ' workload records match this path and search. Area shows known ' + basis + ' only, not physical capacity. Zero / unknown values are retained in the table, not drawn. Pending demand is included unless a node is selected. Capacity cluster/pool navigation does not filter these fleet workload totals.';
+  for (const resource of resources) {
+    const total = sum(currentWorkloads, basis, resource);
+    $('workload-total-' + resource).textContent = totalText(total, resource) + ' ' + basis + ' | ' + total.count + '/' + total.total + ' records measured';
+  }
+  drawCharts(false, true);
+}
+function drawCharts(capacity = true, composition = true) {
+  if (!window.echarts) return;
+  $('chart-status').textContent = 'Select a tile to drill down; use Back or Fleet above either chart pair to return. Tables offer the same navigation, including unknown or zero values.';
   // No layout padding or visibility threshold: every positive child keeps its
   // proportional area, including tiny usage and nodes in differently sized pools.
   // Labels overlay the rectangles; tooltips use canvas rich text, never HTML.
-  const base = {backgroundColor: '#161b22', animation: false, tooltip: {renderMode: 'richText', confine: true, formatter: info => (info.data.pathLabel ? info.data.pathLabel + '\n' : '') + info.name}, series: [{type: 'treemap', visibleMin: 0, childrenVisibleMin: 0, roam: false, nodeClick: false, breadcrumb: {show: false}, left: 0, right: 0, top: 0, bottom: 0, label: {show: true, overflow: 'truncate', color: '#fff', textBorderColor: '#161b22', textBorderWidth: 2, formatter: info => (info.data.pathLabel ? info.data.pathLabel + '\n' : '') + info.name}, upperLabel: {show: false}, itemStyle: {borderWidth: 0, gapWidth: 0}, emphasis: {itemStyle: {borderWidth: 0, gapWidth: 0}}, levels: [], data: capacityData}]};
-  capacityChart.setOption(base, true);
-  capacityChart.off('click'); capacityChart.on('click', event => { if (event.data?.nodeKey) chooseNode(event.data.nodeKey); });
-  const basis = $('basis').value;
-  const composition = currentGroups.filter(group => known(group[basis].value) && group[basis].value > 0).map(group => ({name: group.cluster + ' / ' + group.name + '\n' + totalText(group[basis]), value: group[basis].value, children: group.rows.filter(row => known(metric(row, basis)) && metric(row, basis) > 0).map(row => ({name: row.namespace + ' / ' + row.kind + ' / ' + row.name + '\n' + (row.unscheduled ? 'Unscheduled' : row.node || 'Unknown placement') + '\n' + quantity(metric(row, basis)), value: metric(row, basis)}))}));
-  compositionChart.setOption({...base, series: [{...base.series[0], data: composition}]}, true);
+  const base = {backgroundColor: '#161b22', animation: false, tooltip: {renderMode: 'richText', confine: true, formatter: info => (info.data.pathLabel ? info.data.pathLabel + '\n' : '') + info.name}, series: [{type: 'treemap', visibleMin: 0, childrenVisibleMin: 0, roam: false, nodeClick: false, breadcrumb: {show: false}, left: 0, right: 0, top: 0, bottom: 0, label: {show: true, overflow: 'truncate', color: '#fff', textBorderColor: '#161b22', textBorderWidth: 2, formatter: info => (info.data.pathLabel ? info.data.pathLabel + '\n' : '') + info.name}, upperLabel: {show: false}, itemStyle: {borderWidth: 0, gapWidth: 0}, emphasis: {itemStyle: {borderWidth: 0, gapWidth: 0}}, levels: []}]};
+  for (const resource of resources) {
+    if (capacity) {
+      const host = $('capacity-chart-' + resource); host.hidden = false;
+      const chart = capacityCharts[resource] ||= echarts.init(host, 'dark');
+      // Build only the current level and its three accounting slices, never a fleet tree.
+      const data = capacityGroups.filter(group => group[resource].capacity > 0).map(group => ({
+        name: group.name, value: group[resource].capacity, path: group.path,
+        children: [['used', 'Known used', '#316dca'], ['unused', resource === 'memory' ? 'Known available memory' : 'Known unused CPU', '#303944'], ['unknown', 'Unknown usage (not free)', '#99752d']].map(([field, label, color]) => ({name: label + ': ' + quantity(group[resource][field], resource), value: group[resource][field], path: group.path, pathLabel: group.name + '\n' + quantity(group[resource].capacity, resource) + ' capacity', itemStyle: {color}})).filter(child => child.value > 0)
+      }));
+      chart.setOption({...base, series: [{...base.series[0], data}]}, true);
+      chart.off('click'); chart.on('click', event => { if (event.data?.path) navigateCapacity(event.data.path); });
+    }
+    if (composition) {
+      const host = $('composition-chart-' + resource); host.hidden = false;
+      const chart = compositionCharts[resource] ||= echarts.init(host, 'dark'), basis = $('basis').value;
+      const data = currentGroups.filter(group => known(group[resource][basis].value) && group[resource][basis].value > 0).map(group => ({name: group.name + '\n' + totalText(group[resource][basis], resource), value: group[resource][basis].value, groupKey: group.key}));
+      chart.setOption({...base, series: [{...base.series[0], data}]}, true);
+      chart.off('click'); chart.on('click', event => {
+        const index = currentGroups.findIndex(group => group.key === event.data?.groupKey);
+        if (index < 0) return;
+        if (workloadPath.length < 3) { navigateWorkloads([...workloadPath, currentGroups[index].key]); return; }
+        workloadPage = Math.floor(index / groupPageSize); renderWorkloadPage();
+        const details = $('workload-rows').children[index % groupPageSize].querySelector('details');
+        details.open = true; details.querySelector('summary').focus(); details.scrollIntoView({block: 'nearest'});
+      });
+    }
+  }
 }
 $('window').textContent = report.start + ' to ' + report.end + ' | Generated ' + report.generatedAt;
 $('measurement-windows').textContent = 'CPU window: ' + (report.cpuWindow || 'Unknown') + ' | Memory window: ' + (report.memoryWindow || 'Unknown') + ' | Sampling step: ' + (report.step || 'Unknown') + '. Snapshot timestamps are shown with their source timezone (Z = UTC).';
 list(report.snapshots).forEach((snap, index) => $('snapshot').add(new Option(snap.time + ' | ' + (list(snap.reasons).join('; ') || 'No selection reason recorded'), String(index))));
 if (!$('snapshot').options.length) $('snapshot').add(new Option('No snapshots available', ''));
-for (const id of ['snapshot', 'resource', 'cluster', 'pool', 'basis']) $(id).onchange = () => { if (id === 'snapshot' || id === 'cluster' || id === 'pool') selectedNode = ''; if (id === 'cluster') $('pool').value = ''; render(); };
-$('search').oninput = render; $('clear-node').onclick = () => chooseNode('');
-document.querySelectorAll('[data-sort]').forEach(button => { button.onclick = () => { sortDirection = sortKey === button.dataset.sort ? -sortDirection : 1; sortKey = button.dataset.sort; document.querySelectorAll('[aria-sort]').forEach(header => header.removeAttribute('aria-sort')); button.parentElement.setAttribute('aria-sort', sortDirection === 1 ? 'ascending' : 'descending'); render(); }; });
-window.addEventListener('resize', () => { capacityChart?.resize(); compositionChart?.resize(); });
+$('snapshot').onchange = () => { selectedNode = ''; capacityPath = []; workloadPath = []; render(); };
+$('basis').onchange = renderComposition;
+$('node-details').ontoggle = renderNodes;
+$('search').oninput = () => { clearTimeout(searchTimer); searchTimer = setTimeout(renderWorkloads, 120); };
+$('clear-node').onclick = () => chooseNode('');
+document.querySelectorAll('[data-sort]').forEach(button => { button.onclick = () => { sortDirection = sortKey === button.dataset.sort ? -sortDirection : 1; sortKey = button.dataset.sort; document.querySelectorAll('[aria-sort]').forEach(header => header.removeAttribute('aria-sort')); button.parentElement.setAttribute('aria-sort', sortDirection === 1 ? 'ascending' : 'descending'); sortGroups(); workloadPage = 0; renderWorkloadPage(); }; });
+window.addEventListener('resize', () => { for (const chart of [...Object.values(capacityCharts), ...Object.values(compositionCharts)]) chart.resize(); });
 render();
 </script>
 <script defer src="https://go-echarts.github.io/go-echarts-assets/assets/echarts.min.js" onload="drawCharts()" onerror="document.getElementById('chart-status').textContent='Chart CDN unavailable. Summary, filters, node selection and workload tables remain available.'"></script>

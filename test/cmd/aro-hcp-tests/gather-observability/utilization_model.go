@@ -31,6 +31,28 @@ type utilizationReport struct {
 	Clusters      []string              `json:"clusters"`
 	Warnings      []string              `json:"warnings,omitempty"`
 	Snapshots     []utilizationSnapshot `json:"snapshots"`
+	// Optional for replay of older reports which retained only excluded counts.
+	Coverage []utilizationCoverage `json:"coverage,omitempty"`
+}
+
+// Intervals contain inclusive UTC minute samples. Adjacent samples with the
+// same eligibility and diagnostics are coalesced, not interpolated.
+type utilizationCoverage struct {
+	Scope     string                        `json:"scope"`
+	Resource  string                        `json:"resource"`
+	Intervals []utilizationCoverageInterval `json:"intervals"`
+}
+
+type utilizationCoverageInterval struct {
+	Start    time.Time `json:"start"`
+	End      time.Time `json:"end"`
+	Eligible bool      `json:"eligible"`
+	// Counts describe the sample at each minute, not a sum across the interval.
+	Nodes            int `json:"nodes"`
+	MissingInventory int `json:"missingInventory,omitempty"`
+	MissingUsage     int `json:"missingUsage,omitempty"`
+	MissingCapacity  int `json:"missingCapacity,omitempty"`
+	MissingClusters  int `json:"missingClusters,omitempty"`
 }
 
 type utilizationSnapshot struct {

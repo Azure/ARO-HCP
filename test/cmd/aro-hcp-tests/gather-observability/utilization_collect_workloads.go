@@ -138,6 +138,14 @@ func utilizationBuildWorkloads(results []utilizationQueryResult, clusters []stri
 			}
 			metric := m["__name__"]
 			owner := utilizationOwner{m["owner_kind"], m["owner_name"]}
+			// Managed Prometheus may lowercase kinds. Normalize known kinds before
+			// conflict detection and parent lookup, preserving custom kinds and names.
+			for _, kind := range []string{"ReplicaSet", "Deployment", "StatefulSet", "DaemonSet", "Job", "CronJob", "ReplicationController", "Pod", "Node"} {
+				if strings.EqualFold(owner.kind, kind) {
+					owner.kind = kind
+					break
+				}
+			}
 			if result.query.name == "metadata" && *value > 0 && (m["owner_is_controller"] == "" || m["owner_is_controller"] == "true") {
 				kind, name := "", ""
 				switch metric {
@@ -187,8 +195,8 @@ func utilizationBuildWorkloads(results []utilizationQueryResult, clusters []stri
 					pod.placement = true
 				case "kube_pod_status_phase":
 					pod.phase = true
-					pod.pending = pod.pending || m["phase"] == "Pending"
-					pod.terminal = pod.terminal || m["phase"] == "Succeeded" || m["phase"] == "Failed"
+					pod.pending = pod.pending || strings.EqualFold(m["phase"], "Pending")
+					pod.terminal = pod.terminal || strings.EqualFold(m["phase"], "Succeeded") || strings.EqualFold(m["phase"], "Failed")
 				case "kube_pod_status_scheduled":
 					pod.unscheduled = pod.unscheduled || m["condition"] == "false"
 				case "kube_pod_owner":

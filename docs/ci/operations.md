@@ -37,13 +37,96 @@ run's bounded time window from the regional Azure Monitor workspaces.
   correlate their cluster, namespace, pod, and container labels with the test
   logs.
 - `alerts.json` contains the alert data used by the summary.
+- `utilization.json` contains the versioned data behind the summary's Utilization
+  tab, including selected peak minutes, node capacity, workload demand, and
+  completeness warnings. It can be rendered again without Azure access.
 - `junit_alerts.xml` records unexpected fired alerts as test failures for Prow.
+
+Tabs and artifact writes are attempted independently. An unavailable alert API,
+workspace, or chart does not suppress unrelated output. Incomplete alert
+collection still fails the step and produces an explicit JUnit failure; it does
+not produce passing assertions that no alerts fired. Individual chart queries
+and utilization collection remain informational, with failures shown in their
+tabs. Artifact-writing failures still fail the step after other writes are
+attempted.
 
 The uploaded summary preserves the selected chart samples after the ephemeral
 environment is deleted, subject to OpenShift CI artifact retention. It is not a
 raw cross-run metrics store. The chart descriptions and copyable PromQL are the
 source of truth for interpreting each signal; the maintained query catalog is
 [`queries.yaml`](../../test/cmd/aro-hcp-tests/gather-observability/queries.yaml).
+
+### Utilization Snapshots
+
+The Utilization tab helps assess whether underlay node SKUs are oversized and
+which workloads consume them. It is evidence for a human sizing decision, not a
+recommendation to remove capacity or change requests.
+
+Synthetic-data desktop and mobile previews:
+
+![Node capacity treemap with explicitly unused and unknown capacity](images/utilization-desktop.png)
+
+![Mobile cluster utilization summaries](images/utilization-mobile.png)
+
+The collector searches from the earliest test start through the existing cleanup
+allowance (45 minutes after the latest recorded test finish), capped at collection
+start. It evaluates whole-node CPU and memory utilization at UTC minute boundaries,
+using two-minute CPU rates and one-minute memory averages. CPU counts non-idle
+modes, including iowait and steal, without double-counting guest time. Memory usage
+is total minus available memory. The denominators are historical capacity, not
+the nodes present when collection runs.
+
+Each cluster contributes its CPU and memory peak minute. Two additional selections
+find overall CPU and memory utilization, weighted by capacity across all expected
+clusters. Coincident minutes are deduplicated and retain all selection reasons;
+ties select the earliest minute. Three clusters therefore produce at most eight
+snapshots. Every snapshot shows all clusters at the same instant. These are not
+independently selected node or pool peaks.
+
+Collection covers all underlay clusters advertised by the regional workspace's
+`underlay_clusters{source="bicep"}` inventory, including all pools and namespaces,
+but not customer worker clusters. DEV CI workspaces are job-specific. In shared
+environments, the report measures regional load during the test interval; it does
+not attribute all that load to this test run. Missing inventory prevents peak
+selection; incomplete node coverage excludes the affected minute from ranking.
+The overall peak requires complete coverage across expected clusters.
+
+The capacity treemap gives each node an area proportional to its physical CPU or
+memory capacity. It explicitly shows unused CPU, available memory, or unknown
+usage. Filters dim nodes without resizing their capacity or relabeling hidden
+workloads as unused space. Select a node to inspect its workloads, or use the
+accessible node table. Workload details group HCP components across namespaces,
+then expose exact owning workloads and container-name aggregates. Unscheduled
+requests are a separate demand bucket, never assigned to a guessed pool.
+
+Container CPU and memory working set do not exactly reconcile with whole-node
+load. Requests are declared ordinary-container sums, not scheduler-effective
+reservations including init-container rules and overhead. Finite limit sums and
+unlimited-instance counts are separate. Missing measurements are unknown, not
+zero. Ownership, placement, and pod incarnation must match before usage is
+attributed; ambiguous or stale samples are excluded with warnings. SKU and pool
+labels require the updated OSS kube-state-metrics deployment; older samples show
+unknown enrichment rather than guessed values.
+
+The collector runs automatically with a ten-minute budget and at most two
+concurrent Prometheus requests. It fetches node history first, then workload
+details only for selected minutes. Timeout preserves selected snapshots with
+explicitly incomplete details. The JSON contains normalized aggregates, not raw
+full-run workload history or individual pod records.
+
+To iterate on the UI with an existing artifact:
+
+```bash
+./test/aro-hcp-tests gather-observability render-utilization \
+  --input utilization.json --output /tmp/utilization-preview
+```
+
+This writes `utilization-summary.html` using the same renderer as the live tab.
+No rendered configuration or Azure credentials are needed. Unsupported schema
+versions and invalid inputs are rejected. Charts use the existing ECharts CDN;
+summary tables and filters remain usable without that asset. The synthetic
+fixture at `test/cmd/aro-hcp-tests/gather-observability/testdata/utilization-synthetic.json`
+can also be used as input for local UI testing.
 
 ## Modifying CI Configuration
 

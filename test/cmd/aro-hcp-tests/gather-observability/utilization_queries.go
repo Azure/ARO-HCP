@@ -22,6 +22,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/go-logr/logr"
 )
 
 type utilizationQuery struct {
@@ -36,12 +38,22 @@ type utilizationQueryResult struct {
 
 type utilizationQueryFunc func(context.Context, string, string, time.Time, time.Time) ([]PrometheusResult, error)
 
+// Azure Managed Prometheus requires an exact metric name per selector. Match
+// unions on __name__ so different metric families with identical labels survive.
+func utilizationMetricUnion(selector string, metrics ...string) string {
+	parts := make([]string, len(metrics))
+	for i, metric := range metrics {
+		parts[i] = metric + "{" + selector + "}"
+	}
+	return strings.Join(parts, " or on (__name__) ")
+}
+
 // AMA exports instance as the node name. Keep instance until the Go join so
 // node_uname_info can also map exporters using an address as their instance.
 func utilizationHistoryQueries() []utilizationQuery {
 	return []utilizationQuery{
 		{"inventory", workspaceSvc, `max by (cluster) (underlay_clusters{source="bicep"})`},
-		{"nodes", workspaceSvc, `max by (__name__, cluster, node, resource, label_node_kubernetes_io_instance_type, label_kubernetes_azure_com_agentpool) ({hostedcontrolplane="",__name__=~"kube_node_info|kube_node_labels|kube_node_status_capacity|kube_node_status_allocatable"})`},
+		{"nodes", workspaceSvc, `max by (__name__, cluster, node, resource, label_node_kubernetes_io_instance_type, label_kubernetes_azure_com_agentpool) (` + utilizationMetricUnion(`hostedcontrolplane=""`, "kube_node_info", "kube_node_labels", "kube_node_status_capacity", "kube_node_status_allocatable") + `)`},
 		{"mapping", workspaceSvc, `max by (cluster, instance, nodename) (node_uname_info)`},
 		{"cpu", workspaceSvc, `sum by (cluster, instance) (max by (cluster, instance, cpu, mode) (rate(node_cpu_seconds_total{mode!~"idle|guest|guest_nice"}[2m])))`},
 		{"total", workspaceSvc, `max by (cluster, instance) (avg_over_time(node_memory_MemTotal_bytes[1m]))`},
@@ -61,7 +73,7 @@ func utilizationSnapshotQueries(clusters []string) []utilizationQuery {
 	}
 	for _, ws := range []string{workspaceSvc, workspaceHcp} {
 		queries = append(queries,
-			utilizationQuery{"metadata", ws, `max by (__name__, cluster, namespace, pod, uid, container, container_id, node, phase, condition, owner_kind, owner_name, owner_is_controller, replicaset, job_name, replicationcontroller) ({` + selector + `,__name__=~"kube_pod_info|kube_pod_container_info|kube_pod_status_phase|kube_pod_status_scheduled|kube_pod_owner|kube_replicaset_owner|kube_job_owner|kube_replicationcontroller_owner"})`},
+			utilizationQuery{"metadata", ws, `max by (__name__, cluster, namespace, pod, uid, container, container_id, node, phase, condition, owner_kind, owner_name, owner_is_controller, replicaset, job_name, replicationcontroller) (` + utilizationMetricUnion(selector, "kube_pod_info", "kube_pod_container_info", "kube_pod_status_phase", "kube_pod_status_scheduled", "kube_pod_owner", "kube_replicaset_owner", "kube_job_owner", "kube_replicationcontroller_owner") + `)`},
 			utilizationQuery{"requests", ws, `max by (cluster, namespace, pod, uid, container, resource) (kube_pod_container_resource_requests{` + selector + `,resource=~"cpu|memory"})`},
 			utilizationQuery{"limits", ws, `max by (cluster, namespace, pod, uid, container, resource) (kube_pod_container_resource_limits{` + selector + `,resource=~"cpu|memory"})`},
 		)
@@ -85,6 +97,12 @@ func utilizationQueryBatch(ctx context.Context, query utilizationQueryFunc, quer
 					continue
 				}
 				results[i].series, results[i].err = query(ctx, queries[i].workspace, queries[i].expression, start, end)
+				logger := logr.FromContextOrDiscard(ctx).WithValues("workspace", queries[i].workspace, "query", queries[i].name, "start", start, "end", end)
+				if results[i].err != nil {
+					logger.Error(results[i].err, "utilization query failed")
+				} else {
+					logger.Info("collected utilization query", "series", len(results[i].series))
+				}
 			}
 		}(worker)
 	}

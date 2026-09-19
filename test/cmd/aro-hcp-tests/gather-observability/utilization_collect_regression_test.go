@@ -23,6 +23,134 @@ import (
 	"testing"
 )
 
+func TestUtilizationOwnerKindCasing(t *testing.T) {
+	for _, test := range []struct {
+		name, kind, metric, label, parent, want string
+	}{
+		{"replicaset deployment", "ReplicaSet", "kube_replicaset_owner", "replicaset", "Deployment", "Deployment"},
+		{"job cronjob", "Job", "kube_job_owner", "job_name", "CronJob", "CronJob"},
+		{"replicationcontroller deployment", "ReplicationController", "kube_replicationcontroller_owner", "replicationcontroller", "Deployment", "Deployment"},
+		{"unknown replicaset parent", "ReplicaSet", "kube_replicaset_owner", "replicaset", "CustomOWNER", "CustomOWNER"},
+		{"unknown job parent", "Job", "kube_job_owner", "job_name", "CustomOWNER", "CustomOWNER"},
+		{"unknown replicationcontroller parent", "ReplicationController", "kube_replicationcontroller_owner", "replicationcontroller", "CustomOWNER", "CustomOWNER"},
+		{"unresolved replicaset", "ReplicaSet", "", "", "", "ReplicaSet"},
+		{"deployment", "Deployment", "", "", "", "Deployment"},
+		{"statefulset", "StatefulSet", "", "", "", "StatefulSet"},
+		{"daemonset", "DaemonSet", "", "", "", "DaemonSet"},
+		{"cronjob", "CronJob", "", "", "", "CronJob"},
+		{"pod", "Pod", "", "", "", "Pod"},
+		{"node", "Node", "", "", "", "Node"},
+		{"unknown pod owner", "CustomOWNER", "", "", "", "CustomOWNER"},
+	} {
+		for _, casing := range []string{"lowercase", "mixed"} {
+			t.Run(test.name+"/"+casing, func(t *testing.T) {
+				results := utilizationTestWorkloads()
+				results[2].series = nil
+				kind, parent := test.kind, test.parent
+				if kind != "CustomOWNER" {
+					kind = strings.ToLower(kind)
+				}
+				if parent != "CustomOWNER" {
+					parent = strings.ToLower(parent)
+				}
+				for i := range results[5].series {
+					m := results[5].series[i].Metric
+					if m["__name__"] == "kube_pod_owner" {
+						m["owner_kind"], m["owner_name"] = kind, "Exact-Owner-hash"
+						if casing == "mixed" && m["pod"] == "api-rs-2" {
+							m["owner_kind"] = test.kind
+						}
+					}
+				}
+				wantName := "Exact-Owner-hash"
+				if test.metric != "" {
+					wantName = "Exact-Parent-name"
+					metadata := utilizationTestSeries(utilizationTestTime, 1, "__name__", test.metric, "cluster", "mgmt", "namespace", "ocm-tenant", test.label, "Exact-Owner-hash", "owner_kind", parent, "owner_name", wantName)
+					results[2].series = append(results[2].series, metadata)
+					if casing == "mixed" {
+						metadata.Metric = maps.Clone(metadata.Metric)
+						metadata.Metric["owner_kind"] = test.parent
+						results[2].series = append(results[2].series, metadata)
+					}
+				}
+				if casing == "mixed" {
+					// Duplicate pod metadata must not conflict solely because of casing.
+					for _, series := range slices.Clone(results[5].series) {
+						if series.Metric["__name__"] == "kube_pod_owner" {
+							series.Metric = maps.Clone(series.Metric)
+							series.Metric["owner_kind"] = test.kind
+							results[5].series = append(results[5].series, series)
+						}
+					}
+				}
+				var warnings []string
+				rows := utilizationBuildWorkloads(results, []string{"mgmt"}, utilizationTestTime, &warnings)
+				if len(rows) != 1 {
+					t.Fatalf("expected one workload across owner casing variants: %+v; warnings=%v", rows, warnings)
+				}
+				row := rows[0]
+				if row.Kind != test.want || row.Name != wantName || row.Component != test.want+"/"+wantName || row.Pods != 2 || row.Usage.CPU == nil || *row.Usage.CPU != 8 {
+					t.Errorf("owner identity or aggregation changed: %+v", row)
+				}
+				if test.want == "ReplicaSet" {
+					if len(warnings) != 1 || warnings[0] != "mgmt/ocm-tenant: ReplicaSet parent unavailable; retaining exact ReplicaSet identity" {
+						t.Errorf("unresolved ReplicaSet must retain its identity and warn: %v", warnings)
+					}
+				} else if len(warnings) != 0 {
+					t.Errorf("unexpected owner resolution warnings: %v", warnings)
+				}
+			})
+		}
+	}
+}
+
+func TestUtilizationPodPhaseCasing(t *testing.T) {
+	for _, phase := range []string{"Running", "Pending", "Succeeded", "Failed"} {
+		for _, value := range []string{phase, strings.ToLower(phase), strings.ToUpper(phase)} {
+			for _, node := range []string{"node", ""} {
+				t.Run(value+"/node="+node, func(t *testing.T) {
+					results := utilizationTestWorkloads()
+					for i := range results[5].series {
+						m := results[5].series[i].Metric
+						if m["__name__"] == "kube_pod_status_phase" {
+							m["phase"] = value
+						}
+						if m["__name__"] == "kube_pod_info" {
+							m["node"] = node
+						}
+					}
+					var warnings []string
+					rows := utilizationBuildWorkloads(results, []string{"mgmt"}, utilizationTestTime, &warnings)
+					if phase == "Succeeded" || phase == "Failed" {
+						if len(rows) != 0 {
+							t.Errorf("terminal pods must be excluded: %+v", rows)
+						}
+						return
+					}
+					if len(rows) != 1 || rows[0].Pods != 2 {
+						t.Fatalf("nonterminal pods must be retained: %+v", rows)
+					}
+					row := rows[0]
+					pending := 0
+					if phase == "Pending" {
+						pending = 2
+					}
+					wantNode := node
+					if node == "" && phase == "Running" {
+						wantNode = "unknown"
+					}
+					if row.PendingPods != pending || row.Unscheduled != (phase == "Pending" && node == "") || row.Node != wantNode || row.Requests.CPU == nil || *row.Requests.CPU != 12 {
+						t.Errorf("phase classification, placement, or demand incorrect: %+v", row)
+					}
+					if node != "" && (row.Usage.CPU == nil || *row.Usage.CPU != 8) {
+						t.Errorf("scheduled nonterminal usage lost: %+v", row)
+					}
+				})
+			}
+		}
+	}
+}
+
 func TestUtilizationPendingSpecWithoutRuntimeStatus(t *testing.T) {
 	for _, failedLimits := range []bool{false, true} {
 		results := utilizationTestWorkloads()
