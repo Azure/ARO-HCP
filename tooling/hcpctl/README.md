@@ -130,10 +130,17 @@ What is gathered?
 - All Kubernetes events from the mgmt and service cluster (excluding HCP)
 - All Kubernetes events from the mgmt cluster withing the HCP namespace
 - Cosmos DB document snapshots (`cosmosResourceSnapshots`) for resources in the resource group, written to the custom logs directory
+- A Git history of the Cosmos DB snapshots under `cosmosContent/`, generated post-gather (skip with `--skip-cosmos-git` if you only need the raw JSONL in the custom logs directory)
 - Optionally: Systemd logs from the management and service cluster (turn on using --collect-systemd-logs)
 
 ```bash
 hcpctl must-gather  query --kusto $kusto --region $region  --subscription-id $subscription_id --resource-group $resource_group
+```
+
+Generating the `cosmosContent/` Git history makes one commit per snapshot change, which can dominate gather runtime for busy resource groups or wide time windows. Skip it with `--skip-cosmos-git` (the raw JSONL is still gathered unless `--skip-custom-logs` is also set):
+
+```bash
+hcpctl must-gather  query --kusto $kusto --region $region  --subscription-id $subscription_id --resource-group $resource_group --skip-cosmos-git
 ```
 
 To split output files by pod name (useful for investigating timing and concurrency issues), add `--split-by-pod`:
