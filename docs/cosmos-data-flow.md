@@ -8,6 +8,29 @@ All resources live in a single Cosmos container ("Resources"). Every write is a 
 replacement with ETag-based optimistic concurrency. The `InstanceVersion` field is
 auto-incremented on each Replace.
 
+## Why management-cluster state is mirrored onto ServiceProviderCluster
+
+The frontend is intentionally given no read or write permission on the kube-applier Cosmos
+containers, so that a compromise of the frontend does **not** allow creating arbitrary
+resources on management clusters. The same reasoning rules out giving the frontend a
+`ReadDesireLister`, a Maestro client, or any other path to a management cluster.
+
+That produces two different rules depending on where the code runs:
+
+- **In the backend**, prefer reading the data close to its source. A backend controller that
+  needs management-cluster state should consume the appropriate `ReadDesire` directly rather
+  than a copy of it. Routing a backend controller through a mirror only adds a hop and makes
+  it wait for another controller to converge first.
+- **In the frontend**, the content has to already be present on a resource in the "Resources"
+  container, because that is the only container the frontend can read. So management-cluster
+  state the frontend needs gets placed onto the corresponding `ServiceProvider*` resource by a
+  backend controller.
+
+`ServiceProviderCluster.Status.ActualHostedCluster` is the general-purpose instance of this:
+the [ActualHostedCluster](#actualhostedcluster) controller mirrors the observed HostedCluster
+onto it, and frontend admission reads it from the prefetched admission context. See
+[internal/admission/CLAUDE.md](../internal/admission/CLAUDE.md) for how admission consumes it.
+
 ## Request Unit (RU) attribution
 
 Clients constructed through `corecosmosstorage.NewCosmosDatabaseClient` record two
@@ -915,6 +938,23 @@ No Cosmos writes. Dispatches updates to Cluster Service via PATCH.
 | Read | `ServiceProviderCluster` (informer cache) | <ul><li>`Status.ControlPlaneVersion.ActiveVersions` (compared before write)</li><li>`Status.DesiredVersionChannels` (compared before write)</li></ul> |
 | **Write** | **`ServiceProviderCluster`** | <ul><li>**`Status.ControlPlaneVersion.ActiveVersions`** = [{Version, State}, ...]</li><li>**`Status.DesiredVersionChannels`** = ["stable-4.19", ...] (mirrored from HostedCluster `status.version.desired.channels` for DB-free cluster admission)</li></ul> |
 | **Write** | **`HCPOpenShiftCluster`** | <ul><li>**`Status.ActiveVersions`** = [{Version},...]</li></ul> |
+
+#### ActualHostedCluster
+
+**File:** [actual_hosted_cluster_controller.go](../backend/pkg/controllers/cluster/hostedcluster/actual_hosted_cluster_controller.go)
+**Trigger:** Cluster informer, 5-minute resync
+
+Mirrors the observed HostedCluster so the frontend has a source of management-cluster
+state it is allowed to read (see [Why management-cluster state is mirrored onto
+ServiceProviderCluster](#why-management-cluster-state-is-mirrored-onto-serviceprovidercluster)).
+Skips clusters with a `DeletionTimestamp`, leaves the field `nil` until the HostedCluster is
+observed, and only writes when the observed object changes.
+
+| | Object | Fields |
+|---|--------|--------|
+| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp`</li></ul> |
+| Read | ReadDesire (HostedCluster) | <ul><li>Whole object (`Spec` + `Status`)</li></ul> |
+| **Write** | **`ServiceProviderCluster`** | <ul><li>**`Status.ActualHostedCluster`** = the observed HostedCluster, mirrored verbatim (`Spec` + `Status` + `metadata`)</li></ul> |
 
 #### TriggerControlPlaneUpgrade
 
