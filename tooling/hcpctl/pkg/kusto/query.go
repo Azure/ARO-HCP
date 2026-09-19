@@ -69,13 +69,29 @@ type Query interface {
 	IsUnlimited() bool
 }
 
+// TimeRangeQuery is a query that can be safely divided into independently
+// ordered timestamp ranges.
+type TimeRangeQuery interface {
+	Query
+	IsPageable() bool
+	GetTimeRange() (time.Time, time.Time)
+	GetOrderBy() OrderBy
+	WithTimeRange(timestampMin, timestampMax time.Time) (Query, error)
+}
+
+func (q *templateQuery) IsPageable() bool {
+	return q.pageable
+}
+
 // templateQuery is a Query backed by a rendered Go text/template.
 type templateQuery struct {
-	name      string
-	queryType QueryType
-	database  string
-	query     *kql.Builder
-	unlimited bool
+	name         string
+	queryType    QueryType
+	database     string
+	query        *kql.Builder
+	unlimited    bool
+	templateData TemplateData
+	pageable     bool
 }
 
 func (q *templateQuery) GetName() string {
@@ -96,6 +112,59 @@ func (q *templateQuery) GetQuery() *kql.Builder {
 
 func (q *templateQuery) IsUnlimited() bool {
 	return q.unlimited
+}
+
+func (q *templateQuery) GetTimeRange() (time.Time, time.Time) {
+	return q.templateData.timestampMin, q.templateData.timestampMax
+}
+
+func (q *templateQuery) GetOrderBy() OrderBy {
+	return q.templateData.orderBy
+}
+
+func (q *templateQuery) WithTimeRange(timestampMin, timestampMax time.Time) (Query, error) {
+	if !q.pageable {
+		return nil, fmt.Errorf("query %q cannot be divided into timestamp ranges", q.name)
+	}
+
+	queryWithoutSort, orderBy, err := removeFinalOrderBy(q.query.String())
+	if err != nil {
+		return nil, fmt.Errorf("query %q cannot be divided into timestamp ranges: %w", q.name, err)
+	}
+	queryWithoutSort = strings.TrimPrefix(queryWithoutSort, "set notruncation;\n")
+
+	builder := kql.New("")
+	builder.AddUnsafe(fmt.Sprintf(
+		"%s\n| where timestamp between (%s .. %s)\n%s",
+		strings.TrimSpace(queryWithoutSort),
+		kqlDatetime(timestampMin),
+		kqlDatetime(timestampMax),
+		orderBy,
+	))
+
+	pageData := q.templateData
+	pageData.timestampMin = timestampMin
+	pageData.timestampMax = timestampMax
+	return &templateQuery{
+		name:         q.name,
+		queryType:    q.queryType,
+		database:     q.database,
+		query:        builder,
+		templateData: pageData,
+	}, nil
+}
+
+func removeFinalOrderBy(query string) (string, string, error) {
+	orderByStart := strings.LastIndex(query, "| order by ")
+	if orderByStart < 0 {
+		return "", "", fmt.Errorf("final order-by clause not found")
+	}
+	orderByEnd := strings.IndexByte(query[orderByStart:], '\n')
+	if orderByEnd < 0 {
+		return query[:orderByStart], query[orderByStart:], nil
+	}
+	orderByEnd += orderByStart
+	return query[:orderByStart] + query[orderByEnd+1:], query[orderByStart:orderByEnd], nil
 }
 
 func (q *templateQuery) String() string {
@@ -142,9 +211,12 @@ type TemplateData struct {
 	// oc-adm-inspect resource/event/log query). Single quotes are escaped for safe
 	// embedding inside a single-quoted KQL string literal; the template supplies
 	// the surrounding quotes (e.g. '{{.Namespace}}').
-	Namespace  string
-	SplitByPod bool
-	OrderBy    string
+	Namespace    string
+	SplitByPod   bool
+	OrderBy      string
+	timestampMin time.Time
+	timestampMax time.Time
+	orderBy      OrderBy
 }
 
 type TemplateDataOptions func(*TemplateData)
@@ -217,6 +289,9 @@ func NewTemplateDataFromOptions(queryOptions QueryOptions, options ...TemplateDa
 		ResourceGroupName:  kqlEscStr(queryOptions.ResourceGroupName),
 		SplitByPod:         queryOptions.SplitByPod,
 		OrderBy:            queryOptions.OrderBy.String(),
+		timestampMin:       queryOptions.TimestampMin,
+		timestampMax:       queryOptions.TimestampMax,
+		orderBy:            queryOptions.OrderBy,
 	}
 	defaults := []TemplateDataOptions{
 		WithClusterName(queryOptions.InfraClusterName),
@@ -256,28 +331,46 @@ func NewQueryFactory() (*QueryFactory, error) {
 
 func (f *QueryFactory) buildQuery(name, database, templateName string, queryType QueryType, data TemplateData, unlimited bool) (*templateQuery, error) {
 	templateString := GetTemplate(templateName)
+	return renderTemplateQuery(name, database, queryType, templateString, data, unlimited)
+}
 
+func renderTemplateQuery(name, database string, queryType QueryType, templateString string, data TemplateData, unlimited bool) (*templateQuery, error) {
 	builder := kql.New("")
 	var buf bytes.Buffer
 
 	tmplRegular, err := template.New("query-template").Parse(templateString)
 	if err != nil {
-		return nil, fmt.Errorf("failed to render template %q: %w", templateName, err)
+		return nil, fmt.Errorf("failed to parse query template %q: %w", name, err)
 	}
 	err = tmplRegular.Execute(&buf, data)
 	if err != nil {
-		return nil, fmt.Errorf("failed to render template %q: %w", templateName, err)
+		return nil, fmt.Errorf("failed to render query template %q: %w", name, err)
 	}
 
-	builder.AddUnsafe(buf.String())
+	rendered := buf.String()
+	builder.AddUnsafe(rendered)
 
 	return &templateQuery{
-		name:      name,
-		database:  database,
-		queryType: queryType,
-		query:     builder,
-		unlimited: unlimited,
+		name:         name,
+		database:     database,
+		queryType:    queryType,
+		query:        builder,
+		unlimited:    unlimited,
+		templateData: data,
+		pageable:     isPageableQuery(queryType, rendered),
 	}, nil
+}
+
+func isPageableQuery(queryType QueryType, rendered string) bool {
+	switch queryType {
+	case QueryTypeServices, QueryTypeHostedControlPlane, QueryTypeKubernetesEvents, QueryTypeSystemdLogs,
+		QueryTypeOCAdmInspectEvents, QueryTypeOCAdmInspectLogs:
+		return true
+	case QueryTypeCustomLogs:
+		return strings.Contains(rendered, "| order by timestamp")
+	default:
+		return false
+	}
 }
 
 // GetAllCustomQueryDefinitions returns all custom query definitions.
