@@ -101,6 +101,22 @@ arobit:
       digest: sha256:5eca8f713c64383bc545dd55f4af4020fd5db0c392d891cdc441765a2f7e52c3
       registry: mcr.microsoft.com
       repository: geneva/distroless/mdsd
+  watson:
+    image:
+      digest: sha256:8e5ef3e76be33794cef7460712eb9ff0c73bce8b8e5ffc33c5c6bfe0762f5db0
+      registry: mcr.microsoft.com
+      repository: azure-watson/agent/azlinux3
+    resources:
+      limits:
+        cpu: 250m
+        memory: 512Mi
+      requests:
+        cpu: 50m
+        memory: 128Mi
+    securityContext:
+      privileged: true
+    volumes:
+      crashdumpHostPath: /home/docker/azure-watson
 auditLogsEventHub:
   authRuleName: SendRule
   enabled: true
