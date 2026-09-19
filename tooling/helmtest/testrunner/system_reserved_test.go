@@ -92,7 +92,10 @@ func TestSystemReserved(t *testing.T) {
 		failCommand string
 		failFirst   string
 		marker      string
+		exporter    string
 	}{
+		{name: "AKS without legacy node exporter", config: aksConfig, want: strings.ReplaceAll(aksConfig, aksReservation, small), exporter: "absent"},
+		{name: "legacy node exporter migration", config: aksConfig, want: strings.ReplaceAll(aksConfig, aksReservation, small), exporter: "legacy"},
 		{name: "AgentBaker fresh", config: aksConfig, want: strings.ReplaceAll(aksConfig, aksReservation, small)},
 		{name: "AgentBaker legacy", config: strings.ReplaceAll(aksConfig, aksReservation, legacy), want: strings.ReplaceAll(aksConfig, aksReservation, small)},
 		{name: "AgentBaker unquoted final argument", config: "KUBELET_FLAGS=--address=0.0.0.0 " + aksReservation + "\n", want: "KUBELET_FLAGS=--address=0.0.0.0 " + small + "\n"},
@@ -189,12 +192,18 @@ func TestSystemReserved(t *testing.T) {
 				}
 			}
 			require.NoError(t, os.WriteFile(paths["/proc/meminfo"], fmt.Appendf(nil, "MemTotal: %s kB\n", tt.memory), 0600))
-			require.NoError(t, os.WriteFile(paths["/usr/local/bin/node-exporter-startup.sh"], []byte("--collector.netclass.netlink\n"), 0600))
+			if tt.exporter != "absent" {
+				content := "--collector.netclass.netlink\n"
+				if tt.exporter == "legacy" {
+					content = "--no-collector.arp.netlink\n"
+				}
+				require.NoError(t, os.WriteFile(paths["/usr/local/bin/node-exporter-startup.sh"], []byte(content), 0600))
+			}
 			log := filepath.Join(dir, "systemctl.log")
 			require.NoError(t, os.WriteFile(log, nil, 0600))
 			for name, body := range map[string]string{
 				"getconf":   "[ \"$*\" = _NPROCESSORS_ONLN ] || exit 1\nprintf '%s\\n' \"$TEST_CPU\"\n",
-				"systemctl": "printf '%s\\n' \"$*\" >> \"$TEST_SYSTEMCTL_LOG\"\n[ -f \"$TEST_PENDING\" ]\n[ \"$*\" != \"$TEST_FAIL\" ]\n",
+				"systemctl": "printf '%s\\n' \"$*\" >> \"$TEST_SYSTEMCTL_LOG\"\nif [ \"$*\" = 'restart kubelet' ]; then [ -f \"$TEST_PENDING\" ]; fi\n[ \"$*\" != \"$TEST_FAIL\" ]\n",
 				"curl":      "printf '%s\\n' \"$*\" >> \"$TEST_CURL_LOG\"\n[ \"$TEST_FAIL\" != health ]\n",
 				"mv":        "[ -f \"$TEST_PENDING\" ]\n[ \"$(stat -c '%a:%s' \"$TEST_PENDING\")\" = 600:0 ]\nexec \"$TEST_MV\" \"$@\"\n",
 				"sleep":     "[ \"$*\" = infinity ]\n",
@@ -239,6 +248,19 @@ func TestSystemReserved(t *testing.T) {
 					if failStep != "daemon-reload" {
 						wantCalls += "restart kubelet\n"
 					}
+				}
+				if tt.exporter == "legacy" && run == 0 {
+					wantCalls += "daemon-reload\nrestart node-exporter\n"
+				}
+				if tt.exporter == "absent" {
+					require.Contains(t, string(output), "legacy node-exporter startup script absent; skipping netclass workaround")
+					_, err := os.Stat(paths["/usr/local/bin/node-exporter-startup.sh"])
+					require.True(t, os.IsNotExist(err), "must not create a script on images without host node-exporter")
+				}
+				if tt.exporter == "legacy" {
+					content, err := os.ReadFile(paths["/usr/local/bin/node-exporter-startup.sh"])
+					require.NoError(t, err)
+					require.Equal(t, "--no-collector.arp.netlink --collector.netclass.netlink\n", string(content))
 				}
 				require.Equal(t, wantCalls, string(calls), "restart only for changed config or pending recovery")
 				info, err := os.Stat(kubelet)
