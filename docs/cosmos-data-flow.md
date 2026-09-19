@@ -332,13 +332,15 @@ Placement is checked even before a Cluster Service ID exists. Until `ServiceProv
 | | Object | Fields |
 |---|--------|--------|
 | Read | `Operation` | <ul><li>`Status` (ShouldProcess: must not be terminal)</li><li>`Request` (ShouldProcess: must be `Update`)</li><li>`ExternalID` (ShouldProcess: resource type must be `ClusterResourceType`)</li><li>`ResourceID.Name`</li></ul> |
-| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.ActiveOperationID` (mismatch check)</li><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must not be nil)</li><li>`CustomerProperties.Version.ID`</li><li>`CustomerProperties.API.AuthorizedCIDRs`</li><li>`CustomerProperties.NodeDrainTimeoutMinutes`</li><li>`CustomerProperties.Autoscaling.*`</li><li>`CustomerProperties.ImageDigestMirrors`</li><li>`ServiceProviderProperties.ExperimentalFeatures.ControlPlaneAvailability`</li><li>`ServiceProviderProperties.ExperimentalFeatures.ControlPlanePodSizing`</li><li>`ServiceProviderProperties.ExperimentalFeatures.ControlPlaneOperatorImage`</li></ul> |
-| Read | `ServiceProviderCluster` | <ul><li>`Spec.ControlPlaneVersion.DesiredVersion`</li><li>`Spec.DesiredHostedClusterControlPlaneSize`</li></ul> |
-| Read | Controller(`ControlPlaneDesiredVersion`) | <ul><li>`Status.Conditions[IntentFailed]` (Reason, Message)</li></ul> |
+| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.ActiveOperationID` (mismatch check)</li><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must not be nil)</li><li>`CustomerProperties.Version.ID`</li><li>`CustomerProperties.API.AuthorizedCIDRs`</li><li>`CustomerProperties.NodeDrainTimeoutMinutes`</li><li>`CustomerProperties.Autoscaling.*`</li><li>`CustomerProperties.ImageDigestMirrors`</li><li>`ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion` (forced resolution when unpinned)</li><li>`ServiceProviderProperties.ExperimentalFeatures.ControlPlaneAvailability`</li><li>`ServiceProviderProperties.ExperimentalFeatures.ControlPlanePodSizing`</li><li>`ServiceProviderProperties.ExperimentalFeatures.ControlPlaneOperatorImage`</li></ul> |
+| Read | `ServiceProviderCluster` | <ul><li>`Spec.ControlPlaneVersion.DesiredVersion`</li><li>`Spec.PinnedVersion.ExactVersion` (forced resolution precedence)</li><li>`Spec.DesiredHostedClusterControlPlaneSize`</li></ul> |
 | Read | ReadDesire (HostedCluster) | <ul><li>`Spec.Networking.APIServer.AllowedCIDRBlocks`</li><li>`Spec.ControllerAvailabilityPolicy`</li><li>`Spec.InfrastructureAvailabilityPolicy`</li><li>`Annotations[ClusterSizeOverrideAnnotation]`</li><li>`Annotations[ControlPlaneOperatorImageAnnotation]`</li><li>`Spec.Autoscaling.*`</li><li>`Spec.ImageContentSources`</li></ul> |
 | Read | Cluster Service | <ul><li>cluster status, API CIDRBlockAccess, NodeDrainGracePeriod</li></ul> |
 | **Write** | **`Operation`** | <ul><li>**`Status`** -> `Updating`/`Succeeded`/`Failed`</li><li>**`Error`** (on failure)</li><li>**`LastTransitionTime`**</li><li>**`NotificationURI`** (cleared after ARM notification)</li></ul> |
 | **Write** | **`HCPOpenShiftCluster`** | <ul><li>**`ServiceProviderProperties.ProvisioningState`** = new status</li><li>**`.ActiveOperationID`** = `""` (on terminal)</li></ul> |
+
+
+Version resolution follows the SPC desired version and rejects an incompatible forced override. It no longer reads or creates the removed `ControlPlaneDesiredVersion` controller document.
 
 #### OperationClusterDelete
 
@@ -886,21 +888,16 @@ No Cosmos writes. Dispatches updates to Cluster Service via PATCH.
 
 ### Upgrade Controllers
 
-#### ControlPlaneDesiredVersion
-
-**File:** [control_plane_desired_version_controller.go](../backend/pkg/controllers/cluster/version/control_plane_desired_version_controller.go)
-**Trigger:** Cluster informer, 5-minute resync
-**Gate:** No formal NeedsWork. Skips inside SyncOnce if `DeletionTimestamp != nil`, or if `DesiredVersion` already set AND cluster < 2hr old AND active Create operation exists.
-
-| | Object | Fields |
-|---|--------|--------|
-| Read | `HCPOpenShiftCluster` | <ul><li>`CustomerProperties.Version.ID`, `.Version.ChannelGroup`</li><li>`SystemData.CreatedAt`</li></ul> |
-| Read | `ServiceProviderCluster` | <ul><li>`Spec.ControlPlaneVersion.DesiredVersion`</li><li>`Status.ControlPlaneVersion.ActiveVersions`</li></ul> |
-| Read | `Subscription` | <ul><li>Registered features (AFEC)</li></ul> |
-| Read | NodePools + ServiceProviderNodePools | <ul><li>For y-stream skew validation</li></ul> |
-| Read | Cincinnati | <ul><li>Version graph resolution</li></ul> |
-| **Write** | **`ServiceProviderCluster`** | <ul><li>**`Spec.ControlPlaneVersion.DesiredVersion`** = resolved version</li></ul> |
-| **Write** | **Controller doc** | <ul><li>**`IntentFailed`** condition (True with `VersionUpgradeNotAccepted` / False with `AsExpected`)</li></ul> |
+> **Note:** The per-cluster `ControlPlaneDesiredVersion` controller that used to
+> resolve and write `ServiceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion`
+> (and an `IntentFailed` controller-doc condition) has been removed. Its
+> desired-version responsibilities are now owned by the fleet rollout controllers —
+> see [Fleet Control-Plane Version Rollout Controllers](#fleet-control-plane-version-rollout-controllers).
+> Its version-selection helpers (`SelectControlPlaneVersion`, `GetZStreamOffset`)
+> survive as pure functions in
+> `backend/pkg/controllers/cluster/version/select_control_plane_version.go` and are
+> reused by the best-version selector; they are not a controller and write nothing
+> to Cosmos.
 
 #### ControlPlaneActiveVersions
 
@@ -913,7 +910,7 @@ No Cosmos writes. Dispatches updates to Cluster Service via PATCH.
 | Read | ReadDesire (HostedCluster) | <ul><li>`Status.ControlPlaneVersion.History`</li></ul> |
 | Read | ReadDesire (HostedCluster) | <ul><li>`Status.Version.Desired.Channels`</li></ul> |
 | Read | `ServiceProviderCluster` (informer cache) | <ul><li>`Status.ControlPlaneVersion.ActiveVersions` (compared before write)</li><li>`Status.DesiredVersionChannels` (compared before write)</li></ul> |
-| **Write** | **`ServiceProviderCluster`** | <ul><li>**`Status.ControlPlaneVersion.ActiveVersions`** = [{Version, State}, ...]</li><li>**`Status.DesiredVersionChannels`** = ["stable-4.19", ...] (mirrored from HostedCluster `status.version.desired.channels` for DB-free cluster admission)</li></ul> |
+| **Write** | **`ServiceProviderCluster`** | <ul><li>**`Status.ControlPlaneVersion.ActiveVersions`** = [{Version, State, LastTransitionTime}, ...] (`LastTransitionTime` records when a version entered its current state for rollout readiness)</li><li>**`Status.DesiredVersionChannels`** = ["stable-4.19", ...] (mirrored from HostedCluster `status.version.desired.channels` for DB-free cluster admission)</li></ul> |
 | **Write** | **`HCPOpenShiftCluster`** | <ul><li>**`Status.ActiveVersions`** = [{Version},...]</li></ul> |
 
 #### TriggerControlPlaneUpgrade
@@ -969,6 +966,124 @@ No Cosmos writes. Posts `ControlPlaneUpgradePolicy` to Cluster Service.
 | Read | `ServiceProviderNodePool` (informer cache) | <ul><li>`Spec.NodePoolVersion.DesiredVersion` (skip when unset)</li><li>`Status.NodePoolVersion.ActiveVersions` (skip when empty; `[0]` is the current version compared to desired)</li></ul> |
 
 No Cosmos writes. Posts `NodePoolUpgradePolicy` to Cluster Service.
+
+---
+
+### Fleet Control-Plane Version Rollout Controllers
+
+These seven controllers (package `backend/pkg/controllers/versionrollout/`)
+implement the fleet-wide control-plane version rollout. Together they replace the
+removed per-cluster `ControlPlaneDesiredVersion` controller as the writers of
+`ServiceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion`.
+
+They coordinate through a new fleet-scoped Cosmos type, `ControlPlaneVersionRollout`,
+which lives in the **Fleet** Cosmos container — not the per-subscription "Resources"
+container that holds every other type in this document. There is one
+`ControlPlaneVersionRollout` document per y-stream channel (e.g. `stable-4.21`),
+whose top-level resource name is that channel; all rollouts share a single
+partition keyed by the provider namespace. The Rollout Seeding, Initial Normal Cluster Desired Version, Minor Upgrade Normal Cluster Desired Version, and Forced Cluster
+Desired Version controllers are driven by the Cluster (`HCPOpenShiftCluster`)
+informer (one key per cluster); the Best Version Selection, Status Collector, and
+Normal Cluster Desired Version controllers are driven by a
+`ControlPlaneVersionRollout` watching controller (one key per channel). All seven
+run unconditionally — there is no feature gate.
+
+#### ControlPlaneVersionRolloutSeeding
+
+**File:** [rollout_seeding_controller.go](../backend/pkg/controllers/versionrollout/rollout_seeding_controller.go)
+**Trigger:** Cluster and ServiceProviderCluster informers, 5-minute resync (per cluster)
+**Gate:** No formal NeedsWork. Skips inside SyncOnce if the cluster does not exist, is being deleted (`ServiceProviderProperties.DeletionTimestamp`), uses the nightly channel, or has no derivable y-stream channel; skips the create when the channel's `ControlPlaneVersionRollout` already exists (checked via the lister; a racing create is absorbed as a 409 conflict).
+
+| | Object | Fields |
+|---|--------|--------|
+| Read | `HCPOpenShiftCluster` | <ul><li>`CustomerProperties.Version.ChannelGroup`, `CustomerProperties.Version.ID` (derive the y-stream channel)</li><li>`ServiceProviderProperties.DeletionTimestamp` (skip if set)</li></ul> |
+| Read | `ServiceProviderCluster` | <ul><li>`Spec.PinnedVersion.ExactVersion` (also seed the pinned minor)</li></ul> |
+| Read | `ControlPlaneVersionRollout` (Fleet) | <ul><li>existence check for the requested or pinned channel</li></ul> |
+| **Write** | **`ControlPlaneVersionRollout`** (Fleet) | <ul><li>**CREATES** an empty document (no Spec/Status) for the requested and pinned y-stream channels when absent</li></ul> |
+
+#### ControlPlaneVersionBestVersionSelection
+
+**File:** [best_version_controller.go](../backend/pkg/controllers/versionrollout/best_version_controller.go)
+**Trigger:** ControlPlaneVersionRollout informer, 5-minute resync (per y-stream channel)
+**Gate:** No formal NeedsWork. Skips inside SyncOnce if the `ControlPlaneVersionRollout` does not exist, if the upgrade graph yields no selectable version, or if `Spec.BestExactVersion` already equals the newly computed best.
+
+| | Object | Fields |
+|---|--------|--------|
+| Read | `ControlPlaneVersionRollout` (Fleet) | <ul><li>`Spec.BestExactVersion` (compared to the computed best to skip no-op writes)</li></ul> |
+| Read | Cincinnati (OpenShift update service) | <ul><li>Upgrade-graph best exact version for the channel, offset by the channel group's z-stream offset (external; reuses `SelectControlPlaneVersion` / `GetZStreamOffset`)</li></ul> |
+| Read | RolloutConfig (in-memory) | <ul><li>`MinimumVersions[<channel>]` SRE version floor</li></ul> |
+| **Write** | **`ControlPlaneVersionRollout`** (Fleet) | <ul><li>**`Spec.BestExactVersion`** = max(upgrade-graph best, SRE minimum floor)</li></ul> |
+
+#### ControlPlaneVersionStatusCollector
+
+**File:** [status_collector_controller.go](../backend/pkg/controllers/versionrollout/status_collector_controller.go)
+**Trigger:** ControlPlaneVersionRollout informer, 5-minute resync (per y-stream channel), plus filtered ServiceProviderCluster and cluster informer events. ServiceProviderCluster updates enqueue only when desired version, desired transition time, or the earliest completed active version/transition time changes. They enqueue all existing channel groups for both old and new effective minors; unknown minors enqueue all rollouts. Cluster updates enqueue all rollouts only when channel group or requested minor changes, since effective membership may instead use ServiceProviderCluster active/desired versions. Adds and deletes (including tombstones) also enqueue affected rollouts. These additional watches have no periodic resync; the rollout resync still accounts for elapsed readiness/failure durations.
+**Gate:** No formal NeedsWork. Skips inside SyncOnce if the `ControlPlaneVersionRollout` does not exist; skips the write when the recomputed rollout is deep-equal to the stored one.
+
+| | Object | Fields |
+|---|--------|--------|
+| Read | `ControlPlaneVersionRollout` (Fleet) | <ul><li>Entire document (deep-equal comparison to avoid no-op writes)</li></ul> |
+| Read | `ServiceProviderCluster` | <ul><li>`Spec.ControlPlaneVersion.DesiredVersion`</li><li>`Spec.ControlPlaneVersion.DesiredVersionLastTransitionTime`</li><li>`Status.ControlPlaneVersion.ActiveVersions` (`Version`, `State`, `LastTransitionTime`)</li><li>`ResourceID` (parent cluster ID, for channel matching)</li></ul> |
+| Read | `HCPOpenShiftCluster` | <ul><li>`CustomerProperties.Version.ChannelGroup`, `ID` (maps each ServiceProviderCluster to its y-stream channel)</li></ul> |
+| **Write** | **`ControlPlaneVersionRollout`** (Fleet) | <ul><li>**`Status.ClusterCountByDesiredExactVersion`**</li><li>**`Status.MismatchedClusterCountByDesiredExactVersion`**</li><li>**`Status.FailedClusterCountByDesiredExactVersion`**</li><li>**`Status.ClusterCountByAchievedExactVersion`**</li><li>**`Status.SuccessfulClusterCountByAchievedExactVersion`**</li></ul> |
+
+
+Only completed entries count as achieved/successful. A partial-only history remains mismatched even after its readiness duration has elapsed.
+
+#### InitialNormalClusterDesiredVersion
+
+**File:** [initial_normal_desired_version_controller.go](../backend/pkg/controllers/versionrollout/initial_normal_desired_version_controller.go)
+**Trigger:** Standard cluster/ServiceProviderCluster watches, 1-minute resync (per cluster). Explicit 10-second requeue (returning nil) retries when the requested rollout or its best version is not available yet.
+**Gate:** ServiceProviderCluster must exist. NeedsWork requires a nil desired version or a missing/zero desired transition time. Existing desired versions only receive a timestamp backfill; assigning a new version requires no pin or experimental exact override. The backing cluster must have a valid requested channel (`Version.ChannelGroup` plus the minor of `Version.ID`), and that rollout must have `Spec.BestExactVersion` set. An invalid requested channel returns an error. No progressive rollout gates apply. This controller does not write ControlPlaneVersionRollout or its conditions.
+
+| | Object | Fields |
+|---|--------|--------|
+| Read | `ServiceProviderCluster` | <ul><li>`Spec.ControlPlaneVersion.DesiredVersion` (nil for initial assignment)</li><li>`Spec.ControlPlaneVersion.DesiredVersionLastTransitionTime` (backfill if zero or nil)</li><li>`Spec.PinnedVersion.ExactVersion` (must be nil for assignment)</li><li>Cosmos ETag (conditional Replace protects concurrent assignments)</li></ul> |
+| Read | `HCPOpenShiftCluster` | <ul><li>`CustomerProperties.Version.ChannelGroup`, `CustomerProperties.Version.ID` (requested y-stream channel)</li><li>`ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion` (must be nil for assignment)</li></ul> |
+| Read | `ControlPlaneVersionRollout` (Fleet) | <ul><li>`Spec.BestExactVersion` (must be non-nil)</li></ul> |
+| **Write** | **`ServiceProviderCluster`** | <ul><li>**`Spec.ControlPlaneVersion.DesiredVersion`** = requested channel's best exact version</li><li>**`Spec.ControlPlaneVersion.DesiredVersionLastTransitionTime`** = current time on initial assignment or legacy backfill; existing desired version is preserved on backfill</li></ul> |
+| **Write** | **`Controller`** | Standard per-cluster controller status written by the cluster watching wrapper |
+
+#### MinorUpgradeNormalClusterDesiredVersion
+
+**File:** [minor_upgrade_normal_desired_version_controller.go](../backend/pkg/controllers/versionrollout/minor_upgrade_normal_desired_version_controller.go)
+**Trigger:** Standard cluster/ServiceProviderCluster watches, 1-minute resync (per cluster); explicit 10-second requeue when the requested rollout or best version is missing, returning nil.
+**Gate:** Pins and experimental exact overrides are excluded. `NeedsWork` requires an existing ServiceProviderCluster desired version and a parseable cluster requested version with a different major/minor. An invalid requested channel returns an error before the NeedsWork check. Patch-only changes do not trigger work. Selects the requested channel's best exact version without progressive rollout gates and never writes ControlPlaneVersionRollout conditions.
+
+| | Object | Fields |
+|---|--------|--------|
+| Read | `ServiceProviderCluster` | <ul><li>`Spec.ControlPlaneVersion.DesiredVersion` (NeedsWork: non-nil and major/minor differs from requested version)</li><li>`Spec.PinnedVersion.ExactVersion` (NeedsWork: must be nil)</li><li>Cosmos ETag (conditional Replace protects concurrent assignments)</li></ul> |
+| Read | `HCPOpenShiftCluster` | <ul><li>`CustomerProperties.Version.ID` (NeedsWork: parseable version with different major/minor)</li><li>`CustomerProperties.Version.ChannelGroup` (requested rollout channel)</li><li>`ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion` (NeedsWork: must be nil)</li></ul> |
+| Read | `ControlPlaneVersionRollout` (Fleet) | <ul><li>`Spec.BestExactVersion` (must be non-nil)</li></ul> |
+| **Write** | **`ServiceProviderCluster`** | <ul><li>**`Spec.ControlPlaneVersion.DesiredVersion`** = requested channel's best exact version</li><li>**`Spec.ControlPlaneVersion.DesiredVersionLastTransitionTime`** = current time</li></ul> |
+| **Write** | **`Controller`** | Standard per-cluster controller status written by the cluster watching wrapper |
+
+#### NormalClusterDesiredVersion
+
+**File:** [normal_desired_version_controller.go](../backend/pkg/controllers/versionrollout/normal_desired_version_controller.go)
+**Trigger:** ControlPlaneVersionRollout informer, 5-minute resync (per y-stream channel). Also enqueues the candidate channel on ServiceProviderCluster add/update while `Spec.ControlPlaneVersion.DesiredVersion` is nil, and on cluster add or an update that changes its candidate channel (`CustomerProperties.Version.ChannelGroup` plus the minor of `CustomerProperties.Version.ID`). Patch-version-only and unrelated cluster updates do not enqueue; these additional watches have no periodic resync.
+**Gate:** No formal NeedsWork. Skips inside SyncOnce if the rollout does not exist or fewer than 60 seconds have elapsed since `Status.LastAssignmentTime` (requeues for the remaining delay). Counts and eligibility are computed from the same cached cluster snapshot, independent of status-collector lag. Successful clusters free rolling-window slots. Advances only *eligible* clusters (desired version below `Spec.BestExactVersion` and either unpinned or with a pin whose release threshold is at/under best); clusters whose `HCPOpenShiftCluster` carries an experimental `ControlPlaneExactVersion` are owned by the forced controller and excluded. How many advance is bounded by the canary-then-rolling strategy and the failure budget.
+
+| | Object | Fields |
+|---|--------|--------|
+| Read | `ControlPlaneVersionRollout` (Fleet) | <ul><li>`Spec.BestExactVersion`</li><li>`Status.LastAssignmentTime` (cooldown)</li><li>`Status.Conditions` (compared to skip no-op writes)</li></ul> |
+| Read | `ServiceProviderCluster` | <ul><li>`Spec.ControlPlaneVersion.DesiredVersion` (eligibility: must be below best)</li><li>`Spec.PinnedVersion.ExactVersion`, `Spec.PinnedVersion.UntilExactVersion` (eligibility: unpinned or pin released)</li><li>`Spec.ControlPlaneVersion.DesiredVersionLastTransitionTime` (failure duration)</li><li>`Status.ControlPlaneVersion.ActiveVersions` (`Version`, `State`, `LastTransitionTime` for channel matching and progress counts)</li><li>`ResourceID` (subscription / resource group / parent cluster name)</li></ul> |
+| Read | `HCPOpenShiftCluster` | <ul><li>`CustomerProperties.Version.ChannelGroup`, `ID` (channel matching)</li><li>`CustomerProperties.Version.ID` (candidate-channel event mapping)</li><li>`ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion` (clusters with this set are excluded from advancement)</li></ul> |
+| **Write** | **`ServiceProviderCluster`** (per selected cluster) | <ul><li>**`Spec.ControlPlaneVersion.DesiredVersion`** = `Spec.BestExactVersion`</li><li>**`Spec.ControlPlaneVersion.DesiredVersionLastTransitionTime`** = now (only when DesiredVersion actually changes)</li></ul> |
+| **Write** | **`ControlPlaneVersionRollout`** (Fleet) | <ul><li>**`Status.LastAssignmentTime`** = now before assigning a batch (ETag-guarded reservation)</li><li>**`Status.Conditions[Progressing]`** = True during canary/rolling/progressing</li><li>**`Status.Conditions[Degraded]`** = True when the failure budget is exceeded or a per-cluster assignment fails</li></ul> |
+
+#### ForcedClusterDesiredVersion
+
+**File:** [forced_desired_version_controller.go](../backend/pkg/controllers/versionrollout/forced_desired_version_controller.go)
+**Trigger:** Cluster (`HCPOpenShiftCluster`) informer, 1-minute resync (per cluster)
+**Gate:** No formal NeedsWork. Skips inside SyncOnce if the `ServiceProviderCluster` or its `HCPOpenShiftCluster` does not exist, or if the cluster is neither pinned (`Spec.PinnedVersion.ExactVersion`) nor carries an experimental `ControlPlaneExactVersion` (normal assignment owns it). An SRE pin takes precedence over the experimental exact version.
+
+| | Object | Fields |
+|---|--------|--------|
+| Read | `ServiceProviderCluster` | <ul><li>`Spec.PinnedVersion.ExactVersion` (gate: pin path)</li><li>`Spec.PinnedVersion.UntilExactVersion`</li><li>`Spec.ControlPlaneVersion.DesiredVersion`</li></ul> |
+| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion` (authoritative desired version when unpinned)</li><li>`CustomerProperties.Version.ChannelGroup` (pin path only: resolves the governing y-stream channel)</li></ul> |
+| Read | `ControlPlaneVersionRollout` (Fleet) | <ul><li>`Spec.BestExactVersion` (pin path only: decides when the pin's release threshold is reached)</li></ul> |
+| **Write** | **`ServiceProviderCluster`** | <ul><li>**`Spec.ControlPlaneVersion.DesiredVersion`** = pin's `ExactVersion` while holding (or `Spec.BestExactVersion` once released); for an unpinned cluster with an experimental exact version, held at `ControlPlaneExactVersion` indefinitely</li><li>**`Spec.ControlPlaneVersion.DesiredVersionLastTransitionTime`** = now (only when DesiredVersion changes)</li><li>**`Spec.PinnedVersion`** = cleared (empty) once fleet best ≥ `PinnedVersion.UntilExactVersion`</li></ul> |
 
 ---
 
@@ -1367,8 +1482,9 @@ A configured managed resource group name or `PendingAzureResource` alone does no
               +----------------+----------------+
               |                                 |
               v                                 v
-  ControlPlaneDesiredVersion          ManagementClusterPlacementSync
-  (sets SPC.Spec.DesiredVersion)      (sets SPC.Status.MgmtClusterResourceID)
+  InitialNormalClusterDesiredVersion  ManagementClusterPlacementSync
+  + ForcedClusterDesiredVersion       (sets SPC.Status.MgmtClusterResourceID)
+  (fleet rollout sets SPC.Spec.DesiredVersion)
               |                                 |
               v                                 |
   ClusterClusterServiceCreate  <----------------+
@@ -1408,9 +1524,11 @@ A configured managed resource group name or `PendingAzureResource` alone does no
          +----------------------------+
          |                            |
          v                            v
-  ControlPlaneDesiredVersion   ClusterClusterServiceUpdateDispatch
-  (advances SPC.Spec.          (PATCHes CS with dispatch config
-   DesiredVersion if changed)   for CIDRs, autoscaling, etc.)
+  MinorUpgradeNormalClusterDesiredVersion
+  NormalClusterDesiredVersion  ClusterClusterServiceUpdateDispatch
+  ForcedClusterDesiredVersion  (PATCHes CS with dispatch config
+  (fleet rollout advances       for CIDRs, autoscaling, etc.)
+   SPC.Spec.DesiredVersion)
          |
          v
   TriggerControlPlaneUpgrade
@@ -1669,9 +1787,64 @@ Single writer today (`RequirementsValid` only).
 
 | Actor | When |
 |-------|------|
-| [ControlPlaneDesiredVersion](#controlplanedesiredversion) | Sets/advances based on customer version intent + Cincinnati |
+| [InitialNormalClusterDesiredVersion](#initialnormalclusterdesiredversion) | Initializes missing desired versions from the requested channel's best version |
+| [MinorUpgradeNormalClusterDesiredVersion](#minorupgradenormalclusterdesiredversion) | Changes desired version to the requested channel's best when requested and desired major/minor differ |
+| [NormalClusterDesiredVersion](#normalclusterdesiredversion) | Advances eligible clusters toward the rollout's `Spec.BestExactVersion` (canary then rolling, within the failure budget) |
+| [ForcedClusterDesiredVersion](#forcedclusterdesiredversion) | Holds an SRE-pinned cluster at its pinned exact version, then adopts fleet best once the pin releases |
 
-Single writer, but read by `ClusterClusterServiceCreate` (gate), `OperationClusterUpdate`, and `TriggerControlPlaneUpgrade`.
+The four assignment controllers in this table co-write `Spec.ControlPlaneVersion.DesiredVersionLastTransitionTime` when changing the desired version. Initial assignment also backfills legacy missing/zero timestamps without changing that version. `ClusterClusterServiceCreate`, `OperationClusterUpdate`, and `TriggerControlPlaneUpgrade` only read the desired version.
+
+### `ServiceProviderCluster.Status.ControlPlaneVersion.ActiveVersions`
+
+| Actor | When |
+|-------|------|
+| [ControlPlaneActiveVersions](#controlplaneactiveversions) | Mirrors `Version` and `State` from HostedCluster history; persists `LastTransitionTime` on state changes and backfills legacy zero timestamps |
+
+Single writer. The status collector and normal assignment use completed entries and their persisted ages to determine rollout readiness.
+
+### `ServiceProviderCluster.Spec.PinnedVersion`
+
+An empty value serializes as `{}` and means no pin. An Admin API setter is planned separately; this change only consumes and clears pins.
+
+| Actor | When |
+|-------|------|
+| [ForcedClusterDesiredVersion](#forcedclusterdesiredversion) | Clears the pin once fleet best reaches `PinnedVersion.UntilExactVersion` |
+
+### `ControlPlaneVersionRollout` document (Fleet container)
+
+| Actor | When |
+|-------|------|
+| [ControlPlaneVersionRolloutSeeding](#controlplaneversionrolloutseeding) | Creates one empty document per y-stream channel that a cluster belongs to |
+
+Single creator; every other rollout actor only reads or updates an existing document.
+
+### `ControlPlaneVersionRollout.Spec.BestExactVersion` (Fleet container)
+
+| Actor | When |
+|-------|------|
+| [ControlPlaneVersionBestVersionSelection](#controlplaneversionbestversionselection) | Sets max(upgrade-graph best, SRE minimum) for the y-stream channel |
+
+Single writer, but gates [NormalClusterDesiredVersion](#normalclusterdesiredversion) and [ForcedClusterDesiredVersion](#forcedclusterdesiredversion) (both drive clusters toward it).
+
+### `ControlPlaneVersionRollout.Status` count maps (Fleet container)
+
+| Actor | When |
+|-------|------|
+| [ControlPlaneVersionStatusCollector](#controlplaneversionstatuscollector) | Aggregates per-cluster desired / mismatched / failed / achieved / successful counts by exact version |
+
+Single persistent writer. [NormalClusterDesiredVersion](#normalclusterdesiredversion) recomputes decision counts from its cluster snapshot instead of relying on these potentially delayed aggregates.
+
+### `ControlPlaneVersionRollout.Status.LastAssignmentTime` (Fleet container)
+
+| Actor | When |
+|-------|------|
+| [NormalClusterDesiredVersion](#normalclusterdesiredversion) | Reserves a batch before writing cluster assignments; enforces at least 60 seconds between batches across restarts |
+
+### `ControlPlaneVersionRollout.Status.Conditions` (Fleet container)
+
+| Actor | When |
+|-------|------|
+| [NormalClusterDesiredVersion](#normalclusterdesiredversion) | Sets `Progressing` / `Degraded` from the rollout decision |
 
 ### `ServiceProviderCluster.Spec.ManagementClusterResourceID`
 
