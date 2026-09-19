@@ -395,7 +395,7 @@ defaults:
     image:
       registry: quay.io
       repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
-      digest: sha256:780ac707f44d1dcda3836d0b58037a58be4dbc0ade79c46a12016fc55187f378 # 2186ab7346f05120a1cbabd1d63c4c38751bd420 (2026-09-18 06:03)
+      digest: sha256:0daee271276923d8ecab324963c6ad530bcd0135ce33ece7ec90bfe3962f694c # d1cf532185af985c87f652b4fd85b45cde399444 (2026-09-18 21:36)
     namespace: hypershift
     additionalInstallArg: '--enable-cpo-overrides --disable-capi-migration'
     # By default we set it to empty as this tag is only required for msft environments. We override
@@ -645,7 +645,7 @@ defaults:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus
-          sha: 8909adfae38ca9980e3e47c1fdd8a327f2406c64560cfd61dcc5607c76724d04 # v3.14.0 (2026-09-16 07:26)
+          sha: 92fa8f5e91a0e02e0107c346f6c66657738dbf394946e52c208150fd498554bd # v3.14.0 (2026-09-18 06:49)
         version: ""
         resources:
           requests:
@@ -777,7 +777,7 @@ defaults:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus
-          sha: 8909adfae38ca9980e3e47c1fdd8a327f2406c64560cfd61dcc5607c76724d04 # v3.14.0 (2026-09-16 07:26)
+          sha: 92fa8f5e91a0e02e0107c346f6c66657738dbf394946e52c208150fd498554bd # v3.14.0 (2026-09-18 06:49)
         resources:
           requests:
             cpu: NONE
@@ -1089,19 +1089,19 @@ defaults:
     image:
       registry: quay.io
       repository: redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
-      digest: sha256:8a3df6664d71c63e9e7c1ba2658860c712b76877f791f105f4b06725ba2e0103 # 583c475bb018df6965427d4b561b369d61fe7d41 (2026-09-16 15:34)
+      digest: sha256:1a10b3e34fd5549bd649de68bad1af603245b2e623e1b98c87efc0c72fabf37e # 64626ffaba68631675586a78f300969fe50960c4 (2026-09-18 09:48)
   # ACM
   acm:
     operator:
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-216
-        digest: sha256:72e9895204ee567b5a2c1923a98970386ab3d59da7e5c15f10b574ef6268a946 # v2.16.6-615 (2026-09-17 18:07)
+        digest: sha256:c8a3ecddafcc71fcc5d56d09ceed198f269bd112e86e646548983f9406bfc169 # v2.16.6-617 (2026-09-18 18:06)
     mce:
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-211
-        digest: sha256:1cbf1082bea365f4906455ce99d7eba2aabb9dc408b75aec27b0dc7b76d36694 # v2.11.7-663 (2026-09-17 18:14)
+        digest: sha256:d47eb7185efec0efb3b369e80ea0612394a46d9e87dbb1f7424ae3a564c976a6 # v2.11.7-665 (2026-09-18 18:13)
   # Cluster Service
   clustersService:
     image:
