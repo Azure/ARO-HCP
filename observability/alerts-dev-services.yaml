@@ -1,6 +1,7 @@
 prometheusRules:
   rulesFolders:
   - alerts/prometheus-prometheusRule.yaml
+  - alerts/metrics-proxy-prometheusRule.yaml
   - ../frontend/alerts/frontend-prometheusRule.yaml
   - ../backend/alerts/backend-prometheusRule.yaml
   - ../backend/alerts/backend-async-operations-prometheusRule.yaml
