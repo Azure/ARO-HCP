@@ -38,6 +38,7 @@ var _ = Describe("Engineering", func() {
 		labels.CoreInfraService,
 		labels.DevelopmentOnly,
 		labels.AroRpApiCompatible,
+		labels.RequiresConfig,
 		labels.MIContainers(1),
 		func(ctx context.Context) {
 			const (

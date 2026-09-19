@@ -41,6 +41,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/internal/testutil"
 	"github.com/Azure/ARO-HCP/test/util/junit"
+	promutil "github.com/Azure/ARO-HCP/test/util/prometheus"
 	"github.com/Azure/ARO-HCP/test/util/timing"
 )
 
@@ -420,7 +421,7 @@ func (o Options) runQueries(ctx context.Context, workspaces map[string]*workspac
 
 		var panelCharts []chartData
 		for _, q := range panel.Queries {
-			var results []PrometheusResult
+			var results []promutil.Result
 			var queryErr string
 			var warning string
 			var metricResourceID string
@@ -453,11 +454,8 @@ func (o Options) runQueries(ctx context.Context, workspaces map[string]*workspac
 
 				logger.Info("executing PromQL query", "panel", panel.Title, "title", q.Title, "workspace", q.Workspace)
 
-				// Substitute __REPORT_RANGE__ with a duration literal covering the
-				// report's exact [start,end] window before executing, and keep the
-				// resolved query on q so the chart footer shows what actually ran.
-				q.Query = resolveReportRange(q.Query, o.TimeWindow.Start, o.TimeWindow.End)
-				resp, err := queryRange(ctx, httpClient, o.cred, endpoint, q.Query, o.TimeWindow.Start, o.TimeWindow.End, q.Step)
+				query := resolveReportRange(q.Query, o.TimeWindow.Start, o.TimeWindow.End)
+				resp, err := promutil.QueryRange(ctx, httpClient, o.cred, endpoint, query, o.TimeWindow.Start, o.TimeWindow.End, q.Step)
 				if err != nil {
 					logger.Error(err, "PromQL query failed", "title", q.Title)
 					queryErr = err.Error()

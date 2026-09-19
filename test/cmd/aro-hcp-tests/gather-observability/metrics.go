@@ -27,6 +27,8 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/monitor/armmonitor"
+
+	promutil "github.com/Azure/ARO-HCP/test/util/prometheus"
 )
 
 // metricNamespaceCosmosDB is the Azure Monitor metric namespace for Cosmos DB
@@ -87,7 +89,7 @@ func stepToISO8601(step string) string {
 
 // queryAzureMonitorMetrics fetches the metrics named in the query from the
 // Azure Monitor platform-metrics API for the given resource and converts each
-// metric's timeseries into a PrometheusResult, so the existing chart-building
+// metric's timeseries into a promutil.Result, so the existing chart-building
 // pipeline can render them (one series per metric on a single plot). Each
 // metric is fetched in its own request so per-metric errors do not fail the
 // whole query and so metrics with differing supported granularities can each
@@ -97,7 +99,7 @@ func stepToISO8601(step string) string {
 // the successful series are still returned so the chart renders, and the
 // warning surfaces the partial failures so they are not silently hidden. A
 // non-nil error is returned only when the query produced no data at all.
-func queryAzureMonitorMetrics(ctx context.Context, cred azcore.TokenCredential, resourceID azcorearm.ResourceID, q QuerySpec, start, end time.Time, maxFor autoscaleMaxLookup) (results []PrometheusResult, warning string, err error) {
+func queryAzureMonitorMetrics(ctx context.Context, cred azcore.TokenCredential, resourceID azcorearm.ResourceID, q QuerySpec, start, end time.Time, maxFor autoscaleMaxLookup) (results []promutil.Result, warning string, err error) {
 	client, err := armmonitor.NewMetricsClient(resourceID.SubscriptionID, cred, nil)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to create metrics client: %w", err)
@@ -181,7 +183,7 @@ func buildMetricFilter(m MetricSpec) string {
 	return strings.Join(parts, " and ")
 }
 
-// metricToResults converts a single Azure Monitor metric into PrometheusResults.
+// metricToResults converts a single Azure Monitor metric into promutil.Results.
 // When the metric is split by a dimension it produces one result per dimension
 // value (labeled by that value); otherwise it merges all timeseries into a
 // single result labeled by the metric label.
@@ -190,11 +192,11 @@ func buildMetricFilter(m MetricSpec) string {
 // CollectionName), each series' values are divided by the container's
 // configured autoscale ceiling and expressed as a percentage, so an absolute
 // RU/s metric renders on the same percentage axis as NormalizedRUConsumption.
-func metricToResults(metric *armmonitor.Metric, m MetricSpec, label string, multiMetric bool, selectValue func(*armmonitor.MetricValue) *float64, maxFor autoscaleMaxLookup) []PrometheusResult {
+func metricToResults(metric *armmonitor.Metric, m MetricSpec, label string, multiMetric bool, selectValue func(*armmonitor.MetricValue) *float64, maxFor autoscaleMaxLookup) []promutil.Result {
 	if m.SplitBy == "" {
-		return []PrometheusResult{mergeTimeseries(metric.Timeseries, label, selectValue, 1)}
+		return []promutil.Result{mergeTimeseries(metric.Timeseries, label, selectValue, 1)}
 	}
-	var results []PrometheusResult
+	var results []promutil.Result
 	for _, ts := range metric.Timeseries {
 		dimension := dimensionValue(ts, m.SplitBy)
 		seriesLabel := dimension
@@ -233,10 +235,10 @@ func dimensionValue(ts *armmonitor.TimeSeriesElement, dimension string) string {
 }
 
 // mergeTimeseries flattens the given timeseries elements into a single
-// PrometheusResult labeled by label, reading the selected aggregation value,
+// promutil.Result labeled by label, reading the selected aggregation value,
 // multiplying it by scale (pass 1 for no scaling), and sorting points by
 // timestamp.
-func mergeTimeseries(elements []*armmonitor.TimeSeriesElement, label string, selectValue func(*armmonitor.MetricValue) *float64, scale float64) PrometheusResult {
+func mergeTimeseries(elements []*armmonitor.TimeSeriesElement, label string, selectValue func(*armmonitor.MetricValue) *float64, scale float64) promutil.Result {
 	type point struct {
 		ts  int64
 		val float64
@@ -258,7 +260,7 @@ func mergeTimeseries(elements []*armmonitor.TimeSeriesElement, label string, sel
 	// logic assumes ascending timestamps.
 	slices.SortFunc(points, func(a, b point) int { return cmp.Compare(a.ts, b.ts) })
 
-	result := PrometheusResult{Metric: map[string]string{"metric": label}}
+	result := promutil.Result{Metric: map[string]string{"metric": label}}
 	for _, p := range points {
 		// Match the Prometheus [unix_seconds, "value"] tuple shape that
 		// parsePrometheusValue expects.
