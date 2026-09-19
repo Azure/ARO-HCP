@@ -10,14 +10,11 @@ metadata:
   namespace: kube-system
 spec:
   revisionHistoryLimit: 10
+  minReadySeconds: 30
   selector:
     matchLabels:
       component: kubelet-parameters
       tier: node
-  updateStrategy:
-    type: RollingUpdate
-    rollingUpdate:
-      maxUnavailable: 100%
   template:
     metadata:
       creationTimestamp: null
@@ -27,7 +24,7 @@ spec:
     spec:
       nodeSelector:
         aro-hcp.azure.com/role: worker
-      containers:
+      initContainers:
       - command:
         - nsenter
         - --target
@@ -41,14 +38,7 @@ spec:
         - sh
         - -c
         - |
-          if cat /etc/default/kubelet | grep -q '\-\-system-reserved=cpu=3000m,memory=7550Mi,pid=1000';then
-             echo "kube-reserved parameter already updated to system-reserved in kubelet configuration"
-          else
-             sed -i -E 's/--kube-reserved=[^ ]+/--system-reserved=cpu=3000m,memory=7550Mi,pid=1000/g' /etc/default/kubelet
-             systemctl daemon-reload
-             systemctl restart kubelet
-             echo "kube-reserved parameter has been updated to system-reserved in kubelet configuration"
-          fi
+{{ regexReplaceAll "(?m)^ +$" (.Files.Get "files/system-reserved.sh" | indent 10) "" }}
           if grep -q '\-\-collector.netclass.netlink' /usr/local/bin/node-exporter-startup.sh;then
              echo "collector.netclass.netlink parameter already updated in node-exporter configuration"
           else
@@ -57,17 +47,55 @@ spec:
              systemctl restart node-exporter
              echo "collector.netclass.netlink parameter has been updated in node-exporter configuration"
           fi
-          sleep infinity
         image: alpine
         imagePullPolicy: IfNotPresent
-        name: kubelet-parameters
+        name: apply-kubelet-parameters
+        resources:
+          requests:
+            cpu: 10m
+            memory: 32Mi
+          limits:
+            memory: 64Mi
+        securityContext:
+          privileged: true
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+      containers:
+      - name: kubelet-parameters
+        image: alpine
+        imagePullPolicy: IfNotPresent
+        command: ["sleep", "infinity"]
+        readinessProbe:
+          exec:
+            command:
+            - nsenter
+            - --target
+            - "1"
+            - --mount
+            - --uts
+            - --ipc
+            - --net
+            - --pid
+            - --
+            - curl
+            - --fail
+            - --silent
+            - --show-error
+            - --noproxy
+            - '*'
+            - --connect-timeout
+            - "2"
+            - --max-time
+            - "5"
+            - http://127.0.0.1:10248/healthz
+          periodSeconds: 5
+          timeoutSeconds: 10
+          failureThreshold: 1
         resources:
           requests:
             cpu: 10m
         securityContext:
           privileged: true
-        terminationMessagePath: /dev/termination-log
-        terminationMessagePolicy: File
       dnsPolicy: ClusterFirst
       hostPID: true
       restartPolicy: Always
