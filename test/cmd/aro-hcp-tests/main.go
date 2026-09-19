@@ -342,11 +342,6 @@ func orEmptySlice(s []string) []string {
 	return s
 }
 
-func miDemandPriority(spec *et.ExtensionTestSpec) int {
-	demand, _ := parseMIContainersLabel(spec)
-	return demand
-}
-
 type miSchedulerConfig struct {
 	pooledIdentitiesEnabled bool
 	containerCount          int
@@ -407,12 +402,6 @@ func configureMIScheduler(specs et.ExtensionTestSpecs, cfg miSchedulerConfig) {
 	} else {
 		fmt.Fprintf(os.Stderr, "[scheduler] pooled identities disabled (%s!=true), skipping mi-containers pool demands; %d specs (%d×0, %d×1, %d×2+)\n",
 			framework.UsePooledIdentitiesEnvvar, total, demand0, demand1, demandN)
-	}
-
-	if os.Getenv("ARO_HCP_DISABLE_MI_SORT") != "true" {
-		sort.SliceStable(specs, func(i, j int) bool {
-			return miDemandPriority(specs[i]) > miDemandPriority(specs[j])
-		})
 	}
 }
 
@@ -759,8 +748,8 @@ func setupCli() *cobra.Command {
 
 	// AddSpecs copies specs into a new backing array (ext.specs), so the
 	// scheduler must be wired against ext.GetSpecs() rather than the local
-	// specs slice above — otherwise the demand-based sort in
-	// configureMIScheduler reorders a slice run-suite/run-test never reads.
+	// specs slice above — otherwise configureMIScheduler mutates a slice
+	// run-suite/run-test never reads.
 	initMIScheduler(ext.GetSpecs(), miSchedulerConfig{
 		pooledIdentitiesEnabled: pooledIdentitiesEnabled,
 		containerCount:          containerCount,
