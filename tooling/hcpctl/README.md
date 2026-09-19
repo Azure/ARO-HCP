@@ -22,6 +22,25 @@ The tool will be available on SAW devices similar to how the `oc` utility is acc
 
 ## Commands Overview
 
+### Kubernetes resources from Kusto (`get`)
+
+`hcpctl get` provides a kubectl-like view of Kubernetes resource inventories stored in Kusto. A namespace or `--all-namespaces` must be supplied for namespaced resources.
+
+```bash
+hcpctl get pods -A \
+    --server my-kusto-cluster \
+    --cluster my-mgmt-cluster
+
+hcpctl get pod my-pod -n my-namespace \
+    --server https://example.eastus2.kusto.windows.net \
+    --cluster my-mgmt-cluster \
+    -o yaml
+```
+
+The server may be a short Azure Data Explorer resource name, a hostname, or a full URL. Short names are resolved with Azure Resource Graph. Supported output formats are the native table, `wide`, `name`, `json`, and `yaml`. `all` returns every resource type present in the Kusto inventory rather than kubectl's predefined `all` set.
+
+The source time is written to stderr as `KUSTO_TIMESTAMP: <resource-type> <timestamp>` by default. Table and `name` output use the inventory snapshot time; JSON and YAML use the full-object timestamp from `kubernetesResourceSnapshots`. For `all` table output, each resource table is immediately followed by its timestamp on stderr. Pass `--no-kusto-timestamp` (or its alias `--no-ts`) to suppress it. When detailed output combines objects of one type with different timestamps, the footer uses the oldest one. JSON and YAML require a matching full object; the command returns an error rather than silently omitting objects without detailed snapshots.
+
 ### Service Cluster Operations (`sc`)
 
 - `hcpctl sc list` - List available service clusters
