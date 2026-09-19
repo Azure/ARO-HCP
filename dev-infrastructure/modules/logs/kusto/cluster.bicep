@@ -8,6 +8,9 @@ param location string = resourceGroup().location
 @description('Name of the Kusto cluster to create')
 param kustoName string
 
+@description('ARO-HCP geography short ID used for global resource discovery')
+param geoShortId string
+
 @description('The SKU of the cluster')
 param sku string = 'Standard_D12_v2'
 
@@ -87,6 +90,7 @@ resource kusto 'Microsoft.Kusto/clusters@2024-04-13' = {
   }
   tags: {
     aroHCPPurpose: 'logs'
+    aroHCPGeoShortId: geoShortId
     aroHCPEnvironment: environment
   }
   identity: {
