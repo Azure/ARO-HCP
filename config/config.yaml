@@ -1105,9 +1105,9 @@ defaults:
   # Cluster Service
   clustersService:
     image:
-      registry: quay.io
-      repository: app-sre/aro-hcp-clusters-service
-      digest: sha256:ba095cc5b8a62b766089d1df19162dbb6585a2597ebc7eb5c921a25faa97c93d # ca17fa5a2b35d170b78f54b5672d5c18c2c86e86 (2026-09-17 19:56)
+      registry: arohcpsvcdev.azurecr.io
+      repository: mchitimb/cs
+      digest: sha256:75a0cb6419b15e24cb01e71550c7771068c175ccdab6c6d5b3d1cdf2d2d16a05 # image locally built to test the shared ingress reading via kubeapplier usage in CS. See https://gitlab.cee.redhat.com/service/aro-hcp-clusters-service/-/merge_requests/468 for more details 
     # controls how many HCPs can be placed on an MC, sadly not configurable per MC
     provisionShardClusterLimit: 100
     provisionShardStatus: active
