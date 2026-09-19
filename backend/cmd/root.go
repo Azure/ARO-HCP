@@ -71,6 +71,9 @@ type BackendRootCmdFlags struct {
 	AzureClusterScopedIdentitiesRoleSetName                                                       string
 	BackupScheduleCadence                                                                         string
 	BackupScheduleState                                                                           string
+	OrphanedMRGMyAFEC                                                                             string
+	OrphanedMRGOtherAFECs                                                                         string
+	OrphanedMRGReadWrite                                                                          bool
 }
 
 func (f *BackendRootCmdFlags) AddFlags(cmd *cobra.Command) {
@@ -235,6 +238,13 @@ func (f *BackendRootCmdFlags) AddFlags(cmd *cobra.Command) {
 		fmt.Sprintf("Backup schedule cadence. Accepted values: '%s', '%s',", backups.BackupCadenceProduction, backups.BackupCadenceTesting))
 	cmd.Flags().StringVar(&f.BackupScheduleState, "backup-schedule-state", f.BackupScheduleState,
 		fmt.Sprintf("Backup schedule state. Accepted values: %s, %s", coreapi.BackupScheduleStateEnabled, coreapi.BackupScheduleStateDisabled))
+	cmd.Flags().StringVar(&f.OrphanedMRGMyAFEC, "orphaned-mrg-my-afec", f.OrphanedMRGMyAFEC,
+		"AFEC flag identifying subscriptions owned by this environment for orphaned MRG cleanup (e.g. Microsoft.RedHatOpenShift/STAGING-APPROVED)")
+	cmd.Flags().StringVar(&f.OrphanedMRGOtherAFECs, "orphaned-mrg-other-afecs", f.OrphanedMRGOtherAFECs,
+		"Comma-separated AFEC flags identifying subscriptions owned by OTHER environments for orphaned MRG cleanup")
+	cmd.Flags().BoolVar(&f.OrphanedMRGReadWrite, "orphaned-mrg-read-write", f.OrphanedMRGReadWrite,
+		"When true, actually delete orphaned managed resource groups. Default is read-only mode.")
+	cmd.MarkFlagsMutuallyExclusive("orphaned-mrg-my-afec", "orphaned-mrg-other-afecs")
 
 	cmd.MarkFlagsRequiredTogether("cosmos-name", "cosmos-url")
 }
@@ -343,6 +353,10 @@ func (f *BackendRootCmdFlags) validate() error {
 
 	if f.BackupScheduleState != string(coreapi.BackupScheduleStateEnabled) && f.BackupScheduleState != string(coreapi.BackupScheduleStateDisabled) {
 		return utils.TrackError(fmt.Errorf("--backup-schedule-state must be '%s' or '%s'", coreapi.BackupScheduleStateEnabled, coreapi.BackupScheduleStateDisabled))
+	}
+
+	if len(f.OrphanedMRGMyAFEC) != 0 && len(f.OrphanedMRGOtherAFECs) != 0 {
+		return utils.TrackError(fmt.Errorf("MY_AFEC and OTHER_AFECS are mutually exclusive"))
 	}
 
 	return nil
@@ -583,6 +597,9 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 		CloudEnvironment:              azureConfig.CloudEnvironment,
 		MetricsRegisterer:             legacyregistry.Registerer(),
 		MetricsGatherer:               legacyregistry.DefaultGatherer,
+		OrphanedMRGMyAFEC:             f.OrphanedMRGMyAFEC,
+		OrphanedMRGOtherAFECs:         f.OrphanedMRGOtherAFECs,
+		OrphanedMRGReadWrite:          f.OrphanedMRGReadWrite,
 	}
 
 	return backendOptions, nil
@@ -606,6 +623,9 @@ func NewBackendRootCmdFlags() *BackendRootCmdFlags {
 		ExitOnPanic:                                     true,
 		BackupScheduleCadence:                           string(backups.BackupCadenceProduction),
 		BackupScheduleState:                             string(coreapi.BackupScheduleStateEnabled),
+		OrphanedMRGMyAFEC:                               "",
+		OrphanedMRGOtherAFECs:                           "",
+		OrphanedMRGReadWrite:                            false,
 	}
 
 	return flags

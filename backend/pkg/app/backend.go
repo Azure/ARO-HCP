@@ -131,6 +131,9 @@ type BackendOptions struct {
 	CheckAccessV2ClientBuilder                          azureclient.CheckAccessV2ClientBuilder
 	ClusterScopedIdentitiesConfig                       *internalazure.ClusterScopedIdentitiesConfig
 	CloudEnvironment                                    *azureconfig.AzureCloudEnvironment
+	OrphanedMRGMyAFEC                                   string
+	OrphanedMRGOtherAFECs                               string
+	OrphanedMRGReadWrite                                bool
 }
 
 const backendShutdownTimeout = 31 * time.Second
@@ -810,12 +813,22 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		backendInformers,
 	)
 
-	cleanOrphanedClusterManagedResourceGroupController := clusterdeletion.NewCleanOrphanedClusterManagedResourceGroupController(
+	orphanedManagedResourceGroupController := clusterdeletion.NewOrphanedManagedResourceGroupController(
 		b.options.AzureLocation,
-		activeOperationLister,
 		b.options.ResourcesDBClient,
+		subscriptionLister,
+		clusterLister,
+		b.options.FPAClientBuilder,
+		b.options.OrphanedMRGMyAFEC,
+		b.options.OrphanedMRGOtherAFECs,
+		b.options.OrphanedMRGReadWrite,
+	)
+	managedResourceGroupWatchingController := controllerutils.NewManagedResourceGroupWatchingController(
+		b.options.AzureLocation,
+		orphanedManagedResourceGroupController,
 		b.options.FPAClientBuilder,
 		backendInformers,
+		24*time.Hour,
 	)
 
 	ensureManagedResourceGroupController := clusterazureresources.NewManagedResourceGroupController(
@@ -1205,7 +1218,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go createNodePoolScopedReadDesiresController.Run(ctx, 20)
 				go createServiceProviderClusterController.Run(ctx, 20)
 				go createServiceProviderNodePoolController.Run(ctx, 20)
-				go cleanOrphanedClusterManagedResourceGroupController.Run(ctx, 20)
+				go managedResourceGroupWatchingController.Run(ctx, 50)
 				go ensureManagedResourceGroupController.Run(ctx, 20)
 				go triggerNodePoolUpgradeController.Run(ctx, 20)
 				go nodePoolDeletionClusterServiceDeleteDispatchController.Run(ctx, 20)

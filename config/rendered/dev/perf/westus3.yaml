@@ -138,6 +138,9 @@ backend:
   maestro:
     sourceEnvironmentIdentifier: arohcpperf
   managedIdentityName: backend
+  orphanedMRGMyAFEC: ""
+  orphanedMRGOtherAFECs: ""
+  orphanedMRGReadWrite: false
   tracing:
     address: ""
     exporter: ""
