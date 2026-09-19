@@ -67,6 +67,14 @@ rules:
   - patch
   - delete
 - apiGroups:
+  - ''
+  resources:
+  - services
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
   - certificates.k8s.io
   resources:
   - certificatesigningrequests
@@ -139,6 +147,19 @@ rules:
   resources:
   - schedules
   - backups
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - multitenancy.acn.azure.com
+  resources:
+  - podnetworks
+  - podnetworkinstances
   verbs:
   - get
   - list

@@ -130,6 +130,9 @@ var fleetContainerScope = '${cosmosDbAccount.id}/dbs/${cosmosDBAccountName}/coll
 resource sqlRoleAssignmentFleetReadOnly 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@2021-04-15' = {
   name: guid(cosmosReadOnlyRoleDefinitionId, csManagedIdentityPrincipalId, fleetContainerScope)
   parent: cosmosDbAccount
+  dependsOn: [
+    cosmosDbContainers
+  ]
   properties: {
     roleDefinitionId: '${cosmosDbAccount.id}/sqlRoleDefinitions/${cosmosReadOnlyRoleDefinitionId}'
     principalId: csManagedIdentityPrincipalId
@@ -145,6 +148,9 @@ var resourcesContainerScope = '${cosmosDbAccount.id}/dbs/${cosmosDBAccountName}/
 resource sqlRoleAssignmentResourcesReadWrite 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@2021-04-15' = {
   name: guid(cosmosDataContributorRoleDefinitionId, csManagedIdentityPrincipalId, resourcesContainerScope)
   parent: cosmosDbAccount
+  dependsOn: [
+    cosmosDbContainers
+  ]
   properties: {
     roleDefinitionId: '${cosmosDbAccount.id}/sqlRoleDefinitions/${cosmosDataContributorRoleDefinitionId}'
     principalId: csManagedIdentityPrincipalId

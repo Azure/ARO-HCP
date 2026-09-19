@@ -137,7 +137,7 @@ type ServiceProviderClusterSpec struct {
 	// dissipated. Additionally, long recheck times are recommended for resources
 	// outside of their active phases. Order of at least six hours is, with
 	// durations up to 24 hours considered normal.
-	// Written by: FetchMSIIdentitiesInfo, FetchDataPlaneOperatorsManagedIdentitiesInfoController
+	// Written by: FetchMSIIdentitiesInfo, FetchDataPlaneOperatorsManagedIdentitiesInfoController, IdentityRoleAssignments
 	EarliestRecheckTimesByController map[string]*metav1.Time `json:"earliestRecheckTimesByController,omitempty"`
 }
 
@@ -220,6 +220,12 @@ type ServiceProviderClusterStatus struct {
 	// Once set, this field is immutable.
 	ManagementClusterResourceID *azcorearm.ResourceID `json:"managementClusterResourceID,omitempty"`
 
+	// Placement holds capacity availability for the HCP's placement attempt.
+	// CapacityAvailable=True is recorded on the same Replace that sets
+	// Spec.ManagementClusterResourceID.
+	// Written by: PlacementController
+	Placement *ServiceProviderClusterPlacementStatus `json:"placement,omitempty"`
+
 	// DesiredHostedClusterControlPlaneSize mirrors the value of
 	// Spec.DesiredHostedClusterControlPlaneSize once cluster-service reflects
 	// the effective size override (as confirmed by the desired-control-plane-size
@@ -300,6 +306,25 @@ type ServiceProviderClusterStatus struct {
 	// cannot lose the record. Empty means no backup has completed.
 	// Written by: KeyRotationBackup
 	KeyRotationBackupFingerprint string `json:"keyRotationBackupFingerprint,omitempty"`
+}
+
+// ServiceProviderClusterPlacementStatus holds placement-specific status for a
+// ServiceProviderCluster. It is kept off the top-level Status.Conditions per the
+// minimalism guidance there ("conditions at other levels can be specified within
+// ServiceProviderClusterStatus too").
+type ServiceProviderClusterPlacementStatus struct {
+	// Conditions holds placement conditions. Known types:
+	//   - "CapacityAvailable": True when suitable placement capacity was found;
+	//     False when no usable capacity exists; Unknown when required observations or
+	//     configuration are unavailable. Placement itself is recorded in
+	//     Spec.ManagementClusterResourceID.
+	// Written by: PlacementController
+	// +optional
+	// +patchMergeKey=type
+	// +patchStrategy=merge
+	// +listType=map
+	// +listMapKey=type
+	Conditions []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type"`
 }
 
 // ServiceProviderClusterMSIManagedIdentities holds Managed Service Identity (MSI)
@@ -405,11 +430,12 @@ type AzureResources struct {
 	// DenyAssignments tracks the deny assignments applied to the cluster's resources.
 	DenyAssignments DenyAssignmentReferences `json:"denyAssignments,omitempty"`
 	// ManagedResourceGroup tracks the managed resource group for the cluster.
-	// Written by: ObserveManagedResourceGroup
+	// Written by: EnsureManagedResourceGroup
 	ManagedResourceGroup AzureReference `json:"managedResourceGroup,omitempty"`
 	// RoleAssignments tracks the role assignments created on the managed resource group
-	// for the cluster's control-plane and data-plane managed identities.
-	// Written by: ObserveRoleAssignments
+	// for the cluster's control-plane and data-plane operator identities and its service
+	// managed identity.
+	// Written by: IdentityRoleAssignments
 	RoleAssignments AzureMultiReference `json:"roleAssignments,omitempty"`
 }
 
@@ -471,12 +497,14 @@ type DenyAssignmentReference struct {
 type ServiceProviderClusterStatusVersion struct {
 	// ActiveVersions is an array of versions currently active in the control plane, ordered with the most recent first.
 	// During upgrades, multiple versions can be active simultaneously.
-	ActiveVersions []HCPClusterActiveVersion `json:"active_versions,omitempty"`
+	// Written by: ControlPlaneActiveVersions
+	ActiveVersions []ServiceProviderClusterActiveVersion `json:"active_versions,omitempty"`
 }
 
-// HCPClusterActiveVersion represents a single version active in the control plane.
-type HCPClusterActiveVersion struct {
+// ServiceProviderClusterActiveVersion represents a single version active in the control plane.
+type ServiceProviderClusterActiveVersion struct {
 	// Version is the full version in x.y.z format (e.g., "4.19.2")
+	// Written by: ControlPlaneActiveVersions
 	Version *semver.Version `json:"version,omitempty"`
 	// State is the update state from OpenShift (e.g. configv1.CompletedUpdate or configv1.PartialUpdate).
 	State configv1.UpdateState `json:"state,omitempty"`

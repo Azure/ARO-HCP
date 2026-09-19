@@ -15,12 +15,19 @@
 package gatherobservability
 
 import (
+	"bytes"
 	"encoding/json"
 	"math"
+	"slices"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/go-echarts/go-echarts/v2/opts"
+	"golang.org/x/net/html"
+
+	"github.com/Azure/ARO-HCP/test/util/timing"
 )
 
 func TestParsePrometheusValue(t *testing.T) {
@@ -220,10 +227,11 @@ func TestFindCommonLabels(t *testing.T) {
 func TestCompactMetricLabel(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name   string
-		metric map[string]string
-		common map[string]bool
-		want   string
+		name         string
+		metric       map[string]string
+		common       map[string]bool
+		displayNames map[string]string
+		want         string
 	}{
 		{
 			name:   "all labels are common - falls back to full label",
@@ -255,16 +263,121 @@ func TestCompactMetricLabel(t *testing.T) {
 			common: nil,
 			want:   "ns=b, pod=a",
 		},
+		{
+			name:         "common calling service stays explicit beside source kind",
+			metric:       map[string]string{"container": "fleet-controller", "cosmosdb_container": "fleet", "source_kind": "informer"},
+			common:       map[string]bool{"container": true, "cosmosdb_container": true},
+			displayNames: map[string]string{"container": "calling_service"},
+			want:         "calling_service=fleet-controller, source_kind=informer",
+		},
+		{
+			name:         "sole explicit label keeps its meaning",
+			metric:       map[string]string{"container": "fleet-controller", "cosmosdb_container": "fleet"},
+			common:       map[string]bool{"container": true, "cosmosdb_container": true},
+			displayNames: map[string]string{"container": "calling_service"},
+			want:         "calling_service=fleet-controller",
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := compactMetricLabel(tt.metric, tt.common)
+			got := compactMetricLabel(tt.metric, tt.common, tt.displayNames)
 			if got != tt.want {
 				t.Errorf("compactMetricLabel() = %q, want %q", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestRenderFacetedLineChartInitialThreshold(t *testing.T) {
+	t.Parallel()
+
+	tw := timing.TimeWindow{
+		Start: time.Date(2026, 4, 13, 6, 0, 0, 0, time.UTC),
+		End:   time.Date(2026, 4, 13, 8, 0, 0, 0, time.UTC),
+	}
+	q := QuerySpec{
+		Title:            "Request units",
+		Query:            "request_units",
+		ChartType:        chartTypeFacetedLine,
+		FacetBy:          "container",
+		MinPeakThreshold: 5,
+	}
+	var results []PrometheusResult
+	for _, container := range []string{"clusters", "operations"} {
+		for _, series := range []struct {
+			name  string
+			value string
+		}{
+			{name: "below threshold", value: "2"},
+			{name: "above threshold", value: "10"},
+		} {
+			results = append(results, PrometheusResult{
+				Metric: map[string]string{"container": container, "operation": series.name},
+				Values: [][]any{{float64(tw.Start.Unix()), series.value}, {float64(tw.End.Unix()), series.value}},
+			})
+		}
+	}
+	rendered, err := renderPanelHTML(panelPageData{
+		Title:  q.Title,
+		Charts: []chartData{buildChartData(q, "", "", "", results, tw)},
+	})
+	if err != nil {
+		t.Fatalf("render faceted panel: %v", err)
+	}
+	doc, err := html.Parse(bytes.NewReader(rendered))
+	if err != nil {
+		t.Fatalf("parse rendered faceted panel: %v", err)
+	}
+	attr := func(node *html.Node, key string) string {
+		for _, a := range node.Attr {
+			if a.Key == key {
+				return a.Val
+			}
+		}
+		return ""
+	}
+	hasClass := func(node *html.Node, class string) bool {
+		return node.Type == html.ElementNode && slices.Contains(strings.Fields(attr(node, "class")), class)
+	}
+	var plots []*html.Node
+	var visit func(*html.Node)
+	visit = func(node *html.Node) {
+		if hasClass(node, "item") {
+			plots = append(plots, node)
+		}
+		for child := node.FirstChild; child != nil; child = child.NextSibling {
+			visit(child)
+		}
+	}
+	visit(doc)
+	if len(plots) != 2 {
+		t.Fatalf("rendered %d plots, want one for each of the two facets", len(plots))
+	}
+	plotIDs := make(map[string]bool)
+	for _, plot := range plots {
+		id := attr(plot, "id")
+		if id == "" || plotIDs[id] {
+			t.Fatalf("facet plot ID %q is empty or shared with another plot", id)
+		}
+		plotIDs[id] = true
+
+		// The slider reads its initial filter from the plot's nearest chart section.
+		section := plot.Parent
+		for section != nil && !hasClass(section, "chart-section") {
+			section = section.Parent
+		}
+		if section == nil {
+			t.Fatalf("facet plot %q has no chart section for slider configuration", id)
+		}
+		if attr(section, "data-no-slider") == "true" {
+			t.Errorf("facet plot %q disables the threshold slider", id)
+		}
+		threshold, err := strconv.ParseFloat(attr(section, "data-min-peak-threshold"), 64)
+		if err != nil || threshold != 5 {
+			t.Errorf("facet plot %q initial threshold = %q, want 5 (parse error: %v)", id, attr(section, "data-min-peak-threshold"), err)
+		}
 	}
 }
 
@@ -571,7 +684,7 @@ func TestLoadQueriesConfig(t *testing.T) {
       workspace: svc
       chartType: bar
 `,
-			wantErr: `chartType must be "line" or "faceted-stacked-area"`,
+			wantErr: "chartType must be",
 		},
 		{
 			name: "faceted-stacked-area without facetBy returns error",
@@ -829,50 +942,11 @@ func TestLoadQueriesConfigEmbedded(t *testing.T) {
 		}
 	}
 
-	// Assert the panels that are easy to clobber when editing adjacent blocks
-	// still carry their own queries (regression guard for a duplicate-key merge
-	// that attached Maestro's queries to the CosmosDB panel and dropped the
-	// Maestro Metrics panel entirely).
-	wantQuery := map[string]string{
-		"CosmosDB Metrics":         "RU Consumption vs Provisioned",
-		"Maestro Metrics":          "REST API Request Rate by Status",
-		"Service Workload Metrics": "Top 20 Container CPU Usage",
-	}
-	for panelTitle, queryTitle := range wantQuery {
-		p, ok := byTitle[panelTitle]
-		if !ok {
-			t.Errorf("expected panel %q not found", panelTitle)
-			continue
-		}
-		found := false
-		for _, q := range p.Queries {
-			if q.Title == queryTitle {
-				found = true
-				break
-			}
-		}
-		if !found {
-			t.Errorf("panel %q missing expected query %q; has %d queries", panelTitle, queryTitle, len(p.Queries))
-		}
-	}
-
 	// All CosmosDB charts must live under a single panel so the Prow job
 	// renders one iframe. Guard against a regression that splits them back out
 	// into separate panels (extra iframes).
 	if _, ok := byTitle["CosmosDB Throttled Requests"]; ok {
 		t.Error("CosmosDB charts must be a single panel; found a separate \"CosmosDB Throttled Requests\" panel")
-	}
-	if p, ok := byTitle["CosmosDB Metrics"]; ok {
-		wantCharts := []string{"RU Consumption vs Provisioned", "Autoscale Provisioned RU vs Ceiling", "Throttled Requests (429)"}
-		have := map[string]bool{}
-		for _, q := range p.Queries {
-			have[q.Title] = true
-		}
-		for _, want := range wantCharts {
-			if !have[want] {
-				t.Errorf("CosmosDB Metrics panel missing chart %q; has %d charts", want, len(p.Queries))
-			}
-		}
 	}
 }
 

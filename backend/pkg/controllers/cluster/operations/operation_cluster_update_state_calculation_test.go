@@ -1958,14 +1958,14 @@ func TestHypershiftControlPlaneClusterAutoscalerState(t *testing.T) {
 
 	tests := []struct {
 		name                                          string
-		activeVersions                                []coreapi.HCPClusterActiveVersion
+		activeVersions                                []coreapi.ServiceProviderClusterActiveVersion
 		cachedControlPlaneClusterAutoscalerReadDesire *kubeapplierapi.ReadDesire
 		wantState                                     coreapi.ProvisioningState
 		wantMessage                                   string
 	}{
 		{
 			name:           "skips autoscaler gate when lowest active version is below 4.20",
-			activeVersions: []coreapi.HCPClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.19.0"))}},
+			activeVersions: []coreapi.ServiceProviderClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.19.0"))}},
 			wantState:      coreapi.ProvisioningStateSucceeded,
 			wantMessage:    `lowest active control plane version "4.19.0" does not support ControlPlaneComponent cluster-autoscaler (requires 4.20+)`,
 		},
@@ -1976,13 +1976,13 @@ func TestHypershiftControlPlaneClusterAutoscalerState(t *testing.T) {
 		},
 		{
 			name:           "waits when autoscaler ReadDesire is absent on 4.20+",
-			activeVersions: []coreapi.HCPClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.20.0"))}},
+			activeVersions: []coreapi.ServiceProviderClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.20.0"))}},
 			wantState:      coreapi.ProvisioningStateUpdating,
 			wantMessage:    "cluster autoscaler state not cached yet",
 		},
 		{
 			name: "nightly pre-release control plane version satisfies the 4.20+ autoscaler gate",
-			activeVersions: []coreapi.HCPClusterActiveVersion{{
+			activeVersions: []coreapi.ServiceProviderClusterActiveVersion{{
 				Version: ptr.To(semver.MustParse("4.20.0-0.nightly-2026-01-01-000000")),
 			}},
 			cachedControlPlaneClusterAutoscalerReadDesire: newControlPlaneClusterAutoscalerReadDesire(t, readyControlPlaneClusterAutoscaler()),
@@ -1991,14 +1991,14 @@ func TestHypershiftControlPlaneClusterAutoscalerState(t *testing.T) {
 		},
 		{
 			name:           "succeeds when autoscaler ControlPlaneComponent is ready",
-			activeVersions: []coreapi.HCPClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.20.0"))}},
+			activeVersions: []coreapi.ServiceProviderClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.20.0"))}},
 			cachedControlPlaneClusterAutoscalerReadDesire: newControlPlaneClusterAutoscalerReadDesire(t, readyControlPlaneClusterAutoscaler()),
 			wantState:   coreapi.ProvisioningStateSucceeded,
 			wantMessage: "",
 		},
 		{
 			name:           "updates when autoscaler ControlPlaneComponent is not ready",
-			activeVersions: []coreapi.HCPClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.20.0"))}},
+			activeVersions: []coreapi.ServiceProviderClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.20.0"))}},
 			cachedControlPlaneClusterAutoscalerReadDesire: newControlPlaneClusterAutoscalerReadDesire(t, &v1beta1.ControlPlaneComponent{
 				Status: v1beta1.ControlPlaneComponentStatus{
 					Conditions: []metav1.Condition{

@@ -6,8 +6,8 @@ UPSTREAM_RULE := alerts/kubernetesControlPlane-prometheusRule.upstream.yaml
 LOCAL_RULE := alerts/kubernetesControlPlane-prometheusRule.yaml
 LOCAL_DIFF := alerts/kubernetesControlPlane-prometheusRule.yaml.diff
 
-$(UPSTREAM_RULE): alerts-sl-services.yaml
-	PROMETHEUS_OPERATOR_REF=$$(yq -r '.prometheusRules.prometheusOperatorVersion' alerts-sl-services.yaml) && \
+$(UPSTREAM_RULE): alerts-kusto-services.yaml
+	PROMETHEUS_OPERATOR_REF=$$(yq -r '.prometheusRules.prometheusOperatorVersion' alerts-kusto-services.yaml) && \
 	wget --quiet --output-document=$@ \
 	https://raw.githubusercontent.com/prometheus-operator/kube-prometheus/$${PROMETHEUS_OPERATOR_REF}/manifests/kubernetesControlPlane-prometheusRule.yaml
 
@@ -30,12 +30,12 @@ $(LOCAL_DIFF): $(UPSTREAM_RULE) $(LOCAL_RULE)
 
 verify-rule: $(LOCAL_RULE)
 	@if [ -n "$$(git status --short $(LOCAL_RULE))" ]; then \
-		echo "The following file is out of date after running 'make -C observability/ sync-upstream':"; \
+		echo "The following file is out of date after refreshing the upstream rule:"; \
 		echo; \
 		git diff $(LOCAL_RULE); \
 		echo; \
 		echo "===================================================="; \
-		echo "Run 'make -C observability/ generate-diff' and commit the changes."; \
+		echo "Run 'make -B -C observability alerts/kubernetesControlPlane-prometheusRule.yaml.diff' and commit the changes."; \
 		echo "===================================================="; \
 		exit 1; \
 	fi

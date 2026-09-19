@@ -340,7 +340,7 @@ func MuxPattern(method string, segments ...string) string {
 
 func (f *Frontend) routes(r prometheus.Registerer) http.Handler {
 	// Setup metrics middleware
-	metricsMiddleware := NewMetricsMiddleware(r, f.collector)
+	metricsMiddleware := NewMetricsMiddleware(r)
 
 	middlewareMux := NewMiddlewareMux(
 		MiddlewarePanic,

@@ -30,8 +30,11 @@ import (
 	clocktesting "k8s.io/utils/clock/testing"
 	"k8s.io/utils/ptr"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
@@ -276,7 +279,6 @@ func TestTriggerControlPlaneUpgradeSyncer_ShouldTriggerUpgrade(t *testing.T) {
 			}
 			syncer := &triggerControlPlaneUpgradeSyncer{
 				clock:                 clocktesting.NewFakePassiveClock(now),
-				resourcesDBClient:     mockDB,
 				activeOperationLister: opLister,
 			}
 
@@ -288,6 +290,112 @@ func TestTriggerControlPlaneUpgradeSyncer_ShouldTriggerUpgrade(t *testing.T) {
 				require.NoError(t, err)
 			}
 			assert.Equal(t, tt.wantShouldRun, gotShouldRun)
+		})
+	}
+}
+
+// TestTriggerControlPlaneUpgradeSyncer_SyncOnce exercises the full SyncOnce path,
+// including the cluster read that now comes from the informer-backed ClusterLister.
+//
+// The cluster and ServiceProviderCluster are placed ONLY in slice-backed cache
+// listers and are deliberately NOT written to any mock ResourcesDBClient. This
+// controller performs no Cosmos writes, so no DB is needed at all. Because the
+// objects live only in the cache, reverting SyncOnce to a live
+// c.resourcesDBClient.HCPClusters(...).Get(...) read would resolve NotFound and
+// return early, so the "triggers upgrade" case would fail — the test genuinely
+// guards the cached read rather than silently accepting a DB read.
+func TestTriggerControlPlaneUpgradeSyncer_SyncOnce(t *testing.T) {
+	now := time.Date(2026, 6, 26, 12, 0, 0, 0, time.UTC)
+	testClusterServiceID := metadataapi.Must(metadataapi.NewInternalID(testCSClusterIDStr))
+
+	// clusterInCache builds a cluster with a ClusterServiceID and no SystemData
+	// (so shouldTriggerUpgrade passes the grace-period gate without consulting the
+	// active-operation lister). It is only ever stored in the slice cache lister.
+	clusterInCache := func() *coreapi.HCPOpenShiftCluster {
+		clusterResourceID := metadataapi.Must(coreapi.ToClusterResourceID(testSubscriptionID, testResourceGroupName, testClusterName))
+		return &coreapi.HCPOpenShiftCluster{
+			CosmosMetadata: coreapi.CosmosMetadata{ResourceID: clusterResourceID},
+			TrackedResource: coreapi.TrackedResource{
+				Resource: coreapi.Resource{ID: clusterResourceID, Name: testClusterName, Type: coreapi.ClusterResourceType.String()},
+			},
+			ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+				ClusterServiceID: ptr.To(testClusterServiceID),
+			},
+		}
+	}
+	spcInCache := func(activeVersion, desiredVersion string) *coreapi.ServiceProviderCluster {
+		spcResourceID := metadataapi.Must(azcorearm.ParseResourceID(coreapi.ToServiceProviderClusterResourceIDString(testSubscriptionID, testResourceGroupName, testClusterName)))
+		active := semver.MustParse(activeVersion)
+		desired := semver.MustParse(desiredVersion)
+		return &coreapi.ServiceProviderCluster{
+			CosmosMetadata: coreapi.CosmosMetadata{ResourceID: spcResourceID},
+			Spec: coreapi.ServiceProviderClusterSpec{
+				ControlPlaneVersion: coreapi.ServiceProviderClusterSpecVersion{DesiredVersion: &desired},
+			},
+			Status: coreapi.ServiceProviderClusterStatus{
+				ControlPlaneVersion: coreapi.ServiceProviderClusterStatusVersion{
+					ActiveVersions: []coreapi.ServiceProviderClusterActiveVersion{{Version: &active}},
+				},
+			},
+		}
+	}
+
+	tests := []struct {
+		name      string
+		clusters  []*coreapi.HCPOpenShiftCluster
+		spcs      []*coreapi.ServiceProviderCluster
+		mockSetup func(*ocm.MockClusterServiceClientSpec)
+	}{
+		{
+			name:      "cluster absent from cache returns nil",
+			mockSetup: func(mc *ocm.MockClusterServiceClientSpec) {},
+		},
+		{
+			name:      "desired version matches latest active version returns nil",
+			clusters:  []*coreapi.HCPOpenShiftCluster{clusterInCache()},
+			spcs:      []*coreapi.ServiceProviderCluster{spcInCache("4.19.15", "4.19.15")},
+			mockSetup: func(mc *ocm.MockClusterServiceClientSpec) {},
+		},
+		{
+			name:     "desired version differs from active version triggers upgrade policy from cached cluster read",
+			clusters: []*coreapi.HCPOpenShiftCluster{clusterInCache()},
+			spcs:     []*coreapi.ServiceProviderCluster{spcInCache("4.19.15", "4.19.22")},
+			mockSetup: func(mc *ocm.MockClusterServiceClientSpec) {
+				mc.EXPECT().
+					ListControlPlaneUpgradePolicies(testClusterServiceID, "creation_timestamp desc").
+					Return(ocm.NewSimpleControlPlaneUpgradePolicyListIterator([]*arohcpv1alpha1.ControlPlaneUpgradePolicy{}, nil))
+				expectedBuilder := arohcpv1alpha1.NewControlPlaneUpgradePolicy().Version("4.19.22")
+				mc.EXPECT().
+					PostControlPlaneUpgradePolicy(gomock.Any(), testClusterServiceID, expectedBuilder).
+					Return(metadataapi.Must(expectedBuilder.Build()), nil)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			ctx := utils.ContextWithLogger(context.Background(), logr.Discard())
+
+			mockClusterServiceClient := ocm.NewMockClusterServiceClientSpec(ctrl)
+			tt.mockSetup(mockClusterServiceClient)
+
+			syncer := &triggerControlPlaneUpgradeSyncer{
+				clock:                        clocktesting.NewFakePassiveClock(now),
+				clusterLister:                &corelistertesting.SliceClusterLister{Clusters: tt.clusters},
+				clusterServiceClient:         mockClusterServiceClient,
+				activeOperationLister:        &corelistertesting.SliceActiveOperationLister{},
+				serviceProviderClusterLister: &corelistertesting.SliceServiceProviderClusterLister{ServiceProviderClusters: tt.spcs},
+			}
+
+			err := syncer.SyncOnce(ctx, controllerutils.HCPClusterKey{
+				SubscriptionID:    testSubscriptionID,
+				ResourceGroupName: testResourceGroupName,
+				HCPClusterName:    testClusterName,
+			})
+			assertSyncResult(t, err, false, "")
 		})
 	}
 }

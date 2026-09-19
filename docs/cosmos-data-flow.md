@@ -8,6 +8,66 @@ All resources live in a single Cosmos container ("Resources"). Every write is a 
 replacement with ETag-based optimistic concurrency. The `InstanceVersion` field is
 auto-incremented on each Replace.
 
+## Request Unit (RU) attribution
+
+Clients constructed through `corecosmosstorage.NewCosmosDatabaseClient` record two
+shared, process-wide counters through the same per-retry pipeline policy:
+
+- `cosmos_request_units_total` sums the `x-ms-request-charge` response header
+  once per HTTP attempt, including charged failures, query pages, and idle
+  changefeed responses. Missing, malformed, negative, or non-finite charges
+  are ignored, so this measures reported RUs, not request count.
+- `cosmos_requests_total` counts every HTTP attempt that received a response,
+  regardless of whether a charge was reported. It exists because a `429` is
+  typically rejected before Cosmos DB does any work and usually reports a
+  zero or absent charge — `cosmos_request_units_total` alone cannot answer
+  "how often was this source throttled", only "how much RU did its throttled
+  attempts happen to cost" (usually ~0 regardless of frequency).
+
+Neither instruments credential requests. Both share the same labels:
+
+| Label | Meaning |
+|-------|---------|
+| `source_kind` | `controller`, `informer`, or `unattributed` |
+| `source` | Explicit informer name, otherwise the existing controller context name, otherwise `unknown` |
+| `cosmosdb_container` | Actual Cosmos container name, preserving casing; `unknown` when the request has no identifiable container |
+| `operation` | `read`, `create`, `upsert`, `replace`, `patch`, `delete`, `query`, `query_plan`, `batch`, `change_feed`, `feed_ranges`, `metadata`, or `unknown` |
+| `status_code` | HTTP response status, including failures and `304` |
+
+Cosmos requests made by an informer’s List/Watch operations are attributed to that
+informer, even if the context also contains a controller name. Initial lists,
+relists, query pages, and asynchronous feed polls belong to the informer, not
+to each consuming controller. `ActiveOperations` and `AllOperations` have separate
+identities. Controller CRUD, including controller-status persistence, retains
+the controller's existing context.
+
+The SDK refreshes its partition-range cache in the background, so those
+charges cannot be attributed. They land in `unattributed` / `unknown` and
+the amount is small.
+Other callers without identity use that same bucket. Requests whose responses
+never reach the client cannot contribute to either counter; compare with Cosmos
+platform metrics when investigating discrepancies.
+
+Average RU/s by source, deduplicating HA scrapes before summing targets:
+
+```promql
+sum by (source_kind, source) (
+  max without (prometheus_replica) (
+    rate(cosmos_request_units_total[5m])
+  )
+)
+```
+
+Rate of `429` responses by source — a request count, not RU cost:
+
+```promql
+sum by (source_kind, source) (
+  max without (prometheus_replica) (
+    rate(cosmos_requests_total{status_code="429"}[5m])
+  )
+)
+```
+
 ---
 
 ## 1. Frontend Endpoint Writes
@@ -244,16 +304,17 @@ which performs a **transactional batch** to atomically update the operation and 
 
 **Gate (shouldReconcileOperationAndResourceStatus on Cluster):**
 - `Cluster.ServiceProviderProperties.DeletionTimestamp` == nil
-- `Cluster.ServiceProviderProperties.ClusterServiceID` != nil
+
+Placement is checked even before a Cluster Service ID exists. Until `ServiceProviderCluster.Spec.ManagementClusterResourceID` is set, placement uses the overall `ServiceProviderProperties.CreateOperationCompletionDeadline`; there is no separate placement timeout. If no overall deadline is set, unresolved placement continues provisioning. At or after that deadline, unresolved placement fails with the customer-safe `AROHCPCapacityHeavyUse` error when the recorded `Status.Placement.Conditions[CapacityAvailable]` is `False`; otherwise it fails with `InternalServerError`, including when the SPC or its condition is missing. Internal placement diagnostics are not copied into the customer error. Once Spec placement is assigned, the placement check succeeds regardless of a stale capacity condition; the other completion checks and overall create deadline still apply.
 
 | | Object | Fields |
 |---|--------|--------|
 | Read | `Operation` | <ul><li>`Status` (ShouldProcess: must not be terminal)</li><li>`Request` (ShouldProcess: must be `Create`)</li><li>`ExternalID` (ShouldProcess: resource type must be `ClusterResourceType`)</li><li>`OperationID.Name`</li></ul> |
-| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.ActiveOperationID` (mismatch check)</li><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.API.URL`</li><li>`ServiceProviderProperties.CreateOperationCompletionDeadline`</li></ul> |
+| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.ActiveOperationID` (mismatch check)</li><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (query Cluster Service only when populated)</li><li>`ServiceProviderProperties.API.URL`</li><li>`ServiceProviderProperties.CreateOperationCompletionDeadline`</li></ul> |
 | Read | ReadDesire (HostedCluster) | <ul><li>`Status.Conditions` (ConditionTypeSuccessful)</li><li>`Status.KubeContent` -> HostedCluster `status.controlPlaneVersion.history[].state`, `status.controlPlaneVersion.history[].version`, `status.conditions` (Available, Degraded), `status.controlPlaneEndpoint.host`, `status.controlPlaneEndpoint.port`</li></ul> |
 | Read | Cluster Service | <ul><li>cluster state, provision error</li></ul> |
-| Read | `ServiceProviderCluster` | <ul><li>`Status.ServingCABundle` (completion gate: must be populated)</li><li>`Status.AzureResources.RoleAssignments` (completion gate: at least one confirmed `AzureResources` and no `PendingAzureResources`)</li></ul> |
-| **Write** | **`Operation`** | <ul><li>**`Status`** -> `Provisioning`/`Succeeded`/`Failed`</li><li>**`Error`** (on failure)</li><li>**`LastTransitionTime`**</li><li>**`NotificationURI`** (cleared after ARM notification)</li></ul> |
+| Read | `ServiceProviderCluster` | <ul><li>`Spec.ManagementClusterResourceID` (placement completion)</li><li>`Status.Placement.Conditions[CapacityAvailable]` (classifies unresolved placement at the deadline)</li><li>`Status.ServingCABundle` (completion gate: must be populated)</li><li>`Status.AzureResources.RoleAssignments` (completion gate: at least one confirmed `AzureResources` and no `PendingAzureResources`)</li></ul> |
+| **Write** | **`Operation`** | <ul><li>**`Status`** -> `Provisioning`/`Succeeded`/`Failed`</li><li>**`Error`** (on failure; preserves classified customer-safe errors, aggregates multiple classified failures as `MultipleErrorsOccurred`, or falls back to `InternalServerError`)</li><li>**`LastTransitionTime`**</li><li>**`NotificationURI`** (cleared after ARM notification)</li></ul> |
 | **Write** | **`HCPOpenShiftCluster`** | <ul><li>**`ServiceProviderProperties.ProvisioningState`** = new status</li><li>**`.ActiveOperationID`** = `""` (on terminal)</li></ul> |
 
 #### OperationClusterUpdate
@@ -338,7 +399,7 @@ which performs a **transactional batch** to atomically update the operation and 
 | Read | `HCPOpenShiftClusterNodePool` | <ul><li>`ServiceProviderProperties.ActiveOperationID` (mismatch check)</li><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must not be nil)</li><li>`Properties.Version.ID`</li><li>`Properties.Labels`</li><li>`Properties.AutoScaling` (Min, Max)</li><li>`Properties.Replicas`</li><li>`Properties.Taints`</li><li>`Properties.NodeDrainTimeoutMinutes`</li></ul> |
 | Read | `ServiceProviderNodePool` | <ul><li>`Spec.NodePoolVersion.DesiredVersion`</li></ul> |
 | Read | Controller(`NodepoolVersion`) | <ul><li>`Status.Conditions[IntentFailed]` (Status, Reason, Message)</li></ul> |
-| Read | ReadDesire (NodePool) | <ul><li>`Spec.NodeLabels`</li><li>`Spec.AutoScaling` (Min, Max)</li><li>`Spec.Replicas`</li><li>`Spec.Taints`</li><li>`Spec.NodeDrainTimeout`</li><li>`Status.Replicas`</li><li>`Status.Conditions` (AllMachinesReadyConditionType)</li></ul> |
+| Read | ReadDesire (NodePool) | <ul><li>`Spec.NodeLabels`</li><li>`Spec.AutoScaling` (Min, Max)</li><li>`Spec.Replicas`</li><li>`Spec.Taints`</li><li>`Spec.NodeDrainTimeout`</li><li>`Status.Replicas`</li><li>`Status.Conditions` (AllMachinesReadyConditionType, AllNodesHealthyConditionType)</li></ul> |
 | Read | Cluster Service | <ul><li>node pool status, labels, taints, nodeDrainGracePeriod</li></ul> |
 | **Write** | **`Operation`** | <ul><li>**`Status`** -> `Updating`/`Succeeded`/`Failed`</li><li>**`Error`** (on failure)</li><li>**`LastTransitionTime`**</li></ul> |
 | **Write** | **`HCPOpenShiftClusterNodePool`** | <ul><li>**`Properties.ProvisioningState`** = new status</li><li>**`ServiceProviderProperties.ActiveOperationID`** = `""` (on terminal)</li></ul> |
@@ -848,13 +909,23 @@ No Cosmos writes. Dispatches updates to Cluster Service via PATCH.
 
 | | Object | Fields |
 |---|--------|--------|
+| Read | `HCPOpenShiftCluster` (informer cache) | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (skip when set)</li><li>`Status.ActiveVersions` (compared before write)</li></ul> |
 | Read | ReadDesire (HostedCluster) | <ul><li>`Status.ControlPlaneVersion.History`</li></ul> |
 | Read | ReadDesire (HostedCluster) | <ul><li>`Status.Version.Desired.Channels`</li></ul> |
+| Read | `ServiceProviderCluster` (informer cache) | <ul><li>`Status.ControlPlaneVersion.ActiveVersions` (compared before write)</li><li>`Status.DesiredVersionChannels` (compared before write)</li></ul> |
 | **Write** | **`ServiceProviderCluster`** | <ul><li>**`Status.ControlPlaneVersion.ActiveVersions`** = [{Version, State}, ...]</li><li>**`Status.DesiredVersionChannels`** = ["stable-4.19", ...] (mirrored from HostedCluster `status.version.desired.channels` for DB-free cluster admission)</li></ul> |
+| **Write** | **`HCPOpenShiftCluster`** | <ul><li>**`Status.ActiveVersions`** = [{Version},...]</li></ul> |
 
 #### TriggerControlPlaneUpgrade
 
-**Trigger:** Cluster informer, 5-minute resync
+**File:** [trigger_control_plane_upgrade_controller.go](../backend/pkg/controllers/cluster/version/trigger_control_plane_upgrade_controller.go)
+**Trigger:** Cluster informer, 1-minute resync
+
+| | Object | Fields |
+|---|--------|--------|
+| Read | `HCPOpenShiftCluster` (informer cache) | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (skip when set)</li><li>`ServiceProviderProperties.ClusterServiceID` (skip when unset; target of the upgrade policy)</li><li>`ServiceProviderProperties.ActiveOperationID` (active-Create gate)</li><li>`SystemData.CreatedAt` (create grace-period gate)</li></ul> |
+| Read | `ServiceProviderCluster` (informer cache) | <ul><li>`Spec.ControlPlaneVersion.DesiredVersion` (skip when unset)</li><li>`Status.ControlPlaneVersion.ActiveVersions` (skip when empty; `[0]` is the current version compared to desired)</li></ul> |
+| Read | `Operation` (informer cache) | <ul><li>`Request` (active-Create gate; read only when `ActiveOperationID` is set and the cluster is within the create grace period)</li><li>`Status` (terminal check)</li></ul> |
 
 No Cosmos writes. Posts `ControlPlaneUpgradePolicy` to Cluster Service.
 
@@ -885,10 +956,17 @@ No Cosmos writes. Posts `ControlPlaneUpgradePolicy` to Cluster Service.
 |---|--------|--------|
 | Read | ReadDesire (NodePool) | <ul><li>`Status.NodesInfo.NodeVersions`</li></ul> |
 | **Write** | **`ServiceProviderNodePool`** | <ul><li>**`Status.NodePoolVersion.ActiveVersions`** = [{Version}, ...]</li></ul> |
+| **Write** | **`HCPOpenShiftClusterNodePool`** | <ul><li>**`Status.ActiveVersions`** = [{Version}, ...]</li></ul> |
 
 #### TriggerNodePoolUpgrade
 
+**File:** [trigger_node_pool_upgrade_controller.go](../backend/pkg/controllers/nodepool/version/trigger_node_pool_upgrade_controller.go)
 **Trigger:** NodePool informer, 5-minute resync
+
+| | Object | Fields |
+|---|--------|--------|
+| Read | `HCPOpenShiftClusterNodePool` (informer cache) | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (skip when set)</li><li>`ServiceProviderProperties.ClusterServiceID` (skip when unset/empty; target of the upgrade policy)</li></ul> |
+| Read | `ServiceProviderNodePool` (informer cache) | <ul><li>`Spec.NodePoolVersion.DesiredVersion` (skip when unset)</li><li>`Status.NodePoolVersion.ActiveVersions` (skip when empty; `[0]` is the current version compared to desired)</li></ul> |
 
 No Cosmos writes. Posts `NodePoolUpgradePolicy` to Cluster Service.
 
@@ -985,33 +1063,44 @@ No Cosmos writes. Posts `NodePoolUpgradePolicy` to Cluster Service.
 #### PlacementController
 
 **File:** [placement_controller.go](../backend/pkg/controllers/cluster/placement/placement_controller.go)
-**Trigger:** Cluster informer, 5-minute resync (20 workers)
-**Gate (needsWork on ServiceProviderCluster):**
+**Trigger:** Cluster informer, 5-minute resync (20 workers); unresolved capacity decisions schedule a retry after 29 seconds
+**Gate (needsWork on ServiceProviderCluster and Cluster):**
 - `ServiceProviderCluster.Spec.ManagementClusterResourceID` == nil
+- Both `ServiceProviderCluster` and `HCPOpenShiftCluster` are present in the informer caches
+- `HCPOpenShiftCluster.ServiceProviderProperties.DeletionTimestamp` == nil
+- `HCPOpenShiftCluster.ServiceProviderProperties.ProvisioningState.IsTerminal()` == false
 
-Resolves the scheduler's *desired* placement (`Spec.ManagementClusterResourceID`). When the HCP was already placed by ManagementClusterPlacementSync (`Status.ManagementClusterResourceID` set) but Spec is still nil, it backfills Spec from Status (rollout, no re-scheduling). When instead both Spec and Status are nil but the HCP already carries a `PendingClusterServiceID` (a rollout-race record created by a prior backend version), it asks Cluster Service where that cluster was placed (`GetClusterProvisionShard` → provision shard → the matching `ManagementCluster` by `Status.ClusterServiceProvisionShardID`) and backfills Spec from that already-decided placement rather than fresh-scheduling — a migration-only targeted Cluster Service read; it defers (no write) when Cluster Service has not yet reported a shard. Otherwise it selects an eligible management cluster (`ManagementCluster.Spec.SchedulingPolicy == Schedulable` AND Ready condition True) with sufficient SWIFT-NIC capacity, where `available = ScaleCeiling.Capacity[swift-nic] - max(ObservedResources.Usage[swift-nic], ObservedResources.Requests[swift-nic]) - (non-empty NotReadyResourceIDs)*3 - (non-nil PendingAssignedClusters)*3` (empty-string / nil entries reserve 0), an HCP fits when `available >= 3`, and among fitting clusters it chooses the highest-available eligible cluster (spread load evenly across management clusters), breaking ties by lowest resource ID. All candidate elimination (eligibility and capacity) happens in one place (`selectByCapacity`), which surfaces the per-candidate elimination reasons in its error. The `ManagementCluster` and `ManagementClusterScheduling` reads come from the informer caches; it reserves capacity on the chosen cluster (a live etag-guarded read-modify-write) before recording the intent (`Spec.ManagementClusterResourceID`). A cluster whose deletion has already been requested (`HCPOpenShiftCluster.ServiceProviderProperties.DeletionTimestamp` is set) is skipped entirely — neither placed nor reserved — so the deletion path does not have to reclaim capacity reserved for a cluster that is going away.
+Resolves the scheduler's *desired* placement (`Spec.ManagementClusterResourceID`) from cached management-cluster and scheduling observations. Eligible management clusters are `Schedulable`, have `Ready=True`, and have a scheduling document with both `CapacityDataCurrent=True` and `ScalingDataCurrent=True`. Available SWIFT-NIC capacity is `ScaleCeiling.Capacity - max(ObservedResources.Usage, ObservedResources.Requests)`, reduced by each non-nil `NotReadyResourceIDs` and `PendingAssignedClusters` entry's NIC reservation. A SingleReplica HCP needs one NIC; other HCPs need three. Existing reservations use each HCP's cached control-plane availability, conservatively reserving three NICs when the HCP cannot be read. Among fitting management clusters, selection chooses the highest available capacity, breaking ties by lowest resource ID.
+
+Each completed selection records `Status.Placement.Conditions[CapacityAvailable]`:
+- `True` / `Available`: a suitable management cluster was found, even if other candidates have incomplete observations.
+- `False` / `InsufficientCapacity`: eligible candidates were evaluated, but none had enough capacity.
+- `False` / `NoEligibleManagementCluster`: all candidates were evaluated and none were eligible, or there were no candidates.
+- `Unknown` / `EvaluationIncomplete`: no fit was found and at least one candidate could not be assessed because required observations or configuration were unavailable.
+
+When no fit is found, the controller persists the condition with internal per-candidate diagnostics and schedules a 29-second retry without returning a reconciliation error. Operational failures, including read/write errors and write conflicts, still return errors for workqueue backoff. When a fit is found, it first reserves capacity on the chosen management cluster using a live, etag-guarded read-modify-write, then records `Spec.ManagementClusterResourceID` and `CapacityAvailable=True` in the same SPC `Replace`. Unchanged SPC state does not trigger a write. There are no rollout backfills from observed Status or Cluster Service.
 
 | | Object | Fields |
 |---|--------|--------|
-| Read | `ServiceProviderCluster` | <ul><li>`Spec.ManagementClusterResourceID` (NeedsWork: must be nil)</li><li>`Status.ManagementClusterResourceID` (rollout backfill source)</li></ul> |
-| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (skip placement/reservation when the HCP is being deleted)</li><li>`ServiceProviderProperties.PendingClusterServiceID` (rollout-race: triggers the Cluster Service backfill when both Spec and Status are nil)</li></ul> |
-| Read | Cluster Service (rollout-race only) | <ul><li>`GetClusterProvisionShard` for the pending CS ID → provision shard (mapped back to a `ManagementCluster` by `Status.ClusterServiceProvisionShardID`)</li></ul> |
-| Read | `ManagementCluster` (all) | <ul><li>`Spec.SchedulingPolicy`, `Status.Conditions[Ready]`, `ResourceID`, `Status.ClusterServiceProvisionShardID` (rollout-race shard→MC mapping)</li></ul> |
-| Read | `ManagementClusterScheduling` (per eligible MC) | <ul><li>`Status.ScaleCeiling.Capacity`, `Status.ObservedResources.Usage`, `Status.NotReadyResourceIDs`, `Status.PendingAssignedClusters`</li></ul> |
-| **Write** | **`ManagementClusterScheduling`** | <ul><li>**`Status.PendingAssignedClusters`** += chosen HCP cluster resource ID (capacity reservation; conflict-retried)</li></ul> |
-| **Write** | **`ServiceProviderCluster`** | <ul><li>**`Spec.ManagementClusterResourceID`** = chosen (or backfilled) management cluster resource ID (conflict-retried)</li></ul> |
+| Read | `ServiceProviderCluster` | <ul><li>`Spec.ManagementClusterResourceID` (NeedsWork: must be nil)</li><li>`Status.Placement.Conditions` (merge the capacity condition; skip unchanged state)</li></ul> |
+| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (skip deleting clusters)</li><li>`ServiceProviderProperties.ProvisioningState` (skip terminal clusters)</li><li>`ServiceProviderProperties.ExperimentalFeatures.ControlPlaneAvailability` (new HCP's NIC requirement; also read for existing NotReady/Pending HCP reservations)</li></ul> |
+| Read | `ManagementCluster` (all, cached) | <ul><li>`Spec.SchedulingPolicy`, `Status.Conditions[Ready]`, `ResourceID` (including parent stamp identifier)</li></ul> |
+| Read | `ManagementClusterScheduling` (cached for evaluation; live for reservation) | <ul><li>`Status.Conditions[CapacityDataCurrent]`, `Status.Conditions[ScalingDataCurrent]`</li><li>`Status.ScaleCeiling.Capacity`, `Status.ObservedResources.Usage`, `Status.ObservedResources.Requests`, `Status.NotReadyResourceIDs`, `Status.PendingAssignedClusters`</li></ul> |
+| **Write** | **`ManagementClusterScheduling`** | <ul><li>**`Status.PendingAssignedClusters`** += chosen HCP cluster resource ID (idempotent capacity reservation; conflicts retry the reconcile)</li></ul> |
+| **Write** | **`ServiceProviderCluster`** | <ul><li>**`Status.Placement.Conditions[CapacityAvailable]`** = selection result</li><li>**`Spec.ManagementClusterResourceID`** = chosen management cluster resource ID, when a fit is found (same `Replace` as the condition; conflicts retry the reconcile)</li></ul> |
 
 #### PendingCleanupController
 
 **File:** [pending_cleanup_controller.go](../backend/pkg/controllers/cluster/placement/pending_cleanup_controller.go)
 **Trigger:** ManagementCluster informer, 10-minute resync (5 workers)
 
-Garbage-collects stale entries from each management cluster's `Status.PendingAssignedClusters`. Each entry's *effective* placement is the referenced ServiceProviderCluster's `Status.ManagementClusterResourceID` (Cluster Service reality) when set, falling back to `Spec.ManagementClusterResourceID` only when Status is unset. An entry is kept when that effective placement points at this management cluster, or is still nil (placement in progress); it is removed when the effective placement points at a different management cluster or the ServiceProviderCluster no longer exists. Reservations that become observed (present in `ReadyResourceIDs`/`NotReadyResourceIDs`) are cleared by CapacityReportingController instead.
+Garbage-collects stale entries from each management cluster's `Status.PendingAssignedClusters`. Each entry's *effective* placement is the referenced ServiceProviderCluster's `Status.ManagementClusterResourceID` (Cluster Service reality) when set, falling back to `Spec.ManagementClusterResourceID` only when Status is unset. An entry is kept when effective placement points at this management cluster, even if the HCP is terminal; it is removed when placement points elsewhere or the ServiceProviderCluster no longer exists. For unresolved placement (both fields nil), the controller reads the HCP's provisioning state: it retains the reservation while the HCP is nonterminal or absent from the cluster cache, and removes it once the HCP is terminal. This releases reservations left by an interrupted Spec write without waiting for customer deletion. Other read errors abort the sweep without persisting removals. Reservations that become observed (present in `ReadyResourceIDs`/`NotReadyResourceIDs`) are cleared by CapacityReportingController instead.
 
 | | Object | Fields |
 |---|--------|--------|
 | Read | `ManagementClusterScheduling` | <ul><li>`Status.PendingAssignedClusters`</li></ul> |
 | Read | `ServiceProviderCluster` (per pending entry) | <ul><li>`Status.ManagementClusterResourceID` (effective placement; preferred when set)</li><li>`Spec.ManagementClusterResourceID` (fallback when Status unset)</li></ul> |
+| Read | `HCPOpenShiftCluster` (per unresolved pending entry) | <ul><li>`ServiceProviderProperties.ProvisioningState` (release only when known terminal; a cluster cache miss retains the reservation)</li></ul> |
 | **Write** | **`ManagementClusterScheduling`** | <ul><li>**`Status.PendingAssignedClusters`** = stale entries removed (conflict-retried)</li></ul> |
 
 #### ManagementClusterPlacementSync
@@ -1218,15 +1307,20 @@ No writes to the Cosmos Resources container.
 | Read | Azure (UserAssignedIdentitiesClient) | <ul><li>`Get` once per unique ResourceID -> `Properties.ClientID`, `Properties.PrincipalID`</li></ul> |
 | **Write** | **`ServiceProviderCluster`** | <ul><li>**`Status.DataPlaneOperatorsManagedIdentities.Identities[<lowercased resourceID>]`** = `{ResourceID, ClientID, PrincipalID, RetrievalError}` — ClientID/PrincipalID from Azure on success (RetrievalError nil); on any Get failure (including ResourceNotFound) ClientID/PrincipalID are cleared (nil) and RetrievalError is set to the first 1024 chars of the error. Identities no longer present on the cluster are pruned.</li><li>**`Spec.EarliestRecheckTimesByController["FetchDataPlaneOperatorsManagedIdentitiesInfo"]`** = now + jittered 12h interval when all Gets succeed; left cleared (absent) when any Get error is accumulated, so the next needsWork re-queries Azure</li></ul> |
 
-#### ObserveManagedResourceGroup
+#### EnsureManagedResourceGroup
+
+The [ClusterDenyAssignment controller](../backend/pkg/controllers/cluster/denyassignments/deny_assignment_controller.go)
+reads `ServiceProviderCluster.Status.AzureResources.ManagedResourceGroup.AzureResource`
+as a NeedsWork prerequisite: it must be non-nil before deny assignments are reconciled.
+A configured managed resource group name or `PendingAzureResource` alone does not satisfy this gate.
 
 **File:** [managed_resource_group_controller.go](../backend/pkg/controllers/cluster/azureresources/managed_resource_group_controller.go)
 **Trigger:** Cluster informer, 5-minute resync
-**Behavior:** Observe-only — never creates or deletes the managed resource group. A `NeedsWork` gate skips the sync when there is nothing to do: while the cluster is not being deleted, only until the managed resource group is confirmed as `AzureResource` (it is immutable, so a confirmed reference never needs re-checking); while the cluster is being deleted, only while a reference is still set.
+**Behavior:** Creates the managed resource group in Azure when it is missing (non-deletion path); deletion remains observe-only (Cluster Service owns deletion — the controller never calls `BeginDelete`). A `NeedsWork` gate skips the sync when there is nothing to do: while the cluster is not being deleted, only until the managed resource group is confirmed as `AzureResource` (it is immutable, so a confirmed reference never needs re-checking); while the cluster is being deleted, only while a reference is still set.
 - Not deleting (reconcile): records the managed resource group as `PendingAzureResource` and persists that intent **before** querying Azure ("set pending before Get"), so a Get failure — or a resource group that does not exist yet — still leaves a durable pending marker (keeping the deletion gate closed) rather than an empty reference. It then queries Azure and switches on the result:
-  - **not found** → does nothing, leaving the pending marker in place (Cluster Service owns creation; this controller is observe-only).
+  - **not found** → creates the resource group via `CreateOrUpdate`, claiming ownership by setting `ManagedBy` to this cluster's ID. A create failure returns an error so a later pass retries with the pending marker still in place. The created resource group then passes through the same provisioning-state gate as the **exists** case before being confirmed.
   - **other error** → returns the error so the sync retries.
-  - **exists** → if the resource group is owned by another cluster (its `ManagedBy` is set and does not equal this cluster's ID via the `ResourceIDsEqual` helper) it returns an error and does **not** set `AzureResource`; otherwise (owned by this cluster, or `ManagedBy` absent) it clears `PendingAzureResource` and records the resource group as `AzureResource`.
+  - **exists (and the just-created resource group)** → gates on the resource group's Azure provisioning state before confirming: **`Succeeded`** → if it is owned by another cluster (its `ManagedBy` is set and does not equal this cluster's ID via the `ResourceIDsEqual` helper) it returns an error and does **not** set `AzureResource`; otherwise (owned by this cluster, or `ManagedBy` absent) it clears `PendingAzureResource` and records the resource group as `AzureResource`. **In-progress** (`Accepted`/`Creating`/`Updating`/`Deleting`) → schedules a requeue after 10s (via `EnqueueAfter`) and leaves the pending marker in place (does **not** confirm and does **not** error). **Any other state** (`Failed`/`Canceled`, unrecognized, or absent) → returns an error so the sync retries.
 - Deleting: derives the resource group ID from the reference still on the document (guaranteed set by `NeedsWork`), queries Azure and switches on the result: once the resource group is gone it clears both references so the deletion gate opens; on any other error it returns the error so the gate stays closed until the state is known; while the resource group still exists it does nothing (it does not set `AzureResource`, write a pending marker, or perform the ownership check).
 
 | | Object | Fields |
@@ -1234,27 +1328,29 @@ No writes to the Cosmos Resources container.
 | Read | `HCPOpenShiftCluster` | <ul><li>`CustomerProperties.Platform.ManagedResourceGroup` (non-deletion path: returns an error when empty, since a cluster should always have one)</li><li>`ServiceProviderProperties.DeletionTimestamp` (branches deletion vs non-deletion)</li><li>`ID` (subscription / resource group / name; also compared against the resource group's `ManagedBy` for ownership in the non-deletion path)</li></ul> |
 | Read | `Subscription` | <ul><li>`Properties.TenantId` (to build the FPA ResourceGroups client)</li></ul> |
 | Read | `ServiceProviderCluster` | <ul><li>`Status.AzureResources.ManagedResourceGroup` (compared before write to skip no-op replacements; during deletion the resource group ID is derived from this reference)</li></ul> |
-| Read | Azure (ResourceGroupsClient) | <ul><li>`Get` on the managed resource group -> exists / ResourceGroupNotFound; `ManagedBy` (ownership check) is inspected only in the non-deletion path when the resource group exists</li></ul> |
+| Read/Write | Azure (ResourceGroupsClient) | <ul><li>`Get` on the managed resource group -> exists / ResourceGroupNotFound; `ManagedBy` (ownership check) is inspected only in the non-deletion path when the resource group exists</li><li>`CreateOrUpdate` on the managed resource group (non-deletion path only) when the Get returns ResourceGroupNotFound: sets `Location` and `ManagedBy` = this cluster's ID</li></ul> |
 | **Write** | **`ServiceProviderCluster`** | <ul><li>**`Status.AzureResources.ManagedResourceGroup.PendingAzureResource`** = managed resource group resource ID, recorded (and persisted) before the Azure Get in the non-deletion path; kept while the resource group is missing; cleared once `AzureResource` is set, or during deletion once the resource group is gone</li><li>**`Status.AzureResources.ManagedResourceGroup.AzureResource`** = managed resource group resource ID when it exists and is not owned by another cluster (non-deletion path only); cleared during deletion once the resource group is gone</li></ul> |
 
-#### ObserveRoleAssignments
+#### IdentityRoleAssignments
 
 **File:** [role_assignments_controller.go](../backend/pkg/controllers/cluster/roleassignments/role_assignments_controller.go)
 **Trigger:** Cluster informer, 5-minute resync
-**Behavior:** Observe-only — never creates or deletes a role assignment. Cluster Service creates the managed-resource-group-scoped role assignments for each control-plane and data-plane operator managed identity; this controller mirrors their observed existence onto `ServiceProviderCluster.Status.AzureResources.RoleAssignments` so the cluster-create gate can confirm they are present. A `NeedsWork` gate skips the sync when there is nothing to do: it is a no-op until the managed resource group is confirmed (`Status.AzureResources.ManagedResourceGroup.AzureResource` != nil), and thereafter only until every expected role assignment is confirmed and nothing is left pending.
-- **Deletion is a genuine no-op**: while the cluster is being deleted the controller returns immediately and makes no Azure calls. Cluster Service deletes the managed resource group on delete, and that cascade removes the role assignments scoped to it, so there is nothing to observe and no deletion gate.
-- Not deleting (reconcile): computes the expected role assignment IDs by pairing each control-plane operator (`CustomerProperties...UserAssignedIdentities.ControlPlaneOperators`) and data-plane operator (`...DataPlaneOperators`) identity's resolved `PrincipalID` (from `Status.MSIManagedIdentities` / `Status.DataPlaneOperatorsManagedIdentities`) with that operator's role definitions (from the cluster-scoped identities config), scoped to the managed resource group. The role assignment name is generated with the same deterministic UUIDv5 algorithm Cluster Service uses. It records every not-yet-tracked expected ID as `PendingAzureResources` and persists that intent **before** querying Azure ("set pending before Get"), then queries Azure per pending ID and switches on the result:
-  - **not found** (`RoleAssignmentNotFound`) → leaves it pending (Cluster Service owns creation; this controller is observe-only).
-  - **other error** → returns the error so the sync retries.
-  - **exists** → moves it from `PendingAzureResources` to `AzureResources` (confirmed).
+**Behavior:** Manages (creates + observes) the managed-resource-group-scoped role assignments for each control-plane operator, data-plane operator, and the service managed identity: it creates the ones Azure reports missing and mirrors their confirmed existence onto `ServiceProviderCluster.Status.AzureResources.RoleAssignments` so the cluster-create gate can confirm they are present. Creates are idempotent because the assignment names are deterministic — re-creating the same assignment is an update (PUT), not a conflict — so any create error is surfaced (not swallowed) and the sync retries. A `NeedsWork` gate skips the sync when there is nothing to do: it is a no-op until the managed resource group is confirmed (`Status.AzureResources.ManagedResourceGroup.AzureResource` != nil), and thereafter once every expected role assignment is present in `AzureResources` (a superset — for example leftover assignments from a previous operator identity — is tolerated) with nothing pending and the earliest-recheck window not yet elapsed. Only when the gate reports work (or the recheck window is due) does the two-pass reconcile run and make Azure calls, so steady-state resyncs make none.
+- **Deletion is a genuine no-op**: while the cluster is being deleted the controller returns immediately and makes no Azure calls. The managed resource group is deleted on cluster delete, and that cascade removes the role assignments scoped to it, so there is nothing to create or delete and no deletion gate.
+- Not deleting (reconcile): computes the expected role assignments by pairing each control-plane operator (`CustomerProperties...UserAssignedIdentities.ControlPlaneOperators`), data-plane operator (`...DataPlaneOperators`), and the service managed identity (`...ServiceManagedIdentity`, a single identity rather than a map) resolved `PrincipalID` (from `Status.MSIManagedIdentities.ControlPlaneOperatorsIdentities` / `Status.DataPlaneOperatorsManagedIdentities` / `Status.MSIManagedIdentities.ServiceManagedIdentity`) with that identity's role definitions (from the cluster-scoped identities config), scoped to the managed resource group. The role assignment name is generated with a deterministic UUIDv5 algorithm (see the `roleassignment` package). It then reconciles in **two passes**. Pass 1 classifies each expected assignment with `GetByID` only (no Azure writes):
+  - **exists** → recorded as confirmed (`AzureResources`).
+  - **not found** (`RoleAssignmentNotFound`) → recorded as pending (`PendingAzureResources`) and queued for creation.
+  - **other error** → recorded as pending but **not** queued for creation (its existence is unknown, so it self-heals on a later `GetByID` rather than being created blind); the error is collected.
+- The classified pending/confirmed state is then persisted **before** any Azure `Create`, so a role assignment about to be created is durably recorded as pending first (if the create succeeds but the process crashes before the next persist, a later `GetByID` still finds and confirms it). `PendingAzureResources` and `AzureResources` are overwritten from this pass (the write is skipped when those references are unchanged, to avoid a redundant Cosmos write). If that persist hits a Cosmos precondition (optimistic-concurrency) conflict, the state was not written, so the sync returns without creating and relies on the watch event from the conflicting write to re-run it. When nothing is pending (every expected assignment confirmed) this controller's entry in `Spec.EarliestRecheckTimesByController` (keyed `"IdentityRoleAssignments"`) is set to a future time — the only thing that stops the sync re-running on every resync; while work remains the entry is deleted. **Pass 2** then creates the queued missing assignments (`PrincipalID`, `RoleDefinitionID`, `PrincipalType=ServicePrincipal`); because the names are deterministic a repeated create is an idempotent update rather than a conflict, so any create error is surfaced (the sync retries) rather than swallowed, and freshly-created assignments stay **pending** this pass (already persisted) and confirm on a later `GetByID`. A `nil` recheck time (no entry in `Spec.EarliestRecheckTimesByController`) is treated as due, so an existing cluster does one recheck pass on rollout. Any previously-confirmed assignment that is no longer expected (for example after an identity or name-scheme change) is **retained** in `AzureResources` — carried forward from the previous confirmed set, not re-queried and not dropped; its deletion is deferred to managed identity replacement support.
 
 | | Object | Fields |
 |---|--------|--------|
-| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (SyncOnce: deletion is a no-op)</li><li>`CustomerProperties.Platform.ManagedResourceGroup` (managed resource group scope; error when empty)</li><li>`CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators` / `DataPlaneOperators` (operator identities to enumerate)</li><li>`ID` (subscription / resource group / name)</li></ul> |
+| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (SyncOnce: deletion is a no-op)</li><li>`CustomerProperties.Platform.ManagedResourceGroup` (managed resource group scope; error when empty)</li><li>`CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators` / `DataPlaneOperators` / `ServiceManagedIdentity` (identities to enumerate)</li><li>`ID` (subscription / resource group / name)</li></ul> |
 | Read | `Subscription` | <ul><li>`Properties.TenantId` (to build the FPA RoleAssignments client)</li></ul> |
-| Read | `ServiceProviderCluster` | <ul><li>`Status.AzureResources.ManagedResourceGroup.AzureResource` (gate: must be confirmed before observing)</li><li>`Status.MSIManagedIdentities.ControlPlaneOperatorsIdentities[<lowercased resourceID>].PrincipalID`</li><li>`Status.DataPlaneOperatorsManagedIdentities.Identities[<lowercased resourceID>].PrincipalID`</li><li>`Status.AzureResources.RoleAssignments` (compared before write to skip no-op replacements)</li></ul> |
-| Read | Azure (RoleAssignmentsClient) | <ul><li>`GetByID` per pending role assignment -> exists / `RoleAssignmentNotFound`</li></ul> |
-| **Write** | **`ServiceProviderCluster`** | <ul><li>**`Status.AzureResources.RoleAssignments.PendingAzureResources`** = expected role assignment IDs not yet confirmed, recorded (and persisted) before the Azure Get; entries are removed as they are confirmed</li><li>**`Status.AzureResources.RoleAssignments.AzureResources`** = role assignment IDs confirmed to exist in Azure</li></ul> |
+| Read | `ServiceProviderCluster` | <ul><li>`Status.AzureResources.ManagedResourceGroup.AzureResource` (gate: must be confirmed before managing)</li><li>`Status.MSIManagedIdentities.ControlPlaneOperatorsIdentities[<lowercased resourceID>].PrincipalID`</li><li>`Status.DataPlaneOperatorsManagedIdentities.Identities[<lowercased resourceID>].PrincipalID`</li><li>`Status.MSIManagedIdentities.ServiceManagedIdentity.PrincipalID` (matched by `ResourceID`)</li><li>`Status.AzureResources.RoleAssignments` (compared before write to skip no-op replacements)</li><li>`Spec.EarliestRecheckTimesByController["IdentityRoleAssignments"]` (NeedsWork: earliest-recheck gate)</li></ul> |
+| Read | Azure (RoleAssignmentsClient) | <ul><li>`GetByID` once per expected role assignment in pass 1 (classify; also serves as the earliest-recheck verification) -> exists / `RoleAssignmentNotFound`</li></ul> |
+| **Write** | Azure (RoleAssignmentsClient) | <ul><li>`Create` in pass 2 (after the pending intent is persisted) per expected role assignment Azure reported missing (`PrincipalID`, `RoleDefinitionID`, `PrincipalType=ServicePrincipal`); the deterministic name makes a repeated same-name create an idempotent update (PUT), not a conflict, so any `Create` error (including `RoleAssignmentExists`) is surfaced and retried</li></ul> |
+| **Write** | **`ServiceProviderCluster`** | <ul><li>**`Status.AzureResources.RoleAssignments.PendingAzureResources`** = overwritten each pass with the expected role assignment IDs not confirmed this pass (freshly-created ones stay pending until a later pass confirms them); confirmed or no-longer-expected IDs drop out</li><li>**`Status.AzureResources.RoleAssignments.AzureResources`** = overwritten each pass with the expected role assignment IDs confirmed to exist in Azure, plus any previously-confirmed assignment no longer expected which is retained (carried forward, pending managed identity replacement deletion)</li><li>**`Spec.EarliestRecheckTimesByController["IdentityRoleAssignments"]`** = now + a jittered recheck interval when nothing is pending (every expected assignment confirmed); the entry is deleted while work remains</li></ul> |
 
 ---
 
@@ -1581,9 +1677,17 @@ Single writer, but read by `ClusterClusterServiceCreate` (gate), `OperationClust
 
 | Actor | When |
 |-------|------|
-| [PlacementController](#placementcontroller) | Sets the scheduler's placement intent: backfilled from `Status.ManagementClusterResourceID` when already placed, backfilled from Cluster Service (via `PendingClusterServiceID`) for rollout-race records, otherwise the capacity-selected eligible management cluster |
+| [PlacementController](#placementcontroller) | Sets the capacity-selected eligible management cluster after reserving capacity, in the same SPC write as `Status.Placement.Conditions[CapacityAvailable]=True` |
 
 This is the *desired* placement (scheduler intent), owned solely by the PlacementController. It is read by `ClusterClusterServiceCreate` (resolves the placed management cluster to pin the CS provision shard). It also drives the `backend_cluster_phase_info` metric: `phase="Scheduled"` once this field is set, otherwise `phase="Initializing"`.
+
+### `ServiceProviderCluster.Status.Placement.Conditions`
+
+| Actor | When |
+|-------|------|
+| [PlacementController](#placementcontroller) | Records `CapacityAvailable` for each completed placement assessment: `True` for a fit, `False` for known unavailability, or `Unknown` for incomplete observations |
+
+Single writer. Read by [OperationClusterCreate](#operationclustercreate) to classify unresolved placement at its deadline. `CapacityAvailable=False` yields the customer-safe `AROHCPCapacityHeavyUse` error; missing, unknown, or true conditions without a Spec assignment yield a generic failure. Diagnostics remain internal, and assigned placement takes precedence over stale conditions.
 
 ### `ServiceProviderCluster.Status.ManagementClusterResourceID`
 
@@ -1591,7 +1695,7 @@ This is the *desired* placement (scheduler intent), owned solely by the Placemen
 |-------|------|
 | [ManagementClusterPlacementSync](#managementclusterplacementsync) | Resolves from the CS provision shard when unset (the CS lookup is skipped once the shard has been observed) |
 
-This is the *observed* placement. It gates `CreateClusterScopedReadDesires` and deletion cleanup, and seeds `PlacementController`'s rollout backfill.
+This is the *observed* placement. It gates `CreateClusterScopedReadDesires` and deletion cleanup, and takes precedence over Spec when `PendingCleanupController` determines a reservation's effective placement.
 
 ### `ServiceProviderCluster.Status.HostedClusterNamespace`
 
@@ -1629,7 +1733,7 @@ Single writer. Mirrors the customer's data plane operator managed identities (`C
 
 | Actor | When |
 |-------|------|
-| [ObserveManagedResourceGroup](#observemanagedresourcegroup) | Observe-only: while the cluster is not being deleted, records `PendingAzureResource` before querying Azure, then sets `AzureResource` (clearing pending) when the resource group exists and is not owned by another cluster, leaves the pending marker when it is missing, and returns an error when it is owned by another cluster (`ManagedBy` set to a different cluster ID); while the cluster is being deleted, clears both references once the resource group is gone and otherwise does nothing |
+| [EnsureManagedResourceGroup](#ensuremanagedresourcegroup) | Creates the managed resource group when missing: while the cluster is not being deleted, records `PendingAzureResource` before querying Azure, then creates the resource group via `CreateOrUpdate` (claiming ownership via `ManagedBy`) when it is missing; before confirming (in both the create and already-exists cases) it gates on the resource group's provisioning state — `Succeeded` sets `AzureResource` (clearing pending) unless it is owned by another cluster (`ManagedBy` set to a different cluster ID, which returns an error), an in-progress state schedules a 10s requeue and keeps the pending marker, and a failed/terminal state returns an error; while the cluster is being deleted, clears both references once the resource group is gone and otherwise does nothing |
 
 Single writer. Read by [ClusterChildResourcesCleanupController](#clusterchildresourcescleanupcontroller) to gate deletion of the `ServiceProviderCluster` document until the managed resource group is gone.
 
@@ -1637,7 +1741,7 @@ Single writer. Read by [ClusterChildResourcesCleanupController](#clusterchildres
 
 | Actor | When |
 |-------|------|
-| [ObserveRoleAssignments](#observeroleassignments) | Observe-only: while the cluster is not being deleted and the managed resource group is confirmed, records each expected control-plane / data-plane operator role assignment as `PendingAzureResources` before querying Azure, then moves it to `AzureResources` once Azure confirms it exists. Deletion is a no-op (the managed resource group deletion cascade removes the role assignments). |
+| [IdentityRoleAssignments](#identityroleassignments) | Manages (creates + observes): while the cluster is not being deleted and the managed resource group is confirmed, reconciles the expected control-plane operator / data-plane operator / service managed identity role assignments in two passes — pass 1 classifies each with `GetByID` (existing → confirmed in `AzureResources`; missing → recorded pending and queued for creation), the pending/confirmed state is persisted **before** any create, then pass 2 creates the queued missing ones (idempotent by deterministic name — a repeated same-name create is an update/PUT, not a conflict — so any create error, including `RoleAssignmentExists`, is surfaced and retried). A freshly-created assignment stays pending until a later pass confirms it. `PendingAzureResources` / `AzureResources` are overwritten each pass; when nothing is pending its `Spec.EarliestRecheckTimesByController["IdentityRoleAssignments"]` entry is set to a jittered future time (the sync otherwise re-runs on that cadence, re-verifying the confirmed set). A previously-confirmed assignment no longer expected is retained (deletion deferred to managed identity replacement support). Deletion is a no-op (the managed resource group deletion cascade removes the role assignments). |
 
 Single writer. Read by [OperationClusterCreate](#operationclustercreate) to gate cluster-create completion until at least one role assignment is confirmed and none remain pending.
 

@@ -40,7 +40,7 @@ import (
 // triggerControlPlaneUpgradeSyncer is a Cluster syncer that triggers control plane upgrades
 type triggerControlPlaneUpgradeSyncer struct {
 	clock                        utilsclock.PassiveClock
-	resourcesDBClient            corecosmosstorage.ResourcesDBClient
+	clusterLister                corelisters.ClusterLister
 	clusterServiceClient         ocm.ClusterServiceClientSpec
 	activeOperationLister        corelisters.ActiveOperationLister
 	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
@@ -58,6 +58,7 @@ var _ controllerutils.ClusterSyncer = (*triggerControlPlaneUpgradeSyncer)(nil)
 func NewTriggerControlPlaneUpgradeController(
 	clock utilsclock.PassiveClock,
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
+	clusterLister corelisters.ClusterLister,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
 	activeOperationLister corelisters.ActiveOperationLister,
 	serviceProviderClusterLister corelisters.ServiceProviderClusterLister,
@@ -66,7 +67,7 @@ func NewTriggerControlPlaneUpgradeController(
 ) controllerutils.Controller {
 	syncer := &triggerControlPlaneUpgradeSyncer{
 		clock:                        clock,
-		resourcesDBClient:            resourcesDBClient,
+		clusterLister:                clusterLister,
 		clusterServiceClient:         clusterServiceClient,
 		activeOperationLister:        activeOperationLister,
 		serviceProviderClusterLister: serviceProviderClusterLister,
@@ -93,7 +94,7 @@ func NewTriggerControlPlaneUpgradeController(
 //  4. The version service API is idempotent and handles the actual upgrade orchestration
 func (c *triggerControlPlaneUpgradeSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
 	logger := utils.LoggerFromContext(ctx)
-	existingCluster, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Get(ctx, key.HCPClusterName)
+	existingCluster, err := c.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil // cluster doesn't exist, no work to do
 	}

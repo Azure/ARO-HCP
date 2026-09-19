@@ -161,12 +161,10 @@ func (c *operationClusterCreate) SynchronizeOperation(ctx context.Context, key c
 		return utils.TrackError(err)
 	}
 
-	var persistErr *coreapi.CloudErrorBody
-	if operationalState.ProvisioningState == coreapi.ProvisioningStateFailed {
+	persistErr := operationalState.Error
+	if operationalState.ProvisioningState == coreapi.ProvisioningStateFailed && persistErr == nil {
 		persistErr = &coreapi.CloudErrorBody{
-			// TODO for now we always set the error code to InternalServerError, but we should improve to be able
-			// to be more specific than that when we calculate operationalState. When work is done to improve on this, we
-			// should design it in a way where no internal details are exposed to the operation's error.
+			// TODO: classify other provisioning failures without exposing internal details.
 			Code:    coreapi.CloudErrorCodeInternalServerError,
 			Message: operationalState.Message,
 		}
@@ -222,6 +220,11 @@ func (c *operationClusterCreate) determineOperationState(ctx context.Context, op
 		errs = append(errs, utils.TrackError(err))
 	} else {
 		operationStates = append(operationStates, currState.WithSource("clusterServiceClusterStatus"))
+	}
+	if currState, err := c.placementOperationStatus(ctx, operation, cluster); err != nil {
+		errs = append(errs, utils.TrackError(err))
+	} else {
+		operationStates = append(operationStates, currState.WithSource("placement"))
 	}
 	if currState, err := c.servingCABundleOperationStatus(ctx, operation); err != nil {
 		errs = append(errs, utils.TrackError(err))
@@ -303,6 +306,39 @@ func (c *operationClusterCreate) clusterOperationStatus(ctx context.Context, ope
 	return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, ""), nil
 }
 
+func (c *operationClusterCreate) placementOperationStatus(ctx context.Context, operation *coreapi.Operation, cluster *coreapi.HCPOpenShiftCluster) (*operationbase.OperationState, error) {
+	serviceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Name)
+	if err != nil && !cosmosstorageutils.IsNotFoundError(err) {
+		return nil, utils.TrackError(err)
+	}
+	if serviceProviderCluster != nil && serviceProviderCluster.Spec.ManagementClusterResourceID != nil {
+		return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, ""), nil
+	}
+
+	message := "waiting for management cluster placement"
+	if serviceProviderCluster == nil {
+		message = "ServiceProviderCluster not cached yet"
+	}
+	deadline := cluster.ServiceProviderProperties.CreateOperationCompletionDeadline
+	if deadline == nil || c.clock.Now().Before(deadline.Time) {
+		return operationbase.NewOperationState(coreapi.ProvisioningStateProvisioning, message), nil
+	}
+
+	message = "cluster placement did not complete before the deadline"
+	operationError := &coreapi.CloudErrorBody{
+		Code:    coreapi.CloudErrorCodeInternalServerError,
+		Message: message,
+	}
+	if serviceProviderCluster != nil && serviceProviderCluster.Status.Placement != nil {
+		if meta.IsStatusConditionFalse(serviceProviderCluster.Status.Placement.Conditions, coreapi.CapacityAvailableConditionType) {
+			operationError.Code = coreapi.CloudErrorCodeCapacityHeavyUse
+			// Placement diagnostics contain internal information; do not expose them.
+			operationError.Message = "ARO HCP is currently experiencing capacity constraints. Try again later."
+		}
+	}
+	return operationbase.NewFailedOperationState(message, operationError), nil
+}
+
 // minVersionsWithValidSuccessCondition maps from <major>.<micro> to the first z-stream version that includes the fix for
 // control plane validation success.
 var minVersionsWithValidSuccessCondition = map[string]semver.Version{
@@ -375,8 +411,9 @@ func (c *operationClusterCreate) hostedClusterOperationStatus(ctx context.Contex
 
 		if !anyVersionInstalled {
 			// can only check this when the success condition works, because this is unreliable otherwise
-			logger.Info("hosted cluster has not completed installing", "hostedCluster.Status.ControlPlaneVersion.History", hostedCluster.Status.ControlPlaneVersion.History)
-			return operationbase.NewOperationState(coreapi.ProvisioningStateProvisioning, withDegradedSuffix("hosted cluster has not completed installing", hostedCluster)), nil
+			message := describeVersionHistory(hostedCluster.Status.ControlPlaneVersion.History)
+			logger.Info("hosted cluster control plane version not yet completed", "message", message, "hostedCluster.Status.ControlPlaneVersion.History", hostedCluster.Status.ControlPlaneVersion.History)
+			return operationbase.NewOperationState(coreapi.ProvisioningStateProvisioning, withDegradedSuffix(message, hostedCluster)), nil
 		}
 	}
 
@@ -413,9 +450,9 @@ func (c *operationClusterCreate) servingCABundleOperationStatus(ctx context.Cont
 }
 
 // roleAssignmentsOperationStatus blocks cluster creation until the managed
-// resource group scoped role assignments that Cluster Service creates for the
-// cluster's control-plane and data-plane operator managed identities have all been
-// observed as present. The ObserveRoleAssignments controller reflects them onto
+// resource group scoped role assignments for the cluster's control-plane operator,
+// data-plane operator, and service managed identity have all been confirmed present.
+// The IdentityRoleAssignments controller creates them and reflects them onto
 // ServiceProviderCluster.Status.AzureResources.RoleAssignments; creation is
 // considered complete for this source once at least one role assignment is confirmed
 // and none remain pending.
@@ -448,4 +485,34 @@ func withDegradedSuffix(message string, hostedCluster *v1beta1.HostedCluster) st
 		return message
 	}
 	return fmt.Sprintf("%s; hosted cluster degraded: %s: %s", message, degraded.Reason, degraded.Message)
+}
+
+// describeVersionHistory produces a human-readable message explaining why no
+// version in the HostedCluster's control plane version history has reached
+// CompletedUpdate. It lists each version entry with its current state so that
+// operators and agents can understand what the control plane is doing without
+// reading backend source code.
+func describeVersionHistory(history []v1beta1.ControlPlaneUpdateHistory) string {
+	if len(history) == 0 {
+		return "hosted cluster has no version history entries"
+	}
+	descriptions := make([]string, 0, len(history))
+	for _, entry := range history {
+		if entry.State == configv1.CompletedUpdate {
+			continue // only describe versions still in flight
+		}
+		desc := fmt.Sprintf("version %s is %s (want %s)", entry.Version, entry.State, configv1.CompletedUpdate)
+		if !entry.StartedTime.IsZero() {
+			elapsed := time.Since(entry.StartedTime.Time).Truncate(time.Second)
+			if elapsed < 0 {
+				elapsed = 0
+			}
+			desc += fmt.Sprintf(", started %s ago", elapsed)
+		}
+		descriptions = append(descriptions, desc)
+	}
+	if len(descriptions) == 0 {
+		return "hosted cluster control plane version history has no in-flight entries"
+	}
+	return fmt.Sprintf("hosted cluster control plane version not yet completed: %s", strings.Join(descriptions, "; "))
 }

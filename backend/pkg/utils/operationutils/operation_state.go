@@ -27,6 +27,9 @@ type OperationState struct {
 	Source            string                    `json:"source"`
 	ProvisioningState coreapi.ProvisioningState `json:"provisioningState"`
 	Message           string                    `json:"message"`
+
+	// Error is the customer-safe error for a failed operation
+	Error *coreapi.CloudErrorBody `json:"error,omitempty"`
 }
 
 // WithSource sets the source of the operation state.
@@ -40,6 +43,16 @@ func NewOperationState(provisioningState coreapi.ProvisioningState, message stri
 	return &OperationState{
 		ProvisioningState: provisioningState,
 		Message:           message,
+	}
+}
+
+// NewFailedOperationState creates a failed operation state with a diagnostic
+// message and an optional customer-safe error.
+func NewFailedOperationState(message string, operationError *coreapi.CloudErrorBody) *OperationState {
+	return &OperationState{
+		ProvisioningState: coreapi.ProvisioningStateFailed,
+		Message:           message,
+		Error:             operationError,
 	}
 }
 
@@ -84,6 +97,10 @@ func CompareOperationState(lhs, rhs *OperationState) int {
 // for the worst provisioning state with no message of its own has nothing blocking to report (e.g.
 // it is simply still in progress), so it is omitted rather than rendered as a confusing "<no_message>"
 // placeholder that reads like an error.
+//
+// Customer-safe errors from failed states are collected independently of their messages.
+// No errors yields nil; one is preserved directly; multiple are wrapped in
+// MultipleErrorsOccurred with the original errors in Details.
 func PickWorstOperationState(states []*OperationState) (*OperationState, error) {
 	if len(states) == 0 {
 		return nil, errors.New("no operation states")
@@ -93,9 +110,13 @@ func PickWorstOperationState(states []*OperationState) (*OperationState, error) 
 		return nil, errors.New("empty provisioning state")
 	}
 	var messageParts []string
+	var operationErrors []coreapi.CloudErrorBody
 	for _, s := range states {
 		if s.ProvisioningState != worstProvisioningState {
 			break
+		}
+		if s.Error != nil {
+			operationErrors = append(operationErrors, *s.Error)
 		}
 		if s.Message == "" {
 			continue
@@ -106,5 +127,10 @@ func PickWorstOperationState(states []*OperationState) (*OperationState, error) 
 		}
 		messageParts = append(messageParts, fmt.Sprintf("[%s] %s", currentSource, s.Message))
 	}
-	return NewOperationState(worstProvisioningState, strings.Join(messageParts, "; ")), nil
+	message := strings.Join(messageParts, "; ")
+	if worstProvisioningState == coreapi.ProvisioningStateFailed {
+		operationError := coreapi.NewCloudErrorBodyFromSlice(operationErrors, "Operation failed due to multiple errors")
+		return NewFailedOperationState(message, operationError), nil
+	}
+	return NewOperationState(worstProvisioningState, message), nil
 }

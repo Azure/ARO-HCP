@@ -136,8 +136,6 @@ spec:
         image: '{{ .Values.imageRegistry }}/{{ .Values.imageRepository }}@{{ .Values.imageDigest }}'
         imagePullPolicy: IfNotPresent
         env:
-        - name: DENYASSIGNMENTS
-          value: {{ .Values.denyAssignments }}
         # We set AZURE_TOKEN_CREDENTIALS to WorkloadIdentityCredential to force workload identity because this pod uses
         # Azure Workload Identity (azure.workload.identity/use); that effectively restricts other credential chains from being tried.
         - name: AZURE_TOKEN_CREDENTIALS

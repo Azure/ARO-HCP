@@ -1,0 +1,35 @@
+database: ServiceLogs
+kql: |
+  // Velero shared-infra error/warning logs: the velero server and node-agent are SHARED per
+  // management cluster (one velero Deployment, one node-agent DaemonSet, one cluster-wide
+  // BackupStorageLocation serving every HCP on the cluster). Failures in that shared plane
+  // (BackupStorageLocation invalid, object-store auth failure, plugin process crash, backup-sync
+  // errors) break backups for ALL HCPs yet carry no per-HCP namespace token, so they are excluded
+  // by the HCP-scoped `veleroHcpLogs` query. This companion query captures them as shared-infra
+  // context for backup-failure debugging (ARO-28989): NOT scoped to a single HCP, bounded to
+  // error/warning level to keep volume small and signal high. Still scoped to the management
+  // cluster(s) hosting the queried HCP via ClusterNames — "shared" means shared across the HCPs on
+  // that mgmt cluster, NOT across the whole fleet.
+  set notruncation;
+  containerLogs
+  | where timestamp between (datetime(2025-01-01T00:00:00.0000000Z) .. datetime(2025-01-02T00:00:00.0000000Z))
+  | where cluster has_any ('mgmt-cluster-1', 'mgmt-cluster-2')
+  | where namespace_name == "velero"
+  | where container_name in ("velero", "node-agent")
+  // velero emits logrus logfmt (`level=error`/`level=warning`). Keep only failure-signal lines so
+  // the unscoped (all-HCP) capture stays small.
+  | where log has_any ("level=error", "level=warning")
+  // container/containerPod are renamed off the reserved container_name/pod_name columns so they
+  // survive into the custom-logs output (known columns are consumed by the gatherer and dropped
+  // from each row). `log` is left verbatim (time/level/msg/kv all in it) — the consumer is an AI
+  // reading the raw line, so splitting fields out adds no value here.
+  //   container = the emitting component: "velero" (server) or "node-agent".
+  //   containerPod = the pod name. Named to sort next to `container` in the output (the gatherer
+  //     marshals each row from a Go map, so JSON keys come out alphabetically).
+  | extend
+      container = container_name,
+      containerPod = column_ifexists("pod_name", "")
+  | project timestamp, log, container, containerPod
+  | order by timestamp asc
+name: veleroServerLogs
+unlimited: true

@@ -39,10 +39,12 @@ import (
 )
 
 // controlPlaneActiveVersionSyncer is a Cluster syncer that updates the control plane active
-// versions in ServiceProviderCluster status by reading the version from the per-cluster
-// ReadDesire kubeContent (the kube-applier's mirror of the management cluster's HostedCluster).
+// versions in both ServiceProviderCluster and HCPOpenShiftCluster status by reading the
+// version from the per-cluster ReadDesire kubeContent (the kube-applier's mirror of the
+// management cluster's HostedCluster).
 type controlPlaneActiveVersionSyncer struct {
 	resourcesDBClient            corecosmosstorage.ResourcesDBClient
+	clusterLister                corelisters.ClusterLister
 	readDesireLister             kubeapplierlisters.ReadDesireLister
 	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
 }
@@ -54,6 +56,7 @@ var _ controllerutils.ClusterSyncer = (*controlPlaneActiveVersionSyncer)(nil)
 // observed HostedCluster.
 func NewControlPlaneActiveVersionController(
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
+	clusterLister corelisters.ClusterLister,
 	serviceProviderClusterLister corelisters.ServiceProviderClusterLister,
 	informers coreinformers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
@@ -61,6 +64,7 @@ func NewControlPlaneActiveVersionController(
 ) controllerutils.Controller {
 	syncer := &controlPlaneActiveVersionSyncer{
 		resourcesDBClient:            resourcesDBClient,
+		clusterLister:                clusterLister,
 		readDesireLister:             readDesireLister,
 		serviceProviderClusterLister: serviceProviderClusterLister,
 	}
@@ -75,11 +79,11 @@ func NewControlPlaneActiveVersionController(
 	)
 }
 
-// SyncOnce updates ServiceProviderCluster.Status.ControlPlaneVersion.ActiveVersions
+// SyncOnce updates active versions on both ServiceProviderCluster and HCPOpenShiftCluster
 // from the per-cluster ReadDesire's observed HostedCluster. Each active version
 // includes Version and State (Completed or Partial) and is persisted on replace.
 func (c *controlPlaneActiveVersionSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
-	existingCluster, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Get(ctx, key.HCPClusterName)
+	existingCluster, err := c.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
@@ -129,20 +133,38 @@ func (c *controlPlaneActiveVersionSyncer) SyncOnce(ctx context.Context, key cont
 	// DesiredVersionChannels is a plain []string, so slices.Equal compares it by value.
 	oldActiveVersions := cachedServiceProviderCluster.Status.ControlPlaneVersion.ActiveVersions
 	oldDesiredChannels := cachedServiceProviderCluster.Status.DesiredVersionChannels
-	if !controllerutil.NeedsUpdate(oldActiveVersions, newActiveVersions) && slices.Equal(oldDesiredChannels, newDesiredChannels) {
-		return nil
+	if controllerutil.NeedsUpdate(oldActiveVersions, newActiveVersions) || !slices.Equal(oldDesiredChannels, newDesiredChannels) {
+		logger := utils.LoggerFromContext(ctx)
+		logger.Info("Active versions or desired channels changed",
+			"oldActiveVersions", oldActiveVersions, "newActiveVersions", newActiveVersions,
+			"oldDesiredChannels", oldDesiredChannels, "newDesiredChannels", newDesiredChannels)
+		replacement := cachedServiceProviderCluster.DeepCopy()
+		replacement.Status.ControlPlaneVersion.ActiveVersions = newActiveVersions
+		replacement.Status.DesiredVersionChannels = newDesiredChannels
+		serviceProviderClustersCosmosClient := c.resourcesDBClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+		_, err = serviceProviderClustersCosmosClient.Replace(ctx, replacement, nil)
+		if cosmosstorageutils.IsPreconditionFailedError(err) {
+			return nil
+		}
+		if err != nil {
+			return utils.TrackError(fmt.Errorf("failed to replace ServiceProviderCluster: %w", err))
+		}
 	}
-	logger := utils.LoggerFromContext(ctx)
-	logger.Info("Active versions or desired channels changed",
-		"oldActiveVersions", oldActiveVersions, "newActiveVersions", newActiveVersions,
-		"oldDesiredChannels", oldDesiredChannels, "newDesiredChannels", newDesiredChannels)
-	replacement := cachedServiceProviderCluster.DeepCopy()
-	replacement.Status.ControlPlaneVersion.ActiveVersions = newActiveVersions
-	replacement.Status.DesiredVersionChannels = newDesiredChannels
-	serviceProviderClustersCosmosClient := c.resourcesDBClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
-	_, err = serviceProviderClustersCosmosClient.Replace(ctx, replacement, nil)
-	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to replace ServiceProviderCluster: %w", err))
+
+	// Write active versions onto the customer-facing cluster document so the
+	// frontend can serve them without an extra Cosmos read.
+	newHCPActiveVersions := hcpClusterActiveVersionFromServiceProviderActiveVersions(newActiveVersions)
+	if controllerutil.NeedsUpdate(existingCluster.Status.ActiveVersions, newHCPActiveVersions) {
+		clusterReplacement := existingCluster.DeepCopy()
+		clusterReplacement.Status.ActiveVersions = newHCPActiveVersions
+		clusterCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName)
+		_, err = clusterCRUD.Replace(ctx, clusterReplacement, nil)
+		if cosmosstorageutils.IsPreconditionFailedError(err) {
+			return nil
+		}
+		if err != nil {
+			return utils.TrackError(fmt.Errorf("failed to replace Cluster with active versions: %w", err))
+		}
 	}
 
 	return nil
@@ -158,9 +180,9 @@ func (c *controlPlaneActiveVersionSyncer) SyncOnce(ctx context.Context, key cont
 // (https://github.com/openshift/enhancements/pull/1950), so we use it where available. Clusters below 4.22
 // still rely on status.version.history until Hypershift backports controlPlaneVersion; once that lands,
 // the same field will be used automatically when history is present.
-func (c *controlPlaneActiveVersionSyncer) getHostedClusterActiveVersions(ctx context.Context, hostedCluster *hsv1beta1.HostedCluster) ([]coreapi.HCPClusterActiveVersion, error) {
+func (c *controlPlaneActiveVersionSyncer) getHostedClusterActiveVersions(ctx context.Context, hostedCluster *hsv1beta1.HostedCluster) ([]coreapi.ServiceProviderClusterActiveVersion, error) {
 	logger := utils.LoggerFromContext(ctx)
-	var activeVersions []coreapi.HCPClusterActiveVersion
+	var activeVersions []coreapi.ServiceProviderClusterActiveVersion
 	// Prefer controlPlaneVersion.history when set.
 	// This is available on 4.22+ clusters,  older clusters once Hypershift backports it.
 	if len(hostedCluster.Status.ControlPlaneVersion.History) > 0 {
@@ -170,7 +192,7 @@ func (c *controlPlaneActiveVersionSyncer) getHostedClusterActiveVersions(ctx con
 				logger.Error(err, "Skipping HostedCluster controlPlaneVersion history entry with unparseable version", "history", historyEntry)
 				continue
 			}
-			activeVersions = append(activeVersions, coreapi.HCPClusterActiveVersion{Version: &parsedVersion, State: historyEntry.State})
+			activeVersions = append(activeVersions, coreapi.ServiceProviderClusterActiveVersion{Version: &parsedVersion, State: historyEntry.State})
 			if historyEntry.State == configv1.CompletedUpdate {
 				return activeVersions, nil
 			}
@@ -187,7 +209,7 @@ func (c *controlPlaneActiveVersionSyncer) getHostedClusterActiveVersions(ctx con
 			logger.Error(err, "Skipping HostedCluster version history entry with unparseable version", "history", historyEntry)
 			continue
 		}
-		activeVersions = append(activeVersions, coreapi.HCPClusterActiveVersion{Version: &parsedVersion, State: historyEntry.State})
+		activeVersions = append(activeVersions, coreapi.ServiceProviderClusterActiveVersion{Version: &parsedVersion, State: historyEntry.State})
 		if historyEntry.State == configv1.CompletedUpdate {
 			return activeVersions, nil
 		}
@@ -210,4 +232,18 @@ func getHostedClusterDesiredVersionChannels(hostedCluster *hsv1beta1.HostedClust
 		return nil
 	}
 	return hostedCluster.Status.Version.Desired.Channels
+}
+
+func hcpClusterActiveVersionFromServiceProviderActiveVersions(activeVersions []coreapi.ServiceProviderClusterActiveVersion) []coreapi.HCPClusterActiveVersion {
+	var versions []coreapi.HCPClusterActiveVersion
+	seen := map[string]struct{}{}
+	for _, activeVersion := range activeVersions {
+		version := fmt.Sprintf("%d.%d", activeVersion.Version.Major, activeVersion.Version.Minor)
+		if _, ok := seen[version]; ok {
+			continue
+		}
+		seen[version] = struct{}{}
+		versions = append(versions, coreapi.HCPClusterActiveVersion{Version: version})
+	}
+	return versions
 }

@@ -71,14 +71,18 @@ func (s *lifecycleSyncer) SyncOnce(ctx context.Context, key fleetcontrollers.Sta
 
 	clustersServiceRegistrationCondition := apimeta.FindStatusCondition(updated.Status.Conditions, string(fleetapi.ManagementClusterConditionClustersServiceRegistered))
 	maestroRegistrationCondition := apimeta.FindStatusCondition(updated.Status.Conditions, string(fleetapi.ManagementClusterConditionMaestroRegistered))
+	sharedIngressAvailableCondition := apimeta.FindStatusCondition(updated.Status.Conditions, string(fleetapi.ManagementClusterConditionSharedIngressAvailable))
 
-	if clustersServiceRegistrationCondition == nil || maestroRegistrationCondition == nil {
+	if clustersServiceRegistrationCondition == nil || maestroRegistrationCondition == nil || sharedIngressAvailableCondition == nil {
 		var missing []string
 		if clustersServiceRegistrationCondition == nil {
 			missing = append(missing, string(fleetapi.ManagementClusterConditionClustersServiceRegistered))
 		}
 		if maestroRegistrationCondition == nil {
 			missing = append(missing, string(fleetapi.ManagementClusterConditionMaestroRegistered))
+		}
+		if sharedIngressAvailableCondition == nil {
+			missing = append(missing, string(fleetapi.ManagementClusterConditionSharedIngressAvailable))
 		}
 		logger := utils.LoggerFromContext(ctx)
 		logger.Info("Skipping Ready aggregation: preserving current Ready value until all registration conditions are present",
@@ -87,7 +91,7 @@ func (s *lifecycleSyncer) SyncOnce(ctx context.Context, key fleetcontrollers.Sta
 		return nil
 	}
 
-	if clustersServiceRegistrationCondition.Status == metav1.ConditionTrue && maestroRegistrationCondition.Status == metav1.ConditionTrue {
+	if clustersServiceRegistrationCondition.Status == metav1.ConditionTrue && maestroRegistrationCondition.Status == metav1.ConditionTrue && sharedIngressAvailableCondition.Status == metav1.ConditionTrue {
 		apimeta.SetStatusCondition(&updated.Status.Conditions, metav1.Condition{
 			Type:    string(fleetapi.ManagementClusterConditionReady),
 			Status:  metav1.ConditionTrue,
@@ -101,6 +105,9 @@ func (s *lifecycleSyncer) SyncOnce(ctx context.Context, key fleetcontrollers.Sta
 		}
 		if maestroRegistrationCondition.Status != metav1.ConditionTrue {
 			notReady = append(notReady, string(fleetapi.ManagementClusterConditionMaestroRegistered))
+		}
+		if sharedIngressAvailableCondition.Status != metav1.ConditionTrue {
+			notReady = append(notReady, string(fleetapi.ManagementClusterConditionSharedIngressAvailable))
 		}
 		apimeta.SetStatusCondition(&updated.Status.Conditions, metav1.Condition{
 			Type:    string(fleetapi.ManagementClusterConditionReady),

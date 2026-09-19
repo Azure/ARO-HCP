@@ -21,7 +21,6 @@ metadata:
 data:
   appsettings.json: |-
     {
-      "$schema": "https://identitydivision.visualstudio.com/DevEx/_git/MISE?path=/schemas/mise-options-schema.json",
       "MiseVersion": "2.0",
       "AllowedHosts": "*",
       "EnableInboundPolicyFilter": true,
@@ -151,7 +150,7 @@ spec:
   template:
     metadata:
       annotations:
-        checksum/config: 878706b0364a1ad5f4baea54aaf81e19e2222e4c44c97f853f1cac09fad6ac70
+        checksum/config: 0de63fd25420436348b0104ea44ceae11051c644c55cb14ac66553a672fe9e70
       labels:
         app: mise
     spec:

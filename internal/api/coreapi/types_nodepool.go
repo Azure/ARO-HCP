@@ -70,6 +70,18 @@ type HCPOpenShiftClusterNodePoolStatus struct {
 	// +listType=map
 	// +listMapKey=type
 	UserFacingConditions []metav1.Condition `json:"userFacingConditions,omitempty" patchStrategy:"merge" patchMergeKey:"type"`
+
+	// ActiveVersions are the active versions of the node pool, ordered newest first.
+	// Written by: NodePoolActiveVersions
+	// +optional
+	// +listType=set
+	ActiveVersions []HCPNodePoolActiveVersion `json:"activeVersions,omitempty"`
+}
+
+type HCPNodePoolActiveVersion struct {
+	// Version is the user-facing version in x.y.z format (e.g., "4.20.8")
+	// Written by: NodePoolActiveVersions
+	Version string `json:"version,omitempty"`
 }
 
 var _ CosmosPersistable = &HCPOpenShiftClusterNodePool{}

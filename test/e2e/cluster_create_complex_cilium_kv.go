@@ -128,6 +128,11 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to disable kube-proxy via network operator patch")
 			GinkgoLogr.Info("Disabled kube-proxy via network operator patch")
 
+			By("providing a Multus-compatible custom CNI conflist for Cilium")
+			const ciliumNamespace = "kube-system"
+			err = framework.EnsureCiliumCNIConfigMap(ctx, adminRESTConfig, ciliumNamespace, framework.CiliumCNIConfigMapName, framework.CiliumConflistNone)
+			Expect(err).NotTo(HaveOccurred(), "failed to create Cilium CNI conflist ConfigMap")
+
 			By("installing Cilium via helm SDK")
 			kubeconfigContent, err := framework.GenerateKubeconfig(adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred(), "failed to generate kubeconfig for Helm installation")
@@ -136,6 +141,7 @@ var _ = Describe("Customer", func() {
 					"uninstall": false,
 					"binPath":   "/var/lib/cni/bin",
 					"confPath":  "/var/run/multus/cni/net.d",
+					"configMap": framework.CiliumCNIConfigMapName,
 				},
 				"kubeProxyReplacement": true,
 				"k8sServiceHost":       "172.20.0.1",

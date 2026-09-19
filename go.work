@@ -5,6 +5,7 @@ use (
 	./admin/server
 	./backend
 	./dev-infrastructure/scripts/acr-replication
+	./dev-infrastructure/scripts/aks-cluster-create
 	./dev-infrastructure/scripts/grafana-group-roles
 	./dev-infrastructure/scripts/postgres-access
 	./fleet
@@ -32,6 +33,7 @@ use (
 	./tooling/olm-bundle-repkg
 	./tooling/pipeline-documentation
 	./tooling/prometheus-rules
+	./tooling/rightsize-requests
 	./tooling/secret-sync
 	./tooling/templatize
 	./tooling/tenant-quota

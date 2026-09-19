@@ -169,8 +169,6 @@ tlsCertificatesEnabled: true
 cosmosDatabaseUrl: "__cosmosDBDocumentEndpoint__"
 # The name of the Cosmos DB database accessed by Cluster Service.
 cosmosDatabaseName: "{{ .frontend.cosmosDB.name }}"
-# Temporary deny assignment feature flag
-denyAssignments: "{{ .clustersService.denyAssignments }}"
 # The client id of the service principal that represents the Clusters Service ARM Helper Identity.
 azureArmHelperIdentityClientId: "{{ .clustersServiceArmHelperClientId }}"
 # The name of the secret that contains the Clusters Service ARM Helper Identity certificate bundle.
