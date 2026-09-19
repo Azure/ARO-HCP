@@ -1,0 +1,18 @@
+cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('containerLogs')
+| where timestamp between ({{ kqlDatetime .PhaseStartTime }} .. {{ kqlDatetime .PhaseEndTime }})
+{{- if gt (len .ManagementClusterNames) 0 }}
+| where cluster in ({{ range $i, $c := .ManagementClusterNames }}{{ if $i }}, {{ end }}'{{ $c }}'{{ end }})
+{{- end }}
+| where namespace_name == 'velero'
+| where container_name == 'velero'
+| extend
+    level = tostring(extract('level=([a-zA-Z]+)', 1, tostring(log))),
+    msg = tostring(extract('msg="([^"]*)"', 1, tostring(log))),
+    err = tostring(extract('error="([^"]*)"', 1, tostring(log)))
+| where level in ('error', 'warning')
+| summarize
+    first_occurrence = min(timestamp),
+    last_occurrence = max(timestamp),
+    occurrences = count()
+  by cluster, level, msg, err
+| order by first_occurrence asc
