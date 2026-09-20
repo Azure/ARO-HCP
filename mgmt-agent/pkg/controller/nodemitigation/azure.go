@@ -127,7 +127,8 @@ func (a *azureReader) Instance(ctx context.Context, clusterID, pool, providerID,
 	vm, err := vms.Get(ctx, vmID.ResourceGroupName, vmID.Parent.Name, vmID.Name, nil)
 	if err != nil {
 		var response *azcore.ResponseError
-		if errors.As(err, &response) && response.StatusCode == http.StatusNotFound && response.ErrorCode == "ResourceNotFound" {
+		if errors.As(err, &response) && response.StatusCode == http.StatusNotFound &&
+			(response.ErrorCode == "ResourceNotFound" || response.ErrorCode == "NotFound") {
 			return "", false, nil
 		}
 		return "", false, fmt.Errorf("read original instance: %w", err)
