@@ -220,6 +220,7 @@ func (c *Controller) reconcileEpisode(ctx context.Context, cfg Config, revision 
 			return c.hold(ctx, cfg, revision, episode, "waiting for actual workload recovery")
 		}
 		episode.Status.Recovery = nil
+		meta.RemoveStatusCondition(&episode.Status.Conditions, "Held")
 		return c.saveEpisode(ctx, revision, episode)
 	}
 	switch decision.Phase {
@@ -305,6 +306,7 @@ func (c *Controller) cancelNeverReady(ctx context.Context, cfg Config, revision 
 }
 
 func (c *Controller) prepare(ctx context.Context, revision uint64, episode *api.MitigationEpisode, kind string, object metav1.ObjectMeta, recovery *api.WorkloadRecovery, phase string) error {
+	meta.RemoveStatusCondition(&episode.Status.Conditions, "Held")
 	episode.Status.Intent = &api.MitigationAction{
 		ID:   episodeName(string(episode.UID) + kind + string(object.UID) + object.ResourceVersion),
 		Kind: kind, Phase: phase, Namespace: object.Namespace, Name: object.Name, UID: object.UID, ResourceVersion: object.ResourceVersion,
@@ -404,7 +406,7 @@ func (c *Controller) recovered(ctx context.Context, recovery *api.WorkloadRecove
 		return false, err
 	}
 	for i := range pods.Items {
-		if pods.Items[i].UID == recovery.PodUID {
+		if pods.Items[i].UID == recovery.PodUID && !terminal(&pods.Items[i]) {
 			return false, nil
 		}
 	}

@@ -56,6 +56,7 @@ func (c *Controller) observe(ctx context.Context, cfg, accepted Config, revision
 		episode.Status.NodeDeletedAt = &now
 		episode.Status.Intent = nil
 		episode.Status.Phase = PhaseObserve
+		meta.RemoveStatusCondition(&episode.Status.Conditions, "Held")
 		return c.condition(ctx, cfg, revision, episode, "NodeObjectDeleted", metav1.ConditionTrue, "OriginalUIDAbsent", "Original Kubernetes Node UID is absent")
 	}
 	if episode.Status.NodeDeletedAt == nil {
@@ -72,6 +73,9 @@ func (c *Controller) observe(ctx context.Context, cfg, accepted Config, revision
 		return err
 	}
 	if present && identity == episode.Spec.InstanceID {
+		if err := c.condition(ctx, cfg, revision, episode, "InstanceGone", metav1.ConditionFalse, "OriginalInstancePresent", "Original immutable Azure instance is still present"); err != nil {
+			return err
+		}
 		warningSince := episode.Status.NodeDeletedAt
 		reason, message := "InstanceStillPresent", "Original instance remains 30 minutes after Kubernetes Node deletion"
 		if action := episode.Status.NodeDeletionAction; action != nil && action.LastAttemptAt != nil &&

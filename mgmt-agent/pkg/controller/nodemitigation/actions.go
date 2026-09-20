@@ -24,6 +24,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	policyv1 "k8s.io/api/policy/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
@@ -163,6 +164,7 @@ func (c *Controller) attempt(ctx context.Context, cfg Config, revision uint64, e
 	if cfg.Mode == Audit {
 		return errAuditEligible
 	}
+	meta.RemoveStatusCondition(&episode.Status.Conditions, "Held")
 	t := metav1.NewTime(c.clock())
 	episode.Status.Intent.LastAttemptAt = &t
 	if episode.Status.Intent.Kind == "DeleteNode" {
@@ -207,7 +209,6 @@ func (c *Controller) executePod(ctx context.Context, cfg Config, revision uint64
 	}
 	if terminal(pod) {
 		episode.Status.Intent = nil
-		episode.Status.Recovery = nil
 		return c.saveEpisode(ctx, revision, episode)
 	}
 	_, policy, err := workload(ctx, c.kube, pod, cfg)

@@ -271,6 +271,35 @@ func TestNeverReadyDeleteAndObserve(t *testing.T) {
 	}
 }
 
+func TestResumedDeleteClearsHoldAndReportsPresentInstance(t *testing.T) {
+	f := newFixture(t, 11, 1)
+	for i := 0; i < 4; i++ {
+		f.tick(t)
+	}
+	f.cfg.DeleteNode = false
+	if err := f.controller.SetConfig(f.cfg); err != nil {
+		t.Fatal(err)
+	}
+	f.tick(t)
+	if !meta.IsStatusConditionTrue(f.episode(t).Status.Conditions, "Held") {
+		t.Fatal("disabled deletion did not report its hold")
+	}
+	f.cfg.DeleteNode = true
+	if err := f.controller.SetConfig(f.cfg); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 3; i++ {
+		f.tick(t)
+	}
+	episode := f.episode(t)
+	if episode.Status.NodeDeletedAt == nil || meta.IsStatusConditionTrue(episode.Status.Conditions, "Held") {
+		t.Fatalf("successful deletion retained a stale hold: %+v", episode.Status)
+	}
+	if !meta.IsStatusConditionFalse(episode.Status.Conditions, "InstanceGone") {
+		t.Fatal("verified original instance presence was not reported")
+	}
+}
+
 func TestModeChangeStopsPreparedDelete(t *testing.T) {
 	for _, mode := range []Mode{Disabled, Audit} {
 		t.Run(string(mode), func(t *testing.T) {

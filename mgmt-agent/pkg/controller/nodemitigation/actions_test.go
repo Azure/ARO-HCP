@@ -139,6 +139,50 @@ func TestSwiftRescueDrainAndDelete(t *testing.T) {
 	}
 }
 
+func TestTerminalRescuePodStillRequiresActualReplacement(t *testing.T) {
+	f := swiftFixture(t)
+	ctx := context.Background()
+	for i := 0; i < 6; i++ {
+		f.tick(t)
+	}
+	pod, err := f.kube.CoreV1().Pods("test").Get(ctx, "router-stalled", metav1.GetOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	pod.Status.Phase = corev1.PodFailed
+	if _, err := f.kube.CoreV1().Pods("test").UpdateStatus(ctx, pod, metav1.UpdateOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 3; i++ {
+		f.tick(t)
+	}
+	if f.episode(t).Status.Recovery == nil || f.episode(t).Status.NodeDeletedAt != nil {
+		t.Fatal("terminal pod status bypassed actual replacement readiness")
+	}
+	replacement, err := f.kube.CoreV1().Pods("test").Get(ctx, "router-healthy", metav1.GetOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	replacement.Name, replacement.UID, replacement.Spec.NodeName = "replacement", "replacement", "node-02"
+	if err := f.kube.Tracker().Add(replacement); err != nil {
+		t.Fatal(err)
+	}
+	deployment, err := f.kube.AppsV1().Deployments("test").Get(ctx, "router", metav1.GetOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	deployment.Status.AvailableReplicas = 2
+	if _, err := f.kube.AppsV1().Deployments("test").UpdateStatus(ctx, deployment, metav1.UpdateOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 10; i++ {
+		f.tick(t)
+	}
+	if f.episode(t).Status.NodeDeletedAt == nil {
+		t.Fatal("terminal pod history blocked cleanup after actual recovery")
+	}
+}
+
 func TestPDBDenialMustNotBeGenericThrottling(t *testing.T) {
 	f := swiftFixture(t)
 	for i := 0; i < 6; i++ {
