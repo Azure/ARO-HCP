@@ -95,6 +95,9 @@ func workload(ctx context.Context, client kubernetes.Interface, pod *corev1.Pod,
 	if rs.UID != owner.UID || rs.DeletionTimestamp != nil || rs.Spec.Replicas == nil || *rs.Spec.Replicas < 1 {
 		return nil, nil, fmt.Errorf("ReplicaSet identity or desired replicas changed")
 	}
+	if rs.Spec.Template.Spec.NodeName != "" {
+		return nil, nil, fmt.Errorf("ReplicaSet template bypasses scheduler placement")
+	}
 	deploymentOwner := metav1.GetControllerOf(rs)
 	if deploymentOwner == nil || deploymentOwner.APIVersion != "apps/v1" || deploymentOwner.Kind != "Deployment" {
 		return nil, nil, fmt.Errorf("ReplicaSet is not managed by a Deployment")
@@ -109,6 +112,9 @@ func workload(ctx context.Context, client kubernetes.Interface, pod *corev1.Pod,
 		deployment.Status.UpdatedReplicas != *deployment.Spec.Replicas ||
 		deployment.Status.Replicas != *deployment.Spec.Replicas {
 		return nil, nil, fmt.Errorf("deployment identity, rollout or desired replicas changed")
+	}
+	if deployment.Spec.Template.Spec.NodeName != "" {
+		return nil, nil, fmt.Errorf("deployment template bypasses scheduler placement")
 	}
 	namespace, err := client.CoreV1().Namespaces().Get(ctx, pod.Namespace, metav1.GetOptions{})
 	if err != nil {

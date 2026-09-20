@@ -35,7 +35,9 @@ import (
 type ClusterSnapshot struct {
 	Nodes      []*corev1.Node
 	Pods       []*corev1.Pod
+	Events     []corev1.Event
 	Namespaces map[string]*corev1.Namespace
+	Faulted    map[string]bool
 	// NICs includes allocations whose original pods have already disappeared.
 	NICs map[string]map[types.UID]int64
 }
@@ -267,7 +269,7 @@ func placement(snapshot ClusterSnapshot, excluded map[string]bool, moving []*cor
 	placed := make([]*corev1.Pod, 0, len(snapshot.Pods))
 	for _, node := range snapshot.Nodes {
 		nodes[node.Name] = node
-		if ready(node) && !node.Spec.Unschedulable && !excluded[node.Name] {
+		if ready(node) && !node.Spec.Unschedulable && !excluded[node.Name] && !snapshot.Faulted[node.Name] {
 			free[node.Name] = node.Status.Allocatable.DeepCopy()
 		}
 	}

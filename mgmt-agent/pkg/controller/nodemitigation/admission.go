@@ -42,7 +42,7 @@ func (c *Controller) admission(ctx context.Context, cfg Config, revision uint64,
 		if n.UID != node.UID && strings.EqualFold(n.Status.NodeInfo.SystemUUID, instance) {
 			return observation, "", fmt.Errorf("another Node already represents this instance")
 		}
-		if poolName(n) == poolName(node) && ready(n) && !n.Spec.Unschedulable {
+		if poolName(n) == poolName(node) && ready(n) && !n.Spec.Unschedulable && !snapshot.Faulted[n.Name] {
 			observation.Ready++
 		}
 	}
@@ -129,10 +129,10 @@ func capacityLimits(snapshot ClusterSnapshot, budget api.NodeMitigationBudgetSta
 		}
 		seen[id] = true
 		owned := reserved[id] || node.UID == target.UID
-		if owned || unknownIdentity {
+		if owned || unknownIdentity || snapshot.Faulted[node.Name] {
 			excluded[node.Name] = true
 		}
-		if owned || unknownIdentity || !ready(node) || node.Spec.Unschedulable {
+		if owned || unknownIdentity || snapshot.Faulted[node.Name] || !ready(node) || node.Spec.Unschedulable {
 			unavailable[id] = location{poolName(node), node.Labels[corev1.LabelTopologyZone]}
 		} else {
 			if poolName(node) == poolName(target) {

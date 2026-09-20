@@ -81,7 +81,8 @@ An accepted episode cannot gain broader workload or DaemonSet permissions throug
 a configuration change.
 
 Static pods, unsupported owners, host namespaces, debug containers, host ports,
-custom schedulers, finalizers and unsupported storage hold cleanup. Removing
+custom schedulers, node-bound owner templates, finalizers and unsupported storage
+hold cleanup. Removing
 `emptyDir` data requires explicit permission. DaemonSets may remain at Node
 deletion only through an explicit `namespace/name` allowlist and a live owner
 identity check. Nonterminal workloads on a NotReady node block Node deletion.
@@ -90,6 +91,8 @@ Placement checks include requests, init containers, restartable sidecars,
 overhead, pod slots, SWIFT NIC allocations, taints, required affinity and hard
 topology spread. Outstanding NIC allocations remain charged after their pods
 disappear. External unscheduled demand also consumes headroom.
+Nodes with current mitigation fault evidence cannot supply healthy headroom or
+replacement placement, even when their Kubernetes Ready condition is true.
 
 The deletion allowance is 10% of the persisted AKS pool target, rounded down.
 Pools of one to nine nodes have one slot per window, one in flight, and require

@@ -163,6 +163,7 @@ func TestAuditIndependentCandidatesNoWrites(t *testing.T) {
 	if err := f.controller.SetConfig(f.cfg); err != nil {
 		t.Fatal(err)
 	}
+
 	var output bytes.Buffer
 	ctx := utils.ContextWithLogger(context.Background(), logr.FromSlogHandler(slog.NewJSONHandler(&output, nil)))
 	if err := f.controller.reconcile(ctx); err != nil {
@@ -176,6 +177,43 @@ func TestAuditIndependentCandidatesNoWrites(t *testing.T) {
 	}
 	if got := mutations(f.records.Actions()); len(got) != 0 {
 		t.Fatalf("audit mutated records: %v", got)
+	}
+	eventLists := 0
+	for _, action := range f.kube.Actions() {
+		if action.GetVerb() == "list" && action.GetResource().Resource == "events" {
+			eventLists++
+		}
+	}
+	if eventLists != 1 {
+		t.Fatalf("candidate scan listed cluster Events %d times, want one snapshot", eventLists)
+	}
+}
+
+func TestFaultedReadyNodeCannotSupplyCapacity(t *testing.T) {
+	f := swiftFixture(t)
+	ctx := context.Background()
+	snapshot, err := f.controller.snapshot(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !snapshot.Faulted["node-00"] || snapshot.Faulted["node-01"] {
+		t.Fatalf("fault evidence not correlated to the affected node: %v", snapshot.Faulted)
+	}
+	target, err := f.kube.CoreV1().Nodes().Get(ctx, "node-01", metav1.GetOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.cfg.MinHealthyPool = 10
+	if _, err := capacityLimits(snapshot, api.NodeMitigationBudgetStatus{}, target, f.cfg, 10); err == nil {
+		t.Fatal("a Ready node with current SWIFT fault evidence supplied healthy headroom")
+	}
+	f.cfg.MinHealthyPool = 1
+	excluded, err := capacityLimits(snapshot, api.NodeMitigationBudgetStatus{}, target, f.cfg, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !excluded["node-00"] || !excluded[target.Name] {
+		t.Fatalf("faulted node remains available for placement: %v", excluded)
 	}
 }
 

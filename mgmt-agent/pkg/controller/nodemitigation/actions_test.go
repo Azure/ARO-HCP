@@ -25,6 +25,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	ktesting "k8s.io/client-go/testing"
 	"k8s.io/utils/ptr"
 )
@@ -189,6 +190,187 @@ func TestConfirmedPDBDenialAndRecoveryBeforeBypass(t *testing.T) {
 		if action.GetVerb() == "delete" && action.GetResource().Resource == "pods" {
 			t.Fatal("recovered pod was deleted through bypass")
 		}
+	}
+}
+
+func TestGracefulBypassRequiresUnchangedUniqueBlockingPDB(t *testing.T) {
+	for _, change := range []string{"none", "version", "overlap", "always-allow"} {
+		t.Run(change, func(t *testing.T) {
+			f := swiftFixture(t)
+			ctx := context.Background()
+			for i := 0; i < 6; i++ {
+				f.tick(t)
+			}
+			f.kube.PrependReactor("create", "pods", func(action ktesting.Action) (bool, runtime.Object, error) {
+				if action.GetSubresource() != "eviction" {
+					return false, nil, nil
+				}
+				err := apierrors.NewTooManyRequests("disruption budget", 1)
+				err.ErrStatus.Details.Causes = []metav1.StatusCause{{Type: policyv1.DisruptionBudgetCause}}
+				return true, nil, err
+			})
+			f.tick(t)
+			if f.episode(t).Status.Intent.Kind != "DeleteUnhealthyPod" {
+				t.Fatal("confirmed denial did not prepare the explicit fallback")
+			}
+			pdb, err := f.kube.PolicyV1().PodDisruptionBudgets("test").Get(ctx, "router", metav1.GetOptions{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			switch change {
+			case "version":
+				pdb.ResourceVersion = "2"
+			case "always-allow":
+				pdb.Spec.UnhealthyPodEvictionPolicy = ptr.To(policyv1.AlwaysAllow)
+			case "overlap":
+				other := pdb.DeepCopy()
+				other.Name, other.UID = "other", "other"
+				if _, err := f.kube.PolicyV1().PodDisruptionBudgets("test").Create(ctx, other, metav1.CreateOptions{}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if _, err := f.kube.PolicyV1().PodDisruptionBudgets("test").Update(ctx, pdb, metav1.UpdateOptions{}); err != nil {
+				t.Fatal(err)
+			}
+			f.kube.ClearActions()
+			f.tick(t)
+			deleted := false
+			for _, action := range f.kube.Actions() {
+				if action.GetVerb() != "delete" || action.GetResource().Resource != "pods" {
+					continue
+				}
+				deleted = true
+				options := action.(ktesting.DeleteAction).GetDeleteOptions()
+				if options.GracePeriodSeconds != nil || options.Preconditions == nil ||
+					options.Preconditions.UID == nil || *options.Preconditions.UID != "router-stalled" ||
+					options.Preconditions.ResourceVersion == nil || *options.Preconditions.ResourceVersion != "1" {
+					t.Fatal("bypass lost graceful termination or identity preconditions")
+				}
+			}
+			if deleted != (change == "none") {
+				t.Fatalf("PDB change %q: unexpected direct deletion %v", change, deleted)
+			}
+		})
+	}
+}
+
+func TestSerialAndLateRescueWithDrainDisabled(t *testing.T) {
+	f := swiftFixture(t)
+	ctx := context.Background()
+	f.cfg.Drain, f.cfg.DeleteNode = false, false
+	if err := f.controller.SetConfig(f.cfg); err != nil {
+		t.Fatal(err)
+	}
+	original, err := f.kube.CoreV1().Pods("test").Get(ctx, "router-stalled", metav1.GetOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	addStalled := func(name string, replicas int32) {
+		t.Helper()
+		pod := original.DeepCopy()
+		pod.Name, pod.UID = name, types.UID(name)
+		if err := f.kube.Tracker().Add(pod); err != nil {
+			t.Fatal(err)
+		}
+		event, err := f.kube.CoreV1().Events("test").Get(ctx, "sandbox", metav1.GetOptions{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		event.Name = name
+		event.InvolvedObject.Name, event.InvolvedObject.UID = name, pod.UID
+		event.FirstTimestamp, event.LastTimestamp = metav1.NewTime(f.now.Add(-time.Minute)), metav1.NewTime(f.now)
+		if err := f.kube.Tracker().Add(event); err != nil {
+			t.Fatal(err)
+		}
+		deployment, err := f.kube.AppsV1().Deployments("test").Get(ctx, "router", metav1.GetOptions{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		deployment.Spec.Replicas = ptr.To(replicas)
+		deployment.Status.Replicas, deployment.Status.UpdatedReplicas = replicas, replicas
+		if err := f.kube.Tracker().Update(appsv1.SchemeGroupVersion.WithResource("deployments"), deployment, "test"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	addStalled("second-stalled", 3)
+	evicted := map[string]bool{}
+	f.kube.PrependReactor("create", "pods", func(action ktesting.Action) (bool, runtime.Object, error) {
+		if action.GetSubresource() != "eviction" {
+			return false, nil, nil
+		}
+		eviction := action.(ktesting.CreateAction).GetObject().(*policyv1.Eviction)
+		object, err := f.kube.Tracker().Get(corev1.SchemeGroupVersion.WithResource("pods"), "test", eviction.Name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		pod := object.(*corev1.Pod).DeepCopy()
+		evicted[pod.Name] = true
+		if err := f.kube.Tracker().Delete(corev1.SchemeGroupVersion.WithResource("pods"), "test", pod.Name); err != nil {
+			t.Fatal(err)
+		}
+		pod.Name, pod.UID, pod.Spec.NodeName = "replacement-"+pod.Name, types.UID("replacement-"+string(pod.UID)), "node-02"
+		pod.Status = corev1.PodStatus{Phase: corev1.PodRunning, Conditions: []corev1.PodCondition{{Type: corev1.PodReady, Status: corev1.ConditionTrue}}}
+		if err := f.kube.Tracker().Add(pod); err != nil {
+			t.Fatal(err)
+		}
+		object, err = f.kube.Tracker().Get(appsv1.SchemeGroupVersion.WithResource("deployments"), "test", "router")
+		if err != nil {
+			t.Fatal(err)
+		}
+		deployment := object.(*appsv1.Deployment)
+		deployment.Status.AvailableReplicas++
+		if err := f.kube.Tracker().Update(appsv1.SchemeGroupVersion.WithResource("deployments"), deployment, "test"); err != nil {
+			t.Fatal(err)
+		}
+		return true, nil, nil
+	})
+	for i := 0; i < 20; i++ {
+		f.tick(t)
+	}
+	if len(evicted) != 2 || f.episode(t).Status.Phase != PhaseDrain {
+		t.Fatalf("serial rescue did not reach the drain hold: %v, %+v", evicted, f.episode(t).Status)
+	}
+	addStalled("late-stalled", 4)
+	for i := 0; i < 10; i++ {
+		f.tick(t)
+	}
+	if !evicted["late-stalled"] || f.episode(t).Status.NodeDeletedAt != nil {
+		t.Fatalf("late rescue failed or bypassed the drain hold: %v", evicted)
+	}
+}
+
+func TestBoundOwnerTemplateCannotPromiseReplacementPlacement(t *testing.T) {
+	for _, owner := range []string{"replicaset", "deployment"} {
+		t.Run(owner, func(t *testing.T) {
+			f := swiftFixture(t)
+			ctx := context.Background()
+			pod, err := f.kube.CoreV1().Pods("test").Get(ctx, "router-stalled", metav1.GetOptions{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if owner == "replicaset" {
+				rs, err := f.kube.AppsV1().ReplicaSets("test").Get(ctx, "router-rs", metav1.GetOptions{})
+				if err != nil {
+					t.Fatal(err)
+				}
+				rs.Spec.Template.Spec.NodeName = pod.Spec.NodeName
+				if _, err := f.kube.AppsV1().ReplicaSets("test").Update(ctx, rs, metav1.UpdateOptions{}); err != nil {
+					t.Fatal(err)
+				}
+			} else {
+				deployment, err := f.kube.AppsV1().Deployments("test").Get(ctx, "router", metav1.GetOptions{})
+				if err != nil {
+					t.Fatal(err)
+				}
+				deployment.Spec.Template.Spec.NodeName = pod.Spec.NodeName
+				if _, err := f.kube.AppsV1().Deployments("test").Update(ctx, deployment, metav1.UpdateOptions{}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if _, _, err := workload(ctx, f.kube, pod, f.cfg); err == nil {
+				t.Fatal("a node-bound owner template was accepted")
+			}
+		})
 	}
 }
 

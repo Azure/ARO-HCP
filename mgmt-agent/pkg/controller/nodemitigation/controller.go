@@ -291,6 +291,16 @@ func (c *Controller) snapshot(ctx context.Context) (ClusterSnapshot, error) {
 	for i := range pods.Items {
 		snapshot.Pods = append(snapshot.Pods, &pods.Items[i])
 	}
+	events, err := c.kube.CoreV1().Events("").List(ctx, metav1.ListOptions{FieldSelector: "involvedObject.kind=Pod"})
+	if err != nil {
+		return snapshot, err
+	}
+	snapshot.Events = events.Items
+	snapshot.Faulted = map[string]bool{}
+	for _, node := range snapshot.Nodes {
+		detections, _ := nodeEvidence(node, snapshot.Pods, events.Items, c.clock())
+		snapshot.Faulted[node.Name] = len(detections) > 0
+	}
 	namespaces, err := c.kube.CoreV1().Namespaces().List(ctx, metav1.ListOptions{})
 	if err != nil {
 		return snapshot, err
@@ -333,10 +343,15 @@ func (c *Controller) evidence(ctx context.Context, node *corev1.Node, pods []*co
 	if err != nil {
 		return nil, nil, err
 	}
-	events := make([]*corev1.Event, 0, len(result.Items))
-	for i := range result.Items {
-		if result.Items[i].Source.Host == node.Name {
-			events = append(events, &result.Items[i])
+	detections, events := nodeEvidence(node, pods, result.Items, c.clock())
+	return detections, events, nil
+}
+
+func nodeEvidence(node *corev1.Node, pods []*corev1.Pod, observed []corev1.Event, now time.Time) ([]detectors.Detection, []*corev1.Event) {
+	events := make([]*corev1.Event, 0, len(observed))
+	for i := range observed {
+		if observed[i].Source.Host == node.Name {
+			events = append(events, &observed[i])
 		}
 	}
 	onNode := []*corev1.Pod{}
@@ -345,7 +360,7 @@ func (c *Controller) evidence(ctx context.Context, node *corev1.Node, pods []*co
 			onNode = append(onNode, pod)
 		}
 	}
-	return detectors.MitigationDetections(node, events, onNode, c.clock()), events, nil
+	return detectors.MitigationDetections(node, events, onNode, now), events
 }
 
 func (c *Controller) reconcile(ctx context.Context) error {
@@ -401,10 +416,7 @@ func (c *Controller) reconcile(ctx context.Context) error {
 		if active[string(node.UID)] || node.DeletionTimestamp != nil {
 			continue
 		}
-		detections, _, err := c.evidence(ctx, node, snapshot.Pods)
-		if err != nil {
-			return err
-		}
+		detections, _ := nodeEvidence(node, snapshot.Pods, snapshot.Events, c.clock())
 		for _, detection := range detections {
 			mitigator := c.routes[detection.Detector]
 			if mitigator == nil || !slices.Contains(cfg.Mitigators, mitigator.Name()) {

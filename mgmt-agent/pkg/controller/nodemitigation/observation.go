@@ -144,7 +144,7 @@ func (c *Controller) observe(ctx context.Context, cfg, accepted Config, revision
 			continue
 		}
 		seen[identity] = true
-		if poolName(node) == poolFromID(episode.Spec.PoolID) && ready(node) && !node.Spec.Unschedulable &&
+		if poolName(node) == poolFromID(episode.Spec.PoolID) && ready(node) && !node.Spec.Unschedulable && !snapshot.Faulted[node.Name] &&
 			!strings.EqualFold(node.Status.NodeInfo.SystemUUID, episode.Spec.InstanceID) {
 			available++
 		}
