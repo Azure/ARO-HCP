@@ -44,6 +44,7 @@ ignore:
 - 'sessiongate/deploy/templates/ext-authz.authorizationpolicy.yaml'
 - '**/zz_fixture_TestHelmTemplate*.yaml'
 - 'velero/deploy/templates/install-job.yaml'
+- 'velero/deploy/templates/volumesnapshotclass.yaml'
 - 'maestro/server/deploy/templates/maestro.deployment.yaml'
 - 'maestro/server/deploy/templates/maestro.pdb.yaml'
 - 'maestro/server/deploy/templates/allow-cluster-service.authorizationpolicy.yaml'
