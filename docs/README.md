@@ -163,6 +163,8 @@ Welcome to the **ARO HCP** documentation. This guide provides an overview of the
 - [Node Health](controllers/node-health.md)
   - Design for detecting "Ready but broken" management-cluster nodes from kubelet Events
   - Detection and labeling only, hard-coded detectors, and safety guards
+- [Node Mitigation Operations](controllers/node-mitigation-operations.md)
+  - DEV configuration, guarded Kubernetes actions, durable accounting and instance observation
 - [Node Rollout Pre-Merge Check](node-rollout-premerge-check.md)
   - Pre-merge check procedure to avoid unexpected node rollouts in production
 - [DEV CI Telemetry Exporter (`tenant-quota`)](../tooling/tenant-quota/README.md)

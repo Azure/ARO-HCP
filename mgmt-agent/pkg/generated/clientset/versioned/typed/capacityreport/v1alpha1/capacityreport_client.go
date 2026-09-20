@@ -28,6 +28,8 @@ import (
 type MgmtagentV1alpha1Interface interface {
 	RESTClient() rest.Interface
 	CapacityReportsGetter
+	MitigationEpisodesGetter
+	NodeMitigationBudgetsGetter
 }
 
 // MgmtagentV1alpha1Client is used to interact with features provided by the mgmtagent.aro-hcp.azure.com group.
@@ -37,6 +39,14 @@ type MgmtagentV1alpha1Client struct {
 
 func (c *MgmtagentV1alpha1Client) CapacityReports() CapacityReportInterface {
 	return newCapacityReports(c)
+}
+
+func (c *MgmtagentV1alpha1Client) MitigationEpisodes(namespace string) MitigationEpisodeInterface {
+	return newMitigationEpisodes(c, namespace)
+}
+
+func (c *MgmtagentV1alpha1Client) NodeMitigationBudgets(namespace string) NodeMitigationBudgetInterface {
+	return newNodeMitigationBudgets(c, namespace)
 }
 
 // NewForConfig creates a new MgmtagentV1alpha1Client for the given config.

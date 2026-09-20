@@ -19,3 +19,19 @@ package v1alpha1
 // CapacityReportListerExpansion allows custom methods to be added to
 // CapacityReportLister.
 type CapacityReportListerExpansion interface{}
+
+// MitigationEpisodeListerExpansion allows custom methods to be added to
+// MitigationEpisodeLister.
+type MitigationEpisodeListerExpansion interface{}
+
+// MitigationEpisodeNamespaceListerExpansion allows custom methods to be added to
+// MitigationEpisodeNamespaceLister.
+type MitigationEpisodeNamespaceListerExpansion interface{}
+
+// NodeMitigationBudgetListerExpansion allows custom methods to be added to
+// NodeMitigationBudgetLister.
+type NodeMitigationBudgetListerExpansion interface{}
+
+// NodeMitigationBudgetNamespaceListerExpansion allows custom methods to be added to
+// NodeMitigationBudgetNamespaceLister.
+type NodeMitigationBudgetNamespaceListerExpansion interface{}

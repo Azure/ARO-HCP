@@ -31,6 +31,14 @@ func (c *FakeMgmtagentV1alpha1) CapacityReports() v1alpha1.CapacityReportInterfa
 	return newFakeCapacityReports(c)
 }
 
+func (c *FakeMgmtagentV1alpha1) MitigationEpisodes(namespace string) v1alpha1.MitigationEpisodeInterface {
+	return newFakeMitigationEpisodes(c, namespace)
+}
+
+func (c *FakeMgmtagentV1alpha1) NodeMitigationBudgets(namespace string) v1alpha1.NodeMitigationBudgetInterface {
+	return newFakeNodeMitigationBudgets(c, namespace)
+}
+
 // RESTClient returns a RESTClient that is used to communicate
 // with API server by this client implementation.
 func (c *FakeMgmtagentV1alpha1) RESTClient() rest.Interface {

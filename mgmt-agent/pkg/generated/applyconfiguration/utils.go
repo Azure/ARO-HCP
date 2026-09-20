@@ -37,8 +37,26 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &capacityreportv1alpha1.CapacityReportStatusApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("HostedControlPlanes"):
 		return &capacityreportv1alpha1.HostedControlPlanesApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("MitigationAction"):
+		return &capacityreportv1alpha1.MitigationActionApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("MitigationEpisode"):
+		return &capacityreportv1alpha1.MitigationEpisodeApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("MitigationEpisodeSpec"):
+		return &capacityreportv1alpha1.MitigationEpisodeSpecApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("MitigationEpisodeStatus"):
+		return &capacityreportv1alpha1.MitigationEpisodeStatusApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("MitigationReservation"):
+		return &capacityreportv1alpha1.MitigationReservationApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("NodeMitigationBudget"):
+		return &capacityreportv1alpha1.NodeMitigationBudgetApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("NodeMitigationBudgetStatus"):
+		return &capacityreportv1alpha1.NodeMitigationBudgetStatusApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("NodeSKUCapacity"):
 		return &capacityreportv1alpha1.NodeSKUCapacityApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("PoolBaseline"):
+		return &capacityreportv1alpha1.PoolBaselineApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("WorkloadRecovery"):
+		return &capacityreportv1alpha1.WorkloadRecoveryApplyConfiguration{}
 
 	}
 	return nil

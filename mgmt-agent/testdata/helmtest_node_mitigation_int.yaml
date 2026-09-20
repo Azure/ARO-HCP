@@ -1,0 +1,8 @@
+values: ../values.yaml
+name: node-mitigation-int-locked
+namespace: mgmt-agent
+testData:
+  environmentName: int
+  mgmtAgent:
+    nodeMitigation:
+      enabled: true

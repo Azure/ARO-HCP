@@ -59,6 +59,7 @@ import (
 	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller/capacityreporting"
 	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller/ksmhcp"
 	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller/nodehealth"
+	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller/nodemitigation"
 	capacityreportclient "github.com/Azure/ARO-HCP/mgmt-agent/pkg/generated/clientset/versioned"
 )
 
@@ -74,16 +75,21 @@ type RawControllerOptions struct {
 	LogVerbosity  int
 	KSMImage      string
 
-	NodeHealthConfigMapName string
-	NodeHealthConfigKey     string
+	NodeHealthConfigMapName     string
+	NodeHealthConfigKey         string
+	NodeMitigationEnabled       bool
+	NodeMitigationConfigMapName string
+	NodeMitigationConfigKey     string
 }
 
 func DefaultControllerOptions() *RawControllerOptions {
 	return &RawControllerOptions{
-		HealthAddress:           ":8080",
-		Workers:                 2,
-		NodeHealthConfigMapName: "mgmt-agent-node-health",
-		NodeHealthConfigKey:     "config.yaml",
+		HealthAddress:               ":8080",
+		Workers:                     2,
+		NodeHealthConfigMapName:     "mgmt-agent-node-health",
+		NodeHealthConfigKey:         "config.yaml",
+		NodeMitigationConfigMapName: "mgmt-agent-node-mitigation",
+		NodeMitigationConfigKey:     "config.yaml",
 	}
 }
 
@@ -100,6 +106,10 @@ func (o *RawControllerOptions) BindFlags(cmd *cobra.Command) error {
 		"Name of the ConfigMap (in --namespace) holding the node-health configuration. The controller is disabled until this ConfigMap enables it.")
 	cmd.Flags().StringVar(&o.NodeHealthConfigKey, "node-health-config-key", o.NodeHealthConfigKey,
 		"Key within the node-health ConfigMap that holds the YAML configuration.")
+	cmd.Flags().BoolVar(&o.NodeMitigationEnabled, "node-mitigation-enabled", false,
+		"Allow node mitigation configuration. Enable only in isolated development environments.")
+	cmd.Flags().StringVar(&o.NodeMitigationConfigMapName, "node-mitigation-configmap", o.NodeMitigationConfigMapName, "Node mitigation ConfigMap in --namespace.")
+	cmd.Flags().StringVar(&o.NodeMitigationConfigKey, "node-mitigation-config-key", o.NodeMitigationConfigKey, "Node mitigation configuration key.")
 
 	return nil
 }
@@ -113,24 +123,26 @@ type ValidatedControllerOptions struct {
 }
 
 type completedControllerOptions struct {
-	ctrl                     *controller.SwiftNICController
-	ksmCtrl                  *ksmhcp.KSMHCPController
-	nodeHealth               *nodehealth.Controller
-	capacityReport           *capacityreporting.CapacityReportController
-	resourceWatcher          *controller.ResourceWatcher
-	podWatcher               *controller.PodWatcher
-	configMapWatcher         *controller.ConfigMapWatcher
-	kubeInformers            kubeinformers.SharedInformerFactory
-	ksmKubeInformers         kubeinformers.SharedInformerFactory
-	clusterWideKubeInformers kubeinformers.SharedInformerFactory
-	cmWatcherInformers       kubeinformers.SharedInformerFactory
-	nodeHealthInformers      kubeinformers.SharedInformerFactory
-	nodeHealthCMInformers    kubeinformers.SharedInformerFactory
-	hypershiftInformers      hypershiftinformers.SharedInformerFactory
-	dynamicInformers         dynamicinformer.DynamicSharedInformerFactory
-	workers                  int
-	healthAddress            string
-	leaderElectionLock       resourcelock.Interface
+	ctrl                      *controller.SwiftNICController
+	ksmCtrl                   *ksmhcp.KSMHCPController
+	nodeHealth                *nodehealth.Controller
+	nodeMitigation            *nodemitigation.Controller
+	nodeMitigationCMInformers kubeinformers.SharedInformerFactory
+	capacityReport            *capacityreporting.CapacityReportController
+	resourceWatcher           *controller.ResourceWatcher
+	podWatcher                *controller.PodWatcher
+	configMapWatcher          *controller.ConfigMapWatcher
+	kubeInformers             kubeinformers.SharedInformerFactory
+	ksmKubeInformers          kubeinformers.SharedInformerFactory
+	clusterWideKubeInformers  kubeinformers.SharedInformerFactory
+	cmWatcherInformers        kubeinformers.SharedInformerFactory
+	nodeHealthInformers       kubeinformers.SharedInformerFactory
+	nodeHealthCMInformers     kubeinformers.SharedInformerFactory
+	hypershiftInformers       hypershiftinformers.SharedInformerFactory
+	dynamicInformers          dynamicinformer.DynamicSharedInformerFactory
+	workers                   int
+	healthAddress             string
+	leaderElectionLock        resourcelock.Interface
 }
 
 type ControllerOptions struct {
@@ -290,6 +302,36 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 		return nil, fmt.Errorf("failed to create capacity report clientset: %w", err)
 	}
 
+	nodeMitigation, err := nodemitigation.NewController(kubeClientset, crClient, dynamicClient,
+		nodemitigation.NewAzureReader(azureCredential), o.Namespace,
+		kubeInformers.Core().V1().Nodes(), clusterWideKubeInformers.Core().V1().Pods(),
+		nodeHealthInformers.Core().V1().Events(), nil)
+	if err != nil {
+		return nil, fmt.Errorf("create node mitigation controller: %w", err)
+	}
+	nodeMitigation.AllowConfiguration(o.NodeMitigationEnabled)
+	nodemitigation.RegisterMetrics()
+	nodeMitigationCMInformers := kubeinformers.NewSharedInformerFactoryWithOptions(kubeClientset, 0,
+		kubeinformers.WithNamespace(o.Namespace),
+		kubeinformers.WithTweakListOptions(func(opts *metav1.ListOptions) {
+			opts.FieldSelector = "metadata.name=" + o.NodeMitigationConfigMapName
+		}))
+	if _, err := nodeMitigationCMInformers.Core().V1().ConfigMaps().Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			if cm, ok := obj.(*corev1.ConfigMap); ok {
+				nodeMitigation.OnConfigMap(cm, o.NodeMitigationConfigKey)
+			}
+		},
+		UpdateFunc: func(_, obj interface{}) {
+			if cm, ok := obj.(*corev1.ConfigMap); ok {
+				nodeMitigation.OnConfigMap(cm, o.NodeMitigationConfigKey)
+			}
+		},
+		DeleteFunc: func(interface{}) { nodeMitigation.OnConfigMapDeleted() },
+	}); err != nil {
+		return nil, fmt.Errorf("watch node mitigation config: %w", err)
+	}
+
 	capacityReportCtrl := capacityreporting.NewCapacityReportController(
 		kubeInformers.Core().V1().Nodes(),
 		clusterWideKubeInformers.Core().V1().Pods(),
@@ -342,24 +384,26 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 
 	return &ControllerOptions{
 		completedControllerOptions: &completedControllerOptions{
-			ctrl:                     ctrl,
-			ksmCtrl:                  ksmCtrl,
-			nodeHealth:               nodeHealth,
-			capacityReport:           capacityReportCtrl,
-			resourceWatcher:          resourceWatcher,
-			podWatcher:               podWatcher,
-			configMapWatcher:         configMapWatcher,
-			kubeInformers:            kubeInformers,
-			ksmKubeInformers:         ksmKubeInformers,
-			clusterWideKubeInformers: clusterWideKubeInformers,
-			cmWatcherInformers:       cmWatcherInformers,
-			nodeHealthInformers:      nodeHealthInformers,
-			nodeHealthCMInformers:    nodeHealthCMInformers,
-			hypershiftInformers:      hsInformers,
-			dynamicInformers:         dynInformers,
-			workers:                  o.Workers,
-			healthAddress:            o.HealthAddress,
-			leaderElectionLock:       leaderElectionLock,
+			ctrl:                      ctrl,
+			ksmCtrl:                   ksmCtrl,
+			nodeHealth:                nodeHealth,
+			nodeMitigation:            nodeMitigation,
+			nodeMitigationCMInformers: nodeMitigationCMInformers,
+			capacityReport:            capacityReportCtrl,
+			resourceWatcher:           resourceWatcher,
+			podWatcher:                podWatcher,
+			configMapWatcher:          configMapWatcher,
+			kubeInformers:             kubeInformers,
+			ksmKubeInformers:          ksmKubeInformers,
+			clusterWideKubeInformers:  clusterWideKubeInformers,
+			cmWatcherInformers:        cmWatcherInformers,
+			nodeHealthInformers:       nodeHealthInformers,
+			nodeHealthCMInformers:     nodeHealthCMInformers,
+			hypershiftInformers:       hsInformers,
+			dynamicInformers:          dynInformers,
+			workers:                   o.Workers,
+			healthAddress:             o.HealthAddress,
+			leaderElectionLock:        leaderElectionLock,
 		},
 	}, nil
 }
@@ -474,6 +518,16 @@ func (o *ControllerOptions) runControllersUnderLeaderElection(ctx context.Contex
 				if o.nodeHealthCMInformers != nil {
 					o.nodeHealthCMInformers.Start(ctx.Done())
 				}
+				if o.nodeMitigationCMInformers != nil {
+					o.nodeMitigationCMInformers.Start(ctx.Done())
+				}
+
+				go func() {
+					defer utilruntime.HandleCrash()
+					if err := o.nodeMitigation.Run(ctx); err != nil {
+						logger.Error(err, "node mitigation controller failed")
+					}
+				}()
 
 				go func() {
 					defer utilruntime.HandleCrash()

@@ -1,0 +1,8 @@
+values: ../values.yaml
+name: node-mitigation-stg-locked
+namespace: mgmt-agent
+testData:
+  environmentName: stg
+  mgmtAgent:
+    nodeMitigation:
+      enabled: true
