@@ -274,8 +274,7 @@ var conditionallyRequiredControlPlaneOperators = []conditionallyRequiredControlP
 // cannot come up without. The existing cross-check only compares the two customer-supplied identity
 // lists against each other, so omitting an operator from both leaves them consistent and passes.
 //
-// Create-only: operatorsAuthentication is immutable, so running this on update would permanently
-// block clusters created before this check existed.
+// Create-only: operatorsAuthentication is immutable, so an update cannot change the identity set.
 func validateRequiredOperatorIdentities(_ context.Context, op operation.Operation, newCluster, _ *coreapi.HCPOpenShiftCluster) field.ErrorList {
 	if op.Type != operation.Create {
 		return nil
