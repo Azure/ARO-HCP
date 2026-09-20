@@ -81,9 +81,9 @@ An accepted episode cannot gain broader workload or DaemonSet permissions throug
 a configuration change.
 
 Static pods, unsupported owners, host namespaces, debug containers, host ports,
-custom schedulers, node-bound owner templates, finalizers and unsupported storage
-hold cleanup. Removing
-`emptyDir` data requires explicit permission. DaemonSets may remain at Node
+custom schedulers, scheduling gates, resource claims, node-bound owner templates,
+finalizers and unsupported storage hold cleanup. Removing `emptyDir` data requires
+explicit permission. DaemonSets may remain at Node
 deletion only through an explicit `namespace/name` allowlist and a live owner
 identity check. Nonterminal workloads on a NotReady node block Node deletion.
 

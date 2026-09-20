@@ -359,38 +359,56 @@ func TestDaemonSetPermissionDoesNotBypassFinalizers(t *testing.T) {
 	}
 }
 
-func TestBoundOwnerTemplateCannotPromiseReplacementPlacement(t *testing.T) {
-	for _, owner := range []string{"replicaset", "deployment"} {
-		t.Run(owner, func(t *testing.T) {
-			f := swiftFixture(t)
-			ctx := context.Background()
-			pod, err := f.kube.CoreV1().Pods("test").Get(ctx, "router-stalled", metav1.GetOptions{})
-			if err != nil {
-				t.Fatal(err)
+func TestUnsupportedPlacementConstraints(t *testing.T) {
+	for _, constraint := range []string{"bound", "gated", "resource-claim"} {
+		for _, owner := range []string{"pod", "replicaset", "deployment"} {
+			if constraint == "bound" && owner == "pod" {
+				continue
 			}
-			if owner == "replicaset" {
-				rs, err := f.kube.AppsV1().ReplicaSets("test").Get(ctx, "router-rs", metav1.GetOptions{})
+			t.Run(constraint+"/"+owner, func(t *testing.T) {
+				f := swiftFixture(t)
+				ctx := context.Background()
+				pod, err := f.kube.CoreV1().Pods("test").Get(ctx, "router-stalled", metav1.GetOptions{})
 				if err != nil {
 					t.Fatal(err)
 				}
-				rs.Spec.Template.Spec.NodeName = pod.Spec.NodeName
-				if _, err := f.kube.AppsV1().ReplicaSets("test").Update(ctx, rs, metav1.UpdateOptions{}); err != nil {
-					t.Fatal(err)
+				constrain := func(spec *corev1.PodSpec) {
+					switch constraint {
+					case "bound":
+						spec.NodeName = pod.Spec.NodeName
+					case "gated":
+						spec.SchedulingGates = []corev1.PodSchedulingGate{{Name: "example.com/wait"}}
+					case "resource-claim":
+						spec.ResourceClaims = []corev1.PodResourceClaim{{Name: "device", ResourceClaimName: ptr.To("device")}}
+					}
 				}
-			} else {
-				deployment, err := f.kube.AppsV1().Deployments("test").Get(ctx, "router", metav1.GetOptions{})
-				if err != nil {
-					t.Fatal(err)
+				switch owner {
+				case "pod":
+					constrain(&pod.Spec)
+				case "replicaset":
+					rs, err := f.kube.AppsV1().ReplicaSets("test").Get(ctx, "router-rs", metav1.GetOptions{})
+					if err != nil {
+						t.Fatal(err)
+					}
+					constrain(&rs.Spec.Template.Spec)
+					if _, err := f.kube.AppsV1().ReplicaSets("test").Update(ctx, rs, metav1.UpdateOptions{}); err != nil {
+						t.Fatal(err)
+					}
+				case "deployment":
+					deployment, err := f.kube.AppsV1().Deployments("test").Get(ctx, "router", metav1.GetOptions{})
+					if err != nil {
+						t.Fatal(err)
+					}
+					constrain(&deployment.Spec.Template.Spec)
+					if _, err := f.kube.AppsV1().Deployments("test").Update(ctx, deployment, metav1.UpdateOptions{}); err != nil {
+						t.Fatal(err)
+					}
 				}
-				deployment.Spec.Template.Spec.NodeName = pod.Spec.NodeName
-				if _, err := f.kube.AppsV1().Deployments("test").Update(ctx, deployment, metav1.UpdateOptions{}); err != nil {
-					t.Fatal(err)
+				if _, _, err := workload(ctx, f.kube, pod, f.cfg); err == nil {
+					t.Fatal("unsupported replacement placement was accepted")
 				}
-			}
-			if _, _, err := workload(ctx, f.kube, pod, f.cfg); err == nil {
-				t.Fatal("a node-bound owner template was accepted")
-			}
-		})
+			})
+		}
 	}
 }
 

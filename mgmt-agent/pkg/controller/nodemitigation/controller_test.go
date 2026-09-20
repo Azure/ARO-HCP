@@ -246,8 +246,17 @@ func TestNeverReadyDeleteAndObserve(t *testing.T) {
 	if reservation.ReleasedAt != nil || reservation.DeleteStartedAt == nil {
 		t.Fatal("deletion released allowance before instance removal")
 	}
-	f.now = f.now.Add(31 * time.Minute)
-	f.tick(t)
+	f.now = episode.Status.NodeDeletedAt.Add(30*time.Minute - time.Second)
+	if err := f.controller.reconcile(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if meta.IsStatusConditionTrue(f.episode(t).Status.Conditions, "InstanceCleanupStalled") {
+		t.Fatal("instance warning fired before 30 minutes")
+	}
+	f.now = episode.Status.NodeDeletedAt.Add(30 * time.Minute)
+	if err := f.controller.reconcile(context.Background()); err != nil {
+		t.Fatal(err)
+	}
 	if !meta.IsStatusConditionTrue(f.episode(t).Status.Conditions, "InstanceCleanupStalled") {
 		t.Fatal("missing 30-minute warning")
 	}
