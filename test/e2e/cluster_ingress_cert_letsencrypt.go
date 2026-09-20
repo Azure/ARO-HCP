@@ -19,6 +19,7 @@ import (
 	"context"
 	"crypto/x509"
 	"embed"
+	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -363,6 +364,11 @@ var _ = Describe("Customer", func() {
 			if err != nil && !apierrors.IsAlreadyExists(err) {
 				Fail(fmt.Sprintf("creating Certificate: %v", err))
 			}
+			DeferCleanup(func(ctx context.Context) {
+				if CurrentSpecReport().Failed() {
+					dumpCertManagerIssuanceDiagnostics(ctx, dynClient, kubeClient, certManagerNamespace, ingressNamespace, issuerName)
+				}
+			})
 
 			By("waiting for the Certificate to be issued")
 			var lastCertStatus string
@@ -481,6 +487,74 @@ func isResourceReady(obj *unstructured.Unstructured) (bool, string) {
 		}
 	}
 	return false, "Ready condition not present"
+}
+
+// dumpCertManagerIssuanceDiagnostics logs the cert-manager/ACME issuance chain
+// (ClusterIssuer, Certificate, CertificateRequest, Order, Challenge) and the
+// cert-manager controller pods' recent logs to GinkgoWriter.
+//
+// cert-manager sets the Certificate's Ready condition to
+// reason=DoesNotExist/message="Issuing certificate as Secret does not exist"
+// once, when issuance starts, and does not update it again until issuance
+// finally succeeds or fails. isResourceReady therefore cannot explain why a
+// stuck Certificate is stuck: the real state (DNS-01 propagation, ACME
+// authorization, presented/processing) lives on the child CertificateRequest,
+// Order, and Challenge resources and in the controller's own logs.
+func dumpCertManagerIssuanceDiagnostics(ctx context.Context, dynClient dynamic.Interface, kubeClient kubernetes.Interface, certManagerNamespace, ingressNamespace, issuerName string) {
+	GinkgoWriter.Println("===== cert-manager issuance diagnostics (test failed) =====")
+
+	issuerGVR := schema.GroupVersionResource{Group: "cert-manager.io", Version: "v1", Resource: "clusterissuers"}
+	if issuer, err := dynClient.Resource(issuerGVR).Get(ctx, issuerName, metav1.GetOptions{}); err != nil {
+		GinkgoWriter.Printf("failed to get ClusterIssuer %s: %v\n", issuerName, err)
+	} else {
+		printUnstructuredStatus(issuer, fmt.Sprintf("clusterissuers/%s", issuerName))
+	}
+
+	for _, gvr := range []schema.GroupVersionResource{
+		{Group: "cert-manager.io", Version: "v1", Resource: "certificates"},
+		{Group: "cert-manager.io", Version: "v1", Resource: "certificaterequests"},
+		{Group: "acme.cert-manager.io", Version: "v1", Resource: "orders"},
+		{Group: "acme.cert-manager.io", Version: "v1", Resource: "challenges"},
+	} {
+		list, err := dynClient.Resource(gvr).Namespace(ingressNamespace).List(ctx, metav1.ListOptions{})
+		if err != nil {
+			GinkgoWriter.Printf("failed to list %s in namespace %s: %v\n", gvr.Resource, ingressNamespace, err)
+			continue
+		}
+		if len(list.Items) == 0 {
+			GinkgoWriter.Printf("no %s found in namespace %s\n", gvr.Resource, ingressNamespace)
+			continue
+		}
+		for i := range list.Items {
+			printUnstructuredStatus(&list.Items[i], fmt.Sprintf("%s/%s", gvr.Resource, list.Items[i].GetName()))
+		}
+	}
+
+	pods, err := kubeClient.CoreV1().Pods(certManagerNamespace).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		GinkgoWriter.Printf("failed to list pods in namespace %s: %v\n", certManagerNamespace, err)
+		return
+	}
+	for _, pod := range pods.Items {
+		logs, err := kubeClient.CoreV1().Pods(certManagerNamespace).GetLogs(pod.Name, &corev1.PodLogOptions{TailLines: to.Ptr(int64(200))}).Do(ctx).Raw()
+		if err != nil {
+			GinkgoWriter.Printf("failed to get logs for pod %s/%s: %v\n", certManagerNamespace, pod.Name, err)
+			continue
+		}
+		GinkgoWriter.Printf("--- pod %s/%s logs (last 200 lines) ---\n%s\n", certManagerNamespace, pod.Name, string(logs))
+	}
+}
+
+// printUnstructuredStatus writes an unstructured resource's status subtree to
+// GinkgoWriter as indented JSON, labelled with the given name.
+func printUnstructuredStatus(obj *unstructured.Unstructured, label string) {
+	status, _, _ := unstructured.NestedMap(obj.Object, "status")
+	b, err := json.MarshalIndent(status, "", "  ")
+	if err != nil {
+		GinkgoWriter.Printf("--- %s status: failed to marshal: %v ---\n", label, err)
+		return
+	}
+	GinkgoWriter.Printf("--- %s status ---\n%s\n", label, string(b))
 }
 
 // expectTLSSecretIssuedByLetsEncrypt verifies that the named Secret exists, is
