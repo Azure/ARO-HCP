@@ -59,6 +59,7 @@ var _ = Describe("Customer", func() {
 
 			By("creating cluster parameters with private API visibility")
 			clusterParams := framework.NewDefaultClusterParams20251223()
+			clusterParams.DisableSwift = false
 			clusterParams.ClusterName = customerClusterName
 			clusterParams.ManagedResourceGroupName = framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			clusterParams.APIVisibility = "Private"

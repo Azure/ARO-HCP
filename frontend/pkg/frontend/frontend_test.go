@@ -391,12 +391,55 @@ type expectedPreflightError struct {
 }
 
 func TestDeploymentPreflight(t *testing.T) {
-	tests := []struct {
-		name         string
-		resource     map[string]any
-		expectStatus coreapi.DeploymentPreflightStatus
-		expectErrors []expectedPreflightError
-	}{
+	type testCase struct {
+		name               string
+		resource           map[string]any
+		mutateResource     func(map[string]any)
+		registeredFeatures []coreapi.Feature
+		expectStatus       coreapi.DeploymentPreflightStatus
+		expectErrors       []expectedPreflightError
+	}
+	wellFormedClusterResource := map[string]any{
+		"name":       "my-hcp-cluster",
+		"type":       coreapi.ClusterResourceType.String(),
+		"location":   "eastus",
+		"apiVersion": coreapitesting.TestAPIVersion,
+		"systemData": map[string]any{
+			"createdBy":     "test-user",
+			"createdByType": "User",
+			"createdAt":     "2025-01-01T00:00:00Z",
+		},
+		"properties": map[string]any{
+			"version": map[string]any{
+				"id":           "4.20",
+				"channelGroup": "stable",
+			},
+			"api": map[string]any{
+				"visibility": "Public",
+			},
+			"platform": map[string]any{
+				"subnetId":               coreapitesting.TestSubnetResourceID,
+				"networkSecurityGroupId": coreapitesting.TestNetworkSecurityGroupResourceID,
+			},
+			"etcd": map[string]any{
+				"dataEncryption": map[string]any{
+					"keyManagementMode": "CustomerManaged",
+					"customerManaged": map[string]any{
+						"encryptionType": "KMS",
+						"kms": map[string]any{
+							"visibility": "Public",
+							"activeKey": map[string]any{
+								"name":      "test-key",
+								"vaultName": "test-vault",
+								"version":   "test-version",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	tests := []testCase{
 		{
 			name: "Unhandled resource type returns no error",
 			resource: map[string]any{
@@ -418,47 +461,8 @@ func TestDeploymentPreflight(t *testing.T) {
 			expectStatus: coreapi.DeploymentPreflightStatusSucceeded,
 		},
 		{
-			name: "Well-formed cluster resource returns no error",
-			resource: map[string]any{
-				"name":       "my-hcp-cluster",
-				"type":       coreapi.ClusterResourceType.String(),
-				"location":   "eastus",
-				"apiVersion": coreapitesting.TestAPIVersion,
-				"systemData": map[string]any{
-					"createdBy":     "test-user",
-					"createdByType": "User",
-					"createdAt":     "2025-01-01T00:00:00Z",
-				},
-				"properties": map[string]any{
-					"version": map[string]any{
-						"id":           "4.20",
-						"channelGroup": "stable",
-					},
-					"api": map[string]any{
-						"visibility": "Public",
-					},
-					"platform": map[string]any{
-						"subnetId":               coreapitesting.TestSubnetResourceID,
-						"networkSecurityGroupId": coreapitesting.TestNetworkSecurityGroupResourceID,
-					},
-					"etcd": map[string]any{
-						"dataEncryption": map[string]any{
-							"keyManagementMode": "CustomerManaged",
-							"customerManaged": map[string]any{
-								"encryptionType": "KMS",
-								"kms": map[string]any{
-									"visibility": "Public",
-									"activeKey": map[string]any{
-										"name":      "test-key",
-										"vaultName": "test-vault",
-										"version":   "test-version",
-									},
-								},
-							},
-						},
-					},
-				},
-			},
+			name:         "Well-formed cluster resource returns no error",
+			resource:     wellFormedClusterResource,
 			expectStatus: coreapi.DeploymentPreflightStatusSucceeded,
 		},
 		{
@@ -575,6 +579,78 @@ func TestDeploymentPreflight(t *testing.T) {
 		},
 	}
 
+	for _, version := range []metadataapi.APIVersion{
+		metadataapi.APIVersionV20251223Preview,
+		metadataapi.APIVersionV20260630Preview,
+		metadataapi.APIVersionV20260901Preview,
+		metadataapi.APIVersionV20261001Preview,
+	} {
+		for _, swift := range []struct {
+			name       string
+			enrolled   bool
+			disable    bool
+			subnet     bool
+			privateKMS bool
+			error      *expectedPreflightError
+		}{
+			{name: "honored disable tag permits nil subnet", enrolled: true, disable: true},
+			{name: "no opt-in requires subnet", error: &expectedPreflightError{
+				message: "Required value: required unless the disable-swift experimental tag is true and ExperimentalReleaseFeatures is registered",
+				target:  "properties.platform.vnetIntegrationSubnetId",
+			}},
+			{name: "tag without AFEC requires subnet", disable: true, error: &expectedPreflightError{
+				message: "Required value: required unless the disable-swift experimental tag is true and ExperimentalReleaseFeatures is registered",
+				target:  "properties.platform.vnetIntegrationSubnetId",
+			}},
+			{name: "AFEC without tag requires subnet", enrolled: true, error: &expectedPreflightError{
+				message: "Required value: required unless the disable-swift experimental tag is true and ExperimentalReleaseFeatures is registered",
+				target:  "properties.platform.vnetIntegrationSubnetId",
+			}},
+			{name: "honored disable tag conflicts with subnet", enrolled: true, disable: true, subnet: true, error: &expectedPreflightError{
+				message: "Invalid value: \"true\": cannot disable SWIFT when customerProperties.platform.vnetIntegrationSubnetId is set",
+				target:  "tags[" + metadataapi.TagClusterDisableSwift + "]",
+			}},
+			{name: "private KMS requires subnet despite opt-in", enrolled: true, disable: true, privateKMS: true, error: &expectedPreflightError{
+				message: "Required value: required when customerProperties.etcd.dataEncryption.customerManaged.kms.visibility is Private",
+				target:  "properties.platform.vnetIntegrationSubnetId",
+			}},
+		} {
+			test := testCase{
+				name:     "SWIFT/" + string(version) + "/" + swift.name,
+				resource: wellFormedClusterResource,
+				mutateResource: func(resource map[string]any) {
+					resource["apiVersion"] = string(version)
+					if swift.disable {
+						resource["tags"] = map[string]any{metadataapi.TagClusterDisableSwift: "true"}
+					}
+					properties := resource["properties"].(map[string]any)
+					kms := properties["etcd"].(map[string]any)["dataEncryption"].(map[string]any)["customerManaged"].(map[string]any)["kms"].(map[string]any)
+					activeKey := kms["activeKey"].(map[string]any)
+					kms["vaultName"] = activeKey["vaultName"]
+					delete(activeKey, "vaultName")
+					if swift.subnet {
+						properties["platform"].(map[string]any)["vnetIntegrationSubnetId"] = coreapitesting.TestSubnetResourceID + "-swift"
+					}
+					if swift.privateKMS {
+						kms["visibility"] = "Private"
+					}
+				},
+				expectStatus: coreapi.DeploymentPreflightStatusSucceeded,
+			}
+			if swift.enrolled {
+				test.registeredFeatures = []coreapi.Feature{{
+					Name:  metadataapihelpers.Ptr(metadataapi.FeatureExperimentalReleaseFeatures),
+					State: metadataapihelpers.Ptr("Registered"),
+				}}
+			}
+			if swift.error != nil {
+				test.expectStatus = coreapi.DeploymentPreflightStatusFailed
+				test.expectErrors = []expectedPreflightError{*swift.error}
+			}
+			tests = append(tests, test)
+		}
+	}
+
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			preflightPath := path.Join(coreapitesting.TestDeploymentResourceID, "preflight")
@@ -596,13 +672,22 @@ func TestDeploymentPreflight(t *testing.T) {
 			)
 
 			subs := map[string]*coreapi.Subscription{
-				coreapitesting.TestSubscriptionID: newTestSubscription(coreapitesting.TestSubscriptionID, coreapi.SubscriptionStateRegistered, nil),
+				coreapitesting.TestSubscriptionID: newTestSubscription(coreapitesting.TestSubscriptionID, coreapi.SubscriptionStateRegistered, &coreapi.SubscriptionProperties{
+					RegisteredFeatures: &test.registeredFeatures,
+				}),
 			}
 			ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
 			ts := newHTTPServer(ctx, f, mockResourcesDBClient, subs)
 
 			resource, err := json.Marshal(&test.resource)
 			require.NoError(t, err)
+			if test.mutateResource != nil {
+				var resourceCopy map[string]any
+				require.NoError(t, json.Unmarshal(resource, &resourceCopy))
+				test.mutateResource(resourceCopy)
+				resource, err = json.Marshal(resourceCopy)
+				require.NoError(t, err)
+			}
 			preflightReq := coreapi.DeploymentPreflight{
 				Resources: []json.RawMessage{resource},
 			}
@@ -632,15 +717,15 @@ func TestDeploymentPreflight(t *testing.T) {
 			} else {
 				if assert.NotNil(t, preflightResp.Error, "Expected validation errors but got none") {
 					if len(test.expectErrors) == 1 {
-						// Single error case - check main error fields
-						assert.Nil(t, preflightResp.Error.Details)
+						// Field errors are nested under the resource-level error.
+						require.Len(t, preflightResp.Error.Details, 1)
 						assert.NotEmpty(t, preflightResp.Error.Code)
 						assert.NotEmpty(t, preflightResp.Error.Message)
 						assert.NotEmpty(t, preflightResp.Error.Target)
 						// Check the expected error details
 						expected := test.expectErrors[0]
-						assert.Equal(t, expected.message, preflightResp.Error.Message)
-						assert.Equal(t, expected.target, preflightResp.Error.Target)
+						assert.Equal(t, expected.message, preflightResp.Error.Details[0].Message)
+						assert.Equal(t, expected.target, preflightResp.Error.Details[0].Target)
 					} else {
 						// Multiple errors case - check error details
 						if !assert.Equal(t, len(test.expectErrors), len(preflightResp.Error.Details), "Number of validation errors mismatch") {

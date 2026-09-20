@@ -29,6 +29,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -103,11 +104,11 @@ func namedClusterResourceIDs(prefix string, n int) []*azcorearm.ResourceID {
 	return ids
 }
 
-// clusterWithAvailability builds an HCPOpenShiftCluster with the given name and
+// clusterWithAvailability builds a SWIFT HCPOpenShiftCluster with the given name and
 // control-plane availability, for the informer-cache-backed swiftNICReserver.
 func clusterWithAvailability(name string, availability coreapi.ControlPlaneAvailability) *coreapi.HCPOpenShiftCluster {
 	rid := clusterResourceIDWithName(name)
-	cluster := &coreapi.HCPOpenShiftCluster{}
+	cluster := newTestHCPCluster()
 	cluster.ID = rid
 	cluster.Name = rid.Name
 	cluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneAvailability = availability
@@ -234,24 +235,80 @@ func TestAvailableResources_MixedControlPlaneAvailability(t *testing.T) {
 	}
 }
 
-// TestSwiftNICsForResourceID verifies the informer-cache-backed resolver maps a
-// cluster's control-plane availability to its swift-NIC reservation and falls
-// back to the conservative swiftNICsPerHCP when the cluster cannot be resolved.
+func TestSwiftNICsForCluster(t *testing.T) {
+	assert.Equal(t, swiftNICsPerHCP, swiftNICsForCluster(nil), "unknown cluster reserves three NICs")
+	for _, availability := range []coreapi.ControlPlaneAvailability{
+		coreapi.DefaultControlPlaneAvailability, coreapi.SingleReplicaControlPlane, "unknown",
+	} {
+		t.Run(string(availability), func(t *testing.T) {
+			cluster := clusterWithAvailability("cluster", availability)
+			want := swiftNICsPerHCP
+			if availability == coreapi.SingleReplicaControlPlane {
+				want = singleReplicaSwiftNICsPerHCP
+			}
+			assert.Equal(t, want, swiftNICsForCluster(cluster))
+			cluster.CustomerProperties.Platform.VnetIntegrationSubnetID = nil
+			assert.Zero(t, swiftNICsForCluster(cluster), "non-SWIFT clusters never reserve NICs")
+		})
+	}
+}
+
+// TestSwiftNICsForResourceID verifies cluster-aware reservations and conservative
+// fallback when the cluster cannot be resolved.
 func TestSwiftNICsForResourceID(t *testing.T) {
 	haCluster := clusterWithAvailability("ha", coreapi.DefaultControlPlaneAvailability)
 	srCluster := clusterWithAvailability("sr", coreapi.SingleReplicaControlPlane)
+	nonSwiftCluster := clusterWithAvailability("non-swift", coreapi.DefaultControlPlaneAvailability)
+	nonSwiftCluster.CustomerProperties.Platform.VnetIntegrationSubnetID = nil
 
 	syncer := &placementSyncer{
 		clusterLister: &corelistertesting.SliceClusterLister{
-			Clusters: []*coreapi.HCPOpenShiftCluster{haCluster, srCluster},
+			Clusters: []*coreapi.HCPOpenShiftCluster{haCluster, srCluster, nonSwiftCluster},
 		},
 	}
 	ctx := context.Background()
 
 	assert.Equal(t, swiftNICsPerHCP, syncer.swiftNICsForResourceID(ctx, haCluster.ID), "highly-available cluster reserves the full swiftNICsPerHCP")
 	assert.Equal(t, singleReplicaSwiftNICsPerHCP, syncer.swiftNICsForResourceID(ctx, srCluster.ID), "single-replica cluster reserves 1")
+	assert.Zero(t, syncer.swiftNICsForResourceID(ctx, nonSwiftCluster.ID), "non-SWIFT cluster reserves no NICs")
 	assert.Equal(t, swiftNICsPerHCP, syncer.swiftNICsForResourceID(ctx, clusterResourceIDWithName("missing")), "unresolvable cluster falls back to swiftNICsPerHCP")
 	assert.Equal(t, swiftNICsPerHCP, syncer.swiftNICsForResourceID(ctx, nil), "nil resource ID falls back to swiftNICsPerHCP")
+	syncer.clusterLister = nil
+	assert.Equal(t, swiftNICsPerHCP, syncer.swiftNICsForResourceID(ctx, haCluster.ID), "missing lister reserves three NICs")
+	syncer.clusterLister = &unresolvedClusterLister{err: errors.New("cache unavailable")}
+	assert.Equal(t, swiftNICsPerHCP, syncer.swiftNICsForResourceID(ctx, haCluster.ID), "lister error reserves three NICs")
+	syncer.clusterLister = &unresolvedClusterLister{}
+	assert.Equal(t, swiftNICsPerHCP, syncer.swiftNICsForResourceID(ctx, haCluster.ID), "nil cached cluster reserves three NICs")
+}
+
+type unresolvedClusterLister struct {
+	*corelistertesting.SliceClusterLister
+	err error
+}
+
+func (l *unresolvedClusterLister) Get(context.Context, string, string, string) (*coreapi.HCPOpenShiftCluster, error) {
+	return nil, l.err
+}
+
+func TestAvailableResources_MixedNetworkingModes(t *testing.T) {
+	doc := schedulingDoc("1", 30, 3, 0, 0)
+	lister := &corelistertesting.SliceClusterLister{}
+	for i, ids := range []*[]*azcorearm.ResourceID{&doc.Status.PendingAssignedClusters, &doc.Status.NotReadyResourceIDs} {
+		for _, availability := range []coreapi.ControlPlaneAvailability{coreapi.DefaultControlPlaneAvailability, coreapi.SingleReplicaControlPlane} {
+			for _, swift := range []bool{false, true} {
+				cluster := clusterWithAvailability(fmt.Sprintf("cluster-%d-%s-%t", i, availability, swift), availability)
+				if !swift {
+					cluster.CustomerProperties.Platform.VnetIntegrationSubnetID = nil
+				}
+				lister.Clusters = append(lister.Clusters, cluster)
+				*ids = append(*ids, cluster.ID)
+			}
+		}
+		*ids = append(*ids, nil, clusterResourceIDWithName(fmt.Sprintf("missing-%d", i)))
+	}
+	syncer := &placementSyncer{clusterLister: lister}
+	// Each list reserves 0 + 0 for non-SWIFT, 3 + 1 for SWIFT, and 3 for a cache miss.
+	assert.Equal(t, int64(30-3-7-7), swiftNICCount(syncer.availableResources(context.Background(), doc)))
 }
 
 func TestAvailableResources_IgnoresNilEntries(t *testing.T) {
@@ -281,7 +338,7 @@ func eligibleCandidate(stamp string, available int64) managementClusterEvaluatio
 	return managementClusterEvaluation{
 		resourceID:         metadataapi.Must(fleetapihelpers.ToManagementClusterResourceID(stamp)),
 		eligibility:        eligible,
-		availableResources: swiftResourceList(available),
+		availableResources: corev1.ResourceList{kuberesources.SwiftNICResourceName: *resource.NewQuantity(available, resource.DecimalSI)},
 	}
 }
 
@@ -313,7 +370,7 @@ func TestSelectByCapacity(t *testing.T) {
 	tests := []struct {
 		name              string
 		candidates        []managementClusterEvaluation
-		requiredSwiftNICs int64  // swift NICs the new HCP needs; 0 => swiftNICsPerHCP
+		requiredSwiftNICs *int64 // swift NICs the new HCP needs; nil => swiftNICsPerHCP
 		expectedStamp     string // set when a fit is expected
 		expectBlocked     bool   // true when no fit is expected
 		expectUnknown     bool
@@ -389,13 +446,13 @@ func TestSelectByCapacity(t *testing.T) {
 		{
 			name:              "single-replica new cluster fits with only 1 available",
 			candidates:        []managementClusterEvaluation{eligibleCandidate("1", 1)},
-			requiredSwiftNICs: singleReplicaSwiftNICsPerHCP,
+			requiredSwiftNICs: ptr.To(singleReplicaSwiftNICsPerHCP),
 			expectedStamp:     "1",
 		},
 		{
 			name:              "single-replica new cluster blocked when 0 available",
 			candidates:        []managementClusterEvaluation{eligibleCandidate("1", 0)},
-			requiredSwiftNICs: singleReplicaSwiftNICsPerHCP,
+			requiredSwiftNICs: ptr.To(singleReplicaSwiftNICsPerHCP),
 			expectBlocked:     true,
 			expectedReason:    coreapi.CapacityReasonInsufficientCapacity,
 			messageContains:   "insufficient swift-NIC capacity",
@@ -403,19 +460,38 @@ func TestSelectByCapacity(t *testing.T) {
 		{
 			name:              "highly-available new cluster blocked when only 1 available",
 			candidates:        []managementClusterEvaluation{eligibleCandidate("1", 1)},
-			requiredSwiftNICs: swiftNICsPerHCP,
+			requiredSwiftNICs: ptr.To(swiftNICsPerHCP),
 			expectBlocked:     true,
 			expectedReason:    coreapi.CapacityReasonInsufficientCapacity,
 			messageContains:   "insufficient swift-NIC capacity",
+		},
+		{
+			name:              "zero demand fits zero capacity",
+			candidates:        []managementClusterEvaluation{eligibleCandidate("1", 0)},
+			requiredSwiftNICs: ptr.To(int64(0)),
+			expectedStamp:     "1",
+		},
+		{
+			name:              "zero demand rejects negative headroom",
+			candidates:        []managementClusterEvaluation{eligibleCandidate("1", -1)},
+			requiredSwiftNICs: ptr.To(int64(0)),
+			expectBlocked:     true,
+			expectedReason:    coreapi.CapacityReasonInsufficientCapacity,
+			messageContains:   "available -1, need 0",
+		},
+		{
+			name:              "zero demand rejects unknown eligibility",
+			candidates:        []managementClusterEvaluation{unknownCandidate("1")},
+			requiredSwiftNICs: ptr.To(int64(0)),
+			expectBlocked:     true,
+			expectUnknown:     true,
+			expectedReason:    coreapi.CapacityReasonEvaluationIncomplete,
 		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			requiredSwiftNICs := tc.requiredSwiftNICs
-			if requiredSwiftNICs == 0 {
-				requiredSwiftNICs = swiftNICsPerHCP
-			}
+			requiredSwiftNICs := ptr.Deref(tc.requiredSwiftNICs, swiftNICsPerHCP)
 			chosen, condition := selectByCapacity(tc.candidates, requiredSwiftNICs)
 			assert.Equal(t, coreapi.CapacityAvailableConditionType, condition.Type)
 			if tc.expectBlocked {
@@ -517,6 +593,57 @@ func TestPlacementSyncer_SyncOnce_FreshSelection(t *testing.T) {
 	assert.Equal(t, metav1.ConditionTrue, capacity.Status)
 	assert.Equal(t, coreapi.CapacityReasonAvailable, capacity.Reason)
 	assert.Equal(t, strings.ToLower(key.GetResourceID().String()), strings.ToLower(scheduling.Status.PendingAssignedClusters[0].String()))
+}
+
+func TestPlacementSyncer_SyncOnce_NetworkingModeDemand(t *testing.T) {
+	for _, tc := range []struct {
+		name         string
+		swift        bool
+		availability coreapi.ControlPlaneAvailability
+		capacity     int64
+	}{
+		{name: "non-SWIFT HA fits zero capacity"},
+		{name: "non-SWIFT SingleReplica fits zero capacity", availability: coreapi.SingleReplicaControlPlane},
+		{name: "SWIFT HA fits three NICs", swift: true, capacity: 3},
+		{name: "SWIFT SingleReplica fits one NIC", swift: true, availability: coreapi.SingleReplicaControlPlane, capacity: 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+			cluster := newTestHCPCluster()
+			cluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneAvailability = tc.availability
+			if !tc.swift {
+				cluster.CustomerProperties.Platform.VnetIntegrationSubnetID = nil
+			}
+			db := corecosmosstoragetesting.NewMockResourcesDBClient()
+			spcCRUD := db.ServiceProviderClusters(testClusterSubscriptionID, testClusterResourceGroup, testClusterName)
+			spc, err := spcCRUD.Create(ctx, newTestSPC(), nil)
+			require.NoError(t, err)
+			scheduling := schedulingDoc("1", tc.capacity, 0, 0, 0)
+			fleetDB := fleetcosmosstoragetesting.NewMockFleetDBClient()
+			schedulingCRUD := fleetDB.Stamps().ManagementClusters("1").Scheduling()
+			_, err = schedulingCRUD.Create(ctx, scheduling, nil)
+			require.NoError(t, err)
+			syncer := &placementSyncer{
+				serviceProviderClusterLister:      &corelistertesting.SliceServiceProviderClusterLister{ServiceProviderClusters: []*coreapi.ServiceProviderCluster{spc}},
+				clusterLister:                     &corelistertesting.SliceClusterLister{Clusters: []*coreapi.HCPOpenShiftCluster{cluster}},
+				managementClusterLister:           &fleetlistertesting.SliceManagementClusterLister{ManagementClusters: []*fleetapi.ManagementCluster{mcForStamp("1", true, true)}},
+				managementClusterSchedulingLister: &fleetlistertesting.SliceManagementClusterSchedulingLister{Schedulings: []*fleetapi.ManagementClusterScheduling{scheduling}},
+				cosmosClient:                      db,
+				fleetDBClient:                     fleetDB,
+			}
+			key := controllerutils.HCPClusterKey{SubscriptionID: testClusterSubscriptionID, ResourceGroupName: testClusterResourceGroup, HCPClusterName: testClusterName}
+			require.NoError(t, syncer.SyncOnce(ctx, key))
+			updated, err := spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
+			require.NoError(t, err)
+			require.NotNil(t, updated.Spec.ManagementClusterResourceID)
+			assert.Equal(t, mcForStamp("1", true, true).ResourceID, updated.Spec.ManagementClusterResourceID)
+			require.NotNil(t, updated.Status.Placement)
+			assert.True(t, meta.IsStatusConditionTrue(updated.Status.Placement.Conditions, coreapi.CapacityAvailableConditionType))
+			reserved, err := schedulingCRUD.Get(ctx, fleetapi.SchedulingResourceName)
+			require.NoError(t, err)
+			assert.Equal(t, []*azcorearm.ResourceID{key.GetResourceID()}, reserved.Status.PendingAssignedClusters, "zero NIC demand still records the pending assignment")
+		})
+	}
 }
 
 // fakeAfterEnqueuer captures EnqueueAfter calls so tests can assert the placement
@@ -829,9 +956,11 @@ func TestSchedulingObservationsDetermineCapacityAvailability(t *testing.T) {
 			}
 			candidates, err := syncer.evaluateManagementClusters(context.Background())
 			require.NoError(t, err)
-			chosen, condition := selectByCapacity(candidates, swiftNICsPerHCP)
-			assert.Nil(t, chosen)
-			assert.Equal(t, tc.wantStatus, condition.Status)
+			for _, demand := range []int64{0, singleReplicaSwiftNICsPerHCP, swiftNICsPerHCP} {
+				chosen, condition := selectByCapacity(candidates, demand)
+				assert.Nil(t, chosen, "demand %d must not bypass eligibility", demand)
+				assert.Equal(t, tc.wantStatus, condition.Status)
+			}
 		})
 	}
 }

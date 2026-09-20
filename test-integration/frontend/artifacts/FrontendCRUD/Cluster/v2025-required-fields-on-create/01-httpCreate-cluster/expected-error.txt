@@ -1,5 +1,5 @@
 {
     "code": "InvalidRequestContent",
-    "message": "Required value: field cannot be null",
+    "message": "Required value: required unless the disable-swift experimental tag is true and ExperimentalReleaseFeatures is registered",
     "target": "properties.platform.vnetIntegrationSubnetId"
   }

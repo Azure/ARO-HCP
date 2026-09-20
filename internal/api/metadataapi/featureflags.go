@@ -50,6 +50,15 @@ const (
 	// ExperimentalReleaseFeatures AFEC is registered on the subscription.
 	TagClusterSizeOverride = ExperimentalClusterTagPrefix + "size-override"
 
+	// TagClusterDisableSwift permits creation without a VNet integration subnet
+	// when ExperimentalReleaseFeatures is registered, API visibility is Public,
+	// and KMS visibility is not Private. Keys are case-insensitive; values must be
+	// exactly "true" (opt in) or "false" (no opt-in). Without AFEC it is ignored.
+	// An honored "true" conflicts with a nonnil VNet integration subnet.
+	// The subnet, not this tag, determines immutable networking after creation;
+	// removing the tag or AFEC registration does not change existing networking.
+	TagClusterDisableSwift = ExperimentalClusterTagPrefix + "disable-swift"
+
 	// TagClusterCPOImageOverride is the ARM resource tag that overrides
 	// the control plane operator image for a HostedCluster when the
 	// ExperimentalReleaseFeatures AFEC is registered on the subscription.

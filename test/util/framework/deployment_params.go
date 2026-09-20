@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
 	"os"
 	"strconv"
@@ -56,6 +57,25 @@ type NetworkConfig struct {
 	ServiceCIDR string
 	MachineCIDR string
 	HostPrefix  int32
+}
+
+// buildClusterNetworking assembles the experimental tag and subnet together after
+// infrastructure setup. Low-level SDK callers can still send invalid combinations.
+func buildClusterNetworking(disableSwift bool, tags map[string]*string, subnetID string) (map[string]*string, *string) {
+	tags = maps.Clone(tags)
+	for key := range tags {
+		if strings.EqualFold(key, metadataapi.TagClusterDisableSwift) {
+			delete(tags, key)
+		}
+	}
+	if disableSwift {
+		if tags == nil {
+			tags = map[string]*string{}
+		}
+		tags[metadataapi.TagClusterDisableSwift] = to.Ptr("true")
+		return tags, nil
+	}
+	return tags, to.Ptr(subnetID)
 }
 
 var (

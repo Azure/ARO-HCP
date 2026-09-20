@@ -6,6 +6,33 @@ For more information about ARO HCP environments, see the [ARO HCP Environments d
 
 ## Writing and running new E2E Test cases
 
+### SWIFT Networking
+
+The newer API-version default cluster parameters set `DisableSwift = true` to
+reduce consumption of management-cluster SWIFT NICs. The request builder sets
+`aro-hcp.experimental.cluster.disable-swift: "true"` and omits
+`properties.platform.vnetIntegrationSubnetId`. The customer subscription must
+have the `ExperimentalReleaseFeatures` AFEC registered; there is no fallback to
+SWIFT when the opt-in is unavailable. The `2024-06-10-preview` helpers retain
+their existing non-SWIFT behavior.
+
+Set `clusterParams.DisableSwift = false` explicitly for private API or private
+KMS scenarios, which always require VNet integration. Public SWIFT coverage is
+retained by the OCP-version install table (`2025-12-23-preview`), node-pool
+deletion (`2026-09-01-preview`), cluster/node-pool active versions
+(`2026-10-01-preview`), and the independent HyperShift presubmit test. The install
+table covers each available OCP release line; entries without resolvable releases
+skip before creating a cluster. There is not yet a `2026-06-30-preview` creation
+test, and `2024-06-10-preview` cannot express SWIFT networking on creation.
+Private application ingress alone does not require SWIFT. Customer infrastructure
+still creates the integration subnet, but non-SWIFT requests do not use it.
+
+The opt-in authorizes creation only. Networking remains immutable: removing the
+tag or revoking AFEC does not change an existing cluster's networking or prevent
+ordinary updates. An honored `"true"` tag together with an integration subnet is
+rejected. Tag names are case-insensitive; values must be exactly `"true"` or
+`"false"`. Without AFEC, the tag is ignored and normal subnet requirements apply.
+
 ### Resource Naming
 
 > **Important:** These tests are running in parallel so it is **VITAL** that we avoid naming collisions with other tests that may be running in CI at the same time. This may break CI runs until the duplicate resources are removed!

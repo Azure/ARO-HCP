@@ -236,7 +236,7 @@ func mutateClusterExperimentalFeatures(_ context.Context, admissionContext *Clus
 	var errs field.ErrorList
 
 	// Reject unrecognized experimental tags.
-	knownTags := sets.New(metadataapi.TagClusterSingleReplica, metadataapi.TagClusterSizeOverride, metadataapi.TagClusterCPOImageOverride, metadataapi.TagClusterControlPlaneExactVersion, metadataapi.TagClusterMaxCreationDuration, metadataapi.TagClusterMaxDeletionDuration)
+	knownTags := sets.New(metadataapi.TagClusterSingleReplica, metadataapi.TagClusterSizeOverride, metadataapi.TagClusterCPOImageOverride, metadataapi.TagClusterControlPlaneExactVersion, metadataapi.TagClusterMaxCreationDuration, metadataapi.TagClusterMaxDeletionDuration, metadataapi.TagClusterDisableSwift)
 	for k := range tags {
 		if strings.HasPrefix(strings.ToLower(k), metadataapi.ExperimentalClusterTagPrefix) && !knownTags.Has(strings.ToLower(k)) {
 			errs = append(errs, field.Invalid(tagsPath.Key(k), k, "unrecognized experimental tag"))
@@ -288,6 +288,8 @@ func mutateClusterExperimentalFeatures(_ context.Context, admissionContext *Clus
 	// The control-plane-exact-version tag is handled entirely by
 	// mutateClusterControlPlaneExactVersion (which also reconciles it against
 	// version.id), so it is intentionally not translated here.
+	// disable-swift is validated against networking in validation.ValidateCluster;
+	// subnet absence is its source of truth, with no ExperimentalFeatures field.
 
 	if len(errs) > 0 {
 		return errs
