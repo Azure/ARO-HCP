@@ -38,31 +38,41 @@ spec:
     #   * Absolute count/volume gates must NOT double, so they dedup replicas first with
     #     max without (prometheus_replica) ( increase(...) ) before summing (see
     #     test/.../gather-observability/queries.yaml for the same convention).
+    #
+    # Robustness (pattern borrowed from the ARO-29638 Frontend SLO alert fix, #6965):
+    #   * `le=~"^1([.]0)?$"` matches the 1-second bucket regardless of whether the
+    #     scrape exposes it as "1" (classic text) or "1.0" (OpenMetrics); a bare
+    #     `le="1.0"` string match silently stops matching if the exposition format
+    #     ever differs from what was assumed when the selector was written.
+    #   * `offset 5m` on every rate()/increase() call avoids evaluating histogram
+    #     buckets at the unsettled ingestion edge, which can transiently
+    #     misclassify just-scraped requests as unbucketed and inflate the slow
+    #     fraction for a single evaluation.
     - alert: FrontendPathLatency
       expr: |
         (
           (
-            sum by (route, method, cluster) (rate(frontend_http_requests_duration_seconds_count{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m]))
+            sum by (route, method, cluster) (rate(frontend_http_requests_duration_seconds_count{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m] offset 5m))
             -
-            sum by (route, method, cluster) (rate(frontend_http_requests_duration_seconds_bucket{le="1.0", route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m]))
+            sum by (route, method, cluster) (rate(frontend_http_requests_duration_seconds_bucket{le=~"^1([.]0)?$", route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m] offset 5m))
           )
           /
-          sum by (route, method, cluster) (rate(frontend_http_requests_duration_seconds_count{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m]))
+          sum by (route, method, cluster) (rate(frontend_http_requests_duration_seconds_count{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m] offset 5m))
         ) > 0.05
         and on (route, method, cluster)
         (
           sum by (route, method, cluster) (
-            max without (prometheus_replica) (increase(frontend_http_requests_duration_seconds_count{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m]))
+            max without (prometheus_replica) (increase(frontend_http_requests_duration_seconds_count{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m] offset 5m))
           )
         ) >= 50
         and on (route, method, cluster)
         (
           sum by (route, method, cluster) (
-            max without (prometheus_replica) (increase(frontend_http_requests_duration_seconds_count{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m]))
+            max without (prometheus_replica) (increase(frontend_http_requests_duration_seconds_count{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m] offset 5m))
           )
           -
           sum by (route, method, cluster) (
-            max without (prometheus_replica) (increase(frontend_http_requests_duration_seconds_bucket{le="1.0", route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m]))
+            max without (prometheus_replica) (increase(frontend_http_requests_duration_seconds_bucket{le=~"^1([.]0)?$", route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m] offset 5m))
           )
         ) >= 3
       for: 1m
@@ -76,13 +86,13 @@ spec:
       expr: |
         histogram_quantile(0.5,
           sum by (le, route, method, cluster) (
-            rate(frontend_http_requests_duration_seconds_bucket{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m])
+            rate(frontend_http_requests_duration_seconds_bucket{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m] offset 5m)
           )
         ) > 0.25
         and on (route, method, cluster)
         (
           sum by (route, method, cluster) (
-            max without (prometheus_replica) (increase(frontend_http_requests_duration_seconds_count{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m]))
+            max without (prometheus_replica) (increase(frontend_http_requests_duration_seconds_count{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m] offset 5m))
           )
         ) >= 10
       for: 1m
