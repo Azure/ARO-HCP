@@ -261,8 +261,7 @@ spec:
   - name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: MitigationEpisode retains ownership and intent independently
-          of Node lifetime.
+        description: MitigationEpisode retains ownership and intent independently of Node lifetime.
         properties:
           apiVersion:
             description: |-
@@ -333,8 +332,7 @@ spec:
                 type: string
               conditions:
                 items:
-                  description: Condition contains details for one aspect of the current
-                    state of this API Resource.
+                  description: Condition contains details for one aspect of the current state of this API Resource.
                   properties:
                     lastTransitionTime:
                       description: |-
@@ -397,8 +395,7 @@ spec:
                   intent and helps make sure that UIDs and names do not get conflated.
                 type: string
               intent:
-                description: MitigationAction is saved before making an identity-preconditioned
-                  API call.
+                description: MitigationAction is saved before making an identity-preconditioned API call.
                 properties:
                   id:
                     type: string
@@ -447,8 +444,7 @@ spec:
                 format: date-time
                 type: string
               nodeDeletionAction:
-                description: MitigationAction is saved before making an identity-preconditioned
-                  API call.
+                description: MitigationAction is saved before making an identity-preconditioned API call.
                 properties:
                   id:
                     type: string
