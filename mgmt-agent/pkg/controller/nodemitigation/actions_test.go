@@ -339,6 +339,26 @@ func TestSerialAndLateRescueWithDrainDisabled(t *testing.T) {
 	}
 }
 
+func TestDaemonSetPermissionDoesNotBypassFinalizers(t *testing.T) {
+	f := swiftFixture(t)
+	ctx := context.Background()
+	ds := &appsv1.DaemonSet{ObjectMeta: metav1.ObjectMeta{Name: "trusted", Namespace: "test", UID: "daemonset"}}
+	if err := f.kube.Tracker().Add(ds); err != nil {
+		t.Fatal(err)
+	}
+	pod := placementPod("daemon", "node-00")
+	pod.OwnerReferences = []metav1.OwnerReference{*metav1.NewControllerRef(ds, appsv1.SchemeGroupVersion.WithKind("DaemonSet"))}
+	f.cfg.DaemonSets = []string{"test/trusted"}
+	allowed, err := permittedDaemonSet(ctx, f.kube, pod, f.cfg)
+	if err != nil || !allowed {
+		t.Fatalf("verified allowlisted DaemonSet was rejected: %v", err)
+	}
+	pod.Finalizers = []string{"example.com/cleanup"}
+	if allowed, err := permittedDaemonSet(ctx, f.kube, pod, f.cfg); allowed || err == nil {
+		t.Fatal("DaemonSet allowlist bypassed a pod finalizer")
+	}
+}
+
 func TestBoundOwnerTemplateCannotPromiseReplacementPlacement(t *testing.T) {
 	for _, owner := range []string{"replicaset", "deployment"} {
 		t.Run(owner, func(t *testing.T) {

@@ -168,5 +168,8 @@ func permittedDaemonSet(ctx context.Context, client kubernetes.Interface, pod *c
 	if ds.UID != owner.UID || ds.DeletionTimestamp != nil {
 		return false, fmt.Errorf("DaemonSet owner identity changed")
 	}
+	if len(pod.Finalizers) != 0 {
+		return false, fmt.Errorf("DaemonSet pod finalizers require operator resolution")
+	}
 	return true, nil
 }
