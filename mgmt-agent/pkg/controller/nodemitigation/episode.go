@@ -51,6 +51,14 @@ func (c *Controller) hold(ctx context.Context, cfg Config, revision uint64, epis
 	return c.saveEpisode(ctx, revision, episode)
 }
 
+func (c *Controller) clearHold(ctx context.Context, cfg Config, revision uint64, episode *api.MitigationEpisode) error {
+	if cfg.Mode != Enforce || !meta.IsStatusConditionTrue(episode.Status.Conditions, "Held") {
+		return nil
+	}
+	meta.RemoveStatusCondition(&episode.Status.Conditions, "Held")
+	return c.saveEpisode(ctx, revision, episode)
+}
+
 func (c *Controller) phase(ctx context.Context, revision uint64, episode *api.MitigationEpisode, next string) error {
 	episode.Status.Phase = next
 	meta.RemoveStatusCondition(&episode.Status.Conditions, "Held")

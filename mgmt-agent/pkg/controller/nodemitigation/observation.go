@@ -95,10 +95,12 @@ func (c *Controller) observe(ctx context.Context, cfg, accepted Config, revision
 				}
 			}
 		}
+		registered := false
 		for _, node := range snapshot.Nodes {
 			if !strings.EqualFold(node.Status.NodeInfo.SystemUUID, episode.Spec.InstanceID) {
 				continue
 			}
+			registered = true
 			liveIdentity, exists, err := c.azure.Instance(ctx, accepted.ClusterResourceID, poolFromID(episode.Spec.PoolID), node.Spec.ProviderID, node.Name)
 			if err != nil {
 				return c.hold(ctx, cfg, revision, episode, err.Error())
@@ -127,6 +129,9 @@ func (c *Controller) observe(ctx context.Context, cfg, accepted Config, revision
 				return c.saveEpisode(ctx, revision, episode)
 			}
 			return c.execute(ctx, cfg, revision, episode, budget, node, nil)
+		}
+		if !registered {
+			return c.clearHold(ctx, cfg, revision, episode)
 		}
 		return nil
 	}
@@ -226,7 +231,7 @@ func (c *Controller) drainRegistration(ctx context.Context, cfg Config, revision
 		}
 	}
 	if len(pods) == 0 && episode.Status.Intent == nil && episode.Status.Recovery == nil {
-		return nil
+		return c.clearHold(ctx, cfg, revision, episode)
 	}
 	if _, _, err := c.admission(ctx, cfg, revision, node, budget, snapshot, episode.Name); err != nil {
 		return c.hold(ctx, cfg, revision, episode, err.Error())
@@ -248,6 +253,7 @@ func (c *Controller) drainRegistration(ctx context.Context, cfg Config, revision
 		}
 		if recovered {
 			episode.Status.Recovery = nil
+			meta.RemoveStatusCondition(&episode.Status.Conditions, "Held")
 			return c.saveEpisode(ctx, revision, episode)
 		}
 		found := false
@@ -280,5 +286,5 @@ func (c *Controller) drainRegistration(ctx context.Context, cfg Config, revision
 		}
 		return c.preparePod(ctx, cfg, revision, episode, pod, PhaseDrain)
 	}
-	return nil
+	return c.clearHold(ctx, cfg, revision, episode)
 }

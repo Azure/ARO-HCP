@@ -300,6 +300,36 @@ func TestResumedDeleteClearsHoldAndReportsPresentInstance(t *testing.T) {
 	}
 }
 
+func TestObservationClearsResolvedHoldWithoutAuditWrites(t *testing.T) {
+	f := newFixture(t, 11, 1)
+	ctx := context.Background()
+	for i := 0; i < 6; i++ {
+		f.tick(t)
+	}
+	episode := f.episode(t)
+	_, revision := f.controller.configuration()
+	if err := f.controller.hold(ctx, f.cfg, revision, episode, "obsolete action hold"); err != nil {
+		t.Fatal(err)
+	}
+	f.cfg.Mode = Audit
+	if err := f.controller.SetConfig(f.cfg); err != nil {
+		t.Fatal(err)
+	}
+	f.records.ClearActions()
+	f.tick(t)
+	if len(mutations(f.records.Actions())) != 0 || !meta.IsStatusConditionTrue(f.episode(t).Status.Conditions, "Held") {
+		t.Fatal("audit changed the persisted hold")
+	}
+	f.cfg.Mode = Enforce
+	if err := f.controller.SetConfig(f.cfg); err != nil {
+		t.Fatal(err)
+	}
+	f.tick(t)
+	if meta.IsStatusConditionTrue(f.episode(t).Status.Conditions, "Held") {
+		t.Fatal("successful instance observation retained an obsolete action hold")
+	}
+}
+
 func TestModeChangeStopsPreparedDelete(t *testing.T) {
 	for _, mode := range []Mode{Disabled, Audit} {
 		t.Run(string(mode), func(t *testing.T) {

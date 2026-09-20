@@ -4,6 +4,7 @@ The `mgmt-agent` node-mitigation controller manages Kubernetes actions for SWIFT
 sandbox stalls and nodes that never become Ready. It reads Azure pool and instance
 state using the existing Reader role. It does not scale pools, delete Azure
 instances, force-delete pods, remove finalizers or automatically uncordon nodes.
+Never-ready detection is limited to SWIFT-v2 nodes, matching node-health.
 
 The deployment flag and mutation permissions can be enabled only in DEV
 environments. Set `mgmtAgent.nodeMitigation.enabled: true` with a controller image
@@ -85,7 +86,8 @@ custom schedulers, scheduling gates, resource claims, node-bound owner templates
 finalizers and unsupported storage hold cleanup. Removing `emptyDir` data requires
 explicit permission. DaemonSets may remain at Node
 deletion only through an explicit `namespace/name` allowlist and a live owner
-identity check. Nonterminal workloads on a NotReady node block Node deletion.
+identity check. Any nonterminal pod on a NotReady node, including an allowlisted
+DaemonSet, blocks Node deletion.
 
 Placement checks include requests, init containers, restartable sidecars,
 overhead, pod slots, SWIFT NIC allocations, taints, required affinity and hard
