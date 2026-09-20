@@ -78,6 +78,10 @@ func newTestHCPCluster(opts ...func(*coreapi.HCPOpenShiftCluster)) *coreapi.HCPO
 			ClusterServiceID: &clusterServiceID,
 		},
 	}
+	cluster.CustomerProperties.Platform.VnetIntegrationSubnetID = metadataapi.Must(azcorearm.ParseResourceID(
+		"/subscriptions/" + testClusterSubscriptionID + "/resourceGroups/" + testClusterResourceGroup +
+			"/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/swift",
+	))
 	for _, opt := range opts {
 		opt(cluster)
 	}

@@ -735,7 +735,7 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 			}
 			op := operation.Operation{
 				Type:    operation.Create,
-				Options: []string{validation.ManagedIdentitiesDataPlaneIdentityURLOptionalOperationOption},
+				Options: append(validation.BuildValidationOptions(subscription.GetRegisteredFeatures(), metadataapi.APIVersion(versionedInterface.String())), validation.ManagedIdentitiesDataPlaneIdentityURLOptionalOperationOption),
 			}
 			admissionContext, ctxErr := f.newClusterAdmissionContext(ctx, op, subscription, newInternalCluster, nil)
 			if ctxErr != nil {
