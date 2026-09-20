@@ -179,6 +179,9 @@ func (c *Controller) reserve(ctx context.Context, revision uint64, episode *api.
 	if len(budget.Status.Reservations) >= maxRecords {
 		return fmt.Errorf("reservation storage limit reached")
 	}
+	if budget.Status.Reservations == nil {
+		budget.Status.Reservations = map[string]api.MitigationReservation{}
+	}
 	budget.Status.Reservations[episode.Name] = api.MitigationReservation{
 		EpisodeUID: episode.UID, NodeUID: episode.Spec.NodeUID, InstanceID: episode.Spec.InstanceID,
 		PoolID: episode.Spec.PoolID, Zone: episode.Spec.Zone, ReservedAt: metav1.NewTime(c.clock()),

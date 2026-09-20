@@ -17,6 +17,7 @@ package nodemitigation
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -95,6 +96,18 @@ func newFixture(t *testing.T, nodes, neverReady int) *fixture {
 	}
 	f.kube = kubefake.NewClientset(objects...)
 	f.records = recordfake.NewSimpleClientset()
+	f.records.PrependReactor("update", "nodemitigationbudgets", func(action ktesting.Action) (bool, runtime.Object, error) {
+		data, err := json.Marshal(action.(ktesting.UpdateAction).GetObject())
+		if err != nil {
+			return true, nil, err
+		}
+		var decoded api.NodeMitigationBudget
+		if err := json.Unmarshal(data, &decoded); err != nil {
+			return true, nil, err
+		}
+		err = f.records.Tracker().Update(action.GetResource(), &decoded, action.GetNamespace())
+		return true, &decoded, err
+	})
 	f.records.PrependReactor("create", "mitigationepisodes", func(action ktesting.Action) (bool, runtime.Object, error) {
 		object := action.(ktesting.CreateAction).GetObject().(*api.MitigationEpisode)
 		object.UID = types.UID(object.Name)
