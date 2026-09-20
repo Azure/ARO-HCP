@@ -945,3 +945,380 @@ backend_resource_operation_phase_info{operation_type="update",phase="provisionin
 `
 	require.NoError(t, testutil.GatherAndCompare(reg, strings.NewReader(expected), "backend_resource_operation_phase_info"))
 }
+
+// TestDuration_TerminalTransitionObservesHistogram verifies that when an
+// ExternalAuth operation transitions from a non-terminal phase to Succeeded,
+// the duration histogram records exactly one observation with the correct
+// label values.
+func TestDuration_TerminalTransitionObservesHistogram(t *testing.T) {
+	startTime := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	clockNow := startTime.Add(10 * time.Minute)
+
+	handler, reg := newTestOperationHandler(t)
+	handler.clock = func() time.Time { return clockNow }
+
+	op := newTestOperation(
+		t,
+		"op-1",
+		coreapi.OperationRequestCreate,
+		coreapi.ProvisioningStateAccepted,
+		"/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1/externalAuths/ea-1",
+		startTime,
+		startTime,
+	)
+
+	handler.Sync(context.Background(), op)
+	require.Equal(t, 0, testutil.CollectAndCount(handler.duration),
+		"histogram should not be observed for non-terminal operations")
+
+	op.Status = coreapi.ProvisioningStateSucceeded
+	op.LastTransitionTime = clockNow
+	handler.Sync(context.Background(), op)
+
+	require.Equal(t, 1, testutil.CollectAndCount(handler.duration),
+		"histogram should have 1 series after terminal transition")
+
+	expected := `# HELP backend_resource_operation_duration_seconds Duration of completed operations in seconds, observed once when the operation reaches a terminal state.
+# TYPE backend_resource_operation_duration_seconds histogram
+backend_resource_operation_duration_seconds_bucket{operation_type="create",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths",result="succeeded",le="30"} 0
+backend_resource_operation_duration_seconds_bucket{operation_type="create",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths",result="succeeded",le="60"} 0
+backend_resource_operation_duration_seconds_bucket{operation_type="create",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths",result="succeeded",le="120"} 0
+backend_resource_operation_duration_seconds_bucket{operation_type="create",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths",result="succeeded",le="300"} 0
+backend_resource_operation_duration_seconds_bucket{operation_type="create",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths",result="succeeded",le="600"} 1
+backend_resource_operation_duration_seconds_bucket{operation_type="create",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths",result="succeeded",le="900"} 1
+backend_resource_operation_duration_seconds_bucket{operation_type="create",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths",result="succeeded",le="1200"} 1
+backend_resource_operation_duration_seconds_bucket{operation_type="create",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths",result="succeeded",le="1800"} 1
+backend_resource_operation_duration_seconds_bucket{operation_type="create",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths",result="succeeded",le="2700"} 1
+backend_resource_operation_duration_seconds_bucket{operation_type="create",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths",result="succeeded",le="3600"} 1
+backend_resource_operation_duration_seconds_bucket{operation_type="create",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths",result="succeeded",le="+Inf"} 1
+backend_resource_operation_duration_seconds_sum{operation_type="create",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths",result="succeeded"} 600
+backend_resource_operation_duration_seconds_count{operation_type="create",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths",result="succeeded"} 1
+`
+	require.NoError(t, testutil.GatherAndCompare(reg, strings.NewReader(expected), "backend_resource_operation_duration_seconds"))
+}
+
+// TestDuration_FailedOperationObservesHistogram verifies that a Failed
+// terminal state records the histogram with result="failed".
+func TestDuration_FailedOperationObservesHistogram(t *testing.T) {
+	startTime := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	clockNow := startTime.Add(5 * time.Minute)
+
+	handler, reg := newTestOperationHandler(t)
+	handler.clock = func() time.Time { return clockNow }
+
+	op := newTestOperation(
+		t,
+		"op-1",
+		coreapi.OperationRequestUpdate,
+		coreapi.ProvisioningStateProvisioning,
+		"/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1/externalAuths/ea-1",
+		startTime,
+		startTime,
+	)
+
+	handler.Sync(context.Background(), op)
+
+	op.Status = coreapi.ProvisioningStateFailed
+	handler.Sync(context.Background(), op)
+
+	require.Equal(t, 1, testutil.CollectAndCount(handler.duration),
+		"histogram should have 1 series after failed transition")
+
+	expected := fmt.Sprintf(
+		`backend_resource_operation_duration_seconds_count{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths",result="failed"} 1
+backend_resource_operation_duration_seconds_sum{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths",result="failed"} %v
+`, clockNow.Sub(startTime).Seconds())
+	require.NoError(t, testutil.GatherAndCompare(reg, strings.NewReader(expected),
+		"backend_resource_operation_duration_seconds_count",
+		"backend_resource_operation_duration_seconds_sum"))
+}
+
+// TestDuration_NonTerminalPhaseDoesNotObserve verifies that ExternalAuth
+// operations remaining in non-terminal phases never trigger histogram observation.
+func TestDuration_NonTerminalPhaseDoesNotObserve(t *testing.T) {
+	now := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	handler, _ := newTestOperationHandler(t)
+
+	op := newTestOperation(
+		t,
+		"op-1",
+		coreapi.OperationRequestCreate,
+		coreapi.ProvisioningStateAccepted,
+		"/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1/externalAuths/ea-1",
+		now,
+		now,
+	)
+
+	handler.Sync(context.Background(), op)
+	require.Equal(t, 0, testutil.CollectAndCount(handler.duration),
+		"histogram should not be observed for Accepted")
+
+	op.Status = coreapi.ProvisioningStateProvisioning
+	handler.Sync(context.Background(), op)
+	require.Equal(t, 0, testutil.CollectAndCount(handler.duration),
+		"histogram should not be observed for Provisioning")
+
+	op.Status = coreapi.ProvisioningStateUpdating
+	handler.Sync(context.Background(), op)
+	require.Equal(t, 0, testutil.CollectAndCount(handler.duration),
+		"histogram should not be observed for Updating")
+}
+
+// TestDuration_RelistIdempotency verifies that re-syncing a terminal
+// ExternalAuth operation across informer relists does NOT re-observe the histogram.
+func TestDuration_RelistIdempotency(t *testing.T) {
+	startTime := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	clockNow := startTime.Add(10 * time.Minute)
+
+	handler, reg := newTestOperationHandler(t)
+	handler.clock = func() time.Time { return clockNow }
+
+	op := newTestOperation(
+		t,
+		"op-1",
+		coreapi.OperationRequestCreate,
+		coreapi.ProvisioningStateSucceeded,
+		"/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1/externalAuths/ea-1",
+		startTime,
+		clockNow,
+	)
+
+	handler.Sync(context.Background(), op)
+	handler.Sync(context.Background(), op)
+	handler.Sync(context.Background(), op)
+
+	expected := `backend_resource_operation_duration_seconds_count{operation_type="create",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths",result="succeeded"} 1
+`
+	require.NoError(t, testutil.GatherAndCompare(reg, strings.NewReader(expected),
+		"backend_resource_operation_duration_seconds_count"),
+		"histogram count should be exactly 1 despite 3 relists")
+}
+
+// TestDuration_AlreadyTerminalOnFirstSync verifies that an ExternalAuth
+// operation that is already terminal on the first Sync (e.g. backend restart
+// while the operation is in Cosmos TTL) gets observed exactly once.
+func TestDuration_AlreadyTerminalOnFirstSync(t *testing.T) {
+	startTime := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	clockNow := startTime.Add(15 * time.Minute)
+
+	handler, reg := newTestOperationHandler(t)
+	handler.clock = func() time.Time { return clockNow }
+
+	op := newTestOperation(
+		t,
+		"op-1",
+		coreapi.OperationRequestDelete,
+		coreapi.ProvisioningStateSucceeded,
+		"/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1/externalAuths/ea-1",
+		startTime,
+		clockNow,
+	)
+
+	handler.Sync(context.Background(), op)
+
+	expected := `backend_resource_operation_duration_seconds_count{operation_type="delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths",result="succeeded"} 1
+`
+	require.NoError(t, testutil.GatherAndCompare(reg, strings.NewReader(expected),
+		"backend_resource_operation_duration_seconds_count"),
+		"already-terminal operation should be observed exactly once on first Sync")
+}
+
+// TestDuration_DeleteClearsTrackingState verifies that Delete cleans up
+// lastKnownPhase so a re-created operation with the same cosmosKey
+// gets a fresh observation.
+func TestDuration_DeleteClearsTrackingState(t *testing.T) {
+	startTime := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	clockNow := startTime.Add(5 * time.Minute)
+
+	handler, reg := newTestOperationHandler(t)
+	handler.clock = func() time.Time { return clockNow }
+
+	op := newTestOperation(
+		t,
+		"op-1",
+		coreapi.OperationRequestCreate,
+		coreapi.ProvisioningStateSucceeded,
+		"/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1/externalAuths/ea-1",
+		startTime,
+		clockNow,
+	)
+
+	handler.Sync(context.Background(), op)
+	cosmosKey, err := resourceIDStoreKeyForObject(op)
+	require.NoError(t, err)
+
+	_, tracked := handler.lastKnownPhase[cosmosKey]
+	require.True(t, tracked, "lastKnownPhase should be tracked after Sync")
+
+	handler.Delete(cosmosKey)
+
+	_, tracked = handler.lastKnownPhase[cosmosKey]
+	require.False(t, tracked, "lastKnownPhase should be cleared after Delete")
+
+	// Re-Sync the same operation — it should be observed again since
+	// the tracking state was cleared.
+	handler.Sync(context.Background(), op)
+
+	expected := `backend_resource_operation_duration_seconds_count{operation_type="create",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths",result="succeeded"} 2
+`
+	require.NoError(t, testutil.GatherAndCompare(reg, strings.NewReader(expected),
+		"backend_resource_operation_duration_seconds_count"),
+		"count should be 2 after Delete + re-Sync")
+}
+
+// TestDuration_ExternalAuthLabels verifies that an ExternalAuth operation
+// emits the correct resource_type label.
+func TestDuration_ExternalAuthLabels(t *testing.T) {
+	startTime := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	clockNow := startTime.Add(3 * time.Minute)
+
+	handler, reg := newTestOperationHandler(t)
+	handler.clock = func() time.Time { return clockNow }
+
+	op := newTestOperation(
+		t,
+		"op-1",
+		coreapi.OperationRequestCreate,
+		coreapi.ProvisioningStateSucceeded,
+		"/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1/externalAuths/ea-1",
+		startTime,
+		clockNow,
+	)
+
+	handler.Sync(context.Background(), op)
+
+	expected := `backend_resource_operation_duration_seconds_count{operation_type="create",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths",result="succeeded"} 1
+`
+	require.NoError(t, testutil.GatherAndCompare(reg, strings.NewReader(expected),
+		"backend_resource_operation_duration_seconds_count"),
+		"ExternalAuth operation should have externalauths resource_type label")
+}
+
+// TestDuration_NonExternalAuthOperationsAreGated verifies that terminal
+// cluster and nodepool operations do NOT emit the duration histogram
+// (currently gated to ExternalAuth only per ARO-29558).
+func TestDuration_NonExternalAuthOperationsAreGated(t *testing.T) {
+	startTime := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	clockNow := startTime.Add(5 * time.Minute)
+
+	handler, _ := newTestOperationHandler(t)
+	handler.clock = func() time.Time { return clockNow }
+
+	clusterOp := newTestOperation(
+		t,
+		"op-cluster",
+		coreapi.OperationRequestCreate,
+		coreapi.ProvisioningStateSucceeded,
+		"/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1",
+		startTime,
+		clockNow,
+	)
+	nodepoolOp := newTestOperation(
+		t,
+		"op-np",
+		coreapi.OperationRequestCreate,
+		coreapi.ProvisioningStateSucceeded,
+		"/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1/nodePools/np-1",
+		startTime,
+		clockNow,
+	)
+
+	handler.Sync(context.Background(), clusterOp)
+	handler.Sync(context.Background(), nodepoolOp)
+
+	require.Equal(t, 0, testutil.CollectAndCount(handler.duration),
+		"cluster and nodepool operations should not emit duration histogram")
+}
+
+// TestDuration_OnlyExternalAuthEmitsAmongMixedOps verifies that when
+// both cluster and ExternalAuth operations reach terminal state, only
+// the ExternalAuth operation emits the duration histogram.
+func TestDuration_OnlyExternalAuthEmitsAmongMixedOps(t *testing.T) {
+	startTime := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	clockNow := startTime.Add(5 * time.Minute)
+
+	handler, reg := newTestOperationHandler(t)
+	handler.clock = func() time.Time { return clockNow }
+
+	clusterOp := newTestOperation(
+		t,
+		"op-cluster",
+		coreapi.OperationRequestCreate,
+		coreapi.ProvisioningStateSucceeded,
+		"/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1",
+		startTime,
+		clockNow,
+	)
+	eaOp := newTestOperation(
+		t,
+		"op-ea",
+		coreapi.OperationRequestCreate,
+		coreapi.ProvisioningStateFailed,
+		"/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1/externalAuths/ea-1",
+		startTime,
+		clockNow,
+	)
+
+	handler.Sync(context.Background(), clusterOp)
+	handler.Sync(context.Background(), eaOp)
+
+	require.Equal(t, 1, testutil.CollectAndCount(handler.duration),
+		"only 1 histogram series should exist (ExternalAuth only)")
+
+	expected := `backend_resource_operation_duration_seconds_count{operation_type="create",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths",result="failed"} 1
+`
+	require.NoError(t, testutil.GatherAndCompare(reg, strings.NewReader(expected),
+		"backend_resource_operation_duration_seconds_count"),
+		"only ExternalAuth operation should emit duration histogram")
+}
+
+// TestDuration_ZeroStartTimeSkipsObservation verifies that an ExternalAuth
+// operation with a zero StartTime does not emit a histogram observation
+// even when reaching a terminal state.
+func TestDuration_ZeroStartTimeSkipsObservation(t *testing.T) {
+	handler, _ := newTestOperationHandler(t)
+
+	op := newTestOperation(
+		t,
+		"op-1",
+		coreapi.OperationRequestCreate,
+		coreapi.ProvisioningStateSucceeded,
+		"/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1/externalAuths/ea-1",
+		time.Time{},
+		time.Time{},
+	)
+
+	handler.Sync(context.Background(), op)
+
+	require.Equal(t, 0, testutil.CollectAndCount(handler.duration),
+		"histogram should not be observed when StartTime is zero")
+}
+
+// TestDuration_CanceledOperationObservesHistogram verifies that a
+// Canceled terminal state records the histogram with result="canceled".
+func TestDuration_CanceledOperationObservesHistogram(t *testing.T) {
+	startTime := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	clockNow := startTime.Add(2 * time.Minute)
+
+	handler, reg := newTestOperationHandler(t)
+	handler.clock = func() time.Time { return clockNow }
+
+	op := newTestOperation(
+		t,
+		"op-1",
+		coreapi.OperationRequestUpdate,
+		coreapi.ProvisioningStateCanceled,
+		"/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1/externalAuths/ea-1",
+		startTime,
+		clockNow,
+	)
+
+	handler.Sync(context.Background(), op)
+
+	expected := `backend_resource_operation_duration_seconds_count{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths",result="canceled"} 1
+`
+	require.NoError(t, testutil.GatherAndCompare(reg, strings.NewReader(expected),
+		"backend_resource_operation_duration_seconds_count"),
+		"Canceled operation should be observed with result=canceled")
+}

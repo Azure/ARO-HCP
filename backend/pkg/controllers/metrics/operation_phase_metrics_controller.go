@@ -17,6 +17,7 @@ package metrics
 import (
 	"context"
 	"strings"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 
@@ -25,6 +26,13 @@ import (
 )
 
 var operationMetricLabelNames = []string{"resource_id", "subscription_id", "resource_type", "operation_type", "phase"}
+
+var operationDurationLabelNames = []string{"resource_type", "operation_type", "result"}
+
+// operationDurationBuckets covers the range of expected operation
+// durations. Existing alerts fire at 10–45 minutes; the buckets span
+// from 30 s to 1 h to support percentile queries across that range.
+var operationDurationBuckets = []float64{30, 60, 120, 300, 600, 900, 1200, 1800, 2700, 3600}
 
 // operationPhaseMetricsHandler emits and clears the
 // backend_resource_operation_* metric family.
@@ -52,11 +60,14 @@ type operationPhaseMetricsHandler struct {
 	phaseInfo          *prometheus.GaugeVec
 	startTime          *prometheus.GaugeVec
 	lastTransitionTime *prometheus.GaugeVec
+	duration           *prometheus.HistogramVec
 	// Not guarded by a mutex: threadiness=1 serializes all access.
 	// A mutex would not help at higher threadiness because Sync's
 	// gauge delete-then-set is not atomic across Prometheus calls.
-	operationsBookkeeper map[string]operationIdentity // cosmosDocKey: identity (reverse lookup for Delete)
-	operationsCounter    map[operationIdentity]int    // identity: count of cosmos docs contributing to this gauge
+	operationsBookkeeper map[string]operationIdentity              // cosmosDocKey: identity (reverse lookup for Delete)
+	operationsCounter    map[operationIdentity]int                 // identity: count of cosmos docs contributing to this gauge
+	lastKnownPhase       map[string]coreapi.ProvisioningState      // cosmosDocKey: last observed phase (prevents double-counting on relists)
+	clock                func() time.Time                           // wall clock for duration calculation; overridable in tests
 }
 
 type operationIdentity struct {
@@ -79,12 +90,19 @@ func NewOperationPhaseMetricsHandler(r prometheus.Registerer) Handler[*coreapi.O
 			Name: "backend_resource_operation_last_transition_time_seconds",
 			Help: "Unix timestamp when the operation last changed phase.",
 		}, operationMetricLabelNames),
+		duration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Name:    "backend_resource_operation_duration_seconds",
+			Help:    "Duration of completed operations in seconds, observed once when the operation reaches a terminal state.",
+			Buckets: operationDurationBuckets,
+		}, operationDurationLabelNames),
 		// Pre-sized to steady-state: bounded by operations within
 		// the 7-day CosmosDB TTL per shard (~1k-2k entries, ~100 clusters).
 		operationsBookkeeper: make(map[string]operationIdentity, 2000),
 		operationsCounter:    make(map[operationIdentity]int, 2000),
+		lastKnownPhase:       make(map[string]coreapi.ProvisioningState, 2000),
+		clock:                time.Now,
 	}
-	r.MustRegister(h.phaseInfo, h.startTime, h.lastTransitionTime)
+	r.MustRegister(h.phaseInfo, h.startTime, h.lastTransitionTime, h.duration)
 	return h
 }
 
@@ -166,6 +184,8 @@ func (h *operationPhaseMetricsHandler) Sync(ctx context.Context, op *coreapi.Ope
 		h.operationsBookkeeper[cosmosKey] = newID
 		h.operationsCounter[newID]++
 	}
+
+	h.observeDurationOnTerminalTransition(op, cosmosKey)
 }
 
 // Delete clears gauge series when the last Cosmos operation document
@@ -181,6 +201,7 @@ func (h *operationPhaseMetricsHandler) Delete(key string) {
 		return
 	}
 	delete(h.operationsBookkeeper, key)
+	delete(h.lastKnownPhase, key)
 	h.operationsCounter[identity]--
 	if h.operationsCounter[identity] <= 0 {
 		delete(h.operationsCounter, identity)
@@ -199,6 +220,43 @@ func (h *operationPhaseMetricsHandler) deleteByResourceIDAndOperationType(resour
 	h.phaseInfo.DeletePartialMatch(deleteSelector)
 	h.startTime.DeletePartialMatch(deleteSelector)
 	h.lastTransitionTime.DeletePartialMatch(deleteSelector)
+}
+
+// externalAuthResourceTypeLabel is the lowercased resource type string
+// used to gate duration histogram observation to ExternalAuth operations.
+var externalAuthResourceTypeLabel = strings.ToLower(coreapi.ExternalAuthResourceType.String())
+
+// observeDurationOnTerminalTransition records the operation duration on
+// the histogram exactly once when the operation transitions from a
+// non-terminal phase to a terminal phase (Succeeded, Failed, Canceled).
+// It uses lastKnownPhase to prevent re-observation on informer relists.
+//
+// Currently gated to ExternalAuth operations only (ARO-29558). Remove
+// the resource type check to extend to all resource types.
+func (h *operationPhaseMetricsHandler) observeDurationOnTerminalTransition(op *coreapi.Operation, cosmosKey string) {
+	previousPhase, seen := h.lastKnownPhase[cosmosKey]
+	h.lastKnownPhase[cosmosKey] = op.Status
+
+	if resourceIDToTypeMetricLabel(op.ExternalID) != externalAuthResourceTypeLabel {
+		return
+	}
+	if !op.Status.IsTerminal() {
+		return
+	}
+	if seen && previousPhase.IsTerminal() {
+		// Already observed on a previous Sync — skip to avoid double-counting.
+		return
+	}
+	if op.StartTime.IsZero() {
+		return
+	}
+
+	durationSeconds := h.clock().Sub(op.StartTime).Seconds()
+	h.duration.With(prometheus.Labels{
+		"resource_type":  externalAuthResourceTypeLabel,
+		"operation_type": operationTypeMetricLabel(op.Request),
+		"result":         phaseMetricLabel(op.Status),
+	}).Observe(durationSeconds)
 }
 
 func operationTypeMetricLabel(request coreapi.OperationRequest) string {
