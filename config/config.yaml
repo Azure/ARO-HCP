@@ -1846,9 +1846,9 @@ clouds:
                 maxCount: 14
                 minCount: 5
                 osDiskSizeGB: 100
-                # Retain eight total NICs: one primary and seven SWIFT secondary NICs.
-                vmSize: Standard_D16ds_v6
-                secondaryNicCount: 7
+                # Experimental non-SWIFT sizing; retain three NICs for explicit SWIFT tests.
+                vmSize: Standard_D8ds_v6
+                secondaryNicCount: 3
               infraAgentPool:
                 vmSize: Standard_E4ds_v6
                 osDiskSizeGB: 64
@@ -1961,9 +1961,9 @@ clouds:
                 maxCount: 14
                 minCount: 5
                 osDiskSizeGB: 100
-                # Retain eight total NICs: one primary and seven SWIFT secondary NICs.
-                vmSize: Standard_D16ds_v6
-                secondaryNicCount: 7
+                # Experimental non-SWIFT sizing; retain three NICs for explicit SWIFT tests.
+                vmSize: Standard_D8ds_v6
+                secondaryNicCount: 3
               infraAgentPool:
                 vmSize: Standard_E4ds_v6
                 osDiskSizeGB: 64
