@@ -24,6 +24,8 @@ import (
 
 	"github.com/go-logr/logr"
 
+	"github.com/Azure/ARO-Tools/config/types"
+
 	"github.com/Azure/ARO-HCP/test/util/config"
 )
 
@@ -61,26 +63,23 @@ func (v mustGatherCLIVerifier) Verify(ctx context.Context) error {
 		binary = path
 	}
 
-	svcCluster, mgmtCluster, err := infraClusterNames()
+	serviceConfig, err := config.GetServiceConfig()
+	if err != nil {
+		return fmt.Errorf("failed to load service config: %w", err)
+	}
+
+	svcCluster, mgmtCluster, err := infraClusterNames(serviceConfig)
 	if err != nil {
 		return fmt.Errorf("failed to derive infra cluster names: %w", err)
 	}
 
-	kustoCluster, err := config.ServiceConfig.GetByPath("kusto.kustoName")
+	kustoClusterStr, err := config.GetStringByPath(serviceConfig, "kusto.kustoName")
 	if err != nil {
 		return fmt.Errorf("failed to get kusto cluster name from config: %w", err)
 	}
-	kustoClusterStr, ok := kustoCluster.(string)
-	if !ok {
-		return fmt.Errorf("kusto cluster name is not a string")
-	}
-	kustoRegion, err := config.ServiceConfig.GetByPath("kusto.location")
+	kustoRegionStr, err := config.GetStringByPath(serviceConfig, "kusto.location")
 	if err != nil {
 		return fmt.Errorf("failed to get kusto region from config: %w", err)
-	}
-	kustoRegionStr, ok := kustoRegion.(string)
-	if !ok {
-		return fmt.Errorf("kusto region is not a string")
 	}
 
 	testCases := []mustGatherCLITestCase{
@@ -204,22 +203,14 @@ func verifyDirHasLogFiles(dirPath string) error {
 }
 
 // infraClusterNames derives SVC and MGMT cluster names from the config.
-func infraClusterNames() (svcClusterStr, mgmtClusterStr string, err error) {
-	svcCluster, err := config.ServiceConfig.GetByPath("svc.aks.name")
+func infraClusterNames(serviceConfig types.Configuration) (svcClusterStr, mgmtClusterStr string, err error) {
+	svcClusterStr, err = config.GetStringByPath(serviceConfig, "svc.aks.name")
 	if err != nil {
-		return "", "", fmt.Errorf("failed to get svc.aks.name from config: %w", err)
+		return "", "", err
 	}
-	svcClusterStr, ok := svcCluster.(string)
-	if !ok {
-		return "", "", fmt.Errorf("svc.aks.name is not a string")
-	}
-	mgmtCluster, err := config.ServiceConfig.GetByPath("mgmt.aks.name")
+	mgmtClusterStr, err = config.GetStringByPath(serviceConfig, "mgmt.aks.name")
 	if err != nil {
-		return "", "", fmt.Errorf("failed to get mgmt.aks.name from config: %w", err)
-	}
-	mgmtClusterStr, ok = mgmtCluster.(string)
-	if !ok {
-		return "", "", fmt.Errorf("mgmt.aks.name is not a string")
+		return "", "", err
 	}
 	return svcClusterStr, mgmtClusterStr, nil
 }

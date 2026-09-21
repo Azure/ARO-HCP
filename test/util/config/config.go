@@ -37,13 +37,18 @@ var (
 
 // GetServiceConfig returns the service configuration, loading it from
 // environment variables on first call. Subsequent calls return the
-// cached result. Required env vars: ARO_HCP_CONFIG_FILE, ARO_HCP_CLOUD,
-// DEPLOY_ENV, REGION. Missing vars cause an error.
+// cached result. Required env vars: ARO_HCP_CONFIG_FILE, ARO_HCP_CLOUD
+// (falling back to CLOUD, which existing tooling like test/E2ELocal.mk
+// sets), DEPLOY_ENV, REGION. Missing vars cause an error.
 func GetServiceConfig() (types.Configuration, error) {
 	configOnce.Do(func() {
+		cloud := os.Getenv("ARO_HCP_CLOUD")
+		if cloud == "" {
+			cloud = os.Getenv("CLOUD")
+		}
 		required := map[string]string{
 			"ARO_HCP_CONFIG_FILE": os.Getenv("ARO_HCP_CONFIG_FILE"),
-			"ARO_HCP_CLOUD":       os.Getenv("ARO_HCP_CLOUD"),
+			"ARO_HCP_CLOUD":       cloud,
 			"DEPLOY_ENV":          os.Getenv("DEPLOY_ENV"),
 			"REGION":              os.Getenv("REGION"),
 		}

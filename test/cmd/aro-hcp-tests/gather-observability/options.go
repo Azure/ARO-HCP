@@ -608,6 +608,10 @@ func (o Options) runQueries(ctx context.Context, workspaces map[string]*workspac
 				logger.Info("executing PromQL query", "panel", panel.Title, "title", q.Title, "workspace", q.Workspace)
 
 				query := resolveReportRange(q.Query, o.TimeWindow.Start, o.TimeWindow.End)
+				// Keep q.Query in sync with the resolved query so the report
+				// footer (queryFooter) shows what was actually executed
+				// instead of the unresolved __REPORT_RANGE__ placeholder.
+				q.Query = query
 				resp, err := deps.queryRange(ctx, httpClient, o.cred, endpoint, query, o.TimeWindow.Start, o.TimeWindow.End, q.Step)
 				if err != nil {
 					logger.Error(err, "PromQL query failed", "title", q.Title)

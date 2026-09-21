@@ -38,7 +38,10 @@ type amaPrometheusClient struct {
 
 func (p *amaPrometheusClient) expectMetric(ctx context.Context, g Gomega, query, description string) {
 	now := time.Now()
-	start := now.Add(-5 * time.Minute)
+	// Azure Monitor Prometheus ingestion latency for new metric series can
+	// exceed 10 minutes; a shorter lookback can miss samples that land with
+	// an older timestamp once ingestion catches up.
+	start := now.Add(-20 * time.Minute)
 
 	resp, err := promutil.QueryRange(ctx, p.httpClient, p.cred, p.endpoint, query, start, now, "60s")
 	g.Expect(err).NotTo(HaveOccurred(), "Prometheus query_range failed for %s", description)
