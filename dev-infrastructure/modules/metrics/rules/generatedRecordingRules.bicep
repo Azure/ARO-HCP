@@ -1,3 +1,4 @@
+
 param azureMonitoring string
 
 param location string = resourceGroup().location
@@ -205,6 +206,32 @@ resource arohcpFrontendSloRecordingRules 'Microsoft.AlertsManagement/prometheusR
       {
         record: 'sli:frontend:saturation_memory:ratio5m'
         expression: '(sum by (cluster, region) (max without (prometheus_replica) (container_memory_working_set_bytes{container="aro-hcp-frontend",namespace="aro-hcp"})) / sum by (cluster, region) (max by (cluster, namespace, pod, container, region) (kube_pod_container_resource_limits{container="aro-hcp-frontend",job="kube-state-metrics",namespace="aro-hcp",resource="memory"}))) and on (cluster) (sum by (cluster, region) (max by (cluster, namespace, pod, container, region) (kube_pod_container_resource_limits{container="aro-hcp-frontend",job="kube-state-metrics",namespace="aro-hcp",resource="memory"})) > 0)'
+      }
+    ]
+  }
+}
+
+resource arohcpCertificateRotationSloRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_certificate_rotation_slo_recording_rules'
+  location: location
+  properties: {
+    scopes: [
+      azureMonitoring
+    ]
+    enabled: true
+    interval: 'PT1H'
+    rules: [
+      {
+        record: 'certificate:keyvault_certificate:lifetime_ratio'
+        expression: '(time() - max by (cluster, environment, region, key_vault, certificate_name) (keyvault_certificate_not_before_timestamp_seconds)) / (max by (cluster, environment, region, key_vault, certificate_name) (keyvault_certificate_not_after_timestamp_seconds) - max by (cluster, environment, region, key_vault, certificate_name) (keyvault_certificate_not_before_timestamp_seconds)) and on (cluster, environment, region, key_vault, certificate_name) max by (cluster, environment, region, key_vault, certificate_name) (keyvault_certificate_not_after_timestamp_seconds) > max by (cluster, environment, region, key_vault, certificate_name) (keyvault_certificate_not_before_timestamp_seconds)'
+      }
+      {
+        record: 'certificate:keyvault_certificate:rotation_compliant'
+        expression: 'certificate:keyvault_certificate:lifetime_ratio <= bool 0.65'
+      }
+      {
+        record: 'certificate:keyvault_certificate:days_until_expiry'
+        expression: '(max by (cluster, environment, region, key_vault, certificate_name) (keyvault_certificate_not_after_timestamp_seconds) - time()) / 86400'
       }
     ]
   }

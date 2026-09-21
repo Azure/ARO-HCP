@@ -1,0 +1,51 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    app.kubernetes.io/name: kube-prometheus
+    app.kubernetes.io/part-of: kube-prometheus
+    prometheus: k8s
+    role: recording-rules
+  name: certificate-rotation-slo-recording-rules
+  namespace: monitoring
+spec:
+  groups:
+  - name: arohcp_certificate_rotation_slo_recording_rules
+    interval: 1h
+    rules:
+    - record: certificate:keyvault_certificate:lifetime_ratio
+      expr: |
+        (
+          time()
+          - max by (cluster, environment, region, key_vault, certificate_name) (
+              keyvault_certificate_not_before_timestamp_seconds
+            )
+        )
+        /
+        (
+          max by (cluster, environment, region, key_vault, certificate_name) (
+            keyvault_certificate_not_after_timestamp_seconds
+          )
+          - max by (cluster, environment, region, key_vault, certificate_name) (
+              keyvault_certificate_not_before_timestamp_seconds
+            )
+        )
+        and on (cluster, environment, region, key_vault, certificate_name)
+        max by (cluster, environment, region, key_vault, certificate_name) (
+          keyvault_certificate_not_after_timestamp_seconds
+        )
+        >
+        max by (cluster, environment, region, key_vault, certificate_name) (
+          keyvault_certificate_not_before_timestamp_seconds
+        )
+    - record: certificate:keyvault_certificate:rotation_compliant
+      expr: |
+        certificate:keyvault_certificate:lifetime_ratio <= bool 0.65
+    - record: certificate:keyvault_certificate:days_until_expiry
+      expr: |
+        (
+          max by (cluster, environment, region, key_vault, certificate_name) (
+            keyvault_certificate_not_after_timestamp_seconds
+          )
+          - time()
+        ) / 86400
