@@ -42,6 +42,10 @@ spec:
         max by (cluster, environment, region, key_vault, certificate_name) (
           keyvault_certificate_not_before_timestamp_seconds
         )
+        and on (cluster, environment, region, key_vault, certificate_name)
+        max by (cluster, environment, region, key_vault, certificate_name) (
+          keyvault_certificate_enabled
+        ) == 1
       for: 1h
       labels:
         severity: "3"

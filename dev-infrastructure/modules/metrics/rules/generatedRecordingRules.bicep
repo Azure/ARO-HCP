@@ -223,7 +223,7 @@ resource arohcpCertificateRotationSloRecordingRules 'Microsoft.AlertsManagement/
     rules: [
       {
         record: 'certificate:keyvault_certificate:lifetime_ratio'
-        expression: '(time() - max by (cluster, environment, region, key_vault, certificate_name) (keyvault_certificate_not_before_timestamp_seconds)) / (max by (cluster, environment, region, key_vault, certificate_name) (keyvault_certificate_not_after_timestamp_seconds) - max by (cluster, environment, region, key_vault, certificate_name) (keyvault_certificate_not_before_timestamp_seconds)) and on (cluster, environment, region, key_vault, certificate_name) max by (cluster, environment, region, key_vault, certificate_name) (keyvault_certificate_not_after_timestamp_seconds) > max by (cluster, environment, region, key_vault, certificate_name) (keyvault_certificate_not_before_timestamp_seconds)'
+        expression: '(time() - max by (cluster, environment, region, key_vault, certificate_name) (keyvault_certificate_not_before_timestamp_seconds)) / (max by (cluster, environment, region, key_vault, certificate_name) (keyvault_certificate_not_after_timestamp_seconds) - max by (cluster, environment, region, key_vault, certificate_name) (keyvault_certificate_not_before_timestamp_seconds)) and on (cluster, environment, region, key_vault, certificate_name) max by (cluster, environment, region, key_vault, certificate_name) (keyvault_certificate_not_after_timestamp_seconds) > max by (cluster, environment, region, key_vault, certificate_name) (keyvault_certificate_not_before_timestamp_seconds) and on (cluster, environment, region, key_vault, certificate_name) max by (cluster, environment, region, key_vault, certificate_name) (keyvault_certificate_enabled) == 1'
       }
       {
         record: 'certificate:keyvault_certificate:rotation_compliant'
@@ -231,7 +231,7 @@ resource arohcpCertificateRotationSloRecordingRules 'Microsoft.AlertsManagement/
       }
       {
         record: 'certificate:keyvault_certificate:days_until_expiry'
-        expression: '(max by (cluster, environment, region, key_vault, certificate_name) (keyvault_certificate_not_after_timestamp_seconds) - time()) / 86400'
+        expression: '(max by (cluster, environment, region, key_vault, certificate_name) (keyvault_certificate_not_after_timestamp_seconds) - time()) / 86400 and on (cluster, environment, region, key_vault, certificate_name) max by (cluster, environment, region, key_vault, certificate_name) (keyvault_certificate_enabled) == 1'
       }
     ]
   }
