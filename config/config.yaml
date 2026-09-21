@@ -1845,15 +1845,16 @@ clouds:
               systemAgentPool:
                 maxCount: 4
                 osDiskSizeGB: 32
-                vmSize: Standard_D8ds_v6
+                vmSize: Standard_D4ds_v6
               userAgentPool:
                 maxCount: 14
                 minCount: 5
                 osDiskSizeGB: 100
-                vmSize: Standard_E16ds_v6
+                # Retain eight total NICs: one primary and seven SWIFT secondary NICs.
+                vmSize: Standard_D16ds_v6
                 secondaryNicCount: 7
               infraAgentPool:
-                vmSize: Standard_D8ds_v6
+                vmSize: Standard_E4ds_v6
                 osDiskSizeGB: 64
             jaeger:
               deploy: false
@@ -1865,11 +1866,12 @@ clouds:
               systemAgentPool:
                 vmSize: Standard_D4ds_v6
               userAgentPool:
+                # Keep the persisted AKS pool name despite the smaller VM size.
                 name: 'u64d8dsv6'
-                vmSize: Standard_D8ds_v6
+                vmSize: Standard_D4ds_v6
                 osDiskSizeGB: 64
               infraAgentPool:
-                vmSize: Standard_D4ds_v6
+                vmSize: Standard_D2ds_v6
             jaeger:
               deploy: true
       ci01:
@@ -1958,15 +1960,16 @@ clouds:
               systemAgentPool:
                 maxCount: 4
                 osDiskSizeGB: 32
-                vmSize: Standard_D8ds_v6
+                vmSize: Standard_D4ds_v6
               userAgentPool:
                 maxCount: 14
                 minCount: 5
                 osDiskSizeGB: 100
-                vmSize: Standard_E16ds_v6
+                # Retain eight total NICs: one primary and seven SWIFT secondary NICs.
+                vmSize: Standard_D16ds_v6
                 secondaryNicCount: 7
               infraAgentPool:
-                vmSize: Standard_D8ds_v6
+                vmSize: Standard_E4ds_v6
                 osDiskSizeGB: 64
             jaeger:
               deploy: false
@@ -1980,10 +1983,11 @@ clouds:
               systemAgentPool:
                 vmSize: Standard_D4ds_v6
               userAgentPool:
+                # Keep the persisted AKS pool name despite the smaller VM size.
                 name: 'u64d8dsv6'
-                vmSize: Standard_D8ds_v6
+                vmSize: Standard_D4ds_v6
                 osDiskSizeGB: 64
               infraAgentPool:
-                vmSize: Standard_D4ds_v6
+                vmSize: Standard_D2ds_v6
             jaeger:
               deploy: true
