@@ -16,113 +16,62 @@ package coreapi
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"k8s.io/utils/ptr"
 )
 
 func TestManagedIdentitiesWithDataPlaneWorkloadsOIDCFederationJSONMapRoundTrip(t *testing.T) {
 	t.Parallel()
 
-	key := "/subscriptions/00000000-0000-0000-0000-000000000000/resourcegroups/test-rg/providers/microsoft.managedidentity/userassignedidentities/identity-a"
+	identityResourceID := "/subscriptions/00000000-0000-0000-0000-000000000000/resourcegroups/test-rg/providers/microsoft.managedidentity/userassignedidentities/identity-a"
 	identity := DataplaneOIDCFederationIdentityInstance{
 		ClientID:    "client-a",
 		PrincipalID: "principal-a",
 		TenantID:    "tenant-a",
 	}
 	operatorName := "azure-disk-csi-driver"
-	original := map[string]*ManagedIdentityDataplaneOIDCFederationStatus{
+	key := DataplaneOIDCFederationAssignmentKey{
+		IdentityResourceID: identityResourceID,
+		OperatorName:       operatorName,
+	}
+	original := map[DataplaneOIDCFederationAssignmentKey]*DataplaneOIDCFederationAssignmentStatus{
 		key: {
-			TargetIdentity: identity,
-			Operators: map[string]*DataplaneOIDCFederationOperatorStatus{
-				operatorName: {
-					EnsuredIdentity: &identity,
-				},
-			},
+			TargetIdentity:  identity,
+			EnsuredIdentity: &identity,
 		},
 	}
 
 	encoded, err := json.Marshal(original)
 	require.NoError(t, err)
 
-	var decoded map[string]*ManagedIdentityDataplaneOIDCFederationStatus
+	var decoded map[DataplaneOIDCFederationAssignmentKey]*DataplaneOIDCFederationAssignmentStatus
 	require.NoError(t, json.Unmarshal(encoded, &decoded))
 	require.Contains(t, decoded, key)
-	assert.True(t, decoded[key].OperatorEnsured(operatorName))
-	assert.True(t, decoded[key].TargetIdentityEnsured())
 	assert.Equal(t, identity, decoded[key].TargetIdentity)
-	require.NotNil(t, decoded[key].Operators[operatorName])
-	require.NotNil(t, decoded[key].Operators[operatorName].EnsuredIdentity)
-	assert.Equal(t, identity, *decoded[key].Operators[operatorName].EnsuredIdentity)
+	require.NotNil(t, decoded[key].EnsuredIdentity)
+	assert.Equal(t, identity, *decoded[key].EnsuredIdentity)
 }
 
-func TestManagedIdentityDataplaneOIDCFederationStatusOperatorEnsured(t *testing.T) {
+func TestDataplaneOIDCFederationAssignmentKeyTextRoundTrip(t *testing.T) {
 	t.Parallel()
 
-	identity := DataplaneOIDCFederationIdentityInstance{
-		ClientID:    "client-a",
-		PrincipalID: "principal-a",
-		TenantID:    "tenant-a",
+	mixedCaseIdentityResourceID := "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/Test-RG/providers/Microsoft.ManagedIdentity/userAssignedIdentities/Identity-A"
+	key := DataplaneOIDCFederationAssignmentKey{
+		IdentityResourceID: strings.ToLower(mixedCaseIdentityResourceID),
+		OperatorName:       "cloud-controller-manager",
 	}
-	rotated := identity
-	rotated.ClientID = "client-b"
-	operatorName := "azure-disk-csi-driver"
+	assert.Equal(t, "/subscriptions/00000000-0000-0000-0000-000000000000/resourcegroups/test-rg/providers/microsoft.managedidentity/userassignedidentities/identity-a", key.IdentityResourceID)
 
-	assert.False(t, (*ManagedIdentityDataplaneOIDCFederationStatus)(nil).OperatorEnsured(operatorName))
-	assert.False(t, (&ManagedIdentityDataplaneOIDCFederationStatus{TargetIdentity: identity}).OperatorEnsured(operatorName))
-	assert.True(t, (&ManagedIdentityDataplaneOIDCFederationStatus{
-		TargetIdentity: identity,
-		Operators: map[string]*DataplaneOIDCFederationOperatorStatus{
-			operatorName: {EnsuredIdentity: ptr.To(identity)},
-		},
-	}).OperatorEnsured(operatorName))
-	assert.False(t, (&ManagedIdentityDataplaneOIDCFederationStatus{
-		TargetIdentity: identity,
-		Operators: map[string]*DataplaneOIDCFederationOperatorStatus{
-			operatorName: {EnsuredIdentity: ptr.To(rotated)},
-		},
-	}).OperatorEnsured(operatorName))
-	assert.False(t, (&ManagedIdentityDataplaneOIDCFederationStatus{
-		TargetIdentity: identity,
-		Operators: map[string]*DataplaneOIDCFederationOperatorStatus{
-			"other-operator": {EnsuredIdentity: ptr.To(identity)},
-		},
-	}).OperatorEnsured(operatorName))
-}
+	encoded, err := key.MarshalText()
+	require.NoError(t, err)
 
-func TestManagedIdentityDataplaneOIDCFederationStatusTargetIdentityEnsured(t *testing.T) {
-	t.Parallel()
+	var decoded DataplaneOIDCFederationAssignmentKey
+	require.NoError(t, decoded.UnmarshalText(encoded))
+	assert.Equal(t, key, decoded)
 
-	identity := DataplaneOIDCFederationIdentityInstance{
-		ClientID:    "client-a",
-		PrincipalID: "principal-a",
-		TenantID:    "tenant-a",
-	}
-	rotated := identity
-	rotated.ClientID = "client-b"
-
-	assert.False(t, (*ManagedIdentityDataplaneOIDCFederationStatus)(nil).TargetIdentityEnsured())
-	assert.False(t, (&ManagedIdentityDataplaneOIDCFederationStatus{TargetIdentity: identity}).TargetIdentityEnsured())
-	assert.True(t, (&ManagedIdentityDataplaneOIDCFederationStatus{
-		TargetIdentity: identity,
-		Operators: map[string]*DataplaneOIDCFederationOperatorStatus{
-			"azure-disk-csi-driver": {EnsuredIdentity: ptr.To(identity)},
-		},
-	}).TargetIdentityEnsured())
-	assert.False(t, (&ManagedIdentityDataplaneOIDCFederationStatus{
-		TargetIdentity: identity,
-		Operators: map[string]*DataplaneOIDCFederationOperatorStatus{
-			"azure-disk-csi-driver": {EnsuredIdentity: ptr.To(identity)},
-			"azure-file-csi-driver": {},
-		},
-	}).TargetIdentityEnsured())
-	assert.False(t, (&ManagedIdentityDataplaneOIDCFederationStatus{
-		TargetIdentity: identity,
-		Operators: map[string]*DataplaneOIDCFederationOperatorStatus{
-			"azure-disk-csi-driver": {EnsuredIdentity: ptr.To(rotated)},
-		},
-	}).TargetIdentityEnsured())
+	require.NoError(t, decoded.UnmarshalText([]byte(mixedCaseIdentityResourceID+"|"+key.OperatorName)))
+	assert.Equal(t, key, decoded)
 }

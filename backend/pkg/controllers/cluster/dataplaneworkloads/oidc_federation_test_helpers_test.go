@@ -19,7 +19,9 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -122,10 +124,10 @@ func (f *fakeFederatedIdentityCredentialsClient) Get(_ context.Context, resource
 	if cred, ok := f.existing[federatedIdentityCredentialResourceName]; ok {
 		return armmsi.FederatedIdentityCredentialsClientGetResponse{FederatedIdentityCredential: cred}, nil
 	}
-	return armmsi.FederatedIdentityCredentialsClientGetResponse{}, ficResourceNotFoundErr()
+	return armmsi.FederatedIdentityCredentialsClientGetResponse{}, buildTestFICResourceNotFoundErr()
 }
 
-func ficResourceNotFoundErr() error {
+func buildTestFICResourceNotFoundErr() error {
 	return &azcore.ResponseError{
 		ErrorCode:  "NotFound",
 		StatusCode: http.StatusNotFound,
@@ -160,7 +162,7 @@ func (b *fakeFPAMIDataplaneClientBuilder) ManagedIdentitiesDataplane(_ string) (
 	return b.client, nil
 }
 
-func testSMIDataplaneBuilder(smiResourceID *azcorearm.ResourceID, exists bool) azureclient.FPAMIDataplaneClientBuilder {
+func buildTestSMIDataplaneBuilder(smiResourceID *azcorearm.ResourceID, exists bool) azureclient.FPAMIDataplaneClientBuilder {
 	cred := dataplane.UserAssignedIdentityCredentials{
 		ResourceID: ptr.To(smiResourceID.String()),
 	}
@@ -179,7 +181,7 @@ func testSMIDataplaneBuilder(smiResourceID *azcorearm.ResourceID, exists bool) a
 	}
 }
 
-func testOIDCFederationSubscription() *coreapi.Subscription {
+func buildTestOIDCFederationSubscription() *coreapi.Subscription {
 	rid := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID))
 	return &coreapi.Subscription{
 		CosmosMetadata: coreapi.CosmosMetadata{
@@ -190,22 +192,22 @@ func testOIDCFederationSubscription() *coreapi.Subscription {
 	}
 }
 
-func testOIDCFederationSubscriptionLister() corelisters.SubscriptionLister {
+func buildTestOIDCFederationSubscriptionLister() corelisters.SubscriptionLister {
 	return &corelistertesting.SliceSubscriptionLister{
-		Subscriptions: []*coreapi.Subscription{testOIDCFederationSubscription()},
+		Subscriptions: []*coreapi.Subscription{buildTestOIDCFederationSubscription()},
 	}
 }
 
-func testClusterServiceID() *metadataapi.InternalID {
+func buildTestClusterServiceID() *metadataapi.InternalID {
 	id := metadataapi.Must(metadataapi.NewInternalID("/api/aro_hcp/v1alpha1/clusters/" + testCSClusterID))
 	return &id
 }
 
-func testDataPlaneOIDCFederationIdentitiesConfig() *azure.ClusterScopedIdentitiesConfig {
+func buildTestDataPlaneOIDCFederationIdentitiesConfig() *azure.ClusterScopedIdentitiesConfig {
 	return azure.NewClusterScopedIdentitiesConfig(azure.RoleDefinitionConfigSetNameDev)
 }
 
-func expectedFICResourceIDs(t *testing.T, identity *azcorearm.ResourceID, operatorName string, serviceAccounts []*azure.KubernetesServiceAccount) []*azcorearm.ResourceID {
+func buildTestFICResourceIDs(t *testing.T, identity *azcorearm.ResourceID, operatorName string, serviceAccounts []*azure.KubernetesServiceAccount) []*azcorearm.ResourceID {
 	t.Helper()
 	var ids []*azcorearm.ResourceID
 	for _, sa := range serviceAccounts {
@@ -222,76 +224,63 @@ func expectedFICResourceIDs(t *testing.T, identity *azcorearm.ResourceID, operat
 	return ids
 }
 
-func diskCSIDriverServiceAccounts(t *testing.T) []*azure.KubernetesServiceAccount {
+func buildTestDiskCSIDriverServiceAccounts(t *testing.T) []*azure.KubernetesServiceAccount {
 	t.Helper()
-	operator := testDataPlaneOIDCFederationIdentitiesConfig().DataPlaneOperatorsIdentities[azure.ClusterOperatorIdentifierDiskCSIDriver]
+	operator := buildTestDataPlaneOIDCFederationIdentitiesConfig().DataPlaneOperatorsIdentities[azure.ClusterOperatorIdentifierDiskCSIDriver]
 	require.NotNil(t, operator)
 	return operator.KubernetesServiceAccounts
 }
 
-func imageRegistryServiceAccounts(t *testing.T) []*azure.KubernetesServiceAccount {
+func buildTestImageRegistryServiceAccounts(t *testing.T) []*azure.KubernetesServiceAccount {
 	t.Helper()
-	operator := testDataPlaneOIDCFederationIdentitiesConfig().DataPlaneOperatorsIdentities[azure.ClusterOperatorIdentifierImageRegistry]
+	operator := buildTestDataPlaneOIDCFederationIdentitiesConfig().DataPlaneOperatorsIdentities[azure.ClusterOperatorIdentifierImageRegistry]
 	require.NotNil(t, operator)
 	return operator.KubernetesServiceAccounts
 }
 
-func oidcOperatorPending() *coreapi.DataplaneOIDCFederationOperatorStatus {
-	return &coreapi.DataplaneOIDCFederationOperatorStatus{}
+func buildTestOIDCAssignmentNotEnsured() *coreapi.DataplaneOIDCFederationAssignmentStatus {
+	return &coreapi.DataplaneOIDCFederationAssignmentStatus{}
 }
 
-func oidcOperatorEnsured(identity coreapi.DataplaneOIDCFederationIdentityInstance, azure []*azcorearm.ResourceID) *coreapi.DataplaneOIDCFederationOperatorStatus {
-	return &coreapi.DataplaneOIDCFederationOperatorStatus{
+func buildTestOIDCAssignmentEnsured(identity coreapi.DataplaneOIDCFederationIdentityInstance, azure []*azcorearm.ResourceID) *coreapi.DataplaneOIDCFederationAssignmentStatus {
+	return &coreapi.DataplaneOIDCFederationAssignmentStatus{
 		EnsuredIdentity: ptr.To(identity),
 		AzureResources:  azure,
 	}
 }
 
-func oidcOperatorDeconfigure(ts *metav1.Time, azure, pending []*azcorearm.ResourceID) *coreapi.DataplaneOIDCFederationOperatorStatus {
-	return &coreapi.DataplaneOIDCFederationOperatorStatus{
+func buildTestOIDCAssignmentDeconfigure(ts *metav1.Time, azure, pending []*azcorearm.ResourceID) *coreapi.DataplaneOIDCFederationAssignmentStatus {
+	return &coreapi.DataplaneOIDCFederationAssignmentStatus{
 		DeconfigureTimestamp:  ts,
 		AzureResources:        azure,
 		PendingAzureResources: pending,
 	}
 }
 
-func oidcIdentityStatus(target coreapi.DataplaneOIDCFederationIdentityInstance, operatorName string, operatorStatus *coreapi.DataplaneOIDCFederationOperatorStatus) *coreapi.ManagedIdentityDataplaneOIDCFederationStatus {
-	return oidcIdentityStatusOperators(target, map[string]*coreapi.DataplaneOIDCFederationOperatorStatus{
-		operatorName: operatorStatus,
-	})
-}
-
-func oidcIdentityStatusOperators(target coreapi.DataplaneOIDCFederationIdentityInstance, operators map[string]*coreapi.DataplaneOIDCFederationOperatorStatus) *coreapi.ManagedIdentityDataplaneOIDCFederationStatus {
-	return &coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
-		TargetIdentity: target,
-		Operators:      operators,
+func buildTestOIDCAssignmentKey(identityResourceID, operatorName string) coreapi.DataplaneOIDCFederationAssignmentKey {
+	return coreapi.DataplaneOIDCFederationAssignmentKey{
+		IdentityResourceID: strings.ToLower(identityResourceID),
+		OperatorName:       operatorName,
 	}
 }
 
-func seedDesiredDataPlaneOperators(cluster *coreapi.HCPOpenShiftCluster, federation map[string]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus) {
+func buildTestOIDCAssignmentWithTarget(target coreapi.DataplaneOIDCFederationIdentityInstance, assignment *coreapi.DataplaneOIDCFederationAssignmentStatus) *coreapi.DataplaneOIDCFederationAssignmentStatus {
+	out := assignment.DeepCopy()
+	out.TargetIdentity = target
+	return out
+}
+
+func seedTestDesiredDataPlaneOperators(cluster *coreapi.HCPOpenShiftCluster, federation map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus) {
 	if cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators == nil {
 		cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators = map[string]*azcorearm.ResourceID{}
 	}
-	for identityKey, status := range federation {
-		if status == nil {
+	for assignmentKey, status := range federation {
+		if status == nil || status.DeconfigureTimestamp != nil {
 			continue
 		}
-		identityResourceID := metadataapi.Must(azcorearm.ParseResourceID(identityKey))
-		for operatorName, operatorStatus := range status.Operators {
-			if operatorStatus == nil || operatorStatus.DeconfigureTimestamp != nil {
-				continue
-			}
-			cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators[operatorName] = identityResourceID
-		}
+		identityResourceID := metadataapi.Must(azcorearm.ParseResourceID(assignmentKey.IdentityResourceID))
+		cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators[assignmentKey.OperatorName] = identityResourceID
 	}
-}
-
-func requireOperatorStatus(t *testing.T, identityStatus *coreapi.ManagedIdentityDataplaneOIDCFederationStatus, operatorName string) *coreapi.DataplaneOIDCFederationOperatorStatus {
-	t.Helper()
-	require.NotNil(t, identityStatus)
-	require.Contains(t, identityStatus.Operators, operatorName)
-	require.NotNil(t, identityStatus.Operators[operatorName])
-	return identityStatus.Operators[operatorName]
 }
 
 func resourceIDStrings(ids []*azcorearm.ResourceID) []string {
@@ -302,6 +291,112 @@ func resourceIDStrings(ids []*azcorearm.ResourceID) []string {
 	return out
 }
 
+func ficNames(ids []*azcorearm.ResourceID) []string {
+	out := make([]string, 0, len(ids))
+	for _, id := range ids {
+		out = append(out, id.Name)
+	}
+	return out
+}
+
+func buildTestOIDCFederationCluster(t *testing.T, serviceManagedIdentity *azcorearm.ResourceID, operators map[string]*azcorearm.ResourceID, opts ...func(*coreapi.HCPOpenShiftCluster)) *coreapi.HCPOpenShiftCluster {
+	t.Helper()
+	cluster := buildTestClusterWithIdentities(t, testClusterName, serviceManagedIdentity, operators)
+	cluster.ServiceProviderProperties.ClusterServiceID = buildTestClusterServiceID()
+	for _, opt := range opts {
+		opt(cluster)
+	}
+	return cluster
+}
+
+func buildTestOIDCFederationServiceProviderCluster(
+	federation map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus,
+	opts ...func(*coreapi.ServiceProviderCluster),
+) *coreapi.ServiceProviderCluster {
+	serviceProviderCluster := buildTestServiceProviderClusterWithIdentities(testClusterName, nil, nil)
+	if federation != nil {
+		copied := make(map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus, len(federation))
+		for key, status := range federation {
+			copied[key] = status.DeepCopy()
+		}
+		serviceProviderCluster.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation = copied
+	}
+	for _, opt := range opts {
+		opt(serviceProviderCluster)
+	}
+	return serviceProviderCluster
+}
+
+func withTestNoClusterServiceID(cluster *coreapi.HCPOpenShiftCluster) {
+	cluster.ServiceProviderProperties.ClusterServiceID = nil
+}
+
+func withTestClusterDeletionTimestamp(ts *metav1.Time) func(*coreapi.HCPOpenShiftCluster) {
+	return func(cluster *coreapi.HCPOpenShiftCluster) {
+		cluster.ServiceProviderProperties.DeletionTimestamp = ts
+	}
+}
+
+func withTestNilServiceManagedIdentity(cluster *coreapi.HCPOpenShiftCluster) {
+	cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity = nil
+}
+
+func withTestEarliestOIDCFederationRecheck(ts *metav1.Time) func(*coreapi.ServiceProviderCluster) {
+	return func(serviceProviderCluster *coreapi.ServiceProviderCluster) {
+		serviceProviderCluster.Spec.EarliestRecheckTimesByController = map[string]*metav1.Time{
+			DataPlaneOIDCFederationControllerName: ts,
+		}
+	}
+}
+
+func assertDataplaneOIDCFederationAssignments(
+	t *testing.T,
+	got, want map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus,
+) {
+	t.Helper()
+	if want == nil {
+		assert.Nil(t, got)
+		return
+	}
+	require.NotNil(t, got)
+	require.Len(t, got, len(want))
+	for key, wantStatus := range want {
+		require.Contains(t, got, key)
+		assertDataplaneOIDCFederationAssignmentStatus(t, got[key], wantStatus)
+	}
+}
+
+func assertDataplaneOIDCFederationAssignmentStatus(t *testing.T, got, want *coreapi.DataplaneOIDCFederationAssignmentStatus) {
+	t.Helper()
+	if want == nil {
+		assert.Nil(t, got)
+		return
+	}
+	require.NotNil(t, got)
+	assert.Equal(t, want.TargetIdentity, got.TargetIdentity)
+	if want.EnsuredIdentity == nil {
+		assert.Nil(t, got.EnsuredIdentity)
+	} else {
+		require.NotNil(t, got.EnsuredIdentity)
+		assert.Equal(t, *want.EnsuredIdentity, *got.EnsuredIdentity)
+	}
+	if want.DeconfigureTimestamp == nil {
+		assert.Nil(t, got.DeconfigureTimestamp)
+	} else {
+		require.NotNil(t, got.DeconfigureTimestamp)
+		assert.True(t, got.DeconfigureTimestamp.Time.Equal(want.DeconfigureTimestamp.Time))
+	}
+	assert.ElementsMatch(t, resourceIDStrings(want.AzureResources), resourceIDStrings(got.AzureResources))
+	assert.ElementsMatch(t, resourceIDStrings(want.PendingAzureResources), resourceIDStrings(got.PendingAzureResources))
+}
+
+func assertOIDCFederationRecheckScheduled(t *testing.T, serviceProviderCluster *coreapi.ServiceProviderCluster, now time.Time) {
+	t.Helper()
+	recheck := serviceProviderCluster.Spec.EarliestRecheckTimesByController[DataPlaneOIDCFederationControllerName]
+	require.NotNil(t, recheck)
+	assert.True(t, recheck.After(now))
+}
+
 func createdFICNames(calls []recordedFICCall) []string {
 	out := make([]string, 0, len(calls))
 	for _, call := range calls {
@@ -310,10 +405,10 @@ func createdFICNames(calls []recordedFICCall) []string {
 	return out
 }
 
-func matchingDiskCSIFICs(t *testing.T, identity *azcorearm.ResourceID) map[string]armmsi.FederatedIdentityCredential {
+func buildTestMatchingDiskCSIFICs(t *testing.T) map[string]armmsi.FederatedIdentityCredential {
 	t.Helper()
 	existing := map[string]armmsi.FederatedIdentityCredential{}
-	for _, sa := range diskCSIDriverServiceAccounts(t) {
+	for _, sa := range buildTestDiskCSIDriverServiceAccounts(t) {
 		name := federatedidentitycredential.GenerateFederatedIdentityCredentialName(testCSClusterID, testDiskCSIOperator, sa.Namespace, sa.Name)
 		existing[name] = armmsi.FederatedIdentityCredential{
 			Properties: &armmsi.FederatedIdentityCredentialProperties{
@@ -334,10 +429,10 @@ func derefStrings(values []*string) []string {
 	return out
 }
 
-// newTestClusterWithIdentities builds an HCPOpenShiftCluster addressable by the mock
+// buildTestClusterWithIdentities builds an HCPOpenShiftCluster addressable by the mock
 // ResourcesDBClient with the supplied ServiceManagedIdentity and data plane operator
 // identities on its CustomerProperties.
-func newTestClusterWithIdentities(t *testing.T, clusterName string, serviceManagedIdentity *azcorearm.ResourceID, dataPlaneOperators map[string]*azcorearm.ResourceID) *coreapi.HCPOpenShiftCluster {
+func buildTestClusterWithIdentities(t *testing.T, clusterName string, serviceManagedIdentity *azcorearm.ResourceID, dataPlaneOperators map[string]*azcorearm.ResourceID) *coreapi.HCPOpenShiftCluster {
 	t.Helper()
 
 	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
@@ -365,9 +460,9 @@ func newTestClusterWithIdentities(t *testing.T, clusterName string, serviceManag
 	return cluster
 }
 
-// newTestServiceProviderClusterWithIdentities builds a ServiceProviderCluster addressable
+// buildTestServiceProviderClusterWithIdentities builds a ServiceProviderCluster addressable
 // by the mock ResourcesDBClient with the supplied resolved identities and recheck time.
-func newTestServiceProviderClusterWithIdentities(clusterName string, identities map[string]*coreapi.ServiceProviderClusterDataPlaneOperatorManagedIdentity, _ *metav1.Time) *coreapi.ServiceProviderCluster {
+func buildTestServiceProviderClusterWithIdentities(clusterName string, identities map[string]*coreapi.ServiceProviderClusterDataPlaneOperatorManagedIdentity, _ *metav1.Time) *coreapi.ServiceProviderCluster {
 	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + testSubscriptionID +
 			"/resourceGroups/" + testResourceGroupName +

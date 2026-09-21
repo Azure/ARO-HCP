@@ -132,69 +132,49 @@ func TestExtraDeleteGateShouldDeleteServiceProviderClusterOIDCFederation(t *test
 
 	testCases := []struct {
 		name               string
-		federation         map[string]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus
+		federation         map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus
 		expectShouldDelete bool
 	}{
 		{
 			name: "azure resources remaining blocks deletion",
-			federation: map[string]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
-				keyA: {
-					Operators: map[string]*coreapi.DataplaneOIDCFederationOperatorStatus{
-						"azure-disk-csi-driver-operator": {
-							AzureResources: []*azcorearm.ResourceID{federatedIdentityCredentialA},
-						},
-					},
+			federation: map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus{
+				{IdentityResourceID: keyA, OperatorName: "azure-disk-csi-driver-operator"}: {
+					AzureResources: []*azcorearm.ResourceID{federatedIdentityCredentialA},
 				},
 			},
 			expectShouldDelete: false,
 		},
 		{
 			name: "pending azure resources remaining blocks deletion",
-			federation: map[string]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
-				keyA: {
-					Operators: map[string]*coreapi.DataplaneOIDCFederationOperatorStatus{
-						"azure-disk-csi-driver-operator": {
-							PendingAzureResources: []*azcorearm.ResourceID{federatedIdentityCredentialA},
-						},
-					},
+			federation: map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus{
+				{IdentityResourceID: keyA, OperatorName: "azure-disk-csi-driver-operator"}: {
+					PendingAzureResources: []*azcorearm.ResourceID{federatedIdentityCredentialA},
 				},
 			},
 			expectShouldDelete: false,
 		},
 		{
 			name: "remaining resources on one identity blocks deletion",
-			federation: map[string]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
-				keyA: {},
-				keyB: {
-					Operators: map[string]*coreapi.DataplaneOIDCFederationOperatorStatus{
-						"azure-disk-csi-driver-operator": {
-							AzureResources: []*azcorearm.ResourceID{federatedIdentityCredentialB},
-						},
-					},
+			federation: map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus{
+				{IdentityResourceID: keyB, OperatorName: "azure-disk-csi-driver-operator"}: {
+					AzureResources: []*azcorearm.ResourceID{federatedIdentityCredentialB},
 				},
 			},
 			expectShouldDelete: false,
 		},
 		{
 			name: "empty resource slices allow deletion",
-			federation: map[string]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
-				keyA: {
-					Operators: map[string]*coreapi.DataplaneOIDCFederationOperatorStatus{
-						"azure-disk-csi-driver-operator": {
-							AzureResources:        []*azcorearm.ResourceID{},
-							PendingAzureResources: []*azcorearm.ResourceID{},
-						},
-					},
+			federation: map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus{
+				{IdentityResourceID: keyA, OperatorName: "azure-disk-csi-driver-operator"}: {
+					AzureResources:        []*azcorearm.ResourceID{},
+					PendingAzureResources: []*azcorearm.ResourceID{},
 				},
 			},
 			expectShouldDelete: true,
 		},
 		{
-			name: "deconfigured identities with no remaining resources allow deletion",
-			federation: map[string]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
-				keyA: {},
-				keyB: {},
-			},
+			name:               "deconfigured identities with no remaining resources allow deletion",
+			federation:         map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus{},
 			expectShouldDelete: true,
 		},
 	}
