@@ -101,6 +101,11 @@ func TestBackendExposesMetrics(t *testing.T) {
 		_, err = resourcesDBClient.Operations(clusterResourceID.SubscriptionID).Create(ctx, operation, nil)
 		require.NoError(t, err)
 
+		externalAuthResourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1/externalAuths/ea-1"))
+		eaOperation := newMetricsTestOperation(t, externalAuthResourceID.SubscriptionID, "op-ea-1", externalAuthResourceID, coreapi.OperationRequestCreate, coreapi.ProvisioningStateSucceeded, now, now)
+		_, err = resourcesDBClient.Operations(externalAuthResourceID.SubscriptionID).Create(ctx, eaOperation, nil)
+		require.NoError(t, err)
+
 		cloudEnvironment, err := azureconfig.NewAzureCloudEnvironment(apisconfigv1.AzurePublicCloud, nil)
 		require.NoError(t, err)
 
@@ -152,6 +157,10 @@ func TestBackendExposesMetrics(t *testing.T) {
 			strings.ToLower(clusterResourceID.ResourceType.String()),
 			strings.ToLower(operation.ExternalID.SubscriptionID),
 		)
+		operationDurationMetricLine := fmt.Sprintf(
+			`backend_resource_operation_duration_seconds_count{operation_type="create",resource_type="%s",result="succeeded"}`,
+			strings.ToLower(externalAuthResourceID.ResourceType.String()),
+		)
 
 		require.Eventually(t, func() bool {
 			body, err := fetchMetricsBody(ctx, metricsURL)
@@ -159,7 +168,8 @@ func TestBackendExposesMetrics(t *testing.T) {
 				return false
 			}
 			return strings.Contains(body, clusterMetricLine) &&
-				strings.Contains(body, operationMetricLine)
+				strings.Contains(body, operationMetricLine) &&
+				strings.Contains(body, operationDurationMetricLine)
 		}, 10*time.Second, 100*time.Millisecond)
 	})
 }
