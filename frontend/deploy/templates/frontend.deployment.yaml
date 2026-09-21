@@ -61,6 +61,8 @@ spec:
               key: LOCATION
         - name: AUDIT_CONNECT_SOCKET
           value: "{{ .Values.audit.connectSocket }}"
+        - name: AUDIT_SERVICE_TREE_ID
+          value: "{{ .Values.audit.serviceTreeId }}"
         - name: AZURE_TOKEN_CREDENTIALS
           value: "WorkloadIdentityCredential"
         ports:
