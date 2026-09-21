@@ -1148,6 +1148,11 @@
     "tenantId": {
       "type": "string"
     },
+    "serviceTreeId": {
+      "type": "string",
+      "description": "Official Service Tree for ARO",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+    },
     "cloud": {
       "type": "string"
     },
@@ -3985,6 +3990,7 @@
     "region",
     "regionRG",
     "serviceKeyVault",
+    "serviceTreeId",
     "sessiongate",
     "svc",
     "msiRp",

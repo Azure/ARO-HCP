@@ -23,7 +23,8 @@ import (
 	"os"
 
 	"github.com/go-logr/logr"
-	"github.com/microsoft/go-otel-audit/audit/base"
+	"github.com/google/uuid"
+	otelaudit "github.com/microsoft/go-otel-audit/audit"
 	"github.com/spf13/cobra"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel"
@@ -39,8 +40,7 @@ import (
 	sdk "github.com/openshift-online/ocm-sdk-go"
 
 	"github.com/Azure/ARO-HCP/frontend/pkg/frontend"
-	"github.com/Azure/ARO-HCP/internal/api/coreapi"
-	"github.com/Azure/ARO-HCP/internal/audit"
+	auditclient "github.com/Azure/ARO-HCP/internal/audit/otelaudit"
 	"github.com/Azure/ARO-HCP/internal/azsdk"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -51,8 +51,10 @@ import (
 )
 
 type FrontendOpts struct {
-	auditLogQueueSize  int
-	auditConnectSocket bool
+	auditLogQueueSize        int
+	auditConnectSocket       bool
+	auditServiceTreeID       string
+	parsedAuditServiceTreeID uuid.UUID
 
 	clustersServiceURL string
 	insecure           bool
@@ -90,6 +92,7 @@ func NewRootCmd() *cobra.Command {
 
 	rootCmd.Flags().IntVar(&opts.auditLogQueueSize, "audit-log-queue-size", 2048, "Log Queue size for audit logging client")
 	rootCmd.Flags().BoolVar(&opts.auditConnectSocket, "audit-connect-socket", os.Getenv("AUDIT_CONNECT_SOCKET") == "true", "Connect to mdsd audit socket instead")
+	rootCmd.Flags().StringVar(&opts.auditServiceTreeID, "audit-service-tree-id", os.Getenv("AUDIT_SERVICE_TREE_ID"), "Service Tree UUID for audit logging; zero UUID is allowed only when forwarding is disabled")
 
 	rootCmd.Flags().StringVar(&opts.cosmosName, "cosmos-name", os.Getenv("DB_NAME"), "Cosmos database name")
 	rootCmd.Flags().StringVar(&opts.cosmosURL, "cosmos-url", os.Getenv("DB_URL"), "Cosmos database URL")
@@ -117,28 +120,6 @@ func NewFrontendOpts() *FrontendOpts {
 	}
 }
 
-type PolicyFunc func(*policy.Request) (*http.Response, error)
-
-func (pf PolicyFunc) Do(req *policy.Request) (*http.Response, error) {
-	return pf(req)
-}
-
-// Verify that PolicyFunc implements the policy.Policy interface.
-var _ policy.Policy = PolicyFunc(nil)
-
-// CorrelationIDPolicy adds the ARM correlation request ID to the request's
-// HTTP headers if the ID is found in the context.
-func CorrelationIDPolicy(req *policy.Request) (*http.Response, error) {
-	cd, err := frontend.CorrelationDataFromContext(req.Raw().Context())
-	// The incoming request may not contain a correlation request ID (e.g.
-	// requests to /healthz).
-	if err == nil && cd.CorrelationRequestID != "" {
-		req.Raw().Header.Set(coreapi.HeaderNameCorrelationRequestID, cd.CorrelationRequestID)
-	}
-
-	return req.Next()
-}
-
 func (opts *FrontendOpts) Validate() error {
 	if len(opts.location) == 0 {
 		return utils.TrackError(fmt.Errorf("--location is required"))
@@ -147,6 +128,15 @@ func (opts *FrontendOpts) Validate() error {
 	if opts.logVerbosity < 0 {
 		return utils.TrackError(fmt.Errorf("--log-verbosity must be a value >= 0"))
 	}
+
+	serviceTreeID, err := uuid.Parse(opts.auditServiceTreeID)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("--audit-service-tree-id must be a UUID: %w", err))
+	}
+	if opts.auditConnectSocket && serviceTreeID == uuid.Nil {
+		return utils.TrackError(fmt.Errorf("--audit-service-tree-id must be nonzero when audit forwarding is enabled"))
+	}
+	opts.parsedAuditServiceTreeID = serviceTreeID
 
 	return nil
 }
@@ -179,14 +169,13 @@ func (opts *FrontendOpts) Run() error {
 	slogLogger := slog.New(logr.ToSlogHandler(logger))
 
 	// Create audit log client.
-	auditClient, err := audit.NewOtelAuditClient(
+	auditClient, err := auditclient.NewOtelAuditClient(
 		ctx,
-		audit.CreateConn(opts.auditConnectSocket),
+		opts.auditConnectSocket,
+		opts.parsedAuditServiceTreeID,
 		legacyregistry.Registerer(),
-		base.WithLogger(slogLogger),
-		base.WithSettings(base.Settings{
-			QueueSize: opts.auditLogQueueSize,
-		}),
+		otelaudit.WithLogger(slogLogger),
+		otelaudit.WithQueueSize(opts.auditLogQueueSize),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create audit client: %w", err)
@@ -208,7 +197,7 @@ func (opts *FrontendOpts) Run() error {
 	clientOpts := azsdk.NewClientOptions(azsdk.ComponentFrontend)
 	// FIXME Cloud should be determined by other means.
 	clientOpts.Cloud = cloud.AzurePublic
-	clientOpts.PerCallPolicies = []policy.Policy{PolicyFunc(CorrelationIDPolicy)}
+	clientOpts.PerCallPolicies = []policy.Policy{frontend.PolicyFunc(frontend.CorrelationIDPolicy)}
 	clientOpts.TracingProvider = azotel.NewTracingProvider(otel.GetTracerProvider(), nil)
 	cosmosDatabaseClient, err := corecosmosstorage.NewCosmosDatabaseClient(
 		opts.cosmosURL,

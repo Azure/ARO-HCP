@@ -137,6 +137,8 @@ spec:
           value: ""
         - name: AUDIT_CONNECT_SOCKET
           value: "true"
+        - name: AUDIT_SERVICE_TREE_ID
+          value: "00000000-0000-0000-0000-000000000000"
         - name: AZURE_TOKEN_CREDENTIALS
           value: "WorkloadIdentityCredential"
         ports:

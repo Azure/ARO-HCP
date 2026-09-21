@@ -27,7 +27,6 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/go-logr/logr/testr"
-	"github.com/microsoft/go-otel-audit/audit/base"
 	"github.com/microsoft/go-otel-audit/audit/msgs"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/goleak"
@@ -295,7 +294,7 @@ func MarkOperationsCompleteForName(ctx context.Context, resourcesDBClient coreco
 
 type FakeOTELClient struct{}
 
-func (t *FakeOTELClient) Send(ctx context.Context, msg msgs.Msg, options ...base.SendOption) error {
+func (t *FakeOTELClient) Send(ctx context.Context, msg msgs.Msg) error {
 	logger := utils.LoggerFromContext(ctx)
 	logger.Info("Sending message", "msg", msg)
 	return nil

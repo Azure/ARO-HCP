@@ -39,6 +39,7 @@ tracing:
   exporter: "{{ .frontend.tracing.exporter }}"
 audit:
   connectSocket: {{ .frontend.audit.connectSocket }}
+  serviceTreeId: "{{ .serviceTreeId }}"
 adminApi:
   namespace: "{{ .adminApi.k8s.namespace }}"
   serviceAccount: "{{ .adminApi.k8s.serviceAccountName }}"
