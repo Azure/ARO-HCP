@@ -17,6 +17,9 @@ package frontend
 import (
 	"context"
 	"fmt"
+	"net/http"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 )
@@ -133,6 +136,28 @@ func CorrelationDataFromContext(ctx context.Context) (*coreapi.CorrelationData, 
 		return correlationData, err
 	}
 	return correlationData, nil
+}
+
+type PolicyFunc func(*policy.Request) (*http.Response, error)
+
+func (pf PolicyFunc) Do(req *policy.Request) (*http.Response, error) {
+	return pf(req)
+}
+
+// Verify that PolicyFunc implements the policy.Policy interface.
+var _ policy.Policy = PolicyFunc(nil)
+
+// CorrelationIDPolicy adds the ARM correlation request ID to the request's
+// HTTP headers if the ID is found in the context.
+func CorrelationIDPolicy(req *policy.Request) (*http.Response, error) {
+	cd, err := CorrelationDataFromContext(req.Raw().Context())
+	// The incoming request may not contain a correlation request ID (e.g.
+	// requests to /healthz).
+	if err == nil && cd.CorrelationRequestID != "" {
+		req.Raw().Header.Set(coreapi.HeaderNameCorrelationRequestID, cd.CorrelationRequestID)
+	}
+
+	return req.Next()
 }
 
 func ContextWithSystemData(ctx context.Context, systemData *coreapi.SystemData) context.Context {
