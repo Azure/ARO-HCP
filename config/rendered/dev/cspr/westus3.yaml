@@ -1,12 +1,12 @@
 acm:
   mce:
     bundle:
-      digest: sha256:d47eb7185efec0efb3b369e80ea0612394a46d9e87dbb1f7424ae3a564c976a6
+      digest: sha256:ba3e28484030545573e3e1b0e9e422cef133ec197b66b034008634d449106748
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-211
   operator:
     bundle:
-      digest: sha256:c8a3ecddafcc71fcc5d56d09ceed198f269bd112e86e646548983f9406bfc169
+      digest: sha256:22619fbb52bcef996c40a45009abbe6706b24289fea22485603500bc6ee70df5
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-216
 acr:
@@ -187,7 +187,7 @@ clustersService:
   deployDebugJobs: false
   environment: arohcpcspr
   image:
-    digest: sha256:ba095cc5b8a62b766089d1df19162dbb6585a2597ebc7eb5c921a25faa97c93d
+    digest: sha256:ea75b70cae009f8d77d8d0857f7bdb011ff55c9f867c121962849dec25da3867
     registry: quay.io
     repository: app-sre/aro-hcp-clusters-service
   k8s:
@@ -490,7 +490,7 @@ hcpRecovery:
 hypershift:
   additionalInstallArg: --enable-cpo-overrides --disable-capi-migration
   image:
-    digest: sha256:0daee271276923d8ecab324963c6ad530bcd0135ce33ece7ec90bfe3962f694c
+    digest: sha256:ee8f9636de436c9800eb46fb1684be9dc9fb36374a20a808c769686873b69723
     registry: quay.io
     repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
   limitClusterSizes: true
@@ -542,7 +542,7 @@ kubeApplier:
 kubeEvents:
   enabled: true
   image:
-    digest: sha256:5177425b194b5d289664c62bedbdc95a42605bbfcde48fc7ddbb31bee0194b90
+    digest: sha256:7246ca0f71c274f1fff5c944a8dc4c4663fe7a8ee4cdff206fdab7b5f836da2e
     registry: kubernetesshared.azurecr.io
     repository: shared/kube-events
   k8s:
@@ -1067,7 +1067,7 @@ svc:
   istio:
     ingressGatewayIPAddressIPTags: ""
     ingressGatewayIPAddressName: aro-hcp-istio-ingress
-    istioctlVersion: 1.31.0
+    istioctlVersion: 1.31.1
     tag: prod-stable
     targetVersion: asm-1-29
     versions: asm-1-29
@@ -1180,15 +1180,15 @@ swiftRecorder:
 tenantId: 64dc69e4-d083-49fc-9569-ebece1dd1408
 velero:
   azurePlugin:
-    digest: sha256:2ed74e66ca3f6131458978800d24da7fd9bc5f24ea0c674df252213b03c76149
+    digest: sha256:503d6342c590c430e1311090b11351dbd8776c2f02c84ffa6e3b19d7f02187be
     registry: registry.stage.redhat.io
     repository: oadp/oadp-velero-plugin-for-microsoft-azure-rhel9
   enableInstantAccess: true
   hypershiftPlugin:
-    digest: sha256:531574386b5948af1337843968654e237eaf6ea6d4328c11c05fcd88912ea8e2
+    digest: sha256:fa29fe80b67f5ff80b89b51f0ca039f7b9b7fb6d66fa9ef124e8ddf2a29c2bd6
     registry: registry.stage.redhat.io
     repository: oadp/oadp-hypershift-velero-plugin-rhel9
   server:
-    digest: sha256:6e08a521f90854ec445d58f96a03dd67c1baaacbddc73b281eb075a3e56c8226
+    digest: sha256:a6de7988701b0759bb4f29d28d229a0b427c5d2c25653bfed59c0a1a18ad4280
     registry: registry.stage.redhat.io
     repository: oadp/oadp-velero-rhel9
