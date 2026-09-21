@@ -1694,3 +1694,44 @@ resource arohcpBackupSloMetricsAbsentAlerts 'Microsoft.AlertsManagement/promethe
     ]
   }
 }
+
+resource arohcpCertificateRotationAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_certificate_rotation_alerts'
+  location: location
+  properties: {
+    interval: 'PT1H'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'CertificateRotationFailure'
+        enabled: true
+        labels: {
+          component: 'certificate-rotation'
+          severity: '3'
+        }
+        annotations: {
+          correlationId: 'CertificateRotationFailure/{{ $labels.cluster }}/{{ $labels.certificate_name }}/{{ $labels.key_vault }}/{{ $labels.region }}'
+          description: 'Certificate \'{{ $labels.certificate_name }}\' in Key Vault \'{{ $labels.key_vault }}\' ({{ $labels.region }}) exceeded the rotation safety threshold. Current lifetime: {{ $value | humanizePercentage }}. Safety threshold: 65%. Expected rotation: 50%.'
+          info: 'Certificate \'{{ $labels.certificate_name }}\' in Key Vault \'{{ $labels.key_vault }}\' ({{ $labels.region }}) exceeded the rotation safety threshold. Current lifetime: {{ $value | humanizePercentage }}. Safety threshold: 65%. Expected rotation: 50%.'
+          runbook_url: 'TBD'
+          summary: '{{ $labels.region }}/{{ $labels.key_vault }}: Certificate {{ $labels.certificate_name }} rotation is overdue'
+          title: '{{ $labels.region }}/{{ $labels.key_vault }}: Certificate {{ $labels.certificate_name }} rotation is overdue'
+        }
+        expression: '((time() - max by (cluster, environment, region, key_vault, certificate_name) (keyvault_certificate_not_before_timestamp_seconds)) / (max by (cluster, environment, region, key_vault, certificate_name) (keyvault_certificate_not_after_timestamp_seconds) - max by (cluster, environment, region, key_vault, certificate_name) (keyvault_certificate_not_before_timestamp_seconds))) > 0.65 and on (cluster, environment, region, key_vault, certificate_name) max by (cluster, environment, region, key_vault, certificate_name) (keyvault_certificate_not_after_timestamp_seconds) > max by (cluster, environment, region, key_vault, certificate_name) (keyvault_certificate_not_before_timestamp_seconds)'
+        for: 'PT1H'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
