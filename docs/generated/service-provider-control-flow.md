@@ -538,6 +538,8 @@ transitively deletes all clusters (and their children) via transactional batches
 
 ### PUT Cluster (Create)
 
+Admission sets `Cluster.ServiceProviderProperties.ExperimentalFeatures.BackupScheduleOverride` to `Enabled` when the experimental AFEC is registered and `aro-hcp.experimental.cluster.backup-schedule-override=Enabled` is present; otherwise it is unset (other non-empty values are rejected when gated on).
+
 **Path:** `PUT .../hcpOpenShiftClusters/{name}` (resource does not exist)
 **Handler:** `createHCPCluster` ([cluster.go](../../frontend/pkg/frontend/cluster.go))
 **Write method:** Transactional batch (`AddCreateToTransaction` x2)
@@ -567,6 +569,8 @@ admin-owned override and takes precedence during assignment and completion.
 
 ### PUT Cluster (Update)
 
+Admission re-derives `Cluster.ServiceProviderProperties.ExperimentalFeatures.BackupScheduleOverride` from the AFEC-gated `aro-hcp.experimental.cluster.backup-schedule-override` tag. Only `Enabled` or empty is accepted; removing the tag or AFEC clears the override.
+
 **Path:** `PUT .../hcpOpenShiftClusters/{name}` (resource exists)
 **Handler:** `updateHCPClusterInCosmos` ([cluster.go](../../frontend/pkg/frontend/cluster.go))
 **Write method:** Transactional batch (`AddCreateToTransaction` + `AddReplaceToTransaction`)
@@ -579,6 +583,8 @@ admin-owned override and takes precedence during assignment and completion.
 ---
 
 ### PATCH Cluster (Update)
+
+Admission re-derives `Cluster.ServiceProviderProperties.ExperimentalFeatures.BackupScheduleOverride` from the AFEC-gated `aro-hcp.experimental.cluster.backup-schedule-override` tag. Only `Enabled` or empty is accepted; removing the tag or AFEC clears the override.
 
 **Path:** `PATCH .../hcpOpenShiftClusters/{name}`
 **Handler:** `updateHCPClusterInCosmos` ([cluster.go](../../frontend/pkg/frontend/cluster.go))
@@ -1432,9 +1438,9 @@ For normal schedule reconciliation, Cluster `ResourceID`, provider placement, an
 
 | | Object | Fields |
 |---|--------|--------|
-| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (normal reconciliation: must be nil)</li><li>`ServiceProviderProperties.BillingDocumentCosmosID` (normal reconciliation: must be non-empty)</li><li>`ResourceID` (required; backup annotation)</li><li>`CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.ActiveKey.Version` (enables observing the HostedCluster key fingerprint)</li></ul> |
+| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (normal reconciliation: must be nil)</li><li>`ServiceProviderProperties.BillingDocumentCosmosID` (normal reconciliation: must be non-empty)</li><li>`ServiceProviderProperties.ExperimentalFeatures.BackupScheduleOverride` (lifts only the deployment-wide pause when `Enabled`)</li><li>`ResourceID` (required; backup annotation)</li><li>`CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.ActiveKey.Version` (enables observing the HostedCluster key fingerprint)</li></ul> |
 | Read | `ServiceProviderCluster` | <ul><li>`Spec.BackupScheduleState` (determines whether per-cluster schedules are paused)</li><li>`Status.ManagementClusterResourceID` (SyncOnce: must not be nil)</li></ul> |
-| **Write** | `ApplyDesire` (kube-applier DB) | <ul><li>Creates/replaces one Velero `Schedule` ApplyDesire per configured backup schedule; sets `Spec.Paused` based on global pause config or `Spec.BackupScheduleState == Disabled`</li></ul> |
+| **Write** | `ApplyDesire` (kube-applier DB) | <ul><li>Creates/replaces one Velero `Schedule` ApplyDesire per configured backup schedule; sets `Spec.Paused` to `clusterState == Disabled || (globalState == Disabled && override != Enabled)`</li></ul> |
 | **Write** | `ReadDesire` (kube-applier DB) | <ul><li>Creates/replaces one ReadDesire per schedule to observe `Schedule` status on the management cluster</li></ul> |
 
 No writes to the Cosmos Resources container.
@@ -1674,7 +1680,7 @@ An observation-only domain controller: it never PATCHes Cluster Service. Runs wh
 
 [Source](../../backend/pkg/controllers/cluster/backups/schedule_controller.go) · **Trigger:** Cluster and mirrored reads; 5m.
 
-Uses `Spec.BackupScheduleState`, placement and namespaces to reconcile Velero schedule ApplyDesires and observed status. Handles pause and deletion; kube-applier performs the Kubernetes writes. Default retention is two days for six-hourly backups, 30 days for daily backups and 90 days for weekly backups; [configuration](../../backend/pkg/controllers/cluster/backups/config.go) also supports a short-retention mode.
+Uses `ServiceProviderCluster.Spec.BackupScheduleState`, placement and namespaces to reconcile Velero schedule ApplyDesires and observed status. Handles pause and deletion; kube-applier performs the Kubernetes writes. Each Schedule's `spec.paused` comes from three levers, resolved by [`BackupConfig.SchedulePaused`](../../backend/pkg/controllers/cluster/backups/config.go) as `clusterState == Disabled || (globalState == Disabled && override != Enabled)`: the per-cluster admin API pause `ServiceProviderCluster.Spec.BackupScheduleState` always wins, the deployment-wide `--backup-schedule-state` pauses everything below it, and the experimental `Cluster.ServiceProviderProperties.ExperimentalFeatures.BackupScheduleOverride` lifts only the deployment-wide pause for a single cluster. Default retention is two days for six-hourly backups, 30 days for daily backups and 90 days for weekly backups; [configuration](../../backend/pkg/controllers/cluster/backups/config.go) also supports a short-retention mode.
 
 #### KeyRotationBackup
 
@@ -3140,6 +3146,7 @@ actors and use optimistic concurrency; retries must re-read on conflict.
 | External-auth provider and health fields | [CreateServiceProviderExternalAuth](#createserviceproviderexternalauth) creates the `default` provider singleton. [ExternalAuthOIDCClientsDegradedController](#externalauthoidcclientsdegradedcontroller) writes its `Status.Conditions[OIDCClientsDegraded]`; the [user-facing aggregator](#externalauthuserfacingdegradedaggregator) writes ExternalAuth `Status.UserFacingConditions[Degraded]`. [ExternalAuthDegradedAggregator](#externalauthdegradedaggregator) independently writes internal `Status.Conditions[Degraded]` from Controller status. [Child cleanup](#externalauthchildresourcescleanupcontroller) deletes the provider singleton; neither health field gates create/update operation completion. |
 | Service-provider cluster `Spec.ControlPlaneVersion.DesiredVersion` / `DesiredVersionLastTransitionTime` | [Initial assignment](#initialnormalclusterdesiredversion), [minor-version assignment](#minorupgradenormalclusterdesiredversion), [normal rollout](#zstreamprogressivedesiredversionrollout) and [forced assignment](#forcedclusterdesiredversion) write the target and transition time. Initial assignment also backfills a missing/zero time without changing the target. Cluster creation, upgrade dispatch and operation completion consume desired state; it is not an observed version. |
 | Cluster `ServiceProviderProperties.ExperimentalFeatures.ZStreamUpdatePolicy` | Frontend admission projects the AFEC-gated `aro-hcp.experimental.cluster.z-stream-update-policy` tag; its only valid value is `Immediate`. Removing the tag or AFEC clears the policy. [Forced assignment](#forcedclusterdesiredversion) follows the desired channel's best z-stream without progressive gates, after pins and exact overrides. |
+| Cluster `ServiceProviderProperties.ExperimentalFeatures.BackupScheduleOverride` | Frontend admission projects the AFEC-gated `aro-hcp.experimental.cluster.backup-schedule-override` tag; its only valid value is `Enabled`. Removing the tag or AFEC clears the override. [BackupSchedule](#backupschedule) uses it to lift the deployment-wide `--backup-schedule-state` pause for one cluster so a single test can opt into active backups; it cannot pause a cluster and it never defeats the admin API pause. |
 | Service-provider cluster `Spec.PinnedVersion` | [Admin API ControlPlaneVersionPin](#admin-api-post-controlplaneversionpin) and [FleetControlPlaneVersionPin](#admin-api-post-fleetcontrolplaneversionpin) set `ExactVersion` and optional `UntilExactVersion`; sending a nil `ExactVersion` clears the pin. [Forced assignment](#forcedclusterdesiredversion) also clears the pin once channel best reaches the release threshold. Pins precede experimental exact versions and normal assignment. |
 | Fleet `ControlPlaneVersionRollout.Spec.Version.{ID,ChannelGroup}` | [Seeding](#controlplaneversionrolloutseeding) sets the profile on creation. Shared Cosmos conversion fills absent/zero legacy profiles on read; [migration](#cosmosrolloutversionmigration) and ordinary rollout replacements persist them. Consumers still parse channel names. |
 | Fleet `ControlPlaneVersionRollout.Spec.BestExactVersion` | [Seeding](#controlplaneversionrolloutseeding) creates requested/pinned channel documents without a best version. [Best selection](#controlplaneversionbestversionselection) owns the target; assignment controllers consume it. |
@@ -3158,7 +3165,7 @@ actors and use optimistic concurrency; retries must re-read on conflict.
 | `Status.MSIManagedIdentities`, `Status.DataPlaneOperatorsManagedIdentities`, `Status.ManagedIdentityDetails` | [FetchMSIIdentitiesInfo](#fetchmsiidentitiesinfo) and [FetchDataPlaneOperatorsManagedIdentitiesInfo](#fetchdataplaneoperatorsmanagedidentitiesinfo) write resolved IDs and errors for deny assignments, role assignments, and identity-property synchronization. [FetchManagedIdentitiesInfo](#fetchmanagedidentitiesinfo) writes `Status.ManagedIdentityDetails` by lowercased resource ID, including per-source metadata. `Spec.EarliestRecheckTimesByController` has independently owned entries for these identity controllers and role assignments; deny assignments keep their own `EarliestRecheckTime` under `Status.AzureResources.DenyAssignments`. |
 | `Status.Validations` | Each registered validation writes its own condition in the service-provider cluster or node pool; requirements aggregators consume the set. |
 | ServiceProviderCluster `Status.HostedClusterNamespace`, `ControlPlaneNamespace`, `ServingCABundle` | [ServiceProviderClusterPropertiesSync](#serviceproviderclusterpropertiessync) derives namespaces from mirrored HostedCluster identity and copies nonempty serving-CA content, retaining an old bundle when content is absent. Credentials and create-operation completion wait on them. |
-| ServiceProviderCluster `Spec.BackupScheduleState` | Admin backup PATCH writes Enabled/Disabled; [BackupSchedule](#backupschedule) reconciles Velero intent. Mirrored Kubernetes status reports results separately. |
+| ServiceProviderCluster `Spec.BackupScheduleState` | Admin backup PATCH writes Enabled/Disabled; [BackupSchedule](#backupschedule) reconciles Velero intent. It is the highest-precedence pause lever: neither the deployment-wide `--backup-schedule-state` nor the experimental override can resume a cluster paused here. Mirrored Kubernetes status reports results separately. |
 | Velero deletion intent | [BackupCleanup](#backupcleanup) SSA-applies `DeleteBackupRequest.spec.backupName` and retries its processed requests; Velero owns request status and Backup/data deletion. Backup/repository opt-outs do not cancel issued requests or Velero TTL. |
 | Repository cleanup intent / protection / status | [RepositoryCleanup](#repositorycleanup) owns its repository finalizer, immutable `BackupRepositoryCleanup.spec` and intent finalizer, and `status.conditions[Complete]` through separate SSA managers. No owner reference ties the cleanup CR to the repository. Completed tombstones remain monitored; explicit removal requires fresh verification. No Cosmos field records cleanup completion. |
 | Kubernetes PVC `metadata.finalizers` | External snapshot controller owns the normal source-protection lifecycle. Management-agent [SnapshotPVCFinalizerCleanupController](#snapshotpvcfinalizercleanupcontroller) removes only `snapshot.storage.kubernetes.io/pvc-as-source-protection` from a deleting PVC in any namespace when cached and live snapshot checks show no references; other finalizers remain under their respective owners. This Kubernetes update has no Cosmos field or direct ARM-operation write. |
