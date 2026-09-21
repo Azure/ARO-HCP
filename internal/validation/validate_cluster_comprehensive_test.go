@@ -111,9 +111,9 @@ func TestValidateClusterCreate(t *testing.T) {
 			},
 		},
 		{
-			// The reported incident reproduces with a mis-cased name too: it satisfies the
-			// case-insensitive requirement check, but the backend looks operators up by exact
-			// name, so the create is accepted and then stalls.
+			// The reported incident reproduces with a mis-cased name too: the backend looks
+			// operators up by exact name, so "KMS" is both an unrecognized name and leaves the
+			// required "kms" identity missing.
 			name: "mis-cased control plane operator name - create",
 			cluster: func() *coreapi.HCPOpenShiftCluster {
 				c := createValidCluster()
@@ -124,11 +124,11 @@ func TestValidateClusterCreate(t *testing.T) {
 			}(),
 			expectErrors: []utils.ExpectedError{
 				{Message: "unrecognized operator name", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[KMS]"},
+				{Message: `a user-assigned identity for the "kms" control plane operator is required`, FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[kms]"},
 			},
 		},
 		{
-			// Both keys collapse to "kms" in the case-insensitive lookup, so without preferring the
-			// supplied identity the required-identity error depends on map iteration order.
+			// A key present but explicitly nil does not count as supplied.
 			name: "control plane operator name supplied in two cases - create",
 			cluster: func() *coreapi.HCPOpenShiftCluster {
 				c := createValidCluster()
@@ -139,6 +139,7 @@ func TestValidateClusterCreate(t *testing.T) {
 			}(),
 			expectErrors: []utils.ExpectedError{
 				{Message: "unrecognized operator name", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[KMS]"},
+				{Message: `a user-assigned identity for the "kms" control plane operator is required`, FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[kms]"},
 			},
 		},
 		{

@@ -319,8 +319,8 @@ func validateRequiredOperatorIdentities(_ context.Context, _ operation.Operation
 	}
 
 	userAssignedIdentities := newCluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities
-	controlPlaneSupplied := operatorIdentitiesByLowercaseName(userAssignedIdentities.ControlPlaneOperators)
-	dataPlaneSupplied := operatorIdentitiesByLowercaseName(userAssignedIdentities.DataPlaneOperators)
+	controlPlaneSupplied := userAssignedIdentities.ControlPlaneOperators
+	dataPlaneSupplied := userAssignedIdentities.DataPlaneOperators
 
 	basePath := field.NewPath("customerProperties", "platform", "operatorsAuthentication", "userAssignedIdentities")
 	controlPlanePath := basePath.Child("controlPlaneOperators")
@@ -373,8 +373,7 @@ func validateRequiredOperatorIdentities(_ context.Context, _ operation.Operation
 //
 // The backend indexes operators by exact name, so a mis-cased or misspelled key is accepted at
 // create time and then fails asynchronously -- the same silent failure this validation exists to
-// prevent. Matching is therefore exact, unlike the requirement check, which stays case-insensitive
-// so that a mis-cased key reports one clear error rather than two.
+// prevent. Matching is therefore exact.
 func validateOperatorIdentityNames(_ context.Context, _ operation.Operation, newCluster, _ *coreapi.HCPOpenShiftCluster) field.ErrorList {
 	userAssignedIdentities := newCluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities
 	basePath := field.NewPath("customerProperties", "platform", "operatorsAuthentication", "userAssignedIdentities")
@@ -439,24 +438,8 @@ func unrecognizedOperatorNameErrors(supplied map[string]*azcorearm.ResourceID, f
 	return errs
 }
 
-// operatorIdentitiesByLowercaseName rekeys operator identities so lookups are case-insensitive,
-// consistent with the resource ID comparisons in validateOperatorAuthenticationAgainstIdentities.
-func operatorIdentitiesByLowercaseName(operators map[string]*azcorearm.ResourceID) map[string]*azcorearm.ResourceID {
-	byLowercaseName := make(map[string]*azcorearm.ResourceID, len(operators))
-	for operatorName, identity := range operators {
-		lowercaseName := strings.ToLower(operatorName)
-		// Keys differing only in case collapse together here, so keep any supplied identity rather
-		// than letting map iteration order decide whether the operator counts as supplied.
-		if existing, ok := byLowercaseName[lowercaseName]; ok && existing != nil {
-			continue
-		}
-		byLowercaseName[lowercaseName] = identity
-	}
-	return byLowercaseName
-}
-
 func operatorIdentitySupplied(operators map[string]*azcorearm.ResourceID, operatorName string) bool {
-	identity, ok := operators[strings.ToLower(operatorName)]
+	identity, ok := operators[operatorName]
 	return ok && identity != nil
 }
 
