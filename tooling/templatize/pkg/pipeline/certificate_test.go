@@ -115,6 +115,7 @@ func TestReconcileCertificate(t *testing.T) {
 		emailContacts bool
 		mutate        func(*azcertificates.CertificatePolicy)
 		getStatus     int
+		recoverStatus int
 		updateStatus  int
 		createStatus  int
 		wantRequests  []string
@@ -180,6 +181,22 @@ func TestReconcileCertificate(t *testing.T) {
 			wantRequests: []string{"GET " + certPath + "/", "POST " + certPath + "/create", "GET " + certPath + "/", "PATCH " + certPath + "/"},
 		},
 		{
+			name: "missing public certificate creates without recovery", cloud: "public", getStatus: http.StatusNotFound,
+			wantRequests: []string{"GET " + certPath + "/", "POST " + certPath + "/create", "GET " + certPath + "/", "PATCH " + certPath + "/"},
+		},
+		{
+			name: "deleted transient certificate recovers", getStatus: http.StatusNotFound, createStatus: http.StatusConflict, recoverStatus: http.StatusOK,
+			wantRequests: []string{"GET " + certPath + "/", "POST " + certPath + "/create", "POST /deletedcertificates/" + name + "/recover", "GET " + certPath + "/", "PATCH " + certPath + "/"},
+		},
+		{
+			name: "deleted transient certificate recovery failure", getStatus: http.StatusNotFound, createStatus: http.StatusConflict, recoverStatus: http.StatusForbidden,
+			wantRequests: []string{"GET " + certPath + "/", "POST " + certPath + "/create", "POST /deletedcertificates/" + name + "/recover"}, wantError: "recover its deleted name",
+		},
+		{
+			name: "deleted public certificate does not recover", cloud: "public", getStatus: http.StatusNotFound, createStatus: http.StatusConflict,
+			wantRequests: []string{"GET " + certPath + "/", "POST " + certPath + "/create"}, wantError: "failed to create certificate",
+		},
+		{
 			name: "read failure does not write", getStatus: http.StatusForbidden,
 			wantRequests: []string{"GET " + certPath + "/"}, wantError: "failed to get existing certificate",
 		},
@@ -227,6 +244,14 @@ func TestReconcileCertificate(t *testing.T) {
 					body = `{"policy":` + mustMarshal(t, existing) + `,"x5t":"AQID","tags":{"existing":"preserved"}}`
 					if len(requests) == 1 && tt.getStatus != 0 {
 						status = tt.getStatus
+					}
+				case "POST /deletedcertificates/" + name + "/recover":
+					status = http.StatusNotFound
+					if tt.recoverStatus != 0 {
+						status = tt.recoverStatus
+					}
+					if status == http.StatusOK {
+						body = `{"policy":` + mustMarshal(t, existing) + `,"x5t":"AQID","tags":{"existing":"preserved"}}`
 					}
 				case "PATCH " + certPath + "/policy", "POST " + certPath + "/create":
 					var sent azcertificates.CertificatePolicy

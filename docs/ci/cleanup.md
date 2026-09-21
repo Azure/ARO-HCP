@@ -140,7 +140,11 @@ The command consumes every certificate inventory page before attempting deletes,
 caps selected candidates at `--max-deletions`, and emits JSON candidate and summary
 logs. It soft-deletes complete certificate objects, including all versions and
 their policy; backing certificate material can become unavailable. It never
-purges certificates or issues separate key/secret delete calls. Failed deletes
+purges certificates or issues separate key/secret delete calls. When a later
+`dev/ci00` or `dev/ci01` run reuses the same seven-digit job suffix, `templatize`
+recovers the soft-deleted transient certificate before reconciling its policy and
+thumbprint tag. This is required because Key Vault reserves a soft-deleted name
+until recovery or the end of the retention period. Failed deletes
 are reported together at the end and retried only on a later run, after repeating
 safety checks. Individual failures do not fail the command when at least one
 certificate was deleted or was already absent; the command fails when every

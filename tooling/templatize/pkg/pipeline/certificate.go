@@ -193,31 +193,37 @@ func reconcileCertificate(ctx context.Context, logger logr.Logger, client *azcer
 			return fmt.Errorf("failed to get existing certificate %q in vault %q: %w", certificateName, vaultBaseUrl, err)
 		}
 	}
-	if err == nil && existing.Policy != nil {
-		// Lifetime actions affect future renewal, not the issued certificate. Avoid
-		// creating a paid new version for transient CI certificates when only these
-		// settings differ. Keep the existing recreation behavior everywhere else.
-		withoutRenewalDifference := *existing.Policy
-		if transient {
-			withoutRenewalDifference.LifetimeActions = desiredPolicy.LifetimeActions
-		}
-		if policyMatches(&withoutRenewalDifference, &desiredPolicy) {
-			if !lifetimeActionsMatch(existing.Policy.LifetimeActions, desiredPolicy.LifetimeActions) {
-				if _, err := client.UpdateCertificatePolicy(ctx, certificateName, desiredPolicy, nil); err != nil {
-					return fmt.Errorf("failed to update certificate policy %q in vault %q: %w", certificateName, vaultBaseUrl, err)
-				}
-			}
-			logger.Info("Certificate already exists with matching policy, skipping creation", "certificateName", certificateName)
-			return storeCertificateThumbprintTag(ctx, logger, client, certificateName, vaultBaseUrl)
-		}
-	}
 	if err == nil {
+		reconciled, err := reconcileExistingCertificate(ctx, logger, client, existing.Certificate, vaultBaseUrl, certificateName, desiredPolicy, transient)
+		if err != nil || reconciled {
+			return err
+		}
 		logger.Info("Certificate exists but policy differs, recreating", "certificateName", certificateName)
 	}
 
 	createResp, err := client.CreateCertificate(ctx, certificateName, azcertificates.CreateCertificateParameters{
 		CertificatePolicy: &desiredPolicy,
 	}, nil)
+	if err != nil {
+		var respErr *azcore.ResponseError
+		if transient && errors.As(err, &respErr) && respErr.StatusCode == http.StatusConflict {
+			recovered, recoverErr := client.RecoverDeletedCertificate(ctx, certificateName, nil)
+			if recoverErr != nil {
+				return fmt.Errorf("failed to create certificate %q in vault %q and recover its deleted name: %w", certificateName, vaultBaseUrl, errors.Join(err, recoverErr))
+			}
+			logger.Info("Recovered soft-deleted transient CI certificate", "certificateName", certificateName)
+			reconciled, reconcileErr := reconcileExistingCertificate(ctx, logger, client, recovered.Certificate, vaultBaseUrl, certificateName, desiredPolicy, transient)
+			if reconcileErr != nil || reconciled {
+				return reconcileErr
+			}
+			createResp, err = client.CreateCertificate(ctx, certificateName, azcertificates.CreateCertificateParameters{
+				CertificatePolicy: &desiredPolicy,
+			}, nil)
+			if err == nil {
+				logger.Info("Recovered certificate policy differs, creating a new version", "certificateName", certificateName)
+			}
+		}
+	}
 	if err != nil {
 		return fmt.Errorf("failed to create certificate %q in vault %q: %w", certificateName, vaultBaseUrl, err)
 	}
@@ -230,6 +236,29 @@ func reconcileCertificate(ctx context.Context, logger logr.Logger, client *azcer
 
 	logger.Info("Certificate created successfully", "certificateName", certificateName)
 	return storeCertificateThumbprintTag(ctx, logger, client, certificateName, vaultBaseUrl)
+}
+
+func reconcileExistingCertificate(ctx context.Context, logger logr.Logger, client *azcertificates.Client, existing azcertificates.Certificate, vaultBaseUrl, certificateName string, desiredPolicy azcertificates.CertificatePolicy, transient bool) (bool, error) {
+	if existing.Policy == nil {
+		return false, nil
+	}
+	// Lifetime actions affect future renewal, not the issued certificate. Avoid
+	// creating a paid new version for transient CI certificates when only these
+	// settings differ. Keep the existing recreation behavior everywhere else.
+	withoutRenewalDifference := *existing.Policy
+	if transient {
+		withoutRenewalDifference.LifetimeActions = desiredPolicy.LifetimeActions
+	}
+	if !policyMatches(&withoutRenewalDifference, &desiredPolicy) {
+		return false, nil
+	}
+	if !lifetimeActionsMatch(existing.Policy.LifetimeActions, desiredPolicy.LifetimeActions) {
+		if _, err := client.UpdateCertificatePolicy(ctx, certificateName, desiredPolicy, nil); err != nil {
+			return false, fmt.Errorf("failed to update certificate policy %q in vault %q: %w", certificateName, vaultBaseUrl, err)
+		}
+	}
+	logger.Info("Certificate already exists with matching policy, skipping creation", "certificateName", certificateName)
+	return true, storeCertificateThumbprintTag(ctx, logger, client, certificateName, vaultBaseUrl)
 }
 
 // storeCertificateThumbprintTag fetches the certificate thumbprint and stores it as a tag
