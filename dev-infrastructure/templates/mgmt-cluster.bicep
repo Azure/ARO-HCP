@@ -19,8 +19,8 @@ param svcAcrResourceId string
 @description('The name of the maestro consumer.')
 param maestroConsumerName string
 
-@description('The SAN and CN for the Maestro consumer EventGrid certificate.')
-param maestroConsumerCertSAN string
+@description('The DNS domain for the Maestro consumer EventGrid certificate.')
+param maestroCertificateDomain string
 
 @description('The issuer of the Maestro certificate.')
 param maestroCertIssuer string
@@ -305,7 +305,7 @@ module maestroConsumer '../modules/maestro/maestro-consumer.bicep' = {
     maestroConsumerName: maestroConsumerName
     maestroEventGridNamespaceId: maestroEventGridNamespaceId
     certKeyVaultName: mgmtKeyVaultName
-    certificateSAN: maestroConsumerCertSAN
+    certificateSAN: '${maestroConsumerName}.maestro.${maestroCertificateDomain}'
     certificateIssuer: maestroCertIssuer
   }
   dependsOn: [

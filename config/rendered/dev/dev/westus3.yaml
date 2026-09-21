@@ -600,6 +600,7 @@ maestro:
         registry: mcr.microsoft.com
         repository: azurelinux/base/nginx
   certIssuer: Self
+  certificateDomain: westus3.hcpsvc.osadev.cloud
   eventGrid:
     maxClientSessionsPerAuthName: 6
     name: arohcp-dev-maestro-usw3

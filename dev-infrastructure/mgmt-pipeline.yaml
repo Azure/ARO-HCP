@@ -295,11 +295,11 @@ resourceGroups:
     contentType:
       value: x-pkcs12
     san:
-      configRef: maestro.agent.certSAN
+      value: 'hcp-underlay-$config(regionShortName)-mgmt-$stamp().maestro.$config(maestro.certificateDomain)'
     issuer:
       configRef: maestro.certIssuer
     commonName:
-      configRef: maestro.agent.certCN
+      value: 'mgmt-$stamp().maestro.$config(maestro.certificateDomain)'
     dependsOn:
     - resourceGroup: management
       step: infra-output

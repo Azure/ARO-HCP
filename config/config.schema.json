@@ -2977,6 +2977,9 @@
         "certIssuer": {
           "$ref": "#/definitions/certificateIssuer"
         },
+        "certificateDomain": {
+          "type": "string"
+        },
         "server": {
           "type": "object",
           "properties": {
@@ -4009,20 +4012,20 @@
       "message": "sessiongate.cert.san must equal 'sessiongate.' + dns.regionalSubdomain + '.' + dns.svcParentZoneName"
     },
     {
-      "rule": "self.maestro.server.certSAN == self.maestro.server.mqttClientName + '.maestro.' + self.dns.regionalSubdomain + '.' + self.dns.svcParentZoneName",
-      "message": "maestro.server.certSAN must equal mqttClientName + '.maestro.' + dns.regionalSubdomain + '.' + dns.svcParentZoneName"
+      "rule": "self.maestro.server.certSAN == self.maestro.server.mqttClientName + '.maestro.' + (has(self.maestro.certificateDomain) ? self.maestro.certificateDomain : self.dns.regionalSubdomain + '.' + self.dns.svcParentZoneName)",
+      "message": "maestro.server.certSAN must use maestro.certificateDomain when configured, otherwise dns.regionalSubdomain + '.' + dns.svcParentZoneName"
     },
     {
-      "rule": "self.maestro.agent.certSAN == self.maestro.agent.consumerName + '.maestro.' + self.dns.regionalSubdomain + '.' + self.dns.svcParentZoneName",
-      "message": "maestro.agent.certSAN must equal consumerName + '.maestro.' + dns.regionalSubdomain + '.' + dns.svcParentZoneName"
+      "rule": "self.maestro.agent.certSAN == self.maestro.agent.consumerName + '.maestro.' + (has(self.maestro.certificateDomain) ? self.maestro.certificateDomain : self.dns.regionalSubdomain + '.' + self.dns.svcParentZoneName)",
+      "message": "maestro.agent.certSAN must use maestro.certificateDomain when configured, otherwise dns.regionalSubdomain + '.' + dns.svcParentZoneName"
     },
     {
-      "rule": "self.maestro.server.certCN == 'server.maestro.' + self.dns.regionalSubdomain + '.' + self.dns.svcParentZoneName",
-      "message": "maestro.server.certCN must equal 'server.maestro.' + dns.regionalSubdomain + '.' + dns.svcParentZoneName"
+      "rule": "self.maestro.server.certCN == 'server.maestro.' + (has(self.maestro.certificateDomain) ? self.maestro.certificateDomain : self.dns.regionalSubdomain + '.' + self.dns.svcParentZoneName)",
+      "message": "maestro.server.certCN must use maestro.certificateDomain when configured, otherwise dns.regionalSubdomain + '.' + dns.svcParentZoneName"
     },
     {
-      "rule": "self.maestro.agent.certCN == 'mgmt-' + self.mgmt.stampIdentifier + '.maestro.' + self.dns.regionalSubdomain + '.' + self.dns.svcParentZoneName",
-      "message": "maestro.agent.certCN must equal 'mgmt-' + mgmt.stampIdentifier + '.maestro.' + dns.regionalSubdomain + '.' + dns.svcParentZoneName"
+      "rule": "self.maestro.agent.certCN == 'mgmt-' + self.mgmt.stampIdentifier + '.maestro.' + (has(self.maestro.certificateDomain) ? self.maestro.certificateDomain : self.dns.regionalSubdomain + '.' + self.dns.svcParentZoneName)",
+      "message": "maestro.agent.certCN must use maestro.certificateDomain when configured, otherwise dns.regionalSubdomain + '.' + dns.svcParentZoneName"
     },
     {
       "rule": "self.firstPartyAppCertificate.san == self.firstPartyAppCertificate.name + '.' + self.dns.svcParentZoneName",

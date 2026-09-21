@@ -1358,6 +1358,7 @@ clouds:
       # Maestro
       maestro:
         certIssuer: Self
+        certificateDomain: '{{ .ctx.region }}.hcpsvc.osadev.cloud'
         server:
           certSAN: 'maestro-server-{{ .ctx.regionShort }}.maestro.{{ .ctx.region }}.hcpsvc.osadev.cloud'
           certCN: 'server.maestro.{{ .ctx.region }}.hcpsvc.osadev.cloud'
@@ -1612,6 +1613,7 @@ clouds:
           # Maestro
           maestro:
             restrictIstioIngress: false
+            certificateDomain: '{{ .ctx.region }}-cs.hcpsvc.osadev.cloud'
             server:
               certSAN: 'maestro-server-{{ .ctx.regionShort }}.maestro.{{ .ctx.region }}-cs.hcpsvc.osadev.cloud'
               certCN: 'server.maestro.{{ .ctx.region }}-cs.hcpsvc.osadev.cloud'
@@ -1663,6 +1665,7 @@ clouds:
             regionalSubdomain: '{{ .ctx.regionShort }}'
           # Maestro
           maestro:
+            certificateDomain: '{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
             postgres:
               deploy: false
               password: 'TheBlurstOfTimes'
@@ -1738,6 +1741,7 @@ clouds:
           dns:
             regionalSubdomain: '{{ .ctx.regionShort }}'
           maestro:
+            certificateDomain: '{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
             server:
               certSAN: 'maestro-server-{{ .ctx.regionShort }}.maestro.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
               certCN: 'server.maestro.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
@@ -1798,6 +1802,7 @@ clouds:
             regionalSubdomain: '{{ .ctx.regionShort }}'
           # Maestro
           maestro:
+            certificateDomain: '{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
             postgres:
               deploy: false
               password: 'TheBlurstOfTimes'
@@ -1911,6 +1916,7 @@ clouds:
             regionalSubdomain: '{{ .ctx.regionShort }}'
           # Maestro
           maestro:
+            certificateDomain: '{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
             postgres:
               deploy: false
               password: 'TheBlurstOfTimes'

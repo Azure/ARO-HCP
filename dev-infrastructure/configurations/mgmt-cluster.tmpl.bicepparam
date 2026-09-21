@@ -16,7 +16,7 @@ param mgmtAgentNamespace = '{{ .mgmtAgent.k8s.namespace }}'
 param mgmtAgentServiceAccountName = '{{ .mgmtAgent.k8s.serviceAccountName }}'
 
 param maestroConsumerName = '{{ .maestro.agent.consumerName }}'
-param maestroConsumerCertSAN = '{{ .maestro.agent.certSAN }}'
+param maestroCertificateDomain = '__maestro.certificateDomain__'
 param maestroCertIssuer = '{{ .maestro.certIssuer }}'
 param maestroEventGridNamespaceId = '__maestroEventGridNamespaceId__'
 
