@@ -138,6 +138,9 @@ backend:
   maestro:
     sourceEnvironmentIdentifier: arohcpcspr
   managedIdentityName: backend
+  orphanedMRGCleanupExcludedSubscriptionAFECFlags: ""
+  orphanedMRGCleanupRunningMode: dry-run
+  orphanedMRGCleanupTargetSubscriptionAFECFlags: ""
 billing:
   aub:
     accountName: ""

@@ -1453,6 +1453,19 @@
           "minimum": 0,
           "description": "Log verbosity level for the backend, specified as a go-logr/logr log level. 0 is the default (INFO). Must be >= 0, where higher values produce more verbose output."
         },
+        "orphanedMRGCleanupTargetSubscriptionAFECFlags": {
+          "type": "string",
+          "description": "AFEC flag identifying subscriptions owned by this environment for orphaned MRG cleanup"
+        },
+        "orphanedMRGCleanupExcludedSubscriptionAFECFlags": {
+          "type": "string",
+          "description": "Comma-separated AFEC flags identifying subscriptions owned by OTHER environments for orphaned MRG cleanup"
+        },
+        "orphanedMRGCleanupRunningMode": {
+          "type": "string",
+          "description": "Running mode for orphaned MRG cleanup: 'delete' to actually delete orphaned managed resource groups, 'dry-run' for read-only mode.",
+          "enum": ["delete", "dry-run"]
+        },
         "clusterScopedIdentitiesConfig": {
           "$ref": "#/definitions/clusterScopedIdentitiesConfig"
         }

@@ -857,6 +857,9 @@ defaults:
     backupScheduleState: Enabled
     exitOnPanic: true
     logVerbosity: 4
+    orphanedMRGCleanupTargetSubscriptionAFECFlags: ""
+    orphanedMRGCleanupExcludedSubscriptionAFECFlags: ""
+    orphanedMRGCleanupRunningMode: "dry-run"
     clusterScopedIdentitiesConfig:
       roleSetName: "public"
   # Fleet

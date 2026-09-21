@@ -36,6 +36,7 @@ func validBaseFlags() BackendRootCmdFlags {
 		AzureClusterScopedIdentitiesRoleSetName: string(internalazure.RoleDefinitionConfigSetNameDev),
 		BackupScheduleCadence:                   "testing",
 		BackupScheduleState:                     "Disabled",
+		OrphanedMRGCleanupRunningMode:           "dry-run",
 	}
 }
 
@@ -201,4 +202,41 @@ func writeFile(t *testing.T, path, contents string) {
 
 func contains(s, substr string) bool {
 	return strings.Contains(s, substr)
+}
+
+func TestValidateOrphanedMRGMutualExclusion(t *testing.T) {
+	f := validBaseFlags()
+	f.OrphanedMRGCleanupTargetSubscriptionAFECFlags = "Microsoft.RedHatOpenShift/INT-APPROVED"
+	f.OrphanedMRGCleanupExcludedSubscriptionAFECFlags = "Microsoft.RedHatOpenShift/STAGING-APPROVED"
+
+	err := f.validate()
+	if err == nil {
+		t.Fatal("expected error when both target and excluded subscription AFEC flags are set, got nil")
+	}
+	if !contains(err.Error(), "mutually exclusive") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestValidateOrphanedMRGCleanupRunningMode(t *testing.T) {
+	// Valid modes
+	for _, mode := range []string{"delete", "dry-run"} {
+		f := validBaseFlags()
+		f.OrphanedMRGCleanupRunningMode = mode
+		err := f.validate()
+		if err != nil {
+			t.Fatalf("expected no error for mode %q, got %v", mode, err)
+		}
+	}
+
+	// Invalid mode
+	f := validBaseFlags()
+	f.OrphanedMRGCleanupRunningMode = "invalid"
+	err := f.validate()
+	if err == nil {
+		t.Fatal("expected error for invalid running mode, got nil")
+	}
+	if !contains(err.Error(), "must be 'delete' or 'dry-run'") {
+		t.Fatalf("unexpected error: %v", err)
+	}
 }
