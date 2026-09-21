@@ -93,7 +93,7 @@ artifacts/<SuiteName>/<ResourceType>/<TestCase>/
 | `cosmosCompare` | Assert entire cosmos state matches expected JSON documents |
 | `kubernetesCompare` | Assert K8s resource state matches expected JSON files (uses `ResourceInstanceEquals`) |
 | `completeOperation` | Mark an async operation as succeeded |
-| `setClusterServiceID` | Stamp a Cluster Service internal ID onto a cluster/node pool/external auth doc. Clusters get a random CS HREF (matching mock `PostCluster` behavior) unless `cluster-service-id.json` is provided. Node pools and external auths derive from the parent cluster's stored CS ID. **Child resource create:** add an explicit `setClusterServiceID-cluster` step (or `loadCosmos` with a pre-stamped cluster) before the first child `httpCreate`/`httpReplace`, since the frontend requires the parent cluster to have a `clusterServiceID`. **Cluster update:** when a cluster `httpReplace`/`httpPatch` should call the Cluster Service mock (`GetCluster`/`UpdateCluster`), add `setClusterServiceID-cluster` (with fixed `cluster-service-id.json`) immediately followed by `loadClusterService-cluster` before the update step. See [Cluster Service ID patterns](#cluster-service-id-patterns) below. |
+| `setClusterServiceID` | Stamp a Cluster Service internal ID onto a cluster/node pool/external auth doc. Clusters get a random CS HREF (matching mock `PostCluster` behavior) unless `cluster-service-id.json` is provided. Node pools and external auths derive from the parent cluster's stored CS ID. **Node pool create:** add an explicit `setClusterServiceID-cluster` step (or `loadCosmos` with a pre-stamped cluster) before the first node pool `httpCreate`/`httpReplace`, since node pool creation requires the parent cluster to have a `clusterServiceID`. External auth creation does not require a parent Cluster Service ID. **Cluster update:** when a cluster `httpReplace`/`httpPatch` should call the Cluster Service mock (`GetCluster`/`UpdateCluster`), add `setClusterServiceID-cluster` (with fixed `cluster-service-id.json`) immediately followed by `loadClusterService-cluster` before the update step. See [Cluster Service ID patterns](#cluster-service-id-patterns) below. |
 
 ## Step Directory Contents
 
@@ -172,15 +172,17 @@ Implementation: `internal/api/arm/types_cosmosdata.go:ResourceIDStringToCosmosID
 
 The frontend only calls the Cluster Service mock on cluster update when the Cosmos document already has a `clusterServiceID` (`frontend/pkg/frontend/cluster.go`). Integration tests must make that ID explicit and seed the mock when exercising update paths.
 
-### Child resource create (NodePool, ExternalAuth)
+### Node pool create
 
-Before the first child `httpCreate`/`httpReplace`:
+Before the first node pool `httpCreate`/`httpReplace`:
 
 1. `NN-setClusterServiceID-cluster/00-key.json` — parent cluster `resourceID` from the cluster create step
 2. No `cluster-service-id.json` — parent gets a random CS HREF at runtime (matches backend `PostCluster` behavior)
 3. Child `setClusterServiceID-resource` derives the child CS ID from the parent's stored ID
 
 Skip when the parent is pre-stamped via `loadCosmos` (e.g. `cluster-creating` / `cluster-deleting` fixtures).
+
+External auth creation does not need `setClusterServiceID-cluster`. External auth create and update operations use an empty `internalId`, even when updating a legacy resource with a stored `clusterServiceID`.
 
 ### Cluster update (`httpReplace` / `httpPatch`)
 

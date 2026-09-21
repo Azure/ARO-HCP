@@ -270,15 +270,11 @@ func (f *Frontend) createExternalAuth(writer http.ResponseWriter, request *http.
 	}
 
 	logger.Info(fmt.Sprintf("creating resource %s", resourceID))
-	cluster, err := f.getInternalClusterFromStorage(ctx, resourceID.Parent)
-	if err != nil {
+	if _, err := f.getInternalClusterFromStorage(ctx, resourceID.Parent); err != nil {
 		return utils.TrackError(err)
 	}
 	if err := checkForProvisioningStateConflict(ctx, f.resourcesDBClient, cosmosstorageutils.OperationRequestCreate, newInternalExternalAuth.ID, newInternalExternalAuth.Properties.ProvisioningState); err != nil {
 		return utils.TrackError(err)
-	}
-	if cluster.ServiceProviderProperties.ClusterServiceID == nil {
-		return utils.TrackError(fmt.Errorf("cluster %s has no ClusterServiceID", cluster.ID))
 	}
 
 	operationRequest := cosmosstorageutils.OperationRequestCreate
@@ -488,7 +484,7 @@ func (f *Frontend) updateExternalAuthInCosmos(ctx context.Context, writer http.R
 	externalAuthUpdateOperation := cosmosstorageutils.NewOperation(
 		cosmosstorageutils.OperationRequestUpdate,
 		newInternalExternalAuth.ID,
-		ptr.Deref(newInternalExternalAuth.ServiceProviderProperties.ClusterServiceID, metadataapi.InternalID{}),
+		metadataapi.InternalID{}, // InternalID is no longer used by externalAuth operations
 		f.azureLocation,
 		request.Header.Get(coreapi.HeaderNameHomeTenantID),
 		request.Header.Get(coreapi.HeaderNameClientObjectID),

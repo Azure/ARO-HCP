@@ -60,7 +60,6 @@
 		},
 		"serviceProviderProperties": {
 			"activeOperationId": "60df392c-42ba-4384-95b4-5e4601df2f3e",
-			"clusterServiceID": "/api/clusters_mgmt/v1/clusters/tqqtpctbpj/external_auth_config/external_auths/88m6lb2bbv",
 			"usesNewExternalAuthDeletionApproach": false
 		},
 		"status": {},
