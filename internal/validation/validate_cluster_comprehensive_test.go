@@ -17,6 +17,7 @@ package validation
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -24,6 +25,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"k8s.io/apimachinery/pkg/api/operation"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -2825,4 +2827,75 @@ func createValidCluster() *coreapi.HCPOpenShiftCluster {
 	}
 
 	return cluster
+}
+
+// No operator is version-limited in the shipped configuration, so these tests pin one to a range
+// that excludes the cluster's version in order to exercise the version-support checks at all.
+func withVersionLimitedOperator(t *testing.T, plane operatorPlane, operatorName azure.ClusterOperatorIdentifier, maxVersion string) {
+	t.Helper()
+
+	original := clusterScopedIdentities
+	t.Cleanup(func() { clusterScopedIdentities = original })
+
+	limited := azure.NewClusterScopedIdentitiesConfig(azure.RoleDefinitionConfigSetNameDev)
+	bound := metadataapi.Must(semver.ParseTolerant(maxVersion))
+	if plane == dataPlane {
+		operatorConfig := *limited.DataPlaneOperatorsIdentities[operatorName]
+		operatorConfig.MaxVersionInclusive = &bound
+		limited.DataPlaneOperatorsIdentities[operatorName] = &operatorConfig
+	} else {
+		operatorConfig := *limited.ControlPlaneOperatorsIdentities[operatorName]
+		operatorConfig.MaxVersionInclusive = &bound
+		limited.ControlPlaneOperatorsIdentities[operatorName] = &operatorConfig
+	}
+	clusterScopedIdentities = limited
+}
+
+func TestValidateClusterCreateRejectsOperatorUnsupportedForVersion(t *testing.T) {
+	ctx := context.Background()
+	op := operation.Operation{Type: operation.Create}
+
+	t.Run("control plane operator that does not exist for the version", func(t *testing.T) {
+		withVersionLimitedOperator(t, controlPlane, azure.ClusterOperatorIdentifierIngress, "4.19")
+
+		cluster := createValidCluster()
+		errs := ValidateCluster(ctx, op, cluster, nil, nil)
+
+		require.True(t, hasErrorContaining(errs, "does not exist for OpenShift version",
+			"userAssignedIdentities.controlPlaneOperators[ingress]"),
+			"expected the unsupported-version error for ingress, got: %v", errs)
+	})
+
+	t.Run("data plane operator that does not exist for the version", func(t *testing.T) {
+		withVersionLimitedOperator(t, dataPlane, azure.ClusterOperatorIdentifierImageRegistry, "4.19")
+
+		cluster := createValidCluster()
+		errs := ValidateCluster(ctx, op, cluster, nil, nil)
+
+		require.True(t, hasErrorContaining(errs, "does not exist for OpenShift version",
+			"userAssignedIdentities.dataPlaneOperators[image-registry]"),
+			"expected the unsupported-version error for image-registry, got: %v", errs)
+	})
+
+	t.Run("unrecognized names are still rejected when the version is unparseable", func(t *testing.T) {
+		cluster := createValidCluster()
+		cluster.CustomerProperties.Version.ID = "not-a-version"
+		cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators["not-an-operator"] =
+			metadataapi.Must(azcorearm.ParseResourceID(testOperatorIdentityPrefix + "spurious-identity"))
+
+		errs := ValidateCluster(ctx, op, cluster, nil, nil)
+
+		require.True(t, hasErrorContaining(errs, "unrecognized operator name",
+			"userAssignedIdentities.controlPlaneOperators[not-an-operator]"),
+			"name validation must not depend on a parseable version, got: %v", errs)
+	})
+}
+
+func hasErrorContaining(errs field.ErrorList, message, fieldPath string) bool {
+	for _, err := range errs {
+		if strings.Contains(err.Error(), message) && strings.Contains(err.Field, fieldPath) {
+			return true
+		}
+	}
+	return false
 }

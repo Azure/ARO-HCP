@@ -243,14 +243,32 @@ func validateNightlyChannelRequiresFullVersion(_ context.Context, op operation.O
 // are irrelevant here, so either set yields the same requirements.
 var clusterScopedIdentities = azure.NewClusterScopedIdentitiesConfig(azure.RoleDefinitionConfigSetNameDev)
 
-// conditionallyRequiredControlPlaneOperator names a control plane operator identity that is
-// only required once the cluster enables the feature that uses it, mirroring
-// azure.IdentityRequirementTypeOnEnablement. Operators marked
-// azure.IdentityRequirementTypeAlways are read from clusterScopedIdentities instead.
+// operatorPlane distinguishes the two operator identity maps a cluster supplies. Requirements,
+// recognized names and version support are all per-plane, so most of this validation needs to
+// know which one it is working on.
+type operatorPlane int
+
+const (
+	controlPlane operatorPlane = iota
+	dataPlane
+)
+
+func (p operatorPlane) String() string {
+	if p == dataPlane {
+		return "data plane"
+	}
+	return "control plane"
+}
+
+// conditionallyRequiredOperatorIdentity names an operator identity that is only required once the
+// cluster enables the feature that uses it, mirroring azure.IdentityRequirementTypeOnEnablement.
+// Operators marked azure.IdentityRequirementTypeAlways are read from clusterScopedIdentities
+// instead.
 //
 // Note that CustomerManaged is currently the only accepted etcd key management mode, so the
 // kms entry below is required on every create in practice.
-type conditionallyRequiredControlPlaneOperator struct {
+type conditionallyRequiredOperatorIdentity struct {
+	plane        operatorPlane
 	operatorName string
 	isEnabled    func(newCluster *coreapi.HCPOpenShiftCluster) bool
 	// enabledBy names the configuration that made the identity required, using the
@@ -260,14 +278,47 @@ type conditionallyRequiredControlPlaneOperator struct {
 
 // Add an entry here when a new feature needs its own operator identity, so an incomplete
 // create fails synchronously instead of being accepted and stalling until the deadline.
-var conditionallyRequiredControlPlaneOperators = []conditionallyRequiredControlPlaneOperator{
+var conditionallyRequiredOperatorIdentities = []conditionallyRequiredOperatorIdentity{
 	{
+		plane:        controlPlane,
 		operatorName: string(azure.ClusterOperatorIdentifierKMS),
 		isEnabled: func(newCluster *coreapi.HCPOpenShiftCluster) bool {
 			return newCluster.CustomerProperties.Etcd.DataEncryption.KeyManagementMode == metadataapi.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged
 		},
 		enabledBy: "properties.etcd.dataEncryption.keyManagementMode is CustomerManaged",
 	},
+}
+
+// recognizedOperatorNames returns every operator name the service knows for the plane, regardless
+// of OpenShift version, sorted for deterministic error text.
+func recognizedOperatorNames(plane operatorPlane) []string {
+	var names []string
+	if plane == dataPlane {
+		names = make([]string, 0, len(clusterScopedIdentities.DataPlaneOperatorsIdentities))
+		for operatorName := range clusterScopedIdentities.DataPlaneOperatorsIdentities {
+			names = append(names, string(operatorName))
+		}
+	} else {
+		names = make([]string, 0, len(clusterScopedIdentities.ControlPlaneOperatorsIdentities))
+		for operatorName := range clusterScopedIdentities.ControlPlaneOperatorsIdentities {
+			names = append(names, string(operatorName))
+		}
+	}
+	slices.Sort(names)
+	return names
+}
+
+// operatorSupportedForVersion reports whether the operator exists at all for the given OpenShift
+// version. Unrecognized names are reported separately, so they count as supported here to keep a
+// single key from producing two errors.
+func operatorSupportedForVersion(plane operatorPlane, operatorName string, version *semver.Version) bool {
+	identifier := azure.ClusterOperatorIdentifier(operatorName)
+	if plane == dataPlane {
+		operatorConfig, ok := clusterScopedIdentities.DataPlaneOperatorsIdentities[identifier]
+		return !ok || operatorConfig.IsSupportedForOpenshiftVersion(version)
+	}
+	operatorConfig, ok := clusterScopedIdentities.ControlPlaneOperatorsIdentities[identifier]
+	return !ok || operatorConfig.IsSupportedForOpenshiftVersion(version)
 }
 
 // validateRequiredOperatorIdentities rejects a create that omits an operator identity the cluster
@@ -322,17 +373,21 @@ func validateRequiredOperatorIdentities(_ context.Context, op operation.Operatio
 		errs = append(errs, field.Required(dataPlanePath.Key(operatorName), fmt.Sprintf("a user-assigned identity for the %q data plane operator is required", operatorName)))
 	}
 
-	for _, operator := range conditionallyRequiredControlPlaneOperators {
+	for _, operator := range conditionallyRequiredOperatorIdentities {
 		if !operator.isEnabled(newCluster) {
 			continue
 		}
-		if operatorConfig, ok := clusterScopedIdentities.ControlPlaneOperatorsIdentities[azure.ClusterOperatorIdentifier(operator.operatorName)]; ok && !operatorConfig.IsSupportedForOpenshiftVersion(&version) {
+		if !operatorSupportedForVersion(operator.plane, operator.operatorName, &version) {
 			continue
 		}
-		if operatorIdentitySupplied(controlPlaneSupplied, operator.operatorName) {
+		supplied, path := controlPlaneSupplied, controlPlanePath
+		if operator.plane == dataPlane {
+			supplied, path = dataPlaneSupplied, dataPlanePath
+		}
+		if operatorIdentitySupplied(supplied, operator.operatorName) {
 			continue
 		}
-		errs = append(errs, field.Required(controlPlanePath.Key(operator.operatorName), fmt.Sprintf("a user-assigned identity for the %q control plane operator is required when %s", operator.operatorName, operator.enabledBy)))
+		errs = append(errs, field.Required(path.Key(operator.operatorName), fmt.Sprintf("a user-assigned identity for the %q %s operator is required when %s", operator.operatorName, operator.plane, operator.enabledBy)))
 	}
 
 	return errs
@@ -353,21 +408,44 @@ func validateOperatorIdentityNames(_ context.Context, op operation.Operation, ne
 
 	userAssignedIdentities := newCluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities
 	basePath := field.NewPath("customerProperties", "platform", "operatorsAuthentication", "userAssignedIdentities")
+	controlPlanePath := basePath.Child("controlPlaneOperators")
+	dataPlanePath := basePath.Child("dataPlaneOperators")
 
-	recognizedControlPlane := make([]string, 0, len(clusterScopedIdentities.ControlPlaneOperatorsIdentities))
-	for operatorName := range clusterScopedIdentities.ControlPlaneOperatorsIdentities {
-		recognizedControlPlane = append(recognizedControlPlane, string(operatorName))
-	}
-	recognizedDataPlane := make([]string, 0, len(clusterScopedIdentities.DataPlaneOperatorsIdentities))
-	for operatorName := range clusterScopedIdentities.DataPlaneOperatorsIdentities {
-		recognizedDataPlane = append(recognizedDataPlane, string(operatorName))
-	}
-	slices.Sort(recognizedControlPlane)
-	slices.Sort(recognizedDataPlane)
+	recognizedControlPlane := recognizedOperatorNames(controlPlane)
+	recognizedDataPlane := recognizedOperatorNames(dataPlane)
 
 	errs := field.ErrorList{}
-	errs = append(errs, unrecognizedOperatorNameErrors(userAssignedIdentities.ControlPlaneOperators, basePath.Child("controlPlaneOperators"), recognizedControlPlane)...)
-	errs = append(errs, unrecognizedOperatorNameErrors(userAssignedIdentities.DataPlaneOperators, basePath.Child("dataPlaneOperators"), recognizedDataPlane)...)
+	errs = append(errs, unrecognizedOperatorNameErrors(userAssignedIdentities.ControlPlaneOperators, controlPlanePath, recognizedControlPlane)...)
+	errs = append(errs, unrecognizedOperatorNameErrors(userAssignedIdentities.DataPlaneOperators, dataPlanePath, recognizedDataPlane)...)
+
+	// Layered deliberately: an unparseable version is reported by the version validation and must
+	// not stop the checks above from running.
+	if version, err := semver.ParseTolerant(newCluster.CustomerProperties.Version.ID); err == nil {
+		errs = append(errs, unsupportedOperatorNameErrors(userAssignedIdentities.ControlPlaneOperators, controlPlanePath, controlPlane, &version)...)
+		errs = append(errs, unsupportedOperatorNameErrors(userAssignedIdentities.DataPlaneOperators, dataPlanePath, dataPlane, &version)...)
+	}
+	return errs
+}
+
+// unsupportedOperatorNameErrors rejects recognized operator names that do not exist for the
+// cluster's OpenShift version. Unrecognized names are reported by unrecognizedOperatorNameErrors
+// and skipped here so a single key yields one error.
+func unsupportedOperatorNameErrors(supplied map[string]*azcorearm.ResourceID, fldPath *field.Path, plane operatorPlane, version *semver.Version) field.ErrorList {
+	unsupported := make([]string, 0, len(supplied))
+	for operatorName := range supplied {
+		if operatorName == "" || operatorSupportedForVersion(plane, operatorName, version) {
+			continue
+		}
+		unsupported = append(unsupported, operatorName)
+	}
+	// Sorted so error ordering does not depend on map iteration order.
+	slices.Sort(unsupported)
+
+	errs := field.ErrorList{}
+	for _, operatorName := range unsupported {
+		errs = append(errs, field.Invalid(fldPath.Key(operatorName), operatorName,
+			fmt.Sprintf("the %q %s operator does not exist for OpenShift version %s", operatorName, plane, version)))
+	}
 	return errs
 }
 
