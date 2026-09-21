@@ -2831,24 +2831,38 @@ func createValidCluster() *coreapi.HCPOpenShiftCluster {
 
 // No operator is version-limited in the shipped configuration, so these tests pin one to a range
 // that excludes the cluster's version in order to exercise the version-support checks at all.
-func withVersionLimitedOperator(t *testing.T, plane operatorPlane, operatorName azure.ClusterOperatorIdentifier, maxVersion string) {
+func withVersionLimitedControlPlaneOperator(t *testing.T, operatorName azure.ClusterOperatorIdentifier, maxVersion string) {
+	t.Helper()
+
+	limited := withIsolatedClusterScopedIdentities(t)
+	bound := metadataapi.Must(semver.ParseTolerant(maxVersion))
+	operatorConfig := *limited.ControlPlaneOperatorsIdentities[operatorName]
+	operatorConfig.MaxVersionInclusive = &bound
+	limited.ControlPlaneOperatorsIdentities[operatorName] = &operatorConfig
+}
+
+// withVersionLimitedDataPlaneOperator is the data plane counterpart of
+// withVersionLimitedControlPlaneOperator.
+func withVersionLimitedDataPlaneOperator(t *testing.T, operatorName azure.ClusterOperatorIdentifier, maxVersion string) {
+	t.Helper()
+
+	limited := withIsolatedClusterScopedIdentities(t)
+	bound := metadataapi.Must(semver.ParseTolerant(maxVersion))
+	operatorConfig := *limited.DataPlaneOperatorsIdentities[operatorName]
+	operatorConfig.MaxVersionInclusive = &bound
+	limited.DataPlaneOperatorsIdentities[operatorName] = &operatorConfig
+}
+
+// withIsolatedClusterScopedIdentities swaps in a fresh config for the duration of the test and
+// returns it for the caller to modify.
+func withIsolatedClusterScopedIdentities(t *testing.T) *azure.ClusterScopedIdentitiesConfig {
 	t.Helper()
 
 	original := clusterScopedIdentities
 	t.Cleanup(func() { clusterScopedIdentities = original })
 
-	limited := azure.NewClusterScopedIdentitiesConfig(azure.RoleDefinitionConfigSetNameDev)
-	bound := metadataapi.Must(semver.ParseTolerant(maxVersion))
-	if plane == dataPlane {
-		operatorConfig := *limited.DataPlaneOperatorsIdentities[operatorName]
-		operatorConfig.MaxVersionInclusive = &bound
-		limited.DataPlaneOperatorsIdentities[operatorName] = &operatorConfig
-	} else {
-		operatorConfig := *limited.ControlPlaneOperatorsIdentities[operatorName]
-		operatorConfig.MaxVersionInclusive = &bound
-		limited.ControlPlaneOperatorsIdentities[operatorName] = &operatorConfig
-	}
-	clusterScopedIdentities = limited
+	clusterScopedIdentities = azure.NewClusterScopedIdentitiesConfig(azure.RoleDefinitionConfigSetNameDev)
+	return clusterScopedIdentities
 }
 
 func TestValidateClusterCreateRejectsOperatorUnsupportedForVersion(t *testing.T) {
@@ -2856,7 +2870,7 @@ func TestValidateClusterCreateRejectsOperatorUnsupportedForVersion(t *testing.T)
 	op := operation.Operation{Type: operation.Create}
 
 	t.Run("control plane operator that does not exist for the version", func(t *testing.T) {
-		withVersionLimitedOperator(t, controlPlane, azure.ClusterOperatorIdentifierIngress, "4.19")
+		withVersionLimitedControlPlaneOperator(t, azure.ClusterOperatorIdentifierIngress, "4.19")
 
 		cluster := createValidCluster()
 		errs := ValidateCluster(ctx, op, cluster, nil, nil)
@@ -2867,7 +2881,7 @@ func TestValidateClusterCreateRejectsOperatorUnsupportedForVersion(t *testing.T)
 	})
 
 	t.Run("data plane operator that does not exist for the version", func(t *testing.T) {
-		withVersionLimitedOperator(t, dataPlane, azure.ClusterOperatorIdentifierImageRegistry, "4.19")
+		withVersionLimitedDataPlaneOperator(t, azure.ClusterOperatorIdentifierImageRegistry, "4.19")
 
 		cluster := createValidCluster()
 		errs := ValidateCluster(ctx, op, cluster, nil, nil)
