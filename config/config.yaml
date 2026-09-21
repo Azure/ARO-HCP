@@ -966,6 +966,8 @@ defaults:
       contentType: x-pkcs12
     exitOnPanic: true
     logVerbosity: 0
+    clusterScopedIdentitiesConfig:
+      roleSetName: "public"
   # Billing
   billing:
     rg: "placeholder"
@@ -1391,6 +1393,8 @@ clouds:
         cert:
           san: 'rp.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
           issuer: Self
+        clusterScopedIdentitiesConfig:
+          roleSetName: dev
       # Backend
       backend:
         k8s:
