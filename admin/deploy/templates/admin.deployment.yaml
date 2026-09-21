@@ -60,6 +60,8 @@ spec:
           value: "{{ .Values.fpa.clientId }}"
         - name: AUDIT_CONNECT_SOCKET
           value: "{{ .Values.audit.connectSocket }}"
+        - name: AUDIT_SERVICE_TREE_ID
+          value: "{{ .Values.audit.serviceTreeId }}"
         - name: SESSIONGATE_NAMESPACE
           value: "{{ .Values.sessiongate.namespace }}"
         - name: MIN_SESSION_TTL
