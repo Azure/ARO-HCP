@@ -107,14 +107,20 @@ func checkForProvisioningStateConflict(
 			return utils.TrackError(err)
 		}
 
-		// XXX There is still a small opportunity for nested resource requests to get
-		//     through while the parent resource is in provisioning state "Accepted",
-		//     which precedes "Provisioning". The problem is "Accepted" also precedes
-		//     "Updating", which should NOT be blocked.
-		//
-		//     Cluster Service will catch and correctly reject such requests, so I'm
-		//     leaving this gap open until Cluster Service is out of the picture and
-		//     the RP has more direct control over resource provisioning.
+		// Block nested resource creation while the parent cluster is
+		// pending initial provisioning. "Accepted" is also used for
+		// updates, so we additionally check for a nil/empty ClusterServiceID
+		// to distinguish initial creates from updates.
+		if operationRequest == cosmosstorageutils.OperationRequestCreate &&
+			cluster.ServiceProviderProperties.ProvisioningState == coreapi.ProvisioningStateAccepted &&
+			(cluster.ServiceProviderProperties.ClusterServiceID == nil ||
+				len(cluster.ServiceProviderProperties.ClusterServiceID.String()) == 0) {
+			return coreapi.NewConflictError(
+				resourceID,
+				"Cannot %s resource while parent resource is not yet provisioned",
+				strings.ToLower(string(operationRequest)))
+		}
+
 		if cluster.ServiceProviderProperties.ProvisioningState == coreapi.ProvisioningStateProvisioning {
 			return coreapi.NewConflictError(
 				resourceID,
