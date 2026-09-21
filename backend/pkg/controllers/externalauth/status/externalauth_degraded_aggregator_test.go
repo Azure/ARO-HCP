@@ -16,6 +16,13 @@ package status
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/pem"
+	"math/big"
 	"regexp"
 	"strings"
 	"testing"
@@ -37,6 +44,26 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 )
+
+// mustMakeCAPEM generates a self-signed CA certificate valid from notBefore to
+// notAfter and returns it as a PEM-encoded string. The certificate's Subject CN
+// is set to cn. Fails the test on any generation error (test helper).
+func mustMakeCAPEM(t *testing.T, cn string, notBefore, notAfter time.Time) string {
+	t.Helper()
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err, "generate test CA key")
+	tmpl := &x509.Certificate{
+		SerialNumber:          big.NewInt(1),
+		Subject:               pkix.Name{CommonName: cn},
+		NotBefore:             notBefore,
+		NotAfter:              notAfter,
+		IsCA:                  true,
+		BasicConstraintsValid: true,
+	}
+	der, err := x509.CreateCertificate(rand.Reader, tmpl, tmpl, &key.PublicKey, key)
+	require.NoError(t, err, "create test CA certificate")
+	return string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}))
+}
 
 // newTestExternalAuthForAggregator builds a minimal
 // HCPOpenShiftClusterExternalAuth suitable for the aggregator tests.
@@ -244,4 +271,289 @@ func TestExternalAuthDegradedAggregator_SyncOnce(t *testing.T) {
 			assert.Equal(t, tc.expectMessage, cond.Message, "message")
 		})
 	}
+}
+
+// TestCACertValidityConditions exercises the caCertValidityConditions helper in isolation,
+// covering both the expiry and not-yet-valid cases.
+func TestCACertValidityConditions(t *testing.T) {
+	now := statusutils.FixedNow
+
+	validCA := mustMakeCAPEM(t, "valid-ca", now.Add(-time.Hour), now.Add(90*24*time.Hour))
+	expiredCA := mustMakeCAPEM(t, "expired-ca", now.Add(-48*time.Hour), now.Add(-time.Hour))
+	futureCA := mustMakeCAPEM(t, "future-ca", now.Add(24*time.Hour), now.Add(90*24*time.Hour))
+
+	tests := []struct {
+		name                 string
+		ca                   string
+		expectExpiryNil      bool
+		expectExpiryReason   string
+		expectExpiryMessage  string
+		expectNotYetValidNil bool
+		expectNYVReason      string
+		expectNYVMessage     string
+	}{
+		{
+			name:                 "empty CA — both conditions nil",
+			ca:                   "",
+			expectExpiryNil:      true,
+			expectNotYetValidNil: true,
+		},
+		{
+			name:                 "currently valid CA — both conditions nil",
+			ca:                   validCA,
+			expectExpiryNil:      true,
+			expectNotYetValidNil: true,
+		},
+		{
+			name:                 "CA valid starting exactly now — both nil",
+			ca:                   mustMakeCAPEM(t, "boundary-start", now, now.Add(time.Hour)),
+			expectExpiryNil:      true,
+			expectNotYetValidNil: true,
+		},
+		{
+			name:                 "CA valid until exactly now — both nil",
+			ca:                   mustMakeCAPEM(t, "boundary-end", now.Add(-time.Hour), now),
+			expectExpiryNil:      true,
+			expectNotYetValidNil: true,
+		},
+		{
+			name:                 "expired CA — expiry set, notYetValid nil",
+			ca:                   expiredCA,
+			expectExpiryNil:      false,
+			expectExpiryReason:   "Expired",
+			expectExpiryMessage:  "have expired",
+			expectNotYetValidNil: true,
+		},
+		{
+			name:                 "future CA — expiry nil, notYetValid set",
+			ca:                   futureCA,
+			expectExpiryNil:      true,
+			expectNotYetValidNil: false,
+			expectNYVReason:      "NotYetValid",
+			expectNYVMessage:     "are not yet valid",
+		},
+		{
+			name:                 "bundle: one valid, one expired — expiry set",
+			ca:                   validCA + expiredCA,
+			expectExpiryNil:      false,
+			expectExpiryReason:   "Expired",
+			expectExpiryMessage:  "have expired",
+			expectNotYetValidNil: true,
+		},
+		{
+			name:                 "bundle: one valid, one future — notYetValid set",
+			ca:                   validCA + futureCA,
+			expectExpiryNil:      true,
+			expectNotYetValidNil: false,
+			expectNYVReason:      "NotYetValid",
+			expectNYVMessage:     "are not yet valid",
+		},
+		{
+			name:                 "bundle: expired and future — both set",
+			ca:                   expiredCA + futureCA,
+			expectExpiryNil:      false,
+			expectExpiryReason:   "Expired",
+			expectExpiryMessage:  "have expired",
+			expectNotYetValidNil: false,
+			expectNYVReason:      "NotYetValid",
+			expectNYVMessage:     "are not yet valid",
+		},
+		{
+			name:                 "unparseable PEM — both nil",
+			ca:                   "NOT A PEM",
+			expectExpiryNil:      true,
+			expectNotYetValidNil: true,
+		},
+	}
+
+	agg := &externalAuthDegradedAggregator{
+		clock: clocktesting.NewFakePassiveClock(now),
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			expiry, notYetValid := agg.getCaCertValidityConditions(tc.ca)
+
+			if tc.expectExpiryNil {
+				assert.Nil(t, expiry, "expected no expiry condition")
+			} else {
+				require.NotNil(t, expiry, "expected expiry condition")
+				assert.Equal(t, CACertificateExpiredConditionType, expiry.Type)
+				assert.Equal(t, metav1.ConditionTrue, expiry.Status)
+				assert.Equal(t, tc.expectExpiryReason, expiry.Reason)
+				assert.Contains(t, expiry.Message, tc.expectExpiryMessage)
+			}
+
+			if tc.expectNotYetValidNil {
+				assert.Nil(t, notYetValid, "expected no notYetValid condition")
+			} else {
+				require.NotNil(t, notYetValid, "expected notYetValid condition")
+				assert.Equal(t, CACertificateNotYetValidConditionType, notYetValid.Type)
+				assert.Equal(t, metav1.ConditionTrue, notYetValid.Status)
+				assert.Equal(t, tc.expectNYVReason, notYetValid.Reason)
+				assert.Contains(t, notYetValid.Message, tc.expectNYVMessage)
+			}
+		})
+	}
+}
+
+// TestExternalAuthDegradedAggregator_SyncOnce_CACertConditions verifies that SyncOnce
+// correctly sets/clears CACertificateExpiry and CACertificateNotYetValid conditions.
+func TestExternalAuthDegradedAggregator_SyncOnce_CACertConditions(t *testing.T) {
+	now := statusutils.FixedNow
+
+	validCA := mustMakeCAPEM(t, "valid-ca", now.Add(-time.Hour), now.Add(90*24*time.Hour))
+	expiredCA := mustMakeCAPEM(t, "expired-ca", now.Add(-48*time.Hour), now.Add(-time.Hour))
+	futureCA := mustMakeCAPEM(t, "future-ca", now.Add(24*time.Hour), now.Add(90*24*time.Hour))
+
+	tests := []struct {
+		name            string
+		ca              string
+		wantExpiry      bool
+		wantNotYetValid bool
+	}{
+		{
+			name: "no CA — neither condition written",
+			ca:   "",
+		},
+		{
+			name: "valid CA — neither condition written",
+			ca:   validCA,
+		},
+		{
+			name:       "expired CA — expiry condition set",
+			ca:         expiredCA,
+			wantExpiry: true,
+		},
+		{
+			name:            "future CA — notYetValid condition set",
+			ca:              futureCA,
+			wantNotYetValid: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+			parentClusterID := metadataapi.Must(azcorearm.ParseResourceID(
+				"/subscriptions/" + statusutils.TestSubscriptionID +
+					"/resourceGroups/" + statusutils.TestResourceGroupName +
+					"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + statusutils.TestClusterName,
+			))
+			existing := newTestExternalAuthForAggregator(func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
+				ea.Properties.Issuer.CA = tc.ca
+			})
+			parentCluster := &coreapi.HCPOpenShiftCluster{
+				CosmosMetadata: coreapi.CosmosMetadata{
+					ResourceID:   parentClusterID,
+					PartitionKey: strings.ToLower(parentClusterID.SubscriptionID),
+				},
+				TrackedResource: coreapi.TrackedResource{
+					Resource: coreapi.Resource{ID: parentClusterID, Name: statusutils.TestClusterName, Type: parentClusterID.ResourceType.String()},
+				},
+			}
+
+			mockDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{parentCluster, existing})
+			require.NoError(t, err)
+
+			clock := clocktesting.NewFakePassiveClock(now)
+			syncer := &externalAuthDegradedAggregator{
+				externalAuthLister: &corelistertesting.DBExternalAuthLister{ResourcesDBClient: mockDB},
+				controllerLister:   &corelistertesting.DBControllerLister{ResourcesDBClient: mockDB},
+				resourcesDBClient:  mockDB,
+				inertia:            externalAuthDegradedAggregatorInertia(),
+				clock:              clock,
+				firstObservedBad:   statusutils.NewFirstObservedBadCache(clock),
+			}
+
+			err = syncer.SyncOnce(ctx, controllerutils.HCPExternalAuthKey{
+				SubscriptionID:      statusutils.TestSubscriptionID,
+				ResourceGroupName:   statusutils.TestResourceGroupName,
+				HCPClusterName:      statusutils.TestClusterName,
+				HCPExternalAuthName: statusutils.TestExternalAuthName,
+			})
+			require.NoError(t, err)
+
+			updated, err := mockDB.HCPClusters(statusutils.TestSubscriptionID, statusutils.TestResourceGroupName).ExternalAuth(statusutils.TestClusterName).Get(ctx, statusutils.TestExternalAuthName)
+			require.NoError(t, err)
+
+			expiryCond := apimeta.FindStatusCondition(updated.Status.UserFacingConditions, CACertificateExpiredConditionType)
+			if tc.wantExpiry {
+				require.NotNil(t, expiryCond, "expected CACertificateExpiry condition")
+				assert.Equal(t, metav1.ConditionTrue, expiryCond.Status)
+				assert.Equal(t, "Expired", expiryCond.Reason)
+			} else {
+				assert.Nil(t, expiryCond, "expected no CACertificateExpiry condition")
+			}
+
+			nyvCond := apimeta.FindStatusCondition(updated.Status.UserFacingConditions, CACertificateNotYetValidConditionType)
+			if tc.wantNotYetValid {
+				require.NotNil(t, nyvCond, "expected CACertificateNotYetValid condition")
+				assert.Equal(t, metav1.ConditionTrue, nyvCond.Status)
+				assert.Equal(t, "NotYetValid", nyvCond.Reason)
+			} else {
+				assert.Nil(t, nyvCond, "expected no CACertificateNotYetValid condition")
+			}
+		})
+	}
+}
+
+// TestExternalAuthDegradedAggregator_SyncOnce_CACertExpiry_clearsStaleCondition verifies that
+// SyncOnce removes the CACertificateExpiry condition from the ExternalAuth when a CA is
+// configured and the condition is stale.
+func TestExternalAuthDegradedAggregator_SyncOnce_CACertExpiry_clearsStaleCondition(t *testing.T) {
+	now := statusutils.FixedNow
+	validCA := mustMakeCAPEM(t, "valid-ca", now.Add(-time.Hour), now.Add(90*24*time.Hour))
+
+	ctx := context.Background()
+	parentClusterID := metadataapi.Must(azcorearm.ParseResourceID(
+		"/subscriptions/" + statusutils.TestSubscriptionID +
+			"/resourceGroups/" + statusutils.TestResourceGroupName +
+			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + statusutils.TestClusterName,
+	))
+	existing := newTestExternalAuthForAggregator(func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
+		ea.Properties.Issuer.CA = validCA
+		ea.Status.UserFacingConditions = []metav1.Condition{
+			{
+				Type:    CACertificateExpiredConditionType,
+				Status:  metav1.ConditionFalse,
+				Reason:  "Valid",
+				Message: "stale healthy condition should be removed",
+			},
+		}
+	})
+	parentCluster := &coreapi.HCPOpenShiftCluster{
+		CosmosMetadata: coreapi.CosmosMetadata{
+			ResourceID:   parentClusterID,
+			PartitionKey: strings.ToLower(parentClusterID.SubscriptionID),
+		},
+		TrackedResource: coreapi.TrackedResource{
+			Resource: coreapi.Resource{ID: parentClusterID, Name: statusutils.TestClusterName, Type: parentClusterID.ResourceType.String()},
+		},
+	}
+
+	mockDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{parentCluster, existing})
+	require.NoError(t, err)
+
+	syncer := &externalAuthDegradedAggregator{
+		externalAuthLister: &corelistertesting.DBExternalAuthLister{ResourcesDBClient: mockDB},
+		controllerLister:   &corelistertesting.DBControllerLister{ResourcesDBClient: mockDB},
+		resourcesDBClient:  mockDB,
+		inertia:            externalAuthDegradedAggregatorInertia(),
+		clock:              clocktesting.NewFakePassiveClock(now),
+		firstObservedBad:   statusutils.NewFirstObservedBadCache(clocktesting.NewFakePassiveClock(now)),
+	}
+
+	err = syncer.SyncOnce(ctx, controllerutils.HCPExternalAuthKey{
+		SubscriptionID:      statusutils.TestSubscriptionID,
+		ResourceGroupName:   statusutils.TestResourceGroupName,
+		HCPClusterName:      statusutils.TestClusterName,
+		HCPExternalAuthName: statusutils.TestExternalAuthName,
+	})
+	require.NoError(t, err)
+
+	updated, err := mockDB.HCPClusters(statusutils.TestSubscriptionID, statusutils.TestResourceGroupName).ExternalAuth(statusutils.TestClusterName).Get(ctx, statusutils.TestExternalAuthName)
+	require.NoError(t, err)
+	assert.Nil(t, apimeta.FindStatusCondition(updated.Status.UserFacingConditions, CACertificateExpiredConditionType),
+		"healthy CA should remove CACertificateExpiry from user-facing conditions")
 }
