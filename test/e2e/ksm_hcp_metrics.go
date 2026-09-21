@@ -76,7 +76,10 @@ var _ = Describe("KSM HCP Metrics", func() {
 			// Azure Monitor Prometheus ingestion latency for new metric series can exceed 10 minutes.
 			Eventually(func(g Gomega) {
 				now := time.Now()
-				start := now.Add(-5 * time.Minute)
+				// Ingestion latency (noted above) can exceed 10 minutes, so a
+				// shorter lookback can miss samples that land with an older
+				// timestamp once ingestion catches up.
+				start := now.Add(-20 * time.Minute)
 
 				resp, err := promutil.QueryRange(ctx, httpClient, cred, endpoint, query, start, now, "60s")
 				g.Expect(err).NotTo(HaveOccurred(), "Prometheus query_range failed")
