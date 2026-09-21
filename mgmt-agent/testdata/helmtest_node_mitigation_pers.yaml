@@ -1,5 +1,5 @@
 values: ../values.yaml
-name: node-mitigation-dev
+name: node-mitigation-pers
 namespace: mgmt-agent
 testData:
   environmentName: pers
