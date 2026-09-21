@@ -133,6 +133,8 @@ Deletion requires all of the following:
   still being deleted. Any incomplete/failed RG inventory aborts deletion.
 - Unchanged, still-eligible latest certificate metadata immediately before delete,
   with owner inventory refreshed before apply and no more than 30 seconds old.
+  If certificate revalidation takes longer than that, the owner inventory is
+  refreshed and checked again before deletion.
 
 The command consumes every certificate inventory page before attempting deletes,
 caps selected candidates at `--max-deletions`, and emits JSON candidate and summary
