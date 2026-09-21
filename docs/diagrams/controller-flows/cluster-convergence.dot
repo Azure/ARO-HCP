@@ -23,7 +23,6 @@ digraph cluster_convergence {
   place -> read [label="actual placement + cluster ID"];
   resources -> apply [label="ApplyDesires"];
   apply -> kube [label="apply objects"];
-  resources -> mirror [label="extra resource ReadDesires"];
   read -> mirror [label="ReadDesires"];
   kube -> mirror [label="observed content / absence"];
   mirror -> props [label="namespace + serving-CA content"];

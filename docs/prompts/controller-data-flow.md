@@ -37,6 +37,7 @@ Useful entry points (discover new ones rather than treating this as a closed lis
 - `internal/controllerutils/`, `backend/pkg/utils/controllerutils/`,
   `internal/database/unioninformers/`
 - `internal/api/{coreapi,fleetapi,kubeapplierapi,metadataapi}/`,
+  `internal/apihelpers/{coreapihelpers,fleetapihelpers,kubeapplierapihelpers,metadataapihelpers}/`,
   `internal/database/{cosmosstorage,informers,listers}/`
 - Azure client interfaces, OCM/Cluster Service adapters, desire builders,
   validation implementations, and lifecycle tests called by these controllers.
@@ -91,7 +92,7 @@ Produce create, update, and delete views for typical **cluster**, **node pool**,
 and **external auth** instances (nine focused diagrams). Add focused views for
 credentials, capacity/placement, ordered teardown, or other flows when they improve
 understanding. Verify placement failure/deadline semantics, fleet readiness inputs,
-and concurrent delete dispatch against the current source.
+and delete-dispatch prerequisites against the current source.
 
 - These are directed graphs, **not necessarily DAGs**. Preserve real reconcile,
   retry, observation, and feedback cycles rather than inventing a linear pipeline.

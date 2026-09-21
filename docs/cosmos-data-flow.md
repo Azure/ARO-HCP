@@ -3,9 +3,7 @@
 This reference covers every concrete controller in the current checkout: backend,
 fleet, kube-applier, management-agent, sessiongate, and shared informer management.
 It maps their inputs, decisions and effects across Cosmos DB, Azure, Cluster Service
-and Kubernetes. Source baseline: `ba139836b378399bcf60654a0df4afc062bb5ecd`, based on main
-`07f480f53ea18278568355cbdd3fc63f114be047` plus this branch's ordered
-cluster-resource teardown and observation changes.
+and Kubernetes. Source baseline: `7997fa34a240560a792c3dd410396cd7651a9f39`.
 
 The generation instructions are maintained in [controller-data-flow.md](prompts/controller-data-flow.md).
 The historical filename is retained for existing links.
@@ -90,6 +88,13 @@ sum by (source_kind, source) (
 ---
 
 ## 1. Frontend Endpoint Writes
+
+Request-body merging and response helpers live under
+[coreapihelpers](../internal/apihelpers/coreapihelpers/); resource-ID and Cosmos
+metadata helpers live under [metadataapihelpers](../internal/apihelpers/metadataapihelpers/),
+[fleetapihelpers](../internal/apihelpers/fleetapihelpers/) and
+[kubeapplierapihelpers](../internal/apihelpers/kubeapplierapihelpers/).
+The helper-package move does not change endpoint ownership or transactional boundaries.
 
 ### PUT Subscription
 
@@ -431,9 +436,9 @@ After Cluster Service placement is visible, maps its provision shard to the flee
 
 [Source](../backend/pkg/controllers/clusterresources/cluster_resources_controller.go) · **Trigger:** Cluster; 30s.
 
-Requires observed `Status.ManagementClusterResourceID`; live reconciliation also requires `ClusterServiceID`. Fetches Cluster Service manifests and reconciles tagged `ApplyDesire` documents for namespaces, HostedCluster, node pools, SWIFT networking and supporting objects. Skips absent/deleting node pools; stale intents use an explicit Delete request and wait for confirmed deletion before document removal. Also ensures tagged `ReadDesire` documents for NodePools, PodNetworkInstances, PodNetworks and both namespaces so their state/finalizers can be inspected.
+Requires observed `Status.ManagementClusterResourceID`; live reconciliation also requires `ClusterServiceID`. Fetches Cluster Service manifests and reconciles tagged `ApplyDesire` documents for namespaces, HostedCluster, node pools, SWIFT networking and supporting objects. Skips absent/deleting node pools; stale intents during live reconciliation use an explicit Delete request and wait for confirmed deletion before document removal.
 
-On cluster deletion, stops fetching manifests and runs the [ordered teardown chain](../backend/pkg/controllers/clusterresources/apply_desire_removal_chain.go): drop namespace-cascade-covered configuration intents; delete/wait for NodePools; then HostedCluster; PodNetworkInstance; cluster-scoped PodNetwork; finally both namespaces. Each waited step converts its ApplyDesires to `Spec.Type=Delete` and removes their documents after kube-applier confirms success. Only the first step drops intent without deleting the object, keeping configuration available during finalization. Cleans up its tagged ReadDesires after the chain drains. Unknown desire names are logged and left untouched. Cluster Service deletion proceeds concurrently; it is not gated on this chain.
+On cluster deletion, stops fetching manifests and removes all its tagged ApplyDesire documents directly. This stops kube-applier reconciliation but does not delete the Kubernetes objects. Cluster Service delete dispatch waits for those intents to disappear before requesting external teardown. ClusterResources does not create ReadDesires; cluster/node-pool read controllers supply the mirrored observations.
 
 #### CreateClusterScopedReadDesires
 
@@ -507,7 +512,7 @@ Observes encryption-key rotation and backup state, creates Velero Backup ApplyDe
 
 [Source](../backend/pkg/controllers/cluster/deletion/cluster_cluster_service_delete_dispatch_controller.go) · **Trigger:** Cluster; 1m.
 
-Requires `UsesNewClusterDeletionApproach`, deletion intent and no dispatch timestamp. Calls Cluster Service DELETE and stamps `ClusterServiceDeletionTimestamp`, independently of ClusterResources teardown. A missing ID or external 404 waits up to 120s from first observed deletion to cover creation races; this is not a dispatch interval.
+Requires `UsesNewClusterDeletionApproach`, deletion intent and no dispatch timestamp. Waits for all ClusterResources-tagged ApplyDesires to disappear, then calls Cluster Service DELETE and stamps `ClusterServiceDeletionTimestamp`. A missing ID or external 404 waits up to 120s from first observed deletion after the ApplyDesire gate passes to cover creation races; this is not a dispatch interval.
 
 #### ClusterDeletionClusterServiceIDClearer
 
@@ -545,7 +550,7 @@ Observes dispatched configuration and completion; For the matching nonterminal o
 
 [Source](../backend/pkg/controllers/cluster/operations/operation_cluster_delete.go) · **Trigger:** Active operation; 10s.
 
-Under the new deletion path, waits for the resource document to disappear; retains legacy deletion handling. Timeout diagnostics include Cluster Service state, mirrored HostedCluster state and remaining ClusterResources-owned ApplyDesires grouped by teardown stage. This diagnostic read does not itself delete resources or add a completion gate. For the matching nonterminal operation, writes status/error/transition time and ARM provisioning state, clears the active-operation reference on terminal state, and sends the async notification.
+Under the new deletion path, waits for the resource document to disappear; retains legacy deletion handling. Timeout diagnostics combine deletion-dispatch progress, live Cluster Service state, remaining descendant resources and mirrored HostedCluster state. For the matching nonterminal operation, writes status/error/transition time and ARM provisioning state, clears the active-operation reference on terminal state, and sends the async notification.
 
 #### ClusterDegradedAggregator
 
@@ -1117,13 +1122,17 @@ For nodes lacking the extended capacity, resolves VMSS NIC information from Azur
 
 [Source](../mgmt-agent/pkg/controller/nodehealth/controller.go) · **Trigger:** Node/Pod/Event informers; 30s sweep.
 
-Runs configured node-health detectors and labels/unlabels wedged SWIFTv2 nodes, with metrics. Hot configuration controls detectors; disabled by default. No Cosmos domain write.
+Runs the compiled detector registry on cached Node/Pod/Event evidence for SWIFTv2 nodes. Ready nodes use the `swift-vf-teardown` and [cni-plugin-not-initialized](../mgmt-agent/pkg/controller/nodehealth/detectors/cni_plugin_not_initialized.go) pod detectors; non-Ready nodes use `never-ready`. The CNI detector requires at least three distinct nonterminating, nonterminal pods, each with `PodReadyToStartContainers=False` for at least 20 minutes, correlated by UID with matching `NetworkNotReady` events in the last 20 minutes. A recent sandbox success from any pod prevents it firing; event repetition alone does not increase the pod count.
+
+Labels/annotates wedged nodes and emits events/metrics; removes labels on healthy/not-applicable verdicts and leaves them unchanged when evidence is Unknown. It does not cordon, evict or delete nodes. The watched [configuration](../mgmt-agent/pkg/controller/nodehealth/config.go) controls only `enabled` (default false); detector definitions and thresholds are compiled, not runtime-configurable. No Cosmos domain write.
 
 #### capacity-reporting
 
 [Source](../mgmt-agent/pkg/controller/capacityreporting/controller.go) · **Trigger:** Periodic; 30s, 25s timeout.
 
-Reads nodes, pods, pod metrics and HCP readiness, creates the singleton CapacityReport and updates allocatable/request/usage and ready/not-ready status for fleet consumption.
+After informer sync, creates the singleton CapacityReport `cluster`. Every pass reads worker nodes, HCPs, namespace mappings, nonterminal pod requests and pod metrics, then server-side applies status: per-SKU allocatable capacity, requested/used resources, ready/not-ready HCP resource IDs, `LastReportedAt` and `ReportCurrent`. Collection failure retains the last payload/timestamp and writes `ReportCurrent=False`; successful collection writes True. Kube-applier mirrors the report for fleet consumers.
+
+Request and usage aggregation always includes CPU, memory and `aro.openshift.io/swift-nic` quantities, with zero values when no matching workload exists. This stable nonempty map avoids null status writes during server-side apply. The [CRD](../mgmt-agent/deploy/templates/capacityreport-crd.yaml) makes `status.hostedControlPlanes` optional and atomic: the sole writer replaces the complete ready/not-ready grouping on each apply, including transitions to empty lists.
 
 #### KSMHCPController
 
@@ -1177,9 +1186,8 @@ The DataplaneController registers ready session credentials, owner and backend A
 | Cluster Service provision shards / Maestro consumers | Fleet registration controllers ensure external registrations | Fleet management-cluster conditions record readiness for placement. Maestro/work-agent and HyperShift are external components, not repository controllers in this catalog. |
 | Kubernetes desired manifests | [ApplyDesireController](#applydesirecontroller) applies/deletes objects | Backend `ClusterResources`, backup and credential controllers write intent documents. An ApplyDesire **Delete request** executes a Kubernetes deletion; removal of the Cosmos intent alone does not. |
 | Shared-ingress router Service | External management-cluster provisioning creates the Service/load balancer | [EnsureSharedIngressReadDesireController](#ensuresharedingressreaddesirecontroller) creates observation intent; [SharedIngressReportingController](#sharedingressreportingcontroller) mirrors IPs and availability into Fleet. Admin management-cluster responses expose those IPs; these controllers do not create ingress resources. |
-| Ordered cluster Kubernetes teardown | [ApplyDesireController](#applydesirecontroller) issues Delete requests; HyperShift/CAPI/SWIFT finalizers release external resources | [ClusterResources](#clusterresources) sequences NodePools, HostedCluster, PodNetworkInstance, PodNetwork and namespaces. Namespace garbage collection reclaims inert configuration whose intents were dropped first. |
 | Kubernetes observation | [ReadDesireKubernetesController](#readdesirekubernetescontroller) reads targets | Writes mirrored Cosmos status; never provisions the observed target. The manager and union controller maintain the watches. |
-| Kubernetes CapacityReport, Node labels/capacity, monitoring objects | Management-agent controllers | These are direct Kubernetes writes, with fleet consuming mirrored capacity later. |
+| Kubernetes CapacityReport, Node labels/capacity, monitoring objects | Management-agent controllers | Direct Kubernetes writes; fleet consumes mirrored capacity. [node-health](#node-health) labels/annotates detected SWIFTv2 failures and emits events; mitigation is outside this controller. [capacity-reporting](#capacity-reporting) preserves zero resource quantities and atomically replaces the HCP readiness grouping. |
 | Kubernetes Session/CSR/approval/credential secrets | [SessionControlPlaneController](#sessioncontrolplanecontroller) | Direct sessiongate control-plane writes; the dataplane controller maintains only its proxy registry. |
 
 ## 3. Resource Lifecycle Digraphs
@@ -1199,7 +1207,8 @@ The delete views describe resources using `UsesNewClusterDeletionApproach`,
 operation paths still exist. Pending operations keep reconciling; errors retry,
 and operation-specific failure checks can produce Failed instead of Succeeded.
 The 120-second missing-ID/404 creation-race wait in delete dispatchers is distinct
-from waiting for external teardown. Graphs show the usual successful path and
+from waiting for external teardown; cluster dispatch starts tracking that wait only
+after its ClusterResources ApplyDesire gate passes. Graphs show the usual successful path and
 important feedback, not every failure branch.
 
 Render all PNGs with Graphviz installed:
@@ -1262,17 +1271,7 @@ The [operation poller](../backend/pkg/controllers/cluster/operations/operation_c
 
 ![Cluster delete controller digraph](diagrams/controller-flows/cluster-delete.png)
 
-[Delete dispatch](../backend/pkg/controllers/cluster/deletion/cluster_cluster_service_delete_dispatch_controller.go) runs concurrently with ClusterResources teardown; there is no ApplyDesire precondition on the Cluster Service DELETE. [Child cleanup](../backend/pkg/controllers/cluster/deletion/cluster_child_resources_cleanup_controller.go) waits for resource and credential children, and preserves owned ApplyDesires for their controllers and removes provider state only after managed-resource-group references, Maestro readonly bundles and cluster-scoped desires clear. [Managed-resource-group reconciliation](../backend/pkg/controllers/cluster/azureresources/managed_resource_group_controller.go) only observes deletion; it does not issue it. The optional orphan-group cleaner is a background repair path, not a prerequisite for typical deletion.
-
-### Cluster delete: ordered resource teardown
-
-[Full PNG](diagrams/controller-flows/cluster-resource-teardown.png) · [Graphviz source](diagrams/controller-flows/cluster-resource-teardown.dot)
-
-![Cluster delete: ordered resource teardown](diagrams/controller-flows/cluster-resource-teardown.png)
-
-The left column shows steps inside [ClusterResources](../backend/pkg/controllers/clusterresources/apply_desire_removal_chain.go), not additional controllers. The right column expands the common [delete-and-confirm helper](../backend/pkg/kubeapplierhelpers/desire_deletion.go) used by every waited step. A pending or failed step blocks all later steps. The first step drops only [cascade-covered configuration intents](../backend/pkg/controllers/clusterresources/apply_desire_removal_steps.go); namespace deletion eventually removes those objects. PodNetwork is cluster-scoped and must be deleted explicitly. Unknown owned desire names are logged and left untouched.
-
-ClusterResources also creates ReadDesires for NodePools, both namespaces and SWIFT objects during normal reconciliation; these make stuck objects inspectable but are not the deletion-success gate. The existing HostedCluster read remains supplied by CreateClusterScopedReadDesires. Its owned observation intents are removed when the ordered chain finishes; generic child cleanup can also sweep eligible reads after its own gates. [OperationClusterDelete](../backend/pkg/controllers/cluster/operations/operation_cluster_delete.go) reports remaining ApplyDesires in timeout diagnostics while final ARM success still depends on cluster-document disappearance.
+[ClusterResources](../backend/pkg/controllers/clusterresources/cluster_resources_controller.go) first drops its tagged ApplyDesire documents, stopping their reconciliation without deleting their Kubernetes targets. [Delete dispatch](../backend/pkg/controllers/cluster/deletion/cluster_cluster_service_delete_dispatch_controller.go) waits for that intent cleanup before calling Cluster Service DELETE. External components then tear down Kubernetes and Azure resources. [Child cleanup](../backend/pkg/controllers/cluster/deletion/cluster_child_resources_cleanup_controller.go) waits for resource and credential children, and preserves owned ApplyDesires for their controllers and removes provider state only after managed-resource-group references, Maestro readonly bundles and cluster-scoped desires clear. [Managed-resource-group reconciliation](../backend/pkg/controllers/cluster/azureresources/managed_resource_group_controller.go) only observes deletion; it does not issue it. The optional orphan-group cleaner is a background repair path, not a prerequisite for typical deletion.
 
 ### Node pool create
 
@@ -1363,8 +1362,8 @@ actors and use optimistic concurrency; retries must re-read on conflict.
 | `Status.Validations` | Each registered validation writes its own condition in the service-provider cluster or node pool; requirements aggregators consume the set. |
 | Cluster `Status.HostedClusterNamespace`, `ControlPlaneNamespace`, `ServingCABundle` | [ServiceProviderClusterPropertiesSync](#serviceproviderclusterpropertiessync) fills these from mirrored reads. Credentials and create-operation completion wait on them. |
 | Cluster `Spec.BackupState` | Admin backup PATCH writes Enabled/Paused; [BackupSchedule](#backupschedule) reconciles Velero intent. Mirrored Kubernetes status reports results separately. |
-| `ApplyDesire` / `ReadDesire` | Backend/fleet writers own desired content/targets; kube-applier owns execution/observation status. Credential cleanup and ordered ClusterResources teardown change ApplyDesire type to Delete and wait; only cascade-covered configuration intents are dropped without deleting their Kubernetes objects. |
-| Kubernetes CapacityReport | Management-agent [capacity-reporting](#capacity-reporting) writes status; kube-applier mirrors it; fleet updates scheduling and resource-requirement documents. This observation chain feeds later placement decisions. |
+| `ApplyDesire` / `ReadDesire` | Backend/fleet writers own desired content/targets; kube-applier owns execution/observation status. Credential cleanup and stale-resource cleanup during live ClusterResources reconciliation use Delete intents and wait. During whole-cluster deletion, ClusterResources drops its intent documents directly; external components own Kubernetes teardown. |
+| Kubernetes CapacityReport | Management-agent [capacity-reporting](#capacity-reporting) server-side applies status, preserving zero CPU/memory/SWIFT-NIC quantities and replacing `hostedControlPlanes` atomically. Kube-applier mirrors it; fleet updates scheduling and resource-requirement documents only from current observations. Collection failures retain the previous payload while setting ReportCurrent=False. |
 
 ### Credential and controller bookkeeping
 
