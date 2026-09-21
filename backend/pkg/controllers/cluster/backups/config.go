@@ -32,6 +32,27 @@ type BackupConfig struct {
 	BackupCadenceProfile BackupCadenceProfile
 }
 
+// SchedulePaused computes spec.paused for a cluster's Velero Schedules from the
+// three levers that govern backup scheduling:
+//
+//  1. clusterState, the per-cluster admin API pause
+//     (ServiceProviderCluster.Spec.BackupScheduleState). Highest precedence: an SRE
+//     pause is never defeated by anything below it.
+//  2. c.BackupScheduleState, the deployment-wide --backup-schedule-state.
+//  3. override, the experimental ARM tag projected onto
+//     HCPOpenShiftCluster.ServiceProviderProperties.ExperimentalFeatures.BackupScheduleOverride
+//     by admission. Overrides (2) only, so an individual test can opt its cluster
+//     into active backups where the deployment keeps schedules off.
+//
+// paused = cluster == Disabled || (global == Disabled && override != Enabled)
+func (c *BackupConfig) SchedulePaused(clusterState, override coreapi.BackupScheduleState) bool {
+	if clusterState == coreapi.BackupScheduleStateDisabled {
+		return true
+	}
+	return c.BackupScheduleState == coreapi.BackupScheduleStateDisabled &&
+		override != coreapi.BackupScheduleStateEnabled
+}
+
 func (c *BackupConfig) Schedules() []BackupScheduleConfig {
 	switch c.BackupCadenceProfile {
 	case BackupCadenceTesting:
