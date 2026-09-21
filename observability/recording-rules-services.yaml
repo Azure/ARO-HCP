@@ -6,5 +6,6 @@ prometheusRules:
   - recording-rules/cluster-deletion-slo-recordingRule.yaml
   - recording-rules/userJourneyClusterUpgrade-recordingRule.yaml
   - recording-rules/frontend-slo-recordingRule.yaml
+  - recording-rules/certificate-rotation-slo-recordingRule.yaml
   untestedRules: []
   outputBicep: ../dev-infrastructure/modules/metrics/rules/generatedRecordingRules.bicep
