@@ -100,6 +100,19 @@ const (
 	// The tag is set at cluster creation time but consumed at deletion time.
 	TagClusterMaxDeletionDuration = ExperimentalClusterTagPrefix + "max-deletion-duration"
 
+	// TagClusterBackupScheduleOverride is the ARM resource tag that force-enables
+	// the cluster's Velero backup Schedules when the ExperimentalReleaseFeatures
+	// AFEC is registered on the subscription. The only accepted value is
+	// "Enabled"; absent or empty means "no override".
+	//
+	// An "Enabled" override unpauses the cluster's Velero Schedules despite a
+	// deployment-wide --backup-schedule-state=Disabled. It exists so an individual
+	// test can opt its own cluster into active backups in environments that keep
+	// schedules off to avoid snapshot and datamover costs. It does NOT override the
+	// per-cluster admin API pause (ServiceProviderCluster.Spec.BackupScheduleState),
+	// which stays authoritative.
+	TagClusterBackupScheduleOverride = ExperimentalClusterTagPrefix + "backup-schedule-override"
+
 	// ExperimentalNodePoolTagPrefix is the prefix for all experimental node pool
 	// tags. Tags with this prefix are only honored when the
 	// ExperimentalReleaseFeatures AFEC is registered. Unrecognized tags
