@@ -22,32 +22,32 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 )
 
-// ResolveZones computes the availability zones to plan node pools across, shared
-// by the nodepool controller and the aks-cluster-create tool so both derive and
-// validate zones identically.
+// RequiredAvailabilityZones is the number of zones every pool spans.
+const RequiredAvailabilityZones = 3
+
+// ResolveZones computes exactly RequiredAvailabilityZones availability zones
+// to plan node pools across, shared by the nodepool controller and the
+// aks-cluster-create tool so both derive and validate zones identically.
 //
-// regionAvailabilityZones is the number of availability zones the region offers
-// (config azureRegionAvailabilityZoneCount), trusted as authoritative. We only
-// target zonal regions, so a region with no zones cannot host node pools and
-// regionAvailabilityZones < 1 is always an error — there is no point planning
-// anything there.
+// regionAvailabilityZones is the region's real zone count (config
+// azureRegionAvailabilityZoneCount), trusted as authoritative.
 //
-// explicitZones is an optional operator override (comma-separated, e.g. "1,3")
-// for skipping a known-bad zone. When empty, ResolveZones returns the region's
-// full zone set "1".."regionAvailabilityZones". When set, every entry must be an
-// integer in [1,regionAvailabilityZones] with no duplicates; the list is
-// returned normalized but in the given order, so an operator can plan across a
-// subset. Entries outside the region's range (e.g. "4", or "1,3,4", in a 3-zone
-// region) are rejected rather than silently reaching Azure and failing pool
-// creation.
+// explicitZones is an optional operator override (comma-separated, e.g.
+// "4,2,1") for choosing which zones to use, e.g. to skip a known-bad zone.
+// It must name exactly RequiredAvailabilityZones distinct integers in
+// [1,regionAvailabilityZones]; the list is returned normalized but in the
+// given order. When empty, ResolveZones returns the region's first
+// RequiredAvailabilityZones zones. Either way, a region with too few zones,
+// or an explicit list naming the wrong count or an out-of-range/duplicate
+// zone, is rejected.
 func ResolveZones(explicitZones string, regionAvailabilityZones int) ([]string, error) {
-	if regionAvailabilityZones < 1 {
-		return nil, fmt.Errorf("region has no availability zones (azureRegionAvailabilityZoneCount=%d); zonal node pools are unsupported", regionAvailabilityZones)
+	if regionAvailabilityZones < RequiredAvailabilityZones {
+		return nil, fmt.Errorf("region has %d availability zones, fewer than the %d required", regionAvailabilityZones, RequiredAvailabilityZones)
 	}
 
 	if len(strings.TrimSpace(explicitZones)) == 0 {
-		zones := make([]string, 0, regionAvailabilityZones)
-		for zone := 1; zone <= regionAvailabilityZones; zone++ {
+		zones := make([]string, 0, RequiredAvailabilityZones)
+		for zone := 1; zone <= RequiredAvailabilityZones; zone++ {
 			zones = append(zones, strconv.Itoa(zone))
 		}
 		return zones, nil
@@ -72,6 +72,9 @@ func ResolveZones(explicitZones string, regionAvailabilityZones int) ([]string, 
 		}
 		seen.Insert(zone)
 		zones = append(zones, strconv.Itoa(zone))
+	}
+	if len(zones) != RequiredAvailabilityZones {
+		return nil, fmt.Errorf("zone list %q names %d zones, must name exactly %d", explicitZones, len(zones), RequiredAvailabilityZones)
 	}
 	return zones, nil
 }

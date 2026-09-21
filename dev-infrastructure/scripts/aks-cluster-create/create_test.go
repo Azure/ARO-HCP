@@ -164,9 +164,9 @@ func TestDesiredPoolsResolveRegionalZones(t *testing.T) {
 		want  []poolPlacement
 	}{
 		{
-			name: "empty zones use regional count and select first three worker zones",
+			name: "empty zones cap the regional count at 3 and select first three worker zones",
 			want: []poolPlacement{
-				{name: "s1abc1234567", zones: []string{"1", "2", "3", "4"}},
+				{name: "s1abc1234567", zones: []string{"1", "2", "3"}},
 				{name: "w1", zones: []string{"1"}},
 				{name: "w2", zones: []string{"2"}},
 				{name: "w3", zones: []string{"3"}},

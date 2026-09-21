@@ -60,13 +60,11 @@
 //	INFRA_POOL_MIN_COUNT, INFRA_POOL_MAX_COUNT, INFRA_POOL_COUNT,
 //	INFRA_POOL_ZONES (CSV)
 //
-// REGION_AVAILABILITY_ZONE_COUNT must be at least 3: the system pool spans
-// the region's full zone set and hosts the control plane, and fewer zones
-// can't tolerate a single-zone outage. Empty per-pool zones resolve to
-// 1..REGION_AVAILABILITY_ZONE_COUNT. User and infra pools select the first
-// POOL_COUNT zones; the system pool spans the entire resolved list. Explicit
-// zone lists are validated as integers within range with no duplicates and
-// retain their selection and order.
+// Every pool spans exactly 3 zones (see compute.ResolveZones):
+// REGION_AVAILABILITY_ZONE_COUNT must be at least 3, empty per-pool zones
+// default to the region's first 3, and an explicit *_ZONES list must name
+// exactly 3 valid zones. User and infra pools select the first POOL_COUNT
+// zones from the resolved list; the system pool spans all of them.
 package main
 
 import (
