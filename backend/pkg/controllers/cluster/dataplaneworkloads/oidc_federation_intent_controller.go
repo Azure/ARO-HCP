@@ -45,31 +45,33 @@ const DataPlaneOIDCFederationIntentControllerName = "DataPlaneOIDCFederationInte
 // in sync with Cluster data-plane operators and
 // ServiceProviderCluster.Status.ManagedIdentityDetails.
 //
-// It does not call Azure. The map is keyed by identity ResourceID. Each value
-// holds TargetIdentity and an Operators map keyed by operator name:
-//   - Pairs from
-//     CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators
-//     whose ManagedIdentityDetails entry has resolved
-//     MetadataFromARMUserAssignedIdentitiesAPI (ClientID, PrincipalID, and
-//     TenantID) are added. TargetIdentity is copied from that ARM metadata.
-//     A change to those IDs on the same ResourceID updates TargetIdentity and
-//     clears every operator's EnsuredIdentity, AzureResources, and
-//     PendingAzureResources; it does not deconfigure. Identities that only
-//     have dataplane or hardcoded-identity metadata (control plane operators
-//     and the ServiceManagedIdentity) are ignored, even when the same UAMI is
-//     still used as CP or SMI.
-//   - An operator present on an identity that is no longer assigned to that
-//     identity gets DeconfigureTimestamp on that operator entry. Operators
-//     with nothing tracked to delete are dropped. The identity key is dropped
-//     when Operators is empty. The executor waits 24h from the operator stamp
-//     on a live cluster. Cluster deletion still stamps the request time; the
-//     executor ignores the wait when DeletionTimestamp is set. This stamp
-//     still happens when another operator on the same identity has unresolved
-//     ARM metadata.
+// It does not call Azure. The map is keyed by (identity ResourceID, operator
+// name):
+//   - Desired assignments are DataPlaneOperators pairs whose ManagedIdentityDetails
+//     entry has resolved MetadataFromARMUserAssignedIdentitiesAPI (ClientID,
+//     PrincipalID, and TenantID). TargetIdentity is copied from that ARM metadata
+//     onto every assignment that shares that ResourceID. When an assignment's
+//     TargetIdentity does not match those ARM IDs, EnsuredIdentity, AzureResources,
+//     and PendingAzureResources are cleared on that assignment, including a
+//     draining neighbor. Assignments whose TargetIdentity already matches are left
+//     as-is. That identity-instance change does not deconfigure. Identities that only have managed identities dataplane or
+//     hardcoded-identity metadata (control-plane operators and the
+//     ServiceManagedIdentity) are ignored, even when the same User-Assigned
+//     Managed Identity is still used as a control-plane or service managed
+//     identity.
+//   - An existing assignment is unmapped when its operator is no longer mapped to
+//     that identity in DataPlaneOperators (removed, or moved to another identity).
+//     If AzureResources or PendingAzureResources still list Azure FederatedIdentityCredential resources, DeconfigureTimestamp
+//     is set so DataPlaneOIDCFederation can delete them. If both lists are empty,
+//     the assignment is dropped. On an existing cluster the executor waits 24 hours from
+//     the stamp. This is still the case even when the Cluster is marked as deletion. In that case the executor
+//     skips the wait when the Cluster'sDeletionTimestamp is set. Unmapped operators are stamped
+//     or dropped even when another operator on the same identity still has
+//     unresolved ARM metadata.
 //   - Data-plane operators whose ARM User Assigned Identities metadata is
 //     temporarily unset are left as-is so a transient fetch error does not
-//     deconfigure them. Neighbors on that identity that have left
-//     DataPlaneOperators are still stamped or dropped.
+//     deconfigure them. Neighbors on that identity that have left DataPlaneOperators
+//     are still stamped or dropped.
 type dataPlaneOIDCFederationIntentSyncer struct {
 	clock                        utilsclock.PassiveClock
 	clusterLister                corelisters.ClusterLister
@@ -189,39 +191,39 @@ func (s *dataPlaneOIDCFederationIntentSyncer) clusterServiceGone(cluster *coreap
 //
 // Desired assignments are operator-to-identity pairs from DataPlaneOperators whose
 // ManagedIdentityDetails entry has resolved MetadataFromARMUserAssignedIdentitiesAPI.
-// The map is keyed by lowercased identity ResourceID. Operators is keyed by operator
-// name. A change to ClientID, PrincipalID, or TenantID on the same ResourceID updates
-// TargetIdentity and clears every operator's EnsuredIdentity and FIC lists. An operator
-// that left this identity is stamped for deconfigure. Already deconfiguring operators
-// keep their stamp so the wait is not reset.
+// The map is keyed by (lowercased identity ResourceID, operator name). When an
+// assignment's TargetIdentity does not match ARM ClientID, PrincipalID, or TenantID
+// for that ResourceID, EnsuredIdentity and FIC lists are cleared on that
+// assignment. An operator whose DataPlaneOperators entry no longer points at
+// that identity (entry removed, or pointing at a different identity) is stamped
+// for deconfigure.
+// Already deconfiguring assignments keep their stamp so the wait is not reset.
 //
-// Three loops: (1) invert DataPlaneOperators into operators-by-identity, recording
-// ResourceIDs whose ARM metadata is not resolved yet; (2) upsert identities that
-// still have at least one resolved desired operator and stamp operators that left
-// that identity; (3) existing Cosmos keys not produced by loop 2: when ARM is
-// unresolved, keep still-assigned operators and stamp or drop ones that left;
-// otherwise stamp or drop every operator. Loop 1 must finish before any stamp so
-// an identity's desired operator set is complete.
+// Invert DataPlaneOperators must finish before leftover diffs Cosmos against
+// that inverted set. Desired upsert emits still-desired assignments whose ARM
+// metadata is resolved. Leftover walks Cosmos keys upsert did not emit: keep
+// still-assigned operators when ARM is unresolved, otherwise stamp-or-omit
+// leavers. When ARM is resolved for a still-used identity, leftover applies
+// the same identity-instance clear as upsert before stamp-or-omit.
 func (s *dataPlaneOIDCFederationIntentSyncer) desiredDataPlaneOIDCFederationStatus(
 	ctx context.Context,
 	dataPlaneOperators map[string]*azcorearm.ResourceID,
 	existingManagedIdentityDetails map[string]*coreapi.ManagedIdentityMetadata,
-	existingManagedIdentityDataplaneOIDCFederationStatus map[string]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus,
-) (map[string]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus, error) {
-	logger := utils.LoggerFromContext(ctx)
-
-	// desiredDataPlaneOperatorsByIdentity is every DataPlaneOperators assignment,
-	// including identities whose ARM metadata is not resolved yet. Loop 2 skips
-	// unresolved keys. Loop 3 uses the same map to stamp operators that have
-	// left a still-assigned unresolved identity.
-	desiredDataPlaneOperatorsByIdentity := map[string]map[string]struct{}{}
+	existingManagedIdentityDataplaneOIDCFederationStatus map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus,
+) (map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus, error) {
+	// desiredDataPlaneOperatorsByIdentityResourceID is the set of identity ResourceIDs that have at
+	// least one desired operator in DataPlaneOperators. For each entry, it contains the set of data plane operators
+	// that are referencing that identity. Leftover uses it to keep still-assigned
+	// unresolved operators and to know when a leaver is on a still-used identity.
+	desiredDataPlaneOperatorsByIdentityResourceID := map[string]map[string]struct{}{}
+	// resourceIDsWithUnresolvedIdentityMetadata is a set of identity ResourceIDs
+	// whose ARM metadata is currently not resolved.
 	resourceIDsWithUnresolvedIdentityMetadata := make(map[string]struct{})
 
-	// Loop 1: invert DataPlaneOperators (operator -> identity). Record every
-	// assignment, then skip unresolved ARM TargetIdentity so loop 2 does not
-	// upsert those identities. Remember them so loop 3 does not treat "still
-	// assigned, metadata missing" as fully unused. Do not stamp here: later
-	// operators in this map may still be assigned to the same identity.
+	// Invert DataPlaneOperators (operator -> identity). Record every
+	// assignment, then skip unresolved ARM TargetIdentity so desired upsert
+	// does not add those assignments. Remember them so leftover merge does
+	// not treat "still assigned, metadata missing" as fully unused.
 	for operatorName, resourceID := range dataPlaneOperators {
 		if len(operatorName) == 0 {
 			return nil, utils.TrackError(fmt.Errorf("data-plane operator %s has an empty name", operatorName))
@@ -231,10 +233,10 @@ func (s *dataPlaneOIDCFederationIntentSyncer) desiredDataPlaneOIDCFederationStat
 		}
 
 		resourceIDKey := strings.ToLower(resourceID.String())
-		if desiredDataPlaneOperatorsByIdentity[resourceIDKey] == nil {
-			desiredDataPlaneOperatorsByIdentity[resourceIDKey] = map[string]struct{}{}
+		if desiredDataPlaneOperatorsByIdentityResourceID[resourceIDKey] == nil {
+			desiredDataPlaneOperatorsByIdentityResourceID[resourceIDKey] = map[string]struct{}{}
 		}
-		desiredDataPlaneOperatorsByIdentity[resourceIDKey][operatorName] = struct{}{}
+		desiredDataPlaneOperatorsByIdentityResourceID[resourceIDKey][operatorName] = struct{}{}
 
 		metadata, hasMetadata := existingManagedIdentityDetails[resourceIDKey]
 		if !hasMetadata {
@@ -250,21 +252,22 @@ func (s *dataPlaneOIDCFederationIntentSyncer) desiredDataPlaneOIDCFederationStat
 			// ARM User Assigned Identities metadata is not resolved. That happens
 			// when the FetchManagedIdentitiesInfo controller has not written this identity yet, when the metadata source
 			// has not been queried yet, when RetrievalError is set, or when the identity does not exist anymore in Azure.
-			// Loop 3 keeps still-assigned operators on this ResourceID and stamps
+			// Leftover merge keeps still-assigned operators on this ResourceID and stamps
 			// operators that have left it.
 			resourceIDsWithUnresolvedIdentityMetadata[resourceIDKey] = struct{}{}
 			continue
 		}
 	}
 
-	desiredManagedIdentityDataplaneOIDCFederationStatus := make(map[string]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus)
+	desiredManagedIdentityDataplaneOIDCFederationStatus := make(map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus)
 	deconfigureRequestedAt := metav1.NewTime(s.clock.Now())
 
-	// Loop 2: identities that still have at least one DataPlaneOperators assignment
-	// with resolved ARM metadata. Write TargetIdentity, add missing operator rows,
-	// clear DeconfigureTimestamp when an operator is desired again, then stamp or
-	// drop operators on this identity that are no longer in that desired set.
-	for resourceIDKey, desiredOperators := range desiredDataPlaneOperatorsByIdentity {
+	// Desired upsert: still-desired operators whose identity has resolved ARM
+	// metadata. Copy the Cosmos assignment so the cache is not mutated, or
+	// create one when the assignment is new. Write TargetIdentity, clear FIC
+	// tracking when TargetIdentity does not match ARM, and clear
+	// DeconfigureTimestamp when the operator is desired again.
+	for resourceIDKey, desiredOperators := range desiredDataPlaneOperatorsByIdentityResourceID {
 		if _, unresolved := resourceIDsWithUnresolvedIdentityMetadata[resourceIDKey]; unresolved {
 			continue
 		}
@@ -274,112 +277,84 @@ func (s *dataPlaneOIDCFederationIntentSyncer) desiredDataPlaneOIDCFederationStat
 			return nil, utils.TrackError(fmt.Errorf("ManagedIdentityDetails has unresolved ARM metadata for resource ID %s", resourceIDKey))
 		}
 
-		existing, hasExisting := existingManagedIdentityDataplaneOIDCFederationStatus[resourceIDKey]
-		if hasExisting && existing == nil {
-			return nil, utils.TrackError(fmt.Errorf("ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation has a nil status for resource ID %s", resourceIDKey))
-		}
-
-		var next *coreapi.ManagedIdentityDataplaneOIDCFederationStatus
-		if !hasExisting {
-			// If the identity is not yet tracked for data plane oidc federation configuration/deconfiguration, set it with the TargetIdentity
-			next = &coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
-				TargetIdentity: targetIdentity,
-				Operators:      map[string]*coreapi.DataplaneOIDCFederationOperatorStatus{},
-			}
-		} else {
-			next = existing.DeepCopy()
-			// To determine if the identity has changed, we can compare the TargetIdentity of the existing entry with the new TargetIdentity using the
-			// != operator because it will compare the values of the fields of the TargetIdentity struct, which are all string values.
-			identityChanged := existing.TargetIdentity != targetIdentity
-			next.TargetIdentity = targetIdentity
-
-			if next.Operators == nil {
-				next.Operators = map[string]*coreapi.DataplaneOIDCFederationOperatorStatus{}
-			}
-			if identityChanged {
-				logger.Info("data-plane OIDC federation identity instance changed. Clearing ensured identity and FIC lists",
-					"managedIdentityResourceID", resourceIDKey,
-					"previousTargetClientID", existing.TargetIdentity.ClientID,
-					"previousTargetPrincipalID", existing.TargetIdentity.PrincipalID,
-					"previousTargetTenantID", existing.TargetIdentity.TenantID,
-					"targetClientID", targetIdentity.ClientID,
-					"targetPrincipalID", targetIdentity.PrincipalID,
-					"targetTenantID", targetIdentity.TenantID,
-				)
-				// ClientID/PrincipalID/TenantID changed on this ResourceID (identity
-				// recreated). Keep operator rows; drop ensured snapshot and FIC lists
-				// so the executor federates the new instance.
-				for _, operatorStatus := range next.Operators {
-					operatorStatus.EnsuredIdentity = nil
-					operatorStatus.AzureResources = nil
-					operatorStatus.PendingAzureResources = nil
-					operatorStatus.DeconfigureTimestamp = nil
-				}
-			}
-		}
-
-		// Ensure a row for every still-desired operator on this identity. A
-		// returning operator must not keep a drain stamp from a previous
-		// assignment to this identity.
 		for operatorName := range desiredOperators {
-			if next.Operators[operatorName] == nil {
-				next.Operators[operatorName] = &coreapi.DataplaneOIDCFederationOperatorStatus{}
-				continue
+			key := coreapi.DataplaneOIDCFederationAssignmentKey{
+				IdentityResourceID: resourceIDKey,
+				OperatorName:       operatorName,
 			}
-			next.Operators[operatorName].DeconfigureTimestamp = nil
+			existing, hasExisting := existingManagedIdentityDataplaneOIDCFederationStatus[key]
+			if hasExisting && existing == nil {
+				return nil, utils.TrackError(fmt.Errorf("ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation has a nil status for assignment %s", key.String()))
+			}
+			var desiredOIDCFederationAssignmentStatus *coreapi.DataplaneOIDCFederationAssignmentStatus
+			if !hasExisting {
+				desiredOIDCFederationAssignmentStatus = &coreapi.DataplaneOIDCFederationAssignmentStatus{}
+			} else {
+				desiredOIDCFederationAssignmentStatus = existing.DeepCopy()
+				s.clearAssignmentFICTrackingIfTargetIdentityChanged(ctx, key, desiredOIDCFederationAssignmentStatus, targetIdentity)
+			}
+			desiredOIDCFederationAssignmentStatus.TargetIdentity = targetIdentity
+			desiredOIDCFederationAssignmentStatus.DeconfigureTimestamp = nil
+			desiredManagedIdentityDataplaneOIDCFederationStatus[key] = desiredOIDCFederationAssignmentStatus
 		}
-
-		s.stampOrDropUndesiredOperators(next, desiredOperators, deconfigureRequestedAt)
-		if len(next.Operators) == 0 {
-			continue
-		}
-		desiredManagedIdentityDataplaneOIDCFederationStatus[resourceIDKey] = next
 	}
 
-	// Loop 3: existing Cosmos identity keys that loop 2 did not emit. Those are
-	// either still referenced by DataPlaneOperators with unresolved ARM metadata
-	// (keep still-assigned operators so a transient fetch does not deconfigure
-	// them; stamp or drop operators that have left) or no longer referenced at
-	// all (stamp or drop every operator; drop the identity when Operators is
-	// empty).
-	for resourceIDKey, existing := range existingManagedIdentityDataplaneOIDCFederationStatus {
+	// Leftover: Cosmos keys upsert did not emit. Keep a still-assigned operator
+	// when ARM is unresolved so a transient fetch does not deconfigure it.
+	// A leaver is a Cosmos assignment (identity, operator) whose
+	// DataPlaneOperators entry no longer points at that identity: the operator
+	// key was removed, or it now points at a different identity. Stamp DeconfigureTimestamp when FICs remain,
+	// or omit the key when both lists are empty. When another operator still
+	// uses this identity and ARM is resolved, clear FIC tracking first if
+	// TargetIdentity does not match that ARM snapshot (identity instance changed).
+	// TODO is stamping leavers before ARM resolves the approach we want, or
+	// do we prefer to wait until the metadata is resolved?
+	for key, existing := range existingManagedIdentityDataplaneOIDCFederationStatus {
 		if existing == nil {
-			return nil, utils.TrackError(fmt.Errorf("ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation has a nil status for resource ID %s", resourceIDKey))
+			return nil, utils.TrackError(fmt.Errorf("ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation has a nil status for assignment %s", key.String()))
 		}
-		if _, alreadyDesired := desiredManagedIdentityDataplaneOIDCFederationStatus[resourceIDKey]; alreadyDesired {
-			continue
-		}
-		// Still assigned on this UAMI, but ARM TargetIdentity is not ready, so
-		// loop 2 skipped the identity. Do not update TargetIdentity or add
-		// operator rows. Keep operators that DataPlaneOperators still maps
-		// here so a transient fetch does not deconfigure them.
-		//
-		// Stamp or drop operators that have left this identity. Desiredness
-		// comes from DataPlaneOperators, not from ClientID/PrincipalID/TenantID.
-		// The status row already has the FIC IDs to delete. Copying the identity
-		// unchanged would leave those operators unstamped until ARM resolves.
-		// The executor would neither ensure them (they are not assigned) nor
-		// deconfigure them (no DeconfigureTimestamp). Their FICs would stay on
-		// this UAMI, and would never drain if ARM never comes back. Drop the
-		// identity when that leaves Operators empty.
-		// TODO is this the approach we want to take or do we prefer to wait
-		// until the metadata is resolved?
-		if _, unresolved := resourceIDsWithUnresolvedIdentityMetadata[resourceIDKey]; unresolved {
-			next := existing.DeepCopy()
-			s.stampOrDropUndesiredOperators(next, desiredDataPlaneOperatorsByIdentity[resourceIDKey], deconfigureRequestedAt)
-			if len(next.Operators) == 0 {
-				continue
-			}
-			desiredManagedIdentityDataplaneOIDCFederationStatus[resourceIDKey] = next
+		if _, alreadyEmitted := desiredManagedIdentityDataplaneOIDCFederationStatus[key]; alreadyEmitted {
 			continue
 		}
 
-		next := existing.DeepCopy()
-		s.stampOrDropAllOperatorsForIdentity(next, deconfigureRequestedAt)
-		if len(next.Operators) == 0 {
+		desiredOIDCFederationAssignmentStatus := existing.DeepCopy()
+		_, identityMetadataUnresolved := resourceIDsWithUnresolvedIdentityMetadata[key.IdentityResourceID]
+		_, identityAndOperatorAssignmentStillDesired := desiredDataPlaneOperatorsByIdentityResourceID[key.IdentityResourceID][key.OperatorName]
+		_, identityIsDesiredAsDataplaneOperator := desiredDataPlaneOperatorsByIdentityResourceID[key.IdentityResourceID]
+
+		// identityMetaddataUnresolved == false && identityAndOperatorAssignmentStillDesired == true should never happen
+		// here because the desired upsert loop already processed this identity and operator assignment.
+
+		if identityMetadataUnresolved && identityAndOperatorAssignmentStillDesired {
+			// Still assigned, ARM not ready. Copy Cosmos as-is.
+			desiredManagedIdentityDataplaneOIDCFederationStatus[key] = desiredOIDCFederationAssignmentStatus
 			continue
 		}
-		desiredManagedIdentityDataplaneOIDCFederationStatus[resourceIDKey] = next
+
+		// Leaver: Cosmos still has this (identity, operator) pair, but
+		// DataPlaneOperators no longer maps that operator to that identity.
+		// Still-desired plus resolved ARM already continued (upsert).
+		// Still-desired plus unresolved ARM already continued (keep).
+		// What remains (this operator is not desired on this identity):
+		//   - another operator still maps to this identity, ARM resolved:
+		//     clear FIC tracking if the instance changed, then stamp or omit
+		//     (after a clear, omit because lists are empty)
+		//   - another operator still maps to this identity, ARM unresolved:
+		//     stamp or omit with Cosmos as-is
+		//   - no DataPlaneOperators entry points at this identity at all
+		//     (last operator left, or cluster deletion emptied the set):
+		//     stamp or omit with Cosmos as-is, no identity-instance clear
+		if !identityMetadataUnresolved && identityIsDesiredAsDataplaneOperator {
+			metadata := existingManagedIdentityDetails[key.IdentityResourceID]
+			targetIdentity, ok := s.targetIdentityFromARMUserAssignedIdentities(metadata)
+			if !ok {
+				return nil, utils.TrackError(fmt.Errorf("ManagedIdentityDetails has unresolved ARM metadata for resource ID %s", key.IdentityResourceID))
+			}
+			s.clearAssignmentFICTrackingIfTargetIdentityChanged(ctx, key, desiredOIDCFederationAssignmentStatus, targetIdentity)
+		}
+		if kept := s.stampOrDropAssignment(desiredOIDCFederationAssignmentStatus, deconfigureRequestedAt); kept != nil {
+			desiredManagedIdentityDataplaneOIDCFederationStatus[key] = kept
+		}
 	}
 
 	if len(desiredManagedIdentityDataplaneOIDCFederationStatus) == 0 {
@@ -389,58 +364,53 @@ func (s *dataPlaneOIDCFederationIntentSyncer) desiredDataPlaneOIDCFederationStat
 	return desiredManagedIdentityDataplaneOIDCFederationStatus, nil
 }
 
-// stampOrDropAllOperatorsForIdentity stamps DeconfigureTimestamp on every operator that still
-// has tracked FICs, and drops operators with nothing to delete. Used when this
-// identity has no remaining desired data-plane operators (loop 3). Already
-// draining operators keep their stamp so the 24h wait is not reset.
-func (s *dataPlaneOIDCFederationIntentSyncer) stampOrDropAllOperatorsForIdentity(
-	status *coreapi.ManagedIdentityDataplaneOIDCFederationStatus,
-	deconfigureRequestedAt metav1.Time,
+// clearAssignmentFICTrackingIfTargetIdentityChanged clears EnsuredIdentity and
+// FIC lists on next when TargetIdentity does not match targetIdentity. Azure
+// already deleted child FICs with the old instance. Do not deconfigure: a
+// delayed Delete would target the new instance and the same deterministic FIC
+// names.
+func (s *dataPlaneOIDCFederationIntentSyncer) clearAssignmentFICTrackingIfTargetIdentityChanged(
+	ctx context.Context,
+	key coreapi.DataplaneOIDCFederationAssignmentKey,
+	desiredOIDCFederationAssignmentStatus *coreapi.DataplaneOIDCFederationAssignmentStatus,
+	targetIdentity coreapi.DataplaneOIDCFederationIdentityInstance,
 ) {
-	for operatorName, operatorStatus := range status.Operators {
-		if operatorStatus.DeconfigureTimestamp != nil {
-			continue
-		}
-		if len(operatorStatus.AzureResources) == 0 && len(operatorStatus.PendingAzureResources) == 0 {
-			delete(status.Operators, operatorName)
-			continue
-		}
-		stamp := deconfigureRequestedAt
-		operatorStatus.DeconfigureTimestamp = &stamp
+	logger := utils.LoggerFromContext(ctx)
+	if desiredOIDCFederationAssignmentStatus.TargetIdentity == targetIdentity {
+		return
 	}
-
-	if len(status.Operators) == 0 {
-		status.Operators = nil
-	}
+	logger.Info("data-plane OIDC federation identity instance changed. Clearing ensured identity and FIC lists",
+		"managedIdentityResourceID", key.IdentityResourceID,
+		"operatorName", key.OperatorName,
+		"previousTargetClientID", desiredOIDCFederationAssignmentStatus.TargetIdentity.ClientID,
+		"previousTargetPrincipalID", desiredOIDCFederationAssignmentStatus.TargetIdentity.PrincipalID,
+		"previousTargetTenantID", desiredOIDCFederationAssignmentStatus.TargetIdentity.TenantID,
+		"targetClientID", targetIdentity.ClientID,
+		"targetPrincipalID", targetIdentity.PrincipalID,
+		"targetTenantID", targetIdentity.TenantID,
+	)
+	desiredOIDCFederationAssignmentStatus.EnsuredIdentity = nil
+	desiredOIDCFederationAssignmentStatus.AzureResources = nil
+	desiredOIDCFederationAssignmentStatus.PendingAzureResources = nil
+	desiredOIDCFederationAssignmentStatus.DeconfigureTimestamp = nil
 }
 
-// stampOrDropUndesiredOperators stamps DeconfigureTimestamp on operators that
-// are not in desiredOperators and still have tracked FICs. Operators with
-// nothing to delete are dropped. Desired operators are left as-is. Already
-// draining operators keep their stamp so the 24h wait is not reset.
-func (s *dataPlaneOIDCFederationIntentSyncer) stampOrDropUndesiredOperators(
-	status *coreapi.ManagedIdentityDataplaneOIDCFederationStatus,
-	desiredOperators map[string]struct{},
+// stampOrDropAssignment stamps DeconfigureTimestamp on an assignment that still
+// has tracked FICs, and drops an assignment with nothing to delete. Already
+// draining assignments keep their stamp so the 24h wait is not reset.
+func (s *dataPlaneOIDCFederationIntentSyncer) stampOrDropAssignment(
+	status *coreapi.DataplaneOIDCFederationAssignmentStatus,
 	deconfigureRequestedAt metav1.Time,
-) {
-	for operatorName, operatorStatus := range status.Operators {
-		if _, desired := desiredOperators[operatorName]; desired {
-			continue
-		}
-		if operatorStatus.DeconfigureTimestamp != nil {
-			continue
-		}
-		if len(operatorStatus.AzureResources) == 0 && len(operatorStatus.PendingAzureResources) == 0 {
-			delete(status.Operators, operatorName)
-			continue
-		}
-		stamp := deconfigureRequestedAt
-		operatorStatus.DeconfigureTimestamp = &stamp
+) *coreapi.DataplaneOIDCFederationAssignmentStatus {
+	if status.DeconfigureTimestamp != nil {
+		return status
 	}
-
-	if len(status.Operators) == 0 {
-		status.Operators = nil
+	if len(status.AzureResources) == 0 && len(status.PendingAzureResources) == 0 {
+		return nil
 	}
+	stamp := deconfigureRequestedAt
+	status.DeconfigureTimestamp = &stamp
+	return status
 }
 
 // targetIdentityFromARMUserAssignedIdentities returns the TargetIdentity

@@ -16,6 +16,7 @@ package coreapi
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/blang/semver/v4"
 
@@ -322,69 +323,110 @@ type ServiceProviderClusterStatus struct {
 	ManagedIdentityDetails map[string]*ManagedIdentityMetadata `json:"managedIdentityDetails,omitempty"`
 
 	// ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation tracks data-plane OIDC
-	// federation by identity ResourceID, with per-operator assignment state under
-	// Operators. The map is keyed by the fully lowercased Azure Resource ID of the
-	// identity. Desired assignments are pairs from
-	// Cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators
+	// federation per (identity ResourceID, operator name) assignment. The map is
+	// keyed by DataplaneOIDCFederationAssignmentKey. Desired assignments are pairs
+	// from Cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators
 	// whose ManagedIdentityDetails entry has resolved MetadataFromARMUserAssignedIdentitiesAPI
 	// (ClientID, PrincipalID, and TenantID).
 	// The DataPlaneOIDCFederationIntent controller copies TargetIdentity from that ARM
-	// metadata. A change to those IDs on the same ResourceID updates TargetIdentity and
-	// clears every operator's EnsuredIdentity, AzureResources, and PendingAzureResources;
-	// it does not deconfigure. An operator that leaves this identity gets
-	// DeconfigureTimestamp on that operator entry, including when another
-	// operator on the same identity still has unresolved ARM metadata. DataPlaneOIDCFederation creates or
-	// deletes that operator's federated identity credentials and copies TargetIdentity
-	// into the operator's EnsuredIdentity when those FICs are ensured, or removes the
-	// operator (and the identity key when Operators is empty) after a successful
-	// deconfigure.
+	// metadata onto every assignment that shares the identity ResourceID. When an
+	// assignment's TargetIdentity does not match those IDs, it clears
+	// EnsuredIdentity, AzureResources, and PendingAzureResources on that assignment,
+	// including draining neighbors; it does not deconfigure. Assignments whose
+	// TargetIdentity already matches are left as-is.
+	// An operator that leaves an identity gets DeconfigureTimestamp on that
+	// assignment, including when another operator on the same identity still has
+	// unresolved ARM metadata. The DataPlaneOIDCFederation controller creates or deletes that
+	// assignment's federated identity credentials and copies TargetIdentity into
+	// EnsuredIdentity when those Azure FederatedIdentityCredential resources are ensured.
+	// It clears EnsuredIdentity when a desired FIC that was not already on AzureResources
+	// fails CreateOrUpdate. It removes the assignment after a successful deconfigure.
 	// Written by: DataPlaneOIDCFederationIntent, DataPlaneOIDCFederation
-	ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation map[string]*ManagedIdentityDataplaneOIDCFederationStatus `json:"managedIdentitiesWithDataPlaneWorkloadsOIDCFederation,omitempty"`
+	ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation map[DataplaneOIDCFederationAssignmentKey]*DataplaneOIDCFederationAssignmentStatus `json:"managedIdentitiesWithDataPlaneWorkloadsOIDCFederation,omitempty"`
 }
 
-// ManagedIdentityDataplaneOIDCFederationStatus tracks data-plane OIDC federation for
-// one identity. TargetIdentity is the UAMI instance. Operators holds one entry per
-// data-plane operator assigned to this identity.
-type ManagedIdentityDataplaneOIDCFederationStatus struct {
-	// TargetIdentity is the metadata of the identity to federate.
-	// A change to any of its attributes clears every operator's EnsuredIdentity,
-	// AzureResources, and PendingAzureResources in the same write so a new instance
-	// is never treated as ensured. Other controllers join this field with an
-	// operator's EnsuredIdentity to know whether federation completed for that
-	// operator on this instance.
+// dataplaneOIDCFederationAssignmentKeySeparator is the text encoding separator
+// between IdentityResourceID and OperatorName. ARM resource IDs use '/' and
+// data-plane operator names use hyphens. Neither contains this character.
+const dataplaneOIDCFederationAssignmentKeySeparator = "|"
+
+// DataplaneOIDCFederationAssignmentKey is the Cosmos/JSON map key for one
+// data-plane OIDC federation assignment. IdentityResourceID is the fully
+// lowercased Azure Resource ID of the identity. OperatorName is the data-plane
+// operator name from DataPlaneOperators.
+type DataplaneOIDCFederationAssignmentKey struct {
+	IdentityResourceID string
+	OperatorName       string
+}
+
+// String returns the JSON map-key encoding of this assignment key.
+func (k DataplaneOIDCFederationAssignmentKey) String() string {
+	return fmt.Sprintf("%s%s%s", k.IdentityResourceID, dataplaneOIDCFederationAssignmentKeySeparator, k.OperatorName)
+}
+
+// MarshalText encodes the key so encoding/json can use it as a Cosmos map key.
+func (k DataplaneOIDCFederationAssignmentKey) MarshalText() ([]byte, error) {
+	if strings.Contains(k.IdentityResourceID, dataplaneOIDCFederationAssignmentKeySeparator) ||
+		strings.Contains(k.OperatorName, dataplaneOIDCFederationAssignmentKeySeparator) {
+		return nil, fmt.Errorf("data-plane OIDC federation assignment key fields must not contain %q", dataplaneOIDCFederationAssignmentKeySeparator)
+	}
+	return []byte(k.String()), nil
+}
+
+// UnmarshalText decodes a JSON map key into an assignment key and lowercases
+// the identity ResourceID.
+func (k *DataplaneOIDCFederationAssignmentKey) UnmarshalText(text []byte) error {
+	encoded := string(text)
+	identityResourceID, operatorName, ok := strings.Cut(encoded, dataplaneOIDCFederationAssignmentKeySeparator)
+	if !ok {
+		return fmt.Errorf("data-plane OIDC federation assignment key %q is missing %q separator", encoded, dataplaneOIDCFederationAssignmentKeySeparator)
+	}
+	if strings.Contains(operatorName, dataplaneOIDCFederationAssignmentKeySeparator) {
+		return fmt.Errorf("data-plane OIDC federation assignment key %q has more than one %q separator", encoded, dataplaneOIDCFederationAssignmentKeySeparator)
+	}
+	*k = DataplaneOIDCFederationAssignmentKey{
+		IdentityResourceID: strings.ToLower(identityResourceID),
+		OperatorName:       operatorName,
+	}
+	return nil
+}
+
+// DataplaneOIDCFederationAssignmentStatus tracks OIDC federation for one
+// data-plane operator on one identity.
+type DataplaneOIDCFederationAssignmentStatus struct {
+	// TargetIdentity is the metadata of the identity instance to federate for
+	// this assignment. When TargetIdentity on this assignment does not match the
+	// ARM ClientID/PrincipalID/TenantID for this ResourceID, the intent controller
+	// clears EnsuredIdentity, AzureResources, and PendingAzureResources on this
+	// assignment in the same write, so a new instance is never treated as ensured.
+	// Other controllers join this field with
+	// EnsuredIdentity to know whether federation completed for this operator on
+	// this instance.
 	// Written by: DataPlaneOIDCFederationIntent
 	TargetIdentity DataplaneOIDCFederationIdentityInstance `json:"targetIdentity,omitempty"`
-	// Operators is keyed by data-plane operator name. Each entry is the federation
-	// assignment of that operator onto this identity.
-	// Written by: DataPlaneOIDCFederationIntent, DataPlaneOIDCFederation
-	Operators map[string]*DataplaneOIDCFederationOperatorStatus `json:"operators,omitempty"`
-}
-
-// DataplaneOIDCFederationOperatorStatus tracks OIDC federation for one data-plane
-// operator on one identity.
-type DataplaneOIDCFederationOperatorStatus struct {
-	// EnsuredIdentity is the parent TargetIdentity from the last pass that
-	// ensured every desired federated identity credential for this operator on
-	// this identity. The DataPlaneOIDCFederation controller copies TargetIdentity
-	// here when those FICs are configured. The DataPlaneOIDCFederationIntent
-	// controller clears it when TargetIdentity changes. Federation for this
-	// operator is complete when EnsuredIdentity is non-nil, equals the parent
-	// TargetIdentity, and DeconfigureTimestamp is nil.
+	// EnsuredIdentity is the TargetIdentity from the last pass that ensured every
+	// desired federated identity credential for this operator on this identity.
+	// The DataPlaneOIDCFederation controller copies TargetIdentity here when those
+	// FICs are configured. It clears it when a desired FIC that was not already on
+	// AzureResources fails CreateOrUpdate. A failed recheck of an already confirmed
+	// FIC leaves this field unchanged. The DataPlaneOIDCFederationIntent controller
+	// clears it when TargetIdentity changes. Federation for this assignment is
+	// complete when EnsuredIdentity is non-nil, equals TargetIdentity, and
+	// DeconfigureTimestamp is nil.
 	// Written by: DataPlaneOIDCFederationIntent, DataPlaneOIDCFederation
 	EnsuredIdentity *DataplaneOIDCFederationIdentityInstance `json:"ensuredIdentity,omitempty"`
-	// DeconfigureTimestamp is when deconfigure of this operator's FICs on this
+	// DeconfigureTimestamp is when deconfigure of this operator's FederatedIdentityCredential resources on this
 	// identity was requested. Nil means deconfigure has not been requested.
 	// Once set, DataPlaneOIDCFederation waits 24 hours before Azure deletes.
 	// Cluster deletion (DeletionTimestamp set) starts deconfigure immediately.
 	// Cleared when this operator is desired on this identity again.
-	// Successful deconfigure removes this operator entry rather than clearing
-	// this field in place.
+	// Successful deconfigure removes this assignment rather than clearing this
+	// field in place.
 	// Written by: DataPlaneOIDCFederationIntent
 	DeconfigureTimestamp *metav1.Time `json:"deconfigureTimestamp,omitempty"`
 	// PendingAzureResources contains this operator's FederatedIdentityCredential
 	// resource IDs that have been requested but not yet confirmed. Persisted
-	// before CreateOrUpdate so a crash cannot lose the tracked set. Loop 1 only
-	// adds IDs; IDs stay until Azure Delete succeeds (or not-found).
+	// before CreateOrUpdate so a crash cannot lose the tracked set.
 	// DataPlaneOIDCFederationIntent clears this when TargetIdentity changes
 	// because the identity was recreated and child FICs are already gone.
 	// Written by: DataPlaneOIDCFederationIntent, DataPlaneOIDCFederation
@@ -399,43 +441,11 @@ type DataplaneOIDCFederationOperatorStatus struct {
 // ClientID/PrincipalID/TenantID within it are always set.
 type DataplaneOIDCFederationIdentityInstance struct {
 	// ClientID is the Client ID of the Azure identity.
-	ClientID string `json:"clientId,omitempty"`
+	ClientID string `json:"clientID,omitempty"`
 	// PrincipalID is the Principal ID of the Azure identity.
-	PrincipalID string `json:"principalId,omitempty"`
+	PrincipalID string `json:"principalID,omitempty"`
 	// TenantID is the tenant ID of the Azure identity. This is not the same tenant as the one used to build the OIDC issuer URL, which is the cluster's tenant.
-	TenantID string `json:"tenantId,omitempty"`
-}
-
-// OperatorEnsured reports whether OIDC federation for operatorName on this identity
-// is complete for the current TargetIdentity. A draining operator is not ensured.
-func (s *ManagedIdentityDataplaneOIDCFederationStatus) OperatorEnsured(operatorName string) bool {
-	if s == nil {
-		return false
-	}
-	operatorStatus := s.Operators[operatorName]
-	if operatorStatus == nil {
-		return false
-	}
-	return operatorStatus.DeconfigureTimestamp == nil && operatorStatus.EnsuredIdentity != nil && *operatorStatus.EnsuredIdentity == s.TargetIdentity
-}
-
-// TargetIdentityEnsured reports whether every non-draining operator on this identity
-// is federated for the current TargetIdentity. False when there is no such operator.
-func (s *ManagedIdentityDataplaneOIDCFederationStatus) TargetIdentityEnsured() bool {
-	if s == nil || len(s.Operators) == 0 {
-		return false
-	}
-	hasDesiredOperator := false
-	for _, operatorStatus := range s.Operators {
-		if operatorStatus == nil || operatorStatus.DeconfigureTimestamp != nil {
-			continue
-		}
-		hasDesiredOperator = true
-		if operatorStatus.EnsuredIdentity == nil || *operatorStatus.EnsuredIdentity != s.TargetIdentity {
-			return false
-		}
-	}
-	return hasDesiredOperator
+	TenantID string `json:"tenantID,omitempty"`
 }
 
 // ServiceProviderClusterPlacementStatus holds placement-specific status for a
@@ -457,14 +467,14 @@ type ServiceProviderClusterPlacementStatus struct {
 	Conditions []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type"`
 }
 
-// ServiceProviderClusterMSIManagedIdentities holds Managed Service Identity (MSI)
-// based identity metadata resolved by FetchMSIIdentitiesInfo and consumed by ClusterIdentitySync to
 // populate HCPOpenShiftCluster.Identity.UserAssignedIdentities.
 type ServiceProviderClusterMSIManagedIdentities struct {
 	// ControlPlaneOperatorsIdentities is a map containing resolved ClientID/PrincipalID
 	// for Managed Service Identity (MSI) based Azure User-Assigned Managed Identities
 	// used by the cluster's control plane operators. The key is the fully lowercased
 	// Azure Resource ID of the identity. Which operators reference each identity is
+	// ServiceProviderClusterMSIManagedIdentities holds Managed Service Identity (MSI)
+	// based identity metadata resolved by FetchMSIIdentitiesInfo and consumed by ClusterIdentitySync
 	// tracked on Cluster.CustomerProperties, not here. Multiple operators may share
 	// one identity entry.
 	// Written by: FetchMSIIdentitiesInfo

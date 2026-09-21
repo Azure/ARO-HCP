@@ -35,6 +35,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/azure/federatedidentitycredential"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/backendapihelpers"
 	"github.com/Azure/ARO-HCP/internal/azure"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
@@ -84,8 +85,8 @@ type dataPlaneOIDCFederatedIdentityCredential struct {
 //
 // For operators that are still desired (DeconfigureTimestamp nil), FICs are
 // created for every Kubernetes service account listed in the cluster-scoped
-// identities config. Operators whose EnsuredIdentity matches the parent
-// TargetIdentity are rechecked on
+// identities config. Assignments whose EnsuredIdentity matches TargetIdentity
+// are rechecked on
 // Spec.EarliestRecheckTimesByController[DataPlaneOIDCFederation]
 // (or immediately when the desired FIC set changes, pending extras remain,
 // the operator is not yet ensured, or a deconfigure is ready). Loop 1 only adds FIC IDs to
@@ -153,38 +154,19 @@ func NewDataPlaneOIDCFederationController(
 
 func (s *dataPlaneOIDCFederationSyncer) needsWork(cluster *coreapi.HCPOpenShiftCluster, serviceProviderCluster *coreapi.ServiceProviderCluster) bool {
 	csClusterID := controllerutils.ClusterServiceIDForCluster(cluster)
-	// We get the current time to use it in the identityNeedsWork function. This is so all of them have the same reference time.
+	// We get the current time to use it in the assignmentNeedsWork function. This is so all of them have the same reference time.
 	now := s.clock.Now()
 	earliestRecheckTime := serviceProviderCluster.Spec.EarliestRecheckTimesByController[DataPlaneOIDCFederationControllerName]
 
-	for identityResourceIDStr, status := range serviceProviderCluster.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation {
-		if s.identityNeedsWork(cluster, identityResourceIDStr, status, csClusterID, now, earliestRecheckTime) {
+	for assignmentKey, status := range serviceProviderCluster.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation {
+		if s.assignmentNeedsWork(cluster, assignmentKey, status, csClusterID, now, earliestRecheckTime) {
 			return true
 		}
 	}
 	return false
 }
 
-// identityNeedsWork reports whether this identity would cause the cluster
-// to need work. If any identity returns true, SyncOnce reconciles every
-// assignment this pass.
-func (s *dataPlaneOIDCFederationSyncer) identityNeedsWork(
-	cluster *coreapi.HCPOpenShiftCluster,
-	identityResourceIDStr string,
-	status *coreapi.ManagedIdentityDataplaneOIDCFederationStatus,
-	csClusterID string,
-	timeNow time.Time,
-	earliestRecheckTime *metav1.Time,
-) bool {
-	for operatorName, operatorStatus := range status.Operators {
-		if s.operatorNeedsWork(cluster, identityResourceIDStr, status, operatorName, operatorStatus, csClusterID, timeNow, earliestRecheckTime) {
-			return true
-		}
-	}
-	return false
-}
-
-// operatorNeedsWork reports whether this operator would cause the identity
+// assignmentNeedsWork reports whether this assignment would cause the cluster
 // to need work. Immediate work is a ready deconfigure, a desired operator
 // that is not ensured, or a desired FIC set that differs from AzureResources
 // (including obsolete IDs that remain only on PendingAzureResources).
@@ -192,30 +174,28 @@ func (s *dataPlaneOIDCFederationSyncer) identityNeedsWork(
 // due. Draining operators inside the 24h wait, cluster deletion (except
 // ready deconfigure), operators that have left this identity, and a missing
 // cluster service ID do not.
-func (s *dataPlaneOIDCFederationSyncer) operatorNeedsWork(
+func (s *dataPlaneOIDCFederationSyncer) assignmentNeedsWork(
 	cluster *coreapi.HCPOpenShiftCluster,
-	identityResourceIDStr string,
-	status *coreapi.ManagedIdentityDataplaneOIDCFederationStatus,
-	operatorName string,
-	operatorStatus *coreapi.DataplaneOIDCFederationOperatorStatus,
+	assignmentKey coreapi.DataplaneOIDCFederationAssignmentKey,
+	status *coreapi.DataplaneOIDCFederationAssignmentStatus,
 	csClusterID string,
 	timeNow time.Time,
 	earliestRecheckTime *metav1.Time,
 ) bool {
-	if operatorStatus.DeconfigureTimestamp != nil {
-		return s.deconfigureCanStartForOperator(cluster, operatorStatus)
+	if status.DeconfigureTimestamp != nil {
+		return s.deconfigureCanStartForAssignment(cluster, status)
 	}
 	if cluster.ServiceProviderProperties.DeletionTimestamp != nil {
 		return false
 	}
 	// If the operator is not assigned to the identity based on the DataPlaneOperators map, we consider it as not needing work.
-	if !s.operatorAssignedToIdentity(cluster, identityResourceIDStr, operatorName) {
+	if !s.operatorAssignedToIdentity(cluster, assignmentKey.IdentityResourceID, assignmentKey.OperatorName) {
 		return false
 	}
 	if len(csClusterID) == 0 {
 		return false
 	}
-	if !status.OperatorEnsured(operatorName) || s.desiredOperatorFederatedIdentityCredentialsSetDiffers(cluster, identityResourceIDStr, operatorName, operatorStatus, csClusterID) {
+	if !backendapihelpers.IsDataplaneOIDCFederationAssignmentEnsured(status) || s.desiredOperatorFederatedIdentityCredentialsSetDiffers(cluster, assignmentKey.IdentityResourceID, assignmentKey.OperatorName, status, csClusterID) {
 		return true
 	}
 	return earliestRecheckTime == nil || timeNow.Compare(earliestRecheckTime.Time) >= 0
@@ -235,7 +215,7 @@ func (s *dataPlaneOIDCFederationSyncer) desiredOperatorFederatedIdentityCredenti
 	cluster *coreapi.HCPOpenShiftCluster,
 	identityResourceIDStr string,
 	operatorName string,
-	operatorStatus *coreapi.DataplaneOIDCFederationOperatorStatus,
+	operatorStatus *coreapi.DataplaneOIDCFederationAssignmentStatus,
 	csClusterID string,
 ) bool {
 	desired, err := s.pendingConfigureResourceIDsForOperator(cluster, identityResourceIDStr, operatorName, csClusterID)
@@ -249,13 +229,13 @@ func (s *dataPlaneOIDCFederationSyncer) desiredOperatorFederatedIdentityCredenti
 	return len(s.resourceIDsNotIn(operatorStatus.PendingAzureResources, desired)) > 0
 }
 
-// deconfigureCanStartForOperator reports whether deconfigure can start for an
-// operator with DeconfigureTimestamp set. Cluster deletion ignores the 24h wait.
-func (s *dataPlaneOIDCFederationSyncer) deconfigureCanStartForOperator(cluster *coreapi.HCPOpenShiftCluster, operatorStatus *coreapi.DataplaneOIDCFederationOperatorStatus) bool {
+// deconfigureCanStartForAssignment reports whether deconfigure can start for an
+// assignment with DeconfigureTimestamp set. Cluster deletion ignores the 24h wait.
+func (s *dataPlaneOIDCFederationSyncer) deconfigureCanStartForAssignment(cluster *coreapi.HCPOpenShiftCluster, status *coreapi.DataplaneOIDCFederationAssignmentStatus) bool {
 	if cluster.ServiceProviderProperties.DeletionTimestamp != nil {
 		return true
 	}
-	return !s.clock.Now().Before(operatorStatus.DeconfigureTimestamp.Add(dataPlaneOIDCFederationDeconfigureDelay))
+	return !s.clock.Now().Before(status.DeconfigureTimestamp.Add(dataPlaneOIDCFederationDeconfigureDelay))
 }
 
 func (s *dataPlaneOIDCFederationSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
@@ -319,26 +299,20 @@ func (s *dataPlaneOIDCFederationSyncer) SyncOnce(ctx context.Context, key contro
 		// Azure CreateOrUpdate so a crash cannot lose tracking. Stamped
 		// operators and operators that have left this identity are skipped so
 		// leftover pending IDs stay for deconfigure.
-		for identityResourceIDStr := range replacement.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation {
-			identityFederationStatus := replacement.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation[identityResourceIDStr]
-			if identityFederationStatus == nil {
+		for assignmentKey, assignmentStatus := range replacement.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation {
+			if assignmentStatus.DeconfigureTimestamp != nil {
 				continue
 			}
-			for operatorName, operatorStatus := range identityFederationStatus.Operators {
-				if operatorStatus == nil || operatorStatus.DeconfigureTimestamp != nil {
-					continue
-				}
-				if !s.operatorAssignedToIdentity(existingCluster, identityResourceIDStr, operatorName) {
-					continue
-				}
-				desired, err := s.pendingConfigureResourceIDsForOperator(existingCluster, identityResourceIDStr, operatorName, csClusterID)
-				if err != nil {
-					errs = append(errs, err)
-					continue
-				}
-				trackedPending := append(append([]*azcorearm.ResourceID{}, desired...), operatorStatus.PendingAzureResources...)
-				operatorStatus.PendingAzureResources = s.uniqueSortedResourceIDs(s.resourceIDsNotIn(trackedPending, operatorStatus.AzureResources))
+			if !s.operatorAssignedToIdentity(existingCluster, assignmentKey.IdentityResourceID, assignmentKey.OperatorName) {
+				continue
 			}
+			desired, err := s.pendingConfigureResourceIDsForOperator(existingCluster, assignmentKey.IdentityResourceID, assignmentKey.OperatorName, csClusterID)
+			if err != nil {
+				errs = append(errs, err)
+				continue
+			}
+			trackedPending := append(append([]*azcorearm.ResourceID{}, desired...), assignmentStatus.PendingAzureResources...)
+			assignmentStatus.PendingAzureResources = s.uniqueSortedResourceIDs(s.resourceIDsNotIn(trackedPending, assignmentStatus.AzureResources))
 		}
 	}
 
@@ -363,51 +337,43 @@ func (s *dataPlaneOIDCFederationSyncer) SyncOnce(ctx context.Context, key contro
 	serviceManagedIdentityExistsGetter := s.newServiceManagedIdentityExistsGetter(ctx, existingCluster)
 
 	// Loop 2: create, update, or delete federated identity credentials in Azure
-	// per operator. Successful deconfigure removes that operator. The identity
-	// key is dropped when Operators is empty.
-	for identityResourceIDStr := range replacement.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation {
-		identityStatus := replacement.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation[identityResourceIDStr]
-
-		for operatorName, operatorStatus := range identityStatus.Operators {
-			if operatorStatus.DeconfigureTimestamp != nil {
-				if !s.deconfigureCanStartForOperator(existingCluster, operatorStatus) {
-					continue
-				}
-				smiExists, err := serviceManagedIdentityExistsGetter()
-				if err != nil {
-					errs = append(errs, err)
-					continue
-				}
-				err = s.deconfigureOIDCFederationForOperator(ctx, identityResourceIDStr, operatorStatus, smiExists, federatedIdentityCredentialsClientGetter)
-				if err != nil {
-					errs = append(errs, err)
-					continue
-				}
-				delete(identityStatus.Operators, operatorName)
+	// per assignment. Successful deconfigure removes that assignment.
+	for assignmentKey, assignmentStatus := range replacement.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation {
+		if assignmentStatus.DeconfigureTimestamp != nil {
+			if !s.deconfigureCanStartForAssignment(existingCluster, assignmentStatus) {
 				continue
 			}
-
-			// If we cannot configure the desired OIDC federation, we skip the identity reconciliation.
-			if !canConfigureDesiredOIDCFederation {
-				continue
-			}
-			// If the operator is not assigned to the identity based on the DataPlaneOperators map, we skip the identity reconciliation.
-			if !s.operatorAssignedToIdentity(existingCluster, identityResourceIDStr, operatorName) {
-				continue
-			}
-			issuerURL := s.generateClusterOIDCIssuerURL(clusterTenantID, csClusterID)
-			client, err := federatedIdentityCredentialsClientGetter()
+			smiExists, err := serviceManagedIdentityExistsGetter()
 			if err != nil {
 				errs = append(errs, err)
 				continue
 			}
-			err = s.ensureOIDCFederationForOperator(ctx, existingCluster, identityResourceIDStr, operatorName, identityStatus, operatorStatus, csClusterID, issuerURL, client)
+			err = s.deconfigureOIDCFederationForOperator(ctx, assignmentKey.IdentityResourceID, assignmentStatus, smiExists, federatedIdentityCredentialsClientGetter)
 			if err != nil {
 				errs = append(errs, err)
+				continue
 			}
+			delete(replacement.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation, assignmentKey)
+			continue
 		}
-		if len(identityStatus.Operators) == 0 {
-			delete(replacement.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation, identityResourceIDStr)
+
+		// If we cannot configure the desired OIDC federation, we skip the assignment reconciliation.
+		if !canConfigureDesiredOIDCFederation {
+			continue
+		}
+		// If the operator is not assigned to the identity based on the DataPlaneOperators map, we skip the assignment reconciliation.
+		if !s.operatorAssignedToIdentity(existingCluster, assignmentKey.IdentityResourceID, assignmentKey.OperatorName) {
+			continue
+		}
+		issuerURL := s.generateClusterOIDCIssuerURL(clusterTenantID, csClusterID)
+		client, err := federatedIdentityCredentialsClientGetter()
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		err = s.ensureOIDCFederationForOperator(ctx, existingCluster, assignmentKey.IdentityResourceID, assignmentKey.OperatorName, assignmentStatus, csClusterID, issuerURL, client)
+		if err != nil {
+			errs = append(errs, err)
 		}
 	}
 
@@ -456,8 +422,7 @@ func (s *dataPlaneOIDCFederationSyncer) ensureOIDCFederationForOperator(
 	cluster *coreapi.HCPOpenShiftCluster,
 	identityResourceIDStr string,
 	operatorName string,
-	identityStatus *coreapi.ManagedIdentityDataplaneOIDCFederationStatus,
-	operatorStatus *coreapi.DataplaneOIDCFederationOperatorStatus,
+	operatorStatus *coreapi.DataplaneOIDCFederationAssignmentStatus,
 	csClusterID string,
 	issuerURL string,
 	federatedIdentityCredentialsClient azureclient.FederatedIdentityCredentialsClient,
@@ -506,7 +471,6 @@ func (s *dataPlaneOIDCFederationSyncer) ensureOIDCFederationForOperator(
 
 	// The next* slices are only persisted when this pass had errors. Full
 	// success replaces AzureResources with desiredIDs and clears pending.
-	// uniqueSorted later collapses IDs that both loops append.
 	var nextAzureResources []*azcorearm.ResourceID
 	// Previously confirmed IDs: keep if still desired (even when this pass's
 	// ensure failed) or if an extra Delete failed (retry next pass).
@@ -520,13 +484,16 @@ func (s *dataPlaneOIDCFederationSyncer) ensureOIDCFederationForOperator(
 			nextAzureResources = append(nextAzureResources, ficResourceID)
 		}
 	}
-	// IDs CreateOrUpdate succeeded on this pass. They may have been pending
-	// only; without this, a sibling error would persist without recording them.
+	// IDs CreateOrUpdate succeeded on this pass that were not already kept
+	// above. Those may have been pending only; without this, a sibling error
+	// would persist without recording them.
+	var ensuredIDs []*azcorearm.ResourceID
 	for _, credential := range credentials {
 		if _, ok := ensuredKeys[strings.ToLower(credential.resourceID.String())]; ok {
-			nextAzureResources = append(nextAzureResources, credential.resourceID)
+			ensuredIDs = append(ensuredIDs, credential.resourceID)
 		}
 	}
+	nextAzureResources = append(nextAzureResources, s.resourceIDsNotIn(ensuredIDs, nextAzureResources)...)
 
 	// Desired IDs not yet on nextAzureResources stay pending. Undesired IDs
 	// that Delete failed stay pending too (they may never have been on
@@ -545,7 +512,21 @@ func (s *dataPlaneOIDCFederationSyncer) ensureOIDCFederationForOperator(
 
 	allDesiredEnsured := len(ensuredKeys) == len(credentials)
 	if allDesiredEnsured {
-		operatorStatus.EnsuredIdentity = ptr.To(identityStatus.TargetIdentity)
+		operatorStatus.EnsuredIdentity = ptr.To(operatorStatus.TargetIdentity)
+	} else {
+		// A desired FIC that was not already on AzureResources failed. The current
+		// desired set has never been fully ensured, so drop the sticky stamp.
+		// Failed Get/CreateOrUpdate of an already confirmed FIC leaves the stamp.
+		var failedDesiredIDs []*azcorearm.ResourceID
+		for _, credential := range credentials {
+			if _, ok := ensuredKeys[strings.ToLower(credential.resourceID.String())]; ok {
+				continue
+			}
+			failedDesiredIDs = append(failedDesiredIDs, credential.resourceID)
+		}
+		if len(s.resourceIDsNotIn(failedDesiredIDs, operatorStatus.AzureResources)) > 0 {
+			operatorStatus.EnsuredIdentity = nil
+		}
 	}
 
 	if len(errs) > 0 {
@@ -633,12 +614,12 @@ func (s *dataPlaneOIDCFederationSyncer) audienceSetsEqual(a, b []*string) bool {
 	return true
 }
 
-// deconfigureOIDCFederationForOperator deletes tracked FICs for one operator on
-// one identity. A nil error means the operator can be dropped from Operators.
+// deconfigureOIDCFederationForOperator deletes tracked FICs for one assignment.
+// A nil error means the assignment can be dropped from the federation map.
 func (s *dataPlaneOIDCFederationSyncer) deconfigureOIDCFederationForOperator(
 	ctx context.Context,
 	identityResourceIDStr string,
-	operatorStatus *coreapi.DataplaneOIDCFederationOperatorStatus,
+	operatorStatus *coreapi.DataplaneOIDCFederationAssignmentStatus,
 	serviceManagedIdentityExists bool,
 	federatedIdentityCredentialsClientGetter func() (azureclient.FederatedIdentityCredentialsClient, error),
 ) error {
@@ -990,57 +971,38 @@ func (s *dataPlaneOIDCFederationSyncer) syncFederationRecheckTime(replacement *c
 // cluster aside from ensured identities sleeping until the controller
 // recheck and deconfigures still inside the 24h wait.
 func (s *dataPlaneOIDCFederationSyncer) federationAzureIdle(cluster *coreapi.HCPOpenShiftCluster, serviceProviderCluster *coreapi.ServiceProviderCluster, csClusterID string) bool {
-	for identityResourceIDStr, status := range serviceProviderCluster.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation {
-		if !s.identityAzureIdle(cluster, identityResourceIDStr, status, csClusterID) {
+	for assignmentKey, status := range serviceProviderCluster.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation {
+		if !s.assignmentAzureIdle(cluster, assignmentKey, status, csClusterID) {
 			return false
 		}
 	}
 	return true
 }
 
-// identityAzureIdle reports whether this identity has no immediate Azure FIC
-// work. If any identity is not idle, the controller recheck time is left in
-// place.
-func (s *dataPlaneOIDCFederationSyncer) identityAzureIdle(
-	cluster *coreapi.HCPOpenShiftCluster,
-	identityResourceIDStr string,
-	status *coreapi.ManagedIdentityDataplaneOIDCFederationStatus,
-	csClusterID string,
-) bool {
-	for operatorName, operatorStatus := range status.Operators {
-		if !s.operatorAzureIdle(cluster, identityResourceIDStr, status, operatorName, operatorStatus, csClusterID) {
-			return false
-		}
-	}
-	return true
-}
-
-// operatorAzureIdle reports whether this operator has no immediate Azure FIC
+// assignmentAzureIdle reports whether this assignment has no immediate Azure FIC
 // work. Ready deconfigure, a desired operator that is not ensured, or a
 // desired FIC set that differs from AzureResources or still has pending extras
 // (when the cluster service ID is set) are not idle. Draining inside the 24h
 // wait, cluster deletion (except ready deconfigure), and operators that have
-// left this identity are idle. This is not the inverse of operatorNeedsWork: a
+// left this identity are idle. This is not the inverse of assignmentNeedsWork: a
 // missing cluster service ID still means not idle when the operator is not
 // ensured, and a due controller recheck does not make the operator not idle.
-func (s *dataPlaneOIDCFederationSyncer) operatorAzureIdle(
+func (s *dataPlaneOIDCFederationSyncer) assignmentAzureIdle(
 	cluster *coreapi.HCPOpenShiftCluster,
-	identityResourceIDStr string,
-	status *coreapi.ManagedIdentityDataplaneOIDCFederationStatus,
-	operatorName string,
-	operatorStatus *coreapi.DataplaneOIDCFederationOperatorStatus,
+	assignmentKey coreapi.DataplaneOIDCFederationAssignmentKey,
+	status *coreapi.DataplaneOIDCFederationAssignmentStatus,
 	csClusterID string,
 ) bool {
-	if operatorStatus.DeconfigureTimestamp != nil {
-		return !s.deconfigureCanStartForOperator(cluster, operatorStatus)
+	if status.DeconfigureTimestamp != nil {
+		return !s.deconfigureCanStartForAssignment(cluster, status)
 	}
 	if cluster.ServiceProviderProperties.DeletionTimestamp != nil {
 		return true
 	}
-	if !s.operatorAssignedToIdentity(cluster, identityResourceIDStr, operatorName) {
+	if !s.operatorAssignedToIdentity(cluster, assignmentKey.IdentityResourceID, assignmentKey.OperatorName) {
 		return true
 	}
-	if !status.OperatorEnsured(operatorName) {
+	if !backendapihelpers.IsDataplaneOIDCFederationAssignmentEnsured(status) {
 		return false
 	}
 
@@ -1048,7 +1010,7 @@ func (s *dataPlaneOIDCFederationSyncer) operatorAzureIdle(
 		return true
 	}
 
-	if s.desiredOperatorFederatedIdentityCredentialsSetDiffers(cluster, identityResourceIDStr, operatorName, operatorStatus, csClusterID) {
+	if s.desiredOperatorFederatedIdentityCredentialsSetDiffers(cluster, assignmentKey.IdentityResourceID, assignmentKey.OperatorName, status, csClusterID) {
 		return false
 	}
 

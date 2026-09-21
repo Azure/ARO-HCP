@@ -36,17 +36,22 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 )
 
-func TestDesiredDataPlaneOIDCFederationStatus(t *testing.T) {
+func TestDataPlaneOIDCFederationIntentSyncer_desiredDataPlaneOIDCFederationStatus(t *testing.T) {
 	t.Parallel()
 
 	identityA := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID + "/resourceGroups/" + testResourceGroupName + "/providers/Microsoft.ManagedIdentity/userAssignedIdentities/identity-a"))
 	identityB := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID + "/resourceGroups/" + testResourceGroupName + "/providers/Microsoft.ManagedIdentity/userAssignedIdentities/identity-b"))
 
-	resolvedA := resolvedARMManagedIdentityMetadata(identityA, "client-a", "principal-a", "tenant-a")
+	resolvedA := buildTestResolvedARMManagedIdentityMetadata(identityA, "client-a", "principal-a", "tenant-a")
 	keyA := strings.ToLower(identityA.String())
 	targetA := coreapi.DataplaneOIDCFederationIdentityInstance{
 		ClientID:    "client-a",
 		PrincipalID: "principal-a",
+		TenantID:    "tenant-a",
+	}
+	targetARotated := coreapi.DataplaneOIDCFederationIdentityInstance{
+		ClientID:    "client-a-rotated",
+		PrincipalID: "principal-a-rotated",
 		TenantID:    "tenant-a",
 	}
 
@@ -67,306 +72,337 @@ func TestDesiredDataPlaneOIDCFederationStatus(t *testing.T) {
 		},
 	}
 
-	testOperatorCCM := "cloud-controller-manager"
+	testCCMOperatorName := "cloud-controller-manager"
+
+	since := metav1.NewTime(time.Date(2026, 9, 6, 12, 0, 0, 0, time.UTC))
+	alreadyDeconfiguringAt := metav1.NewTime(time.Date(2026, 9, 7, 12, 0, 0, 0, time.UTC))
+	previousDeconfigureAt := metav1.NewTime(time.Date(2026, 9, 4, 12, 0, 0, 0, time.UTC))
 
 	testCases := []struct {
-		name                              string
-		dataPlaneOperators                map[string]*azcorearm.ResourceID
-		details                           map[string]*coreapi.ManagedIdentityMetadata
-		current                           map[string]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus
-		expectedStates                    map[string]string
-		expectedTarget                    map[string]coreapi.DataplaneOIDCFederationIdentityInstance
-		expectStampedDeconfigureTimestamp []string
-		expectIdentityChangeClear         []string
-		expectOperatorDeconfigure         map[string][]string
-		expectNilWhenEmpty                bool
+		name                            string
+		desiredDataPlaneOperators       map[string]*azcorearm.ResourceID
+		existingIdentityMetadataDetails map[string]*coreapi.ManagedIdentityMetadata
+		existing                        map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus
+		want                            map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus
 	}{
 		{
-			name:               "empty operators and empty federation yields nil",
-			expectNilWhenEmpty: true,
+			name: "empty operators and empty federation yields nil",
 		},
 		{
-			name: "resolved data-plane identity is added as PendingConfigure",
-			dataPlaneOperators: map[string]*azcorearm.ResourceID{
-				"cloud-controller-manager": identityA,
+			name: "resolved data-plane identity is added",
+			desiredDataPlaneOperators: map[string]*azcorearm.ResourceID{
+				testCCMOperatorName: identityA,
 			},
-			details: map[string]*coreapi.ManagedIdentityMetadata{
+			existingIdentityMetadataDetails: map[string]*coreapi.ManagedIdentityMetadata{
 				strings.ToLower(identityA.String()): resolvedA,
 			},
-			expectedStates: map[string]string{
-				keyA: "pending",
-			},
-			expectedTarget: map[string]coreapi.DataplaneOIDCFederationIdentityInstance{
-				keyA: targetA,
+			want: map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus{
+				buildTestOIDCAssignmentKey(keyA, testCCMOperatorName): {TargetIdentity: targetA},
 			},
 		},
 		{
-			name: "shared data-plane identity is federated once",
-			dataPlaneOperators: map[string]*azcorearm.ResourceID{
-				"cloud-controller-manager": identityA,
-				"ingress":                  identityA,
+			name: "shared data-plane identity creates one assignment per operator",
+			desiredDataPlaneOperators: map[string]*azcorearm.ResourceID{
+				testCCMOperatorName: identityA,
+				"ingress":           identityA,
 			},
-			details: map[string]*coreapi.ManagedIdentityMetadata{
+			existingIdentityMetadataDetails: map[string]*coreapi.ManagedIdentityMetadata{
 				strings.ToLower(identityA.String()): resolvedA,
 			},
-			expectedStates: map[string]string{
-				keyA: "pending",
-			},
-			expectedTarget: map[string]coreapi.DataplaneOIDCFederationIdentityInstance{
-				keyA: targetA,
+			want: map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus{
+				buildTestOIDCAssignmentKey(keyA, testCCMOperatorName): {TargetIdentity: targetA},
+				buildTestOIDCAssignmentKey(keyA, "ingress"):           {TargetIdentity: targetA},
 			},
 		},
 		{
-			name: "one operator leaving a shared identity stamps only that operator",
-			dataPlaneOperators: map[string]*azcorearm.ResourceID{
-				"cloud-controller-manager": identityA,
+			name: "one operator leaving a shared identity sets deconfigure timestamp only for that operator",
+			desiredDataPlaneOperators: map[string]*azcorearm.ResourceID{
+				testCCMOperatorName: identityA,
 			},
-			details: map[string]*coreapi.ManagedIdentityMetadata{
+			existingIdentityMetadataDetails: map[string]*coreapi.ManagedIdentityMetadata{
 				strings.ToLower(identityA.String()): resolvedA,
 			},
-			current: map[string]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
-				keyA: {
-					TargetIdentity: targetA,
-					Operators: map[string]*coreapi.DataplaneOIDCFederationOperatorStatus{
-						"cloud-controller-manager": oidcOperatorEnsured(targetA, []*azcorearm.ResourceID{ficA}),
-						"ingress":                  oidcOperatorEnsured(targetA, []*azcorearm.ResourceID{ficB}),
-					},
+			existing: map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus{
+				buildTestOIDCAssignmentKey(keyA, testCCMOperatorName): buildTestOIDCAssignmentWithTarget(targetA, buildTestOIDCAssignmentEnsured(targetA, []*azcorearm.ResourceID{ficA})),
+				buildTestOIDCAssignmentKey(keyA, "ingress"):           buildTestOIDCAssignmentWithTarget(targetA, buildTestOIDCAssignmentEnsured(targetA, []*azcorearm.ResourceID{ficB})),
+			},
+			want: map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus{
+				buildTestOIDCAssignmentKey(keyA, testCCMOperatorName): buildTestOIDCAssignmentWithTarget(targetA, buildTestOIDCAssignmentEnsured(targetA, []*azcorearm.ResourceID{ficA})),
+				buildTestOIDCAssignmentKey(keyA, "ingress"): {
+					TargetIdentity:       targetA,
+					EnsuredIdentity:      ptr.To(targetA),
+					AzureResources:       []*azcorearm.ResourceID{ficB},
+					DeconfigureTimestamp: &since,
 				},
 			},
-			expectedStates: map[string]string{
-				keyA: "ensured",
-			},
-			expectedTarget: map[string]coreapi.DataplaneOIDCFederationIdentityInstance{
-				keyA: targetA,
-			},
-			expectOperatorDeconfigure: map[string][]string{
-				keyA: {"ingress"},
-			},
 		},
 		{
-			name: "one operator leaving a shared identity with unresolved ARM stamps only that operator",
-			dataPlaneOperators: map[string]*azcorearm.ResourceID{
-				"cloud-controller-manager": identityA,
+			name: "one operator leaving a shared identity with unresolved ARM sets deconfigure timestamp only for that operator",
+			desiredDataPlaneOperators: map[string]*azcorearm.ResourceID{
+				testCCMOperatorName: identityA,
 			},
-			details: map[string]*coreapi.ManagedIdentityMetadata{
+			existingIdentityMetadataDetails: map[string]*coreapi.ManagedIdentityMetadata{
 				strings.ToLower(identityA.String()): unresolvedA,
 			},
-			current: map[string]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
-				keyA: {
-					TargetIdentity: targetA,
-					Operators: map[string]*coreapi.DataplaneOIDCFederationOperatorStatus{
-						"cloud-controller-manager": oidcOperatorEnsured(targetA, []*azcorearm.ResourceID{ficA}),
-						"ingress":                  oidcOperatorEnsured(targetA, []*azcorearm.ResourceID{ficB}),
-					},
+			existing: map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus{
+				buildTestOIDCAssignmentKey(keyA, testCCMOperatorName): buildTestOIDCAssignmentWithTarget(targetA, buildTestOIDCAssignmentEnsured(targetA, []*azcorearm.ResourceID{ficA})),
+				buildTestOIDCAssignmentKey(keyA, "ingress"):           buildTestOIDCAssignmentWithTarget(targetA, buildTestOIDCAssignmentEnsured(targetA, []*azcorearm.ResourceID{ficB})),
+			},
+			want: map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus{
+				buildTestOIDCAssignmentKey(keyA, testCCMOperatorName): buildTestOIDCAssignmentWithTarget(targetA, buildTestOIDCAssignmentEnsured(targetA, []*azcorearm.ResourceID{ficA})),
+				buildTestOIDCAssignmentKey(keyA, "ingress"): {
+					TargetIdentity:       targetA,
+					EnsuredIdentity:      ptr.To(targetA),
+					AzureResources:       []*azcorearm.ResourceID{ficB},
+					DeconfigureTimestamp: &since,
 				},
-			},
-			expectedStates: map[string]string{
-				keyA: "ensured",
-			},
-			expectOperatorDeconfigure: map[string][]string{
-				keyA: {"ingress"},
 			},
 		},
 		{
 			name: "unresolved ARM metadata is not added",
-			dataPlaneOperators: map[string]*azcorearm.ResourceID{
-				"cloud-controller-manager": identityA,
+			desiredDataPlaneOperators: map[string]*azcorearm.ResourceID{
+				testCCMOperatorName: identityA,
 			},
-			details: map[string]*coreapi.ManagedIdentityMetadata{
+			existingIdentityMetadataDetails: map[string]*coreapi.ManagedIdentityMetadata{
 				strings.ToLower(identityA.String()): unresolvedA,
 			},
-			expectNilWhenEmpty: true,
 		},
 		{
 			name: "identity missing from ManagedIdentityDetails is not added",
-			dataPlaneOperators: map[string]*azcorearm.ResourceID{
-				"cloud-controller-manager": identityA,
+			desiredDataPlaneOperators: map[string]*azcorearm.ResourceID{
+				testCCMOperatorName: identityA,
 			},
-			expectNilWhenEmpty: true,
 		},
 		{
 			name: "hardcoded-identity metadata is not used for data-plane federation",
-			dataPlaneOperators: map[string]*azcorearm.ResourceID{
-				"cloud-controller-manager": identityA,
+			desiredDataPlaneOperators: map[string]*azcorearm.ResourceID{
+				testCCMOperatorName: identityA,
 			},
-			details: map[string]*coreapi.ManagedIdentityMetadata{
+			existingIdentityMetadataDetails: map[string]*coreapi.ManagedIdentityMetadata{
 				strings.ToLower(identityA.String()): hardcodedOnlyA,
 			},
-			expectNilWhenEmpty: true,
 		},
 		{
-			name: "control-plane identity with ARM metadata is not added",
-			details: map[string]*coreapi.ManagedIdentityMetadata{
+			name: "identity with ARM metadata that is not desired by a data plane operator is not added",
+			existingIdentityMetadataDetails: map[string]*coreapi.ManagedIdentityMetadata{
 				strings.ToLower(identityA.String()): resolvedA,
 			},
-			expectNilWhenEmpty: true,
 		},
 		{
-			name: "configured identity that is still resolved is left Configured",
-			dataPlaneOperators: map[string]*azcorearm.ResourceID{
-				"cloud-controller-manager": identityA,
+			name: "still-desired resolved assignment keeps EnsuredIdentity",
+			desiredDataPlaneOperators: map[string]*azcorearm.ResourceID{
+				testCCMOperatorName: identityA,
 			},
-			details: map[string]*coreapi.ManagedIdentityMetadata{
+			existingIdentityMetadataDetails: map[string]*coreapi.ManagedIdentityMetadata{
 				strings.ToLower(identityA.String()): resolvedA,
 			},
-			current: map[string]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
-				keyA: oidcIdentityStatus(targetA, testOperatorCCM, oidcOperatorEnsured(targetA, nil)),
+			existing: map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus{
+				buildTestOIDCAssignmentKey(keyA, testCCMOperatorName): buildTestOIDCAssignmentWithTarget(targetA, buildTestOIDCAssignmentEnsured(targetA, nil)),
 			},
-			expectedStates: map[string]string{
-				keyA: "ensured",
-			},
-			expectedTarget: map[string]coreapi.DataplaneOIDCFederationIdentityInstance{
-				keyA: targetA,
+			want: map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus{
+				buildTestOIDCAssignmentKey(keyA, testCCMOperatorName): buildTestOIDCAssignmentWithTarget(targetA, buildTestOIDCAssignmentEnsured(targetA, nil)),
 			},
 		},
 		{
-			name: "deconfigured identity that is resolved again becomes PendingConfigure",
-			dataPlaneOperators: map[string]*azcorearm.ResourceID{
-				"cloud-controller-manager": identityA,
+			name: "desired again clears DeconfigureTimestamp",
+			desiredDataPlaneOperators: map[string]*azcorearm.ResourceID{
+				testCCMOperatorName: identityA,
 			},
-			details: map[string]*coreapi.ManagedIdentityMetadata{
+			existingIdentityMetadataDetails: map[string]*coreapi.ManagedIdentityMetadata{
 				strings.ToLower(identityA.String()): resolvedA,
 			},
-			current: map[string]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
-				keyA: oidcIdentityStatus(targetA, testOperatorCCM, oidcOperatorDeconfigure(&metav1.Time{Time: time.Date(2026, 9, 4, 12, 0, 0, 0, time.UTC)}, nil, nil)),
+			existing: map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus{
+				buildTestOIDCAssignmentKey(keyA, testCCMOperatorName): buildTestOIDCAssignmentWithTarget(targetA, buildTestOIDCAssignmentDeconfigure(&previousDeconfigureAt, nil, nil)),
 			},
-			expectedStates: map[string]string{
-				keyA: "pending",
-			},
-			expectedTarget: map[string]coreapi.DataplaneOIDCFederationIdentityInstance{
-				keyA: targetA,
+			want: map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus{
+				buildTestOIDCAssignmentKey(keyA, testCCMOperatorName): {TargetIdentity: targetA},
 			},
 		},
 		{
-			name: "pending deconfigure identity that is resolved again becomes PendingConfigure",
-			dataPlaneOperators: map[string]*azcorearm.ResourceID{
-				"cloud-controller-manager": identityA,
+			name: "desired again while draining keeps EnsuredIdentity and FIC lists and clears DeconfigureTimestamp",
+			desiredDataPlaneOperators: map[string]*azcorearm.ResourceID{
+				testCCMOperatorName: identityA,
 			},
-			details: map[string]*coreapi.ManagedIdentityMetadata{
+			existingIdentityMetadataDetails: map[string]*coreapi.ManagedIdentityMetadata{
 				strings.ToLower(identityA.String()): resolvedA,
 			},
-			current: map[string]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
-				keyA: oidcIdentityStatus(targetA, testOperatorCCM, oidcOperatorDeconfigure(&metav1.Time{Time: time.Date(2026, 9, 4, 12, 0, 0, 0, time.UTC)}, nil, nil)),
+			existing: map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus{
+				buildTestOIDCAssignmentKey(keyA, testCCMOperatorName): buildTestOIDCAssignmentWithTarget(targetA, &coreapi.DataplaneOIDCFederationAssignmentStatus{
+					EnsuredIdentity:      ptr.To(targetA),
+					AzureResources:       []*azcorearm.ResourceID{ficA},
+					DeconfigureTimestamp: &previousDeconfigureAt,
+				}),
 			},
-			expectedStates: map[string]string{
-				keyA: "pending",
-			},
-			expectedTarget: map[string]coreapi.DataplaneOIDCFederationIdentityInstance{
-				keyA: targetA,
-			},
-		},
-		{
-			name: "identity that left data-plane operators is marked PendingDeconfigure",
-			current: map[string]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
-				keyA: oidcIdentityStatus(targetA, testOperatorCCM, oidcOperatorEnsured(targetA, []*azcorearm.ResourceID{ficA})),
-			},
-			expectedStates: map[string]string{
-				keyA: "deconfigure",
-			},
-			expectStampedDeconfigureTimestamp: []string{keyA},
-		},
-		{
-			name: "already PendingDeconfigure identity that left operators stays PendingDeconfigure",
-			current: map[string]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
-				keyA: oidcIdentityStatus(targetA, testOperatorCCM, oidcOperatorDeconfigure(&metav1.Time{Time: time.Date(2026, 9, 7, 12, 0, 0, 0, time.UTC)}, []*azcorearm.ResourceID{ficA}, nil)),
-			},
-			expectedStates: map[string]string{
-				keyA: "deconfigure",
+			want: map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus{
+				buildTestOIDCAssignmentKey(keyA, testCCMOperatorName): buildTestOIDCAssignmentWithTarget(targetA, buildTestOIDCAssignmentEnsured(targetA, []*azcorearm.ResourceID{ficA})),
 			},
 		},
 		{
-			name: "already deconfigured identity that left operators is dropped",
-			current: map[string]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
-				keyA: {},
+			name: "operator that left DataPlaneOperators gets DeconfigureTimestamp",
+			existing: map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus{
+				buildTestOIDCAssignmentKey(keyA, testCCMOperatorName): buildTestOIDCAssignmentWithTarget(targetA, buildTestOIDCAssignmentEnsured(targetA, []*azcorearm.ResourceID{ficA})),
 			},
-			expectNilWhenEmpty: true,
+			want: map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus{
+				buildTestOIDCAssignmentKey(keyA, testCCMOperatorName): {
+					TargetIdentity:       targetA,
+					EnsuredIdentity:      ptr.To(targetA),
+					AzureResources:       []*azcorearm.ResourceID{ficA},
+					DeconfigureTimestamp: &since,
+				},
+			},
 		},
 		{
-			name: "unresolved ARM metadata leaves previously configured identity as-is",
-			dataPlaneOperators: map[string]*azcorearm.ResourceID{
-				"cloud-controller-manager": identityA,
+			name: "already draining assignment keeps its DeconfigureTimestamp",
+			existing: map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus{
+				buildTestOIDCAssignmentKey(keyA, testCCMOperatorName): buildTestOIDCAssignmentWithTarget(targetA, buildTestOIDCAssignmentDeconfigure(&alreadyDeconfiguringAt, []*azcorearm.ResourceID{ficA}, nil)),
 			},
-			details: map[string]*coreapi.ManagedIdentityMetadata{
+			want: map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus{
+				buildTestOIDCAssignmentKey(keyA, testCCMOperatorName): buildTestOIDCAssignmentWithTarget(targetA, buildTestOIDCAssignmentDeconfigure(&alreadyDeconfiguringAt, []*azcorearm.ResourceID{ficA}, nil)),
+			},
+		},
+		{
+			name: "assignment with no tracked FICs that left operators is dropped",
+			existing: map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus{
+				buildTestOIDCAssignmentKey(keyA, testCCMOperatorName): {TargetIdentity: targetA},
+			},
+		},
+		{
+			name: "assignment with only PendingAzureResources that left operators is stamped",
+			existing: map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus{
+				buildTestOIDCAssignmentKey(keyA, testCCMOperatorName): {
+					TargetIdentity:        targetA,
+					PendingAzureResources: []*azcorearm.ResourceID{ficA},
+				},
+			},
+			want: map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus{
+				buildTestOIDCAssignmentKey(keyA, testCCMOperatorName): {
+					TargetIdentity:        targetA,
+					PendingAzureResources: []*azcorearm.ResourceID{ficA},
+					DeconfigureTimestamp:  &since,
+				},
+			},
+		},
+		{
+			name: "unresolved ARM metadata leaves a still-desired assignment as-is",
+			desiredDataPlaneOperators: map[string]*azcorearm.ResourceID{
+				testCCMOperatorName: identityA,
+			},
+			existingIdentityMetadataDetails: map[string]*coreapi.ManagedIdentityMetadata{
 				strings.ToLower(identityA.String()): unresolvedA,
 			},
-			current: map[string]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
-				keyA: oidcIdentityStatus(targetA, testOperatorCCM, oidcOperatorEnsured(targetA, nil)),
+			existing: map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus{
+				buildTestOIDCAssignmentKey(keyA, testCCMOperatorName): buildTestOIDCAssignmentWithTarget(targetA, buildTestOIDCAssignmentEnsured(targetA, nil)),
 			},
-			expectedStates: map[string]string{
-				keyA: "ensured",
+			want: map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus{
+				buildTestOIDCAssignmentKey(keyA, testCCMOperatorName): buildTestOIDCAssignmentWithTarget(targetA, buildTestOIDCAssignmentEnsured(targetA, nil)),
 			},
 		},
 		{
-			name: "client and principal id change updates TargetIdentity and clears ensured FIC state on the same key",
-			dataPlaneOperators: map[string]*azcorearm.ResourceID{
-				"cloud-controller-manager": identityA,
+			name: "TargetIdentity change clears EnsuredIdentity and FIC lists on the same key",
+			desiredDataPlaneOperators: map[string]*azcorearm.ResourceID{
+				testCCMOperatorName: identityA,
 			},
-			details: map[string]*coreapi.ManagedIdentityMetadata{
-				strings.ToLower(identityA.String()): resolvedARMManagedIdentityMetadata(identityA, "client-a-rotated", "principal-a-rotated", "tenant-a"),
+			existingIdentityMetadataDetails: map[string]*coreapi.ManagedIdentityMetadata{
+				strings.ToLower(identityA.String()): buildTestResolvedARMManagedIdentityMetadata(identityA, "client-a-rotated", "principal-a-rotated", "tenant-a"),
 			},
-			current: map[string]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
-				keyA: {
-					TargetIdentity: targetA,
-					Operators: map[string]*coreapi.DataplaneOIDCFederationOperatorStatus{
-						testOperatorCCM: {
-							EnsuredIdentity:       ptr.To(targetA),
-							AzureResources:        []*azcorearm.ResourceID{ficA},
-							PendingAzureResources: []*azcorearm.ResourceID{ficA},
-						},
-					},
-				},
+			existing: map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus{
+				buildTestOIDCAssignmentKey(keyA, testCCMOperatorName): buildTestOIDCAssignmentWithTarget(targetA, &coreapi.DataplaneOIDCFederationAssignmentStatus{
+					EnsuredIdentity:       ptr.To(targetA),
+					AzureResources:        []*azcorearm.ResourceID{ficA},
+					PendingAzureResources: []*azcorearm.ResourceID{ficA},
+				}),
 			},
-			expectedStates: map[string]string{
-				keyA: "pending",
+			want: map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus{
+				buildTestOIDCAssignmentKey(keyA, testCCMOperatorName): {TargetIdentity: targetARotated},
 			},
-			expectedTarget: map[string]coreapi.DataplaneOIDCFederationIdentityInstance{
-				keyA: {
-					ClientID:    "client-a-rotated",
-					PrincipalID: "principal-a-rotated",
-					TenantID:    "tenant-a",
-				},
-			},
-			expectIdentityChangeClear: []string{keyA},
 		},
 		{
-			name: "one identity added and another removed",
-			dataPlaneOperators: map[string]*azcorearm.ResourceID{
-				"cloud-controller-manager": identityA,
+			name: "identity recreation clears both operators sharing the identity and drops a draining neighbor",
+			desiredDataPlaneOperators: map[string]*azcorearm.ResourceID{
+				testCCMOperatorName: identityA,
+				"ingress":           identityA,
 			},
-			details: map[string]*coreapi.ManagedIdentityMetadata{
+			existingIdentityMetadataDetails: map[string]*coreapi.ManagedIdentityMetadata{
+				strings.ToLower(identityA.String()): buildTestResolvedARMManagedIdentityMetadata(identityA, "client-a-rotated", "principal-a-rotated", "tenant-a"),
+			},
+			existing: map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus{
+				buildTestOIDCAssignmentKey(keyA, testCCMOperatorName): buildTestOIDCAssignmentWithTarget(targetA, buildTestOIDCAssignmentEnsured(targetA, []*azcorearm.ResourceID{ficA})),
+				buildTestOIDCAssignmentKey(keyA, "ingress"):           buildTestOIDCAssignmentWithTarget(targetA, buildTestOIDCAssignmentEnsured(targetA, []*azcorearm.ResourceID{ficB})),
+				buildTestOIDCAssignmentKey(keyA, "image-registry"): buildTestOIDCAssignmentWithTarget(targetA, buildTestOIDCAssignmentDeconfigure(
+					&previousDeconfigureAt,
+					[]*azcorearm.ResourceID{ficA},
+					nil,
+				)),
+			},
+			want: map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus{
+				buildTestOIDCAssignmentKey(keyA, testCCMOperatorName): {TargetIdentity: targetARotated},
+				buildTestOIDCAssignmentKey(keyA, "ingress"):           {TargetIdentity: targetARotated},
+			},
+		},
+		{
+			name: "identity recreation clears only assignments whose TargetIdentity does not match ARM",
+			desiredDataPlaneOperators: map[string]*azcorearm.ResourceID{
+				testCCMOperatorName: identityA,
+			},
+			existingIdentityMetadataDetails: map[string]*coreapi.ManagedIdentityMetadata{
+				strings.ToLower(identityA.String()): buildTestResolvedARMManagedIdentityMetadata(identityA, "client-a-rotated", "principal-a-rotated", "tenant-a"),
+			},
+			existing: map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus{
+				buildTestOIDCAssignmentKey(keyA, testCCMOperatorName): buildTestOIDCAssignmentWithTarget(targetARotated, buildTestOIDCAssignmentEnsured(targetARotated, []*azcorearm.ResourceID{ficA})),
+				buildTestOIDCAssignmentKey(keyA, "image-registry"): buildTestOIDCAssignmentWithTarget(targetA, buildTestOIDCAssignmentDeconfigure(
+					&previousDeconfigureAt,
+					[]*azcorearm.ResourceID{ficA},
+					nil,
+				)),
+			},
+			want: map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus{
+				buildTestOIDCAssignmentKey(keyA, testCCMOperatorName): buildTestOIDCAssignmentWithTarget(targetARotated, buildTestOIDCAssignmentEnsured(targetARotated, []*azcorearm.ResourceID{ficA})),
+			},
+		},
+		{
+			name: "operator moved to a new identity adds that assignment and stamps DeconfigureTimestamp on the old one",
+			desiredDataPlaneOperators: map[string]*azcorearm.ResourceID{
+				testCCMOperatorName: identityA,
+			},
+			existingIdentityMetadataDetails: map[string]*coreapi.ManagedIdentityMetadata{
 				strings.ToLower(identityA.String()): resolvedA,
 			},
-			current: map[string]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
-				keyB: oidcIdentityStatus(targetA, testOperatorCCM, oidcOperatorEnsured(targetA, []*azcorearm.ResourceID{ficB})),
+			existing: map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus{
+				buildTestOIDCAssignmentKey(keyB, testCCMOperatorName): buildTestOIDCAssignmentWithTarget(targetA, buildTestOIDCAssignmentEnsured(targetA, []*azcorearm.ResourceID{ficB})),
 			},
-			expectedStates: map[string]string{
-				keyA: "pending",
-				keyB: "deconfigure",
+			want: map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus{
+				buildTestOIDCAssignmentKey(keyA, testCCMOperatorName): {TargetIdentity: targetA},
+				buildTestOIDCAssignmentKey(keyB, testCCMOperatorName): {
+					TargetIdentity:       targetA,
+					EnsuredIdentity:      ptr.To(targetA),
+					AzureResources:       []*azcorearm.ResourceID{ficB},
+					DeconfigureTimestamp: &since,
+				},
 			},
-			expectedTarget: map[string]coreapi.DataplaneOIDCFederationIdentityInstance{
-				keyA: targetA,
-			},
-			expectStampedDeconfigureTimestamp: []string{keyB},
 		},
 		{
 			name: "ARM metadata for a UAMI that is no longer a data-plane operator does not keep federation",
-			details: map[string]*coreapi.ManagedIdentityMetadata{
+			existingIdentityMetadataDetails: map[string]*coreapi.ManagedIdentityMetadata{
 				strings.ToLower(identityA.String()): resolvedA,
 			},
-			current: map[string]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
-				keyA: oidcIdentityStatus(targetA, testOperatorCCM, oidcOperatorEnsured(targetA, []*azcorearm.ResourceID{ficA})),
+			existing: map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus{
+				buildTestOIDCAssignmentKey(keyA, testCCMOperatorName): buildTestOIDCAssignmentWithTarget(targetA, buildTestOIDCAssignmentEnsured(targetA, []*azcorearm.ResourceID{ficA})),
 			},
-			expectedStates: map[string]string{
-				keyA: "deconfigure",
+			want: map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus{
+				buildTestOIDCAssignmentKey(keyA, testCCMOperatorName): {
+					TargetIdentity:       targetA,
+					EnsuredIdentity:      ptr.To(targetA),
+					AzureResources:       []*azcorearm.ResourceID{ficA},
+					DeconfigureTimestamp: &since,
+				},
 			},
-			expectStampedDeconfigureTimestamp: []string{keyA},
 		},
 		{
 			name: "data-plane identity is federated from ARM metadata even when the same UAMI also has hardcoded identity metadata",
-			dataPlaneOperators: map[string]*azcorearm.ResourceID{
-				"cloud-controller-manager": identityA,
+			desiredDataPlaneOperators: map[string]*azcorearm.ResourceID{
+				testCCMOperatorName: identityA,
 			},
-			details: map[string]*coreapi.ManagedIdentityMetadata{
+			existingIdentityMetadataDetails: map[string]*coreapi.ManagedIdentityMetadata{
 				strings.ToLower(identityA.String()): {
 					ResourceID: identityA,
 					MetadataFromARMUserAssignedIdentitiesAPI: &coreapi.IdentityMetadataValue{
@@ -381,16 +417,12 @@ func TestDesiredDataPlaneOIDCFederationStatus(t *testing.T) {
 					},
 				},
 			},
-			expectedStates: map[string]string{
-				keyA: "pending",
-			},
-			expectedTarget: map[string]coreapi.DataplaneOIDCFederationIdentityInstance{
-				keyA: targetA,
+			want: map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus{
+				buildTestOIDCAssignmentKey(keyA, testCCMOperatorName): {TargetIdentity: targetA},
 			},
 		},
 	}
 
-	since := metav1.NewTime(time.Date(2026, 9, 6, 12, 0, 0, 0, time.UTC))
 	syncer := &dataPlaneOIDCFederationIntentSyncer{
 		clock: clocktesting.NewFakePassiveClock(since.Time),
 	}
@@ -399,264 +431,198 @@ func TestDesiredDataPlaneOIDCFederationStatus(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := syncer.desiredDataPlaneOIDCFederationStatus(context.Background(), tc.dataPlaneOperators, tc.details, tc.current)
+			got, err := syncer.desiredDataPlaneOIDCFederationStatus(context.Background(), tc.desiredDataPlaneOperators, tc.existingIdentityMetadataDetails, tc.existing)
 			require.NoError(t, err)
-			if tc.expectNilWhenEmpty {
-				assert.Nil(t, got)
-				return
-			}
-
-			require.Len(t, got, len(tc.expectedStates))
-			for key, expectedState := range tc.expectedStates {
-				require.Contains(t, got, key)
-				require.NotNil(t, got[key])
-				switch expectedState {
-				case "pending":
-					require.NotEmpty(t, got[key].Operators, "key %s should have operators", key)
-					assert.False(t, got[key].TargetIdentityEnsured(), "key %s should not be fully ensured", key)
-					for operatorName, operatorStatus := range got[key].Operators {
-						assert.Nil(t, operatorStatus.DeconfigureTimestamp, "key %s operator %s should not be deconfiguring", key, operatorName)
-					}
-				case "ensured":
-					assert.True(t, got[key].TargetIdentityEnsured(), "key %s should be ensured", key)
-				case "deconfigure":
-					hasStampedOperator := false
-					for _, operatorStatus := range got[key].Operators {
-						if operatorStatus.DeconfigureTimestamp != nil {
-							hasStampedOperator = true
-						}
-					}
-					assert.True(t, hasStampedOperator, "key %s should have a deconfiguring operator", key)
-				default:
-					t.Fatalf("unknown expected state %q for key %s", expectedState, key)
-				}
-			}
-			for key, expectedTarget := range tc.expectedTarget {
-				require.Contains(t, got, key)
-				assert.Equal(t, expectedTarget, got[key].TargetIdentity)
-			}
-			stamped := map[string]struct{}{}
-			for _, key := range tc.expectStampedDeconfigureTimestamp {
-				stamped[key] = struct{}{}
-				require.NotNil(t, got[key])
-				foundStamp := false
-				for _, operatorStatus := range got[key].Operators {
-					if operatorStatus.DeconfigureTimestamp != nil {
-						assert.Equal(t, since, *operatorStatus.DeconfigureTimestamp)
-						foundStamp = true
-					}
-				}
-				assert.True(t, foundStamp, "key %s should have a newly stamped operator", key)
-			}
-			for _, key := range tc.expectIdentityChangeClear {
-				require.Contains(t, got, key)
-				for operatorName, operatorStatus := range got[key].Operators {
-					assert.Nil(t, operatorStatus.EnsuredIdentity, "key %s operator %s", key, operatorName)
-					assert.Empty(t, operatorStatus.AzureResources, "key %s operator %s", key, operatorName)
-					assert.Empty(t, operatorStatus.PendingAzureResources, "key %s operator %s", key, operatorName)
-				}
-			}
-			for key, operatorNames := range tc.expectOperatorDeconfigure {
-				require.Contains(t, got, key)
-				for _, operatorName := range operatorNames {
-					require.Contains(t, got[key].Operators, operatorName)
-					require.NotNil(t, got[key].Operators[operatorName].DeconfigureTimestamp)
-					assert.Equal(t, since, *got[key].Operators[operatorName].DeconfigureTimestamp)
-				}
-			}
+			assertDataplaneOIDCFederationAssignments(t, got, tc.want)
 		})
 	}
 }
 
-func TestDesiredDataPlaneOIDCFederationStatusNilEntryErrors(t *testing.T) {
+func TestDataPlaneOIDCFederationIntentSyncer_desiredDataPlaneOIDCFederationStatus_errors(t *testing.T) {
 	t.Parallel()
 
 	identityA := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID + "/resourceGroups/" + testResourceGroupName + "/providers/Microsoft.ManagedIdentity/userAssignedIdentities/identity-a"))
 	keyA := strings.ToLower(identityA.String())
-
-	t.Run("nil federation status", func(t *testing.T) {
-		t.Parallel()
-		_, err := (&dataPlaneOIDCFederationIntentSyncer{
-			clock: clocktesting.NewFakePassiveClock(time.Time{}),
-		}).desiredDataPlaneOIDCFederationStatus(context.Background(), nil, nil, map[string]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
-			keyA: nil,
-		})
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "nil status")
-	})
-
-	t.Run("nil ManagedIdentityDetails metadata", func(t *testing.T) {
-		t.Parallel()
-		_, err := (&dataPlaneOIDCFederationIntentSyncer{
-			clock: clocktesting.NewFakePassiveClock(time.Time{}),
-		}).desiredDataPlaneOIDCFederationStatus(context.Background(), map[string]*azcorearm.ResourceID{
-			"cloud-controller-manager": identityA,
-		}, map[string]*coreapi.ManagedIdentityMetadata{
-			strings.ToLower(identityA.String()): nil,
-		}, nil)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "nil metadata")
-	})
-}
-
-func TestDataPlaneOIDCFederationIntentSyncOnce(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	identityA := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID + "/resourceGroups/" + testResourceGroupName + "/providers/Microsoft.ManagedIdentity/userAssignedIdentities/identity-a"))
-	resolvedA := resolvedARMManagedIdentityMetadata(identityA, "client-a", "principal-a", "tenant-a")
-	keyA := strings.ToLower(identityA.String())
-
-	cluster := newTestClusterWithIdentities(t, testClusterName, nil, map[string]*azcorearm.ResourceID{
-		"cloud-controller-manager": identityA,
-	})
-	serviceProviderCluster := newTestServiceProviderClusterWithIdentities(testClusterName, nil, nil)
-	serviceProviderCluster.Status.ManagedIdentityDetails = map[string]*coreapi.ManagedIdentityMetadata{
-		strings.ToLower(identityA.String()): resolvedA,
-	}
-
-	mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, serviceProviderCluster})
-	require.NoError(t, err)
-
-	now := time.Date(2026, 9, 5, 12, 0, 0, 0, time.UTC)
 	syncer := &dataPlaneOIDCFederationIntentSyncer{
-		clock:                        clocktesting.NewFakePassiveClock(now),
-		clusterLister:                &corelistertesting.DBClusterLister{ResourcesDBClient: mockResourcesDB},
-		serviceProviderClusterLister: &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDB},
-		resourcesDBClient:            mockResourcesDB,
+		clock: clocktesting.NewFakePassiveClock(time.Time{}),
 	}
-
-	err = syncer.SyncOnce(ctx, controllerutils.HCPClusterKey{
-		SubscriptionID:    testSubscriptionID,
-		ResourceGroupName: testResourceGroupName,
-		HCPClusterName:    testClusterName,
-	})
-	require.NoError(t, err)
-
-	updated, err := mockResourcesDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
-	require.NoError(t, err)
-	require.Contains(t, updated.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation, keyA)
-	assert.False(t, updated.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation[keyA].TargetIdentityEnsured())
-	assert.Contains(t, updated.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation[keyA].Operators, "cloud-controller-manager")
-	assert.Equal(t, coreapi.DataplaneOIDCFederationIdentityInstance{
-		ClientID:    "client-a",
-		PrincipalID: "principal-a",
-		TenantID:    "tenant-a",
-	}, updated.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation[keyA].TargetIdentity)
-}
-
-func TestDataPlaneOIDCFederationIntentSyncOnceStampsDeconfigureTimestampOnLiveCluster(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	now := time.Date(2026, 9, 5, 12, 0, 0, 0, time.UTC)
-	identityA := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID + "/resourceGroups/" + testResourceGroupName + "/providers/Microsoft.ManagedIdentity/userAssignedIdentities/identity-a"))
-	keyA := strings.ToLower(identityA.String())
-	ficA := metadataapi.Must(azcorearm.ParseResourceID(identityA.String() + "/federatedIdentityCredentials/fic-a"))
-	targetA := coreapi.DataplaneOIDCFederationIdentityInstance{
-		ClientID:    "client-a",
-		PrincipalID: "principal-a",
-		TenantID:    "tenant-a",
-	}
-
-	cluster := newTestClusterWithIdentities(t, testClusterName, nil, nil)
-	serviceProviderCluster := newTestServiceProviderClusterWithIdentities(testClusterName, nil, nil)
-	serviceProviderCluster.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation = map[string]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
-		keyA: oidcIdentityStatus(targetA, "cloud-controller-manager", oidcOperatorEnsured(targetA, []*azcorearm.ResourceID{ficA})),
-	}
-
-	mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, serviceProviderCluster})
-	require.NoError(t, err)
-
-	syncer := &dataPlaneOIDCFederationIntentSyncer{
-		clock:                        clocktesting.NewFakePassiveClock(now),
-		clusterLister:                &corelistertesting.DBClusterLister{ResourcesDBClient: mockResourcesDB},
-		serviceProviderClusterLister: &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDB},
-		resourcesDBClient:            mockResourcesDB,
-	}
-
-	err = syncer.SyncOnce(ctx, controllerutils.HCPClusterKey{
-		SubscriptionID:    testSubscriptionID,
-		ResourceGroupName: testResourceGroupName,
-		HCPClusterName:    testClusterName,
-	})
-	require.NoError(t, err)
-
-	updated, err := mockResourcesDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
-	require.NoError(t, err)
-	got := updated.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation[keyA]
-	require.NotNil(t, got)
-	operatorStatus := requireOperatorStatus(t, got, "cloud-controller-manager")
-	assert.NotNil(t, operatorStatus.DeconfigureTimestamp)
-	assert.True(t, operatorStatus.DeconfigureTimestamp.Time.Equal(now))
-}
-
-func TestDataPlaneOIDCFederationIntentSyncOnceMarksPendingDeconfigureOnClusterDeletion(t *testing.T) {
-	t.Parallel()
-
-	identityA := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID + "/resourceGroups/" + testResourceGroupName + "/providers/Microsoft.ManagedIdentity/userAssignedIdentities/identity-a"))
-	resolvedA := resolvedARMManagedIdentityMetadata(identityA, "client-a", "principal-a", "tenant-a")
-	keyA := strings.ToLower(identityA.String())
-	ficA := metadataapi.Must(azcorearm.ParseResourceID(identityA.String() + "/federatedIdentityCredentials/fic-a"))
-	targetA := coreapi.DataplaneOIDCFederationIdentityInstance{
-		ClientID:    "client-a",
-		PrincipalID: "principal-a",
-		TenantID:    "tenant-a",
-	}
-
-	deletionTimestamp := &metav1.Time{Time: time.Date(2026, 9, 5, 12, 0, 0, 0, time.UTC)}
-	clusterServiceDeletionTimestamp := &metav1.Time{Time: time.Date(2026, 9, 5, 12, 2, 0, 0, time.UTC)}
-	clusterServiceID := testClusterServiceID()
-	pendingClusterServiceID := testClusterServiceID()
-	now := deletionTimestamp.Time
 
 	testCases := []struct {
-		name              string
-		mutateCluster     func(cluster *coreapi.HCPOpenShiftCluster)
-		expectDeconfigure bool
+		name               string
+		dataPlaneOperators map[string]*azcorearm.ResourceID
+		details            map[string]*coreapi.ManagedIdentityMetadata
+		current            map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus
+		wantErrorSubstr    string
 	}{
 		{
+			name: "nil federation status",
+			current: map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus{
+				buildTestOIDCAssignmentKey(keyA, "cloud-controller-manager"): nil,
+			},
+			wantErrorSubstr: "nil status",
+		},
+		{
+			name: "nil ManagedIdentityDetails metadata",
+			dataPlaneOperators: map[string]*azcorearm.ResourceID{
+				"cloud-controller-manager": identityA,
+			},
+			details: map[string]*coreapi.ManagedIdentityMetadata{
+				strings.ToLower(identityA.String()): nil,
+			},
+			wantErrorSubstr: "nil metadata",
+		},
+		{
+			name: "empty operator name",
+			dataPlaneOperators: map[string]*azcorearm.ResourceID{
+				"": identityA,
+			},
+			wantErrorSubstr: "has an empty name",
+		},
+		{
+			name: "nil operator resource ID",
+			dataPlaneOperators: map[string]*azcorearm.ResourceID{
+				"cloud-controller-manager": nil,
+			},
+			wantErrorSubstr: "has a nil resource ID",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			_, err := syncer.desiredDataPlaneOIDCFederationStatus(context.Background(), tc.dataPlaneOperators, tc.details, tc.current)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tc.wantErrorSubstr)
+		})
+	}
+}
+
+func TestDataPlaneOIDCFederationIntentSyncer_SyncOnce(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 9, 5, 12, 0, 0, 0, time.UTC)
+	identityA := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID + "/resourceGroups/" + testResourceGroupName + "/providers/Microsoft.ManagedIdentity/userAssignedIdentities/identity-a"))
+	resolvedA := buildTestResolvedARMManagedIdentityMetadata(identityA, "client-a", "principal-a", "tenant-a")
+	keyA := strings.ToLower(identityA.String())
+	ficA := metadataapi.Must(azcorearm.ParseResourceID(identityA.String() + "/federatedIdentityCredentials/fic-a"))
+	targetA := coreapi.DataplaneOIDCFederationIdentityInstance{
+		ClientID:    "client-a",
+		PrincipalID: "principal-a",
+		TenantID:    "tenant-a",
+	}
+	deconfigureAt := metav1.NewTime(now)
+	deletionTimestamp := &metav1.Time{Time: now}
+	clusterServiceDeletionTimestamp := &metav1.Time{Time: now.Add(2 * time.Minute)}
+	clusterServiceID := buildTestClusterServiceID()
+	pendingClusterServiceID := buildTestClusterServiceID()
+
+	ensuredWithFIC := map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus{
+		buildTestOIDCAssignmentKey(keyA, "cloud-controller-manager"): buildTestOIDCAssignmentWithTarget(targetA, buildTestOIDCAssignmentEnsured(targetA, []*azcorearm.ResourceID{ficA})),
+	}
+
+	testCases := []struct {
+		name                   string
+		cluster                *coreapi.HCPOpenShiftCluster
+		serviceProviderCluster *coreapi.ServiceProviderCluster
+		want                   map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus
+	}{
+		{
+			name:    "resolved data-plane identity is added",
+			cluster: buildTestOIDCIntentCluster(t, map[string]*azcorearm.ResourceID{"cloud-controller-manager": identityA}),
+			serviceProviderCluster: buildTestOIDCIntentServiceProviderCluster(map[string]*coreapi.ManagedIdentityMetadata{
+				keyA: resolvedA,
+			}, nil),
+			want: map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus{
+				buildTestOIDCAssignmentKey(keyA, "cloud-controller-manager"): {
+					TargetIdentity: targetA,
+				},
+			},
+		},
+		{
+			name:                   "stamps DeconfigureTimestamp when the operator leaves on a live cluster",
+			cluster:                buildTestOIDCIntentCluster(t, nil),
+			serviceProviderCluster: buildTestOIDCIntentServiceProviderCluster(nil, ensuredWithFIC),
+			want: map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus{
+				buildTestOIDCAssignmentKey(keyA, "cloud-controller-manager"): {
+					TargetIdentity:       targetA,
+					EnsuredIdentity:      ptr.To(targetA),
+					AzureResources:       []*azcorearm.ResourceID{ficA},
+					DeconfigureTimestamp: &deconfigureAt,
+				},
+			},
+		},
+		{
 			name: "new deletion approach deconfigures after CS is confirmed gone even if PendingClusterServiceID is still set",
-			mutateCluster: func(cluster *coreapi.HCPOpenShiftCluster) {
+			cluster: buildTestOIDCIntentCluster(t, map[string]*azcorearm.ResourceID{"cloud-controller-manager": identityA}, func(cluster *coreapi.HCPOpenShiftCluster) {
 				cluster.ServiceProviderProperties.UsesNewClusterDeletionApproach = true
 				cluster.ServiceProviderProperties.DeletionTimestamp = deletionTimestamp
 				cluster.ServiceProviderProperties.ClusterServiceDeletionTimestamp = clusterServiceDeletionTimestamp
 				cluster.ServiceProviderProperties.PendingClusterServiceID = pendingClusterServiceID
+			}),
+			serviceProviderCluster: buildTestOIDCIntentServiceProviderCluster(map[string]*coreapi.ManagedIdentityMetadata{
+				keyA: resolvedA,
+			}, ensuredWithFIC),
+			want: map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus{
+				buildTestOIDCAssignmentKey(keyA, "cloud-controller-manager"): {
+					TargetIdentity:       targetA,
+					EnsuredIdentity:      ptr.To(targetA),
+					AzureResources:       []*azcorearm.ResourceID{ficA},
+					DeconfigureTimestamp: &deconfigureAt,
+				},
 			},
-			expectDeconfigure: true,
 		},
 		{
 			name: "new deletion approach does not deconfigure before ClusterServiceDeletionTimestamp is set",
-			mutateCluster: func(cluster *coreapi.HCPOpenShiftCluster) {
+			cluster: buildTestOIDCIntentCluster(t, map[string]*azcorearm.ResourceID{"cloud-controller-manager": identityA}, func(cluster *coreapi.HCPOpenShiftCluster) {
 				cluster.ServiceProviderProperties.UsesNewClusterDeletionApproach = true
 				cluster.ServiceProviderProperties.DeletionTimestamp = deletionTimestamp
+			}),
+			serviceProviderCluster: buildTestOIDCIntentServiceProviderCluster(map[string]*coreapi.ManagedIdentityMetadata{
+				keyA: resolvedA,
+			}, ensuredWithFIC),
+			want: map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus{
+				buildTestOIDCAssignmentKey(keyA, "cloud-controller-manager"): buildTestOIDCAssignmentWithTarget(targetA, buildTestOIDCAssignmentEnsured(targetA, []*azcorearm.ResourceID{ficA})),
 			},
-			expectDeconfigure: false,
 		},
 		{
 			name: "new deletion approach does not deconfigure while ClusterServiceID is still set",
-			mutateCluster: func(cluster *coreapi.HCPOpenShiftCluster) {
+			cluster: buildTestOIDCIntentCluster(t, map[string]*azcorearm.ResourceID{"cloud-controller-manager": identityA}, func(cluster *coreapi.HCPOpenShiftCluster) {
 				cluster.ServiceProviderProperties.UsesNewClusterDeletionApproach = true
 				cluster.ServiceProviderProperties.DeletionTimestamp = deletionTimestamp
 				cluster.ServiceProviderProperties.ClusterServiceDeletionTimestamp = clusterServiceDeletionTimestamp
 				cluster.ServiceProviderProperties.ClusterServiceID = clusterServiceID
+			}),
+			serviceProviderCluster: buildTestOIDCIntentServiceProviderCluster(map[string]*coreapi.ManagedIdentityMetadata{
+				keyA: resolvedA,
+			}, ensuredWithFIC),
+			want: map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus{
+				buildTestOIDCAssignmentKey(keyA, "cloud-controller-manager"): buildTestOIDCAssignmentWithTarget(targetA, buildTestOIDCAssignmentEnsured(targetA, []*azcorearm.ResourceID{ficA})),
 			},
-			expectDeconfigure: false,
 		},
 		{
 			name: "legacy deletion approach does not deconfigure while ClusterServiceID is already cleared",
-			mutateCluster: func(cluster *coreapi.HCPOpenShiftCluster) {
+			cluster: buildTestOIDCIntentCluster(t, map[string]*azcorearm.ResourceID{"cloud-controller-manager": identityA}, func(cluster *coreapi.HCPOpenShiftCluster) {
 				cluster.ServiceProviderProperties.DeletionTimestamp = deletionTimestamp
+			}),
+			serviceProviderCluster: buildTestOIDCIntentServiceProviderCluster(map[string]*coreapi.ManagedIdentityMetadata{
+				keyA: resolvedA,
+			}, ensuredWithFIC),
+			want: map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus{
+				buildTestOIDCAssignmentKey(keyA, "cloud-controller-manager"): buildTestOIDCAssignmentWithTarget(targetA, buildTestOIDCAssignmentEnsured(targetA, []*azcorearm.ResourceID{ficA})),
 			},
-			expectDeconfigure: false,
 		},
 		{
 			name: "legacy deletion approach does not deconfigure while ClusterServiceID is still set",
-			mutateCluster: func(cluster *coreapi.HCPOpenShiftCluster) {
+			cluster: buildTestOIDCIntentCluster(t, map[string]*azcorearm.ResourceID{"cloud-controller-manager": identityA}, func(cluster *coreapi.HCPOpenShiftCluster) {
 				cluster.ServiceProviderProperties.DeletionTimestamp = deletionTimestamp
 				cluster.ServiceProviderProperties.ClusterServiceID = clusterServiceID
+			}),
+			serviceProviderCluster: buildTestOIDCIntentServiceProviderCluster(map[string]*coreapi.ManagedIdentityMetadata{
+				keyA: resolvedA,
+			}, ensuredWithFIC),
+			want: map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus{
+				buildTestOIDCAssignmentKey(keyA, "cloud-controller-manager"): buildTestOIDCAssignmentWithTarget(targetA, buildTestOIDCAssignmentEnsured(targetA, []*azcorearm.ResourceID{ficA})),
 			},
-			expectDeconfigure: false,
 		},
 	}
 
@@ -665,20 +631,7 @@ func TestDataPlaneOIDCFederationIntentSyncOnceMarksPendingDeconfigureOnClusterDe
 			t.Parallel()
 
 			ctx := context.Background()
-			cluster := newTestClusterWithIdentities(t, testClusterName, nil, map[string]*azcorearm.ResourceID{
-				"cloud-controller-manager": identityA,
-			})
-			tc.mutateCluster(cluster)
-
-			serviceProviderCluster := newTestServiceProviderClusterWithIdentities(testClusterName, nil, nil)
-			serviceProviderCluster.Status.ManagedIdentityDetails = map[string]*coreapi.ManagedIdentityMetadata{
-				strings.ToLower(identityA.String()): resolvedA,
-			}
-			serviceProviderCluster.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation = map[string]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
-				keyA: oidcIdentityStatus(targetA, "cloud-controller-manager", oidcOperatorEnsured(targetA, []*azcorearm.ResourceID{ficA})),
-			}
-
-			mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, serviceProviderCluster})
+			mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{tc.cluster, tc.serviceProviderCluster})
 			require.NoError(t, err)
 
 			syncer := &dataPlaneOIDCFederationIntentSyncer{
@@ -697,76 +650,78 @@ func TestDataPlaneOIDCFederationIntentSyncOnceMarksPendingDeconfigureOnClusterDe
 
 			updated, err := mockResourcesDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
 			require.NoError(t, err)
-			require.Contains(t, updated.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation, keyA)
-			got := updated.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation[keyA]
-			operatorStatus := requireOperatorStatus(t, got, "cloud-controller-manager")
-			assert.Equal(t, tc.expectDeconfigure, operatorStatus.DeconfigureTimestamp != nil)
-			if tc.expectDeconfigure {
-				require.NotNil(t, operatorStatus.DeconfigureTimestamp)
-				assert.True(t, operatorStatus.DeconfigureTimestamp.Time.Equal(now))
-			}
+			assertDataplaneOIDCFederationAssignments(t, updated.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation, tc.want)
 		})
 	}
 }
 
-func TestTargetIdentityFromARMUserAssignedIdentities(t *testing.T) {
+func TestDataPlaneOIDCFederationIntentSyncer_targetIdentityFromARMUserAssignedIdentities(t *testing.T) {
 	t.Parallel()
 
 	syncer := &dataPlaneOIDCFederationIntentSyncer{}
 	identity := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/Test-RG/providers/Microsoft.ManagedIdentity/userAssignedIdentities/Identity-A"))
 
-	t.Run("resolved ARM user assigned identities metadata", func(t *testing.T) {
-		t.Parallel()
-		metadata := &coreapi.ManagedIdentityMetadata{
-			ResourceID: identity,
-			MetadataFromARMUserAssignedIdentitiesAPI: &coreapi.IdentityMetadataValue{
-				ClientID:    ptr.To("arm-client"),
-				PrincipalID: ptr.To("arm-principal"),
-				TenantID:    ptr.To("arm-tenant"),
+	testCases := []struct {
+		name     string
+		metadata *coreapi.ManagedIdentityMetadata
+		want     coreapi.DataplaneOIDCFederationIdentityInstance
+		wantOK   bool
+	}{
+		{
+			name: "resolved ARM user assigned identities metadata",
+			metadata: &coreapi.ManagedIdentityMetadata{
+				ResourceID: identity,
+				MetadataFromARMUserAssignedIdentitiesAPI: &coreapi.IdentityMetadataValue{
+					ClientID:    ptr.To("arm-client"),
+					PrincipalID: ptr.To("arm-principal"),
+					TenantID:    ptr.To("arm-tenant"),
+				},
+				MetadataFromHardcodedIdentity: &coreapi.IdentityMetadataValue{
+					ClientID:    ptr.To("hardcoded-client"),
+					PrincipalID: ptr.To("hardcoded-principal"),
+					TenantID:    ptr.To("hardcoded-tenant"),
+				},
 			},
-			MetadataFromHardcodedIdentity: &coreapi.IdentityMetadataValue{
-				ClientID:    ptr.To("hardcoded-client"),
-				PrincipalID: ptr.To("hardcoded-principal"),
-				TenantID:    ptr.To("hardcoded-tenant"),
+			want: coreapi.DataplaneOIDCFederationIdentityInstance{
+				ClientID:    "arm-client",
+				PrincipalID: "arm-principal",
+				TenantID:    "arm-tenant",
 			},
-		}
-		target, ok := syncer.targetIdentityFromARMUserAssignedIdentities(metadata)
-		require.True(t, ok)
-		assert.Equal(t, coreapi.DataplaneOIDCFederationIdentityInstance{
-			ClientID:    "arm-client",
-			PrincipalID: "arm-principal",
-			TenantID:    "arm-tenant",
-		}, target)
-	})
+			wantOK: true,
+		},
+		{
+			name: "missing ARM user assigned identities metadata",
+			metadata: &coreapi.ManagedIdentityMetadata{
+				ResourceID: identity,
+				MetadataFromHardcodedIdentity: &coreapi.IdentityMetadataValue{
+					ClientID:    ptr.To("hardcoded-client"),
+					PrincipalID: ptr.To("hardcoded-principal"),
+					TenantID:    ptr.To("hardcoded-tenant"),
+				},
+			},
+		},
+		{
+			name: "ARM retrieval error is unresolved",
+			metadata: &coreapi.ManagedIdentityMetadata{
+				ResourceID: identity,
+				MetadataFromARMUserAssignedIdentitiesAPI: &coreapi.IdentityMetadataValue{
+					RetrievalError: ptr.To("ResourceNotFound"),
+				},
+			},
+		},
+	}
 
-	t.Run("missing ARM user assigned identities metadata", func(t *testing.T) {
-		t.Parallel()
-		metadata := &coreapi.ManagedIdentityMetadata{
-			ResourceID: identity,
-			MetadataFromHardcodedIdentity: &coreapi.IdentityMetadataValue{
-				ClientID:    ptr.To("hardcoded-client"),
-				PrincipalID: ptr.To("hardcoded-principal"),
-				TenantID:    ptr.To("hardcoded-tenant"),
-			},
-		}
-		_, ok := syncer.targetIdentityFromARMUserAssignedIdentities(metadata)
-		assert.False(t, ok)
-	})
-
-	t.Run("ARM retrieval error is unresolved", func(t *testing.T) {
-		t.Parallel()
-		metadata := &coreapi.ManagedIdentityMetadata{
-			ResourceID: identity,
-			MetadataFromARMUserAssignedIdentitiesAPI: &coreapi.IdentityMetadataValue{
-				RetrievalError: ptr.To("ResourceNotFound"),
-			},
-		}
-		_, ok := syncer.targetIdentityFromARMUserAssignedIdentities(metadata)
-		assert.False(t, ok)
-	})
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got, ok := syncer.targetIdentityFromARMUserAssignedIdentities(tc.metadata)
+			assert.Equal(t, tc.wantOK, ok)
+			assert.Equal(t, tc.want, got)
+		})
+	}
 }
 
-func resolvedARMManagedIdentityMetadata(resourceID *azcorearm.ResourceID, clientID, principalID, tenantID string) *coreapi.ManagedIdentityMetadata {
+func buildTestResolvedARMManagedIdentityMetadata(resourceID *azcorearm.ResourceID, clientID, principalID, tenantID string) *coreapi.ManagedIdentityMetadata {
 	return &coreapi.ManagedIdentityMetadata{
 		ResourceID: resourceID,
 		MetadataFromARMUserAssignedIdentitiesAPI: &coreapi.IdentityMetadataValue{
@@ -775,4 +730,35 @@ func resolvedARMManagedIdentityMetadata(resourceID *azcorearm.ResourceID, client
 			TenantID:    ptr.To(tenantID),
 		},
 	}
+}
+
+func buildTestOIDCIntentCluster(t *testing.T, operators map[string]*azcorearm.ResourceID, opts ...func(*coreapi.HCPOpenShiftCluster)) *coreapi.HCPOpenShiftCluster {
+	t.Helper()
+	cluster := buildTestClusterWithIdentities(t, testClusterName, nil, operators)
+	for _, opt := range opts {
+		opt(cluster)
+	}
+	return cluster
+}
+
+func buildTestOIDCIntentServiceProviderCluster(
+	details map[string]*coreapi.ManagedIdentityMetadata,
+	federation map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus,
+) *coreapi.ServiceProviderCluster {
+	serviceProviderCluster := buildTestServiceProviderClusterWithIdentities(testClusterName, nil, nil)
+	if details != nil {
+		copied := make(map[string]*coreapi.ManagedIdentityMetadata, len(details))
+		for key, metadata := range details {
+			copied[key] = metadata.DeepCopy()
+		}
+		serviceProviderCluster.Status.ManagedIdentityDetails = copied
+	}
+	if federation != nil {
+		copied := make(map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus, len(federation))
+		for key, status := range federation {
+			copied[key] = status.DeepCopy()
+		}
+		serviceProviderCluster.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation = copied
+	}
+	return serviceProviderCluster
 }

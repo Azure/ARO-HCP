@@ -291,15 +291,10 @@ func (c *clusterChildResourcesCleanupController) extraDeleteGateShouldDeleteServ
 		if status == nil {
 			continue
 		}
-		for _, operatorStatus := range status.Operators {
-			if operatorStatus == nil {
-				continue
-			}
-			remainingFederatedIdentityCredentialIDStrs = append(remainingFederatedIdentityCredentialIDStrs,
-				c.resourceIDStrings(operatorStatus.AzureResources)...)
-			remainingFederatedIdentityCredentialIDStrs = append(remainingFederatedIdentityCredentialIDStrs,
-				c.resourceIDStrings(operatorStatus.PendingAzureResources)...)
-		}
+		remainingFederatedIdentityCredentialIDStrs = append(remainingFederatedIdentityCredentialIDStrs,
+			c.resourceIDStrings(status.AzureResources)...)
+		remainingFederatedIdentityCredentialIDStrs = append(remainingFederatedIdentityCredentialIDStrs,
+			c.resourceIDStrings(status.PendingAzureResources)...)
 	}
 	if len(remainingFederatedIdentityCredentialIDStrs) > 0 {
 		slices.Sort(remainingFederatedIdentityCredentialIDStrs)
