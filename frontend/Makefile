@@ -36,7 +36,8 @@ run: $(BINARY)
 	./$(BINARY) --location ${LOCATION} \
 		--clusters-service-url http://localhost:8000 \
 		--cosmos-name ${DB_NAME} \
-		--cosmos-url ${DB_URL}
+		--cosmos-url ${DB_URL} \
+		--azure-cluster-scoped-identities-role-set-name dev
 .PHONY: run
 
 clean:

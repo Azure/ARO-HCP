@@ -123,8 +123,7 @@ func NewRootCmd() *cobra.Command {
 
 func NewFrontendOpts() *FrontendOpts {
 	return &FrontendOpts{
-		exitOnPanic:                             true,
-		azureClusterScopedIdentitiesRoleSetName: string(internalazure.RoleDefinitionConfigSetNameDev),
+		exitOnPanic: true,
 	}
 }
 
