@@ -37,9 +37,8 @@ const (
 	reasonFailedCreatePodSandBox = "FailedCreatePodSandBox"
 
 	// swiftNICResourceName is the extended resource a pod requests to be given a
-	// SWIFT v2 delegated NIC. It mirrors controller.SwiftNICResourceName, which
-	// the mgmt-agent advertises on the node; the two are pinned equal by test so
-	// this package stays free of a dependency on the controller package.
+	// SWIFT v2 delegated NIC. The shared kuberesources constant keeps detection
+	// and node resource accounting aligned without a controller dependency.
 	swiftNICResourceName corev1.ResourceName = kuberesources.SwiftNICResourceName
 )
 
