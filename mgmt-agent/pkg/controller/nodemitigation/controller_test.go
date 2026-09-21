@@ -179,6 +179,46 @@ func (f *fixture) tick(t *testing.T) {
 	}
 }
 
+func TestAdmissionPreservesObservationFreshness(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		offset  time.Duration
+		wantErr bool
+	}{
+		{name: "fresh"},
+		{name: "age boundary", offset: -time.Minute},
+		{name: "expired", offset: -time.Minute - time.Nanosecond, wantErr: true},
+		{name: "future", offset: time.Nanosecond, wantErr: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newFixture(t, 11, 1)
+			observedAt := f.now.Add(tc.offset)
+			f.azure.now = &observedAt
+			cfg, revision := f.controller.configuration()
+			cfg.Mode = Audit
+			snapshot, err := f.controller.snapshot(context.Background())
+			if err != nil {
+				t.Fatal(err)
+			}
+			node, err := f.kube.CoreV1().Nodes().Get(context.Background(), "node-00", metav1.GetOptions{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			budget := &api.NodeMitigationBudget{Status: api.NodeMitigationBudgetStatus{Pools: map[string]api.PoolBaseline{}}}
+			observation, _, err := f.controller.admission(context.Background(), cfg, revision, node, budget, snapshot, "")
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("admission error=%v, want error=%v", err, tc.wantErr)
+			}
+			if tc.wantErr && !strings.Contains(err.Error(), "pool observation unavailable or stale") {
+				t.Fatalf("unexpected hold: %v", err)
+			}
+			if !observation.ObservedAt.Equal(observedAt) {
+				t.Fatal("admission retimestamped the observation")
+			}
+		})
+	}
+}
+
 func TestIdleDiscoveryDoesNotListClusterResources(t *testing.T) {
 	f := newFixture(t, 11, 0)
 	f.kube.ClearActions()

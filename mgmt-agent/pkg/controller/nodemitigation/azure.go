@@ -42,10 +42,18 @@ type AzureReader interface {
 type azureReader struct {
 	credential azcore.TokenCredential
 	options    azcorearm.ClientOptions
+	clock      func() time.Time
 }
 
-func NewAzureReader(credential azcore.TokenCredential) AzureReader {
-	return &azureReader{credential: credential, options: azcorearm.ClientOptions{ClientOptions: azsdk.NewClientOptions(azsdk.ComponentMgmtAgent)}}
+// NewAzureReader uses the same clock as its controller to timestamp observations.
+func NewAzureReader(credential azcore.TokenCredential, clock func() time.Time) AzureReader {
+	if clock == nil {
+		clock = time.Now
+	}
+	return &azureReader{
+		credential: credential, clock: clock,
+		options: azcorearm.ClientOptions{ClientOptions: azsdk.NewClientOptions(azsdk.ComponentMgmtAgent)},
+	}
 }
 
 func (a *azureReader) Pool(ctx context.Context, clusterID, pool string) (PoolObservation, error) {
@@ -69,7 +77,7 @@ func (a *azureReader) Pool(ctx context.Context, clusterID, pool string) (PoolObs
 	}
 	return PoolObservation{
 		ID: strings.ToLower(*response.ID), Target: *properties.Count,
-		Stable: *properties.ProvisioningState == "Succeeded", ObservedAt: time.Now(),
+		Stable: *properties.ProvisioningState == "Succeeded", ObservedAt: a.clock(),
 	}, nil
 }
 

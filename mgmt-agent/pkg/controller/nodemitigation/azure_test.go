@@ -37,6 +37,52 @@ func (azureTestCredential) GetToken(context.Context, policy.TokenRequestOptions)
 	return azcore.AccessToken{Token: "unit-test-token", ExpiresOn: time.Now().Add(time.Hour)}, nil
 }
 
+func TestAzurePoolObservationClock(t *testing.T) {
+	const cluster = "/subscriptions/00000000-1111-2222-3333-444444444444/resourceGroups/management/providers/Microsoft.ContainerService/managedClusters/cluster"
+	for _, status := range []int{http.StatusOK, http.StatusForbidden} {
+		t.Run(http.StatusText(status), func(t *testing.T) {
+			now := time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
+			clockCalls := 0
+			clock := func() time.Time {
+				clockCalls++
+				return now
+			}
+			reader := NewAzureReader(azureTestCredential{}, clock).(*azureReader)
+			reader.options.Retry.MaxRetries = -1
+			reader.options.Transport = azureTransport(func(request *http.Request) (*http.Response, error) {
+				if request.Method != http.MethodGet || request.URL.Path != cluster+"/agentPools/pool" {
+					t.Fatalf("unexpected Azure request: %s %s", request.Method, request.URL.Path)
+				}
+				now = now.Add(3 * time.Second)
+				body := `{"id":"` + cluster + `/agentPools/pool","properties":{"count":10,"provisioningState":"Succeeded","mode":"User"}}`
+				if status != http.StatusOK {
+					body = `{"error":{"code":"AuthorizationFailed","message":"test failure"}}`
+				}
+				return &http.Response{StatusCode: status, Header: http.Header{"Content-Type": []string{"application/json"}},
+					Body: io.NopCloser(strings.NewReader(body)), Request: request}, nil
+			})
+			observation, err := reader.Pool(context.Background(), cluster, "pool")
+			if status != http.StatusOK {
+				if err == nil || !observation.ObservedAt.IsZero() || clockCalls != 0 {
+					t.Fatalf("failed read produced an observation: %+v, calls=%d, err=%v", observation, clockCalls, err)
+				}
+				return
+			}
+			if err != nil || !observation.ObservedAt.Equal(now) || clockCalls != 1 {
+				t.Fatalf("observation did not use the clock after the read: %+v, now=%v, calls=%d, err=%v", observation, now, clockCalls, err)
+			}
+			cfg := testConfig()
+			if _, err := updateBaseline(nil, observation, cfg, "test", clock()); err != nil {
+				t.Fatalf("shared clock rejected a fresh observation: %v", err)
+			}
+			now = now.Add(cfg.ObservationMaxAge.Duration + time.Nanosecond)
+			if _, err := updateBaseline(nil, observation, cfg, "test", clock()); err == nil {
+				t.Fatal("expired observation was accepted")
+			}
+		})
+	}
+}
+
 func TestAzureIdentityAndAbsence(t *testing.T) {
 	const subscription = "00000000-1111-2222-3333-444444444444"
 	cluster := "/subscriptions/" + subscription + "/resourceGroups/management/providers/Microsoft.ContainerService/managedClusters/cluster"

@@ -302,10 +302,11 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 		return nil, fmt.Errorf("failed to create capacity report clientset: %w", err)
 	}
 
+	mitigationClock := time.Now
 	nodeMitigation, err := nodemitigation.NewController(kubeClientset, crClient, dynamicClient,
-		nodemitigation.NewAzureReader(azureCredential), o.Namespace,
+		nodemitigation.NewAzureReader(azureCredential, mitigationClock), o.Namespace,
 		kubeInformers.Core().V1().Nodes(), clusterWideKubeInformers.Core().V1().Pods(),
-		nodeHealthInformers.Core().V1().Events(), nil)
+		nodeHealthInformers.Core().V1().Events(), mitigationClock)
 	if err != nil {
 		return nil, fmt.Errorf("create node mitigation controller: %w", err)
 	}
