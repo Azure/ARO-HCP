@@ -77,10 +77,10 @@ type Frontend struct {
 
 	apiRegistry coreapi.APIRegistry
 
-	// clusterScopedIdentities describes which operator identities a cluster requires. The role
+	// clusterScopedIdentitiesConfig describes which operator identities a cluster requires. The role
 	// definition config set it is built from varies per environment, so it is supplied by the
 	// caller rather than chosen here.
-	clusterScopedIdentities *azure.ClusterScopedIdentitiesConfig
+	clusterScopedIdentitiesConfig *azure.ClusterScopedIdentitiesConfig
 
 	exitOnPanic bool
 }
@@ -96,7 +96,7 @@ func NewFrontend(
 	auditClient audit.Client,
 	azureLocation string,
 	exitOnPanic bool,
-	clusterScopedIdentities *azure.ClusterScopedIdentitiesConfig,
+	clusterScopedIdentitiesConfig *azure.ClusterScopedIdentitiesConfig,
 ) *Frontend {
 	// zero side-effect registration path
 	apiRegistry := coreapi.NewAPIRegistry()
@@ -123,9 +123,9 @@ func NewFrontend(
 				return utils.ContextWithLogger(context.Background(), logger)
 			},
 		},
-		auditClient:             auditClient,
-		resourcesDBClient:       resourcesDBClient,
-		clusterScopedIdentities: clusterScopedIdentities,
+		auditClient:                   auditClient,
+		resourcesDBClient:             resourcesDBClient,
+		clusterScopedIdentitiesConfig: clusterScopedIdentitiesConfig,
 		healthGauge: promauto.With(registerer).NewGauge(
 			prometheus.GaugeOpts{
 				Name: healthGaugeName,
