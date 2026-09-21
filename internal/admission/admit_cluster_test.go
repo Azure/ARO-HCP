@@ -62,6 +62,24 @@ func TestMutateCluster(t *testing.T) {
 		expectedControlPlaneOperatorImage string
 	}{
 		{
+			name:               "AFEC registered recognizes disable-swift without projecting a feature",
+			subscription:       afecRegistered,
+			tags:               map[string]string{metadataapi.TagClusterDisableSwift: "true"},
+			expectZeroFeatures: true,
+		},
+		{
+			name:               "AFEC registered recognizes case insensitive disable-swift",
+			subscription:       afecRegistered,
+			tags:               map[string]string{strings.ToUpper(metadataapi.TagClusterDisableSwift): "false"},
+			expectZeroFeatures: true,
+		},
+		{
+			name:               "no AFEC ignores invalid disable-swift tag",
+			subscription:       noAFEC,
+			tags:               map[string]string{metadataapi.TagClusterDisableSwift: "invalid"},
+			expectZeroFeatures: true,
+		},
+		{
 			name:               "nil subscription ignores all tags",
 			subscription:       nil,
 			tags:               map[string]string{metadataapi.TagClusterSingleReplica: string(coreapi.SingleReplicaControlPlane), metadataapi.TagClusterSizeOverride: string(coreapi.MinimalControlPlanePodSizing)},

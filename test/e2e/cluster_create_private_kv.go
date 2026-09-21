@@ -57,6 +57,7 @@ var _ = Describe("Create HCPOpenShiftCluster with Private KeyVault", func() {
 
 			By("creating cluster parameters")
 			clusterParams := framework.NewDefaultClusterParams20251223()
+			clusterParams.DisableSwift = false
 			clusterParams.ClusterName = customerClusterName
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			clusterParams.ManagedResourceGroupName = managedResourceGroupName
