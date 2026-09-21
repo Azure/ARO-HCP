@@ -17,7 +17,6 @@ package metrics
 import (
 	"context"
 	"strings"
-	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 
@@ -64,10 +63,9 @@ type operationPhaseMetricsHandler struct {
 	// Not guarded by a mutex: threadiness=1 serializes all access.
 	// A mutex would not help at higher threadiness because Sync's
 	// gauge delete-then-set is not atomic across Prometheus calls.
-	operationsBookkeeper map[string]operationIdentity              // cosmosDocKey: identity (reverse lookup for Delete)
-	operationsCounter    map[operationIdentity]int                 // identity: count of cosmos docs contributing to this gauge
-	lastKnownPhase       map[string]coreapi.ProvisioningState      // cosmosDocKey: last observed phase (prevents double-counting on relists)
-	clock                func() time.Time                           // wall clock for duration calculation; overridable in tests
+	operationsBookkeeper map[string]operationIdentity         // cosmosDocKey: identity (reverse lookup for Delete)
+	operationsCounter    map[operationIdentity]int            // identity: count of cosmos docs contributing to this gauge
+	lastKnownPhase       map[string]coreapi.ProvisioningState // cosmosDocKey: last observed phase (prevents double-counting on relists)
 }
 
 type operationIdentity struct {
@@ -100,7 +98,6 @@ func NewOperationPhaseMetricsHandler(r prometheus.Registerer) Handler[*coreapi.O
 		operationsBookkeeper: make(map[string]operationIdentity, 2000),
 		operationsCounter:    make(map[operationIdentity]int, 2000),
 		lastKnownPhase:       make(map[string]coreapi.ProvisioningState, 2000),
-		clock:                time.Now,
 	}
 	r.MustRegister(h.phaseInfo, h.startTime, h.lastTransitionTime, h.duration)
 	return h
@@ -247,11 +244,11 @@ func (h *operationPhaseMetricsHandler) observeDurationOnTerminalTransition(op *c
 		// Already observed on a previous Sync — skip to avoid double-counting.
 		return
 	}
-	if op.StartTime.IsZero() {
+	if op.StartTime.IsZero() || op.LastTransitionTime.IsZero() {
 		return
 	}
 
-	durationSeconds := h.clock().Sub(op.StartTime).Seconds()
+	durationSeconds := op.LastTransitionTime.Sub(op.StartTime).Seconds()
 	h.duration.With(prometheus.Labels{
 		"resource_type":  externalAuthResourceTypeLabel,
 		"operation_type": operationTypeMetricLabel(op.Request),
