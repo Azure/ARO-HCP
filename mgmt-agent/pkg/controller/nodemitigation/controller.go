@@ -31,6 +31,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -38,6 +39,7 @@ import (
 	"k8s.io/client-go/dynamic"
 	coreinformers "k8s.io/client-go/informers/core/v1"
 	"k8s.io/client-go/kubernetes"
+	corelisters "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
@@ -80,6 +82,10 @@ type Controller struct {
 	revision             uint64
 	configurationAllowed bool
 	lastLog              map[string]time.Time
+	nodes                corelisters.NodeLister
+	pods                 corelisters.PodLister
+	events               corelisters.EventLister
+	nextReconcile        time.Time
 }
 
 func NewController(kube kubernetes.Interface, records clientset.Interface, dyn dynamic.Interface,
@@ -96,6 +102,7 @@ func NewController(kube kubernetes.Interface, records clientset.Interface, dyn d
 		kube: kube, records: records, dynamic: dyn, azure: azure, namespace: namespace,
 		clock: clock, observer: string(uuid.NewUUID()), routes: routes, config: Default(),
 		lastLog: map[string]time.Time{},
+		nodes:   nodes.Lister(), pods: pods.Lister(), events: events.Lister(),
 		queue: workqueue.NewTypedRateLimitingQueueWithConfig(
 			workqueue.DefaultTypedControllerRateLimiter[clusterKey](),
 			workqueue.TypedRateLimitingQueueConfig[clusterKey]{Name: ControllerName}),
@@ -206,6 +213,11 @@ func (c *Controller) Run(ctx context.Context) error {
 		if shutdown {
 			return nil
 		}
+		if delay := c.reconcileDelay(); delay > 0 {
+			c.queue.AddAfter(key, delay)
+			c.queue.Done(key)
+			continue
+		}
 		logger := utils.AddLoggerValues(utils.LoggerFromContext(ctx), key)
 		reconcileCtx, cancel := context.WithTimeout(utils.ContextWithLogger(ctx, logger), 2*time.Minute)
 		err := c.reconcile(reconcileCtx)
@@ -220,6 +232,18 @@ func (c *Controller) Run(ctx context.Context) error {
 			c.queue.AddAfter(key, cfg.retryInterval())
 		}
 	}
+}
+
+// Object churn cannot bypass the configured interval between cluster scans.
+// Configuration changes still fence writes immediately through write().
+func (c *Controller) reconcileDelay() time.Duration {
+	now := c.clock()
+	if delay := c.nextReconcile.Sub(now); delay > 0 {
+		return delay
+	}
+	cfg, _ := c.configuration()
+	c.nextReconcile = now.Add(cfg.retryInterval())
+	return 0
 }
 
 func (c *Controller) saveEpisode(ctx context.Context, revision uint64, episode *api.MitigationEpisode) error {
@@ -275,6 +299,39 @@ func episodeName(uid string) string {
 	return fmt.Sprintf("node-%x", sha256.Sum256([]byte(uid)))[:45]
 }
 
+func (c *Controller) hasCandidates(cfg Config) (bool, error) {
+	nodes, err := c.nodes.List(labels.Everything())
+	if err != nil {
+		return false, err
+	}
+	pods, err := c.pods.List(labels.Everything())
+	if err != nil {
+		return false, err
+	}
+	cachedEvents, err := c.events.List(labels.Everything())
+	if err != nil {
+		return false, err
+	}
+	events := make([]corev1.Event, len(cachedEvents))
+	for i, event := range cachedEvents {
+		events[i] = *event
+	}
+	for _, node := range nodes {
+		if node.DeletionTimestamp != nil || node.Spec.Unschedulable {
+			continue
+		}
+		detections, _ := nodeEvidence(node, pods, events, c.clock())
+		for _, detection := range detections {
+			if mitigator := c.routes[detection.Detector]; mitigator != nil && slices.Contains(cfg.Mitigators, mitigator.Name()) {
+				return true, nil
+			}
+		}
+	}
+	return false, nil
+}
+
+// Cached discovery only selects work. Admission, placement and cleanup use a
+// live cluster-wide snapshot so missed watch updates cannot authorize disruption.
 func (c *Controller) snapshot(ctx context.Context) (ClusterSnapshot, error) {
 	snapshot := ClusterSnapshot{Namespaces: map[string]*corev1.Namespace{}, NICs: map[string]map[types.UID]int64{}}
 	nodes, err := c.kube.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
@@ -338,15 +395,6 @@ func (c *Controller) snapshot(ctx context.Context) (ClusterSnapshot, error) {
 	return snapshot, nil
 }
 
-func (c *Controller) evidence(ctx context.Context, node *corev1.Node, pods []*corev1.Pod) ([]detectors.Detection, []*corev1.Event, error) {
-	result, err := c.kube.CoreV1().Events("").List(ctx, metav1.ListOptions{FieldSelector: "involvedObject.kind=Pod"})
-	if err != nil {
-		return nil, nil, err
-	}
-	detections, events := nodeEvidence(node, pods, result.Items, c.clock())
-	return detections, events, nil
-}
-
 func nodeEvidence(node *corev1.Node, pods []*corev1.Pod, observed []corev1.Event, now time.Time) ([]detectors.Detection, []*corev1.Event) {
 	events := make([]*corev1.Event, 0, len(observed))
 	for i := range observed {
@@ -371,6 +419,15 @@ func (c *Controller) reconcile(ctx context.Context) error {
 	}
 	if cfg.Mode == Disabled && len(episodes.Items) == 0 {
 		return nil
+	}
+	if len(episodes.Items) == 0 {
+		candidates, err := c.hasCandidates(cfg)
+		if err != nil {
+			return err
+		}
+		if !candidates {
+			return nil
+		}
 	}
 	budget, err := c.budget(ctx, revision, cfg.Mode, len(episodes.Items) > 0)
 	if err != nil {

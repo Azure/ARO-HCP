@@ -236,10 +236,7 @@ func (c *Controller) drainRegistration(ctx context.Context, cfg Config, revision
 	if _, _, err := c.admission(ctx, cfg, revision, node, budget, snapshot, episode.Name); err != nil {
 		return c.hold(ctx, cfg, revision, episode, err.Error())
 	}
-	_, events, err := c.evidence(ctx, node, pods)
-	if err != nil {
-		return err
-	}
+	_, events := nodeEvidence(node, pods, snapshot.Events, c.clock())
 	if episode.Status.Intent != nil {
 		if episode.Status.Intent.Kind != "EvictPod" && episode.Status.Intent.Kind != "DeleteUnhealthyPod" {
 			return c.hold(ctx, cfg, revision, episode, "only cordon and pod actions may target a re-registration")

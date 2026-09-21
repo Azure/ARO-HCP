@@ -118,10 +118,7 @@ func (c *Controller) reconcileEpisode(ctx context.Context, cfg Config, revision 
 	if node.Spec.ProviderID != episode.Spec.ProviderID || !strings.EqualFold(node.Status.NodeInfo.SystemUUID, episode.Spec.InstanceID) {
 		return c.hold(ctx, cfg, revision, episode, "original node instance identity changed")
 	}
-	detections, events, err := c.evidence(ctx, node, snapshot.Pods)
-	if err != nil {
-		return err
-	}
+	detections, events := nodeEvidence(node, snapshot.Pods, snapshot.Events, c.clock())
 	var detection detectors.Detection
 	for _, candidate := range detections {
 		if candidate.Detector == episode.Spec.Detector {
@@ -150,10 +147,7 @@ func (c *Controller) reconcileEpisode(ctx context.Context, cfg Config, revision 
 		node.Annotations[ownershipAnnotation] != string(episode.UID) {
 		return c.hold(ctx, cfg, revision, episode, "external cordon is not mitigation ownership")
 	}
-	fresh, err := c.snapshot(ctx)
-	if err != nil {
-		return err
-	}
+	fresh := snapshot
 	_, instance, err := c.admission(ctx, cfg, revision, node, budget, fresh, episode.Name)
 	if err != nil {
 		return c.hold(ctx, cfg, revision, episode, err.Error())

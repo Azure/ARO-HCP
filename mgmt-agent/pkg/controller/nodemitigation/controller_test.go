@@ -39,6 +39,7 @@ import (
 	"k8s.io/client-go/informers"
 	kubefake "k8s.io/client-go/kubernetes/fake"
 	ktesting "k8s.io/client-go/testing"
+	"k8s.io/client-go/tools/cache"
 
 	"github.com/Azure/ARO-HCP/internal/kuberesources"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -70,6 +71,7 @@ type fixture struct {
 	azure      *fakeAzure
 	now        time.Time
 	cfg        Config
+	informers  informers.SharedInformerFactory
 }
 
 func newFixture(t *testing.T, nodes, neverReady int) *fixture {
@@ -123,6 +125,7 @@ func newFixture(t *testing.T, nodes, neverReady int) *fixture {
 	})
 	dyn := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), map[schema.GroupVersionResource]string{mtpncGVR: "MultitenantPodNetworkConfigList"})
 	informer := informers.NewSharedInformerFactory(f.kube, 0)
+	f.informers = informer
 	var err error
 	f.controller, err = NewController(f.kube, f.records, dyn, f.azure, "mgmt-agent", informer.Core().V1().Nodes(), informer.Core().V1().Pods(), informer.Core().V1().Events(), func() time.Time { return f.now })
 	if err != nil {
@@ -133,16 +136,138 @@ func newFixture(t *testing.T, nodes, neverReady int) *fixture {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { f.controller.queue.ShutDown() })
+	f.syncCaches(t)
 	return f
+}
+
+func (f *fixture) syncCaches(t *testing.T) {
+	t.Helper()
+	for _, source := range []struct {
+		resource string
+		kind     string
+		store    cache.Store
+	}{
+		{"nodes", "Node", f.informers.Core().V1().Nodes().Informer().GetStore()},
+		{"pods", "Pod", f.informers.Core().V1().Pods().Informer().GetStore()},
+		{"events", "Event", f.informers.Core().V1().Events().Informer().GetStore()},
+	} {
+		list, err := f.kube.Tracker().List(corev1.SchemeGroupVersion.WithResource(source.resource),
+			corev1.SchemeGroupVersion.WithKind(source.kind), "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		items, err := meta.ExtractList(list)
+		if err != nil {
+			t.Fatal(err)
+		}
+		objects := make([]any, len(items))
+		for i, item := range items {
+			objects[i] = item
+		}
+		if err := source.store.Replace(objects, ""); err != nil {
+			t.Fatal(err)
+		}
+	}
 }
 
 func (f *fixture) tick(t *testing.T) {
 	t.Helper()
+	f.syncCaches(t)
 	f.now = f.now.Add(2 * time.Second)
 	if err := f.controller.reconcile(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 }
+
+func TestIdleDiscoveryDoesNotListClusterResources(t *testing.T) {
+	f := newFixture(t, 11, 0)
+	f.kube.ClearActions()
+	for i := 0; i < 10; i++ {
+		f.tick(t)
+	}
+	for _, action := range f.kube.Actions() {
+		if action.GetVerb() == "list" {
+			t.Fatalf("idle discovery made a live list: %v", action)
+		}
+	}
+	if actions := f.controller.dynamic.(*dynamicfake.FakeDynamicClient).Actions(); len(actions) != 0 {
+		t.Fatalf("idle discovery read NIC allocations: %v", actions)
+	}
+}
+
+func TestActiveEpisodeSharesOneLiveSnapshot(t *testing.T) {
+	f := newFixture(t, 11, 1)
+	f.tick(t)
+	f.kube.ClearActions()
+	f.controller.dynamic.(*dynamicfake.FakeDynamicClient).ClearActions()
+	f.tick(t)
+	for _, resource := range []string{"nodes", "pods", "events", "namespaces"} {
+		lists := 0
+		for _, action := range f.kube.Actions() {
+			if action.GetVerb() == "list" && action.GetResource().Resource == resource {
+				lists++
+			}
+		}
+		if lists != 1 {
+			t.Fatalf("active episode listed %s %d times, want one live snapshot", resource, lists)
+		}
+	}
+	if actions := f.controller.dynamic.(*dynamicfake.FakeDynamicClient).Actions(); len(actions) != 1 || actions[0].GetVerb() != "list" {
+		t.Fatalf("expected one live NIC list: %v", actions)
+	}
+}
+
+func TestCachedFaultCannotAuthorizeRecoveredNode(t *testing.T) {
+	f := newFixture(t, 11, 1)
+	node, err := f.kube.CoreV1().Nodes().Get(context.Background(), "node-00", metav1.GetOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	node.Status.Conditions[0].Status = corev1.ConditionTrue
+	if _, err := f.kube.CoreV1().Nodes().UpdateStatus(context.Background(), node, metav1.UpdateOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	f.kube.ClearActions()
+	if err := f.controller.reconcile(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if len(mutations(f.kube.Actions())) != 0 {
+		t.Fatal("stale cached fault authorized a Kubernetes action")
+	}
+	for _, action := range f.records.Actions() {
+		if action.GetVerb() == "create" && action.GetResource().Resource == "mitigationepisodes" {
+			t.Fatal("stale cached fault authorized an episode")
+		}
+	}
+}
+
+func TestObjectChurnCannotBypassReconcileInterval(t *testing.T) {
+	f := newFixture(t, 11, 0)
+	if delay := f.controller.reconcileDelay(); delay != 0 {
+		t.Fatalf("initial reconcile delayed by %v", delay)
+	}
+	for i := 0; i < 100; i++ {
+		if delay := f.controller.reconcileDelay(); delay != f.cfg.RetryInterval.Duration {
+			t.Fatalf("object churn bypassed the interval: %v", delay)
+		}
+	}
+	f.cfg.Mode = Disabled
+	if err := f.controller.SetConfig(f.cfg); err != nil {
+		t.Fatal(err)
+	}
+	_, revision := f.controller.configuration()
+	if err := f.controller.write(revision, func() error {
+		t.Fatal("disabled configuration allowed a write while reconcile was delayed")
+		return nil
+	}); !errors.Is(err, ErrPaused) {
+		t.Fatalf("write fence: %v", err)
+	}
+	f.now = f.now.Add(f.cfg.RetryInterval.Duration)
+	if delay := f.controller.reconcileDelay(); delay != 0 {
+		t.Fatalf("elapsed interval did not permit reconciliation: %v", delay)
+	}
+}
+
 func (f *fixture) episode(t *testing.T) *api.MitigationEpisode {
 	t.Helper()
 	result, err := f.records.MgmtagentV1alpha1().MitigationEpisodes("mgmt-agent").Get(context.Background(), episodeName("node-00"), metav1.GetOptions{})

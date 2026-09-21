@@ -77,6 +77,7 @@ func swiftFixture(t *testing.T) *fixture {
 			t.Fatal(err)
 		}
 	}
+	f.syncCaches(t)
 	return f
 }
 

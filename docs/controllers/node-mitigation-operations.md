@@ -28,6 +28,13 @@ Audit logs use `candidateEligible`. Two candidates can each be eligible for one
 available slot; this is not a prediction that both can execute. Audit does not
 reserve hypothetical capacity or simulate successful actions.
 
+Candidate discovery uses the shared Node, Pod and Event informer caches. A
+candidate or existing episode requires live cluster-wide observations before
+admission and capacity decisions; cached fault evidence alone cannot authorize
+an action. Each reconciliation shares one live snapshot, and object updates
+cannot trigger cluster scans faster than `retryInterval`. Action targets retain
+their live identity and resourceVersion checks.
+
 The following values are an isolated DEV test example, not production defaults.
 Use the actual management-cluster resource ID and selectors for a dedicated test
 workload. The deployment itself must also have mitigation enabled.
