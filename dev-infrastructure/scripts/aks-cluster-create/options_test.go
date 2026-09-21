@@ -115,6 +115,15 @@ func TestRawOptionsValidate(t *testing.T) {
 			wantErr:   "USER_POOL_ZONES: zone 5 is outside the region's availability zones [1,4]",
 		},
 		{
+			name:      "explicit zone list naming the wrong count is rejected",
+			overrides: map[string]string{"USER_POOL_ZONES": "1,2"},
+			wantErr:   `USER_POOL_ZONES: zone list "1,2" names 2 zones, must name exactly 3`,
+		},
+		{
+			name:      "region reporting more than 3 zones is capped at 3 for empty zones",
+			overrides: map[string]string{"REGION_AVAILABILITY_ZONE_COUNT": "5", "SYSTEM_POOL_ZONES": ""},
+		},
+		{
 			name:      "duplicate explicit pool zone is rejected",
 			overrides: map[string]string{"SYSTEM_POOL_ZONES": "1,1,2"},
 			wantErr:   "SYSTEM_POOL_ZONES: zone list \"1,1,2\" contains duplicate zone 1",
@@ -163,6 +172,16 @@ func TestRawOptionsValidate(t *testing.T) {
 			assert.Equal(t, 3, validated.user.poolCount)
 		})
 	}
+}
+
+func TestExplicitZonesWithinRegionRangeAreHonored(t *testing.T) {
+	raw := newRawOptionsFromEnv(envFunc(map[string]string{
+		"REGION_AVAILABILITY_ZONE_COUNT": "4",
+		"SYSTEM_POOL_ZONES":              "4,2,1",
+	}))
+	validated, err := raw.Validate()
+	require.NoError(t, err)
+	assert.Equal(t, []string{"4", "2", "1"}, validated.system.zones)
 }
 
 func TestOwningTeamTagOverridesCSV(t *testing.T) {

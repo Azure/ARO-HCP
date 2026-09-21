@@ -30,12 +30,6 @@ import (
 	"github.com/Azure/ARO-HCP/internal/azsdk"
 )
 
-// minRegionAvailabilityZones is the fewest availability zones a region may
-// offer and still host this service's management clusters: the system pool
-// spans the region's full zone set and carries the control plane, and fewer
-// than 3 zones can't tolerate a single-zone outage.
-const minRegionAvailabilityZones = 3
-
 // rawPoolOptions holds one pool block's inputs sourced from environment
 // variables, unvalidated.
 type rawPoolOptions struct {
@@ -208,14 +202,10 @@ func (o *rawOptions) Validate() (*validatedOptions, error) {
 	if err != nil {
 		return nil, err
 	}
-	// The management cluster's system pool spans the region's full zone set
-	// and hosts the control plane; fewer than 3 zones can't tolerate a
-	// single-zone outage, so reject the region outright rather than letting
-	// it surface as a confusing per-pool zone error.
-	if regionAvailabilityZoneCount < minRegionAvailabilityZones {
-		return nil, fmt.Errorf("REGION_AVAILABILITY_ZONE_COUNT must be at least %d, got %d", minRegionAvailabilityZones, regionAvailabilityZoneCount)
+	// Fail fast with a clear message rather than a confusing per-pool error.
+	if regionAvailabilityZoneCount < compute.RequiredAvailabilityZones {
+		return nil, fmt.Errorf("REGION_AVAILABILITY_ZONE_COUNT must be at least %d, got %d", compute.RequiredAvailabilityZones, regionAvailabilityZoneCount)
 	}
-
 	system, err := validatePool("SYSTEM_POOL", o.system, regionAvailabilityZoneCount)
 	if err != nil {
 		return nil, err
@@ -264,10 +254,9 @@ func (o *rawOptions) Validate() (*validatedOptions, error) {
 }
 
 // validatePool parses one pool block into a poolConfig. prefix is the block's
-// env-var prefix (e.g. "USER_POOL"), used in lookups and error messages. Empty
-// zones resolve to the region's full zone set "1"..regionAvailabilityZoneCount;
-// explicit zone lists are validated against the region's range and retain
-// their selection and order. See compute.ResolveZones.
+// env-var prefix (e.g. "USER_POOL"), used in lookups and error messages. See
+// compute.ResolveZones for how raw.zones and regionAvailabilityZoneCount
+// resolve to zones.
 func validatePool(prefix string, raw rawPoolOptions, regionAvailabilityZoneCount int) (poolConfig, error) {
 	if len(raw.name) == 0 {
 		return poolConfig{}, fmt.Errorf("%s_NAME is required", prefix)
