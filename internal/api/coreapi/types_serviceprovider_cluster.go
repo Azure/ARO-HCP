@@ -20,6 +20,7 @@ import (
 	"github.com/blang/semver/v4"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -124,7 +125,7 @@ type ServiceProviderClusterSpec struct {
 	// dissipated. Additionally, long recheck times are recommended for resources
 	// outside of their active phases. Order of at least six hours is, with
 	// durations up to 24 hours considered normal.
-	// Written by: FetchMSIIdentitiesInfo, FetchDataPlaneOperatorsManagedIdentitiesInfoController, IdentityRoleAssignments
+	// Written by: FetchMSIIdentitiesInfo, FetchDataPlaneOperatorsManagedIdentitiesInfoController, FetchManagedIdentitiesInfo, IdentityRoleAssignments, DataPlaneOIDCFederation
 	EarliestRecheckTimesByController map[string]*metav1.Time `json:"earliestRecheckTimesByController,omitempty"`
 }
 
@@ -293,6 +294,99 @@ type ServiceProviderClusterStatus struct {
 	// cannot lose the record. Empty means no backup has completed.
 	// Written by: KeyRotationBackup
 	KeyRotationBackupFingerprint string `json:"keyRotationBackupFingerprint,omitempty"`
+
+	// ManagedIdentityDetails is a map containing the details for the
+	// managed identities associated with the cluster.
+	// The key is the fully lowercased Azure Resource ID of the identity.
+	// Each entry contains identity metadata retrieved from the different sources
+	// that apply to that identity as well as whether those sources can be leveraged
+	// to retrieve the identity metadata. The sources are: the ARM User Assigned Identities API, the real Managed
+	// Identities Dataplane Service, and/or the Hardcoded Identity used when the dataplane service is not available.
+	// Depending on to what cluster operators the identity is associated with, different sources apply.
+	// Written by: FetchManagedIdentitiesInfo
+	// TODO: Move the controllers to use this information. For already introduced controllers that need to support identities replacement, move them
+	// to use this at the point those are updated to support identity replacement.
+	ManagedIdentityDetails map[string]*ManagedIdentityMetadata `json:"managedIdentityDetails,omitempty"`
+
+	// ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation tracks the set of Azure identities by resource id
+	// for which data-plane workload identity federation configuration/deconfiguration is desired, along with its state.
+	// The map is keyed by the fully lowercased Azure Resource ID of the identity.
+	// Desired identities are the unique ResourceIDs in
+	// Cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators
+	// whose ManagedIdentityDetails entry has resolved from the MetadataFromARMUserAssignedIdentitiesAPI identity metadata source (containing ClientID, PrincipalID, and TenantID).
+	// The DataPlaneOIDCFederationIntent controller copies TargetIdentity from the MetadataFromARMUserAssignedIdentitiesAPI metadata source (ClientID/PrincipalID/TenantID).
+	// A change to those IDs on the same ResourceID updates TargetIdentity and clears EnsuredIdentity, AzureResources, and
+	// PendingAzureResources. In that case it does not deconfigure.
+	// Identities that have left the desired data plane operators set get DeconfigureTimestamp stamped so that deconfiguration is triggered after
+	// 24 hours since the stamp.
+	// DataPlaneOIDCFederation then creates or deletes federated identity credentials in Azure (one per data-plane operator
+	// service account) and copies TargetIdentity into EnsuredIdentity after every
+	// desired Azure FederatedIdentityCredential is ensured, or removes the identity from this map after a successful deconfigure.
+	// Written by: DataPlaneOIDCFederationIntent, DataPlaneOIDCFederation
+	ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation map[string]*ManagedIdentityDataplaneOIDCFederationStatus `json:"managedIdentitiesWithDataPlaneWorkloadsOIDCFederation,omitempty"`
+}
+
+// ManagedIdentityDataplaneOIDCFederationStatus tracks the state of the data plane workload identity oidc federation process for a particular identity.
+type ManagedIdentityDataplaneOIDCFederationStatus struct {
+	// TargetIdentity is the metadata of the identity to which perform data data plane workload identity oidc federation.
+	// A change to any of the attributes of TargetIdentity clears EnsuredIdentity, AzureResources, and PendingAzureResources
+	// in the same write so a new instance is never treated as ensured. Other controllers join this field
+	// with EnsuredIdentity to know whether federation completed for this instance.
+	// Written by: DataPlaneOIDCFederationIntent
+	TargetIdentity DataplaneOIDCFederationIdentityInstance `json:"targetIdentity,omitempty"`
+	// EnsuredIdentity is the TargetIdentity from the last pass that
+	// ensured every desired federated identity credential for a particular ResourceID,
+	// The DataPlaneOIDCFederation controller copies TargetIdentity here when every desired Azure FederatedIdentityCredential
+	// has been configured for the TargetIdentity. The DataPlaneOIDCFederationIntent controller clears it when
+	// TargetIdentity changes. Federation for a still-desired identity is
+	// complete when EnsuredIdentity is non-nil, equals TargetIdentity, and
+	// DeconfigureTimestamp is nil.
+	// Written by: DataPlaneOIDCFederationIntent, DataPlaneOIDCFederation
+	EnsuredIdentity *DataplaneOIDCFederationIdentityInstance `json:"ensuredIdentity,omitempty"`
+	// DeconfigureTimestamp is the timestamp at which deconfigure of this
+	// identity's data-plane OIDC federation was requested.
+	// A nil value indicates that deconfigure has not been requested.
+	// Once set, the DataPlaneOIDCFederation controller waits 24 hours from this timestamp before
+	// starting the actual deletion of the associated Azure FederatedIdentityCredentials. Cluster deletion (DeletionTimestamp set) starts the
+	// deconfiguration process immediately.
+	// Cleared when the identity is desired again if it wasn't fully deconfigured yet.
+	// Successful deconfigure removes the map entry rather than clearing this field in place.
+	// Written by: DataPlaneOIDCFederationIntent
+	DeconfigureTimestamp *metav1.Time `json:"deconfigureTimestamp,omitempty"`
+	// PendingAzureResources contains Azure FederatedIdentityCredential resource IDs that have been requested but not yet
+	// confirmed to exist in Azure. This is so a crash or replace failure cannot lose the tracked set.
+	// After a partial Azure configuration desired IDs that were not confirmed stay here.
+	// Deconfiguration also deletes leftover IDs from a previous incomplete configure.
+	// The DataPlaneOIDCFederationIntent controller clears this when TargetIdentity changes
+	// because the identity was recreated and child FederatedIdentityCredential resources are already gone.
+	// Written by: DataPlaneOIDCFederationIntent, DataPlaneOIDCFederation
+	PendingAzureResources []*azcorearm.ResourceID `json:"pendingFederatedIdentityCredentials,omitempty"`
+	// AzureResources contains Azyre FederatedIdentityCredential resorce IDs identity credential resource IDs that
+	// have been confirmed to exist in Azure. After a partial configure this
+	// is the confirmed subset (plus extras Azure did not delete). After a
+	// partial deconfigure it is the IDs Azure did not delete.
+	// The DataPlaneOIDCFederationIntent controller clears this when TargetIdentity changes
+	// because the identity was recreated and child federated identity credentials are already gone.
+	// Written by: DataPlaneOIDCFederationIntent, DataPlaneOIDCFederation
+	AzureResources []*azcorearm.ResourceID `json:"federatedIdentityCredentials,omitempty"`
+}
+
+// DataplaneOIDCFederationIdentityInstance is the resolved metadata of an identity involved in the data plane workload identity oidc federation process.
+// ClientID/PrincipalID/TenantID within it are always set.
+type DataplaneOIDCFederationIdentityInstance struct {
+	// ClientID is the Client ID of the Azure identity.
+	ClientID string `json:"clientId,omitempty"`
+	// PrincipalID is the Principal ID of the Azure identity.
+	PrincipalID string `json:"principalId,omitempty"`
+	// TenantID is the tenant ID of the Azure identity. This is not the same tenant as the one used to build the OIDC issuer URL, which is the cluster's tenant.
+	TenantID string `json:"tenantId,omitempty"`
+}
+
+// TargetIdentityEnsured reports whether OIDC Federation configuration for the current TargetIdentity is complete. This
+// includes the creation of the desired Azure FederatedIdentityCredentials for the current TargetIdentity.
+// A ManagedIdentityDataplaneOIDCFederationStatus that has a DeconfigureTimestamp does not consider its TargetIdentity to be ensured.
+func (s *ManagedIdentityDataplaneOIDCFederationStatus) TargetIdentityEnsured() bool {
+	return s.DeconfigureTimestamp == nil && s.EnsuredIdentity != nil && *s.EnsuredIdentity == s.TargetIdentity
 }
 
 // ServiceProviderClusterPlacementStatus holds placement-specific status for a
@@ -613,3 +707,93 @@ const (
 	// the cluster-autoscaler ControlPlaneComponent on the management cluster control plane namespace.
 	ReadonlyHypershiftControlPlaneComponentClusterAutoscaler MaestroBundleInternalName = "readonlyHypershiftControlPlaneComponentClusterAutoscaler"
 )
+
+// ManagedIdentityMetadata holds the metadata retrieved for a single managed
+// identity from each source that applies to it. Sources that do not apply
+// are left as nil. Identity metadata on each source is last-pass-only: see
+// IdentityMetadataValue.
+type ManagedIdentityMetadata struct {
+	// ResourceID is the Azure Resource ID of the managed identity.
+	// Written by: FetchManagedIdentitiesInfo
+	ResourceID *azcorearm.ResourceID `json:"resourceId,omitempty"`
+
+	// MetadataFromARMUserAssignedIdentitiesAPI is the metadata for the identity retrieved from
+	// the ARM User Assigned Identities API (https://learn.microsoft.com/en-us/rest/api/managedidentity/user-assigned-identities)
+	// as the source. Nil when ARM does not apply: ARM is queried for control-plane and data-plane operator
+	// identities. It is not queried for an identity used only as the service managed identity, because
+	// end-users are not asked to grant the Service Managed Identity read on itself. If the same resource ID is also a
+	// control-plane or data-plane operator identity, ARM still applies.
+	// When this metadata source applies, a failure to retrieve this metadata using the API results in the
+	// ClientID, PrincipalID, and TenantID attributes being set to nil and RetrievalError records what went wrong. This includes the case
+	// where the identity does not exist in Azure.
+	// Written by: FetchManagedIdentitiesInfo
+	MetadataFromARMUserAssignedIdentitiesAPI *IdentityMetadataValue `json:"metadataFromARMUserAssignedIdentitiesAPI,omitempty"`
+	// MetadataFromManagedIdentitiesDataplaneService is the metadata for the identity retrieved from the **real**
+	// Managed Identities Dataplane Service as the source. Nil when:
+	// - The real Managed Identities Dataplane Service is not available in the environment
+	// - The identity is not configured as a cluster's control plane operator identity and/or as the cluster's service managed identity
+	// When this metadata source applies, if the identity does not exist the entry will be initialized with an empty ClientID, PrincipalID, and TenantID.
+	// This can also happen if there has been a transient error retrieving the identity metadata.
+	// Written by: FetchManagedIdentitiesInfo
+	MetadataFromManagedIdentitiesDataplaneService *IdentityMetadataValue `json:"metadataFromManagedIdentitiesDataplaneService,omitempty"`
+	// MetadataFromHardcodedIdentity is the metadata for the identity retrieved from the Hardcoded Identity (backend/pkg/azure/client.HardcodedIdentity) as the source.
+	// This is set only in environments where the real Managed Identities Data Plane
+	// service is not available, and only for identities that are configured as a cluster's control plane operator identity and/or as
+	// the cluster's Service Managed Identity.
+	// When this metadata source applies, a failure to set this metadata results in the ClientID, PrincipalID and TenantID being set to nil
+	// Written by: FetchManagedIdentitiesInfo
+	MetadataFromHardcodedIdentity *IdentityMetadataValue `json:"metadataFromHardcodedIdentity,omitempty"`
+}
+
+// IdentityMetadataValue is ClientID/PrincipalID/TenantID retrieved from one
+// identity metadata source, a RetrievalError from the last retrieval attempt,
+// or an empty value (all fields nil) when that source applies but has not
+// been resolved yet or could not be resolved in this pass.
+//
+// ClientID, PrincipalID, and TenantID are the result of the most recent
+// retrieval for this source. They are not sticky. A later pass that fails,
+// including an intermittent API error, persists them as nil and may set
+// RetrievalError. A later successful pass can populate them again. Readers
+// must not assume that once-resolved values remain set.
+type IdentityMetadataValue struct {
+	// ClientID is the Client ID of the managed identity as returned by the
+	// source on the most recent retrieval. It may be nil even after a previous
+	// successful retrieval. See IdentityMetadataValue.
+	// Written by: FetchManagedIdentitiesInfo
+	ClientID *string `json:"clientId,omitempty"`
+	// PrincipalID is the Principal ID of the managed identity as returned by
+	// the source on the most recent retrieval. It may be nil even after a
+	// previous successful retrieval; see IdentityMetadataValue.
+	// Written by: FetchManagedIdentitiesInfo
+	PrincipalID *string `json:"principalId,omitempty"`
+	// TenantID is the Tenant ID of the managed identity as returned by the
+	// source on the most recent retrieval. It may be nil even after a previous
+	// successful retrieval. See IdentityMetadataValue.
+	// Written by: FetchManagedIdentitiesInfo
+	TenantID *string `json:"tenantId,omitempty"`
+	// RetrievalError, when non-nil, is the error (truncated to the first 1024
+	// characters) from the most recent attempt to retrieve this identity's
+	// metadata from this source. When set, ClientID, PrincipalID, and TenantID
+	// are nil because the last retrieval attempt failed, and any previously
+	// resolved values are no longer trustworthy. It is nil when the last
+	// retrieval succeeded. A later successful pass clears this and may restore
+	// ClientID, PrincipalID, and TenantID.
+	// Written by: FetchManagedIdentitiesInfo
+	RetrievalError *string `json:"retrievalError,omitempty"`
+}
+
+// TODO here or as a function outside of this type/package?
+// HasResolvedIdentityInformation reports whether value has non-empty ClientID,
+// PrincipalID, and TenantID. A non-nil RetrievalError is unresolved. An empty
+// value (all fields nil) is also unresolved: that source applies but has not
+// been resolved yet or could not be resolved in this pass. The receiver must
+// be non-nil.
+func (v *IdentityMetadataValue) HasResolvedIdentityInformation() bool {
+	if v.RetrievalError != nil {
+		return false
+	}
+
+	return len(ptr.Deref(v.ClientID, "")) > 0 &&
+		len(ptr.Deref(v.PrincipalID, "")) > 0 &&
+		len(ptr.Deref(v.TenantID, "")) > 0
+}
