@@ -54,7 +54,6 @@
 			"provisioningState": "Accepted"
 		},
 		"serviceProviderProperties": {
-			"usesNewExternalAuthDeletionApproach": false
 		},
 		"status": {},
 		"systemData": {

@@ -52,16 +52,14 @@ func TestOperationExternalAuthDelete_SynchronizeOperation(t *testing.T) {
 	}
 
 	testCases := []struct {
-		name                                string
-		existingExternalAuth                *coreapi.HCPOpenShiftClusterExternalAuth
-		wantErr                             bool
-		verifyDB                            func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient)
-		usesNewExternalAuthDeletionApproach bool
-		setupCSMock                         func(ctrl *gomock.Controller, fixture *operationtesting.ExternalAuthTestFixture) ocm.ClusterServiceClientSpec
+		name                 string
+		existingExternalAuth *coreapi.HCPOpenShiftClusterExternalAuth
+		wantErr              bool
+		verifyDB             func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient)
+		setupCSMock          func(ctrl *gomock.Controller, fixture *operationtesting.ExternalAuthTestFixture) ocm.ClusterServiceClientSpec
 	}{
 		{
-			name:                                "external auth document gone completes operation",
-			usesNewExternalAuthDeletionApproach: true,
+			name: "external auth document gone completes operation",
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
@@ -75,7 +73,6 @@ func TestOperationExternalAuthDelete_SynchronizeOperation(t *testing.T) {
 				ea.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: time.Now()}
 				return ea
 			}(),
-			usesNewExternalAuthDeletionApproach: true,
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
@@ -91,7 +88,6 @@ func TestOperationExternalAuthDelete_SynchronizeOperation(t *testing.T) {
 				ea.ServiceProviderProperties.ClusterServiceID = nil
 				return ea
 			}(),
-			usesNewExternalAuthDeletionApproach: true,
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
@@ -99,9 +95,8 @@ func TestOperationExternalAuthDelete_SynchronizeOperation(t *testing.T) {
 			},
 		},
 		{
-			name:                                "extra reconcile gate passed and CS ready waits without updating operation",
-			existingExternalAuth:                externalAuthPassingExtraReconcileGate(),
-			usesNewExternalAuthDeletionApproach: true,
+			name:                 "extra reconcile gate passed and CS ready waits without updating operation",
+			existingExternalAuth: externalAuthPassingExtraReconcileGate(),
 			setupCSMock: func(ctrl *gomock.Controller, fixture *operationtesting.ExternalAuthTestFixture) ocm.ClusterServiceClientSpec {
 				mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
 				csEA, _ := arohcpv1alpha1.NewExternalAuth().
@@ -122,9 +117,8 @@ func TestOperationExternalAuthDelete_SynchronizeOperation(t *testing.T) {
 			},
 		},
 		{
-			name:                                "extra reconcile gate passed and CS uninstalling updates operation to deleting",
-			existingExternalAuth:                externalAuthPassingExtraReconcileGate(),
-			usesNewExternalAuthDeletionApproach: true,
+			name:                 "extra reconcile gate passed and CS uninstalling updates operation to deleting",
+			existingExternalAuth: externalAuthPassingExtraReconcileGate(),
 			setupCSMock: func(ctrl *gomock.Controller, fixture *operationtesting.ExternalAuthTestFixture) ocm.ClusterServiceClientSpec {
 				mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
 				csEA, _ := arohcpv1alpha1.NewExternalAuth().
@@ -145,9 +139,8 @@ func TestOperationExternalAuthDelete_SynchronizeOperation(t *testing.T) {
 			},
 		},
 		{
-			name:                                "extra reconcile gate passed and CS error marks operation failed",
-			existingExternalAuth:                externalAuthPassingExtraReconcileGate(),
-			usesNewExternalAuthDeletionApproach: true,
+			name:                 "extra reconcile gate passed and CS error marks operation failed",
+			existingExternalAuth: externalAuthPassingExtraReconcileGate(),
 			setupCSMock: func(ctrl *gomock.Controller, fixture *operationtesting.ExternalAuthTestFixture) ocm.ClusterServiceClientSpec {
 				mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
 				csEA, _ := arohcpv1alpha1.NewExternalAuth().
@@ -171,54 +164,14 @@ func TestOperationExternalAuthDelete_SynchronizeOperation(t *testing.T) {
 			},
 		},
 		{
-			name:                                "extra reconcile gate passed and CS returns 404 waits for ID clearer",
-			existingExternalAuth:                externalAuthPassingExtraReconcileGate(),
-			usesNewExternalAuthDeletionApproach: true,
+			name:                 "extra reconcile gate passed and CS returns 404 waits for ID clearer",
+			existingExternalAuth: externalAuthPassingExtraReconcileGate(),
 			setupCSMock: func(ctrl *gomock.Controller, fixture *operationtesting.ExternalAuthTestFixture) ocm.ClusterServiceClientSpec {
 				mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
 				notFoundErr, _ := ocmerrors.NewError().Status(http.StatusNotFound).Build()
 				mockCSClient.EXPECT().
 					GetExternalAuth(gomock.Any(), fixture.ExternalAuthInternalID).
 					Return(nil, notFoundErr)
-				return mockCSClient
-			},
-			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
-				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
-				require.NoError(t, err)
-				assert.Equal(t, coreapi.ProvisioningStateAccepted, op.Status)
-			},
-		},
-		{
-			name:                 "legacy approach: external auth gone in cluster service marks operation succeeded",
-			existingExternalAuth: fixture.NewExternalAuth(),
-			setupCSMock: func(ctrl *gomock.Controller, fixture *operationtesting.ExternalAuthTestFixture) ocm.ClusterServiceClientSpec {
-				mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
-				notFoundErr, _ := ocmerrors.NewError().Status(http.StatusNotFound).Build()
-				mockCSClient.EXPECT().
-					GetExternalAuth(gomock.Any(), fixture.ExternalAuthInternalID).
-					Return(nil, notFoundErr)
-				return mockCSClient
-			},
-			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
-				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
-				require.NoError(t, err)
-				assert.Equal(t, coreapi.ProvisioningStateSucceeded, op.Status)
-
-				_, err = db.HCPClusters(operationtesting.TestSubscriptionID, operationtesting.TestResourceGroupName).ExternalAuth(operationtesting.TestClusterName).Get(ctx, operationtesting.TestExternalAuthName)
-				assert.Error(t, err, "external auth should have been deleted")
-			},
-		},
-		{
-			name:                 "legacy approach: external auth still exists in cluster service keeps operation accepted",
-			existingExternalAuth: fixture.NewExternalAuth(),
-			setupCSMock: func(ctrl *gomock.Controller, fixture *operationtesting.ExternalAuthTestFixture) ocm.ClusterServiceClientSpec {
-				mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
-				externalAuth, _ := arohcpv1alpha1.NewExternalAuth().
-					ID(operationtesting.TestExternalAuthIDStr).
-					Build()
-				mockCSClient.EXPECT().
-					GetExternalAuth(gomock.Any(), fixture.ExternalAuthInternalID).
-					Return(externalAuth, nil)
 				return mockCSClient
 			},
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
@@ -236,8 +189,6 @@ func TestOperationExternalAuthDelete_SynchronizeOperation(t *testing.T) {
 			defer ctrl.Finish()
 
 			operation := fixture.NewOperation(cosmosstorageutils.OperationRequestDelete)
-			// TODO remove this once the new deletion approach is fully rolled out in all ARO-HCP permanent environments, for all regions.
-			operation.UsesNewExternalAuthDeletionApproach = tc.usesNewExternalAuthDeletionApproach
 
 			resources := []any{fixture.NewCluster(), operation}
 			if tc.existingExternalAuth != nil {

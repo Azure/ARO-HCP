@@ -48,14 +48,10 @@ type operationExternalAuthDelete struct {
 // the corresponding operation document in Cosmos DB.
 //
 // The controller has the following responsibilities:
-//   - For legacy operations (UsesNewExternalAuthDeletionApproach == false):
-//     it polls Cluster Service until the external auth is gone (404), then
-//     marks the operation as Succeeded and cleans up the Cosmos document.
-//   - For new-approach operations (UsesNewExternalAuthDeletionApproach == true):
-//     while the ExternalAuth Cosmos document is present, it reconciles the
-//     operation status. When the ExternalAuth Cosmos document is deleted
-//     (by the externalAuthDeletionController), it marks the operation as
-//     Succeeded.
+//   - While the ExternalAuth Cosmos document is present, it reconciles the
+//     operation status.
+//   - When the ExternalAuth Cosmos document is deleted (by the
+//     externalAuthDeletionController), it marks the operation as Succeeded.
 //
 // Note that "to completion" does not imply success. An operation is considered
 // complete when its status field reaches what Azure defines as a terminal value;
@@ -117,13 +113,6 @@ func (c *operationExternalAuthDelete) SynchronizeOperation(ctx context.Context, 
 		return fmt.Errorf("failed to get active operation: %w", err)
 	}
 
-	// TODO remove this once migration of external auth deletion from frontend to backend is fully completed.
-	if !operation.UsesNewExternalAuthDeletionApproach {
-		return c.legacySynchronizeOperation(ctx, operation)
-	}
-
-	// From here, we know it uses the new deletion approach.
-
 	if !c.ShouldProcess(ctx, operation) {
 		return nil // no work to do
 	}
@@ -132,7 +121,7 @@ func (c *operationExternalAuthDelete) SynchronizeOperation(ctx context.Context, 
 	externalAuth, err := externalAuthCRUD.Get(ctx, operation.ExternalID.Name)
 	if cosmosstorageutils.IsNotFoundError(err) {
 		logger.Info("external auth document deleted - completing operation")
-		err = operationbase.SetDeleteOperationAsCompleted(ctx, c.clock, c.resourcesDBClient, operation, operationbase.PostAsyncNotificationFn(c.notificationClient))
+		err = operationbase.PatchOperation(ctx, c.clock, c.resourcesDBClient, operation, coreapi.ProvisioningStateSucceeded, nil, operationbase.PostAsyncNotificationFn(c.notificationClient))
 		if err != nil {
 			return utils.TrackError(err)
 		}

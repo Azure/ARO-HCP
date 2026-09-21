@@ -107,7 +107,7 @@ func TestExternalAuthChildResourcesCleanupController_SyncOnce(t *testing.T) {
 	}{
 		{
 			name:                 "when no DeletionTimestamp, no ClusterServiceDeletionTimestamp are set and ClusterServiceID is set performs a no-op",
-			existingExternalAuth: newTestExternalAuthWithNewDeletionApproach(t, nil),
+			existingExternalAuth: newTestExternalAuth(t, nil),
 			childResources:       []any{newTestExternalAuthController(t, "untouched-controller")},
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				controllerCRUD := db.HCPClusters(testSubscriptionID, testResourceGroupName).
@@ -118,7 +118,7 @@ func TestExternalAuthChildResourcesCleanupController_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "when no ClusterServiceDeletionTimestamp is set performs a no-op",
-			existingExternalAuth: newTestExternalAuthWithNewDeletionApproach(t, func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
+			existingExternalAuth: newTestExternalAuth(t, func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
 				ea.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-time.Hour)}
 				ea.ServiceProviderProperties.ClusterServiceDeletionTimestamp = nil
 				ea.ServiceProviderProperties.ClusterServiceID = nil
@@ -133,7 +133,7 @@ func TestExternalAuthChildResourcesCleanupController_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "when ClusterServiceID is set performs a no-op",
-			existingExternalAuth: newTestExternalAuthWithNewDeletionApproach(t, func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
+			existingExternalAuth: newTestExternalAuth(t, func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
 				ea.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-time.Hour)}
 				ea.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-30 * time.Minute)}
 			}),
@@ -147,11 +147,11 @@ func TestExternalAuthChildResourcesCleanupController_SyncOnce(t *testing.T) {
 		},
 		{
 			name:                 "when all conditions met and there are no children performs a no-op",
-			existingExternalAuth: newTestExternalAuthWithNewDeletionApproach(t, readyToDeleteExternalAuthOptsFunc),
+			existingExternalAuth: newTestExternalAuth(t, readyToDeleteExternalAuthOptsFunc),
 		},
 		{
 			name:                 "when there is a children resource it deletes it",
-			existingExternalAuth: newTestExternalAuthWithNewDeletionApproach(t, readyToDeleteExternalAuthOptsFunc),
+			existingExternalAuth: newTestExternalAuth(t, readyToDeleteExternalAuthOptsFunc),
 			extraSetupDBTestingMock: func(t *testing.T, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				storeNonControllerChild(t, db, "test-mcc")
 			},
@@ -172,7 +172,7 @@ func TestExternalAuthChildResourcesCleanupController_SyncOnce(t *testing.T) {
 		},
 		{
 			name:                 "deletion of external auth controllers is skipped",
-			existingExternalAuth: newTestExternalAuthWithNewDeletionApproach(t, readyToDeleteExternalAuthOptsFunc),
+			existingExternalAuth: newTestExternalAuth(t, readyToDeleteExternalAuthOptsFunc),
 			childResources:       []any{newTestExternalAuthController(t, "test-controller")},
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				externalAuthResourceID := testKey.GetResourceID()
@@ -193,7 +193,7 @@ func TestExternalAuthChildResourcesCleanupController_SyncOnce(t *testing.T) {
 		},
 		{
 			name:                 "when there are external auth controller and non controller children it deletes the non controller children",
-			existingExternalAuth: newTestExternalAuthWithNewDeletionApproach(t, readyToDeleteExternalAuthOptsFunc),
+			existingExternalAuth: newTestExternalAuth(t, readyToDeleteExternalAuthOptsFunc),
 			childResources:       []any{newTestExternalAuthController(t, "test-controller")},
 			extraSetupDBTestingMock: func(t *testing.T, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				storeNonControllerChild(t, db, "test-mcc")
@@ -222,17 +222,6 @@ func TestExternalAuthChildResourcesCleanupController_SyncOnce(t *testing.T) {
 		{
 			name:                 "when the external auth is not found performs a no-op",
 			existingExternalAuth: nil,
-		},
-		{
-			name:                 "UsesNewExternalAuthDeletionApproach false -- no-op even when all cleanup conditions met and children exist",
-			existingExternalAuth: newTestExternalAuthWithOldDeletionApproach(t, readyToDeleteExternalAuthOptsFunc),
-			childResources:       []any{newTestExternalAuthController(t, "untouched-controller")},
-			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
-				controllerCRUD := db.HCPClusters(testSubscriptionID, testResourceGroupName).
-					ExternalAuth(testClusterName).Controllers(testExternalAuthName)
-				_, err := controllerCRUD.Get(ctx, "untouched-controller")
-				require.NoError(t, err, "expected child resource to still exist")
-			},
 		},
 	}
 

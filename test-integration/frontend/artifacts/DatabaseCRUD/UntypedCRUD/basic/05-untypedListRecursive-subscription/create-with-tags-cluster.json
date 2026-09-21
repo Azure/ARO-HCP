@@ -77,8 +77,7 @@
 			"api": {},
 			"console": {},
 			"dns": {},
-			"platform": {},
-			"usesNewClusterDeletionApproach": false
+			"platform": {}
 		},
 		"status": {},
 		"systemData": {

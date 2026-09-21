@@ -125,9 +125,6 @@ type HCPOpenShiftClusterNodePoolServiceProviderProperties struct {
 	// Written by: NodePoolClusterServiceDeleteDispatch
 	ClusterServiceDeletionTimestamp *metav1.Time `json:"clusterServiceDeletionTimestamp,omitempty"`
 
-	// Written by: Frontend DELETE NodePool
-	UsesNewNodePoolDeletionApproach bool `json:"usesNewNodePoolDeletionApproach"`
-
 	// CreateOperationCompletionDeadline is the time by which the node pool creation operation must complete.
 	// If it is not complete by this time, the operation will be marked as failed with the best message we can give at the time.
 	// The default value is 60 minutes after the creation request is received.

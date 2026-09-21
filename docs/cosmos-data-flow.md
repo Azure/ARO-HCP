@@ -134,12 +134,12 @@ transitively deletes all clusters (and their children) via transactional batches
 
 | Object | Fields Written |
 |--------|---------------|
-| `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` = now (if nil)</li><li>`ServiceProviderProperties.ActiveOperationID` = new operation's `ResourceID.Name`</li><li>`ServiceProviderProperties.ProvisioningState` = `Deleting`</li><li>`ServiceProviderProperties.UsesNewClusterDeletionApproach` = `true`</li></ul> |
-| `Operation` | <ul><li>`Request` = `Delete`</li><li>`ExternalID` = cluster ARM resource ID</li><li>`InternalID` = empty</li><li>`Status` = `Deleting`</li><li>`UsesNewClusterDeletionApproach` = `true`</li><li>`TenantID`, `ClientID`, `NotificationURI` (if from user request)</li></ul> |
-| Child `NodePool`s (each) | <ul><li>`ServiceProviderProperties.DeletionTimestamp` = now (if nil)</li><li>`ServiceProviderProperties.ActiveOperationID` = new per-NP delete operation's `ResourceID.Name`</li><li>`Properties.ProvisioningState` = `Deleting`</li><li>`ServiceProviderProperties.UsesNewNodePoolDeletionApproach` = `true`</li></ul> |
-| Child `NodePool` `Operation`s (each) | <ul><li>`Request` = `Delete`, `ExternalID`, `Status` = `Deleting`</li><li>`UsesNewNodePoolDeletionApproach` = `true`</li></ul> |
-| Child `ExternalAuth`s (each) | <ul><li>`ServiceProviderProperties.DeletionTimestamp` = now (if nil)</li><li>`ServiceProviderProperties.ActiveOperationID` = new per-EA delete operation's `ResourceID.Name`</li><li>`Properties.ProvisioningState` = `Deleting`</li><li>`ServiceProviderProperties.UsesNewExternalAuthDeletionApproach` = `true`</li></ul> |
-| Child `ExternalAuth` `Operation`s (each) | <ul><li>`Request` = `Delete`, `ExternalID`, `Status` = `Deleting`</li><li>`UsesNewExternalAuthDeletionApproach` = `true`</li></ul> |
+| `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` = now (if nil)</li><li>`ServiceProviderProperties.ActiveOperationID` = new operation's `ResourceID.Name`</li><li>`ServiceProviderProperties.ProvisioningState` = `Deleting`</li></ul> |
+| `Operation` | <ul><li>`Request` = `Delete`</li><li>`ExternalID` = cluster ARM resource ID</li><li>`InternalID` = empty</li><li>`Status` = `Deleting`</li><li>`TenantID`, `ClientID`, `NotificationURI` (if from user request)</li></ul> |
+| Child `NodePool`s (each) | <ul><li>`ServiceProviderProperties.DeletionTimestamp` = now (if nil)</li><li>`ServiceProviderProperties.ActiveOperationID` = new per-NP delete operation's `ResourceID.Name`</li><li>`Properties.ProvisioningState` = `Deleting`</li></ul> |
+| Child `NodePool` `Operation`s (each) | <ul><li>`Request` = `Delete`, `ExternalID`, `Status` = `Deleting`</li></ul> |
+| Child `ExternalAuth`s (each) | <ul><li>`ServiceProviderProperties.DeletionTimestamp` = now (if nil)</li><li>`ServiceProviderProperties.ActiveOperationID` = new per-EA delete operation's `ResourceID.Name`</li><li>`Properties.ProvisioningState` = `Deleting`</li></ul> |
+| Child `ExternalAuth` `Operation`s (each) | <ul><li>`Request` = `Delete`, `ExternalID`, `Status` = `Deleting`</li></ul> |
 | Canceled `Operation`s | <ul><li>Active operations on the cluster get `Status` = `Canceled`, `LastTransitionTime` = now</li></ul> |
 
 ---
@@ -178,8 +178,8 @@ transitively deletes all clusters (and their children) via transactional batches
 
 | Object | Fields Written |
 |--------|---------------|
-| `HCPOpenShiftClusterNodePool` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` = now (if nil)</li><li>`ServiceProviderProperties.ActiveOperationID` = new operation's `ResourceID.Name`</li><li>`Properties.ProvisioningState` = `Deleting`</li><li>`ServiceProviderProperties.UsesNewNodePoolDeletionApproach` = `true`</li></ul> |
-| `Operation` | <ul><li>`Request` = `Delete`</li><li>`ExternalID`, `Status` = `Deleting`</li><li>`UsesNewNodePoolDeletionApproach` = `true`</li></ul> |
+| `HCPOpenShiftClusterNodePool` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` = now (if nil)</li><li>`ServiceProviderProperties.ActiveOperationID` = new operation's `ResourceID.Name`</li><li>`Properties.ProvisioningState` = `Deleting`</li></ul> |
+| `Operation` | <ul><li>`Request` = `Delete`</li><li>`ExternalID`, `Status` = `Deleting`</li></ul> |
 | Canceled `Operation`s | <ul><li>Active operations on the node pool get `Status` = `Canceled`, `LastTransitionTime` = now</li></ul> |
 
 ---
@@ -218,8 +218,8 @@ transitively deletes all clusters (and their children) via transactional batches
 
 | Object | Fields Written |
 |--------|---------------|
-| `HCPOpenShiftClusterExternalAuth` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` = now (if nil)</li><li>`ServiceProviderProperties.ActiveOperationID` = new operation's `ResourceID.Name`</li><li>`Properties.ProvisioningState` = `Deleting`</li><li>`ServiceProviderProperties.UsesNewExternalAuthDeletionApproach` = `true`</li></ul> |
-| `Operation` | <ul><li>`Request` = `Delete`</li><li>`ExternalID`, `Status` = `Deleting`</li><li>`UsesNewExternalAuthDeletionApproach` = `true`</li></ul> |
+| `HCPOpenShiftClusterExternalAuth` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` = now (if nil)</li><li>`ServiceProviderProperties.ActiveOperationID` = new operation's `ResourceID.Name`</li><li>`Properties.ProvisioningState` = `Deleting`</li></ul> |
+| `Operation` | <ul><li>`Request` = `Delete`</li><li>`ExternalID`, `Status` = `Deleting`</li></ul> |
 | Canceled `Operation`s | <ul><li>Active operations on the external auth get `Status` = `Canceled`, `LastTransitionTime` = now</li></ul> |
 
 ---
@@ -355,10 +355,10 @@ Placement is checked even before a Cluster Service ID exists. Until `ServiceProv
 
 | | Object | Fields |
 |---|--------|--------|
-| Read | `Operation` | <ul><li>`Status` (ShouldProcess: must not be terminal)</li><li>`Request` (ShouldProcess: must be `Delete`)</li><li>`UsesNewClusterDeletionApproach`</li></ul> |
+| Read | `Operation` | <ul><li>`Status` (ShouldProcess: must not be terminal)</li><li>`Request` (ShouldProcess: must be `Delete`)</li></ul> |
 | Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceDeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must not be nil)</li></ul> |
 | Read | Cluster Service | <ul><li>cluster status (or 404)</li></ul> |
-| **Write** | **`Operation`** | <ul><li>**`Status`** -> `Succeeded` (when cluster doc deleted via `SetDeleteOperationAsCompleted`)</li><li>**`Error`**, **`LastTransitionTime`**</li></ul> |
+| **Write** | **`Operation`** | <ul><li>**`Status`** -> `Succeeded` (after cluster doc deletion, via `PatchOperation`)</li><li>**`Error`**, **`LastTransitionTime`**</li></ul> |
 | **Write** | **`HCPOpenShiftCluster`** | <ul><li>**`ServiceProviderProperties.ProvisioningState`** = new status (while doc exists)</li><li>**`.ActiveOperationID`** = `""` (on terminal)</li></ul> |
 
 #### OperationNodePoolCreate
@@ -419,7 +419,7 @@ Placement is checked even before a Cluster Service ID exists. Until `ServiceProv
 
 | | Object | Fields |
 |---|--------|--------|
-| Read | `Operation` | <ul><li>`Status` (ShouldProcess: must not be terminal)</li><li>`Request` (ShouldProcess: must be `Delete`)</li><li>`UsesNewNodePoolDeletionApproach`</li></ul> |
+| Read | `Operation` | <ul><li>`Status` (ShouldProcess: must not be terminal)</li><li>`Request` (ShouldProcess: must be `Delete`)</li></ul> |
 | Read | `HCPOpenShiftClusterNodePool` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceDeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must not be nil)</li></ul> |
 | Read | Cluster Service | <ul><li>node pool status (or 404)</li></ul> |
 | **Write** | **`Operation`** | <ul><li>**`Status`** -> `Succeeded` (when NP doc deleted)</li><li>**`Error`**, **`LastTransitionTime`**</li></ul> |
@@ -481,7 +481,7 @@ Placement is checked even before a Cluster Service ID exists. Until `ServiceProv
 
 | | Object | Fields |
 |---|--------|--------|
-| Read | `Operation` | <ul><li>`Status` (ShouldProcess: must not be terminal)</li><li>`Request` (ShouldProcess: must be `Delete`)</li><li>`UsesNewExternalAuthDeletionApproach`</li></ul> |
+| Read | `Operation` | <ul><li>`Status` (ShouldProcess: must not be terminal)</li><li>`Request` (ShouldProcess: must be `Delete`)</li></ul> |
 | Read | `HCPOpenShiftClusterExternalAuth` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceDeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must not be nil)</li></ul> |
 | Read | Cluster Service | <ul><li>external auth status (or 404)</li></ul> |
 | **Write** | **`Operation`** | <ul><li>**`Status`** -> `Succeeded` (when EA doc deleted)</li><li>**`Error`**, **`LastTransitionTime`**</li></ul> |
@@ -597,13 +597,12 @@ No Cosmos writes. Dispatches updates to Cluster Service via PATCH.
 **File:** [cluster_cluster_service_delete_dispatch_controller.go](../backend/pkg/controllers/cluster/deletion/cluster_cluster_service_delete_dispatch_controller.go)
 **Trigger:** Cluster informer, 1-minute resync
 **Gate (NeedsWork on Cluster):**
-- `Cluster.ServiceProviderProperties.UsesNewClusterDeletionApproach` == true
 - `Cluster.ServiceProviderProperties.DeletionTimestamp` != nil
 - `Cluster.ServiceProviderProperties.ClusterServiceDeletionTimestamp` == nil
 
 | | Object | Fields |
 |---|--------|--------|
-| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.UsesNewClusterDeletionApproach` (NeedsWork: must be true)</li><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceDeletionTimestamp` (NeedsWork: must be nil)</li><li>`ServiceProviderProperties.ClusterServiceID`</li></ul> |
+| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceDeletionTimestamp` (NeedsWork: must be nil)</li><li>`ServiceProviderProperties.ClusterServiceID`</li></ul> |
 | **Write** | **`HCPOpenShiftCluster`** | <ul><li>**`ServiceProviderProperties.ClusterServiceDeletionTimestamp`** = now</li></ul> |
 
 #### ClusterDeletionClusterServiceIDClearer
@@ -611,14 +610,13 @@ No Cosmos writes. Dispatches updates to Cluster Service via PATCH.
 **File:** [cluster_cluster_service_id_clearer.go](../backend/pkg/controllers/cluster/deletion/cluster_cluster_service_id_clearer.go)
 **Trigger:** Cluster informer, 1-minute resync
 **Gate (NeedsWork on Cluster):**
-- `Cluster.ServiceProviderProperties.UsesNewClusterDeletionApproach` == true
 - `Cluster.ServiceProviderProperties.DeletionTimestamp` != nil
 - `Cluster.ServiceProviderProperties.ClusterServiceDeletionTimestamp` != nil
 - `Cluster.ServiceProviderProperties.ClusterServiceID` != nil and non-empty
 
 | | Object | Fields |
 |---|--------|--------|
-| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.UsesNewClusterDeletionApproach` (NeedsWork: must be true)</li><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceDeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must not be nil and non-empty)</li></ul> |
+| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceDeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must not be nil and non-empty)</li></ul> |
 | Read | Cluster Service | <ul><li>expects 404</li></ul> |
 | **Write** | **`HCPOpenShiftCluster`** | <ul><li>**`ServiceProviderProperties.ClusterServiceID`** = `nil`</li></ul> |
 
@@ -627,14 +625,13 @@ No Cosmos writes. Dispatches updates to Cluster Service via PATCH.
 **File:** [cluster_child_resources_cleanup_controller.go](../backend/pkg/controllers/cluster/deletion/cluster_child_resources_cleanup_controller.go)
 **Trigger:** Cluster informer, 1-minute resync
 **Gate (NeedsWork on Cluster):**
-- `Cluster.ServiceProviderProperties.UsesNewClusterDeletionApproach` == true
 - `Cluster.ServiceProviderProperties.DeletionTimestamp` != nil
 - `Cluster.ServiceProviderProperties.ClusterServiceDeletionTimestamp` != nil
 - `Cluster.ServiceProviderProperties.ClusterServiceID` == nil
 
 | | Object | Fields |
 |---|--------|--------|
-| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.UsesNewClusterDeletionApproach` (NeedsWork: must be true)</li><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceDeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must be nil)</li></ul> |
+| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceDeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must be nil)</li></ul> |
 | Read | `ServiceProviderCluster` | <ul><li>`Status.ManagementClusterResourceID`</li><li>`Status.MaestroReadonlyBundles`</li><li>`Status.AzureResources.ManagedResourceGroup` (gate: ServiceProviderCluster is not deleted while `AzureResource` or `PendingAzureResource` is set)</li></ul> |
 | Read | Child NodePools | <ul><li>list (must be empty)</li></ul> |
 | Read | Child ExternalAuths | <ul><li>list (must be empty)</li></ul> |
@@ -645,7 +642,6 @@ No Cosmos writes. Dispatches updates to Cluster Service via PATCH.
 **File:** [cluster_deletion_controller.go](../backend/pkg/controllers/cluster/deletion/cluster_deletion_controller.go)
 **Trigger:** Cluster informer, 1-minute resync
 **Gate (NeedsWork on Cluster):**
-- `Cluster.ServiceProviderProperties.UsesNewClusterDeletionApproach` == true
 - `Cluster.ServiceProviderProperties.DeletionTimestamp` != nil
 - `Cluster.ServiceProviderProperties.ClusterServiceDeletionTimestamp` != nil
 - `Cluster.ServiceProviderProperties.ClusterServiceID` == nil
@@ -658,7 +654,7 @@ No Cosmos writes. Dispatches updates to Cluster Service via PATCH.
 
 | | Object | Fields |
 |---|--------|--------|
-| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.UsesNewClusterDeletionApproach` (NeedsWork: must be true)</li><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceDeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must be nil)</li></ul> |
+| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceDeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must be nil)</li></ul> |
 | Read | `ServiceProviderCluster` | <ul><li>`Status.MaestroReadonlyBundles` (must be empty)</li></ul> |
 | Read | Child NodePools | <ul><li>list (must be empty)</li></ul> |
 | Read | Child ExternalAuths | <ul><li>list (must be empty)</li></ul> |
@@ -713,13 +709,12 @@ No Cosmos writes. Dispatches updates to Cluster Service via PATCH.
 **File:** [node_pool_cluster_service_delete_dispatch_controller.go](../backend/pkg/controllers/nodepool/deletion/node_pool_cluster_service_delete_dispatch_controller.go)
 **Trigger:** NodePool informer, 1-minute resync
 **Gate (NeedsWork on NodePool):**
-- `NodePool.ServiceProviderProperties.UsesNewNodePoolDeletionApproach` == true
 - `NodePool.ServiceProviderProperties.DeletionTimestamp` != nil
 - `NodePool.ServiceProviderProperties.ClusterServiceDeletionTimestamp` == nil
 
 | | Object | Fields |
 |---|--------|--------|
-| Read | `HCPOpenShiftClusterNodePool` | <ul><li>`ServiceProviderProperties.UsesNewNodePoolDeletionApproach` (NeedsWork: must be true)</li><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceDeletionTimestamp` (NeedsWork: must be nil)</li><li>`ServiceProviderProperties.ClusterServiceID`</li></ul> |
+| Read | `HCPOpenShiftClusterNodePool` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceDeletionTimestamp` (NeedsWork: must be nil)</li><li>`ServiceProviderProperties.ClusterServiceID`</li></ul> |
 | **Write** | **`HCPOpenShiftClusterNodePool`** | <ul><li>**`ServiceProviderProperties.ClusterServiceDeletionTimestamp`** = now</li></ul> |
 
 #### NodePoolDeletionClusterServiceIDClearer
@@ -727,14 +722,13 @@ No Cosmos writes. Dispatches updates to Cluster Service via PATCH.
 **File:** [node_pool_cluster_service_id_clearer.go](../backend/pkg/controllers/nodepool/deletion/node_pool_cluster_service_id_clearer.go)
 **Trigger:** NodePool informer, 1-minute resync
 **Gate (NeedsWork on NodePool):**
-- `NodePool.ServiceProviderProperties.UsesNewNodePoolDeletionApproach` == true
 - `NodePool.ServiceProviderProperties.DeletionTimestamp` != nil
 - `NodePool.ServiceProviderProperties.ClusterServiceDeletionTimestamp` != nil
 - `NodePool.ServiceProviderProperties.ClusterServiceID` != nil and non-empty
 
 | | Object | Fields |
 |---|--------|--------|
-| Read | `HCPOpenShiftClusterNodePool` | <ul><li>`ServiceProviderProperties.UsesNewNodePoolDeletionApproach` (NeedsWork: must be true)</li><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceDeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must not be nil and non-empty)</li></ul> |
+| Read | `HCPOpenShiftClusterNodePool` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceDeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must not be nil and non-empty)</li></ul> |
 | Read | Cluster Service | <ul><li>expects 404</li></ul> |
 | **Write** | **`HCPOpenShiftClusterNodePool`** | <ul><li>**`ServiceProviderProperties.ClusterServiceID`** = `nil`</li></ul> |
 
@@ -743,14 +737,13 @@ No Cosmos writes. Dispatches updates to Cluster Service via PATCH.
 **File:** [node_pool_child_resources_cleanup_controller.go](../backend/pkg/controllers/nodepool/deletion/node_pool_child_resources_cleanup_controller.go)
 **Trigger:** NodePool informer, 1-minute resync
 **Gate (NeedsWork on NodePool):**
-- `NodePool.ServiceProviderProperties.UsesNewNodePoolDeletionApproach` == true
 - `NodePool.ServiceProviderProperties.DeletionTimestamp` != nil
 - `NodePool.ServiceProviderProperties.ClusterServiceDeletionTimestamp` != nil
 - `NodePool.ServiceProviderProperties.ClusterServiceID` == nil
 
 | | Object | Fields |
 |---|--------|--------|
-| Read | `HCPOpenShiftClusterNodePool` | <ul><li>`ServiceProviderProperties.UsesNewNodePoolDeletionApproach` (NeedsWork: must be true)</li><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceDeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must be nil)</li></ul> |
+| Read | `HCPOpenShiftClusterNodePool` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceDeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must be nil)</li></ul> |
 | Read | `ServiceProviderNodePool` | <ul><li>`Status.MaestroReadonlyBundles`</li></ul> |
 | Read | `ServiceProviderCluster` | <ul><li>`Status.ManagementClusterResourceID`</li></ul> |
 | **Write** | Child Cosmos docs | <ul><li>**DELETES** ManagementClusterContent docs under NodePool</li><li>**DELETES** ServiceProviderNodePool (when Maestro bundles cleared and kube-applier desires gone)</li><li>**DELETES** nodepool-scoped kube-applier desire documents</li></ul> |
@@ -760,7 +753,6 @@ No Cosmos writes. Dispatches updates to Cluster Service via PATCH.
 **File:** [node_pool_deletion_controller.go](../backend/pkg/controllers/nodepool/deletion/node_pool_deletion_controller.go)
 **Trigger:** NodePool informer, 1-minute resync
 **Gate (NeedsWork on NodePool):**
-- `NodePool.ServiceProviderProperties.UsesNewNodePoolDeletionApproach` == true
 - `NodePool.ServiceProviderProperties.DeletionTimestamp` != nil
 - `NodePool.ServiceProviderProperties.ClusterServiceDeletionTimestamp` != nil
 - `NodePool.ServiceProviderProperties.ClusterServiceID` == nil
@@ -771,7 +763,7 @@ No Cosmos writes. Dispatches updates to Cluster Service via PATCH.
 
 | | Object | Fields |
 |---|--------|--------|
-| Read | `HCPOpenShiftClusterNodePool` | <ul><li>`ServiceProviderProperties.UsesNewNodePoolDeletionApproach` (NeedsWork: must be true)</li><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceDeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must be nil)</li></ul> |
+| Read | `HCPOpenShiftClusterNodePool` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceDeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must be nil)</li></ul> |
 | Read | `ServiceProviderNodePool` | <ul><li>`Status.MaestroReadonlyBundles` (must be empty)</li></ul> |
 | Read | Child Cosmos resources | <ul><li>list excluding controllers (must be empty)</li></ul> |
 | **Write** | **`HCPOpenShiftClusterNodePool`** | <ul><li>**DELETES the document**</li></ul> |
@@ -823,13 +815,12 @@ No Cosmos writes. Dispatches updates to Cluster Service via PATCH.
 **File:** [external_auth_cluster_service_delete_dispatch_controller.go](../backend/pkg/controllers/externalauth/deletion/external_auth_cluster_service_delete_dispatch_controller.go)
 **Trigger:** ExternalAuth informer, 1-minute resync
 **Gate (NeedsWork on ExternalAuth):**
-- `ExternalAuth.ServiceProviderProperties.UsesNewExternalAuthDeletionApproach` == true
 - `ExternalAuth.ServiceProviderProperties.DeletionTimestamp` != nil
 - `ExternalAuth.ServiceProviderProperties.ClusterServiceDeletionTimestamp` == nil
 
 | | Object | Fields |
 |---|--------|--------|
-| Read | `HCPOpenShiftClusterExternalAuth` | <ul><li>`ServiceProviderProperties.UsesNewExternalAuthDeletionApproach` (NeedsWork: must be true)</li><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceDeletionTimestamp` (NeedsWork: must be nil)</li><li>`ServiceProviderProperties.ClusterServiceID`</li></ul> |
+| Read | `HCPOpenShiftClusterExternalAuth` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceDeletionTimestamp` (NeedsWork: must be nil)</li><li>`ServiceProviderProperties.ClusterServiceID`</li></ul> |
 | **Write** | **`HCPOpenShiftClusterExternalAuth`** | <ul><li>**`ServiceProviderProperties.ClusterServiceDeletionTimestamp`** = now</li></ul> |
 
 #### ExternalAuthDeletionClusterServiceIDClearer
@@ -837,14 +828,13 @@ No Cosmos writes. Dispatches updates to Cluster Service via PATCH.
 **File:** [external_auth_cluster_service_id_clearer.go](../backend/pkg/controllers/externalauth/deletion/external_auth_cluster_service_id_clearer.go)
 **Trigger:** ExternalAuth informer, 1-minute resync
 **Gate (NeedsWork on ExternalAuth):**
-- `ExternalAuth.ServiceProviderProperties.UsesNewExternalAuthDeletionApproach` == true
 - `ExternalAuth.ServiceProviderProperties.DeletionTimestamp` != nil
 - `ExternalAuth.ServiceProviderProperties.ClusterServiceDeletionTimestamp` != nil
 - `ExternalAuth.ServiceProviderProperties.ClusterServiceID` != nil and non-empty
 
 | | Object | Fields |
 |---|--------|--------|
-| Read | `HCPOpenShiftClusterExternalAuth` | <ul><li>`ServiceProviderProperties.UsesNewExternalAuthDeletionApproach` (NeedsWork: must be true)</li><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceDeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must not be nil and non-empty)</li></ul> |
+| Read | `HCPOpenShiftClusterExternalAuth` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceDeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must not be nil and non-empty)</li></ul> |
 | Read | Cluster Service | <ul><li>expects 404</li></ul> |
 | **Write** | **`HCPOpenShiftClusterExternalAuth`** | <ul><li>**`ServiceProviderProperties.ClusterServiceID`** = `nil`</li></ul> |
 
@@ -853,14 +843,13 @@ No Cosmos writes. Dispatches updates to Cluster Service via PATCH.
 **File:** [external_auth_child_resources_cleanup_controller.go](../backend/pkg/controllers/externalauth/deletion/external_auth_child_resources_cleanup_controller.go)
 **Trigger:** ExternalAuth informer, 1-minute resync
 **Gate (NeedsWork on ExternalAuth):**
-- `ExternalAuth.ServiceProviderProperties.UsesNewExternalAuthDeletionApproach` == true
 - `ExternalAuth.ServiceProviderProperties.DeletionTimestamp` != nil
 - `ExternalAuth.ServiceProviderProperties.ClusterServiceDeletionTimestamp` != nil
 - `ExternalAuth.ServiceProviderProperties.ClusterServiceID` == nil
 
 | | Object | Fields |
 |---|--------|--------|
-| Read | `HCPOpenShiftClusterExternalAuth` | <ul><li>`ServiceProviderProperties.UsesNewExternalAuthDeletionApproach` (NeedsWork: must be true)</li><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceDeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must be nil)</li></ul> |
+| Read | `HCPOpenShiftClusterExternalAuth` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceDeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must be nil)</li></ul> |
 | **Write** | Child Cosmos docs | <ul><li>**DELETES** child Cosmos documents (excluding controllers)</li></ul> |
 
 #### ExternalAuthDeletionController
@@ -868,7 +857,6 @@ No Cosmos writes. Dispatches updates to Cluster Service via PATCH.
 **File:** [external_auth_deletion_controller.go](../backend/pkg/controllers/externalauth/deletion/external_auth_deletion_controller.go)
 **Trigger:** ExternalAuth informer, 1-minute resync
 **Gate (NeedsWork on ExternalAuth):**
-- `ExternalAuth.ServiceProviderProperties.UsesNewExternalAuthDeletionApproach` == true
 - `ExternalAuth.ServiceProviderProperties.DeletionTimestamp` != nil
 - `ExternalAuth.ServiceProviderProperties.ClusterServiceDeletionTimestamp` != nil
 - `ExternalAuth.ServiceProviderProperties.ClusterServiceID` == nil
@@ -878,7 +866,7 @@ No Cosmos writes. Dispatches updates to Cluster Service via PATCH.
 
 | | Object | Fields |
 |---|--------|--------|
-| Read | `HCPOpenShiftClusterExternalAuth` | <ul><li>`ServiceProviderProperties.UsesNewExternalAuthDeletionApproach` (NeedsWork: must be true)</li><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceDeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must be nil)</li></ul> |
+| Read | `HCPOpenShiftClusterExternalAuth` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceDeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must be nil)</li></ul> |
 | Read | Child Cosmos resources | <ul><li>list excluding controllers (must be empty)</li></ul> |
 | **Write** | **`HCPOpenShiftClusterExternalAuth`** | <ul><li>**DELETES the document**</li></ul> |
 
@@ -1427,7 +1415,7 @@ A configured managed resource group name or `PendingAzureResource` alone does no
   DELETE Cluster (Frontend)
          |
   creates Operation(Delete)
-  sets DeletionTimestamp, UsesNewClusterDeletionApproach
+  sets DeletionTimestamp
   (also creates delete ops for child NodePools + ExternalAuths)
          |
          v

@@ -60,8 +60,7 @@
 		},
 		"serviceProviderProperties": {
 			"activeOperationId": "d99a71e0-9237-4ae2-8617-e76035e2bcd4",
-			"clusterServiceID": "/api/clusters_mgmt/v1/clusters/m6bpjxtlqf/external_auth_config/external_auths/zt59xrx22b",
-			"usesNewExternalAuthDeletionApproach": false
+			"clusterServiceID": "/api/clusters_mgmt/v1/clusters/m6bpjxtlqf/external_auth_config/external_auths/zt59xrx22b"
 		},
 		"status": {},
 		"systemData": {

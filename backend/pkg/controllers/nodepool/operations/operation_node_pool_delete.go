@@ -51,10 +51,8 @@ type operationNodePoolDelete struct {
 //   - While the NodePool Cosmos document is present, it reconciles the
 //     operation and the node pool status.
 //   - When the NodePool Cosmos document is deleted (by the nodePoolDeletionController),
-//     it marks the operation as Succeeded. It also cleans up child
-//     resources. TODO Note: This last part is handled by other controllers too but
-//     because the operationbase.SetDeleteOperationAsCompleted is still reused by other operations
-//     that have not been migrated to asynchronous flow yet this remains.
+//     it marks the operation as Succeeded. Resource cleanup is handled by the
+//     node pool deletion controllers before the document is deleted.
 //
 // Note that "to completion" does not imply success. An operation is considered
 // complete when its status field reaches what Azure defines as a terminal value;
@@ -104,54 +102,6 @@ func (c *operationNodePoolDelete) ShouldProcess(ctx context.Context, operation *
 	return true
 }
 
-func (c *operationNodePoolDelete) legacyShouldProcess(ctx context.Context, operation *coreapi.Operation) bool {
-	if operation.Status.IsTerminal() {
-		return false
-	}
-	if operation.Request != cosmosstorageutils.OperationRequestDelete {
-		return false
-	}
-	if operation.ExternalID == nil || !strings.EqualFold(operation.ExternalID.ResourceType.String(), coreapi.NodePoolResourceType.String()) {
-		return false
-	}
-	return true
-}
-
-func (c *operationNodePoolDelete) legacySynchronizeOperation(ctx context.Context, operation *coreapi.Operation) error {
-	logger := utils.LoggerFromContext(ctx)
-
-	if !c.legacyShouldProcess(ctx, operation) {
-		return nil // no work to do
-	}
-
-	nodePoolStatus, err := c.clusterServiceClient.GetNodePoolStatus(ctx, operation.InternalID)
-	var ocmGetNodePoolError *ocmerrors.Error
-	if err != nil && errors.As(err, &ocmGetNodePoolError) && ocmGetNodePoolError.Status() == http.StatusNotFound {
-		logger.Info("node pool was deleted")
-
-		err = operationbase.SetDeleteOperationAsCompleted(ctx, c.clock, c.resourcesDBClient, operation, operationbase.PostAsyncNotificationFn(c.notificationClient))
-		if err != nil {
-			return utils.TrackError(err)
-		}
-		return nil
-	}
-	if err != nil {
-		return utils.TrackError(err)
-	}
-
-	newOperationStatus, newOperationError, err := operationbase.ConvertNodePoolStatus(operation, nodePoolStatus)
-	if err != nil {
-		return utils.TrackError(err)
-	}
-
-	err = operationbase.UpdateOperationStatus(ctx, c.clock, c.resourcesDBClient, operation, newOperationStatus, newOperationError, operationbase.PostAsyncNotificationFn(c.notificationClient))
-	if err != nil {
-		return utils.TrackError(err)
-	}
-
-	return nil
-}
-
 func (c *operationNodePoolDelete) SynchronizeOperation(ctx context.Context, key controllerutils.OperationKey) error {
 	logger := utils.LoggerFromContext(ctx)
 	logger.Info("checking operation")
@@ -164,13 +114,6 @@ func (c *operationNodePoolDelete) SynchronizeOperation(ctx context.Context, key 
 		return fmt.Errorf("failed to get active operation: %w", err)
 	}
 
-	// TODO remove this once migration of node pool deletion from frontend to backend is fully completed.
-	if !operation.UsesNewNodePoolDeletionApproach {
-		return c.legacySynchronizeOperation(ctx, operation)
-	}
-
-	// From here, we know it uses the new deletion approach.
-
 	if !c.ShouldProcess(ctx, operation) {
 		return nil // no work to do
 	}
@@ -179,7 +122,7 @@ func (c *operationNodePoolDelete) SynchronizeOperation(ctx context.Context, key 
 	nodePool, err := nodePoolCRUD.Get(ctx, operation.ExternalID.Name)
 	if cosmosstorageutils.IsNotFoundError(err) {
 		logger.Info("node pool document deleted - completing operation")
-		err = operationbase.SetDeleteOperationAsCompleted(ctx, c.clock, c.resourcesDBClient, operation, operationbase.PostAsyncNotificationFn(c.notificationClient))
+		err = operationbase.PatchOperation(ctx, c.clock, c.resourcesDBClient, operation, coreapi.ProvisioningStateSucceeded, nil, operationbase.PostAsyncNotificationFn(c.notificationClient))
 		if err != nil {
 			return utils.TrackError(err)
 		}

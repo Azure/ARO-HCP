@@ -166,10 +166,6 @@ type HCPOpenShiftClusterServiceProviderProperties struct {
 	// Written by: ClusterClusterServiceDeleteDispatch
 	ClusterServiceDeletionTimestamp *metav1.Time `json:"clusterServiceDeletionTimestamp,omitempty"`
 
-	// TODO Temporary field to track whether the cluster operation is using the new deletion approach.
-	// Written by: Frontend DELETE Cluster
-	UsesNewClusterDeletionApproach bool `json:"usesNewClusterDeletionApproach"`
-
 	// CreateOperationCompletionDeadline is the time by which the cluster creation operation must complete.
 	// If it is not complete by this time, the operation will be marked as failed with the best message we can give at the time.
 	// The default value is 60 minutes after the creation request is received.

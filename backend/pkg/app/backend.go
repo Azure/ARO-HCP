@@ -585,7 +585,6 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	operationClusterDeleteController := clusteroperations.NewOperationClusterDeleteController(
 		b.clock,
 		b.options.ResourcesDBClient,
-		b.options.BillingDBClient,
 		b.options.KubeApplierDBClients,
 		unionReadDesireLister,
 		b.options.ClustersServiceClient,

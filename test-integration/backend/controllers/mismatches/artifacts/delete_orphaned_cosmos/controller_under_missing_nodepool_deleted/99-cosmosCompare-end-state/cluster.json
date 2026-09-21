@@ -40,8 +40,7 @@
 			"console": {},
 			"dns": {},
 			"platform": {},
-			"provisioningState": "Accepted",
-			"usesNewClusterDeletionApproach": false
+			"provisioningState": "Accepted"
 		},
 		"status": {},
 		"systemData": {

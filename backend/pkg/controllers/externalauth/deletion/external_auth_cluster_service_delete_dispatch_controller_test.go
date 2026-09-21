@@ -93,12 +93,12 @@ func TestExternalAuthClusterServiceDeleteDispatchSyncer_SyncOnce(t *testing.T) {
 	}{
 		{
 			name:                 "when no DeletionTimestamp no-op is performed",
-			existingExternalAuth: newTestExternalAuthWithNewDeletionApproach(t, nil),
+			existingExternalAuth: newTestExternalAuth(t, nil),
 			verifyDB:             verifyClusterServiceDeletionTimestampIsNil,
 		},
 		{
 			name: "when ClusterServiceDeletionTimestamp is set no-op is performed",
-			existingExternalAuth: newTestExternalAuthWithNewDeletionApproach(t, func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
+			existingExternalAuth: newTestExternalAuth(t, func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
 				ea.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedClockTime.Add(-time.Hour)}
 				ea.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{Time: fixedClockTime.Add(-30 * time.Minute)}
 			}),
@@ -113,7 +113,7 @@ func TestExternalAuthClusterServiceDeleteDispatchSyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "when ClusterServiceID is not set and deletion is first observed then first seen is recorded and no-op is performed",
-			existingExternalAuth: newTestExternalAuthWithNewDeletionApproach(t, func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
+			existingExternalAuth: newTestExternalAuth(t, func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
 				ea.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedClockTime.Add(-time.Hour)}
 				ea.ServiceProviderProperties.ClusterServiceID = nil
 			}),
@@ -121,7 +121,7 @@ func TestExternalAuthClusterServiceDeleteDispatchSyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "when ClusterServiceID is not set and first seen within missing cluster service id is within timeout no-op is performed",
-			existingExternalAuth: newTestExternalAuthWithNewDeletionApproach(t, func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
+			existingExternalAuth: newTestExternalAuth(t, func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
 				ea.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedClockTime.Add(-time.Hour)}
 				ea.ServiceProviderProperties.ClusterServiceID = nil
 			}),
@@ -130,7 +130,7 @@ func TestExternalAuthClusterServiceDeleteDispatchSyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "when ClusterServiceID is not set and first seen older than missing cluster service id timeout then we give up and set ClusterServiceDeletionTimestamp",
-			existingExternalAuth: newTestExternalAuthWithNewDeletionApproach(t, func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
+			existingExternalAuth: newTestExternalAuth(t, func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
 				ea.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedClockTime.Add(-time.Hour)}
 				ea.ServiceProviderProperties.ClusterServiceID = nil
 			}),
@@ -139,7 +139,7 @@ func TestExternalAuthClusterServiceDeleteDispatchSyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "when ClusterServiceID is set we trigger CS external auth deletion and set ClusterServiceDeletionTimestamp",
-			existingExternalAuth: newTestExternalAuthWithNewDeletionApproach(t, func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
+			existingExternalAuth: newTestExternalAuth(t, func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
 				ea.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedClockTime.Add(-time.Minute)}
 			}),
 			firstSeenDeletionAt: fixedClockTime.Add(-missingClusterServiceIDTimeout / 2),
@@ -152,7 +152,7 @@ func TestExternalAuthClusterServiceDeleteDispatchSyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "when CS external auth deletion returns 404 and first seen is within the missing cluster service id timeout no-op is performed",
-			existingExternalAuth: newTestExternalAuthWithNewDeletionApproach(t, func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
+			existingExternalAuth: newTestExternalAuth(t, func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
 				ea.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedClockTime.Add(-time.Hour)}
 			}),
 			firstSeenDeletionAt: fixedClockTime.Add(-missingClusterServiceIDTimeout / 2),
@@ -165,7 +165,7 @@ func TestExternalAuthClusterServiceDeleteDispatchSyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "when CS external auth deletion returns 404 and first seen is older than the missing cluster service id timeout then we give up and set ClusterServiceDeletionTimestamp",
-			existingExternalAuth: newTestExternalAuthWithNewDeletionApproach(t, func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
+			existingExternalAuth: newTestExternalAuth(t, func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
 				ea.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedClockTime.Add(-time.Hour)}
 			}),
 			firstSeenDeletionAt: fixedClockTime.Add(-missingClusterServiceIDTimeout - time.Second),
@@ -178,7 +178,7 @@ func TestExternalAuthClusterServiceDeleteDispatchSyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "when CS external auth deletion returns one of the not handled errors we propagate it without setting ClusterServiceDeletionTimestamp",
-			existingExternalAuth: newTestExternalAuthWithNewDeletionApproach(t, func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
+			existingExternalAuth: newTestExternalAuth(t, func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
 				ea.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedClockTime.Add(-time.Minute)}
 			}),
 			firstSeenDeletionAt: fixedClockTime.Add(-missingClusterServiceIDTimeout / 2),
@@ -192,7 +192,7 @@ func TestExternalAuthClusterServiceDeleteDispatchSyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "when CS external auth deletion returns parent cluster is uninstalling we set ClusterServiceDeletionTimestamp immediately",
-			existingExternalAuth: newTestExternalAuthWithNewDeletionApproach(t, func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
+			existingExternalAuth: newTestExternalAuth(t, func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
 				ea.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedClockTime.Add(-30 * time.Second)}
 			}),
 			firstSeenDeletionAt: fixedClockTime.Add(-missingClusterServiceIDTimeout / 2),
@@ -206,13 +206,6 @@ func TestExternalAuthClusterServiceDeleteDispatchSyncer_SyncOnce(t *testing.T) {
 					Return(parentClusterUninstallingErr)
 			},
 			verifyDB: verifyClusterServiceDeletionTimestampStamped,
-		},
-		{
-			name: "UsesNewExternalAuthDeletionApproach false -- no-op even when DeletionTimestamp is set",
-			existingExternalAuth: newTestExternalAuthWithOldDeletionApproach(t, func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
-				ea.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedClockTime.Add(-time.Minute)}
-			}),
-			verifyDB: verifyClusterServiceDeletionTimestampIsNil,
 		},
 		{
 			name: "external auth not found no-op is performed",
@@ -279,14 +272,14 @@ func TestExternalAuthClusterServiceDeleteDispatchSyncer_SyncOnce_cacheShortCircu
 	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
 	ctrl := gomock.NewController(t)
 
-	externalAuthInDB := newTestExternalAuthWithNewDeletionApproach(t, func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
+	externalAuthInDB := newTestExternalAuth(t, func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
 		ea.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedClockTime.Add(-time.Hour)}
 	})
 	mockResourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{externalAuthInDB})
 	require.NoError(t, err)
 
 	// Here the cached external auth does not have a DeletionTimestamp set, so the syncer will short-circuit.
-	cachedExternalAuth := newTestExternalAuthWithNewDeletionApproach(t, nil)
+	cachedExternalAuth := newTestExternalAuth(t, nil)
 
 	syncer := &externalAuthClusterServiceDeleteDispatchSyncer{
 		clock:                           clocktesting.NewFakePassiveClock(fixedClockTime),
@@ -316,7 +309,7 @@ func TestExternalAuthClusterServiceDeleteDispatchSyncer_SyncOnce_firstSeenDeleti
 	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
 	ctrl := gomock.NewController(t)
 
-	externalAuth := newTestExternalAuthWithNewDeletionApproach(t, func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
+	externalAuth := newTestExternalAuth(t, func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
 		ea.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedClockTime.Add(-time.Hour)}
 		ea.ServiceProviderProperties.ClusterServiceID = nil
 	})
@@ -352,7 +345,7 @@ func TestExternalAuthClusterServiceDeleteDispatchSyncer_SyncOnce_firstSeenDeleti
 	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
 	ctrl := gomock.NewController(t)
 
-	externalAuth := newTestExternalAuthWithNewDeletionApproach(t, func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
+	externalAuth := newTestExternalAuth(t, func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
 		ea.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedClockTime.Add(-time.Minute)}
 	})
 	mockResourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{externalAuth})
@@ -394,13 +387,10 @@ func TestExternalAuthClusterServiceDeleteDispatchSyncer_SyncOnce_firstSeenDeleti
 	assert.True(t, stored.ServiceProviderProperties.ClusterServiceDeletionTimestamp.Time.Equal(fixedClockTime))
 }
 
-// newTestExternalAuthWithNewDeletionApproach creates a test external auth with the new
+// newTestExternalAuth creates a test external auth with the new
 // deletion approach enabled. The ClusterServiceID uses the external_auth_config/external_auths
 // path format required by Cluster Service.
-//
-// TODO rename this and remove the newTestExternalAuthWithOldDeletionApproach function once
-// the new deletion approach is fully rolled out in all ARO-HCP permanent environments, for all regions.
-func newTestExternalAuthWithNewDeletionApproach(t *testing.T, opts func(*coreapi.HCPOpenShiftClusterExternalAuth)) *coreapi.HCPOpenShiftClusterExternalAuth {
+func newTestExternalAuth(t *testing.T, opts func(*coreapi.HCPOpenShiftClusterExternalAuth)) *coreapi.HCPOpenShiftClusterExternalAuth {
 	t.Helper()
 	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + testSubscriptionID +
@@ -432,20 +422,12 @@ func newTestExternalAuthWithNewDeletionApproach(t *testing.T, opts func(*coreapi
 			},
 		},
 		ServiceProviderProperties: coreapi.HCPOpenShiftClusterExternalAuthServiceProviderProperties{
-			ClusterServiceID:                    externalAuthInternalID,
-			UsesNewExternalAuthDeletionApproach: true,
+			ClusterServiceID: externalAuthInternalID,
 		},
 	}
 	if opts != nil {
 		opts(ea)
 	}
-	return ea
-}
-
-// TODO remove this once the new deletion approach is fully rolled out in all ARO-HCP permanent environments, for all regions.
-func newTestExternalAuthWithOldDeletionApproach(t *testing.T, opts func(*coreapi.HCPOpenShiftClusterExternalAuth)) *coreapi.HCPOpenShiftClusterExternalAuth {
-	ea := newTestExternalAuthWithNewDeletionApproach(t, opts)
-	ea.ServiceProviderProperties.UsesNewExternalAuthDeletionApproach = false
 	return ea
 }
 

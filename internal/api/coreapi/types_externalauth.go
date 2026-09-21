@@ -110,9 +110,6 @@ type HCPOpenShiftClusterExternalAuthServiceProviderProperties struct {
 	// external auth has been handled.
 	// Written by: ExternalAuthClusterServiceDeleteDispatch
 	ClusterServiceDeletionTimestamp *metav1.Time `json:"clusterServiceDeletionTimestamp,omitempty"`
-
-	// Written by: Frontend DELETE ExternalAuth
-	UsesNewExternalAuthDeletionApproach bool `json:"usesNewExternalAuthDeletionApproach"`
 }
 
 // Token issuer profile

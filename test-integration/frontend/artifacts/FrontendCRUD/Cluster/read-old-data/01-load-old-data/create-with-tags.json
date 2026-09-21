@@ -75,8 +75,7 @@
 			"dns": {},
 			"managedIdentitiesDataPlaneIdentityURL": "https://dummyhost.identity.azure.net/otherinformation?aqueryarg=somevalue",
 			"platform": {},
-			"provisioningState": "Accepted",
-			"usesNewClusterDeletionApproach": false
+			"provisioningState": "Accepted"
 		},
 		"status": {},
 		"systemData": {

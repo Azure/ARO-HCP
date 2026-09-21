@@ -44,7 +44,6 @@
 			}
 		},
 		"serviceProviderProperties": {
-			"usesNewNodePoolDeletionApproach": true
 		},
 		"status": {},
 		"systemData": {
