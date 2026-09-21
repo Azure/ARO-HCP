@@ -344,7 +344,7 @@ func TestApplyRevalidation(t *testing.T) {
 }
 
 func TestOwnerRefresh(t *testing.T) {
-	for _, when := range []string{"before first delete", "after 30 seconds", "refresh failure after delete", "slow certificate GET", "owner appears during slow certificate GET", "refresh failure after slow certificate GET"} {
+	for _, when := range []string{"before first delete", "after 30 seconds", "refresh failure after delete", "slow certificate GET", "refresh failure after slow certificate GET"} {
 		t.Run(when, func(t *testing.T) {
 			s, f, _, b := newTestSweeper("maestro-server-j1234567", "frontend-cert-prow-j2345678")
 			clock := referenceTime
@@ -354,12 +354,11 @@ func TestOwnerRefresh(t *testing.T) {
 					g.pages = [][]string{{"any-j1234567"}, {"any-j2345678"}}
 				}
 				if g.lists == 3 {
-					g.pages = [][]string{{"any-j2345678"}}
+					if when == "after 30 seconds" || when == "refresh failure after delete" {
+						g.pages = [][]string{{"any-j2345678"}}
+					}
 					if when == "refresh failure after delete" {
 						g.listError = 1
-					}
-					if when == "owner appears during slow certificate GET" {
-						g.pages = [][]string{{"any-j1234567"}}
 					}
 					if when == "refresh failure after slow certificate GET" {
 						g.listError = 1
@@ -368,8 +367,12 @@ func TestOwnerRefresh(t *testing.T) {
 			}
 			f.delete = func(string) error { clock = clock.Add(30 * time.Second); return nil }
 			if strings.Contains(when, "slow certificate GET") {
+				gets := 0
 				f.get = func(name string) (azcertificates.GetCertificateResponse, error) {
-					clock = clock.Add(30 * time.Second)
+					gets++
+					if gets == 1 {
+						clock = clock.Add(30 * time.Second)
+					}
 					return latestCertificate(name), nil
 				}
 			}
@@ -385,8 +388,8 @@ func TestOwnerRefresh(t *testing.T) {
 			if len(f.deletes) != wantDeletes {
 				t.Fatalf("deletes = %v, want %d", f.deletes, wantDeletes)
 			}
-			if when == "owner appears during slow certificate GET" && f.deletes[0] != "frontend-cert-prow-j2345678" {
-				t.Fatalf("deleted certificate whose owner appeared during revalidation: %v", f.deletes)
+			if when == "slow certificate GET" && f.deletes[0] != "frontend-cert-prow-j2345678" {
+				t.Fatalf("did not defer the certificate with stale owner inventory: %v", f.deletes)
 			}
 		})
 	}

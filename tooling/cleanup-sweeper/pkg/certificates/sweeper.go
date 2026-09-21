@@ -209,16 +209,11 @@ func (s *sweeper) run(ctx context.Context, opts Options) error {
 			counts.Skipped["certificate-revalidation"]++
 			continue
 		}
-		// Slow reads must refresh the owner guard before authorizing a deletion.
+		// Defer this certificate rather than deleting with a stale owner guard.
+		// The next iteration refreshes the inventory, and the next run retries it.
 		if s.now().Sub(ownersAt) >= ownerMaxAge {
-			owners, ownersAt, err = s.owners(ctx)
-			if err != nil {
-				return errors.Join(append(failures, err)...)
-			}
-			if owners[job] {
-				counts.Skipped["owner-revalidation"]++
-				continue
-			}
+			counts.Skipped["owner-inventory-expired"]++
+			continue
 		}
 		if err := ctx.Err(); err != nil {
 			return errors.Join(append(failures, err)...)
