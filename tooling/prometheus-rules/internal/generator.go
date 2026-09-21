@@ -139,6 +139,44 @@ func readRulesFile(filename string) (*monitoringv1.PrometheusRule, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to read input rules: %v", err)
 	}
+
+	if strings.ToLower(filepath.Ext(filename)) == ".tmpl" {
+		t, err := template.New(filename).Funcs(template.FuncMap{
+			"SLIIntervals": func() []string {
+				return []string{"1m", "5m", "10m", "1h", "12h", "1d"}
+			},
+			"SLIWindowsForInterval": func(interval string) []string {
+				switch interval {
+				case "1m":
+					return []string{"5m"}
+				case "5m":
+					return []string{"30m"}
+				case "10m":
+					return []string{"1h"}
+				case "1h":
+					return []string{"6h"}
+				case "12h":
+					return []string{"3d"}
+				case "1d":
+					return []string{"30d"}
+				default:
+					panic("not a SLI window")
+				}
+			},
+		}).Parse(string(rawRules))
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse input rule template: %w", err)
+		}
+
+		out := &bytes.Buffer{}
+		err = t.Execute(out, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to execute rule template %v: %w", filename, err)
+		}
+
+		rawRules = out.Bytes()
+	}
+
 	var rules monitoringv1.PrometheusRule
 	if err := yaml.Unmarshal(rawRules, &rules); err != nil {
 		return nil, fmt.Errorf("failed to parse input rules: %v", err)
@@ -280,7 +318,7 @@ func (o *Options) Complete(configFilePath string, promtoolPath string) error {
 					return fmt.Errorf("error reading rules file %v", err)
 				}
 
-				fileNameParts := strings.Split(fileBaseName, ".")
+				fileNameParts := strings.Split(strings.TrimSuffix(fileBaseName, ".tmpl"), ".")
 				if len(fileNameParts) != 2 {
 					return fmt.Errorf("missing filename extension or using '.' in filename")
 				}
