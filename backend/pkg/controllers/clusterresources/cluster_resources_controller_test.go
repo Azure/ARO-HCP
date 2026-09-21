@@ -861,3 +861,125 @@ func TestProcessClusterResourcesNodePoolPath(t *testing.T) {
 		})
 	}
 }
+
+// --- TestStripHostedClusterDataPlaneIdentityFields --------------------------
+
+// buildHCUnstructured creates an Unstructured HostedCluster with the full
+// nested path from spec down to the three dataPlane ClientID fields, plus an
+// unrelated field (Location) that must survive the strip.
+func buildHCUnstructured(t *testing.T) unstructured.Unstructured {
+	t.Helper()
+	obj := unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "hypershift.openshift.io/v1beta1",
+			"kind":       "HostedCluster",
+			"metadata":   map[string]interface{}{"name": "test-hc", "namespace": "ns"},
+			"spec": map[string]interface{}{
+				"platform": map[string]interface{}{
+					"azure": map[string]interface{}{
+						"location": "eastus", // must survive strip
+						"azureAuthenticationConfig": map[string]interface{}{
+							"azureAuthenticationConfigType": "ManagedIdentities",
+							"managedIdentities": map[string]interface{}{
+								"controlPlane": map[string]interface{}{ // must survive strip
+									"cloudProvider": map[string]interface{}{"clientID": "cp-client-id"},
+								},
+								"dataPlane": map[string]interface{}{ // must be stripped
+									"imageRegistryMSIClientID": "img-client-id",
+									"diskMSIClientID":          "disk-client-id",
+									"fileMSIClientID":          "file-client-id",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	return obj
+}
+
+func TestStripHostedClusterDataPlaneIdentityFields(t *testing.T) {
+	t.Parallel()
+
+	t.Run("removes dataPlane and preserves all other fields", func(t *testing.T) {
+		t.Parallel()
+		obj := buildHCUnstructured(t)
+
+		stripHostedClusterDataPlaneIdentityFields(&obj)
+
+		// dataPlane sub-object must be gone.
+		_, found, err := unstructured.NestedFieldNoCopy(obj.Object,
+			"spec", "platform", "azure", "azureAuthenticationConfig", "managedIdentities", "dataPlane")
+		require.NoError(t, err)
+		assert.False(t, found, "dataPlane must be removed from the manifest")
+
+		// controlPlane sub-object must survive untouched.
+		controlPlane, found, err := unstructured.NestedFieldNoCopy(obj.Object,
+			"spec", "platform", "azure", "azureAuthenticationConfig", "managedIdentities", "controlPlane")
+		require.NoError(t, err)
+		assert.True(t, found, "controlPlane must not be removed")
+		assert.NotEmpty(t, controlPlane, "controlPlane must retain its content")
+
+		// Location (a sibling of azureAuthenticationConfig) must survive.
+		location, found, err := unstructured.NestedString(obj.Object, "spec", "platform", "azure", "location")
+		require.NoError(t, err)
+		assert.True(t, found, "location must not be removed")
+		assert.Equal(t, "eastus", location, "location value must be unchanged")
+	})
+
+	t.Run("is a no-op when dataPlane field is absent", func(t *testing.T) {
+		t.Parallel()
+		obj := unstructured.Unstructured{
+			Object: map[string]interface{}{
+				"apiVersion": "hypershift.openshift.io/v1beta1",
+				"kind":       "HostedCluster",
+				"spec": map[string]interface{}{
+					"platform": map[string]interface{}{
+						"azure": map[string]interface{}{
+							// No azureAuthenticationConfig at all
+							"location": "westus",
+						},
+					},
+				},
+			},
+		}
+		// Must not panic or error.
+		stripHostedClusterDataPlaneIdentityFields(&obj)
+
+		location, found, err := unstructured.NestedString(obj.Object, "spec", "platform", "azure", "location")
+		require.NoError(t, err)
+		assert.True(t, found)
+		assert.Equal(t, "westus", location, "unrelated field must survive the no-op strip")
+	})
+
+	t.Run("is a no-op for a WorkloadIdentities cluster (path does not exist)", func(t *testing.T) {
+		t.Parallel()
+		obj := unstructured.Unstructured{
+			Object: map[string]interface{}{
+				"apiVersion": "hypershift.openshift.io/v1beta1",
+				"kind":       "HostedCluster",
+				"spec": map[string]interface{}{
+					"platform": map[string]interface{}{
+						"azure": map[string]interface{}{
+							"azureAuthenticationConfig": map[string]interface{}{
+								"azureAuthenticationConfigType": "WorkloadIdentities",
+								"workloadIdentities": map[string]interface{}{
+									"imageRegistry": map[string]interface{}{"clientID": "wi-client"},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+		stripHostedClusterDataPlaneIdentityFields(&obj)
+
+		// workloadIdentities must survive untouched.
+		wi, found, err := unstructured.NestedFieldNoCopy(obj.Object,
+			"spec", "platform", "azure", "azureAuthenticationConfig", "workloadIdentities")
+		require.NoError(t, err)
+		assert.True(t, found, "workloadIdentities must not be removed")
+		assert.NotEmpty(t, wi)
+	})
+}
