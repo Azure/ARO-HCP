@@ -181,57 +181,67 @@ func (s *sweeper) run(ctx context.Context, opts Options) error {
 				return errors.Join(append(failures, err)...)
 			}
 		}
-		name, version, _ := certificateID(cert.ID)
-		job := "j" + certificateName.FindStringSubmatch(name)[1]
-		if owners[job] {
-			counts.Skipped["owner-revalidation"]++
-			continue
-		}
-		latest, err := s.certificates.GetCertificate(ctx, name, "", nil)
-		if isNotFound(err) {
-			counts.AlreadyAbsent++
-			continue
-		}
-		if err != nil {
+		name, _, _ := certificateID(cert.ID)
+		if err := s.deleteCertificate(ctx, cert, owners, ownersAt, cutoff, &counts); err != nil {
 			counts.Failed++
-			failures = append(failures, fmt.Errorf("revalidate %s: %w", name, err))
-			logger.Error(err, "Certificate revalidation failed", "name", name)
-			continue
-		}
-		current := &azcertificates.CertificateProperties{ID: latest.ID, Attributes: latest.Attributes, Tags: latest.Tags, X509Thumbprint: latest.X509Thumbprint}
-		latestName, _, reason := eligible(current, s.now(), cutoff)
-		_, latestVersion, _ := certificateID(latest.ID)
-		// List IDs are commonly unversioned. In that case exact latest timestamps
-		// (and the thumbprint when present) are the snapshot identity, not version history.
-		if reason != "" || latestName != name || latestVersion == "" || (version != "" && version != latestVersion) ||
-			!cert.Attributes.Created.Equal(*latest.Attributes.Created) || !cert.Attributes.Updated.Equal(*latest.Attributes.Updated) ||
-			(len(cert.X509Thumbprint) > 0 && !bytes.Equal(cert.X509Thumbprint, latest.X509Thumbprint)) {
-			counts.Skipped["certificate-revalidation"]++
-			continue
-		}
-		// Defer this certificate rather than deleting with a stale owner guard.
-		// The next iteration refreshes the inventory, and the next run retries it.
-		if s.now().Sub(ownersAt) >= ownerMaxAge {
-			counts.Skipped["owner-inventory-expired"]++
-			continue
-		}
-		if err := ctx.Err(); err != nil {
-			return errors.Join(append(failures, err)...)
-		}
-		counts.Attempts++
-		_, err = s.certificates.DeleteCertificate(ctx, name, nil)
-		switch {
-		case isNotFound(err):
-			counts.AlreadyAbsent++
-		case err != nil:
-			counts.Failed++
-			failures = append(failures, fmt.Errorf("delete %s: %w", name, err))
-			logger.Error(err, "Certificate soft-delete failed", "name", name)
-		default:
-			counts.Deleted++
+			failure := fmt.Errorf("%s: %w", name, err)
+			failures = append(failures, failure)
+			logger.Error(err, "Certificate deletion attempt failed", "name", name)
 		}
 	}
-	return errors.Join(failures...)
+	if len(failures) > 0 {
+		logger.Error(errors.Join(failures...), "Certificate deletion attempts completed with errors", "failed", len(failures))
+	}
+	if counts.Deleted+counts.AlreadyAbsent == 0 {
+		return errors.Join(failures...)
+	}
+	return nil
+}
+
+func (s *sweeper) deleteCertificate(ctx context.Context, cert *azcertificates.CertificateProperties, owners map[string]bool, ownersAt, cutoff time.Time, counts *summary) error {
+	name, version, _ := certificateID(cert.ID)
+	job := "j" + certificateName.FindStringSubmatch(name)[1]
+	if owners[job] {
+		counts.Skipped["owner-revalidation"]++
+		return nil
+	}
+	latest, err := s.certificates.GetCertificate(ctx, name, "", nil)
+	if isNotFound(err) {
+		counts.AlreadyAbsent++
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("revalidate: %w", err)
+	}
+	current := &azcertificates.CertificateProperties{ID: latest.ID, Attributes: latest.Attributes, Tags: latest.Tags, X509Thumbprint: latest.X509Thumbprint}
+	latestName, _, reason := eligible(current, s.now(), cutoff)
+	_, latestVersion, _ := certificateID(latest.ID)
+	// List IDs are commonly unversioned. In that case exact latest timestamps
+	// (and the thumbprint when present) are the snapshot identity, not version history.
+	if reason != "" || latestName != name || latestVersion == "" || (version != "" && version != latestVersion) ||
+		!cert.Attributes.Created.Equal(*latest.Attributes.Created) || !cert.Attributes.Updated.Equal(*latest.Attributes.Updated) ||
+		(len(cert.X509Thumbprint) > 0 && !bytes.Equal(cert.X509Thumbprint, latest.X509Thumbprint)) {
+		counts.Skipped["certificate-revalidation"]++
+		return nil
+	}
+	if s.now().Sub(ownersAt) >= ownerMaxAge {
+		return errors.New("owner inventory expired during certificate revalidation")
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	counts.Attempts++
+	_, err = s.certificates.DeleteCertificate(ctx, name, nil)
+	switch {
+	case isNotFound(err):
+		counts.AlreadyAbsent++
+		return nil
+	case err != nil:
+		return fmt.Errorf("soft-delete: %w", err)
+	default:
+		counts.Deleted++
+		return nil
+	}
 }
 
 func (s *sweeper) owners(ctx context.Context) (map[string]bool, time.Time, error) {

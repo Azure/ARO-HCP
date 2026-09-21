@@ -396,43 +396,65 @@ func TestOwnerRefresh(t *testing.T) {
 }
 
 func TestFailuresAndBoundedAttempts(t *testing.T) {
-	for _, operation := range []string{"delete failure", "GET failure", "delete 404", "GET 404", "success"} {
+	for _, operation := range []string{"all delete failures", "partial delete failure", "all GET failures", "partial GET failure", "delete 404", "GET 404", "success"} {
 		t.Run(operation, func(t *testing.T) {
 			s, f, _, _ := newTestSweeper("maestro-server-j1234567", "maestro-server-j2345678", "maestro-server-j3456789")
 			opts := options(false)
 			opts.MaxDeletions = 2
-			if strings.HasPrefix(operation, "delete") {
-				f.delete = func(string) error {
-					if operation == "delete 404" {
-						return &azcore.ResponseError{StatusCode: 404}
+			var logs bytes.Buffer
+			ctx := logr.NewContext(t.Context(), logr.FromSlogHandler(slog.NewJSONHandler(&logs, nil)))
+			if strings.Contains(operation, "delete failure") {
+				f.delete = func(name string) error {
+					if operation == "partial delete failure" && name == "maestro-server-j2345678" {
+						return nil
 					}
 					return errors.New("delete failed")
 				}
 			}
-			if strings.HasPrefix(operation, "GET") {
-				f.get = func(string) (azcertificates.GetCertificateResponse, error) {
-					if operation == "GET 404" {
-						return azcertificates.GetCertificateResponse{}, &azcore.ResponseError{StatusCode: 404}
+			if operation == "delete 404" {
+				f.delete = func(string) error {
+					return &azcore.ResponseError{StatusCode: 404}
+				}
+			}
+			if strings.Contains(operation, "GET failure") {
+				f.get = func(name string) (azcertificates.GetCertificateResponse, error) {
+					if operation == "partial GET failure" && name == "maestro-server-j2345678" {
+						return latestCertificate(name), nil
 					}
 					return azcertificates.GetCertificateResponse{}, errors.New("GET failed")
 				}
 			}
-			err := s.run(t.Context(), opts)
-			if (err != nil) != strings.HasSuffix(operation, "failure") {
+			if operation == "GET 404" {
+				f.get = func(string) (azcertificates.GetCertificateResponse, error) {
+					return azcertificates.GetCertificateResponse{}, &azcore.ResponseError{StatusCode: 404}
+				}
+			}
+			err := s.run(ctx, opts)
+			wantError := strings.HasPrefix(operation, "all ")
+			if (err != nil) != wantError {
 				t.Fatalf("unexpected error: %v", err)
 			}
 			if len(f.gets) != 2 {
 				t.Fatalf("must process exactly selected limit, even on failures: %v", f.gets)
 			}
 			wantDeletes := 2
-			if strings.HasPrefix(operation, "GET") {
+			if strings.Contains(operation, "GET failure") {
+				wantDeletes = 0
+				if operation == "partial GET failure" {
+					wantDeletes = 1
+				}
+			}
+			if operation == "GET 404" {
 				wantDeletes = 0
 			}
 			if len(f.deletes) != wantDeletes {
 				t.Fatalf("deletes = %v, want %d", f.deletes, wantDeletes)
 			}
-			if err != nil && !strings.Contains(err.Error(), "j2345678") {
+			if err != nil && (!strings.Contains(err.Error(), "j1234567") || !strings.Contains(err.Error(), "j2345678")) {
 				t.Fatalf("failure was not aggregated: %v", err)
+			}
+			if strings.Contains(operation, "partial") && (!strings.Contains(logs.String(), "Certificate deletion attempts completed with errors") || !strings.Contains(logs.String(), "j1234567")) {
+				t.Fatalf("partial failure was not reported at the end: %s", logs.String())
 			}
 		})
 	}

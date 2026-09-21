@@ -133,15 +133,18 @@ Deletion requires all of the following:
   still being deleted. Any incomplete/failed RG inventory aborts deletion.
 - Unchanged, still-eligible latest certificate metadata immediately before delete,
   with owner inventory refreshed before apply and no more than 30 seconds old.
-  If certificate revalidation takes longer than that, the certificate is skipped
-  and retried by a later hourly run rather than deleted with a stale owner guard.
+  If certificate revalidation takes longer than that, the attempt fails without
+  deleting and the certificate is retried by a later hourly run.
 
 The command consumes every certificate inventory page before attempting deletes,
 caps selected candidates at `--max-deletions`, and emits JSON candidate and summary
 logs. It soft-deletes complete certificate objects, including all versions and
 their policy; backing certificate material can become unavailable. It never
 purges certificates or issues separate key/secret delete calls. Failed deletes
-are reported and retried only on a later run, after repeating safety checks.
+are reported together at the end and retried only on a later run, after repeating
+safety checks. Individual failures do not fail the command when at least one
+certificate was deleted or was already absent; the command fails when every
+deletion attempt failed.
 
 Azure does not provide an atomic owner-check/certificate-delete operation, so
 concurrent reuse of a seven-digit job suffix remains a race. The age guard, recent
