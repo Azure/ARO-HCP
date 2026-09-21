@@ -46,6 +46,18 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 {{- end -}}
 
+{{- define "cihealth.authProxyImage" -}}
+{{- $repository := .Values.authProxy.image.repository -}}
+{{- if .Values.authProxy.image.registry -}}
+{{- $repository = printf "%s/%s" .Values.authProxy.image.registry .Values.authProxy.image.repository -}}
+{{- end -}}
+{{- if .Values.authProxy.image.digest -}}
+{{- printf "%s@%s" $repository .Values.authProxy.image.digest -}}
+{{- else -}}
+{{- printf "%s:%s" $repository .Values.authProxy.image.tag -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "cihealth.postgresImage" -}}
 {{- printf "%s:%s" .Values.postgres.image.repository .Values.postgres.image.tag -}}
 {{- end -}}
@@ -74,6 +86,14 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- printf "%s-postgres-secretprovider" (include "cihealth.fullname" .) | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 
+{{- define "cihealth.authSecretProviderClassName" -}}
+{{- printf "%s-auth-secretprovider" (include "cihealth.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
+{{- define "cihealth.authClientIDSecretName" -}}
+{{- printf "%s-auth-client-id" (include "cihealth.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
 {{- define "cihealth.secretsStoreMountPath" -}}
 /mnt/secrets-store
 {{- end -}}
@@ -88,4 +108,16 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 
 {{- define "cihealth.postgresDatabaseFile" -}}
 {{- printf "%s/postgres-database" (include "cihealth.secretsStoreMountPath" .) -}}
+{{- end -}}
+
+{{- define "cihealth.authSecretsStoreMountPath" -}}
+/mnt/oauth2-proxy-secrets
+{{- end -}}
+
+{{- define "cihealth.authClientSecretFile" -}}
+{{- printf "%s/client-secret" (include "cihealth.authSecretsStoreMountPath" .) -}}
+{{- end -}}
+
+{{- define "cihealth.authCookieSecretFile" -}}
+{{- printf "%s/cookie-secret" (include "cihealth.authSecretsStoreMountPath" .) -}}
 {{- end -}}

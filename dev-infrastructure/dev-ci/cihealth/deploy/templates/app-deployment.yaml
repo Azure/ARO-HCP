@@ -19,6 +19,11 @@ spec:
         app.kubernetes.io/component: app
       annotations:
         azure.workload.identity/use: "true"
+        {{- if .Values.authProxy.enabled }}
+        cihealth.azure.com/oauth-client-id-version: {{ .Values.authProxy.clientIdVersion | quote }}
+        cihealth.azure.com/oauth-client-secret-version: {{ .Values.authProxy.clientSecretVersion | quote }}
+        cihealth.azure.com/oauth-cookie-secret-version: {{ .Values.authProxy.cookieSecretVersion | quote }}
+        {{- end }}
     spec:
       serviceAccountName: {{ include "cihealth.serviceAccountName" . }}
       {{- with .Values.image.pullSecrets }}
@@ -101,6 +106,63 @@ spec:
               readOnly: true
           resources:
             {{- toYaml .Values.app.resources | nindent 12 }}
+        {{- if .Values.authProxy.enabled }}
+        - name: auth-proxy
+          image: {{ include "cihealth.authProxyImage" . | quote }}
+          imagePullPolicy: {{ .Values.authProxy.image.pullPolicy | quote }}
+          env:
+            - name: OAUTH2_PROXY_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "cihealth.authClientIDSecretName" . }}
+                  key: client-id
+          args:
+            - --provider=entra-id
+            - --oidc-issuer-url=https://login.microsoftonline.com/{{ .Values.authProxy.tenantId }}/v2.0
+            - --client-secret-file={{ include "cihealth.authClientSecretFile" . }}
+            - --redirect-url=https://{{ .Values.httpRoute.host }}/oauth2/callback
+            - --upstream=http://127.0.0.1:{{ .Values.app.listenPort }}
+            - --http-address=0.0.0.0:{{ .Values.authProxy.listenPort }}
+            - --cookie-name=_cihealth_oauth2_proxy
+            - --cookie-secret-file={{ include "cihealth.authCookieSecretFile" . }}
+            - --cookie-secure=true
+            - --cookie-samesite=lax
+            - --code-challenge-method=S256
+            - --email-domain=*
+            - --scope=openid profile
+            - --oidc-email-claim=preferred_username
+            - --oidc-groups-claim=groups
+            - --allowed-group={{ .Values.authProxy.allowedGroupId }}
+            - --reverse-proxy=true
+            - --skip-provider-button=true
+          ports:
+            - name: auth-proxy
+              containerPort: {{ .Values.authProxy.listenPort }}
+              protocol: TCP
+          readinessProbe:
+            httpGet:
+              path: /ping
+              port: auth-proxy
+          livenessProbe:
+            httpGet:
+              path: /ping
+              port: auth-proxy
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: auth-secrets-store
+              mountPath: {{ include "cihealth.authSecretsStoreMountPath" . | quote }}
+              readOnly: true
+          resources:
+            {{- toYaml .Values.authProxy.resources | nindent 12 }}
+        {{- end }}
       volumes:
         - name: secrets-store
           csi:
@@ -108,3 +170,11 @@ spec:
             readOnly: true
             volumeAttributes:
               secretProviderClass: {{ include "cihealth.secretProviderClassName" . }}
+        {{- if .Values.authProxy.enabled }}
+        - name: auth-secrets-store
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: {{ include "cihealth.authSecretProviderClassName" . }}
+        {{- end }}
