@@ -37,6 +37,21 @@ The two Kusto databases per region (see [kusto-debugging.md](kusto-debugging.md)
 - `ServiceLogs` — frontend, backend, clusters service, fleet — i.e. the service cluster microservices.
 - `HostedControlPlaneLogs` — HyperShift, control-plane-operator, per-cluster control plane container logs, and management-cluster components.
 
+### Querying across all prod clusters
+
+The table lists above assume you are connected to the one regional cluster that hosts your resource. On prod you can instead fan a query across every cluster with the environment-scoped entity groups (`AllServiceLogs` for the `ServiceLogs` database, `AllHostedControlPlaneLogs` for `HostedControlPlaneLogs`, `AllMonitoringEvents` for `MonitoringEvents`). This is useful for the discovery step below when you do not yet know which cluster hosts the resource:
+
+```kql
+macro-expand AllServiceLogs as X
+(
+    X.clustersServiceLogs
+    | where resource_id has '<sub-rg-id>'
+    | distinct cid, SourceCluster = X.$current_cluster_endpoint
+)
+```
+
+`X.$current_cluster_endpoint` tags each row with its source cluster. Keep the heavy per-layer queries pointed at that single resolved cluster; the entity groups are for discovery and fleet-wide questions, not bulk exports. See [kusto-debugging.md](kusto-debugging.md#cross-cluster-queries-prod) for the full table and caveats.
+
 ## Bootstrapping: from minimal input to magic strings
 
 Most queries need a `client_request_id`, the CS internal cluster ID (`cid`),
