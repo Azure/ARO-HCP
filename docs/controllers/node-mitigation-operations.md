@@ -153,9 +153,6 @@ paging; an instance warning does not grant Azure write permission.
 
 ## Development checks
 
-The [retest plan](node-mitigation-test-plan.md) covers local gates, live safety
-checks and evidence collection. Live execution requires explicit authorization.
-
 ```bash
 cd mgmt-agent
 go test -race ./pkg/controller/nodemitigation ./pkg/controller/nodehealth/...
