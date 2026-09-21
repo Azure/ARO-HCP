@@ -48,6 +48,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
 	"github.com/Azure/ARO-HCP/internal/audit"
+	"github.com/Azure/ARO-HCP/internal/azure"
 	"github.com/Azure/ARO-HCP/internal/azureapi/v20240610preview"
 	"github.com/Azure/ARO-HCP/internal/azureapi/v20251223preview"
 	"github.com/Azure/ARO-HCP/internal/azureapi/v20260630preview"
@@ -76,6 +77,11 @@ type Frontend struct {
 
 	apiRegistry coreapi.APIRegistry
 
+	// clusterScopedIdentities describes which operator identities a cluster requires. The role
+	// definition config set it is built from varies per environment, so it is supplied by the
+	// caller rather than chosen here.
+	clusterScopedIdentities *azure.ClusterScopedIdentitiesConfig
+
 	exitOnPanic bool
 }
 
@@ -90,6 +96,7 @@ func NewFrontend(
 	auditClient audit.Client,
 	azureLocation string,
 	exitOnPanic bool,
+	clusterScopedIdentities *azure.ClusterScopedIdentitiesConfig,
 ) *Frontend {
 	// zero side-effect registration path
 	apiRegistry := coreapi.NewAPIRegistry()
@@ -116,8 +123,9 @@ func NewFrontend(
 				return utils.ContextWithLogger(context.Background(), logger)
 			},
 		},
-		auditClient:       auditClient,
-		resourcesDBClient: resourcesDBClient,
+		auditClient:             auditClient,
+		resourcesDBClient:       resourcesDBClient,
+		clusterScopedIdentities: clusterScopedIdentities,
 		healthGauge: promauto.With(registerer).NewGauge(
 			prometheus.GaugeOpts{
 				Name: healthGaugeName,

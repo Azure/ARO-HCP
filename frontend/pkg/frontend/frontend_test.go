@@ -49,6 +49,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
 	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
+	"github.com/Azure/ARO-HCP/internal/azure"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -103,6 +104,7 @@ func TestOperationsList(t *testing.T) {
 		newNoopAuditClient(t),
 		coreapitesting.TestLocation,
 		true,
+		azure.NewClusterScopedIdentitiesConfig(azure.RoleDefinitionConfigSetNameDev),
 	)
 
 	ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
@@ -206,6 +208,7 @@ func TestSubscriptionsGET(t *testing.T) {
 				newNoopAuditClient(t),
 				coreapitesting.TestLocation,
 				true,
+				azure.NewClusterScopedIdentitiesConfig(azure.RoleDefinitionConfigSetNameDev),
 			)
 
 			// Pre-populate subscription in the mock database
@@ -355,6 +358,7 @@ func TestSubscriptionsPUT(t *testing.T) {
 				newNoopAuditClient(t),
 				coreapitesting.TestLocation,
 				true,
+				azure.NewClusterScopedIdentitiesConfig(azure.RoleDefinitionConfigSetNameDev),
 			)
 
 			body, err := json.Marshal(&test.subscription)
@@ -709,6 +713,7 @@ func TestDeploymentPreflight(t *testing.T) {
 				newNoopAuditClient(t),
 				coreapitesting.TestLocation,
 				true,
+				azure.NewClusterScopedIdentitiesConfig(azure.RoleDefinitionConfigSetNameDev),
 			)
 
 			subs := map[string]*coreapi.Subscription{
@@ -849,6 +854,7 @@ func TestRequestAdminCredential(t *testing.T) {
 				newNoopAuditClient(t),
 				coreapitesting.TestLocation,
 				true,
+				azure.NewClusterScopedIdentitiesConfig(azure.RoleDefinitionConfigSetNameDev),
 			)
 
 			// Pre-populate the mock database with cluster and subscription
@@ -1087,6 +1093,7 @@ func TestRevokeCredentials(t *testing.T) {
 				newNoopAuditClient(t),
 				coreapitesting.TestLocation,
 				true,
+				azure.NewClusterScopedIdentitiesConfig(azure.RoleDefinitionConfigSetNameDev),
 			)
 
 			// Pre-populate the mock database with cluster
