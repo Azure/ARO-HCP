@@ -635,10 +635,10 @@ No Cosmos writes. Dispatches updates to Cluster Service via PATCH.
 | | Object | Fields |
 |---|--------|--------|
 | Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.UsesNewClusterDeletionApproach` (NeedsWork: must be true)</li><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceDeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must be nil)</li></ul> |
-| Read | `ServiceProviderCluster` | <ul><li>`Status.ManagementClusterResourceID`</li><li>`Status.MaestroReadonlyBundles`</li><li>`Status.AzureResources.ManagedResourceGroup` (gate: ServiceProviderCluster is not deleted while `AzureResource` or `PendingAzureResource` is set)</li></ul> |
+| Read | `ServiceProviderCluster` | <ul><li>`Status.ManagementClusterResourceID`</li><li>`Status.MaestroReadonlyBundles`</li><li>`Status.AzureResources.ManagedResourceGroup` (gate: ServiceProviderCluster is not deleted while `AzureResource` or `PendingAzureResource` is set)</li><li>`Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation[<lowercased resourceID>].Operators[<operatorName>].AzureResources` / `PendingAzureResources` (gate: ServiceProviderCluster is not deleted while any operator still has tracked federated identity credential IDs)</li></ul> |
 | Read | Child NodePools | <ul><li>list (must be empty)</li></ul> |
 | Read | Child ExternalAuths | <ul><li>list (must be empty)</li></ul> |
-| **Write** | Child Cosmos docs | <ul><li>**DELETES** ServiceProviderCluster (when the managed resource group is reflected as gone, MaestroReadonlyBundles empty, and kube-applier desires gone)</li><li>**DELETES** ManagementClusterContent docs</li><li>**DELETES** kube-applier desire documents</li></ul> |
+| **Write** | Child Cosmos docs | <ul><li>**DELETES** ServiceProviderCluster (when the managed resource group is reflected as gone, data-plane OIDC federation has no remaining tracked FIC IDs, MaestroReadonlyBundles empty, and kube-applier desires gone)</li><li>**DELETES** ManagementClusterContent docs</li><li>**DELETES** kube-applier desire documents</li></ul> |
 
 #### ClusterDeletionController
 
@@ -1056,6 +1056,26 @@ No Cosmos writes. Posts `NodePoolUpgradePolicy` to Cluster Service.
 | Read | Managed Identities Data Plane | <ul><li>`GetUserAssignedIdentitiesCredentials`</li></ul> |
 | **Write** | **`ServiceProviderCluster`** | <ul><li>**`Status.MSIManagedIdentities.ControlPlaneOperatorsIdentities`** = map keyed by lowercased resource ID (`ResourceID`, `ClientID`, `PrincipalID`)</li><li>**`Status.MSIManagedIdentities.ServiceManagedIdentity`** = `ResourceID`, `ClientID`, `PrincipalID`</li><li>**`Spec.EarliestRecheckTimesByController["FetchMSIIdentitiesInfo"]`** = now + jittered 12h interval</li></ul> |
 
+#### FetchManagedIdentitiesInfo
+
+**File:** [fetch_managed_identities_info.go](../backend/pkg/controllers/cluster/identity/fetch_managed_identities_info.go)
+**Trigger:** Cluster informer, 1-minute resync
+**Gate (needsWork):**
+- Skipped entirely when `HCPOpenShiftCluster.ServiceProviderProperties.DeletionTimestamp` != nil
+- Honors `ServiceProviderCluster.Spec.EarliestRecheckTimesByController["FetchManagedIdentitiesInfo"]` only when the unique lowercased ResourceID set on `Status.ManagedIdentityDetails` still matches the desired set from `CustomerProperties` (control plane operators, data plane operators, and service managed identity); returns true (query sources) immediately on any mismatch
+- When identities match: returns false while that recheck time is in the future; true when it is nil or already past
+
+Resolves ClientID/PrincipalID/TenantID for every unique cluster managed identity into `Status.ManagedIdentityDetails`, filling each source that applies. Source failures are accumulated and processing continues so successfully resolved sources and identities are still persisted; the accumulated error is returned so the workqueue retries. ARM `ResourceNotFound` keeps `MetadataFromARMUserAssignedIdentitiesAPI` with `RetrievalError` set and is not treated as a sync failure. Other ARM Get failures persist `RetrievalError` and are accumulated. Malformed `CustomerProperties` identity entries (nil ResourceID, empty operator name) are accumulated and returned without writing `ManagedIdentityDetails`, so a partial collect cannot prune stored identities.
+
+| | Object | Fields |
+|---|--------|--------|
+| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (SyncOnce: must be nil)</li><li>`ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL` (used to build the real MI dataplane client and the SMI-authenticated ARM client)</li><li>`CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators`</li><li>`CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators`</li><li>`CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity`</li><li>`ID` (subscription / resource group / name)</li></ul> |
+| Read | `ServiceProviderCluster` | <ul><li>`Status.ManagedIdentityDetails` (needsWork: compared to the desired ResourceID set)</li><li>`Spec.EarliestRecheckTimesByController["FetchManagedIdentitiesInfo"]` (needsWork: honored only when identities match)</li></ul> |
+| Read | Hardcoded identity (environments without the real MI dataplane) | <ul><li>ClientID, PrincipalID, TenantID of the hardcoded identity, applied only to dataplane-registered identities (control plane operators and the service managed identity)</li></ul> |
+| Read | Managed Identities Data Plane (environments with the real service) | <ul><li>`GetUserAssignedIdentitiesCredentials` for dataplane-registered identities only (control plane operators and the service managed identity)</li></ul> |
+| Read | Azure (UserAssignedIdentitiesClient authenticated as the SMI) | <ul><li>`Get` once per unique ResourceID that is a control-plane or data-plane operator identity -> `Properties.ClientID`, `Properties.PrincipalID`, `Properties.TenantID`. SMI-only identities are skipped. If the same ResourceID is also a control-plane or data-plane operator, ARM still applies</li></ul> |
+| **Write** | **`ServiceProviderCluster`** | <ul><li>**`Status.ManagedIdentityDetails[<lowercased resourceID>]`** = `{ResourceID, MetadataFromARMUserAssignedIdentitiesAPI, MetadataFromManagedIdentitiesDataplaneService, MetadataFromHardcodedIdentity}` — dataplane and hardcoded source pointers are set when that source applies. An empty `IdentityMetadataValue` (nil ClientID/PrincipalID/TenantID, no RetrievalError) means this pass did not resolve that source. ARM is set whenever it is queried, including Get failures (`RetrievalError`, nil ClientID/PrincipalID/TenantID). Identities no longer present on the cluster are pruned</li><li>**`Spec.EarliestRecheckTimesByController["FetchManagedIdentitiesInfo"]`** = now + jittered 1h interval when every applicable source succeeded (ARM ResourceNotFound is not a source failure); left cleared (absent) when any source error is accumulated, so the next needsWork re-queries</li></ul> |
+
 ---
 
 ### Other Controllers
@@ -1351,6 +1371,42 @@ A configured managed resource group name or `PendingAzureResource` alone does no
 | Read | Azure (RoleAssignmentsClient) | <ul><li>`GetByID` once per expected role assignment in pass 1 (classify; also serves as the earliest-recheck verification) -> exists / `RoleAssignmentNotFound`</li></ul> |
 | **Write** | Azure (RoleAssignmentsClient) | <ul><li>`Create` in pass 2 (after the pending intent is persisted) per expected role assignment Azure reported missing (`PrincipalID`, `RoleDefinitionID`, `PrincipalType=ServicePrincipal`); the deterministic name makes a repeated same-name create an idempotent update (PUT), not a conflict, so any `Create` error (including `RoleAssignmentExists`) is surfaced and retried</li></ul> |
 | **Write** | **`ServiceProviderCluster`** | <ul><li>**`Status.AzureResources.RoleAssignments.PendingAzureResources`** = overwritten each pass with the expected role assignment IDs not confirmed this pass (freshly-created ones stay pending until a later pass confirms them); confirmed or no-longer-expected IDs drop out</li><li>**`Status.AzureResources.RoleAssignments.AzureResources`** = overwritten each pass with the expected role assignment IDs confirmed to exist in Azure, plus any previously-confirmed assignment no longer expected which is retained (carried forward, pending managed identity replacement deletion)</li><li>**`Spec.EarliestRecheckTimesByController["IdentityRoleAssignments"]`** = now + a jittered recheck interval when nothing is pending (every expected assignment confirmed); the entry is deleted while work remains</li></ul> |
+
+#### DataPlaneOIDCFederationIntent
+
+**File:** [oidc_federation_intent_controller.go](../backend/pkg/controllers/cluster/dataplaneworkloads/oidc_federation_intent_controller.go)
+**Trigger:** Cluster informer, 1-minute resync
+**Gate:** none (always computes the desired federation map; replace is skipped when unchanged)
+
+Marks data-plane OIDC federation entries from Cluster `DataPlaneOperators` and `Status.ManagedIdentityDetails` ARM User Assigned Identities metadata. The map is keyed by lowercased identity ResourceID; each identity value holds `TargetIdentity` plus an `Operators` map keyed by operator name. Does not call Azure.
+
+| | Object | Fields |
+|---|--------|--------|
+| Read | `HCPOpenShiftCluster` | <ul><li>`CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators`</li><li>`ServiceProviderProperties.DeletionTimestamp` / `ClusterServiceDeletionTimestamp` / `ClusterServiceID` / `UsesNewClusterDeletionApproach` (clusterServiceGone: treat desired set as empty when CS is gone)</li><li>`ID` (subscription / resource group / name)</li></ul> |
+| Read | `ServiceProviderCluster` | <ul><li>`Status.ManagedIdentityDetails` (ARM ClientID/PrincipalID/TenantID must be resolved before an identity is added)</li><li>`Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation` (compared before write)</li></ul> |
+| **Write** | **`ServiceProviderCluster`** | <ul><li>**`Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation[<lowercased resourceID>].TargetIdentity`** = ARM ClientID/PrincipalID/TenantID for the identity instance</li><li>**`Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation[<lowercased resourceID>].Operators[<operatorName>]`** = created for each desired operator on that identity; `DeconfigureTimestamp` is cleared when the operator is desired again</li><li>**`Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation[<lowercased resourceID>].Operators[<operatorName>].EnsuredIdentity` / `AzureResources` / `PendingAzureResources`** = cleared on every operator when TargetIdentity changes (identity recreation removes child Azure FederatedIdentityCredential resources)</li><li>**`Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation[<lowercased resourceID>].Operators[<operatorName>].DeconfigureTimestamp`** = stamped on first transition when that operator leaves this identity (including when the identity is kept because a remaining operator has unresolved ARM metadata; operator entries with nothing tracked to delete are dropped; the identity key is dropped when Operators is empty). Does not write `Spec.EarliestRecheckTimesByController`</li></ul> |
+
+#### DataPlaneOIDCFederation
+
+**File:** [oidc_federation_controller.go](../backend/pkg/controllers/cluster/dataplaneworkloads/oidc_federation_controller.go)
+**Trigger:** Cluster informer, 1-minute resync
+**Gate (needsWork):**
+- A desired operator (still in `DataPlaneOperators` for this identity, `DeconfigureTimestamp` nil) is not yet ensured (`Operators[<operatorName>].EnsuredIdentity` is nil or does not equal parent `TargetIdentity`) and the cluster is not deleting: true (ignores `Spec.EarliestRecheckTimesByController["DataPlaneOIDCFederation"]`)
+- A desired operator has AzureResources FIC-set drift vs the current service-account list, or PendingAzureResources still lists obsolete FIC IDs, cluster not deleting: true (ignores that recheck time)
+- An operator deconfigure is ready (`Operators[<operatorName>].DeconfigureTimestamp` set and 24h elapsed, or cluster deleting): true (ignores that recheck time)
+- Every remaining desired operator is ensured with an unchanged FIC set and the cluster is not deleting: false while `Spec.EarliestRecheckTimesByController["DataPlaneOIDCFederation"]` is in the future; true when it is nil or already past
+- Operators that have left `DataPlaneOperators` for this identity are skipped until intent stamps `DeconfigureTimestamp`
+- empty federation map: false
+
+Creates and deletes Azure federated identity credentials per operator under `Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation`. When needsWork is true, every assigned operator is reconciled this pass (Get/CreateOrUpdate/delete extras on that operator's tracked FIC IDs). Loop 1 only adds FIC IDs to that operator's `PendingAzureResources`. Deconfigure still waits 24h on a live cluster. The recheck time is set to now + jittered 1h when Azure work this pass succeeded and remaining entries are idle (all desired operators ensured, or ensured plus deconfigure still inside the 24h wait). The entry is deleted when the federation map is empty. Immediate work remaining leaves any existing recheck time in place.
+
+| | Object | Fields |
+|---|--------|--------|
+| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: skip ensure; deconfigure is immediately ready)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: desired FIC set; credential names)</li><li>`CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators` (NeedsWork: operator still assigned to this identity)</li><li>`CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity` (SyncOnce: must not be nil)</li><li>`ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL`</li><li>`ID` (subscription / resource group / name)</li></ul> |
+| Read | `Subscription` | <ul><li>`Properties.TenantId` (OIDC issuer URL)</li></ul> |
+| Read | `ServiceProviderCluster` | <ul><li>`Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation[<lowercased resourceID>].TargetIdentity` (NeedsWork: compared to operator EnsuredIdentity)</li><li>`Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation[<lowercased resourceID>].Operators[<operatorName>].EnsuredIdentity` (NeedsWork: ensure complete for this operator)</li><li>`Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation[<lowercased resourceID>].Operators[<operatorName>].AzureResources` (NeedsWork: compared to desired FIC set)</li><li>`Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation[<lowercased resourceID>].Operators[<operatorName>].PendingAzureResources`</li><li>`Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation[<lowercased resourceID>].Operators[<operatorName>].DeconfigureTimestamp` (NeedsWork: 24h wait, or immediate when deleting)</li><li>`Spec.EarliestRecheckTimesByController["DataPlaneOIDCFederation"]` (NeedsWork: honored only for ensured operators when the desired FIC set is unchanged)</li></ul> |
+| Read | Azure (FederatedIdentityCredentialsClient) | <ul><li>`Get` / `CreateOrUpdate` / `Delete` per desired or tracked FIC</li></ul> |
+| **Write** | **`ServiceProviderCluster`** | <ul><li>**`Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation[<lowercased resourceID>].Operators[<operatorName>].EnsuredIdentity`** = copy of parent TargetIdentity after every desired FIC for that operator is ensured; the operator key is deleted after a successful deconfigure, and the identity key is deleted when Operators is empty</li><li>**`Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation[<lowercased resourceID>].Operators[<operatorName>].PendingAzureResources`** = FIC IDs persisted before CreateOrUpdate (append-only until Azure Delete); cleared on full ensure success</li><li>**`Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation[<lowercased resourceID>].Operators[<operatorName>].AzureResources`** = confirmed FIC IDs for that operator</li><li>**`Spec.EarliestRecheckTimesByController["DataPlaneOIDCFederation"]`** = now + jittered 1h interval when remaining entries are idle after a successful pass; deleted when the federation map is empty; left unchanged when immediate work remains or Azure errors were accumulated</li></ul> |
 
 ---
 
@@ -1721,6 +1777,14 @@ Single writer, but tracks the namespace containing control plane pods (etcd, kub
 
 Single writer. Read by [ClusterIdentitySync](#clusteridentitysync) to populate `HCPOpenShiftCluster.Identity.UserAssignedIdentities`.
 
+### `ServiceProviderCluster.Status.ManagedIdentityDetails`
+
+| Actor | When |
+|-------|------|
+| [FetchManagedIdentitiesInfo](#fetchmanagedidentitiesinfo) | Sets per-resource-ID metadata from the ARM User Assigned Identities API (control-plane and data-plane operator identities, including RetrievalError on Get failure; SMI-only identities are skipped), the real Managed Identities Data Plane (dataplane-registered identities when that service is available), and/or the hardcoded identity (those same identities when the real dataplane is not available), and sets its `Spec.EarliestRecheckTimesByController` entry for the next recheck |
+
+Single writer. One map entry per unique lowercased identity ResourceID, with each applicable source stored independently so a failure of one source does not drop metadata already retrieved from another. No Cosmos reader currently consumes this field: IdentityRoleAssignments and ClusterIdentitySync still read `MSIManagedIdentities` and `DataPlaneOperatorsManagedIdentities`.
+
 ### `ServiceProviderCluster.Status.DataPlaneOperatorsManagedIdentities`
 
 | Actor | When |
@@ -1744,6 +1808,15 @@ Single writer. Read by [ClusterChildResourcesCleanupController](#clusterchildres
 | [IdentityRoleAssignments](#identityroleassignments) | Manages (creates + observes): while the cluster is not being deleted and the managed resource group is confirmed, reconciles the expected control-plane operator / data-plane operator / service managed identity role assignments in two passes — pass 1 classifies each with `GetByID` (existing → confirmed in `AzureResources`; missing → recorded pending and queued for creation), the pending/confirmed state is persisted **before** any create, then pass 2 creates the queued missing ones (idempotent by deterministic name — a repeated same-name create is an update/PUT, not a conflict — so any create error, including `RoleAssignmentExists`, is surfaced and retried). A freshly-created assignment stays pending until a later pass confirms it. `PendingAzureResources` / `AzureResources` are overwritten each pass; when nothing is pending its `Spec.EarliestRecheckTimesByController["IdentityRoleAssignments"]` entry is set to a jittered future time (the sync otherwise re-runs on that cadence, re-verifying the confirmed set). A previously-confirmed assignment no longer expected is retained (deletion deferred to managed identity replacement support). Deletion is a no-op (the managed resource group deletion cascade removes the role assignments). |
 
 Single writer. Read by [OperationClusterCreate](#operationclustercreate) to gate cluster-create completion until at least one role assignment is confirmed and none remain pending.
+
+### `ServiceProviderCluster.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation`
+
+| Actor | When |
+|-------|------|
+| [DataPlaneOIDCFederationIntent](#dataplaneoidcfederationintent) | Adds desired identity keys with TargetIdentity from ARM metadata, creates per-operator entries under Operators, clears every operator's EnsuredIdentity and FIC lists when that instance changes, and stamps DeconfigureTimestamp on an operator that leaves this identity |
+| [DataPlaneOIDCFederation](#dataplaneoidcfederation) | Persists per-operator pending/confirmed FIC resource IDs, copies TargetIdentity into that operator's EnsuredIdentity after every desired FIC is ensured, removes the operator after a successful deconfigure (and the identity key when Operators is empty). Sets `Spec.EarliestRecheckTimesByController["DataPlaneOIDCFederation"]` when remaining entries are idle |
+
+Two writers. Intent owns TargetIdentity, operator DeconfigureTimestamp, and clearing EnsuredIdentity plus FIC lists on instance change; the executor owns per-operator EnsuredIdentity after a successful ensure, Azure FIC tracking, and the controller-level recheck time.
 
 ### `ServiceProviderCluster.Status.Validations`
 
