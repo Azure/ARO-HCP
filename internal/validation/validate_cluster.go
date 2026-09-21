@@ -307,16 +307,10 @@ func dataPlaneOperatorSupportedForVersion(operatorName string, version *semver.V
 	return !ok || operatorConfig.IsSupportedForOpenshiftVersion(version)
 }
 
-// validateRequiredOperatorIdentities rejects a create that omits an operator identity the cluster
+// validateRequiredOperatorIdentities rejects a cluster that omits an operator identity the cluster
 // cannot come up without. The existing cross-check only compares the two customer-supplied identity
 // lists against each other, so omitting an operator from both leaves them consistent and passes.
-//
-// Create-only: operatorsAuthentication is immutable, so an update cannot change the identity set.
-func validateRequiredOperatorIdentities(_ context.Context, op operation.Operation, newCluster, _ *coreapi.HCPOpenShiftCluster) field.ErrorList {
-	if op.Type != operation.Create {
-		return nil
-	}
-
+func validateRequiredOperatorIdentities(_ context.Context, _ operation.Operation, newCluster, _ *coreapi.HCPOpenShiftCluster) field.ErrorList {
 	// An unparseable version is already rejected by the version validation, so skip rather than
 	// guess which operators a version we cannot interpret would require.
 	version, err := semver.ParseTolerant(newCluster.CustomerProperties.Version.ID)
@@ -381,13 +375,7 @@ func validateRequiredOperatorIdentities(_ context.Context, op operation.Operatio
 // create time and then fails asynchronously -- the same silent failure this validation exists to
 // prevent. Matching is therefore exact, unlike the requirement check, which stays case-insensitive
 // so that a mis-cased key reports one clear error rather than two.
-//
-// Create-only, for the same reason as validateRequiredOperatorIdentities.
-func validateOperatorIdentityNames(_ context.Context, op operation.Operation, newCluster, _ *coreapi.HCPOpenShiftCluster) field.ErrorList {
-	if op.Type != operation.Create {
-		return nil
-	}
-
+func validateOperatorIdentityNames(_ context.Context, _ operation.Operation, newCluster, _ *coreapi.HCPOpenShiftCluster) field.ErrorList {
 	userAssignedIdentities := newCluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities
 	basePath := field.NewPath("customerProperties", "platform", "operatorsAuthentication", "userAssignedIdentities")
 	controlPlanePath := basePath.Child("controlPlaneOperators")

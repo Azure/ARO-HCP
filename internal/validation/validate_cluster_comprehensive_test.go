@@ -1431,19 +1431,25 @@ func TestValidateClusterCreateRequiresEachOperatorIdentity(t *testing.T) {
 		})
 	}
 
-	t.Run("required identities are not enforced on update", func(t *testing.T) {
-		oldCluster := createValidCluster()
+	t.Run("required identities are enforced on update", func(t *testing.T) {
+		// operatorsAuthentication is immutable, so an update carries the same identity set the
+		// create was validated against. A complete set must still pass.
+		errs := ValidateCluster(ctx, operation.Operation{Type: operation.Update}, createValidCluster(), createValidCluster(), nil)
+		for _, err := range errs {
+			require.NotContains(t, err.Error(), "operator is required",
+				"a complete identity set must not be rejected on update")
+		}
+
 		newCluster := createValidCluster()
 		operators := newCluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators
 		identity := operators["ingress"]
 		delete(operators, "ingress")
 		delete(newCluster.Identity.UserAssignedIdentities, identity.String())
 
-		errs := ValidateCluster(ctx, operation.Operation{Type: operation.Update}, newCluster, oldCluster, nil)
-		for _, err := range errs {
-			require.NotContains(t, err.Error(), "control plane operator is required",
-				"the requirement must stay create-only or it permanently blocks pre-existing clusters")
-		}
+		errs = ValidateCluster(ctx, operation.Operation{Type: operation.Update}, newCluster, createValidCluster(), nil)
+		require.True(t, hasErrorContaining(errs, "control plane operator is required",
+			"userAssignedIdentities.controlPlaneOperators[ingress]"),
+			"dropping an identity must be rejected on update, got: %v", errs)
 	})
 }
 
@@ -1629,6 +1635,19 @@ func TestValidateClusterUpdate(t *testing.T) {
 				{Message: "field is immutable", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators"},
 				{Message: "must be in the same Azure subscription", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
 				{Message: "must be in the same Azure subscription", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator-2]"},
+				// Replacing the operator map drops every real operator, so the requirement and name
+				// checks now report it on update too.
+				{Message: "control plane operator is required", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[cloud-controller-manager]"},
+				{Message: "control plane operator is required", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[cloud-network-config]"},
+				{Message: "control plane operator is required", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[cluster-api-azure]"},
+				{Message: "control plane operator is required", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[control-plane]"},
+				{Message: "control plane operator is required", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[disk-csi-driver]"},
+				{Message: "control plane operator is required", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[file-csi-driver]"},
+				{Message: "control plane operator is required", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[image-registry]"},
+				{Message: "control plane operator is required", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[ingress]"},
+				{Message: "is required when properties.etcd.dataEncryption.keyManagementMode is CustomerManaged", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[kms]"},
+				{Message: "unrecognized operator name", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
+				{Message: "unrecognized operator name", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator-2]"},
 			},
 		},
 		{
