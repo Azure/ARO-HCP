@@ -21,8 +21,10 @@ digraph nodepool_update {
   kube -> mirror [label="observed NodePool"];
   mirror -> active [label="observed version"];
   cs -> op [label="state / upgrade status"];
-  mirror -> op [label="observed NodePool status"];
+  mirror -> op [label="replicas + health conditions\n(health skipped at fixed zero)"];
   op -> done [label="complete or fail"];
+  observed [label="Customer resource Status.ActiveVersions\nfull OCP versions", fillcolor="#e4f2e5", color="#4c8053"];
+  active -> observed [label="separate Cosmos replace"];
   active -> upgrade [label="active versus desired", style=dashed, color="#857456", constraint=false];
   op -> op [label="pending: poll again", style=dashed, color="#857456", constraint=false];
 }

@@ -7,7 +7,7 @@ digraph cluster_create {
   id [label="ClusterPendingClusterServiceID\nAssign", fillcolor="#e6f0fa", color="#35648a"];
   ver [label="ControlPlaneDesiredVersion", fillcolor="#e6f0fa", color="#35648a"];
   place [label="Placement", fillcolor="#e6f0fa", color="#35648a"];
-  fleet [label="Fleet readiness + capacity\nmanagement-cluster provision shard", fillcolor="#e4f2e5", color="#4c8053"];
+  fleet [label="Fleet readiness + capacity\nSee placement panel", fillcolor="#e4f2e5", color="#4c8053"];
   azure [label="Azure prerequisites panel\nconfirmed group + deny assignments", fillcolor="#e4f2e5", color="#4c8053"];
   create [label="ClusterClusterServiceCreate", fillcolor="#e6f0fa", color="#35648a"];
   cs [label="Cluster Service cluster exists\nClusterServiceID confirmed\nContinue in convergence panel", fillcolor="#e4f2e5", color="#4c8053"];
@@ -15,7 +15,8 @@ digraph cluster_create {
   put -> id [label="missing pending/confirmed ID"];
   sp -> ver [label="customer version + channel"];
   sp -> place [label="placement unresolved"];
-  fleet -> place [label="eligible target + capacity"];
+  fleet -> place [label="Ready + schedulable +\ncurrent capacity"];
+  place -> place [label="no fit: record condition;\nretry after 29s", style=dashed, color="#857456", constraint=false];
   sp -> azure [label="group + identity inputs"];
   id -> azure [label="pending ID enables denies"];
   id -> create [label="pending ID"];

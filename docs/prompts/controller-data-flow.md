@@ -51,6 +51,10 @@ writes, operation records, and downstream intent. Include relevant admin actions
 Do not describe multiple Cosmos containers as one: distinguish Resources,
 Billing, Fleet, and per-management-cluster kube-applier storage.
 
+Preserve the Cosmos request/RU attribution reference: policy wiring, source labels,
+informer versus controller attribution, and the distinction between request counts
+and charged RUs. These are shared instrumentation, not additional controllers.
+
 ### 2. Complete controller catalog
 
 Organize by service, resource type, and responsibility so readers can find one
@@ -85,7 +89,9 @@ its Kubernetes object; inspect the desire type and deletion code.
 Replace ASCII diagrams with embedded PNGs linked to their Graphviz DOT sources.
 Produce create, update, and delete views for typical **cluster**, **node pool**,
 and **external auth** instances (nine focused diagrams). Add focused views for
-credentials, capacity/placement, or other flows when they improve understanding.
+credentials, capacity/placement, ordered teardown, or other flows when they improve
+understanding. Verify placement failure/deadline semantics, fleet readiness inputs,
+and concurrent delete dispatch against the current source.
 
 - These are directed graphs, **not necessarily DAGs**. Preserve real reconcile,
   retry, observation, and feedback cycles rather than inventing a linear pipeline.

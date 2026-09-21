@@ -1,0 +1,36 @@
+digraph cluster_resource_teardown {
+  graph [rankdir=TB, bgcolor="white", pad="0.3", nodesep="0.45", ranksep="0.6", fontname="DejaVu Sans", fontsize=18, labelloc=t, dpi=110];
+  node [shape=box, style="rounded,filled", fillcolor="#e6f0fa", color="#35648a", fontname="DejaVu Sans", fontsize=12, margin="0.16,0.10"];
+  edge [color="#536577", fontname="DejaVu Sans", fontsize=10, arrowsize=0.7];
+  label="ClusterResources · ordered teardown steps";
+  start [label="ClusterResources\ndeleting + observed management cluster"];
+  drop [label="Drop configuration ApplyDesire documents\nleave objects for finalizers / namespace GC"];
+  nodepool [label="NodePool step\nexplicit Delete; wait for finalizers"];
+  hosted [label="HostedCluster step\nexplicit Delete; wait for finalizers"];
+  instance [label="PodNetworkInstance step\nexplicit Delete; wait for finalizers"];
+  network [label="PodNetwork step (cluster-scoped)\nexplicit Delete; wait for finalizers"];
+  namespaces [label="Namespaces step\nDelete both; wait for absence"];
+  reads [label="Delete owned observability ReadDesires"];
+  done [label="Owned teardown drained\nother cleanup gates still apply", fillcolor="#e4f2e5", color="#4c8053"];
+  helper [label="Each waited step:\nEnsureApplyDesireRemoved\nconvert Spec.Type to Delete; clear old conditions"];
+  apply [label="ApplyDesireController"];
+  external [label="Kubernetes delete / finalization\nHyperShift, CAPI, SWIFT and namespace GC", fillcolor="#fff0da", color="#b27624"];
+  confirmed [label="SuccessfullyDeleted = True\n(legacy Successful fallback)\nthen purge intent document", fillcolor="#e4f2e5", color="#4c8053"];
+  start -> drop [label="owned intents"];
+  drop -> nodepool [label="configuration reconcile stopped"];
+  nodepool -> hosted [label="all NodePool intents removed"];
+  hosted -> instance [label="HostedCluster intent removed"];
+  instance -> network [label="instance intent removed"];
+  network -> namespaces [label="network intent removed"];
+  namespaces -> reads [label="namespace intents removed"];
+  reads -> done [label="observability cleanup"];
+  helper -> apply [label="Delete intent"];
+  apply -> external [label="delete target"];
+  external -> apply [label="absence / pending finalizers", style=dashed, color="#857456", constraint=false];
+  apply -> confirmed [label="deletion status"];
+  confirmed -> helper [label="next reconcile observes success", style=dashed, color="#857456", constraint=false];
+  {rank=same; nodepool; helper;}
+  {rank=same; hosted; apply;}
+  {rank=same; instance; external;}
+  {rank=same; network; confirmed;}
+}

@@ -23,10 +23,13 @@ digraph cluster_convergence {
   place -> read [label="actual placement + cluster ID"];
   resources -> apply [label="ApplyDesires"];
   apply -> kube [label="apply objects"];
+  resources -> mirror [label="extra resource ReadDesires"];
   read -> mirror [label="ReadDesires"];
   kube -> mirror [label="observed content / absence"];
   mirror -> props [label="namespace + serving-CA content"];
   cs -> armprops [label="API / console / DNS"];
+  selected [label="Selected Spec placement\nfrom prerequisites panel", fillcolor="#e4f2e5", color="#4c8053"];
+  selected -> op [label="placement completion"];
   cs -> op [label="Cluster Service state"];
   mirror -> op [label="HostedCluster readiness +\nversion"];
   props -> op [label="serving CA populated"];

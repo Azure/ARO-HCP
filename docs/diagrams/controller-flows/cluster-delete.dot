@@ -1,9 +1,9 @@
 digraph cluster_delete {
-  graph [rankdir=TB, bgcolor="white", pad="0.3", nodesep="0.4", ranksep="0.55", fontname="DejaVu Sans", fontsize=18, labelloc=t, label="Cluster delete · stop publishing, delete externally, remove records", dpi=110];
+  graph [rankdir=TB, bgcolor="white", pad="0.3", nodesep="0.4", ranksep="0.55", fontname="DejaVu Sans", fontsize=18, labelloc=t, label="Cluster delete · parallel external teardown and record cleanup", dpi=110];
   node [shape=box, style="rounded,filled", fillcolor="#e6f0fa", color="#35648a", fontname="DejaVu Sans", fontsize=12, margin="0.16,0.10"];
   edge [color="#536577", fontname="DejaVu Sans", fontsize=10, arrowsize=0.7];
   delete [label="Frontend DELETE cluster\ndeletion timestamp + Delete Operation\nchild node-pool / external-auth deletes", fillcolor="#eee7fb", color="#7b59a4"];
-  resources [label="ClusterResources", fillcolor="#e6f0fa", color="#35648a"];
+  resources [label="ClusterResources\nordered teardown panel", fillcolor="#e6f0fa", color="#35648a"];
   dispatch [label="ClusterClusterServiceDelete\nDispatch", fillcolor="#e6f0fa", color="#35648a"];
   cs [label="Cluster Service / external cleanup\nKubernetes and Azure resources", fillcolor="#fff0da", color="#b27624"];
   clear [label="ClusterDeletionClusterServiceID\nClearer", fillcolor="#e6f0fa", color="#35648a"];
@@ -15,8 +15,9 @@ digraph cluster_delete {
   final [label="ClusterDeletionController", fillcolor="#e6f0fa", color="#35648a"];
   op [label="OperationClusterDelete", fillcolor="#e6f0fa", color="#35648a"];
   done [label="ARM Delete Operation Succeeded", fillcolor="#e4f2e5", color="#4c8053"];
-  delete -> resources [label="deleting: remove tagged\nApplyDesires"];
-  resources -> dispatch [label="all tagged ApplyDesires gone"];
+  delete -> resources [label="deletion intent"];
+  delete -> dispatch [label="deletion intent; no\nApplyDesire gate"];
+  resources -> cleanup [label="owned ApplyDesires drained;\nobservability reads removed"];
   dispatch -> cs [label="DELETE; stamp dispatch\ntimestamp"];
   cs -> clear [label="GET reports not found"];
   delete -> marker [label="mark credential children"];

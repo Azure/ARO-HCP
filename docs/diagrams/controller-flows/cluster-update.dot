@@ -24,6 +24,8 @@ digraph cluster_update {
   mirror -> op [label="observed readiness / version"];
   upgrade -> op [label="upgrade intent failure, if\nrejected"];
   op -> done [label="completion or failure checks"];
+  observed [label="Customer resource Status.ActiveVersions\nmajor.minor versions", fillcolor="#e4f2e5", color="#4c8053"];
+  active -> observed [label="separate Cosmos replace"];
   active -> upgrade [label="active versus desired", style=dashed, color="#857456", constraint=false];
   active -> desired [label="observed versions constrain\nnext selection", style=dashed, color="#857456", constraint=false];
   op -> op [label="still progressing: poll again", style=dashed, color="#857456", constraint=false];
