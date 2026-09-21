@@ -64,19 +64,19 @@ func TestExternalAuthDeletionController_SyncOnce(t *testing.T) {
 	}{
 		{
 			name:                 "no DeletionTimestamp -- no-op",
-			existingExternalAuth: newTestExternalAuthWithNewDeletionApproach(t, nil),
+			existingExternalAuth: newTestExternalAuth(t, nil),
 			verifyDB:             verifyExternalAuthStillExists,
 		},
 		{
 			name: "DeletionTimestamp set but ClusterServiceDeletionTimestamp not -- no-op",
-			existingExternalAuth: newTestExternalAuthWithNewDeletionApproach(t, func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
+			existingExternalAuth: newTestExternalAuth(t, func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
 				ea.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-time.Hour)}
 			}),
 			verifyDB: verifyExternalAuthStillExists,
 		},
 		{
 			name: "ClusterServiceID still set -- no-op",
-			existingExternalAuth: newTestExternalAuthWithNewDeletionApproach(t, func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
+			existingExternalAuth: newTestExternalAuth(t, func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
 				ea.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-time.Hour)}
 				ea.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-30 * time.Minute)}
 			}),
@@ -84,20 +84,14 @@ func TestExternalAuthDeletionController_SyncOnce(t *testing.T) {
 		},
 		{
 			name:                 "all conditions met, no children -- deletes external auth from Cosmos",
-			existingExternalAuth: newTestExternalAuthWithNewDeletionApproach(t, readyToDeleteExternalAuthOptsFunc),
+			existingExternalAuth: newTestExternalAuth(t, readyToDeleteExternalAuthOptsFunc),
 			verifyDB:             verifyExternalAuthDeleted,
 		},
 		{
 			name:                 "all conditions met, only controller children -- deletes external auth",
-			existingExternalAuth: newTestExternalAuthWithNewDeletionApproach(t, readyToDeleteExternalAuthOptsFunc),
+			existingExternalAuth: newTestExternalAuth(t, readyToDeleteExternalAuthOptsFunc),
 			childResources:       []any{newTestExternalAuthController(t, "test-controller")},
 			verifyDB:             verifyExternalAuthDeleted,
-		},
-		{
-			name:                 "UsesNewExternalAuthDeletionApproach false -- no-op even when all delete conditions met",
-			existingExternalAuth: newTestExternalAuthWithOldDeletionApproach(t, readyToDeleteExternalAuthOptsFunc),
-			childResources:       []any{newTestExternalAuthController(t, "test-controller")},
-			verifyDB:             verifyExternalAuthStillExists,
 		},
 		{
 			name:                 "external auth not found -- no-op",

@@ -35,7 +35,6 @@ import (
 	operationbase "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
@@ -47,7 +46,6 @@ import (
 type operationClusterDelete struct {
 	clock                utilsclock.PassiveClock
 	resourcesDBClient    corecosmosstorage.ResourcesDBClient
-	billingDBClient      billingcosmosstorage.BillingDBClient
 	kubeApplierDBClients kubeappliercosmosstorage.KubeApplierDBClients
 	readDesireLister     kubeapplierlisters.ReadDesireLister
 	clusterServiceClient ocm.ClusterServiceClientSpec
@@ -62,10 +60,8 @@ type operationClusterDelete struct {
 //   - While the Cluster Cosmos document is present, it reconciles the
 //     operation and the cluster status.
 //   - When the Cluster Cosmos document is deleted (by the clusterDeletionController),
-//     it marks the operation as Succeeded. It also cleans up child
-//     resources. Note: This last part is handled by other controllers too but
-//     because the operationbase.SetDeleteOperationAsCompleted is still reused by other operations
-//     that have not been migrated to asynchronous flow yet this remains.
+//     it marks the operation as Succeeded. Resource cleanup and billing completion
+//     are handled by the cluster deletion controllers before the document is deleted.
 //
 // Operation documents relevant to this controller will have the following values:
 //
@@ -80,7 +76,6 @@ type operationClusterDelete struct {
 func NewOperationClusterDeleteController(
 	clock utilsclock.PassiveClock,
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
-	billingDBClient billingcosmosstorage.BillingDBClient,
 	kubeApplierDBClients kubeappliercosmosstorage.KubeApplierDBClients,
 	readDesireLister kubeapplierlisters.ReadDesireLister,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
@@ -90,7 +85,6 @@ func NewOperationClusterDeleteController(
 	syncer := &operationClusterDelete{
 		clock:                clock,
 		resourcesDBClient:    resourcesDBClient,
-		billingDBClient:      billingDBClient,
 		kubeApplierDBClients: kubeApplierDBClients,
 		readDesireLister:     readDesireLister,
 		clusterServiceClient: clusterServiceClient,
@@ -133,13 +127,6 @@ func (c *operationClusterDelete) SynchronizeOperation(ctx context.Context, key c
 		return fmt.Errorf("failed to get active operation: %w", err)
 	}
 
-	// TODO remove this once migration of cluster deletion from frontend to backend is fully completed.
-	if !operation.UsesNewClusterDeletionApproach {
-		return c.legacySynchronizeOperation(ctx, operation)
-	}
-
-	// From here, we know it uses the new deletion approach.
-
 	if !c.ShouldProcess(ctx, operation) {
 		return nil // no work to do
 	}
@@ -148,7 +135,7 @@ func (c *operationClusterDelete) SynchronizeOperation(ctx context.Context, key c
 	cluster, err := clusterCRUD.Get(ctx, operation.ExternalID.Name)
 	if cosmosstorageutils.IsNotFoundError(err) {
 		logger.Info("cluster document deleted - completing operation")
-		err = operationbase.SetDeleteOperationAsCompleted(ctx, c.clock, c.resourcesDBClient, operation, operationbase.PostAsyncNotificationFn(c.notificationClient))
+		err = operationbase.PatchOperation(ctx, c.clock, c.resourcesDBClient, operation, coreapi.ProvisioningStateSucceeded, nil, operationbase.PostAsyncNotificationFn(c.notificationClient))
 		if err != nil {
 			return utils.TrackError(err)
 		}

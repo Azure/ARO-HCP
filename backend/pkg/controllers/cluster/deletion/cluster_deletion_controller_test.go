@@ -49,7 +49,7 @@ func TestClusterDeletionController_SyncOnce(t *testing.T) {
 	}
 
 	readyForDeletionCluster := func(t *testing.T) *coreapi.HCPOpenShiftCluster {
-		return newTestClusterWithNewDeletionApproach(t, func(c *coreapi.HCPOpenShiftCluster) {
+		return newTestCluster(t, func(c *coreapi.HCPOpenShiftCluster) {
 			c.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedClockTime.Add(-time.Hour)}
 			c.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{Time: fixedClockTime.Add(-30 * time.Minute)}
 			c.ServiceProviderProperties.ClusterServiceID = nil
@@ -82,19 +82,19 @@ func TestClusterDeletionController_SyncOnce(t *testing.T) {
 		},
 		{
 			name:            "no DeletionTimestamp -- no-op",
-			existingCluster: newTestClusterWithNewDeletionApproach(t, nil),
+			existingCluster: newTestCluster(t, nil),
 			verifyDB:        verifyClusterStillExists,
 		},
 		{
 			name: "DeletionTimestamp set but ClusterServiceDeletionTimestamp not -- no-op",
-			existingCluster: newTestClusterWithNewDeletionApproach(t, func(c *coreapi.HCPOpenShiftCluster) {
+			existingCluster: newTestCluster(t, func(c *coreapi.HCPOpenShiftCluster) {
 				c.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedClockTime.Add(-time.Hour)}
 			}),
 			verifyDB: verifyClusterStillExists,
 		},
 		{
 			name: "ClusterServiceID still set -- no-op",
-			existingCluster: newTestClusterWithNewDeletionApproach(t, func(c *coreapi.HCPOpenShiftCluster) {
+			existingCluster: newTestCluster(t, func(c *coreapi.HCPOpenShiftCluster) {
 				c.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedClockTime.Add(-time.Hour)}
 				c.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{Time: fixedClockTime.Add(-30 * time.Minute)}
 			}),
@@ -177,15 +177,6 @@ func TestClusterDeletionController_SyncOnce(t *testing.T) {
 			verifyDB:        verifyClusterDeleted,
 		},
 		{
-			name: "feature flag false -- no-op even when all delete conditions met",
-			existingCluster: newTestClusterWithOldDeletionApproach(t, func(c *coreapi.HCPOpenShiftCluster) {
-				c.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedClockTime.Add(-time.Hour)}
-				c.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{Time: fixedClockTime.Add(-30 * time.Minute)}
-				c.ServiceProviderProperties.ClusterServiceID = nil
-			}),
-			verifyDB: verifyClusterStillExists,
-		},
-		{
 			name: "cluster not found -- no-op",
 		},
 	}
@@ -248,25 +239,20 @@ func TestClusterDeletionController_NeedsWork(t *testing.T) {
 		want    bool
 	}{
 		{
-			name:    "feature flag false",
-			cluster: newTestClusterWithOldDeletionApproach(t, nil),
-			want:    false,
-		},
-		{
 			name:    "no DeletionTimestamp",
-			cluster: newTestClusterWithNewDeletionApproach(t, nil),
+			cluster: newTestCluster(t, nil),
 			want:    false,
 		},
 		{
 			name: "DeletionTimestamp set but no ClusterServiceDeletionTimestamp",
-			cluster: newTestClusterWithNewDeletionApproach(t, func(c *coreapi.HCPOpenShiftCluster) {
+			cluster: newTestCluster(t, func(c *coreapi.HCPOpenShiftCluster) {
 				c.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedClockTime}
 			}),
 			want: false,
 		},
 		{
 			name: "both timestamps set but ClusterServiceID not nil",
-			cluster: newTestClusterWithNewDeletionApproach(t, func(c *coreapi.HCPOpenShiftCluster) {
+			cluster: newTestCluster(t, func(c *coreapi.HCPOpenShiftCluster) {
 				c.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedClockTime}
 				c.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{Time: fixedClockTime}
 			}),
@@ -274,7 +260,7 @@ func TestClusterDeletionController_NeedsWork(t *testing.T) {
 		},
 		{
 			name: "all conditions met",
-			cluster: newTestClusterWithNewDeletionApproach(t, func(c *coreapi.HCPOpenShiftCluster) {
+			cluster: newTestCluster(t, func(c *coreapi.HCPOpenShiftCluster) {
 				c.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedClockTime}
 				c.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{Time: fixedClockTime}
 				c.ServiceProviderProperties.ClusterServiceID = nil

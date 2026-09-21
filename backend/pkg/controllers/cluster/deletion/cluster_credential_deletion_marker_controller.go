@@ -73,10 +73,6 @@ func NewClusterCredentialDeletionMarkerController(
 }
 
 func (c *clusterCredentialDeletionMarkerController) NeedsWork(cluster *coreapi.HCPOpenShiftCluster) bool {
-	if !cluster.ServiceProviderProperties.UsesNewClusterDeletionApproach {
-		return false
-	}
-
 	return cluster.ServiceProviderProperties.DeletionTimestamp != nil
 }
 

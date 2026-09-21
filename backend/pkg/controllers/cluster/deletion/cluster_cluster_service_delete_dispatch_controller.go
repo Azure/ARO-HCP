@@ -106,13 +106,6 @@ func NewClusterClusterServiceDeleteDispatchController(
 // Cluster: DeletionTimestamp must be set and ClusterServiceDeletionTimestamp
 // must not yet be set.
 func (c *clusterClusterServiceDeleteDispatchSyncer) NeedsWork(cluster *coreapi.HCPOpenShiftCluster) bool {
-	// TODO temporary check to skip the new deletion approach for Clusters that were created before the new approach was implemented.
-	// This will be removed once all clusters whose deletion was triggered before the new approach is fully rolled out have been
-	// fully deleted in all ARO-HCP permanent environments, for all regions.
-	if !cluster.ServiceProviderProperties.UsesNewClusterDeletionApproach {
-		return false
-	}
-
 	return cluster.ServiceProviderProperties.DeletionTimestamp != nil &&
 		cluster.ServiceProviderProperties.ClusterServiceDeletionTimestamp == nil
 }

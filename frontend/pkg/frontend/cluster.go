@@ -788,9 +788,6 @@ func (f *Frontend) addDeleteClusterToTransaction(ctx context.Context, writer htt
 		"",
 		"",
 		correlationData)
-	// TODO remove this once migration of the new cluster deletion from frontend to backend approach is fully completed in all ARO-HCP
-	// permanent environments, for all regions.
-	operationDoc.UsesNewClusterDeletionApproach = true
 	if request != nil {
 		// these are optional because when this is triggered via the subscription deletion flow, there is no
 		// deletion request containing these headers so these operations cannot be directly tracked.
@@ -809,9 +806,6 @@ func (f *Frontend) addDeleteClusterToTransaction(ctx context.Context, writer htt
 	}
 	cluster.ServiceProviderProperties.ActiveOperationID = operationDoc.ResourceID.Name
 	cluster.ServiceProviderProperties.ProvisioningState = operationDoc.Status
-	// TODO remove this once migration of the new cluster deletion from frontend to backend approach is fully completed in all ARO-HCP
-	// permanent environments, for all regions.
-	cluster.ServiceProviderProperties.UsesNewClusterDeletionApproach = true
 
 	cluster.ServiceProviderProperties.DeleteOperationCompletionDeadline = computeDeleteOperationCompletionDeadline(cluster)
 

@@ -69,7 +69,7 @@ func TestClusterClusterServiceIDClearer_SyncOnce(t *testing.T) {
 	}{
 		{
 			name:            "when CS returns 404 ClusterServiceID is cleared",
-			existingCluster: newTestClusterWithNewDeletionApproach(t, withDeletionStampsClusterOptsFunc),
+			existingCluster: newTestCluster(t, withDeletionStampsClusterOptsFunc),
 			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
 				mock.EXPECT().
 					GetClusterStatus(gomock.Any(), metadataapi.Must(metadataapi.NewInternalID(testClusterServiceIDStr))).
@@ -83,7 +83,7 @@ func TestClusterClusterServiceIDClearer_SyncOnce(t *testing.T) {
 		},
 		{
 			name:            "when CS returns cluster still exists no-op is performed",
-			existingCluster: newTestClusterWithNewDeletionApproach(t, withDeletionStampsClusterOptsFunc),
+			existingCluster: newTestCluster(t, withDeletionStampsClusterOptsFunc),
 			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
 				mock.EXPECT().
 					GetClusterStatus(gomock.Any(), metadataapi.Must(metadataapi.NewInternalID(testClusterServiceIDStr))).
@@ -92,20 +92,15 @@ func TestClusterClusterServiceIDClearer_SyncOnce(t *testing.T) {
 			verifyDB: verifyClusterServiceIDUnchanged,
 		},
 		{
-			name:            "feature flag false -- no-op even with all timestamps set",
-			existingCluster: newTestClusterWithOldDeletionApproach(t, withDeletionStampsClusterOptsFunc),
-			verifyDB:        verifyClusterServiceIDUnchanged,
-		},
-		{
 			name: "DeletionTimestamp set but ClusterServiceDeletionTimestamp not yet -- no-op",
-			existingCluster: newTestClusterWithNewDeletionApproach(t, func(c *coreapi.HCPOpenShiftCluster) {
+			existingCluster: newTestCluster(t, func(c *coreapi.HCPOpenShiftCluster) {
 				c.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedClockTime.Add(-time.Hour)}
 			}),
 			verifyDB: verifyClusterServiceIDUnchanged,
 		},
 		{
 			name: "ClusterServiceID already cleared -- no-op",
-			existingCluster: newTestClusterWithNewDeletionApproach(t, func(c *coreapi.HCPOpenShiftCluster) {
+			existingCluster: newTestCluster(t, func(c *coreapi.HCPOpenShiftCluster) {
 				withDeletionStampsClusterOptsFunc(c)
 				c.ServiceProviderProperties.ClusterServiceID = nil
 			}),
@@ -117,7 +112,7 @@ func TestClusterClusterServiceIDClearer_SyncOnce(t *testing.T) {
 		},
 		{
 			name:            "CS returns unhandled error -- propagated, no clear",
-			existingCluster: newTestClusterWithNewDeletionApproach(t, withDeletionStampsClusterOptsFunc),
+			existingCluster: newTestCluster(t, withDeletionStampsClusterOptsFunc),
 			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
 				mock.EXPECT().
 					GetClusterStatus(gomock.Any(), metadataapi.Must(metadataapi.NewInternalID(testClusterServiceIDStr))).
@@ -128,7 +123,7 @@ func TestClusterClusterServiceIDClearer_SyncOnce(t *testing.T) {
 		},
 		{
 			name:            "when no DeletionTimestamp no-op is performed",
-			existingCluster: newTestClusterWithNewDeletionApproach(t, nil),
+			existingCluster: newTestCluster(t, nil),
 			verifyDB:        verifyClusterServiceIDUnchanged,
 		},
 		{
