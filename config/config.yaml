@@ -200,7 +200,7 @@ defaults:
     image:
       registry: kubernetesshared.azurecr.io
       repository: shared/kube-events
-      digest: sha256:5177425b194b5d289664c62bedbdc95a42605bbfcde48fc7ddbb31bee0194b90 # 20260913.1 (2026-09-13 03:25)
+      digest: sha256:7246ca0f71c274f1fff5c944a8dc4c4663fe7a8ee4cdff206fdab7b5f836da2e # 20260920.1 (2026-09-20 03:25)
     k8s:
       namespace: monitoring
       serviceAccountName: ke-serviceaccount
@@ -413,7 +413,7 @@ defaults:
     image:
       registry: quay.io
       repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
-      digest: sha256:0daee271276923d8ecab324963c6ad530bcd0135ce33ece7ec90bfe3962f694c # d1cf532185af985c87f652b4fd85b45cde399444 (2026-09-18 21:36)
+      digest: sha256:ee8f9636de436c9800eb46fb1684be9dc9fb36374a20a808c769686873b69723 # b99e997ff61cd3560f34cf2794690cf0ccbf729c (2026-09-21 08:37)
     namespace: hypershift
     additionalInstallArg: '--enable-cpo-overrides --disable-capi-migration'
     # By default we set it to empty as this tag is only required for msft environments. We override
@@ -542,15 +542,15 @@ defaults:
     server:
       registry: registry.stage.redhat.io
       repository: oadp/oadp-velero-rhel9
-      digest: sha256:6e08a521f90854ec445d58f96a03dd67c1baaacbddc73b281eb075a3e56c8226 # 1.6.2 (2026-09-16 13:42)
+      digest: sha256:a6de7988701b0759bb4f29d28d229a0b427c5d2c25653bfed59c0a1a18ad4280 # 1.6.2 (2026-09-21 17:49)
     azurePlugin:
       registry: registry.stage.redhat.io
       repository: oadp/oadp-velero-plugin-for-microsoft-azure-rhel9
-      digest: sha256:2ed74e66ca3f6131458978800d24da7fd9bc5f24ea0c674df252213b03c76149 # 1.6.2 (2026-09-17 06:18)
+      digest: sha256:503d6342c590c430e1311090b11351dbd8776c2f02c84ffa6e3b19d7f02187be # 1.6.2 (2026-09-21 21:50)
     hypershiftPlugin:
       registry: registry.stage.redhat.io
       repository: oadp/oadp-hypershift-velero-plugin-rhel9
-      digest: sha256:531574386b5948af1337843968654e237eaf6ea6d4328c11c05fcd88912ea8e2 # 1.6.2 (2026-09-16 13:41)
+      digest: sha256:fa29fe80b67f5ff80b89b51f0ca039f7b9b7fb6d66fa9ef124e8ddf2a29c2bd6 # 1.6.2 (2026-09-21 07:07)
   # SVC cluster specifics
   svc:
     subscription:
@@ -596,7 +596,7 @@ defaults:
     # pipeline step had already applied.
     # istioctlVersion and targetVersion will be removed in a future cleanup.
     istio:
-      istioctlVersion: 1.31.0 # 1.31.0 (2026-08-31 15:47)
+      istioctlVersion: 1.31.1 # 1.31.1 (2026-09-21 14:45)
       tag: "prod-stable"
       targetVersion: "asm-1-29"
       versions: "asm-1-29"
@@ -1115,18 +1115,18 @@ defaults:
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-216
-        digest: sha256:c8a3ecddafcc71fcc5d56d09ceed198f269bd112e86e646548983f9406bfc169 # v2.16.6-617 (2026-09-18 18:06)
+        digest: sha256:22619fbb52bcef996c40a45009abbe6706b24289fea22485603500bc6ee70df5 # v2.16.6-621 (2026-09-21 18:06)
     mce:
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-211
-        digest: sha256:d47eb7185efec0efb3b369e80ea0612394a46d9e87dbb1f7424ae3a564c976a6 # v2.11.7-665 (2026-09-18 18:13)
+        digest: sha256:ba3e28484030545573e3e1b0e9e422cef133ec197b66b034008634d449106748 # v2.11.7-669 (2026-09-21 18:13)
   # Cluster Service
   clustersService:
     image:
       registry: quay.io
       repository: app-sre/aro-hcp-clusters-service
-      digest: sha256:ba095cc5b8a62b766089d1df19162dbb6585a2597ebc7eb5c921a25faa97c93d # ca17fa5a2b35d170b78f54b5672d5c18c2c86e86 (2026-09-17 19:56)
+      digest: sha256:ea75b70cae009f8d77d8d0857f7bdb011ff55c9f867c121962849dec25da3867 # 2c53dc63606ae24e7765a34b5579ca3fc8f3c92d (2026-09-21 17:44)
     # controls how many HCPs can be placed on an MC, sadly not configurable per MC
     provisionShardClusterLimit: 100
     provisionShardStatus: active
