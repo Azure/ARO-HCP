@@ -1,6 +1,7 @@
 location: "{{ .region }}"
 audit:
   connectSocket: {{ .adminApi.audit.connectSocket }}
+  serviceTreeId: "{{ .serviceTreeId }}"
 deployment:
   replicas: {{ .adminApi.k8s.replicas }}
   resources:
