@@ -65,6 +65,7 @@ func TestMutateCluster(t *testing.T) {
 		expectedControlPlaneAvailability  coreapi.ControlPlaneAvailability
 		expectedControlPlanePodSizing     coreapi.ControlPlanePodSizing
 		expectedControlPlaneOperatorImage string
+		expectedBackupScheduleOverride    coreapi.BackupScheduleState
 	}{
 		{
 			name:               "AFEC registered recognizes disable-swift without projecting a feature",
@@ -281,6 +282,71 @@ func TestMutateCluster(t *testing.T) {
 			expectErrors:       []utils.ExpectedError{},
 			expectZeroFeatures: true,
 		},
+		{
+			name:                           "AFEC registered with backup-schedule-override tag",
+			subscription:                   afecRegistered,
+			tags:                           map[string]string{metadataapi.TagClusterBackupScheduleOverride: string(coreapi.BackupScheduleStateEnabled)},
+			expectErrors:                   []utils.ExpectedError{},
+			expectedBackupScheduleOverride: coreapi.BackupScheduleStateEnabled,
+		},
+		{
+			name:                           "AFEC registered with case insensitive backup-schedule-override tag key",
+			subscription:                   afecRegistered,
+			tags:                           map[string]string{"ARO-HCP.Experimental.Cluster.Backup-Schedule-Override": string(coreapi.BackupScheduleStateEnabled)},
+			expectErrors:                   []utils.ExpectedError{},
+			expectedBackupScheduleOverride: coreapi.BackupScheduleStateEnabled,
+		},
+		{
+			name:               "AFEC registered with empty backup-schedule-override tag",
+			subscription:       afecRegistered,
+			tags:               map[string]string{metadataapi.TagClusterBackupScheduleOverride: ""},
+			expectErrors:       []utils.ExpectedError{},
+			expectZeroFeatures: true,
+		},
+		{
+			name:         "AFEC registered but backup-schedule-override tag rejects Disabled",
+			subscription: afecRegistered,
+			tags:         map[string]string{metadataapi.TagClusterBackupScheduleOverride: string(coreapi.BackupScheduleStateDisabled)},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "tags", Message: "Invalid value"},
+			},
+		},
+		{
+			name:         "AFEC registered but backup-schedule-override tag rejects true",
+			subscription: afecRegistered,
+			tags:         map[string]string{metadataapi.TagClusterBackupScheduleOverride: "true"},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "tags", Message: "Invalid value"},
+			},
+		},
+		{
+			name:               "no AFEC registered ignores backup-schedule-override tag",
+			subscription:       noAFEC,
+			tags:               map[string]string{metadataapi.TagClusterBackupScheduleOverride: string(coreapi.BackupScheduleStateEnabled)},
+			expectErrors:       []utils.ExpectedError{},
+			expectZeroFeatures: true,
+		},
+		{
+			name:         "AFEC registered rejects the backup-schedule-override tag name without the suffix",
+			subscription: afecRegistered,
+			tags:         map[string]string{"aro-hcp.experimental.cluster.backup-schedule": string(coreapi.BackupScheduleStateEnabled)},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "tags", Message: "unrecognized experimental tag"},
+			},
+		},
+		{
+			name:         "AFEC registered with backup-schedule-override alongside other experimental tags",
+			subscription: afecRegistered,
+			tags: map[string]string{
+				metadataapi.TagClusterSingleReplica:          string(coreapi.SingleReplicaControlPlane),
+				metadataapi.TagClusterSizeOverride:           string(coreapi.MinimalControlPlanePodSizing),
+				metadataapi.TagClusterBackupScheduleOverride: string(coreapi.BackupScheduleStateEnabled),
+			},
+			expectErrors:                     []utils.ExpectedError{},
+			expectedControlPlaneAvailability: coreapi.SingleReplicaControlPlane,
+			expectedControlPlanePodSizing:    coreapi.MinimalControlPlanePodSizing,
+			expectedBackupScheduleOverride:   coreapi.BackupScheduleStateEnabled,
+		},
 	}
 
 	for _, tt := range tests {
@@ -316,6 +382,77 @@ func TestMutateCluster(t *testing.T) {
 			if cluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneOperatorImage != tt.expectedControlPlaneOperatorImage {
 				t.Errorf("expected ControlPlaneOperatorImage %q, got %q",
 					tt.expectedControlPlaneOperatorImage, cluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneOperatorImage)
+			}
+			if cluster.ServiceProviderProperties.ExperimentalFeatures.BackupScheduleOverride != tt.expectedBackupScheduleOverride {
+				t.Errorf("expected BackupScheduleOverride %q, got %q",
+					tt.expectedBackupScheduleOverride, cluster.ServiceProviderProperties.ExperimentalFeatures.BackupScheduleOverride)
+			}
+		})
+	}
+}
+
+// TestMutateClusterBackupScheduleOverrideUpdate covers the UPDATE path, where the
+// mutator re-derives ExperimentalFeatures from the incoming tag map. Clearing the
+// tag retracts the override, which is how a cluster returns to the deployment-wide
+// backup schedule state.
+func TestMutateClusterBackupScheduleOverrideUpdate(t *testing.T) {
+	afecRegistered := &coreapi.Subscription{
+		Properties: &coreapi.SubscriptionProperties{
+			RegisteredFeatures: &[]coreapi.Feature{
+				{
+					Name:  ptr.To(metadataapi.FeatureExperimentalReleaseFeatures),
+					State: ptr.To("Registered"),
+				},
+			},
+		},
+	}
+
+	for _, tt := range []struct {
+		name     string
+		tags     map[string]string
+		expected coreapi.BackupScheduleState
+	}{
+		{
+			name:     "retained when the tag is still present",
+			tags:     map[string]string{metadataapi.TagClusterBackupScheduleOverride: string(coreapi.BackupScheduleStateEnabled)},
+			expected: coreapi.BackupScheduleStateEnabled,
+		},
+		{
+			name:     "cleared when the tag value is emptied",
+			tags:     map[string]string{metadataapi.TagClusterBackupScheduleOverride: ""},
+			expected: "",
+		},
+		{
+			name:     "cleared when the tag is dropped from the map",
+			tags:     map[string]string{},
+			expected: "",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			oldCluster := &coreapi.Cluster{
+				TrackedResource: coreapi.TrackedResource{
+					Tags: map[string]string{metadataapi.TagClusterBackupScheduleOverride: string(coreapi.BackupScheduleStateEnabled)},
+				},
+			}
+			oldCluster.ServiceProviderProperties.ExperimentalFeatures.BackupScheduleOverride = coreapi.BackupScheduleStateEnabled
+
+			newCluster := &coreapi.Cluster{
+				TrackedResource: coreapi.TrackedResource{
+					Tags: tt.tags,
+				},
+			}
+			newCluster.ServiceProviderProperties.ExperimentalFeatures.BackupScheduleOverride = coreapi.BackupScheduleStateEnabled
+
+			admissionContext := &ClusterAdmissionContext{
+				Clock:           utilsclock.RealClock{},
+				Subscription:    afecRegistered,
+				OriginalCluster: newCluster.DeepCopy(),
+			}
+			errs := MutateCluster(context.Background(), admissionContext, operation.Operation{Type: operation.Update}, newCluster, oldCluster)
+			utils.VerifyErrorsMatch(t, []utils.ExpectedError{}, errs)
+
+			if got := newCluster.ServiceProviderProperties.ExperimentalFeatures.BackupScheduleOverride; got != tt.expected {
+				t.Errorf("expected BackupScheduleOverride %q, got %q", tt.expected, got)
 			}
 		})
 	}
