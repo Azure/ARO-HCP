@@ -362,6 +362,166 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "all StorageVersionMigration resources should reach Succeeded state after KMS key rotation")
 		},
 	)
+
+	It("should repeatedly rotate KMS keys without waiting for on-demand backups to complete",
+		labels.RequireNothing, labels.Low, labels.Positive, labels.DevelopmentOnly, labels.AroRpApiCompatible, labels.Slow,
+		labels.MIContainers(1),
+		func(ctx context.Context) {
+			const (
+				clusterName   = "kms-key-rotate-stress"
+				rotationCount = 4
+			)
+
+			tc := framework.NewTestContext()
+
+			if tc.UsePooledIdentities() {
+				err := tc.AssignIdentityContainers(ctx, 1, framework.IdentityContainerAssignmentRetryInterval)
+				Expect(err).NotTo(HaveOccurred(), "failed to assign pooled identity containers")
+			}
+
+			By("creating a resource group")
+			resourceGroup, err := tc.NewResourceGroup(ctx, "kms-key-rotate-stress", tc.Location())
+			Expect(err).NotTo(HaveOccurred(), "failed to create resource group for KMS key rotation stress test")
+
+			By("creating cluster parameters with version 4.22")
+			clusterParams := framework.NewDefaultClusterParams20260901()
+			clusterParams.ClusterName = clusterName
+			clusterParams.OpenshiftVersionId = "4.22"
+			clusterParams.ManagedResourceGroupName = framework.SuffixName(*resourceGroup.Name, "-managed", 64)
+
+			By("creating customer resources")
+			clusterParams, err = tc.CreateClusterCustomerResources20260901(ctx,
+				resourceGroup,
+				clusterParams,
+				map[string]interface{}{
+					"assignKeyVaultCryptoOfficer": true,
+				},
+				TestArtifactsFS,
+				framework.RBACScopeResourceGroup,
+			)
+			Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for KMS key rotation stress cluster")
+
+			By("creating the HCP cluster")
+			err = tc.CreateHCPClusterFromParam20260901(
+				ctx,
+				GinkgoLogr,
+				*resourceGroup.Name,
+				clusterParams,
+				nil, // imageDigestMirrors
+				framework.ClusterCreationTimeout,
+			)
+			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster for KMS key rotation stress test")
+
+			By("getting admin REST config")
+			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20260901(
+				ctx,
+				tc.Get20260901ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
+				*resourceGroup.Name,
+				clusterName,
+				framework.GetAdminRESTConfigTimeout,
+			)
+			Expect(err).NotTo(HaveOccurred(), "failed to get admin REST config for KMS key rotation stress cluster")
+
+			By("verifying the cluster is viable")
+			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig)
+			Expect(err).NotTo(HaveOccurred(), "failed to verify KMS key rotation stress cluster viability")
+
+			hcpResourceID := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/%s",
+				metadataapi.Must(tc.SubscriptionID(ctx)), *resourceGroup.Name, clusterName)
+
+			By("creating an admin API HTTP client")
+			httpClient, adminAPIAddress, err := tc.NewAdminAPIHTTPClient(ctx)
+			Expect(err).NotTo(HaveOccurred(), "failed to create admin API HTTP client")
+
+			By("waiting for backup schedules to be created")
+			Eventually(func() (bool, error) {
+				resp, err := getBackupScheduleViaAdminAPI(ctx, httpClient, adminAPIAddress, hcpResourceID)
+				if err != nil {
+					return false, err
+				}
+				return len(resp.Schedules) > 0, nil
+			}, framework.BackupWaitTimeout, framework.BackupWaitInterval).Should(BeTrue(),
+				"backup schedules should be created for the KMS key rotation stress cluster")
+
+			By("creating a Key Vault client")
+			keyVaultURL := fmt.Sprintf("https://%s.vault.azure.net/", clusterParams.KeyVaultName)
+			cred, err := tc.AzureCredential()
+			Expect(err).NotTo(HaveOccurred(), "failed to get Azure credential")
+
+			keyClient, err := azkeys.NewClient(keyVaultURL, cred, nil)
+			Expect(err).NotTo(HaveOccurred(), "failed to create Key Vault client")
+
+			hcpClient := tc.Get20260901ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
+			previousKeyVersion := clusterParams.EtcdEncryptionKeyVersion
+
+			for rotation := 1; rotation <= rotationCount; rotation++ {
+				By(fmt.Sprintf("creating key version for rotation %d", rotation))
+				createKeyResp, err := keyClient.CreateKey(ctx, clusterParams.EtcdEncryptionKeyName, azkeys.CreateKeyParameters{
+					Kty:     to.Ptr(azkeys.KeyTypeRSA),
+					KeySize: to.Ptr(int32(2048)),
+				}, nil)
+				Expect(err).NotTo(HaveOccurred(), "failed to create key version for rotation %d", rotation)
+				Expect(createKeyResp.Key).NotTo(BeNil(), "created key response was nil for rotation %d", rotation)
+				Expect(createKeyResp.Key.KID).NotTo(BeNil(), "created key ID was nil for rotation %d", rotation)
+
+				keyVersion := createKeyResp.Key.KID.Version()
+				Expect(keyVersion).NotTo(BeEmpty(), "created key version was empty for rotation %d", rotation)
+
+				By(fmt.Sprintf("updating the cluster with key version from rotation %d", rotation))
+				updateResult, err := framework.UpdateHCPCluster20260901(
+					ctx,
+					hcpClient,
+					*resourceGroup.Name,
+					clusterName,
+					hcpsdk20260901preview.HcpOpenShiftClusterUpdate{
+						Properties: &hcpsdk20260901preview.HcpOpenShiftClusterPropertiesUpdate{
+							Etcd: &hcpsdk20260901preview.EtcdProfileUpdate{
+								DataEncryption: &hcpsdk20260901preview.EtcdDataEncryptionProfileUpdate{
+									CustomerManaged: &hcpsdk20260901preview.CustomerManagedEncryptionProfileUpdate{
+										Kms: &hcpsdk20260901preview.KmsEncryptionProfileUpdate{
+											ActiveKey: &hcpsdk20260901preview.KmsKeyUpdate{
+												Version: to.Ptr(keyVersion),
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					HCPClusterReencryptionUpgradeTimeout,
+				)
+				Expect(err).NotTo(HaveOccurred(), "failed to update cluster with key version from rotation %d", rotation)
+				Expect(updateResult.Properties).NotTo(BeNil(), "update result Properties was nil for rotation %d", rotation)
+				Expect(updateResult.Properties.ProvisioningState).NotTo(BeNil(), "update result ProvisioningState was nil for rotation %d", rotation)
+
+				By(fmt.Sprintf("verifying StorageVersionMigration succeeded for rotation %d", rotation))
+				err = verifiers.VerifyStorageVersionMigrationSucceeded().Verify(ctx, adminRESTConfig)
+				Expect(err).NotTo(HaveOccurred(), "StorageVersionMigration did not succeed for rotation %d", rotation)
+
+				// Deliberately wait only for backup creation to exercise cleanup while
+				// snapshot and data-mover work from recent rotations may still be active.
+				fingerprint := backup.AzureKMSKeyFingerprint(clusterParams.KeyVaultName, clusterParams.EtcdEncryptionKeyName, keyVersion)
+				verifyOnDemandBackupForFingerprint(ctx, httpClient, adminAPIAddress, hcpResourceID, fingerprint, fmt.Sprintf("%d", rotation))
+
+				By(fmt.Sprintf("disabling the prior key version after rotation %d", rotation))
+				updateKeyResp, err := keyClient.UpdateKey(ctx, clusterParams.EtcdEncryptionKeyName, previousKeyVersion, azkeys.UpdateKeyParameters{
+					KeyAttributes: &azkeys.KeyAttributes{
+						Enabled: to.Ptr(false),
+					},
+				}, nil)
+				Expect(err).NotTo(HaveOccurred(), "failed to disable prior key version after rotation %d", rotation)
+				Expect(updateKeyResp.Attributes).NotTo(BeNil(), "update key response attributes were nil for rotation %d", rotation)
+				Expect(updateKeyResp.Attributes.Enabled).NotTo(BeNil(), "update key response enabled attribute was nil for rotation %d", rotation)
+				Expect(*updateKeyResp.Attributes.Enabled).To(BeFalse(), "prior key version should be disabled after rotation %d", rotation)
+
+				previousKeyVersion = keyVersion
+			}
+
+			By("verifying the cluster remains viable after repeated KMS rotations")
+			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig, verifiers.VerifyStorageVersionMigrationSucceeded())
+			Expect(err).NotTo(HaveOccurred(), "failed to verify cluster viability after repeated KMS rotations")
+		},
+	)
 })
 
 // verifyOnDemandBackupForFingerprint waits for an on-demand backup carrying the
