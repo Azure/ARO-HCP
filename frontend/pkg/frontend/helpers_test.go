@@ -206,4 +206,102 @@ func TestCheckForProvisioningStateConflict(t *testing.T) {
 			}
 		}
 	}
+
+	// Test that creating a nested resource is blocked when the parent
+	// cluster is in Accepted state with no ClusterServiceID (initial
+	// create), but allowed when ClusterServiceID is set (update).
+	nestedCreateTests := []struct {
+		name       string
+		resourceID string
+	}{
+		{"node pool", coreapitesting.TestNodePoolResourceID},
+		{"external auth", coreapitesting.TestExternalAuthResourceID},
+	}
+	for _, nc := range nestedCreateTests {
+		resourceID, err := azcorearm.ParseResourceID(nc.resourceID)
+		require.NoError(t, err)
+		parentResourceID := resourceID.Parent
+
+		t.Run(fmt.Sprintf("Create %s while parent is Accepted with nil ClusterServiceID", nc.name), func(t *testing.T) {
+			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+			mockDB := corecosmosstoragetesting.NewMockResourcesDBClient()
+
+			parentCluster := &coreapi.HCPOpenShiftCluster{
+				CosmosMetadata: coreapi.CosmosMetadata{
+					ResourceID:   parentResourceID,
+					PartitionKey: strings.ToLower(parentResourceID.SubscriptionID),
+				},
+				TrackedResource: coreapi.TrackedResource{
+					Resource: coreapi.Resource{
+						ID: parentResourceID,
+					},
+				},
+				ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+					ProvisioningState: coreapi.ProvisioningStateAccepted,
+					ClusterServiceID:  nil,
+				},
+			}
+			_, _ = mockDB.HCPClusters(parentResourceID.SubscriptionID, parentResourceID.ResourceGroupName).Create(ctx, parentCluster, nil)
+
+			cloudError := checkForProvisioningStateConflict(ctx, mockDB, cosmosstorageutils.OperationRequestCreate, resourceID, coreapi.ProvisioningStateSucceeded)
+
+			require.NotNil(t, cloudError)
+			require.Equal(t, http.StatusConflict, cloudError.(*coreapi.CloudError).StatusCode)
+		})
+
+		t.Run(fmt.Sprintf("Create %s while parent is Accepted with empty ClusterServiceID", nc.name), func(t *testing.T) {
+			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+			mockDB := corecosmosstoragetesting.NewMockResourcesDBClient()
+
+			emptyID := metadataapi.InternalID{}
+			parentCluster := &coreapi.HCPOpenShiftCluster{
+				CosmosMetadata: coreapi.CosmosMetadata{
+					ResourceID:   parentResourceID,
+					PartitionKey: strings.ToLower(parentResourceID.SubscriptionID),
+				},
+				TrackedResource: coreapi.TrackedResource{
+					Resource: coreapi.Resource{
+						ID: parentResourceID,
+					},
+				},
+				ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+					ProvisioningState: coreapi.ProvisioningStateAccepted,
+					ClusterServiceID:  &emptyID,
+				},
+			}
+			_, _ = mockDB.HCPClusters(parentResourceID.SubscriptionID, parentResourceID.ResourceGroupName).Create(ctx, parentCluster, nil)
+
+			cloudError := checkForProvisioningStateConflict(ctx, mockDB, cosmosstorageutils.OperationRequestCreate, resourceID, coreapi.ProvisioningStateSucceeded)
+
+			require.NotNil(t, cloudError)
+			require.Equal(t, http.StatusConflict, cloudError.(*coreapi.CloudError).StatusCode)
+		})
+
+		t.Run(fmt.Sprintf("Create %s while parent is Accepted with ClusterServiceID", nc.name), func(t *testing.T) {
+			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+			mockDB := corecosmosstoragetesting.NewMockResourcesDBClient()
+
+			clusterInternalID := metadataapi.Must(metadataapi.NewInternalID(ocm.GenerateOCMCommercialClusterHREF("testCluster")))
+			parentCluster := &coreapi.HCPOpenShiftCluster{
+				CosmosMetadata: coreapi.CosmosMetadata{
+					ResourceID:   parentResourceID,
+					PartitionKey: strings.ToLower(parentResourceID.SubscriptionID),
+				},
+				TrackedResource: coreapi.TrackedResource{
+					Resource: coreapi.Resource{
+						ID: parentResourceID,
+					},
+				},
+				ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+					ProvisioningState: coreapi.ProvisioningStateAccepted,
+					ClusterServiceID:  &clusterInternalID,
+				},
+			}
+			_, _ = mockDB.HCPClusters(parentResourceID.SubscriptionID, parentResourceID.ResourceGroupName).Create(ctx, parentCluster, nil)
+
+			cloudError := checkForProvisioningStateConflict(ctx, mockDB, cosmosstorageutils.OperationRequestCreate, resourceID, coreapi.ProvisioningStateSucceeded)
+
+			require.Nil(t, cloudError)
+		})
+	}
 }
