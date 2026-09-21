@@ -287,10 +287,11 @@ type ServiceProviderClusterStatus struct {
 	// Written by: FetchDataPlaneOperatorsManagedIdentitiesInfoController
 	DataPlaneOperatorsManagedIdentities ServiceProviderClusterDataPlaneOperatorsManagedIdentities `json:"dataPlaneOperatorsManagedIdentities,omitempty"`
 
-	// KeyRotationBackupFingerprint identifies the latest successful on-demand
-	// key-rotation backup and prevents duplicate backups for the active key.
-	// It is persisted before the corresponding ApplyDesire is deleted so a crash
-	// cannot lose the record. Empty means no backup has completed.
+	// KeyRotationBackupFingerprint identifies the active-key fingerprint of the
+	// most recent KMS rotation whose on-demand backup outcome (completed or
+	// skipped because backups were paused) has been durably recorded, so it's
+	// never acted on again. Only a later rotation with a new fingerprint is
+	// eligible for a new backup. Empty means no rotation has been handled yet.
 	// Written by: KeyRotationBackup
 	KeyRotationBackupFingerprint string `json:"keyRotationBackupFingerprint,omitempty"`
 }
