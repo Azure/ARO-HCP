@@ -42,7 +42,7 @@ func TestGatherIndependentFailures(t *testing.T) {
 	for _, failure := range []string{
 		"", "alerts:svc", "alerts:hcp", "metricRules:svc", "rules:hcp", "rules:svc",
 		"endpoint:hcp", "endpoint:svc", "query:svc", "metrics", "render:First",
-		"render:alerts", "render:utilization", "write:alerts.json", "write:utilization.json",
+		"render:alerts", "render:utilization", "render:history", "write:alerts.json", "write:utilization.json",
 		"write:junit", "write:page", "setup:cosmos", "setup:known", "setup:queries",
 		"amw", "render:amw", "write:amw.json",
 	} {
@@ -130,6 +130,9 @@ func TestGatherIndependentFailures(t *testing.T) {
 				renderUtilization: func(utilizationReport) ([]byte, error) {
 					return []byte("utilization partial"), call("render:utilization")
 				},
+				renderResourceHistory: func(utilizationReport) ([]byte, error) {
+					return []byte("history partial"), call("render:history")
+				},
 				writeFile: func(path string, data []byte, _ os.FileMode) error {
 					if !json.Valid(data) {
 						t.Errorf("invalid JSON artifact %s", path)
@@ -153,7 +156,7 @@ func TestGatherIndependentFailures(t *testing.T) {
 			if fatal && !errors.Is(err, injected) {
 				t.Errorf("fatal aggregate lost injected error: %v", err)
 			}
-			for _, name := range []string{"alerts:svc", "alerts:hcp", "metricRules:svc", "metricRules:hcp", "rules:svc", "rules:hcp", "endpoint:svc", "endpoint:hcp", "render:alerts", "write:alerts.json", "write:junit", "utilization", "render:utilization", "write:utilization.json", "amw", "render:amw", "write:amw.json", "write:page"} {
+			for _, name := range []string{"alerts:svc", "alerts:hcp", "metricRules:svc", "metricRules:hcp", "rules:svc", "rules:hcp", "endpoint:svc", "endpoint:hcp", "render:alerts", "write:alerts.json", "write:junit", "utilization", "render:utilization", "render:history", "write:utilization.json", "amw", "render:amw", "write:amw.json", "write:page"} {
 				if calls[name] != 1 {
 					t.Errorf("independent operation %s attempted %d times, want 1", name, calls[name])
 				}
@@ -175,9 +178,9 @@ func TestGatherIndependentFailures(t *testing.T) {
 					t.Errorf("unescaped error in %s tab", tab.Title)
 				}
 			}
-			wantTitles := []string{"Azure Monitor Alerts", "AMW", "First", "Second", "Utilization"}
+			wantTitles := []string{"Azure Monitor Alerts", "AMW", "First", "Second", "Utilization", "Resource History"}
 			if failure == "setup:queries" {
-				wantTitles = []string{"Azure Monitor Alerts", "AMW", "Metrics", "Utilization"}
+				wantTitles = []string{"Azure Monitor Alerts", "AMW", "Metrics", "Utilization", "Resource History"}
 			}
 			if !reflect.DeepEqual(titles, wantTitles) {
 				t.Errorf("tab order = %v, want %v", titles, wantTitles)

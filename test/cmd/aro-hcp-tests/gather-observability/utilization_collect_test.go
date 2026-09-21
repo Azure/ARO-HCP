@@ -596,8 +596,8 @@ func TestUtilizationHTTPIntegrationAndUnavailableWorkspace(t *testing.T) {
 	if !strings.Contains(warnings, "403") || !strings.Contains(warnings, "hcp metadata query unavailable") {
 		t.Errorf("query/workspace failures must not discard snapshot: %v", warnings)
 	}
-	if got := requests.Load(); got != 11 {
-		t.Errorf("expected bounded 6 history + 5 svc detail queries, got %d", got)
+	if got := requests.Load(); got != 13 {
+		t.Errorf("expected bounded 6 node history + 2 svc request history + 5 svc detail queries, got %d", got)
 	}
 	report = o.collectUtilization(context.Background(), nil)
 	if len(report.Snapshots) != 0 || !strings.Contains(strings.Join(report.Warnings, ";"), "endpoint unavailable") {
