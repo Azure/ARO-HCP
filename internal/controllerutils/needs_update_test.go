@@ -273,25 +273,77 @@ func TestNeedsUpdate_NestedInternalIDPointer(t *testing.T) {
 	}
 }
 
-func TestNeedsUpdate_RawExtension_KeyOrderInsensitive(t *testing.T) {
-	a := runtime.RawExtension{Raw: []byte(`{"kind":"HostedCluster","apiVersion":"v1"}`)}
-	b := runtime.RawExtension{Raw: []byte(`{"apiVersion":"v1","kind":"HostedCluster"}`)}
-	assert.False(t, NeedsUpdate(a, b), "semantically equal JSON with different key order must not trigger an update")
+func TestNeedsUpdate_RawExtension(t *testing.T) {
+	tests := []struct {
+		name string
+		a    runtime.RawExtension
+		b    runtime.RawExtension
+		want bool
+	}{
+		{
+			name: "same JSON with different key order should not trigger an update",
+			a:    runtime.RawExtension{Raw: []byte(`{"kind":"HostedCluster","apiVersion":"v1"}`)},
+			b:    runtime.RawExtension{Raw: []byte(`{"apiVersion":"v1","kind":"HostedCluster"}`)},
+			want: false,
+		},
+		{
+			name: "raw and Object forms with the same content must be equal",
+			a:    runtime.RawExtension{Raw: marshalJSON(t, someObject())},
+			b:    runtime.RawExtension{Object: &unstructured.Unstructured{Object: someObject()}},
+			want: false,
+		},
+		{
+			name: "large numbers in JSON must be distinguishable, 2^54 = 18014398509481984",
+			a:    runtime.RawExtension{Raw: []byte(`{"n":18014398509481984}`)},
+			b:    runtime.RawExtension{Raw: []byte(`{"n":18014398509481985}`)},
+			want: true,
+		},
+		{
+			name: "numeric formatting differences must not trigger an update",
+			a:    runtime.RawExtension{Raw: []byte(`{"a":3,"b":1e3}`)},
+			b:    runtime.RawExtension{Raw: []byte(`{"a":3.0,"b":1000}`)},
+			want: false,
+		},
+		{
+			name: "large integers survive Raw vs Object comparison",
+			a:    runtime.RawExtension{Raw: []byte(`{"n":18014398509481984}`)},
+			b:    runtime.RawExtension{Object: &unstructured.Unstructured{Object: map[string]any{"n": int64(18014398509481984)}}},
+			want: false,
+		},
+		{
+			name: "trailing garbage after a valid JSON value must trigger an update",
+			a:    runtime.RawExtension{Raw: []byte(`{"n":1} garbage`)},
+			b:    runtime.RawExtension{Raw: []byte(`{"n":1}`)},
+			want: true,
+		},
+		{
+			name: "moderate exponents are still compared by value",
+			a:    runtime.RawExtension{Raw: []byte(`{"n":1e6}`)},
+			b:    runtime.RawExtension{Raw: []byte(`{"n":1000000}`)},
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, NeedsUpdate(tt.a, tt.b))
+		})
+	}
 }
 
-func TestNeedsUpdate_RawExtension_NormalizesRawAndObject(t *testing.T) {
-	hc := map[string]any{
+func someObject() map[string]any {
+	return map[string]any{
 		"apiVersion": "hypershift.openshift.io/v1beta1",
 		"kind":       "HostedCluster",
 		"metadata":   map[string]any{"name": "hc1", "namespace": "ns1"},
+		"spec":       map[string]any{"replicas": int64(3), "port": int64(6443)},
 	}
-	rawBytes, err := json.Marshal(hc)
+}
+
+func marshalJSON(t *testing.T, obj any) []byte {
+	b, err := json.Marshal(obj)
 	require.NoError(t, err)
-
-	rawForm := runtime.RawExtension{Raw: rawBytes}
-	objForm := runtime.RawExtension{Object: &unstructured.Unstructured{Object: hc}}
-
-	assert.False(t, NeedsUpdate(rawForm, objForm), "Raw and Object forms with the same content must be equal")
+	return b
 }
 
 func TestNeedsUpdate_ManagementClusterContent_RoundTripUnchanged(t *testing.T) {

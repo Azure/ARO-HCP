@@ -17,6 +17,8 @@ package controllerutils
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
+	"reflect"
 	"strings"
 
 	"k8s.io/apimachinery/pkg/api/equality"
@@ -88,30 +90,108 @@ var needsUpdateEqualities = func() conversion.Equalities {
 			if bytes.Equal(aBytes, bBytes) {
 				return true
 			}
-			// Normalize both to canonical JSON (sorted keys) so that
-			// key-ordering differences don't produce false positives.
-			var aObj, bObj any
-			if err := json.Unmarshal(aBytes, &aObj); err != nil {
-				return false
-			}
-			if err := json.Unmarshal(bBytes, &bObj); err != nil {
-				return false
-			}
-			aNorm, err := json.Marshal(aObj)
+			// Fall back to a structural comparison so that key-ordering and
+			// numeric-formatting differences (3 vs 3.0, 1e6 vs 1000000) don't
+			// produce false positives, while keeping full integer precision so
+			// that numbers beyond float64's 2^53 range stay distinguishable.
+			aObj, err := decodeJSONPreservingNumbers(aBytes)
 			if err != nil {
 				return false
 			}
-			bNorm, err := json.Marshal(bObj)
+			bObj, err := decodeJSONPreservingNumbers(bBytes)
 			if err != nil {
 				return false
 			}
-			return bytes.Equal(aNorm, bNorm)
+			return jsonValuesEqual(aObj, bObj)
 		},
 	); err != nil {
 		panic(err)
 	}
 	return e
 }()
+
+// decodeJSONPreservingNumbers unmarshals JSON into a generic tree, keeping
+// numbers as json.Number so that large integers retain full precision instead
+// of collapsing onto the nearest float64.
+func decodeJSONPreservingNumbers(data []byte) (any, error) {
+	// json.Decoder.Decode accepts a valid JSON prefix and ignores trailing
+	// tokens, whereas json.Unmarshal validates the whole input. Guard with
+	// json.Valid so that malformed payloads (e.g. `{"n":1} garbage`) are
+	// rejected instead of silently comparing equal and suppressing a write-back.
+	if !json.Valid(data) {
+		return nil, fmt.Errorf("invalid JSON")
+	}
+	d := json.NewDecoder(bytes.NewReader(data))
+	d.UseNumber()
+	var v any
+	if err := d.Decode(&v); err != nil {
+		return nil, err
+	}
+	return v, nil
+}
+
+// jsonValuesEqual compares two decoded JSON trees for semantic equality.
+// Numbers are compared by numeric value (so 3, 3.0 and 3e0 are equal) while
+// integers keep full int64 precision (so 2^54 and 2^54+1 stay distinct);
+// objects are compared irrespective of key order.
+func jsonValuesEqual(a, b any) bool {
+	switch av := a.(type) {
+	case json.Number:
+		bv, ok := b.(json.Number)
+		if !ok {
+			return false
+		}
+		return jsonNumbersEqual(av, bv)
+	case map[string]any:
+		bv, ok := b.(map[string]any)
+		if !ok || len(av) != len(bv) {
+			return false
+		}
+		for k, avVal := range av {
+			bvVal, ok := bv[k]
+			if !ok || !jsonValuesEqual(avVal, bvVal) {
+				return false
+			}
+		}
+		return true
+	case []any:
+		bv, ok := b.([]any)
+		if !ok || len(av) != len(bv) {
+			return false
+		}
+		for i := range av {
+			if !jsonValuesEqual(av[i], bv[i]) {
+				return false
+			}
+		}
+		return true
+	default:
+		// Strings, bools, nil.
+		return reflect.DeepEqual(a, b)
+	}
+}
+
+// jsonNumbersEqual reports whether two JSON number literals represent the same
+// numeric value. When both are integers they are compared as int64 so that
+// values beyond float64's exact 2^53 range stay distinct (e.g. 2^54 vs 2^54+1);
+// otherwise they are compared as float64 so that differently-formatted equal
+// values match (3 == 3.0, 1e6 == 1000000). float64 parsing also neutralises
+// pathological exponents such as 1e1000000000, which overflow to a parse error
+// and fall back to an exact text comparison instead of allocating huge values.
+func jsonNumbersEqual(a, b json.Number) bool {
+	if ai, aerr := a.Int64(); aerr == nil {
+		if bi, berr := b.Int64(); berr == nil {
+			return ai == bi
+		}
+	}
+	af, aerr := a.Float64()
+	bf, berr := b.Float64()
+	if aerr != nil || berr != nil {
+		// Unparseable or out-of-range literal: fall back to exact text.
+		return a.String() == b.String()
+	}
+	return af == bf
+}
 
 // ResourceIDsEqual compares two *azcorearm.ResourceID for equality by their
 // canonical string form. Both may be nil; non-nil values are compared by
