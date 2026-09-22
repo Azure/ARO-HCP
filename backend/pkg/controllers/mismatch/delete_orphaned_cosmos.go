@@ -40,6 +40,18 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+const (
+	// deleteOrphanedCosmosSweepPeriod is how often every subscription is swept
+	// for orphaned documents.
+	deleteOrphanedCosmosSweepPeriod = 60 * time.Minute
+
+	// deleteOrphanedCosmosSweepSpreadPeriod is the window over which one sweep's
+	// subscriptions are enqueued. It is deliberately shorter than the sweep period
+	// so a sweep drains before the next one is kicked, even at the top of the
+	// ticker's jitter range.
+	deleteOrphanedCosmosSweepSpreadPeriod = 48 * time.Minute
+)
+
 type deleteOrphanedCosmosResources struct {
 	name string
 
@@ -295,9 +307,26 @@ func (c *deleteOrphanedCosmosResources) queueAllSubscriptions(ctx context.Contex
 	allSubscriptions, err := c.subscriptionLister.List(ctx)
 	if err != nil {
 		logger.Error(err, "unable to list subscriptions")
+		return
 	}
-	for _, subscription := range allSubscriptions {
-		c.queue.Add(subscription.ResourceID.SubscriptionID)
+	if len(allSubscriptions) == 0 {
+		return
+	}
+
+	// Each subscription costs 1 + N_managementClusters single-partition scans, so
+	// enqueuing every subscription at once drives a RU spike that exceeds the
+	// container's provisioned ceiling and throttles unrelated controllers sharing
+	// the budget. Spread the sweep across deleteOrphanedCosmosSweepSpreadPeriod so
+	// the same work is paced instead of bursted; the sweep still completes within
+	// deleteOrphanedCosmosSweepPeriod.
+	spread := deleteOrphanedCosmosSweepSpreadPeriod / time.Duration(len(allSubscriptions))
+	logger.Info("queueing subscription sweep",
+		"subscriptions", len(allSubscriptions),
+		"spreadPerSubscription", spread,
+		"sweepSpreadPeriod", deleteOrphanedCosmosSweepSpreadPeriod,
+	)
+	for i, subscription := range allSubscriptions {
+		c.queue.AddAfter(subscription.ResourceID.SubscriptionID, time.Duration(i)*spread)
 	}
 }
 
@@ -321,7 +350,12 @@ func (c *deleteOrphanedCosmosResources) Run(ctx context.Context, threadiness int
 		go wait.UntilWithContext(ctx, c.runWorker, time.Second)
 	}
 
-	go wait.JitterUntilWithContext(ctx, c.queueAllSubscriptions, 60*time.Minute, 0.1, true)
+	// immediate=false: every pod restart (rollout, HPA scale, OOMKill) would otherwise
+	// trigger a full sweep at t=0 on every replica simultaneously, which is what turned
+	// a rollout into a Cosmos RU exhaustion event. The trade-off is that the first sweep
+	// after a restart is deferred by one jittered period; that is acceptable for
+	// best-effort garbage collection with no latency SLO.
+	go wait.JitterUntilWithContext(ctx, c.queueAllSubscriptions, deleteOrphanedCosmosSweepPeriod, 0.1, false)
 
 	logger.Info("Started workers")
 
