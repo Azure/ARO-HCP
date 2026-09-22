@@ -25,13 +25,13 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
-	"github.com/Azure/ARO-HCP/internal/azureapi/v20261001preview"
+	v20261001 "github.com/Azure/ARO-HCP/internal/azureapi/v20261001"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 func TestDecodeDesiredClusterReplacePreservesKeyVaultType(t *testing.T) {
 	registry := coreapi.NewAPIRegistry()
-	require.NoError(t, v20261001preview.RegisterVersion(registry))
+	require.NoError(t, v20261001.RegisterVersion(registry))
 	versionName := registry.ListVersions().UnsortedList()[0]
 	version, ok := registry.Lookup(versionName)
 	require.True(t, ok)

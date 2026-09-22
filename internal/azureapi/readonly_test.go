@@ -24,7 +24,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/azureapi/v20251223preview"
 	"github.com/Azure/ARO-HCP/internal/azureapi/v20260630preview"
 	"github.com/Azure/ARO-HCP/internal/azureapi/v20260901preview"
-	"github.com/Azure/ARO-HCP/internal/azureapi/v20261001preview"
+	v20261001 "github.com/Azure/ARO-HCP/internal/azureapi/v20261001"
 )
 
 func TestClearReadOnlyFields(t *testing.T) {
@@ -37,7 +37,7 @@ func TestClearReadOnlyFields(t *testing.T) {
 		"2025-12-23-preview": {(*v20251223preview.HcpOpenShiftCluster)(nil), (*v20251223preview.NodePool)(nil), (*v20251223preview.ExternalAuth)(nil)},
 		"2026-06-30-preview": {(*v20260630preview.HcpOpenShiftCluster)(nil), (*v20260630preview.NodePool)(nil), (*v20260630preview.ExternalAuth)(nil)},
 		"2026-09-01-preview": {(*v20260901preview.HcpOpenShiftCluster)(nil), (*v20260901preview.NodePool)(nil), (*v20260901preview.ExternalAuth)(nil)},
-		"2026-10-01-preview": {(*v20261001preview.HcpOpenShiftCluster)(nil), (*v20261001preview.NodePool)(nil), (*v20261001preview.ExternalAuth)(nil)},
+		"2026-10-01":         {(*v20261001.HcpOpenShiftCluster)(nil), (*v20261001.NodePool)(nil), (*v20261001.ExternalAuth)(nil)},
 	}
 	cases := []struct {
 		name       string
@@ -121,7 +121,7 @@ func TestClearReadOnlyFields(t *testing.T) {
 					properties := cases[i].properties
 					wantProperties := cases[i].want
 					status := `{"conditions":[null,{"message":"discard"}]}`
-					if version == "2026-10-01-preview" && i != 2 {
+					if version == "2026-10-01" && i != 2 {
 						status = `{"conditions":[null,{"message":"discard"}],"activeVersions":[{"version":"4.20"}]}`
 					}
 					if emptyReadOnly {
