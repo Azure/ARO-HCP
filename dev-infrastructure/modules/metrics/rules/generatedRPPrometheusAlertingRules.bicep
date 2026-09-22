@@ -699,6 +699,450 @@ resource arohcpNodepoolSaturationAlerts 'Microsoft.AlertsManagement/prometheusRu
   }
 }
 
+resource arohcpFrontendSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_frontend_slo_error_alerts'
+  location: location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyFrontendErrors1h5m'
+        enabled: true
+        labels: {
+          component: 'slo'
+          long_window: '1h'
+          severity: '3'
+          short_window: '5m'
+          slo: 'frontend-errors'
+        }
+        annotations: {
+          correlationId: 'userJourneyFrontendErrors1h5m/{{ $labels.cluster }}'
+          description: 'Frontend 5xx share on cluster {{ $labels.cluster }} is above 0.72% on both the 1h and 5m windows (14.4x burn of the 99.95% availability / 0.05% error budget). Would exhaust the 30d budget in ~2d (~50h).'
+          info: 'Frontend 5xx share on cluster {{ $labels.cluster }} is above 0.72% on both the 1h and 5m windows (14.4x burn of the 99.95% availability / 0.05% error budget). Would exhaust the 30d budget in ~2d (~50h).'
+          runbook_url: 'https://aka.ms/arohcp-runbook-frontend'
+          summary: '{{ $labels.cluster }}: Frontend HTTP 5xx error rate critically high (>0.72%)'
+          title: '{{ $labels.cluster }}: Frontend HTTP 5xx error rate critically high (>0.72%)'
+        }
+        expression: '((sum by (cluster, region) (rate(frontend_http_requests_total{code=~"5..",route!~".*hcpoperation(results|statuses).*"}[1h] offset 5m)) / sum by (cluster, region) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[1h] offset 5m))) > 0.0072 and on (cluster) (sum by (cluster, region) (rate(frontend_http_requests_total{code=~"5..",route!~".*hcpoperation(results|statuses).*"}[5m] offset 5m)) / sum by (cluster, region) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[5m] offset 5m))) > 0.0072)'
+        for: 'PT2M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyFrontendErrors6h30m'
+        enabled: true
+        labels: {
+          component: 'slo'
+          long_window: '6h'
+          severity: '3'
+          short_window: '30m'
+          slo: 'frontend-errors'
+        }
+        annotations: {
+          correlationId: 'userJourneyFrontendErrors6h30m/{{ $labels.cluster }}'
+          description: 'Frontend 5xx share on cluster {{ $labels.cluster }} is above 0.30% on both the 6h and 30m windows (6x burn of the 0.05% error budget).'
+          info: 'Frontend 5xx share on cluster {{ $labels.cluster }} is above 0.30% on both the 6h and 30m windows (6x burn of the 0.05% error budget).'
+          runbook_url: 'https://aka.ms/arohcp-runbook-frontend'
+          summary: '{{ $labels.cluster }}: Frontend HTTP 5xx error rate elevated (>0.30%)'
+          title: '{{ $labels.cluster }}: Frontend HTTP 5xx error rate elevated (>0.30%)'
+        }
+        expression: '((sum by (cluster, region) (rate(frontend_http_requests_total{code=~"5..",route!~".*hcpoperation(results|statuses).*"}[6h] offset 5m)) / sum by (cluster, region) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[6h] offset 5m))) > 0.003 and on (cluster) (sum by (cluster, region) (rate(frontend_http_requests_total{code=~"5..",route!~".*hcpoperation(results|statuses).*"}[30m] offset 5m)) / sum by (cluster, region) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[30m] offset 5m))) > 0.003)'
+        for: 'PT15M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyFrontendErrors3d6h'
+        enabled: true
+        labels: {
+          component: 'slo'
+          long_window: '3d'
+          severity: '4'
+          short_window: '6h'
+          slo: 'frontend-errors'
+        }
+        annotations: {
+          correlationId: 'userJourneyFrontendErrors3d6h/{{ $labels.cluster }}'
+          description: 'Frontend 5xx share on cluster {{ $labels.cluster }} is above the 0.05% SLO boundary on both the 3d and 6h windows (1x burn).'
+          info: 'Frontend 5xx share on cluster {{ $labels.cluster }} is above the 0.05% SLO boundary on both the 3d and 6h windows (1x burn).'
+          runbook_url: 'https://aka.ms/arohcp-runbook-frontend'
+          summary: '{{ $labels.cluster }}: Frontend HTTP 5xx error rate exceeds SLO (>0.05%)'
+          title: '{{ $labels.cluster }}: Frontend HTTP 5xx error rate exceeds SLO (>0.05%)'
+        }
+        expression: '((sum by (cluster, region) (rate(frontend_http_requests_total{code=~"5..",route!~".*hcpoperation(results|statuses).*"}[3d] offset 5m)) / sum by (cluster, region) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[3d] offset 5m))) > 0.0005 and on (cluster) (sum by (cluster, region) (rate(frontend_http_requests_total{code=~"5..",route!~".*hcpoperation(results|statuses).*"}[6h] offset 5m)) / sum by (cluster, region) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[6h] offset 5m))) > 0.0005)'
+        for: 'PT1H'
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
+
+resource arohcpFrontendSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_frontend_slo_availability_alerts'
+  location: location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyFrontendAvailability1h5m'
+        enabled: true
+        labels: {
+          component: 'slo'
+          long_window: '1h'
+          severity: '4'
+          short_window: '5m'
+          slo: 'frontend-availability'
+        }
+        annotations: {
+          correlationId: 'userJourneyFrontendAvailability1h5m/{{ $labels.cluster }}'
+          description: 'Frontend availability on cluster {{ $labels.cluster }} is below 99.28% on both the 1h and 5m windows (14.4x burn of the 99.95% SLO / 0.05% error budget). Sev4 ticket - Errors family pages on the complementary 5xx burn.'
+          info: 'Frontend availability on cluster {{ $labels.cluster }} is below 99.28% on both the 1h and 5m windows (14.4x burn of the 99.95% SLO / 0.05% error budget). Sev4 ticket - Errors family pages on the complementary 5xx burn.'
+          runbook_url: 'https://aka.ms/arohcp-runbook-frontend'
+          summary: '{{ $labels.cluster }}: Frontend HTTP availability critically low (<99.28%)'
+          title: '{{ $labels.cluster }}: Frontend HTTP availability critically low (<99.28%)'
+        }
+        expression: '(((sum by (cluster, region) (rate(frontend_http_requests_total{code!~"5..",route!~".*hcpoperation(results|statuses).*"}[1h] offset 5m)) or 0 * sum by (cluster, region) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[1h] offset 5m))) / sum by (cluster, region) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[1h] offset 5m))) < 0.9928 and on (cluster) ((sum by (cluster, region) (rate(frontend_http_requests_total{code!~"5..",route!~".*hcpoperation(results|statuses).*"}[5m] offset 5m)) or 0 * sum by (cluster, region) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[5m] offset 5m))) / sum by (cluster, region) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[5m] offset 5m))) < 0.9928)'
+        for: 'PT2M'
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyFrontendAvailability6h30m'
+        enabled: true
+        labels: {
+          component: 'slo'
+          long_window: '6h'
+          severity: '4'
+          short_window: '30m'
+          slo: 'frontend-availability'
+        }
+        annotations: {
+          correlationId: 'userJourneyFrontendAvailability6h30m/{{ $labels.cluster }}'
+          description: 'Frontend availability on cluster {{ $labels.cluster }} is below 99.70% on both the 6h and 30m windows (6x burn). Sev4 ticket - Errors family pages on the complementary 5xx burn.'
+          info: 'Frontend availability on cluster {{ $labels.cluster }} is below 99.70% on both the 6h and 30m windows (6x burn). Sev4 ticket - Errors family pages on the complementary 5xx burn.'
+          runbook_url: 'https://aka.ms/arohcp-runbook-frontend'
+          summary: '{{ $labels.cluster }}: Frontend HTTP availability degraded (<99.70%)'
+          title: '{{ $labels.cluster }}: Frontend HTTP availability degraded (<99.70%)'
+        }
+        expression: '(((sum by (cluster, region) (rate(frontend_http_requests_total{code!~"5..",route!~".*hcpoperation(results|statuses).*"}[6h] offset 5m)) or 0 * sum by (cluster, region) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[6h] offset 5m))) / sum by (cluster, region) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[6h] offset 5m))) < 0.997 and on (cluster) ((sum by (cluster, region) (rate(frontend_http_requests_total{code!~"5..",route!~".*hcpoperation(results|statuses).*"}[30m] offset 5m)) or 0 * sum by (cluster, region) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[30m] offset 5m))) / sum by (cluster, region) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[30m] offset 5m))) < 0.997)'
+        for: 'PT15M'
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyFrontendAvailability3d6h'
+        enabled: true
+        labels: {
+          component: 'slo'
+          long_window: '3d'
+          severity: '4'
+          short_window: '6h'
+          slo: 'frontend-availability'
+        }
+        annotations: {
+          correlationId: 'userJourneyFrontendAvailability3d6h/{{ $labels.cluster }}'
+          description: 'Frontend availability on cluster {{ $labels.cluster }} is below the 99.95% SLO on both the 3d and 6h windows (1x burn).'
+          info: 'Frontend availability on cluster {{ $labels.cluster }} is below the 99.95% SLO on both the 3d and 6h windows (1x burn).'
+          runbook_url: 'https://aka.ms/arohcp-runbook-frontend'
+          summary: '{{ $labels.cluster }}: Frontend HTTP availability below SLO (<99.95%)'
+          title: '{{ $labels.cluster }}: Frontend HTTP availability below SLO (<99.95%)'
+        }
+        expression: '(((sum by (cluster, region) (rate(frontend_http_requests_total{code!~"5..",route!~".*hcpoperation(results|statuses).*"}[3d] offset 5m)) or 0 * sum by (cluster, region) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[3d] offset 5m))) / sum by (cluster, region) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[3d] offset 5m))) < 0.9995 and on (cluster) ((sum by (cluster, region) (rate(frontend_http_requests_total{code!~"5..",route!~".*hcpoperation(results|statuses).*"}[6h] offset 5m)) or 0 * sum by (cluster, region) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[6h] offset 5m))) / sum by (cluster, region) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[6h] offset 5m))) < 0.9995)'
+        for: 'PT1H'
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
+
+resource arohcpFrontendSloLatencyAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_frontend_slo_latency_alerts'
+  location: location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyFrontendLatency1h5m'
+        enabled: true
+        labels: {
+          component: 'slo'
+          long_window: '1h'
+          severity: '3'
+          short_window: '5m'
+          slo: 'frontend-latency'
+        }
+        annotations: {
+          correlationId: 'userJourneyFrontendLatency1h5m/{{ $labels.cluster }}'
+          description: 'More than 14.4% of Frontend requests on cluster {{ $labels.cluster }} exceeded 1s on both the 1h and 5m windows (14.4x burn of the 1% latency budget).'
+          info: 'More than 14.4% of Frontend requests on cluster {{ $labels.cluster }} exceeded 1s on both the 1h and 5m windows (14.4x burn of the 1% latency budget).'
+          runbook_url: 'https://aka.ms/arohcp-runbook-frontend'
+          summary: '{{ $labels.cluster }}: Frontend HTTP latency budget burning critically fast (>14.4% over 1s)'
+          title: '{{ $labels.cluster }}: Frontend HTTP latency budget burning critically fast (>14.4% over 1s)'
+        }
+        expression: '(((sum by (cluster, region) (rate(frontend_http_requests_duration_seconds_bucket{le="+Inf",route!~".*hcpoperation(results|statuses).*"}[1h] offset 5m)) - sum by (cluster, region) (rate(frontend_http_requests_duration_seconds_bucket{le=~"^1([.]0)?$",route!~".*hcpoperation(results|statuses).*"}[1h] offset 5m))) / sum by (cluster, region) (rate(frontend_http_requests_duration_seconds_bucket{le="+Inf",route!~".*hcpoperation(results|statuses).*"}[1h] offset 5m))) > 0.144 and on (cluster) ((sum by (cluster, region) (rate(frontend_http_requests_duration_seconds_bucket{le="+Inf",route!~".*hcpoperation(results|statuses).*"}[5m] offset 5m)) - sum by (cluster, region) (rate(frontend_http_requests_duration_seconds_bucket{le=~"^1([.]0)?$",route!~".*hcpoperation(results|statuses).*"}[5m] offset 5m))) / sum by (cluster, region) (rate(frontend_http_requests_duration_seconds_bucket{le="+Inf",route!~".*hcpoperation(results|statuses).*"}[5m] offset 5m))) > 0.144)'
+        for: 'PT2M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyFrontendLatency6h30m'
+        enabled: true
+        labels: {
+          component: 'slo'
+          long_window: '6h'
+          severity: '3'
+          short_window: '30m'
+          slo: 'frontend-latency'
+        }
+        annotations: {
+          correlationId: 'userJourneyFrontendLatency6h30m/{{ $labels.cluster }}'
+          description: 'More than 6% of Frontend requests on cluster {{ $labels.cluster }} exceeded 1s on both the 6h and 30m windows (6x burn of the 1% latency budget).'
+          info: 'More than 6% of Frontend requests on cluster {{ $labels.cluster }} exceeded 1s on both the 6h and 30m windows (6x burn of the 1% latency budget).'
+          runbook_url: 'https://aka.ms/arohcp-runbook-frontend'
+          summary: '{{ $labels.cluster }}: Frontend HTTP latency budget burning fast (>6% over 1s)'
+          title: '{{ $labels.cluster }}: Frontend HTTP latency budget burning fast (>6% over 1s)'
+        }
+        expression: '(((sum by (cluster, region) (rate(frontend_http_requests_duration_seconds_bucket{le="+Inf",route!~".*hcpoperation(results|statuses).*"}[6h] offset 5m)) - sum by (cluster, region) (rate(frontend_http_requests_duration_seconds_bucket{le=~"^1([.]0)?$",route!~".*hcpoperation(results|statuses).*"}[6h] offset 5m))) / sum by (cluster, region) (rate(frontend_http_requests_duration_seconds_bucket{le="+Inf",route!~".*hcpoperation(results|statuses).*"}[6h] offset 5m))) > 0.06 and on (cluster) ((sum by (cluster, region) (rate(frontend_http_requests_duration_seconds_bucket{le="+Inf",route!~".*hcpoperation(results|statuses).*"}[30m] offset 5m)) - sum by (cluster, region) (rate(frontend_http_requests_duration_seconds_bucket{le=~"^1([.]0)?$",route!~".*hcpoperation(results|statuses).*"}[30m] offset 5m))) / sum by (cluster, region) (rate(frontend_http_requests_duration_seconds_bucket{le="+Inf",route!~".*hcpoperation(results|statuses).*"}[30m] offset 5m))) > 0.06)'
+        for: 'PT15M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyFrontendLatency3d6h'
+        enabled: true
+        labels: {
+          component: 'slo'
+          long_window: '3d'
+          severity: '4'
+          short_window: '6h'
+          slo: 'frontend-latency'
+        }
+        annotations: {
+          correlationId: 'userJourneyFrontendLatency3d6h/{{ $labels.cluster }}'
+          description: 'More than 1% of Frontend requests on cluster {{ $labels.cluster }} exceeded 1s on both the 3d and 6h windows (1x burn of the latency budget).'
+          info: 'More than 1% of Frontend requests on cluster {{ $labels.cluster }} exceeded 1s on both the 3d and 6h windows (1x burn of the latency budget).'
+          runbook_url: 'https://aka.ms/arohcp-runbook-frontend'
+          summary: '{{ $labels.cluster }}: Frontend HTTP latency exceeds its SLO budget (>1% over 1s)'
+          title: '{{ $labels.cluster }}: Frontend HTTP latency exceeds its SLO budget (>1% over 1s)'
+        }
+        expression: '(((sum by (cluster, region) (rate(frontend_http_requests_duration_seconds_bucket{le="+Inf",route!~".*hcpoperation(results|statuses).*"}[3d] offset 5m)) - sum by (cluster, region) (rate(frontend_http_requests_duration_seconds_bucket{le=~"^1([.]0)?$",route!~".*hcpoperation(results|statuses).*"}[3d] offset 5m))) / sum by (cluster, region) (rate(frontend_http_requests_duration_seconds_bucket{le="+Inf",route!~".*hcpoperation(results|statuses).*"}[3d] offset 5m))) > 0.01 and on (cluster) ((sum by (cluster, region) (rate(frontend_http_requests_duration_seconds_bucket{le="+Inf",route!~".*hcpoperation(results|statuses).*"}[6h] offset 5m)) - sum by (cluster, region) (rate(frontend_http_requests_duration_seconds_bucket{le=~"^1([.]0)?$",route!~".*hcpoperation(results|statuses).*"}[6h] offset 5m))) / sum by (cluster, region) (rate(frontend_http_requests_duration_seconds_bucket{le="+Inf",route!~".*hcpoperation(results|statuses).*"}[6h] offset 5m))) > 0.01)'
+        for: 'PT1H'
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
+
+resource arohcpFrontendSloReadyAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_frontend_slo_ready_alerts'
+  location: location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyFrontendReady'
+        enabled: true
+        labels: {
+          component: 'slo'
+          severity: '3'
+          slo: 'frontend-ready'
+        }
+        annotations: {
+          correlationId: 'userJourneyFrontendReady/{{ $labels.cluster }}'
+          description: 'aro-hcp-frontend on cluster {{ $labels.cluster }} has 0 available replicas (kube readiness probes hit /healthz). This is a process outage, not an ARM traffic drought.'
+          info: 'aro-hcp-frontend on cluster {{ $labels.cluster }} has 0 available replicas (kube readiness probes hit /healthz). This is a process outage, not an ARM traffic drought.'
+          runbook_url: 'https://aka.ms/arohcp-runbook-frontend'
+          summary: '{{ $labels.cluster }}: Frontend has no Ready replicas (kube /healthz)'
+          title: '{{ $labels.cluster }}: Frontend has no Ready replicas (kube /healthz)'
+        }
+        expression: 'sli:frontend:ready:ratio5m == 0'
+        for: 'PT5M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
+
+resource arohcpFrontendSloTrafficAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_frontend_slo_traffic_alerts'
+  location: location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyFrontendTrafficDrop'
+        enabled: true
+        labels: {
+          component: 'slo'
+          severity: '4'
+          slo: 'frontend-traffic'
+        }
+        annotations: {
+          correlationId: 'userJourneyFrontendTrafficDrop/{{ $labels.cluster }}'
+          description: 'Frontend request rate on cluster {{ $labels.cluster }} is below 10% of its 1-day average for 15m while the 1d baseline exceeded 0.5 RPS (fleet-wide noise floor) and pods are still Ready (traffic drought, not a replica outage).'
+          info: 'Frontend request rate on cluster {{ $labels.cluster }} is below 10% of its 1-day average for 15m while the 1d baseline exceeded 0.5 RPS (fleet-wide noise floor) and pods are still Ready (traffic drought, not a replica outage).'
+          runbook_url: 'https://aka.ms/arohcp-runbook-frontend'
+          summary: '{{ $labels.cluster }}: Frontend HTTP traffic collapsed below 10% of 1d baseline'
+          title: '{{ $labels.cluster }}: Frontend HTTP traffic collapsed below 10% of 1d baseline'
+        }
+        expression: '(avg_over_time(traffic:frontend_http:request_rate:rate5m[15m]) < 0.1 * avg_over_time(traffic:frontend_http:request_rate:rate5m[1d])) and avg_over_time(traffic:frontend_http:request_rate:rate5m[1d]) > 0.5 and sli:frontend:ready:ratio5m > 0'
+        for: 'PT15M'
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
+
+resource arohcpFrontendSloSaturationAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_frontend_slo_saturation_alerts'
+  location: location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyFrontendSaturationMemory'
+        enabled: true
+        labels: {
+          component: 'slo'
+          severity: '4'
+          slo: 'frontend-saturation'
+        }
+        annotations: {
+          correlationId: 'userJourneyFrontendSaturationMemory/{{ $labels.cluster }}'
+          description: 'Frontend container memory (working set/limit) on cluster {{ $labels.cluster }} is above 85% for 15m.'
+          info: 'Frontend container memory (working set/limit) on cluster {{ $labels.cluster }} is above 85% for 15m.'
+          runbook_url: 'https://aka.ms/arohcp-runbook-frontend'
+          summary: '{{ $labels.cluster }}: Frontend pod memory above 85% of limit for 15+ minutes'
+          title: '{{ $labels.cluster }}: Frontend pod memory above 85% of limit for 15+ minutes'
+        }
+        expression: 'sli:frontend:saturation_memory:ratio5m > 0.85'
+        for: 'PT15M'
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
+
 resource arohcpClusterDeletionSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'arohcp_cluster_deletion_slo_error_alerts'
   location: location
