@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package actualhostedcluster
+package hostedcluster
 
 import (
 	"context"
@@ -36,11 +36,13 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/kubeapplierlistertesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
+	"github.com/Azure/ARO-HCP/internal/utils/apihelpers"
 )
 
 const (
@@ -63,7 +65,7 @@ func TestActualHostedClusterSyncer_MirrorsObservedHostedCluster(t *testing.T) {
 
 	hostedCluster := newHostedCluster()
 	hostedCluster.Spec.ImageContentSources = []hsv1beta1.ImageContentSource{{
-		Source: coreapi.OcpV5ArtDevMirrorSource,
+		Source: apihelpers.OcpV5ArtDevMirrorSource,
 	}}
 	syncer := newTestSyncer(t, mockResourcesDBClient, hostedCluster)
 
@@ -72,7 +74,7 @@ func TestActualHostedClusterSyncer_MirrorsObservedHostedCluster(t *testing.T) {
 	stored := getServiceProviderCluster(t, ctx, mockResourcesDBClient)
 	require.NotNil(t, stored.Status.ActualHostedCluster, "expected the observed HostedCluster to be mirrored")
 	assert.Equal(t, testClusterName, stored.Status.ActualHostedCluster.Name)
-	assert.Equal(t, []hsv1beta1.ImageContentSource{{Source: coreapi.OcpV5ArtDevMirrorSource}},
+	assert.Equal(t, []hsv1beta1.ImageContentSource{{Source: apihelpers.OcpV5ArtDevMirrorSource}},
 		stored.Status.ActualHostedCluster.Spec.ImageContentSources)
 }
 
@@ -104,7 +106,7 @@ func TestActualHostedClusterSyncer_WritesWhenHostedClusterChanges(t *testing.T) 
 
 	changed := newHostedCluster()
 	changed.Spec.ImageContentSources = []hsv1beta1.ImageContentSource{{
-		Source: coreapi.OcpV5ArtDevMirrorSource,
+		Source: apihelpers.OcpV5ArtDevMirrorSource,
 	}}
 	require.NoError(t, newTestSyncer(t, mockResourcesDBClient, changed).SyncOnce(ctx, testKey))
 
@@ -124,6 +126,7 @@ func TestActualHostedClusterSyncer_LeavesMirrorNilWhenHostedClusterUnobserved(t 
 
 	syncer := &actualHostedClusterSyncer{
 		resourcesDBClient:            mockResourcesDBClient,
+		clusterLister:                &corelistertesting.DBClusterLister{ResourcesDBClient: mockResourcesDBClient},
 		readDesireLister:             &kubeapplierlistertesting.SliceReadDesireLister{},
 		serviceProviderClusterLister: &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
 	}
@@ -151,43 +154,34 @@ func TestActualHostedClusterSyncer_SkipsDeletingCluster(t *testing.T) {
 	assert.Nil(t, stored.Status.ActualHostedCluster, "a cluster being deleted should not be mirrored")
 }
 
-func TestSanitizeHostedCluster(t *testing.T) {
-	t.Parallel()
+func TestActualHostedClusterSyncer_MirrorsStableState(t *testing.T) {
+	ctx := utils.ContextWithLogger(context.Background(), logr.Discard())
+	mockResourcesDBClient := corecosmosstoragetesting.NewMockResourcesDBClient()
+	createTestHCPCluster(t, ctx, mockResourcesDBClient)
 
 	hostedCluster := newHostedCluster()
 	hostedCluster.ResourceVersion = "12345"
 	hostedCluster.ManagedFields = []metav1.ManagedFieldsEntry{{Manager: "control-plane-operator"}}
 	hostedCluster.Annotations = map[string]string{
-		lastAppliedConfigurationAnnotation: `{"spec":{}}`,
-		"hypershift.openshift.io/cluster":  "keep-me",
+		"hypershift.openshift.io/cluster":                  "keep-me",
+		"kubectl.kubernetes.io/last-applied-configuration": "volatile",
 	}
 
-	sanitized := sanitizeHostedCluster(hostedCluster)
+	require.NoError(t, newTestSyncer(t, mockResourcesDBClient, hostedCluster).SyncOnce(ctx, testKey))
 
-	assert.Empty(t, sanitized.ResourceVersion, "resourceVersion bumps on every write and would force a Cosmos write per revision")
-	assert.Nil(t, sanitized.ManagedFields, "managedFields is server bookkeeping no consumer reads")
-	assert.NotContains(t, sanitized.Annotations, lastAppliedConfigurationAnnotation)
-	assert.Equal(t, "keep-me", sanitized.Annotations["hypershift.openshift.io/cluster"], "unrelated annotations must survive")
-
-	assert.Equal(t, "12345", hostedCluster.ResourceVersion, "sanitize must not mutate its input")
-	assert.Contains(t, hostedCluster.Annotations, lastAppliedConfigurationAnnotation, "sanitize must not mutate its input")
-}
-
-func TestSanitizeHostedCluster_DropsAnnotationsMapWhenOnlyNoiseRemains(t *testing.T) {
-	t.Parallel()
-
-	hostedCluster := newHostedCluster()
-	hostedCluster.Annotations = map[string]string{lastAppliedConfigurationAnnotation: `{"spec":{}}`}
-
-	// An empty-but-present map and a nil map are not DeepEqual, so collapsing it
-	// keeps the no-write-when-unchanged comparison stable.
-	assert.Nil(t, sanitizeHostedCluster(hostedCluster).Annotations)
+	stored := getServiceProviderCluster(t, ctx, mockResourcesDBClient)
+	require.NotNil(t, stored.Status.ActualHostedCluster)
+	assert.Empty(t, stored.Status.ActualHostedCluster.ResourceVersion, "the mirror must strip resourceVersion")
+	assert.Empty(t, stored.Status.ActualHostedCluster.ManagedFields, "the mirror must strip managedFields")
+	assert.Equal(t, "keep-me", stored.Status.ActualHostedCluster.Annotations["hypershift.openshift.io/cluster"])
+	assert.NotContains(t, stored.Status.ActualHostedCluster.Annotations, lastAppliedConfigurationAnnotation)
 }
 
 func newTestSyncer(t *testing.T, mockResourcesDBClient *corecosmosstoragetesting.MockResourcesDBClient, hostedCluster *hsv1beta1.HostedCluster) *actualHostedClusterSyncer {
 	t.Helper()
 	return &actualHostedClusterSyncer{
 		resourcesDBClient: mockResourcesDBClient,
+		clusterLister:     &corelistertesting.DBClusterLister{ResourcesDBClient: mockResourcesDBClient},
 		readDesireLister: &kubeapplierlistertesting.SliceReadDesireLister{
 			Desires: []*kubeapplierapi.ReadDesire{newHostedClusterReadDesire(t, hostedCluster)},
 		},
@@ -214,7 +208,7 @@ func newHostedClusterReadDesire(t *testing.T, hostedCluster *hsv1beta1.HostedClu
 	return &kubeapplierapi.ReadDesire{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID: metadataapi.Must(azcorearm.ParseResourceID(
-				kubeapplierapi.ToClusterScopedReadDesireResourceIDString(
+				kubeapplierapihelpers.ToClusterScopedReadDesireResourceIDString(
 					testSubscriptionID, testResourceGroupName, testClusterName, kubeapplierhelpers.ReadDesireNameReadonlyHostedCluster))),
 			PartitionKey: strings.ToLower("management-cluster-resource-id"),
 		},

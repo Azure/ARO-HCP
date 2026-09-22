@@ -339,8 +339,8 @@ No writes to Cosmos Resources container.
 
 ## 2. Complete Controller Catalog
 
-The catalog contains **129 entries**: 104 backend instances, 11 fleet controllers,
-three kube-applier controller types, eight management-agent controllers/watchers,
+The catalog contains **130 entries**: 106 backend instances, 11 fleet controllers,
+three kube-applier controller types, seven management-agent controllers/watchers,
 two sessiongate controllers and one shared union-informer controller. Dynamic
 validation and metrics instances are listed individually; dynamically created
 Kubernetes read controllers are described once. Optional, legacy and example
@@ -419,20 +419,20 @@ Reserves `ManagementClusterScheduling.Status.PendingAssignedClusters` before rep
 
 #### ActualHostedCluster
 
-**File:** [actual_hosted_cluster_controller.go](../backend/pkg/controllers/cluster/actualhostedcluster/actual_hosted_cluster_controller.go)
+**File:** [actual_hosted_cluster_controller.go](../backend/pkg/controllers/cluster/hostedcluster/actual_hosted_cluster_controller.go)
 **Trigger:** Cluster informer, 5-minute resync
 
 Mirrors the observed HostedCluster so the frontend has a source of management-cluster
 state it is allowed to read (see [Why management-cluster state is mirrored onto
 ServiceProviderCluster](#why-management-cluster-state-is-mirrored-onto-serviceprovidercluster)).
 Skips clusters with a `DeletionTimestamp`, leaves the field `nil` until the HostedCluster is
-observed, and only writes when the sanitized object changes.
+observed, and only writes when the observed object changes.
 
 | | Object | Fields |
 |---|--------|--------|
 | Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp`</li></ul> |
 | Read | ReadDesire (HostedCluster) | <ul><li>Whole object (`Spec` + `Status`)</li></ul> |
-| **Write** | **`ServiceProviderCluster`** | <ul><li>**`Status.ActualHostedCluster`** = observed HostedCluster, minus `metadata.managedFields`, `metadata.resourceVersion` and the kubectl last-applied-configuration annotation</li></ul> |
+| **Write** | **`ServiceProviderCluster`** | <ul><li>**`Status.ActualHostedCluster`** = the observed HostedCluster, mirrored verbatim (`Spec` + `Status` + `metadata`)</li></ul> |
 
 #### FetchMSIIdentitiesInfo
 

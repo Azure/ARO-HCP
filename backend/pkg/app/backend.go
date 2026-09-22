@@ -38,7 +38,6 @@ import (
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	azureconfig "github.com/Azure/ARO-HCP/backend/pkg/azure/config"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/billing"
-	clusteractualhostedcluster "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/actualhostedcluster"
 	clusterazureresources "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/azureresources"
 	clusterbackups "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/backups"
 	clustercreation "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/creation"
@@ -50,6 +49,7 @@ import (
 	credentialrevocationoperations "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/credentialrevocation/operations"
 	clusterdeletion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/deletion"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/denyassignments"
+	clusterhostedcluster "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/hostedcluster"
 	clusteridentity "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/identity"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/legacycredentialrequest"
 	clusteroperations "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/operations"
@@ -671,8 +671,9 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		unionKubeApplierInformers,
 		unionReadDesireLister,
 	)
-	actualHostedClusterController := clusteractualhostedcluster.NewActualHostedClusterController(
+	actualHostedClusterController := clusterhostedcluster.NewActualHostedClusterController(
 		b.options.ResourcesDBClient,
+		clusterLister,
 		backendInformers,
 		unionKubeApplierInformers,
 		unionReadDesireLister,

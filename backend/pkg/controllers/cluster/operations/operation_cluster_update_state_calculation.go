@@ -294,7 +294,7 @@ func (c *operationClusterUpdate) hypershiftHostedClusterAutoscalingSpecMatchesDe
 // service. These are ignored when comparing customer imageDigestMirrors propagation.
 var platformImageContentSources = map[string]struct{}{
 	"quay.io/openshift-release-dev/ocp-v4.0-art-dev":    {},
-	coreapi.OcpV5ArtDevMirrorSource:                     {},
+	apihelpers.OcpV5ArtDevMirrorSource:                  {},
 	"quay.io/openshift-release-dev/ocp-release":         {},
 	"quay.io/openshift-release-dev/ocp-release-nightly": {},
 }
