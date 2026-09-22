@@ -1679,8 +1679,6 @@ clouds:
               infraAgentPool:
                 osDiskSizeGB: 64
                 vmSize: 'Standard_D4s_v3'
-            jaeger:
-              deploy: false
             applyKubeletFixes: false
           # SVC
           svc:
@@ -1691,8 +1689,6 @@ clouds:
                 name: 'u64d8dsv5'
                 vmSize: 'Standard_D8ds_v5'
                 osDiskSizeGB: 64
-            jaeger:
-              deploy: true
       perf:
         defaults:
           kusto:
@@ -1809,8 +1805,6 @@ clouds:
               infraAgentPool:
                 vmSize: Standard_E4ds_v6
                 osDiskSizeGB: 64
-            jaeger:
-              deploy: false
           # SVC
           svc:
             rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.regionShort }}-svc"
@@ -1825,8 +1819,6 @@ clouds:
                 osDiskSizeGB: 64
               infraAgentPool:
                 vmSize: Standard_D2ds_v6
-            jaeger:
-              deploy: true
       ci01:
         # prow infra shard1 - deploys into "ARO HCP E2E Infrastructure" subscription
         defaults:
@@ -1913,8 +1905,6 @@ clouds:
               infraAgentPool:
                 vmSize: Standard_E4ds_v6
                 osDiskSizeGB: 64
-            jaeger:
-              deploy: false
           # SVC
           svc:
             subscription:
@@ -1931,5 +1921,3 @@ clouds:
                 osDiskSizeGB: 64
               infraAgentPool:
                 vmSize: Standard_D2ds_v6
-            jaeger:
-              deploy: true

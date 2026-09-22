@@ -3127,9 +3127,6 @@
         "subscription": {
           "$ref": "#/definitions/subscriptionMetadata"
         },
-        "jaeger": {
-          "deploy": "boolean"
-        },
         "prometheus": {
           "description": "Prometheus deployment configuration",
           "$ref": "#/definitions/prometheus"
@@ -3628,9 +3625,6 @@
         },
         "nsp": {
           "$ref": "#/definitions/nsp"
-        },
-        "jaeger": {
-          "deploy": "boolean"
         },
         "istio": {
           "description": "Consumed by the IstioUpgrade pipeline step, not by bicep — passing revisions through ARM would overwrite upgrades the pipeline step had already applied. istioctlVersion, targetVersion, and their CEL validations will be removed in a future cleanup.",

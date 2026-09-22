@@ -688,8 +688,6 @@ mgmt:
       public: false
       zoneRedundantMode: Auto
     storageAccountContainerName: backups
-  jaeger:
-    deploy: false
   nsp:
     accessMode: Learning
     name: nsp-j7654321-mgmt-1
@@ -1058,8 +1056,6 @@ svc:
     tag: prod-stable
     targetVersion: asm-1-29
     versions: asm-1-29
-  jaeger:
-    deploy: true
   nsp:
     accessMode: Learning
     name: nsp-j7654321-svc
