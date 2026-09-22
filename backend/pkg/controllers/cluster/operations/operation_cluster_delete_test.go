@@ -44,6 +44,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/billingcosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/kubeappliercosmosstoragetesting"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/kubeapplierlistertesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -398,6 +399,93 @@ func TestOperationClusterDelete_SynchronizeOperation(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestOperationClusterDelete_SynchronizeOperation_DeadlineIncludesApplyDesiresBreakdown(t *testing.T) {
+	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	fixedTime := operationtesting.MustParseTime("2025-01-20T10:30:00Z")
+	deadline := metav1.NewTime(fixedTime.Add(-time.Minute))
+	fixture := operationtesting.NewClusterTestFixture()
+	operation := fixture.NewOperation(cosmosstorageutils.OperationRequestDelete)
+	operation.UsesNewClusterDeletionApproach = true
+	cluster := fixture.NewCluster(nil)
+	cluster.ServiceProviderProperties.DeletionTimestamp = &deadline
+	cluster.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &deadline
+	cluster.ServiceProviderProperties.DeleteOperationCompletionDeadline = &deadline
+
+	managementClusterResourceID := metadataapi.Must(azcorearm.ParseResourceID(
+		"/providers/microsoft.redhatopenshift/stamps/1/managementclusters/default"))
+	spcResourceID := metadataapi.Must(azcorearm.ParseResourceID(
+		fixture.ClusterResourceID.String() + "/serviceProviderClusters/" + coreapi.ServiceProviderClusterResourceName))
+	spc := &coreapi.ServiceProviderCluster{
+		CosmosMetadata: coreapi.CosmosMetadata{
+			ResourceID:   spcResourceID,
+			PartitionKey: strings.ToLower(spcResourceID.SubscriptionID),
+		},
+		Status: coreapi.ServiceProviderClusterStatus{
+			ManagementClusterResourceID: managementClusterResourceID,
+		},
+	}
+	mockResourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{operation, cluster, spc})
+	require.NoError(t, err)
+
+	var desires []any
+	for _, desire := range []struct {
+		name           string
+		controllerName string
+	}{
+		{name: "desire-a", controllerName: "zeta-controller"},
+		{name: "desire-b", controllerName: "alpha-controller"},
+		{name: "desire-c", controllerName: "alpha-controller"},
+		{name: "desire-d"},
+	} {
+		resourceID := metadataapi.Must(azcorearm.ParseResourceID(
+			kubeapplierapihelpers.ToClusterScopedApplyDesireResourceIDString(
+				operationtesting.TestSubscriptionID, operationtesting.TestResourceGroupName, operationtesting.TestClusterName, desire.name)))
+		applyDesire := &kubeapplierapi.ApplyDesire{
+			CosmosMetadata: coreapi.CosmosMetadata{
+				ResourceID:   resourceID,
+				PartitionKey: strings.ToLower(managementClusterResourceID.String()),
+			},
+			Spec: kubeapplierapi.ApplyDesireSpec{
+				ManagementCluster: managementClusterResourceID,
+			},
+		}
+		if desire.controllerName != "" {
+			applyDesire.Tags = map[string]string{kubeapplierapi.TagControllerName: desire.controllerName}
+		}
+		desires = append(desires, applyDesire)
+	}
+	mockKubeApplierDBClients := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClients()
+	mockKubeApplierClient, err := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClientWithResources(ctx, desires)
+	require.NoError(t, err)
+	mockKubeApplierDBClients.Register(managementClusterResourceID, mockKubeApplierClient)
+
+	mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
+	notFoundErr, err := ocmerrors.NewError().Status(http.StatusNotFound).Build()
+	require.NoError(t, err)
+	mockCSClient.EXPECT().GetClusterStatus(gomock.Any(), fixture.ClusterInternalID).Return(nil, notFoundErr)
+
+	controller := &operationClusterDelete{
+		clock:                clocktesting.NewFakePassiveClock(fixedTime),
+		resourcesDBClient:    mockResourcesDBClient,
+		billingDBClient:      billingcosmosstoragetesting.NewMockBillingDBClient(),
+		kubeApplierDBClients: mockKubeApplierDBClients,
+		readDesireLister:     &kubeapplierlistertesting.SliceReadDesireLister{},
+		clusterServiceClient: mockCSClient,
+	}
+	require.NoError(t, controller.SynchronizeOperation(ctx, fixture.OperationKey()))
+
+	op, err := mockResourcesDBClient.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
+	require.NoError(t, err)
+	assert.Equal(t, coreapi.ProvisioningStateFailed, op.Status)
+	require.NotNil(t, op.Error)
+	assert.Equal(t, coreapi.CloudErrorCodeInternalServerError, op.Error.Code)
+	assert.Contains(t, op.Error.Message, "cluster deletion did not complete before the deadline;")
+	assert.Contains(t, op.Error.Message, "[applyDesires] 4 ApplyDesire(s) still exist: 2 for controller alpha-controller, 1 for controller unknown, 1 for controller zeta-controller")
 }
 
 func TestOperationClusterDelete_SynchronizeOperation_ApplyDesiresGate(t *testing.T) {
