@@ -251,12 +251,17 @@ func (c *Controller) reconcileDelay() time.Duration {
 
 func (c *Controller) saveBudget(ctx context.Context, revision uint64, budget *api.NodeMitigationBudget) error {
 	return c.write(revision, func() error {
-		result, err := c.records.MgmtagentV1alpha1().NodeMitigationBudgets(c.namespace).UpdateStatus(ctx, budget, metav1.UpdateOptions{})
-		if err == nil {
-			*budget = *result
-		}
-		return err
+		return c.saveBudgetLocked(ctx, budget)
 	})
+}
+
+// The caller must hold the configuration fence through the status write.
+func (c *Controller) saveBudgetLocked(ctx context.Context, budget *api.NodeMitigationBudget) error {
+	result, err := c.records.MgmtagentV1alpha1().NodeMitigationBudgets(c.namespace).UpdateStatus(ctx, budget, metav1.UpdateOptions{})
+	if err == nil {
+		*budget = *result
+	}
+	return err
 }
 
 func (c *Controller) budget(ctx context.Context, revision uint64, mode Mode) (*api.NodeMitigationBudget, error) {

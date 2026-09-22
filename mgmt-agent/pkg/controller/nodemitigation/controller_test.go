@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	goruntime "runtime"
 	"strings"
 	"testing"
 	"time"
@@ -375,6 +376,93 @@ func TestModeAndAccountingFence(t *testing.T) {
 				t.Fatal("write escaped configuration or accounting fence")
 			}
 		})
+	}
+}
+
+type submissionHookAzure struct {
+	AzureClient
+	hook func()
+}
+
+func (a submissionHookAzure) DeleteMachine(ctx context.Context, pool, machine string) (MachineOperation, error) {
+	op, err := a.AzureClient.DeleteMachine(ctx, pool, machine)
+	a.hook()
+	return op, err
+}
+
+func TestSubmissionConfigurationFence(t *testing.T) {
+	for _, phase := range []string{"attempt persisted", "AKS accepted"} {
+		for _, mode := range []Mode{Disabled, Audit, Enforce} {
+			t.Run(phase+"/"+string(mode), func(t *testing.T) {
+				f := newFixture(t, 11, 1)
+				f.tick(t)
+				next := f.cfg
+				next.Mode = mode
+				changed := make(chan error, 1)
+				requestChange := func() {
+					go func() { changed <- f.controller.SetConfig(next) }()
+					deadline := time.Now().Add(5 * time.Second)
+					// A waiting writer prevents new read locks. The submission
+					// must finish using its existing fence, without reacquiring it.
+					for f.controller.mu.TryRLock() {
+						f.controller.mu.RUnlock()
+						if time.Now().After(deadline) {
+							t.Fatal("configuration writer did not reach the fence")
+						}
+						goruntime.Gosched()
+					}
+				}
+				if phase == "attempt persisted" {
+					f.records.PrependReactor("update", "nodemitigationbudgets", func(action ktesting.Action) (bool, runtime.Object, error) {
+						b := action.(ktesting.UpdateAction).GetObject().(*api.NodeMitigationBudget)
+						if b.Status.Reservations[recordName("node-00")].Outcome == "Unknown" {
+							requestChange()
+						}
+						return false, nil, nil
+					})
+				} else {
+					f.controller.azure = submissionHookAzure{AzureClient: f.azure, hook: requestChange}
+				}
+				err := f.controller.reconcile(t.Context())
+				if err != nil && !errors.Is(err, ErrPaused) {
+					t.Fatal(err)
+				}
+				select {
+				case err := <-changed:
+					if err != nil {
+						t.Fatal(err)
+					}
+				case <-time.After(5 * time.Second):
+					t.Fatal("configuration update remained blocked")
+				}
+				r := f.ledger(t).Status.Reservations[recordName("node-00")]
+				if f.azure.deletes != 1 || r.Outcome != "Pending" || r.OperationToken != "operation" || r.DeleteStartedAt == nil {
+					t.Fatalf("configuration update lost submission accounting: deletes=%d reservation=%+v", f.azure.deletes, r)
+				}
+			})
+		}
+	}
+}
+
+func TestSubmissionPausedBeforeAttempt(t *testing.T) {
+	f := newFixture(t, 11, 1)
+	f.tick(t)
+	cfg, revision := f.controller.configuration()
+	budget := f.ledger(t)
+	snapshot, err := f.controller.snapshot(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := f.controller.SetConfig(Default()); err != nil {
+		t.Fatal(err)
+	}
+	err = f.controller.submitDeletion(t.Context(), cfg, revision, recordName("node-00"), budget, snapshot)
+	if !errors.Is(err, ErrPaused) {
+		t.Fatalf("expected paused submission, got %v", err)
+	}
+	r := f.ledger(t).Status.Reservations[recordName("node-00")]
+	if f.azure.deletes != 0 || r.DeleteStartedAt != nil || r.Outcome != "" {
+		t.Fatalf("paused submission recorded an attempted deletion: %+v", r)
 	}
 }
 

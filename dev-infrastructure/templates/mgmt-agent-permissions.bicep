@@ -3,6 +3,9 @@ targetScope = 'subscription'
 @description('The principal ID of the mgmt-agent managed identity')
 param mgmtAgentPrincipalId string
 
+@description('Resource ID of the deployment identity that revokes disabled mitigation assignments')
+param deploymentMsiId string
+
 param aksClusterName string
 param aksResourceGroupName string
 param nodeMitigationEnabled bool = false
@@ -29,15 +32,48 @@ resource machineDeletionRole 'Microsoft.Authorization/roleDefinitions@2022-04-01
   }
 }
 
-module machineDeletionAssignment '../modules/mgmt-agent/machine-deletion-permission.bicep' = if (nodeMitigationEnabled) {
+resource permissionCleanupRole 'Microsoft.Authorization/roleDefinitions@2022-04-01' = {
+  name: guid(subscription().id, 'aro-hcp-mgmt-agent-permission-cleanup')
+  properties: {
+    roleName: 'ARO HCP mgmt-agent permission cleanup ${subscription().subscriptionId}'
+    description: 'Read and remove role assignments, restricted by the assignment condition.'
+    type: 'CustomRole'
+    permissions: [
+      {
+        actions: [
+          'Microsoft.Authorization/roleAssignments/read'
+          'Microsoft.Authorization/roleAssignments/delete'
+        ]
+        notActions: []
+        dataActions: []
+        notDataActions: []
+      }
+    ]
+    assignableScopes: [
+      subscription().id
+    ]
+  }
+}
+
+module machineDeletionAssignment '../modules/mgmt-agent/machine-deletion-permission.bicep' = {
   name: 'mgmt-agent-machine-deletion-${uniqueString(aksClusterName)}'
   scope: resourceGroup(aksResourceGroupName)
   params: {
+    enabled: nodeMitigationEnabled
     aksClusterName: aksClusterName
     principalId: mgmtAgentPrincipalId
-    roleDefinitionId: machineDeletionRole.id
+    cleanupPrincipalId: reference(deploymentMsiId, '2023-01-31').principalId
+    cleanupRoleDefinitionId: permissionCleanupRole.id
+    roleDefinitionId: nodeMitigationEnabled
+      ? machineDeletionRole.id
+      : subscriptionResourceId('Microsoft.Authorization/roleDefinitions', guid(subscription().id, 'aro-hcp-mgmt-agent-machine-deletion'))
   }
 }
+
+output machineDeletionAssignmentId string = machineDeletionAssignment.outputs.assignmentId
+output machineDeletionRoleId string = machineDeletionAssignment.outputs.roleId
+output machineDeletionClusterId string = machineDeletionAssignment.outputs.clusterId
+output mitigationEnabled string = nodeMitigationEnabled ? 'true' : 'false'
 
 // The mgmt-agent controller needs to read VMSS VM resources to determine the
 // number of SWIFT NICs available on each node. AKS places node VMs in a

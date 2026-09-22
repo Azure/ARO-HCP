@@ -155,23 +155,30 @@ func (c *Controller) submitDeletion(ctx context.Context, cfg Config, revision ui
 	if snapshot.ObservedAt.After(c.clock()) || c.clock().Sub(snapshot.ObservedAt) > cfg.ObservationMaxAge.Duration {
 		return fmt.Errorf("cluster snapshot expired before AKS submission")
 	}
-	now := metav1.NewTime(c.clock())
-	r.DeleteStartedAt, r.Outcome = &now, "Unknown"
-	budget.Status.Reservations[key] = r
-	if err := c.saveBudget(ctx, revision, budget); err != nil {
-		return err
-	}
-	var operation MachineOperation
-	err = c.action(revision, ActionDelete, func() error {
-		var err error
-		operation, err = c.azure.DeleteMachine(ctx, r.PoolID, r.MachineName)
-		return err
+	// A configuration update cannot split the durable attempt from submission
+	// or discard the operation reference returned by AKS.
+	err = c.write(revision, func() error {
+		now := metav1.NewTime(c.clock())
+		r.DeleteStartedAt, r.Outcome = &now, "Unknown"
+		budget.Status.Reservations[key] = r
+		if err := c.saveBudgetLocked(ctx, budget); err != nil {
+			return err
+		}
+		var operation MachineOperation
+		if err := recordAction(ActionDelete, func() error {
+			var err error
+			operation, err = c.azure.DeleteMachine(ctx, r.PoolID, r.MachineName)
+			return err
+		}); err != nil {
+			// A lost acceptance response consumes allowance and forbids replay.
+			return err
+		}
+		if err := c.applyOperation(ctx, cfg, key, budget, operation); err != nil {
+			return err
+		}
+		return c.saveBudgetLocked(ctx, budget)
 	})
 	if err != nil {
-		// Even a lost acceptance response consumes allowance and forbids replay.
-		return err
-	}
-	if err := c.recordOperation(ctx, cfg, revision, key, budget, operation); err != nil {
 		return err
 	}
 	return c.event(ctx, revision, corev1.ObjectReference{APIVersion: "v1", Kind: "Node",
@@ -197,6 +204,19 @@ func (c *Controller) cancelReservation(ctx context.Context, revision uint64, key
 }
 
 func (c *Controller) recordOperation(ctx context.Context, cfg Config, revision uint64, key string,
+	budget *api.NodeMitigationBudget, op MachineOperation) error {
+	if cfg.Mode != Enforce {
+		return c.applyOperation(ctx, cfg, key, budget, op)
+	}
+	return c.write(revision, func() error {
+		if err := c.applyOperation(ctx, cfg, key, budget, op); err != nil {
+			return err
+		}
+		return c.saveBudgetLocked(ctx, budget)
+	})
+}
+
+func (c *Controller) applyOperation(ctx context.Context, cfg Config, key string,
 	budget *api.NodeMitigationBudget, op MachineOperation) error {
 	if op.Outcome != "Pending" && op.Outcome != "Succeeded" && op.Outcome != "Failed" {
 		return fmt.Errorf("unrecognized AKS operation outcome %q", op.Outcome)
@@ -226,7 +246,7 @@ func (c *Controller) recordOperation(ctx context.Context, cfg Config, revision u
 		r.PollAfter = &t
 	}
 	budget.Status.Reservations[key] = r
-	return c.saveBudget(ctx, revision, budget)
+	return nil
 }
 
 func (c *Controller) observeDeletion(ctx context.Context, cfg Config, revision uint64, key string,

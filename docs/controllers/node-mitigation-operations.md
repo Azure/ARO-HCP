@@ -20,6 +20,20 @@ including INT, STG and PROD, keep this flag disabled. Runtime mode separately
 defaults to `disabled`; changing the runtime ConfigMap cannot override a disabled
 deployment flag.
 
+The management-infrastructure rollout explicitly removes the machine-deletion
+assignment when this flag is false. It verifies the exact subscription, cluster,
+assignment, principal and role before deletion, and verifies that the assignment
+is absent afterward. Reader and the shared machine-deletion role definition remain.
+The deployment identity has a separate cluster-scoped cleanup role with only
+role-assignment read/delete actions; an Azure condition restricts deletion to this
+mgmt-agent principal and machine-deletion role. It cannot create assignments or
+delete machines through that role. Azure RBAC propagation can delay effective
+revocation; changing only the runtime ConfigMap does not revoke Azure permissions.
+
+Mgmt-agent requires an explicit `AZURE_TOKEN_CREDENTIALS` selection at startup.
+Helm selects `WorkloadIdentityCredential`. Non-Helm invocations must explicitly
+select their intended credential source.
+
 `mgmtAgent.nodeMitigation.configuration` supplies `config.yaml` in the
 `mgmt-agent-node-mitigation` ConfigMap. Git and Helm own this YAML string.
 The controller reloads it at runtime. Missing configuration disables new writes;
@@ -181,11 +195,17 @@ rechecks the immutable VM identity before submission. It uses the SDK's
 `deleteMachines` operation and persists its resume token. Polling observes
 `Retry-After`, survives restarts and never resubmits the POST.
 
-A lost response or a crash between submission and saving the operation reference
-leaves an unknown result. Its reservation remains occupied and the controller
-reports the need for operator reconciliation. Neither a timeout nor a missing
-Node authorizes a retry. Completed operations release active allowance only when
-required healthy capacity is observed. Deletion history stays for its full window.
+A configuration fence spans the durable attempt, AKS submission and returned
+operation persistence. Configuration updates wait for that section to finish;
+an update accepted before it starts prevents the attempt without marking it
+unknown. This does not make the Kubernetes and Azure writes transactional.
+
+A lost response or a crash after recording the attempt and before saving the
+operation reference leaves an unknown result. Its reservation remains occupied
+and the controller reports the need for operator reconciliation. Neither a
+timeout nor a missing Node authorizes a retry. Completed operations release active
+allowance only when required healthy capacity is observed. Deletion history stays
+for its full window.
 
 Current configuration applies to work in progress. Pausing cannot cancel an AKS
 request already accepted. Accounting-window changes require expired history or
@@ -194,7 +214,7 @@ than resetting its history. Owned Nodes or Pods without initialized accounting
 also block operation. Labels cannot recover history after those resources
 disappear, so the ledger must be preserved. Never delete it to bypass these checks.
 
-Mgmt-agent uses Reader for resource and operation observations. Authorized DEV
+Mgmt-agent uses Reader for resource and operation observations. Authorized
 enablement declares the specific AKS `agentPools/deleteMachines/action` permission
 at the management-cluster scope. Fleet receives no deletion privilege. Deployment
 and live execution require separate authorization.

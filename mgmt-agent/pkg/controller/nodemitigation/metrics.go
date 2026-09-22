@@ -88,7 +88,11 @@ func actionOutcome(err error) string {
 }
 
 func (c *Controller) action(revision uint64, kind string, fn func() error) error {
-	err := c.write(revision, fn)
+	return c.write(revision, func() error { return recordAction(kind, fn) })
+}
+
+func recordAction(kind string, fn func() error) error {
+	err := fn()
 	if !errors.Is(err, ErrPaused) {
 		actionResults.WithLabelValues(kind, actionOutcome(err)).Inc()
 	}
