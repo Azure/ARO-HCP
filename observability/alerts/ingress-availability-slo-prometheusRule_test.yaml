@@ -189,3 +189,122 @@ tests:
         description: "More than 7.2% of synthetic canary route observations are failing for HCP cluster ggg, indicating a fast error budget burn (14.4x) that would exhaust the 99.5% SLO budget in ~50 hours."
         runbook_url: "https://aka.ms/arohcp-runbook-ingress"
         correlationId: "ggg"
+# ========================================
+# Test 5: Latency normal — all canary checks within 200ms, no alerts
+# ========================================
+# le="200" and le="+Inf" increase at the same rate → ratio 1, error_rate 0.
+- interval: 1m
+  input_series:
+  - series: 'ingress_canary_check_duration_bucket{_id="lat-ok", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-ok.example.io", instance="10.0.0.1:60000", le="200"}'
+    values: "0+2x400"
+  - series: 'ingress_canary_check_duration_bucket{_id="lat-ok", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-ok.example.io", instance="10.0.0.1:60000", le="+Inf"}'
+    values: "0+2x400"
+  promql_expr_test:
+  - expr: latency:ingress_canary:ratio
+    eval_time: 10m
+    exp_samples:
+    - labels: 'latency:ingress_canary:ratio{_id="lat-ok", cluster="mgmt-1", region="uksouth"}'
+      value: 1
+  - expr: errors:ingress_canary_latency:error_rate
+    eval_time: 10m
+    exp_samples:
+    - labels: 'errors:ingress_canary_latency:error_rate{_id="lat-ok", cluster="mgmt-1", region="uksouth"}'
+      value: 0
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: userJourneyIngressLatency1h5m
+  - eval_time: 35m
+    alertname: userJourneyIngressLatency6h30m
+  - eval_time: 370m
+    alertname: userJourneyIngressLatency3d
+# ========================================
+# Test 6: Latency fast burn — 50% of checks exceed 200ms
+# ========================================
+# le="200" increases at half the rate of le="+Inf" → ratio 0.5, error_rate 0.5.
+# 50% > 7.2% (fast) and > 3% (medium).
+- interval: 1m
+  input_series:
+  - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.1:60000", le="200"}'
+    values: "0+1x400"
+  - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.1:60000", le="+Inf"}'
+    values: "0+2x400"
+  promql_expr_test:
+  - expr: latency:ingress_canary:ratio
+    eval_time: 10m
+    exp_samples:
+    - labels: 'latency:ingress_canary:ratio{_id="lat-bad", cluster="mgmt-1", region="uksouth"}'
+      value: 0.5
+  - expr: errors:ingress_canary_latency:error_rate
+    eval_time: 10m
+    exp_samples:
+    - labels: 'errors:ingress_canary_latency:error_rate{_id="lat-bad", cluster="mgmt-1", region="uksouth"}'
+      value: 0.5
+  alert_rule_test:
+  # Fast burn fires after 5m (for: 5m)
+  - eval_time: 7m
+    alertname: userJourneyIngressLatency1h5m
+    exp_alerts:
+    - exp_labels:
+        _id: "lat-bad"
+        cluster: "mgmt-1"
+        region: "uksouth"
+        component: slo
+        long_window: 1h
+        severity: "3"
+        short_window: 5m
+        slo: ingress-latency
+      exp_annotations:
+        summary: "Ingress canary latency critically degraded for lat-bad"
+        description: "More than 7.2% of synthetic canary route checks are exceeding 200ms for HCP cluster lat-bad, indicating a fast error budget burn (14.4x) that would exhaust the 99.5% SLO budget in ~50 hours."
+        runbook_url: "https://aka.ms/arohcp-runbook-ingress"
+        correlationId: "lat-bad"
+  # Medium burn also fires after 30m (for: 30m), 50% > 3%
+  - eval_time: 35m
+    alertname: userJourneyIngressLatency6h30m
+    exp_alerts:
+    - exp_labels:
+        _id: "lat-bad"
+        cluster: "mgmt-1"
+        region: "uksouth"
+        component: slo
+        long_window: 6h
+        severity: "3"
+        short_window: 30m
+        slo: ingress-latency
+      exp_annotations:
+        summary: "Ingress canary latency degraded for lat-bad"
+        description: "More than 3% of synthetic canary route checks are exceeding 200ms for HCP cluster lat-bad, indicating a medium error budget burn (6x) that would exhaust the 99.5% SLO budget in ~5 days."
+        runbook_url: "https://aka.ms/arohcp-runbook-ingress"
+        correlationId: "lat-bad"
+# ========================================
+# Test 7: Latency below fast burn — ~5.9% of checks exceed 200ms
+# ========================================
+# le="200" rate / le="+Inf" rate = 16/17 → error_rate ≈ 5.9% < 7.2% (fast),
+# but > 0.5% (slow). Fast must NOT fire; slow fires after 6h.
+- interval: 1m
+  input_series:
+  - series: 'ingress_canary_check_duration_bucket{_id="lat-slow", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-slow.example.io", instance="10.0.0.1:60000", le="200"}'
+    values: "0+16x400"
+  - series: 'ingress_canary_check_duration_bucket{_id="lat-slow", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-slow.example.io", instance="10.0.0.1:60000", le="+Inf"}'
+    values: "0+17x400"
+  alert_rule_test:
+  # Fast burn should NOT fire (16/17 → ≈5.9% < 7.2%)
+  - eval_time: 10m
+    alertname: userJourneyIngressLatency1h5m
+  # Slow burn fires after 6h (for: 6h), 5.9% > 0.5%
+  - eval_time: 370m
+    alertname: userJourneyIngressLatency3d
+    exp_alerts:
+    - exp_labels:
+        _id: "lat-slow"
+        cluster: "mgmt-1"
+        region: "uksouth"
+        component: slo
+        long_window: 3d
+        severity: "4"
+        slo: ingress-latency
+      exp_annotations:
+        summary: "Ingress canary latency trending below SLO for lat-slow"
+        description: "More than 0.5% of synthetic canary route checks are exceeding 200ms for HCP cluster lat-slow, consuming the error budget at the SLO rate. No immediate customer impact but trend requires investigation."
+        runbook_url: "https://aka.ms/arohcp-runbook-ingress"
+        correlationId: "lat-slow"
