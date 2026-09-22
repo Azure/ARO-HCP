@@ -3,3 +3,5 @@ approvers:
 - janboll
 - service-lifecycle-approvers
 - stevekuznetsov
+labels:
+- area/docs

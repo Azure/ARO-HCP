@@ -4,3 +4,5 @@ approvers:
 - raelga
 - service-lifecycle-approvers
 - sre-approvers
+labels:
+- area/observability

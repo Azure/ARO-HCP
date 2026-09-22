@@ -2,3 +2,5 @@ approvers:
 - geoberle
 - janboll
 - tony-schndr
+labels:
+- area/istio

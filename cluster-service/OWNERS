@@ -2,3 +2,5 @@ approvers:
 - geoberle
 - janboll
 - miguelsorianod
+labels:
+- area/cluster-service
