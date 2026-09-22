@@ -496,8 +496,8 @@ resourceGroups:
   # cert SAN change makes the cluster deployment below fail instead of updating.
   - name: maestro-eventgrid-client-reconcile
     action: Shell
-    command: ./eventgrid-client-reconcile.sh
-    workingDir: ./scripts
+    command: ./eventgrid-client-reconcile
+    workingDir: ./scripts/eventgrid-client-reconcile
     shellIdentity:
       input:
         resourceGroup: global
