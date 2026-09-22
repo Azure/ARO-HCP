@@ -23,6 +23,8 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
+
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosmetrics"
 )
 
 // GlobalLister lists all resources of a particular type across all partitions.
@@ -60,12 +62,14 @@ func (l *CosmosGlobalLister[InternalAPIType, CosmosAPIType]) List(ctx context.Co
 	}
 
 	var partitionKey azcosmos.PartitionKey
+	scope := "cross_partition"
 	if l.PartitionKey == "" {
 		partitionKey = azcosmos.NewPartitionKey()
 	} else {
 		partitionKey = azcosmos.NewPartitionKeyString(l.PartitionKey)
+		scope = "single_partition"
 	}
-	pager := l.ContainerClient.NewQueryItemsPager(query, partitionKey, &queryOptions)
+	pager := cosmosmetrics.NewQueryItemsPager(ctx, l.ContainerClient, query, partitionKey, &queryOptions, "global_type_live", scope)
 
 	if options != nil && ptr.Deref(options.PageSizeHint, -1) > 0 {
 		return NewQueryResourcesSinglePageIterator[InternalAPIType, CosmosAPIType](pager), nil

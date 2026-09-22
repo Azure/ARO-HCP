@@ -50,6 +50,22 @@ Neither instruments credential requests. Both share the same labels:
 | `cosmosdb_container` | Actual Cosmos container name, preserving casing; `unknown` when the request has no identifiable container |
 | `operation` | `read`, `create`, `upsert`, `replace`, `patch`, `delete`, `query`, `query_plan`, `batch`, `change_feed`, `feed_ranges`, `metadata`, or `unknown` |
 | `status_code` | HTTP response status, including failures and `304` |
+| `call_site` | Static purpose supplied by the caller, otherwise `unknown` |
+| `query_shape` | Static query classification for instrumented queries; `none` for other requests |
+| `query_scope` | `single_partition` or `cross_partition` for instrumented queries; `none` otherwise |
+
+All storage query pagers use the [query telemetry wrapper](../internal/database/cosmosstorage/cosmosmetrics/query.go).
+Query attribution is applied when fetching each page, including its HTTP retries,
+without retaining the list-construction context's cancellation or deadline.
+The wrapper preserves an explicit construction-time call site, falling back to the
+page context when none was provided. Source identity comes from the page context.
+SDK metadata requests made synchronously during a page fetch inherit the query's
+attribution too; use `operation="query"` to isolate SQL request charges.
+
+See [Cosmos query telemetry](cosmos-query-telemetry.md) for query shapes, pager/page
+metrics, diagnostic log fields, and cost-analysis queries. These are observability
+changes only: query SQL, pagination, resource writes, and controller lifecycles are
+unchanged.
 
 Cosmos requests made by an informer’s List/Watch operations are attributed to that
 informer, even if the context also contains a controller name. Initial lists,

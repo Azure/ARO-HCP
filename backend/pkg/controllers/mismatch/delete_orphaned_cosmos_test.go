@@ -19,6 +19,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/go-logr/logr/funcr"
 	"github.com/go-logr/logr/testr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -33,6 +34,10 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosmetrics"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/kubeappliercosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/fleetlistertesting"
@@ -276,4 +281,118 @@ func newApplyDesire(t *testing.T, managementCluster *azcorearm.ResourceID, resou
 			ServerSideApply:   &kubeapplierapi.ServerSideApplyConfig{KubeContent: &runtime.RawExtension{Raw: []byte(`{"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":"x","namespace":"default"}}`)}},
 		},
 	}
+}
+
+type attributionCRUD struct {
+	cosmosstorageutils.UntypedResourceCRUD
+	cosmosstorageutils.DBClientIterator[cosmosstorageutils.TypedDocument]
+	docs   []*cosmosstorageutils.TypedDocument
+	assert func(context.Context, string)
+}
+
+func (c *attributionCRUD) ListRecursive(ctx context.Context, options *cosmosstorageutils.DBClientListResourceDocsOptions) (cosmosstorageutils.DBClientIterator[cosmosstorageutils.TypedDocument], error) {
+	c.assert(ctx, "ListRecursive")
+	return c, nil
+}
+
+func (c *attributionCRUD) Items(ctx context.Context) cosmosstorageutils.DBClientIteratorItem[cosmosstorageutils.TypedDocument] {
+	c.assert(ctx, "Items")
+	return func(yield func(string, *cosmosstorageutils.TypedDocument) bool) {
+		for _, doc := range c.docs {
+			if !yield(doc.ID, doc) {
+				return
+			}
+		}
+	}
+}
+
+func (c *attributionCRUD) GetError() error { return nil }
+
+func (c *attributionCRUD) DeleteByCosmosID(ctx context.Context, partitionKey, cosmosID string) error {
+	c.assert(ctx, "Delete")
+	return nil
+}
+
+type attributionResourcesClient struct {
+	corecosmosstorage.ResourcesDBClient
+	crud *attributionCRUD
+}
+
+func (c *attributionResourcesClient) UntypedCRUD(azcorearm.ResourceID) (cosmosstorageutils.UntypedResourceCRUD, error) {
+	return c.crud, nil
+}
+
+type attributionKubeApplierClient struct {
+	kubeappliercosmosstorage.KubeApplierDBClient
+	crud *attributionCRUD
+}
+
+func (c *attributionKubeApplierClient) UntypedCRUD(azcorearm.ResourceID) (cosmosstorageutils.UntypedResourceCRUD, error) {
+	return c.crud, nil
+}
+
+type attributionKubeApplierClients struct {
+	client *attributionKubeApplierClient
+}
+
+func (c *attributionKubeApplierClients) For(ctx context.Context, managementCluster *azcorearm.ResourceID) kubeappliercosmosstorage.KubeApplierDBClient {
+	c.client.crud.assert(ctx, "For")
+	return c.client
+}
+
+func TestSynchronizeSubscription_ContextAttribution(t *testing.T) {
+	mc := mustParseResourceID(t, "/providers/microsoft.redhatopenshift/stamps/test/managementclusters/"+testMgmtClusterA)
+	var logLine string
+	ctx := utils.ContextWithLogger(t.Context(), funcr.New(func(_, args string) { logLine = args }, funcr.Options{}))
+	ctx = utils.ContextWithControllerName(ctx, "DeleteOrphanedCosmosResources")
+	ctx = cosmosmetrics.ContextWithCallSite(ctx, "parent_call_site")
+	calls := map[string]int{}
+	assertContext := func(kind string) func(context.Context, string) {
+		return func(ctx context.Context, operation string) {
+			calls[kind+"/"+operation]++
+			want := "orphan_" + kind + "_inventory"
+			switch operation {
+			case "Delete":
+				want = "orphan_" + kind + "_soft_delete"
+			case "For":
+				want = "orphan_desire_client_lookup"
+			}
+			require.Equal(t, want, cosmosmetrics.CallSiteFromContext(ctx), "%s/%s attribution", kind, operation)
+			controller, ok := utils.ControllerNameFromContext(ctx)
+			require.True(t, ok)
+			require.Equal(t, "DeleteOrphanedCosmosResources", controller)
+			if kind == "desire" {
+				utils.LoggerFromContext(ctx).Info("check management cluster correlation")
+				require.Contains(t, logLine, `"managementCluster"`)
+				require.Contains(t, logLine, strings.ToLower(mc.String()))
+			}
+		}
+	}
+	resourceCRUD := &attributionCRUD{
+		assert: assertContext("resource"),
+		docs: []*cosmosstorageutils.TypedDocument{{
+			BaseDocument: cosmosstorageutils.BaseDocument{ID: "orphan-nodepool"}, PartitionKey: testSubscriptionID,
+			ResourceID: nodePool(t, testMissingCluster, testMissingNodePool).ResourceID,
+		}},
+	}
+	desireCRUD := &attributionCRUD{
+		assert: assertContext("desire"),
+		docs: []*cosmosstorageutils.TypedDocument{
+			{BaseDocument: cosmosstorageutils.BaseDocument{ID: "orphan-desire"}, PartitionKey: "mc-partition", ResourceID: mustParseResourceID(t, kubeapplierapihelpers.ToClusterScopedApplyDesireResourceIDString(testSubscriptionID, testResourceGroup, testMissingCluster, "desire"))},
+			{BaseDocument: cosmosstorageutils.BaseDocument{ID: "invalid-desire"}, PartitionKey: "mc-partition"},
+		},
+	}
+	c := &deleteOrphanedCosmosResources{
+		resourcesDBClient:    &attributionResourcesClient{crud: resourceCRUD},
+		kubeApplierDBClients: &attributionKubeApplierClients{client: &attributionKubeApplierClient{crud: desireCRUD}},
+		managementClusterLister: &fleetlistertesting.SliceManagementClusterLister{ManagementClusters: []*fleetapi.ManagementCluster{
+			{CosmosMetadata: coreapi.CosmosMetadata{ResourceID: mc}},
+		}},
+	}
+	require.NoError(t, c.synchronizeSubscription(ctx, testSubscriptionID))
+	require.Equal(t, map[string]int{
+		"resource/ListRecursive": 1, "resource/Items": 1, "resource/Delete": 1,
+		"desire/For": 1, "desire/ListRecursive": 1, "desire/Items": 1, "desire/Delete": 2,
+	}, calls)
+	require.Equal(t, "parent_call_site", cosmosmetrics.CallSiteFromContext(ctx), "child attribution must not leak to the parent")
 }

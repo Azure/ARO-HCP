@@ -30,6 +30,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosmetrics"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -114,12 +115,14 @@ func list[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClie
 	}
 
 	query := ""
+	shape := "type_live"
 	queryOptions := azcosmos.QueryOptions{
 		PageSizeHint: -1,
 	}
 	if prefix == nil {
 		query = "SELECT * FROM c WHERE LENGTH(c.resourceID) > 0 AND (NOT IS_DEFINED(c.deletionTimestamp))"
 	} else {
+		shape = "recursive_prefix_live"
 		query = "SELECT * FROM c WHERE STARTSWITH(c.resourceID, @prefix, true) AND (NOT IS_DEFINED(c.deletionTimestamp))"
 		queryOptions = azcosmos.QueryOptions{
 			PageSizeHint: -1,
@@ -133,6 +136,9 @@ func list[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClie
 	}
 
 	if resourceType != nil {
+		if prefix != nil {
+			shape = "typed_prefix_live"
+		}
 		query += " AND STRINGEQUALS(c.resourceType, @resourceType, true)"
 		queryParameter := azcosmos.QueryParameter{
 			Name:  "@resourceType",
@@ -142,6 +148,7 @@ func list[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClie
 	}
 
 	if untypedNonRecursive {
+		shape = "children_prefix_live"
 		// resourceIDs are /subscriptions/<name>/resourceGroups/<name>/providers/RH/type[0]/<name>/type[1]/<name.../type[n]/<name>
 		// if we count the slashes, then a non-recursive list should only include resource ID that have numSlashesInPrefix+2 for most
 		requiredNumSlashes := strings.Count(prefix.String(), "/") + 2
@@ -165,13 +172,15 @@ func list[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClie
 		queryOptions.ContinuationToken = options.ContinuationToken
 	}
 	var partitionKey azcosmos.PartitionKey
+	scope := "cross_partition"
 	if len(partitionKeyString) > 0 {
 		partitionKey = azcosmos.NewPartitionKeyString(partitionKeyString)
+		scope = "single_partition"
 	} else {
 		partitionKey = azcosmos.NewPartitionKey()
 	}
 
-	pager := containerClient.NewQueryItemsPager(query, partitionKey, &queryOptions)
+	pager := cosmosmetrics.NewQueryItemsPager(ctx, containerClient, query, partitionKey, &queryOptions, shape, scope)
 
 	if options != nil && ptr.Deref(options.PageSizeHint, -1) > 0 {
 		return NewQueryResourcesSinglePageIterator[InternalAPIType, CosmosAPIType](pager), nil

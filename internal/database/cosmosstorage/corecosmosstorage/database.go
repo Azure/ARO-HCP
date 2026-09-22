@@ -150,7 +150,7 @@ func (d *resourcesCosmosDBClient) ListMissingResourceID(ctx context.Context, opt
 	}
 
 	partitionKey := azcosmos.NewPartitionKey()
-	pager := d.resources.NewQueryItemsPager(query, partitionKey, &queryOptions)
+	pager := cosmosmetrics.NewQueryItemsPager(ctx, d.resources, query, partitionKey, &queryOptions, "missing_resource_id", "cross_partition")
 
 	if options != nil && ptr.Deref(options.PageSizeHint, -1) > 0 {
 		return cosmosstorageutils.NewQueryTypedDocumentSinglePageIterator(pager), nil

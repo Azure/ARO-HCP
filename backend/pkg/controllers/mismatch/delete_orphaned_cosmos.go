@@ -33,6 +33,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosmetrics"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
@@ -100,7 +101,8 @@ func (c *deleteOrphanedCosmosResources) synchronizeSubscription(ctx context.Cont
 	// single-page iterator with a continuation token we don't follow, which
 	// would silently truncate the resource set and let orphan checks miss
 	// live parents on later pages.
-	subscriptionResourceIterator, err := untypedSubscriptionCRUD.ListRecursive(ctx, nil)
+	inventoryCtx := cosmosmetrics.ContextWithCallSite(ctx, "orphan_resource_inventory")
+	subscriptionResourceIterator, err := untypedSubscriptionCRUD.ListRecursive(inventoryCtx, nil)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -108,7 +110,7 @@ func (c *deleteOrphanedCosmosResources) synchronizeSubscription(ctx context.Cont
 	errs := []error{}
 	// while the number of items is large, but we can paginate through
 	allSubscriptionResourceIDs := map[string]*cosmosstorageutils.TypedDocument{}
-	for _, subscriptionResource := range subscriptionResourceIterator.Items(ctx) {
+	for _, subscriptionResource := range subscriptionResourceIterator.Items(inventoryCtx) {
 		if subscriptionResource.ResourceID == nil {
 			// n.b. our listers pass all data through a Cosmos -> internal representation mapping, which attempts to ensure
 			// that document.resourceID is a comprehensible value - however:
@@ -160,6 +162,7 @@ func (c *deleteOrphanedCosmosResources) synchronizeSubscription(ctx context.Cont
 				AddCosmosResourceID(currResourceIDString).
 				AddLogValuesForResourceID(currResource.ResourceID)...)
 		ctxWithLocalLogger := utils.ContextWithLogger(ctx, localLogger) // setting so that other calls down the chain will show correctly in kusto for the delete
+		ctxWithLocalLogger = cosmosmetrics.ContextWithCallSite(ctxWithLocalLogger, "orphan_resource_soft_delete")
 
 		if currResource.ResourceID.Parent == nil {
 			// this is an unexpected state, so we'll log it and hope it is rare.
@@ -212,8 +215,9 @@ func (c *deleteOrphanedCosmosResources) sweepOrphanedDesires(
 			continue
 		}
 		mcLogger := logger.WithValues("managementCluster", strings.ToLower(mcResourceID.String()))
+		mcCtx := utils.ContextWithLogger(ctx, mcLogger)
 
-		client := c.kubeApplierDBClients.For(ctx, mcResourceID)
+		client := c.kubeApplierDBClients.For(cosmosmetrics.ContextWithCallSite(mcCtx, "orphan_desire_client_lookup"), mcResourceID)
 		if client == nil {
 			mcLogger.Error(nil, "no kube-applier client configured for management cluster; skipping")
 			continue
@@ -224,17 +228,19 @@ func (c *deleteOrphanedCosmosResources) sweepOrphanedDesires(
 			errs = append(errs, utils.TrackError(err))
 			continue
 		}
-		desireIterator, err := desireCRUD.ListRecursive(ctx, nil)
+		inventoryCtx := cosmosmetrics.ContextWithCallSite(mcCtx, "orphan_desire_inventory")
+		desireIterator, err := desireCRUD.ListRecursive(inventoryCtx, nil)
 		if err != nil {
 			errs = append(errs, utils.TrackError(err))
 			continue
 		}
 
-		for _, desire := range desireIterator.Items(ctx) {
+		deleteCtx := cosmosmetrics.ContextWithCallSite(mcCtx, "orphan_desire_soft_delete")
+		for _, desire := range desireIterator.Items(inventoryCtx) {
 			if desire.ResourceID == nil {
 				localLogger := mcLogger.WithValues(utils.LogValues{}.AddCosmosResourceID(desire.CosmosResourceID))
 				localLogger.Error(errors.New("kube-applier document has no resource ID"), "deleting invalid document by cosmos ID")
-				ctxWithLocalLogger := utils.ContextWithLogger(ctx, localLogger)
+				ctxWithLocalLogger := utils.ContextWithLogger(deleteCtx, localLogger)
 				if err := desireCRUD.DeleteByCosmosID(ctxWithLocalLogger, desire.PartitionKey, desire.ID); err != nil {
 					localLogger.Error(err, "unable to delete invalid kube-applier desire")
 					errs = append(errs, utils.TrackError(fmt.Errorf("unable to delete invalid desire %v: %w", desire.CosmosResourceID, err)))
@@ -252,7 +258,7 @@ func (c *deleteOrphanedCosmosResources) sweepOrphanedDesires(
 				utils.LogValues{}.
 					AddCosmosResourceID(desireResourceIDString).
 					AddLogValuesForResourceID(desire.ResourceID)...)
-			ctxWithLocalLogger := utils.ContextWithLogger(ctx, localLogger)
+			ctxWithLocalLogger := utils.ContextWithLogger(deleteCtx, localLogger)
 
 			if _, parentExists := allSubscriptionResourceIDs[strings.ToLower(desire.ResourceID.Parent.String())]; parentExists {
 				continue
