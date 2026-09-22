@@ -26,7 +26,7 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/msi/armmsi"
 
-	hcpsdk20261001preview "github.com/Azure/ARO-HCP/test/sdk/v20261001preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	hcpsdk20261001 "github.com/Azure/ARO-HCP/test/sdk/v20261001/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
@@ -47,16 +47,16 @@ var _ = Describe("Nodepool OS Disk Encryption", func() {
 
 			tc := framework.NewTestContext()
 
-			By("probing v20261001preview API availability before creating any Azure resources")
+			By("probing v20261001 API availability before creating any Azure resources")
 			probePager := tc.Get20261001ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient().NewListBySubscriptionPager(nil)
 			_, probeErr := probePager.NextPage(ctx)
 			if framework.IsAPINotDeployedError(probeErr) {
-				if time.Now().Before(framework.V20261001PreviewDeploymentDeadline) {
-					Skip(fmt.Sprintf("v20261001preview API not yet deployed; skipping until %s", framework.V20261001PreviewDeploymentDeadline.Format(time.RFC3339)))
+				if time.Now().Before(framework.V20261001DeploymentDeadline) {
+					Skip(fmt.Sprintf("v20261001 API not yet deployed; skipping until %s", framework.V20261001DeploymentDeadline.Format(time.RFC3339)))
 				}
-				Fail(fmt.Sprintf("v20261001preview API still not deployed as of %s deadline", framework.V20261001PreviewDeploymentDeadline.Format(time.RFC3339)))
+				Fail(fmt.Sprintf("v20261001 API still not deployed as of %s deadline", framework.V20261001DeploymentDeadline.Format(time.RFC3339)))
 			}
-			Expect(probeErr).NotTo(HaveOccurred(), "failed to probe v20261001preview API availability")
+			Expect(probeErr).NotTo(HaveOccurred(), "failed to probe v20261001 API availability")
 
 			if tc.UsePooledIdentities() {
 				err := tc.AssignIdentityContainers(ctx, 1, framework.IdentityContainerAssignmentRetryInterval)
@@ -160,7 +160,7 @@ var _ = Describe("Nodepool OS Disk Encryption", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to get nodepool %s", customerNodePoolName)
 			Expect(created.Properties).ToNot(BeNil(), "nodepool Properties was nil")
 			Expect(created.Properties.ProvisioningState).ToNot(BeNil(), "nodepool ProvisioningState was nil")
-			Expect(*created.Properties.ProvisioningState).To(Equal(hcpsdk20261001preview.ProvisioningStateSucceeded), "nodepool %s should be Succeeded", customerNodePoolName)
+			Expect(*created.Properties.ProvisioningState).To(Equal(hcpsdk20261001.ProvisioningStateSucceeded), "nodepool %s should be Succeeded", customerNodePoolName)
 			Expect(created.Properties.Platform).ToNot(BeNil(), "nodepool Platform was nil")
 			Expect(created.Properties.Platform.OSDisk).ToNot(BeNil(), "nodepool OSDisk was nil")
 			Expect(created.Properties.Platform.OSDisk.EncryptionSetID).ToNot(BeNil(),

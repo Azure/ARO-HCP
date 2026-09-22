@@ -26,7 +26,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/azureapi/v20251223preview"
 	"github.com/Azure/ARO-HCP/internal/azureapi/v20260630preview"
 	"github.com/Azure/ARO-HCP/internal/azureapi/v20260901preview"
-	"github.com/Azure/ARO-HCP/internal/azureapi/v20261001preview"
+	v20261001 "github.com/Azure/ARO-HCP/internal/azureapi/v20261001"
 )
 
 func TestClusterKeyVaultTypePreservation(t *testing.T) {
@@ -36,7 +36,7 @@ func TestClusterKeyVaultTypePreservation(t *testing.T) {
 		v20251223preview.RegisterVersion,
 		v20260630preview.RegisterVersion,
 		v20260901preview.RegisterVersion,
-		v20261001preview.RegisterVersion,
+		v20261001.RegisterVersion,
 	} {
 		require.NoError(t, register(registry))
 	}
@@ -47,7 +47,7 @@ func TestClusterKeyVaultTypePreservation(t *testing.T) {
 			require.True(t, ok)
 
 			// Build an existing cluster persisted with a Managed HSM key vault type.
-			// keyVaultType only exists in the external API of v20261001preview and
+			// keyVaultType only exists in the external API of v20261001 and
 			// newer; older versions must still preserve it on update.
 			existing, err := version.NewCluster(nil).ConvertToInternal(nil)
 			require.NoError(t, err)

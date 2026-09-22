@@ -32,7 +32,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azkeys"
 
-	hcpsdk20261001preview "github.com/Azure/ARO-HCP/test/sdk/v20261001preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	hcpsdk20261001 "github.com/Azure/ARO-HCP/test/sdk/v20261001/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
@@ -52,16 +52,16 @@ var _ = Describe("Cluster Etcd Managed HSM Encryption", func() {
 
 			tc := framework.NewTestContext()
 
-			By("probing v20261001preview API availability before creating any Azure resources")
+			By("probing v20261001 API availability before creating any Azure resources")
 			probePager := tc.Get20261001ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient().NewListBySubscriptionPager(nil)
 			_, probeErr := probePager.NextPage(ctx)
 			if framework.IsAPINotDeployedError(probeErr) {
-				if time.Now().Before(framework.V20261001PreviewDeploymentDeadline) {
-					Skip(fmt.Sprintf("v20261001preview API not yet deployed; skipping until %s", framework.V20261001PreviewDeploymentDeadline.Format(time.RFC3339)))
+				if time.Now().Before(framework.V20261001DeploymentDeadline) {
+					Skip(fmt.Sprintf("v20261001 API not yet deployed; skipping until %s", framework.V20261001DeploymentDeadline.Format(time.RFC3339)))
 				}
-				Fail(fmt.Sprintf("v20261001preview API still not deployed as of %s deadline", framework.V20261001PreviewDeploymentDeadline.Format(time.RFC3339)))
+				Fail(fmt.Sprintf("v20261001 API still not deployed as of %s deadline", framework.V20261001DeploymentDeadline.Format(time.RFC3339)))
 			}
-			Expect(probeErr).NotTo(HaveOccurred(), "failed to probe v20261001preview API availability")
+			Expect(probeErr).NotTo(HaveOccurred(), "failed to probe v20261001 API availability")
 
 			if tc.UsePooledIdentities() {
 				err := tc.AssignIdentityContainers(ctx, 1, framework.IdentityContainerAssignmentRetryInterval)
@@ -217,9 +217,9 @@ var _ = Describe("Cluster Etcd Managed HSM Encryption", func() {
 			clusterParams.EtcdEncryptionKeyName = keyName
 			clusterParams.EtcdEncryptionKeyVersion = keyVersion
 			clusterParams.KeyVaultName = keyVaultName
-			clusterParams.KeyVaultType = string(hcpsdk20261001preview.KmsKeyVaultTypeManagedHSM)
+			clusterParams.KeyVaultType = string(hcpsdk20261001.KmsKeyVaultTypeManagedHSM)
 
-			By("creating HCP cluster with Managed HSM keyVaultType via v20261001preview")
+			By("creating HCP cluster with Managed HSM keyVaultType via v20261001")
 			err = tc.CreateHCPClusterFromParam20261001(ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
@@ -242,7 +242,7 @@ var _ = Describe("Cluster Etcd Managed HSM Encryption", func() {
 			Expect(cluster.Properties.Etcd.DataEncryption.CustomerManaged).NotTo(BeNil(), "cluster %q Properties.Etcd.DataEncryption.CustomerManaged was nil", customerClusterName)
 			Expect(cluster.Properties.Etcd.DataEncryption.CustomerManaged.Kms).NotTo(BeNil(), "cluster %q Properties.Etcd.DataEncryption.CustomerManaged.Kms was nil", customerClusterName)
 			Expect(cluster.Properties.Etcd.DataEncryption.CustomerManaged.Kms.KeyVaultType).NotTo(BeNil(), "cluster %q Kms.KeyVaultType was nil", customerClusterName)
-			Expect(*cluster.Properties.Etcd.DataEncryption.CustomerManaged.Kms.KeyVaultType).To(Equal(hcpsdk20261001preview.KmsKeyVaultTypeManagedHSM),
+			Expect(*cluster.Properties.Etcd.DataEncryption.CustomerManaged.Kms.KeyVaultType).To(Equal(hcpsdk20261001.KmsKeyVaultTypeManagedHSM),
 				"cluster %q keyVaultType should be ManagedHSM", customerClusterName)
 
 			By("getting admin credentials for the cluster")
@@ -265,13 +265,13 @@ var _ = Describe("Cluster Etcd Managed HSM Encryption", func() {
 				hcpClient,
 				*resourceGroup.Name,
 				customerClusterName,
-				hcpsdk20261001preview.HcpOpenShiftCluster{
-					Properties: &hcpsdk20261001preview.HcpOpenShiftClusterProperties{
-						Etcd: &hcpsdk20261001preview.EtcdProfile{
-							DataEncryption: &hcpsdk20261001preview.EtcdDataEncryptionProfile{
-								CustomerManaged: &hcpsdk20261001preview.CustomerManagedEncryptionProfile{
-									Kms: &hcpsdk20261001preview.KmsEncryptionProfile{
-										ActiveKey: &hcpsdk20261001preview.KmsKey{
+				hcpsdk20261001.HcpOpenShiftCluster{
+					Properties: &hcpsdk20261001.HcpOpenShiftClusterProperties{
+						Etcd: &hcpsdk20261001.EtcdProfile{
+							DataEncryption: &hcpsdk20261001.EtcdDataEncryptionProfile{
+								CustomerManaged: &hcpsdk20261001.CustomerManagedEncryptionProfile{
+									Kms: &hcpsdk20261001.KmsEncryptionProfile{
+										ActiveKey: &hcpsdk20261001.KmsKey{
 											Version: to.Ptr(secondKeyVersion),
 										},
 									},
