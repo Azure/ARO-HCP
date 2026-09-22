@@ -21,6 +21,7 @@ FIPS Mode Support with v2026-09-01 API should create an HCP cluster with FIPS mo
 Customer should be able to issue the default ingress serving certificate from Let's Encrypt using cert-manager with ACME DNS-01 challenges
 Customer should be able to retrieve cluster and nodepool status active versions
 Customer should not be able to reuse subnets and NSGs between clusters
+Verify cluster operators should provision an HCP cluster and verify the cluster operators
 Customer should be able to create an HCP cluster and manage pull secrets
 Update HCPOpenShiftCluster Positive creates a cluster and updates tags with a PATCH request
 Customer should be able to create an HCP cluster with back-level version 4.20
