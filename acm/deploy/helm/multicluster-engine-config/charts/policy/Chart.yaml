@@ -1,10 +1,10 @@
 apiVersion: v2
-appVersion: v2.16.6
-version: v2.16.6
+appVersion: v2.17.3
+version: v2.17.3
 description: A Helm chart for ACM addons
 name: policy
 dependencies:
 - name: grc
-  version: v2.16.6
+  version: v2.17.3
 - name: cluster-lifecycle
-  version: v2.16.6
+  version: v2.17.3
