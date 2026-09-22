@@ -35,6 +35,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -62,7 +63,7 @@ func createServiceProviderClusterNoActiveVersions(t *testing.T, ctx context.Cont
 	spc := &coreapi.ServiceProviderCluster{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID: metadataapi.Must(azcorearm.ParseResourceID(
-				coreapi.ToServiceProviderClusterResourceIDString(testSubscriptionID, testResourceGroupName, testClusterName),
+				coreapihelpers.ToServiceProviderClusterResourceIDString(testSubscriptionID, testResourceGroupName, testClusterName),
 			)),
 		},
 	}

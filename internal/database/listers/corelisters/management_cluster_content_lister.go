@@ -20,6 +20,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/listerutils"
 )
 
@@ -44,7 +45,7 @@ func NewManagementClusterContentLister(indexer cache.Indexer) ManagementClusterC
 }
 
 func (l *managementClusterContentLister) GetForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName, managementClusterContentName string) (*coreapi.ManagementClusterContent, error) {
-	key := coreapi.ToManagementClusterContentResourceIDString(subscriptionID, resourceGroupName, clusterName, managementClusterContentName)
+	key := coreapihelpers.ToManagementClusterContentResourceIDString(subscriptionID, resourceGroupName, clusterName, managementClusterContentName)
 	return listerutils.GetByKey[coreapi.ManagementClusterContent](l.indexer, key)
 }
 
@@ -53,11 +54,11 @@ func (l *managementClusterContentLister) List(ctx context.Context) ([]*coreapi.M
 }
 
 func (l *managementClusterContentLister) ListForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) ([]*coreapi.ManagementClusterContent, error) {
-	key := coreapi.ToClusterResourceIDString(subscriptionID, resourceGroupName, clusterName)
+	key := coreapihelpers.ToClusterResourceIDString(subscriptionID, resourceGroupName, clusterName)
 	return listerutils.ListFromIndex[coreapi.ManagementClusterContent](l.indexer, ByCluster, key)
 }
 
 func (l *managementClusterContentLister) ListForNodePool(ctx context.Context, subscriptionName, resourceGroupName, clusterName, nodePoolName string) ([]*coreapi.ManagementClusterContent, error) {
-	key := coreapi.ToNodePoolResourceIDString(subscriptionName, resourceGroupName, clusterName, nodePoolName)
+	key := coreapihelpers.ToNodePoolResourceIDString(subscriptionName, resourceGroupName, clusterName, nodePoolName)
 	return listerutils.ListFromIndex[coreapi.ManagementClusterContent](l.indexer, ByNodePool, key)
 }

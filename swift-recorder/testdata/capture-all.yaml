@@ -1,0 +1,7 @@
+# Synthetic test-only digest. This image is not published and must not be deployed.
+defaults:
+  swiftRecorder:
+    enabled: true
+    captureMode: all
+    image:
+      digest: sha256:1111111111111111111111111111111111111111111111111111111111111111

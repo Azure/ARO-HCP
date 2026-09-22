@@ -73,8 +73,6 @@ spec:
             type: object
           status:
             type: object
-            required:
-            - hostedControlPlanes
             properties:
               conditions:
                 description: |-
@@ -202,7 +200,10 @@ spec:
                   pattern: "^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$"
                   x-kubernetes-int-or-string: true
               hostedControlPlanes:
+                description: >-
+                  Reported as a single atomic unit: the whole object is replaced on every apply, since mgmt-agent is the sole writer and there is no need to track ownership of readyResourceIDs/notReadyResourceIDs individually.
                 type: object
+                x-kubernetes-map-type: atomic
                 properties:
                   readyResourceIDs:
                     description: >-
@@ -498,7 +499,7 @@ spec:
           periodSeconds: 10
         resources:
           requests:
-            cpu: 50m
+            cpu: 100m
             memory: 768Mi
         volumeMounts: []
       volumes: []

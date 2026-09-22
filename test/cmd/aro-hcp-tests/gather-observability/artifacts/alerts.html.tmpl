@@ -429,6 +429,14 @@
 
 <body>
 
+  {{if .CollectionErrors}}
+  <section role="alert" style="border:2px solid #d29922;background:#332701;padding:16px;margin-bottom:20px;border-radius:6px">
+    <h2 style="color:#e3b341">Alert collection incomplete</h2>
+    <p>Available alerts are shown below. Missing data must not be interpreted as no alerts firing.</p>
+    <ul>{{range .CollectionErrors}}<li style="white-space:pre-wrap">{{.}}</li>{{end}}</ul>
+  </section>
+  {{end}}
+
   {{if .HasAlerts}}
   <div class="summary-bar">
     <div class="summary-card">
@@ -562,7 +570,7 @@
   {{end}}
 
   {{else}}
-  <div class="no-alerts">No alerts fired during the test window.</div>
+  <div class="no-alerts">{{if .CollectionErrors}}No alerts were collected; collection is incomplete.{{else}}No alerts fired during the test window.{{end}}</div>
   {{end}}
 
   <!-- workaround for spyglass cutting off page bottoms -->

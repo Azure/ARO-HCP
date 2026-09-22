@@ -159,7 +159,7 @@ func TestNeedsWorkIgnoresEarliestRecheckWhenIdentitiesDiverge(t *testing.T) {
 	}
 
 	matchingCluster, matchingServiceProviderCluster := newMatchingClusterAndServiceProviderCluster()
-	matchingServiceProviderCluster.Status.MSIManagedIdentities.EarliestRecheckTime = &future
+	matchingServiceProviderCluster.Spec.EarliestRecheckTimesByController = map[string]*metav1.Time{FetchMSIIdentitiesInfoControllerName: &future}
 	matchingToFetch, err := syncer.collectMSIBasedIdentitiesToFetch(matchingCluster)
 	require.NoError(t, err, "collect matching identities")
 
@@ -186,7 +186,7 @@ func TestNeedsWorkIgnoresEarliestRecheckWhenIdentitiesDiverge(t *testing.T) {
 			toFetch: matchingToFetch,
 			serviceProviderCluster: func() *coreapi.ServiceProviderCluster {
 				_, serviceProviderCluster := newMatchingClusterAndServiceProviderCluster()
-				serviceProviderCluster.Status.MSIManagedIdentities.EarliestRecheckTime = &past
+				serviceProviderCluster.Spec.EarliestRecheckTimesByController = map[string]*metav1.Time{FetchMSIIdentitiesInfoControllerName: &past}
 				return serviceProviderCluster
 			}(),
 			want: true,

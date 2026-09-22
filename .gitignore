@@ -1,6 +1,7 @@
 **/*.swp
 aro-hcp-frontend
 aro-hcp-backend
+/aks-cluster-create
 localsecrets
 secrets
 node_modules
@@ -37,6 +38,7 @@ must-gather-*
 /hcpctl
 timing-metadata-*
 /.claude/
+.tmp
 
 # Allow Secret resource fixtures in the kube-applier read-desire testdata.
 # The `secrets` rule above otherwise excludes the manifestclient directory

@@ -40,7 +40,7 @@ func (c *BackupConfig) Schedules() []BackupScheduleConfig {
 		}
 	default:
 		return []BackupScheduleConfig{
-			{Name: "hourly", Schedule: "0 */1 * * *", TTL: 24 * 7 * time.Hour},
+			{Name: "hourly", Schedule: "0 */1 * * *", TTL: 24 * 2 * time.Hour},
 			{Name: "daily", Schedule: "0 2 * * *", TTL: 24 * 30 * time.Hour},
 			{Name: "weekly", Schedule: "0 3 * * 0", TTL: 24 * 90 * time.Hour},
 		}

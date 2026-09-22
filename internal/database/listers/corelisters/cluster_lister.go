@@ -20,6 +20,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/listerutils"
 )
 
@@ -51,11 +52,11 @@ func (l *hcpOpenShiftClusterLister) List(ctx context.Context) ([]*coreapi.HCPOpe
 //
 //	/subscriptions/<sub>/resourcegroups/<rg>/providers/microsoft.redhatopenshift/hcpopenshiftclusters/<name>
 func (l *hcpOpenShiftClusterLister) Get(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) (*coreapi.HCPOpenShiftCluster, error) {
-	key := coreapi.ToClusterResourceIDString(subscriptionID, resourceGroupName, clusterName)
+	key := coreapihelpers.ToClusterResourceIDString(subscriptionID, resourceGroupName, clusterName)
 	return listerutils.GetByKey[coreapi.HCPOpenShiftCluster](l.indexer, key)
 }
 
 func (l *hcpOpenShiftClusterLister) ListForResourceGroup(ctx context.Context, subscriptionName, resourceGroupName string) ([]*coreapi.HCPOpenShiftCluster, error) {
-	key := coreapi.ToResourceGroupResourceIDString(subscriptionName, resourceGroupName)
+	key := coreapihelpers.ToResourceGroupResourceIDString(subscriptionName, resourceGroupName)
 	return listerutils.ListFromIndex[coreapi.HCPOpenShiftCluster](l.indexer, ByResourceGroup, key)
 }

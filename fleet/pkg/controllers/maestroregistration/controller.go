@@ -45,7 +45,7 @@ func NewMaestroRegistrationController(
 	maestroConsumerClientFactory MaestroConsumerClientFactory,
 	stampLister fleetlisters.StampLister,
 	cfg fleetcontrollers.StampWatchingControllerConfig,
-) *fleetcontrollers.StampWatchingController {
+) fleetcontrollers.Controller {
 	syncer := &maestroRegistrationSyncer{
 		fleetDBClient:                fleetDBClient,
 		maestroConsumerClientFactory: maestroConsumerClientFactory,

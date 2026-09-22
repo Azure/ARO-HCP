@@ -391,7 +391,7 @@ func TestAdmitNodePool_SubnetVNet(t *testing.T) {
 				},
 				Status: coreapi.ServiceProviderNodePoolStatus{
 					NodePoolVersion: coreapi.ServiceProviderNodePoolStatusVersion{
-						ActiveVersions: []coreapi.HCPNodePoolActiveVersion{
+						ActiveVersions: []coreapi.ServiceProviderNodePoolActiveVersion{
 							{Version: &version},
 						},
 					},
@@ -400,7 +400,7 @@ func TestAdmitNodePool_SubnetVNet(t *testing.T) {
 			admissionContext.ServiceProviderCluster = &coreapi.ServiceProviderCluster{
 				Status: coreapi.ServiceProviderClusterStatus{
 					ControlPlaneVersion: coreapi.ServiceProviderClusterStatusVersion{
-						ActiveVersions: []coreapi.HCPClusterActiveVersion{
+						ActiveVersions: []coreapi.ServiceProviderClusterActiveVersion{
 							{Version: &version},
 						},
 					},
@@ -868,10 +868,17 @@ func TestAdmitNodePool_VersionValidation(t *testing.T) {
 					},
 				},
 			}
+
+			// Use cluster version from test case's clusterVersions if cross-major upgrade
+			clusterVersion := "4.18"
+			if tt.allowMajorUpgrades && len(tt.clusterVersions) > 0 {
+				clusterVersion = tt.clusterVersions[0]
+			}
+
 			cluster := &coreapi.HCPOpenShiftCluster{
 				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
 					Version: coreapi.VersionProfile{
-						ID:           "4.18",
+						ID:           clusterVersion,
 						ChannelGroup: "stable",
 					},
 				},
@@ -892,10 +899,10 @@ func TestAdmitNodePool_VersionValidation(t *testing.T) {
 			}
 
 			// Build ServiceProviderNodePool with active versions
-			var activeVersions []coreapi.HCPNodePoolActiveVersion
+			var activeVersions []coreapi.ServiceProviderNodePoolActiveVersion
 			for _, v := range tt.activeVersions {
 				ver := semver.MustParse(v)
-				activeVersions = append(activeVersions, coreapi.HCPNodePoolActiveVersion{Version: &ver})
+				activeVersions = append(activeVersions, coreapi.ServiceProviderNodePoolActiveVersion{Version: &ver})
 			}
 			var desiredVer *semver.Version
 			if tt.desiredVersion != "" {
@@ -916,10 +923,10 @@ func TestAdmitNodePool_VersionValidation(t *testing.T) {
 			}
 
 			// Build ServiceProviderCluster with active versions
-			var clusterActiveVersions []coreapi.HCPClusterActiveVersion
+			var clusterActiveVersions []coreapi.ServiceProviderClusterActiveVersion
 			for _, v := range tt.clusterVersions {
 				ver := semver.MustParse(v)
-				clusterActiveVersions = append(clusterActiveVersions, coreapi.HCPClusterActiveVersion{Version: &ver})
+				clusterActiveVersions = append(clusterActiveVersions, coreapi.ServiceProviderClusterActiveVersion{Version: &ver})
 			}
 			spCluster := &coreapi.ServiceProviderCluster{
 				Status: coreapi.ServiceProviderClusterStatus{
@@ -934,6 +941,120 @@ func TestAdmitNodePool_VersionValidation(t *testing.T) {
 				ServiceProviderNodePool: spNodePool,
 				ServiceProviderCluster:  spCluster,
 			}, op, newNodePool, oldNodePool)
+			utils.VerifyErrorsMatch(t, tt.expectErrors, errs)
+		})
+	}
+}
+
+func TestAdmitNodePool_VersionValidationOnCreate(t *testing.T) {
+	tests := []struct {
+		name               string
+		newVersion         string
+		clusterVersions    []string
+		allowMajorUpgrades bool
+		expectErrors       []utils.ExpectedError
+	}{
+		{
+			name:            "valid version within N-2 skew",
+			newVersion:      "4.21.5",
+			clusterVersions: []string{"4.22.0"},
+			expectErrors:    []utils.ExpectedError{},
+		},
+		{
+			name:            "cannot exceed control plane version",
+			newVersion:      "4.23.0",
+			clusterVersions: []string{"4.22.0"},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.version.id", Message: "cannot exceed control plane version"},
+			},
+		},
+		{
+			name:            "N-2 skew violation",
+			newVersion:      "4.19.0",
+			clusterVersions: []string{"4.22.0"},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.version.id", Message: "must be within 2 minor versions of control plane version"},
+			},
+		},
+		{
+			name:            "cross-major rejected without AFEC",
+			newVersion:      "4.22.0",
+			clusterVersions: []string{"5.0.1"},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.version.id", Message: "node pool version changes are not supported while the control plane is on a different major version (node pool major version 4 vs control plane major version 5)"},
+			},
+		},
+		{
+			name:               "cross-major valid skew with AFEC",
+			newVersion:         "4.22.0",
+			clusterVersions:    []string{"5.0.1"},
+			allowMajorUpgrades: true,
+			expectErrors:       []utils.ExpectedError{},
+		},
+		{
+			name:               "cross-major invalid skew with AFEC",
+			newVersion:         "4.20.0",
+			clusterVersions:    []string{"5.0.1"},
+			allowMajorUpgrades: true,
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.version.id", Message: "not allowed to coexist with a different-major control plane"},
+			},
+		},
+		{
+			name:               "cross-major incompatible CP minor with AFEC",
+			newVersion:         "4.23.0",
+			clusterVersions:    []string{"5.0.1"},
+			allowMajorUpgrades: true,
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.version.id", Message: "cannot coexist with control plane version"},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			newNodePool := &coreapi.HCPOpenShiftClusterNodePool{
+				Properties: coreapi.HCPOpenShiftClusterNodePoolProperties{
+					Version: coreapi.NodePoolVersionProfile{
+						ID:           tt.newVersion,
+						ChannelGroup: "stable",
+					},
+				},
+			}
+
+			clusterVersion := "4.22"
+			if tt.allowMajorUpgrades && len(tt.clusterVersions) > 0 {
+				clusterVersion = tt.clusterVersions[0]
+			}
+
+			cluster := &coreapi.HCPOpenShiftCluster{
+				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+					Version: coreapi.VersionProfile{
+						ID:           clusterVersion,
+						ChannelGroup: "stable",
+					},
+				},
+			}
+
+			var op operation.Operation
+			if tt.allowMajorUpgrades {
+				op = operation.Operation{
+					Type: operation.Create,
+					Options: validation.AFECsToValidationOptions([]coreapi.Feature{{
+						Name:  ptr.To(metadataapi.FeatureExperimentalReleaseFeatures),
+						State: ptr.To("Registered"),
+					}}),
+				}
+			} else {
+				op = operation.Operation{Type: operation.Create}
+			}
+
+			spCluster := serviceProviderClusterWithVersions(t, tt.clusterVersions)
+
+			errs := AdmitNodePool(context.Background(), &NodePoolAdmissionContext{
+				Cluster:                cluster,
+				ServiceProviderCluster: spCluster,
+			}, op, newNodePool, nil)
 			utils.VerifyErrorsMatch(t, tt.expectErrors, errs)
 		})
 	}
@@ -966,7 +1087,7 @@ func TestAdmitNodePool_AllowsDifferentChannelGroupClusterAndNodePool(t *testing.
 		},
 		Status: coreapi.ServiceProviderNodePoolStatus{
 			NodePoolVersion: coreapi.ServiceProviderNodePoolStatusVersion{
-				ActiveVersions: []coreapi.HCPNodePoolActiveVersion{{Version: &ver}},
+				ActiveVersions: []coreapi.ServiceProviderNodePoolActiveVersion{{Version: &ver}},
 			},
 		},
 	}
@@ -975,7 +1096,7 @@ func TestAdmitNodePool_AllowsDifferentChannelGroupClusterAndNodePool(t *testing.
 	spCluster := &coreapi.ServiceProviderCluster{
 		Status: coreapi.ServiceProviderClusterStatus{
 			ControlPlaneVersion: coreapi.ServiceProviderClusterStatusVersion{
-				ActiveVersions: []coreapi.HCPClusterActiveVersion{{Version: &clusterVer}},
+				ActiveVersions: []coreapi.ServiceProviderClusterActiveVersion{{Version: &clusterVer}},
 			},
 		},
 	}
@@ -1056,5 +1177,21 @@ func TestAdmitNodePoolOnDelete(t *testing.T) {
 			errs := AdmitNodePoolOnDelete(ctx, admissionContext, tt.nodePoolBeingDeleted)
 			utils.VerifyErrorsMatch(t, tt.expectErrors, errs)
 		})
+	}
+}
+
+func serviceProviderClusterWithVersions(t *testing.T, versions []string) *coreapi.ServiceProviderCluster {
+	t.Helper()
+	var active []coreapi.ServiceProviderClusterActiveVersion
+	for _, s := range versions {
+		v := semver.MustParse(s)
+		active = append(active, coreapi.ServiceProviderClusterActiveVersion{Version: &v})
+	}
+	return &coreapi.ServiceProviderCluster{
+		Status: coreapi.ServiceProviderClusterStatus{
+			ControlPlaneVersion: coreapi.ServiceProviderClusterStatusVersion{
+				ActiveVersions: active,
+			},
+		},
 	}
 }

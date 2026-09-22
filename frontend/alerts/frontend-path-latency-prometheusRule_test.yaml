@@ -12,10 +12,10 @@ tests:
 # volume to trust — the ≥50 req/30m gate suppresses it.
 - interval: 1m
   input_series:
-  # ~3 requests over 30m, 1 of them slower than 1s (le="1" only accrues 2).
+  # ~3 requests over 30m, 1 of them slower than 1s (le="1.0" only accrues 2).
   - series: 'frontend_http_requests_duration_seconds_count{route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
     values: '0+0.1x45'
-  - series: 'frontend_http_requests_duration_seconds_bucket{le="1", route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="1.0", route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
     values: '0+0.0667x45'
   alert_rule_test:
   - eval_time: 40m
@@ -26,7 +26,7 @@ tests:
   input_series:
   - series: 'frontend_http_requests_duration_seconds_count{route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
     values: '0+10x45'
-  - series: 'frontend_http_requests_duration_seconds_bucket{le="1", route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="1.0", route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
     values: '0+9x45'
   alert_rule_test:
   - eval_time: 40m
@@ -48,7 +48,7 @@ tests:
   input_series:
   - series: 'frontend_http_requests_duration_seconds_count{route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
     values: '0+10x45'
-  - series: 'frontend_http_requests_duration_seconds_bucket{le="1", route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="1.0", route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
     values: '0+9.6x45'
   alert_rule_test:
   - eval_time: 40m
@@ -63,20 +63,43 @@ tests:
     values: '0+1x45'
   - series: 'frontend_http_requests_duration_seconds_count{route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-1"}'
     values: '0+1x45'
-  - series: 'frontend_http_requests_duration_seconds_bucket{le="1", route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="1.0", route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
     values: '0+0.5x45'
-  - series: 'frontend_http_requests_duration_seconds_bucket{le="1", route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-1"}'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="1.0", route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-1"}'
     values: '0+0.5x45'
   alert_rule_test:
   - eval_time: 40m
     alertname: FrontendPathLatency
     exp_alerts: []
+# Classic text-exposition format ("le=1", no decimal point) must match the same
+# as OpenMetrics ("le=1.0") — the selector regex must not depend on which
+# exposition format Prometheus negotiated with the scrape target.
+- interval: 1m
+  input_series:
+  - series: 'frontend_http_requests_duration_seconds_count{route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+10x45'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="1", route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+9x45'
+  alert_rule_test:
+  - eval_time: 40m
+    alertname: FrontendPathLatency
+    exp_alerts:
+    - exp_labels:
+        component: frontend
+        severity: warning
+        method: GET
+        route: /api/clusters
+        cluster: test
+      exp_annotations:
+        description: 'More than 5% of frontend requests for GET /api/clusters exceeded 1 second over the past 30 minutes (cluster test).'
+        runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/frontend-tsg.html'
+        summary: 'Frontend latency is high: over 5% of GET /api/clusters requests on cluster test exceeded 1 second over the past 30 minutes'
 # Excluded hcpoperationresults route never fires, even at high volume and 100% slow.
 - interval: 1m
   input_series:
   - series: 'frontend_http_requests_duration_seconds_count{route="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
     values: '0+10x45'
-  - series: 'frontend_http_requests_duration_seconds_bucket{le="1", route="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="1.0", route="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
     values: '0+0x45'
   alert_rule_test:
   - eval_time: 40m
@@ -96,7 +119,7 @@ tests:
     values: '0+10x45'
   - series: 'frontend_http_requests_duration_seconds_bucket{le="0.5", route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
     values: '0+10x45'
-  - series: 'frontend_http_requests_duration_seconds_bucket{le="1", route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="1.0", route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
     values: '0+10x45'
   - series: 'frontend_http_requests_duration_seconds_bucket{le="+Inf", route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
     values: '0+10x45'
@@ -115,7 +138,7 @@ tests:
     values: '0+0x45'
   - series: 'frontend_http_requests_duration_seconds_bucket{le="0.5", route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
     values: '0+10x45'
-  - series: 'frontend_http_requests_duration_seconds_bucket{le="1", route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="1.0", route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
     values: '0+10x45'
   - series: 'frontend_http_requests_duration_seconds_bucket{le="+Inf", route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
     values: '0+10x45'
@@ -144,7 +167,7 @@ tests:
     values: '0+0x45'
   - series: 'frontend_http_requests_duration_seconds_bucket{le="0.5", route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
     values: '0+0.2x45'
-  - series: 'frontend_http_requests_duration_seconds_bucket{le="1", route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="1.0", route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
     values: '0+0.2x45'
   - series: 'frontend_http_requests_duration_seconds_bucket{le="+Inf", route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
     values: '0+0.2x45'
@@ -164,7 +187,7 @@ tests:
     values: '0+9.9x45'
   - series: 'frontend_http_requests_duration_seconds_bucket{le="0.5", route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
     values: '0+9.9x45'
-  - series: 'frontend_http_requests_duration_seconds_bucket{le="1", route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="1.0", route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
     values: '0+9.9x45'
   - series: 'frontend_http_requests_duration_seconds_bucket{le="+Inf", route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
     values: '0+10x45'
@@ -180,7 +203,7 @@ tests:
   input_series:
   - series: 'frontend_http_requests_duration_seconds_bucket{le="0.5", route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
     values: '0+0.2x45'
-  - series: 'frontend_http_requests_duration_seconds_bucket{le="1", route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="1.0", route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
     values: '0+0.2x45'
   - series: 'frontend_http_requests_duration_seconds_bucket{le="+Inf", route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
     values: '0+0.2x45'
@@ -188,7 +211,7 @@ tests:
     values: '0+0.2x45'
   - series: 'frontend_http_requests_duration_seconds_bucket{le="0.5", route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-1"}'
     values: '0+0.2x45'
-  - series: 'frontend_http_requests_duration_seconds_bucket{le="1", route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-1"}'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="1.0", route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-1"}'
     values: '0+0.2x45'
   - series: 'frontend_http_requests_duration_seconds_bucket{le="+Inf", route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-1"}'
     values: '0+0.2x45'
@@ -203,7 +226,7 @@ tests:
   input_series:
   - series: 'frontend_http_requests_duration_seconds_bucket{le="0.5", route="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
     values: '0+10x45'
-  - series: 'frontend_http_requests_duration_seconds_bucket{le="1", route="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="1.0", route="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
     values: '0+10x45'
   - series: 'frontend_http_requests_duration_seconds_bucket{le="+Inf", route="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
     values: '0+10x45'

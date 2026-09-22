@@ -31,6 +31,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
@@ -55,7 +56,7 @@ func newCreatorTestClusterKey() controllerutils.HCPClusterKey {
 
 func newCreatorTestCluster(t *testing.T) *coreapi.HCPOpenShiftCluster {
 	t.Helper()
-	resourceID := metadataapi.Must(coreapi.ToClusterResourceID(creatorTestSubscriptionID, creatorTestResourceGroup, creatorTestClusterName))
+	resourceID := metadataapi.Must(coreapihelpers.ToClusterResourceID(creatorTestSubscriptionID, creatorTestResourceGroup, creatorTestClusterName))
 	return &coreapi.HCPOpenShiftCluster{
 		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: resourceID},
 		TrackedResource: coreapi.TrackedResource{
@@ -92,7 +93,7 @@ func (b *boomServiceProviderClusterLister) Get(_ context.Context, _, _, _ string
 }
 
 func TestCreateServiceProviderClusterSyncer_SyncOnce(t *testing.T) {
-	clusterResourceID := metadataapi.Must(coreapi.ToClusterResourceID(creatorTestSubscriptionID, creatorTestResourceGroup, creatorTestClusterName))
+	clusterResourceID := metadataapi.Must(coreapihelpers.ToClusterResourceID(creatorTestSubscriptionID, creatorTestResourceGroup, creatorTestClusterName))
 	listerBoom := errors.New("lister exploded")
 
 	tests := []struct {

@@ -30,6 +30,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -96,7 +97,7 @@ func TestOperationRevokeCredentialsPoll_SynchronizeOperation(t *testing.T) {
 		revokeOpSuffix = revokeOpSuffix[:16]
 	}
 
-	revocationResourceID := metadataapi.Must(coreapi.ToSystemAdminCredentialRevocationResourceID(
+	revocationResourceID := metadataapi.Must(coreapihelpers.ToSystemAdminCredentialRevocationResourceID(
 		testSubscriptionID, testResourceGroupName, testClusterName, revokeOpSuffix,
 	))
 

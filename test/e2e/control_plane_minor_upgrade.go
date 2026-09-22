@@ -32,9 +32,8 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
 	clusterversion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/version"
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controlplaneversion"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
-	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
@@ -44,12 +43,6 @@ var _ = Describe("Customer", func() {
 	DescribeTable("should be able to successfully upgrade control plane minor version",
 		labels.MIContainers(1),
 		func(ctx context.Context, targetMinor string) {
-			// The 4.22 -> 5.0 minor upgrade is not yet supported by Cluster Service, so skip it
-			// until CS gains support. This entry is the only one whose target minor is "5.0".
-			if targetMinor == "5.0" {
-				Skip(`cluster service doesn't support this yet: VerifyHostedControlPlaneYStreamUpgrade(previousMinor=4.22, targetMinor=5.0) failed: clusterversion status.history has no version in target minor "5.0"`)
-			}
-
 			channelGroup := framework.DefaultOpenshiftChannelGroup()
 			upgradeVersion := metadataapi.Must(semver.ParseTolerant(targetMinor))
 
@@ -83,7 +76,7 @@ var _ = Describe("Customer", func() {
 				upgradeVersionId = resolvedUpgrade
 			} else {
 				for _, minorLine := range []string{installVersionId, upgradeVersionId} {
-					desiredVersion, err := controlplaneversion.SelectControlPlaneVersion(ctx, http.DefaultTransport.RoundTrip, nil, fmt.Sprintf("%s-%s", channelGroup, minorLine), clusterversion.GetZStreamOffset(channelGroup))
+					desiredVersion, err := framework.SelectControlPlaneVersion(ctx, http.DefaultTransport.RoundTrip, nil, fmt.Sprintf("%s-%s", channelGroup, minorLine), clusterversion.GetZStreamOffset(channelGroup))
 					if err != nil {
 						Skip(fmt.Sprintf("failed to resolve a version for channel %s-%s: %v", channelGroup, minorLine, err))
 					}

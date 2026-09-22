@@ -31,6 +31,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
@@ -254,7 +255,7 @@ func buildCredentialRequestApplyDesire(
 	target kubeapplierapi.ResourceReference,
 	obj systemadmincredential.KubeObject,
 ) (*kubeapplierapi.ApplyDesire, error) {
-	resourceIDStr := kubeapplierapi.ToSystemAdminCredentialRequestScopedApplyDesireResourceIDString(
+	resourceIDStr := kubeapplierapihelpers.ToSystemAdminCredentialRequestScopedApplyDesireResourceIDString(
 		subscriptionID, resourceGroupName, clusterName, credentialRequestName, desireName,
 	)
 	resourceID, err := azcorearm.ParseResourceID(resourceIDStr)
@@ -291,7 +292,7 @@ func buildCredentialRequestReadDesire(
 	managementCluster *azcorearm.ResourceID,
 	target kubeapplierapi.ResourceReference,
 ) (*kubeapplierapi.ReadDesire, error) {
-	resourceIDStr := kubeapplierapi.ToSystemAdminCredentialRequestScopedReadDesireResourceIDString(
+	resourceIDStr := kubeapplierapihelpers.ToSystemAdminCredentialRequestScopedReadDesireResourceIDString(
 		subscriptionID, resourceGroupName, clusterName, credentialRequestName, desireName,
 	)
 	resourceID, err := azcorearm.ParseResourceID(resourceIDStr)

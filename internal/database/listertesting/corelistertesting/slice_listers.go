@@ -19,6 +19,7 @@ import (
 	"strings"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
@@ -145,17 +146,17 @@ func (l *SliceActiveOperationLister) Get(ctx context.Context, subscriptionID, na
 // ListActiveOperationsForCluster returns active operations for the cluster and its
 // child resources (node pools, external auths), matching production lister semantics.
 func (l *SliceActiveOperationLister) ListActiveOperationsForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) ([]*coreapi.Operation, error) {
-	clusterKey := coreapi.ToClusterResourceIDString(subscriptionID, resourceGroupName, clusterName)
+	clusterKey := coreapihelpers.ToClusterResourceIDString(subscriptionID, resourceGroupName, clusterName)
 	return l.listByPrefix(clusterKey), nil
 }
 
 func (l *SliceActiveOperationLister) ListActiveOperationsForNodePool(ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName string) ([]*coreapi.Operation, error) {
-	nodePoolKey := coreapi.ToNodePoolResourceIDString(subscriptionID, resourceGroupName, clusterName, nodePoolName)
+	nodePoolKey := coreapihelpers.ToNodePoolResourceIDString(subscriptionID, resourceGroupName, clusterName, nodePoolName)
 	return l.listByPrefix(nodePoolKey), nil
 }
 
 func (l *SliceActiveOperationLister) ListActiveOperationsForExternalAuth(ctx context.Context, subscriptionID, resourceGroupName, clusterName, externalAuthName string) ([]*coreapi.Operation, error) {
-	externalAuthKey := coreapi.ToExternalAuthResourceIDString(subscriptionID, resourceGroupName, clusterName, externalAuthName)
+	externalAuthKey := coreapihelpers.ToExternalAuthResourceIDString(subscriptionID, resourceGroupName, clusterName, externalAuthName)
 	return l.listByPrefix(externalAuthKey), nil
 }
 
@@ -357,7 +358,7 @@ func (l *SliceManagementClusterContentLister) ListForCluster(ctx context.Context
 }
 
 func (l *SliceManagementClusterContentLister) ListForNodePool(ctx context.Context, subscriptionName, resourceGroupName, clusterName, nodePoolName string) ([]*coreapi.ManagementClusterContent, error) {
-	prefix := coreapi.ToNodePoolResourceIDString(subscriptionName, resourceGroupName, clusterName, nodePoolName)
+	prefix := coreapihelpers.ToNodePoolResourceIDString(subscriptionName, resourceGroupName, clusterName, nodePoolName)
 	var result []*coreapi.ManagementClusterContent
 	for _, c := range l.Contents {
 		resourceID := c.GetResourceID()
@@ -543,17 +544,17 @@ func (l *SliceControllerLister) ListForResourceGroup(_ context.Context, subscrip
 
 func (l *SliceControllerLister) ListForCluster(_ context.Context, subscriptionID, resourceGroupName, clusterName string) ([]*coreapi.Controller, error) {
 	return listControllersUnderPrefix(l.Controllers,
-		coreapi.ToClusterResourceIDString(subscriptionID, resourceGroupName, clusterName))
+		coreapihelpers.ToClusterResourceIDString(subscriptionID, resourceGroupName, clusterName))
 }
 
 func (l *SliceControllerLister) ListForNodePool(_ context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName string) ([]*coreapi.Controller, error) {
 	return listControllersUnderPrefix(l.Controllers,
-		coreapi.ToNodePoolResourceIDString(subscriptionID, resourceGroupName, clusterName, nodePoolName))
+		coreapihelpers.ToNodePoolResourceIDString(subscriptionID, resourceGroupName, clusterName, nodePoolName))
 }
 
 func (l *SliceControllerLister) ListForExternalAuth(_ context.Context, subscriptionID, resourceGroupName, clusterName, externalAuthName string) ([]*coreapi.Controller, error) {
 	return listControllersUnderPrefix(l.Controllers,
-		coreapi.ToExternalAuthResourceIDString(subscriptionID, resourceGroupName, clusterName, externalAuthName))
+		coreapihelpers.ToExternalAuthResourceIDString(subscriptionID, resourceGroupName, clusterName, externalAuthName))
 }
 
 // listControllersUnderPrefix returns the controllers whose ResourceID is a

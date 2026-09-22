@@ -38,13 +38,14 @@ declare -A IMAGE_MAP=(
     [HCP_RECOVERY]=hcpRecovery
     [FLEET]=fleet
     [MGMT_AGENT]=mgmtAgent
+    [SWIFT_RECORDER]=swiftRecorder
     [KUBE_APPLIER]=kubeApplier
     [EXPORTER]=customExporter
 )
 
 CI_IMAGE_NAMES=()
 
-for prefix in BACKEND FRONTEND ADMIN_API SESSIONGATE HCP_RECOVERY FLEET MGMT_AGENT KUBE_APPLIER EXPORTER; do
+for prefix in BACKEND FRONTEND ADMIN_API SESSIONGATE HCP_RECOVERY FLEET MGMT_AGENT SWIFT_RECORDER KUBE_APPLIER EXPORTER; do
     var="${prefix}_IMAGE"
     if [[ -n "${!var:-}" ]]; then
         image="${!var}"

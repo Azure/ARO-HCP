@@ -33,6 +33,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/kubeappliercosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/kube-applier/pkg/controllers/conditions"
 	"github.com/Azure/ARO-HCP/kube-applier/pkg/controllers/desirestatuswriter"
@@ -67,7 +68,7 @@ func newReadDesire(t *testing.T, target kubeapplierapi.ResourceReference) *kubea
 	t.Helper()
 	return &kubeapplierapi.ReadDesire{
 		CosmosMetadata: coreapi.CosmosMetadata{
-			ResourceID:   mustParseID(t, kubeapplierapi.ToClusterScopedReadDesireResourceIDString(testSub, testRG, testCluster, testDesire)),
+			ResourceID:   mustParseID(t, kubeapplierapihelpers.ToClusterScopedReadDesireResourceIDString(testSub, testRG, testCluster, testDesire)),
 			PartitionKey: strings.ToLower(testMgmtID.String()),
 		},
 		Spec: kubeapplierapi.ReadDesireSpec{

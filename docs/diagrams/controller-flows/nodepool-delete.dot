@@ -1,0 +1,23 @@
+digraph nodepool_delete {
+  graph [rankdir=TB, bgcolor="white", pad="0.3", nodesep="0.4", ranksep="0.55", fontname="DejaVu Sans", fontsize=18, labelloc=t, label="Node pool delete · controller flow", dpi=110];
+  node [shape=box, style="rounded,filled", fillcolor="#e6f0fa", color="#35648a", fontname="DejaVu Sans", fontsize=12, margin="0.16,0.10"];
+  edge [color="#536577", fontname="DejaVu Sans", fontsize=10, arrowsize=0.7];
+  api [label="Frontend DELETE node pool\ndeletion timestamp + Delete Operation", fillcolor="#eee7fb", color="#7b59a4"];
+  dispatch [label="NodePoolClusterServiceDelete\nDispatch", fillcolor="#e6f0fa", color="#35648a"];
+  cs [label="Cluster Service / external \ncleanup", fillcolor="#fff0da", color="#b27624"];
+  clear [label="NodePoolDeletionClusterServiceID\nClearer", fillcolor="#e6f0fa", color="#35648a"];
+  resources [label="ClusterResources", fillcolor="#e6f0fa", color="#35648a"];
+  cleanup [label="NodePoolChildResourcesCleanup\nController", fillcolor="#e6f0fa", color="#35648a"];
+  final [label="NodePoolDeletionController", fillcolor="#e6f0fa", color="#35648a"];
+  op [label="OperationNodePoolDelete", fillcolor="#e6f0fa", color="#35648a"];
+  done [label="ARM Delete Operation Succeeded", fillcolor="#e4f2e5", color="#4c8053"];
+  api -> dispatch [label="deletion requested"];
+  api -> resources [label="skip deleting node pool; reap\nintents"];
+  dispatch -> cs [label="DELETE; stamp dispatch\ntimestamp"];
+  cs -> clear [label="GET not found"];
+  clear -> cleanup [label="ClusterServiceID cleared"];
+  cleanup -> final [label="nested docs / desires removed"];
+  final -> op [label="node-pool document deleted"];
+  op -> done [label="absence observed"];
+  clear -> clear [label="external deletion pending", style=dashed, color="#857456", constraint=false];
+}

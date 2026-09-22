@@ -54,10 +54,11 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armsubscriptions"
 
 	graphutil "github.com/Azure/ARO-HCP/internal/graph/util"
-	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	hcpsdk20251223preview "github.com/Azure/ARO-HCP/test/sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	hcpsdk20260630preview "github.com/Azure/ARO-HCP/test/sdk/v20260630preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	hcpsdk20260901preview "github.com/Azure/ARO-HCP/test/sdk/v20260901preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	hcpsdk20261001preview "github.com/Azure/ARO-HCP/test/sdk/v20261001preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/timing"
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/pipeline"
 )
@@ -67,13 +68,14 @@ type perItOrDescribeTestContext struct {
 
 	contextLock                   sync.RWMutex
 	knownResourceGroups           []string
-	knownAppRegistrationIDs       []string
+	knownAppRegistrations         []graphutil.ApplicationCleanupTarget
 	createdRoleAssignmentIDs      []string
 	subscriptionID                string
 	clientFactory20240610         *hcpsdk20240610preview.ClientFactory
 	clientFactory20251223         *hcpsdk20251223preview.ClientFactory
 	clientFactory20260630         *hcpsdk20260630preview.ClientFactory
 	clientFactory20260901         *hcpsdk20260901preview.ClientFactory
+	clientFactory20261001         *hcpsdk20261001preview.ClientFactory
 	armComputeClientFactory       *armcompute.ClientFactory
 	armResourcesClientFactory     *armresources.ClientFactory
 	armSubscriptionsClientFactory *armsubscriptions.ClientFactory
@@ -263,8 +265,8 @@ func (tc *perItOrDescribeTestContext) deleteCreatedResources(ctx context.Context
 	}
 
 	tc.contextLock.RLock()
-	resourceGroupNames := tc.knownResourceGroups
-	appRegistrations := tc.knownAppRegistrationIDs
+	resourceGroupNames := slices.Clone(tc.knownResourceGroups)
+	appRegistrations := slices.Clone(tc.knownAppRegistrations)
 	tc.contextLock.RUnlock()
 	ginkgo.GinkgoLogr.Info("deleting created resources")
 
@@ -280,9 +282,9 @@ func (tc *perItOrDescribeTestContext) deleteCreatedResources(ctx context.Context
 		}
 	}
 
-	err = CleanupAppRegistrations(ctx, graphClient, appRegistrations)
+	err = graphClient.CleanupApplications(ctx, appRegistrations)
 	if err != nil {
-		ginkgo.GinkgoLogr.Error(err, "at least one app registration failed to delete")
+		ginkgo.GinkgoLogr.Error(err, "at least one app registration failed to delete and purge")
 	}
 
 	ginkgo.GinkgoLogr.Info("finished deleting created resources")
@@ -811,7 +813,7 @@ func (tc *perItOrDescribeTestContext) purgeDeletedKeyVaultsInResourceGroup(ctx c
 				// A 404 means the vault was already purged or its soft-delete
 				// window expired between the list and the purge; that is the
 				// desired end state, so treat it as a no-op rather than noise.
-				if isKeyVaultNotFound(err) {
+				if IsNotFoundError(err) {
 					continue
 				}
 				ginkgo.GinkgoLogr.Error(err, "failed to start purge of soft-deleted key vault; a colliding name may block a later run until it is purged or expires",
@@ -819,7 +821,7 @@ func (tc *perItOrDescribeTestContext) purgeDeletedKeyVaultsInResourceGroup(ctx c
 				continue
 			}
 			if _, err := poller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{Frequency: StandardPollInterval}); err != nil {
-				if isKeyVaultNotFound(err) {
+				if IsNotFoundError(err) {
 					continue
 				}
 				ginkgo.GinkgoLogr.Error(err, "failed to purge soft-deleted key vault; a colliding name may block a later run until it is purged or expires",
@@ -829,10 +831,8 @@ func (tc *perItOrDescribeTestContext) purgeDeletedKeyVaultsInResourceGroup(ctx c
 	}
 }
 
-// isKeyVaultNotFound reports whether err is an Azure 404 response, which for a
-// purge means the vault is already gone (already purged or soft-delete window
-// expired) and can be treated as a successful no-op.
-func isKeyVaultNotFound(err error) bool {
+// IsNotFoundError reports whether err is an Azure 404 (Not Found) response.
+func IsNotFoundError(err error) bool {
 	var respErr *azcore.ResponseError
 	return errors.As(err, &respErr) && respErr.StatusCode == http.StatusNotFound
 }
@@ -1010,29 +1010,23 @@ func (tc *perItOrDescribeTestContext) NewAppRegistrationWithServicePrincipal(ctx
 		return nil, nil, fmt.Errorf("failed to create app registration: %w", err)
 	}
 
-	func() {
-		tc.contextLock.Lock()
-		defer tc.contextLock.Unlock()
-		// Track the ObjectIDs as that's what operations are performed against, not AppID
-		tc.knownAppRegistrationIDs = append(tc.knownAppRegistrationIDs, app.ID)
-	}()
+	tc.contextLock.Lock()
+	targetIndex := len(tc.knownAppRegistrations)
+	tc.knownAppRegistrations = append(tc.knownAppRegistrations, graphutil.ApplicationCleanupTarget{
+		ApplicationObjectID: app.ID,
+	})
+	tc.contextLock.Unlock()
 
 	sp, err := graphClient.CreateServicePrincipal(ctx, app.AppID)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create service principal: %w", err)
 	}
 
-	return app, sp, nil
-}
+	tc.contextLock.Lock()
+	tc.knownAppRegistrations[targetIndex].ServicePrincipalObjectID = sp.ID
+	tc.contextLock.Unlock()
 
-func CleanupAppRegistrations(ctx context.Context, graphClient *graphutil.Client, appRegistrationIDs []string) error {
-	var errs []error
-	for _, currAppID := range appRegistrationIDs {
-		if err := graphClient.DeleteApplication(ctx, currAppID); err != nil {
-			errs = append(errs, err)
-		}
-	}
-	return errors.Join(errs...)
+	return app, sp, nil
 }
 
 func (tc *perItOrDescribeTestContext) GetARMResourcesClientFactoryOrDie(ctx context.Context) *armresources.ClientFactory {
@@ -1346,6 +1340,7 @@ func (tc *perItOrDescribeTestContext) commitTimingMetadata(ctx context.Context) 
 		tc.recordDeploymentOperationsUnlocked(resourceGroupName, deploymentName, operations)
 	}
 
+	tc.timingMetadata.SubscriptionID = subscriptionID
 	tc.timingMetadata.FinishedAt = time.Now().Format(time.RFC3339)
 	encoded, err := yaml.Marshal(tc.timingMetadata)
 	if err != nil {

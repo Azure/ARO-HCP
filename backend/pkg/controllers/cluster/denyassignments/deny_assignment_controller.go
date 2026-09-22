@@ -37,6 +37,7 @@ import (
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
@@ -106,9 +107,10 @@ func (c *clusterDenyAssignmentSyncer) syncDenyAssignmentNeedsWork(cluster *corea
 	if len(controllerutils.ClusterServiceIDForCluster(cluster)) == 0 {
 		return false
 	}
-	// Deny assignments are scoped to the managed resource group, which is derived from the
-	// cluster's ManagedResourceGroup name. (Status.AzureResources.ManagedResourceGroup.AzureResource
-	// is not populated by any controller, so it cannot be relied on here.)
+	// Deny assignments are scoped to the managed resource group, so wait until it is confirmed.
+	if serviceProviderCluster.Status.AzureResources.ManagedResourceGroup.AzureResource == nil {
+		return false
+	}
 	if len(cluster.CustomerProperties.Platform.ManagedResourceGroup) == 0 {
 		return false
 	}
@@ -177,7 +179,7 @@ func (c *clusterDenyAssignmentSyncer) syncDenyAssignmentUpsert(ctx context.Conte
 	// The managed resource group is the scope for the cluster's deny assignments. Build its resource
 	// ID from the cluster's ManagedResourceGroup name (the same source allDenyAssignmentReferences
 	// uses for the deny assignment resource IDs).
-	managedResourceGroupID, err := coreapi.ToResourceGroupResourceID(key.SubscriptionID, cluster.CustomerProperties.Platform.ManagedResourceGroup)
+	managedResourceGroupID, err := coreapihelpers.ToResourceGroupResourceID(key.SubscriptionID, cluster.CustomerProperties.Platform.ManagedResourceGroup)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to build managed resource group resource ID: %w", err))
 	}

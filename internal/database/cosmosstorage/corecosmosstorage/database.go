@@ -16,6 +16,7 @@ package corecosmosstorage
 
 import (
 	"context"
+	"slices"
 
 	"k8s.io/utils/ptr"
 
@@ -26,6 +27,8 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosmetrics"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -118,13 +121,13 @@ func (d *resourcesCosmosDBClient) Subscriptions() cosmosstorageutils.ResourceCRU
 }
 
 func (d *resourcesCosmosDBClient) ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName string) cosmosstorageutils.ResourceCRUD[coreapi.ServiceProviderCluster, *coreapi.ServiceProviderCluster] {
-	clusterResourceID := metadataapi.Must(coreapi.ToClusterResourceID(subscriptionID, resourceGroupName, clusterName))
+	clusterResourceID := metadataapi.Must(coreapihelpers.ToClusterResourceID(subscriptionID, resourceGroupName, clusterName))
 	return cosmosstorageutils.NewCosmosResourceCRUD[coreapi.ServiceProviderCluster, *coreapi.ServiceProviderCluster, cosmosstorageutils.GenericDocument[coreapi.ServiceProviderCluster]](
 		d.resources, clusterResourceID, coreapi.ServiceProviderClusterResourceType)
 }
 
 func (d *resourcesCosmosDBClient) ServiceProviderNodePools(subscriptionID, resourceGroupName, clusterName, nodePoolName string) cosmosstorageutils.ResourceCRUD[coreapi.ServiceProviderNodePool, *coreapi.ServiceProviderNodePool] {
-	nodePoolResourceID := metadataapi.Must(coreapi.ToNodePoolResourceID(subscriptionID, resourceGroupName, clusterName, nodePoolName))
+	nodePoolResourceID := metadataapi.Must(coreapihelpers.ToNodePoolResourceID(subscriptionID, resourceGroupName, clusterName, nodePoolName))
 	return cosmosstorageutils.NewCosmosResourceCRUD[coreapi.ServiceProviderNodePool, *coreapi.ServiceProviderNodePool, cosmosstorageutils.GenericDocument[coreapi.ServiceProviderNodePool]](
 		d.resources, nodePoolResourceID, coreapi.ServiceProviderNodePoolResourceType)
 }
@@ -182,12 +185,16 @@ func NewCosmosDatabaseClient(url string, dbName string, clientOptions azcore.Cli
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
+	// Keep Cosmos accounting out of the credential pipeline and preserve the
+	// caller's policies without modifying their shared backing array.
+	cosmosClientOptions := clientOptions
+	cosmosClientOptions.PerRetryPolicies = append(slices.Clone(clientOptions.PerRetryPolicies), cosmosmetrics.NewRequestChargePolicy())
 
 	client, err := azcosmos.NewClient(
 		url,
 		credential,
 		&azcosmos.ClientOptions{
-			ClientOptions: clientOptions,
+			ClientOptions: cosmosClientOptions,
 		})
 	if err != nil {
 		return nil, utils.TrackError(err)

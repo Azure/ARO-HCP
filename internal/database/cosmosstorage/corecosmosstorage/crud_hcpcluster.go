@@ -24,6 +24,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 )
 
@@ -127,9 +128,9 @@ type HCPClusterCRUD interface {
 func NewHCPClusterCRUD(containerClient *azcosmos.ContainerClient, subscriptionID, resourceGroupName string) HCPClusterCRUD {
 	var parentResourceID *azcorearm.ResourceID
 	if len(resourceGroupName) > 0 {
-		parentResourceID = metadataapi.Must(coreapi.ToResourceGroupResourceID(subscriptionID, resourceGroupName))
+		parentResourceID = metadataapi.Must(coreapihelpers.ToResourceGroupResourceID(subscriptionID, resourceGroupName))
 	} else {
-		parentResourceID = metadataapi.Must(coreapi.ToSubscriptionResourceID(subscriptionID))
+		parentResourceID = metadataapi.Must(coreapihelpers.ToSubscriptionResourceID(subscriptionID))
 	}
 
 	return &hcpClusterCRUD{

@@ -193,6 +193,15 @@ module svcCaching '../modules/acr/cache.bicep' = {
         passwordIdentifier: 'acm-d-password'
         loginServer: 'quay.io'
       }
+      // Keep a distinct fixed target so this source can override the acm-d wildcard mapping.
+      {
+        ruleName: 'governance-policy-propagator-acm-216'
+        sourceRepo: 'quay.io/redhat-user-workloads/crt-redhat-acm-tenant/governance-policy-propagator-acm-216'
+        targetRepo: 'acm-d-cache/governance-policy-propagator-acm-216'
+        userIdentifier: 'quay-username'
+        passwordIdentifier: 'quay-password'
+        loginServer: 'quay.io'
+      }
     ]
     keyVaultName: globalKeyVaultName
   }

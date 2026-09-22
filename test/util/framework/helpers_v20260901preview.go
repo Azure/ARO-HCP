@@ -447,6 +447,25 @@ func (tc *perItOrDescribeTestContext) CreateNodePoolFromParam20260901(
 
 // --- Functions from hcp_helper.go ---
 
+// ClearUserAssignedIdentityValues20260901 resets every value in a
+// ManagedServiceIdentity's UserAssignedIdentities map to an empty struct,
+// preserving only the map keys (identity resource IDs).
+//
+// ARM requires that on a PUT of an existing resource, UserAssignedIdentities
+// map values for identities that should be kept unchanged are sent back as
+// empty objects ({}); the client/PrincipalID values a prior GET populated
+// must not be echoed back. Callers that Get a cluster, mutate an unrelated
+// field, and then BeginCreateOrUpdate the full object must call this first
+// or ARM rejects the request with error code InvalidIdentityValues.
+func ClearUserAssignedIdentityValues20260901(identity *hcpsdk20260901preview.ManagedServiceIdentity) {
+	if identity == nil {
+		return
+	}
+	for id := range identity.UserAssignedIdentities {
+		identity.UserAssignedIdentities[id] = &hcpsdk20260901preview.UserAssignedIdentity{}
+	}
+}
+
 func BuildHCPClusterFromParams20260901(
 	parameters ClusterParams20260901,
 	location string,
@@ -543,7 +562,7 @@ func CreateHCPClusterAndWait20260901(
 		defer cancel()
 	}
 
-	logger.Info("Starting HCP cluster creation (v20260901preview)", "clusterName", hcpClusterName, "resourceGroup", resourceGroupName)
+	logger.Info("Starting HCP cluster creation (v20260901preview)", "clusterName", hcpClusterName, "resourceGroup", resourceGroupName, "version", cluster.Properties.Version.ID, "channelGroup", cluster.Properties.Version.ChannelGroup)
 	poller, err := hcpClient.BeginCreateOrUpdate(ctx, resourceGroupName, hcpClusterName, cluster, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed starting cluster creation %q in resourcegroup=%q: %w", hcpClusterName, resourceGroupName, err)
@@ -765,6 +784,30 @@ func (tc *perItOrDescribeTestContext) get20260901ClientFactoryUnlocked(ctx conte
 	tc.clientFactory20260901 = clientFactory
 
 	return tc.clientFactory20260901, nil
+}
+
+// fallbackAdminRESTConfigTo20260901 re-requests admin credentials via the
+// CSR-based 2026-09-01-preview API version. Used when the legacy 20240610
+// admin credential path fails, so tests keep working once break-glass
+// issuance is no longer served for the stable 20240610 API version. Both the
+// originating 20240610 error and any 2026-09-01-preview error are wrapped so a
+// failure on either path stays diagnosable.
+func (tc *perItOrDescribeTestContext) fallbackAdminRESTConfigTo20260901(
+	ctx context.Context,
+	resourceGroupName string,
+	hcpClusterName string,
+	timeout time.Duration,
+	causeErr error,
+) (*rest.Config, error) {
+	fallbackFactory, fallbackErr := tc.Get20260901ClientFactory(ctx)
+	if fallbackErr != nil {
+		return nil, fmt.Errorf("20240610 credential request failed: %w; fallback client factory error: %w", causeErr, fallbackErr)
+	}
+	restConfig, fallbackErr := tc.GetAdminRESTConfigForHCPCluster20260901(ctx, fallbackFactory.NewHcpOpenShiftClustersClient(), resourceGroupName, hcpClusterName, timeout)
+	if fallbackErr != nil {
+		return nil, fmt.Errorf("20240610 credential request failed: %w; 2026-09-01-preview fallback failed: %w", causeErr, fallbackErr)
+	}
+	return restConfig, nil
 }
 
 func (tc *perItOrDescribeTestContext) GetAdminRESTConfigForHCPCluster20260901(

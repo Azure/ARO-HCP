@@ -590,6 +590,40 @@ func TestOptionsRunTests(t *testing.T) {
 }
 
 func TestOptionsGenerate(t *testing.T) {
+	const unusedSeverityCeilingSuppression = "#disable-next-line no-unused-params\nparam severityCeiling int = 0"
+
+	t.Run("rejects ambiguous output filename", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		outputFile := filepath.Join(tmpDir, "generatedAlertingRulesRecordingRules.bicep")
+
+		opts := &Options{
+			outputBicep: outputFile,
+		}
+
+		err := opts.Generate()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "must contain exactly one of 'AlertingRules' or 'RecordingRules'")
+	})
+
+	t.Run("empty alerting output suppresses unused severity ceiling", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		outputFile := filepath.Join(tmpDir, "generatedAlertingRules.bicep")
+
+		opts := &Options{
+			outputBicep: outputFile,
+		}
+
+		err := opts.Generate()
+		assert.NoError(t, err)
+
+		content, err := os.ReadFile(outputFile)
+		assert.NoError(t, err)
+
+		generated := string(content)
+		assert.Contains(t, generated, unusedSeverityCeilingSuppression)
+		assert.NotContains(t, generated, "Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01")
+	})
+
 	t.Run("basic generation", func(t *testing.T) {
 		tmpDir := t.TempDir()
 		outputFile := filepath.Join(tmpDir, "AlertingRules_output.bicep")
@@ -637,6 +671,7 @@ func TestOptionsGenerate(t *testing.T) {
 		assert.Contains(t, generated, "param azureMonitoring string")
 		assert.Contains(t, generated, "param actionGroups array")
 		assert.Contains(t, generated, "param severityCeiling int = 0")
+		assert.NotContains(t, generated, unusedSeverityCeilingSuppression)
 		assert.Contains(t, generated, "Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01")
 		assert.Contains(t, generated, "alert: 'TestAlert'")
 		assert.Contains(t, generated, "severity: severityCeiling > 0 ? max(2, severityCeiling) : 2")
@@ -693,6 +728,52 @@ func TestOptionsGenerate(t *testing.T) {
 		generated := string(content)
 		assert.Contains(t, generated, "alert: 'AllowedAlert'")
 		assert.NotContains(t, generated, "alert: 'BlockedAlert'")
+	})
+
+	t.Run("alerts filtered from output suppress unused severity ceiling", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		outputFile := filepath.Join(tmpDir, "generatedAlertingRules.bicep")
+
+		opts := &Options{
+			outputBicep: outputFile,
+			includedAlerts: map[string][]string{
+				"test-group": {"MissingAlert"},
+			},
+			ruleFiles: []alertingRuleFile{
+				{
+					Rules: monitoringv1.PrometheusRule{
+						Spec: monitoringv1.PrometheusRuleSpec{
+							Groups: []monitoringv1.RuleGroup{
+								{
+									Name: "test-group",
+									Rules: []monitoringv1.Rule{
+										{
+											Alert: "FilteredAlert",
+											Expr:  intstr.FromString("up == 0"),
+											Labels: map[string]string{
+												"severity":  "critical",
+												"component": "test",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		err := opts.Generate()
+		assert.NoError(t, err)
+
+		content, err := os.ReadFile(outputFile)
+		assert.NoError(t, err)
+
+		generated := string(content)
+		assert.Contains(t, generated, unusedSeverityCeilingSuppression)
+		assert.NotContains(t, generated, "alert: 'FilteredAlert'")
+		assert.NotContains(t, generated, "Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01")
 	})
 
 	t.Run("preserves per-alert correlationId override", func(t *testing.T) {

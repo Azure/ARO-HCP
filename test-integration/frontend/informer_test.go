@@ -30,6 +30,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
@@ -263,16 +264,14 @@ func subscriptionInformerIntegrationTestCase() informerIntegrationTestCase {
 					ResourceID:   mustParseResourceID(t, "/subscriptions/sub-1"),
 					PartitionKey: "sub-1",
 				},
-				ResourceID: mustParseResourceID(t, "/subscriptions/sub-1"),
-				State:      coreapi.SubscriptionStateRegistered,
+				State: coreapi.SubscriptionStateRegistered,
 			}
 			sub2 := &coreapi.Subscription{
 				CosmosMetadata: coreapi.CosmosMetadata{
 					ResourceID:   mustParseResourceID(t, "/subscriptions/sub-2"),
 					PartitionKey: "sub-2",
 				},
-				ResourceID: mustParseResourceID(t, "/subscriptions/sub-2"),
-				State:      coreapi.SubscriptionStateRegistered,
+				State: coreapi.SubscriptionStateRegistered,
 			}
 			_, err := resourcesDBClient.Subscriptions().Create(ctx, sub1, nil)
 			require.NoError(t, err)
@@ -300,8 +299,7 @@ func subscriptionInformerIntegrationTestCase() informerIntegrationTestCase {
 					ResourceID:   mustParseResourceID(t, "/subscriptions/sub-3"),
 					PartitionKey: "sub-3",
 				},
-				ResourceID: mustParseResourceID(t, "/subscriptions/sub-3"),
-				State:      coreapi.SubscriptionStateRegistered,
+				State: coreapi.SubscriptionStateRegistered,
 			}
 			_, err = resourcesDBClient.Subscriptions().Create(ctx, sub3, nil)
 			require.NoError(t, err)
@@ -470,7 +468,7 @@ func nodePoolInformerIntegrationTestCase() informerIntegrationTestCase {
 				"/resourceGroups/"+resourceGroupName+
 				"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/"+clusterName+
 				"/nodePools/"+name)
-		internalID := metadataapi.Ptr(metadataapi.Must(metadataapi.NewInternalID("/api/aro_hcp/v1alpha1/clusters/" + clusterName + "/node_pools/" + name)))
+		internalID := metadataapihelpers.Ptr(metadataapi.Must(metadataapi.NewInternalID("/api/aro_hcp/v1alpha1/clusters/" + clusterName + "/node_pools/" + name)))
 		return &coreapi.HCPOpenShiftClusterNodePool{
 			CosmosMetadata: coreapi.CosmosMetadata{ResourceID: npResourceID, PartitionKey: strings.ToLower(npResourceID.SubscriptionID)},
 			TrackedResource: coreapi.TrackedResource{
@@ -739,7 +737,7 @@ func testServiceProviderNodePoolLister(t *testing.T, withMock bool) {
 			"/resourceGroups/"+resourceGroupName+
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/"+clusterName+
 			"/nodePools/"+nodePoolName)
-	npInternalID := metadataapi.Ptr(metadataapi.Must(metadataapi.NewInternalID("/api/aro_hcp/v1alpha1/clusters/" + clusterName + "/node_pools/" + nodePoolName)))
+	npInternalID := metadataapihelpers.Ptr(metadataapi.Must(metadataapi.NewInternalID("/api/aro_hcp/v1alpha1/clusters/" + clusterName + "/node_pools/" + nodePoolName)))
 	nodePool := &coreapi.HCPOpenShiftClusterNodePool{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   npResourceID,

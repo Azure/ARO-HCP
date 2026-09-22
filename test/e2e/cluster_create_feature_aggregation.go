@@ -42,7 +42,7 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	operatorclient "github.com/openshift/client-go/operator/clientset/versioned"
 
-	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	hcpsdk20251223preview "github.com/Azure/ARO-HCP/test/sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
@@ -307,6 +307,10 @@ var _ = Describe("Customer", func() {
 				g.Expect(patchErr).NotTo(HaveOccurred(), "failed to disable kube-proxy via network operator patch")
 			}, 5*time.Minute, 10*time.Second).Should(Succeed(), "kube-proxy disable patch should succeed")
 
+			By("providing a Multus-compatible custom CNI conflist for Cilium")
+			err = framework.EnsureCiliumCNIConfigMap(ctx, adminRESTConfig, ciliumNamespace, framework.CiliumCNIConfigMapName, framework.CiliumConflistNone)
+			Expect(err).NotTo(HaveOccurred(), "failed to create Cilium CNI conflist ConfigMap")
+
 			By("installing cilium with kube-proxy replacement enabled via Helm SDK")
 			// k8sServiceHost/k8sServicePort must point at the local kube-apiserver-proxy
 			// static pod (HAProxy) that HyperShift embeds via ignition/MachineConfig on
@@ -336,6 +340,7 @@ var _ = Describe("Customer", func() {
 					"uninstall": false,
 					"binPath":   "/var/lib/cni/bin",
 					"confPath":  "/var/run/multus/cni/net.d",
+					"configMap": framework.CiliumCNIConfigMapName,
 				},
 				"kubeProxyReplacement": true,
 				"k8sServiceHost":       "172.20.0.1",

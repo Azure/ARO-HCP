@@ -83,7 +83,6 @@ func seedSubscription(t *testing.T, ctx context.Context, mockDB *corecosmosstora
 			ResourceID:   subscriptionRID,
 			PartitionKey: strings.ToLower(subscriptionRID.SubscriptionID),
 		},
-		ResourceID: subscriptionRID,
 		State:      coreapi.SubscriptionStateRegistered,
 		Properties: &coreapi.SubscriptionProperties{TenantId: ptr.To("test-tenant-id")},
 	}, nil)
@@ -144,6 +143,7 @@ func TestNodePoolActiveVersionSyncer_RealCosmosFixture(t *testing.T) {
 
 	syncer := &nodePoolActiveVersionSyncer{
 		serviceProviderNodePoolLister: &corelistertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockDB},
+		nodePoolLister:                &corelistertesting.DBNodePoolLister{ResourcesDBClient: mockDB},
 		resourcesDBClient:             mockDB,
 		readDesireLister: &kubeapplierlistertesting.SliceReadDesireLister{
 			Desires: []*kubeapplierapi.ReadDesire{readDesire},

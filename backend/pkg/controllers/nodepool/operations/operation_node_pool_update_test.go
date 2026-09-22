@@ -46,6 +46,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
@@ -521,7 +522,7 @@ func newNodePoolReadDesire(t *testing.T, nodePool *coreapi.HCPOpenShiftClusterNo
 	require.NoError(t, err)
 
 	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
-		kubeapplierapi.ToNodePoolScopedReadDesireResourceIDString(
+		kubeapplierapihelpers.ToNodePoolScopedReadDesireResourceIDString(
 			operationtesting.TestSubscriptionID, operationtesting.TestResourceGroupName, operationtesting.TestClusterName, operationtesting.TestNodePoolName,
 			kubeapplierhelpers.ReadDesireNameReadonlyNodePool)))
 
@@ -552,6 +553,10 @@ func nodePoolToHypershiftNodePool(nodePool *coreapi.HCPOpenShiftClusterNodePool,
 		Status: v1beta1.NodePoolStatus{
 			Replicas: nodePool.Properties.Replicas,
 			Conditions: []v1beta1.NodePoolCondition{
+				{
+					Type:   v1beta1.NodePoolAllNodesHealthyConditionType,
+					Status: corev1.ConditionTrue,
+				},
 				{
 					Type:   v1beta1.NodePoolAllMachinesReadyConditionType,
 					Status: corev1.ConditionTrue,

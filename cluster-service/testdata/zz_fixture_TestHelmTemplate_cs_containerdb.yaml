@@ -8110,8 +8110,6 @@ spec:
         image: 'arohcpsvcdev.azurecr.io/app-sre/aro-hcp-clusters-service@sha256:1234567890'
         imagePullPolicy: IfNotPresent
         env:
-        - name: DENYASSIGNMENTS
-          value: disabled
         # We set AZURE_TOKEN_CREDENTIALS to WorkloadIdentityCredential to force workload identity because this pod uses
         # Azure Workload Identity (azure.workload.identity/use); that effectively restricts other credential chains from being tried.
         - name: AZURE_TOKEN_CREDENTIALS
@@ -8212,6 +8210,7 @@ spec:
         - --log-fields-from-baggage=aro.correlation_id=correlation_id,aro.client.request_id=client_request_id
         
         
+        - --data-plane-ha-proxy-image=arohcpocpdev.azurecr.io/redhat-user-workloads/crt-redhat-acm-tenant/hypershift-shared-ingress-main@sha256:1234567890
         livenessProbe:
           httpGet:
             path: /api/clusters_mgmt/v1
@@ -8234,7 +8233,7 @@ spec:
         resources:
           requests:
             memory: '150Mi'
-            cpu: '50m'
+            cpu: '450m'
 ---
 # Source: clusters-service/templates/postgres-breakglass.deployment.yaml
 apiVersion: apps/v1

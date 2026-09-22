@@ -17,6 +17,9 @@ jobs:
   analyze:
     name: Analyze (${{ matrix.language }})
     runs-on: ubuntu-latest
+    # Bound the job so a stuck/reclaimed runner fails fast and predictably
+    # instead of running until GitHub-side infra kills it.
+    timeout-minutes: 30
     permissions:
       actions: read
       contents: read
@@ -39,11 +42,23 @@ jobs:
       uses: github/codeql-action/init@7211b7c8077ea37d8641b6271f6a365a22a5fbfa # v4.36.0
       with:
         languages: ${{ matrix.language }}
+        # Go doesn't support build-mode: none on this CodeQL version, so build
+        # it manually instead of relying on Autobuild. Autobuild detects our
+        # root Makefile and runs it as a build heuristic, which triggers
+        # `make test` (the full repo test suite). That always fails on this
+        # runner because `promtool` isn't installed, and it adds several
+        # minutes of wasted, always-failing work to every run before falling
+        # back to a build - the main contributor to the job running long
+        # enough to hit runner preemption. Building manually below skips the
+        # Makefile entirely. Unit test coverage is unaffected: the required
+        # ci/prow/test-unit presubmit already runs the same `make test-unit`
+        # target in a properly provisioned CI image.
+        build-mode: ${{ matrix.language == 'go' && 'manual' || 'none' }}
         # Use default CodeQL query packs
         # For custom queries, add: queries: security-and-quality
-    # Autobuild attempts to build any compiled languages (Go, C/C++, C#, Java, etc.)
-    - name: Autobuild
-      uses: github/codeql-action/autobuild@7211b7c8077ea37d8641b6271f6a365a22a5fbfa # v4.36.0
+    - name: Build (go)
+      if: matrix.language == 'go'
+      run: go list -f '{{.Dir}}/...' -m | xargs go build
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@7211b7c8077ea37d8641b6271f6a365a22a5fbfa # v4.36.0
       with:

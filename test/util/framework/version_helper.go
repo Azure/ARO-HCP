@@ -27,6 +27,9 @@ import (
 
 	"github.com/blang/semver/v4"
 
+	configv1 "github.com/openshift/api/config/v1"
+
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controlplaneversion"
 	"github.com/Azure/ARO-HCP/internal/cincinnati"
 )
 
@@ -87,6 +90,16 @@ func isRetryableVersionError(err error) bool {
 		return false
 	}
 	return true
+}
+
+// SelectControlPlaneVersion wraps controlplaneversion.SelectControlPlaneVersion with the same
+// transient-error retry policy as GetLatestNightlyInstallVersion, so tests survive brief DNS or
+// network hiccups when the test pod resolves api.openshift.com. Non-transient errors (context
+// cancellation/deadline, cincinnati "version not found") are returned immediately.
+func SelectControlPlaneVersion(ctx context.Context, roundTripper controlplaneversion.RoundTrip, updateService *url.URL, channel string, offset uint) (*configv1.Release, error) {
+	return retryOnTransientError(ctx, func() (*configv1.Release, error) {
+		return controlplaneversion.SelectControlPlaneVersion(ctx, roundTripper, updateService, channel, offset)
+	})
 }
 
 // GetLatestNightlyInstallVersion returns the latest accepted nightly tag for the given minor version

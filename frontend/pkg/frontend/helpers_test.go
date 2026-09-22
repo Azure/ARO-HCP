@@ -28,6 +28,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
@@ -107,7 +108,7 @@ func TestCheckForProvisioningStateConflict(t *testing.T) {
 		resourceID, err := azcorearm.ParseResourceID(tt.resourceID)
 		require.NoError(t, err)
 
-		for provisioningState := range coreapi.ListProvisioningStates() {
+		for provisioningState := range coreapihelpers.ListProvisioningStates() {
 			name = fmt.Sprintf("%s (provisioningState=%s)", tt.name, provisioningState)
 			t.Run(name, func(t *testing.T) {
 				ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
@@ -154,7 +155,7 @@ func TestCheckForProvisioningStateConflict(t *testing.T) {
 		}
 
 		if tt.parentConflict != nil {
-			for provisioningState := range coreapi.ListProvisioningStates() {
+			for provisioningState := range coreapihelpers.ListProvisioningStates() {
 				name = fmt.Sprintf("%s (parent provisioningState=%s)", tt.name, provisioningState)
 				t.Run(name, func(t *testing.T) {
 					ctx := utils.ContextWithLogger(context.Background(), testr.New(t))

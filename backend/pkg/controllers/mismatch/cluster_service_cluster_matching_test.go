@@ -30,6 +30,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -141,20 +142,19 @@ func TestSynchronizeAllClusters(t *testing.T) {
 }
 
 func testSubscription() *coreapi.Subscription {
-	rid := metadataapi.Must(coreapi.ToSubscriptionResourceID(testSubscriptionID))
+	rid := metadataapi.Must(coreapihelpers.ToSubscriptionResourceID(testSubscriptionID))
 	return &coreapi.Subscription{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   rid,
 			PartitionKey: strings.ToLower(rid.SubscriptionID),
 		},
-		ResourceID: rid,
-		State:      coreapi.SubscriptionStateRegistered,
+		State: coreapi.SubscriptionStateRegistered,
 	}
 }
 
 func testCosmosCluster(t *testing.T, opts ...func(*coreapi.HCPOpenShiftCluster)) *coreapi.HCPOpenShiftCluster {
 	t.Helper()
-	rid := metadataapi.Must(coreapi.ToClusterResourceID(testSubscriptionID, testCSMatchingResourceGroup, testCSMatchingClusterName))
+	rid := metadataapi.Must(coreapihelpers.ToClusterResourceID(testSubscriptionID, testCSMatchingResourceGroup, testCSMatchingClusterName))
 	cluster := &coreapi.HCPOpenShiftCluster{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   rid,

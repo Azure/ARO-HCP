@@ -1,8 +1,5 @@
+# DO NOT USE THIS QUEUE, IT'S BEING REMOVED
 prometheusRules:
-  rulesFolders:
-  - alerts/mgmt-capacity-prometheusRule.yaml
-  - alerts/HCPkasRecord-prometheusRule-KSM.yaml
+  rulesFolders: []
   untestedRules: []
-  testDependencies:
-  - recording-rules-hcps.yaml
   outputBicep: ../dev-infrastructure/modules/metrics/rules/generatedHCPPrometheusAlertingRules.bicep

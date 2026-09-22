@@ -52,11 +52,25 @@ data:
         HC_Period                 60
   parsers_custom.conf: |
     [PARSER]
+        Name        azure_vnet_json
+        Format      json
+        Time_Key    ts
+        Time_Format %Y-%m-%dT%H:%M:%S.%LZ
+        Time_Offset +0000
+        Time_Keep   On
+
+    [PARSER]
         Name        containerlogs
         Format      json
         Time_Key    time
         Time_Format %Y-%m-%dT%H:%M:%S.%L
         Time_Keep   On
+
+    [PARSER]
+        Name            swift-recorder
+        Format          regex
+        Regex           \A(?<log>[\s\S]*)\z
+        Decode_Field_As json log
 
     [MULTILINE_PARSER]
         name          klog
@@ -74,6 +88,25 @@ data:
         rule          "cont"         "/^\d(?!\d{3}-\d{2}-\d{2}T\d{2}:)/"  "cont"
 
   input.conf: |
+    [INPUT]
+        Name              tail
+        Alias             tail.azure_vnet
+        Tag               azure-vnet.logs
+        # Follow the active file, not numeric or timestamp-named backups.
+        Path              /var/log/azure-vnet.log
+        Path_Key          sourcePath
+        Parser            azure_vnet_json
+        DB                /var/log/flb-azure-vnet.db
+        DB.sync           normal
+        DB.locking        true
+        Refresh_Interval  5
+        Rotate_Wait       30
+        Read_From_Head    Off
+        Buffer_Chunk_Size 32K
+        Buffer_Max_Size   256K
+        Skip_Long_Lines   On
+        storage.type      filesystem
+        Threaded          On
     [INPUT]
         Name              tail
         Alias             tail.container
@@ -122,6 +155,10 @@ data:
         Tag             systemd.*
         Systemd_Filter  _SYSTEMD_UNIT=containerd.service
         Systemd_Filter  _SYSTEMD_UNIT=kubelet.service
+        # Capture systemd-networkd unit logs (equivalent to `journalctl -u
+        # systemd-networkd`) for diagnosing node networking issues (link/DHCP
+        # renewal failures, DNS config changes) alongside kubelet/containerd.
+        Systemd_Filter  _SYSTEMD_UNIT=systemd-networkd.service
         # AROSLSRE-1465: capture kernel ring-buffer (kmsg) messages so we can see
         # the guest kernel stack (hung_task/soft-lockup/panic) in the seconds
         # before a userswft node hard-freezes into NodeNotReady. Kernel journal
@@ -138,6 +175,24 @@ data:
         Threaded          On
         storage.type      filesystem
   filter.conf: |
+    [FILTER]
+        Name  grep
+        Match azure-vnet.logs
+        # Unparsed/truncated payloads cannot be safely stripped field by field.
+        Exclude log (stdinData|args)
+
+    [FILTER]
+        Name  modify
+        Match azure-vnet.logs
+        # Failed JSON parses remain under log; normalize them without losing text.
+        Rename log msg
+        # CNI invocation arguments can contain complete network configuration.
+        Remove stdinData
+        Remove args
+        Set environment dev
+        Set region westus3
+        Set cluster dev-westus3-mgmt-1
+        Set hostname ${NODE_NAME}
     [FILTER]
         Name                  multiline
         Alias                 filter.multiline_klog
@@ -226,9 +281,8 @@ data:
         # filter's Namespace_annotations On). This is the namespace-annotation
         # alternative to resolving the ID from the ACM-managed /shoebox-config file
         # mapping. Only mgmt clusters emit ocm.logs to the containerLogs Kusto table.
-        # Fail-soft: records without the annotation are left unchanged. Runs before the
-        # shoebox re-tag; transform-shoebox.lua builds its own record, so shoebox output
-        # is unaffected.
+        # Fail-soft: records without the annotation are left unchanged. This runs before
+        # the shoebox re-tag so transform-shoebox.lua can reuse the normalized cluster_id.
         Name            lua
         Alias           lua.set_cluster_id_from_annotation
         Match           ocm.logs
@@ -246,6 +300,7 @@ data:
         Rule            $kubernetes['container_name'] ^kube-applier* kube-applier.logs false
         Rule            $kubernetes['container_name'] ^kube-events* kube-events.logs false
         Rule            $kubernetes['container_name'] ^mgmt-agent-controller* mgmt-agent.logs true
+        Rule            $kubernetes['container_name'] ^swift-recorder$ kubernetes.swift-recorder.logs false
         Emitter_Name    re_emitted_container_name_router
         Emitter_Mem_Buf_Limit  20M
         Emitter_Storage.type   filesystem
@@ -257,6 +312,16 @@ data:
         Key_Name log
         Parser containerlogs
         Preserve_Key On
+        Reserve_Data On
+
+    [FILTER]
+        # containerLogs maps $.log.log: decode in place, not at the record root.
+        # Keep all payload fields inside log and Kubernetes/cluster metadata outside.
+        Name         parser
+        Match        kubernetes.swift-recorder.logs
+        Key_Name     log
+        Parser       swift-recorder
+        Preserve_Key Off
         Reserve_Data On
 
     [FILTER]
@@ -349,10 +414,6 @@ data:
     -- Lua script for transforming Kubernetes control plane logs to Shoebox format.
     -- Supports all 11 log categories defined in the Shoebox manifest.
 
-    -- Cache for resourceId lookups (namespace -> resourceId)
-    -- ResourceIds are immutable per cluster, so we cache forever
-    local resourceid_cache = {}
-
     -- Container name to category mapping
     local container_category_map = {
         ["audit-logs"] = "kube-audit",
@@ -363,27 +424,6 @@ data:
         ["snapshot-controller"] = "csi-snapshot-controller",
         ["cluster-autoscaler"] = "cluster-autoscaler"
     }
-
-    -- Get resourceId for a namespace by reading the corresponding file
-    local function get_resource_id(namespace)
-        local cached = resourceid_cache[namespace]
-        if cached then
-            return cached
-        end
-
-        local filepath = "/shoebox-config/" .. namespace
-        local file = io.open(filepath, "r")
-        if file then
-            local resourceId = file:read("*all")
-            file:close()
-            resourceId = resourceId:match("^%s*(.-)%s*$")
-            resourceId = string.upper(resourceId)
-            resourceid_cache[namespace] = resourceId
-            return resourceId
-        end
-
-        return nil
-    end
 
     -- Determine category based on container name and pod name
     local function get_category(container_name, pod_name, log_data)
@@ -423,14 +463,10 @@ data:
 
     -- Transform Kubernetes control plane log to Shoebox format
     function transform_to_shoebox(tag, timestamp, record)
-        local namespace = ""
         local container_name = ""
         local pod_name = ""
 
         if record["kubernetes"] then
-            if record["kubernetes"]["namespace_name"] then
-                namespace = record["kubernetes"]["namespace_name"]
-            end
             if record["kubernetes"]["container_name"] then
                 container_name = record["kubernetes"]["container_name"]
             end
@@ -439,7 +475,9 @@ data:
             end
         end
 
-        local resourceId = get_resource_id(namespace)
+        -- set-cluster-id-from-annotation.lua runs on ocm.logs before the Shoebox
+        -- re-tag and normalizes the namespace annotation into this top-level field.
+        local resourceId = record["cluster_id"]
 
         if not resourceId or resourceId == "" then
             return -1, 0, 0
@@ -604,7 +642,7 @@ data:
         ingestion_mapping_reference ingestionMapping
         azure_kusto_buffer_key containerLogsOcm
         buffer_dir "/var/kusto"
-        buffering_enabled           true 
+        buffering_enabled           true
         upload_timeout              1m
         upload_file_size            16M
         buffer_file_delete_early    false
@@ -629,7 +667,7 @@ data:
         ingestion_mapping_reference ingestionMapping
         buffer_dir "/var/kusto"
         azure_kusto_buffer_key frontendLogs
-        buffering_enabled           true 
+        buffering_enabled           true
         upload_timeout              1m
         upload_file_size            16M
         buffer_file_delete_early    false
@@ -654,7 +692,7 @@ data:
         ingestion_mapping_reference ingestionMapping
         azure_kusto_buffer_key backendLogs
         buffer_dir "/var/kusto"
-        buffering_enabled           true 
+        buffering_enabled           true
         upload_timeout              1m
         upload_file_size            16M
         buffer_file_delete_early    false
@@ -679,7 +717,7 @@ data:
         ingestion_mapping_reference ingestionMapping
         azure_kusto_buffer_key fleetLogs
         buffer_dir "/var/kusto"
-        buffering_enabled           true 
+        buffering_enabled           true
         upload_timeout              1m
         upload_file_size            16M
         buffer_file_delete_early    false
@@ -704,7 +742,7 @@ data:
         ingestion_mapping_reference ingestionMapping
         azure_kusto_buffer_key kubeApplierLogs
         buffer_dir "/var/kusto"
-        buffering_enabled           true 
+        buffering_enabled           true
         upload_timeout              1m
         upload_file_size            16M
         buffer_file_delete_early    false
@@ -729,7 +767,7 @@ data:
         ingestion_mapping_reference ingestionMapping
         azure_kusto_buffer_key clustersServiceLogs
         buffer_dir "/var/kusto"
-        buffering_enabled           true 
+        buffering_enabled           true
         upload_timeout              1m
         upload_file_size            16M
         buffer_file_delete_early    false
@@ -754,7 +792,7 @@ data:
         ingestion_mapping_reference ingestionMapping
         azure_kusto_buffer_key resourceSnapshots
         buffer_dir "/var/kusto"
-        buffering_enabled           true 
+        buffering_enabled           true
         upload_timeout              1m
         upload_file_size            16M
         buffer_file_delete_early    false
@@ -779,7 +817,7 @@ data:
         ingestion_mapping_reference ingestionMapping
         azure_kusto_buffer_key cosmosResourceSnapshots
         buffer_dir "/var/kusto"
-        buffering_enabled           true 
+        buffering_enabled           true
         upload_timeout              1m
         upload_file_size            16M
         buffer_file_delete_early    false
@@ -804,7 +842,7 @@ data:
         ingestion_mapping_reference ingestionMapping
         azure_kusto_buffer_key containerLogs
         buffer_dir "/var/kusto"
-        buffering_enabled           true 
+        buffering_enabled           true
         upload_timeout              1m
         upload_file_size            16M
         buffer_file_delete_early    false
@@ -829,7 +867,7 @@ data:
         ingestion_mapping_reference ingestionMapping
         azure_kusto_buffer_key kubernetesEvents
         buffer_dir "/var/kusto"
-        buffering_enabled           true 
+        buffering_enabled           true
         upload_timeout              1m
         upload_file_size            16M
         buffer_file_delete_early    false
@@ -854,7 +892,32 @@ data:
         ingestion_mapping_reference ingestionMapping
         azure_kusto_buffer_key systemdLogs
         buffer_dir "/var/kusto"
-        buffering_enabled           true 
+        buffering_enabled           true
+        upload_timeout              1m
+        upload_file_size            16M
+        buffer_file_delete_early    false
+        unify_tag                   true
+        store_dir_limit_size        1.8GB
+        blob_uri_length             128
+        scheduler_max_retries       9
+        delete_on_max_upload_error  true
+        io_timeout                  60s
+
+    [OUTPUT]
+        Match azure-vnet.logs
+        Name azure_kusto
+        Retry_Limit 5
+        auth_type workload_identity
+        tenant_id __tenantId__
+        client_id __msiClientId__
+        workload_identity_token_file ${AZURE_FEDERATED_TOKEN_FILE}
+        Ingestion_Endpoint __kustoDataIngestionUri__
+        Database_Name ServiceLogs
+        Table_Name azureVnetLogs
+        ingestion_mapping_reference ingestionMapping
+        azure_kusto_buffer_key azureVnetLogs
+        buffer_dir "/var/kusto"
+        buffering_enabled           true
         upload_timeout              1m
         upload_file_size            16M
         buffer_file_delete_early    false
@@ -1010,7 +1073,7 @@ spec:
         app: arobit-forwarder
         azure.workload.identity/use: "true"
       annotations:
-        checksum/configmap: 8181bfeb7a27a81934b0ffcc3a6ac867fdc904d050c6bd52d6ba638d75ac4336
+        checksum/configmap: f776eca13880dda71df77c0a4355d5cfe793b519c559461dfc80886dbf822b0b
     spec:
       priorityClassName: service-lifecycle-critical
       serviceAccountName: 'arobit-forwarder'
@@ -1019,6 +1082,11 @@ spec:
         - name: fluentbit
           image: mcr.microsoft.com/oss/v2/fluent/fluent-bit@sha256:1234567890
           imagePullPolicy: 'IfNotPresent'
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
           command:
             - /fluent-bit/bin/fluent-bit
           args:
@@ -1064,7 +1132,7 @@ spec:
               drop: ['ALL']
           resources:
             requests:
-              cpu: 100m
+              cpu: 250m
               memory: 256Mi
             limits:
               memory: 1248Mi
@@ -1083,9 +1151,6 @@ spec:
               readOnly: true
             - name: flb-config
               mountPath: /forwarder/etc
-              readOnly: true
-            - name: shoebox-mappings
-              mountPath: /shoebox-config
               readOnly: true
         - name: mdsd-clusterlogs
           image: mcr.microsoft.com/geneva/distroless/mdsd@sha256:1234567890
@@ -1312,10 +1377,6 @@ spec:
             defaultMode: 0755
         - name: mdsd-run-clusterlogs
           emptyDir: {}
-        - name: shoebox-mappings
-          configMap:
-            name: namespace-resourceid-mapping
-            optional: true
         - name: geneva-certs-clusterlogs
           csi:
             driver: secrets-store.csi.k8s.io

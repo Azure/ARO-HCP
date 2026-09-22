@@ -52,11 +52,15 @@ type nodePoolWatchingController struct {
 // This does NOT prevent us from re-executing on errors, so errors will continue to trigger fast checks as expected.
 //
 // kubeApplierInformers is optional: when non-nil, the controller also enqueues
-// on ReadDesire events from the union kube-applier informer surface. The
-// status that the kube-applier writes back lives on the ReadDesire, so a
-// ReadDesire update is how this controller learns "the kube-applier
-// reported something new about a node pool". Apply/Delete desires are not
-// wired in because their status doesn't carry node-pool-state signal.
+// on node-pool-scoped ReadDesire and ApplyDesire events from the union
+// kube-applier informer surface. The kube-applier writes per-desire status
+// (including a Degraded condition) back onto these desires, so a desire update
+// is how this controller learns "the kube-applier reported something new about
+// a node pool" — the node-pool Degraded aggregator folds node-pool-scoped
+// ApplyDesire/ReadDesire Degraded status into the node pool's Degraded
+// condition. Only node-pool-scoped desires are watched (cluster-scoped ones are
+// ignored, see below). Delete desires are not wired in because their status
+// does not carry node-pool-state signal.
 func NewNodePoolWatchingController(
 	name string,
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
@@ -89,13 +93,20 @@ func NewNodePoolWatchingController(
 	}
 
 	if kubeApplierInformers != nil {
-		// Node-pool-scoped ReadDesires sit one level below the node pool
-		// (.../nodePools/<np>/readDesires/<name>), so a maxDepth of 1
-		// reaches the node pool and stops there. Cluster-scoped ReadDesires
-		// live above the node pool and are ignored on purpose — this
-		// controller is "nodepool-scoped only".
+		// Node-pool-scoped ReadDesires/ApplyDesires sit one level below the node
+		// pool (.../nodePools/<np>/{read,apply}Desires/<name>), so a maxDepth of 1
+		// reaches the node pool and stops there. Cluster-scoped desires live
+		// above the node pool and are ignored on purpose — this controller is
+		// "nodepool-scoped only". ApplyDesire is wired in alongside ReadDesire
+		// because the node-pool Degraded aggregator now folds node-pool-scoped
+		// ApplyDesire Degraded status into the node pool condition; Delete
+		// desires are still not wired in.
 		readDesireInformer, _ := kubeApplierInformers.ReadDesires()
 		if err := nodePoolController.QueueForInformersWithMaxDepth(resyncDuration, 1, readDesireInformer); err != nil {
+			panic(err) // coding error
+		}
+		applyDesireInformer, _ := kubeApplierInformers.ApplyDesires()
+		if err := nodePoolController.QueueForInformersWithMaxDepth(resyncDuration, 1, applyDesireInformer); err != nil {
 			panic(err) // coding error
 		}
 	}

@@ -6,7 +6,6 @@ metadata:
 data:
   appsettings.json: |-
     {
-      "$schema": "https://identitydivision.visualstudio.com/DevEx/_git/MISE?path=/schemas/mise-options-schema.json",
       "MiseVersion": "2.0",
       "AllowedHosts": "*",
       "EnableInboundPolicyFilter": true,

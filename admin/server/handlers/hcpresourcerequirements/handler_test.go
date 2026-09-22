@@ -31,13 +31,14 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/fleetcosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 func newHCPResourceRequirements(t *testing.T, name string) *fleetapi.HCPResourceRequirements {
 	t.Helper()
-	resourceID, err := fleetapi.ToHCPResourceRequirementsResourceID(name)
+	resourceID, err := fleetapihelpers.ToHCPResourceRequirementsResourceID(name)
 	require.NoError(t, err)
 	return &fleetapi.HCPResourceRequirements{
 		CosmosMetadata: coreapi.CosmosMetadata{

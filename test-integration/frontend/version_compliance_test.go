@@ -31,8 +31,8 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/test-integration/utils/databasemutationhelpers"
 	"github.com/Azure/ARO-HCP/test-integration/utils/integrationutils"
@@ -117,7 +117,7 @@ func testVersionCompliance(t *testing.T, withMock bool) {
 
 			// Register subscription
 			subscriptionID := metadataapi.Must(azcorearm.ParseResourceID(scenario.ResourceID)).SubscriptionID
-			subscriptionResourceID := metadataapi.Must(coreapi.ToSubscriptionResourceID(subscriptionID))
+			subscriptionResourceID := metadataapi.Must(coreapihelpers.ToSubscriptionResourceID(subscriptionID))
 			subscriptionJSON := metadataapi.Must(artifacts.ReadFile("artifacts/VersionCompliance/subscription.json"))
 			subscriptionAccessor := databasemutationhelpers.NewVersionedHTTPTestAccessor(testInfo.FrontendURL, scenario.CreateVersion)
 			require.NoError(t, subscriptionAccessor.CreateOrUpdate(ctx, subscriptionResourceID.String(), subscriptionJSON))
@@ -157,7 +157,9 @@ func testVersionCompliance(t *testing.T, withMock bool) {
 			for _, v := range allVersions {
 				t.Run("GET/"+v, func(t *testing.T) {
 					getter := databasemutationhelpers.NewVersionedHTTPTestAccessor(testInfo.FrontendURL, v)
-					actual, err := getter.Get(ctx, scenario.ResourceID)
+					resp, err := getter.Get(ctx, scenario.ResourceID)
+					require.NoError(t, err)
+					actual, err := databasemutationhelpers.DecodeResponseBody(resp)
 					require.NoError(t, err)
 
 					expected := loadExpectedResponse(t, artifacts, scenario.dir, "get", v)

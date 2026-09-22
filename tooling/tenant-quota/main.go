@@ -32,6 +32,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/version"
 	"github.com/Azure/ARO-HCP/tooling/azutils/subscriptions"
+	"github.com/Azure/ARO-HCP/tooling/tenant-quota/pkg/cijoboutcomes"
 	"github.com/Azure/ARO-HCP/tooling/tenant-quota/pkg/config"
 	"github.com/Azure/ARO-HCP/tooling/tenant-quota/pkg/credentials"
 	prowmetrics "github.com/Azure/ARO-HCP/tooling/tenant-quota/pkg/prow"
@@ -102,6 +103,12 @@ func run(logger *slog.Logger) error {
 		prowCollector := prowmetrics.NewCollector(cfg, logger)
 		registry.MustRegister(prowCollector)
 		go prowCollector.Start(ctx)
+	}
+
+	// Unlike the collectors above this one writes to Kusto rather than exposing
+	// metrics, so it is started but not registered.
+	if cfg.CIJobOutcomes.Enabled {
+		go cijoboutcomes.NewWriter(cfg, logger).Start(ctx)
 	}
 
 	mux := http.NewServeMux()

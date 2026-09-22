@@ -103,12 +103,16 @@ func (c *externalAuthDegradedAggregator) SyncOnce(ctx context.Context, key contr
 		return utils.TrackError(fmt.Errorf("failed to list Controllers from cache: %w", err))
 	}
 
+	// With report-only-degraded collection an all-healthy external auth produces
+	// zero sources and UnionCondition returns the good default (Degraded=False/AsExpected).
+	sources := statusutils.CollectDegradedConditions(
+		controllers, statusutils.ConditionsOfKnown, "", c.firstObservedBad)
 	aggregated := statusutils.UnionCondition(
 		statusutils.DegradedConditionType,
 		metav1.ConditionFalse,
 		c.inertia,
 		c.clock.Now(),
-		statusutils.CollectDegradedConditions(controllers, c.firstObservedBad)...,
+		sources...,
 	)
 
 	replacement := existing.DeepCopy()

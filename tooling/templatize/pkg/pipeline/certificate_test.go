@@ -15,18 +15,278 @@
 package pipeline
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"strings"
 	"testing"
 
+	"github.com/go-logr/logr"
 	"github.com/google/go-cmp/cmp"
 
 	configtypes "github.com/Azure/ARO-Tools/config/types"
 	"github.com/Azure/ARO-Tools/pipelines/types"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azcertificates"
 )
+
+func TestEffectiveCertificatePolicy(t *testing.T) {
+	const vault = "https://aro-hcp-dev-svc-kv.vault.azure.net"
+	tests := []struct {
+		name, cloud, environment, vault, certificate string
+		manualRenewal                                bool
+	}{
+		{"frontend ci00", "dev", "ci00", vault, "frontend-cert-ci00-j1234567", true},
+		{"admin ci01", "dev", "ci01", vault, "admin-api-cert-ci01-j1234567", true},
+		{"sessiongate ci00", "dev", "ci00", vault, "sessiongate-cert-ci00-j1234567", true},
+		{"maestro ci00", "dev", "ci00", vault, "maestro-server-j1234567", true},
+		{"maestro ci01 trailing slash", "dev", "ci01", vault + "/", "maestro-server-j1234567", true},
+		{"public", "public", "ci00", vault, "frontend-cert-ci00-j1234567", false},
+		{"Azure cloud name", "Public", "ci00", vault, "maestro-server-j1234567", false},
+		{"unknown cloud", "", "ci00", vault, "maestro-server-j1234567", false},
+		{"personal", "dev", "pers", vault, "maestro-server-j1234567", false},
+		{"shared dev", "dev", "dev", vault, "maestro-server-j1234567", false},
+		{"cspr", "dev", "cspr", vault, "maestro-server-j1234567", false},
+		{"legacy prow", "dev", "prow", vault, "maestro-server-j1234567", false},
+		{"unknown environment", "dev", "", vault, "maestro-server-j1234567", false},
+		{"other CI environment", "dev", "ci00", vault, "frontend-cert-ci01-j1234567", false},
+		{"persistent regional", "dev", "ci00", vault, "frontend-cert-ci00-usw3", false},
+		{"persistent self-signed", "dev", "ci00", vault, "firstPartyCert2", false},
+		{"personal name", "dev", "ci00", vault, "frontend-cert-pers-j1234567", false},
+		{"legacy name", "dev", "ci00", vault, "frontend-cert-prow-j1234567", false},
+		{"unknown service", "dev", "ci00", vault, "other-cert-ci00-j1234567", false},
+		{"maestro agent", "dev", "ci00", vault, "hcp-underlay-j1234567-mgmt-1", false},
+		{"short job", "dev", "ci00", vault, "maestro-server-j123456", false},
+		{"long job", "dev", "ci00", vault, "maestro-server-j12345678", false},
+		{"non-digit job", "dev", "ci00", vault, "maestro-server-j123456a", false},
+		{"suffix", "dev", "ci00", vault, "maestro-server-j1234567-extra", false},
+		{"prefix", "dev", "ci00", vault, "other-maestro-server-j1234567", false},
+		{"uppercase", "dev", "ci00", vault, "MAESTRO-server-j1234567", false},
+		{"newline", "dev", "ci00", vault, "maestro-server-j1234567\n", false},
+		{"other vault", "dev", "ci00", "https://other.vault.azure.net", "maestro-server-j1234567", false},
+		{"http", "dev", "ci00", "http://aro-hcp-dev-svc-kv.vault.azure.net", "maestro-server-j1234567", false},
+		{"host suffix", "dev", "ci00", vault + ".evil.example", "maestro-server-j1234567", false},
+		{"userinfo", "dev", "ci00", "https://user@aro-hcp-dev-svc-kv.vault.azure.net", "maestro-server-j1234567", false},
+		{"host as userinfo", "dev", "ci00", vault + "@evil.example", "maestro-server-j1234567", false},
+		{"port", "dev", "ci00", vault + ":443", "maestro-server-j1234567", false},
+		{"path", "dev", "ci00", vault + "/certificates", "maestro-server-j1234567", false},
+		{"encoded path", "dev", "ci00", vault + "/%2f", "maestro-server-j1234567", false},
+		{"query", "dev", "ci00", vault + "?foo=bar", "maestro-server-j1234567", false},
+		{"empty query", "dev", "ci00", vault + "?", "maestro-server-j1234567", false},
+		{"fragment", "dev", "ci00", vault + "#fragment", "maestro-server-j1234567", false},
+		{"malformed URL", "dev", "ci00", "://%", "maestro-server-j1234567", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			options := &StepRunOptions{BaseRunOptions: BaseRunOptions{Cloud: tt.cloud}, Environment: tt.environment}
+			got, transient := effectiveCertificatePolicy(options, tt.vault, tt.certificate, "test.com", "x-pkcs12", "test.com", "Self")
+			if transient != tt.manualRenewal {
+				t.Errorf("transient = %v, want %v", transient, tt.manualRenewal)
+			}
+			want := certificatePolicy("test.com", "x-pkcs12", "test.com", "Self")
+			if tt.manualRenewal {
+				want.LifetimeActions[0].Action.ActionType = to.Ptr(azcertificates.CertificatePolicyActionEmailContacts)
+			}
+			if diff := cmp.Diff(want, got); diff != "" {
+				t.Errorf("effective policy mismatch (-want +got):\n%s", diff)
+			}
+			// Exercise the SDK serializer, not marshalCertPolicy's hand-built wire format.
+			wire := mustMarshal(t, got)
+			if !strings.Contains(wire, `"action_type":"`+string(*want.LifetimeActions[0].Action.ActionType)+`"`) ||
+				!strings.Contains(wire, `"lifetime_percentage":50`) || !strings.Contains(wire, `"validity_months":6`) {
+				t.Errorf("unexpected policy serialization: %s", wire)
+			}
+		})
+	}
+}
+
+func TestReconcileCertificate(t *testing.T) {
+	const vault = "https://aro-hcp-dev-svc-kv.vault.azure.net"
+	const name = "frontend-cert-ci00-j1234567"
+	const certPath = "/certificates/" + name
+	tests := []struct {
+		name          string
+		cloud         string
+		environment   string
+		emailContacts bool
+		mutate        func(*azcertificates.CertificatePolicy)
+		getStatus     int
+		updateStatus  int
+		createStatus  int
+		wantRequests  []string
+		wantError     string
+	}{
+		{
+			name:         "matching policy",
+			wantRequests: []string{"GET " + certPath + "/", "GET " + certPath + "/", "PATCH " + certPath + "/"},
+		},
+		{
+			name: "public matching policy", cloud: "public",
+			wantRequests: []string{"GET " + certPath + "/", "GET " + certPath + "/", "PATCH " + certPath + "/"},
+		},
+		{
+			name: "public lifetime mismatch recreates", cloud: "public",
+			mutate:       func(p *azcertificates.CertificatePolicy) { p.LifetimeActions = nil },
+			wantRequests: []string{"GET " + certPath + "/", "POST " + certPath + "/create", "GET " + certPath + "/", "PATCH " + certPath + "/"},
+		},
+		{
+			name: "persistent lifetime mismatch recreates", environment: "pers",
+			mutate:       func(p *azcertificates.CertificatePolicy) { p.LifetimeActions = nil },
+			wantRequests: []string{"GET " + certPath + "/", "POST " + certPath + "/create", "GET " + certPath + "/", "PATCH " + certPath + "/"},
+		},
+		{
+			name: "persistent EmailContacts lifetime mismatch recreates", environment: "pers", emailContacts: true,
+			mutate:       func(p *azcertificates.CertificatePolicy) { p.LifetimeActions = nil },
+			wantRequests: []string{"GET " + certPath + "/", "POST " + certPath + "/create", "GET " + certPath + "/", "PATCH " + certPath + "/"},
+		},
+		{
+			name: "persistent recreate failure", environment: "pers", createStatus: http.StatusForbidden,
+			mutate:       func(p *azcertificates.CertificatePolicy) { p.LifetimeActions = nil },
+			wantRequests: []string{"GET " + certPath + "/", "POST " + certPath + "/create"}, wantError: "failed to create certificate",
+		},
+		{
+			name: "renewal only updates policy",
+			mutate: func(p *azcertificates.CertificatePolicy) {
+				p.LifetimeActions = certificatePolicy("", "", "", "").LifetimeActions
+			},
+			wantRequests: []string{"GET " + certPath + "/", "PATCH " + certPath + "/policy", "GET " + certPath + "/", "PATCH " + certPath + "/"},
+		},
+		{
+			name:         "omitted lifetime actions updates policy",
+			mutate:       func(p *azcertificates.CertificatePolicy) { p.LifetimeActions = nil },
+			wantRequests: []string{"GET " + certPath + "/", "PATCH " + certPath + "/policy", "GET " + certPath + "/", "PATCH " + certPath + "/"},
+		},
+		{
+			name: "subject mismatch recreates",
+			mutate: func(p *azcertificates.CertificatePolicy) {
+				p.X509CertificateProperties.Subject = to.Ptr("CN=other.com")
+			},
+			wantRequests: []string{"GET " + certPath + "/", "POST " + certPath + "/create", "GET " + certPath + "/", "PATCH " + certPath + "/"},
+		},
+		{
+			name: "renewal and key mismatch recreates",
+			mutate: func(p *azcertificates.CertificatePolicy) {
+				p.LifetimeActions = nil
+				p.KeyProperties.KeySize = to.Ptr(int32(4096))
+			},
+			wantRequests: []string{"GET " + certPath + "/", "POST " + certPath + "/create", "GET " + certPath + "/", "PATCH " + certPath + "/"},
+		},
+		{
+			name: "missing certificate creates", getStatus: http.StatusNotFound,
+			wantRequests: []string{"GET " + certPath + "/", "POST " + certPath + "/create", "GET " + certPath + "/", "PATCH " + certPath + "/"},
+		},
+		{
+			name: "read failure does not write", getStatus: http.StatusForbidden,
+			wantRequests: []string{"GET " + certPath + "/"}, wantError: "failed to get existing certificate",
+		},
+		{
+			name: "policy update failure does not create", updateStatus: http.StatusForbidden,
+			mutate:       func(p *azcertificates.CertificatePolicy) { p.LifetimeActions = nil },
+			wantRequests: []string{"GET " + certPath + "/", "PATCH " + certPath + "/policy"}, wantError: "failed to update certificate policy",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			options := &StepRunOptions{BaseRunOptions: BaseRunOptions{Cloud: "dev"}, Environment: "ci00"}
+			if tt.cloud != "" {
+				options.Cloud = tt.cloud
+			}
+			if tt.environment != "" {
+				options.Environment = tt.environment
+			}
+			desired, transient := effectiveCertificatePolicy(options, vault, name, "test.com", "x-pkcs12", "test.com", "Self")
+			if tt.emailContacts {
+				// A future persistent EmailContacts policy must not imply CI ownership.
+				desired.LifetimeActions[0].Action.ActionType = to.Ptr(azcertificates.CertificatePolicyActionEmailContacts)
+			}
+			var existing azcertificates.CertificatePolicy
+			if err := json.Unmarshal([]byte(mustMarshal(t, desired)), &existing); err != nil {
+				t.Fatal(err)
+			}
+			if tt.mutate != nil {
+				tt.mutate(&existing)
+			}
+			var requests []string
+			transport := &fakeTransport{interceptor: func(req *http.Request) (*http.Response, error) {
+				// Key Vault first sends a bodyless request to obtain an auth challenge.
+				if req.Header.Get("Authorization") == "" {
+					return &http.Response{
+						StatusCode: http.StatusUnauthorized,
+						Header:     http.Header{"Www-Authenticate": {`Bearer authorization="https://login.microsoftonline.com/tenant", resource="https://vault.azure.net"`}},
+						Body:       io.NopCloser(strings.NewReader("")), Request: req,
+					}, nil
+				}
+				requests = append(requests, req.Method+" "+req.URL.Path)
+				status, body := http.StatusOK, `{}`
+				switch req.Method + " " + req.URL.Path {
+				case "GET " + certPath + "/":
+					body = `{"policy":` + mustMarshal(t, existing) + `,"x5t":"AQID","tags":{"existing":"preserved"}}`
+					if len(requests) == 1 && tt.getStatus != 0 {
+						status = tt.getStatus
+					}
+				case "PATCH " + certPath + "/policy", "POST " + certPath + "/create":
+					var sent azcertificates.CertificatePolicy
+					if req.Method == http.MethodPatch {
+						if err := json.NewDecoder(req.Body).Decode(&sent); err != nil {
+							t.Fatal(err)
+						}
+						if tt.updateStatus != 0 {
+							status = tt.updateStatus
+						}
+					} else {
+						var params azcertificates.CreateCertificateParameters
+						if err := json.NewDecoder(req.Body).Decode(&params); err != nil {
+							t.Fatal(err)
+						}
+						if params.CertificatePolicy == nil {
+							t.Fatal("create request missing policy")
+						}
+						sent = *params.CertificatePolicy
+						status, body = http.StatusAccepted, `{"status":"completed"}`
+						if tt.createStatus != 0 {
+							status = tt.createStatus
+						}
+					}
+					if diff := cmp.Diff(desired, sent); diff != "" {
+						t.Errorf("request policy mismatch (-want +got):\n%s", diff)
+					}
+				case "PATCH " + certPath + "/":
+					var params azcertificates.UpdateCertificateParameters
+					if err := json.NewDecoder(req.Body).Decode(&params); err != nil {
+						t.Fatal(err)
+					}
+					want := map[string]*string{"existing": to.Ptr("preserved"), "thumbprint": to.Ptr("010203")}
+					if diff := cmp.Diff(want, params.Tags); diff != "" {
+						t.Errorf("thumbprint tags mismatch (-want +got):\n%s", diff)
+					}
+				default:
+					t.Fatalf("unexpected request: %s %s", req.Method, req.URL)
+				}
+				return &http.Response{StatusCode: status, Header: http.Header{"Content-Type": {"application/json"}}, Body: io.NopCloser(strings.NewReader(body)), Request: req}, nil
+			}}
+			client, err := azcertificates.NewClient(vault, &fakeCredential{}, &azcertificates.ClientOptions{
+				ClientOptions: azcore.ClientOptions{Transport: transport, Retry: policy.RetryOptions{MaxRetries: -1}},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = reconcileCertificate(context.Background(), logr.Discard(), client, vault, name, desired, transient)
+			if tt.wantError == "" && err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if tt.wantError != "" && (err == nil || !strings.Contains(err.Error(), tt.wantError)) {
+				t.Errorf("error = %v, want %q", err, tt.wantError)
+			}
+			if diff := cmp.Diff(tt.wantRequests, requests); diff != "" {
+				t.Errorf("requests mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
 
 func TestCertificatePolicy(t *testing.T) {
 	// Golden pattern from sdp-pipelines — 100% parity
@@ -350,6 +610,21 @@ func TestPolicyMatches(t *testing.T) {
 				KeyProperties:             &azcertificates.KeyProperties{KeySize: to.Ptr(int32(2048)), KeyType: to.Ptr(azcertificates.KeyTypeRSA), Exportable: to.Ptr(true)},
 			},
 			expected: true,
+		},
+		{
+			name: "both SANs nil still checks key properties",
+			existing: func() *azcertificates.CertificatePolicy {
+				p := certificatePolicy("test.com", "x-pkcs12", "test.com", "Self")
+				p.X509CertificateProperties.SubjectAlternativeNames = nil
+				p.KeyProperties.KeySize = to.Ptr(int32(4096))
+				return &p
+			}(),
+			desired: func() *azcertificates.CertificatePolicy {
+				p := certificatePolicy("test.com", "x-pkcs12", "test.com", "Self")
+				p.X509CertificateProperties.SubjectAlternativeNames = nil
+				return &p
+			}(),
+			expected: false,
 		},
 		{
 			name:     "existing has SANs, desired nil",

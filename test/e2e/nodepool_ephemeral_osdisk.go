@@ -16,15 +16,12 @@ package e2e
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"net/http"
 	"strings"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5"
 
 	hcpsdk20251223preview "github.com/Azure/ARO-HCP/test/sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
@@ -32,17 +29,6 @@ import (
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
 )
-
-// isAPINotDeployedError returns true if the error indicates the API version
-// has not been rolled out to this region yet.
-func isAPINotDeployedError(err error) bool {
-	var respErr *azcore.ResponseError
-	if !errors.As(err, &respErr) {
-		return false
-	}
-	return respErr.StatusCode == http.StatusNotFound ||
-		strings.Contains(respErr.ErrorCode, "NoRegisteredProviderFound")
-}
 
 var _ = Describe("Nodepool Ephemeral OS Disk", func() {
 	BeforeEach(func() {

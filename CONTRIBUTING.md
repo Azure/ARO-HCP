@@ -130,6 +130,11 @@ All pull requests must follow these standards. Reviewers will check for complian
 - If you disagree with feedback, reply with your reasoning before resolving — do not silently dismiss.
 - A PR should have zero open threads before merging.
 
+### 13. Revert PRs Must Be Clean Reverts
+- A PR that claims to be a revert must be created using `git revert` and must cleanly reverse the intended prior change.
+- Its description must explicitly state that it is a clean revert created with `git revert`, and identify the reverted commit or PR.
+- Reviewers must verify these requirements. Treat a missing explicit statement or a revert that was not created with `git revert` as a critical issue.
+
 
 ## AI Skills
 

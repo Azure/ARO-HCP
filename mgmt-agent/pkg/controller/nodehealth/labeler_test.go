@@ -57,7 +57,7 @@ func snap() detectors.Snapshot {
 	return detectors.Snapshot{
 		DetectorName:     "swift-vf-teardown",
 		Window:           10 * time.Minute,
-		FailureCount:     30,
+		Pods:             &detectors.PodEvidence{FailureCount: 30},
 		MatchedSignature: `no such network interface`,
 	}
 }

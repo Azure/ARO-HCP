@@ -1727,7 +1727,7 @@ resource svcFrontendPathLatency 'Microsoft.AlertsManagement/prometheusRuleGroups
           summary: 'Frontend latency is high: over 5% of {{ $labels.method }} {{ $labels.route }} requests on cluster {{ $labels.cluster }} exceeded 1 second over the past 30 minutes'
           title: 'Frontend latency is high: over 5% of {{ $labels.method }} {{ $labels.route }} requests on cluster {{ $labels.cluster }} exceeded 1 second over the past 30 minutes'
         }
-        expression: '((sum by (route, method, cluster, region) (rate(frontend_http_requests_duration_seconds_count{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m])) - sum by (route, method, cluster, region) (rate(frontend_http_requests_duration_seconds_bucket{le="1",route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m]))) / sum by (route, method, cluster, region) (rate(frontend_http_requests_duration_seconds_count{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m]))) > 0.05 and on (route, method, cluster) (sum by (route, method, cluster, region) (max without (prometheus_replica) (increase(frontend_http_requests_duration_seconds_count{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m])))) >= 50 and on (route, method, cluster) (sum by (route, method, cluster, region) (max without (prometheus_replica) (increase(frontend_http_requests_duration_seconds_count{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m]))) - sum by (route, method, cluster, region) (max without (prometheus_replica) (increase(frontend_http_requests_duration_seconds_bucket{le="1",route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m])))) >= 3'
+        expression: '((sum by (route, method, cluster, region) (rate(frontend_http_requests_duration_seconds_count{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m] offset 5m)) - sum by (route, method, cluster, region) (rate(frontend_http_requests_duration_seconds_bucket{le=~"^1([.]0)?$",route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m] offset 5m))) / sum by (route, method, cluster, region) (rate(frontend_http_requests_duration_seconds_count{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m] offset 5m))) > 0.05 and on (route, method, cluster) (sum by (route, method, cluster, region) (max without (prometheus_replica) (increase(frontend_http_requests_duration_seconds_count{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m] offset 5m)))) >= 50 and on (route, method, cluster) (sum by (route, method, cluster, region) (max without (prometheus_replica) (increase(frontend_http_requests_duration_seconds_count{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m] offset 5m))) - sum by (route, method, cluster, region) (max without (prometheus_replica) (increase(frontend_http_requests_duration_seconds_bucket{le=~"^1([.]0)?$",route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m] offset 5m)))) >= 3'
         for: 'PT1M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -1755,7 +1755,7 @@ resource svcFrontendPathLatency 'Microsoft.AlertsManagement/prometheusRuleGroups
           summary: 'Frontend median latency is high: p50 exceeds 250ms for {{ $labels.method }} {{ $labels.route }} on cluster {{ $labels.cluster }} over the past 30 minutes'
           title: 'Frontend median latency is high: p50 exceeds 250ms for {{ $labels.method }} {{ $labels.route }} on cluster {{ $labels.cluster }} over the past 30 minutes'
         }
-        expression: 'histogram_quantile(0.5, sum by (le, route, method, cluster, region) (rate(frontend_http_requests_duration_seconds_bucket{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m]))) > 0.25 and on (route, method, cluster) (sum by (route, method, cluster, region) (max without (prometheus_replica) (increase(frontend_http_requests_duration_seconds_count{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m])))) >= 10'
+        expression: 'histogram_quantile(0.5, sum by (le, route, method, cluster, region) (rate(frontend_http_requests_duration_seconds_bucket{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m] offset 5m))) > 0.25 and on (route, method, cluster) (sum by (route, method, cluster, region) (max without (prometheus_replica) (increase(frontend_http_requests_duration_seconds_count{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m] offset 5m)))) >= 10'
         for: 'PT1M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -1791,19 +1791,53 @@ resource svcServiceMemoryResourcesRules 'Microsoft.AlertsManagement/prometheusRu
         }
         annotations: {
           correlationId: 'ServiceMemoryDrift/{{ $labels.cluster }}/{{ $labels.container }}/{{ $labels.pod }}/{{ $labels.namespace }}'
-          description: '''Container {{ $labels.container }} in pod {{ $labels.pod }} (namespace {{ $labels.namespace }}) on cluster {{ $labels.cluster }} is using {{ $value | humanizePercentage }} of its memory request for more than 15 minutes.
+          description: '''Container {{ $labels.container }} in pod {{ $labels.pod }} (namespace {{ $labels.namespace }}) on cluster {{ $labels.cluster }} has averaged {{ $value | humanizePercentage }} of its memory request over the last 30 minutes.
 This may indicate a memory leak or workload growth that requires right-sizing the request in config.yaml.
 '''
-          info: '''Container {{ $labels.container }} in pod {{ $labels.pod }} (namespace {{ $labels.namespace }}) on cluster {{ $labels.cluster }} is using {{ $value | humanizePercentage }} of its memory request for more than 15 minutes.
+          info: '''Container {{ $labels.container }} in pod {{ $labels.pod }} (namespace {{ $labels.namespace }}) on cluster {{ $labels.cluster }} has averaged {{ $value | humanizePercentage }} of its memory request over the last 30 minutes.
 This may indicate a memory leak or workload growth that requires right-sizing the request in config.yaml.
 '''
           owning_team: 'hcp-sl'
           runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/service-memory-resources.md'
-          summary: '{{ $labels.container }} in {{ $labels.namespace }} exceeds 1.5x its memory request on cluster {{ $labels.cluster }}. pod:{{ $labels.pod }}'
-          title: '{{ $labels.container }} in {{ $labels.namespace }} exceeds 1.5x its memory request on cluster {{ $labels.cluster }}. pod:{{ $labels.pod }}'
+          summary: '{{ $labels.container }} in {{ $labels.namespace }} exceeds 1.2x its memory request on cluster {{ $labels.cluster }}. pod:{{ $labels.pod }}'
+          title: '{{ $labels.container }} in {{ $labels.namespace }} exceeds 1.2x its memory request on cluster {{ $labels.cluster }}. pod:{{ $labels.pod }}'
         }
-        expression: '(container_memory_working_set_bytes{container!="",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|clusters-service|fleet|kube-applier|maestro|mgmt-agent|prometheus|secret-sync-controller|sessiongate"} / on (namespace, pod, container, cluster) group_left () max by (namespace, pod, container, cluster, region) (kube_pod_container_resource_requests{job="kube-state-metrics",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|clusters-service|fleet|kube-applier|maestro|mgmt-agent|prometheus|secret-sync-controller|sessiongate",resource="memory"})) > 1.5'
-        for: 'PT15M'
+        expression: '(avg_over_time((max by (namespace, pod, container, cluster, region) (container_memory_working_set_bytes{container!="",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|clusters-service|fleet|kube-applier|maestro|mgmt-agent|monitoring|prometheus|secret-sync-controller|sessiongate"}) / on (namespace, pod, container, cluster) group_left () max by (namespace, pod, container, cluster, region) (kube_pod_container_resource_requests{job="kube-state-metrics",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|clusters-service|fleet|kube-applier|maestro|mgmt-agent|monitoring|prometheus|secret-sync-controller|sessiongate",resource="memory"}))[30m:1m]) > 1.2) and on (namespace, pod, container, cluster) (count_over_time(max by (namespace, pod, container, cluster, region) (container_memory_working_set_bytes{container!="",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|clusters-service|fleet|kube-applier|maestro|mgmt-agent|monitoring|prometheus|secret-sync-controller|sessiongate"})[30m:1m]) >= 30)'
+        for: 'PT5M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'ServiceCPUDrift'
+        enabled: true
+        labels: {
+          component: 'service-memory'
+          severity: 'warning'
+          team: 'hcp-sl'
+        }
+        annotations: {
+          correlationId: 'ServiceCPUDrift/{{ $labels.cluster }}/{{ $labels.container }}/{{ $labels.pod }}/{{ $labels.namespace }}'
+          description: '''Container {{ $labels.container }} in pod {{ $labels.pod }} (namespace {{ $labels.namespace }}) on cluster {{ $labels.cluster }} has averaged {{ $value | humanizePercentage }} of its CPU request over the last 30 minutes.
+This may indicate workload growth that requires right-sizing the request in config.yaml.
+'''
+          info: '''Container {{ $labels.container }} in pod {{ $labels.pod }} (namespace {{ $labels.namespace }}) on cluster {{ $labels.cluster }} has averaged {{ $value | humanizePercentage }} of its CPU request over the last 30 minutes.
+This may indicate workload growth that requires right-sizing the request in config.yaml.
+'''
+          owning_team: 'hcp-sl'
+          runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/service-memory-resources.md'
+          summary: '{{ $labels.container }} in {{ $labels.namespace }} exceeds 1.2x its CPU request on cluster {{ $labels.cluster }}. pod:{{ $labels.pod }}'
+          title: '{{ $labels.container }} in {{ $labels.namespace }} exceeds 1.2x its CPU request on cluster {{ $labels.cluster }}. pod:{{ $labels.pod }}'
+        }
+        expression: '(avg_over_time((max by (namespace, pod, container, cluster, region) (rate(container_cpu_usage_seconds_total{container!="",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|clusters-service|fleet|kube-applier|maestro|mgmt-agent|monitoring|prometheus|secret-sync-controller|sessiongate"}[5m])) / on (namespace, pod, container, cluster) group_left () max by (namespace, pod, container, cluster, region) (kube_pod_container_resource_requests{job="kube-state-metrics",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|clusters-service|fleet|kube-applier|maestro|mgmt-agent|monitoring|prometheus|secret-sync-controller|sessiongate",resource="cpu"}))[30m:1m]) > 1.2) and on (namespace, pod, container, cluster) (count_over_time(max by (namespace, pod, container, cluster, region) (rate(container_cpu_usage_seconds_total{container!="",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|clusters-service|fleet|kube-applier|maestro|mgmt-agent|monitoring|prometheus|secret-sync-controller|sessiongate"}[5m]))[30m:1m]) >= 30)'
+        for: 'PT5M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
@@ -1838,7 +1872,7 @@ Investigate for potential memory leaks or increased workload.
           summary: '{{ $labels.container }} in {{ $labels.namespace }} memory trending toward 2x its request on cluster {{ $labels.cluster }}. pod:{{ $labels.pod }}'
           title: '{{ $labels.container }} in {{ $labels.namespace }} memory trending toward 2x its request on cluster {{ $labels.cluster }}. pod:{{ $labels.pod }}'
         }
-        expression: '(predict_linear(container_memory_working_set_bytes{container!="",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|clusters-service|fleet|kube-applier|maestro|mgmt-agent|prometheus|secret-sync-controller|sessiongate"}[6h], 4 * 3600) / on (namespace, pod, container, cluster) group_left () max by (namespace, pod, container, cluster, region) (kube_pod_container_resource_requests{job="kube-state-metrics",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|clusters-service|fleet|kube-applier|maestro|mgmt-agent|prometheus|secret-sync-controller|sessiongate",resource="memory"})) > 2'
+        expression: '(predict_linear(container_memory_working_set_bytes{container!="",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|clusters-service|fleet|kube-applier|maestro|mgmt-agent|monitoring|prometheus|secret-sync-controller|sessiongate"}[6h], 4 * 3600) / on (namespace, pod, container, cluster) group_left () max by (namespace, pod, container, cluster, region) (kube_pod_container_resource_requests{job="kube-state-metrics",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|clusters-service|fleet|kube-applier|maestro|mgmt-agent|monitoring|prometheus|secret-sync-controller|sessiongate",resource="memory"})) > 2'
         for: 'PT30M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }

@@ -35,6 +35,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/kubeappliercosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/fleetlistertesting"
@@ -82,7 +84,6 @@ func newSeededReadDesireLister(ctx context.Context, readDesires ...*kubeappliera
 			ManagementClusters: []*fleetapi.ManagementCluster{
 				{
 					CosmosMetadata: coreapi.CosmosMetadata{ResourceID: managementClusterID},
-					ResourceID:     managementClusterID,
 				},
 			},
 		},
@@ -109,7 +110,7 @@ func newTestCluster(hcpClusterName string, opts ...func(*coreapi.HCPOpenShiftClu
 			},
 		},
 		ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
-			ClusterServiceID: metadataapi.Ptr(metadataapi.Must(metadataapi.NewInternalID(testClusterServiceIDStr))),
+			ClusterServiceID: metadataapihelpers.Ptr(metadataapi.Must(metadataapi.NewInternalID(testClusterServiceIDStr))),
 		},
 	}
 
@@ -138,7 +139,7 @@ func newTestHostedClusterReadDesire(t *testing.T, opts ...func(*hsv1beta1.Hosted
 		opt(hostedCluster)
 	}
 
-	resourceIDString := kubeapplierapi.ToClusterScopedReadDesireResourceIDString(
+	resourceIDString := kubeapplierapihelpers.ToClusterScopedReadDesireResourceIDString(
 		testSubscriptionID,
 		testResourceGroupName,
 		testClusterName,
@@ -178,7 +179,7 @@ func newTestServingCAReadDesire(t *testing.T, caBundlePEM string) *kubeapplierap
 	raw, err := json.Marshal(secret)
 	require.NoError(t, err)
 
-	resourceIDString := kubeapplierapi.ToClusterScopedReadDesireResourceIDString(
+	resourceIDString := kubeapplierapihelpers.ToClusterScopedReadDesireResourceIDString(
 		testSubscriptionID,
 		testResourceGroupName,
 		testClusterName,

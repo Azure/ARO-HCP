@@ -16,7 +16,10 @@ package pipeline
 
 import (
 	"context"
+	"encoding/xml"
 	"fmt"
+	"os"
+	"path/filepath"
 	"slices"
 	"sync"
 	"testing"
@@ -33,6 +36,7 @@ import (
 	"github.com/Azure/ARO-Tools/pipelines/types"
 
 	"github.com/Azure/ARO-HCP/tooling/templatize/bicep"
+	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/junit"
 )
 
 func mustStamp(v string) graph.Stamp {
@@ -148,14 +152,16 @@ func TestMockedPipelineRun(t *testing.T) {
 		t.Fatalf("failed to start bicep language server: %v", err)
 	}
 
+	junitOutputFile := filepath.Join(t.TempDir(), "junit.xml")
 	if _, err := RunPipeline(&topology.Service{
 		ServiceGroup: "Microsoft.Azure.ARO.HCP.Test",
 	}, pipeline, logr.NewContext(t.Context(), testr.New(t)), &PipelineRunOptions{
 		BaseRunOptions: BaseRunOptions{
 			BicepClient: lspClient,
 		},
-		Environment: "test-env",
-		Stamp:       "1",
+		Environment:     "test-env",
+		Stamp:           "1",
+		JUnitOutputFile: junitOutputFile,
 		SubsciptionLookupFunc: func(_ context.Context, _ string) (string, error) {
 			return "test", nil
 		},
@@ -164,6 +170,19 @@ func TestMockedPipelineRun(t *testing.T) {
 		},
 	}, executor); err != nil {
 		t.Error(err)
+	}
+
+	report, err := os.ReadFile(junitOutputFile)
+	if err != nil {
+		t.Fatalf("failed to read JUnit report: %v", err)
+	}
+	var suites junit.TestSuites
+	if err := xml.Unmarshal(report, &suites); err != nil {
+		t.Fatalf("failed to decode JUnit report: %v", err)
+	}
+	if assert.Len(t, suites.Suites, 1) {
+		assert.Equal(t, "templatize-pipeline", suites.Suites[0].Name)
+		assert.Len(t, suites.Suites[0].TestCases, len(order))
 	}
 
 	lock.Lock()

@@ -34,6 +34,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/fleetlistertesting"
@@ -58,7 +59,7 @@ func testClusterResourceID() *azcorearm.ResourceID {
 }
 
 func testMgmtClusterResourceID() *azcorearm.ResourceID {
-	return metadataapi.Must(fleetapi.ToManagementClusterResourceID(testMgmtClusterName))
+	return metadataapi.Must(fleetapihelpers.ToManagementClusterResourceID(testMgmtClusterName))
 }
 
 func newTestHCPCluster(opts ...func(*coreapi.HCPOpenShiftCluster)) *coreapi.HCPOpenShiftCluster {
@@ -108,7 +109,6 @@ func newTestManagementCluster() *fleetapi.ManagementCluster {
 			ResourceID:   resourceID,
 			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 		},
-		ResourceID: resourceID,
 		Status: fleetapi.ManagementClusterStatus{
 			ClusterServiceProvisionShardID: ptr.To(metadataapi.Must(metadataapi.NewInternalID(testProvisionShardHREF(testProvisionShardIDStr)))),
 		},
@@ -241,7 +241,7 @@ func TestManagementClusterPlacementSyncer_SyncOnce(t *testing.T) {
 				newTestManagementCluster(),
 				func() *fleetapi.ManagementCluster {
 					mc := newTestManagementCluster()
-					mc.ResourceID = metadataapi.Must(fleetapi.ToManagementClusterResourceID("mc2"))
+					mc.ResourceID = metadataapi.Must(fleetapihelpers.ToManagementClusterResourceID("mc2"))
 					return mc
 				}(),
 			},

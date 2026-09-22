@@ -18,7 +18,10 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
+
 	"github.com/Azure/ARO-HCP/internal/graph/graphsdk/models"
+	"github.com/Azure/ARO-HCP/internal/graph/graphsdk/serviceprincipals"
 )
 
 // ServicePrincipal represents a Microsoft Entra service principal
@@ -44,4 +47,46 @@ func (c *Client) CreateServicePrincipal(ctx context.Context, appId string) (*Ser
 		ID:    *createdSp.GetId(),
 		AppID: *createdSp.GetAppId(),
 	}, nil
+}
+
+// DeleteServicePrincipal soft-deletes a service principal.
+func (c *Client) DeleteServicePrincipal(ctx context.Context, servicePrincipalID string) error {
+	err := c.graphClient.ServicePrincipals().ByServicePrincipalId(servicePrincipalID).Delete(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("delete service principal: %w", odataErrorWithDiagnostics(err))
+	}
+	return nil
+}
+
+// GetServicePrincipalByAppID returns the service principal associated with an
+// application ID. A nil result means no active service principal exists.
+func (c *Client) GetServicePrincipalByAppID(ctx context.Context, appID string) (*ServicePrincipal, error) {
+	response, err := c.graphClient.ServicePrincipals().Get(ctx, &serviceprincipals.ServicePrincipalsRequestBuilderGetRequestConfiguration{
+		QueryParameters: &serviceprincipals.ServicePrincipalsRequestBuilderGetQueryParameters{
+			Filter: to.Ptr(fmt.Sprintf("appId eq '%s'", appID)),
+			Select: []string{"id", "appId"},
+		},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("get service principal for appId %q: %w", appID, odataErrorWithDiagnostics(err))
+	}
+
+	values := response.GetValue()
+	if len(values) == 0 {
+		return nil, nil
+	}
+	if len(values) > 1 {
+		return nil, fmt.Errorf("found %d service principals for appId %q", len(values), appID)
+	}
+
+	value := values[0]
+	if value.GetId() == nil || value.GetAppId() == nil {
+		return nil, fmt.Errorf("service principal for appId %q has an incomplete response", appID)
+	}
+
+	servicePrincipal := &ServicePrincipal{
+		ID:    *value.GetId(),
+		AppID: *value.GetAppId(),
+	}
+	return servicePrincipal, nil
 }

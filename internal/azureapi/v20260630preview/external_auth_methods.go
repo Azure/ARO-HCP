@@ -23,6 +23,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
 	"github.com/Azure/ARO-HCP/internal/azureapi/v20260630preview/generated"
 )
 
@@ -128,18 +129,18 @@ func normalizeExternalAuthClientProfile(p *generated.ExternalAuthClientProfile, 
 	} else {
 		out.Component = coreapi.ExternalAuthClientComponentProfile{}
 	}
-	out.ClientID = metadataapi.Deref(p.ClientID)
+	out.ClientID = metadataapihelpers.Deref(p.ClientID)
 	out.ExtraScopes = make([]string, len(p.ExtraScopes))
 	for i := range p.ExtraScopes {
 		if p.ExtraScopes[i] != nil {
 			out.ExtraScopes[i] = *p.ExtraScopes[i]
 		}
 	}
-	out.Type = metadataapi.ExternalAuthClientType(metadataapi.Deref(p.Type))
+	out.Type = metadataapi.ExternalAuthClientType(metadataapihelpers.Deref(p.Type))
 }
 
 func normalizeTokenIssuerProfile(p *generated.TokenIssuerProfile, out *coreapi.TokenIssuerProfile) {
-	out.URL = metadataapi.Deref(p.URL)
+	out.URL = metadataapihelpers.Deref(p.URL)
 	if p.Audiences != nil {
 		out.Audiences = make([]string, len(p.Audiences))
 		for i := range p.Audiences {
@@ -150,7 +151,7 @@ func normalizeTokenIssuerProfile(p *generated.TokenIssuerProfile, out *coreapi.T
 	} else {
 		out.Audiences = nil
 	}
-	out.CA = metadataapi.Deref(p.CA)
+	out.CA = metadataapihelpers.Deref(p.CA)
 }
 
 func normalizeExternalAuthClaimProfile(p *generated.ExternalAuthClaimProfile, out *coreapi.ExternalAuthClaimProfile) {
@@ -168,16 +169,16 @@ func normalizeExternalAuthClaimProfile(p *generated.ExternalAuthClaimProfile, ou
 
 func normalizeTokenClaimMappingsProfile(p *generated.TokenClaimMappingsProfile, out *coreapi.TokenClaimMappingsProfile) {
 	if p.Username != nil {
-		out.Username.Claim = metadataapi.Deref(p.Username.Claim)
-		out.Username.Prefix = metadataapi.Deref(p.Username.Prefix)
-		out.Username.PrefixPolicy = metadataapi.UsernameClaimPrefixPolicy(metadataapi.Deref(p.Username.PrefixPolicy))
+		out.Username.Claim = metadataapihelpers.Deref(p.Username.Claim)
+		out.Username.Prefix = metadataapihelpers.Deref(p.Username.Prefix)
+		out.Username.PrefixPolicy = metadataapi.UsernameClaimPrefixPolicy(metadataapihelpers.Deref(p.Username.PrefixPolicy))
 	} else {
 		out.Username = coreapi.UsernameClaimProfile{}
 	}
 	if p.Groups != nil {
 		out.Groups = &coreapi.GroupClaimProfile{
-			Claim:  metadataapi.Deref(p.Groups.Claim),
-			Prefix: metadataapi.Deref(p.Groups.Prefix),
+			Claim:  metadataapihelpers.Deref(p.Groups.Claim),
+			Prefix: metadataapihelpers.Deref(p.Groups.Prefix),
 		}
 	} else {
 		out.Groups = nil
@@ -185,10 +186,10 @@ func normalizeTokenClaimMappingsProfile(p *generated.TokenClaimMappingsProfile, 
 }
 
 func normalizeTokenClaimValidationRule(p *generated.TokenClaimValidationRule, out *coreapi.TokenClaimValidationRule) {
-	out.Type = metadataapi.TokenValidationRuleType(metadataapi.Deref(p.Type))
+	out.Type = metadataapi.TokenValidationRuleType(metadataapihelpers.Deref(p.Type))
 	if p.RequiredClaim != nil {
-		out.RequiredClaim.Claim = metadataapi.Deref(p.RequiredClaim.Claim)
-		out.RequiredClaim.RequiredValue = metadataapi.Deref(p.RequiredClaim.RequiredValue)
+		out.RequiredClaim.Claim = metadataapihelpers.Deref(p.RequiredClaim.Claim)
+		out.RequiredClaim.RequiredValue = metadataapihelpers.Deref(p.RequiredClaim.RequiredValue)
 	} else {
 		out.RequiredClaim = coreapi.TokenRequiredClaim{}
 	}
@@ -203,9 +204,9 @@ func newTokenIssuerProfile(from *coreapi.TokenIssuerProfile) generated.TokenIssu
 		return generated.TokenIssuerProfile{}
 	}
 	return generated.TokenIssuerProfile{
-		URL:       metadataapi.PtrOrNil(from.URL),
-		Audiences: metadataapi.StringSliceToStringPtrSlice(from.Audiences),
-		CA:        metadataapi.PtrOrNil(from.CA),
+		URL:       metadataapihelpers.PtrOrNil(from.URL),
+		Audiences: metadataapihelpers.StringSliceToStringPtrSlice(from.Audiences),
+		CA:        metadataapihelpers.PtrOrNil(from.CA),
 	}
 }
 
@@ -214,8 +215,8 @@ func newExternalAuthClientComponent(from *coreapi.ExternalAuthClientComponentPro
 		return generated.ExternalAuthClientComponentProfile{}
 	}
 	return generated.ExternalAuthClientComponentProfile{
-		Name:                metadataapi.PtrOrNil(from.Name),
-		AuthClientNamespace: metadataapi.PtrOrNil(from.AuthClientNamespace),
+		Name:                metadataapihelpers.PtrOrNil(from.Name),
+		AuthClientNamespace: metadataapihelpers.PtrOrNil(from.AuthClientNamespace),
 	}
 }
 
@@ -224,7 +225,7 @@ func newExternalAuthClaimProfile(from *coreapi.ExternalAuthClaimProfile) generat
 		return generated.ExternalAuthClaimProfile{}
 	}
 	return generated.ExternalAuthClaimProfile{
-		Mappings:        metadataapi.PtrOrNil(newTokenClaimMappingsProfile(&from.Mappings)),
+		Mappings:        metadataapihelpers.PtrOrNil(newTokenClaimMappingsProfile(&from.Mappings)),
 		ValidationRules: newTokenClaimValidationRules(from.ValidationRules),
 	}
 }
@@ -234,7 +235,7 @@ func newTokenClaimMappingsProfile(from *coreapi.TokenClaimMappingsProfile) gener
 		return generated.TokenClaimMappingsProfile{}
 	}
 	return generated.TokenClaimMappingsProfile{
-		Username: metadataapi.PtrOrNil(newUsernameClaimProfile(&from.Username)),
+		Username: metadataapihelpers.PtrOrNil(newUsernameClaimProfile(&from.Username)),
 		Groups:   newGroupClaimProfile(from.Groups),
 	}
 }
@@ -244,9 +245,9 @@ func newUsernameClaimProfile(from *coreapi.UsernameClaimProfile) generated.Usern
 		return generated.UsernameClaimProfile{}
 	}
 	return generated.UsernameClaimProfile{
-		Claim:        metadataapi.PtrOrNil(from.Claim),
-		Prefix:       metadataapi.PtrOrNil(from.Prefix),
-		PrefixPolicy: metadataapi.PtrOrNil(generated.UsernameClaimPrefixPolicy(from.PrefixPolicy)),
+		Claim:        metadataapihelpers.PtrOrNil(from.Claim),
+		Prefix:       metadataapihelpers.PtrOrNil(from.Prefix),
+		PrefixPolicy: metadataapihelpers.PtrOrNil(generated.UsernameClaimPrefixPolicy(from.PrefixPolicy)),
 	}
 }
 
@@ -255,8 +256,8 @@ func newGroupClaimProfile(from *coreapi.GroupClaimProfile) *generated.GroupClaim
 		return nil
 	}
 	return &generated.GroupClaimProfile{
-		Claim:  metadataapi.PtrOrNil(from.Claim),
-		Prefix: metadataapi.PtrOrNil(from.Prefix),
+		Claim:  metadataapihelpers.PtrOrNil(from.Claim),
+		Prefix: metadataapihelpers.PtrOrNil(from.Prefix),
 	}
 }
 
@@ -267,8 +268,8 @@ func newTokenClaimValidationRules(from []coreapi.TokenClaimValidationRule) []*ge
 	out := make([]*generated.TokenClaimValidationRule, 0, len(from))
 	for _, rule := range from {
 		out = append(out, &generated.TokenClaimValidationRule{
-			Type:          metadataapi.PtrOrNil(generated.TokenValidationRuleType(rule.Type)),
-			RequiredClaim: metadataapi.PtrOrNil(newTokenRequiredClaim(&rule.RequiredClaim)),
+			Type:          metadataapihelpers.PtrOrNil(generated.TokenValidationRuleType(rule.Type)),
+			RequiredClaim: metadataapihelpers.PtrOrNil(newTokenRequiredClaim(&rule.RequiredClaim)),
 		})
 	}
 	return out
@@ -279,8 +280,8 @@ func newTokenRequiredClaim(from *coreapi.TokenRequiredClaim) generated.TokenRequ
 		return generated.TokenRequiredClaim{}
 	}
 	return generated.TokenRequiredClaim{
-		Claim:         metadataapi.PtrOrNil(from.Claim),
-		RequiredValue: metadataapi.PtrOrNil(from.RequiredValue),
+		Claim:         metadataapihelpers.PtrOrNil(from.Claim),
+		RequiredValue: metadataapihelpers.PtrOrNil(from.RequiredValue),
 	}
 }
 
@@ -298,25 +299,25 @@ func (v version) NewHCPOpenShiftClusterExternalAuth(from *coreapi.HCPOpenShiftCl
 
 	out := &ExternalAuth{
 		generated.ExternalAuth{
-			ID:         metadataapi.PtrOrNil(idString),
-			Name:       metadataapi.PtrOrNil(from.Name),
-			Type:       metadataapi.PtrOrNil(from.Type),
-			SystemData: metadataapi.PtrOrNil(newSystemData(from.SystemData)),
+			ID:         metadataapihelpers.PtrOrNil(idString),
+			Name:       metadataapihelpers.PtrOrNil(from.Name),
+			Type:       metadataapihelpers.PtrOrNil(from.Type),
+			SystemData: metadataapihelpers.PtrOrNil(newSystemData(from.SystemData)),
 			Properties: &generated.ExternalAuthProperties{
-				ProvisioningState: metadataapi.PtrOrNil(generated.ExternalAuthProvisioningState(from.Properties.ProvisioningState)),
-				Status:            metadataapi.PtrOrNil(newExternalAuthResourceStatus(&from.Status)),
-				Issuer:            metadataapi.PtrOrNil(newTokenIssuerProfile(&from.Properties.Issuer)),
-				Claim:             metadataapi.PtrOrNil(newExternalAuthClaimProfile(&from.Properties.Claim)),
+				ProvisioningState: metadataapihelpers.PtrOrNil(generated.ExternalAuthProvisioningState(from.Properties.ProvisioningState)),
+				Status:            metadataapihelpers.PtrOrNil(newExternalAuthResourceStatus(&from.Status)),
+				Issuer:            metadataapihelpers.PtrOrNil(newTokenIssuerProfile(&from.Properties.Issuer)),
+				Claim:             metadataapihelpers.PtrOrNil(newExternalAuthClaimProfile(&from.Properties.Claim)),
 			},
 		},
 	}
 
 	for _, client := range from.Properties.Clients {
 		out.Properties.Clients = append(out.Properties.Clients, &generated.ExternalAuthClientProfile{
-			Component:   metadataapi.PtrOrNil(newExternalAuthClientComponent(&client.Component)),
-			ClientID:    metadataapi.PtrOrNil(client.ClientID),
-			ExtraScopes: metadataapi.StringSliceToStringPtrSlice(client.ExtraScopes),
-			Type:        metadataapi.PtrOrNil(generated.ExternalAuthClientType(client.Type)),
+			Component:   metadataapihelpers.PtrOrNil(newExternalAuthClientComponent(&client.Component)),
+			ClientID:    metadataapihelpers.PtrOrNil(client.ClientID),
+			ExtraScopes: metadataapihelpers.StringSliceToStringPtrSlice(client.ExtraScopes),
+			Type:        metadataapihelpers.PtrOrNil(generated.ExternalAuthClientType(client.Type)),
 		})
 	}
 	return out

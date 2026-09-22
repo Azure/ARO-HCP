@@ -43,6 +43,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armsubscriptions"
 
 	"github.com/Azure/ARO-HCP/internal/azsdk"
+	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/azclient"
 )
 
 type perBinaryInvocationTestContext struct {
@@ -187,7 +188,7 @@ func (tc *perBinaryInvocationTestContext) getClientFactoryOptions() *azcorearm.C
 	clientOpts := azsdk.NewClientOptions(azsdk.ComponentE2E)
 	clientOpts.Retry = azureRetryOptions
 	clientOpts.PerCallPolicies = []policy.Policy{
-		NewLROPollerRetryPolicy(),
+		azclient.NewLROPollerRetryPolicy(nil),
 		&sanitizeAuthHeaderPolicy{},
 	}
 	if tc.isDevelopmentEnvironment {

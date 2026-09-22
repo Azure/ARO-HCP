@@ -612,3 +612,91 @@ func TestTenantConfigIsDirectoryQuotaEnabled(t *testing.T) {
 		})
 	}
 }
+
+// A missing scheme is accepted by url.Parse, so without an explicit check it
+// only surfaces as a connection error once the collector is already running.
+func TestCIJobOutcomesConfigValidatesEndpoints(t *testing.T) {
+	valid := func() CIJobOutcomesConfig {
+		return CIJobOutcomesConfig{
+			Enabled:      true,
+			ClusterURI:   "https://hcp-dev-us-2.eastus2.kusto.windows.net",
+			IngestionURI: "https://ingest-hcp-dev-us-2.eastus2.kusto.windows.net",
+			Database:     "ServiceLogs",
+			Outcomes:     KustoTableConfig{Table: "ciJobOutcomes", IngestionMapping: "ciJobOutcomesMapping"},
+			TestNames:    KustoTableConfig{Table: "ciTestNames", IngestionMapping: "ciTestNamesMapping"},
+			TestResults:  KustoTableConfig{Table: "ciTestResults", IngestionMapping: "ciTestResultsMapping"},
+			SippyURI:     "https://sippy.dptools.openshift.org",
+			JobFilter:    "e2e-parallel",
+			Releases:     []string{"Presubmits"},
+		}
+	}
+
+	fullySpecified := valid()
+	if err := fullySpecified.validate(); err != nil {
+		t.Fatalf("a fully specified config must validate, got %v", err)
+	}
+
+	for _, testCase := range []struct {
+		name   string
+		mutate func(*CIJobOutcomesConfig)
+	}{
+		{
+			name:   "cluster URI without a scheme",
+			mutate: func(c *CIJobOutcomesConfig) { c.ClusterURI = "hcp-dev-us-2.eastus2.kusto.windows.net" },
+		},
+		{
+			name:   "ingestion URI without a scheme",
+			mutate: func(c *CIJobOutcomesConfig) { c.IngestionURI = "ingest-hcp-dev-us-2.eastus2.kusto.windows.net" },
+		},
+		{
+			name:   "sippy URI without a scheme",
+			mutate: func(c *CIJobOutcomesConfig) { c.SippyURI = "sippy.dptools.openshift.org" },
+		},
+		{
+			name:   "empty cluster URI",
+			mutate: func(c *CIJobOutcomesConfig) { c.ClusterURI = "" },
+		},
+		{
+			name:   "no releases",
+			mutate: func(c *CIJobOutcomesConfig) { c.Releases = nil },
+		},
+		{
+			name:   "missing test names table",
+			mutate: func(c *CIJobOutcomesConfig) { c.TestNames.Table = "" },
+		},
+		{
+			name:   "missing test results ingestion mapping",
+			mutate: func(c *CIJobOutcomesConfig) { c.TestResults.IngestionMapping = "" },
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			cfg := valid()
+			testCase.mutate(&cfg)
+			if err := cfg.validate(); err == nil {
+				t.Error("expected validation to fail, got nil")
+			}
+		})
+	}
+
+	// Nothing is reachable while disabled, so an unset config must not block startup.
+	disabled := &CIJobOutcomesConfig{Enabled: false}
+	if err := disabled.validate(); err != nil {
+		t.Errorf("a disabled config must validate, got %v", err)
+	}
+}
+
+// A pass reads artifacts per run, so it needs a bound of its own: the
+// collector-wide timeout is sized for a single API call and would cut off a
+// first pass over an empty table.
+func TestCIJobOutcomesTimeoutDefaultsIndependently(t *testing.T) {
+	cfg := CIJobOutcomesConfig{Enabled: false}
+	if err := cfg.validate(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.GetTimeout() != DefaultCIJobOutcomesTimeout {
+		t.Errorf("GetTimeout() = %v, want %v", cfg.GetTimeout(), DefaultCIJobOutcomesTimeout)
+	}
+	if cfg.GetTimeout() <= DefaultTimeout {
+		t.Errorf("a pass must be allowed longer than the collector-wide %v, got %v", DefaultTimeout, cfg.GetTimeout())
+	}
+}

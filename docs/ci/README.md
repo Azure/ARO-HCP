@@ -184,6 +184,7 @@ ARO HCP CI is split across this repository and the OpenShift CI configuration in
 ### [CI Operations](operations.md)
 
 - [Inspecting Runs](operations.md#inspecting-runs)
+- [Post-Job Observability Artifacts](operations.md#post-job-observability-artifacts)
 - [Modifying CI Configuration](operations.md#modifying-ci-configuration)
 - [Troubleshooting](operations.md#troubleshooting)
 - [Job Stuck Pending](operations.md#job-stuck-pending)

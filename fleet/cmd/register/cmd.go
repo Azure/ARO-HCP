@@ -85,7 +85,6 @@ func (o *RegisterOptions) registerStamp(ctx context.Context) error {
 				ResourceID:   o.stampResourceID,
 				PartitionKey: strings.ToLower(o.stampIdentifier),
 			},
-			ResourceID: o.stampResourceID,
 		}
 		o.applyAutoApprove(newStamp)
 
@@ -145,7 +144,6 @@ func (o *RegisterOptions) registerManagementCluster(ctx context.Context) error {
 				ResourceID:   o.managementClusterResourceID,
 				PartitionKey: strings.ToLower(o.stampIdentifier),
 			},
-			ResourceID: o.managementClusterResourceID,
 		}
 		o.applyToManagementCluster(managementCluster)
 

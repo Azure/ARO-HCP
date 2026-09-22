@@ -58,19 +58,6 @@ const (
 	HostedClusterControlPlaneSizeXXlarge HostedClusterControlPlaneSize = "XXlarge"
 )
 
-// IsValidHostedClusterControlPlaneSize reports whether s names a known tier.
-func IsValidHostedClusterControlPlaneSize(s string) bool {
-	switch HostedClusterControlPlaneSize(s) {
-	case HostedClusterControlPlaneSizeSmall,
-		HostedClusterControlPlaneSizeMedium,
-		HostedClusterControlPlaneSizeLarge,
-		HostedClusterControlPlaneSizeXlarge,
-		HostedClusterControlPlaneSizeXXlarge:
-		return true
-	}
-	return false
-}
-
 // ServiceProviderCluster is used internally by controllers to track and pass information between them.
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type ServiceProviderCluster struct {
@@ -114,6 +101,31 @@ type ServiceProviderClusterSpec struct {
 	// BackupScheduleState is the desired backup scheduling state: Enabled or Disabled.
 	// Default is Enabled. Set to Disabled via Admin API to pause scheduled backups.
 	BackupScheduleState BackupScheduleState `json:"backupScheduleState,omitempty"`
+
+	// ManagementClusterResourceID is the resource ID of the management cluster the
+	// scheduler has selected for this HCP. This is the scheduler's intent (desired
+	// placement): nil means placement has not been resolved yet. Downstream
+	// controllers (cluster creation gating and Cluster Service provision-shard
+	// pinning) rely on it once set.
+	//
+	// It is set once by the PlacementController and is not otherwise mutated.
+	// Written by: PlacementController
+	ManagementClusterResourceID *azcorearm.ResourceID `json:"managementClusterResourceID,omitempty"`
+
+	// EarliestRecheckTimesByController records, per controller, the earliest time
+	// at which that controller should next re-query Azure (or another external
+	// system) for the state it maintains. The map key is the controller's
+	// ControllerName constant; a nil or absent entry means recheck immediately.
+	// Centralizing these per-controller recheck times here lets each controller
+	// avoid repeatedly hitting an external API to confirm the desired state is
+	// still true, without every tracked struct carrying its own recheck field.
+	// Controllers should set their entry with substantial jitter: without another
+	// concern, jitter of 50% is considered normal so that any storms are quickly
+	// dissipated. Additionally, long recheck times are recommended for resources
+	// outside of their active phases. Order of at least six hours is, with
+	// durations up to 24 hours considered normal.
+	// Written by: FetchMSIIdentitiesInfo, FetchDataPlaneOperatorsManagedIdentitiesInfoController, IdentityRoleAssignments
+	EarliestRecheckTimesByController map[string]*metav1.Time `json:"earliestRecheckTimesByController,omitempty"`
 }
 
 // ServiceProviderClusterSpecVersion contains the desired version information.
@@ -195,6 +207,12 @@ type ServiceProviderClusterStatus struct {
 	// Once set, this field is immutable.
 	ManagementClusterResourceID *azcorearm.ResourceID `json:"managementClusterResourceID,omitempty"`
 
+	// Placement holds capacity availability for the HCP's placement attempt.
+	// CapacityAvailable=True is recorded on the same Replace that sets
+	// Spec.ManagementClusterResourceID.
+	// Written by: PlacementController
+	Placement *ServiceProviderClusterPlacementStatus `json:"placement,omitempty"`
+
 	// DesiredHostedClusterControlPlaneSize mirrors the value of
 	// Spec.DesiredHostedClusterControlPlaneSize once cluster-service reflects
 	// the effective size override (as confirmed by the desired-control-plane-size
@@ -268,27 +286,38 @@ type ServiceProviderClusterStatus struct {
 	// contains the set of required data plane operators associated with a Cluster.
 	// Written by: FetchDataPlaneOperatorsManagedIdentitiesInfoController
 	DataPlaneOperatorsManagedIdentities ServiceProviderClusterDataPlaneOperatorsManagedIdentities `json:"dataPlaneOperatorsManagedIdentities,omitempty"`
+
+	// KeyRotationBackupFingerprint identifies the latest successful on-demand
+	// key-rotation backup and prevents duplicate backups for the active key.
+	// It is persisted before the corresponding ApplyDesire is deleted so a crash
+	// cannot lose the record. Empty means no backup has completed.
+	// Written by: KeyRotationBackup
+	KeyRotationBackupFingerprint string `json:"keyRotationBackupFingerprint,omitempty"`
+}
+
+// ServiceProviderClusterPlacementStatus holds placement-specific status for a
+// ServiceProviderCluster. It is kept off the top-level Status.Conditions per the
+// minimalism guidance there ("conditions at other levels can be specified within
+// ServiceProviderClusterStatus too").
+type ServiceProviderClusterPlacementStatus struct {
+	// Conditions holds placement conditions. Known types:
+	//   - "CapacityAvailable": True when suitable placement capacity was found;
+	//     False when no usable capacity exists; Unknown when required observations or
+	//     configuration are unavailable. Placement itself is recorded in
+	//     Spec.ManagementClusterResourceID.
+	// Written by: PlacementController
+	// +optional
+	// +patchMergeKey=type
+	// +patchStrategy=merge
+	// +listType=map
+	// +listMapKey=type
+	Conditions []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type"`
 }
 
 // ServiceProviderClusterMSIManagedIdentities holds Managed Service Identity (MSI)
 // based identity metadata resolved by FetchMSIIdentitiesInfo and consumed by ClusterIdentitySync to
 // populate HCPOpenShiftCluster.Identity.UserAssignedIdentities.
 type ServiceProviderClusterMSIManagedIdentities struct {
-	// EarliestRecheckTime is the earliest time at which the controller
-	// should re-query Azure for ClientID/PrincipalID of ControlPlaneOperatorsIdentities
-	// and ServiceManagedIdentity.
-	// Nil means recheck immediately.
-	// The same recheck time applies across all entries in ControlPlaneOperatorsIdentities
-	// and ServiceManagedIdentity.
-	// This allows the controller to avoid repeatedly hitting an Azure API to
-	// recheck that the desired state is true.
-	// Controllers should set this field with substantial jitter: without another
-	// concern, jitter of 50% is considered normal so that any storms are quickly
-	// dissipated. Additionally, long recheck times are recommended for resources
-	// outside of their active phases. Order of at least six hours is, with
-	// durations up to 24 hours considered normal.
-	// Written by: FetchMSIIdentitiesInfo
-	EarliestRecheckTime *metav1.Time `json:"earliestRecheckTime,omitempty"`
 	// ControlPlaneOperatorsIdentities is a map containing resolved ClientID/PrincipalID
 	// for Managed Service Identity (MSI) based Azure User-Assigned Managed Identities
 	// used by the cluster's control plane operators. The key is the fully lowercased
@@ -341,8 +370,7 @@ type ServiceProviderClusterServiceManagedIdentity struct {
 }
 
 // ServiceProviderClusterDataPlaneOperatorsManagedIdentities holds the resolved
-// managed-identity metadata for all data plane operators on a cluster, together
-// with a single EarliestRecheckTime that applies to every entry in Identities.
+// managed-identity metadata for all data plane operators on a cluster.
 type ServiceProviderClusterDataPlaneOperatorsManagedIdentities struct {
 	// Identities is a map containing resolved ClientID/PrincipalID for the Azure
 	// User Assigned Managed Identities associated with the cluster's data plane
@@ -352,18 +380,6 @@ type ServiceProviderClusterDataPlaneOperatorsManagedIdentities struct {
 	// identity entry.
 	// Written by: FetchDataPlaneOperatorsManagedIdentitiesInfoController
 	Identities map[string]*ServiceProviderClusterDataPlaneOperatorManagedIdentity `json:"identities,omitempty"`
-	// EarliestRecheckTime is the earliest time at which the controller should
-	// re-query Azure for ClientID/PrincipalID of Identities. Nil means recheck
-	// immediately. The same recheck time applies across all elements of Identities.
-	// This allows the controller to avoid repeatedly hitting an Azure API to
-	// recheck that the desired state is true.
-	// Controllers should set this field with substantial jitter: without another
-	// concern, jitter of 50% is considered normal so that any storms are quickly
-	// dissipated. Additionally, long recheck times are recommended for resources
-	// outside of their active phases. Order of at least six hours is, with
-	// durations up to 24 hours considered normal.
-	// Written by: FetchDataPlaneOperatorsManagedIdentitiesInfoController
-	EarliestRecheckTime *metav1.Time `json:"earliestRecheckTime,omitempty"`
 }
 
 // ServiceProviderClusterDataPlaneOperatorManagedIdentity contains resolved
@@ -401,11 +417,12 @@ type AzureResources struct {
 	// DenyAssignments tracks the deny assignments applied to the cluster's resources.
 	DenyAssignments DenyAssignmentReferences `json:"denyAssignments,omitempty"`
 	// ManagedResourceGroup tracks the managed resource group for the cluster.
-	// Written by: ObserveManagedResourceGroup
+	// Written by: EnsureManagedResourceGroup
 	ManagedResourceGroup AzureReference `json:"managedResourceGroup,omitempty"`
 	// RoleAssignments tracks the role assignments created on the managed resource group
-	// for the cluster's control-plane and data-plane managed identities.
-	// Written by: ObserveRoleAssignments
+	// for the cluster's control-plane and data-plane operator identities and its service
+	// managed identity.
+	// Written by: IdentityRoleAssignments
 	RoleAssignments AzureMultiReference `json:"roleAssignments,omitempty"`
 }
 
@@ -418,14 +435,6 @@ type AzureMultiReference struct {
 	PendingAzureResources []*azcorearm.ResourceID `json:"pendingAzureResources,omitempty"`
 	// AzureResources contains resource IDs that have been confirmed to exist in Azure.
 	AzureResources []*azcorearm.ResourceID `json:"azureResources,omitempty"`
-	// EarliestRecheckTime is the earliest time at which the controller should
-	// re-check the pending resources. Nil means recheck immediately.
-	// This allows for controllers to avoid repeatedly hitting an Azure API to recheck that the desired state is true.
-	// Controllers should set this field with substantial jitter: without another concern, jitter of 50% is considered normal
-	// so that any storms are quickly dissipated.
-	// Additionally, long recheck times are recommended for resources outside of their active phases. Order of at least
-	// six hours is, with durations up to 24 hours considered normal.
-	EarliestRecheckTime *metav1.Time `json:"earliestRecheckTime,omitempty"`
 }
 
 // AzureReference tracks a single Azure resource through its creation lifecycle.
@@ -437,14 +446,6 @@ type AzureReference struct {
 	PendingAzureResource *azcorearm.ResourceID `json:"pendingAzureResource,omitempty"`
 	// AzureResource is the resource ID that has been confirmed to exist in Azure.
 	AzureResource *azcorearm.ResourceID `json:"azureResource,omitempty"`
-	// EarliestRecheckTime is the earliest time at which the controller should
-	// re-check the pending resources. Nil means recheck immediately.
-	// This allows for controllers to avoid repeatedly hitting an Azure API to recheck that the desired state is true.
-	// Controllers should set this field with substantial jitter: without another concern, jitter of 50% is considered normal
-	// so that any storms are quickly dissipated.
-	// Additionally, long recheck times are recommended for resources outside of their active phases. Order of at least
-	// six hours is, with durations up to 24 hours considered normal.
-	EarliestRecheckTime *metav1.Time `json:"earliestRecheckTime,omitempty"`
 }
 
 type DenyAssignmentReferences struct {
@@ -483,12 +484,14 @@ type DenyAssignmentReference struct {
 type ServiceProviderClusterStatusVersion struct {
 	// ActiveVersions is an array of versions currently active in the control plane, ordered with the most recent first.
 	// During upgrades, multiple versions can be active simultaneously.
-	ActiveVersions []HCPClusterActiveVersion `json:"active_versions,omitempty"`
+	// Written by: ControlPlaneActiveVersions
+	ActiveVersions []ServiceProviderClusterActiveVersion `json:"active_versions,omitempty"`
 }
 
-// HCPClusterActiveVersion represents a single version active in the control plane.
-type HCPClusterActiveVersion struct {
+// ServiceProviderClusterActiveVersion represents a single version active in the control plane.
+type ServiceProviderClusterActiveVersion struct {
 	// Version is the full version in x.y.z format (e.g., "4.19.2")
+	// Written by: ControlPlaneActiveVersions
 	Version *semver.Version `json:"version,omitempty"`
 	// State is the update state from OpenShift (e.g. configv1.CompletedUpdate or configv1.PartialUpdate).
 	State configv1.UpdateState `json:"state,omitempty"`

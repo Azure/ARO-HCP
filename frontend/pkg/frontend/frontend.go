@@ -43,15 +43,17 @@ import (
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 
-	"github.com/Azure/ARO-HCP/frontend/pkg/metrics"
 	"github.com/Azure/ARO-HCP/internal/admission"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
 	"github.com/Azure/ARO-HCP/internal/audit"
 	"github.com/Azure/ARO-HCP/internal/azureapi/v20240610preview"
 	"github.com/Azure/ARO-HCP/internal/azureapi/v20251223preview"
 	"github.com/Azure/ARO-HCP/internal/azureapi/v20260630preview"
 	"github.com/Azure/ARO-HCP/internal/azureapi/v20260901preview"
+	"github.com/Azure/ARO-HCP/internal/azureapi/v20261001preview"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -69,7 +71,6 @@ type Frontend struct {
 	metricsServer        http.Server
 	resourcesDBClient    corecosmosstorage.ResourcesDBClient
 	auditClient          audit.Client
-	collector            *metrics.SubscriptionCollector
 	healthGauge          prometheus.Gauge
 	// this is the azure location for this instance of the frontend
 	azureLocation string
@@ -97,6 +98,7 @@ func NewFrontend(
 	metadataapi.Must[any](nil, v20251223preview.RegisterVersion(apiRegistry))
 	metadataapi.Must[any](nil, v20260630preview.RegisterVersion(apiRegistry))
 	metadataapi.Must[any](nil, v20260901preview.RegisterVersion(apiRegistry))
+	metadataapi.Must[any](nil, v20261001preview.RegisterVersion(apiRegistry))
 
 	f := &Frontend{
 		clock:                utilsclock.RealClock{},
@@ -117,7 +119,6 @@ func NewFrontend(
 		},
 		auditClient:       auditClient,
 		resourcesDBClient: resourcesDBClient,
-		collector:         metrics.NewSubscriptionCollector(registerer, resourcesDBClient, azureLocation),
 		healthGauge: promauto.With(registerer).NewGauge(
 			prometheus.GaugeOpts{
 				Name: healthGaugeName,
@@ -163,7 +164,7 @@ func (f *Frontend) Run(ctx context.Context) error {
 
 	errCh := make(chan error, 2)
 	wg := sync.WaitGroup{}
-	wg.Add(3)
+	wg.Add(2)
 	go func() {
 		defer k8sutilruntime.HandleCrash()
 		defer wg.Done()
@@ -173,11 +174,6 @@ func (f *Frontend) Run(ctx context.Context) error {
 		defer k8sutilruntime.HandleCrash()
 		defer wg.Done()
 		errCh <- f.metricsServer.Serve(f.metricsListener)
-	}()
-	go func() {
-		defer k8sutilruntime.HandleCrash()
-		defer wg.Done()
-		f.collector.Run(ctx)
 	}()
 
 	<-ctx.Done()
@@ -207,7 +203,7 @@ func (f *Frontend) Run(ctx context.Context) error {
 }
 
 func (f *Frontend) NotFound(writer http.ResponseWriter, request *http.Request) {
-	coreapi.WriteError(
+	coreapihelpers.WriteError(
 		writer, http.StatusNotFound,
 		coreapi.CloudErrorCodeNotFound, "",
 		"The requested path could not be found.")
@@ -231,7 +227,7 @@ func dbListOptionsFromRequest(request *http.Request) *cosmosstorageutils.DBClien
 	//       that), we could potentially hit the 8MB response size limit.
 
 	options := &cosmosstorageutils.DBClientListResourceDocsOptions{
-		PageSizeHint: metadataapi.Ptr(int32(20)),
+		PageSizeHint: metadataapihelpers.Ptr(int32(20)),
 	}
 
 	// The Resource Provider Contract implies $top is only honored when
@@ -239,10 +235,10 @@ func dbListOptionsFromRequest(request *http.Request) *cosmosstorageutils.DBClien
 	// So only check for it when the URL includes a $skipToken.
 	urlQuery := request.URL.Query()
 	if urlQuery.Has("$skipToken") {
-		options.ContinuationToken = metadataapi.Ptr(urlQuery.Get("$skipToken"))
+		options.ContinuationToken = metadataapihelpers.Ptr(urlQuery.Get("$skipToken"))
 		top, err := strconv.ParseInt(urlQuery.Get("$top"), 10, 32)
 		if err == nil && top > 0 {
-			options.PageSizeHint = metadataapi.Ptr(int32(top))
+			options.PageSizeHint = metadataapihelpers.Ptr(int32(top))
 		}
 	}
 	return options
@@ -283,7 +279,7 @@ func (f *Frontend) ArmResourceListVersion(writer http.ResponseWriter, request *h
 		return utils.TrackError(err)
 	}
 
-	_, err = coreapi.WriteJSONResponse(writer, http.StatusOK, pagedResponse)
+	_, err = coreapihelpers.WriteJSONResponse(writer, http.StatusOK, pagedResponse)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -315,7 +311,7 @@ func (f *Frontend) GetOpenshiftVersions(writer http.ResponseWriter, request *htt
 		return utils.TrackError(err)
 	}
 
-	_, err = coreapi.WriteJSONResponse(writer, http.StatusOK, responseBody)
+	_, err = coreapihelpers.WriteJSONResponse(writer, http.StatusOK, responseBody)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -470,7 +466,7 @@ func (f *Frontend) ArmResourceActionRevokeCredentials(writer http.ResponseWriter
 	// Just as deleting an ARM resource cancels any other operations on the resource,
 	// revoking credentials cancels any credential requests in progress.
 	operationsToCancel, err := corecosmosstorage.CancelActiveOperations(ctx, f.resourcesDBClient, transaction, &corecosmosstorage.ResourcesDBClientListActiveOperationDocsOptions{
-		Request:    metadataapi.Ptr(cosmosstorageutils.OperationRequestSystemAdminCredentialRequest),
+		Request:    metadataapihelpers.Ptr(cosmosstorageutils.OperationRequestSystemAdminCredentialRequest),
 		ExternalID: clusterResourceID,
 	})
 	if err != nil {
@@ -535,7 +531,7 @@ func (f *Frontend) ArmOperationsList(writer http.ResponseWriter, request *http.R
 		pagedResponse.AddValue(jsonBytes)
 	}
 
-	_, err := coreapi.WriteJSONResponse(writer, http.StatusOK, pagedResponse)
+	_, err := coreapihelpers.WriteJSONResponse(writer, http.StatusOK, pagedResponse)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -561,7 +557,7 @@ func (f *Frontend) ArmSubscriptionGet(writer http.ResponseWriter, request *http.
 		return utils.TrackError(err)
 	}
 
-	_, err = coreapi.WriteJSONResponse(writer, http.StatusOK, subscription)
+	_, err = coreapihelpers.WriteJSONResponse(writer, http.StatusOK, subscription)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -583,11 +579,10 @@ func (f *Frontend) ArmSubscriptionPut(writer http.ResponseWriter, request *http.
 	if err != nil {
 		return coreapi.NewInvalidRequestContentError(err)
 	}
-	requestSubscription.CosmosMetadata.ResourceID, err = coreapi.ToSubscriptionResourceID(subscriptionID)
+	requestSubscription.ResourceID, err = coreapihelpers.ToSubscriptionResourceID(subscriptionID)
 	if err != nil {
 		return utils.TrackError(err)
 	}
-	requestSubscription.ResourceID = requestSubscription.CosmosMetadata.ResourceID
 	requestSubscription.SetPartitionKey(subscriptionID)
 
 	validationErrs := validation.ValidateSubscriptionCreate(ctx, &requestSubscription)
@@ -631,7 +626,7 @@ func (f *Frontend) ArmSubscriptionPut(writer http.ResponseWriter, request *http.
 		}
 	}
 
-	_, err = coreapi.WriteJSONResponse(writer, http.StatusOK, resultingSubscription)
+	_, err = coreapihelpers.WriteJSONResponse(writer, http.StatusOK, resultingSubscription)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -656,7 +651,7 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 	}
 
 	// TODO explain why it is safe to decode this directly into an internal type
-	deploymentPreflight, err := coreapi.UnmarshalDeploymentPreflight(body)
+	deploymentPreflight, err := coreapihelpers.UnmarshalDeploymentPreflight(body)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -890,7 +885,7 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 		// FIXME Further preflight steps go here.
 	}
 
-	coreapi.WriteDeploymentPreflightResponse(writer, preflightErrors)
+	coreapihelpers.WriteDeploymentPreflightResponse(writer, preflightErrors)
 	return nil
 }
 
@@ -916,7 +911,7 @@ func (f *Frontend) OperationStatus(writer http.ResponseWriter, request *http.Req
 		return nil
 	}
 
-	_, err = coreapi.WriteJSONResponse(writer, http.StatusOK, cosmosstorageutils.ToStatus(operation))
+	_, err = coreapihelpers.WriteJSONResponse(writer, http.StatusOK, cosmosstorageutils.ToStatus(operation))
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -1110,7 +1105,7 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 		return fmt.Errorf("unsupported operation reference: %s", operation.ExternalID)
 	}
 
-	_, err = coreapi.WriteJSONResponse(writer, successStatusCode, responseBody)
+	_, err = coreapihelpers.WriteJSONResponse(writer, successStatusCode, responseBody)
 	if err != nil {
 		return utils.TrackError(err)
 	}

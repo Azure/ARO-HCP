@@ -25,8 +25,8 @@ with (docstring = "Staging table for metric alert events ingested from Event Hub
     resolvedDateTime: datetime,
     targetResourceId: string,
     targetResourceType: string,
-    region: string,
-    alertContext: dynamic
+    alertContext: dynamic,
+    region: string
 )
 with (docstring = "Alert events with top-level Common Alert Schema fields extracted")
 
@@ -46,8 +46,8 @@ rawAlertEventsTransform() {
         resolvedDateTime = todatetime(essentials.resolvedDateTime),
         targetResourceId = tostring(essentials.alertTargetIDs[0]),
         targetResourceType = tostring(essentials.targetResourceType),
-        region = tostring(raw.data.alertContext.labels.region),
-        alertContext = raw.data.alertContext
+        alertContext = raw.data.alertContext,
+        region = tostring(raw.data.alertContext.labels.region)
 }
 
 .alter table alertEvents policy update @'[{"IsEnabled": true, "Source": "rawAlertEvents", "Query": "rawAlertEventsTransform()", "IsTransactional": true, "PropagateIngestionProperties": false}]'

@@ -82,7 +82,6 @@ func testSubscription() *coreapi.Subscription {
 			ResourceID:   rid,
 			PartitionKey: strings.ToLower(rid.SubscriptionID),
 		},
-		ResourceID: rid,
 		Properties: &coreapi.SubscriptionProperties{TenantId: ptr.To(testTenantID)},
 	}
 }
@@ -431,6 +430,23 @@ func TestSyncDenyAssignmentNeedsWork(t *testing.T) {
 				c.ServiceProviderProperties.ClusterServiceID = nil
 			}),
 			spc:      newTestSPC(),
+			expected: false,
+		},
+		{
+			name:    "managed resource group not observed",
+			cluster: newTestCluster(),
+			spc: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
+				spc.Status.AzureResources.ManagedResourceGroup.AzureResource = nil
+			}),
+			expected: false,
+		},
+		{
+			name:    "managed resource group pending",
+			cluster: newTestCluster(),
+			spc: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
+				spc.Status.AzureResources.ManagedResourceGroup.AzureResource = nil
+				spc.Status.AzureResources.ManagedResourceGroup.PendingAzureResource = testManagedResourceGroupID()
+			}),
 			expected: false,
 		},
 		{

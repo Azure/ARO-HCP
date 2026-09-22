@@ -31,6 +31,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/fleetcosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -48,8 +49,8 @@ func validRegisterOptions(t *testing.T, fleetDBClient *fleetcosmosstoragetesting
 		registerOptions: &registerOptions{
 			fleetDBClient:                              fleetDBClient,
 			stampIdentifier:                            testStampIdentifier,
-			stampResourceID:                            metadataapi.Must(fleetapi.ToStampResourceID(testStampIdentifier)),
-			managementClusterResourceID:                metadataapi.Must(fleetapi.ToManagementClusterResourceID(testStampIdentifier)),
+			stampResourceID:                            metadataapi.Must(fleetapihelpers.ToStampResourceID(testStampIdentifier)),
+			managementClusterResourceID:                metadataapi.Must(fleetapihelpers.ToManagementClusterResourceID(testStampIdentifier)),
 			schedulingPolicy:                           fleetapi.ManagementClusterSchedulingPolicySchedulable,
 			aksResourceID:                              metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/aks-1")),
 			publicDNSZoneResourceID:                    metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.Network/dnszones/example.com")),
@@ -121,8 +122,7 @@ func TestRun(t *testing.T) {
 			name: "update existing stamp preserves conditions",
 			seed: func(t *testing.T) []any {
 				stamp := &fleetapi.Stamp{
-					CosmosMetadata: coreapi.CosmosMetadata{ResourceID: metadataapi.Must(fleetapi.ToStampResourceID(testStampIdentifier)), PartitionKey: strings.ToLower(testStampIdentifier)},
-					ResourceID:     metadataapi.Must(fleetapi.ToStampResourceID(testStampIdentifier)),
+					CosmosMetadata: coreapi.CosmosMetadata{ResourceID: metadataapi.Must(fleetapihelpers.ToStampResourceID(testStampIdentifier)), PartitionKey: strings.ToLower(testStampIdentifier)},
 					Status: fleetapi.StampStatus{
 						Conditions: []metav1.Condition{
 							{
@@ -151,12 +151,10 @@ func TestRun(t *testing.T) {
 			name: "update existing management cluster with same values succeeds",
 			seed: func(t *testing.T) []any {
 				stamp := &fleetapi.Stamp{
-					CosmosMetadata: coreapi.CosmosMetadata{ResourceID: metadataapi.Must(fleetapi.ToStampResourceID(testStampIdentifier)), PartitionKey: strings.ToLower(testStampIdentifier)},
-					ResourceID:     metadataapi.Must(fleetapi.ToStampResourceID(testStampIdentifier)),
+					CosmosMetadata: coreapi.CosmosMetadata{ResourceID: metadataapi.Must(fleetapihelpers.ToStampResourceID(testStampIdentifier)), PartitionKey: strings.ToLower(testStampIdentifier)},
 				}
 				managementCluster := &fleetapi.ManagementCluster{
-					CosmosMetadata: coreapi.CosmosMetadata{ResourceID: metadataapi.Must(fleetapi.ToManagementClusterResourceID(testStampIdentifier)), PartitionKey: strings.ToLower(testStampIdentifier)},
-					ResourceID:     metadataapi.Must(fleetapi.ToManagementClusterResourceID(testStampIdentifier)),
+					CosmosMetadata: coreapi.CosmosMetadata{ResourceID: metadataapi.Must(fleetapihelpers.ToManagementClusterResourceID(testStampIdentifier)), PartitionKey: strings.ToLower(testStampIdentifier)},
 					Spec: fleetapi.ManagementClusterSpec{
 						SchedulingPolicy: fleetapi.ManagementClusterSchedulingPolicySchedulable,
 					},
@@ -187,12 +185,10 @@ func TestRun(t *testing.T) {
 			name: "update existing management cluster rejects changed immutable field",
 			seed: func(t *testing.T) []any {
 				stamp := &fleetapi.Stamp{
-					CosmosMetadata: coreapi.CosmosMetadata{ResourceID: metadataapi.Must(fleetapi.ToStampResourceID(testStampIdentifier)), PartitionKey: strings.ToLower(testStampIdentifier)},
-					ResourceID:     metadataapi.Must(fleetapi.ToStampResourceID(testStampIdentifier)),
+					CosmosMetadata: coreapi.CosmosMetadata{ResourceID: metadataapi.Must(fleetapihelpers.ToStampResourceID(testStampIdentifier)), PartitionKey: strings.ToLower(testStampIdentifier)},
 				}
 				managementCluster := &fleetapi.ManagementCluster{
-					CosmosMetadata: coreapi.CosmosMetadata{ResourceID: metadataapi.Must(fleetapi.ToManagementClusterResourceID(testStampIdentifier)), PartitionKey: strings.ToLower(testStampIdentifier)},
-					ResourceID:     metadataapi.Must(fleetapi.ToManagementClusterResourceID(testStampIdentifier)),
+					CosmosMetadata: coreapi.CosmosMetadata{ResourceID: metadataapi.Must(fleetapihelpers.ToManagementClusterResourceID(testStampIdentifier)), PartitionKey: strings.ToLower(testStampIdentifier)},
 					Spec: fleetapi.ManagementClusterSpec{
 						SchedulingPolicy: fleetapi.ManagementClusterSchedulingPolicySchedulable,
 					},
@@ -220,12 +216,10 @@ func TestRun(t *testing.T) {
 			name: "update existing management cluster preserves scheduling policy",
 			seed: func(t *testing.T) []any {
 				stamp := &fleetapi.Stamp{
-					CosmosMetadata: coreapi.CosmosMetadata{ResourceID: metadataapi.Must(fleetapi.ToStampResourceID(testStampIdentifier)), PartitionKey: strings.ToLower(testStampIdentifier)},
-					ResourceID:     metadataapi.Must(fleetapi.ToStampResourceID(testStampIdentifier)),
+					CosmosMetadata: coreapi.CosmosMetadata{ResourceID: metadataapi.Must(fleetapihelpers.ToStampResourceID(testStampIdentifier)), PartitionKey: strings.ToLower(testStampIdentifier)},
 				}
 				managementCluster := &fleetapi.ManagementCluster{
-					CosmosMetadata: coreapi.CosmosMetadata{ResourceID: metadataapi.Must(fleetapi.ToManagementClusterResourceID(testStampIdentifier)), PartitionKey: strings.ToLower(testStampIdentifier)},
-					ResourceID:     metadataapi.Must(fleetapi.ToManagementClusterResourceID(testStampIdentifier)),
+					CosmosMetadata: coreapi.CosmosMetadata{ResourceID: metadataapi.Must(fleetapihelpers.ToManagementClusterResourceID(testStampIdentifier)), PartitionKey: strings.ToLower(testStampIdentifier)},
 					Spec: fleetapi.ManagementClusterSpec{
 						SchedulingPolicy: fleetapi.ManagementClusterSchedulingPolicyUnschedulable,
 					},

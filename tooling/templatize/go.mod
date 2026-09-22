@@ -4,18 +4,19 @@ go 1.25.7
 
 require (
 	github.com/Azure/ARO-HCP/tooling/cleanup-sweeper v0.0.0-20260409032928-501433c68f7d
-	github.com/Azure/ARO-Tools/config v0.0.0-20260901142504-86903908c305
-	github.com/Azure/ARO-Tools/pipelines v0.0.0-20260901142504-86903908c305
-	github.com/Azure/ARO-Tools/testutil v0.0.0-20260901142504-86903908c305
-	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260901142504-86903908c305
-	github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20260901142504-86903908c305
-	github.com/Azure/ARO-Tools/tools/helm v0.0.0-20260901142504-86903908c305
-	github.com/Azure/ARO-Tools/tools/istio-upgrade v0.0.0-20260901142504-86903908c305
-	github.com/Azure/ARO-Tools/tools/prow-job-executor v0.0.0-20260901142504-86903908c305
-	github.com/Azure/ARO-Tools/tools/registration v0.0.0-20260901142504-86903908c305
-	github.com/Azure/ARO-Tools/tools/secret-sync v0.0.0-20260901142504-86903908c305
-	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.21.1
-	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.13.1
+	github.com/Azure/ARO-Tools/config v0.0.0-20260917062117-27fb5fa3a294
+	github.com/Azure/ARO-Tools/pipelines v0.0.0-20260917062117-27fb5fa3a294
+	github.com/Azure/ARO-Tools/testutil v0.0.0-20260917062117-27fb5fa3a294
+	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260917062117-27fb5fa3a294
+	github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20260917062117-27fb5fa3a294
+	github.com/Azure/ARO-Tools/tools/helm v0.0.0-20260917062117-27fb5fa3a294
+	github.com/Azure/ARO-Tools/tools/istio-upgrade v0.0.0-20260917062117-27fb5fa3a294
+	github.com/Azure/ARO-Tools/tools/kustoctl v0.0.0-20260917062117-27fb5fa3a294
+	github.com/Azure/ARO-Tools/tools/prow-job-executor v0.0.0-20260917062117-27fb5fa3a294
+	github.com/Azure/ARO-Tools/tools/registration v0.0.0-20260917062117-27fb5fa3a294
+	github.com/Azure/ARO-Tools/tools/secret-sync v0.0.0-20260917062117-27fb5fa3a294
+	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.23.0
+	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.14.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v3 v3.0.0-beta.2
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice v1.0.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeploymentstacks v1.0.1
@@ -31,7 +32,7 @@ require (
 	github.com/microsoft/kiota-authentication-azure-go v1.3.0
 	github.com/microsoftgraph/msgraph-sdk-go v1.69.0
 	github.com/spf13/cobra v1.10.2
-	github.com/stretchr/testify v1.11.1
+	github.com/stretchr/testify v1.12.0
 	go.lsp.dev/jsonrpc2 v0.10.0
 	go.lsp.dev/protocol v0.12.0
 	golang.org/x/sync v0.22.0
@@ -51,7 +52,8 @@ require (
 	cloud.google.com/go/monitoring v1.24.3 // indirect
 	cloud.google.com/go/storage v1.62.1 // indirect
 	dario.cat/mergo v1.0.1 // indirect
-	github.com/Azure/ARO-Tools/tools/yamlwrap v0.0.0-20260901142504-86903908c305 // indirect
+	github.com/Azure/ARO-Tools/tools/yamlwrap v0.0.0-20260917062117-27fb5fa3a294 // indirect
+	github.com/Azure/azure-kusto-go/azkustodata v1.2.1 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.12.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v6 v6.6.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dashboard/armdashboard/v2 v2.0.0 // indirect
@@ -68,7 +70,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azsecrets v1.4.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/internal v1.2.0 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c // indirect
-	github.com/AzureAD/microsoft-authentication-library-for-go v1.7.2 // indirect
+	github.com/AzureAD/microsoft-authentication-library-for-go v1.8.0 // indirect
 	github.com/BurntSushi/toml v1.6.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.32.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.55.0 // indirect
@@ -236,6 +238,7 @@ require (
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/rubenv/sql-migrate v1.8.1 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
+	github.com/samber/lo v1.53.0 // indirect
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2 // indirect
 	github.com/segmentio/asm v1.1.3 // indirect
 	github.com/segmentio/encoding v0.5.4 // indirect
@@ -283,14 +286,14 @@ require (
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	go4.org v0.0.0-20201209231011-d4a079459e60 // indirect
 	gocloud.dev v0.40.0 // indirect
-	golang.org/x/crypto v0.54.0 // indirect
+	golang.org/x/crypto v0.55.0 // indirect
 	golang.org/x/exp v0.0.0-20260218203240-3dfff04db8fa // indirect
-	golang.org/x/mod v0.37.0 // indirect
-	golang.org/x/net v0.57.0 // indirect
+	golang.org/x/mod v0.38.0 // indirect
+	golang.org/x/net v0.58.0 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
 	golang.org/x/term v0.45.0 // indirect
-	golang.org/x/text v0.40.0 // indirect
+	golang.org/x/text v0.41.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect
 	gomodules.xyz/jsonpatch/v2 v2.5.0 // indirect
@@ -323,7 +326,7 @@ require (
 	sigs.k8s.io/kustomize/kyaml v0.21.1 // indirect
 	sigs.k8s.io/prow v0.0.0-20251030184004-0e4d5be4200d // indirect
 	sigs.k8s.io/randfill v1.0.0 // indirect
-	sigs.k8s.io/structured-merge-diff/v6 v6.3.2 // indirect
+	sigs.k8s.io/structured-merge-diff/v6 v6.4.0 // indirect
 )
 
 replace github.com/go-echarts/go-echarts/v2 => github.com/stevekuznetsov/go-echarts/v2 v2.0.0-20251106144453-30c025b42a65

@@ -50,6 +50,13 @@ miMock:
   certName: "{{ .miMockCertName }}"
   clientId: "{{ .miMockClientId }}"
   principalId: "{{ .miMockPrincipalId }}"
+  # clientIdSecretName/principalIdSecretName are the names of Key Vault secrets holding the mock
+  # identity's client id / principal id. When set, these take precedence over clientId/principalId
+  # above: the values are mounted via the CSI driver and read from file at backend startup instead
+  # of being duplicated as static config. This lets the mock identity's ids stay correct even when
+  # the underlying Service Principal is recreated (its principal id changes), without a config change.
+  clientIdSecretName: "{{ .miMockClientIdSecretName }}"
+  principalIdSecretName: "{{ .miMockPrincipalIdSecretName }}"
   # The Azure Tenant ID where the MI Mock Identity is registered.
   tenantId: "{{ .miMockTenantId }}"
 # ARM Permissions Manager Identity. It is a common Azure Service Principal identity.

@@ -75,6 +75,13 @@ func workspaceDataToJUnit(logger logr.Logger, ws *workspaceData, timeWindow timi
 	var testCases []*junit.TestCase
 	var totalDuration float64
 	var numFailed, numSkipped uint
+	if ws.CollectionError != nil {
+		numFailed++
+		testCases = append(testCases, &junit.TestCase{
+			Name:          fmt.Sprintf("[aro-hcp-observability] [%s] alert collection is complete", ws.Type),
+			FailureOutput: &junit.FailureOutput{Message: "alert collection incomplete", Output: ws.CollectionError.Error()},
+		})
+	}
 
 	for _, rule := range ws.AlertRules {
 		tc := &junit.TestCase{
@@ -83,6 +90,10 @@ func workspaceDataToJUnit(logger logr.Logger, ws *workspaceData, timeWindow timi
 
 		firings, hasFirings := groups[rule]
 		if !hasFirings {
+			if ws.CollectionError != nil {
+				numSkipped++
+				tc.SkipMessage = &junit.SkipMessage{Message: "alert collection incomplete; absence of firings cannot be verified"}
+			}
 			testCases = append(testCases, tc)
 			continue
 		}

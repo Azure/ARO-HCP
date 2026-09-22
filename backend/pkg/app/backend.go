@@ -48,6 +48,7 @@ import (
 	credentialrevocationdeletion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/credentialrevocation/deletion"
 	credentialrevocationoperations "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/credentialrevocation/operations"
 	clusterdeletion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/deletion"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/denyassignments"
 	clusteridentity "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/identity"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/legacycredentialrequest"
 	clusteroperations "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/operations"
@@ -59,6 +60,7 @@ import (
 	clusterupdate "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/update"
 	clustervalidation "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/validation"
 	clusterversion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/version"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/clusterresources"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cosmosmigration"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/datadump"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/example"
@@ -664,6 +666,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		billing.NewCreateBillingDocController(b.clock, b.options.AzureLocation, b.options.ResourcesDBClient, b.options.BillingDBClient, clusterLister, billingLister))
 	controlPlaneActiveVersionController := clusterversion.NewControlPlaneActiveVersionController(
 		b.options.ResourcesDBClient,
+		clusterLister,
 		serviceProviderClusterLister,
 		backendInformers,
 		unionKubeApplierInformers,
@@ -683,6 +686,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	triggerControlPlaneUpgradeController := clusterversion.NewTriggerControlPlaneUpgradeController(
 		b.clock,
 		b.options.ResourcesDBClient,
+		clusterLister,
 		b.options.ClustersServiceClient,
 		activeOperationLister,
 		serviceProviderClusterLister,
@@ -725,6 +729,14 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		backendInformers,
 		unionKubeApplierInformers,
 		b.options.MaestroSourceEnvironmentIdentifier,
+		b.options.BackupConfig,
+	)
+
+	keyRotationBackupController := clusterbackups.NewKeyRotationBackupController(
+		b.options.ResourcesDBClient,
+		b.options.KubeApplierDBClients,
+		backendInformers,
+		unionKubeApplierInformers,
 		b.options.BackupConfig,
 	)
 
@@ -806,7 +818,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		backendInformers,
 	)
 
-	observeManagedResourceGroupController := clusterazureresources.NewManagedResourceGroupController(
+	ensureManagedResourceGroupController := clusterazureresources.NewManagedResourceGroupController(
 		b.options.ResourcesDBClient,
 		serviceProviderClusterLister,
 		subscriptionLister,
@@ -902,6 +914,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	)
 	triggerNodePoolUpgradeController := nodepoolversion.NewTriggerNodePoolUpgradeController(
 		b.options.ResourcesDBClient,
+		nodePoolLister,
 		b.options.ClustersServiceClient,
 		serviceProviderNodePoolLister,
 		backendInformers,
@@ -913,6 +926,21 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		managementClusterLister,
 		backendInformers,
 		unionKubeApplierInformers,
+	)
+	_, managementClusterSchedulingLister := fleetInformers.ManagementClusterSchedulings()
+	placementController := clusterplacement.NewPlacementController(
+		b.options.ResourcesDBClient,
+		b.options.FleetDBClient,
+		managementClusterLister,
+		managementClusterSchedulingLister,
+		backendInformers,
+		unionKubeApplierInformers,
+	)
+	pendingCleanupController := clusterplacement.NewPendingCleanupController(
+		b.options.FleetDBClient,
+		serviceProviderClusterLister,
+		clusterLister,
+		fleetInformers,
 	)
 
 	nodePoolClusterServiceCreateController := nodepoolcreation.NewNodePoolClusterServiceCreateController(
@@ -952,6 +980,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		b.options.ResourcesDBClient,
 		backendInformers,
 		unionKubeApplierInformers,
+		b.options.KubeApplierDBClients,
 	)
 
 	externalAuthDeletionClusterServiceDeleteDispatchController := externalauthdeletion.NewExternalAuthClusterServiceDeleteDispatchController(
@@ -977,6 +1006,19 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		backendInformers,
 	)
 
+	// The deny assignment controller creates Azure deny assignments through the FPA, which only
+	// exists in environments with a real First Party Application (stage/prod). Skip it entirely when
+	// running against the MI mock (dev/int), where deny assignments cannot be created.
+	var clusterDenyAssignmentController controllerutils.Controller
+	if b.options.HasRealFPA {
+		clusterDenyAssignmentController = denyassignments.NewClusterDenyAssignmentController(
+			utilsclock.RealClock{},
+			b.options.ResourcesDBClient,
+			b.options.FPAClientBuilder,
+			backendInformers,
+		)
+	}
+
 	clusterPendingClusterServiceIDAssignController := clustercreation.NewClusterPendingClusterServiceIDAssignController(
 		b.options.ResourcesDBClient,
 		backendInformers,
@@ -985,6 +1027,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	clusterClusterServiceCreateController := clustercreation.NewClusterClusterServiceCreateController(
 		b.options.ResourcesDBClient,
 		b.options.ClustersServiceClient,
+		managementClusterLister,
 		backendInformers,
 		b.options.HasRealFPA,
 	)
@@ -994,6 +1037,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		b.options.ResourcesDBClient,
 		b.options.ClustersServiceClient,
 		backendInformers,
+		unionKubeApplierInformers,
 	)
 
 	clusterClusterServiceIDClearerController := clusterdeletion.NewClusterClusterServiceIDClearerController(
@@ -1019,6 +1063,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		b.options.ResourcesDBClient,
 		b.options.BillingDBClient,
 		backendInformers,
+		b.options.KubeApplierDBClients,
 	)
 
 	clusterClusterServiceUpdateDispatchController := clusterupdate.NewClusterClusterServiceUpdateDispatchController(
@@ -1053,7 +1098,8 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		b.options.SMIClientBuilder,
 	)
 
-	observeRoleAssignmentsController := clusterroleassignments.NewRoleAssignmentsController(
+	identityRoleAssignmentsController := clusterroleassignments.NewRoleAssignmentsController(
+		b.clock,
 		b.options.ResourcesDBClient,
 		serviceProviderClusterLister,
 		subscriptionLister,
@@ -1061,6 +1107,14 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		b.options.ClusterScopedIdentitiesConfig,
 		backendInformers,
 		unionKubeApplierInformers,
+	)
+
+	clusterResourcesController := clusterresources.NewClusterResourcesController(
+		b.options.ResourcesDBClient,
+		b.options.KubeApplierDBClients,
+		backendInformers,
+		unionKubeApplierInformers,
+		b.options.ClustersServiceClient,
 	)
 
 	leaderElectionConfig := leaderelection.LeaderElectionConfig{
@@ -1100,6 +1154,9 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go systemAdminCredentialRevocationDesiresController.Run(ctx, 20)
 				go systemAdminCredentialRevocationCompletionController.Run(ctx, 20)
 				go systemAdminCredentialRevocationDeletionController.Run(ctx, 20)
+				if clusterDenyAssignmentController != nil {
+					go clusterDenyAssignmentController.Run(ctx, 20)
+				}
 				go clusterPendingClusterServiceIDAssignController.Run(ctx, 20)
 				go clusterClusterServiceCreateController.Run(ctx, 20)
 				go nodePoolClusterServiceCreateController.Run(ctx, 20)
@@ -1149,7 +1206,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go createServiceProviderClusterController.Run(ctx, 20)
 				go createServiceProviderNodePoolController.Run(ctx, 20)
 				go cleanOrphanedClusterManagedResourceGroupController.Run(ctx, 20)
-				go observeManagedResourceGroupController.Run(ctx, 20)
+				go ensureManagedResourceGroupController.Run(ctx, 20)
 				go triggerNodePoolUpgradeController.Run(ctx, 20)
 				go nodePoolDeletionClusterServiceDeleteDispatchController.Run(ctx, 20)
 				go nodePoolClusterServiceIDClearerController.Run(ctx, 20)
@@ -1174,12 +1231,16 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go externalAuthMetricsController.Run(ctx, 1)
 				go clusterInfoMetricsController.Run(ctx, 1)
 				go placementSyncController.Run(ctx, 20)
+				go placementController.Run(ctx, 20)
+				go pendingCleanupController.Run(ctx, 5)
 				go cosmosMigrationController.Run(ctx, 5)
 				go virtualMachineResourceSKUsCachedReaderController.Run(ctx, 20)
 				go backupScheduleController.Run(ctx, 20)
 				go fetchMSIIdentitiesInfoController.Run(ctx, 20)
 				go fetchDataPlaneOperatorsManagedIdentitiesInfoController.Run(ctx, 20)
-				go observeRoleAssignmentsController.Run(ctx, 20)
+				go identityRoleAssignmentsController.Run(ctx, 20)
+				go keyRotationBackupController.Run(ctx, 20)
+				go clusterResourcesController.Run(ctx, 20)
 			},
 			OnStoppedLeading: func() {
 				// This needs to be defined even though it does nothing.

@@ -1,16 +1,100 @@
-# Cosmos DB Data Flow: Frontend Endpoints and Backend Controllers
+# Controller and Resource Data Flow
 
-This document maps every actor (frontend endpoint or backend controller) to the Cosmos DB
-objects and fields it reads and writes, shows the execution order as a digraph, and highlights
-fields written by more than one actor.
+This reference covers every concrete controller in the current checkout: backend,
+fleet, kube-applier, management-agent, sessiongate, and shared informer management.
+It maps their inputs, decisions and effects across Cosmos DB, Azure, Cluster Service
+and Kubernetes. Source baseline: `7997fa34a240560a792c3dd410396cd7651a9f39`.
 
-All resources live in a single Cosmos container ("Resources"). Every write is a full document
-replacement with ETag-based optimistic concurrency. The `InstanceVersion` field is
-auto-incremented on each Replace.
+The generation instructions are maintained in [controller-data-flow.md](prompts/controller-data-flow.md).
+The historical filename is retained for existing links.
+
+- [Cosmos request attribution](#request-unit-ru-attribution)
+- [Endpoint writes](#1-frontend-endpoint-writes)
+- [Controller catalog](#2-complete-controller-catalog)
+- [External effects and ownership](#external-effects-and-ownership)
+- [Resource lifecycle digraphs](#3-resource-lifecycle-digraphs)
+- [Shared fields and ownership](#4-shared-fields-and-ownership)
+
+Cosmos persistence spans the **Resources**, **Billing**, **Fleet**, and
+**per-management-cluster kube-applier** containers. Resource replacements generally
+use ETag optimistic concurrency and advance `InstanceVersion`; creates, deletes
+and transactional batches have their own semantics. A successful Cosmos write of
+an intent does not establish that an Azure or Kubernetes resource exists.
+
+## Request Unit (RU) attribution
+
+Sources: [Cosmos metrics policy](../internal/database/cosmosstorage/cosmosmetrics/policy.go),
+[client wiring](../internal/database/cosmosstorage/corecosmosstorage/database.go), and
+[informer attribution](../internal/database/informers/informerutils/context.go).
+
+Clients constructed through `corecosmosstorage.NewCosmosDatabaseClient` record two
+shared, process-wide counters through the same per-retry pipeline policy:
+
+- `cosmos_request_units_total` sums the `x-ms-request-charge` response header
+  once per HTTP attempt, including charged failures, query pages, and idle
+  changefeed responses. Missing, malformed, negative, or non-finite charges
+  are ignored, so this measures reported RUs, not request count.
+- `cosmos_requests_total` counts every HTTP attempt that received a response,
+  regardless of whether a charge was reported. It exists because a `429` is
+  typically rejected before Cosmos DB does any work and usually reports a
+  zero or absent charge — `cosmos_request_units_total` alone cannot answer
+  "how often was this source throttled", only "how much RU did its throttled
+  attempts happen to cost" (usually ~0 regardless of frequency).
+
+Neither instruments credential requests. Both share the same labels:
+
+| Label | Meaning |
+|-------|---------|
+| `source_kind` | `controller`, `informer`, or `unattributed` |
+| `source` | Explicit informer name, otherwise the existing controller context name, otherwise `unknown` |
+| `cosmosdb_container` | Actual Cosmos container name, preserving casing; `unknown` when the request has no identifiable container |
+| `operation` | `read`, `create`, `upsert`, `replace`, `patch`, `delete`, `query`, `query_plan`, `batch`, `change_feed`, `feed_ranges`, `metadata`, or `unknown` |
+| `status_code` | HTTP response status, including failures and `304` |
+
+Cosmos requests made by an informer’s List/Watch operations are attributed to that
+informer, even if the context also contains a controller name. Initial lists,
+relists, query pages, and asynchronous feed polls belong to the informer, not
+to each consuming controller. `ActiveOperations` and `AllOperations` have separate
+identities. Controller CRUD, including controller-status persistence, retains
+the controller's existing context.
+
+The SDK refreshes its partition-range cache in the background, so those
+charges cannot be attributed. They land in `unattributed` / `unknown` and
+the amount is small.
+Other callers without identity use that same bucket. Requests whose responses
+never reach the client cannot contribute to either counter; compare with Cosmos
+platform metrics when investigating discrepancies.
+
+Average RU/s by source, deduplicating HA scrapes before summing targets:
+
+```promql
+sum by (source_kind, source) (
+  max without (prometheus_replica) (
+    rate(cosmos_request_units_total[5m])
+  )
+)
+```
+
+Rate of `429` responses by source — a request count, not RU cost:
+
+```promql
+sum by (source_kind, source) (
+  max without (prometheus_replica) (
+    rate(cosmos_requests_total{status_code="429"}[5m])
+  )
+)
+```
 
 ---
 
 ## 1. Frontend Endpoint Writes
+
+Request-body merging and response helpers live under
+[coreapihelpers](../internal/apihelpers/coreapihelpers/); resource-ID and Cosmos
+metadata helpers live under [metadataapihelpers](../internal/apihelpers/metadataapihelpers/),
+[fleetapihelpers](../internal/apihelpers/fleetapihelpers/) and
+[kubeapplierapihelpers](../internal/apihelpers/kubeapplierapihelpers/).
+The helper-package move does not change endpoint ownership or transactional boundaries.
 
 ### PUT Subscription
 
@@ -211,1481 +295,1089 @@ No writes to Cosmos Resources container.
 |--------|---------------|
 | `ServiceProviderCluster` | <ul><li>**`Spec.BackupState`** = `Enabled` or `Paused` (from request body)</li></ul> |
 
----
+### Admin API: GET OnDemandBackups
 
-## 2. Backend Controller Reads and Writes
-
-### Operation Controllers
-
-These watch the ActiveOperations informer (10s resync). Each gates on `Operation.Request` type,
-`ExternalID.ResourceType`, and non-terminal `Operation.Status`. All use `UpdateOperationStatus`
-which performs a **transactional batch** to atomically update the operation and associated resource.
-
-#### OperationClusterCreate
-
-**File:** [operation_cluster_create.go](../backend/pkg/controllers/cluster/operations/operation_cluster_create.go)
-**Gate (ShouldProcess on Operation):**
-- `Operation.Status.IsTerminal()` == false
-- `Operation.Request` == `Create`
-- `Operation.ExternalID.ResourceType` == `ClusterResourceType`
-
-**Gate (shouldReconcileOperationAndResourceStatus on Cluster):**
-- `Cluster.ServiceProviderProperties.DeletionTimestamp` == nil
-- `Cluster.ServiceProviderProperties.ClusterServiceID` != nil
+**Path:** `GET /admin/v1/hcp/subscriptions/{subscriptionId}/resourcegroups/{resourceGroupName}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/{resourceName}/backups`
+**Handler:** `HCPGetOnDemandBackupsHandler` ([backups.go](../admin/server/handlers/hcp/backups.go))
 
 | | Object | Fields |
 |---|--------|--------|
-| Read | `Operation` | <ul><li>`Status` (ShouldProcess: must not be terminal)</li><li>`Request` (ShouldProcess: must be `Create`)</li><li>`ExternalID` (ShouldProcess: resource type must be `ClusterResourceType`)</li><li>`OperationID.Name`</li></ul> |
-| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.ActiveOperationID` (mismatch check)</li><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.API.URL`</li><li>`ServiceProviderProperties.CreateOperationCompletionDeadline`</li></ul> |
-| Read | ReadDesire (HostedCluster) | <ul><li>`Status.Conditions` (ConditionTypeSuccessful)</li><li>`Status.KubeContent` -> HostedCluster `status.controlPlaneVersion.history[].state`, `status.controlPlaneVersion.history[].version`, `status.conditions` (Available, Degraded), `status.controlPlaneEndpoint.host`, `status.controlPlaneEndpoint.port`</li></ul> |
-| Read | Cluster Service | <ul><li>cluster state, provision error</li></ul> |
-| Read | `ServiceProviderCluster` | <ul><li>`Status.ServingCABundle` (completion gate: must be populated)</li><li>`Status.AzureResources.RoleAssignments` (completion gate: at least one confirmed `AzureResources` and no `PendingAzureResources`)</li></ul> |
-| **Write** | **`Operation`** | <ul><li>**`Status`** -> `Provisioning`/`Succeeded`/`Failed`</li><li>**`Error`** (on failure)</li><li>**`LastTransitionTime`**</li><li>**`NotificationURI`** (cleared after ARM notification)</li></ul> |
-| **Write** | **`HCPOpenShiftCluster`** | <ul><li>**`ServiceProviderProperties.ProvisioningState`** = new status</li><li>**`.ActiveOperationID`** = `""` (on terminal)</li></ul> |
+| Read | `HCPOpenShiftCluster` | <ul><li>`ResourceID` (resolves the target cluster context)</li></ul> |
+| Read | `ServiceProviderCluster` | <ul><li>`Status.ManagementClusterResourceID` (precondition: must not be nil)</li></ul> |
+| Read | `ReadDesire` (kube-applier DB) | <ul><li>`Tags` (filtered to `ondemandbackup`)</li><li>`ResourceID.Name` (on-demand backup name, prefix trimmed)</li><li>`Status.KubeContent` (Velero `Backup` status: `Phase`, `StartTimestamp`, `CompletionTimestamp`; plus the `hcp-cluster-kms-key-fingerprint` annotation)</li></ul> |
 
-#### OperationClusterUpdate
-
-**File:** [operation_cluster_update.go](../backend/pkg/controllers/cluster/operations/operation_cluster_update.go)
-**Gate (ShouldProcess on Operation):**
-- `Operation.Status.IsTerminal()` == false
-- `Operation.Request` == `Update`
-- `Operation.ExternalID.ResourceType` == `ClusterResourceType`
-
-**Gate (shouldReconcileOperationAndResourceStatus on Cluster):**
-- `Cluster.ServiceProviderProperties.DeletionTimestamp` == nil
-- `Cluster.ServiceProviderProperties.ClusterServiceID` != nil
-
-| | Object | Fields |
-|---|--------|--------|
-| Read | `Operation` | <ul><li>`Status` (ShouldProcess: must not be terminal)</li><li>`Request` (ShouldProcess: must be `Update`)</li><li>`ExternalID` (ShouldProcess: resource type must be `ClusterResourceType`)</li><li>`ResourceID.Name`</li></ul> |
-| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.ActiveOperationID` (mismatch check)</li><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must not be nil)</li><li>`CustomerProperties.Version.ID`</li><li>`CustomerProperties.API.AuthorizedCIDRs`</li><li>`CustomerProperties.NodeDrainTimeoutMinutes`</li><li>`CustomerProperties.Autoscaling.*`</li><li>`CustomerProperties.ImageDigestMirrors`</li><li>`ServiceProviderProperties.ExperimentalFeatures.ControlPlaneAvailability`</li><li>`ServiceProviderProperties.ExperimentalFeatures.ControlPlanePodSizing`</li><li>`ServiceProviderProperties.ExperimentalFeatures.ControlPlaneOperatorImage`</li></ul> |
-| Read | `ServiceProviderCluster` | <ul><li>`Spec.ControlPlaneVersion.DesiredVersion`</li><li>`Spec.DesiredHostedClusterControlPlaneSize`</li></ul> |
-| Read | Controller(`ControlPlaneDesiredVersion`) | <ul><li>`Status.Conditions[IntentFailed]` (Reason, Message)</li></ul> |
-| Read | ReadDesire (HostedCluster) | <ul><li>`Spec.Networking.APIServer.AllowedCIDRBlocks`</li><li>`Spec.ControllerAvailabilityPolicy`</li><li>`Spec.InfrastructureAvailabilityPolicy`</li><li>`Annotations[ClusterSizeOverrideAnnotation]`</li><li>`Annotations[ControlPlaneOperatorImageAnnotation]`</li><li>`Spec.Autoscaling.*`</li><li>`Spec.ImageContentSources`</li></ul> |
-| Read | Cluster Service | <ul><li>cluster status, API CIDRBlockAccess, NodeDrainGracePeriod</li></ul> |
-| **Write** | **`Operation`** | <ul><li>**`Status`** -> `Updating`/`Succeeded`/`Failed`</li><li>**`Error`** (on failure)</li><li>**`LastTransitionTime`**</li><li>**`NotificationURI`** (cleared after ARM notification)</li></ul> |
-| **Write** | **`HCPOpenShiftCluster`** | <ul><li>**`ServiceProviderProperties.ProvisioningState`** = new status</li><li>**`.ActiveOperationID`** = `""` (on terminal)</li></ul> |
-
-#### OperationClusterDelete
-
-**File:** [operation_cluster_delete.go](../backend/pkg/controllers/cluster/operations/operation_cluster_delete.go)
-**Gate (ShouldProcess on Operation):**
-- `Operation.Status.IsTerminal()` == false
-- `Operation.Request` == `Delete`
-- `Operation.ExternalID.ResourceType` == `ClusterResourceType`
-
-**Gate (shouldReconcileOperationAndResourceStatus on Cluster):**
-- `Cluster.ServiceProviderProperties.DeletionTimestamp` != nil
-- `Cluster.ServiceProviderProperties.ClusterServiceDeletionTimestamp` != nil
-- `Cluster.ServiceProviderProperties.ClusterServiceID` != nil
-
-| | Object | Fields |
-|---|--------|--------|
-| Read | `Operation` | <ul><li>`Status` (ShouldProcess: must not be terminal)</li><li>`Request` (ShouldProcess: must be `Delete`)</li><li>`UsesNewClusterDeletionApproach`</li></ul> |
-| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceDeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must not be nil)</li></ul> |
-| Read | Cluster Service | <ul><li>cluster status (or 404)</li></ul> |
-| **Write** | **`Operation`** | <ul><li>**`Status`** -> `Succeeded` (when cluster doc deleted via `SetDeleteOperationAsCompleted`)</li><li>**`Error`**, **`LastTransitionTime`**</li></ul> |
-| **Write** | **`HCPOpenShiftCluster`** | <ul><li>**`ServiceProviderProperties.ProvisioningState`** = new status (while doc exists)</li><li>**`.ActiveOperationID`** = `""` (on terminal)</li></ul> |
-
-#### OperationNodePoolCreate
-
-**File:** [operation_node_pool_create.go](../backend/pkg/controllers/nodepool/operations/operation_node_pool_create.go)
-**Gate (ShouldProcess on Operation):**
-- `Operation.Status.IsTerminal()` == false
-- `Operation.Request` == `Create`
-- `Operation.ExternalID.ResourceType` == `NodePoolResourceType`
-
-**Gate (shouldReconcileOperationAndResourceStatus on NodePool):**
-- `NodePool.ServiceProviderProperties.DeletionTimestamp` == nil
-- `NodePool.ServiceProviderProperties.ClusterServiceID` != nil
-
-| | Object | Fields |
-|---|--------|--------|
-| Read | `Operation` | <ul><li>`Status` (ShouldProcess: must not be terminal)</li><li>`Request` (ShouldProcess: must be `Create`)</li><li>`ExternalID` (ShouldProcess: resource type must be `NodePoolResourceType`)</li><li>`ResourceID.Name`</li></ul> |
-| Read | `HCPOpenShiftClusterNodePool` | <ul><li>`ServiceProviderProperties.ActiveOperationID` (mismatch check)</li><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.CreateOperationCompletionDeadline`</li></ul> |
-| Read | Cluster Service | <ul><li>node pool status</li></ul> |
-| **Write** | **`Operation`** | <ul><li>**`Status`** -> `Provisioning`/`Succeeded`/`Failed`</li><li>**`Error`** (on failure)</li><li>**`LastTransitionTime`**</li><li>**`NotificationURI`** (cleared after ARM notification)</li></ul> |
-| **Write** | **`HCPOpenShiftClusterNodePool`** | <ul><li>**`Properties.ProvisioningState`** = new status</li><li>**`ServiceProviderProperties.ActiveOperationID`** = `""` (on terminal)</li></ul> |
-
-#### OperationNodePoolUpdate
-
-**File:** [operation_node_pool_update.go](../backend/pkg/controllers/nodepool/operations/operation_node_pool_update.go)
-**Gate (ShouldProcess on Operation):**
-- `Operation.Status.IsTerminal()` == false
-- `Operation.Request` == `Update`
-- `Operation.ExternalID.ResourceType` == `NodePoolResourceType`
-
-**Gate (shouldReconcileOperationAndResourceStatus on NodePool):**
-- `NodePool.ServiceProviderProperties.DeletionTimestamp` == nil
-- `NodePool.ServiceProviderProperties.ClusterServiceID` != nil
-
-| | Object | Fields |
-|---|--------|--------|
-| Read | `Operation` | <ul><li>`Status` (ShouldProcess: must not be terminal)</li><li>`Request` (ShouldProcess: must be `Update`)</li><li>`ExternalID` (ShouldProcess: resource type must be `NodePoolResourceType`)</li><li>`ResourceID.Name`, `ResourceID.String()`</li></ul> |
-| Read | `HCPOpenShiftClusterNodePool` | <ul><li>`ServiceProviderProperties.ActiveOperationID` (mismatch check)</li><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must not be nil)</li><li>`Properties.Version.ID`</li><li>`Properties.Labels`</li><li>`Properties.AutoScaling` (Min, Max)</li><li>`Properties.Replicas`</li><li>`Properties.Taints`</li><li>`Properties.NodeDrainTimeoutMinutes`</li></ul> |
-| Read | `ServiceProviderNodePool` | <ul><li>`Spec.NodePoolVersion.DesiredVersion`</li></ul> |
-| Read | Controller(`NodepoolVersion`) | <ul><li>`Status.Conditions[IntentFailed]` (Status, Reason, Message)</li></ul> |
-| Read | ReadDesire (NodePool) | <ul><li>`Spec.NodeLabels`</li><li>`Spec.AutoScaling` (Min, Max)</li><li>`Spec.Replicas`</li><li>`Spec.Taints`</li><li>`Spec.NodeDrainTimeout`</li><li>`Status.Replicas`</li><li>`Status.Conditions` (AllMachinesReadyConditionType)</li></ul> |
-| Read | Cluster Service | <ul><li>node pool status, labels, taints, nodeDrainGracePeriod</li></ul> |
-| **Write** | **`Operation`** | <ul><li>**`Status`** -> `Updating`/`Succeeded`/`Failed`</li><li>**`Error`** (on failure)</li><li>**`LastTransitionTime`**</li></ul> |
-| **Write** | **`HCPOpenShiftClusterNodePool`** | <ul><li>**`Properties.ProvisioningState`** = new status</li><li>**`ServiceProviderProperties.ActiveOperationID`** = `""` (on terminal)</li></ul> |
-
-#### OperationNodePoolDelete
-
-**File:** [operation_node_pool_delete.go](../backend/pkg/controllers/nodepool/operations/operation_node_pool_delete.go)
-**Gate (ShouldProcess on Operation):**
-- `Operation.Status.IsTerminal()` == false
-- `Operation.Request` == `Delete`
-- `Operation.ExternalID.ResourceType` == `NodePoolResourceType`
-
-**Gate (shouldReconcileOperationAndResourceStatus on NodePool):**
-- `NodePool.ServiceProviderProperties.DeletionTimestamp` != nil
-- `NodePool.ServiceProviderProperties.ClusterServiceDeletionTimestamp` != nil
-- `NodePool.ServiceProviderProperties.ClusterServiceID` != nil
-
-| | Object | Fields |
-|---|--------|--------|
-| Read | `Operation` | <ul><li>`Status` (ShouldProcess: must not be terminal)</li><li>`Request` (ShouldProcess: must be `Delete`)</li><li>`UsesNewNodePoolDeletionApproach`</li></ul> |
-| Read | `HCPOpenShiftClusterNodePool` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceDeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must not be nil)</li></ul> |
-| Read | Cluster Service | <ul><li>node pool status (or 404)</li></ul> |
-| **Write** | **`Operation`** | <ul><li>**`Status`** -> `Succeeded` (when NP doc deleted)</li><li>**`Error`**, **`LastTransitionTime`**</li></ul> |
-| **Write** | **`HCPOpenShiftClusterNodePool`** | <ul><li>**`Properties.ProvisioningState`** = new status (while doc exists)</li><li>**`ServiceProviderProperties.ActiveOperationID`** = `""` (on terminal)</li></ul> |
-
-#### OperationExternalAuthCreate
-
-**File:** [operation_external_auth_create.go](../backend/pkg/controllers/externalauth/operations/operation_external_auth_create.go)
-**Gate (ShouldProcess on Operation):**
-- `Operation.Status.IsTerminal()` == false
-- `Operation.Request` == `Create`
-- `Operation.ExternalID.ResourceType` == `ExternalAuthResourceType`
-
-**Gate (shouldReconcileOperationAndResourceStatus on ExternalAuth):**
-- `ExternalAuth.ServiceProviderProperties.DeletionTimestamp` == nil
-- `ExternalAuth.ServiceProviderProperties.ClusterServiceID` != nil
-
-| | Object | Fields |
-|---|--------|--------|
-| Read | `Operation` | <ul><li>`Status` (ShouldProcess: must not be terminal)</li><li>`Request` (ShouldProcess: must be `Create`)</li><li>`ExternalID` (ShouldProcess: resource type must be `ExternalAuthResourceType`)</li><li>`ResourceID.Name`</li></ul> |
-| Read | `HCPOpenShiftClusterExternalAuth` | <ul><li>`ServiceProviderProperties.ActiveOperationID` (mismatch check)</li><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must not be nil)</li></ul> |
-| Read | Cluster Service | <ul><li>external auth GET (success implies Succeeded)</li></ul> |
-| **Write** | **`Operation`** | <ul><li>**`Status`** -> `Succeeded`/`Failed`</li><li>**`Error`** (on failure)</li><li>**`LastTransitionTime`**</li><li>**`NotificationURI`** (cleared after ARM notification)</li></ul> |
-| **Write** | **`HCPOpenShiftClusterExternalAuth`** | <ul><li>**`Properties.ProvisioningState`** = new status</li><li>**`ServiceProviderProperties.ActiveOperationID`** = `""` (on terminal)</li></ul> |
-
-#### OperationExternalAuthUpdate
-
-**File:** [operation_external_auth_update.go](../backend/pkg/controllers/externalauth/operations/operation_external_auth_update.go)
-**Gate (ShouldProcess on Operation):**
-- `Operation.Status.IsTerminal()` == false
-- `Operation.Request` == `Update`
-- `Operation.ExternalID.ResourceType` == `ExternalAuthResourceType`
-
-**Gate (shouldReconcileOperationAndResourceStatus on ExternalAuth):**
-- `ExternalAuth.ServiceProviderProperties.DeletionTimestamp` == nil
-- `ExternalAuth.ServiceProviderProperties.ClusterServiceID` != nil
-
-| | Object | Fields |
-|---|--------|--------|
-| Read | `Operation` | <ul><li>`Status` (ShouldProcess: must not be terminal)</li><li>`Request` (ShouldProcess: must be `Update`)</li><li>`ExternalID` (ShouldProcess: resource type must be `ExternalAuthResourceType`)</li><li>`ResourceID.Name`</li></ul> |
-| Read | `HCPOpenShiftClusterExternalAuth` | <ul><li>`ServiceProviderProperties.ActiveOperationID` (mismatch check)</li><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must not be nil)</li><li>`Name`</li><li>`Properties.Issuer` (URL, Audiences)</li><li>`Properties.Clients` (ClientID, Component.Name, Component.AuthClientNamespace, ExtraScopes)</li><li>`Properties.Claim` (Mappings.Username.Claim/PrefixPolicy/Prefix, Mappings.Groups.Claim/Prefix, ValidationRules)</li></ul> |
-| Read | ReadDesire (HostedCluster) | <ul><li>`Spec.Configuration.Authentication.OIDCProviders` (Name, Issuer, OIDCClients, ClaimMappings, ClaimValidationRules)</li></ul> |
-| Read | Cluster Service | <ul><li>external auth spec (canonical JSON comparison)</li></ul> |
-| **Write** | **`Operation`** | <ul><li>**`Status`** -> `Updating`/`Succeeded`/`Failed`</li><li>**`Error`** (on failure)</li><li>**`LastTransitionTime`**</li></ul> |
-| **Write** | **`HCPOpenShiftClusterExternalAuth`** | <ul><li>**`Properties.ProvisioningState`** = new status</li><li>**`ServiceProviderProperties.ActiveOperationID`** = `""` (on terminal)</li></ul> |
-
-#### OperationExternalAuthDelete
-
-**File:** [operation_external_auth_delete.go](../backend/pkg/controllers/externalauth/operations/operation_external_auth_delete.go)
-**Gate (ShouldProcess on Operation):**
-- `Operation.Status.IsTerminal()` == false
-- `Operation.Request` == `Delete`
-- `Operation.ExternalID.ResourceType` == `ExternalAuthResourceType`
-
-**Gate (shouldReconcileOperationAndResourceStatus on ExternalAuth):**
-- `ExternalAuth.ServiceProviderProperties.DeletionTimestamp` != nil
-- `ExternalAuth.ServiceProviderProperties.ClusterServiceDeletionTimestamp` != nil
-- `ExternalAuth.ServiceProviderProperties.ClusterServiceID` != nil
-
-| | Object | Fields |
-|---|--------|--------|
-| Read | `Operation` | <ul><li>`Status` (ShouldProcess: must not be terminal)</li><li>`Request` (ShouldProcess: must be `Delete`)</li><li>`UsesNewExternalAuthDeletionApproach`</li></ul> |
-| Read | `HCPOpenShiftClusterExternalAuth` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceDeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must not be nil)</li></ul> |
-| Read | Cluster Service | <ul><li>external auth status (or 404)</li></ul> |
-| **Write** | **`Operation`** | <ul><li>**`Status`** -> `Succeeded` (when EA doc deleted)</li><li>**`Error`**, **`LastTransitionTime`**</li></ul> |
-| **Write** | **`HCPOpenShiftClusterExternalAuth`** | <ul><li>**`Properties.ProvisioningState`** = new status (while doc exists)</li><li>**`ServiceProviderProperties.ActiveOperationID`** = `""` (on terminal)</li></ul> |
-
-#### DispatchRequestCredential
-
-**File:** [dispatch_request_credential.go](../backend/pkg/controllers/cluster/credentials/operations/dispatch_request_credential.go)
-**Gate (ShouldProcess on Operation):**
-- `Operation.Status.IsTerminal()` == false
-- `Operation.Request` == `RequestCredential`
-- `len(Operation.InternalID.String())` == 0 (not yet dispatched)
-
-| | Object | Fields |
-|---|--------|--------|
-| Read | `Operation` | <ul><li>`Status` (ShouldProcess: must not be terminal)</li><li>`Request` (ShouldProcess: must be `RequestCredential`)</li><li>`InternalID` (ShouldProcess: must be empty)</li><li>`ExternalID`</li></ul> |
-| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.ClusterServiceID` (must not be nil)</li><li>`ServiceProviderProperties.RevokeCredentialsOperationID` (if non-empty, cancels operation)</li></ul> |
-| **Write** | **`Operation`** | <ul><li>**`InternalID`** = CS break-glass credential HREF (on success)</li><li>**`Status`** = `Canceled` (if revocation in progress, via `CancelOperation`)</li><li>**`LastTransitionTime`** (if canceled)</li></ul> |
-
-#### OperationRequestCredential
-
-**File:** [operation_request_credential.go](../backend/pkg/controllers/cluster/credentials/operations/operation_request_credential.go)
-**Gate (ShouldProcess on Operation):**
-- `Operation.Status.IsTerminal()` == false
-- `Operation.Request` == `RequestCredential`
-- `len(Operation.InternalID.String())` > 0 (has been dispatched)
-
-| | Object | Fields |
-|---|--------|--------|
-| Read | `Operation` | <ul><li>`Status` (ShouldProcess: must not be terminal)</li><li>`Request` (ShouldProcess: must be `RequestCredential`)</li><li>`InternalID` (ShouldProcess: must be non-empty)</li></ul> |
-| Read | Cluster Service | <ul><li>break-glass credential status (Created/Failed/Issued)</li></ul> |
-| **Write** | **`Operation`** | <ul><li>**`Status`** -> `Provisioning`/`Succeeded`/`Failed` (via `patchOperation`)</li><li>**`Error`** (on failure)</li><li>**`LastTransitionTime`**</li></ul> |
-
-#### DispatchRevokeCredentials
-
-**File:** [dispatch_revoke_credentials.go](../backend/pkg/controllers/cluster/credentials/operations/dispatch_revoke_credentials.go)
-**Gate (ShouldProcess on Operation):**
-- `Operation.Status.IsTerminal()` == false
-- `Operation.Request` == `RevokeCredentials`
-- `Operation.Status` == `Accepted` (not yet dispatched)
-
-| | Object | Fields |
-|---|--------|--------|
-| Read | `Operation` | <ul><li>`Status` (ShouldProcess: must not be terminal, must be `Accepted`)</li><li>`Request` (ShouldProcess: must be `RevokeCredentials`)</li><li>`ExternalID`</li><li>`OperationID.Name`</li><li>`InternalID`</li></ul> |
-| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.RevokeCredentialsOperationID` (must match operation ID)</li></ul> |
-| **Write** | **`Operation`** | <ul><li>**`Status`** = `Deleting` (after CS dispatch)</li><li>**`Status`** = `Canceled` (if RevokeCredentialsOperationID mismatch, via `CancelOperation`)</li></ul> |
-
-#### OperationRevokeCredentials
-
-**File:** [operation_revoke_credentials.go](../backend/pkg/controllers/cluster/credentials/operations/operation_revoke_credentials.go)
-**Gate (ShouldProcess on Operation):**
-- `Operation.Status.IsTerminal()` == false
-- `Operation.Request` == `RevokeCredentials`
-- `Operation.Status` != `Accepted` (must already be dispatched)
-
-| | Object | Fields |
-|---|--------|--------|
-| Read | `Operation` | <ul><li>`Status` (ShouldProcess: must not be terminal, must not be `Accepted`)</li><li>`Request` (ShouldProcess: must be `RevokeCredentials`)</li><li>`InternalID`</li><li>`OperationID.Name`</li></ul> |
-| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.RevokeCredentialsOperationID`</li></ul> |
-| Read | Cluster Service | <ul><li>`ListBreakGlassCredentials` status (AwaitingRevocation/Revoked/Expired/Failed)</li></ul> |
-| **Write** | **`Operation`** | <ul><li>**`Status`** -> `Succeeded`/`Failed`</li><li>**`Error`** (on failure)</li><li>**`LastTransitionTime`**</li></ul> |
-| **Write** | **`HCPOpenShiftCluster`** | <ul><li>**`ServiceProviderProperties.RevokeCredentialsOperationID`** = `""` (cleared when matches)</li></ul> |
+No writes to Cosmos Resources container.
 
 ---
 
-### Cluster Creation Controllers
-
-#### ClusterClusterServiceCreate
-
-**File:** [cluster_cluster_service_create_controller.go](../backend/pkg/controllers/cluster/creation/cluster_cluster_service_create_controller.go)
-**Trigger:** Cluster informer, 1-minute resync
-**Gate (needsWork on Cluster):**
-- `Cluster.ServiceProviderProperties.DeletionTimestamp` == nil
-- `Cluster.ServiceProviderProperties.ClusterServiceID` == nil or empty
-
-| | Object | Fields |
-|---|--------|--------|
-| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must be nil or empty)</li><li>All `CustomerProperties.*` (for building CS cluster request)</li><li>`ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL`</li><li>`ServiceProviderProperties.ExperimentalFeatures.*`</li><li>`ID`</li></ul> |
-| Read | `ServiceProviderCluster` | <ul><li>`Spec.ControlPlaneVersion.DesiredVersion` (precondition: must be non-nil)</li><li>`Spec.DesiredHostedClusterControlPlaneSize`</li></ul> |
-| Read | `Subscription` | <ul><li>`Properties.TenantId`</li></ul> |
-| Read | Cluster Service | <ul><li>`ListClusters` (search by Azure info), `PostCluster`</li></ul> |
-| **Write** | **`HCPOpenShiftCluster`** | <ul><li>**`ServiceProviderProperties.ClusterServiceID`** = CS internal ID</li></ul> |
-| **Write** | **`ServiceProviderCluster`** | <ul><li>Created if not exists (via `GetOrCreateServiceProviderCluster`)</li></ul> |
-
----
-
-### Cluster Update Controllers
-
-#### ClusterClusterServiceUpdateDispatch
-
-**File:** [cluster_cluster_service_update_dispatch_controller.go](../backend/pkg/controllers/cluster/update/cluster_cluster_service_update_dispatch_controller.go)
-**Trigger:** Cluster informer, 1-minute resync
-**Gate (needsWork on Cluster):**
-- `Cluster.ServiceProviderProperties.DeletionTimestamp` == nil
-- `Cluster.ServiceProviderProperties.ClusterServiceID` != nil and non-empty
-
-| | Object | Fields |
-|---|--------|--------|
-| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must not be nil and non-empty)</li><li>`CustomerProperties.API.AuthorizedCIDRs`</li><li>`CustomerProperties.NodeDrainTimeoutMinutes`</li><li>`CustomerProperties.Autoscaling.*`</li><li>`CustomerProperties.ImageDigestMirrors`</li><li>`ServiceProviderProperties.ExperimentalFeatures.*`</li></ul> |
-| Read | `ServiceProviderCluster` | <ul><li>`Spec.DesiredHostedClusterControlPlaneSize`</li></ul> |
-| Read | `Subscription` | <ul><li>`Properties.TenantId`</li></ul> |
-| Read | Cluster Service | <ul><li>`GetCluster` (for config comparison)</li></ul> |
-
-No Cosmos writes. Dispatches updates to Cluster Service via PATCH.
-
----
-
-### Cluster Deletion Controllers
-
-#### ClusterClusterServiceDeleteDispatch
-
-**File:** [cluster_cluster_service_delete_dispatch_controller.go](../backend/pkg/controllers/cluster/deletion/cluster_cluster_service_delete_dispatch_controller.go)
-**Trigger:** Cluster informer, 1-minute resync
-**Gate (NeedsWork on Cluster):**
-- `Cluster.ServiceProviderProperties.UsesNewClusterDeletionApproach` == true
-- `Cluster.ServiceProviderProperties.DeletionTimestamp` != nil
-- `Cluster.ServiceProviderProperties.ClusterServiceDeletionTimestamp` == nil
-
-| | Object | Fields |
-|---|--------|--------|
-| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.UsesNewClusterDeletionApproach` (NeedsWork: must be true)</li><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceDeletionTimestamp` (NeedsWork: must be nil)</li><li>`ServiceProviderProperties.ClusterServiceID`</li></ul> |
-| **Write** | **`HCPOpenShiftCluster`** | <ul><li>**`ServiceProviderProperties.ClusterServiceDeletionTimestamp`** = now</li></ul> |
-
-#### ClusterDeletionClusterServiceIDClearer
-
-**File:** [cluster_cluster_service_id_clearer.go](../backend/pkg/controllers/cluster/deletion/cluster_cluster_service_id_clearer.go)
-**Trigger:** Cluster informer, 1-minute resync
-**Gate (NeedsWork on Cluster):**
-- `Cluster.ServiceProviderProperties.UsesNewClusterDeletionApproach` == true
-- `Cluster.ServiceProviderProperties.DeletionTimestamp` != nil
-- `Cluster.ServiceProviderProperties.ClusterServiceDeletionTimestamp` != nil
-- `Cluster.ServiceProviderProperties.ClusterServiceID` != nil and non-empty
-
-| | Object | Fields |
-|---|--------|--------|
-| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.UsesNewClusterDeletionApproach` (NeedsWork: must be true)</li><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceDeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must not be nil and non-empty)</li></ul> |
-| Read | Cluster Service | <ul><li>expects 404</li></ul> |
-| **Write** | **`HCPOpenShiftCluster`** | <ul><li>**`ServiceProviderProperties.ClusterServiceID`** = `nil`</li></ul> |
-
-#### ClusterChildResourcesCleanupController
-
-**File:** [cluster_child_resources_cleanup_controller.go](../backend/pkg/controllers/cluster/deletion/cluster_child_resources_cleanup_controller.go)
-**Trigger:** Cluster informer, 1-minute resync
-**Gate (NeedsWork on Cluster):**
-- `Cluster.ServiceProviderProperties.UsesNewClusterDeletionApproach` == true
-- `Cluster.ServiceProviderProperties.DeletionTimestamp` != nil
-- `Cluster.ServiceProviderProperties.ClusterServiceDeletionTimestamp` != nil
-- `Cluster.ServiceProviderProperties.ClusterServiceID` == nil
-
-| | Object | Fields |
-|---|--------|--------|
-| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.UsesNewClusterDeletionApproach` (NeedsWork: must be true)</li><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceDeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must be nil)</li></ul> |
-| Read | `ServiceProviderCluster` | <ul><li>`Status.ManagementClusterResourceID`</li><li>`Status.MaestroReadonlyBundles`</li><li>`Status.AzureResources.ManagedResourceGroup` (gate: ServiceProviderCluster is not deleted while `AzureResource` or `PendingAzureResource` is set)</li></ul> |
-| Read | Child NodePools | <ul><li>list (must be empty)</li></ul> |
-| Read | Child ExternalAuths | <ul><li>list (must be empty)</li></ul> |
-| **Write** | Child Cosmos docs | <ul><li>**DELETES** ServiceProviderCluster (when the managed resource group is reflected as gone, MaestroReadonlyBundles empty, and kube-applier desires gone)</li><li>**DELETES** ManagementClusterContent docs</li><li>**DELETES** kube-applier desire documents</li></ul> |
-
-#### ClusterDeletionController
-
-**File:** [cluster_deletion_controller.go](../backend/pkg/controllers/cluster/deletion/cluster_deletion_controller.go)
-**Trigger:** Cluster informer, 1-minute resync
-**Gate (NeedsWork on Cluster):**
-- `Cluster.ServiceProviderProperties.UsesNewClusterDeletionApproach` == true
-- `Cluster.ServiceProviderProperties.DeletionTimestamp` != nil
-- `Cluster.ServiceProviderProperties.ClusterServiceDeletionTimestamp` != nil
-- `Cluster.ServiceProviderProperties.ClusterServiceID` == nil
-
-**Additional SyncOnce preconditions:**
-- All NodePools deleted
-- All ExternalAuths deleted
-- All child Cosmos resources deleted (except controllers)
-- All Maestro readonly bundles cleared
-
-| | Object | Fields |
-|---|--------|--------|
-| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.UsesNewClusterDeletionApproach` (NeedsWork: must be true)</li><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceDeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must be nil)</li></ul> |
-| Read | `ServiceProviderCluster` | <ul><li>`Status.MaestroReadonlyBundles` (must be empty)</li></ul> |
-| Read | Child NodePools | <ul><li>list (must be empty)</li></ul> |
-| Read | Child ExternalAuths | <ul><li>list (must be empty)</li></ul> |
-| Read | Child Cosmos resources | <ul><li>list excluding controllers (must be empty)</li></ul> |
-| **Write** | **`BillingDocument`** | <ul><li>**`DeletionTime`** = now (via `PatchByClusterID`)</li></ul> |
-| **Write** | **`HCPOpenShiftCluster`** | <ul><li>**DELETES the document**</li></ul> |
-
----
-
-### NodePool Creation Controllers
-
-#### NodePoolClusterServiceCreate
-
-**File:** [node_pool_cluster_service_create_controller.go](../backend/pkg/controllers/nodepool/creation/node_pool_cluster_service_create_controller.go)
-**Trigger:** NodePool informer, 1-minute resync
-**Gate (needsWork on NodePool):**
-- `NodePool.ServiceProviderProperties.DeletionTimestamp` == nil
-- `NodePool.ServiceProviderProperties.ClusterServiceID` == nil or empty
-
-| | Object | Fields |
-|---|--------|--------|
-| Read | `HCPOpenShiftClusterNodePool` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must be nil or empty)</li><li>All `Properties.*` (for building CS node pool request)</li></ul> |
-| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.ClusterServiceID`</li></ul> |
-| Read | Cluster Service | <ul><li>`GetNodePool` (adoption check), `PostNodePool`</li></ul> |
-| **Write** | **`HCPOpenShiftClusterNodePool`** | <ul><li>**`ServiceProviderProperties.ClusterServiceID`** = CS internal ID</li></ul> |
-
----
-
-### NodePool Update Controllers
-
-#### NodePoolClusterServiceUpdateDispatch
-
-**File:** [node_pool_cluster_service_update_dispatch_controller.go](../backend/pkg/controllers/nodepool/update/node_pool_cluster_service_update_dispatch_controller.go)
-**Trigger:** NodePool informer, 1-minute resync
-**Gate (needsWork on NodePool):**
-- `NodePool.ServiceProviderProperties.DeletionTimestamp` == nil
-- `NodePool.ServiceProviderProperties.ClusterServiceID` != nil and non-empty
-
-| | Object | Fields |
-|---|--------|--------|
-| Read | `HCPOpenShiftClusterNodePool` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must not be nil and non-empty)</li><li>`Properties.Labels`</li><li>`Properties.Taints`</li><li>`Properties.Replicas`</li><li>`Properties.AutoScaling`</li><li>`Properties.NodeDrainTimeoutMinutes`</li></ul> |
-| Read | Cluster Service | <ul><li>`GetNodePool` (for config comparison)</li></ul> |
-
-No Cosmos writes. Dispatches updates to Cluster Service via PATCH.
-
----
-
-### NodePool Deletion Controllers
-
-#### NodePoolClusterServiceDeleteDispatch
-
-**File:** [node_pool_cluster_service_delete_dispatch_controller.go](../backend/pkg/controllers/nodepool/deletion/node_pool_cluster_service_delete_dispatch_controller.go)
-**Trigger:** NodePool informer, 1-minute resync
-**Gate (NeedsWork on NodePool):**
-- `NodePool.ServiceProviderProperties.UsesNewNodePoolDeletionApproach` == true
-- `NodePool.ServiceProviderProperties.DeletionTimestamp` != nil
-- `NodePool.ServiceProviderProperties.ClusterServiceDeletionTimestamp` == nil
-
-| | Object | Fields |
-|---|--------|--------|
-| Read | `HCPOpenShiftClusterNodePool` | <ul><li>`ServiceProviderProperties.UsesNewNodePoolDeletionApproach` (NeedsWork: must be true)</li><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceDeletionTimestamp` (NeedsWork: must be nil)</li><li>`ServiceProviderProperties.ClusterServiceID`</li></ul> |
-| **Write** | **`HCPOpenShiftClusterNodePool`** | <ul><li>**`ServiceProviderProperties.ClusterServiceDeletionTimestamp`** = now</li></ul> |
-
-#### NodePoolDeletionClusterServiceIDClearer
-
-**File:** [node_pool_cluster_service_id_clearer.go](../backend/pkg/controllers/nodepool/deletion/node_pool_cluster_service_id_clearer.go)
-**Trigger:** NodePool informer, 1-minute resync
-**Gate (NeedsWork on NodePool):**
-- `NodePool.ServiceProviderProperties.UsesNewNodePoolDeletionApproach` == true
-- `NodePool.ServiceProviderProperties.DeletionTimestamp` != nil
-- `NodePool.ServiceProviderProperties.ClusterServiceDeletionTimestamp` != nil
-- `NodePool.ServiceProviderProperties.ClusterServiceID` != nil and non-empty
-
-| | Object | Fields |
-|---|--------|--------|
-| Read | `HCPOpenShiftClusterNodePool` | <ul><li>`ServiceProviderProperties.UsesNewNodePoolDeletionApproach` (NeedsWork: must be true)</li><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceDeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must not be nil and non-empty)</li></ul> |
-| Read | Cluster Service | <ul><li>expects 404</li></ul> |
-| **Write** | **`HCPOpenShiftClusterNodePool`** | <ul><li>**`ServiceProviderProperties.ClusterServiceID`** = `nil`</li></ul> |
-
-#### NodePoolChildResourcesCleanupController
-
-**File:** [node_pool_child_resources_cleanup_controller.go](../backend/pkg/controllers/nodepool/deletion/node_pool_child_resources_cleanup_controller.go)
-**Trigger:** NodePool informer, 1-minute resync
-**Gate (NeedsWork on NodePool):**
-- `NodePool.ServiceProviderProperties.UsesNewNodePoolDeletionApproach` == true
-- `NodePool.ServiceProviderProperties.DeletionTimestamp` != nil
-- `NodePool.ServiceProviderProperties.ClusterServiceDeletionTimestamp` != nil
-- `NodePool.ServiceProviderProperties.ClusterServiceID` == nil
-
-| | Object | Fields |
-|---|--------|--------|
-| Read | `HCPOpenShiftClusterNodePool` | <ul><li>`ServiceProviderProperties.UsesNewNodePoolDeletionApproach` (NeedsWork: must be true)</li><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceDeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must be nil)</li></ul> |
-| Read | `ServiceProviderNodePool` | <ul><li>`Status.MaestroReadonlyBundles`</li></ul> |
-| Read | `ServiceProviderCluster` | <ul><li>`Status.ManagementClusterResourceID`</li></ul> |
-| **Write** | Child Cosmos docs | <ul><li>**DELETES** ManagementClusterContent docs under NodePool</li><li>**DELETES** ServiceProviderNodePool (when Maestro bundles cleared and kube-applier desires gone)</li><li>**DELETES** nodepool-scoped kube-applier desire documents</li></ul> |
-
-#### NodePoolDeletionController
-
-**File:** [node_pool_deletion_controller.go](../backend/pkg/controllers/nodepool/deletion/node_pool_deletion_controller.go)
-**Trigger:** NodePool informer, 1-minute resync
-**Gate (NeedsWork on NodePool):**
-- `NodePool.ServiceProviderProperties.UsesNewNodePoolDeletionApproach` == true
-- `NodePool.ServiceProviderProperties.DeletionTimestamp` != nil
-- `NodePool.ServiceProviderProperties.ClusterServiceDeletionTimestamp` != nil
-- `NodePool.ServiceProviderProperties.ClusterServiceID` == nil
-
-**Additional SyncOnce preconditions:**
-- All Maestro readonly bundles cleared
-- All child Cosmos resources deleted (except controllers)
-
-| | Object | Fields |
-|---|--------|--------|
-| Read | `HCPOpenShiftClusterNodePool` | <ul><li>`ServiceProviderProperties.UsesNewNodePoolDeletionApproach` (NeedsWork: must be true)</li><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceDeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must be nil)</li></ul> |
-| Read | `ServiceProviderNodePool` | <ul><li>`Status.MaestroReadonlyBundles` (must be empty)</li></ul> |
-| Read | Child Cosmos resources | <ul><li>list excluding controllers (must be empty)</li></ul> |
-| **Write** | **`HCPOpenShiftClusterNodePool`** | <ul><li>**DELETES the document**</li></ul> |
-
----
-
-### ExternalAuth Creation Controllers
-
-#### ExternalAuthClusterServiceCreate
-
-**File:** [external_auth_cluster_service_create_controller.go](../backend/pkg/controllers/externalauth/creation/external_auth_cluster_service_create_controller.go)
-**Trigger:** ExternalAuth informer, 1-minute resync
-**Gate (needsWork on ExternalAuth):**
-- `ExternalAuth.ServiceProviderProperties.DeletionTimestamp` == nil
-- `ExternalAuth.ServiceProviderProperties.ClusterServiceID` == nil or empty
-
-| | Object | Fields |
-|---|--------|--------|
-| Read | `HCPOpenShiftClusterExternalAuth` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must be nil or empty)</li><li>All `Properties.*` (for building CS external auth request)</li></ul> |
-| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.ClusterServiceID`</li></ul> |
-| Read | Cluster Service | <ul><li>`PostExternalAuth`</li></ul> |
-| **Write** | **`HCPOpenShiftClusterExternalAuth`** | <ul><li>**`ServiceProviderProperties.ClusterServiceID`** = CS internal ID</li></ul> |
-
----
-
-### ExternalAuth Update Controllers
-
-#### ExternalAuthClusterServiceUpdateDispatch
-
-**File:** [external_auth_cluster_service_update_dispatch_controller.go](../backend/pkg/controllers/externalauth/update/external_auth_cluster_service_update_dispatch_controller.go)
-**Trigger:** ExternalAuth informer, 1-minute resync
-**Gate (needsWork on ExternalAuth):**
-- `ExternalAuth.ServiceProviderProperties.DeletionTimestamp` == nil
-- `ExternalAuth.ServiceProviderProperties.ClusterServiceID` != nil and non-empty
-
-| | Object | Fields |
-|---|--------|--------|
-| Read | `HCPOpenShiftClusterExternalAuth` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must not be nil and non-empty)</li><li>`Properties.Issuer` (URL, Audiences, CA)</li><li>`Properties.Clients` (ClientID, Component, ExtraScopes, Type)</li><li>`Properties.Claim` (Mappings, ValidationRules)</li></ul> |
-| Read | Cluster Service | <ul><li>`GetExternalAuth` (for config comparison)</li></ul> |
-
-No Cosmos writes. Dispatches updates to Cluster Service via PATCH.
-
----
-
-### ExternalAuth Deletion Controllers
-
-#### ExternalAuthClusterServiceDeleteDispatch
-
-**File:** [external_auth_cluster_service_delete_dispatch_controller.go](../backend/pkg/controllers/externalauth/deletion/external_auth_cluster_service_delete_dispatch_controller.go)
-**Trigger:** ExternalAuth informer, 1-minute resync
-**Gate (NeedsWork on ExternalAuth):**
-- `ExternalAuth.ServiceProviderProperties.UsesNewExternalAuthDeletionApproach` == true
-- `ExternalAuth.ServiceProviderProperties.DeletionTimestamp` != nil
-- `ExternalAuth.ServiceProviderProperties.ClusterServiceDeletionTimestamp` == nil
-
-| | Object | Fields |
-|---|--------|--------|
-| Read | `HCPOpenShiftClusterExternalAuth` | <ul><li>`ServiceProviderProperties.UsesNewExternalAuthDeletionApproach` (NeedsWork: must be true)</li><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceDeletionTimestamp` (NeedsWork: must be nil)</li><li>`ServiceProviderProperties.ClusterServiceID`</li></ul> |
-| **Write** | **`HCPOpenShiftClusterExternalAuth`** | <ul><li>**`ServiceProviderProperties.ClusterServiceDeletionTimestamp`** = now</li></ul> |
-
-#### ExternalAuthDeletionClusterServiceIDClearer
-
-**File:** [external_auth_cluster_service_id_clearer.go](../backend/pkg/controllers/externalauth/deletion/external_auth_cluster_service_id_clearer.go)
-**Trigger:** ExternalAuth informer, 1-minute resync
-**Gate (NeedsWork on ExternalAuth):**
-- `ExternalAuth.ServiceProviderProperties.UsesNewExternalAuthDeletionApproach` == true
-- `ExternalAuth.ServiceProviderProperties.DeletionTimestamp` != nil
-- `ExternalAuth.ServiceProviderProperties.ClusterServiceDeletionTimestamp` != nil
-- `ExternalAuth.ServiceProviderProperties.ClusterServiceID` != nil and non-empty
-
-| | Object | Fields |
-|---|--------|--------|
-| Read | `HCPOpenShiftClusterExternalAuth` | <ul><li>`ServiceProviderProperties.UsesNewExternalAuthDeletionApproach` (NeedsWork: must be true)</li><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceDeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must not be nil and non-empty)</li></ul> |
-| Read | Cluster Service | <ul><li>expects 404</li></ul> |
-| **Write** | **`HCPOpenShiftClusterExternalAuth`** | <ul><li>**`ServiceProviderProperties.ClusterServiceID`** = `nil`</li></ul> |
-
-#### ExternalAuthChildResourcesCleanupController
-
-**File:** [external_auth_child_resources_cleanup_controller.go](../backend/pkg/controllers/externalauth/deletion/external_auth_child_resources_cleanup_controller.go)
-**Trigger:** ExternalAuth informer, 1-minute resync
-**Gate (NeedsWork on ExternalAuth):**
-- `ExternalAuth.ServiceProviderProperties.UsesNewExternalAuthDeletionApproach` == true
-- `ExternalAuth.ServiceProviderProperties.DeletionTimestamp` != nil
-- `ExternalAuth.ServiceProviderProperties.ClusterServiceDeletionTimestamp` != nil
-- `ExternalAuth.ServiceProviderProperties.ClusterServiceID` == nil
-
-| | Object | Fields |
-|---|--------|--------|
-| Read | `HCPOpenShiftClusterExternalAuth` | <ul><li>`ServiceProviderProperties.UsesNewExternalAuthDeletionApproach` (NeedsWork: must be true)</li><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceDeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must be nil)</li></ul> |
-| **Write** | Child Cosmos docs | <ul><li>**DELETES** child Cosmos documents (excluding controllers)</li></ul> |
-
-#### ExternalAuthDeletionController
-
-**File:** [external_auth_deletion_controller.go](../backend/pkg/controllers/externalauth/deletion/external_auth_deletion_controller.go)
-**Trigger:** ExternalAuth informer, 1-minute resync
-**Gate (NeedsWork on ExternalAuth):**
-- `ExternalAuth.ServiceProviderProperties.UsesNewExternalAuthDeletionApproach` == true
-- `ExternalAuth.ServiceProviderProperties.DeletionTimestamp` != nil
-- `ExternalAuth.ServiceProviderProperties.ClusterServiceDeletionTimestamp` != nil
-- `ExternalAuth.ServiceProviderProperties.ClusterServiceID` == nil
-
-**Additional SyncOnce preconditions:**
-- All child resources deleted (except controllers)
-
-| | Object | Fields |
-|---|--------|--------|
-| Read | `HCPOpenShiftClusterExternalAuth` | <ul><li>`ServiceProviderProperties.UsesNewExternalAuthDeletionApproach` (NeedsWork: must be true)</li><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceDeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must be nil)</li></ul> |
-| Read | Child Cosmos resources | <ul><li>list excluding controllers (must be empty)</li></ul> |
-| **Write** | **`HCPOpenShiftClusterExternalAuth`** | <ul><li>**DELETES the document**</li></ul> |
-
----
-
-### Upgrade Controllers
+## 2. Complete Controller Catalog
+
+The catalog contains **129 entries**: 105 backend instances, 11 fleet controllers,
+three kube-applier controller types, seven management-agent controllers/watchers,
+two sessiongate controllers and one shared union-informer controller. Dynamic
+validation and metrics instances are listed individually; dynamically created
+Kubernetes read controllers are described once. Optional, legacy and example
+controllers remain in the inventory. External operators are boundaries, not counted
+as in-repo controllers. Generic watching/operation wrappers, HTTP servers, informer
+factories, leader election and Prometheus collectors are infrastructure rather than
+additional business controllers.
+
+### Registration and trigger conventions
+
+| Service | Startup evidence |
+|---|---|
+| Backend | [backend.go](../backend/pkg/app/backend.go), including conditional deny-assignment registration and all validation/metrics instances |
+| Fleet | [manager.go](../fleet/pkg/manager/manager.go) |
+| Kube-applier | [kube_applier.go](../kube-applier/pkg/app/kube_applier.go); read manager creates target read controllers dynamically |
+| Management-agent | [options.go](../mgmt-agent/cmd/options.go) |
+| Sessiongate | [options.go](../sessiongate/cmd/options.go) |
+
+“Cluster”, “node pool”, “external auth”, “credential request” and “credential
+revocation” in Trigger identify the resource key passed to the shared watching
+wrapper. These wrappers also map related document events onto the owning key;
+where supplied, union kube-applier informers add mirrored-resource events.
+Controllers using the default active-operation cooldown run at most every 10s
+with an active operation and every five minutes without one; see
+[cooldown.go](../backend/pkg/utils/controllerutils/cooldown.go).
+See [backend controller wrappers](../backend/pkg/utils/controllerutils/) and the
+[shared queue implementation](../internal/controllerutils/generic_watching_controller.go).
+Intervals below are periodic resyncs unless explicitly called cooldowns, polls or
+expiry timers. Returned errors normally cause rate-limited retries; a no-work
+return waits for another event/resync. An earliest-recheck gate can suppress work
+on a queued key. Fleet stamp wrappers default to a five-minute informer resync.
+
+The wrappers can create/update child `Controller` records for reconciliation
+conditions and bookkeeping, even when a syncer has **no domain writes**. Fleet
+[stamp](../fleet/pkg/controllers/base/stamp_watching_controller.go) and
+[management-cluster](../fleet/pkg/controllers/base/management_cluster_watching_controller.go)
+wrappers have the analogous role. Operation controllers watch active operations
+and require matching request/resource type and nonterminal status; create/update
+pollers also check the resource's active-operation reference. Their
+[status helper](../backend/pkg/utils/operationutils/utils.go)
+updates operation/resource state transactionally and handles async notification.
+
+Validation instances use the [cluster wrapper](../backend/pkg/controllers/cluster/validation/cluster_validation_controller.go)
+or [node-pool wrapper](../backend/pkg/controllers/nodepool/validation/nodepool_validation_controller.go).
+They write one named condition in `Status.Validations`, respect result-specified
+`EarliestRetryAfter` with delayed enqueue/cooldown, and suppress transient Unknown
+results until repeated. The validators' Azure calls are checks, not provisioning.
+
+### Backend: cluster provisioning and Azure resources
+
+#### CreateServiceProviderCluster
+
+[Source](../backend/pkg/controllers/cluster/creation/create_service_provider_cluster_controller.go) · **Trigger:** Cluster; 1m.
+
+Creates the missing `ServiceProviderCluster` document; subsequent controllers own its version, placement and Azure-resource fields.
+
+#### ClusterPendingClusterServiceIDAssign
+
+[Source](../backend/pkg/controllers/cluster/creation/cluster_pending_cluster_service_id_assign_controller.go) · **Trigger:** Cluster; 1m.
+
+For a live cluster with neither confirmed nor pending Cluster Service ID, persists `ServiceProviderProperties.PendingClusterServiceID` before dependent Azure/Cluster Service work.
 
 #### ControlPlaneDesiredVersion
 
-**File:** [control_plane_desired_version_controller.go](../backend/pkg/controllers/cluster/version/control_plane_desired_version_controller.go)
-**Trigger:** Cluster informer, 5-minute resync
-**Gate:** No formal NeedsWork. Skips inside SyncOnce if `DeletionTimestamp != nil`, or if `DesiredVersion` already set AND cluster < 2hr old AND active Create operation exists.
+[Source](../backend/pkg/controllers/cluster/version/control_plane_desired_version_controller.go) · **Trigger:** Cluster; 5m, no kube-applier watch.
 
-| | Object | Fields |
-|---|--------|--------|
-| Read | `HCPOpenShiftCluster` | <ul><li>`CustomerProperties.Version.ID`, `.Version.ChannelGroup`</li><li>`SystemData.CreatedAt`</li></ul> |
-| Read | `ServiceProviderCluster` | <ul><li>`Spec.ControlPlaneVersion.DesiredVersion`</li><li>`Status.ControlPlaneVersion.ActiveVersions`</li></ul> |
-| Read | `Subscription` | <ul><li>Registered features (AFEC)</li></ul> |
-| Read | NodePools + ServiceProviderNodePools | <ul><li>For y-stream skew validation</li></ul> |
-| Read | Cincinnati | <ul><li>Version graph resolution</li></ul> |
-| **Write** | **`ServiceProviderCluster`** | <ul><li>**`Spec.ControlPlaneVersion.DesiredVersion`** = resolved version</li></ul> |
-| **Write** | **Controller doc** | <ul><li>**`IntentFailed`** condition (True with `VersionUpgradeNotAccepted` / False with `AsExpected`)</li></ul> |
+Requires a service-provider document. Resolves initial and subsequent exact versions using customer `Version.ID`/`ChannelGroup`, update-service graph, active operation and node-pool versions; writes `Spec.ControlPlaneVersion.DesiredVersion` and controller `IntentFailed`. Automatic selection does not downgrade; enforced rollback has separate handling.
 
-#### ControlPlaneActiveVersions
+#### Placement
 
-**File:** [control_plane_active_version_controller.go](../backend/pkg/controllers/cluster/version/control_plane_active_version_controller.go)
-**Trigger:** Cluster informer, 5-minute resync
+[Source](../backend/pkg/controllers/cluster/placement/placement_controller.go) · **Trigger:** Cluster; 5m resync, explicit 29s retry when no fit exists.
 
-| | Object | Fields |
-|---|--------|--------|
-| Read | ReadDesire (HostedCluster) | <ul><li>`Status.ControlPlaneVersion.History`</li></ul> |
-| Read | ReadDesire (HostedCluster) | <ul><li>`Status.Version.Desired.Channels`</li></ul> |
-| **Write** | **`ServiceProviderCluster`** | <ul><li>**`Status.ControlPlaneVersion.ActiveVersions`** = [{Version, State}, ...]</li><li>**`Status.DesiredVersionChannels`** = ["stable-4.19", ...] (mirrored from HostedCluster `status.version.desired.channels` for DB-free cluster admission)</li></ul> |
+Requires both cached cluster documents, unresolved `Spec.ManagementClusterResourceID`, no deletion timestamp and a nonterminal provisioning state. Reads fleet scheduling policy, `Ready`, `CapacityDataCurrent` and `ScalingDataCurrent`. Selects the eligible management cluster with the most available SWIFT NICs (resource-ID order breaks ties); needs one NIC for SingleReplica and three otherwise. Available capacity subtracts the greater of observed usage/requests, plus reservations for not-ready and pending HCPs, from the scale ceiling. CPU/memory and aggregate HCP requirements are not selection criteria yet.
 
-#### TriggerControlPlaneUpgrade
-
-**Trigger:** Cluster informer, 5-minute resync
-
-No Cosmos writes. Posts `ControlPlaneUpgradePolicy` to Cluster Service.
-
-#### NodePoolVersion
-
-**File:** [nodepool_version_controller.go](../backend/pkg/controllers/nodepool/version/nodepool_version_controller.go)
-**Trigger:** NodePool informer, 5-minute resync
-**Gate (NeedsWork on NodePool + ServiceProviderNodePool):**
-- `len(NodePool.Properties.Version.ID)` > 0
-- `ServiceProviderNodePool.Spec.NodePoolVersion.DesiredVersion` == nil, or differs from parsed `NodePool.Properties.Version.ID`
-
-| | Object | Fields |
-|---|--------|--------|
-| Read | `HCPOpenShiftClusterNodePool` | <ul><li>`Properties.Version.ID` (NeedsWork: must be non-empty)</li><li>`Properties.Version.ChannelGroup`</li></ul> |
-| Read | `ServiceProviderNodePool` | <ul><li>`Spec.NodePoolVersion.DesiredVersion` (NeedsWork: must be nil or differ from customer desired)</li></ul> |
-| Read | `ServiceProviderCluster` | <ul><li>`Status.ControlPlaneVersion.ActiveVersions`</li></ul> |
-| **Write** | **`ServiceProviderNodePool`** | <ul><li>**`Spec.NodePoolVersion.DesiredVersion`** = customer desired version</li></ul> |
-| **Write** | **Controller doc** | <ul><li>**`IntentFailed`** condition</li></ul> |
-
-#### NodePoolActiveVersions
-
-**File:** [nodepool_active_version_controller.go](../backend/pkg/controllers/nodepool/version/nodepool_active_version_controller.go)
-**Trigger:** NodePool informer, 5-minute resync
-**Gate (NeedsWork on ServiceProviderNodePool):**
-- `ServiceProviderNodePool` != nil (document must exist)
-
-| | Object | Fields |
-|---|--------|--------|
-| Read | ReadDesire (NodePool) | <ul><li>`Status.NodesInfo.NodeVersions`</li></ul> |
-| **Write** | **`ServiceProviderNodePool`** | <ul><li>**`Status.NodePoolVersion.ActiveVersions`** = [{Version}, ...]</li></ul> |
-
-#### TriggerNodePoolUpgrade
-
-**Trigger:** NodePool informer, 5-minute resync
-
-No Cosmos writes. Posts `NodePoolUpgradePolicy` to Cluster Service.
-
----
-
-### Properties Sync Controllers
-
-#### ClusterPropertiesSync
-
-**File:** [cluster_properties_sync.go](../backend/pkg/controllers/cluster/properties/cluster_properties_sync.go)
-**Trigger:** Cluster informer, 5-minute resync
-**Gate:** No formal NeedsWork. Skips inside SyncOnce if `CustomerProperties.DNS.BaseDomainPrefix` empty or HostedCluster ReadDesire does not exist.
-
-| | Object | Fields |
-|---|--------|--------|
-| Read | `HCPOpenShiftCluster` | <ul><li>`CustomerProperties.DNS.BaseDomainPrefix` (SyncOnce: must be non-empty)</li></ul> |
-| Read | ReadDesire (HostedCluster) | <ul><li>`Spec.DNS.BaseDomain`, `Spec.KubeAPIServerDNSName`</li><li>`Status.ControlPlaneEndpoint.Port`</li><li>`Spec.IssuerURL`</li></ul> |
-| **Write** | **`HCPOpenShiftCluster`** | <ul><li>**`ServiceProviderProperties.Console.URL`** = `https://console-openshift-console.apps.<baseDomain>`</li><li>**`.DNS.BaseDomain`** = derived from KubeAPIServerDNSName</li><li>**`.API.URL`** = `https://<dnsName>:<port>`</li><li>**`.Platform.IssuerURL`** = HostedCluster IssuerURL</li></ul> |
-
-#### ClusterBaseDomainPrefixSync
-
-**File:** [cluster_base_domain_prefix_sync.go](../backend/pkg/controllers/cluster/properties/cluster_base_domain_prefix_sync.go)
-**Trigger:** Cluster informer, 5-minute resync
-**Gate (needsWork on Cluster):**
-- `Cluster.ServiceProviderProperties.ClusterServiceID` != nil and non-empty
-- `len(Cluster.CustomerProperties.DNS.BaseDomainPrefix)` == 0
-
-| | Object | Fields |
-|---|--------|--------|
-| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must not be nil and non-empty)</li><li>`CustomerProperties.DNS.BaseDomainPrefix` (NeedsWork: must be empty)</li></ul> |
-| Read | Cluster Service | <ul><li>`DomainPrefix()`</li></ul> |
-| **Write** | **`HCPOpenShiftCluster`** | <ul><li>**`CustomerProperties.DNS.BaseDomainPrefix`** = CS domain prefix</li></ul> |
-
-#### DesiredControlPlaneSize
-
-**File:** [desired_control_plane_size_sync.go](../backend/pkg/controllers/cluster/properties/desired_control_plane_size_sync.go)
-**Trigger:** Cluster informer, 5-minute resync
-**Gate (NeedsWork on ServiceProviderCluster):**
-- `ServiceProviderCluster.Spec.DesiredHostedClusterControlPlaneSize` != `ServiceProviderCluster.Status.DesiredHostedClusterControlPlaneSize` (pointer comparison via `ptrStringEqual`)
-
-| | Object | Fields |
-|---|--------|--------|
-| Read | `ServiceProviderCluster` | <ul><li>`Spec.DesiredHostedClusterControlPlaneSize` (NeedsWork: must differ from Status)</li><li>`Status.DesiredHostedClusterControlPlaneSize` (NeedsWork: must differ from Spec)</li></ul> |
-| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.ClusterServiceID`</li></ul> |
-| **Write** | **`ServiceProviderCluster`** | <ul><li>**`Status.DesiredHostedClusterControlPlaneSize`** = Spec value</li></ul> |
-| **Write** | Cluster Service | <ul><li>`CSPropertySizeOverride` (external write)</li></ul> |
-
-#### ServiceProviderClusterPropertiesSync
-
-**File:** [serviceprovidercluster_properties_sync.go](../backend/pkg/controllers/cluster/properties/serviceprovidercluster_properties_sync.go)
-**Trigger:** Cluster informer, 5-minute resync
-**Gate:** No formal NeedsWork. Skips inside SyncOnce if ServiceProviderCluster does not exist or HostedCluster ReadDesire has no namespace/name.
-
-| | Object | Fields |
-|---|--------|--------|
-| Read | `ServiceProviderCluster` | <ul><li>Entire document (deep-equal comparison to avoid no-op writes)</li></ul> |
-| Read | ReadDesire (HostedCluster) | <ul><li>`Namespace` (HostedCluster namespace)</li><li>`Name` (HostedCluster name)</li></ul> |
-| **Write** | **`ServiceProviderCluster`** | <ul><li>**`Status.HostedClusterNamespace`** = HostedCluster namespace</li><li>**`Status.ControlPlaneNamespace`** = `<hostedClusterNamespace>-<hostedClusterName>` (dots replaced by dashes)</li></ul> |
-
-#### ClusterIdentitySync
-
-**File:** [cluster_identity_sync.go](../backend/pkg/controllers/cluster/identity/cluster_identity_sync.go)
-**Trigger:** Cluster informer, 60-minute resync
-**Gate (NeedsWork on Cluster):**
-- `Cluster.ServiceProviderProperties.DeletionTimestamp` == nil, AND
-- `Cluster.Identity` != nil and `len(Cluster.Identity.UserAssignedIdentities)` > 0
-
-| | Object | Fields |
-|---|--------|--------|
-| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork)</li><li>`Identity.UserAssignedIdentities` (iterated; keys preserved with original casing)</li></ul> |
-| Read | `ServiceProviderCluster` | <ul><li>`Status.MSIManagedIdentities.ControlPlaneOperatorsIdentities` (lookup by lowercased Identity map key)</li><li>`Status.MSIManagedIdentities.ServiceManagedIdentity` (lookup by lowercased ResourceID)</li></ul> |
-| **Write** | **`HCPOpenShiftCluster`** | <ul><li>**`Identity.UserAssignedIdentities[key].ClientID` / `PrincipalID`** = from SPC when a lowercased match exists; keys absent from SPC are left unchanged</li></ul> |
+Reserves `ManagementClusterScheduling.Status.PendingAssignedClusters` before replacing `ServiceProviderCluster` with both `Spec.ManagementClusterResourceID` and `Status.Placement.Conditions[CapacityAvailable]=True`. If no fit exists, records False for known blockers/exhaustion or Unknown for incomplete evaluation and enqueues a retry after 29s. The create-operation poller owns the overall deadline and customer-visible failure.
 
 #### FetchMSIIdentitiesInfo
 
-**File:** [fetch_msi_identities_info.go](../backend/pkg/controllers/cluster/identity/fetch_msi_identities_info.go)
-**Trigger:** Cluster informer, 1-minute resync
-**Gate (needsWork):**
-- `Cluster.ServiceProviderProperties.DeletionTimestamp` == nil
-- `ServiceProviderCluster.Status.MSIManagedIdentities.EarliestRecheckTime` is nil or in the past, OR
-- stored MSI identities on SPC no longer match `OperatorsAuthentication` (control-plane operator bindings / service managed identity resource ID), in which case EarliestRecheckTime is ignored
+[Source](../backend/pkg/controllers/cluster/identity/fetch_msi_identities_info.go) · **Trigger:** Cluster; 1m, 12h recheck.
 
-| | Object | Fields |
-|---|--------|--------|
-| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork)</li><li>`ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL`</li><li>`CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators`</li><li>`CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity`</li></ul> |
-| Read | `ServiceProviderCluster` | <ul><li>`Status.MSIManagedIdentities.EarliestRecheckTime` (NeedsWork)</li><li>`Status.MSIManagedIdentities.ControlPlaneOperatorsIdentities` (deep-equal before write)</li><li>`Status.MSIManagedIdentities.ServiceManagedIdentity` (deep-equal before write)</li></ul> |
-| Read | Managed Identities Data Plane | <ul><li>`GetUserAssignedIdentitiesCredentials`</li></ul> |
-| **Write** | **`ServiceProviderCluster`** | <ul><li>**`Status.MSIManagedIdentities.ControlPlaneOperatorsIdentities`** = map keyed by lowercased resource ID (`ResourceID`, `ClientID`, `PrincipalID`)</li><li>**`Status.MSIManagedIdentities.ServiceManagedIdentity`** = `ResourceID`, `ClientID`, `PrincipalID`</li><li>**`Status.MSIManagedIdentities.EarliestRecheckTime`** = now + jittered 12h interval</li></ul> |
-
----
-
-### Other Controllers
-
-#### ManagementClusterPlacementSync
-
-**File:** [management_cluster_placement_sync.go](../backend/pkg/controllers/cluster/placement/management_cluster_placement_sync.go)
-**Trigger:** Cluster informer, 5-minute resync
-**Gate (needsWork on ServiceProviderCluster):**
-- `ServiceProviderCluster.Status.ManagementClusterResourceID` == nil
-
-| | Object | Fields |
-|---|--------|--------|
-| Read | `ServiceProviderCluster` | <ul><li>`Status.ManagementClusterResourceID` (NeedsWork: must be nil)</li></ul> |
-| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.ClusterServiceID`</li></ul> |
-| Read | Cluster Service | <ul><li>`GetClusterProvisionShard`</li></ul> |
-| Read | `ManagementCluster` | <ul><li>`ResourceID` (via `GetByCSProvisionShardID`)</li></ul> |
-| **Write** | **`ServiceProviderCluster`** | <ul><li>**`Status.ManagementClusterResourceID`** = management cluster resource ID</li></ul> |
-
-#### BackfillClusterUID
-
-**File:** [backfill_cluster_uid.go](../backend/pkg/controllers/mismatch/backfill_cluster_uid.go)
-**Trigger:** Cluster informer, 60-minute cooldown
-**Gate (NeedsWork on Cluster):**
-- `len(Cluster.ServiceProviderProperties.ClusterUID)` == 0
-
-| | Object | Fields |
-|---|--------|--------|
-| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.ClusterUID` (NeedsWork: must be empty)</li><li>`SystemData.CreatedAt`</li><li>`ID`</li></ul> |
-| Read | `BillingDocument` | <ul><li>`ListActiveForCluster` (matching creation time)</li></ul> |
-| **Write** | **`HCPOpenShiftCluster`** | <ul><li>**`ServiceProviderProperties.ClusterUID`** = billing doc ID or new UUID</li></ul> |
-
-#### CreateBillingDoc
-
-**File:** [create_billing_doc.go](../backend/pkg/controllers/billing/create_billing_doc.go)
-**Trigger:** Cluster informer, 60-second cooldown
-**Gate (NeedsWork on Cluster):**
-- `len(Cluster.ServiceProviderProperties.ClusterUID)` > 0
-- `len(Cluster.ServiceProviderProperties.BillingDocumentCosmosID)` == 0
-- `Cluster.ServiceProviderProperties.ProvisioningState` == `Succeeded`
-
-| | Object | Fields |
-|---|--------|--------|
-| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.ClusterUID` (NeedsWork: must be non-empty)</li><li>`ServiceProviderProperties.BillingDocumentCosmosID` (NeedsWork: must be empty)</li><li>`ServiceProviderProperties.ProvisioningState` (NeedsWork: must be `Succeeded`)</li><li>`SystemData.CreatedAt`</li><li>`CustomerProperties.Platform.ManagedResourceGroup`</li><li>`ID`</li></ul> |
-| Read | `Subscription` | <ul><li>`Properties.TenantId`</li></ul> |
-| **Write** | **`BillingDocument`** | <ul><li>`ClusterUID`, `CreationTime`, `Location`, `TenantID`, `ManagedResourceGroup`, `ResourceID`</li></ul> |
-| **Write** | **`HCPOpenShiftCluster`** | <ul><li>**`ServiceProviderProperties.BillingDocumentCosmosID`** = billing doc ID</li></ul> |
-
-#### OrphanedBillingCleanup
-
-**File:** [orphaned_billing_cleanup.go](../backend/pkg/controllers/billing/orphaned_billing_cleanup.go)
-**Trigger:** Time-based, 60-minute jitter (no informer — queues work directly)
-**Gate:**
-- `BillingDocument.DeletionTime` == nil (skip already-deleted docs)
-- Corresponding `HCPOpenShiftCluster` must not exist (orphan detection)
-
-| | Object | Fields |
-|---|--------|--------|
-| Read | `BillingDocument` | <ul><li>All billing docs via lister (list scan)</li><li>`DeletionTime` (skip if non-nil)</li></ul> |
-| Read | `HCPOpenShiftCluster` | <ul><li>Existence check only (if cluster exists, billing doc is not orphaned)</li></ul> |
-| **Write** | **`BillingDocument`** | <ul><li>**`DeletionTime`** = now (via `PatchByID`)</li></ul> |
-
-#### DeleteOrphanedCosmosResources
-
-**File:** [delete_orphaned_cosmos.go](../backend/pkg/controllers/mismatch/delete_orphaned_cosmos.go)
-**Trigger:** Time-based, 60-minute jitter (no informer — queues all subscriptions)
-**Gate:**
-- Resource is not a cluster (clusters own themselves)
-- Resource is inside a resource group (resources outside RG have TTL)
-- Parent resource does not exist (orphan detection)
-
-| | Object | Fields |
-|---|--------|--------|
-| Read | All resources | <ul><li>`ListRecursive` per subscription (untyped scan)</li><li>`ResourceID` (parent existence check)</li></ul> |
-| Read | `ManagementCluster` | <ul><li>All management clusters (for kube-applier desire cleanup)</li></ul> |
-| Read | Kube-applier desires | <ul><li>`ListRecursive` per management cluster container (ReadDesire, ApplyDesire, DeleteDesire)</li></ul> |
-| **Write** | Orphaned resources | <ul><li>**DELETES** resources whose parent no longer exists (via `DeleteByCosmosID`)</li></ul> |
-| **Write** | Orphaned desires | <ul><li>**DELETES** kube-applier desire documents whose parent resource no longer exists (via `DeleteByCosmosID`)</li></ul> |
-
----
-
-#### ClusterValidation / NodePoolValidation
-
-**File:** [cluster_validation_controller.go](../backend/pkg/controllers/cluster/validation/cluster_validation_controller.go), [nodepool_validation_controller.go](../backend/pkg/controllers/nodepool/validation/nodepool_validation_controller.go)
-**Trigger:** Cluster/NodePool informer, 1-minute resync
-**Gate (shouldProcess on ServiceProviderCluster/ServiceProviderNodePool):**
-- `!meta.IsStatusConditionTrue(ServiceProviderCluster.Status.Validations, validation.Name())` (condition must not yet be True)
-- SyncOnce also checks `DeletionTimestamp == nil` on the resource
-
-| | Object | Fields |
-|---|--------|--------|
-| Read | `ServiceProviderCluster` | <ul><li>`Status.Validations[<name>]` (shouldProcess: condition must not be True)</li></ul> |
-| Read | `ServiceProviderNodePool` | <ul><li>`Status.Validations[<name>]` (shouldProcess: condition must not be True)</li></ul> |
-| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (SyncOnce: must be nil)</li></ul> |
-| Read | `HCPOpenShiftClusterNodePool` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (SyncOnce: must be nil)</li></ul> |
-| **Write** | **`ServiceProviderCluster`** | <ul><li>**`Status.Validations[<name>]`** = condition (True/False)</li></ul> |
-| **Write** | **`ServiceProviderNodePool`** | <ul><li>**`Status.Validations[<name>]`** = condition (True/False)</li></ul> |
-
-#### DegradedAggregators (Cluster / NodePool / ExternalAuth)
-
-**File:** [cluster_degraded_aggregator.go](../backend/pkg/controllers/cluster/status/cluster_degraded_aggregator.go), [nodepool_degraded_aggregator.go](../backend/pkg/controllers/nodepool/status/nodepool_degraded_aggregator.go), [externalauth_degraded_aggregator.go](../backend/pkg/controllers/externalauth/status/externalauth_degraded_aggregator.go)
-**Trigger:** Resource informer, 1-minute resync
-
-| | Object | Fields |
-|---|--------|--------|
-| Read | Controller docs | <ul><li>All `Status.Conditions[Degraded]` under the resource</li></ul> |
-| **Write** | **`HCPOpenShiftCluster`** | <ul><li>**`Status.Conditions[Degraded]`** = aggregated union</li></ul> |
-| **Write** | **`HCPOpenShiftClusterNodePool`** | <ul><li>**`Status.Conditions[Degraded]`** = aggregated union</li></ul> |
-| **Write** | **`HCPOpenShiftClusterExternalAuth`** | <ul><li>**`Status.Conditions[Degraded]`** = aggregated union</li></ul> |
-
-#### ClusterRequirementsValidAggregator
-
-**File:** [cluster_requirements_valid_aggregator.go](../backend/pkg/controllers/statuscontrollers/cluster_requirements_valid_aggregator.go)
-**Trigger:** Cluster / ServiceProviderCluster informer, 1-minute resync
-**Gate (SyncOnce preconditions):**
-- `Cluster.ServiceProviderProperties.DeletionTimestamp` == nil
-- `ServiceProviderCluster` exists
-
-| | Object | Fields |
-|---|--------|--------|
-| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (SyncOnce: must be nil)</li><li>`Status.UserFacingConditions` (skip write when unchanged)</li></ul> |
-| Read | `ServiceProviderCluster` | <ul><li>`Status.Validations` (non-True = Status False or Unknown)</li></ul> |
-| **Write** | **`HCPOpenShiftCluster`** | <ul><li>**`Status.UserFacingConditions[RequirementsValid]`** = True/Valid when no failures; False/Degraded with unioned failed validation messages otherwise</li></ul> |
-
-#### NodePoolRequirementsValidAggregator
-
-**File:** [nodepool_requirements_valid_aggregator.go](../backend/pkg/controllers/statuscontrollers/nodepool_requirements_valid_aggregator.go)
-**Trigger:** NodePool / ServiceProviderNodePool informer, 1-minute resync
-**Gate (SyncOnce preconditions):**
-- `NodePool.ServiceProviderProperties.DeletionTimestamp` == nil
-- `ServiceProviderNodePool` exists
-
-| | Object | Fields |
-|---|--------|--------|
-| Read | `HCPOpenShiftClusterNodePool` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (SyncOnce: must be nil)</li><li>`Status.UserFacingConditions` (skip write when unchanged)</li></ul> |
-| Read | `ServiceProviderNodePool` | <ul><li>`Status.Validations` (non-True = Status False or Unknown)</li></ul> |
-| **Write** | **`HCPOpenShiftClusterNodePool`** | <ul><li>**`Status.UserFacingConditions[RequirementsValid]`** = True/Valid when no failures; False/Degraded with unioned failed validation messages otherwise</li></ul> |
-
-#### BackupScheduleSyncer
-
-**File:** [schedule_controller.go](../backend/pkg/controllers/backupcontroller/schedule_controller.go)
-**Trigger:** Cluster informer, periodic resync
-**Gate (needsWork on Cluster):**
-- `Cluster.ServiceProviderProperties.DeletionTimestamp` == nil
-- `Cluster.ServiceProviderProperties.BillingDocumentCosmosID` != ""
-
-| | Object | Fields |
-|---|--------|--------|
-| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (needsWork: must be nil)</li><li>`ServiceProviderProperties.BillingDocumentCosmosID` (needsWork: must be non-empty)</li><li>`ServiceProviderProperties.ClusterServiceID` (SyncOnce: must not be nil)</li><li>`CustomerProperties.DNS.BaseDomainPrefix` (SyncOnce: must be non-empty)</li></ul> |
-| Read | `ServiceProviderCluster` | <ul><li>`Spec.BackupState` (determines whether per-cluster schedules are paused)</li><li>`Status.ManagementClusterResourceID` (SyncOnce: must not be nil)</li></ul> |
-| **Write** | `ApplyDesire` (kube-applier DB) | <ul><li>Creates/replaces one Velero `Schedule` ApplyDesire per configured backup schedule; sets `Spec.Paused` based on global pause config or `Spec.BackupState == Paused`</li></ul> |
-| **Write** | `ReadDesire` (kube-applier DB) | <ul><li>Creates/replaces one ReadDesire per schedule to observe `Schedule` status on the management cluster</li></ul> |
-
-No writes to the Cosmos Resources container.
-
-#### CreateClusterScopedReadDesires / CreateNodePoolScopedReadDesires
-
-**File:** [create_cluster_scoped_read_desires_controller.go](../backend/pkg/controllers/cluster/readdesires/create_cluster_scoped_read_desires_controller.go), [create_nodepool_scoped_read_desires_controller.go](../backend/pkg/controllers/nodepool/readdesires/create_nodepool_scoped_read_desires_controller.go)
-**Trigger:** Cluster/NodePool informer, 1-minute resync
-**Gate (SyncOnce preconditions + ReadDesire spec drift):**
-- `Cluster.ServiceProviderProperties.DeletionTimestamp` == nil
-- `Cluster.ServiceProviderProperties.ClusterServiceID` != nil
-- `ServiceProviderCluster.Status.ManagementClusterResourceID` != nil
-- `len(Cluster.CustomerProperties.DNS.BaseDomainPrefix)` > 0
-- Existing `ReadDesire` == nil, or `ReadDesire.Spec.ManagementCluster` differs, or `ReadDesire.Spec.TargetItem` differs (both controllers reconcile via the shared `kubeapplierhelpers.EnsureReadDesire` helper, consulting the ReadDesire informer lister)
-
-| | Object | Fields |
-|---|--------|--------|
-| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (SyncOnce: must be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (SyncOnce: must not be nil)</li><li>`CustomerProperties.DNS.BaseDomainPrefix` (SyncOnce: must be non-empty)</li></ul> |
-| Read | `ServiceProviderCluster` | <ul><li>`Status.ManagementClusterResourceID` (SyncOnce: must not be nil)</li></ul> |
-| Read | Existing `ReadDesire` | <ul><li>`Spec.ManagementCluster` (spec drift: compared to desired)</li><li>`Spec.TargetItem` (spec drift: compared to desired)</li></ul> |
-| **Write** | `ReadDesire` (kube-applier DB) | <ul><li>Creates or replaces `ReadDesire` documents (not Resources container)</li></ul> |
+Reads Azure identities for the service-managed and control-plane operator identities; writes resolved resource/client/principal IDs or errors under `Status.MSIManagedIdentities`, plus its earliest recheck. Observes Azure; does not create identities.
 
 #### FetchDataPlaneOperatorsManagedIdentitiesInfo
 
-**File:** [fetch_data_plane_operators_managed_identities_info.go](../backend/pkg/controllers/cluster/identity/fetch_data_plane_operators_managed_identities_info.go)
-**Trigger:** Cluster informer, 1-minute resync
-**Gate (needsWork on ServiceProviderCluster):**
-- Skipped entirely when `HCPOpenShiftCluster.ServiceProviderProperties.DeletionTimestamp` != nil
-- Honors `ServiceProviderCluster.Status.DataPlaneOperatorsManagedIdentities.EarliestRecheckTime` only when the unique data plane operator ResourceID set on `Status.DataPlaneOperatorsManagedIdentities.Identities` still matches the desired set from `CustomerProperties`; returns true (query Azure) immediately on any mismatch
-- When identities match: returns false while `EarliestRecheckTime` is in the future; true when `EarliestRecheckTime` is nil or already past
+[Source](../backend/pkg/controllers/cluster/identity/fetch_data_plane_operators_managed_identities_info.go) · **Trigger:** Cluster; 1m, 12h recheck.
 
-| | Object | Fields |
-|---|--------|--------|
-| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (SyncOnce: must be nil)</li><li>`CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators` (desired identity ResourceIDs, deduplicated + lowercased)</li><li>`CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity` (SyncOnce: must not be nil)</li><li>`ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL` (used to build the SMI client)</li><li>`ID` (subscription / resource group / name)</li></ul> |
-| Read | `ServiceProviderCluster` | <ul><li>`Status.DataPlaneOperatorsManagedIdentities.Identities` (needsWork: compared to the desired ResourceID set)</li><li>`Status.DataPlaneOperatorsManagedIdentities.EarliestRecheckTime` (needsWork: honored only when identities match)</li></ul> |
-| Read | Azure (UserAssignedIdentitiesClient) | <ul><li>`Get` once per unique ResourceID -> `Properties.ClientID`, `Properties.PrincipalID`</li></ul> |
-| **Write** | **`ServiceProviderCluster`** | <ul><li>**`Status.DataPlaneOperatorsManagedIdentities.Identities[<lowercased resourceID>]`** = `{ResourceID, ClientID, PrincipalID, RetrievalError}` — ClientID/PrincipalID from Azure on success (RetrievalError nil); on any Get failure (including ResourceNotFound) ClientID/PrincipalID are cleared (nil) and RetrievalError is set to the first 1024 chars of the error. Identities no longer present on the cluster are pruned.</li><li>**`Status.DataPlaneOperatorsManagedIdentities.EarliestRecheckTime`** = now + jittered 12h interval when all Gets succeed; left nil (cleared) when any Get error is accumulated, so the next needsWork re-queries Azure</li></ul> |
+Reads the requested data-plane operator identities and writes `Status.DataPlaneOperatorsManagedIdentities.Identities` and its recheck time. No Azure mutation.
 
-#### ObserveManagedResourceGroup
+#### EnsureManagedResourceGroup
 
-**File:** [managed_resource_group_controller.go](../backend/pkg/controllers/cluster/azureresources/managed_resource_group_controller.go)
-**Trigger:** Cluster informer, 5-minute resync
-**Behavior:** Observe-only — never creates or deletes the managed resource group. A `NeedsWork` gate skips the sync when there is nothing to do: while the cluster is not being deleted, only until the managed resource group is confirmed as `AzureResource` (it is immutable, so a confirmed reference never needs re-checking); while the cluster is being deleted, only while a reference is still set.
-- Not deleting (reconcile): records the managed resource group as `PendingAzureResource` and persists that intent **before** querying Azure ("set pending before Get"), so a Get failure — or a resource group that does not exist yet — still leaves a durable pending marker (keeping the deletion gate closed) rather than an empty reference. It then queries Azure and switches on the result:
-  - **not found** → does nothing, leaving the pending marker in place (Cluster Service owns creation; this controller is observe-only).
-  - **other error** → returns the error so the sync retries.
-  - **exists** → if the resource group is owned by another cluster (its `ManagedBy` is set and does not equal this cluster's ID via the `ResourceIDsEqual` helper) it returns an error and does **not** set `AzureResource`; otherwise (owned by this cluster, or `ManagedBy` absent) it clears `PendingAzureResource` and records the resource group as `AzureResource`.
-- Deleting: derives the resource group ID from the reference still on the document (guaranteed set by `NeedsWork`), queries Azure and switches on the result: once the resource group is gone it clears both references so the deletion gate opens; on any other error it returns the error so the gate stays closed until the state is known; while the resource group still exists it does nothing (it does not set `AzureResource`, write a pending marker, or perform the ownership check).
+[Source](../backend/pkg/controllers/cluster/azureresources/managed_resource_group_controller.go) · **Trigger:** Cluster; 5m; 10s while provisioning.
 
-| | Object | Fields |
-|---|--------|--------|
-| Read | `HCPOpenShiftCluster` | <ul><li>`CustomerProperties.Platform.ManagedResourceGroup` (non-deletion path: returns an error when empty, since a cluster should always have one)</li><li>`ServiceProviderProperties.DeletionTimestamp` (branches deletion vs non-deletion)</li><li>`ID` (subscription / resource group / name; also compared against the resource group's `ManagedBy` for ownership in the non-deletion path)</li></ul> |
-| Read | `Subscription` | <ul><li>`Properties.TenantId` (to build the FPA ResourceGroups client)</li></ul> |
-| Read | `ServiceProviderCluster` | <ul><li>`Status.AzureResources.ManagedResourceGroup` (compared before write to skip no-op replacements; during deletion the resource group ID is derived from this reference)</li></ul> |
-| Read | Azure (ResourceGroupsClient) | <ul><li>`Get` on the managed resource group -> exists / ResourceGroupNotFound; `ManagedBy` (ownership check) is inspected only in the non-deletion path when the resource group exists</li></ul> |
-| **Write** | **`ServiceProviderCluster`** | <ul><li>**`Status.AzureResources.ManagedResourceGroup.PendingAzureResource`** = managed resource group resource ID, recorded (and persisted) before the Azure Get in the non-deletion path; kept while the resource group is missing; cleared once `AzureResource` is set, or during deletion once the resource group is gone</li><li>**`Status.AzureResources.ManagedResourceGroup.AzureResource`** = managed resource group resource ID when it exists and is not owned by another cluster (non-deletion path only); cleared during deletion once the resource group is gone</li></ul> |
+Records pending managed resource group intent, gets/creates the Azure resource group with ownership metadata, and confirms `Status.AzureResources.ManagedResourceGroup.AzureResource` only after provisioning succeeds. During deletion it observes absence and clears tracking; it does not delete the Azure group.
 
-#### ObserveRoleAssignments
+#### ClusterDenyAssignment
 
-**File:** [role_assignments_controller.go](../backend/pkg/controllers/cluster/roleassignments/role_assignments_controller.go)
-**Trigger:** Cluster informer, 5-minute resync
-**Behavior:** Observe-only — never creates or deletes a role assignment. Cluster Service creates the managed-resource-group-scoped role assignments for each control-plane and data-plane operator managed identity; this controller mirrors their observed existence onto `ServiceProviderCluster.Status.AzureResources.RoleAssignments` so the cluster-create gate can confirm they are present. A `NeedsWork` gate skips the sync when there is nothing to do: it is a no-op until the managed resource group is confirmed (`Status.AzureResources.ManagedResourceGroup.AzureResource` != nil), and thereafter only until every expected role assignment is confirmed and nothing is left pending.
-- **Deletion is a genuine no-op**: while the cluster is being deleted the controller returns immediately and makes no Azure calls. Cluster Service deletes the managed resource group on delete, and that cascade removes the role assignments scoped to it, so there is nothing to observe and no deletion gate.
-- Not deleting (reconcile): computes the expected role assignment IDs by pairing each control-plane operator (`CustomerProperties...UserAssignedIdentities.ControlPlaneOperators`) and data-plane operator (`...DataPlaneOperators`) identity's resolved `PrincipalID` (from `Status.MSIManagedIdentities` / `Status.DataPlaneOperatorsManagedIdentities`) with that operator's role definitions (from the cluster-scoped identities config), scoped to the managed resource group. The role assignment name is generated with the same deterministic UUIDv5 algorithm Cluster Service uses. It records every not-yet-tracked expected ID as `PendingAzureResources` and persists that intent **before** querying Azure ("set pending before Get"), then queries Azure per pending ID and switches on the result:
-  - **not found** (`RoleAssignmentNotFound`) → leaves it pending (Cluster Service owns creation; this controller is observe-only).
-  - **other error** → returns the error so the sync retries.
-  - **exists** → moves it from `PendingAzureResources` to `AzureResources` (confirmed).
+[Source](../backend/pkg/controllers/cluster/denyassignments/deny_assignment_controller.go) · **Trigger:** Cluster; 1m, 12h recheck; optional registration.
 
-| | Object | Fields |
-|---|--------|--------|
-| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (SyncOnce: deletion is a no-op)</li><li>`CustomerProperties.Platform.ManagedResourceGroup` (managed resource group scope; error when empty)</li><li>`CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators` / `DataPlaneOperators` (operator identities to enumerate)</li><li>`ID` (subscription / resource group / name)</li></ul> |
-| Read | `Subscription` | <ul><li>`Properties.TenantId` (to build the FPA RoleAssignments client)</li></ul> |
-| Read | `ServiceProviderCluster` | <ul><li>`Status.AzureResources.ManagedResourceGroup.AzureResource` (gate: must be confirmed before observing)</li><li>`Status.MSIManagedIdentities.ControlPlaneOperatorsIdentities[<lowercased resourceID>].PrincipalID`</li><li>`Status.DataPlaneOperatorsManagedIdentities.Identities[<lowercased resourceID>].PrincipalID`</li><li>`Status.AzureResources.RoleAssignments` (compared before write to skip no-op replacements)</li></ul> |
-| Read | Azure (RoleAssignmentsClient) | <ul><li>`GetByID` per pending role assignment -> exists / `RoleAssignmentNotFound`</li></ul> |
-| **Write** | **`ServiceProviderCluster`** | <ul><li>**`Status.AzureResources.RoleAssignments.PendingAzureResources`** = expected role assignment IDs not yet confirmed, recorded (and persisted) before the Azure Get; entries are removed as they are confirmed</li><li>**`Status.AzureResources.RoleAssignments.AzureResources`** = role assignment IDs confirmed to exist in Azure</li></ul> |
+Requires a pending/confirmed Cluster Service ID, confirmed managed resource group and resolved identities. Gets, creates/updates and removes stale Azure deny assignments; tracks pending/confirmed IDs and recheck time in the service-provider cluster. Enabled with the real FPA client; skips deleting clusters.
 
----
+#### IdentityRoleAssignments
 
-## 3. Execution Order Digraphs
+[Source](../backend/pkg/controllers/cluster/roleassignments/role_assignments_controller.go) · **Trigger:** Cluster; 5m, jittered 6h recheck.
 
-### Cluster Create Flow
+Requires the confirmed managed resource group and resolved principals. Gets expected Azure role assignments, persists pending/confirmed IDs, then creates missing assignments. A successful PUT stays pending until a later GET confirms it. Previously confirmed assignments no longer expected are retained; skips deletion and relies on resource-group cleanup.
 
+#### ClusterClusterServiceCreate
+
+[Source](../backend/pkg/controllers/cluster/creation/cluster_cluster_service_create_controller.go) · **Trigger:** Cluster; 1m.
+
+Live-rechecks a nondeleting cluster with a pending ID and no confirmed ID. Requires desired version, selected management cluster/provision shard and deny-assignment precondition when enabled. Adopts by Azure identity metadata or POSTs to Cluster Service; confirms `ClusterServiceID` and clears `PendingClusterServiceID`.
+
+#### ManagementClusterPlacementSync
+
+[Source](../backend/pkg/controllers/cluster/placement/management_cluster_placement_sync.go) · **Trigger:** Cluster; 5m.
+
+After Cluster Service placement is visible, maps its provision shard to the fleet management cluster and records actual `Status.ManagementClusterResourceID`. This is observed placement, not the scheduler's pre-create `Spec` decision.
+
+#### ClusterResources
+
+[Source](../backend/pkg/controllers/clusterresources/cluster_resources_controller.go) · **Trigger:** Cluster; 30s.
+
+Requires observed `Status.ManagementClusterResourceID`; live reconciliation also requires `ClusterServiceID`. Fetches Cluster Service manifests and reconciles tagged `ApplyDesire` documents for namespaces, HostedCluster, node pools, SWIFT networking and supporting objects. Skips absent/deleting node pools; stale intents during live reconciliation use an explicit Delete request and wait for confirmed deletion before document removal.
+
+On cluster deletion, stops fetching manifests and removes all its tagged ApplyDesire documents directly. This stops kube-applier reconciliation but does not delete the Kubernetes objects. Cluster Service delete dispatch waits for those intents to disappear before requesting external teardown. ClusterResources does not create ReadDesires; cluster/node-pool read controllers supply the mirrored observations.
+
+#### CreateClusterScopedReadDesires
+
+[Source](../backend/pkg/controllers/cluster/readdesires/create_cluster_scoped_read_desires_controller.go) · **Trigger:** Cluster; 1m.
+
+Uses Cluster Service ID and management-cluster placement to create per-management-cluster `ReadDesire` documents for HostedCluster, HostedControlPlane and the serving-CA secret. The kube-applier supplies observed content.
+
+#### ServiceProviderClusterPropertiesSync
+
+[Source](../backend/pkg/controllers/cluster/properties/serviceprovidercluster_properties_sync.go) · **Trigger:** Cluster and mirrored reads; 5m.
+
+Reads mirrored Kubernetes content and updates service-provider cluster `Status.HostedClusterNamespace`, `ControlPlaneNamespace`, `ServingCABundle` and other observed properties needed by credentials and operation completion.
+
+#### ClusterPropertiesSync
+
+[Source](../backend/pkg/controllers/cluster/properties/cluster_properties_sync.go) · **Trigger:** Cluster; 5m.
+
+Reads Cluster Service and synchronizes cluster service-provider API/console/DNS endpoints and issuer URL. Does not submit a Cluster Service configuration change.
+
+#### ClusterBaseDomainPrefixSync
+
+[Source](../backend/pkg/controllers/cluster/properties/cluster_base_domain_prefix_sync.go) · **Trigger:** Cluster; 5m.
+
+Copies the Cluster Service DNS base-domain prefix into customer `DNS.BaseDomainPrefix` when it must be filled in.
+
+#### ClusterIdentitySync
+
+[Source](../backend/pkg/controllers/cluster/identity/cluster_identity_sync.go) · **Trigger:** Cluster; 60m.
+
+Copies resolved identity information into `HCPOpenShiftCluster.Identity.UserAssignedIdentities` for the ARM representation.
+
+#### ControlPlaneActiveVersions
+
+[Source](../backend/pkg/controllers/cluster/version/control_plane_active_version_controller.go) · **Trigger:** Cluster and mirrored reads; 5m.
+
+Reads cached cluster/provider documents and mirrored HostedCluster history. Writes exact versions with Completed/Partial state into `ServiceProviderCluster.Status.ControlPlaneVersion.ActiveVersions`, and copies desired update channels into `Status.DesiredVersionChannels`. Separately replaces `HCPOpenShiftCluster.Status.ActiveVersions` with distinct major.minor strings for customer responses. Prefers `status.controlPlaneVersion.history`, falling back to `status.version.history`; collects history through the first completed entry. These are observations, not desired-version changes. ETag conflicts wait for a later reconcile; the two document writes are not transactional.
+
+#### TriggerControlPlaneUpgrade
+
+[Source](../backend/pkg/controllers/cluster/version/trigger_control_plane_upgrade_controller.go) · **Trigger:** Cluster; 1m.
+
+Reads the cluster from its informer cache, compares provider desired/active control-plane versions and Cluster Service state, and submits an upgrade policy when needed. Records controller intent failure if rejected.
+
+#### ClusterClusterServiceUpdateDispatch
+
+[Source](../backend/pkg/controllers/cluster/update/cluster_cluster_service_update_dispatch_controller.go) · **Trigger:** Cluster; 1m.
+
+For a live cluster with a Cluster Service ID, compares dispatchable configuration and recorded dispatch state, PATCHes changed Cluster Service configuration, and records the dispatched configuration. Version upgrades have their own controller.
+
+#### DesiredControlPlaneSize
+
+[Source](../backend/pkg/controllers/cluster/properties/desired_control_plane_size_sync.go) · **Trigger:** Cluster; 5m.
+
+Compares desired control-plane size to observed state and updates Cluster Service sizing when they differ.
+
+#### BackupSchedule
+
+[Source](../backend/pkg/controllers/cluster/backups/schedule_controller.go) · **Trigger:** Cluster and mirrored reads; 5m.
+
+Uses `Spec.BackupState`, placement and namespaces to reconcile Velero schedule ApplyDesires and observed status. Handles pause and deletion; kube-applier performs the Kubernetes writes. Default retention is two days for hourly backups, 30 days for daily backups and 90 days for weekly backups; [configuration](../backend/pkg/controllers/cluster/backups/config.go) also supports a short-retention mode.
+
+#### KeyRotationBackup
+
+[Source](../backend/pkg/controllers/cluster/backups/key_rotation_controller.go) · **Trigger:** Cluster and mirrored reads; 5m.
+
+Observes encryption-key rotation and backup state, creates Velero Backup ApplyDesires/ReadDesires, and records completion/cleanup state. Retains completed backups until their TTL.
+
+### Backend: cluster deletion and operations
+
+#### ClusterClusterServiceDeleteDispatch
+
+[Source](../backend/pkg/controllers/cluster/deletion/cluster_cluster_service_delete_dispatch_controller.go) · **Trigger:** Cluster; 1m.
+
+Requires `UsesNewClusterDeletionApproach`, deletion intent and no dispatch timestamp. Waits for all ClusterResources-tagged ApplyDesires to disappear, then calls Cluster Service DELETE and stamps `ClusterServiceDeletionTimestamp`. A missing ID or external 404 waits up to 120s from first observed deletion after the ApplyDesire gate passes to cover creation races; this is not a dispatch interval.
+
+#### ClusterDeletionClusterServiceIDClearer
+
+[Source](../backend/pkg/controllers/cluster/deletion/cluster_cluster_service_id_clearer.go) · **Trigger:** Cluster; 1m.
+
+After delete dispatch, polls Cluster Service; only a not-found result clears `ServiceProviderProperties.ClusterServiceID`. Other errors retry.
+
+#### ClusterChildResourcesCleanupController
+
+[Source](../backend/pkg/controllers/cluster/deletion/cluster_child_resources_cleanup_controller.go) · **Trigger:** Cluster; 1m.
+
+Requires deletion timestamp, dispatched deletion and cleared Cluster Service ID. Waits for node pools, external auth, credential requests and revocations to be gone. Leaves controller-owned ApplyDesires to their owners and backup schedule desires to BackupSchedule; removes other eligible cluster-scoped intents. Deletes the provider document only after managed-resource-group references, Maestro readonly bundles and cluster-scoped desires are gone.
+
+#### ClusterDeletionController
+
+[Source](../backend/pkg/controllers/cluster/deletion/cluster_deletion_controller.go) · **Trigger:** Cluster; 1m.
+
+Once deletion prerequisites and child cleanup are satisfied, deletes the ARM resource document. Marks the linked billing document deleted first; requires the new deletion approach.
+
+#### OperationClusterCreate
+
+[Source](../backend/pkg/controllers/cluster/operations/operation_cluster_create.go) · **Trigger:** Active operation; 10s.
+
+Combines selected placement, Cluster Service state, mirrored HostedCluster readiness/version, API endpoint, serving CA and confirmed role assignments (nonempty confirmed list, none pending). Placement is checked even before a Cluster Service ID exists. Unresolved placement remains Provisioning until `CreateOperationCompletionDeadline`; without a deadline it keeps waiting. At/after the deadline, `Status.Placement.Conditions[CapacityAvailable]=False` produces the customer-safe `AROHCPCapacityHeavyUse` error; missing/Unknown placement state produces `InternalServerError`. Assigned `Spec.ManagementClusterResourceID` satisfies this check despite a stale condition; other completion checks still apply.
+
+For the matching nonterminal operation, writes status/error/transition time and ARM provisioning state, clears the active-operation reference on terminal state, and sends the async notification. Classified errors are preserved (multiple classified failures become `MultipleErrorsOccurred`); internal placement diagnostics are not copied into the capacity error. Pending HostedCluster version diagnostics describe incomplete history entries and their elapsed time.
+
+#### OperationClusterUpdate
+
+[Source](../backend/pkg/controllers/cluster/operations/operation_cluster_update.go) · **Trigger:** Active operation; 10s.
+
+Observes dispatched configuration and completion; For the matching nonterminal operation, writes operation status/error/transition time and ARM provisioning state, clears the active-operation reference on terminal state, and sends the async notification.
+
+#### OperationClusterDelete
+
+[Source](../backend/pkg/controllers/cluster/operations/operation_cluster_delete.go) · **Trigger:** Active operation; 10s.
+
+Under the new deletion path, waits for the resource document to disappear; retains legacy deletion handling. Timeout diagnostics combine deletion-dispatch progress, live Cluster Service state, remaining descendant resources and mirrored HostedCluster state. For the matching nonterminal operation, writes status/error/transition time and ARM provisioning state, clears the active-operation reference on terminal state, and sends the async notification.
+
+#### ClusterDegradedAggregator
+
+[Source](../backend/pkg/controllers/cluster/status/cluster_degraded_aggregator.go) · **Trigger:** Cluster; 1m.
+
+Aggregates child Controller conditions into the ARM resource `Status.Conditions` Degraded condition; no external mutation.
+
+#### ClusterRequirementsValidAggregator
+
+[Source](../backend/pkg/controllers/cluster/status/cluster_requirements_valid_aggregator.go) · **Trigger:** Cluster; 1m.
+
+Aggregates service-provider validation conditions into the ARM RequirementsValid condition; does not execute Azure validation or provisioning itself.
+
+### Backend: node pools
+
+#### CreateServiceProviderNodePool
+
+[Source](../backend/pkg/controllers/nodepool/creation/create_service_provider_nodepool_controller.go) · **Trigger:** Node pool; 1m.
+
+Creates the missing `ServiceProviderNodePool` document for version and validation state.
+
+#### NodePoolVersion
+
+[Source](../backend/pkg/controllers/nodepool/version/nodepool_version_controller.go) · **Trigger:** Node pool; 1m.
+
+Resolves the requested node-pool version with the cluster's version constraints and writes `Spec.NodePoolVersion.DesiredVersion`.
+
+#### NodePoolActiveVersions
+
+[Source](../backend/pkg/controllers/nodepool/version/nodepool_active_version_controller.go) · **Trigger:** Node pool and mirrored reads; 5m.
+
+Requires a service-provider node pool and populated mirrored NodePool content. Deduplicates valid `status.nodesInfo.nodeVersions[].ocpVersion` values and sorts newest first into `ServiceProviderNodePool.Status.NodePoolVersion.ActiveVersions`. Separately writes full version strings into `HCPOpenShiftClusterNodePool.Status.ActiveVersions` for customer responses, using the cached node-pool document. ETag conflicts defer reconciliation; the two writes are not transactional.
+
+#### TriggerNodePoolUpgrade
+
+[Source](../backend/pkg/controllers/nodepool/version/trigger_node_pool_upgrade_controller.go) · **Trigger:** Node pool; 5m.
+
+Reads the node pool from its informer cache, compares provider desired/active versions and submits the required node-pool upgrade policy to Cluster Service.
+
+#### CreateNodePoolScopedReadDesires
+
+[Source](../backend/pkg/controllers/nodepool/readdesires/create_nodepool_scoped_read_desires_controller.go) · **Trigger:** Node pool; 1m.
+
+Creates the per-management-cluster NodePool `ReadDesire` using parent placement, namespace and node-pool identity. Lowercases the ARM node-pool name when constructing the Kubernetes target to match Cluster Service naming; kube-applier fills in observed status.
+
+#### NodePoolClusterServiceCreate
+
+[Source](../backend/pkg/controllers/nodepool/creation/node_pool_cluster_service_create_controller.go) · **Trigger:** NodePool; 1m.
+
+For a live resource without `ClusterServiceID`, live-reads the resource and requires the parent cluster ID. Adopts the deterministic Cluster Service resource or POSTs it, then persists its ID. Node-pool POST uses customer configuration directly; it does not wait for `NodePoolVersion` to populate a service-provider desired version.
+
+#### NodePoolClusterServiceUpdateDispatch
+
+[Source](../backend/pkg/controllers/nodepool/update/node_pool_cluster_service_update_dispatch_controller.go) · **Trigger:** NodePool; 1m.
+
+For a live resource with its Cluster Service ID, compares dispatchable customer configuration, PATCHes Cluster Service and records the dispatched configuration. Unchanged configuration is a no-op.
+
+#### NodePoolClusterServiceDeleteDispatch
+
+[Source](../backend/pkg/controllers/nodepool/deletion/node_pool_cluster_service_delete_dispatch_controller.go) · **Trigger:** NodePool; 1m.
+
+Requires `UsesNewNodePoolDeletionApproach`, deletion intent and no dispatch timestamp. Calls Cluster Service DELETE and stamps `ClusterServiceDeletionTimestamp`. A missing ID or external 404 waits up to 120s from first observed deletion to cover creation races; this is not a dispatch interval.
+
+#### NodePoolDeletionClusterServiceIDClearer
+
+[Source](../backend/pkg/controllers/nodepool/deletion/node_pool_cluster_service_id_clearer.go) · **Trigger:** NodePool; 1m.
+
+After delete dispatch, polls Cluster Service; only a not-found result clears `ServiceProviderProperties.ClusterServiceID`. Other errors retry.
+
+#### NodePoolChildResourcesCleanupController
+
+[Source](../backend/pkg/controllers/nodepool/deletion/node_pool_child_resources_cleanup_controller.go) · **Trigger:** NodePool; 1m.
+
+Requires deletion timestamp, dispatched deletion and cleared Cluster Service ID. Deletes nested Cosmos resources and node-pool kube-applier desires before removing service-provider state.
+
+#### NodePoolDeletionController
+
+[Source](../backend/pkg/controllers/nodepool/deletion/node_pool_deletion_controller.go) · **Trigger:** NodePool; 1m.
+
+Once deletion prerequisites and child cleanup are satisfied, deletes the ARM resource document. The operation poller observes the missing document to finish the request.
+
+#### OperationNodePoolCreate
+
+[Source](../backend/pkg/controllers/nodepool/operations/operation_node_pool_create.go) · **Trigger:** Active operation; 10s.
+
+Observes Cluster Service and resource readiness; For the matching nonterminal operation, writes operation status/error/transition time and ARM provisioning state, clears the active-operation reference on terminal state, and sends the async notification.
+
+#### OperationNodePoolUpdate
+
+[Source](../backend/pkg/controllers/nodepool/operations/operation_node_pool_update.go) · **Trigger:** Active operation; 10s.
+
+Combines version resolution, Cluster Service state/configuration and mirrored NodePool spec/status. Requires the requested replica count (or autoscaling range), `AllNodesHealthy=True` and `AllMachinesReady=True`; skips both health conditions when replicas are zero and autoscaling is unset. Reports all failing status checks together. For the matching nonterminal operation, writes status/error/transition time and ARM provisioning state, clears the active-operation reference on terminal state, and sends the async notification.
+
+#### OperationNodePoolDelete
+
+[Source](../backend/pkg/controllers/nodepool/operations/operation_node_pool_delete.go) · **Trigger:** Active operation; 10s.
+
+Under the new deletion path, waits for the resource document to disappear; retains legacy deletion handling. For the matching nonterminal operation, writes operation status/error/transition time and ARM provisioning state, clears the active-operation reference on terminal state, and sends the async notification.
+
+#### NodePoolDegradedAggregator
+
+[Source](../backend/pkg/controllers/nodepool/status/nodepool_degraded_aggregator.go) · **Trigger:** NodePool; 1m.
+
+Aggregates child Controller conditions into the ARM resource `Status.Conditions` Degraded condition; no external mutation.
+
+#### NodePoolRequirementsValidAggregator
+
+[Source](../backend/pkg/controllers/nodepool/status/nodepool_requirements_valid_aggregator.go) · **Trigger:** NodePool; 1m.
+
+Aggregates service-provider validation conditions into the ARM RequirementsValid condition; does not execute Azure validation or provisioning itself.
+
+### Backend: external auth
+
+#### ExternalAuthClusterServiceCreate
+
+[Source](../backend/pkg/controllers/externalauth/creation/external_auth_cluster_service_create_controller.go) · **Trigger:** ExternalAuth; 1m.
+
+For a live resource without `ClusterServiceID`, live-reads the resource and requires the parent cluster ID. Adopts the deterministic Cluster Service resource or POSTs it, then persists its ID. External auth has no separate service-provider document; updates use the parent cluster's HostedCluster ReadDesire.
+
+#### ExternalAuthClusterServiceUpdateDispatch
+
+[Source](../backend/pkg/controllers/externalauth/update/external_auth_cluster_service_update_dispatch_controller.go) · **Trigger:** ExternalAuth; 1m.
+
+For a live resource with its Cluster Service ID, compares dispatchable customer configuration, PATCHes Cluster Service and records the dispatched configuration. Unchanged configuration is a no-op.
+
+#### ExternalAuthClusterServiceDeleteDispatch
+
+[Source](../backend/pkg/controllers/externalauth/deletion/external_auth_cluster_service_delete_dispatch_controller.go) · **Trigger:** ExternalAuth; 1m.
+
+Requires `UsesNewExternalAuthDeletionApproach`, deletion intent and no dispatch timestamp. Calls Cluster Service DELETE and stamps `ClusterServiceDeletionTimestamp`. A missing ID or external 404 waits up to 120s from first observed deletion to cover creation races; this is not a dispatch interval.
+
+#### ExternalAuthDeletionClusterServiceIDClearer
+
+[Source](../backend/pkg/controllers/externalauth/deletion/external_auth_cluster_service_id_clearer.go) · **Trigger:** ExternalAuth; 1m.
+
+After delete dispatch, polls Cluster Service; only a not-found result clears `ServiceProviderProperties.ClusterServiceID`. Other errors retry.
+
+#### ExternalAuthChildResourcesCleanupController
+
+[Source](../backend/pkg/controllers/externalauth/deletion/external_auth_child_resources_cleanup_controller.go) · **Trigger:** ExternalAuth; 1m.
+
+Requires deletion timestamp, dispatched deletion and cleared Cluster Service ID. Deletes nested Cosmos resources, including controller state.
+
+#### ExternalAuthDeletionController
+
+[Source](../backend/pkg/controllers/externalauth/deletion/external_auth_deletion_controller.go) · **Trigger:** ExternalAuth; 1m.
+
+Once deletion prerequisites and child cleanup are satisfied, deletes the ARM resource document. The operation poller observes the missing document to finish the request.
+
+#### OperationExternalAuthCreate
+
+[Source](../backend/pkg/controllers/externalauth/operations/operation_external_auth_create.go) · **Trigger:** Active operation; 10s.
+
+A successful Cluster Service GET of external auth is the completion check; this does not wait for downstream authentication rollout readiness. For the matching nonterminal operation, writes operation status/error/transition time and ARM provisioning state, clears the active-operation reference on terminal state, and sends the async notification.
+
+#### OperationExternalAuthUpdate
+
+[Source](../backend/pkg/controllers/externalauth/operations/operation_external_auth_update.go) · **Trigger:** Active operation; 10s.
+
+Combines desired-versus-observed Cluster Service configuration with the parent HostedCluster spec from its ReadDesire (issuer, clients, claims and validation rules). HostedCluster authentication status is not checked. Updates operation and ARM provisioning state, clears the terminal active-operation reference and sends the notification.
+
+#### OperationExternalAuthDelete
+
+[Source](../backend/pkg/controllers/externalauth/operations/operation_external_auth_delete.go) · **Trigger:** Active operation; 10s.
+
+Under the new deletion path, waits for the resource document to disappear; retains legacy deletion handling. For the matching nonterminal operation, writes operation status/error/transition time and ARM provisioning state, clears the active-operation reference on terminal state, and sends the async notification.
+
+#### ExternalAuthDegradedAggregator
+
+[Source](../backend/pkg/controllers/externalauth/status/externalauth_degraded_aggregator.go) · **Trigger:** ExternalAuth; 1m.
+
+Aggregates child Controller conditions into the ARM resource `Status.Conditions` Degraded condition; no external mutation.
+
+### Backend: credential and orphan cleanup
+
+#### ClusterCredentialDeletionMarkerController
+
+[Source](../backend/pkg/controllers/cluster/deletion/cluster_credential_deletion_marker_controller.go) · **Trigger:** Cluster; 1m.
+
+On cluster deletion, stamps child credential request and revocation `Status.DeletionTimestamp` so their own controllers can clean up before cluster child-resource deletion.
+
+#### CleanOrphanedClusterManagedResourceGroup
+
+[Source](../backend/pkg/controllers/cluster/deletion/clean_orphaned_cluster_managed_resource_group_controller.go) · **Trigger:** Subscription; 10m.
+
+Lists regional Azure managed resource groups and live HCP resource references; considers only orphan groups. Default mode only reports them. With `CLEAN_ORPHANED_MANAGED_RESOURCE_GROUPS_MODE=readwrite`, rechecks then begins Azure group deletion and polls it. Skips already-deleting groups; no Cosmos domain write.
+
+### Backend: system-admin credentials
+
+#### SystemAdminCredentialDispatchRequestCredential
+
+[Source](../backend/pkg/controllers/cluster/credentialrequest/operations/dispatch_request_credential.go) · **Trigger:** Active operation; 10s.
+
+For an accepted RequestCredential operation without a request reference, creates an idempotent credential request containing key/CSR and expiry, then records the operation reference. Cancels issuance while the cluster revoke sentinel is set.
+
+#### SystemAdminCredentialOperationRequestCredentialPoll
+
+[Source](../backend/pkg/controllers/cluster/credentialrequest/operations/operation_request_credential.go) · **Trigger:** Active operation; 10s.
+
+Observes the referenced request's Issued/Failed/revocation conditions, constructs the credential response and completes or fails the operation.
+
+#### SystemAdminCredentialDesiresCreator
+
+[Source](../backend/pkg/controllers/cluster/credentialrequest/creation/desires_creator.go) · **Trigger:** Credential request and mirrored reads; 1m.
+
+For a pending request, waits for cluster ID, actual management cluster and control-plane namespace. Creates CSR/CSRApproval ApplyDesires and a CSR ReadDesire nested under the request.
+
+#### SystemAdminCredentialIssuanceObserver
+
+[Source](../backend/pkg/controllers/cluster/credentialrequest/creation/issuance_observer.go) · **Trigger:** Credential request and mirrored reads; 1m.
+
+Reads mirrored CSR approval/certificate; writes request `Status.SignedCertificate` and Issued or Failed condition.
+
+#### SystemAdminCredentialPostIssuanceCleanup
+
+[Source](../backend/pkg/controllers/cluster/credentialrequest/deletion/post_issuance_cleanup.go) · **Trigger:** Credential request; 1m.
+
+For Issued or Failed requests, changes desires to Delete, waits for application and removes desire documents; retains the credential request for its consumers.
+
+#### SystemAdminCredentialClusterDeletionCleanup
+
+[Source](../backend/pkg/controllers/cluster/credentialrequest/deletion/cluster_deletion_cleanup.go) · **Trigger:** Credential request; 1m.
+
+When `Status.DeletionTimestamp` is set, requests Kubernetes deletion through ApplyDesires, waits, removes reads and deletes the request document.
+
+#### SystemAdminCredentialRevokedGC
+
+[Source](../backend/pkg/controllers/cluster/credentialrequest/deletion/revoked_gc.go) · **Trigger:** Credential request; 1h.
+
+Deletes request documents at least 48h after `Spec.CreationTimestamp`, irrespective of current status. Missing creation timestamps are skipped.
+
+#### SystemAdminCredentialDispatchRevokeCredentials
+
+[Source](../backend/pkg/controllers/cluster/credentialrevocation/operations/dispatch_revoke_credentials.go) · **Trigger:** Active operation; 10s.
+
+For the accepted revoke operation matching the cluster sentinel, creates a revocation document, references it from the operation and advances the operation to Deleting.
+
+#### SystemAdminCredentialRevocationMarkRequests
+
+[Source](../backend/pkg/controllers/cluster/credentialrevocation/creation/revocation_mark_requests.go) · **Trigger:** Credential revocation; 1m.
+
+For a live revocation not yet marked, live-lists credential requests and stamps deletion timestamps. Sets CredentialsMarkedForDeletion only after the marking succeeds.
+
+#### SystemAdminCredentialRevocationDesires
+
+[Source](../backend/pkg/controllers/cluster/credentialrevocation/creation/revocation_desires.go) · **Trigger:** Credential revocation; 1m.
+
+Waits for parent placement/namespace and creates CertificateRevocationRequest ApplyDesire and ReadDesire using the revoke-operation suffix.
+
+#### SystemAdminCredentialRevocationCompletion
+
+[Source](../backend/pkg/controllers/cluster/credentialrevocation/deletion/revocation_completion.go) · **Trigger:** Credential revocation and mirrored reads; 1m.
+
+Observes the Kubernetes revocation result, records CertificatesRevoked and combines it with CredentialsMarkedForDeletion to set Complete and the deletion timestamp.
+
+#### SystemAdminCredentialRevocationDeletion
+
+[Source](../backend/pkg/controllers/cluster/credentialrevocation/deletion/revocation_deletion.go) · **Trigger:** Credential revocation; 1m.
+
+For deletion-marked revocations, tears down Kubernetes objects through Delete desires, removes the intents and deletes the revocation document.
+
+#### SystemAdminCredentialOperationRevokeCredentialsPoll
+
+[Source](../backend/pkg/controllers/cluster/credentialrevocation/operations/operation_revoke_credentials.go) · **Trigger:** Active operation; 10s.
+
+Waits for the referenced revocation document to disappear, then clears cluster `RevokeCredentialsOperationID` and completes the operation.
+
+#### DispatchRequestCredential
+
+[Source](../backend/pkg/controllers/cluster/legacycredentialrequest/dispatch_request_credential.go) · **Trigger:** Active operation; 10s; legacy.
+
+Dispatches credential issuance through Cluster Service and records `Operation.InternalID`. Still registered alongside the newer credential-document controllers.
+
+#### OperationRequestCredential
+
+[Source](../backend/pkg/controllers/cluster/legacycredentialrequest/operation_request_credential.go) · **Trigger:** Active operation; 10s; legacy.
+
+Polls the Cluster Service credential request, publishes the credential result and updates operation completion/error state.
+
+### Backend: validation instances
+
+#### ClusterValidationAlwaysSuccessValidation
+
+[Source](../backend/pkg/utils/validationutils/always_success_validation.go) · **Trigger:** Cluster; 1m; result-based retry.
+
+Always reports success; example validation without Azure access. Writes the corresponding service-provider `Status.Validations` condition; no Azure mutation.
+
+#### ClusterValidationAzureResourceProvidersRegistrationValidation
+
+[Source](../backend/pkg/utils/validationutils/azure_rp_registration_validation.go) · **Trigger:** Cluster; 1m; result-based retry.
+
+Reads subscription resource-provider registration states and reports required registrations. Writes the corresponding service-provider `Status.Validations` condition; no Azure mutation.
+
+#### ClusterValidationAzureClusterResourceGroupExistenceValidation
+
+[Source](../backend/pkg/utils/validationutils/azure_cluster_resource_group_existence_validation.go) · **Trigger:** Cluster; 1m; result-based retry.
+
+Reads the customer Azure resource group and validates existence. Writes the corresponding service-provider `Status.Validations` condition; no Azure mutation.
+
+#### ClusterValidationAzureClusterManagedIdentitiesExistenceValidation
+
+[Source](../backend/pkg/utils/validationutils/azure_cluster_mis_existence_validation.go) · **Trigger:** Cluster; 1m; result-based retry.
+
+Reads requested managed identities and reports missing/unavailable identities. Writes the corresponding service-provider `Status.Validations` condition; no Azure mutation.
+
+#### ClusterValidationControlPlaneIdentitiesPermissionsClusterValidation
+
+[Source](../backend/pkg/utils/validationutils/control_plane_identities_permissions_cluster_validation.go) · **Trigger:** Cluster; 1m; result-based retry.
+
+Checks control-plane identities against required actions/data actions and network scopes using Azure access-check APIs. Writes the corresponding service-provider `Status.Validations` condition; no Azure mutation.
+
+#### ClusterValidationDataPlaneIdentitiesPermissionsValidation
+
+[Source](../backend/pkg/utils/validationutils/data_plane_identities_permissions_validation.go) · **Trigger:** Cluster; 1m; result-based retry.
+
+Checks data-plane identity permissions for required resource/network scopes. Writes the corresponding service-provider `Status.Validations` condition; no Azure mutation.
+
+#### NodePoolValidationAzureVMSizeSupportsEphemeralOSDiskValidation
+
+[Source](../backend/pkg/utils/validationutils/azure_nodepool_ephemeral_os_disk_validation.go) · **Trigger:** Node pool; 1m; result-based retry.
+
+Uses cached Azure SKU capabilities to validate the requested ephemeral OS disk. Writes the corresponding service-provider `Status.Validations` condition; no Azure mutation.
+
+#### NodePoolValidationAzureNodePoolVMQuotaValidation
+
+[Source](../backend/pkg/utils/validationutils/azure_nodepool_vm_quota_validation.go) · **Trigger:** Node pool; 1m; result-based retry.
+
+Reads Azure compute usage/limits and cached SKU information to validate node-pool quota. Writes the corresponding service-provider `Status.Validations` condition; no Azure mutation.
+
+#### NodePoolValidationAzureNodePoolNSGBasedRequiredConnectivityValidation
+
+[Source](../backend/pkg/utils/validationutils/azure_nodepool_nsg_based_required_connectivity_validation.go) · **Trigger:** Node pool; 1m; result-based retry.
+
+Reads worker/integration subnets and NSG rules and evaluates required connectivity; does not change the rules. Writes the corresponding service-provider `Status.Validations` condition; no Azure mutation.
+
+### Backend: billing, repair, diagnostics and caches
+
+#### CreateBillingDoc
+
+[Source](../backend/pkg/controllers/billing/create_billing_doc.go) · **Trigger:** Cluster; 1m.
+
+Requires Succeeded provisioning, a ClusterUID and no billing reference. Creates a Billing-container document and sets cluster `BillingDocumentCosmosID`.
+
+#### BackfillClusterUID
+
+[Source](../backend/pkg/controllers/mismatch/backfill_cluster_uid.go) · **Trigger:** Cluster; 60m.
+
+Repairs a missing cluster `ServiceProviderProperties.ClusterUID`: reuses the ID of an active billing document with the same creation time, otherwise generates a UUID. Writes only the cluster document; billing is an input.
+
+#### OrphanedBillingCleanup
+
+[Source](../backend/pkg/controllers/billing/orphaned_billing_cleanup.go) · **Trigger:** Global billing sweep; 60m.
+
+Compares billing references against clusters; stamps `DeletionTime` for orphaned billing documents.
+
+#### PendingCleanup
+
+[Source](../backend/pkg/controllers/cluster/placement/pending_cleanup_controller.go) · **Trigger:** Management cluster; 10m.
+
+For management clusters with pending reservations, removes entries whose service-provider cluster disappeared or whose effective placement points elsewhere (observed placement takes precedence over Spec). For unresolved placement, releases reservations when the cached cluster is deleting or terminal; keeps them while creation is active or the cluster is missing from cache. `CapacityReportingController`, separately, removes reservations once observed.
+
+#### CosmosMigration
+
+[Source](../backend/pkg/controllers/cosmosmigration/cosmos_migration.go) · **Trigger:** Subscription; once per process/key.
+
+Live-reads and reserializes resources recursively, including per-management-cluster kube-applier documents, to migrate their stored representation. Skips TTL documents and retries conflicts.
+
+#### DeleteOrphanedCosmosResources
+
+[Source](../backend/pkg/controllers/mismatch/delete_orphaned_cosmos.go) · **Trigger:** Subscription; 60m.
+
+Scans Resources and kube-applier documents and deletes orphaned children whose parent resources no longer exist.
+
+#### MissingResourceID
+
+[Source](../backend/pkg/controllers/mismatch/missing_resource_id.go) · **Trigger:** Global sweep; 60m.
+
+Logs documents missing resource IDs; deletes only those whose nonempty resource type contains controller or operation. Reports sweep errors and waits for the next sweep instead of immediate requeue.
+
+#### ClusterServiceMatchingClusters
+
+[Source](../backend/pkg/controllers/mismatch/cluster_service_cluster_matching.go) · **Trigger:** Global sweep; 60m.
+
+Finds Cluster Service clusters absent from the Cosmos inventory. Requires a creation timestamp at least one hour old and a live Cosmos not-found recheck using Azure metadata before calling Cluster Service DELETE; missing metadata/errors skip deletion. No Cosmos domain write.
+
+#### DataDump
+
+[Source](../backend/pkg/controllers/datadump/dump_cluster_recursive.go) · **Trigger:** Cluster; 1m.
+
+Logs recursive cluster Cosmos snapshots, including children; no domain mutation.
+
+#### CSStateDump
+
+[Source](../backend/pkg/controllers/datadump/cs_state_dump.go) · **Trigger:** Cluster; 1m.
+
+Reads and logs Cluster Service state; no domain mutation.
+
+#### BillingDump
+
+[Source](../backend/pkg/controllers/datadump/billing_dump.go) · **Trigger:** Cluster; 1m.
+
+Reads and logs billing state; no domain mutation.
+
+#### ManagementClusterDataDump
+
+[Source](../backend/pkg/controllers/datadump/dump_management_cluster.go) · **Trigger:** Management cluster; 5m, 4m cooldown.
+
+Logs management-cluster Cosmos and kube-applier snapshots; no domain mutation.
+
+#### SubscriptionNonClusterDataDump
+
+[Source](../backend/pkg/controllers/datadump/dump_subscription_non_cluster.go) · **Trigger:** Subscription; 5m, 4m cooldown.
+
+Logs subscription-scoped documents outside cluster subtrees; no domain mutation.
+
+#### DoNothingExample
+
+[Source](../backend/pkg/controllers/example/do_nothing.go) · **Trigger:** Subscription sweep.
+
+Registered example that performs no domain work; participates in controller logging/metrics.
+
+#### FPAVirtualMachineResourceSKUsCachedReader
+
+[Source](../backend/pkg/azure/cachedreader/virtual_machine_resource_skus_cached_reader.go) · **Trigger:** Periodic; 5m, 1h cooldown.
+
+Lists Azure virtual-machine SKUs into an in-memory cache used by validation. No Cosmos domain write or Azure mutation.
+
+### Backend: metrics instances
+
+#### OperationPhaseMetrics
+
+[Source](../backend/pkg/controllers/metrics/metrics_controller.go) · **Trigger:** All operations informer.
+
+Maintains Prometheus series for operation phases and removes stale series on deletion. No Cosmos domain write or external mutation.
+
+#### ClusterMetrics
+
+[Source](../backend/pkg/controllers/metrics/metrics_controller.go) · **Trigger:** Cluster informer.
+
+Maintains Prometheus series for cluster provisioning and removes stale series on deletion. No Cosmos domain write or external mutation.
+
+#### ClusterVersionMetrics
+
+[Source](../backend/pkg/controllers/metrics/metrics_controller.go) · **Trigger:** Service-provider cluster informer.
+
+Maintains Prometheus series for versions, using mirrored reads and removes stale series on deletion. No Cosmos domain write or external mutation.
+
+#### ClusterInfoMetrics
+
+[Source](../backend/pkg/controllers/metrics/metrics_controller.go) · **Trigger:** Service-provider cluster informer.
+
+Maintains Prometheus series for cluster identity/placement information and removes stale series on deletion. No Cosmos domain write or external mutation.
+
+#### NodePoolMetrics
+
+[Source](../backend/pkg/controllers/metrics/metrics_controller.go) · **Trigger:** Node pool informer.
+
+Maintains Prometheus series for node-pool provisioning and removes stale series on deletion. No Cosmos domain write or external mutation.
+
+#### ExternalAuthMetrics
+
+[Source](../backend/pkg/controllers/metrics/metrics_controller.go) · **Trigger:** External auth informer.
+
+Maintains Prometheus series for external-auth provisioning and removes stale series on deletion. No Cosmos domain write or external mutation.
+
+### Fleet controllers
+
+#### ClustersServiceRegistrationController
+
+[Source](../fleet/pkg/controllers/clustersserviceregistration/controller.go) · **Trigger:** Stamp watcher.
+
+Requires approved stamp; ensures/updates a Cluster Service provision shard from the management-cluster AKS ID, Maestro consumer and scheduling policy. Writes `Status.ClusterServiceProvisionShardID` and ClustersServiceRegistered condition. A recorded shard that disappears is an error.
+
+#### MaestroRegistrationController
+
+[Source](../fleet/pkg/controllers/maestroregistration/controller.go) · **Trigger:** Stamp watcher.
+
+Requires approved stamp; ensures a Maestro consumer and records registration status for the management cluster.
+
+#### ManagementClusterLifecycleController
+
+[Source](../fleet/pkg/controllers/lifecycle/controller.go) · **Trigger:** Stamp watcher.
+
+Aggregates `ClustersServiceRegistered`, `MaestroRegistered` and `SharedIngressAvailable` into `ManagementCluster.Status.Conditions[Ready]`. Preserves existing Ready until all three conditions exist; thereafter True requires all three True, otherwise Ready becomes False. Placement consumes Ready. No Azure mutation.
+
+#### StampDataDump
+
+[Source](../fleet/pkg/controllers/datadump/stamp_data_dumper.go) · **Trigger:** Stamp; 5m.
+
+Logs stamp and child documents; no domain mutation.
+
+#### EnsureCapacityReadDesireController
+
+[Source](../fleet/pkg/controllers/capacityreporting/create_capacity_report_read_desire_controller.go) · **Trigger:** Management cluster; 10m.
+
+Creates the capacity ReadDesire targeting the singleton Kubernetes CapacityReport named cluster in that management cluster.
+
+#### CapacityReportingController
+
+[Source](../fleet/pkg/controllers/capacityreporting/capacity_reporting_controller.go) · **Trigger:** Management cluster and mirrored reads; 10m.
+
+Requires current CapacityReport. Writes scheduling observed resources, ready/not-ready resource IDs and conditions; drops pending reservations once observed.
+
+#### EnsureSharedIngressReadDesireController
+
+[Source](../fleet/pkg/controllers/sharedingress/create_shared_ingress_read_desire_controller.go) · **Trigger:** Management-cluster informer, stamp key; 10m resync, 5m cooldown.
+
+With a per-management-cluster kube-applier client available, creates or repairs the management-cluster-scoped `sharedingress` ReadDesire targeting Service `hypershift-sharedingress/router`. Compares cached intent and writes Spec only when needed; conflict/precondition races defer to later reconciliation. It observes the router, not provisions it.
+
+#### SharedIngressReportingController
+
+[Source](../fleet/pkg/controllers/sharedingress/shared_ingress_reporting_controller.go) · **Trigger:** ReadDesire and management-cluster events, stamp key; 10m resync, 5m cooldown.
+
+Reads mirrored router Service content and the cached management cluster. A missing ReadDesire leaves status unchanged. Existing intent without mirrored content clears `Status.SharedIngressIPAddresses` and sets `SharedIngressAvailable=False` with reason `SharedIngressIPsNotMirrored`; an observed Service without nonempty IPs uses `SharedIngressIPsUnavailable`. Otherwise copies nonempty load-balancer IPs in order and sets True with `SharedIngressIPsAvailable`. Replaces changed management-cluster status with ETag protection; lifecycle readiness reacts. ReadDesire Successful is diagnostic, not an extra gate on populated content.
+
+#### ManagementClusterScaleCeilingReportingController
+
+[Source](../fleet/pkg/controllers/capacityreporting/scale_ceiling_controller.go) · **Trigger:** Management cluster; 5m.
+
+Reads Azure AKS worker-pool limits and mirrored CapacityReport samples. Prefers live per-node allocatable values when ready nodes exist; otherwise uses cached SKU metadata and the pool's `aks-nic-secondary-count` tag. Uses autoscaling MaxCount when enabled, otherwise Count, to write scheduling `Status.ScaleCeiling.Capacity`, `LastReportedAt` and conditions. New pool-spec/compute helpers do not add a provisioning controller; this controller does not scale AKS.
+
+#### HCPResourceRequirementsController
+
+[Source](../fleet/pkg/controllers/hcpresourcerequirements/controller.go) · **Trigger:** Periodic; configured interval.
+
+Aggregates current CapacityReports with ready HCPs into fleet HCPResourceRequirements average usage/requests, sample size, timestamp and conditions.
+
+#### AMWIngestionScaling
+
+[Source](../fleet/pkg/controllers/amwscaling/controller.go) · **Trigger:** Periodic; configured interval.
+
+Reads Azure Monitor workspace utilization and current metrics-container limits, then raises Azure ingestion limits when thresholds require it. Mutates Azure Monitor accounts/metricsContainers through REST; no Cosmos domain write.
+
+### Kube-applier and shared informer management
+
+#### ApplyDesireController
+
+[Source](../kube-applier/pkg/controllers/apply_desire/controller.go) · **Trigger:** ApplyDesire; 10m.
+
+Executes requested apply/delete operations against the target Kubernetes API and records ApplyDesire success/error and observed execution state in the per-management-cluster container. Removing an intent document is not equivalent to executing a Delete intent.
+
+#### ReadDesireInformerManagingController
+
+[Source](../kube-applier/pkg/controllers/read_desire_manager/controller.go) · **Trigger:** ReadDesire; 10m.
+
+Starts/stops the target Kubernetes informer/controller needed by each requested read; manages process-local watches rather than domain objects.
+
+#### ReadDesireKubernetesController
+
+[Source](../kube-applier/pkg/controllers/read_desire_kubernetes/controller.go) · **Trigger:** Target Kubernetes events; 60s.
+
+Copies target content or absence/error into ReadDesire status/conditions in Cosmos; supplies feedback to backend and fleet. Instances are created dynamically for requested reads.
+
+#### union-kube-applier-informers-controller
+
+[Source](../internal/database/unioninformers/kubeapplier/controller.go) · **Trigger:** Management-cluster informer; backend and fleet.
+
+Adds/removes per-management-cluster Cosmos informer sets as fleet inventory changes. Provides the union listers used by backend/fleet; no domain mutation.
+
+### Management-agent controllers and watchers
+
+#### SwiftNICController
+
+[Source](../mgmt-agent/pkg/controller/controller.go) · **Trigger:** Node informer.
+
+For nodes lacking the extended capacity, resolves VMSS NIC information from Azure using Node.ProviderID and patches Node status capacity for `aro.openshift.io/swift-nic`. Observes Azure; mutates Kubernetes.
+
+#### node-health
+
+[Source](../mgmt-agent/pkg/controller/nodehealth/controller.go) · **Trigger:** Node/Pod/Event informers; 30s sweep.
+
+Runs the compiled detector registry on cached Node/Pod/Event evidence for SWIFTv2 nodes. Ready nodes use the `swift-vf-teardown` and [cni-plugin-not-initialized](../mgmt-agent/pkg/controller/nodehealth/detectors/cni_plugin_not_initialized.go) pod detectors; non-Ready nodes use `never-ready`. The CNI detector requires at least three distinct nonterminating, nonterminal pods, each with `PodReadyToStartContainers=False` for at least 20 minutes, correlated by UID with matching `NetworkNotReady` events in the last 20 minutes. A recent sandbox success from any pod prevents it firing; event repetition alone does not increase the pod count.
+
+Labels/annotates wedged nodes and emits events/metrics; removes labels on healthy/not-applicable verdicts and leaves them unchanged when evidence is Unknown. It does not cordon, evict or delete nodes. The watched [configuration](../mgmt-agent/pkg/controller/nodehealth/config.go) controls only `enabled` (default false); detector definitions and thresholds are compiled, not runtime-configurable. No Cosmos domain write.
+
+#### capacity-reporting
+
+[Source](../mgmt-agent/pkg/controller/capacityreporting/controller.go) · **Trigger:** Periodic; 30s, 25s timeout.
+
+After informer sync, creates the singleton CapacityReport `cluster`. Every pass reads worker nodes, HCPs, namespace mappings, nonterminal pod requests and pod metrics, then server-side applies status: per-SKU allocatable capacity, requested/used resources, ready/not-ready HCP resource IDs, `LastReportedAt` and `ReportCurrent`. Collection failure retains the last payload/timestamp and writes `ReportCurrent=False`; successful collection writes True. Kube-applier mirrors the report for fleet consumers.
+
+Request and usage aggregation always includes CPU, memory and `aro.openshift.io/swift-nic` quantities, with zero values when no matching workload exists. This stable nonempty map avoids null status writes during server-side apply. The [CRD](../mgmt-agent/deploy/templates/capacityreport-crd.yaml) makes `status.hostedControlPlanes` optional and atomic: the sole writer replaces the complete ready/not-ready grouping on each apply, including transitions to empty lists.
+
+#### KSMHCPController
+
+[Source](../mgmt-agent/pkg/controller/ksmhcp/controller.go) · **Trigger:** HostedControlPlane informer.
+
+For eligible available control planes, reconciles a per-HCP kube-state-metrics Deployment, Service and ServiceMonitor using the service-network-admin-kubeconfig secret. Registration is conditional on the kube-state-metrics option.
+
+#### ConfigMapWatcher
+
+[Source](../mgmt-agent/pkg/controller/cmwatcher.go) · **Trigger:** Router ConfigMap events.
+
+Logs router configuration changes; no Cosmos domain write or resource mutation.
+
+#### PodWatcher
+
+[Source](../mgmt-agent/pkg/controller/podwatcher.go) · **Trigger:** Pod events.
+
+Logs pod state changes; no Cosmos domain write or resource mutation.
+
+#### ResourceWatcher
+
+[Source](../mgmt-agent/pkg/controller/resourcewatcher.go) · **Trigger:** Configured Kubernetes resources and CRDs.
+
+Logs initial lists and watch snapshots through reflectors whose stores retain no object cache and perform no periodic resync replay. Watches discovered matching CRD groups plus explicit namespaces, nodes, config maps, endpoints, PVCs, services, workload controllers, jobs/cronjobs, PodMonitors/ServiceMonitors, network policies and disruption budgets. Newly matching CRDs cause process restart so watches can be rebuilt; no Cosmos domain write.
+
+### Sessiongate controllers
+
+#### SessionControlPlaneController
+
+[Source](../sessiongate/pkg/controller/sessioncontroller.go) · **Trigger:** Session, management-cluster, HCP and CSRApproval events; expiry timer.
+
+The SessionController reconciles one mutation at a time: creates signing requests/approvals and credential secrets, updates Session conditions, expiry and endpoint/credential references, deletes expired sessions and cleans up CSRs. Its ManagementClusterInventory queue maintains target connections. Kubernetes writes only; no Cosmos domain write.
+
+#### DataplaneController
+
+[Source](../sessiongate/pkg/controller/dataplanecontroller.go) · **Trigger:** Session and credential-secret events.
+
+The DataplaneController registers ready session credentials, owner and backend API target in the in-memory proxy registry, removing registrations when no longer usable. No persistent domain mutation.
+
+### External effects and ownership
+
+| Resource / system | Actual mutator | Intent, observation and cleanup |
+|---|---|---|
+| Azure managed resource group | [EnsureManagedResourceGroup](#ensuremanagedresourcegroup) creates; [CleanOrphanedClusterManagedResourceGroup](#cleanorphanedclustermanagedresourcegroup) deletes confirmed orphans only in readwrite mode | Pending reference is persisted before creation; provisioning success confirms it. Normal deletion relies on external teardown; EnsureManagedResourceGroup only observes absence and clears references. |
+| Azure deny assignments | [ClusterDenyAssignment](#clusterdenyassignment) gets/creates/updates/deletes stale assignments | Tracks pending/confirmed IDs. Cluster creation requires no pending entries, a nonempty confirmed list and `EarliestRecheckTime` when enabled. Cluster deletion skips direct assignment cleanup; resource-group deletion cascades. |
+| Azure role assignments | [IdentityRoleAssignments](#identityroleassignments) gets and creates missing assignments | Persists intent before PUT; later GET confirms existence. Old confirmed assignments are retained. Cluster creation requires a nonempty confirmed list and no pending assignments. |
+| Azure identities, VM SKUs, quota, NSGs and access checks | Identity/validation controllers and SKU cache **observe** | Store resolved identities, validation conditions or memory cache; these checks do not create identities, change NSGs or raise quota. |
+| Azure VMSS NICs / AKS pool ceilings | [SwiftNICController](#swiftniccontroller) and [ManagementClusterScaleCeilingReportingController](#managementclusterscaleceilingreportingcontroller) **observe** | The former changes Kubernetes Node capacity; the latter writes Cosmos scheduling capacity. Neither changes Azure VM/pool size. |
+| Azure Monitor metrics-container ingestion limits | [AMWIngestionScaling](#amwingestionscaling) reads utilization and updates Azure limits | Periodic fleet controller, outside any single cluster's lifecycle. |
+| Cluster Service cluster/node pool/external auth | Create, update-dispatch, upgrade and delete-dispatch controllers call the external API | ID clearers observe 404; operation pollers observe completion. [ClusterServiceMatchingClusters](#clusterservicematchingclusters) also deletes aged, live-rechecked orphan clusters. |
+| Cluster Service provision shards / Maestro consumers | Fleet registration controllers ensure external registrations | Fleet management-cluster conditions record readiness for placement. Maestro/work-agent and HyperShift are external components, not repository controllers in this catalog. |
+| Kubernetes desired manifests | [ApplyDesireController](#applydesirecontroller) applies/deletes objects | Backend `ClusterResources`, backup and credential controllers write intent documents. An ApplyDesire **Delete request** executes a Kubernetes deletion; removal of the Cosmos intent alone does not. |
+| Shared-ingress router Service | External management-cluster provisioning creates the Service/load balancer | [EnsureSharedIngressReadDesireController](#ensuresharedingressreaddesirecontroller) creates observation intent; [SharedIngressReportingController](#sharedingressreportingcontroller) mirrors IPs and availability into Fleet. Admin management-cluster responses expose those IPs; these controllers do not create ingress resources. |
+| Kubernetes observation | [ReadDesireKubernetesController](#readdesirekubernetescontroller) reads targets | Writes mirrored Cosmos status; never provisions the observed target. The manager and union controller maintain the watches. |
+| Kubernetes CapacityReport, Node labels/capacity, monitoring objects | Management-agent controllers | Direct Kubernetes writes; fleet consumes mirrored capacity. [node-health](#node-health) labels/annotates detected SWIFTv2 failures and emits events; mitigation is outside this controller. [capacity-reporting](#capacity-reporting) preserves zero resource quantities and atomically replaces the HCP readiness grouping. |
+| Kubernetes Session/CSR/approval/credential secrets | [SessionControlPlaneController](#sessioncontrolplanecontroller) | Direct sessiongate control-plane writes; the dataplane controller maintains only its proxy registry. |
+
+## 3. Resource Lifecycle Digraphs
+
+These are **causal directed graphs, not execution schedules or DAGs**. Controllers
+run independently, and observations/retries form cycles. Blue nodes are in-repo
+controllers, purple nodes are API actions, orange nodes are external systems or
+collapsed external convergence paths, and green nodes are recorded states/results.
+A node containing several names is an explicitly collapsed subflow. Solid arrows
+show a write/effect or required observation; dashed arrows show feedback/retry.
+Multiple prerequisite arrows into a controller must all be satisfied unless marked
+conditional. Background validators, diagnostics, backups and metrics are cataloged
+above rather than repeated in every typical lifecycle.
+
+The delete views describe resources using `UsesNewClusterDeletionApproach`,
+`UsesNewNodePoolDeletionApproach` or `UsesNewExternalAuthDeletionApproach`; legacy
+operation paths still exist. Pending operations keep reconciling; errors retry,
+and operation-specific failure checks can produce Failed instead of Succeeded.
+The 120-second missing-ID/404 creation-race wait in delete dispatchers is distinct
+from waiting for external teardown; cluster dispatch starts tracking that wait only
+after its ClusterResources ApplyDesire gate passes. Graphs show the usual successful path and
+important feedback, not every failure branch.
+
+Render all PNGs with Graphviz installed:
+
+```sh
+bash docs/diagrams/controller-flows/render.sh
 ```
-                        PUT Cluster (Frontend)
-                               |
-                    creates Operation(Create)
-                    creates HCPOpenShiftCluster
-                               |
-              +----------------+----------------+
-              |                                 |
-              v                                 v
-  ControlPlaneDesiredVersion          ManagementClusterPlacementSync
-  (sets SPC.Spec.DesiredVersion)      (sets SPC.Status.MgmtClusterResourceID)
-              |                                 |
-              v                                 |
-  ClusterClusterServiceCreate  <----------------+
-  (sets Cluster.SP.ClusterServiceID)    (gates on DesiredVersion + MgmtCluster)
-              |
-              +---------------------+----------------+------------------------------+
-              |                     |                |                              |
-              v                     v                v                              v
-  ControlPlaneActiveVersions  ClusterPropertiesSync  SPClusterPropertiesSync  CreateClusterScopedReadDesires
-  (sets SPC.Status.ActiveVers)  (sets SP.Console,   (sets SPC.Status          (creates kube-applier ReadDesire)
-              |                  DNS, API, IssuerURL) .HostedClusterNamespace,
-              v                                       .ControlPlaneNamespace)  |
-  TriggerControlPlaneUpgrade                                                   v
-  (posts upgrade policy to CS)                                        ClusterValidation*
-              |                                                       (sets SPC.Status.Validations)
-              v
-  OperationClusterCreate
-  (polls CS + ReadDesire status -> sets Operation.Status -> sets Cluster.SP.ProvisioningState)
-              |
-              v
-  BackfillClusterUID (gates on ClusterUID empty)
-  (sets Cluster.SP.ClusterUID)
-              |
-              v
-  CreateBillingDoc (gates on ProvisioningState=Succeeded + ClusterUID non-empty)
-  (creates BillingDocument, sets Cluster.SP.BillingDocumentCosmosID)
-```
-
-### Cluster Update Flow
-
-```
-  PUT/PATCH Cluster (Frontend)
-         |
-  creates Operation(Update)
-  replaces HCPOpenShiftCluster
-         |
-         +----------------------------+
-         |                            |
-         v                            v
-  ControlPlaneDesiredVersion   ClusterClusterServiceUpdateDispatch
-  (advances SPC.Spec.          (PATCHes CS with dispatch config
-   DesiredVersion if changed)   for CIDRs, autoscaling, etc.)
-         |
-         v
-  TriggerControlPlaneUpgrade
-  (posts upgrade policy to CS)
-         |
-         v
-  OperationClusterUpdate
-  (polls CS status + ReadDesire -> sets Operation.Status -> sets Cluster.SP.ProvisioningState)
-```
-
-### Cluster Delete Flow
-
-```
-  DELETE Cluster (Frontend)
-         |
-  creates Operation(Delete)
-  sets DeletionTimestamp, UsesNewClusterDeletionApproach
-  (also creates delete ops for child NodePools + ExternalAuths)
-         |
-         v
-  ClusterClusterServiceDeleteDispatch
-  (calls CS DeleteCluster -> sets ClusterServiceDeletionTimestamp)
-         |
-         v
-  ClusterDeletionClusterServiceIDClearer
-  (polls CS until 404 -> clears ClusterServiceID)
-         |
-         v
-  ClusterChildResourcesCleanupController
-  (waits for all NPs/EAs deleted -> deletes child Cosmos docs)
-         |
-         v
-  ClusterDeletionController
-  (marks BillingDoc deleted -> DELETES Cluster document)
-         |
-         v
-  OperationClusterDelete
-  (detects cluster doc missing -> marks Operation Succeeded)
-```
-
-### NodePool Create Flow
-
-```
-  PUT NodePool (Frontend)
-         |
-  creates Operation(Create)
-  creates HCPOpenShiftClusterNodePool
-         |
-         +---------------------+
-         |                     |
-         v                     v
-  NodePoolClusterServiceCreate   NodePoolVersion
-  (sets NP.SP.ClusterServiceID)  (sets SPNP.Spec.DesiredVersion)
-         |                        |
-         |                        v
-         |              TriggerNodePoolUpgrade
-         |              (posts upgrade policy to CS)
-         |                        |
-         +------------------------+
-         |
-         v
-  OperationNodePoolCreate
-  (polls CS -> sets Operation.Status -> sets NP.Properties.ProvisioningState)
-```
-
-### NodePool Delete Flow
-
-```
-  DELETE NodePool (Frontend)
-         |
-  creates Operation(Delete), sets DeletionTimestamp
-         |
-         v
-  NodePoolClusterServiceDeleteDispatch
-  (calls CS -> sets ClusterServiceDeletionTimestamp)
-         |
-         v
-  NodePoolDeletionClusterServiceIDClearer
-  (polls CS until 404 -> clears ClusterServiceID)
-         |
-         v
-  NodePoolChildResourcesCleanupController
-  (deletes child Cosmos docs)
-         |
-         v
-  NodePoolDeletionController
-  (DELETES NodePool document)
-         |
-         v
-  OperationNodePoolDelete
-  (detects NP doc missing -> marks Operation Succeeded)
-```
-
----
-
-## 4. Fields Written by Multiple Actors
-
-Each entry links to every actor that writes the field.
-
-### `HCPOpenShiftCluster.ServiceProviderProperties.ProvisioningState`
-
-| Actor | When |
-|-------|------|
-| [Frontend: PUT Cluster (Create)](#put-cluster-create) | Sets to `Accepted` |
-| [Frontend: PUT/PATCH Cluster (Update)](#put-cluster-update) | Sets to `Accepted` |
-| [Frontend: DELETE Cluster](#delete-cluster) | Sets to `Deleting` |
-| [OperationClusterCreate](#operationclustercreate) | Advances to `Provisioning`/`Succeeded`/`Failed` |
-| [OperationClusterUpdate](#operationclusterupdate) | Advances to `Updating`/`Succeeded`/`Failed` |
-| [OperationClusterDelete](#operationclusterdelete) | Advances to `Deleting`/`Succeeded`/`Failed` |
-
-### `HCPOpenShiftCluster.ServiceProviderProperties.ActiveOperationID`
-
-| Actor | When |
-|-------|------|
-| [Frontend: PUT Cluster (Create)](#put-cluster-create) | Sets to new operation ID |
-| [Frontend: PUT/PATCH Cluster (Update)](#put-cluster-update) | Sets to new operation ID |
-| [Frontend: DELETE Cluster](#delete-cluster) | Sets to new operation ID |
-| [OperationClusterCreate](#operationclustercreate) | Clears to `""` on terminal state |
-| [OperationClusterUpdate](#operationclusterupdate) | Clears to `""` on terminal state |
-| [OperationClusterDelete](#operationclusterdelete) | Clears to `""` on terminal state |
-
-### `HCPOpenShiftCluster.ServiceProviderProperties.ClusterServiceID`
-
-| Actor | When |
-|-------|------|
-| [ClusterClusterServiceCreate](#clusterclusterservicecreate) | Sets from CS POST response |
-| [ClusterDeletionClusterServiceIDClearer](#clusterdeletionclusterserviceidclearer) | Clears to `nil` on CS 404 |
-
-### `HCPOpenShiftCluster.ServiceProviderProperties.RevokeCredentialsOperationID`
-
-| Actor | When |
-|-------|------|
-| [Frontend: POST RevokeCredentials](#post-revokecredentials) | Sets to operation ID |
-| [OperationRevokeCredentials](#operationrevokecredentials) | Clears to `""` when operation completes |
-
-### `HCPOpenShiftCluster.CustomerProperties.DNS.BaseDomainPrefix`
-
-| Actor | When |
-|-------|------|
-| [Frontend: PUT Cluster (Create)](#put-cluster-create) | Sets from request body |
-| [ClusterBaseDomainPrefixSync](#clusterbasedomainprefixsync) | Backfills from CS if empty |
-
-### `HCPOpenShiftCluster.Identity.UserAssignedIdentities`
-
-| Actor | When |
-|-------|------|
-| [Frontend: PUT Cluster (Create)](#put-cluster-create) | Rebuilt via `completeClusterIdentity` |
-| [Frontend: PUT/PATCH Cluster (Update)](#put-cluster-update) | Rebuilt via `completeClusterIdentity` with old data |
-| [ClusterIdentitySync](#clusteridentitysync) | Keeps ClientID/PrincipalID on existing Identity keys in sync with ServiceProviderCluster.Status.MSIManagedIdentities |
-
-### `HCPOpenShiftCluster.ServiceProviderProperties.DeletionTimestamp`
-
-| Actor | When |
-|-------|------|
-| [Frontend: DELETE Cluster](#delete-cluster) | Sets to current time |
-
-Single writer, but gates the entire deletion pipeline.
-
-### `HCPOpenShiftCluster.ServiceProviderProperties.ClusterUID`
-
-| Actor | When |
-|-------|------|
-| [BackfillClusterUID](#backfillclusteruid) | Sets from billing doc ID or new UUID |
-
-Single writer, but gates `CreateBillingDoc`.
-
-### `HCPOpenShiftCluster.ServiceProviderProperties.BillingDocumentCosmosID`
-
-| Actor | When |
-|-------|------|
-| [CreateBillingDoc](#createbillingdoc) | Sets after billing doc creation |
-
-Single writer, but gates billing lifecycle.
-
-### `HCPOpenShiftCluster.Status.Conditions`
-
-| Actor | When |
-|-------|------|
-| [ClusterDegradedAggregator](#degradedaggregators-cluster--nodepool--externalauth) | Aggregated `Degraded` condition from all controller status docs |
-
-Single writer.
-
-### `HCPOpenShiftCluster.Status.UserFacingConditions`
-
-| Actor | When |
-|-------|------|
-| [ClusterRequirementsValidAggregator](#clusterrequirementsvalidaggregator) | Aggregated `RequirementsValid` condition from `ServiceProviderCluster.Status.Validations` |
 
-Single writer today (`RequirementsValid` only).
+### Cluster create
 
-### `HCPOpenShiftClusterNodePool.Status.UserFacingConditions`
+[Full PNG](diagrams/controller-flows/cluster-create.png) · [Graphviz source](diagrams/controller-flows/cluster-create.dot)
 
-| Actor | When |
-|-------|------|
-| [NodePoolRequirementsValidAggregator](#nodepoolrequirementsvalidaggregator) | Aggregated `RequirementsValid` condition from `ServiceProviderNodePool.Status.Validations` |
+![Cluster create controller digraph](diagrams/controller-flows/cluster-create.png)
 
-Single writer today (`RequirementsValid` only).
+The prerequisites panel separates selected `Spec.ManagementClusterResourceID` from observed placement. The [create controller](../backend/pkg/controllers/cluster/creation/cluster_cluster_service_create_controller.go) requires pending ID, desired version, selected provision shard and, when enabled, the deny-assignment state (no pending entries, a nonempty confirmed list and `EarliestRecheckTime` set). [Placement](../backend/pkg/controllers/cluster/placement/placement_controller.go) supplies the pre-create target; actual placement is learned after Cluster Service creation.
 
-### `HCPOpenShiftClusterNodePool.Properties.ProvisioningState`
+### Cluster create: fleet readiness and placement
 
-| Actor | When |
-|-------|------|
-| [Frontend: PUT NodePool (Create)](#put-nodepool-create) | Sets to `Accepted` |
-| [Frontend: PUT/PATCH NodePool (Update)](#putpatch-nodepool-update) | Sets to `Accepted` |
-| [Frontend: DELETE NodePool](#delete-nodepool) | Sets to `Deleting` |
-| [OperationNodePoolCreate](#operationnodepoolcreate) | Advances to `Provisioning`/`Succeeded`/`Failed` |
-| [OperationNodePoolUpdate](#operationnodepoolupdate) | Advances to `Updating`/`Succeeded`/`Failed` |
-| [OperationNodePoolDelete](#operationnodepooldelete) | Advances to `Deleting`/`Succeeded`/`Failed` |
+[Full PNG](diagrams/controller-flows/fleet-placement.png) · [Graphviz source](diagrams/controller-flows/fleet-placement.dot)
 
-### `HCPOpenShiftClusterNodePool.ServiceProviderProperties.ActiveOperationID`
+![Cluster create: fleet readiness and placement](diagrams/controller-flows/fleet-placement.png)
 
-| Actor | When |
-|-------|------|
-| [Frontend: PUT NodePool (Create)](#put-nodepool-create) | Sets to new operation ID |
-| [Frontend: PUT/PATCH NodePool (Update)](#putpatch-nodepool-update) | Sets to new operation ID |
-| [Frontend: DELETE NodePool](#delete-nodepool) | Sets to new operation ID |
-| [OperationNodePoolCreate](#operationnodepoolcreate) | Clears on terminal |
-| [OperationNodePoolUpdate](#operationnodepoolupdate) | Clears on terminal |
-| [OperationNodePoolDelete](#operationnodepooldelete) | Clears on terminal |
+[Shared-ingress observation](../fleet/pkg/controllers/sharedingress/shared_ingress_reporting_controller.go) supplies the third condition required by [lifecycle readiness](../fleet/pkg/controllers/lifecycle/controller.go). Missing registration/ingress conditions preserve the previous Ready value until all exist. A missing ReadDesire also leaves ingress status unchanged; populated content, not its Successful condition, supplies IP evidence.
 
-### `HCPOpenShiftClusterNodePool.ServiceProviderProperties.ClusterServiceID`
+[Placement](../backend/pkg/controllers/cluster/placement/placement_controller.go) requires schedulable policy, Ready and current capacity/scaling observations. It reserves capacity before writing Spec placement and CapacityAvailable together. No fit records False or Unknown and requeues after 29s. [OperationClusterCreate](../backend/pkg/controllers/cluster/operations/operation_cluster_create.go) uses the overall create deadline to classify unresolved placement; this is not a separate placement timeout. The False/missing/Unknown paths in the graph apply only when no Spec placement was assigned.
 
-| Actor | When |
-|-------|------|
-| [NodePoolClusterServiceCreate](#nodepoolclusterservicecreate) | Sets from CS POST response |
-| [NodePoolDeletionClusterServiceIDClearer](#nodepooldeletionclusterserviceidclearer) | Clears to `nil` on CS 404 |
+### Cluster create: Azure prerequisites
 
-### `HCPOpenShiftClusterExternalAuth.Properties.ProvisioningState`
+[Full PNG](diagrams/controller-flows/cluster-azure-prerequisites.png) · [Graphviz source](diagrams/controller-flows/cluster-azure-prerequisites.dot)
 
-| Actor | When |
-|-------|------|
-| [Frontend: PUT ExternalAuth (Create)](#put-externalauth-create) | Sets to `Accepted` |
-| [Frontend: PUT/PATCH ExternalAuth (Update)](#putpatch-externalauth-update) | Sets to `Accepted` |
-| [Frontend: DELETE ExternalAuth](#delete-externalauth) | Sets to `Deleting` |
-| [OperationExternalAuthCreate](#operationexternalauthcreate) | Advances to `Succeeded`/`Failed` |
-| [OperationExternalAuthUpdate](#operationexternalauthupdate) | Advances to `Updating`/`Succeeded`/`Failed` |
-| [OperationExternalAuthDelete](#operationexternalauthdelete) | Advances to `Deleting`/`Succeeded`/`Failed` |
+![Azure prerequisite controller digraph](diagrams/controller-flows/cluster-azure-prerequisites.png)
 
-### `HCPOpenShiftClusterExternalAuth.ServiceProviderProperties.ClusterServiceID`
+[EnsureManagedResourceGroup](../backend/pkg/controllers/cluster/azureresources/managed_resource_group_controller.go)
+records pending intent before Azure creation, then confirms provisioning. Identity
+readers supply principals to [ClusterDenyAssignment](../backend/pkg/controllers/cluster/denyassignments/deny_assignment_controller.go).
+When deny assignments are enabled, cluster creation waits for no pending entries,
+a nonempty confirmed list and `EarliestRecheckTime` set. Azure observation and
+periodic verification form feedback loops; a successful request is not always a
+confirmed resource.
 
-| Actor | When |
-|-------|------|
-| [ExternalAuthClusterServiceCreate](#externalauthclusterservicecreate) | Sets from CS POST response |
-| [ExternalAuthDeletionClusterServiceIDClearer](#externalauthdeletionclusterserviceidclearer) | Clears to `nil` on CS 404 |
+### Cluster create: convergence and completion
 
-### `Operation.Status`
+[Full PNG](diagrams/controller-flows/cluster-convergence.png) · [Graphviz source](diagrams/controller-flows/cluster-convergence.dot)
 
-| Actor | When |
-|-------|------|
-| [Frontend (all mutating endpoints)](#1-frontend-endpoint-writes) | Sets to `Accepted` (or `Deleting` for Delete operations) |
-| [All Operation* controllers](#operation-controllers) | Advances through lifecycle (`Provisioning`/`Updating`/`Deleting` -> `Succeeded`/`Failed`) |
-| [DispatchRequestCredential](#dispatchrequestcredential) | Sets to `Canceled` (if revocation in progress) or sets `InternalID` |
-| [DispatchRevokeCredentials](#dispatchrevokecredentials) | Sets to `Deleting` (after CS dispatch) or `Canceled` (on mismatch) |
+![Cluster create: convergence and completion controller digraph](diagrams/controller-flows/cluster-convergence.png)
 
-### `ServiceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion`
+The [operation poller](../backend/pkg/controllers/cluster/operations/operation_cluster_create.go) combines Cluster Service state, HostedCluster observations, API endpoint, serving CA and confirmed role assignments. UID backfill and billing are independent controllers; billing needs both a UID and Succeeded provisioning. The manifest path is collapsed around external Kubernetes/HyperShift reconciliation; a particular deployment may also involve Maestro/work-agent.
 
-| Actor | When |
-|-------|------|
-| [ControlPlaneDesiredVersion](#controlplanedesiredversion) | Sets/advances based on customer version intent + Cincinnati |
+### Cluster update
 
-Single writer, but read by `ClusterClusterServiceCreate` (gate), `OperationClusterUpdate`, and `TriggerControlPlaneUpgrade`.
+[Full PNG](diagrams/controller-flows/cluster-update.png) · [Graphviz source](diagrams/controller-flows/cluster-update.dot)
 
-### `ServiceProviderCluster.Status.ManagementClusterResourceID`
+![Cluster update controller digraph](diagrams/controller-flows/cluster-update.png)
 
-| Actor | When |
-|-------|------|
-| [ManagementClusterPlacementSync](#managementclusterplacementsync) | Sets from CS provision shard |
+[Desired-version selection](../backend/pkg/controllers/cluster/version/control_plane_desired_version_controller.go), [upgrade dispatch](../backend/pkg/controllers/cluster/version/trigger_control_plane_upgrade_controller.go) and [operation completion](../backend/pkg/controllers/cluster/operations/operation_cluster_update.go) make separate decisions. The graph highlights version/configuration changes; sizing, identities, validation and backup maintenance continue independently.
 
-Single writer, but gates `CreateClusterScopedReadDesires` and deletion cleanup.
+### Cluster delete
 
-### `ServiceProviderCluster.Status.HostedClusterNamespace`
+[Full PNG](diagrams/controller-flows/cluster-delete.png) · [Graphviz source](diagrams/controller-flows/cluster-delete.dot)
 
-| Actor | When |
-|-------|------|
-| [ServiceProviderClusterPropertiesSync](#serviceproviderclusterpropertiessync) | Sets from HostedCluster ReadDesire namespace |
+![Cluster delete controller digraph](diagrams/controller-flows/cluster-delete.png)
 
-Single writer, but tracks the namespace containing the HostedCluster CR and user-provided secrets on the management cluster.
+[ClusterResources](../backend/pkg/controllers/clusterresources/cluster_resources_controller.go) first drops its tagged ApplyDesire documents, stopping their reconciliation without deleting their Kubernetes targets. [Delete dispatch](../backend/pkg/controllers/cluster/deletion/cluster_cluster_service_delete_dispatch_controller.go) waits for that intent cleanup before calling Cluster Service DELETE. External components then tear down Kubernetes and Azure resources. [Child cleanup](../backend/pkg/controllers/cluster/deletion/cluster_child_resources_cleanup_controller.go) waits for resource and credential children, and preserves owned ApplyDesires for their controllers and removes provider state only after managed-resource-group references, Maestro readonly bundles and cluster-scoped desires clear. [Managed-resource-group reconciliation](../backend/pkg/controllers/cluster/azureresources/managed_resource_group_controller.go) only observes deletion; it does not issue it. The optional orphan-group cleaner is a background repair path, not a prerequisite for typical deletion.
 
-### `ServiceProviderCluster.Status.ControlPlaneNamespace`
+### Node pool create
 
-| Actor | When |
-|-------|------|
-| [ServiceProviderClusterPropertiesSync](#serviceproviderclusterpropertiessync) | Sets to `<hostedClusterNamespace>-<hostedClusterName>` (dots replaced by dashes) |
+[Full PNG](diagrams/controller-flows/nodepool-create.png) · [Graphviz source](diagrams/controller-flows/nodepool-create.dot)
 
-Single writer, but tracks the namespace containing control plane pods (etcd, kube-apiserver, etc.) on the management cluster.
+![Node pool create controller digraph](diagrams/controller-flows/nodepool-create.png)
 
-### `ServiceProviderCluster.Status.MSIManagedIdentities`
+[Node-pool creation](../backend/pkg/controllers/nodepool/creation/node_pool_cluster_service_create_controller.go) needs the parent Cluster Service ID, but POST does not wait for the service-provider desired version. [Create-operation completion](../backend/pkg/controllers/nodepool/operations/operation_node_pool_create.go) uses Cluster Service node-pool status; Kubernetes version observation feeds subsequent upgrade decisions independently.
 
-| Actor | When |
-|-------|------|
-| [FetchMSIIdentitiesInfo](#fetchmsiidentitiesinfo) | Sets ControlPlaneOperatorsIdentities (lowercased resource ID keys), ServiceManagedIdentity, and EarliestRecheckTime from Managed Identities Data Plane |
+### Node pool update
 
-Single writer. Read by [ClusterIdentitySync](#clusteridentitysync) to populate `HCPOpenShiftCluster.Identity.UserAssignedIdentities`.
+[Full PNG](diagrams/controller-flows/nodepool-update.png) · [Graphviz source](diagrams/controller-flows/nodepool-update.dot)
 
-### `ServiceProviderCluster.Status.DataPlaneOperatorsManagedIdentities`
+![Node pool update controller digraph](diagrams/controller-flows/nodepool-update.png)
 
-| Actor | When |
-|-------|------|
-| [FetchDataPlaneOperatorsManagedIdentitiesInfo](#fetchdataplaneoperatorsmanagedidentitiesinfo) | Resolves each data plane operator identity's `ClientID`/`PrincipalID` from Azure (or clears them and sets `RetrievalError` on a Get failure), and sets `EarliestRecheckTime` for the next Azure recheck |
-
-Single writer. Mirrors the customer's data plane operator managed identities (`CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators`) into `Identities` keyed by lowercased Azure ResourceID, each carrying the Azure-resolved `ClientID`/`PrincipalID` or a `RetrievalError`.
-
-### `ServiceProviderCluster.Status.AzureResources.ManagedResourceGroup`
-
-| Actor | When |
-|-------|------|
-| [ObserveManagedResourceGroup](#observemanagedresourcegroup) | Observe-only: while the cluster is not being deleted, records `PendingAzureResource` before querying Azure, then sets `AzureResource` (clearing pending) when the resource group exists and is not owned by another cluster, leaves the pending marker when it is missing, and returns an error when it is owned by another cluster (`ManagedBy` set to a different cluster ID); while the cluster is being deleted, clears both references once the resource group is gone and otherwise does nothing |
-
-Single writer. Read by [ClusterChildResourcesCleanupController](#clusterchildresourcescleanupcontroller) to gate deletion of the `ServiceProviderCluster` document until the managed resource group is gone.
-
-### `ServiceProviderCluster.Status.AzureResources.RoleAssignments`
-
-| Actor | When |
-|-------|------|
-| [ObserveRoleAssignments](#observeroleassignments) | Observe-only: while the cluster is not being deleted and the managed resource group is confirmed, records each expected control-plane / data-plane operator role assignment as `PendingAzureResources` before querying Azure, then moves it to `AzureResources` once Azure confirms it exists. Deletion is a no-op (the managed resource group deletion cascade removes the role assignments). |
-
-Single writer. Read by [OperationClusterCreate](#operationclustercreate) to gate cluster-create completion until at least one role assignment is confirmed and none remain pending.
-
-### `ServiceProviderCluster.Status.Validations`
-
-| Actor | When |
-|-------|------|
-| [ClusterValidation*](#clustervalidation--nodepoolvalidation) | Multiple validation controllers write different conditions on the same list |
-
-### `BillingDocument.DeletionTime`
-
-| Actor | When |
-|-------|------|
-| [ClusterDeletionController](#clusterdeletioncontroller) | Sets when cluster document is being deleted |
-| [OrphanedBillingCleanup](#orphanedbillingcleanup) | Sets when billing doc has no corresponding cluster |
-
-### `ServiceProviderCluster.Spec.BackupState`
-
-| Actor | When |
-|-------|------|
-| [Admin API PATCH BackupSchedule](#admin-api-patch-backupschedule) | SRE sets `Enabled` or `Paused` via Admin API |
-
-Single writer. Read by [Admin API GET BackupSchedule](#admin-api-get-backupschedule) (returned in response) and [BackupScheduleSyncer](#backupschedulesyncer) (determines whether Velero schedules are paused).
-
----
-
-## Generation Prompt
-
-This document was generated by Claude Code. To regenerate or refine it, paste the prompt below
-into a conversation rooted in the ARO-HCP repo and edit the instructions to taste.
-
-```
-Examine the frontend and backend source code to produce a markdown file at
-docs/cosmos-data-flow.md that documents the Cosmos DB data flow for the
-ARO-HCP resource provider. The file must contain these sections in order:
-
-1. **Frontend Endpoint Writes** — For each mutating HTTP endpoint in
-   frontend/pkg/frontend/ (cluster.go, node_pool.go, external_auth.go,
-   frontend.go), list:
-   - HTTP method and path pattern
-   - Handler function name and source file
-   - Every Cosmos object it creates or replaces (HCPOpenShiftCluster,
-     Operation, NodePool, ExternalAuth, Subscription, etc.)
-   - The specific fields set or modified on each object before the write
-   - Whether it uses a transactional batch or a standalone write
-
-2. **Backend Controller Reads and Writes** — For each controller registered in
-   backend/pkg/controllers/ (operation controllers, creation controllers,
-   deletion controllers, upgrade controllers, properties sync controllers,
-   validation controllers, status aggregators, billing controllers, management
-   cluster controllers, read-desire controllers), list:
-   - Controller name (the constant)
-   - Source file
-   - What triggers it (which informer or resync interval)
-   - Gate/precondition (what provisioning state, deletion timestamp, or field
-     value must be true before it runs)
-   - Objects and fields READ (from cache/lister or live DB)
-   - Objects and fields WRITTEN (be specific: which fields change, what values)
-
-3. **Execution Order Digraphs** — ASCII art digraphs showing the causal order
-   of controllers after each frontend endpoint fires:
-   - Cluster Create flow
-   - Cluster Update flow
-   - Cluster Delete flow
-   - NodePool Create flow
-   - NodePool Delete flow
-   Show which field write by controller A is the gate that enables controller B.
-
-4. **Fields Written by Multiple Actors** — For every field on every Cosmos
-   object that is written by more than one actor (frontend endpoint or backend
-   controller), list every actor and when it writes, in a table. Include
-   single-writer fields only when they gate important downstream controllers.
-
-Key source locations to examine:
-- frontend/pkg/frontend/{cluster,node_pool,external_auth,frontend,helpers,routes}.go
-- internal/api/types_{cluster,nodepool,externalauth,operation,controller,
-  serviceprovider_cluster,serviceprovider_nodepool,management_cluster_content}.go
-- internal/api/arm/{resource,subscription,types_cosmosdata}.go
-- internal/database/{crud_helpers,crud_nested_resource,types_operation,database}.go
-- internal/conversion/readonly_{cluster,nodepool,externalauth}.go
-- backend/pkg/controllers/operation/*.go
-- backend/pkg/controllers/cluster/operations/*.go
-- backend/pkg/controllers/nodepool/operations/*.go
-- backend/pkg/controllers/externalauth/operations/*.go
-- backend/pkg/controllers/cluster/credentials/operations/*.go
-- backend/pkg/controllers/cluster/creation/*.go
-- backend/pkg/controllers/cluster/deletion/*.go
-- backend/pkg/controllers/nodepool/creation/*.go
-- backend/pkg/controllers/nodepool/deletion/*.go
-- backend/pkg/controllers/externalauth/creation/*.go
-- backend/pkg/controllers/externalauth/deletion/*.go
-- backend/pkg/controllers/upgradecontrollers/*.go
-- backend/pkg/controllers/cluster/properties/*.go
-- backend/pkg/controllers/validationcontrollers/*.go
-- backend/pkg/controllers/statuscontrollers/*.go
-- backend/pkg/controllers/billing/*.go
-- backend/pkg/controllers/cluster/placement/*.go
-- backend/pkg/controllers/mismatch/*.go
-- backend/pkg/controllers/create_*_read_desires_controller.go
-- backend/pkg/controllers/controllerutils/{cluster,nodepool,external_auth}_watching_controller.go
-- backend/pkg/controllers/controllerutils/generic_watching_controller.go
-
-Style rules:
-- Use tables for structured field lists, ASCII art for digraphs.
-- Use bullet points for lists within the table.
-- Link to source files with relative paths from docs/.
-- In the multi-writer section, link each actor back to its section heading.
-- Omit read-only / diagnostic controllers (data dumps, metrics, mismatch
-  detectors) unless they write to Cosmos.
-- Never use shorthand like "deletion fields", "same fields as above", or
-  "same pattern as X". Always list every individual field explicitly, even
-  if it repeats across similar controllers. The reader should never have to
-  look at another section to know what a controller reads or writes.
-- For each controller's Gate, express it as the exact NeedsWork /
-  ShouldProcess conditions from the source code — field == value or
-  field != nil, one per bullet. In the Read table, annotate each field
-  that participates in the NeedsWork / ShouldProcess check with
-  "(NeedsWork: must be X)" so the reader can see at a glance which reads
-  are precondition checks vs. data reads. Every field mentioned in the
-  Gate must appear as a Read row in the table — if a NeedsWork function
-  checks a field, that field is read, and it must be listed.
-- Keep this generation prompt at the bottom of the file so it can be edited
-  and re-run.
-```
+[Update completion](../backend/pkg/controllers/nodepool/operations/operation_node_pool_update.go) combines version resolution, Cluster Service state/configuration and mirrored Kubernetes NodePool checks. [NodePoolVersion](../backend/pkg/controllers/nodepool/version/nodepool_version_controller.go) selects desired state; [NodePoolActiveVersions](../backend/pkg/controllers/nodepool/version/nodepool_active_version_controller.go) records both provider and customer-visible observations. Status completion requires replicas plus AllNodesHealthy and AllMachinesReady; both health checks are skipped for fixed zero replicas.
+
+### Node pool delete
+
+[Full PNG](diagrams/controller-flows/nodepool-delete.png) · [Graphviz source](diagrams/controller-flows/nodepool-delete.dot)
+
+![Node pool delete controller digraph](diagrams/controller-flows/nodepool-delete.png)
+
+[Node-pool delete dispatch](../backend/pkg/controllers/nodepool/deletion/node_pool_cluster_service_delete_dispatch_controller.go) does not wait for ApplyDesire cleanup. [Child cleanup](../backend/pkg/controllers/nodepool/deletion/node_pool_child_resources_cleanup_controller.go) removes its subtree and desires after the ID is cleared. ClusterResources stops publishing a deleting node pool, while external controllers may still be converging.
+
+### External auth create
+
+[Full PNG](diagrams/controller-flows/externalauth-create.png) · [Graphviz source](diagrams/controller-flows/externalauth-create.dot)
+
+![External auth create controller digraph](diagrams/controller-flows/externalauth-create.png)
+
+[Create completion](../backend/pkg/controllers/externalauth/operations/operation_external_auth_create.go) succeeds after a Cluster Service GET succeeds. There is no separate ServiceProviderExternalAuth document or external-auth-scoped read pipeline; this completion check does not establish downstream authentication readiness.
+
+### External auth update
+
+[Full PNG](diagrams/controller-flows/externalauth-update.png) · [Graphviz source](diagrams/controller-flows/externalauth-update.dot)
+
+![External auth update controller digraph](diagrams/controller-flows/externalauth-update.png)
+
+[Update completion checks](../backend/pkg/controllers/externalauth/operations/operation_external_auth_update_state_calculation.go) compare both Cluster Service configuration and the parent HostedCluster spec read through its existing ReadDesire. Authentication status is explicitly not checked. This is stricter than the create poller's existence check, but is still not end-to-end authentication validation.
+
+### External auth delete
+
+[Full PNG](diagrams/controller-flows/externalauth-delete.png) · [Graphviz source](diagrams/controller-flows/externalauth-delete.dot)
+
+![External auth delete controller digraph](diagrams/controller-flows/externalauth-delete.png)
+
+[Delete dispatch](../backend/pkg/controllers/externalauth/deletion/external_auth_cluster_service_delete_dispatch_controller.go), [ID clearing](../backend/pkg/controllers/externalauth/deletion/external_auth_cluster_service_id_clearer.go), child cleanup and document deletion are separate reconciliations. [Operation completion](../backend/pkg/controllers/externalauth/operations/operation_external_auth_delete.go) observes the document disappearing.
+
+## 4. Shared Fields and Ownership
+
+The important distinction is requested state versus externally confirmed state.
+The API normally owns customer configuration; controllers fill runtime observations
+and operation state. Full-document replacements preserve fields owned by other
+actors and use optimistic concurrency; retries must re-read on conflict.
+
+### ARM resource and operation fields
+
+| Field / object | Writers and downstream meaning |
+|---|---|
+| Cluster `CustomerProperties`; node-pool/external-auth `Properties` | Frontend create/update writes customer intent. [ClusterBaseDomainPrefixSync](#clusterbasedomainprefixsync) fills the generated DNS prefix. Dispatch/version controllers react to relevant differences. |
+| Cluster `ServiceProviderProperties.ProvisioningState`; node-pool/external-auth `Properties.ProvisioningState` | Frontend marks Accepted/Deleting; the matching operation controller writes progress/terminal state. This is ARM request state, not a complete inventory of external resources. |
+| `ServiceProviderProperties.ActiveOperationID` | Frontend sets the new operation reference; terminal operation updates clear it. Pollers reject superseded operation IDs. |
+| `Operation.Status`, `Error`, `LastTransitionTime`, `NotificationURI` | Frontend initializes/cancels requests; operation controllers update status and send/clear async notifications through the shared helper. |
+| `ServiceProviderProperties.DeletionTimestamp` and deletion-approach flags | Frontend stamps deletion intent; dispatch, cleanup and final deletion controllers consume it. Deletion timestamp alone does not mean external resources are gone. |
+| Cluster `PendingClusterServiceID` / `ClusterServiceID` | [Pending ID assignment](#clusterpendingclusterserviceidassign) reserves the ID. [Cluster creation](#clusterclusterservicecreate) confirms the external ID and clears pending. The [ID clearer](#clusterdeletionclusterserviceidclearer) clears confirmed ID only after external absence. Node-pool/external-auth create and clear controllers similarly share their confirmed-ID fields. |
+| `ClusterServiceDeletionTimestamp` | Each delete dispatcher stamps completion of dispatch/creation-race handling; cleanup also requires the confirmed ID cleared. It is not a timestamp of all Azure/Kubernetes deletion. |
+| Cluster `ClusterUID`, `BillingDocumentCosmosID`; Billing document `DeletionTime` | [BackfillClusterUID](#backfillclusteruid) repairs UID using billing as input. [CreateBillingDoc](#createbillingdoc) creates billing and links it. [ClusterDeletionController](#clusterdeletioncontroller) and [OrphanedBillingCleanup](#orphanedbillingcleanup) mark billing deleted. |
+| Cluster `Identity.UserAssignedIdentities` | Frontend supplies identity intent; [ClusterIdentitySync](#clusteridentitysync) fills resolved identity fields. Azure identities themselves are not created by that syncer. |
+| Cluster/node-pool `Status.ActiveVersions` | [ControlPlaneActiveVersions](#controlplaneactiveversions) writes distinct major.minor cluster versions; [NodePoolActiveVersions](#nodepoolactiveversions) writes full node-pool versions. The 2026-10-01-preview API returns these stored observations through `properties.status.activeVersions`; customer configuration remains separately owned. |
+| ARM Degraded / RequirementsValid conditions | Resource-specific aggregators combine Controller or service-provider validation conditions. A validation failure and a reconcile error are separate signals. |
+
+### Service-provider state, fleet and external observations
+
+| Field / object | Writers and downstream meaning |
+|---|---|
+| Cluster `Spec.ControlPlaneVersion.DesiredVersion` | [ControlPlaneDesiredVersion](#controlplanedesiredversion) selects the exact target. Cluster create and upgrade dispatch consume it. |
+| Service-provider cluster `Status.ControlPlaneVersion.ActiveVersions` / `Status.DesiredVersionChannels` | [ControlPlaneActiveVersions](#controlplaneactiveversions) copies exact HostedCluster history and desired channels. Desired target and active history can differ while an upgrade is underway. |
+| Node-pool desired / active versions | [NodePoolVersion](#nodepoolversion) writes `Spec.NodePoolVersion.DesiredVersion`; [NodePoolActiveVersions](#nodepoolactiveversions) writes `Status.NodePoolVersion.ActiveVersions`. [TriggerNodePoolUpgrade](#triggernodepoolupgrade) reacts to their difference. |
+| Service-provider cluster `Status.Placement.Conditions[CapacityAvailable]` | [Placement](#placement) records True with selected Spec placement, False for known lack of capacity/eligibility, or Unknown for incomplete observations. [OperationClusterCreate](#operationclustercreate) consumes it when placement remains unresolved at the overall deadline. |
+| Management cluster `Status.SharedIngressIPAddresses` / `SharedIngressAvailable` / `Ready` | [SharedIngressReportingController](#sharedingressreportingcontroller) copies Service IPs and availability; [ManagementClusterLifecycleController](#managementclusterlifecyclecontroller) combines availability with registrations into Ready. [Admin responses](../admin/server/handlers/stamp/managementcluster.go) expose observed IPs. |
+| Cluster `Spec.ManagementClusterResourceID` / `Status.ManagementClusterResourceID` | [Placement](#placement) chooses the target; [ManagementClusterPlacementSync](#managementclusterplacementsync) records Cluster Service reality. Desired placement enables creation; actual placement enables per-cluster kube-applier access. |
+| Scheduling `Status.PendingAssignedClusters` | [Placement](#placement) reserves; [CapacityReportingController](#capacityreportingcontroller) removes observed entries; [PendingCleanup](#pendingcleanup) removes missing/misplaced entries and unresolved reservations for deleting/terminal clusters. |
+| Scheduling observed capacity / scale ceiling; fleet HCP resource requirements | Fleet capacity and scale-ceiling controllers write observed scheduling inputs. [HCPResourceRequirementsController](#hcpresourcerequirementscontroller) aggregates per-HCP demand. Placement currently chooses on SWIFT NIC availability from the scheduling document; aggregate HCP demand and CPU/memory do not yet decide placement. |
+| `Status.AzureResources.ManagedResourceGroup` | [EnsureManagedResourceGroup](#ensuremanagedresourcegroup) writes pending/confirmed reference and clears both after observing deletion. Deny/role assignment controllers need the confirmed group; final provider-document cleanup needs references gone. |
+| `Status.AzureResources.DenyAssignments` / `RoleAssignments` | Their respective controllers track `PendingAzureResources` and confirmed `AzureResources`. The role controller confirms newly created assignments in a later observation pass. |
+| `Status.MSIManagedIdentities`, `Status.DataPlaneOperatorsManagedIdentities` | Identity fetchers write resolved IDs/errors for assignment and identity-property synchronization. `Spec.EarliestRecheckTimesByController` has independently owned entries for identity and role-assignment controllers; deny assignments keep their own `EarliestRecheckTime` under `Status.AzureResources.DenyAssignments`. |
+| `Status.Validations` | Each registered validation writes its own condition in the service-provider cluster or node pool; requirements aggregators consume the set. |
+| Cluster `Status.HostedClusterNamespace`, `ControlPlaneNamespace`, `ServingCABundle` | [ServiceProviderClusterPropertiesSync](#serviceproviderclusterpropertiessync) fills these from mirrored reads. Credentials and create-operation completion wait on them. |
+| Cluster `Spec.BackupState` | Admin backup PATCH writes Enabled/Paused; [BackupSchedule](#backupschedule) reconciles Velero intent. Mirrored Kubernetes status reports results separately. |
+| `ApplyDesire` / `ReadDesire` | Backend/fleet writers own desired content/targets; kube-applier owns execution/observation status. Credential cleanup and stale-resource cleanup during live ClusterResources reconciliation use Delete intents and wait. During whole-cluster deletion, ClusterResources drops its intent documents directly; external components own Kubernetes teardown. |
+| Kubernetes CapacityReport | Management-agent [capacity-reporting](#capacity-reporting) server-side applies status, preserving zero CPU/memory/SWIFT-NIC quantities and replacing `hostedControlPlanes` atomically. Kube-applier mirrors it; fleet updates scheduling and resource-requirement documents only from current observations. Collection failures retain the previous payload while setting ReportCurrent=False. |
+
+### Credential and controller bookkeeping
+
+| Field / object | Writers and downstream meaning |
+|---|---|
+| Cluster `RevokeCredentialsOperationID` | Frontend sets the revoke sentinel; modern revoke-operation completion clears it. New issuance checks it before dispatch. |
+| Credential request spec / status | [Credential dispatch](#systemadmincredentialdispatchrequestcredential) creates request material. [Issuance observation](#systemadmincredentialissuanceobserver) writes signed certificate and terminal conditions. Revocation marking and cluster deletion mark requests for cleanup; request controllers remove external artifacts and documents. |
+| Credential revocation conditions / deletion timestamp | MarkRequests reports request marking; Completion combines that with observed certificate revocation and sets deletion intent; Deletion removes artifacts/document; operation poller observes disappearance. |
+| Child `Controller` conditions and reconcile metadata | Generic wrappers persist bookkeeping; version/other syncers can set intent conditions. Degraded aggregators read them. “No domain write” in the catalog does not imply the wrapper never writes a Controller document. |
+| Kubernetes Session status / secrets | Sessiongate's [control-plane controller](#sessioncontrolplanecontroller) owns session expiry, readiness, endpoint and credential references; [DataplaneController](#dataplanecontroller) consumes them to configure its in-memory proxy registry. |
+
+## Regeneration
+
+Use the separate [generation prompt](prompts/controller-data-flow.md). Editable
+DOT sources and their PNG renders live together in
+[diagrams/controller-flows](diagrams/controller-flows/). Refresh controller inventory,
+source evidence, ownership and diagrams together when behavior or registration changes.

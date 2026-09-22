@@ -17,6 +17,7 @@ package gatherobservability
 import (
 	"context"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 
@@ -37,7 +38,7 @@ func fetchAlertRules(ctx context.Context, cred azcore.TokenCredential, workspace
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			return nil, fmt.Errorf("failed to list prometheus rule groups: %w", err)
+			return slices.Sorted(maps.Keys(seen)), fmt.Errorf("failed to list prometheus rule groups: %w", err)
 		}
 		for _, group := range page.Value {
 			if group.Properties == nil || !scopeContainsWorkspace(group.Properties.Scopes, workspaceResourceID) {
@@ -70,7 +71,8 @@ func fetchMetricAlertRules(ctx context.Context, cred azcore.TokenCredential, sub
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			return nil, fmt.Errorf("failed to list metric alert rules: %w", err)
+			slices.Sort(rules)
+			return rules, fmt.Errorf("failed to list metric alert rules: %w", err)
 		}
 		for _, alert := range page.Value {
 			if alert.Name != nil && *alert.Name != "" {

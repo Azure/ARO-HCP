@@ -151,7 +151,7 @@ func (c *Client) UpdateApplicationRedirectUris(ctx context.Context, appID string
 func (c *Client) DeleteApplication(ctx context.Context, appID string) error {
 	err := c.graphClient.Applications().ByApplicationId(appID).Delete(ctx, nil)
 	if err != nil {
-		return fmt.Errorf("delete application: %w", err)
+		return fmt.Errorf("delete application: %w", odataErrorWithDiagnostics(err))
 	}
 	return nil
 }

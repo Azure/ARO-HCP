@@ -377,10 +377,7 @@ func managementClusterResourceID(mc *fleetapi.ManagementCluster) *azcorearm.Reso
 	if mc == nil {
 		return nil
 	}
-	if mc.ResourceID != nil {
-		return mc.ResourceID
-	}
-	return mc.CosmosMetadata.ResourceID
+	return mc.ResourceID
 }
 
 // managementClusterKeyFromEvent computes the workqueue key for a

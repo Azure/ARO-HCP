@@ -33,7 +33,7 @@ Kusto clusters are provisioned per environment and region via Bicep templates wi
   - `ServiceLogs` database: 90 days soft delete, 2 days hot cache
   - `HostedControlPlaneLogs` database: 14 days soft delete, 2 days hot cache
 - **Autoscaling**: Configurable min/max nodes (via `enableAutoScale` parameter)
-- **SKU**: Environment-specific (e.g., `Standard_D12_v2` for production, `Dev(No SLA)_Standard_D11_v2` for development)
+- **SKU**: Environment-specific, configured via the `kusto.sku` config value
 
 **Note**: The database was originally named `customerLogs` but renamed to `HostedControlPlaneLogs`. Clusters support cross-tenant access (e.g., AME tenant) when configured with appropriate permissions.
 
@@ -50,13 +50,14 @@ Table schemas are defined in KQL files under [`dev-infrastructure/modules/logs/k
 5. **`fleetLogs`** ([schema](../../dev-infrastructure/modules/logs/kusto/tables/fleetLogs.kql)): Fleet controller logs with controller name, resource identifiers, and resource type
 6. **`containerLogs`** ([schema](../../dev-infrastructure/modules/logs/kusto/tables/containerLogs.kql)): General container logs from non-OCM namespaces
 7. **`kubernetesEvents`** ([schema](../../dev-infrastructure/modules/logs/kusto/tables/kubernetesEvents.kql)): Kubernetes events from all clusters
+8. **`azureVnetLogs`** ([schema](../dev-infrastructure/modules/logs/kusto/tables/azureVnetLogs.kql)): Azure VNet CNI host-file logs, with node identity and structured diagnostics
 
 ### HostedControlPlaneLogs Database
 
 1. **`containerLogs`** ([schema](../../dev-infrastructure/modules/logs/kusto/tables/containerLogs.kql)): Container logs from OCM namespaces (`ocm-*` pattern)
 2. **`kubernetesEvents`** ([schema](../../dev-infrastructure/modules/logs/kusto/tables/kubernetesEvents.kql)): Kubernetes events from Hosted Control Planes
 
-All tables include common columns: `timestamp`, `log` (dynamic JSON), `environment`, `cluster`, `region`, and Kubernetes metadata (`namespace_name`, `container_name`, `pod_name`, `host`).
+Container-log tables include `timestamp`, `log` (dynamic JSON), `environment`, `cluster`, `region`, and Kubernetes metadata. Host-file logs instead use `hostname` for the node and do not have collector Pod metadata.
 
 ## Data Ingestion
 
@@ -82,6 +83,7 @@ Fluent Bit authenticates using **Azure Workload Identity** (MSI client ID, token
 | Fleet | Non-OCM | `fleet-controller*` | ServiceLogs | `fleetLogs` |
 | kube-applier | Non-OCM | `kube-applier*` | ServiceLogs | `kubeApplierLogs` |
 | Kubernetes Events | Any | `kube-events*` | ServiceLogs | `kubernetesEvents` |
+| Azure VNet host file | N/A | N/A | ServiceLogs | `azureVnetLogs` |
 | General Containers | Non-OCM | Other | ServiceLogs | `containerLogs` |
 | HCP Containers | `ocm-*` | Any | HostedControlPlaneLogs | `containerLogs` |
 | HCP Events | `ocm-*` | `kube-events*` | HostedControlPlaneLogs | `kubernetesEvents` |
@@ -89,6 +91,27 @@ Fluent Bit authenticates using **Azure Workload Identity** (MSI client ID, token
 **Management clusters** route OCM namespace logs to `HostedControlPlaneLogs`; **service clusters** route service logs to `ServiceLogs` with table-specific routing.
 
 ## Querying Logs
+
+### Azure VNet CNI Logs
+
+When Kusto forwarding is enabled, Arobit tails `/var/log/azure-vnet.log` on service and management nodes using Fluent Bit's native tail input and JSON parser. No additional agent is required. The parser uses the JSON `ts` UTC timestamp (retained in `log.ts`). Plain-text and malformed JSON lines are retained as `message` with collection time and no parsed severity. Escaped newlines within JSON do not need multiline reassembly.
+
+The dynamic `log` column retains parsed diagnostic fields, including `error`, caller, and available network identifiers. Top-level `stdinData` and `args` are removed before export because they contain CNI invocation/configuration payloads. Unparsed lines containing either field name are dropped rather than forwarding a potentially truncated payload. This is not general-purpose redaction: messages and other fields can still contain infrastructure and customer network identifiers. Treat this table as service diagnostic data, not customer-visible logs. Errors can be logged at `info`, so do not filter solely by severity.
+
+```kusto
+azureVnetLogs
+| where timestamp between (datetime(2026-09-17T11:50:00Z) .. datetime(2026-09-17T12:20:00Z))
+| where cluster == '<management-cluster>' and hostname == '<node>'
+| where message contains 'DHCP' or tostring(log.error) contains 'dhcp'
+| project timestamp, hostname, level, message, log
+| order by timestamp asc
+```
+
+Always include `cluster` as well as `hostname` when correlating with `systemdLogs` or Pod snapshots. Azure VNet files are not included in existing hcpctl systemd exports; query this table directly.
+
+Only the active file is watched; numeric and timestamp-named backups are not backfilled. The tail cursor is stored in `/var/log/flb-azure-vnet.db` on the existing host mount, so it survives collector Pod replacement on the same node. A new cursor starts at the end of the file. Rotation is followed with a 30-second wait for the old file; lines over 256 KiB are skipped rather than stopping the reader. Node replacement, rotations during collector downtime, and ephemeral output buffers can still lose data. Collection begins only after this configuration is deployed; use [manual collection](ops/mitigate-swiftv2-wedged-node.md) for retained files from earlier incidents.
+
+Deploy the `azureVnetLogs` table and ingestion mapping through the Geography Kusto infrastructure pipeline before rolling out the collector. A Region-only rollout does not deploy that ancestor. No new database ingestion identity is needed.
 
 ### hcpctl must-gather
 

@@ -28,6 +28,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
@@ -173,7 +174,7 @@ func (c *dispatchRequestCredential) SynchronizeOperation(ctx context.Context, ke
 	credName := strings.ReplaceAll(uuid.New().String(), "-", "")[:16]
 
 	// Build the credential resource ID.
-	credResourceID, err := coreapi.ToSystemAdminCredentialRequestResourceID(
+	credResourceID, err := coreapihelpers.ToSystemAdminCredentialRequestResourceID(
 		operation.ExternalID.SubscriptionID,
 		operation.ExternalID.ResourceGroupName,
 		operation.ExternalID.Name,

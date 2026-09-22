@@ -55,6 +55,7 @@ type TimingInfo struct {
 	TestStartTime      time.Time
 	CleanupStartTime   time.Time
 	ResourceGroupNames []string
+	SubscriptionID     string
 	Steps              []StepTimingMetadata
 }
 
@@ -183,6 +184,7 @@ func LoadTestTimingInfo(ctx context.Context, dir string) (map[string]TimingInfo,
 			TestStartTime:      testStartTime,
 			CleanupStartTime:   finishedAt,
 			ResourceGroupNames: rgNames,
+			SubscriptionID:     tm.SubscriptionID,
 			Steps:              tm.Steps,
 		}
 		return nil

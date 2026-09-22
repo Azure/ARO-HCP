@@ -34,6 +34,7 @@ func TestParseProwURL(t *testing.T) {
 				JobName:   "periodic-ci-Azure-ARO-HCP-main-e2e-parallel",
 				ProwID:    "1234567890",
 				GCSPrefix: "logs/periodic-ci-Azure-ARO-HCP-main-e2e-parallel/1234567890",
+				GCSBucket: "test-platform-results",
 			},
 			wantIsPR: false,
 		},
@@ -45,6 +46,7 @@ func TestParseProwURL(t *testing.T) {
 				JobName:   "pull-ci-Azure-ARO-HCP-main-e2e-parallel",
 				ProwID:    "1234567890",
 				GCSPrefix: "pr-logs/pull/Azure_ARO-HCP/9999/pull-ci-Azure-ARO-HCP-main-e2e-parallel/1234567890",
+				GCSBucket: "test-platform-results",
 			},
 			wantIsPR: true,
 		},
@@ -56,6 +58,7 @@ func TestParseProwURL(t *testing.T) {
 				JobName:   "pull-ci-Azure-ARO-HCP-main-e2e-parallel",
 				ProwID:    "2074470816258461696",
 				GCSPrefix: "pr-logs/pull/batch/pull-ci-Azure-ARO-HCP-main-e2e-parallel/2074470816258461696",
+				GCSBucket: "test-platform-results",
 			},
 			wantIsPR: true,
 		},
@@ -67,8 +70,21 @@ func TestParseProwURL(t *testing.T) {
 				JobName:   "rehearse-82457-pull-ci-openshift-hypershift-main-e2e-aro-hcp",
 				ProwID:    "2081917423216234496",
 				GCSPrefix: "pr-logs/pull/openshift_release/82457/rehearse-82457-pull-ci-openshift-hypershift-main-e2e-aro-hcp/2081917423216234496",
+				GCSBucket: "test-platform-results",
 			},
 			wantIsPR: true,
+		},
+		{
+			name:   "public bucket URL",
+			rawURL: "https://prow.ci.openshift.org/view/gs/test-platform-results-public/logs/periodic-ci-Azure-ARO-HCP-main-e2e-parallel/1234567890",
+			wantInfo: &ProwJobInfo{
+				URL:       "https://prow.ci.openshift.org/view/gs/test-platform-results-public/logs/periodic-ci-Azure-ARO-HCP-main-e2e-parallel/1234567890",
+				JobName:   "periodic-ci-Azure-ARO-HCP-main-e2e-parallel",
+				ProwID:    "1234567890",
+				GCSPrefix: "logs/periodic-ci-Azure-ARO-HCP-main-e2e-parallel/1234567890",
+				GCSBucket: "test-platform-results-public",
+			},
+			wantIsPR: false,
 		},
 		{
 			name:    "no logs segment",
@@ -145,6 +161,9 @@ func TestParseProwURL(t *testing.T) {
 			}
 			if got.GCSPrefix != tt.wantInfo.GCSPrefix {
 				t.Errorf("GCSPrefix = %q, want %q", got.GCSPrefix, tt.wantInfo.GCSPrefix)
+			}
+			if got.GCSBucket != tt.wantInfo.GCSBucket {
+				t.Errorf("GCSBucket = %q, want %q", got.GCSBucket, tt.wantInfo.GCSBucket)
 			}
 			if got.IsPullRequest() != tt.wantIsPR {
 				t.Errorf("IsPullRequest() = %v, want %v", got.IsPullRequest(), tt.wantIsPR)

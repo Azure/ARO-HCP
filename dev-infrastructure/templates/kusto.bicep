@@ -28,6 +28,15 @@ param viewerGroups string
 @description('CSV separated list of identities (apps/managed identities) to assign viewer in the Kusto cluster')
 param viewerIdentities string = ''
 
+@description('Name of the global rollout MSI granted AllDatabasesAdmin so the KustoEntityGroups pipeline step (kustoctl) can sync entity groups. Empty disables the grant.')
+param globalMSIName string = ''
+
+@description('Resource group of the global rollout MSI (same subscription as this deployment). Required when globalMSIName is set.')
+param globalMSIResourceGroup string = ''
+
+@description('ARO-HCP environment (int, stg, prod) tagged on the Kusto cluster so kustoctl can scope entity-group discovery per environment.')
+param environment string = ''
+
 @description('Name of the Kusto cluster to create')
 param kustoName string
 
@@ -54,6 +63,9 @@ module kusto '../modules/logs/kusto/main.bicep' = if (manageInstance) {
     adminGroups: adminGroups
     viewerGroups: viewerGroups
     viewerIdentities: viewerIdentities
+    globalMSIName: globalMSIName
+    globalMSIResourceGroup: globalMSIResourceGroup
+    environment: environment
     autoScaleMin: autoScaleMin
     autoScaleMax: autoScaleMax
     enableAutoScale: enableAutoScale

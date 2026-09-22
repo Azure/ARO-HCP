@@ -26,16 +26,16 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
 )
 
 func validManagementCluster(t *testing.T) *fleetapi.ManagementCluster {
 	t.Helper()
-	resourceID := metadataapi.Must(fleetapi.ToManagementClusterResourceID("1"))
+	resourceID := metadataapi.Must(fleetapihelpers.ToManagementClusterResourceID("1"))
 	return &fleetapi.ManagementCluster{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID: resourceID,
 		},
-		ResourceID: resourceID,
 		Spec: fleetapi.ManagementClusterSpec{
 			SchedulingPolicy: fleetapi.ManagementClusterSchedulingPolicySchedulable,
 		},
@@ -87,7 +87,6 @@ func TestValidateManagementClusterCreate(t *testing.T) {
 			name: "stamp identifier with uppercase rejected",
 			modify: func(t *testing.T, mc *fleetapi.ManagementCluster) {
 				mc.ResourceID = metadataapi.Must(azcorearm.ParseResourceID("/providers/Microsoft.RedHatOpenShift/stamps/ABC/managementClusters/default"))
-				mc.CosmosMetadata.ResourceID = mc.ResourceID
 			},
 			expectErrors: []expectedError{
 				{fieldPath: "resourceId.parent.name", message: "must be 1-3 lowercase alphanumeric characters"},
@@ -97,7 +96,6 @@ func TestValidateManagementClusterCreate(t *testing.T) {
 			name: "stamp identifier too long rejected",
 			modify: func(t *testing.T, mc *fleetapi.ManagementCluster) {
 				mc.ResourceID = metadataapi.Must(azcorearm.ParseResourceID("/providers/Microsoft.RedHatOpenShift/stamps/abcd/managementClusters/default"))
-				mc.CosmosMetadata.ResourceID = mc.ResourceID
 			},
 			expectErrors: []expectedError{
 				{fieldPath: "resourceId.parent.name", message: "must be 1-3 lowercase alphanumeric characters"},
@@ -107,7 +105,6 @@ func TestValidateManagementClusterCreate(t *testing.T) {
 			name: "stamp identifier with special chars rejected",
 			modify: func(t *testing.T, mc *fleetapi.ManagementCluster) {
 				mc.ResourceID = metadataapi.Must(azcorearm.ParseResourceID("/providers/Microsoft.RedHatOpenShift/stamps/a-b/managementClusters/default"))
-				mc.CosmosMetadata.ResourceID = mc.ResourceID
 			},
 			expectErrors: []expectedError{
 				{fieldPath: "resourceId.parent.name", message: "must be 1-3 lowercase alphanumeric characters"},
@@ -116,16 +113,14 @@ func TestValidateManagementClusterCreate(t *testing.T) {
 		{
 			name: "stamp identifier single char accepted",
 			modify: func(t *testing.T, mc *fleetapi.ManagementCluster) {
-				mc.ResourceID = metadataapi.Must(fleetapi.ToManagementClusterResourceID("a"))
-				mc.CosmosMetadata.ResourceID = mc.ResourceID
+				mc.ResourceID = metadataapi.Must(fleetapihelpers.ToManagementClusterResourceID("a"))
 			},
 			expectErrors: nil,
 		},
 		{
 			name: "stamp identifier three chars accepted",
 			modify: func(t *testing.T, mc *fleetapi.ManagementCluster) {
-				mc.ResourceID = metadataapi.Must(fleetapi.ToManagementClusterResourceID("ab3"))
-				mc.CosmosMetadata.ResourceID = mc.ResourceID
+				mc.ResourceID = metadataapi.Must(fleetapihelpers.ToManagementClusterResourceID("ab3"))
 			},
 			expectErrors: nil,
 		},
@@ -376,7 +371,7 @@ func TestValidateManagementClusterUpdate(t *testing.T) {
 		{
 			name: "resourceId changed",
 			modify: func(t *testing.T, mc *fleetapi.ManagementCluster) {
-				mc.ResourceID = metadataapi.Must(fleetapi.ToManagementClusterResourceID("x2"))
+				mc.ResourceID = metadataapi.Must(fleetapihelpers.ToManagementClusterResourceID("x2"))
 			},
 			expectErrors: []expectedError{
 				{fieldPath: "resourceId", message: "immutable"},

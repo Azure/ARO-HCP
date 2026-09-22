@@ -15,6 +15,8 @@ LOCAL_FRONTEND_PORT ?= 8443
 LOCAL_ADMIN_API_PORT ?= 8444
 AROHCP_ENV ?= development
 CUSTOMER_SUBSCRIPTION ?= $$(az account show --output tsv --query 'name')
+AZURE_HOME_TENANT_ID ?= $$(az account show --output tsv --query 'homeTenantId')
+EMPTY_TENANT_ID := 00000000-0000-0000-0000-000000000000
 ifndef E2E_ARTIFACT_DIR
   E2E_ARTIFACT_DIR := $(shell mktemp -d)
 endif
@@ -25,7 +27,7 @@ e2e-local/run-test: $(ARO_HCP_TESTS)
 	export LOCATION="$${LOCATION:-${REGION}}"; \
 	export AROHCP_ENV="development"; \
 	export CUSTOMER_SUBSCRIPTION="$$(az account show --output tsv --query 'name')"; \
-	export AZURE_TENANT_ID="$$(az account show --output tsv --query 'tenantId')"; \
+	export AZURE_TENANT_ID="$(AZURE_HOME_TENANT_ID)"; \
 	export SKIP_CERT_VERIFICATION=$${SKIP_CERT_VERIFICATION:-false}; \
 	export FRONTEND_ADDRESS=$${FRONTEND_ADDRESS:-http://localhost:8443}; \
 	export ADMIN_API_ADDRESS=$${ADMIN_API_ADDRESS:-http://localhost:8444}; \
@@ -79,7 +81,11 @@ e2e-local/gather-observability: $(ARO_HCP_TESTS) $(TEMPLATIZE)
 
 .e2e-local/setup:
 	SUBSCRIPTION_ID="$$(az account show --query id --output tsv)"; \
-	TENANT_ID="$$(az account show --query tenantId --output tsv)"; \
+	TENANT_ID="$(AZURE_HOME_TENANT_ID)"; \
+	if [[ -z "$${TENANT_ID}" || "$${TENANT_ID}" == "$(EMPTY_TENANT_ID)" ]]; then \
+		echo "Azure subscription home tenant ID is missing or invalid; refusing to overwrite the local RP subscription registration."; \
+		exit 1; \
+	fi; \
 	curl --silent --show-error --include \
 		--insecure \
 		--request PUT \

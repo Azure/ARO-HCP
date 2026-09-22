@@ -86,7 +86,7 @@ func (d signatureDetector) Applies(node *corev1.Node) bool {
 // function of what a LIST returns and nothing has to be remembered between calls.
 func (d signatureDetector) Evaluate(events []*corev1.Event, pods []*corev1.Pod, now time.Time) Snapshot {
 	windowStart := now.Add(-d.window)
-	snap := Snapshot{DetectorName: d.name, Window: d.window}
+	snap := Snapshot{DetectorName: d.name, Window: d.window, Pods: &PodEvidence{}}
 
 	// A pod is "failing" for this detector when it is the subject of a matching
 	// failure Event seen within the window. Correlation is by the Event's
@@ -138,7 +138,7 @@ func (d signatureDetector) Evaluate(events []*corev1.Event, pods []*corev1.Pod, 
 		// path is not evidence the path works.
 		if d.inSuccessScope(p) {
 			if at, ok := SuccessAt(p); ok && now.Sub(at).Abs() < d.window {
-				snap.RecentSuccess = true
+				snap.Pods.RecentSuccess = true
 			}
 		}
 		if p.DeletionTimestamp != nil {
@@ -153,13 +153,13 @@ func (d signatureDetector) Evaluate(events []*corev1.Event, pods []*corev1.Pod, 
 		// one long-stuck pod from firing alone.
 		if idx, ok := failing[p.UID]; ok {
 			if since, stuck := stuckSince(p); stuck {
-				snap.FailureCount++
+				snap.Pods.FailureCount++
 				sigCounts[idx]++
 				if snap.StuckSince.IsZero() || since.Before(snap.StuckSince) {
 					snap.StuckSince = since
 				}
 				if now.Sub(since) >= d.dwell {
-					snap.SustainedCount++
+					snap.Pods.SustainedCount++
 				}
 			}
 		}
@@ -189,10 +189,13 @@ func (d signatureDetector) MeetsThreshold(snap Snapshot, now time.Time) bool {
 	// The floor counts pods each sustained past the dwell (computed in Evaluate),
 	// so meeting it already proves the storm held continuously; there is no
 	// separate oldest-pod dwell check.
-	if snap.SustainedCount < d.failuresFloor {
+	if snap.Pods == nil {
 		return false
 	}
-	if d.requireZeroSuccess && snap.RecentSuccess {
+	if snap.Pods.SustainedCount < d.failuresFloor {
+		return false
+	}
+	if d.requireZeroSuccess && snap.Pods.RecentSuccess {
 		return false
 	}
 	return true

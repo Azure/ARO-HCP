@@ -14,10 +14,6 @@
 
 package metadataapi
 
-import (
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-)
-
 // ObjectMetadata provides per-document identity for the cosmosResourceSnapshots
 // Kusto table. It is emitted as a structured log field alongside the document content.
 type ObjectMetadata struct {
@@ -30,20 +26,4 @@ type ObjectMetadata struct {
 	// ClusterResourceID is the full resource ID of the logical parent HCP cluster.
 	// It is empty when the resource is not part of an HCP cluster.
 	ClusterResourceID string `json:"clusterResourceID"`
-}
-
-// ObjectMetadataForResourceID builds ObjectMetadata from an ARM resource ID.
-func ObjectMetadataForResourceID(container string, resourceID *azcorearm.ResourceID) ObjectMetadata {
-	if resourceID == nil {
-		return ObjectMetadata{CosmosContainer: container}
-	}
-	return ObjectMetadata{
-		CosmosContainer:   container,
-		SubscriptionID:    resourceID.SubscriptionID,
-		ResourceGroup:     resourceID.ResourceGroupName,
-		ResourceType:      resourceID.ResourceType.String(),
-		ResourceName:      resourceID.Name,
-		ResourceID:        resourceID.String(),
-		ClusterResourceID: ClusterNameFromResourceID(resourceID),
-	}
 }

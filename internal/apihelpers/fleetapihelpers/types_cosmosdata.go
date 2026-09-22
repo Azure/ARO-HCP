@@ -1,0 +1,85 @@
+// Copyright 2026 Microsoft Corporation
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package fleetapihelpers
+
+import (
+	"path"
+	"strings"
+
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
+	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
+)
+
+// ToStampResourceID constructs the resource ID for a stamp:
+// /providers/Microsoft.RedHatOpenShift/stamps/{stampIdentifier}
+func ToStampResourceID(stampIdentifier string) (*azcorearm.ResourceID, error) {
+	return azcorearm.ParseResourceID(ToStampResourceIDString(stampIdentifier))
+}
+
+// ToStampResourceIDString returns the lowercased stamp resource ID string.
+func ToStampResourceIDString(stampIdentifier string) string {
+	return strings.ToLower(path.Join(
+		"/providers", fleetapi.StampResourceType.String(), stampIdentifier,
+	))
+}
+
+// ToManagementClusterResourceID constructs the full resource ID for a
+// management cluster singleton within a stamp:
+// /providers/Microsoft.RedHatOpenShift/stamps/{stampIdentifier}/managementClusters/default
+func ToManagementClusterResourceID(stampIdentifier string) (*azcorearm.ResourceID, error) {
+	return azcorearm.ParseResourceID(ToManagementClusterResourceIDString(stampIdentifier))
+}
+
+// ToManagementClusterResourceIDString returns the lowercased resource ID string
+// for a management cluster singleton.
+func ToManagementClusterResourceIDString(stampIdentifier string) string {
+	return strings.ToLower(path.Join(
+		"/providers", fleetapi.StampResourceType.String(), stampIdentifier,
+		fleetapi.ManagementClusterResourceTypeName, fleetapi.ManagementClusterResourceName,
+	))
+}
+
+// ToManagementClusterSchedulingResourceID constructs the full resource ID for a
+// management cluster scheduling singleton within a stamp:
+// /providers/Microsoft.RedHatOpenShift/stamps/{stampIdentifier}/managementClusters/default/scheduling/default
+func ToManagementClusterSchedulingResourceID(stampIdentifier string) (*azcorearm.ResourceID, error) {
+	return azcorearm.ParseResourceID(ToManagementClusterSchedulingResourceIDString(stampIdentifier))
+}
+
+// ToManagementClusterSchedulingResourceIDString returns the lowercased resource
+// ID string for a management cluster scheduling singleton.
+func ToManagementClusterSchedulingResourceIDString(stampIdentifier string) string {
+	return strings.ToLower(path.Join(
+		"/providers", fleetapi.StampResourceType.String(), stampIdentifier,
+		fleetapi.ManagementClusterResourceTypeName, fleetapi.ManagementClusterResourceName,
+		fleetapi.SchedulingResourceTypeName, fleetapi.SchedulingResourceName,
+	))
+}
+
+// ToHCPResourceRequirementsResourceID constructs the resource ID for an
+// HCP resource requirements document:
+// /providers/Microsoft.RedHatOpenShift/hcpResourceRequirements/{name}
+func ToHCPResourceRequirementsResourceID(name string) (*azcorearm.ResourceID, error) {
+	return azcorearm.ParseResourceID(ToHCPResourceRequirementsResourceIDString(name))
+}
+
+// ToHCPResourceRequirementsResourceIDString returns the lowercased resource ID
+// string for an HCP resource requirements document.
+func ToHCPResourceRequirementsResourceIDString(name string) string {
+	return strings.ToLower(path.Join(
+		"/providers", fleetapi.HCPResourceRequirementsResourceType.String(), name,
+	))
+}

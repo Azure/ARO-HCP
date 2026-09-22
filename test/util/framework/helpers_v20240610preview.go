@@ -42,7 +42,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
-	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 )
 
 // ========================================================================
@@ -489,7 +489,9 @@ func (tc *perItOrDescribeTestContext) GetAdminRESTConfigForHCPCluster20240610(
 		nil,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to start credential request: %w", err)
+		// Fall back to the CSR-based 2026-09-01-preview mechanism when the
+		// legacy break-glass credential request cannot be started.
+		return tc.fallbackAdminRESTConfigTo20260901(ctx, resourceGroupName, hcpClusterName, timeout, fmt.Errorf("failed to start credential request: %w", err))
 	}
 
 	operationResult, err := adminCredentialRequestPoller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
@@ -499,7 +501,9 @@ func (tc *perItOrDescribeTestContext) GetAdminRESTConfigForHCPCluster20240610(
 		if errors.Is(err, context.DeadlineExceeded) {
 			return nil, fmt.Errorf("failed waiting for hcpCluster=%q in resourcegroup=%q to finish getting creds, caused by: %w, error: %w", hcpClusterName, resourceGroupName, context.Cause(ctx), err)
 		}
-		return nil, fmt.Errorf("failed waiting for hcpCluster=%q in resourcegroup=%q to finish getting creds: %w", hcpClusterName, resourceGroupName, err)
+		// Fall back to the CSR-based 2026-09-01-preview mechanism when the
+		// legacy break-glass credential request fails after it started.
+		return tc.fallbackAdminRESTConfigTo20260901(ctx, resourceGroupName, hcpClusterName, timeout, fmt.Errorf("failed waiting for hcpCluster=%q in resourcegroup=%q to finish getting creds: %w", hcpClusterName, resourceGroupName, err))
 	}
 
 	switch m := any(operationResult).(type) {
@@ -1076,7 +1080,7 @@ func BeginCreateHCPCluster20240610(
 	location string,
 ) (*runtime.Poller[hcpsdk20240610preview.HcpOpenShiftClustersClientCreateOrUpdateResponse], error) {
 	cluster := BuildHCPClusterFromParams20240610(clusterParams, location)
-	logger.Info("Starting HCP cluster creation", "clusterName", hcpClusterName, "resourceGroup", resourceGroupName)
+	logger.Info("Starting HCP cluster creation", "clusterName", hcpClusterName, "resourceGroup", resourceGroupName, "version", cluster.Properties.Version.ID, "channelGroup", cluster.Properties.Version.ChannelGroup)
 	poller, err := hcpClient.BeginCreateOrUpdate(ctx, resourceGroupName, hcpClusterName, cluster, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed starting cluster creation %q in resourcegroup=%q: %w", hcpClusterName, resourceGroupName, err)

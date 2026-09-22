@@ -544,7 +544,7 @@ func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Gra
 			suites := &junit.TestSuites{
 				Suites: []*junit.TestSuite{
 					{
-						Name: "step graph",
+						Name: "templatize-pipeline",
 					},
 				},
 			}
@@ -1032,6 +1032,11 @@ func RunStep(id graph.Identifier, s types.Step, ctx context.Context, executionTa
 	case *types.GrafanaManageStep:
 		if err := runGrafanaManageStep(id, step, ctx, options, executionTarget, state); err != nil {
 			return nil, nil, fmt.Errorf("error running Grafana Manage Step: %w", err)
+		}
+		return nil, nil, nil
+	case *types.KustoEntityGroupsStep:
+		if err := runKustoEntityGroupsStep(id, step, ctx); err != nil {
+			return nil, nil, fmt.Errorf("error running Kusto Entity Groups Step: %w", err)
 		}
 		return nil, nil, nil
 	case *types.ARMStep:

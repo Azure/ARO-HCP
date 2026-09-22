@@ -47,6 +47,7 @@ const (
 	CloudErrorCodeInvalidResourceName      = "InvalidResourceName"
 	CloudErrorCodeInvalidResourceGroupName = "InvalidResourceGroupName"
 	CloudErrorCodeLockContention           = "LockContention"
+	CloudErrorCodeCapacityHeavyUse         = "AROHCPCapacityHeavyUse"
 )
 
 // CloudError represents a complete resource provider error.
@@ -186,31 +187,12 @@ func NewCloudError(statusCode int, code, target, format string, a ...interface{}
 	}
 }
 
-// WriteError constructs and writes a CloudError to the given ResponseWriter
-func WriteError(w http.ResponseWriter, statusCode int, code, target, format string, a ...interface{}) {
-	WriteCloudError(w, NewCloudError(statusCode, code, target, format, a...))
-}
-
-// WriteCloudError writes a CloudError to the given ResponseWriter
-func WriteCloudError(w http.ResponseWriter, err *CloudError) {
-	if err.Code == CloudErrorCodeServiceUnavailable {
-		w.Header().Set("Retry-After", "59") // never choose a round number
-	}
-	w.Header()[HeaderNameErrorCode] = []string{err.Code}
-	_, _ = WriteJSONResponse(w, err.StatusCode, err)
-}
-
 // NewInternalServerError creates a CloudError for an internal server error
 func NewInternalServerError() *CloudError {
 	return NewCloudError(
 		http.StatusInternalServerError,
 		CloudErrorCodeInternalServerError, "",
 		"Internal server error.")
-}
-
-// WriteInternalServerError writes an internal server error to the given ResponseWriter
-func WriteInternalServerError(w http.ResponseWriter) {
-	WriteCloudError(w, NewInternalServerError())
 }
 
 // NewConflictError creates a CloudError for a conflict error
@@ -220,11 +202,6 @@ func NewConflictError(resourceID *azcorearm.ResourceID, format string, a ...inte
 		CloudErrorCodeConflict,
 		resourceID.String(),
 		format, a...)
-}
-
-// WriteConflictError writes a conflict error to the given ResponseWriter
-func WriteConflictError(w http.ResponseWriter, resourceID *azcorearm.ResourceID, format string, a ...interface{}) {
-	WriteCloudError(w, NewConflictError(resourceID, format, a...))
 }
 
 // NewContentValidationError creates a CloudError from a slice of validation errors.
@@ -266,11 +243,6 @@ func NewResourceNotFoundError(resourceID *azcorearm.ResourceID) *CloudError {
 	return NewCloudError(http.StatusNotFound, code, resourceID.String(), "%s", message)
 }
 
-// WriteResourceNotFoundError writes a nonexistent resource error to the given ResponseWriter
-func WriteResourceNotFoundError(w http.ResponseWriter, resourceID *azcorearm.ResourceID) {
-	WriteCloudError(w, NewResourceNotFoundError(resourceID))
-}
-
 // NewInvalidRequestContentError creates a CloudError for an invalid request content error
 func NewInvalidRequestContentError(err error) *CloudError {
 	const message = "The request content was invalid and could not be deserialized: %q"
@@ -289,9 +261,4 @@ func NewInvalidRequestContentError(err error) *CloudError {
 			CloudErrorCodeInvalidRequestContent,
 			"", message, err)
 	}
-}
-
-// WriteInvalidRequestContentError writes an invalid request content error to the given ResponseWriter
-func WriteInvalidRequestContentError(w http.ResponseWriter, err error) {
-	WriteCloudError(w, NewInvalidRequestContentError(err))
 }

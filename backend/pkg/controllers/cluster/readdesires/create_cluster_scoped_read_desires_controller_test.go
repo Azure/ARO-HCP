@@ -33,6 +33,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/kubeappliercosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
@@ -82,7 +84,7 @@ func newTestCluster(opts ...func(*coreapi.HCPOpenShiftCluster)) *coreapi.HCPOpen
 			},
 		},
 		ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
-			ClusterServiceID: metadataapi.Ptr(metadataapi.Must(metadataapi.NewInternalID(readDesireTestClusterServiceID))),
+			ClusterServiceID: metadataapihelpers.Ptr(metadataapi.Must(metadataapi.NewInternalID(readDesireTestClusterServiceID))),
 		},
 		CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
 			DNS: coreapi.CustomerDNSProfile{
@@ -275,7 +277,7 @@ func TestCreateClusterScopedReadDesires_SyncOnce(t *testing.T) {
 			cachedServiceProviderCluster: newTestSPC(readDesireTestManagementClusterResourceID),
 			kubeApplierDesires: []any{
 				newTestReadDesire(
-					kubeapplierapi.ToClusterScopedReadDesireResourceIDString(
+					kubeapplierapihelpers.ToClusterScopedReadDesireResourceIDString(
 						readDesireTestSubscriptionID, readDesireTestResourceGroupName, readDesireTestClusterName, kubeapplierhelpers.ReadDesireNameReadonlyHypershiftControlPlaneComponentClusterAutoscaler),
 					readDesireTestManagementClusterResourceID,
 					clusterAutoscalerTarget(readDesireTestEnvIdentifier, "abc123", "old-prefix"),
@@ -311,7 +313,7 @@ func TestCreateClusterScopedReadDesires_SyncOnce(t *testing.T) {
 			}
 
 			mcLister := &fleetlistertesting.SliceManagementClusterLister{
-				ManagementClusters: []*fleetapi.ManagementCluster{{ResourceID: readDesireTestManagementClusterResourceID}},
+				ManagementClusters: []*fleetapi.ManagementCluster{{CosmosMetadata: coreapi.CosmosMetadata{ResourceID: readDesireTestManagementClusterResourceID}}},
 			}
 
 			syncer := &createClusterScopedReadDesiresSyncer{

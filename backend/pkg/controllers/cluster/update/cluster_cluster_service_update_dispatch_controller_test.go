@@ -35,6 +35,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
@@ -347,9 +348,8 @@ func newTestSubscription(opts ...func(*coreapi.Subscription)) *coreapi.Subscript
 	subResourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID))
 	subscription := &coreapi.Subscription{
 		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: subResourceID},
-		ResourceID:     subResourceID,
 		Properties: &coreapi.SubscriptionProperties{
-			TenantId: metadataapi.Ptr("11111111-1111-1111-1111-111111111111"),
+			TenantId: metadataapihelpers.Ptr("11111111-1111-1111-1111-111111111111"),
 		},
 	}
 	for _, opt := range opts {

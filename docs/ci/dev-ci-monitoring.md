@@ -63,6 +63,98 @@ knowledge should be recorded in the Jira bug during the investigation and
 promoted into a dedicated operational knowledge base once the response is
 understood and repeatable.
 
+### AzureQuotaCritical: Bumping a Quota
+
+`AzureQuotaCritical` fires when `azure_quota_usage / azure_quota_limit` exceeds
+0.95 for a given `quota_name`/`subscription_name`/`region`, from the
+`tenant-quota-collector` metrics described in [Architecture](#architecture).
+The alert annotation identifies the exact quota, subscription, and region. The
+alert's `source` label is one of `compute`, `network`, or `rbac` (see
+[`tooling/tenant-quota/pkg/subscriptionquota`](../../tooling/tenant-quota/pkg/subscriptionquota));
+use it to pick the right resource provider below. For an `rbac`-sourced alert
+(role-assignment quota), follow [CI Identity Leasing](identity-leasing.md)
+instead — role-assignment limits are not raised through `az quota`.
+
+For `compute` and `network` sources, most DEV CI subscriptions allow
+self-service quota increases through the `Microsoft.Quota` API, no Azure
+support ticket required. Install the `quota` CLI extension if it isn't already
+present, then find the current limit and raise it:
+
+```bash
+az extension add --name quota --upgrade
+
+SUBSCRIPTION_ID=<subscription_id from the alert>
+REGION=<region from the alert>
+QUOTA_NAME=<quota_name from the alert, e.g. standardEDSv5Family>
+# Use the alert's `source` label to pick the provider:
+#   compute -> Microsoft.Compute
+#   network -> Microsoft.Network
+PROVIDER=Microsoft.Compute
+
+az quota show \
+  --resource-name "$QUOTA_NAME" \
+  --scope "/subscriptions/$SUBSCRIPTION_ID/providers/$PROVIDER/locations/$REGION"
+# Read `resourceType` from the `az quota show` output above (typically
+# `dedicated` for compute quotas, `shared` for network quotas) and reuse it
+# below so the update matches this specific quota.
+RESOURCE_TYPE=<resourceType from the az quota show output>
+
+az quota update \
+  --resource-name "$QUOTA_NAME" \
+  --scope "/subscriptions/$SUBSCRIPTION_ID/providers/$PROVIDER/locations/$REGION" \
+  --limit-object value=<NEW_LIMIT> \
+  --resource-type "$RESOURCE_TYPE"
+```
+
+Target a reasonable headroom increase (for example, double the current limit)
+rather than the minimum needed to clear the alert, so a similar CI-load burst
+does not immediately re-trigger it. Re-run `az quota show` to confirm the new
+limit took effect, then record the before/after values and command used in the
+Jira bug.
+
+If `az quota update` fails or returns a pending/manual-review state, the
+subscription requires an Azure support request instead; open one from the
+Azure portal's **Help + support** blade with the subscription, region, quota
+name, and target limit from the alert.
+
+### E2EExpiredResourceGroupsInfo: Expired E2E Resource Groups
+
+`E2EExpiredResourceGroupsInfo` fires when more than 10 E2E resource groups
+in a single subscription have a `deleteAfter` timestamp in the past for at
+least 2 hours.
+
+**Triage steps:**
+
+1. Identify the affected subscription from the alert's `subscription_name`
+   label (e.g. "ARO HCP E2E Hosted Clusters - Prod - 01").
+2. Map the subscription to its cleanup Prow job using
+   [`e2e-slots.yaml`](../../test/e2e-config/e2e-slots.yaml) and the naming
+   convention described in [CI Cleanup — Identifying the cleanup job for a
+   subscription](cleanup.md#identifying-the-cleanup-job-for-a-subscription).
+   Note that the legacy "ARO HCP E2E" subscription uses the indexless job
+   name
+   `periodic-ci-Azure-ARO-HCP-main-periodic-cleanup-delete-expired-prod-resource-groups`.
+3. Check recent runs of that job in Prow. If the job is passing, the
+   backlog may be clearing on its own. If the job is failing, examine
+   the build log for the most recent failure.
+4. Because the job attempts every discovered resource group in each run,
+   the build log contains the deletion outcome for all expired RGs, not
+   just one. Look for patterns: are all deletions failing with the same
+   error (systemic issue), or is only a subset failing (isolated
+   resource problem)?
+5. Common failure patterns:
+   - `InternalServerError` with `serviceProviderClusters` remaining:
+     Azure RP-side issue, likely regional. Check if other shards in the
+     same region are affected.
+   - `ResourceGroupDeletionBlocked`: a child resource or managed RG is
+     preventing deletion.
+   - Timeout waiting for already-deleting cluster: a prior deletion
+     request is stuck in Azure ARM.
+   - Deny assignment errors: managed RG deny assignments blocking
+     deletion (see AROSLSRE-10).
+6. For regional RP issues, check for active incidents in the affected
+   region and coordinate with the RP team.
+
 ## Exporter Health Checks
 
 Select the DEV subscription and obtain credentials for the `opstool` cluster:

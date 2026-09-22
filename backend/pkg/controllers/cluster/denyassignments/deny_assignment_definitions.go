@@ -20,6 +20,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 )
 
 const (
@@ -216,7 +217,7 @@ func allDenyAssignmentReferences(cluster *coreapi.HCPOpenShiftCluster) ([]coreap
 	denyAssignmentReferences := make([]coreapi.DenyAssignmentReference, 0, len(defs))
 	for _, d := range defs {
 		daUUID := generateDenyAssignmentUUID(csClusterID, d.denyAssignmentType)
-		azureResourceID, err := coreapi.ToDenyAssignmentResourceID(subscriptionID, managedResourceGroup, daUUID)
+		azureResourceID, err := coreapihelpers.ToDenyAssignmentResourceID(subscriptionID, managedResourceGroup, daUUID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to build deny assignment resource ID for %s: %w", d.denyAssignmentType, err)
 		}

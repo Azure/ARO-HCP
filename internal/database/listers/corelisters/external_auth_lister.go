@@ -20,6 +20,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/listerutils"
 )
 
@@ -52,16 +53,16 @@ func (l *hcpOpenShiftClusterExternalAuthLister) List(ctx context.Context) ([]*co
 //
 //	/subscriptions/<sub>/resourcegroups/<rg>/providers/microsoft.redhatopenshift/hcpopenshiftclusters/<cluster>/externalauths/<name>
 func (l *hcpOpenShiftClusterExternalAuthLister) Get(ctx context.Context, subscriptionID, resourceGroupName, clusterName, externalAuthName string) (*coreapi.HCPOpenShiftClusterExternalAuth, error) {
-	key := coreapi.ToExternalAuthResourceIDString(subscriptionID, resourceGroupName, clusterName, externalAuthName)
+	key := coreapihelpers.ToExternalAuthResourceIDString(subscriptionID, resourceGroupName, clusterName, externalAuthName)
 	return listerutils.GetByKey[coreapi.HCPOpenShiftClusterExternalAuth](l.indexer, key)
 }
 
 func (l *hcpOpenShiftClusterExternalAuthLister) ListForResourceGroup(ctx context.Context, subscriptionName, resourceGroupName string) ([]*coreapi.HCPOpenShiftClusterExternalAuth, error) {
-	key := coreapi.ToResourceGroupResourceIDString(subscriptionName, resourceGroupName)
+	key := coreapihelpers.ToResourceGroupResourceIDString(subscriptionName, resourceGroupName)
 	return listerutils.ListFromIndex[coreapi.HCPOpenShiftClusterExternalAuth](l.indexer, ByResourceGroup, key)
 }
 
 func (l *hcpOpenShiftClusterExternalAuthLister) ListForCluster(ctx context.Context, subscriptionName, resourceGroupName, clusterName string) ([]*coreapi.HCPOpenShiftClusterExternalAuth, error) {
-	key := coreapi.ToClusterResourceIDString(subscriptionName, resourceGroupName, clusterName)
+	key := coreapihelpers.ToClusterResourceIDString(subscriptionName, resourceGroupName, clusterName)
 	return listerutils.ListFromIndex[coreapi.HCPOpenShiftClusterExternalAuth](l.indexer, ByCluster, key)
 }

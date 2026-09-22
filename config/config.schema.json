@@ -1266,13 +1266,6 @@
           "minLength": 1,
           "maxLength": 10
         },
-        "denyAssignments": {
-          "type": "string",
-          "enum": [
-            "enabled",
-            "disabled"
-          ]
-        },
         "image": {
           "$ref": "#/definitions/containerImage"
         },
@@ -1340,14 +1333,12 @@
           ]
         },
         "dataPlaneHAProxyImage": {
-          "type": "string",
-          "description": "A valid image reference used for overriding the HAProxy image of the worker node API server proxy. If set to an empty string, either the environment variable IMAGE_SHARED_INGRESS_HAPROXY or the default shared ingress image will be used."
+          "$ref": "#/definitions/containerImage"
         }
       },
       "additionalProperties": false,
       "required": [
         "environment",
-        "denyAssignments",
         "image",
         "managedIdentityName",
         "k8s",
@@ -1408,6 +1399,14 @@
     },
     "miMockCertName": {
       "type": "string"
+    },
+    "miMockClientIdSecretName": {
+      "type": "string",
+      "description": "Name of a Key Vault secret holding the mock identity's client id. When set, backend mounts and reads this instead of the static miMockClientId value."
+    },
+    "miMockPrincipalIdSecretName": {
+      "type": "string",
+      "description": "Name of a Key Vault secret holding the mock identity's principal id. When set, backend mounts and reads this instead of the static miMockPrincipalId value."
     },
     "armHelperClientId": {
       "type": "string"
@@ -1594,6 +1593,46 @@
         "nodeHealth"
       ]
     },
+    "swiftRecorder": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Disabled pipelines skip image mirroring and deployment."
+        },
+        "useMgmtAgentImage": {
+          "type": "boolean",
+          "description": "Temporary ci00/ci01 bootstrap: use the resolved mgmt-agent image containing /swift-recorder. Remove after dedicated image onboarding."
+        },
+        "captureMode": {
+          "type": "string",
+          "enum": ["slow", "all"]
+        },
+        "image": {
+          "$ref": "#/definitions/containerImage"
+        },
+        "k8s": {
+          "$ref": "#/definitions/k8sDeployment"
+        }
+      },
+      "additionalProperties": false,
+      "required": ["enabled", "useMgmtAgentImage", "captureMode", "image", "k8s"],
+      "if": {
+        "properties": {
+          "enabled": {"const": true},
+          "useMgmtAgentImage": {"const": false}
+        }
+      },
+      "then": {
+        "properties": {
+          "image": {
+            "properties": {
+              "digest": {"minLength": 1}
+            }
+          }
+        }
+      }
+    },
     "kubeApplier": {
       "type": "object",
       "properties": {
@@ -1754,6 +1793,10 @@
             },
             "private": {
               "type": "boolean"
+            },
+            "enableBurstCapacity": {
+              "type": "boolean",
+              "description": "Enables Cosmos DB burst capacity, letting the account use banked unused throughput to absorb short RU spikes at no extra cost"
             },
             "resourceContainerMaxScale": {
               "type": "integer"
@@ -3411,6 +3454,10 @@
       "type": "object",
       "description": "Velero configuration",
       "properties": {
+        "enableInstantAccess": {
+          "type": "boolean",
+          "description": "Enable 60-minute instant access for Azure disk snapshots. Disabling this omits the parameter and requires normal snapshot copy completion before restore."
+        },
         "server": {
           "$ref": "#/definitions/containerImage"
         },
@@ -3425,7 +3472,8 @@
       "required": [
         "server",
         "azurePlugin",
-        "hypershiftPlugin"
+        "hypershiftPlugin",
+        "enableInstantAccess"
       ]
     },
     "logs": {
@@ -3927,6 +3975,7 @@
     "maestro",
     "mgmt",
     "mgmtAgent",
+    "swiftRecorder",
     "fleet",
     "kubeApplier",
     "mgmtKeyVault",

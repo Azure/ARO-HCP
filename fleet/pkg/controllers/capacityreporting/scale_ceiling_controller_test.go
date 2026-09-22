@@ -32,13 +32,14 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/fleetcosmosstoragetesting"
 )
 
 const scaleCeilingTestStampIdentifier = "s1"
 
 func testManagementCluster() *fleetapi.ManagementCluster {
-	resourceID := metadataapi.Must(fleetapi.ToManagementClusterResourceID(scaleCeilingTestStampIdentifier))
+	resourceID := metadataapi.Must(fleetapihelpers.ToManagementClusterResourceID(scaleCeilingTestStampIdentifier))
 	aksResourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/mc"))
 	dnsResourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dns-rg/providers/Microsoft.Network/dnszones/example.com"))
 	return &fleetapi.ManagementCluster{
@@ -46,7 +47,6 @@ func testManagementCluster() *fleetapi.ManagementCluster {
 			ResourceID:   resourceID,
 			PartitionKey: strings.ToLower(scaleCeilingTestStampIdentifier),
 		},
-		ResourceID: resourceID,
 		Spec: fleetapi.ManagementClusterSpec{
 			SchedulingPolicy: fleetapi.ManagementClusterSchedulingPolicySchedulable,
 		},
@@ -67,7 +67,7 @@ func testManagementCluster() *fleetapi.ManagementCluster {
 func testSchedulingDoc() *fleetapi.ManagementClusterScheduling {
 	return &fleetapi.ManagementClusterScheduling{
 		CosmosMetadata: coreapi.CosmosMetadata{
-			ResourceID:   metadataapi.Must(fleetapi.ToManagementClusterSchedulingResourceID(scaleCeilingTestStampIdentifier)),
+			ResourceID:   metadataapi.Must(fleetapihelpers.ToManagementClusterSchedulingResourceID(scaleCeilingTestStampIdentifier)),
 			PartitionKey: strings.ToLower(scaleCeilingTestStampIdentifier),
 		},
 	}

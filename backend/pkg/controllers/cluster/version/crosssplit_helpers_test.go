@@ -35,8 +35,8 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 )
@@ -58,8 +58,7 @@ func createTestSubscription(t *testing.T, ctx context.Context, mockResourcesDBCl
 			ResourceID:   subResourceID,
 			PartitionKey: strings.ToLower(subResourceID.SubscriptionID),
 		},
-		ResourceID: subResourceID,
-		State:      coreapi.SubscriptionStateRegistered,
+		State: coreapi.SubscriptionStateRegistered,
 		Properties: &coreapi.SubscriptionProperties{
 			TenantId: ptr.To("test-tenant-id"),
 		},
@@ -73,7 +72,7 @@ func createTestSubscription(t *testing.T, ctx context.Context, mockResourcesDBCl
 func hostedClusterReadDesireResourceID(t *testing.T) *azcorearm.ResourceID {
 	t.Helper()
 	return metadataapi.Must(azcorearm.ParseResourceID(
-		kubeapplierapi.ToClusterScopedReadDesireResourceIDString(
+		kubeapplierapihelpers.ToClusterScopedReadDesireResourceIDString(
 			testSubscriptionID, testResourceGroupName, testClusterName, kubeapplierhelpers.ReadDesireNameReadonlyHostedCluster)))
 }
 
@@ -105,7 +104,7 @@ func createServiceProviderClusterWithVersion(t *testing.T, ctx context.Context, 
 	existing, getErr := spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
 	if getErr == nil {
 		replacement := existing.DeepCopy()
-		replacement.Status.ControlPlaneVersion.ActiveVersions = []coreapi.HCPClusterActiveVersion{
+		replacement.Status.ControlPlaneVersion.ActiveVersions = []coreapi.ServiceProviderClusterActiveVersion{
 			{Version: &cpVersion, State: configv1.CompletedUpdate},
 		}
 		_, err := spcCRUD.Replace(ctx, replacement, nil)
@@ -121,7 +120,7 @@ func createServiceProviderClusterWithVersion(t *testing.T, ctx context.Context, 
 		},
 		Status: coreapi.ServiceProviderClusterStatus{
 			ControlPlaneVersion: coreapi.ServiceProviderClusterStatusVersion{
-				ActiveVersions: []coreapi.HCPClusterActiveVersion{
+				ActiveVersions: []coreapi.ServiceProviderClusterActiveVersion{
 					{Version: &cpVersion, State: configv1.CompletedUpdate},
 				},
 			},

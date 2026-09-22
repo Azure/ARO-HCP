@@ -206,6 +206,11 @@ func getBackupScheduleViaAdminAPI(ctx context.Context, httpClient *http.Client, 
 		fmt.Sprintf("%s/admin/v1/hcp%s/backupschedules", adminAPIAddress, resourceID), http.StatusOK, nil)
 }
 
+func getOnDemandBackupsViaAdminAPI(ctx context.Context, httpClient *http.Client, adminAPIAddress, resourceID string) (hcp.OnDemandBackupResponse, error) {
+	return framework.DoAdminAPIRequest[hcp.OnDemandBackupResponse](ctx, httpClient, http.MethodGet,
+		fmt.Sprintf("%s/admin/v1/hcp%s/backups", adminAPIAddress, resourceID), http.StatusOK, nil)
+}
+
 func patchBackupScheduleViaAdminAPI(ctx context.Context, httpClient *http.Client, adminAPIAddress, resourceID string, state coreapi.BackupScheduleState) (hcp.BackupSchedulePatchResponse, error) {
 	bodyBytes, err := json.Marshal(hcp.BackupSchedulePatchRequest{State: state})
 	if err != nil {

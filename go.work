@@ -5,6 +5,7 @@ use (
 	./admin/server
 	./backend
 	./dev-infrastructure/scripts/acr-replication
+	./dev-infrastructure/scripts/aks-cluster-create
 	./dev-infrastructure/scripts/grafana-group-roles
 	./dev-infrastructure/scripts/postgres-access
 	./fleet
@@ -16,11 +17,14 @@ use (
 	./kube-applier
 	./mgmt-agent
 	./sessiongate
+	./swift-recorder
 	./test
 	./test-integration
+	// image-sync/oc-mirror/acrauth is deliberately outside this workspace: it requires a newer azcore/azidentity, and workspace version selection would raise those for every module listed here.
 	./tooling/aro-hcp-exporter
 	./tooling/azutils
 	./tooling/cleanup-sweeper
+	./tooling/e2e-cost
 	./tooling/entra-app-credentials
 	./tooling/grafanactl
 	./tooling/hcpctl
@@ -31,6 +35,7 @@ use (
 	./tooling/olm-bundle-repkg
 	./tooling/pipeline-documentation
 	./tooling/prometheus-rules
+	./tooling/rightsize-requests
 	./tooling/secret-sync
 	./tooling/templatize
 	./tooling/tenant-quota

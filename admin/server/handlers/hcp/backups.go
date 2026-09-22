@@ -24,7 +24,9 @@ import (
 	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/backup"
+	"github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
@@ -182,7 +184,7 @@ func (h *HCPGetBackupScheduleHandler) ServeHTTP(writer http.ResponseWriter, requ
 		return utils.TrackError(fmt.Errorf("failed to iterate ReadDesires: %w", err))
 	}
 
-	_, err = coreapi.WriteJSONResponse(writer, http.StatusOK, response)
+	_, err = coreapihelpers.WriteJSONResponse(writer, http.StatusOK, response)
 	return utils.TrackError(err)
 }
 
@@ -223,6 +225,98 @@ func (h *HCPPatchBackupScheduleHandler) ServeHTTP(writer http.ResponseWriter, re
 		State: serviceProviderCluster.Spec.BackupScheduleState,
 	}
 
-	_, err = coreapi.WriteJSONResponse(writer, http.StatusOK, response)
+	_, err = coreapihelpers.WriteJSONResponse(writer, http.StatusOK, response)
 	return utils.TrackError(err)
+}
+
+// OnDemandBackupResponse is the JSON response for on-demand backup list endpoints.
+type OnDemandBackupResponse struct {
+	Backups []OnDemandBackupDetail `json:"backups"`
+}
+
+// OnDemandBackupDetail holds per-backup status from the Velero Backup ReadDesire.
+type OnDemandBackupDetail struct {
+	Name              string `json:"name"`
+	Phase             string `json:"phase,omitempty"`
+	KMSKeyFingerprint string `json:"kmsKeyFingerprint,omitempty"`
+	StartTime         string `json:"startTime,omitempty"`
+	CompletionTime    string `json:"completionTime,omitempty"`
+}
+
+// HCPGetOnDemandBackupsHandler handles GET requests for on-demand backups.
+type HCPGetOnDemandBackupsHandler struct {
+	resourcesDBClient    corecosmosstorage.ResourcesDBClient
+	kubeApplierDBClients kubeappliercosmosstorage.KubeApplierDBClients
+}
+
+// NewHCPGetOnDemandBackupsHandler creates a new on-demand backup GET handler.
+func NewHCPGetOnDemandBackupsHandler(resourcesDBClient corecosmosstorage.ResourcesDBClient, kubeApplierDBClients kubeappliercosmosstorage.KubeApplierDBClients) *HCPGetOnDemandBackupsHandler {
+	return &HCPGetOnDemandBackupsHandler{
+		resourcesDBClient:    resourcesDBClient,
+		kubeApplierDBClients: kubeApplierDBClients,
+	}
+}
+
+func (h *HCPGetOnDemandBackupsHandler) ServeHTTP(writer http.ResponseWriter, request *http.Request) error {
+	clusterDetails, err := getClusterDetails(request, h.resourcesDBClient)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to resolve HCP context: %w", err))
+	}
+
+	response := OnDemandBackupResponse{
+		Backups: []OnDemandBackupDetail{},
+	}
+
+	if clusterDetails.serviceProviderCluster.Status.ManagementClusterResourceID == nil {
+		return coreapi.NewCloudError(http.StatusPreconditionFailed, coreapi.CloudErrorCodeInvalidResource, "",
+			"management cluster placement not resolved for cluster %s", clusterDetails.hcpOpenShiftCluster.ResourceID.String())
+	}
+
+	kubeApplierClient := h.kubeApplierDBClients.For(request.Context(), clusterDetails.serviceProviderCluster.Status.ManagementClusterResourceID)
+	if kubeApplierClient == nil {
+		return coreapi.NewCloudError(http.StatusPreconditionFailed, coreapi.CloudErrorCodeInvalidResource, "",
+			"kube-applier client not available for management cluster %s", clusterDetails.serviceProviderCluster.Status.ManagementClusterResourceID.String())
+	}
+
+	readDesireCRUD, err := kubeApplierClient.ReadDesiresForCluster(clusterDetails.hcpOpenShiftCluster.ResourceID.SubscriptionID, clusterDetails.hcpOpenShiftCluster.ResourceID.ResourceGroupName, clusterDetails.hcpOpenShiftCluster.ResourceID.Name)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to get ReadDesire CRUD: %w", err))
+	}
+
+	iterator, err := readDesireCRUD.List(request.Context(), nil)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to list ReadDesires: %w", err))
+	}
+
+	for _, readDesire := range iterator.Items(request.Context()) {
+		if readDesire == nil || readDesire.ResourceID == nil {
+			continue
+		}
+		if _, ok := readDesire.Tags[backup.DesireTagKeyOndemandBackup]; !ok {
+			continue
+		}
+		backupName := strings.TrimPrefix(readDesire.ResourceID.Name, backup.OndemandBackupDesireNamePrefix)
+		detail := OnDemandBackupDetail{Name: backupName}
+		if readDesire.Status.KubeContent != nil && readDesire.Status.KubeContent.Raw != nil {
+			var veleroBackup velerov1api.Backup
+			if err := json.Unmarshal(readDesire.Status.KubeContent.Raw, &veleroBackup); err != nil {
+				return utils.TrackError(fmt.Errorf("failed to unmarshal Backup: %w", err))
+			}
+			detail.Phase = string(veleroBackup.Status.Phase)
+			detail.KMSKeyFingerprint = veleroBackup.Annotations[controllerutils.HcpClusterKmsKeyFingerprintAnnotation]
+			if veleroBackup.Status.StartTimestamp != nil {
+				detail.StartTime = veleroBackup.Status.StartTimestamp.Time.UTC().Format(time.RFC3339)
+			}
+			if veleroBackup.Status.CompletionTimestamp != nil {
+				detail.CompletionTime = veleroBackup.Status.CompletionTimestamp.Time.UTC().Format(time.RFC3339)
+			}
+		}
+		response.Backups = append(response.Backups, detail)
+	}
+	if err := iterator.GetError(); err != nil {
+		return utils.TrackError(fmt.Errorf("failed to iterate ReadDesires: %w", err))
+	}
+
+	_, writeErr := coreapihelpers.WriteJSONResponse(writer, http.StatusOK, response)
+	return utils.TrackError(writeErr)
 }

@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -26,8 +27,14 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
+	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
+	"golang.org/x/sync/errgroup"
+
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 )
+
+const maxConcurrentRepositoryMetadataRequests = 8
 
 // GenericRegistryClient provides methods to interact with any Docker Registry HTTP API v2 compatible registry
 type GenericRegistryClient struct {
@@ -35,6 +42,60 @@ type GenericRegistryClient struct {
 	registryURL string
 	useAuth     bool
 	retryConfig retryConfig
+}
+
+type fetchedTagMetadata struct {
+	tag        Tag
+	descriptor *remote.Descriptor
+	// configFile is populated for non-index descriptors during concurrent
+	// enrichment, while the errgroup's context is still valid. It is cached
+	// here and reused by later cache-hit reads so we never call
+	// descriptor.Image().ConfigFile() again with a descriptor whose bound
+	// context (the errgroup's fetchCtx) has already been canceled by
+	// group.Wait() returning.
+	configFile *v1.ConfigFile
+}
+
+func runMetadataWorker(label string, worker func() error) (err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			if utilruntime.ReallyCrash {
+				panic(recovered)
+			}
+			err = fmt.Errorf("panic while enriching tag %s: %v", label, recovered)
+		}
+	}()
+	return worker()
+}
+
+func fetchTagMetadataConcurrently(ctx context.Context, tags []Tag, fetch func(context.Context, Tag) (fetchedTagMetadata, error)) ([]fetchedTagMetadata, error) {
+	results := make([]fetchedTagMetadata, len(tags))
+	group, groupCtx := errgroup.WithContext(ctx)
+	group.SetLimit(maxConcurrentRepositoryMetadataRequests)
+	for i, candidate := range tags {
+		i, candidate := i, candidate
+		group.Go(func() error {
+			defer utilruntime.HandleCrashWithContext(groupCtx)
+			return runMetadataWorker(candidate.Name, func() error {
+				release, err := acquireMetadataRequest(groupCtx)
+				if err != nil {
+					return err
+				}
+				defer release()
+
+				result, err := fetch(groupCtx, candidate)
+				if err != nil {
+					return err
+				}
+				results[i] = result
+				return nil
+			})
+		})
+	}
+	if err := group.Wait(); err != nil {
+		return nil, err
+	}
+	return results, nil
 }
 
 // NewGenericRegistryClient creates a new generic registry client
@@ -61,7 +122,7 @@ type dockerRegistryTagsResponse struct {
 }
 
 // getToken resolves Docker credentials and exchanges them for a bearer token.
-func (c *GenericRegistryClient) getToken(repository string) (string, error) {
+func (c *GenericRegistryClient) getToken(ctx context.Context, repository string) (string, error) {
 	ref, err := name.NewRepository(fmt.Sprintf("%s/%s", c.registryURL, repository))
 	if err != nil {
 		return "", fmt.Errorf("failed to parse repository: %w", err)
@@ -77,7 +138,7 @@ func (c *GenericRegistryClient) getToken(repository string) (string, error) {
 		return "", fmt.Errorf("failed to get authorization: %w", err)
 	}
 
-	token, err := c.getBearerToken(repository, *authConfig)
+	token, err := c.getBearerToken(ctx, repository, *authConfig)
 	if err != nil {
 		return "", fmt.Errorf("failed to get bearer token: %w", err)
 	}
@@ -89,10 +150,14 @@ func (c *GenericRegistryClient) getToken(repository string) (string, error) {
 // Unlike the QuayClient which hardcodes quay.io's token endpoint, this method dynamically discovers
 // the token endpoint by making an unauthenticated request to /v2/ and parsing the WWW-Authenticate
 // challenge header returned by the registry.
-func (c *GenericRegistryClient) getBearerToken(repository string, authConfig authn.AuthConfig) (string, error) {
-	// Make an unauthenticated request to discover the auth challenge
+func (c *GenericRegistryClient) getBearerToken(ctx context.Context, repository string, authConfig authn.AuthConfig) (string, error) {
+	// Make an unauthenticated request to discover the auth challenge.
 	challengeURL := fmt.Sprintf("https://%s/v2/", c.registryURL)
-	challengeResp, err := c.httpClient.Get(challengeURL)
+	challengeReq, err := http.NewRequestWithContext(ctx, "GET", challengeURL, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to create auth challenge request: %w", err)
+	}
+	challengeResp, err := c.httpClient.Do(challengeReq)
 	if err != nil {
 		return "", fmt.Errorf("failed to request auth challenge from %s: %w", challengeURL, err)
 	}
@@ -111,7 +176,7 @@ func (c *GenericRegistryClient) getBearerToken(repository string, authConfig aut
 	// Build the token request URL using the discovered realm and service
 	tokenURL := fmt.Sprintf("%s?service=%s&scope=repository:%s:pull", realm, service, repository)
 
-	tokenReq, err := http.NewRequest("GET", tokenURL, nil)
+	tokenReq, err := http.NewRequestWithContext(ctx, "GET", tokenURL, nil)
 	if err != nil {
 		return "", fmt.Errorf("failed to create token request: %w", err)
 	}
@@ -250,39 +315,55 @@ func (c *GenericRegistryClient) doRequestWithRetry(ctx context.Context, req *htt
 	return resp, nil
 }
 
-// extractTimestampFromMultiArchManifest attempts to get a meaningful timestamp for a multi-arch manifest
-// It tries three approaches in order:
-// 1. Use the provided timestamp if it's already set and not Unix epoch
-// 2. Extract from the first platform-specific image's config
-// 3. Parse from the tag name if it contains an embedded date (e.g., master.251204.1)
-func extractTimestampFromMultiArchManifest(desc *remote.Descriptor, tagName string, currentTimestamp time.Time) time.Time {
+// extractMetadataFromMultiArchManifest returns reliable metadata for a multi-arch image.
+func extractMetadataFromMultiArchManifest(desc *remote.Descriptor, tagName string, currentTimestamp time.Time, versionLabel string) (time.Time, string, error) {
 	unixEpoch := time.Unix(0, 0).UTC()
-
-	// If we already have a valid timestamp, use it
-	if !currentTimestamp.IsZero() && !currentTimestamp.Equal(unixEpoch) {
-		return currentTimestamp
+	hasTimestamp := !currentTimestamp.IsZero() && !currentTimestamp.Equal(unixEpoch)
+	if hasTimestamp && versionLabel == "" {
+		return currentTimestamp, "", nil
 	}
 
-	// Try to get timestamp from a platform-specific image in the manifest
-	if idx, err := desc.ImageIndex(); err == nil {
-		if manifest, err := idx.IndexManifest(); err == nil && len(manifest.Manifests) > 0 {
-			if platformImg, err := idx.Image(manifest.Manifests[0].Digest); err == nil {
-				if configFile, err := platformImg.ConfigFile(); err == nil {
-					ts := configFile.Created.Time
-					if !ts.IsZero() && !ts.Equal(unixEpoch) {
-						return ts
-					}
-				}
+	idx, err := desc.ImageIndex()
+	if err != nil {
+		return time.Time{}, "", fmt.Errorf("failed to read image index for tag %s: %w", tagName, err)
+	}
+	manifest, err := idx.IndexManifest()
+	if err != nil {
+		return time.Time{}, "", fmt.Errorf("failed to read image index manifest for tag %s: %w", tagName, err)
+	}
+	var platformDigest v1.Hash
+	foundPlatformImage := false
+	for i := range manifest.Manifests {
+		if manifest.Manifests[i].MediaType.IsImage() {
+			platformDigest = manifest.Manifests[i].Digest
+			foundPlatformImage = true
+			break
+		}
+	}
+	if !foundPlatformImage {
+		return time.Time{}, "", fmt.Errorf("image index for tag %s contains no platform images", tagName)
+	}
+	platformImg, err := idx.Image(platformDigest)
+	if err != nil {
+		return time.Time{}, "", fmt.Errorf("failed to read platform image for tag %s: %w", tagName, err)
+	}
+	configFile, err := platformImg.ConfigFile()
+	if err != nil {
+		return time.Time{}, "", fmt.Errorf("failed to read platform image config for tag %s: %w", tagName, err)
+	}
+
+	timestamp := currentTimestamp
+	if !hasTimestamp {
+		timestamp = configFile.Created.Time
+		if timestamp.IsZero() || timestamp.Equal(unixEpoch) {
+			if parsedDate, ok := ParseDateFromTag(tagName); ok {
+				timestamp = parsedDate
+			} else {
+				return time.Time{}, "", fmt.Errorf("multi-arch tag %s has no creation timestamp", tagName)
 			}
 		}
 	}
-
-	// Fallback: try parsing date from tag name
-	if parsedDate, ok := ParseDateFromTag(tagName); ok {
-		return parsedDate
-	}
-
-	return currentTimestamp
+	return timestamp, extractVersionFromConfigLabels(configFile.Config.Labels, versionLabel), nil
 }
 
 func (c *GenericRegistryClient) getAllTags(ctx context.Context, repository string) ([]Tag, error) {
@@ -293,7 +374,7 @@ func (c *GenericRegistryClient) getAllTags(ctx context.Context, repository strin
 
 	var authHeader string
 	if c.useAuth {
-		token, err := c.getToken(repository)
+		token, err := c.getToken(ctx, repository)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get authentication token: %w", err)
 		}
@@ -347,6 +428,10 @@ func (c *GenericRegistryClient) getAllTags(ctx context.Context, repository strin
 
 // parseNextLink extracts the next page URL from a Docker Registry V2 Link header.
 // The header format is: `</v2/repo/tags/list?n=100&last=tag>; rel="next"`
+// Only relative paths, or absolute HTTPS URLs whose host matches registryURL,
+// are followed, so a malicious or misconfigured response can't redirect the
+// caller (and its Authorization header) to a different host or downgrade it
+// to plaintext HTTP.
 func parseNextLink(linkHeader string, registryURL string) string {
 	if linkHeader == "" {
 		return ""
@@ -364,6 +449,10 @@ func parseNextLink(linkHeader string, registryURL string) string {
 		path := part[start+1 : end]
 		if strings.HasPrefix(path, "/") {
 			return fmt.Sprintf("https://%s%s", registryURL, path)
+		}
+		parsed, err := url.Parse(path)
+		if err != nil || parsed.Scheme != "https" || parsed.Host != registryURL {
+			return ""
 		}
 		return path
 	}
@@ -402,51 +491,55 @@ func (c *GenericRegistryClient) GetArchSpecificDigest(ctx context.Context, repos
 		allTags = filtered
 	}
 
-	remoteOpts := GetRemoteOptions(c.useAuth)
+	descriptorCache := make(map[string]*remote.Descriptor, len(allTags))
+	configFileCache := make(map[string]*v1.ConfigFile, len(allTags))
+	enrichedTags := allTags
+	if !usesSemanticVersionOrdering(allTags, tagPattern) || hasEquivalentSemanticVersions(allTags) || versionLabel != "" {
+		metadata, err := fetchTagMetadataConcurrently(ctx, allTags, func(fetchCtx context.Context, candidate Tag) (fetchedTagMetadata, error) {
+			ref, err := name.ParseReference(fmt.Sprintf("%s/%s:%s", c.registryURL, repository, candidate.Name))
+			if err != nil {
+				return fetchedTagMetadata{}, fmt.Errorf("failed to parse reference for tag %s: %w", candidate.Name, err)
+			}
+			desc, err := remote.Get(ref, append(GetRemoteOptions(c.useAuth), remote.WithContext(fetchCtx))...)
+			if err != nil {
+				return fetchedTagMetadata{}, fmt.Errorf("failed to fetch image descriptor for tag %s: %w", candidate.Name, err)
+			}
 
-	// Cache for remote descriptors to avoid duplicate remote.Get calls
-	descriptorCache := make(map[string]*remote.Descriptor)
-
-	// Enrich tags with digest and timestamp information
-	var enrichedTags []Tag
-	for _, tag := range allTags {
-		// Check if context is cancelled before processing each tag
-		select {
-		case <-ctx.Done():
-			return nil, fmt.Errorf("operation cancelled while enriching tags: %w", ctx.Err())
-		default:
-		}
-
-		ref, err := name.ParseReference(fmt.Sprintf("%s/%s:%s", c.registryURL, repository, tag.Name))
-		if err != nil {
-			logger.V(2).Info("failed to parse reference, skipping", "tag", tag.Name, "error", err)
-			continue
-		}
-
-		desc, err := remote.Get(ref, remoteOpts...)
-		if err != nil {
-			logger.V(2).Info("failed to fetch image descriptor, skipping", "tag", tag.Name, "error", err)
-			continue
-		}
-
-		// Cache the descriptor for later use
-		descriptorCache[tag.Name] = desc
-
-		// Try to get creation time and version label from config
-		if img, err := desc.Image(); err == nil {
-			if configFile, err := img.ConfigFile(); err == nil {
-				tag.LastModified = configFile.Created.Time
-				tag.Version = extractVersionFromConfigLabels(configFile.Config.Labels, versionLabel)
-				if tag.Version != "" {
-					logger.V(2).Info("extracted version from label", "tag", tag.Name, "label", versionLabel, "version", tag.Version)
+			tag := candidate
+			var configFile *v1.ConfigFile
+			if desc.MediaType.IsIndex() {
+				tag.LastModified, tag.Version, err = extractMetadataFromMultiArchManifest(desc, tag.Name, tag.LastModified, versionLabel)
+			} else {
+				var img v1.Image
+				img, err = desc.Image()
+				if err == nil {
+					configFile, err = img.ConfigFile()
+					if err == nil {
+						tag.LastModified, err = validateCreationTimestamp(tag.Name, configFile.Created.Time)
+						tag.Version = extractVersionFromConfigLabels(configFile.Config.Labels, versionLabel)
+					}
 				}
 			}
-		} else if desc.MediaType.IsIndex() {
-			tag.LastModified = extractTimestampFromMultiArchManifest(desc, tag.Name, tag.LastModified)
+			if err != nil {
+				return fetchedTagMetadata{}, fmt.Errorf("failed to enrich metadata for tag %s: %w", tag.Name, err)
+			}
+			tag.Digest = desc.Digest.String()
+			return fetchedTagMetadata{tag: tag, descriptor: desc, configFile: configFile}, nil
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to enrich tag metadata: %w", err)
 		}
 
-		tag.Digest = desc.Digest.String()
-		enrichedTags = append(enrichedTags, tag)
+		descriptorCache = make(map[string]*remote.Descriptor, len(metadata))
+		configFileCache = make(map[string]*v1.ConfigFile, len(metadata))
+		enrichedTags = make([]Tag, 0, len(metadata))
+		for _, result := range metadata {
+			descriptorCache[result.tag.Name] = result.descriptor
+			if result.configFile != nil {
+				configFileCache[result.tag.Name] = result.configFile
+			}
+			enrichedTags = append(enrichedTags, result.tag)
+		}
 	}
 
 	tags, err := PrepareTagsForArchValidation(enrichedTags, repository, tagPattern)
@@ -457,6 +550,8 @@ func (c *GenericRegistryClient) GetArchSpecificDigest(ctx context.Context, repos
 
 	logger.V(2).Info("filtered tags by pattern", "registry", c.registryURL, "repository", repository, "tagPattern", tagPattern, "matchingTags", len(tags))
 
+	selectionRemoteOpts := append(GetRemoteOptions(c.useAuth), remote.WithContext(ctx))
+
 	for _, tag := range tags {
 		// Check if context is cancelled before processing each tag
 		select {
@@ -465,11 +560,16 @@ func (c *GenericRegistryClient) GetArchSpecificDigest(ctx context.Context, repos
 		default:
 		}
 
-		// Use cached descriptor instead of calling remote.Get again
 		desc, ok := descriptorCache[tag.Name]
 		if !ok {
-			logger.V(2).Error(fmt.Errorf("descriptor not found in cache"), "missing descriptor for tag", "tag", tag.Name)
-			continue
+			ref, err := name.ParseReference(fmt.Sprintf("%s/%s:%s", c.registryURL, repository, tag.Name))
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse reference for candidate tag %s: %w", tag.Name, err)
+			}
+			desc, err = remote.Get(ref, selectionRemoteOpts...)
+			if err != nil {
+				return nil, fmt.Errorf("failed to fetch image descriptor for candidate tag %s: %w", tag.Name, err)
+			}
 		}
 
 		isMultiArch := desc.MediaType.IsIndex()
@@ -477,7 +577,10 @@ func (c *GenericRegistryClient) GetArchSpecificDigest(ctx context.Context, repos
 		if wantMultiArch && isMultiArch {
 			logger.V(2).Info("found multi-arch manifest", "tag", tag.Name, "mediaType", desc.MediaType, "digest", desc.Digest.String())
 			tag.Digest = desc.Digest.String()
-			tag.LastModified = extractTimestampFromMultiArchManifest(desc, tag.Name, tag.LastModified)
+			tag.LastModified, tag.Version, err = extractMetadataFromMultiArchManifest(desc, tag.Name, tag.LastModified, versionLabel)
+			if err != nil {
+				return nil, err
+			}
 			return &tag, nil
 		} else if wantMultiArch != isMultiArch {
 			logger.V(2).Info("skipping manifest due to multiArch mismatch", "tag", tag.Name, "wantMultiArch", wantMultiArch, "isMultiArch", isMultiArch)
@@ -486,23 +589,32 @@ func (c *GenericRegistryClient) GetArchSpecificDigest(ctx context.Context, repos
 
 		img, err := desc.Image()
 		if err != nil {
-			logger.V(2).Error(err, "failed to get image", "tag", tag.Name)
-			continue
+			return nil, fmt.Errorf("failed to read image for candidate tag %s: %w", tag.Name, err)
 		}
 
-		configFile, err := img.ConfigFile()
-		if err != nil {
-			logger.V(2).Error(err, "failed to get config", "tag", tag.Name)
-			continue
+		// Prefer a configFile fetched during concurrent enrichment: cached
+		// descriptors carry the errgroup's fetchCtx, which is already
+		// canceled by the time we get here (group.Wait() has returned), so
+		// calling img.ConfigFile() again on a cache hit would fail.
+		configFile, ok := configFileCache[tag.Name]
+		if !ok {
+			configFile, err = img.ConfigFile()
+			if err != nil {
+				return nil, fmt.Errorf("failed to read image config for candidate tag %s: %w", tag.Name, err)
+			}
 		}
+		tag.LastModified, err = validateCreationTimestamp(tag.Name, configFile.Created.Time)
+		if err != nil {
+			return nil, err
+		}
+		tag.Version = extractVersionFromConfigLabels(configFile.Config.Labels, versionLabel)
 
 		normalizedArch := NormalizeArchitecture(configFile.Architecture)
 
 		if normalizedArch == arch && configFile.OS == "linux" {
 			digest, err := img.Digest()
 			if err != nil {
-				logger.V(2).Error(err, "failed to get image digest", "tag", tag.Name)
-				continue
+				return nil, fmt.Errorf("failed to read image digest for candidate tag %s: %w", tag.Name, err)
 			}
 			tag.Digest = digest.String()
 			return &tag, nil
@@ -525,79 +637,55 @@ func (c *GenericRegistryClient) GetDigestForTag(ctx context.Context, repository 
 	}
 
 	logger.V(2).Info("fetching digest for specific tag", "registry", c.registryURL, "repository", repository, "tag", tagName, "useAuth", c.useAuth, "versionLabel", versionLabel)
-
-	// Check if context is cancelled before processing
-	select {
-	case <-ctx.Done():
-		return nil, fmt.Errorf("operation cancelled: %w", ctx.Err())
-	default:
-	}
-
-	remoteOpts := GetRemoteOptions(c.useAuth)
+	remoteOpts := append(GetRemoteOptions(c.useAuth), remote.WithContext(ctx))
 	ref, err := name.ParseReference(fmt.Sprintf("%s/%s:%s", c.registryURL, repository, tagName))
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse reference for tag %s: %w", tagName, err)
 	}
-
 	desc, err := remote.Get(ref, remoteOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch image descriptor for tag %s: %w", tagName, err)
 	}
 
-	tag := Tag{
-		Name:   tagName,
-		Digest: desc.Digest.String(),
-	}
-
-	// Try to get creation time and version label from config
-	if img, err := desc.Image(); err == nil {
-		if configFile, err := img.ConfigFile(); err == nil {
-			tag.LastModified = configFile.Created.Time
-			tag.Version = extractVersionFromConfigLabels(configFile.Config.Labels, versionLabel)
-			if tag.Version != "" {
-				logger.V(2).Info("extracted version from label", "tag", tagName, "label", versionLabel, "version", tag.Version)
-			}
-		}
-	}
-
-	// If multiArch is requested, return the multi-arch manifest list digest
+	tag := Tag{Name: tagName, Digest: desc.Digest.String()}
 	if wantMultiArch {
 		if !desc.MediaType.IsIndex() {
 			return nil, fmt.Errorf("tag %s is not a multi-arch manifest (mediaType: %s)", tagName, desc.MediaType)
 		}
+		tag.LastModified, tag.Version, err = extractMetadataFromMultiArchManifest(desc, tagName, tag.LastModified, versionLabel)
+		if err != nil {
+			return nil, err
+		}
 		logger.V(2).Info("found multi-arch manifest", "tag", tagName, "mediaType", desc.MediaType, "digest", desc.Digest.String())
-		tag.LastModified = extractTimestampFromMultiArchManifest(desc, tagName, tag.LastModified)
 		return &tag, nil
 	}
 
-	// For single-arch, verify architecture matches
 	if desc.MediaType.IsIndex() {
 		return nil, fmt.Errorf("tag %s is a multi-arch manifest, but single-arch was requested (use multiArch: true)", tagName)
 	}
-
 	img, err := desc.Image()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get image for tag %s: %w", tagName, err)
 	}
-
 	configFile, err := img.ConfigFile()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get config for tag %s: %w", tagName, err)
 	}
+	tag.LastModified, err = validateCreationTimestamp(tagName, configFile.Created.Time)
+	if err != nil {
+		return nil, err
+	}
+	tag.Version = extractVersionFromConfigLabels(configFile.Config.Labels, versionLabel)
 
 	normalizedArch := NormalizeArchitecture(configFile.Architecture)
-
 	if normalizedArch != arch || configFile.OS != "linux" {
 		return nil, fmt.Errorf("tag %s has architecture %s/%s, but %s/linux was requested", tagName, configFile.Architecture, configFile.OS, arch)
 	}
-
 	digest, err := img.Digest()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get image digest for tag %s: %w", tagName, err)
 	}
-
 	tag.Digest = digest.String()
 	logger.V(2).Info("found matching image", "tag", tagName, "arch", normalizedArch, "digest", tag.Digest)
-
 	return &tag, nil
 }

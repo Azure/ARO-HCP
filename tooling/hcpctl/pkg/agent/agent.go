@@ -338,6 +338,10 @@ func (s *Session) Usage() UsageReport {
 func (s *Session) SendAndWait(ctx context.Context, prompt string) (string, error) {
 	s.logger.V(1).Info("Sending message to Copilot session.", "promptLength", len(prompt))
 
+	errorCapture := &copilotSessionErrorCapture{provider: s.usageProvider}
+	unsubscribe := s.inner.On(errorCapture.record)
+	defer unsubscribe()
+
 	// The SDK applies a 60s default timeout when the context has no deadline.
 	// Analysis turns routinely take 10+ minutes, so set a generous deadline
 	// to prevent the SDK from timing out prematurely. The caller's context
@@ -376,7 +380,7 @@ func (s *Session) SendAndWait(ctx context.Context, prompt string) (string, error
 		return "", ctx.Err()
 	case r := <-ch:
 		if r.err != nil {
-			return "", fmt.Errorf("copilot session failed: %w", r.err)
+			return "", wrapCopilotSessionError(errorCapture, r.err)
 		}
 		if r.event == nil {
 			return "", fmt.Errorf("copilot session returned no response")

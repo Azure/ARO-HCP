@@ -89,6 +89,9 @@ resourceGroups:
     template: templates/kusto.bicep
     parameters: configurations/kusto.tmpl.bicepparam
     deploymentLevel: ResourceGroup
+    dependsOn:
+    - resourceGroup: global
+      step: output
     automatedRetry:
       errorContainsAny:
       - "InternalServerError"
@@ -125,23 +128,6 @@ resourceGroups:
       step: kusto-lookup
     - resourceGroup: svc
       step: subscription-lookup
-  - name: detach-legacy-monitoring-stack
-    action: Shell
-    command: ./detach-legacy-monitoring-stack.sh
-    workingDir: ./scripts
-    variables:
-    - name: KUSTO_RESOURCE_GROUP
-      configRef: kusto.rg
-    shellIdentity:
-      input:
-        resourceGroup: global
-        step: output
-        name: globalMSIId
-    dependsOn:
-    - resourceGroup: kusto-infra
-      step: deploy
-    - resourceGroup: global
-      step: output
   - name: kusto-monitoring
     action: ARMStack
     template: templates/kusto-monitoring.bicep
@@ -180,5 +166,27 @@ resourceGroups:
       step: kusto-lookup
     - resourceGroup: kusto-infra
       step: action-groups
+  - name: entity-groups
+    action: KustoEntityGroups
+    entityGroups:
+    - "AllServiceLogs:ServiceLogs"
+    - "AllHostedControlPlaneLogs:HostedControlPlaneLogs"
+    - "AllMonitoringEvents:MonitoringEvents"
+    environment: '{{ .environmentName }}'
+    timeout: "10m"
+    identityFrom:
+      resourceGroup: global
+      step: output
+      name: globalMSIId
+    automatedRetry:
+      errorContainsAny:
+      - "InternalServerError"
+      - "Internal server error"
+      - "connection refused"
+      - "context deadline exceeded"
+      - "missing a valid aroHCPEnvironment tag"
+      maximumRetryCount: 3
+      durationBetweenRetries: 2m
+    dependsOn:
     - resourceGroup: kusto-infra
-      step: detach-legacy-monitoring-stack
+      step: deploy

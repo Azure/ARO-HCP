@@ -28,6 +28,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -185,14 +186,13 @@ func TestMiddlewareValidateSubscription(t *testing.T) {
 			var subscription *coreapi.Subscription
 
 			if tt.cachedState != "" {
-				resourceID := metadataapi.Must(coreapi.ToSubscriptionResourceID(subscriptionId))
+				resourceID := metadataapi.Must(coreapihelpers.ToSubscriptionResourceID(subscriptionId))
 				subscription = &coreapi.Subscription{
 					CosmosMetadata: coreapi.CosmosMetadata{
 						ResourceID:   resourceID,
 						PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 					},
-					ResourceID: resourceID,
-					State:      tt.cachedState,
+					State: tt.cachedState,
 					Properties: &coreapi.SubscriptionProperties{
 						TenantId: &tenantId,
 					},

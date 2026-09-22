@@ -31,6 +31,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/kubeappliercosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/fleetlistertesting"
@@ -66,11 +68,11 @@ func TestSynchronizeSubscription_OrphanedDesires(t *testing.T) {
 	mgmtB := mustParseResourceID(t, "/providers/microsoft.redhatopenshift/stamps/test/managementclusters/"+testMgmtClusterB)
 
 	clusterScopedDesire := func(t *testing.T, mc *azcorearm.ResourceID, clusterName, desireName string) *kubeapplierapi.ApplyDesire {
-		return newApplyDesire(t, mc, kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(
+		return newApplyDesire(t, mc, kubeapplierapihelpers.ToClusterScopedApplyDesireResourceIDString(
 			testSubscriptionID, testResourceGroup, clusterName, desireName))
 	}
 	nodePoolScopedDesire := func(t *testing.T, mc *azcorearm.ResourceID, clusterName, nodePoolName, desireName string) *kubeapplierapi.ApplyDesire {
-		return newApplyDesire(t, mc, kubeapplierapi.ToNodePoolScopedApplyDesireResourceIDString(
+		return newApplyDesire(t, mc, kubeapplierapihelpers.ToNodePoolScopedApplyDesireResourceIDString(
 			testSubscriptionID, testResourceGroup, clusterName, nodePoolName, desireName))
 	}
 
@@ -190,7 +192,6 @@ func TestSynchronizeSubscription_OrphanedDesires(t *testing.T) {
 				mockByMC[strings.ToLower(m.mc.String())] = mock
 				mcFleet = append(mcFleet, &fleetapi.ManagementCluster{
 					CosmosMetadata: coreapi.CosmosMetadata{ResourceID: m.mc, PartitionKey: strings.ToLower(m.mc.SubscriptionID)},
-					ResourceID:     m.mc,
 				})
 			}
 
@@ -225,17 +226,16 @@ func mustParseResourceID(t *testing.T, s string) *azcorearm.ResourceID {
 
 func subscription(t *testing.T) *coreapi.Subscription {
 	t.Helper()
-	rid := metadataapi.Must(coreapi.ToSubscriptionResourceID(testSubscriptionID))
+	rid := metadataapi.Must(coreapihelpers.ToSubscriptionResourceID(testSubscriptionID))
 	return &coreapi.Subscription{
 		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: rid, PartitionKey: strings.ToLower(rid.SubscriptionID)},
-		ResourceID:     rid,
 		State:          coreapi.SubscriptionStateRegistered,
 	}
 }
 
 func cluster(t *testing.T, name string) *coreapi.HCPOpenShiftCluster {
 	t.Helper()
-	rid := metadataapi.Must(coreapi.ToClusterResourceID(testSubscriptionID, testResourceGroup, name))
+	rid := metadataapi.Must(coreapihelpers.ToClusterResourceID(testSubscriptionID, testResourceGroup, name))
 	return &coreapi.HCPOpenShiftCluster{
 		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: rid, PartitionKey: strings.ToLower(rid.SubscriptionID)},
 		TrackedResource: coreapi.TrackedResource{
@@ -251,7 +251,7 @@ func cluster(t *testing.T, name string) *coreapi.HCPOpenShiftCluster {
 
 func nodePool(t *testing.T, clusterName, nodePoolName string) *coreapi.HCPOpenShiftClusterNodePool {
 	t.Helper()
-	rid := metadataapi.Must(coreapi.ToNodePoolResourceID(testSubscriptionID, testResourceGroup, clusterName, nodePoolName))
+	rid := metadataapi.Must(coreapihelpers.ToNodePoolResourceID(testSubscriptionID, testResourceGroup, clusterName, nodePoolName))
 	return &coreapi.HCPOpenShiftClusterNodePool{
 		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: rid, PartitionKey: strings.ToLower(rid.SubscriptionID)},
 		TrackedResource: coreapi.TrackedResource{

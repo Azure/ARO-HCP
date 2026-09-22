@@ -26,9 +26,6 @@ images:
       tag: "latest"
       multiArch: true # Use multi-arch manifest
       useAuth: true
-      keyVault:
-        url: "https://arohcpdev-global.vault.azure.net/"
-        secretName: "component-sync-pull-secret"
     targets:
     - jsonPath: defaults.hypershift.image.digest
       filePath: ../../config/config.yaml
@@ -50,9 +47,6 @@ images:
       tag: "latest"
       versionLabel: "vcs-ref"
       useAuth: true
-      keyVault:
-        url: "https://arohcpdev-global.vault.azure.net/"
-        secretName: "component-sync-pull-secret"
     targets:
     - jsonPath: defaults.clustersService.image.digest
       filePath: ../../config/config.yaml
@@ -91,7 +85,7 @@ images:
     group: platform-utils
     source:
       image: mcr.microsoft.com/aks/command/runtime
-      tagPattern: "^master\\.\\d+\\.\\d+$"
+      tag: "master.260813.1" # Pinned: master.260901.1 breaks mgmt provisioning (AROSLSRE-2021). Revert to tagPattern: AROSLSRE-2025
       multiArch: true
     targets:
     - jsonPath: defaults.aksCommandRuntime.image.digest
@@ -219,9 +213,6 @@ images:
       tagPattern: "^\\d+\\.\\d+\\.\\d+$"
       multiArch: true
       useAuth: true
-      keyVault:
-        url: "https://arohcpdev-global.vault.azure.net/"
-        secretName: "component-sync-pull-secret"
     targets:
     - jsonPath: defaults.velero.server.digest
       filePath: ../../config/config.yaml
@@ -232,9 +223,6 @@ images:
       tagPattern: "^\\d+\\.\\d+\\.\\d+$"
       multiArch: true
       useAuth: true
-      keyVault:
-        url: "https://arohcpdev-global.vault.azure.net/"
-        secretName: "component-sync-pull-secret"
     targets:
     - jsonPath: defaults.velero.azurePlugin.digest
       filePath: ../../config/config.yaml
@@ -245,9 +233,6 @@ images:
       tagPattern: "^\\d+\\.\\d+\\.\\d+$"
       multiArch: true
       useAuth: true
-      keyVault:
-        url: "https://arohcpdev-global.vault.azure.net/"
-        secretName: "component-sync-pull-secret"
     targets:
     - jsonPath: defaults.velero.hypershiftPlugin.digest
       filePath: ../../config/config.yaml

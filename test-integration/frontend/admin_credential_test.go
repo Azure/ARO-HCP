@@ -35,6 +35,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
 	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/test-integration/utils/integrationutils"
@@ -90,7 +91,7 @@ func testRequestAdminCredentialStoresCSR(t *testing.T, withMock bool) {
 		},
 		State: coreapi.SubscriptionStateRegistered,
 		Properties: &coreapi.SubscriptionProperties{
-			TenantId: metadataapi.Ptr(coreapitesting.TestTenantID),
+			TenantId: metadataapihelpers.Ptr(coreapitesting.TestTenantID),
 		},
 	}
 	_, err = testInfo.ResourcesDBClient().Subscriptions().Create(ctx, sub, nil)

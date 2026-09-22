@@ -124,8 +124,7 @@ func newTestSubscription() *coreapi.Subscription {
 			ResourceID:   subResourceID,
 			PartitionKey: strings.ToLower(subResourceID.SubscriptionID),
 		},
-		ResourceID: subResourceID,
-		State:      coreapi.SubscriptionStateRegistered,
+		State: coreapi.SubscriptionStateRegistered,
 	}
 }
 

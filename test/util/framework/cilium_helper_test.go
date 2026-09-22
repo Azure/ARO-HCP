@@ -15,12 +15,76 @@
 package framework
 
 import (
+	"encoding/json"
 	"testing"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
+
+func TestCiliumConflistJSON(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		conflist map[string]any
+		wantName string
+		plugins  []string
+	}{
+		{
+			name:     "none",
+			conflist: CiliumConflistNone,
+			wantName: "cilium",
+			plugins:  []string{"cilium-cni"},
+		},
+		{
+			name:     "portmap",
+			conflist: CiliumConflistPortmap,
+			wantName: "portmap",
+			plugins:  []string{"cilium-cni", "portmap"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			raw, err := json.Marshal(tt.conflist)
+			if err != nil {
+				t.Fatalf("json.Marshal(%s) failed: %v", tt.name, err)
+			}
+
+			var parsed map[string]any
+			if err := json.Unmarshal(raw, &parsed); err != nil {
+				t.Fatalf("marshaled %s conflist is not valid JSON: %v\n%s", tt.name, err, raw)
+			}
+
+			if got := parsed["cniVersion"]; got != MultusCompatibleCNIVersion {
+				t.Errorf("cniVersion = %v, want %s", got, MultusCompatibleCNIVersion)
+			}
+			if got := parsed["name"]; got != tt.wantName {
+				t.Errorf("name = %v, want %s", got, tt.wantName)
+			}
+
+			plugins, ok := parsed["plugins"].([]any)
+			if !ok {
+				t.Fatalf("plugins is %T, want []any", parsed["plugins"])
+			}
+			if len(plugins) != len(tt.plugins) {
+				t.Fatalf("len(plugins) = %d, want %d", len(plugins), len(tt.plugins))
+			}
+			for i, wantType := range tt.plugins {
+				plugin, ok := plugins[i].(map[string]any)
+				if !ok {
+					t.Fatalf("plugins[%d] is %T, want map[string]any", i, plugins[i])
+				}
+				if got := plugin["type"]; got != wantType {
+					t.Errorf("plugins[%d].type = %v, want %s", i, got, wantType)
+				}
+			}
+		})
+	}
+}
 
 func TestIsRetryableCiliumNetworkPolicyCreateError(t *testing.T) {
 	t.Parallel()

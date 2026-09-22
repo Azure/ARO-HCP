@@ -40,6 +40,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/kubeapplierlistertesting"
 )
@@ -74,7 +75,7 @@ func newTestHostedClusterReadDesireLister(t *testing.T, clusterUUID string) kube
 	require.NoError(t, err)
 
 	readDesireResourceID := metadataapi.Must(azcorearm.ParseResourceID(
-		kubeapplierapi.ToClusterScopedReadDesireResourceIDString(
+		kubeapplierapihelpers.ToClusterScopedReadDesireResourceIDString(
 			"sub-1", "rg", "cluster-1", kubeapplierhelpers.ReadDesireNameReadonlyHostedCluster,
 		),
 	))
@@ -95,7 +96,7 @@ func newTestServiceProviderCluster(
 	t *testing.T,
 	cluster *coreapi.HCPOpenShiftCluster,
 	desiredVersion string,
-	activeVersions []coreapi.HCPClusterActiveVersion,
+	activeVersions []coreapi.ServiceProviderClusterActiveVersion,
 ) *coreapi.ServiceProviderCluster {
 	t.Helper()
 
@@ -125,7 +126,7 @@ func TestClusterVersionMetricsHandler_SetsDesiredAndActiveVersions(t *testing.T)
 	handler := newTestClusterVersionMetricsHandler(t, prometheusRegistry, newTestHostedClusterReadDesireLister(t, "11111111-1111-1111-1111-111111111111"))
 
 	cluster := newTestCluster(t, "cluster-1", coreapi.ProvisioningStateSucceeded, nil)
-	serviceProviderCluster := newTestServiceProviderCluster(t, cluster, "4.19.20", []coreapi.HCPClusterActiveVersion{
+	serviceProviderCluster := newTestServiceProviderCluster(t, cluster, "4.19.20", []coreapi.ServiceProviderClusterActiveVersion{
 		{Version: ptr.To(semver.MustParse("4.19.19")), State: configv1.CompletedUpdate},
 		{Version: ptr.To(semver.MustParse("4.19.20")), State: configv1.PartialUpdate},
 	})
@@ -164,7 +165,7 @@ func TestClusterVersionMetricsHandler_SkipsDuplicateActiveVersionsAfterRollback(
 
 	cluster := newTestCluster(t, "cluster-1", coreapi.ProvisioningStateSucceeded, nil)
 	// ActiveVersions is newest-first; the same z-stream can appear twice after a rollback.
-	serviceProviderCluster := newTestServiceProviderCluster(t, cluster, "", []coreapi.HCPClusterActiveVersion{
+	serviceProviderCluster := newTestServiceProviderCluster(t, cluster, "", []coreapi.ServiceProviderClusterActiveVersion{
 		{Version: ptr.To(semver.MustParse("4.19.19")), State: configv1.PartialUpdate},
 		{Version: ptr.To(semver.MustParse("4.19.19")), State: configv1.CompletedUpdate},
 	})
@@ -185,7 +186,7 @@ func TestClusterVersionMetricsHandler_CapsReportedActiveVersions(t *testing.T) {
 
 	cluster := newTestCluster(t, "cluster-1", coreapi.ProvisioningStateSucceeded, nil)
 	// ActiveVersions is newest-first; only the three newest history entries are reported.
-	serviceProviderCluster := newTestServiceProviderCluster(t, cluster, "", []coreapi.HCPClusterActiveVersion{
+	serviceProviderCluster := newTestServiceProviderCluster(t, cluster, "", []coreapi.ServiceProviderClusterActiveVersion{
 		{Version: ptr.To(semver.MustParse("4.19.22")), State: configv1.PartialUpdate},
 		{Version: ptr.To(semver.MustParse("4.19.21")), State: configv1.PartialUpdate},
 		{Version: ptr.To(semver.MustParse("4.19.20")), State: configv1.PartialUpdate},
@@ -210,7 +211,7 @@ func TestClusterVersionMetricsHandler_ReplacesDesiredWhenVersionBecomesActive(t 
 	handler := newTestClusterVersionMetricsHandler(t, prometheusRegistry, newTestHostedClusterReadDesireLister(t, "11111111-1111-1111-1111-111111111111"))
 
 	cluster := newTestCluster(t, "cluster-1", coreapi.ProvisioningStateSucceeded, nil)
-	serviceProviderCluster := newTestServiceProviderCluster(t, cluster, "4.19.20", []coreapi.HCPClusterActiveVersion{
+	serviceProviderCluster := newTestServiceProviderCluster(t, cluster, "4.19.20", []coreapi.ServiceProviderClusterActiveVersion{
 		{Version: ptr.To(semver.MustParse("4.19.20")), State: configv1.CompletedUpdate},
 	})
 	handler.Sync(ctx, serviceProviderCluster)
@@ -229,13 +230,13 @@ func TestClusterVersionMetricsHandler_VersionStateTransitionDeletesOldSeries(t *
 	handler := newTestClusterVersionMetricsHandler(t, prometheusRegistry, newTestHostedClusterReadDesireLister(t, "11111111-1111-1111-1111-111111111111"))
 
 	cluster := newTestCluster(t, "cluster-1", coreapi.ProvisioningStateSucceeded, nil)
-	serviceProviderCluster := newTestServiceProviderCluster(t, cluster, "4.19.20", []coreapi.HCPClusterActiveVersion{
+	serviceProviderCluster := newTestServiceProviderCluster(t, cluster, "4.19.20", []coreapi.ServiceProviderClusterActiveVersion{
 		{Version: ptr.To(semver.MustParse("4.19.19")), State: configv1.CompletedUpdate},
 		{Version: ptr.To(semver.MustParse("4.19.20")), State: configv1.PartialUpdate},
 	})
 	handler.Sync(ctx, serviceProviderCluster)
 
-	serviceProviderCluster.Status.ControlPlaneVersion.ActiveVersions = []coreapi.HCPClusterActiveVersion{
+	serviceProviderCluster.Status.ControlPlaneVersion.ActiveVersions = []coreapi.ServiceProviderClusterActiveVersion{
 		{Version: ptr.To(semver.MustParse("4.19.19")), State: configv1.CompletedUpdate},
 		{Version: ptr.To(semver.MustParse("4.19.20")), State: configv1.CompletedUpdate},
 	}
@@ -271,7 +272,7 @@ func TestClusterVersionMetricsController_SyncResource(t *testing.T) {
 	handler := newTestClusterVersionMetricsHandler(t, prometheusRegistry, newTestHostedClusterReadDesireLister(t, "11111111-1111-1111-1111-111111111111"))
 
 	cluster := newTestCluster(t, "cluster-1", coreapi.ProvisioningStateSucceeded, nil)
-	serviceProviderCluster := newTestServiceProviderCluster(t, cluster, "4.19.20", []coreapi.HCPClusterActiveVersion{
+	serviceProviderCluster := newTestServiceProviderCluster(t, cluster, "4.19.20", []coreapi.ServiceProviderClusterActiveVersion{
 		{Version: ptr.To(semver.MustParse("4.19.20")), State: configv1.CompletedUpdate},
 	})
 
@@ -301,7 +302,7 @@ func TestClusterVersionMetricsController_DeletesMetricsWhenResourceRemoved(t *te
 	handler := newTestClusterVersionMetricsHandler(t, prometheusRegistry, newTestHostedClusterReadDesireLister(t, "11111111-1111-1111-1111-111111111111"))
 
 	cluster := newTestCluster(t, "cluster-1", coreapi.ProvisioningStateSucceeded, nil)
-	serviceProviderCluster := newTestServiceProviderCluster(t, cluster, "4.19.20", []coreapi.HCPClusterActiveVersion{
+	serviceProviderCluster := newTestServiceProviderCluster(t, cluster, "4.19.20", []coreapi.ServiceProviderClusterActiveVersion{
 		{Version: ptr.To(semver.MustParse("4.19.20")), State: configv1.CompletedUpdate},
 	})
 

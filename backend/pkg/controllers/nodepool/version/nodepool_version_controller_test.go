@@ -42,6 +42,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
 	"github.com/Azure/ARO-HCP/internal/cincinnati"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
@@ -71,8 +73,7 @@ func createTestSubscription(t *testing.T, ctx context.Context, mockResourcesDBCl
 			ResourceID:   subResourceID,
 			PartitionKey: strings.ToLower(subResourceID.SubscriptionID),
 		},
-		ResourceID: subResourceID,
-		State:      coreapi.SubscriptionStateRegistered,
+		State: coreapi.SubscriptionStateRegistered,
 		Properties: &coreapi.SubscriptionProperties{
 			TenantId: ptr.To("test-tenant-id"),
 		},
@@ -121,7 +122,7 @@ func createTestNodePoolWithVersion(t *testing.T, ctx context.Context, mockResour
 		"/resourceGroups/" + testResourceGroupName +
 		"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
 		"/nodePools/" + testNodePoolName))
-	nodePoolInternalID := metadataapi.Ptr(metadataapi.Must(metadataapi.NewInternalID(testCSNodePoolIDStr)))
+	nodePoolInternalID := metadataapihelpers.Ptr(metadataapi.Must(metadataapi.NewInternalID(testCSNodePoolIDStr)))
 
 	nodePool := &coreapi.HCPOpenShiftClusterNodePool{
 		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: nodePoolResourceID, PartitionKey: strings.ToLower(nodePoolResourceID.SubscriptionID)},
@@ -154,7 +155,7 @@ func createTestNodePoolWithVersion(t *testing.T, ctx context.Context, mockResour
 func hostedClusterReadDesireResourceID(t *testing.T) *azcorearm.ResourceID {
 	t.Helper()
 	return metadataapi.Must(azcorearm.ParseResourceID(
-		kubeapplierapi.ToClusterScopedReadDesireResourceIDString(
+		kubeapplierapihelpers.ToClusterScopedReadDesireResourceIDString(
 			testSubscriptionID, testResourceGroupName, testClusterName, kubeapplierhelpers.ReadDesireNameReadonlyHostedCluster)))
 }
 
@@ -536,7 +537,7 @@ func TestNodePoolVersionSyncer_NeedsWork(t *testing.T) {
 		spc := &coreapi.ServiceProviderCluster{}
 		for _, v := range versions {
 			version := semver.MustParse(v)
-			spc.Status.ControlPlaneVersion.ActiveVersions = append(spc.Status.ControlPlaneVersion.ActiveVersions, coreapi.HCPClusterActiveVersion{Version: &version, State: configv1.CompletedUpdate})
+			spc.Status.ControlPlaneVersion.ActiveVersions = append(spc.Status.ControlPlaneVersion.ActiveVersions, coreapi.ServiceProviderClusterActiveVersion{Version: &version, State: configv1.CompletedUpdate})
 		}
 		return spc
 	}
@@ -910,10 +911,10 @@ func TestNodePoolVersionSyncer_ValidateDesiredNodePoolVersion(t *testing.T) {
 			desiredVersion := semver.MustParse(tt.desiredVersion)
 
 			// Build ServiceProviderNodePool with active versions
-			var nodePoolActiveVersions []coreapi.HCPNodePoolActiveVersion
+			var nodePoolActiveVersions []coreapi.ServiceProviderNodePoolActiveVersion
 			for _, v := range tt.activeVersions {
 				version := semver.MustParse(v)
-				nodePoolActiveVersions = append(nodePoolActiveVersions, coreapi.HCPNodePoolActiveVersion{Version: &version})
+				nodePoolActiveVersions = append(nodePoolActiveVersions, coreapi.ServiceProviderNodePoolActiveVersion{Version: &version})
 			}
 			spNodePool := &coreapi.ServiceProviderNodePool{
 				Status: coreapi.ServiceProviderNodePoolStatus{
@@ -924,10 +925,10 @@ func TestNodePoolVersionSyncer_ValidateDesiredNodePoolVersion(t *testing.T) {
 			}
 
 			// Build ServiceProviderCluster with control plane versions
-			var cpActiveVersions []coreapi.HCPClusterActiveVersion
+			var cpActiveVersions []coreapi.ServiceProviderClusterActiveVersion
 			for _, v := range tt.controlPlaneVersions {
 				version := semver.MustParse(v)
-				cpActiveVersions = append(cpActiveVersions, coreapi.HCPClusterActiveVersion{Version: &version, State: configv1.CompletedUpdate})
+				cpActiveVersions = append(cpActiveVersions, coreapi.ServiceProviderClusterActiveVersion{Version: &version, State: configv1.CompletedUpdate})
 			}
 			spCluster := &coreapi.ServiceProviderCluster{
 				Status: coreapi.ServiceProviderClusterStatus{
@@ -1493,7 +1494,7 @@ func createServiceProviderClusterWithVersion(t *testing.T, ctx context.Context, 
 	existing, getErr := spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
 	if getErr == nil {
 		replacement := existing.DeepCopy()
-		replacement.Status.ControlPlaneVersion.ActiveVersions = []coreapi.HCPClusterActiveVersion{
+		replacement.Status.ControlPlaneVersion.ActiveVersions = []coreapi.ServiceProviderClusterActiveVersion{
 			{Version: &cpVersion, State: configv1.CompletedUpdate},
 		}
 		_, err := spcCRUD.Replace(ctx, replacement, nil)
@@ -1509,7 +1510,7 @@ func createServiceProviderClusterWithVersion(t *testing.T, ctx context.Context, 
 		},
 		Status: coreapi.ServiceProviderClusterStatus{
 			ControlPlaneVersion: coreapi.ServiceProviderClusterStatusVersion{
-				ActiveVersions: []coreapi.HCPClusterActiveVersion{
+				ActiveVersions: []coreapi.ServiceProviderClusterActiveVersion{
 					{Version: &cpVersion, State: configv1.CompletedUpdate},
 				},
 			},
@@ -1538,7 +1539,7 @@ func createServiceProviderNodePoolWithVersion(t *testing.T, ctx context.Context,
 		},
 		Status: coreapi.ServiceProviderNodePoolStatus{
 			NodePoolVersion: coreapi.ServiceProviderNodePoolStatusVersion{
-				ActiveVersions: []coreapi.HCPNodePoolActiveVersion{
+				ActiveVersions: []coreapi.ServiceProviderNodePoolActiveVersion{
 					{Version: &version},
 				},
 			},
@@ -1553,7 +1554,6 @@ func newTestSubscriptionLister() *corelistertesting.SliceSubscriptionLister {
 	return &corelistertesting.SliceSubscriptionLister{
 		Subscriptions: []*coreapi.Subscription{{
 			CosmosMetadata: coreapi.CosmosMetadata{ResourceID: subResourceID},
-			ResourceID:     subResourceID,
 			Properties:     &coreapi.SubscriptionProperties{},
 		}},
 	}

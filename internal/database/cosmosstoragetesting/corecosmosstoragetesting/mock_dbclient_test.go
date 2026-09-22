@@ -28,6 +28,8 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 )
@@ -65,13 +67,13 @@ func TestMockResourcesDBClient_LoadFromDirectory(t *testing.T) {
 		}
 
 		switch {
-		case metadataapi.ResourceTypeStringEqual(typedDoc.ResourceType, coreapi.ClusterResourceType):
+		case metadataapihelpers.ResourceTypeStringEqual(typedDoc.ResourceType, coreapi.ClusterResourceType):
 			foundCluster = true
-		case metadataapi.ResourceTypeStringEqual(typedDoc.ResourceType, coreapi.NodePoolResourceType):
+		case metadataapihelpers.ResourceTypeStringEqual(typedDoc.ResourceType, coreapi.NodePoolResourceType):
 			foundNodePool = true
-		case metadataapi.ResourceTypeStringEqual(typedDoc.ResourceType, azcorearm.SubscriptionResourceType):
+		case metadataapihelpers.ResourceTypeStringEqual(typedDoc.ResourceType, azcorearm.SubscriptionResourceType):
 			foundSubscription = true
-		case metadataapi.ResourceTypeStringEqual(typedDoc.ResourceType, coreapi.OperationStatusResourceType):
+		case metadataapihelpers.ResourceTypeStringEqual(typedDoc.ResourceType, coreapi.OperationStatusResourceType):
 			foundOperation = true
 		}
 	}
@@ -411,7 +413,7 @@ func TestMockResourcesDBClient_CRUD_Subscription(t *testing.T) {
 	ctx := context.Background()
 
 	subscriptionID := "6b690bec-0c16-4ecb-8f67-781caf40bba7"
-	subscriptionResourceID := metadataapi.Must(coreapi.ToSubscriptionResourceID(subscriptionID))
+	subscriptionResourceID := metadataapi.Must(coreapihelpers.ToSubscriptionResourceID(subscriptionID))
 
 	registrationDate := "2025-01-01T00:00:00Z"
 	subscription := &coreapi.Subscription{
@@ -419,7 +421,6 @@ func TestMockResourcesDBClient_CRUD_Subscription(t *testing.T) {
 			ResourceID:   subscriptionResourceID,
 			PartitionKey: strings.ToLower(subscriptionResourceID.SubscriptionID),
 		},
-		ResourceID:       subscriptionResourceID,
 		State:            coreapi.SubscriptionStateRegistered,
 		RegistrationDate: &registrationDate,
 	}
@@ -593,7 +594,7 @@ func TestMockResourcesDBClient_UntypedCRUD(t *testing.T) {
 		t.Fatalf("Failed to get cluster via untyped CRUD: %v", err)
 	}
 
-	if !metadataapi.ResourceTypeStringEqual(retrieved.ResourceType, coreapi.ClusterResourceType) {
+	if !metadataapihelpers.ResourceTypeStringEqual(retrieved.ResourceType, coreapi.ClusterResourceType) {
 		t.Errorf("Expected resource type %s, got %s", coreapi.ClusterResourceType.String(), retrieved.ResourceType)
 	}
 }
@@ -911,14 +912,13 @@ func TestMockResourcesDBClient_addResource(t *testing.T) {
 	}
 
 	// Test adding a subscription
-	subscriptionResourceID := metadataapi.Must(coreapi.ToSubscriptionResourceID(subscriptionID))
+	subscriptionResourceID := metadataapi.Must(coreapihelpers.ToSubscriptionResourceID(subscriptionID))
 	subscription := &coreapi.Subscription{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   subscriptionResourceID,
 			PartitionKey: strings.ToLower(subscriptionResourceID.SubscriptionID),
 		},
-		ResourceID: subscriptionResourceID,
-		State:      coreapi.SubscriptionStateRegistered,
+		State: coreapi.SubscriptionStateRegistered,
 	}
 
 	err = mock.addResource(ctx, subscription)
@@ -1001,14 +1001,13 @@ func TestNewMockResourcesDBClientWithResources(t *testing.T) {
 	}
 
 	// Create subscription
-	subscriptionResourceID := metadataapi.Must(coreapi.ToSubscriptionResourceID(subscriptionID))
+	subscriptionResourceID := metadataapi.Must(coreapihelpers.ToSubscriptionResourceID(subscriptionID))
 	subscription := &coreapi.Subscription{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   subscriptionResourceID,
 			PartitionKey: strings.ToLower(subscriptionResourceID.SubscriptionID),
 		},
-		ResourceID: subscriptionResourceID,
-		State:      coreapi.SubscriptionStateRegistered,
+		State: coreapi.SubscriptionStateRegistered,
 	}
 
 	// Create mockResourcesDBClient with all resources

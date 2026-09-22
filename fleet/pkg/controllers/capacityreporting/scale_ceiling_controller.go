@@ -26,7 +26,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v6"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v8"
 
 	"github.com/Azure/ARO-HCP/fleet/pkg/azure/agentpools"
 	"github.com/Azure/ARO-HCP/fleet/pkg/azure/skucache"
@@ -59,7 +59,7 @@ func NewManagementClusterScaleCeilingReportingController(
 	credential azcore.TokenCredential,
 	clientOptions *policy.ClientOptions,
 	cfg fleetcontrollers.StampWatchingControllerConfig,
-) *fleetcontrollers.StampWatchingController {
+) fleetcontrollers.Controller {
 	if clientOptions == nil {
 		clientOptions = &policy.ClientOptions{}
 	}
@@ -117,12 +117,12 @@ func (s *scaleCeilingReportingSyncer) SyncOnce(ctx context.Context, key fleetcon
 		return utils.TrackError(err)
 	}
 
-	skuResources, err := s.skuCache.SKUResourcesByVMSize(ctx, aksResourceID.SubscriptionID)
+	skuMetadata, err := s.skuCache.SKUMetadataByVMSize(ctx, aksResourceID.SubscriptionID)
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
-	max := computeMaxCapacity(report, pools, skuResources)
+	max := computeMaxCapacity(report, pools, skuMetadata)
 
 	now := metav1.Now()
 	return s.persistMaxCapacity(ctx, key.StampIdentifier, max, &now)

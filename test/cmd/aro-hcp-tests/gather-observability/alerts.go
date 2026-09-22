@@ -87,7 +87,8 @@ func fetchAlerts(ctx context.Context, cred azcore.TokenCredential, scope string,
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			return nil, fmt.Errorf("failed to list alerts: %w", err)
+			sortAlerts(allAlerts)
+			return allAlerts, fmt.Errorf("failed to list alerts: %w", err)
 		}
 		for _, alert := range page.Value {
 			allAlerts = append(allAlerts, toAlert(alert))

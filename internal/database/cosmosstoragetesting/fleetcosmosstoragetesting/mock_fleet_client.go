@@ -26,6 +26,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
@@ -253,7 +254,7 @@ type mockStampsCRUD struct {
 }
 
 func (s *mockStampsCRUD) ManagementClusters(stampIdentifier string) fleetcosmosstorage.ManagementClustersCRUD {
-	parentResourceID, err := fleetapi.ToStampResourceID(stampIdentifier)
+	parentResourceID, err := fleetapihelpers.ToStampResourceID(stampIdentifier)
 	if err != nil {
 		panic(fmt.Sprintf("invalid stamp identifier %q: %v", stampIdentifier, err))
 	}
@@ -279,7 +280,7 @@ type mockManagementClustersCRUD struct {
 }
 
 func (m *mockManagementClustersCRUD) Controllers() cosmosstorageutils.ResourceCRUD[coreapi.Controller, *coreapi.Controller] {
-	managementClusterResourceID, err := fleetapi.ToManagementClusterResourceID(m.stampIdentifier)
+	managementClusterResourceID, err := fleetapihelpers.ToManagementClusterResourceID(m.stampIdentifier)
 	if err != nil {
 		panic(fmt.Sprintf("invalid stamp identifier %q: %v", m.stampIdentifier, err))
 	}
@@ -289,7 +290,7 @@ func (m *mockManagementClustersCRUD) Controllers() cosmosstorageutils.ResourceCR
 }
 
 func (m *mockManagementClustersCRUD) Scheduling() cosmosstorageutils.ResourceCRUD[fleetapi.ManagementClusterScheduling, *fleetapi.ManagementClusterScheduling] {
-	managementClusterResourceID, err := fleetapi.ToManagementClusterResourceID(m.stampIdentifier)
+	managementClusterResourceID, err := fleetapihelpers.ToManagementClusterResourceID(m.stampIdentifier)
 	if err != nil {
 		panic(fmt.Sprintf("invalid stamp identifier %q: %v", m.stampIdentifier, err))
 	}
@@ -317,5 +318,12 @@ func (g *mockFleetGlobalListers) ManagementClusters() cosmosstorageutils.GlobalL
 	return corecosmosstoragetesting.NewMockGlobalLister[fleetapi.ManagementCluster, cosmosstorageutils.GenericDocument[fleetapi.ManagementCluster]](
 		g.client,
 		[]azcorearm.ResourceType{fleetapi.ManagementClusterResourceType},
+	)
+}
+
+func (g *mockFleetGlobalListers) ManagementClusterSchedulings() cosmosstorageutils.GlobalLister[fleetapi.ManagementClusterScheduling] {
+	return corecosmosstoragetesting.NewMockGlobalLister[fleetapi.ManagementClusterScheduling, cosmosstorageutils.GenericDocument[fleetapi.ManagementClusterScheduling]](
+		g.client,
+		[]azcorearm.ResourceType{fleetapi.ManagementClusterSchedulingResourceType},
 	)
 }

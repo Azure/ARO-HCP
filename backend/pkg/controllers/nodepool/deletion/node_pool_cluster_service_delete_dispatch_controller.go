@@ -53,6 +53,7 @@ const missingClusterServiceIDTimeout = 120 * time.Second
 // waiting for a ClusterServiceID), it stamps ClusterServiceDeletionTimestamp
 // on the NodePool to record that this step is complete and avoid re-issuing
 // the delete on subsequent syncs.
+//
 // The controller also caches the time the controller has first seen the
 // serviceProviderProperties.deletionTimestamp being set for a nodepool. This
 // is used to avoid immediately triggering deletion in scenarios where the

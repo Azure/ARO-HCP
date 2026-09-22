@@ -1,0 +1,57 @@
+// Per-test outcomes, one row per test executed in a CI run.
+//
+// The join table between ciJobOutcomes (buildId) and ciTestNames (testId),
+// written by the same collector - see tooling/tenant-quota/pkg/cijoboutcomes.
+//
+// Only tests that actually ran are recorded. A run's suite skips a large share
+// of its specs depending on what it is exercising, and a skipped test has no
+// timings and no outcome worth attributing, so recording them would roughly
+// double the table to say nothing.
+//
+// The timing columns bound each phase of a test, which is what makes telemetry
+// attributable to the part of the test that produced it: alerts that fire
+// between testStartTime and finishedAt belong to the test itself, whereas those
+// before setupFinishTime or after cleanupStartTime belong to environment setup
+// or teardown. resourceGroup is the Azure resource group the test created, so
+// resource-scoped telemetry can be attributed without deriving it from names.
+//
+//     ciTestResults
+//     | where failed
+//     | join kind=inner (ciTestNames | distinct testId, name) on testId
+//     | join kind=inner ciJobOutcomes on buildId
+//     | project startedAt, name, jobName, svcCluster, mgmtCluster, prowUrl
+//
+// Timing columns are zero when the run's artifacts did not report them, which
+// happens for aborted runs and for tests whose timing metadata is missing.
+.create-merge table ciTestResults (
+    buildId: string,
+    testId: string,
+    result: string,
+    failed: bool,
+    resourceGroup: string,
+    startedAt: datetime,
+    finishedAt: datetime,
+    setupFinishTime: datetime,
+    testStartTime: datetime,
+    cleanupStartTime: datetime
+)
+with (
+    docstring = "Outcome and timings of a single test within a CI run, written by the opstool tenant-quota collector",
+    folder = "CI"
+)
+
+.create-or-alter table ciTestResults ingestion json mapping "ciTestResultsMapping"
+```
+[
+  {"column":"buildId","path":"$['buildId']","datatype":"string"},
+  {"column":"testId","path":"$['testId']","datatype":"string"},
+  {"column":"result","path":"$['result']","datatype":"string"},
+  {"column":"failed","path":"$['failed']","datatype":"bool"},
+  {"column":"resourceGroup","path":"$['resourceGroup']","datatype":"string"},
+  {"column":"startedAt","path":"$['startedAt']","datatype":"datetime"},
+  {"column":"finishedAt","path":"$['finishedAt']","datatype":"datetime"},
+  {"column":"setupFinishTime","path":"$['setupFinishTime']","datatype":"datetime"},
+  {"column":"testStartTime","path":"$['testStartTime']","datatype":"datetime"},
+  {"column":"cleanupStartTime","path":"$['cleanupStartTime']","datatype":"datetime"}
+]
+```

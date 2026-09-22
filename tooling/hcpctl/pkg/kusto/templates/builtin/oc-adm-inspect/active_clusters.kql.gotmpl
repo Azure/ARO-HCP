@@ -1,0 +1,15 @@
+{{- /*
+Lists the distinct cluster names seen in backend logs for the resource group in
+the lookback window ending at the requested timestamp. backendLogs.cluster_name is
+mapped from the backend's hcp_cluster_name log field. resource_group is matched
+case-insensitively (=~) because the forwarder may upper-case it. Used to tell the
+user which clusters are available when they did not specify one.
+*/ -}}
+backendLogs
+| where timestamp between ({{ .TimestampMin }} .. {{ .TimestampMax }})
+{{- if .ResourceGroupName}}
+| where resource_group =~ '{{.ResourceGroupName}}'
+{{- end}}
+| where isnotempty(cluster_name)
+| distinct cluster_name
+| order by cluster_name asc
