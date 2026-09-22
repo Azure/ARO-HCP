@@ -538,11 +538,8 @@ func admitRequiredOperatorIdentities(admissionContext *ClusterAdmissionContext, 
 	return errs
 }
 
-// admitOperatorIdentityNames rejects operator names the service does not recognize.
-//
-// The backend indexes operators by exact name, so a mis-cased or misspelled key is accepted at
-// create time and then fails asynchronously -- the same silent failure this check exists to
-// prevent. Matching is therefore exact.
+// admitOperatorIdentityNames rejects operator names the service does not recognize. Matching is
+// case-sensitive, because the backend indexes operators by exact name.
 func admitOperatorIdentityNames(admissionContext *ClusterAdmissionContext, fldPath *field.Path, newObj *coreapi.HCPOpenShiftClusterCustomerProperties) field.ErrorList {
 	config := admissionContext.ClusterScopedIdentities
 	userAssignedIdentities := newObj.Platform.OperatorsAuthentication.UserAssignedIdentities
