@@ -122,6 +122,32 @@ resource arohcpClusterProvisionLatencyRecordingRules 'Microsoft.AlertsManagement
   }
 }
 
+resource arohcpClusterUpdateSloRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_cluster_update_slo_recording_rules'
+  location: location
+  properties: {
+    scopes: [
+      azureMonitoring
+    ]
+    enabled: true
+    interval: 'PT1M'
+    rules: [
+      {
+        record: 'errors:backend_cluster_update:succeeded_total'
+        expression: 'count by (cluster, region) (max without (prometheus_replica) (backend_resource_operation_phase_info{operation_type="update",phase="succeeded",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}))'
+      }
+      {
+        record: 'errors:backend_cluster_update:terminal_total'
+        expression: 'count by (cluster, region) (max without (prometheus_replica) (backend_resource_operation_phase_info{operation_type="update",phase=~"succeeded|failed|canceled",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}))'
+      }
+      {
+        record: 'errors:backend_cluster_update:error_rate'
+        expression: '(count by (cluster, region) (max without (prometheus_replica) (backend_resource_operation_phase_info{operation_type="update",phase="failed",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) or 0 * count by (cluster, region) (max without (prometheus_replica) (backend_resource_operation_phase_info{operation_type="update",phase=~"succeeded|failed|canceled",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}))) / clamp_min(count by (cluster, region) (max without (prometheus_replica) (backend_resource_operation_phase_info{operation_type="update",phase=~"succeeded|failed|canceled",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})), 1)'
+      }
+    ]
+  }
+}
+
 resource arohcpUserJourneyClusterUpgradeRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'arohcp_user_journey_cluster_upgrade_recording_rules'
   location: location
