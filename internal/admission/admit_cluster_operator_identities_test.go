@@ -225,6 +225,47 @@ func TestAdmitClusterRejectsUnrecognizedOperatorNames(t *testing.T) {
 	}
 }
 
+// TestAdmitClusterTreatsNilIdentityAsMissing pins that a key present with a nil value does not
+// count as supplied. Conversion drops such entries today, so only this test covers the branch.
+func TestAdmitClusterTreatsNilIdentityAsMissing(t *testing.T) {
+	ctx := context.Background()
+	op := operation.Operation{Type: operation.Create}
+
+	cluster := coreapitesting.MinimumValidClusterTestCase()
+	operators := cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators
+	operators["KMS"] = operators["kms"]
+	operators["kms"] = nil
+
+	errs := AdmitCluster(ctx, operatorIdentitiesAdmissionContext(nil), op, cluster, nil)
+
+	require.True(t, hasErrorContaining(errs, "unrecognized operator name",
+		operatorIdentitiesPath+".controlPlaneOperators[KMS]"),
+		"expected the mis-cased name to be rejected, got: %v", errs)
+	require.True(t, hasErrorContaining(errs, `a user-assigned identity for the "kms" control plane operator is required`,
+		operatorIdentitiesPath+".controlPlaneOperators[kms]"),
+		"a nil identity must not count as supplied, got: %v", errs)
+}
+
+// TestAdmitClusterIgnoresEmptyOperatorName pins that an empty key is left to the static identity
+// validation rather than being reported twice.
+func TestAdmitClusterIgnoresEmptyOperatorName(t *testing.T) {
+	ctx := context.Background()
+	op := operation.Operation{Type: operation.Create}
+
+	cluster := coreapitesting.MinimumValidClusterTestCase()
+	cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators[""] =
+		metadataapi.Must(azcorearm.ParseResourceID(testOperatorIdentityPrefix + "empty-name-identity"))
+	cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators[""] =
+		metadataapi.Must(azcorearm.ParseResourceID(testOperatorIdentityPrefix + "empty-name-dataplane-identity"))
+
+	errs := AdmitCluster(ctx, operatorIdentitiesAdmissionContext(nil), op, cluster, nil)
+
+	for _, err := range errs {
+		require.NotContains(t, err.Error(), "unrecognized operator name",
+			"an empty operator name must not be reported here, got: %v", errs)
+	}
+}
+
 func TestAdmitClusterRejectsOperatorUnsupportedForVersion(t *testing.T) {
 	ctx := context.Background()
 	op := operation.Operation{Type: operation.Create}
