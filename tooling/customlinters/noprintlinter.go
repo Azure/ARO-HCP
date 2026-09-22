@@ -1,4 +1,4 @@
-// Copyright 2025 Microsoft Corporation
+// Copyright 2026 Microsoft Corporation
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,7 +18,6 @@ import (
 	"bytes"
 	"go/ast"
 	"go/types"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -121,7 +120,7 @@ func (l *NoPrintLinter) run(pass *analysis.Pass) (any, error) {
 			continue
 		}
 
-		src, _ := os.ReadFile(filename) // best-effort; nil on failure is fine
+		src, _ := pass.ReadFile(filename) // best-effort; nil on failure is fine
 		fc := &FileCtx{pass: pass, file: file, src: src}
 		fc.buildDisabledMap()
 

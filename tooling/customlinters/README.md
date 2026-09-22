@@ -49,7 +49,7 @@ make build   # Build custom linter binary
 Defines which custom linter plugins to compile into the binary:
 
 ```yaml
-version: v2.5.0
+version: v2.7.0
 name: custom-golangci-lint
 destination: ./bin
 plugins:
