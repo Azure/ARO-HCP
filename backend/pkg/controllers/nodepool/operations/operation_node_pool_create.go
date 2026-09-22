@@ -33,6 +33,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -42,6 +43,7 @@ type operationNodePoolCreate struct {
 	resourcesDBClient      corecosmosstorage.ResourcesDBClient
 	activeOperationsLister corelisters.ActiveOperationLister
 	nodePoolLister         corelisters.NodePoolLister
+	readDesireLister       kubeapplierlisters.ReadDesireLister
 	clusterServiceClient   ocm.ClusterServiceClientSpec
 	notificationClient     *http.Client
 }
@@ -64,6 +66,7 @@ func NewOperationNodePoolCreateController(
 	clock utilsclock.PassiveClock,
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
+	readDesireLister kubeapplierlisters.ReadDesireLister,
 	notificationClient *http.Client,
 	activeOperationInformer cache.SharedIndexInformer,
 	backendInformers coreinformers.BackendInformers,
@@ -75,6 +78,7 @@ func NewOperationNodePoolCreateController(
 		clock:                  clock,
 		resourcesDBClient:      resourcesDBClient,
 		nodePoolLister:         nodePoolLister,
+		readDesireLister:       readDesireLister,
 		activeOperationsLister: activeOperationsLister,
 		clusterServiceClient:   clusterServiceClient,
 		notificationClient:     notificationClient,
@@ -199,6 +203,11 @@ func (c *operationNodePoolCreate) determineOperationState(ctx context.Context, o
 		errs = append(errs, utils.TrackError(err))
 	} else {
 		operationStates = append(operationStates, state.WithSource("clusterServiceNodePoolStatus"))
+	}
+	if state, err := c.hypershiftNodePoolOperationState(ctx, nodePool); err != nil {
+		errs = append(errs, utils.TrackError(err))
+	} else {
+		operationStates = append(operationStates, state.WithSource("hypershiftNodePool"))
 	}
 
 	if err := errors.Join(errs...); err != nil {

@@ -24,19 +24,24 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/json"
 	utilsclock "k8s.io/utils/clock"
 	clocktesting "k8s.io/utils/clock/testing"
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
+	"github.com/openshift/hypershift/api/hypershift/v1beta1"
 
 	operationbase "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
 	operationtesting "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils/operationtesting"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/kubeapplierlistertesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -70,6 +75,19 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 		return np
 	}
 
+	nodePoolWithZeroReplicas := func(fixture *operationtesting.NodePoolTestFixture) *coreapi.HCPOpenShiftClusterNodePool {
+		np := fixture.NewNodePool()
+		np.Properties.Replicas = 0
+		np.Properties.AutoScaling = nil
+		return np
+	}
+
+	nodePoolWithTwoReplicas := func(fixture *operationtesting.NodePoolTestFixture) *coreapi.HCPOpenShiftClusterNodePool {
+		np := fixture.NewNodePool()
+		np.Properties.Replicas = 2
+		return np
+	}
+
 	setupCSNodePoolStatus := func(t *testing.T, mock *ocm.MockClusterServiceClientSpec, fixture *operationtesting.NodePoolTestFixture, state, msg string) {
 		t.Helper()
 		nodePoolStatusBuilder := arohcpv1alpha1.NewNodePoolStatus().
@@ -85,6 +103,29 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 	}
 
 	fixture := operationtesting.NewNodePoolTestFixture()
+
+	// newHypershiftNodePoolReadDesire builds the mirrored Hypershift NodePool; AllMachinesReady is
+	// True unless allMachinesReadyMessage is set, in which case it is False with that message.
+	newHypershiftNodePoolReadDesire := func(nodePool *coreapi.HCPOpenShiftClusterNodePool, allMachinesReadyMessage string) *kubeapplierapi.ReadDesire {
+		readDesire := newNodePoolReadDesire(t, nodePool, fixture.NewCluster())
+		if allMachinesReadyMessage == "" {
+			return readDesire
+		}
+		hsNodePool := &v1beta1.NodePool{}
+		require.NoError(t, json.Unmarshal(readDesire.Status.KubeContent.Raw, hsNodePool))
+		for i := range hsNodePool.Status.Conditions {
+			if hsNodePool.Status.Conditions[i].Type == v1beta1.NodePoolAllMachinesReadyConditionType {
+				hsNodePool.Status.Conditions[i].Status = corev1.ConditionFalse
+				hsNodePool.Status.Conditions[i].Reason = "NotReady"
+				hsNodePool.Status.Conditions[i].Message = allMachinesReadyMessage
+			}
+		}
+		raw, err := json.Marshal(hsNodePool)
+		require.NoError(t, err)
+		readDesire.Status.KubeContent.Raw = raw
+		return readDesire
+	}
+
 	preconditionExistingOperation := fixture.NewOperation(cosmosstorageutils.OperationRequestCreate)
 	preconditionListerOperation := fixture.NewOperation(cosmosstorageutils.OperationRequestCreate)
 	preconditionListerOperation.CosmosETag = "stale-etag"
@@ -98,15 +139,19 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 		nodePool          func(fixture *operationtesting.NodePoolTestFixture) *coreapi.HCPOpenShiftClusterNodePool
 		setupCSMock       func(t *testing.T, mock *ocm.MockClusterServiceClientSpec, fixture *operationtesting.NodePoolTestFixture)
 		existingOperation *coreapi.Operation
+		// cachedNodePoolReadDesire is the mirrored Hypershift NodePool the hypershiftNodePoolOperationState
+		// source reads. When nil, the readDesireLister reports nothing cached, i.e. "not observed yet".
+		cachedNodePoolReadDesire *kubeapplierapi.ReadDesire
 		// When not set, the controller uses an active operations lister that contains the existingOperation
 		activeOperationsLister corelisters.ActiveOperationLister
 		expectError            bool
 		verifyDB               func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient)
 	}{
 		{
-			name:              "node pool ready transitions to succeeded",
-			nodePool:          defaultNodePool,
-			existingOperation: fixture.NewOperation(cosmosstorageutils.OperationRequestCreate),
+			name:                     "node pool ready transitions to succeeded",
+			nodePool:                 defaultNodePool,
+			existingOperation:        fixture.NewOperation(cosmosstorageutils.OperationRequestCreate),
+			cachedNodePoolReadDesire: newHypershiftNodePoolReadDesire(fixture.NewNodePool(), ""),
 			setupCSMock: func(t *testing.T, mock *ocm.MockClusterServiceClientSpec, fixture *operationtesting.NodePoolTestFixture) {
 				setupCSNodePoolStatus(t, mock, fixture, string(operationbase.NodePoolStateReady), "")
 			},
@@ -119,6 +164,20 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 				require.NoError(t, err)
 				assert.Equal(t, coreapi.ProvisioningStateSucceeded, nodePool.Properties.ProvisioningState)
 				assert.Empty(t, nodePool.ServiceProviderProperties.ActiveOperationID)
+			},
+		},
+		{
+			name:                     "node pool with zero replicas skips AllMachinesReady check",
+			nodePool:                 nodePoolWithZeroReplicas,
+			existingOperation:        fixture.NewOperation(cosmosstorageutils.OperationRequestCreate),
+			cachedNodePoolReadDesire: newHypershiftNodePoolReadDesire(nodePoolWithZeroReplicas(fixture), "NodePool set to no replicas"),
+			setupCSMock: func(t *testing.T, mock *ocm.MockClusterServiceClientSpec, fixture *operationtesting.NodePoolTestFixture) {
+				setupCSNodePoolStatus(t, mock, fixture, string(operationbase.NodePoolStateReady), "")
+			},
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
+				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
+				require.NoError(t, err)
+				assert.Equal(t, coreapi.ProvisioningStateSucceeded, op.Status)
 			},
 		},
 		{
@@ -160,7 +219,10 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 			},
 		},
 		{
-			name:              "node pool pending stays accepted",
+			// Cluster Service reports Pending (Accepted-mapped), but the hypershift NodePool mirror
+			// has not been cached yet either, and that source now correctly reports Provisioning
+			// (not Accepted) while waiting -- so the merged worst state is Provisioning.
+			name:              "node pool pending shows provisioning while hypershift mirror not cached",
 			nodePool:          defaultNodePool,
 			existingOperation: fixture.NewOperation(cosmosstorageutils.OperationRequestCreate),
 			setupCSMock: func(t *testing.T, mock *ocm.MockClusterServiceClientSpec, fixture *operationtesting.NodePoolTestFixture) {
@@ -169,11 +231,11 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, coreapi.ProvisioningStateAccepted, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateProvisioning, op.Status)
 			},
 		},
 		{
-			name:              "node pool validating stays accepted",
+			name:              "node pool validating shows provisioning while hypershift mirror not cached",
 			nodePool:          defaultNodePool,
 			existingOperation: fixture.NewOperation(cosmosstorageutils.OperationRequestCreate),
 			setupCSMock: func(t *testing.T, mock *ocm.MockClusterServiceClientSpec, fixture *operationtesting.NodePoolTestFixture) {
@@ -182,7 +244,7 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, coreapi.ProvisioningStateAccepted, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateProvisioning, op.Status)
 			},
 		},
 		{
@@ -244,6 +306,32 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 				assert.Equal(t, coreapi.ProvisioningStateFailed, op.Status)
 				require.NotNil(t, op.Error)
 				assert.Equal(t, coreapi.CloudErrorCodeInternalServerError, op.Error.Code)
+			},
+		},
+		{
+			// Cluster Service reports no message; the Hypershift NodePool mirror's AllMachinesReady
+			// message is what ends up in the operation error once the deadline is exceeded.
+			name:  "deadline exceeded surfaces hypershift AllMachinesReady message",
+			clock: clocktesting.NewFakePassiveClock(operationtesting.MustParseTime("2025-01-15T12:00:00Z")),
+			nodePool: func(fixture *operationtesting.NodePoolTestFixture) *coreapi.HCPOpenShiftClusterNodePool {
+				np := nodePoolWithTwoReplicas(fixture)
+				deadline := metav1.NewTime(operationtesting.MustParseTime("2025-01-15T11:30:00Z"))
+				np.ServiceProviderProperties.CreateOperationCompletionDeadline = &deadline
+				return np
+			},
+			existingOperation:        fixture.NewOperation(cosmosstorageutils.OperationRequestCreate),
+			cachedNodePoolReadDesire: newHypershiftNodePoolReadDesire(nodePoolWithTwoReplicas(fixture), "1 of 1 machines are not ready\nMachine test-nodepool-abcde: Failed: virtualmachine failed to create or update. ERROR CODE: RequestDisallowedByPolicy"),
+			setupCSMock: func(t *testing.T, mock *ocm.MockClusterServiceClientSpec, fixture *operationtesting.NodePoolTestFixture) {
+				setupCSNodePoolStatus(t, mock, fixture, string(operationbase.NodePoolStateInstalling), "")
+			},
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
+				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
+				require.NoError(t, err)
+				assert.Equal(t, coreapi.ProvisioningStateFailed, op.Status)
+				require.NotNil(t, op.Error)
+				assert.Equal(t, coreapi.CloudErrorCodeInternalServerError, op.Error.Code)
+				assert.Contains(t, op.Error.Message, "AllMachinesReady")
+				assert.Contains(t, op.Error.Message, "RequestDisallowedByPolicy")
 			},
 		},
 		{
@@ -311,11 +399,16 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 			if testClock == nil {
 				testClock = utilsclock.RealClock{}
 			}
+			readDesireLister := &kubeapplierlistertesting.SliceReadDesireLister{}
+			if tt.cachedNodePoolReadDesire != nil {
+				readDesireLister.Desires = []*kubeapplierapi.ReadDesire{tt.cachedNodePoolReadDesire}
+			}
 			controller := &operationNodePoolCreate{
 				clock:                  testClock,
 				resourcesDBClient:      mockResourcesDBClient,
 				activeOperationsLister: activeOperationsLister,
 				nodePoolLister:         &corelistertesting.DBNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
+				readDesireLister:       readDesireLister,
 				clusterServiceClient:   mockCSClient,
 				notificationClient:     nil,
 			}
