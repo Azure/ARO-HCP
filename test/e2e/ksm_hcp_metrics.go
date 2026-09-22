@@ -29,7 +29,7 @@ import (
 )
 
 var _ = Describe("KSM HCP Metrics", func() {
-	It("kube_node_info metrics should be present in Azure Monitor for the happy-path cluster",
+	It("ingresscontroller_info metrics should be present in Azure Monitor for the happy-path cluster",
 		labels.RequireHappyPathInfra,
 		labels.Medium,
 		labels.Positive,
@@ -68,11 +68,11 @@ var _ = Describe("KSM HCP Metrics", func() {
 			endpoint, err := promutil.LookupPrometheusEndpoint(ctx, cred, subscriptionID, regionRGStr, hcpWorkspaceNameStr)
 			Expect(err).NotTo(HaveOccurred(), "failed to look up HCP Prometheus endpoint")
 
-			query := `kube_node_info{hostedcontrolplane=~".+"}`
+			query := `ingresscontroller_info{hostedcontrolplane=~".+", container="kube-state-metrics"}`
 
 			httpClient := &http.Client{Timeout: 30 * time.Second}
 
-			By("Polling Azure Monitor for kube_node_info metrics")
+			By("Polling Azure Monitor for ingresscontroller_info metrics")
 			// Azure Monitor Prometheus ingestion latency for new metric series can exceed 10 minutes.
 			Eventually(func(g Gomega) {
 				now := time.Now()
@@ -87,8 +87,8 @@ var _ = Describe("KSM HCP Metrics", func() {
 					return
 				}
 				g.Expect(resp.Data.Result).NotTo(BeEmpty(),
-					"expected kube_node_info metrics for at least one hostedcontrolplane but got no results")
+					"expected ingresscontroller_info metrics for at least one hostedcontrolplane but got no results")
 			}).WithTimeout(15*time.Minute).WithPolling(30*time.Second).WithContext(ctx).Should(Succeed(),
-				"kube_node_info metrics never appeared in Azure Monitor for any hostedcontrolplane")
+				"ingresscontroller_info metrics never appeared in Azure Monitor for any hostedcontrolplane")
 		})
 })
