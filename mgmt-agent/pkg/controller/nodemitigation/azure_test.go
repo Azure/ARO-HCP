@@ -93,6 +93,7 @@ func TestAzureIdentityAndAbsence(t *testing.T) {
 		wantError, wantPresent                                                   bool
 	}{
 		{name: "matching instance", wantPresent: true},
+		{name: "missing creation time", wantPresent: true},
 		{name: "verified VM absence", failingResource: "vm", status: 404, errorCode: "ResourceNotFound"},
 		{name: "compute VM absence", failingResource: "vm", status: 404, errorCode: "NotFound"},
 		{name: "verified parent absence", failingResource: "parent", status: 404, errorCode: "ResourceNotFound"},
@@ -134,6 +135,9 @@ func TestAzureIdentityAndAbsence(t *testing.T) {
 						kind, body = "cluster", `{"properties":{"nodeResourceGroup":"`+group+`"}}`
 					case strings.Contains(request.URL.Path, "/virtualMachines/"):
 						kind, body = "vm", `{"properties":{"vmId":"INSTANCE-ID","osProfile":{"computerName":"`+computer+`"}}}`
+						if tc.name != "missing creation time" {
+							body = `{"properties":{"vmId":"INSTANCE-ID","timeCreated":"2000-01-01T00:00:00Z","osProfile":{"computerName":"` + computer + `"}}}`
+						}
 					}
 					status := 200
 					if tc.failingResource == kind {
@@ -147,8 +151,17 @@ func TestAzureIdentityAndAbsence(t *testing.T) {
 			if (err != nil) != tc.wantError || present != tc.wantPresent {
 				t.Fatalf("present=%v error=%v; want present=%v error=%v", present, err, tc.wantPresent, tc.wantError)
 			}
-			if present && id != "instance-id" {
-				t.Fatalf("immutable identity not preserved: %q", id)
+			if present && id.ID != "instance-id" {
+				t.Fatalf("immutable identity not preserved: %+v", id)
+			}
+			if present {
+				want := time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
+				if tc.name == "missing creation time" {
+					want = time.Time{}
+				}
+				if !id.CreatedAt.Equal(want) {
+					t.Fatalf("VM creation time=%v, want=%v", id.CreatedAt, want)
+				}
 			}
 		})
 	}

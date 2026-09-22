@@ -108,7 +108,7 @@ func NewController(
 		},
 		labeler: newLabeler(kubeClientset, recorder, clock),
 		clock:   clock,
-		history: newReadinessHistory(kubeClientset),
+		history: newReadinessHistory(kubeClientset, clock),
 		workqueue: workqueue.NewTypedRateLimitingQueueWithConfig(
 			workqueue.DefaultTypedControllerRateLimiter[string](),
 			workqueue.TypedRateLimitingQueueConfig[string]{Name: ControllerName},
@@ -150,12 +150,12 @@ func (c *Controller) SetConfig(cfg Config) {
 	c.config.Store(&cfg)
 }
 
-func (c *Controller) CheckNeverReady(node *corev1.Node) error {
+func (c *Controller) CheckNeverReady(node *corev1.Node, createdAt time.Time) error {
 	if !c.readinessEnabled || !c.Config().Enabled {
 		return fmt.Errorf("node-health readiness observation is disabled")
 	}
 
-	return c.history.Check(node)
+	return c.history.Check(node, createdAt)
 }
 
 // EnableReadinessHistory sets the deployment gate before controllers start.

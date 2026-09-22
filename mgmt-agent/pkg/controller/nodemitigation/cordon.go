@@ -42,7 +42,7 @@ func ownsCordon(node *corev1.Node, r api.MitigationReservation) bool {
 		node.Annotations[cordonAnnotation] == cordonOwner(r)
 }
 
-func (c *Controller) checkNeverReady(node *corev1.Node) error {
+func (c *Controller) checkNeverReady(node *corev1.Node, createdAt time.Time) error {
 	if ready(node) {
 		return fmt.Errorf("node became Ready")
 	}
@@ -53,7 +53,11 @@ func (c *Controller) checkNeverReady(node *corev1.Node) error {
 	if c.readiness == nil {
 		return fmt.Errorf("readiness history observer is unavailable")
 	}
-	return c.readiness(node)
+	if createdAt.IsZero() || createdAt.After(c.clock()) || node.CreationTimestamp.IsZero() ||
+		createdAt.After(node.CreationTimestamp.Time) {
+		return fmt.Errorf("verified VM creation time is missing or inconsistent")
+	}
+	return c.readiness(node, createdAt)
 }
 
 func (c *Controller) claimCordon(ctx context.Context, revision uint64, node *corev1.Node, r api.MitigationReservation) error {

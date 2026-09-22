@@ -45,9 +45,6 @@ func (c *Controller) deleteCandidate(ctx context.Context, cfg Config, revision u
 		return false, fmt.Errorf("candidate identity, cordon or ownership changed")
 	}
 	node = live
-	if err := c.checkNeverReady(node); err != nil {
-		return false, err
-	}
 	observation, instance, err := c.admission(ctx, cfg, revision, node, budget, snapshot, "")
 	if err != nil {
 		return false, err
@@ -100,7 +97,14 @@ func (c *Controller) deletionTarget(ctx context.Context, cfg Config, r api.Mitig
 		node.DeletionTimestamp != nil || poolName(node) != poolFromID(r.PoolID) {
 		return nil, fmt.Errorf("deletion target identity or scheduling state changed")
 	}
-	if err := c.checkNeverReady(node); err != nil {
+	vm, exists, err := c.azure.Instance(ctx, cfg.ClusterResourceID, poolName(node), node.Spec.ProviderID, node.Name)
+	if err != nil {
+		return nil, err
+	}
+	if !exists || vm.ID != r.InstanceID {
+		return nil, fmt.Errorf("original machine no longer exists")
+	}
+	if err := c.checkNeverReady(node, vm.CreatedAt); err != nil {
 		return nil, err
 	}
 	decision, fault := detectors.Decide(node, nil, nil, c.clock())
@@ -144,13 +148,6 @@ func (c *Controller) submitDeletion(ctx context.Context, cfg Config, revision ui
 	}
 	if machine != r.MachineName {
 		return c.cancelReservation(ctx, revision, key, budget, fmt.Errorf("AKS machine identity changed"))
-	}
-	identity, exists, err := c.azure.Instance(ctx, cfg.ClusterResourceID, poolName(node), r.ProviderID, r.NodeName)
-	if err != nil {
-		return err
-	}
-	if !exists || identity != r.InstanceID {
-		return c.cancelReservation(ctx, revision, key, budget, fmt.Errorf("original machine no longer exists"))
 	}
 	if _, err := c.deletionTarget(ctx, cfg, r); err != nil {
 		return c.cancelReservation(ctx, revision, key, budget, err)

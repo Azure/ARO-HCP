@@ -89,10 +89,7 @@ func DisposablePodSpecHash(pod *corev1.Pod) (string, error) {
 }
 
 func (c *Controller) disposablePod(ctx context.Context, pod *corev1.Pod, cfg Config) error {
-	if terminal(pod) {
-		return nil
-	}
-	blocked := fmt.Errorf("nonterminal pod %s/%s is not an approved disposable node-local DaemonSet", pod.Namespace, pod.Name)
+	blocked := fmt.Errorf("pod %s/%s requires shutdown or data protection, or is not an approved disposable node-local DaemonSet", pod.Namespace, pod.Name)
 	if pod.DeletionTimestamp != nil || len(pod.Finalizers) > 0 ||
 		len(pod.Spec.EphemeralContainers) > 0 || len(pod.Spec.ResourceClaims) > 0 {
 		return blocked
@@ -102,11 +99,13 @@ func (c *Controller) disposablePod(ctx context.Context, pod *corev1.Pod, cfg Con
 			return blocked
 		}
 	}
+	needsStorageApproval := false
 	for _, volume := range pod.Spec.Volumes {
 		if volume.ConfigMap == nil && volume.Secret == nil && volume.Projected == nil &&
 			volume.DownwardAPI == nil && volume.EmptyDir == nil && volume.HostPath == nil {
 			return blocked
 		}
+		needsStorageApproval = needsStorageApproval || volume.EmptyDir != nil || volume.HostPath != nil
 	}
 	for _, containers := range [][]corev1.Container{pod.Spec.Containers, pod.Spec.InitContainers} {
 		for _, container := range containers {
@@ -114,6 +113,9 @@ func (c *Controller) disposablePod(ctx context.Context, pod *corev1.Pod, cfg Con
 				return blocked
 			}
 		}
+	}
+	if terminal(pod) && !needsStorageApproval {
+		return nil
 	}
 	owner := metav1.GetControllerOf(pod)
 	if owner == nil || owner.APIVersion != "apps/v1" || owner.Kind != "DaemonSet" || owner.UID == "" {

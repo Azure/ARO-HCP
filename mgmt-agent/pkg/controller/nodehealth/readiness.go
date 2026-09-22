@@ -18,6 +18,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -34,8 +35,11 @@ import (
 
 const EverReadyAnnotation = "node-health.aro-hcp.azure.com/ever-ready"
 
+const maxMachineBindings = 10000
+
 type readinessRecord struct {
 	version   string
+	machine   string
 	complete  bool
 	everReady bool
 }
@@ -43,30 +47,52 @@ type readinessRecord struct {
 // ReadinessHistory consumes the unfiltered Node watch directly. A workqueue or
 // latest informer object cannot preserve intermediate Ready transitions.
 type ReadinessHistory struct {
-	client  kubernetes.Interface
-	mu      sync.RWMutex
-	records map[types.UID]readinessRecord
+	client   kubernetes.Interface
+	mu       sync.RWMutex
+	records  map[types.UID]readinessRecord
+	machines map[string]types.UID
+	clock    func() time.Time
+	since    time.Time
 }
 
-func newReadinessHistory(client kubernetes.Interface) *ReadinessHistory {
-	return &ReadinessHistory{client: client, records: map[types.UID]readinessRecord{}}
+func newReadinessHistory(client kubernetes.Interface, clock func() time.Time) *ReadinessHistory {
+	if clock == nil {
+		clock = time.Now
+	}
+	return &ReadinessHistory{client: client, records: map[types.UID]readinessRecord{},
+		machines: map[string]types.UID{}, clock: clock, since: clock()}
 }
 
 func (h *ReadinessHistory) invalidate() {
 	h.mu.Lock()
 	defer h.mu.Unlock()
+	h.invalidateLocked()
+}
+
+func (h *ReadinessHistory) invalidateLocked() {
+	if now := h.clock(); now.After(h.since) {
+		h.since = now
+	}
 	for uid, record := range h.records {
 		record.complete = false
 		h.records[uid] = record
 	}
 }
 
-func (h *ReadinessHistory) Check(node *corev1.Node) error {
+func (h *ReadinessHistory) Check(node *corev1.Node, createdAt time.Time) error {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 	r, found := h.records[node.UID]
 	if r.everReady || node.Annotations[EverReadyAnnotation] == string(node.UID) {
 		return fmt.Errorf("ready was observed for this Node UID")
+	}
+	machine := strings.ToLower(node.Status.NodeInfo.SystemUUID)
+	if machine == "" || machine != r.machine || h.machines[machine] != node.UID {
+		return fmt.Errorf("machine identity is missing, changed or registered with another Node UID")
+	}
+	if createdAt.IsZero() || !createdAt.After(h.since) || createdAt.After(h.clock()) ||
+		node.CreationTimestamp.IsZero() || createdAt.After(node.CreationTimestamp.Time) {
+		return fmt.Errorf("complete observation from Azure VM creation is unavailable")
 	}
 	if !found || !r.complete || r.version == "" || r.version != node.ResourceVersion {
 		return fmt.Errorf("complete readiness history through the live Node version is unavailable")
@@ -87,6 +113,24 @@ func (h *ReadinessHistory) observe(ctx context.Context, node *corev1.Node, creat
 		r.complete = false
 	}
 	r.version = node.ResourceVersion
+	machine := strings.ToLower(node.Status.NodeInfo.SystemUUID)
+	if r.machine != "" && r.machine != machine {
+		r.complete = false
+	}
+	if machine != "" {
+		if _, known := h.machines[machine]; !known {
+			// Never evict an identity binding while its observation window can
+			// still authorize deletion. A new window excludes all older VMs.
+			if len(h.machines) >= maxMachineBindings {
+				h.invalidateLocked()
+				h.machines = map[string]types.UID{}
+				r.complete = false
+				klog.FromContext(ctx).Info("readiness identity limit reached; existing machine histories are unknown")
+			}
+			h.machines[machine] = node.UID
+		}
+		r.machine = machine
+	}
 	r.everReady = r.everReady || node.Annotations[EverReadyAnnotation] == string(node.UID)
 	for _, condition := range node.Status.Conditions {
 		if condition.Type == corev1.NodeReady && condition.Status == corev1.ConditionTrue {
@@ -125,6 +169,22 @@ func (h *ReadinessHistory) observe(ctx context.Context, node *corev1.Node, creat
 	return err
 }
 
+func (h *ReadinessHistory) forget(node *corev1.Node) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	machine := h.records[node.UID].machine
+	if machine == "" {
+		machine = strings.ToLower(node.Status.NodeInfo.SystemUUID)
+	}
+	if machine == "" {
+		// An unidentified registration could belong to any machine.
+		h.invalidateLocked()
+	} else if _, known := h.machines[machine]; !known {
+		h.invalidateLocked()
+	}
+	delete(h.records, node.UID)
+}
+
 func (h *ReadinessHistory) run(ctx context.Context, enabled func() bool) {
 	defer utilruntime.HandleCrash()
 	wait.UntilWithContext(ctx, func(ctx context.Context) {
@@ -144,8 +204,11 @@ func (h *ReadinessHistory) session(ctx context.Context, enabled func() bool) err
 	if nodes.ResourceVersion == "" {
 		return fmt.Errorf("node list has no resourceVersion")
 	}
+	// The list snapshot can be newer than the request start. A VM born during
+	// that request might already have registered, become Ready and lost its Node.
+	h.invalidate()
 	// Retain positive evidence after a failed marker write, but never continuity
-	// across a relist. Deleted UIDs need no in-memory retention.
+	// across a relist. Machine bindings outlive deleted Node objects.
 	present := make(map[types.UID]bool, len(nodes.Items))
 	for i := range nodes.Items {
 		node := &nodes.Items[i]
@@ -193,9 +256,7 @@ func (h *ReadinessHistory) session(ctx context.Context, enabled func() bool) err
 					klog.FromContext(ctx).Error(err, "persist everReady marker; UID remains excluded", "node", node.Name, "uid", node.UID)
 				}
 			case watch.Deleted:
-				h.mu.Lock()
-				delete(h.records, node.UID)
-				h.mu.Unlock()
+				h.forget(node)
 			default:
 				return fmt.Errorf("unexpected readiness watch event %s", event.Type)
 			}

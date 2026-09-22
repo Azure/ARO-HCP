@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"testing"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -27,6 +28,53 @@ import (
 
 	api "github.com/Azure/ARO-HCP/mgmt-agent/pkg/apis/capacityreport/v1alpha1"
 )
+
+func TestMachineBirthRequiredBeforeCordonAndSubmission(t *testing.T) {
+	for _, afterCordon := range []bool{false, true} {
+		for _, cause := range []string{"missing", "future", "after Node", "before observer"} {
+			t.Run(fmt.Sprintf("afterCordon=%v/%s", afterCordon, cause), func(t *testing.T) {
+				f := newFixture(t, 11, 1)
+				boundary := f.now.Add(-3 * time.Hour)
+				f.controller.readiness = func(_ *corev1.Node, createdAt time.Time) error {
+					if createdAt != f.azure.createdAt {
+						t.Fatal("readiness observer did not receive the verified VM creation time")
+					}
+					if !createdAt.After(boundary) {
+						return errors.New("VM predates complete observation")
+					}
+					return nil
+				}
+				if afterCordon {
+					f.tick(t)
+				}
+				switch cause {
+				case "missing":
+					f.azure.createdAt = time.Time{}
+				case "future":
+					f.azure.createdAt = f.now.Add(time.Hour)
+				case "after Node":
+					f.azure.createdAt = f.now.Add(-time.Minute)
+				case "before observer":
+					f.azure.createdAt = boundary.Add(-time.Minute)
+				}
+				f.syncCaches(t)
+				if err := f.controller.reconcile(context.Background()); (err == nil) != afterCordon {
+					t.Fatalf("afterCordon=%v, reconcile error=%v", afterCordon, err)
+				}
+				if f.azure.deletes != 0 {
+					t.Fatal("invalid machine birth authorized AKS deletion")
+				}
+				node, err := f.kube.CoreV1().Nodes().Get(context.Background(), "node-00", metav1.GetOptions{})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if node.Spec.Unschedulable || node.Annotations[cordonAnnotation] != "" {
+					t.Fatal("invalid machine lifetime left an unsubmitted owned cordon")
+				}
+			})
+		}
+	}
+}
 
 func (f *fixture) node(t *testing.T) *corev1.Node {
 	t.Helper()
@@ -47,7 +95,7 @@ func (f *fixture) changeNode(t *testing.T, change func(*corev1.Node)) {
 }
 
 func TestCordonCancellationContract(t *testing.T) {
-	for _, cause := range []string{"Ready", "history lost on restart", "mitigator disabled", "blocking pod", "Node replaced", "claim never applied"} {
+	for _, cause := range []string{"Ready", "history lost on restart", "mitigator disabled", "blocking pod", "terminal finalizer", "terminal PVC", "Node replaced", "claim never applied"} {
 		t.Run(cause, func(t *testing.T) {
 			f := newFixture(t, 11, 1)
 			f.tick(t)
@@ -59,14 +107,23 @@ func TestCordonCancellationContract(t *testing.T) {
 			case "Ready":
 				f.changeNode(t, func(n *corev1.Node) { n.Status.Conditions[0].Status = corev1.ConditionTrue })
 			case "history lost on restart":
-				f.controller.readiness = func(*corev1.Node) error { return errors.New("history unknown") }
+				f.controller.readiness = func(*corev1.Node, time.Time) error { return errors.New("history unknown") }
 			case "mitigator disabled":
 				f.cfg.Mitigators = []string{"swift"}
 				if err := f.controller.SetConfig(f.cfg); err != nil {
 					t.Fatal(err)
 				}
-			case "blocking pod":
-				if err := f.kube.Tracker().Add(placementPod("late", "node-00")); err != nil {
+			case "blocking pod", "terminal finalizer", "terminal PVC":
+				pod := placementPod("late", "node-00")
+				if cause == "terminal finalizer" {
+					pod.Status.Phase = corev1.PodSucceeded
+					pod.Finalizers = []string{"protect"}
+				}
+				if cause == "terminal PVC" {
+					pod.Status.Phase = corev1.PodFailed
+					pod.Spec.Volumes = []corev1.Volume{{Name: "data", VolumeSource: corev1.VolumeSource{PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{ClaimName: "data"}}}}
+				}
+				if err := f.kube.Tracker().Add(pod); err != nil {
 					t.Fatal(err)
 				}
 			case "Node replaced":
@@ -205,7 +262,7 @@ func TestMissingReadinessAndExternalCordonNeverClaim(t *testing.T) {
 			case "observer":
 				f.controller.readiness = nil
 			case "history", "everReady":
-				f.controller.readiness = func(*corev1.Node) error { return errors.New(missing) }
+				f.controller.readiness = func(*corev1.Node, time.Time) error { return errors.New(missing) }
 			case "external cordon":
 				f.changeNode(t, func(n *corev1.Node) { n.Spec.Unschedulable = true })
 			case "foreign annotation":

@@ -46,6 +46,7 @@ type fakeAzure struct {
 	now                                      *time.Time
 	target                                   int32
 	instances                                map[string]string
+	createdAt                                time.Time
 	instanceErr, poolErr, deleteErr, pollErr error
 	operation                                MachineOperation
 	deletes, polls                           int
@@ -54,9 +55,9 @@ type fakeAzure struct {
 func (a *fakeAzure) Pool(_ context.Context, cluster, pool string) (PoolObservation, error) {
 	return PoolObservation{ID: strings.ToLower(cluster + "/agentPools/" + pool), Target: a.target, Stable: true, ObservedAt: *a.now}, a.poolErr
 }
-func (a *fakeAzure) Instance(_ context.Context, _, _, provider, _ string) (string, bool, error) {
+func (a *fakeAzure) Instance(_ context.Context, _, _, provider, _ string) (InstanceObservation, bool, error) {
 	id, exists := a.instances[provider]
-	return id, exists, a.instanceErr
+	return InstanceObservation{ID: id, CreatedAt: a.createdAt}, exists, a.instanceErr
 }
 func (a *fakeAzure) Machine(_ context.Context, _, _, provider string) (string, error) {
 	return strings.TrimPrefix(provider, "azure://"), nil
@@ -84,6 +85,7 @@ func newFixture(t *testing.T, nodes, neverReady int) *fixture {
 	t.Helper()
 	f := &fixture{now: time.Date(2026, 9, 20, 12, 0, 0, 0, time.UTC), cfg: testConfig()}
 	f.azure = &fakeAzure{now: &f.now, target: 10, instances: map[string]string{}, operation: MachineOperation{Token: "operation", Outcome: "Pending"}}
+	f.azure.createdAt = f.now.Add(-2 * time.Hour)
 	objects := []runtime.Object{}
 	for i := 0; i < nodes; i++ {
 		name, instance := fmt.Sprintf("node-%02d", i), fmt.Sprintf("instance-%02d", i)
@@ -111,7 +113,7 @@ func newFixture(t *testing.T, nodes, neverReady int) *fixture {
 	dyn := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), map[schema.GroupVersionResource]string{mtpncGVR: "MultitenantPodNetworkConfigList"})
 	f.informers = informers.NewSharedInformerFactory(f.kube, 0)
 	var err error
-	f.controller, err = NewController(f.kube, f.records, dyn, f.azure, "mgmt-agent", f.informers.Core().V1().Nodes(), f.informers.Core().V1().Pods(), f.informers.Core().V1().Events(), func() time.Time { return f.now }, func(*corev1.Node) error { return nil })
+	f.controller, err = NewController(f.kube, f.records, dyn, f.azure, "mgmt-agent", f.informers.Core().V1().Nodes(), f.informers.Core().V1().Pods(), f.informers.Core().V1().Events(), func() time.Time { return f.now }, func(*corev1.Node, time.Time) error { return nil })
 	if err != nil {
 		t.Fatal(err)
 	}

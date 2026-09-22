@@ -127,6 +127,103 @@ func TestDisposableDaemonSetApprovalIsExact(t *testing.T) {
 	}
 }
 
+func TestTerminalPodsStillRequireProtectionChecks(t *testing.T) {
+	for _, phase := range []corev1.PodPhase{corev1.PodSucceeded, corev1.PodFailed} {
+		for _, protection := range []string{"none", "finalizer", "PVC", "CSI", "ephemeral volume", "NFS", "hostPath", "emptyDir",
+			"resource claim", "preStop", "terminating", "static", "debug container"} {
+			t.Run(string(phase)+"/"+protection, func(t *testing.T) {
+				f := newFixture(t, 11, 1)
+				pod := placementPod("completed", "node-00")
+				pod.OwnerReferences = nil
+				pod.Status.Phase = phase
+				pod.Spec.Containers = []corev1.Container{{Name: "workload"}}
+				switch protection {
+				case "finalizer":
+					pod.Finalizers = []string{"protect"}
+				case "PVC":
+					pod.Spec.Volumes = []corev1.Volume{{VolumeSource: corev1.VolumeSource{PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{ClaimName: "data"}}}}
+				case "CSI":
+					pod.Spec.Volumes = []corev1.Volume{{VolumeSource: corev1.VolumeSource{CSI: &corev1.CSIVolumeSource{Driver: "storage"}}}}
+				case "ephemeral volume":
+					pod.Spec.Volumes = []corev1.Volume{{VolumeSource: corev1.VolumeSource{Ephemeral: &corev1.EphemeralVolumeSource{}}}}
+				case "NFS":
+					pod.Spec.Volumes = []corev1.Volume{{VolumeSource: corev1.VolumeSource{NFS: &corev1.NFSVolumeSource{Server: "storage", Path: "/data"}}}}
+				case "hostPath":
+					pod.Spec.Volumes = []corev1.Volume{{VolumeSource: corev1.VolumeSource{HostPath: &corev1.HostPathVolumeSource{Path: "/data"}}}}
+				case "emptyDir":
+					pod.Spec.Volumes = []corev1.Volume{{VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}}}
+				case "resource claim":
+					pod.Spec.ResourceClaims = []corev1.PodResourceClaim{{Name: "device"}}
+				case "preStop":
+					pod.Spec.Containers[0].Lifecycle = &corev1.Lifecycle{PreStop: &corev1.LifecycleHandler{Exec: &corev1.ExecAction{Command: []string{"save"}}}}
+				case "terminating":
+					now := metav1.NewTime(f.now)
+					pod.DeletionTimestamp = &now
+				case "static":
+					pod.Annotations = map[string]string{"kubernetes.io/config.source": "file"}
+				case "debug container":
+					pod.Spec.EphemeralContainers = []corev1.EphemeralContainer{{}}
+				}
+				if err := f.controller.disposablePod(context.Background(), pod, f.cfg); (err == nil) != (protection == "none") {
+					t.Fatalf("protection=%s, error=%v", protection, err)
+				}
+				if err := f.kube.Tracker().Add(pod); err != nil {
+					t.Fatal(err)
+				}
+				for i := 0; i < 2; i++ {
+					f.syncCaches(t)
+					if err := f.controller.reconcile(context.Background()); (err == nil) != (protection == "none") {
+						t.Fatalf("protection=%s, reconcile error=%v", protection, err)
+					}
+				}
+				wantDeletes := 0
+				if protection == "none" {
+					wantDeletes = 1
+				}
+				if f.azure.deletes != wantDeletes || evictionCount(f.kube.Actions()) != 0 {
+					t.Fatalf("deletes=%d, want=%d; terminal pods must not be evicted", f.azure.deletes, wantDeletes)
+				}
+			})
+		}
+	}
+}
+
+func TestTerminalDaemonSetLocalStorageRequiresExactApproval(t *testing.T) {
+	for _, phase := range []corev1.PodPhase{corev1.PodSucceeded, corev1.PodFailed} {
+		t.Run(string(phase), func(t *testing.T) {
+			f, pod, ds := disposableFixture(t)
+			pod.Status.Phase = phase
+			pod.Spec.Volumes = []corev1.Volume{
+				{Name: "host", VolumeSource: corev1.VolumeSource{HostPath: &corev1.HostPathVolumeSource{Path: "/agent"}}},
+				{Name: "scratch", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
+			}
+			if err := f.controller.disposablePod(context.Background(), pod, f.cfg); err == nil {
+				t.Fatal("terminal phase bypassed storage approval")
+			}
+			ds.Spec.Template.Spec.Volumes = pod.Spec.Volumes
+			if _, err := f.kube.AppsV1().DaemonSets(ds.Namespace).Update(context.Background(), ds, metav1.UpdateOptions{}); err != nil {
+				t.Fatal(err)
+			}
+			var err error
+			f.cfg.DisposableDaemonSets[0].TemplateSHA256, err = policyHash(ds.Spec.Template)
+			if err != nil {
+				t.Fatal(err)
+			}
+			f.cfg.DisposableDaemonSets[0].PodSpecSHA256, err = DisposablePodSpecHash(pod)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := f.controller.disposablePod(context.Background(), pod, f.cfg); err != nil {
+				t.Fatalf("approved terminal agent blocked: %v", err)
+			}
+			pod.Finalizers = []string{"protect"}
+			if err := f.controller.disposablePod(context.Background(), pod, f.cfg); err == nil {
+				t.Fatal("exact approval bypassed terminal finalizer protection")
+			}
+		})
+	}
+}
+
 func TestDisposableDigestNormalizesBindingNotPermissions(t *testing.T) {
 	pod := placementPod("agent", "node-00")
 	pod.Spec.Volumes = []corev1.Volume{{Name: "kube-api-access-aaaaa", VolumeSource: corev1.VolumeSource{

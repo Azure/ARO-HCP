@@ -34,12 +34,16 @@ func (c *Controller) admission(ctx context.Context, cfg Config, revision uint64,
 	if err != nil {
 		return observation, "", err
 	}
-	instance, exists, err := c.azure.Instance(ctx, cfg.ClusterResourceID, poolName(node), node.Spec.ProviderID, node.Name)
+	vm, exists, err := c.azure.Instance(ctx, cfg.ClusterResourceID, poolName(node), node.Spec.ProviderID, node.Name)
 	if err != nil {
 		return observation, "", err
 	}
+	instance := vm.ID
 	if !exists || instance == "" || !strings.EqualFold(instance, node.Status.NodeInfo.SystemUUID) {
 		return observation, "", fmt.Errorf("node and Azure instance identity do not match")
+	}
+	if err := c.checkNeverReady(node, vm.CreatedAt); err != nil {
+		return observation, "", err
 	}
 	for _, n := range snapshot.Nodes {
 		if n.UID != node.UID && strings.EqualFold(n.Status.NodeInfo.SystemUUID, instance) {

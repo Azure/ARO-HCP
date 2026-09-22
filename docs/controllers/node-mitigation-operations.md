@@ -96,9 +96,22 @@ Surge and replacement nodes do not reset the budget.
 
 Node-health owns `node-health.aro-hcp.azure.com/ever-ready`, containing the Node
 UID. A direct, unfiltered Node watch preserves intermediate Ready transitions.
-Initial-list discovery, reconnects and restart leave existing Nodes with Unknown
-history, regardless of age or an absent marker. A candidate must have been
-observed from its watch creation through the resourceVersion read at admission.
+In-memory bindings retain the first Node UID for each immutable VM ID after Node
+deletion. The same VM cannot become eligible by registering a new Node UID.
+A different VM may reuse a Node name or provider path without inheriting history.
+Admission verifies Azure's VM ID against the Node's `systemUUID` and requires
+Azure `timeCreated` to be strictly after the start of uninterrupted observation,
+no later than Node creation and not in the future. Missing or inconsistent time
+is a hold. Controller, Azure and Kubernetes UTC clocks must be synchronized;
+an observed backward clock step never moves the observation boundary backward.
+
+Initial-list discovery, reconnects and restart leave existing machines with
+Unknown history, including VMs with no Node, regardless of age or an absent marker.
+A candidate must have been observed from its watch creation through the
+resourceVersion read at admission. The 10,000-entry machine-binding limit starts a
+new observation window before bindings are discarded, invalidating existing
+eligibility. Deleting an unidentified registration also invalidates the window.
+This uses the existing Azure read access, without a persistent history ledger.
 The readiness observer requires both deployment authorization for mitigation
 and enabled node-health observation. SWIFT does not depend on this history.
 
@@ -143,7 +156,11 @@ requirements before approving either digest. A template digest alone does not
 exempt injected or stale pods. Template/spec drift or
 DaemonSet recreation holds deletion. No built-in DaemonSet is implicitly approved.
 Finalizers, preStop hooks, static/mirror pods, terminating pods, debug containers,
-resource claims and persistent, remote or CSI storage always block this exception.
+resource claims and persistent, remote or CSI storage always block deletion,
+including for Succeeded and Failed pods. Terminal pods passing these
+protection checks are exempt from DaemonSet approval only when they have no
+hostPath or emptyDir volumes. Local data still requires exact disposable
+DaemonSet approval, regardless of phase.
 Only explicitly reviewed hostPath, emptyDir, ConfigMap, Secret, projected and
 downward-API volumes are eligible.
 Approved agents remain until machine removal, without Eviction or PDB protection.

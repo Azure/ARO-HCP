@@ -87,12 +87,12 @@ type Controller struct {
 	pods                 corelisters.PodLister
 	events               corelisters.EventLister
 	nextReconcile        time.Time
-	readiness            func(*corev1.Node) error
+	readiness            func(*corev1.Node, time.Time) error
 }
 
 func NewController(kube kubernetes.Interface, records clientset.Interface, dyn dynamic.Interface,
 	azure AzureClient, namespace string, nodes coreinformers.NodeInformer, pods coreinformers.PodInformer,
-	events coreinformers.EventInformer, clock func() time.Time, readiness func(*corev1.Node) error) (*Controller, error) {
+	events coreinformers.EventInformer, clock func() time.Time, readiness func(*corev1.Node, time.Time) error) (*Controller, error) {
 	if clock == nil {
 		clock = time.Now
 	}

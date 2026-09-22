@@ -37,7 +37,7 @@ import (
 
 type AzureClient interface {
 	Pool(context.Context, string, string) (PoolObservation, error)
-	Instance(context.Context, string, string, string, string) (string, bool, error)
+	Instance(context.Context, string, string, string, string) (InstanceObservation, bool, error)
 	Machine(context.Context, string, string, string) (string, error)
 	DeleteMachine(context.Context, string, string) (MachineOperation, error)
 	PollDeletion(context.Context, string, string) (MachineOperation, error)
@@ -48,6 +48,11 @@ type MachineOperation struct {
 	Outcome   string
 	Message   string
 	PollAfter time.Time
+}
+
+type InstanceObservation struct {
+	ID        string
+	CreatedAt time.Time
 }
 
 // Resource IDs scope every request; only the AKS executor submits a mutation.
@@ -231,63 +236,67 @@ func providerResourceID(providerID string) (*azcorearm.ResourceID, error) {
 	return id, nil
 }
 
-func (a *azureClient) Instance(ctx context.Context, clusterID, pool, providerID, nodeName string) (string, bool, error) {
+func (a *azureClient) Instance(ctx context.Context, clusterID, pool, providerID, nodeName string) (InstanceObservation, bool, error) {
 	vmID, err := providerResourceID(providerID)
 	if err != nil {
-		return "", false, err
+		return InstanceObservation{}, false, err
 	}
 	cluster, err := azcorearm.ParseResourceID(clusterID)
 	if err != nil || !strings.EqualFold(cluster.SubscriptionID, vmID.SubscriptionID) {
-		return "", false, fmt.Errorf("instance does not belong to the configured subscription")
+		return InstanceObservation{}, false, fmt.Errorf("instance does not belong to the configured subscription")
 	}
 	clusters, err := armcontainerservice.NewManagedClustersClient(cluster.SubscriptionID, a.credential, &a.options)
 	if err != nil {
-		return "", false, err
+		return InstanceObservation{}, false, err
 	}
 	mc, err := clusters.Get(ctx, cluster.ResourceGroupName, cluster.Name, nil)
 	if err != nil {
-		return "", false, fmt.Errorf("read management cluster: %w", err)
+		return InstanceObservation{}, false, fmt.Errorf("read management cluster: %w", err)
 	}
 	if mc.Properties == nil || mc.Properties.NodeResourceGroup == nil ||
 		!strings.EqualFold(*mc.Properties.NodeResourceGroup, vmID.ResourceGroupName) {
-		return "", false, fmt.Errorf("instance resource group is not the configured cluster's node resource group")
+		return InstanceObservation{}, false, fmt.Errorf("instance resource group is not the configured cluster's node resource group")
 	}
 	scaleSets, err := armcompute.NewVirtualMachineScaleSetsClient(vmID.SubscriptionID, a.credential, &a.options)
 	if err != nil {
-		return "", false, err
+		return InstanceObservation{}, false, err
 	}
 	scaleSet, err := scaleSets.Get(ctx, vmID.ResourceGroupName, vmID.Parent.Name, nil)
 	if err != nil {
 		var response *azcore.ResponseError
 		if errors.As(err, &response) && response.StatusCode == http.StatusNotFound && response.ErrorCode == "ResourceNotFound" {
-			return "", false, nil
+			return InstanceObservation{}, false, nil
 		}
-		return "", false, fmt.Errorf("verify instance parent: %w", err)
+		return InstanceObservation{}, false, fmt.Errorf("verify instance parent: %w", err)
 	}
 	if name := scaleSet.Tags["aks-managed-poolName"]; name == nil || !strings.EqualFold(*name, pool) {
-		return "", false, fmt.Errorf("instance parent does not identify the expected agent pool")
+		return InstanceObservation{}, false, fmt.Errorf("instance parent does not identify the expected agent pool")
 	}
 	vms, err := armcompute.NewVirtualMachineScaleSetVMsClient(vmID.SubscriptionID, a.credential, &a.options)
 	if err != nil {
-		return "", false, err
+		return InstanceObservation{}, false, err
 	}
 	vm, err := vms.Get(ctx, vmID.ResourceGroupName, vmID.Parent.Name, vmID.Name, nil)
 	if err != nil {
 		var response *azcore.ResponseError
 		if errors.As(err, &response) && response.StatusCode == http.StatusNotFound &&
 			(response.ErrorCode == "ResourceNotFound" || response.ErrorCode == "NotFound") {
-			return "", false, nil
+			return InstanceObservation{}, false, nil
 		}
-		return "", false, fmt.Errorf("read original instance: %w", err)
+		return InstanceObservation{}, false, fmt.Errorf("read original instance: %w", err)
 	}
 	if vm.Properties == nil || vm.Properties.VMID == nil || *vm.Properties.VMID == "" {
-		return "", false, fmt.Errorf("instance has no immutable VM ID")
+		return InstanceObservation{}, false, fmt.Errorf("instance has no immutable VM ID")
 	}
 	if nodeName != "" && (vm.Properties.OSProfile == nil || vm.Properties.OSProfile.ComputerName == nil ||
 		!strings.EqualFold(*vm.Properties.OSProfile.ComputerName, nodeName)) {
-		return "", false, fmt.Errorf("instance computer name does not match the Node")
+		return InstanceObservation{}, false, fmt.Errorf("instance computer name does not match the Node")
 	}
-	return strings.ToLower(*vm.Properties.VMID), true, nil
+	observation := InstanceObservation{ID: strings.ToLower(*vm.Properties.VMID)}
+	if vm.Properties.TimeCreated != nil {
+		observation.CreatedAt = *vm.Properties.TimeCreated
+	}
+	return observation, true, nil
 }
 
 func ready(node *corev1.Node) bool {
