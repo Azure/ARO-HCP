@@ -410,6 +410,35 @@ resourceGroups:
       - "ServiceUnavailable"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
+  # EventGrid pins the MQTT client authenticationName immutably, so a maestro
+  # cert SAN change makes the cluster deployment below fail instead of updating.
+  - name: maestro-eventgrid-client-reconcile
+    action: Shell
+    command: ./eventgrid-client-reconcile.sh
+    workingDir: ./scripts
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
+    variables:
+    - name: EventGridSubscriptionId
+      input:
+        resourceGroup: service
+        step: subscription-output
+        name: subscriptionId
+    - name: EventGridResourceGroup
+      configRef: regionRG
+    - name: EventGridNamespaceName
+      configRef: maestro.eventGrid.name
+    - name: ClientName
+      configRef: maestro.server.mqttClientName
+    - name: AuthenticationName
+      configRef: maestro.server.certSAN
+    dependsOn:
+    - resourceGroup: service
+      step: subscription-output
+
   # Create SVC cluster
   - name: cluster
     action: ARM
