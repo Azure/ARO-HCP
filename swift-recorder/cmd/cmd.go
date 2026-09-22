@@ -113,7 +113,7 @@ func NewRootCmd() *cobra.Command {
 	f.IntVar(&o.LogVerbosity, "log-verbosity", 0, "Nonnegative log verbosity")
 	root.AddCommand(controller)
 	var namespacePath string
-	helper := &cobra.Command{Use: "capture", Hidden: true, Args: cobra.NoArgs, RunE: func(_ *cobra.Command, _ []string) error { return capture.Run(namespacePath, os.Stdout) }}
+	helper := &cobra.Command{Use: "capture", Hidden: true, Args: cobra.NoArgs, RunE: func(_ *cobra.Command, _ []string) error { return runCapture(namespacePath) }}
 	helper.Flags().StringVar(&namespacePath, "path", "", "Network namespace path")
 	root.AddCommand(helper)
 	return root
