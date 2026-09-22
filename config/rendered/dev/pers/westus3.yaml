@@ -1,12 +1,12 @@
 acm:
   mce:
     bundle:
-      digest: sha256:da8ebe662611d03e32b5b524837c20e8eb1fadfd9e845ef313912b7fea0731b3
+      digest: sha256:236e9bd535e3281bc8b878b198ca82fca4dcbac18f5500f58aaba63b5829bf39
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-217
   operator:
     bundle:
-      digest: sha256:246ec2b9b69ad08f541d2ea965e759afd8c19a7ea6ed05a27fac4c32fc3a01a5
+      digest: sha256:dacdf774da4fdf5711026d7aba6904377011c1cf2cdf3986b0e5185480fe2fc1
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-217
 acr:
@@ -490,7 +490,7 @@ hcpRecovery:
 hypershift:
   additionalInstallArg: --enable-cpo-overrides --disable-capi-migration
   image:
-    digest: sha256:ee8f9636de436c9800eb46fb1684be9dc9fb36374a20a808c769686873b69723
+    digest: sha256:0116fcc33ef9bf73984848689ed3020ca3f1a28ded8261d132e0581d760ac32b
     registry: quay.io
     repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
   limitClusterSizes: true
@@ -605,7 +605,7 @@ maestro:
     name: arohcp-pers-maestro-usw3test
     private: false
   image:
-    digest: sha256:1a10b3e34fd5549bd649de68bad1af603245b2e623e1b98c87efc0c72fabf37e
+    digest: sha256:9af415e086251e94f471e03844ce768bed6493653b6cabdaff68acf99573679d
     registry: quay.io
     repository: redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
   postgres:
