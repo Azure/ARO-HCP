@@ -335,10 +335,9 @@ func validateRequiredOperatorIdentities(_ context.Context, _ operation.Operation
 	// Sorted so error ordering does not depend on map iteration order.
 	slices.Sort(controlPlaneRequired)
 	for _, operatorName := range controlPlaneRequired {
-		if operatorIdentitySupplied(controlPlaneSupplied, operatorName) {
-			continue
+		if !operatorIdentitySupplied(controlPlaneSupplied, operatorName) {
+			errs = append(errs, field.Required(controlPlanePath.Key(operatorName), fmt.Sprintf("a user-assigned identity for the %q control plane operator is required", operatorName)))
 		}
-		errs = append(errs, field.Required(controlPlanePath.Key(operatorName), fmt.Sprintf("a user-assigned identity for the %q control plane operator is required", operatorName)))
 	}
 
 	dataPlaneRequired := make([]string, 0, len(clusterScopedIdentities.DataPlaneOperatorsIdentities))
@@ -347,10 +346,9 @@ func validateRequiredOperatorIdentities(_ context.Context, _ operation.Operation
 	}
 	slices.Sort(dataPlaneRequired)
 	for _, operatorName := range dataPlaneRequired {
-		if operatorIdentitySupplied(dataPlaneSupplied, operatorName) {
-			continue
+		if !operatorIdentitySupplied(dataPlaneSupplied, operatorName) {
+			errs = append(errs, field.Required(dataPlanePath.Key(operatorName), fmt.Sprintf("a user-assigned identity for the %q data plane operator is required", operatorName)))
 		}
-		errs = append(errs, field.Required(dataPlanePath.Key(operatorName), fmt.Sprintf("a user-assigned identity for the %q data plane operator is required", operatorName)))
 	}
 
 	for _, operator := range conditionallyRequiredControlPlaneOperatorIdentities {
