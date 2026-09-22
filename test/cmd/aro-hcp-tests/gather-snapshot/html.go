@@ -68,44 +68,44 @@ type htmlTreeData struct {
 	TotalFailCount int
 	TotalSkipCount int
 	Sections       []htmlSection
+	KQL            []string
 }
 
 // htmlSection represents a single test+resourceGroup grouping in the HTML overview.
 type htmlSection struct {
-	ResourceGroup string
-	StartTime     string
-	EndTime       string
-	TestName      string
-	PassCount     int
-	FailCount     int
-	SkipCount     int
-	Statuses      string
-	Nodes         []htmlNode
+	ResourceGroup string     `json:"resourceGroup"`
+	StartTime     string     `json:"startTime"`
+	EndTime       string     `json:"endTime"`
+	TestName      string     `json:"testName"`
+	PassCount     int        `json:"-"`
+	FailCount     int        `json:"failCount,omitempty"`
+	SkipCount     int        `json:"-"`
+	Statuses      string     `json:"statuses"`
+	Nodes         []htmlNode `json:"nodes"`
 }
 
 // htmlNode is a top-level grouping (resource or context).
 type htmlNode struct {
-	Name      string
-	FailCount int
-	Statuses  string
-	Children  []htmlCategory
+	Name      string         `json:"name"`
+	FailCount int            `json:"failCount,omitempty"`
+	Statuses  string         `json:"statuses"`
+	Children  []htmlCategory `json:"children"`
 }
 
 // htmlCategory groups queries by category within a node.
 type htmlCategory struct {
-	Name     string
-	Statuses string
-	Queries  []htmlQuery
+	Name      string      `json:"name"`
+	FailCount int         `json:"failCount,omitempty"`
+	Statuses  string      `json:"statuses"`
+	Queries   []htmlQuery `json:"queries"`
 }
 
 // htmlQuery represents a single query in the tree.
 type htmlQuery struct {
-	Key        string
-	Icon       string
-	BadgeClass string
-	BadgeText  string
-	KQL        string
-	Status     string
+	Key      string `json:"key"`
+	KQL      string `json:"-"`
+	KQLIndex int    `json:"kql,omitempty"`
+	Status   string `json:"status"`
 }
 
 // htmlStatus constants are the CSS filter tokens used in data-has attributes.
@@ -164,7 +164,10 @@ func WriteHTMLOverview(dir string, manifests []*snapshot.Manifest, reports []*sn
 }
 
 func buildHTMLData(manifests []*snapshot.Manifest, reports []*snapshot.VerificationReport) htmlTreeData {
-	data := htmlTreeData{}
+	// Index zero represents absent KQL. Identical queries often occur in multiple
+	// suites; keep their full text only once in the embedded payload.
+	data := htmlTreeData{KQL: []string{""}}
+	kqlIndexes := map[string]int{"": 0}
 
 	for i, manifest := range manifests {
 		if i >= len(reports) {
@@ -172,6 +175,20 @@ func buildHTMLData(manifests []*snapshot.Manifest, reports []*snapshot.Verificat
 		}
 		report := reports[i]
 		section := buildHTMLSection(manifest, report)
+		for ni := range section.Nodes {
+			for ci := range section.Nodes[ni].Children {
+				for qi := range section.Nodes[ni].Children[ci].Queries {
+					q := &section.Nodes[ni].Children[ci].Queries[qi]
+					index, exists := kqlIndexes[q.KQL]
+					if !exists {
+						index = len(data.KQL)
+						kqlIndexes[q.KQL] = index
+						data.KQL = append(data.KQL, q.KQL)
+					}
+					q.KQLIndex = index
+				}
+			}
+		}
 		data.TotalPassCount += section.PassCount
 		data.TotalFailCount += section.FailCount
 		data.TotalSkipCount += section.SkipCount
@@ -213,22 +230,13 @@ func buildHTMLSection(manifest *snapshot.Manifest, report *snapshot.Verification
 
 		switch c.Status {
 		case snapshot.VerificationPass:
-			q.Icon = "\u2713"
-			q.BadgeClass = "badge-pass"
-			q.BadgeText = "results"
 			q.Status = htmlStatusPass
 			section.PassCount++
 		case snapshot.VerificationFail:
-			q.Icon = "\u2717"
-			q.BadgeClass = "badge-fail"
-			q.BadgeText = "NO RESULTS"
 			q.Status = htmlStatusFail
 			section.FailCount++
 			sd.failCount++
 		case snapshot.VerificationSkipped:
-			q.Icon = "\u2298"
-			q.BadgeClass = "badge-skip"
-			q.BadgeText = "skipped"
 			q.Status = htmlStatusSkip
 			section.SkipCount++
 		}
@@ -250,7 +258,11 @@ func buildHTMLSection(manifest *snapshot.Manifest, report *snapshot.Verification
 		for _, cat := range sd.catOrder {
 			catStatuses := make(map[string]bool)
 			queries := sd.categories[cat]
+			failCount := 0
 			for _, q := range queries {
+				if q.Status == htmlStatusFail {
+					failCount++
+				}
 				if q.Status != "" {
 					catStatuses[q.Status] = true
 				}
@@ -259,9 +271,10 @@ func buildHTMLSection(manifest *snapshot.Manifest, report *snapshot.Verification
 				nodeStatuses[s] = true
 			}
 			node.Children = append(node.Children, htmlCategory{
-				Name:     cat,
-				Statuses: joinStatuses(catStatuses),
-				Queries:  queries,
+				Name:      cat,
+				FailCount: failCount,
+				Statuses:  joinStatuses(catStatuses),
+				Queries:   queries,
 			})
 		}
 		for s := range nodeStatuses {
