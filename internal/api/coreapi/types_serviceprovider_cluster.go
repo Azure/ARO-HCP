@@ -287,6 +287,14 @@ type ServiceProviderClusterStatus struct {
 	// Written by: FetchDataPlaneOperatorsManagedIdentitiesInfoController
 	DataPlaneOperatorsManagedIdentities ServiceProviderClusterDataPlaneOperatorsManagedIdentities `json:"dataPlaneOperatorsManagedIdentities,omitempty"`
 
+	// KubeAPIServerDNSReservation is the resource ID of the DNSReservation that is
+	// bound to this cluster's kube-apiserver DNS name. It is nil until the
+	// DNSReservationController reserves a unique name and records it here; once set,
+	// the reservation is considered Bound and the cleanup controller treats this
+	// pointer as the source of truth for "this cluster still needs that name".
+	// Written by: DNSReservationController
+	KubeAPIServerDNSReservation *azcorearm.ResourceID `json:"kubeAPIServerDNSReservation,omitempty"`
+
 	// KeyRotationBackupFingerprint identifies the latest successful on-demand
 	// key-rotation backup and prevents duplicate backups for the active key.
 	// It is persisted before the corresponding ApplyDesire is deleted so a crash
