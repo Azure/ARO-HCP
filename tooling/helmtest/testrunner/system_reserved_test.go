@@ -20,6 +20,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -35,6 +36,12 @@ import (
 )
 
 func TestSystemReserved(t *testing.T) {
+	// The rendered node script and its test doubles rely on GNU coreutils (e.g.
+	// `stat -c`) as found on the AKS linux nodes it runs on. BSD userland (macOS)
+	// lacks those flags, so exercise it only on linux.
+	if runtime.GOOS != "linux" {
+		t.Skipf("system-reserved node script requires GNU coreutils; skipping on %s", runtime.GOOS)
+	}
 	chart, err := loader.Load("../../../mgmt-fixes/deploy/kubelet-ds")
 	require.NoError(t, err)
 	rendered, err := engine.Render(chart, common.Values{"Values": map[string]any{"enabled": true}})
