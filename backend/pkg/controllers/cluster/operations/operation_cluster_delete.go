@@ -411,6 +411,10 @@ func (c *operationClusterDelete) remainingDescendantResources(ctx context.Contex
 	}
 	if spc != nil && spc.Status.ManagementClusterResourceID != nil {
 		kaClient := c.kubeApplierDBClients.For(ctx, spc.Status.ManagementClusterResourceID)
+		if kaClient == nil {
+			return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, ""), nil
+		}
+
 		kaCRUD, kaErr := kaClient.UntypedCRUD(*cluster.ID)
 		if kaErr != nil {
 			logger.Error(kaErr, "failed to create kube-applier untyped CRUD")
