@@ -54,7 +54,7 @@ const (
 	v20251223 = "2025-12-23-preview"
 	v20260630 = "2026-06-30-preview"
 	v20260901 = "2026-09-01-preview"
-	v20261001 = "2026-10-01-preview"
+	v20261001 = "2026-10-01"
 )
 
 // crossVersionTestEntry pairs a subtest name with its runner function.

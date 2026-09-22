@@ -48,7 +48,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/azureapi/v20251223preview"
 	"github.com/Azure/ARO-HCP/internal/azureapi/v20260630preview"
 	"github.com/Azure/ARO-HCP/internal/azureapi/v20260901preview"
-	"github.com/Azure/ARO-HCP/internal/azureapi/v20261001preview"
+	v20261001 "github.com/Azure/ARO-HCP/internal/azureapi/v20261001"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/kubeappliercosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -310,7 +310,7 @@ func AllAPIVersions() []string {
 	metadataapi.Must[any](nil, v20251223preview.RegisterVersion(registry))
 	metadataapi.Must[any](nil, v20260630preview.RegisterVersion(registry))
 	metadataapi.Must[any](nil, v20260901preview.RegisterVersion(registry))
-	metadataapi.Must[any](nil, v20261001preview.RegisterVersion(registry))
+	metadataapi.Must[any](nil, v20261001.RegisterVersion(registry))
 
 	versions := registry.ListVersions().UnsortedList()
 	sort.Strings(versions)

@@ -53,8 +53,8 @@ var _ = Describe("Customer", func() {
 			}
 
 			By("creating a resource group")
-			resourceGroup, err := tc.NewResourceGroup(ctx, "v20261001preview", tc.Location())
-			Expect(err).NotTo(HaveOccurred(), "failed to create resource group for v20261001preview test")
+			resourceGroup, err := tc.NewResourceGroup(ctx, "v20261001", tc.Location())
+			Expect(err).NotTo(HaveOccurred(), "failed to create resource group for v20261001 test")
 
 			By("creating cluster parameters")
 			clusterParams := framework.NewDefaultClusterParams20261001()
@@ -69,9 +69,9 @@ var _ = Describe("Customer", func() {
 				TestArtifactsFS,
 				framework.RBACScopeResourceGroup,
 			)
-			Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for v20261001preview cluster")
+			Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for v20261001 cluster")
 
-			By("creating the HCP cluster via v20261001preview")
+			By("creating the HCP cluster via v20261001")
 			err = tc.CreateHCPClusterFromParam20261001(ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
@@ -81,11 +81,11 @@ var _ = Describe("Customer", func() {
 			)
 			if framework.IsAPINotDeployedError(err) {
 				if time.Now().Before(timeBombDeadline) {
-					Skip(fmt.Sprintf("v20261001preview API not yet deployed; skipping until %s", timeBombDeadline.Format(time.RFC3339)))
+					Skip(fmt.Sprintf("v20261001 API not yet deployed; skipping until %s", timeBombDeadline.Format(time.RFC3339)))
 				}
-				Fail(fmt.Sprintf("v20261001preview API still not deployed as of %s deadline", timeBombDeadline.Format(time.RFC3339)))
+				Fail(fmt.Sprintf("v20261001 API still not deployed as of %s deadline", timeBombDeadline.Format(time.RFC3339)))
 			}
-			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %q via v20261001preview", customerClusterName)
+			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %q via v20261001", customerClusterName)
 
 			By("creating the node pool")
 			nodePoolParams := framework.NewDefaultNodePoolParams20261001()
@@ -101,7 +101,7 @@ var _ = Describe("Customer", func() {
 				nodePoolParams,
 				framework.NodePoolCreationTimeout,
 			)
-			Expect(err).NotTo(HaveOccurred(), "failed to create node pool %q for v20261001preview cluster %q",
+			Expect(err).NotTo(HaveOccurred(), "failed to create node pool %q for v20261001 cluster %q",
 				customerNodePoolName, customerClusterName)
 
 			By("verifying active versions are returned for the cluster")
@@ -146,15 +146,15 @@ var _ = Describe("Customer", func() {
 				customerClusterName,
 				framework.GetAdminRESTConfigTimeout,
 			)
-			Expect(err).NotTo(HaveOccurred(), "failed to get admin REST config for v20261001preview cluster %q", customerClusterName)
+			Expect(err).NotTo(HaveOccurred(), "failed to get admin REST config for v20261001 cluster %q", customerClusterName)
 
 			By("verifying the cluster is viable")
 			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig)
-			Expect(err).NotTo(HaveOccurred(), "failed to verify cluster health for v20261001preview cluster %q", customerClusterName)
+			Expect(err).NotTo(HaveOccurred(), "failed to verify cluster health for v20261001 cluster %q", customerClusterName)
 
 			By("verifying a simple web app can run")
 			err = verifiers.VerifySimpleWebApp().Verify(ctx, adminRESTConfig)
-			Expect(err).NotTo(HaveOccurred(), "failed to verify simple web app runs on v20261001preview cluster %q", customerClusterName)
+			Expect(err).NotTo(HaveOccurred(), "failed to verify simple web app runs on v20261001 cluster %q", customerClusterName)
 		},
 	)
 })
