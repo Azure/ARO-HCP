@@ -254,7 +254,9 @@ Run loop (per readme):
     4. Marshal the (possibly redacted) live object to RawExtension.
        If absent, leave a sentinel (e.g. RawExtension{Raw: nil}).
     5. If new RawExtension differs from ReadDesire.Status.KubeContent
-       (byte-equal compare), write the new status and SetSuccessful(true).
+       (semantic/canonical-JSON compare via controllerutils.NeedsUpdate, so
+       formatting- or key-ordering-only differences after a Cosmos round-trip
+       do NOT count as a change), write the new status and SetSuccessful(true).
        Otherwise no-op.
     6. On any kube error en route, SetSuccessful(false, "KubeAPIError"/"PreCheckFailed").
 ```
