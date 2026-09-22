@@ -519,12 +519,16 @@ func admitRequiredOperatorIdentities(admissionContext *ClusterAdmissionContext, 
 	}
 
 	for _, operator := range conditionallyRequiredControlPlaneOperatorIdentities {
+		// The identity is only needed once the feature that uses it is turned on.
 		if !operator.isEnabled(newObj) {
 			continue
 		}
+		// This version has no such operator, so requiring an identity for it would be
+		// unsatisfiable. Also covers a table entry naming an operator the config does not define.
 		if !controlPlaneOperatorSupportedForVersion(config, operator.operatorName, &version) {
 			continue
 		}
+		// The requirement is already met.
 		if operatorIdentitySupplied(controlPlaneSupplied, operator.operatorName) {
 			continue
 		}
