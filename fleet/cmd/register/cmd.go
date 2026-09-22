@@ -20,10 +20,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
 
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
@@ -155,8 +158,12 @@ func (o *RegisterOptions) registerManagementCluster(ctx context.Context) error {
 		return nil
 	}
 
+	// Existing documents keep immutable registration identity fields. Re-applying
+	// current configuration to those fields fails Fleet update validation whenever
+	// configuration has drifted (for example a DNS zone rename).
 	updated := existing.DeepCopy()
-	o.applyStatusToManagementCluster(updated)
+	o.warnImmutableManagementClusterDrift(ctx, existing)
+	o.applyMutableStatusToManagementCluster(updated)
 
 	logger.Info("Updating existing management cluster")
 	if _, err := managementClusterCRUD.Replace(ctx, updated, existing, nil); err != nil {
@@ -168,10 +175,14 @@ func (o *RegisterOptions) registerManagementCluster(ctx context.Context) error {
 
 func (o *RegisterOptions) applyToManagementCluster(managementCluster *fleetapi.ManagementCluster) {
 	managementCluster.Spec.SchedulingPolicy = o.schedulingPolicy
-	o.applyStatusToManagementCluster(managementCluster)
+	o.applyImmutableStatusToManagementCluster(managementCluster)
+	o.applyMutableStatusToManagementCluster(managementCluster)
 }
 
-func (o *RegisterOptions) applyStatusToManagementCluster(managementCluster *fleetapi.ManagementCluster) {
+// applyImmutableStatusToManagementCluster sets registration-owned status fields that
+// ValidateManagementClusterUpdate marks immutable. Call only when creating a new
+// ManagementCluster document.
+func (o *RegisterOptions) applyImmutableStatusToManagementCluster(managementCluster *fleetapi.ManagementCluster) {
 	managementCluster.Status.AKSResourceID = o.aksResourceID
 	managementCluster.Status.PublicDNSZoneResourceID = o.publicDNSZoneResourceID
 	managementCluster.Status.HostedClustersSecretsKeyVaultURL = o.hostedClustersSecretsKeyVaultURL
@@ -181,4 +192,50 @@ func (o *RegisterOptions) applyStatusToManagementCluster(managementCluster *flee
 	managementCluster.Status.MaestroRESTAPIURL = o.maestroRESTAPIURL
 	managementCluster.Status.MaestroGRPCTarget = o.maestroGRPCTarget
 	managementCluster.Status.KubeApplierCosmosContainerName = o.kubeApplierCosmosContainerName
+}
+
+// applyMutableStatusToManagementCluster sets registration-owned status fields that
+// may still change on update. Today that is only KubeApplierCosmosContainerName when
+// the persisted value is empty (validator allows empty→set, then immutable).
+// ClusterServiceProvisionShardID, Conditions, SharedIngressIPAddresses, and
+// Spec.SchedulingPolicy are owned elsewhere and must not be written here.
+func (o *RegisterOptions) applyMutableStatusToManagementCluster(managementCluster *fleetapi.ManagementCluster) {
+	if managementCluster.Status.KubeApplierCosmosContainerName == "" {
+		managementCluster.Status.KubeApplierCosmosContainerName = o.kubeApplierCosmosContainerName
+	}
+}
+
+// warnImmutableManagementClusterDrift logs when configured RegisterOptions values
+// differ from persisted immutable status fields. The persisted values are kept.
+func (o *RegisterOptions) warnImmutableManagementClusterDrift(ctx context.Context, existing *fleetapi.ManagementCluster) {
+	logger := utils.LoggerFromContext(ctx)
+	warnIfDrift(logger, "status.aksResourceID", resourceIDString(existing.Status.AKSResourceID), resourceIDString(o.aksResourceID))
+	warnIfDrift(logger, "status.publicDNSZoneResourceID", resourceIDString(existing.Status.PublicDNSZoneResourceID), resourceIDString(o.publicDNSZoneResourceID))
+	warnIfDrift(logger, "status.hostedClustersSecretsKeyVaultURL", existing.Status.HostedClustersSecretsKeyVaultURL, o.hostedClustersSecretsKeyVaultURL)
+	warnIfDrift(logger, "status.hostedClustersManagedIdentitiesKeyVaultURL", existing.Status.HostedClustersManagedIdentitiesKeyVaultURL, o.hostedClustersManagedIdentitiesKeyVaultURL)
+	warnIfDrift(logger, "status.hostedClustersSecretsKeyVaultManagedIdentityClientID", existing.Status.HostedClustersSecretsKeyVaultManagedIdentityClientID, o.hostedClustersSecretsKeyVaultManagedIdentityClientID)
+	warnIfDrift(logger, "status.maestroConsumerName", existing.Status.MaestroConsumerName, o.maestroConsumerName)
+	warnIfDrift(logger, "status.maestroRESTAPIURL", existing.Status.MaestroRESTAPIURL, o.maestroRESTAPIURL)
+	warnIfDrift(logger, "status.maestroGRPCTarget", existing.Status.MaestroGRPCTarget, o.maestroGRPCTarget)
+	if existing.Status.KubeApplierCosmosContainerName != "" {
+		warnIfDrift(logger, "status.kubeApplierCosmosContainerName", existing.Status.KubeApplierCosmosContainerName, o.kubeApplierCosmosContainerName)
+	}
+}
+
+func warnIfDrift(logger logr.Logger, field, persisted, configured string) {
+	if persisted == configured {
+		return
+	}
+	logger.Info("configured immutable field differs from persisted value; retaining persisted value",
+		"field", field,
+		"persisted", persisted,
+		"configured", configured,
+	)
+}
+
+func resourceIDString(id *azcorearm.ResourceID) string {
+	if id == nil {
+		return ""
+	}
+	return id.String()
 }

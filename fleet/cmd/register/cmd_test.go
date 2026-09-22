@@ -20,6 +20,7 @@ import (
 	"testing"
 
 	"github.com/go-logr/logr"
+	"github.com/go-logr/logr/funcr"
 	"github.com/stretchr/testify/require"
 
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
@@ -43,6 +44,11 @@ func testContext(t *testing.T) context.Context {
 	return utils.ContextWithLogger(t.Context(), logr.Discard())
 }
 
+func testContextWithLogger(t *testing.T, logger logr.Logger) context.Context {
+	t.Helper()
+	return utils.ContextWithLogger(t.Context(), logger)
+}
+
 func validRegisterOptions(t *testing.T, fleetDBClient *fleetcosmosstoragetesting.MockFleetDBClient) *RegisterOptions {
 	t.Helper()
 	return &RegisterOptions{
@@ -62,6 +68,22 @@ func validRegisterOptions(t *testing.T, fleetDBClient *fleetcosmosstoragetesting
 			maestroGRPCTarget:              "maestro-grpc.maestro.svc.cluster.local:8090",
 			kubeApplierCosmosContainerName: "Manifests-MC-1",
 		},
+	}
+}
+
+func seededManagementClusterStatus() fleetapi.ManagementClusterStatus {
+	return fleetapi.ManagementClusterStatus{
+		AKSResourceID:                                        metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/aks-1")),
+		PublicDNSZoneResourceID:                              metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.Network/dnszones/example.com")),
+		HostedClustersSecretsKeyVaultURL:                     "https://kv-secrets.vault.azure.net",
+		HostedClustersManagedIdentitiesKeyVaultURL:           "https://kv-mi.vault.azure.net",
+		HostedClustersSecretsKeyVaultManagedIdentityClientID: "12345678-1234-1234-1234-123456789012",
+		ClusterServiceProvisionShardID:                       ptr.To(metadataapi.Must(metadataapi.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"))),
+		MaestroConsumerName:                                  "hcp-underlay-westus3-mgmt-1",
+		MaestroRESTAPIURL:                                    "http://maestro.maestro.svc.cluster.local:8000",
+		MaestroGRPCTarget:                                    "maestro-grpc.maestro.svc.cluster.local:8090",
+		KubeApplierCosmosContainerName:                       "Manifests-MC-1",
+		SharedIngressIPAddresses:                             []string{"203.0.113.10"},
 	}
 }
 
@@ -87,7 +109,15 @@ func TestRun(t *testing.T) {
 				managementCluster, err := client.Stamps().ManagementClusters(testStampIdentifier).Get(ctx, fleetapi.ManagementClusterResourceName)
 				require.NoError(t, err)
 				require.Equal(t, fleetapi.ManagementClusterSchedulingPolicySchedulable, managementCluster.Spec.SchedulingPolicy)
+				require.Equal(t, "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/aks-1", managementCluster.Status.AKSResourceID.String())
+				require.Equal(t, "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.Network/dnszones/example.com", managementCluster.Status.PublicDNSZoneResourceID.String())
+				require.Equal(t, "https://kv-secrets.vault.azure.net", managementCluster.Status.HostedClustersSecretsKeyVaultURL)
+				require.Equal(t, "https://kv-mi.vault.azure.net", managementCluster.Status.HostedClustersManagedIdentitiesKeyVaultURL)
+				require.Equal(t, "12345678-1234-1234-1234-123456789012", managementCluster.Status.HostedClustersSecretsKeyVaultManagedIdentityClientID)
 				require.Equal(t, "hcp-underlay-westus3-mgmt-1", managementCluster.Status.MaestroConsumerName)
+				require.Equal(t, "http://maestro.maestro.svc.cluster.local:8000", managementCluster.Status.MaestroRESTAPIURL)
+				require.Equal(t, "maestro-grpc.maestro.svc.cluster.local:8090", managementCluster.Status.MaestroGRPCTarget)
+				require.Equal(t, "Manifests-MC-1", managementCluster.Status.KubeApplierCosmosContainerName)
 			},
 		},
 		{
@@ -158,18 +188,7 @@ func TestRun(t *testing.T) {
 					Spec: fleetapi.ManagementClusterSpec{
 						SchedulingPolicy: fleetapi.ManagementClusterSchedulingPolicySchedulable,
 					},
-					Status: fleetapi.ManagementClusterStatus{
-						AKSResourceID:                                        metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/aks-1")),
-						PublicDNSZoneResourceID:                              metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.Network/dnszones/example.com")),
-						HostedClustersSecretsKeyVaultURL:                     "https://kv-secrets.vault.azure.net",
-						HostedClustersManagedIdentitiesKeyVaultURL:           "https://kv-mi.vault.azure.net",
-						HostedClustersSecretsKeyVaultManagedIdentityClientID: "12345678-1234-1234-1234-123456789012",
-						ClusterServiceProvisionShardID:                       ptr.To(metadataapi.Must(metadataapi.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"))),
-						MaestroConsumerName:                                  "hcp-underlay-westus3-mgmt-1",
-						MaestroRESTAPIURL:                                    "http://maestro.maestro.svc.cluster.local:8000",
-						MaestroGRPCTarget:                                    "maestro-grpc.maestro.svc.cluster.local:8090",
-						KubeApplierCosmosContainerName:                       "Manifests-MC-1",
-					},
+					Status: seededManagementClusterStatus(),
 				}
 				return []any{stamp, managementCluster}
 			},
@@ -182,35 +201,39 @@ func TestRun(t *testing.T) {
 			},
 		},
 		{
-			name: "update existing management cluster rejects changed immutable field",
+			name: "update existing management cluster preserves drifted immutable fields",
 			seed: func(t *testing.T) []any {
 				stamp := &fleetapi.Stamp{
 					CosmosMetadata: coreapi.CosmosMetadata{ResourceID: metadataapi.Must(fleetapihelpers.ToStampResourceID(testStampIdentifier)), PartitionKey: strings.ToLower(testStampIdentifier)},
 				}
+				status := seededManagementClusterStatus()
+				status.AKSResourceID = metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/original-aks"))
+				status.PublicDNSZoneResourceID = metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.Network/dnszones/legacy.example.com"))
+				status.HostedClustersSecretsKeyVaultURL = "https://kv-secrets-legacy.vault.azure.net"
 				managementCluster := &fleetapi.ManagementCluster{
 					CosmosMetadata: coreapi.CosmosMetadata{ResourceID: metadataapi.Must(fleetapihelpers.ToManagementClusterResourceID(testStampIdentifier)), PartitionKey: strings.ToLower(testStampIdentifier)},
 					Spec: fleetapi.ManagementClusterSpec{
 						SchedulingPolicy: fleetapi.ManagementClusterSchedulingPolicySchedulable,
 					},
-					Status: fleetapi.ManagementClusterStatus{
-						AKSResourceID:                                        metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/original-aks")),
-						PublicDNSZoneResourceID:                              metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.Network/dnszones/example.com")),
-						HostedClustersSecretsKeyVaultURL:                     "https://kv-secrets.vault.azure.net",
-						HostedClustersManagedIdentitiesKeyVaultURL:           "https://kv-mi.vault.azure.net",
-						HostedClustersSecretsKeyVaultManagedIdentityClientID: "12345678-1234-1234-1234-123456789012",
-						ClusterServiceProvisionShardID:                       ptr.To(metadataapi.Must(metadataapi.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"))),
-						MaestroConsumerName:                                  "hcp-underlay-westus3-mgmt-1",
-						MaestroRESTAPIURL:                                    "http://maestro.maestro.svc.cluster.local:8000",
-						MaestroGRPCTarget:                                    "maestro-grpc.maestro.svc.cluster.local:8090",
-						KubeApplierCosmosContainerName:                       "Manifests-MC-1",
-					},
+					Status: status,
 				}
 				return []any{stamp, managementCluster}
 			},
 			modify: func(t *testing.T, opts *RegisterOptions) {
 				opts.aksResourceID = metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/different-aks"))
+				opts.publicDNSZoneResourceID = metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.Network/dnszones/example.com"))
+				opts.hostedClustersSecretsKeyVaultURL = "https://kv-secrets.vault.azure.net"
 			},
-			expectErr: "replace validation failed",
+			verify: func(t *testing.T, client *fleetcosmosstoragetesting.MockFleetDBClient) {
+				ctx := testContext(t)
+				managementCluster, err := client.Stamps().ManagementClusters(testStampIdentifier).Get(ctx, fleetapi.ManagementClusterResourceName)
+				require.NoError(t, err)
+				require.Equal(t, "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/original-aks", managementCluster.Status.AKSResourceID.String())
+				require.Equal(t, "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.Network/dnszones/legacy.example.com", managementCluster.Status.PublicDNSZoneResourceID.String())
+				require.Equal(t, "https://kv-secrets-legacy.vault.azure.net", managementCluster.Status.HostedClustersSecretsKeyVaultURL)
+				require.Equal(t, "/api/aro_hcp/v1alpha1/provision_shards/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", managementCluster.Status.ClusterServiceProvisionShardID.String())
+				require.Equal(t, []string{"203.0.113.10"}, managementCluster.Status.SharedIngressIPAddresses)
+			},
 		},
 		{
 			name: "update existing management cluster preserves scheduling policy",
@@ -223,18 +246,7 @@ func TestRun(t *testing.T) {
 					Spec: fleetapi.ManagementClusterSpec{
 						SchedulingPolicy: fleetapi.ManagementClusterSchedulingPolicyUnschedulable,
 					},
-					Status: fleetapi.ManagementClusterStatus{
-						AKSResourceID:                                        metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/aks-1")),
-						PublicDNSZoneResourceID:                              metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.Network/dnszones/example.com")),
-						HostedClustersSecretsKeyVaultURL:                     "https://kv-secrets.vault.azure.net",
-						HostedClustersManagedIdentitiesKeyVaultURL:           "https://kv-mi.vault.azure.net",
-						HostedClustersSecretsKeyVaultManagedIdentityClientID: "12345678-1234-1234-1234-123456789012",
-						ClusterServiceProvisionShardID:                       ptr.To(metadataapi.Must(metadataapi.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"))),
-						MaestroConsumerName:                                  "hcp-underlay-westus3-mgmt-1",
-						MaestroRESTAPIURL:                                    "http://maestro.maestro.svc.cluster.local:8000",
-						MaestroGRPCTarget:                                    "maestro-grpc.maestro.svc.cluster.local:8090",
-						KubeApplierCosmosContainerName:                       "Manifests-MC-1",
-					},
+					Status: seededManagementClusterStatus(),
 				}
 				return []any{stamp, managementCluster}
 			},
@@ -279,4 +291,87 @@ func TestRun(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestApplyMutableStatusToManagementCluster(t *testing.T) {
+	t.Parallel()
+
+	t.Run("backfills empty kube-applier cosmos container name", func(t *testing.T) {
+		t.Parallel()
+		opts := validRegisterOptions(t, fleetcosmosstoragetesting.NewMockFleetDBClient())
+		managementCluster := &fleetapi.ManagementCluster{
+			Status: fleetapi.ManagementClusterStatus{
+				ClusterServiceProvisionShardID: ptr.To(metadataapi.Must(metadataapi.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"))),
+				SharedIngressIPAddresses:       []string{"203.0.113.10"},
+			},
+		}
+
+		opts.applyMutableStatusToManagementCluster(managementCluster)
+
+		require.Equal(t, "Manifests-MC-1", managementCluster.Status.KubeApplierCosmosContainerName)
+		require.Equal(t, "/api/aro_hcp/v1alpha1/provision_shards/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", managementCluster.Status.ClusterServiceProvisionShardID.String())
+		require.Equal(t, []string{"203.0.113.10"}, managementCluster.Status.SharedIngressIPAddresses)
+	})
+
+	t.Run("does not overwrite existing kube-applier cosmos container name", func(t *testing.T) {
+		t.Parallel()
+		opts := validRegisterOptions(t, fleetcosmosstoragetesting.NewMockFleetDBClient())
+		opts.kubeApplierCosmosContainerName = "Manifests-MC-configured"
+		managementCluster := &fleetapi.ManagementCluster{
+			Status: fleetapi.ManagementClusterStatus{
+				KubeApplierCosmosContainerName: "Manifests-MC-persisted",
+			},
+		}
+
+		opts.applyMutableStatusToManagementCluster(managementCluster)
+
+		require.Equal(t, "Manifests-MC-persisted", managementCluster.Status.KubeApplierCosmosContainerName)
+	})
+}
+
+func TestWarnImmutableManagementClusterDrift(t *testing.T) {
+	t.Parallel()
+
+	t.Run("emits warning when configured immutable value differs", func(t *testing.T) {
+		t.Parallel()
+		var logs []string
+		logger := funcr.New(func(prefix, args string) {
+			logs = append(logs, prefix+" "+args)
+		}, funcr.Options{})
+		ctx := testContextWithLogger(t, logger)
+
+		client := fleetcosmosstoragetesting.NewMockFleetDBClient()
+		opts := validRegisterOptions(t, client)
+		existing := &fleetapi.ManagementCluster{
+			Status: seededManagementClusterStatus(),
+		}
+		existing.Status.PublicDNSZoneResourceID = metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.Network/dnszones/legacy.example.com"))
+
+		opts.warnImmutableManagementClusterDrift(ctx, existing)
+
+		require.Len(t, logs, 1)
+		require.Contains(t, logs[0], "configured immutable field differs from persisted value; retaining persisted value")
+		require.Contains(t, logs[0], "status.publicDNSZoneResourceID")
+		require.Contains(t, logs[0], "legacy.example.com")
+		require.Contains(t, logs[0], "example.com")
+	})
+
+	t.Run("does not emit warning when configured values match", func(t *testing.T) {
+		t.Parallel()
+		var logs []string
+		logger := funcr.New(func(prefix, args string) {
+			logs = append(logs, prefix+" "+args)
+		}, funcr.Options{})
+		ctx := testContextWithLogger(t, logger)
+
+		client := fleetcosmosstoragetesting.NewMockFleetDBClient()
+		opts := validRegisterOptions(t, client)
+		existing := &fleetapi.ManagementCluster{
+			Status: seededManagementClusterStatus(),
+		}
+
+		opts.warnImmutableManagementClusterDrift(ctx, existing)
+
+		require.Empty(t, logs)
+	})
 }
