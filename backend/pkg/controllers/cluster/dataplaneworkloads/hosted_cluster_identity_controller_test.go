@@ -414,6 +414,55 @@ func TestBuildDataPlaneIdentityDesire(t *testing.T) {
 		"controlPlane must not be present — only owned by the base desire")
 }
 
+func TestBuildDataPlaneIdentityDesireRejectsEmptyClientIDs(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name      string
+		clientIDs hostedClusterDataPlaneClientIDs
+	}{
+		{
+			name:      "all empty",
+			clientIDs: hostedClusterDataPlaneClientIDs{},
+		},
+		{
+			name: "imageRegistry missing",
+			clientIDs: hostedClusterDataPlaneClientIDs{
+				DiskMSIClientID: "client-disk",
+				FileMSIClientID: "client-file",
+			},
+		},
+		{
+			name: "disk missing",
+			clientIDs: hostedClusterDataPlaneClientIDs{
+				ImageRegistryMSIClientID: "client-img",
+				FileMSIClientID:          "client-file",
+			},
+		},
+		{
+			name: "file missing",
+			clientIDs: hostedClusterDataPlaneClientIDs{
+				ImageRegistryMSIClientID: "client-img",
+				DiskMSIClientID:          "client-disk",
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			_, err := buildDataPlaneIdentityDesire(
+				testSubscriptionID, testResourceGroupName, testClusterName,
+				testMgmtClusterResourceID,
+				testHCName, testHCNamespace,
+				tc.clientIDs,
+			)
+			require.Error(t, err,
+				"buildDataPlaneIdentityDesire must reject a partially-populated clientIDs struct")
+		})
+	}
+}
+
 // --- TestHostedClusterDataPlaneIdentitiesSyncOnce ---------------------------
 
 // testCtx returns a context with a test logger attached, suppressing the

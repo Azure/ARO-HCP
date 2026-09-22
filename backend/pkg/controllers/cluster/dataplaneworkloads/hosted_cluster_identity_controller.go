@@ -434,6 +434,20 @@ func buildDataPlaneIdentityDesire(
 	hcName, hcNamespace string,
 	clientIDs hostedClusterDataPlaneClientIDs,
 ) (*kubeapplierapi.ApplyDesire, error) {
+	// Guard against an empty clientIDs struct. If all three fields are empty
+	// strings, omitempty would exclude them from the payload while still
+	// declaring "managedIdentities": {"dataPlane": {}} in the SSA patch, which
+	// would cause SSA to own — and effectively clear — the dataPlane sub-object.
+	// resolveAndGateClientIDs always populates all three before calling here,
+	// but this check makes the invariant explicit.
+	if clientIDs.ImageRegistryMSIClientID == "" ||
+		clientIDs.DiskMSIClientID == "" ||
+		clientIDs.FileMSIClientID == "" {
+		return nil, utils.TrackError(fmt.Errorf(
+			"all three data plane ClientIDs must be set before building the identity desire",
+		))
+	}
+
 	patch := hostedClusterDataPlanePatch{
 		APIVersion: hostedClusterAPIVersion,
 		Kind:       hostedClusterKind,
