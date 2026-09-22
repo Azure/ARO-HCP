@@ -411,15 +411,15 @@ func (c *operationClusterDelete) remainingDescendantResources(ctx context.Contex
 	}
 	if spc != nil && spc.Status.ManagementClusterResourceID != nil {
 		kaClient := c.kubeApplierDBClients.For(ctx, spc.Status.ManagementClusterResourceID)
-		if kaClient == nil {
-			return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, ""), nil
-		}
-
-		kaCRUD, kaErr := kaClient.UntypedCRUD(*cluster.ID)
-		if kaErr != nil {
-			logger.Error(kaErr, "failed to create kube-applier untyped CRUD")
-		} else if err := countDescendants(ctx, kaCRUD, c.shouldCountChild, typeCounts); err != nil {
-			logger.Error(err, "failed to count kube-applier descendant resources")
+		if kaClient != nil {
+			kaCRUD, kaErr := kaClient.UntypedCRUD(*cluster.ID)
+			if kaErr != nil {
+				logger.Error(kaErr, "failed to create kube-applier untyped CRUD")
+			} else if err := countDescendants(ctx, kaCRUD, c.shouldCountChild, typeCounts); err != nil {
+				logger.Error(err, "failed to count kube-applier descendant resources")
+			}
+		} else {
+			logger.Info("kube-applier client unavailable; skipping kube-applier descendant resource count")
 		}
 	}
 

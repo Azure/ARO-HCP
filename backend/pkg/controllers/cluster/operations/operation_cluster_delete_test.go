@@ -497,7 +497,7 @@ func TestOperationClusterDelete_SynchronizeOperation_ApplyDesiresGate(t *testing
 	unregisteredManagementClusterResourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/providers/microsoft.redhatopenshift/stamps/1/managementclusters/unregistered"))
 
-	clusterPassingReconcileGate := func() *coreapi.HCPOpenShiftCluster {
+	clusterPassingReconcileGate := func() *coreapi.Cluster {
 		now := time.Now()
 		cluster := fixture.NewCluster(nil)
 		cluster.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: now}
