@@ -56,6 +56,7 @@ const (
 const (
 	IngressDNSVerifyTimeout         = 10 * time.Minute
 	CloudNetworkConfigVerifyTimeout = 10 * time.Minute
+	CSIVolumeVerifyTimeout          = 10 * time.Minute
 )
 
 // Backup timeouts
