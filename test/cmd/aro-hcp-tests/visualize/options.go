@@ -20,8 +20,10 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"html/template"
 	"io"
 	"io/fs"
 	"os"
@@ -336,7 +338,44 @@ func (o *Options) Visualize(ctx context.Context) error {
 		return nil
 	}
 
-	slices.SortFunc(o.Times, func(a, b TestInfo) int {
+	waterfall := testTimingChart(o.Times)
+	if err := os.MkdirAll(o.OutputDir, 0755); err != nil {
+		return fmt.Errorf("unable to create output directory: %w", err)
+	}
+	// filename matches the regex for display in https://github.com/openshift/release/blob/ef035a66f45a195fb6d5f68ce8ec284434aebe9f/core-services/prow/02_config/_config.yaml#L251-L252
+	stepFile := filepath.Join(o.OutputDir, "e2e-timelines_spyglass_timing-metadata.html")
+	output, err := os.Create(stepFile)
+	if err != nil {
+		return fmt.Errorf("failed to create output file: %w", err)
+	}
+	defer func() {
+		if err := output.Close(); err != nil {
+			logger.Error(err, "failed to close output file")
+		}
+	}()
+	rendered := waterfall.RenderContent()
+	rendered = bytes.Replace(rendered, []byte("<head>"), []byte(`<head><meta name="viewport" content="width=device-width, initial-scale=1">`), 1)
+	// workaround for spyglass cutting off page bottoms: inject spacer before </body>
+	rendered = bytes.Replace(rendered, []byte("</body>"), []byte(`<div style="height: 30px;"></div>`+"\n"+"</body>"), 1)
+	if _, err := output.Write(rendered); err != nil {
+		return fmt.Errorf("failed to write output: %w", err)
+	}
+
+	logger.Info("Created visualization.", "output", stepFile)
+
+	for _, item := range o.Times {
+		if len(item.Deployments) > 0 {
+			if err := o.visualizeARM(ctx, item); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// testTimingChart needs nonempty input and sorts it in chronological order.
+func testTimingChart(times []TestInfo) *charts.Bar {
+	slices.SortFunc(times, func(a, b TestInfo) int {
 		t := a.StartedAt.Compare(b.StartedAt)
 		if t != 0 {
 			return t
@@ -344,91 +383,73 @@ func (o *Options) Visualize(ctx context.Context) error {
 		return strings.Compare(strings.Join(a.Identifier, " "), strings.Join(b.Identifier, " "))
 	})
 
-	startTime := o.Times[0].StartedAt
+	startTime := times[0].StartedAt
 	endTime := startTime
 
 	testNameSet := sets.New[string]()
-	for _, item := range o.Times {
+	for _, item := range times {
 		testNameSet.Insert(strings.Join(item.Identifier, " "))
 	}
 	testNames := sets.List(testNameSet)
 
-	var highWaterMark []opts.BarData
+	waterfall := charts.NewBar()
+	waterfall.Renderer = render.NewChartRender(testChart{waterfall}, waterfall.Validate)
+	var highWaterMark, durations []opts.BarData
 	var names []string
-	data := map[string][]opts.BarData{}
 	startTimes := map[string]time.Time{}
-	for _, testName := range testNames {
-		data[testName] = []opts.BarData{}
-		startTimes[testName] = time.Now() // will be after any start time in the set
-	}
-	for _, item := range o.Times {
+	for _, item := range times {
 		identifier := strings.Join(item.Identifier, " ")
 		if item.FinishedAt.After(endTime) {
 			endTime = item.FinishedAt
 		}
 		startTimes[identifier] = item.StartedAt
+	}
+	// Keep the original per-test palette order without a series for every test.
+	slices.SortFunc(testNames, func(a, b string) int {
+		return startTimes[a].Compare(startTimes[b])
+	})
+	colors := map[string]string{}
+	for i, testName := range testNames {
+		colors[testName] = waterfall.Colors[i%len(waterfall.Colors)]
+	}
+	for _, item := range times {
+		identifier := strings.Join(item.Identifier, " ")
 
 		highWaterMark = append(highWaterMark, opts.BarData{
-			Value: item.StartedAt.Sub(startTime).Milliseconds(),
-			Tooltip: &opts.Tooltip{
-				Show: ptr.To(false),
+			Value: float64(item.StartedAt.Sub(startTime)) / float64(time.Millisecond),
+		})
+		durations = append(durations, opts.BarData{
+			Name:  identifier,
+			Value: float64(item.FinishedAt.Sub(item.StartedAt)) / float64(time.Millisecond),
+			ItemStyle: &opts.ItemStyle{
+				Color:       colors[identifier],
+				BorderColor: "black",
+				BorderWidth: 1,
 			},
 		})
 		names = append(names, identifier)
 		for _, step := range item.Steps {
 			highWaterMark = append(highWaterMark, opts.BarData{
-				Value: step.StartedAt.Sub(startTime).Milliseconds(),
-				Tooltip: &opts.Tooltip{
-					Show: ptr.To(false),
+				Value: float64(step.StartedAt.Sub(startTime)) / float64(time.Millisecond),
+			})
+			durations = append(durations, opts.BarData{
+				Name:  fmt.Sprintf("%s: %s", identifier, step.Name),
+				Value: float64(step.FinishedAt.Sub(step.StartedAt)) / float64(time.Millisecond),
+				ItemStyle: &opts.ItemStyle{
+					Color: colors[identifier],
 				},
 			})
 			names = append(names, step.Name)
 		}
-		for testName := range data {
-			if testName == identifier {
-				data[testName] = append(data[testName], opts.BarData{
-					Value: item.FinishedAt.Sub(item.StartedAt).Milliseconds(),
-					ItemStyle: &opts.ItemStyle{
-						BorderColor: "black",
-						BorderWidth: 1,
-					},
-				})
-				for _, step := range item.Steps {
-					data[testName] = append(data[testName], opts.BarData{
-						Name:  fmt.Sprintf("%s: %s", identifier, step.Name),
-						Value: step.FinishedAt.Sub(step.StartedAt).Milliseconds(),
-					})
-				}
-			} else {
-				data[testName] = append(data[testName], opts.BarData{
-					Value: 0,
-					Tooltip: &opts.Tooltip{
-						Show: ptr.To(false),
-					},
-				})
-				for range item.Steps {
-					data[testName] = append(data[testName], opts.BarData{
-						Value: 0,
-						Tooltip: &opts.Tooltip{
-							Show: ptr.To(false),
-						},
-					})
-				}
-			}
-		}
 	}
 
-	// insert data into the graph in order of start time so we are unlikely to end up with data series next to each other with the same color
-	slices.SortFunc(testNames, func(a, b string) int {
-		return startTimes[a].Compare(startTimes[b])
-	})
-
-	waterfall := charts.NewBar()
 	waterfall.SetGlobalOptions(
+		charts.WithAnimation(false),
 		charts.WithInitializationOpts(opts.Initialization{
 			PageTitle: "Test Timing Analysis",
-			Renderer:  "svg",
+			Renderer:  "canvas",
 			Height:    "1024px",
+			Width:     "100%",
 		}),
 		charts.WithTitleOpts(opts.Title{
 			Title:      "ARO HCP End-to-End Test Timing",
@@ -447,11 +468,12 @@ func (o *Options) Visualize(ctx context.Context) error {
 			Show: ptr.To(false),
 		}),
 		charts.WithYAxisOpts(opts.YAxis{Show: ptr.To(false)}),
-		charts.WithXAxisOpts(opts.XAxis{AxisLabel: &opts.AxisLabel{Rotate: -22.5}}),
-	)
-	waterfall.AddJSFuncStrs(
-		opts.FuncOpts(render.EchartsInstancePlaceholder+`.setOption({"xAxis": {"axisLabel": {"formatter": `+millisecondAxisFormatter(startTime)+`}}});`),
-		opts.FuncOpts(render.EchartsInstancePlaceholder+`.setOption({"tooltip": {"formatter": `+multiValueFormatter+`}});`),
+		charts.WithXAxisOpts(opts.XAxis{AxisLabel: &opts.AxisLabel{
+			Rotate: -22.5,
+		}}),
+		charts.WithDataZoomOpts(opts.DataZoom{
+			Type: "slider", Orient: "vertical", YAxisIndex: []int{0}, Start: 0, End: 100,
+		}),
 	)
 	waterfall.SetXAxis(names).
 		AddSeries("Placeholder", highWaterMark,
@@ -462,45 +484,31 @@ func (o *Options) Visualize(ctx context.Context) error {
 				BorderColor: "transparent",
 				Color:       "transparent",
 			})).
-		XYReversal()
-	for _, testName := range testNames {
-		waterfall.AddSeries(testName, data[testName],
+		AddSeries("Duration", durations,
 			charts.WithBarChartOpts(opts.BarChart{
 				Stack: "total",
-			}))
-	}
+			})).
+		XYReversal()
+	waterfall.AddJSFuncStrs(
+		opts.FuncOpts(render.EchartsInstancePlaceholder+`.setOption({xAxis: {axisLabel: {formatter: `+millisecondAxisFormatter(startTime.Format(time.RFC3339Nano))+`}}, tooltip: {confine: true, formatter: `+testTimingTooltipFormatter+`}});`),
+		opts.FuncOpts(`window.addEventListener('resize', () => {`+render.EchartsInstancePlaceholder+`.resize();});`),
+	)
 
-	if err := os.MkdirAll(o.OutputDir, 0755); err != nil {
-		return fmt.Errorf("unable to create output directory: %w", err)
-	}
-	// filename matches the regex for display in https://github.com/openshift/release/blob/ef035a66f45a195fb6d5f68ce8ec284434aebe9f/core-services/prow/02_config/_config.yaml#L251-L252
-	stepFile := filepath.Join(o.OutputDir, "e2e-timelines_spyglass_timing-metadata.html")
-	output, err := os.Create(stepFile)
+	return waterfall
+}
+
+type testChart struct {
+	*charts.Bar
+}
+
+// go-echarts disables HTML escaping and interprets __f__ markers as JavaScript.
+// Keep labels as data; install the trusted formatters separately via AddJSFuncStrs.
+func (c testChart) JSONNotEscaped() template.HTML {
+	data, err := json.Marshal(c.JSON())
 	if err != nil {
-		return fmt.Errorf("failed to create output file: %w", err)
+		panic(err)
 	}
-	defer func() {
-		if err := output.Close(); err != nil {
-			logger.Error(err, "failed to close output file")
-		}
-	}()
-	rendered := waterfall.RenderContent()
-	// workaround for spyglass cutting off page bottoms: inject spacer before </body>
-	rendered = bytes.Replace(rendered, []byte("</body>"), []byte(`<div style="height: 30px;"></div>`+"\n"+"</body>"), 1)
-	if _, err := output.Write(rendered); err != nil {
-		return fmt.Errorf("failed to write output: %w", err)
-	}
-
-	logger.Info("Created visualization.", "output", stepFile)
-
-	for _, item := range o.Times {
-		if len(item.Deployments) > 0 {
-			if err := o.visualizeARM(ctx, item); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
+	return template.HTML(strings.ReplaceAll(string(data), "__f__", `\u005f\u005ff\u005f\u005f`)) //nolint:gosec // HTML-safe JSON, not user-authored HTML
 }
 
 func (o *Options) visualizeARM(ctx context.Context, item TestInfo) error {
@@ -566,7 +574,7 @@ func (o *Options) visualizeARM(ctx context.Context, item TestInfo) error {
 		charts.WithXAxisOpts(opts.XAxis{AxisLabel: &opts.AxisLabel{Rotate: -22.5}}),
 	)
 	waterfall.AddJSFuncStrs(
-		opts.FuncOpts(render.EchartsInstancePlaceholder+`.setOption({"xAxis": {"axisLabel": {"formatter": `+millisecondAxisFormatter(startTime)+`}}});`),
+		opts.FuncOpts(render.EchartsInstancePlaceholder+`.setOption({"xAxis": {"axisLabel": {"formatter": `+millisecondAxisFormatter(startTime.Format(time.RFC3339))+`}}});`),
 		opts.FuncOpts(render.EchartsInstancePlaceholder+`.setOption({"tooltip": {"formatter": `+multiValueFormatter+`}});`),
 	)
 	waterfall.SetXAxis(names).
@@ -696,6 +704,21 @@ func nameFor(op ARMOperation) string {
 	return fmt.Sprintf("%s %s %s/%s", op.OperationType, op.Resource.ResourceType, op.Resource.ResourceGroup, op.Resource.Name)
 }
 
+// Axis hover keeps zero-length and subpixel bars inspectable without inflating durations.
+const testTimingTooltipFormatter = `(params) => {
+	const item = params.find(item => item.seriesIndex === 1);
+	if (!item) return '';
+	const content = document.createElement('div');
+	content.style.whiteSpace = 'normal';
+	content.style.maxWidth = 'min(600px, 80vw)';
+	const hours = Math.floor(item.value / 3600000);
+	const minutes = Math.floor(item.value % 3600000 / 60000);
+	const seconds = item.value % 60000 / 1000;
+	content.textContent = item.name + ': ' + (hours ? hours + 'h' : '') +
+		(hours || minutes ? minutes + 'm' : '') + seconds + 's';
+	return content;
+}`
+
 const multiValueFormatter = `(params) => {
 	for (const item of params.slice(1)) {
 		if (item.value == 0) {
@@ -720,9 +743,9 @@ const multiValueFormatter = `(params) => {
 	}
 }`
 
-func millisecondAxisFormatter(base time.Time) string {
+func millisecondAxisFormatter(base string) string {
 	return `(value, index) => {
-    const baseDate = new Date('` + base.Format(time.RFC3339) + `');
+    const baseDate = new Date('` + base + `');
     const resultDate = new Date(baseDate.getTime() + value);
 	const options = {
         hour: '2-digit',
