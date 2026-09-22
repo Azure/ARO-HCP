@@ -264,7 +264,11 @@ func withRequiredOperatorIdentities(payload []byte, subscriptionID string) []byt
 	identity := doc["identity"].(map[string]any)
 	assigned := identity["userAssignedIdentities"].(map[string]any)
 	userAssignedIdentities := doc["properties"].(map[string]any)["platform"].(map[string]any)["operatorsAuthentication"].(map[string]any)["userAssignedIdentities"].(map[string]any)
-	controlPlaneOperators := userAssignedIdentities["controlPlaneOperators"].(map[string]any)
+	controlPlaneOperators, ok := userAssignedIdentities["controlPlaneOperators"].(map[string]any)
+	if !ok {
+		controlPlaneOperators = map[string]any{}
+		userAssignedIdentities["controlPlaneOperators"] = controlPlaneOperators
+	}
 
 	for _, operatorName := range alwaysRequiredControlPlaneOperators {
 		if _, ok := controlPlaneOperators[operatorName]; ok {

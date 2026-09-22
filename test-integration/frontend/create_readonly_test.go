@@ -122,9 +122,16 @@ func TestCreateIgnoresReadOnlyFields(t *testing.T) {
 					}
 					if tc.kind == "Cluster" {
 						properties["dns"] = map[string]any{"baseDomainPrefix": "readonly-create"}
+						// The payload encrypts etcd with a customer-managed key, so kms is required.
+						// withRequiredOperatorIdentities fills in the rest below.
+						kmsIdentityID := "/subscriptions/" + subscriptionID + "/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/kms-identity"
 						properties["platform"].(map[string]any)["operatorsAuthentication"] = map[string]any{
-							"userAssignedIdentities": map[string]any{"serviceManagedIdentity": identityID},
+							"userAssignedIdentities": map[string]any{
+								"serviceManagedIdentity": identityID,
+								"controlPlaneOperators":  map[string]any{"kms": kmsIdentityID},
+							},
 						}
+						payload["identity"].(map[string]any)["userAssignedIdentities"].(map[string]any)[kmsIdentityID] = map[string]any{}
 					}
 					if inject {
 						payload["id"] = clusterResourceID("spoofed-resource")
@@ -153,6 +160,13 @@ func TestCreateIgnoresReadOnlyFields(t *testing.T) {
 					}
 					body, err := json.Marshal(payload)
 					require.NoError(t, err)
+					if tc.kind == "Cluster" {
+						// The operatorsAuthentication block above replaces the one the payload
+						// ships with, so put the required operator identities back. Re-read the
+						// result so the assertions below compare against what was actually sent.
+						body = withRequiredOperatorIdentities(body, subscriptionID)
+						require.NoError(t, json.Unmarshal(body, &payload))
+					}
 					request, err := http.NewRequestWithContext(ctx, http.MethodPut, ti.FrontendURL+tc.resourceID+"?api-version="+v20261001, bytes.NewReader(body))
 					require.NoError(t, err)
 					request.Header.Set("Content-Type", "application/json")
@@ -172,7 +186,11 @@ func TestCreateIgnoresReadOnlyFields(t *testing.T) {
 					require.Equal(t, "Accepted", got["properties"].(map[string]any)["provisioningState"])
 					if tc.kind != "ExternalAuth" {
 						require.Equal(t, map[string]any{"purpose": "readonly-create"}, got["tags"])
-						assert.Equal(t, map[string]any{"type": "UserAssigned", "userAssignedIdentities": map[string]any{identityID: map[string]any{}}}, got["identity"], "keep identity type and map keys, not client-supplied IDs")
+						keysOnly := map[string]any{}
+						for id := range payload["identity"].(map[string]any)["userAssignedIdentities"].(map[string]any) {
+							keysOnly[id] = map[string]any{}
+						}
+						assert.Equal(t, map[string]any{"type": "UserAssigned", "userAssignedIdentities": keysOnly}, got["identity"], "keep identity type and map keys, not client-supplied IDs")
 					}
 
 					documents, err := ti.ListAllDocuments(ctx)

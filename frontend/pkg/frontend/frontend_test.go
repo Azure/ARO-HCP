@@ -966,6 +966,7 @@ func TestRequestAdminCredentialRequiresCSR(t *testing.T) {
 				newNoopAuditClient(t),
 				coreapitesting.TestLocation,
 				true,
+				azure.NewClusterScopedIdentitiesConfig(azure.RoleDefinitionConfigSetNameDev),
 			)
 
 			ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
