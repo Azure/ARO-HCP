@@ -529,7 +529,7 @@ func preserveUnknownClusterFields(from, to *coreapi.Cluster) {
 	to.CustomerProperties.Ingress = from.CustomerProperties.Ingress
 	// CryptoRestrictions was added in v2026_06_30_preview
 	to.CustomerProperties.CryptoRestrictions = from.CustomerProperties.CryptoRestrictions
-	// ContainerRegistry was added in v2026_10_01_preview.
+	// ContainerRegistry was added in v2026_10_01.
 	to.CustomerProperties.Platform.ContainerRegistry = from.CustomerProperties.Platform.ContainerRegistry
 }
 
