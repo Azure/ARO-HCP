@@ -184,17 +184,17 @@ func TestResolveAndGateClientIDs(t *testing.T) {
 		details     map[string]*coreapi.ManagedIdentityMetadata
 		oidc        map[string]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus
 		wantErr     bool
-		wantIDs     map[string]string
+		wantIDs     hostedClusterDataPlaneClientIDs
 	}{
 		{
 			name:        "all resolved and OIDC ensured returns clientIDs",
 			dpOperators: allOperators,
 			details:     fullDetails,
 			oidc:        fullOIDC,
-			wantIDs: map[string]string{
-				"imageRegistryMSIClientID": "client-img",
-				"diskMSIClientID":          "client-disk",
-				"fileMSIClientID":          "client-file",
+			wantIDs: hostedClusterDataPlaneClientIDs{
+				ImageRegistryMSIClientID: "client-img",
+				DiskMSIClientID:          "client-disk",
+				FileMSIClientID:          "client-file",
 			},
 		},
 		{
@@ -357,10 +357,10 @@ func TestResolveAndGateClientIDs(t *testing.T) {
 func TestBuildDataPlaneIdentityDesire(t *testing.T) {
 	t.Parallel()
 
-	clientIDs := map[string]string{
-		"imageRegistryMSIClientID": "client-img",
-		"diskMSIClientID":          "client-disk",
-		"fileMSIClientID":          "client-file",
+	clientIDs := hostedClusterDataPlaneClientIDs{
+		ImageRegistryMSIClientID: "client-img",
+		DiskMSIClientID:          "client-disk",
+		FileMSIClientID:          "client-file",
 	}
 
 	desire, err := buildDataPlaneIdentityDesire(

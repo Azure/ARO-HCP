@@ -21,7 +21,6 @@ import (
 	"strings"
 	"time"
 
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	k8sruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/ptr"
 
@@ -73,18 +72,80 @@ const (
 	hostedClusterResource   = "hostedclusters"
 )
 
+// hostedClusterDataPlanePatch is a minimal HostedCluster representation for
+// SSA. Only the fields this controller owns are declared; fields absent from
+// the struct are not included in the marshaled payload and therefore never
+// claimed by this field manager. This avoids zero-initializing required fields
+// from v1beta1.HostedCluster (Location, VnetID, etc.) that would inadvertently
+// steal SSA field ownership from the base HostedCluster desire.
+//
+// JSON tags match the v1beta1.HostedCluster API exactly. The struct hierarchy
+// follows spec.platform.azure.azureAuthenticationConfig.managedIdentities.dataPlane.
+type hostedClusterDataPlanePatch struct {
+	APIVersion string                     `json:"apiVersion"`
+	Kind       string                     `json:"kind"`
+	Metadata   hostedClusterPatchMetadata `json:"metadata"`
+	Spec       hostedClusterDataPlaneSpec `json:"spec"`
+}
+
+type hostedClusterPatchMetadata struct {
+	Name      string `json:"name"`
+	Namespace string `json:"namespace"`
+}
+
+type hostedClusterDataPlaneSpec struct {
+	Platform hostedClusterDataPlanePlatform `json:"platform"`
+}
+
+type hostedClusterDataPlanePlatform struct {
+	Azure hostedClusterDataPlaneAzure `json:"azure"`
+}
+
+type hostedClusterDataPlaneAzure struct {
+	AzureAuthenticationConfig hostedClusterDataPlaneAuthConfig `json:"azureAuthenticationConfig"`
+}
+
+// hostedClusterDataPlaneAuthConfig includes the union discriminator so that
+// HyperShift's CEL validation accepts the partial object. Including the
+// discriminator does not claim the other union branch (workloadIdentities).
+type hostedClusterDataPlaneAuthConfig struct {
+	AzureAuthenticationConfigType string                         `json:"azureAuthenticationConfigType"`
+	ManagedIdentities             hostedClusterDataPlaneMIConfig `json:"managedIdentities"`
+}
+
+type hostedClusterDataPlaneMIConfig struct {
+	DataPlane hostedClusterDataPlaneClientIDs `json:"dataPlane"`
+}
+
+// hostedClusterDataPlaneClientIDs holds the three ClientID fields that this
+// controller owns on the HostedCluster. omitempty ensures unset fields are
+// excluded from the SSA payload and never claimed.
+type hostedClusterDataPlaneClientIDs struct {
+	ImageRegistryMSIClientID string `json:"imageRegistryMSIClientID,omitempty"`
+	DiskMSIClientID          string `json:"diskMSIClientID,omitempty"`
+	FileMSIClientID          string `json:"fileMSIClientID,omitempty"`
+}
+
 // dataplaneIdentitySlot binds a ClusterOperatorIdentifier (the key used in
-// CustomerProperties.DataPlaneOperators) to the corresponding JSON field name
-// within the HostedCluster
-// spec.platform.azure.azureAuthenticationConfig.managedIdentities.dataPlane
-// object. Iteration order is deterministic.
+// CustomerProperties.DataPlaneOperators) to a setter that writes the resolved
+// ClientID into the correct field of hostedClusterDataPlaneClientIDs.
+// Iteration order is deterministic.
 var dataplaneIdentitySlots = []struct {
 	operator internalazure.ClusterOperatorIdentifier
-	hcField  string
+	set      func(*hostedClusterDataPlaneClientIDs, string)
 }{
-	{internalazure.ClusterOperatorIdentifierImageRegistry, "imageRegistryMSIClientID"},
-	{internalazure.ClusterOperatorIdentifierDiskCSIDriver, "diskMSIClientID"},
-	{internalazure.ClusterOperatorIdentifierFileCSIDriver, "fileMSIClientID"},
+	{
+		internalazure.ClusterOperatorIdentifierImageRegistry,
+		func(dp *hostedClusterDataPlaneClientIDs, id string) { dp.ImageRegistryMSIClientID = id },
+	},
+	{
+		internalazure.ClusterOperatorIdentifierDiskCSIDriver,
+		func(dp *hostedClusterDataPlaneClientIDs, id string) { dp.DiskMSIClientID = id },
+	},
+	{
+		internalazure.ClusterOperatorIdentifierFileCSIDriver,
+		func(dp *hostedClusterDataPlaneClientIDs, id string) { dp.FileMSIClientID = id },
+	},
 }
 
 // hostedClusterDataPlaneIdentitySyncer writes a targeted SSA patch for the
@@ -125,9 +186,8 @@ var _ controllerutils.ClusterSyncer = (*hostedClusterDataPlaneIdentitySyncer)(ni
 //  5. Reads the HC name and namespace from the ReadDesire-cached HostedCluster;
 //     returns nil (not an error) if the cache is not yet populated, relying on
 //     the ReadDesire informer re-trigger when the HC is first observed.
-//  6. Writes a minimal unstructured HostedCluster SSA patch containing only
-//     the three dataPlane ClientID fields under field manager
-//     "aro-hcp-mi-controller".
+//  6. Writes a typed, minimal HostedCluster SSA patch containing only the
+//     three dataPlane ClientID fields under field manager "aro-hcp-mi-controller".
 func NewHostedClusterDataPlaneIdentitiesController(
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	kubeApplierDBClients kubeappliercosmosstorage.KubeApplierDBClients,
@@ -248,23 +308,23 @@ func (c *hostedClusterDataPlaneIdentitySyncer) SyncOnce(ctx context.Context, key
 // from SPC.Status.ManagedIdentityDetails and gates on OIDC federation
 // completion via SPC.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation.
 //
-// It returns a map of HostedCluster JSON field name → ClientID string on
-// success, or a transient error when any gate is not satisfied. Transient
-// errors are not wrapped with TrackError so they do not pollute error tracking
-// dashboards; they are expected steady-state during provisioning.
+// It returns a populated hostedClusterDataPlaneClientIDs on success, or a
+// transient error when any gate is not satisfied. Transient errors are not
+// wrapped with TrackError so they do not pollute error tracking dashboards;
+// they are expected steady-state during provisioning.
 func (c *hostedClusterDataPlaneIdentitySyncer) resolveAndGateClientIDs(
 	cluster *coreapi.HCPOpenShiftCluster,
 	spc *coreapi.ServiceProviderCluster,
-) (map[string]string, error) {
+) (hostedClusterDataPlaneClientIDs, error) {
 	dpOperators := cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators
 	identityDetails := spc.Status.ManagedIdentityDetails
 	oidcFederation := spc.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation
 
-	clientIDs := make(map[string]string, len(dataplaneIdentitySlots))
+	var clientIDs hostedClusterDataPlaneClientIDs
 	for _, slot := range dataplaneIdentitySlots {
 		resourceID, ok := dpOperators[string(slot.operator)]
 		if !ok || resourceID == nil {
-			return nil, fmt.Errorf(
+			return hostedClusterDataPlaneClientIDs{}, fmt.Errorf(
 				"data plane operator %q has no identity assigned in CustomerProperties; will retry",
 				slot.operator,
 			)
@@ -275,26 +335,26 @@ func (c *hostedClusterDataPlaneIdentitySyncer) resolveAndGateClientIDs(
 		// Gate 1: ClientID must be resolved from the ARM API.
 		metadata, ok := identityDetails[identityKey]
 		if !ok || metadata == nil {
-			return nil, fmt.Errorf(
+			return hostedClusterDataPlaneClientIDs{}, fmt.Errorf(
 				"ManagedIdentityDetails entry for operator %q (identity %s) not yet populated; will retry",
 				slot.operator, identityKey,
 			)
 		}
 		armMetadata := metadata.MetadataFromARMUserAssignedIdentitiesAPI
 		if armMetadata == nil {
-			return nil, fmt.Errorf(
+			return hostedClusterDataPlaneClientIDs{}, fmt.Errorf(
 				"ARM metadata for operator %q (identity %s) not yet populated; will retry",
 				slot.operator, identityKey,
 			)
 		}
 		if armMetadata.RetrievalError != nil {
-			return nil, fmt.Errorf(
+			return hostedClusterDataPlaneClientIDs{}, fmt.Errorf(
 				"ARM metadata retrieval failed for operator %q (identity %s): %s; will retry",
 				slot.operator, identityKey, *armMetadata.RetrievalError,
 			)
 		}
 		if armMetadata.ClientID == nil {
-			return nil, fmt.Errorf(
+			return hostedClusterDataPlaneClientIDs{}, fmt.Errorf(
 				"ClientID for operator %q (identity %s) is nil; will retry",
 				slot.operator, identityKey,
 			)
@@ -314,7 +374,7 @@ func (c *hostedClusterDataPlaneIdentitySyncer) resolveAndGateClientIDs(
 			oidcTargetClientID = oidcStatus.TargetIdentity.ClientID
 		}
 		if *armMetadata.ClientID != oidcTargetClientID {
-			return nil, fmt.Errorf(
+			return hostedClusterDataPlaneClientIDs{}, fmt.Errorf(
 				"ARM ClientID %q for operator %q does not yet match OIDC TargetIdentity ClientID %q; will retry",
 				*armMetadata.ClientID, slot.operator, oidcTargetClientID,
 			)
@@ -324,13 +384,13 @@ func (c *hostedClusterDataPlaneIdentitySyncer) resolveAndGateClientIDs(
 		// current TargetIdentity. At this point we know ARM and OIDC agree on
 		// the ClientID; OperatorEnsured confirms the FIC exists for it.
 		if !oidcStatus.OperatorEnsured(string(slot.operator)) {
-			return nil, fmt.Errorf(
+			return hostedClusterDataPlaneClientIDs{}, fmt.Errorf(
 				"OIDC federation not yet complete for operator %q (identity %s); will retry",
 				slot.operator, identityKey,
 			)
 		}
 
-		clientIDs[slot.hcField] = *armMetadata.ClientID
+		slot.set(&clientIDs, *armMetadata.ClientID)
 	}
 	return clientIDs, nil
 }
@@ -354,51 +414,37 @@ func (c *hostedClusterDataPlaneIdentitySyncer) removeIdentityDesire(
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get ApplyDesire CRUD for cleanup: %w", err))
 	}
-	if err := applyDesireCRUD.Delete(ctx, strings.ToLower(DesireNameHostedClusterDataPlaneIdentities)); err != nil && !cosmosstorageutils.IsNotFoundError(err) {
+	desireName := strings.ToLower(DesireNameHostedClusterDataPlaneIdentities)
+	if err := applyDesireCRUD.Delete(ctx, desireName); err != nil && !cosmosstorageutils.IsNotFoundError(err) {
 		return utils.TrackError(fmt.Errorf("failed to delete identity desire: %w", err))
 	}
 	return nil
 }
 
-// buildDataPlaneIdentityDesire constructs the minimal ApplyDesire that SSA-patches
-// the three data plane ClientID fields on the HostedCluster.
-//
-// The manifest is built as an unstructured.Unstructured rather than a typed
-// v1beta1.HostedCluster to avoid zero-initializing required fields such as
-// Location, ResourceGroupName, VnetID, etc. A typed struct would include those
-// in the SSA payload, claiming their ownership and potentially overwriting the
-// values written by the base HostedCluster desire.
-//
-// Including azureAuthenticationConfigType in the patch is required by the
-// HyperShift union discriminator validation; it does not cause the other union
-// branch (workloadIdentities) to be claimed or overwritten.
+// buildDataPlaneIdentityDesire constructs the ApplyDesire that SSA-patches the
+// three data plane ClientID fields on the HostedCluster. The patch is a typed
+// minimal struct (hostedClusterDataPlanePatch) that only declares the fields
+// this controller owns; all other HostedCluster fields are owned by
+// ClusterResourcesController under the base desire. Including
+// azureAuthenticationConfigType satisfies HyperShift's union discriminator
+// validation without claiming the other union branch (workloadIdentities).
 func buildDataPlaneIdentityDesire(
 	subscriptionID, resourceGroupName, clusterName string,
 	managementCluster *azcorearm.ResourceID,
 	hcName, hcNamespace string,
-	clientIDs map[string]string, // hcField → clientID
+	clientIDs hostedClusterDataPlaneClientIDs,
 ) (*kubeapplierapi.ApplyDesire, error) {
-	dataPlane := make(map[string]interface{}, len(clientIDs))
-	for field, clientID := range clientIDs {
-		dataPlane[field] = clientID
-	}
-
-	manifest := &unstructured.Unstructured{
-		Object: map[string]interface{}{
-			"apiVersion": hostedClusterAPIVersion,
-			"kind":       hostedClusterKind,
-			"metadata": map[string]interface{}{
-				"name":      hcName,
-				"namespace": hcNamespace,
-			},
-			"spec": map[string]interface{}{
-				"platform": map[string]interface{}{
-					"azure": map[string]interface{}{
-						"azureAuthenticationConfig": map[string]interface{}{
-							"azureAuthenticationConfigType": "ManagedIdentities",
-							"managedIdentities": map[string]interface{}{
-								"dataPlane": dataPlane,
-							},
+	patch := hostedClusterDataPlanePatch{
+		APIVersion: hostedClusterAPIVersion,
+		Kind:       hostedClusterKind,
+		Metadata:   hostedClusterPatchMetadata{Name: hcName, Namespace: hcNamespace},
+		Spec: hostedClusterDataPlaneSpec{
+			Platform: hostedClusterDataPlanePlatform{
+				Azure: hostedClusterDataPlaneAzure{
+					AzureAuthenticationConfig: hostedClusterDataPlaneAuthConfig{
+						AzureAuthenticationConfigType: string(v1beta1.AzureAuthenticationTypeManagedIdentities),
+						ManagedIdentities: hostedClusterDataPlaneMIConfig{
+							DataPlane: clientIDs,
 						},
 					},
 				},
@@ -406,9 +452,9 @@ func buildDataPlaneIdentityDesire(
 		},
 	}
 
-	rawJSON, err := json.Marshal(manifest)
+	rawJSON, err := json.Marshal(patch)
 	if err != nil {
-		return nil, utils.TrackError(fmt.Errorf("failed to marshal identity manifest: %w", err))
+		return nil, utils.TrackError(fmt.Errorf("failed to marshal identity patch: %w", err))
 	}
 
 	resourceIDStr := kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(
