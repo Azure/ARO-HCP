@@ -46,16 +46,36 @@ func oldCertificate(name string) *azcertificates.CertificateProperties {
 	}
 }
 
+func deletedCertificate(name string) *azcertificates.DeletedCertificateProperties {
+	return &azcertificates.DeletedCertificateProperties{
+		ID:                 to.Ptr(azcertificates.ID(VaultURL + "/certificates/" + name + "/version1")),
+		RecoveryID:         to.Ptr(VaultURL + "/deletedcertificates/" + name),
+		Attributes:         &azcertificates.CertificateAttributes{RecoveryLevel: to.Ptr("Recoverable+Purgeable")},
+		DeletedDate:        to.Ptr(referenceTime.Add(-time.Hour)),
+		ScheduledPurgeDate: to.Ptr(referenceTime.Add(89 * 24 * time.Hour)),
+		X509Thumbprint:     []byte{1, 2, 3},
+	}
+}
+
 type fakeCertificates struct {
-	pages     [][]*azcertificates.CertificateProperties
-	listError int // 1-based page number
-	gets      []string
-	deletes   []string
-	get       func(string) (azcertificates.GetCertificateResponse, error)
-	delete    func(string) error
+	pages            [][]*azcertificates.CertificateProperties
+	listError        int // 1-based page number
+	deletedPages     [][]*azcertificates.DeletedCertificateProperties
+	deletedListError int // 1-based page number
+	activeLists      int
+	deletedLists     int
+	gets             []string
+	deletes          []string
+	deletedGets      []string
+	purges           []string
+	get              func(string) (azcertificates.GetCertificateResponse, error)
+	delete           func(string) error
+	getDeleted       func(string) (azcertificates.GetDeletedCertificateResponse, error)
+	purge            func(string) error
 }
 
 func (f *fakeCertificates) NewListCertificatePropertiesPager(*azcertificates.ListCertificatePropertiesOptions) *runtime.Pager[azcertificates.ListCertificatePropertiesResponse] {
+	f.activeLists++
 	i := 0
 	return runtime.NewPager(runtime.PagingHandler[azcertificates.ListCertificatePropertiesResponse]{
 		More: func(azcertificates.ListCertificatePropertiesResponse) bool { return i < len(f.pages) },
@@ -65,6 +85,21 @@ func (f *fakeCertificates) NewListCertificatePropertiesPager(*azcertificates.Lis
 				return azcertificates.ListCertificatePropertiesResponse{}, errors.New("certificate page failed")
 			}
 			return azcertificates.ListCertificatePropertiesResponse{CertificatePropertiesListResult: azcertificates.CertificatePropertiesListResult{Value: f.pages[i-1]}}, nil
+		},
+	})
+}
+
+func (f *fakeCertificates) NewListDeletedCertificatePropertiesPager(*azcertificates.ListDeletedCertificatePropertiesOptions) *runtime.Pager[azcertificates.ListDeletedCertificatePropertiesResponse] {
+	f.deletedLists++
+	i := 0
+	return runtime.NewPager(runtime.PagingHandler[azcertificates.ListDeletedCertificatePropertiesResponse]{
+		More: func(azcertificates.ListDeletedCertificatePropertiesResponse) bool { return i < len(f.deletedPages) },
+		Fetcher: func(context.Context, *azcertificates.ListDeletedCertificatePropertiesResponse) (azcertificates.ListDeletedCertificatePropertiesResponse, error) {
+			i++
+			if i == f.deletedListError {
+				return azcertificates.ListDeletedCertificatePropertiesResponse{}, errors.New("deleted certificate page failed")
+			}
+			return azcertificates.ListDeletedCertificatePropertiesResponse{DeletedCertificatePropertiesListResult: azcertificates.DeletedCertificatePropertiesListResult{Value: f.deletedPages[i-1]}}, nil
 		},
 	})
 }
@@ -94,6 +129,32 @@ func (f *fakeCertificates) DeleteCertificate(_ context.Context, name string, _ *
 		err = f.delete(name)
 	}
 	return azcertificates.DeleteCertificateResponse{}, err
+}
+
+func (f *fakeCertificates) GetDeletedCertificate(_ context.Context, name string, _ *azcertificates.GetDeletedCertificateOptions) (azcertificates.GetDeletedCertificateResponse, error) {
+	f.deletedGets = append(f.deletedGets, name)
+	if f.getDeleted != nil {
+		return f.getDeleted(name)
+	}
+	c := deletedCertificate(name)
+	return azcertificates.GetDeletedCertificateResponse{DeletedCertificate: azcertificates.DeletedCertificate{
+		Attributes:         c.Attributes,
+		ID:                 c.ID,
+		RecoveryID:         c.RecoveryID,
+		Tags:               c.Tags,
+		X509Thumbprint:     c.X509Thumbprint,
+		DeletedDate:        c.DeletedDate,
+		ScheduledPurgeDate: c.ScheduledPurgeDate,
+	}}, nil
+}
+
+func (f *fakeCertificates) PurgeDeletedCertificate(_ context.Context, name string, _ *azcertificates.PurgeDeletedCertificateOptions) (azcertificates.PurgeDeletedCertificateResponse, error) {
+	f.purges = append(f.purges, name)
+	var err error
+	if f.purge != nil {
+		err = f.purge(name)
+	}
+	return azcertificates.PurgeDeletedCertificateResponse{}, err
 }
 
 type fakeGroups struct {
@@ -128,7 +189,10 @@ func (f *fakeGroups) NewListPager(*armresources.ResourceGroupsClientListOptions)
 }
 
 func newTestSweeper(names ...string) (*sweeper, *fakeCertificates, *fakeGroups, *fakeGroups) {
-	f := &fakeCertificates{pages: [][]*azcertificates.CertificateProperties{{}}}
+	f := &fakeCertificates{
+		pages:        [][]*azcertificates.CertificateProperties{{}},
+		deletedPages: [][]*azcertificates.DeletedCertificateProperties{{}},
+	}
 	for _, name := range names {
 		f.pages[0] = append(f.pages[0], oldCertificate(name))
 	}
@@ -139,7 +203,14 @@ func newTestSweeper(names ...string) (*sweeper, *fakeCertificates, *fakeGroups, 
 }
 
 func options(dryRun bool) Options {
-	return Options{DryRun: dryRun, MinAge: 168 * time.Hour, MaxDeletions: 1000}
+	return Options{
+		DryRun:       dryRun,
+		DeleteActive: true,
+		PurgeDeleted: true,
+		MinAge:       168 * time.Hour,
+		MaxDeletions: 1000,
+		MaxPurges:    1000,
+	}
 }
 
 func TestEligibility(t *testing.T) {
@@ -203,24 +274,79 @@ func TestEligibility(t *testing.T) {
 	}
 }
 
+func TestDeletedEligibility(t *testing.T) {
+	for _, name := range []string{"frontend-cert-prow-j1234567", "admin-api-cert-ci00-j1234567", "sessiongate-cert-ci01-j1234567", "maestro-server-j1234567"} {
+		if _, _, reason := eligibleDeleted(deletedCertificate(name)); reason != "" {
+			t.Errorf("%s: %s", name, reason)
+		}
+	}
+	for _, test := range []struct {
+		name   string
+		mutate func(*azcertificates.DeletedCertificateProperties)
+		reason string
+	}{
+		{"wrong name", func(c *azcertificates.DeletedCertificateProperties) {
+			c.ID = deletedCertificate("frontend-cert-dev-j1234567").ID
+			c.RecoveryID = to.Ptr(VaultURL + "/deletedcertificates/frontend-cert-dev-j1234567")
+		}, "name"},
+		{"placeholder", func(c *azcertificates.DeletedCertificateProperties) {
+			c.ID = deletedCertificate("maestro-server-j0000001").ID
+			c.RecoveryID = to.Ptr(VaultURL + "/deletedcertificates/maestro-server-j0000001")
+		}, "placeholder"},
+		{"protected tag", func(c *azcertificates.DeletedCertificateProperties) {
+			c.Tags = map[string]*string{"persist": to.Ptr("true")}
+		}, "protected-tag"},
+		{"missing recovery ID", func(c *azcertificates.DeletedCertificateProperties) { c.RecoveryID = nil }, "invalid-recovery-id"},
+		{"wrong recovery name", func(c *azcertificates.DeletedCertificateProperties) {
+			c.RecoveryID = to.Ptr(VaultURL + "/deletedcertificates/maestro-server-j2345678")
+		}, "invalid-recovery-id"},
+		{"other recovery vault", func(c *azcertificates.DeletedCertificateProperties) {
+			c.RecoveryID = to.Ptr("https://other.vault.azure.net/deletedcertificates/maestro-server-j1234567")
+		}, "invalid-recovery-id"},
+		{"missing attributes", func(c *azcertificates.DeletedCertificateProperties) { c.Attributes = nil }, "not-purgeable"},
+		{"not purgeable", func(c *azcertificates.DeletedCertificateProperties) {
+			c.Attributes.RecoveryLevel = to.Ptr("Recoverable")
+		}, "not-purgeable"},
+		{"missing deleted date", func(c *azcertificates.DeletedCertificateProperties) { c.DeletedDate = nil }, "missing-deletion-timestamp"},
+		{"missing scheduled purge", func(c *azcertificates.DeletedCertificateProperties) { c.ScheduledPurgeDate = nil }, "missing-deletion-timestamp"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			cert := deletedCertificate("maestro-server-j1234567")
+			test.mutate(cert)
+			_, _, reason := eligibleDeleted(cert)
+			if reason != test.reason {
+				t.Fatalf("reason = %q, want %q", reason, test.reason)
+			}
+		})
+	}
+	if _, _, reason := eligibleDeleted(nil); reason != "invalid-id" {
+		t.Fatalf("nil deleted certificate reason = %q", reason)
+	}
+}
+
 func TestDryRunInventoryAndLimit(t *testing.T) {
 	s, f, a, b := newTestSweeper("frontend-cert-prow-j1234567")
 	f.pages = append(f.pages, []*azcertificates.CertificateProperties{oldCertificate("maestro-server-j2345678"), oldCertificate("admin-api-cert-ci00-j3456789")})
+	f.deletedPages = [][]*azcertificates.DeletedCertificateProperties{{
+		deletedCertificate("sessiongate-cert-ci01-j4567890"),
+		deletedCertificate("maestro-server-j5678901"),
+	}}
 	b.pages = [][]string{{"unrelated"}, {"unexpected.J1234567_suffix"}}
 	var logs bytes.Buffer
 	ctx := logr.NewContext(t.Context(), logr.FromSlogHandler(slog.NewJSONHandler(&logs, nil)))
 	opts := options(true)
 	opts.MaxDeletions = 1
+	opts.MaxPurges = 1
 	if err := s.run(ctx, opts); err != nil {
 		t.Fatal(err)
 	}
-	if len(f.gets) != 0 || len(f.deletes) != 0 {
+	if len(f.gets) != 0 || len(f.deletes) != 0 || len(f.deletedGets) != 0 || len(f.purges) != 0 {
 		t.Fatalf("dry run accessed certificates or wrote: %+v", f)
 	}
 	if a.lists != 1 || b.lists != 1 {
 		t.Fatalf("must inventory both subscriptions: %d, %d", a.lists, b.lists)
 	}
-	for _, expected := range []string{`"Scanned":3`, `"Eligible":2`, `"Selected":1`, `"live-owner":1`, `"limit":1`} {
+	for _, expected := range []string{`"Scanned":3`, `"Eligible":2`, `"Selected":1`, `"DeletedScanned":2`, `"PurgeEligible":2`, `"PurgeSelected":1`, `"live-owner":1`, `"limit":1`, `"purge-limit":1`} {
 		if !strings.Contains(logs.String(), expected) {
 			t.Errorf("missing %s in %s", expected, logs.String())
 		}
@@ -228,16 +354,22 @@ func TestDryRunInventoryAndLimit(t *testing.T) {
 	if strings.Count(logs.String(), "Selected CI certificate") != 1 {
 		t.Fatalf("expected exactly one candidate log: %s", logs.String())
 	}
+	if strings.Count(logs.String(), "Selected deleted CI certificate") != 1 {
+		t.Fatalf("expected exactly one purge candidate log: %s", logs.String())
+	}
 }
 
 func TestInventoryFailsClosed(t *testing.T) {
-	for _, test := range []string{"certificate later page", "first subscription later page", "second subscription later page", "missing subscription", "missing RG name", "duplicate certificate", "refresh error", "slow inventory"} {
+	for _, test := range []string{"certificate later page", "deleted certificate later page", "first subscription later page", "second subscription later page", "missing subscription", "missing RG name", "duplicate certificate", "duplicate deleted certificate", "refresh error", "slow inventory"} {
 		t.Run(test, func(t *testing.T) {
 			s, f, a, b := newTestSweeper("maestro-server-j1234567")
 			switch test {
 			case "certificate later page":
 				f.pages = append(f.pages, nil)
 				f.listError = 2
+			case "deleted certificate later page":
+				f.deletedPages = append(f.deletedPages, nil)
+				f.deletedListError = 2
 			case "first subscription later page":
 				a.pages = [][]string{{"other"}, {}}
 				a.listError = 2
@@ -250,6 +382,12 @@ func TestInventoryFailsClosed(t *testing.T) {
 				b.pages = [][]string{{""}}
 			case "duplicate certificate":
 				f.pages = append(f.pages, f.pages[0])
+			case "duplicate deleted certificate":
+				f.deletedPages = [][]*azcertificates.DeletedCertificateProperties{{
+					deletedCertificate("maestro-server-j2345678"),
+				}, {
+					deletedCertificate("maestro-server-j2345678"),
+				}}
 			case "refresh error":
 				b.onList = func(f *fakeGroups) {
 					if f.lists == 2 {
@@ -262,8 +400,8 @@ func TestInventoryFailsClosed(t *testing.T) {
 			if err := s.run(t.Context(), options(false)); err == nil {
 				t.Fatal("expected closed failure")
 			}
-			if len(f.deletes) != 0 {
-				t.Fatalf("deleted despite incomplete guard: %v", f.deletes)
+			if len(f.deletes) != 0 || len(f.purges) != 0 {
+				t.Fatalf("changed certificates despite incomplete inventory: deletes=%v purges=%v", f.deletes, f.purges)
 			}
 		})
 	}
@@ -395,6 +533,122 @@ func TestOwnerRefresh(t *testing.T) {
 	}
 }
 
+func TestPurgeRevalidation(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		mutate func(*azcertificates.GetDeletedCertificateResponse)
+		purged bool
+	}{
+		{name: "unchanged", purged: true},
+		{name: "protected", mutate: func(c *azcertificates.GetDeletedCertificateResponse) {
+			c.Tags = map[string]*string{"doNotDelete": to.Ptr("true")}
+		}},
+		{name: "not purgeable", mutate: func(c *azcertificates.GetDeletedCertificateResponse) {
+			c.Attributes.RecoveryLevel = to.Ptr("Recoverable")
+		}},
+		{name: "changed deleted date", mutate: func(c *azcertificates.GetDeletedCertificateResponse) {
+			c.DeletedDate = to.Ptr(referenceTime.Add(-2 * time.Hour))
+		}},
+		{name: "changed purge date", mutate: func(c *azcertificates.GetDeletedCertificateResponse) {
+			c.ScheduledPurgeDate = to.Ptr(referenceTime.Add(88 * 24 * time.Hour))
+		}},
+		{name: "wrong recovery ID", mutate: func(c *azcertificates.GetDeletedCertificateResponse) {
+			c.RecoveryID = to.Ptr(VaultURL + "/deletedcertificates/maestro-server-j2345678")
+		}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			s, f, _, _ := newTestSweeper()
+			f.deletedPages = [][]*azcertificates.DeletedCertificateProperties{{deletedCertificate("maestro-server-j1234567")}}
+			f.getDeleted = func(name string) (azcertificates.GetDeletedCertificateResponse, error) {
+				c := deletedCertificate(name)
+				response := azcertificates.GetDeletedCertificateResponse{DeletedCertificate: azcertificates.DeletedCertificate{
+					Attributes:         c.Attributes,
+					ID:                 c.ID,
+					RecoveryID:         c.RecoveryID,
+					Tags:               c.Tags,
+					X509Thumbprint:     c.X509Thumbprint,
+					DeletedDate:        c.DeletedDate,
+					ScheduledPurgeDate: c.ScheduledPurgeDate,
+				}}
+				if test.mutate != nil {
+					test.mutate(&response)
+				}
+				return response, nil
+			}
+			if err := s.run(t.Context(), options(false)); err != nil {
+				t.Fatal(err)
+			}
+			if (len(f.purges) == 1) != test.purged {
+				t.Fatalf("purges = %v, want purge %t", f.purges, test.purged)
+			}
+		})
+	}
+}
+
+func TestPurgeOnlySkipsActiveInventoryAndOwnerGuards(t *testing.T) {
+	s, f, a, b := newTestSweeper("maestro-server-j1234567")
+	f.deletedPages = [][]*azcertificates.DeletedCertificateProperties{{deletedCertificate("maestro-server-j2345678")}}
+	opts := options(false)
+	opts.DeleteActive = false
+	if err := s.run(t.Context(), opts); err != nil {
+		t.Fatal(err)
+	}
+	if f.activeLists != 0 || f.deletedLists != 1 {
+		t.Fatalf("unexpected inventories: active=%d deleted=%d", f.activeLists, f.deletedLists)
+	}
+	if a.lists != 0 || b.lists != 0 {
+		t.Fatalf("purge-only must not require owner inventory: %d, %d", a.lists, b.lists)
+	}
+	if len(f.deletes) != 0 || !reflect.DeepEqual(f.purges, []string{"maestro-server-j2345678"}) {
+		t.Fatalf("unexpected changes: deletes=%v purges=%v", f.deletes, f.purges)
+	}
+}
+
+func TestPurgeFailuresAndBoundedAttempts(t *testing.T) {
+	for _, operation := range []string{"all failures", "partial failure", "purge 404", "GET 404", "success"} {
+		t.Run(operation, func(t *testing.T) {
+			s, f, _, _ := newTestSweeper()
+			f.deletedPages = [][]*azcertificates.DeletedCertificateProperties{{
+				deletedCertificate("maestro-server-j1234567"),
+				deletedCertificate("maestro-server-j2345678"),
+				deletedCertificate("maestro-server-j3456789"),
+			}}
+			opts := options(false)
+			opts.MaxPurges = 2
+			if strings.Contains(operation, "failure") {
+				f.purge = func(name string) error {
+					if operation == "partial failure" && name == "maestro-server-j2345678" {
+						return nil
+					}
+					return errors.New("purge failed")
+				}
+			}
+			if operation == "purge 404" {
+				f.purge = func(string) error { return &azcore.ResponseError{StatusCode: 404} }
+			}
+			if operation == "GET 404" {
+				f.getDeleted = func(string) (azcertificates.GetDeletedCertificateResponse, error) {
+					return azcertificates.GetDeletedCertificateResponse{}, &azcore.ResponseError{StatusCode: 404}
+				}
+			}
+			err := s.run(t.Context(), opts)
+			if (err != nil) != (operation == "all failures") {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if len(f.deletedGets) != 2 {
+				t.Fatalf("must process exactly selected purge limit: %v", f.deletedGets)
+			}
+			wantPurges := 2
+			if operation == "GET 404" {
+				wantPurges = 0
+			}
+			if len(f.purges) != wantPurges {
+				t.Fatalf("purges = %v, want %d", f.purges, wantPurges)
+			}
+		})
+	}
+}
+
 func TestFailuresAndBoundedAttempts(t *testing.T) {
 	for _, operation := range []string{"all delete failures", "partial delete failure", "all GET failures", "partial GET failure", "delete 404", "GET 404", "success"} {
 		t.Run(operation, func(t *testing.T) {
@@ -453,7 +707,7 @@ func TestFailuresAndBoundedAttempts(t *testing.T) {
 			if err != nil && (!strings.Contains(err.Error(), "j1234567") || !strings.Contains(err.Error(), "j2345678")) {
 				t.Fatalf("failure was not aggregated: %v", err)
 			}
-			if strings.Contains(operation, "partial") && (!strings.Contains(logs.String(), "Certificate deletion attempts completed with errors") || !strings.Contains(logs.String(), "j1234567")) {
+			if strings.Contains(operation, "partial") && (!strings.Contains(logs.String(), "Certificate cleanup attempts completed with errors") || !strings.Contains(logs.String(), "j1234567")) {
 				t.Fatalf("partial failure was not reported at the end: %s", logs.String())
 			}
 		})
@@ -477,12 +731,23 @@ func TestCancellation(t *testing.T) {
 }
 
 func TestOptions(t *testing.T) {
-	for _, opts := range []Options{{MinAge: 23 * time.Hour, MaxDeletions: 1}, {MinAge: 168 * time.Hour}, {MinAge: 168 * time.Hour, MaxDeletions: -1}} {
+	for _, opts := range []Options{
+		{},
+		{DeleteActive: true, MinAge: 23 * time.Hour, MaxDeletions: 1},
+		{DeleteActive: true, MinAge: 168 * time.Hour},
+		{DeleteActive: true, MinAge: 168 * time.Hour, MaxDeletions: -1},
+		{PurgeDeleted: true},
+	} {
 		if opts.Validate() == nil {
 			t.Fatalf("accepted unsafe options: %+v", opts)
 		}
 	}
-	if err := (Options{MinAge: 24 * time.Hour, MaxDeletions: 1}).Validate(); err != nil {
-		t.Fatal(err)
+	for _, opts := range []Options{
+		{DeleteActive: true, MinAge: 24 * time.Hour, MaxDeletions: 1},
+		{PurgeDeleted: true, MaxPurges: 1},
+	} {
+		if err := opts.Validate(); err != nil {
+			t.Fatal(err)
+		}
 	}
 }

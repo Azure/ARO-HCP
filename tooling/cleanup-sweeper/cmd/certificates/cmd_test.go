@@ -33,7 +33,7 @@ func TestDefaultsAndRegistration(t *testing.T) {
 	if err != nil || child.Name() != "ci-certificates" {
 		t.Fatalf("subcommand not registered: %v", err)
 	}
-	for flag, expected := range map[string]string{"dry-run": "true", "min-age": "168h0m0s", "max-deletions": "1000", "timeout": "30m0s"} {
+	for flag, expected := range map[string]string{"dry-run": "true", "delete-active": "true", "purge-deleted": "true", "min-age": "168h0m0s", "max-deletions": "1000", "max-purges": "1000", "timeout": "30m0s"} {
 		if actual := child.Flags().Lookup(flag).DefValue; actual != expected {
 			t.Errorf("--%s default = %s, want %s", flag, actual, expected)
 		}
@@ -43,7 +43,7 @@ func TestDefaultsAndRegistration(t *testing.T) {
 			t.Errorf("unexpected scope override --%s", flag)
 		}
 	}
-	if err := child.ParseFlags([]string{"--dry-run=false", "--min-age=24h", "--max-deletions=1", "--timeout=1h"}); err != nil {
+	if err := child.ParseFlags([]string{"--dry-run=false", "--min-age=24h", "--max-deletions=1", "--max-purges=1", "--timeout=1h"}); err != nil {
 		t.Fatal(err)
 	}
 	if dryRun, _ := child.Flags().GetBool("dry-run"); dryRun {
@@ -63,6 +63,9 @@ func TestInvalidFlagsFailBeforeCredentials(t *testing.T) {
 		{[]string{"--min-age=23h"}, "--min-age must be at least 24h"},
 		{[]string{"--max-deletions=0"}, "--max-deletions must be positive"},
 		{[]string{"--max-deletions=-1"}, "--max-deletions must be positive"},
+		{[]string{"--max-purges=0"}, "--max-purges must be positive"},
+		{[]string{"--max-purges=-1"}, "--max-purges must be positive"},
+		{[]string{"--delete-active=false", "--purge-deleted=false"}, "at least one of --delete-active or --purge-deleted must be enabled"},
 		{[]string{"--timeout=0s"}, "--timeout must be positive"},
 		{[]string{"--timeout=-1s"}, "--timeout must be positive"},
 		{[]string{"--vault=other.vault.azure.net"}, "unknown flag"},

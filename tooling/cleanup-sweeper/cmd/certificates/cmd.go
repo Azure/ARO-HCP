@@ -32,20 +32,31 @@ import (
 
 // NewCommand builds the fixed-scope CI certificate backstop, independent of RG cleanup policy.
 func NewCommand() *cobra.Command {
-	opts := certificates.Options{DryRun: true, MinAge: 168 * time.Hour, MaxDeletions: 1000}
+	opts := certificates.Options{
+		DryRun:       true,
+		DeleteActive: true,
+		PurgeDeleted: true,
+		MinAge:       168 * time.Hour,
+		MaxDeletions: 1000,
+		MaxPurges:    1000,
+	}
 	var timeout time.Duration
 	cmd := &cobra.Command{
 		Use:   "ci-certificates",
-		Short: "Soft-delete old, unowned CI certificates in the shared dev service vault.",
+		Short: "Remove old active and deleted CI certificates from the shared dev service vault.",
 		Long: `Sweep only aro-hcp-dev-svc-kv.vault.azure.net, guarding both fixed DEV infrastructure subscriptions.
 Required guard subscriptions: 1d3378d3-5a3f-4712-85a1-2485495dfc4b and 0ef1ad54-9296-44cd-9600-5dc8e9a74034.
 Scope cannot be overridden. Root workflow flags are rejected; place certificate flags after ci-certificates.
 Only prow/ci00/ci01 frontend, admin-api, sessiongate and maestro-server job certificates are eligible.
 Both latest created and updated timestamps must be older than --min-age; renewals postpone cleanup.
 Job suffixes 0000000 through 0000099 and fixture 7654321 are always protected.
-Dry-run lists metadata only. Apply rechecks the latest certificate and refreshes the owner inventory
+Eligible soft-deleted certificates are purgeable tombstones matching the same fixed CI name policy;
+their age and RG ownership do not protect a name that is already deleted and unavailable for reuse.
+Dry-run lists metadata only. --delete-active and --purge-deleted independently select the enabled actions.
+Apply rechecks active and deleted certificate metadata and, when active deletion is enabled, refreshes the owner inventory
 before the first delete and at most every 30 seconds. Azure has no atomic owner-check/delete:
-concurrent RG or certificate creation remains a race. Never purge or delete keys/secrets directly.`,
+concurrent RG or certificate creation remains a race. Purging is irreversible and requires certificates/purge permission.
+The command never deletes keys or secrets directly.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			// TraverseChildren can consume root-local flags before selecting this command.
@@ -78,9 +89,12 @@ concurrent RG or certificate creation remains a race. Never purge or delete keys
 			return certificates.Run(ctx, cred, opts)
 		},
 	}
-	cmd.Flags().BoolVar(&opts.DryRun, "dry-run", opts.DryRun, "Report only; set --dry-run=false to soft-delete certificates.")
+	cmd.Flags().BoolVar(&opts.DryRun, "dry-run", opts.DryRun, "Report only; set --dry-run=false to soft-delete active certificates and purge eligible tombstones.")
+	cmd.Flags().BoolVar(&opts.DeleteActive, "delete-active", opts.DeleteActive, "Discover and soft-delete old, unowned active CI certificates.")
+	cmd.Flags().BoolVar(&opts.PurgeDeleted, "purge-deleted", opts.PurgeDeleted, "Discover and permanently purge eligible deleted CI certificate tombstones.")
 	cmd.Flags().DurationVar(&opts.MinAge, "min-age", opts.MinAge, "Minimum age of BOTH latest created and updated timestamps (minimum 24h).")
 	cmd.Flags().IntVar(&opts.MaxDeletions, "max-deletions", opts.MaxDeletions, "Maximum selected certificates per run, including failed attempts (must be positive; also caps dry-run).")
+	cmd.Flags().IntVar(&opts.MaxPurges, "max-purges", opts.MaxPurges, "Maximum selected deleted certificate tombstones per run, including failed attempts (must be positive; also caps dry-run).")
 	cmd.Flags().DurationVar(&timeout, "timeout", 30*time.Minute, "Overall timeout, including discovery and all Azure requests (must be positive).")
 	return cmd
 }
