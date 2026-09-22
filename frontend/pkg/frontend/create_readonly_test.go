@@ -58,7 +58,11 @@ func readonlyCreateCases(t testing.TB) []readonlyCreateCase {
 		if !ok {
 			t.Fatal(versionName)
 		}
-		file := filepath.Join("../../../api/redhatopenshift/resource-manager/Microsoft.RedHatOpenShift/hcpopenshiftclusters/preview", versionName, "openapi.json")
+		versionStatus := "preview"
+		if !strings.HasSuffix(versionName, "-preview") {
+			versionStatus = "stable"
+		}
+		file := filepath.Join("../../../api/redhatopenshift/resource-manager/Microsoft.RedHatOpenShift/hcpopenshiftclusters", versionStatus, versionName, "openapi.json")
 		doc := docs.load(t, file)
 		if doc["swagger"] != "2.0" || doc["info"].(map[string]any)["version"] != versionName {
 			t.Fatalf("wrong Swagger/version in %s", file)
