@@ -273,9 +273,10 @@ func (f *Frontend) newClusterAdmissionContext(ctx context.Context, op operation.
 	}
 
 	admissionContext := &admission.ClusterAdmissionContext{
-		Clock:           f.clock,
-		Subscription:    subscription,
-		OriginalCluster: originalCluster.DeepCopy(),
+		Clock:                   f.clock,
+		Subscription:            subscription,
+		OriginalCluster:         originalCluster.DeepCopy(),
+		ClusterScopedIdentities: f.clusterScopedIdentitiesConfig,
 	}
 
 	if op.Type == operation.Create {

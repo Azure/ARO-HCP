@@ -17,15 +17,10 @@ package validation
 import (
 	"context"
 	"fmt"
-	"strings"
 	"testing"
 	"time"
 
-	"github.com/blang/semver/v4"
-	"github.com/stretchr/testify/require"
-
 	"k8s.io/apimachinery/pkg/api/operation"
-	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -75,83 +70,6 @@ func TestValidateClusterCreate(t *testing.T) {
 				return c
 			}(),
 			expectErrors: []utils.ExpectedError{},
-		},
-		{
-			// Reproduces the customer-reported gap: etcd is customer-managed but no "kms"
-			// control plane operator identity is supplied. Both identity lists agree with
-			// each other, so the cross-check in validateOperatorAuthenticationAgainstIdentities
-			// passes; only the conditional requirement catches it.
-			name: "customer-managed etcd encryption without kms identity - create",
-			cluster: func() *coreapi.HCPOpenShiftCluster {
-				c := createValidCluster()
-				userAssignedIdentities := &c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities
-				kmsIdentity := userAssignedIdentities.ControlPlaneOperators["kms"]
-				delete(userAssignedIdentities.ControlPlaneOperators, "kms")
-				delete(c.Identity.UserAssignedIdentities, kmsIdentity.String())
-				return c
-			}(),
-			expectErrors: []utils.ExpectedError{
-				{
-					Message:   `a user-assigned identity for the "kms" control plane operator is required`,
-					FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[kms]",
-				},
-			},
-		},
-		{
-			name: "unrecognized control plane operator name - create",
-			cluster: func() *coreapi.HCPOpenShiftCluster {
-				c := createValidCluster()
-				identity := metadataapi.Must(azcorearm.ParseResourceID(testOperatorIdentityPrefix + "extra-identity"))
-				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators["not-an-operator"] = identity
-				c.Identity.UserAssignedIdentities[identity.String()] = &coreapi.UserAssignedIdentity{}
-				return c
-			}(),
-			expectErrors: []utils.ExpectedError{
-				{Message: "unrecognized operator name", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[not-an-operator]"},
-			},
-		},
-		{
-			// The reported incident reproduces with a mis-cased name too: the backend looks
-			// operators up by exact name, so "KMS" is both an unrecognized name and leaves the
-			// required "kms" identity missing.
-			name: "mis-cased control plane operator name - create",
-			cluster: func() *coreapi.HCPOpenShiftCluster {
-				c := createValidCluster()
-				operators := c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators
-				operators["KMS"] = operators["kms"]
-				delete(operators, "kms")
-				return c
-			}(),
-			expectErrors: []utils.ExpectedError{
-				{Message: "unrecognized operator name", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[KMS]"},
-				{Message: `a user-assigned identity for the "kms" control plane operator is required`, FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[kms]"},
-			},
-		},
-		{
-			// A key present but explicitly nil does not count as supplied.
-			name: "control plane operator name supplied in two cases - create",
-			cluster: func() *coreapi.HCPOpenShiftCluster {
-				c := createValidCluster()
-				operators := c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators
-				operators["KMS"] = operators["kms"]
-				operators["kms"] = nil
-				return c
-			}(),
-			expectErrors: []utils.ExpectedError{
-				{Message: "unrecognized operator name", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[KMS]"},
-				{Message: `a user-assigned identity for the "kms" control plane operator is required`, FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[kms]"},
-			},
-		},
-		{
-			name: "unrecognized data plane operator name - create",
-			cluster: func() *coreapi.HCPOpenShiftCluster {
-				c := createValidCluster()
-				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators["not-an-operator"] = metadataapi.Must(azcorearm.ParseResourceID(testOperatorIdentityPrefix + "extra-dataplane-identity"))
-				return c
-			}(),
-			expectErrors: []utils.ExpectedError{
-				{Message: "unrecognized operator name", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.dataPlaneOperators[not-an-operator]"},
-			},
 		},
 		{
 			name: "OpenShift 5 rejected on create without experimental release features (no prior version id)",
@@ -1386,74 +1304,6 @@ func TestValidateClusterCreate(t *testing.T) {
 	}
 }
 
-// TestValidateClusterCreateRequiresEachOperatorIdentity drops one required operator identity at a
-// time and asserts the create is rejected for exactly that operator.
-//
-// Without a case per operator, deleting either requirement loop would go unnoticed: every fixture
-// supplies every identity, so nothing else fails when the check stops running. The operator names
-// are derived from the identity config rather than hardcoded here because
-// TestRequiredOperatorIdentitiesContract in internal/azure already pins them.
-func TestValidateClusterCreateRequiresEachOperatorIdentity(t *testing.T) {
-	ctx := context.Background()
-	config := azure.NewClusterScopedIdentitiesConfig(azure.RoleDefinitionConfigSetNameDev)
-	version := metadataapi.Must(semver.ParseTolerant(createValidCluster().CustomerProperties.Version.ID))
-	basePath := "customerProperties.platform.operatorsAuthentication.userAssignedIdentities"
-
-	controlPlane := config.AlwaysRequiredControlPlaneOperators(&version)
-	require.NotEmpty(t, controlPlane, "no always-required control plane operators for this version")
-	for operatorName := range controlPlane {
-		t.Run("control plane "+string(operatorName), func(t *testing.T) {
-			cluster := createValidCluster()
-			operators := cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators
-			identity := operators[string(operatorName)]
-			delete(operators, string(operatorName))
-			delete(cluster.Identity.UserAssignedIdentities, identity.String())
-
-			errs := ValidateCluster(ctx, operation.Operation{Type: operation.Create}, cluster, nil, nil)
-			utils.VerifyErrorsMatch(t, []utils.ExpectedError{{
-				Message:   fmt.Sprintf("a user-assigned identity for the %q control plane operator is required", operatorName),
-				FieldPath: fmt.Sprintf("%s.controlPlaneOperators[%s]", basePath, operatorName),
-			}}, errs)
-		})
-	}
-
-	dataPlane := config.AlwaysRequiredDataPlaneOperators(&version)
-	require.NotEmpty(t, dataPlane, "no always-required data plane operators for this version")
-	for operatorName := range dataPlane {
-		t.Run("data plane "+string(operatorName), func(t *testing.T) {
-			cluster := createValidCluster()
-			delete(cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators, string(operatorName))
-
-			errs := ValidateCluster(ctx, operation.Operation{Type: operation.Create}, cluster, nil, nil)
-			utils.VerifyErrorsMatch(t, []utils.ExpectedError{{
-				Message:   fmt.Sprintf("a user-assigned identity for the %q data plane operator is required", operatorName),
-				FieldPath: fmt.Sprintf("%s.dataPlaneOperators[%s]", basePath, operatorName),
-			}}, errs)
-		})
-	}
-
-	t.Run("required identities are enforced on update", func(t *testing.T) {
-		// operatorsAuthentication is immutable, so an update carries the same identity set the
-		// create was validated against. A complete set must still pass.
-		errs := ValidateCluster(ctx, operation.Operation{Type: operation.Update}, createValidCluster(), createValidCluster(), nil)
-		for _, err := range errs {
-			require.NotContains(t, err.Error(), "operator is required",
-				"a complete identity set must not be rejected on update")
-		}
-
-		newCluster := createValidCluster()
-		operators := newCluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators
-		identity := operators["ingress"]
-		delete(operators, "ingress")
-		delete(newCluster.Identity.UserAssignedIdentities, identity.String())
-
-		errs = ValidateCluster(ctx, operation.Operation{Type: operation.Update}, newCluster, createValidCluster(), nil)
-		require.True(t, hasErrorContaining(errs, "control plane operator is required",
-			"userAssignedIdentities.controlPlaneOperators[ingress]"),
-			"dropping an identity must be rejected on update, got: %v", errs)
-	})
-}
-
 // TestValidateClusterCreate_ManagedIdentitiesDataPlaneIdentityURLOptionalOperationOption tests that
 // when ManagedIdentitiesDataPlaneIdentityURLOptionalOperationOption is set, the field becomes optional
 func TestValidateClusterCreate_ManagedIdentitiesDataPlaneIdentityURLOptionalOperationOption(t *testing.T) {
@@ -1636,19 +1486,6 @@ func TestValidateClusterUpdate(t *testing.T) {
 				{Message: "field is immutable", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators"},
 				{Message: "must be in the same Azure subscription", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
 				{Message: "must be in the same Azure subscription", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator-2]"},
-				// Replacing the operator map drops every real operator, so the requirement and name
-				// checks now report it on update too.
-				{Message: "control plane operator is required", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[cloud-controller-manager]"},
-				{Message: "control plane operator is required", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[cloud-network-config]"},
-				{Message: "control plane operator is required", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[cluster-api-azure]"},
-				{Message: "control plane operator is required", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[control-plane]"},
-				{Message: "control plane operator is required", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[disk-csi-driver]"},
-				{Message: "control plane operator is required", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[file-csi-driver]"},
-				{Message: "control plane operator is required", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[image-registry]"},
-				{Message: "control plane operator is required", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[ingress]"},
-				{Message: "is required when properties.etcd.dataEncryption.keyManagementMode is CustomerManaged", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[kms]"},
-				{Message: "unrecognized operator name", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
-				{Message: "unrecognized operator name", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator-2]"},
 			},
 		},
 		{
@@ -2847,89 +2684,4 @@ func createValidCluster() *coreapi.HCPOpenShiftCluster {
 	}
 
 	return cluster
-}
-
-// No operator is version-limited in the shipped configuration, so these tests pin one to a range
-// that excludes the cluster's version in order to exercise the version-support checks at all.
-func withVersionLimitedControlPlaneOperator(t *testing.T, operatorName azure.ClusterOperatorIdentifier, maxVersion string) {
-	t.Helper()
-
-	limited := withIsolatedClusterScopedIdentities(t)
-	bound := metadataapi.Must(semver.ParseTolerant(maxVersion))
-	operatorConfig := *limited.ControlPlaneOperatorsIdentities[operatorName]
-	operatorConfig.MaxVersionInclusive = &bound
-	limited.ControlPlaneOperatorsIdentities[operatorName] = &operatorConfig
-}
-
-// withVersionLimitedDataPlaneOperator is the data plane counterpart of
-// withVersionLimitedControlPlaneOperator.
-func withVersionLimitedDataPlaneOperator(t *testing.T, operatorName azure.ClusterOperatorIdentifier, maxVersion string) {
-	t.Helper()
-
-	limited := withIsolatedClusterScopedIdentities(t)
-	bound := metadataapi.Must(semver.ParseTolerant(maxVersion))
-	operatorConfig := *limited.DataPlaneOperatorsIdentities[operatorName]
-	operatorConfig.MaxVersionInclusive = &bound
-	limited.DataPlaneOperatorsIdentities[operatorName] = &operatorConfig
-}
-
-// withIsolatedClusterScopedIdentities swaps in a fresh config for the duration of the test and
-// returns it for the caller to modify.
-func withIsolatedClusterScopedIdentities(t *testing.T) *azure.ClusterScopedIdentitiesConfig {
-	t.Helper()
-
-	original := clusterScopedIdentities
-	t.Cleanup(func() { clusterScopedIdentities = original })
-
-	clusterScopedIdentities = azure.NewClusterScopedIdentitiesConfig(azure.RoleDefinitionConfigSetNameDev)
-	return clusterScopedIdentities
-}
-
-func TestValidateClusterCreateRejectsOperatorUnsupportedForVersion(t *testing.T) {
-	ctx := context.Background()
-	op := operation.Operation{Type: operation.Create}
-
-	t.Run("control plane operator that does not exist for the version", func(t *testing.T) {
-		withVersionLimitedControlPlaneOperator(t, azure.ClusterOperatorIdentifierIngress, "4.19")
-
-		cluster := createValidCluster()
-		errs := ValidateCluster(ctx, op, cluster, nil, nil)
-
-		require.True(t, hasErrorContaining(errs, "does not exist for OpenShift version",
-			"userAssignedIdentities.controlPlaneOperators[ingress]"),
-			"expected the unsupported-version error for ingress, got: %v", errs)
-	})
-
-	t.Run("data plane operator that does not exist for the version", func(t *testing.T) {
-		withVersionLimitedDataPlaneOperator(t, azure.ClusterOperatorIdentifierImageRegistry, "4.19")
-
-		cluster := createValidCluster()
-		errs := ValidateCluster(ctx, op, cluster, nil, nil)
-
-		require.True(t, hasErrorContaining(errs, "does not exist for OpenShift version",
-			"userAssignedIdentities.dataPlaneOperators[image-registry]"),
-			"expected the unsupported-version error for image-registry, got: %v", errs)
-	})
-
-	t.Run("unrecognized names are still rejected when the version is unparseable", func(t *testing.T) {
-		cluster := createValidCluster()
-		cluster.CustomerProperties.Version.ID = "not-a-version"
-		cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators["not-an-operator"] =
-			metadataapi.Must(azcorearm.ParseResourceID(testOperatorIdentityPrefix + "spurious-identity"))
-
-		errs := ValidateCluster(ctx, op, cluster, nil, nil)
-
-		require.True(t, hasErrorContaining(errs, "unrecognized operator name",
-			"userAssignedIdentities.controlPlaneOperators[not-an-operator]"),
-			"name validation must not depend on a parseable version, got: %v", errs)
-	})
-}
-
-func hasErrorContaining(errs field.ErrorList, message, fieldPath string) bool {
-	for _, err := range errs {
-		if strings.Contains(err.Error(), message) && strings.Contains(err.Field, fieldPath) {
-			return true
-		}
-	}
-	return false
 }

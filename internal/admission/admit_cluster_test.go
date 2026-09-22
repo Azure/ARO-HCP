@@ -33,6 +33,8 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
+	"github.com/Azure/ARO-HCP/internal/azure"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -1162,8 +1164,9 @@ func TestAdmitCluster_Update(t *testing.T) {
 			}
 
 			admissionContext := &ClusterAdmissionContext{
-				ServiceProviderCluster: serviceProviderCluster,
-				ClusterNodePools:       admissionNodePools,
+				ServiceProviderCluster:  serviceProviderCluster,
+				ClusterNodePools:        admissionNodePools,
+				ClusterScopedIdentities: azure.NewClusterScopedIdentitiesConfig(azure.RoleDefinitionConfigSetNameDev),
 			}
 
 			etcd := tt.etcd
@@ -1175,6 +1178,8 @@ func TestAdmitCluster_Update(t *testing.T) {
 				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
 					Version: coreapi.VersionProfile{ID: tt.oldClusterVersionID, ChannelGroup: tt.channelGroup},
 					Etcd:    etcd,
+					// Unrelated to version skew, but admission rejects a cluster missing them.
+					Platform: coreapitesting.MinimumValidClusterTestCase().CustomerProperties.Platform,
 				},
 			}
 			newCluster := oldCluster.DeepCopy()
@@ -1341,9 +1346,10 @@ func TestAdmitCluster_PlatformResourceIDs(t *testing.T) {
 			t.Parallel()
 
 			admissionContext := &ClusterAdmissionContext{
-				OriginalCluster:       tt.newCluster.DeepCopy(),
-				SubscriptionClusters:  tt.subscriptionClusters,
-				SubscriptionNodePools: tt.subscriptionNodePools,
+				OriginalCluster:         tt.newCluster.DeepCopy(),
+				SubscriptionClusters:    tt.subscriptionClusters,
+				SubscriptionNodePools:   tt.subscriptionNodePools,
+				ClusterScopedIdentities: azure.NewClusterScopedIdentitiesConfig(azure.RoleDefinitionConfigSetNameDev),
 			}
 
 			errs := AdmitCluster(ctx, admissionContext, operation.Operation{Type: operation.Create}, tt.newCluster, nil)
