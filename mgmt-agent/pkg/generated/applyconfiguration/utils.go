@@ -35,10 +35,20 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &capacityreportv1alpha1.CapacityReportApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("CapacityReportStatus"):
 		return &capacityreportv1alpha1.CapacityReportStatusApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("EvictionRecord"):
+		return &capacityreportv1alpha1.EvictionRecordApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("HostedControlPlanes"):
 		return &capacityreportv1alpha1.HostedControlPlanesApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("MitigationReservation"):
+		return &capacityreportv1alpha1.MitigationReservationApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("NodeMitigationBudget"):
+		return &capacityreportv1alpha1.NodeMitigationBudgetApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("NodeMitigationBudgetStatus"):
+		return &capacityreportv1alpha1.NodeMitigationBudgetStatusApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("NodeSKUCapacity"):
 		return &capacityreportv1alpha1.NodeSKUCapacityApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("PoolBaseline"):
+		return &capacityreportv1alpha1.PoolBaselineApplyConfiguration{}
 
 	}
 	return nil

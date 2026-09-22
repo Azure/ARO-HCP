@@ -31,6 +31,11 @@ nodeHealth:
   config:
     enabled: {{ .mgmtAgent.nodeHealth.enabled }}
 nodeSelector: {}
+nodeMitigation:
+  enabled: {{ .mgmtAgent.nodeMitigation.enabled }}
+  configMapName: mgmt-agent-node-mitigation
+  configKey: config.yaml
+  configuration: {{ printf "%q" .mgmtAgent.nodeMitigation.configuration }}
 tolerations: []
 affinity: {}
 serviceAccount:

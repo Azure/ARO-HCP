@@ -7,6 +7,7 @@ use (
 	./dev-infrastructure/scripts/acr-replication
 	./dev-infrastructure/scripts/aks-cluster-create
 	./dev-infrastructure/scripts/grafana-group-roles
+	./dev-infrastructure/scripts/mgmt-agent-permissions
 	./dev-infrastructure/scripts/postgres-access
 	./fleet
 	./frontend

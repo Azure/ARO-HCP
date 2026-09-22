@@ -1,0 +1,8 @@
+values: ../values.yaml
+name: node-mitigation-pers
+namespace: mgmt-agent
+testData:
+  environmentName: pers
+  mgmtAgent:
+    nodeMitigation:
+      enabled: true

@@ -20,8 +20,7 @@ package v1alpha1
 // with apply.
 //
 // HostedControlPlanes reports the state of HostedControlPlane resources on a
-// management cluster. Counts are derived from the lists: ready = len(readyResourceIDs),
-// notReady = len(notReadyResourceIDs).
+// management cluster.
 type HostedControlPlanesApplyConfiguration struct {
 	// readyResourceIDs lists the ARM resource IDs of HostedControlPlanes whose
 	// Available condition is True.

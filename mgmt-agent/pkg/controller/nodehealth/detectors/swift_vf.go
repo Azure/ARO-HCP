@@ -18,6 +18,8 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
+
+	"github.com/Azure/ARO-HCP/internal/kuberesources"
 )
 
 const (
@@ -35,10 +37,9 @@ const (
 	reasonFailedCreatePodSandBox = "FailedCreatePodSandBox"
 
 	// swiftNICResourceName is the extended resource a pod requests to be given a
-	// SWIFT v2 delegated NIC. It mirrors controller.SwiftNICResourceName, which
-	// the mgmt-agent advertises on the node; the two are pinned equal by test so
-	// this package stays free of a dependency on the controller package.
-	swiftNICResourceName corev1.ResourceName = "aro.openshift.io/swift-nic"
+	// SWIFT v2 delegated NIC. The shared kuberesources constant keeps detection
+	// and node resource accounting aligned without a controller dependency.
+	swiftNICResourceName corev1.ResourceName = kuberesources.SwiftNICResourceName
 )
 
 // swiftVFTeardown detects the SWIFT v2 delegated-NIC teardown wedge: on a
@@ -89,21 +90,7 @@ var swiftVFTeardown = signatureDetector{
 // kubelet copies the limit into requests, so either field carrying the resource
 // means the pod needed a NIC.
 func podRequestsSwiftNIC(p *corev1.Pod) bool {
-	if p == nil {
-		return false
-	}
-	for _, containers := range [][]corev1.Container{p.Spec.InitContainers, p.Spec.Containers} {
-		for i := range containers {
-			res := containers[i].Resources
-			if _, ok := res.Limits[swiftNICResourceName]; ok {
-				return true
-			}
-			if _, ok := res.Requests[swiftNICResourceName]; ok {
-				return true
-			}
-		}
-	}
-	return false
+	return kuberesources.PodRequestsSwiftNIC(p)
 }
 
 func isSwiftV2Node(node *corev1.Node) bool {

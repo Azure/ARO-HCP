@@ -1,0 +1,177 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.20.1
+    helm.sh/resource-policy: keep
+  name: nodemitigationbudgets.mgmtagent.aro-hcp.azure.com
+spec:
+  group: mgmtagent.aro-hcp.azure.com
+  names:
+    kind: NodeMitigationBudget
+    listKind: NodeMitigationBudgetList
+    plural: nodemitigationbudgets
+    singular: nodemitigationbudget
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: |-
+          NodeMitigationBudget atomically reserves cluster, pool and zone allowance in
+          one namespaced ledger. It must not have a Node owner reference.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          status:
+            properties:
+              evictionWindow:
+                type: string
+              evictions:
+                additionalProperties:
+                  description: |-
+                    EvictionRecord accounts for an attempt, including an unknown API outcome.
+                    It contains no Pod status or replacement relationship.
+                  properties:
+                    attemptedAt:
+                      format: date-time
+                      type: string
+                    nodeUID:
+                      description: |-
+                        UID is a type that holds unique ID values, including UUIDs.  Because we
+                        don't ONLY use UUIDs, this is an alias to string.  Being a type captures
+                        intent and helps make sure that UIDs and names do not get conflated.
+                      type: string
+                    podUID:
+                      description: |-
+                        UID is a type that holds unique ID values, including UUIDs.  Because we
+                        don't ONLY use UUIDs, this is an alias to string.  Being a type captures
+                        intent and helps make sure that UIDs and names do not get conflated.
+                      type: string
+                    workloadUID:
+                      description: |-
+                        UID is a type that holds unique ID values, including UUIDs.  Because we
+                        don't ONLY use UUIDs, this is an alias to string.  Being a type captures
+                        intent and helps make sure that UIDs and names do not get conflated.
+                      type: string
+                  required:
+                  - attemptedAt
+                  - nodeUID
+                  - podUID
+                  - workloadUID
+                  type: object
+                maxProperties: 1024
+                type: object
+              pools:
+                additionalProperties:
+                  properties:
+                    observedAt:
+                      format: date-time
+                      type: string
+                    observer:
+                      type: string
+                    size:
+                      format: int32
+                      type: integer
+                    stableSince:
+                      format: date-time
+                      type: string
+                    target:
+                      format: int32
+                      type: integer
+                  required:
+                  - observedAt
+                  - observer
+                  - size
+                  - target
+                  type: object
+                maxProperties: 128
+                type: object
+              reservations:
+                additionalProperties:
+                  properties:
+                    deleteStartedAt:
+                      format: date-time
+                      type: string
+                    instanceID:
+                      type: string
+                    machineName:
+                      type: string
+                    message:
+                      maxLength: 4096
+                      type: string
+                    nodeName:
+                      type: string
+                    nodeUID:
+                      description: |-
+                        UID is a type that holds unique ID values, including UUIDs.  Because we
+                        don't ONLY use UUIDs, this is an alias to string.  Being a type captures
+                        intent and helps make sure that UIDs and names do not get conflated.
+                      type: string
+                    operationToken:
+                      maxLength: 65536
+                      type: string
+                    outcome:
+                      enum:
+                      - Unknown
+                      - Pending
+                      - Succeeded
+                      - Failed
+                      - Cancelled
+                      type: string
+                    pollAfter:
+                      format: date-time
+                      type: string
+                    poolID:
+                      type: string
+                    providerID:
+                      type: string
+                    releasedAt:
+                      format: date-time
+                      type: string
+                    reservedAt:
+                      format: date-time
+                      type: string
+                    zone:
+                      type: string
+                  required:
+                  - instanceID
+                  - machineName
+                  - nodeName
+                  - nodeUID
+                  - poolID
+                  - providerID
+                  - reservedAt
+                  - zone
+                  type: object
+                maxProperties: 1024
+                type: object
+              version:
+                type: integer
+              window:
+                type: string
+            required:
+            - evictionWindow
+            - version
+            - window
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

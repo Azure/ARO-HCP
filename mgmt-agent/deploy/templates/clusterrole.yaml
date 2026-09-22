@@ -114,3 +114,31 @@ rules:
   - pods
   verbs:
   - list
+{{- if .Values.nodeMitigation.enabled }}
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - get
+  - patch
+- apiGroups:
+  - ""
+  resources:
+  - namespaces
+  verbs:
+  - get
+- apiGroups:
+  - ""
+  resources:
+  - pods/eviction
+  verbs:
+  - create
+- apiGroups:
+  - apps
+  resources:
+  - replicasets
+  - daemonsets
+  verbs:
+  - get
+{{- end }}

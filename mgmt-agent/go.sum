@@ -12,6 +12,8 @@ github.com/Azure/azure-sdk-for-go/sdk/internal v1.12.0 h1:fhqpLE3UEXi9lPaBRpQ6Xu
 github.com/Azure/azure-sdk-for-go/sdk/internal v1.12.0/go.mod h1:7dCRMLwisfRH3dBupKeNCioWYUZ4SS09Z14H+7i8ZoY=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6 v6.3.0 h1:Dc9miZr1Mhaqbb3cmJCRokkG16uk8JKkqOADf084zy4=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6 v6.3.0/go.mod h1:CHo9QYhWEvrKVeXsEMJSl2bpmYYNu6aG12JsSaFBXlY=
+github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v8 v8.2.0 h1:aXzpyYcHexm3eSlvy6g7r3cshXtGcEg6VJpOdrN0Us0=
+github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v8 v8.2.0/go.mod h1:vs/o7so4c3csg/CM0LDrqxSKDxcKgeYbgI3zaL6vu7U=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/internal/v3 v3.1.1 h1:1kpY4qe+BGAH2ykv4baVSqyx+AY5VjXeJ15SldlU6hs=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/internal/v3 v3.1.1/go.mod h1:nT6cWpWdUt+g81yuKmjeYPUtI73Ak3yQIT4PVVsCEEQ=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeployments v1.0.0 h1:67nFqWXpo0x5Nz0XEb1yI7s8D+EHy8NsTinYw9sZnLk=
@@ -201,6 +203,8 @@ k8s.io/client-go v0.35.3 h1:s1lZbpN4uI6IxeTM2cpdtrwHcSOBML1ODNTCCfsP1pg=
 k8s.io/client-go v0.35.3/go.mod h1:RzoXkc0mzpWIDvBrRnD+VlfXP+lRzqQjCmKtiwZ8Q9c=
 k8s.io/component-base v0.35.3 h1:mbKbzoIMy7JDWS/wqZobYW1JDVRn/RKRaoMQHP9c4P0=
 k8s.io/component-base v0.35.3/go.mod h1:IZ8LEG30kPN4Et5NeC7vjNv5aU73ku5MS15iZyvyMYk=
+k8s.io/component-helpers v0.35.3 h1:Rl2p3wNMC0YU21rziLkWXavr7MwkB5Td3lNZ/+gYGm8=
+k8s.io/component-helpers v0.35.3/go.mod h1:8BkyfcBA6XsCtFYxDB+mCfZqM6P39Aco12AKigNn0C8=
 k8s.io/klog/v2 v2.140.0 h1:Tf+J3AH7xnUzZyVVXhTgGhEKnFqye14aadWv7bzXdzc=
 k8s.io/klog/v2 v2.140.0/go.mod h1:o+/RWfJ6PwpnFn7OyAG3QnO47BFsymfEfrz6XyYSSp0=
 k8s.io/kube-openapi v0.0.0-20260317180543-43fb72c5454a h1:xCeOEAOoGYl2jnJoHkC3hkbPJgdATINPMAxaynU2Ovg=
