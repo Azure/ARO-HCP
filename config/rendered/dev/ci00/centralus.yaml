@@ -116,7 +116,7 @@ backend:
   azureRuntimeConfig:
     tlsCertificatesIssuer: Self
   backupCadenceProfile: testing
-  backupScheduleState: Enabled
+  backupScheduleState: Disabled
   clusterScopedIdentitiesConfig:
     roleSetName: dev
   exitOnPanic: true
