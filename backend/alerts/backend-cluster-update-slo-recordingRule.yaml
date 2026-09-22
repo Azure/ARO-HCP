@@ -1,0 +1,128 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    app.kubernetes.io/name: kube-prometheus
+    app.kubernetes.io/part-of: kube-prometheus
+    prometheus: k8s
+    role: recording-rules
+  name: backend-cluster-update-slo-recording-rules
+  namespace: monitoring
+spec:
+  groups:
+  # ========================================
+  # Cluster Update SLO Recording Rules
+  # ========================================
+  # Backend-owned SLIs for cluster update (PUT/PATCH) operations on
+  # hcpOpenShiftClusters, derived from backend_resource_operation_phase_info.
+  #
+  # These live here rather than under observability/recording-rules/ because
+  # they measure a backend operation type, not a single user journey. They are
+  # currently consumed by the IDMS (imageDigestMirrors) user journey
+  # (observability/alerts/idms-mirror-slo-prometheusRule.yaml), which is one —
+  # but not the only — customer intent carried by this operation type. Any
+  # future cluster-update journey should reuse these series rather than define
+  # its own.
+  #
+  # !!! SCOPE — READ BEFORE USING THESE RULES !!!
+  #
+  # An imageDigestMirrors change is carried by the generic cluster "update" LRO
+  # and is emitted with operation_type="update", exactly like an authorizedCIDRs
+  # change or a control plane version upgrade. Nothing on
+  # backend_resource_operation_phase_info distinguishes them, so these series are
+  # deliberately named for the operation they measure (cluster_update) rather
+  # than for any journey consuming them.
+  #
+  # Known co-tenants of operation_type="update":
+  #   - Control plane version upgrades. These have their own user journey
+  #     (observability/recording-rules/userJourneyClusterUpgrade-recordingRule.yaml),
+  #     but it measures version state via backend_cluster_version_info rather
+  #     than the LRO, so there is no double-definition. An upgrade failure will
+  #     still surface in the error rate below.
+  #   - authorizedCIDRs, autoscaling, pod sizing and other cluster spec changes.
+  #
+  # When an alert built on these series fires, confirm what the affected
+  # operation actually changed before attributing it to a specific journey.
+  #
+  # Relationship to other alerts on the same series:
+  #   - Stuck (non-terminal) update operations are covered by
+  #     BackendAsyncOperationClusterUpdateStuck in
+  #     backend-async-operations-prometheusRule.yaml (same directory).
+  #   - These rules cover the disjoint case: operations that reach a terminal
+  #     "failed" phase, which the stuck alert can never fire on.
+  #
+  # SLO: 95% of cluster update operations should succeed (not reach "failed").
+  # Error Budget: 5% (1 - 0.95)
+  #
+  # Metrics are gauge-based (backend_resource_operation_phase_info) from Cosmos DB,
+  # so we use count() aggregations rather than rate() on counters.
+  #
+  # count() counts series, so HA scrapes must be collapsed with
+  # max without (prometheus_replica) BEFORE the count; otherwise every operation
+  # is counted once per Prometheus replica and the *_total series are inflated by
+  # the replica count. error_rate survives the inflation (it cancels top and
+  # bottom) but skews transiently whenever replicas disagree mid-transition.
+  - name: arohcp_cluster_update_slo_recording_rules
+    interval: 1m
+    rules:
+    # Instantaneous count of succeeded cluster update operations per cluster
+    - record: errors:backend_cluster_update:succeeded_total
+      expr: |
+        count by (cluster) (
+          max without (prometheus_replica) (
+            backend_resource_operation_phase_info{
+              resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
+              operation_type="update",
+              phase="succeeded"
+            }
+          )
+        )
+    # Instantaneous count of all terminal cluster update operations per cluster
+    - record: errors:backend_cluster_update:terminal_total
+      expr: |
+        count by (cluster) (
+          max without (prometheus_replica) (
+            backend_resource_operation_phase_info{
+              resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
+              operation_type="update",
+              phase=~"succeeded|failed|canceled"
+            }
+          )
+        )
+    # Instantaneous error rate per cluster: fraction of terminal operations that failed
+    - record: errors:backend_cluster_update:error_rate
+      expr: |
+        (
+          count by (cluster) (
+            max without (prometheus_replica) (
+              backend_resource_operation_phase_info{
+                resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
+                operation_type="update",
+                phase="failed"
+              }
+            )
+          )
+          or
+          0 * count by (cluster) (
+            max without (prometheus_replica) (
+              backend_resource_operation_phase_info{
+                resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
+                operation_type="update",
+                phase=~"succeeded|failed|canceled"
+              }
+            )
+          )
+        )
+        /
+        clamp_min(
+          count by (cluster) (
+            max without (prometheus_replica) (
+              backend_resource_operation_phase_info{
+                resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
+                operation_type="update",
+                phase=~"succeeded|failed|canceled"
+              }
+            )
+          ),
+          1
+        )
