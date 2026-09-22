@@ -221,6 +221,9 @@ func TestAdmitClusterRejectsUnrecognizedOperatorNames(t *testing.T) {
 			errs := AdmitCluster(ctx, operatorIdentitiesAdmissionContext(nil), op, cluster, nil)
 			require.True(t, hasErrorContaining(errs, "unrecognized operator name", tt.fieldPath),
 				"expected an unrecognized-name error at %s, got: %v", tt.fieldPath, errs)
+			// An unrecognized operator does not exist for any version, so it is reported twice.
+			require.True(t, hasErrorContaining(errs, "does not exist for OpenShift version", tt.fieldPath),
+				"expected an unsupported-version error at %s, got: %v", tt.fieldPath, errs)
 		})
 	}
 }

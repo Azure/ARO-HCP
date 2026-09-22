@@ -586,24 +586,24 @@ func recognizedDataPlaneOperatorNames(config *azure.ClusterScopedIdentitiesConfi
 	return names
 }
 
-// controlPlaneOperatorSupportedForVersion reports whether the control plane operator exists at all
-// for the given OpenShift version. Unrecognized names are reported separately, so they count as
-// supported here to keep a single key from producing two errors.
+// controlPlaneOperatorSupportedForVersion reports whether the control plane operator exists for the
+// given OpenShift version. An operator the service does not recognize at all is not supported for
+// any version, so it reports false.
 func controlPlaneOperatorSupportedForVersion(config *azure.ClusterScopedIdentitiesConfig, operatorName string, version *semver.Version) bool {
 	operatorConfig, ok := config.ControlPlaneOperatorsIdentities[azure.ClusterOperatorIdentifier(operatorName)]
-	return !ok || operatorConfig.IsSupportedForOpenshiftVersion(version)
+	return ok && operatorConfig.IsSupportedForOpenshiftVersion(version)
 }
 
 // dataPlaneOperatorSupportedForVersion is the data plane counterpart of
-// controlPlaneOperatorSupportedForVersion.
+// controlPlaneOperatorSupportedForVersion, including reporting false for an unrecognized operator.
 func dataPlaneOperatorSupportedForVersion(config *azure.ClusterScopedIdentitiesConfig, operatorName string, version *semver.Version) bool {
 	operatorConfig, ok := config.DataPlaneOperatorsIdentities[azure.ClusterOperatorIdentifier(operatorName)]
-	return !ok || operatorConfig.IsSupportedForOpenshiftVersion(version)
+	return ok && operatorConfig.IsSupportedForOpenshiftVersion(version)
 }
 
-// unsupportedOperatorNameErrors rejects recognized operator names that do not exist for the
-// cluster's OpenShift version. Unrecognized names are reported by unrecognizedOperatorNameErrors
-// and skipped here so a single key yields one error.
+// unsupportedOperatorNameErrors rejects operator names that do not exist for the cluster's
+// OpenShift version. A name the service does not recognize is reported here as well as by
+// unrecognizedOperatorNameErrors, since it is both unknown and unavailable for the version.
 func unsupportedOperatorNameErrors(supplied map[string]*azcorearm.ResourceID, fldPath *field.Path, planeLabel string, version *semver.Version, isSupported func(operatorName string, version *semver.Version) bool) field.ErrorList {
 	unsupported := make([]string, 0, len(supplied))
 	for operatorName := range supplied {
