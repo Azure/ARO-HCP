@@ -420,7 +420,8 @@ Reserves `ManagementClusterScheduling.Status.PendingAssignedClusters` before rep
 #### ActualHostedCluster
 
 **File:** [actual_hosted_cluster_controller.go](../backend/pkg/controllers/cluster/hostedcluster/actual_hosted_cluster_controller.go)
-**Trigger:** Cluster informer, 5-minute resync
+**Trigger:** Cluster, ServiceProviderCluster, cluster-scoped ManagementClusterContent,
+ReadDesire, and ApplyDesire informers; 5-minute resync.
 
 Mirrors the observed HostedCluster so the frontend has a source of management-cluster
 state it is allowed to read (see [Why management-cluster state is mirrored onto

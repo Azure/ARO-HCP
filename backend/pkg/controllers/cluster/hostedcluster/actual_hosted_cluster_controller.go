@@ -21,8 +21,6 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/equality"
 
-	hsv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
-
 	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
@@ -38,8 +36,6 @@ import (
 // controller's identity: the workqueue name (and therefore the Prometheus
 // label), the controller name on the context, and the log field.
 const ActualHostedClusterControllerName = "ActualHostedCluster"
-
-const lastAppliedConfigurationAnnotation = "kubectl.kubernetes.io/last-applied-configuration"
 
 // actualHostedClusterSyncer copies the observed HostedCluster from the
 // per-cluster ReadDesire (the kube-applier's mirror of the management cluster)
@@ -107,6 +103,17 @@ func (c *actualHostedClusterSyncer) SyncOnce(ctx context.Context, key controller
 		return nil
 	}
 
+	hostedCluster, err := kubeapplierhelpers.GetCachedHostedClusterForCluster(ctx, c.readDesireLister, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to get HostedCluster from ReadDesire: %w", err))
+	}
+	if hostedCluster == nil {
+		// ReadDesire absent, or the kube-applier has not observed the
+		// HostedCluster yet. We are re-enqueued when it writes status, and the
+		// stored value stays nil ("unknown") until then.
+		return nil
+	}
+
 	existing, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if cosmosstorageutils.IsNotFoundError(err) {
 		// CreateServiceProviderCluster will create it; the ServiceProviderCluster
@@ -117,24 +124,8 @@ func (c *actualHostedClusterSyncer) SyncOnce(ctx context.Context, key controller
 		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster: %w", err))
 	}
 
-	hostedCluster, err := kubeapplierhelpers.GetCachedHostedClusterForCluster(ctx, c.readDesireLister, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
-	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get HostedCluster from ReadDesire: %w", err))
-	}
-	if hostedCluster == nil {
-		// ReadDesire absent, or the kube-applier has not observed the
-		// HostedCluster yet. Retain the last observed value because this can be
-		// a transient gap while the ReadDesire is being relocated or recreated.
-		if existing.Status.ActualHostedCluster != nil {
-			utils.LoggerFromContext(ctx).Info("HostedCluster not currently observed in ReadDesire; retaining existing ActualHostedCluster mirror",
-				"hostedClusterNamespace", existing.Status.ActualHostedCluster.Namespace,
-				"hostedClusterName", existing.Status.ActualHostedCluster.Name)
-		}
-		return nil
-	}
-
 	replacement := existing.DeepCopy()
-	replacement.Status.ActualHostedCluster = sanitizeHostedCluster(hostedCluster)
+	replacement.Status.ActualHostedCluster = hostedCluster
 
 	// Every Replace costs RUs and wakes every controller watching the
 	// ServiceProviderCluster changefeed, so only write when the observed
@@ -155,19 +146,4 @@ func (c *actualHostedClusterSyncer) SyncOnce(ctx context.Context, key controller
 	utils.LoggerFromContext(ctx).Info("mirrored actual HostedCluster onto ServiceProviderCluster",
 		"hostedClusterNamespace", hostedCluster.Namespace, "hostedClusterName", hostedCluster.Name)
 	return nil
-}
-
-// sanitizeHostedCluster removes server-side metadata that changes independently
-// of the HostedCluster state admission consumes. Keeping it out of the mirror
-// prevents unrelated Kubernetes updates from causing ServiceProviderCluster
-// replacements and changefeed fan-out.
-func sanitizeHostedCluster(hostedCluster *hsv1beta1.HostedCluster) *hsv1beta1.HostedCluster {
-	sanitized := hostedCluster.DeepCopy()
-	sanitized.ManagedFields = nil
-	sanitized.ResourceVersion = ""
-	delete(sanitized.Annotations, lastAppliedConfigurationAnnotation)
-	if len(sanitized.Annotations) == 0 {
-		sanitized.Annotations = nil
-	}
-	return sanitized
 }

@@ -317,6 +317,7 @@ func TestMutateCluster(t *testing.T) {
 			}
 		})
 	}
+
 }
 
 func TestMutateClusterControlPlaneExactVersion(t *testing.T) {
@@ -512,6 +513,7 @@ func TestMutateClusterControlPlaneExactVersion(t *testing.T) {
 			}
 		})
 	}
+
 }
 
 func TestMutateCreateOperationCompletionDeadline(t *testing.T) {
@@ -1581,6 +1583,9 @@ func TestAdmitClusterV5DataPlaneMirror(t *testing.T) {
 	missingMirror := []utils.ExpectedError{
 		{FieldPath: "properties.version.id", Message: "missing the required data-plane image mirror"},
 	}
+	unavailableMirror := []utils.ExpectedError{
+		{FieldPath: "properties.version.id", Message: "backend has not observed the HostedCluster"},
+	}
 
 	tests := []struct {
 		name         string
@@ -1644,7 +1649,7 @@ func TestAdmitClusterV5DataPlaneMirror(t *testing.T) {
 			oldVersion:   &coreapi.VersionProfile{ID: "4.22"},
 			newVersion:   &coreapi.VersionProfile{ID: "5.0"},
 			spc:          spcUnmirrored,
-			expectErrors: missingMirror,
+			expectErrors: unavailableMirror,
 		},
 		{
 			// Missing observed state cannot prove that the required mirror exists.
@@ -1653,7 +1658,7 @@ func TestAdmitClusterV5DataPlaneMirror(t *testing.T) {
 			oldVersion:   &coreapi.VersionProfile{ID: "4.22"},
 			newVersion:   &coreapi.VersionProfile{ID: "5.0"},
 			spc:          nil,
-			expectErrors: missingMirror,
+			expectErrors: unavailableMirror,
 		},
 		{
 			name:         "minor upgrade within 4.y is not gated",
@@ -1721,4 +1726,52 @@ func TestAdmitClusterV5DataPlaneMirror(t *testing.T) {
 			utils.VerifyErrorsMatch(t, tt.expectErrors, errs)
 		})
 	}
+
+	t.Run("create does not access the missing old version", func(t *testing.T) {
+		t.Parallel()
+
+		errs := admitClusterV5DataPlaneMirror(
+			ctx,
+			&ClusterAdmissionContext{},
+			operation.Operation{Type: operation.Create},
+			fldPath,
+			&coreapi.VersionProfile{ID: "5.0"},
+			nil,
+		)
+
+		if len(errs) != 0 {
+			t.Fatalf("expected no admission errors on CREATE, got %v", errs)
+		}
+	})
+}
+
+func TestAdmitCluster_WiresV5DataPlaneMirrorAdmission(t *testing.T) {
+	t.Parallel()
+
+	oldCluster := &coreapi.HCPOpenShiftCluster{
+		CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+			Version: coreapi.VersionProfile{ID: "4.22"},
+			Etcd: coreapi.EtcdProfile{
+				DataEncryption: coreapi.EtcdDataEncryptionProfile{
+					CustomerManaged: &coreapi.CustomerManagedEncryptionProfile{
+						Kms: &coreapi.KmsEncryptionProfile{},
+					},
+				},
+			},
+		},
+	}
+	newCluster := oldCluster.DeepCopy()
+	newCluster.CustomerProperties.Version.ID = "5.0"
+
+	errs := AdmitCluster(
+		context.Background(),
+		&ClusterAdmissionContext{ServiceProviderCluster: &coreapi.ServiceProviderCluster{}},
+		operation.Operation{Type: operation.Update},
+		newCluster,
+		oldCluster,
+	)
+
+	utils.VerifyErrorsMatch(t, []utils.ExpectedError{
+		{FieldPath: "properties.version.id", Message: "backend has not observed the HostedCluster"},
+	}, errs)
 }

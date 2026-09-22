@@ -758,9 +758,12 @@ func admitClusterVersionID(_ context.Context, admissionContext *ClusterAdmission
 // upgrade must not start while the required mirror cannot be proven present.
 // Once the HostedCluster has been observed, an empty spec.imageContentSources
 // is a real answer and is enforced as such.
-func admitClusterV5DataPlaneMirror(_ context.Context, admissionContext *ClusterAdmissionContext, _ operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.VersionProfile) field.ErrorList {
-	// The caller (admitClusterVersionProfile) has already established that this
-	// is an UPDATE with a non-empty version.id that differs from the old one.
+func admitClusterV5DataPlaneMirror(_ context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.VersionProfile) field.ErrorList {
+	// Keep this helper safe when called independently of admitClusterVersionProfile.
+	// CREATE has no old version, and unchanged updates do not need an upgrade gate.
+	if op.Type != operation.Update || newObj == nil || oldObj == nil || newObj.ID == oldObj.ID {
+		return nil
+	}
 
 	oldVersion, oldErr := semver.ParseTolerant(oldObj.ID)
 	newVersion, newErr := semver.ParseTolerant(newObj.ID)
@@ -780,11 +783,11 @@ func admitClusterV5DataPlaneMirror(_ context.Context, admissionContext *ClusterA
 	// Not observed yet: fail closed (see the doc comment above). Admission must
 	// have an observed HostedCluster before allowing a 4.y -> 5.y upgrade.
 	if admissionContext.ServiceProviderCluster == nil {
-		return missingV5DataPlaneMirrorError(fldPath, newObj.ID, newVersion.Major)
+		return unavailableV5DataPlaneMirrorError(fldPath, newObj.ID)
 	}
 	actualHostedCluster := admissionContext.ServiceProviderCluster.Status.ActualHostedCluster
 	if actualHostedCluster == nil {
-		return missingV5DataPlaneMirrorError(fldPath, newObj.ID, newVersion.Major)
+		return unavailableV5DataPlaneMirrorError(fldPath, newObj.ID)
 	}
 
 	if apihelpers.HostedClusterHasImageContentSource(actualHostedCluster, apihelpers.OcpV5ArtDevMirrorSource) {
@@ -792,6 +795,14 @@ func admitClusterV5DataPlaneMirror(_ context.Context, admissionContext *ClusterA
 	}
 
 	return missingV5DataPlaneMirrorError(fldPath, newObj.ID, newVersion.Major)
+}
+
+func unavailableV5DataPlaneMirrorError(fldPath *field.Path, versionID string) field.ErrorList {
+	return field.ErrorList{field.Invalid(
+		fldPath.Child("id"),
+		versionID,
+		"cannot validate the OpenShift 5.y data-plane image mirror yet: the backend has not observed the HostedCluster; retry the update",
+	)}
 }
 
 func missingV5DataPlaneMirrorError(fldPath *field.Path, versionID string, major uint64) field.ErrorList {
