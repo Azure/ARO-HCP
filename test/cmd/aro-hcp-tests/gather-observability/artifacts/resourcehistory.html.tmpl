@@ -80,6 +80,34 @@ const nodeKey = node => JSON.stringify([node.cluster, node.name]);
 const unknownPool = pool => !pool || pool === 'unknown';
 const poolKey = pool => JSON.stringify(unknownPool(pool) ? '' : pool);
 const resourceFields = resource => fields.filter(field => resource !== 'swiftNIC' || field !== 'usage');
+// The embedded report is immutable. Expand shared records once, and index
+// minute-local membership rather than carrying the latest labels backwards.
+for (const sample of history) {
+  sample.nodes = list(sample.nodes).map(([metadata, quantities]) => {
+    const values = report.quantities[quantities];
+    return {...report.metadata[metadata], capacity: values[0], allocatable: values[1], usage: values[2], requests: values[3]};
+  });
+  sample.warnings = list(sample.warnings).map(index => report.messages[index]);
+}
+const timestamps = history.map(sample => Date.parse(sample.time));
+const timeLabels = timestamps.map(utc), startTime = Date.parse(report.start), endTime = Date.parse(report.end);
+const sampleIndexes = new WeakMap();
+function sampleIndex(sample) {
+  if (sampleIndexes.has(sample)) return sampleIndexes.get(sample);
+  const index = {clusters: new Map(), nodes: new Map(), inventory: new Set()};
+  for (const node of list(sample.nodes)) {
+    if (!index.clusters.has(node.cluster)) index.clusters.set(node.cluster, []);
+    index.clusters.get(node.cluster).push(node);
+    index.nodes.set(nodeKey(node), node);
+    if (node.inventory) index.inventory.add(node.cluster);
+  }
+  sampleIndexes.set(sample, index);
+  return index;
+}
+const selectorNodes = list(report.metadata);
+for (const sample of history) sampleIndex(sample);
+delete report.metadata; delete report.quantities; delete report.messages;
+let aggregateScope;
 function el(tag, text) { const element = document.createElement(tag); if (text !== undefined) element.textContent = text; return element; }
 function quantity(value, resource, asPercent = false) {
   if (!known(value)) return 'Data unavailable';
@@ -93,23 +121,28 @@ function cascade(level) {
   if (level === 'cluster') { scope.cluster = $('cluster').value; scope.pool = ''; scope.node = ''; }
   if (level === 'pool') { scope.pool = $('pool').value; scope.node = ''; }
   if (level === 'node') scope.node = $('node').value;
-  const nodes = history.flatMap(sample => list(sample.nodes)).filter(node => !scope.cluster || node.cluster === scope.cluster);
-  const pools = [...new Set(nodes.map(node => poolKey(node.pool)))].sort();
-  options($('pool'), pools.map(pool => [pool, JSON.parse(pool) || '(unknown pool)']), 'All pools');
-  $('pool').value = scope.pool;
-  const choices = new Map();
-  for (const node of nodes) if (!scope.pool || poolKey(node.pool) === scope.pool) choices.set(nodeKey(node), scope.cluster ? node.name : node.cluster + ' / ' + node.name);
-  options($('node'), [...choices].sort((a, b) => a[1].localeCompare(b[1])), 'All nodes');
-  $('node').value = scope.node;
+  if (level !== 'node') {
+    const nodes = selectorNodes.filter(node => !scope.cluster || node.cluster === scope.cluster);
+    if (level === 'cluster') {
+      const pools = [...new Set(nodes.map(node => poolKey(node.pool)))].sort();
+      options($('pool'), pools.map(pool => [pool, JSON.parse(pool) || '(unknown pool)']), 'All pools');
+      $('pool').value = scope.pool;
+    }
+    const choices = new Map();
+    for (const node of nodes) if (!scope.pool || poolKey(node.pool) === scope.pool) choices.set(nodeKey(node), scope.cluster ? node.name : node.cluster + ' / ' + node.name);
+    options($('node'), [...choices].sort((a, b) => a[1].localeCompare(b[1])), 'All nodes');
+    $('node').value = scope.node;
+  }
   page = 0; render();
 }
 function aggregate(sample, resource, selected = scope) {
   const clusters = selected.node ? [JSON.parse(selected.node)[0]] : selected.cluster ? [selected.cluster] : list(report.clusters);
-  const clusterNodes = list(sample.nodes).filter(node => !selected.cluster || node.cluster === selected.cluster);
+  const index = sampleIndex(sample);
+  const clusterNodes = selected.node ? [index.nodes.get(selected.node)].filter(node => node && (!selected.cluster || node.cluster === selected.cluster)) : selected.cluster ? list(index.clusters.get(selected.cluster)) : list(sample.nodes);
   // Pool labels are only evidence for this minute, never carried forward from
   // another sample. An unlabeled node could belong to the selected pool.
   const candidates = clusterNodes.filter(node => (!selected.node || nodeKey(node) === selected.node) && (!selected.pool || poolKey(node.pool) === selected.pool || unknownPool(node.pool)));
-  const missingClusters = clusters.filter(cluster => !list(sample.expected).includes(cluster) || !list(sample.nodes).some(node => node.cluster === cluster && node.inventory)).length;
+  const missingClusters = clusters.filter(cluster => !list(sample.expected).includes(cluster) || !index.inventory.has(cluster)).length;
   const missingInventory = candidates.filter(node => !node.inventory).length;
   const ambiguousPool = candidates.filter(node => selected.pool && poolKey(node.pool) !== selected.pool).length;
   const unknownSwift = resource === 'swiftNIC' ? candidates.filter(node => node.swiftAdvertised == null).length : 0;
@@ -144,7 +177,7 @@ function lineText(sample, field, resource) {
 function tooltip(resource, index) {
   const sample = aggregates[resource][index], host = el('div');
   if (!sample) return host;
-  host.append(el('strong', utc(sample.time) + ' / ' + resourceNames[resource]));
+  host.append(el('strong', timeLabels[index] + ' / ' + resourceNames[resource]));
   for (const field of resourceFields(resource)) host.append(el('div', labels[field] + ': ' + lineText(sample, field, resource)));
   host.append(el('div', 'Requests / allocatable: ' + quantity(sample.requestRatio, resource, true)), el('div', 'Allocatable minus requests estimate: ' + quantity(sample.estimate, resource)), el('div', diagnostics(sample)));
   return host;
@@ -157,12 +190,12 @@ function chartOption(resource) {
     grid: {left: 65, right: 22, top: 65, bottom: 85},
     tooltip: {trigger: 'axis', confine: true, renderMode: 'html', formatter: params => tooltip(resource, params[0]?.dataIndex), backgroundColor: '#161b22', borderColor: '#484f58', textStyle: {color: '#e6edf3'}},
     axisPointer: {label: {formatter: params => utc(params.value)}},
-    xAxis: {type: 'time', min: Date.parse(report.start), max: Date.parse(report.end), axisLabel: {hideOverlap: true, formatter: value => utc(value).slice(5, 16)}, axisPointer: {snap: true}},
+    xAxis: {type: 'time', min: startTime, max: endTime, axisLabel: {hideOverlap: true, formatter: value => utc(value).slice(5, 16)}, axisPointer: {snap: true}},
     yAxis: {type: 'value', min: 0, name: percent ? '% of capacity' : resource === 'memory' ? 'GiB' : resource === 'cpu' ? 'cores' : 'slots', splitLine: {lineStyle: {color: '#30363d'}}},
     dataZoom: [{type: 'inside', ...zoom, filterMode: 'none'}, {type: 'slider', ...zoom, filterMode: 'none', bottom: 12, textStyle: {color: '#9da7b3'}, labelFormatter: value => utc(value)}],
     series: resourceFields(resource).map(field => ({id: field, name: labels[field], type: 'line', smooth: false, step: field === 'usage' ? false : 'end', connectNulls: false, showSymbol: true, symbolSize: 4,
       lineStyle: {color: colors[field], width: 2}, itemStyle: {color: colors[field]},
-      data: data.map(sample => [Date.parse(sample.time), percent ? sample.lines[field].percent : known(sample.lines[field].value) ? sample.lines[field].value / (resource === 'memory' ? 1073741824 : 1) : null])}))
+       data: data.map((sample, index) => [timestamps[index], percent ? sample.lines[field].percent : known(sample.lines[field].value) ? sample.lines[field].value / (resource === 'memory' ? 1073741824 : 1) : null])}))
   };
 }
 function drawCharts() {
@@ -176,7 +209,7 @@ function drawCharts() {
       chart.on('datazoom', event => { const value = event.batch?.[0] || event; if (known(value.start) && known(value.end)) zoom = {start: value.start, end: value.end}; });
       chart.on('legendselectchanged', event => { Object.assign(legend, event.selected); });
     }
-    charts[resource].setOption(chartOption(resource), {notMerge: true});
+    charts[resource].setOption(chartOption(resource));
   }
   window.echarts.connect('resource-history');
 }
@@ -187,7 +220,7 @@ function renderTable() {
   $('previous').disabled = page === 0; $('next').disabled = page + 1 >= count;
   for (let index = page * pageSize; index < Math.min(history.length, (page + 1) * pageSize); index++) for (const resource of resources) {
     const sample = aggregates[resource][index], row = el('tr');
-    row.append(el('td', utc(sample.time) + ' / ' + resourceNames[resource]));
+    row.append(el('td', timeLabels[index] + ' / ' + resourceNames[resource]));
     for (const field of fields) row.append(el('td', field === 'usage' && resource === 'swiftNIC' ? 'Not a usage resource' : lineText(sample, field, resource)));
     row.append(el('td', quantity(sample.requestRatio, resource, true)), el('td', quantity(sample.estimate, resource)), el('td', diagnostics(sample)));
     body.append(row);
@@ -196,9 +229,14 @@ function renderTable() {
 function render() {
   if (!history.length) return;
   percent = $('display').value === 'percent';
+  const key = JSON.stringify(scope);
+  if (key !== aggregateScope) {
+    for (const resource of resources) aggregates[resource] = history.map(sample => aggregate(sample, resource));
+    aggregateScope = key;
+  }
   $('scope').textContent = [scope.cluster || 'Fleet', scope.pool ? JSON.parse(scope.pool) || '(unknown pool)' : 'All pools', scope.node ? JSON.parse(scope.node)[1] : 'All nodes'].join(' / ') + '. UTC window remains fixed across scopes.';
   for (const resource of resources) {
-    const data = aggregates[resource] = history.map(sample => aggregate(sample, resource));
+    const data = aggregates[resource];
     const coverage = $('coverage-' + resource); coverage.replaceChildren();
     for (const field of resourceFields(resource)) {
       const complete = data.filter(sample => known(percent ? sample.lines[field].percent : sample.lines[field].value)).length;
@@ -233,7 +271,7 @@ $('diagnostics').ontoggle = () => {
 options($('cluster'), list(report.clusters).map(cluster => [cluster, cluster]), 'Fleet');
 $('cluster').onchange = () => cascade('cluster'); $('pool').onchange = () => cascade('pool'); $('node').onchange = () => cascade('node');
 $('display').onchange = render;
-$('reset-zoom').onclick = () => { zoom = {start: 0, end: 100}; drawCharts(); };
+$('reset-zoom').onclick = () => { zoom = {start: 0, end: 100}; if (charts.cpu) charts.cpu.dispatchAction({type: 'dataZoom', ...zoom}); };
 $('previous').onclick = () => { page--; renderTable(); }; $('next').onclick = () => { page++; renderTable(); };
 window.addEventListener('resize', () => Object.values(charts).forEach(chart => chart.resize()));
 cascade('cluster');

@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"math"
 	"os"
 	"os/exec"
@@ -49,6 +50,10 @@ func TestRenderResourceHistoryHTML(t *testing.T) {
 	report.History[0].Nodes[0].Name = attack
 	report.History[0].Nodes[0].Pool = attack
 	report.History[0].Nodes[0].SKU = attack
+	before, err := json.Marshal(report)
+	if err != nil {
+		t.Fatal(err)
+	}
 	html, err := renderResourceHistoryHTML(report)
 	if err != nil {
 		t.Fatal(err)
@@ -70,15 +75,49 @@ func TestRenderResourceHistoryHTML(t *testing.T) {
 	}
 	_, embedded, _ := strings.Cut(text, marker)
 	embedded, _, _ = strings.Cut(embedded, "</script>")
-	var decoded utilizationReport
-	if err := json.Unmarshal([]byte(embedded), &decoded); err != nil {
+	decoded := decodeHistoryHTML(t, []byte(embedded))
+	after, err := json.Marshal(report)
+	if err != nil {
 		t.Fatal(err)
+	}
+	if !bytes.Equal(before, after) {
+		t.Fatal("HTML rendering changed the persisted report")
 	}
 	report.Snapshots = nil
 	report.Coverage = nil
 	if !reflect.DeepEqual(report, decoded) {
 		t.Fatal("embedded JSON changed nullable measurements or untrusted strings")
 	}
+}
+
+func decodeHistoryHTML(t *testing.T, data []byte) utilizationReport {
+	t.Helper()
+	var compact struct {
+		utilizationReport
+		History    []historyHTMLSample              `json:"history"`
+		Metadata   []historyHTMLMetadata            `json:"metadata"`
+		Quantities [][4]utilizationHistoryResources `json:"quantities"`
+		Messages   []string                         `json:"messages"`
+	}
+	if err := json.Unmarshal(data, &compact); err != nil {
+		t.Fatal(err)
+	}
+	report := compact.utilizationReport
+	for _, sample := range compact.History {
+		minute := utilizationHistorySample{Time: sample.Time, Expected: sample.Expected}
+		if sample.Nodes != nil {
+			minute.Nodes = make([]utilizationHistoryEntry, 0, len(sample.Nodes))
+		}
+		for _, pair := range sample.Nodes {
+			m, q := compact.Metadata[pair[0]], compact.Quantities[pair[1]]
+			minute.Nodes = append(minute.Nodes, utilizationHistoryEntry{m.Cluster, m.Name, m.Pool, m.SKU, m.Inventory, m.SwiftAdvertised, q[0], q[1], q[2], q[3]})
+		}
+		for _, index := range sample.Warnings {
+			minute.Warnings = append(minute.Warnings, compact.Messages[index])
+		}
+		report.History = append(report.History, minute)
+	}
+	return report
 }
 
 func TestRenderResourceHistoryValidation(t *testing.T) {
@@ -237,19 +276,6 @@ func TestRenderResourceHistoryBrowser(t *testing.T) {
   choose('cluster', 'synthetic-svc');
   check(!scope.pool && !scope.node && $('pool').value === '' && $('node').value === '', 'cluster cascades reset descendants');
   check($('status-swiftNIC').textContent.includes('No SWIFT-NIC resource advertised at 4/5 minutes') && aggregates.swiftNIC[2].lines.requests.value === null, 'known zero requests coexist with explicit advertisement absence and inventory gap');
-  const originalSwift = history[0].nodes[0];
-  history[0].nodes[0] = swift.nodes[0]; render();
-  check(aggregates.swiftNIC[0].lines.requests.value === 2 && $('samples').textContent.includes('2 slots'), 'unknown advertisement assigned requests reach rendered table');
-  check(chartOption('swiftNIC').series.find(series => series.id === 'requests').data[0][1] === 2, 'unknown advertisement does not discard request chart point');
-  check($('status-swiftNIC').textContent.includes('Positive assigned requests without confirmed advertisement at 1/5 minutes'), 'request advertisement mismatch visible without opening diagnostics');
-  history[0].nodes[0].swiftAdvertised = false; render();
-  check(aggregates.swiftNIC[0].noResource && tooltip('swiftNIC', 0).textContent.includes('Requests: 2 slots'), 'no-resource tooltip still shows known requests');
-  check(chartOption('swiftNIC').series.find(series => series.id === 'requests').data[0][1] === 2, 'no-resource state does not discard request chart point');
-  choose('display', 'percent');
-  check(tooltip('swiftNIC', 0).textContent.includes('Requests: Data unavailable'), 'percentage request tooltip cannot manufacture denominator');
-  check(chartOption('swiftNIC').series.find(series => series.id === 'requests').data[0][1] === null, 'percentage request chart gaps without capacity denominator');
-  choose('display', 'absolute');
-  history[0].nodes[0] = originalSwift; render();
   choose('cluster', '');
   startCharts();
   const option = resource => charts[resource].getOption();
@@ -286,21 +312,39 @@ func TestRenderResourceHistoryBrowser(t *testing.T) {
   check(option('cpu').dataZoom[0].start === 0 && option('memory').dataZoom[0].end === 100, 'reset applies across charts');
   const left = $('chart-cpu').getBoundingClientRect(), right = $('chart-memory').getBoundingClientRect();
   check(window.innerWidth <= 900 ? right.top > left.top : right.top === left.top && right.left > left.left, 'responsive resource charts');
-  const before = JSON.stringify(history), malicious = '<' + '/script><img src=x onerror="window.injected=true">';
-  history[0].nodes[0].pool = malicious; history[0].nodes[0].name = malicious;
-  choose('cluster', 'synthetic-svc'); choose('pool', JSON.stringify(malicious));
+`)
+}
+
+func TestRenderResourceHistoryBrowserRequestsWithoutAdvertisement(t *testing.T) {
+	for _, advertised := range []*bool{nil, new(bool)} {
+		r := resourceHistoryFixture(t)
+		r.History[0].Nodes[0].SwiftAdvertised = advertised
+		requests := 2.0
+		r.History[0].Nodes[0].Requests.SwiftNIC = &requests
+		checkResourceHistoryBrowser(t, r, `
+  $('cluster').value = 'synthetic-svc'; $('cluster').onchange();
+  check(aggregates.swiftNIC[0].lines.requests.value === 2 && $('samples').textContent.includes('2 slots'), 'assigned requests reach rendered table');
+  check(chartOption('swiftNIC').series.find(series => series.id === 'requests').data[0][1] === 2, 'advertisement does not discard request chart point');
+  check($('status-swiftNIC').textContent.includes('Positive assigned requests without confirmed advertisement at 1/5 minutes'), 'request advertisement mismatch visible without opening diagnostics');
+  check(tooltip('swiftNIC', 0).textContent.includes('Requests: 2 slots'), 'tooltip still shows known requests');
+  $('display').value = 'percent'; $('display').onchange();
+  check(tooltip('swiftNIC', 0).textContent.includes('Requests: Data unavailable'), 'percentage request tooltip cannot manufacture denominator');
+  check(chartOption('swiftNIC').series.find(series => series.id === 'requests').data[0][1] === null, 'percentage request chart gaps without capacity denominator');
+`)
+	}
+}
+
+func TestRenderResourceHistoryBrowserLabels(t *testing.T) {
+	r := resourceHistoryFixture(t)
+	attack := `</script><img src=x onerror="window.injected=true">`
+	r.History[0].Nodes[0].Pool, r.History[0].Nodes[0].Name = attack, attack
+	checkResourceHistoryBrowser(t, r, `
+  const malicious = '<' + '/script><img src=x onerror="window.injected=true">';
+  $('cluster').value = 'synthetic-svc'; $('cluster').onchange();
+  $('pool').value = JSON.stringify(malicious); $('pool').onchange();
   check([...$('pool').options].some(option => option.textContent === malicious), 'selector text preserves literal metric labels');
-  choose('node', JSON.stringify(['synthetic-svc', malicious]));
+  $('node').value = JSON.stringify(['synthetic-svc', malicious]); $('node').onchange();
   check($('scope').textContent.includes(malicious) && !window.injected && !document.querySelector('img'), 'scope labels cannot inject HTML');
-  history.splice(0, history.length, ...JSON.parse(before));
-  const original = history.slice();
-  for (let i = 5; i < 30; i++) history.push({...history[0], time: new Date(Date.parse(history[0].time) + i * 60000).toISOString()});
-  choose('cluster', '');
-  check($('samples').children.length === 36 && !$('next').disabled, 'sample table bounded to twelve minutes');
-  $('next').click(); $('next').click();
-  check($('samples').children.length === 18 && $('next').disabled && !$('previous').disabled, 'last page reachable');
-  $('previous').click(); check($('samples').children.length === 36, 'previous page works');
-  history.splice(0, history.length, ...original);
 `)
 }
 
@@ -313,6 +357,224 @@ func TestRenderResourceHistoryBrowserLegacy(t *testing.T) {
   startCharts(); check(!Object.keys(charts).length, 'no empty charts for legacy report');
 `)
 }
+
+func largeResourceHistoryFixture(t *testing.T) utilizationReport {
+	t.Helper()
+	r := resourceHistoryFixture(t)
+	source := r.History
+	r.History = nil
+	for i := range 361 {
+		minute := source[i%len(source)]
+		minute.Time = r.Start.Add(time.Duration(i) * time.Minute)
+		minute.Nodes = make([]utilizationHistoryEntry, 250)
+		for j := range minute.Nodes {
+			node := source[i%len(source)].Nodes[j%len(source[i%len(source)].Nodes)]
+			node.Name = fmt.Sprintf("%s-%03d", node.Name, j)
+			minute.Nodes[j] = node
+		}
+		r.History = append(r.History, minute)
+	}
+	r.End = r.History[len(r.History)-1].Time
+	return r
+}
+
+func TestRenderResourceHistoryCompact(t *testing.T) {
+	r := largeResourceHistoryFixture(t)
+	full, err := json.Marshal(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	compact, err := marshalResourceHistoryHTML(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(r, decodeHistoryHTML(t, compact)) {
+		t.Fatal("interning changed per-minute membership, inventory, advertisement, quantities or warnings")
+	}
+	if len(compact) >= len(full)/5 {
+		t.Fatalf("repeated history should compact below 20%%: %d / %d", len(compact), len(full))
+	}
+	var tables struct {
+		Metadata, Quantities, Messages []json.RawMessage
+	}
+	if err := json.Unmarshal(compact, &tables); err != nil {
+		t.Fatal(err)
+	}
+	if len(tables.Metadata) > 1500 || len(tables.Quantities) > 20 || len(tables.Messages) != 3 {
+		t.Fatalf("records not interned: metadata=%d quantities=%d messages=%d", len(tables.Metadata), len(tables.Quantities), len(tables.Messages))
+	}
+	t.Logf("90,250 node-minutes: %d -> %d JSON bytes", len(full), len(compact))
+
+	t.Run("exact finite quantities", func(t *testing.T) {
+		r := resourceHistoryFixture(t)
+		values := []float64{0.1, math.Nextafter(0.1, 1), math.SmallestNonzeroFloat64, math.MaxFloat64, 0, math.Copysign(0, -1)}
+		for i := range r.History {
+			for j := range r.History[i].Nodes {
+				node := &r.History[i].Nodes[j]
+				for k, field := range []*utilizationHistoryResources{&node.Capacity, &node.Allocatable, &node.Usage, &node.Requests} {
+					value := values[(i+j+k)%len(values)]
+					*field = utilizationHistoryResources{CPU: &value, Memory: nil, SwiftNIC: nil}
+				}
+			}
+		}
+		compact, err := marshalResourceHistoryHTML(r)
+		if err != nil {
+			t.Fatal(err)
+		}
+		// JSON equality also distinguishes signed zero, unlike DeepEqual, and
+		// catches rounding, underflow, overflow, and null-to-zero conversion.
+		want, err := json.Marshal(r)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got, err := json.Marshal(decodeHistoryHTML(t, compact))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(want, got) {
+			t.Fatal("compaction changed exact finite floats, signed zero or null quantities")
+		}
+	})
+}
+
+func TestRenderResourceHistoryBrowserLarge(t *testing.T) {
+	checkResourceHistoryBrowser(t, largeResourceHistoryFixture(t), historyPerformanceAssertions)
+}
+
+// Opt-in replay of a real collection or the saved stress fixture, without
+// committing large artifacts. Set UTILIZATION_HISTORY_REPLAY to utilization.json
+// and UTILIZATION_ECHARTS_JS to a locally cached real ECharts library.
+func TestRenderResourceHistoryBrowserReplay(t *testing.T) {
+	path := os.Getenv("UTILIZATION_HISTORY_REPLAY")
+	if path == "" {
+		t.Skip("set UTILIZATION_HISTORY_REPLAY to replay a saved utilization.json")
+	}
+	if os.Getenv("UTILIZATION_ECHARTS_JS") == "" {
+		t.Fatal("replay requires UTILIZATION_ECHARTS_JS")
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var report utilizationReport
+	if err := json.Unmarshal(data, &report); err != nil {
+		t.Fatal(err)
+	}
+	compact, err := marshalResourceHistoryHTML(report)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(report, decodeHistoryHTML(t, compact)) {
+		t.Fatal("replay compaction changed the saved report")
+	}
+	checkResourceHistoryBrowser(t, report, historyPerformanceAssertions)
+}
+
+const historyPerformanceAssertions = `
+  const choose = (id, value) => { $(id).value = value; $(id).onchange(); };
+  check(history.length > 12, 'large test requires multiple table pages');
+  check($('samples').children.length === 36, 'table limited to twelve minutes, not history truncated');
+  const scans = aggregate;
+  let calls = 0;
+  aggregate = (...args) => { calls++; return scans(...args); };
+  const originalDates = Date.parse;
+  Date.parse = () => { throw new Error('interaction reparsed an immutable timestamp'); };
+  const fleet = aggregates.cpu;
+  choose('display', 'percent'); choose('display', 'absolute');
+  check(calls === 0 && aggregates.cpu === fleet, 'display changes reuse current scope aggregates');
+  // Instrument array reads without changing the immutable report's values.
+  // Unlike aggregate call counts, these guards catch filter/some, iterators,
+  // copying and indexed loops over the full fleet or a whole node's cluster.
+  let forbidFleetReads = true, forbidClusterReads = false;
+  const guardedNodes = (nodes, forbidden, message) => new Proxy(nodes, {
+    get(target, key, receiver) {
+      if (typeof key === 'string' && /^(0|[1-9][0-9]*)$/.test(key)) check(!forbidden(), message);
+      return Reflect.get(target, key, receiver);
+    }
+  });
+  for (const sample of history) {
+    const index = sampleIndex(sample);
+    sample.nodes = guardedNodes(sample.nodes, () => forbidFleetReads, 'scoped interaction traversed full fleet');
+    for (const [cluster, nodes] of index.clusters) {
+      index.clusters.set(cluster, guardedNodes(nodes, () => forbidClusterReads, 'node selection traversed cluster nodes instead of indexed lookup'));
+    }
+  }
+  choose('cluster', $('cluster').options[1].value);
+  choose('pool', $('pool').options[1].value);
+  const poolOption = $('pool').options[1], nodeOption = $('node').options[1];
+  forbidClusterReads = true;
+  choose('node', nodeOption.value);
+  check($('pool').options[1] === poolOption && $('node').options[1] === nodeOption, 'node-only selection does not rebuild selectors');
+  forbidFleetReads = false; forbidClusterReads = false;
+  const selectedNode = scope.node;
+  for (let i = 0; i < history.length; i++) {
+    const expected = history[i].nodes.filter(node => nodeKey(node) === selectedNode && (!scope.pool || poolKey(node.pool) === scope.pool || unknownPool(node.pool))).length;
+    check(aggregates.cpu[i].observed === expected, 'indexed selection respects minute-local membership');
+  }
+  choose('cluster', '');
+  // Independently check fleet sums against the decoded source, including nulls,
+  // inventory gaps and SWIFT request applicability (not chart-prepared values).
+  for (let i = 0; i < history.length; i++) for (const resource of resources) {
+    const sample = history[i], nodes = sample.nodes;
+    const missingCluster = report.clusters.some(cluster => !list(sample.expected).includes(cluster) || !nodes.some(node => node.cluster === cluster && node.inventory));
+    for (const field of resourceFields(resource)) {
+      const advertised = resource === 'swiftNIC' && field !== 'requests';
+      const relevant = nodes.filter(node => !advertised || node.swiftAdvertised !== false);
+      const complete = !missingCluster && nodes.every(node => node.inventory) && relevant.length > 0 && relevant.every(node => (!advertised || node.swiftAdvertised === true) && known(node[field][resource]));
+      const expected = complete ? relevant.reduce((sum, node) => sum + node[field][resource], 0) : null;
+      check(aggregates[resource][i].lines[field].value === expected, 'independent exact fleet sum and gap check');
+    }
+  }
+  const beforePage = calls;
+  for (let i = 1; i < Math.ceil(history.length / pageSize); i++) $('next').click();
+  check($('next').disabled && !$('previous').disabled && $('samples').children.length === ((history.length - 1) % pageSize + 1) * 3, 'last page retains every minute');
+  $('previous').click();
+  check(calls === beforePage, 'pagination does not aggregate');
+  Date.parse = originalDates;
+  // Guard only our option preparation, including initial chart creation and
+  // every subsequent update. ECharts itself may legitimately parse dates.
+  const prepareChart = chartOption;
+  let chartPreparations = 0;
+  chartOption = (...args) => {
+    const parse = Date.parse;
+    Date.parse = () => { throw new Error('chart preparation reparsed an immutable timestamp'); };
+    try { chartPreparations++; return prepareChart(...args); }
+    finally { Date.parse = parse; }
+  };
+  startCharts();
+  check(chartPreparations === resources.length, 'guard covers initial option preparation for every chart');
+  const models = Object.fromEntries(resources.map(resource => [resource, window.cachedECharts ? charts[resource].getModel().getSeries() : []]));
+  for (const chart of Object.values(charts)) {
+    const update = chart.setOption.bind(chart);
+    chart.setOption = (option, settings) => {
+      check(settings !== true && !settings?.notMerge && !settings?.replaceMerge, 'chart updates must merge stable series');
+      update(option, settings);
+    };
+  }
+  charts.cpu.dispatchAction({type: 'dataZoom', start: 25, end: 75});
+  charts.cpu.dispatchAction({type: 'legendToggleSelect', name: 'Usage'});
+  for (const display of ['percent', 'absolute']) {
+    const beforePreparation = chartPreparations;
+    choose('display', display);
+    check(chartPreparations === beforePreparation + resources.length, 'guard covers option updates for every chart');
+    for (const resource of resources) {
+      const option = charts[resource].getOption();
+      check(option.dataZoom[0].start === 25 && option.dataZoom[0].end === 75, 'linked zoom retained');
+      check(option.legend[0].selected.Usage === false, 'legend retained');
+      if (window.cachedECharts) check(charts[resource].getModel().getSeries().every((model, i) => model === models[resource][i]), 'ECharts series models reused');
+      for (const series of option.series) {
+        check(series.data.length === history.length && series.connectNulls === false, 'all points and missing-data gaps retained');
+        for (let i = 0; i < history.length; i++) {
+          const line = aggregates[resource][i].lines[series.id];
+          const expected = display === 'percent' ? line.percent : known(line.value) ? line.value / (resource === 'memory' ? 1073741824 : 1) : null;
+          check(series.data[i][0] === timestamps[i] && series.data[i][1] === expected, 'exact timestamp and quantity in every ECharts point');
+        }
+      }
+    }
+  }
+  $('reset-zoom').click();
+  if (window.cachedECharts) check(resources.every(resource => charts[resource].getOption().dataZoom.every(z => z.start === 0 && z.end === 100)), 'reset linked zoom without setOption');
+`
 
 // Uses the existing optional Chrome/cached-ECharts convention. The fallback
 // chart double exercises event wiring; a cached CDN asset exercises real charts.
@@ -343,7 +605,10 @@ func checkResourceHistoryBrowser(t *testing.T, report utilizationReport, asserti
       return {setOption(value) { option = value; }, getOption() { return {...option, xAxis: [option.xAxis], yAxis: [option.yAxis], legend: [option.legend]}; },
         on(name, handler) { handlers[name] = handler; }, resize() {},
         dispatchAction(event) {
-          if (event.type === 'dataZoom') handlers.datazoom(event);
+           if (event.type === 'dataZoom') {
+             for (const chart of Object.values(charts)) for (const z of chart.getOption().dataZoom) Object.assign(z, {start: event.start, end: event.end});
+             handlers.datazoom(event);
+           }
           if (event.type === 'legendToggleSelect') handlers.legendselectchanged({selected: {...option.legend.selected, [event.name]: false}});
         }};
     }};

@@ -101,7 +101,7 @@ func renderResourceHistoryHTML(report utilizationReport) ([]byte, error) {
 	// Peak workload detail and peak-ranking coverage belong to the other tab.
 	report.Snapshots = nil
 	report.Coverage = nil
-	data, err := json.Marshal(report)
+	data, err := marshalResourceHistoryHTML(report)
 	if err != nil {
 		return nil, fmt.Errorf("marshal resource history: %w", err)
 	}
@@ -116,4 +116,86 @@ func renderResourceHistoryHTML(report utilizationReport) ([]byte, error) {
 		return nil, fmt.Errorf("render resource history template: %w", err)
 	}
 	return buf.Bytes(), nil
+}
+
+// These intern tables are private to the HTML, not the utilization.json replay
+// contract. Each minute retains its own metadata (including membership and
+// advertisement evidence) and exact nullable measurements.
+type historyHTMLMetadata struct {
+	Cluster         string `json:"cluster"`
+	Name            string `json:"name"`
+	Pool            string `json:"pool"`
+	SKU             string `json:"sku"`
+	Inventory       bool   `json:"inventory"`
+	SwiftAdvertised *bool  `json:"swiftAdvertised"`
+}
+
+type historyHTMLSample struct {
+	Time     time.Time `json:"time"`
+	Expected []string  `json:"expected"`
+	// Pairs index metadata and quantities, respectively. Quantities retain the
+	// capacity, allocatable, usage, requests order used by the renderer.
+	Nodes    [][2]int `json:"nodes"`
+	Warnings []int    `json:"warnings,omitempty"`
+}
+
+func marshalResourceHistoryHTML(report utilizationReport) ([]byte, error) {
+	metadata := historyInternTable[historyHTMLMetadata]{}
+	quantities := historyInternTable[[4]utilizationHistoryResources]{}
+	warnings := historyInternTable[string]{}
+	history := make([]historyHTMLSample, len(report.History))
+	for i, sample := range report.History {
+		minute := historyHTMLSample{Time: sample.Time, Expected: sample.Expected}
+		if sample.Nodes != nil {
+			minute.Nodes = make([][2]int, 0, len(sample.Nodes))
+		}
+		for _, node := range sample.Nodes {
+			m, err := metadata.intern(historyHTMLMetadata{node.Cluster, node.Name, node.Pool, node.SKU, node.Inventory, node.SwiftAdvertised})
+			if err != nil {
+				return nil, err
+			}
+			q, err := quantities.intern([4]utilizationHistoryResources{node.Capacity, node.Allocatable, node.Usage, node.Requests})
+			if err != nil {
+				return nil, err
+			}
+			minute.Nodes = append(minute.Nodes, [2]int{m, q})
+		}
+		for _, warning := range sample.Warnings {
+			w, err := warnings.intern(warning)
+			if err != nil {
+				return nil, err
+			}
+			minute.Warnings = append(minute.Warnings, w)
+		}
+		history[i] = minute
+	}
+	return json.Marshal(struct {
+		utilizationReport
+		History    []historyHTMLSample `json:"history"`
+		Metadata   []json.RawMessage   `json:"metadata"`
+		Quantities []json.RawMessage   `json:"quantities"`
+		Messages   []json.RawMessage   `json:"messages"`
+	}{report, history, metadata.values, quantities.values, warnings.values})
+}
+
+type historyInternTable[T any] struct {
+	indices map[string]int
+	values  []json.RawMessage
+}
+
+func (table *historyInternTable[T]) intern(value T) (int, error) {
+	data, err := json.Marshal(value)
+	if err != nil {
+		return 0, err
+	}
+	if index, ok := table.indices[string(data)]; ok {
+		return index, nil
+	}
+	if table.indices == nil {
+		table.indices = map[string]int{}
+	}
+	index := len(table.values)
+	table.indices[string(data)] = index
+	table.values = append(table.values, data)
+	return index, nil
 }
