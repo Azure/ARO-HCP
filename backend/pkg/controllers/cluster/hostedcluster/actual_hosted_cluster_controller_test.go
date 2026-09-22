@@ -154,7 +154,10 @@ func TestActualHostedClusterSyncer_SkipsDeletingCluster(t *testing.T) {
 	assert.Nil(t, stored.Status.ActualHostedCluster, "a cluster being deleted should not be mirrored")
 }
 
-func TestActualHostedClusterSyncer_MirrorsStableState(t *testing.T) {
+// The mirror is stored verbatim: server-side bookkeeping that a consumer never
+// reads still travels, because a mirror that edits what it mirrors forces every
+// consumer to know the stripping policy.
+func TestActualHostedClusterSyncer_MirrorsVerbatim(t *testing.T) {
 	ctx := utils.ContextWithLogger(context.Background(), logr.Discard())
 	mockResourcesDBClient := corecosmosstoragetesting.NewMockResourcesDBClient()
 	createTestHCPCluster(t, ctx, mockResourcesDBClient)
@@ -162,19 +165,16 @@ func TestActualHostedClusterSyncer_MirrorsStableState(t *testing.T) {
 	hostedCluster := newHostedCluster()
 	hostedCluster.ResourceVersion = "12345"
 	hostedCluster.ManagedFields = []metav1.ManagedFieldsEntry{{Manager: "control-plane-operator"}}
-	hostedCluster.Annotations = map[string]string{
-		"hypershift.openshift.io/cluster":                  "keep-me",
-		"kubectl.kubernetes.io/last-applied-configuration": "volatile",
-	}
+	hostedCluster.Annotations = map[string]string{"hypershift.openshift.io/cluster": "keep-me"}
 
 	require.NoError(t, newTestSyncer(t, mockResourcesDBClient, hostedCluster).SyncOnce(ctx, testKey))
 
 	stored := getServiceProviderCluster(t, ctx, mockResourcesDBClient)
 	require.NotNil(t, stored.Status.ActualHostedCluster)
-	assert.Empty(t, stored.Status.ActualHostedCluster.ResourceVersion, "the mirror must strip resourceVersion")
-	assert.Empty(t, stored.Status.ActualHostedCluster.ManagedFields, "the mirror must strip managedFields")
+	assert.Equal(t, "12345", stored.Status.ActualHostedCluster.ResourceVersion, "the mirror must not strip resourceVersion")
+	assert.Equal(t, []metav1.ManagedFieldsEntry{{Manager: "control-plane-operator"}}, stored.Status.ActualHostedCluster.ManagedFields,
+		"the mirror must not strip managedFields")
 	assert.Equal(t, "keep-me", stored.Status.ActualHostedCluster.Annotations["hypershift.openshift.io/cluster"])
-	assert.NotContains(t, stored.Status.ActualHostedCluster.Annotations, lastAppliedConfigurationAnnotation)
 }
 
 func newTestSyncer(t *testing.T, mockResourcesDBClient *corecosmosstoragetesting.MockResourcesDBClient, hostedCluster *hsv1beta1.HostedCluster) *actualHostedClusterSyncer {
