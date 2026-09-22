@@ -64,6 +64,7 @@ type fakeCertificates struct {
 	deletedListError int // 1-based page number
 	activeLists      int
 	deletedLists     int
+	deletedPagesRead int
 	gets             []string
 	deletes          []string
 	deletedGets      []string
@@ -96,6 +97,7 @@ func (f *fakeCertificates) NewListDeletedCertificatePropertiesPager(*azcertifica
 		More: func(azcertificates.ListDeletedCertificatePropertiesResponse) bool { return i < len(f.deletedPages) },
 		Fetcher: func(context.Context, *azcertificates.ListDeletedCertificatePropertiesResponse) (azcertificates.ListDeletedCertificatePropertiesResponse, error) {
 			i++
+			f.deletedPagesRead++
 			if i == f.deletedListError {
 				return azcertificates.ListDeletedCertificatePropertiesResponse{}, errors.New("deleted certificate page failed")
 			}
@@ -346,7 +348,7 @@ func TestDryRunInventoryAndLimit(t *testing.T) {
 	if a.lists != 1 || b.lists != 1 {
 		t.Fatalf("must inventory both subscriptions: %d, %d", a.lists, b.lists)
 	}
-	for _, expected := range []string{`"Scanned":3`, `"Eligible":2`, `"Selected":1`, `"DeletedScanned":2`, `"PurgeEligible":2`, `"PurgeSelected":1`, `"live-owner":1`, `"limit":1`, `"purge-limit":1`} {
+	for _, expected := range []string{`"Scanned":3`, `"Eligible":2`, `"Selected":1`, `"DeletedScanned":1`, `"PurgeEligible":1`, `"PurgeSelected":1`, `"live-owner":1`, `"limit":1`, `"purge-limit":1`} {
 		if !strings.Contains(logs.String(), expected) {
 			t.Errorf("missing %s in %s", expected, logs.String())
 		}
@@ -587,14 +589,22 @@ func TestPurgeRevalidation(t *testing.T) {
 
 func TestPurgeOnlySkipsActiveInventoryAndOwnerGuards(t *testing.T) {
 	s, f, a, b := newTestSweeper("maestro-server-j1234567")
-	f.deletedPages = [][]*azcertificates.DeletedCertificateProperties{{deletedCertificate("maestro-server-j2345678")}}
+	f.deletedPages = [][]*azcertificates.DeletedCertificateProperties{
+		{deletedCertificate("maestro-server-j2345678")},
+		{deletedCertificate("maestro-server-j3456789")},
+	}
+	f.deletedListError = 2
 	opts := options(false)
 	opts.DeleteActive = false
+	opts.MaxPurges = 1
 	if err := s.run(t.Context(), opts); err != nil {
 		t.Fatal(err)
 	}
 	if f.activeLists != 0 || f.deletedLists != 1 {
 		t.Fatalf("unexpected inventories: active=%d deleted=%d", f.activeLists, f.deletedLists)
+	}
+	if f.deletedPagesRead != 1 {
+		t.Fatalf("must stop Key Vault paging at purge limit; read %d pages", f.deletedPagesRead)
 	}
 	if a.lists != 0 || b.lists != 0 {
 		t.Fatalf("purge-only must not require owner inventory: %d, %d", a.lists, b.lists)

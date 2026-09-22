@@ -176,12 +176,21 @@ func (s *sweeper) run(ctx context.Context, opts Options) error {
 	if opts.PurgeDeleted {
 		deletedSeen := map[string]bool{}
 		deletedPager := s.certificates.NewListDeletedCertificatePropertiesPager(nil)
+	deletedInventory:
 		for deletedPager.More() {
+			if len(purgeCandidates) >= opts.MaxPurges {
+				counts.Skipped["purge-limit"]++
+				break
+			}
 			page, err := deletedPager.NextPage(ctx)
 			if err != nil {
 				return fmt.Errorf("list deleted certificate metadata (no changes attempted): %w", err)
 			}
 			for _, cert := range page.Value {
+				if len(purgeCandidates) >= opts.MaxPurges {
+					counts.Skipped["purge-limit"]++
+					break deletedInventory
+				}
 				counts.DeletedScanned++
 				name, _, reason := eligibleDeleted(cert)
 				if reason != "" {
@@ -193,10 +202,6 @@ func (s *sweeper) run(ctx context.Context, opts Options) error {
 				}
 				deletedSeen[name] = true
 				counts.PurgeEligible++
-				if len(purgeCandidates) >= opts.MaxPurges {
-					counts.Skipped["purge-limit"]++
-					continue
-				}
 				purgeCandidates = append(purgeCandidates, cert)
 				counts.PurgeSelected++
 				logger.Info("Selected deleted CI certificate", "name", name, "deleted", cert.DeletedDate, "scheduledPurge", cert.ScheduledPurgeDate, "recoveryID", cert.RecoveryID)
