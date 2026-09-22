@@ -177,6 +177,26 @@ func (m *ExternalTestResource) NewExternal() any {
 	panic("implement me")
 }
 
+func (m *ExternalTestResource) ClearReadOnlyFields() {
+	if m == nil {
+		return
+	}
+	// Keep Name for path mismatch validation and preflight routing.
+	m.ID = nil
+	m.Type = nil
+	m.SystemData = nil
+	if m.Identity != nil {
+		m.Identity.PrincipalID = nil
+		m.Identity.TenantID = nil
+		for _, assigned := range m.Identity.UserAssignedIdentities {
+			if assigned != nil {
+				assigned.ClientID = nil
+				assigned.PrincipalID = nil
+			}
+		}
+	}
+}
+
 func (m *ExternalTestResource) GetVersion() coreapi.Version {
 	// FIXME Implement if there's a need for it in tests.
 	return nil

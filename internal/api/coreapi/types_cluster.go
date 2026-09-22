@@ -207,6 +207,7 @@ type CustomerDNSProfile struct {
 
 // ServiceProviderDNSProfile represents the DNS configuration of the cluster.
 type ServiceProviderDNSProfile struct {
+	// Written by: ClusterPropertiesSync
 	BaseDomain string `json:"baseDomain,omitempty"`
 }
 
@@ -223,6 +224,7 @@ type NetworkProfile struct {
 // ServiceProviderConsoleProfile represents a cluster web console configuration.
 // Visibility for the entire struct is "read".
 type ServiceProviderConsoleProfile struct {
+	// Written by: ClusterPropertiesSync
 	URL string `json:"url,omitempty"`
 }
 
@@ -233,6 +235,7 @@ type CustomerAPIProfile struct {
 }
 
 type ServiceProviderAPIProfile struct {
+	// Written by: ClusterPropertiesSync
 	URL string `json:"url,omitempty"`
 }
 
@@ -253,6 +256,7 @@ type CustomerPlatformProfile struct {
 }
 
 type ServiceProviderPlatformProfile struct {
+	// Written by: ClusterPropertiesSync
 	IssuerURL string `json:"issuerUrl,omitempty"`
 }
 

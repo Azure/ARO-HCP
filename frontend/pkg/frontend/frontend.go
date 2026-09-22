@@ -579,6 +579,8 @@ func (f *Frontend) ArmSubscriptionPut(writer http.ResponseWriter, request *http.
 	if err != nil {
 		return coreapi.NewInvalidRequestContentError(err)
 	}
+	// Storage metadata is server-owned, not part of ARM's subscription input.
+	requestSubscription.CosmosMetadata = coreapi.CosmosMetadata{}
 	requestSubscription.ResourceID, err = coreapihelpers.ToSubscriptionResourceID(subscriptionID)
 	if err != nil {
 		return utils.TrackError(err)
@@ -713,6 +715,7 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 				continue
 			}
 
+			versionedCluster.ClearReadOnlyFields()
 			newInternalCluster, err := versionedCluster.ConvertToInternal(nil)
 			if err != nil {
 				resourceLogger.Info("preflight: failed to convert resource", "error", err.Error())
@@ -721,6 +724,7 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 			// Backstop for fields unknown to this API version's SetDefaultValues*.
 			// See docs/api-version-defaults-and-storage.md.
 			newInternalCluster.EnsureDefaults()
+			newInternalCluster.Type = preflightResource.Type
 			newInternalCluster.SystemData = ensureSystemData(newInternalCluster.SystemData, nil)
 			// the external type lacks sufficient data to full produce a valid resourceID.  We do that separately here.
 			parts := []string{
@@ -763,6 +767,7 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 			}
 
 			// Perform static validation as if for a node pool creation request.
+			versionedNodePool.ClearReadOnlyFields()
 			newInternalNodePool, err := versionedNodePool.ConvertToInternal(nil)
 			if err != nil {
 				resourceLogger.Info("preflight: failed to convert resource", "error", err.Error())
@@ -771,6 +776,7 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 			// Backstop for fields unknown to this API version's SetDefaultValues*.
 			// See docs/api-version-defaults-and-storage.md.
 			newInternalNodePool.EnsureDefaults()
+			newInternalNodePool.Type = preflightResource.Type
 			// the external type lacks sufficient data to full produce a valid resourceID.  We do that separately here.
 			parts := []string{
 				"/subscriptions", subscriptionID,
@@ -805,6 +811,7 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 			}
 
 			// Perform static validation as if for an external auth creation request.
+			versionedExternalAuth.ClearReadOnlyFields()
 			newInternalAuth, err := versionedExternalAuth.ConvertToInternal(nil)
 			if err != nil {
 				resourceLogger.Info("preflight: failed to convert resource", "error", err.Error())
@@ -813,6 +820,7 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 			// Backstop for fields unknown to this API version's SetDefaultValues*.
 			// See docs/api-version-defaults-and-storage.md.
 			newInternalAuth.EnsureDefaults()
+			newInternalAuth.Type = preflightResource.Type
 			newInternalAuth.SystemData = ensureSystemData(newInternalAuth.SystemData, nil)
 			// the external type lacks sufficient data to full produce a valid resourceID.  We do that separately here.
 			parts := []string{

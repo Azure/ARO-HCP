@@ -198,6 +198,7 @@ func decodeDesiredNodePoolCreate(ctx context.Context, azureLocation string) (*co
 	if err := json.Unmarshal(body, &externalNodePoolFromRequest); err != nil {
 		return nil, utils.TrackError(coreapi.NewInvalidRequestContentError(err))
 	}
+	externalNodePoolFromRequest.ClearReadOnlyFields()
 	newInternalNodePool, err := externalNodePoolFromRequest.ConvertToInternal(nil)
 	if err != nil {
 		return nil, utils.TrackError(err)

@@ -217,6 +217,7 @@ func decodeDesiredClusterCreate(ctx context.Context, azureLocation string, reque
 	if err := json.Unmarshal(body, &externalClusterFromRequest); err != nil {
 		return nil, utils.TrackError(coreapi.NewInvalidRequestContentError(err))
 	}
+	externalClusterFromRequest.ClearReadOnlyFields()
 	newInternalCluster, err := externalClusterFromRequest.ConvertToInternal(nil)
 	if err != nil {
 		return nil, utils.TrackError(err)

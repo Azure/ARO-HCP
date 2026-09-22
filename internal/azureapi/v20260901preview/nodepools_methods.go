@@ -38,6 +38,21 @@ func (h *NodePool) NewExternal() any {
 	return &NodePool{}
 }
 
+func (h *NodePool) ClearReadOnlyFields() {
+	if h == nil {
+		return
+	}
+	// Keep Name for path mismatch validation and preflight routing.
+	h.ID = nil
+	h.Type = nil
+	h.SystemData = nil
+	clearReadOnlyIdentityFields(h.Identity)
+	if h.Properties != nil {
+		h.Properties.ProvisioningState = nil
+		h.Properties.Status = nil
+	}
+}
+
 func SetDefaultValuesNodePool(obj *NodePool) {
 	if obj.Properties == nil {
 		obj.Properties = &generated.NodePoolProperties{}

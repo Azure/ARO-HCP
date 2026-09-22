@@ -96,6 +96,31 @@ metadata helpers live under [metadataapihelpers](../internal/apihelpers/metadata
 [kubeapplierapihelpers](../internal/apihelpers/kubeapplierapihelpers/).
 The helper-package move does not change endpoint ownership or transactional boundaries.
 
+### Read-Only Create Fields
+
+For cluster, node-pool and external-auth creates in every supported API version,
+the frontend calls `ClearReadOnlyFields()` after successful JSON unmarshaling and
+before `ConvertToInternal(nil)`. Supplied `readOnly` fields are discarded rather
+than converted or persisted: resource `id`, `type`, `systemData`, provisioning
+state, status/conditions where exposed, cluster API/console/issuer URLs and DNS
+`baseDomain`, and managed-identity principal/tenant IDs and user-assigned identity
+client/principal IDs. `name` is retained for the existing request-path mismatch
+check; persisted resource identity still comes from the request path. JSON decode
+errors retain their existing handling; clearing does not bypass unmarshaling.
+
+Deployment preflight applies the same clearing before conversion for all three
+resource types. It retains `name` for resource routing and restores `type` from
+the preflight envelope before validation; it does not persist resources.
+
+Writable customer inputs and their defaulting/validation are unchanged, including
+DNS `baseDomainPrefix`, external-auth issuer URL/client IDs, and managed-identity
+type/resource-ID selections. The frontend still generates resource metadata,
+operation records, active-operation references and initial `Accepted` provisioning
+state. Backend controllers remain authoritative for observed endpoints, resolved
+identity values and status. This is preventive create-input handling, not a repair
+or migration of existing Cosmos documents; PUT-update/PATCH read-only preservation
+is unchanged.
+
 ### PUT Subscription
 
 **Path:** `PUT /subscriptions/{subscriptionId}`
@@ -104,7 +129,7 @@ The helper-package move does not change endpoint ownership or transactional boun
 
 | Object | Fields Written |
 |--------|---------------|
-| `Subscription` | <ul><li>All fields from request body (`State`, `Properties.*`)</li><li>On create: `CosmosMetadata.ResourceID`, `PartitionKey`</li><li>On replace: preserves `CosmosMetadata` from existing doc</li></ul> |
+| `Subscription` | <ul><li>Writable fields from request body (`State`, `Properties.*`)</li><li>Supplied `CosmosMetadata` is zeroed after unmarshal, before deriving `ResourceID` and `PartitionKey` from the request path</li><li>On create: server-owned storage metadata</li><li>On replace: preserves `CosmosMetadata` from existing doc, including its ETag</li></ul> |
 
 Side effect: if `State == Deleted`, calls `DeleteAllResourcesInSubscription` which
 transitively deletes all clusters (and their children) via transactional batches.
@@ -119,7 +144,7 @@ transitively deletes all clusters (and their children) via transactional batches
 
 | Object | Fields Written |
 |--------|---------------|
-| `HCPOpenShiftCluster` | <ul><li>All `CustomerProperties.*` from request body (unmarshaled, converted to internal, `EnsureDefaults()` applied)</li><li>`TrackedResource.ID` (from URL resource ID)</li><li>`TrackedResource.Name` (from URL resource ID)</li><li>`TrackedResource.Type` (from URL resource ID)</li><li>`TrackedResource.Location` = `azureLocation`</li><li>`Tags`</li><li>`SystemData.CreatedAt`, `SystemData.CreatedBy`, `SystemData.CreatedByType`</li><li>`SystemData.LastModifiedAt`, `SystemData.LastModifiedBy`, `SystemData.LastModifiedByType`</li><li>`CosmosMetadata.ResourceID`, `CosmosMetadata.PartitionKey`</li><li>`ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL` (from `X-Ms-Identity-Url` header)</li><li>`Identity.UserAssignedIdentities` (cleared then rebuilt via `completeClusterIdentity` from `CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators` and `.ServiceManagedIdentity`)</li><li>`ServiceProviderProperties.ActiveOperationID` = new operation's `ResourceID.Name`</li><li>`ServiceProviderProperties.ProvisioningState` = `Accepted`</li></ul> |
+| `HCPOpenShiftCluster` | <ul><li>`CustomerProperties.*` from request body (unmarshaled, read-only fields cleared before conversion to internal, `EnsureDefaults()` applied)</li><li>`TrackedResource.ID` (from URL resource ID)</li><li>`TrackedResource.Name` (from URL resource ID)</li><li>`TrackedResource.Type` (from URL resource ID)</li><li>`TrackedResource.Location` = `azureLocation`</li><li>`Tags`</li><li>`SystemData.CreatedAt`, `SystemData.CreatedBy`, `SystemData.CreatedByType`</li><li>`SystemData.LastModifiedAt`, `SystemData.LastModifiedBy`, `SystemData.LastModifiedByType`</li><li>`CosmosMetadata.ResourceID`, `CosmosMetadata.PartitionKey`</li><li>`ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL` (from `X-Ms-Identity-Url` header)</li><li>`Identity.UserAssignedIdentities` (cleared then rebuilt via `completeClusterIdentity` from `CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators` and `.ServiceManagedIdentity`, without supplied client/principal IDs)</li><li>`ServiceProviderProperties.ActiveOperationID` = new operation's `ResourceID.Name`</li><li>`ServiceProviderProperties.ProvisioningState` = `Accepted`</li></ul> |
 | `Operation` | <ul><li>`Request` = `Create`</li><li>`ExternalID` = cluster ARM resource ID</li><li>`InternalID` = empty</li><li>`Status` = `Accepted`</li><li>`TenantID` (from `X-Ms-Home-Tenant-Id` header)</li><li>`ClientID` (from `X-Ms-Client-Object-Id` header)</li><li>`NotificationURI` (from `X-Ms-Async-Notification-Uri` header)</li><li>`StartTime` = now</li><li>`LastTransitionTime` = now</li><li>`OperationID` = generated ARM resource ID</li><li>`ResourceID` = generated ARM resource ID</li><li>`ClientRequestID`, `CorrelationRequestID` (from correlation data)</li></ul> |
 
 ---
@@ -176,7 +201,7 @@ transitively deletes all clusters (and their children) via transactional batches
 
 | Object | Fields Written |
 |--------|---------------|
-| `HCPOpenShiftClusterNodePool` | <ul><li>All `Properties.*` from request body (unmarshaled, converted to internal, `EnsureDefaults()` applied)</li><li>`TrackedResource.ID`, `TrackedResource.Name`, `TrackedResource.Type`, `TrackedResource.Location`</li><li>`Tags`, `SystemData`</li><li>`CosmosMetadata.ResourceID`, `CosmosMetadata.PartitionKey`</li><li>`ServiceProviderProperties.ActiveOperationID` = new operation's `ResourceID.Name`</li><li>`Properties.ProvisioningState` = `Accepted`</li></ul> |
+| `HCPOpenShiftClusterNodePool` | <ul><li>Writable `Properties.*` from request body (unmarshaled, read-only fields cleared before conversion to internal, `EnsureDefaults()` applied)</li><li>`TrackedResource.ID`, `TrackedResource.Name`, `TrackedResource.Type`, `TrackedResource.Location`</li><li>`Tags`, `SystemData`</li><li>`CosmosMetadata.ResourceID`, `CosmosMetadata.PartitionKey`</li><li>`ServiceProviderProperties.ActiveOperationID` = new operation's `ResourceID.Name`</li><li>`Properties.ProvisioningState` = `Accepted`</li></ul> |
 | `Operation` | <ul><li>`Request` = `Create`</li><li>`ExternalID` = node pool ARM resource ID</li><li>`InternalID` = empty</li><li>`Status` = `Accepted`</li><li>`TenantID`, `ClientID`, `NotificationURI`</li></ul> |
 
 ---
@@ -216,7 +241,7 @@ transitively deletes all clusters (and their children) via transactional batches
 
 | Object | Fields Written |
 |--------|---------------|
-| `HCPOpenShiftClusterExternalAuth` | <ul><li>All `Properties.*` from request body (unmarshaled, converted to internal, `EnsureDefaults()` applied)</li><li>`ProxyResource.ID`, `ProxyResource.Name`, `ProxyResource.Type`</li><li>`SystemData`</li><li>`CosmosMetadata.ResourceID`, `CosmosMetadata.PartitionKey`</li><li>`ServiceProviderProperties.ActiveOperationID` = new operation's `ResourceID.Name`</li><li>`Properties.ProvisioningState` = `Accepted`</li></ul> |
+| `HCPOpenShiftClusterExternalAuth` | <ul><li>Writable `Properties.*` from request body (unmarshaled, read-only fields cleared before conversion to internal, `EnsureDefaults()` applied)</li><li>`ProxyResource.ID`, `ProxyResource.Name`, `ProxyResource.Type`</li><li>`SystemData`</li><li>`CosmosMetadata.ResourceID`, `CosmosMetadata.PartitionKey`</li><li>`ServiceProviderProperties.ActiveOperationID` = new operation's `ResourceID.Name`</li><li>`Properties.ProvisioningState` = `Accepted`</li></ul> |
 | `Operation` | <ul><li>`Request` = `Create`</li><li>`ExternalID` = external auth ARM resource ID</li><li>`InternalID` = empty</li><li>`Status` = `Accepted`</li></ul> |
 
 ---
@@ -456,7 +481,7 @@ Reads mirrored Kubernetes content and updates service-provider cluster `Status.H
 
 [Source](../backend/pkg/controllers/cluster/properties/cluster_properties_sync.go) · **Trigger:** Cluster; 5m.
 
-Reads Cluster Service and synchronizes cluster service-provider API/console/DNS endpoints and issuer URL. Does not submit a Cluster Service configuration change.
+Reads mirrored HostedCluster state and synchronizes cluster service-provider API/console URLs, DNS base domain and issuer URL. These values are not taken from create request bodies. Does not submit a Cluster Service configuration change.
 
 #### ClusterBaseDomainPrefixSync
 
@@ -1340,7 +1365,8 @@ actors and use optimistic concurrency; retries must re-read on conflict.
 | Cluster `PendingClusterServiceID` / `ClusterServiceID` | [Pending ID assignment](#clusterpendingclusterserviceidassign) reserves the ID. [Cluster creation](#clusterclusterservicecreate) confirms the external ID and clears pending. The [ID clearer](#clusterdeletionclusterserviceidclearer) clears confirmed ID only after external absence. Node-pool/external-auth create and clear controllers similarly share their confirmed-ID fields. |
 | `ClusterServiceDeletionTimestamp` | Each delete dispatcher stamps completion of dispatch/creation-race handling; cleanup also requires the confirmed ID cleared. It is not a timestamp of all Azure/Kubernetes deletion. |
 | Cluster `ClusterUID`, `BillingDocumentCosmosID`; Billing document `DeletionTime` | [BackfillClusterUID](#backfillclusteruid) repairs UID using billing as input. [CreateBillingDoc](#createbillingdoc) creates billing and links it. [ClusterDeletionController](#clusterdeletioncontroller) and [OrphanedBillingCleanup](#orphanedbillingcleanup) mark billing deleted. |
-| Cluster `Identity.UserAssignedIdentities` | Frontend supplies identity intent; [ClusterIdentitySync](#clusteridentitysync) fills resolved identity fields. Azure identities themselves are not created by that syncer. |
+| Cluster `ServiceProviderProperties.API.URL`, `.Console.URL`, `.DNS.BaseDomain`, `.Platform.IssuerURL` | [ClusterPropertiesSync](#clusterpropertiessync) writes observed values. Frontend clears supplied values on create rather than persisting them; updates preserve stored values. |
+| Cluster `Identity.UserAssignedIdentities` | Frontend supplies identity intent without create-body client/principal IDs; [ClusterIdentitySync](#clusteridentitysync) fills resolved identity fields. Updates preserve stored resolved values. Azure identities themselves are not created by that syncer. |
 | Cluster/node-pool `Status.ActiveVersions` | [ControlPlaneActiveVersions](#controlplaneactiveversions) writes distinct major.minor cluster versions; [NodePoolActiveVersions](#nodepoolactiveversions) writes full node-pool versions. The 2026-10-01-preview API returns these stored observations through `properties.status.activeVersions`; customer configuration remains separately owned. |
 | ARM Degraded / RequirementsValid conditions | Resource-specific aggregators combine Controller or service-provider validation conditions. A validation failure and a reconcile error are separate signals. |
 
