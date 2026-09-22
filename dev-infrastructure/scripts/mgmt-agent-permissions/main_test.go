@@ -186,11 +186,10 @@ func TestRevoke(t *testing.T) {
 	read := response{verb: http.MethodGet, role: role}
 	absent := response{verb: http.MethodGet, err: missing}
 	for _, tc := range []struct {
-		name             string
-		enabled, wantErr bool
-		responses        []response
+		name      string
+		wantErr   bool
+		responses []response
 	}{
-		{name: "enabled", enabled: true},
 		{name: "already absent", responses: []response{absent}},
 		{name: "revoke and verify", responses: []response{read, {verb: http.MethodDelete}, absent}},
 		{name: "concurrent removal", responses: []response{read, {verb: http.MethodDelete, err: missing}, absent}},
@@ -202,7 +201,6 @@ func TestRevoke(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			c := cfg
-			c.enabled = tc.enabled
 			client := &fakeAssignments{t: t, id: c.assignmentID, responses: tc.responses}
 			err := revoke(t.Context(), c, client)
 			if (err != nil) != tc.wantErr || len(client.responses) != 0 {

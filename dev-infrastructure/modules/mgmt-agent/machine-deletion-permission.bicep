@@ -31,8 +31,8 @@ resource cleanupAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' 
     principalType: 'ServicePrincipal'
     roleDefinitionId: cleanupRoleDefinitionId
     conditionVersion: '2.0'
-    condition: '(!(ActionMatches{\'Microsoft.Authorization/roleAssignments/delete\'})) OR (@Resource[Microsoft.Authorization/roleAssignments:RoleDefinitionId] ForAnyOfAnyValues:GuidEquals {${machineDeletionRoleGuid}} AND @Resource[Microsoft.Authorization/roleAssignments:PrincipalId] ForAnyOfAnyValues:GuidEquals {${principalId}})'
-    description: 'Deployment identity may revoke only this mgmt-agent principal and machine-deletion role.'
+    condition: '(!(ActionMatches{\'Microsoft.Authorization/roleAssignments/delete\'})) OR (@Resource[Microsoft.Authorization/roleAssignments:RoleDefinitionId] ForAnyOfAnyValues:GuidEquals {${machineDeletionRoleGuid}})'
+    description: 'Deployment identity may revoke the dedicated machine-deletion role across principal rotations.'
   }
 }
 

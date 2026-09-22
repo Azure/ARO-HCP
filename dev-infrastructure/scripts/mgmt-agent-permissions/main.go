@@ -70,14 +70,19 @@ func parseConfig(env func(string) string) (config, error) {
 	if _, err := uuid.Parse(role.Name); err != nil {
 		return c, fmt.Errorf("invalid role definition name: %w", err)
 	}
-	assignment, err := azcorearm.ParseResourceID(c.assignmentID)
-	if err != nil || !strings.EqualFold(c.assignmentID, c.clusterID+"/providers/Microsoft.Authorization/roleAssignments/"+assignment.Name) {
+	if !assignmentAtScope(c.assignmentID, c.clusterID) {
 		return c, fmt.Errorf("ROLE_ASSIGNMENT_ID must be scoped to CLUSTER_ID")
 	}
-	if _, err := uuid.Parse(assignment.Name); err != nil {
-		return c, fmt.Errorf("invalid role assignment name: %w", err)
-	}
 	return c, nil
+}
+
+func assignmentAtScope(id, scope string) bool {
+	assignment, err := azcorearm.ParseResourceID(id)
+	if err != nil {
+		return false
+	}
+	_, err = uuid.Parse(assignment.Name)
+	return err == nil && strings.EqualFold(id, scope+"/providers/Microsoft.Authorization/roleAssignments/"+assignment.Name)
 }
 
 type roleAssignments interface {
@@ -95,10 +100,6 @@ func matches(value *string, expected string) bool {
 }
 
 func revoke(ctx context.Context, c config, client roleAssignments) error {
-	if c.enabled {
-		slog.Info("node mitigation is enabled; retaining machine-deletion assignment")
-		return nil
-	}
 	assignment, err := client.GetByID(ctx, c.assignmentID, nil)
 	if notFound(err) {
 		slog.Info("machine-deletion assignment is absent", "assignmentId", c.assignmentID)
@@ -127,13 +128,82 @@ func revoke(ctx context.Context, c config, client roleAssignments) error {
 	return nil
 }
 
-func run(ctx context.Context) error {
-	c, err := parseConfig(os.Getenv)
+func listAssignments(ctx context.Context, c config, client *armauthorization.RoleAssignmentsClient) ([]armauthorization.RoleAssignment, error) {
+	filter := "atScope()"
+	pager := client.NewListForScopePager(c.clusterID, &armauthorization.RoleAssignmentsClientListForScopeOptions{Filter: &filter})
+	var assignments []armauthorization.RoleAssignment
+	for pager.More() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("list machine-deletion assignments: %w", err)
+		}
+		for _, assignment := range page.Value {
+			if assignment == nil || assignment.Properties == nil ||
+				assignment.Properties.Scope == nil || assignment.Properties.RoleDefinitionID == nil ||
+				*assignment.Properties.Scope == "" || *assignment.Properties.RoleDefinitionID == "" {
+				return nil, fmt.Errorf("listed assignment has incomplete scope or role metadata")
+			}
+			p := assignment.Properties
+			if !matches(p.Scope, c.clusterID) || !matches(p.RoleDefinitionID, c.roleDefinitionID) {
+				continue
+			}
+			if assignment.ID == nil || !assignmentAtScope(*assignment.ID, c.clusterID) || p.PrincipalID == nil {
+				return nil, fmt.Errorf("listed machine-deletion assignment has invalid resource or principal metadata")
+			}
+			if _, err := uuid.Parse(*p.PrincipalID); err != nil {
+				return nil, fmt.Errorf("invalid listed principal: %w", err)
+			}
+			if matches(assignment.ID, c.assignmentID) && !matches(p.PrincipalID, c.principalID) {
+				return nil, fmt.Errorf("current assignment has an unexpected principal")
+			}
+			assignments = append(assignments, *assignment)
+		}
+	}
+	return assignments, nil
+}
+
+func reconcile(ctx context.Context, c config, client *armauthorization.RoleAssignmentsClient) error {
+	assignments, err := listAssignments(ctx, c, client)
+	if err != nil {
+		return err
+	}
+	currentFound := false
+	for _, assignment := range assignments {
+		currentFound = currentFound || matches(assignment.ID, c.assignmentID)
+	}
+	if c.enabled && !currentFound {
+		return fmt.Errorf("enabled mitigation is missing its current machine-deletion assignment")
+	}
+	for _, assignment := range assignments {
+		if c.enabled && matches(assignment.ID, c.assignmentID) {
+			continue
+		}
+		target := c
+		target.assignmentID = *assignment.ID
+		target.principalID = *assignment.Properties.PrincipalID
+		if err := revoke(ctx, target, client); err != nil {
+			return err
+		}
+	}
+	remaining, err := listAssignments(ctx, c, client)
 	if err != nil {
 		return err
 	}
 	if c.enabled {
-		return revoke(ctx, c, nil)
+		if len(remaining) != 1 || !matches(remaining[0].ID, c.assignmentID) {
+			return fmt.Errorf("enabled mitigation must retain only its current machine-deletion assignment")
+		}
+	} else if len(remaining) != 0 {
+		return fmt.Errorf("disabled mitigation still has machine-deletion assignments")
+	}
+	slog.Info("machine-deletion assignments reconciled", "clusterId", c.clusterID, "enabled", c.enabled, "remaining", len(remaining))
+	return nil
+}
+
+func run(ctx context.Context) error {
+	c, err := parseConfig(os.Getenv)
+	if err != nil {
+		return err
 	}
 	credential, err := azidentity.NewDefaultAzureCredential(&azidentity.DefaultAzureCredentialOptions{RequireAzureTokenCredentials: true})
 	if err != nil {
@@ -143,7 +213,7 @@ func run(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("create role assignments client: %w", err)
 	}
-	return revoke(ctx, c, client)
+	return reconcile(ctx, c, client)
 }
 
 func main() {

@@ -20,15 +20,25 @@ including INT, STG and PROD, keep this flag disabled. Runtime mode separately
 defaults to `disabled`; changing the runtime ConfigMap cannot override a disabled
 deployment flag.
 
-The management-infrastructure rollout explicitly removes the machine-deletion
-assignment when this flag is false. It verifies the exact subscription, cluster,
-assignment, principal and role before deletion, and verifies that the assignment
-is absent afterward. Reader and the shared machine-deletion role definition remain.
-The deployment identity has a separate cluster-scoped cleanup role with only
-role-assignment read/delete actions; an Azure condition restricts deletion to this
-mgmt-agent principal and machine-deletion role. It cannot create assignments or
-delete machines through that role. Azure RBAC propagation can delay effective
-revocation; changing only the runtime ConfigMap does not revoke Azure permissions.
+The management-infrastructure rollout owns all assignments of the dedicated
+machine-deletion role at the exact management-cluster scope, including manual
+assignments. It enumerates every page before cleanup. With the flag enabled, it
+retains only the current principal's expected assignment; with the flag disabled,
+it removes all assignments of that role at that scope. Identity rotation does not
+leave a former principal's assignment behind.
+
+The helper rechecks each assignment's subscription, cluster, ID, principal and
+role before deletion and verifies the final assignment set. Incomplete discovery,
+invalid metadata or failed verification fails the rollout. Reader, other roles,
+assignments at other scopes and the shared role definition remain untouched.
+
+The deployment identity has a cluster-scoped cleanup role with only assignment
+read/delete actions. Its Azure condition restricts deletion to the dedicated
+machine-deletion role across principals. Azure scope inheritance also permits
+that role's assignment deletion at descendant scopes; the helper acts only at the
+exact cluster scope. It cannot create assignments or delete machines through this
+cleanup role. Azure RBAC propagation can delay effective revocation; changing
+only the runtime ConfigMap does not revoke Azure permissions.
 
 Mgmt-agent requires an explicit `AZURE_TOKEN_CREDENTIALS` selection at startup.
 Helm selects `WorkloadIdentityCredential`. Non-Helm invocations must explicitly
