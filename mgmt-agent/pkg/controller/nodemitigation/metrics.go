@@ -17,14 +17,11 @@ package nodemitigation
 import (
 	"errors"
 	"sync"
-	"time"
 
 	policyv1 "k8s.io/api/policy/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/component-base/metrics"
 	"k8s.io/component-base/metrics/legacyregistry"
-
-	api "github.com/Azure/ARO-HCP/mgmt-agent/pkg/apis/capacityreport/v1alpha1"
 )
 
 var (
@@ -34,21 +31,7 @@ var (
 		Help:           "Mitigation API submissions by action and acceptance outcome.",
 		StabilityLevel: metrics.ALPHA,
 	}, []string{"action", "outcome"})
-	operationResults = metrics.NewCounterVec(&metrics.CounterOpts{
-		Name:           "mgmt_agent_node_mitigation_operation_observations_total",
-		Help:           "AKS deletion operation observations by outcome.",
-		StabilityLevel: metrics.ALPHA,
-	}, []string{"outcome"})
-	budgetUsage = metrics.NewGaugeVec(&metrics.GaugeOpts{
-		Name:           "mgmt_agent_node_mitigation_budget",
-		Help:           "Pool deletion limit, active reservations and available rolling allowance.",
-		StabilityLevel: metrics.ALPHA,
-	}, []string{"pool", "kind"})
-	poolCapacity = metrics.NewGaugeVec(&metrics.GaugeOpts{
-		Name:           "mgmt_agent_node_mitigation_pool_capacity",
-		Help:           "Observed target and healthy capacity for pools with deletion operations.",
-		StabilityLevel: metrics.ALPHA,
-	}, []string{"pool", "kind"})
+
 	workloadAvailability = metrics.NewGaugeVec(&metrics.GaugeOpts{
 		Name:           "mgmt_agent_node_mitigation_workload_available_replicas",
 		Help:           "Available replicas in the most recently evaluated workload; workload identities are recorded in logs.",
@@ -58,7 +41,7 @@ var (
 
 func RegisterMetrics() {
 	registerMetrics.Do(func() {
-		legacyregistry.MustRegister(actionResults, operationResults, budgetUsage, poolCapacity, workloadAvailability)
+		legacyregistry.MustRegister(actionResults, workloadAvailability)
 	})
 }
 
@@ -97,20 +80,4 @@ func recordAction(kind string, fn func() error) error {
 		actionResults.WithLabelValues(kind, actionOutcome(err)).Inc()
 	}
 	return err
-}
-
-func reportState(budget *api.NodeMitigationBudget, now time.Time) {
-	budgetUsage.Reset()
-	for id, baseline := range budget.Status.Pools {
-		active := 0
-		for _, reservation := range budget.Status.Reservations {
-			if reservation.PoolID == id && reservation.ReleasedAt == nil {
-				active++
-			}
-		}
-		pool := poolFromID(id)
-		budgetUsage.WithLabelValues(pool, "limit").Set(float64(deletionLimit(baseline.Size)))
-		budgetUsage.WithLabelValues(pool, "active").Set(float64(active))
-		budgetUsage.WithLabelValues(pool, "available").Set(float64(allowance(budget.Status, id, "", now, budget.Status.Window.Duration)))
-	}
 }

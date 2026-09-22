@@ -1579,7 +1579,7 @@
           "properties": {
             "enabled": {
               "type": "boolean",
-              "description": "Enable node mitigation and its scoped AKS machine-deletion permission. Defaults to false; runtime mode is configured separately."
+              "description": "Enable SWIFT pod mitigation and its Kubernetes eviction permissions. Defaults to false; runtime mode is configured separately."
             },
             "configuration": {
               "type": "string",

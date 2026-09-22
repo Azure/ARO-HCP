@@ -19,78 +19,10 @@ import (
 	"fmt"
 	"time"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
 	api "github.com/Azure/ARO-HCP/mgmt-agent/pkg/apis/capacityreport/v1alpha1"
 )
-
-type PoolObservation struct {
-	ID         string
-	Target     int32
-	Stable     bool
-	Ready      int
-	ObservedAt time.Time
-}
-
-func updateBaseline(previous *api.PoolBaseline, observed PoolObservation, cfg Config, observer string, now time.Time) (api.PoolBaseline, error) {
-	if observed.ID == "" || observed.Target < 0 || observed.ObservedAt.After(now) ||
-		now.Sub(observed.ObservedAt) > cfg.ObservationMaxAge.Duration {
-		return api.PoolBaseline{}, fmt.Errorf("pool observation unavailable or stale")
-	}
-	if previous == nil {
-		if !observed.Stable {
-			return api.PoolBaseline{}, fmt.Errorf("pool operation in progress")
-		}
-		return api.PoolBaseline{Size: observed.Target, Target: observed.Target, ObservedAt: metav1.NewTime(now), Observer: observer}, nil
-	}
-	next := *previous
-	if observed.Target < next.Size {
-		next.Size = observed.Target
-	}
-	continuous := previous.Observer == observer &&
-		!previous.ObservedAt.After(now) && now.Sub(previous.ObservedAt.Time) <= cfg.ObservationMaxAge.Duration
-	if observed.Target > next.Size && observed.Stable {
-		if !continuous || previous.Target != observed.Target || next.StableSince == nil {
-			t := metav1.NewTime(now)
-			next.StableSince = &t
-		}
-		if now.Sub(next.StableSince.Time) >= cfg.Window.Duration && observed.Ready >= int(observed.Target) {
-			next.Size = observed.Target
-			next.StableSince = nil
-		}
-	} else {
-		next.StableSince = nil
-	}
-	next.Target, next.ObservedAt, next.Observer = observed.Target, metav1.NewTime(now), observer
-	return next, nil
-}
-
-func deletionLimit(size int32) int {
-	if size <= 0 {
-		return 0
-	}
-	if size < 10 {
-		return 1
-	}
-	return int(size / 10)
-}
-
-// allowance counts every active reservation, including unknown outcomes, and
-// released deletions still inside the window. Retries keep the same reservation.
-func allowance(budget api.NodeMitigationBudgetStatus, poolID, ownReservation string, now time.Time, window time.Duration) int {
-	used := 0
-	for name, reservation := range budget.Reservations {
-		if name == ownReservation || reservation.PoolID != poolID {
-			continue
-		}
-		if reservation.ReleasedAt == nil ||
-			(reservation.DeleteStartedAt != nil && !reservation.DeleteStartedAt.Before(&metav1.Time{Time: now.Add(-window)})) {
-			used++
-		}
-	}
-	return deletionLimit(budget.Pools[poolID].Size) - used
-}
 
 func evictionAllowance(budget api.NodeMitigationBudgetStatus, cfg Config, owner, node types.UID, now time.Time) error {
 	if len(budget.Evictions) >= maxRecords {
@@ -131,17 +63,6 @@ func (c *Controller) pruneBudget(ctx context.Context, cfg Config, revision uint6
 			delete(budget.Status.Evictions, key)
 			changed = true
 		}
-	}
-	for key, reservation := range budget.Status.Reservations {
-		if reservation.ReleasedAt == nil || c.clock().Sub(reservation.ReleasedAt.Time) <= budget.Status.Window.Duration {
-			continue
-		}
-		if reservation.DeleteStartedAt != nil && c.clock().Sub(reservation.DeleteStartedAt.Time) <= budget.Status.Window.Duration {
-			continue
-		}
-		delete(budget.Status.Reservations, key)
-		delete(c.nextPoll, key)
-		changed = true
 	}
 	if changed && cfg.Mode == Enforce {
 		return c.saveBudget(ctx, revision, budget)

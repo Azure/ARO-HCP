@@ -9,8 +9,10 @@
 $schema: "pipeline.schema.v1"
 serviceGroup: Microsoft.Azure.ARO.HCP.Management.Infra
 rolloutName: Management Cluster Rollout
-# Pre-build the Go helpers for Shell steps. The EV2 runner has no Go toolchain;
-# each binary is shipped in its step's workingDir.
+# Pre-build the Go binary invoked by the cluster-create Shell step below. The EV2
+# Shell runner image has no Go toolchain, so the binary is built here and shipped
+# as part of the step's workingDir, same pattern as scripts/grafana-group-roles in
+# global-pipeline-stg.yaml.
 buildStep:
   command: bash
   args:
@@ -22,12 +24,6 @@ buildStep:
     CGO_ENABLED=0 go build -o "${tmp}" ./scripts/aks-cluster-create
     chmod 0755 "${tmp}"
     mv "${tmp}" ./scripts/aks-cluster-create/aks-cluster-create
-    trap - EXIT
-    tmp="$(mktemp ./scripts/mgmt-agent-permissions/mgmt-agent-permissions.XXXXXX)"
-    trap 'rm -f "${tmp}"' EXIT
-    CGO_ENABLED=0 go build -o "${tmp}" ./scripts/mgmt-agent-permissions
-    chmod 0755 "${tmp}"
-    mv "${tmp}" ./scripts/mgmt-agent-permissions/mgmt-agent-permissions
     trap - EXIT
 resourceGroups:
 - name: global
@@ -704,11 +700,6 @@ resourceGroups:
     parameters: configurations/mgmt-agent-permissions.tmpl.bicepparam
     deploymentLevel: Subscription
     variables:
-    - name: deploymentMsiId
-      input:
-        resourceGroup: global
-        step: output
-        name: globalMSIId
     - name: mgmtAgentPrincipalId
       input:
         resourceGroup: management
@@ -717,54 +708,6 @@ resourceGroups:
     dependsOn:
     - resourceGroup: management
       step: mgmt-agent-output
-  - name: mgmt-agent-permissions-cleanup
-    action: Shell
-    command: ./mgmt-agent-permissions
-    workingDir: ./scripts/mgmt-agent-permissions
-    shellIdentity:
-      input:
-        resourceGroup: global
-        step: output
-        name: globalMSIId
-    variables:
-    - name: NODE_MITIGATION_ENABLED
-      input:
-        resourceGroup: management
-        step: mgmt-agent-permissions
-        name: mitigationEnabled
-    - name: SUBSCRIPTION_ID
-      input:
-        resourceGroup: management
-        step: subscription-output
-        name: subscriptionId
-    - name: PRINCIPAL_ID
-      input:
-        resourceGroup: management
-        step: mgmt-agent-output
-        name: msiPrincipalId
-    - name: CLUSTER_ID
-      input:
-        resourceGroup: management
-        step: mgmt-agent-permissions
-        name: machineDeletionClusterId
-    - name: ROLE_DEFINITION_ID
-      input:
-        resourceGroup: management
-        step: mgmt-agent-permissions
-        name: machineDeletionRoleId
-    - name: ROLE_ASSIGNMENT_ID
-      input:
-        resourceGroup: management
-        step: mgmt-agent-permissions
-        name: machineDeletionAssignmentId
-    dependsOn:
-    - resourceGroup: management
-      step: mgmt-agent-permissions
-    automatedRetry:
-      errorContainsAny:
-      - "AuthorizationFailed"
-      maximumRetryCount: 5
-      durationBetweenRetries: 1m
   - name: kusto-grant-ingest
     action: ARM
     template: templates/kusto-grant-ingest.bicep

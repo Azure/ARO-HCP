@@ -265,8 +265,8 @@ spec:
     schema:
       openAPIV3Schema:
         description: |-
-          NodeMitigationBudget atomically reserves cluster, pool and zone allowance in
-          one namespaced ledger. It must not have a Node owner reference.
+          NodeMitigationBudget records eviction attempts in one namespaced ledger.
+          It must not have a Node owner reference.
         properties:
           apiVersion:
             description: |-
@@ -324,98 +324,11 @@ spec:
                   type: object
                 maxProperties: 1024
                 type: object
-              pools:
-                additionalProperties:
-                  properties:
-                    observedAt:
-                      format: date-time
-                      type: string
-                    observer:
-                      type: string
-                    size:
-                      format: int32
-                      type: integer
-                    stableSince:
-                      format: date-time
-                      type: string
-                    target:
-                      format: int32
-                      type: integer
-                  required:
-                  - observedAt
-                  - observer
-                  - size
-                  - target
-                  type: object
-                maxProperties: 128
-                type: object
-              reservations:
-                additionalProperties:
-                  properties:
-                    deleteStartedAt:
-                      format: date-time
-                      type: string
-                    instanceID:
-                      type: string
-                    machineName:
-                      type: string
-                    message:
-                      maxLength: 4096
-                      type: string
-                    nodeName:
-                      type: string
-                    nodeUID:
-                      description: |-
-                        UID is a type that holds unique ID values, including UUIDs.  Because we
-                        don't ONLY use UUIDs, this is an alias to string.  Being a type captures
-                        intent and helps make sure that UIDs and names do not get conflated.
-                      type: string
-                    operationToken:
-                      maxLength: 65536
-                      type: string
-                    outcome:
-                      enum:
-                      - Unknown
-                      - Pending
-                      - Succeeded
-                      - Failed
-                      - Cancelled
-                      type: string
-                    pollAfter:
-                      format: date-time
-                      type: string
-                    poolID:
-                      type: string
-                    providerID:
-                      type: string
-                    releasedAt:
-                      format: date-time
-                      type: string
-                    reservedAt:
-                      format: date-time
-                      type: string
-                    zone:
-                      type: string
-                  required:
-                  - instanceID
-                  - machineName
-                  - nodeName
-                  - nodeUID
-                  - poolID
-                  - providerID
-                  - reservedAt
-                  - zone
-                  type: object
-                maxProperties: 1024
-                type: object
               version:
                 type: integer
-              window:
-                type: string
             required:
             - evictionWindow
             - version
-            - window
             type: object
         type: object
     served: true

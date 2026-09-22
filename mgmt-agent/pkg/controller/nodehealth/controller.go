@@ -65,10 +65,8 @@ type Controller struct {
 	labeler *labeler
 	clock   func() time.Time
 
-	workqueue        workqueue.TypedRateLimitingInterface[string]
-	config           atomic.Pointer[Config]
-	history          *ReadinessHistory
-	readinessEnabled bool
+	workqueue workqueue.TypedRateLimitingInterface[string]
+	config    atomic.Pointer[Config]
 }
 
 // NewController constructs a Controller and wires the Node, Pod, and Event
@@ -108,7 +106,6 @@ func NewController(
 		},
 		labeler: newLabeler(kubeClientset, recorder, clock),
 		clock:   clock,
-		history: newReadinessHistory(kubeClientset, clock),
 		workqueue: workqueue.NewTypedRateLimitingQueueWithConfig(
 			workqueue.DefaultTypedControllerRateLimiter[string](),
 			workqueue.TypedRateLimitingQueueConfig[string]{Name: ControllerName},
@@ -144,23 +141,7 @@ func (c *Controller) Config() Config { return *c.config.Load() }
 
 // SetConfig atomically replaces the configuration snapshot.
 func (c *Controller) SetConfig(cfg Config) {
-	if !cfg.Enabled {
-		c.history.invalidate()
-	}
 	c.config.Store(&cfg)
-}
-
-func (c *Controller) CheckNeverReady(node *corev1.Node, createdAt time.Time) error {
-	if !c.readinessEnabled || !c.Config().Enabled {
-		return fmt.Errorf("node-health readiness observation is disabled")
-	}
-
-	return c.history.Check(node, createdAt)
-}
-
-// EnableReadinessHistory sets the deployment gate before controllers start.
-func (c *Controller) EnableReadinessHistory(enabled bool) {
-	c.readinessEnabled = enabled
 }
 
 // OnConfigMap parses config from the named key of a ConfigMap and applies it.
@@ -259,9 +240,6 @@ func (c *Controller) Run(ctx context.Context, workers int) error {
 	// immediately.
 
 	logger.Info("Starting workers", "count", workers)
-	if c.readinessEnabled {
-		go c.history.run(ctx, func() bool { return c.Config().Enabled })
-	}
 	for i := 0; i < workers; i++ {
 		go wait.UntilWithContext(ctx, c.runWorker, time.Second)
 	}

@@ -36,7 +36,7 @@ import (
 
 func swiftFixture(t *testing.T) *fixture {
 	t.Helper()
-	f := newFixture(t, 11, 0)
+	f := newFixture(t, 11)
 	selector := metav1.LabelSelector{MatchLabels: map[string]string{"app": "router"}}
 	f.cfg.Workloads = []WorkloadPolicy{{NamespaceSelector: selector, PodSelector: selector, DeploymentSelector: selector, MinAvailableReplicas: ptr.To(int32(1))}}
 	if err := f.controller.SetConfig(f.cfg); err != nil {
@@ -83,7 +83,6 @@ func evictionCount(actions []ktesting.Action) int {
 
 func TestSwiftEvictsWithoutCordonOrAzureDependency(t *testing.T) {
 	f := swiftFixture(t)
-	f.azure.poolErr = errors.New("Azure unavailable")
 	f.kube.PrependReactor("create", "pods", func(action ktesting.Action) (bool, runtime.Object, error) {
 		if action.GetSubresource() != "eviction" {
 			return false, nil, nil
@@ -96,8 +95,8 @@ func TestSwiftEvictsWithoutCordonOrAzureDependency(t *testing.T) {
 		return true, nil, nil
 	})
 	f.tick(t)
-	if evictionCount(f.kube.Actions()) != 1 || f.azure.deletes != 0 || len(f.ledger(t).Status.Reservations) != 0 {
-		t.Fatal("SWIFT used node deletion accounting")
+	if evictionCount(f.kube.Actions()) != 1 {
+		t.Fatal("SWIFT did not submit exactly one eviction")
 	}
 	for _, a := range f.kube.Actions() {
 		if a.GetVerb() == "delete" || (a.GetVerb() == "patch" && a.GetResource().Resource == "nodes") {
@@ -160,6 +159,46 @@ func TestSwiftAuditAndAvailabilityFloors(t *testing.T) {
 			}
 			if len(mutations(f.kube.Actions())) != 0 || len(mutations(f.records.Actions())) != 0 {
 				t.Fatal("audit wrote state")
+			}
+		})
+	}
+}
+
+func TestSwiftDisabledMakesNoWrites(t *testing.T) {
+	f := swiftFixture(t)
+	if err := f.controller.SetConfig(Default()); err != nil {
+		t.Fatal(err)
+	}
+	f.kube.ClearActions()
+	f.records.ClearActions()
+	f.tick(t)
+	if len(mutations(f.kube.Actions())) != 0 || len(mutations(f.records.Actions())) != 0 {
+		t.Fatal("disabled mitigation wrote state")
+	}
+}
+
+func TestSwiftConfigurationChangeFencesAdmission(t *testing.T) {
+	for _, mode := range []Mode{Disabled, Audit, Enforce} {
+		t.Run(string(mode), func(t *testing.T) {
+			f := swiftFixture(t)
+			reads := 0
+			f.kube.PrependReactor("get", "pods", func(action ktesting.Action) (bool, runtime.Object, error) {
+				if action.(ktesting.GetAction).GetName() == "router-stalled" {
+					reads++
+					if reads == 2 {
+						f.cfg.Mode = mode
+						if err := f.controller.SetConfig(f.cfg); err != nil {
+							t.Fatal(err)
+						}
+					}
+				}
+				return false, nil, nil
+			})
+			if err := f.controller.reconcile(context.Background()); !errors.Is(err, ErrPaused) {
+				t.Fatalf("configuration change was not fenced: %v", err)
+			}
+			if reads != 2 || evictionCount(f.kube.Actions()) != 0 || len(f.ledger(t).Status.Evictions) != 0 {
+				t.Fatal("configuration change admitted a stale eviction attempt")
 			}
 		})
 	}

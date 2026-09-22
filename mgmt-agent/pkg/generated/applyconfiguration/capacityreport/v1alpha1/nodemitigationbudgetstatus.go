@@ -23,12 +23,9 @@ import (
 // NodeMitigationBudgetStatusApplyConfiguration represents a declarative configuration of the NodeMitigationBudgetStatus type for use
 // with apply.
 type NodeMitigationBudgetStatusApplyConfiguration struct {
-	Version        *int                                               `json:"version,omitempty"`
-	Window         *v1.Duration                                       `json:"window,omitempty"`
-	EvictionWindow *v1.Duration                                       `json:"evictionWindow,omitempty"`
-	Pools          map[string]PoolBaselineApplyConfiguration          `json:"pools,omitempty"`
-	Reservations   map[string]MitigationReservationApplyConfiguration `json:"reservations,omitempty"`
-	Evictions      map[string]EvictionRecordApplyConfiguration        `json:"evictions,omitempty"`
+	Version        *int                                        `json:"version,omitempty"`
+	EvictionWindow *v1.Duration                                `json:"evictionWindow,omitempty"`
+	Evictions      map[string]EvictionRecordApplyConfiguration `json:"evictions,omitempty"`
 }
 
 // NodeMitigationBudgetStatusApplyConfiguration constructs a declarative configuration of the NodeMitigationBudgetStatus type for use with
@@ -45,47 +42,11 @@ func (b *NodeMitigationBudgetStatusApplyConfiguration) WithVersion(value int) *N
 	return b
 }
 
-// WithWindow sets the Window field in the declarative configuration to the given value
-// and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the Window field is set to the value of the last call.
-func (b *NodeMitigationBudgetStatusApplyConfiguration) WithWindow(value v1.Duration) *NodeMitigationBudgetStatusApplyConfiguration {
-	b.Window = &value
-	return b
-}
-
 // WithEvictionWindow sets the EvictionWindow field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the EvictionWindow field is set to the value of the last call.
 func (b *NodeMitigationBudgetStatusApplyConfiguration) WithEvictionWindow(value v1.Duration) *NodeMitigationBudgetStatusApplyConfiguration {
 	b.EvictionWindow = &value
-	return b
-}
-
-// WithPools puts the entries into the Pools field in the declarative configuration
-// and returns the receiver, so that objects can be build by chaining "With" function invocations.
-// If called multiple times, the entries provided by each call will be put on the Pools field,
-// overwriting an existing map entries in Pools field with the same key.
-func (b *NodeMitigationBudgetStatusApplyConfiguration) WithPools(entries map[string]PoolBaselineApplyConfiguration) *NodeMitigationBudgetStatusApplyConfiguration {
-	if b.Pools == nil && len(entries) > 0 {
-		b.Pools = make(map[string]PoolBaselineApplyConfiguration, len(entries))
-	}
-	for k, v := range entries {
-		b.Pools[k] = v
-	}
-	return b
-}
-
-// WithReservations puts the entries into the Reservations field in the declarative configuration
-// and returns the receiver, so that objects can be build by chaining "With" function invocations.
-// If called multiple times, the entries provided by each call will be put on the Reservations field,
-// overwriting an existing map entries in Reservations field with the same key.
-func (b *NodeMitigationBudgetStatusApplyConfiguration) WithReservations(entries map[string]MitigationReservationApplyConfiguration) *NodeMitigationBudgetStatusApplyConfiguration {
-	if b.Reservations == nil && len(entries) > 0 {
-		b.Reservations = make(map[string]MitigationReservationApplyConfiguration, len(entries))
-	}
-	for k, v := range entries {
-		b.Reservations[k] = v
-	}
 	return b
 }
 

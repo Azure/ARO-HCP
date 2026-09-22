@@ -19,10 +19,19 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
+
+func testConfig() Config {
+	return Config{Mode: Enforce, ClusterResourceID: "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/mgmt",
+		Mitigators:     []string{"swift"},
+		EvictionWindow: metav1.Duration{Duration: time.Minute}, EvictionCooldown: metav1.Duration{Duration: 5 * time.Second},
+		MaxEvictionsPerWorkload: 3, MaxEvictionsPerNode: 3,
+		RetryInterval: metav1.Duration{Duration: time.Second}, ObservationMaxAge: metav1.Duration{Duration: time.Minute}}
+}
 
 func TestStrictConfiguration(t *testing.T) {
 	valid, err := json.Marshal(testConfig())
@@ -44,7 +53,11 @@ func TestStrictConfiguration(t *testing.T) {
 		{"missing eviction limit", strings.Replace(string(valid), `"maxEvictionsPerNode":3`, `"maxEvictionsPerNode":0`, 1), false},
 		{"unsupported delete fallback", "mode: disabled\nallowUnhealthyDeletion: true", false},
 		{"unsupported drain phase", "mode: disabled\ndrain: true", false},
-		{"invalid duration", strings.Replace(string(valid), `"window":"1h0m0s"`, `"window":"invalid"`, 1), false},
+		{"invalid duration", strings.Replace(string(valid), `"retryInterval":"1s"`, `"retryInterval":"invalid"`, 1), false},
+		{"unsupported never-ready", strings.Replace(string(valid), `"swift"`, `"never-ready"`, 1), false},
+		{"unsupported deletion budget", "mode: disabled\nwindow: 1h", false},
+		{"unsupported deletion capacity", "mode: disabled\nmaxUnavailablePool: 1", false},
+		{"unsupported disposable daemonsets", "mode: disabled\ndisposableDaemonSets: []", false},
 		{"oversized", strings.Repeat(" ", 64*1024+1), false},
 	} {
 		t.Run(test.name, func(t *testing.T) {
@@ -57,7 +70,7 @@ func TestStrictConfiguration(t *testing.T) {
 }
 
 func TestConfigurationReloadAndDeploymentGate(t *testing.T) {
-	f := newFixture(t, 1, 0)
+	f := newFixture(t, 1)
 	before, revision := f.controller.configuration()
 	f.controller.OnConfigMap(&corev1.ConfigMap{Data: map[string]string{"config.yaml": "mode: audit\nunknown: true"}}, "config.yaml")
 	after, afterRevision := f.controller.configuration()

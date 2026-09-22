@@ -48,22 +48,16 @@ func TestRegistry(t *testing.T) {
 			}
 		})
 	}
-	routes, err := registry(swiftMitigator{}, neverReadyMitigator{})
-	if err != nil || len(routes) != 2 || routes["unknown"] != nil || routes["swift-vf-teardown"] != nil {
+	routes, err := registry(swiftMitigator{})
+	if err != nil || len(routes) != 1 || routes["unknown"] != nil || routes["swift-vf-teardown"] != nil || routes["never-ready"] != nil {
 		t.Fatalf("unexpected registered routes: %v, %v", routes, err)
 	}
 }
 
 func TestPlansRequireCurrentEvidence(t *testing.T) {
-	decision, err := (neverReadyMitigator{}).Plan(Input{})
+	decision, err := (swiftMitigator{}).Plan(Input{})
 	if err != nil || decision.Hold == "" || decision.Action != "" {
-		t.Fatal("never-ready planned deletion without current evidence")
-	}
-	for _, mitigator := range []Mitigator{swiftMitigator{}, neverReadyMitigator{}} {
-		decision, err := mitigator.Plan(Input{})
-		if err != nil || decision.Hold == "" || decision.Action != "" {
-			t.Fatalf("%s acted without current evidence", mitigator.Name())
-		}
+		t.Fatal("SWIFT acted without current evidence")
 	}
 	decision, err = (swiftMitigator{}).Plan(Input{Detection: detectors.Detection{Detector: detectors.SwiftPodSandboxStalled, PodUIDs: []types.UID{"pod"}}})
 	if err != nil || decision.Action != ActionEvict || decision.Hold != "" {

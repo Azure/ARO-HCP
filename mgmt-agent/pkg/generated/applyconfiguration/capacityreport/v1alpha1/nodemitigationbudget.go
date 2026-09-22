@@ -25,8 +25,8 @@ import (
 // NodeMitigationBudgetApplyConfiguration represents a declarative configuration of the NodeMitigationBudget type for use
 // with apply.
 //
-// NodeMitigationBudget atomically reserves cluster, pool and zone allowance in
-// one namespaced ledger. It must not have a Node owner reference.
+// NodeMitigationBudget records eviction attempts in one namespaced ledger.
+// It must not have a Node owner reference.
 type NodeMitigationBudgetApplyConfiguration struct {
 	v1.TypeMetaApplyConfiguration    `json:",inline"`
 	*v1.ObjectMetaApplyConfiguration `json:"metadata,omitempty"`

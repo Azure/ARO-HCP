@@ -56,8 +56,8 @@ func TestNodeMitigationEnablement(t *testing.T) {
 				require.NoError(t, err)
 				parameters, err := config.PreprocessFile("../../../dev-infrastructure/configurations/mgmt-agent-permissions.tmpl.bicepparam", cfg)
 				require.NoError(t, err)
-				require.Contains(t, string(parameters), fmt.Sprintf("param nodeMitigationEnabled = %t", enabled),
-					"the same flag must reach the Azure permission template")
+				require.NotContains(t, string(parameters), "nodeMitigationEnabled",
+					"SWIFT enablement must not provision Azure deletion permissions")
 				var foundDeployment, foundRole, foundBudgetRole bool
 				for _, document := range strings.Split(manifest, "\n---") {
 					var kind metav1.TypeMeta
@@ -86,7 +86,7 @@ func TestNodeMitigationEnablement(t *testing.T) {
 							daemonSetRead = daemonSetRead || slices.Contains(rule.Resources, "daemonsets") && slices.Contains(rule.Verbs, "get")
 						}
 						require.Equal(t, enabled, eviction, "eviction permission must follow the enabled flag")
-						require.Equal(t, enabled, daemonSetRead, "disposable-agent reads must follow the enabled flag")
+						require.False(t, daemonSetRead, "SWIFT must not grant disposable-agent reads")
 					case "Role":
 						var role rbacv1.Role
 						require.NoError(t, yaml.Unmarshal([]byte(document), &role))

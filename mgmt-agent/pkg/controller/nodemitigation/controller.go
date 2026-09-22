@@ -16,12 +16,10 @@ package nodemitigation
 
 import (
 	"context"
-	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
-	"strings"
 	"sync"
 	"time"
 
@@ -35,7 +33,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/client-go/dynamic"
 	coreinformers "k8s.io/client-go/informers/core/v1"
 	"k8s.io/client-go/kubernetes"
@@ -70,10 +67,8 @@ type Controller struct {
 	kube                 kubernetes.Interface
 	records              clientset.Interface
 	dynamic              dynamic.Interface
-	azure                AzureClient
 	namespace            string
 	clock                func() time.Time
-	observer             string
 	routes               map[string]Mitigator
 	queue                workqueue.TypedRateLimitingInterface[clusterKey]
 	synced               []cache.InformerSynced
@@ -82,30 +77,27 @@ type Controller struct {
 	revision             uint64
 	configurationAllowed bool
 	lastLog              map[string]time.Time
-	nextPoll             map[string]time.Time
 	nodes                corelisters.NodeLister
 	pods                 corelisters.PodLister
 	events               corelisters.EventLister
 	nextReconcile        time.Time
-	readiness            func(*corev1.Node, time.Time) error
 }
 
 func NewController(kube kubernetes.Interface, records clientset.Interface, dyn dynamic.Interface,
-	azure AzureClient, namespace string, nodes coreinformers.NodeInformer, pods coreinformers.PodInformer,
-	events coreinformers.EventInformer, clock func() time.Time, readiness func(*corev1.Node, time.Time) error) (*Controller, error) {
+	namespace string, nodes coreinformers.NodeInformer, pods coreinformers.PodInformer,
+	events coreinformers.EventInformer, clock func() time.Time) (*Controller, error) {
 	if clock == nil {
 		clock = time.Now
 	}
-	routes, err := registry(swiftMitigator{}, neverReadyMitigator{})
+	routes, err := registry(swiftMitigator{})
 	if err != nil {
 		return nil, err
 	}
 	c := &Controller{
-		kube: kube, records: records, dynamic: dyn, azure: azure, namespace: namespace,
-		clock: clock, observer: string(uuid.NewUUID()), routes: routes, config: Default(),
-		lastLog: map[string]time.Time{}, nextPoll: map[string]time.Time{},
-		readiness: readiness,
-		nodes:     nodes.Lister(), pods: pods.Lister(), events: events.Lister(),
+		kube: kube, records: records, dynamic: dyn, namespace: namespace,
+		clock: clock, routes: routes, config: Default(),
+		lastLog: map[string]time.Time{},
+		nodes:   nodes.Lister(), pods: pods.Lister(), events: events.Lister(),
 		queue: workqueue.NewTypedRateLimitingQueueWithConfig(
 			workqueue.DefaultTypedControllerRateLimiter[clusterKey](),
 			workqueue.TypedRateLimitingQueueConfig[clusterKey]{Name: ControllerName}),
@@ -273,8 +265,7 @@ func (c *Controller) budget(ctx context.Context, revision uint64, mode Mode) (*a
 	if missing {
 		budget = &api.NodeMitigationBudget{ObjectMeta: metav1.ObjectMeta{Name: budgetName, Namespace: c.namespace}}
 	}
-	if budget.Status.Version != 1 && (budget.Status.Version != 0 || len(budget.Status.Reservations) > 0 ||
-		len(budget.Status.Pools) > 0 || len(budget.Status.Evictions) > 0) {
+	if budget.Status.Version != 1 && (budget.Status.Version != 0 || len(budget.Status.Evictions) > 0) {
 		return nil, fmt.Errorf("unsupported mitigation accounting version %d; explicit migration required", budget.Status.Version)
 	}
 	if budget.Status.Version == 0 && mode != Disabled {
@@ -293,12 +284,6 @@ func (c *Controller) budget(ctx context.Context, revision uint64, mode Mode) (*a
 	}
 	initialize := budget.Status.Version == 0
 	budget.Status.Version = 1
-	if budget.Status.Pools == nil {
-		budget.Status.Pools = map[string]api.PoolBaseline{}
-	}
-	if budget.Status.Reservations == nil {
-		budget.Status.Reservations = map[string]api.MitigationReservation{}
-	}
 	if budget.Status.Evictions == nil {
 		budget.Status.Evictions = map[string]api.EvictionRecord{}
 	}
@@ -310,13 +295,6 @@ func (c *Controller) budget(ctx context.Context, revision uint64, mode Mode) (*a
 
 func (c *Controller) checkAccountingOwnership(ctx context.Context) error {
 	options := metav1.ListOptions{LabelSelector: ownershipLabel + "=" + ControllerName, Limit: 1}
-	nodes, err := c.kube.CoreV1().Nodes().List(ctx, options)
-	if err != nil {
-		return fmt.Errorf("check node ownership before initializing accounting: %w", err)
-	}
-	if len(nodes.Items) > 0 {
-		return fmt.Errorf("owned node exists without initialized accounting; operator reconciliation required")
-	}
 	pods, err := c.kube.CoreV1().Pods("").List(ctx, options)
 	if err != nil {
 		return fmt.Errorf("check pod ownership before initializing accounting: %w", err)
@@ -325,10 +303,6 @@ func (c *Controller) checkAccountingOwnership(ctx context.Context) error {
 		return fmt.Errorf("owned pod exists without initialized accounting; operator reconciliation required")
 	}
 	return nil
-}
-
-func recordName(uid string) string {
-	return fmt.Sprintf("node-%x", sha256.Sum256([]byte(uid)))[:45]
 }
 
 func (c *Controller) hasCandidates(cfg Config) (bool, error) {
@@ -449,40 +423,24 @@ func (c *Controller) reconcile(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	pending := false
-	for _, reservation := range budget.Status.Reservations {
-		pending = pending || reservation.ReleasedAt == nil
+	candidates := false
+	if cfg.Mode != Disabled {
+		candidates, err = c.hasCandidates(cfg)
 	}
-	defer func() { reportState(budget, c.clock()) }()
-	if !pending {
-		candidates := false
-		if cfg.Mode != Disabled {
-			candidates, err = c.hasCandidates(cfg)
-		}
-		if err != nil {
-			return err
-		}
-		if !candidates {
-			return c.pruneBudget(ctx, cfg, revision, budget)
-		}
+	if err != nil {
+		return err
 	}
-	snapshot, snapshotErr := c.snapshot(ctx)
-	var operationErrors error
-	for key, reservation := range budget.Status.Reservations {
-		if reservation.ReleasedAt == nil {
-			err := c.observeDeletion(ctx, cfg, revision, key, budget, snapshot, snapshotErr == nil)
-			operationErrors = errors.Join(operationErrors, err)
-			if err == nil && reservation.DeleteStartedAt == nil && cfg.Mode == Enforce && snapshotErr == nil {
-				return operationErrors
-			}
-		}
+	if !candidates {
+		return c.pruneBudget(ctx, cfg, revision, budget)
 	}
-	if snapshotErr != nil || cfg.Mode == Disabled {
-		return errors.Join(snapshotErr, operationErrors)
+	snapshot, err := c.snapshot(ctx)
+	if err != nil {
+		return err
 	}
 	if err := c.pruneBudget(ctx, cfg, revision, budget); err != nil {
-		return errors.Join(err, operationErrors)
+		return err
 	}
+	var operationErrors error
 	for _, node := range snapshot.Nodes {
 		if node.DeletionTimestamp != nil || node.Spec.Unschedulable {
 			continue
@@ -505,8 +463,6 @@ func (c *Controller) reconcile(ctx context.Context) error {
 			switch decision.Action {
 			case ActionEvict:
 				acted, err = c.rescue(ctx, cfg, revision, node, detection, budget, snapshot)
-			case ActionDelete:
-				acted, err = c.deleteCandidate(ctx, cfg, revision, node, budget, snapshot)
 			default:
 				err = fmt.Errorf("unsupported mitigation action %q", decision.Action)
 			}
@@ -533,5 +489,3 @@ func (c *Controller) logCandidate(ctx context.Context, node *corev1.Node, cfg Co
 	c.lastLog[key] = c.clock()
 	utils.LoggerFromContext(ctx).Info("mitigation candidate", "node", node.Name, "nodeUID", node.UID, "detector", detector, "action", action, "mode", cfg.Mode, "candidateEligible", eligible, "reason", reason)
 }
-
-func poolFromID(id string) string { parts := strings.Split(id, "/"); return parts[len(parts)-1] }

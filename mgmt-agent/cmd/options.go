@@ -107,7 +107,7 @@ func (o *RawControllerOptions) BindFlags(cmd *cobra.Command) error {
 	cmd.Flags().StringVar(&o.NodeHealthConfigKey, "node-health-config-key", o.NodeHealthConfigKey,
 		"Key within the node-health ConfigMap that holds the YAML configuration.")
 	cmd.Flags().BoolVar(&o.NodeMitigationEnabled, "node-mitigation-enabled", false,
-		"Allow node mitigation configuration. Enable only in isolated development environments.")
+		"Allow node mitigation configuration. Runtime mode defaults to disabled.")
 	cmd.Flags().StringVar(&o.NodeMitigationConfigMapName, "node-mitigation-configmap", o.NodeMitigationConfigMapName, "Node mitigation ConfigMap in --namespace.")
 	cmd.Flags().StringVar(&o.NodeMitigationConfigKey, "node-mitigation-config-key", o.NodeMitigationConfigKey, "Node mitigation configuration key.")
 
@@ -303,11 +303,10 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 	}
 
 	mitigationClock := time.Now
-	nodeHealth.EnableReadinessHistory(o.NodeMitigationEnabled)
 	nodeMitigation, err := nodemitigation.NewController(kubeClientset, crClient, dynamicClient,
-		nodemitigation.NewAzureClient(azureCredential, mitigationClock), o.Namespace,
+		o.Namespace,
 		kubeInformers.Core().V1().Nodes(), clusterWideKubeInformers.Core().V1().Pods(),
-		nodeHealthInformers.Core().V1().Events(), mitigationClock, nodeHealth.CheckNeverReady)
+		nodeHealthInformers.Core().V1().Events(), mitigationClock)
 	if err != nil {
 		return nil, fmt.Errorf("create node mitigation controller: %w", err)
 	}
