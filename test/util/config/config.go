@@ -176,11 +176,10 @@ func LoadConfig(opts ConfigOptions) error {
 // resource names computed here (e.g. hcp-underlay-<env>-<regionShort>) would
 // never match what was actually deployed for those environments.
 //
-// Every environment in settings.yaml is declared under cloud "dev" (matching
-// the hardcoded CloudReplacement above, which is the config.yaml cloud
-// namespace these dev/CI environments render under) regardless of the actual
-// ARO_HCP_CLOUD value (e.g. "public" for real Azure API calls), so "dev" is
-// used here rather than opts.Cloud.
+// Every environment in settings.yaml is declared under cloud "dev" even when the
+// rendered service config and real Azure API calls use a different cloud value
+// (e.g. ARO_HCP_CLOUD="public" in CI). Since templatize's dev-settings are keyed
+// under cloud "dev", that value is used here rather than opts.Cloud.
 //
 // This is best-effort: environments not present in settings.yaml (e.g.
 // production environments int/stg/prod) keep using the static ev2 regionShort
