@@ -21,6 +21,13 @@ use ETag optimistic concurrency and advance `InstanceVersion`; creates, deletes
 and transactional batches have their own semantics. A successful Cosmos write of
 an intent does not establish that an Azure or Kubernetes resource exists.
 
+The shared `PrepareForCreate` and `PrepareForReplace` helpers also derive
+`CosmosMetadata.ParentResourceID` from the resource ID's parent on every successful
+preparation, lowercasing it for storage. A nil resource ID or nil parent clears
+the field, which is omitted from JSON when empty. Legacy documents may omit it;
+it is populated when they are next written through these helpers. This metadata
+does not change controller dependencies or the resource lifecycle diagrams.
+
 ## Request Unit (RU) attribution
 
 Sources: [Cosmos metrics policy](../internal/database/cosmosstorage/cosmosmetrics/policy.go),

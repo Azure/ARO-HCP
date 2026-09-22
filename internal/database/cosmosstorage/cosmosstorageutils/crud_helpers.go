@@ -190,6 +190,10 @@ func PrepareForCreate[InternalAPIType any, InternalAPITypePointer coreapi.Cosmos
 		return fmt.Errorf("create of %T requires InstanceVersion to be 0; refusing to overwrite existing value", newObj)
 	}
 	newObj.SetInstanceVersion(1)
+	newObj.GetCosmosData().ParentResourceID = ""
+	if resourceID := newObj.GetResourceID(); resourceID != nil && resourceID.Parent != nil {
+		newObj.GetCosmosData().ParentResourceID = strings.ToLower(resourceID.Parent.String())
+	}
 	return nil
 }
 
@@ -205,6 +209,10 @@ func PrepareForReplace[InternalAPIType any, InternalAPITypePointer coreapi.Cosmo
 		return fmt.Errorf("replace of %T requires a non-zero InstanceVersion; refusing to perform update; DeepCopy the existing content to avoid overwrite", newObj)
 	}
 	newObj.SetInstanceVersion(newObj.GetInstanceVersion() + 1)
+	newObj.GetCosmosData().ParentResourceID = ""
+	if resourceID := newObj.GetResourceID(); resourceID != nil && resourceID.Parent != nil {
+		newObj.GetCosmosData().ParentResourceID = strings.ToLower(resourceID.Parent.String())
+	}
 	return nil
 }
 

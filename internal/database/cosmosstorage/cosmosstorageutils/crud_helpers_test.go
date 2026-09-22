@@ -15,13 +15,116 @@
 package cosmosstorageutils
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 )
+
+func TestPrepareParentResourceID(t *testing.T) {
+	resourceID, err := azcorearm.ParseResourceID("/subscriptions/SubscriptionID/resourceGroups/MyGroup/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/MyCluster/nodePools/MyPool")
+	if err != nil {
+		t.Fatal(err)
+	}
+	tests := []struct {
+		name       string
+		resourceID *azcorearm.ResourceID
+		want       string
+	}{
+		{
+			name:       "nested mixed-case resource",
+			resourceID: resourceID,
+			want:       "/subscriptions/subscriptionid/resourcegroups/mygroup/providers/microsoft.redhatopenshift/hcpopenshiftclusters/mycluster",
+		},
+		{name: "nil resource ID"},
+		{name: "nil parent", resourceID: &azcorearm.ResourceID{}},
+	}
+	for _, operation := range []string{"create", "replace"} {
+		for _, test := range tests {
+			for _, initial := range []string{"", "stale-parent"} {
+				t.Run(operation+"/"+test.name+"/"+initial, func(t *testing.T) {
+					metadata := &coreapi.CosmosMetadata{
+						ResourceID:       test.resourceID,
+						ParentResourceID: initial,
+					}
+					var prepareErr error
+					if operation == "create" {
+						prepareErr = PrepareForCreate(metadata)
+					} else {
+						metadata.InstanceVersion = 1
+						metadata.CosmosETag = "etag"
+						prepareErr = PrepareForReplace(metadata)
+					}
+					if prepareErr != nil {
+						t.Fatal(prepareErr)
+					}
+					if metadata.ParentResourceID != test.want {
+						t.Errorf("ParentResourceID = %q, want %q", metadata.ParentResourceID, test.want)
+					}
+				})
+			}
+		}
+	}
+}
+
+func TestPrepareParentResourceIDPreservesMetadataOnError(t *testing.T) {
+	tests := []struct {
+		name    string
+		version int64
+		etag    azcore.ETag
+		prepare func(*coreapi.CosmosMetadata) error
+	}{
+		{name: "create with existing version", version: 1, prepare: PrepareForCreate[coreapi.CosmosMetadata]},
+		{name: "replace without etag", version: 1, prepare: PrepareForReplace[coreapi.CosmosMetadata]},
+		{name: "replace without version", etag: "etag", prepare: PrepareForReplace[coreapi.CosmosMetadata]},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			metadata := coreapi.CosmosMetadata{
+				ParentResourceID: "original-parent",
+				InstanceVersion:  test.version,
+				CosmosETag:       test.etag,
+			}
+			original := metadata
+			if err := test.prepare(&metadata); err == nil {
+				t.Fatal("expected preparation to fail")
+			}
+			if metadata != original {
+				t.Errorf("metadata mutated on error: got %#v, want %#v", metadata, original)
+			}
+		})
+	}
+}
+
+func TestCosmosMetadataParentResourceIDJSONRoundTrip(t *testing.T) {
+	for _, parent := range []string{"", "/subscriptions/subscriptionid/resourcegroups/mygroup"} {
+		t.Run(parent, func(t *testing.T) {
+			metadata := coreapi.CosmosMetadata{ParentResourceID: parent}
+			data, err := json.Marshal(metadata)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var fields map[string]json.RawMessage
+			if err := json.Unmarshal(data, &fields); err != nil {
+				t.Fatal(err)
+			}
+			if _, present := fields["parentResourceID"]; present != (parent != "") {
+				t.Errorf("parentResourceID presence = %t, want %t: %s", present, parent != "", data)
+			}
+			var roundTrip coreapi.CosmosMetadata
+			if err := json.Unmarshal(data, &roundTrip); err != nil {
+				t.Fatal(err)
+			}
+			if roundTrip.ParentResourceID != parent {
+				t.Errorf("round-trip parent = %q, want %q", roundTrip.ParentResourceID, parent)
+			}
+		})
+	}
+}
 
 func TestPrepareForCreate_SetsInstanceVersionToOne(t *testing.T) {
 	obj := &coreapi.Subscription{
