@@ -21,9 +21,11 @@ import (
 	"net/http"
 	"time"
 
+	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	operationbase "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
@@ -37,8 +39,10 @@ import (
 // cluster-service ExternalAuth itself has been confirmed gone. This runs
 // after the delete dispatch controller has already issued the delete
 // request (ClusterServiceDeletionTimestamp is set). We poll
-// cluster-service for the ExternalAuth and, on 404, zero out the stored
-// ClusterServiceID so downstream code knows the CS resource is fully gone.
+// cluster-service for the ExternalAuth and zero out the stored
+// ClusterServiceID when CS returns 404, or when it still returns Ready
+// after DELETE was dispatched (CS does not transition some ExternalAuths
+// to 404, which otherwise deadlocks deletion).
 type externalAuthClusterServiceIDClearer struct {
 	externalAuthLister   corelisters.ExternalAuthLister
 	resourcesDBClient    corecosmosstorage.ResourcesDBClient
@@ -85,10 +89,11 @@ func (c *externalAuthClusterServiceIDClearer) NeedsWork(externalAuth *coreapi.HC
 		externalAuth.ServiceProviderProperties.ClusterServiceID != nil && len(externalAuth.ServiceProviderProperties.ClusterServiceID.String()) > 0
 }
 
-// SyncOnce reads the ExternalAuth from cluster-service. If
-// cluster-service reports 404, the deletion has finished and we zero out
-// ClusterServiceID. Any other state means cluster-service is still
-// processing the deletion. We retry on the next sync.
+// SyncOnce reads the ExternalAuth from cluster-service. ClusterServiceID is
+// cleared when cluster-service reports 404, or when it still reports Ready
+// after DELETE was dispatched. Uninstalling (and any other in-progress
+// state) means cluster-service is still processing; we retry on the next
+// sync.
 func (c *externalAuthClusterServiceIDClearer) SyncOnce(ctx context.Context, key controllerutils.HCPExternalAuthKey) error {
 	logger := utils.LoggerFromContext(ctx)
 
@@ -116,7 +121,7 @@ func (c *externalAuthClusterServiceIDClearer) SyncOnce(ctx context.Context, key 
 	}
 
 	csID := externalAuth.ServiceProviderProperties.ClusterServiceID
-	_, err = c.clusterServiceClient.GetExternalAuth(ctx, *csID)
+	csExternalAuth, err := c.clusterServiceClient.GetExternalAuth(ctx, *csID)
 	if err != nil {
 		var ocmError *ocmerrors.Error
 		if !errors.As(err, &ocmError) || ocmError.Status() != http.StatusNotFound {
@@ -124,19 +129,41 @@ func (c *externalAuthClusterServiceIDClearer) SyncOnce(ctx context.Context, key 
 		}
 		// 404 - cluster-service has finished deleting the ExternalAuth, clear the CS ID.
 		logger.Info("cluster-service ExternalAuth gone. Clearing ClusterServiceID", "clusterServiceID", csID.String())
-		replacement := externalAuth.DeepCopy()
-		replacement.ServiceProviderProperties.ClusterServiceID = nil
-		_, err = externalAuthCRUD.Replace(ctx, replacement, nil)
-		if cosmosstorageutils.IsPreconditionFailedError(err) {
-			// if we have a conflict error, then we're guaranteed that our informer will eventually see an update and trigger us again.
-			return nil
-		}
-		if err != nil {
-			return utils.TrackError(fmt.Errorf("failed to clear ClusterServiceID: %w", err))
-		}
-		return nil
+		return c.clearClusterServiceID(ctx, externalAuthCRUD, externalAuth)
 	}
 
-	// ExternalAuth still exists in cluster-service. Nothing to do yet.
+	if clusterServiceExternalAuthIsReady(csExternalAuth) {
+		// CS accepted DELETE but never leaves Ready / never 404s. Clearing the
+		// ID unblocks ExternalAuthDeletionController so the ARM operation can
+		// complete instead of waiting forever for a Cosmos delete that cannot
+		// happen while ClusterServiceID is still set.
+		logger.Info("cluster-service ExternalAuth still Ready after delete dispatch. Clearing ClusterServiceID",
+			"clusterServiceID", csID.String())
+		return c.clearClusterServiceID(ctx, externalAuthCRUD, externalAuth)
+	}
+
+	// ExternalAuth still exists in cluster-service in a non-Ready state
+	// (typically uninstalling). Nothing to do yet.
 	return nil
+}
+
+func (c *externalAuthClusterServiceIDClearer) clearClusterServiceID(ctx context.Context, externalAuthCRUD corecosmosstorage.ExternalAuthsCRUD, externalAuth *coreapi.HCPOpenShiftClusterExternalAuth) error {
+	replacement := externalAuth.DeepCopy()
+	replacement.ServiceProviderProperties.ClusterServiceID = nil
+	_, err := externalAuthCRUD.Replace(ctx, replacement, nil)
+	if cosmosstorageutils.IsPreconditionFailedError(err) {
+		// if we have a conflict error, then we're guaranteed that our informer will eventually see an update and trigger us again.
+		return nil
+	}
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to clear ClusterServiceID: %w", err))
+	}
+	return nil
+}
+
+func clusterServiceExternalAuthIsReady(csExternalAuth *arohcpv1alpha1.ExternalAuth) bool {
+	if csExternalAuth == nil {
+		return false
+	}
+	return csExternalAuth.Status().State().Value() == string(operationbase.ExternalAuthStateReady)
 }

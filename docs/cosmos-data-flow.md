@@ -686,7 +686,7 @@ Requires `UsesNewExternalAuthDeletionApproach`, deletion intent and no dispatch 
 
 [Source](../backend/pkg/controllers/externalauth/deletion/external_auth_cluster_service_id_clearer.go) · **Trigger:** ExternalAuth; 1m.
 
-After delete dispatch, polls Cluster Service; only a not-found result clears `ServiceProviderProperties.ClusterServiceID`. Other errors retry.
+After delete dispatch, polls Cluster Service. A not-found result or a Ready state (Cluster Service sometimes never 404s after DELETE) clears `ServiceProviderProperties.ClusterServiceID`. Uninstalling waits; other errors retry.
 
 #### ExternalAuthChildResourcesCleanupController
 
