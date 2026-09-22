@@ -991,12 +991,6 @@ Logs management-cluster Cosmos and kube-applier snapshots; no domain mutation.
 
 Logs subscription-scoped documents outside cluster subtrees; no domain mutation.
 
-#### DoNothingExample
-
-[Source](../backend/pkg/controllers/example/do_nothing.go) · **Trigger:** Subscription sweep.
-
-Registered example that performs no domain work; participates in controller logging/metrics.
-
 #### FPAVirtualMachineResourceSKUsCachedReader
 
 [Source](../backend/pkg/azure/cachedreader/virtual_machine_resource_skus_cached_reader.go) · **Trigger:** Periodic; 5m, 1h cooldown.
