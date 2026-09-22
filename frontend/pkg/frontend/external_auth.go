@@ -197,6 +197,7 @@ func decodeDesiredExternalAuthCreate(ctx context.Context) (*coreapi.HCPOpenShift
 	if err := json.Unmarshal(body, &externalExternalAuthFromRequest); err != nil {
 		return nil, utils.TrackError(coreapi.NewInvalidRequestContentError(err))
 	}
+	externalExternalAuthFromRequest.ClearReadOnlyFields()
 	newInternalExternalAuth, err := externalExternalAuthFromRequest.ConvertToInternal(nil)
 	if err != nil {
 		return nil, utils.TrackError(err)

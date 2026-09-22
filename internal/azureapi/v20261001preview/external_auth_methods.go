@@ -37,6 +37,20 @@ func (h *ExternalAuth) NewExternal() any {
 	return &ExternalAuth{}
 }
 
+func (h *ExternalAuth) ClearReadOnlyFields() {
+	if h == nil {
+		return
+	}
+	// Keep Name for path mismatch validation and preflight routing.
+	h.ID = nil
+	h.Type = nil
+	h.SystemData = nil
+	if h.Properties != nil {
+		h.Properties.ProvisioningState = nil
+		h.Properties.Status = nil
+	}
+}
+
 func SetDefaultValuesExternalAuth(obj *ExternalAuth) {
 	if obj.Properties == nil {
 		obj.Properties = &generated.ExternalAuthProperties{}

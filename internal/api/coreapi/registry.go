@@ -116,6 +116,9 @@ type VersionedResource interface {
 type VersionedCreatableResource[InternalAPIType any] interface {
 	VersionedResource
 	NewExternal() any
+	// ClearReadOnlyFields discards server-owned fields from a decoded create request.
+	// Name is retained for path mismatch validation and preflight routing.
+	ClearReadOnlyFields()
 	ConvertToInternal(existing *InternalAPIType) (*InternalAPIType, error)
 }
 

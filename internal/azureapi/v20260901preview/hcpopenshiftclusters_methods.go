@@ -41,6 +41,45 @@ func (h *HcpOpenShiftCluster) NewExternal() any {
 	return &HcpOpenShiftCluster{}
 }
 
+func (h *HcpOpenShiftCluster) ClearReadOnlyFields() {
+	if h == nil {
+		return
+	}
+	// Keep Name for path mismatch validation and preflight routing.
+	h.ID = nil
+	h.Type = nil
+	h.SystemData = nil
+	clearReadOnlyIdentityFields(h.Identity)
+	if h.Properties != nil {
+		h.Properties.ProvisioningState = nil
+		h.Properties.Console = nil
+		h.Properties.Status = nil
+		if h.Properties.DNS != nil {
+			h.Properties.DNS.BaseDomain = nil
+		}
+		if h.Properties.API != nil {
+			h.Properties.API.URL = nil
+		}
+		if h.Properties.Platform != nil {
+			h.Properties.Platform.IssuerURL = nil
+		}
+	}
+}
+
+func clearReadOnlyIdentityFields(identity *generated.ManagedServiceIdentity) {
+	if identity == nil {
+		return
+	}
+	identity.PrincipalID = nil
+	identity.TenantID = nil
+	for _, assigned := range identity.UserAssignedIdentities {
+		if assigned != nil {
+			assigned.ClientID = nil
+			assigned.PrincipalID = nil
+		}
+	}
+}
+
 func SetDefaultValuesCluster(obj *HcpOpenShiftCluster) {
 	if obj.Properties == nil {
 		obj.Properties = &generated.HcpOpenShiftClusterProperties{}
