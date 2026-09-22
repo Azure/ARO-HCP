@@ -65,8 +65,6 @@ cosmosDatabaseUrl: ""
 cosmosDatabaseName: ""
 managedIdentitiesDataPlaneAudienceResource: ""
 dataPlaneHAProxyImage: ""
-tracing:
-  address: ""
 csDeploymentStrategy:
   type: RollingUpdate
   rollingUpdate:

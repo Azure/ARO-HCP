@@ -2,9 +2,6 @@ image:
   registry: ""
   repository: ""
   digest: ""
-tracing:
-  address: ""
-  exporter: ""
 deployment:
   zoneCount: ""
 miseAppId: ""

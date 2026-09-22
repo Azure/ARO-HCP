@@ -342,24 +342,6 @@
         "connectSocket"
       ]
     },
-    "tracing": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "address": {
-          "type": "string",
-          "description": "Defines exporter address"
-        },
-        "exporter": {
-          "type": "string",
-          "description": "Defines which exporter the SDK should use"
-        }
-      },
-      "required": [
-        "address",
-        "exporter"
-      ]
-    },
     "acr": {
       "type": "object",
       "properties": {
@@ -1269,9 +1251,6 @@
         "image": {
           "$ref": "#/definitions/containerImage"
         },
-        "tracing": {
-          "$ref": "#/definitions/tracing"
-        },
         "managedIdentityName": {
           "type": "string",
           "description": "The name of the MSI that will be used by CS to interact with Azure"
@@ -1344,7 +1323,6 @@
         "k8s",
         "azureOperatorsManagedIdentities",
         "postgres",
-        "tracing",
         "azureRuntimeConfig"
       ]
     },
@@ -1432,9 +1410,7 @@
         "image": {
           "$ref": "#/definitions/containerImage"
         },
-        "tracing": {
-          "$ref": "#/definitions/tracing"
-        },
+
         "k8s": {
           "$ref": "#/definitions/k8sDeployment"
         },
@@ -1483,7 +1459,6 @@
       "additionalProperties": false,
       "required": [
         "image",
-        "tracing",
         "k8s",
         "managedIdentityName",
         "azureRuntimeConfig",
@@ -1772,9 +1747,7 @@
         "image": {
           "$ref": "#/definitions/containerImage"
         },
-        "tracing": {
-          "$ref": "#/definitions/tracing"
-        },
+
         "k8s": {
           "$ref": "#/definitions/k8sDeployment"
         },
@@ -1863,7 +1836,6 @@
         "image",
         "cosmosDB",
         "cert",
-        "tracing",
         "k8s",
         "managedIdentityName",
         "exitOnPanic",
@@ -2509,10 +2481,6 @@
         },
         "imageV2": {
           "$ref": "#/definitions/containerImage"
-        },
-        "tracing": {
-          "$ref": "#/definitions/tracing",
-          "description": "Tracing configuration for OTLP traces."
         }
       },
       "required": [
@@ -2523,7 +2491,6 @@
         "arm",
         "genevaActions",
         "sessiongate",
-        "tracing",
         "applicationName"
       ]
     },
@@ -2996,9 +2963,6 @@
             },
             "loglevel": {
               "type": "integer"
-            },
-            "tracing": {
-              "$ref": "#/definitions/tracing"
             },
             "k8s": {
               "$ref": "#/definitions/k8sDeployment"
