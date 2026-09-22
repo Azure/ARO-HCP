@@ -417,6 +417,106 @@ resource arohcpClusterProvisionSloWindowedErrorAlerts 'Microsoft.AlertsManagemen
   }
 }
 
+resource arohcpIdmsMirrorSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_idms_mirror_slo_error_alerts'
+  location: location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyIDMSMirrorErrorsFastBurn'
+        enabled: true
+        labels: {
+          component: 'slo'
+          severity: '3'
+          slo: 'idms-mirror-errors'
+        }
+        annotations: {
+          correlationId: 'userJourneyIDMSMirrorErrorsFastBurn/{{ $labels.cluster }}'
+          description: 'More than 72% of cluster update operations are in failed state, indicating a fast error budget burn (14.4x) that would exhaust the 95% SLO budget in ~12 hours. Confirm whether the affected operations carried an imageDigestMirrors change before triaging as an IDMS issue.'
+          info: 'More than 72% of cluster update operations are in failed state, indicating a fast error budget burn (14.4x) that would exhaust the 95% SLO budget in ~12 hours. Confirm whether the affected operations carried an imageDigestMirrors change before triaging as an IDMS issue.'
+          runbook_url: 'aka.ms/arohcp-runbook'
+          summary: '{{ $labels.cluster }}: Cluster update error rate critically high (>72%)'
+          title: '{{ $labels.cluster }}: Cluster update error rate critically high (>72%)'
+        }
+        expression: 'errors:backend_cluster_update:error_rate > 0.72'
+        for: 'PT5M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyIDMSMirrorErrorsMediumBurn'
+        enabled: true
+        labels: {
+          component: 'slo'
+          severity: '3'
+          slo: 'idms-mirror-errors'
+        }
+        annotations: {
+          correlationId: 'userJourneyIDMSMirrorErrorsMediumBurn/{{ $labels.cluster }}'
+          description: 'More than 30% of cluster update operations are in failed state sustained over 30 minutes, indicating a medium error budget burn (6x) that would exhaust the 95% SLO budget in ~28 hours. Confirm whether the affected operations carried an imageDigestMirrors change before triaging as an IDMS issue.'
+          info: 'More than 30% of cluster update operations are in failed state sustained over 30 minutes, indicating a medium error budget burn (6x) that would exhaust the 95% SLO budget in ~28 hours. Confirm whether the affected operations carried an imageDigestMirrors change before triaging as an IDMS issue.'
+          runbook_url: 'aka.ms/arohcp-runbook'
+          summary: '{{ $labels.cluster }}: Cluster update error rate elevated (>30%) for 30+ minutes'
+          title: '{{ $labels.cluster }}: Cluster update error rate elevated (>30%) for 30+ minutes'
+        }
+        expression: 'errors:backend_cluster_update:error_rate > 0.3'
+        for: 'PT30M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyIDMSMirrorErrorsSlowBurn'
+        enabled: true
+        labels: {
+          component: 'slo'
+          severity: '4'
+          slo: 'idms-mirror-errors'
+        }
+        annotations: {
+          correlationId: 'userJourneyIDMSMirrorErrorsSlowBurn/{{ $labels.cluster }}'
+          description: 'More than 5% of cluster update operations are in failed state sustained over 6 hours, indicating persistent degradation at the 95% SLO boundary that would exhaust the error budget in ~7 days.'
+          info: 'More than 5% of cluster update operations are in failed state sustained over 6 hours, indicating persistent degradation at the 95% SLO boundary that would exhaust the error budget in ~7 days.'
+          runbook_url: 'aka.ms/arohcp-runbook'
+          summary: '{{ $labels.cluster }}: Cluster update error rate exceeds SLO target (>5%) for 6+ hours'
+          title: '{{ $labels.cluster }}: Cluster update error rate exceeds SLO target (>5%) for 6+ hours'
+        }
+        expression: 'errors:backend_cluster_update:error_rate > 0.05'
+        for: 'PT6H'
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
+
 resource rpUserJourneyClusterUpgradeMonitorRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'rp-user-journey-cluster-upgrade-monitor-rules'
   location: location
