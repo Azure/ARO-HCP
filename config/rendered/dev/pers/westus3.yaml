@@ -891,6 +891,9 @@ monitoring:
       automitigationEnabled: ""
       enabled: true
       routingId: ""
+  metricsUsageInsights:
+    enabled: false
+    workspaceName: amw-usage-pers-westus3
   svcWorkspaceName: services-usw3test
 msiCredentialsRefresher:
   certificate:

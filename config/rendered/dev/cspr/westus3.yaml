@@ -889,6 +889,9 @@ monitoring:
       automitigationEnabled: ""
       enabled: true
       routingId: ""
+  metricsUsageInsights:
+    enabled: true
+    workspaceName: amw-usage-cspr-westus3
   svcWorkspaceName: services-cspr-usw3
 msiCredentialsRefresher:
   certificate:

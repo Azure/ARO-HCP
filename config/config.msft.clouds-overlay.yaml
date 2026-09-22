@@ -4,6 +4,9 @@ clouds:
       int:
         # this is the MSFT INT environment
         defaults:
+          monitoring:
+            metricsUsageInsights:
+              enabled: true
           # E2E
           e2e:
             regionTest:
@@ -74,6 +77,9 @@ clouds:
               # the uksouth hcp-stg-uk-* cluster.
               kustoName: "hcp-{{ .ctx.environment }}-us-1"
         defaults:
+          monitoring:
+            metricsUsageInsights:
+              enabled: true
           # Carry the environment in the subscription display names for stage, so the
           # stg subscriptions are distinguishable from the identically-named prod ones.
           # The base config.yaml default omits the environment, so prod is unchanged;
@@ -134,6 +140,9 @@ clouds:
       prod:
         # this is the MSFT PRODUCTION environment
         defaults:
+          monitoring:
+            metricsUsageInsights:
+              enabled: true
           # E2E
           e2e:
             regionTest:
@@ -151,6 +160,10 @@ clouds:
               connectSocket: true
         regions:
           eastus2euap:
+            monitoring:
+              metricsUsageInsights:
+                # EUAP is not in the Metrics Usage Insights preview region list.
+                enabled: false
             e2e:
               regionTest:
                 # Canary: eastus2euap is pinned to the Test-Tenant sub, the only

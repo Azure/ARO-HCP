@@ -3227,6 +3227,27 @@
           "pattern": "^[a-z0-9][a-z0-9-]*[a-z0-9]$",
           "description": "The workspace name should include 4-63 letters, digits or '-'. The '-' shouldn't be the first or the last symbol. We limit the name to 44 characters so we have a future option to use NSP: https://learn.microsoft.com/en-us/azure/private-link/network-security-perimeter-concepts"
         },
+        "metricsUsageInsights": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Export regional AMW MetricsUsageDetails logs to a regional Log Analytics workspace. Enable only for long-lived environments in supported preview regions."
+            },
+            "workspaceName": {
+              "type": "string",
+              "minLength": 4,
+              "maxLength": 63,
+              "pattern": "^[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9]$",
+              "description": "Name of the shared regional Log Analytics workspace for services and hosted control plane metrics usage insights."
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "enabled",
+            "workspaceName"
+          ]
+        },
         "amwScaling": {
           "type": "object",
           "properties": {
@@ -3322,6 +3343,7 @@
         "grafanaPublicNetworkAccess",
         "svcWorkspaceName",
         "hcpWorkspaceName",
+        "metricsUsageInsights",
         "amwScaling",
         "alertRuleOwningTeamTag"
       ]
