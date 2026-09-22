@@ -522,7 +522,6 @@ resourceGroups:
     dependsOn:
     - resourceGroup: management
       step: maestro-consumer-cert
-
   # Everything that needs the ManagedCluster to already exist: ACR pull roles,
   # workload-identity federated credentials, KeyVault/Geneva access, metrics,
   # Maestro, kube-applier, HCP backups, diagnostic settings.

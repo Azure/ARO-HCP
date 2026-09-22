@@ -449,7 +449,6 @@ resourceGroups:
     # cluster step recreates the client.
     - resourceGroup: service
       step: maestro-server-cert
-
   # Create SVC cluster
   - name: cluster
     action: ARM
