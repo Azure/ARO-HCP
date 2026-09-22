@@ -853,6 +853,8 @@ resourceGroups:
       # Transient AKS API server connection loss (no HTTP status, 5xx patterns miss). AROSLSRE-2130.
       - "client connection lost"
       - "unexpected error when reading response body"
+      # ACI can fail before Helm runs with no execution log; retry the stable EV2 status signature.
+      - '"ShellProvisioningState\": \"Failed\"'
       maximumRetryCount: 3
       durationBetweenRetries: 1m
   - name: storageclass
