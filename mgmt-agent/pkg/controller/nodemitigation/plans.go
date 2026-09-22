@@ -23,7 +23,10 @@ import (
 	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller/nodehealth/detectors"
 )
 
-const ActionEvict = "EvictPod"
+const (
+	ActionEvict  = "EvictPod"
+	ActionDelete = "DeleteMachine"
+)
 
 type Input struct {
 	Node      *corev1.Node
@@ -54,6 +57,17 @@ func (swiftMitigator) Plan(input Input) (Decision, error) {
 		return Decision{Hold: "pod-scoped SWIFT evidence missing"}, nil
 	}
 	return Decision{Action: ActionEvict}, nil
+}
+
+type neverReadyMitigator struct{}
+
+func (neverReadyMitigator) Name() string            { return "never-ready" }
+func (neverReadyMitigator) DetectorNames() []string { return []string{"never-ready"} }
+func (neverReadyMitigator) Plan(input Input) (Decision, error) {
+	if input.Detection.Detector != "never-ready" {
+		return Decision{Hold: "never-ready evidence no longer valid"}, nil
+	}
+	return Decision{Action: ActionDelete}, nil
 }
 
 func registry(mitigators ...Mitigator) (map[string]Mitigator, error) {

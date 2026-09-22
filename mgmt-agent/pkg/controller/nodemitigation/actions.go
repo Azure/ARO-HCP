@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"slices"
+	"strings"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -135,6 +136,16 @@ func (c *Controller) evictionTarget(ctx context.Context, cfg Config, original *c
 func (c *Controller) rescue(ctx context.Context, cfg Config, revision uint64, node *corev1.Node,
 	detection detectors.Detection, budget *api.NodeMitigationBudget, snapshot ClusterSnapshot) (bool, error) {
 	excluded := map[string]bool{}
+	for _, n := range snapshot.Nodes {
+		for _, r := range budget.Status.Reservations {
+			if r.ReleasedAt == nil && (n.UID == r.NodeUID || strings.EqualFold(n.Status.NodeInfo.SystemUUID, r.InstanceID)) {
+				excluded[n.Name] = true
+			}
+		}
+	}
+	if excluded[node.Name] {
+		return false, fmt.Errorf("source node has a pending deletion")
+	}
 	for _, selected := range snapshot.Pods {
 		if selected.Spec.NodeName != node.Name || !slices.Contains(detection.PodUIDs, selected.UID) {
 			continue

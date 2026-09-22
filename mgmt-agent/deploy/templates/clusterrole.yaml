@@ -138,6 +138,7 @@ rules:
   - apps
   resources:
   - replicasets
+  - daemonsets
   verbs:
   - get
 {{- end }}

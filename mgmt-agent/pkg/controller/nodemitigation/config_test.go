@@ -15,22 +15,56 @@
 package nodemitigation
 
 import (
+	"context"
 	"encoding/json"
 	"reflect"
 	"strings"
 	"testing"
-	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func testConfig() Config {
-	return Config{Mode: Enforce, ClusterResourceID: "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/mgmt",
-		Mitigators:     []string{"swift"},
-		EvictionWindow: metav1.Duration{Duration: time.Minute}, EvictionCooldown: metav1.Duration{Duration: 5 * time.Second},
-		MaxEvictionsPerWorkload: 3, MaxEvictionsPerNode: 3,
-		RetryInterval: metav1.Duration{Duration: time.Second}, ObservationMaxAge: metav1.Duration{Duration: time.Minute}}
+func TestSwiftOnlyConfigurationCompatibility(t *testing.T) {
+	cfg, err := Parse([]byte(`mode: enforce
+clusterResourceID: /subscriptions/sub/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/mgmt
+mitigators: [swift]
+retryInterval: 1s
+observationMaxAge: 1m
+evictionWindow: 1m
+evictionCooldown: 5s
+maxEvictionsPerWorkload: 3
+maxEvictionsPerNode: 3
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	f := swiftFixture(t)
+	cfg.Workloads = f.cfg.Workloads
+	if err := f.controller.SetConfig(cfg); err != nil {
+		t.Fatal(err)
+	}
+	f.tick(t)
+	if evictionCount(f.kube.Actions()) != 1 || f.azure.deletes != 0 {
+		t.Fatal("SWIFT-only configuration did not remain eviction-only")
+	}
+	budget := f.ledger(t)
+	if len(budget.Status.Reservations) != 0 || len(budget.Status.Evictions) != 1 {
+		t.Fatal("SWIFT accounting changed")
+	}
+	if err := f.controller.SetConfig(cfg); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.controller.reconcile(context.Background()); err == nil {
+		t.Fatal("persisted eviction cooldown was bypassed")
+	}
+	if evictionCount(f.kube.Actions()) != 1 {
+		t.Fatal("SWIFT-only reload reset rate allowance")
+	}
+	cfg.Mitigators = append(cfg.Mitigators, "never-ready")
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("never-ready accepted missing deletion settings")
+	}
 }
 
 func TestStrictConfiguration(t *testing.T) {
@@ -53,11 +87,7 @@ func TestStrictConfiguration(t *testing.T) {
 		{"missing eviction limit", strings.Replace(string(valid), `"maxEvictionsPerNode":3`, `"maxEvictionsPerNode":0`, 1), false},
 		{"unsupported delete fallback", "mode: disabled\nallowUnhealthyDeletion: true", false},
 		{"unsupported drain phase", "mode: disabled\ndrain: true", false},
-		{"invalid duration", strings.Replace(string(valid), `"retryInterval":"1s"`, `"retryInterval":"invalid"`, 1), false},
-		{"unsupported never-ready", strings.Replace(string(valid), `"swift"`, `"never-ready"`, 1), false},
-		{"unsupported deletion budget", "mode: disabled\nwindow: 1h", false},
-		{"unsupported deletion capacity", "mode: disabled\nmaxUnavailablePool: 1", false},
-		{"unsupported disposable daemonsets", "mode: disabled\ndisposableDaemonSets: []", false},
+		{"invalid duration", strings.Replace(string(valid), `"window":"1h0m0s"`, `"window":"invalid"`, 1), false},
 		{"oversized", strings.Repeat(" ", 64*1024+1), false},
 	} {
 		t.Run(test.name, func(t *testing.T) {
@@ -70,7 +100,7 @@ func TestStrictConfiguration(t *testing.T) {
 }
 
 func TestConfigurationReloadAndDeploymentGate(t *testing.T) {
-	f := newFixture(t, 1)
+	f := newFixture(t, 1, 0)
 	before, revision := f.controller.configuration()
 	f.controller.OnConfigMap(&corev1.ConfigMap{Data: map[string]string{"config.yaml": "mode: audit\nunknown: true"}}, "config.yaml")
 	after, afterRevision := f.controller.configuration()

@@ -303,10 +303,11 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 	}
 
 	mitigationClock := time.Now
+	nodeHealth.EnableReadinessHistory(o.NodeMitigationEnabled)
 	nodeMitigation, err := nodemitigation.NewController(kubeClientset, crClient, dynamicClient,
-		o.Namespace,
+		nodemitigation.NewAzureClient(azureCredential, mitigationClock), o.Namespace,
 		kubeInformers.Core().V1().Nodes(), clusterWideKubeInformers.Core().V1().Pods(),
-		nodeHealthInformers.Core().V1().Events(), mitigationClock)
+		nodeHealthInformers.Core().V1().Events(), mitigationClock, nodeHealth.CheckNeverReady)
 	if err != nil {
 		return nil, fmt.Errorf("create node mitigation controller: %w", err)
 	}
