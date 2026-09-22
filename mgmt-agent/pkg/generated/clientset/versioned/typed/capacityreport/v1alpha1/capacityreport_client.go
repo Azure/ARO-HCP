@@ -28,7 +28,6 @@ import (
 type MgmtagentV1alpha1Interface interface {
 	RESTClient() rest.Interface
 	CapacityReportsGetter
-	MitigationEpisodesGetter
 	NodeMitigationBudgetsGetter
 }
 
@@ -39,10 +38,6 @@ type MgmtagentV1alpha1Client struct {
 
 func (c *MgmtagentV1alpha1Client) CapacityReports() CapacityReportInterface {
 	return newCapacityReports(c)
-}
-
-func (c *MgmtagentV1alpha1Client) MitigationEpisodes(namespace string) MitigationEpisodeInterface {
-	return newMitigationEpisodes(c, namespace)
 }
 
 func (c *MgmtagentV1alpha1Client) NodeMitigationBudgets(namespace string) NodeMitigationBudgetInterface {

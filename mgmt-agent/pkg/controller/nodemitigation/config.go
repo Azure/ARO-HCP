@@ -15,12 +15,14 @@
 package nodemitigation
 
 import (
+	"encoding/hex"
 	"fmt"
 	"slices"
 	"strings"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/validation"
 
 	"sigs.k8s.io/yaml"
 
@@ -38,36 +40,31 @@ const (
 )
 
 type WorkloadPolicy struct {
-	NamespaceSelector      metav1.LabelSelector `json:"namespaceSelector"`
-	PodSelector            metav1.LabelSelector `json:"podSelector"`
-	DeploymentSelector     metav1.LabelSelector `json:"deploymentSelector"`
-	AllowUnhealthyDeletion bool                 `json:"allowUnhealthyDeletion"`
-	AllowEmptyDir          bool                 `json:"allowEmptyDir"`
+	NamespaceSelector    metav1.LabelSelector `json:"namespaceSelector"`
+	PodSelector          metav1.LabelSelector `json:"podSelector"`
+	DeploymentSelector   metav1.LabelSelector `json:"deploymentSelector"`
+	AllowEmptyDir        bool                 `json:"allowEmptyDir"`
+	MinAvailableReplicas *int32               `json:"minAvailableReplicas"`
 }
 
 type Config struct {
-	acceptedWorkloads     []WorkloadPolicy
-	acceptedDaemonSets    []string
-	hasAcceptedPolicy     bool
-	Mode                  Mode             `json:"mode"`
-	ClusterResourceID     string           `json:"clusterResourceID"`
-	Mitigators            []string         `json:"mitigators"`
-	Rescue                bool             `json:"rescue"`
-	Drain                 bool             `json:"drain"`
-	DeleteNode            bool             `json:"deleteNode"`
-	Window                metav1.Duration  `json:"window"`
-	RetryInterval         metav1.Duration  `json:"retryInterval"`
-	ObservationMaxAge     metav1.Duration  `json:"observationMaxAge"`
-	CleanupDelay          metav1.Duration  `json:"cleanupDelay"`
-	MaxUnavailableCluster int              `json:"maxUnavailableCluster"`
-	MaxUnavailablePool    int              `json:"maxUnavailablePool"`
-	MaxUnavailableZone    int              `json:"maxUnavailableZone"`
-	MinHealthyPool        int              `json:"minHealthyPool"`
-	MinHealthyZone        int              `json:"minHealthyZone"`
-	Workloads             []WorkloadPolicy `json:"workloads"`
-	// DaemonSets are explicit namespace/name entries permitted to remain at
-	// Node deletion. Their owner identity must still be verified live.
-	DaemonSets []string `json:"daemonSets"`
+	Mode                    Mode              `json:"mode"`
+	ClusterResourceID       string            `json:"clusterResourceID"`
+	Mitigators              []string          `json:"mitigators"`
+	Window                  metav1.Duration   `json:"window"`
+	RetryInterval           metav1.Duration   `json:"retryInterval"`
+	ObservationMaxAge       metav1.Duration   `json:"observationMaxAge"`
+	EvictionWindow          metav1.Duration   `json:"evictionWindow"`
+	EvictionCooldown        metav1.Duration   `json:"evictionCooldown"`
+	MaxEvictionsPerWorkload int               `json:"maxEvictionsPerWorkload"`
+	MaxEvictionsPerNode     int               `json:"maxEvictionsPerNode"`
+	MaxUnavailableCluster   int               `json:"maxUnavailableCluster"`
+	MaxUnavailablePool      int               `json:"maxUnavailablePool"`
+	MaxUnavailableZone      int               `json:"maxUnavailableZone"`
+	MinHealthyPool          int               `json:"minHealthyPool"`
+	MinHealthyZone          int               `json:"minHealthyZone"`
+	Workloads               []WorkloadPolicy  `json:"workloads"`
+	DisposableDaemonSets    []DaemonSetPolicy `json:"disposableDaemonSets"`
 }
 
 func Default() Config { return Config{Mode: Disabled} }
@@ -79,15 +76,6 @@ func Parse(data []byte) (Config, error) {
 	cfg := Default()
 	if err := yaml.UnmarshalStrict(data, &cfg); err != nil {
 		return Config{}, fmt.Errorf("parse node-mitigation config: %w", err)
-	}
-	if cfg.Mode != Disabled {
-		var fields map[string]interface{}
-		if err := yaml.Unmarshal(data, &fields); err != nil {
-			return Config{}, err
-		}
-		if fields["cleanupDelay"] == nil {
-			return Config{}, fmt.Errorf("cleanupDelay must be explicit, including zero")
-		}
 	}
 	return cfg, cfg.Validate()
 }
@@ -115,17 +103,25 @@ func (cfg Config) Validate() error {
 	}
 	if cfg.Window.Duration <= 0 || cfg.RetryInterval.Duration <= 0 ||
 		cfg.ObservationMaxAge.Duration < cfg.RetryInterval.Duration ||
-		cfg.ObservationMaxAge.Duration >= cfg.Window.Duration || cfg.CleanupDelay.Duration < 0 {
-		return fmt.Errorf("require positive window/retry, retry <= observationMaxAge < window, and nonnegative cleanupDelay")
+		cfg.ObservationMaxAge.Duration >= cfg.Window.Duration {
+		return fmt.Errorf("require positive window/retry and retry <= observationMaxAge < window")
+	}
+	if slices.Contains(cfg.Mitigators, "swift") && (cfg.EvictionWindow.Duration <= 0 ||
+		cfg.EvictionCooldown.Duration < cfg.RetryInterval.Duration || cfg.EvictionCooldown.Duration > cfg.EvictionWindow.Duration ||
+		cfg.MaxEvictionsPerWorkload < 1 || cfg.MaxEvictionsPerNode < 1) {
+		return fmt.Errorf("SWIFT requires positive eviction limits and retry <= evictionCooldown <= evictionWindow")
 	}
 	if cfg.MaxUnavailableCluster < 1 || cfg.MaxUnavailablePool < 1 ||
 		cfg.MaxUnavailableZone < 1 || cfg.MinHealthyPool < 1 || cfg.MinHealthyZone < 1 {
 		return fmt.Errorf("unavailable limits and healthy floors must be explicitly positive")
 	}
-	if len(cfg.Workloads) > 64 || len(cfg.DaemonSets) > 128 {
-		return fmt.Errorf("workload or DaemonSet policy count exceeds the supported bound")
+	if len(cfg.Workloads) > 64 {
+		return fmt.Errorf("workload policy count exceeds the supported bound")
 	}
 	for _, policy := range cfg.Workloads {
+		if policy.MinAvailableReplicas == nil || *policy.MinAvailableReplicas < 0 {
+			return fmt.Errorf("workload policies require an explicit nonnegative minAvailableReplicas")
+		}
 		for _, selector := range []metav1.LabelSelector{policy.NamespaceSelector, policy.PodSelector, policy.DeploymentSelector} {
 			if len(selector.MatchLabels) == 0 && len(selector.MatchExpressions) == 0 {
 				return fmt.Errorf("workload policies require nonempty namespace, pod and deployment selectors")
@@ -135,9 +131,25 @@ func (cfg Config) Validate() error {
 			}
 		}
 	}
-	for _, ds := range cfg.DaemonSets {
-		if parts := strings.Split(ds, "/"); len(parts) != 2 || parts[0] == "" || parts[1] == "" {
-			return fmt.Errorf("daemonSets entries must be namespace/name")
+	if len(cfg.DisposableDaemonSets) > 64 {
+		return fmt.Errorf("disposable DaemonSet policy count exceeds the supported bound")
+	}
+	approved := map[string]bool{}
+	for _, policy := range cfg.DisposableDaemonSets {
+		key := policy.Namespace + "/" + policy.Name
+		if len(validation.IsDNS1123Label(policy.Namespace)) != 0 ||
+			len(validation.IsDNS1123Subdomain(policy.Name)) != 0 || policy.UID == "" || approved[key] {
+			return fmt.Errorf("disposable DaemonSet policies require unique namespace/name and a UID")
+		}
+		approved[key] = true
+		if !slices.Contains([]string{"networking", "logging", "monitoring"}, policy.Role) {
+			return fmt.Errorf("disposable DaemonSet role must be networking, logging or monitoring")
+		}
+		for _, digest := range []string{policy.TemplateSHA256, policy.PodSpecSHA256} {
+			decoded, err := hex.DecodeString(digest)
+			if err != nil || len(decoded) != 32 || digest != strings.ToLower(digest) {
+				return fmt.Errorf("disposable DaemonSet policies require lowercase template and Pod spec SHA256 digests")
+			}
 		}
 	}
 	return nil

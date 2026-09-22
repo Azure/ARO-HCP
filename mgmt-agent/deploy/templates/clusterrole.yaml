@@ -118,16 +118,10 @@ rules:
 - apiGroups:
   - ""
   resources:
-  - nodes
-  verbs:
-  - delete
-- apiGroups:
-  - ""
-  resources:
   - pods
   verbs:
   - get
-  - delete
+  - patch
 - apiGroups:
   - ""
   resources:
@@ -145,12 +139,6 @@ rules:
   resources:
   - replicasets
   - daemonsets
-  verbs:
-  - get
-- apiGroups:
-  - policy
-  resources:
-  - poddisruptionbudgets
   verbs:
   - get
 {{- end }}

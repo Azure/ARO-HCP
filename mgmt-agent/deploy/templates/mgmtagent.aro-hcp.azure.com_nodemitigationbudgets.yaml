@@ -40,6 +40,43 @@ spec:
             type: object
           status:
             properties:
+              evictionWindow:
+                type: string
+              evictions:
+                additionalProperties:
+                  description: |-
+                    EvictionRecord accounts for an attempt, including an unknown API outcome.
+                    It contains no Pod status or replacement relationship.
+                  properties:
+                    attemptedAt:
+                      format: date-time
+                      type: string
+                    nodeUID:
+                      description: |-
+                        UID is a type that holds unique ID values, including UUIDs.  Because we
+                        don't ONLY use UUIDs, this is an alias to string.  Being a type captures
+                        intent and helps make sure that UIDs and names do not get conflated.
+                      type: string
+                    podUID:
+                      description: |-
+                        UID is a type that holds unique ID values, including UUIDs.  Because we
+                        don't ONLY use UUIDs, this is an alias to string.  Being a type captures
+                        intent and helps make sure that UIDs and names do not get conflated.
+                      type: string
+                    workloadUID:
+                      description: |-
+                        UID is a type that holds unique ID values, including UUIDs.  Because we
+                        don't ONLY use UUIDs, this is an alias to string.  Being a type captures
+                        intent and helps make sure that UIDs and names do not get conflated.
+                      type: string
+                  required:
+                  - attemptedAt
+                  - nodeUID
+                  - podUID
+                  - workloadUID
+                  type: object
+                maxProperties: 1024
+                type: object
               pools:
                 additionalProperties:
                   properties:
@@ -71,13 +108,14 @@ spec:
                     deleteStartedAt:
                       format: date-time
                       type: string
-                    episodeUID:
-                      description: |-
-                        UID is a type that holds unique ID values, including UUIDs.  Because we
-                        don't ONLY use UUIDs, this is an alias to string.  Being a type captures
-                        intent and helps make sure that UIDs and names do not get conflated.
-                      type: string
                     instanceID:
+                      type: string
+                    machineName:
+                      type: string
+                    message:
+                      maxLength: 4096
+                      type: string
+                    nodeName:
                       type: string
                     nodeUID:
                       description: |-
@@ -85,7 +123,23 @@ spec:
                         don't ONLY use UUIDs, this is an alias to string.  Being a type captures
                         intent and helps make sure that UIDs and names do not get conflated.
                       type: string
+                    operationToken:
+                      maxLength: 65536
+                      type: string
+                    outcome:
+                      enum:
+                      - Unknown
+                      - Pending
+                      - Succeeded
+                      - Failed
+                      - Cancelled
+                      type: string
+                    pollAfter:
+                      format: date-time
+                      type: string
                     poolID:
+                      type: string
+                    providerID:
                       type: string
                     releasedAt:
                       format: date-time
@@ -96,18 +150,24 @@ spec:
                     zone:
                       type: string
                   required:
-                  - episodeUID
                   - instanceID
+                  - machineName
+                  - nodeName
                   - nodeUID
                   - poolID
+                  - providerID
                   - reservedAt
                   - zone
                   type: object
                 maxProperties: 1024
                 type: object
+              version:
+                type: integer
               window:
                 type: string
             required:
+            - evictionWindow
+            - version
             - window
             type: object
         type: object

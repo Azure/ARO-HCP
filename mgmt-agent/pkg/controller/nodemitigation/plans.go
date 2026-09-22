@@ -20,30 +20,24 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 
-	api "github.com/Azure/ARO-HCP/mgmt-agent/pkg/apis/capacityreport/v1alpha1"
 	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller/nodehealth/detectors"
 )
 
 const (
-	PhaseCordon   = "Cordon"
-	PhaseRescue   = "Rescue"
-	PhaseDrain    = "Drain"
-	PhaseDelete   = "DeleteNode"
-	PhaseObserve  = "Observe"
-	PhaseComplete = "Complete"
+	ActionEvict  = "EvictPod"
+	ActionDelete = "DeleteMachine"
 )
 
 type Input struct {
 	Node      *corev1.Node
 	Detection detectors.Detection
-	Episode   *api.MitigationEpisode
 	Policy    Config
 	Now       time.Time
 }
 
 type Decision struct {
-	Phase string
-	Hold  string
+	Action string
+	Hold   string
 }
 
 type Mitigator interface {
@@ -56,21 +50,13 @@ type swiftMitigator struct{}
 
 func (swiftMitigator) Name() string { return "swift" }
 func (swiftMitigator) DetectorNames() []string {
-	return []string{"swift-vf-teardown", detectors.SwiftPodSandboxStalled}
+	return []string{detectors.SwiftPodSandboxStalled}
 }
 func (swiftMitigator) Plan(input Input) (Decision, error) {
-	if input.Episode == nil {
-		return Decision{Phase: PhaseCordon}, nil
+	if input.Detection.Detector != detectors.SwiftPodSandboxStalled || len(input.Detection.PodUIDs) == 0 {
+		return Decision{Hold: "pod-scoped SWIFT evidence missing"}, nil
 	}
-	switch phase := input.Episode.Status.Phase; phase {
-	case "", PhaseCordon, PhaseRescue, PhaseDrain, PhaseDelete, PhaseObserve, PhaseComplete:
-		if phase == "" {
-			phase = PhaseCordon
-		}
-		return Decision{Phase: phase}, nil
-	default:
-		return Decision{}, fmt.Errorf("unknown SWIFT episode phase %q", phase)
-	}
+	return Decision{Action: ActionEvict}, nil
 }
 
 type neverReadyMitigator struct{}
@@ -78,19 +64,10 @@ type neverReadyMitigator struct{}
 func (neverReadyMitigator) Name() string            { return "never-ready" }
 func (neverReadyMitigator) DetectorNames() []string { return []string{"never-ready"} }
 func (neverReadyMitigator) Plan(input Input) (Decision, error) {
-	if input.Episode != nil {
-		switch input.Episode.Status.Phase {
-		case PhaseObserve, PhaseComplete:
-			return Decision{Phase: input.Episode.Status.Phase}, nil
-		case "", PhaseDelete:
-		default:
-			return Decision{}, fmt.Errorf("unknown never-ready episode phase %q", input.Episode.Status.Phase)
-		}
-	}
 	if input.Detection.Detector != "never-ready" {
 		return Decision{Hold: "never-ready evidence no longer valid"}, nil
 	}
-	return Decision{Phase: PhaseDelete}, nil
+	return Decision{Action: ActionDelete}, nil
 }
 
 func registry(mitigators ...Mitigator) (map[string]Mitigator, error) {

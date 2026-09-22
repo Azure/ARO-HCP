@@ -70,7 +70,7 @@ type Controller struct {
 	kube                 kubernetes.Interface
 	records              clientset.Interface
 	dynamic              dynamic.Interface
-	azure                AzureReader
+	azure                AzureClient
 	namespace            string
 	clock                func() time.Time
 	observer             string
@@ -82,15 +82,17 @@ type Controller struct {
 	revision             uint64
 	configurationAllowed bool
 	lastLog              map[string]time.Time
+	nextPoll             map[string]time.Time
 	nodes                corelisters.NodeLister
 	pods                 corelisters.PodLister
 	events               corelisters.EventLister
 	nextReconcile        time.Time
+	readiness            func(*corev1.Node) error
 }
 
 func NewController(kube kubernetes.Interface, records clientset.Interface, dyn dynamic.Interface,
-	azure AzureReader, namespace string, nodes coreinformers.NodeInformer, pods coreinformers.PodInformer,
-	events coreinformers.EventInformer, clock func() time.Time) (*Controller, error) {
+	azure AzureClient, namespace string, nodes coreinformers.NodeInformer, pods coreinformers.PodInformer,
+	events coreinformers.EventInformer, clock func() time.Time, readiness func(*corev1.Node) error) (*Controller, error) {
 	if clock == nil {
 		clock = time.Now
 	}
@@ -101,8 +103,9 @@ func NewController(kube kubernetes.Interface, records clientset.Interface, dyn d
 	c := &Controller{
 		kube: kube, records: records, dynamic: dyn, azure: azure, namespace: namespace,
 		clock: clock, observer: string(uuid.NewUUID()), routes: routes, config: Default(),
-		lastLog: map[string]time.Time{},
-		nodes:   nodes.Lister(), pods: pods.Lister(), events: events.Lister(),
+		lastLog: map[string]time.Time{}, nextPoll: map[string]time.Time{},
+		readiness: readiness,
+		nodes:     nodes.Lister(), pods: pods.Lister(), events: events.Lister(),
 		queue: workqueue.NewTypedRateLimitingQueueWithConfig(
 			workqueue.DefaultTypedControllerRateLimiter[clusterKey](),
 			workqueue.TypedRateLimitingQueueConfig[clusterKey]{Name: ControllerName}),
@@ -246,16 +249,6 @@ func (c *Controller) reconcileDelay() time.Duration {
 	return 0
 }
 
-func (c *Controller) saveEpisode(ctx context.Context, revision uint64, episode *api.MitigationEpisode) error {
-	return c.write(revision, func() error {
-		result, err := c.records.MgmtagentV1alpha1().MitigationEpisodes(c.namespace).UpdateStatus(ctx, episode, metav1.UpdateOptions{})
-		if err == nil {
-			*episode = *result
-		}
-		return err
-	})
-}
-
 func (c *Controller) saveBudget(ctx context.Context, revision uint64, budget *api.NodeMitigationBudget) error {
 	return c.write(revision, func() error {
 		result, err := c.records.MgmtagentV1alpha1().NodeMitigationBudgets(c.namespace).UpdateStatus(ctx, budget, metav1.UpdateOptions{})
@@ -266,36 +259,70 @@ func (c *Controller) saveBudget(ctx context.Context, revision uint64, budget *ap
 	})
 }
 
-func (c *Controller) budget(ctx context.Context, revision uint64, mode Mode, episodesExist bool) (*api.NodeMitigationBudget, error) {
+func (c *Controller) budget(ctx context.Context, revision uint64, mode Mode) (*api.NodeMitigationBudget, error) {
 	budget, err := c.records.MgmtagentV1alpha1().NodeMitigationBudgets(c.namespace).Get(ctx, budgetName, metav1.GetOptions{})
-	if apierrors.IsNotFound(err) {
-		if episodesExist {
-			return nil, fmt.Errorf("mitigation accounting is missing while episodes still exist; restore the ledger")
-		}
-		budget = &api.NodeMitigationBudget{ObjectMeta: metav1.ObjectMeta{Name: budgetName, Namespace: c.namespace}}
-		if mode == Enforce {
-			err = c.write(revision, func() error {
-				var createErr error
-				budget, createErr = c.records.MgmtagentV1alpha1().NodeMitigationBudgets(c.namespace).Create(ctx, budget, metav1.CreateOptions{})
-				return createErr
-			})
-		} else {
-			err = nil
-		}
-	}
-	if err != nil {
+	missing := apierrors.IsNotFound(err)
+	if err != nil && !missing {
 		return nil, err
 	}
+	if missing {
+		budget = &api.NodeMitigationBudget{ObjectMeta: metav1.ObjectMeta{Name: budgetName, Namespace: c.namespace}}
+	}
+	if budget.Status.Version != 1 && (budget.Status.Version != 0 || len(budget.Status.Reservations) > 0 ||
+		len(budget.Status.Pools) > 0 || len(budget.Status.Evictions) > 0) {
+		return nil, fmt.Errorf("unsupported mitigation accounting version %d; explicit migration required", budget.Status.Version)
+	}
+	if budget.Status.Version == 0 && mode != Disabled {
+		if err := c.checkAccountingOwnership(ctx); err != nil {
+			return nil, err
+		}
+	}
+	if missing && mode == Enforce {
+		if err := c.write(revision, func() error {
+			var createErr error
+			budget, createErr = c.records.MgmtagentV1alpha1().NodeMitigationBudgets(c.namespace).Create(ctx, budget, metav1.CreateOptions{})
+			return createErr
+		}); err != nil {
+			return nil, err
+		}
+	}
+	initialize := budget.Status.Version == 0
+	budget.Status.Version = 1
 	if budget.Status.Pools == nil {
 		budget.Status.Pools = map[string]api.PoolBaseline{}
 	}
 	if budget.Status.Reservations == nil {
 		budget.Status.Reservations = map[string]api.MitigationReservation{}
 	}
+	if budget.Status.Evictions == nil {
+		budget.Status.Evictions = map[string]api.EvictionRecord{}
+	}
+	if initialize && mode == Enforce {
+		return budget, c.saveBudget(ctx, revision, budget)
+	}
 	return budget, nil
 }
 
-func episodeName(uid string) string {
+func (c *Controller) checkAccountingOwnership(ctx context.Context) error {
+	options := metav1.ListOptions{LabelSelector: ownershipLabel + "=" + ControllerName, Limit: 1}
+	nodes, err := c.kube.CoreV1().Nodes().List(ctx, options)
+	if err != nil {
+		return fmt.Errorf("check node ownership before initializing accounting: %w", err)
+	}
+	if len(nodes.Items) > 0 {
+		return fmt.Errorf("owned node exists without initialized accounting; operator reconciliation required")
+	}
+	pods, err := c.kube.CoreV1().Pods("").List(ctx, options)
+	if err != nil {
+		return fmt.Errorf("check pod ownership before initializing accounting: %w", err)
+	}
+	if len(pods.Items) > 0 {
+		return fmt.Errorf("owned pod exists without initialized accounting; operator reconciliation required")
+	}
+	return nil
+}
+
+func recordName(uid string) string {
 	return fmt.Sprintf("node-%x", sha256.Sum256([]byte(uid)))[:45]
 }
 
@@ -330,10 +357,10 @@ func (c *Controller) hasCandidates(cfg Config) (bool, error) {
 	return false, nil
 }
 
-// Cached discovery only selects work. Admission, placement and cleanup use a
+// Cached discovery only selects work. Admission and placement use a
 // live cluster-wide snapshot so missed watch updates cannot authorize disruption.
 func (c *Controller) snapshot(ctx context.Context) (ClusterSnapshot, error) {
-	snapshot := ClusterSnapshot{Namespaces: map[string]*corev1.Namespace{}, NICs: map[string]map[types.UID]int64{}}
+	snapshot := ClusterSnapshot{ObservedAt: c.clock(), Namespaces: map[string]*corev1.Namespace{}, NICs: map[string]map[types.UID]int64{}}
 	nodes, err := c.kube.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
 	if err != nil {
 		return snapshot, err
@@ -413,64 +440,46 @@ func nodeEvidence(node *corev1.Node, pods []*corev1.Pod, observed []corev1.Event
 
 func (c *Controller) reconcile(ctx context.Context) error {
 	cfg, revision := c.configuration()
-	episodes, err := c.records.MgmtagentV1alpha1().MitigationEpisodes(c.namespace).List(ctx, metav1.ListOptions{})
+	budget, err := c.budget(ctx, revision, cfg.Mode)
 	if err != nil {
 		return err
 	}
-	if cfg.Mode == Disabled && len(episodes.Items) == 0 {
-		return nil
+	pending := false
+	for _, reservation := range budget.Status.Reservations {
+		pending = pending || reservation.ReleasedAt == nil
 	}
-	if len(episodes.Items) == 0 {
-		candidates, err := c.hasCandidates(cfg)
+	defer func() { reportState(budget, c.clock()) }()
+	if !pending {
+		candidates := false
+		if cfg.Mode != Disabled {
+			candidates, err = c.hasCandidates(cfg)
+		}
 		if err != nil {
 			return err
 		}
 		if !candidates {
-			return nil
+			return c.pruneBudget(ctx, cfg, revision, budget)
 		}
 	}
-	budget, err := c.budget(ctx, revision, cfg.Mode, len(episodes.Items) > 0)
-	if err != nil {
-		empty := &api.NodeMitigationBudget{}
-		for i := range episodes.Items {
-			observer := cfg
-			observer.Mode = Disabled
-			if observeErr := c.reconcileEpisode(ctx, observer, revision, &episodes.Items[i], empty, ClusterSnapshot{}); observeErr != nil {
-				err = errors.Join(err, observeErr)
+	snapshot, snapshotErr := c.snapshot(ctx)
+	var operationErrors error
+	for key, reservation := range budget.Status.Reservations {
+		if reservation.ReleasedAt == nil {
+			err := c.observeDeletion(ctx, cfg, revision, key, budget, snapshot, snapshotErr == nil)
+			operationErrors = errors.Join(operationErrors, err)
+			if err == nil && reservation.DeleteStartedAt == nil && cfg.Mode == Enforce && snapshotErr == nil {
+				return operationErrors
 			}
 		}
-		return err
 	}
-	defer func() { reportState(episodes.Items, budget, c.clock()) }()
-	snapshot, err := c.snapshot(ctx)
-	if err != nil {
-		utils.LoggerFromContext(ctx).Error(err, "capacity observations unavailable; observing submitted work only")
-		observationConfig := cfg
-		observationConfig.Mode = Disabled
-		for i := range episodes.Items {
-			if observeErr := c.reconcileEpisode(ctx, observationConfig, revision, &episodes.Items[i], budget, snapshot); observeErr != nil {
-				err = errors.Join(err, observeErr)
-			}
-		}
-		return err
+	if snapshotErr != nil || cfg.Mode == Disabled {
+		return errors.Join(snapshotErr, operationErrors)
 	}
-	active := map[string]bool{}
-	var episodeErrors error
-	for i := range episodes.Items {
-		episode := &episodes.Items[i]
-		active[string(episode.Spec.NodeUID)] = true
-		if err := c.reconcileEpisode(ctx, cfg, revision, episode, budget, snapshot); err != nil {
-			episodeErrors = errors.Join(episodeErrors, err)
-		}
-	}
-	if episodeErrors != nil {
-		return episodeErrors
-	}
-	if cfg.Mode == Disabled {
-		return nil
+	if err := c.pruneBudget(ctx, cfg, revision, budget); err != nil {
+		return errors.Join(err, operationErrors)
 	}
 	for _, node := range snapshot.Nodes {
-		if active[string(node.UID)] || node.DeletionTimestamp != nil {
+		if node.DeletionTimestamp != nil || node.Spec.Unschedulable {
 			continue
 		}
 		detections, _ := nodeEvidence(node, snapshot.Pods, snapshot.Events, c.clock())
@@ -481,55 +490,31 @@ func (c *Controller) reconcile(ctx context.Context) error {
 			}
 			decision, err := mitigator.Plan(Input{Node: node, Detection: detection, Policy: cfg, Now: c.clock()})
 			if err != nil {
-				return err
+				return errors.Join(err, operationErrors)
 			}
-			if !actionEnabled(cfg, decision.Phase) {
-				c.logCandidate(ctx, node, cfg, detection.Detector, decision.Phase, false, "action phase disabled")
-				break
+			if decision.Hold != "" {
+				c.logCandidate(ctx, node, cfg, detection.Detector, decision.Action, false, decision.Hold)
+				continue
 			}
-			if node.Spec.Unschedulable {
-				c.logCandidate(ctx, node, cfg, detection.Detector, decision.Phase, false, "external cordon")
-				break
+			var acted bool
+			switch decision.Action {
+			case ActionEvict:
+				acted, err = c.rescue(ctx, cfg, revision, node, detection, budget, snapshot)
+			case ActionDelete:
+				acted, err = c.deleteCandidate(ctx, cfg, revision, node, budget, snapshot)
+			default:
+				err = fmt.Errorf("unsupported mitigation action %q", decision.Action)
 			}
-			if len(episodes.Items) >= maxRecords || len(budget.Status.Reservations) >= maxRecords {
-				c.logCandidate(ctx, node, cfg, detection.Detector, decision.Phase, false, "mitigation state limit reached")
-				break
-			}
-			observation, instance, err := c.admission(ctx, cfg, revision, node, budget, snapshot, "")
 			if err != nil {
-				c.logCandidate(ctx, node, cfg, detection.Detector, decision.Phase, false, err.Error())
-				break
+				c.logCandidate(ctx, node, cfg, detection.Detector, decision.Action, false, err.Error())
+				operationErrors = errors.Join(operationErrors, err)
 			}
-			c.logCandidate(ctx, node, cfg, detection.Detector, decision.Phase, true, "")
-			if cfg.Mode == Audit {
-				break
+			if acted {
+				return operationErrors
 			}
-			policy, err := json.Marshal(cfg)
-			if err != nil {
-				return err
-			}
-			episode := &api.MitigationEpisode{ObjectMeta: metav1.ObjectMeta{Name: episodeName(string(node.UID)), Namespace: c.namespace},
-				Spec: api.MitigationEpisodeSpec{
-					NodeName: node.Name, NodeUID: node.UID, ProviderID: node.Spec.ProviderID, InstanceID: instance,
-					PoolID: observation.ID, Zone: node.Labels[corev1.LabelTopologyZone],
-					Detector: detection.Detector, Mitigator: mitigator.Name(), Policy: string(policy), PodUIDs: detection.PodUIDs,
-				}}
-			err = c.write(revision, func() error {
-				var e error
-				episode, e = c.records.MgmtagentV1alpha1().MitigationEpisodes(c.namespace).Create(ctx, episode, metav1.CreateOptions{})
-				return e
-			})
-			if err != nil {
-				return err
-			}
-			episode.Status.Phase = decision.Phase
-			if err = c.saveEpisode(ctx, revision, episode); err != nil {
-				return err
-			}
-			return nil
 		}
 	}
-	return nil
+	return operationErrors
 }
 
 func (c *Controller) logCandidate(ctx context.Context, node *corev1.Node, cfg Config, detector, action string, eligible bool, reason string) {
@@ -542,19 +527,6 @@ func (c *Controller) logCandidate(ctx context.Context, node *corev1.Node, cfg Co
 	}
 	c.lastLog[key] = c.clock()
 	utils.LoggerFromContext(ctx).Info("mitigation candidate", "node", node.Name, "nodeUID", node.UID, "detector", detector, "action", action, "mode", cfg.Mode, "candidateEligible", eligible, "reason", reason)
-}
-
-func actionEnabled(cfg Config, phase string) bool {
-	switch phase {
-	case PhaseCordon, PhaseRescue:
-		return cfg.Rescue
-	case PhaseDrain:
-		return cfg.Drain
-	case PhaseDelete:
-		return cfg.DeleteNode
-	default:
-		return false
-	}
 }
 
 func poolFromID(id string) string { parts := strings.Split(id, "/"); return parts[len(parts)-1] }

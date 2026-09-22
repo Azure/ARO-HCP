@@ -17,319 +17,218 @@ package nodemitigation
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	policyv1 "k8s.io/api/policy/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/uuid"
 
+	"github.com/Azure/ARO-HCP/internal/utils"
 	api "github.com/Azure/ARO-HCP/mgmt-agent/pkg/apis/capacityreport/v1alpha1"
 	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller/nodehealth/detectors"
 )
 
-const ownershipAnnotation = "node-mitigation.aro-hcp.azure.com/episode"
+const ownershipLabel = "node-mitigation.aro-hcp.azure.com/managed-by"
 
-var errAuditEligible = errors.New("action eligible without audit writes")
-
-func (c *Controller) execute(ctx context.Context, cfg Config, revision uint64, episode *api.MitigationEpisode, budget *api.NodeMitigationBudget, node *corev1.Node, events []*corev1.Event) error {
-	intent := episode.Status.Intent
-	if intent == nil {
-		return fmt.Errorf("action has no durable intent")
+func ownershipPatch(meta metav1.ObjectMeta) ([]byte, error) {
+	if owner := meta.Labels[ownershipLabel]; owner != "" && owner != ControllerName {
+		return nil, fmt.Errorf("resource has another mitigation owner")
 	}
-	if intent.LastAttemptAt != nil && c.clock().Sub(intent.LastAttemptAt.Time) < cfg.RetryInterval.Duration {
-		return nil
+	labels := make(map[string]string, len(meta.Labels)+1)
+	for key, value := range meta.Labels {
+		labels[key] = value
 	}
-	switch intent.Kind {
-	case "Cordon":
-		if episode.Status.Phase != PhaseObserve && !cfg.Rescue {
-			return c.hold(ctx, cfg, revision, episode, "rescue disabled")
-		}
-		current, err := c.kube.CoreV1().Nodes().Get(ctx, intent.Name, metav1.GetOptions{})
-		if err != nil {
-			return err
-		}
-		if current.UID != intent.UID || current.Spec.ProviderID != node.Spec.ProviderID ||
-			!strings.EqualFold(current.Status.NodeInfo.SystemUUID, episode.Spec.InstanceID) {
-			return c.hold(ctx, cfg, revision, episode, "cordon target identity changed")
-		}
-		if current.Spec.Unschedulable {
-			if current.Annotations[ownershipAnnotation] != string(episode.UID) {
-				return c.hold(ctx, cfg, revision, episode, "external cordon")
-			}
-			episode.Status.Intent = nil
-			if episode.Status.Phase == PhaseObserve {
-				return c.saveEpisode(ctx, revision, episode)
-			}
-			return c.phase(ctx, revision, episode, PhaseRescue)
-		}
-		if current.ResourceVersion != intent.ResourceVersion {
-			intent.ResourceVersion = current.ResourceVersion
-			if err := c.saveEpisode(ctx, revision, episode); err != nil {
-				return err
-			}
-			intent = episode.Status.Intent
-		}
-		annotations := map[string]string{}
-		for key, value := range current.Annotations {
-			annotations[key] = value
-		}
-		annotations[ownershipAnnotation] = string(episode.UID)
-		patch, err := json.Marshal([]map[string]any{
-			{"op": "test", "path": "/metadata/uid", "value": intent.UID},
-			{"op": "test", "path": "/metadata/resourceVersion", "value": intent.ResourceVersion},
-			{"op": "add", "path": "/spec/unschedulable", "value": true},
-			{"op": "add", "path": "/metadata/annotations", "value": annotations},
-		})
-		if err != nil {
-			return err
-		}
-		if err := c.attempt(ctx, cfg, revision, episode); err != nil {
-			return err
-		}
-		err = c.action(revision, "Cordon", func() error {
-			_, err := c.kube.CoreV1().Nodes().Patch(ctx, intent.Name, types.JSONPatchType, patch, metav1.PatchOptions{})
-			return err
-		})
-		if err != nil {
-			return err
-		}
-		return c.event(ctx, revision, episode, corev1.EventTypeNormal, "NodeCordoned", "Node cordoned under its mitigation reservation")
-	case "DeleteNode":
-		if !cfg.DeleteNode {
-			return c.hold(ctx, cfg, revision, episode, "Node deletion disabled")
-		}
-		current, err := c.kube.CoreV1().Nodes().Get(ctx, intent.Name, metav1.GetOptions{})
-		if err != nil {
-			return err
-		}
-		if current.UID != intent.UID || current.Spec.ProviderID != episode.Spec.ProviderID ||
-			!strings.EqualFold(current.Status.NodeInfo.SystemUUID, episode.Spec.InstanceID) {
-			return c.hold(ctx, cfg, revision, episode, "Node DELETE identity changed")
-		}
-		node = current
-		if node.DeletionTimestamp != nil {
-			return nil
-		}
-		if episode.Spec.Mitigator == "swift" && (!node.Spec.Unschedulable || node.Annotations[ownershipAnnotation] != string(episode.UID)) {
-			return c.hold(ctx, cfg, revision, episode, "Node deletion requires the owned cordon")
-		}
-		if episode.Spec.Mitigator == "never-ready" {
-			decision, snapshot := detectors.Decide(node, nil, nil, c.clock())
-			if decision != detectors.DecisionWedged || snapshot.DetectorName != "never-ready" {
-				return c.hold(ctx, cfg, revision, episode, "never-ready evidence no longer valid")
-			}
-		}
-		if err := c.safeToDeleteNode(ctx, cfg, node); err != nil {
-			return c.hold(ctx, cfg, revision, episode, err.Error())
-		}
-		if node.ResourceVersion != intent.ResourceVersion {
-			intent.ResourceVersion = node.ResourceVersion
-			if err := c.saveEpisode(ctx, revision, episode); err != nil {
-				return err
-			}
-			intent = episode.Status.Intent
-		}
-		reservation, found := budget.Status.Reservations[episode.Name]
-		if !found || reservation.DeleteStartedAt == nil || reservation.ReleasedAt != nil {
-			return fmt.Errorf("node deletion has no active deletion reservation")
-		}
-		if c.clock().Sub(reservation.ReservedAt.Time) < cfg.CleanupDelay.Duration {
-			return c.hold(ctx, cfg, revision, episode, "cleanup delay has not elapsed")
-		}
-		if err := c.attempt(ctx, cfg, revision, episode); err != nil {
-			return err
-		}
-		if err := c.action(revision, "DeleteNode", func() error {
-			return c.kube.CoreV1().Nodes().Delete(ctx, intent.Name, metav1.DeleteOptions{
-				Preconditions: &metav1.Preconditions{UID: &intent.UID, ResourceVersion: &intent.ResourceVersion},
-			})
-		}); err != nil {
-			return err
-		}
-		return c.event(ctx, revision, episode, corev1.EventTypeNormal, "NodeDeleteSubmitted", "Kubernetes Node deletion submitted; instance cleanup is not yet confirmed")
-	case "EvictPod", "DeleteUnhealthyPod":
-		return c.executePod(ctx, cfg, revision, episode, node, events)
-	default:
-		return fmt.Errorf("unsupported action %q", intent.Kind)
-	}
-}
-
-func (c *Controller) attempt(ctx context.Context, cfg Config, revision uint64, episode *api.MitigationEpisode) error {
-	if cfg.Mode == Audit {
-		return errAuditEligible
-	}
-	meta.RemoveStatusCondition(&episode.Status.Conditions, "Held")
-	t := metav1.NewTime(c.clock())
-	episode.Status.Intent.LastAttemptAt = &t
-	if episode.Status.Intent.Kind == "DeleteNode" {
-		episode.Status.NodeDeletionAction = episode.Status.Intent.DeepCopy()
-	}
-	return c.saveEpisode(ctx, revision, episode)
-}
-
-func (c *Controller) executePod(ctx context.Context, cfg Config, revision uint64, episode *api.MitigationEpisode, node *corev1.Node, events []*corev1.Event) error {
-	intent := episode.Status.Intent
-	current, err := c.kube.CoreV1().Nodes().Get(ctx, node.Name, metav1.GetOptions{})
-	if err != nil {
-		return err
-	}
-	if current.UID != node.UID || current.Spec.ProviderID != node.Spec.ProviderID ||
-		!strings.EqualFold(current.Status.NodeInfo.SystemUUID, episode.Spec.InstanceID) {
-		return c.hold(ctx, cfg, revision, episode, "pod source Node identity changed")
-	}
-	node = current
-	if (intent.Phase == PhaseRescue && !cfg.Rescue) || (intent.Phase == PhaseDrain && !cfg.Drain) {
-		return c.hold(ctx, cfg, revision, episode, "pod action phase disabled")
-	}
-	if intent.Phase != PhaseRescue && intent.Phase != PhaseDrain {
-		return fmt.Errorf("invalid pod action phase %q", intent.Phase)
-	}
-	if !ready(node) {
-		return c.hold(ctx, cfg, revision, episode, "pod process safety requires a Ready source Node")
-	}
-	pod, err := c.kube.CoreV1().Pods(intent.Namespace).Get(ctx, intent.Name, metav1.GetOptions{})
-	if apierrors.IsNotFound(err) || (err == nil && pod.UID != intent.UID) {
-		episode.Status.Intent = nil
-		return c.saveEpisode(ctx, revision, episode)
-	}
-	if err != nil {
-		return err
-	}
-	if pod.Spec.NodeName != node.Name || !node.Spec.Unschedulable || node.Annotations[ownershipAnnotation] != string(episode.UID) {
-		return c.hold(ctx, cfg, revision, episode, "pod or cordon ownership changed")
-	}
-	if pod.DeletionTimestamp != nil {
-		return nil
-	}
-	if terminal(pod) {
-		episode.Status.Intent = nil
-		return c.saveEpisode(ctx, revision, episode)
-	}
-	_, policy, err := workload(ctx, c.kube, pod, cfg)
-	if err != nil {
-		return c.hold(ctx, cfg, revision, episode, err.Error())
-	}
-	_, _, stalled := detectors.SwiftSandboxStalled(pod, events, c.clock())
-	if intent.Phase == PhaseRescue && !stalled {
-		episode.Status.Intent = nil
-		episode.Status.Recovery = nil
-		return c.saveEpisode(ctx, revision, episode)
-	}
-	if pod.ResourceVersion != intent.ResourceVersion {
-		intent.ResourceVersion = pod.ResourceVersion
-		// A changed object needs a new eviction attempt, not a stale bypass.
-		intent.Kind = "EvictPod"
-		intent.PDBName, intent.PDBResourceVersion, intent.PDBUID = "", "", ""
-		if err := c.saveEpisode(ctx, revision, episode); err != nil {
-			return err
-		}
-		intent = episode.Status.Intent
-	}
-	options := metav1.DeleteOptions{Preconditions: &metav1.Preconditions{UID: &intent.UID, ResourceVersion: &intent.ResourceVersion}}
-	if intent.Kind == "DeleteUnhealthyPod" {
-		if !policy.AllowUnhealthyDeletion || !stalled || podReady(pod) {
-			return c.hold(ctx, cfg, revision, episode, "unhealthy-pod bypass no longer authorized")
-		}
-		pdb, err := c.blockingPDB(ctx, pod)
-		if err != nil {
-			return c.hold(ctx, cfg, revision, episode, err.Error())
-		}
-		if pdb.UID != intent.PDBUID || pdb.ResourceVersion != intent.PDBResourceVersion {
-			intent.Kind = "EvictPod"
-			return c.saveEpisode(ctx, revision, episode)
-		}
-		if err := c.attempt(ctx, cfg, revision, episode); err != nil {
-			return err
-		}
-		if err := c.action(revision, "DeleteUnhealthyPod", func() error { return c.kube.CoreV1().Pods(pod.Namespace).Delete(ctx, pod.Name, options) }); err != nil {
-			return err
-		}
-		return c.event(ctx, revision, episode, corev1.EventTypeWarning, "UnhealthyPodPDBBypass", "Explicit workload policy allowed graceful deletion after confirmed PDB denial")
-	}
-	if err := c.attempt(ctx, cfg, revision, episode); err != nil {
-		return err
-	}
-	err = c.action(revision, "EvictPod", func() error {
-		return c.kube.PolicyV1().Evictions(pod.Namespace).Evict(ctx, &policyv1.Eviction{
-			ObjectMeta:    metav1.ObjectMeta{Name: pod.Name, Namespace: pod.Namespace},
-			DeleteOptions: &options,
-		})
+	labels[ownershipLabel] = ControllerName
+	return json.Marshal([]map[string]any{
+		{"op": "test", "path": "/metadata/uid", "value": meta.UID},
+		{"op": "test", "path": "/metadata/resourceVersion", "value": meta.ResourceVersion},
+		{"op": "add", "path": "/metadata/labels", "value": labels},
 	})
-	if err == nil {
-		return c.event(ctx, revision, episode, corev1.EventTypeNormal, "PodEvictionSubmitted", "Pod eviction submitted; waiting for termination and replacement readiness")
-	}
-	if !pdbDenial(err) || !policy.AllowUnhealthyDeletion || !stalled {
-		return err
-	}
-	pdb, pdbErr := c.blockingPDB(ctx, pod)
-	if pdbErr != nil {
-		return pdbErr
-	}
-	intent = episode.Status.Intent
-	intent.Kind = "DeleteUnhealthyPod"
-	intent.ID = episodeName(string(episode.UID) + intent.Kind + string(pod.UID) + pod.ResourceVersion)
-	intent.PDBName, intent.PDBUID, intent.PDBResourceVersion = pdb.Name, pdb.UID, pdb.ResourceVersion
-	return c.saveEpisode(ctx, revision, episode)
 }
 
-func pdbDenial(err error) bool {
-	if !apierrors.IsTooManyRequests(err) {
-		return false
-	}
-	status, ok := err.(apierrors.APIStatus)
-	if !ok || status.Status().Details == nil {
-		return false
-	}
-	for _, cause := range status.Status().Details.Causes {
-		if cause.Type == policyv1.DisruptionBudgetCause {
-			return true
-		}
-	}
-	return false
-}
-
-func (c *Controller) blockingPDB(ctx context.Context, pod *corev1.Pod) (*policyv1.PodDisruptionBudget, error) {
-	budgets, err := c.kube.PolicyV1().PodDisruptionBudgets(pod.Namespace).List(ctx, metav1.ListOptions{})
+func (c *Controller) availableWorkload(ctx context.Context, pod *corev1.Pod, cfg Config, snapshot ClusterSnapshot, excluded map[string]bool) (*appsv1.Deployment, error) {
+	deployment, policy, err := workload(ctx, c.kube, pod, cfg)
 	if err != nil {
 		return nil, err
 	}
-	var matching *policyv1.PodDisruptionBudget
-	for i := range budgets.Items {
-		pdb := &budgets.Items[i]
-		selector, err := metav1.LabelSelectorAsSelector(pdb.Spec.Selector)
-		if err != nil {
-			return nil, err
-		}
-		if !selector.Matches(labels.Set(pod.Labels)) {
+	if policy.MinAvailableReplicas == nil {
+		return nil, fmt.Errorf("workload availability floor missing")
+	}
+	pods, err := c.kube.CoreV1().Pods(pod.Namespace).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
+	healthyNodes := map[string]bool{}
+	for _, node := range snapshot.Nodes {
+		healthyNodes[node.Name] = ready(node) && !excluded[node.Name]
+	}
+	replicaSets := map[types.UID]bool{}
+	available := int32(0)
+	for i := range pods.Items {
+		other := &pods.Items[i]
+		owner := metav1.GetControllerOf(other)
+		if !podReady(other) || !healthyNodes[other.Spec.NodeName] || owner == nil ||
+			owner.Kind != "ReplicaSet" || owner.APIVersion != "apps/v1" {
 			continue
 		}
-		if matching != nil {
-			return nil, fmt.Errorf("overlapping PDBs do not authorize bypass")
+		belongs, known := replicaSets[owner.UID]
+		if !known {
+			rs, err := c.kube.AppsV1().ReplicaSets(pod.Namespace).Get(ctx, owner.Name, metav1.GetOptions{})
+			if err != nil {
+				return nil, err
+			}
+			parent := metav1.GetControllerOf(rs)
+			belongs = rs.UID == owner.UID && rs.DeletionTimestamp == nil && parent != nil &&
+				parent.Kind == "Deployment" && parent.APIVersion == "apps/v1" && parent.UID == deployment.UID
+			replicaSets[owner.UID] = belongs
 		}
-		matching = pdb
+		if belongs {
+			available++
+		}
 	}
-	if matching == nil || matching.DeletionTimestamp != nil || matching.Status.ObservedGeneration < matching.Generation ||
-		matching.Status.DisruptionsAllowed > 0 || (matching.Spec.UnhealthyPodEvictionPolicy != nil && *matching.Spec.UnhealthyPodEvictionPolicy == policyv1.AlwaysAllow) {
-		return nil, fmt.Errorf("no current blocking PDB")
+	available = min(available, deployment.Status.AvailableReplicas)
+	workloadAvailability.WithLabelValues("observed").Set(float64(available))
+	if available < *policy.MinAvailableReplicas {
+		return nil, fmt.Errorf("workload availability %d is below floor %d", available, *policy.MinAvailableReplicas)
 	}
-	return matching, nil
+	return deployment, nil
 }
 
-func (c *Controller) event(ctx context.Context, revision uint64, episode *api.MitigationEpisode, eventType, reason, message string) error {
+func (c *Controller) evictionTarget(ctx context.Context, cfg Config, original *corev1.Node, selected *corev1.Pod,
+	snapshot ClusterSnapshot, excluded map[string]bool) (*corev1.Pod, *appsv1.Deployment, error) {
+	if snapshot.ObservedAt.After(c.clock()) || c.clock().Sub(snapshot.ObservedAt) > cfg.ObservationMaxAge.Duration {
+		return nil, nil, fmt.Errorf("cluster snapshot is stale")
+	}
+	node, err := c.kube.CoreV1().Nodes().Get(ctx, original.Name, metav1.GetOptions{})
+	if err != nil {
+		return nil, nil, err
+	}
+	if node.UID != original.UID || node.Spec.ProviderID != original.Spec.ProviderID ||
+		node.Status.NodeInfo.SystemUUID != original.Status.NodeInfo.SystemUUID ||
+		!ready(node) || node.Spec.Unschedulable {
+		return nil, nil, fmt.Errorf("source Node identity or readiness changed")
+	}
+	pod, err := c.kube.CoreV1().Pods(selected.Namespace).Get(ctx, selected.Name, metav1.GetOptions{})
+	if err != nil {
+		return nil, nil, err
+	}
+	if pod.UID != selected.UID || pod.Spec.NodeName != node.Name || pod.DeletionTimestamp != nil || terminal(pod) || podReady(pod) {
+		return nil, nil, fmt.Errorf("pod no longer needs rescue or its identity changed")
+	}
+	events, err := c.kube.CoreV1().Events(pod.Namespace).List(ctx,
+		metav1.ListOptions{FieldSelector: "involvedObject.uid=" + string(pod.UID)})
+	if err != nil {
+		return nil, nil, err
+	}
+	_, evidence := nodeEvidence(node, []*corev1.Pod{pod}, events.Items, c.clock())
+	if _, _, stalled := detectors.SwiftSandboxStalled(pod, evidence, c.clock()); !stalled {
+		return nil, nil, fmt.Errorf("pod fault evidence expired or recovered")
+	}
+	deployment, err := c.availableWorkload(ctx, pod, cfg, snapshot, excluded)
+	return pod, deployment, err
+}
+
+func (c *Controller) rescue(ctx context.Context, cfg Config, revision uint64, node *corev1.Node,
+	detection detectors.Detection, budget *api.NodeMitigationBudget, snapshot ClusterSnapshot) (bool, error) {
+	excluded := map[string]bool{}
+	for _, n := range snapshot.Nodes {
+		for _, r := range budget.Status.Reservations {
+			if r.ReleasedAt == nil && (n.UID == r.NodeUID || strings.EqualFold(n.Status.NodeInfo.SystemUUID, r.InstanceID)) {
+				excluded[n.Name] = true
+			}
+		}
+	}
+	if excluded[node.Name] {
+		return false, fmt.Errorf("source node has a pending deletion")
+	}
+	for _, selected := range snapshot.Pods {
+		if selected.Spec.NodeName != node.Name || !slices.Contains(detection.PodUIDs, selected.UID) {
+			continue
+		}
+		pod, deployment, err := c.evictionTarget(ctx, cfg, node, selected, snapshot, excluded)
+		if err != nil {
+			return false, err
+		}
+		if err := evictionAllowance(budget.Status, cfg, deployment.UID, node.UID, c.clock()); err != nil {
+			return false, err
+		}
+		placementSnapshot := snapshot
+		placementSnapshot.Faulted = map[string]bool{}
+		for name, faulted := range snapshot.Faulted {
+			placementSnapshot.Faulted[name] = name != node.Name && faulted
+		}
+		if err := placement(placementSnapshot, excluded, []*corev1.Pod{pod}); err != nil {
+			return false, err
+		}
+		patch, err := ownershipPatch(pod.ObjectMeta)
+		if err != nil {
+			return false, err
+		}
+		c.logCandidate(ctx, node, cfg, detection.Detector, ActionEvict, true, "")
+		if cfg.Mode == Audit {
+			return false, nil
+		}
+		if pod.Labels[ownershipLabel] != ControllerName {
+			if err := c.write(revision, func() error {
+				_, err := c.kube.CoreV1().Pods(pod.Namespace).Patch(ctx, pod.Name, types.JSONPatchType, patch, metav1.PatchOptions{})
+				return err
+			}); err != nil {
+				return false, err
+			}
+		}
+		ownerUID := deployment.UID
+		pod, deployment, err = c.evictionTarget(ctx, cfg, node, pod, snapshot, excluded)
+		if err != nil {
+			return false, err
+		}
+		if deployment.UID != ownerUID {
+			return false, fmt.Errorf("workload owner changed during eviction admission")
+		}
+		id := string(uuid.NewUUID())
+		budget.Status.EvictionWindow = cfg.EvictionWindow
+		budget.Status.Evictions[id] = api.EvictionRecord{
+			WorkloadUID: deployment.UID, NodeUID: node.UID, PodUID: pod.UID, AttemptedAt: metav1.NewTime(c.clock()),
+		}
+		if err := c.saveBudget(ctx, revision, budget); err != nil {
+			return false, err
+		}
+		logger := utils.LoggerFromContext(ctx).WithValues("cluster", cfg.ClusterResourceID, "node", node.Name, "nodeUID", node.UID,
+			"pod", pod.Name, "podUID", pod.UID, "namespace", pod.Namespace, "workloadUID", deployment.UID,
+			"detector", detection.Detector, "attempt", id, "timestamp", c.clock())
+		logger.Info("pod eviction requested")
+		err = c.action(revision, ActionEvict, func() error {
+			return c.kube.PolicyV1().Evictions(pod.Namespace).Evict(ctx, &policyv1.Eviction{
+				ObjectMeta: metav1.ObjectMeta{Name: pod.Name, Namespace: pod.Namespace},
+				DeleteOptions: &metav1.DeleteOptions{Preconditions: &metav1.Preconditions{
+					UID: &pod.UID, ResourceVersion: &pod.ResourceVersion,
+				}},
+			})
+		})
+		logger.Info("pod eviction result", "outcome", actionOutcome(err), "error", err)
+		if err != nil {
+			return true, err
+		}
+		return true, c.event(ctx, revision, corev1.ObjectReference{APIVersion: "v1", Kind: "Pod",
+			Namespace: pod.Namespace, Name: pod.Name, UID: pod.UID}, "PodEvictionAccepted", "Kubernetes accepted the failing pod eviction")
+	}
+	return false, fmt.Errorf("no matching live pod for SWIFT detection")
+}
+
+func (c *Controller) event(ctx context.Context, revision uint64, target corev1.ObjectReference, reason, message string) error {
+	namespace := target.Namespace
+	if namespace == "" {
+		namespace = c.namespace
+	}
 	return c.write(revision, func() error {
-		_, err := c.kube.CoreV1().Events(c.namespace).Create(ctx, &corev1.Event{
-			ObjectMeta: metav1.ObjectMeta{GenerateName: "node-mitigation-", Namespace: c.namespace},
-			InvolvedObject: corev1.ObjectReference{
-				APIVersion: api.SchemeGroupVersion.String(), Kind: "MitigationEpisode",
-				Name: episode.Name, Namespace: c.namespace, UID: episode.UID,
-			},
-			Type: eventType, Reason: reason, Message: message, Source: corev1.EventSource{Component: ControllerName},
+		_, err := c.kube.CoreV1().Events(namespace).Create(ctx, &corev1.Event{
+			ObjectMeta:     metav1.ObjectMeta{GenerateName: "node-mitigation-", Namespace: namespace},
+			InvolvedObject: target, Type: corev1.EventTypeNormal, Reason: reason, Message: message,
+			Source:         corev1.EventSource{Component: ControllerName},
 			FirstTimestamp: metav1.NewTime(c.clock()), LastTimestamp: metav1.NewTime(c.clock()), Count: 1,
 		}, metav1.CreateOptions{})
 		return err

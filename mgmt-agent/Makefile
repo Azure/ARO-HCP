@@ -29,10 +29,9 @@ update-codegen:
 
 update-mitigation-crds:
 	@output_dir=$$(mktemp -d); \
-	trap 'rm -f "$$output_dir/mgmtagent.aro-hcp.azure.com_capacityreports.yaml" "$$output_dir/mgmtagent.aro-hcp.azure.com_mitigationepisodes.yaml" "$$output_dir/mgmtagent.aro-hcp.azure.com_nodemitigationbudgets.yaml"; rmdir "$$output_dir"' EXIT; \
+	trap 'rm -f "$$output_dir/mgmtagent.aro-hcp.azure.com_capacityreports.yaml" "$$output_dir/mgmtagent.aro-hcp.azure.com_nodemitigationbudgets.yaml"; rmdir "$$output_dir"' EXIT; \
 	go run sigs.k8s.io/controller-tools/cmd/controller-gen@v0.20.1 \
 		crd paths=./pkg/apis/capacityreport/v1alpha1 output:crd:dir="$$output_dir"; \
-	cp "$$output_dir/mgmtagent.aro-hcp.azure.com_mitigationepisodes.yaml" deploy/templates/; \
 	cp "$$output_dir/mgmtagent.aro-hcp.azure.com_nodemitigationbudgets.yaml" deploy/templates/
 .PHONY: update-mitigation-crds
 

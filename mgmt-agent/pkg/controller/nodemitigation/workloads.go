@@ -17,7 +17,6 @@ package nodemitigation
 import (
 	"context"
 	"fmt"
-	"slices"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -131,21 +130,6 @@ func workload(ctx context.Context, client kubernetes.Interface, pod *corev1.Pod,
 	for _, policy := range cfg.Workloads {
 		if selected(policy.NamespaceSelector, namespace.Labels) &&
 			selected(policy.PodSelector, pod.Labels) && selected(policy.DeploymentSelector, deployment.Labels) {
-			if cfg.hasAcceptedPolicy {
-				approved := false
-				for _, accepted := range cfg.acceptedWorkloads {
-					if selected(accepted.NamespaceSelector, namespace.Labels) &&
-						selected(accepted.PodSelector, pod.Labels) && selected(accepted.DeploymentSelector, deployment.Labels) {
-						approved = true
-						policy.AllowUnhealthyDeletion = policy.AllowUnhealthyDeletion && accepted.AllowUnhealthyDeletion
-						policy.AllowEmptyDir = policy.AllowEmptyDir && accepted.AllowEmptyDir
-						break
-					}
-				}
-				if !approved {
-					return nil, nil, fmt.Errorf("workload is outside the accepted plan policy")
-				}
-			}
 			for _, volume := range pod.Spec.Volumes {
 				if volume.EmptyDir != nil && !policy.AllowEmptyDir {
 					return nil, nil, fmt.Errorf("emptyDir removal is not permitted by workload policy")
@@ -155,26 +139,4 @@ func workload(ctx context.Context, client kubernetes.Interface, pod *corev1.Pod,
 		}
 	}
 	return nil, nil, fmt.Errorf("no matching workload policy")
-}
-
-func permittedDaemonSet(ctx context.Context, client kubernetes.Interface, pod *corev1.Pod, cfg Config) (bool, error) {
-	owner := metav1.GetControllerOf(pod)
-	if owner == nil || owner.Kind != "DaemonSet" || owner.APIVersion != "apps/v1" {
-		return false, nil
-	}
-	if !slices.Contains(cfg.DaemonSets, pod.Namespace+"/"+owner.Name) ||
-		(cfg.hasAcceptedPolicy && !slices.Contains(cfg.acceptedDaemonSets, pod.Namespace+"/"+owner.Name)) {
-		return false, fmt.Errorf("DaemonSet is not explicitly permitted at Node deletion")
-	}
-	ds, err := client.AppsV1().DaemonSets(pod.Namespace).Get(ctx, owner.Name, metav1.GetOptions{})
-	if err != nil {
-		return false, err
-	}
-	if ds.UID != owner.UID || ds.DeletionTimestamp != nil {
-		return false, fmt.Errorf("DaemonSet owner identity changed")
-	}
-	if len(pod.Finalizers) != 0 {
-		return false, fmt.Errorf("DaemonSet pod finalizers require operator resolution")
-	}
-	return true, nil
 }

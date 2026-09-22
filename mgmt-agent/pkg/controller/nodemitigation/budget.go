@@ -15,10 +15,12 @@
 package nodemitigation
 
 import (
+	"context"
 	"fmt"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 
 	api "github.com/Azure/ARO-HCP/mgmt-agent/pkg/apis/capacityreport/v1alpha1"
 )
@@ -76,10 +78,10 @@ func deletionLimit(size int32) int {
 
 // allowance counts every active reservation, including unknown outcomes, and
 // released deletions still inside the window. Retries keep the same reservation.
-func allowance(budget api.NodeMitigationBudgetStatus, poolID, ownEpisode string, now time.Time, window time.Duration) int {
+func allowance(budget api.NodeMitigationBudgetStatus, poolID, ownReservation string, now time.Time, window time.Duration) int {
 	used := 0
 	for name, reservation := range budget.Reservations {
-		if name == ownEpisode || reservation.PoolID != poolID {
+		if name == ownReservation || reservation.PoolID != poolID {
 			continue
 		}
 		if reservation.ReleasedAt == nil ||
@@ -88,4 +90,61 @@ func allowance(budget api.NodeMitigationBudgetStatus, poolID, ownEpisode string,
 		}
 	}
 	return deletionLimit(budget.Pools[poolID].Size) - used
+}
+
+func evictionAllowance(budget api.NodeMitigationBudgetStatus, cfg Config, owner, node types.UID, now time.Time) error {
+	if len(budget.Evictions) >= maxRecords {
+		return fmt.Errorf("eviction accounting storage limit reached")
+	}
+	if budget.EvictionWindow.Duration != 0 && budget.EvictionWindow.Duration != cfg.EvictionWindow.Duration && len(budget.Evictions) > 0 {
+		return fmt.Errorf("eviction-window change requires expired accounting or explicit migration")
+	}
+	workloadCount, nodeCount := 0, 0
+	for _, record := range budget.Evictions {
+		age := now.Sub(record.AttemptedAt.Time)
+		if age > cfg.EvictionWindow.Duration {
+			continue
+		}
+		if record.WorkloadUID == owner {
+			workloadCount++
+		}
+		if record.NodeUID == node {
+			nodeCount++
+		}
+		if (record.WorkloadUID == owner || record.NodeUID == node) && age < cfg.EvictionCooldown.Duration {
+			return fmt.Errorf("eviction cooldown has not elapsed")
+		}
+	}
+	if workloadCount >= cfg.MaxEvictionsPerWorkload || nodeCount >= cfg.MaxEvictionsPerNode {
+		return fmt.Errorf("workload or node eviction rate limit reached")
+	}
+	return nil
+}
+
+func (c *Controller) pruneBudget(ctx context.Context, cfg Config, revision uint64, budget *api.NodeMitigationBudget) error {
+	if cfg.Mode == Disabled {
+		return nil
+	}
+	changed := false
+	for key, record := range budget.Status.Evictions {
+		if c.clock().Sub(record.AttemptedAt.Time) > budget.Status.EvictionWindow.Duration {
+			delete(budget.Status.Evictions, key)
+			changed = true
+		}
+	}
+	for key, reservation := range budget.Status.Reservations {
+		if reservation.ReleasedAt == nil || c.clock().Sub(reservation.ReleasedAt.Time) <= budget.Status.Window.Duration {
+			continue
+		}
+		if reservation.DeleteStartedAt != nil && c.clock().Sub(reservation.DeleteStartedAt.Time) <= budget.Status.Window.Duration {
+			continue
+		}
+		delete(budget.Status.Reservations, key)
+		delete(c.nextPoll, key)
+		changed = true
+	}
+	if changed && cfg.Mode == Enforce {
+		return c.saveBudget(ctx, revision, budget)
+	}
+	return nil
 }

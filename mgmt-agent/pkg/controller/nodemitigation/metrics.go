@@ -19,8 +19,8 @@ import (
 	"sync"
 	"time"
 
+	policyv1 "k8s.io/api/policy/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/component-base/metrics"
 	"k8s.io/component-base/metrics/legacyregistry"
 
@@ -28,88 +28,74 @@ import (
 )
 
 var (
-	registerMetrics              sync.Once
-	instanceVerificationFailures = metrics.NewCounter(&metrics.CounterOpts{
-		Name:           "mgmt_agent_node_mitigation_instance_verification_failures_total",
-		Help:           "Failed attempts to verify an original Azure instance.",
-		StabilityLevel: metrics.ALPHA,
-	})
-	instanceCleanupStalled = metrics.NewCounter(&metrics.CounterOpts{
-		Name:           "mgmt_agent_node_mitigation_instance_cleanup_stalled_observations_total",
-		Help:           "Observations of an original instance remaining after the cleanup warning threshold.",
-		StabilityLevel: metrics.ALPHA,
-	})
-	actionResults = metrics.NewCounterVec(&metrics.CounterOpts{
+	registerMetrics sync.Once
+	actionResults   = metrics.NewCounterVec(&metrics.CounterOpts{
 		Name:           "mgmt_agent_node_mitigation_actions_total",
-		Help:           "Submitted Kubernetes mitigation actions by operation and API outcome.",
+		Help:           "Mitigation API submissions by action and acceptance outcome.",
 		StabilityLevel: metrics.ALPHA,
 	}, []string{"action", "outcome"})
-	activeConditions = metrics.NewGaugeVec(&metrics.GaugeOpts{
-		Name:           "mgmt_agent_node_mitigation_active_conditions",
-		Help:           "Active mitigation episodes reporting each warning or safety condition.",
+	operationResults = metrics.NewCounterVec(&metrics.CounterOpts{
+		Name:           "mgmt_agent_node_mitigation_operation_observations_total",
+		Help:           "AKS deletion operation observations by outcome.",
 		StabilityLevel: metrics.ALPHA,
-	}, []string{"condition"})
+	}, []string{"outcome"})
 	budgetUsage = metrics.NewGaugeVec(&metrics.GaugeOpts{
 		Name:           "mgmt_agent_node_mitigation_budget",
 		Help:           "Pool deletion limit, active reservations and available rolling allowance.",
 		StabilityLevel: metrics.ALPHA,
 	}, []string{"pool", "kind"})
-	recoveryObservations = metrics.NewCounterVec(&metrics.CounterOpts{
-		Name:           "mgmt_agent_node_mitigation_workload_recovery_observations_total",
-		Help:           "Workload recovery observations by readiness outcome.",
+	poolCapacity = metrics.NewGaugeVec(&metrics.GaugeOpts{
+		Name:           "mgmt_agent_node_mitigation_pool_capacity",
+		Help:           "Observed target and healthy capacity for pools with deletion operations.",
 		StabilityLevel: metrics.ALPHA,
-	}, []string{"outcome"})
-	recoveryWait = metrics.NewGauge(&metrics.GaugeOpts{
-		Name:           "mgmt_agent_node_mitigation_workload_recovery_wait_seconds",
-		Help:           "Longest outstanding workload recovery wait in the management cluster.",
+	}, []string{"pool", "kind"})
+	workloadAvailability = metrics.NewGaugeVec(&metrics.GaugeOpts{
+		Name:           "mgmt_agent_node_mitigation_workload_available_replicas",
+		Help:           "Available replicas in the most recently evaluated workload; workload identities are recorded in logs.",
 		StabilityLevel: metrics.ALPHA,
-	})
+	}, []string{"kind"})
 )
 
 func RegisterMetrics() {
 	registerMetrics.Do(func() {
-		legacyregistry.MustRegister(instanceVerificationFailures, instanceCleanupStalled,
-			actionResults, activeConditions, budgetUsage, recoveryObservations, recoveryWait)
+		legacyregistry.MustRegister(actionResults, operationResults, budgetUsage, poolCapacity, workloadAvailability)
 	})
+}
+
+func actionOutcome(err error) string {
+	switch {
+	case err == nil:
+		return "accepted"
+	case errors.Is(err, ErrPaused):
+		return "paused"
+	case apierrors.IsConflict(err):
+		return "conflict"
+	case apierrors.IsForbidden(err), apierrors.IsUnauthorized(err):
+		return "denied"
+	case apierrors.IsTooManyRequests(err):
+		var status apierrors.APIStatus
+		if errors.As(err, &status) && status.Status().Details != nil {
+			for _, cause := range status.Status().Details.Causes {
+				if cause.Type == policyv1.DisruptionBudgetCause {
+					return "pdb_denied"
+				}
+			}
+		}
+		return "throttled"
+	default:
+		return "unknown"
+	}
 }
 
 func (c *Controller) action(revision uint64, kind string, fn func() error) error {
 	err := c.write(revision, fn)
-	if errors.Is(err, ErrPaused) {
-		return err
+	if !errors.Is(err, ErrPaused) {
+		actionResults.WithLabelValues(kind, actionOutcome(err)).Inc()
 	}
-	outcome := "succeeded"
-	switch {
-	case apierrors.IsConflict(err):
-		outcome = "conflict"
-	case apierrors.IsForbidden(err), apierrors.IsUnauthorized(err):
-		outcome = "denied"
-	case apierrors.IsTooManyRequests(err):
-		outcome = "throttled"
-	case err != nil:
-		outcome = "failed"
-	}
-	actionResults.WithLabelValues(kind, outcome).Inc()
 	return err
 }
 
-func reportState(episodes []api.MitigationEpisode, budget *api.NodeMitigationBudget, now time.Time) {
-	longest := float64(0)
-	for _, episode := range episodes {
-		if recovery := episode.Status.Recovery; recovery != nil && !recovery.StartedAt.IsZero() {
-			longest = max(longest, now.Sub(recovery.StartedAt.Time).Seconds())
-		}
-	}
-	recoveryWait.Set(longest)
-	for _, condition := range []string{"Held", "InstanceCleanupStalled", "InstanceVerificationUnavailable"} {
-		count := 0
-		for _, episode := range episodes {
-			if episode.Status.Phase != PhaseComplete && meta.IsStatusConditionTrue(episode.Status.Conditions, condition) {
-				count++
-			}
-		}
-		activeConditions.WithLabelValues(condition).Set(float64(count))
-	}
+func reportState(budget *api.NodeMitigationBudget, now time.Time) {
 	budgetUsage.Reset()
 	for id, baseline := range budget.Status.Pools {
 		active := 0

@@ -18,6 +18,4 @@ package v1alpha1
 
 type CapacityReportExpansion interface{}
 
-type MitigationEpisodeExpansion interface{}
-
 type NodeMitigationBudgetExpansion interface{}

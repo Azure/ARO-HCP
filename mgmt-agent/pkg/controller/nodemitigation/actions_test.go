@@ -16,6 +16,8 @@ package nodemitigation
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -28,28 +30,23 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	ktesting "k8s.io/client-go/testing"
 	"k8s.io/utils/ptr"
+
+	api "github.com/Azure/ARO-HCP/mgmt-agent/pkg/apis/capacityreport/v1alpha1"
 )
 
 func swiftFixture(t *testing.T) *fixture {
 	t.Helper()
 	f := newFixture(t, 11, 0)
 	selector := metav1.LabelSelector{MatchLabels: map[string]string{"app": "router"}}
-	f.cfg.Workloads = []WorkloadPolicy{{
-		NamespaceSelector: selector, PodSelector: selector, DeploymentSelector: selector,
-		AllowUnhealthyDeletion: true,
-	}}
+	f.cfg.Workloads = []WorkloadPolicy{{NamespaceSelector: selector, PodSelector: selector, DeploymentSelector: selector, MinAvailableReplicas: ptr.To(int32(1))}}
 	if err := f.controller.SetConfig(f.cfg); err != nil {
 		t.Fatal(err)
 	}
-	deployment := &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{
-		Name: "router", Namespace: "test", UID: "deployment", Generation: 1, Labels: selector.MatchLabels,
-	}, Spec: appsv1.DeploymentSpec{Replicas: ptr.To(int32(2)), Selector: &selector},
-		Status: appsv1.DeploymentStatus{ObservedGeneration: 1, Replicas: 2, UpdatedReplicas: 2, AvailableReplicas: 1},
-	}
-	rs := &appsv1.ReplicaSet{ObjectMeta: metav1.ObjectMeta{
-		Name: "router-rs", Namespace: "test", UID: "replicaset",
-		OwnerReferences: []metav1.OwnerReference{*metav1.NewControllerRef(deployment, appsv1.SchemeGroupVersion.WithKind("Deployment"))},
-	}, Spec: appsv1.ReplicaSetSpec{Replicas: ptr.To(int32(2)), Selector: &selector}}
+	deployment := &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{Name: "router", Namespace: "test", UID: "deployment", Generation: 1, Labels: selector.MatchLabels},
+		Spec:   appsv1.DeploymentSpec{Replicas: ptr.To(int32(2)), Selector: &selector},
+		Status: appsv1.DeploymentStatus{ObservedGeneration: 1, Replicas: 2, UpdatedReplicas: 2, AvailableReplicas: 1}}
+	rs := &appsv1.ReplicaSet{ObjectMeta: metav1.ObjectMeta{Name: "router-rs", Namespace: "test", UID: "replicaset", OwnerReferences: []metav1.OwnerReference{*metav1.NewControllerRef(deployment, appsv1.SchemeGroupVersion.WithKind("Deployment"))}},
+		Spec: appsv1.ReplicaSetSpec{Replicas: ptr.To(int32(2)), Selector: &selector}}
 	pod := placementPod("router-stalled", "node-00")
 	pod.CreationTimestamp = metav1.NewTime(f.now.Add(-5 * time.Minute))
 	pod.ResourceVersion = "1"
@@ -63,17 +60,10 @@ func swiftFixture(t *testing.T) *fixture {
 	healthy.Status = corev1.PodStatus{Phase: corev1.PodRunning, Conditions: []corev1.PodCondition{{Type: corev1.PodReady, Status: corev1.ConditionTrue}}}
 	event := &corev1.Event{ObjectMeta: metav1.ObjectMeta{Name: "sandbox", Namespace: "test"},
 		InvolvedObject: corev1.ObjectReference{Kind: "Pod", Name: pod.Name, Namespace: pod.Namespace, UID: pod.UID},
-		Source:         corev1.EventSource{Host: pod.Spec.NodeName}, Reason: "FailedCreatePodSandBox",
-		Message:        "route ip+net: no such network interface",
-		FirstTimestamp: metav1.NewTime(f.now.Add(-time.Minute)), LastTimestamp: metav1.NewTime(f.now),
-	}
-	for _, object := range []runtime.Object{deployment, rs, pod, healthy, event,
-		&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "test", Labels: selector.MatchLabels}},
-		&policyv1.PodDisruptionBudget{ObjectMeta: metav1.ObjectMeta{Name: "router", Namespace: "test", UID: "pdb", ResourceVersion: "1", Generation: 1},
-			Spec:   policyv1.PodDisruptionBudgetSpec{Selector: &selector},
-			Status: policyv1.PodDisruptionBudgetStatus{ObservedGeneration: 1}},
-	} {
-		if err := f.kube.Tracker().Add(object); err != nil {
+		Source:         corev1.EventSource{Host: pod.Spec.NodeName}, Reason: "FailedCreatePodSandBox", Message: "route ip+net: no such network interface",
+		FirstTimestamp: metav1.NewTime(f.now.Add(-time.Minute)), LastTimestamp: metav1.NewTime(f.now)}
+	for _, obj := range []runtime.Object{deployment, rs, pod, healthy, event, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "test", Labels: selector.MatchLabels}}} {
+		if err := f.kube.Tracker().Add(obj); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -81,493 +71,156 @@ func swiftFixture(t *testing.T) *fixture {
 	return f
 }
 
-func TestSwiftRescueDrainAndDelete(t *testing.T) {
+func evictionCount(actions []ktesting.Action) int {
+	count := 0
+	for _, action := range actions {
+		if action.GetSubresource() == "eviction" {
+			count++
+		}
+	}
+	return count
+}
+
+func TestSwiftEvictsWithoutCordonOrAzureDependency(t *testing.T) {
 	f := swiftFixture(t)
-	evictions := 0
+	f.azure.poolErr = errors.New("Azure unavailable")
 	f.kube.PrependReactor("create", "pods", func(action ktesting.Action) (bool, runtime.Object, error) {
 		if action.GetSubresource() != "eviction" {
 			return false, nil, nil
 		}
-		evictions++
-		eviction := action.(ktesting.CreateAction).GetObject().(*policyv1.Eviction)
-		if eviction.DeleteOptions == nil || eviction.DeleteOptions.Preconditions == nil ||
-			eviction.DeleteOptions.Preconditions.UID == nil || *eviction.DeleteOptions.Preconditions.UID != "router-stalled" ||
-			eviction.DeleteOptions.Preconditions.ResourceVersion == nil || eviction.DeleteOptions.GracePeriodSeconds != nil {
-			t.Fatal("eviction must preserve UID, resourceVersion and graceful termination")
-		}
-		object, err := f.kube.Tracker().Get(corev1.SchemeGroupVersion.WithResource("pods"), "test", "router-stalled")
-		if err != nil {
-			t.Fatal(err)
-		}
-		pod := object.(*corev1.Pod)
-		if err := f.kube.Tracker().Delete(corev1.SchemeGroupVersion.WithResource("pods"), "test", pod.Name); err != nil {
-			t.Fatal(err)
-		}
-		replacement := pod.DeepCopy()
-		replacement.Name, replacement.UID, replacement.Spec.NodeName = "router-replacement", "replacement", "node-02"
-		replacement.Status = corev1.PodStatus{Phase: corev1.PodRunning, Conditions: []corev1.PodCondition{{Type: corev1.PodReady, Status: corev1.ConditionTrue}}}
-		if err := f.kube.Tracker().Add(replacement); err != nil {
-			t.Fatal(err)
-		}
-		object, err = f.kube.Tracker().Get(appsv1.SchemeGroupVersion.WithResource("deployments"), "test", "router")
-		if err != nil {
-			t.Fatal(err)
-		}
-		deployment := object.(*appsv1.Deployment)
-		deployment.Status.AvailableReplicas = 2
-		if err := f.kube.Tracker().Update(appsv1.SchemeGroupVersion.WithResource("deployments"), deployment, "test"); err != nil {
-			t.Fatal(err)
+		e := action.(ktesting.CreateAction).GetObject().(*policyv1.Eviction)
+		if e.DeleteOptions == nil || e.DeleteOptions.Preconditions == nil || *e.DeleteOptions.Preconditions.UID != "router-stalled" ||
+			e.DeleteOptions.Preconditions.ResourceVersion == nil || e.DeleteOptions.GracePeriodSeconds != nil {
+			t.Fatal("missing graceful identity guards")
 		}
 		return true, nil, nil
 	})
-	for i := 0; i < 16; i++ {
-		f.tick(t)
-	}
-	if evictions != 1 {
-		t.Fatalf("expected one eviction, got %d", evictions)
-	}
-	episode := f.episode(t)
-	if episode.Status.Phase != PhaseObserve || episode.Status.Recovery != nil || episode.Status.NodeDeletedAt == nil {
-		t.Fatalf("cleanup did not reach observation: %+v", episode.Status)
-	}
-	for _, action := range f.kube.Actions() {
-		if action.GetVerb() == "delete" && action.GetResource().Resource == "pods" {
-			t.Fatal("rescue bypassed eviction")
-		}
-	}
-	if f.ledger(t).Status.Reservations[episode.Name].ReleasedAt != nil {
-		t.Fatal("instance still exists")
-	}
-}
-
-func TestTerminalRescuePodStillRequiresActualReplacement(t *testing.T) {
-	f := swiftFixture(t)
-	ctx := context.Background()
-	for i := 0; i < 6; i++ {
-		f.tick(t)
-	}
-	pod, err := f.kube.CoreV1().Pods("test").Get(ctx, "router-stalled", metav1.GetOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	pod.Status.Phase = corev1.PodFailed
-	if _, err := f.kube.CoreV1().Pods("test").UpdateStatus(ctx, pod, metav1.UpdateOptions{}); err != nil {
-		t.Fatal(err)
-	}
-	for i := 0; i < 3; i++ {
-		f.tick(t)
-	}
-	if f.episode(t).Status.Recovery == nil || f.episode(t).Status.NodeDeletedAt != nil {
-		t.Fatal("terminal pod status bypassed actual replacement readiness")
-	}
-	replacement, err := f.kube.CoreV1().Pods("test").Get(ctx, "router-healthy", metav1.GetOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	replacement.Name, replacement.UID, replacement.Spec.NodeName = "replacement", "replacement", "node-02"
-	if err := f.kube.Tracker().Add(replacement); err != nil {
-		t.Fatal(err)
-	}
-	deployment, err := f.kube.AppsV1().Deployments("test").Get(ctx, "router", metav1.GetOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	deployment.Status.AvailableReplicas = 2
-	if _, err := f.kube.AppsV1().Deployments("test").UpdateStatus(ctx, deployment, metav1.UpdateOptions{}); err != nil {
-		t.Fatal(err)
-	}
-	for i := 0; i < 10; i++ {
-		f.tick(t)
-	}
-	if f.episode(t).Status.NodeDeletedAt == nil {
-		t.Fatal("terminal pod history blocked cleanup after actual recovery")
-	}
-}
-
-func TestPDBDenialMustNotBeGenericThrottling(t *testing.T) {
-	f := swiftFixture(t)
-	for i := 0; i < 6; i++ {
-		f.tick(t)
-	}
-	f.kube.PrependReactor("create", "pods", func(action ktesting.Action) (bool, runtime.Object, error) {
-		if action.GetSubresource() != "eviction" {
-			return false, nil, nil
-		}
-		return true, nil, apierrors.NewTooManyRequests("API throttled", 1)
-	})
-	f.now = f.now.Add(2 * time.Second)
-	if err := f.controller.reconcile(context.Background()); !apierrors.IsTooManyRequests(err) {
-		t.Fatalf("expected throttling, got %v", err)
-	}
-	if intent := f.episode(t).Status.Intent; intent == nil || intent.Kind != "EvictPod" {
-		t.Fatal("throttling authorized a bypass")
-	}
-}
-
-func TestConfirmedPDBDenialAndRecoveryBeforeBypass(t *testing.T) {
-	f := swiftFixture(t)
-	for i := 0; i < 6; i++ {
-		f.tick(t)
-	}
-	f.kube.PrependReactor("create", "pods", func(action ktesting.Action) (bool, runtime.Object, error) {
-		if action.GetSubresource() != "eviction" {
-			return false, nil, nil
-		}
-		err := apierrors.NewTooManyRequests("disruption budget", 1)
-		err.ErrStatus.Details.Causes = []metav1.StatusCause{{Type: policyv1.DisruptionBudgetCause}}
-		return true, nil, err
-	})
 	f.tick(t)
-	if intent := f.episode(t).Status.Intent; intent == nil || intent.Kind != "DeleteUnhealthyPod" {
-		t.Fatal("confirmed denial did not prepare explicit fallback")
+	if evictionCount(f.kube.Actions()) != 1 || f.azure.deletes != 0 || len(f.ledger(t).Status.Reservations) != 0 {
+		t.Fatal("SWIFT used node deletion accounting")
 	}
-	pod, err := f.kube.CoreV1().Pods("test").Get(context.Background(), "router-stalled", metav1.GetOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	pod.Status.Conditions = append(pod.Status.Conditions, corev1.PodCondition{Type: corev1.PodReady, Status: corev1.ConditionTrue})
-	if _, err := f.kube.CoreV1().Pods("test").UpdateStatus(context.Background(), pod, metav1.UpdateOptions{}); err != nil {
-		t.Fatal(err)
-	}
-	f.kube.ClearActions()
-	f.tick(t)
-	for _, action := range f.kube.Actions() {
-		if action.GetVerb() == "delete" && action.GetResource().Resource == "pods" {
-			t.Fatal("recovered pod was deleted through bypass")
+	for _, a := range f.kube.Actions() {
+		if a.GetVerb() == "delete" || (a.GetVerb() == "patch" && a.GetResource().Resource == "nodes") {
+			t.Fatalf("unexpected action: %v", a)
 		}
+	}
+	if len(f.ledger(t).Status.Evictions) != 1 {
+		t.Fatal("eviction not accounted")
 	}
 }
 
-func TestGracefulBypassRequiresUnchangedUniqueBlockingPDB(t *testing.T) {
-	for _, change := range []string{"none", "version", "overlap", "always-allow"} {
-		t.Run(change, func(t *testing.T) {
+func TestEvictionDenialsNeverFallBackToDelete(t *testing.T) {
+	for _, pdb := range []bool{false, true} {
+		t.Run(fmt.Sprint(pdb), func(t *testing.T) {
 			f := swiftFixture(t)
-			ctx := context.Background()
-			for i := 0; i < 6; i++ {
-				f.tick(t)
+			err := apierrors.NewTooManyRequests("held", 1)
+			if pdb {
+				err.ErrStatus.Details = &metav1.StatusDetails{Causes: []metav1.StatusCause{{Type: policyv1.DisruptionBudgetCause}}}
 			}
 			f.kube.PrependReactor("create", "pods", func(action ktesting.Action) (bool, runtime.Object, error) {
-				if action.GetSubresource() != "eviction" {
-					return false, nil, nil
+				if action.GetSubresource() == "eviction" {
+					return true, nil, err
 				}
-				err := apierrors.NewTooManyRequests("disruption budget", 1)
-				err.ErrStatus.Details.Causes = []metav1.StatusCause{{Type: policyv1.DisruptionBudgetCause}}
-				return true, nil, err
+				return false, nil, nil
 			})
-			f.tick(t)
-			if f.episode(t).Status.Intent.Kind != "DeleteUnhealthyPod" {
-				t.Fatal("confirmed denial did not prepare the explicit fallback")
+			if e := f.controller.reconcile(context.Background()); e == nil {
+				t.Fatal("eviction denial hidden")
 			}
-			pdb, err := f.kube.PolicyV1().PodDisruptionBudgets("test").Get(ctx, "router", metav1.GetOptions{})
-			if err != nil {
-				t.Fatal(err)
+			want := "throttled"
+			if pdb {
+				want = "pdb_denied"
 			}
-			switch change {
-			case "version":
-				pdb.ResourceVersion = "2"
-			case "always-allow":
-				pdb.Spec.UnhealthyPodEvictionPolicy = ptr.To(policyv1.AlwaysAllow)
-			case "overlap":
-				other := pdb.DeepCopy()
-				other.Name, other.UID = "other", "other"
-				if _, err := f.kube.PolicyV1().PodDisruptionBudgets("test").Create(ctx, other, metav1.CreateOptions{}); err != nil {
-					t.Fatal(err)
+			if actionOutcome(err) != want {
+				t.Fatal("denial classification")
+			}
+			for _, a := range f.kube.Actions() {
+				if a.GetVerb() == "delete" {
+					t.Fatal("denial bypassed by DELETE")
 				}
 			}
-			if _, err := f.kube.PolicyV1().PodDisruptionBudgets("test").Update(ctx, pdb, metav1.UpdateOptions{}); err != nil {
-				t.Fatal(err)
-			}
-			f.kube.ClearActions()
-			f.tick(t)
-			deleted := false
-			for _, action := range f.kube.Actions() {
-				if action.GetVerb() != "delete" || action.GetResource().Resource != "pods" {
-					continue
-				}
-				deleted = true
-				options := action.(ktesting.DeleteAction).GetDeleteOptions()
-				if options.GracePeriodSeconds != nil || options.Preconditions == nil ||
-					options.Preconditions.UID == nil || *options.Preconditions.UID != "router-stalled" ||
-					options.Preconditions.ResourceVersion == nil || *options.Preconditions.ResourceVersion != "1" {
-					t.Fatal("bypass lost graceful termination or identity preconditions")
-				}
-			}
-			if deleted != (change == "none") {
-				t.Fatalf("PDB change %q: unexpected direct deletion %v", change, deleted)
+			if len(f.ledger(t).Status.Evictions) != 1 {
+				t.Fatal("denied attempt reset rate allowance")
 			}
 		})
 	}
 }
 
-func TestSerialAndLateRescueWithDrainDisabled(t *testing.T) {
-	f := swiftFixture(t)
-	ctx := context.Background()
-	f.cfg.Drain, f.cfg.DeleteNode = false, false
-	if err := f.controller.SetConfig(f.cfg); err != nil {
-		t.Fatal(err)
-	}
-	original, err := f.kube.CoreV1().Pods("test").Get(ctx, "router-stalled", metav1.GetOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	addStalled := func(name string, replicas int32) {
-		t.Helper()
-		pod := original.DeepCopy()
-		pod.Name, pod.UID = name, types.UID(name)
-		if err := f.kube.Tracker().Add(pod); err != nil {
-			t.Fatal(err)
-		}
-		event, err := f.kube.CoreV1().Events("test").Get(ctx, "sandbox", metav1.GetOptions{})
-		if err != nil {
-			t.Fatal(err)
-		}
-		event.Name = name
-		event.InvolvedObject.Name, event.InvolvedObject.UID = name, pod.UID
-		event.FirstTimestamp, event.LastTimestamp = metav1.NewTime(f.now.Add(-time.Minute)), metav1.NewTime(f.now)
-		if err := f.kube.Tracker().Add(event); err != nil {
-			t.Fatal(err)
-		}
-		deployment, err := f.kube.AppsV1().Deployments("test").Get(ctx, "router", metav1.GetOptions{})
-		if err != nil {
-			t.Fatal(err)
-		}
-		deployment.Spec.Replicas = ptr.To(replicas)
-		deployment.Status.Replicas, deployment.Status.UpdatedReplicas = replicas, replicas
-		if err := f.kube.Tracker().Update(appsv1.SchemeGroupVersion.WithResource("deployments"), deployment, "test"); err != nil {
-			t.Fatal(err)
-		}
-	}
-	addStalled("second-stalled", 3)
-	evicted := map[string]bool{}
-	f.kube.PrependReactor("create", "pods", func(action ktesting.Action) (bool, runtime.Object, error) {
-		if action.GetSubresource() != "eviction" {
-			return false, nil, nil
-		}
-		eviction := action.(ktesting.CreateAction).GetObject().(*policyv1.Eviction)
-		object, err := f.kube.Tracker().Get(corev1.SchemeGroupVersion.WithResource("pods"), "test", eviction.Name)
-		if err != nil {
-			t.Fatal(err)
-		}
-		pod := object.(*corev1.Pod).DeepCopy()
-		evicted[pod.Name] = true
-		if err := f.kube.Tracker().Delete(corev1.SchemeGroupVersion.WithResource("pods"), "test", pod.Name); err != nil {
-			t.Fatal(err)
-		}
-		pod.Name, pod.UID, pod.Spec.NodeName = "replacement-"+pod.Name, types.UID("replacement-"+string(pod.UID)), "node-02"
-		pod.Status = corev1.PodStatus{Phase: corev1.PodRunning, Conditions: []corev1.PodCondition{{Type: corev1.PodReady, Status: corev1.ConditionTrue}}}
-		if err := f.kube.Tracker().Add(pod); err != nil {
-			t.Fatal(err)
-		}
-		object, err = f.kube.Tracker().Get(appsv1.SchemeGroupVersion.WithResource("deployments"), "test", "router")
-		if err != nil {
-			t.Fatal(err)
-		}
-		deployment := object.(*appsv1.Deployment)
-		deployment.Status.AvailableReplicas++
-		if err := f.kube.Tracker().Update(appsv1.SchemeGroupVersion.WithResource("deployments"), deployment, "test"); err != nil {
-			t.Fatal(err)
-		}
-		return true, nil, nil
-	})
-	for i := 0; i < 20; i++ {
-		f.tick(t)
-	}
-	if len(evicted) != 2 || f.episode(t).Status.Phase != PhaseDrain {
-		t.Fatalf("serial rescue did not reach the drain hold: %v, %+v", evicted, f.episode(t).Status)
-	}
-	addStalled("late-stalled", 4)
-	for i := 0; i < 10; i++ {
-		f.tick(t)
-	}
-	if !evicted["late-stalled"] || f.episode(t).Status.NodeDeletedAt != nil {
-		t.Fatalf("late rescue failed or bypassed the drain hold: %v", evicted)
-	}
-}
-
-func TestDaemonSetPermissionDoesNotBypassFinalizers(t *testing.T) {
-	f := swiftFixture(t)
-	ctx := context.Background()
-	ds := &appsv1.DaemonSet{ObjectMeta: metav1.ObjectMeta{Name: "trusted", Namespace: "test", UID: "daemonset"}}
-	if err := f.kube.Tracker().Add(ds); err != nil {
-		t.Fatal(err)
-	}
-	pod := placementPod("daemon", "node-00")
-	pod.OwnerReferences = []metav1.OwnerReference{*metav1.NewControllerRef(ds, appsv1.SchemeGroupVersion.WithKind("DaemonSet"))}
-	f.cfg.DaemonSets = []string{"test/trusted"}
-	allowed, err := permittedDaemonSet(ctx, f.kube, pod, f.cfg)
-	if err != nil || !allowed {
-		t.Fatalf("verified allowlisted DaemonSet was rejected: %v", err)
-	}
-	pod.Finalizers = []string{"example.com/cleanup"}
-	if allowed, err := permittedDaemonSet(ctx, f.kube, pod, f.cfg); allowed || err == nil {
-		t.Fatal("DaemonSet allowlist bypassed a pod finalizer")
-	}
-}
-
-func TestUnsupportedPlacementConstraints(t *testing.T) {
-	for _, constraint := range []string{"bound", "gated", "resource-claim"} {
-		for _, owner := range []string{"pod", "replicaset", "deployment"} {
-			if constraint == "bound" && owner == "pod" {
-				continue
+func TestSwiftAuditAndAvailabilityFloors(t *testing.T) {
+	for _, floor := range []int32{0, 1, 2} {
+		t.Run(fmt.Sprint(floor), func(t *testing.T) {
+			f := swiftFixture(t)
+			f.cfg.Mode = Audit
+			f.cfg.Workloads[0].MinAvailableReplicas = &floor
+			if err := f.controller.SetConfig(f.cfg); err != nil {
+				t.Fatal(err)
 			}
-			t.Run(constraint+"/"+owner, func(t *testing.T) {
-				f := swiftFixture(t)
-				ctx := context.Background()
-				pod, err := f.kube.CoreV1().Pods("test").Get(ctx, "router-stalled", metav1.GetOptions{})
-				if err != nil {
-					t.Fatal(err)
-				}
-				constrain := func(spec *corev1.PodSpec) {
-					switch constraint {
-					case "bound":
-						spec.NodeName = pod.Spec.NodeName
-					case "gated":
-						spec.SchedulingGates = []corev1.PodSchedulingGate{{Name: "example.com/wait"}}
-					case "resource-claim":
-						spec.ResourceClaims = []corev1.PodResourceClaim{{Name: "device", ResourceClaimName: ptr.To("device")}}
-					}
-				}
-				switch owner {
-				case "pod":
-					constrain(&pod.Spec)
-				case "replicaset":
-					rs, err := f.kube.AppsV1().ReplicaSets("test").Get(ctx, "router-rs", metav1.GetOptions{})
-					if err != nil {
-						t.Fatal(err)
-					}
-					constrain(&rs.Spec.Template.Spec)
-					if _, err := f.kube.AppsV1().ReplicaSets("test").Update(ctx, rs, metav1.UpdateOptions{}); err != nil {
-						t.Fatal(err)
-					}
-				case "deployment":
-					deployment, err := f.kube.AppsV1().Deployments("test").Get(ctx, "router", metav1.GetOptions{})
-					if err != nil {
-						t.Fatal(err)
-					}
-					constrain(&deployment.Spec.Template.Spec)
-					if _, err := f.kube.AppsV1().Deployments("test").Update(ctx, deployment, metav1.UpdateOptions{}); err != nil {
-						t.Fatal(err)
-					}
-				}
-				if _, _, err := workload(ctx, f.kube, pod, f.cfg); err == nil {
-					t.Fatal("unsupported replacement placement was accepted")
-				}
-			})
-		}
+			err := f.controller.reconcile(context.Background())
+			if (err != nil) != (floor > 1) {
+				t.Fatalf("floor=%d err=%v", floor, err)
+			}
+			if len(mutations(f.kube.Actions())) != 0 || len(mutations(f.records.Actions())) != 0 {
+				t.Fatal("audit wrote state")
+			}
+		})
 	}
 }
 
-func TestReregistrationRescuesGapPodWithoutAnotherNodeDelete(t *testing.T) {
+func TestEvictionRatesSurvivePodRecreationAndRestart(t *testing.T) {
+	cfg := testConfig()
+	now := time.Now()
+	budget := api.NodeMitigationBudgetStatus{EvictionWindow: cfg.EvictionWindow, Evictions: map[string]api.EvictionRecord{}}
+	for i := 0; i < cfg.MaxEvictionsPerWorkload; i++ {
+		budget.Evictions[fmt.Sprint(i)] = api.EvictionRecord{WorkloadUID: "deployment", NodeUID: types.UID(fmt.Sprint(i)), PodUID: types.UID(fmt.Sprint(i)), AttemptedAt: metav1.NewTime(now.Add(-10 * time.Second))}
+	}
+	if err := evictionAllowance(budget, cfg, "deployment", "another-node", now); err == nil {
+		t.Fatal("new pod/node identity reset workload limit")
+	}
+	if err := evictionAllowance(budget, cfg, "different-deployment", "different-node", now); err != nil {
+		t.Fatal(err)
+	}
+	if err := evictionAllowance(budget, cfg, "deployment", "another-node", now.Add(cfg.EvictionWindow.Duration)); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestPodRecoveryAfterOwnershipPreventsEviction(t *testing.T) {
 	f := swiftFixture(t)
-	ctx := context.Background()
-	original, err := f.kube.CoreV1().Nodes().Get(ctx, "node-00", metav1.GetOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	original.Status.Conditions[0].Status = corev1.ConditionFalse
-	if _, err := f.kube.CoreV1().Nodes().UpdateStatus(ctx, original, metav1.UpdateOptions{}); err != nil {
-		t.Fatal(err)
-	}
-	pod, err := f.kube.CoreV1().Pods("test").Get(ctx, "router-stalled", metav1.GetOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := f.kube.Tracker().Delete(corev1.SchemeGroupVersion.WithResource("pods"), "test", pod.Name); err != nil {
-		t.Fatal(err)
-	}
-	for i := 0; i < 6; i++ {
-		f.tick(t)
-	}
-	if f.episode(t).Status.Phase != PhaseObserve {
-		t.Fatal("initial Node deletion not observed")
-	}
-	f.cfg.Drain, f.cfg.DeleteNode = false, false
-	if err := f.controller.SetConfig(f.cfg); err != nil {
-		t.Fatal(err)
-	}
-	original.UID, original.ResourceVersion = "reregistered", "2"
-	original.Status.Conditions[0].Status = corev1.ConditionTrue
-	if _, err := f.kube.CoreV1().Nodes().Create(ctx, original, metav1.CreateOptions{}); err != nil {
-		t.Fatal(err)
-	}
-	pod.Name, pod.UID = "router-gap", "gap"
-	if err := f.kube.Tracker().Add(pod); err != nil {
-		t.Fatal(err)
-	}
-	event, err := f.kube.CoreV1().Events("test").Get(ctx, "sandbox", metav1.GetOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	event.InvolvedObject.Name, event.InvolvedObject.UID = pod.Name, pod.UID
-	event.FirstTimestamp, event.LastTimestamp = metav1.NewTime(f.now.Add(-time.Minute)), metav1.NewTime(f.now)
-	if _, err := f.kube.CoreV1().Events("test").Update(ctx, event, metav1.UpdateOptions{}); err != nil {
-		t.Fatal(err)
-	}
-	evictions := 0
-	f.kube.PrependReactor("create", "pods", func(action ktesting.Action) (bool, runtime.Object, error) {
-		if action.GetSubresource() != "eviction" {
-			return false, nil, nil
+	f.kube.PrependReactor("patch", "pods", func(action ktesting.Action) (bool, runtime.Object, error) {
+		obj, err := f.kube.Tracker().Get(corev1.SchemeGroupVersion.WithResource("pods"), "test", "router-stalled")
+		if err != nil {
+			t.Fatal(err)
 		}
-		evictions++
-		eviction := action.(ktesting.CreateAction).GetObject().(*policyv1.Eviction)
-		if eviction.Name != pod.Name || *eviction.DeleteOptions.Preconditions.UID != pod.UID {
-			t.Fatal("wrong rescue identity")
+		p := obj.(*corev1.Pod)
+		p.Status.Conditions = append(p.Status.Conditions, corev1.PodCondition{Type: corev1.PodReady, Status: corev1.ConditionTrue})
+		if err := f.kube.Tracker().Update(corev1.SchemeGroupVersion.WithResource("pods"), p, "test"); err != nil {
+			t.Fatal(err)
 		}
-		return true, nil, f.kube.Tracker().Delete(corev1.SchemeGroupVersion.WithResource("pods"), "test", pod.Name)
+		return true, p, nil
 	})
-	f.kube.ClearActions()
-	for i := 0; i < 7; i++ {
-		f.tick(t)
+	if err := f.controller.reconcile(context.Background()); err == nil {
+		t.Fatal("recovery was not reported")
 	}
-	if evictions != 1 {
-		t.Fatalf("expected a gap-pod rescue, got %d", evictions)
-	}
-	for _, action := range f.kube.Actions() {
-		if action.GetVerb() == "delete" && action.GetResource().Resource == "nodes" {
-			t.Fatal("re-registration replayed Node DELETE")
-		}
-	}
-	current, err := f.kube.CoreV1().Nodes().Get(ctx, original.Name, metav1.GetOptions{})
-	if err != nil || !current.Spec.Unschedulable || current.UID != original.UID {
-		t.Fatalf("quarantine missing: %v", err)
-	}
-	if len(f.ledger(t).Status.Reservations) != 1 {
-		t.Fatal("re-registration consumed a second reservation")
+	if evictionCount(f.kube.Actions()) != 0 {
+		t.Fatal("recovered pod evicted")
 	}
 }
 
-func TestStaleDeploymentAvailabilityDoesNotDeadlockRescue(t *testing.T) {
+func TestSameNodeIsAValidPlacement(t *testing.T) {
 	f := swiftFixture(t)
-	ctx := context.Background()
-	other, err := f.kube.CoreV1().Pods("test").Get(ctx, "router-healthy", metav1.GetOptions{})
+	snapshot, err := f.controller.snapshot(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
-	other.Status.Conditions[0].Status = corev1.ConditionFalse
-	if _, err := f.kube.CoreV1().Pods("test").UpdateStatus(ctx, other, metav1.UpdateOptions{}); err != nil {
-		t.Fatal(err)
-	}
-	for i := 0; i < 6; i++ {
-		f.tick(t)
-	}
-	recovery := f.episode(t).Status.Recovery
-	if recovery == nil || recovery.Replicas != 1 {
-		t.Fatalf("stale Deployment status inflated recovery target: %+v", recovery)
-	}
-	pod, err := f.kube.CoreV1().Pods("test").Get(ctx, "router-stalled", metav1.GetOptions{})
+	pod, err := f.kube.CoreV1().Pods("test").Get(context.Background(), "router-stalled", metav1.GetOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := f.kube.Tracker().Delete(corev1.SchemeGroupVersion.WithResource("pods"), "test", pod.Name); err != nil {
-		t.Fatal(err)
+	for _, node := range snapshot.Nodes {
+		node.Labels[corev1.LabelHostname] = node.Name
 	}
-	pod.Name, pod.UID, pod.Spec.NodeName = "replacement", "replacement", "node-02"
-	pod.Status = corev1.PodStatus{Phase: corev1.PodRunning, Conditions: []corev1.PodCondition{{Type: corev1.PodReady, Status: corev1.ConditionTrue}}}
-	if err := f.kube.Tracker().Add(pod); err != nil {
-		t.Fatal(err)
-	}
-	recovered, err := f.controller.recovered(ctx, recovery, "instance-00")
-	if err != nil || !recovered {
-		t.Fatalf("one actual replacement must permit serial rescue: %v", err)
+	pod.Spec.NodeSelector = map[string]string{corev1.LabelHostname: "node-00"}
+	snapshot.Faulted["node-00"] = false
+	if err := placement(snapshot, map[string]bool{}, []*corev1.Pod{pod}); err != nil {
+		t.Fatalf("same-node placement rejected: %v", err)
 	}
 }

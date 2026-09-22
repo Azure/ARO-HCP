@@ -27,6 +27,9 @@ import (
 
 func (c *Controller) admission(ctx context.Context, cfg Config, revision uint64, node *corev1.Node,
 	budget *api.NodeMitigationBudget, snapshot ClusterSnapshot, own string) (PoolObservation, string, error) {
+	if snapshot.ObservedAt.After(c.clock()) || c.clock().Sub(snapshot.ObservedAt) > cfg.ObservationMaxAge.Duration {
+		return PoolObservation{}, "", fmt.Errorf("cluster snapshot is stale")
+	}
 	observation, err := c.azure.Pool(ctx, cfg.ClusterResourceID, poolName(node))
 	if err != nil {
 		return observation, "", err
@@ -56,7 +59,7 @@ func (c *Controller) admission(ctx context.Context, cfg Config, revision uint64,
 	if err != nil {
 		return observation, "", err
 	}
-	if budget.Status.Window.Duration != 0 && budget.Status.Window.Duration != cfg.Window.Duration {
+	if budget.Status.Window.Duration != 0 && budget.Status.Window.Duration != cfg.Window.Duration && len(budget.Status.Reservations) > 0 {
 		return observation, "", fmt.Errorf("deletion-window change requires an explicit accounting migration")
 	}
 	budget.Status.Window = cfg.Window
@@ -72,29 +75,16 @@ func (c *Controller) admission(ctx context.Context, cfg Config, revision uint64,
 	if allowance(budget.Status, observation.ID, own, c.clock(), cfg.Window.Duration) < 1 {
 		return observation, "", fmt.Errorf("rolling deletion allowance exhausted")
 	}
-	excluded, err := capacityLimits(snapshot, budget.Status, node, cfg, baseline.Size)
+	_, err = capacityLimits(snapshot, budget.Status, node, cfg, baseline.Size)
 	if err != nil {
 		return observation, "", err
 	}
-	moving := []*corev1.Pod{}
 	for _, pod := range snapshot.Pods {
-		if !excluded[pod.Spec.NodeName] || terminal(pod) {
-			continue
+		if pod.Spec.NodeName == node.Name {
+			if err := c.disposablePod(ctx, pod, cfg); err != nil {
+				return observation, "", err
+			}
 		}
-		daemon, err := permittedDaemonSet(ctx, c.kube, pod, cfg)
-		if err != nil {
-			return observation, "", err
-		}
-		if daemon {
-			continue
-		}
-		if _, _, err := workload(ctx, c.kube, pod, cfg); err != nil {
-			return observation, "", fmt.Errorf("workload %s/%s: %w", pod.Namespace, pod.Name, err)
-		}
-		moving = append(moving, pod)
-	}
-	if err := placement(snapshot, excluded, moving); err != nil {
-		return observation, "", err
 	}
 	return observation, instance, nil
 }
@@ -164,15 +154,9 @@ func capacityLimits(snapshot ClusterSnapshot, budget api.NodeMitigationBudgetSta
 	return excluded, nil
 }
 
-func (c *Controller) reserve(ctx context.Context, revision uint64, episode *api.MitigationEpisode, budget *api.NodeMitigationBudget) error {
-	if existing, found := budget.Status.Reservations[episode.Name]; found {
-		if existing.EpisodeUID != episode.UID || existing.NodeUID != episode.Spec.NodeUID || existing.InstanceID != episode.Spec.InstanceID {
-			return fmt.Errorf("reservation ownership mismatch")
-		}
-		return nil
-	}
+func (c *Controller) reserveDeletion(ctx context.Context, revision uint64, reservation api.MitigationReservation, budget *api.NodeMitigationBudget) error {
 	for _, existing := range budget.Status.Reservations {
-		if existing.ReleasedAt == nil && (existing.NodeUID == episode.Spec.NodeUID || existing.InstanceID == episode.Spec.InstanceID) {
+		if existing.NodeUID == reservation.NodeUID || existing.InstanceID == reservation.InstanceID {
 			return fmt.Errorf("node or instance already has an active execution owner")
 		}
 	}
@@ -182,9 +166,7 @@ func (c *Controller) reserve(ctx context.Context, revision uint64, episode *api.
 	if budget.Status.Reservations == nil {
 		budget.Status.Reservations = map[string]api.MitigationReservation{}
 	}
-	budget.Status.Reservations[episode.Name] = api.MitigationReservation{
-		EpisodeUID: episode.UID, NodeUID: episode.Spec.NodeUID, InstanceID: episode.Spec.InstanceID,
-		PoolID: episode.Spec.PoolID, Zone: episode.Spec.Zone, ReservedAt: metav1.NewTime(c.clock()),
-	}
+	reservation.ReservedAt = metav1.NewTime(c.clock())
+	budget.Status.Reservations[recordName(string(reservation.NodeUID))] = reservation
 	return c.saveBudget(ctx, revision, budget)
 }

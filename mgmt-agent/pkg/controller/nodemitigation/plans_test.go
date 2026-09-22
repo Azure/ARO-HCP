@@ -17,7 +17,8 @@ package nodemitigation
 import (
 	"testing"
 
-	api "github.com/Azure/ARO-HCP/mgmt-agent/pkg/apis/capacityreport/v1alpha1"
+	"k8s.io/apimachinery/pkg/types"
+
 	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller/nodehealth/detectors"
 )
 
@@ -48,27 +49,24 @@ func TestRegistry(t *testing.T) {
 		})
 	}
 	routes, err := registry(swiftMitigator{}, neverReadyMitigator{})
-	if err != nil || len(routes) != 3 || routes["unknown"] != nil {
+	if err != nil || len(routes) != 2 || routes["unknown"] != nil || routes["swift-vf-teardown"] != nil {
 		t.Fatalf("unexpected registered routes: %v, %v", routes, err)
 	}
 }
 
-func TestPlansKeepAcceptedCleanup(t *testing.T) {
-	for _, phase := range []string{PhaseCordon, PhaseRescue, PhaseDrain, PhaseDelete, PhaseObserve, PhaseComplete} {
-		episode := &api.MitigationEpisode{Status: api.MitigationEpisodeStatus{Phase: phase}}
-		decision, err := (swiftMitigator{}).Plan(Input{Episode: episode})
-		if err != nil || decision.Phase != phase || decision.Hold != "" {
-			t.Fatalf("fault recovery changed accepted SWIFT phase %q: %+v, %v", phase, decision, err)
-		}
-	}
+func TestPlansRequireCurrentEvidence(t *testing.T) {
 	decision, err := (neverReadyMitigator{}).Plan(Input{})
-	if err != nil || decision.Hold == "" || decision.Phase != "" {
+	if err != nil || decision.Hold == "" || decision.Action != "" {
 		t.Fatal("never-ready planned deletion without current evidence")
 	}
 	for _, mitigator := range []Mitigator{swiftMitigator{}, neverReadyMitigator{}} {
-		_, err := mitigator.Plan(Input{Episode: &api.MitigationEpisode{Status: api.MitigationEpisodeStatus{Phase: "unknown"}}})
-		if err == nil {
-			t.Fatalf("%s accepted an unknown phase", mitigator.Name())
+		decision, err := mitigator.Plan(Input{})
+		if err != nil || decision.Hold == "" || decision.Action != "" {
+			t.Fatalf("%s acted without current evidence", mitigator.Name())
 		}
+	}
+	decision, err = (swiftMitigator{}).Plan(Input{Detection: detectors.Detection{Detector: detectors.SwiftPodSandboxStalled, PodUIDs: []types.UID{"pod"}}})
+	if err != nil || decision.Action != ActionEvict || decision.Hold != "" {
+		t.Fatalf("SWIFT action: %+v %v", decision, err)
 	}
 }

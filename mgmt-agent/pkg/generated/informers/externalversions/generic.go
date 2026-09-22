@@ -54,8 +54,6 @@ func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource
 	// Group=mgmtagent.aro-hcp.azure.com, Version=v1alpha1
 	case v1alpha1.SchemeGroupVersion.WithResource("capacityreports"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Mgmtagent().V1alpha1().CapacityReports().Informer()}, nil
-	case v1alpha1.SchemeGroupVersion.WithResource("mitigationepisodes"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Mgmtagent().V1alpha1().MitigationEpisodes().Informer()}, nil
 	case v1alpha1.SchemeGroupVersion.WithResource("nodemitigationbudgets"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Mgmtagent().V1alpha1().NodeMitigationBudgets().Informer()}, nil
 

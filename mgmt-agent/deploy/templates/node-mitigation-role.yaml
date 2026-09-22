@@ -9,7 +9,6 @@ rules:
 - apiGroups:
   - mgmtagent.aro-hcp.azure.com
   resources:
-  - mitigationepisodes
   - nodemitigationbudgets
   verbs:
   - get
@@ -19,20 +18,12 @@ rules:
 - apiGroups:
   - mgmtagent.aro-hcp.azure.com
   resources:
-  - mitigationepisodes
-  verbs:
-  - create
-  - delete
-- apiGroups:
-  - mgmtagent.aro-hcp.azure.com
-  resources:
   - nodemitigationbudgets
   verbs:
   - create
 - apiGroups:
   - mgmtagent.aro-hcp.azure.com
   resources:
-  - mitigationepisodes/status
   - nodemitigationbudgets/status
   verbs:
   - update

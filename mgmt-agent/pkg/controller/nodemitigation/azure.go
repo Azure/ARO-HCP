@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -26,37 +27,175 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+	azruntime "github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v8"
 
 	"github.com/Azure/ARO-HCP/internal/azsdk"
 )
 
-type AzureReader interface {
+type AzureClient interface {
 	Pool(context.Context, string, string) (PoolObservation, error)
 	Instance(context.Context, string, string, string, string) (string, bool, error)
+	Machine(context.Context, string, string, string) (string, error)
+	DeleteMachine(context.Context, string, string) (MachineOperation, error)
+	PollDeletion(context.Context, string, string) (MachineOperation, error)
 }
 
-// Azure reads are scoped by explicit resource IDs. This interface has no write
-// methods; a failed read must never be interpreted as a missing instance.
-type azureReader struct {
+type MachineOperation struct {
+	Token     string
+	Outcome   string
+	Message   string
+	PollAfter time.Time
+}
+
+// Resource IDs scope every request; only the AKS executor submits a mutation.
+type azureClient struct {
 	credential azcore.TokenCredential
 	options    azcorearm.ClientOptions
 	clock      func() time.Time
 }
 
-// NewAzureReader uses the same clock as its controller to timestamp observations.
-func NewAzureReader(credential azcore.TokenCredential, clock func() time.Time) AzureReader {
+// NewAzureClient uses the same clock as its controller to timestamp observations.
+func NewAzureClient(credential azcore.TokenCredential, clock func() time.Time) AzureClient {
 	if clock == nil {
 		clock = time.Now
 	}
-	return &azureReader{
+	return &azureClient{
 		credential: credential, clock: clock,
 		options: azcorearm.ClientOptions{ClientOptions: azsdk.NewClientOptions(azsdk.ComponentMgmtAgent)},
 	}
 }
 
-func (a *azureReader) Pool(ctx context.Context, clusterID, pool string) (PoolObservation, error) {
+func (a *azureClient) Machine(ctx context.Context, clusterID, pool, providerID string) (string, error) {
+	id, err := azcorearm.ParseResourceID(clusterID)
+	if err != nil || !strings.EqualFold(id.ResourceType.String(), "Microsoft.ContainerService/managedClusters") {
+		return "", fmt.Errorf("invalid AKS cluster identity")
+	}
+	vm, err := providerResourceID(providerID)
+	if err != nil {
+		return "", err
+	}
+	client, err := armcontainerservice.NewMachinesClient(id.SubscriptionID, a.credential, &a.options)
+	if err != nil {
+		return "", err
+	}
+	name := ""
+	pager := client.NewListPager(id.ResourceGroupName, id.Name, pool, nil)
+	for pager.More() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			return "", fmt.Errorf("map VM to AKS machine: %w", err)
+		}
+		for _, machine := range page.Value {
+			if machine == nil || machine.Properties == nil || machine.Properties.ResourceID == nil ||
+				!strings.EqualFold(*machine.Properties.ResourceID, vm.String()) {
+				continue
+			}
+			if name != "" || machine.Name == nil || *machine.Name == "" || strings.Contains(*machine.Name, "/") ||
+				machine.ID == nil || !strings.EqualFold(*machine.ID, clusterID+"/agentPools/"+pool+"/machines/"+*machine.Name) {
+				return "", fmt.Errorf("ambiguous or invalid AKS machine identity")
+			}
+			name = *machine.Name
+		}
+	}
+	if name == "" {
+		return "", fmt.Errorf("VM has no matching AKS machine")
+	}
+	return name, nil
+}
+
+func (a *azureClient) deletionClient(poolID string) (*armcontainerservice.AgentPoolsClient, *azcorearm.ResourceID, error) {
+	id, err := azcorearm.ParseResourceID(poolID)
+	if err != nil || !strings.EqualFold(id.ResourceType.String(), "Microsoft.ContainerService/managedClusters/agentPools") {
+		return nil, nil, fmt.Errorf("invalid AKS pool identity")
+	}
+	options := a.options
+	// A lost POST response must not be retried against a reused machine name.
+	options.Retry.MaxRetries = -1
+	client, err := armcontainerservice.NewAgentPoolsClient(id.SubscriptionID, a.credential, &options)
+	return client, id, err
+}
+
+func deletionOperation(ctx context.Context, poller *azruntime.Poller[armcontainerservice.AgentPoolsClientDeleteMachinesResponse]) (MachineOperation, error) {
+	if poller.Done() {
+		_, err := poller.Result(ctx)
+		if err != nil {
+			var response *azcore.ResponseError
+			if errors.As(err, &response) && response.StatusCode >= 200 && response.StatusCode < 300 {
+				return MachineOperation{Outcome: "Failed", Message: err.Error()}, nil
+			}
+			return MachineOperation{}, err
+		}
+		return MachineOperation{Outcome: "Succeeded"}, nil
+	}
+	token, err := poller.ResumeToken()
+	if err != nil {
+		return MachineOperation{}, err
+	}
+	return MachineOperation{Token: token, Outcome: "Pending"}, nil
+}
+
+func (a *azureClient) DeleteMachine(ctx context.Context, poolID, machine string) (MachineOperation, error) {
+	client, id, err := a.deletionClient(poolID)
+	if err != nil {
+		return MachineOperation{}, err
+	}
+	if machine == "" || strings.Contains(machine, "/") {
+		return MachineOperation{}, fmt.Errorf("invalid AKS machine name")
+	}
+	var response *http.Response
+	poller, err := client.BeginDeleteMachines(policy.WithCaptureResponse(ctx, &response), id.ResourceGroupName, id.Parent.Name, id.Name,
+		armcontainerservice.AgentPoolDeleteMachinesParameter{MachineNames: []*string{&machine}}, nil)
+	if err != nil {
+		return MachineOperation{}, err
+	}
+	op, err := deletionOperation(ctx, poller)
+	op.PollAfter = nextPoll(response, a.clock())
+	return op, err
+}
+
+func (a *azureClient) PollDeletion(ctx context.Context, poolID, token string) (MachineOperation, error) {
+	if token == "" {
+		return MachineOperation{}, fmt.Errorf("deletion operation reference missing")
+	}
+	client, id, err := a.deletionClient(poolID)
+	if err != nil {
+		return MachineOperation{}, err
+	}
+	poller, err := client.BeginDeleteMachines(ctx, id.ResourceGroupName, id.Parent.Name, id.Name,
+		armcontainerservice.AgentPoolDeleteMachinesParameter{},
+		&armcontainerservice.AgentPoolsClientBeginDeleteMachinesOptions{ResumeToken: token})
+	if err != nil {
+		return MachineOperation{}, err
+	}
+	var response *http.Response
+	_, err = poller.Poll(policy.WithCaptureResponse(ctx, &response))
+	if err != nil {
+		return MachineOperation{PollAfter: nextPoll(response, a.clock())}, err
+	}
+	op, err := deletionOperation(ctx, poller)
+	op.PollAfter = nextPoll(response, a.clock())
+	return op, err
+}
+
+func nextPoll(response *http.Response, now time.Time) time.Time {
+	next := now.Add(30 * time.Second)
+	if response == nil {
+		return next
+	}
+	header := response.Header.Get("Retry-After")
+	if seconds, err := strconv.ParseInt(header, 10, 32); err == nil && seconds > 0 {
+		return now.Add(time.Duration(seconds) * time.Second)
+	}
+	if date, err := http.ParseTime(header); err == nil && date.After(now) {
+		return date
+	}
+	return next
+}
+
+func (a *azureClient) Pool(ctx context.Context, clusterID, pool string) (PoolObservation, error) {
 	id, err := azcorearm.ParseResourceID(clusterID)
 	if err != nil || pool == "" || strings.Contains(pool, "/") {
 		return PoolObservation{}, fmt.Errorf("invalid cluster or agent-pool identity")
@@ -92,7 +231,7 @@ func providerResourceID(providerID string) (*azcorearm.ResourceID, error) {
 	return id, nil
 }
 
-func (a *azureReader) Instance(ctx context.Context, clusterID, pool, providerID, nodeName string) (string, bool, error) {
+func (a *azureClient) Instance(ctx context.Context, clusterID, pool, providerID, nodeName string) (string, bool, error) {
 	vmID, err := providerResourceID(providerID)
 	if err != nil {
 		return "", false, err

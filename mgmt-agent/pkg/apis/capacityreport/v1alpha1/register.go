@@ -41,8 +41,6 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 	scheme.AddKnownTypes(SchemeGroupVersion,
 		&CapacityReport{},
 		&CapacityReportList{},
-		&MitigationEpisode{},
-		&MitigationEpisodeList{},
 		&NodeMitigationBudget{},
 		&NodeMitigationBudgetList{},
 	)

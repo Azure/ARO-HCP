@@ -47,7 +47,7 @@ func TestAzurePoolObservationClock(t *testing.T) {
 				clockCalls++
 				return now
 			}
-			reader := NewAzureReader(azureTestCredential{}, clock).(*azureReader)
+			reader := NewAzureClient(azureTestCredential{}, clock).(*azureClient)
 			reader.options.Retry.MaxRetries = -1
 			reader.options.Transport = azureTransport(func(request *http.Request) (*http.Response, error) {
 				if request.Method != http.MethodGet || request.URL.Path != cluster+"/agentPools/pool" {
@@ -112,6 +112,7 @@ func TestAzureIdentityAndAbsence(t *testing.T) {
 			if tc.computerName != "" {
 				computer = tc.computerName
 			}
+
 			if tc.nodeName == "-" {
 				node = ""
 			}
@@ -121,7 +122,7 @@ func TestAzureIdentityAndAbsence(t *testing.T) {
 			if tc.group != "" {
 				group = tc.group
 			}
-			reader := azureReader{credential: azureTestCredential{}, options: azcorearm.ClientOptions{
+			reader := azureClient{credential: azureTestCredential{}, options: azcorearm.ClientOptions{
 				ClientOptions: azcore.ClientOptions{Retry: policy.RetryOptions{MaxRetries: -1}, Transport: azureTransport(func(request *http.Request) (*http.Response, error) {
 					if request.Method != http.MethodGet {
 						t.Fatalf("Azure write attempted: %s", request.Method)

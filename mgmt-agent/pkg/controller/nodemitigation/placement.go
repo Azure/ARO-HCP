@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"slices"
 	"sort"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -33,6 +34,7 @@ import (
 )
 
 type ClusterSnapshot struct {
+	ObservedAt time.Time
 	Nodes      []*corev1.Node
 	Pods       []*corev1.Pod
 	Events     []corev1.Event

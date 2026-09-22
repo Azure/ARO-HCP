@@ -24,14 +24,20 @@ import (
 // MitigationReservationApplyConfiguration represents a declarative configuration of the MitigationReservation type for use
 // with apply.
 type MitigationReservationApplyConfiguration struct {
-	EpisodeUID      *types.UID `json:"episodeUID,omitempty"`
+	NodeName        *string    `json:"nodeName,omitempty"`
 	NodeUID         *types.UID `json:"nodeUID,omitempty"`
+	ProviderID      *string    `json:"providerID,omitempty"`
 	InstanceID      *string    `json:"instanceID,omitempty"`
 	PoolID          *string    `json:"poolID,omitempty"`
+	MachineName     *string    `json:"machineName,omitempty"`
 	Zone            *string    `json:"zone,omitempty"`
 	ReservedAt      *v1.Time   `json:"reservedAt,omitempty"`
 	DeleteStartedAt *v1.Time   `json:"deleteStartedAt,omitempty"`
 	ReleasedAt      *v1.Time   `json:"releasedAt,omitempty"`
+	OperationToken  *string    `json:"operationToken,omitempty"`
+	PollAfter       *v1.Time   `json:"pollAfter,omitempty"`
+	Outcome         *string    `json:"outcome,omitempty"`
+	Message         *string    `json:"message,omitempty"`
 }
 
 // MitigationReservationApplyConfiguration constructs a declarative configuration of the MitigationReservation type for use with
@@ -40,11 +46,11 @@ func MitigationReservation() *MitigationReservationApplyConfiguration {
 	return &MitigationReservationApplyConfiguration{}
 }
 
-// WithEpisodeUID sets the EpisodeUID field in the declarative configuration to the given value
+// WithNodeName sets the NodeName field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the EpisodeUID field is set to the value of the last call.
-func (b *MitigationReservationApplyConfiguration) WithEpisodeUID(value types.UID) *MitigationReservationApplyConfiguration {
-	b.EpisodeUID = &value
+// If called multiple times, the NodeName field is set to the value of the last call.
+func (b *MitigationReservationApplyConfiguration) WithNodeName(value string) *MitigationReservationApplyConfiguration {
+	b.NodeName = &value
 	return b
 }
 
@@ -53,6 +59,14 @@ func (b *MitigationReservationApplyConfiguration) WithEpisodeUID(value types.UID
 // If called multiple times, the NodeUID field is set to the value of the last call.
 func (b *MitigationReservationApplyConfiguration) WithNodeUID(value types.UID) *MitigationReservationApplyConfiguration {
 	b.NodeUID = &value
+	return b
+}
+
+// WithProviderID sets the ProviderID field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the ProviderID field is set to the value of the last call.
+func (b *MitigationReservationApplyConfiguration) WithProviderID(value string) *MitigationReservationApplyConfiguration {
+	b.ProviderID = &value
 	return b
 }
 
@@ -69,6 +83,14 @@ func (b *MitigationReservationApplyConfiguration) WithInstanceID(value string) *
 // If called multiple times, the PoolID field is set to the value of the last call.
 func (b *MitigationReservationApplyConfiguration) WithPoolID(value string) *MitigationReservationApplyConfiguration {
 	b.PoolID = &value
+	return b
+}
+
+// WithMachineName sets the MachineName field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the MachineName field is set to the value of the last call.
+func (b *MitigationReservationApplyConfiguration) WithMachineName(value string) *MitigationReservationApplyConfiguration {
+	b.MachineName = &value
 	return b
 }
 
@@ -101,5 +123,37 @@ func (b *MitigationReservationApplyConfiguration) WithDeleteStartedAt(value v1.T
 // If called multiple times, the ReleasedAt field is set to the value of the last call.
 func (b *MitigationReservationApplyConfiguration) WithReleasedAt(value v1.Time) *MitigationReservationApplyConfiguration {
 	b.ReleasedAt = &value
+	return b
+}
+
+// WithOperationToken sets the OperationToken field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the OperationToken field is set to the value of the last call.
+func (b *MitigationReservationApplyConfiguration) WithOperationToken(value string) *MitigationReservationApplyConfiguration {
+	b.OperationToken = &value
+	return b
+}
+
+// WithPollAfter sets the PollAfter field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the PollAfter field is set to the value of the last call.
+func (b *MitigationReservationApplyConfiguration) WithPollAfter(value v1.Time) *MitigationReservationApplyConfiguration {
+	b.PollAfter = &value
+	return b
+}
+
+// WithOutcome sets the Outcome field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the Outcome field is set to the value of the last call.
+func (b *MitigationReservationApplyConfiguration) WithOutcome(value string) *MitigationReservationApplyConfiguration {
+	b.Outcome = &value
+	return b
+}
+
+// WithMessage sets the Message field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the Message field is set to the value of the last call.
+func (b *MitigationReservationApplyConfiguration) WithMessage(value string) *MitigationReservationApplyConfiguration {
+	b.Message = &value
 	return b
 }

@@ -25,7 +25,9 @@ import (
 
 func testConfig() Config {
 	return Config{Mode: Enforce, ClusterResourceID: "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/mgmt",
-		Mitigators: []string{"swift", "never-ready"}, Rescue: true, Drain: true, DeleteNode: true,
+		Mitigators:     []string{"swift", "never-ready"},
+		EvictionWindow: metav1.Duration{Duration: time.Minute}, EvictionCooldown: metav1.Duration{Duration: 5 * time.Second},
+		MaxEvictionsPerWorkload: 3, MaxEvictionsPerNode: 3,
 		Window: metav1.Duration{Duration: time.Hour}, RetryInterval: metav1.Duration{Duration: time.Second},
 		ObservationMaxAge: metav1.Duration{Duration: time.Minute}, MaxUnavailableCluster: 3, MaxUnavailablePool: 2,
 		MaxUnavailableZone: 3, MinHealthyPool: 1, MinHealthyZone: 1}

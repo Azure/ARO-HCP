@@ -41,7 +41,9 @@ func TestStrictConfiguration(t *testing.T) {
 		{"duplicate key", "mode: disabled\nmode: enforce", false},
 		{"unknown mode", "mode: enabled", false},
 		{"implicit limits", "mode: enforce", false},
-		{"implicit cleanup delay", strings.Replace(string(valid), `"cleanupDelay":"0s",`, "", 1), false},
+		{"missing eviction limit", strings.Replace(string(valid), `"maxEvictionsPerNode":3`, `"maxEvictionsPerNode":0`, 1), false},
+		{"unsupported delete fallback", "mode: disabled\nallowUnhealthyDeletion: true", false},
+		{"unsupported drain phase", "mode: disabled\ndrain: true", false},
 		{"invalid duration", strings.Replace(string(valid), `"window":"1h0m0s"`, `"window":"invalid"`, 1), false},
 		{"oversized", strings.Repeat(" ", 64*1024+1), false},
 	} {

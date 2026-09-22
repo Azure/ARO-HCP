@@ -24,8 +24,6 @@ import (
 type Interface interface {
 	// CapacityReports returns a CapacityReportInformer.
 	CapacityReports() CapacityReportInformer
-	// MitigationEpisodes returns a MitigationEpisodeInformer.
-	MitigationEpisodes() MitigationEpisodeInformer
 	// NodeMitigationBudgets returns a NodeMitigationBudgetInformer.
 	NodeMitigationBudgets() NodeMitigationBudgetInformer
 }
@@ -44,11 +42,6 @@ func New(f internalinterfaces.SharedInformerFactory, namespace string, tweakList
 // CapacityReports returns a CapacityReportInformer.
 func (v *version) CapacityReports() CapacityReportInformer {
 	return &capacityReportInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
-}
-
-// MitigationEpisodes returns a MitigationEpisodeInformer.
-func (v *version) MitigationEpisodes() MitigationEpisodeInformer {
-	return &mitigationEpisodeInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }
 
 // NodeMitigationBudgets returns a NodeMitigationBudgetInformer.
