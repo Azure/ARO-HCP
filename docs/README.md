@@ -161,8 +161,13 @@ Welcome to the **ARO HCP** documentation. This guide provides an overview of the
 - [Fix Maestro Stale Resource Bundle](ops/fix-maestro-stale-resource-bundle.md)
   - How to resolve Maestro resource bundle staleness issues
 - [Node Health](controllers/node-health.md)
-  - Design for detecting "Ready but broken" management-cluster nodes from kubelet Events
-  - Detection and labeling only, hard-coded detectors, and safety guards
+  - Fault detectors, health metadata and readiness-history evidence
+  - Observation only, with independent mitigation admission and rollout
+- [Node Mitigation](controllers/node-mitigation.md)
+  - Design for a generic mitigation controller with shared actions and safety budgets
+  - SWIFT pod eviction, gated never-ready AKS deletion, and durable budget/operation accounting
+- [Node Health and Mitigation Evidence](controllers/node-mitigation-evidence.md)
+  - Rationale, validation methodology and the access-controlled evidence record
 - [Node Rollout Pre-Merge Check](node-rollout-premerge-check.md)
   - Pre-merge check procedure to avoid unexpected node rollouts in production
 - [DEV CI Telemetry Exporter (`tenant-quota`)](../tooling/tenant-quota/README.md)
