@@ -77,6 +77,15 @@ func IsVersionNotFoundError(err error) bool {
 		errors.Is(err, ErrNoParseableNightlyTags)
 }
 
+// IsMinorNotPublishedError returns true if the error indicates the update channel lists
+// no release in a requested minor, which is how a minor upstream has not branched yet
+// reads. It is deliberately narrower than "no upgrade path": a channel that lists both
+// minors but connects neither returns controlplaneversion.ErrNoUpgradeEdge instead, and
+// that is a real defect rather than a minor that does not exist yet.
+func IsMinorNotPublishedError(err error) bool {
+	return errors.Is(err, controlplaneversion.ErrMinorNotPublished)
+}
+
 func isRetryableVersionError(err error) bool {
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		return false
@@ -84,6 +93,11 @@ func isRetryableVersionError(err error) bool {
 	if errors.Is(err, ErrNightlyReleaseStreamNotFound) ||
 		errors.Is(err, ErrNoAcceptedNightlyTags) ||
 		errors.Is(err, ErrNoParseableNightlyTags) {
+		return false
+	}
+	// Both are a property of the fetched graph, so another fetch returns the same thing.
+	if errors.Is(err, controlplaneversion.ErrMinorNotPublished) ||
+		errors.Is(err, controlplaneversion.ErrNoUpgradeEdge) {
 		return false
 	}
 	if cincinnati.IsCincinnatiVersionNotFoundError(err) {
@@ -99,6 +113,17 @@ func isRetryableVersionError(err error) bool {
 func SelectControlPlaneVersion(ctx context.Context, roundTripper controlplaneversion.RoundTrip, updateService *url.URL, channel string, offset uint) (*configv1.Release, error) {
 	return retryOnTransientError(ctx, func() (*configv1.Release, error) {
 		return controlplaneversion.SelectControlPlaneVersion(ctx, roundTripper, updateService, channel, offset)
+	})
+}
+
+// SelectUpgradeEdge wraps controlplaneversion.SelectUpgradeEdge with the same transient-error
+// retry policy as SelectControlPlaneVersion. It resolves a concrete (install, target) version
+// pair for a y-stream upgrade into channel, chosen so the update graph recommends the update
+// between them. Not supported for the nightly channel group, which the update service does not
+// serve — see GetLatestNightlyInstallVersion.
+func SelectUpgradeEdge(ctx context.Context, roundTripper controlplaneversion.RoundTrip, updateService *url.URL, channel string, installMinor semver.Version, installOffset uint) (*controlplaneversion.UpgradeEdge, error) {
+	return retryOnTransientError(ctx, func() (*controlplaneversion.UpgradeEdge, error) {
+		return controlplaneversion.SelectUpgradeEdge(ctx, roundTripper, updateService, channel, installMinor, installOffset)
 	})
 }
 

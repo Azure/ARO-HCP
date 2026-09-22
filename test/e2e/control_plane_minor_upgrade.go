@@ -56,8 +56,8 @@ var _ = Describe("Customer", func() {
 			// Resolve the install (previous minor) and upgrade (target minor) version strings up front
 			// so a missing version skips before we burn resources on cluster creation. For nightly,
 			// each resolves to its exact build tag (the RP cannot resolve major.minor to a nightly
-			// build). For other channel groups, each is the bare major.minor string, verified
-			// resolvable via the OpenShift update service at the channel's z-stream offset.
+			// build). For other channel groups, both resolve to the exact pair of releases the
+			// update graph recommends an update between.
 			installVersionId := fmt.Sprintf("%d.%d", installVersion.Major, installVersion.Minor)
 			upgradeVersionId := fmt.Sprintf("%d.%d", upgradeVersion.Major, upgradeVersion.Minor)
 			if channelGroup == "nightly" {
@@ -75,16 +75,24 @@ var _ = Describe("Customer", func() {
 				Expect(err).NotTo(HaveOccurred(), "failed to resolve nightly upgrade version for %s", upgradeVersionId)
 				upgradeVersionId = resolvedUpgrade
 			} else {
-				for _, minorLine := range []string{installVersionId, upgradeVersionId} {
-					desiredVersion, err := framework.SelectControlPlaneVersion(ctx, http.DefaultTransport.RoundTrip, nil, fmt.Sprintf("%s-%s", channelGroup, minorLine), clusterversion.GetZStreamOffset(channelGroup))
-					if err != nil {
-						Skip(fmt.Sprintf("failed to resolve a version for channel %s-%s: %v", channelGroup, minorLine, err))
-					}
-					if desiredVersion == nil {
-						Skip(fmt.Sprintf("no version resolved for channel %s-%s; skipping y-stream upgrade %s -> %s",
-							channelGroup, minorLine, installVersionId, upgradeVersionId))
-					}
+				// Pick the pair by update-graph edge rather than resolving each minor to its
+				// channel tip. The tip is the node least likely to be connected: upstream
+				// publishes a z-stream as a node in the next minor's channel before publishing
+				// its outgoing edges, so tip-to-tip is routinely a pair the RP will reject with
+				// "no upgrade path to update channel". Pinning both ends to exact versions also
+				// keeps the RP from re-resolving a bare major.minor at upgrade time, by when
+				// upstream may have promoted a newer, unconnected release.
+				targetChannel := fmt.Sprintf("%s-%s", channelGroup, upgradeVersionId)
+				edge, err := framework.SelectUpgradeEdge(ctx, http.DefaultTransport.RoundTrip, nil, targetChannel, installVersion, clusterversion.GetZStreamOffset(channelGroup))
+				// A minor upstream has not branched yet has nothing to exercise. A minor that
+				// does exist but that nothing can upgrade into is a real failure, so it is not
+				// skipped here.
+				if framework.IsMinorNotPublishedError(err) {
+					Skip(fmt.Sprintf("no %s -> %s upgrade to exercise: %v", installVersionId, upgradeVersionId, err))
 				}
+				Expect(err).NotTo(HaveOccurred(), "failed to select a %s -> %s upgrade edge in channel %s", installVersionId, upgradeVersionId, targetChannel)
+				installVersionId = edge.Install.Version
+				upgradeVersionId = edge.Target.Version
 			}
 
 			tc := framework.NewTestContext()

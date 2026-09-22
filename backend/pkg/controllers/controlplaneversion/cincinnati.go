@@ -57,6 +57,10 @@ type node struct {
 type graph struct {
 	// Nodes contains all cluster version releases available in this channel.
 	Nodes []node `json:"nodes"`
+
+	// Edges contains the recommended updates between nodes. Each edge is a
+	// [from, to] pair of indexes into Nodes.
+	Edges [][2]int `json:"edges"`
 }
 
 var defaultUpstreamUpdateService = "https://api.openshift.com/api/upgrades_info/graph"
@@ -89,6 +93,19 @@ func (rt *roundTrip) RoundTrip(request *http.Request) (*http.Response, error) {
 // cincinnati calls an update-service to retrieve a list of releases,
 // and the update recommendation graph connecting them.
 func cincinnati(ctx context.Context, roundTripper RoundTrip, updateService *url.URL, userAgent string, channel string) ([]configv1.Release, *url.URL, error) {
+	graph, updateService, err := cincinnatiGraph(ctx, roundTripper, updateService, userAgent, channel)
+	if err != nil {
+		return nil, updateService, err
+	}
+
+	releases, err := nodesToReleases(graph.Nodes)
+	return releases, updateService, err
+}
+
+// cincinnatiGraph calls an update-service and returns the raw update graph for a
+// channel: every release node, and the recommended-update edges connecting them.
+// Callers that only need the releases should use cincinnati instead.
+func cincinnatiGraph(ctx context.Context, roundTripper RoundTrip, updateService *url.URL, userAgent string, channel string) (*graph, *url.URL, error) {
 	if updateService == nil {
 		var err error
 		updateService, err = url.Parse(defaultUpstreamUpdateService)
@@ -121,14 +138,13 @@ func cincinnati(ctx context.Context, roundTripper RoundTrip, updateService *url.
 	if err != nil {
 		return nil, updateService, err
 	}
-	var graph graph
-	err = json.Unmarshal(body, &graph)
+	var parsedGraph graph
+	err = json.Unmarshal(body, &parsedGraph)
 	if err != nil {
 		return nil, updateService, err
 	}
 
-	releases, err := nodesToReleases(graph.Nodes)
-	return releases, updateService, err
+	return &parsedGraph, updateService, nil
 }
 
 // doWithRetry issues req via client, retrying transient failures (DNS lookup
