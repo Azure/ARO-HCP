@@ -218,7 +218,7 @@ func (c *operationNodePoolUpdate) determineOperationState(ctx context.Context, o
 		operationStates = append(operationStates, operationState.WithSource("clusterServiceNodePoolSpec"))
 	}
 
-	if operationState, hsErr := c.hypershiftNodePoolOperationState(ctx, existingNodePool, existingCSNodePool); hsErr != nil {
+	if operationState, hsErr := hypershiftNodePoolOperationState(ctx, c.readDesireLister, coreapi.ProvisioningStateUpdating, existingNodePool, existingCSNodePool); hsErr != nil {
 		errs = append(errs, utils.TrackError(hsErr))
 	} else {
 		operationStates = append(operationStates, operationState.WithSource("hypershiftNodePool"))
