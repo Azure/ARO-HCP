@@ -266,6 +266,45 @@ func TestAdmitClusterIgnoresEmptyOperatorName(t *testing.T) {
 	for _, err := range errs {
 		require.NotContains(t, err.Error(), "unrecognized operator name",
 			"an empty operator name must not be reported here, got: %v", errs)
+		require.NotContains(t, err.Error(), "does not exist for OpenShift version",
+			"an empty operator name must not be reported here either, got: %v", errs)
+	}
+}
+
+// TestAdmitClusterSkipsConditionalOperatorUnsupportedForVersion pins that a conditionally required
+// identity is not demanded for a version whose operator set does not include it.
+func TestAdmitClusterSkipsConditionalOperatorUnsupportedForVersion(t *testing.T) {
+	ctx := context.Background()
+	op := operation.Operation{Type: operation.Create}
+
+	// kms is the only conditional entry, and the fixture enables it via customer-managed etcd.
+	config := configWithVersionLimitedControlPlaneOperator(t, azure.ClusterOperatorIdentifierKMS, "4.19")
+	cluster := coreapitesting.MinimumValidClusterTestCase()
+	delete(cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators, "kms")
+
+	errs := AdmitCluster(ctx, operatorIdentitiesAdmissionContext(config), op, cluster, nil)
+
+	for _, err := range errs {
+		require.NotContains(t, err.Error(), `identity for the "kms" control plane operator is required`,
+			"kms does not exist for this version, so it must not be required, got: %v", errs)
+	}
+}
+
+// TestAdmitClusterSkipsRequiredIdentitiesForUnparseableVersion pins that an unparseable version is
+// left to the version validation rather than guessing which operators it would require.
+func TestAdmitClusterSkipsRequiredIdentitiesForUnparseableVersion(t *testing.T) {
+	ctx := context.Background()
+	op := operation.Operation{Type: operation.Create}
+
+	cluster := coreapitesting.MinimumValidClusterTestCase()
+	cluster.CustomerProperties.Version.ID = "not-a-version"
+	delete(cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators, "ingress")
+
+	errs := AdmitCluster(ctx, operatorIdentitiesAdmissionContext(nil), op, cluster, nil)
+
+	for _, err := range errs {
+		require.NotContains(t, err.Error(), "operator is required",
+			"required identities must not be reported for an unparseable version, got: %v", errs)
 	}
 }
 

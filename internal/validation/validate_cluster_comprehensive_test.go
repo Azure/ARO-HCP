@@ -2551,8 +2551,6 @@ func makeUniqueCIDRs(n int) []string {
 }
 
 // Helper function to create a valid cluster for testing
-// A valid test cluster uses CustomerManaged etcd encryption, so any case that replaces
-// controlPlaneOperators without a "kms" entry also trips the conditional requirement.
 const testOperatorIdentityPrefix = "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/identity-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/"
 
 // withAllRequiredOperatorIdentities fills in an identity for every operator that cluster create
