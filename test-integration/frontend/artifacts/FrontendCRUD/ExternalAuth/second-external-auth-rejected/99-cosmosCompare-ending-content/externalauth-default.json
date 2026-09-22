@@ -4,7 +4,7 @@
 	"properties": {
 		"cosmosMetadata": {
 			"instanceVersion": 1,
-			"parentResourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourcegroups/resourcegroupname/providers/microsoft.redhatopenshift/hcpopenshiftclusters/example-cluster",
+			"parentResourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourcegroupname/providers/microsoft.redhatopenshift/hcpopenshiftclusters/example-cluster",
 			"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
 			"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/example-cluster/externalAuths/default"
 		},

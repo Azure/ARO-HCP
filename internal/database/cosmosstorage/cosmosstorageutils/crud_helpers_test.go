@@ -26,27 +26,45 @@ import (
 )
 
 func TestPrepareParentResourceID(t *testing.T) {
-	resourceID, err := azcorearm.ParseResourceID("/subscriptions/SubscriptionID/resourceGroups/MyGroup/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/MyCluster/nodePools/MyPool")
+	nestedResourceID, err := azcorearm.ParseResourceID("/subscriptions/SubscriptionID/resourceGroups/MyGroup/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/MyCluster/nodePools/MyPool")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A subscription-level resource ID has a NON-nil Parent equal to the SDK
+	// root sentinel whose String() is empty; it must yield a nil field, no error.
+	subscriptionResourceID, err := azcorearm.ParseResourceID("/subscriptions/SubscriptionID")
+	if err != nil {
+		t.Fatal(err)
+	}
+	staleParent, err := azcorearm.ParseResourceID("/subscriptions/StaleSub/resourceGroups/StaleGroup")
 	if err != nil {
 		t.Fatal(err)
 	}
 	tests := []struct {
 		name       string
 		resourceID *azcorearm.ResourceID
-		want       string
+		// want is the expected ParentResourceID.String(); "" means the field must be nil.
+		want string
 	}{
 		{
 			name:       "nested mixed-case resource",
-			resourceID: resourceID,
-			want:       "/subscriptions/subscriptionid/resourcegroups/mygroup/providers/microsoft.redhatopenshift/hcpopenshiftclusters/mycluster",
+			resourceID: nestedResourceID,
+			// Names and provider namespace are lower-cased; the SDK canonicalizes the
+			// reserved "resourceGroups" keyword regardless of the lower-cased input.
+			want: "/subscriptions/subscriptionid/resourceGroups/mygroup/providers/microsoft.redhatopenshift/hcpopenshiftclusters/mycluster",
 		},
 		{name: "nil resource ID"},
 		{name: "nil parent", resourceID: &azcorearm.ResourceID{}},
+		{name: "subscription-level resource (root-sentinel parent)", resourceID: subscriptionResourceID},
 	}
 	for _, operation := range []string{"create", "replace"} {
 		for _, test := range tests {
-			for _, initial := range []string{"", "stale-parent"} {
-				t.Run(operation+"/"+test.name+"/"+initial, func(t *testing.T) {
+			for _, initialName := range []string{"nil-initial", "stale-initial"} {
+				t.Run(operation+"/"+test.name+"/"+initialName, func(t *testing.T) {
+					var initial *azcorearm.ResourceID
+					if initialName == "stale-initial" {
+						initial = staleParent
+					}
 					metadata := &coreapi.CosmosMetadata{
 						ResourceID:       test.resourceID,
 						ParentResourceID: initial,
@@ -62,8 +80,17 @@ func TestPrepareParentResourceID(t *testing.T) {
 					if prepareErr != nil {
 						t.Fatal(prepareErr)
 					}
-					if metadata.ParentResourceID != test.want {
-						t.Errorf("ParentResourceID = %q, want %q", metadata.ParentResourceID, test.want)
+					if test.want == "" {
+						if metadata.ParentResourceID != nil {
+							t.Errorf("ParentResourceID = %q, want nil", metadata.ParentResourceID.String())
+						}
+						return
+					}
+					if metadata.ParentResourceID == nil {
+						t.Fatalf("ParentResourceID = nil, want %q", test.want)
+					}
+					if got := metadata.ParentResourceID.String(); got != test.want {
+						t.Errorf("ParentResourceID = %q, want %q", got, test.want)
 					}
 				})
 			}
@@ -72,6 +99,10 @@ func TestPrepareParentResourceID(t *testing.T) {
 }
 
 func TestPrepareParentResourceIDPreservesMetadataOnError(t *testing.T) {
+	originalParent, err := azcorearm.ParseResourceID("/subscriptions/subscriptionid/resourceGroups/mygroup")
+	if err != nil {
+		t.Fatal(err)
+	}
 	tests := []struct {
 		name    string
 		version int64
@@ -85,7 +116,7 @@ func TestPrepareParentResourceIDPreservesMetadataOnError(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			metadata := coreapi.CosmosMetadata{
-				ParentResourceID: "original-parent",
+				ParentResourceID: originalParent,
 				InstanceVersion:  test.version,
 				CosmosETag:       test.etag,
 			}
@@ -93,6 +124,8 @@ func TestPrepareParentResourceIDPreservesMetadataOnError(t *testing.T) {
 			if err := test.prepare(&metadata); err == nil {
 				t.Fatal("expected preparation to fail")
 			}
+			// CosmosMetadata is comparable (only comparable/pointer fields); on the
+			// error path nothing — including the ParentResourceID pointer — must change.
 			if metadata != original {
 				t.Errorf("metadata mutated on error: got %#v, want %#v", metadata, original)
 			}
@@ -101,9 +134,20 @@ func TestPrepareParentResourceIDPreservesMetadataOnError(t *testing.T) {
 }
 
 func TestCosmosMetadataParentResourceIDJSONRoundTrip(t *testing.T) {
-	for _, parent := range []string{"", "/subscriptions/subscriptionid/resourcegroups/mygroup"} {
-		t.Run(parent, func(t *testing.T) {
-			metadata := coreapi.CosmosMetadata{ParentResourceID: parent}
+	parent, err := azcorearm.ParseResourceID("/subscriptions/subscriptionid/resourceGroups/mygroup")
+	if err != nil {
+		t.Fatal(err)
+	}
+	tests := []struct {
+		name   string
+		parent *azcorearm.ResourceID
+	}{
+		{name: "nil parent omitted"},
+		{name: "non-nil parent round-trips", parent: parent},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			metadata := coreapi.CosmosMetadata{ParentResourceID: test.parent}
 			data, err := json.Marshal(metadata)
 			if err != nil {
 				t.Fatal(err)
@@ -112,15 +156,24 @@ func TestCosmosMetadataParentResourceIDJSONRoundTrip(t *testing.T) {
 			if err := json.Unmarshal(data, &fields); err != nil {
 				t.Fatal(err)
 			}
-			if _, present := fields["parentResourceID"]; present != (parent != "") {
-				t.Errorf("parentResourceID presence = %t, want %t: %s", present, parent != "", data)
+			if _, present := fields["parentResourceID"]; present != (test.parent != nil) {
+				t.Errorf("parentResourceID presence = %t, want %t: %s", present, test.parent != nil, data)
 			}
 			var roundTrip coreapi.CosmosMetadata
 			if err := json.Unmarshal(data, &roundTrip); err != nil {
 				t.Fatal(err)
 			}
-			if roundTrip.ParentResourceID != parent {
-				t.Errorf("round-trip parent = %q, want %q", roundTrip.ParentResourceID, parent)
+			if test.parent == nil {
+				if roundTrip.ParentResourceID != nil {
+					t.Errorf("round-trip parent = %q, want nil", roundTrip.ParentResourceID.String())
+				}
+				return
+			}
+			if roundTrip.ParentResourceID == nil {
+				t.Fatalf("round-trip parent = nil, want %q", test.parent.String())
+			}
+			if got, want := roundTrip.ParentResourceID.String(), test.parent.String(); got != want {
+				t.Errorf("round-trip parent = %q, want %q", got, want)
 			}
 		})
 	}

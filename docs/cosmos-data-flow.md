@@ -22,11 +22,16 @@ and transactional batches have their own semantics. A successful Cosmos write of
 an intent does not establish that an Azure or Kubernetes resource exists.
 
 The shared `PrepareForCreate` and `PrepareForReplace` helpers also derive
-`CosmosMetadata.ParentResourceID` from the resource ID's parent on every successful
-preparation, lowercasing it for storage. A nil resource ID or nil parent clears
-the field, which is omitted from JSON when empty. Legacy documents may omit it;
-it is populated when they are next written through these helpers. This metadata
-does not change controller dependencies or the resource lifecycle diagrams.
+`CosmosMetadata.ParentResourceID` (a `*azcorearm.ResourceID`) from the resource
+ID's parent on every successful preparation. The parent is lower-cased before it
+is re-parsed, so stored resource names and the provider namespace are lower-cased
+while the Azure SDK keeps reserved segment keywords such as `resourceGroups`
+canonical. A nil resource ID, a nil parent, or a subscription-level resource
+(whose parent is the SDK root sentinel with an empty string form) clears the
+field to nil, and any stale value is always reset first; a nil field is omitted
+from JSON. Legacy documents may omit it; it is populated when they are next
+written through these helpers. This metadata does not change controller
+dependencies or the resource lifecycle diagrams.
 
 ## Request Unit (RU) attribution
 
