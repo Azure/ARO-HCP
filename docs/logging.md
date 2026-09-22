@@ -33,7 +33,7 @@ Kusto clusters are provisioned per environment and region via Bicep templates wi
   - `ServiceLogs` database: 90 days soft delete, 2 days hot cache
   - `HostedControlPlaneLogs` database: 14 days soft delete, 2 days hot cache
 - **Autoscaling**: Configurable min/max nodes (via `enableAutoScale` parameter)
-- **SKU**: Environment-specific (e.g., `Standard_D12_v2` for production, `Dev(No SLA)_Standard_D11_v2` for development)
+- **SKU**: Environment-specific, configured via the `kusto.sku` config value
 
 **Note**: The database was originally named `customerLogs` but renamed to `HostedControlPlaneLogs`. Clusters support cross-tenant access (e.g., AME tenant) when configured with appropriate permissions.
 

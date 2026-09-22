@@ -2,7 +2,7 @@
 param location string = resourceGroup().location
 
 @description('The SKU of the cluster')
-param sku string = 'Standard_D12_v2'
+param sku string
 
 @description('Tier used')
 param tier string = 'Basic'
