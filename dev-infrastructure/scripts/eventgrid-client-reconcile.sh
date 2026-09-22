@@ -35,7 +35,9 @@ else
   : "${EventGridNamespaceName:?EventGridNamespaceName or EventGridNamespaceId must be set}"
 fi
 
-CLIENT_URL="https://management.azure.com/subscriptions/${EventGridSubscriptionId}/resourceGroups/${EventGridResourceGroup}/providers/Microsoft.EventGrid/namespaces/${EventGridNamespaceName}/clients/${ClientName}?api-version=${API_VERSION}"
+# Relative ARM URI: `az rest` resolves it against the active cloud's management
+# endpoint, which keeps this working outside the public cloud.
+CLIENT_URL="/subscriptions/${EventGridSubscriptionId}/resourceGroups/${EventGridResourceGroup}/providers/Microsoft.EventGrid/namespaces/${EventGridNamespaceName}/clients/${ClientName}?api-version=${API_VERSION}"
 
 BODY_FILE="$(mktemp)"
 STDERR_FILE="$(mktemp)"
@@ -45,9 +47,9 @@ trap 'rm -f "${BODY_FILE}" "${STDERR_FILE}"' EXIT
 #   0 - client exists
 #   1 - client does not exist
 #   2 - the read itself failed
-# Callers must treat 2 as fatal: a permissions failure must never be mistaken
-# for an absent client, which would silently skip reconciliation. This cannot
-# report the distinction by exiting, because callers invoke it from a subshell.
+# Callers must treat 2 as fatal. A permissions failure reported as an absent
+# client would silently skip reconciliation and reintroduce the immutable
+# authenticationName failure with no signal.
 get_client() {
   local rc=0
   az rest --method GET --url "${CLIENT_URL}" >"${BODY_FILE}" 2>"${STDERR_FILE}" || rc=$?
