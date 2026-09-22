@@ -474,9 +474,9 @@ var conditionallyRequiredControlPlaneOperatorIdentities = []conditionallyRequire
 	},
 }
 
-// admitRequiredOperatorIdentities rejects a cluster that omits an operator identity the cluster
-// cannot come up without. The static cross-check only compares the two customer-supplied identity
-// lists against each other, so omitting an operator from both leaves them consistent and passes.
+// admitRequiredOperatorIdentities rejects a cluster that does not supply a user-assigned identity
+// for every operator it needs: those the role set config marks as always required for the cluster's
+// OpenShift version, plus those that become required once the feature using them is enabled.
 func admitRequiredOperatorIdentities(admissionContext *ClusterAdmissionContext, fldPath *field.Path, newObj *coreapi.HCPOpenShiftClusterCustomerProperties) field.ErrorList {
 	// An unparseable version is already rejected by the version validation, so skip rather than
 	// guess which operators a version we cannot interpret would require.
