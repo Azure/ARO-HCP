@@ -1,5 +1,5 @@
 values: ../values.yaml
-name: node-mitigation-stg-locked
+name: node-mitigation-stg-enabled
 namespace: mgmt-agent
 testData:
   environmentName: stg

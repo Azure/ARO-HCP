@@ -22,7 +22,19 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 )
+
+const deletionTestEndpoint = "https://management.example.com"
+
+func newDeletionTestClient(clock func() time.Time) *azureClient {
+	client := NewAzureClient(azureTestCredential{}, clock).(*azureClient)
+	client.options.Cloud = cloud.Configuration{Services: map[cloud.ServiceName]cloud.ServiceConfiguration{
+		cloud.ResourceManager: {Endpoint: deletionTestEndpoint, Audience: deletionTestEndpoint},
+	}}
+	return client
+}
 
 func TestAKSDeletionResumeAndFailures(t *testing.T) {
 	const cluster = "/subscriptions/00000000-1111-2222-3333-444444444444/resourceGroups/management/providers/Microsoft.ContainerService/managedClusters/cluster"
@@ -31,8 +43,11 @@ func TestAKSDeletionResumeAndFailures(t *testing.T) {
 		t.Run(outcome, func(t *testing.T) {
 			now := time.Date(2026, 9, 21, 12, 0, 0, 0, time.UTC)
 			posts, gets := 0, 0
-			reader := NewAzureClient(azureTestCredential{}, func() time.Time { return now }).(*azureClient)
+			reader := newDeletionTestClient(func() time.Time { return now })
 			reader.options.Transport = azureTransport(func(request *http.Request) (*http.Response, error) {
+				if request.URL.Scheme != "https" || request.URL.Host != "management.example.com" {
+					t.Fatalf("unexpected test endpoint: %s", request.URL)
+				}
 				headers := http.Header{"Content-Type": []string{"application/json"}}
 				status, body := 200, `{}`
 				if request.Method == http.MethodPost {
@@ -50,7 +65,7 @@ func TestAKSDeletionResumeAndFailures(t *testing.T) {
 						t.Fatalf("wrong deletion target: %+v", payload)
 					}
 					status = 202
-					headers.Set("Azure-AsyncOperation", "https://management.azure.com/operations/deletion")
+					headers.Set("Azure-AsyncOperation", deletionTestEndpoint+"/operations/deletion")
 					headers.Set("Retry-After", "60")
 				} else {
 					gets++
@@ -78,15 +93,18 @@ func TestAKSDeletionResumeAndFailures(t *testing.T) {
 
 func TestAKSPollFailurePreservesRetryAfter(t *testing.T) {
 	now := time.Date(2026, 9, 21, 12, 0, 0, 0, time.UTC)
-	reader := NewAzureClient(azureTestCredential{}, func() time.Time { return now }).(*azureClient)
+	reader := newDeletionTestClient(func() time.Time { return now })
 	posts, gets := 0, 0
 	reader.options.Transport = azureTransport(func(request *http.Request) (*http.Response, error) {
+		if request.URL.Scheme != "https" || request.URL.Host != "management.example.com" {
+			t.Fatalf("unexpected test endpoint: %s", request.URL)
+		}
 		headers := http.Header{"Content-Type": []string{"application/json"}}
 		status, body := http.StatusAccepted, `{}`
 		switch request.Method {
 		case http.MethodPost:
 			posts++
-			headers.Set("Azure-AsyncOperation", "https://management.azure.com/operations/deletion")
+			headers.Set("Azure-AsyncOperation", deletionTestEndpoint+"/operations/deletion")
 		case http.MethodGet:
 			gets++
 			status = http.StatusTooManyRequests

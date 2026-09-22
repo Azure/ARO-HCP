@@ -5,12 +5,9 @@ param mgmtAgentPrincipalId string
 
 param aksClusterName string
 param aksResourceGroupName string
-param environmentName string
 param nodeMitigationEnabled bool = false
 
-var allowMachineDeletion = nodeMitigationEnabled && contains(['pers', 'swft', 'cspr', 'dev'], environmentName)
-
-resource machineDeletionRole 'Microsoft.Authorization/roleDefinitions@2022-04-01' = if (allowMachineDeletion) {
+resource machineDeletionRole 'Microsoft.Authorization/roleDefinitions@2022-04-01' = if (nodeMitigationEnabled) {
   name: guid(subscription().id, 'aro-hcp-mgmt-agent-machine-deletion')
   properties: {
     roleName: 'ARO HCP mgmt-agent machine deletion ${subscription().subscriptionId}'
@@ -32,7 +29,7 @@ resource machineDeletionRole 'Microsoft.Authorization/roleDefinitions@2022-04-01
   }
 }
 
-module machineDeletionAssignment '../modules/mgmt-agent/machine-deletion-permission.bicep' = if (allowMachineDeletion) {
+module machineDeletionAssignment '../modules/mgmt-agent/machine-deletion-permission.bicep' = if (nodeMitigationEnabled) {
   name: 'mgmt-agent-machine-deletion-${uniqueString(aksClusterName)}'
   scope: resourceGroup(aksResourceGroupName)
   params: {

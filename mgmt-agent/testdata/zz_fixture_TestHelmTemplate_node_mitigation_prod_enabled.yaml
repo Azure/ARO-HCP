@@ -540,6 +540,32 @@ rules:
   - pods
   verbs:
   - list
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - get
+  - patch
+- apiGroups:
+  - ""
+  resources:
+  - namespaces
+  verbs:
+  - get
+- apiGroups:
+  - ""
+  resources:
+  - pods/eviction
+  verbs:
+  - create
+- apiGroups:
+  - apps
+  resources:
+  - replicasets
+  - daemonsets
+  verbs:
+  - get
 ---
 # Source: mgmt-agent/templates/clusterrolebinding.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -603,6 +629,18 @@ rules:
   - get
   - list
   - watch
+- apiGroups:
+  - mgmtagent.aro-hcp.azure.com
+  resources:
+  - nodemitigationbudgets
+  verbs:
+  - create
+- apiGroups:
+  - mgmtagent.aro-hcp.azure.com
+  resources:
+  - nodemitigationbudgets/status
+  verbs:
+  - update
 ---
 # Source: mgmt-agent/templates/leader_election_role_binding.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -687,6 +725,9 @@ spec:
         - "--log-verbosity=2"
         - "--node-health-configmap=mgmt-agent-node-health"
         - "--node-health-config-key=config.yaml"
+        - "--node-mitigation-enabled=true"
+        - "--node-mitigation-configmap=mgmt-agent-node-mitigation"
+        - "--node-mitigation-config-key=config.yaml"
         image: "arohcpsvcdev.azurecr.io/mgmt-agent@sha256:1234567890"
         name: mgmt-agent-controller
         env:

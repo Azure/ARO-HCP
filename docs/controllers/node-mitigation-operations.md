@@ -13,9 +13,12 @@ replacement capacity is available.
 
 ## Enablement and configuration
 
-The deployment flag defaults to false and runtime mode defaults to `disabled`.
-Only authorized DEV environments can enable mitigation. INT, STG and PROD remain
-blocked independently of the runtime ConfigMap.
+`mgmtAgent.nodeMitigation.enabled` defaults to false and gates both controller
+enablement and the AKS machine-deletion role assignment. There is no additional
+environment-name allowlist or denylist. Current environment configurations,
+including INT, STG and PROD, keep this flag disabled. Runtime mode separately
+defaults to `disabled`; changing the runtime ConfigMap cannot override a disabled
+deployment flag.
 
 `mgmtAgent.nodeMitigation.configuration` supplies `config.yaml` in the
 `mgmt-agent-node-mitigation` ConfigMap. Git and Helm own this YAML string.

@@ -1,5 +1,5 @@
 values: ../values.yaml
-name: node-mitigation-prod-locked
+name: node-mitigation-prod-enabled
 namespace: mgmt-agent
 testData:
   environmentName: prod

@@ -16,6 +16,7 @@ package nodemitigation
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"testing"
@@ -91,6 +92,82 @@ func (f *fixture) changeNode(t *testing.T, change func(*corev1.Node)) {
 	change(node)
 	if _, err := f.kube.CoreV1().Nodes().Update(context.Background(), node, metav1.UpdateOptions{}); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestCordonReleaseWithMissingMetadata(t *testing.T) {
+	for _, missing := range []string{"labels", "annotations", "both", "already released"} {
+		t.Run(missing, func(t *testing.T) {
+			f := newFixture(t, 11, 1)
+			f.tick(t)
+			reservation := f.ledger(t).Status.Reservations[recordName("node-00")]
+			f.changeNode(t, func(node *corev1.Node) {
+				if missing != "annotations" {
+					node.Labels = nil
+				}
+				if missing != "labels" {
+					node.Annotations = nil
+				}
+				if missing == "already released" {
+					node.Spec.Unschedulable = false
+				}
+			})
+			f.kube.ClearActions()
+			_, revision := f.controller.configuration()
+			err := f.controller.releaseCordon(context.Background(), revision, reservation)
+			if (err == nil) != (missing == "already released") {
+				t.Fatalf("metadata=%s, release error=%v", missing, err)
+			}
+			if len(mutations(f.kube.Actions())) != 0 {
+				t.Fatal("missing ownership metadata caused a mutation")
+			}
+			if f.node(t).Spec.Unschedulable != (missing != "already released") {
+				t.Fatal("missing ownership metadata changed the cordon")
+			}
+		})
+	}
+}
+
+func TestCordonReleaseOwnershipOnlyMapsMarshalAsObjects(t *testing.T) {
+	f := newFixture(t, 11, 1)
+	f.tick(t)
+	reservation := f.ledger(t).Status.Reservations[recordName("node-00")]
+	f.changeNode(t, func(node *corev1.Node) {
+		node.Labels = map[string]string{ownershipLabel: ControllerName}
+		node.Annotations = map[string]string{cordonAnnotation: cordonOwner(reservation)}
+	})
+	f.kube.ClearActions()
+	_, revision := f.controller.configuration()
+	if err := f.controller.releaseCordon(context.Background(), revision, reservation); err != nil {
+		t.Fatal(err)
+	}
+	actions := mutations(f.kube.Actions())
+	if len(actions) != 1 {
+		t.Fatalf("expected one release patch, got %d mutations", len(actions))
+	}
+	patch, ok := actions[0].(ktesting.PatchAction)
+	if !ok {
+		t.Fatalf("expected a patch, got %T", actions[0])
+	}
+	var operations []struct {
+		Op, Path string
+		Value    json.RawMessage
+	}
+	if err := json.Unmarshal(patch.GetPatch(), &operations); err != nil {
+		t.Fatal(err)
+	}
+	objects := 0
+	for _, operation := range operations {
+		if operation.Path == "/metadata/labels" || operation.Path == "/metadata/annotations" {
+			if operation.Op != "add" || string(operation.Value) != "{}" {
+				t.Fatalf("metadata patch must contain an empty object: %+v", operation)
+			}
+			objects++
+		}
+	}
+	node := f.node(t)
+	if objects != 2 || node.Spec.Unschedulable || len(node.Labels) != 0 || len(node.Annotations) != 0 {
+		t.Fatal("release did not clear both ownership maps and the cordon")
 	}
 }
 

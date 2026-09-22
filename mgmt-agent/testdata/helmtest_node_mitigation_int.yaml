@@ -1,5 +1,5 @@
 values: ../values.yaml
-name: node-mitigation-int-locked
+name: node-mitigation-int-enabled
 namespace: mgmt-agent
 testData:
   environmentName: int

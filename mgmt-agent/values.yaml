@@ -32,7 +32,7 @@ nodeHealth:
     enabled: {{ .mgmtAgent.nodeHealth.enabled }}
 nodeSelector: {}
 nodeMitigation:
-  enabled: {{ and (or (eq .environmentName "pers") (eq .environmentName "swft") (eq .environmentName "cspr") (eq .environmentName "dev")) .mgmtAgent.nodeMitigation.enabled }}
+  enabled: {{ .mgmtAgent.nodeMitigation.enabled }}
   configMapName: mgmt-agent-node-mitigation
   configKey: config.yaml
   configuration: {{ printf "%q" .mgmtAgent.nodeMitigation.configuration }}
