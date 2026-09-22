@@ -108,6 +108,15 @@ func buildReadDesireWithHC(t *testing.T, hcName, hcNamespace string) *kubeapplie
 		"apiVersion": hostedClusterAPIVersion,
 		"kind":       hostedClusterKind,
 		"metadata":   map[string]interface{}{"name": hcName, "namespace": hcNamespace},
+		"spec": map[string]interface{}{
+			"platform": map[string]interface{}{
+				"azure": map[string]interface{}{
+					"azureAuthenticationConfig": map[string]interface{}{
+						"azureAuthenticationConfigType": "ManagedIdentities",
+					},
+				},
+			},
+		},
 	})
 	require.NoError(t, err, "failed to marshal minimal HostedCluster JSON")
 

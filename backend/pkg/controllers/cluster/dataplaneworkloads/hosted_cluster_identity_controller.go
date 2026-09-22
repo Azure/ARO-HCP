@@ -27,6 +27,8 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
+	"github.com/openshift/hypershift/api/hypershift/v1beta1"
+
 	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
@@ -54,9 +56,10 @@ const (
 
 	// fieldManagerDataPlaneIdentities is the SSA field manager name used when
 	// applying HostedCluster data plane identity fields. It is intentionally
-	// distinct from "aro-hcp-kube-applier" (used by ClusterResourcesController
-	// for the base HostedCluster desire) so that Kubernetes SSA field ownership
-	// is partitioned: non-identity fields trace to the base manager; the three
+	// distinct from the base HostedCluster desire field manager (currently
+	// "work-agent" during the ACM/Maestro migration; "aro-hcp-kube-applier"
+	// once ARO-27507 completes) so that Kubernetes SSA field ownership is
+	// partitioned: non-identity fields trace to the base manager; the three
 	// data plane ClientID fields trace to this one.
 	// Inspect ownership with:
 	//   kubectl get hc -n <ns> <name> -o json | jq '.metadata.managedFields'
@@ -205,6 +208,15 @@ func (c *hostedClusterDataPlaneIdentitySyncer) SyncOnce(ctx context.Context, key
 		return utils.TrackError(fmt.Errorf("failed to read cached HostedCluster: %w", err))
 	}
 	if cachedHC == nil {
+		return nil
+	}
+
+	// Only ManagedIdentities clusters carry data plane MSI ClientIDs. The SSA
+	// patch sets the azureAuthenticationConfigType discriminator, so applying
+	// it to a WorkloadIdentities cluster would conflict with the base desire.
+	if cachedHC.Spec.Platform.Azure == nil ||
+		cachedHC.Spec.Platform.Azure.AzureAuthenticationConfig.AzureAuthenticationConfigType !=
+			v1beta1.AzureAuthenticationTypeManagedIdentities {
 		return nil
 	}
 
