@@ -63,7 +63,6 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/clusterresources"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cosmosmigration"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/datadump"
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/example"
 	externalauthcreation "github.com/Azure/ARO-HCP/backend/pkg/controllers/externalauth/creation"
 	externalauthdeletion "github.com/Azure/ARO-HCP/backend/pkg/controllers/externalauth/deletion"
 	externalauthoperations "github.com/Azure/ARO-HCP/backend/pkg/controllers/externalauth/operations"
@@ -475,7 +474,6 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	csStateDumpController := datadump.NewCSStateDumpController(b.options.ResourcesDBClient, activeOperationLister, backendInformers, unionKubeApplierInformers, b.options.ClustersServiceClient)
 	billingDumpController := datadump.NewBillingDumpController(b.options.ResourcesDBClient, b.options.BillingDBClient, activeOperationLister, backendInformers, unionKubeApplierInformers)
 	managementClusterDumpController := datadump.NewManagementClusterDataDumpController(b.options.FleetDBClient, managementClusterLister, fleetInformers)
-	doNothingController := example.NewDoNothingExampleController(b.options.ResourcesDBClient, subscriptionLister)
 	dispatchRequestCredentialController := legacycredentialrequest.NewDispatchRequestCredentialController(
 		b.clock,
 		b.options.ResourcesDBClient,
@@ -1139,7 +1137,6 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go csStateDumpController.Run(ctx, 20)
 				go billingDumpController.Run(ctx, 20)
 				go managementClusterDumpController.Run(ctx, 20)
-				go doNothingController.Run(ctx, 20)
 				go dispatchRequestCredentialController.Run(ctx, 20)
 				go adminCredentialsDispatchRequestCredentialController.Run(ctx, 20)
 				go adminCredentialsDispatchRevokeCredentialsController.Run(ctx, 20)

@@ -140,7 +140,7 @@ func (c *genericOperation) SyncOnce(ctx context.Context, keyObj any) error {
 	return errors.Join(syncErr, controllerWriteErr)
 }
 
-// Run check do_nothing.go for basic doc details.
+// Run starts the controller's worker goroutines and blocks until the context is cancelled.
 func (c *genericOperation) Run(ctx context.Context, threadiness int) {
 	defer utilruntime.HandleCrash()
 	defer c.queue.ShutDown()
@@ -161,13 +161,13 @@ func (c *genericOperation) Run(ctx context.Context, threadiness int) {
 	logger.Info("Shutting down")
 }
 
-// runWorker check do_nothing.go for doc details.
+// runWorker is the hot loop that processes work items until shutdown.
 func (c *genericOperation) runWorker(ctx context.Context) {
 	for c.processNextWorkItem(ctx) {
 	}
 }
 
-// processNextWorkItem check do_nothing.go for doc details.
+// processNextWorkItem deals with one item off the queue. It returns false when it's time to quit.
 func (c *genericOperation) processNextWorkItem(ctx context.Context) bool {
 	ref, shutdown := c.queue.Get()
 	if shutdown {
