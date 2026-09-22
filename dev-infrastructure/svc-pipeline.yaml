@@ -30,6 +30,12 @@ buildStep:
     chmod 0755 "${tmp}"
     mv "${tmp}" ./scripts/postgres-access/postgres-access
     trap - EXIT
+    tmp="$(mktemp ./scripts/eventgrid-client-reconcile/eventgrid-client-reconcile.XXXXXX)"
+    trap 'rm -f "${tmp}"' EXIT
+    CGO_ENABLED=0 go build -o "${tmp}" ./scripts/eventgrid-client-reconcile
+    chmod 0755 "${tmp}"
+    mv "${tmp}" ./scripts/eventgrid-client-reconcile/eventgrid-client-reconcile
+    trap - EXIT
 resourceGroups:
 # Query parameters from global deployment, e.g. ACR resource IDs
 - name: global

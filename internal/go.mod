@@ -4,7 +4,7 @@ go 1.25.7
 
 require (
 	dario.cat/mergo v1.0.1
-	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.23.0
+	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.23.1
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.14.0
 	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.5.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources v1.2.0
@@ -28,7 +28,7 @@ require (
 	github.com/openshift/library-go v0.0.0-20260504190829-2dd4388d7b89
 	github.com/prometheus/client_golang v1.23.2
 	github.com/segmentio/ksuid v1.0.4
-	github.com/stretchr/testify v1.12.0
+	github.com/stretchr/testify v1.12.1
 	github.com/vmware-tanzu/velero v1.18.1
 	go.opentelemetry.io/contrib/exporters/autoexport v0.65.0
 	go.opentelemetry.io/otel v1.44.0
@@ -135,7 +135,7 @@ require (
 	go.opentelemetry.io/proto/otlp v1.10.0 // indirect
 	go.uber.org/zap v1.28.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
-	go.yaml.in/yaml/v3 v3.0.4 // indirect
+	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	golang.org/x/crypto v0.55.0 // indirect
 	golang.org/x/exp v0.0.0-20260218203240-3dfff04db8fa // indirect
 	golang.org/x/net v0.58.0 // indirect
