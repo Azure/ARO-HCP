@@ -111,11 +111,11 @@ sleep does not prove release.
 | Candidate | The canonical [`never-ready` detector](node-health.md#never-ready). |
 | Prerequisites | Complete [readiness history](node-health.md#readiness-history-for-deletion), verified immutable VM identity, validated cordon ownership/release, live Pod policy and capacity/budget admission. |
 | Action | Owned cordon, then AKS `agentPools/deleteMachines/action` in a separate reconciliation. No general drain. |
-| Gate | Until prerequisites are implemented and validated, candidate evaluation only: no new reservation, ownership write, cordon or AKS submission. SWIFT is independent. |
+| Gate | Enforcement requires implemented and validated prerequisites. Otherwise evaluate candidates only, without reservations, ownership writes, cordons or AKS submissions. SWIFT is independent. |
 
 ```mermaid
 flowchart TD
-    N["Never-ready candidate"] --> P{"All prerequisites and safety gates satisfied?"}
+    N["Never-ready candidate"] --> P{"Prerequisites implemented, validated and satisfied; safety gates pass?"}
     P -- no --> H["Hold candidate and report reason"]
     P -- yes --> M{"Mode"}
     M -- disabled --> X["No writes"]

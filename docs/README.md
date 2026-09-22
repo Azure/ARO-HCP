@@ -164,7 +164,7 @@ Welcome to the **ARO HCP** documentation. This guide provides an overview of the
   - Fault detectors, health metadata and readiness-history evidence
   - Observation only, with independent mitigation admission and rollout
 - [Node Mitigation](controllers/node-mitigation.md)
-  - Design for a generic mitigation controller with shared actions and safety budgets
+  - Design for SWIFT eviction and guarded never-ready mitigation with shared safety budgets
   - SWIFT pod eviction, gated never-ready AKS deletion, and durable budget/operation accounting
 - [Node Health and Mitigation Evidence](controllers/node-mitigation-evidence.md)
   - Rationale, validation methodology and the access-controlled evidence record
