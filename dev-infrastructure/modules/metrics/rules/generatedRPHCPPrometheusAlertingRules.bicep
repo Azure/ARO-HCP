@@ -473,3 +473,108 @@ resource arohcpIngressAvailabilitySloAlerts 'Microsoft.AlertsManagement/promethe
     ]
   }
 }
+
+resource arohcpIngressLatencySloAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_ingress_latency_slo_alerts'
+  location: location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyIngressLatency1h5m'
+        enabled: true
+        labels: {
+          component: 'slo'
+          long_window: '1h'
+          severity: '3'
+          short_window: '5m'
+          slo: 'ingress-latency'
+        }
+        annotations: {
+          correlationId: '{{ $labels._id }}'
+          description: 'More than 7.2% of synthetic canary route checks are exceeding 200ms for HCP cluster {{ $labels._id }}, indicating a fast error budget burn (14.4x) that would exhaust the 99.5% SLO budget in ~50 hours.'
+          info: 'More than 7.2% of synthetic canary route checks are exceeding 200ms for HCP cluster {{ $labels._id }}, indicating a fast error budget burn (14.4x) that would exhaust the 99.5% SLO budget in ~50 hours.'
+          runbook_url: 'https://aka.ms/arohcp-runbook-ingress'
+          summary: 'Ingress canary latency critically degraded for {{ $labels._id }}'
+          title: 'Ingress canary latency critically degraded for {{ $labels._id }}'
+        }
+        expression: 'errors:ingress_canary_latency:error_rate > 0.072'
+        for: 'PT5M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyIngressLatency6h30m'
+        enabled: true
+        labels: {
+          component: 'slo'
+          long_window: '6h'
+          severity: '3'
+          short_window: '30m'
+          slo: 'ingress-latency'
+        }
+        annotations: {
+          correlationId: '{{ $labels._id }}'
+          description: 'More than 3% of synthetic canary route checks are exceeding 200ms for HCP cluster {{ $labels._id }}, indicating a medium error budget burn (6x) that would exhaust the 99.5% SLO budget in ~5 days.'
+          info: 'More than 3% of synthetic canary route checks are exceeding 200ms for HCP cluster {{ $labels._id }}, indicating a medium error budget burn (6x) that would exhaust the 99.5% SLO budget in ~5 days.'
+          runbook_url: 'https://aka.ms/arohcp-runbook-ingress'
+          summary: 'Ingress canary latency degraded for {{ $labels._id }}'
+          title: 'Ingress canary latency degraded for {{ $labels._id }}'
+        }
+        expression: 'errors:ingress_canary_latency:error_rate > 0.03'
+        for: 'PT30M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyIngressLatency3d'
+        enabled: true
+        labels: {
+          component: 'slo'
+          long_window: '3d'
+          severity: '4'
+          slo: 'ingress-latency'
+        }
+        annotations: {
+          correlationId: '{{ $labels._id }}'
+          description: 'More than 0.5% of synthetic canary route checks are exceeding 200ms for HCP cluster {{ $labels._id }}, consuming the error budget at the SLO rate. No immediate customer impact but trend requires investigation.'
+          info: 'More than 0.5% of synthetic canary route checks are exceeding 200ms for HCP cluster {{ $labels._id }}, consuming the error budget at the SLO rate. No immediate customer impact but trend requires investigation.'
+          runbook_url: 'https://aka.ms/arohcp-runbook-ingress'
+          summary: 'Ingress canary latency trending below SLO for {{ $labels._id }}'
+          title: 'Ingress canary latency trending below SLO for {{ $labels._id }}'
+        }
+        expression: 'errors:ingress_canary_latency:error_rate > 0.005'
+        for: 'PT6H'
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
