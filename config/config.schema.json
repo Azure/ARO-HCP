@@ -1579,7 +1579,7 @@
           "properties": {
             "enabled": {
               "type": "boolean",
-              "description": "Allow node mitigation configuration in DEV only. Public clouds remain disabled."
+              "description": "Enable node mitigation and its scoped AKS machine-deletion permission. Defaults to false; runtime mode is configured separately."
             },
             "configuration": {
               "type": "string",
