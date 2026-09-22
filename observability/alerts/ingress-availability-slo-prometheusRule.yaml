@@ -1,0 +1,95 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    app.kubernetes.io/name: kube-prometheus
+    app.kubernetes.io/part-of: kube-prometheus
+    prometheus: k8s
+    role: alert-rules
+  name: ingress-availability-slo-rules
+  namespace: monitoring
+spec:
+  groups:
+  # ========================================
+  # Ingress Availability SLO Alerts
+  # ========================================
+  # Multi-window burn-rate alerting adapted for gauge metrics.
+  # Naming convention: {Scope}{Subject}{Metric}{BurnRateTier} per ADR-001.
+  #
+  # SLO: 99.5% ingress canary availability
+  # Error Budget: 0.5% (1 - 0.995)
+  #
+  # Burn rate thresholds:
+  #   Fast (14.4x): 14.4 * 0.005 = 0.072 → error rate > 7.2%
+  #   Medium (6x):  6 * 0.005 = 0.030    → error rate > 3.0%
+  #   Slow (1x):    1 * 0.005 = 0.005    → error rate > 0.5%
+  #
+  # ingress_canary_route_reachable is a gauge representing end-to-end synthetic
+  # route checks (0/1 per observation), not a counter. The 'for' duration provides
+  # the short-window check, approximating multi-window burn rate alerting for gauge
+  # metrics (see access-cluster-slo-prometheusRule.yaml).
+  #
+  # Lane: alerts-rp-hcps.yaml → generatedRPHCPPrometheusAlertingRules.bicep
+  #       → icm-action-group-rp (ARO-RP on-call queue)
+  # Per-HCP alerts: correlationId scoped to _id so per-cluster suppression
+  # does not mask failures in other clusters.
+  - name: arohcp_ingress_availability_slo_alerts
+    labels:
+      component: slo
+    rules:
+    # ----------------------------------------
+    # Fast Burn Alert (IcM Sev 3 — customer-facing UJ degraded)
+    # ----------------------------------------
+    # 14.4x burn rate → >7.2% error rate sustained for 5 minutes
+    # Would exhaust 30-day error budget in ~50 hours
+    - alert: userJourneyIngressAvailability1h5m
+      expr: |
+        errors:ingress_canary:error_rate > 0.072
+      for: 5m
+      labels:
+        severity: "3"
+        slo: ingress-availability
+        long_window: 1h
+        short_window: 5m
+      annotations:
+        summary: "Ingress canary availability critically degraded for {{ $labels._id }}"
+        description: "More than 7.2% of synthetic canary route observations are failing for HCP cluster {{ $labels._id }}, indicating a fast error budget burn (14.4x) that would exhaust the 99.5% SLO budget in ~50 hours."
+        runbook_url: "https://aka.ms/arohcp-runbook-ingress"
+        correlationId: "{{ $labels._id }}"
+    # ----------------------------------------
+    # Medium Burn Alert (IcM Sev 3)
+    # ----------------------------------------
+    # 6x burn rate → >3.0% error rate sustained for 30 minutes
+    # Would exhaust 30-day error budget in ~5 days
+    - alert: userJourneyIngressAvailability6h30m
+      expr: |
+        errors:ingress_canary:error_rate > 0.030
+      for: 30m
+      labels:
+        severity: "3"
+        slo: ingress-availability
+        long_window: 6h
+        short_window: 30m
+      annotations:
+        summary: "Ingress canary availability degraded for {{ $labels._id }}"
+        description: "More than 3% of synthetic canary route observations are failing for HCP cluster {{ $labels._id }}, indicating a medium error budget burn (6x) that would exhaust the 99.5% SLO budget in ~5 days."
+        runbook_url: "https://aka.ms/arohcp-runbook-ingress"
+        correlationId: "{{ $labels._id }}"
+    # ----------------------------------------
+    # Slow Burn Alert (IcM Sev 4 — no immediate customer impact)
+    # ----------------------------------------
+    # 1x burn rate → >0.5% error rate sustained for 6 hours
+    # Consuming error budget at exactly the SLO rate — trend alert
+    - alert: userJourneyIngressAvailability3d
+      expr: |
+        errors:ingress_canary:error_rate > 0.005
+      for: 6h
+      labels:
+        severity: "4"
+        slo: ingress-availability
+        long_window: 3d
+      annotations:
+        summary: "Ingress canary availability trending below SLO for {{ $labels._id }}"
+        description: "More than 0.5% of synthetic canary route observations are failing for HCP cluster {{ $labels._id }}, consuming the error budget at the SLO rate. No immediate customer impact but trend requires investigation."
+        runbook_url: "https://aka.ms/arohcp-runbook-ingress"
+        correlationId: "{{ $labels._id }}"
