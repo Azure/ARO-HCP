@@ -46,11 +46,12 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/swift-recorder/pkg/recorder"
+	"github.com/Azure/ARO-HCP/swift-recorder/pkg/testutil"
 )
 
 func testOptions(t *testing.T) RawOptions {
 	t.Helper()
-	dir := t.TempDir()
+	dir := testutil.ResolvedTempDir(t)
 	return RawOptions{
 		Config: recorder.Config{
 			NodeName: "node", ClusterName: "cluster", Region: "region", Environment: "test", BootID: "boot",
