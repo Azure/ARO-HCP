@@ -1177,6 +1177,61 @@ resource arohcpCertificateRotationAlerts 'Microsoft.AlertsManagement/prometheusR
         for: 'PT1H'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'CertificateDisabled'
+        enabled: true
+        labels: {
+          component: 'certificate-rotation'
+          severity: '3'
+        }
+        annotations: {
+          correlationId: 'CertificateDisabled/{{ $labels.cluster }}/{{ $labels.certificate_name }}/{{ $labels.key_vault }}/{{ $labels.region }}'
+          description: 'Certificate \'{{ $labels.certificate_name }}\' in Key Vault \'{{ $labels.key_vault }}\' ({{ $labels.region }}) has remained disabled for at least one hour.'
+          info: 'Certificate \'{{ $labels.certificate_name }}\' in Key Vault \'{{ $labels.key_vault }}\' ({{ $labels.region }}) has remained disabled for at least one hour.'
+          runbook_url: 'TBD'
+          summary: '{{ $labels.region }}/{{ $labels.key_vault }}: Certificate {{ $labels.certificate_name }} is disabled'
+          title: '{{ $labels.region }}/{{ $labels.key_vault }}: Certificate {{ $labels.certificate_name }} is disabled'
+        }
+        expression: 'max by (cluster, environment, region, key_vault, certificate_name) (keyvault_certificate_enabled) == 0'
+        for: 'PT1H'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'CertificateCollectionStale'
+        enabled: true
+        labels: {
+          component: 'certificate-rotation'
+          severity: '3'
+        }
+        annotations: {
+          correlationId: 'CertificateCollectionStale/{{ $labels.cluster }}/{{ $labels.key_vault }}/{{ $labels.region }}'
+          description: 'Certificate metadata collection for Key Vault \'{{ $labels.key_vault }}\' ({{ $labels.region }}) has not completed successfully within the last hour.'
+          info: 'Certificate metadata collection for Key Vault \'{{ $labels.key_vault }}\' ({{ $labels.region }}) has not completed successfully within the last hour.'
+          runbook_url: 'TBD'
+          summary: '{{ $labels.region }}/{{ $labels.key_vault }}: Certificate collection is stale'
+          title: '{{ $labels.region }}/{{ $labels.key_vault }}: Certificate collection is stale'
+        }
+        expression: '(time() - max by (cluster, environment, region, key_vault) (keyvault_certificate_collector_last_success_timestamp_seconds) > 3600) or max by (cluster, environment, region, key_vault) (keyvault_certificate_collector_last_success_timestamp_seconds) == 0'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
     ]
     scopes: [
       azureMonitoring

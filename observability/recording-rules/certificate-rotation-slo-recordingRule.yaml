@@ -45,6 +45,24 @@ spec:
     - record: certificate:keyvault_certificate:rotation_compliant
       expr: |
         certificate:keyvault_certificate:lifetime_ratio <= bool 0.65
+    - record: certificate:keyvault_certificate:enabled
+      expr: |
+        max by (cluster, environment, region, key_vault, certificate_name) (
+          keyvault_certificate_enabled
+        )
+    - record: certificate:keyvault_certificate:collector_fresh
+      expr: |
+        (
+          time()
+          - max by (cluster, environment, region, key_vault) (
+              keyvault_certificate_collector_last_success_timestamp_seconds
+            )
+          <= bool 3600
+        )
+        * on (cluster, environment, region, key_vault)
+        max by (cluster, environment, region, key_vault) (
+          keyvault_certificate_collector_last_success_timestamp_seconds
+        ) > bool 0
     - record: certificate:keyvault_certificate:days_until_expiry
       expr: |-
         (

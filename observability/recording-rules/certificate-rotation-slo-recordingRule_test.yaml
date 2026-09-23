@@ -16,6 +16,10 @@ tests:
     values: "1+0x2"
   - series: 'keyvault_certificate_enabled{certificate_name="frontend", key_vault="service-kv", region="westus3", cluster="cspr-westus3-svc-1", environment="cspr", prometheus_replica="agent-1", pod="exporter-1", instance="10.0.0.2:8080"}'
     values: "1+0x2"
+  - series: 'keyvault_certificate_collector_last_success_timestamp_seconds{key_vault="service-kv", region="westus3", cluster="cspr-westus3-svc-1", environment="cspr", prometheus_replica="agent-0", pod="exporter-0", instance="10.0.0.1:8080"}'
+    values: "1800+0x2"
+  - series: 'keyvault_certificate_collector_last_success_timestamp_seconds{key_vault="service-kv", region="westus3", cluster="cspr-westus3-svc-1", environment="cspr", prometheus_replica="agent-1", pod="exporter-1", instance="10.0.0.2:8080"}'
+    values: "1800+0x2"
   promql_expr_test:
   - expr: certificate:keyvault_certificate:lifetime_ratio
     eval_time: 1h
@@ -27,11 +31,31 @@ tests:
     exp_samples:
     - labels: 'certificate:keyvault_certificate:rotation_compliant{certificate_name="frontend", cluster="cspr-westus3-svc-1", environment="cspr", key_vault="service-kv", region="westus3"}'
       value: 1
+  - expr: certificate:keyvault_certificate:enabled
+    eval_time: 1h
+    exp_samples:
+    - labels: 'certificate:keyvault_certificate:enabled{certificate_name="frontend", cluster="cspr-westus3-svc-1", environment="cspr", key_vault="service-kv", region="westus3"}'
+      value: 1
+  - expr: certificate:keyvault_certificate:collector_fresh
+    eval_time: 1h
+    exp_samples:
+    - labels: 'certificate:keyvault_certificate:collector_fresh{cluster="cspr-westus3-svc-1", environment="cspr", key_vault="service-kv", region="westus3"}'
+      value: 1
   - expr: certificate:keyvault_certificate:days_until_expiry
     eval_time: 1h
     exp_samples:
     - labels: 'certificate:keyvault_certificate:days_until_expiry{certificate_name="frontend", cluster="cspr-westus3-svc-1", environment="cspr", key_vault="service-kv", region="westus3"}'
       value: 0.041666666666666664
+- interval: 1h
+  input_series:
+  - series: 'keyvault_certificate_collector_last_success_timestamp_seconds{key_vault="stale-kv", region="westus3", cluster="cspr-westus3-svc-1", environment="cspr"}'
+    values: "1+0x2"
+  promql_expr_test:
+  - expr: certificate:keyvault_certificate:collector_fresh
+    eval_time: 2h
+    exp_samples:
+    - labels: 'certificate:keyvault_certificate:collector_fresh{cluster="cspr-westus3-svc-1", environment="cspr", key_vault="stale-kv", region="westus3"}'
+      value: 0
 - interval: 1h
   input_series:
   - series: 'keyvault_certificate_not_before_timestamp_seconds{certificate_name="admin-api", key_vault="service-kv", region="westus3", cluster="cspr-westus3-svc-1", environment="cspr"}'
@@ -60,3 +84,8 @@ tests:
     eval_time: 1h
   - expr: certificate:keyvault_certificate:days_until_expiry
     eval_time: 1h
+  - expr: certificate:keyvault_certificate:enabled
+    eval_time: 1h
+    exp_samples:
+    - labels: 'certificate:keyvault_certificate:enabled{certificate_name="disabled", cluster="cspr-westus3-svc-1", environment="cspr", key_vault="service-kv", region="westus3"}'
+      value: 0

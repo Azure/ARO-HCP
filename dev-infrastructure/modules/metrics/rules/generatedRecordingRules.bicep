@@ -229,6 +229,14 @@ resource arohcpCertificateRotationSloRecordingRules 'Microsoft.AlertsManagement/
         expression: 'certificate:keyvault_certificate:lifetime_ratio <= bool 0.65'
       }
       {
+        record: 'certificate:keyvault_certificate:enabled'
+        expression: 'max by (cluster, environment, region, key_vault, certificate_name) (keyvault_certificate_enabled)'
+      }
+      {
+        record: 'certificate:keyvault_certificate:collector_fresh'
+        expression: '(time() - max by (cluster, environment, region, key_vault) (keyvault_certificate_collector_last_success_timestamp_seconds) <= bool 3600) * on (cluster, environment, region, key_vault) max by (cluster, environment, region, key_vault) (keyvault_certificate_collector_last_success_timestamp_seconds) > bool 0'
+      }
+      {
         record: 'certificate:keyvault_certificate:days_until_expiry'
         expression: '(max by (cluster, environment, region, key_vault, certificate_name) (keyvault_certificate_not_after_timestamp_seconds) - time()) / 86400 and on (cluster, environment, region, key_vault, certificate_name) max by (cluster, environment, region, key_vault, certificate_name) (keyvault_certificate_enabled) == 1'
       }
