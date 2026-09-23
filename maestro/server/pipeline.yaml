@@ -77,7 +77,7 @@ resourceGroups:
   - name: deploy
     aksCluster: '{{ .svc.aks.name }}'
     action: Helm
-    timeout: 10m
+    timeout: 20m
     releaseName: 'maestro-server'
     releaseNamespace: '{{ .maestro.server.k8s.namespace }}'
     chartDir: ./deploy
