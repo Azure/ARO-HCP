@@ -394,6 +394,13 @@ and require matching request/resource type and nonterminal status; create/update
 pollers also check the resource's active-operation reference. Their
 [status helper](../backend/pkg/utils/operationutils/utils.go)
 updates operation/resource state transactionally and handles async notification.
+Create/update pollers select the worst provisioning state, then choose an error
+code only from sources reporting that state: `Invalid*` codes take precedence,
+other codes rank next, and `InternalServerError` is the default for non-successful
+states. Successful states have no error code. Equal-priority codes keep the first
+source in the stable provisioning-state/message sort.
+The selected code is persisted in the operation error, including create deadline
+failures; existing customer-safe error messages and details are retained.
 
 Validation instances use the [cluster wrapper](../backend/pkg/controllers/cluster/validation/cluster_validation_controller.go)
 or [node-pool wrapper](../backend/pkg/controllers/nodepool/validation/nodepool_validation_controller.go).
@@ -577,7 +584,7 @@ Once deletion prerequisites and child cleanup are satisfied, deletes the ARM res
 
 Combines selected placement, Cluster Service state, mirrored HostedCluster readiness/version, API endpoint, serving CA and confirmed role assignments (nonempty confirmed list, none pending). Placement is checked even before a Cluster Service ID exists. Unresolved placement remains Provisioning until `CreateOperationCompletionDeadline`; without a deadline it keeps waiting. At/after the deadline, `Status.Placement.Conditions[CapacityAvailable]=False` produces the customer-safe `AROHCPCapacityHeavyUse` error; missing/Unknown placement state produces `InternalServerError`. Assigned `Spec.ManagementClusterResourceID` satisfies this check despite a stale condition; other completion checks still apply.
 
-For the matching nonterminal operation, writes status/error/transition time and ARM provisioning state, clears the active-operation reference on terminal state, and sends the async notification. Classified errors are preserved (multiple classified failures become `MultipleErrorsOccurred`); internal placement diagnostics are not copied into the capacity error. Pending HostedCluster version diagnostics describe incomplete history entries and their elapsed time.
+For the matching nonterminal operation, writes status/error/transition time and ARM provisioning state, clears the active-operation reference on terminal state, and sends the async notification. Classified error messages are preserved (multiple classified failures retain their original errors in `Details`, with the worst code at the top level); internal placement diagnostics are not copied into the capacity error. Pending HostedCluster version diagnostics describe incomplete history entries and their elapsed time.
 
 #### OperationClusterUpdate
 

@@ -154,7 +154,7 @@ func (c *operationExternalAuthUpdate) SynchronizeOperation(ctx context.Context, 
 	var persistErr *coreapi.CloudErrorBody
 	if operationalState.ProvisioningState == coreapi.ProvisioningStateFailed {
 		persistErr = &coreapi.CloudErrorBody{
-			Code:    coreapi.CloudErrorCodeInvalidRequestContent,
+			Code:    operationalState.CloudErrorCode,
 			Message: operationalState.Message,
 		}
 	}

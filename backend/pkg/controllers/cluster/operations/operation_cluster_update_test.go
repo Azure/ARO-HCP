@@ -65,13 +65,17 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 		return cluster
 	}
 
-	newCSClusterWithState := func(state arohcpv1alpha1.ClusterState) *arohcpv1alpha1.Cluster {
+	newCSClusterWithState := func(state arohcpv1alpha1.ClusterState, code ...string) *arohcpv1alpha1.Cluster {
 		allowAccess := arohcpv1alpha1.NewCIDRBlockAllowAccess().Mode(ocm.CSCIDRBlockAllowAccessModeAllowAll)
+		status := arohcpv1alpha1.NewClusterStatus().State(state)
+		if len(code) > 0 {
+			status.ProvisionErrorCode(code[0])
+		}
 		csCluster, err := arohcpv1alpha1.NewCluster().
 			API(arohcpv1alpha1.NewClusterAPI().
 				CIDRBlockAccess(arohcpv1alpha1.NewCIDRBlockAccess().
 					Allow(allowAccess))).
-			Status(arohcpv1alpha1.NewClusterStatus().State(state)).
+			Status(status).
 			Build()
 		require.NoError(t, err)
 		return csCluster
@@ -214,13 +218,14 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
 				mock.EXPECT().
 					GetCluster(gomock.Any(), fixture.ClusterInternalID).
-					Return(newCSClusterWithState(arohcpv1alpha1.ClusterStateError), nil)
+					Return(newCSClusterWithState(arohcpv1alpha1.ClusterStateError, coreapi.CloudErrorCodeServiceUnavailable), nil)
 			},
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, coreapi.ProvisioningStateFailed, op.Status)
-				assert.NotNil(t, op.Error)
+				require.NotNil(t, op.Error)
+				assert.Equal(t, coreapi.CloudErrorCodeServiceUnavailable, op.Error.Code)
 
 				cluster, err := db.HCPClusters(operationtesting.TestSubscriptionID, operationtesting.TestResourceGroupName).Get(ctx, operationtesting.TestClusterName)
 				require.NoError(t, err)
@@ -246,7 +251,7 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 			},
 		},
 		{
-			name:                           "customer minor mismatch with IntentFailed on ControlPlaneDesiredVersion controller marks operation failed",
+			name:                           "cluster service failure outranks an internal desired version resolution failure",
 			existingCluster:                newClusterWithCustomerVersion("4.20"),
 			existingOperation:              newOperationAccepted(),
 			existingServiceProviderCluster: newServiceProviderClusterWithSpecControlPlaneVersion("4.19"),
@@ -262,14 +267,14 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
 				mock.EXPECT().
 					GetCluster(gomock.Any(), fixture.ClusterInternalID).
-					Return(newCSClusterWithState(arohcpv1alpha1.ClusterStateReady), nil)
+					Return(newCSClusterWithState(arohcpv1alpha1.ClusterStateError, coreapi.CloudErrorCodeServiceUnavailable), nil)
 			},
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, coreapi.ProvisioningStateFailed, op.Status)
 				require.NotNil(t, op.Error)
-				assert.Equal(t, coreapi.CloudErrorCodeInvalidRequestContent, op.Error.Code)
+				assert.Equal(t, coreapi.CloudErrorCodeServiceUnavailable, op.Error.Code)
 				assert.Contains(t, op.Error.Message, "example intent failed message")
 
 				cluster, err := db.HCPClusters(operationtesting.TestSubscriptionID, operationtesting.TestResourceGroupName).Get(ctx, operationtesting.TestClusterName)
@@ -342,7 +347,7 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 				require.NoError(t, err)
 				assert.Equal(t, coreapi.ProvisioningStateFailed, op.Status)
 				require.NotNil(t, op.Error)
-				assert.Equal(t, coreapi.CloudErrorCodeInvalidRequestContent, op.Error.Code)
+				assert.Equal(t, coreapi.CloudErrorCodeInternalServerError, op.Error.Code)
 
 				cluster, err := db.HCPClusters(operationtesting.TestSubscriptionID, operationtesting.TestResourceGroupName).Get(ctx, operationtesting.TestClusterName)
 				require.NoError(t, err)

@@ -83,6 +83,32 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 		verifyDB          func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient)
 	}{
 		{
+			name:              "cluster service error code is persisted",
+			existingCluster:   newClusterWithAPIURL("https://api.example.com", &createdAt),
+			existingOperation: fixture.NewOperation(cosmosstorageutils.OperationRequestCreate),
+			setupCSMock: func(ctrl *gomock.Controller, fixture *operationtesting.ClusterTestFixture) ocm.ClusterServiceClientSpec {
+				mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
+				clusterStatus, err := arohcpv1alpha1.NewClusterStatus().
+					State(arohcpv1alpha1.ClusterStateError).
+					ProvisionErrorCode(coreapi.CloudErrorCodeInvalidParameter).
+					ProvisionErrorMessage("invalid cluster configuration").
+					Build()
+				require.NoError(t, err)
+				mockCSClient.EXPECT().
+					GetClusterStatus(gomock.Any(), fixture.ClusterInternalID).
+					Return(clusterStatus, nil)
+				return mockCSClient
+			},
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
+				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
+				require.NoError(t, err)
+				assert.Equal(t, coreapi.ProvisioningStateFailed, op.Status)
+				require.NotNil(t, op.Error)
+				assert.Equal(t, coreapi.CloudErrorCodeInvalidParameter, op.Error.Code)
+				assert.Contains(t, op.Error.Message, "invalid cluster configuration")
+			},
+		},
+		{
 			name:              "successful create updates operation to succeeded",
 			existingCluster:   newClusterWithAPIURL("https://api.example.com", &createdAt),
 			existingOperation: fixture.NewOperation(cosmosstorageutils.OperationRequestCreate),

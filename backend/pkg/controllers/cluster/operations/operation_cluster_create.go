@@ -164,8 +164,7 @@ func (c *operationClusterCreate) SynchronizeOperation(ctx context.Context, key c
 	persistErr := operationalState.Error
 	if operationalState.ProvisioningState == coreapi.ProvisioningStateFailed && persistErr == nil {
 		persistErr = &coreapi.CloudErrorBody{
-			// TODO: classify other provisioning failures without exposing internal details.
-			Code:    coreapi.CloudErrorCodeInternalServerError,
+			Code:    operationalState.CloudErrorCode,
 			Message: operationalState.Message,
 		}
 	}
@@ -280,7 +279,11 @@ func (c *operationClusterCreate) clusterServiceCreateOperationState(ctx context.
 		return nil, utils.TrackError(err)
 	}
 	logger.Info("new status via cluster-service", "newStatus", newOperationStatus, "newOperationError", opError)
-	return operationbase.NewOperationState(newOperationStatus, operationbase.ClusterServiceOperationMessage(clusterStatus, opError)), nil
+	state := operationbase.NewOperationState(newOperationStatus, operationbase.ClusterServiceOperationMessage(clusterStatus, opError))
+	if opError != nil {
+		state.WithCloudErrorCode(opError.Code)
+	}
+	return state, nil
 }
 
 func (c *operationClusterCreate) clusterOperationStatus(ctx context.Context, operation *coreapi.Operation) (*operationbase.OperationState, error) {
@@ -332,7 +335,7 @@ func (c *operationClusterCreate) placementOperationStatus(ctx context.Context, o
 			operationError.Message = "ARO HCP is currently experiencing capacity constraints. Try again later."
 		}
 	}
-	return operationbase.NewFailedOperationState(message, operationError), nil
+	return operationbase.NewFailedOperationState(operationError.Code, message, operationError), nil
 }
 
 // minVersionsWithValidSuccessCondition maps from <major>.<micro> to the first z-stream version that includes the fix for
