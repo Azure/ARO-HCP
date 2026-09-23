@@ -98,9 +98,6 @@ func ValidateCluster(ctx context.Context, op operation.Operation, newCluster, ol
 	// version profile and the service-provider exact pin, so it lives at cluster level.
 	errs = append(errs, validateNightlyChannelRequiresFullVersion(ctx, op, newCluster, oldCluster)...)
 
-	// some operator identities only become required once the feature that uses them is enabled,
-	// and which identities exist depends on the role set config, so those checks live in admission
-
 	// there are pieces of clusterProperties that are dependent upon values in .identity
 	errs = append(errs, validateOperatorAuthenticationAgainstIdentities(ctx, op, newCluster, oldCluster)...)
 

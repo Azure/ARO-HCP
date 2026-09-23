@@ -44,7 +44,7 @@ func operatorIdentitiesAdmissionContext(config *azure.ClusterScopedIdentitiesCon
 	if config == nil {
 		config = azure.NewClusterScopedIdentitiesConfig(azure.RoleDefinitionConfigSetNameDev)
 	}
-	return &ClusterAdmissionContext{ClusterScopedIdentities: config}
+	return &ClusterAdmissionContext{ClusterScopedIdentitiesConfig: config}
 }
 
 // configWithVersionLimitedControlPlaneOperator pins one control plane operator to a version range.

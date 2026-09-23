@@ -1164,9 +1164,9 @@ func TestAdmitCluster_Update(t *testing.T) {
 			}
 
 			admissionContext := &ClusterAdmissionContext{
-				ServiceProviderCluster:  serviceProviderCluster,
-				ClusterNodePools:        admissionNodePools,
-				ClusterScopedIdentities: azure.NewClusterScopedIdentitiesConfig(azure.RoleDefinitionConfigSetNameDev),
+				ServiceProviderCluster:        serviceProviderCluster,
+				ClusterNodePools:              admissionNodePools,
+				ClusterScopedIdentitiesConfig: azure.NewClusterScopedIdentitiesConfig(azure.RoleDefinitionConfigSetNameDev),
 			}
 
 			etcd := tt.etcd
@@ -1346,10 +1346,10 @@ func TestAdmitCluster_PlatformResourceIDs(t *testing.T) {
 			t.Parallel()
 
 			admissionContext := &ClusterAdmissionContext{
-				OriginalCluster:         tt.newCluster.DeepCopy(),
-				SubscriptionClusters:    tt.subscriptionClusters,
-				SubscriptionNodePools:   tt.subscriptionNodePools,
-				ClusterScopedIdentities: azure.NewClusterScopedIdentitiesConfig(azure.RoleDefinitionConfigSetNameDev),
+				OriginalCluster:               tt.newCluster.DeepCopy(),
+				SubscriptionClusters:          tt.subscriptionClusters,
+				SubscriptionNodePools:         tt.subscriptionNodePools,
+				ClusterScopedIdentitiesConfig: azure.NewClusterScopedIdentitiesConfig(azure.RoleDefinitionConfigSetNameDev),
 			}
 
 			errs := AdmitCluster(ctx, admissionContext, operation.Operation{Type: operation.Create}, tt.newCluster, nil)
