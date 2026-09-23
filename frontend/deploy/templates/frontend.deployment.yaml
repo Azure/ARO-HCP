@@ -59,10 +59,6 @@ spec:
             configMapKeyRef:
               name: frontend-config
               key: LOCATION
-        - name: OTEL_EXPORTER_OTLP_ENDPOINT
-          value: "{{ .Values.tracing.address }}"
-        - name: OTEL_TRACES_EXPORTER
-          value: "{{ .Values.tracing.exporter }}"
         - name: AUDIT_CONNECT_SOCKET
           value: "{{ .Values.audit.connectSocket }}"
         - name: AZURE_TOKEN_CREDENTIALS

@@ -838,9 +838,6 @@ defaults:
       registry: arohcpsvcdev.azurecr.io
       repository: arohcpbackend
       digest: sha256:1403f55f7616aac0d2c676f6669cce518f1e72d0e315358fb0d4d1e3b0804f6b # 55611cd (2026-05-29 22:32)
-    tracing:
-      address: ""
-      exporter: ""
     managedIdentityName: backend
     k8s:
       replicas: 2
@@ -942,9 +939,6 @@ defaults:
       registry: arohcpsvcdev.azurecr.io
       repository: arohcpfrontend
       digest: sha256:af0620c11338f6b5a878363529dfb4b740515385a6ab4c6a486bcb78e4de4ced # f55beeb (2026-05-29 19:42)
-    tracing:
-      address: ""
-      exporter: ""
     managedIdentityName: frontend
     k8s:
       replicas: 2
@@ -1028,9 +1022,6 @@ defaults:
     image:
       repository: "mise-1p-container-image"
       digest: ""
-    tracing:
-      address: ""
-      exporter: ""
   # MSI RP
   msiRp:
     dataPlaneAudienceResource: https://dummy.org
@@ -1059,9 +1050,6 @@ defaults:
   # Maestro
   maestro:
     server:
-      tracing:
-        address: ""
-        exporter: ""
       mqttClientName: 'maestro-server-{{ .ctx.regionShort }}'
       loglevel: 2
       managedIdentityName: maestro-server
@@ -1140,9 +1128,6 @@ defaults:
     batchProcesses: ""
     # controls if debug jobs are deployed to the cluster.
     deployDebugJobs: false
-    tracing: # NOTE: Currently only enabled for pers.
-      address: ""
-      exporter: ""
     environment: "arohcp{{ .ctx.environment }}"
     # The image used to override the HAProxy image of the worker node API server proxy.
     # Defaults to matching sharedIngressImage so the decoupled image starts identical.
@@ -1465,7 +1450,7 @@ clouds:
             shards: 1
       # Image Registry Policy — dev-only image prefixes for local dev tooling
       imageRegistryPolicy:
-        extraAllowedRegistries: docker.io/jaegertracing,docker.io/grafana,docker.io/otel,docker.io/library/postgres
+        extraAllowedRegistries: docker.io/grafana,docker.io/library/postgres
         validationActions: Deny
       # ACRs
       acr:
@@ -1555,9 +1540,6 @@ clouds:
               mqttClientName: 'maestro-server-{{ .ctx.regionShort }}-dev'
               certSAN: 'maestro-server-{{ .ctx.regionShort }}-dev.maestro.{{ .ctx.region }}.hcpsvc.osadev.cloud'
               certCN: 'server.maestro.{{ .ctx.region }}.hcpsvc.osadev.cloud'
-              tracing:
-                address: "http://ingest.observability:4318"
-                exporter: "otlp"
           # Frontend
           frontend:
             cert:
@@ -1656,9 +1638,6 @@ clouds:
               containerizedDb:
                 image: "docker.io/library/postgres:14.2"
                 pvcCapacity: 512Mi
-            tracing:
-              address: "http://ingest.observability:4318"
-              exporter: "otlp"
           # Geneva
           geneva:
             logs:
@@ -1678,17 +1657,9 @@ clouds:
               mqttClientName: 'maestro-server-{{ .ctx.regionShort }}'
               certSAN: 'maestro-server-{{ .ctx.regionShort }}.maestro.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
               certCN: 'server.maestro.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
-              tracing:
-                address: "http://ingest.observability:4318"
-                exporter: "otlp"
             agent:
               certSAN: 'hcp-underlay-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}.maestro.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
               certCN: 'mgmt-{{ .ctx.stamp }}.maestro.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
-          # Backend
-          backend:
-            tracing:
-              address: "http://ingest.observability:4318"
-              exporter: "otlp"
           # Frontend
           frontend:
             audit:
@@ -1696,9 +1667,6 @@ clouds:
             cosmosDB:
               private: false
               zoneRedundantMode: 'Disabled'
-            tracing:
-              address: "http://ingest.observability:4318"
-              exporter: "otlp"
           # MC
           mgmt:
             rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}"
@@ -1716,8 +1684,6 @@ clouds:
               infraAgentPool:
                 osDiskSizeGB: 64
                 vmSize: 'Standard_D4s_v3'
-            jaeger:
-              deploy: false
             applyKubeletFixes: false
           # SVC
           svc:
@@ -1728,8 +1694,6 @@ clouds:
                 name: 'u64d8dsv5'
                 vmSize: 'Standard_D8ds_v5'
                 osDiskSizeGB: 64
-            jaeger:
-              deploy: true
       perf:
         defaults:
           kusto:
@@ -1791,9 +1755,6 @@ clouds:
               containerizedDb:
                 image: "docker.io/library/postgres:14.2"
                 pvcCapacity: 512Mi
-            tracing:
-              address: "http://ingest.observability:4318"
-              exporter: "otlp"
           # Geneva
           geneva:
             logs:
@@ -1813,9 +1774,6 @@ clouds:
               mqttClientName: 'maestro-server-{{ .ctx.regionShort }}'
               certSAN: 'maestro-server-{{ .ctx.regionShort }}.maestro.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
               certCN: 'server.maestro.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
-              tracing:
-                address: "http://ingest.observability:4318"
-                exporter: "otlp"
             agent:
               certSAN: 'hcp-underlay-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}.maestro.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
               certCN: 'mgmt-{{ .ctx.stamp }}.maestro.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
@@ -1823,9 +1781,6 @@ clouds:
           backend:
             backupCadenceProfile: testing
             backupScheduleState: Disabled
-            tracing:
-              address: "http://ingest.observability:4318"
-              exporter: "otlp"
           # Frontend
           frontend:
             audit:
@@ -1834,9 +1789,6 @@ clouds:
               private: false
               enableBurstCapacity: true
               zoneRedundantMode: 'Disabled'
-            tracing:
-              address: "http://ingest.observability:4318"
-              exporter: "otlp"
           # MC
           mgmt:
             stamps:
@@ -1858,8 +1810,6 @@ clouds:
               infraAgentPool:
                 vmSize: Standard_E4ds_v6
                 osDiskSizeGB: 64
-            jaeger:
-              deploy: false
           # SVC
           svc:
             rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.regionShort }}-svc"
@@ -1874,8 +1824,6 @@ clouds:
                 osDiskSizeGB: 64
               infraAgentPool:
                 vmSize: Standard_D2ds_v6
-            jaeger:
-              deploy: true
       ci01:
         # prow infra shard1 - deploys into "ARO HCP E2E Infrastructure" subscription
         defaults:
@@ -1905,9 +1853,6 @@ clouds:
               containerizedDb:
                 image: "docker.io/library/postgres:14.2"
                 pvcCapacity: 512Mi
-            tracing:
-              address: "http://ingest.observability:4318"
-              exporter: "otlp"
           # Geneva
           geneva:
             logs:
@@ -1927,9 +1872,6 @@ clouds:
               mqttClientName: 'maestro-server-{{ .ctx.regionShort }}'
               certSAN: 'maestro-server-{{ .ctx.regionShort }}.maestro.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
               certCN: 'server.maestro.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
-              tracing:
-                address: "http://ingest.observability:4318"
-                exporter: "otlp"
             agent:
               certSAN: 'hcp-underlay-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}.maestro.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
               certCN: 'mgmt-{{ .ctx.stamp }}.maestro.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
@@ -1937,9 +1879,6 @@ clouds:
           backend:
             backupCadenceProfile: testing
             backupScheduleState: Disabled
-            tracing:
-              address: "http://ingest.observability:4318"
-              exporter: "otlp"
           # Frontend
           frontend:
             audit:
@@ -1948,9 +1887,6 @@ clouds:
               private: false
               enableBurstCapacity: true
               zoneRedundantMode: 'Disabled'
-            tracing:
-              address: "http://ingest.observability:4318"
-              exporter: "otlp"
           # MC
           mgmt:
             stamps:
@@ -1974,8 +1910,6 @@ clouds:
               infraAgentPool:
                 vmSize: Standard_E4ds_v6
                 osDiskSizeGB: 64
-            jaeger:
-              deploy: false
           # SVC
           svc:
             subscription:
@@ -1992,5 +1926,3 @@ clouds:
                 osDiskSizeGB: 64
               infraAgentPool:
                 vmSize: Standard_D2ds_v6
-            jaeger:
-              deploy: true

@@ -138,9 +138,6 @@ backend:
   maestro:
     sourceEnvironmentIdentifier: arohcpci00
   managedIdentityName: backend
-  tracing:
-    address: http://ingest.observability:4318
-    exporter: otlp
 billing:
   aub:
     accountName: ""
@@ -224,9 +221,6 @@ clustersService:
     zoneRedundantMode: Auto
   provisionShardClusterLimit: 100
   provisionShardStatus: active
-  tracing:
-    address: http://ingest.observability:4318
-    exporter: otlp
 clustersServiceArmHelperCertName: armHelperCert2
 clustersServiceArmHelperClientId: 3331e670-0804-48e8-a086-6241671ddc93
 customExporter:
@@ -336,9 +330,6 @@ frontend:
     serviceAccountName: frontend
   logVerbosity: 0
   managedIdentityName: frontend
-  tracing:
-    address: http://ingest.observability:4318
-    exporter: otlp
 geneva:
   actions:
     allowedAcisExtensions: AzureRedHatHypershiftExtension,Azure Red Hat Hypershift
@@ -503,7 +494,7 @@ hypershift:
     registry: quay.io
     repository: redhat-user-workloads/crt-redhat-acm-tenant/hypershift-shared-ingress-main
 imageRegistryPolicy:
-  extraAllowedRegistries: docker.io/jaegertracing,docker.io/grafana,docker.io/otel,docker.io/library/postgres
+  extraAllowedRegistries: docker.io/grafana,docker.io/library/postgres
   validationActions: Deny
 imageSync:
   environmentName: aro-hcp-image-sync
@@ -642,9 +633,6 @@ maestro:
     loglevel: 2
     managedIdentityName: maestro-server
     mqttClientName: maestro-server-j7654321
-    tracing:
-      address: http://ingest.observability:4318
-      exporter: otlp
 mgmt:
   aks:
     clusterOutboundIPAddressIPTags: ""
@@ -700,8 +688,6 @@ mgmt:
       public: false
       zoneRedundantMode: Auto
     storageAccountContainerName: backups
-  jaeger:
-    deploy: false
   nsp:
     accessMode: Learning
     name: nsp-j7654321-mgmt-1
@@ -837,9 +823,6 @@ mise:
     audience: 6dae42f8-4368-4678-94ff-3960e28e3630
     authorityFQDN: sts.windows.net
     policyLabel: Session Gate
-  tracing:
-    address: ""
-    exporter: ""
 monitoring:
   adxIntegrationEnabled: false
   adxIntegrationGeographies: ""
@@ -1078,8 +1061,6 @@ svc:
     tag: prod-stable
     targetVersion: asm-1-29
     versions: asm-1-29
-  jaeger:
-    deploy: true
   nsp:
     accessMode: Learning
     name: nsp-j7654321-svc

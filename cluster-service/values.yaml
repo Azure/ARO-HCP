@@ -316,8 +316,6 @@ pullBinding:
   scope: "repository:{{ .clustersService.image.repository }}:pull"
   workloadIdentityClientId: "__imagePullerMsiClientId__"
   workloadIdentityTenantId: "__tenantId__"
-tracing:
-  address: "{{ .clustersService.tracing.address }}"
 csDeploymentStrategy:
   type: RollingUpdate
   rollingUpdate:

@@ -342,24 +342,6 @@
         "connectSocket"
       ]
     },
-    "tracing": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "address": {
-          "type": "string",
-          "description": "Defines exporter address"
-        },
-        "exporter": {
-          "type": "string",
-          "description": "Defines which exporter the SDK should use"
-        }
-      },
-      "required": [
-        "address",
-        "exporter"
-      ]
-    },
     "acr": {
       "type": "object",
       "properties": {
@@ -1270,9 +1252,6 @@
         "image": {
           "$ref": "#/definitions/containerImage"
         },
-        "tracing": {
-          "$ref": "#/definitions/tracing"
-        },
         "managedIdentityName": {
           "type": "string",
           "description": "The name of the MSI that will be used by CS to interact with Azure"
@@ -1345,7 +1324,6 @@
         "k8s",
         "azureOperatorsManagedIdentities",
         "postgres",
-        "tracing",
         "azureRuntimeConfig"
       ]
     },
@@ -1433,9 +1411,7 @@
         "image": {
           "$ref": "#/definitions/containerImage"
         },
-        "tracing": {
-          "$ref": "#/definitions/tracing"
-        },
+
         "k8s": {
           "$ref": "#/definitions/k8sDeployment"
         },
@@ -1484,7 +1460,6 @@
       "additionalProperties": false,
       "required": [
         "image",
-        "tracing",
         "k8s",
         "managedIdentityName",
         "azureRuntimeConfig",
@@ -1773,9 +1748,7 @@
         "image": {
           "$ref": "#/definitions/containerImage"
         },
-        "tracing": {
-          "$ref": "#/definitions/tracing"
-        },
+
         "k8s": {
           "$ref": "#/definitions/k8sDeployment"
         },
@@ -1864,7 +1837,6 @@
         "image",
         "cosmosDB",
         "cert",
-        "tracing",
         "k8s",
         "managedIdentityName",
         "exitOnPanic",
@@ -2510,10 +2482,6 @@
         },
         "imageV2": {
           "$ref": "#/definitions/containerImage"
-        },
-        "tracing": {
-          "$ref": "#/definitions/tracing",
-          "description": "Tracing configuration for OTLP traces."
         }
       },
       "required": [
@@ -2524,7 +2492,6 @@
         "arm",
         "genevaActions",
         "sessiongate",
-        "tracing",
         "applicationName"
       ]
     },
@@ -2998,9 +2965,6 @@
             "loglevel": {
               "type": "integer"
             },
-            "tracing": {
-              "$ref": "#/definitions/tracing"
-            },
             "k8s": {
               "$ref": "#/definitions/k8sDeployment"
             }
@@ -3163,9 +3127,6 @@
         },
         "subscription": {
           "$ref": "#/definitions/subscriptionMetadata"
-        },
-        "jaeger": {
-          "deploy": "boolean"
         },
         "prometheus": {
           "description": "Prometheus deployment configuration",
@@ -3691,9 +3652,6 @@
         },
         "nsp": {
           "$ref": "#/definitions/nsp"
-        },
-        "jaeger": {
-          "deploy": "boolean"
         },
         "istio": {
           "description": "Consumed by the IstioUpgrade pipeline step, not by bicep — passing revisions through ARM would overwrite upgrades the pipeline step had already applied. istioctlVersion, targetVersion, and their CEL validations will be removed in a future cleanup.",

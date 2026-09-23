@@ -230,10 +230,6 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.namespace
-        - name: OTEL_EXPORTER_OTLP_ENDPOINT
-          value: ""
-        - name: OTEL_TRACES_EXPORTER
-          value: ""
         - name: AZURE_TOKEN_CREDENTIALS
           value: "WorkloadIdentityCredential"
         ports:

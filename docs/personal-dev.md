@@ -131,14 +131,6 @@ To access the Maestro Azure Postgres DB run
 
 By default, metrics from infra/management services are ingested into Azure Managed Prometheus (AMP).
 
-To enable tracing and collect traces into a Jaeger all-in-one instance, run:
-
-  ```bash
-  make infra.tracing
-  ```
-
-Refer to the [Tracing docs](../observability/tracing/README.md) for more details.
-
 ## Cleanup
 
 Besides the automated cleanup for non-persistent environments, you can manually delete your personal DEV environment with the following command, choosing to wait for the deletion to complete or not:
