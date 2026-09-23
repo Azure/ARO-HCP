@@ -219,7 +219,7 @@ func TestClusterZeroValueRoundTripThroughJSON(t *testing.T) {
 // jsonRoundTripNodePool simulates a GET-then-PUT cycle through JSON.
 // This is the path where PtrOrNil data loss manifests:
 //
-//	internal -> NewHCPOpenShiftClusterNodePool -> JSON marshal ->
+//	internal -> NewClusterNodePool -> JSON marshal ->
 //	JSON unmarshal -> SetDefaultValuesNodePool (simulating constructor) -> ConvertToInternal
 func jsonRoundTripNodePool(t *testing.T, original *coreapi.ClusterNodePool) *coreapi.ClusterNodePool {
 	t.Helper()

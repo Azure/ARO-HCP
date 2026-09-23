@@ -307,7 +307,7 @@ func newNodePoolAutoScaling(from *coreapi.NodePoolAutoScaling) generated.NodePoo
 	}
 }
 
-// NewHCPOpenShiftClusterNodePool converts an internal representation to this API version.
+// NewClusterNodePool converts an internal representation to this API version.
 // If from is nil, returns a defaulted external object for use on the write path
 // where defaults are applied before unmarshaling the request body.
 func (v version) NewClusterNodePool(from *coreapi.ClusterNodePool) coreapi.VersionedClusterNodePool {

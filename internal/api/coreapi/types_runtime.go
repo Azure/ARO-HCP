@@ -42,7 +42,7 @@ func (o *Cluster) GetObjectMeta() metav1.Object {
 	return om
 }
 
-// HCPOpenShiftClusterList is a list of Clusters compatible with
+// ClusterList is a list of Clusters compatible with
 // runtime.Object for use with Kubernetes informer machinery.
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type ClusterList struct {
@@ -76,7 +76,7 @@ func (o *ClusterNodePool) GetObjectMeta() metav1.Object {
 	return om
 }
 
-// HCPOpenShiftClusterNodePoolList is a list of NodePools
+// ClusterNodePoolList is a list of NodePools
 // compatible with runtime.Object for use with Kubernetes informer machinery.
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type ClusterNodePoolList struct {
@@ -110,7 +110,7 @@ func (o *ClusterExternalAuth) GetObjectMeta() metav1.Object {
 	return om
 }
 
-// HCPOpenShiftClusterExternalAuthList is a list of ExternalAuths
+// ClusterExternalAuthList is a list of ExternalAuths
 // compatible with runtime.Object for use with Kubernetes informer machinery.
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type ClusterExternalAuthList struct {

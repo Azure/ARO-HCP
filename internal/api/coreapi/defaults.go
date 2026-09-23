@@ -14,8 +14,8 @@
 
 package coreapi
 
-// Default values for non-enum fields in HCPOpenShiftCluster and
-// HCPOpenShiftClusterNodePool.
+// Default values for non-enum fields in Cluster and
+// ClusterNodePool.
 //
 // These constants are the canonical source of truth for bare literal
 // defaults referenced by:

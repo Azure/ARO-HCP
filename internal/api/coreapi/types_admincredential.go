@@ -20,7 +20,7 @@ type ClusterAdminCredentialRequest struct {
 	CertificateSigningRequest string `json:"certificateSigningRequest,omitempty"`
 }
 
-// HCPOpenShiftClusterAdminCredential represents a temporary admin
+// ClusterAdminCredential represents a temporary admin
 // credential for an ARO HCP OpenShift cluster.
 type ClusterAdminCredential struct {
 	ExpirationTimestamp time.Time `json:"expirationTimestamp"`

@@ -34,7 +34,7 @@ import (
 )
 
 // externalAuthDegradedAggregator rolls per-controller Degraded conditions
-// up onto HCPOpenShiftClusterExternalAuth.Status.Conditions. See the
+// up onto ClusterExternalAuth.Status.Conditions. See the
 // package and clusterDegradedAggregator docs for the overall design.
 type externalAuthDegradedAggregator struct {
 	externalAuthLister corelisters.ExternalAuthLister
@@ -57,7 +57,7 @@ func externalAuthDegradedAggregatorInertia() statusutils.Inertia {
 
 // NewExternalAuthDegradedAggregatorController creates a controller that
 // aggregates the Degraded condition from every api.Controller under a
-// given HCPOpenShiftClusterExternalAuth onto the external auth's
+// given ClusterExternalAuth onto the external auth's
 // Status.Conditions.
 //
 // See NewClusterDegradedAggregatorController for the clock semantics —

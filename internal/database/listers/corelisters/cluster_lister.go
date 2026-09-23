@@ -47,7 +47,7 @@ func (l *hcpOpenShiftClusterLister) List(ctx context.Context) ([]*coreapi.Cluste
 	return listerutils.ListAll[coreapi.Cluster](l.indexer)
 }
 
-// Get retrieves a single HCPOpenShiftCluster by subscription ID, resource group name, and cluster name.
+// Get retrieves a single Cluster by subscription ID, resource group name, and cluster name.
 // The store key is the lowercased ResourceID string:
 //
 //	/subscriptions/<sub>/resourcegroups/<rg>/providers/microsoft.redhatopenshift/hcpopenshiftclusters/<name>

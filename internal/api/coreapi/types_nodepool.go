@@ -26,7 +26,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 )
 
-// HCPOpenShiftClusterNodePool represents a node pool resource for ARO HCP
+// ClusterNodePool represents a node pool resource for ARO HCP
 // OpenShift clusters.
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type ClusterNodePool struct {
@@ -43,9 +43,9 @@ type ClusterNodePool struct {
 	Status ClusterNodePoolStatus `json:"status"`
 }
 
-// HCPOpenShiftClusterNodePoolStatus contains the observed state of the node pool.
+// ClusterNodePoolStatus contains the observed state of the node pool.
 type ClusterNodePoolStatus struct {
-	// Conditions are the top-level HCPOpenShiftClusterNodePool status conditions.
+	// Conditions are the top-level ClusterNodePool status conditions.
 	// Each Condition Type represents a condition and it should be unique among all conditions.
 	// Written by: NodePoolDegradedAggregator
 	// +optional
@@ -86,8 +86,8 @@ type HCPNodePoolActiveVersion struct {
 
 var _ CosmosPersistable = &ClusterNodePool{}
 
-// HCPOpenShiftClusterNodePoolProperties represents the property bag of a
-// HCPOpenShiftClusterNodePool resource.
+// ClusterNodePoolProperties represents the property bag of a
+// ClusterNodePool resource.
 type ClusterNodePoolProperties struct {
 	// Written by: Frontend PUT/PATCH/DELETE NodePool, OperationNodePoolCreate, OperationNodePoolUpdate, OperationNodePoolDelete
 	ProvisioningState ProvisioningState `json:"provisioningState,omitempty"`

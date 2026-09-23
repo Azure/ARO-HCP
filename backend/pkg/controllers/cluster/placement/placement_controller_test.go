@@ -104,7 +104,7 @@ func namedClusterResourceIDs(prefix string, n int) []*azcorearm.ResourceID {
 	return ids
 }
 
-// clusterWithAvailability builds a SWIFT HCPOpenShiftCluster with the given name and
+// clusterWithAvailability builds a SWIFT Cluster with the given name and
 // control-plane availability, for the informer-cache-backed swiftNICReserver.
 func clusterWithAvailability(name string, availability coreapi.ControlPlaneAvailability) *coreapi.Cluster {
 	rid := clusterResourceIDWithName(name)
@@ -116,7 +116,7 @@ func clusterWithAvailability(name string, availability coreapi.ControlPlaneAvail
 }
 
 // clusterListerForAvailability builds a cluster lister seeded with one
-// HCPOpenShiftCluster per resource ID, inferring each cluster's control-plane
+// Cluster per resource ID, inferring each cluster's control-plane
 // availability from its name: "sr-*" clusters are SingleReplica (reserve 1),
 // every other cluster is highly available (reserve swiftNICsPerHCP). This lets
 // availableResources resolve per-cluster swift-NIC reservations from the cache.
@@ -757,7 +757,7 @@ func TestPlacementSyncer_SyncOnce_NoEligibleManagementClusterRecordsBlockedAndRe
 }
 
 // TestPlacementSyncer_SyncOnce_SkipsDeletingCluster proves a cluster whose
-// deletion has been requested (HCPOpenShiftCluster.ServiceProviderProperties.
+// deletion has been requested (Cluster.ServiceProviderProperties.
 // DeletionTimestamp is set) is neither placed nor reserved, even though an
 // eligible management cluster with capacity is available — so the skip is due to
 // the deletion guard, not a lack of capacity.

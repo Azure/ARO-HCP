@@ -266,7 +266,7 @@ func (f *fakeUserAssignedIdentitiesClient) Delete(_ context.Context, _ string, _
 	panic("Delete not implemented in fakeUserAssignedIdentitiesClient")
 }
 
-// newTestClusterWithIdentities builds an HCPOpenShiftCluster addressable by the mock
+// newTestClusterWithIdentities builds a Cluster addressable by the mock
 // ResourcesDBClient with the supplied ServiceManagedIdentity and data plane operator
 // identities on its CustomerProperties.
 func newTestClusterWithIdentities(t *testing.T, clusterName string, serviceManagedIdentity *azcorearm.ResourceID, dataPlaneOperators map[string]*azcorearm.ResourceID) *coreapi.Cluster {

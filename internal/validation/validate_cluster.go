@@ -76,10 +76,10 @@ func ValidateCluster(ctx context.Context, op operation.Operation, newCluster, ol
 		errs = append(errs, MatchesRegex(ctx, op, field.NewPath("id"), &newCluster.ID.Name, nil, clusterResourceNameRegex, clusterResourceNameErrorString)...)
 	}
 
-	// Properties HCPOpenShiftClusterCustomerProperties `json:"properties,omitempty"`
+	// Properties ClusterCustomerProperties `json:"properties,omitempty"`
 	errs = append(errs, validateClusterCustomerProperties(ctx, op, field.NewPath("customerProperties"), &newCluster.CustomerProperties, safe.Field(oldCluster, ToClusterCustomerProperties))...)
 
-	// Properties HCPOpenShiftClusterCustomerProperties `json:"properties,omitempty"`
+	// Properties ClusterCustomerProperties `json:"properties,omitempty"`
 	errs = append(errs, validateClusterServiceProviderProperties(ctx, op, field.NewPath("serviceProviderProperties"), &newCluster.ServiceProviderProperties, safe.Field(oldCluster, ToClusterServiceProviderProperties))...)
 
 	// Identity   *coreapi.ManagedServiceIdentity   `json:"identity,omitempty"`

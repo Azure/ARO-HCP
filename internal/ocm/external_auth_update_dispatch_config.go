@@ -27,7 +27,7 @@ import (
 // Conversion functions project external state into this form and back out when dispatching to
 // Cluster Service.
 //
-// The same struct is built from either RP desired state (HCPOpenShiftClusterExternalAuth) or from
+// The same struct is built from either RP desired state (ClusterExternalAuth) or from
 // the live Cluster Service ExternalAuth. This applies only to ExternalAuth CS updates. Cluster and
 // node pool updates use separate dispatch paths and update dispatch config structs. Drift between the
 // two projections may trigger the external auth's cluster service update dispatch controller to
@@ -66,7 +66,7 @@ import (
 //
 //   - Confirm this is an ExternalAuth-level Cluster Service update (not cluster or node pool).
 //   - Confirm Cluster Service supports updating the field on an existing external auth.
-//   - Identify where RP desired state lives (HCPOpenShiftClusterExternalAuth).
+//   - Identify where RP desired state lives (ClusterExternalAuth).
 //
 // 1. Dispatch wiring (this file)
 //
@@ -106,7 +106,7 @@ import (
 //     dispatch controller PATCHes an existing one). Verify the new field is present on create.
 //   - Desired state must exist in Cosmos before dispatch can sync it. If customers set this
 //     field via ARM, also wire the full ingest path: ARM API, frontend validation/conversion,
-//     and persistence onto HCPOpenShiftClusterExternalAuth. Internal-only fields still need
+//     and persistence onto ClusterExternalAuth. Internal-only fields still need
 //     whatever backend path writes the value Cosmos holds.
 type externalAuthUpdateDispatchConfig struct {
 	Issuer  externalAuthUpdateDispatchConfigIssuer   `json:"issuer,omitempty"`

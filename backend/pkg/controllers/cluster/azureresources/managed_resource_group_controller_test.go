@@ -61,7 +61,7 @@ func testManagedResourceGroupID(t *testing.T) *azcorearm.ResourceID {
 	return metadataapi.Must(coreapihelpers.ToResourceGroupResourceID(testSubscriptionID, testManagedRGName))
 }
 
-// newTestCluster builds an HCPOpenShiftCluster addressable by the mock
+// newTestCluster builds a Cluster addressable by the mock
 // ResourcesDBClient with the given managed resource group name and deletion state.
 func newTestCluster(deleting bool) *coreapi.Cluster {
 	resourceID := metadataapi.Must(azcorearm.ParseResourceID(

@@ -24,7 +24,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 )
 
-// HCPOpenShiftCluster represents an ARO HCP OpenShift cluster resource.
+// Cluster represents an ARO HCP OpenShift cluster resource.
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type Cluster struct {
 	// PartitionKey holds the lowercased subscriptionID.
@@ -42,9 +42,9 @@ type Cluster struct {
 	Status ClusterStatus `json:"status"`
 }
 
-// HCPOpenShiftClusterStatus contains the observed state of the cluster.
+// ClusterStatus contains the observed state of the cluster.
 type ClusterStatus struct {
-	// Conditions are the top-level HCPOpenShiftCluster status conditions.
+	// Conditions are the top-level Cluster status conditions.
 	// Each Condition Type represents a condition and it should be unique among all conditions.
 	// Written by: ClusterDegradedAggregator
 	// +optional
@@ -85,7 +85,7 @@ type HCPClusterActiveVersion struct {
 
 var _ CosmosPersistable = &Cluster{}
 
-// HCPOpenShiftClusterCustomerProperties represents the property bag of a HCPOpenShiftCluster resource.
+// ClusterCustomerProperties represents the property bag of a Cluster resource.
 type ClusterCustomerProperties struct {
 	// Written by: Frontend PUT/PATCH Cluster
 	Version VersionProfile `json:"version,omitempty"`
@@ -113,7 +113,7 @@ type ClusterCustomerProperties struct {
 	CryptoRestrictions metadataapi.CryptoRestrictions `json:"cryptoRestrictions,omitempty"`
 }
 
-// HCPOpenShiftClusterServiceProviderProperties represents the service-provider-managed property bag of a HCPOpenShiftCluster resource.
+// ClusterServiceProviderProperties represents the service-provider-managed property bag of a Cluster resource.
 type ClusterServiceProviderProperties struct {
 	// Written by: Frontend PUT/PATCH/DELETE Cluster, OperationClusterCreate, OperationClusterUpdate, OperationClusterDelete
 	ProvisioningState ProvisioningState `json:"provisioningState,omitempty"`
@@ -356,7 +356,7 @@ type ImageDigestMirror struct {
 	MirrorSourcePolicy metadataapi.MirrorSourcePolicy `json:"mirrorSourcePolicy,omitempty"`
 }
 
-// Creates an HCPOpenShiftCluster with any non-zero default values.
+// NewDefaultCluster creates a Cluster with any non-zero default values.
 func NewDefaultCluster(resourceID *azcorearm.ResourceID, azureLocation string) *Cluster {
 	return &Cluster{
 		TrackedResource: NewTrackedResource(resourceID, azureLocation),

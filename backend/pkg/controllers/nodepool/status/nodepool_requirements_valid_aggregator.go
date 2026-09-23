@@ -39,7 +39,7 @@ const (
 )
 
 // nodePoolRequirementsValidAggregator surfaces ServiceProviderNodePool.Status.Validations
-// up onto HCPOpenShiftClusterNodePool.Status.UserFacingConditions as a single
+// up onto ClusterNodePool.Status.UserFacingConditions as a single
 // RequirementsValid condition.
 //
 // Failed or Unknown validations drive RequirementsValid=False/Degraded, with

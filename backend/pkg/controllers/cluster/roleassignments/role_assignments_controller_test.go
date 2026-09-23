@@ -146,7 +146,7 @@ func testUnexpectedRoleAssignmentID(t *testing.T) *azcorearm.ResourceID {
 			"/providers/Microsoft.Authorization/roleDefinitions/99999999-9999-9999-9999-999999999999")))
 }
 
-// newTestCluster builds an HCPOpenShiftCluster addressable by the mock
+// newTestCluster builds a Cluster addressable by the mock
 // ResourcesDBClient with one control-plane operator, one data-plane operator, and a
 // service managed identity, and the given deletion state.
 func newTestCluster(deleting bool) *coreapi.Cluster {

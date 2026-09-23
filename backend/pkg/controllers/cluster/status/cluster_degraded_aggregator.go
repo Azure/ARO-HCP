@@ -42,7 +42,7 @@ import (
 
 // clusterDegradedAggregator rolls per-controller Degraded conditions
 // (api.Controller.Status.Conditions[Degraded]) up onto
-// HCPOpenShiftCluster.Status.Conditions, using the library-go-style union
+// Cluster.Status.Conditions, using the library-go-style union
 // with configurable per-controller inertia.
 //
 // All reads come from listers — there are no live Cosmos GETs on the
@@ -81,7 +81,7 @@ func clusterDegradedAggregatorInertia() statusutils.Inertia {
 
 // NewClusterDegradedAggregatorController creates a controller that
 // aggregates the Degraded condition from every api.Controller under a
-// given HCPOpenShiftCluster onto the cluster's Status.Conditions.
+// given Cluster onto the cluster's Status.Conditions.
 //
 // clock is used to compute "now" for inertia evaluation; pass nil for
 // utilsclock.RealClock{}.
@@ -147,7 +147,7 @@ func (c *clusterDegradedAggregator) SyncOnce(ctx context.Context, key controller
 
 	// ListForCluster also returns node-pool-nested desires; the cluster
 	// aggregator only folds in cluster-scoped desires (immediate parent is the
-	// HCPOpenShiftCluster), matching the cluster-scoped, maxDepth-1 desire
+	// Cluster), matching the cluster-scoped, maxDepth-1 desire
 	// watch. Node-pool-nested desires are aggregated onto their node pool, not
 	// the cluster.
 	clusterApplyDesires := clusterScopedDesires(applyDesires, kubeapplierapi.ClusterScopedApplyDesireResourceType)
@@ -199,7 +199,7 @@ func (c *clusterDegradedAggregator) SyncOnce(ctx context.Context, key controller
 
 // clusterScopedDesires returns only the desires whose resource ID is directly
 // cluster-scoped — its resource type equals clusterScopedType, i.e. the desire
-// is nested immediately under the HCPOpenShiftCluster and NOT under a
+// is nested immediately under the Cluster and NOT under a
 // nodePools/... (or any other) segment. It is used to drop the node-pool-nested
 // desires that ListForCluster also returns, keeping this aggregator
 // "cluster-scoped only". Desires with a nil resource ID are dropped.

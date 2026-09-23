@@ -48,7 +48,7 @@ func (l *hcpOpenShiftClusterExternalAuthLister) List(ctx context.Context) ([]*co
 	return listerutils.ListAll[coreapi.ClusterExternalAuth](l.indexer)
 }
 
-// Get retrieves a single HCPOpenShiftClusterExternalAuth by subscription ID, resource group name, cluster name, and external auth name.
+// Get retrieves a single ClusterExternalAuth by subscription ID, resource group name, cluster name, and external auth name.
 // The store key is the lowercased ResourceID string:
 //
 //	/subscriptions/<sub>/resourcegroups/<rg>/providers/microsoft.redhatopenshift/hcpopenshiftclusters/<cluster>/externalauths/<name>

@@ -62,10 +62,10 @@ func validateExternalAuth(ctx context.Context, op operation.Operation, newObj, o
 		errs = append(errs, MatchesRegex(ctx, op, field.NewPath("id"), &newObj.ID.Name, nil, externalAuthResourceNameRegex, externalAuthResourceNameErrorString)...)
 	}
 
-	//Properties HCPOpenShiftClusterExternalAuthProperties `json:"properties"`
+	//Properties ClusterExternalAuthProperties `json:"properties"`
 	errs = append(errs, validateExternalAuthProperties(ctx, op, field.NewPath("properties"), &newObj.Properties, safe.Field(oldObj, toExternalAuthProperties))...)
 
-	//ServiceProviderProperties HCPOpenShiftClusterExternalAuthServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
+	//ServiceProviderProperties ClusterExternalAuthServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
 	errs = append(errs, validateExternalAuthServiceProviderProperties(ctx, op, field.NewPath("serviceProviderProperties"), &newObj.ServiceProviderProperties, safe.Field(oldObj, toExternalAuthServiceProviderProperties))...)
 
 	return errs

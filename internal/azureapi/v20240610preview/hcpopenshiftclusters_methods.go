@@ -335,7 +335,7 @@ func newManagedServiceIdentity(from *coreapi.ManagedServiceIdentity) *generated.
 	}
 }
 
-// NewHCPOpenShiftCluster converts an internal representation to this API version.
+// NewCluster converts an internal representation to this API version.
 // If from is nil, returns a defaulted external object for use on the write path
 // where defaults are applied before unmarshaling the request body.
 func (v version) NewCluster(from *coreapi.Cluster) coreapi.VersionedCluster {

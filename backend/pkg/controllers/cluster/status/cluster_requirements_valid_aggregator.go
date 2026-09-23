@@ -39,7 +39,7 @@ const (
 )
 
 // clusterRequirementsValidAggregator surfaces ServiceProviderCluster.Status.Validations
-// up onto HCPOpenShiftCluster.Status.UserFacingConditions as a single
+// up onto Cluster.Status.UserFacingConditions as a single
 // RequirementsValid condition.
 //
 // Failed or Unknown validations drive RequirementsValid=False/Degraded, with

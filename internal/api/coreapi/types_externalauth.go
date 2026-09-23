@@ -22,7 +22,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 )
 
-// HCPOpenShiftClusterExternalAuth represents the external auth config resource for ARO HCP
+// ClusterExternalAuth represents the external auth config resource for ARO HCP
 // OpenShift clusters.
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type ClusterExternalAuth struct {
@@ -38,9 +38,9 @@ type ClusterExternalAuth struct {
 	Status ClusterExternalAuthStatus `json:"status"`
 }
 
-// HCPOpenShiftClusterExternalAuthStatus contains the observed state of the external auth.
+// ClusterExternalAuthStatus contains the observed state of the external auth.
 type ClusterExternalAuthStatus struct {
-	// Conditions are the top-level HCPOpenShiftClusterExternalAuth status conditions.
+	// Conditions are the top-level ClusterExternalAuth status conditions.
 	// Each Condition Type represents a condition and it should be unique among all conditions.
 	// Written by: ExternalAuthDegradedAggregator
 	// +optional
@@ -82,8 +82,8 @@ func (ea *ClusterExternalAuth) EnsureDefaults() {
 
 var _ CosmosPersistable = &ClusterExternalAuth{}
 
-// HCPOpenShiftClusterNodePoolProperties represents the property bag of a
-// HCPOpenShiftClusterNodePool resource.
+// ClusterExternalAuthProperties represents the property bag of a
+// ClusterExternalAuth resource.
 type ClusterExternalAuthProperties struct {
 	// Written by: Frontend PUT/PATCH/DELETE ExternalAuth, OperationExternalAuthCreate, OperationExternalAuthUpdate, OperationExternalAuthDelete
 	ProvisioningState ProvisioningState `json:"provisioningState"`

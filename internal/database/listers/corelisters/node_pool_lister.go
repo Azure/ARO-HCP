@@ -48,7 +48,7 @@ func (l *hcpOpenShiftClusterNodePoolLister) List(ctx context.Context) ([]*coreap
 	return listerutils.ListAll[coreapi.ClusterNodePool](l.indexer)
 }
 
-// Get retrieves a single HCPOpenShiftClusterNodePool by subscription ID, resource group name, cluster name, and node pool name.
+// Get retrieves a single ClusterNodePool by subscription ID, resource group name, cluster name, and node pool name.
 // The store key is the lowercased ResourceID string:
 //
 //	/subscriptions/<sub>/resourcegroups/<rg>/providers/microsoft.redhatopenshift/hcpopenshiftclusters/<cluster>/nodepools/<name>

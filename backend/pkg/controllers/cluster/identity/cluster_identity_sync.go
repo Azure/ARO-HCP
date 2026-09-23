@@ -35,7 +35,7 @@ import (
 const ClusterIdentitySyncControllerName = "ClusterIdentitySync"
 
 // clusterIdentitySyncer keeps ClientID/PrincipalID on
-// HCPOpenShiftCluster.Identity.UserAssignedIdentities in sync with
+// Cluster.Identity.UserAssignedIdentities in sync with
 // ServiceProviderCluster.Status.MSIManagedIdentities. It iterates the existing
 // Identity map keys (preserving casing) and looks up each one in the
 // ServiceProviderCluster by lowercased resource ID.

@@ -32,7 +32,7 @@ import (
 
 // TestEnsureDefaultsConsistencyNodePool verifies that the defaults applied by
 // EnsureDefaults match the corresponding defaults in
-// NewDefaultHCPOpenShiftClusterNodePool and the versioned constructors.
+// NewDefaultClusterNodePool and the versioned constructors.
 // This catches drift between the defaulting layers described in
 // docs/api-version-defaults-and-storage.md.
 func TestEnsureDefaultsConsistencyNodePool(t *testing.T) {
@@ -136,7 +136,7 @@ func TestEnsureDefaultsConsistencyNodePool(t *testing.T) {
 
 // TestEnsureDefaultsConsistencyCluster verifies that the defaults applied by
 // EnsureDefaults match the corresponding defaults in
-// NewDefaultHCPOpenShiftCluster and the versioned constructors.
+// NewDefaultCluster and the versioned constructors.
 func TestEnsureDefaultsConsistencyCluster(t *testing.T) {
 	// 1. Internal API constructor defaults
 	resourceID := metadataapi.Must(azcorearm.ParseResourceID(

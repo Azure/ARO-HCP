@@ -39,7 +39,7 @@ import (
 )
 
 // newTestExternalAuthForAggregator builds a minimal
-// HCPOpenShiftClusterExternalAuth suitable for the aggregator tests.
+// ClusterExternalAuth suitable for the aggregator tests.
 func newTestExternalAuthForAggregator(opts ...func(*coreapi.ClusterExternalAuth)) *coreapi.ClusterExternalAuth {
 	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + statusutils.TestSubscriptionID +

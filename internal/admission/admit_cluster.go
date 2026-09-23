@@ -84,7 +84,7 @@ type ClusterAdmissionNodePool struct {
 func MutateCluster(ctx context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, newObj, oldObj *coreapi.Cluster) field.ErrorList {
 	errs := field.ErrorList{}
 
-	// ServiceProviderProperties HCPOpenShiftClusterServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
+	// ServiceProviderProperties ClusterServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
 	errs = append(errs, mutateClusterServiceProviderProperties(ctx, admissionContext, op, field.NewPath("serviceProviderProperties"), &newObj.ServiceProviderProperties, safe.Field(oldObj, validation.ToClusterServiceProviderProperties))...)
 
 	// Relocate an exact version supplied through version.id onto the
@@ -418,7 +418,7 @@ func AdmitCluster(ctx context.Context, admissionContext *ClusterAdmissionContext
 
 	errs := field.ErrorList{}
 
-	// CustomerProperties HCPOpenShiftClusterCustomerProperties `json:"customerProperties,omitempty"`
+	// CustomerProperties ClusterCustomerProperties `json:"customerProperties,omitempty"`
 	errs = append(errs, admitClusterCustomerProperties(ctx, admissionContext, op, field.NewPath("properties"), &newObj.CustomerProperties, safe.Field(oldObj, validation.ToClusterCustomerProperties))...)
 
 	return errs

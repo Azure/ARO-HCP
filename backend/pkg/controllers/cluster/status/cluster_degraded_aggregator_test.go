@@ -41,7 +41,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/kubeapplierlistertesting"
 )
 
-// newTestClusterForAggregator builds a minimal HCPOpenShiftCluster suitable
+// newTestClusterForAggregator builds a minimal Cluster suitable
 // for the aggregator tests. Callers can layer in pre-existing
 // Status.Conditions via the opts hook to exercise the "skip write when
 // unchanged" path.

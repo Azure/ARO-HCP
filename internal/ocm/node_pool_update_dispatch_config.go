@@ -26,7 +26,7 @@ import (
 // Conversion functions project external state into this form and back out when dispatching to
 // Cluster Service.
 //
-// The same struct is built from either RP desired state (from HCPOpenShiftClusterNodePool) or
+// The same struct is built from either RP desired state (from ClusterNodePool) or
 // from the live Cluster Service NodePool. This applies only to NodePool CS updates. Cluster and
 // external auth updates use separate dispatch paths and update dispatch config structs. Drift
 // between the two projections may trigger the node pool cluster service update dispatch controller
@@ -70,7 +70,7 @@ import (
 //
 //   - Confirm this is a node-pool-level Cluster Service update (not cluster or external auth).
 //   - Confirm Cluster Service supports updating the field on an existing node pool.
-//   - Identify where RP desired state lives (HCPOpenShiftClusterNodePool.Properties, etc.).
+//   - Identify where RP desired state lives (ClusterNodePool.Properties, etc.).
 //
 // 1. Dispatch wiring (this file)
 //
@@ -113,7 +113,7 @@ import (
 //     dispatch controller PATCHes an existing one). Verify the new field is present on create.
 //   - Desired state must exist in Cosmos before dispatch can sync it. If customers set this
 //     field via ARM, also wire the full ingest path: ARM API, frontend validation/conversion,
-//     and persistence onto HCPOpenShiftClusterNodePool. Internal-only fields still need whatever
+//     and persistence onto ClusterNodePool. Internal-only fields still need whatever
 //     backend path writes the value Cosmos holds.
 type nodePoolUpdateDispatchConfig struct {
 	Labels                  map[string]string                        `json:"labels,omitempty"`

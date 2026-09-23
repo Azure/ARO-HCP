@@ -41,7 +41,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/kubeapplierlistertesting"
 )
 
-// newTestNodePoolForAggregator builds a minimal HCPOpenShiftClusterNodePool
+// newTestNodePoolForAggregator builds a minimal ClusterNodePool
 // suitable for the aggregator tests.
 func newTestNodePoolForAggregator(opts ...func(*coreapi.ClusterNodePool)) *coreapi.ClusterNodePool {
 	resourceID := metadataapi.Must(azcorearm.ParseResourceID(

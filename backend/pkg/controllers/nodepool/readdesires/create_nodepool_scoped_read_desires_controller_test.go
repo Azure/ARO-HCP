@@ -115,7 +115,7 @@ func newTestNodePoolSPC(mcResourceID *azcorearm.ResourceID, opts ...func(*coreap
 	return spc
 }
 
-// newTestNodePool builds an HCPOpenShiftClusterNodePool named name. name is used verbatim
+// newTestNodePool builds a ClusterNodePool named name. name is used verbatim
 // (not lowercased) so tests can exercise ARM node pool names containing uppercase letters,
 // which Cluster Service lowercases when naming the corresponding Hypershift NodePool object.
 func newTestNodePool(name string, opts ...func(*coreapi.ClusterNodePool)) *coreapi.ClusterNodePool {

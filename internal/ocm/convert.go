@@ -441,7 +441,7 @@ func convertImageDigestMirrorsToCSBuilder(in []coreapi.ImageDigestMirror) []*aro
 	return builders
 }
 
-// BuildCSCluster creates a CS ClusterBuilder object from an HCPOpenShiftCluster object.
+// BuildCSCluster creates a CS ClusterBuilder object from a Cluster object.
 // requiredProperties are caller-specified properties (e.g. provision shard, noop flags).
 // oldClusterServiceCluster, if non-nil, indicates an update and its existing properties
 // are preserved as a base layer.
@@ -652,7 +652,7 @@ func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, clus
 	return clusterBuilder, azureBuilder, nil
 }
 
-// BuildCSNodePool creates a CS NodePoolBuilder object from an HCPOpenShiftClusterNodePool object.
+// BuildCSNodePool creates a CS NodePoolBuilder object from a ClusterNodePool object.
 func BuildCSNodePool(ctx context.Context, nodePool *coreapi.ClusterNodePool, updating bool) (*arohcpv1alpha1.NodePoolBuilder, error) {
 	nodePoolBuilder := arohcpv1alpha1.NewNodePool()
 
@@ -693,7 +693,7 @@ func BuildCSNodePool(ctx context.Context, nodePool *coreapi.ClusterNodePool, upd
 	return nodePoolBuilder, nil
 }
 
-// BuildCSExternalAuth creates a CS ExternalAuthBuilder object from an HCPOpenShiftClusterExternalAuth object.
+// BuildCSExternalAuth creates a CS ExternalAuthBuilder object from a ClusterExternalAuth object.
 func BuildCSExternalAuth(ctx context.Context, externalAuth *coreapi.ClusterExternalAuth, updating bool) (*arohcpv1alpha1.ExternalAuthBuilder, error) {
 	externalAuthBuilder := arohcpv1alpha1.NewExternalAuth()
 
@@ -714,7 +714,7 @@ func BuildCSExternalAuth(ctx context.Context, externalAuth *coreapi.ClusterExter
 	return externalAuthBuilder, nil
 }
 
-// ConvertCStoAdminCredential converts a CS BreakGlassCredential object into an HCPOpenShiftClusterAdminCredential object.
+// ConvertCStoAdminCredential converts a CS BreakGlassCredential object into a ClusterAdminCredential object.
 func ConvertCStoAdminCredential(breakGlassCredential *cmv1.BreakGlassCredential) *coreapi.ClusterAdminCredential {
 	return &coreapi.ClusterAdminCredential{
 		ExpirationTimestamp: breakGlassCredential.ExpirationTimestamp(),
@@ -722,7 +722,7 @@ func ConvertCStoAdminCredential(breakGlassCredential *cmv1.BreakGlassCredential)
 	}
 }
 
-// ConvertCStoHCPOpenShiftVersion converts a CS Version object into an HCPOpenShiftVersion object.
+// ConvertCStoOpenShiftVersion converts a CS Version object into an OpenShiftVersion object.
 func ConvertCStoOpenShiftVersion(resourceID *azcorearm.ResourceID, version *arohcpv1alpha1.Version) *coreapi.OpenShiftVersion {
 	return &coreapi.OpenShiftVersion{
 		ProxyResource: coreapi.ProxyResource{

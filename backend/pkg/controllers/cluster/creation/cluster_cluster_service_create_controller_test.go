@@ -88,7 +88,7 @@ func testClusterResourceID() *azcorearm.ResourceID {
 	))
 }
 
-// newTestCluster returns an HCPOpenShiftCluster based on MinimumValidClusterTestCase with
+// newTestCluster returns a Cluster based on MinimumValidClusterTestCase with
 // test-constant IDs. Callers can further customize it via functional opts.
 // MinimumValidClusterTestCase is used as the base because createClusterServiceCluster
 // calls ocm.BuildCSCluster, which requires a fully-populated cluster (version, DNS, subnet, etc.).

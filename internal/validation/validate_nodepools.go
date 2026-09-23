@@ -96,10 +96,10 @@ func validateNodePool(ctx context.Context, op operation.Operation, newObj, oldOb
 		errs = append(errs, MatchesRegex(ctx, op, field.NewPath("id"), &newObj.ID.Name, nil, nodePoolResourceNameRegex, nodePoolResourceNameErrorString)...)
 	}
 
-	//Properties HCPOpenShiftClusterNodePoolProperties `json:"properties"`
+	//Properties ClusterNodePoolProperties `json:"properties"`
 	errs = append(errs, validateNodePoolProperties(ctx, op, field.NewPath("properties"), &newObj.Properties, safe.Field(oldObj, ToNodePoolProperties))...)
 
-	//ServiceProviderProperties HCPOpenShiftClusterNodePoolServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
+	//ServiceProviderProperties ClusterNodePoolServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
 	errs = append(errs, validateNodePoolServiceProviderProperties(ctx, op, field.NewPath("serviceProviderProperties"), &newObj.ServiceProviderProperties, safe.Field(oldObj, toNodePoolServiceProviderProperties))...)
 
 	return errs

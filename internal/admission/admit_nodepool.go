@@ -59,7 +59,7 @@ type NodePoolAdmissionContext struct {
 func MutateNodePool(ctx context.Context, admissionContext *NodePoolAdmissionContext, op operation.Operation, newObj, oldObj *coreapi.ClusterNodePool) field.ErrorList {
 	errs := field.ErrorList{}
 
-	//Properties HCPOpenShiftClusterNodePoolProperties `json:"properties"`
+	//Properties ClusterNodePoolProperties `json:"properties"`
 	errs = append(errs, mutateNodePoolProperties(ctx, admissionContext, op, field.NewPath("properties"), &newObj.Properties, safe.Field(oldObj, validation.ToNodePoolProperties))...)
 
 	errs = append(errs, mutateNodePoolServiceProviderProperties(ctx, admissionContext, op, field.NewPath("serviceProviderProperties"), &newObj.ServiceProviderProperties)...)

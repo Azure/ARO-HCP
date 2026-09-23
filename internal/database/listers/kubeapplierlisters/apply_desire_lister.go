@@ -33,7 +33,7 @@ type ApplyDesireLister interface {
 	List(ctx context.Context) ([]*kubeapplierapi.ApplyDesire, error)
 
 	// GetForCluster fetches a single cluster-scoped ApplyDesire by its
-	// containing HCPOpenShiftCluster identity and the desire's name.
+	// containing Cluster identity and the desire's name.
 	GetForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName, name string) (*kubeapplierapi.ApplyDesire, error)
 
 	// GetForNodePool fetches a single nodepool-scoped ApplyDesire by its
@@ -63,7 +63,7 @@ type ApplyDesireLister interface {
 	// managementClusterResourceID returns no results.
 	ListForManagementCluster(ctx context.Context, managementClusterResourceID *azcorearm.ResourceID) ([]*kubeapplierapi.ApplyDesire, error)
 
-	// ListForCluster returns every ApplyDesire under the given HCPOpenShiftCluster,
+	// ListForCluster returns every ApplyDesire under the given Cluster,
 	// covering both cluster- and node-pool-scoped desires.
 	ListForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) ([]*kubeapplierapi.ApplyDesire, error)
 

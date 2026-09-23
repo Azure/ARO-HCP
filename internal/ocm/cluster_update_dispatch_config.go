@@ -33,7 +33,7 @@ import (
 // project external state into this form and back out when dispatching to Cluster Service.
 //
 // The same struct is built from either RP desired state (from one or more RP resources,
-// currently HCPOpenShiftCluster and ServiceProviderCluster) or from the live Cluster Service
+// currently Cluster and ServiceProviderCluster) or from the live Cluster Service
 // Cluster. This applies only to Cluster CS updates. Node pool and external auth updates
 // use separate dispatch paths and update dispatch config structs. Drift between the two projections
 // may trigger the cluster's cluster service update dispatch controller to
@@ -70,7 +70,7 @@ import (
 //
 //   - Confirm this is a cluster-level Cluster Service update (not node pool or external auth).
 //   - Confirm Cluster Service supports updating the field on an existing cluster.
-//   - Identify where RP desired state lives (HCPOpenShiftCluster, ServiceProviderCluster, etc.).
+//   - Identify where RP desired state lives (Cluster, ServiceProviderCluster, etc.).
 //
 // 1. Dispatch wiring (this file)
 //
@@ -110,7 +110,7 @@ import (
 //     dispatch controller PATCHes an existing one). Verify the new field is present on create.
 //   - Desired state must exist in Cosmos before dispatch can sync it. If customers set this
 //     field via ARM, also wire the full ingest path: ARM API, frontend validation/conversion,
-//     and persistence onto HCPOpenShiftCluster or ServiceProviderCluster. Internal-only
+//     and persistence onto Cluster or ServiceProviderCluster. Internal-only
 //     fields still need whatever backend path writes the value Cosmos holds.
 type clusterUpdateDispatchConfig struct {
 	NodeDrainTimeoutMinutes                        int32                                                     `json:"nodeDrainTimeoutMinutes,omitempty"`

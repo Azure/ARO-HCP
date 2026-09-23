@@ -331,7 +331,7 @@ func TestClusterIdentitySyncer_SyncOnce(t *testing.T) {
 	}
 }
 
-// newTestClusterForClusterIdentitySync creates a test HCPOpenShiftCluster with default values
+// newTestClusterForClusterIdentitySync creates a test Cluster with default values
 // for cluster identity sync testing.
 func newTestClusterForClusterIdentitySync(opts ...func(*coreapi.Cluster)) *coreapi.Cluster {
 	resourceID := metadataapi.Must(azcorearm.ParseResourceID(

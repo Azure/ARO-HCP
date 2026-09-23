@@ -488,7 +488,7 @@ func externalAuthResource(opts ...func(*coreapi.ClusterExternalAuth)) *coreapi.C
 }
 
 // Because we don't distinguish between unset and empty values in our JSON parsing
-// we will get the resulting CS object from an empty HCPOpenShiftClusterExternalAuth object.
+// we will get the resulting CS object from an empty ClusterExternalAuth object.
 func getBaseCSExternalAuthBuilder() *arohcpv1alpha1.ExternalAuthBuilder {
 	return arohcpv1alpha1.NewExternalAuth().
 		ID("").

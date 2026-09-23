@@ -160,7 +160,7 @@ func NewClusterInformerWithRelistDuration(lister cosmosstorageutils.GlobalLister
 			Indexers: cache.Indexers{
 				corelisters.ByResourceGroup: resourceGroupIndexFunc,
 			},
-			ObjectDescription: "HCPOpenShiftCluster",
+			ObjectDescription: "Cluster",
 		},
 	)
 }
@@ -192,7 +192,7 @@ func NewNodePoolInformerWithRelistDuration(lister cosmosstorageutils.GlobalListe
 				corelisters.ByResourceGroup: resourceGroupIndexFunc,
 				corelisters.ByCluster:       clusterResourceIDIndexFunc,
 			},
-			ObjectDescription: "HCPOpenShiftClusterNodePool",
+			ObjectDescription: "ClusterNodePool",
 		},
 	)
 }
@@ -224,7 +224,7 @@ func NewExternalAuthInformerWithRelistDuration(lister cosmosstorageutils.GlobalL
 				corelisters.ByResourceGroup: resourceGroupIndexFunc,
 				corelisters.ByCluster:       clusterResourceIDIndexFunc,
 			},
-			ObjectDescription: "HCPOpenShiftClusterExternalAuth",
+			ObjectDescription: "ClusterExternalAuth",
 		},
 	)
 }

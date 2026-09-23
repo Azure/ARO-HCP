@@ -18,13 +18,13 @@ import (
 	"time"
 )
 
-// HCPOpenShiftVersion represents a location-based available HCP OpenShift version resource.
+// OpenShiftVersion represents a location-based available HCP OpenShift version resource.
 type OpenShiftVersion struct {
 	ProxyResource
 	Properties OpenShiftVersionProperties `json:"properties,omitempty"`
 }
 
-// HCPOpenShiftVersionProperties contains details of an available HCP OpenShift version.
+// OpenShiftVersionProperties contains details of an available HCP OpenShift version.
 type OpenShiftVersionProperties struct {
 	ChannelGroup       string    `json:"channelGroup"`
 	Enabled            bool      `json:"enabled"`

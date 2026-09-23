@@ -24,10 +24,10 @@ import (
 
 // NewMockResourcesDBClientWithResources creates a new mockResourcesDBClient and populates it with the given resources.
 // Resources can be of the following types:
-//   - *coreapi.HCPOpenShiftCluster
-//   - *coreapi.HCPOpenShiftClusterNodePool
+//   - *coreapi.Cluster
+//   - *coreapi.ClusterNodePool
 //   - *coreapi.Operation
-//   - *coreapi.HCPOpenShiftClusterExternalAuth
+//   - *coreapi.ClusterExternalAuth
 //   - *coreapi.ServiceProviderCluster
 //   - *coreapi.ServiceProviderNodePool
 //   - *coreapi.Subscription
