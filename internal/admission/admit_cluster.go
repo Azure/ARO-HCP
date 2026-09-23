@@ -378,18 +378,30 @@ func admitClusterExperimentalFeatures(_ context.Context, admissionContext *Clust
 	return errs
 }
 
-// admitClusterControlPlaneExactVersion rejects an exact-version pin below
-// ServiceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion — the version the
-// desired-version controller resolved and the trigger-upgrade controller acts on.
+// admitClusterControlPlaneExactVersion rejects an exact-version pin below either
+// control plane version the cluster already holds:
+// ServiceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion — what the
+// desired-version controller resolved and the trigger-upgrade controller acts on —
+// and the latest entry of Status.ControlPlaneVersion.ActiveVersions, what the control
+// plane most recently ran. Desired alone is not enough: it is unset until the
+// controller first resolves, and it can lag a control plane that advanced out of band.
 //
 // Static validation compares a new pin against the old pin, so it misses the first
-// pin on a previously unpinned cluster; it also cannot reach DesiredVersion, which
-// lives on a separate Cosmos document the frontend prefetches into the admission
+// pin on a previously unpinned cluster; it also cannot reach either version, which
+// live on a separate Cosmos document the frontend prefetches into the admission
 // context (see internal/admission/CLAUDE.md).
 //
-// Racy by construction: DesiredVersion is read before the write, so a graph advance
-// in between still lowers it — the controller's pin branch has no guard of its own.
-// Errors report against the tag, the only thing the customer can change.
+// Racy by construction: both versions are read before the write, so a graph or
+// control plane advance in between still lowers them. The desired-version
+// controller's pin branch repeats this check at write time.
+//
+// Errors report against the tag, the only thing the customer can change. A pin below
+// both versions reports both: each names a different version the pin has to clear.
+//
+// NOTE: blang semver compares pre-release identifiers lexically, not
+// chronologically, so every "4.x.0-0.nightly-multi-*" sorts above every
+// "4.x.0-0.nightly-2026-*" regardless of build date. Re-pinning a nightly cluster
+// across those two streams is rejected here.
 func admitClusterControlPlaneExactVersion(admissionContext *ClusterAdmissionContext, op operation.Operation, newObj, oldObj *coreapi.ExperimentalFeatures) field.ErrorList {
 	// On CREATE (and preflight) nothing has been desired yet, and the frontend
 	// does not prefetch a ServiceProviderCluster at all.
@@ -419,20 +431,27 @@ func admitClusterControlPlaneExactVersion(admissionContext *ClusterAdmissionCont
 	if admissionContext.ServiceProviderCluster == nil {
 		return nil
 	}
+
+	errs := field.ErrorList{}
+	tagPath := field.NewPath("tags").Key(metadataapi.TagClusterControlPlaneExactVersion)
+
+	// Unset until the desired-version controller first resolves a version.
 	desiredVersion := admissionContext.ServiceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion
-	if desiredVersion == nil {
-		return nil
+	if desiredVersion != nil && newExact.LT(*desiredVersion) {
+		errs = append(errs, field.Invalid(tagPath, newExact.String(),
+			fmt.Sprintf("may not decrease the desired control plane version from %s", desiredVersion)))
 	}
 
-	if newExact.LT(*desiredVersion) {
-		return field.ErrorList{field.Invalid(
-			field.NewPath("tags").Key(metadataapi.TagClusterControlPlaneExactVersion),
-			newExact.String(),
-			fmt.Sprintf("may not decrease the desired control plane version from %s", desiredVersion),
-		)}
+	// ActiveVersions mirrors the control plane's version history newest first, so the
+	// first entry is the version it most recently ran. Empty while it is installing.
+	if activeVersions := admissionContext.ServiceProviderCluster.Status.ControlPlaneVersion.ActiveVersions; len(activeVersions) > 0 {
+		if latestActiveVersion := activeVersions[0].Version; latestActiveVersion != nil && newExact.LT(*latestActiveVersion) {
+			errs = append(errs, field.Invalid(tagPath, newExact.String(),
+				fmt.Sprintf("may not decrease the active control plane version from %s", latestActiveVersion)))
+		}
 	}
 
-	return nil
+	return errs
 }
 
 // admitClusterCustomerProperties drills down into the customer-facing portion

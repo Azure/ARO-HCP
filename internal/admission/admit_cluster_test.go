@@ -1429,14 +1429,15 @@ func TestAdmitClusterContainerRegistryPullManagedIdentity(t *testing.T) {
 }
 
 // TestAdmitClusterControlPlaneExactVersion covers the rule that an exact-version
-// pin may not lower the version the control plane is already headed for
-// (ServiceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion).
+// pin may lower neither the version the control plane is headed for
+// (ServiceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion) nor the one it
+// most recently ran (the first entry of Status.ControlPlaneVersion.ActiveVersions).
 //
 // The case static validation cannot reach is the *first* pin on a previously
 // unpinned cluster: its "the pin may not decrease" rule compares the new pin
-// against the old pin, and with no old pin it is skipped entirely. Desired
-// version lives on a separate Cosmos document, so only admission — which the
-// frontend hands a prefetched ServiceProviderCluster — can see it.
+// against the old pin, and with no old pin it is skipped entirely. Both versions
+// live on a separate Cosmos document, so only admission — which the frontend hands
+// a prefetched ServiceProviderCluster — can see them.
 func TestAdmitClusterControlPlaneExactVersion(t *testing.T) {
 	t.Parallel()
 
@@ -1445,14 +1446,25 @@ func TestAdmitClusterControlPlaneExactVersion(t *testing.T) {
 	// customer can change.
 	const tagPath = "tags[aro-hcp.experimental.cluster.control-plane-exact-version]"
 
-	spcWithDesiredVersion := func(desired string) *coreapi.ServiceProviderCluster {
-		return &coreapi.ServiceProviderCluster{
-			Spec: coreapi.ServiceProviderClusterSpec{
-				ControlPlaneVersion: coreapi.ServiceProviderClusterSpecVersion{
-					DesiredVersion: ptr.To(semver.MustParse(desired)),
-				},
-			},
+	// spcWithVersions builds the prefetched ServiceProviderCluster the check reads. An
+	// empty desired models a cluster the desired-version controller has not resolved
+	// yet; passing no active versions models one whose control plane has not reported
+	// any history. Active versions are newest first, as the mirror writes them.
+	spcWithVersions := func(desired string, active ...string) *coreapi.ServiceProviderCluster {
+		spc := &coreapi.ServiceProviderCluster{}
+		if desired != "" {
+			spc.Spec.ControlPlaneVersion.DesiredVersion = ptr.To(semver.MustParse(desired))
 		}
+		for _, version := range active {
+			spc.Status.ControlPlaneVersion.ActiveVersions = append(
+				spc.Status.ControlPlaneVersion.ActiveVersions,
+				coreapi.ServiceProviderClusterActiveVersion{Version: ptr.To(semver.MustParse(version))},
+			)
+		}
+		return spc
+	}
+	spcWithDesiredVersion := func(desired string) *coreapi.ServiceProviderCluster {
+		return spcWithVersions(desired)
 	}
 	pinned := func(exact string) *coreapi.ExperimentalFeatures {
 		return &coreapi.ExperimentalFeatures{ControlPlaneExactVersion: ptr.To(semver.MustParse(exact))}
@@ -1569,6 +1581,130 @@ func TestAdmitClusterControlPlaneExactVersion(t *testing.T) {
 			oldFeatures:  nil,
 			newFeatures:  pinned("4.21.0"),
 			spc:          nil,
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			// Desired is unset — the controller has not resolved yet — but the
+			// control plane is demonstrably running 4.21.9, so a 4.21.5 pin is
+			// still a downgrade. Desired alone would wave this through.
+			name:        "first pin below the latest active version is rejected",
+			op:          operation.Operation{Type: operation.Update},
+			oldFeatures: unpinned(),
+			newFeatures: pinned("4.21.5"),
+			spc:         spcWithVersions("", "4.21.9"),
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: tagPath, Message: "may not decrease the active control plane version from 4.21.9"},
+			},
+		},
+		{
+			// The control plane advanced past desired, so only the active
+			// comparison rejects the pin.
+			name:        "pin above desired but below the latest active version is rejected",
+			op:          operation.Operation{Type: operation.Update},
+			oldFeatures: unpinned(),
+			newFeatures: pinned("4.21.5"),
+			spc:         spcWithVersions("4.21.2", "4.21.9"),
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: tagPath, Message: "may not decrease the active control plane version from 4.21.9"},
+			},
+		},
+		{
+			// The mirror image: an upgrade is in flight, so the pin clears the
+			// running version but not the one the cluster is headed for.
+			name:        "pin above the latest active version but below desired is rejected",
+			op:          operation.Operation{Type: operation.Update},
+			oldFeatures: unpinned(),
+			newFeatures: pinned("4.21.5"),
+			spc:         spcWithVersions("4.21.9", "4.21.2"),
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: tagPath, Message: "may not decrease the desired control plane version from 4.21.9"},
+			},
+		},
+		{
+			// Below both: each comparison names a different version the pin has
+			// to clear, so the customer sees both rather than fixing the tag
+			// twice.
+			name:        "pin below both desired and the latest active version reports both",
+			op:          operation.Operation{Type: operation.Update},
+			oldFeatures: unpinned(),
+			newFeatures: pinned("4.21.0"),
+			spc:         spcWithVersions("4.21.9", "4.21.2"),
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: tagPath, Message: "may not decrease the desired control plane version from 4.21.9"},
+				{FieldPath: tagPath, Message: "may not decrease the active control plane version from 4.21.2"},
+			},
+		},
+		{
+			name:         "pin equal to the latest active version passes",
+			op:           operation.Operation{Type: operation.Update},
+			oldFeatures:  unpinned(),
+			newFeatures:  pinned("4.21.9"),
+			spc:          spcWithVersions("", "4.21.9"),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			// ActiveVersions is the control plane's version history newest first,
+			// so only the first entry is the version it is running now.
+			name:        "multi-entry active versions compares against the first entry",
+			op:          operation.Operation{Type: operation.Update},
+			oldFeatures: unpinned(),
+			newFeatures: pinned("4.21.5"),
+			spc:         spcWithVersions("", "4.21.9", "4.21.7", "4.21.2"),
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: tagPath, Message: "may not decrease the active control plane version from 4.21.9"},
+			},
+		},
+		{
+			// A cluster rolled back to 4.21.2 has 4.21.9 behind it in history, but
+			// it is running 4.21.2, so pinning 4.21.5 is an upgrade.
+			name:         "pin above the first entry but below an older one passes",
+			op:           operation.Operation{Type: operation.Update},
+			oldFeatures:  unpinned(),
+			newFeatures:  pinned("4.21.5"),
+			spc:          spcWithVersions("", "4.21.2", "4.21.9"),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			// Same wedge-avoidance rule as the desired-version case: a cluster
+			// pinned before this check existed keeps reconciling, so unrelated
+			// updates to it do not start failing.
+			name:         "unchanged pin below the latest active version passes",
+			op:           operation.Operation{Type: operation.Update},
+			oldFeatures:  pinned("4.21.5"),
+			newFeatures:  pinned("4.21.5"),
+			spc:          spcWithVersions("", "4.21.9"),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			// Neither version seeded: the cluster is still installing.
+			name:         "no desired and no active versions skips the check",
+			op:           operation.Operation{Type: operation.Update},
+			oldFeatures:  unpinned(),
+			newFeatures:  pinned("4.21.0"),
+			spc:          spcWithVersions(""),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			// semver orders a pre-release below its release, so pinning a nightly
+			// build of 4.21.0 on a cluster already running GA 4.21.0 is a
+			// downgrade. Static validation states the same rule for an old pin.
+			name:        "pre-release pin below a GA active version is rejected",
+			op:          operation.Operation{Type: operation.Update},
+			oldFeatures: unpinned(),
+			newFeatures: pinned("4.21.0-0.nightly-2026-09-03-214615"),
+			spc:         spcWithVersions("", "4.21.0"),
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: tagPath, Message: "may not decrease the active control plane version from 4.21.0"},
+			},
+		},
+		{
+			// Within one nightly stream the date suffix sorts chronologically, so
+			// moving a nightly cluster to a newer build is accepted.
+			name:         "newer nightly build in the same stream passes",
+			op:           operation.Operation{Type: operation.Update},
+			oldFeatures:  pinned("4.21.0-0.nightly-2026-08-05-123456"),
+			newFeatures:  pinned("4.21.0-0.nightly-2026-09-03-214615"),
+			spc:          spcWithVersions("", "4.21.0-0.nightly-2026-08-05-123456"),
 			expectErrors: []utils.ExpectedError{},
 		},
 	}
