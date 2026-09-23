@@ -18,6 +18,8 @@ tests:
   - series: 'keyvault_certificate_enabled{certificate_name="frontend", key_vault="service-kv", region="westus3", cluster="cspr-westus3-svc-1", environment="cspr", prometheus_replica="agent-1"}'
     values: "1+0x4"
   alert_rule_test:
+  - eval_time: 0h
+    alertname: CertificateRotationFailure
   - eval_time: 1h
     alertname: CertificateRotationFailure
     exp_alerts:
@@ -46,6 +48,29 @@ tests:
     alertname: CertificateRotationFailure
 - interval: 1h
   input_series:
+  - series: 'keyvault_certificate_collector_last_success_timestamp_seconds{key_vault="service-kv", region="westus3", cluster="cspr-westus3-svc-1", environment="cspr", prometheus_replica="agent-0"}'
+    values: "1+0x2"
+  - series: 'keyvault_certificate_collector_last_success_timestamp_seconds{key_vault="service-kv", region="westus3", cluster="cspr-westus3-svc-1", environment="cspr", prometheus_replica="agent-1"}'
+    values: "1+0x2"
+  alert_rule_test:
+  - eval_time: 1h
+    alertname: CertificateCollectionStale
+  - eval_time: 2h
+    alertname: CertificateCollectionStale
+    exp_alerts:
+    - exp_labels:
+        cluster: cspr-westus3-svc-1
+        component: certificate-rotation
+        environment: cspr
+        key_vault: service-kv
+        region: westus3
+        severity: "3"
+      exp_annotations:
+        summary: "westus3/service-kv: Certificate collection is stale"
+        description: "Certificate metadata collection for Key Vault 'service-kv' (westus3) has not completed successfully within the last hour."
+        runbook_url: TBD
+- interval: 1h
+  input_series:
   - series: 'keyvault_certificate_not_before_timestamp_seconds{certificate_name="admin-api", key_vault="service-kv", region="westus3", cluster="cspr-westus3-svc-1", environment="cspr"}'
     values: "7200+0x3"
   - series: 'keyvault_certificate_not_after_timestamp_seconds{certificate_name="admin-api", key_vault="service-kv", region="westus3", cluster="cspr-westus3-svc-1", environment="cspr"}'
@@ -66,3 +91,20 @@ tests:
   alert_rule_test:
   - eval_time: 2h
     alertname: CertificateRotationFailure
+  - eval_time: 0h
+    alertname: CertificateDisabled
+  - eval_time: 1h
+    alertname: CertificateDisabled
+    exp_alerts:
+    - exp_labels:
+        certificate_name: disabled
+        cluster: cspr-westus3-svc-1
+        component: certificate-rotation
+        environment: cspr
+        key_vault: service-kv
+        region: westus3
+        severity: "3"
+      exp_annotations:
+        summary: "westus3/service-kv: Certificate disabled is disabled"
+        description: "Certificate 'disabled' in Key Vault 'service-kv' (westus3) has remained disabled for at least one hour."
+        runbook_url: TBD
