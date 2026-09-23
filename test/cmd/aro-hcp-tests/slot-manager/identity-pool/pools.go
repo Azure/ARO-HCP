@@ -52,7 +52,10 @@ func loadIdentityPools(ctx context.Context, catalogPath, environment string, sub
 	if !found {
 		return nil, fmt.Errorf("unknown environment %q", environment)
 	}
+	return resolveIdentityPools(ctx, environment, environmentConfig.Pools, subscriptionFilter, resolveSubscriptionID)
+}
 
+func resolveIdentityPools(ctx context.Context, environment string, catalogPools []slots.Pool, subscriptionFilter []string, resolveSubscriptionID subscriptionIDResolverFunc) ([]identityPool, error) {
 	filterSet := make(map[string]struct{}, len(subscriptionFilter))
 	for _, name := range subscriptionFilter {
 		// Ignore empty/whitespace-only entries so that a wrapper passing an
@@ -66,30 +69,32 @@ func loadIdentityPools(ctx context.Context, catalogPath, environment string, sub
 	}
 
 	resolvedIDs := map[string]string{}
-	pools := make([]identityPool, 0, len(environmentConfig.Pools))
-	for _, pool := range environmentConfig.Pools {
+	pools := make([]identityPool, 0, len(catalogPools))
+	for _, pool := range catalogPools {
 		if len(filterSet) > 0 {
-			if _, match := filterSet[pool.SubscriptionName]; !match {
+			if _, match := filterSet[pool.E2ESubscriptionName()]; !match {
 				continue
 			}
 		} else if pool.IsUnmanaged() {
 			continue
 		}
 
-		subscriptionID, found := resolvedIDs[pool.SubscriptionName]
+		subscriptionName := pool.E2ESubscriptionName()
+		subscriptionID, found := resolvedIDs[subscriptionName]
 		if !found {
-			subscriptionID, err = resolveSubscriptionID(ctx, pool.SubscriptionName)
+			resolvedSubscriptionID, err := resolveSubscriptionID(ctx, subscriptionName)
 			if err != nil {
-				return nil, fmt.Errorf("failed getting subscription ID for %q: %w", pool.SubscriptionName, err)
+				return nil, fmt.Errorf("failed getting subscription ID for %q: %w", subscriptionName, err)
 			}
-			resolvedIDs[pool.SubscriptionName] = subscriptionID
+			subscriptionID = resolvedSubscriptionID
+			resolvedIDs[subscriptionName] = subscriptionID
 		}
 
 		pools = append(pools, identityPool{
 			Environment:             environment,
 			Region:                  pool.Region,
 			ProvisioningRegion:      pool.EffectiveIdentityProvisioningRegion(),
-			SubscriptionName:        pool.SubscriptionName,
+			SubscriptionName:        subscriptionName,
 			SubscriptionID:          subscriptionID,
 			IdentityContainerPrefix: pool.IdentityContainerPrefix,
 			Slots:                   slots.ExpandSlotsForPool(environment, pool),

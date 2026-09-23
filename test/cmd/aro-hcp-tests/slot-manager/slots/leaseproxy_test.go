@@ -20,6 +20,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -192,5 +193,25 @@ func TestAcquireLeaseRejectsMultipleReturnedNames(t *testing.T) {
 
 	if _, err := AcquireLease(context.Background(), server.URL, "aro-hcp-dev-westus3-slot", DefaultLeaseProxyTimeout); err == nil {
 		t.Fatalf("expected lease acquire to fail when the proxy returns multiple names")
+	}
+
+}
+
+func TestAcquireLeaseRejectsMalformedReturnedName(t *testing.T) {
+	t.Parallel()
+	for _, name := range []string{"", " \t\n", " slot-00", "slot-00 ", "\tslot-00\n", "\u00a0slot-00"} {
+		t.Run(name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				_ = json.NewEncoder(w).Encode(acquireLeaseResponse{Names: []string{name}})
+			}))
+			defer server.Close()
+			got, err := AcquireLease(context.Background(), server.URL, "slot", time.Second)
+			if got != "" || err == nil || !strings.Contains(err.Error(), "resource name") {
+				t.Fatalf("invalid proxy response must fail without a name: got %q, %v", got, err)
+			}
+			if errors.Is(err, ErrLeasePoolUnavailableNow) {
+				t.Fatalf("malformed success must not trigger acquisition retries: %v", err)
+			}
+		})
 	}
 }

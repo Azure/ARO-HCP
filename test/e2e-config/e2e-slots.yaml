@@ -1,140 +1,194 @@
-version: 1
+version: 2
 environments:
   dev:
-    deploy_envs:
-    - ci00
-    - ci01
+    deployment_environment:
+      name: ci01
     pools:
     # Jobs select the runtime region from these weighted pools. Existing jobs
     # with an explicit location override remain pinned during rollout.
     # Identity containers remain provisioned in westus3.
     # Each managed subscription keeps 300 containers split into five 60-container job slots.
-    - subscription_name: "ARO HCP E2E Hosted Clusters (EA Subscription)"
+    - name: shard0
+      subscriptions:
+        e2e: "ARO HCP E2E Hosted Clusters (EA Subscription)"
       region_mode: weighted
       regions:
       - westus3
       - centralus
       - canadacentral
-      identity_provisioning_region: westus3
       resource_type: aro-hcp-dev-shard0-slot
       slot_count: 5
-      identity_container_prefix: aro-hcp-msi-container-dev-shard0
-      identity_container_count: 60
-    - subscription_name: "ARO HCP E2E Hosted Clusters 2 (EA Subscription)"
+      slot_assets:
+        e2e_identities:
+          allocation: dedicated
+          provisioning_region: westus3
+          resource_group_prefix: aro-hcp-msi-container-dev-shard0
+          resource_group_count: 60
+    - name: shard1
+      subscriptions:
+        e2e: "ARO HCP E2E Hosted Clusters 2 (EA Subscription)"
       region_mode: weighted
       regions:
       - westus3
       - centralus
       - canadacentral
-      identity_provisioning_region: westus3
       resource_type: aro-hcp-dev-shard1-slot
       slot_count: 5
-      identity_container_prefix: aro-hcp-msi-container-dev-shard1
-      identity_container_count: 60
-    - subscription_name: "ARO HCP E2E Hosted Clusters - Dev - 02"
+      slot_assets:
+        e2e_identities:
+          allocation: dedicated
+          provisioning_region: westus3
+          resource_group_prefix: aro-hcp-msi-container-dev-shard1
+          resource_group_count: 60
+    - name: shard2
+      subscriptions:
+        e2e: "ARO HCP E2E Hosted Clusters - Dev - 02"
       region_mode: weighted
       regions:
       - westus3
       - centralus
       - canadacentral
-      identity_provisioning_region: westus3
       resource_type: aro-hcp-dev-shard2-slot
       slot_count: 5
-      identity_container_prefix: aro-hcp-msi-container-dev-shard2
-      identity_container_count: 60
-    - subscription_name: "ARO HCP E2E Hosted Clusters - Dev - 03"
+      slot_assets:
+        e2e_identities:
+          allocation: dedicated
+          provisioning_region: westus3
+          resource_group_prefix: aro-hcp-msi-container-dev-shard2
+          resource_group_count: 60
+    - name: shard3
+      subscriptions:
+        e2e: "ARO HCP E2E Hosted Clusters - Dev - 03"
       region_mode: weighted
       regions:
       - westus3
       - centralus
       - canadacentral
-      identity_provisioning_region: westus3
       resource_type: aro-hcp-dev-shard3-slot
       slot_count: 5
-      identity_container_prefix: aro-hcp-msi-container-dev-shard3
-      identity_container_count: 60
-    - subscription_name: "Hypershift Managed Azure"
+      slot_assets:
+        e2e_identities:
+          allocation: dedicated
+          provisioning_region: westus3
+          resource_group_prefix: aro-hcp-msi-container-dev-shard3
+          resource_group_count: 60
+    - name: hypershift
+      subscriptions:
+        e2e: "Hypershift Managed Azure"
       region_mode: weighted
       regions:
       - westus3
       - centralus
       - canadacentral
-      identity_provisioning_region: westus3
       resource_type: aro-hcp-dev-hypershift-westus3-slot
       slot_count: 1
-      identity_container_prefix: aro-hcp-msi-container-dev
-      identity_container_count: 20
-      identity_provisioning: unmanaged
+      slot_assets:
+        e2e_identities:
+          allocation: dedicated
+          provisioning: unmanaged
+          provisioning_region: westus3
+          resource_group_prefix: aro-hcp-msi-container-dev
+          resource_group_count: 20
   int:
-    deploy_envs:
-    - int
+    deployment_environment:
+      name: int
     pools:
-    - subscription_name: "ARO SRE Team - INT (EA Subscription 3)"
+    - name: shard0
+      subscriptions:
+        e2e: "ARO SRE Team - INT (EA Subscription 3)"
       region: uksouth
       region_mode: fixed
       resource_type: aro-hcp-int-shard0-slot
       slot_count: 1
-      identity_container_prefix: aro-hcp-msi-container-int-shard0
-      identity_container_count: 20
-    - subscription_name: "ARO SRE Team - INT (EA Subscription 3)"
+      slot_assets:
+        e2e_identities:
+          allocation: dedicated
+          resource_group_prefix: aro-hcp-msi-container-int-shard0
+          resource_group_count: 20
+    - name: westus3-shard0
+      subscriptions:
+        e2e: "ARO SRE Team - INT (EA Subscription 3)"
       region: westus3
       region_mode: fixed
       resource_type: aro-hcp-int-westus3-shard0-slot
       slot_count: 1
-      identity_container_prefix: aro-hcp-msi-container-int-westus3-shard0
-      identity_container_count: 20
+      slot_assets:
+        e2e_identities:
+          allocation: dedicated
+          resource_group_prefix: aro-hcp-msi-container-int-westus3-shard0
+          resource_group_count: 20
   stg:
-    deploy_envs:
-    - stg
+    deployment_environment:
+      name: stg
     pools:
     # shard0: Stage-00 subscription, runtime-selected region with uksouth as the default.
-    # identity_container_count set to 25 to support running the full E2E suite in parallel.
-    - subscription_name: "ARO HCP E2E Hosted Clusters - Stage - 00"
+    # resource_group_count set to 25 to support running the full E2E suite in parallel.
+    - name: shard0
+      subscriptions:
+        e2e: "ARO HCP E2E Hosted Clusters - Stage - 00"
       region: uksouth
       region_mode: runtime-selected
       resource_type: aro-hcp-stg-shard0-slot
       slot_count: 1
-      identity_container_prefix: aro-hcp-msi-container-stg-shard0
-      # provisionShardClusterLimit is configured to 25 in STG
-      identity_container_count: 25
+      slot_assets:
+        e2e_identities:
+          allocation: dedicated
+          resource_group_prefix: aro-hcp-msi-container-stg-shard0
+          # provisionShardClusterLimit is configured to 25 in STG
+          resource_group_count: 25
   prod:
-    deploy_envs:
-    - prod
+    deployment_environment:
+      name: prod
     pools:
     # slot_count is capped at 3 per subscription by the Azure deny-assignment
     # limit, not by role-assignment quota. The Authorization RP allows at most
     # 2000 deny assignments per subscription, and the RP currently creates
     # sharded (per-cluster) deny assignments (~21 per HCP), which caps a
-    # subscription at ~92 concurrent HCPs. With identity_container_count: 25
+    # subscription at ~92 concurrent HCPs. With resource_group_count: 25
     # (max HCPs per suite run), that is floor(92 / 25) = 3 slots per sub.
     # This constraint is AME-only (STG and PROD): deny assignments are only
     # created in AME. See the "Scaling Constraints" section in
     # docs/ci/identity-leasing.md for the full explanation.
-    - subscription_name: "ARO HCP E2E Hosted Clusters - Prod - 00"
+    - name: shard0
+      subscriptions:
+        e2e: "ARO HCP E2E Hosted Clusters - Prod - 00"
       region: uksouth
       region_mode: runtime-selected
       resource_type: aro-hcp-prod-shard0-slot
       slot_count: 3
-      identity_container_prefix: aro-hcp-msi-container-prod
-      identity_container_count: 25
-    - subscription_name: "ARO HCP E2E Hosted Clusters - Prod - 01"
+      slot_assets:
+        e2e_identities:
+          allocation: dedicated
+          resource_group_prefix: aro-hcp-msi-container-prod
+          resource_group_count: 25
+    - name: shard1
+      subscriptions:
+        e2e: "ARO HCP E2E Hosted Clusters - Prod - 01"
       region: uksouth
       region_mode: runtime-selected
       resource_type: aro-hcp-prod-shard1-slot
       slot_count: 3
-      identity_container_prefix: aro-hcp-msi-container-prod
-      identity_container_count: 25
+      slot_assets:
+        e2e_identities:
+          allocation: dedicated
+          resource_group_prefix: aro-hcp-msi-container-prod
+          resource_group_count: 25
     # Test-Test tenant (MSFT) prod sub "ARO HCP E2E" (403d9de9). Cross-tenant, so
-    # identities are provisioned externally (identity_provisioning: unmanaged).
+    # identities are provisioned externally (provisioning: unmanaged).
     # Kept in the pool so the single prod gating job can lease it for the canary
     # region (eastus2euap), which only this sub is EUAP-onboarded for. The test
     # step resolves this sub's owning tenant/service principal from the
     # /var/run/aro-hcp-prod cluster profile via SELECTED_CLUSTER_PROFILE_DIR.
-    - subscription_name: "ARO HCP E2E"
+    - name: testtenant
+      subscriptions:
+        e2e: "ARO HCP E2E"
       region: uksouth
       region_mode: runtime-selected
       resource_type: aro-hcp-prod-testtenant-slot
       slot_count: 4
-      identity_container_prefix: aro-hcp-msi-container-prod-testtenant
-      identity_container_count: 25
-      identity_provisioning: unmanaged
+      slot_assets:
+        e2e_identities:
+          allocation: dedicated
+          provisioning: unmanaged
+          resource_group_prefix: aro-hcp-msi-container-prod-testtenant
+          resource_group_count: 25
