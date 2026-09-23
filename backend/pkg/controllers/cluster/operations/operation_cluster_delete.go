@@ -460,6 +460,8 @@ func (c *operationClusterDelete) applyDesireTeardownStatus(ctx context.Context, 
 			stepName = "hosted cluster"
 		case desireName == strings.ToLower(clusterresources.DesireNameNodePool):
 			stepName = "node pools"
+		case desireName == strings.ToLower(clusterresources.DesireNameManagedCluster):
+			stepName = "managed cluster"
 		case desireName == strings.ToLower(clusterresources.DesireNameHostedClusterNamespace) ||
 			desireName == strings.ToLower(clusterresources.DesireNameControlPlaneNamespace):
 			stepName = "namespaces"
@@ -479,7 +481,15 @@ func (c *operationClusterDelete) applyDesireTeardownStatus(ctx context.Context, 
 
 	// Build a human-readable message about what's being deleted.
 	// Order by typical deletion sequence: resources -> nodepools -> hostedcluster -> network -> namespaces
-	stepOrder := []string{"node pools", "hosted cluster", "pod network instances", "pod networks", "namespaces", "cluster resources"}
+	stepOrder := []string{
+		"cluster resources",
+		"node pools",
+		"managed cluster",
+		"hosted cluster",
+		"pod network instances",
+		"pod networks",
+		"namespaces",
+	}
 	var messageParts []string
 	for _, step := range stepOrder {
 		if resources, ok := stepCounts[step]; ok {

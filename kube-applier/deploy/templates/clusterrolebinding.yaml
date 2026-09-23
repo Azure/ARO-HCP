@@ -10,3 +10,16 @@ subjects:
 - kind: ServiceAccount
   name: '{{ .Values.serviceAccount.name }}'
   namespace: '{{ .Release.Namespace }}'
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kube-applier-managedclusterset-admin
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: open-cluster-management:managedclusterset:admin:hypershift-management-clusters
+subjects:
+- kind: ServiceAccount
+  name: '{{ .Values.serviceAccount.name }}'
+  namespace: '{{ .Release.Namespace }}'

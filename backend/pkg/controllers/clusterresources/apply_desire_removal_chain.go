@@ -101,6 +101,7 @@ type applyDesireRemovalStep interface {
 // shows up unclaimed, since nothing would tear it down.
 var applyDesireRemovalChain = []applyDesireRemovalStep{
 	cascadeCoveredRemovalStep{},
+	managedClusterRemovalStep{},
 	nodePoolRemovalStep{},
 	hostedClusterRemovalStep{},
 	swiftPodNetworkInstanceRemovalStep{},
