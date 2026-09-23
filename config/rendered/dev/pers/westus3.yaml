@@ -1,7 +1,7 @@
 acm:
   mce:
     bundle:
-      digest: sha256:a7027158c0b762347e55d5c4212b6745b21df83421b874f37d02b1b87e4be016
+      digest: sha256:4fa5d5e483e727a520a105bc83cb02bfade18dfbafc7d33bf6da918206a6a342
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-217
   operator:
@@ -1184,15 +1184,15 @@ swiftRecorder:
 tenantId: 64dc69e4-d083-49fc-9569-ebece1dd1408
 velero:
   azurePlugin:
-    digest: sha256:503d6342c590c430e1311090b11351dbd8776c2f02c84ffa6e3b19d7f02187be
+    digest: sha256:f19163881e825b8798d06a6f9ab264b807d44b60a8a4ff17653f8ac56d164e7b
     registry: registry.stage.redhat.io
     repository: oadp/oadp-velero-plugin-for-microsoft-azure-rhel9
   enableInstantAccess: true
   hypershiftPlugin:
-    digest: sha256:fa29fe80b67f5ff80b89b51f0ca039f7b9b7fb6d66fa9ef124e8ddf2a29c2bd6
+    digest: sha256:83ece1342781649aa08fff82c3bc7c00279eabe186ca21057e7a4d107a878479
     registry: registry.stage.redhat.io
     repository: oadp/oadp-hypershift-velero-plugin-rhel9
   server:
-    digest: sha256:a6de7988701b0759bb4f29d28d229a0b427c5d2c25653bfed59c0a1a18ad4280
+    digest: sha256:4b9b7f351820a5a9d8f816776666a335f422614d6702cd6b81daab4676f72ac5
     registry: registry.stage.redhat.io
     repository: oadp/oadp-velero-rhel9
