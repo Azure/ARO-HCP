@@ -7,6 +7,6 @@ keywords:
 - multiclusterengine
 name: multicluster-engine-crds
 sources:
-- quay.io/redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-217@sha256:a7027158c0b762347e55d5c4212b6745b21df83421b874f37d02b1b87e4be016
+- quay.io/redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-217@sha256:4fa5d5e483e727a520a105bc83cb02bfade18dfbafc7d33bf6da918206a6a342
 type: application
 version: 2.17.3
