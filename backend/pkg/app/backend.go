@@ -1170,7 +1170,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go operationRequestCredentialController.Run(ctx, 20)
 				go clusterServiceMatchingClusterController.Run(ctx, 20)
 				go alwaysSuccessClusterValidationController.Run(ctx, 20)
-				go deleteOrphanedCosmosResourcesController.Run(ctx, 20)
+				go deleteOrphanedCosmosResourcesController.Run(ctx, 10)
 				go missingResourceIDController.Run(ctx, 20)
 				go backfillClusterUIDController.Run(ctx, 20)
 				go orphanedBillingCleanupController.Run(ctx, 20)
