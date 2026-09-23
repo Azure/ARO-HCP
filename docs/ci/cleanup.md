@@ -147,12 +147,13 @@ Deletion requires all of the following:
   deleting and the certificate is retried by a later hourly run.
 
 Active and deleted certificate inventories both stop requesting Key Vault pages
-as soon as they select their configured number of eligible objects:
+as soon as they inspect their configured number of metadata entries:
 `--max-deletions` for active certificates and `--max-purges` for tombstones.
-The preliminary owner inventory is applied while active pages are read, so
-live-owned certificates do not consume the deletion cap. Every delete still
-uses a fresh owner revalidation through the shared 30-second guard. This keeps
-both batch bounds from becoming unbounded read costs or throttling risks.
+Ineligible and live-owned objects consume these limits, so the selected mutation
+count can be lower than the configured limit. Every delete still uses a fresh
+owner revalidation through the shared 30-second guard. This bounds inventory
+reads as well as mutations, limiting Key Vault cost, runtime, and throttling
+risk.
 `--delete-active` and `--purge-deleted` independently enable the two actions,
 allowing tombstones to be remediated without resuming active-certificate
 cleanup. The command emits JSON candidate and summary logs.

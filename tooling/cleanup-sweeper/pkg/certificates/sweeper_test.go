@@ -65,6 +65,7 @@ type fakeCertificates struct {
 	deletedPages     [][]*azcertificates.DeletedCertificateProperties
 	deletedListError int // 1-based page number
 	activeLists      int
+	activePagesRead  int
 	deletedLists     int
 	deletedPagesRead int
 	gets             []string
@@ -84,6 +85,7 @@ func (f *fakeCertificates) NewListCertificatePropertiesPager(*azcertificates.Lis
 		More: func(azcertificates.ListCertificatePropertiesResponse) bool { return i < len(f.pages) },
 		Fetcher: func(context.Context, *azcertificates.ListCertificatePropertiesResponse) (azcertificates.ListCertificatePropertiesResponse, error) {
 			i++
+			f.activePagesRead++
 			if i == f.listError {
 				return azcertificates.ListCertificatePropertiesResponse{}, errors.New("certificate page failed")
 			}
@@ -350,7 +352,7 @@ func TestDryRunInventoryAndLimit(t *testing.T) {
 	var logs bytes.Buffer
 	ctx := logr.NewContext(t.Context(), logr.FromSlogHandler(slog.NewJSONHandler(&logs, nil)))
 	opts := options(true)
-	opts.MaxDeletions = 1
+	opts.MaxDeletions = 2
 	opts.MaxPurges = 1
 	if err := s.run(ctx, opts); err != nil {
 		t.Fatal(err)
@@ -372,6 +374,49 @@ func TestDryRunInventoryAndLimit(t *testing.T) {
 	if strings.Count(logs.String(), "Selected deleted CI certificate") != 1 {
 		t.Fatalf("expected exactly one purge candidate log: %s", logs.String())
 	}
+}
+
+func TestInventoryLimitsCountInspectedCertificates(t *testing.T) {
+	t.Run("active", func(t *testing.T) {
+		s, f, _, _ := newTestSweeper("frontend-cert-dev-j1234567")
+		f.pages = append(f.pages, []*azcertificates.CertificateProperties{oldCertificate("maestro-server-j2345678")})
+		f.listError = 2
+		opts := options(true)
+		opts.PurgeDeleted = false
+		opts.MaxDeletions = 1
+		if err := s.run(t.Context(), opts); err != nil {
+			t.Fatal(err)
+		}
+		if f.activePagesRead != 1 {
+			t.Fatalf("must stop active inventory after inspecting limit; read %d pages", f.activePagesRead)
+		}
+		if len(f.gets) != 0 || len(f.deletes) != 0 {
+			t.Fatalf("ineligible inspected certificate must not be selected: gets=%v deletes=%v", f.gets, f.deletes)
+		}
+	})
+
+	t.Run("deleted", func(t *testing.T) {
+		s, f, _, _ := newTestSweeper()
+		ineligible := deletedCertificate("frontend-cert-dev-j1234567")
+		ineligible.RecoveryID = to.Ptr(VaultURL + "/deletedcertificates/frontend-cert-dev-j1234567")
+		f.deletedPages = [][]*azcertificates.DeletedCertificateProperties{
+			{ineligible},
+			{deletedCertificate("maestro-server-j2345678")},
+		}
+		f.deletedListError = 2
+		opts := options(true)
+		opts.DeleteActive = false
+		opts.MaxPurges = 1
+		if err := s.run(t.Context(), opts); err != nil {
+			t.Fatal(err)
+		}
+		if f.deletedPagesRead != 1 {
+			t.Fatalf("must stop deleted inventory after inspecting limit; read %d pages", f.deletedPagesRead)
+		}
+		if len(f.deletedGets) != 0 || len(f.purges) != 0 {
+			t.Fatalf("ineligible inspected tombstone must not be selected: gets=%v purges=%v", f.deletedGets, f.purges)
+		}
+	})
 }
 
 func TestInventoryFailsClosed(t *testing.T) {

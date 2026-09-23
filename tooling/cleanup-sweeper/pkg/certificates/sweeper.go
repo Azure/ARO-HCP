@@ -277,7 +277,7 @@ func (s *sweeper) run(ctx context.Context, opts Options) error {
 		pager := s.certificates.NewListCertificatePropertiesPager(nil)
 	activeInventory:
 		for pager.More() {
-			if len(candidates) >= opts.MaxDeletions {
+			if counts.Scanned >= opts.MaxDeletions {
 				counts.Skipped["limit"]++
 				break
 			}
@@ -286,7 +286,7 @@ func (s *sweeper) run(ctx context.Context, opts Options) error {
 				return fmt.Errorf("list certificate metadata (no changes attempted): %w", err)
 			}
 			for _, cert := range page.Value {
-				if len(candidates) >= opts.MaxDeletions {
+				if counts.Scanned >= opts.MaxDeletions {
 					counts.Skipped["limit"]++
 					break activeInventory
 				}
@@ -315,7 +315,7 @@ func (s *sweeper) run(ctx context.Context, opts Options) error {
 		deletedPager := s.certificates.NewListDeletedCertificatePropertiesPager(nil)
 	deletedInventory:
 		for deletedPager.More() {
-			if len(purgeCandidates) >= opts.MaxPurges {
+			if counts.DeletedScanned >= opts.MaxPurges {
 				counts.Skipped["purge-limit"]++
 				break
 			}
@@ -324,7 +324,7 @@ func (s *sweeper) run(ctx context.Context, opts Options) error {
 				return fmt.Errorf("list deleted certificate metadata (no changes attempted): %w", err)
 			}
 			for _, cert := range page.Value {
-				if len(purgeCandidates) >= opts.MaxPurges {
+				if counts.DeletedScanned >= opts.MaxPurges {
 					counts.Skipped["purge-limit"]++
 					break deletedInventory
 				}
