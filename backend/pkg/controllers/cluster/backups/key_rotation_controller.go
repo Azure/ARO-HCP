@@ -243,7 +243,8 @@ func (c *keyRotationBackupSyncer) SyncOnce(ctx context.Context, key controllerut
 // syncDeletion purges on-demand key-rotation desires for a deleted cluster directly
 // from Cosmos. Unlike Schedule desires, these target Backup CRs and have no in-flight
 // check, so setting Type=Delete could race a running Velero backup. Direct purging
-// leaves the Backup CR and its data intact until its TTL expires.
+// leaves the Backup CR and its data intact for Velero cleanup; mgmt-agent may
+// request deletion before TTL expiry after the HostedCluster disappears.
 func (c *keyRotationBackupSyncer) syncDeletion(
 	ctx context.Context,
 	key controllerutils.HCPClusterKey,

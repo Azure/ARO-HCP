@@ -15,10 +15,17 @@ digraph cluster_delete {
   final [label="ClusterDeletionController", fillcolor="#e6f0fa", color="#35648a"];
   op [label="OperationClusterDelete", fillcolor="#e6f0fa", color="#35648a"];
   done [label="ARM Delete Operation Succeeded", fillcolor="#e4f2e5", color="#4c8053"];
+  backups [label="BackupCleanup (mgmt-agent)\nALL: recognized ARO Backup, terminal phase,\nno active uploads/restores/downloads, no opt-outs\nIncludes pending schedule-selected restores\nand downloads after terminal restores\nOpt-outs: wait for events, no polling\nNo Cosmos writes", fillcolor="#e6f0fa", color="#35648a"];
+  velero [label="Velero (external)\nprocess DeleteBackupRequest\ndelete Backup and associated backup data", fillcolor="#fff0da", color="#b27624"];
+  retained [label="Backup absent: stop reconciling\nBackupRepositories retained for Kopia maintenance\nNot proof of repository GC; not an ARM gate", fillcolor="#e4f2e5", color="#4c8053"];
   delete -> resources [label="deletion intent"];
   resources -> dispatch [label="all tagged ApplyDesires gone\nKubernetes objects remain"];
   dispatch -> cs [label="DELETE; stamp dispatch\ntimestamp"];
   cs -> clear [label="GET reports not found"];
+  cs -> backups [label="live HC list confirms absence\n(any HC, even terminating, blocks)"];
+  backups -> velero [label="create DeleteBackupRequest\nwithout waiting for TTL"];
+  velero -> backups [label="poll pending work; Processed + Backup\nexists: delete request, recheck, retry", style=dashed, color="#857456"];
+  velero -> retained [label="live Backup GET: NotFound"];
   delete -> marker [label="mark credential children"];
   marker -> credentials [label="Status.DeletionTimestamp"];
   delete -> children [label="child delete operations"];
