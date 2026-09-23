@@ -354,13 +354,9 @@ func extractMetadataFromMultiArchManifest(desc *remote.Descriptor, tagName strin
 
 	timestamp := currentTimestamp
 	if !hasTimestamp {
-		timestamp = configFile.Created.Time
-		if timestamp.IsZero() || timestamp.Equal(unixEpoch) {
-			if parsedDate, ok := ParseDateFromTag(tagName); ok {
-				timestamp = parsedDate
-			} else {
-				return time.Time{}, "", fmt.Errorf("multi-arch tag %s has no creation timestamp", tagName)
-			}
+		timestamp, err = resolveCreationTimestamp(tagName, configFile.Created.Time)
+		if err != nil {
+			return time.Time{}, "", fmt.Errorf("multi-arch %w", err)
 		}
 	}
 	return timestamp, extractVersionFromConfigLabels(configFile.Config.Labels, versionLabel), nil
@@ -515,7 +511,7 @@ func (c *GenericRegistryClient) GetArchSpecificDigest(ctx context.Context, repos
 				if err == nil {
 					configFile, err = img.ConfigFile()
 					if err == nil {
-						tag.LastModified, err = validateCreationTimestamp(tag.Name, configFile.Created.Time)
+						tag.LastModified, err = resolveCreationTimestamp(tag.Name, configFile.Created.Time)
 						tag.Version = extractVersionFromConfigLabels(configFile.Config.Labels, versionLabel)
 					}
 				}
@@ -603,7 +599,7 @@ func (c *GenericRegistryClient) GetArchSpecificDigest(ctx context.Context, repos
 				return nil, fmt.Errorf("failed to read image config for candidate tag %s: %w", tag.Name, err)
 			}
 		}
-		tag.LastModified, err = validateCreationTimestamp(tag.Name, configFile.Created.Time)
+		tag.LastModified, err = resolveCreationTimestamp(tag.Name, configFile.Created.Time)
 		if err != nil {
 			return nil, err
 		}
@@ -671,7 +667,7 @@ func (c *GenericRegistryClient) GetDigestForTag(ctx context.Context, repository 
 	if err != nil {
 		return nil, fmt.Errorf("failed to get config for tag %s: %w", tagName, err)
 	}
-	tag.LastModified, err = validateCreationTimestamp(tagName, configFile.Created.Time)
+	tag.LastModified, err = resolveCreationTimestamp(tagName, configFile.Created.Time)
 	if err != nil {
 		return nil, err
 	}
