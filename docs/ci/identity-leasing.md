@@ -106,7 +106,20 @@ That runtime contract includes:
 - `ARO_HCP_E2E_SLOT_NAME`
 - `ARO_HCP_E2E_SLOT_RESOURCE_TYPE`
 
-Downstream steps then source that file and map `SELECTED_LOCATION` to the runtime `LOCATION` they consume. The test framework still sees `LEASED_MSI_CONTAINERS`; the difference is that slot-manager now decides which subscription, slot, and identity-container set back that variable.
+Downstream steps then source that file and map `SELECTED_LOCATION` to the runtime
+`LOCATION` they consume. For slot-backed `ci00` and `ci01` runs,
+`hack/ci/build-config-override.sh` also derives the regional DNS subdomain,
+service certificate names and SANs, and Maestro client identities from
+`ARO_HCP_E2E_SLOT_NAME`. The derived identity retains the longest valid suffix,
+up to 27 characters, so Maestro certificate common names remain within the
+RFC 5280 limit while preserving the distinguishing slot number at the end.
+Reusing those identities is safe because the slot is exclusive, and avoids
+accumulating certificate names derived from reusable Prow build IDs. The
+presence of `ARO_HCP_E2E_SLOT_NAME`, rather than the deploy environment alone,
+distinguishes these runs because lease-less healthchecks also use `ci00` or
+`ci01` and preserve their configured identities. The test framework still sees
+`LEASED_MSI_CONTAINERS`; the difference is that slot-manager now
+decides which subscription, slot, and identity-container set back that variable.
 
 #### Remaining legacy ci-operator leases
 
@@ -470,11 +483,11 @@ The runtime catalog is
 lease entry fails provisioning. The first whitespace-separated lease configures
 Backend through `armHelperClientId` and `armHelperCertName`; the second configures
 Clusters Service through `clustersServiceArmHelperClientId` and
-`clustersServiceArmHelperCertName`. A single lease remains supported during the
-transition to the shared `hack/ci` provisioning scripts and configures both
-Backend and Clusters Service with that identity. A missing lease preserves all
-configured defaults. Neither lease overrides `armHelperFPAPrincipalId`, which is
-the shared mock first-party principal rather than an authenticating ARM helper.
+`clustersServiceArmHelperCertName`. When `LEASED_ARM_HELPER_SP` is set it must
+contain exactly two distinct lease names. A missing lease preserves all
+configured defaults. Neither lease overrides `armHelperFPAPrincipalId`, which
+is the shared mock first-party principal rather than an authenticating ARM
+helper.
 
 ## Where To Look
 

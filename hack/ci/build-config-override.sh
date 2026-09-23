@@ -9,8 +9,9 @@
 # Optional env vars consumed:
 #   *_IMAGE (BACKEND_IMAGE, FRONTEND_IMAGE, etc.) — digest-based image refs
 #   LEASED_MSI_MOCK_SP      — MSI mock SP lease name
-#   LEASED_ARM_HELPER_SP    — one or two whitespace-separated ARM helper SP lease names
+#   LEASED_ARM_HELPER_SP    — two distinct whitespace-separated ARM helper SP lease names
 #   LEASED_MSI_CONTAINERS   — MSI identity container lease (controls MGMT sizing)
+#   ARO_HCP_E2E_SLOT_NAME   — stable identity for slot-backed ci00 and ci01 runs
 #
 # Outputs:
 #   OVERRIDE_CONFIG_FILE — path to the generated config-override.yaml
@@ -96,6 +97,50 @@ if [[ ${#CI_IMAGE_NAMES[@]} -gt 0 ]]; then
     unset _YQ_REG _YQ_REPO _YQ_DIG
 fi
 
+# Reuse one stable certificate set per exclusive DEV E2E slot instead of
+# accumulating certificates named after Prow build IDs. Lease-less healthchecks
+# also use ci00/ci01, but do not export a slot name and preserve configured
+# identities.
+if [[ -n "${ARO_HCP_E2E_SLOT_NAME:-}" ]]; then
+  if [[ "${DEPLOY_ENV}" != "ci00" && "${DEPLOY_ENV}" != "ci01" ]]; then
+    echo "ERROR: ARO_HCP_E2E_SLOT_NAME is only supported for ci00 or ci01, got DEPLOY_ENV='${DEPLOY_ENV}'"
+    exit 1
+  fi
+  if [[ ! "${ARO_HCP_E2E_SLOT_NAME}" =~ ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$ ]]; then
+    echo "ERROR: ARO_HCP_E2E_SLOT_NAME must be a lowercase DNS label, got '${ARO_HCP_E2E_SLOT_NAME}'"
+    exit 1
+  fi
+  if (( ${#ARO_HCP_E2E_SLOT_NAME} > 41 )); then
+    echo "ERROR: ARO_HCP_E2E_SLOT_NAME is too long for the certificate DNS labels"
+    exit 1
+  fi
+  export CERTIFICATE_SLOT_NAME="${ARO_HCP_E2E_SLOT_NAME}"
+  # The three-digit Maestro stamp leaves 27 characters for the regional
+  # subdomain. Preserve the right side so the distinguishing slot number stays.
+  if (( ${#CERTIFICATE_SLOT_NAME} > 27 )); then
+    CERTIFICATE_SLOT_NAME="${CERTIFICATE_SLOT_NAME: -27}"
+    while [[ "${CERTIFICATE_SLOT_NAME}" == -* ]]; do
+      CERTIFICATE_SLOT_NAME="${CERTIFICATE_SLOT_NAME#-}"
+    done
+  fi
+  yq -i "
+    .clouds.dev.environments.${DEPLOY_ENV}.defaults.dns.regionalSubdomain = strenv(CERTIFICATE_SLOT_NAME) |
+    .clouds.dev.environments.${DEPLOY_ENV}.defaults.frontend.cert.name = \"frontend-cert-${DEPLOY_ENV}-\" + strenv(CERTIFICATE_SLOT_NAME) |
+    .clouds.dev.environments.${DEPLOY_ENV}.defaults.frontend.cert.san = \"rp.\" + strenv(CERTIFICATE_SLOT_NAME) + \".hcpsvc.osadev.cloud\" |
+    .clouds.dev.environments.${DEPLOY_ENV}.defaults.adminApi.cert.name = \"admin-api-cert-${DEPLOY_ENV}-\" + strenv(CERTIFICATE_SLOT_NAME) |
+    .clouds.dev.environments.${DEPLOY_ENV}.defaults.adminApi.cert.san = \"admin.\" + strenv(CERTIFICATE_SLOT_NAME) + \".hcpsvc.osadev.cloud\" |
+    .clouds.dev.environments.${DEPLOY_ENV}.defaults.sessiongate.cert.name = \"sessiongate-cert-${DEPLOY_ENV}-\" + strenv(CERTIFICATE_SLOT_NAME) |
+    .clouds.dev.environments.${DEPLOY_ENV}.defaults.sessiongate.cert.san = \"sessiongate.\" + strenv(CERTIFICATE_SLOT_NAME) + \".hcpsvc.osadev.cloud\" |
+    .clouds.dev.environments.${DEPLOY_ENV}.defaults.maestro.server.mqttClientName = \"maestro-server-\" + strenv(CERTIFICATE_SLOT_NAME) |
+    .clouds.dev.environments.${DEPLOY_ENV}.defaults.maestro.server.certSAN = \"maestro-server-\" + strenv(CERTIFICATE_SLOT_NAME) + \".maestro.\" + strenv(CERTIFICATE_SLOT_NAME) + \".hcpsvc.osadev.cloud\" |
+    .clouds.dev.environments.${DEPLOY_ENV}.defaults.maestro.server.certCN = \"server.maestro.\" + strenv(CERTIFICATE_SLOT_NAME) + \".hcpsvc.osadev.cloud\" |
+    .clouds.dev.environments.${DEPLOY_ENV}.defaults.maestro.agent.consumerName = \"hcp-underlay-\" + strenv(CERTIFICATE_SLOT_NAME) + \"-mgmt-{{ .ctx.stamp }}\" |
+    .clouds.dev.environments.${DEPLOY_ENV}.defaults.maestro.agent.certSAN = \"hcp-underlay-\" + strenv(CERTIFICATE_SLOT_NAME) + \"-mgmt-{{ .ctx.stamp }}.maestro.\" + strenv(CERTIFICATE_SLOT_NAME) + \".hcpsvc.osadev.cloud\" |
+    .clouds.dev.environments.${DEPLOY_ENV}.defaults.maestro.agent.certCN = \"mgmt-{{ .ctx.stamp }}.maestro.\" + strenv(CERTIFICATE_SLOT_NAME) + \".hcpsvc.osadev.cloud\"
+  " "${OVERRIDE_CONFIG_FILE}"
+  unset CERTIFICATE_SLOT_NAME
+fi
+
 # MSI mock SP overrides (if provided)
 if [[ -n "${LEASED_MSI_MOCK_SP:-}" ]]; then
   MSI_MOCK_CLIENT_ID=$(yq ".miMockPool.\"${LEASED_MSI_MOCK_SP}\".clientId" dev-infrastructure/openshift-ci/msi-mock-pool.yaml)
@@ -126,8 +171,12 @@ fi
 # the simulated FPA grant, not the ARM helper that authenticates this client.
 if [[ -n "${LEASED_ARM_HELPER_SP:-}" ]]; then
   read -r -a ARM_HELPER_LEASES <<< "${LEASED_ARM_HELPER_SP}"
-  if [[ ${#ARM_HELPER_LEASES[@]} -gt 2 ]]; then
-    echo "ERROR: LEASED_ARM_HELPER_SP must contain at most two lease names, got ${#ARM_HELPER_LEASES[@]}"
+  if [[ ${#ARM_HELPER_LEASES[@]} -ne 2 ]]; then
+    echo "ERROR: LEASED_ARM_HELPER_SP must contain exactly two whitespace-separated resource names"
+    exit 1
+  fi
+  if [[ "${ARM_HELPER_LEASES[0]}" == "${ARM_HELPER_LEASES[1]}" ]]; then
+    echo "ERROR: LEASED_ARM_HELPER_SP must contain two distinct resource names"
     exit 1
   fi
 
@@ -151,25 +200,18 @@ if [[ -n "${LEASED_ARM_HELPER_SP:-}" ]]; then
   " "${OVERRIDE_CONFIG_FILE}"
   unset _YQ_ARM_HELPER_CID _YQ_ARM_HELPER_CERT
 
-  CLUSTERS_SERVICE_ARM_HELPER_CLIENT_ID="${BACKEND_ARM_HELPER_CLIENT_ID}"
-  CLUSTERS_SERVICE_ARM_HELPER_CERT_NAME="${BACKEND_ARM_HELPER_CERT_NAME}"
-  if [[ ${#ARM_HELPER_LEASES[@]} -eq 2 ]]; then
-    CLUSTERS_SERVICE_ARM_HELPER_LEASE="${ARM_HELPER_LEASES[1]}"
-    CLUSTERS_SERVICE_ARM_HELPER_CLIENT_ID=$(yq ".armHelperPool.\"${CLUSTERS_SERVICE_ARM_HELPER_LEASE}\".clientId" "${ARM_HELPER_POOL_CATALOG}")
-    CLUSTERS_SERVICE_ARM_HELPER_PRINCIPAL_ID=$(yq ".armHelperPool.\"${CLUSTERS_SERVICE_ARM_HELPER_LEASE}\".principalId" "${ARM_HELPER_POOL_CATALOG}")
-    CLUSTERS_SERVICE_ARM_HELPER_CERT_NAME=$(yq ".armHelperPool.\"${CLUSTERS_SERVICE_ARM_HELPER_LEASE}\".certName" "${ARM_HELPER_POOL_CATALOG}")
-    if [[ -z "${CLUSTERS_SERVICE_ARM_HELPER_CLIENT_ID}" || "${CLUSTERS_SERVICE_ARM_HELPER_CLIENT_ID}" == "null" || \
-          -z "${CLUSTERS_SERVICE_ARM_HELPER_PRINCIPAL_ID}" || "${CLUSTERS_SERVICE_ARM_HELPER_PRINCIPAL_ID}" == "null" || \
-          -z "${CLUSTERS_SERVICE_ARM_HELPER_CERT_NAME}" || "${CLUSTERS_SERVICE_ARM_HELPER_CERT_NAME}" == "null" ]]; then
-      echo "ERROR: Clusters Service ARM helper lease '${CLUSTERS_SERVICE_ARM_HELPER_LEASE}' not found or incomplete in ${ARM_HELPER_POOL_CATALOG}"
-      exit 1
-    fi
-
-    echo "Clusters Service ARM helper SP override: ${CLUSTERS_SERVICE_ARM_HELPER_LEASE} -> clientId=${CLUSTERS_SERVICE_ARM_HELPER_CLIENT_ID}"
-  else
-    echo "No dedicated Clusters Service ARM helper SP lease provided, reusing the Backend ARM helper lease"
+  CLUSTERS_SERVICE_ARM_HELPER_LEASE="${ARM_HELPER_LEASES[1]}"
+  CLUSTERS_SERVICE_ARM_HELPER_CLIENT_ID=$(yq ".armHelperPool.\"${CLUSTERS_SERVICE_ARM_HELPER_LEASE}\".clientId" "${ARM_HELPER_POOL_CATALOG}")
+  CLUSTERS_SERVICE_ARM_HELPER_PRINCIPAL_ID=$(yq ".armHelperPool.\"${CLUSTERS_SERVICE_ARM_HELPER_LEASE}\".principalId" "${ARM_HELPER_POOL_CATALOG}")
+  CLUSTERS_SERVICE_ARM_HELPER_CERT_NAME=$(yq ".armHelperPool.\"${CLUSTERS_SERVICE_ARM_HELPER_LEASE}\".certName" "${ARM_HELPER_POOL_CATALOG}")
+  if [[ -z "${CLUSTERS_SERVICE_ARM_HELPER_CLIENT_ID}" || "${CLUSTERS_SERVICE_ARM_HELPER_CLIENT_ID}" == "null" || \
+        -z "${CLUSTERS_SERVICE_ARM_HELPER_PRINCIPAL_ID}" || "${CLUSTERS_SERVICE_ARM_HELPER_PRINCIPAL_ID}" == "null" || \
+        -z "${CLUSTERS_SERVICE_ARM_HELPER_CERT_NAME}" || "${CLUSTERS_SERVICE_ARM_HELPER_CERT_NAME}" == "null" ]]; then
+    echo "ERROR: Clusters Service ARM helper lease '${CLUSTERS_SERVICE_ARM_HELPER_LEASE}' not found or incomplete in ${ARM_HELPER_POOL_CATALOG}"
+    exit 1
   fi
 
+  echo "Clusters Service ARM helper SP override: ${CLUSTERS_SERVICE_ARM_HELPER_LEASE} -> clientId=${CLUSTERS_SERVICE_ARM_HELPER_CLIENT_ID}"
   export _YQ_CS_ARM_HELPER_CID="${CLUSTERS_SERVICE_ARM_HELPER_CLIENT_ID}"
   export _YQ_CS_ARM_HELPER_CERT="${CLUSTERS_SERVICE_ARM_HELPER_CERT_NAME}"
   yq -i "
