@@ -21,11 +21,13 @@ import (
 
 	"github.com/google/uuid"
 
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/util/json"
 
 	"github.com/openshift/hypershift/api/hypershift/v1beta1"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -42,15 +44,59 @@ import (
 // reduces to a stable Cosmos key regardless of case.
 var ReadDesireNameReadonlyHostedCluster = strings.ToLower(string(coreapi.MaestroBundleInternalNameReadonlyHypershiftHostedCluster))
 
-// GetCachedHostedClusterForCluster reads the HostedCluster mirror from the
-// per-cluster ReadDesire. The ReadDesire's Status.KubeContent.Raw carries
-// the observed HostedCluster JSON; we decode it directly and return the
-// typed object.
+// HostedClusterObservation distinguishes an unavailable ReadDesire from a
+// successful observation that found no HostedCluster.
+type HostedClusterObservation struct {
+	HostedCluster *v1beta1.HostedCluster
+	Observed      bool
+}
+
+// GetHostedClusterObservationForCluster reads the HostedCluster mirror from
+// the per-cluster ReadDesire. Observed is false when the ReadDesire is absent,
+// has not completed successfully, or contains no current observation. An
+// observed ReadDesire with empty KubeContent has Observed=true and a nil
+// HostedCluster: the management cluster was successfully checked and the
+// HostedCluster is absent.
+func GetHostedClusterObservationForCluster(
+	ctx context.Context,
+	readDesireLister kubeapplierlisters.ReadDesireLister,
+	subscriptionName, resourceGroupName, clusterName string,
+) (HostedClusterObservation, error) {
+	readDesire, err := readDesireLister.GetForCluster(ctx, subscriptionName, resourceGroupName, clusterName, ReadDesireNameReadonlyHostedCluster)
+	if cosmosstorageutils.IsNotFoundError(err) {
+		return HostedClusterObservation{}, nil
+	}
+	if err != nil {
+		return HostedClusterObservation{}, utils.TrackError(fmt.Errorf("failed to get ReadDesire for HostedCluster: %w", err))
+	}
+	if !meta.IsStatusConditionTrue(readDesire.Status.Conditions, kubeapplierapi.ConditionTypeSuccessful) {
+		return HostedClusterObservation{}, nil
+	}
+	if readDesire.Status.KubeContent == nil || len(readDesire.Status.KubeContent.Raw) == 0 {
+		return HostedClusterObservation{Observed: true}, nil
+	}
+	hostedCluster := &v1beta1.HostedCluster{}
+	if err := json.Unmarshal(readDesire.Status.KubeContent.Raw, hostedCluster); err != nil {
+		return HostedClusterObservation{}, utils.TrackError(fmt.Errorf("failed to unmarshal HostedCluster from ReadDesire kubeContent: %w", err))
+	}
+	return HostedClusterObservation{HostedCluster: hostedCluster, Observed: true}, nil
+}
+
+// GetCachedHostedClusterForCluster preserves the existing helper contract for
+// callers that only need whatever HostedCluster the kube-applier last recorded.
 //
-// Returns (nil, nil) when:
-//   - the ReadDesire has not been created yet (NotFound),
-//   - the ReadDesire exists but the kube-applier has not yet observed
-//     the target (Status.KubeContent is nil or empty).
+// Returns (nil, nil) when the ReadDesire has not been created yet (NotFound) or
+// carries no kubeContent. It deliberately does not inspect the "Successful"
+// condition, so a ReadDesire whose latest read failed still yields the content
+// from the last read that worked. Callers that must tell "we have not looked"
+// apart from "we looked and found nothing" want
+// GetHostedClusterObservationForCluster instead.
+//
+// Do not reimplement this as a wrapper that discards
+// GetHostedClusterObservationForCluster's HostedCluster: that helper reports
+// nothing at all while the latest read is unsuccessful, which would turn a
+// transient read failure into "the HostedCluster is gone" for callers such as
+// hostedClusterDeletionStatus, which reads nil as "deletion complete".
 //
 // Returns a non-nil error only for hard failures: a non-NotFound lister
 // error, or unmarshal failure.
