@@ -71,6 +71,35 @@ tests:
         runbook_url: TBD
 - interval: 1h
   input_series:
+  - series: 'kube_deployment_spec_replicas{namespace="aro-hcp-exporter", deployment="aro-hcp-exporter", cluster="cspr-westus3-svc-1", environment="cspr", region="westus3", job="kube-state-metrics"}'
+    values: "1+0x3"
+  alert_rule_test:
+  - eval_time: 0h
+    alertname: CertificateExporterUnavailable
+  - eval_time: 1h
+    alertname: CertificateExporterUnavailable
+    exp_alerts:
+    - exp_labels:
+        cluster: cspr-westus3-svc-1
+        component: certificate-rotation
+        environment: cspr
+        region: westus3
+        severity: "3"
+      exp_annotations:
+        summary: "cspr-westus3-svc-1: Certificate exporter target is unavailable"
+        description: "The ARO HCP exporter on cluster 'cspr-westus3-svc-1' has had no healthy Prometheus scrape target for at least one hour, so certificate collection health cannot be evaluated."
+        runbook_url: TBD
+- interval: 1h
+  input_series:
+  - series: 'kube_deployment_spec_replicas{namespace="aro-hcp-exporter", deployment="aro-hcp-exporter", cluster="healthy-svc-1", environment="cspr", region="westus3", job="kube-state-metrics"}'
+    values: "1+0x3"
+  - series: 'up{namespace="aro-hcp-exporter", cluster="healthy-svc-1", environment="cspr", region="westus3", instance="10.0.0.1:8080"}'
+    values: "1+0x3"
+  alert_rule_test:
+  - eval_time: 2h
+    alertname: CertificateExporterUnavailable
+- interval: 1h
+  input_series:
   - series: 'keyvault_certificate_not_before_timestamp_seconds{certificate_name="admin-api", key_vault="service-kv", region="westus3", cluster="cspr-westus3-svc-1", environment="cspr"}'
     values: "7200+0x3"
   - series: 'keyvault_certificate_not_after_timestamp_seconds{certificate_name="admin-api", key_vault="service-kv", region="westus3", cluster="cspr-westus3-svc-1", environment="cspr"}'
