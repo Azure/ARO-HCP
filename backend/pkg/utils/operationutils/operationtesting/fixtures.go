@@ -210,8 +210,8 @@ func (f *NodePoolTestFixture) NewCluster() *coreapi.Cluster {
 	}
 }
 
-func (f *NodePoolTestFixture) NewNodePool() *coreapi.ClusterNodePool {
-	return &coreapi.ClusterNodePool{
+func (f *NodePoolTestFixture) NewNodePool() *coreapi.NodePool {
+	return &coreapi.NodePool{
 		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: f.NodePoolResourceID, PartitionKey: strings.ToLower(f.NodePoolResourceID.SubscriptionID)},
 		TrackedResource: coreapi.TrackedResource{
 			Resource: coreapi.Resource{
@@ -220,10 +220,10 @@ func (f *NodePoolTestFixture) NewNodePool() *coreapi.ClusterNodePool {
 				Type: f.NodePoolResourceID.ResourceType.String(),
 			},
 		},
-		Properties: coreapi.ClusterNodePoolProperties{
+		Properties: coreapi.NodePoolProperties{
 			ProvisioningState: coreapi.ProvisioningStateAccepted,
 		},
-		ServiceProviderProperties: coreapi.ClusterNodePoolServiceProviderProperties{
+		ServiceProviderProperties: coreapi.NodePoolServiceProviderProperties{
 			ClusterServiceID:  &f.NodePoolInternalID,
 			ActiveOperationID: TestOperationName,
 		},

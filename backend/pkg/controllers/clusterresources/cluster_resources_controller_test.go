@@ -760,14 +760,14 @@ func TestProcessClusterResourcesNodePoolPath(t *testing.T) {
 		`"metadata":{"name":"` + testClusterName + `-` + testNodePoolName + `","namespace":"ocm-env-abc"},` +
 		`"spec":{"clusterName":"` + testClusterName + `"}}`
 
-	newNodePool := func(deleting bool) *coreapi.ClusterNodePool {
+	newNodePool := func(deleting bool) *coreapi.NodePool {
 		resourceID := metadataapi.Must(azcorearm.ParseResourceID(
 			"/subscriptions/" + testSubscriptionID +
 				"/resourceGroups/" + testResourceGroupName +
 				"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
 				"/nodePools/" + testNodePoolName,
 		))
-		np := &coreapi.ClusterNodePool{
+		np := &coreapi.NodePool{
 			CosmosMetadata: coreapi.CosmosMetadata{
 				ResourceID:   resourceID,
 				PartitionKey: strings.ToLower(resourceID.SubscriptionID),
@@ -791,7 +791,7 @@ func TestProcessClusterResourcesNodePoolPath(t *testing.T) {
 
 	tests := []struct {
 		name           string
-		nodePool       *coreapi.ClusterNodePool
+		nodePool       *coreapi.NodePool
 		wantDesireType kubeapplierapi.ApplyDesireType
 		reason         string
 	}{
@@ -832,7 +832,7 @@ func TestProcessClusterResourcesNodePoolPath(t *testing.T) {
 				},
 			}
 			syncer := &clusterResourcesController{
-				nodePoolLister:       &corelistertesting.SliceNodePoolLister{NodePools: []*coreapi.ClusterNodePool{tt.nodePool}},
+				nodePoolLister:       &corelistertesting.SliceNodePoolLister{NodePools: []*coreapi.NodePool{tt.nodePool}},
 				kubeApplierDBClients: mockClients,
 				applyDesireLister:    &kubeapplierlistertesting.DBApplyDesireLister{Clients: mockClients, Lister: mcLister},
 			}
@@ -841,7 +841,7 @@ func TestProcessClusterResourcesNodePoolPath(t *testing.T) {
 			// case exercises reaping an existing desire rather than never creating one.
 			seedSyncer := *syncer
 			seedSyncer.nodePoolLister = &corelistertesting.SliceNodePoolLister{
-				NodePools: []*coreapi.ClusterNodePool{newNodePool(false)},
+				NodePools: []*coreapi.NodePool{newNodePool(false)},
 			}
 			require.NoError(t, seedSyncer.processClusterResources(ctx, testKey(), testManagementClusterResourceID,
 				buildClusterResources(map[string]string{"node-pool": nodePoolCR})),

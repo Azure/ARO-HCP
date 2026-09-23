@@ -315,9 +315,9 @@ func ocmClusterDefaults(azureLocation string) *arohcpv1alpha1.ClusterBuilder {
 		FIPS(false)
 }
 
-func getHCPNodePoolResource(opts ...func(*coreapi.ClusterNodePool)) *coreapi.ClusterNodePool {
-	nodePool := &coreapi.ClusterNodePool{
-		Properties: coreapi.ClusterNodePoolProperties{
+func getHCPNodePoolResource(opts ...func(*coreapi.NodePool)) *coreapi.NodePool {
+	nodePool := &coreapi.NodePool{
+		Properties: coreapi.NodePoolProperties{
 			Platform: coreapi.NodePoolPlatformProfile{
 				OSDisk: coreapi.OSDiskProfile{
 					// SizeGiB is initialized to 64 to reflect the default value set by SetDefaultValuesNodePool
@@ -367,7 +367,7 @@ func TestBuildCSNodePool(t *testing.T) {
 	resourceID := testResourceID(t)
 	testCases := []struct {
 		name               string
-		hcpNodePool        *coreapi.ClusterNodePool
+		hcpNodePool        *coreapi.NodePool
 		expectedCSNodePool *arohcpv1alpha1.NodePoolBuilder
 	}{
 		{
@@ -378,7 +378,7 @@ func TestBuildCSNodePool(t *testing.T) {
 		{
 			name: "handle multiple taints",
 			hcpNodePool: getHCPNodePoolResource(
-				func(hsc *coreapi.ClusterNodePool) {
+				func(hsc *coreapi.NodePool) {
 					hsc.Properties.Taints = []coreapi.Taint{
 						{Effect: "a"},
 						{Effect: "b"},
@@ -399,7 +399,7 @@ func TestBuildCSNodePool(t *testing.T) {
 		{
 			name: "converts stable version from RP to CS (adds patch and prefix)",
 			hcpNodePool: getHCPNodePoolResource(
-				func(hsc *coreapi.ClusterNodePool) {
+				func(hsc *coreapi.NodePool) {
 					hsc.Properties.Version = coreapi.NodePoolVersionProfile{
 						ID:           "4.20",
 						ChannelGroup: "stable",
@@ -414,7 +414,7 @@ func TestBuildCSNodePool(t *testing.T) {
 		{
 			name: "converts candidate version from RP to CS (adds channel suffix)",
 			hcpNodePool: getHCPNodePoolResource(
-				func(hsc *coreapi.ClusterNodePool) {
+				func(hsc *coreapi.NodePool) {
 					hsc.Properties.Version = coreapi.NodePoolVersionProfile{
 						ID:           "4.21.19",
 						ChannelGroup: "candidate",
@@ -429,7 +429,7 @@ func TestBuildCSNodePool(t *testing.T) {
 		{
 			name: "converts nightly version from RP to CS with semver",
 			hcpNodePool: getHCPNodePoolResource(
-				func(hsc *coreapi.ClusterNodePool) {
+				func(hsc *coreapi.NodePool) {
 					hsc.Properties.Version = coreapi.NodePoolVersionProfile{
 						ID:           "4.21.0-0.nightly-2025-01-01",
 						ChannelGroup: "nightly",
@@ -444,7 +444,7 @@ func TestBuildCSNodePool(t *testing.T) {
 		{
 			name: "converts ephemeral disk type from RP to CS",
 			hcpNodePool: getHCPNodePoolResource(
-				func(hsc *coreapi.ClusterNodePool) {
+				func(hsc *coreapi.NodePool) {
 					hsc.Properties.Platform.OSDisk.DiskType = metadataapi.OsDiskTypeEphemeral
 				},
 			),

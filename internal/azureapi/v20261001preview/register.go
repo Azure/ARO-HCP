@@ -36,7 +36,7 @@ func (v version) String() string {
 
 func (v version) ValidationPathRewriter(internalObj any) (coreapi.ValidationPathMapperFunc, error) {
 	switch internalObj.(type) {
-	case *coreapi.ClusterNodePool:
+	case *coreapi.NodePool:
 		return nil, nil
 	case *coreapi.ClusterExternalAuth:
 		return nil, nil

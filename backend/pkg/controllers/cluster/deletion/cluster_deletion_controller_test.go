@@ -291,14 +291,14 @@ func TestClusterDeletionController_NeedsWork(t *testing.T) {
 	}
 }
 
-func newTestNodePool(t *testing.T) *coreapi.ClusterNodePool {
+func newTestNodePool(t *testing.T) *coreapi.NodePool {
 	t.Helper()
 	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + testSubscriptionID +
 			"/resourceGroups/" + testResourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
 			"/nodePools/test-nodepool"))
-	return &coreapi.ClusterNodePool{
+	return &coreapi.NodePool{
 		TrackedResource: coreapi.TrackedResource{
 			Resource: coreapi.Resource{
 				ID:   resourceID,
@@ -311,7 +311,7 @@ func newTestNodePool(t *testing.T) *coreapi.ClusterNodePool {
 			ResourceID:   resourceID,
 			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 		},
-		Properties: coreapi.ClusterNodePoolProperties{
+		Properties: coreapi.NodePoolProperties{
 			Platform: coreapi.NodePoolPlatformProfile{
 				OSDisk: coreapi.OSDiskProfile{
 					DiskStorageAccountType: metadataapi.DiskStorageAccountTypePremium_LRS,

@@ -59,7 +59,7 @@ type DBNodePoolLister struct {
 
 var _ corelisters.NodePoolLister = &DBNodePoolLister{}
 
-func (l *DBNodePoolLister) List(ctx context.Context) ([]*coreapi.ClusterNodePool, error) {
+func (l *DBNodePoolLister) List(ctx context.Context) ([]*coreapi.NodePool, error) {
 	iter, err := l.ResourcesDBClient.ResourcesGlobalListers().NodePools().List(ctx, nil)
 	if err != nil {
 		return nil, err
@@ -67,17 +67,17 @@ func (l *DBNodePoolLister) List(ctx context.Context) ([]*coreapi.ClusterNodePool
 	return listertestingutils.CollectFromIterator(ctx, iter)
 }
 
-func (l *DBNodePoolLister) Get(ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName string) (*coreapi.ClusterNodePool, error) {
+func (l *DBNodePoolLister) Get(ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName string) (*coreapi.NodePool, error) {
 	return l.ResourcesDBClient.HCPClusters(subscriptionID, resourceGroupName).NodePools(clusterName).Get(ctx, nodePoolName)
 }
 
-func (l *DBNodePoolLister) ListForResourceGroup(ctx context.Context, subscriptionID, resourceGroupName string) ([]*coreapi.ClusterNodePool, error) {
+func (l *DBNodePoolLister) ListForResourceGroup(ctx context.Context, subscriptionID, resourceGroupName string) ([]*coreapi.NodePool, error) {
 	// List all node pools and filter by resource group
 	all, err := l.List(ctx)
 	if err != nil {
 		return nil, err
 	}
-	var result []*coreapi.ClusterNodePool
+	var result []*coreapi.NodePool
 	for _, np := range all {
 		if np.ID != nil &&
 			strings.EqualFold(np.ID.SubscriptionID, subscriptionID) &&
@@ -88,7 +88,7 @@ func (l *DBNodePoolLister) ListForResourceGroup(ctx context.Context, subscriptio
 	return result, nil
 }
 
-func (l *DBNodePoolLister) ListForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) ([]*coreapi.ClusterNodePool, error) {
+func (l *DBNodePoolLister) ListForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) ([]*coreapi.NodePool, error) {
 	iter, err := l.ResourcesDBClient.HCPClusters(subscriptionID, resourceGroupName).NodePools(clusterName).List(ctx, nil)
 	if err != nil {
 		return nil, err

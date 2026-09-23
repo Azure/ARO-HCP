@@ -169,10 +169,10 @@ func TestNewCluster_NilInput(t *testing.T) {
 	require.NotNil(t, result, "NewCluster(nil) must not return nil")
 }
 
-// TestNewClusterNodePool_NilInput verifies that
-// NewClusterNodePool(nil) returns a non-nil, defaulted struct.
-func TestNewClusterNodePool_NilInput(t *testing.T) {
+// TestNewNodePool_NilInput verifies that
+// NewNodePool(nil) returns a non-nil, defaulted struct.
+func TestNewNodePool_NilInput(t *testing.T) {
 	v := version{}
-	result := v.NewClusterNodePool(nil)
-	require.NotNil(t, result, "NewClusterNodePool(nil) must not return nil")
+	result := v.NewNodePool(nil)
+	require.NotNil(t, result, "NewNodePool(nil) must not return nil")
 }

@@ -44,17 +44,17 @@ import (
 func TestNodePoolZeroValueRoundTripThroughJSON(t *testing.T) {
 	tests := []struct {
 		name  string
-		setup func() *coreapi.ClusterNodePool
-		check func(t *testing.T, result *coreapi.ClusterNodePool)
+		setup func() *coreapi.NodePool
+		check func(t *testing.T, result *coreapi.NodePool)
 	}{
 		{
 			name: "AutoRepair false must survive round-trip",
-			setup: func() *coreapi.ClusterNodePool {
+			setup: func() *coreapi.NodePool {
 				np := newBaselineInternalNodePool()
 				np.Properties.AutoRepair = false
 				return np
 			},
-			check: func(t *testing.T, np *coreapi.ClusterNodePool) {
+			check: func(t *testing.T, np *coreapi.NodePool) {
 				if np.Properties.AutoRepair != false {
 					t.Errorf("AutoRepair: got %v, want false (default=true clobbered explicit value)", np.Properties.AutoRepair)
 				}
@@ -62,12 +62,12 @@ func TestNodePoolZeroValueRoundTripThroughJSON(t *testing.T) {
 		},
 		{
 			name: "Replicas zero must survive round-trip",
-			setup: func() *coreapi.ClusterNodePool {
+			setup: func() *coreapi.NodePool {
 				np := newBaselineInternalNodePool()
 				np.Properties.Replicas = 0
 				return np
 			},
-			check: func(t *testing.T, np *coreapi.ClusterNodePool) {
+			check: func(t *testing.T, np *coreapi.NodePool) {
 				if np.Properties.Replicas != 0 {
 					t.Errorf("Replicas: got %d, want 0", np.Properties.Replicas)
 				}
@@ -75,12 +75,12 @@ func TestNodePoolZeroValueRoundTripThroughJSON(t *testing.T) {
 		},
 		{
 			name: "AutoScaling.Min zero when Max is non-zero",
-			setup: func() *coreapi.ClusterNodePool {
+			setup: func() *coreapi.NodePool {
 				np := newBaselineInternalNodePool()
 				np.Properties.AutoScaling = &coreapi.NodePoolAutoScaling{Min: 0, Max: 5}
 				return np
 			},
-			check: func(t *testing.T, np *coreapi.ClusterNodePool) {
+			check: func(t *testing.T, np *coreapi.NodePool) {
 				require.NotNil(t, np.Properties.AutoScaling, "AutoScaling struct should not be nil")
 				if np.Properties.AutoScaling.Min != 0 {
 					t.Errorf("AutoScaling.Min: got %d, want 0", np.Properties.AutoScaling.Min)
@@ -89,12 +89,12 @@ func TestNodePoolZeroValueRoundTripThroughJSON(t *testing.T) {
 		},
 		{
 			name: "AutoScaling.Max zero when Min is non-zero",
-			setup: func() *coreapi.ClusterNodePool {
+			setup: func() *coreapi.NodePool {
 				np := newBaselineInternalNodePool()
 				np.Properties.AutoScaling = &coreapi.NodePoolAutoScaling{Min: 3, Max: 0}
 				return np
 			},
-			check: func(t *testing.T, np *coreapi.ClusterNodePool) {
+			check: func(t *testing.T, np *coreapi.NodePool) {
 				require.NotNil(t, np.Properties.AutoScaling, "AutoScaling struct should not be nil")
 				if np.Properties.AutoScaling.Max != 0 {
 					t.Errorf("AutoScaling.Max: got %d, want 0", np.Properties.AutoScaling.Max)
@@ -219,12 +219,12 @@ func TestClusterZeroValueRoundTripThroughJSON(t *testing.T) {
 // jsonRoundTripNodePool simulates a GET-then-PUT cycle through JSON.
 // This is the path where PtrOrNil data loss manifests:
 //
-//	internal -> NewClusterNodePool -> JSON marshal ->
+//	internal -> NewNodePool -> JSON marshal ->
 //	JSON unmarshal -> SetDefaultValuesNodePool (simulating constructor) -> ConvertToInternal
-func jsonRoundTripNodePool(t *testing.T, original *coreapi.ClusterNodePool) *coreapi.ClusterNodePool {
+func jsonRoundTripNodePool(t *testing.T, original *coreapi.NodePool) *coreapi.NodePool {
 	t.Helper()
 	v := version{}
-	ext := v.NewClusterNodePool(original)
+	ext := v.NewNodePool(original)
 
 	jsonBytes, err := json.Marshal(ext)
 	require.NoError(t, err)
@@ -259,8 +259,8 @@ func jsonRoundTripCluster(t *testing.T, original *coreapi.Cluster) *coreapi.Clus
 // newBaselineInternalNodePool creates a valid node pool with all potentially
 // unsafe fields set to non-zero values. Test cases mutate specific fields
 // to zero before round-tripping.
-func newBaselineInternalNodePool() *coreapi.ClusterNodePool {
-	return &coreapi.ClusterNodePool{
+func newBaselineInternalNodePool() *coreapi.NodePool {
+	return &coreapi.NodePool{
 		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: metadataapi.Must(azcorearm.ParseResourceID(strings.ToLower("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/myRg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/myCluster/nodePools/myNodePool")))},
 		TrackedResource: coreapi.TrackedResource{
 			Resource: coreapi.Resource{
@@ -270,7 +270,7 @@ func newBaselineInternalNodePool() *coreapi.ClusterNodePool {
 			},
 			Location: "eastus",
 		},
-		Properties: coreapi.ClusterNodePoolProperties{
+		Properties: coreapi.NodePoolProperties{
 			Version: coreapi.NodePoolVersionProfile{
 				ID:           "4.15.1",
 				ChannelGroup: "stable",

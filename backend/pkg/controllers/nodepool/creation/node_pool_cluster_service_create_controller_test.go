@@ -84,8 +84,8 @@ func TestNodePoolClusterServiceCreateSyncer_SyncOnce(t *testing.T) {
 	testCases := []struct {
 		name              string
 		listerCluster     *coreapi.Cluster
-		existingNodePool  *coreapi.ClusterNodePool
-		listerNodePool    *coreapi.ClusterNodePool // Optional. If not provided, existingNodePool is used as the listerNodePool
+		existingNodePool  *coreapi.NodePool
+		listerNodePool    *coreapi.NodePool // Optional. If not provided, existingNodePool is used as the listerNodePool
 		setupMockCSClient func(mock *ocm.MockClusterServiceClientSpec)
 		wantErr           bool
 		wantErrContain    string
@@ -94,7 +94,7 @@ func TestNodePoolClusterServiceCreateSyncer_SyncOnce(t *testing.T) {
 		{
 			name:          "when ClusterServiceID is already set no-op is performed",
 			listerCluster: newTestCluster(t, nil),
-			existingNodePool: newTestNodePoolForCreate(t, func(np *coreapi.ClusterNodePool) {
+			existingNodePool: newTestNodePoolForCreate(t, func(np *coreapi.NodePool) {
 				np.ServiceProviderProperties.ClusterServiceID = metadataapihelpers.Ptr(metadataapi.Must(metadataapi.NewInternalID(testNodePoolCSIDStr)))
 			}),
 			verifyDB: verifyClusterServiceIDIsSet,
@@ -102,7 +102,7 @@ func TestNodePoolClusterServiceCreateSyncer_SyncOnce(t *testing.T) {
 		{
 			name:          "when DeletionTimestamp is set no-op is performed",
 			listerCluster: newTestCluster(t, nil),
-			existingNodePool: newTestNodePoolForCreate(t, func(np *coreapi.ClusterNodePool) {
+			existingNodePool: newTestNodePoolForCreate(t, func(np *coreapi.NodePool) {
 				np.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: metav1.Now().Time}
 			}),
 			verifyDB: verifyClusterServiceIDIsNil,
@@ -113,7 +113,7 @@ func TestNodePoolClusterServiceCreateSyncer_SyncOnce(t *testing.T) {
 		{
 			name:          "when lister is stale but DB already has ClusterServiceID no-op is performed",
 			listerCluster: newTestCluster(t, nil),
-			existingNodePool: newTestNodePoolForCreate(t, func(np *coreapi.ClusterNodePool) {
+			existingNodePool: newTestNodePoolForCreate(t, func(np *coreapi.NodePool) {
 				np.ServiceProviderProperties.ClusterServiceID = metadataapihelpers.Ptr(metadataapi.Must(metadataapi.NewInternalID(testNodePoolCSIDStr)))
 			}),
 			listerNodePool: newTestNodePoolForCreate(t, nil),
@@ -244,7 +244,7 @@ func TestNodePoolClusterServiceCreateSyncer_SyncOnce(t *testing.T) {
 				clustersForLister = append(clustersForLister, tc.listerCluster)
 			}
 
-			nodePoolsForLister := []*coreapi.ClusterNodePool{}
+			nodePoolsForLister := []*coreapi.NodePool{}
 			listerNodePool := tc.listerNodePool
 			if listerNodePool == nil {
 				listerNodePool = tc.existingNodePool
@@ -319,14 +319,14 @@ func newTestCluster(t *testing.T, opts func(*coreapi.Cluster)) *coreapi.Cluster 
 	return cluster
 }
 
-func newTestNodePoolForCreate(t *testing.T, opts func(*coreapi.ClusterNodePool)) *coreapi.ClusterNodePool {
+func newTestNodePoolForCreate(t *testing.T, opts func(*coreapi.NodePool)) *coreapi.NodePool {
 	t.Helper()
 	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + testSubscriptionID +
 			"/resourceGroups/" + testResourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
 			"/nodePools/" + testNodePoolName))
-	np := &coreapi.ClusterNodePool{
+	np := &coreapi.NodePool{
 		TrackedResource: coreapi.TrackedResource{
 			Resource: coreapi.Resource{
 				ID:   resourceID,
@@ -336,7 +336,7 @@ func newTestNodePoolForCreate(t *testing.T, opts func(*coreapi.ClusterNodePool))
 			Location: "eastus",
 		},
 		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(resourceID.SubscriptionID)},
-		Properties: coreapi.ClusterNodePoolProperties{
+		Properties: coreapi.NodePoolProperties{
 			Version: coreapi.NodePoolVersionProfile{
 				ID:           "4.20.8",
 				ChannelGroup: "stable",
@@ -351,7 +351,7 @@ func newTestNodePoolForCreate(t *testing.T, opts func(*coreapi.ClusterNodePool))
 				},
 			},
 		},
-		ServiceProviderProperties: coreapi.ClusterNodePoolServiceProviderProperties{
+		ServiceProviderProperties: coreapi.NodePoolServiceProviderProperties{
 			ClusterServiceID: nil,
 		},
 	}

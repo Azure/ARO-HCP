@@ -82,7 +82,7 @@ func TestSliceNodePoolLister(t *testing.T) {
 	np3 := newTestNodePool(testSubscriptionID, testResourceGroupName, testClusterName2, testNodePoolName)
 
 	lister := &SliceNodePoolLister{
-		NodePools: []*coreapi.ClusterNodePool{np1, np2, np3},
+		NodePools: []*coreapi.NodePool{np1, np2, np3},
 	}
 
 	ctx := context.Background()
@@ -359,14 +359,14 @@ func newTestCluster(subscriptionID, resourceGroupName, clusterName string) *core
 	}
 }
 
-func newTestNodePool(subscriptionID, resourceGroupName, clusterName, nodePoolName string) *coreapi.ClusterNodePool {
+func newTestNodePool(subscriptionID, resourceGroupName, clusterName, nodePoolName string) *coreapi.NodePool {
 	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + subscriptionID +
 			"/resourceGroups/" + resourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + clusterName +
 			"/nodePools/" + nodePoolName,
 	))
-	return &coreapi.ClusterNodePool{
+	return &coreapi.NodePool{
 		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(resourceID.SubscriptionID)},
 		TrackedResource: coreapi.TrackedResource{
 			Resource: coreapi.Resource{

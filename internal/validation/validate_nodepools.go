@@ -66,26 +66,26 @@ var nodePoolForbiddenK8sLabelValuesByKey = map[string]map[string]struct{}{
 	},
 }
 
-func ValidateNodePool(ctx context.Context, op operation.Operation, newObj, oldObj *coreapi.ClusterNodePool) field.ErrorList {
+func ValidateNodePool(ctx context.Context, op operation.Operation, newObj, oldObj *coreapi.NodePool) field.ErrorList {
 	return validateNodePool(ctx, op, newObj, oldObj)
 }
 
-func toNodePoolTrackedResource(oldObj *coreapi.ClusterNodePool) *coreapi.TrackedResource {
+func toNodePoolTrackedResource(oldObj *coreapi.NodePool) *coreapi.TrackedResource {
 	return &oldObj.TrackedResource
 }
 
 // ToNodePoolProperties returns a pointer to the Properties field of a node pool.
 // It is exported for use as a field accessor with safe.Field by external callers
 // (e.g. admission code) that need to navigate into the Properties subtree.
-func ToNodePoolProperties(oldObj *coreapi.ClusterNodePool) *coreapi.ClusterNodePoolProperties {
+func ToNodePoolProperties(oldObj *coreapi.NodePool) *coreapi.NodePoolProperties {
 	return &oldObj.Properties
 }
 
-func toNodePoolServiceProviderProperties(oldObj *coreapi.ClusterNodePool) *coreapi.ClusterNodePoolServiceProviderProperties {
+func toNodePoolServiceProviderProperties(oldObj *coreapi.NodePool) *coreapi.NodePoolServiceProviderProperties {
 	return &oldObj.ServiceProviderProperties
 }
 
-func validateNodePool(ctx context.Context, op operation.Operation, newObj, oldObj *coreapi.ClusterNodePool) field.ErrorList {
+func validateNodePool(ctx context.Context, op operation.Operation, newObj, oldObj *coreapi.NodePool) field.ErrorList {
 	errs := field.ErrorList{}
 
 	//coreapi.ProxyResource
@@ -96,16 +96,16 @@ func validateNodePool(ctx context.Context, op operation.Operation, newObj, oldOb
 		errs = append(errs, MatchesRegex(ctx, op, field.NewPath("id"), &newObj.ID.Name, nil, nodePoolResourceNameRegex, nodePoolResourceNameErrorString)...)
 	}
 
-	//Properties ClusterNodePoolProperties `json:"properties"`
+	//Properties NodePoolProperties `json:"properties"`
 	errs = append(errs, validateNodePoolProperties(ctx, op, field.NewPath("properties"), &newObj.Properties, safe.Field(oldObj, ToNodePoolProperties))...)
 
-	//ServiceProviderProperties ClusterNodePoolServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
+	//ServiceProviderProperties NodePoolServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
 	errs = append(errs, validateNodePoolServiceProviderProperties(ctx, op, field.NewPath("serviceProviderProperties"), &newObj.ServiceProviderProperties, safe.Field(oldObj, toNodePoolServiceProviderProperties))...)
 
 	return errs
 }
 
-func toNodePoolPropertiesProvisioningState(oldObj *coreapi.ClusterNodePoolProperties) *coreapi.ProvisioningState {
+func toNodePoolPropertiesProvisioningState(oldObj *coreapi.NodePoolProperties) *coreapi.ProvisioningState {
 	return &oldObj.ProvisioningState
 }
 
@@ -113,7 +113,7 @@ func toNodePoolPropertiesProvisioningState(oldObj *coreapi.ClusterNodePoolProper
 // pool properties. It is exported for use as a field accessor with safe.Field
 // by external callers (e.g. admission code) that need to navigate into the
 // Version subtree.
-func ToNodePoolPropertiesVersion(oldObj *coreapi.ClusterNodePoolProperties) *coreapi.NodePoolVersionProfile {
+func ToNodePoolPropertiesVersion(oldObj *coreapi.NodePoolProperties) *coreapi.NodePoolVersionProfile {
 	return &oldObj.Version
 }
 
@@ -121,35 +121,35 @@ func ToNodePoolPropertiesVersion(oldObj *coreapi.ClusterNodePoolProperties) *cor
 // pool properties. It is exported for use as a field accessor with safe.Field
 // by external callers (e.g. admission code) that need to navigate into the
 // Platform subtree.
-func ToNodePoolPropertiesPlatform(oldObj *coreapi.ClusterNodePoolProperties) *coreapi.NodePoolPlatformProfile {
+func ToNodePoolPropertiesPlatform(oldObj *coreapi.NodePoolProperties) *coreapi.NodePoolPlatformProfile {
 	return &oldObj.Platform
 }
 
-func toNodePoolPropertiesReplicas(oldObj *coreapi.ClusterNodePoolProperties) *int32 {
+func toNodePoolPropertiesReplicas(oldObj *coreapi.NodePoolProperties) *int32 {
 	return &oldObj.Replicas
 }
 
-func toNodePoolPropertiesAutoRepair(oldObj *coreapi.ClusterNodePoolProperties) *bool {
+func toNodePoolPropertiesAutoRepair(oldObj *coreapi.NodePoolProperties) *bool {
 	return &oldObj.AutoRepair
 }
 
-func toNodePoolPropertiesAutoScaling(oldObj *coreapi.ClusterNodePoolProperties) *coreapi.NodePoolAutoScaling {
+func toNodePoolPropertiesAutoScaling(oldObj *coreapi.NodePoolProperties) *coreapi.NodePoolAutoScaling {
 	return oldObj.AutoScaling
 }
 
-func toNodePoolPropertiesLabels(oldObj *coreapi.ClusterNodePoolProperties) map[string]string {
+func toNodePoolPropertiesLabels(oldObj *coreapi.NodePoolProperties) map[string]string {
 	return oldObj.Labels
 }
 
-func toNodePoolPropertiesTaints(oldObj *coreapi.ClusterNodePoolProperties) []coreapi.Taint {
+func toNodePoolPropertiesTaints(oldObj *coreapi.NodePoolProperties) []coreapi.Taint {
 	return oldObj.Taints
 }
 
-func toNodePoolPropertiesNodeDrainTimeoutMinutes(oldObj *coreapi.ClusterNodePoolProperties) *int32 {
+func toNodePoolPropertiesNodeDrainTimeoutMinutes(oldObj *coreapi.NodePoolProperties) *int32 {
 	return oldObj.NodeDrainTimeoutMinutes
 }
 
-func validateNodePoolProperties(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.ClusterNodePoolProperties) field.ErrorList {
+func validateNodePoolProperties(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.NodePoolProperties) field.ErrorList {
 	errs := field.ErrorList{}
 
 	//ProvisioningState coreapi.ProvisioningState       `json:"provisioningState"`
@@ -243,12 +243,12 @@ func validateNodePoolForbiddenLabels(fldPath *field.Path, newLabels map[string]s
 }
 
 var (
-	toNodePoolServiceProviderClusterServiceID = func(oldObj *coreapi.ClusterNodePoolServiceProviderProperties) *metadataapi.InternalID {
+	toNodePoolServiceProviderClusterServiceID = func(oldObj *coreapi.NodePoolServiceProviderProperties) *metadataapi.InternalID {
 		return oldObj.ClusterServiceID
 	}
 )
 
-func validateNodePoolServiceProviderProperties(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.ClusterNodePoolServiceProviderProperties) field.ErrorList {
+func validateNodePoolServiceProviderProperties(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.NodePoolServiceProviderProperties) field.ErrorList {
 	errs := field.ErrorList{}
 
 	//ClusterServiceID  *InternalID                     `json:"clusterServiceID,omitempty"`

@@ -40,7 +40,7 @@ func TestCSStateDump_SyncOnce(t *testing.T) {
 	tests := []struct {
 		name            string
 		createCluster   bool
-		createNodePools []*coreapi.ClusterNodePool
+		createNodePools []*coreapi.NodePool
 		setupCSClient   func(*ocm.MockClusterServiceClientSpec, metadataapi.InternalID)
 		wantErr         bool
 	}{
@@ -72,7 +72,7 @@ func TestCSStateDump_SyncOnce(t *testing.T) {
 		{
 			name:          "success dumps cluster and node pool data",
 			createCluster: true,
-			createNodePools: []*coreapi.ClusterNodePool{
+			createNodePools: []*coreapi.NodePool{
 				newTestNodePool("test-np-1", "/api/aro_hcp/v1alpha1/clusters/11111111111111111111111111111111/node_pools/np1"),
 			},
 			setupCSClient: func(mock *ocm.MockClusterServiceClientSpec, csID metadataapi.InternalID) {
@@ -93,7 +93,7 @@ func TestCSStateDump_SyncOnce(t *testing.T) {
 		{
 			name:          "node pool without ClusterServiceID is skipped",
 			createCluster: true,
-			createNodePools: []*coreapi.ClusterNodePool{
+			createNodePools: []*coreapi.NodePool{
 				newTestNodePool("test-np-no-csid", ""),
 			},
 			setupCSClient: func(mock *ocm.MockClusterServiceClientSpec, csID metadataapi.InternalID) {
@@ -109,7 +109,7 @@ func TestCSStateDump_SyncOnce(t *testing.T) {
 		{
 			name:          "node pool CS GetNodePool error is logged but does not fail",
 			createCluster: true,
-			createNodePools: []*coreapi.ClusterNodePool{
+			createNodePools: []*coreapi.NodePool{
 				newTestNodePool("test-np-err", "/api/aro_hcp/v1alpha1/clusters/11111111111111111111111111111111/node_pools/np-err"),
 			},
 			setupCSClient: func(mock *ocm.MockClusterServiceClientSpec, csID metadataapi.InternalID) {
@@ -126,7 +126,7 @@ func TestCSStateDump_SyncOnce(t *testing.T) {
 		{
 			name:          "multiple node pools are all dumped",
 			createCluster: true,
-			createNodePools: []*coreapi.ClusterNodePool{
+			createNodePools: []*coreapi.NodePool{
 				newTestNodePool("test-np-a", "/api/aro_hcp/v1alpha1/clusters/11111111111111111111111111111111/node_pools/np-a"),
 				newTestNodePool("test-np-b", "/api/aro_hcp/v1alpha1/clusters/11111111111111111111111111111111/node_pools/np-b"),
 			},
@@ -212,10 +212,10 @@ func TestCSStateDump_SyncOnce(t *testing.T) {
 	}
 }
 
-func newTestNodePool(name, clusterServiceIDStr string) *coreapi.ClusterNodePool {
+func newTestNodePool(name, clusterServiceIDStr string) *coreapi.NodePool {
 	nodePoolResourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster/nodePools/" + name))
-	np := &coreapi.ClusterNodePool{
+	np := &coreapi.NodePool{
 		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: nodePoolResourceID, PartitionKey: strings.ToLower(nodePoolResourceID.SubscriptionID)},
 		TrackedResource: coreapi.TrackedResource{
 			Resource: coreapi.Resource{
@@ -227,7 +227,7 @@ func newTestNodePool(name, clusterServiceIDStr string) *coreapi.ClusterNodePool 
 		},
 	}
 	if clusterServiceIDStr != "" {
-		np.ServiceProviderProperties = coreapi.ClusterNodePoolServiceProviderProperties{
+		np.ServiceProviderProperties = coreapi.NodePoolServiceProviderProperties{
 			ClusterServiceID: metadataapihelpers.Ptr(metadataapi.Must(metadataapi.NewInternalID(clusterServiceIDStr))),
 		}
 	}

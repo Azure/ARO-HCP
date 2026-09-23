@@ -112,7 +112,7 @@ func TestNodePoolRequirementsValidAggregator_SyncOnce(t *testing.T) {
 
 	testCases := []struct {
 		name                            string
-		existingNodePool                *coreapi.ClusterNodePool
+		existingNodePool                *coreapi.NodePool
 		existingServiceProviderNodePool *coreapi.ServiceProviderNodePool
 		// wantCondition is the expected RequirementsValid condition after SyncOnce.
 		// nil means the condition must remain absent. Only Type/Status/Reason/Message
@@ -135,7 +135,7 @@ func TestNodePoolRequirementsValidAggregator_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "no-op when UserFacingConditions already match",
-			existingNodePool: newTestNodePoolForAggregator(func(np *coreapi.ClusterNodePool) {
+			existingNodePool: newTestNodePoolForAggregator(func(np *coreapi.NodePool) {
 				np.Status.UserFacingConditions = []metav1.Condition{degradedCondition}
 			}),
 			existingServiceProviderNodePool: newTestServiceProviderNodePoolForAggregator(func(spnp *coreapi.ServiceProviderNodePool) {
@@ -151,7 +151,7 @@ func TestNodePoolRequirementsValidAggregator_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "deleting node pool skips write",
-			existingNodePool: newTestNodePoolForAggregator(func(np *coreapi.ClusterNodePool) {
+			existingNodePool: newTestNodePoolForAggregator(func(np *coreapi.NodePool) {
 				now := metav1.Now()
 				np.ServiceProviderProperties.DeletionTimestamp = &now
 			}),
@@ -212,7 +212,7 @@ func TestNodePoolRequirementsValidAggregator_NeedsWork(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		nodePool *coreapi.ClusterNodePool
+		nodePool *coreapi.NodePool
 		want     bool
 	}{
 		{
@@ -222,7 +222,7 @@ func TestNodePoolRequirementsValidAggregator_NeedsWork(t *testing.T) {
 		},
 		{
 			name: "skip when deletion timestamp is set",
-			nodePool: newTestNodePoolForAggregator(func(np *coreapi.ClusterNodePool) {
+			nodePool: newTestNodePoolForAggregator(func(np *coreapi.NodePool) {
 				np.ServiceProviderProperties.DeletionTimestamp = &now
 			}),
 			want: false,

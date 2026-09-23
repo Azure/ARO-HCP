@@ -124,7 +124,7 @@ func createTestNodePoolWithVersion(t *testing.T, ctx context.Context, mockResour
 		"/nodePools/" + testNodePoolName))
 	nodePoolInternalID := metadataapihelpers.Ptr(metadataapi.Must(metadataapi.NewInternalID(testCSNodePoolIDStr)))
 
-	nodePool := &coreapi.ClusterNodePool{
+	nodePool := &coreapi.NodePool{
 		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: nodePoolResourceID, PartitionKey: strings.ToLower(nodePoolResourceID.SubscriptionID)},
 		TrackedResource: coreapi.TrackedResource{
 			Resource: coreapi.Resource{
@@ -134,13 +134,13 @@ func createTestNodePoolWithVersion(t *testing.T, ctx context.Context, mockResour
 			},
 			Location: "eastus",
 		},
-		Properties: coreapi.ClusterNodePoolProperties{
+		Properties: coreapi.NodePoolProperties{
 			Version: coreapi.NodePoolVersionProfile{
 				ID:           desiredVersion,
 				ChannelGroup: coreapi.DefaultClusterVersionChannelGroup,
 			},
 		},
-		ServiceProviderProperties: coreapi.ClusterNodePoolServiceProviderProperties{
+		ServiceProviderProperties: coreapi.NodePoolServiceProviderProperties{
 			ClusterServiceID: nodePoolInternalID,
 		},
 	}
@@ -226,7 +226,7 @@ func TestNodePoolVersionSyncer_SyncOnce(t *testing.T) {
 					"/resourceGroups/" + testResourceGroupName +
 					"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
 					"/nodePools/" + testNodePoolName))
-				nodePool := &coreapi.ClusterNodePool{
+				nodePool := &coreapi.NodePool{
 					CosmosMetadata: coreapi.CosmosMetadata{
 						ResourceID:   nodePoolResourceID,
 						PartitionKey: strings.ToLower(nodePoolResourceID.SubscriptionID),
@@ -239,7 +239,7 @@ func TestNodePoolVersionSyncer_SyncOnce(t *testing.T) {
 						},
 						Location: "eastus",
 					},
-					ServiceProviderProperties: coreapi.ClusterNodePoolServiceProviderProperties{},
+					ServiceProviderProperties: coreapi.NodePoolServiceProviderProperties{},
 				}
 				_, err := mockDB.HCPClusters(testSubscriptionID, testResourceGroupName).
 					NodePools(testClusterName).Create(ctx, nodePool, nil)
@@ -518,9 +518,9 @@ func TestNodePoolVersionSyncer_SyncOnce_IntentFailed(t *testing.T) {
 func TestNodePoolVersionSyncer_NeedsWork(t *testing.T) {
 	syncer := &nodePoolVersionSyncer{}
 
-	npWith := func(customerVersion string) *coreapi.ClusterNodePool {
-		return &coreapi.ClusterNodePool{
-			Properties: coreapi.ClusterNodePoolProperties{
+	npWith := func(customerVersion string) *coreapi.NodePool {
+		return &coreapi.NodePool{
+			Properties: coreapi.NodePoolProperties{
 				Version: coreapi.NodePoolVersionProfile{ID: customerVersion},
 			},
 		}

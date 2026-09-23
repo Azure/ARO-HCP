@@ -317,10 +317,10 @@ func cluster(t *testing.T, name string) *coreapi.Cluster {
 	}
 }
 
-func nodePool(t *testing.T, clusterName, nodePoolName string) *coreapi.ClusterNodePool {
+func nodePool(t *testing.T, clusterName, nodePoolName string) *coreapi.NodePool {
 	t.Helper()
 	rid := metadataapi.Must(coreapihelpers.ToNodePoolResourceID(testSubscriptionID, testResourceGroup, clusterName, nodePoolName))
-	return &coreapi.ClusterNodePool{
+	return &coreapi.NodePool{
 		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: rid, PartitionKey: strings.ToLower(rid.SubscriptionID)},
 		TrackedResource: coreapi.TrackedResource{
 			Resource: coreapi.Resource{

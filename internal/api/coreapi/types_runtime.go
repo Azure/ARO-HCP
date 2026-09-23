@@ -58,15 +58,15 @@ func (l *ClusterList) GetObjectKind() schema.ObjectKind {
 }
 
 var (
-	_ runtime.Object            = &ClusterNodePool{}
-	_ metav1.ObjectMetaAccessor = &ClusterNodePool{}
+	_ runtime.Object            = &NodePool{}
+	_ metav1.ObjectMetaAccessor = &NodePool{}
 )
 
-func (o *ClusterNodePool) GetObjectKind() schema.ObjectKind {
+func (o *NodePool) GetObjectKind() schema.ObjectKind {
 	return schema.EmptyObjectKind
 }
 
-func (o *ClusterNodePool) GetObjectMeta() metav1.Object {
+func (o *NodePool) GetObjectMeta() metav1.Object {
 	om := &metav1.ObjectMeta{}
 	if o.ID != nil {
 		om.Name = strings.ToLower(o.ID.String())
@@ -76,18 +76,18 @@ func (o *ClusterNodePool) GetObjectMeta() metav1.Object {
 	return om
 }
 
-// ClusterNodePoolList is a list of NodePools
+// NodePoolList is a list of NodePools
 // compatible with runtime.Object for use with Kubernetes informer machinery.
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-type ClusterNodePoolList struct {
+type NodePoolList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []ClusterNodePool `json:"items"`
+	Items           []NodePool `json:"items"`
 }
 
-var _ runtime.Object = &ClusterNodePoolList{}
+var _ runtime.Object = &NodePoolList{}
 
-func (l *ClusterNodePoolList) GetObjectKind() schema.ObjectKind {
+func (l *NodePoolList) GetObjectKind() schema.ObjectKind {
 	return &l.TypeMeta
 }
 

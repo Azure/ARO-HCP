@@ -38,7 +38,7 @@ func TestTimeToLiveForInternal(t *testing.T) {
 		},
 		{
 			name: "node pools have no TTL",
-			obj:  &coreapi.ClusterNodePool{},
+			obj:  &coreapi.NodePool{},
 			want: 0,
 		},
 		{

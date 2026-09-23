@@ -72,8 +72,8 @@ func testCluster() *coreapi.Cluster {
 	return cluster
 }
 
-func testNodePool() *coreapi.ClusterNodePool {
-	nodePool := coreapi.NewDefaultClusterNodePool(metadataapi.Must(azcorearm.ParseResourceID(coreapitesting.TestNodePoolResourceID)), coreapitesting.TestLocation)
+func testNodePool() *coreapi.NodePool {
+	nodePool := coreapi.NewDefaultNodePool(metadataapi.Must(azcorearm.ParseResourceID(coreapitesting.TestNodePoolResourceID)), coreapitesting.TestLocation)
 	nodePool.Properties.Platform.SubnetID = metadataapi.Must(azcorearm.ParseResourceID(coreapitesting.TestSubnetResourceID))
 	return nodePool
 }
@@ -179,7 +179,7 @@ func expectWorkerAndIntegrationSubnets(subnets *azureclient.MockSubnetsClient, w
 	subnets.EXPECT().Get(gomock.Any(), coreapitesting.TestResourceGroupName, coreapitesting.TestVirtualNetworkName, coreapitesting.TestVnetIntegrationSubnetName, nil).Return(integrationResp, nil)
 }
 
-func nodePoolOnSubnet(npSubnetID string) *coreapi.ClusterNodePool {
+func nodePoolOnSubnet(npSubnetID string) *coreapi.NodePool {
 	np := testNodePool()
 	np.Properties.Platform.SubnetID = metadataapi.Must(azcorearm.ParseResourceID(npSubnetID))
 	return np

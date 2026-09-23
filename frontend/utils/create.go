@@ -107,8 +107,8 @@ func CreateJSONFile() error {
 }
 
 func CreateNodePool() error {
-	nodePool := coreapi.ClusterNodePool{
-		Properties: coreapi.ClusterNodePoolProperties{
+	nodePool := coreapi.NodePool{
+		Properties: coreapi.NodePoolProperties{
 			ProvisioningState: coreapi.ProvisioningState(""),
 			Version: coreapi.NodePoolVersionProfile{
 				ChannelGroup: "stable",

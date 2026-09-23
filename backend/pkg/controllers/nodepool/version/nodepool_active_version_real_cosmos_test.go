@@ -103,7 +103,7 @@ func TestNodePoolActiveVersionSyncer_RealCosmosFixture(t *testing.T) {
 	mockDB := corecosmosstoragetesting.NewMockResourcesDBClient()
 
 	cluster := loadCosmosResource[coreapi.Cluster](t, nodePoolActiveVersionRealCosmosFS, artifactsRoot+"/cluster.json")
-	nodePool := loadCosmosResource[coreapi.ClusterNodePool](t, nodePoolActiveVersionRealCosmosFS, artifactsRoot+"/nodepool.json")
+	nodePool := loadCosmosResource[coreapi.NodePool](t, nodePoolActiveVersionRealCosmosFS, artifactsRoot+"/nodepool.json")
 	spnp := loadCosmosResource[coreapi.ServiceProviderNodePool](t, nodePoolActiveVersionRealCosmosFS, artifactsRoot+"/serviceprovidernodepool.json")
 	readDesire := loadCosmosResource[kubeapplierapi.ReadDesire](t, nodePoolActiveVersionRealCosmosFS, artifactsRoot+"/readonlyhypershiftnodepool.json")
 

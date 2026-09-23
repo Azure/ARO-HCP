@@ -32,7 +32,7 @@ type NodePool struct {
 	generated.NodePool
 }
 
-var _ coreapi.VersionedCreatableResource[coreapi.ClusterNodePool] = &NodePool{}
+var _ coreapi.VersionedCreatableResource[coreapi.NodePool] = &NodePool{}
 
 func (h *NodePool) NewExternal() any {
 	return &NodePool{}
@@ -87,8 +87,8 @@ func (h *NodePool) GetVersion() coreapi.Version {
 	return versionedInterface
 }
 
-func (h *NodePool) ConvertToInternal(existing *coreapi.ClusterNodePool) (*coreapi.ClusterNodePool, error) {
-	out := &coreapi.ClusterNodePool{}
+func (h *NodePool) ConvertToInternal(existing *coreapi.NodePool) (*coreapi.NodePool, error) {
+	out := &coreapi.NodePool{}
 	errs := field.ErrorList{}
 
 	// Reject null on required fields. On the PATCH path, JSON merge-patch
@@ -199,7 +199,7 @@ func (h *NodePool) ConvertToInternal(existing *coreapi.ClusterNodePool) (*coreap
 // preserveUnknownNodePoolFields copies customer-facing fields from existing that
 // this API version doesn't know about. Currently empty — no cross-version
 // customer fields exist yet between v20240610preview and v20260630preview.
-func preserveUnknownNodePoolFields(from, to *coreapi.ClusterNodePool) {
+func preserveUnknownNodePoolFields(from, to *coreapi.NodePool) {
 }
 
 func normalizeNodePoolVersion(p *generated.NodePoolVersionProfile, out *coreapi.NodePoolVersionProfile) {
@@ -307,10 +307,10 @@ func newNodePoolAutoScaling(from *coreapi.NodePoolAutoScaling) generated.NodePoo
 	}
 }
 
-// NewClusterNodePool converts an internal representation to this API version.
+// NewNodePool converts an internal representation to this API version.
 // If from is nil, returns a defaulted external object for use on the write path
 // where defaults are applied before unmarshaling the request body.
-func (v version) NewClusterNodePool(from *coreapi.ClusterNodePool) coreapi.VersionedClusterNodePool {
+func (v version) NewNodePool(from *coreapi.NodePool) coreapi.VersionedNodePool {
 	if from == nil {
 		ret := &NodePool{}
 		SetDefaultValuesNodePool(ret)
@@ -371,7 +371,7 @@ func (v version) NewClusterNodePool(from *coreapi.ClusterNodePool) coreapi.Versi
 	return out
 }
 
-func newNodePoolResourceStatus(from *coreapi.ClusterNodePoolStatus) generated.ResourceStatus {
+func newNodePoolResourceStatus(from *coreapi.NodePoolStatus) generated.ResourceStatus {
 	if from == nil {
 		return generated.ResourceStatus{}
 	}

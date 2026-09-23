@@ -48,7 +48,7 @@ func TestTriggerNodePoolUpgradeSyncer_SyncOnce(t *testing.T) {
 	// NotFound and return early — so these tests genuinely guard the cached reads.
 	tests := []struct {
 		name        string
-		nodePools   []*coreapi.ClusterNodePool
+		nodePools   []*coreapi.NodePool
 		spNodePools []*coreapi.ServiceProviderNodePool
 	}{
 		{
@@ -56,29 +56,29 @@ func TestTriggerNodePoolUpgradeSyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "node pool with deletion timestamp returns nil",
-			nodePools: []*coreapi.ClusterNodePool{nodePoolInCache(func(np *coreapi.ClusterNodePool) {
+			nodePools: []*coreapi.NodePool{nodePoolInCache(func(np *coreapi.NodePool) {
 				np.ServiceProviderProperties.DeletionTimestamp = ptr.To(metav1.Now())
 			})},
 		},
 		{
 			name: "missing NodePool ClusterServiceID returns nil",
-			nodePools: []*coreapi.ClusterNodePool{nodePoolInCache(func(np *coreapi.ClusterNodePool) {
+			nodePools: []*coreapi.NodePool{nodePoolInCache(func(np *coreapi.NodePool) {
 				np.ServiceProviderProperties.ClusterServiceID = nil
 			})},
 		},
 		{
 			name:        "no desired version on ServiceProviderNodePool returns nil",
-			nodePools:   []*coreapi.ClusterNodePool{nodePoolInCache(nil)},
+			nodePools:   []*coreapi.NodePool{nodePoolInCache(nil)},
 			spNodePools: []*coreapi.ServiceProviderNodePool{spNodePoolInCache(nil, "4.21.0")},
 		},
 		{
 			name:        "no active versions during installation returns nil",
-			nodePools:   []*coreapi.ClusterNodePool{nodePoolInCache(nil)},
+			nodePools:   []*coreapi.NodePool{nodePoolInCache(nil)},
 			spNodePools: []*coreapi.ServiceProviderNodePool{spNodePoolInCache(ptr.To(semver.MustParse("4.21.0")))},
 		},
 		{
 			name:        "desired version matches latest actual version returns nil",
-			nodePools:   []*coreapi.ClusterNodePool{nodePoolInCache(nil)},
+			nodePools:   []*coreapi.NodePool{nodePoolInCache(nil)},
 			spNodePools: []*coreapi.ServiceProviderNodePool{spNodePoolInCache(ptr.To(semver.MustParse("4.21.0")), "4.21.0", "4.20.15")},
 		},
 	}
@@ -121,7 +121,7 @@ func TestTriggerNodePoolUpgradeSyncer_SyncOnce_TriggersUpgradeFromCache(t *testi
 	// listers (never a mock DB). Desired (4.21.5) differs from active (4.21.0), so
 	// an upgrade policy is posted. Reverting either read to a live Cosmos Get would
 	// resolve NotFound and skip the post, failing this test.
-	nodePools := []*coreapi.ClusterNodePool{nodePoolInCache(nil)}
+	nodePools := []*coreapi.NodePool{nodePoolInCache(nil)}
 	spNodePools := []*coreapi.ServiceProviderNodePool{spNodePoolInCache(ptr.To(semver.MustParse("4.21.5")), "4.21.0")}
 
 	nodePoolServiceID := metadataapi.Must(metadataapi.NewInternalID(testCSNodePoolIDStr))
@@ -291,17 +291,17 @@ func TestTriggerNodePoolUpgradeSyncer_CreateUpgradePolicyIfNeeded(t *testing.T) 
 // intended to live only in a slice-backed cache lister — never written to a mock
 // ResourcesDBClient — so tests can prove SyncOnce reads it from the informer cache
 // rather than a live Cosmos read. Pass a mutate func to tweak the result.
-func nodePoolInCache(mutate func(*coreapi.ClusterNodePool)) *coreapi.ClusterNodePool {
+func nodePoolInCache(mutate func(*coreapi.NodePool)) *coreapi.NodePool {
 	nodePoolResourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID +
 		"/resourceGroups/" + testResourceGroupName +
 		"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
 		"/nodePools/" + testNodePoolName))
-	np := &coreapi.ClusterNodePool{
+	np := &coreapi.NodePool{
 		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: nodePoolResourceID},
 		TrackedResource: coreapi.TrackedResource{
 			Resource: coreapi.Resource{ID: nodePoolResourceID, Name: testNodePoolName, Type: coreapi.NodePoolResourceType.String()},
 		},
-		ServiceProviderProperties: coreapi.ClusterNodePoolServiceProviderProperties{
+		ServiceProviderProperties: coreapi.NodePoolServiceProviderProperties{
 			ClusterServiceID: metadataapihelpers.Ptr(metadataapi.Must(metadataapi.NewInternalID(testCSNodePoolIDStr))),
 		},
 	}

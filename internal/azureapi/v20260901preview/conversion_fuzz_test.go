@@ -60,7 +60,7 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 	}
 
 	for i := 0; i < 200; i++ {
-		original := &coreapi.ClusterNodePool{}
+		original := &coreapi.NodePool{}
 		fuzzer.Fill(original)
 		original.ResourceID = original.ID
 		original.CosmosETag = ""
@@ -94,9 +94,9 @@ func roundTripHCPCluster(t *testing.T, original *coreapi.Cluster) {
 	}
 }
 
-func roundTripNodePool(t *testing.T, original *coreapi.ClusterNodePool) {
+func roundTripNodePool(t *testing.T, original *coreapi.NodePool) {
 	v := version{}
-	externalObj := v.NewClusterNodePool(original)
+	externalObj := v.NewNodePool(original)
 
 	roundTrippedObj, err := externalObj.ConvertToInternal(nil)
 	require.NoError(t, err)

@@ -123,7 +123,7 @@ type VersionedCreatableResource[InternalAPIType any] interface {
 }
 
 type VersionedCluster VersionedCreatableResource[Cluster]
-type VersionedClusterNodePool VersionedCreatableResource[ClusterNodePool]
+type VersionedNodePool VersionedCreatableResource[NodePool]
 type VersionedClusterExternalAuth VersionedCreatableResource[ClusterExternalAuth]
 type VersionedOpenShiftVersion VersionedResource
 
@@ -140,7 +140,7 @@ type Version interface {
 	// Resource Types
 	// Passing a nil pointer creates a resource with default values.
 	NewCluster(*Cluster) VersionedCluster
-	NewClusterNodePool(*ClusterNodePool) VersionedClusterNodePool
+	NewNodePool(*NodePool) VersionedNodePool
 	NewClusterExternalAuth(*ClusterExternalAuth) VersionedClusterExternalAuth
 	NewOpenShiftVersion(*OpenShiftVersion) VersionedOpenShiftVersion
 

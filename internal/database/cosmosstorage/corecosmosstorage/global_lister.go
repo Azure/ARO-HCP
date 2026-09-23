@@ -32,7 +32,7 @@ import (
 type ResourcesGlobalListers interface {
 	Subscriptions() cosmosstorageutils.GlobalLister[coreapi.Subscription]
 	Clusters() cosmosstorageutils.GlobalLister[coreapi.Cluster]
-	NodePools() cosmosstorageutils.GlobalLister[coreapi.ClusterNodePool]
+	NodePools() cosmosstorageutils.GlobalLister[coreapi.NodePool]
 	ExternalAuths() cosmosstorageutils.GlobalLister[coreapi.ClusterExternalAuth]
 	ServiceProviderClusters() cosmosstorageutils.GlobalLister[coreapi.ServiceProviderCluster]
 	ServiceProviderNodePools() cosmosstorageutils.GlobalLister[coreapi.ServiceProviderNodePool]
@@ -74,8 +74,8 @@ func (g *cosmosResourcesGlobalListers) Clusters() cosmosstorageutils.GlobalListe
 	}
 }
 
-func (g *cosmosResourcesGlobalListers) NodePools() cosmosstorageutils.GlobalLister[coreapi.ClusterNodePool] {
-	return &cosmosstorageutils.CosmosGlobalLister[coreapi.ClusterNodePool, cosmosstorageutils.GenericDocument[coreapi.ClusterNodePool]]{
+func (g *cosmosResourcesGlobalListers) NodePools() cosmosstorageutils.GlobalLister[coreapi.NodePool] {
+	return &cosmosstorageutils.CosmosGlobalLister[coreapi.NodePool, cosmosstorageutils.GenericDocument[coreapi.NodePool]]{
 		ContainerClient: g.resources,
 		ResourceTypes:   []azcorearm.ResourceType{coreapi.NodePoolResourceType},
 	}

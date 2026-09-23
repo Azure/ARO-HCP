@@ -15,7 +15,7 @@
 package coreapi
 
 // Default values for non-enum fields in Cluster and
-// ClusterNodePool.
+// NodePool.
 //
 // These constants are the canonical source of truth for bare literal
 // defaults referenced by:

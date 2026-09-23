@@ -214,7 +214,7 @@ func getClusterForUpdate(ctx context.Context, logger logr.Logger, dbClient corec
 
 // getNodePoolForUpdate returns a deep copy of the node pool with updated provisioning
 // state, or nil if the resource update should be skipped.
-func getNodePoolForUpdate(ctx context.Context, logger logr.Logger, dbClient corecosmosstorage.NodePoolsCRUD, existingOperation *coreapi.Operation, newOperationStatus coreapi.ProvisioningState) (*coreapi.ClusterNodePool, error) {
+func getNodePoolForUpdate(ctx context.Context, logger logr.Logger, dbClient corecosmosstorage.NodePoolsCRUD, existingOperation *coreapi.Operation, newOperationStatus coreapi.ProvisioningState) (*coreapi.NodePool, error) {
 	curr, err := dbClient.Get(ctx, existingOperation.ExternalID.Name)
 	var responseErr *azcore.ResponseError
 	if errors.As(err, &responseErr) && responseErr.StatusCode == http.StatusNotFound {

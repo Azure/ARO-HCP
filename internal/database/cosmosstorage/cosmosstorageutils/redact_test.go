@@ -64,7 +64,7 @@ func TestRedactTypedDocument_RedactsSupportedResourceTypes(t *testing.T) {
 			newDocument: func() (any, *TypedDocument) {
 				resourceID := mustParseResourceID(t, coreapitesting.TestNodePoolResourceID)
 				createdAt := time.Date(2025, 2, 1, 0, 0, 0, 0, time.UTC)
-				obj := &coreapi.ClusterNodePool{
+				obj := &coreapi.NodePool{
 					TrackedResource: coreapi.TrackedResource{
 						Resource: coreapi.Resource{
 							ID:   resourceID,

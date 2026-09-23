@@ -172,8 +172,8 @@ func CommonRoundTripFuzzFuncs() []interface{} {
 		func(j *coreapi.ClusterStatus, c randfill.Continue) {
 			*j = coreapi.ClusterStatus{}
 		},
-		func(j *coreapi.ClusterNodePoolStatus, c randfill.Continue) {
-			*j = coreapi.ClusterNodePoolStatus{}
+		func(j *coreapi.NodePoolStatus, c randfill.Continue) {
+			*j = coreapi.NodePoolStatus{}
 		},
 		func(j *coreapi.ClusterExternalAuthStatus, c randfill.Continue) {
 			*j = coreapi.ClusterExternalAuthStatus{}
@@ -193,7 +193,7 @@ func CommonRoundTripFuzzFuncs() []interface{} {
 			j.DeleteOperationCompletionTimeout = nil
 			j.DeleteOperationCompletionDeadline = nil
 		},
-		func(j *coreapi.ClusterNodePoolServiceProviderProperties, c randfill.Continue) {
+		func(j *coreapi.NodePoolServiceProviderProperties, c randfill.Continue) {
 			c.FillNoCustom(j)
 			j.ActiveOperationID = ""
 			j.ClusterServiceID = nil
@@ -279,7 +279,7 @@ func CommonDeepCopyFuzzFuncs() []interface{} {
 			j.ClusterServiceID = metadataapihelpers.Ptr(FuzzInternalID(GenName(c)))
 			j.PendingClusterServiceID = metadataapihelpers.Ptr(FuzzInternalID(GenName(c)))
 		},
-		func(j *coreapi.ClusterNodePoolServiceProviderProperties, c randfill.Continue) {
+		func(j *coreapi.NodePoolServiceProviderProperties, c randfill.Continue) {
 			c.FillNoCustom(j)
 			if j == nil {
 				return

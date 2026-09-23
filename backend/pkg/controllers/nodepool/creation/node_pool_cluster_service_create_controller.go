@@ -71,7 +71,7 @@ func NewNodePoolClusterServiceCreateController(
 	)
 }
 
-func (c *nodePoolClusterServiceCreateSyncer) needsWork(nodePool *coreapi.ClusterNodePool) bool {
+func (c *nodePoolClusterServiceCreateSyncer) needsWork(nodePool *coreapi.NodePool) bool {
 	return nodePool.ServiceProviderProperties.DeletionTimestamp == nil &&
 		(nodePool.ServiceProviderProperties.ClusterServiceID == nil || len(nodePool.ServiceProviderProperties.ClusterServiceID.String()) == 0)
 }

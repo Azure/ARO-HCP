@@ -491,7 +491,7 @@ func (e *changefeedTestEnv) uniqueOperationResourceID(name string) *azcorearm.Re
 		testSubscriptionID, opName)))
 }
 
-func (e *changefeedTestEnv) createNodePool(t *testing.T, resourceID *azcorearm.ResourceID) *coreapi.ClusterNodePool {
+func (e *changefeedTestEnv) createNodePool(t *testing.T, resourceID *azcorearm.ResourceID) *coreapi.NodePool {
 	t.Helper()
 	np := newNodePoolFixture(resourceID)
 	clusterName := resourceID.Parent.Name
@@ -501,7 +501,7 @@ func (e *changefeedTestEnv) createNodePool(t *testing.T, resourceID *azcorearm.R
 	return created
 }
 
-func (e *changefeedTestEnv) replaceNodePool(t *testing.T, existing *coreapi.ClusterNodePool) *coreapi.ClusterNodePool {
+func (e *changefeedTestEnv) replaceNodePool(t *testing.T, existing *coreapi.NodePool) *coreapi.NodePool {
 	t.Helper()
 	updated := newNodePoolFixture(existing.ResourceID)
 	updated.CosmosETag = existing.CosmosETag
@@ -616,8 +616,8 @@ func newClusterFixture(resourceID *azcorearm.ResourceID) *coreapi.Cluster {
 	}
 }
 
-func newNodePoolFixture(resourceID *azcorearm.ResourceID) *coreapi.ClusterNodePool {
-	return &coreapi.ClusterNodePool{
+func newNodePoolFixture(resourceID *azcorearm.ResourceID) *coreapi.NodePool {
+	return &coreapi.NodePool{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   resourceID,
 			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
@@ -630,11 +630,11 @@ func newNodePoolFixture(resourceID *azcorearm.ResourceID) *coreapi.ClusterNodePo
 			},
 			Location: "eastus",
 		},
-		Properties: coreapi.ClusterNodePoolProperties{
+		Properties: coreapi.NodePoolProperties{
 			ProvisioningState: coreapi.ProvisioningStateAccepted,
 			Replicas:          3,
 		},
-		ServiceProviderProperties: coreapi.ClusterNodePoolServiceProviderProperties{
+		ServiceProviderProperties: coreapi.NodePoolServiceProviderProperties{
 			ClusterServiceID: metadataapihelpers.Ptr(metadataapi.Must(metadataapi.NewInternalID("/api/aro_hcp/v1alpha1/clusters/changefeed-test/node_pools/" + resourceID.Name))),
 		},
 	}

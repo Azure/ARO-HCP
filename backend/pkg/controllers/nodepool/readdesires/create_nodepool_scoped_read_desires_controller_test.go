@@ -115,17 +115,17 @@ func newTestNodePoolSPC(mcResourceID *azcorearm.ResourceID, opts ...func(*coreap
 	return spc
 }
 
-// newTestNodePool builds a ClusterNodePool named name. name is used verbatim
+// newTestNodePool builds a NodePool named name. name is used verbatim
 // (not lowercased) so tests can exercise ARM node pool names containing uppercase letters,
 // which Cluster Service lowercases when naming the corresponding Hypershift NodePool object.
-func newTestNodePool(name string, opts ...func(*coreapi.ClusterNodePool)) *coreapi.ClusterNodePool {
+func newTestNodePool(name string, opts ...func(*coreapi.NodePool)) *coreapi.NodePool {
 	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + nodePoolReadDesireTestSubscriptionID +
 			"/resourceGroups/" + nodePoolReadDesireTestResourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + nodePoolReadDesireTestClusterName +
 			"/nodePools/" + name,
 	))
-	nodePool := &coreapi.ClusterNodePool{
+	nodePool := &coreapi.NodePool{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   resourceID,
 			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
@@ -137,7 +137,7 @@ func newTestNodePool(name string, opts ...func(*coreapi.ClusterNodePool)) *corea
 				Type: resourceID.ResourceType.String(),
 			},
 		},
-		ServiceProviderProperties: coreapi.ClusterNodePoolServiceProviderProperties{
+		ServiceProviderProperties: coreapi.NodePoolServiceProviderProperties{
 			ClusterServiceID: metadataapihelpers.Ptr(metadataapi.Must(metadataapi.NewInternalID(
 				nodePoolReadDesireTestClusterServiceID + "/node_pools/" + name,
 			))),

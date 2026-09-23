@@ -139,7 +139,7 @@ func NewHCPClusterCRUD(containerClient *azcosmos.ContainerClient, subscriptionID
 }
 
 type NodePoolsCRUD interface {
-	cosmosstorageutils.ResourceCRUD[coreapi.ClusterNodePool, *coreapi.ClusterNodePool]
+	cosmosstorageutils.ResourceCRUD[coreapi.NodePool, *coreapi.NodePool]
 	ControllerContainer
 	ManagementClusterContentContainer
 }
@@ -183,7 +183,7 @@ func (h *hcpClusterCRUD) NodePools(hcpClusterName string) NodePoolsCRUD {
 			hcpClusterName)))
 
 	return &nodePoolsCRUD{
-		NestedCosmosResourceCRUD: cosmosstorageutils.NewCosmosResourceCRUD[coreapi.ClusterNodePool, *coreapi.ClusterNodePool, cosmosstorageutils.GenericDocument[coreapi.ClusterNodePool]](
+		NestedCosmosResourceCRUD: cosmosstorageutils.NewCosmosResourceCRUD[coreapi.NodePool, *coreapi.NodePool, cosmosstorageutils.GenericDocument[coreapi.NodePool]](
 			h.ContainerClient,
 			parentResourceID,
 			coreapi.NodePoolResourceType),
@@ -268,7 +268,7 @@ func (h *externalAuthCRUD) Controllers(externalAuthName string) cosmosstorageuti
 }
 
 type nodePoolsCRUD struct {
-	*cosmosstorageutils.NestedCosmosResourceCRUD[coreapi.ClusterNodePool, *coreapi.ClusterNodePool, cosmosstorageutils.GenericDocument[coreapi.ClusterNodePool]]
+	*cosmosstorageutils.NestedCosmosResourceCRUD[coreapi.NodePool, *coreapi.NodePool, cosmosstorageutils.GenericDocument[coreapi.NodePool]]
 }
 
 func (h *nodePoolsCRUD) Controllers(nodePoolName string) cosmosstorageutils.ResourceCRUD[coreapi.Controller, *coreapi.Controller] {

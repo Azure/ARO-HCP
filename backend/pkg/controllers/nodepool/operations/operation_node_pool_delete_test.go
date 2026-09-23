@@ -43,7 +43,7 @@ import (
 func TestOperationNodePoolDelete_SynchronizeOperation(t *testing.T) {
 	fixture := operationtesting.NewNodePoolTestFixture()
 
-	nodePoolPassingExtraReconcileGate := func() *coreapi.ClusterNodePool {
+	nodePoolPassingExtraReconcileGate := func() *coreapi.NodePool {
 		now := time.Now()
 		np := fixture.NewNodePool()
 		np.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: now}
@@ -53,7 +53,7 @@ func TestOperationNodePoolDelete_SynchronizeOperation(t *testing.T) {
 
 	testCases := []struct {
 		name                    string
-		existingNodePool        *coreapi.ClusterNodePool
+		existingNodePool        *coreapi.NodePool
 		wantErr                 bool
 		verifyDB                func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient)
 		usesNewDeletionApproach bool
@@ -70,7 +70,7 @@ func TestOperationNodePoolDelete_SynchronizeOperation(t *testing.T) {
 		},
 		{
 			name: "shouldReconcile gate not passed skips cluster service",
-			existingNodePool: func() *coreapi.ClusterNodePool {
+			existingNodePool: func() *coreapi.NodePool {
 				np := fixture.NewNodePool()
 				np.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: time.Now()}
 				return np

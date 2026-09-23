@@ -57,7 +57,7 @@ func TestOperationClusterDelete_SynchronizeOperation(t *testing.T) {
 
 	testCases := []struct {
 		name                           string
-		nodePools                      []*coreapi.ClusterNodePool
+		nodePools                      []*coreapi.NodePool
 		externalAuths                  []*coreapi.ClusterExternalAuth
 		usesNewClusterDeletionApproach bool
 		existingCluster                *coreapi.Cluster
@@ -88,7 +88,7 @@ func TestOperationClusterDelete_SynchronizeOperation(t *testing.T) {
 		{
 			name:            "legacy approach: cluster not found does not remove cluster while nodepools exist",
 			existingCluster: fixture.NewCluster(&createdAt),
-			nodePools: []*coreapi.ClusterNodePool{
+			nodePools: []*coreapi.NodePool{
 				operationtesting.NewNodePoolTestFixture().NewNodePool(),
 			},
 			setupCSMock: func(ctrl *gomock.Controller, fixture *operationtesting.ClusterTestFixture) ocm.ClusterServiceClientSpec {

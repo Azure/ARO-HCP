@@ -726,16 +726,16 @@ func TestAdmitCluster_Update(t *testing.T) {
 		}
 	}
 
-	makeTestNodePool := func(name, versionID string) *coreapi.ClusterNodePool {
+	makeTestNodePool := func(name, versionID string) *coreapi.NodePool {
 		nodePoolResourceID := metadataapi.Must(azcorearm.ParseResourceID(
 			clusterResourceID.String() + "/nodePools/" + name))
-		return &coreapi.ClusterNodePool{
+		return &coreapi.NodePool{
 			CosmosMetadata: coreapi.CosmosMetadata{
 				ResourceID:   nodePoolResourceID,
 				PartitionKey: strings.ToLower(nodePoolResourceID.SubscriptionID),
 			},
 			TrackedResource: coreapi.NewTrackedResource(nodePoolResourceID, "eastus"),
-			Properties: coreapi.ClusterNodePoolProperties{
+			Properties: coreapi.NodePoolProperties{
 				Version: coreapi.NodePoolVersionProfile{ID: versionID},
 			},
 		}
@@ -781,7 +781,7 @@ func TestAdmitCluster_Update(t *testing.T) {
 		etcd                         coreapi.EtcdProfile
 		options                      []string
 		serviceProviderClusterStatus coreapi.ServiceProviderClusterStatus
-		nodePools                    []*coreapi.ClusterNodePool
+		nodePools                    []*coreapi.NodePool
 		serviceProviderNodePools     []*coreapi.ServiceProviderNodePool
 		newClusterFromOld            func(*coreapi.Cluster) //This method uses a copy of the oldCluster, changes are applied to that copy.
 		expectErrors                 []utils.ExpectedError
@@ -790,7 +790,7 @@ func TestAdmitCluster_Update(t *testing.T) {
 			name:                         "empty desired version skips admission",
 			oldClusterVersionID:          "4.10",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.22"),
-			nodePools:                    []*coreapi.ClusterNodePool{makeTestNodePool("np1", "4.10.0")},
+			nodePools:                    []*coreapi.NodePool{makeTestNodePool("np1", "4.10.0")},
 			newClusterFromOld: func(oldCopy *coreapi.Cluster) {
 				oldCopy.CustomerProperties.Version.ID = ""
 			},
@@ -800,7 +800,7 @@ func TestAdmitCluster_Update(t *testing.T) {
 			name:                         "unchanged version skips admission",
 			oldClusterVersionID:          "5.0",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.22"),
-			nodePools:                    []*coreapi.ClusterNodePool{makeTestNodePool("workers", "4.20.0")},
+			nodePools:                    []*coreapi.NodePool{makeTestNodePool("workers", "4.20.0")},
 			expectErrors:                 []utils.ExpectedError{},
 		},
 		{
@@ -889,7 +889,7 @@ func TestAdmitCluster_Update(t *testing.T) {
 			name:                         "rejects when node pool over two minors behind",
 			oldClusterVersionID:          "4.20",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.20"),
-			nodePools:                    []*coreapi.ClusterNodePool{makeTestNodePool("workers", "4.17.0")},
+			nodePools:                    []*coreapi.NodePool{makeTestNodePool("workers", "4.17.0")},
 			newClusterFromOld: func(c *coreapi.Cluster) {
 				c.CustomerProperties.Version.ID = "4.21"
 			},
@@ -901,7 +901,7 @@ func TestAdmitCluster_Update(t *testing.T) {
 			name:                         "allows no-op version with node pools in skew",
 			oldClusterVersionID:          "4.20",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.20"),
-			nodePools: []*coreapi.ClusterNodePool{
+			nodePools: []*coreapi.NodePool{
 				makeTestNodePool("workers", "4.18.0"),
 				makeTestNodePool("infra", "4.20.3"),
 				makeTestNodePool("spot", "4.20.1"),
@@ -912,7 +912,7 @@ func TestAdmitCluster_Update(t *testing.T) {
 			name:                         "allows 4.22 to 5.0 node pool 4.22",
 			oldClusterVersionID:          "4.22",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.22"),
-			nodePools:                    []*coreapi.ClusterNodePool{makeTestNodePool("workers", "4.22.0")},
+			nodePools:                    []*coreapi.NodePool{makeTestNodePool("workers", "4.22.0")},
 			newClusterFromOld: func(c *coreapi.Cluster) {
 				c.CustomerProperties.Version.ID = "5.0"
 			},
@@ -922,7 +922,7 @@ func TestAdmitCluster_Update(t *testing.T) {
 			name:                         "allows 4.22 to 5.0 node pool 4.21",
 			oldClusterVersionID:          "4.22",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.22"),
-			nodePools:                    []*coreapi.ClusterNodePool{makeTestNodePool("workers", "4.21.0")},
+			nodePools:                    []*coreapi.NodePool{makeTestNodePool("workers", "4.21.0")},
 			newClusterFromOld: func(c *coreapi.Cluster) {
 				c.CustomerProperties.Version.ID = "5.0"
 			},
@@ -932,7 +932,7 @@ func TestAdmitCluster_Update(t *testing.T) {
 			name:                         "allows 4.23 to 5.1 node pool 4.22",
 			oldClusterVersionID:          "4.23",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.23"),
-			nodePools:                    []*coreapi.ClusterNodePool{makeTestNodePool("workers", "4.22.0")},
+			nodePools:                    []*coreapi.NodePool{makeTestNodePool("workers", "4.22.0")},
 			newClusterFromOld: func(c *coreapi.Cluster) {
 				c.CustomerProperties.Version.ID = "5.1"
 			},
@@ -942,7 +942,7 @@ func TestAdmitCluster_Update(t *testing.T) {
 			name:                         "allows 4.23 to 5.1 node pool 4.23",
 			oldClusterVersionID:          "4.23",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.23"),
-			nodePools:                    []*coreapi.ClusterNodePool{makeTestNodePool("workers", "4.23.0")},
+			nodePools:                    []*coreapi.NodePool{makeTestNodePool("workers", "4.23.0")},
 			newClusterFromOld: func(c *coreapi.Cluster) {
 				c.CustomerProperties.Version.ID = "5.1"
 			},
@@ -952,7 +952,7 @@ func TestAdmitCluster_Update(t *testing.T) {
 			name:                         "allows 5.1 to 5.2 node pool 4.23",
 			oldClusterVersionID:          "5.1",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("5.1"),
-			nodePools:                    []*coreapi.ClusterNodePool{makeTestNodePool("workers", "4.23.0")},
+			nodePools:                    []*coreapi.NodePool{makeTestNodePool("workers", "4.23.0")},
 			newClusterFromOld: func(c *coreapi.Cluster) {
 				c.CustomerProperties.Version.ID = "5.2"
 			},
@@ -962,7 +962,7 @@ func TestAdmitCluster_Update(t *testing.T) {
 			name:                         "rejects 4.22 to 5.0 node pool 4.20",
 			oldClusterVersionID:          "4.22",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.22"),
-			nodePools:                    []*coreapi.ClusterNodePool{makeTestNodePool("workers", "4.20.0")},
+			nodePools:                    []*coreapi.NodePool{makeTestNodePool("workers", "4.20.0")},
 			newClusterFromOld: func(c *coreapi.Cluster) {
 				c.CustomerProperties.Version.ID = "5.0"
 			},
@@ -974,7 +974,7 @@ func TestAdmitCluster_Update(t *testing.T) {
 			name:                         "rejects 4.23 to 5.1 node pool 4.21",
 			oldClusterVersionID:          "4.23",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.23"),
-			nodePools:                    []*coreapi.ClusterNodePool{makeTestNodePool("workers", "4.21.0")},
+			nodePools:                    []*coreapi.NodePool{makeTestNodePool("workers", "4.21.0")},
 			newClusterFromOld: func(c *coreapi.Cluster) {
 				c.CustomerProperties.Version.ID = "5.1"
 			},
@@ -986,7 +986,7 @@ func TestAdmitCluster_Update(t *testing.T) {
 			name:                         "rejects 4.22 to 5.0 node pool 4.23",
 			oldClusterVersionID:          "4.22",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.22"),
-			nodePools:                    []*coreapi.ClusterNodePool{makeTestNodePool("workers", "4.23.0")},
+			nodePools:                    []*coreapi.NodePool{makeTestNodePool("workers", "4.23.0")},
 			newClusterFromOld: func(c *coreapi.Cluster) {
 				c.CustomerProperties.Version.ID = "5.0"
 			},
@@ -998,7 +998,7 @@ func TestAdmitCluster_Update(t *testing.T) {
 			name:                         "rejects 4.22 to 5.0 mixed node pool minors",
 			oldClusterVersionID:          "4.22",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.22"),
-			nodePools: []*coreapi.ClusterNodePool{
+			nodePools: []*coreapi.NodePool{
 				makeTestNodePool("workers", "4.22.0"),
 				makeTestNodePool("legacy", "4.20.0"),
 			},
@@ -1013,7 +1013,7 @@ func TestAdmitCluster_Update(t *testing.T) {
 			name:                         "rejects 4.22 to 5.0 sp node pool behind customer minor",
 			oldClusterVersionID:          "4.22",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.22"),
-			nodePools:                    []*coreapi.ClusterNodePool{makeTestNodePool("workers", "4.22.0")},
+			nodePools:                    []*coreapi.NodePool{makeTestNodePool("workers", "4.22.0")},
 			serviceProviderNodePools:     []*coreapi.ServiceProviderNodePool{makeServiceProviderNodePool("workers", "4.17.0")},
 			newClusterFromOld: func(c *coreapi.Cluster) {
 				c.CustomerProperties.Version.ID = "5.0"
@@ -1026,7 +1026,7 @@ func TestAdmitCluster_Update(t *testing.T) {
 			name:                         "rejects minor upgrade sp node pool two minors behind",
 			oldClusterVersionID:          "4.20",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.20"),
-			nodePools:                    []*coreapi.ClusterNodePool{makeTestNodePool("workers", "4.20.0")},
+			nodePools:                    []*coreapi.NodePool{makeTestNodePool("workers", "4.20.0")},
 			serviceProviderNodePools:     []*coreapi.ServiceProviderNodePool{makeServiceProviderNodePool("workers", "4.17.0")},
 			newClusterFromOld: func(c *coreapi.Cluster) {
 				c.CustomerProperties.Version.ID = "4.21"
@@ -1039,7 +1039,7 @@ func TestAdmitCluster_Update(t *testing.T) {
 			name:                         "rejects 4.22 to 5.0 incompatible lowest active cluster version",
 			oldClusterVersionID:          "4.22",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.22"),
-			nodePools:                    []*coreapi.ClusterNodePool{makeTestNodePool("workers", "4.22.0")},
+			nodePools:                    []*coreapi.NodePool{makeTestNodePool("workers", "4.22.0")},
 			serviceProviderNodePools:     []*coreapi.ServiceProviderNodePool{makeServiceProviderNodePool("workers", "4.22.0", "4.17.0")},
 			newClusterFromOld: func(c *coreapi.Cluster) {
 				c.CustomerProperties.Version.ID = "5.0"
@@ -1052,7 +1052,7 @@ func TestAdmitCluster_Update(t *testing.T) {
 			name:                         "allows 4.22 to 5.0 compatible active cluster versions",
 			oldClusterVersionID:          "4.22",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.22"),
-			nodePools:                    []*coreapi.ClusterNodePool{makeTestNodePool("workers", "4.22.0")},
+			nodePools:                    []*coreapi.NodePool{makeTestNodePool("workers", "4.22.0")},
 			serviceProviderNodePools:     []*coreapi.ServiceProviderNodePool{makeServiceProviderNodePool("workers", "4.22.1", "4.22.0")},
 			newClusterFromOld: func(c *coreapi.Cluster) {
 				c.CustomerProperties.Version.ID = "5.0"
@@ -1221,13 +1221,13 @@ func TestAdmitCluster_PlatformResourceIDs(t *testing.T) {
 		}
 	}
 
-	makeNodePool := func(clusterName, nodePoolName string, subnet *azcorearm.ResourceID) *coreapi.ClusterNodePool {
+	makeNodePool := func(clusterName, nodePoolName string, subnet *azcorearm.ResourceID) *coreapi.NodePool {
 		resourceID := metadataapi.Must(azcorearm.ParseResourceID(fmt.Sprintf(
 			"/subscriptions/%s/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/%s/hcpOpenShiftClusterNodePools/%s",
 			subscriptionID, clusterName, nodePoolName)))
-		return &coreapi.ClusterNodePool{
+		return &coreapi.NodePool{
 			TrackedResource: coreapi.NewTrackedResource(resourceID, "eastus"),
-			Properties: coreapi.ClusterNodePoolProperties{
+			Properties: coreapi.NodePoolProperties{
 				Platform: coreapi.NodePoolPlatformProfile{
 					SubnetID: subnet,
 				},
@@ -1238,7 +1238,7 @@ func TestAdmitCluster_PlatformResourceIDs(t *testing.T) {
 	tests := []struct {
 		name                  string
 		subscriptionClusters  []*coreapi.Cluster
-		subscriptionNodePools []*coreapi.ClusterNodePool
+		subscriptionNodePools []*coreapi.NodePool
 		newCluster            *coreapi.Cluster
 		expectErrors          []utils.ExpectedError
 	}{
@@ -1283,7 +1283,7 @@ func TestAdmitCluster_PlatformResourceIDs(t *testing.T) {
 			subscriptionClusters: []*coreapi.Cluster{
 				makeCluster("existing-cluster", "mrg-existing", otherSubnetID, nsgID),
 			},
-			subscriptionNodePools: []*coreapi.ClusterNodePool{
+			subscriptionNodePools: []*coreapi.NodePool{
 				makeNodePool("existing-cluster", "workers", subnetID),
 			},
 			newCluster: makeCluster("new-cluster", "mrg-new", subnetID, otherNsgID),
@@ -1326,7 +1326,7 @@ func TestAdmitCluster_PlatformResourceIDs(t *testing.T) {
 			subscriptionClusters: []*coreapi.Cluster{
 				makeCluster("existing-cluster", "mrg-existing", otherSubnetID, nsgID),
 			},
-			subscriptionNodePools: []*coreapi.ClusterNodePool{
+			subscriptionNodePools: []*coreapi.NodePool{
 				makeNodePool("existing-cluster", "workers", nil),
 			},
 			newCluster: makeCluster("new-cluster", "mrg-new", subnetID, otherNsgID),

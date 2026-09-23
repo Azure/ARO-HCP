@@ -135,7 +135,7 @@ func TestNodePoolMetricsHandler_SetsMetrics(t *testing.T) {
 	reg := prometheus.NewRegistry()
 	handler := NewNodePoolMetricsHandler(reg)
 
-	nodePool := &coreapi.ClusterNodePool{
+	nodePool := &coreapi.NodePool{
 		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1/nodePools/np-1"))},
 		TrackedResource: coreapi.TrackedResource{
 			Resource: coreapi.Resource{
@@ -143,7 +143,7 @@ func TestNodePoolMetricsHandler_SetsMetrics(t *testing.T) {
 				SystemData: &coreapi.SystemData{CreatedAt: &now},
 			},
 		},
-		Properties: coreapi.ClusterNodePoolProperties{
+		Properties: coreapi.NodePoolProperties{
 			ProvisioningState: coreapi.ProvisioningStateSucceeded,
 		},
 	}

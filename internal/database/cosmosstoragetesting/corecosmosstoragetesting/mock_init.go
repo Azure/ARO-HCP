@@ -25,7 +25,7 @@ import (
 // NewMockResourcesDBClientWithResources creates a new mockResourcesDBClient and populates it with the given resources.
 // Resources can be of the following types:
 //   - *coreapi.Cluster
-//   - *coreapi.ClusterNodePool
+//   - *coreapi.NodePool
 //   - *coreapi.Operation
 //   - *coreapi.ClusterExternalAuth
 //   - *coreapi.ServiceProviderCluster
@@ -54,7 +54,7 @@ func (m *MockResourcesDBClient) addResource(ctx context.Context, resource any) e
 	switch r := resource.(type) {
 	case *coreapi.Cluster:
 		return m.addCluster(ctx, r)
-	case *coreapi.ClusterNodePool:
+	case *coreapi.NodePool:
 		return m.addNodePool(ctx, r)
 	case *coreapi.Operation:
 		return m.addOperation(ctx, r)
@@ -88,7 +88,7 @@ func (m *MockResourcesDBClient) addCluster(ctx context.Context, cluster *coreapi
 	return err
 }
 
-func (m *MockResourcesDBClient) addNodePool(ctx context.Context, nodePool *coreapi.ClusterNodePool) error {
+func (m *MockResourcesDBClient) addNodePool(ctx context.Context, nodePool *coreapi.NodePool) error {
 	if nodePool.ID == nil {
 		return fmt.Errorf("node pool is missing resource ID")
 	}

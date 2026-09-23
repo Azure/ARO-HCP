@@ -39,7 +39,7 @@ const (
 )
 
 // nodePoolRequirementsValidAggregator surfaces ServiceProviderNodePool.Status.Validations
-// up onto ClusterNodePool.Status.UserFacingConditions as a single
+// up onto NodePool.Status.UserFacingConditions as a single
 // RequirementsValid condition.
 //
 // Failed or Unknown validations drive RequirementsValid=False/Degraded, with
@@ -117,6 +117,6 @@ func (c *nodePoolRequirementsValidAggregator) SyncOnce(ctx context.Context, key 
 	return nil
 }
 
-func (c *nodePoolRequirementsValidAggregator) needsWork(nodePool *coreapi.ClusterNodePool) bool {
+func (c *nodePoolRequirementsValidAggregator) needsWork(nodePool *coreapi.NodePool) bool {
 	return nodePool.ServiceProviderProperties.DeletionTimestamp == nil
 }

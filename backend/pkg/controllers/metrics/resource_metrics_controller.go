@@ -142,25 +142,25 @@ func (h *clusterMetricsHandler) Sync(ctx context.Context, cluster *coreapi.Clust
 }
 
 type nodePoolMetricsObject struct {
-	*coreapi.ClusterNodePool
+	*coreapi.NodePool
 }
 
 func (o nodePoolMetricsObject) ResourceID() *azcorearm.ResourceID {
-	if o.ClusterNodePool == nil {
+	if o.NodePool == nil {
 		return nil
 	}
 	return o.ID
 }
 
 func (o nodePoolMetricsObject) ProvisioningState() coreapi.ProvisioningState {
-	if o.ClusterNodePool == nil {
+	if o.NodePool == nil {
 		return ""
 	}
 	return o.Properties.ProvisioningState
 }
 
 func (o nodePoolMetricsObject) CreatedAt() *time.Time {
-	if o.ClusterNodePool == nil || o.SystemData == nil {
+	if o.NodePool == nil || o.SystemData == nil {
 		return nil
 	}
 	return o.SystemData.CreatedAt
@@ -171,7 +171,7 @@ type nodePoolMetricsHandler struct {
 }
 
 // NewNodePoolMetricsHandler creates a metrics handler for node pool metrics.
-func NewNodePoolMetricsHandler(r prometheus.Registerer) Handler[*coreapi.ClusterNodePool] {
+func NewNodePoolMetricsHandler(r prometheus.Registerer) Handler[*coreapi.NodePool] {
 	return &nodePoolMetricsHandler{
 		newResourceStateMetricsHandler[nodePoolMetricsObject](
 			r,
@@ -183,7 +183,7 @@ func NewNodePoolMetricsHandler(r prometheus.Registerer) Handler[*coreapi.Cluster
 	}
 }
 
-func (h *nodePoolMetricsHandler) Sync(ctx context.Context, nodePool *coreapi.ClusterNodePool) {
+func (h *nodePoolMetricsHandler) Sync(ctx context.Context, nodePool *coreapi.NodePool) {
 	h.resourceStateMetricsHandler.Sync(ctx, nodePoolMetricsObject{nodePool})
 }
 

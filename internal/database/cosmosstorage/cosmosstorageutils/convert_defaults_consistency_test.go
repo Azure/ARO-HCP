@@ -32,7 +32,7 @@ import (
 
 // TestEnsureDefaultsConsistencyNodePool verifies that the defaults applied by
 // EnsureDefaults match the corresponding defaults in
-// NewDefaultClusterNodePool and the versioned constructors.
+// NewDefaultNodePool and the versioned constructors.
 // This catches drift between the defaulting layers described in
 // docs/api-version-defaults-and-storage.md.
 func TestEnsureDefaultsConsistencyNodePool(t *testing.T) {
@@ -40,10 +40,10 @@ func TestEnsureDefaultsConsistencyNodePool(t *testing.T) {
 	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster/nodePools/np",
 	))
-	internalDefault := coreapi.NewDefaultClusterNodePool(resourceID, "eastus")
+	internalDefault := coreapi.NewDefaultNodePool(resourceID, "eastus")
 
 	// 3. EnsureDefaults
-	ensuredDefault := &coreapi.ClusterNodePool{}
+	ensuredDefault := &coreapi.NodePool{}
 	ensuredDefault.EnsureDefaults()
 
 	// Verify DiskStorageAccountType against internal constructor
@@ -445,17 +445,17 @@ func TestPreExistingDataNodePool(t *testing.T) {
 	))
 
 	// Simulate a pre-existing Cosmos document missing DiskStorageAccountType.
-	preExistingDoc := &GenericDocument[coreapi.ClusterNodePool]{
+	preExistingDoc := &GenericDocument[coreapi.NodePool]{
 		TypedDocument: TypedDocument{
 			BaseDocument: BaseDocument{ID: "test-doc-id"},
 			ResourceID:   resourceID,
 		},
-		Content: coreapi.ClusterNodePool{
+		Content: coreapi.NodePool{
 			// DiskStorageAccountType is intentionally zero-valued
 			CosmosMetadata: coreapi.CosmosMetadata{
 				ResourceID: resourceID,
 			},
-			Properties: coreapi.ClusterNodePoolProperties{
+			Properties: coreapi.NodePoolProperties{
 				ProvisioningState: coreapi.ProvisioningStateSucceeded,
 				Platform: coreapi.NodePoolPlatformProfile{
 					OSDisk: coreapi.OSDiskProfile{
@@ -463,7 +463,7 @@ func TestPreExistingDataNodePool(t *testing.T) {
 					},
 				},
 			},
-			ServiceProviderProperties: coreapi.ClusterNodePoolServiceProviderProperties{
+			ServiceProviderProperties: coreapi.NodePoolServiceProviderProperties{
 				ClusterServiceID: ptr.To(metadataapi.Must(metadataapi.NewInternalID("/api/aro_hcp/v1alpha1/clusters/test-cluster/node_pools/test-np"))),
 			},
 		},
@@ -545,7 +545,7 @@ func TestCanonicalDefaultsConsistencyNodePool(t *testing.T) {
 	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster/nodePools/np",
 	))
-	internalDefault := coreapi.NewDefaultClusterNodePool(resourceID, "eastus")
+	internalDefault := coreapi.NewDefaultNodePool(resourceID, "eastus")
 
 	if internalDefault.Properties.Version.ChannelGroup != coreapi.DefaultNodePoolVersionChannelGroup {
 		t.Errorf("ChannelGroup = %q, want %q", internalDefault.Properties.Version.ChannelGroup, coreapi.DefaultNodePoolVersionChannelGroup)

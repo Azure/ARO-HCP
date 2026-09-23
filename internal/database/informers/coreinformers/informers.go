@@ -167,14 +167,14 @@ func NewClusterInformerWithRelistDuration(lister cosmosstorageutils.GlobalLister
 
 // NewNodePoolInformer creates an unstarted SharedIndexInformer for node pools
 // with resource group and cluster indexes using the default relist duration.
-func NewNodePoolInformer(lister cosmosstorageutils.GlobalLister[coreapi.ClusterNodePool], cosmosClient cosmosstorageutils.ChangeFeedClient) cache.SharedIndexInformer {
+func NewNodePoolInformer(lister cosmosstorageutils.GlobalLister[coreapi.NodePool], cosmosClient cosmosstorageutils.ChangeFeedClient) cache.SharedIndexInformer {
 	return NewNodePoolInformerWithRelistDuration(lister, cosmosClient, NodePoolRelistDuration)
 }
 
 // NewNodePoolInformerWithRelistDuration creates an unstarted SharedIndexInformer for node pools
 // with resource group and cluster indexes and a configurable relist duration.
-func NewNodePoolInformerWithRelistDuration(lister cosmosstorageutils.GlobalLister[coreapi.ClusterNodePool], cosmosClient cosmosstorageutils.ChangeFeedClient, relistDuration time.Duration) cache.SharedIndexInformer {
-	lw := informerutils.NewChangeFeedListWatcher[coreapi.ClusterNodePool, *coreapi.ClusterNodePool, cosmosstorageutils.GenericDocument[coreapi.ClusterNodePool]](
+func NewNodePoolInformerWithRelistDuration(lister cosmosstorageutils.GlobalLister[coreapi.NodePool], cosmosClient cosmosstorageutils.ChangeFeedClient, relistDuration time.Duration) cache.SharedIndexInformer {
+	lw := informerutils.NewChangeFeedListWatcher[coreapi.NodePool, *coreapi.NodePool, cosmosstorageutils.GenericDocument[coreapi.NodePool]](
 		[]azcorearm.ResourceType{coreapi.NodePoolResourceType},
 		utilsclock.RealClock{},
 		lister,
@@ -185,14 +185,14 @@ func NewNodePoolInformerWithRelistDuration(lister cosmosstorageutils.GlobalListe
 
 	return cache.NewSharedIndexInformerWithOptions(
 		&informerutils.ListWatchWithoutWatchListSemantics{ListWatch: lw.ToListWatch(), InformerName: "NodePools"},
-		&coreapi.ClusterNodePool{},
+		&coreapi.NodePool{},
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod: 1 * time.Hour, // this is only a default.  Shorter resyncs can be added when registering handlers.
 			Indexers: cache.Indexers{
 				corelisters.ByResourceGroup: resourceGroupIndexFunc,
 				corelisters.ByCluster:       clusterResourceIDIndexFunc,
 			},
-			ObjectDescription: "ClusterNodePool",
+			ObjectDescription: "NodePool",
 		},
 	)
 }

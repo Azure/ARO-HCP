@@ -35,14 +35,14 @@ func TestDeepCopyCluster(t *testing.T) {
 	}
 }
 
-func TestDeepCopyClusterNodePool(t *testing.T) {
+func TestDeepCopyNodePool(t *testing.T) {
 	seed := rand.Int63()
 	t.Logf("seed: %d", seed)
 
 	fuzzer := coreapitesting.DeepCopyFuzzerFor(rand.NewSource(seed))
 
 	for i := 0; i < 200; i++ {
-		original := &coreapi.ClusterNodePool{}
+		original := &coreapi.NodePool{}
 		fuzzer.Fill(original)
 		coreapitesting.DoDeepCopyTest(t, original, fuzzer)
 	}

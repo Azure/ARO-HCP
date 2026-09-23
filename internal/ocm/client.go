@@ -203,7 +203,7 @@ func resolveClusterLinks(ctx context.Context, conn *sdk.Connection, cluster *aro
 }
 
 // resolveNodePoolLinks replaces link objects with full objects that are
-// necessary to fully construct a ClusterNodePool model.
+// necessary to fully construct a NodePool model.
 func resolveNodePoolLinks(ctx context.Context, conn *sdk.Connection, nodePool *arohcpv1alpha1.NodePool) (*arohcpv1alpha1.NodePool, error) {
 	builder := arohcpv1alpha1.NewNodePool().Copy(nodePool)
 

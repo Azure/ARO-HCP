@@ -202,18 +202,18 @@ func testCosmosServiceProviderNodePool(nodePoolResourceId *azcorearm.ResourceID)
 	}
 }
 
-func testCosmosNodePool(clusterResourceId *azcorearm.ResourceID, name, nodePoolVersionId string, deleting bool) *coreapi.ClusterNodePool {
+func testCosmosNodePool(clusterResourceId *azcorearm.ResourceID, name, nodePoolVersionId string, deleting bool) *coreapi.NodePool {
 	nodePoolResourceId := metadataapi.Must(azcorearm.ParseResourceID(clusterResourceId.String() + "/nodePools/" + name))
-	nodePool := &coreapi.ClusterNodePool{
+	nodePool := &coreapi.NodePool{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   nodePoolResourceId,
 			PartitionKey: strings.ToLower(nodePoolResourceId.SubscriptionID),
 		},
 		TrackedResource: coreapi.NewTrackedResource(nodePoolResourceId, "eastus"),
-		Properties: coreapi.ClusterNodePoolProperties{
+		Properties: coreapi.NodePoolProperties{
 			Version: coreapi.NodePoolVersionProfile{ID: nodePoolVersionId},
 		},
-		ServiceProviderProperties: coreapi.ClusterNodePoolServiceProviderProperties{
+		ServiceProviderProperties: coreapi.NodePoolServiceProviderProperties{
 			ClusterServiceID: metadataapihelpers.Ptr(metadataapi.Must(metadataapi.NewInternalID("/api/clusters_mgmt/v1/clusters/test-cluster/node_pools/" + name))),
 		},
 	}

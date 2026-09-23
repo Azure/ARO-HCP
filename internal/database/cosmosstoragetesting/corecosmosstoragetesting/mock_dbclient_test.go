@@ -988,7 +988,7 @@ func TestNewMockResourcesDBClientWithResources(t *testing.T) {
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + clusterName +
 			"/nodePools/" + nodePoolName))
 
-	nodePool := &coreapi.ClusterNodePool{
+	nodePool := &coreapi.NodePool{
 		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: nodePoolResourceID, PartitionKey: strings.ToLower(nodePoolResourceID.SubscriptionID)},
 		TrackedResource: coreapi.TrackedResource{
 			Resource: coreapi.Resource{

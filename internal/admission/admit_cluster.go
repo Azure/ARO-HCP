@@ -66,14 +66,14 @@ type ClusterAdmissionContext struct {
 	// used to ensure a cluster subnet is not already assigned to another cluster's
 	// node pool on CREATE.
 	// The list is empty on UPDATE.
-	SubscriptionNodePools []*coreapi.ClusterNodePool
+	SubscriptionNodePools []*coreapi.NodePool
 }
 
 // ClusterAdmissionNodePool is a single node pool plus its prefetched service
 // provider record. The cluster admission walks these to validate version skew
 // of every node pool against the desired cluster version.
 type ClusterAdmissionNodePool struct {
-	NodePool                *coreapi.ClusterNodePool
+	NodePool                *coreapi.NodePool
 	ServiceProviderNodePool *coreapi.ServiceProviderNodePool
 }
 

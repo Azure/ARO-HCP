@@ -255,7 +255,7 @@ func (b *backendInformers) RunWithContext(ctx context.Context) {
 	go func() {
 		defer utilruntime.HandleCrash()
 		defer wg.Done()
-		localLogger := logger.WithValues("type", reflect.TypeOf(&coreapi.ClusterNodePool{}).String())
+		localLogger := logger.WithValues("type", reflect.TypeOf(&coreapi.NodePool{}).String())
 		localCtx := utils.ContextWithLogger(ctx, localLogger)
 
 		b.nodePoolInformer.RunWithContext(localCtx)

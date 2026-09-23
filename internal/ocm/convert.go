@@ -652,8 +652,8 @@ func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, clus
 	return clusterBuilder, azureBuilder, nil
 }
 
-// BuildCSNodePool creates a CS NodePoolBuilder object from a ClusterNodePool object.
-func BuildCSNodePool(ctx context.Context, nodePool *coreapi.ClusterNodePool, updating bool) (*arohcpv1alpha1.NodePoolBuilder, error) {
+// BuildCSNodePool creates a CS NodePoolBuilder object from a NodePool object.
+func BuildCSNodePool(ctx context.Context, nodePool *coreapi.NodePool, updating bool) (*arohcpv1alpha1.NodePoolBuilder, error) {
 	nodePoolBuilder := arohcpv1alpha1.NewNodePool()
 
 	// These attributes cannot be updated after node pool creation.

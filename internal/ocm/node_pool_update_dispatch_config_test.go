@@ -30,7 +30,7 @@ import (
 )
 
 func TestNodePoolUpdateDispatchConfigHash(t *testing.T) {
-	baseProperties := coreapi.ClusterNodePoolProperties{
+	baseProperties := coreapi.NodePoolProperties{
 		Labels:   map[string]string{"env": "prod"},
 		Replicas: 3,
 		Taints: []coreapi.Taint{
@@ -39,7 +39,7 @@ func TestNodePoolUpdateDispatchConfigHash(t *testing.T) {
 		NodeDrainTimeoutMinutes: ptr.To(int32(30)),
 	}
 
-	base := &coreapi.ClusterNodePool{Properties: baseProperties}
+	base := &coreapi.NodePool{Properties: baseProperties}
 
 	baseHash, err := nodePoolUpdateDispatchConfigHash(base)
 	require.NoError(t, err)
@@ -51,12 +51,12 @@ func TestNodePoolUpdateDispatchConfigHash(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		nodePool *coreapi.ClusterNodePool
+		nodePool *coreapi.NodePool
 	}{
 		{
 			name: "different labels",
-			nodePool: &coreapi.ClusterNodePool{
-				Properties: coreapi.ClusterNodePoolProperties{
+			nodePool: &coreapi.NodePool{
+				Properties: coreapi.NodePoolProperties{
 					Labels:                  map[string]string{"env": "staging"},
 					Replicas:                baseProperties.Replicas,
 					Taints:                  baseProperties.Taints,
@@ -66,8 +66,8 @@ func TestNodePoolUpdateDispatchConfigHash(t *testing.T) {
 		},
 		{
 			name: "different replicas",
-			nodePool: &coreapi.ClusterNodePool{
-				Properties: coreapi.ClusterNodePoolProperties{
+			nodePool: &coreapi.NodePool{
+				Properties: coreapi.NodePoolProperties{
 					Labels:                  baseProperties.Labels,
 					Replicas:                5,
 					Taints:                  baseProperties.Taints,
@@ -77,8 +77,8 @@ func TestNodePoolUpdateDispatchConfigHash(t *testing.T) {
 		},
 		{
 			name: "autoscaling instead of replicas",
-			nodePool: &coreapi.ClusterNodePool{
-				Properties: coreapi.ClusterNodePoolProperties{
+			nodePool: &coreapi.NodePool{
+				Properties: coreapi.NodePoolProperties{
 					Labels:                  baseProperties.Labels,
 					AutoScaling:             &coreapi.NodePoolAutoScaling{Min: 1, Max: 10},
 					Taints:                  baseProperties.Taints,
@@ -88,8 +88,8 @@ func TestNodePoolUpdateDispatchConfigHash(t *testing.T) {
 		},
 		{
 			name: "different taints",
-			nodePool: &coreapi.ClusterNodePool{
-				Properties: coreapi.ClusterNodePoolProperties{
+			nodePool: &coreapi.NodePool{
+				Properties: coreapi.NodePoolProperties{
 					Labels:   baseProperties.Labels,
 					Replicas: baseProperties.Replicas,
 					Taints: []coreapi.Taint{
@@ -101,8 +101,8 @@ func TestNodePoolUpdateDispatchConfigHash(t *testing.T) {
 		},
 		{
 			name: "different node drain timeout",
-			nodePool: &coreapi.ClusterNodePool{
-				Properties: coreapi.ClusterNodePoolProperties{
+			nodePool: &coreapi.NodePool{
+				Properties: coreapi.NodePoolProperties{
 					Labels:                  baseProperties.Labels,
 					Replicas:                baseProperties.Replicas,
 					Taints:                  baseProperties.Taints,
@@ -125,8 +125,8 @@ func TestNodePoolUpdateDispatchConfigHash(t *testing.T) {
 }
 
 func TestNodePoolUpdateDispatchConfigHashExcludesNonUpdatableFields(t *testing.T) {
-	np1 := &coreapi.ClusterNodePool{
-		Properties: coreapi.ClusterNodePoolProperties{
+	np1 := &coreapi.NodePool{
+		Properties: coreapi.NodePoolProperties{
 			Replicas: 3,
 			Version:  coreapi.NodePoolVersionProfile{ID: "4.19.1", ChannelGroup: "stable"},
 			Platform: coreapi.NodePoolPlatformProfile{
@@ -135,8 +135,8 @@ func TestNodePoolUpdateDispatchConfigHashExcludesNonUpdatableFields(t *testing.T
 		},
 	}
 
-	np2 := &coreapi.ClusterNodePool{
-		Properties: coreapi.ClusterNodePoolProperties{
+	np2 := &coreapi.NodePool{
+		Properties: coreapi.NodePoolProperties{
 			Replicas: 3,
 			Version:  coreapi.NodePoolVersionProfile{ID: "4.19.2", ChannelGroup: "candidate"},
 			Platform: coreapi.NodePoolPlatformProfile{
@@ -153,14 +153,14 @@ func TestNodePoolUpdateDispatchConfigHashExcludesNonUpdatableFields(t *testing.T
 }
 
 func TestNodePoolUpdateDispatchConfigHashExcludesAutoRepair(t *testing.T) {
-	np1 := &coreapi.ClusterNodePool{
-		Properties: coreapi.ClusterNodePoolProperties{
+	np1 := &coreapi.NodePool{
+		Properties: coreapi.NodePoolProperties{
 			Replicas:   3,
 			AutoRepair: true,
 		},
 	}
-	np2 := &coreapi.ClusterNodePool{
-		Properties: coreapi.ClusterNodePoolProperties{
+	np2 := &coreapi.NodePool{
+		Properties: coreapi.NodePoolProperties{
 			Replicas:   3,
 			AutoRepair: false,
 		},
@@ -178,8 +178,8 @@ func TestNodePoolUpdateDispatchConfigHashExcludesAutoRepair(t *testing.T) {
 // via BuildCSNodePool (update path: updating=true). nodePoolUpdateDispatchConfigFromCS and
 // nodePoolUpdateDispatchConfigFromRP must then produce the same canonical hash.
 func TestNodePoolUpdateDispatchConfigFromCSRoundTrip(t *testing.T) {
-	nodePool := &coreapi.ClusterNodePool{
-		Properties: coreapi.ClusterNodePoolProperties{
+	nodePool := &coreapi.NodePool{
+		Properties: coreapi.NodePoolProperties{
 			Labels:   map[string]string{"env": "prod", "team": "platform"},
 			Replicas: 5,
 			Taints: []coreapi.Taint{
@@ -213,8 +213,8 @@ func TestNodePoolUpdateDispatchConfigFromCSRoundTrip(t *testing.T) {
 // autoscaling (instead of fixed replicas) round-trips through BuildCSNodePool and
 // nodePoolUpdateDispatchConfigFromCS with matching hash.
 func TestNodePoolUpdateDispatchConfigFromCSRoundTripAutoScaling(t *testing.T) {
-	nodePool := &coreapi.ClusterNodePool{
-		Properties: coreapi.ClusterNodePoolProperties{
+	nodePool := &coreapi.NodePool{
+		Properties: coreapi.NodePoolProperties{
 			AutoScaling:             &coreapi.NodePoolAutoScaling{Min: 2, Max: 10},
 			NodeDrainTimeoutMinutes: ptr.To(int32(30)),
 		},
@@ -366,21 +366,21 @@ func TestNodePoolUpdateDispatchConfigEffectiveNodeDrainTimeoutMinutes(t *testing
 
 	tests := []struct {
 		name       string
-		nodePool   *coreapi.ClusterNodePool
+		nodePool   *coreapi.NodePool
 		csNodePool func(t *testing.T) *arohcpv1alpha1.NodePool
 		want       *int32
 	}{
 		{
 			name: "explicit RP override",
-			nodePool: &coreapi.ClusterNodePool{
-				Properties: coreapi.ClusterNodePoolProperties{
+			nodePool: &coreapi.NodePool{
+				Properties: coreapi.NodePoolProperties{
 					NodeDrainTimeoutMinutes: ptr.To(int32(15)),
 				},
 			},
 			csNodePool: func(t *testing.T) *arohcpv1alpha1.NodePool {
 				t.Helper()
-				csNodePoolBuilder, err := BuildCSNodePool(context.Background(), &coreapi.ClusterNodePool{
-					Properties: coreapi.ClusterNodePoolProperties{
+				csNodePoolBuilder, err := BuildCSNodePool(context.Background(), &coreapi.NodePool{
+					Properties: coreapi.NodePoolProperties{
 						NodeDrainTimeoutMinutes: ptr.To(int32(4)),
 					},
 				}, true)
@@ -393,8 +393,8 @@ func TestNodePoolUpdateDispatchConfigEffectiveNodeDrainTimeoutMinutes(t *testing
 		},
 		{
 			name: "RP set uses RP when CS unset",
-			nodePool: &coreapi.ClusterNodePool{
-				Properties: coreapi.ClusterNodePoolProperties{
+			nodePool: &coreapi.NodePool{
+				Properties: coreapi.NodePoolProperties{
 					NodeDrainTimeoutMinutes: ptr.To(int32(15)),
 				},
 			},
@@ -408,11 +408,11 @@ func TestNodePoolUpdateDispatchConfigEffectiveNodeDrainTimeoutMinutes(t *testing
 		},
 		{
 			name:     "RP unset uses CS",
-			nodePool: &coreapi.ClusterNodePool{},
+			nodePool: &coreapi.NodePool{},
 			csNodePool: func(t *testing.T) *arohcpv1alpha1.NodePool {
 				t.Helper()
-				csNodePoolBuilder, err := BuildCSNodePool(context.Background(), &coreapi.ClusterNodePool{
-					Properties: coreapi.ClusterNodePoolProperties{
+				csNodePoolBuilder, err := BuildCSNodePool(context.Background(), &coreapi.NodePool{
+					Properties: coreapi.NodePoolProperties{
 						NodeDrainTimeoutMinutes: ptr.To(int32(4)),
 					},
 				}, true)
@@ -425,7 +425,7 @@ func TestNodePoolUpdateDispatchConfigEffectiveNodeDrainTimeoutMinutes(t *testing
 		},
 		{
 			name:     "RP unset and CS unset returns nil",
-			nodePool: &coreapi.ClusterNodePool{},
+			nodePool: &coreapi.NodePool{},
 			csNodePool: func(t *testing.T) *arohcpv1alpha1.NodePool {
 				t.Helper()
 				csNodePool, err := arohcpv1alpha1.NewNodePool().Build()
@@ -436,15 +436,15 @@ func TestNodePoolUpdateDispatchConfigEffectiveNodeDrainTimeoutMinutes(t *testing
 		},
 		{
 			name: "RP explicit zero overrides CS",
-			nodePool: &coreapi.ClusterNodePool{
-				Properties: coreapi.ClusterNodePoolProperties{
+			nodePool: &coreapi.NodePool{
+				Properties: coreapi.NodePoolProperties{
 					NodeDrainTimeoutMinutes: ptr.To(int32(0)),
 				},
 			},
 			csNodePool: func(t *testing.T) *arohcpv1alpha1.NodePool {
 				t.Helper()
-				csNodePoolBuilder, err := BuildCSNodePool(context.Background(), &coreapi.ClusterNodePool{
-					Properties: coreapi.ClusterNodePoolProperties{
+				csNodePoolBuilder, err := BuildCSNodePool(context.Background(), &coreapi.NodePool{
+					Properties: coreapi.NodePoolProperties{
 						NodeDrainTimeoutMinutes: ptr.To(int32(4)),
 					},
 				}, true)
@@ -467,14 +467,14 @@ func TestNodePoolUpdateDispatchConfigEffectiveNodeDrainTimeoutMinutes(t *testing
 }
 
 func TestNodePoolUpdateDispatchConfigDiffJSONIgnoresCSDrainTimeoutWhenRPUnset(t *testing.T) {
-	nodePool := &coreapi.ClusterNodePool{
-		Properties: coreapi.ClusterNodePoolProperties{
+	nodePool := &coreapi.NodePool{
+		Properties: coreapi.NodePoolProperties{
 			Replicas: 3,
 		},
 	}
 
-	csNodePool := &coreapi.ClusterNodePool{
-		Properties: coreapi.ClusterNodePoolProperties{
+	csNodePool := &coreapi.NodePool{
+		Properties: coreapi.NodePoolProperties{
 			Replicas:                3,
 			NodeDrainTimeoutMinutes: ptr.To(int32(4)),
 		},
@@ -492,8 +492,8 @@ func TestNodePoolUpdateDispatchConfigDiffJSONIgnoresCSDrainTimeoutWhenRPUnset(t 
 }
 
 func TestNodePoolUpdateDispatchConfigJSONFromRPAndCS(t *testing.T) {
-	nodePool := &coreapi.ClusterNodePool{
-		Properties: coreapi.ClusterNodePoolProperties{
+	nodePool := &coreapi.NodePool{
+		Properties: coreapi.NodePoolProperties{
 			Labels:                  map[string]string{"env": "prod"},
 			Replicas:                3,
 			NodeDrainTimeoutMinutes: ptr.To(int32(45)),

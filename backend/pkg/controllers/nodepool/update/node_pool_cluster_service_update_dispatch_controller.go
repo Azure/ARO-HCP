@@ -99,7 +99,7 @@ func NewNodePoolClusterServiceUpdateDispatchSyncer(
 	}
 }
 
-func needsWork(nodePool *coreapi.ClusterNodePool) bool {
+func needsWork(nodePool *coreapi.NodePool) bool {
 	if nodePool.ServiceProviderProperties.DeletionTimestamp != nil {
 		return false
 	}
@@ -239,12 +239,12 @@ func (c *nodePoolClusterServiceUpdateDispatchSyncer) SyncOnce(ctx context.Contex
 }
 
 // buildNodePoolUpdateBuilder builds the Cluster Service node pool PATCH payload from RP desired state.
-func (c *nodePoolClusterServiceUpdateDispatchSyncer) buildNodePoolUpdateBuilder(ctx context.Context, nodePool *coreapi.ClusterNodePool) (*arohcpv1alpha1.NodePoolBuilder, error) {
+func (c *nodePoolClusterServiceUpdateDispatchSyncer) buildNodePoolUpdateBuilder(ctx context.Context, nodePool *coreapi.NodePool) (*arohcpv1alpha1.NodePoolBuilder, error) {
 	return ocm.BuildCSNodePool(ctx, nodePool, true)
 }
 
 // marshalClusterServiceNodePoolUpdatePayload serializes the CS node pool PATCH body for logging.
-func (c *nodePoolClusterServiceUpdateDispatchSyncer) marshalClusterServiceNodePoolUpdatePayload(ctx context.Context, nodePool *coreapi.ClusterNodePool) (string, error) {
+func (c *nodePoolClusterServiceUpdateDispatchSyncer) marshalClusterServiceNodePoolUpdatePayload(ctx context.Context, nodePool *coreapi.NodePool) (string, error) {
 	builder, err := c.buildNodePoolUpdateBuilder(ctx, nodePool)
 	if err != nil {
 		return "", err

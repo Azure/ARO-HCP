@@ -44,8 +44,8 @@ func (g *mockResourcesGlobalListers) Clusters() cosmosstorageutils.GlobalLister[
 	}
 }
 
-func (g *mockResourcesGlobalListers) NodePools() cosmosstorageutils.GlobalLister[coreapi.ClusterNodePool] {
-	return &MockGlobalLister[coreapi.ClusterNodePool, cosmosstorageutils.GenericDocument[coreapi.ClusterNodePool]]{
+func (g *mockResourcesGlobalListers) NodePools() cosmosstorageutils.GlobalLister[coreapi.NodePool] {
+	return &MockGlobalLister[coreapi.NodePool, cosmosstorageutils.GenericDocument[coreapi.NodePool]]{
 		client:        g.client,
 		resourceTypes: []azcorearm.ResourceType{coreapi.NodePoolResourceType},
 	}

@@ -468,7 +468,7 @@ func (m *mockHCPClusterCRUD) NodePools(hcpClusterName string) corecosmosstorage.
 			hcpClusterName)))
 
 	return &mockNodePoolsCRUD{
-		MockResourceCRUD: NewMockResourceCRUD[coreapi.ClusterNodePool, *coreapi.ClusterNodePool, cosmosstorageutils.GenericDocument[coreapi.ClusterNodePool]](
+		MockResourceCRUD: NewMockResourceCRUD[coreapi.NodePool, *coreapi.NodePool, cosmosstorageutils.GenericDocument[coreapi.NodePool]](
 			m.client,
 			parentResourceID,
 			coreapi.NodePoolResourceType),
@@ -531,7 +531,7 @@ var _ corecosmosstorage.HCPClusterCRUD = &mockHCPClusterCRUD{}
 
 // mockNodePoolsCRUD implements corecosmosstorage.NodePoolsCRUD.
 type mockNodePoolsCRUD struct {
-	*MockResourceCRUD[coreapi.ClusterNodePool, *coreapi.ClusterNodePool, cosmosstorageutils.GenericDocument[coreapi.ClusterNodePool]]
+	*MockResourceCRUD[coreapi.NodePool, *coreapi.NodePool, cosmosstorageutils.GenericDocument[coreapi.NodePool]]
 }
 
 func (m *mockNodePoolsCRUD) Controllers(nodePoolName string) cosmosstorageutils.ResourceCRUD[coreapi.Controller, *coreapi.Controller] {

@@ -756,7 +756,7 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 		case strings.ToLower(coreapi.NodePoolResourceType.String()):
 			// API version is already validated by this point.
 			versionedInterface, _ := f.apiRegistry.Lookup(preflightResource.APIVersion)
-			versionedNodePool := versionedInterface.NewClusterNodePool(nil)
+			versionedNodePool := versionedInterface.NewNodePool(nil)
 
 			err = preflightResource.Convert(versionedNodePool)
 			if err != nil {
@@ -1096,7 +1096,7 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 		if err != nil {
 			return utils.TrackError(err)
 		}
-		responseBody, err = coreapi.MarshalJSON(versionedInterface.NewClusterNodePool(resultingInternalNodePool))
+		responseBody, err = coreapi.MarshalJSON(versionedInterface.NewNodePool(resultingInternalNodePool))
 		if err != nil {
 			return utils.TrackError(err)
 		}

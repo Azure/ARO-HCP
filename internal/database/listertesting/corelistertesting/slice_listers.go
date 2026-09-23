@@ -66,16 +66,16 @@ func (l *SliceClusterLister) ListForResourceGroup(ctx context.Context, subscript
 
 // SliceNodePoolLister implements corelisters.NodePoolLister backed by a slice.
 type SliceNodePoolLister struct {
-	NodePools []*coreapi.ClusterNodePool
+	NodePools []*coreapi.NodePool
 }
 
 var _ corelisters.NodePoolLister = &SliceNodePoolLister{}
 
-func (l *SliceNodePoolLister) List(ctx context.Context) ([]*coreapi.ClusterNodePool, error) {
+func (l *SliceNodePoolLister) List(ctx context.Context) ([]*coreapi.NodePool, error) {
 	return l.NodePools, nil
 }
 
-func (l *SliceNodePoolLister) Get(ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName string) (*coreapi.ClusterNodePool, error) {
+func (l *SliceNodePoolLister) Get(ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName string) (*coreapi.NodePool, error) {
 	for _, np := range l.NodePools {
 		if np.ID == nil {
 			continue
@@ -90,8 +90,8 @@ func (l *SliceNodePoolLister) Get(ctx context.Context, subscriptionID, resourceG
 	return nil, cosmosstorageutils.NewNotFoundError()
 }
 
-func (l *SliceNodePoolLister) ListForResourceGroup(ctx context.Context, subscriptionID, resourceGroupName string) ([]*coreapi.ClusterNodePool, error) {
-	var result []*coreapi.ClusterNodePool
+func (l *SliceNodePoolLister) ListForResourceGroup(ctx context.Context, subscriptionID, resourceGroupName string) ([]*coreapi.NodePool, error) {
+	var result []*coreapi.NodePool
 	for _, np := range l.NodePools {
 		if np.ID == nil {
 			continue
@@ -104,8 +104,8 @@ func (l *SliceNodePoolLister) ListForResourceGroup(ctx context.Context, subscrip
 	return result, nil
 }
 
-func (l *SliceNodePoolLister) ListForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) ([]*coreapi.ClusterNodePool, error) {
-	var result []*coreapi.ClusterNodePool
+func (l *SliceNodePoolLister) ListForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) ([]*coreapi.NodePool, error) {
+	var result []*coreapi.NodePool
 	for _, np := range l.NodePools {
 		if np.ID == nil {
 			continue
