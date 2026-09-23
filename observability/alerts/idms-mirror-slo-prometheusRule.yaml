@@ -74,6 +74,20 @@ spec:
   # short window of multi-window burn rate alerting. For gauge metrics
   # (point-in-time state rather than event rates), this provides equivalent
   # protection against transient spikes.
+  #
+  # MINIMUM VOLUME GUARD
+  #
+  # Every rule below is gated on terminal_total >= 5. Without it a single
+  # failed update on an otherwise quiet service cluster yields error_rate = 1.0
+  # and opens a Sev 3 after 5 minutes with no systemic failure.
+  # imageDigestMirrors changes are low-volume, so that is a realistic pager
+  # risk rather than a theoretical one.
+  #
+  # The threshold of 5 is a judgement call pending baseline data, and it is a
+  # genuine trade-off: a service cluster with fewer than 5 resources in a
+  # terminal update state is not alerted on at all. Five was chosen because it
+  # suppresses the degenerate 1-of-1 and 2-of-2 cases while still allowing
+  # FastBurn to fire on 4 of 5 failures. Revisit once real volume is known.
   - name: arohcp_idms_mirror_slo_error_alerts
     labels:
       component: slo
@@ -86,6 +100,8 @@ spec:
     - alert: userJourneyIDMSMirrorErrorsFastBurn
       expr: |
         errors:backend_cluster_update:error_rate > 0.72
+        and on (cluster)
+        errors:backend_cluster_update:terminal_total >= 5
       for: 5m
       labels:
         severity: "3"
@@ -102,6 +118,8 @@ spec:
     - alert: userJourneyIDMSMirrorErrorsMediumBurn
       expr: |
         errors:backend_cluster_update:error_rate > 0.30
+        and on (cluster)
+        errors:backend_cluster_update:terminal_total >= 5
       for: 30m
       labels:
         severity: "3"
@@ -119,6 +137,8 @@ spec:
     - alert: userJourneyIDMSMirrorErrorsSlowBurn
       expr: |
         errors:backend_cluster_update:error_rate > 0.05
+        and on (cluster)
+        errors:backend_cluster_update:terminal_total >= 5
       for: 6h
       labels:
         severity: "4"

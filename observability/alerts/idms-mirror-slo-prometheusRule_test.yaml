@@ -157,3 +157,32 @@ tests:
         summary: "mgmt-1: Cluster update error rate exceeds SLO target (>5%) for 6+ hours"
         description: "More than 5% of cluster update operations are in failed state sustained over 6 hours, indicating persistent degradation at the 95% SLO boundary that would exhaust the error budget in ~7 days."
         runbook_url: "aka.ms/arohcp-runbook"
+# ========================================
+# Test 4: Low volume — 100% failure rate, below the minimum volume guard
+# ========================================
+# A single failed cluster update on an otherwise quiet service cluster.
+# error_rate = 1.0, which clears every burn threshold, but terminal_total = 1
+# is below the >= 5 guard so no alert should fire. Without the guard this
+# scenario opens a Sev 3 FastBurn after 5 minutes.
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/a", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "1+0x400"
+  promql_expr_test:
+  - expr: errors:backend_cluster_update:error_rate
+    eval_time: 10m
+    exp_samples:
+    - labels: 'errors:backend_cluster_update:error_rate{cluster="mgmt-1"}'
+      value: 1
+  - expr: errors:backend_cluster_update:terminal_total
+    eval_time: 10m
+    exp_samples:
+    - labels: 'errors:backend_cluster_update:terminal_total{cluster="mgmt-1"}'
+      value: 1
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: userJourneyIDMSMirrorErrorsFastBurn
+  - eval_time: 60m
+    alertname: userJourneyIDMSMirrorErrorsMediumBurn
+  - eval_time: 6h5m
+    alertname: userJourneyIDMSMirrorErrorsSlowBurn

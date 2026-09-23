@@ -448,7 +448,7 @@ resource arohcpIdmsMirrorSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRu
           summary: '{{ $labels.cluster }}: Cluster update error rate critically high (>72%)'
           title: '{{ $labels.cluster }}: Cluster update error rate critically high (>72%)'
         }
-        expression: 'errors:backend_cluster_update:error_rate > 0.72'
+        expression: 'errors:backend_cluster_update:error_rate > 0.72 and on (cluster) errors:backend_cluster_update:terminal_total >= 5'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -477,7 +477,7 @@ resource arohcpIdmsMirrorSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRu
           summary: '{{ $labels.cluster }}: Cluster update error rate elevated (>30%) for 30+ minutes'
           title: '{{ $labels.cluster }}: Cluster update error rate elevated (>30%) for 30+ minutes'
         }
-        expression: 'errors:backend_cluster_update:error_rate > 0.3'
+        expression: 'errors:backend_cluster_update:error_rate > 0.3 and on (cluster) errors:backend_cluster_update:terminal_total >= 5'
         for: 'PT30M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -506,7 +506,7 @@ resource arohcpIdmsMirrorSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRu
           summary: '{{ $labels.cluster }}: Cluster update error rate exceeds SLO target (>5%) for 6+ hours'
           title: '{{ $labels.cluster }}: Cluster update error rate exceeds SLO target (>5%) for 6+ hours'
         }
-        expression: 'errors:backend_cluster_update:error_rate > 0.05'
+        expression: 'errors:backend_cluster_update:error_rate > 0.05 and on (cluster) errors:backend_cluster_update:terminal_total >= 5'
         for: 'PT6H'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
