@@ -84,3 +84,24 @@ spec:
         summary: "{{ $labels.region }}/{{ $labels.key_vault }}: Certificate collection is stale"
         description: "Certificate metadata collection for Key Vault '{{ $labels.key_vault }}' ({{ $labels.region }}) has not completed successfully within the last hour."
         runbook_url: TBD
+    - alert: CertificateExporterUnavailable
+      expr: |
+        max by (cluster, environment, region) (
+          kube_deployment_spec_replicas{
+            namespace="aro-hcp-exporter",
+            deployment="aro-hcp-exporter"
+          } > 0
+        )
+        unless on (cluster, environment, region)
+        max by (cluster, environment, region) (
+          up{
+            namespace="aro-hcp-exporter"
+          } == 1
+        )
+      for: 1h
+      labels:
+        severity: "3"
+      annotations:
+        summary: "{{ $labels.cluster }}: Certificate exporter target is unavailable"
+        description: "The ARO HCP exporter on cluster '{{ $labels.cluster }}' has had no healthy Prometheus scrape target for at least one hour, so certificate collection health cannot be evaluated."
+        runbook_url: TBD

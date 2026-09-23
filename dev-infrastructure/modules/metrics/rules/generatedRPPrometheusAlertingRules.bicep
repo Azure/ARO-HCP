@@ -1232,6 +1232,34 @@ resource arohcpCertificateRotationAlerts 'Microsoft.AlertsManagement/prometheusR
         expression: '(time() - max by (cluster, environment, region, key_vault) (keyvault_certificate_collector_last_success_timestamp_seconds) > 3600) or max by (cluster, environment, region, key_vault) (keyvault_certificate_collector_last_success_timestamp_seconds) == 0'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'CertificateExporterUnavailable'
+        enabled: true
+        labels: {
+          component: 'certificate-rotation'
+          severity: '3'
+        }
+        annotations: {
+          correlationId: 'CertificateExporterUnavailable/{{ $labels.cluster }}'
+          description: 'The ARO HCP exporter on cluster \'{{ $labels.cluster }}\' has had no healthy Prometheus scrape target for at least one hour, so certificate collection health cannot be evaluated.'
+          info: 'The ARO HCP exporter on cluster \'{{ $labels.cluster }}\' has had no healthy Prometheus scrape target for at least one hour, so certificate collection health cannot be evaluated.'
+          runbook_url: 'TBD'
+          summary: '{{ $labels.cluster }}: Certificate exporter target is unavailable'
+          title: '{{ $labels.cluster }}: Certificate exporter target is unavailable'
+        }
+        expression: 'max by (cluster, environment, region) (kube_deployment_spec_replicas{deployment="aro-hcp-exporter",namespace="aro-hcp-exporter"} > 0) unless on (cluster, environment, region) max by (cluster, environment, region) (up{namespace="aro-hcp-exporter"} == 1)'
+        for: 'PT1H'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
     ]
     scopes: [
       azureMonitoring
