@@ -37,6 +37,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/admission"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/cincinnati"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
@@ -183,6 +184,37 @@ func (c *controlPlaneVersionSyncer) SyncOnce(ctx context.Context, key controller
 	if exact := existingCluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion; exact != nil {
 		// Experimental exact-version pin: use it directly as the desired version and skip the
 		// z-stream/y-stream Cincinnati/gateway resolution entirely.
+		//
+		// Admission rejects a downgrading pin, but it reads the stored versions before the write
+		// commits, so a pin that passed admission can still land below a version that advanced in
+		// between. This is the write-time backstop for that race.
+		//
+		// Only a moving pin is checked. An already-applied pin sitting below either version
+		// (pinned before this guard existed, or a control plane that advanced out of band) must
+		// keep reconciling — re-litigating it would latch IntentFailed on a cluster that needs no
+		// write at all, which is the same wedge this change set exists to remove.
+		previousDesired := cachedServiceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion
+		if previousDesired == nil || !exact.EQ(*previousDesired) {
+			// Unlike the monotonic guard on the resolved path below, which silently leaves desired
+			// unchanged when the graph moves on its own, this rejects: there the customer did
+			// nothing, here they explicitly asked for a lower build.
+			var downgradeErrs []error
+			if previousDesired != nil && exact.LT(*previousDesired) {
+				downgradeErrs = append(downgradeErrs, exactVersionDowngradeError(exact, "desired", previousDesired))
+			}
+			// ActiveVersions mirrors the control plane's version history newest first, so the
+			// first entry is the version it most recently ran.
+			if activeVersions := cachedServiceProviderCluster.Status.ControlPlaneVersion.ActiveVersions; len(activeVersions) > 0 {
+				if latestActiveVersion := activeVersions[0].Version; latestActiveVersion != nil && exact.LT(*latestActiveVersion) {
+					downgradeErrs = append(downgradeErrs, exactVersionDowngradeError(exact, "active", latestActiveVersion))
+				}
+			}
+			if len(downgradeErrs) > 0 {
+				return setIntentFailed(ctx, c.resourcesDBClient, key, controlPlaneDesiredVersionControllerName,
+					utils.TrackError(errors.Join(downgradeErrs...)))
+			}
+		}
+
 		replacement := cachedServiceProviderCluster.DeepCopy()
 		replacement.Spec.ControlPlaneVersion.DesiredVersion = ptr.To(*exact)
 		// Skip the write when nothing changed. DesiredVersion is a *semver.Version, so a fresh
@@ -253,6 +285,16 @@ func (c *controlPlaneVersionSyncer) SyncOnce(ctx context.Context, key controller
 		return utils.TrackError(fmt.Errorf("failed to replace ServiceProviderCluster: %w", replaceErr))
 	}
 	return clearIntentFailed(ctx, c.resourcesDBClient, key, controlPlaneDesiredVersionControllerName)
+}
+
+// exactVersionDowngradeError builds the customer-facing rejection for an exact-version pin below a
+// control plane version the cluster already holds. versionKind names which one ("desired" or
+// "active") so the customer can tell the two rejections apart when the pin is below both.
+func exactVersionDowngradeError(exact *semver.Version, versionKind string, version *semver.Version) error {
+	return fmt.Errorf(
+		"exact control plane version pin %s is below the %s control plane version %s; "+
+			"control plane downgrades are not supported. Set the %q tag to %s or higher",
+		exact, versionKind, version, metadataapi.TagClusterControlPlaneExactVersion, version)
 }
 
 // validateRequestedMinorVersionChange validates that moving the cluster's control plane to the
