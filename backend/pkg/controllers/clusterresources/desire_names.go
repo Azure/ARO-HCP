@@ -27,6 +27,8 @@ const (
 	DesireNameHostedCluster = "HostedCluster"
 	DesireNameNodePool      = "NodePool"
 
+	DesireNameManagedCluster = "ManagedCluster"
+
 	DesireNameHostedClusterNamespace = "HostedClusterNamespace"
 	DesireNameControlPlaneNamespace  = "ControlPlaneNamespace"
 

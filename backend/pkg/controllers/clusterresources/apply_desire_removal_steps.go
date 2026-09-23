@@ -23,10 +23,11 @@ import (
 )
 
 // The concrete steps of applyDesireRemovalChain. The chain contract and the
-// order they run in live in apply_desire_destruct_chain.go.
+// order they run in live in apply_desire_removal_chain.go.
 
 var (
 	_ applyDesireRemovalStep = cascadeCoveredRemovalStep{}
+	_ applyDesireRemovalStep = managedClusterRemovalStep{}
 	_ applyDesireRemovalStep = nodePoolRemovalStep{}
 	_ applyDesireRemovalStep = hostedClusterRemovalStep{}
 	_ applyDesireRemovalStep = swiftPodNetworkInstanceRemovalStep{}
@@ -81,6 +82,9 @@ func (s desireNameSet) selects(desire *kubeapplierapi.ApplyDesire) bool {
 // done it anyway: its finalizer waits out exactly the same NodePool deletion, so
 // issuing the delete first only moves the wait somewhere we can see it.
 var nodePoolDesireNames = newDesireNameSet(DesireNameNodePool)
+
+// managedClusterNames is the desire representing the ManagedCluster CR.
+var managedClusterNames = newDesireNameSet(DesireNameManagedCluster)
 
 // hostedClusterDesireNames is the other ordered, waited-on delete: the
 // HostedCluster finalizer deprovisions Azure infrastructure and tears down the
@@ -146,6 +150,21 @@ func (s nodePoolRemovalStep) remove(
 	owned []*kubeapplierapi.ApplyDesire,
 ) (bool, error) {
 	return ensureMatchingApplyDesiresRemoved(ctx, kubeApplierDBClient, s.name(), owned, nodePoolDesireNames.selects)
+}
+
+// managedClusterRemovalStep deletes the cluster's ManagedCluster CRs and waits for
+// HyperShift to finish deprovisioning the machines behind them. It runs ahead of
+// hostedClusterRemovalStep.
+type managedClusterRemovalStep struct{}
+
+func (managedClusterRemovalStep) name() string { return "managed-cluster" }
+
+func (s managedClusterRemovalStep) remove(
+	ctx context.Context,
+	kubeApplierDBClient kubeappliercosmosstorage.KubeApplierDBClient,
+	owned []*kubeapplierapi.ApplyDesire,
+) (bool, error) {
+	return ensureMatchingApplyDesiresRemoved(ctx, kubeApplierDBClient, s.name(), owned, managedClusterNames.selects)
 }
 
 // hostedClusterRemovalStep deletes the HostedCluster CR and waits for HyperShift
@@ -237,6 +256,7 @@ func claimedDesireNames() desireNameSet {
 	for _, set := range []desireNameSet{
 		cascadeCoveredDesireNames,
 		nodePoolDesireNames,
+		managedClusterNames,
 		hostedClusterDesireNames,
 		swiftPodNetworkInstanceDesireNames,
 		swiftPodNetworkDesireNames,

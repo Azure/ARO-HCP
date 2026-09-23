@@ -388,6 +388,9 @@ func classifyClusterResource(obj *unstructured.Unstructured) (classifiedResource
 		}
 		return classifiedResource{desireName: DesireNameHostedClusterNamespace}, nil
 
+	case "ManagedCluster":
+		return classifiedResource{desireName: DesireNameManagedCluster}, nil
+
 	case "ConfigMap":
 		return classifiedResource{desireName: DesireNameDefaultIngressConfigMap}, nil
 
@@ -579,7 +582,8 @@ func shouldCreateReadDesireFor(DesireName string) bool {
 	case strings.ToLower(DesireNamePodNetworkInstance),
 		strings.ToLower(DesireNamePodNetwork),
 		strings.ToLower(DesireNameHostedClusterNamespace),
-		strings.ToLower(DesireNameControlPlaneNamespace):
+		strings.ToLower(DesireNameControlPlaneNamespace),
+		strings.ToLower(DesireNameManagedCluster):
 		return true
 	default:
 		return false
