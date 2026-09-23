@@ -1,0 +1,1 @@
+Temporary Prow trigger for UK South Stage validation at ARO-HCP commit 8338cc3aefbe.
