@@ -250,6 +250,9 @@ spec:
         description: "More than 14.4% of Frontend requests on cluster {{ $labels.cluster }} exceeded 1s on both the 1h and 5m windows (14.4x burn of the 1% latency budget)."
         runbook_url: "https://aka.ms/arohcp-runbook-frontend"
     - alert: userJourneyFrontendLatency6h30m
+      # The ratio is meaningful only with enough observations. Deduplicate HA
+      # replicas for the absolute gates so mirrored scrapes do not manufacture
+      # request volume or slow calls.
       expr: |
         (
           (
@@ -301,6 +304,35 @@ spec:
               }[30m] offset 5m)
             )
           ) > 0.06
+          and on (cluster)
+          (
+            sum by (cluster) (
+              max without (prometheus_replica) (
+                increase(frontend_http_requests_duration_seconds_count{
+                  route!~".*hcpoperation(results|statuses).*"
+                }[30m] offset 5m)
+              )
+            )
+          ) >= 50
+          and on (cluster)
+          (
+            sum by (cluster) (
+              max without (prometheus_replica) (
+                increase(frontend_http_requests_duration_seconds_count{
+                  route!~".*hcpoperation(results|statuses).*"
+                }[30m] offset 5m)
+              )
+            )
+            -
+            sum by (cluster) (
+              max without (prometheus_replica) (
+                increase(frontend_http_requests_duration_seconds_bucket{
+                  le=~"^1([.]0)?$",
+                  route!~".*hcpoperation(results|statuses).*"
+                }[30m] offset 5m)
+              )
+            )
+          ) >= 3
         )
       for: 15m
       labels:
