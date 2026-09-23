@@ -205,6 +205,11 @@ func (c *operationClusterCreate) determineOperationState(ctx context.Context, op
 	errs := []error{}
 	operationStates := []*operationbase.OperationState{}
 
+	if currState, err := c.clusterValidation(ctx, operation); err != nil {
+		errs = append(errs, utils.TrackError(err))
+	} else {
+		operationStates = append(operationStates, currState.WithSource("clusterValidation"))
+	}
 	if currState, err := c.hostedClusterOperationStatus(ctx, operation); err != nil {
 		errs = append(errs, utils.TrackError(err))
 	} else {

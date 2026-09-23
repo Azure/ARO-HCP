@@ -13,6 +13,7 @@ digraph cluster_convergence {
   armprops [label="ClusterPropertiesSync", fillcolor="#e6f0fa", color="#35648a"];
   role [label="IdentityRoleAssignments", fillcolor="#e6f0fa", color="#35648a"];
   azure [label="Azure role assignments\nconfirmed group + resolved identities", fillcolor="#fff0da", color="#b27624"];
+  validation [label="Cluster validation controllers\nServiceProviderCluster.Status.Validations", fillcolor="#e6f0fa", color="#35648a"];
   op [label="OperationClusterCreate", fillcolor="#e6f0fa", color="#35648a"];
   done [label="ARM operation Succeeded\nActiveOperationID cleared", fillcolor="#e4f2e5", color="#4c8053"];
   uid [label="BackfillClusterUID", fillcolor="#e6f0fa", color="#35648a"];
@@ -35,7 +36,10 @@ digraph cluster_convergence {
   armprops -> op [label="API endpoint populated"];
   role -> azure [label="GET / create missing"];
   role -> op [label="confirmed nonempty; none\npending"];
+  validation -> op [label="False: Provisioning + InvalidResource;\nfailure and operation each >= 5m: Failed;\nall True: ready"];
   op -> done [label="all completion checks\nsatisfied"];
+  failed [label="ARM operation Failed\nInvalidResource", fillcolor="#fbe8e5", color="#a64f43"];
+  op -> failed [label="any validation False >= 5m\nand operation age >= 5m"];
   done -> billing [label="Succeeded; billing reference\nmissing"];
   uid -> billing [label="ClusterUID available"];
   azure -> role [label="created stays pending until\nGET confirms", style=dashed, color="#857456", constraint=false];

@@ -582,7 +582,9 @@ Once deletion prerequisites and child cleanup are satisfied, deletes the ARM res
 
 [Source](../backend/pkg/controllers/cluster/operations/operation_cluster_create.go) · **Trigger:** Active operation; 10s.
 
-Combines selected placement, Cluster Service state, mirrored HostedCluster readiness/version, API endpoint, serving CA and confirmed role assignments (nonempty confirmed list, none pending). Placement is checked even before a Cluster Service ID exists. Unresolved placement remains Provisioning until `CreateOperationCompletionDeadline`; without a deadline it keeps waiting. At/after the deadline, `Status.Placement.Conditions[CapacityAvailable]=False` produces the customer-safe `AROHCPCapacityHeavyUse` error; missing/Unknown placement state produces `InternalServerError`. Assigned `Spec.ManagementClusterResourceID` satisfies this check despite a stale condition; other completion checks still apply.
+Combines cluster validations, selected placement, Cluster Service state, mirrored HostedCluster readiness/version, API endpoint, serving CA and confirmed role assignments (nonempty confirmed list, none pending). Placement is checked even before a Cluster Service ID exists. Unresolved placement remains Provisioning until `CreateOperationCompletionDeadline`; without a deadline it keeps waiting. At/after the deadline, `Status.Placement.Conditions[CapacityAvailable]=False` produces the customer-safe `AROHCPCapacityHeavyUse` error; missing/Unknown placement state produces `InternalServerError`. Assigned `Spec.ManagementClusterResourceID` satisfies this check despite a stale condition; other completion checks still apply.
+
+The [validation check](../backend/pkg/controllers/cluster/operations/operation_cluster_validation.go) reads `ServiceProviderCluster.Status.Validations`. All recorded conditions True (or no recorded conditions) contributes Succeeded; any non-True condition contributes Provisioning with a sorted message containing its name, reason and message. Any False condition sets `InvalidResource`; the check contributes Failed only when both its nonzero `LastTransitionTime` and the operation's nonzero `StartTime` are at least five minutes old. Unknown conditions remain Provisioning without `InvalidResource` or a failure timeout. Recovery resets the timer through the condition transition time. These results participate in the normal worst-state selection alongside other Provisioning sources, including their messages and error codes.
 
 For the matching nonterminal operation, writes status/error/transition time and ARM provisioning state, clears the active-operation reference on terminal state, and sends the async notification. Classified error messages are preserved (multiple classified failures retain their original errors in `Details`, with the worst code at the top level); internal placement diagnostics are not copied into the capacity error. Pending HostedCluster version diagnostics describe incomplete history entries and their elapsed time.
 
@@ -590,7 +592,7 @@ For the matching nonterminal operation, writes status/error/transition time and 
 
 [Source](../backend/pkg/controllers/cluster/operations/operation_cluster_update.go) · **Trigger:** Active operation; 10s.
 
-Observes dispatched configuration and completion; For the matching nonterminal operation, writes operation status/error/transition time and ARM provisioning state, clears the active-operation reference on terminal state, and sends the async notification.
+Observes dispatched configuration and completion, including the same cluster validation check and five-minute failure grace period as [OperationClusterCreate](#operationclustercreate). For the matching nonterminal operation, writes operation status/error/transition time and ARM provisioning state, clears the active-operation reference on terminal state, and sends the async notification.
 
 #### OperationClusterDelete
 
@@ -1324,7 +1326,7 @@ confirmed resource.
 
 ![Cluster create: convergence and completion controller digraph](diagrams/controller-flows/cluster-convergence.png)
 
-The [operation poller](../backend/pkg/controllers/cluster/operations/operation_cluster_create.go) combines Cluster Service state, HostedCluster observations, API endpoint, serving CA and confirmed role assignments. UID backfill and billing are independent controllers; billing needs both a UID and Succeeded provisioning. The manifest path is collapsed around external Kubernetes/HyperShift reconciliation; a particular deployment may also involve Maestro/work-agent.
+The [operation poller](../backend/pkg/controllers/cluster/operations/operation_cluster_create.go) combines cluster validations, Cluster Service state, HostedCluster observations, API endpoint, serving CA and confirmed role assignments. A validation remaining False for at least five minutes fails the operation with `InvalidResource` once the operation is also at least five minutes old. UID backfill and billing are independent controllers; billing needs both a UID and Succeeded provisioning. The manifest path is collapsed around external Kubernetes/HyperShift reconciliation; a particular deployment may also involve Maestro/work-agent.
 
 ### Cluster update
 
@@ -1332,7 +1334,7 @@ The [operation poller](../backend/pkg/controllers/cluster/operations/operation_c
 
 ![Cluster update controller digraph](diagrams/controller-flows/cluster-update.png)
 
-[Desired-version selection](../backend/pkg/controllers/cluster/version/control_plane_desired_version_controller.go), [upgrade dispatch](../backend/pkg/controllers/cluster/version/trigger_control_plane_upgrade_controller.go) and [operation completion](../backend/pkg/controllers/cluster/operations/operation_cluster_update.go) make separate decisions. The graph highlights version/configuration changes; sizing, identities, validation and backup maintenance continue independently.
+[Desired-version selection](../backend/pkg/controllers/cluster/version/control_plane_desired_version_controller.go), [upgrade dispatch](../backend/pkg/controllers/cluster/version/trigger_control_plane_upgrade_controller.go) and [operation completion](../backend/pkg/controllers/cluster/operations/operation_cluster_update.go) make separate decisions. The graph highlights version/configuration changes and validation observations. Validation failures lasting at least five minutes also fail the operation with `InvalidResource` once the operation is at least five minutes old; sizing, identities and backup maintenance continue independently.
 
 ### Cluster delete
 

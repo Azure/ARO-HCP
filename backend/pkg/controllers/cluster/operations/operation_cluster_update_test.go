@@ -164,6 +164,112 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 		wantErr                                       bool
 		verifyDB                                      func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient)
 	}{
+
+		{
+			name: "recent validation failure keeps update provisioning",
+			existingCluster: newClusterWithCustomerVersion("4.19", func(cluster *coreapi.Cluster) {
+				cluster.ServiceProviderProperties.ProvisioningState = coreapi.ProvisioningStateAccepted
+			}),
+			existingOperation: func() *coreapi.Operation {
+				operation := newOperationAccepted()
+				operation.StartTime = testClockNow.Add(-time.Hour)
+				return operation
+			}(),
+			existingServiceProviderCluster: func() *coreapi.ServiceProviderCluster {
+				spc := newServiceProviderClusterWithSpecControlPlaneVersion("4.19")
+				spc.Status.Validations = []metav1.Condition{{
+					Type: "SubnetValidation", Status: metav1.ConditionFalse,
+					Reason: "InvalidSubnet", Message: "subnet is unavailable",
+					LastTransitionTime: metav1.NewTime(testClockNow.Add(-(4 * time.Minute))),
+				}}
+				return spc
+			}(),
+			cachedHostedClusterReadDesire: newPassingCachedHostedClusterReadDesire(),
+			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
+				mock.EXPECT().GetCluster(gomock.Any(), fixture.ClusterInternalID).Return(newCSClusterWithState(arohcpv1alpha1.ClusterStateReady), nil)
+			},
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
+				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
+				require.NoError(t, err)
+				assert.Equal(t, coreapi.ProvisioningStateProvisioning, op.Status)
+				assert.Nil(t, op.Error)
+				cluster, err := db.HCPClusters(operationtesting.TestSubscriptionID, operationtesting.TestResourceGroupName).Get(ctx, operationtesting.TestClusterName)
+				require.NoError(t, err)
+				assert.Equal(t, coreapi.ProvisioningStateProvisioning, cluster.ServiceProviderProperties.ProvisioningState)
+				assert.Equal(t, operationtesting.TestOperationName, cluster.ServiceProviderProperties.ActiveOperationID)
+			},
+		},
+		{
+			name: "old validation failure keeps a new update operation provisioning",
+			existingCluster: newClusterWithCustomerVersion("4.19", func(cluster *coreapi.Cluster) {
+				cluster.ServiceProviderProperties.ProvisioningState = coreapi.ProvisioningStateAccepted
+			}),
+			existingOperation: func() *coreapi.Operation {
+				operation := newOperationAccepted()
+				operation.StartTime = testClockNow.Add(-4 * time.Minute)
+				return operation
+			}(),
+			existingServiceProviderCluster: func() *coreapi.ServiceProviderCluster {
+				spc := newServiceProviderClusterWithSpecControlPlaneVersion("4.19")
+				spc.Status.Validations = []metav1.Condition{{
+					Type: "SubnetValidation", Status: metav1.ConditionFalse,
+					Reason: "InvalidSubnet", Message: "subnet is unavailable",
+					LastTransitionTime: metav1.NewTime(testClockNow.Add(-time.Hour)),
+				}}
+				return spc
+			}(),
+			cachedHostedClusterReadDesire: newPassingCachedHostedClusterReadDesire(),
+			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
+				mock.EXPECT().GetCluster(gomock.Any(), fixture.ClusterInternalID).Return(newCSClusterWithState(arohcpv1alpha1.ClusterStateReady), nil)
+			},
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
+				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
+				require.NoError(t, err)
+				assert.Equal(t, coreapi.ProvisioningStateProvisioning, op.Status)
+				assert.Nil(t, op.Error)
+				cluster, err := db.HCPClusters(operationtesting.TestSubscriptionID, operationtesting.TestResourceGroupName).Get(ctx, operationtesting.TestClusterName)
+				require.NoError(t, err)
+				assert.Equal(t, coreapi.ProvisioningStateProvisioning, cluster.ServiceProviderProperties.ProvisioningState)
+				assert.Equal(t, operationtesting.TestOperationName, cluster.ServiceProviderProperties.ActiveOperationID)
+			},
+		},
+
+		{
+			name: "persistent validation failure fails update",
+			existingCluster: newClusterWithCustomerVersion("4.19", func(cluster *coreapi.Cluster) {
+				cluster.ServiceProviderProperties.ProvisioningState = coreapi.ProvisioningStateAccepted
+			}),
+			existingOperation: func() *coreapi.Operation {
+				operation := newOperationAccepted()
+				operation.StartTime = testClockNow.Add(-time.Hour)
+				return operation
+			}(),
+			existingServiceProviderCluster: func() *coreapi.ServiceProviderCluster {
+				spc := newServiceProviderClusterWithSpecControlPlaneVersion("4.19")
+				spc.Status.Validations = []metav1.Condition{{
+					Type: "SubnetValidation", Status: metav1.ConditionFalse,
+					Reason: "InvalidSubnet", Message: "subnet is unavailable",
+					LastTransitionTime: metav1.NewTime(testClockNow.Add(-(5*time.Minute + time.Second))),
+				}}
+				return spc
+			}(),
+			cachedHostedClusterReadDesire: newPassingCachedHostedClusterReadDesire(),
+			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
+				mock.EXPECT().GetCluster(gomock.Any(), fixture.ClusterInternalID).Return(newCSClusterWithState(arohcpv1alpha1.ClusterStateReady), nil)
+			},
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
+				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
+				require.NoError(t, err)
+				assert.Equal(t, coreapi.ProvisioningStateFailed, op.Status)
+				require.NotNil(t, op.Error)
+				assert.Equal(t, coreapi.CloudErrorCodeInvalidResource, op.Error.Code)
+				assert.Contains(t, op.Error.Message, "SubnetValidation: InvalidSubnet: subnet is unavailable")
+				cluster, err := db.HCPClusters(operationtesting.TestSubscriptionID, operationtesting.TestResourceGroupName).Get(ctx, operationtesting.TestClusterName)
+				require.NoError(t, err)
+				assert.Equal(t, coreapi.ProvisioningStateFailed, cluster.ServiceProviderProperties.ProvisioningState)
+				assert.Empty(t, cluster.ServiceProviderProperties.ActiveOperationID)
+			},
+		},
 		{
 			name:                           "cs cluster ready transitions operation to succeeded",
 			existingCluster:                newClusterWithCustomerVersion("4.19"),

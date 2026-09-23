@@ -201,6 +201,7 @@ func (c *operationClusterUpdate) determineOperationState(ctx context.Context, op
 	errs := []error{}
 	operationStates := []*operationbase.OperationState{}
 
+	operationStates = append(operationStates, c.clusterValidation(operation, existingServiceProviderCluster).WithSource("clusterValidation"))
 	if operationState, err := c.desiredVersionResolutionOperationState(ctx, operation, existingCluster, existingServiceProviderCluster); err != nil {
 		errs = append(errs, utils.TrackError(err))
 	} else {
