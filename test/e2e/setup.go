@@ -32,13 +32,9 @@ var (
 )
 
 func setup(ctx context.Context) error {
+	// Use GinkgoLabelFilter to determine if the test should load the e2e setup file
 	labelFilter := GinkgoLabelFilter()
 
-	// Tests/verifiers labeled RequiresConfig load service config themselves
-	// (via config.GetServiceConfig, which memoizes the result) instead of
-	// relying on this function to infer their selection from labelFilter.
-
-	// Use GinkgoLabelFilter to determine if the test should load the e2e setup file
 	if strings.Contains(labelFilter, labels.RequireNothing[0]) ||
 		strings.Contains(labelFilter, labels.UpgradeInPlace[0]) {
 		// Skip loading the e2esetup file
