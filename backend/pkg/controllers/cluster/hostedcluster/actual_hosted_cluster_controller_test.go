@@ -136,10 +136,118 @@ func TestActualHostedClusterSyncer_LeavesMirrorNilWhenHostedClusterUnobserved(t 
 	assert.Nil(t, stored.Status.ActualHostedCluster, "an unobserved HostedCluster must stay nil, not be mirrored as empty")
 }
 
+func TestActualHostedClusterSyncer_ClearsMirrorAfterSuccessfulEmptyObservation(t *testing.T) {
+	ctx := utils.ContextWithLogger(context.Background(), logr.Discard())
+	mockResourcesDBClient := corecosmosstoragetesting.NewMockResourcesDBClient()
+	createTestHCPCluster(t, ctx, mockResourcesDBClient)
+
+	syncer := newTestSyncer(t, mockResourcesDBClient, newHostedCluster())
+	require.NoError(t, syncer.SyncOnce(ctx, testKey))
+	require.NotNil(t, getServiceProviderCluster(t, ctx, mockResourcesDBClient).Status.ActualHostedCluster)
+
+	syncer.readDesireLister = &kubeapplierlistertesting.SliceReadDesireLister{
+		Desires: []*kubeapplierapi.ReadDesire{newHostedClusterReadDesire(t, nil)},
+	}
+	require.NoError(t, syncer.SyncOnce(ctx, testKey))
+
+	assert.Nil(t, getServiceProviderCluster(t, ctx, mockResourcesDBClient).Status.ActualHostedCluster,
+		"a successful empty observation must retract the old mirror")
+}
+
+func TestActualHostedClusterSyncer_RetainsMirrorAfterFailedObservation(t *testing.T) {
+	ctx := utils.ContextWithLogger(context.Background(), logr.Discard())
+	mockResourcesDBClient := corecosmosstoragetesting.NewMockResourcesDBClient()
+	createTestHCPCluster(t, ctx, mockResourcesDBClient)
+
+	hostedCluster := newHostedCluster()
+	syncer := newTestSyncer(t, mockResourcesDBClient, hostedCluster)
+	require.NoError(t, syncer.SyncOnce(ctx, testKey))
+	before := getServiceProviderCluster(t, ctx, mockResourcesDBClient)
+
+	failed := newHostedClusterReadDesire(t, hostedCluster)
+	failed.Status.Conditions = []metav1.Condition{{
+		Type:   kubeapplierapi.ConditionTypeSuccessful,
+		Status: metav1.ConditionFalse,
+	}}
+	syncer.readDesireLister = &kubeapplierlistertesting.SliceReadDesireLister{Desires: []*kubeapplierapi.ReadDesire{failed}}
+	require.NoError(t, syncer.SyncOnce(ctx, testKey))
+
+	after := getServiceProviderCluster(t, ctx, mockResourcesDBClient)
+	assert.NotNil(t, after.Status.ActualHostedCluster, "a failed observation must not clear the mirror")
+	assert.Equal(t, before.CosmosETag, after.CosmosETag, "a failed observation must not rewrite the ServiceProviderCluster")
+}
+
 func TestActualHostedClusterSyncer_SkipsDeletingCluster(t *testing.T) {
 	ctx := utils.ContextWithLogger(context.Background(), logr.Discard())
 	mockResourcesDBClient := corecosmosstoragetesting.NewMockResourcesDBClient()
 	createTestHCPCluster(t, ctx, mockResourcesDBClient)
+
+	markClusterDeleting(t, ctx, mockResourcesDBClient)
+
+	require.NoError(t, newTestSyncer(t, mockResourcesDBClient, newHostedCluster()).SyncOnce(ctx, testKey))
+
+	stored := getServiceProviderCluster(t, ctx, mockResourcesDBClient)
+	assert.Nil(t, stored.Status.ActualHostedCluster, "a cluster being deleted should not be mirrored")
+}
+
+// While the cluster is deleting but the HostedCluster is still up, its teardown
+// churn is not worth publishing: that would race the deletion controllers and
+// no reader benefits. The already-published mirror stays as it is.
+func TestActualHostedClusterSyncer_KeepsMirrorWhileDeletingHostedClusterStillUp(t *testing.T) {
+	ctx := utils.ContextWithLogger(context.Background(), logr.Discard())
+	mockResourcesDBClient := corecosmosstoragetesting.NewMockResourcesDBClient()
+	createTestHCPCluster(t, ctx, mockResourcesDBClient)
+
+	require.NoError(t, newTestSyncer(t, mockResourcesDBClient, newHostedCluster()).SyncOnce(ctx, testKey))
+	before := getServiceProviderCluster(t, ctx, mockResourcesDBClient)
+	require.NotNil(t, before.Status.ActualHostedCluster, "first sync should have published the mirror")
+
+	markClusterDeleting(t, ctx, mockResourcesDBClient)
+
+	changed := newHostedCluster()
+	changed.Spec.ImageContentSources = []hsv1beta1.ImageContentSource{{Source: apihelpers.OcpV5ArtDevMirrorSource}}
+	require.NoError(t, newTestSyncer(t, mockResourcesDBClient, changed).SyncOnce(ctx, testKey))
+
+	stored := getServiceProviderCluster(t, ctx, mockResourcesDBClient)
+	require.NotNil(t, stored.Status.ActualHostedCluster, "the mirror must survive while the HostedCluster is still observed")
+	assert.Equal(t, before.CosmosETag, stored.CosmosETag, "a deleting cluster should not be rewritten while its HostedCluster is still up")
+}
+
+// The deletion flow specifically: the cluster is going away and its HostedCluster
+// has already been torn down, so the successful empty observation must retract the
+// mirror rather than let it outlive the object. This is the same path as
+// ClearsMirrorAfterSuccessfulEmptyObservation, pinned separately because a
+// DeletionTimestamp must not reintroduce the old blanket skip.
+func TestActualHostedClusterSyncer_RetractsMirrorWhenDeletingAndHostedClusterGone(t *testing.T) {
+	ctx := utils.ContextWithLogger(context.Background(), logr.Discard())
+	mockResourcesDBClient := corecosmosstoragetesting.NewMockResourcesDBClient()
+	createTestHCPCluster(t, ctx, mockResourcesDBClient)
+
+	require.NoError(t, newTestSyncer(t, mockResourcesDBClient, newHostedCluster()).SyncOnce(ctx, testKey))
+	require.NotNil(t, getServiceProviderCluster(t, ctx, mockResourcesDBClient).Status.ActualHostedCluster,
+		"first sync should have published the mirror")
+
+	markClusterDeleting(t, ctx, mockResourcesDBClient)
+
+	// A ReadDesire with no kubeContent is how the kube-applier records a target
+	// object that is not on the management cluster.
+	gone := &actualHostedClusterSyncer{
+		resourcesDBClient: mockResourcesDBClient,
+		clusterLister:     &corelistertesting.DBClusterLister{ResourcesDBClient: mockResourcesDBClient},
+		readDesireLister: &kubeapplierlistertesting.SliceReadDesireLister{
+			Desires: []*kubeapplierapi.ReadDesire{newHostedClusterReadDesire(t, nil)},
+		},
+		serviceProviderClusterLister: &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
+	}
+	require.NoError(t, gone.SyncOnce(ctx, testKey))
+
+	stored := getServiceProviderCluster(t, ctx, mockResourcesDBClient)
+	assert.Nil(t, stored.Status.ActualHostedCluster,
+		"a deleting cluster whose HostedCluster is gone must have its mirror retracted, not left stale")
+}
+
+func markClusterDeleting(t *testing.T, ctx context.Context, mockResourcesDBClient *corecosmosstoragetesting.MockResourcesDBClient) {
+	t.Helper()
 
 	clusterCRUD := mockResourcesDBClient.HCPClusters(testSubscriptionID, testResourceGroupName)
 	cluster, err := clusterCRUD.Get(ctx, testClusterName)
@@ -147,11 +255,6 @@ func TestActualHostedClusterSyncer_SkipsDeletingCluster(t *testing.T) {
 	cluster.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: metav1.Now().Time}
 	_, err = clusterCRUD.Replace(ctx, cluster, nil)
 	require.NoError(t, err)
-
-	require.NoError(t, newTestSyncer(t, mockResourcesDBClient, newHostedCluster()).SyncOnce(ctx, testKey))
-
-	stored := getServiceProviderCluster(t, ctx, mockResourcesDBClient)
-	assert.Nil(t, stored.Status.ActualHostedCluster, "a cluster being deleted should not be mirrored")
 }
 
 // The mirror is stored verbatim: server-side bookkeeping that a consumer never
@@ -203,8 +306,14 @@ func newHostedCluster() *hsv1beta1.HostedCluster {
 func newHostedClusterReadDesire(t *testing.T, hostedCluster *hsv1beta1.HostedCluster) *kubeapplierapi.ReadDesire {
 	t.Helper()
 
-	raw, err := json.Marshal(hostedCluster)
-	require.NoError(t, err)
+	// A nil hostedCluster models a ReadDesire carrying no content, which is how
+	// the kube-applier records a target object that is not on the cluster.
+	var kubeContent *kruntime.RawExtension
+	if hostedCluster != nil {
+		raw, err := json.Marshal(hostedCluster)
+		require.NoError(t, err)
+		kubeContent = &kruntime.RawExtension{Raw: raw}
+	}
 	return &kubeapplierapi.ReadDesire{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID: metadataapi.Must(azcorearm.ParseResourceID(
@@ -213,7 +322,8 @@ func newHostedClusterReadDesire(t *testing.T, hostedCluster *hsv1beta1.HostedClu
 			PartitionKey: strings.ToLower("management-cluster-resource-id"),
 		},
 		Status: kubeapplierapi.ReadDesireStatus{
-			KubeContent: &kruntime.RawExtension{Raw: raw},
+			Conditions:  []metav1.Condition{{Type: kubeapplierapi.ConditionTypeSuccessful, Status: metav1.ConditionTrue}},
+			KubeContent: kubeContent,
 		},
 	}
 }

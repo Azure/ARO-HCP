@@ -206,11 +206,14 @@ type ServiceProviderClusterStatus struct {
 	// cluster. Nothing is stripped or rewritten on the way in, so a consumer can
 	// read any field without having to know a mirroring policy.
 	//
-	// nil means the backend has not observed the HostedCluster yet (the cluster
-	// is still being created, or the first sync has not run). Consumers must
-	// treat nil as unavailable observed state. Safety-critical admission checks
-	// must fail closed while it is nil; they cannot assume a required property
-	// such as a data-plane image mirror is present.
+	// nil means there is no observed HostedCluster to report: the backend has not
+	// observed one yet (the cluster is still being created, or the first sync has
+	// not run), or a completed read found no HostedCluster on the management
+	// cluster, in which case the mirror is retracted rather than left pointing at
+	// an object that no longer exists. Consumers must treat nil as unavailable
+	// observed state. Safety-critical admission checks must fail closed while it
+	// is nil; they cannot assume a required property such as a data-plane image
+	// mirror is present.
 	//
 	// Backend controllers must NOT read this field. They have first-class access
 	// to the ReadDesire mirror and are expected to read that instead, staying as
