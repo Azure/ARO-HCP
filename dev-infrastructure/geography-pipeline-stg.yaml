@@ -107,6 +107,20 @@ resourceGroups:
       step: kusto-lookup
     - resourceGroup: svc
       step: subscription-lookup
+  - name: delete-sre-action-group
+    action: Shell
+    command: |
+      if az monitor action-group show --name icm-action-group-sre --resource-group "$RESOURCE_GROUP" --only-show-errors >/dev/null 2>&1; then
+        az monitor action-group delete --name icm-action-group-sre --resource-group "$RESOURCE_GROUP" --only-show-errors
+      fi
+    variables:
+    - name: RESOURCE_GROUP
+      configRef: kusto.rg
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
   - name: kusto-monitoring
     action: ARMStack
     template: templates/kusto-monitoring.bicep
