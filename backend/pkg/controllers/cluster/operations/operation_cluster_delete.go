@@ -266,21 +266,45 @@ func (c *operationClusterDelete) buildDeletionTimeoutMessage(ctx context.Context
 		logger.Error(err, "errors building deletion timeout message")
 	}
 	if len(states) == 0 {
-		return "cluster deletion did not complete before the deadline"
+		return formatDeletionTimeoutMessage("", errs)
 	}
 	slices.SortStableFunc(states, operationbase.CompareOperationState)
 
 	picked, err := operationbase.PickWorstOperationState(states)
 	if err != nil {
 		logger.Error(err, "failed to pick worst deletion state")
-		return "cluster deletion did not complete before the deadline"
+		return formatDeletionTimeoutMessage("", errs)
 	}
 
-	message := picked.Message
-	if len(message) == 0 {
-		return "cluster deletion did not complete before the deadline"
+	return formatDeletionTimeoutMessage(picked.Message, errs)
+}
+
+const deletionDeadlinePrefix = "cluster deletion did not complete before the deadline"
+
+// formatDeletionTimeoutMessage builds the operation error message for a deletion
+// that missed its deadline. It always starts with deletionDeadlinePrefix.
+//
+// When the probes produced a usable detail about what is still stuck, that detail
+// is what an operator needs and the probe errors stay log-only. When they did not,
+// the probe errors are the only remaining signal, so they are surfaced here instead
+// of leaving the operation marked Failed with nothing actionable in its error body.
+//
+// errs are rendered explicitly rather than via errors.Join, which separates with
+// newlines and reads poorly in a single-line operation error body.
+func formatDeletionTimeoutMessage(detail string, errs []error) string {
+	if len(detail) > 0 {
+		return fmt.Sprintf("%s; %s", deletionDeadlinePrefix, detail)
 	}
-	return fmt.Sprintf("cluster deletion did not complete before the deadline; %s", message)
+
+	if len(errs) == 0 {
+		return deletionDeadlinePrefix
+	}
+
+	messages := make([]string, 0, len(errs))
+	for _, err := range errs {
+		messages = append(messages, err.Error())
+	}
+	return fmt.Sprintf("%s; diagnostic errors: %s", deletionDeadlinePrefix, strings.Join(messages, "; "))
 }
 
 // TODO scale this out better. We likely want something we can aggregate, e.g. a UserFacingDeleteProgress condition.
