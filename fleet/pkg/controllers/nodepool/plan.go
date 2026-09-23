@@ -31,12 +31,12 @@ import (
 //
 // Returns nil when converged or blocked. Returns waitAction when any pool is in progress.
 func findNextAction(desired []compute.Pool, current []PoolState, availableVCPUs map[compute.VMFamily]int64, capacityFloor compute.CapacityByRole, networkConfig compute.NetworkConfig) Action {
-	if len(desired) == 0 && len(current) > 0 {
-		return nil
+	if blocker := firstInProgressPool(current); blocker != nil {
+		return newWaitAction(blocker.Name, blocker.Spec.Size, blocker.ZoneString(), waitPollHint)
 	}
 
-	if blocker := firstInProgressPool(current); blocker != nil {
-		return newWaitAction(blocker.Name, blocker.Spec.Size, blocker.ZoneString(), requeueAfterDrainStep)
+	if len(desired) == 0 && len(current) > 0 {
+		return nil
 	}
 
 	desiredByName := make(map[string]compute.Pool, len(desired))

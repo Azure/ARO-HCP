@@ -65,6 +65,9 @@ func ParseCapacityTags(tags map[string]*string) (compute.CapacityByRole, error) 
 func ObservedPoolCapacities(pools []*armcontainerservice.ManagedClusterAgentPoolProfile, metadata map[string]*skucache.SKUMetadata) (compute.CapacityByRole, error) {
 	var observed []compute.Pool
 	for _, pool := range pools {
+		if pool == nil {
+			return nil, fmt.Errorf("nil pool profile in cluster response")
+		}
 		if !IsManagedPoolProfile(pool) {
 			continue
 		}

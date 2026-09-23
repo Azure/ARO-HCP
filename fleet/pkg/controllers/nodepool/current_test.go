@@ -330,6 +330,36 @@ func TestCurrentPoolStatesSwiftNICValidation(t *testing.T) {
 	}
 }
 
+func TestCurrentPoolStatesOSDiskTypeValidation(t *testing.T) {
+	tests := []struct {
+		name     string
+		diskType *armcontainerservice.OSDiskType
+		wantErr  bool
+	}{
+		{name: "ephemeral is projected", diskType: ptr.To(armcontainerservice.OSDiskTypeEphemeral)},
+		{name: "unreported disk type is projected", diskType: nil},
+		{name: "managed is rejected", diskType: ptr.To(armcontainerservice.OSDiskTypeManaged), wantErr: true},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			pools := []armcontainerservice.AgentPool{{Name: ptr.To("worker"), Properties: &armcontainerservice.ManagedClusterAgentPoolProfileProperties{
+				VMSize: ptr.To("sku"), OSDiskSizeGB: ptr.To[int32](32), OSDiskType: test.diskType,
+				Count: ptr.To[int32](1), MaxCount: ptr.To[int32](2), EnableAutoScaling: ptr.To(true),
+				NodeLabels: map[string]*string{compute.RoleLabel: ptr.To("worker")},
+			}}}
+			metadata := map[string]*skucache.SKUMetadata{"sku": {Name: "sku", VCPUs: 4, MemoryBytes: memoryBytes("16Gi")}}
+			current, err := currentPoolStates(pools, metadata)
+			if test.wantErr {
+				require.ErrorContains(t, err, "expected \"Ephemeral\"")
+				require.Nil(t, current, "a managed-disk pool must not be projected as a comparable pool")
+				return
+			}
+			require.NoError(t, err)
+			require.Len(t, current, 1)
+		})
+	}
+}
+
 func TestUnfreezeObservedPoolMinimum(t *testing.T) {
 	for _, test := range []struct {
 		name        string

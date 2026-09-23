@@ -43,6 +43,8 @@ func TestConfigurationConverged(t *testing.T) {
 		{name: "zone drift", change: func(p []PoolState) []PoolState { p[0].AvailabilityZones = []string{"2"}; return p }},
 		{name: "disk drift", change: func(p []PoolState) []PoolState { p[0].OSDiskSizeGB = 64; return p }},
 		{name: "node count exceeds target", change: func(p []PoolState) []PoolState { p[0].Count = 4; return p }},
+		{name: "operator-configured NIC count below the SKU ceiling", change: func(p []PoolState) []PoolState { p[0].Spec.SecondaryNICs = 2; return p }, want: true},
+		{name: "vm size drift", change: func(p []PoolState) []PoolState { p[0].Spec.Size = "other"; return p }},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

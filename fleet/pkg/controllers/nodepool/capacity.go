@@ -33,7 +33,7 @@ func configurationConverged(desired []compute.Pool, current []PoolState) bool {
 	for _, pool := range desired {
 		cur, exists := byName[pool.Name]
 		if !exists || cur.ProvisioningState != "Succeeded" || !cur.AutoScalingEnabled ||
-			cur.MaxCount != pool.MaxCount || cur.Count > pool.MaxCount || cur.Spec != pool.Spec || cur.Role != pool.Role ||
+			cur.MaxCount != pool.MaxCount || cur.Count > pool.MaxCount || cur.Spec.Size != pool.Spec.Size || cur.Role != pool.Role ||
 			cur.OSDiskSizeGB != pool.OSDiskSizeGB || cur.MaxPods != pool.MaxPods || cur.EnableSwift != pool.EnableSwift ||
 			!taintsEqual(cur.AvailabilityZones, pool.AvailabilityZones) || !maps.Equal(cur.Labels, pool.Labels) || !taintsEqual(cur.Taints, pool.Taints) {
 			return false

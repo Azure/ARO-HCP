@@ -187,7 +187,10 @@ func (s *nodePoolSyncer) SyncOnce(ctx context.Context, key fleetcontrollers.Mana
 	if err != nil {
 		return utils.TrackError(err)
 	}
-	if len(failures) > 0 {
+	// A failed required tier abandons the projection. An optional tier that
+	// lost its quota race still leaves a usable partial plan, which the simulator
+	// runs against the preserved current capacity baseline (FullyAllocated=false).
+	if compute.RequiredTierFailed(failures) {
 		outcome := "rejected"
 		reason := "tier allocation failed: " + compute.FailureSummary(failures)
 		if pool := firstInProgressPool(current); pool != nil {

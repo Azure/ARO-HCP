@@ -7,7 +7,7 @@
   "pools": [
     {
       "role": "system",
-      "name": "sys0256373",
+      "name": "sys01c9819",
       "spec": {
         "size": "Standard_E8ds_v5",
         "family": "standardEDSv5Family",
@@ -25,7 +25,8 @@
       },
       "taints": [
         "CriticalAddonsOnly=true:NoSchedule"
-      ]
+      ],
+      "enableSwift": true
     },
     {
       "role": "infra",

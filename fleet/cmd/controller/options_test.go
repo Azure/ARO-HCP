@@ -136,7 +136,7 @@ func TestResolveNodePoolProfile(t *testing.T) {
 			zones:       "",
 			zoneCount:   0,
 			wantErr:     true,
-			errContains: "region has no availability zones",
+			errContains: "region has 0 availability zones, fewer than the 3 required",
 		},
 		{
 			name:        "invalid profile name",

@@ -32,7 +32,10 @@ import (
 // use by the shadow simulator. Only pools with a role label (system, infra,
 // worker) are included. SKU metadata is used to populate Family and
 // VCPUsPerNode from the pool's VMSize. Invalid configured Swift NIC counts
-// return an error rather than falling back to the SKU maximum.
+// return an error rather than falling back to the SKU maximum, and a pool
+// whose OS disk is not ephemeral is rejected: the pool model carries only a
+// disk size, so a managed-disk pool would otherwise read as converged against
+// a desired spec that agentpoolspec.Build always builds as ephemeral.
 func currentPoolStates(pools []armcontainerservice.AgentPool, skuMetadata map[string]*skucache.SKUMetadata) ([]PoolState, error) {
 	var result []PoolState
 	for _, pool := range pools {
@@ -41,6 +44,9 @@ func currentPoolStates(pools []armcontainerservice.AgentPool, skuMetadata map[st
 		}
 		if pool.Properties == nil || pool.Name == nil || pool.Properties.VMSize == nil || pool.Properties.OSDiskSizeGB == nil {
 			continue
+		}
+		if diskType := pool.Properties.OSDiskType; diskType != nil && *diskType != armcontainerservice.OSDiskTypeEphemeral {
+			return nil, fmt.Errorf("pool %q has OS disk type %q, expected %q", *pool.Name, *diskType, armcontainerservice.OSDiskTypeEphemeral)
 		}
 
 		role := compute.PoolRole(agentpools.RoleFromAgentPool(pool))

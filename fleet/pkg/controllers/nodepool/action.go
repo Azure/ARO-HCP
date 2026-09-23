@@ -20,8 +20,10 @@ import (
 	"github.com/Azure/ARO-HCP/fleet/pkg/compute"
 )
 
-// Advisory poll cadence while an observed pool is transitioning.
-const requeueAfterDrainStep = time.Minute
+// waitPollHint is the cadence at which an observed transitioning pool would be
+// re-examined. The shadow controller reports it in the projection trace and
+// does not requeue on it; the informer resync drives the next observation.
+const waitPollHint = time.Minute
 
 // actionType identifies a single proposed micro-operation.
 type actionType string
@@ -86,7 +88,7 @@ var (
 // waitAction identifies an observed in-progress pool blocking further planning.
 type waitAction struct {
 	actionBase
-	Delay time.Duration
+	Delay time.Duration // advisory only; see waitPollHint
 }
 
 func newWaitAction(poolName, vmSize, zone string, delay time.Duration) waitAction {

@@ -328,3 +328,35 @@ func TestShadowSyncOnceRefreshesLiveCapacity(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, second.After(first), "each periodic observation must produce a freshly timestamped report")
 }
+
+func TestShadowSyncOnceOptionalTierFailureStillProjects(t *testing.T) {
+	profile := syncOnceTestProfile()
+	profile.Tiers[0].Required = true
+	// No 8-core SKU exists in the fake region, so this optional tier cannot
+	// allocate. The required tier above it still has a complete, usable plan.
+	profile.Tiers = append(profile.Tiers, compute.TierConfig{
+		Name: "wrk8", Role: compute.PoolRoleWorker, PoolMode: compute.PoolModeRegional,
+		Cores: 8, OSDiskSizeGB: 32, MaxNodes: 1, MaxPods: 100,
+		FamilyPriority: []compute.VMFamily{syncOnceTestVMFamily},
+	})
+
+	azure := &shadowAzure{cluster: armcontainerservice.ManagedCluster{Properties: &armcontainerservice.ManagedClusterProperties{ProvisioningState: ptr.To("Succeeded")}}, limit: 100}
+	syncer := newShadowTestSyncer(t, azure, profile)
+	resolved, err := compute.ResolveDesiredPools(testSyncOnceContext(), syncer.skuCache, syncOnceTestSubscriptionID, profile, syncer.zones, syncer.usageFetcher(syncOnceTestSubscriptionID))
+	require.NoError(t, err)
+	require.Len(t, resolved.Pools, 1, "the required tier must allocate")
+	require.Len(t, resolved.Failures, 1)
+	require.False(t, resolved.Failures[0].Required, "the failing tier must be the optional one")
+
+	properties := agentpoolspec.Build(resolved.Pools[0], compute.NetworkConfig{})
+	properties.Count = ptr.To[int32](1)
+	properties.ProvisioningState = ptr.To("Succeeded")
+	azure.pools = []*armcontainerservice.AgentPool{{Name: ptr.To(resolved.Pools[0].Name), Properties: properties}}
+
+	syncer = newShadowTestSyncer(t, azure, profile)
+	ctx, reports := shadowReportContext(t)
+	require.NoError(t, syncer.SyncOnce(ctx, fleetcontrollers.ManagementClusterKey{StampIdentifier: syncOnceTestStampID}))
+	require.Len(t, *reports, 1)
+	require.Equal(t, "converged", (*reports)[0]["outcome"],
+		"an optional tier's allocation failure must not abandon the projection of the tiers that did allocate")
+}
