@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"html/template"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -254,8 +255,29 @@ func renderObservabilityPage(outputPath string, tabs []observabilityTab) error {
 	if err := tmpl.Execute(&buf, data); err != nil {
 		return fmt.Errorf("failed to execute observability template: %w", err)
 	}
-	if err := os.WriteFile(outputPath, buf.Bytes(), 0644); err != nil {
+	if err := writeObservabilityHTML(outputPath, buf.Bytes()); err != nil {
 		return fmt.Errorf("failed to write %s: %w", outputPath, err)
 	}
 	return nil
+}
+
+// Publish only closed reports so an external kill cannot truncate the checkpoint.
+func writeObservabilityHTML(path string, content []byte) error {
+	file, err := os.CreateTemp(filepath.Dir(path), ".observability-report-*")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(file.Name())
+	if _, err := file.Write(content); err != nil {
+		file.Close()
+		return err
+	}
+	if err := file.Chmod(0644); err != nil {
+		file.Close()
+		return err
+	}
+	if err := file.Close(); err != nil {
+		return err
+	}
+	return os.Rename(file.Name(), path)
 }
