@@ -55,7 +55,7 @@ func TestSystemReserved(t *testing.T) {
 			require.Equal(t, strings.TrimRight(line, " \t"), line, "rendered manifest must not have trailing whitespace")
 		}
 	}
-	require.Equal(t, int32(1), ds.Spec.UpdateStrategy.RollingUpdate.MaxUnavailable.IntVal)
+	require.Equal(t, "25%", ds.Spec.UpdateStrategy.RollingUpdate.MaxUnavailable.StrVal)
 	require.Equal(t, int32(30), ds.Spec.MinReadySeconds)
 	require.Equal(t, int32(0), ds.Spec.UpdateStrategy.RollingUpdate.MaxSurge.IntVal)
 	require.Len(t, ds.Spec.Template.Spec.Containers, 1)
