@@ -25,6 +25,12 @@ buildStep:
     chmod 0755 "${tmp}"
     mv "${tmp}" ./scripts/aks-cluster-create/aks-cluster-create
     trap - EXIT
+    tmp="$(mktemp ./scripts/eventgrid-client-reconcile/eventgrid-client-reconcile.XXXXXX)"
+    trap 'rm -f "${tmp}"' EXIT
+    CGO_ENABLED=0 go build -o "${tmp}" ./scripts/eventgrid-client-reconcile
+    chmod 0755 "${tmp}"
+    mv "${tmp}" ./scripts/eventgrid-client-reconcile/eventgrid-client-reconcile
+    trap - EXIT
 resourceGroups:
 - name: global
   resourceGroup: '{{ .global.rg }}'
@@ -492,6 +498,30 @@ resourceGroups:
       - "ServiceUnavailable"
       maximumRetryCount: 3
       durationBetweenRetries: 2m
+  # EventGrid pins the MQTT client authenticationName immutably, so a maestro
+  # cert SAN change makes the cluster deployment below fail instead of updating.
+  - name: maestro-eventgrid-client-reconcile
+    action: Shell
+    command: ./eventgrid-client-reconcile
+    workingDir: ./scripts/eventgrid-client-reconcile
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
+    variables:
+    - name: EventGridNamespaceId
+      input:
+        resourceGroup: regional
+        step: output
+        name: maestroEventGridNamespaceId
+    - name: ClientName
+      configRef: maestro.agent.consumerName
+    - name: AuthenticationName
+      configRef: maestro.agent.certSAN
+    dependsOn:
+    - resourceGroup: management
+      step: maestro-consumer-cert
   # Everything that needs the ManagedCluster to already exist: ACR pull roles,
   # workload-identity federated credentials, KeyVault/Geneva access, metrics,
   # Maestro, kube-applier, HCP backups, diagnostic settings.
@@ -556,6 +586,8 @@ resourceGroups:
       step: cluster-create
     - resourceGroup: management
       step: maestro-consumer-cert
+    - resourceGroup: management
+      step: maestro-eventgrid-client-reconcile
     - resourceGroup: management
       step: cx-oncert-public-kv-issuer
     - resourceGroup: management

@@ -30,6 +30,12 @@ buildStep:
     chmod 0755 "${tmp}"
     mv "${tmp}" ./scripts/postgres-access/postgres-access
     trap - EXIT
+    tmp="$(mktemp ./scripts/eventgrid-client-reconcile/eventgrid-client-reconcile.XXXXXX)"
+    trap 'rm -f "${tmp}"' EXIT
+    CGO_ENABLED=0 go build -o "${tmp}" ./scripts/eventgrid-client-reconcile
+    chmod 0755 "${tmp}"
+    mv "${tmp}" ./scripts/eventgrid-client-reconcile/eventgrid-client-reconcile
+    trap - EXIT
 resourceGroups:
 # Query parameters from global deployment, e.g. ACR resource IDs
 - name: global
@@ -410,6 +416,39 @@ resourceGroups:
       - "ServiceUnavailable"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
+  # EventGrid pins the MQTT client authenticationName immutably, so a maestro
+  # cert SAN change makes the cluster deployment below fail instead of updating.
+  - name: maestro-eventgrid-client-reconcile
+    action: Shell
+    command: ./eventgrid-client-reconcile
+    workingDir: ./scripts/eventgrid-client-reconcile
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
+    variables:
+    - name: EventGridSubscriptionId
+      input:
+        resourceGroup: service
+        step: subscription-output
+        name: subscriptionId
+    - name: EventGridResourceGroup
+      configRef: regionRG
+    - name: EventGridNamespaceName
+      configRef: maestro.eventGrid.name
+    - name: ClientName
+      configRef: maestro.server.mqttClientName
+    - name: AuthenticationName
+      configRef: maestro.server.certSAN
+    dependsOn:
+    - resourceGroup: service
+      step: subscription-output
+    # Wait for the new certificate before deleting the client: deleting it while
+    # maestro is still using the old cert would leave it disconnected until the
+    # cluster step recreates the client.
+    - resourceGroup: service
+      step: maestro-server-cert
   # Create SVC cluster
   - name: cluster
     action: ARM
@@ -466,6 +505,8 @@ resourceGroups:
       step: sessiongate-cert
     - resourceGroup: service
       step: maestro-server-cert
+    - resourceGroup: service
+      step: maestro-eventgrid-client-reconcile
     automatedRetry:
       errorContainsAny:
       - "DeploymentScriptACIProvisioningTimeout"
