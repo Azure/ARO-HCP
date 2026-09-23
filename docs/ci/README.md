@@ -108,7 +108,7 @@ ARO HCP CI is split across this repository and the OpenShift CI configuration in
 
 ### [DEV CI Regional Load Management](dev-region-failover.md)
 
-- Review regional provision health and drain or rebalance `e2e-parallel`
+- Review regional provision and E2E health, then drain or rebalance `e2e-parallel`
 - Restore weighted traffic or fail over an explicitly pinned job
 
 ### [Opstool CI Platform](opstool.md)

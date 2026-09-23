@@ -1,7 +1,7 @@
 # DEV CI Regional Load Management
 
 Use this SOP to drain, rebalance, or restore new DEV CI runs when regional
-provision health changes.
+health changes.
 
 ## Current Job Behavior
 
@@ -27,13 +27,23 @@ evaluate health or change weights automatically.
    - [`westus3`](https://prow.ci.openshift.org/?job=periodic-ci-Azure-ARO-HCP-main-periodic-healthcheck-provision-westus3)
    - [`centralus`](https://prow.ci.openshift.org/?job=periodic-ci-Azure-ARO-HCP-main-periodic-healthcheck-provision-centralus)
    - [`canadacentral`](https://prow.ci.openshift.org/?job=periodic-ci-Azure-ARO-HCP-main-periodic-healthcheck-provision-canadacentral)
-2. Compare provision success by region. Check the failing steps and artifacts to
-   exclude failures unrelated to Azure region health, such as a code
-   regression, credentials, leases, or the Prow build farm.
-3. Discuss the evidence with the ARO HCP CI team. Change regional traffic only
-   when the team agrees that it is likely to improve provision success.
+2. Compare provision success by region. These healthchecks assess whether ARO
+   HCP infrastructure can be provisioned in each region, but do not exercise
+   the full E2E suite.
+3. Review recent `e2e-parallel` outcomes grouped by the region selected for each
+   run. E2E results provide a broader regional-health signal because tests can
+   encounter region-specific failures in Azure providers and features after
+   infrastructure provisioning has succeeded.
+4. For both signals, inspect failing steps and artifacts to exclude failures
+   unrelated to Azure region health, such as a code regression, credentials,
+   leases, or the Prow build farm.
+5. Discuss the combined evidence with the ARO HCP CI team. Change regional
+   traffic only when the team agrees that it is likely to improve provision and
+   E2E success.
    `ProwCIHealthcheckProvisionSuccessRateLow` is the alerting signal for this
-   decision, but operators may act before its conservative threshold is reached.
+   decision, but it covers only provision health. Operators may act before its
+   conservative threshold is reached when provision-healthcheck and regional
+   E2E evidence justify the change.
 
 ## Drain Or Rebalance `e2e-parallel`
 
@@ -59,22 +69,23 @@ weight. Do not add an explicit location override: a valid
 3. Rehearse `e2e-parallel`. Confirm that slot-manager accepts the weights,
    selects an enabled region, and completes infrastructure provisioning.
 4. After the PR merges, inspect newly created runs to confirm that drained
-   regions are not selected and that enabled regions provision successfully.
+   regions are not selected and that enabled regions provision and complete E2E
+   tests successfully.
 
 Weight changes affect only new ProwJobs. A retry is a new run with a new
 `BUILD_ID` and may select a different enabled region.
 
 ## Restore Equal Distribution
 
-After provision health recovers and the ARO HCP CI team agrees to restore
-traffic, repeat the procedure with equal positive weights:
+After provision and E2E health recover and the ARO HCP CI team agrees to
+restore traffic, repeat the procedure with equal positive weights:
 
 ```yaml
 LOCATION_WEIGHTS: westus3=1,canadacentral=1,centralus=1
 ```
 
-Use current provision-healthcheck data rather than assuming that a previously
-drained region has recovered.
+Use current provision-healthcheck data and regional `e2e-parallel` outcomes
+rather than assuming that a previously drained region has recovered.
 
 ## Fail Over A Pinned Job
 
