@@ -275,6 +275,26 @@ clouds:
               - brazilsouth
               - eastus2
       ci:
+        # Required Azure resource providers for ARO-HCP-managed E2E subscriptions.
+        # This is the single source of truth for provider registration; add new
+        # dependencies here and re-run make dev-ci-privileged-local-run.
+        e2eSubscriptionProviders:
+          'Microsoft.Compute':
+            poll: true
+          'Microsoft.Insights':
+            poll: true
+          'Microsoft.KeyVault':
+            poll: true
+          'Microsoft.ManagedIdentity':
+            poll: true
+          'Microsoft.Network':
+            poll: true
+          'Microsoft.Quota':
+            poll: true
+          'Microsoft.RedHatOpenShift':
+            poll: true
+          'Microsoft.Storage':
+            poll: true
         dev:
           bot:
             applicationName: "OpenShift Release Bot"
