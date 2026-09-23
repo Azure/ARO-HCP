@@ -146,16 +146,16 @@ Deletion requires all of the following:
   If certificate revalidation takes longer than that, the attempt fails without
   deleting and the certificate is retried by a later hourly run.
 
-The command consumes every active certificate inventory page before attempting
-active-certificate changes because owner checks can exclude candidates. Deleted
-certificate inventory has no owner dependency, so it stops requesting Key Vault
-pages immediately after selecting `--max-purges` eligible tombstones. This keeps
-the purge batch bound from also becoming an unbounded read cost or throttling
-risk. `--delete-active` and `--purge-deleted` independently enable the two
-actions, allowing tombstones to be remediated without resuming the currently
-disabled active-certificate cleanup. It caps active candidates at
-`--max-deletions`, deleted candidates at `--max-purges`, and emits JSON candidate
-and summary logs.
+Active and deleted certificate inventories both stop requesting Key Vault pages
+as soon as they select their configured number of eligible objects:
+`--max-deletions` for active certificates and `--max-purges` for tombstones.
+The preliminary owner inventory is applied while active pages are read, so
+live-owned certificates do not consume the deletion cap. Every delete still
+uses a fresh owner revalidation through the shared 30-second guard. This keeps
+both batch bounds from becoming unbounded read costs or throttling risks.
+`--delete-active` and `--purge-deleted` independently enable the two actions,
+allowing tombstones to be remediated without resuming active-certificate
+cleanup. The command emits JSON candidate and summary logs.
 
 Active candidates are soft-deleted as complete certificate objects, including
 all versions and their policy; backing certificate material can become

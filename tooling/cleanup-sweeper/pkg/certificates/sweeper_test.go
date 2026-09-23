@@ -339,7 +339,9 @@ func TestDeletedEligibility(t *testing.T) {
 
 func TestDryRunInventoryAndLimit(t *testing.T) {
 	s, f, a, b := newTestSweeper("frontend-cert-prow-j1234567")
-	f.pages = append(f.pages, []*azcertificates.CertificateProperties{oldCertificate("maestro-server-j2345678"), oldCertificate("admin-api-cert-ci00-j3456789")})
+	f.pages[0] = append(f.pages[0], oldCertificate("maestro-server-j2345678"))
+	f.pages = append(f.pages, []*azcertificates.CertificateProperties{oldCertificate("admin-api-cert-ci00-j3456789")})
+	f.listError = 2
 	f.deletedPages = [][]*azcertificates.DeletedCertificateProperties{{
 		deletedCertificate("sessiongate-cert-ci01-j4567890"),
 		deletedCertificate("maestro-server-j5678901"),
@@ -359,7 +361,7 @@ func TestDryRunInventoryAndLimit(t *testing.T) {
 	if a.lists != 1 || b.lists != 1 {
 		t.Fatalf("must inventory both subscriptions: %d, %d", a.lists, b.lists)
 	}
-	for _, expected := range []string{`"Scanned":3`, `"Eligible":2`, `"Selected":1`, `"DeletedScanned":1`, `"PurgeEligible":1`, `"PurgeSelected":1`, `"live-owner":1`, `"limit":1`, `"purge-limit":1`} {
+	for _, expected := range []string{`"Scanned":2`, `"Eligible":1`, `"Selected":1`, `"DeletedScanned":1`, `"PurgeEligible":1`, `"PurgeSelected":1`, `"live-owner":1`, `"limit":1`, `"purge-limit":1`} {
 		if !strings.Contains(logs.String(), expected) {
 			t.Errorf("missing %s in %s", expected, logs.String())
 		}

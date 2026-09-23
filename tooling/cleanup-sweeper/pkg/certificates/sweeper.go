@@ -266,17 +266,32 @@ func (s *sweeper) run(ctx context.Context, opts Options) error {
 	cutoff := now.Add(-opts.MinAge)
 	var purgeCandidates []*azcertificates.DeletedCertificateProperties
 	var candidates []*azcertificates.CertificateProperties
+	var owners map[string]bool
 	if opts.DeleteActive {
+		var err error
+		owners, _, err = s.owners(ctx)
+		if err != nil {
+			return err
+		}
 		seen := map[string]bool{}
 		pager := s.certificates.NewListCertificatePropertiesPager(nil)
+	activeInventory:
 		for pager.More() {
+			if len(candidates) >= opts.MaxDeletions {
+				counts.Skipped["limit"]++
+				break
+			}
 			page, err := pager.NextPage(ctx)
 			if err != nil {
 				return fmt.Errorf("list certificate metadata (no changes attempted): %w", err)
 			}
 			for _, cert := range page.Value {
+				if len(candidates) >= opts.MaxDeletions {
+					counts.Skipped["limit"]++
+					break activeInventory
+				}
 				counts.Scanned++
-				name, _, reason := eligible(cert, now, cutoff)
+				name, job, reason := eligible(cert, now, cutoff)
 				if reason != "" {
 					counts.Skipped[reason]++
 					continue
@@ -286,6 +301,11 @@ func (s *sweeper) run(ctx context.Context, opts Options) error {
 					return fmt.Errorf("duplicate certificate %q in inventory", name)
 				}
 				seen[name] = true
+				if owners[job] {
+					counts.Skipped["live-owner"]++
+					continue
+				}
+				counts.Eligible++
 				candidates = append(candidates, cert)
 			}
 		}
@@ -325,30 +345,12 @@ func (s *sweeper) run(ctx context.Context, opts Options) error {
 			}
 		}
 	}
-	selected := candidates[:0]
-	var owners map[string]bool
-	if opts.DeleteActive {
-		var err error
-		owners, _, err = s.owners(ctx)
-		if err != nil {
-			return err
-		}
-		for _, cert := range candidates {
-			name, _, _ := certificateID(cert.ID)
-			job := "j" + certificateName.FindStringSubmatch(name)[1]
-			if owners[job] {
-				counts.Skipped["live-owner"]++
-				continue
-			}
-			counts.Eligible++
-			if len(selected) >= opts.MaxDeletions {
-				counts.Skipped["limit"]++
-				continue
-			}
-			selected = append(selected, cert)
-			counts.Selected++
-			logger.Info("Selected CI certificate", "name", name, "job", job, "created", cert.Attributes.Created, "updated", cert.Attributes.Updated)
-		}
+	selected := candidates
+	for _, cert := range selected {
+		name, _, _ := certificateID(cert.ID)
+		job := "j" + certificateName.FindStringSubmatch(name)[1]
+		counts.Selected++
+		logger.Info("Selected CI certificate", "name", name, "job", job, "created", cert.Attributes.Created, "updated", cert.Attributes.Updated)
 	}
 	if opts.DryRun {
 		return ctx.Err()
