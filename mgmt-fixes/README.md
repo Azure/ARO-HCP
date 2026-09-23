@@ -52,8 +52,13 @@ ownership, symlinks, or hard links are rejected rather than overwritten.
 Unchanged configuration is not rewritten; without a pending marker it is not
 reloaded or restarted, but its health is still checked.
 
-Rollout retains `maxUnavailable: 1` and `maxSurge: 0`, with a 30-second
-`minReadySeconds` stabilization interval. The privileged init container must
+Rollout uses `maxUnavailable: 25%` and `maxSurge: 0`, with a 30-second
+`minReadySeconds` stabilization interval. Fully serial rollout
+(`maxUnavailable: 1`) scaled linearly with pool size and blew the Helm
+client-wait budget on mgmt clusters at prod scale (up to 42 worker nodes
+× ~40-70s per node); 25% bounds concurrent kubelet restarts to ~a quarter
+of the pool so rollout finishes within a few waves without letting the
+whole pool restart at once. The privileged init container must
 finish applying the fixes before the main container starts. Its readiness
 probe checks local kubelet HTTP responsiveness. The kubelet health endpoint
 is only a ping: it does not establish Node Ready, runtime/network recovery,
