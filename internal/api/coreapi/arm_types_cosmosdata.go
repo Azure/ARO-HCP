@@ -32,6 +32,14 @@ import (
 type CosmosMetadata struct {
 	ResourceID *azcorearm.ResourceID `json:"resourceID"`
 
+	// ParentResourceID is the parent resource ID, populated on create and replace.
+	// It is nil when ResourceID is nil, when its parent is nil, or when the parent
+	// is the subscription root sentinel (whose string form is empty). The value is
+	// derived from the lower-cased parent: resource names and the provider namespace
+	// are lower-cased, while the Azure SDK canonicalizes reserved segment keywords
+	// (such as "resourceGroups") so those keep their canonical casing.
+	ParentResourceID *azcorearm.ResourceID `json:"parentResourceID,omitempty"`
+
 	// ExistingCosmosUID exists to allow for a migration path from where we are today to a uuid based cosmosID
 	// and this will be deleted afterwards.
 	ExistingCosmosUID string `json:"-"`

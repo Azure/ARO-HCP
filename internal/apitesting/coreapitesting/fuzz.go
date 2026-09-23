@@ -163,6 +163,7 @@ func CommonRoundTripFuzzFuncs() []interface{} {
 			j.CosmosETag = ""
 			j.InstanceVersion = 0
 			j.PartitionKey = ""
+			j.ParentResourceID = nil
 		},
 		func(j *coreapi.ImageDigestMirror, c randfill.Continue) {
 			c.FillNoCustom(j)

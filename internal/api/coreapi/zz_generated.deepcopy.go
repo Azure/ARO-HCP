@@ -355,6 +355,10 @@ func (in *CosmosMetadata) DeepCopyInto(out *CosmosMetadata) {
 		in, out := &in.ResourceID, &out.ResourceID
 		*out = DeepCopyResourceID(*in)
 	}
+	if in.ParentResourceID != nil {
+		in, out := &in.ParentResourceID, &out.ParentResourceID
+		*out = DeepCopyResourceID(*in)
+	}
 	return
 }
 
