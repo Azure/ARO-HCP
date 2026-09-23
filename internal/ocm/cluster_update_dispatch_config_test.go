@@ -33,7 +33,7 @@ import (
 )
 
 func TestClusterUpdateDispatchConfigHash(t *testing.T) {
-	baseCustomerProperties := coreapi.HCPOpenShiftClusterCustomerProperties{
+	baseCustomerProperties := coreapi.ClusterCustomerProperties{
 		NodeDrainTimeoutMinutes: 30,
 		API: coreapi.CustomerAPIProfile{
 			AuthorizedCIDRs: []string{"10.0.0.0/8"},
@@ -44,7 +44,7 @@ func TestClusterUpdateDispatchConfigHash(t *testing.T) {
 		},
 	}
 
-	base := &coreapi.HCPOpenShiftCluster{
+	base := &coreapi.Cluster{
 		CustomerProperties: baseCustomerProperties,
 	}
 
@@ -58,13 +58,13 @@ func TestClusterUpdateDispatchConfigHash(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		cluster *coreapi.HCPOpenShiftCluster
+		cluster *coreapi.Cluster
 		spc     *coreapi.ServiceProviderCluster
 	}{
 		{
 			name: "different node drain timeout",
-			cluster: &coreapi.HCPOpenShiftCluster{
-				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+			cluster: &coreapi.Cluster{
+				CustomerProperties: coreapi.ClusterCustomerProperties{
 					NodeDrainTimeoutMinutes: 60,
 					API:                     baseCustomerProperties.API,
 					Autoscaling:             baseCustomerProperties.Autoscaling,
@@ -73,8 +73,8 @@ func TestClusterUpdateDispatchConfigHash(t *testing.T) {
 		},
 		{
 			name: "different authorized CIDRs",
-			cluster: &coreapi.HCPOpenShiftCluster{
-				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+			cluster: &coreapi.Cluster{
+				CustomerProperties: coreapi.ClusterCustomerProperties{
 					NodeDrainTimeoutMinutes: baseCustomerProperties.NodeDrainTimeoutMinutes,
 					API: coreapi.CustomerAPIProfile{
 						AuthorizedCIDRs: []string{"192.168.0.0/16"},
@@ -85,8 +85,8 @@ func TestClusterUpdateDispatchConfigHash(t *testing.T) {
 		},
 		{
 			name: "image digest mirrors",
-			cluster: &coreapi.HCPOpenShiftCluster{
-				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+			cluster: &coreapi.Cluster{
+				CustomerProperties: coreapi.ClusterCustomerProperties{
 					NodeDrainTimeoutMinutes: baseCustomerProperties.NodeDrainTimeoutMinutes,
 					API:                     baseCustomerProperties.API,
 					ImageDigestMirrors: []coreapi.ImageDigestMirror{
@@ -98,8 +98,8 @@ func TestClusterUpdateDispatchConfigHash(t *testing.T) {
 		},
 		{
 			name: "different autoscaling",
-			cluster: &coreapi.HCPOpenShiftCluster{
-				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+			cluster: &coreapi.Cluster{
+				CustomerProperties: coreapi.ClusterCustomerProperties{
 					NodeDrainTimeoutMinutes: baseCustomerProperties.NodeDrainTimeoutMinutes,
 					API:                     baseCustomerProperties.API,
 					Autoscaling: coreapi.ClusterAutoscalingProfile{
@@ -111,9 +111,9 @@ func TestClusterUpdateDispatchConfigHash(t *testing.T) {
 		},
 		{
 			name: "control plane availability single replica",
-			cluster: &coreapi.HCPOpenShiftCluster{
+			cluster: &coreapi.Cluster{
 				CustomerProperties: baseCustomerProperties,
-				ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+				ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 					ExperimentalFeatures: coreapi.ExperimentalFeatures{
 						ControlPlaneAvailability: coreapi.SingleReplicaControlPlane,
 					},
@@ -122,9 +122,9 @@ func TestClusterUpdateDispatchConfigHash(t *testing.T) {
 		},
 		{
 			name: "control plane pod sizing",
-			cluster: &coreapi.HCPOpenShiftCluster{
+			cluster: &coreapi.Cluster{
 				CustomerProperties: baseCustomerProperties,
-				ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+				ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 					ExperimentalFeatures: coreapi.ExperimentalFeatures{
 						ControlPlanePodSizing: coreapi.MinimalControlPlanePodSizing,
 					},
@@ -133,9 +133,9 @@ func TestClusterUpdateDispatchConfigHash(t *testing.T) {
 		},
 		{
 			name: "control plane operator image",
-			cluster: &coreapi.HCPOpenShiftCluster{
+			cluster: &coreapi.Cluster{
 				CustomerProperties: baseCustomerProperties,
-				ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+				ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 					ExperimentalFeatures: coreapi.ExperimentalFeatures{
 						ControlPlaneOperatorImage: "quay.io/openshift/cpo:test",
 					},
@@ -144,7 +144,7 @@ func TestClusterUpdateDispatchConfigHash(t *testing.T) {
 		},
 		{
 			name: "service provider cluster control plane size",
-			cluster: &coreapi.HCPOpenShiftCluster{
+			cluster: &coreapi.Cluster{
 				CustomerProperties: baseCustomerProperties,
 			},
 			spc: &coreapi.ServiceProviderCluster{
@@ -155,8 +155,8 @@ func TestClusterUpdateDispatchConfigHash(t *testing.T) {
 		},
 		{
 			name: "different KMS key version",
-			cluster: &coreapi.HCPOpenShiftCluster{
-				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+			cluster: &coreapi.Cluster{
+				CustomerProperties: coreapi.ClusterCustomerProperties{
 					NodeDrainTimeoutMinutes: baseCustomerProperties.NodeDrainTimeoutMinutes,
 					API:                     baseCustomerProperties.API,
 					Autoscaling:             baseCustomerProperties.Autoscaling,
@@ -206,8 +206,8 @@ func TestClusterUpdateDispatchConfigHash(t *testing.T) {
 }
 
 func TestClusterUpdateDispatchConfigHashExcludesNonUpdatableFields(t *testing.T) {
-	cluster1 := &coreapi.HCPOpenShiftCluster{
-		CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+	cluster1 := &coreapi.Cluster{
+		CustomerProperties: coreapi.ClusterCustomerProperties{
 			NodeDrainTimeoutMinutes: 30,
 			Version:                 coreapi.VersionProfile{ID: "4.19.1"},
 			Network: coreapi.NetworkProfile{
@@ -216,8 +216,8 @@ func TestClusterUpdateDispatchConfigHashExcludesNonUpdatableFields(t *testing.T)
 		},
 	}
 
-	cluster2 := &coreapi.HCPOpenShiftCluster{
-		CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+	cluster2 := &coreapi.Cluster{
+		CustomerProperties: coreapi.ClusterCustomerProperties{
 			NodeDrainTimeoutMinutes: 30,
 			Version:                 coreapi.VersionProfile{ID: "4.19.2"},
 			Network: coreapi.NetworkProfile{
@@ -234,8 +234,8 @@ func TestClusterUpdateDispatchConfigHashExcludesNonUpdatableFields(t *testing.T)
 
 	// Immutable etcd fields (keyName, vaultName, visibility) should not affect the hash.
 	// Only the key version is mutable and dispatch-managed.
-	cluster3 := &coreapi.HCPOpenShiftCluster{
-		CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+	cluster3 := &coreapi.Cluster{
+		CustomerProperties: coreapi.ClusterCustomerProperties{
 			NodeDrainTimeoutMinutes: 30,
 			Etcd: coreapi.EtcdProfile{
 				DataEncryption: coreapi.EtcdDataEncryptionProfile{
@@ -255,8 +255,8 @@ func TestClusterUpdateDispatchConfigHashExcludesNonUpdatableFields(t *testing.T)
 			},
 		},
 	}
-	cluster4 := &coreapi.HCPOpenShiftCluster{
-		CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+	cluster4 := &coreapi.Cluster{
+		CustomerProperties: coreapi.ClusterCustomerProperties{
 			NodeDrainTimeoutMinutes: 30,
 			Etcd: coreapi.EtcdProfile{
 				DataEncryption: coreapi.EtcdDataEncryptionProfile{
@@ -284,16 +284,16 @@ func TestClusterUpdateDispatchConfigHashExcludesNonUpdatableFields(t *testing.T)
 }
 
 func TestClusterUpdateDispatchConfigHashExcludesTagsWithoutExperimentalFeatures(t *testing.T) {
-	cluster1 := &coreapi.HCPOpenShiftCluster{
+	cluster1 := &coreapi.Cluster{
 		TrackedResource: coreapi.TrackedResource{
 			Tags: map[string]string{metadataapi.TagClusterSizeOverride: string(coreapi.MinimalControlPlanePodSizing)},
 		},
-		CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+		CustomerProperties: coreapi.ClusterCustomerProperties{
 			NodeDrainTimeoutMinutes: 30,
 		},
 	}
-	cluster2 := &coreapi.HCPOpenShiftCluster{
-		CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+	cluster2 := &coreapi.Cluster{
+		CustomerProperties: coreapi.ClusterCustomerProperties{
 			NodeDrainTimeoutMinutes: 30,
 		},
 	}
@@ -316,8 +316,8 @@ func TestClusterUpdateDispatchConfigFromCSRoundTrip(t *testing.T) {
 	oldClusterServiceCluster, err := arohcpv1alpha1.NewCluster().Build()
 	require.NoError(t, err)
 
-	hcpCluster := &coreapi.HCPOpenShiftCluster{
-		CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+	cluster := &coreapi.Cluster{
+		CustomerProperties: coreapi.ClusterCustomerProperties{
 			NodeDrainTimeoutMinutes: 45,
 			API: coreapi.CustomerAPIProfile{
 				AuthorizedCIDRs: []string{"10.0.0.0/8", "192.168.0.0/16"},
@@ -332,7 +332,7 @@ func TestClusterUpdateDispatchConfigFromCSRoundTrip(t *testing.T) {
 				PodPriorityThreshold:        -10,
 			},
 		},
-		ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 			ExperimentalFeatures: coreapi.ExperimentalFeatures{
 				ControlPlaneAvailability:  coreapi.SingleReplicaControlPlane,
 				ControlPlanePodSizing:     coreapi.MinimalControlPlanePodSizing,
@@ -342,7 +342,7 @@ func TestClusterUpdateDispatchConfigFromCSRoundTrip(t *testing.T) {
 	}
 	spc := &coreapi.ServiceProviderCluster{}
 
-	clusterBuilder, err := BuildCSCluster(resourceID, coreapitesting.TestTenantID, hcpCluster, nil, oldClusterServiceCluster, spc)
+	clusterBuilder, err := BuildCSCluster(resourceID, coreapitesting.TestTenantID, cluster, nil, oldClusterServiceCluster, spc)
 	require.NoError(t, err)
 
 	csCluster, err := clusterBuilder.Build()
@@ -351,7 +351,7 @@ func TestClusterUpdateDispatchConfigFromCSRoundTrip(t *testing.T) {
 	actualConfig, err := clusterUpdateDispatchConfigFromCS(csCluster)
 	require.NoError(t, err)
 
-	desiredHash, err := clusterUpdateDispatchConfigFromRP(hcpCluster, spc).hash()
+	desiredHash, err := clusterUpdateDispatchConfigFromRP(cluster, spc).hash()
 	require.NoError(t, err)
 	actualHash, err := actualConfig.hash()
 	require.NoError(t, err)
@@ -365,8 +365,8 @@ func TestClusterUpdateDispatchConfigFromCSRoundTripServiceProviderClusterSize(t 
 	oldClusterServiceCluster, err := arohcpv1alpha1.NewCluster().Build()
 	require.NoError(t, err)
 
-	hcpCluster := &coreapi.HCPOpenShiftCluster{
-		CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+	cluster := &coreapi.Cluster{
+		CustomerProperties: coreapi.ClusterCustomerProperties{
 			NodeDrainTimeoutMinutes: 30,
 		},
 	}
@@ -377,7 +377,7 @@ func TestClusterUpdateDispatchConfigFromCSRoundTripServiceProviderClusterSize(t 
 		},
 	}
 
-	clusterBuilder, err := BuildCSCluster(nil, "11111111-1111-1111-1111-111111111111", hcpCluster, nil, oldClusterServiceCluster, spc)
+	clusterBuilder, err := BuildCSCluster(nil, "11111111-1111-1111-1111-111111111111", cluster, nil, oldClusterServiceCluster, spc)
 	require.NoError(t, err)
 
 	csCluster, err := clusterBuilder.Build()
@@ -390,7 +390,7 @@ func TestClusterUpdateDispatchConfigFromCSRoundTripServiceProviderClusterSize(t 
 	require.NotNil(t, actualConfig.ServiceProviderClusterDispatch.DesiredHostedClusterControlPlaneSize)
 	assert.Equal(t, "large", *actualConfig.ServiceProviderClusterDispatch.DesiredHostedClusterControlPlaneSize)
 
-	desiredHash, err := clusterUpdateDispatchConfigFromRP(hcpCluster, spc).hash()
+	desiredHash, err := clusterUpdateDispatchConfigFromRP(cluster, spc).hash()
 	require.NoError(t, err)
 	actualHash, err := actualConfig.hash()
 	require.NoError(t, err)
@@ -579,8 +579,8 @@ func TestClusterUpdateDispatchConfigNodeDrainTimeoutFromCS(t *testing.T) {
 }
 
 func TestClusterUpdateDispatchConfigJSONFromRPAndCS(t *testing.T) {
-	hcpCluster := &coreapi.HCPOpenShiftCluster{
-		CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+	cluster := &coreapi.Cluster{
+		CustomerProperties: coreapi.ClusterCustomerProperties{
 			NodeDrainTimeoutMinutes: 45,
 			API: coreapi.CustomerAPIProfile{
 				AuthorizedCIDRs: []string{"10.0.0.0/8"},
@@ -600,14 +600,14 @@ func TestClusterUpdateDispatchConfigJSONFromRPAndCS(t *testing.T) {
 	oldClusterServiceCluster, err := arohcpv1alpha1.NewCluster().Build()
 	require.NoError(t, err)
 
-	clusterBuilder, err := BuildCSCluster(nil, "11111111-1111-1111-1111-111111111111", hcpCluster, nil, oldClusterServiceCluster, spc)
+	clusterBuilder, err := BuildCSCluster(nil, "11111111-1111-1111-1111-111111111111", cluster, nil, oldClusterServiceCluster, spc)
 
 	require.NoError(t, err)
 
 	csCluster, err := clusterBuilder.Build()
 	require.NoError(t, err)
 
-	desiredJSON, err := ClusterUpdateDispatchConfigJSONFromRP(hcpCluster, spc)
+	desiredJSON, err := ClusterUpdateDispatchConfigJSONFromRP(cluster, spc)
 	require.NoError(t, err)
 	actualJSON, err := ClusterUpdateDispatchConfigJSONFromCS(csCluster)
 	require.NoError(t, err)
@@ -623,8 +623,8 @@ func TestClusterUpdateDispatchConfigJSONFromRPAndCS(t *testing.T) {
 	assert.Contains(t, desiredJSON, `"nodeDrainTimeoutMinutes": 45`)
 	assert.Contains(t, desiredJSON, `"maxNodesTotal": 12`)
 
-	hcpCluster.CustomerProperties.Autoscaling.MaxNodesTotal = 20
-	desiredJSON, err = ClusterUpdateDispatchConfigJSONFromRP(hcpCluster, spc)
+	cluster.CustomerProperties.Autoscaling.MaxNodesTotal = 20
+	desiredJSON, err = ClusterUpdateDispatchConfigJSONFromRP(cluster, spc)
 	require.NoError(t, err)
 	assert.NotEqual(t, desiredJSON, actualJSON)
 }
@@ -1290,8 +1290,8 @@ func TestClusterUpdateDispatchConfigFromCSRoundTripWithKMS(t *testing.T) {
 								KeyVersion("v0").KeyName("test-key").KeyVaultName("test-vault"))))))).Build()
 	require.NoError(t, err)
 
-	hcpCluster := &coreapi.HCPOpenShiftCluster{
-		CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+	cluster := &coreapi.Cluster{
+		CustomerProperties: coreapi.ClusterCustomerProperties{
 			Etcd: coreapi.EtcdProfile{
 				DataEncryption: coreapi.EtcdDataEncryptionProfile{
 					KeyManagementMode: metadataapi.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
@@ -1316,7 +1316,7 @@ func TestClusterUpdateDispatchConfigFromCSRoundTripWithKMS(t *testing.T) {
 	// a PATCH payload — it only contains mutable fields. Simulate what CS returns
 	// after applying the PATCH by building a full cluster with immutable fields
 	// from the old cluster plus the updated key version.
-	_, err = BuildCSCluster(nil, "11111111-1111-1111-1111-111111111111", hcpCluster, nil, oldClusterServiceCluster, spc)
+	_, err = BuildCSCluster(nil, "11111111-1111-1111-1111-111111111111", cluster, nil, oldClusterServiceCluster, spc)
 	require.NoError(t, err)
 
 	fullCSCluster, err := arohcpv1alpha1.NewCluster().
@@ -1338,7 +1338,7 @@ func TestClusterUpdateDispatchConfigFromCSRoundTripWithKMS(t *testing.T) {
 	require.NotNil(t, actualConfig.Etcd.DataEncryption.CustomerManaged.Kms)
 	assert.Equal(t, "v1", actualConfig.Etcd.DataEncryption.CustomerManaged.Kms.ActiveKey.Version)
 
-	desiredHash, err := clusterUpdateDispatchConfigFromRP(hcpCluster, spc).hash()
+	desiredHash, err := clusterUpdateDispatchConfigFromRP(cluster, spc).hash()
 	require.NoError(t, err)
 	actualHash, err := actualConfig.hash()
 	require.NoError(t, err)
@@ -1346,8 +1346,8 @@ func TestClusterUpdateDispatchConfigFromCSRoundTripWithKMS(t *testing.T) {
 }
 
 func TestClusterUpdateDispatchConfigJSONFromRPAndCSWithKMS(t *testing.T) {
-	hcpCluster := &coreapi.HCPOpenShiftCluster{
-		CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+	cluster := &coreapi.Cluster{
+		CustomerProperties: coreapi.ClusterCustomerProperties{
 			Etcd: coreapi.EtcdProfile{
 				DataEncryption: coreapi.EtcdDataEncryptionProfile{
 					KeyManagementMode: metadataapi.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
@@ -1379,7 +1379,7 @@ func TestClusterUpdateDispatchConfigJSONFromRPAndCSWithKMS(t *testing.T) {
 								KeyVersion("v1"))))))).Build()
 	require.NoError(t, err)
 
-	desiredJSON, err := ClusterUpdateDispatchConfigJSONFromRP(hcpCluster, spc)
+	desiredJSON, err := ClusterUpdateDispatchConfigJSONFromRP(cluster, spc)
 	require.NoError(t, err)
 	actualJSON, err := ClusterUpdateDispatchConfigJSONFromCS(fullCSCluster)
 	require.NoError(t, err)

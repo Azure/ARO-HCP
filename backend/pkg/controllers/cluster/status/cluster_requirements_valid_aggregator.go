@@ -119,6 +119,6 @@ func (c *clusterRequirementsValidAggregator) SyncOnce(ctx context.Context, key c
 
 // needsWork reports whether this aggregator should update UserFacingConditions
 // for the given cluster. Deleting clusters are skipped.
-func (c *clusterRequirementsValidAggregator) needsWork(cluster *coreapi.HCPOpenShiftCluster) bool {
+func (c *clusterRequirementsValidAggregator) needsWork(cluster *coreapi.Cluster) bool {
 	return cluster.ServiceProviderProperties.DeletionTimestamp == nil
 }

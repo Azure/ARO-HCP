@@ -163,16 +163,16 @@ func TestNodePoolConvertToInternal_AcceptsExplicitFalseAutoRepair(t *testing.T) 
 
 // TestNewHCPOpenShiftCluster_NilInput verifies that NewHCPOpenShiftCluster(nil)
 // returns a non-nil, defaulted struct ready for unmarshaling.
-func TestNewHCPOpenShiftCluster_NilInput(t *testing.T) {
+func TestNewCluster_NilInput(t *testing.T) {
 	v := version{}
-	result := v.NewHCPOpenShiftCluster(nil)
+	result := v.NewCluster(nil)
 	require.NotNil(t, result, "NewHCPOpenShiftCluster(nil) must not return nil")
 }
 
 // TestNewHCPOpenShiftClusterNodePool_NilInput verifies that
 // NewHCPOpenShiftClusterNodePool(nil) returns a non-nil, defaulted struct.
-func TestNewHCPOpenShiftClusterNodePool_NilInput(t *testing.T) {
+func TestNewClusterNodePool_NilInput(t *testing.T) {
 	v := version{}
-	result := v.NewHCPOpenShiftClusterNodePool(nil)
+	result := v.NewClusterNodePool(nil)
 	require.NotNil(t, result, "NewHCPOpenShiftClusterNodePool(nil) must not return nil")
 }

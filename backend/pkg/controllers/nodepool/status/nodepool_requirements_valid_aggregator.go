@@ -117,6 +117,6 @@ func (c *nodePoolRequirementsValidAggregator) SyncOnce(ctx context.Context, key 
 	return nil
 }
 
-func (c *nodePoolRequirementsValidAggregator) needsWork(nodePool *coreapi.HCPOpenShiftClusterNodePool) bool {
+func (c *nodePoolRequirementsValidAggregator) needsWork(nodePool *coreapi.ClusterNodePool) bool {
 	return nodePool.ServiceProviderProperties.DeletionTimestamp == nil
 }

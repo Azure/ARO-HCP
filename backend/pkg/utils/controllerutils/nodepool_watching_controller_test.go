@@ -51,7 +51,7 @@ func newFakeNodePoolLister(subscriptionID, resourceGroup, clusterName, nodePoolN
 			"/nodePools/" + nodePoolName,
 	))
 	indexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{})
-	err := indexer.Add(&coreapi.HCPOpenShiftClusterNodePool{
+	err := indexer.Add(&coreapi.ClusterNodePool{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID: resourceID,
 		},

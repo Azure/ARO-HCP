@@ -24,7 +24,7 @@ type HcpOpenShiftVersion struct {
 	generated.HcpOpenShiftVersion
 }
 
-func (v version) NewHCPOpenShiftVersion(from *coreapi.HCPOpenShiftVersion) coreapi.VersionedHCPOpenShiftVersion {
+func (v version) NewOpenShiftVersion(from *coreapi.OpenShiftVersion) coreapi.VersionedOpenShiftVersion {
 	idString := ""
 	if from.ID != nil {
 		idString = from.ID.String()

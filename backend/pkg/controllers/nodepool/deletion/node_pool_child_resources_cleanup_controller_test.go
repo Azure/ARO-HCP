@@ -232,7 +232,7 @@ func TestNodePoolChildResourcesCleanupController_SyncOnce(t *testing.T) {
 	}
 
 	fixedNow := time.Date(2026, 5, 6, 12, 0, 0, 0, time.UTC)
-	readyToDeleteNodePoolOptsFunc := func(np *coreapi.HCPOpenShiftClusterNodePool) {
+	readyToDeleteNodePoolOptsFunc := func(np *coreapi.ClusterNodePool) {
 		np.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-time.Hour)}
 		np.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-30 * time.Minute)}
 		np.ServiceProviderProperties.ClusterServiceID = nil
@@ -247,7 +247,7 @@ func TestNodePoolChildResourcesCleanupController_SyncOnce(t *testing.T) {
 
 	testCases := []struct {
 		name               string
-		existingNodePool   *coreapi.HCPOpenShiftClusterNodePool
+		existingNodePool   *coreapi.ClusterNodePool
 		childResources     []any
 		kubeApplierDesires []any
 		wantErr            bool
@@ -266,7 +266,7 @@ func TestNodePoolChildResourcesCleanupController_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "when no ClusterServiceDeletionTimestamp is set performs a no-op",
-			existingNodePool: newTestNodePoolWithNewDeletionApproach(t, func(np *coreapi.HCPOpenShiftClusterNodePool) {
+			existingNodePool: newTestNodePoolWithNewDeletionApproach(t, func(np *coreapi.ClusterNodePool) {
 				np.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-time.Hour)}
 				np.ServiceProviderProperties.ClusterServiceDeletionTimestamp = nil
 				np.ServiceProviderProperties.ClusterServiceID = nil
@@ -281,7 +281,7 @@ func TestNodePoolChildResourcesCleanupController_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "when ClusterServiceID is set performs a no-op",
-			existingNodePool: newTestNodePoolWithNewDeletionApproach(t, func(np *coreapi.HCPOpenShiftClusterNodePool) {
+			existingNodePool: newTestNodePoolWithNewDeletionApproach(t, func(np *coreapi.ClusterNodePool) {
 				np.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-time.Hour)}
 				np.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-30 * time.Minute)}
 			}),
@@ -571,7 +571,7 @@ func TestNodePoolChildResourcesCleanupController_SyncOnce(t *testing.T) {
 			require.NoError(t, err)
 			mockKubeApplierDBClients.Register(managementClusterResourceID, mockKubeApplierClient)
 
-			nodePoolsForLister := []*coreapi.HCPOpenShiftClusterNodePool{}
+			nodePoolsForLister := []*coreapi.ClusterNodePool{}
 			if tc.existingNodePool != nil {
 				nodePoolsForLister = append(nodePoolsForLister, tc.existingNodePool)
 			}

@@ -37,22 +37,22 @@ func (g *mockResourcesGlobalListers) Subscriptions() cosmosstorageutils.GlobalLi
 	return &mockSubscriptionGlobalLister{client: g.client}
 }
 
-func (g *mockResourcesGlobalListers) Clusters() cosmosstorageutils.GlobalLister[coreapi.HCPOpenShiftCluster] {
-	return &MockGlobalLister[coreapi.HCPOpenShiftCluster, cosmosstorageutils.GenericDocument[coreapi.HCPOpenShiftCluster]]{
+func (g *mockResourcesGlobalListers) Clusters() cosmosstorageutils.GlobalLister[coreapi.Cluster] {
+	return &MockGlobalLister[coreapi.Cluster, cosmosstorageutils.GenericDocument[coreapi.Cluster]]{
 		client:        g.client,
 		resourceTypes: []azcorearm.ResourceType{coreapi.ClusterResourceType},
 	}
 }
 
-func (g *mockResourcesGlobalListers) NodePools() cosmosstorageutils.GlobalLister[coreapi.HCPOpenShiftClusterNodePool] {
-	return &MockGlobalLister[coreapi.HCPOpenShiftClusterNodePool, cosmosstorageutils.GenericDocument[coreapi.HCPOpenShiftClusterNodePool]]{
+func (g *mockResourcesGlobalListers) NodePools() cosmosstorageutils.GlobalLister[coreapi.ClusterNodePool] {
+	return &MockGlobalLister[coreapi.ClusterNodePool, cosmosstorageutils.GenericDocument[coreapi.ClusterNodePool]]{
 		client:        g.client,
 		resourceTypes: []azcorearm.ResourceType{coreapi.NodePoolResourceType},
 	}
 }
 
-func (g *mockResourcesGlobalListers) ExternalAuths() cosmosstorageutils.GlobalLister[coreapi.HCPOpenShiftClusterExternalAuth] {
-	return &MockGlobalLister[coreapi.HCPOpenShiftClusterExternalAuth, cosmosstorageutils.GenericDocument[coreapi.HCPOpenShiftClusterExternalAuth]]{
+func (g *mockResourcesGlobalListers) ExternalAuths() cosmosstorageutils.GlobalLister[coreapi.ClusterExternalAuth] {
+	return &MockGlobalLister[coreapi.ClusterExternalAuth, cosmosstorageutils.GenericDocument[coreapi.ClusterExternalAuth]]{
 		client:        g.client,
 		resourceTypes: []azcorearm.ResourceType{coreapi.ExternalAuthResourceType},
 	}

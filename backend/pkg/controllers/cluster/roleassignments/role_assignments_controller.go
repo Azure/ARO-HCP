@@ -140,7 +140,7 @@ func NewRoleAssignmentsController(
 //
 // The deletion path is handled entirely in SyncOnce (a genuine no-op), so NeedsWork
 // only reasons about the non-deletion case.
-func (c *roleAssignmentsSyncer) NeedsWork(cluster *coreapi.HCPOpenShiftCluster, serviceProviderCluster *coreapi.ServiceProviderCluster) bool {
+func (c *roleAssignmentsSyncer) NeedsWork(cluster *coreapi.Cluster, serviceProviderCluster *coreapi.ServiceProviderCluster) bool {
 	// Gate: only manage role assignments once the managed resource group they are
 	// scoped to has been confirmed to exist. Until then there is no scope to build
 	// their resource IDs against, so there is nothing to do.
@@ -187,7 +187,7 @@ func (c *roleAssignmentsSyncer) NeedsWork(cluster *coreapi.HCPOpenShiftCluster, 
 // non-empty) principal ID on the ServiceProviderCluster status. It is the NeedsWork gate
 // that ensures the controller only ever computes and persists the full expected role
 // assignment set, never a partial one.
-func (c *roleAssignmentsSyncer) principalIDsResolvable(cluster *coreapi.HCPOpenShiftCluster, serviceProviderCluster *coreapi.ServiceProviderCluster) bool {
+func (c *roleAssignmentsSyncer) principalIDsResolvable(cluster *coreapi.Cluster, serviceProviderCluster *coreapi.ServiceProviderCluster) bool {
 	userAssignedIdentities := cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities
 	for _, identityResourceID := range userAssignedIdentities.ControlPlaneOperators {
 		if _, ok := controlPlaneOperatorPrincipalID(serviceProviderCluster, identityResourceID); !ok {
@@ -279,7 +279,7 @@ func (c *roleAssignmentsSyncer) SyncOnce(ctx context.Context, key controllerutil
 // Any previously-confirmed assignment that is no longer expected (for example after an identity
 // or name-scheme change) is retained in AzureResources, not dropped; its deletion is deferred
 // to managed identity replacement support.
-func (c *roleAssignmentsSyncer) syncRoleAssignments(ctx context.Context, cluster *coreapi.HCPOpenShiftCluster, existingServiceProviderCluster *coreapi.ServiceProviderCluster) error {
+func (c *roleAssignmentsSyncer) syncRoleAssignments(ctx context.Context, cluster *coreapi.Cluster, existingServiceProviderCluster *coreapi.ServiceProviderCluster) error {
 	expected, err := c.expectedRoleAssignments(cluster, existingServiceProviderCluster)
 	if err != nil {
 		return utils.TrackError(err)
@@ -437,7 +437,7 @@ type roleAssignmentDefinition struct {
 // A missing or unresolved required input (empty managed resource group name,
 // unresolved principal ID, or an identity with no configured role definitions)
 // returns an error so the caller retries rather than computing an incomplete set.
-func (c *roleAssignmentsSyncer) expectedRoleAssignments(cluster *coreapi.HCPOpenShiftCluster, serviceProviderCluster *coreapi.ServiceProviderCluster) ([]roleAssignmentDefinition, error) {
+func (c *roleAssignmentsSyncer) expectedRoleAssignments(cluster *coreapi.Cluster, serviceProviderCluster *coreapi.ServiceProviderCluster) ([]roleAssignmentDefinition, error) {
 	managedResourceGroupName := cluster.CustomerProperties.Platform.ManagedResourceGroup
 	if len(managedResourceGroupName) == 0 {
 		return nil, fmt.Errorf("managed resource group name is empty for cluster %q", cluster.ID.String())

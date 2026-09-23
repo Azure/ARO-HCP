@@ -200,13 +200,13 @@ func (c *operationNodePoolDelete) SynchronizeOperation(ctx context.Context, key 
 	return nil
 }
 
-func (c *operationNodePoolDelete) shouldReconcileOperationAndResourceStatus(nodePool *coreapi.HCPOpenShiftClusterNodePool) bool {
+func (c *operationNodePoolDelete) shouldReconcileOperationAndResourceStatus(nodePool *coreapi.ClusterNodePool) bool {
 	return nodePool.ServiceProviderProperties.DeletionTimestamp != nil &&
 		nodePool.ServiceProviderProperties.ClusterServiceDeletionTimestamp != nil &&
 		nodePool.ServiceProviderProperties.ClusterServiceID != nil
 }
 
-func (c *operationNodePoolDelete) reconcileOperationAndResourceStatus(ctx context.Context, operation *coreapi.Operation, nodePool *coreapi.HCPOpenShiftClusterNodePool) error {
+func (c *operationNodePoolDelete) reconcileOperationAndResourceStatus(ctx context.Context, operation *coreapi.Operation, nodePool *coreapi.ClusterNodePool) error {
 	logger := utils.LoggerFromContext(ctx)
 
 	nodePoolCSID := nodePool.ServiceProviderProperties.ClusterServiceID

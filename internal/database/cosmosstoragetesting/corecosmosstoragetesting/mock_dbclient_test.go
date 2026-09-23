@@ -151,7 +151,7 @@ func TestMockResourcesDBClient_CRUD_Cluster(t *testing.T) {
 		t.Fatalf("Failed to create internal ID: %v", err)
 	}
 
-	cluster := &coreapi.HCPOpenShiftCluster{
+	cluster := &coreapi.Cluster{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   clusterResourceID,
 			PartitionKey: strings.ToLower(subscriptionID),
@@ -164,7 +164,7 @@ func TestMockResourcesDBClient_CRUD_Cluster(t *testing.T) {
 			},
 			Location: "eastus",
 		},
-		ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 			ProvisioningState: coreapi.ProvisioningStateSucceeded,
 			ClusterServiceID:  &internalID,
 		},
@@ -491,7 +491,7 @@ func TestMockResourcesDBClient_Transaction(t *testing.T) {
 		t.Fatalf("Failed to create internal ID: %v", err)
 	}
 
-	cluster := &coreapi.HCPOpenShiftCluster{
+	cluster := &coreapi.Cluster{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   clusterResourceID,
 			PartitionKey: strings.ToLower(clusterResourceID.SubscriptionID),
@@ -504,7 +504,7 @@ func TestMockResourcesDBClient_Transaction(t *testing.T) {
 			},
 			Location: "eastus",
 		},
-		ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 			ProvisioningState: coreapi.ProvisioningStateSucceeded,
 			ClusterServiceID:  &internalID,
 		},
@@ -553,7 +553,7 @@ func TestMockResourcesDBClient_UntypedCRUD(t *testing.T) {
 		t.Fatalf("Failed to create internal ID: %v", err)
 	}
 
-	cluster := &coreapi.HCPOpenShiftCluster{
+	cluster := &coreapi.Cluster{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   clusterResourceID,
 			PartitionKey: strings.ToLower(clusterResourceID.SubscriptionID),
@@ -566,7 +566,7 @@ func TestMockResourcesDBClient_UntypedCRUD(t *testing.T) {
 			},
 			Location: "eastus",
 		},
-		ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 			ProvisioningState: coreapi.ProvisioningStateSucceeded,
 			ClusterServiceID:  &internalID,
 		},
@@ -877,7 +877,7 @@ func TestMockResourcesDBClient_addResource(t *testing.T) {
 		t.Fatalf("Failed to create internal ID: %v", err)
 	}
 
-	cluster := &coreapi.HCPOpenShiftCluster{
+	cluster := &coreapi.Cluster{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   clusterResourceID,
 			PartitionKey: strings.ToLower(clusterResourceID.SubscriptionID),
@@ -890,7 +890,7 @@ func TestMockResourcesDBClient_addResource(t *testing.T) {
 			},
 			Location: "eastus",
 		},
-		ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 			ProvisioningState: coreapi.ProvisioningStateSucceeded,
 			ClusterServiceID:  &internalID,
 		},
@@ -962,7 +962,7 @@ func TestNewMockResourcesDBClientWithResources(t *testing.T) {
 		t.Fatalf("Failed to create internal ID: %v", err)
 	}
 
-	cluster := &coreapi.HCPOpenShiftCluster{
+	cluster := &coreapi.Cluster{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   clusterResourceID,
 			PartitionKey: strings.ToLower(clusterResourceID.SubscriptionID),
@@ -975,7 +975,7 @@ func TestNewMockResourcesDBClientWithResources(t *testing.T) {
 			},
 			Location: "eastus",
 		},
-		ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 			ProvisioningState: coreapi.ProvisioningStateSucceeded,
 			ClusterServiceID:  &internalID,
 		},
@@ -988,7 +988,7 @@ func TestNewMockResourcesDBClientWithResources(t *testing.T) {
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + clusterName +
 			"/nodePools/" + nodePoolName))
 
-	nodePool := &coreapi.HCPOpenShiftClusterNodePool{
+	nodePool := &coreapi.ClusterNodePool{
 		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: nodePoolResourceID, PartitionKey: strings.ToLower(nodePoolResourceID.SubscriptionID)},
 		TrackedResource: coreapi.TrackedResource{
 			Resource: coreapi.Resource{
@@ -1057,7 +1057,7 @@ func TestNewMockResourcesDBClientWithResources_Error(t *testing.T) {
 	}
 
 	// Test with nil resource ID
-	clusterWithNilID := &coreapi.HCPOpenShiftCluster{}
+	clusterWithNilID := &coreapi.Cluster{}
 	_, err = NewMockResourcesDBClientWithResources(ctx, []any{clusterWithNilID})
 	if err == nil {
 		t.Error("Expected error for cluster with nil resource ID")

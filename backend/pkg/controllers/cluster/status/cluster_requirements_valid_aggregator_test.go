@@ -84,7 +84,7 @@ func TestClusterRequirementsValidAggregator_SyncOnce(t *testing.T) {
 
 	testCases := []struct {
 		name                           string
-		existingCluster                *coreapi.HCPOpenShiftCluster
+		existingCluster                *coreapi.Cluster
 		existingServiceProviderCluster *coreapi.ServiceProviderCluster
 		// wantCondition is the expected RequirementsValid condition after SyncOnce.
 		// nil means the condition must remain absent. Only Type/Status/Reason/Message
@@ -107,7 +107,7 @@ func TestClusterRequirementsValidAggregator_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "no-op when UserFacingConditions already match",
-			existingCluster: newTestClusterForAggregator(func(c *coreapi.HCPOpenShiftCluster) {
+			existingCluster: newTestClusterForAggregator(func(c *coreapi.Cluster) {
 				c.Status.UserFacingConditions = []metav1.Condition{degradedCondition}
 			}),
 			existingServiceProviderCluster: newTestServiceProviderClusterForAggregator(func(spc *coreapi.ServiceProviderCluster) {
@@ -123,7 +123,7 @@ func TestClusterRequirementsValidAggregator_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "deleting cluster skips write",
-			existingCluster: newTestClusterForAggregator(func(c *coreapi.HCPOpenShiftCluster) {
+			existingCluster: newTestClusterForAggregator(func(c *coreapi.Cluster) {
 				now := metav1.Now()
 				c.ServiceProviderProperties.DeletionTimestamp = &now
 			}),
@@ -183,7 +183,7 @@ func TestClusterRequirementsValidAggregator_NeedsWork(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		cluster *coreapi.HCPOpenShiftCluster
+		cluster *coreapi.Cluster
 		want    bool
 	}{
 		{
@@ -193,7 +193,7 @@ func TestClusterRequirementsValidAggregator_NeedsWork(t *testing.T) {
 		},
 		{
 			name: "skip when deletion timestamp is set",
-			cluster: newTestClusterForAggregator(func(c *coreapi.HCPOpenShiftCluster) {
+			cluster: newTestClusterForAggregator(func(c *coreapi.Cluster) {
 				c.ServiceProviderProperties.DeletionTimestamp = &now
 			}),
 			want: false,

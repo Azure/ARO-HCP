@@ -29,29 +29,29 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 )
 
-func ValidateExternalAuthCreate(ctx context.Context, newObj *coreapi.HCPOpenShiftClusterExternalAuth) field.ErrorList {
+func ValidateExternalAuthCreate(ctx context.Context, newObj *coreapi.ClusterExternalAuth) field.ErrorList {
 	op := operation.Operation{Type: operation.Create}
 	return validateExternalAuth(ctx, op, newObj, nil)
 }
 
-func ValidateExternalAuthUpdate(ctx context.Context, newObj, oldObj *coreapi.HCPOpenShiftClusterExternalAuth) field.ErrorList {
+func ValidateExternalAuthUpdate(ctx context.Context, newObj, oldObj *coreapi.ClusterExternalAuth) field.ErrorList {
 	op := operation.Operation{Type: operation.Update}
 	return validateExternalAuth(ctx, op, newObj, oldObj)
 }
 
 var (
-	toExternalAuthProxyResource = func(oldObj *coreapi.HCPOpenShiftClusterExternalAuth) *coreapi.ProxyResource {
+	toExternalAuthProxyResource = func(oldObj *coreapi.ClusterExternalAuth) *coreapi.ProxyResource {
 		return &oldObj.ProxyResource
 	}
-	toExternalAuthProperties = func(oldObj *coreapi.HCPOpenShiftClusterExternalAuth) *coreapi.HCPOpenShiftClusterExternalAuthProperties {
+	toExternalAuthProperties = func(oldObj *coreapi.ClusterExternalAuth) *coreapi.ClusterExternalAuthProperties {
 		return &oldObj.Properties
 	}
-	toExternalAuthServiceProviderProperties = func(oldObj *coreapi.HCPOpenShiftClusterExternalAuth) *coreapi.HCPOpenShiftClusterExternalAuthServiceProviderProperties {
+	toExternalAuthServiceProviderProperties = func(oldObj *coreapi.ClusterExternalAuth) *coreapi.ClusterExternalAuthServiceProviderProperties {
 		return &oldObj.ServiceProviderProperties
 	}
 )
 
-func validateExternalAuth(ctx context.Context, op operation.Operation, newObj, oldObj *coreapi.HCPOpenShiftClusterExternalAuth) field.ErrorList {
+func validateExternalAuth(ctx context.Context, op operation.Operation, newObj, oldObj *coreapi.ClusterExternalAuth) field.ErrorList {
 	errs := field.ErrorList{}
 
 	//coreapi.ProxyResource
@@ -85,21 +85,21 @@ func validateProxyResource(ctx context.Context, op operation.Operation, fldPath 
 }
 
 var (
-	toExternalAuthPropertiesProvisioningState = func(oldObj *coreapi.HCPOpenShiftClusterExternalAuthProperties) *coreapi.ProvisioningState {
+	toExternalAuthPropertiesProvisioningState = func(oldObj *coreapi.ClusterExternalAuthProperties) *coreapi.ProvisioningState {
 		return &oldObj.ProvisioningState
 	}
-	toExternalAuthPropertiesIssuer = func(oldObj *coreapi.HCPOpenShiftClusterExternalAuthProperties) *coreapi.TokenIssuerProfile {
+	toExternalAuthPropertiesIssuer = func(oldObj *coreapi.ClusterExternalAuthProperties) *coreapi.TokenIssuerProfile {
 		return &oldObj.Issuer
 	}
-	toExternalAuthPropertiesClients = func(oldObj *coreapi.HCPOpenShiftClusterExternalAuthProperties) []coreapi.ExternalAuthClientProfile {
+	toExternalAuthPropertiesClients = func(oldObj *coreapi.ClusterExternalAuthProperties) []coreapi.ExternalAuthClientProfile {
 		return oldObj.Clients
 	}
-	toExternalAuthPropertiesClaim = func(oldObj *coreapi.HCPOpenShiftClusterExternalAuthProperties) *coreapi.ExternalAuthClaimProfile {
+	toExternalAuthPropertiesClaim = func(oldObj *coreapi.ClusterExternalAuthProperties) *coreapi.ExternalAuthClaimProfile {
 		return &oldObj.Claim
 	}
 )
 
-func validateExternalAuthProperties(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.HCPOpenShiftClusterExternalAuthProperties) field.ErrorList {
+func validateExternalAuthProperties(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.ClusterExternalAuthProperties) field.ErrorList {
 	errs := field.ErrorList{}
 
 	//ProvisioningState coreapi.ProvisioningState       `json:"provisioningState"`
@@ -147,12 +147,12 @@ func validateExternalAuthProperties(ctx context.Context, op operation.Operation,
 }
 
 var (
-	toExternalAuthServiceProviderClusterServiceID = func(oldObj *coreapi.HCPOpenShiftClusterExternalAuthServiceProviderProperties) *metadataapi.InternalID {
+	toExternalAuthServiceProviderClusterServiceID = func(oldObj *coreapi.ClusterExternalAuthServiceProviderProperties) *metadataapi.InternalID {
 		return oldObj.ClusterServiceID
 	}
 )
 
-func validateExternalAuthServiceProviderProperties(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.HCPOpenShiftClusterExternalAuthServiceProviderProperties) field.ErrorList {
+func validateExternalAuthServiceProviderProperties(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.ClusterExternalAuthServiceProviderProperties) field.ErrorList {
 	errs := field.ErrorList{}
 
 	//ClusterServiceID  *InternalID                     `json:"clusterServiceID,omitempty"`

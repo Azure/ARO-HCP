@@ -56,7 +56,7 @@ func NewClusterPendingClusterServiceIDAssignController(resourcesDBClient corecos
 	)
 }
 
-func (c *clusterPendingClusterServiceIDAssignSyncer) needsWork(cluster *coreapi.HCPOpenShiftCluster) bool {
+func (c *clusterPendingClusterServiceIDAssignSyncer) needsWork(cluster *coreapi.Cluster) bool {
 	return cluster.ServiceProviderProperties.DeletionTimestamp == nil &&
 		cluster.ServiceProviderProperties.PendingClusterServiceID == nil &&
 		(cluster.ServiceProviderProperties.ClusterServiceID == nil ||

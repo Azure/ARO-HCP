@@ -352,7 +352,7 @@ func (f *Frontend) ArmResourceActionRequestAdminCredential(writer http.ResponseW
 
 	var certificateSigningRequest string
 	if len(body) > 0 {
-		credentialRequest, err := versionedInterface.UnmarshalHCPOpenShiftClusterAdminCredentialRequest(body)
+		credentialRequest, err := versionedInterface.UnmarshalClusterAdminCredentialRequest(body)
 		if err != nil {
 			return utils.TrackError(err)
 		}
@@ -705,7 +705,7 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 		case strings.ToLower(coreapi.ClusterResourceType.String()):
 			// API version is already validated by this point.
 			versionedInterface, _ := f.apiRegistry.Lookup(preflightResource.APIVersion)
-			versionedCluster := versionedInterface.NewHCPOpenShiftCluster(nil)
+			versionedCluster := versionedInterface.NewCluster(nil)
 
 			err = preflightResource.Convert(versionedCluster)
 			if err != nil {
@@ -749,14 +749,14 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 				preflightErr = coreapi.CloudErrorFromFieldErrors(mutationErrs)
 				break
 			}
-			validationErrs := validation.ValidateCluster(ctx, op, newInternalCluster, nil, metadataapi.Must(versionedInterface.ValidationPathRewriter(&coreapi.HCPOpenShiftCluster{})))
+			validationErrs := validation.ValidateCluster(ctx, op, newInternalCluster, nil, metadataapi.Must(versionedInterface.ValidationPathRewriter(&coreapi.Cluster{})))
 			validationErrs = append(validationErrs, admission.AdmitCluster(ctx, admissionContext, op, newInternalCluster, nil)...)
 			preflightErr = coreapi.CloudErrorFromFieldErrors(validationErrs)
 
 		case strings.ToLower(coreapi.NodePoolResourceType.String()):
 			// API version is already validated by this point.
 			versionedInterface, _ := f.apiRegistry.Lookup(preflightResource.APIVersion)
-			versionedNodePool := versionedInterface.NewHCPOpenShiftClusterNodePool(nil)
+			versionedNodePool := versionedInterface.NewClusterNodePool(nil)
 
 			err = preflightResource.Convert(versionedNodePool)
 			if err != nil {
@@ -800,7 +800,7 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 		case strings.ToLower(coreapi.ExternalAuthResourceType.String()):
 			// API version is already validated by this point.
 			versionedInterface, _ := f.apiRegistry.Lookup(preflightResource.APIVersion)
-			versionedExternalAuth := versionedInterface.NewHCPOpenShiftClusterExternalAuth(nil)
+			versionedExternalAuth := versionedInterface.NewClusterExternalAuth(nil)
 
 			err = preflightResource.Convert(versionedExternalAuth)
 			if err != nil {
@@ -1062,7 +1062,7 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 		if err != nil {
 			return utils.TrackError(err)
 		}
-		responseBody, err = versionedInterface.MarshalHCPOpenShiftClusterAdminCredential(adminCred)
+		responseBody, err = versionedInterface.MarshalClusterAdminCredential(adminCred)
 		if err != nil {
 			return utils.TrackError(err)
 		}
@@ -1086,7 +1086,7 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 		if err != nil {
 			return utils.TrackError(err)
 		}
-		responseBody, err = coreapi.MarshalJSON(versionedInterface.NewHCPOpenShiftCluster(resultingInternalCluster))
+		responseBody, err = coreapi.MarshalJSON(versionedInterface.NewCluster(resultingInternalCluster))
 		if err != nil {
 			return utils.TrackError(err)
 		}
@@ -1096,7 +1096,7 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 		if err != nil {
 			return utils.TrackError(err)
 		}
-		responseBody, err = coreapi.MarshalJSON(versionedInterface.NewHCPOpenShiftClusterNodePool(resultingInternalNodePool))
+		responseBody, err = coreapi.MarshalJSON(versionedInterface.NewClusterNodePool(resultingInternalNodePool))
 		if err != nil {
 			return utils.TrackError(err)
 		}
@@ -1106,7 +1106,7 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 		if err != nil {
 			return utils.TrackError(err)
 		}
-		responseBody, err = coreapi.MarshalJSON(versionedInterface.NewHCPOpenShiftClusterExternalAuth(resultingInternalExternalAuth))
+		responseBody, err = coreapi.MarshalJSON(versionedInterface.NewClusterExternalAuth(resultingInternalExternalAuth))
 		if err != nil {
 			return utils.TrackError(err)
 		}
@@ -1128,7 +1128,7 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 // from the ServiceProviderCluster. The kubeconfig does not include the private
 // key; the service never has access to it for security reasons. The caller must
 // combine this kubeconfig with the private key they hold client-side.
-func (f *Frontend) assembleAdminCredentialFromCosmos(ctx context.Context, op *coreapi.Operation) (*coreapi.HCPOpenShiftClusterAdminCredential, error) {
+func (f *Frontend) assembleAdminCredentialFromCosmos(ctx context.Context, op *coreapi.Operation) (*coreapi.ClusterAdminCredential, error) {
 	if op.SystemAdminCredentialRequest == nil || op.SystemAdminCredentialRequest.SystemAdminCredentialRequestResourceID == nil {
 		return nil, fmt.Errorf("operation has no SystemAdminCredentialRequestResourceID")
 	}
@@ -1167,7 +1167,7 @@ func (f *Frontend) assembleAdminCredentialFromCosmos(ctx context.Context, op *co
 		return nil, fmt.Errorf("failed to build kubeconfig: %w", err)
 	}
 
-	return &coreapi.HCPOpenShiftClusterAdminCredential{
+	return &coreapi.ClusterAdminCredential{
 		ExpirationTimestamp: cred.Spec.ExpirationTimestamp.Time,
 		Kubeconfig:          string(kubeconfigBytes),
 	}, nil
@@ -1215,6 +1215,6 @@ func featuresMap(features *[]coreapi.Feature) map[string]string {
 }
 
 func marshalCSVersion(resourceID *azcorearm.ResourceID, version *arohcpv1alpha1.Version, versionedInterface coreapi.Version) ([]byte, error) {
-	hcpVersion := ocm.ConvertCStoHCPOpenShiftVersion(resourceID, version)
-	return coreapi.MarshalJSON(versionedInterface.NewHCPOpenShiftVersion(hcpVersion))
+	openShiftVersion := ocm.ConvertCStoOpenShiftVersion(resourceID, version)
+	return coreapi.MarshalJSON(versionedInterface.NewOpenShiftVersion(openShiftVersion))
 }

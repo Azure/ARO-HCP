@@ -40,7 +40,7 @@ import (
 
 func TestExternalAuthClusterServiceIDClearer_SyncOnce(t *testing.T) {
 	fixedNow := time.Now().UTC().Truncate(time.Second)
-	withDeletionStampsExternalAuthOptsFunc := func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
+	withDeletionStampsExternalAuthOptsFunc := func(ea *coreapi.ClusterExternalAuth) {
 		ea.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-time.Hour)}
 		ea.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-30 * time.Minute)}
 	}
@@ -57,7 +57,7 @@ func TestExternalAuthClusterServiceIDClearer_SyncOnce(t *testing.T) {
 
 	testCases := []struct {
 		name                 string
-		existingExternalAuth *coreapi.HCPOpenShiftClusterExternalAuth
+		existingExternalAuth *coreapi.ClusterExternalAuth
 		setupMockCSClient    func(mock *ocm.MockClusterServiceClientSpec)
 		wantErr              bool
 		wantErrContain       string
@@ -70,14 +70,14 @@ func TestExternalAuthClusterServiceIDClearer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "DeletionTimestamp set but ClusterServiceDeletionTimestamp not yet -- no-op",
-			existingExternalAuth: newTestExternalAuthWithNewDeletionApproach(t, func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
+			existingExternalAuth: newTestExternalAuthWithNewDeletionApproach(t, func(ea *coreapi.ClusterExternalAuth) {
 				ea.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-time.Hour)}
 			}),
 			verifyDB: verifyClusterServiceIDUnchanged,
 		},
 		{
 			name: "ClusterServiceID already cleared -- no-op",
-			existingExternalAuth: newTestExternalAuthWithNewDeletionApproach(t, func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
+			existingExternalAuth: newTestExternalAuthWithNewDeletionApproach(t, func(ea *coreapi.ClusterExternalAuth) {
 				withDeletionStampsExternalAuthOptsFunc(ea)
 				ea.ServiceProviderProperties.ClusterServiceID = nil
 			}),
@@ -91,7 +91,7 @@ func TestExternalAuthClusterServiceIDClearer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "CS ExternalAuth still present -- wait",
-			existingExternalAuth: newTestExternalAuthWithNewDeletionApproach(t, func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
+			existingExternalAuth: newTestExternalAuthWithNewDeletionApproach(t, func(ea *coreapi.ClusterExternalAuth) {
 				withDeletionStampsExternalAuthOptsFunc(ea)
 			}),
 			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
@@ -103,7 +103,7 @@ func TestExternalAuthClusterServiceIDClearer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "CS returns 404 -- clear ClusterServiceID",
-			existingExternalAuth: newTestExternalAuthWithNewDeletionApproach(t, func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
+			existingExternalAuth: newTestExternalAuthWithNewDeletionApproach(t, func(ea *coreapi.ClusterExternalAuth) {
 				withDeletionStampsExternalAuthOptsFunc(ea)
 			}),
 			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
@@ -121,7 +121,7 @@ func TestExternalAuthClusterServiceIDClearer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "CS returns one of the not handled errors -- propagated, no clear",
-			existingExternalAuth: newTestExternalAuthWithNewDeletionApproach(t, func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
+			existingExternalAuth: newTestExternalAuthWithNewDeletionApproach(t, func(ea *coreapi.ClusterExternalAuth) {
 				withDeletionStampsExternalAuthOptsFunc(ea)
 			}),
 			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
@@ -134,7 +134,7 @@ func TestExternalAuthClusterServiceIDClearer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "UsesNewExternalAuthDeletionApproach false -- no-op even when all clear conditions met",
-			existingExternalAuth: newTestExternalAuthWithOldDeletionApproach(t, func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
+			existingExternalAuth: newTestExternalAuthWithOldDeletionApproach(t, func(ea *coreapi.ClusterExternalAuth) {
 				withDeletionStampsExternalAuthOptsFunc(ea)
 			}),
 			verifyDB: verifyClusterServiceIDUnchanged,
@@ -161,7 +161,7 @@ func TestExternalAuthClusterServiceIDClearer_SyncOnce(t *testing.T) {
 				tc.setupMockCSClient(mockCSClient)
 			}
 
-			externalAuthsForLister := []*coreapi.HCPOpenShiftClusterExternalAuth{}
+			externalAuthsForLister := []*coreapi.ClusterExternalAuth{}
 			if tc.existingExternalAuth != nil {
 				externalAuthsForLister = append(externalAuthsForLister, tc.existingExternalAuth)
 			}

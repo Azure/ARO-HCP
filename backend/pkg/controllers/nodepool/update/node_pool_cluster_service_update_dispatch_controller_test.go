@@ -57,8 +57,8 @@ func TestNodePoolUpdateDispatchSyncer_SyncOnce(t *testing.T) {
 
 	defaultExistingCSNodePool := metadataapi.Must(arohcpv1alpha1.NewNodePool().Build())
 
-	newNodePoolWithConfigDiff := func() *coreapi.HCPOpenShiftClusterNodePool {
-		return newTestNodePool(func(np *coreapi.HCPOpenShiftClusterNodePool) {
+	newNodePoolWithConfigDiff := func() *coreapi.ClusterNodePool {
+		return newTestNodePool(func(np *coreapi.ClusterNodePool) {
 			np.Properties.Replicas = 5
 			np.Properties.Labels = map[string]string{"env": "prod"}
 		})
@@ -90,7 +90,7 @@ func TestNodePoolUpdateDispatchSyncer_SyncOnce(t *testing.T) {
 
 	testCases := []struct {
 		name               string
-		existingNodePool   *coreapi.HCPOpenShiftClusterNodePool
+		existingNodePool   *coreapi.ClusterNodePool
 		existingCSNodePool *arohcpv1alpha1.NodePool
 		// When not set, the syncer uses a node pool lister backed by the seeded Cosmos resources.
 		nodePoolLister                      corelisters.NodePoolLister
@@ -101,7 +101,7 @@ func TestNodePoolUpdateDispatchSyncer_SyncOnce(t *testing.T) {
 	}{
 		{
 			name: "skip without CS call when no CSID",
-			existingNodePool: newTestNodePool(func(np *coreapi.HCPOpenShiftClusterNodePool) {
+			existingNodePool: newTestNodePool(func(np *coreapi.ClusterNodePool) {
 				np.ServiceProviderProperties.ClusterServiceID = nil
 				np.Properties.Replicas = 5
 			}),
@@ -123,16 +123,16 @@ func TestNodePoolUpdateDispatchSyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "no-op when config matches",
-			existingNodePool: newTestNodePool(func(np *coreapi.HCPOpenShiftClusterNodePool) {
+			existingNodePool: newTestNodePool(func(np *coreapi.ClusterNodePool) {
 				np.Properties.Replicas = 2
 			}),
-			existingCSNodePool: mustBuildCSNodePoolFromRP(t, newTestNodePool(func(np *coreapi.HCPOpenShiftClusterNodePool) {
+			existingCSNodePool: mustBuildCSNodePoolFromRP(t, newTestNodePool(func(np *coreapi.ClusterNodePool) {
 				np.Properties.Replicas = 2
 			})),
 			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
 				mock.EXPECT().
 					GetNodePool(gomock.Any(), csID).
-					Return(mustBuildCSNodePoolFromRP(t, newTestNodePool(func(np *coreapi.HCPOpenShiftClusterNodePool) {
+					Return(mustBuildCSNodePoolFromRP(t, newTestNodePool(func(np *coreapi.ClusterNodePool) {
 						np.Properties.Replicas = 2
 					})), nil)
 			},
@@ -274,13 +274,13 @@ func TestNeedsWork(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		nodePool *coreapi.HCPOpenShiftClusterNodePool
+		nodePool *coreapi.ClusterNodePool
 		want     bool
 	}{
 		{
 			name: "proceed when CSID set",
-			nodePool: &coreapi.HCPOpenShiftClusterNodePool{
-				ServiceProviderProperties: coreapi.HCPOpenShiftClusterNodePoolServiceProviderProperties{
+			nodePool: &coreapi.ClusterNodePool{
+				ServiceProviderProperties: coreapi.ClusterNodePoolServiceProviderProperties{
 					ClusterServiceID: &csID,
 				},
 			},
@@ -288,8 +288,8 @@ func TestNeedsWork(t *testing.T) {
 		},
 		{
 			name: "skip when deletion timestamp is set",
-			nodePool: &coreapi.HCPOpenShiftClusterNodePool{
-				ServiceProviderProperties: coreapi.HCPOpenShiftClusterNodePoolServiceProviderProperties{
+			nodePool: &coreapi.ClusterNodePool{
+				ServiceProviderProperties: coreapi.ClusterNodePoolServiceProviderProperties{
 					DeletionTimestamp: &now,
 					ClusterServiceID:  &csID,
 				},
@@ -298,8 +298,8 @@ func TestNeedsWork(t *testing.T) {
 		},
 		{
 			name: "skip when no CSID",
-			nodePool: &coreapi.HCPOpenShiftClusterNodePool{
-				ServiceProviderProperties: coreapi.HCPOpenShiftClusterNodePoolServiceProviderProperties{},
+			nodePool: &coreapi.ClusterNodePool{
+				ServiceProviderProperties: coreapi.ClusterNodePoolServiceProviderProperties{},
 			},
 			want: false,
 		},
@@ -312,7 +312,7 @@ func TestNeedsWork(t *testing.T) {
 	}
 }
 
-func mustBuildCSNodePoolFromRP(t *testing.T, hcpNodePool *coreapi.HCPOpenShiftClusterNodePool) *arohcpv1alpha1.NodePool {
+func mustBuildCSNodePoolFromRP(t *testing.T, hcpNodePool *coreapi.ClusterNodePool) *arohcpv1alpha1.NodePool {
 	t.Helper()
 
 	builder, err := ocm.BuildCSNodePool(context.Background(), hcpNodePool, true)
@@ -323,7 +323,7 @@ func mustBuildCSNodePoolFromRP(t *testing.T, hcpNodePool *coreapi.HCPOpenShiftCl
 	return csNodePool
 }
 
-func newTestNodePool(opts ...func(*coreapi.HCPOpenShiftClusterNodePool)) *coreapi.HCPOpenShiftClusterNodePool {
+func newTestNodePool(opts ...func(*coreapi.ClusterNodePool)) *coreapi.ClusterNodePool {
 	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + testSubscriptionID +
 			"/resourceGroups/" + testResourceGroupName +
@@ -332,7 +332,7 @@ func newTestNodePool(opts ...func(*coreapi.HCPOpenShiftClusterNodePool)) *coreap
 	))
 
 	csID := metadataapi.Must(metadataapi.NewInternalID(testNodePoolCSIDStr))
-	nodePool := &coreapi.HCPOpenShiftClusterNodePool{
+	nodePool := &coreapi.ClusterNodePool{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   resourceID,
 			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
@@ -344,10 +344,10 @@ func newTestNodePool(opts ...func(*coreapi.HCPOpenShiftClusterNodePool)) *coreap
 				Type: resourceID.ResourceType.String(),
 			},
 		},
-		ServiceProviderProperties: coreapi.HCPOpenShiftClusterNodePoolServiceProviderProperties{
+		ServiceProviderProperties: coreapi.ClusterNodePoolServiceProviderProperties{
 			ClusterServiceID: &csID,
 		},
-		Properties: coreapi.HCPOpenShiftClusterNodePoolProperties{
+		Properties: coreapi.ClusterNodePoolProperties{
 			Replicas: 2,
 			Version: coreapi.NodePoolVersionProfile{
 				ID:           "4.20.8",

@@ -45,7 +45,7 @@ func TestDumpBillingToLogger(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create HCP clusters
-	cluster1 := &coreapi.HCPOpenShiftCluster{
+	cluster1 := &coreapi.Cluster{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   cluster1ResourceID,
 			PartitionKey: strings.ToLower(cluster1ResourceID.SubscriptionID),
@@ -57,13 +57,13 @@ func TestDumpBillingToLogger(t *testing.T) {
 				Type: "Microsoft.RedHatOpenShift/hcpOpenShiftClusters",
 			},
 		},
-		ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 			ClusterUID:       "billing-doc-1",
 			ClusterServiceID: metadataapihelpers.Ptr(metadataapi.Must(metadataapi.NewInternalID("/api/clusters_mgmt/v1/clusters/test-cluster-1"))),
 		},
 	}
 
-	cluster2 := &coreapi.HCPOpenShiftCluster{
+	cluster2 := &coreapi.Cluster{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   cluster2ResourceID,
 			PartitionKey: strings.ToLower(cluster2ResourceID.SubscriptionID),
@@ -75,7 +75,7 @@ func TestDumpBillingToLogger(t *testing.T) {
 				Type: "Microsoft.RedHatOpenShift/hcpOpenShiftClusters",
 			},
 		},
-		ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 			ClusterUID:       "billing-doc-2",
 			ClusterServiceID: metadataapihelpers.Ptr(metadataapi.Must(metadataapi.NewInternalID("/api/clusters_mgmt/v1/clusters/test-cluster-2"))),
 		},
@@ -130,7 +130,7 @@ func TestDumpBillingToLogger_PartitionScoping(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create HCP clusters with ClusterUIDs
-	cluster1 := &coreapi.HCPOpenShiftCluster{
+	cluster1 := &coreapi.Cluster{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   cluster1ResourceID,
 			PartitionKey: strings.ToLower(cluster1ResourceID.SubscriptionID),
@@ -142,13 +142,13 @@ func TestDumpBillingToLogger_PartitionScoping(t *testing.T) {
 				Type: "Microsoft.RedHatOpenShift/hcpOpenShiftClusters",
 			},
 		},
-		ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 			ClusterUID:       "cluster-1-billing-1",
 			ClusterServiceID: metadataapihelpers.Ptr(metadataapi.Must(metadataapi.NewInternalID("/api/clusters_mgmt/v1/clusters/test-cluster-1"))),
 		},
 	}
 
-	cluster2 := &coreapi.HCPOpenShiftCluster{
+	cluster2 := &coreapi.Cluster{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   cluster2ResourceID,
 			PartitionKey: strings.ToLower(cluster2ResourceID.SubscriptionID),
@@ -160,13 +160,13 @@ func TestDumpBillingToLogger_PartitionScoping(t *testing.T) {
 				Type: "Microsoft.RedHatOpenShift/hcpOpenShiftClusters",
 			},
 		},
-		ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 			ClusterUID:       "cluster-2-billing-2",
 			ClusterServiceID: metadataapihelpers.Ptr(metadataapi.Must(metadataapi.NewInternalID("/api/clusters_mgmt/v1/clusters/test-cluster-2"))),
 		},
 	}
 
-	cluster3 := &coreapi.HCPOpenShiftCluster{
+	cluster3 := &coreapi.Cluster{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   cluster3ResourceID,
 			PartitionKey: strings.ToLower(cluster3ResourceID.SubscriptionID),
@@ -178,7 +178,7 @@ func TestDumpBillingToLogger_PartitionScoping(t *testing.T) {
 				Type: "Microsoft.RedHatOpenShift/hcpOpenShiftClusters",
 			},
 		},
-		ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 			ClusterUID:       "cluster-3-billing-3",
 			ClusterServiceID: metadataapihelpers.Ptr(metadataapi.Must(metadataapi.NewInternalID("/api/clusters_mgmt/v1/clusters/test-cluster-3"))),
 		},

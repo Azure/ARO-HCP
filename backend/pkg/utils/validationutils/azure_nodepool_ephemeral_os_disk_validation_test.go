@@ -57,14 +57,14 @@ func newTestSubscription() *coreapi.Subscription {
 	}
 }
 
-func newTestNodePool(t *testing.T, diskType metadataapi.OsDiskType, vmSize string) *coreapi.HCPOpenShiftClusterNodePool {
+func newTestNodePool(t *testing.T, diskType metadataapi.OsDiskType, vmSize string) *coreapi.ClusterNodePool {
 	t.Helper()
 	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + testSubscriptionID +
 			"/resourceGroups/" + testResourceGroup +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
 			"/nodePools/" + testNodePoolName))
-	return &coreapi.HCPOpenShiftClusterNodePool{
+	return &coreapi.ClusterNodePool{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   resourceID,
 			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
@@ -77,7 +77,7 @@ func newTestNodePool(t *testing.T, diskType metadataapi.OsDiskType, vmSize strin
 			},
 			Location: "eastus",
 		},
-		Properties: coreapi.HCPOpenShiftClusterNodePoolProperties{
+		Properties: coreapi.ClusterNodePoolProperties{
 			Platform: coreapi.NodePoolPlatformProfile{
 				VMSize: vmSize,
 				OSDisk: coreapi.OSDiskProfile{
@@ -97,13 +97,13 @@ func makeTestVMResourceSKU(name string, capabilities ...*armcompute.ResourceSKUC
 
 func TestAzureVMSizeSupportsEphemeralOSDiskValidation_Validate(t *testing.T) {
 	ctx := context.Background()
-	cluster := &coreapi.HCPOpenShiftCluster{}
+	cluster := &coreapi.Cluster{}
 	subscription := newTestSubscription()
 
 	tests := []struct {
 		name                       string
 		subscription               *coreapi.Subscription
-		nodePool                   *coreapi.HCPOpenShiftClusterNodePool
+		nodePool                   *coreapi.ClusterNodePool
 		setupMockVMSKUCachedReader func(skuReader *cachedreader.MockVirtualMachineResourceSKUsCachedReader)
 		wantOutcome                OutcomeType
 		wantInternalMessage        string

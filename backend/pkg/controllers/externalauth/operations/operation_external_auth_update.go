@@ -108,7 +108,7 @@ func (c *operationExternalAuthUpdate) ShouldProcess(ctx context.Context, operati
 	return true
 }
 
-func (c *operationExternalAuthUpdate) shouldReconcileOperationAndResourceStatus(ea *coreapi.HCPOpenShiftClusterExternalAuth) bool {
+func (c *operationExternalAuthUpdate) shouldReconcileOperationAndResourceStatus(ea *coreapi.ClusterExternalAuth) bool {
 	return ea.ServiceProviderProperties.DeletionTimestamp == nil &&
 		ea.ServiceProviderProperties.ClusterServiceID != nil
 }
@@ -171,7 +171,7 @@ func (c *operationExternalAuthUpdate) SynchronizeOperation(ctx context.Context, 
 	return nil
 }
 
-func (c *operationExternalAuthUpdate) determineOperationState(ctx context.Context, existingExternalAuth *coreapi.HCPOpenShiftClusterExternalAuth) (*operationbase.OperationState, error) {
+func (c *operationExternalAuthUpdate) determineOperationState(ctx context.Context, existingExternalAuth *coreapi.ClusterExternalAuth) (*operationbase.OperationState, error) {
 	logger := utils.LoggerFromContext(ctx)
 
 	externalAuthCSID := existingExternalAuth.ServiceProviderProperties.ClusterServiceID

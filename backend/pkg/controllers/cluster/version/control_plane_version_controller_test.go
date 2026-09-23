@@ -167,9 +167,9 @@ func testCosmosClusterWithWorkersNodePoolAtVersion(nodePoolVersionId string) []a
 	}
 }
 
-func testCosmosClusterResource() (*azcorearm.ResourceID, *coreapi.HCPOpenShiftCluster) {
+func testCosmosClusterResource() (*azcorearm.ResourceID, *coreapi.Cluster) {
 	clusterResourceId := metadataapi.Must(coreapihelpers.ToClusterResourceID("6b690bec-0c16-4ecb-8f67-781caf40bba7", "test-rg", "test-cluster"))
-	cluster := &coreapi.HCPOpenShiftCluster{
+	cluster := &coreapi.Cluster{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   clusterResourceId,
 			PartitionKey: strings.ToLower(clusterResourceId.SubscriptionID),
@@ -181,7 +181,7 @@ func testCosmosClusterResource() (*azcorearm.ResourceID, *coreapi.HCPOpenShiftCl
 				Type: clusterResourceId.ResourceType.String(),
 			},
 		},
-		ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 			ClusterServiceID: metadataapihelpers.Ptr(metadataapi.Must(metadataapi.NewInternalID("/api/clusters_mgmt/v1/clusters/test-cluster"))),
 		},
 	}
@@ -202,18 +202,18 @@ func testCosmosServiceProviderNodePool(nodePoolResourceId *azcorearm.ResourceID)
 	}
 }
 
-func testCosmosNodePool(clusterResourceId *azcorearm.ResourceID, name, nodePoolVersionId string, deleting bool) *coreapi.HCPOpenShiftClusterNodePool {
+func testCosmosNodePool(clusterResourceId *azcorearm.ResourceID, name, nodePoolVersionId string, deleting bool) *coreapi.ClusterNodePool {
 	nodePoolResourceId := metadataapi.Must(azcorearm.ParseResourceID(clusterResourceId.String() + "/nodePools/" + name))
-	nodePool := &coreapi.HCPOpenShiftClusterNodePool{
+	nodePool := &coreapi.ClusterNodePool{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   nodePoolResourceId,
 			PartitionKey: strings.ToLower(nodePoolResourceId.SubscriptionID),
 		},
 		TrackedResource: coreapi.NewTrackedResource(nodePoolResourceId, "eastus"),
-		Properties: coreapi.HCPOpenShiftClusterNodePoolProperties{
+		Properties: coreapi.ClusterNodePoolProperties{
 			Version: coreapi.NodePoolVersionProfile{ID: nodePoolVersionId},
 		},
-		ServiceProviderProperties: coreapi.HCPOpenShiftClusterNodePoolServiceProviderProperties{
+		ServiceProviderProperties: coreapi.ClusterNodePoolServiceProviderProperties{
 			ClusterServiceID: metadataapihelpers.Ptr(metadataapi.Must(metadataapi.NewInternalID("/api/clusters_mgmt/v1/clusters/test-cluster/node_pools/" + name))),
 		},
 	}
@@ -248,7 +248,7 @@ func createTestHCPClusterWithCustomerVersion(t *testing.T, ctx context.Context, 
 		"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName))
 	clusterInternalID, err := metadataapi.NewInternalID(testCSClusterIDStr)
 	require.NoError(t, err)
-	cluster := &coreapi.HCPOpenShiftCluster{
+	cluster := &coreapi.Cluster{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   clusterResourceID,
 			PartitionKey: strings.ToLower(clusterResourceID.SubscriptionID),
@@ -261,13 +261,13 @@ func createTestHCPClusterWithCustomerVersion(t *testing.T, ctx context.Context, 
 			},
 			Location: "eastus",
 		},
-		CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+		CustomerProperties: coreapi.ClusterCustomerProperties{
 			Version: coreapi.VersionProfile{
 				ID:           customerVersionID,
 				ChannelGroup: channelGroup,
 			},
 		},
-		ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 			ProvisioningState: coreapi.ProvisioningStateSucceeded,
 			ClusterServiceID:  &clusterInternalID,
 		},
@@ -540,8 +540,8 @@ func TestControlPlaneDesiredVersionSyncer_ShouldDetermineDesiredVersion(t *testi
 	now := time.Date(2026, 6, 25, 12, 0, 0, 0, time.UTC)
 	listerBoom := errors.New("active operation lister exploded")
 
-	newCluster := func(createdAt *time.Time, activeOperationID string) *coreapi.HCPOpenShiftCluster {
-		c := &coreapi.HCPOpenShiftCluster{
+	newCluster := func(createdAt *time.Time, activeOperationID string) *coreapi.Cluster {
+		c := &coreapi.Cluster{
 			CosmosMetadata: coreapi.CosmosMetadata{
 				ResourceID: clusterResourceID,
 			},
@@ -552,7 +552,7 @@ func TestControlPlaneDesiredVersionSyncer_ShouldDetermineDesiredVersion(t *testi
 					Type: coreapi.ClusterResourceType.String(),
 				},
 			},
-			ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+			ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 				ActiveOperationID: activeOperationID,
 			},
 		}
@@ -571,7 +571,7 @@ func TestControlPlaneDesiredVersionSyncer_ShouldDetermineDesiredVersion(t *testi
 
 	tests := []struct {
 		name           string
-		cluster        *coreapi.HCPOpenShiftCluster
+		cluster        *coreapi.Cluster
 		spc            *coreapi.ServiceProviderCluster
 		seedOperation  bool
 		opLister       func(mockDB *corecosmosstoragetesting.MockResourcesDBClient) corelisters.ActiveOperationLister

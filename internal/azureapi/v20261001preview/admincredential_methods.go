@@ -22,23 +22,23 @@ import (
 	"github.com/Azure/ARO-HCP/internal/azureapi/v20261001preview/generated"
 )
 
-func newHCPOpenShiftClusterAdminCredential(from *coreapi.HCPOpenShiftClusterAdminCredential) *generated.HcpOpenShiftClusterAdminCredential {
+func newClusterAdminCredential(from *coreapi.ClusterAdminCredential) *generated.HcpOpenShiftClusterAdminCredential {
 	return &generated.HcpOpenShiftClusterAdminCredential{
 		ExpirationTimestamp: metadataapihelpers.PtrOrNil(from.ExpirationTimestamp),
 		Kubeconfig:          metadataapihelpers.PtrOrNil(from.Kubeconfig),
 	}
 }
 
-func (v version) MarshalHCPOpenShiftClusterAdminCredential(from *coreapi.HCPOpenShiftClusterAdminCredential) ([]byte, error) {
-	return coreapi.MarshalJSON(newHCPOpenShiftClusterAdminCredential(from))
+func (v version) MarshalClusterAdminCredential(from *coreapi.ClusterAdminCredential) ([]byte, error) {
+	return coreapi.MarshalJSON(newClusterAdminCredential(from))
 }
 
-func (v version) UnmarshalHCPOpenShiftClusterAdminCredentialRequest(data []byte) (*coreapi.HCPOpenShiftClusterAdminCredentialRequest, error) {
+func (v version) UnmarshalClusterAdminCredentialRequest(data []byte) (*coreapi.ClusterAdminCredentialRequest, error) {
 	var versionedRequest generated.HcpOpenShiftClusterAdminCredentialRequest
 	if err := json.Unmarshal(data, &versionedRequest); err != nil {
 		return nil, err
 	}
-	return &coreapi.HCPOpenShiftClusterAdminCredentialRequest{
+	return &coreapi.ClusterAdminCredentialRequest{
 		CertificateSigningRequest: metadataapihelpers.Deref(versionedRequest.CertificateSigningRequest),
 	}, nil
 }

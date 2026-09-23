@@ -180,7 +180,7 @@ type externalAuthUpdateDispatchConfigRequiredClaim struct {
 
 // ExternalAuthUpdateDispatchConfigJSONFromRP returns the canonical JSON of the dispatch config
 // projected from RP desired state.
-func ExternalAuthUpdateDispatchConfigJSONFromRP(externalAuth *coreapi.HCPOpenShiftClusterExternalAuth) (string, error) {
+func ExternalAuthUpdateDispatchConfigJSONFromRP(externalAuth *coreapi.ClusterExternalAuth) (string, error) {
 	config, err := externalAuthUpdateDispatchConfigFromRP(externalAuth)
 	if err != nil {
 		return "", err
@@ -207,7 +207,7 @@ func ExternalAuthUpdateDispatchConfigJSONFromCS(csExternalAuth *arohcpv1alpha1.E
 }
 
 // externalAuthUpdateDispatchConfigFromRP projects RP desired state into the dispatch canonical form.
-func externalAuthUpdateDispatchConfigFromRP(ea *coreapi.HCPOpenShiftClusterExternalAuth) (*externalAuthUpdateDispatchConfig, error) {
+func externalAuthUpdateDispatchConfigFromRP(ea *coreapi.ClusterExternalAuth) (*externalAuthUpdateDispatchConfig, error) {
 	clients, err := externalAuthUpdateDispatchConfigClientsFromRP(ea.Properties.Clients)
 	if err != nil {
 		return nil, err

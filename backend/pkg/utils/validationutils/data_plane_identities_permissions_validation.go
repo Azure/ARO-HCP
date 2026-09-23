@@ -74,7 +74,7 @@ func (v *DataPlaneIdentitiesPermissionsValidation) Name() string {
 
 var _ ClusterValidation = (*DataPlaneIdentitiesPermissionsValidation)(nil)
 
-func (v *DataPlaneIdentitiesPermissionsValidation) Validate(ctx context.Context, clusterSubscription *coreapi.Subscription, cluster *coreapi.HCPOpenShiftCluster) ValidationResult {
+func (v *DataPlaneIdentitiesPermissionsValidation) Validate(ctx context.Context, clusterSubscription *coreapi.Subscription, cluster *coreapi.Cluster) ValidationResult {
 	checkAccessV2Client, err := v.checkAccessV2ClientBuilder.Build(*clusterSubscription.Properties.TenantId)
 	if err != nil {
 		return UnknownValidation(
@@ -237,7 +237,7 @@ func (v *DataPlaneIdentitiesPermissionsValidation) retrieveIdentityObjectID(ctx 
 	return *operatorIdentity.Properties.PrincipalID, nil
 }
 
-func (v *DataPlaneIdentitiesPermissionsValidation) findMissingActionsForIdentity(ctx context.Context, checkAccessV2Client azureclient.CheckAccessV2Client, identityObjectID string, cluster *coreapi.HCPOpenShiftCluster, operatorName string, identity *azcorearm.ResourceID, clusterSubnet *armnetwork.Subnet) ([]*identityResourceMissingPermissions, error) {
+func (v *DataPlaneIdentitiesPermissionsValidation) findMissingActionsForIdentity(ctx context.Context, checkAccessV2Client azureclient.CheckAccessV2Client, identityObjectID string, cluster *coreapi.Cluster, operatorName string, identity *azcorearm.ResourceID, clusterSubnet *armnetwork.Subnet) ([]*identityResourceMissingPermissions, error) {
 	roleActions, err := v.roleActionsForOperator(ctx, operatorName)
 	if err != nil {
 		return nil, err

@@ -814,7 +814,7 @@ func TestRequestAdminCredential(t *testing.T) {
 			// Pre-populate the mock database with cluster and subscription
 			ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
 
-			cluster := &coreapi.HCPOpenShiftCluster{
+			cluster := &coreapi.Cluster{
 				CosmosMetadata: coreapi.CosmosMetadata{
 					ResourceID:   clusterResourceID,
 					PartitionKey: strings.ToLower(clusterResourceID.SubscriptionID),
@@ -824,7 +824,7 @@ func TestRequestAdminCredential(t *testing.T) {
 						ID: clusterResourceID,
 					},
 				},
-				ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+				ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 					ProvisioningState:            test.clusterProvisioningState,
 					ClusterServiceID:             &clusterInternalID,
 					RevokeCredentialsOperationID: test.revokeCredentialsOperationID,
@@ -926,7 +926,7 @@ func TestRequestAdminCredentialRequiresCSR(t *testing.T) {
 
 			// A cluster in a terminal state exists so the request would otherwise
 			// be accepted; only the missing/invalid CSR must cause the rejection.
-			cluster := &coreapi.HCPOpenShiftCluster{
+			cluster := &coreapi.Cluster{
 				CosmosMetadata: coreapi.CosmosMetadata{
 					ResourceID:   clusterResourceID,
 					PartitionKey: strings.ToLower(clusterResourceID.SubscriptionID),
@@ -936,7 +936,7 @@ func TestRequestAdminCredentialRequiresCSR(t *testing.T) {
 						ID: clusterResourceID,
 					},
 				},
-				ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+				ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 					ProvisioningState: coreapi.ProvisioningStateSucceeded,
 					ClusterServiceID:  &clusterInternalID,
 				},
@@ -1052,7 +1052,7 @@ func TestRevokeCredentials(t *testing.T) {
 			// Pre-populate the mock database with cluster
 			ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
 
-			cluster := &coreapi.HCPOpenShiftCluster{
+			cluster := &coreapi.Cluster{
 				CosmosMetadata: coreapi.CosmosMetadata{
 					ResourceID:   clusterResourceID,
 					PartitionKey: strings.ToLower(clusterResourceID.SubscriptionID),
@@ -1062,7 +1062,7 @@ func TestRevokeCredentials(t *testing.T) {
 						ID: clusterResourceID,
 					},
 				},
-				ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+				ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 					ProvisioningState:            test.clusterProvisioningState,
 					ClusterServiceID:             &clusterInternalID,
 					RevokeCredentialsOperationID: test.revokeCredentialsOperationID,

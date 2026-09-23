@@ -79,7 +79,7 @@ func NewClusterClusterServiceCreateController(
 	)
 }
 
-func (c *clusterClusterServiceCreateSyncer) needsWork(ctx context.Context, cluster *coreapi.HCPOpenShiftCluster) bool {
+func (c *clusterClusterServiceCreateSyncer) needsWork(ctx context.Context, cluster *coreapi.Cluster) bool {
 	if cluster.ServiceProviderProperties.DeletionTimestamp != nil ||
 		cluster.ServiceProviderProperties.PendingClusterServiceID == nil ||
 		(cluster.ServiceProviderProperties.ClusterServiceID != nil &&
@@ -303,7 +303,7 @@ func (c *clusterClusterServiceCreateSyncer) csClustersMatchingClusterByAzureInfo
 	return res, nil
 }
 
-func (c *clusterClusterServiceCreateSyncer) createClusterServiceCluster(ctx context.Context, cluster *coreapi.HCPOpenShiftCluster, serviceProviderCluster *coreapi.ServiceProviderCluster, tenantID string) (*arohcpv1alpha1.Cluster, error) {
+func (c *clusterClusterServiceCreateSyncer) createClusterServiceCluster(ctx context.Context, cluster *coreapi.Cluster, serviceProviderCluster *coreapi.ServiceProviderCluster, tenantID string) (*arohcpv1alpha1.Cluster, error) {
 	logger := utils.LoggerFromContext(ctx)
 
 	provisionShardID, err := c.provisionShardID(ctx, serviceProviderCluster)

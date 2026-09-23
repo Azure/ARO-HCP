@@ -70,7 +70,7 @@ type denyAssignmentDefinition struct {
 	conditionalKMS          bool
 }
 
-func denyAssignmentDefinitions(cluster *coreapi.HCPOpenShiftCluster) []denyAssignmentDefinition {
+func denyAssignmentDefinitions(cluster *coreapi.Cluster) []denyAssignmentDefinition {
 	defs := []denyAssignmentDefinition{
 		{
 			denyAssignmentType:      denyAssignmentSuffixResources,
@@ -208,7 +208,7 @@ func denyAssignmentDefinitions(cluster *coreapi.HCPOpenShiftCluster) []denyAssig
 	return defs
 }
 
-func allDenyAssignmentReferences(cluster *coreapi.HCPOpenShiftCluster) ([]coreapi.DenyAssignmentReference, error) {
+func allDenyAssignmentReferences(cluster *coreapi.Cluster) ([]coreapi.DenyAssignmentReference, error) {
 	defs := denyAssignmentDefinitions(cluster)
 	csClusterID := controllerutils.ClusterServiceIDForCluster(cluster)
 	subscriptionID := cluster.ID.SubscriptionID
@@ -229,7 +229,7 @@ func allDenyAssignmentReferences(cluster *coreapi.HCPOpenShiftCluster) ([]coreap
 	return denyAssignmentReferences, nil
 }
 
-func isKMSEncryptionEnabled(cluster *coreapi.HCPOpenShiftCluster) bool {
+func isKMSEncryptionEnabled(cluster *coreapi.Cluster) bool {
 	return cluster.CustomerProperties.Etcd.DataEncryption.KeyManagementMode == metadataapi.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged &&
 		cluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged != nil &&
 		cluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms != nil

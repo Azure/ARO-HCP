@@ -104,7 +104,7 @@ func NewClusterClusterServiceUpdateDispatchSyncer(
 	}
 }
 
-func needsWork(cluster *coreapi.HCPOpenShiftCluster) bool {
+func needsWork(cluster *coreapi.Cluster) bool {
 	if cluster.ServiceProviderProperties.DeletionTimestamp != nil {
 		return false
 	}

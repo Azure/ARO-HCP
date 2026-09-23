@@ -54,10 +54,10 @@ func newCreatorTestClusterKey() controllerutils.HCPClusterKey {
 	}
 }
 
-func newCreatorTestCluster(t *testing.T) *coreapi.HCPOpenShiftCluster {
+func newCreatorTestCluster(t *testing.T) *coreapi.Cluster {
 	t.Helper()
 	resourceID := metadataapi.Must(coreapihelpers.ToClusterResourceID(creatorTestSubscriptionID, creatorTestResourceGroup, creatorTestClusterName))
-	return &coreapi.HCPOpenShiftCluster{
+	return &coreapi.Cluster{
 		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: resourceID},
 		TrackedResource: coreapi.TrackedResource{
 			Resource: coreapi.Resource{
@@ -77,7 +77,7 @@ type boomClusterLister struct {
 	err error
 }
 
-func (b *boomClusterLister) Get(_ context.Context, _, _, _ string) (*coreapi.HCPOpenShiftCluster, error) {
+func (b *boomClusterLister) Get(_ context.Context, _, _, _ string) (*coreapi.Cluster, error) {
 	return nil, b.err
 }
 
@@ -135,7 +135,7 @@ func TestCreateServiceProviderClusterSyncer_SyncOnce(t *testing.T) {
 				return &createServiceProviderClusterSyncer{
 					resourcesDBClient: mockDB,
 					clusterLister: &corelistertesting.SliceClusterLister{
-						Clusters: []*coreapi.HCPOpenShiftCluster{newCreatorTestCluster(t)},
+						Clusters: []*coreapi.Cluster{newCreatorTestCluster(t)},
 					},
 					serviceProviderClusterLister: &corelistertesting.SliceServiceProviderClusterLister{
 						ServiceProviderClusters: []*coreapi.ServiceProviderCluster{{
@@ -154,7 +154,7 @@ func TestCreateServiceProviderClusterSyncer_SyncOnce(t *testing.T) {
 				return &createServiceProviderClusterSyncer{
 					resourcesDBClient: mockDB,
 					clusterLister: &corelistertesting.SliceClusterLister{
-						Clusters: []*coreapi.HCPOpenShiftCluster{newCreatorTestCluster(t)},
+						Clusters: []*coreapi.Cluster{newCreatorTestCluster(t)},
 					},
 					serviceProviderClusterLister: &boomServiceProviderClusterLister{err: listerBoom},
 				}
@@ -170,7 +170,7 @@ func TestCreateServiceProviderClusterSyncer_SyncOnce(t *testing.T) {
 				return &createServiceProviderClusterSyncer{
 					resourcesDBClient: mockDB,
 					clusterLister: &corelistertesting.SliceClusterLister{
-						Clusters: []*coreapi.HCPOpenShiftCluster{deletingCluster},
+						Clusters: []*coreapi.Cluster{deletingCluster},
 					},
 					serviceProviderClusterLister: &corelistertesting.SliceServiceProviderClusterLister{},
 				}
@@ -183,7 +183,7 @@ func TestCreateServiceProviderClusterSyncer_SyncOnce(t *testing.T) {
 				return &createServiceProviderClusterSyncer{
 					resourcesDBClient: mockDB,
 					clusterLister: &corelistertesting.SliceClusterLister{
-						Clusters: []*coreapi.HCPOpenShiftCluster{newCreatorTestCluster(t)},
+						Clusters: []*coreapi.Cluster{newCreatorTestCluster(t)},
 					},
 					serviceProviderClusterLister: &corelistertesting.SliceServiceProviderClusterLister{},
 				}
@@ -196,7 +196,7 @@ func TestCreateServiceProviderClusterSyncer_SyncOnce(t *testing.T) {
 				return &createServiceProviderClusterSyncer{
 					resourcesDBClient: mockDB,
 					clusterLister: &corelistertesting.SliceClusterLister{
-						Clusters: []*coreapi.HCPOpenShiftCluster{newCreatorTestCluster(t)},
+						Clusters: []*coreapi.Cluster{newCreatorTestCluster(t)},
 					},
 					// Lister is stale (does not know about the SPC yet) but
 					// Cosmos already has it — GetOrCreate must absorb the 409.

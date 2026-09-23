@@ -44,17 +44,17 @@ import (
 func TestNodePoolZeroValueRoundTripThroughJSON(t *testing.T) {
 	tests := []struct {
 		name  string
-		setup func() *coreapi.HCPOpenShiftClusterNodePool
-		check func(t *testing.T, result *coreapi.HCPOpenShiftClusterNodePool)
+		setup func() *coreapi.ClusterNodePool
+		check func(t *testing.T, result *coreapi.ClusterNodePool)
 	}{
 		{
 			name: "AutoRepair false must survive round-trip",
-			setup: func() *coreapi.HCPOpenShiftClusterNodePool {
+			setup: func() *coreapi.ClusterNodePool {
 				np := newBaselineInternalNodePool()
 				np.Properties.AutoRepair = false
 				return np
 			},
-			check: func(t *testing.T, np *coreapi.HCPOpenShiftClusterNodePool) {
+			check: func(t *testing.T, np *coreapi.ClusterNodePool) {
 				if np.Properties.AutoRepair != false {
 					t.Errorf("AutoRepair: got %v, want false (default=true clobbered explicit value)", np.Properties.AutoRepair)
 				}
@@ -62,12 +62,12 @@ func TestNodePoolZeroValueRoundTripThroughJSON(t *testing.T) {
 		},
 		{
 			name: "Replicas zero must survive round-trip",
-			setup: func() *coreapi.HCPOpenShiftClusterNodePool {
+			setup: func() *coreapi.ClusterNodePool {
 				np := newBaselineInternalNodePool()
 				np.Properties.Replicas = 0
 				return np
 			},
-			check: func(t *testing.T, np *coreapi.HCPOpenShiftClusterNodePool) {
+			check: func(t *testing.T, np *coreapi.ClusterNodePool) {
 				if np.Properties.Replicas != 0 {
 					t.Errorf("Replicas: got %d, want 0", np.Properties.Replicas)
 				}
@@ -75,12 +75,12 @@ func TestNodePoolZeroValueRoundTripThroughJSON(t *testing.T) {
 		},
 		{
 			name: "AutoScaling.Min zero when Max is non-zero",
-			setup: func() *coreapi.HCPOpenShiftClusterNodePool {
+			setup: func() *coreapi.ClusterNodePool {
 				np := newBaselineInternalNodePool()
 				np.Properties.AutoScaling = &coreapi.NodePoolAutoScaling{Min: 0, Max: 5}
 				return np
 			},
-			check: func(t *testing.T, np *coreapi.HCPOpenShiftClusterNodePool) {
+			check: func(t *testing.T, np *coreapi.ClusterNodePool) {
 				require.NotNil(t, np.Properties.AutoScaling, "AutoScaling struct should not be nil")
 				if np.Properties.AutoScaling.Min != 0 {
 					t.Errorf("AutoScaling.Min: got %d, want 0", np.Properties.AutoScaling.Min)
@@ -89,12 +89,12 @@ func TestNodePoolZeroValueRoundTripThroughJSON(t *testing.T) {
 		},
 		{
 			name: "AutoScaling.Max zero when Min is non-zero",
-			setup: func() *coreapi.HCPOpenShiftClusterNodePool {
+			setup: func() *coreapi.ClusterNodePool {
 				np := newBaselineInternalNodePool()
 				np.Properties.AutoScaling = &coreapi.NodePoolAutoScaling{Min: 3, Max: 0}
 				return np
 			},
-			check: func(t *testing.T, np *coreapi.HCPOpenShiftClusterNodePool) {
+			check: func(t *testing.T, np *coreapi.ClusterNodePool) {
 				require.NotNil(t, np.Properties.AutoScaling, "AutoScaling struct should not be nil")
 				if np.Properties.AutoScaling.Max != 0 {
 					t.Errorf("AutoScaling.Max: got %d, want 0", np.Properties.AutoScaling.Max)
@@ -118,17 +118,17 @@ func TestNodePoolZeroValueRoundTripThroughJSON(t *testing.T) {
 func TestClusterZeroValueRoundTripThroughJSON(t *testing.T) {
 	tests := []struct {
 		name  string
-		setup func() *coreapi.HCPOpenShiftCluster
-		check func(t *testing.T, result *coreapi.HCPOpenShiftCluster)
+		setup func() *coreapi.Cluster
+		check func(t *testing.T, result *coreapi.Cluster)
 	}{
 		{
 			name: "HostPrefix zero must survive round-trip",
-			setup: func() *coreapi.HCPOpenShiftCluster {
+			setup: func() *coreapi.Cluster {
 				c := newBaselineInternalCluster()
 				c.CustomerProperties.Network.HostPrefix = 0
 				return c
 			},
-			check: func(t *testing.T, c *coreapi.HCPOpenShiftCluster) {
+			check: func(t *testing.T, c *coreapi.Cluster) {
 				if c.CustomerProperties.Network.HostPrefix != 0 {
 					t.Errorf("HostPrefix: got %d, want 0",
 						c.CustomerProperties.Network.HostPrefix)
@@ -137,12 +137,12 @@ func TestClusterZeroValueRoundTripThroughJSON(t *testing.T) {
 		},
 		{
 			name: "NodeDrainTimeoutMinutes zero must survive round-trip",
-			setup: func() *coreapi.HCPOpenShiftCluster {
+			setup: func() *coreapi.Cluster {
 				c := newBaselineInternalCluster()
 				c.CustomerProperties.NodeDrainTimeoutMinutes = 0
 				return c
 			},
-			check: func(t *testing.T, c *coreapi.HCPOpenShiftCluster) {
+			check: func(t *testing.T, c *coreapi.Cluster) {
 				if c.CustomerProperties.NodeDrainTimeoutMinutes != 0 {
 					t.Errorf("NodeDrainTimeoutMinutes: got %d, want 0",
 						c.CustomerProperties.NodeDrainTimeoutMinutes)
@@ -151,12 +151,12 @@ func TestClusterZeroValueRoundTripThroughJSON(t *testing.T) {
 		},
 		{
 			name: "MaxNodesTotal zero must survive round-trip",
-			setup: func() *coreapi.HCPOpenShiftCluster {
+			setup: func() *coreapi.Cluster {
 				c := newBaselineInternalCluster()
 				c.CustomerProperties.Autoscaling.MaxNodesTotal = 0
 				return c
 			},
-			check: func(t *testing.T, c *coreapi.HCPOpenShiftCluster) {
+			check: func(t *testing.T, c *coreapi.Cluster) {
 				if c.CustomerProperties.Autoscaling.MaxNodesTotal != 0 {
 					t.Errorf("MaxNodesTotal: got %d, want 0",
 						c.CustomerProperties.Autoscaling.MaxNodesTotal)
@@ -165,12 +165,12 @@ func TestClusterZeroValueRoundTripThroughJSON(t *testing.T) {
 		},
 		{
 			name: "MaxPodGracePeriodSeconds zero must survive round-trip",
-			setup: func() *coreapi.HCPOpenShiftCluster {
+			setup: func() *coreapi.Cluster {
 				c := newBaselineInternalCluster()
 				c.CustomerProperties.Autoscaling.MaxPodGracePeriodSeconds = 0
 				return c
 			},
-			check: func(t *testing.T, c *coreapi.HCPOpenShiftCluster) {
+			check: func(t *testing.T, c *coreapi.Cluster) {
 				if c.CustomerProperties.Autoscaling.MaxPodGracePeriodSeconds != 0 {
 					t.Errorf("MaxPodGracePeriodSeconds: got %d, want 0",
 						c.CustomerProperties.Autoscaling.MaxPodGracePeriodSeconds)
@@ -179,12 +179,12 @@ func TestClusterZeroValueRoundTripThroughJSON(t *testing.T) {
 		},
 		{
 			name: "MaxNodeProvisionTimeSeconds zero must survive round-trip",
-			setup: func() *coreapi.HCPOpenShiftCluster {
+			setup: func() *coreapi.Cluster {
 				c := newBaselineInternalCluster()
 				c.CustomerProperties.Autoscaling.MaxNodeProvisionTimeSeconds = 0
 				return c
 			},
-			check: func(t *testing.T, c *coreapi.HCPOpenShiftCluster) {
+			check: func(t *testing.T, c *coreapi.Cluster) {
 				if c.CustomerProperties.Autoscaling.MaxNodeProvisionTimeSeconds != 0 {
 					t.Errorf("MaxNodeProvisionTimeSeconds: got %d, want 0",
 						c.CustomerProperties.Autoscaling.MaxNodeProvisionTimeSeconds)
@@ -193,12 +193,12 @@ func TestClusterZeroValueRoundTripThroughJSON(t *testing.T) {
 		},
 		{
 			name: "PodPriorityThreshold zero must survive round-trip",
-			setup: func() *coreapi.HCPOpenShiftCluster {
+			setup: func() *coreapi.Cluster {
 				c := newBaselineInternalCluster()
 				c.CustomerProperties.Autoscaling.PodPriorityThreshold = 0
 				return c
 			},
-			check: func(t *testing.T, c *coreapi.HCPOpenShiftCluster) {
+			check: func(t *testing.T, c *coreapi.Cluster) {
 				if c.CustomerProperties.Autoscaling.PodPriorityThreshold != 0 {
 					t.Errorf("PodPriorityThreshold: got %d, want 0",
 						c.CustomerProperties.Autoscaling.PodPriorityThreshold)
@@ -221,10 +221,10 @@ func TestClusterZeroValueRoundTripThroughJSON(t *testing.T) {
 //
 //	internal -> NewHCPOpenShiftClusterNodePool -> JSON marshal ->
 //	JSON unmarshal -> SetDefaultValuesNodePool (simulating constructor) -> ConvertToInternal
-func jsonRoundTripNodePool(t *testing.T, original *coreapi.HCPOpenShiftClusterNodePool) *coreapi.HCPOpenShiftClusterNodePool {
+func jsonRoundTripNodePool(t *testing.T, original *coreapi.ClusterNodePool) *coreapi.ClusterNodePool {
 	t.Helper()
 	v := version{}
-	ext := v.NewHCPOpenShiftClusterNodePool(original)
+	ext := v.NewClusterNodePool(original)
 
 	jsonBytes, err := json.Marshal(ext)
 	require.NoError(t, err)
@@ -239,10 +239,10 @@ func jsonRoundTripNodePool(t *testing.T, original *coreapi.HCPOpenShiftClusterNo
 }
 
 // jsonRoundTripCluster simulates a GET-then-PUT cycle through JSON.
-func jsonRoundTripCluster(t *testing.T, original *coreapi.HCPOpenShiftCluster) *coreapi.HCPOpenShiftCluster {
+func jsonRoundTripCluster(t *testing.T, original *coreapi.Cluster) *coreapi.Cluster {
 	t.Helper()
 	v := version{}
-	ext := v.NewHCPOpenShiftCluster(original)
+	ext := v.NewCluster(original)
 
 	jsonBytes, err := json.Marshal(ext)
 	require.NoError(t, err)
@@ -259,8 +259,8 @@ func jsonRoundTripCluster(t *testing.T, original *coreapi.HCPOpenShiftCluster) *
 // newBaselineInternalNodePool creates a valid node pool with all potentially
 // unsafe fields set to non-zero values. Test cases mutate specific fields
 // to zero before round-tripping.
-func newBaselineInternalNodePool() *coreapi.HCPOpenShiftClusterNodePool {
-	return &coreapi.HCPOpenShiftClusterNodePool{
+func newBaselineInternalNodePool() *coreapi.ClusterNodePool {
+	return &coreapi.ClusterNodePool{
 		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: metadataapi.Must(azcorearm.ParseResourceID(strings.ToLower("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/myRg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/myCluster/nodePools/myNodePool")))},
 		TrackedResource: coreapi.TrackedResource{
 			Resource: coreapi.Resource{
@@ -270,7 +270,7 @@ func newBaselineInternalNodePool() *coreapi.HCPOpenShiftClusterNodePool {
 			},
 			Location: "eastus",
 		},
-		Properties: coreapi.HCPOpenShiftClusterNodePoolProperties{
+		Properties: coreapi.ClusterNodePoolProperties{
 			Version: coreapi.NodePoolVersionProfile{
 				ID:           "4.15.1",
 				ChannelGroup: "stable",
@@ -294,8 +294,8 @@ func newBaselineInternalNodePool() *coreapi.HCPOpenShiftClusterNodePool {
 // newBaselineInternalCluster creates a valid cluster with all potentially
 // unsafe fields set to non-zero values. Test cases mutate specific fields
 // to zero before round-tripping.
-func newBaselineInternalCluster() *coreapi.HCPOpenShiftCluster {
-	return &coreapi.HCPOpenShiftCluster{
+func newBaselineInternalCluster() *coreapi.Cluster {
+	return &coreapi.Cluster{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID: metadataapi.Must(azcorearm.ParseResourceID(strings.ToLower("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/myRg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/myCluster"))),
 		},
@@ -307,7 +307,7 @@ func newBaselineInternalCluster() *coreapi.HCPOpenShiftCluster {
 			},
 			Location: "eastus",
 		},
-		CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+		CustomerProperties: coreapi.ClusterCustomerProperties{
 			Version: coreapi.VersionProfile{
 				ID:           "4.15.1",
 				ChannelGroup: "stable",

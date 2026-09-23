@@ -93,7 +93,7 @@ func testIdentityResourceID(name string) *azcorearm.ResourceID {
 	))
 }
 
-func newTestCluster(opts ...func(*coreapi.HCPOpenShiftCluster)) *coreapi.HCPOpenShiftCluster {
+func newTestCluster(opts ...func(*coreapi.Cluster)) *coreapi.Cluster {
 	rid := testClusterResourceID()
 	cluster := coreapitesting.MinimumValidClusterTestCase()
 	cluster.CosmosMetadata = coreapi.CosmosMetadata{
@@ -208,7 +208,7 @@ func resourceNotFoundError() error {
 	return &azcore.ResponseError{StatusCode: 404}
 }
 
-func matchingGetResponseForAllTypes(cluster *coreapi.HCPOpenShiftCluster, spc *coreapi.ServiceProviderCluster) func(ctx context.Context, scope string, denyAssignmentID string, opts *armauthorization.DenyAssignmentsClientGetOptions) (armauthorization.DenyAssignmentsClientGetResponse, error) {
+func matchingGetResponseForAllTypes(cluster *coreapi.Cluster, spc *coreapi.ServiceProviderCluster) func(ctx context.Context, scope string, denyAssignmentID string, opts *armauthorization.DenyAssignmentsClientGetOptions) (armauthorization.DenyAssignmentsClientGetResponse, error) {
 	refs, _ := allDenyAssignmentReferences(cluster)
 	nameToType := make(map[string]string, len(refs))
 	for _, ref := range refs {
@@ -381,7 +381,7 @@ func TestResolvePrincipalID(t *testing.T) {
 func TestSyncOnce(t *testing.T) {
 	tests := []struct {
 		name    string
-		cluster *coreapi.HCPOpenShiftCluster
+		cluster *coreapi.Cluster
 	}{
 		{
 			name:    "cluster not found returns nil",
@@ -389,7 +389,7 @@ func TestSyncOnce(t *testing.T) {
 		},
 		{
 			name: "deletion timestamp set returns nil",
-			cluster: newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
+			cluster: newTestCluster(func(c *coreapi.Cluster) {
 				now := metav1.Now()
 				c.ServiceProviderProperties.DeletionTimestamp = &now
 			}),
@@ -399,9 +399,9 @@ func TestSyncOnce(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
-			var clusters []*coreapi.HCPOpenShiftCluster
+			var clusters []*coreapi.Cluster
 			if tt.cluster != nil {
-				clusters = []*coreapi.HCPOpenShiftCluster{tt.cluster}
+				clusters = []*coreapi.Cluster{tt.cluster}
 			}
 			syncer := &clusterDenyAssignmentSyncer{
 				clock:         clocktesting.NewFakeClock(time.Now()),
@@ -419,13 +419,13 @@ func TestSyncDenyAssignmentNeedsWork(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		cluster  *coreapi.HCPOpenShiftCluster
+		cluster  *coreapi.Cluster
 		spc      *coreapi.ServiceProviderCluster
 		expected bool
 	}{
 		{
 			name: "no cluster service ID",
-			cluster: newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
+			cluster: newTestCluster(func(c *coreapi.Cluster) {
 				c.ServiceProviderProperties.PendingClusterServiceID = nil
 				c.ServiceProviderProperties.ClusterServiceID = nil
 			}),
@@ -451,7 +451,7 @@ func TestSyncDenyAssignmentNeedsWork(t *testing.T) {
 		},
 		{
 			name: "no managed resource group",
-			cluster: newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
+			cluster: newTestCluster(func(c *coreapi.Cluster) {
 				c.CustomerProperties.Platform.ManagedResourceGroup = ""
 			}),
 			spc:      newTestSPC(),
@@ -459,7 +459,7 @@ func TestSyncDenyAssignmentNeedsWork(t *testing.T) {
 		},
 		{
 			name: "empty control plane operators",
-			cluster: newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
+			cluster: newTestCluster(func(c *coreapi.Cluster) {
 				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = nil
 			}),
 			spc:      newTestSPC(),
@@ -467,7 +467,7 @@ func TestSyncDenyAssignmentNeedsWork(t *testing.T) {
 		},
 		{
 			name: "empty data plane operators",
-			cluster: newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
+			cluster: newTestCluster(func(c *coreapi.Cluster) {
 				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators = nil
 			}),
 			spc:      newTestSPC(),
@@ -475,7 +475,7 @@ func TestSyncDenyAssignmentNeedsWork(t *testing.T) {
 		},
 		{
 			name: "nil service managed identity",
-			cluster: newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
+			cluster: newTestCluster(func(c *coreapi.Cluster) {
 				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity = nil
 			}),
 			spc:      newTestSPC(),
@@ -483,7 +483,7 @@ func TestSyncDenyAssignmentNeedsWork(t *testing.T) {
 		},
 		{
 			name: "nil control plane operator value",
-			cluster: newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
+			cluster: newTestCluster(func(c *coreapi.Cluster) {
 				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators["cluster-api-azure"] = nil
 			}),
 			spc:      newTestSPC(),
@@ -491,7 +491,7 @@ func TestSyncDenyAssignmentNeedsWork(t *testing.T) {
 		},
 		{
 			name: "nil data plane operator value",
-			cluster: newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
+			cluster: newTestCluster(func(c *coreapi.Cluster) {
 				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators["image-registry"] = nil
 			}),
 			spc:      newTestSPC(),
@@ -578,7 +578,7 @@ func TestSyncDenyAssignmentUpsert(t *testing.T) {
 
 	tests := []struct {
 		name                 string
-		cluster              *coreapi.HCPOpenShiftCluster
+		cluster              *coreapi.Cluster
 		existingSPC          *coreapi.ServiceProviderCluster
 		mockDenyAssignments  *azuremockclient.DenyAssignmentsClientFunc
 		mockGenericResources *azuremockclient.GenericResourcesClientFunc
@@ -737,7 +737,7 @@ func TestSyncDenyAssignmentUpsert(t *testing.T) {
 			syncer := &clusterDenyAssignmentSyncer{
 				clock:                 fakeClock,
 				resourcesDBClient:     mockDB,
-				clusterLister:         &corelistertesting.SliceClusterLister{Clusters: []*coreapi.HCPOpenShiftCluster{tt.cluster}},
+				clusterLister:         &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{tt.cluster}},
 				subscriptionLister:    &corelistertesting.SliceSubscriptionLister{Subscriptions: []*coreapi.Subscription{testSubscription()}},
 				azureFPAClientBuilder: builder,
 			}

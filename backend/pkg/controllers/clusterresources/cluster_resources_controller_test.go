@@ -68,13 +68,13 @@ func testKey() controllerutils.HCPClusterKey {
 	}
 }
 
-func newCluster(opts ...func(*coreapi.HCPOpenShiftCluster)) *coreapi.HCPOpenShiftCluster {
+func newCluster(opts ...func(*coreapi.Cluster)) *coreapi.Cluster {
 	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + testSubscriptionID +
 			"/resourceGroups/" + testResourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName,
 	))
-	cluster := &coreapi.HCPOpenShiftCluster{
+	cluster := &coreapi.Cluster{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   resourceID,
 			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
@@ -86,7 +86,7 @@ func newCluster(opts ...func(*coreapi.HCPOpenShiftCluster)) *coreapi.HCPOpenShif
 				Type: resourceID.ResourceType.String(),
 			},
 		},
-		ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 			ClusterServiceID: metadataapihelpers.Ptr(metadataapi.Must(metadataapi.NewInternalID(testClusterServiceID))),
 		},
 	}
@@ -129,7 +129,7 @@ func TestNeedsWork(t *testing.T) {
 
 	tests := []struct {
 		name              string
-		cluster           *coreapi.HCPOpenShiftCluster
+		cluster           *coreapi.Cluster
 		managementCluster *azcorearm.ResourceID
 		want              bool
 	}{
@@ -141,7 +141,7 @@ func TestNeedsWork(t *testing.T) {
 		},
 		{
 			name: "returns true for cluster being deleted with management cluster",
-			cluster: newCluster(func(c *coreapi.HCPOpenShiftCluster) {
+			cluster: newCluster(func(c *coreapi.Cluster) {
 				now := metav1.Now()
 				c.ServiceProviderProperties.DeletionTimestamp = &now
 			}),
@@ -150,7 +150,7 @@ func TestNeedsWork(t *testing.T) {
 		},
 		{
 			name: "returns false for cluster without ClusterServiceID",
-			cluster: newCluster(func(c *coreapi.HCPOpenShiftCluster) {
+			cluster: newCluster(func(c *coreapi.Cluster) {
 				c.ServiceProviderProperties.ClusterServiceID = nil
 			}),
 			managementCluster: testManagementClusterResourceID,
@@ -179,7 +179,7 @@ func TestSyncOnce(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		cluster     *coreapi.HCPOpenShiftCluster
+		cluster     *coreapi.Cluster
 		dbResources []any
 		setupCSMock func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec
 		wantErr     bool
@@ -195,7 +195,7 @@ func TestSyncOnce(t *testing.T) {
 		},
 		{
 			name: "skips cluster without ClusterServiceID",
-			cluster: newCluster(func(c *coreapi.HCPOpenShiftCluster) {
+			cluster: newCluster(func(c *coreapi.Cluster) {
 				c.ServiceProviderProperties.ClusterServiceID = nil
 			}),
 			dbResources: []any{
@@ -208,7 +208,7 @@ func TestSyncOnce(t *testing.T) {
 		},
 		{
 			name: "skips cluster being deleted",
-			cluster: newCluster(func(c *coreapi.HCPOpenShiftCluster) {
+			cluster: newCluster(func(c *coreapi.Cluster) {
 				now := metav1.Now()
 				c.ServiceProviderProperties.DeletionTimestamp = &now
 			}),
@@ -390,7 +390,7 @@ func TestSyncOnce(t *testing.T) {
 			// Seed the cluster lister (used by SyncOnce to look up the cluster)
 			clusterLister := &corelistertesting.SliceClusterLister{}
 			if tt.cluster != nil {
-				clusterLister.Clusters = []*coreapi.HCPOpenShiftCluster{tt.cluster}
+				clusterLister.Clusters = []*coreapi.Cluster{tt.cluster}
 			}
 
 			// Seed the SPC lister from dbResources
@@ -760,14 +760,14 @@ func TestProcessClusterResourcesNodePoolPath(t *testing.T) {
 		`"metadata":{"name":"` + testClusterName + `-` + testNodePoolName + `","namespace":"ocm-env-abc"},` +
 		`"spec":{"clusterName":"` + testClusterName + `"}}`
 
-	newNodePool := func(deleting bool) *coreapi.HCPOpenShiftClusterNodePool {
+	newNodePool := func(deleting bool) *coreapi.ClusterNodePool {
 		resourceID := metadataapi.Must(azcorearm.ParseResourceID(
 			"/subscriptions/" + testSubscriptionID +
 				"/resourceGroups/" + testResourceGroupName +
 				"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
 				"/nodePools/" + testNodePoolName,
 		))
-		np := &coreapi.HCPOpenShiftClusterNodePool{
+		np := &coreapi.ClusterNodePool{
 			CosmosMetadata: coreapi.CosmosMetadata{
 				ResourceID:   resourceID,
 				PartitionKey: strings.ToLower(resourceID.SubscriptionID),
@@ -791,7 +791,7 @@ func TestProcessClusterResourcesNodePoolPath(t *testing.T) {
 
 	tests := []struct {
 		name           string
-		nodePool       *coreapi.HCPOpenShiftClusterNodePool
+		nodePool       *coreapi.ClusterNodePool
 		wantDesireType kubeapplierapi.ApplyDesireType
 		reason         string
 	}{
@@ -832,7 +832,7 @@ func TestProcessClusterResourcesNodePoolPath(t *testing.T) {
 				},
 			}
 			syncer := &clusterResourcesController{
-				nodePoolLister:       &corelistertesting.SliceNodePoolLister{NodePools: []*coreapi.HCPOpenShiftClusterNodePool{tt.nodePool}},
+				nodePoolLister:       &corelistertesting.SliceNodePoolLister{NodePools: []*coreapi.ClusterNodePool{tt.nodePool}},
 				kubeApplierDBClients: mockClients,
 				applyDesireLister:    &kubeapplierlistertesting.DBApplyDesireLister{Clients: mockClients, Lister: mcLister},
 			}
@@ -841,7 +841,7 @@ func TestProcessClusterResourcesNodePoolPath(t *testing.T) {
 			// case exercises reaping an existing desire rather than never creating one.
 			seedSyncer := *syncer
 			seedSyncer.nodePoolLister = &corelistertesting.SliceNodePoolLister{
-				NodePools: []*coreapi.HCPOpenShiftClusterNodePool{newNodePool(false)},
+				NodePools: []*coreapi.ClusterNodePool{newNodePool(false)},
 			}
 			require.NoError(t, seedSyncer.processClusterResources(ctx, testKey(), testManagementClusterResourceID,
 				buildClusterResources(map[string]string{"node-pool": nodePoolCR})),

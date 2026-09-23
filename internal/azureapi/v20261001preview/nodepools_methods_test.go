@@ -36,11 +36,11 @@ import (
 func TestSizeGiBRoundTrip(t *testing.T) {
 	tests := []struct {
 		name     string
-		original *coreapi.HCPOpenShiftClusterNodePool
+		original *coreapi.ClusterNodePool
 	}{
 		{
 			name: "SizeGiB with explicit value should round-trip",
-			original: &coreapi.HCPOpenShiftClusterNodePool{
+			original: &coreapi.ClusterNodePool{
 				CosmosMetadata: coreapi.CosmosMetadata{ResourceID: metadataapi.Must(azcorearm.ParseResourceID(strings.ToLower("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/myRg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/myCluster/nodePools/myNodePool")))},
 				TrackedResource: coreapi.TrackedResource{
 					Resource: coreapi.Resource{
@@ -50,7 +50,7 @@ func TestSizeGiBRoundTrip(t *testing.T) {
 					},
 					Location: "eastus",
 				},
-				Properties: coreapi.HCPOpenShiftClusterNodePoolProperties{
+				Properties: coreapi.ClusterNodePoolProperties{
 					Version: coreapi.NodePoolVersionProfile{
 						ID:           "4.15.1",
 						ChannelGroup: "stable",
@@ -453,7 +453,7 @@ func TestNewNodePoolActiveVersions(t *testing.T) {
 func TestNewNodePoolResourceStatus(t *testing.T) {
 	tests := []struct {
 		name     string
-		input    *coreapi.HCPOpenShiftClusterNodePoolStatus
+		input    *coreapi.ClusterNodePoolStatus
 		expected *generated.NodePoolResourceStatus
 	}{
 		{
@@ -463,12 +463,12 @@ func TestNewNodePoolResourceStatus(t *testing.T) {
 		},
 		{
 			name:     "empty status returns nil",
-			input:    &coreapi.HCPOpenShiftClusterNodePoolStatus{},
+			input:    &coreapi.ClusterNodePoolStatus{},
 			expected: nil,
 		},
 		{
 			name: "status with active versions only",
-			input: &coreapi.HCPOpenShiftClusterNodePoolStatus{
+			input: &coreapi.ClusterNodePoolStatus{
 				ActiveVersions: []coreapi.HCPNodePoolActiveVersion{
 					{Version: "4.20.8"},
 				},
@@ -490,9 +490,9 @@ func TestNewNodePoolResourceStatus(t *testing.T) {
 	}
 }
 
-func roundTripInternalNodePool(t *testing.T, original *coreapi.HCPOpenShiftClusterNodePool) {
+func roundTripInternalNodePool(t *testing.T, original *coreapi.ClusterNodePool) {
 	v := version{}
-	roundTrippedObj, err := v.NewHCPOpenShiftClusterNodePool(original).ConvertToInternal(nil)
+	roundTrippedObj, err := v.NewClusterNodePool(original).ConvertToInternal(nil)
 	require.NoError(t, err)
 
 	// we compare using DeepEqual here because many of these types have private fields that cannot be introspected

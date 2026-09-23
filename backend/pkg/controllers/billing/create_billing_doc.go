@@ -58,7 +58,7 @@ func NewCreateBillingDocController(clock utilsclock.PassiveClock, azureLocation 
 	}
 }
 
-func (c *createBillingDoc) NeedsWork(ctx context.Context, existingCluster *coreapi.HCPOpenShiftCluster) bool {
+func (c *createBillingDoc) NeedsWork(ctx context.Context, existingCluster *coreapi.Cluster) bool {
 	// Skip if the cluster is deleted or does not have a ClusterUID because the cluster is old and yet-to-be backfilled old data (backfill controller's responsibility).
 	// All new clusters will have it from admission.
 	if existingCluster == nil || len(existingCluster.ServiceProviderProperties.ClusterUID) == 0 {

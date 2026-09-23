@@ -61,7 +61,7 @@ func newTestExternalAuthController(t *testing.T, name string) *coreapi.Controlle
 
 func TestExternalAuthChildResourcesCleanupController_SyncOnce(t *testing.T) {
 	fixedNow := time.Date(2026, 5, 6, 12, 0, 0, 0, time.UTC)
-	readyToDeleteExternalAuthOptsFunc := func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
+	readyToDeleteExternalAuthOptsFunc := func(ea *coreapi.ClusterExternalAuth) {
 		ea.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-time.Hour)}
 		ea.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-30 * time.Minute)}
 		ea.ServiceProviderProperties.ClusterServiceID = nil
@@ -99,7 +99,7 @@ func TestExternalAuthChildResourcesCleanupController_SyncOnce(t *testing.T) {
 
 	testCases := []struct {
 		name                    string
-		existingExternalAuth    *coreapi.HCPOpenShiftClusterExternalAuth
+		existingExternalAuth    *coreapi.ClusterExternalAuth
 		childResources          []any
 		extraSetupDBTestingMock func(t *testing.T, db *corecosmosstoragetesting.MockResourcesDBClient)
 		wantErr                 bool
@@ -118,7 +118,7 @@ func TestExternalAuthChildResourcesCleanupController_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "when no ClusterServiceDeletionTimestamp is set performs a no-op",
-			existingExternalAuth: newTestExternalAuthWithNewDeletionApproach(t, func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
+			existingExternalAuth: newTestExternalAuthWithNewDeletionApproach(t, func(ea *coreapi.ClusterExternalAuth) {
 				ea.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-time.Hour)}
 				ea.ServiceProviderProperties.ClusterServiceDeletionTimestamp = nil
 				ea.ServiceProviderProperties.ClusterServiceID = nil
@@ -133,7 +133,7 @@ func TestExternalAuthChildResourcesCleanupController_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "when ClusterServiceID is set performs a no-op",
-			existingExternalAuth: newTestExternalAuthWithNewDeletionApproach(t, func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
+			existingExternalAuth: newTestExternalAuthWithNewDeletionApproach(t, func(ea *coreapi.ClusterExternalAuth) {
 				ea.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-time.Hour)}
 				ea.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-30 * time.Minute)}
 			}),
@@ -252,7 +252,7 @@ func TestExternalAuthChildResourcesCleanupController_SyncOnce(t *testing.T) {
 				tc.extraSetupDBTestingMock(t, mockResourcesDBClient)
 			}
 
-			externalAuthsForLister := []*coreapi.HCPOpenShiftClusterExternalAuth{}
+			externalAuthsForLister := []*coreapi.ClusterExternalAuth{}
 			if tc.existingExternalAuth != nil {
 				externalAuthsForLister = append(externalAuthsForLister, tc.existingExternalAuth)
 			}

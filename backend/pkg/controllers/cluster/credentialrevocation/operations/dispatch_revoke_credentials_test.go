@@ -149,9 +149,9 @@ func TestDispatchRevokeCredentials_SynchronizeOperation(t *testing.T) {
 			db, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, tc.resources)
 			require.NoError(t, err)
 
-			var clusters []*coreapi.HCPOpenShiftCluster
+			var clusters []*coreapi.Cluster
 			for _, r := range tc.resources {
-				if c, ok := r.(*coreapi.HCPOpenShiftCluster); ok {
+				if c, ok := r.(*coreapi.Cluster); ok {
 					clusters = append(clusters, c)
 				}
 			}

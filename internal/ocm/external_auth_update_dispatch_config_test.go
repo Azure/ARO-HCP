@@ -27,9 +27,9 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 )
 
-func newTestExternalAuth() *coreapi.HCPOpenShiftClusterExternalAuth {
-	return &coreapi.HCPOpenShiftClusterExternalAuth{
-		Properties: coreapi.HCPOpenShiftClusterExternalAuthProperties{
+func newTestExternalAuth() *coreapi.ClusterExternalAuth {
+	return &coreapi.ClusterExternalAuth{
+		Properties: coreapi.ClusterExternalAuthProperties{
 			Issuer: coreapi.TokenIssuerProfile{
 				URL:       "https://issuer.example.com",
 				Audiences: []string{"aud1", "aud2"},

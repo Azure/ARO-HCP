@@ -63,7 +63,7 @@ func (f *fakeSMIClientBuilder) SubnetsClient(context.Context, string, *azcorearm
 	return f.subnetsClient, nil
 }
 
-func testCluster() *coreapi.HCPOpenShiftCluster {
+func testCluster() *coreapi.Cluster {
 	cluster := coreapitesting.MinimumValidClusterTestCase()
 	cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity = metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + coreapitesting.TestSubscriptionID + "/resourceGroups/" + coreapitesting.TestResourceGroupName +
@@ -72,8 +72,8 @@ func testCluster() *coreapi.HCPOpenShiftCluster {
 	return cluster
 }
 
-func testNodePool() *coreapi.HCPOpenShiftClusterNodePool {
-	nodePool := coreapi.NewDefaultHCPOpenShiftClusterNodePool(metadataapi.Must(azcorearm.ParseResourceID(coreapitesting.TestNodePoolResourceID)), coreapitesting.TestLocation)
+func testNodePool() *coreapi.ClusterNodePool {
+	nodePool := coreapi.NewDefaultClusterNodePool(metadataapi.Must(azcorearm.ParseResourceID(coreapitesting.TestNodePoolResourceID)), coreapitesting.TestLocation)
 	nodePool.Properties.Platform.SubnetID = metadataapi.Must(azcorearm.ParseResourceID(coreapitesting.TestSubnetResourceID))
 	return nodePool
 }
@@ -179,7 +179,7 @@ func expectWorkerAndIntegrationSubnets(subnets *azureclient.MockSubnetsClient, w
 	subnets.EXPECT().Get(gomock.Any(), coreapitesting.TestResourceGroupName, coreapitesting.TestVirtualNetworkName, coreapitesting.TestVnetIntegrationSubnetName, nil).Return(integrationResp, nil)
 }
 
-func nodePoolOnSubnet(npSubnetID string) *coreapi.HCPOpenShiftClusterNodePool {
+func nodePoolOnSubnet(npSubnetID string) *coreapi.ClusterNodePool {
 	np := testNodePool()
 	np.Properties.Platform.SubnetID = metadataapi.Must(azcorearm.ParseResourceID(npSubnetID))
 	return np

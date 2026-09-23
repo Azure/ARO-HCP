@@ -26,9 +26,9 @@ import (
 
 // ClusterLister lists and gets Clusters from an informer's indexer.
 type ClusterLister interface {
-	List(ctx context.Context) ([]*coreapi.HCPOpenShiftCluster, error)
-	Get(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) (*coreapi.HCPOpenShiftCluster, error)
-	ListForResourceGroup(ctx context.Context, subscriptionName, resourceGroupName string) ([]*coreapi.HCPOpenShiftCluster, error)
+	List(ctx context.Context) ([]*coreapi.Cluster, error)
+	Get(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) (*coreapi.Cluster, error)
+	ListForResourceGroup(ctx context.Context, subscriptionName, resourceGroupName string) ([]*coreapi.Cluster, error)
 }
 
 // hcpOpenShiftClusterLister implements ClusterLister backed by a SharedIndexInformer.
@@ -43,20 +43,20 @@ func NewClusterLister(indexer cache.Indexer) ClusterLister {
 	}
 }
 
-func (l *hcpOpenShiftClusterLister) List(ctx context.Context) ([]*coreapi.HCPOpenShiftCluster, error) {
-	return listerutils.ListAll[coreapi.HCPOpenShiftCluster](l.indexer)
+func (l *hcpOpenShiftClusterLister) List(ctx context.Context) ([]*coreapi.Cluster, error) {
+	return listerutils.ListAll[coreapi.Cluster](l.indexer)
 }
 
 // Get retrieves a single HCPOpenShiftCluster by subscription ID, resource group name, and cluster name.
 // The store key is the lowercased ResourceID string:
 //
 //	/subscriptions/<sub>/resourcegroups/<rg>/providers/microsoft.redhatopenshift/hcpopenshiftclusters/<name>
-func (l *hcpOpenShiftClusterLister) Get(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) (*coreapi.HCPOpenShiftCluster, error) {
+func (l *hcpOpenShiftClusterLister) Get(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) (*coreapi.Cluster, error) {
 	key := coreapihelpers.ToClusterResourceIDString(subscriptionID, resourceGroupName, clusterName)
-	return listerutils.GetByKey[coreapi.HCPOpenShiftCluster](l.indexer, key)
+	return listerutils.GetByKey[coreapi.Cluster](l.indexer, key)
 }
 
-func (l *hcpOpenShiftClusterLister) ListForResourceGroup(ctx context.Context, subscriptionName, resourceGroupName string) ([]*coreapi.HCPOpenShiftCluster, error) {
+func (l *hcpOpenShiftClusterLister) ListForResourceGroup(ctx context.Context, subscriptionName, resourceGroupName string) ([]*coreapi.Cluster, error) {
 	key := coreapihelpers.ToResourceGroupResourceIDString(subscriptionName, resourceGroupName)
-	return listerutils.ListFromIndex[coreapi.HCPOpenShiftCluster](l.indexer, ByResourceGroup, key)
+	return listerutils.ListFromIndex[coreapi.Cluster](l.indexer, ByResourceGroup, key)
 }

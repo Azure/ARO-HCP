@@ -24,7 +24,7 @@ func CopyReadOnlyTrackedResourceValues(dest, src *coreapi.TrackedResource) {
 	dest.SystemData = src.SystemData.DeepCopy()
 }
 
-func CopyReadOnlyClusterValues(dest, src *coreapi.HCPOpenShiftCluster) {
+func CopyReadOnlyClusterValues(dest, src *coreapi.Cluster) {
 	CopyReadOnlyTrackedResourceValues(&dest.TrackedResource, &src.TrackedResource)
 
 	// CosmosMetadata is read-only on the API surface; carry over so the

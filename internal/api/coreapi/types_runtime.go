@@ -24,15 +24,15 @@ import (
 )
 
 var (
-	_ runtime.Object            = &HCPOpenShiftCluster{}
-	_ metav1.ObjectMetaAccessor = &HCPOpenShiftCluster{}
+	_ runtime.Object            = &Cluster{}
+	_ metav1.ObjectMetaAccessor = &Cluster{}
 )
 
-func (o *HCPOpenShiftCluster) GetObjectKind() schema.ObjectKind {
+func (o *Cluster) GetObjectKind() schema.ObjectKind {
 	return schema.EmptyObjectKind
 }
 
-func (o *HCPOpenShiftCluster) GetObjectMeta() metav1.Object {
+func (o *Cluster) GetObjectMeta() metav1.Object {
 	om := &metav1.ObjectMeta{}
 	if o.ID != nil {
 		om.Name = strings.ToLower(o.ID.String())
@@ -45,28 +45,28 @@ func (o *HCPOpenShiftCluster) GetObjectMeta() metav1.Object {
 // HCPOpenShiftClusterList is a list of Clusters compatible with
 // runtime.Object for use with Kubernetes informer machinery.
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-type HCPOpenShiftClusterList struct {
+type ClusterList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []HCPOpenShiftCluster `json:"items"`
+	Items           []Cluster `json:"items"`
 }
 
-var _ runtime.Object = &HCPOpenShiftClusterList{}
+var _ runtime.Object = &ClusterList{}
 
-func (l *HCPOpenShiftClusterList) GetObjectKind() schema.ObjectKind {
+func (l *ClusterList) GetObjectKind() schema.ObjectKind {
 	return &l.TypeMeta
 }
 
 var (
-	_ runtime.Object            = &HCPOpenShiftClusterNodePool{}
-	_ metav1.ObjectMetaAccessor = &HCPOpenShiftClusterNodePool{}
+	_ runtime.Object            = &ClusterNodePool{}
+	_ metav1.ObjectMetaAccessor = &ClusterNodePool{}
 )
 
-func (o *HCPOpenShiftClusterNodePool) GetObjectKind() schema.ObjectKind {
+func (o *ClusterNodePool) GetObjectKind() schema.ObjectKind {
 	return schema.EmptyObjectKind
 }
 
-func (o *HCPOpenShiftClusterNodePool) GetObjectMeta() metav1.Object {
+func (o *ClusterNodePool) GetObjectMeta() metav1.Object {
 	om := &metav1.ObjectMeta{}
 	if o.ID != nil {
 		om.Name = strings.ToLower(o.ID.String())
@@ -79,28 +79,28 @@ func (o *HCPOpenShiftClusterNodePool) GetObjectMeta() metav1.Object {
 // HCPOpenShiftClusterNodePoolList is a list of NodePools
 // compatible with runtime.Object for use with Kubernetes informer machinery.
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-type HCPOpenShiftClusterNodePoolList struct {
+type ClusterNodePoolList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []HCPOpenShiftClusterNodePool `json:"items"`
+	Items           []ClusterNodePool `json:"items"`
 }
 
-var _ runtime.Object = &HCPOpenShiftClusterNodePoolList{}
+var _ runtime.Object = &ClusterNodePoolList{}
 
-func (l *HCPOpenShiftClusterNodePoolList) GetObjectKind() schema.ObjectKind {
+func (l *ClusterNodePoolList) GetObjectKind() schema.ObjectKind {
 	return &l.TypeMeta
 }
 
 var (
-	_ runtime.Object            = &HCPOpenShiftClusterExternalAuth{}
-	_ metav1.ObjectMetaAccessor = &HCPOpenShiftClusterExternalAuth{}
+	_ runtime.Object            = &ClusterExternalAuth{}
+	_ metav1.ObjectMetaAccessor = &ClusterExternalAuth{}
 )
 
-func (o *HCPOpenShiftClusterExternalAuth) GetObjectKind() schema.ObjectKind {
+func (o *ClusterExternalAuth) GetObjectKind() schema.ObjectKind {
 	return schema.EmptyObjectKind
 }
 
-func (o *HCPOpenShiftClusterExternalAuth) GetObjectMeta() metav1.Object {
+func (o *ClusterExternalAuth) GetObjectMeta() metav1.Object {
 	om := &metav1.ObjectMeta{}
 	if o.ID != nil {
 		om.Name = strings.ToLower(o.ID.String())
@@ -113,15 +113,15 @@ func (o *HCPOpenShiftClusterExternalAuth) GetObjectMeta() metav1.Object {
 // HCPOpenShiftClusterExternalAuthList is a list of ExternalAuths
 // compatible with runtime.Object for use with Kubernetes informer machinery.
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-type HCPOpenShiftClusterExternalAuthList struct {
+type ClusterExternalAuthList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []HCPOpenShiftClusterExternalAuth `json:"items"`
+	Items           []ClusterExternalAuth `json:"items"`
 }
 
-var _ runtime.Object = &HCPOpenShiftClusterExternalAuthList{}
+var _ runtime.Object = &ClusterExternalAuthList{}
 
-func (l *HCPOpenShiftClusterExternalAuthList) GetObjectKind() schema.ObjectKind {
+func (l *ClusterExternalAuthList) GetObjectKind() schema.ObjectKind {
 	return &l.TypeMeta
 }
 

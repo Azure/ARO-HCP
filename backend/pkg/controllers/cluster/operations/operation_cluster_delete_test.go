@@ -47,7 +47,7 @@ func TestOperationClusterDelete_SynchronizeOperation(t *testing.T) {
 
 	fixture := operationtesting.NewClusterTestFixture()
 
-	clusterPassingReconcileGate := func() *coreapi.HCPOpenShiftCluster {
+	clusterPassingReconcileGate := func() *coreapi.Cluster {
 		now := time.Now()
 		cluster := fixture.NewCluster(nil)
 		cluster.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: now}
@@ -57,10 +57,10 @@ func TestOperationClusterDelete_SynchronizeOperation(t *testing.T) {
 
 	testCases := []struct {
 		name                           string
-		nodePools                      []*coreapi.HCPOpenShiftClusterNodePool
-		externalAuths                  []*coreapi.HCPOpenShiftClusterExternalAuth
+		nodePools                      []*coreapi.ClusterNodePool
+		externalAuths                  []*coreapi.ClusterExternalAuth
 		usesNewClusterDeletionApproach bool
-		existingCluster                *coreapi.HCPOpenShiftCluster
+		existingCluster                *coreapi.Cluster
 		setupCSMock                    func(ctrl *gomock.Controller, fixture *operationtesting.ClusterTestFixture) ocm.ClusterServiceClientSpec
 		wantErr                        bool
 		verifyDB                       func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient)
@@ -88,7 +88,7 @@ func TestOperationClusterDelete_SynchronizeOperation(t *testing.T) {
 		{
 			name:            "legacy approach: cluster not found does not remove cluster while nodepools exist",
 			existingCluster: fixture.NewCluster(&createdAt),
-			nodePools: []*coreapi.HCPOpenShiftClusterNodePool{
+			nodePools: []*coreapi.ClusterNodePool{
 				operationtesting.NewNodePoolTestFixture().NewNodePool(),
 			},
 			setupCSMock: func(ctrl *gomock.Controller, fixture *operationtesting.ClusterTestFixture) ocm.ClusterServiceClientSpec {
@@ -122,7 +122,7 @@ func TestOperationClusterDelete_SynchronizeOperation(t *testing.T) {
 				return mockCSClient
 			},
 			wantErr: false,
-			externalAuths: []*coreapi.HCPOpenShiftClusterExternalAuth{
+			externalAuths: []*coreapi.ClusterExternalAuth{
 				operationtesting.NewExternalAuthTestFixture().NewExternalAuth(),
 			},
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
@@ -222,7 +222,7 @@ func TestOperationClusterDelete_SynchronizeOperation(t *testing.T) {
 		{
 			name:                           "shouldReconcile gate not passed skips cluster service",
 			usesNewClusterDeletionApproach: true,
-			existingCluster: func() *coreapi.HCPOpenShiftCluster {
+			existingCluster: func() *coreapi.Cluster {
 				cluster := fixture.NewCluster(nil)
 				cluster.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: time.Now()}
 				return cluster
@@ -236,7 +236,7 @@ func TestOperationClusterDelete_SynchronizeOperation(t *testing.T) {
 		{
 			name:                           "shouldReconcile gate not passed when ClusterServiceID is nil",
 			usesNewClusterDeletionApproach: true,
-			existingCluster: func() *coreapi.HCPOpenShiftCluster {
+			existingCluster: func() *coreapi.Cluster {
 				cluster := fixture.NewCluster(nil)
 				cluster.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: time.Now()}
 				cluster.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{Time: time.Now()}

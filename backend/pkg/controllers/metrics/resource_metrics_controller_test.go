@@ -33,7 +33,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 )
 
-func newTestCluster(t *testing.T, name string, state coreapi.ProvisioningState, createdAt *time.Time) *coreapi.HCPOpenShiftCluster {
+func newTestCluster(t *testing.T, name string, state coreapi.ProvisioningState, createdAt *time.Time) *coreapi.Cluster {
 	t.Helper()
 
 	var systemData *coreapi.SystemData
@@ -41,7 +41,7 @@ func newTestCluster(t *testing.T, name string, state coreapi.ProvisioningState, 
 		systemData = &coreapi.SystemData{CreatedAt: createdAt}
 	}
 
-	return &coreapi.HCPOpenShiftCluster{
+	return &coreapi.Cluster{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID: metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + name)),
 		},
@@ -51,7 +51,7 @@ func newTestCluster(t *testing.T, name string, state coreapi.ProvisioningState, 
 				SystemData: systemData,
 			},
 		},
-		ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 			ProvisioningState: state,
 		},
 	}
@@ -135,7 +135,7 @@ func TestNodePoolMetricsHandler_SetsMetrics(t *testing.T) {
 	reg := prometheus.NewRegistry()
 	handler := NewNodePoolMetricsHandler(reg)
 
-	nodePool := &coreapi.HCPOpenShiftClusterNodePool{
+	nodePool := &coreapi.ClusterNodePool{
 		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1/nodePools/np-1"))},
 		TrackedResource: coreapi.TrackedResource{
 			Resource: coreapi.Resource{
@@ -143,7 +143,7 @@ func TestNodePoolMetricsHandler_SetsMetrics(t *testing.T) {
 				SystemData: &coreapi.SystemData{CreatedAt: &now},
 			},
 		},
-		Properties: coreapi.HCPOpenShiftClusterNodePoolProperties{
+		Properties: coreapi.ClusterNodePoolProperties{
 			ProvisioningState: coreapi.ProvisioningStateSucceeded,
 		},
 	}
@@ -170,7 +170,7 @@ func TestExternalAuthMetricsHandler_SetsMetrics(t *testing.T) {
 	reg := prometheus.NewRegistry()
 	handler := NewExternalAuthMetricsHandler(reg)
 
-	externalAuth := &coreapi.HCPOpenShiftClusterExternalAuth{
+	externalAuth := &coreapi.ClusterExternalAuth{
 		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1/externalAuths/ea-1"))},
 		ProxyResource: coreapi.ProxyResource{
 			Resource: coreapi.Resource{
@@ -178,7 +178,7 @@ func TestExternalAuthMetricsHandler_SetsMetrics(t *testing.T) {
 				SystemData: &coreapi.SystemData{CreatedAt: &now},
 			},
 		},
-		Properties: coreapi.HCPOpenShiftClusterExternalAuthProperties{
+		Properties: coreapi.ClusterExternalAuthProperties{
 			ProvisioningState: coreapi.ProvisioningStateAccepted,
 		},
 	}
@@ -209,7 +209,7 @@ func TestResourceControllerSyncResource_SetsMetricsFromIndexer(t *testing.T) {
 	indexer := cache.NewIndexer(resourceIDStoreKeyForObject, cache.Indexers{})
 	require.NoError(t, indexer.Add(cluster))
 
-	controller := &Controller[*coreapi.HCPOpenShiftCluster]{
+	controller := &Controller[*coreapi.Cluster]{
 		name:    "TestMetrics",
 		indexer: indexer,
 		handler: handler,
@@ -237,7 +237,7 @@ func TestResourceControllerSyncResource_DeletesMetricsWhenResourceRemoved(t *tes
 	indexer := cache.NewIndexer(resourceIDStoreKeyForObject, cache.Indexers{})
 	require.NoError(t, indexer.Add(cluster))
 
-	controller := &Controller[*coreapi.HCPOpenShiftCluster]{
+	controller := &Controller[*coreapi.Cluster]{
 		name:    "TestMetrics",
 		indexer: indexer,
 		handler: handler,

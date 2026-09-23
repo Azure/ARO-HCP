@@ -190,13 +190,13 @@ func (c *operationClusterDelete) SynchronizeOperation(ctx context.Context, key c
 	return nil
 }
 
-func (c *operationClusterDelete) shouldReconcileOperationAndResourceStatus(cluster *coreapi.HCPOpenShiftCluster) bool {
+func (c *operationClusterDelete) shouldReconcileOperationAndResourceStatus(cluster *coreapi.Cluster) bool {
 	return cluster.ServiceProviderProperties.DeletionTimestamp != nil &&
 		cluster.ServiceProviderProperties.ClusterServiceDeletionTimestamp != nil &&
 		cluster.ServiceProviderProperties.ClusterServiceID != nil
 }
 
-func (c *operationClusterDelete) reconcileOperationAndResourceStatus(ctx context.Context, operation *coreapi.Operation, cluster *coreapi.HCPOpenShiftCluster) error {
+func (c *operationClusterDelete) reconcileOperationAndResourceStatus(ctx context.Context, operation *coreapi.Operation, cluster *coreapi.Cluster) error {
 	logger := utils.LoggerFromContext(ctx)
 
 	clusterCSID := cluster.ServiceProviderProperties.ClusterServiceID
@@ -232,7 +232,7 @@ func (c *operationClusterDelete) reconcileOperationAndResourceStatus(ctx context
 	return nil
 }
 
-func (c *operationClusterDelete) buildDeletionTimeoutMessage(ctx context.Context, _ *coreapi.Operation, cluster *coreapi.HCPOpenShiftCluster) string {
+func (c *operationClusterDelete) buildDeletionTimeoutMessage(ctx context.Context, _ *coreapi.Operation, cluster *coreapi.Cluster) string {
 	logger := utils.LoggerFromContext(ctx)
 
 	errs := []error{}
@@ -284,7 +284,7 @@ func (c *operationClusterDelete) buildDeletionTimeoutMessage(ctx context.Context
 }
 
 // TODO scale this out better. We likely want something we can aggregate, e.g. a UserFacingDeleteProgress condition.
-func clusterServiceDeletionStatus(cluster *coreapi.HCPOpenShiftCluster) (*operationbase.OperationState, error) {
+func clusterServiceDeletionStatus(cluster *coreapi.Cluster) (*operationbase.OperationState, error) {
 	if cluster.ServiceProviderProperties.ClusterServiceID == nil {
 		return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, ""), nil
 	}
@@ -297,7 +297,7 @@ func clusterServiceDeletionStatus(cluster *coreapi.HCPOpenShiftCluster) (*operat
 }
 
 // TODO scale this out better. We likely want something we can aggregate, e.g. a UserFacingDeleteProgress condition.
-func (c *operationClusterDelete) clusterServiceStatusForDeletion(ctx context.Context, cluster *coreapi.HCPOpenShiftCluster) (*operationbase.OperationState, error) {
+func (c *operationClusterDelete) clusterServiceStatusForDeletion(ctx context.Context, cluster *coreapi.Cluster) (*operationbase.OperationState, error) {
 	if cluster.ServiceProviderProperties.ClusterServiceID == nil {
 		return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, ""), nil
 	}
@@ -338,7 +338,7 @@ func (c *operationClusterDelete) shouldCountChild(child *cosmosstorageutils.Type
 	return true
 }
 
-func (c *operationClusterDelete) remainingDescendantResources(ctx context.Context, cluster *coreapi.HCPOpenShiftCluster) (*operationbase.OperationState, error) {
+func (c *operationClusterDelete) remainingDescendantResources(ctx context.Context, cluster *coreapi.Cluster) (*operationbase.OperationState, error) {
 	logger := utils.LoggerFromContext(ctx)
 	typeCounts := map[string]int{}
 
@@ -393,7 +393,7 @@ func countDescendants(ctx context.Context, crud cosmosstorageutils.UntypedResour
 	return nil
 }
 
-func (c *operationClusterDelete) hostedClusterDeletionStatus(ctx context.Context, cluster *coreapi.HCPOpenShiftCluster) (*operationbase.OperationState, error) {
+func (c *operationClusterDelete) hostedClusterDeletionStatus(ctx context.Context, cluster *coreapi.Cluster) (*operationbase.OperationState, error) {
 	hostedCluster, err := kubeapplierhelpers.GetCachedHostedClusterForCluster(ctx, c.readDesireLister, cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName, cluster.ID.Name)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get cached HostedCluster: %w", err)

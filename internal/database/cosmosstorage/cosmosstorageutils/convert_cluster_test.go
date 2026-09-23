@@ -59,7 +59,7 @@ func TestClusterEnsureDefaults(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cluster := &coreapi.HCPOpenShiftCluster{}
+			cluster := &coreapi.Cluster{}
 			cluster.CustomerProperties.Network.NetworkType = tt.networkType
 			cluster.CustomerProperties.API.Visibility = tt.visibility
 			cluster.CustomerProperties.Platform.OutboundType = tt.outboundType

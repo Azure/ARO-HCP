@@ -188,8 +188,8 @@ func TestTriggerControlPlaneUpgradeSyncer_ShouldTriggerUpgrade(t *testing.T) {
 	now := time.Date(2026, 6, 26, 12, 0, 0, 0, time.UTC)
 	listerBoom := errors.New("active operation lister exploded")
 
-	newCluster := func(createdAt *time.Time, activeOperationID string) *coreapi.HCPOpenShiftCluster {
-		c := &coreapi.HCPOpenShiftCluster{
+	newCluster := func(createdAt *time.Time, activeOperationID string) *coreapi.Cluster {
+		c := &coreapi.Cluster{
 			CosmosMetadata: coreapi.CosmosMetadata{
 				ResourceID: clusterResourceID,
 			},
@@ -200,7 +200,7 @@ func TestTriggerControlPlaneUpgradeSyncer_ShouldTriggerUpgrade(t *testing.T) {
 					Type: coreapi.ClusterResourceType.String(),
 				},
 			},
-			ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+			ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 				ActiveOperationID: activeOperationID,
 			},
 		}
@@ -212,7 +212,7 @@ func TestTriggerControlPlaneUpgradeSyncer_ShouldTriggerUpgrade(t *testing.T) {
 
 	tests := []struct {
 		name           string
-		cluster        *coreapi.HCPOpenShiftCluster
+		cluster        *coreapi.Cluster
 		seedOperation  bool
 		opLister       func(mockDB *corecosmosstoragetesting.MockResourcesDBClient) corelisters.ActiveOperationLister
 		wantShouldRun  bool
@@ -312,14 +312,14 @@ func TestTriggerControlPlaneUpgradeSyncer_SyncOnce(t *testing.T) {
 	// clusterInCache builds a cluster with a ClusterServiceID and no SystemData
 	// (so shouldTriggerUpgrade passes the grace-period gate without consulting the
 	// active-operation lister). It is only ever stored in the slice cache lister.
-	clusterInCache := func() *coreapi.HCPOpenShiftCluster {
+	clusterInCache := func() *coreapi.Cluster {
 		clusterResourceID := metadataapi.Must(coreapihelpers.ToClusterResourceID(testSubscriptionID, testResourceGroupName, testClusterName))
-		return &coreapi.HCPOpenShiftCluster{
+		return &coreapi.Cluster{
 			CosmosMetadata: coreapi.CosmosMetadata{ResourceID: clusterResourceID},
 			TrackedResource: coreapi.TrackedResource{
 				Resource: coreapi.Resource{ID: clusterResourceID, Name: testClusterName, Type: coreapi.ClusterResourceType.String()},
 			},
-			ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+			ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 				ClusterServiceID: ptr.To(testClusterServiceID),
 			},
 		}
@@ -343,7 +343,7 @@ func TestTriggerControlPlaneUpgradeSyncer_SyncOnce(t *testing.T) {
 
 	tests := []struct {
 		name      string
-		clusters  []*coreapi.HCPOpenShiftCluster
+		clusters  []*coreapi.Cluster
 		spcs      []*coreapi.ServiceProviderCluster
 		mockSetup func(*ocm.MockClusterServiceClientSpec)
 	}{
@@ -353,13 +353,13 @@ func TestTriggerControlPlaneUpgradeSyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name:      "desired version matches latest active version returns nil",
-			clusters:  []*coreapi.HCPOpenShiftCluster{clusterInCache()},
+			clusters:  []*coreapi.Cluster{clusterInCache()},
 			spcs:      []*coreapi.ServiceProviderCluster{spcInCache("4.19.15", "4.19.15")},
 			mockSetup: func(mc *ocm.MockClusterServiceClientSpec) {},
 		},
 		{
 			name:     "desired version differs from active version triggers upgrade policy from cached cluster read",
-			clusters: []*coreapi.HCPOpenShiftCluster{clusterInCache()},
+			clusters: []*coreapi.Cluster{clusterInCache()},
 			spcs:     []*coreapi.ServiceProviderCluster{spcInCache("4.19.15", "4.19.22")},
 			mockSetup: func(mc *ocm.MockClusterServiceClientSpec) {
 				mc.EXPECT().

@@ -175,7 +175,7 @@ type clusterUpdateDispatchConfigEtcdDataEncryptionCustomerManagedKmsActiveKey st
 
 // ClusterUpdateDispatchConfigJSONFromRP returns the canonical JSON of the dispatch config
 // projected from RP desired state.
-func ClusterUpdateDispatchConfigJSONFromRP(cluster *coreapi.HCPOpenShiftCluster, serviceProviderCluster *coreapi.ServiceProviderCluster) (string, error) {
+func ClusterUpdateDispatchConfigJSONFromRP(cluster *coreapi.Cluster, serviceProviderCluster *coreapi.ServiceProviderCluster) (string, error) {
 	raw, err := clusterUpdateDispatchConfigFromRP(cluster, serviceProviderCluster).canonicalJSON()
 	if err != nil {
 		return "", err
@@ -198,7 +198,7 @@ func ClusterUpdateDispatchConfigJSONFromCS(csCluster *arohcpv1alpha1.Cluster) (s
 }
 
 // clusterUpdateDispatchConfigFromRP projects RP desired state into the dispatch canonical form.
-func clusterUpdateDispatchConfigFromRP(cluster *coreapi.HCPOpenShiftCluster, serviceProviderCluster *coreapi.ServiceProviderCluster) *clusterUpdateDispatchConfig {
+func clusterUpdateDispatchConfigFromRP(cluster *coreapi.Cluster, serviceProviderCluster *coreapi.ServiceProviderCluster) *clusterUpdateDispatchConfig {
 	var containerRegistryPullMIResourceID *string
 	if cluster.CustomerProperties.Platform.ContainerRegistry.PullManagedIdentity != nil {
 		containerRegistryPullMIResourceID = to.Ptr(cluster.CustomerProperties.Platform.ContainerRegistry.PullManagedIdentity.String())
@@ -524,7 +524,7 @@ func clusterUpdateDispatchConfigEtcdFromCS(in *arohcpv1alpha1.Azure) clusterUpda
 // clusterUpdateDispatchConfigHash returns a SHA-256 hex digest of the dispatch config
 // projected from RP desired state. The digest is computed from canonical JSON (sorted object
 // keys at every level), not from a raw json.Marshal of the struct.
-func clusterUpdateDispatchConfigHash(cluster *coreapi.HCPOpenShiftCluster, serviceProviderCluster *coreapi.ServiceProviderCluster) (string, error) {
+func clusterUpdateDispatchConfigHash(cluster *coreapi.Cluster, serviceProviderCluster *coreapi.ServiceProviderCluster) (string, error) {
 	return clusterUpdateDispatchConfigFromRP(cluster, serviceProviderCluster).hash()
 }
 

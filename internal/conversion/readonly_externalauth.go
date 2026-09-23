@@ -23,7 +23,7 @@ func CopyReadOnlyProxyResourceValues(dest, src *coreapi.ProxyResource) {
 	dest.SystemData = src.SystemData.DeepCopy()
 }
 
-func CopyReadOnlyExternalAuthValues(dest, src *coreapi.HCPOpenShiftClusterExternalAuth) {
+func CopyReadOnlyExternalAuthValues(dest, src *coreapi.ClusterExternalAuth) {
 	CopyReadOnlyProxyResourceValues(&dest.ProxyResource, &src.ProxyResource)
 
 	// CosmosMetadata is read-only on the API surface; carry over so the

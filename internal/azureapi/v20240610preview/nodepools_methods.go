@@ -32,7 +32,7 @@ type NodePool struct {
 	generated.NodePool
 }
 
-var _ coreapi.VersionedCreatableResource[coreapi.HCPOpenShiftClusterNodePool] = &NodePool{}
+var _ coreapi.VersionedCreatableResource[coreapi.ClusterNodePool] = &NodePool{}
 
 func (h *NodePool) NewExternal() any {
 	return &NodePool{}
@@ -83,8 +83,8 @@ func (h *NodePool) GetVersion() coreapi.Version {
 	return versionedInterface
 }
 
-func (h *NodePool) ConvertToInternal(existing *coreapi.HCPOpenShiftClusterNodePool) (*coreapi.HCPOpenShiftClusterNodePool, error) {
-	out := &coreapi.HCPOpenShiftClusterNodePool{}
+func (h *NodePool) ConvertToInternal(existing *coreapi.ClusterNodePool) (*coreapi.ClusterNodePool, error) {
+	out := &coreapi.ClusterNodePool{}
 	errs := field.ErrorList{}
 
 	if h.ID != nil {
@@ -198,7 +198,7 @@ func (h *NodePool) ConvertToInternal(existing *coreapi.HCPOpenShiftClusterNodePo
 
 // preserveUnknownNodePoolFields copies customer-facing fields from existing that
 // this API version (2024-06-10-preview) doesn't know about.
-func preserveUnknownNodePoolFields(from, to *coreapi.HCPOpenShiftClusterNodePool) {
+func preserveUnknownNodePoolFields(from, to *coreapi.ClusterNodePool) {
 	// DiskType was added in v20251223preview.
 	to.Properties.Platform.OSDisk.DiskType = from.Properties.Platform.OSDisk.DiskType
 }
@@ -317,7 +317,7 @@ func newNodePoolAutoScaling(from *coreapi.NodePoolAutoScaling) generated.NodePoo
 // NewHCPOpenShiftClusterNodePool converts an internal representation to this API version.
 // If from is nil, returns a defaulted external object for use on the write path
 // where defaults are applied before unmarshaling the request body.
-func (v version) NewHCPOpenShiftClusterNodePool(from *coreapi.HCPOpenShiftClusterNodePool) coreapi.VersionedHCPOpenShiftClusterNodePool {
+func (v version) NewClusterNodePool(from *coreapi.ClusterNodePool) coreapi.VersionedClusterNodePool {
 	if from == nil {
 		ret := &NodePool{}
 		SetDefaultValuesNodePool(ret)

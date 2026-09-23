@@ -62,8 +62,8 @@ func main() {
 
 // CreateJSONFile creates a base cluster JSON file for use with testing frontend to create clusters
 func CreateJSONFile() error {
-	cluster := coreapi.HCPOpenShiftCluster{
-		CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+	cluster := coreapi.Cluster{
+		CustomerProperties: coreapi.ClusterCustomerProperties{
 			Version: coreapi.VersionProfile{
 				ChannelGroup: "stable",
 			},
@@ -85,7 +85,7 @@ func CreateJSONFile() error {
 				OutboundType:           metadataapi.OutboundType("LoadBalancer"),
 			},
 		},
-		ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 			Console: coreapi.ServiceProviderConsoleProfile{},
 			Platform: coreapi.ServiceProviderPlatformProfile{
 				IssuerURL: "",
@@ -107,8 +107,8 @@ func CreateJSONFile() error {
 }
 
 func CreateNodePool() error {
-	nodePool := coreapi.HCPOpenShiftClusterNodePool{
-		Properties: coreapi.HCPOpenShiftClusterNodePoolProperties{
+	nodePool := coreapi.ClusterNodePool{
+		Properties: coreapi.ClusterNodePoolProperties{
 			ProvisioningState: coreapi.ProvisioningState(""),
 			Version: coreapi.NodePoolVersionProfile{
 				ChannelGroup: "stable",

@@ -22,27 +22,27 @@ import (
 	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
 )
 
-func TestDeepCopyHCPOpenShiftCluster(t *testing.T) {
+func TestDeepCopyCluster(t *testing.T) {
 	seed := rand.Int63()
 	t.Logf("seed: %d", seed)
 
 	fuzzer := coreapitesting.DeepCopyFuzzerFor(rand.NewSource(seed))
 
 	for i := 0; i < 200; i++ {
-		original := &coreapi.HCPOpenShiftCluster{}
+		original := &coreapi.Cluster{}
 		fuzzer.Fill(original)
 		coreapitesting.DoDeepCopyTest(t, original, fuzzer)
 	}
 }
 
-func TestDeepCopyHCPOpenShiftClusterNodePool(t *testing.T) {
+func TestDeepCopyClusterNodePool(t *testing.T) {
 	seed := rand.Int63()
 	t.Logf("seed: %d", seed)
 
 	fuzzer := coreapitesting.DeepCopyFuzzerFor(rand.NewSource(seed))
 
 	for i := 0; i < 200; i++ {
-		original := &coreapi.HCPOpenShiftClusterNodePool{}
+		original := &coreapi.ClusterNodePool{}
 		fuzzer.Fill(original)
 		coreapitesting.DoDeepCopyTest(t, original, fuzzer)
 	}

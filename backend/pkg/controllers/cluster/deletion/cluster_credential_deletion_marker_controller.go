@@ -72,7 +72,7 @@ func NewClusterCredentialDeletionMarkerController(
 	)
 }
 
-func (c *clusterCredentialDeletionMarkerController) NeedsWork(cluster *coreapi.HCPOpenShiftCluster) bool {
+func (c *clusterCredentialDeletionMarkerController) NeedsWork(cluster *coreapi.Cluster) bool {
 	if !cluster.ServiceProviderProperties.UsesNewClusterDeletionApproach {
 		return false
 	}

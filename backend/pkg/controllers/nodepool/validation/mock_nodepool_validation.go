@@ -74,6 +74,6 @@ func (m *MockNodePoolValidation) WithEarliestRetryAfter(d *time.Duration) *MockN
 
 func (m *MockNodePoolValidation) Name() string { return m.validationName }
 
-func (m *MockNodePoolValidation) Validate(_ context.Context, _ *coreapi.HCPOpenShiftCluster, _ *coreapi.Subscription, _ *coreapi.HCPOpenShiftClusterNodePool) validationutils.ValidationResult {
+func (m *MockNodePoolValidation) Validate(_ context.Context, _ *coreapi.Cluster, _ *coreapi.Subscription, _ *coreapi.ClusterNodePool) validationutils.ValidationResult {
 	return m.result
 }

@@ -164,8 +164,8 @@ func TestBackendExposesMetrics(t *testing.T) {
 	})
 }
 
-func newMetricsTestCluster(resourceID *azcorearm.ResourceID, provisioningState coreapi.ProvisioningState, createdAt *time.Time) *coreapi.HCPOpenShiftCluster {
-	return &coreapi.HCPOpenShiftCluster{
+func newMetricsTestCluster(resourceID *azcorearm.ResourceID, provisioningState coreapi.ProvisioningState, createdAt *time.Time) *coreapi.Cluster {
+	return &coreapi.Cluster{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   resourceID,
 			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
@@ -176,7 +176,7 @@ func newMetricsTestCluster(resourceID *azcorearm.ResourceID, provisioningState c
 				SystemData: &coreapi.SystemData{CreatedAt: createdAt},
 			},
 		},
-		ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 			ProvisioningState: provisioningState,
 			ClusterServiceID:  metadataapihelpers.Ptr(metadataapi.Must(metadataapi.NewInternalID("/api/clusters_mgmt/v1/clusters/test-cluster"))),
 		},

@@ -45,7 +45,7 @@ import (
 
 // hypershiftHostedClusterOperationState contains the cluster update operation state calculation comparing desired state
 // against Hypershift's HostedCluster in the management cluster.
-func (c *operationClusterUpdate) hypershiftHostedClusterOperationState(ctx context.Context, cluster *coreapi.HCPOpenShiftCluster, spc *coreapi.ServiceProviderCluster) (*operationbase.OperationState, error) {
+func (c *operationClusterUpdate) hypershiftHostedClusterOperationState(ctx context.Context, cluster *coreapi.Cluster, spc *coreapi.ServiceProviderCluster) (*operationbase.OperationState, error) {
 	hostedCluster, err := kubeapplierhelpers.GetCachedHostedClusterForCluster(
 		ctx,
 		c.readDesireLister,
@@ -72,7 +72,7 @@ func (c *operationClusterUpdate) hypershiftHostedClusterOperationState(ctx conte
 // hypershiftHostedClusterSpecMatchesDesired reports whether Hypershift HostedCluster .Spec fields
 // and other non status configuration matches desired state. Returns false and a diagnostic message
 // when any leaf check fails. HostedCluster .status is not checked here.
-func (c *operationClusterUpdate) hypershiftHostedClusterSpecMatchesDesired(cluster *coreapi.HCPOpenShiftCluster, spc *coreapi.ServiceProviderCluster, hostedCluster *v1beta1.HostedCluster) (bool, string) {
+func (c *operationClusterUpdate) hypershiftHostedClusterSpecMatchesDesired(cluster *coreapi.Cluster, spc *coreapi.ServiceProviderCluster, hostedCluster *v1beta1.HostedCluster) (bool, string) {
 	if matches, message := c.hypershiftHostedClusterAllowedCIDRBlocksSpecMatchesDesired(cluster.CustomerProperties.API.AuthorizedCIDRs, &hostedCluster.Spec); !matches {
 		return false, message
 	}
@@ -397,7 +397,7 @@ func (c *operationClusterUpdate) hypershiftHostedClusterCustomerManagedSecretEnc
 // directly can be added here
 // Add checks against the management cluster state when possible instead of here, to reduce the number of checks against Cluster Service, as
 // CS will be removed in the future.
-func (c *operationClusterUpdate) clusterServiceClusterSpecOperationState(cluster *coreapi.HCPOpenShiftCluster, csCluster *arohcpv1alpha1.Cluster) (*operationbase.OperationState, error) {
+func (c *operationClusterUpdate) clusterServiceClusterSpecOperationState(cluster *coreapi.Cluster, csCluster *arohcpv1alpha1.Cluster) (*operationbase.OperationState, error) {
 	if matches, message := c.clusterServiceClusterSpecMatchesDesired(cluster, csCluster); !matches {
 		return operationbase.NewOperationState(coreapi.ProvisioningStateUpdating, message), nil
 	}
@@ -407,7 +407,7 @@ func (c *operationClusterUpdate) clusterServiceClusterSpecOperationState(cluster
 // clusterServiceClusterSpecMatchesDesired reports whether Cluster Service cluster spec fields
 // relevant to the cluster update operation match desired state. Returns false and a diagnostic
 // message when any leaf check fails.
-func (c *operationClusterUpdate) clusterServiceClusterSpecMatchesDesired(cluster *coreapi.HCPOpenShiftCluster, csCluster *arohcpv1alpha1.Cluster) (bool, string) {
+func (c *operationClusterUpdate) clusterServiceClusterSpecMatchesDesired(cluster *coreapi.Cluster, csCluster *arohcpv1alpha1.Cluster) (bool, string) {
 	// TODO for now we calculate authorized CIDR against CS because we cannot calculate the difference on
 	// the Hypershift HostedCluster because there are internal IPs associated to the Node Pools egress LB that we
 	// do not track on the RP side yet. Once that is tracked we should remove this and update the logic that calculates
@@ -522,7 +522,7 @@ func (c *operationClusterUpdate) clusterServiceClusterContainerRegistryPullMISpe
 // cluster-autoscaler ControlPlaneComponent status (Available + RolloutComplete)
 // when the active control plane is 4.20+. HostedCluster autoscaling Spec matching
 // is owned by hypershiftHostedClusterOperationState.
-func (c *operationClusterUpdate) hypershiftControlPlaneClusterAutoscalerState(ctx context.Context, existingCluster *coreapi.HCPOpenShiftCluster, spc *coreapi.ServiceProviderCluster) (*operationbase.OperationState, error) {
+func (c *operationClusterUpdate) hypershiftControlPlaneClusterAutoscalerState(ctx context.Context, existingCluster *coreapi.Cluster, spc *coreapi.ServiceProviderCluster) (*operationbase.OperationState, error) {
 	logger := utils.LoggerFromContext(ctx)
 
 	lowest, _ := apihelpers.FindLowestAndHighestClusterVersion(spc.Status.ControlPlaneVersion.ActiveVersions)

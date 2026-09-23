@@ -409,24 +409,24 @@ func TestBackupScheduleSyncer_SyncOnce(t *testing.T) {
 		"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testKey.HCPClusterName
 	testSchedulePrefix := hostedClusterNamespace
 
-	newTestCluster := func(opts ...func(*coreapi.HCPOpenShiftCluster)) *coreapi.HCPOpenShiftCluster {
+	newTestCluster := func(opts ...func(*coreapi.Cluster)) *coreapi.Cluster {
 		resourceID := metadataapi.Must(azcorearm.ParseResourceID(
 			"/subscriptions/" + testKey.SubscriptionID +
 				"/resourceGroups/" + testKey.ResourceGroupName +
 				"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testKey.HCPClusterName,
 		))
 		csID := metadataapi.Must(metadataapi.NewInternalID(testClusterIDStr))
-		cluster := &coreapi.HCPOpenShiftCluster{
+		cluster := &coreapi.Cluster{
 			CosmosMetadata: coreapi.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(resourceID.SubscriptionID)},
 			TrackedResource: coreapi.TrackedResource{
 				Resource: coreapi.Resource{ID: resourceID},
 			},
-			CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+			CustomerProperties: coreapi.ClusterCustomerProperties{
 				DNS: coreapi.CustomerDNSProfile{
 					BaseDomainPrefix: testDomainPrefix,
 				},
 			},
-			ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+			ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 				ProvisioningState:       coreapi.ProvisioningStateSucceeded,
 				ClusterServiceID:        &csID,
 				BillingDocumentCosmosID: "test-billing-doc-id",
@@ -540,7 +540,7 @@ func TestBackupScheduleSyncer_SyncOnce(t *testing.T) {
 		hasPlacement    bool
 		backupConfig    *BackupConfig
 		syncCount       int
-		clusterOpts     []func(*coreapi.HCPOpenShiftCluster)
+		clusterOpts     []func(*coreapi.Cluster)
 		expectError     bool
 		errorContains   string
 		verify          func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient, mockKubeApplier *kubeappliercosmosstoragetesting.MockKubeApplierDBClient)
@@ -555,7 +555,7 @@ func TestBackupScheduleSyncer_SyncOnce(t *testing.T) {
 			name: "installing cluster is skipped",
 			seedDB: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient) {
 				t.Helper()
-				_, err := mockDB.HCPClusters(testKey.SubscriptionID, testKey.ResourceGroupName).Create(ctx, newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
+				_, err := mockDB.HCPClusters(testKey.SubscriptionID, testKey.ResourceGroupName).Create(ctx, newTestCluster(func(c *coreapi.Cluster) {
 					c.ServiceProviderProperties.ProvisioningState = coreapi.ProvisioningStateProvisioning
 				}), nil)
 				require.NoError(t, err)
@@ -566,7 +566,7 @@ func TestBackupScheduleSyncer_SyncOnce(t *testing.T) {
 			seedDB: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient) {
 				t.Helper()
 			},
-			clusterOpts: []func(*coreapi.HCPOpenShiftCluster){func(c *coreapi.HCPOpenShiftCluster) {
+			clusterOpts: []func(*coreapi.Cluster){func(c *coreapi.Cluster) {
 				c.ServiceProviderProperties.BillingDocumentCosmosID = ""
 			}},
 			hasPlacement: true,
@@ -586,7 +586,7 @@ func TestBackupScheduleSyncer_SyncOnce(t *testing.T) {
 			seedDB: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient) {
 				t.Helper()
 				now := metav1.Now()
-				_, err := mockDB.HCPClusters(testKey.SubscriptionID, testKey.ResourceGroupName).Create(ctx, newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
+				_, err := mockDB.HCPClusters(testKey.SubscriptionID, testKey.ResourceGroupName).Create(ctx, newTestCluster(func(c *coreapi.Cluster) {
 					c.ServiceProviderProperties.ProvisioningState = coreapi.ProvisioningStateFailed
 					c.ServiceProviderProperties.DeletionTimestamp = &now
 				}), nil)
@@ -690,12 +690,12 @@ func TestBackupScheduleSyncer_SyncOnce(t *testing.T) {
 			seedDB: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient) {
 				t.Helper()
 				now := metav1.Now()
-				_, err := mockDB.HCPClusters(testKey.SubscriptionID, testKey.ResourceGroupName).Create(ctx, newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
+				_, err := mockDB.HCPClusters(testKey.SubscriptionID, testKey.ResourceGroupName).Create(ctx, newTestCluster(func(c *coreapi.Cluster) {
 					c.ServiceProviderProperties.DeletionTimestamp = &now
 				}), nil)
 				require.NoError(t, err)
 			},
-			clusterOpts: []func(*coreapi.HCPOpenShiftCluster){func(c *coreapi.HCPOpenShiftCluster) {
+			clusterOpts: []func(*coreapi.Cluster){func(c *coreapi.Cluster) {
 				now := metav1.Now()
 				c.ServiceProviderProperties.DeletionTimestamp = &now
 			}},
@@ -748,12 +748,12 @@ func TestBackupScheduleSyncer_SyncOnce(t *testing.T) {
 			seedDB: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient) {
 				t.Helper()
 				now := metav1.Now()
-				_, err := mockDB.HCPClusters(testKey.SubscriptionID, testKey.ResourceGroupName).Create(ctx, newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
+				_, err := mockDB.HCPClusters(testKey.SubscriptionID, testKey.ResourceGroupName).Create(ctx, newTestCluster(func(c *coreapi.Cluster) {
 					c.ServiceProviderProperties.DeletionTimestamp = &now
 				}), nil)
 				require.NoError(t, err)
 			},
-			clusterOpts: []func(*coreapi.HCPOpenShiftCluster){func(c *coreapi.HCPOpenShiftCluster) {
+			clusterOpts: []func(*coreapi.Cluster){func(c *coreapi.Cluster) {
 				now := metav1.Now()
 				c.ServiceProviderProperties.DeletionTimestamp = &now
 			}},
@@ -839,12 +839,12 @@ func TestBackupScheduleSyncer_SyncOnce(t *testing.T) {
 			seedDB: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient) {
 				t.Helper()
 				now := metav1.Now()
-				_, err := mockDB.HCPClusters(testKey.SubscriptionID, testKey.ResourceGroupName).Create(ctx, newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
+				_, err := mockDB.HCPClusters(testKey.SubscriptionID, testKey.ResourceGroupName).Create(ctx, newTestCluster(func(c *coreapi.Cluster) {
 					c.ServiceProviderProperties.DeletionTimestamp = &now
 				}), nil)
 				require.NoError(t, err)
 			},
-			clusterOpts: []func(*coreapi.HCPOpenShiftCluster){func(c *coreapi.HCPOpenShiftCluster) {
+			clusterOpts: []func(*coreapi.Cluster){func(c *coreapi.Cluster) {
 				now := metav1.Now()
 				c.ServiceProviderProperties.DeletionTimestamp = &now
 			}},
@@ -855,12 +855,12 @@ func TestBackupScheduleSyncer_SyncOnce(t *testing.T) {
 			seedDB: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient) {
 				t.Helper()
 				now := metav1.Now()
-				_, err := mockDB.HCPClusters(testKey.SubscriptionID, testKey.ResourceGroupName).Create(ctx, newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
+				_, err := mockDB.HCPClusters(testKey.SubscriptionID, testKey.ResourceGroupName).Create(ctx, newTestCluster(func(c *coreapi.Cluster) {
 					c.ServiceProviderProperties.DeletionTimestamp = &now
 				}), nil)
 				require.NoError(t, err)
 			},
-			clusterOpts: []func(*coreapi.HCPOpenShiftCluster){func(c *coreapi.HCPOpenShiftCluster) {
+			clusterOpts: []func(*coreapi.Cluster){func(c *coreapi.Cluster) {
 				now := metav1.Now()
 				c.ServiceProviderProperties.DeletionTimestamp = &now
 			}},
@@ -931,7 +931,7 @@ func TestBackupScheduleSyncer_SyncOnce(t *testing.T) {
 			name: "updates schedule annotation when KMS key rotates",
 			seedDB: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient) {
 				t.Helper()
-				_, err := mockDB.HCPClusters(testKey.SubscriptionID, testKey.ResourceGroupName).Create(ctx, newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
+				_, err := mockDB.HCPClusters(testKey.SubscriptionID, testKey.ResourceGroupName).Create(ctx, newTestCluster(func(c *coreapi.Cluster) {
 					c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{
 						Kms: &coreapi.KmsEncryptionProfile{
 							ActiveKey: coreapi.KmsKey{Version: "v2", Name: "key1", VaultName: "vault1"},
@@ -940,7 +940,7 @@ func TestBackupScheduleSyncer_SyncOnce(t *testing.T) {
 				}), nil)
 				require.NoError(t, err)
 			},
-			clusterOpts: []func(*coreapi.HCPOpenShiftCluster){func(c *coreapi.HCPOpenShiftCluster) {
+			clusterOpts: []func(*coreapi.Cluster){func(c *coreapi.Cluster) {
 				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{
 					Kms: &coreapi.KmsEncryptionProfile{
 						ActiveKey: coreapi.KmsKey{Version: "v2", Name: "key1", VaultName: "vault1"},
@@ -1028,7 +1028,7 @@ func TestBackupScheduleSyncer_SyncOnce(t *testing.T) {
 			name: "does not advance annotation ahead of the live HostedCluster during an in-flight rotation",
 			seedDB: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient) {
 				t.Helper()
-				_, err := mockDB.HCPClusters(testKey.SubscriptionID, testKey.ResourceGroupName).Create(ctx, newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
+				_, err := mockDB.HCPClusters(testKey.SubscriptionID, testKey.ResourceGroupName).Create(ctx, newTestCluster(func(c *coreapi.Cluster) {
 					c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{
 						Kms: &coreapi.KmsEncryptionProfile{
 							ActiveKey: coreapi.KmsKey{Version: "v2", Name: "key1", VaultName: "vault1"},
@@ -1037,7 +1037,7 @@ func TestBackupScheduleSyncer_SyncOnce(t *testing.T) {
 				}), nil)
 				require.NoError(t, err)
 			},
-			clusterOpts: []func(*coreapi.HCPOpenShiftCluster){func(c *coreapi.HCPOpenShiftCluster) {
+			clusterOpts: []func(*coreapi.Cluster){func(c *coreapi.Cluster) {
 				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{
 					Kms: &coreapi.KmsEncryptionProfile{
 						// Customer already requested v2, but the HostedCluster
@@ -1172,7 +1172,7 @@ func TestBackupScheduleSyncer_SyncOnce(t *testing.T) {
 			}
 
 			clusterLister := &corelistertesting.SliceClusterLister{
-				Clusters: []*coreapi.HCPOpenShiftCluster{newTestCluster(tt.clusterOpts...)},
+				Clusters: []*coreapi.Cluster{newTestCluster(tt.clusterOpts...)},
 			}
 
 			var serviceProviderClusterList []*coreapi.ServiceProviderCluster

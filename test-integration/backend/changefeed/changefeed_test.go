@@ -63,15 +63,15 @@ const (
 )
 
 type clusterChangeFeedWatcher = informerutils.ChangeFeedWatcher[
-	coreapi.HCPOpenShiftCluster,
-	*coreapi.HCPOpenShiftCluster,
-	cosmosstorageutils.GenericDocument[coreapi.HCPOpenShiftCluster],
+	coreapi.Cluster,
+	*coreapi.Cluster,
+	cosmosstorageutils.GenericDocument[coreapi.Cluster],
 ]
 
 type clusterChangeFeedListWatcher = informerutils.ChangeFeedListWatcher[
-	coreapi.HCPOpenShiftCluster,
-	*coreapi.HCPOpenShiftCluster,
-	cosmosstorageutils.GenericDocument[coreapi.HCPOpenShiftCluster],
+	coreapi.Cluster,
+	*coreapi.Cluster,
+	cosmosstorageutils.GenericDocument[coreapi.Cluster],
 ]
 
 // TestChangeFeedListWatcher exercises the change-feed-backed ListWatcher
@@ -369,9 +369,9 @@ func newChangeFeedTestEnv(t *testing.T, withMock bool) *changefeedTestEnv {
 	resourcesDBClient := storage.ResourcesDBClient()
 
 	listWatcher := informerutils.NewChangeFeedListWatcher[
-		coreapi.HCPOpenShiftCluster,
-		*coreapi.HCPOpenShiftCluster,
-		cosmosstorageutils.GenericDocument[coreapi.HCPOpenShiftCluster],
+		coreapi.Cluster,
+		*coreapi.Cluster,
+		cosmosstorageutils.GenericDocument[coreapi.Cluster],
 	](
 		[]azcorearm.ResourceType{coreapi.ClusterResourceType},
 		utilsclock.RealClock{},
@@ -433,7 +433,7 @@ func (e *changefeedTestEnv) startListAndWatch(t *testing.T) ([]string, *clusterC
 		if item.Object == nil {
 			continue
 		}
-		if cluster, ok := item.Object.(*coreapi.HCPOpenShiftCluster); ok && cluster.ResourceID != nil {
+		if cluster, ok := item.Object.(*coreapi.Cluster); ok && cluster.ResourceID != nil {
 			listed = append(listed, strings.ToLower(cluster.ResourceID.String()))
 		}
 	}
@@ -449,7 +449,7 @@ func (e *changefeedTestEnv) startListAndWatch(t *testing.T) ([]string, *clusterC
 // createCluster creates a minimal cluster document via the production
 // CRUD layer. Returns the round-tripped object so the caller has the
 // authoritative InstanceVersion / CosmosETag.
-func (e *changefeedTestEnv) createCluster(t *testing.T, resourceID *azcorearm.ResourceID) *coreapi.HCPOpenShiftCluster {
+func (e *changefeedTestEnv) createCluster(t *testing.T, resourceID *azcorearm.ResourceID) *coreapi.Cluster {
 	t.Helper()
 	cluster := newClusterFixture(resourceID)
 	created, err := e.resourcesDBClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).
@@ -460,7 +460,7 @@ func (e *changefeedTestEnv) createCluster(t *testing.T, resourceID *azcorearm.Re
 
 // replaceCluster does a conditional Replace using the existing
 // CosmosETag and returns the round-tripped object.
-func (e *changefeedTestEnv) replaceCluster(t *testing.T, existing *coreapi.HCPOpenShiftCluster) *coreapi.HCPOpenShiftCluster {
+func (e *changefeedTestEnv) replaceCluster(t *testing.T, existing *coreapi.Cluster) *coreapi.Cluster {
 	t.Helper()
 	updated := newClusterFixture(existing.ResourceID)
 	updated.CosmosETag = existing.CosmosETag
@@ -491,7 +491,7 @@ func (e *changefeedTestEnv) uniqueOperationResourceID(name string) *azcorearm.Re
 		testSubscriptionID, opName)))
 }
 
-func (e *changefeedTestEnv) createNodePool(t *testing.T, resourceID *azcorearm.ResourceID) *coreapi.HCPOpenShiftClusterNodePool {
+func (e *changefeedTestEnv) createNodePool(t *testing.T, resourceID *azcorearm.ResourceID) *coreapi.ClusterNodePool {
 	t.Helper()
 	np := newNodePoolFixture(resourceID)
 	clusterName := resourceID.Parent.Name
@@ -501,7 +501,7 @@ func (e *changefeedTestEnv) createNodePool(t *testing.T, resourceID *azcorearm.R
 	return created
 }
 
-func (e *changefeedTestEnv) replaceNodePool(t *testing.T, existing *coreapi.HCPOpenShiftClusterNodePool) *coreapi.HCPOpenShiftClusterNodePool {
+func (e *changefeedTestEnv) replaceNodePool(t *testing.T, existing *coreapi.ClusterNodePool) *coreapi.ClusterNodePool {
 	t.Helper()
 	updated := newNodePoolFixture(existing.ResourceID)
 	updated.CosmosETag = existing.CosmosETag
@@ -552,7 +552,7 @@ func (f *flooder) waitForStop() {
 	<-f.stopped
 }
 
-func (e *changefeedTestEnv) startFlooder(t *testing.T, ctx context.Context, initial *coreapi.HCPOpenShiftCluster) *flooder {
+func (e *changefeedTestEnv) startFlooder(t *testing.T, ctx context.Context, initial *coreapi.Cluster) *flooder {
 	t.Helper()
 	f := &flooder{stopped: make(chan struct{})}
 	go func() {
@@ -595,8 +595,8 @@ func (e *changefeedTestEnv) startFlooder(t *testing.T, ctx context.Context, init
 	return f
 }
 
-func newClusterFixture(resourceID *azcorearm.ResourceID) *coreapi.HCPOpenShiftCluster {
-	return &coreapi.HCPOpenShiftCluster{
+func newClusterFixture(resourceID *azcorearm.ResourceID) *coreapi.Cluster {
+	return &coreapi.Cluster{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   resourceID,
 			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
@@ -609,15 +609,15 @@ func newClusterFixture(resourceID *azcorearm.ResourceID) *coreapi.HCPOpenShiftCl
 			},
 			Location: "eastus",
 		},
-		ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 			ProvisioningState: coreapi.ProvisioningStateAccepted,
 			ClusterServiceID:  metadataapihelpers.Ptr(metadataapi.Must(metadataapi.NewInternalID("/api/clusters_mgmt/v1/clusters/changefeed-test"))),
 		},
 	}
 }
 
-func newNodePoolFixture(resourceID *azcorearm.ResourceID) *coreapi.HCPOpenShiftClusterNodePool {
-	return &coreapi.HCPOpenShiftClusterNodePool{
+func newNodePoolFixture(resourceID *azcorearm.ResourceID) *coreapi.ClusterNodePool {
+	return &coreapi.ClusterNodePool{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   resourceID,
 			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
@@ -630,11 +630,11 @@ func newNodePoolFixture(resourceID *azcorearm.ResourceID) *coreapi.HCPOpenShiftC
 			},
 			Location: "eastus",
 		},
-		Properties: coreapi.HCPOpenShiftClusterNodePoolProperties{
+		Properties: coreapi.ClusterNodePoolProperties{
 			ProvisioningState: coreapi.ProvisioningStateAccepted,
 			Replicas:          3,
 		},
-		ServiceProviderProperties: coreapi.HCPOpenShiftClusterNodePoolServiceProviderProperties{
+		ServiceProviderProperties: coreapi.ClusterNodePoolServiceProviderProperties{
 			ClusterServiceID: metadataapihelpers.Ptr(metadataapi.Must(metadataapi.NewInternalID("/api/aro_hcp/v1alpha1/clusters/changefeed-test/node_pools/" + resourceID.Name))),
 		},
 	}

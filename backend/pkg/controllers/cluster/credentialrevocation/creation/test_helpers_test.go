@@ -66,7 +66,7 @@ func createTestRevocation(t *testing.T, db *corecosmosstoragetesting.MockResourc
 	return revocation
 }
 
-func createTestCluster(t *testing.T, db *corecosmosstoragetesting.MockResourcesDBClient, opts ...func(*coreapi.HCPOpenShiftCluster)) *coreapi.HCPOpenShiftCluster {
+func createTestCluster(t *testing.T, db *corecosmosstoragetesting.MockResourcesDBClient, opts ...func(*coreapi.Cluster)) *coreapi.Cluster {
 	t.Helper()
 
 	clusterResourceID := metadataapi.Must(azcorearm.ParseResourceID(
@@ -75,7 +75,7 @@ func createTestCluster(t *testing.T, db *corecosmosstoragetesting.MockResourcesD
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName,
 	))
 
-	cluster := &coreapi.HCPOpenShiftCluster{
+	cluster := &coreapi.Cluster{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   clusterResourceID,
 			PartitionKey: strings.ToLower(clusterResourceID.SubscriptionID),
@@ -87,7 +87,7 @@ func createTestCluster(t *testing.T, db *corecosmosstoragetesting.MockResourcesD
 			},
 			Location: testAzureLocation,
 		},
-		ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 			ProvisioningState: coreapi.ProvisioningStateSucceeded,
 		},
 	}

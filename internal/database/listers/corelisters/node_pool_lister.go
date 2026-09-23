@@ -26,10 +26,10 @@ import (
 
 // NodePoolLister lists and gets NodePools from an informer's indexer.
 type NodePoolLister interface {
-	List(ctx context.Context) ([]*coreapi.HCPOpenShiftClusterNodePool, error)
-	Get(ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName string) (*coreapi.HCPOpenShiftClusterNodePool, error)
-	ListForResourceGroup(ctx context.Context, subscriptionName, resourceGroupName string) ([]*coreapi.HCPOpenShiftClusterNodePool, error)
-	ListForCluster(ctx context.Context, subscriptionName, resourceGroupName, clusterName string) ([]*coreapi.HCPOpenShiftClusterNodePool, error)
+	List(ctx context.Context) ([]*coreapi.ClusterNodePool, error)
+	Get(ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName string) (*coreapi.ClusterNodePool, error)
+	ListForResourceGroup(ctx context.Context, subscriptionName, resourceGroupName string) ([]*coreapi.ClusterNodePool, error)
+	ListForCluster(ctx context.Context, subscriptionName, resourceGroupName, clusterName string) ([]*coreapi.ClusterNodePool, error)
 }
 
 // hcpOpenShiftClusterNodePoolLister implements NodePoolLister backed by a SharedIndexInformer.
@@ -44,25 +44,25 @@ func NewNodePoolLister(indexer cache.Indexer) NodePoolLister {
 	}
 }
 
-func (l *hcpOpenShiftClusterNodePoolLister) List(ctx context.Context) ([]*coreapi.HCPOpenShiftClusterNodePool, error) {
-	return listerutils.ListAll[coreapi.HCPOpenShiftClusterNodePool](l.indexer)
+func (l *hcpOpenShiftClusterNodePoolLister) List(ctx context.Context) ([]*coreapi.ClusterNodePool, error) {
+	return listerutils.ListAll[coreapi.ClusterNodePool](l.indexer)
 }
 
 // Get retrieves a single HCPOpenShiftClusterNodePool by subscription ID, resource group name, cluster name, and node pool name.
 // The store key is the lowercased ResourceID string:
 //
 //	/subscriptions/<sub>/resourcegroups/<rg>/providers/microsoft.redhatopenshift/hcpopenshiftclusters/<cluster>/nodepools/<name>
-func (l *hcpOpenShiftClusterNodePoolLister) Get(ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName string) (*coreapi.HCPOpenShiftClusterNodePool, error) {
+func (l *hcpOpenShiftClusterNodePoolLister) Get(ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName string) (*coreapi.ClusterNodePool, error) {
 	key := coreapihelpers.ToNodePoolResourceIDString(subscriptionID, resourceGroupName, clusterName, nodePoolName)
-	return listerutils.GetByKey[coreapi.HCPOpenShiftClusterNodePool](l.indexer, key)
+	return listerutils.GetByKey[coreapi.ClusterNodePool](l.indexer, key)
 }
 
-func (l *hcpOpenShiftClusterNodePoolLister) ListForResourceGroup(ctx context.Context, subscriptionName, resourceGroupName string) ([]*coreapi.HCPOpenShiftClusterNodePool, error) {
+func (l *hcpOpenShiftClusterNodePoolLister) ListForResourceGroup(ctx context.Context, subscriptionName, resourceGroupName string) ([]*coreapi.ClusterNodePool, error) {
 	key := coreapihelpers.ToResourceGroupResourceIDString(subscriptionName, resourceGroupName)
-	return listerutils.ListFromIndex[coreapi.HCPOpenShiftClusterNodePool](l.indexer, ByResourceGroup, key)
+	return listerutils.ListFromIndex[coreapi.ClusterNodePool](l.indexer, ByResourceGroup, key)
 }
 
-func (l *hcpOpenShiftClusterNodePoolLister) ListForCluster(ctx context.Context, subscriptionName, resourceGroupName, clusterName string) ([]*coreapi.HCPOpenShiftClusterNodePool, error) {
+func (l *hcpOpenShiftClusterNodePoolLister) ListForCluster(ctx context.Context, subscriptionName, resourceGroupName, clusterName string) ([]*coreapi.ClusterNodePool, error) {
 	key := coreapihelpers.ToClusterResourceIDString(subscriptionName, resourceGroupName, clusterName)
-	return listerutils.ListFromIndex[coreapi.HCPOpenShiftClusterNodePool](l.indexer, ByCluster, key)
+	return listerutils.ListFromIndex[coreapi.ClusterNodePool](l.indexer, ByCluster, key)
 }

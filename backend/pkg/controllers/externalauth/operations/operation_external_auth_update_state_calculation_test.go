@@ -41,7 +41,7 @@ func TestHypershiftHostedClusterExternalAuthOperationState(t *testing.T) {
 
 	tests := []struct {
 		name              string
-		externalAuth      *coreapi.HCPOpenShiftClusterExternalAuth
+		externalAuth      *coreapi.ClusterExternalAuth
 		readDesires       []*kubeapplierapi.ReadDesire
 		wantState         coreapi.ProvisioningState
 		wantMessageSubstr string
@@ -113,7 +113,7 @@ func TestHypershiftHostedClusterExternalAuthOperationState(t *testing.T) {
 		},
 		{
 			name: "issuer URL mismatch returns Updating",
-			externalAuth: operationtesting.NewExternalAuthUpdateTestExternalAuth(func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
+			externalAuth: operationtesting.NewExternalAuthUpdateTestExternalAuth(func(ea *coreapi.ClusterExternalAuth) {
 				ea.Properties.Issuer.URL = "https://changed.example.com"
 			}),
 			readDesires: []*kubeapplierapi.ReadDesire{
@@ -126,7 +126,7 @@ func TestHypershiftHostedClusterExternalAuthOperationState(t *testing.T) {
 		},
 		{
 			name: "client count mismatch returns Updating",
-			externalAuth: operationtesting.NewExternalAuthUpdateTestExternalAuth(func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
+			externalAuth: operationtesting.NewExternalAuthUpdateTestExternalAuth(func(ea *coreapi.ClusterExternalAuth) {
 				ea.Properties.Clients = append(ea.Properties.Clients, coreapi.ExternalAuthClientProfile{
 					Component: coreapi.ExternalAuthClientComponentProfile{
 						Name:                "oauth",
@@ -145,7 +145,7 @@ func TestHypershiftHostedClusterExternalAuthOperationState(t *testing.T) {
 		},
 		{
 			name: "username claim mismatch returns Updating",
-			externalAuth: operationtesting.NewExternalAuthUpdateTestExternalAuth(func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
+			externalAuth: operationtesting.NewExternalAuthUpdateTestExternalAuth(func(ea *coreapi.ClusterExternalAuth) {
 				ea.Properties.Claim.Mappings.Username.Claim = "sub"
 			}),
 			readDesires: []*kubeapplierapi.ReadDesire{
@@ -158,7 +158,7 @@ func TestHypershiftHostedClusterExternalAuthOperationState(t *testing.T) {
 		},
 		{
 			name: "validation rule mismatch returns Updating",
-			externalAuth: operationtesting.NewExternalAuthUpdateTestExternalAuth(func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
+			externalAuth: operationtesting.NewExternalAuthUpdateTestExternalAuth(func(ea *coreapi.ClusterExternalAuth) {
 				ea.Properties.Claim.ValidationRules[0].RequiredClaim.RequiredValue = "other.example.com"
 			}),
 			readDesires: []*kubeapplierapi.ReadDesire{
@@ -654,7 +654,7 @@ func TestHypershiftHostedClusterExternalAuthValidationRulesSpecMatchesDesired(t 
 func TestClusterServiceExternalAuthSpecOperationState(t *testing.T) {
 	t.Parallel()
 
-	newCSExternalAuthFromRP := func(t *testing.T, externalAuth *coreapi.HCPOpenShiftClusterExternalAuth) *arohcpv1alpha1.ExternalAuth {
+	newCSExternalAuthFromRP := func(t *testing.T, externalAuth *coreapi.ClusterExternalAuth) *arohcpv1alpha1.ExternalAuth {
 		t.Helper()
 		builder, err := ocm.BuildCSExternalAuth(context.Background(), externalAuth, true)
 		require.NoError(t, err)
@@ -667,7 +667,7 @@ func TestClusterServiceExternalAuthSpecOperationState(t *testing.T) {
 
 	tests := []struct {
 		name              string
-		externalAuth      *coreapi.HCPOpenShiftClusterExternalAuth
+		externalAuth      *coreapi.ClusterExternalAuth
 		csExternalAuth    *arohcpv1alpha1.ExternalAuth
 		wantState         coreapi.ProvisioningState
 		wantMessageSubstr string
@@ -680,7 +680,7 @@ func TestClusterServiceExternalAuthSpecOperationState(t *testing.T) {
 		},
 		{
 			name: "issuer URL mismatch returns Updating",
-			externalAuth: operationtesting.NewExternalAuthUpdateTestExternalAuth(func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
+			externalAuth: operationtesting.NewExternalAuthUpdateTestExternalAuth(func(ea *coreapi.ClusterExternalAuth) {
 				ea.Properties.Issuer.URL = "https://changed.example.com"
 			}),
 			csExternalAuth:    newCSExternalAuthFromRP(t, operationtesting.NewExternalAuthUpdateTestExternalAuth()),
@@ -695,7 +695,7 @@ func TestClusterServiceExternalAuthSpecOperationState(t *testing.T) {
 		},
 		{
 			name: "validation rule mismatch returns Updating",
-			externalAuth: operationtesting.NewExternalAuthUpdateTestExternalAuth(func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
+			externalAuth: operationtesting.NewExternalAuthUpdateTestExternalAuth(func(ea *coreapi.ClusterExternalAuth) {
 				ea.Properties.Claim.ValidationRules[0].RequiredClaim.RequiredValue = "changed.example.com"
 			}),
 			csExternalAuth:    newCSExternalAuthFromRP(t, operationtesting.NewExternalAuthUpdateTestExternalAuth()),

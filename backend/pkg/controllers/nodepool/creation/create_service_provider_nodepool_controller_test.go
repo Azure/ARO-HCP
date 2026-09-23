@@ -56,10 +56,10 @@ func newCreatorTestNodePoolKey() controllerutils.HCPNodePoolKey {
 	}
 }
 
-func newCreatorTestNodePool(t *testing.T) *coreapi.HCPOpenShiftClusterNodePool {
+func newCreatorTestNodePool(t *testing.T) *coreapi.ClusterNodePool {
 	t.Helper()
 	resourceID := metadataapi.Must(coreapihelpers.ToNodePoolResourceID(creatorTestSubscriptionID, creatorTestResourceGroup, creatorTestClusterName, creatorTestNodePoolName))
-	return &coreapi.HCPOpenShiftClusterNodePool{
+	return &coreapi.ClusterNodePool{
 		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: resourceID},
 		TrackedResource: coreapi.TrackedResource{
 			Resource: coreapi.Resource{
@@ -78,7 +78,7 @@ type boomNodePoolLister struct {
 	err error
 }
 
-func (b *boomNodePoolLister) Get(_ context.Context, _, _, _, _ string) (*coreapi.HCPOpenShiftClusterNodePool, error) {
+func (b *boomNodePoolLister) Get(_ context.Context, _, _, _, _ string) (*coreapi.ClusterNodePool, error) {
 	return nil, b.err
 }
 
@@ -136,7 +136,7 @@ func TestCreateServiceProviderNodePoolSyncer_SyncOnce(t *testing.T) {
 				return &createServiceProviderNodePoolSyncer{
 					resourcesDBClient: mockDB,
 					nodePoolLister: &corelistertesting.SliceNodePoolLister{
-						NodePools: []*coreapi.HCPOpenShiftClusterNodePool{newCreatorTestNodePool(t)},
+						NodePools: []*coreapi.ClusterNodePool{newCreatorTestNodePool(t)},
 					},
 					serviceProviderNodePoolLister: &corelistertesting.SliceServiceProviderNodePoolLister{
 						ServiceProviderNodePools: []*coreapi.ServiceProviderNodePool{{
@@ -153,7 +153,7 @@ func TestCreateServiceProviderNodePoolSyncer_SyncOnce(t *testing.T) {
 				return &createServiceProviderNodePoolSyncer{
 					resourcesDBClient: mockDB,
 					nodePoolLister: &corelistertesting.SliceNodePoolLister{
-						NodePools: []*coreapi.HCPOpenShiftClusterNodePool{newCreatorTestNodePool(t)},
+						NodePools: []*coreapi.ClusterNodePool{newCreatorTestNodePool(t)},
 					},
 					serviceProviderNodePoolLister: &boomServiceProviderNodePoolLister{err: listerBoom},
 				}
@@ -169,7 +169,7 @@ func TestCreateServiceProviderNodePoolSyncer_SyncOnce(t *testing.T) {
 				return &createServiceProviderNodePoolSyncer{
 					resourcesDBClient: mockDB,
 					nodePoolLister: &corelistertesting.SliceNodePoolLister{
-						NodePools: []*coreapi.HCPOpenShiftClusterNodePool{deletingNodePool},
+						NodePools: []*coreapi.ClusterNodePool{deletingNodePool},
 					},
 					serviceProviderNodePoolLister: &corelistertesting.SliceServiceProviderNodePoolLister{},
 				}
@@ -182,7 +182,7 @@ func TestCreateServiceProviderNodePoolSyncer_SyncOnce(t *testing.T) {
 				return &createServiceProviderNodePoolSyncer{
 					resourcesDBClient: mockDB,
 					nodePoolLister: &corelistertesting.SliceNodePoolLister{
-						NodePools: []*coreapi.HCPOpenShiftClusterNodePool{newCreatorTestNodePool(t)},
+						NodePools: []*coreapi.ClusterNodePool{newCreatorTestNodePool(t)},
 					},
 					serviceProviderNodePoolLister: &corelistertesting.SliceServiceProviderNodePoolLister{},
 				}
@@ -195,7 +195,7 @@ func TestCreateServiceProviderNodePoolSyncer_SyncOnce(t *testing.T) {
 				return &createServiceProviderNodePoolSyncer{
 					resourcesDBClient: mockDB,
 					nodePoolLister: &corelistertesting.SliceNodePoolLister{
-						NodePools: []*coreapi.HCPOpenShiftClusterNodePool{newCreatorTestNodePool(t)},
+						NodePools: []*coreapi.ClusterNodePool{newCreatorTestNodePool(t)},
 					},
 					serviceProviderNodePoolLister: &corelistertesting.SliceServiceProviderNodePoolLister{},
 				}

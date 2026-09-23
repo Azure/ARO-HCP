@@ -80,8 +80,8 @@ func NewTestUserAssignedIdentity(name string) *azcorearm.ResourceID {
 	return metadataapi.Must(azcorearm.ParseResourceID(path.Join(TestResourceGroupResourceID, "providers", "Microsoft.ManagedIdentity", "userAssignedIdentities", name)))
 }
 
-func MinimumValidClusterTestCase() *coreapi.HCPOpenShiftCluster {
-	resource := coreapi.NewDefaultHCPOpenShiftCluster(metadataapi.Must(azcorearm.ParseResourceID(TestClusterResourceID)), TestLocation)
+func MinimumValidClusterTestCase() *coreapi.Cluster {
+	resource := coreapi.NewDefaultCluster(metadataapi.Must(azcorearm.ParseResourceID(TestClusterResourceID)), TestLocation)
 	resource.CustomerProperties.Version.ID = "4.20"
 	resource.CustomerProperties.DNS.BaseDomainPrefix = "testcluster"
 	resource.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = metadataapi.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged
@@ -127,14 +127,14 @@ func MinimumValidClusterTestCase() *coreapi.HCPOpenShiftCluster {
 	return resource
 }
 
-func ClusterTestCase(t *testing.T, tweaks *coreapi.HCPOpenShiftCluster) *coreapi.HCPOpenShiftCluster {
+func ClusterTestCase(t *testing.T, tweaks *coreapi.Cluster) *coreapi.Cluster {
 	resource := MinimumValidClusterTestCase()
 	require.NoError(t, mergo.Merge(resource, tweaks, mergo.WithOverride))
 	return resource
 }
 
-func MinimumValidExternalAuthTestCase() *coreapi.HCPOpenShiftClusterExternalAuth {
-	resource := coreapi.NewDefaultHCPOpenShiftClusterExternalAuth(metadataapi.Must(azcorearm.ParseResourceID(TestExternalAuthResourceID)))
+func MinimumValidExternalAuthTestCase() *coreapi.ClusterExternalAuth {
+	resource := coreapi.NewDefaultClusterExternalAuth(metadataapi.Must(azcorearm.ParseResourceID(TestExternalAuthResourceID)))
 	resource.Properties.Issuer.URL = "https://www.redhat.com"
 	resource.Properties.Issuer.Audiences = []string{"audience1"}
 	resource.Properties.Claim.Mappings.Username.Claim = "my-cool-claim"
@@ -148,7 +148,7 @@ func MinimumValidExternalAuthTestCase() *coreapi.HCPOpenShiftClusterExternalAuth
 	return resource
 }
 
-func ExternalAuthTestCase(t *testing.T, tweaks *coreapi.HCPOpenShiftClusterExternalAuth) *coreapi.HCPOpenShiftClusterExternalAuth {
+func ExternalAuthTestCase(t *testing.T, tweaks *coreapi.ClusterExternalAuth) *coreapi.ClusterExternalAuth {
 	externalAuth := MinimumValidExternalAuthTestCase()
 	require.NoError(t, mergo.Merge(externalAuth, tweaks, mergo.WithOverride))
 	return externalAuth

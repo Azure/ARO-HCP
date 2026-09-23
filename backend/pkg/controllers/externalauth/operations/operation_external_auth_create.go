@@ -166,11 +166,11 @@ func (c *operationExternalAuthCreate) SynchronizeOperation(ctx context.Context, 
 	return nil
 }
 
-func (c *operationExternalAuthCreate) shouldReconcileOperationAndResourceStatus(externalAuth *coreapi.HCPOpenShiftClusterExternalAuth) bool {
+func (c *operationExternalAuthCreate) shouldReconcileOperationAndResourceStatus(externalAuth *coreapi.ClusterExternalAuth) bool {
 	return externalAuth.ServiceProviderProperties.DeletionTimestamp == nil && externalAuth.ServiceProviderProperties.ClusterServiceID != nil
 }
 
-func (c *operationExternalAuthCreate) determineOperationState(ctx context.Context, externalAuth *coreapi.HCPOpenShiftClusterExternalAuth) (*operationbase.OperationState, error) {
+func (c *operationExternalAuthCreate) determineOperationState(ctx context.Context, externalAuth *coreapi.ClusterExternalAuth) (*operationbase.OperationState, error) {
 	logger := utils.LoggerFromContext(ctx)
 
 	var errs []error
@@ -201,7 +201,7 @@ func (c *operationExternalAuthCreate) determineOperationState(ctx context.Contex
 	return picked, nil
 }
 
-func (c *operationExternalAuthCreate) externalAuthClusterServiceCreateOperationState(ctx context.Context, externalAuth *coreapi.HCPOpenShiftClusterExternalAuth) (*operationbase.OperationState, error) {
+func (c *operationExternalAuthCreate) externalAuthClusterServiceCreateOperationState(ctx context.Context, externalAuth *coreapi.ClusterExternalAuth) (*operationbase.OperationState, error) {
 	logger := utils.LoggerFromContext(ctx)
 	_, err := c.clusterServiceClient.GetExternalAuth(ctx, *externalAuth.ServiceProviderProperties.ClusterServiceID)
 	if err != nil {

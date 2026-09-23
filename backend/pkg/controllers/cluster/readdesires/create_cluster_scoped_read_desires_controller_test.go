@@ -65,13 +65,13 @@ func readDesireTestKey() controllerutils.HCPClusterKey {
 	}
 }
 
-func newTestCluster(opts ...func(*coreapi.HCPOpenShiftCluster)) *coreapi.HCPOpenShiftCluster {
+func newTestCluster(opts ...func(*coreapi.Cluster)) *coreapi.Cluster {
 	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + readDesireTestSubscriptionID +
 			"/resourceGroups/" + readDesireTestResourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + readDesireTestClusterName,
 	))
-	cluster := &coreapi.HCPOpenShiftCluster{
+	cluster := &coreapi.Cluster{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   resourceID,
 			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
@@ -83,10 +83,10 @@ func newTestCluster(opts ...func(*coreapi.HCPOpenShiftCluster)) *coreapi.HCPOpen
 				Type: resourceID.ResourceType.String(),
 			},
 		},
-		ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 			ClusterServiceID: metadataapihelpers.Ptr(metadataapi.Must(metadataapi.NewInternalID(readDesireTestClusterServiceID))),
 		},
-		CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+		CustomerProperties: coreapi.ClusterCustomerProperties{
 			DNS: coreapi.CustomerDNSProfile{
 				BaseDomainPrefix: readDesireTestDomainPrefix,
 			},
@@ -201,7 +201,7 @@ func TestCreateClusterScopedReadDesires_SyncOnce(t *testing.T) {
 			// ReadDesires) must be created regardless of the cluster version.
 			name: "creates serving CA ReadDesire regardless of cluster version when ControlPlaneNamespace is set",
 			resources: []any{
-				newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
+				newTestCluster(func(c *coreapi.Cluster) {
 					c.CustomerProperties.Version.ID = "4.19.0"
 				}),
 			},
@@ -243,7 +243,7 @@ func TestCreateClusterScopedReadDesires_SyncOnce(t *testing.T) {
 		{
 			name: "skips when domain prefix is not yet synced",
 			resources: []any{
-				newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
+				newTestCluster(func(c *coreapi.Cluster) {
 					c.CustomerProperties.DNS.BaseDomainPrefix = ""
 				}),
 			},

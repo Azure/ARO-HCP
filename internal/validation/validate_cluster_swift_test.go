@@ -118,7 +118,7 @@ func TestClusterSwiftNetworking(t *testing.T) {
 				if tt.enrolled {
 					op.Options = append(op.Options, metadataapi.FeatureExperimentalReleaseFeatures)
 				}
-				var oldCluster *coreapi.HCPOpenShiftCluster
+				var oldCluster *coreapi.Cluster
 				if tt.update {
 					op.Type = operation.Update
 					oldCluster = cluster.DeepCopy()

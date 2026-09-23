@@ -203,7 +203,7 @@ func (c *triggerControlPlaneUpgradeSyncer) createUpgradePolicyIfNeeded(ctx conte
 // Otherwise (cluster still young, Create in flight) we skip so a freshly
 // created cluster doesn't have a control plane upgrade policy posted while
 // creation is still in progress.
-func (c *triggerControlPlaneUpgradeSyncer) shouldTriggerUpgrade(ctx context.Context, cluster *coreapi.HCPOpenShiftCluster) (bool, error) {
+func (c *triggerControlPlaneUpgradeSyncer) shouldTriggerUpgrade(ctx context.Context, cluster *coreapi.Cluster) (bool, error) {
 	logger := utils.LoggerFromContext(ctx)
 	if c.clusterOlderThanGracePeriod(cluster) {
 		logger.Info("Cluster is older than grace period, skipping upgrade trigger", "cluster", cluster.Name)
@@ -225,7 +225,7 @@ func (c *triggerControlPlaneUpgradeSyncer) shouldTriggerUpgrade(ctx context.Cont
 // is more than clusterCreateGracePeriod in the past. A missing CreatedAt is
 // treated as "old enough" so a malformed document does not pin the controller
 // in skip-forever mode.
-func (c *triggerControlPlaneUpgradeSyncer) clusterOlderThanGracePeriod(cluster *coreapi.HCPOpenShiftCluster) bool {
+func (c *triggerControlPlaneUpgradeSyncer) clusterOlderThanGracePeriod(cluster *coreapi.Cluster) bool {
 	if cluster.SystemData == nil || cluster.SystemData.CreatedAt == nil {
 		return true
 	}
@@ -236,7 +236,7 @@ func (c *triggerControlPlaneUpgradeSyncer) clusterOlderThanGracePeriod(cluster *
 // Create operation whose ExternalID is the cluster itself. Operations on
 // child resources (node pools, external auths) under the cluster are
 // ignored on purpose: they don't gate control-plane upgrade triggering.
-func (c *triggerControlPlaneUpgradeSyncer) clusterHasActiveCreateOperation(ctx context.Context, cluster *coreapi.HCPOpenShiftCluster) (bool, error) {
+func (c *triggerControlPlaneUpgradeSyncer) clusterHasActiveCreateOperation(ctx context.Context, cluster *coreapi.Cluster) (bool, error) {
 	logger := utils.LoggerFromContext(ctx)
 	if len(cluster.ServiceProviderProperties.ActiveOperationID) == 0 {
 		logger.Info("Cluster has no active create operation", "cluster", cluster.Name)

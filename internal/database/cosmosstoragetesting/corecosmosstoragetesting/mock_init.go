@@ -52,13 +52,13 @@ func NewMockResourcesDBClientWithResources(ctx context.Context, resources []any)
 // addResource adds a single resource to the mockResourcesDBClient.
 func (m *MockResourcesDBClient) addResource(ctx context.Context, resource any) error {
 	switch r := resource.(type) {
-	case *coreapi.HCPOpenShiftCluster:
+	case *coreapi.Cluster:
 		return m.addCluster(ctx, r)
-	case *coreapi.HCPOpenShiftClusterNodePool:
+	case *coreapi.ClusterNodePool:
 		return m.addNodePool(ctx, r)
 	case *coreapi.Operation:
 		return m.addOperation(ctx, r)
-	case *coreapi.HCPOpenShiftClusterExternalAuth:
+	case *coreapi.ClusterExternalAuth:
 		return m.addExternalAuth(ctx, r)
 	case *coreapi.ServiceProviderCluster:
 		return m.addServiceProviderCluster(ctx, r)
@@ -79,7 +79,7 @@ func (m *MockResourcesDBClient) addResource(ctx context.Context, resource any) e
 	}
 }
 
-func (m *MockResourcesDBClient) addCluster(ctx context.Context, cluster *coreapi.HCPOpenShiftCluster) error {
+func (m *MockResourcesDBClient) addCluster(ctx context.Context, cluster *coreapi.Cluster) error {
 	if cluster.ID == nil {
 		return fmt.Errorf("cluster is missing resource ID")
 	}
@@ -88,7 +88,7 @@ func (m *MockResourcesDBClient) addCluster(ctx context.Context, cluster *coreapi
 	return err
 }
 
-func (m *MockResourcesDBClient) addNodePool(ctx context.Context, nodePool *coreapi.HCPOpenShiftClusterNodePool) error {
+func (m *MockResourcesDBClient) addNodePool(ctx context.Context, nodePool *coreapi.ClusterNodePool) error {
 	if nodePool.ID == nil {
 		return fmt.Errorf("node pool is missing resource ID")
 	}
@@ -110,7 +110,7 @@ func (m *MockResourcesDBClient) addOperation(ctx context.Context, operation *cor
 	return err
 }
 
-func (m *MockResourcesDBClient) addExternalAuth(ctx context.Context, externalAuth *coreapi.HCPOpenShiftClusterExternalAuth) error {
+func (m *MockResourcesDBClient) addExternalAuth(ctx context.Context, externalAuth *coreapi.ClusterExternalAuth) error {
 	if externalAuth.ID == nil {
 		return fmt.Errorf("external auth is missing resource ID")
 	}

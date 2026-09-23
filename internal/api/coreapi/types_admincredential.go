@@ -16,13 +16,13 @@ package coreapi
 
 import "time"
 
-type HCPOpenShiftClusterAdminCredentialRequest struct {
+type ClusterAdminCredentialRequest struct {
 	CertificateSigningRequest string `json:"certificateSigningRequest,omitempty"`
 }
 
 // HCPOpenShiftClusterAdminCredential represents a temporary admin
 // credential for an ARO HCP OpenShift cluster.
-type HCPOpenShiftClusterAdminCredential struct {
+type ClusterAdminCredential struct {
 	ExpirationTimestamp time.Time `json:"expirationTimestamp"`
 	Kubeconfig          string    `json:"kubeconfig"`
 }

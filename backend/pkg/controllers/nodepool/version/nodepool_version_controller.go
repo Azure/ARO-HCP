@@ -116,7 +116,7 @@ func NewNodePoolVersionController(
 //
 // Both arguments must be non-nil; SyncOnce gates the cache miss before calling
 // NeedsWork.
-func (c *nodePoolVersionSyncer) NeedsWork(nodePool *coreapi.HCPOpenShiftClusterNodePool, serviceProviderNodePool *coreapi.ServiceProviderNodePool, serviceProviderCluster *coreapi.ServiceProviderCluster) bool {
+func (c *nodePoolVersionSyncer) NeedsWork(nodePool *coreapi.ClusterNodePool, serviceProviderNodePool *coreapi.ServiceProviderNodePool, serviceProviderCluster *coreapi.ServiceProviderCluster) bool {
 	if len(nodePool.Properties.Version.ID) == 0 {
 		return false
 	}

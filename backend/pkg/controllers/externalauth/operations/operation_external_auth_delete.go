@@ -153,13 +153,13 @@ func (c *operationExternalAuthDelete) SynchronizeOperation(ctx context.Context, 
 	return nil
 }
 
-func (c *operationExternalAuthDelete) shouldReconcileOperationAndResourceStatus(externalAuth *coreapi.HCPOpenShiftClusterExternalAuth) bool {
+func (c *operationExternalAuthDelete) shouldReconcileOperationAndResourceStatus(externalAuth *coreapi.ClusterExternalAuth) bool {
 	return externalAuth.ServiceProviderProperties.DeletionTimestamp != nil &&
 		externalAuth.ServiceProviderProperties.ClusterServiceDeletionTimestamp != nil &&
 		externalAuth.ServiceProviderProperties.ClusterServiceID != nil
 }
 
-func (c *operationExternalAuthDelete) reconcileOperationAndResourceStatus(ctx context.Context, operation *coreapi.Operation, externalAuth *coreapi.HCPOpenShiftClusterExternalAuth) error {
+func (c *operationExternalAuthDelete) reconcileOperationAndResourceStatus(ctx context.Context, operation *coreapi.Operation, externalAuth *coreapi.ClusterExternalAuth) error {
 	logger := utils.LoggerFromContext(ctx)
 
 	csID := externalAuth.ServiceProviderProperties.ClusterServiceID

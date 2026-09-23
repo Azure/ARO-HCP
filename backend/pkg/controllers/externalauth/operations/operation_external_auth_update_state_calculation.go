@@ -36,7 +36,7 @@ import (
 
 // hypershiftHostedClusterExternalAuthOperationState contains the external auth update operation state calculation
 // comparing desired state against Hypershift's HostedCluster in the management cluster.
-func (c *operationExternalAuthUpdate) hypershiftHostedClusterExternalAuthOperationState(ctx context.Context, externalAuth *coreapi.HCPOpenShiftClusterExternalAuth) (*operationbase.OperationState, error) {
+func (c *operationExternalAuthUpdate) hypershiftHostedClusterExternalAuthOperationState(ctx context.Context, externalAuth *coreapi.ClusterExternalAuth) (*operationbase.OperationState, error) {
 	hostedCluster, err := kubeapplierhelpers.GetCachedHostedClusterForCluster(
 		ctx,
 		c.readDesireLister,
@@ -65,7 +65,7 @@ func (c *operationExternalAuthUpdate) hypershiftHostedClusterExternalAuthOperati
 // hypershiftHostedClusterExternalAuthSpecMatchesDesired reports whether Hypershift HostedCluster .Spec fields
 // and other non status configuration matches desired external auth state. Returns false and a diagnostic message
 // when any leaf check fails. HostedCluster .status is not checked here.
-func (c *operationExternalAuthUpdate) hypershiftHostedClusterExternalAuthSpecMatchesDesired(externalAuth *coreapi.HCPOpenShiftClusterExternalAuth, hostedCluster *v1beta1.HostedCluster) (bool, string) {
+func (c *operationExternalAuthUpdate) hypershiftHostedClusterExternalAuthSpecMatchesDesired(externalAuth *coreapi.ClusterExternalAuth, hostedCluster *v1beta1.HostedCluster) (bool, string) {
 	if hostedCluster.Spec.Configuration == nil ||
 		hostedCluster.Spec.Configuration.Authentication == nil ||
 		len(hostedCluster.Spec.Configuration.Authentication.OIDCProviders) == 0 {
@@ -288,7 +288,7 @@ func (c *operationExternalAuthUpdate) hypershiftHostedClusterExternalAuthValidat
 
 // clusterServiceExternalAuthSpecOperationState reports whether Cluster Service external auth spec fields
 // match desired state intent for the external auth update operation. Only checks outside CS .status.
-func (c *operationExternalAuthUpdate) clusterServiceExternalAuthSpecOperationState(externalAuth *coreapi.HCPOpenShiftClusterExternalAuth, csExternalAuth *arohcpv1alpha1.ExternalAuth) (*operationbase.OperationState, error) {
+func (c *operationExternalAuthUpdate) clusterServiceExternalAuthSpecOperationState(externalAuth *coreapi.ClusterExternalAuth, csExternalAuth *arohcpv1alpha1.ExternalAuth) (*operationbase.OperationState, error) {
 	if matches, message, err := c.clusterServiceExternalAuthSpecMatchesDesired(externalAuth, csExternalAuth); err != nil {
 		return nil, err
 	} else if !matches {
@@ -300,7 +300,7 @@ func (c *operationExternalAuthUpdate) clusterServiceExternalAuthSpecOperationSta
 // clusterServiceExternalAuthSpecMatchesDesired reports whether Cluster Service external auth spec fields
 // relevant to the external auth update operation match desired state. Returns false and a diagnostic
 // message when any leaf check fails.
-func (c *operationExternalAuthUpdate) clusterServiceExternalAuthSpecMatchesDesired(externalAuth *coreapi.HCPOpenShiftClusterExternalAuth, csExternalAuth *arohcpv1alpha1.ExternalAuth) (bool, string, error) {
+func (c *operationExternalAuthUpdate) clusterServiceExternalAuthSpecMatchesDesired(externalAuth *coreapi.ClusterExternalAuth, csExternalAuth *arohcpv1alpha1.ExternalAuth) (bool, string, error) {
 	desiredJSON, err := ocm.ExternalAuthUpdateDispatchConfigJSONFromRP(externalAuth)
 	if err != nil {
 		return false, "", err

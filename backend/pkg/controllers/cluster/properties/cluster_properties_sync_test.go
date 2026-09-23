@@ -37,7 +37,7 @@ func TestClusterPropertiesSyncer_SyncOnce(t *testing.T) {
 
 	testCases := []struct {
 		name               string
-		existingCluster    *coreapi.HCPOpenShiftCluster
+		existingCluster    *coreapi.Cluster
 		readDesire         *kubeapplierapi.ReadDesire
 		wantErr            bool
 		expectedConsoleURL string
@@ -47,7 +47,7 @@ func TestClusterPropertiesSyncer_SyncOnce(t *testing.T) {
 	}{
 		{
 			name: "sync cluster properties from HostedCluster ReadDesire when they differ from cache",
-			existingCluster: newTestCluster(testClusterName, func(c *coreapi.HCPOpenShiftCluster) {
+			existingCluster: newTestCluster(testClusterName, func(c *coreapi.Cluster) {
 				c.CustomerProperties.DNS.BaseDomainPrefix = testBaseDomainPrefix
 			}),
 			readDesire:         newTestHostedClusterReadDesire(t),
@@ -58,7 +58,7 @@ func TestClusterPropertiesSyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "short-circuit when cluster properties match HostedCluster ReadDesire",
-			existingCluster: newTestCluster(testClusterName, func(c *coreapi.HCPOpenShiftCluster) {
+			existingCluster: newTestCluster(testClusterName, func(c *coreapi.Cluster) {
 				c.ServiceProviderProperties.Console.URL = testConsoleURL
 				c.ServiceProviderProperties.DNS.BaseDomain = testBaseDomain
 				c.ServiceProviderProperties.API.URL = testAPIURL
@@ -73,7 +73,7 @@ func TestClusterPropertiesSyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "no-op when HostedCluster ReadDesire not found",
-			existingCluster: newTestCluster(testOtherClusterName, func(c *coreapi.HCPOpenShiftCluster) {
+			existingCluster: newTestCluster(testOtherClusterName, func(c *coreapi.Cluster) {
 				c.CustomerProperties.DNS.BaseDomainPrefix = testBaseDomainPrefix
 			}),
 			readDesire: nil,
@@ -85,7 +85,7 @@ func TestClusterPropertiesSyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "error when KubeAPIServerDNSName does not match base domain prefix",
-			existingCluster: newTestCluster(testClusterName, func(c *coreapi.HCPOpenShiftCluster) {
+			existingCluster: newTestCluster(testClusterName, func(c *coreapi.Cluster) {
 				c.CustomerProperties.DNS.BaseDomainPrefix = testBaseDomainPrefix
 			}),
 			readDesire: newTestHostedClusterReadDesire(t, func(hc *hsv1beta1.HostedCluster) {

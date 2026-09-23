@@ -42,7 +42,7 @@ func (v *AzureResourceProvidersRegistrationValidation) Name() string {
 }
 
 func (v *AzureResourceProvidersRegistrationValidation) Validate(
-	ctx context.Context, clusterSubscription *coreapi.Subscription, cluster *coreapi.HCPOpenShiftCluster,
+	ctx context.Context, clusterSubscription *coreapi.Subscription, cluster *coreapi.Cluster,
 ) ValidationResult {
 	resourceProvidersToCheck := []string{
 		"Microsoft.Authorization",

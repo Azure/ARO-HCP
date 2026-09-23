@@ -25,21 +25,21 @@ import (
 // HCPOpenShiftClusterExternalAuth represents the external auth config resource for ARO HCP
 // OpenShift clusters.
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-type HCPOpenShiftClusterExternalAuth struct {
+type ClusterExternalAuth struct {
 	// PartitionKey holds the lowercased subscriptionID.
 	CosmosMetadata `json:"cosmosMetadata"`
 
 	ProxyResource
 	// Written by: Frontend PUT/PATCH ExternalAuth, OperationExternalAuth* controllers
-	Properties HCPOpenShiftClusterExternalAuthProperties `json:"properties"`
+	Properties ClusterExternalAuthProperties `json:"properties"`
 	// Written by: Frontend PUT/PATCH/DELETE ExternalAuth, OperationExternalAuth* controllers, ExternalAuthClusterServiceCreate, ExternalAuthDeletion* controllers
-	ServiceProviderProperties HCPOpenShiftClusterExternalAuthServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
+	ServiceProviderProperties ClusterExternalAuthServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
 	// Written by: ExternalAuthDegradedAggregator
-	Status HCPOpenShiftClusterExternalAuthStatus `json:"status"`
+	Status ClusterExternalAuthStatus `json:"status"`
 }
 
 // HCPOpenShiftClusterExternalAuthStatus contains the observed state of the external auth.
-type HCPOpenShiftClusterExternalAuthStatus struct {
+type ClusterExternalAuthStatus struct {
 	// Conditions are the top-level HCPOpenShiftClusterExternalAuth status conditions.
 	// Each Condition Type represents a condition and it should be unique among all conditions.
 	// Written by: ExternalAuthDegradedAggregator
@@ -74,17 +74,17 @@ type HCPOpenShiftClusterExternalAuthStatus struct {
 //
 // This method should be treated as append-only. Avoid removing defaulting
 // rules until all Cosmos documents have been verified to contain the field.
-func (ea *HCPOpenShiftClusterExternalAuth) EnsureDefaults() {
+func (ea *ClusterExternalAuth) EnsureDefaults() {
 	if len(ea.Properties.Claim.Mappings.Username.PrefixPolicy) == 0 {
 		ea.Properties.Claim.Mappings.Username.PrefixPolicy = metadataapi.UsernameClaimPrefixPolicyNone
 	}
 }
 
-var _ CosmosPersistable = &HCPOpenShiftClusterExternalAuth{}
+var _ CosmosPersistable = &ClusterExternalAuth{}
 
 // HCPOpenShiftClusterNodePoolProperties represents the property bag of a
 // HCPOpenShiftClusterNodePool resource.
-type HCPOpenShiftClusterExternalAuthProperties struct {
+type ClusterExternalAuthProperties struct {
 	// Written by: Frontend PUT/PATCH/DELETE ExternalAuth, OperationExternalAuthCreate, OperationExternalAuthUpdate, OperationExternalAuthDelete
 	ProvisioningState ProvisioningState `json:"provisioningState"`
 	// Written by: Frontend PUT/PATCH ExternalAuth
@@ -95,7 +95,7 @@ type HCPOpenShiftClusterExternalAuthProperties struct {
 	Claim ExternalAuthClaimProfile `json:"claim"`
 }
 
-type HCPOpenShiftClusterExternalAuthServiceProviderProperties struct {
+type ClusterExternalAuthServiceProviderProperties struct {
 	// Written by: Frontend PUT ExternalAuth (Create), ExternalAuthClusterServiceCreate, ExternalAuthDeletionClusterServiceIDClearer
 	ClusterServiceID *metadataapi.InternalID `json:"clusterServiceID,omitempty"`
 	// Written by: Frontend PUT/PATCH/DELETE ExternalAuth, OperationExternalAuthCreate, OperationExternalAuthUpdate, OperationExternalAuthDelete
@@ -203,10 +203,10 @@ type TokenRequiredClaim struct {
 	RequiredValue string `json:"requiredValue"`
 }
 
-func NewDefaultHCPOpenShiftClusterExternalAuth(resourceID *azcorearm.ResourceID) *HCPOpenShiftClusterExternalAuth {
-	return &HCPOpenShiftClusterExternalAuth{
+func NewDefaultClusterExternalAuth(resourceID *azcorearm.ResourceID) *ClusterExternalAuth {
+	return &ClusterExternalAuth{
 		ProxyResource: NewProxyResource(resourceID),
-		Properties: HCPOpenShiftClusterExternalAuthProperties{
+		Properties: ClusterExternalAuthProperties{
 			Claim: ExternalAuthClaimProfile{
 				Mappings: TokenClaimMappingsProfile{
 					Username: UsernameClaimProfile{
@@ -218,6 +218,6 @@ func NewDefaultHCPOpenShiftClusterExternalAuth(resourceID *azcorearm.ResourceID)
 	}
 }
 
-func (o *HCPOpenShiftClusterExternalAuth) Validate() []CloudErrorBody {
+func (o *ClusterExternalAuth) Validate() []CloudErrorBody {
 	return nil
 }

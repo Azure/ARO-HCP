@@ -267,7 +267,7 @@ type NestedCosmosResourceCRUD[InternalAPIType any, InternalAPITypePointer coreap
 	resourceIDBuilder   ResourceIDBuilder
 }
 
-var _ ResourceCRUD[coreapi.HCPOpenShiftClusterNodePool, *coreapi.HCPOpenShiftClusterNodePool] = &NestedCosmosResourceCRUD[coreapi.HCPOpenShiftClusterNodePool, *coreapi.HCPOpenShiftClusterNodePool, GenericDocument[coreapi.HCPOpenShiftClusterNodePool]]{}
+var _ ResourceCRUD[coreapi.ClusterNodePool, *coreapi.ClusterNodePool] = &NestedCosmosResourceCRUD[coreapi.ClusterNodePool, *coreapi.ClusterNodePool, GenericDocument[coreapi.ClusterNodePool]]{}
 
 // NewCosmosResourceCRUD constructs a CRUD using the subscription-ID partition
 // key policy and the standard ARM-style path builder. For containers that

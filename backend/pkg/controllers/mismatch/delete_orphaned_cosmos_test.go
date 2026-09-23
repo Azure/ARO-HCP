@@ -301,10 +301,10 @@ func TestQueueAllSubscriptions_NoSubscriptions(t *testing.T) {
 	require.Equal(t, 0, c.queue.Len(), "no subscriptions means nothing enqueued")
 }
 
-func cluster(t *testing.T, name string) *coreapi.HCPOpenShiftCluster {
+func cluster(t *testing.T, name string) *coreapi.Cluster {
 	t.Helper()
 	rid := metadataapi.Must(coreapihelpers.ToClusterResourceID(testSubscriptionID, testResourceGroup, name))
-	return &coreapi.HCPOpenShiftCluster{
+	return &coreapi.Cluster{
 		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: rid, PartitionKey: strings.ToLower(rid.SubscriptionID)},
 		TrackedResource: coreapi.TrackedResource{
 			Resource: coreapi.Resource{
@@ -317,10 +317,10 @@ func cluster(t *testing.T, name string) *coreapi.HCPOpenShiftCluster {
 	}
 }
 
-func nodePool(t *testing.T, clusterName, nodePoolName string) *coreapi.HCPOpenShiftClusterNodePool {
+func nodePool(t *testing.T, clusterName, nodePoolName string) *coreapi.ClusterNodePool {
 	t.Helper()
 	rid := metadataapi.Must(coreapihelpers.ToNodePoolResourceID(testSubscriptionID, testResourceGroup, clusterName, nodePoolName))
-	return &coreapi.HCPOpenShiftClusterNodePool{
+	return &coreapi.ClusterNodePool{
 		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: rid, PartitionKey: strings.ToLower(rid.SubscriptionID)},
 		TrackedResource: coreapi.TrackedResource{
 			Resource: coreapi.Resource{

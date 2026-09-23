@@ -83,7 +83,7 @@ func NewClusterIdentitySyncController(
 	return controller
 }
 
-func (c *clusterIdentitySyncer) NeedsWork(ctx context.Context, existingCluster *coreapi.HCPOpenShiftCluster) bool {
+func (c *clusterIdentitySyncer) NeedsWork(ctx context.Context, existingCluster *coreapi.Cluster) bool {
 	if existingCluster.ServiceProviderProperties.DeletionTimestamp != nil {
 		return false
 	}

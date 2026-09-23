@@ -103,7 +103,7 @@ func (c *clusterDenyAssignmentSyncer) SyncOnce(ctx context.Context, key controll
 	return c.syncDenyAssignmentUpsert(ctx, key, cluster)
 }
 
-func (c *clusterDenyAssignmentSyncer) syncDenyAssignmentNeedsWork(cluster *coreapi.HCPOpenShiftCluster, serviceProviderCluster *coreapi.ServiceProviderCluster) bool {
+func (c *clusterDenyAssignmentSyncer) syncDenyAssignmentNeedsWork(cluster *coreapi.Cluster, serviceProviderCluster *coreapi.ServiceProviderCluster) bool {
 	if len(controllerutils.ClusterServiceIDForCluster(cluster)) == 0 {
 		return false
 	}
@@ -153,7 +153,7 @@ func (c *clusterDenyAssignmentSyncer) syncDenyAssignmentNeedsWork(cluster *corea
 	return true
 }
 
-func (c *clusterDenyAssignmentSyncer) syncDenyAssignmentUpsert(ctx context.Context, key controllerutils.HCPClusterKey, cluster *coreapi.HCPOpenShiftCluster) error {
+func (c *clusterDenyAssignmentSyncer) syncDenyAssignmentUpsert(ctx context.Context, key controllerutils.HCPClusterKey, cluster *coreapi.Cluster) error {
 	logger := utils.LoggerFromContext(ctx)
 
 	serviceProviderCluster, err := corecosmosstorage.GetOrCreateServiceProviderCluster(ctx, c.resourcesDBClient, cluster.ID)
@@ -304,7 +304,7 @@ func replaceServiceProviderClusterIfChanged(
 
 func (c *clusterDenyAssignmentSyncer) ensureDenyAssignmentReferences(
 	ctx context.Context,
-	cluster *coreapi.HCPOpenShiftCluster,
+	cluster *coreapi.Cluster,
 	serviceProviderCluster *coreapi.ServiceProviderCluster,
 	denyAssignmentsClient azureclient.DenyAssignmentsClient,
 	genericResourcesClient azureclient.GenericResourcesClient,
@@ -555,7 +555,7 @@ func generateDenyAssignmentUUID(clusterID, denyAssignmentType string) string {
 	return uuid.NewSHA1(namespace, []byte(denyAssignmentType+"$"+clusterID)).String()
 }
 
-func collectExcludedPrincipalIDs(cluster *coreapi.HCPOpenShiftCluster, definition denyAssignmentDefinition) ([]*azcorearm.ResourceID, error) {
+func collectExcludedPrincipalIDs(cluster *coreapi.Cluster, definition denyAssignmentDefinition) ([]*azcorearm.ResourceID, error) {
 	var identityResourceIDs []*azcorearm.ResourceID
 
 	identities := cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities

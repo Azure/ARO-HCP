@@ -54,7 +54,7 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 	testClockNow := operationtesting.MustParseTime("2024-06-01T12:00:00Z")
 	fixture := operationtesting.NewClusterTestFixture()
 
-	newClusterWithCustomerVersion := func(versionID string, mutate ...func(*coreapi.HCPOpenShiftCluster)) *coreapi.HCPOpenShiftCluster {
+	newClusterWithCustomerVersion := func(versionID string, mutate ...func(*coreapi.Cluster)) *coreapi.Cluster {
 		cluster := fixture.NewCluster(nil)
 		cluster.CustomerProperties.Version.ID = versionID
 		for _, fn := range mutate {
@@ -142,7 +142,7 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 
 	testCases := []struct {
 		name            string
-		existingCluster *coreapi.HCPOpenShiftCluster
+		existingCluster *coreapi.Cluster
 		// When not set, the controller uses a cluster lister that contains the existingCluster
 		clusterLister     corelisters.ClusterLister
 		existingOperation *coreapi.Operation
@@ -358,7 +358,7 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 		},
 		{
 			name: "shouldReconcile gate not passed when ClusterServiceID is nil",
-			existingCluster: newClusterWithCustomerVersion("4.19", func(cluster *coreapi.HCPOpenShiftCluster) {
+			existingCluster: newClusterWithCustomerVersion("4.19", func(cluster *coreapi.Cluster) {
 				cluster.ServiceProviderProperties.ClusterServiceID = nil
 			}),
 			existingOperation: newOperationAccepted(),
@@ -370,7 +370,7 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 		},
 		{
 			name: "shouldReconcile gate not passed when cluster is deleting",
-			existingCluster: newClusterWithCustomerVersion("4.19", func(cluster *coreapi.HCPOpenShiftCluster) {
+			existingCluster: newClusterWithCustomerVersion("4.19", func(cluster *coreapi.Cluster) {
 				cluster.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: testClockNow}
 			}),
 			existingOperation: newOperationAccepted(),
@@ -398,7 +398,7 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 		},
 		{
 			name: "cs cluster ready with node drain spec mismatch keeps operation updating",
-			existingCluster: newClusterWithCustomerVersion("4.19", func(cluster *coreapi.HCPOpenShiftCluster) {
+			existingCluster: newClusterWithCustomerVersion("4.19", func(cluster *coreapi.Cluster) {
 				cluster.CustomerProperties.NodeDrainTimeoutMinutes = 60
 			}),
 			existingOperation:              newOperationAccepted(),
@@ -423,7 +423,7 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 		},
 		{
 			name: "cs cluster ready with customerManaged KMS etcd key version match transitions operation to succeeded",
-			existingCluster: newClusterWithCustomerVersion("4.19", func(cluster *coreapi.HCPOpenShiftCluster) {
+			existingCluster: newClusterWithCustomerVersion("4.19", func(cluster *coreapi.Cluster) {
 				cluster.CustomerProperties.Etcd = coreapi.EtcdProfile{
 					DataEncryption: coreapi.EtcdDataEncryptionProfile{
 						KeyManagementMode: metadataapi.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
@@ -472,7 +472,7 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 		},
 		{
 			name: "cs cluster ready with CMK KMS etcd key version mismatch keeps operation updating",
-			existingCluster: newClusterWithCustomerVersion("4.19", func(cluster *coreapi.HCPOpenShiftCluster) {
+			existingCluster: newClusterWithCustomerVersion("4.19", func(cluster *coreapi.Cluster) {
 				cluster.CustomerProperties.Etcd = coreapi.EtcdProfile{
 					DataEncryption: coreapi.EtcdDataEncryptionProfile{
 						KeyManagementMode: metadataapi.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
@@ -527,7 +527,7 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 		},
 		{
 			name: "cs cluster ready with hypershift autoscaling spec mismatch keeps operation updating",
-			existingCluster: newClusterWithCustomerVersion("4.19", func(cluster *coreapi.HCPOpenShiftCluster) {
+			existingCluster: newClusterWithCustomerVersion("4.19", func(cluster *coreapi.Cluster) {
 				cluster.CustomerProperties.Autoscaling.MaxNodesTotal = 10
 			}),
 			existingOperation:              newOperationAccepted(),

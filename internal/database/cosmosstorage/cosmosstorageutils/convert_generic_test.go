@@ -33,12 +33,12 @@ func TestTimeToLiveForInternal(t *testing.T) {
 		},
 		{
 			name: "clusters have no TTL",
-			obj:  &coreapi.HCPOpenShiftCluster{},
+			obj:  &coreapi.Cluster{},
 			want: 0,
 		},
 		{
 			name: "node pools have no TTL",
-			obj:  &coreapi.HCPOpenShiftClusterNodePool{},
+			obj:  &coreapi.ClusterNodePool{},
 			want: 0,
 		},
 		{

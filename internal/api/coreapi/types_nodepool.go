@@ -29,22 +29,22 @@ import (
 // HCPOpenShiftClusterNodePool represents a node pool resource for ARO HCP
 // OpenShift clusters.
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-type HCPOpenShiftClusterNodePool struct {
+type ClusterNodePool struct {
 	// PartitionKey holds the lowercased subscriptionID.
 	CosmosMetadata `json:"cosmosMetadata"`
 
 	TrackedResource
 	// Written by: Frontend PUT/PATCH NodePool, OperationNodePoolCreate, OperationNodePoolUpdate, OperationNodePoolDelete
-	Properties HCPOpenShiftClusterNodePoolProperties `json:"properties,omitempty"`
+	Properties ClusterNodePoolProperties `json:"properties,omitempty"`
 	// Written by: Frontend PUT/PATCH/DELETE NodePool, OperationNodePool* controllers, NodePoolClusterServiceCreate, NodePoolDeletion* controllers
-	ServiceProviderProperties HCPOpenShiftClusterNodePoolServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
-	Identity                  *ManagedServiceIdentity                              `json:"identity,omitempty"`
+	ServiceProviderProperties ClusterNodePoolServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
+	Identity                  *ManagedServiceIdentity                  `json:"identity,omitempty"`
 	// Written by: NodePoolDegradedAggregator, NodePoolRequirementsValidAggregator
-	Status HCPOpenShiftClusterNodePoolStatus `json:"status"`
+	Status ClusterNodePoolStatus `json:"status"`
 }
 
 // HCPOpenShiftClusterNodePoolStatus contains the observed state of the node pool.
-type HCPOpenShiftClusterNodePoolStatus struct {
+type ClusterNodePoolStatus struct {
 	// Conditions are the top-level HCPOpenShiftClusterNodePool status conditions.
 	// Each Condition Type represents a condition and it should be unique among all conditions.
 	// Written by: NodePoolDegradedAggregator
@@ -84,11 +84,11 @@ type HCPNodePoolActiveVersion struct {
 	Version string `json:"version,omitempty"`
 }
 
-var _ CosmosPersistable = &HCPOpenShiftClusterNodePool{}
+var _ CosmosPersistable = &ClusterNodePool{}
 
 // HCPOpenShiftClusterNodePoolProperties represents the property bag of a
 // HCPOpenShiftClusterNodePool resource.
-type HCPOpenShiftClusterNodePoolProperties struct {
+type ClusterNodePoolProperties struct {
 	// Written by: Frontend PUT/PATCH/DELETE NodePool, OperationNodePoolCreate, OperationNodePoolUpdate, OperationNodePoolDelete
 	ProvisioningState ProvisioningState `json:"provisioningState,omitempty"`
 	// Written by: Frontend PUT/PATCH NodePool
@@ -109,7 +109,7 @@ type HCPOpenShiftClusterNodePoolProperties struct {
 	NodeDrainTimeoutMinutes *int32 `json:"nodeDrainTimeoutMinutes,omitempty"`
 }
 
-type HCPOpenShiftClusterNodePoolServiceProviderProperties struct {
+type ClusterNodePoolServiceProviderProperties struct {
 	// Written by: Frontend PUT NodePool (Create), NodePoolClusterServiceCreate, NodePoolDeletionClusterServiceIDClearer
 	ClusterServiceID *metadataapi.InternalID `json:"clusterServiceID,omitempty"`
 	// Written by: Frontend PUT/PATCH/DELETE NodePool, OperationNodePoolCreate, OperationNodePoolUpdate, OperationNodePoolDelete
@@ -193,10 +193,10 @@ type Taint struct {
 	Value  string             `json:"value,omitempty"`
 }
 
-func NewDefaultHCPOpenShiftClusterNodePool(resourceID *azcorearm.ResourceID, azureLocation string) *HCPOpenShiftClusterNodePool {
-	return &HCPOpenShiftClusterNodePool{
+func NewDefaultClusterNodePool(resourceID *azcorearm.ResourceID, azureLocation string) *ClusterNodePool {
+	return &ClusterNodePool{
 		TrackedResource: NewTrackedResource(resourceID, azureLocation),
-		Properties: HCPOpenShiftClusterNodePoolProperties{
+		Properties: ClusterNodePoolProperties{
 			Version: NodePoolVersionProfile{
 				ChannelGroup: DefaultNodePoolVersionChannelGroup,
 			},
@@ -220,7 +220,7 @@ func NewDefaultHCPOpenShiftClusterNodePool(resourceID *azcorearm.ResourceID, azu
 //
 // This method should be treated as append-only. Avoid removing defaulting
 // rules until all Cosmos documents have been verified to contain the field.
-func (np *HCPOpenShiftClusterNodePool) EnsureDefaults() {
+func (np *ClusterNodePool) EnsureDefaults() {
 	if len(np.Properties.Platform.OSDisk.DiskStorageAccountType) == 0 {
 		np.Properties.Platform.OSDisk.DiskStorageAccountType = metadataapi.DiskStorageAccountTypePremium_LRS
 	}
@@ -229,7 +229,7 @@ func (np *HCPOpenShiftClusterNodePool) EnsureDefaults() {
 	}
 }
 
-func (nodePool *HCPOpenShiftClusterNodePool) validateSubnetID(cluster *HCPOpenShiftCluster) []CloudErrorBody {
+func (nodePool *ClusterNodePool) validateSubnetID(cluster *Cluster) []CloudErrorBody {
 	var errorDetails []CloudErrorBody
 
 	if nodePool.Properties.Platform.SubnetID == nil {
@@ -253,7 +253,7 @@ func (nodePool *HCPOpenShiftClusterNodePool) validateSubnetID(cluster *HCPOpenSh
 	return errorDetails
 }
 
-func (nodePool *HCPOpenShiftClusterNodePool) Validate(cluster *HCPOpenShiftCluster) []CloudErrorBody {
+func (nodePool *ClusterNodePool) Validate(cluster *Cluster) []CloudErrorBody {
 	var errorDetails []CloudErrorBody
 
 	if cluster != nil {

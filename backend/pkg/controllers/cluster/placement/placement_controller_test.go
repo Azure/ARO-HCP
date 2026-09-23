@@ -106,7 +106,7 @@ func namedClusterResourceIDs(prefix string, n int) []*azcorearm.ResourceID {
 
 // clusterWithAvailability builds a SWIFT HCPOpenShiftCluster with the given name and
 // control-plane availability, for the informer-cache-backed swiftNICReserver.
-func clusterWithAvailability(name string, availability coreapi.ControlPlaneAvailability) *coreapi.HCPOpenShiftCluster {
+func clusterWithAvailability(name string, availability coreapi.ControlPlaneAvailability) *coreapi.Cluster {
 	rid := clusterResourceIDWithName(name)
 	cluster := newTestHCPCluster()
 	cluster.ID = rid
@@ -121,7 +121,7 @@ func clusterWithAvailability(name string, availability coreapi.ControlPlaneAvail
 // every other cluster is highly available (reserve swiftNICsPerHCP). This lets
 // availableResources resolve per-cluster swift-NIC reservations from the cache.
 func clusterListerForAvailability(ids []*azcorearm.ResourceID) *corelistertesting.SliceClusterLister {
-	clusters := make([]*coreapi.HCPOpenShiftCluster, 0, len(ids))
+	clusters := make([]*coreapi.Cluster, 0, len(ids))
 	for _, id := range ids {
 		availability := coreapi.DefaultControlPlaneAvailability
 		if strings.HasPrefix(id.Name, "sr-") {
@@ -263,7 +263,7 @@ func TestSwiftNICsForResourceID(t *testing.T) {
 
 	syncer := &placementSyncer{
 		clusterLister: &corelistertesting.SliceClusterLister{
-			Clusters: []*coreapi.HCPOpenShiftCluster{haCluster, srCluster, nonSwiftCluster},
+			Clusters: []*coreapi.Cluster{haCluster, srCluster, nonSwiftCluster},
 		},
 	}
 	ctx := context.Background()
@@ -286,7 +286,7 @@ type unresolvedClusterLister struct {
 	err error
 }
 
-func (l *unresolvedClusterLister) Get(context.Context, string, string, string) (*coreapi.HCPOpenShiftCluster, error) {
+func (l *unresolvedClusterLister) Get(context.Context, string, string, string) (*coreapi.Cluster, error) {
 	return nil, l.err
 }
 
@@ -571,7 +571,7 @@ func TestPlacementSyncer_SyncOnce_FreshSelection(t *testing.T) {
 		assert.Empty(t, scheduling.Status.PendingAssignedClusters)
 	}
 
-	clusterLister.Clusters = []*coreapi.HCPOpenShiftCluster{newTestHCPCluster()}
+	clusterLister.Clusters = []*coreapi.Cluster{newTestHCPCluster()}
 	require.NoError(t, syncer.SyncOnce(ctx, key))
 
 	// Spec set to the emptier eligible MC (stamp "2") per spread selection.
@@ -625,7 +625,7 @@ func TestPlacementSyncer_SyncOnce_NetworkingModeDemand(t *testing.T) {
 			require.NoError(t, err)
 			syncer := &placementSyncer{
 				serviceProviderClusterLister:      &corelistertesting.SliceServiceProviderClusterLister{ServiceProviderClusters: []*coreapi.ServiceProviderCluster{spc}},
-				clusterLister:                     &corelistertesting.SliceClusterLister{Clusters: []*coreapi.HCPOpenShiftCluster{cluster}},
+				clusterLister:                     &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{cluster}},
 				managementClusterLister:           &fleetlistertesting.SliceManagementClusterLister{ManagementClusters: []*fleetapi.ManagementCluster{mcForStamp("1", true, true)}},
 				managementClusterSchedulingLister: &fleetlistertesting.SliceManagementClusterSchedulingLister{Schedulings: []*fleetapi.ManagementClusterScheduling{scheduling}},
 				cosmosClient:                      db,
@@ -680,7 +680,7 @@ func TestPlacementSyncer_SyncOnce_NoCapacityRecordsBlockedAndRetries(t *testing.
 	enqueuer := &fakeAfterEnqueuer{}
 	syncer := &placementSyncer{
 		serviceProviderClusterLister:      &corelistertesting.SliceServiceProviderClusterLister{ServiceProviderClusters: []*coreapi.ServiceProviderCluster{created}},
-		clusterLister:                     &corelistertesting.SliceClusterLister{Clusters: []*coreapi.HCPOpenShiftCluster{newTestHCPCluster()}},
+		clusterLister:                     &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{newTestHCPCluster()}},
 		managementClusterLister:           &fleetlistertesting.SliceManagementClusterLister{ManagementClusters: []*fleetapi.ManagementCluster{mcForStamp("1", true, true)}},
 		managementClusterSchedulingLister: &fleetlistertesting.SliceManagementClusterSchedulingLister{Schedulings: []*fleetapi.ManagementClusterScheduling{sched1}},
 		cosmosClient:                      mockDB,
@@ -731,7 +731,7 @@ func TestPlacementSyncer_SyncOnce_NoEligibleManagementClusterRecordsBlockedAndRe
 	enqueuer := &fakeAfterEnqueuer{}
 	syncer := &placementSyncer{
 		serviceProviderClusterLister:      &corelistertesting.SliceServiceProviderClusterLister{ServiceProviderClusters: []*coreapi.ServiceProviderCluster{created}},
-		clusterLister:                     &corelistertesting.SliceClusterLister{Clusters: []*coreapi.HCPOpenShiftCluster{newTestHCPCluster()}},
+		clusterLister:                     &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{newTestHCPCluster()}},
 		managementClusterLister:           &fleetlistertesting.SliceManagementClusterLister{ManagementClusters: []*fleetapi.ManagementCluster{mcForStamp("1", true, true)}},
 		managementClusterSchedulingLister: &fleetlistertesting.SliceManagementClusterSchedulingLister{},
 		cosmosClient:                      mockDB,
@@ -774,7 +774,7 @@ func TestPlacementSyncer_SyncOnce_SkipsDeletingCluster(t *testing.T) {
 
 	// The HCP is being deleted.
 	deletionTime := metav1.Now()
-	deletingCluster := newTestHCPCluster(func(c *coreapi.HCPOpenShiftCluster) {
+	deletingCluster := newTestHCPCluster(func(c *coreapi.Cluster) {
 		c.ServiceProviderProperties.DeletionTimestamp = &deletionTime
 	})
 
@@ -787,7 +787,7 @@ func TestPlacementSyncer_SyncOnce_SkipsDeletingCluster(t *testing.T) {
 
 	syncer := &placementSyncer{
 		serviceProviderClusterLister:      &corelistertesting.SliceServiceProviderClusterLister{ServiceProviderClusters: []*coreapi.ServiceProviderCluster{created}},
-		clusterLister:                     &corelistertesting.SliceClusterLister{Clusters: []*coreapi.HCPOpenShiftCluster{deletingCluster}},
+		clusterLister:                     &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{deletingCluster}},
 		managementClusterLister:           &fleetlistertesting.SliceManagementClusterLister{ManagementClusters: []*fleetapi.ManagementCluster{mcForStamp("1", true, true)}},
 		managementClusterSchedulingLister: &fleetlistertesting.SliceManagementClusterSchedulingLister{Schedulings: []*fleetapi.ManagementClusterScheduling{sched}},
 		cosmosClient:                      mockDB,
@@ -993,7 +993,7 @@ func TestPlacementSyncer_FailedEvaluationPreservesCapacityShortfall(t *testing.T
 				serviceProviderClusterLister: &corelistertesting.SliceServiceProviderClusterLister{
 					ServiceProviderClusters: []*coreapi.ServiceProviderCluster{created},
 				},
-				clusterLister: &corelistertesting.SliceClusterLister{Clusters: []*coreapi.HCPOpenShiftCluster{newTestHCPCluster()}},
+				clusterLister: &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{newTestHCPCluster()}},
 				managementClusterLister: &fleetlistertesting.SliceManagementClusterLister{
 					ManagementClusters: []*fleetapi.ManagementCluster{mcForStamp("1", true, true)},
 				},

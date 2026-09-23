@@ -122,10 +122,10 @@ type VersionedCreatableResource[InternalAPIType any] interface {
 	ConvertToInternal(existing *InternalAPIType) (*InternalAPIType, error)
 }
 
-type VersionedHCPOpenShiftCluster VersionedCreatableResource[HCPOpenShiftCluster]
-type VersionedHCPOpenShiftClusterNodePool VersionedCreatableResource[HCPOpenShiftClusterNodePool]
-type VersionedHCPOpenShiftClusterExternalAuth VersionedCreatableResource[HCPOpenShiftClusterExternalAuth]
-type VersionedHCPOpenShiftVersion VersionedResource
+type VersionedCluster VersionedCreatableResource[Cluster]
+type VersionedClusterNodePool VersionedCreatableResource[ClusterNodePool]
+type VersionedClusterExternalAuth VersionedCreatableResource[ClusterExternalAuth]
+type VersionedOpenShiftVersion VersionedResource
 
 // ValidationPathMapperFunc takes an internal path from validation and converts it to the external path
 // for this particular version.  This needs to be as close as possible, but perfection isn't required since fields
@@ -139,16 +139,16 @@ type Version interface {
 
 	// Resource Types
 	// Passing a nil pointer creates a resource with default values.
-	NewHCPOpenShiftCluster(*HCPOpenShiftCluster) VersionedHCPOpenShiftCluster
-	NewHCPOpenShiftClusterNodePool(*HCPOpenShiftClusterNodePool) VersionedHCPOpenShiftClusterNodePool
-	NewHCPOpenShiftClusterExternalAuth(*HCPOpenShiftClusterExternalAuth) VersionedHCPOpenShiftClusterExternalAuth
-	NewHCPOpenShiftVersion(*HCPOpenShiftVersion) VersionedHCPOpenShiftVersion
+	NewCluster(*Cluster) VersionedCluster
+	NewClusterNodePool(*ClusterNodePool) VersionedClusterNodePool
+	NewClusterExternalAuth(*ClusterExternalAuth) VersionedClusterExternalAuth
+	NewOpenShiftVersion(*OpenShiftVersion) VersionedOpenShiftVersion
 
 	// Request Unmarshaling
-	UnmarshalHCPOpenShiftClusterAdminCredentialRequest([]byte) (*HCPOpenShiftClusterAdminCredentialRequest, error)
+	UnmarshalClusterAdminCredentialRequest([]byte) (*ClusterAdminCredentialRequest, error)
 
 	// Response Marshaling
-	MarshalHCPOpenShiftClusterAdminCredential(*HCPOpenShiftClusterAdminCredential) ([]byte, error)
+	MarshalClusterAdminCredential(*ClusterAdminCredential) ([]byte, error)
 }
 
 // APIRegistry is a way to keep track of versioned interfaces.

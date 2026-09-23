@@ -90,7 +90,7 @@ func TestNewActiveVersions(t *testing.T) {
 func TestNewClusterResourceStatus(t *testing.T) {
 	tests := []struct {
 		name     string
-		input    *coreapi.HCPOpenShiftClusterStatus
+		input    *coreapi.ClusterStatus
 		expected *generated.ClusterResourceStatus
 	}{
 		{
@@ -100,12 +100,12 @@ func TestNewClusterResourceStatus(t *testing.T) {
 		},
 		{
 			name:     "empty status returns nil",
-			input:    &coreapi.HCPOpenShiftClusterStatus{},
+			input:    &coreapi.ClusterStatus{},
 			expected: nil,
 		},
 		{
 			name: "status with active versions only",
-			input: &coreapi.HCPOpenShiftClusterStatus{
+			input: &coreapi.ClusterStatus{
 				ActiveVersions: []coreapi.HCPClusterActiveVersion{
 					{Version: "4.20"},
 				},
