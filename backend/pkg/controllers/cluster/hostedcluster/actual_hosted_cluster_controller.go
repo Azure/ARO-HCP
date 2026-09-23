@@ -108,9 +108,19 @@ func (c *actualHostedClusterSyncer) SyncOnce(ctx context.Context, key controller
 		return utils.TrackError(fmt.Errorf("failed to get HostedCluster from ReadDesire: %w", err))
 	}
 	if hostedCluster == nil {
-		// ReadDesire absent, or the kube-applier has not observed the
-		// HostedCluster yet. We are re-enqueued when it writes status, and the
-		// stored value stays nil ("unknown") until then.
+		// No observed HostedCluster right now. Leave the stored value as it is:
+		// nil if we have never observed this cluster, otherwise the last value
+		// we mirrored.
+		//
+		// Clearing it here would be wrong. Nil also covers "the union ReadDesire
+		// informer has not filled in yet" — workers start before the
+		// per-management-cluster sub-informers register, and an empty union
+		// reports itself synced — so every backend restart would wipe and then
+		// rewrite every mirror. A HostedCluster that is genuinely gone belongs to
+		// a cluster that is itself being deleted, which we skipped above, and the
+		// whole ServiceProviderCluster document is removed along with it.
+		//
+		// We are re-enqueued when the kube-applier writes status.
 		return nil
 	}
 
