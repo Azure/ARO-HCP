@@ -14,6 +14,8 @@
 
 package client
 
+//go:generate $MOCKGEN -typed -source=user_assigned_identities_client.go -destination=mock_user_assigned_identities_client.go -package client UserAssignedIdentitiesClient
+
 import (
 	"context"
 

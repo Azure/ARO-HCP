@@ -25,6 +25,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -38,8 +39,9 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/kube-applier/pkg/controllers/conditions"
 	"github.com/Azure/ARO-HCP/kube-applier/pkg/controllers/desirestatuswriter"
@@ -50,6 +52,12 @@ import (
 // even without a fresh kube event, so a missing target object can be reflected
 // into status. Aligns with the readme's "every 60 seconds" requirement.
 const ResyncDuration = 60 * time.Second
+
+// ReadDesireKubernetesControllerName is the per-controller identifier emitted
+// in the "controller_name" log key. Each per-instance controller shares this
+// name; the per-instance fields (subscription_id, resource_id, ...) are
+// supplied by the key via utils.AddLoggerValues.
+const ReadDesireKubernetesControllerName = "ReadDesireKubernetesController"
 
 // listWatchWithoutWatchListSemantics opts out of the WatchList streaming mode
 // enabled by default in client-go v0.35+. Mirrors the unexported wrapper in
@@ -67,14 +75,14 @@ func (listWatchWithoutWatchListSemantics) IsWatchListSemanticsUnSupported() bool
 // ReadDesire's status. One instance per ReadDesire is owned by the manager.
 type ReadDesireKubernetesController struct {
 	key        keys.ReadDesireKey
-	target     kubeapplier.ResourceReference
+	target     kubeapplierapi.ResourceReference
 	gvr        schema.GroupVersionResource
 	namespaced bool
 
 	dyn      dynamic.Interface
 	informer cache.SharedIndexInformer
 	fetcher  *readDesireFetcher
-	writer   desirestatuswriter.StatusWriter[kubeapplier.ReadDesire, keys.ReadDesireKey]
+	writer   desirestatuswriter.StatusWriter[kubeapplierapi.ReadDesire, keys.ReadDesireKey]
 
 	queue workqueue.TypedRateLimitingInterface[keys.ReadDesireKey]
 }
@@ -94,9 +102,9 @@ type ReadDesireKubernetesController struct {
 // rather than a sentinel parent.
 func NewReadDesireKubernetesController(
 	key keys.ReadDesireKey,
-	target kubeapplier.ResourceReference,
+	target kubeapplierapi.ResourceReference,
 	dyn dynamic.Interface,
-	crudByParent database.KubeApplierReadDesireCRUD,
+	crudByParent kubeappliercosmosstorage.KubeApplierReadDesireCRUD,
 ) (*ReadDesireKubernetesController, error) {
 	if len(target.Resource) == 0 || len(target.Version) == 0 || len(target.Name) == 0 {
 		return nil, conditions.NewPreCheckError(errors.New("spec.targetItem requires version, resource, and name"))
@@ -117,10 +125,10 @@ func NewReadDesireKubernetesController(
 			workqueue.TypedRateLimitingQueueConfig[keys.ReadDesireKey]{
 				// Underscores rather than slashes: this name surfaces as a
 				// Prometheus label and slashes complicate downstream tooling.
-				Name: fmt.Sprintf("ReadDesireKubernetesController_%s_%s_%s", key.ClusterName, key.NodePoolName, key.Name),
+				Name: ReadDesireKubernetesControllerName + strings.ReplaceAll(key.GetResourceID().String(), "/", "_"),
 			},
 		),
-		writer: desirestatuswriter.New[kubeapplier.ReadDesire, keys.ReadDesireKey, *kubeapplier.ReadDesire](
+		writer: desirestatuswriter.New[kubeapplierapi.ReadDesire, keys.ReadDesireKey, *kubeapplierapi.ReadDesire](
 			fetcher,
 			&readDesireReplacer{crudByParent: crudByParent},
 		),
@@ -134,7 +142,7 @@ func NewReadDesireKubernetesController(
 		// with non-watchable backends, hence this wrapper for both paths.
 		&listWatchWithoutWatchListSemantics{ListWatch: c.singleObjectListWatch()},
 		&unstructured.Unstructured{},
-		cache.SharedIndexInformerOptions{ResyncPeriod: ResyncDuration},
+		cache.SharedIndexInformerOptions{ResyncPeriod: ResyncDuration, ObjectDescription: "ReadDesireKubernetes"},
 	)
 
 	// Register the event handler at construction so the SharedIndexInformer
@@ -155,10 +163,16 @@ func (c *ReadDesireKubernetesController) Run(ctx context.Context) {
 	defer utilruntime.HandleCrash()
 	defer c.queue.ShutDown()
 
-	logger := utils.LoggerFromContext(ctx).WithValues("readDesire", c.key.Name, "cluster", c.key.ClusterName)
+	// Seed the per-controller logger with controller_name and the desire's
+	// identifying fields (subscription_id, resource_group, resource_id, ...).
+	// Since this controller is per-instance, the key fields are constant for
+	// its entire lifetime and belong on the Run-level logger.
+	ctx = utils.ContextWithControllerName(ctx, ReadDesireKubernetesControllerName)
+	logger := utils.LoggerFromContext(ctx).WithValues(utils.LogValues{}.AddControllerName(ReadDesireKubernetesControllerName)...)
+	logger = utils.AddLoggerValues(logger, c.key)
 	ctx = utils.ContextWithLogger(ctx, logger)
-	logger.Info("starting ReadDesireKubernetesController")
-	defer logger.Info("stopped ReadDesireKubernetesController")
+	logger.Info("starting controller")
+	defer logger.Info("stopped controller")
 
 	go c.informer.RunWithContext(ctx)
 
@@ -210,6 +224,16 @@ func (c *ReadDesireKubernetesController) processNext(ctx context.Context) bool {
 		return false
 	}
 	defer c.queue.Done(key)
+
+	// Seed the per-reconcile logger with the key's identifying fields so every
+	// log line from SyncOnce carries subscription_id / resource_group /
+	// resource_id, matching the backend generic worker loop's behavior and
+	// the convention shared with apply_desire / read_desire_manager.
+	// All keys here are identical (this controller is per-instance), but doing
+	// the seeding in processNext keeps the pattern uniform across kube-applier.
+	logger := utils.AddLoggerValues(utils.LoggerFromContext(ctx), key)
+	ctx = utils.ContextWithLogger(ctx, logger)
+
 	if err := c.SyncOnce(ctx); err != nil {
 		utilruntime.HandleErrorWithContext(ctx, err, "sync error; requeuing", "key", key)
 		c.queue.AddRateLimited(key)
@@ -241,7 +265,7 @@ func (c *ReadDesireKubernetesController) SyncOnce(ctx context.Context) error {
 	}
 
 	desire, err := c.fetcher.Fetch(ctx, c.key)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {
@@ -267,7 +291,7 @@ func (c *ReadDesireKubernetesController) SyncOnce(ctx context.Context) error {
 	}
 	rawObj, exists, err := c.informer.GetStore().GetByKey(storeKey)
 	if err != nil {
-		return c.writer.UpdateStatus(ctx, c.key, func(d *kubeapplier.ReadDesire) {
+		return c.writer.UpdateStatus(ctx, c.key, func(d *kubeapplierapi.ReadDesire) {
 			conditions.SetSuccessful(&d.Status.Conditions, fmt.Errorf("read cache: %w", err))
 		})
 	}
@@ -281,14 +305,18 @@ func (c *ReadDesireKubernetesController) SyncOnce(ctx context.Context) error {
 	if exists {
 		obj, ok := rawObj.(*unstructured.Unstructured)
 		if !ok {
-			return c.writer.UpdateStatus(ctx, c.key, func(d *kubeapplier.ReadDesire) {
+			return c.writer.UpdateStatus(ctx, c.key, func(d *kubeapplierapi.ReadDesire) {
 				conditions.SetSuccessful(&d.Status.Conditions, conditions.NewPreCheckError(
 					fmt.Errorf("informer cached unexpected type %T", rawObj)))
 			})
 		}
+		if isSecret(c.target) {
+			obj = obj.DeepCopy()
+			redactSecret(obj)
+		}
 		newRaw, err = json.Marshal(obj)
 		if err != nil {
-			return c.writer.UpdateStatus(ctx, c.key, func(d *kubeapplier.ReadDesire) {
+			return c.writer.UpdateStatus(ctx, c.key, func(d *kubeapplierapi.ReadDesire) {
 				conditions.SetSuccessful(&d.Status.Conditions, fmt.Errorf("marshal observed object: %w", err))
 			})
 		}
@@ -304,12 +332,12 @@ func (c *ReadDesireKubernetesController) SyncOnce(ctx context.Context) error {
 	if bytes.Equal(newRaw, existingRaw) {
 		// Still ensure Successful=True so a freshly-launched controller flips
 		// the condition out of Unknown into True on the first cycle.
-		return c.writer.UpdateStatus(ctx, c.key, func(d *kubeapplier.ReadDesire) {
+		return c.writer.UpdateStatus(ctx, c.key, func(d *kubeapplierapi.ReadDesire) {
 			conditions.SetSuccessful(&d.Status.Conditions, nil)
 		})
 	}
 
-	return c.writer.UpdateStatus(ctx, c.key, func(d *kubeapplier.ReadDesire) {
+	return c.writer.UpdateStatus(ctx, c.key, func(d *kubeapplierapi.ReadDesire) {
 		if newRaw == nil {
 			d.Status.KubeContent = nil
 		} else {
@@ -345,12 +373,12 @@ func (c *ReadDesireKubernetesController) singleObjectListWatch() *cache.ListWatc
 // live Cosmos client per call. See the apply_desire counterpart for why
 // the lister cache is the wrong source here.
 type readDesireFetcher struct {
-	crudByParent database.KubeApplierReadDesireCRUD
+	crudByParent kubeappliercosmosstorage.KubeApplierReadDesireCRUD
 }
 
-var _ desirestatuswriter.Fetcher[kubeapplier.ReadDesire, keys.ReadDesireKey] = &readDesireFetcher{}
+var _ desirestatuswriter.Fetcher[kubeapplierapi.ReadDesire, keys.ReadDesireKey] = &readDesireFetcher{}
 
-func (f *readDesireFetcher) Fetch(ctx context.Context, key keys.ReadDesireKey) (*kubeapplier.ReadDesire, error) {
+func (f *readDesireFetcher) Fetch(ctx context.Context, key keys.ReadDesireKey) (*kubeapplierapi.ReadDesire, error) {
 	crud, err := key.CRUD(f.crudByParent)
 	if err != nil {
 		return nil, fmt.Errorf("crud for key %v: %w", key, err)
@@ -362,12 +390,12 @@ func (f *readDesireFetcher) Fetch(ctx context.Context, key keys.ReadDesireKey) (
 // KubeApplierReadDesireCRUD. See the apply_desire counterpart for why
 // the parent must be derived per-call instead of fixed at construction.
 type readDesireReplacer struct {
-	crudByParent database.KubeApplierReadDesireCRUD
+	crudByParent kubeappliercosmosstorage.KubeApplierReadDesireCRUD
 }
 
-var _ desirestatuswriter.Replacer[kubeapplier.ReadDesire] = &readDesireReplacer{}
+var _ desirestatuswriter.Replacer[kubeapplierapi.ReadDesire] = &readDesireReplacer{}
 
-func (r *readDesireReplacer) Replace(ctx context.Context, desired *kubeapplier.ReadDesire) error {
+func (r *readDesireReplacer) Replace(ctx context.Context, desired *kubeapplierapi.ReadDesire) error {
 	key, err := keys.ReadDesireKeyFromResourceID(desired.GetResourceID())
 	if err != nil {
 		return fmt.Errorf("derive key for replace: %w", err)

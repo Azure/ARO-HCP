@@ -61,7 +61,7 @@ output svcParentZoneResourceId string = svcParentZone.id
 //   G R A F A N A
 //
 
-resource grafana 'Microsoft.Dashboard/grafana@2023-09-01' existing = {
+resource grafana 'Microsoft.Dashboard/grafana@2024-10-01' existing = {
   name: grafanaName
 }
 

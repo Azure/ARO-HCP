@@ -7,7 +7,7 @@ FLEET_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 ARO_HCP_REVISION ?= $(shell git rev-parse HEAD)
 ARO_HCP_COMMIT_TIME ?= $(shell TZ=UTC git show -s --format=%cd --date=iso-strict-local ${ARO_HCP_REVISION})
 ARO_HCP_IMAGE_REGISTRY ?= ${ARO_HCP_IMAGE_ACR}.azurecr.io
-FLEET_IMAGE_TAG ?= $(shell DETECT_DIRTY_GIT_WORKTREE=${DETECT_DIRTY_GIT_WORKTREE} DEPLOY_ENV=${DEPLOY_ENV} ../generate-tag.sh)
+FLEET_IMAGE_TAG ?= $(or $(IMAGE_TAG),$(shell DETECT_DIRTY_GIT_WORKTREE=${DETECT_DIRTY_GIT_WORKTREE} DEPLOY_ENV=${DEPLOY_ENV} ../generate-tag.sh))
 FLEET_GENERATED_IMAGE_REPOSITORY = $(shell DEPLOY_ENV=${DEPLOY_ENV} BASELINE_REPO=${FLEET_IMAGE_REPOSITORY} ../generate-repo.sh)
 FLEET_TAGGED_IMAGE ?= $(ARO_HCP_IMAGE_REGISTRY)/$(FLEET_GENERATED_IMAGE_REPOSITORY):$(FLEET_IMAGE_TAG)
 
@@ -48,6 +48,10 @@ build-and-push: image $(ORAS) $(YQ)
 	fi
 .PHONY: build-and-push
 
+deploy: build-and-push record-override
+	make -C .. pipeline/Fleet OVERRIDE_CONFIG_FILE=$(OVERRIDE_CONFIG_FILE)
+.PHONY: deploy
+
 MAKE_RUN_TS := $(shell date +%s)
 OVERRIDE_CONFIG_FILE ?= /tmp/fleet-override-config-$(MAKE_RUN_TS).yaml
 
@@ -64,3 +68,10 @@ record-override: $(YQ) $(ORAS)
 		.clouds.dev.environments.$(DEPLOY_ENV).defaults.fleet.image.digest = \"$$DIGEST\" \
 	" > $(OVERRIDE_CONFIG_FILE)
 .PHONY: record-override
+
+record-latest-override: $(YQ)
+	@../hack/record-latest-image-override.sh \
+		"$(ARO_HCP_IMAGE_ACR)" "$(ARO_HCP_IMAGE_REGISTRY)" \
+		"$(FLEET_IMAGE_REPOSITORY)" "$(DEPLOY_ENV)" \
+		"fleet" "$(OVERRIDE_CONFIG_FILE)" "$(YQ)"
+.PHONY: record-latest-override

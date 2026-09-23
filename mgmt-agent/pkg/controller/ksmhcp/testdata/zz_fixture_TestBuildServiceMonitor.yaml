@@ -16,6 +16,11 @@ spec:
     metricRelabelings:
     - action: replace
       replacement: ocm-arohcppers-abc123-xyz
+      targetLabel: hostedcontrolplane
+    - action: replace
+      regex: (.+)
+      sourceLabels:
+      - exported_namespace
       targetLabel: namespace
     port: http-metrics
   namespaceSelector:

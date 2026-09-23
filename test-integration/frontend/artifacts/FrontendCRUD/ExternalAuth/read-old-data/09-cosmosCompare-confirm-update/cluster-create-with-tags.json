@@ -24,6 +24,7 @@
 			"clusterImageRegistry": {
 				"state": "Disabled"
 			},
+			"cryptoRestrictions": "None",
 			"dns": {},
 			"etcd": {
 				"dataEncryption": {

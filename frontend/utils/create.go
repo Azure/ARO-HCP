@@ -24,8 +24,8 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 )
 
 const (
@@ -62,32 +62,32 @@ func main() {
 
 // CreateJSONFile creates a base cluster JSON file for use with testing frontend to create clusters
 func CreateJSONFile() error {
-	cluster := api.HCPOpenShiftCluster{
-		CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
-			Version: api.VersionProfile{
+	cluster := coreapi.HCPOpenShiftCluster{
+		CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+			Version: coreapi.VersionProfile{
 				ChannelGroup: "stable",
 			},
-			DNS: api.CustomerDNSProfile{},
-			Network: api.NetworkProfile{
-				NetworkType: api.NetworkTypeOVNKubernetes,
+			DNS: coreapi.CustomerDNSProfile{},
+			Network: coreapi.NetworkProfile{
+				NetworkType: metadataapi.NetworkTypeOVNKubernetes,
 				PodCIDR:     "10.128.0.0/14",
 				ServiceCIDR: "172.30.0.0/16",
 				MachineCIDR: "10.0.0.0/16",
 				HostPrefix:  23,
 			},
-			API: api.CustomerAPIProfile{
-				Visibility: api.Visibility("Public"),
+			API: coreapi.CustomerAPIProfile{
+				Visibility: metadataapi.Visibility("Public"),
 			},
-			Platform: api.CustomerPlatformProfile{
+			Platform: coreapi.CustomerPlatformProfile{
 				ManagedResourceGroup:   "dev-test-mrg",
-				NetworkSecurityGroupID: api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-test-rg/providers/Microsoft.Network/networkSecurityGroups/xyz")),
-				SubnetID:               api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-test-rg/providers/Microsoft.Network/virtualNetworks/xyz/subnets/xyz")),
-				OutboundType:           api.OutboundType("LoadBalancer"),
+				NetworkSecurityGroupID: metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-test-rg/providers/Microsoft.Network/networkSecurityGroups/xyz")),
+				SubnetID:               metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-test-rg/providers/Microsoft.Network/virtualNetworks/xyz/subnets/xyz")),
+				OutboundType:           metadataapi.OutboundType("LoadBalancer"),
 			},
 		},
-		ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
-			Console: api.ServiceProviderConsoleProfile{},
-			Platform: api.ServiceProviderPlatformProfile{
+		ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+			Console: coreapi.ServiceProviderConsoleProfile{},
+			Platform: coreapi.ServiceProviderPlatformProfile{
 				IssuerURL: "",
 			},
 		},
@@ -107,15 +107,15 @@ func CreateJSONFile() error {
 }
 
 func CreateNodePool() error {
-	nodePool := api.HCPOpenShiftClusterNodePool{
-		Properties: api.HCPOpenShiftClusterNodePoolProperties{
-			ProvisioningState: arm.ProvisioningState(""),
-			Version: api.NodePoolVersionProfile{
+	nodePool := coreapi.HCPOpenShiftClusterNodePool{
+		Properties: coreapi.HCPOpenShiftClusterNodePoolProperties{
+			ProvisioningState: coreapi.ProvisioningState(""),
+			Version: coreapi.NodePoolVersionProfile{
 				ChannelGroup: "stable",
 			},
-			Platform: api.NodePoolPlatformProfile{
-				SubnetID: api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-test-rg/providers/Microsoft.Network/virtualNetworks/xyz/subnets/xyz")),
-				OSDisk: api.OSDiskProfile{
+			Platform: coreapi.NodePoolPlatformProfile{
+				SubnetID: metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-test-rg/providers/Microsoft.Network/virtualNetworks/xyz/subnets/xyz")),
+				OSDisk: coreapi.OSDiskProfile{
 					SizeGiB:                ptr.To[int32](64),
 					DiskStorageAccountType: "StandardSSD_LRS",
 				},

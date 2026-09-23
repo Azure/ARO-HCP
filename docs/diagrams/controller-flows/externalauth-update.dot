@@ -1,0 +1,20 @@
+digraph externalauth_update {
+  graph [rankdir=TB, bgcolor="white", pad="0.3", nodesep="0.4", ranksep="0.55", fontname="DejaVu Sans", fontsize=18, labelloc=t, label="External auth update · controller flow", dpi=110];
+  node [shape=box, style="rounded,filled", fillcolor="#e6f0fa", color="#35648a", fontname="DejaVu Sans", fontsize=12, margin="0.16,0.10"];
+  edge [color="#536577", fontname="DejaVu Sans", fontsize=10, arrowsize=0.7];
+  api [label="Frontend PUT / PATCH external auth\ndesired state + Update Operation", fillcolor="#eee7fb", color="#7b59a4"];
+  dispatch [label="ExternalAuthClusterServiceUpdate\nDispatch", fillcolor="#e6f0fa", color="#35648a"];
+  cs [label="Cluster Service external auth", fillcolor="#fff0da", color="#b27624"];
+  op [label="OperationExternalAuthUpdate", fillcolor="#e6f0fa", color="#35648a"];
+  done [label=" Update Operation terminal state", fillcolor="#e4f2e5", color="#4c8053"];
+  external [label="ClusterResources / ApplyDesireController\nparent HostedCluster configuration", fillcolor="#fff0da", color="#b27624"];
+  mirror [label="ReadDesireKubernetesController\nexisting parent HostedCluster read", fillcolor="#e6f0fa", color="#35648a"];
+  api -> dispatch [label="not deleting; ID present;\nconfig changed"];
+  dispatch -> cs [label="PATCH; record dispatch"];
+  cs -> op [label="observe requested\nconfiguration"];
+  op -> done [label="complete or fail"];
+  cs -> external [label="external desired configuration"];
+  external -> mirror [label="observed HostedCluster spec"];
+  mirror -> op [label="issuer / clients / claims /\nrules match"];
+  op -> op [label="pending: observe again", style=dashed, color="#857456", constraint=false];
+}

@@ -1,0 +1,16 @@
+cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('kubernetesResourceSnapshots')
+| where timestamp between ({{ kqlDatetime .PhaseStartTime }} .. {{ kqlDatetime .PhaseEndTime }})
+{{- if and .ServiceClusterName .ManagementClusterName }}
+| where cluster in ('{{ .ServiceClusterName }}', '{{ .ManagementClusterName }}')
+{{- end }}
+| where objectKind == 'Pod'
+| where namespace == strcat('klusterlet-', '{{ .ClusterID }}')
+| project
+    timestamp,
+    pod_name = name,
+    event,
+    reason = tostring(object.status.reason),
+    message = tostring(object.status.message),
+    phase = tostring(object.status.phase),
+    node = tostring(object.spec.nodeName)
+| order by timestamp asc

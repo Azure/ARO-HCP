@@ -1517,19 +1517,19 @@
         "maxPodGracePeriodSeconds": {
           "type": "integer",
           "format": "int32",
-          "description": "maxPodGracePeriod is the maximum seconds to wait for graceful pod termination before scaling down a NodePool.\nThe default is 600 seconds.\n\nNote: The default value is not declared in the API specification because\nof a TypeSpec bug with updatable fields. The default value will be\ndeclared in a future API version once the TypeSpec bug is fixed.\nhttps://github.com/Azure/typespec-azure/issues/1586",
+          "description": "maxPodGracePeriod is the maximum seconds to wait for graceful pod termination before scaling down a NodePool.\nThe default is 600 seconds.",
           "minimum": 0
         },
         "maxNodeProvisionTimeSeconds": {
           "type": "integer",
           "format": "int32",
-          "description": "maxNodeProvisionTimeSeconds is the maximum time to wait for node provisioning before considering the\nprovisioning to be unsuccessful. The default is 900 seconds, or 15 minutes.\n\nNote: The default value is not declared in the API specification because\nof a TypeSpec bug with updatable fields. The default value will be\ndeclared in a future API version once the TypeSpec bug is fixed.\nhttps://github.com/Azure/typespec-azure/issues/1586",
+          "description": "maxNodeProvisionTimeSeconds is the maximum time to wait for node provisioning before considering the\nprovisioning to be unsuccessful. The default is 900 seconds, or 15 minutes.",
           "minimum": 0
         },
         "podPriorityThreshold": {
           "type": "integer",
           "format": "int32",
-          "description": "podPriorityThreshold enables users to schedule \"best-effort\" pods, which shouldn't trigger autoscaler actions,\nbut only run when there are spare resources available. The default is -10.\nSee the following for more details:\nhttps://github.com/kubernetes/autoscaler/blob/master/cluster-autoscaler/FAQ.md#how-does-cluster-autoscaler-work-with-pod-priority-and-preemption\n\nNote: The default value is not declared in the API specification because\nof a TypeSpec bug with updatable fields. The default value will be\ndeclared in a future API version once the TypeSpec bug is fixed.\nhttps://github.com/Azure/typespec-azure/issues/1586"
+          "description": "podPriorityThreshold enables users to schedule \"best-effort\" pods, which shouldn't trigger autoscaler actions,\nbut only run when there are spare resources available. The default is -10.\nSee the following for more details:\nhttps://github.com/kubernetes/autoscaler/blob/master/cluster-autoscaler/FAQ.md#how-does-cluster-autoscaler-work-with-pod-priority-and-preemption"
         }
       }
     },
@@ -2633,7 +2633,12 @@
           "type": "string",
           "description": "version contains the version of the key to use.",
           "minLength": 1,
-          "maxLength": 255
+          "maxLength": 255,
+          "x-ms-mutability": [
+            "read",
+            "update",
+            "create"
+          ]
         }
       },
       "required": [
@@ -2892,7 +2897,7 @@
         },
         "autoRepair": {
           "type": "boolean",
-          "description": "Auto-repair",
+          "description": "autoRepair specifies whether health checks should be enabled for machines\nin the NodePool. Enabling this feature will cause the controller to\nautomatically delete unhealthy machines. The unhealthy criteria are\ndetermined by checking the Node Ready condition and a timeout that might\nvary depending on the platform provider. autoRepair will not take action\nwhen more than 2 Nodes are unhealthy at the same time, giving time for\nthe cluster to stabilize or for the user to manually intervene.",
           "default": true,
           "x-ms-mutability": [
             "read",
@@ -2910,7 +2915,7 @@
         },
         "labels": {
           "type": "array",
-          "description": "Kubernetes labels to propagate to the NodePool Nodes\nNote that when the labels are updated this is only applied to newly\ncreate nodes in the Nodepool, existing node labels remain unchanged.",
+          "description": "Kubernetes labels to propagate to the NodePool Nodes\nNote that when the labels are updated this is only applied to newly\ncreated nodes in the Nodepool, existing node labels remain unchanged.",
           "items": {
             "$ref": "#/definitions/Label"
           },
@@ -2991,7 +2996,7 @@
         },
         "labels": {
           "type": "array",
-          "description": "Kubernetes labels to propagate to the NodePool Nodes\nNote that when the labels are updated this is only applied to newly\ncreate nodes in the Nodepool, existing node labels remain unchanged.",
+          "description": "Kubernetes labels to propagate to the NodePool Nodes\nNote that when the labels are updated this is only applied to newly\ncreated nodes in the Nodepool, existing node labels remain unchanged.",
           "items": {
             "$ref": "#/definitions/Label"
           },
@@ -3068,7 +3073,7 @@
         },
         "channelGroup": {
           "type": "string",
-          "description": "ChannelGroup is the name of the set to which this version belongs.\nEach version belongs to only a single set.\n\nIf not specified, the default value is 'stable'.\n\nNote: The default value is not declared in the API specification because\nof a TypeSpec bug with updatable fields. The default value will be\ndeclared in a future API version once the TypeSpec bug is fixed.\nhttps://github.com/Azure/typespec-azure/issues/1586",
+          "description": "ChannelGroup is the name of the set to which this version belongs.\nEach version belongs to only a single set.\n\nIf not specified, the default value is 'stable'.",
           "x-ms-mutability": [
             "read",
             "update",
@@ -3095,7 +3100,7 @@
         },
         "channelGroup": {
           "type": "string",
-          "description": "ChannelGroup is the name of the set to which this version belongs.\nEach version belongs to only a single set.\n\nIf not specified, the default value is 'stable'.\n\nNote: The default value is not declared in the API specification because\nof a TypeSpec bug with updatable fields. The default value will be\ndeclared in a future API version once the TypeSpec bug is fixed.\nhttps://github.com/Azure/typespec-azure/issues/1586",
+          "description": "ChannelGroup is the name of the set to which this version belongs.\nEach version belongs to only a single set.\n\nIf not specified, the default value is 'stable'.",
           "x-ms-mutability": [
             "read",
             "update",
@@ -3457,7 +3462,7 @@
     },
     "StatusType": {
       "type": "string",
-      "description": "Representation of the possible values of a external auths condition status.",
+      "description": "Representation of the possible values of a condition status.",
       "enum": [
         "True",
         "False",
@@ -3839,7 +3844,7 @@
         },
         "channelGroup": {
           "type": "string",
-          "description": "ChannelGroup is the name of the set to which this version belongs.\nEach version belongs to only a single set.\n\nIf not specified, the default value is 'stable'.\n\nNote: The default value is not declared in the API specification because\nof a TypeSpec bug with updatable fields. The default value will be\ndeclared in a future API version once the TypeSpec bug is fixed.\nhttps://github.com/Azure/typespec-azure/issues/1586",
+          "description": "ChannelGroup is the name of the set to which this version belongs.\nEach version belongs to only a single set.\n\nIf not specified, the default value is 'stable'.",
           "x-ms-mutability": [
             "read",
             "update",
@@ -3866,7 +3871,7 @@
         },
         "channelGroup": {
           "type": "string",
-          "description": "ChannelGroup is the name of the set to which this version belongs.\nEach version belongs to only a single set.\n\nIf not specified, the default value is 'stable'.\n\nNote: The default value is not declared in the API specification because\nof a TypeSpec bug with updatable fields. The default value will be\ndeclared in a future API version once the TypeSpec bug is fixed.\nhttps://github.com/Azure/typespec-azure/issues/1586",
+          "description": "ChannelGroup is the name of the set to which this version belongs.\nEach version belongs to only a single set.\n\nIf not specified, the default value is 'stable'.",
           "x-ms-mutability": [
             "read",
             "update",

@@ -30,10 +30,11 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/api/fleet"
-	"github.com/Azure/ARO-HCP/internal/databasetesting"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/fleetcosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -44,27 +45,33 @@ func mustParseResourceID(t *testing.T, id string) *azcorearm.ResourceID {
 	return parsed
 }
 
-func mustNewInternalID(t *testing.T, path string) *api.InternalID {
+func mustNewInternalID(t *testing.T, path string) *metadataapi.InternalID {
 	t.Helper()
-	id, err := api.NewInternalID(path)
+	id, err := metadataapi.NewInternalID(path)
 	require.NoError(t, err)
 	return &id
 }
 
-func newManagementCluster(t *testing.T, stampIdentifier string) *fleet.ManagementCluster {
+func newManagementClusterWithPolicy(t *testing.T, stampIdentifier string, policy fleetapi.ManagementClusterSchedulingPolicy) *fleetapi.ManagementCluster {
 	t.Helper()
-	managementClusterResourceID, err := fleet.ToManagementClusterResourceID(stampIdentifier)
+	managementCluster := newManagementCluster(t, stampIdentifier)
+	managementCluster.Spec.SchedulingPolicy = policy
+	return managementCluster
+}
+
+func newManagementCluster(t *testing.T, stampIdentifier string) *fleetapi.ManagementCluster {
+	t.Helper()
+	managementClusterResourceID, err := fleetapihelpers.ToManagementClusterResourceID(stampIdentifier)
 	require.NoError(t, err)
-	return &fleet.ManagementCluster{
-		CosmosMetadata: arm.CosmosMetadata{
+	return &fleetapi.ManagementCluster{
+		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   managementClusterResourceID,
 			PartitionKey: strings.ToLower(stampIdentifier),
 		},
-		ResourceID: managementClusterResourceID,
-		Spec: fleet.ManagementClusterSpec{
-			SchedulingPolicy: fleet.ManagementClusterSchedulingPolicySchedulable,
+		Spec: fleetapi.ManagementClusterSpec{
+			SchedulingPolicy: fleetapi.ManagementClusterSchedulingPolicySchedulable,
 		},
-		Status: fleet.ManagementClusterStatus{
+		Status: fleetapi.ManagementClusterStatus{
 			AKSResourceID:                                        mustParseResourceID(t, "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/aks1"),
 			PublicDNSZoneResourceID:                              mustParseResourceID(t, "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dns-rg/providers/Microsoft.Network/dnszones/example.com"),
 			ClusterServiceProvisionShardID:                       mustNewInternalID(t, "/api/aro_hcp/v1alpha1/provision_shards/00000000-0000-0000-0000-000000000001"),
@@ -92,14 +99,14 @@ func TestManagementClusterGetHandler(t *testing.T) {
 		{
 			name:                  "get existing management cluster",
 			stampIdentifier:       "a1",
-			managementClusterName: fleet.ManagementClusterResourceName,
+			managementClusterName: fleetapi.ManagementClusterResourceName,
 			setupResources:        []any{newStamp("a1"), newManagementCluster(t, "a1")},
 			expectedStatusCode:    http.StatusOK,
 		},
 		{
 			name:                  "management cluster not found returns 404",
 			stampIdentifier:       "a1",
-			managementClusterName: fleet.ManagementClusterResourceName,
+			managementClusterName: fleetapi.ManagementClusterResourceName,
 			setupResources:        []any{newStamp("a1")},
 			expectedStatusCode:    http.StatusNotFound,
 			expectedError:         "not found",
@@ -107,7 +114,7 @@ func TestManagementClusterGetHandler(t *testing.T) {
 		{
 			name:                  "invalid stamp identifier returns 400",
 			stampIdentifier:       "",
-			managementClusterName: fleet.ManagementClusterResourceName,
+			managementClusterName: fleetapi.ManagementClusterResourceName,
 			expectedStatusCode:    http.StatusBadRequest,
 			expectedError:         "Invalid stamp identifier",
 		},
@@ -118,13 +125,13 @@ func TestManagementClusterGetHandler(t *testing.T) {
 			t.Parallel()
 			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
 
-			var mockFleetDB *databasetesting.MockFleetDBClient
+			var mockFleetDB *fleetcosmosstoragetesting.MockFleetDBClient
 			var err error
 			if len(tt.setupResources) > 0 {
-				mockFleetDB, err = databasetesting.NewMockFleetDBClientWithResources(ctx, tt.setupResources)
+				mockFleetDB, err = fleetcosmosstoragetesting.NewMockFleetDBClientWithResources(ctx, tt.setupResources)
 				require.NoError(t, err)
 			} else {
-				mockFleetDB = databasetesting.NewMockFleetDBClient()
+				mockFleetDB = fleetcosmosstoragetesting.NewMockFleetDBClient()
 			}
 
 			handler := NewManagementClusterGetHandler(mockFleetDB)
@@ -139,7 +146,7 @@ func TestManagementClusterGetHandler(t *testing.T) {
 
 			if len(tt.expectedError) > 0 {
 				require.Error(t, handlerErr)
-				var cloudErr *arm.CloudError
+				var cloudErr *coreapi.CloudError
 				require.True(t, errors.As(handlerErr, &cloudErr), "expected CloudError but got %T: %v", handlerErr, handlerErr)
 				require.Equal(t, tt.expectedStatusCode, cloudErr.StatusCode)
 				require.Contains(t, cloudErr.Error(), tt.expectedError)
@@ -161,27 +168,27 @@ func TestToManagementClusterStatus(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name        string
-		status      fleet.ManagementClusterStatus
+		status      fleetapi.ManagementClusterStatus
 		expectedErr string
 	}{
 		{
 			name: "valid status converts successfully",
-			status: fleet.ManagementClusterStatus{
+			status: fleetapi.ManagementClusterStatus{
 				AKSResourceID:                  mustParseResourceID(t, "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/aks1"),
 				PublicDNSZoneResourceID:        mustParseResourceID(t, "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dns-rg/providers/Microsoft.Network/dnszones/example.com"),
 				ClusterServiceProvisionShardID: mustNewInternalID(t, "/api/aro_hcp/v1alpha1/provision_shards/00000000-0000-0000-0000-000000000001"),
 				Conditions: []metav1.Condition{
 					{
-						Type:   string(fleet.ManagementClusterConditionReady),
+						Type:   string(fleetapi.ManagementClusterConditionReady),
 						Status: metav1.ConditionTrue,
-						Reason: string(fleet.ManagementClusterConditionReasonProvisionShardActive),
+						Reason: string(fleetapi.ManagementClusterConditionReasonProvisionShardActive),
 					},
 				},
 			},
 		},
 		{
 			name: "nil aksResourceID returns error",
-			status: fleet.ManagementClusterStatus{
+			status: fleetapi.ManagementClusterStatus{
 				PublicDNSZoneResourceID:        mustParseResourceID(t, "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dns-rg/providers/Microsoft.Network/dnszones/example.com"),
 				ClusterServiceProvisionShardID: mustNewInternalID(t, "/api/aro_hcp/v1alpha1/provision_shards/00000000-0000-0000-0000-000000000001"),
 			},
@@ -189,7 +196,7 @@ func TestToManagementClusterStatus(t *testing.T) {
 		},
 		{
 			name: "nil publicDNSZoneResourceID returns error",
-			status: fleet.ManagementClusterStatus{
+			status: fleetapi.ManagementClusterStatus{
 				AKSResourceID:                  mustParseResourceID(t, "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/aks1"),
 				ClusterServiceProvisionShardID: mustNewInternalID(t, "/api/aro_hcp/v1alpha1/provision_shards/00000000-0000-0000-0000-000000000001"),
 			},
@@ -197,7 +204,7 @@ func TestToManagementClusterStatus(t *testing.T) {
 		},
 		{
 			name: "nil clusterServiceProvisionShardID returns error",
-			status: fleet.ManagementClusterStatus{
+			status: fleetapi.ManagementClusterStatus{
 				AKSResourceID:           mustParseResourceID(t, "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/aks1"),
 				PublicDNSZoneResourceID: mustParseResourceID(t, "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dns-rg/providers/Microsoft.Network/dnszones/example.com"),
 			},

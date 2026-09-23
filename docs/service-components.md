@@ -25,7 +25,7 @@
     * DNS zone
   * ... and ARO HCP service tenants
     * DNS records and delegations to the customer DNS zone
-  * placing Hypershift related manifests onto the managemenet clusters (via Maestro) to drive the actual control plane creation
+  * placing Hypershift related manifests onto the management clusters (via Maestro) to drive the actual control plane creation
 * provide an opinionated API for day 2 operations like
   * node pool management
   * upgrade management
@@ -42,7 +42,7 @@
 * The Maestro Server is not exposed outside of the service cluster
 * ... because only Clusters Service and Backplane need to access it
 * It uses a certificate from the mgmt KV to authenticate with the Eventgrid Namespace MQTT broker
-* ... and consums it via CSI secret store
+* ... and consumes it via CSI secret store
 
 
 ## Maestro Agent
@@ -53,7 +53,7 @@
 * ... and sending status updates back to the Maestro Server
 * The Maestro Agent runs on the management cluster in the `maestro` namespace
 * It uses a certificate from the mgmt KV to authenticate with the Eventgrid Namespace MQTT broker
-* ... and consums it via CSI secret store
+* ... and consumes it via CSI secret store
 
 
 ## Hypershift

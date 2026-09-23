@@ -17,14 +17,18 @@ package gatherobservability
 import (
 	"bytes"
 	"embed"
+	"encoding/json"
 	"fmt"
 	"html/template"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/alertsmanagement/armalertsmanagement"
 )
+
+var filterLabelKeys = []string{"alertname", "cluster", "namespace"}
 
 //go:embed artifacts/*.html.tmpl
 var templatesFS embed.FS
@@ -51,9 +55,12 @@ type timeWindow struct {
 
 // alertsOutput is written to alerts.json and passed to the HTML template.
 type alertsOutput struct {
-	TimeWindow timeWindow    `json:"timeWindow"`
-	Summary    alertsSummary `json:"summary"`
-	Alerts     []alert       `json:"alerts"`
+	TimeWindow       timeWindow          `json:"timeWindow"`
+	Summary          alertsSummary       `json:"summary"`
+	Alerts           []alert             `json:"alerts"`
+	FilterKeys       []string            `json:"filterKeys"`
+	FilterOptions    map[string][]string `json:"filterOptions"`
+	CollectionErrors []string            `json:"collectionErrors,omitempty"`
 }
 
 // Template helpers for the HTML template.
@@ -82,7 +89,93 @@ func sanitizeTitle(title string) string {
 	return strings.Trim(title, "-")
 }
 
-func renderTemplate(outputPath string, data any) error {
+var filterKeyOrder = append(filterLabelKeys, "workspace", "classification")
+
+func collectFilterOptions(alerts []alert) ([]string, map[string][]string) {
+	seen := map[string]map[string]bool{}
+	for _, key := range filterLabelKeys {
+		seen[key] = map[string]bool{}
+	}
+	seen["workspace"] = map[string]bool{}
+
+	for _, a := range alerts {
+		for _, key := range filterLabelKeys {
+			if v, ok := a.Alert.Labels[key]; ok && len(v) > 0 {
+				seen[key][v] = true
+			} else if key == "alertname" && len(a.Alert.Name) > 0 {
+				seen[key][a.Alert.Name] = true
+			}
+		}
+		if len(a.Metadata.MonitoringWorkspaceType) > 0 {
+			seen["workspace"][a.Metadata.MonitoringWorkspaceType] = true
+		}
+	}
+
+	options := map[string][]string{}
+	for key, vals := range seen {
+		if len(vals) == 0 {
+			continue
+		}
+		sorted := make([]string, 0, len(vals))
+		for v := range vals {
+			sorted = append(sorted, v)
+		}
+		slices.Sort(sorted)
+		options[key] = sorted
+	}
+	options["classification"] = []string{"unknown", "known"}
+
+	keys := make([]string, 0, len(options))
+	for _, key := range filterKeyOrder {
+		if _, ok := options[key]; ok {
+			keys = append(keys, key)
+		}
+	}
+	return keys, options
+}
+
+func alertFilterJSON(a alert) template.JS {
+	m := map[string]string{}
+	for _, key := range filterLabelKeys {
+		if v, ok := a.Alert.Labels[key]; ok {
+			m[key] = v
+		} else if key == "alertname" && len(a.Alert.Name) > 0 {
+			m[key] = a.Alert.Name
+		}
+	}
+	if len(a.Metadata.MonitoringWorkspaceType) > 0 {
+		m["workspace"] = a.Metadata.MonitoringWorkspaceType
+	}
+	if a.Metadata.KnownIssue {
+		m["classification"] = "known"
+	} else {
+		m["classification"] = "unknown"
+	}
+	data, err := json.Marshal(m)
+	if err != nil {
+		return template.JS("{}")
+	}
+	return template.JS(data)
+}
+
+// observabilityTab is one section of the combined, tabbed observability page.
+// HTML is a full, self-contained document (the output of one of the existing
+// section renderers) embedded into its own iframe pane.
+type observabilityTab struct {
+	Title string `json:"title"`
+	HTML  string `json:"html"`
+}
+
+// Keep partial renderer output, but always put an escaped failure notice first.
+func incompleteHTML(partial []byte, err error) []byte {
+	if err == nil {
+		return partial
+	}
+	return append([]byte("<section role=\"alert\" style=\"padding:16px;border:2px solid #d29922\"><h2>Incomplete report</h2><pre>"+template.HTMLEscapeString(err.Error())+"</pre></section>"), partial...)
+}
+
+// renderAlertsHTML renders the Azure Monitor alerts page to HTML bytes.
+func renderAlertsHTML(data any) ([]byte, error) {
 	funcMap := template.FuncMap{
 		"formatTime": func(t *time.Time) string {
 			if t == nil {
@@ -107,6 +200,7 @@ func renderTemplate(outputPath string, data any) error {
 		"annotation": func(annotations map[string]string, key string) string {
 			return annotations[key]
 		},
+		"alertFilterJSON": alertFilterJSON,
 		"relativeTime": func(windowStart string, t *time.Time) string {
 			if t == nil {
 				return ""
@@ -126,12 +220,39 @@ func renderTemplate(outputPath string, data any) error {
 	tmplContent := mustReadArtifact("alerts.html.tmpl")
 	tmpl, err := template.New("alerts").Funcs(funcMap).Parse(string(tmplContent))
 	if err != nil {
-		return fmt.Errorf("failed to parse template: %w", err)
+		return nil, fmt.Errorf("failed to parse template: %w", err)
 	}
 
 	var buf bytes.Buffer
 	if err := tmpl.Execute(&buf, data); err != nil {
-		return fmt.Errorf("failed to execute template: %w", err)
+		return buf.Bytes(), fmt.Errorf("failed to execute template: %w", err)
+	}
+	return buf.Bytes(), nil
+}
+
+// renderObservabilityPage assembles all sections into a single tabbed HTML page
+// and writes it to outputPath. Emitting one page (rather than one file per
+// section) means Prow's Spyglass HTML lens renders a single inline iframe with
+// tabs instead of one collapsible section per file.
+func renderObservabilityPage(outputPath string, tabs []observabilityTab) error {
+	// json.Marshal escapes <, > and & to \u003c/\u003e/\u0026, so embedding the
+	// section HTML (which itself contains <script> and markup) inside the page's
+	// <script> block cannot terminate it early.
+	tabsJSON, err := json.Marshal(tabs)
+	if err != nil {
+		return fmt.Errorf("failed to marshal observability tabs: %w", err)
+	}
+
+	tmplContent := mustReadArtifact("observability.html.tmpl")
+	tmpl, err := template.New("observability").Parse(string(tmplContent))
+	if err != nil {
+		return fmt.Errorf("failed to parse observability template: %w", err)
+	}
+
+	var buf bytes.Buffer
+	data := struct{ TabsJSON template.JS }{TabsJSON: template.JS(tabsJSON)} //nolint:gosec // tabsJSON is JSON-encoded with HTML escaping
+	if err := tmpl.Execute(&buf, data); err != nil {
+		return fmt.Errorf("failed to execute observability template: %w", err)
 	}
 	if err := os.WriteFile(outputPath, buf.Bytes(), 0644); err != nil {
 		return fmt.Errorf("failed to write %s: %w", outputPath, err)

@@ -1,0 +1,43 @@
+// Copyright 2026 Microsoft Corporation
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package billingcosmosstoragetesting
+
+import (
+	"context"
+
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
+)
+
+// mockBillingGlobalLister lists all billing documents across all partitions.
+type mockBillingGlobalLister struct {
+	store *mockBillingStore
+}
+
+func (l *mockBillingGlobalLister) List(ctx context.Context, options *cosmosstorageutils.DBClientListResourceDocsOptions) (cosmosstorageutils.DBClientIterator[billingcosmosstorage.BillingDocument], error) {
+	l.store.mu.RLock()
+	defer l.store.mu.RUnlock()
+
+	var ids []string
+	var items []*billingcosmosstorage.BillingDocument
+
+	for id, doc := range l.store.docs {
+		ids = append(ids, id)
+		items = append(items, doc)
+	}
+
+	return corecosmosstoragetesting.NewMockIterator(ids, items), nil
+}

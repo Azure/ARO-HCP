@@ -31,8 +31,11 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 
 	"github.com/Azure/ARO-HCP/internal/version"
+	"github.com/Azure/ARO-HCP/tooling/azutils/subscriptions"
+	"github.com/Azure/ARO-HCP/tooling/tenant-quota/pkg/cijoboutcomes"
 	"github.com/Azure/ARO-HCP/tooling/tenant-quota/pkg/config"
 	"github.com/Azure/ARO-HCP/tooling/tenant-quota/pkg/credentials"
+	prowmetrics "github.com/Azure/ARO-HCP/tooling/tenant-quota/pkg/prow"
 	"github.com/Azure/ARO-HCP/tooling/tenant-quota/pkg/resourcegroups"
 	"github.com/Azure/ARO-HCP/tooling/tenant-quota/pkg/subscriptionquota"
 	"github.com/Azure/ARO-HCP/tooling/tenant-quota/pkg/tenantquota"
@@ -75,7 +78,7 @@ func run(logger *slog.Logger) error {
 	}
 
 	if cfg.HasSubscriptions() {
-		if err := subscriptionquota.ResolveSubscriptionIDs(ctx, cfg, credProvider, logger); err != nil {
+		if err := resolveSubscriptionIDs(ctx, cfg, credProvider, logger); err != nil {
 			return fmt.Errorf("subscription ID resolution failed: %w", err)
 		}
 	}
@@ -94,6 +97,18 @@ func run(logger *slog.Logger) error {
 		e2eRGCollector := resourcegroups.NewCollector(resourcegroups.E2ECollectorConfig, cfg, logger, credProvider)
 		registry.MustRegister(e2eRGCollector)
 		go e2eRGCollector.Start(ctx)
+	}
+
+	if cfg.Prow.Enabled {
+		prowCollector := prowmetrics.NewCollector(cfg, logger)
+		registry.MustRegister(prowCollector)
+		go prowCollector.Start(ctx)
+	}
+
+	// Unlike the collectors above this one writes to Kusto rather than exposing
+	// metrics, so it is started but not registered.
+	if cfg.CIJobOutcomes.Enabled {
+		go cijoboutcomes.NewWriter(cfg, logger).Start(ctx)
 	}
 
 	mux := http.NewServeMux()
@@ -150,6 +165,42 @@ func versionHandler(w http.ResponseWriter, _ *http.Request) {
 	_ = json.NewEncoder(w).Encode(map[string]string{
 		"commitSHA": version.CommitSHA,
 	})
+}
+
+func resolveSubscriptionIDs(ctx context.Context, cfg *config.Config,
+	credProvider *credentials.Provider, logger *slog.Logger) error {
+
+	for i := range cfg.Tenants {
+		tenant := &cfg.Tenants[i]
+		if len(tenant.Subscriptions) == 0 {
+			continue
+		}
+
+		cred, err := credProvider.GetCredential(*tenant)
+		if err != nil {
+			return fmt.Errorf("tenant %s: get credential: %w", tenant.GetDisplayName(), err)
+		}
+
+		names := make([]string, len(tenant.Subscriptions))
+		for j, sub := range tenant.Subscriptions {
+			names[j] = sub.Name
+		}
+
+		nameToID, err := subscriptions.ResolveByName(ctx, cred, names)
+		if err != nil {
+			return fmt.Errorf("tenant %s: %w", tenant.GetDisplayName(), err)
+		}
+
+		for j := range tenant.Subscriptions {
+			sub := &tenant.Subscriptions[j]
+			sub.SubscriptionID = nameToID[sub.Name]
+			logger.Info("Resolved subscription ID",
+				"tenant", tenant.GetDisplayName(),
+				"subscription", sub.Name,
+				"subscriptionId", sub.SubscriptionID)
+		}
+	}
+	return nil
 }
 
 func envOrDefault(key, defaultValue string) string {

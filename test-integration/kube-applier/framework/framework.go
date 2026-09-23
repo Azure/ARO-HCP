@@ -46,11 +46,10 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/Azure/ARO-HCP/internal/database"
-	"github.com/Azure/ARO-HCP/internal/database/informers"
-	"github.com/Azure/ARO-HCP/internal/databasetesting"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/kubeappliercosmosstoragetesting"
+	"github.com/Azure/ARO-HCP/internal/database/informers/kubeapplierinformers"
 	"github.com/Azure/ARO-HCP/kube-applier/pkg/controllers/apply_desire"
-	"github.com/Azure/ARO-HCP/kube-applier/pkg/controllers/delete_desire"
 	"github.com/Azure/ARO-HCP/kube-applier/pkg/controllers/read_desire_manager"
 )
 
@@ -91,7 +90,7 @@ type Step interface {
 // joint backend+kube-applier test can swap in an implementation that shares
 // storage with the backend's MockDBClient.
 type Harness struct {
-	KubeApplierDBClient database.KubeApplierDBClient
+	KubeApplierDBClient kubeappliercosmosstorage.KubeApplierDBClient
 	Dyn                 dynamic.Interface
 	Namespace           string
 }
@@ -188,7 +187,6 @@ func loadSteps(testDir fs.FS) ([]Step, error) {
 // shape in step_xxx.go's package-level comment.
 var stepConstructors = map[string]func(stepID string, stepDir fs.FS) (Step, error){
 	"loadApplyDesire":      newLoadApplyDesireStep,
-	"loadDeleteDesire":     newLoadDeleteDesireStep,
 	"loadReadDesire":       newLoadReadDesireStep,
 	"kubernetesLoad":       newKubernetesLoadStep,
 	"kubernetesApply":      newKubernetesApplyStep,
@@ -214,7 +212,7 @@ func (tc TestCase) RunCase(t *testing.T, cfg *rest.Config) {
 	createNamespace(ctx, t, dyn, namespace)
 	t.Cleanup(func() { deleteNamespace(context.Background(), t, dyn, namespace) })
 
-	mock := databasetesting.NewMockKubeApplierDBClient()
+	mock := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClient()
 	stop := startControllers(ctx, t, mock, dyn)
 	defer stop()
 
@@ -231,19 +229,16 @@ func (tc TestCase) RunCase(t *testing.T, cfg *rest.Config) {
 
 // startControllers wires the three kube-applier controllers in-process and
 // runs them. Returns a stop function the caller defers.
-func startControllers(parent context.Context, t *testing.T, kac database.KubeApplierDBClient, dyn dynamic.Interface) func() {
+func startControllers(parent context.Context, t *testing.T, kac kubeappliercosmosstorage.KubeApplierDBClient, dyn dynamic.Interface) func() {
 	t.Helper()
 	ctx, cancel := context.WithCancel(parent)
 
 	listers := kac.Listers()
 
-	applyInformer := informers.NewApplyDesireInformerWithRelistDuration(listers.ApplyDesires(), fastRelist)
-	deleteInformer := informers.NewDeleteDesireInformerWithRelistDuration(listers.DeleteDesires(), fastRelist)
-	readInformer := informers.NewReadDesireInformerWithRelistDuration(listers.ReadDesires(), fastRelist)
+	applyInformer := kubeapplierinformers.NewApplyDesireInformerWithRelistDuration(listers.ApplyDesires(), kac, fastRelist)
+	readInformer := kubeapplierinformers.NewReadDesireInformerWithRelistDuration(listers.ReadDesires(), kac, fastRelist)
 
 	applyCtl, err := apply_desire.NewApplyDesireController(applyInformer, dyn, kac, apply_desire.Config{})
-	require.NoError(t, err)
-	deleteCtl, err := delete_desire.NewDeleteDesireController(deleteInformer, dyn, kac, delete_desire.Config{})
 	require.NoError(t, err)
 	readMgr, err := read_desire_manager.NewReadDesireInformerManagingController(readInformer, dyn, kac, read_desire_manager.Config{})
 	require.NoError(t, err)
@@ -251,7 +246,6 @@ func startControllers(parent context.Context, t *testing.T, kac database.KubeApp
 	wg := &sync.WaitGroup{}
 	for _, fn := range []func(){
 		func() { applyInformer.RunWithContext(ctx) },
-		func() { deleteInformer.RunWithContext(ctx) },
 		func() { readInformer.RunWithContext(ctx) },
 	} {
 		wg.Add(1)
@@ -260,14 +254,13 @@ func startControllers(parent context.Context, t *testing.T, kac database.KubeApp
 	syncCtx, syncCancel := context.WithTimeout(ctx, 10*time.Second)
 	defer syncCancel()
 	if !cache.WaitForCacheSync(syncCtx.Done(),
-		applyInformer.HasSynced, deleteInformer.HasSynced, readInformer.HasSynced) {
+		applyInformer.HasSynced, readInformer.HasSynced) {
 		cancel()
 		wg.Wait()
 		t.Fatal("informer caches did not sync within 10s")
 	}
 	for _, fn := range []func(){
 		func() { applyCtl.Run(ctx, 1) },
-		func() { deleteCtl.Run(ctx, 1) },
 		func() { readMgr.Run(ctx, 1) },
 	} {
 		wg.Add(1)

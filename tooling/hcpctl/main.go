@@ -25,11 +25,13 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
 
+	"github.com/Azure/ARO-HCP/tooling/hcpctl/cmd/ci"
 	datadumptogit "github.com/Azure/ARO-HCP/tooling/hcpctl/cmd/datadump-to-git"
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/cmd/hcp"
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/cmd/kubelogin"
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/cmd/mc"
 	mustgather "github.com/Azure/ARO-HCP/tooling/hcpctl/cmd/must-gather"
+	ocadminspectcmd "github.com/Azure/ARO-HCP/tooling/hcpctl/cmd/oc-adm-inspect"
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/cmd/sc"
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/cmd/snapshot"
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/cmd/version"
@@ -94,6 +96,7 @@ and hosted control plane services for operational and emergency scenarios.`,
 		sc.NewCommand,
 		hcp.NewCommand,
 		mustgather.NewCommand,
+		ocadminspectcmd.NewCommand,
 		datadumptogit.NewCommand,
 		snapshot.NewCommand,
 	}
@@ -108,6 +111,7 @@ and hosted control plane services for operational and emergency scenarios.`,
 
 	// Add helper subcommands
 	helperCommands := []func(string) (*cobra.Command, error){
+		ci.NewCommand,
 		kubelogin.NewCommand,
 		version.NewCommand,
 	}

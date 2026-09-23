@@ -4,28 +4,38 @@ use (
 	./admin/client
 	./admin/server
 	./backend
-	./dev-infrastructure/scripts/recreate-broken-pools
-	./dev-infrastructure/scripts/recreate-system-pool
+	./dev-infrastructure/scripts/acr-replication
+	./dev-infrastructure/scripts/aks-cluster-create
+	./dev-infrastructure/scripts/grafana-group-roles
+	./dev-infrastructure/scripts/postgres-access
 	./fleet
 	./frontend
 	./hack/verify-gomega-assertions
+	./hack/verify-mi-containers
 	./hack/verify-schema-additional-properties
 	./internal
 	./kube-applier
 	./mgmt-agent
 	./sessiongate
+	./swift-recorder
 	./test
 	./test-integration
+	// image-sync/oc-mirror/acrauth is deliberately outside this workspace: it requires a newer azcore/azidentity, and workspace version selection would raise those for every module listed here.
 	./tooling/aro-hcp-exporter
+	./tooling/azutils
 	./tooling/cleanup-sweeper
+	./tooling/e2e-cost
+	./tooling/entra-app-credentials
 	./tooling/grafanactl
 	./tooling/hcpctl
 	./tooling/helmtest
 	./tooling/image-updater
 	./tooling/kustoctl
+	./tooling/metricscache
 	./tooling/olm-bundle-repkg
 	./tooling/pipeline-documentation
 	./tooling/prometheus-rules
+	./tooling/rightsize-requests
 	./tooling/secret-sync
 	./tooling/templatize
 	./tooling/tenant-quota

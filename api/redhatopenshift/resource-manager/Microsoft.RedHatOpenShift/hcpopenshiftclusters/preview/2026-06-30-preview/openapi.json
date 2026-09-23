@@ -1517,19 +1517,19 @@
         "maxPodGracePeriodSeconds": {
           "type": "integer",
           "format": "int32",
-          "description": "maxPodGracePeriod is the maximum seconds to wait for graceful pod termination before scaling down a NodePool.\nThe default is 600 seconds.\n\nNote: The default value is not declared in the API specification because\nof a TypeSpec bug with updatable fields. The default value will be\ndeclared in a future API version once the TypeSpec bug is fixed.\nhttps://github.com/Azure/typespec-azure/issues/1586",
+          "description": "maxPodGracePeriod is the maximum seconds to wait for graceful pod termination before scaling down a NodePool.\nThe default is 600 seconds.",
           "minimum": 0
         },
         "maxNodeProvisionTimeSeconds": {
           "type": "integer",
           "format": "int32",
-          "description": "maxNodeProvisionTimeSeconds is the maximum time to wait for node provisioning before considering the\nprovisioning to be unsuccessful. The default is 900 seconds, or 15 minutes.\n\nNote: The default value is not declared in the API specification because\nof a TypeSpec bug with updatable fields. The default value will be\ndeclared in a future API version once the TypeSpec bug is fixed.\nhttps://github.com/Azure/typespec-azure/issues/1586",
+          "description": "maxNodeProvisionTimeSeconds is the maximum time to wait for node provisioning before considering the\nprovisioning to be unsuccessful. The default is 900 seconds, or 15 minutes.",
           "minimum": 0
         },
         "podPriorityThreshold": {
           "type": "integer",
           "format": "int32",
-          "description": "podPriorityThreshold enables users to schedule \"best-effort\" pods, which shouldn't trigger autoscaler actions,\nbut only run when there are spare resources available. The default is -10.\nSee the following for more details:\nhttps://github.com/kubernetes/autoscaler/blob/master/cluster-autoscaler/FAQ.md#how-does-cluster-autoscaler-work-with-pod-priority-and-preemption\n\nNote: The default value is not declared in the API specification because\nof a TypeSpec bug with updatable fields. The default value will be\ndeclared in a future API version once the TypeSpec bug is fixed.\nhttps://github.com/Azure/typespec-azure/issues/1586"
+          "description": "podPriorityThreshold enables users to schedule \"best-effort\" pods, which shouldn't trigger autoscaler actions,\nbut only run when there are spare resources available. The default is -10.\nSee the following for more details:\nhttps://github.com/kubernetes/autoscaler/blob/master/cluster-autoscaler/FAQ.md#how-does-cluster-autoscaler-work-with-pod-priority-and-preemption"
         }
       }
     },
@@ -1566,6 +1566,81 @@
             "create"
           ]
         }
+      }
+    },
+    "Condition": {
+      "type": "object",
+      "description": "Condition represents an observation of a resource's state.",
+      "properties": {
+        "type": {
+          "$ref": "#/definitions/ConditionType",
+          "description": "Type of the condition.\nThis is a PascalCase identifier representing the type of the condition.",
+          "maxLength": 316,
+          "pattern": "^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?([A-Za-z0-9]([-A-Za-z0-9_.]*[A-Za-z0-9])?)$",
+          "readOnly": true
+        },
+        "status": {
+          "$ref": "#/definitions/StatusType",
+          "description": "The status of the condition.",
+          "readOnly": true
+        },
+        "lastTransitionTime": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The last time the condition transitioned from one status to another.",
+          "readOnly": true
+        },
+        "reason": {
+          "type": "string",
+          "description": "A programmatic identifier indicating the reason for the condition's last transition.\nThis value should be a CamelCase string.",
+          "minLength": 1,
+          "maxLength": 1024,
+          "pattern": "^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$",
+          "readOnly": true
+        },
+        "message": {
+          "type": "string",
+          "description": "A human readable message indicating details about the transition.\nThis may be an empty string.",
+          "maxLength": 32768,
+          "readOnly": true
+        }
+      },
+      "required": [
+        "type",
+        "status",
+        "lastTransitionTime",
+        "reason",
+        "message"
+      ]
+    },
+    "ConditionType": {
+      "type": "string",
+      "description": "Representation of the possible condition types.",
+      "enum": [
+        "Available",
+        "Degraded",
+        "Progressing"
+      ],
+      "x-ms-enum": {
+        "name": "ConditionType",
+        "modelAsString": true,
+        "values": [
+          {
+            "name": "Available",
+            "value": "Available",
+            "description": "Indicates that the resource is available."
+          },
+          {
+            "name": "Degraded",
+            "value": "Degraded",
+            "description": "Indicates that the resource is in a degraded state."
+          },
+          {
+            "name": "Progressing",
+            "value": "Progressing",
+            "description": "Indicates that the resource is in a progressing state."
+          }
+        ]
       }
     },
     "ConsoleProfile": {
@@ -1615,6 +1690,22 @@
           "description": "The Key Management Service (KMS) encryption key details.\n\nRequired when encryptionType is \"KMS\".",
           "x-ms-mutability": [
             "read",
+            "update",
+            "create"
+          ]
+        }
+      }
+    },
+    "CustomerManagedEncryptionProfileUpdate": {
+      "type": "object",
+      "description": "Customer managed encryption key profile.",
+      "properties": {
+        "kms": {
+          "$ref": "#/definitions/KmsEncryptionProfileUpdate",
+          "description": "The Key Management Service (KMS) encryption key details.\n\nRequired when encryptionType is \"KMS\".",
+          "x-ms-mutability": [
+            "read",
+            "update",
             "create"
           ]
         }
@@ -1683,34 +1774,31 @@
         ]
       }
     },
+    "EtcdDataEncryptionKeyManagementModeType": {
+      "type": "string",
+      "description": "The encryption key management mode types supported for ETCD data encryption.",
+      "enum": [
+        "CustomerManaged"
+      ],
+      "x-ms-enum": {
+        "name": "EtcdDataEncryptionKeyManagementModeType",
+        "modelAsString": true,
+        "values": [
+          {
+            "name": "CustomerManaged",
+            "value": "CustomerManaged",
+            "description": "Customer managed encryption key management mode type."
+          }
+        ]
+      }
+    },
     "EtcdDataEncryptionProfile": {
       "type": "object",
       "description": "The ETCD data encryption settings.",
       "properties": {
         "keyManagementMode": {
-          "type": "string",
-          "description": "Specify the key management strategy used for the encryption key that encrypts the ETCD data.\nBy default, \"PlatformManaged\" is used.",
-          "default": "PlatformManaged",
-          "enum": [
-            "CustomerManaged",
-            "PlatformManaged"
-          ],
-          "x-ms-enum": {
-            "name": "EtcdDataEncryptionKeyManagementModeType",
-            "modelAsString": true,
-            "values": [
-              {
-                "name": "CustomerManaged",
-                "value": "CustomerManaged",
-                "description": "Customer managed encryption key management mode type."
-              },
-              {
-                "name": "PlatformManaged",
-                "value": "PlatformManaged",
-                "description": "Platform managed encryption key management mode type."
-              }
-            ]
-          },
+          "$ref": "#/definitions/EtcdDataEncryptionKeyManagementModeType",
+          "description": "Specify the key management strategy used for the encryption key that encrypts the ETCD data.",
           "x-ms-mutability": [
             "read",
             "create"
@@ -1721,6 +1809,25 @@
           "description": "Specify customer managed encryption key details.\nRequired when keyManagementMode is \"CustomerManaged\".",
           "x-ms-mutability": [
             "read",
+            "update",
+            "create"
+          ]
+        }
+      },
+      "required": [
+        "keyManagementMode"
+      ]
+    },
+    "EtcdDataEncryptionProfileUpdate": {
+      "type": "object",
+      "description": "The ETCD data encryption settings.",
+      "properties": {
+        "customerManaged": {
+          "$ref": "#/definitions/CustomerManagedEncryptionProfileUpdate",
+          "description": "Specify customer managed encryption key details.\nRequired when keyManagementMode is \"CustomerManaged\".",
+          "x-ms-mutability": [
+            "read",
+            "update",
             "create"
           ]
         }
@@ -1735,6 +1842,22 @@
           "description": "ETCD Data Encryption settings.\nIf not specified platform managed keys are used.",
           "x-ms-mutability": [
             "read",
+            "update",
+            "create"
+          ]
+        }
+      }
+    },
+    "EtcdProfileUpdate": {
+      "type": "object",
+      "description": "The ETCD settings and configuration options.",
+      "properties": {
+        "dataEncryption": {
+          "$ref": "#/definitions/EtcdDataEncryptionProfileUpdate",
+          "description": "ETCD Data Encryption settings.\nIf not specified platform managed keys are used.",
+          "x-ms-mutability": [
+            "read",
+            "update",
             "create"
           ]
         }
@@ -1877,75 +2000,6 @@
         ]
       }
     },
-    "ExternalAuthCondition": {
-      "type": "object",
-      "description": "Condition defines an observation of the external auth state.",
-      "properties": {
-        "type": {
-          "$ref": "#/definitions/ExternalAuthConditionType",
-          "description": "This is a PascalCase (or in foo.example.com/PascalCase) code to represent the type of condition.",
-          "readOnly": true
-        },
-        "status": {
-          "$ref": "#/definitions/StatusType",
-          "description": "The status of the condition.",
-          "readOnly": true
-        },
-        "lastTransitionTime": {
-          "type": "string",
-          "format": "date-time",
-          "description": "The last time the condition transitioned from one status to another.",
-          "readOnly": true
-        },
-        "reason": {
-          "type": "string",
-          "description": "This contains a programmatic identifier indicating the reason for the condition's last transition.",
-          "readOnly": true
-        },
-        "message": {
-          "type": "string",
-          "description": "This is a human readable message indicating details about the transition.\nThis may be an empty string.",
-          "readOnly": true
-        }
-      },
-      "required": [
-        "type",
-        "status",
-        "lastTransitionTime",
-        "reason",
-        "message"
-      ]
-    },
-    "ExternalAuthConditionType": {
-      "type": "string",
-      "description": "Representation of the possible types of a external auths condition.",
-      "enum": [
-        "Available",
-        "Degraded",
-        "Progressing"
-      ],
-      "x-ms-enum": {
-        "name": "ExternalAuthConditionType",
-        "modelAsString": true,
-        "values": [
-          {
-            "name": "Available",
-            "value": "Available",
-            "description": "Indicates that the external auth resource is available."
-          },
-          {
-            "name": "Degraded",
-            "value": "Degraded",
-            "description": "Indicates that the external auth resource is in a degraded state."
-          },
-          {
-            "name": "Progressing",
-            "value": "Progressing",
-            "description": "Indicates that the external auth resource is in a progressing state."
-          }
-        ]
-      }
-    },
     "ExternalAuthListResult": {
       "type": "object",
       "description": "The response of a ExternalAuth list operation.",
@@ -1976,9 +2030,9 @@
           "description": "Provisioning state",
           "readOnly": true
         },
-        "condition": {
-          "$ref": "#/definitions/ExternalAuthCondition",
-          "description": "An observation of the current state with additional information.",
+        "status": {
+          "$ref": "#/definitions/ResourceStatus",
+          "description": "Status of the external auth resource",
           "readOnly": true
         },
         "issuer": {
@@ -2256,6 +2310,14 @@
             "create"
           ]
         },
+        "ingress": {
+          "$ref": "#/definitions/IngressProfile",
+          "description": "The cluster ingress configuration",
+          "x-ms-mutability": [
+            "read",
+            "create"
+          ]
+        },
         "platform": {
           "$ref": "#/definitions/PlatformProfile",
           "description": "Azure platform configuration",
@@ -2279,6 +2341,7 @@
           "description": "Configure ETCD.",
           "x-ms-mutability": [
             "read",
+            "update",
             "create"
           ]
         },
@@ -2317,6 +2380,40 @@
             "read",
             "create"
           ]
+        },
+        "status": {
+          "$ref": "#/definitions/ResourceStatus",
+          "description": "Status of the cluster resource",
+          "readOnly": true
+        },
+        "cryptoRestrictions": {
+          "type": "string",
+          "description": "Cryptographic restrictions for kernel and userspace libraries",
+          "default": "None",
+          "enum": [
+            "None",
+            "FIPS"
+          ],
+          "x-ms-enum": {
+            "name": "CryptoRestrictions",
+            "modelAsString": true,
+            "values": [
+              {
+                "name": "None",
+                "value": "None",
+                "description": "No restrictions"
+              },
+              {
+                "name": "FIPS",
+                "value": "FIPS",
+                "description": "Use only FIPS-validated algorithms and implementations"
+              }
+            ]
+          },
+          "x-ms-mutability": [
+            "read",
+            "create"
+          ]
         }
       },
       "required": [
@@ -2349,6 +2446,15 @@
         "autoscaling": {
           "$ref": "#/definitions/ClusterAutoscalingProfile",
           "description": "Configure ClusterAutoscaling .",
+          "x-ms-mutability": [
+            "read",
+            "update",
+            "create"
+          ]
+        },
+        "etcd": {
+          "$ref": "#/definitions/EtcdProfileUpdate",
+          "description": "Configure ETCD.",
           "x-ms-mutability": [
             "read",
             "update",
@@ -2558,6 +2664,47 @@
       "description": "ImageRepository describes a repository for container images.",
       "maxLength": 255
     },
+    "IngressProfile": {
+      "type": "object",
+      "description": "Information about the Ingress of a cluster.",
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "The type of the default cluster ingress.",
+          "default": "Public",
+          "enum": [
+            "Public",
+            "Private",
+            "Disabled"
+          ],
+          "x-ms-enum": {
+            "name": "IngressType",
+            "modelAsString": true,
+            "values": [
+              {
+                "name": "Public",
+                "value": "Public",
+                "description": "The default ingress is visible from the internet."
+              },
+              {
+                "name": "Private",
+                "value": "Private",
+                "description": "The default ingress is not visible from the internet."
+              },
+              {
+                "name": "Disabled",
+                "value": "Disabled",
+                "description": "The default ingress is disabled."
+              }
+            ]
+          },
+          "x-ms-mutability": [
+            "read",
+            "create"
+          ]
+        }
+      }
+    },
     "KeyVaultVisibility": {
       "type": "string",
       "description": "The internet visibility of a keyvault resource",
@@ -2609,6 +2756,7 @@
           "description": "The details of the active key.",
           "x-ms-mutability": [
             "read",
+            "update",
             "create"
           ]
         }
@@ -2619,6 +2767,21 @@
         "activeKey"
       ]
     },
+    "KmsEncryptionProfileUpdate": {
+      "type": "object",
+      "description": "Configure etcd encryption Key Management Service (KMS) key.\nYour Microsoft Entra application used to create the cluster must be authorized to access this keyvault,\ne.g using the AzureCLI: `az keyvault set-policy -n $KEYVAULT_NAME --key-permissions decrypt encrypt --spn (YOUR APPLICATION CLIENT ID)`",
+      "properties": {
+        "activeKey": {
+          "$ref": "#/definitions/KmsKeyUpdate",
+          "description": "The details of the active key.",
+          "x-ms-mutability": [
+            "read",
+            "update",
+            "create"
+          ]
+        }
+      }
+    },
     "KmsKey": {
       "type": "object",
       "description": "A representation of a KeyVault Secret.",
@@ -2627,19 +2790,45 @@
           "type": "string",
           "description": "name is the name of the keyvault key used for encryption/decryption.",
           "minLength": 1,
-          "maxLength": 255
+          "maxLength": 255,
+          "x-ms-mutability": [
+            "read",
+            "create"
+          ]
         },
         "version": {
           "type": "string",
           "description": "version contains the version of the key to use.",
           "minLength": 1,
-          "maxLength": 255
+          "maxLength": 255,
+          "x-ms-mutability": [
+            "read",
+            "update",
+            "create"
+          ]
         }
       },
       "required": [
         "name",
         "version"
       ]
+    },
+    "KmsKeyUpdate": {
+      "type": "object",
+      "description": "A representation of a KeyVault Secret.",
+      "properties": {
+        "version": {
+          "type": "string",
+          "description": "version contains the version of the key to use.",
+          "minLength": 1,
+          "maxLength": 255,
+          "x-ms-mutability": [
+            "read",
+            "update",
+            "create"
+          ]
+        }
+      }
     },
     "Label": {
       "type": "object",
@@ -2892,7 +3081,7 @@
         },
         "autoRepair": {
           "type": "boolean",
-          "description": "Auto-repair",
+          "description": "autoRepair specifies whether health checks should be enabled for machines\nin the NodePool. Enabling this feature will cause the controller to\nautomatically delete unhealthy machines. The unhealthy criteria are\ndetermined by checking the Node Ready condition and a timeout that might\nvary depending on the platform provider. autoRepair will not take action\nwhen more than 2 Nodes are unhealthy at the same time, giving time for\nthe cluster to stabilize or for the user to manually intervene.",
           "default": true,
           "x-ms-mutability": [
             "read",
@@ -2910,7 +3099,7 @@
         },
         "labels": {
           "type": "array",
-          "description": "Kubernetes labels to propagate to the NodePool Nodes\nNote that when the labels are updated this is only applied to newly\ncreate nodes in the Nodepool, existing node labels remain unchanged.",
+          "description": "Kubernetes labels to propagate to the NodePool Nodes\nNote that when the labels are updated this is only applied to newly\ncreated nodes in the Nodepool, existing node labels remain unchanged.",
           "items": {
             "$ref": "#/definitions/Label"
           },
@@ -2950,6 +3139,11 @@
             "update",
             "create"
           ]
+        },
+        "status": {
+          "$ref": "#/definitions/ResourceStatus",
+          "description": "Status of the node pool resource",
+          "readOnly": true
         }
       },
       "required": [
@@ -2991,7 +3185,7 @@
         },
         "labels": {
           "type": "array",
-          "description": "Kubernetes labels to propagate to the NodePool Nodes\nNote that when the labels are updated this is only applied to newly\ncreate nodes in the Nodepool, existing node labels remain unchanged.",
+          "description": "Kubernetes labels to propagate to the NodePool Nodes\nNote that when the labels are updated this is only applied to newly\ncreated nodes in the Nodepool, existing node labels remain unchanged.",
           "items": {
             "$ref": "#/definitions/Label"
           },
@@ -3068,7 +3262,7 @@
         },
         "channelGroup": {
           "type": "string",
-          "description": "ChannelGroup is the name of the set to which this version belongs.\nEach version belongs to only a single set.\n\nIf not specified, the default value is 'stable'.\n\nNote: The default value is not declared in the API specification because\nof a TypeSpec bug with updatable fields. The default value will be\ndeclared in a future API version once the TypeSpec bug is fixed.\nhttps://github.com/Azure/typespec-azure/issues/1586",
+          "description": "ChannelGroup is the name of the set to which this version belongs.\nEach version belongs to only a single set.\n\nIf not specified, the default value is 'stable'.",
           "x-ms-mutability": [
             "read",
             "update",
@@ -3095,7 +3289,7 @@
         },
         "channelGroup": {
           "type": "string",
-          "description": "ChannelGroup is the name of the set to which this version belongs.\nEach version belongs to only a single set.\n\nIf not specified, the default value is 'stable'.\n\nNote: The default value is not declared in the API specification because\nof a TypeSpec bug with updatable fields. The default value will be\ndeclared in a future API version once the TypeSpec bug is fixed.\nhttps://github.com/Azure/typespec-azure/issues/1586",
+          "description": "ChannelGroup is the name of the set to which this version belongs.\nEach version belongs to only a single set.\n\nIf not specified, the default value is 'stable'.",
           "x-ms-mutability": [
             "read",
             "update",
@@ -3187,9 +3381,10 @@
         "sizeGiB": {
           "type": "integer",
           "format": "int32",
-          "description": "The OS disk size in GiB",
+          "description": "The OS disk size in GiB. Maximum is 4095 GiB for Managed disks. For Ephemeral disks,\nthe maximum is 2040 GiB; Azure may enforce a lower effective limit based on the\nselected VM size's local cache, temp, or NVMe capacity.",
           "default": 64,
           "minimum": 64,
+          "maximum": 4095,
           "x-ms-mutability": [
             "read",
             "create"
@@ -3422,6 +3617,24 @@
       },
       "readOnly": true
     },
+    "ResourceStatus": {
+      "type": "object",
+      "description": "ResourceStatus represents the observed status of the resource.",
+      "properties": {
+        "conditions": {
+          "type": "array",
+          "description": "The conditions on the resource",
+          "maxItems": 10,
+          "items": {
+            "$ref": "#/definitions/Condition"
+          },
+          "readOnly": true,
+          "x-ms-identifiers": [
+            "type"
+          ]
+        }
+      }
+    },
     "RoleDefinition": {
       "type": "object",
       "description": "A single role definition required by a given operator",
@@ -3457,7 +3670,7 @@
     },
     "StatusType": {
       "type": "string",
-      "description": "Representation of the possible values of a external auths condition status.",
+      "description": "Representation of the possible values of a condition status.",
       "enum": [
         "True",
         "False",
@@ -3839,7 +4052,7 @@
         },
         "channelGroup": {
           "type": "string",
-          "description": "ChannelGroup is the name of the set to which this version belongs.\nEach version belongs to only a single set.\n\nIf not specified, the default value is 'stable'.\n\nNote: The default value is not declared in the API specification because\nof a TypeSpec bug with updatable fields. The default value will be\ndeclared in a future API version once the TypeSpec bug is fixed.\nhttps://github.com/Azure/typespec-azure/issues/1586",
+          "description": "ChannelGroup is the name of the set to which this version belongs.\nEach version belongs to only a single set.\n\nIf not specified, the default value is 'stable'.",
           "x-ms-mutability": [
             "read",
             "update",
@@ -3866,7 +4079,7 @@
         },
         "channelGroup": {
           "type": "string",
-          "description": "ChannelGroup is the name of the set to which this version belongs.\nEach version belongs to only a single set.\n\nIf not specified, the default value is 'stable'.\n\nNote: The default value is not declared in the API specification because\nof a TypeSpec bug with updatable fields. The default value will be\ndeclared in a future API version once the TypeSpec bug is fixed.\nhttps://github.com/Azure/typespec-azure/issues/1586",
+          "description": "ChannelGroup is the name of the set to which this version belongs.\nEach version belongs to only a single set.\n\nIf not specified, the default value is 'stable'.",
           "x-ms-mutability": [
             "read",
             "update",

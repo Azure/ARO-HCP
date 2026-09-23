@@ -16,16 +16,12 @@ package e2e
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"net/http"
 	"strings"
-	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5"
 
 	hcpsdk20251223preview "github.com/Azure/ARO-HCP/test/sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
@@ -34,31 +30,7 @@ import (
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
 )
 
-// mustParseDate parses a date string in "2006-01-02" format or panics.
-func mustParseDate(s string) time.Time {
-	t, err := time.Parse("2006-01-02", s)
-	if err != nil {
-		panic(fmt.Sprintf("invalid date %q: %v", s, err))
-	}
-	return t
-}
-
-// isAPINotDeployedError returns true if the error indicates the API version
-// has not been rolled out to this region yet.
-func isAPINotDeployedError(err error) bool {
-	var respErr *azcore.ResponseError
-	if !errors.As(err, &respErr) {
-		return false
-	}
-	return respErr.StatusCode == http.StatusNotFound ||
-		strings.Contains(respErr.ErrorCode, "NoRegisteredProviderFound")
-}
-
 var _ = Describe("Nodepool Ephemeral OS Disk", func() {
-	// Set deadline to a reasonable date after which we expect the v20251223preview
-	// API to be deployed. Adjust as needed based on rollout schedule.
-	timeBombDeadline := mustParseDate("2026-04-01")
-
 	BeforeEach(func() {
 		// do nothing.  per test initialization usually ages better than shared.
 	})
@@ -68,6 +40,7 @@ var _ = Describe("Nodepool Ephemeral OS Disk", func() {
 		labels.Critical,
 		labels.Positive,
 		labels.AroRpApiCompatible,
+		labels.MIContainers(1),
 		func(ctx context.Context) {
 			const (
 				customerClusterName  = "ephemeral-disk"
@@ -110,10 +83,16 @@ var _ = Describe("Nodepool Ephemeral OS Disk", func() {
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %s", customerClusterName)
 
+			By("selecting a VM size that supports ephemeral OS disks")
+			vmSize, err := tc.SelectVMSize(ctx, framework.EphemeralOSDiskWorkerVMSizeSelector())
+			Expect(err).NotTo(HaveOccurred(), "failed to select a VM size with ephemeral OS disk support; "+
+				"this typically indicates a SKU restriction or quota issue in the test subscription/region")
+
 			By("creating nodepool with ephemeral OS disk and autoRepair enabled")
 			nodePoolParams := framework.NewDefaultNodePoolParams20251223()
 			nodePoolParams.ClusterName = customerClusterName
 			nodePoolParams.NodePoolName = customerNodePoolName
+			nodePoolParams.VMSize = vmSize
 			nodePoolParams.DiskType = hcpsdk20251223preview.OsDiskTypeEphemeral
 			nodePoolParams.AutoRepair = true
 			err = tc.CreateNodePoolFromParam20251223(
@@ -126,12 +105,6 @@ var _ = Describe("Nodepool Ephemeral OS Disk", func() {
 				framework.NodePoolCreationTimeout)
 
 			client20251223 := tc.Get20251223ClientFactoryOrDie(ctx)
-			if isAPINotDeployedError(err) {
-				if time.Now().Before(timeBombDeadline) {
-					Skip(fmt.Sprintf("v20251223preview API not yet deployed; skipping until %s", timeBombDeadline.Format(time.RFC3339)))
-				}
-				Fail(fmt.Sprintf("v20251223preview API still not deployed as of %s deadline", timeBombDeadline.Format(time.RFC3339)))
-			}
 			Expect(err).NotTo(HaveOccurred(), "failed to create nodepool %s with ephemeral OS disk", customerNodePoolName)
 
 			By("verifying nodepool ARM resource has diskType=Ephemeral from LRO result")
@@ -161,9 +134,9 @@ var _ = Describe("Nodepool Ephemeral OS Disk", func() {
 			Expect(*fetched.Properties.AutoRepair).To(BeTrue(), "expected fetched nodepool AutoRepair to be true")
 
 			By("getting credentials to verify cluster health")
-			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
+			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20260901(
 				ctx,
-				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
+				tc.Get20260901ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
 				customerClusterName,
 				framework.GetAdminRESTConfigTimeout,

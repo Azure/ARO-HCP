@@ -1,0 +1,11 @@
+services:
+- serviceGroup: TestSvcA
+  pipelinePath: svc-a/pipeline.yaml
+  purpose: Test service A with ARM steps
+  children:
+  - serviceGroup: TestSvcB
+    pipelinePath: svc-b/pipeline.yaml
+    purpose: Test service B (child) with ARM step
+- serviceGroup: TestSvcC
+  pipelinePath: svc-c/pipeline.yaml
+  purpose: Test service C with no ARM steps

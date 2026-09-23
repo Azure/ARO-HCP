@@ -1,0 +1,10 @@
+cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('kubeApplierLogs')
+| where timestamp between ({{ kqlDatetime .PhaseStartTime }} .. {{ kqlDatetime .PhaseEndTime }})
+{{- if and .ServiceClusterName .ManagementClusterName }}
+| where cluster in ('{{ .ServiceClusterName }}', '{{ .ManagementClusterName }}')
+{{- end }}
+| where subscription_id =~ '{{ .SubscriptionID }}'
+| where resource_group =~ '{{ .ResourceGroup }}'
+| where cluster_name =~ '{{ .ClusterResourceName }}'
+| project timestamp, level, controller_name, resource_id, msg, log
+| order by timestamp asc

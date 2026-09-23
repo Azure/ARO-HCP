@@ -21,9 +21,9 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
 	"github.com/Azure/ARO-HCP/internal/audit"
-	"github.com/Azure/ARO-HCP/internal/databasetesting"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 )
 
 // The definitions in this file are meant for unit tests.
@@ -35,8 +35,7 @@ func newNoopAuditClient(t *testing.T) *audit.AuditClient {
 }
 
 func NewTestFrontend(t *testing.T) *Frontend {
-	mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
-	mockLocksDBClient := databasetesting.NewMockLocksDBClient()
+	mockResourcesDBClient := corecosmosstoragetesting.NewMockResourcesDBClient()
 	reg := prometheus.NewRegistry()
 
 	f := NewFrontend(
@@ -46,11 +45,10 @@ func NewTestFrontend(t *testing.T) *Frontend {
 		reg,
 		reg,
 		mockResourcesDBClient,
-		mockLocksDBClient,
 		nil,
 		newNoopAuditClient(t),
-		api.TestLocation,
-		"", false, false, true,
+		coreapitesting.TestLocation,
+		true,
 	)
 	return f
 }

@@ -163,5 +163,5 @@ status in the relevant release channel before merging any upgrade PR.
 ### Troubleshooting
 
 - Some images require Azure auth (`useAuth: true`). Make sure `az` is logged in.
-- Some images require KeyVault-stored pull secrets. The user must have access to the referenced KeyVault.
+- Private Quay.io and generic registry credentials are read from `~/.docker/config.json`.
 - Use `-v 2` for debug output if an update fails silently.

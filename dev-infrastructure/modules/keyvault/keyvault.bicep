@@ -10,6 +10,9 @@ param enableSoftDelete bool
 @description('Toggle to make the keyvault private.')
 param private bool
 
+@description('Allow ARM deployments to retrieve secrets from the Key Vault.')
+param enabledForTemplateDeployment bool = false
+
 @description('Tag key for the keyvault.')
 param tagKey string
 
@@ -36,7 +39,7 @@ resource keyVault 'Microsoft.KeyVault/vaults@2024-04-01-preview' = {
     enableRbacAuthorization: true
     enabledForDeployment: false
     enabledForDiskEncryption: false
-    enabledForTemplateDeployment: false
+    enabledForTemplateDeployment: enabledForTemplateDeployment
     enableSoftDelete: enableSoftDelete
     publicNetworkAccess: private ? 'Disabled' : 'Enabled'
     sku: {

@@ -16,45 +16,25 @@ package app
 
 import (
 	"fmt"
-	"time"
 
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 
+	"github.com/Azure/ARO-HCP/internal/leaderelection"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 const (
-	leaderElectionLockName      = "backend-leader"
-	leaderElectionLeaseDuration = 15 * time.Second
-	leaderElectionRenewDeadline = 10 * time.Second
-	leaderElectionRetryPeriod   = 2 * time.Second
+	leaderElectionLockName = "backend-leader"
 )
 
 // NewLeaderElectionLock creates a new K8s leases resource lock, intended to be
 // used for leader election in a Kubernetes cluster. leaseHolderIdentity the
 // unique identifier of the participant across all participants in the election.
 func NewLeaderElectionLock(leaseHolderIdentity string, kubeconfig *rest.Config, k8sNamespace string) (resourcelock.Interface, error) {
-	// Use a dedicated rest.Config with higher rate limits so that
-	// leader election lease renewals are never throttled by other
-	// API traffic sharing the same client.
-	leKubeconfig := rest.CopyConfig(kubeconfig)
-	leKubeconfig.QPS = 20
-	leKubeconfig.Burst = 40
-
-	leaderElectionLock, err := resourcelock.NewFromKubeconfig(
-		resourcelock.LeasesResourceLock,
-		k8sNamespace,
-		leaderElectionLockName,
-		resourcelock.ResourceLockConfig{
-			Identity: leaseHolderIdentity,
-		},
-		leKubeconfig,
-		leaderElectionRenewDeadline,
-	)
+	lock, err := leaderelection.NewLeaderElectionLock(leaseHolderIdentity, kubeconfig, k8sNamespace, leaderElectionLockName, leaderelection.RecommendedRenewDeadline)
 	if err != nil {
-		return nil, utils.TrackError(fmt.Errorf("failed to create leader election lock: %w", err))
+		return nil, utils.TrackError(fmt.Errorf("leader election lock %s/%s: %w", k8sNamespace, leaderElectionLockName, err))
 	}
-
-	return leaderElectionLock, nil
+	return lock, nil
 }

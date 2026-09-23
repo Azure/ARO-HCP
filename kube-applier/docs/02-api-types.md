@@ -2,14 +2,16 @@
 
 ## Current state
 
-The package already exists with three minimal types:
+The package already exists with two minimal types:
 
 - `internal/api/kubeapplier/types_apply_desire.go` &mdash; `ApplyDesire`
-- `internal/api/kubeapplier/types_delete_desire.go` &mdash; `DeleteDesire`
-- `internal/api/kubeapplier/types_read_desire.go` &mdash; `ReadDesire` + `ResourceReference`
+- `internal/api/kubeapplier/types_read_desire.go` &mdash; `ReadDesire`
+- `internal/api/kubeapplier/types_resource_reference.go` &mdash; `ResourceReference`
 
-Each embeds `api.CosmosMetadata` and exposes a `Spec` and `Status`. The
-`Status.Conditions` is `[]metav1.Condition`.
+`ApplyDesire` uses a discriminated union via `ApplyDesireSpec.Type`
+(`ServerSideApply` | `Delete`) to handle both server-side-apply and delete
+operations. Each type embeds `api.CosmosMetadata` and exposes a `Spec` and
+`Status`. The `Status.Conditions` is `[]metav1.Condition`.
 
 Reference patterns to follow:
 
@@ -23,8 +25,8 @@ Reference patterns to follow:
 
 ### 2.1 Generate deepcopy
 
-Add the following marker above each of `ApplyDesire`, `DeleteDesire`, and
-`ReadDesire`:
+Add the following marker above each of `ApplyDesire`, `ReadDesire`, and
+`ServerSideApplyConfig`:
 
 ```go
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -45,9 +47,9 @@ extend it to include this subpackage).
 Acceptance:
 
 - `internal/api/kubeapplier/zz_generated.deepcopy.go` exists.
-- Each `*Desire` implements `runtime.Object` (`DeepCopyObject`,
-  `GetObjectKind` &mdash; we may also need to embed `metav1.TypeMeta` for the
-  latter; see 2.3).
+- Each of `ApplyDesire` and `ReadDesire` implements `runtime.Object`
+  (`DeepCopyObject`, `GetObjectKind` &mdash; we may also need to embed
+  `metav1.TypeMeta` for the latter; see 2.3).
 
 ### 2.2 Register `ResourceType` constants
 
@@ -62,9 +64,8 @@ package kubeapplier
 import azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 var (
-    ApplyDesireResourceType  = azcorearm.NewResourceType(api.ProviderNamespace, "applydesires")
-    DeleteDesireResourceType = azcorearm.NewResourceType(api.ProviderNamespace, "deletedesires")
-    ReadDesireResourceType   = azcorearm.NewResourceType(api.ProviderNamespace, "readdesires")
+    ApplyDesireResourceType = azcorearm.NewResourceType(api.ProviderNamespace, "applydesires")
+    ReadDesireResourceType  = azcorearm.NewResourceType(api.ProviderNamespace, "readdesires")
 )
 ```
 
@@ -102,8 +103,17 @@ Add a small `conditions.go` next to the types:
 
 ```go
 const (
+    // ApplyDesire operation-specific success conditions.
+    ConditionSuccessfullyApplied = "SuccessfullyApplied" // Type=ServerSideApply
+    ConditionSuccessfullyDeleted = "SuccessfullyDeleted" // Type=Delete
+
+    // Successful is retained for backwards compatibility. For an ApplyDesire it
+    // mirrors whichever operation-specific condition applies; it is the primary
+    // condition for a ReadDesire. Readers prefer the operation-specific condition
+    // and fall back to Successful (see IsConditionTruePreferring).
     ConditionSuccessful = "Successful"
-    ConditionDegraded   = "Degraded"
+
+    ConditionDegraded = "Degraded"
 )
 
 const (
@@ -125,15 +135,95 @@ Mirror the existing `api.ToClusterResourceIDString` helpers
 (`internal/api/types_cluster.go`). Add:
 
 ```go
-// internal/api/kubeapplier/resource_ids.go
-func ToApplyDesireResourceIDString(sub, rg, cluster, name string) string
-func ToApplyDesireUnderNodePoolResourceIDString(sub, rg, cluster, np, name string) string
-// ... and DeleteDesire / ReadDesire variants
-func ParseDesireResourceID(id string) (DesireKey, error)
+// internal/api/kubeapplier/types_cosmosdata.go
+func ToClusterScopedApplyDesireResourceIDString(sub, rg, cluster, name string) string
+func ToNodePoolScopedApplyDesireResourceIDString(sub, rg, cluster, np, name string) string
+// ... and ReadDesire variants
+// (there is no DeleteDesire type; deletion is an ApplyDesire with Spec.Type=Delete)
 ```
 
 These are the canonical way to build the `*Desire` resource IDs and to
 extract index keys (see Doc 04 for `ByCluster` / `ByNodePool` indexers).
+
+### 2.6 Credential-scoped desires (SystemAdminCredentialRequest & SystemAdminCredentialRevocation)
+
+Desire resources can have `SystemAdminCredentialRequest` **and**
+`SystemAdminCredentialRevocation` as parent resources, in addition to clusters
+and node pools. This enables proper nesting so that credential-related desires
+are scoped under the credential request or revocation they belong to, and the
+resource hierarchy matches the resource that owns them.
+
+**Resource types** (in `registry.go`):
+
+```go
+CredentialRequestScopedApplyDesireResourceType = nestedResourceType(ClusterResourceTypeName, SystemAdminCredentialRequestResourceTypeName, ApplyDesireResourceTypeName)
+CredentialRequestScopedReadDesireResourceType  = nestedResourceType(ClusterResourceTypeName, SystemAdminCredentialRequestResourceTypeName, ReadDesireResourceTypeName)
+
+RevocationScopedApplyDesireResourceType = nestedResourceType(ClusterResourceTypeName, SystemAdminCredentialRevocationResourceTypeName, ApplyDesireResourceTypeName)
+RevocationScopedReadDesireResourceType  = nestedResourceType(ClusterResourceTypeName, SystemAdminCredentialRevocationResourceTypeName, ReadDesireResourceTypeName)
+```
+
+> There is no `DeleteDesire` resource type. Deletion is modeled as an
+> `ApplyDesire` whose `Spec.Type` is `Delete` (the `ApplyDesireSpec.Type`
+> discriminated union described under "Current state" above), so
+> credential teardown reuses the ApplyDesire type rather than a
+> distinct DeleteDesire.
+
+**Resource ID builders** (in `types_cosmosdata.go`):
+
+```go
+func ToCredentialRequestScopedApplyDesireResourceIDString(sub, rg, cluster, credReq, name string) string
+func ToCredentialRequestScopedReadDesireResourceIDString(sub, rg, cluster, credReq, name string) string
+
+func ToRevocationScopedApplyDesireResourceIDString(sub, rg, cluster, revocation, name string) string
+func ToRevocationScopedReadDesireResourceIDString(sub, rg, cluster, revocation, name string) string
+```
+
+These produce resource IDs of the form:
+
+```
+/subscriptions/{sub}/resourceGroups/{rg}/providers/Microsoft.RedHatOpenShift/
+  hcpOpenShiftClusters/{cluster}/systemAdminCredentialRequests/{cred}/
+  applyDesires/{name}
+
+/subscriptions/{sub}/resourceGroups/{rg}/providers/Microsoft.RedHatOpenShift/
+  hcpOpenShiftClusters/{cluster}/systemAdminCredentialRevocations/{revocation}/
+  applyDesires/{name}
+```
+
+**Cosmos CRUD** (in `internal/database/kubeappliercosmosstorage/kube_applier_client.go`):
+`KubeApplierDBClient` exposes both per-level convenience accessors and
+parent-agnostic accessors:
+
+```go
+// Per-level (used by backend controllers that know the parent type):
+ApplyDesiresForSystemAdminCredentialRequest(sub, rg, cluster, credReq string) (ResourceCRUD[...], error)
+ReadDesiresForSystemAdminCredentialRequest(sub, rg, cluster, credReq string) (ResourceCRUD[...], error)
+ApplyDesiresForSystemAdminCredentialRevocation(sub, rg, cluster, revocation string) (ResourceCRUD[...], error)
+ReadDesiresForSystemAdminCredentialRevocation(sub, rg, cluster, revocation string) (ResourceCRUD[...], error)
+
+// Parent-agnostic (used by kube-applier controllers that key off a resource ID):
+ApplyDesiresFor(parent DesireScope) (ResourceCRUD[...], error)
+ReadDesiresFor(parent DesireScope) (ResourceCRUD[...], error)
+```
+
+The per-management-cluster listers and change-feed informers list all four
+scopes (cluster, node pool, credential request, revocation) so nested desires
+are indexed and cleanup via `ListForCluster` still finds every desire under a
+cluster regardless of its parent.
+
+**Controllers**: the desires-creator nests a credential's CSR / CSRApproval /
+RBAC / ReadDesire under its `SystemAdminCredentialRequest`, and the
+revocation-desires controller nests the CRR / RBAC / ReadDesire under its
+`SystemAdminCredentialRevocation`. The teardown controllers delete each
+credential's or revocation's desires through the matching scoped CRUD.
+
+**Rationale**: Nesting desires under `SystemAdminCredentialRequest` /
+`SystemAdminCredentialRevocation` makes cleanup automatic when the parent
+document is deleted, removes the need for an `OutstandingDesires` tracking
+field, lets controllers fire when desires change via informer watches, and
+makes it easy to find all desires for a specific credential request or
+revocation.
 
 ## Acceptance for this layer
 
@@ -142,6 +232,6 @@ extract index keys (see Doc 04 for `ByCluster` / `ByNodePool` indexers).
 - Hand-written unit tests in `internal/api/kubeapplier/*_test.go` cover:
   - Round-trip JSON for each `*Desire` (mirror existing tests on
     `HCPOpenShiftCluster`).
-  - Resource-ID parse/format symmetry.
+  - Resource-ID parse/format symmetry (including credential-request-scoped variants).
 - No code outside `internal/api/kubeapplier` and `internal/api` itself depends
   on this package yet (so this layer can ship in its own PR).

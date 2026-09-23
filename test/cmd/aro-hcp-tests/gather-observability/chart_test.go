@@ -15,12 +15,19 @@
 package gatherobservability
 
 import (
+	"bytes"
 	"encoding/json"
 	"math"
+	"slices"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/go-echarts/go-echarts/v2/opts"
+	"golang.org/x/net/html"
+
+	"github.com/Azure/ARO-HCP/test/util/timing"
 )
 
 func TestParsePrometheusValue(t *testing.T) {
@@ -220,10 +227,11 @@ func TestFindCommonLabels(t *testing.T) {
 func TestCompactMetricLabel(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name   string
-		metric map[string]string
-		common map[string]bool
-		want   string
+		name         string
+		metric       map[string]string
+		common       map[string]bool
+		displayNames map[string]string
+		want         string
 	}{
 		{
 			name:   "all labels are common - falls back to full label",
@@ -255,16 +263,121 @@ func TestCompactMetricLabel(t *testing.T) {
 			common: nil,
 			want:   "ns=b, pod=a",
 		},
+		{
+			name:         "common calling service stays explicit beside source kind",
+			metric:       map[string]string{"container": "fleet-controller", "cosmosdb_container": "fleet", "source_kind": "informer"},
+			common:       map[string]bool{"container": true, "cosmosdb_container": true},
+			displayNames: map[string]string{"container": "calling_service"},
+			want:         "calling_service=fleet-controller, source_kind=informer",
+		},
+		{
+			name:         "sole explicit label keeps its meaning",
+			metric:       map[string]string{"container": "fleet-controller", "cosmosdb_container": "fleet"},
+			common:       map[string]bool{"container": true, "cosmosdb_container": true},
+			displayNames: map[string]string{"container": "calling_service"},
+			want:         "calling_service=fleet-controller",
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := compactMetricLabel(tt.metric, tt.common)
+			got := compactMetricLabel(tt.metric, tt.common, tt.displayNames)
 			if got != tt.want {
 				t.Errorf("compactMetricLabel() = %q, want %q", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestRenderFacetedLineChartInitialThreshold(t *testing.T) {
+	t.Parallel()
+
+	tw := timing.TimeWindow{
+		Start: time.Date(2026, 4, 13, 6, 0, 0, 0, time.UTC),
+		End:   time.Date(2026, 4, 13, 8, 0, 0, 0, time.UTC),
+	}
+	q := QuerySpec{
+		Title:            "Request units",
+		Query:            "request_units",
+		ChartType:        chartTypeFacetedLine,
+		FacetBy:          "container",
+		MinPeakThreshold: 5,
+	}
+	var results []PrometheusResult
+	for _, container := range []string{"clusters", "operations"} {
+		for _, series := range []struct {
+			name  string
+			value string
+		}{
+			{name: "below threshold", value: "2"},
+			{name: "above threshold", value: "10"},
+		} {
+			results = append(results, PrometheusResult{
+				Metric: map[string]string{"container": container, "operation": series.name},
+				Values: [][]any{{float64(tw.Start.Unix()), series.value}, {float64(tw.End.Unix()), series.value}},
+			})
+		}
+	}
+	rendered, err := renderPanelHTML(panelPageData{
+		Title:  q.Title,
+		Charts: []chartData{buildChartData(q, "", "", "", results, tw)},
+	})
+	if err != nil {
+		t.Fatalf("render faceted panel: %v", err)
+	}
+	doc, err := html.Parse(bytes.NewReader(rendered))
+	if err != nil {
+		t.Fatalf("parse rendered faceted panel: %v", err)
+	}
+	attr := func(node *html.Node, key string) string {
+		for _, a := range node.Attr {
+			if a.Key == key {
+				return a.Val
+			}
+		}
+		return ""
+	}
+	hasClass := func(node *html.Node, class string) bool {
+		return node.Type == html.ElementNode && slices.Contains(strings.Fields(attr(node, "class")), class)
+	}
+	var plots []*html.Node
+	var visit func(*html.Node)
+	visit = func(node *html.Node) {
+		if hasClass(node, "item") {
+			plots = append(plots, node)
+		}
+		for child := node.FirstChild; child != nil; child = child.NextSibling {
+			visit(child)
+		}
+	}
+	visit(doc)
+	if len(plots) != 2 {
+		t.Fatalf("rendered %d plots, want one for each of the two facets", len(plots))
+	}
+	plotIDs := make(map[string]bool)
+	for _, plot := range plots {
+		id := attr(plot, "id")
+		if id == "" || plotIDs[id] {
+			t.Fatalf("facet plot ID %q is empty or shared with another plot", id)
+		}
+		plotIDs[id] = true
+
+		// The slider reads its initial filter from the plot's nearest chart section.
+		section := plot.Parent
+		for section != nil && !hasClass(section, "chart-section") {
+			section = section.Parent
+		}
+		if section == nil {
+			t.Fatalf("facet plot %q has no chart section for slider configuration", id)
+		}
+		if attr(section, "data-no-slider") == "true" {
+			t.Errorf("facet plot %q disables the threshold slider", id)
+		}
+		threshold, err := strconv.ParseFloat(attr(section, "data-min-peak-threshold"), 64)
+		if err != nil || threshold != 5 {
+			t.Errorf("facet plot %q initial threshold = %q, want 5 (parse error: %v)", id, attr(section, "data-min-peak-threshold"), err)
+		}
 	}
 }
 
@@ -479,6 +592,303 @@ func TestLoadQueriesConfig(t *testing.T) {
 				}
 			},
 		},
+		{
+			name: "minPeakThreshold is parsed when provided",
+			yaml: `panels:
+  - title: "Panel"
+    queries:
+    - title: "Retry Ratio"
+      query: "rate(retries[5m])"
+      workspace: svc
+      minPeakThreshold: 0.5
+`,
+			check: func(t *testing.T, cfg *QueriesConfig) {
+				if cfg.Panels[0].Queries[0].MinPeakThreshold != 0.5 {
+					t.Errorf("MinPeakThreshold = %v, want %v", cfg.Panels[0].Queries[0].MinPeakThreshold, 0.5)
+				}
+			},
+		},
+		{
+			name: "minPeakThreshold defaults to zero when omitted",
+			yaml: `panels:
+  - title: "Panel"
+    queries:
+    - title: "CPU Usage"
+      query: "rate(cpu_seconds_total[5m])"
+      workspace: svc
+`,
+			check: func(t *testing.T, cfg *QueriesConfig) {
+				if cfg.Panels[0].Queries[0].MinPeakThreshold != 0 {
+					t.Errorf("MinPeakThreshold = %v, want %v", cfg.Panels[0].Queries[0].MinPeakThreshold, 0.0)
+				}
+			},
+		},
+		{
+			name: "chartType defaults to line when omitted",
+			yaml: `panels:
+  - title: "Panel"
+    queries:
+    - title: "CPU Usage"
+      query: "rate(cpu_seconds_total[5m])"
+      workspace: svc
+`,
+			check: func(t *testing.T, cfg *QueriesConfig) {
+				if cfg.Panels[0].Queries[0].ChartType != "line" {
+					t.Errorf("ChartType = %q, want %q", cfg.Panels[0].Queries[0].ChartType, "line")
+				}
+			},
+		},
+		{
+			name: "chartType line is preserved",
+			yaml: `panels:
+  - title: "Panel"
+    queries:
+    - title: "CPU Usage"
+      query: "rate(cpu_seconds_total[5m])"
+      workspace: svc
+      chartType: line
+`,
+			check: func(t *testing.T, cfg *QueriesConfig) {
+				if cfg.Panels[0].Queries[0].ChartType != "line" {
+					t.Errorf("ChartType = %q, want %q", cfg.Panels[0].Queries[0].ChartType, "line")
+				}
+			},
+		},
+		{
+			name: "chartType faceted-stacked-area with facetBy is valid",
+			yaml: `panels:
+  - title: "Panel"
+    queries:
+    - title: "HCPs"
+      query: "count by (mc, phase) (metric)"
+      workspace: svc
+      chartType: faceted-stacked-area
+      facetBy: mc
+`,
+			check: func(t *testing.T, cfg *QueriesConfig) {
+				if cfg.Panels[0].Queries[0].ChartType != "faceted-stacked-area" {
+					t.Errorf("ChartType = %q, want %q", cfg.Panels[0].Queries[0].ChartType, "faceted-stacked-area")
+				}
+				if cfg.Panels[0].Queries[0].FacetBy != "mc" {
+					t.Errorf("FacetBy = %q, want %q", cfg.Panels[0].Queries[0].FacetBy, "mc")
+				}
+			},
+		},
+		{
+			name: "invalid chartType returns error",
+			yaml: `panels:
+  - title: "Panel"
+    queries:
+    - title: "CPU Usage"
+      query: "rate(cpu_seconds_total[5m])"
+      workspace: svc
+      chartType: bar
+`,
+			wantErr: "chartType must be",
+		},
+		{
+			name: "faceted-stacked-area without facetBy returns error",
+			yaml: `panels:
+  - title: "Panel"
+    queries:
+    - title: "HCPs"
+      query: "count by (mc, phase) (metric)"
+      workspace: svc
+      chartType: faceted-stacked-area
+`,
+			wantErr: "facetBy is required when chartType is",
+		},
+		{
+			name: "facetBy without faceted-stacked-area returns error",
+			yaml: `panels:
+  - title: "Panel"
+    queries:
+    - title: "CPU Usage"
+      query: "rate(cpu_seconds_total[5m])"
+      workspace: svc
+      facetBy: cluster
+`,
+			wantErr: "facetBy is only valid with chartType",
+		},
+		{
+			name: "facetBy with explicit line chartType returns error",
+			yaml: `panels:
+  - title: "Panel"
+    queries:
+    - title: "CPU Usage"
+      query: "rate(cpu_seconds_total[5m])"
+      workspace: svc
+      chartType: line
+      facetBy: cluster
+`,
+			wantErr: "facetBy is only valid with chartType",
+		},
+		{
+			name: "azureMonitor source is valid",
+			yaml: `panels:
+  - title: "CosmosDB Metrics"
+    queries:
+    - title: "RU"
+      source: azureMonitor
+      resource: cosmosdb
+      aggregation: Maximum
+      metrics:
+      - name: NormalizedRUConsumption
+        label: "Normalized RU"
+      - name: AutoscaledRU
+`,
+			check: func(t *testing.T, cfg *QueriesConfig) {
+				q := cfg.Panels[0].Queries[0]
+				if q.Source != "azureMonitor" {
+					t.Errorf("Source = %q, want %q", q.Source, "azureMonitor")
+				}
+				if q.ChartType != "line" {
+					t.Errorf("ChartType = %q, want %q", q.ChartType, "line")
+				}
+				if q.Step != "60s" {
+					t.Errorf("Step = %q, want default %q", q.Step, "60s")
+				}
+				if len(q.Metrics) != 2 || q.Metrics[1].Name != "AutoscaledRU" {
+					t.Errorf("Metrics = %+v, want two metrics ending in AutoscaledRU", q.Metrics)
+				}
+			},
+		},
+		{
+			name: "source defaults to prometheus",
+			yaml: `panels:
+  - title: "Panel"
+    queries:
+    - title: "CPU Usage"
+      query: "rate(cpu_seconds_total[5m])"
+      workspace: svc
+`,
+			check: func(t *testing.T, cfg *QueriesConfig) {
+				if cfg.Panels[0].Queries[0].Source != "prometheus" {
+					t.Errorf("Source = %q, want default %q", cfg.Panels[0].Queries[0].Source, "prometheus")
+				}
+			},
+		},
+		{
+			name: "unknown source returns error",
+			yaml: `panels:
+  - title: "Panel"
+    queries:
+    - title: "CPU Usage"
+      source: kusto
+      query: "foo"
+      workspace: svc
+`,
+			wantErr: `source must be "prometheus" or "azureMonitor"`,
+		},
+		{
+			name: "azureMonitor with query returns error",
+			yaml: `panels:
+  - title: "Panel"
+    queries:
+    - title: "RU"
+      source: azureMonitor
+      resource: cosmosdb
+      aggregation: Maximum
+      query: "rate(foo[5m])"
+      metrics:
+      - name: NormalizedRUConsumption
+`,
+			wantErr: "query/workspace are only valid with source",
+		},
+		{
+			name: "azureMonitor with unknown resource returns error",
+			yaml: `panels:
+  - title: "Panel"
+    queries:
+    - title: "RU"
+      source: azureMonitor
+      resource: postgres
+      aggregation: Maximum
+      metrics:
+      - name: NormalizedRUConsumption
+`,
+			wantErr: "resource must be one of",
+		},
+		{
+			name: "azureMonitor without aggregation returns error",
+			yaml: `panels:
+  - title: "Panel"
+    queries:
+    - title: "RU"
+      source: azureMonitor
+      resource: cosmosdb
+      metrics:
+      - name: NormalizedRUConsumption
+`,
+			wantErr: "aggregation is required",
+		},
+		{
+			name: "azureMonitor with unsupported aggregation returns error",
+			yaml: `panels:
+  - title: "Panel"
+    queries:
+    - title: "RU"
+      source: azureMonitor
+      resource: cosmosdb
+      aggregation: Median
+      metrics:
+      - name: NormalizedRUConsumption
+`,
+			wantErr: "unsupported aggregation",
+		},
+		{
+			name: "azureMonitor without metrics returns error",
+			yaml: `panels:
+  - title: "Panel"
+    queries:
+    - title: "RU"
+      source: azureMonitor
+      resource: cosmosdb
+      aggregation: Maximum
+`,
+			wantErr: "at least one metric is required",
+		},
+		{
+			name: "azureMonitor metric without name returns error",
+			yaml: `panels:
+  - title: "Panel"
+    queries:
+    - title: "RU"
+      source: azureMonitor
+      resource: cosmosdb
+      aggregation: Maximum
+      metrics:
+      - label: "no name"
+`,
+			wantErr: "name is required",
+		},
+		{
+			name: "prometheus with metrics field returns error",
+			yaml: `panels:
+  - title: "Panel"
+    queries:
+    - title: "CPU"
+      query: "rate(foo[5m])"
+      workspace: svc
+      aggregation: Maximum
+`,
+			wantErr: "resource/aggregation/metrics are only valid with source",
+		},
+		{
+			name: "normalizeByAutoscaleMax without CollectionName split returns error",
+			yaml: `panels:
+  - title: "Panel"
+    queries:
+    - title: "RU"
+      source: azureMonitor
+      resource: cosmosdb
+      aggregation: Maximum
+      metrics:
+      - name: AutoscaledRU
+        normalizeByAutoscaleMax: true
+`,
+			wantErr: "normalizeByAutoscaleMax requires splitBy",
+		},
 	}
 
 	for _, tt := range tests {
@@ -513,10 +923,30 @@ func TestLoadQueriesConfigEmbedded(t *testing.T) {
 	if len(cfg.Panels) == 0 {
 		t.Fatal("embedded queries.yaml should contain at least one panel")
 	}
+
+	// Index panels by title and guard against duplicate/lost panels. A
+	// duplicate "queries:" key in a panel (or a dropped panel title) causes
+	// go-yaml to silently merge mappings — last key wins — which is invalid
+	// YAML that still parses. Unique, non-empty titles catch that class of bug.
+	byTitle := map[string]PanelSpec{}
 	for _, p := range cfg.Panels {
+		if p.Title == "" {
+			t.Errorf("panel with %d queries has an empty title", len(p.Queries))
+		}
+		if _, dup := byTitle[p.Title]; dup {
+			t.Errorf("duplicate panel title %q", p.Title)
+		}
+		byTitle[p.Title] = p
 		if len(p.Queries) == 0 {
 			t.Errorf("panel %q should contain at least one query", p.Title)
 		}
+	}
+
+	// All CosmosDB charts must live under a single panel so the Prow job
+	// renders one iframe. Guard against a regression that splits them back out
+	// into separate panels (extra iframes).
+	if _, ok := byTitle["CosmosDB Throttled Requests"]; ok {
+		t.Error("CosmosDB charts must be a single panel; found a separate \"CosmosDB Throttled Requests\" panel")
 	}
 }
 

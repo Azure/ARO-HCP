@@ -28,3 +28,7 @@ clustersService:
   namespace: "{{ .clustersService.k8s.namespace }}"
 controller:
   namespace: '{{ .fleet.k8s.namespace }}'
+amwScaling:
+  pollInterval: "{{ .monitoring.amwScaling.pollInterval }}"
+  svcAzureMonitorWorkspaceId: "__svcAzureMonitorWorkspaceId__"
+  hcpAzureMonitorWorkspaceId: "__hcpAzureMonitorWorkspaceId__"

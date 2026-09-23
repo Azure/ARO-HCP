@@ -1,6 +1,7 @@
 **/*.swp
 aro-hcp-frontend
 aro-hcp-backend
+/aks-cluster-create
 localsecrets
 secrets
 node_modules
@@ -22,6 +23,7 @@ bin/envtest
 **/*.sha256
 CLAUDE.local.md
 .claude/*.local.json
+**/SKILL.local.md
 go.work.sum
 .step-cache
 .graph.dot
@@ -35,3 +37,11 @@ _artifacts
 must-gather-*
 /hcpctl
 timing-metadata-*
+/.claude/
+.tmp
+
+# Allow Secret resource fixtures in the kube-applier read-desire testdata.
+# The `secrets` rule above otherwise excludes the manifestclient directory
+# layout (namespaces/<ns>/core/secrets/), which these test fixtures require.
+!kube-applier/pkg/controllers/read_desire_kubernetes/testdata/**/secrets/
+!kube-applier/pkg/controllers/read_desire_kubernetes/testdata/**/secrets/**

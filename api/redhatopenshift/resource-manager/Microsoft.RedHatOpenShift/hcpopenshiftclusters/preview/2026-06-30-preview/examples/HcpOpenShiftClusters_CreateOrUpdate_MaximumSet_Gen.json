@@ -29,6 +29,9 @@
             "10.0.0.0/16"
           ]
         },
+        "ingress": {
+          "type": "Public"
+        },
         "platform": {
           "managedResourceGroup": "nhyhywrxupo",
           "subnetId": "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/resourceGroups/resourceGroupName/providers/Microsoft.Network/virtualNetworks/hcp-network-example/subnets/example-subnet",
@@ -84,7 +87,8 @@
         "nodeDrainTimeoutMinutes": 20,
         "clusterImageRegistry": {
           "state": "Enabled"
-        }
+        },
+        "cryptoRestrictions": "None"
       },
       "identity": {
         "type": "UserAssigned",
@@ -121,6 +125,9 @@
           "api": {
             "visibility": "Public",
             "url": "https://api.test.shrd.usw3test.hcp.osadev.cloud:443"
+          },
+          "ingress": {
+            "type": "Public"
           },
           "platform": {
             "managedResourceGroup": "nhyhywrxupo",
@@ -180,7 +187,8 @@
           "nodeDrainTimeoutMinutes": 20,
           "clusterImageRegistry": {
             "state": "Enabled"
-          }
+          },
+          "cryptoRestrictions": "None"
         },
         "identity": {
           "principalId": "e5867472-f0ed-4fc1-80e1-59b4c0256adb",
@@ -236,6 +244,9 @@
             "visibility": "Public",
             "url": "https://api.test.shrd.usw3test.hcp.osadev.cloud:443"
           },
+          "ingress": {
+            "type": "Public"
+          },
           "platform": {
             "managedResourceGroup": "nhyhywrxupo",
             "subnetId": "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/resourceGroups/resourceGroupName/providers/Microsoft.Network/virtualNetworks/hcp-network-example/subnets/example-subnet",
@@ -294,7 +305,8 @@
           "nodeDrainTimeoutMinutes": 20,
           "clusterImageRegistry": {
             "state": "Enabled"
-          }
+          },
+          "cryptoRestrictions": "None"
         },
         "identity": {
           "principalId": "e5867472-f0ed-4fc1-80e1-59b4c0256adb",

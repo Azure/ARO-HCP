@@ -1,0 +1,171 @@
+#
+# TRANSIENT — STG-global "V2" parallel copy of geography-pipeline.yaml.
+#
+# Deploys the geography-scoped Kusto cluster into the dedicated STG-global
+# subscription (hcp-stg-global). Differences from the canonical pipeline:
+#   * serviceGroup is Microsoft.Azure.ARO.HCP.Geography.StgGlobal (new subcomponent),
+#     a child of HCP.Global.StgGlobal under the new HCP.Global.StgGlobal root entrypoint.
+#   * subscription is hardcoded to 'hcp-stg-global'.
+#   * executionConstraints are stg/uksouth ONLY (prod & test render inert).
+#   * the globally-unique Kusto cluster name comes from stgGlobalV2.kustoName so it
+#     does not collide with the live cluster (hcp-stg-uk-2).
+# Removed at decommission.
+#
+$schema: pipeline.schema.v1
+rolloutName: Geography Rollout (STG V2)
+serviceGroup: Microsoft.Azure.ARO.HCP.Geography.StgGlobal
+resourceGroups:
+- name: global
+  resourceGroup: '{{ .global.rg }}'
+  # Hardcoded on purpose — see global-pipeline-stg.yaml. Removed at decommission.
+  subscription: 'hcp-stg-global'
+  steps:
+  - name: output
+    action: ARM
+    template: templates/output-global.bicep
+    parameters: configurations/output-global-stg.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+- name: svc
+  resourceGroup: '{{ .regionRG }}'
+  subscription: '{{ .svc.subscription.key }}'
+  executionConstraints:
+  - clouds:
+    - public
+    environments:
+    - stg
+    regions:
+    - uksouth
+  steps:
+  - name: subscription-lookup
+    action: ARM
+    template: templates/subscription-lookup.bicep
+    parameters: configurations/subscription-lookup.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+- name: kusto-infra
+  resourceGroup: '{{ .kusto.rg }}'
+  # Hardcoded on purpose — see global-pipeline-stg.yaml. Removed at decommission.
+  subscription: 'hcp-stg-global'
+  executionConstraints:
+  - clouds:
+    - public
+    environments:
+    - stg
+    regions:
+    - uksouth
+  steps:
+  - name: deploy
+    action: ARM
+    template: templates/kusto.bicep
+    parameters: configurations/kusto-stg.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    variables:
+    - name: grafanaPrincipalId
+      input:
+        resourceGroup: global
+        step: output
+        name: grafanaPrincipalId
+    dependsOn:
+    - resourceGroup: global
+      step: output
+    automatedRetry:
+      errorContainsAny:
+      - "InternalServerError"
+      - "Internal server error"
+      maximumRetryCount: 3
+      durationBetweenRetries: 1m
+  - name: kusto-lookup
+    action: ARM
+    template: templates/kusto-lookup.bicep
+    # Must source the cluster name from stgGlobalV2 (like the deploy step above),
+    # otherwise the lookup targets the live V1 cluster and fails with ResourceNotFound.
+    parameters: configurations/kusto-lookup-stg.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+    dependsOn:
+    - resourceGroup: kusto-infra
+      step: deploy
+  - name: action-groups
+    action: ARM
+    template: templates/geography-actiongroups.bicep
+    parameters: configurations/geography-actiongroups.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    variables:
+    - name: eventHubSubscriptionId
+      input:
+        resourceGroup: svc
+        step: subscription-lookup
+        name: subscriptionId
+    - name: kustoRegion
+      input:
+        resourceGroup: kusto-infra
+        step: kusto-lookup
+        name: kustoRegion
+    dependsOn:
+    - resourceGroup: kusto-infra
+      step: kusto-lookup
+    - resourceGroup: svc
+      step: subscription-lookup
+  - name: kusto-monitoring
+    action: ARMStack
+    template: templates/kusto-monitoring.bicep
+    parameters: configurations/kusto-monitoring.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    actionOnUnmanage: delete
+    bypassStackOutOfSyncError: false
+    automatedRetry:
+      errorContainsAny:
+      - "DeploymentStackInNonTerminalState"
+      maximumRetryCount: 3
+      durationBetweenRetries: 2m
+    variables:
+    - name: kustoClusterId
+      input:
+        resourceGroup: kusto-infra
+        step: kusto-lookup
+        name: kustoResourceId
+    - name: kustoRegion
+      input:
+        resourceGroup: kusto-infra
+        step: kusto-lookup
+        name: kustoRegion
+    - name: actionGroupSL
+      input:
+        resourceGroup: kusto-infra
+        step: action-groups
+        name: actionGroupSL
+    - name: actionGroupAlertEH
+      input:
+        resourceGroup: kusto-infra
+        step: action-groups
+        name: actionGroupAlertEH
+    dependsOn:
+    - resourceGroup: kusto-infra
+      step: kusto-lookup
+    - resourceGroup: kusto-infra
+      step: action-groups
+  - name: entity-groups
+    action: KustoEntityGroups
+    entityGroups:
+    - "AllServiceLogs:ServiceLogs"
+    - "AllHostedControlPlaneLogs:HostedControlPlaneLogs"
+    - "AllMonitoringEvents:MonitoringEvents"
+    environment: '{{ .environmentName }}'
+    timeout: "10m"
+    identityFrom:
+      resourceGroup: global
+      step: output
+      name: globalMSIId
+    automatedRetry:
+      errorContainsAny:
+      - "InternalServerError"
+      - "Internal server error"
+      - "connection refused"
+      - "context deadline exceeded"
+      - "missing a valid aroHCPEnvironment tag"
+      maximumRetryCount: 3
+      durationBetweenRetries: 2m
+    dependsOn:
+    - resourceGroup: kusto-infra
+      step: deploy

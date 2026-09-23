@@ -1,4 +1,18 @@
 ---
+# Source: maestro-server/templates/maestro.pdb.yaml
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: maestro
+  namespace: 'maestro'
+  labels:
+    app: maestro
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: maestro
+---
 # Source: maestro-server/templates/maestro.serviceaccount.yaml
 kind: ServiceAccount
 apiVersion: v1
@@ -120,7 +134,7 @@ spec:
   selector:
     matchLabels:
       app: maestro
-  replicas: 1
+  replicas: 2
   strategy:
     rollingUpdate:
       maxSurge: 0
@@ -242,9 +256,15 @@ spec:
           requests:
             cpu: '200m'
             memory: '512Mi'
+        # NOTE: liveness uses /livez, a process-only endpoint that does NOT touch
+        # Postgres (openshift-online/maestro#543), so a transient DB slowdown no
+        # longer fails this probe. Readiness keeps using /healthcheck (which does a
+        # Postgres instance-row read), so a pod that can't reach the DB is pulled
+        # from Service endpoints instead of being restarted into a connection-pool
+        # reset storm (AROSLSRE-1170).
         livenessProbe:
           httpGet:
-            path: /healthcheck
+            path: /livez
             port: 8083
             scheme: HTTP
           initialDelaySeconds: 25

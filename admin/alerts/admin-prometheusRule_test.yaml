@@ -14,6 +14,7 @@ tests:
     alertname: AdminHighAuditLogErrorRate
     exp_alerts:
     - exp_labels:
+        component: admin
         severity: info
       exp_annotations:
         summary: "High Admin API audit log error rate."
@@ -40,6 +41,7 @@ tests:
     alertname: AdminAuditLogConnectionDegraded
     exp_alerts:
     - exp_labels:
+        component: admin
         job: aro-hcp-admin-api-metrics
         severity: info
       exp_annotations:

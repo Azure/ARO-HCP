@@ -72,6 +72,83 @@ func TestBuildTestName(t *testing.T) {
 	}
 }
 
+func TestMergeIntervals(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name      string
+		intervals []timeInterval
+		want      []timeInterval
+	}{
+		{
+			name:      "empty",
+			intervals: nil,
+			want:      nil,
+		},
+		{
+			name:      "single",
+			intervals: []timeInterval{{start: *mustTime("2026-04-13T06:00:00Z"), end: *mustTime("2026-04-13T06:10:00Z")}},
+			want:      []timeInterval{{start: *mustTime("2026-04-13T06:00:00Z"), end: *mustTime("2026-04-13T06:10:00Z")}},
+		},
+		{
+			name: "unsorted_overlapping",
+			intervals: []timeInterval{
+				{start: *mustTime("2026-04-13T06:15:00Z"), end: *mustTime("2026-04-13T06:35:00Z")},
+				{start: *mustTime("2026-04-13T06:10:00Z"), end: *mustTime("2026-04-13T06:30:00Z")},
+			},
+			want: []timeInterval{
+				{start: *mustTime("2026-04-13T06:10:00Z"), end: *mustTime("2026-04-13T06:35:00Z")},
+			},
+		},
+		{
+			name: "full_containment",
+			intervals: []timeInterval{
+				{start: *mustTime("2026-04-13T06:00:00Z"), end: *mustTime("2026-04-13T07:00:00Z")},
+				{start: *mustTime("2026-04-13T06:10:00Z"), end: *mustTime("2026-04-13T06:20:00Z")},
+			},
+			want: []timeInterval{
+				{start: *mustTime("2026-04-13T06:00:00Z"), end: *mustTime("2026-04-13T07:00:00Z")},
+			},
+		},
+		{
+			name: "touching_boundaries",
+			intervals: []timeInterval{
+				{start: *mustTime("2026-04-13T06:00:00Z"), end: *mustTime("2026-04-13T06:10:00Z")},
+				{start: *mustTime("2026-04-13T06:10:00Z"), end: *mustTime("2026-04-13T06:20:00Z")},
+			},
+			want: []timeInterval{
+				{start: *mustTime("2026-04-13T06:00:00Z"), end: *mustTime("2026-04-13T06:20:00Z")},
+			},
+		},
+		{
+			name: "disjoint",
+			intervals: []timeInterval{
+				{start: *mustTime("2026-04-13T06:00:00Z"), end: *mustTime("2026-04-13T06:10:00Z")},
+				{start: *mustTime("2026-04-13T07:00:00Z"), end: *mustTime("2026-04-13T07:10:00Z")},
+			},
+			want: []timeInterval{
+				{start: *mustTime("2026-04-13T06:00:00Z"), end: *mustTime("2026-04-13T06:10:00Z")},
+				{start: *mustTime("2026-04-13T07:00:00Z"), end: *mustTime("2026-04-13T07:10:00Z")},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := mergeIntervals(tt.intervals)
+			if len(got) != len(tt.want) {
+				t.Fatalf("mergeIntervals() returned %d intervals, want %d", len(got), len(tt.want))
+			}
+			for i := range got {
+				if !got[i].start.Equal(tt.want[i].start) || !got[i].end.Equal(tt.want[i].end) {
+					t.Errorf("interval[%d] = {%v, %v}, want {%v, %v}",
+						i, got[i].start, got[i].end, tt.want[i].start, tt.want[i].end)
+				}
+			}
+		})
+	}
+}
+
 func TestComputeGroupDuration(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -98,6 +175,66 @@ func TestComputeGroupDuration(t *testing.T) {
 				StartsAt: mustTime("2026-04-13T07:00:00Z"),
 			}}},
 			want: 3600,
+		},
+		{
+			name: "overlapping_firings",
+			firings: []alert{
+				{Alert: alertData{
+					StartsAt: mustTime("2026-04-13T06:10:00Z"),
+					EndsAt:   mustTime("2026-04-13T06:30:00Z"),
+				}},
+				{Alert: alertData{
+					StartsAt: mustTime("2026-04-13T06:15:00Z"),
+					EndsAt:   mustTime("2026-04-13T06:35:00Z"),
+				}},
+			},
+			want: 1500, // merged 06:10–06:35 = 25min, not 20+20=40min
+		},
+		{
+			name: "concurrent_firings",
+			firings: []alert{
+				{Alert: alertData{
+					StartsAt: mustTime("2026-04-13T06:00:00Z"),
+					EndsAt:   mustTime("2026-04-13T06:20:00Z"),
+				}},
+				{Alert: alertData{
+					StartsAt: mustTime("2026-04-13T06:00:00Z"),
+					EndsAt:   mustTime("2026-04-13T06:22:00Z"),
+				}},
+				{Alert: alertData{
+					StartsAt: mustTime("2026-04-13T06:01:00Z"),
+					EndsAt:   mustTime("2026-04-13T06:21:00Z"),
+				}},
+			},
+			want: 1320, // merged 06:00–06:22 = 22min, not 20+22+20=62min
+		},
+		{
+			name: "touching_firings",
+			firings: []alert{
+				{Alert: alertData{
+					StartsAt: mustTime("2026-04-13T06:00:00Z"),
+					EndsAt:   mustTime("2026-04-13T06:10:00Z"),
+				}},
+				{Alert: alertData{
+					StartsAt: mustTime("2026-04-13T06:10:00Z"),
+					EndsAt:   mustTime("2026-04-13T06:20:00Z"),
+				}},
+			},
+			want: 1200, // merged 06:00–06:20 = 20min (touching boundary merges)
+		},
+		{
+			name: "non_overlapping_firings",
+			firings: []alert{
+				{Alert: alertData{
+					StartsAt: mustTime("2026-04-13T06:00:00Z"),
+					EndsAt:   mustTime("2026-04-13T06:10:00Z"),
+				}},
+				{Alert: alertData{
+					StartsAt: mustTime("2026-04-13T07:00:00Z"),
+					EndsAt:   mustTime("2026-04-13T07:10:00Z"),
+				}},
+			},
+			want: 1200, // 10min + 10min = 20min (no overlap)
 		},
 		{
 			name:    "empty_firings",

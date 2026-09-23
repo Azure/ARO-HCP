@@ -20,7 +20,8 @@ import (
 	"github.com/blang/semver/v4"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
 )
 
 func TestFindLowestAndHighestClusterVersion(t *testing.T) {
@@ -28,7 +29,7 @@ func TestFindLowestAndHighestClusterVersion(t *testing.T) {
 
 	tests := []struct {
 		name       string
-		versions   []api.HCPClusterActiveVersion
+		versions   []coreapi.ServiceProviderClusterActiveVersion
 		wantLowest *semver.Version
 		wantHigh   *semver.Version
 	}{
@@ -40,25 +41,25 @@ func TestFindLowestAndHighestClusterVersion(t *testing.T) {
 		},
 		{
 			name:       "empty ActiveVersions returns nil",
-			versions:   []api.HCPClusterActiveVersion{},
+			versions:   []coreapi.ServiceProviderClusterActiveVersion{},
 			wantLowest: nil,
 			wantHigh:   nil,
 		},
 		{
 			name:       "single entry returns that control plane version for both bounds",
-			versions:   []api.HCPClusterActiveVersion{{Version: api.Ptr(semver.MustParse("4.22.0"))}},
-			wantLowest: api.Ptr(semver.MustParse("4.22.0")),
-			wantHigh:   api.Ptr(semver.MustParse("4.22.0")),
+			versions:   []coreapi.ServiceProviderClusterActiveVersion{{Version: metadataapihelpers.Ptr(semver.MustParse("4.22.0"))}},
+			wantLowest: metadataapihelpers.Ptr(semver.MustParse("4.22.0")),
+			wantHigh:   metadataapihelpers.Ptr(semver.MustParse("4.22.0")),
 		},
 		{
 			name: "unsorted active versions return semantic min and max",
-			versions: []api.HCPClusterActiveVersion{
-				{Version: api.Ptr(semver.MustParse("4.20.0"))},
-				{Version: api.Ptr(semver.MustParse("4.23.0"))},
-				{Version: api.Ptr(semver.MustParse("4.22.0"))},
+			versions: []coreapi.ServiceProviderClusterActiveVersion{
+				{Version: metadataapihelpers.Ptr(semver.MustParse("4.20.0"))},
+				{Version: metadataapihelpers.Ptr(semver.MustParse("4.23.0"))},
+				{Version: metadataapihelpers.Ptr(semver.MustParse("4.22.0"))},
 			},
-			wantLowest: api.Ptr(semver.MustParse("4.20.0")),
-			wantHigh:   api.Ptr(semver.MustParse("4.23.0")),
+			wantLowest: metadataapihelpers.Ptr(semver.MustParse("4.20.0")),
+			wantHigh:   metadataapihelpers.Ptr(semver.MustParse("4.23.0")),
 		},
 	}
 
@@ -84,7 +85,7 @@ func TestFindLowestAndHighestNodePoolVersion(t *testing.T) {
 
 	tests := []struct {
 		name       string
-		versions   []api.HCPNodePoolActiveVersion
+		versions   []coreapi.ServiceProviderNodePoolActiveVersion
 		wantLowest *semver.Version
 		wantHigh   *semver.Version
 	}{
@@ -96,25 +97,25 @@ func TestFindLowestAndHighestNodePoolVersion(t *testing.T) {
 		},
 		{
 			name:       "empty ActiveVersions returns nil",
-			versions:   []api.HCPNodePoolActiveVersion{},
+			versions:   []coreapi.ServiceProviderNodePoolActiveVersion{},
 			wantLowest: nil,
 			wantHigh:   nil,
 		},
 		{
 			name:       "single entry returns that version for both bounds",
-			versions:   []api.HCPNodePoolActiveVersion{{Version: api.Ptr(semver.MustParse("4.22.0"))}},
-			wantLowest: api.Ptr(semver.MustParse("4.22.0")),
-			wantHigh:   api.Ptr(semver.MustParse("4.22.0")),
+			versions:   []coreapi.ServiceProviderNodePoolActiveVersion{{Version: metadataapihelpers.Ptr(semver.MustParse("4.22.0"))}},
+			wantLowest: metadataapihelpers.Ptr(semver.MustParse("4.22.0")),
+			wantHigh:   metadataapihelpers.Ptr(semver.MustParse("4.22.0")),
 		},
 		{
 			name: "unsorted active versions return semantic min and max",
-			versions: []api.HCPNodePoolActiveVersion{
-				{Version: api.Ptr(semver.MustParse("4.20.0"))},
-				{Version: api.Ptr(semver.MustParse("4.23.0"))},
-				{Version: api.Ptr(semver.MustParse("4.22.0"))},
+			versions: []coreapi.ServiceProviderNodePoolActiveVersion{
+				{Version: metadataapihelpers.Ptr(semver.MustParse("4.20.0"))},
+				{Version: metadataapihelpers.Ptr(semver.MustParse("4.23.0"))},
+				{Version: metadataapihelpers.Ptr(semver.MustParse("4.22.0"))},
 			},
-			wantLowest: api.Ptr(semver.MustParse("4.20.0")),
-			wantHigh:   api.Ptr(semver.MustParse("4.23.0")),
+			wantLowest: metadataapihelpers.Ptr(semver.MustParse("4.20.0")),
+			wantHigh:   metadataapihelpers.Ptr(semver.MustParse("4.23.0")),
 		},
 	}
 

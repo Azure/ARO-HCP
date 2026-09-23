@@ -28,7 +28,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 )
 
 func TestMiddlewareTracing(t *testing.T) {
@@ -39,14 +39,14 @@ func TestMiddlewareTracing(t *testing.T) {
 	)
 	for _, tc := range []struct {
 		name string
-		data *arm.CorrelationData
+		data *coreapi.CorrelationData
 
 		expectedAttrs   map[string]string
 		expectedBaggage map[string]string
 	}{
 		{
 			name: "empty correlation data",
-			data: &arm.CorrelationData{},
+			data: &coreapi.CorrelationData{},
 			expectedAttrs: map[string]string{
 				"aro.request_id": "00000000-0000-0000-0000-000000000000",
 			},
@@ -56,7 +56,7 @@ func TestMiddlewareTracing(t *testing.T) {
 		},
 		{
 			name: "with correlation data",
-			data: &arm.CorrelationData{
+			data: &coreapi.CorrelationData{
 				RequestID:            testRequestID,
 				ClientRequestID:      testClientRequestID,
 				CorrelationRequestID: testCorrelationRequestID,

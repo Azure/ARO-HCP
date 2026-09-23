@@ -11,6 +11,8 @@ metadata:
 spec:
   groups:
   - name: maestro
+    labels:
+      component: maestro
     rules:
     - alert: MaestroGRPCSourceClientExcessConnections
       # Fires when the number of registered gRPC source clients is
@@ -77,3 +79,88 @@ spec:
         description: 'Maestro spec controller reconcile error rate is above 10% for the last 10 minutes. Resources may not be reaching management clusters. Current value: {{ $value | humanizePercentage }}.'
         runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/maestro/index.html'
         summary: 'Maestro spec controller reconcile error rate is high'
+    - alert: MaestroServerNoReadyReplicas
+      # Fires when no maestro-server replicas are Ready. The readiness
+      # probe is gated on Postgres connectivity (/healthcheck runs an
+      # instance-row SELECT), while liveness uses the process-only
+      # /livez probe and no longer restarts the pod on DB errors. A
+      # sustained zero-Ready count therefore means maestro cannot reach
+      # its database: Clusters Service receives 503 and HCP provisioning
+      # stalls. This is the AROSLSRE-1170 outage condition.
+      expr: |
+        kube_deployment_status_replicas_available{namespace="maestro", deployment="maestro"} == 0
+        and
+        kube_deployment_spec_replicas{namespace="maestro", deployment="maestro"} > 0
+      for: 10m
+      labels:
+        severity: critical
+      annotations:
+        description: 'No maestro-server replicas have been Ready for 10 minutes. Readiness is gated on Postgres connectivity, so maestro is likely unable to reach its database; Clusters Service will get 503 and HCP cluster provisioning will stall.'
+        runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/maestro/index.html'
+        summary: 'No maestro-server replicas are Ready'
+    - alert: MaestroServerReplicaNotReady
+      # Fires when at least one (but not all) maestro-server replicas
+      # are not Ready for a sustained period. Because liveness now uses
+      # the process-only /livez probe, a replica that cannot reach
+      # Postgres stays Running but NotReady (removed from Service
+      # endpoints by readiness) instead of crash-looping, so this is the
+      # primary early signal of degraded database connectivity. The
+      # window is long enough to ignore normal rollouts.
+      expr: |
+        kube_deployment_status_replicas_available{namespace="maestro", deployment="maestro"} > 0
+        and
+        kube_deployment_status_replicas_available{namespace="maestro", deployment="maestro"}
+          < kube_deployment_spec_replicas{namespace="maestro", deployment="maestro"}
+      for: 15m
+      labels:
+        severity: warning
+      annotations:
+        description: 'At least one maestro-server replica has been NotReady for 15 minutes (available {{ $value }} below desired). Readiness is gated on Postgres connectivity, so a persistently NotReady replica usually indicates database connectivity problems.'
+        runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/maestro/index.html'
+        summary: 'A maestro-server replica is not Ready'
+    - alert: MaestroPostgresNotificationQueueUsageHigh
+      # Fires when the PostgreSQL notification queue usage exceeds 50%.
+      # The notification queue is a fixed-size 8GB buffer shared across
+      # all connections. If it fills up, NOTIFY calls block, stalling
+      # event processing for both spec and status controllers. A
+      # sustained high usage indicates listeners are not draining
+      # notifications fast enough.
+      expr: |
+        max(postgres_notification_queue_usage{namespace="maestro"}) > 0.5
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        description: 'Maestro PostgreSQL notification queue usage is above 50% for the last 5 minutes. Current value: {{ $value | humanizePercentage }}. If the queue fills up, NOTIFY calls will block and event processing will stall.'
+        runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/maestro/index.html'
+        summary: 'Maestro PostgreSQL notification queue usage is high'
+    - alert: MaestroWorkqueueDepthHigh
+      # Fires when a maestro workqueue depth stays above 100 for 10
+      # minutes. The workqueues buffer events between NOTIFY receipt
+      # and controller reconciliation. A sustained high depth means
+      # the controller is not keeping up — possibly due to a burst
+      # of resynced events after a lost NOTIFY, slow reconciliation,
+      # or database contention.
+      expr: |
+        max by(queue_name) (workqueue_depth{namespace="maestro", queue_name!=""}) > 100
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        description: 'Maestro workqueue {{ $labels.queue_name }} depth is {{ $value }}, sustained above 100 for 10 minutes. Events are not being processed fast enough.'
+        runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/maestro/index.html'
+        summary: 'Maestro workqueue {{ $labels.queue_name }} depth is high'
+    - alert: MaestroEventStuckUnreconciled
+      # Fires when a spec event has been in the database unreconciled
+      # for more than 5 minutes. Potential causes for old unreconciled events
+      # are lost Postgres NOTIFY messages, or slow/stuck processing of the
+      # work queue.
+      expr: |
+        max(spec_controller_event_oldest_unreconciled_age_seconds{namespace="maestro"}) > 300
+      for: 1m
+      labels:
+        severity: warning
+      annotations:
+        description: 'A Maestro event has been unreconciled for {{ $value | humanizeDuration }}. This likely indicates a lost Postgres NOTIFY message. The event will not be processed until the periodic sync runs (default 10 hours).'
+        runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/maestro/index.html'
+        summary: 'Maestro unreconciled event age is too high — possible lost NOTIFY'

@@ -28,10 +28,12 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/informers"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/test-integration/utils/integrationutils"
 )
 
@@ -107,16 +109,16 @@ type informerIntegrationTestCase struct {
 	name string
 
 	// seedDB populates the database with initial items.
-	seedDB func(t *testing.T, ctx context.Context, resourcesDBClient database.ResourcesDBClient)
+	seedDB func(t *testing.T, ctx context.Context, resourcesDBClient corecosmosstorage.ResourcesDBClient)
 
 	// createInformer creates the SharedIndexInformer under test.
-	createInformer func(resourcesDBClient database.ResourcesDBClient) cache.SharedIndexInformer
+	createInformer func(resourcesDBClient corecosmosstorage.ResourcesDBClient) cache.SharedIndexInformer
 
 	// expectedInitialAdds is the number of Add events expected from the initial list.
 	expectedInitialAdds int
 
 	// mutateDB modifies the database after initial sync.
-	mutateDB func(t *testing.T, ctx context.Context, resourcesDBClient database.ResourcesDBClient)
+	mutateDB func(t *testing.T, ctx context.Context, resourcesDBClient corecosmosstorage.ResourcesDBClient)
 
 	// verifyMutationEvents checks events after mutation and relist.
 	verifyMutationEvents func(t *testing.T, tracker *objectEventTracker)
@@ -255,34 +257,32 @@ func testInformerResync(t *testing.T, withMock bool) {
 func subscriptionInformerIntegrationTestCase() informerIntegrationTestCase {
 	return informerIntegrationTestCase{
 		name: "subscription",
-		seedDB: func(t *testing.T, ctx context.Context, resourcesDBClient database.ResourcesDBClient) {
+		seedDB: func(t *testing.T, ctx context.Context, resourcesDBClient corecosmosstorage.ResourcesDBClient) {
 			t.Helper()
-			sub1 := &arm.Subscription{
-				CosmosMetadata: arm.CosmosMetadata{
+			sub1 := &coreapi.Subscription{
+				CosmosMetadata: coreapi.CosmosMetadata{
 					ResourceID:   mustParseResourceID(t, "/subscriptions/sub-1"),
 					PartitionKey: "sub-1",
 				},
-				ResourceID: mustParseResourceID(t, "/subscriptions/sub-1"),
-				State:      arm.SubscriptionStateRegistered,
+				State: coreapi.SubscriptionStateRegistered,
 			}
-			sub2 := &arm.Subscription{
-				CosmosMetadata: arm.CosmosMetadata{
+			sub2 := &coreapi.Subscription{
+				CosmosMetadata: coreapi.CosmosMetadata{
 					ResourceID:   mustParseResourceID(t, "/subscriptions/sub-2"),
 					PartitionKey: "sub-2",
 				},
-				ResourceID: mustParseResourceID(t, "/subscriptions/sub-2"),
-				State:      arm.SubscriptionStateRegistered,
+				State: coreapi.SubscriptionStateRegistered,
 			}
 			_, err := resourcesDBClient.Subscriptions().Create(ctx, sub1, nil)
 			require.NoError(t, err)
 			_, err = resourcesDBClient.Subscriptions().Create(ctx, sub2, nil)
 			require.NoError(t, err)
 		},
-		createInformer: func(resourcesDBClient database.ResourcesDBClient) cache.SharedIndexInformer {
-			return informers.NewSubscriptionInformerWithRelistDuration(resourcesDBClient.ResourcesGlobalListers().Subscriptions(), 5*time.Second)
+		createInformer: func(resourcesDBClient corecosmosstorage.ResourcesDBClient) cache.SharedIndexInformer {
+			return coreinformers.NewSubscriptionInformerWithRelistDuration(resourcesDBClient.ResourcesGlobalListers().Subscriptions(), resourcesDBClient, 5*time.Second)
 		},
 		expectedInitialAdds: 2,
-		mutateDB: func(t *testing.T, ctx context.Context, resourcesDBClient database.ResourcesDBClient) {
+		mutateDB: func(t *testing.T, ctx context.Context, resourcesDBClient corecosmosstorage.ResourcesDBClient) {
 			t.Helper()
 			// Deep-copy the live document so the Replace carries the existing
 			// etag and instance version forward; PrepareForReplace rejects
@@ -290,17 +290,16 @@ func subscriptionInformerIntegrationTestCase() informerIntegrationTestCase {
 			existing, err := resourcesDBClient.Subscriptions().Get(ctx, "sub-1")
 			require.NoError(t, err)
 			sub1Updated := existing.DeepCopy()
-			sub1Updated.State = arm.SubscriptionStateWarned
+			sub1Updated.State = coreapi.SubscriptionStateWarned
 			_, err = resourcesDBClient.Subscriptions().Replace(ctx, sub1Updated, nil)
 			require.NoError(t, err)
 
-			sub3 := &arm.Subscription{
-				CosmosMetadata: arm.CosmosMetadata{
+			sub3 := &coreapi.Subscription{
+				CosmosMetadata: coreapi.CosmosMetadata{
 					ResourceID:   mustParseResourceID(t, "/subscriptions/sub-3"),
 					PartitionKey: "sub-3",
 				},
-				ResourceID: mustParseResourceID(t, "/subscriptions/sub-3"),
-				State:      arm.SubscriptionStateRegistered,
+				State: coreapi.SubscriptionStateRegistered,
 			}
 			_, err = resourcesDBClient.Subscriptions().Create(ctx, sub3, nil)
 			require.NoError(t, err)
@@ -312,8 +311,8 @@ func subscriptionInformerIntegrationTestCase() informerIntegrationTestCase {
 			t.Helper()
 			require.Eventually(t, func() bool {
 				for _, evt := range tracker.getUpdated() {
-					if sub, ok := evt.newObj.(*arm.Subscription); ok {
-						if sub.ResourceID.SubscriptionID == "sub-1" && sub.State == arm.SubscriptionStateWarned {
+					if sub, ok := evt.newObj.(*coreapi.Subscription); ok {
+						if sub.ResourceID.SubscriptionID == "sub-1" && sub.State == coreapi.SubscriptionStateWarned {
 							return true
 						}
 					}
@@ -323,7 +322,7 @@ func subscriptionInformerIntegrationTestCase() informerIntegrationTestCase {
 
 			require.Eventually(t, func() bool {
 				for _, obj := range tracker.getAdded() {
-					if sub, ok := obj.(*arm.Subscription); ok {
+					if sub, ok := obj.(*coreapi.Subscription); ok {
 						if sub.ResourceID.SubscriptionID == "sub-3" {
 							return true
 						}
@@ -334,7 +333,7 @@ func subscriptionInformerIntegrationTestCase() informerIntegrationTestCase {
 
 			require.Eventually(t, func() bool {
 				for _, obj := range tracker.getDeleted() {
-					if sub, ok := obj.(*arm.Subscription); ok {
+					if sub, ok := obj.(*coreapi.Subscription); ok {
 						if sub.ResourceID.SubscriptionID == "sub-2" {
 							return true
 						}
@@ -354,28 +353,28 @@ func clusterInformerIntegrationTestCase() informerIntegrationTestCase {
 		resourceGroupName = "test-rg"
 	)
 
-	newCluster := func(t *testing.T, name string, state arm.ProvisioningState) *api.HCPOpenShiftCluster {
+	newCluster := func(t *testing.T, name string, state coreapi.ProvisioningState) *coreapi.HCPOpenShiftCluster {
 		t.Helper()
 		clusterResourceID := mustParseResourceID(t,
 			"/subscriptions/"+subscriptionID+
 				"/resourceGroups/"+resourceGroupName+
 				"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/"+name)
-		internalID, err := api.NewInternalID("/api/clusters_mgmt/v1/clusters/" + name)
+		internalID, err := metadataapi.NewInternalID("/api/clusters_mgmt/v1/clusters/" + name)
 		require.NoError(t, err)
-		return &api.HCPOpenShiftCluster{
-			CosmosMetadata: arm.CosmosMetadata{
+		return &coreapi.HCPOpenShiftCluster{
+			CosmosMetadata: coreapi.CosmosMetadata{
 				ResourceID:   clusterResourceID,
 				PartitionKey: strings.ToLower(clusterResourceID.SubscriptionID),
 			},
-			TrackedResource: arm.TrackedResource{
-				Resource: arm.Resource{
+			TrackedResource: coreapi.TrackedResource{
+				Resource: coreapi.Resource{
 					ID:   clusterResourceID,
 					Name: name,
-					Type: api.ClusterResourceType.String(),
+					Type: coreapi.ClusterResourceType.String(),
 				},
 				Location: "eastus",
 			},
-			ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+			ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
 				ProvisioningState: state,
 				ClusterServiceID:  &internalID,
 			},
@@ -384,19 +383,19 @@ func clusterInformerIntegrationTestCase() informerIntegrationTestCase {
 
 	return informerIntegrationTestCase{
 		name: "cluster",
-		seedDB: func(t *testing.T, ctx context.Context, resourcesDBClient database.ResourcesDBClient) {
+		seedDB: func(t *testing.T, ctx context.Context, resourcesDBClient corecosmosstorage.ResourcesDBClient) {
 			t.Helper()
 			clusterCRUD := resourcesDBClient.HCPClusters(subscriptionID, resourceGroupName)
-			_, err := clusterCRUD.Create(ctx, newCluster(t, "cluster-1", arm.ProvisioningStateSucceeded), nil)
+			_, err := clusterCRUD.Create(ctx, newCluster(t, "cluster-1", coreapi.ProvisioningStateSucceeded), nil)
 			require.NoError(t, err)
-			_, err = clusterCRUD.Create(ctx, newCluster(t, "cluster-2", arm.ProvisioningStateSucceeded), nil)
+			_, err = clusterCRUD.Create(ctx, newCluster(t, "cluster-2", coreapi.ProvisioningStateSucceeded), nil)
 			require.NoError(t, err)
 		},
-		createInformer: func(resourcesDBClient database.ResourcesDBClient) cache.SharedIndexInformer {
-			return informers.NewClusterInformerWithRelistDuration(resourcesDBClient.ResourcesGlobalListers().Clusters(), 5*time.Second)
+		createInformer: func(resourcesDBClient corecosmosstorage.ResourcesDBClient) cache.SharedIndexInformer {
+			return coreinformers.NewClusterInformerWithRelistDuration(resourcesDBClient.ResourcesGlobalListers().Clusters(), resourcesDBClient, 5*time.Second)
 		},
 		expectedInitialAdds: 2,
-		mutateDB: func(t *testing.T, ctx context.Context, resourcesDBClient database.ResourcesDBClient) {
+		mutateDB: func(t *testing.T, ctx context.Context, resourcesDBClient corecosmosstorage.ResourcesDBClient) {
 			t.Helper()
 			clusterCRUD := resourcesDBClient.HCPClusters(subscriptionID, resourceGroupName)
 			// Deep-copy the live document so the Replace carries the existing
@@ -405,11 +404,11 @@ func clusterInformerIntegrationTestCase() informerIntegrationTestCase {
 			existing, err := clusterCRUD.Get(ctx, "cluster-1")
 			require.NoError(t, err)
 			updated := existing.DeepCopy()
-			updated.ServiceProviderProperties.ProvisioningState = arm.ProvisioningStateDeleting
+			updated.ServiceProviderProperties.ProvisioningState = coreapi.ProvisioningStateDeleting
 			_, err = clusterCRUD.Replace(ctx, updated, nil)
 			require.NoError(t, err)
 
-			_, err = clusterCRUD.Create(ctx, newCluster(t, "cluster-3", arm.ProvisioningStateAccepted), nil)
+			_, err = clusterCRUD.Create(ctx, newCluster(t, "cluster-3", coreapi.ProvisioningStateAccepted), nil)
 			require.NoError(t, err)
 
 			err = clusterCRUD.Delete(ctx, "cluster-2")
@@ -419,8 +418,8 @@ func clusterInformerIntegrationTestCase() informerIntegrationTestCase {
 			t.Helper()
 			require.Eventually(t, func() bool {
 				for _, evt := range tracker.getUpdated() {
-					if c, ok := evt.newObj.(*api.HCPOpenShiftCluster); ok {
-						if c.Name == "cluster-1" && c.ServiceProviderProperties.ProvisioningState == arm.ProvisioningStateDeleting {
+					if c, ok := evt.newObj.(*coreapi.HCPOpenShiftCluster); ok {
+						if c.Name == "cluster-1" && c.ServiceProviderProperties.ProvisioningState == coreapi.ProvisioningStateDeleting {
 							return true
 						}
 					}
@@ -430,7 +429,7 @@ func clusterInformerIntegrationTestCase() informerIntegrationTestCase {
 
 			require.Eventually(t, func() bool {
 				for _, obj := range tracker.getAdded() {
-					if c, ok := obj.(*api.HCPOpenShiftCluster); ok {
+					if c, ok := obj.(*coreapi.HCPOpenShiftCluster); ok {
 						if c.Name == "cluster-3" {
 							return true
 						}
@@ -441,7 +440,7 @@ func clusterInformerIntegrationTestCase() informerIntegrationTestCase {
 
 			require.Eventually(t, func() bool {
 				for _, obj := range tracker.getDeleted() {
-					if c, ok := obj.(*api.HCPOpenShiftCluster); ok {
+					if c, ok := obj.(*coreapi.HCPOpenShiftCluster); ok {
 						if c.Name == "cluster-2" {
 							return true
 						}
@@ -462,29 +461,29 @@ func nodePoolInformerIntegrationTestCase() informerIntegrationTestCase {
 		clusterName       = "parent-cluster"
 	)
 
-	newNodePool := func(t *testing.T, name string, replicas int32) *api.HCPOpenShiftClusterNodePool {
+	newNodePool := func(t *testing.T, name string, replicas int32) *coreapi.HCPOpenShiftClusterNodePool {
 		t.Helper()
 		npResourceID := mustParseResourceID(t,
 			"/subscriptions/"+subscriptionID+
 				"/resourceGroups/"+resourceGroupName+
 				"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/"+clusterName+
 				"/nodePools/"+name)
-		internalID := api.Ptr(api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/clusters/" + clusterName + "/node_pools/" + name)))
-		return &api.HCPOpenShiftClusterNodePool{
-			CosmosMetadata: arm.CosmosMetadata{ResourceID: npResourceID, PartitionKey: strings.ToLower(npResourceID.SubscriptionID)},
-			TrackedResource: arm.TrackedResource{
-				Resource: arm.Resource{
+		internalID := metadataapihelpers.Ptr(metadataapi.Must(metadataapi.NewInternalID("/api/aro_hcp/v1alpha1/clusters/" + clusterName + "/node_pools/" + name)))
+		return &coreapi.HCPOpenShiftClusterNodePool{
+			CosmosMetadata: coreapi.CosmosMetadata{ResourceID: npResourceID, PartitionKey: strings.ToLower(npResourceID.SubscriptionID)},
+			TrackedResource: coreapi.TrackedResource{
+				Resource: coreapi.Resource{
 					ID:   npResourceID,
 					Name: name,
-					Type: api.NodePoolResourceType.String(),
+					Type: coreapi.NodePoolResourceType.String(),
 				},
 				Location: "eastus",
 			},
-			Properties: api.HCPOpenShiftClusterNodePoolProperties{
-				ProvisioningState: arm.ProvisioningStateSucceeded,
+			Properties: coreapi.HCPOpenShiftClusterNodePoolProperties{
+				ProvisioningState: coreapi.ProvisioningStateSucceeded,
 				Replicas:          replicas,
 			},
-			ServiceProviderProperties: api.HCPOpenShiftClusterNodePoolServiceProviderProperties{
+			ServiceProviderProperties: coreapi.HCPOpenShiftClusterNodePoolServiceProviderProperties{
 				ClusterServiceID: internalID,
 			},
 		}
@@ -492,30 +491,30 @@ func nodePoolInformerIntegrationTestCase() informerIntegrationTestCase {
 
 	return informerIntegrationTestCase{
 		name: "nodePool",
-		seedDB: func(t *testing.T, ctx context.Context, resourcesDBClient database.ResourcesDBClient) {
+		seedDB: func(t *testing.T, ctx context.Context, resourcesDBClient corecosmosstorage.ResourcesDBClient) {
 			t.Helper()
 			// Create parent cluster first.
 			clusterResourceID := mustParseResourceID(t,
 				"/subscriptions/"+subscriptionID+
 					"/resourceGroups/"+resourceGroupName+
 					"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/"+clusterName)
-			internalID, err := api.NewInternalID("/api/clusters_mgmt/v1/clusters/" + clusterName)
+			internalID, err := metadataapi.NewInternalID("/api/clusters_mgmt/v1/clusters/" + clusterName)
 			require.NoError(t, err)
-			cluster := &api.HCPOpenShiftCluster{
-				CosmosMetadata: arm.CosmosMetadata{
+			cluster := &coreapi.HCPOpenShiftCluster{
+				CosmosMetadata: coreapi.CosmosMetadata{
 					ResourceID:   clusterResourceID,
 					PartitionKey: strings.ToLower(clusterResourceID.SubscriptionID),
 				},
-				TrackedResource: arm.TrackedResource{
-					Resource: arm.Resource{
+				TrackedResource: coreapi.TrackedResource{
+					Resource: coreapi.Resource{
 						ID:   clusterResourceID,
 						Name: clusterName,
-						Type: api.ClusterResourceType.String(),
+						Type: coreapi.ClusterResourceType.String(),
 					},
 					Location: "eastus",
 				},
-				ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
-					ProvisioningState: arm.ProvisioningStateSucceeded,
+				ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+					ProvisioningState: coreapi.ProvisioningStateSucceeded,
 					ClusterServiceID:  &internalID,
 				},
 			}
@@ -528,11 +527,11 @@ func nodePoolInformerIntegrationTestCase() informerIntegrationTestCase {
 			_, err = npCRUD.Create(ctx, newNodePool(t, "np-2", 5), nil)
 			require.NoError(t, err)
 		},
-		createInformer: func(resourcesDBClient database.ResourcesDBClient) cache.SharedIndexInformer {
-			return informers.NewNodePoolInformerWithRelistDuration(resourcesDBClient.ResourcesGlobalListers().NodePools(), 5*time.Second)
+		createInformer: func(resourcesDBClient corecosmosstorage.ResourcesDBClient) cache.SharedIndexInformer {
+			return coreinformers.NewNodePoolInformerWithRelistDuration(resourcesDBClient.ResourcesGlobalListers().NodePools(), resourcesDBClient, 5*time.Second)
 		},
 		expectedInitialAdds: 2,
-		mutateDB: func(t *testing.T, ctx context.Context, resourcesDBClient database.ResourcesDBClient) {
+		mutateDB: func(t *testing.T, ctx context.Context, resourcesDBClient corecosmosstorage.ResourcesDBClient) {
 			t.Helper()
 			npCRUD := resourcesDBClient.HCPClusters(subscriptionID, resourceGroupName).NodePools(clusterName)
 
@@ -556,7 +555,7 @@ func nodePoolInformerIntegrationTestCase() informerIntegrationTestCase {
 			t.Helper()
 			require.Eventually(t, func() bool {
 				for _, evt := range tracker.getUpdated() {
-					if np, ok := evt.newObj.(*api.HCPOpenShiftClusterNodePool); ok {
+					if np, ok := evt.newObj.(*coreapi.HCPOpenShiftClusterNodePool); ok {
 						if np.Name == "np-1" && np.Properties.Replicas == 10 {
 							return true
 						}
@@ -567,7 +566,7 @@ func nodePoolInformerIntegrationTestCase() informerIntegrationTestCase {
 
 			require.Eventually(t, func() bool {
 				for _, obj := range tracker.getAdded() {
-					if np, ok := obj.(*api.HCPOpenShiftClusterNodePool); ok {
+					if np, ok := obj.(*coreapi.HCPOpenShiftClusterNodePool); ok {
 						if np.Name == "np-3" {
 							return true
 						}
@@ -578,7 +577,7 @@ func nodePoolInformerIntegrationTestCase() informerIntegrationTestCase {
 
 			require.Eventually(t, func() bool {
 				for _, obj := range tracker.getDeleted() {
-					if np, ok := obj.(*api.HCPOpenShiftClusterNodePool); ok {
+					if np, ok := obj.(*coreapi.HCPOpenShiftClusterNodePool); ok {
 						if np.Name == "np-2" {
 							return true
 						}
@@ -595,7 +594,7 @@ func nodePoolInformerIntegrationTestCase() informerIntegrationTestCase {
 func activeOperationInformerIntegrationTestCase() informerIntegrationTestCase {
 	const subscriptionID = "00000000-0000-0000-0000-000000000003"
 
-	newOperation := func(t *testing.T, opName string, status arm.ProvisioningState) *api.Operation {
+	newOperation := func(t *testing.T, opName string, status coreapi.ProvisioningState) *coreapi.Operation {
 		t.Helper()
 		operationID := mustParseResourceID(t,
 			"/subscriptions/"+subscriptionID+
@@ -607,14 +606,14 @@ func activeOperationInformerIntegrationTestCase() informerIntegrationTestCase {
 			"/subscriptions/"+subscriptionID+
 				"/providers/Microsoft.RedHatOpenShift/hcpOperationStatuses/"+opName)
 		now := time.Now().UTC()
-		return &api.Operation{
-			CosmosMetadata: api.CosmosMetadata{
+		return &coreapi.Operation{
+			CosmosMetadata: coreapi.CosmosMetadata{
 				ResourceID:   resourceID,
 				PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 			},
 			OperationID:        operationID,
 			ExternalID:         externalID,
-			Request:            api.OperationRequestCreate,
+			Request:            coreapi.OperationRequestCreate,
 			Status:             status,
 			StartTime:          now,
 			LastTransitionTime: now,
@@ -623,19 +622,19 @@ func activeOperationInformerIntegrationTestCase() informerIntegrationTestCase {
 
 	return informerIntegrationTestCase{
 		name: "activeOperation",
-		seedDB: func(t *testing.T, ctx context.Context, resourcesDBClient database.ResourcesDBClient) {
+		seedDB: func(t *testing.T, ctx context.Context, resourcesDBClient corecosmosstorage.ResourcesDBClient) {
 			t.Helper()
 			opCRUD := resourcesDBClient.Operations(subscriptionID)
-			_, err := opCRUD.Create(ctx, newOperation(t, "op-1", arm.ProvisioningStateAccepted), nil)
+			_, err := opCRUD.Create(ctx, newOperation(t, "op-1", coreapi.ProvisioningStateAccepted), nil)
 			require.NoError(t, err)
-			_, err = opCRUD.Create(ctx, newOperation(t, "op-2", arm.ProvisioningStateProvisioning), nil)
+			_, err = opCRUD.Create(ctx, newOperation(t, "op-2", coreapi.ProvisioningStateProvisioning), nil)
 			require.NoError(t, err)
 		},
-		createInformer: func(resourcesDBClient database.ResourcesDBClient) cache.SharedIndexInformer {
-			return informers.NewActiveOperationInformerWithRelistDuration(resourcesDBClient.ResourcesGlobalListers().ActiveOperations(), 5*time.Second)
+		createInformer: func(resourcesDBClient corecosmosstorage.ResourcesDBClient) cache.SharedIndexInformer {
+			return coreinformers.NewActiveOperationInformerWithRelistDuration(resourcesDBClient.ResourcesGlobalListers().ActiveOperations(), resourcesDBClient, 5*time.Second)
 		},
 		expectedInitialAdds: 2,
-		mutateDB: func(t *testing.T, ctx context.Context, resourcesDBClient database.ResourcesDBClient) {
+		mutateDB: func(t *testing.T, ctx context.Context, resourcesDBClient corecosmosstorage.ResourcesDBClient) {
 			t.Helper()
 			opCRUD := resourcesDBClient.Operations(subscriptionID)
 
@@ -646,12 +645,12 @@ func activeOperationInformerIntegrationTestCase() informerIntegrationTestCase {
 			existing, err := opCRUD.Get(ctx, "op-1")
 			require.NoError(t, err)
 			updated := existing.DeepCopy()
-			updated.Status = arm.ProvisioningStateSucceeded
+			updated.Status = coreapi.ProvisioningStateSucceeded
 			_, err = opCRUD.Replace(ctx, updated, nil)
 			require.NoError(t, err)
 
 			// Add new active operation.
-			_, err = opCRUD.Create(ctx, newOperation(t, "op-3", arm.ProvisioningStateAccepted), nil)
+			_, err = opCRUD.Create(ctx, newOperation(t, "op-3", coreapi.ProvisioningStateAccepted), nil)
 			require.NoError(t, err)
 		},
 		verifyMutationEvents: func(t *testing.T, tracker *objectEventTracker) {
@@ -662,7 +661,7 @@ func activeOperationInformerIntegrationTestCase() informerIntegrationTestCase {
 
 			require.Eventually(t, func() bool {
 				for _, obj := range tracker.getAdded() {
-					if op, ok := obj.(*api.Operation); ok {
+					if op, ok := obj.(*coreapi.Operation); ok {
 						if op.OperationID != nil && op.OperationID.Name == "op-3" {
 							return true
 						}
@@ -672,4 +671,143 @@ func activeOperationInformerIntegrationTestCase() informerIntegrationTestCase {
 			}, 45*time.Second, 200*time.Millisecond, "expected add event for op-3")
 		},
 	}
+}
+
+// TestServiceProviderNodePoolLister verifies that after seeding a
+// ServiceProviderNodePool in cosmos and starting the SPNP informer with a
+// very short relist duration, the serviceProviderNodePoolLister built from
+// the informer's indexer eventually surfaces the SPNP via both List and Get.
+func TestServiceProviderNodePoolLister(t *testing.T) {
+	integrationutils.WithAndWithoutCosmos(t, testServiceProviderNodePoolLister)
+}
+
+func testServiceProviderNodePoolLister(t *testing.T, withMock bool) {
+	const (
+		subscriptionID    = "00000000-0000-0000-0000-000000000004"
+		resourceGroupName = "test-rg"
+		clusterName       = "spnp-cluster"
+		nodePoolName      = "spnp-np"
+	)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+
+	var storageInfo integrationutils.StorageIntegrationTestInfo
+	var err error
+	if withMock {
+		storageInfo, err = integrationutils.NewMockCosmosFromTestingEnv(ctx, t)
+	} else {
+		storageInfo, err = integrationutils.NewCosmosFromTestingEnv(ctx, t)
+	}
+	require.NoError(t, err)
+	defer storageInfo.Cleanup(context.Background())
+
+	resourcesDBClient := storageInfo.ResourcesDBClient()
+
+	// Seed the parent cluster, parent node pool, and the SPNP.
+	clusterResourceID := mustParseResourceID(t,
+		"/subscriptions/"+subscriptionID+
+			"/resourceGroups/"+resourceGroupName+
+			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/"+clusterName)
+	clusterInternalID, err := metadataapi.NewInternalID("/api/clusters_mgmt/v1/clusters/" + clusterName)
+	require.NoError(t, err)
+	cluster := &coreapi.HCPOpenShiftCluster{
+		CosmosMetadata: coreapi.CosmosMetadata{
+			ResourceID:   clusterResourceID,
+			PartitionKey: strings.ToLower(clusterResourceID.SubscriptionID),
+		},
+		TrackedResource: coreapi.TrackedResource{
+			Resource: coreapi.Resource{
+				ID:   clusterResourceID,
+				Name: clusterName,
+				Type: coreapi.ClusterResourceType.String(),
+			},
+			Location: "eastus",
+		},
+		ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+			ProvisioningState: coreapi.ProvisioningStateSucceeded,
+			ClusterServiceID:  &clusterInternalID,
+		},
+	}
+	_, err = resourcesDBClient.HCPClusters(subscriptionID, resourceGroupName).Create(ctx, cluster, nil)
+	require.NoError(t, err, "failed to seed parent cluster")
+
+	npResourceID := mustParseResourceID(t,
+		"/subscriptions/"+subscriptionID+
+			"/resourceGroups/"+resourceGroupName+
+			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/"+clusterName+
+			"/nodePools/"+nodePoolName)
+	npInternalID := metadataapihelpers.Ptr(metadataapi.Must(metadataapi.NewInternalID("/api/aro_hcp/v1alpha1/clusters/" + clusterName + "/node_pools/" + nodePoolName)))
+	nodePool := &coreapi.HCPOpenShiftClusterNodePool{
+		CosmosMetadata: coreapi.CosmosMetadata{
+			ResourceID:   npResourceID,
+			PartitionKey: strings.ToLower(npResourceID.SubscriptionID),
+		},
+		TrackedResource: coreapi.TrackedResource{
+			Resource: coreapi.Resource{
+				ID:   npResourceID,
+				Name: nodePoolName,
+				Type: coreapi.NodePoolResourceType.String(),
+			},
+			Location: "eastus",
+		},
+		Properties: coreapi.HCPOpenShiftClusterNodePoolProperties{
+			ProvisioningState: coreapi.ProvisioningStateSucceeded,
+			Replicas:          1,
+		},
+		ServiceProviderProperties: coreapi.HCPOpenShiftClusterNodePoolServiceProviderProperties{
+			ClusterServiceID: npInternalID,
+		},
+	}
+	_, err = resourcesDBClient.HCPClusters(subscriptionID, resourceGroupName).NodePools(clusterName).Create(ctx, nodePool, nil)
+	require.NoError(t, err, "failed to seed parent node pool")
+
+	spnpResourceID := mustParseResourceID(t,
+		"/subscriptions/"+subscriptionID+
+			"/resourceGroups/"+resourceGroupName+
+			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/"+clusterName+
+			"/nodePools/"+nodePoolName+
+			"/serviceProviderNodePools/"+coreapi.ServiceProviderNodePoolResourceName)
+	spnp := &coreapi.ServiceProviderNodePool{
+		CosmosMetadata: coreapi.CosmosMetadata{
+			ResourceID:   spnpResourceID,
+			PartitionKey: strings.ToLower(spnpResourceID.SubscriptionID),
+		},
+	}
+	_, err = resourcesDBClient.ServiceProviderNodePools(subscriptionID, resourceGroupName, clusterName, nodePoolName).Create(ctx, spnp, nil)
+	require.NoError(t, err, "failed to seed service provider node pool")
+
+	// Start the SPNP informer with a very short relist duration so the cache
+	// observes the seeded object quickly.
+	informer := coreinformers.NewServiceProviderNodePoolInformerWithRelistDuration(
+		resourcesDBClient.ResourcesGlobalListers().ServiceProviderNodePools(),
+		resourcesDBClient,
+		1*time.Second)
+	go informer.Run(ctx.Done())
+	require.True(t, cache.WaitForCacheSync(ctx.Done(), informer.HasSynced), "timed out waiting for service provider node pool informer cache sync")
+
+	lister := corelisters.NewServiceProviderNodePoolLister(informer.GetIndexer())
+
+	// Wait up to 30s for the SPNP to be visible via List.
+	require.Eventually(t, func() bool {
+		all, err := lister.List(ctx)
+		if err != nil {
+			return false
+		}
+		for _, item := range all {
+			if item.ResourceID != nil && strings.EqualFold(item.ResourceID.String(), spnpResourceID.String()) {
+				return true
+			}
+		}
+		return false
+	}, 30*time.Second, 200*time.Millisecond, "service provider node pool never appeared in lister.List output")
+
+	// Wait up to 30s for the SPNP to be visible via Get.
+	require.Eventually(t, func() bool {
+		got, err := lister.Get(ctx, subscriptionID, resourceGroupName, clusterName, nodePoolName)
+		if err != nil {
+			return false
+		}
+		return got != nil && got.ResourceID != nil && strings.EqualFold(got.ResourceID.String(), spnpResourceID.String())
+	}, 30*time.Second, 200*time.Millisecond, "service provider node pool never appeared in lister.Get output")
 }

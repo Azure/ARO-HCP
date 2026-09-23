@@ -28,39 +28,40 @@ import (
 	maestroopenapi "github.com/openshift-online/maestro/pkg/api/openapi"
 
 	fleetcontrollers "github.com/Azure/ARO-HCP/fleet/pkg/controllers/base"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/fleet"
-	"github.com/Azure/ARO-HCP/internal/databasetesting"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/fleetcosmosstoragetesting"
 )
 
-func testStamp(identifier string, approved bool) *fleet.Stamp {
-	resourceID := api.Must(fleet.ToStampResourceID(identifier))
-	stamp := &fleet.Stamp{
-		CosmosMetadata: api.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(identifier)},
-		ResourceID:     resourceID,
+func testStamp(identifier string, approved bool) *fleetapi.Stamp {
+	resourceID := metadataapi.Must(fleetapihelpers.ToStampResourceID(identifier))
+	stamp := &fleetapi.Stamp{
+		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(identifier)},
 	}
 	if approved {
 		apimeta.SetStatusCondition(&stamp.Status.Conditions, metav1.Condition{
-			Type:   string(fleet.StampConditionApproved),
+			Type:   string(fleetapi.StampConditionApproved),
 			Status: metav1.ConditionTrue,
-			Reason: string(fleet.StampConditionReasonAutoApproved),
+			Reason: string(fleetapi.StampConditionReasonAutoApproved),
 		})
 	}
 	return stamp
 }
 
-func testManagementCluster(stampIdentifier string) *fleet.ManagementCluster {
-	resourceID := api.Must(fleet.ToManagementClusterResourceID(stampIdentifier))
-	aksResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/mc"))
-	dnsResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dns-rg/providers/Microsoft.Network/dnszones/example.com"))
-	placeholderShardID := api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/placeholder"))
-	return &fleet.ManagementCluster{
-		CosmosMetadata: api.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(stampIdentifier)},
-		ResourceID:     resourceID,
-		Spec: fleet.ManagementClusterSpec{
-			SchedulingPolicy: fleet.ManagementClusterSchedulingPolicySchedulable,
+func testManagementCluster(stampIdentifier string) *fleetapi.ManagementCluster {
+	resourceID := metadataapi.Must(fleetapihelpers.ToManagementClusterResourceID(stampIdentifier))
+	aksResourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/mc"))
+	dnsResourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dns-rg/providers/Microsoft.Network/dnszones/example.com"))
+	placeholderShardID := metadataapi.Must(metadataapi.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/placeholder"))
+	return &fleetapi.ManagementCluster{
+		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(stampIdentifier)},
+		Spec: fleetapi.ManagementClusterSpec{
+			SchedulingPolicy: fleetapi.ManagementClusterSchedulingPolicySchedulable,
 		},
-		Status: fleet.ManagementClusterStatus{
+		Status: fleetapi.ManagementClusterStatus{
 			AKSResourceID:                                        aksResourceID,
 			PublicDNSZoneResourceID:                              dnsResourceID,
 			HostedClustersSecretsKeyVaultURL:                     "https://kv-secrets.vault.azure.net",
@@ -97,21 +98,21 @@ func (f *fakeMaestroConsumerClient) CreateConsumer(ctx context.Context, consumer
 }
 
 type fakeStampLister struct {
-	stamps map[string]*fleet.Stamp
+	stamps map[string]*fleetapi.Stamp
 }
 
-func (f *fakeStampLister) List(ctx context.Context) ([]*fleet.Stamp, error) {
-	var result []*fleet.Stamp
+func (f *fakeStampLister) List(ctx context.Context) ([]*fleetapi.Stamp, error) {
+	var result []*fleetapi.Stamp
 	for _, stamp := range f.stamps {
 		result = append(result, stamp)
 	}
 	return result, nil
 }
 
-func (f *fakeStampLister) Get(ctx context.Context, stampIdentifier string) (*fleet.Stamp, error) {
+func (f *fakeStampLister) Get(ctx context.Context, stampIdentifier string) (*fleetapi.Stamp, error) {
 	stamp, ok := f.stamps[stampIdentifier]
 	if !ok {
-		return nil, fmt.Errorf("stamp %q not found", stampIdentifier)
+		return nil, cosmosstorageutils.NewNotFoundError()
 	}
 	return stamp, nil
 }
@@ -209,19 +210,29 @@ func TestSyncOnce(t *testing.T) {
 	const stampID = "s1"
 
 	tests := []struct {
-		name              string
-		stamp             *fleet.Stamp
-		managementCluster *fleet.ManagementCluster
-		setupClient       func() MaestroConsumerClient
-		wantErr           bool
-		wantCondition     string
-		wantCondStatus    metav1.ConditionStatus
-		wantCondReason    string
+		name                   string
+		stamp                  *fleetapi.Stamp
+		stampMissingFromLister bool
+		managementCluster      *fleetapi.ManagementCluster
+		setupClient            func() MaestroConsumerClient
+		wantErr                bool
+		wantCondition          string
+		wantCondStatus         metav1.ConditionStatus
+		wantCondReason         string
 	}{
 		{
 			name:              "MC not found in DB: no-op",
 			stamp:             testStamp(stampID, true),
 			managementCluster: nil,
+			setupClient: func() MaestroConsumerClient {
+				return &fakeMaestroConsumerClient{}
+			},
+		},
+		{
+			name:                   "stamp not found in lister: no-op",
+			stamp:                  testStamp(stampID, true),
+			stampMissingFromLister: true,
+			managementCluster:      testManagementCluster(stampID),
 			setupClient: func() MaestroConsumerClient {
 				return &fakeMaestroConsumerClient{}
 			},
@@ -233,9 +244,9 @@ func TestSyncOnce(t *testing.T) {
 			setupClient: func() MaestroConsumerClient {
 				return &fakeMaestroConsumerClient{}
 			},
-			wantCondition:  string(fleet.ManagementClusterConditionMaestroRegistered),
+			wantCondition:  string(fleetapi.ManagementClusterConditionMaestroRegistered),
 			wantCondStatus: metav1.ConditionFalse,
-			wantCondReason: string(fleet.ManagementClusterConditionReasonRegistrationFailed),
+			wantCondReason: string(fleetapi.ManagementClusterConditionReasonRegistrationFailed),
 		},
 		{
 			name:              "first ensure consumer error: sets failure condition",
@@ -249,19 +260,19 @@ func TestSyncOnce(t *testing.T) {
 				}
 			},
 			wantErr:        true,
-			wantCondition:  string(fleet.ManagementClusterConditionMaestroRegistered),
+			wantCondition:  string(fleetapi.ManagementClusterConditionMaestroRegistered),
 			wantCondStatus: metav1.ConditionFalse,
-			wantCondReason: string(fleet.ManagementClusterConditionReasonRegistrationFailed),
+			wantCondReason: string(fleetapi.ManagementClusterConditionReasonRegistrationFailed),
 		},
 		{
 			name:  "transient error with existing True condition: stays True with CheckFailed",
 			stamp: testStamp(stampID, true),
-			managementCluster: func() *fleet.ManagementCluster {
+			managementCluster: func() *fleetapi.ManagementCluster {
 				managementCluster := testManagementCluster(stampID)
 				apimeta.SetStatusCondition(&managementCluster.Status.Conditions, metav1.Condition{
-					Type:   string(fleet.ManagementClusterConditionMaestroRegistered),
+					Type:   string(fleetapi.ManagementClusterConditionMaestroRegistered),
 					Status: metav1.ConditionTrue,
-					Reason: string(fleet.ManagementClusterConditionReasonRegistered),
+					Reason: string(fleetapi.ManagementClusterConditionReasonRegistered),
 				})
 				return managementCluster
 			}(),
@@ -273,9 +284,9 @@ func TestSyncOnce(t *testing.T) {
 				}
 			},
 			wantErr:        true,
-			wantCondition:  string(fleet.ManagementClusterConditionMaestroRegistered),
+			wantCondition:  string(fleetapi.ManagementClusterConditionMaestroRegistered),
 			wantCondStatus: metav1.ConditionTrue,
-			wantCondReason: string(fleet.ManagementClusterConditionReasonRegistrationCheckFailed),
+			wantCondReason: string(fleetapi.ManagementClusterConditionReasonRegistrationCheckFailed),
 		},
 		{
 			name:              "happy path: consumer exists, sets success condition",
@@ -290,9 +301,9 @@ func TestSyncOnce(t *testing.T) {
 					},
 				}
 			},
-			wantCondition:  string(fleet.ManagementClusterConditionMaestroRegistered),
+			wantCondition:  string(fleetapi.ManagementClusterConditionMaestroRegistered),
 			wantCondStatus: metav1.ConditionTrue,
-			wantCondReason: string(fleet.ManagementClusterConditionReasonRegistered),
+			wantCondReason: string(fleetapi.ManagementClusterConditionReasonRegistered),
 		},
 		{
 			name:              "happy path: consumer created, sets success condition",
@@ -310,9 +321,9 @@ func TestSyncOnce(t *testing.T) {
 					},
 				}
 			},
-			wantCondition:  string(fleet.ManagementClusterConditionMaestroRegistered),
+			wantCondition:  string(fleetapi.ManagementClusterConditionMaestroRegistered),
 			wantCondStatus: metav1.ConditionTrue,
-			wantCondReason: string(fleet.ManagementClusterConditionReasonRegistered),
+			wantCondReason: string(fleetapi.ManagementClusterConditionReasonRegistered),
 		},
 	}
 
@@ -324,14 +335,16 @@ func TestSyncOnce(t *testing.T) {
 			if tt.managementCluster != nil {
 				resources = append(resources, tt.managementCluster)
 			}
-			mockDB, err := databasetesting.NewMockFleetDBClientWithResources(ctx, resources)
+			mockDB, err := fleetcosmosstoragetesting.NewMockFleetDBClientWithResources(ctx, resources)
 			if err != nil {
 				t.Fatalf("failed to create mock DB: %v", err)
 			}
 
-			stampLister := &fakeStampLister{stamps: map[string]*fleet.Stamp{
-				tt.stamp.GetStampIdentifier(): tt.stamp,
-			}}
+			stamps := map[string]*fleetapi.Stamp{}
+			if !tt.stampMissingFromLister {
+				stamps[tt.stamp.GetStampIdentifier()] = tt.stamp
+			}
+			stampLister := &fakeStampLister{stamps: stamps}
 
 			syncer := &maestroRegistrationSyncer{
 				fleetDBClient:                mockDB,
@@ -353,7 +366,7 @@ func TestSyncOnce(t *testing.T) {
 			}
 
 			if len(tt.wantCondition) > 0 {
-				managementCluster, err := mockDB.Stamps().ManagementClusters(stampID).Get(ctx, fleet.ManagementClusterResourceName)
+				managementCluster, err := mockDB.Stamps().ManagementClusters(stampID).Get(ctx, fleetapi.ManagementClusterResourceName)
 				if err != nil {
 					t.Fatalf("failed to re-read MC: %v", err)
 				}

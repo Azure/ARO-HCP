@@ -32,7 +32,7 @@
 					"diskType": "Managed",
 					"sizeGiB": 64
 				},
-				"vmSize": "large"
+				"vmSize": "Standard_D8s_v3"
 			},
 			"provisioningState": "Accepted",
 			"taints": [

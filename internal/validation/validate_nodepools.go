@@ -24,40 +24,73 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 )
 
 const (
 	// See https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/azure-subscription-service-limits#azure-virtual-machines-limits---azure-resource-manager
 	MaxNodePoolNodes = 200
+
+	// See https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/resource-name-rules#microsoftcompute
+	MaxDiskEncryptionSetNameLen       = 80
+	nodePoolK8sLabelKeyNodeRoleMaster = "node-role.kubernetes.io/master"
+	nodePoolK8sLabelKeyNodeRoleWorker = "node-role.kubernetes.io/worker"
+	nodePoolK8sLabelKeyMachineRole    = "machine.openshift.io/cluster-api-machine-role"
+	nodePoolK8sLabelKeyMachineType    = "machine.openshift.io/cluster-api-machine-type"
+
+	// MaxManagedOSDiskSizeGiB is the maximum allowed OS disk size (GiB) for Managed (persistent) OS disks.
+	// See https://learn.microsoft.com/en-us/azure/virtual-machines/managed-disks-overview#os-disk
+	MaxManagedOSDiskSizeGiB int32 = 4095
+	// MaxEphemeralOSDiskSizeGiB is the absolute maximum allowed OS disk size (GiB) for Ephemeral OS disks.
+	// Azure may enforce a lower effective limit per VM size based on local cache/temp/NVMe capacity.
+	// Values above this absolute cap are rejected here; values within this cap but above the selected
+	// VM size's local disk capacity are accepted by this validator and fail later during Azure
+	// provisioning.
+	// See https://learn.microsoft.com/en-us/azure/virtual-machines/ephemeral-os-disks
+	MaxEphemeralOSDiskSizeGiB int32 = 2040
 )
 
-func ValidateNodePool(ctx context.Context, op operation.Operation, newObj, oldObj *api.HCPOpenShiftClusterNodePool) field.ErrorList {
+// nodePoolForbiddenK8sLabelValuesByKey maps Kubernetes label keys to forbidden values.
+// A nil value set means the entire label key is forbidden regardless of value.
+var nodePoolForbiddenK8sLabelValuesByKey = map[string]map[string]struct{}{
+	nodePoolK8sLabelKeyNodeRoleMaster: nil,
+	nodePoolK8sLabelKeyNodeRoleWorker: nil,
+	nodePoolK8sLabelKeyMachineRole: {
+		"master": {},
+		"infra":  {},
+	},
+	nodePoolK8sLabelKeyMachineType: {
+		"master": {},
+		"infra":  {},
+	},
+}
+
+func ValidateNodePool(ctx context.Context, op operation.Operation, newObj, oldObj *coreapi.HCPOpenShiftClusterNodePool) field.ErrorList {
 	return validateNodePool(ctx, op, newObj, oldObj)
 }
 
-func toNodePoolTrackedResource(oldObj *api.HCPOpenShiftClusterNodePool) *arm.TrackedResource {
+func toNodePoolTrackedResource(oldObj *coreapi.HCPOpenShiftClusterNodePool) *coreapi.TrackedResource {
 	return &oldObj.TrackedResource
 }
 
 // ToNodePoolProperties returns a pointer to the Properties field of a node pool.
 // It is exported for use as a field accessor with safe.Field by external callers
 // (e.g. admission code) that need to navigate into the Properties subtree.
-func ToNodePoolProperties(oldObj *api.HCPOpenShiftClusterNodePool) *api.HCPOpenShiftClusterNodePoolProperties {
+func ToNodePoolProperties(oldObj *coreapi.HCPOpenShiftClusterNodePool) *coreapi.HCPOpenShiftClusterNodePoolProperties {
 	return &oldObj.Properties
 }
 
-func toNodePoolServiceProviderProperties(oldObj *api.HCPOpenShiftClusterNodePool) *api.HCPOpenShiftClusterNodePoolServiceProviderProperties {
+func toNodePoolServiceProviderProperties(oldObj *coreapi.HCPOpenShiftClusterNodePool) *coreapi.HCPOpenShiftClusterNodePoolServiceProviderProperties {
 	return &oldObj.ServiceProviderProperties
 }
 
-func validateNodePool(ctx context.Context, op operation.Operation, newObj, oldObj *api.HCPOpenShiftClusterNodePool) field.ErrorList {
+func validateNodePool(ctx context.Context, op operation.Operation, newObj, oldObj *coreapi.HCPOpenShiftClusterNodePool) field.ErrorList {
 	errs := field.ErrorList{}
 
-	//arm.ProxyResource
+	//coreapi.ProxyResource
 	errs = append(errs, validateTrackedResource(ctx, op, field.NewPath("trackedResource"), &newObj.TrackedResource, safe.Field(oldObj, toNodePoolTrackedResource))...)
-	errs = append(errs, RestrictedResourceIDWithResourceGroup(ctx, op, field.NewPath("id"), newObj.ID, nil, api.NodePoolResourceType.String())...)
+	errs = append(errs, RestrictedResourceIDWithResourceGroup(ctx, op, field.NewPath("id"), newObj.ID, nil, coreapi.NodePoolResourceType.String())...)
 	if newObj.ID != nil {
 		errs = append(errs, MaxLen(ctx, op, field.NewPath("id"), &newObj.ID.Name, nil, 15)...)
 		errs = append(errs, MatchesRegex(ctx, op, field.NewPath("id"), &newObj.ID.Name, nil, nodePoolResourceNameRegex, nodePoolResourceNameErrorString)...)
@@ -72,7 +105,7 @@ func validateNodePool(ctx context.Context, op operation.Operation, newObj, oldOb
 	return errs
 }
 
-func toNodePoolPropertiesProvisioningState(oldObj *api.HCPOpenShiftClusterNodePoolProperties) *arm.ProvisioningState {
+func toNodePoolPropertiesProvisioningState(oldObj *coreapi.HCPOpenShiftClusterNodePoolProperties) *coreapi.ProvisioningState {
 	return &oldObj.ProvisioningState
 }
 
@@ -80,7 +113,7 @@ func toNodePoolPropertiesProvisioningState(oldObj *api.HCPOpenShiftClusterNodePo
 // pool properties. It is exported for use as a field accessor with safe.Field
 // by external callers (e.g. admission code) that need to navigate into the
 // Version subtree.
-func ToNodePoolPropertiesVersion(oldObj *api.HCPOpenShiftClusterNodePoolProperties) *api.NodePoolVersionProfile {
+func ToNodePoolPropertiesVersion(oldObj *coreapi.HCPOpenShiftClusterNodePoolProperties) *coreapi.NodePoolVersionProfile {
 	return &oldObj.Version
 }
 
@@ -88,34 +121,38 @@ func ToNodePoolPropertiesVersion(oldObj *api.HCPOpenShiftClusterNodePoolProperti
 // pool properties. It is exported for use as a field accessor with safe.Field
 // by external callers (e.g. admission code) that need to navigate into the
 // Platform subtree.
-func ToNodePoolPropertiesPlatform(oldObj *api.HCPOpenShiftClusterNodePoolProperties) *api.NodePoolPlatformProfile {
+func ToNodePoolPropertiesPlatform(oldObj *coreapi.HCPOpenShiftClusterNodePoolProperties) *coreapi.NodePoolPlatformProfile {
 	return &oldObj.Platform
 }
 
-func toNodePoolPropertiesReplicas(oldObj *api.HCPOpenShiftClusterNodePoolProperties) *int32 {
+func toNodePoolPropertiesReplicas(oldObj *coreapi.HCPOpenShiftClusterNodePoolProperties) *int32 {
 	return &oldObj.Replicas
 }
 
-func toNodePoolPropertiesAutoRepair(oldObj *api.HCPOpenShiftClusterNodePoolProperties) *bool {
+func toNodePoolPropertiesAutoRepair(oldObj *coreapi.HCPOpenShiftClusterNodePoolProperties) *bool {
 	return &oldObj.AutoRepair
 }
 
-func toNodePoolPropertiesAutoScaling(oldObj *api.HCPOpenShiftClusterNodePoolProperties) *api.NodePoolAutoScaling {
+func toNodePoolPropertiesAutoScaling(oldObj *coreapi.HCPOpenShiftClusterNodePoolProperties) *coreapi.NodePoolAutoScaling {
 	return oldObj.AutoScaling
 }
 
-func toNodePoolPropertiesLabels(oldObj *api.HCPOpenShiftClusterNodePoolProperties) map[string]string {
+func toNodePoolPropertiesLabels(oldObj *coreapi.HCPOpenShiftClusterNodePoolProperties) map[string]string {
 	return oldObj.Labels
 }
 
-func toNodePoolPropertiesTaints(oldObj *api.HCPOpenShiftClusterNodePoolProperties) []api.Taint {
+func toNodePoolPropertiesTaints(oldObj *coreapi.HCPOpenShiftClusterNodePoolProperties) []coreapi.Taint {
 	return oldObj.Taints
 }
 
-func validateNodePoolProperties(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.HCPOpenShiftClusterNodePoolProperties) field.ErrorList {
+func toNodePoolPropertiesNodeDrainTimeoutMinutes(oldObj *coreapi.HCPOpenShiftClusterNodePoolProperties) *int32 {
+	return oldObj.NodeDrainTimeoutMinutes
+}
+
+func validateNodePoolProperties(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.HCPOpenShiftClusterNodePoolProperties) field.ErrorList {
 	errs := field.ErrorList{}
 
-	//ProvisioningState arm.ProvisioningState       `json:"provisioningState"`
+	//ProvisioningState coreapi.ProvisioningState       `json:"provisioningState"`
 	errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("provisioningState"), &newObj.ProvisioningState, safe.Field(oldObj, toNodePoolPropertiesProvisioningState))...)
 
 	//Version                 NodePoolVersionProfile  `json:"version,omitempty"`
@@ -139,7 +176,7 @@ func validateNodePoolProperties(ctx context.Context, op operation.Operation, fld
 
 	// Ephemeral OS disks require autoRepair=true. Both fields are immutable,
 	// so this constraint only fires on CREATE (harmless on UPDATE due to immutability).
-	if newObj.Platform.OSDisk.DiskType == api.OsDiskTypeEphemeral && !newObj.AutoRepair {
+	if newObj.Platform.OSDisk.DiskType == metadataapi.OsDiskTypeEphemeral && !newObj.AutoRepair {
 		errs = append(errs, field.Invalid(
 			fldPath.Child("autoRepair"),
 			newObj.AutoRepair,
@@ -160,6 +197,7 @@ func validateNodePoolProperties(ctx context.Context, op operation.Operation, fld
 		nil,
 		KubeLabelValue,
 	)...)
+	errs = append(errs, validateNodePoolForbiddenLabels(fldPath.Child("labels"), newObj.Labels)...)
 
 	//Taints                  []Taint                 `json:"taints,omitempty"`
 	errs = append(errs, validate.EachSliceVal(
@@ -170,18 +208,47 @@ func validateNodePoolProperties(ctx context.Context, op operation.Operation, fld
 	)...)
 
 	//NodeDrainTimeoutMinutes *int32                  `json:"nodeDrainTimeoutMinutes,omitempty"`
-	// TODO why do we allow this to be negative?
+	errs = append(errs, validate.Minimum(ctx, op, fldPath.Child("nodeDrainTimeoutMinutes"), newObj.NodeDrainTimeoutMinutes, safe.Field(oldObj, toNodePoolPropertiesNodeDrainTimeoutMinutes), 0)...)
+	errs = append(errs, Maximum(ctx, op, fldPath.Child("nodeDrainTimeoutMinutes"), newObj.NodeDrainTimeoutMinutes, safe.Field(oldObj, toNodePoolPropertiesNodeDrainTimeoutMinutes), 10080)...)
+
+	return errs
+}
+
+func validateNodePoolForbiddenLabels(fldPath *field.Path, newLabels map[string]string) field.ErrorList {
+	if len(newLabels) == 0 {
+		return nil
+	}
+
+	errs := field.ErrorList{}
+	for key, value := range newLabels {
+		keyPath := fldPath.Key(key)
+
+		forbiddenValues, restricted := nodePoolForbiddenK8sLabelValuesByKey[key]
+		if !restricted {
+			continue
+		}
+
+		if forbiddenValues == nil {
+			errs = append(errs, field.Invalid(keyPath, key, "label key is not allowed on node pools"))
+			continue
+		}
+
+		if _, forbidden := forbiddenValues[value]; !forbidden {
+			continue
+		}
+		errs = append(errs, field.Invalid(keyPath, value, "label value is not allowed for this label key"))
+	}
 
 	return errs
 }
 
 var (
-	toNodePoolServiceProviderClusterServiceID = func(oldObj *api.HCPOpenShiftClusterNodePoolServiceProviderProperties) *api.InternalID {
+	toNodePoolServiceProviderClusterServiceID = func(oldObj *coreapi.HCPOpenShiftClusterNodePoolServiceProviderProperties) *metadataapi.InternalID {
 		return oldObj.ClusterServiceID
 	}
 )
 
-func validateNodePoolServiceProviderProperties(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.HCPOpenShiftClusterNodePoolServiceProviderProperties) field.ErrorList {
+func validateNodePoolServiceProviderProperties(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.HCPOpenShiftClusterNodePoolServiceProviderProperties) field.ErrorList {
 	errs := field.ErrorList{}
 
 	//ClusterServiceID  *InternalID                     `json:"clusterServiceID,omitempty"`
@@ -191,11 +258,11 @@ func validateNodePoolServiceProviderProperties(ctx context.Context, op operation
 }
 
 var (
-	toNodePoolVersionProfileID           = func(oldObj *api.NodePoolVersionProfile) *string { return &oldObj.ID }
-	toNodePoolVersionProfileChannelGroup = func(oldObj *api.NodePoolVersionProfile) *string { return &oldObj.ChannelGroup }
+	toNodePoolVersionProfileID           = func(oldObj *coreapi.NodePoolVersionProfile) *string { return &oldObj.ID }
+	toNodePoolVersionProfileChannelGroup = func(oldObj *coreapi.NodePoolVersionProfile) *string { return &oldObj.ChannelGroup }
 )
 
-func validateNodePoolVersionProfile(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.NodePoolVersionProfile) field.ErrorList {
+func validateNodePoolVersionProfile(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.NodePoolVersionProfile) field.ErrorList {
 	errs := field.ErrorList{}
 
 	// Version ID is required since 20251223preview version but some records may not have had it originally, so don't fail them yet.
@@ -204,34 +271,41 @@ func validateNodePoolVersionProfile(ctx context.Context, op operation.Operation,
 		errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toNodePoolVersionProfileID))...)
 	}
 
-	// Skip version format validation if version hasn't changed
+	// Skip version ID validation if version hasn't changed
 	if oldObj == nil || newObj.ID != oldObj.ID {
-		errs = append(errs, OpenShiftWithOptionalPrerelease(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toNodePoolVersionProfileID))...)
+		errs = append(errs, validateNodePoolVersionID(ctx, op, fldPath, newObj, oldObj)...)
 	}
 
 	//ChannelGroup string `json:"channelGroup,omitempty"`
 	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("channelGroup"), &newObj.ChannelGroup, safe.Field(oldObj, toNodePoolVersionProfileChannelGroup))...)
 
-	if !op.HasOption(api.FeatureExperimentalReleaseFeatures) {
-		errs = append(errs, validate.Enum(ctx, op, fldPath.Child("channelGroup"), &newObj.ChannelGroup, safe.Field(oldObj, toNodePoolVersionProfileChannelGroup), api.AllowedChannelGroups, nil)...)
-		// without feature flag, only allow version 4.20.8 and above
-		errs = append(errs, VersionMustBeAtLeast(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toNodePoolVersionProfileID), "4.20.8")...)
+	if !op.HasOption(metadataapi.FeatureExperimentalReleaseFeatures) {
+		errs = append(errs, validate.Enum(ctx, op, fldPath.Child("channelGroup"), &newObj.ChannelGroup, safe.Field(oldObj, toNodePoolVersionProfileChannelGroup), metadataapi.AllowedChannelGroups, nil)...)
 	} else {
-		errs = append(errs, validate.Enum(ctx, op, fldPath.Child("channelGroup"), &newObj.ChannelGroup, safe.Field(oldObj, toNodePoolVersionProfileChannelGroup), api.AllowedChannelGroupsWithExperimentalFlag, nil)...)
+		errs = append(errs, validate.Enum(ctx, op, fldPath.Child("channelGroup"), &newObj.ChannelGroup, safe.Field(oldObj, toNodePoolVersionProfileChannelGroup), metadataapi.AllowedChannelGroupsWithExperimentalFlag, nil)...)
 	}
 
 	return errs
 }
 
+// validateNodePoolVersionID validates the version ID format and checks it against the minimum version requirement.
+func validateNodePoolVersionID(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.NodePoolVersionProfile) field.ErrorList {
+	errs := field.ErrorList{}
+
+	errs = append(errs, OpenShiftWithOptionalPrerelease(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toNodePoolVersionProfileID))...)
+	errs = append(errs, VersionMustBeAtLeast(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toNodePoolVersionProfileID), "4.20.8")...)
+	return errs
+}
+
 var (
-	toNodePoolPlatformProfileSubnetID               = func(oldObj *api.NodePoolPlatformProfile) *azcorearm.ResourceID { return oldObj.SubnetID }
-	toNodePoolPlatformProfileVMSize                 = func(oldObj *api.NodePoolPlatformProfile) *string { return &oldObj.VMSize }
-	toNodePoolPlatformProfileEnableEncryptionAtHost = func(oldObj *api.NodePoolPlatformProfile) *bool { return &oldObj.EnableEncryptionAtHost }
-	toNodePoolPlatformProfileOSDisk                 = func(oldObj *api.NodePoolPlatformProfile) *api.OSDiskProfile { return &oldObj.OSDisk }
-	toNodePoolPlatformProfileAvailabilityZone       = func(oldObj *api.NodePoolPlatformProfile) *string { return &oldObj.AvailabilityZone }
+	toNodePoolPlatformProfileSubnetID               = func(oldObj *coreapi.NodePoolPlatformProfile) *azcorearm.ResourceID { return oldObj.SubnetID }
+	toNodePoolPlatformProfileVMSize                 = func(oldObj *coreapi.NodePoolPlatformProfile) *string { return &oldObj.VMSize }
+	toNodePoolPlatformProfileEnableEncryptionAtHost = func(oldObj *coreapi.NodePoolPlatformProfile) *bool { return &oldObj.EnableEncryptionAtHost }
+	toNodePoolPlatformProfileOSDisk                 = func(oldObj *coreapi.NodePoolPlatformProfile) *coreapi.OSDiskProfile { return &oldObj.OSDisk }
+	toNodePoolPlatformProfileAvailabilityZone       = func(oldObj *coreapi.NodePoolPlatformProfile) *string { return &oldObj.AvailabilityZone }
 )
 
-func validateNodePoolPlatformProfile(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.NodePoolPlatformProfile) field.ErrorList {
+func validateNodePoolPlatformProfile(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.NodePoolPlatformProfile) field.ErrorList {
 	errs := field.ErrorList{}
 
 	//SubnetID               string        `json:"subnetId,omitempty"`
@@ -241,6 +315,7 @@ func validateNodePoolPlatformProfile(ctx context.Context, op operation.Operation
 	//VMSize                 string        `json:"vmSize,omitempty"`
 	errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("vmSize"), &newObj.VMSize, safe.Field(oldObj, toNodePoolPlatformProfileVMSize))...)
 	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("vmSize"), &newObj.VMSize, safe.Field(oldObj, toNodePoolPlatformProfileVMSize))...)
+	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("vmSize"), &newObj.VMSize, safe.Field(oldObj, toNodePoolPlatformProfileVMSize), EnabledNodePoolAzureVMSizes(), nil)...)
 
 	//EnableEncryptionAtHost bool          `json:"enableEncryptionAtHost"`
 	errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("enableEncryptionAtHost"), &newObj.EnableEncryptionAtHost, safe.Field(oldObj, toNodePoolPlatformProfileEnableEncryptionAtHost))...)
@@ -256,37 +331,50 @@ func validateNodePoolPlatformProfile(ctx context.Context, op operation.Operation
 }
 
 var (
-	toOSDiskProfileSizeGiB                = func(oldObj *api.OSDiskProfile) *int32 { return oldObj.SizeGiB }
-	toOSDiskProfileDiskStorageAccountType = func(oldObj *api.OSDiskProfile) *api.DiskStorageAccountType { return &oldObj.DiskStorageAccountType }
-	toOSDiskProfileEncryptionSetID        = func(oldObj *api.OSDiskProfile) *azcorearm.ResourceID { return oldObj.EncryptionSetID }
-	toOSDiskProfileDiskType               = func(oldObj *api.OSDiskProfile) *api.OsDiskType { return &oldObj.DiskType }
+	toOSDiskProfileSizeGiB                = func(oldObj *coreapi.OSDiskProfile) *int32 { return oldObj.SizeGiB }
+	toOSDiskProfileDiskStorageAccountType = func(oldObj *coreapi.OSDiskProfile) *metadataapi.DiskStorageAccountType {
+		return &oldObj.DiskStorageAccountType
+	}
+	toOSDiskProfileEncryptionSetID = func(oldObj *coreapi.OSDiskProfile) *azcorearm.ResourceID { return oldObj.EncryptionSetID }
+	toOSDiskProfileDiskType        = func(oldObj *coreapi.OSDiskProfile) *metadataapi.OsDiskType { return &oldObj.DiskType }
 )
 
-func validateOSDiskProfile(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.OSDiskProfile) field.ErrorList {
+func validateOSDiskProfile(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.OSDiskProfile) field.ErrorList {
 	errs := field.ErrorList{}
 
 	//SizeGiB                *int32                 `json:"sizeGiB,omitempty"`
 	errs = append(errs, validate.Minimum(ctx, op, fldPath.Child("sizeGiB"), newObj.SizeGiB, safe.Field(oldObj, toOSDiskProfileSizeGiB), 64)...)
 
 	//DiskStorageAccountType DiskStorageAccountType `json:"diskStorageAccountType,omitempty"`
-	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("diskStorageAccountType"), &newObj.DiskStorageAccountType, safe.Field(oldObj, toOSDiskProfileDiskStorageAccountType), api.ValidDiskStorageAccountTypes, nil)...)
+	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("diskStorageAccountType"), &newObj.DiskStorageAccountType, safe.Field(oldObj, toOSDiskProfileDiskStorageAccountType), metadataapi.ValidDiskStorageAccountTypes, nil)...)
 
 	//DiskType               OsDiskType             `json:"diskType"`
 	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("diskType"), &newObj.DiskType, safe.Field(oldObj, toOSDiskProfileDiskType))...)
-	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("diskType"), &newObj.DiskType, safe.Field(oldObj, toOSDiskProfileDiskType), api.ValidOsDiskTypes, nil)...)
+	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("diskType"), &newObj.DiskType, safe.Field(oldObj, toOSDiskProfileDiskType), metadataapi.ValidOsDiskTypes, nil)...)
+
+	switch newObj.DiskType {
+	case metadataapi.OsDiskTypeManaged:
+		errs = append(errs, Maximum(ctx, op, fldPath.Child("sizeGiB"), newObj.SizeGiB, safe.Field(oldObj, toOSDiskProfileSizeGiB), MaxManagedOSDiskSizeGiB)...)
+	case metadataapi.OsDiskTypeEphemeral:
+		errs = append(errs, Maximum(ctx, op, fldPath.Child("sizeGiB"), newObj.SizeGiB, safe.Field(oldObj, toOSDiskProfileSizeGiB), MaxEphemeralOSDiskSizeGiB)...)
+	}
 
 	//EncryptionSetID        string                 `json:"encryptionSetId,omitempty"`
 	errs = append(errs, RestrictedResourceIDWithResourceGroup(ctx, op, fldPath.Child("encryptionSetId"), newObj.EncryptionSetID, safe.Field(oldObj, toOSDiskProfileEncryptionSetID), "Microsoft.Compute/diskEncryptionSets")...)
+	if newObj.EncryptionSetID != nil {
+		errs = append(errs, MaxLen(ctx, op, fldPath.Child("encryptionSetId"), &newObj.EncryptionSetID.Name, nil, MaxDiskEncryptionSetNameLen)...)
+		errs = append(errs, MatchesRegex(ctx, op, fldPath.Child("encryptionSetId"), &newObj.EncryptionSetID.Name, nil, diskEncryptionSetNameRegex, diskEncryptionSetNameErrorString)...)
+	}
 
 	return errs
 }
 
 var (
-	toNodePoolAutoScalingMin = func(oldObj *api.NodePoolAutoScaling) *int32 { return &oldObj.Min }
-	toNodePoolAutoScalingMax = func(oldObj *api.NodePoolAutoScaling) *int32 { return &oldObj.Max }
+	toNodePoolAutoScalingMin = func(oldObj *coreapi.NodePoolAutoScaling) *int32 { return &oldObj.Min }
+	toNodePoolAutoScalingMax = func(oldObj *coreapi.NodePoolAutoScaling) *int32 { return &oldObj.Max }
 )
 
-func validateNodePoolAutoScaling(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.NodePoolAutoScaling, availabilityZone string) field.ErrorList {
+func validateNodePoolAutoScaling(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.NodePoolAutoScaling, availabilityZone string) field.ErrorList {
 	if newObj == nil {
 		return nil
 	}
@@ -308,11 +396,11 @@ func validateNodePoolAutoScaling(ctx context.Context, op operation.Operation, fl
 	return errs
 }
 
-func validateTaint(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.Taint) field.ErrorList {
+func validateTaint(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.Taint) field.ErrorList {
 	errs := field.ErrorList{}
 
 	//Effect Effect `json:"effect,omitempty"`
-	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("effect"), &newObj.Effect, nil, api.ValidEffects, nil)...)
+	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("effect"), &newObj.Effect, nil, metadataapi.ValidEffects, nil)...)
 
 	//Key    string `json:"key,omitempty"`
 	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("key"), &newObj.Key, nil)...)

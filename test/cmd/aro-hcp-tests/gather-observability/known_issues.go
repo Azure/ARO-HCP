@@ -23,7 +23,7 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
-//go:embed knownIssues.yaml
+//go:embed known-issues/knownIssues.yaml
 var defaultKnownIssuesData []byte
 
 // knownIssue holds a compiled known issue pattern with name and label regexes.

@@ -2,3 +2,5 @@ approvers:
 - mbarnes
 - petrkotas
 - s-amann
+labels:
+- area/devcontainer

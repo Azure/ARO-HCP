@@ -1,0 +1,223 @@
+// Copyright 2025 Microsoft Corporation
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package coreapi
+
+import (
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+)
+
+// HCPOpenShiftClusterExternalAuth represents the external auth config resource for ARO HCP
+// OpenShift clusters.
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+type HCPOpenShiftClusterExternalAuth struct {
+	// PartitionKey holds the lowercased subscriptionID.
+	CosmosMetadata `json:"cosmosMetadata"`
+
+	ProxyResource
+	// Written by: Frontend PUT/PATCH ExternalAuth, OperationExternalAuth* controllers
+	Properties HCPOpenShiftClusterExternalAuthProperties `json:"properties"`
+	// Written by: Frontend PUT/PATCH/DELETE ExternalAuth, OperationExternalAuth* controllers, ExternalAuthClusterServiceCreate, ExternalAuthDeletion* controllers
+	ServiceProviderProperties HCPOpenShiftClusterExternalAuthServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
+	// Written by: ExternalAuthDegradedAggregator
+	Status HCPOpenShiftClusterExternalAuthStatus `json:"status"`
+}
+
+// HCPOpenShiftClusterExternalAuthStatus contains the observed state of the external auth.
+type HCPOpenShiftClusterExternalAuthStatus struct {
+	// Conditions are the top-level HCPOpenShiftClusterExternalAuth status conditions.
+	// Each Condition Type represents a condition and it should be unique among all conditions.
+	// Written by: ExternalAuthDegradedAggregator
+	// +optional
+	// +patchMergeKey=type
+	// +patchStrategy=merge
+	// +listType=map
+	// +listMapKey=type
+	Conditions []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type"`
+
+	// UserFacingConditions is a list of conditions that tracks user-facing external auth
+	// conditions. Each Condition Type should be unique among all conditions.
+	// The conditions here are exposed to the ARM API. This means that UserFacingConditions
+	// must not contain any internal details. This also means the Type and Reason
+	// values become part of the public API.
+	// Addition of new conditions here should be done only when strictly necessary, sparingly and only done
+	// when there is a clear benefit to doing so. We expect the number of conditions at this
+	// level to be kept to a minimum.
+	// +optional
+	// +patchMergeKey=type
+	// +patchStrategy=merge
+	// +listType=map
+	// +listMapKey=type
+	UserFacingConditions []metav1.Condition `json:"userFacingConditions,omitempty" patchStrategy:"merge" patchMergeKey:"type"`
+}
+
+// EnsureDefaults fills in default values for fields that may be absent in
+// Cosmos documents created before the field was introduced, or on the create
+// and preflight paths where the internal type is constructed from external input.
+// Only fields where the zero value is never valid user input are safe to default
+// here (string enums). See the DDR at docs/api-version-defaults-and-storage.md.
+//
+// This method should be treated as append-only. Avoid removing defaulting
+// rules until all Cosmos documents have been verified to contain the field.
+func (ea *HCPOpenShiftClusterExternalAuth) EnsureDefaults() {
+	if len(ea.Properties.Claim.Mappings.Username.PrefixPolicy) == 0 {
+		ea.Properties.Claim.Mappings.Username.PrefixPolicy = metadataapi.UsernameClaimPrefixPolicyNone
+	}
+}
+
+var _ CosmosPersistable = &HCPOpenShiftClusterExternalAuth{}
+
+// HCPOpenShiftClusterNodePoolProperties represents the property bag of a
+// HCPOpenShiftClusterNodePool resource.
+type HCPOpenShiftClusterExternalAuthProperties struct {
+	// Written by: Frontend PUT/PATCH/DELETE ExternalAuth, OperationExternalAuthCreate, OperationExternalAuthUpdate, OperationExternalAuthDelete
+	ProvisioningState ProvisioningState `json:"provisioningState"`
+	// Written by: Frontend PUT/PATCH ExternalAuth
+	Issuer TokenIssuerProfile `json:"issuer"`
+	// Written by: Frontend PUT/PATCH ExternalAuth
+	Clients []ExternalAuthClientProfile `json:"clients"`
+	// Written by: Frontend PUT/PATCH ExternalAuth
+	Claim ExternalAuthClaimProfile `json:"claim"`
+}
+
+type HCPOpenShiftClusterExternalAuthServiceProviderProperties struct {
+	// Written by: Frontend PUT ExternalAuth (Create), ExternalAuthClusterServiceCreate, ExternalAuthDeletionClusterServiceIDClearer
+	ClusterServiceID *metadataapi.InternalID `json:"clusterServiceID,omitempty"`
+	// Written by: Frontend PUT/PATCH/DELETE ExternalAuth, OperationExternalAuthCreate, OperationExternalAuthUpdate, OperationExternalAuthDelete
+	ActiveOperationID string `json:"activeOperationId,omitempty"`
+	// DeletionTimestamp is the timestamp at which the ExternalAuth deletion was requested.
+	// The timestamp is in UTC.
+	// A nil value indicates that the ExternalAuth deletion has not been requested.
+	// Written by: Frontend DELETE ExternalAuth
+	DeletionTimestamp *metav1.Time `json:"deletionTimestamp,omitempty"`
+	// ClusterServiceDeletionTimestamp is written when a dispatch of a Cluster
+	// Service Delete ExternalAuth request against Cluster Service for this
+	// external auth has been handled.
+	// Written by: ExternalAuthClusterServiceDeleteDispatch
+	ClusterServiceDeletionTimestamp *metav1.Time `json:"clusterServiceDeletionTimestamp,omitempty"`
+
+	// Written by: Frontend DELETE ExternalAuth
+	UsesNewExternalAuthDeletionApproach bool `json:"usesNewExternalAuthDeletionApproach"`
+}
+
+// Token issuer profile
+// This configures how the platform interacts with the identity provider and
+// how tokens issued from the identity provider are evaluated by the Kubernetes API server.
+// Visbility for the entire struct is "read create update".
+type TokenIssuerProfile struct {
+	URL       string   `json:"url"`
+	Audiences []string `json:"audiences"`
+	CA        string   `json:"ca"`
+}
+
+// External Auth client profile
+// This configures how on-cluster, platform clients should request tokens from the identity provider.
+// Visibility for the entire struct is "read create update".
+type ExternalAuthClientProfile struct {
+	Component   ExternalAuthClientComponentProfile `json:"component"`
+	ClientID    string                             `json:"clientId"`
+	ExtraScopes []string                           `json:"extraScopes"`
+	Type        metadataapi.ExternalAuthClientType `json:"type"`
+}
+
+// External Auth component profile
+// Must have unique namespace/name pairs.
+// Visibility for the entire struct is "read create update".
+type ExternalAuthClientComponentProfile struct {
+	Name                string `json:"name"`
+	AuthClientNamespace string `json:"authClientNamespace"`
+}
+
+const (
+	// ExternalAuthConsoleClientComponentName is the name of the OpenShift console component to be configured to use the identity provider for authentication.
+	ExternalAuthConsoleClientComponentName = "console"
+	// ExternalAuthConsoleClientComponentNamespace is the namespace where the OpenShift console is deployed.
+	ExternalAuthConsoleClientComponentNamespace = "openshift-console"
+)
+
+// External Auth claim profile
+// Visibility for the entire struct is "read create update".
+type ExternalAuthClaimProfile struct {
+	Mappings        TokenClaimMappingsProfile  `json:"mappings"`
+	ValidationRules []TokenClaimValidationRule `json:"validationRules"`
+}
+
+// External Auth claim mappings profile.
+// At a minimum username or groups must be defined.
+// Visibility for the entire struct is "read create update".
+type TokenClaimMappingsProfile struct {
+	Username UsernameClaimProfile `json:"username"`
+	Groups   *GroupClaimProfile   `json:"groups"`
+}
+
+// External Auth claim profile
+// This configures how the groups of a cluster identity should be constructed
+// from the claims in a JWT token issued by the identity provider. When
+// referencing a claim, if the claim is present in the JWT token, its value
+// must be a list of groups separated by a comma (',').
+//
+// For example - '"example"' and '"exampleOne", "exampleTwo", "exampleThree"' are valid claim values.
+//
+// Visibility for the entire struct is "read create update".
+type GroupClaimProfile struct {
+	Claim  string `json:"claim"`
+	Prefix string `json:"prefix"`
+}
+
+// External Auth claim profile
+// This configures how the username of a cluster identity should be constructed
+// from the claims in a JWT token issued by the identity provider.
+// Visibility for the entire struct is "read create update".
+type UsernameClaimProfile struct {
+	Claim        string                                `json:"claim"`
+	Prefix       string                                `json:"prefix"`
+	PrefixPolicy metadataapi.UsernameClaimPrefixPolicy `json:"prefixPolicy"`
+}
+
+// External Auth claim validation rule
+// Visibility for the entire struct is "read create update".
+type TokenClaimValidationRule struct {
+	Type          metadataapi.TokenValidationRuleType `json:"type"`
+	RequiredClaim TokenRequiredClaim                  `json:"requiredClaim"`
+}
+
+// Token required claim validation rule.
+// Visibility for the entire struct is "read create update".
+type TokenRequiredClaim struct {
+	Claim         string `json:"claim"`
+	RequiredValue string `json:"requiredValue"`
+}
+
+func NewDefaultHCPOpenShiftClusterExternalAuth(resourceID *azcorearm.ResourceID) *HCPOpenShiftClusterExternalAuth {
+	return &HCPOpenShiftClusterExternalAuth{
+		ProxyResource: NewProxyResource(resourceID),
+		Properties: HCPOpenShiftClusterExternalAuthProperties{
+			Claim: ExternalAuthClaimProfile{
+				Mappings: TokenClaimMappingsProfile{
+					Username: UsernameClaimProfile{
+						PrefixPolicy: metadataapi.UsernameClaimPrefixPolicyNone,
+					},
+				},
+			},
+		},
+	}
+}
+
+func (o *HCPOpenShiftClusterExternalAuth) Validate() []CloudErrorBody {
+	return nil
+}

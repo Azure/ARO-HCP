@@ -17,6 +17,7 @@ package root
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -95,6 +96,11 @@ type ValidatedOptions struct {
 
 type completedOptions struct {
 	AzureCredential azcore.TokenCredential
+	// GraphCredential is used exclusively for Microsoft Graph directory reads
+	// by the shared-leftovers workflow. It defaults to AzureCredential unless a
+	// dedicated Graph identity is supplied via the GRAPH_AZURE_* environment
+	// variables.
+	GraphCredential azcore.TokenCredential
 	Policy          *policy.Policy
 
 	Workflow WorkflowMode
@@ -174,9 +180,22 @@ func (o *ValidatedOptions) Complete(_ context.Context) (*Options, error) {
 		return nil, fmt.Errorf("failed to create Azure credential: %w", err)
 	}
 
+	// Only the shared-leftovers workflow performs Microsoft Graph directory
+	// reads, so resolve the (optionally dedicated) Graph credential only then.
+	// This keeps a partial GRAPH_AZURE_* configuration from failing workflows
+	// that never touch Graph (for example, rg-ordered).
+	var graphCred azcore.TokenCredential = cred
+	if o.workflow == WorkflowSharedLeftovers {
+		graphCred, err = newGraphCredential(cred)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	return &Options{
 		completedOptions: &completedOptions{
 			AzureCredential: cred,
+			GraphCredential: graphCred,
 			Policy:          o.policy,
 			Workflow:        o.workflow,
 			SubscriptionID:  subscriptionID,
@@ -223,6 +242,7 @@ func (o *Options) Run(ctx context.Context) error {
 		err := sharedworkflow.Run(ctx, sharedworkflow.RunOptions{
 			SubscriptionID:  o.SubscriptionID,
 			AzureCredential: o.AzureCredential,
+			GraphCredential: o.GraphCredential,
 			DryRun:          o.DryRun,
 			Wait:            o.Wait,
 			Parallelism:     o.Parallelism,
@@ -236,6 +256,31 @@ func (o *Options) Run(ctx context.Context) error {
 
 	logger.Info("Completed cleanup-sweeper")
 	return nil
+}
+
+// newGraphCredential returns the credential used for Microsoft Graph directory
+// reads. When the GRAPH_AZURE_TENANT_ID, GRAPH_AZURE_CLIENT_ID and
+// GRAPH_AZURE_CLIENT_SECRET environment variables are all set, a dedicated
+// client-secret credential is built for that identity (allowing directory read
+// permissions to be supplied by a different service principal than the one used
+// for ARM). Otherwise it falls back to the provided ARM credential.
+func newGraphCredential(fallback azcore.TokenCredential) (azcore.TokenCredential, error) {
+	tenantID := strings.TrimSpace(os.Getenv("GRAPH_AZURE_TENANT_ID"))
+	clientID := strings.TrimSpace(os.Getenv("GRAPH_AZURE_CLIENT_ID"))
+	clientSecret := strings.TrimSpace(os.Getenv("GRAPH_AZURE_CLIENT_SECRET"))
+
+	if tenantID == "" && clientID == "" && clientSecret == "" {
+		return fallback, nil
+	}
+	if tenantID == "" || clientID == "" || clientSecret == "" {
+		return nil, fmt.Errorf("GRAPH_AZURE_TENANT_ID, GRAPH_AZURE_CLIENT_ID and GRAPH_AZURE_CLIENT_SECRET must all be set to use a dedicated Graph credential")
+	}
+
+	cred, err := azidentity.NewClientSecretCredential(tenantID, clientID, clientSecret, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create dedicated Graph credential: %w", err)
+	}
+	return cred, nil
 }
 
 func parseWorkflowMode(raw string) (WorkflowMode, error) {

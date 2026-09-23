@@ -25,20 +25,20 @@ import (
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 // CS cluster property keys and values used in the Cluster Service API.
 const (
-	CSPropertyProvisionShardID = "provision_shard_id"
 	CSPropertyNoopProvision    = "provisioner_noop_provision"
 	CSPropertyNoopDeprovision  = "provisioner_noop_deprovision"
 	CSPropertySingleReplica    = "hosted_cluster_single_replica"
 	CSPropertySizeOverride     = "hosted_cluster_size_override"
 	CSPropertyCPOImageOverride = "control_plane_operator_image"
 
-	CSPropertyEnabled = "true"
+	CSPropertyEnabled                    = "true"
+	CSPropertyE2EMinimalControlPlaneSize = "e2e_minimal"
 )
 
 type ClusterServiceClientSpec interface {
@@ -57,14 +57,14 @@ type ClusterServiceClientSpec interface {
 	// GetClusterHypershiftDetails sends a GET request to fetch a cluster's hypershift details from Cluster Service.
 	GetClusterHypershiftDetails(ctx context.Context, internalID InternalID) (*cmv1.HypershiftConfig, error)
 
+	// GetClusterResources sends a GET request to fetch cluster resources from Cluster Service.
+	GetClusterResources(ctx context.Context, internalID InternalID) (*arohcpv1alpha1.ClusterResources, error)
+
 	// PostCluster sends a POST request to create a cluster in Cluster Service.
-	PostCluster(ctx context.Context, clusterBuilder *arohcpv1alpha1.ClusterBuilder, autoscalerBuilder *arohcpv1alpha1.ClusterAutoscalerBuilder) (*arohcpv1alpha1.Cluster, error)
+	PostCluster(ctx context.Context, clusterBuilder *arohcpv1alpha1.ClusterBuilder) (*arohcpv1alpha1.Cluster, error)
 
 	// UpdateCluster sends a PATCH request to update a cluster in Cluster Service.
 	UpdateCluster(ctx context.Context, internalID InternalID, builder *arohcpv1alpha1.ClusterBuilder) (*arohcpv1alpha1.Cluster, error)
-
-	// UpdateClusterAutoscaler sends a PATCH request to update cluster autoscaling values in Cluster Service.
-	UpdateClusterAutoscaler(ctx context.Context, internalID InternalID, builder *arohcpv1alpha1.ClusterAutoscalerBuilder) (*arohcpv1alpha1.ClusterAutoscaler, error)
 
 	// DeleteCluster sends a DELETE request to delete a cluster from Cluster Service.
 	DeleteCluster(ctx context.Context, internalID InternalID) error
@@ -375,10 +375,21 @@ func (csc *clusterServiceClient) GetClusterHypershiftDetails(ctx context.Context
 	return hypershiftConfig, nil
 }
 
-func (csc *clusterServiceClient) PostCluster(ctx context.Context, clusterBuilder *arohcpv1alpha1.ClusterBuilder, autoscalerBuilder *arohcpv1alpha1.ClusterAutoscalerBuilder) (*arohcpv1alpha1.Cluster, error) {
-	if autoscalerBuilder != nil {
-		clusterBuilder.Autoscaler(autoscalerBuilder)
+func (csc *clusterServiceClient) GetClusterResources(ctx context.Context,
+	internalID InternalID) (*arohcpv1alpha1.ClusterResources, error) {
+	client, ok := getAroHCPClusterClient(internalID, csc.conn)
+	if !ok {
+		return nil, fmt.Errorf("OCM path is not a cluster: %s", internalID)
 	}
+
+	resp, err := client.Resources().Get().SendContext(ctx)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+	return resp.Body(), nil
+}
+
+func (csc *clusterServiceClient) PostCluster(ctx context.Context, clusterBuilder *arohcpv1alpha1.ClusterBuilder) (*arohcpv1alpha1.Cluster, error) {
 	cluster, err := clusterBuilder.Build()
 	if err != nil {
 		return nil, utils.TrackError(err)
@@ -412,26 +423,6 @@ func (csc *clusterServiceClient) UpdateCluster(ctx context.Context, internalID I
 		return nil, fmt.Errorf("empty response body")
 	}
 	return resolveClusterLinks(ctx, csc.conn, cluster)
-}
-
-func (csc *clusterServiceClient) UpdateClusterAutoscaler(ctx context.Context, internalID InternalID, builder *arohcpv1alpha1.ClusterAutoscalerBuilder) (*arohcpv1alpha1.ClusterAutoscaler, error) {
-	autoscaler, err := builder.Build()
-	if err != nil {
-		return nil, utils.TrackError(err)
-	}
-	client, ok := getAroHCPClusterClient(internalID, csc.conn)
-	if !ok {
-		return nil, fmt.Errorf("OCM path is not a cluster: %s", internalID)
-	}
-	autoscalerUpdateResponse, err := client.Autoscaler().Update().Body(autoscaler).SendContext(ctx)
-	if err != nil {
-		return nil, utils.TrackError(err)
-	}
-	autoscaler, ok = autoscalerUpdateResponse.GetBody()
-	if !ok {
-		return nil, fmt.Errorf("empty response body")
-	}
-	return autoscaler, nil
 }
 
 func (csc *clusterServiceClient) DeleteCluster(ctx context.Context, internalID InternalID) error {
@@ -686,8 +677,8 @@ func (csc *clusterServiceClient) ListBreakGlassCredentials(clusterInternalID Int
 
 func (csc *clusterServiceClient) GetVersion(ctx context.Context, versionName string) (*arohcpv1alpha1.Version, error) {
 
-	if !strings.HasPrefix(versionName, api.OpenShiftVersionPrefix) {
-		versionName = api.OpenShiftVersionPrefix + versionName
+	if !strings.HasPrefix(versionName, metadataapi.OpenShiftVersionPrefix) {
+		versionName = metadataapi.OpenShiftVersionPrefix + versionName
 	}
 	client := csc.conn.AroHCP().V1alpha1().Versions().Version(versionName)
 
@@ -806,14 +797,14 @@ func NewOpenShiftVersionXYZ(v, cg string) string {
 		if len(parts) == 2 {
 			// Patch version is managed by Red Hat. This will be computed automatically to the latest
 			// as part of https://github.com/Azure/ARO-HCP/pull/4477
-			if patch, ok := map[string]string{"4.19": "31", "4.20": "23", "4.21": "16"}[v]; ok {
+			if patch, ok := map[string]string{"4.20": "25", "4.21": "20", "4.22": "1"}[v]; ok {
 				parts = append(parts, patch)
 			} else {
 				parts = append(parts, "0")
 			}
 		}
 
-		csVersion = api.OpenShiftVersionPrefix + strings.Join(parts, ".") + prereleasePart
+		csVersion = metadataapi.OpenShiftVersionPrefix + strings.Join(parts, ".") + prereleasePart
 
 		// Only append channel group if it's not empty and not "stable"
 		// Versions will look as:
@@ -834,13 +825,13 @@ func NewOpenShiftVersionXYZ(v, cg string) string {
 
 // ConvertOpenShiftVersionNoPrefix strips off openshift-v prefix
 func ConvertOpenShiftVersionNoPrefix(v string) string {
-	return strings.Replace(v, api.OpenShiftVersionPrefix, "", 1)
+	return strings.Replace(v, metadataapi.OpenShiftVersionPrefix, "", 1)
 }
 
 // ConvertOpenShiftVersionAddPrefix adds openshift-v prefix
 func ConvertOpenShiftVersionAddPrefix(v string) string {
-	if len(v) > 0 && !strings.HasPrefix(v, api.OpenShiftVersionPrefix) {
-		return api.OpenShiftVersionPrefix + v
+	if len(v) > 0 && !strings.HasPrefix(v, metadataapi.OpenShiftVersionPrefix) {
+		return metadataapi.OpenShiftVersionPrefix + v
 	}
 	return v
 }

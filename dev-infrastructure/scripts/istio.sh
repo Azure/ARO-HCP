@@ -40,24 +40,40 @@ esac
 
 ISTIO_URL="https://github.com/istio/istio/releases/download/${ISTIOCTL_VERSION}/istio-${ISTIOCTL_VERSION}-${OSEXT}-${ISTIO_ARCH}.tar.gz"
 SHA256_URL="https://github.com/istio/istio/releases/download/${ISTIOCTL_VERSION}/istio-${ISTIOCTL_VERSION}-${OSEXT}-${ISTIO_ARCH}.tar.gz.sha256"
+ISTIO_TARBALL="istio-${ISTIOCTL_VERSION}-${OSEXT}-${ISTIO_ARCH}.tar.gz"
+ISTIO_SHA256="${ISTIO_TARBALL}.sha256"
+
+# Retry the downloads: these hit github.com from the pipeline container and a
+# single transient DNS blip (curl exit 6, "couldn't resolve host") has failed
+# provisioning. -f makes HTTP 4xx/5xx fail (and thus retry) instead of saving
+# an error page.
+CURL_RETRY_OPTS=(-fsSL --retry 5 --retry-delay 5)
+# --retry-all-errors is required to retry DNS-resolution failures (exit 6), which
+# are not in curl's default retryable set, but it only exists on curl >= 7.71.
+# Add it only when the installed curl supports it so we don't hard-fail on older
+# curl (a regression vs the previous plain `curl -sL`); the baseline retry flags
+# apply either way.
+if curl --retry-all-errors --help >/dev/null 2>&1; then
+  CURL_RETRY_OPTS+=(--retry-all-errors)
+fi
+
 # Download the Istioctl binary
-curl -sL "$ISTIO_URL" -o istio-"${ISTIOCTL_VERSION}"-${OSEXT}-${ISTIO_ARCH}.tar.gz
+curl "${CURL_RETRY_OPTS[@]}" "$ISTIO_URL" -o "${ISTIO_TARBALL}"
 
 # Download the SHA-256 checksum file
-curl -sL "$SHA256_URL" -o istio-"${ISTIOCTL_VERSION}"-${OSEXT}-${ISTIO_ARCH}.tar.gz.sha256
+curl "${CURL_RETRY_OPTS[@]}" "$SHA256_URL" -o "${ISTIO_SHA256}"
 
-# Verify the downloaded file
-sha256sum -c istio-"${ISTIOCTL_VERSION}"-${OSEXT}-${ISTIO_ARCH}.tar.gz.sha256
-
-# Check the result of the verification
-if sha256sum -c istio-"${ISTIOCTL_VERSION}"-${OSEXT}-${ISTIO_ARCH}.tar.gz.sha256; then
+# Verify the downloaded file. Run the check once, inside the if, so the custom
+# failure message is reachable under `set -e` (a bare `sha256sum -c` would abort
+# the script before any messaging on mismatch).
+if sha256sum -c "${ISTIO_SHA256}"; then
     echo "Verification successful: The file is intact."
 else
     echo "Verification failed: The file is corrupted."
     exit 1
 fi
 
-tar -xzf istio-"${ISTIOCTL_VERSION}"-${OSEXT}-${ISTIO_ARCH}.tar.gz
+tar -xzf "${ISTIO_TARBALL}"
 cd istio-"${ISTIOCTL_VERSION}"
 export PATH=$PWD/bin:$PATH
 echo "=========================================================================="

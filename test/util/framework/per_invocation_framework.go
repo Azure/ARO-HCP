@@ -29,6 +29,8 @@ import (
 	"sync"
 	"time"
 
+	_ "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm/runtime" // contains init() function which populates ARM cloud services
+
 	"github.com/onsi/ginkgo/v2/types"
 	"golang.org/x/net/http2"
 
@@ -37,9 +39,11 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armsubscriptions"
 
 	"github.com/Azure/ARO-HCP/internal/azsdk"
+	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/azclient"
 )
 
 type perBinaryInvocationTestContext struct {
@@ -52,6 +56,7 @@ type perBinaryInvocationTestContext struct {
 	pullSecretPath           string
 	frontendAddress          string
 	adminAPIAddress          string
+	resourceManagerEndpoint  string
 	skipCertVerification     bool
 	isDevelopmentEnvironment bool
 	skipCleanup              bool
@@ -63,6 +68,11 @@ type perBinaryInvocationTestContext struct {
 	azureCredentials  azcore.TokenCredential
 	identityPoolState *leasedIdentityPoolState
 	defaultTransport  *http.Transport
+	// virtualMachineResourceSKUsByLocation memoizes the slow Resource SKUs API
+	// for the duration of the whole e2e suite run. All specs in one invocation
+	// target the same location, so a suite-wide cache avoids repeatedly burning
+	// per-test timeout budget on the same ARM call.
+	virtualMachineResourceSKUsByLocation map[string][]*armcompute.ResourceSKU
 }
 
 type CleanupFunc func(ctx context.Context) error
@@ -75,6 +85,11 @@ var (
 const (
 	StandardPollInterval            = 10 * time.Second
 	StandardResourceGroupExpiration = 4 * time.Hour
+	// keyVaultPurgeTimeout bounds the best-effort soft-deleted Key Vault purge
+	// on resource-group teardown so a stalled purge (or Azure control-plane
+	// stall) can never hang the cleanup goroutine and flake the overall E2E
+	// teardown.
+	keyVaultPurgeTimeout = 5 * time.Minute
 )
 
 // azureRetryOptions configures the Azure SDK retry policy for e2e tests.
@@ -93,21 +108,23 @@ var azureRetryOptions = policy.RetryOptions{
 func invocationContext() *perBinaryInvocationTestContext {
 	initializeOnce.Do(func() {
 		invocationContextInstance = &perBinaryInvocationTestContext{
-			artifactDir:              artifactDir(),
-			sharedDir:                SharedDir(),
-			subscriptionName:         subscriptionName(),
-			tenantID:                 tenantID(),
-			testUserClientID:         testUserClientID(),
-			location:                 location(),
-			pullSecretPath:           pullSecretPath(),
-			frontendAddress:          frontendAddress(),
-			adminAPIAddress:          adminAPIAddress(),
-			skipCertVerification:     skipCertVerification(),
-			isDevelopmentEnvironment: IsDevelopmentEnvironment(),
-			skipCleanup:              skipCleanup(),
-			pooledIdentities:         pooledIdentities(),
-			compressTimingMetadata:   compressTimingMetadata(),
-			defaultTransport:         defaultHTTPTransport(),
+			artifactDir:                          artifactDir(),
+			sharedDir:                            SharedDir(),
+			subscriptionName:                     subscriptionName(),
+			tenantID:                             tenantID(),
+			testUserClientID:                     testUserClientID(),
+			location:                             location(),
+			pullSecretPath:                       pullSecretPath(),
+			frontendAddress:                      frontendAddress(),
+			adminAPIAddress:                      adminAPIAddress(),
+			resourceManagerEndpoint:              resourceManagerEndpoint(),
+			skipCertVerification:                 skipCertVerification(),
+			isDevelopmentEnvironment:             IsDevelopmentEnvironment(),
+			skipCleanup:                          skipCleanup(),
+			pooledIdentities:                     pooledIdentities(),
+			compressTimingMetadata:               compressTimingMetadata(),
+			defaultTransport:                     defaultHTTPTransport(),
+			virtualMachineResourceSKUsByLocation: make(map[string][]*armcompute.ResourceSKU),
 		}
 	})
 	return invocationContextInstance
@@ -129,6 +146,23 @@ func (tc *perBinaryInvocationTestContext) getAzureCredentials() (azcore.TokenCre
 	}
 
 	if tc.isDevelopmentEnvironment {
+		// The development environment flag controls endpoint routing and relaxed security
+		// (talking directly to the RP frontend rather than ARM); it is intentionally decoupled
+		// from credential acquisition. When service principal env vars are present (as they are
+		// in CI), prefer a pure-Go ClientSecretCredential. AzureCLICredential.GetToken() spawns
+		// an `az` subprocess on every Azure API call, which does not scale under high test
+		// parallelism (dozens of concurrent Python processes) and leads to OOM kills. The CLI
+		// credential is only needed for genuine local `az login`-only developer runs.
+		if clientID, clientSecret, tenantID := os.Getenv("AZURE_CLIENT_ID"), os.Getenv("AZURE_CLIENT_SECRET"), os.Getenv("AZURE_TENANT_ID"); clientID != "" && clientSecret != "" && tenantID != "" {
+			azureCredentials, err := azidentity.NewClientSecretCredential(tenantID, clientID, clientSecret, nil)
+			if err != nil {
+				return nil, fmt.Errorf("failed building development environment client secret credential: %w", err)
+			}
+			tc.azureCredentials = azureCredentials
+
+			return tc.azureCredentials, nil
+		}
+
 		azureCredentials, err := azidentity.NewAzureCLICredential(nil)
 		if err != nil {
 			return nil, fmt.Errorf("failed building development environment CLI credential: %w", err)
@@ -154,7 +188,7 @@ func (tc *perBinaryInvocationTestContext) getClientFactoryOptions() *azcorearm.C
 	clientOpts := azsdk.NewClientOptions(azsdk.ComponentE2E)
 	clientOpts.Retry = azureRetryOptions
 	clientOpts.PerCallPolicies = []policy.Policy{
-		NewLROPollerRetryDeploymentNotFoundPolicy(),
+		azclient.NewLROPollerRetryPolicy(nil),
 		&sanitizeAuthHeaderPolicy{},
 	}
 	if tc.isDevelopmentEnvironment {
@@ -163,28 +197,59 @@ func (tc *perBinaryInvocationTestContext) getClientFactoryOptions() *azcorearm.C
 		}
 		clientOpts.PerCallPolicies = append([]policy.Policy{&requestIDPolicy{}}, clientOpts.PerCallPolicies...)
 	}
+
+	if tc.resourceManagerEndpoint != "" {
+		clientOpts.Cloud = cloud.Configuration{
+			ActiveDirectoryAuthorityHost: cloud.AzurePublic.ActiveDirectoryAuthorityHost,
+			Services: map[cloud.ServiceName]cloud.ServiceConfiguration{
+				cloud.ResourceManager: {
+					Audience: cloud.AzurePublic.Services[cloud.ResourceManager].Audience,
+					Endpoint: tc.resourceManagerEndpoint,
+				},
+			},
+		}
+	}
+
 	return &azcorearm.ClientOptions{
 		ClientOptions: clientOpts,
 	}
 }
 
 func (tc *perBinaryInvocationTestContext) getHCPClientFactoryOptions() *azcorearm.ClientOptions {
+	clientOpts := azsdk.NewClientOptions(azsdk.ComponentE2E)
+	clientOpts.Retry = azureRetryOptions
+	if tc.resourceManagerEndpoint != "" {
+		clientOpts.Cloud = cloud.Configuration{
+			ActiveDirectoryAuthorityHost: cloud.AzurePublic.ActiveDirectoryAuthorityHost,
+			Services: map[cloud.ServiceName]cloud.ServiceConfiguration{
+				cloud.ResourceManager: {
+					Audience: cloud.AzurePublic.Services[cloud.ResourceManager].Audience,
+					Endpoint: tc.resourceManagerEndpoint,
+				},
+			},
+		}
+	}
+	clientOpts.PerCallPolicies = []policy.Policy{
+		NewRetryVersionNotFoundPolicy(),
+		&sanitizeAuthHeaderPolicy{},
+	}
+
 	if tc.isDevelopmentEnvironment {
 		transport := tc.defaultTransport
 		if tc.skipCertVerification {
 			transport.TLSClientConfig.InsecureSkipVerify = true
 		}
-		clientOpts := azsdk.NewClientOptions(azsdk.ComponentE2E)
-		clientOpts.Retry = azureRetryOptions
+
 		clientOpts.Cloud = cloud.Configuration{
-			ActiveDirectoryAuthorityHost: "https://login.microsoftonline.com/",
+			ActiveDirectoryAuthorityHost: cloud.AzurePublic.ActiveDirectoryAuthorityHost,
 			Services: map[cloud.ServiceName]cloud.ServiceConfiguration{
 				cloud.ResourceManager: {
-					Audience: "https://management.core.windows.net/",
+					Audience: cloud.AzurePublic.Services[cloud.ResourceManager].Audience,
 					Endpoint: tc.frontendAddress,
 				},
 			},
 		}
+
 		clientOpts.Transport = &proxiedConnectionTransporter{
 			delegate: transport,
 		}
@@ -196,16 +261,8 @@ func (tc *perBinaryInvocationTestContext) getHCPClientFactoryOptions() *azcorear
 			NewRetryVersionNotFoundPolicy(),
 			&sanitizeAuthHeaderPolicy{},
 		}
-		return &azcorearm.ClientOptions{
-			ClientOptions: clientOpts,
-		}
 	}
-	clientOpts := azsdk.NewClientOptions(azsdk.ComponentE2E)
-	clientOpts.Retry = azureRetryOptions
-	clientOpts.PerCallPolicies = []policy.Policy{
-		NewRetryVersionNotFoundPolicy(),
-		&sanitizeAuthHeaderPolicy{},
-	}
+
 	return &azcorearm.ClientOptions{
 		ClientOptions: clientOpts,
 	}
@@ -387,6 +444,13 @@ func adminAPIAddress() string {
 		return "http://localhost:8444"
 	}
 	return address
+}
+
+// resourceManagerEndpoint returns the value of RESOURCE_MANAGER_ENDPOINT environment variable.
+// When set, it overrides the Azure Resource Manager endpoint used by HCP SDK clients,
+// allowing tests to target canary regions (e.g. https://eastus2euap.management.azure.com).
+func resourceManagerEndpoint() string {
+	return os.Getenv("RESOURCE_MANAGER_ENDPOINT")
 }
 
 // skipCertVerification returns the value of SKIP_CERT_VERIFICATION environment variable

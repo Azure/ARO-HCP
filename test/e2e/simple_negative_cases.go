@@ -29,8 +29,8 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
@@ -43,13 +43,13 @@ var _ = Describe("Customer", func() {
 		labels.Negative,
 		labels.Medium,
 		labels.AroRpApiCompatible,
+		labels.MIContainers(1),
 		func(ctx context.Context) {
 			const (
 				customerNetworkSecurityGroupName = "customer-nsg-name"
 				customerVnetName                 = "customer-vnet-name"
 				customerVnetSubnetName           = "customer-vnet-subnet"
 				customerClusterName              = "negative-tests-cluster"
-				customerNodePoolName             = "np-1"
 			)
 			tc := framework.NewTestContext()
 
@@ -110,9 +110,9 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %s", customerClusterName)
 
 			By("getting credentials")
-			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
+			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20260901(
 				ctx,
-				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
+				tc.Get20260901ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
 				customerClusterName,
 				framework.GetAdminRESTConfigTimeout,
@@ -123,27 +123,16 @@ var _ = Describe("Customer", func() {
 			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred(), "cluster %s is not viable", customerClusterName)
 
-			nodePoolParams := framework.NewDefaultNodePoolParams20240610()
-			nodePoolParams.ClusterName = clusterParams.ClusterName
-			nodePoolParams.NodePoolName = customerNodePoolName
+			baseNodePoolParams := framework.NewDefaultNodePoolParams20240610()
+			baseNodePoolParams.ClusterName = clusterParams.ClusterName
 
-			// TEST CASE: ARO-22576
-			nodePoolParamsInvalidInstance := nodePoolParams
-			nodePoolParamsInvalidInstance.VMSize = "Standard_A1_v2" // real, but unsupported Azure instance type
-
-			nodePoolParamsInvalidQuota := nodePoolParams
+			// TEST CASE: ARO-22576 test that verifies error is triggered when the configured nodepool replicas exceeds
+			// the maximum number of node pool replicas when an availability zone is not specified when creating the node pool,
+			// which means when the node pool is created as part of an availability set. There is a limit of virtual machines per availability set:
+			// https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/azure-subscription-service-limits#azure-virtual-machines-limits---azure-resource-manager
+			nodePoolParamsInvalidQuota := baseNodePoolParams
 			nodePoolParamsInvalidQuota.Replicas = int32(201)
-
-			By("attempting to create a node pool with invalid instance type")
-			err = tc.CreateNodePoolFromParam20240610(ctx,
-				GinkgoLogr,
-				*resourceGroup.Name,
-				managedResourceGroupName,
-				clusterParams.ClusterName,
-				nodePoolParamsInvalidInstance,
-				5*time.Minute,
-			)
-			checkExpectedError(&errs, "node pool creation with invalid instance type", err, "machine type not supported")
+			nodePoolParamsInvalidQuota.NodePoolName = "np-inv-quota"
 
 			By("attempting to create a node pool with invalid quota")
 			err = tc.CreateNodePoolFromParam20240610(ctx,
@@ -156,6 +145,8 @@ var _ = Describe("Customer", func() {
 			)
 			checkExpectedError(&errs, "node pool creation with invalid quota", err, "invalid value must be less than or equal to")
 
+			nodePoolParams := baseNodePoolParams
+			nodePoolParams.NodePoolName = "np-1"
 			By("creating a nodepool")
 			err = tc.CreateNodePoolFromParam20240610(ctx,
 				GinkgoLogr,
@@ -165,11 +156,11 @@ var _ = Describe("Customer", func() {
 				nodePoolParams,
 				framework.NodePoolCreationTimeout,
 			)
-			Expect(err).NotTo(HaveOccurred(), "failed to create node pool %s", customerNodePoolName)
+			Expect(err).NotTo(HaveOccurred(), "failed to create node pool %s", nodePoolParams.NodePoolName)
 
 			// TEST CASE: ARO-23182
 			By("attempting to update nodepool version to higher than cluster version")
-			clusterVersion := api.Must(semver.ParseTolerant(clusterParams.OpenshiftVersionId))
+			clusterVersion := metadataapi.Must(semver.ParseTolerant(clusterParams.OpenshiftVersionId))
 			invalidNodePoolVersion := fmt.Sprintf("%d.%d.0", clusterVersion.Major, clusterVersion.Minor+1) // +1 y-stream, z set to 0
 
 			npForVersionUpdate, err := nodePoolClient.Get(ctx, *resourceGroup.Name, clusterParams.ClusterName, nodePoolParams.NodePoolName, nil)
@@ -189,6 +180,10 @@ var _ = Describe("Customer", func() {
 			} else if nodePool.Properties.Platform == nil {
 				errs = append(errs, fmt.Errorf("nodepool platform properties are nil"))
 			} else {
+				originalVMSize := ""
+				if nodePool.Properties.Platform.VMSize != nil {
+					originalVMSize = *nodePool.Properties.Platform.VMSize
+				}
 				nodePool.Properties.Platform.VMSize = to.Ptr("Standard_D16s_v3")
 				nodePool.Properties.Platform.AvailabilityZone = to.Ptr("2")
 				if nodePool.Properties.Platform.OSDisk != nil {
@@ -207,7 +202,7 @@ var _ = Describe("Customer", func() {
 					} else {
 						platform := updatedNodePool.Properties.Platform
 
-						if platform.VMSize != nil && *platform.VMSize != "Standard_D8s_v3" {
+						if platform.VMSize != nil && *platform.VMSize != originalVMSize {
 							errs = append(errs, fmt.Errorf("vmSize was modified despite immutable error"))
 						}
 

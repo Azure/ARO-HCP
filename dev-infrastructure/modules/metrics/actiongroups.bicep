@@ -59,6 +59,19 @@ param icmRoutingIdMSFT string
 @description('ICM automitigation enabled ID')
 param icmAutomitigationEnabledMSFT string
 
+@description('Name of the ICM Action Group')
+param icmActionGroupNameDEV string
+
+@description('Name of the ICM Action Group')
+@maxLength(8)
+param icmActionGroupShortNameDEV string
+
+@description('ICM routing ID')
+param icmRoutingIdDEV string
+
+@description('ICM automitigation enabled ID')
+param icmAutomitigationEnabledDEV string
+
 @description('Indicates if alerting should be enabled for this region. When true, action groups will be enabled.')
 param alertingEnabled bool
 
@@ -158,7 +171,32 @@ resource icmrp 'Microsoft.Insights/actionGroups@2024-10-01-preview' = {
   }
 }
 
+resource icmdev 'Microsoft.Insights/actionGroups@2024-10-01-preview' = {
+  name: 'icm-action-group-dev'
+  location: 'global'
+  properties: {
+    enabled: alertingEnabled
+    groupShortName: icmActionGroupShortNameDEV
+    incidentReceivers: [
+      {
+        name: icmActionGroupNameDEV
+        incidentManagementService: 'Icm'
+        connection: {
+          name: icmConnectionName
+          id: icmConnectionId
+        }
+        mappings: {
+          'Icm.occurringlocation.environment': icmEnvironment
+          'Icm.routingid': icmRoutingIdDEV
+          'Icm.automitigationenabled': icmAutomitigationEnabledDEV
+        }
+      }
+    ]
+  }
+}
+
 output actionGroupsSRE string = icmsre.id
 output actionGroupsSL string = icmsl.id
 output actionGroupsRP string = icmrp.id
 output actionGroupsMSFT string = icmmsft.id
+output actionGroupsDEV string = icmdev.id

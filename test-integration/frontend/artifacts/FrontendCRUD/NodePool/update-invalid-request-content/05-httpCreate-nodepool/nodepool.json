@@ -1,0 +1,18 @@
+{
+	"name": "invalid-np",
+	"properties": {
+		"autoRepair": true,
+		"platform": {
+			"osDisk": {
+				"diskStorageAccountType": "Premium_LRS",
+				"sizeGiB": 64
+			},
+			"vmSize": "Standard_D8s_v3"
+		},
+		"version": {
+			"channelGroup": "stable",
+			"id": "4.20.8"
+		}
+	},
+	"type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools"
+}

@@ -1,0 +1,6 @@
+values: ../deploy/values.yaml
+name: velero-instant-access-disabled
+namespace: velero
+testData:
+  velero:
+    enableInstantAccess: false

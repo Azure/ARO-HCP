@@ -1,11 +1,11 @@
 # 05 &mdash; Controllers
 
-The `kube-applier` binary runs four controllers. Three are conventional
-informer-driven controllers. The fourth (`ReadDesireInformerManagingController`)
+The `kube-applier` binary runs three controllers. Two are conventional
+informer-driven controllers. The third (`ReadDesireInformerManagingController`)
 is a controller-of-controllers that owns lifecycles of per-resource sub
 controllers.
 
-All four live under `kube-applier/pkg/controllers/`.
+All three live under `kube-applier/pkg/controllers/`.
 
 ## Shared infrastructure
 
@@ -39,10 +39,19 @@ The existing controllerutils path writes `Degraded` to a Cosmos
 Add a small helper, `kube-applier/pkg/controllers/conditions/conditions.go`:
 
 ```go
+// ApplyDesire Type=ServerSideApply: sets SuccessfullyApplied (+ legacy Successful).
+func SetSuccessfullyApplied(conds *[]metav1.Condition, err error)
+// ApplyDesire Type=Delete: sets SuccessfullyDeleted (+ legacy Successful).
+func SetSuccessfullyDeleted(conds *[]metav1.Condition, err error)
+func SetWaitingForDeletion(conds *[]metav1.Condition, deletionTime metav1.Time, uid types.UID)
+// ReadDesire (single observe operation): sets the legacy Successful.
 func SetSuccessful(conds *[]metav1.Condition, err error)
-func SetSuccessfulWaitingForDeletion(conds *[]metav1.Condition, deletionTime metav1.Time, uid types.UID)
 func SetDegraded(conds *[]metav1.Condition, err error)
 ```
+
+The `SetSuccessfully*` / `SetWaitingForDeletion` helpers dual-write the
+operation-specific condition **and** the legacy `Successful` condition (same
+status/reason/message) so readers written against `Successful` keep working.
 
 Each helper:
 
@@ -80,73 +89,74 @@ This mirrors `controllerutils.WriteController`
 
 ## 5.1 ApplyDesireController
 
+`ApplyDesire` is a discriminated union: the `spec.type` field is either
+`ServerSideApply` or `Delete`. This single controller handles both flows.
+
 Trigger sources:
 
 - `ApplyDesire` informer events (Add/Update only; Delete is a no-op since
   we're not the deleter).
+- 60-second resync (required for the `Delete` path so that a stuck finalizer
+  or reappearing object is noticed promptly). Set the informer's
+  `ResyncPeriod` to 60s.
 - Workqueue retries with `DefaultTypedControllerRateLimiter` (cap exponential
   backoff at 5 minutes).
 
-Per the readme, sync logic is:
+Sync logic dispatches on `spec.type`:
+
+### When Type = ServerSideApply
 
 ```
-1. Read the ApplyDesire from lister, decode .spec.kubeContent into an
-   *unstructured.Unstructured.
-2. Resolve GVR via RESTMapper from the parsed kubeContent's GVK.
+1. Read the ApplyDesire from lister, decode .spec.serverSideApply.kubeContent
+   into an *unstructured.Unstructured.
+2. Resolve GVR from .spec.targetItem.
 3. Server-side-apply with Force=true and FieldManager="kube-applier" via
    the dynamic client:
        dyn.Resource(gvr).Namespace(ns).Apply(ctx, name, obj, applyOpts)
-4. On success: SetSuccessful(conds, nil).
-   On error:   SetSuccessful(conds, err)   // err -> KubeAPIError
-   On a pre-check failure (RESTMapper miss, namespace mismatch, malformed
-   kubeContent): SetSuccessful(conds, err with PreCheckFailed reason).
+4. On success: SetSuccessfullyApplied(conds, nil); SetDegraded(conds, nil).
+   On error:   SetSuccessfullyApplied(conds, err); SetDegraded(conds, classifyAsDegraded(err)).
+   On a pre-check failure (malformed targetItem, malformed
+   kubeContent): SetSuccessfullyApplied(conds, err with PreCheckFailed reason); SetDegraded(conds, nil).
 5. Write status via statuswriter.
 ```
 
-Notes:
-
-- Use `k8s.io/client-go/dynamic.NewForConfig(rest.InClusterConfig())` once at
-  binary startup.
-- Build a `RESTMapper` from `discovery.NewDiscoveryClientForConfig` &mdash; a
-  `restmapper.DeferredDiscoveryRESTMapper` so that newly-installed CRDs work
-  on the next call without restart.
-- `ApplyOptions.FieldManager = "kube-applier"`. Force = true.
-- The pre-check vs. kube-API split is done in the helper:
-  - `meta.NoKindMatchError`, JSON parse errors, malformed `TargetItem` &rarr;
-    `PreCheckFailed`.
-  - Anything returned by `dyn.Apply` &rarr; `KubeAPIError`.
-
-## 5.2 DeleteDesireController
-
-Trigger sources:
-
-- `DeleteDesire` informer events.
-- 60-second resync (per readme: "must resync every 60 seconds"). This is the
-  `SharedIndexInformer.ResyncPeriod` plus a per-key requeue loop &mdash;
-  pick one. Recommended: rely on the informer's resync alone, set to 60s for
-  this informer specifically.
-
-Sync logic (from readme):
+### When Type = Delete
 
 ```
-get target
-  not found             -> SetSuccessful(true)
-  has deletion timestamp -> SetSuccessful(false, "WaitingForDeletion",
-                            msg="deletionTimestamp=<t> uid=<u>")
-  no deletion timestamp -> issue Delete; if delete fails -> KubeAPIError
-                            re-issue get
-                              still not found -> SetSuccessful(true)
-                              has deletion timestamp -> WaitingForDeletion
+1. Resolve the target resource from the ApplyDesire spec.
+2. Get the target object from the cluster:
+     not found             -> SetSuccessfullyDeleted(true)
+     has deletion timestamp -> SetWaitingForDeletion(
+                               deletionTimestamp, uid)
+     no deletion timestamp -> issue Delete; if delete fails -> KubeAPIError
+                               re-issue get:
+                                 still not found -> SetSuccessfullyDeleted(true)
+                                 has deletion timestamp -> SetWaitingForDeletion(
+                                                           deletionTimestamp, uid)
+3. Write status via statuswriter.
 ```
 
-Implementation tip: a single pass through this state machine should never
-need more than one delete call.
+Implementation tip: a single pass through the delete state machine should
+never need more than one delete call.
 
 UID + deletionTimestamp must be carried in the message verbatim (the readme
 specifies this explicitly so that consumers can correlate without separately
 querying the cluster).
 
-## 5.3 ReadDesireInformerManagingController
+### Notes (both paths)
+
+- Use `k8s.io/client-go/dynamic.NewForConfig(rest.InClusterConfig())` once at
+  binary startup.
+- GVR resolution uses `.spec.targetItem` directly (Group, Version, Resource
+  fields) &mdash; the controller does **not** consult a RESTMapper for the
+  apply or delete paths.
+- `ApplyOptions.FieldManager = "kube-applier"`. Force = true.
+- The pre-check vs. kube-API split is done in the helper:
+  - JSON parse errors, malformed `TargetItem` &rarr;
+    `PreCheckFailed`.
+  - Anything returned by `dyn.Apply` or `dyn.Delete` &rarr; `KubeAPIError`.
+
+## 5.2 ReadDesireInformerManagingController
 
 A controller-of-controllers. There is no existing equivalent in the repo, so
 this is the most novel piece.
@@ -197,7 +207,7 @@ The manager itself is a `genericWatchingController[string]` keyed by the
 ReadDesire's resource ID. On binary shutdown it iterates `runningByKey` and
 cancels each child context.
 
-## 5.4 ReadDesireKubernetesController (per ReadDesire)
+## 5.3 ReadDesireKubernetesController (per ReadDesire)
 
 One instance per `ReadDesire`. Holds:
 
@@ -236,12 +246,17 @@ Run loop (per readme):
 - On each sync:
     1. Read the live object from the kube lister (may be nil if absent).
     2. Read the ReadDesire from the readDesireLister.
-    3. Marshal the live object to RawExtension. If absent, leave a sentinel
-       (e.g. RawExtension{Raw: nil}).
-    4. If new RawExtension differs from ReadDesire.Status.KubeContent
+    3. If the target is a core/v1 Secret, deep-copy and redact the object:
+       strip all data keys except known-safe ones (currently "tls.crt"),
+       remove all of binaryData and stringData, and strip unsafe annotations
+       (e.g. kubectl.kubernetes.io/last-applied-configuration). This prevents
+       private keys, passwords, and tokens from being persisted to Cosmos.
+    4. Marshal the (possibly redacted) live object to RawExtension.
+       If absent, leave a sentinel (e.g. RawExtension{Raw: nil}).
+    5. If new RawExtension differs from ReadDesire.Status.KubeContent
        (byte-equal compare), write the new status and SetSuccessful(true).
        Otherwise no-op.
-    5. On any kube error en route, SetSuccessful(false, "KubeAPIError"/"PreCheckFailed").
+    6. On any kube error en route, SetSuccessful(false, "KubeAPIError"/"PreCheckFailed").
 ```
 
 Stop behaviour: when the parent manager calls `cancel()`, the workqueue is
@@ -259,13 +274,11 @@ kube-applier main:
   scopedListers:= newKubeApplierScopedListers(cosmos, mgmtCluster)
   informers    := informers.NewKubeApplierInformers(ctx, scopedListers)
 
-  applyCtl     := NewApplyDesireController(informers, dyn, rm, cosmos, mgmtCluster)
-  deleteCtl    := NewDeleteDesireController(informers, dyn, rm, cosmos, mgmtCluster)
+  applyCtl     := NewApplyDesireController(informers, dyn, rm, cosmos, mgmtCluster)  // handles both SSA and Delete
   readMgr      := NewReadDesireInformerManagingController(informers, dyn, rm, cosmos, mgmtCluster)
 
   go informers.RunWithContext(ctx)
   go applyCtl.Run(ctx, 4)
-  go deleteCtl.Run(ctx, 4)
   go readMgr.Run(ctx, 4)
 ```
 

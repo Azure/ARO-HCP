@@ -25,6 +25,7 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/alertsmanagement/armalertsmanagement"
 )
 
@@ -86,13 +87,20 @@ func fetchAlerts(ctx context.Context, cred azcore.TokenCredential, scope string,
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			return nil, fmt.Errorf("failed to list alerts: %w", err)
+			sortAlerts(allAlerts)
+			return allAlerts, fmt.Errorf("failed to list alerts: %w", err)
 		}
 		for _, alert := range page.Value {
 			allAlerts = append(allAlerts, toAlert(alert))
 		}
 	}
-	slices.SortFunc(allAlerts, func(a, b alert) int {
+	sortAlerts(allAlerts)
+	logger.Info("alerts fetched", "count", len(allAlerts))
+	return allAlerts, nil
+}
+
+func sortAlerts(alerts []alert) {
+	slices.SortFunc(alerts, func(a, b alert) int {
 		switch {
 		case a.Alert.StartsAt == nil && b.Alert.StartsAt == nil:
 			return 0
@@ -104,8 +112,6 @@ func fetchAlerts(ctx context.Context, cred azcore.TokenCredential, scope string,
 			return a.Alert.StartsAt.Compare(*b.Alert.StartsAt)
 		}
 	})
-	logger.Info("alerts fetched", "count", len(allAlerts))
-	return allAlerts, nil
 }
 
 func toAlert(raw *armalertsmanagement.Alert) alert {
@@ -151,6 +157,10 @@ func toAlert(raw *armalertsmanagement.Alert) alert {
 	a.Expression = ctx.Expression
 	if alertname, ok := a.Labels["alertname"]; ok {
 		a.Name = alertname
+	} else if a.AlertRule != "" {
+		if ruleID, err := azcorearm.ParseResourceID(a.AlertRule); err == nil {
+			a.Name = ruleID.Name
+		}
 	}
 	return alert{Alert: a, Metadata: m}
 }

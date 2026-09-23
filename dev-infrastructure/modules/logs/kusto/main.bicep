@@ -2,7 +2,7 @@
 param location string = resourceGroup().location
 
 @description('The SKU of the cluster')
-param sku string = 'Standard_D12_v2'
+param sku string
 
 @description('Tier used')
 param tier string = 'Basic'
@@ -16,6 +16,9 @@ param serviceLogsDatabase string
 @description('Name of the hosted control plane logs database.')
 param hostedControlPlaneLogsDatabase string
 
+@description('Name of the monitoring events database.')
+param monitoringEventsDatabase string
+
 @description('CSV separated list of groups to assign admin in the Kusto cluster')
 param adminGroups string
 
@@ -25,8 +28,26 @@ param viewerGroups string
 @description('CSV separated list of identities (apps/managed identities) to assign viewer in the Kusto cluster')
 param viewerIdentities string = ''
 
+@description('Name of the global rollout MSI granted AllDatabasesAdmin so the KustoEntityGroups pipeline step (kustoctl) can sync entity groups. Empty disables the grant.')
+param globalMSIName string = ''
+
+@description('Resource group of the global rollout MSI (same subscription as this deployment). Required when globalMSIName is set.')
+param globalMSIResourceGroup string = ''
+
+@description('ARO-HCP environment (int, stg, prod) tagged on the Kusto cluster so kustoctl can scope entity-group discovery per environment.')
+param environment string = ''
+
 @description('Name of the Kusto cluster to create')
 param kustoName string
+
+@description('ARO-HCP geography short ID used for global resource discovery')
+param geoShortId string
+
+@description('Whether to grant the global Grafana identity Viewer access to ServiceLogs')
+param enableGrafanaIntegration bool = false
+
+@description('Global Azure Managed Grafana principal ID')
+param grafanaPrincipalId string = ''
 
 @description('Minimum number of nodes for autoscale')
 param autoScaleMin int
@@ -37,24 +58,20 @@ param autoScaleMax int
 @description('Toggle if autoscale should be enabled')
 param enableAutoScale bool
 
-@description('Optional cross-cluster ServiceLogs Kusto script content.')
-@secure()
-param crossClusterServiceLogsScript string = ''
-
-@description('Optional cross-cluster HostedControlPlaneLogs Kusto script content.')
-@secure()
-param crossClusterHostedControlPlaneLogsScript string = ''
 var db = {
   serviceLogs: serviceLogsDatabase
   hostedControlPlaneLogs: hostedControlPlaneLogsDatabase
+  monitoringEvents: monitoringEventsDatabase
 }
 
-var databases = [db.serviceLogs, db.hostedControlPlaneLogs]
+var databases = [db.serviceLogs, db.hostedControlPlaneLogs, db.monitoringEvents]
+var hasGrafana = enableGrafanaIntegration && grafanaPrincipalId != '' && grafanaPrincipalId != '__grafanaPrincipalId__'
 
 var dummyScript = '.create-or-alter function with (docstring = \'dummy function to run last and to remove permission\') dummyFunction() {print \'dummy\'}'
 
 var allServiceLogsTablesKQL = {
   backendLogs: loadTextContent('tables/backendLogs.kql')
+  kubeApplierLogs: loadTextContent('tables/kubeApplierLogs.kql')
   containerlogs: loadTextContent('tables/containerLogs.kql')
   fleetLogs: loadTextContent('tables/fleetLogs.kql')
   frontendLogs: loadTextContent('tables/frontendLogs.kql')
@@ -62,6 +79,12 @@ var allServiceLogsTablesKQL = {
   kubernetesEvents: loadTextContent('tables/kubernetesEvents.kql')
   aksEvents: loadTextContent('tables/aksEvents.kql')
   systemdLogs: loadTextContent('tables/systemdLogs.kql')
+  azureVnetLogs: loadTextContent('tables/azureVnetLogs.kql')
+  resourceSnapshots: loadTextContent('tables/kubernetesResourceSnapshots.kql')
+  cosmosResourceSnapshots: loadTextContent('tables/cosmosResourceSnapshots.kql')
+  ciJobOutcomes: loadTextContent('tables/ciJobOutcomes.kql')
+  ciTestNames: loadTextContent('tables/ciTestNames.kql')
+  ciTestResults: loadTextContent('tables/ciTestResults.kql')
 }
 
 var allCustomerLogsTablesKQL = {
@@ -69,8 +92,9 @@ var allCustomerLogsTablesKQL = {
   kubernetesEvents: loadTextContent('tables/kubernetesEvents.kql')
 }
 
-var deployCrossClusterServiceLogsScript = !empty(crossClusterServiceLogsScript)
-var deployCrossClusterHostedControlPlaneLogsScript = !empty(crossClusterHostedControlPlaneLogsScript)
+var allMonitoringEventsTablesKQL = {
+  alertEvents: loadTextContent('tables/alertEvents.kql')
+}
 
 // 1. Cluster
 module cluster 'cluster.bicep' = {
@@ -78,11 +102,15 @@ module cluster 'cluster.bicep' = {
   params: {
     location: location
     kustoName: kustoName
+    geoShortId: geoShortId
     sku: sku
     tier: tier
     adminGroups: adminGroups
     viewerGroups: viewerGroups
     viewerIdentities: viewerIdentities
+    globalMSIName: globalMSIName
+    globalMSIResourceGroup: globalMSIResourceGroup
+    environment: environment
     autoScaleMin: autoScaleMin
     autoScaleMax: autoScaleMax
     enableAutoScale: enableAutoScale
@@ -112,6 +140,18 @@ module hostedControlPlaneLogs 'database.bicep' = {
     hotCachePeriod: 'P2D'
   }
   dependsOn: [serviceLogs]
+}
+
+module monitoringEvents 'database.bicep' = {
+  name: 'monitoringEvents'
+  params: {
+    location: location
+    kustoName: kustoName
+    databaseName: db.monitoringEvents
+    softDeletePeriod: 'P90D'
+    hotCachePeriod: 'P2D'
+  }
+  dependsOn: [hostedControlPlaneLogs]
 }
 
 // 3. Create Tables
@@ -145,6 +185,21 @@ module hostedControlPlaneLogsTables 'script.bicep' = [
   }
 ]
 
+module monitoringEventsTables 'script.bicep' = [
+  for tableName in objectKeys(allMonitoringEventsTablesKQL): {
+    name: 'monitoringEventsTablesScript-${tableName}'
+    params: {
+      kustoName: kustoName
+      databaseName: db.monitoringEvents
+      scriptName: tableName
+      scriptContent: allMonitoringEventsTablesKQL[tableName]
+      principalPermissionsAction: 'RetainPermissionOnScriptCompletion'
+      continueOnErrors: false
+    }
+    dependsOn: [monitoringEvents]
+  }
+]
+
 // 4. User-add scripts per database (one script resource per dSTS group)
 module databaseUserScripts 'database-users.bicep' = [
   for (database, i) in databases: {
@@ -155,47 +210,35 @@ module databaseUserScripts 'database-users.bicep' = [
       dstsGroups: dstsGroups
       continueOnErrors: false
     }
-    dependsOn: database == db.hostedControlPlaneLogs ? [hostedControlPlaneLogs] : [serviceLogs]
+    dependsOn: database == db.hostedControlPlaneLogs
+      ? [hostedControlPlaneLogs]
+      : database == db.monitoringEvents ? [monitoringEvents] : [serviceLogs]
   }
 ]
 
-// 5. Cross-cluster query scripts (executed when their script content is provided)
-module crossClusterServiceLogsQueryScript 'script.bicep' = if (deployCrossClusterServiceLogsScript) {
-  name: 'crossClusterServiceLogsScript'
+// 5. Grafana ServiceLogs access
+module grafanaServiceLogsAccess 'grant-access.bicep' = if (hasGrafana) {
+  name: 'grafana-serviceLogs-viewer'
   params: {
     kustoName: kustoName
     databaseName: db.serviceLogs
-    scriptName: 'crossClusterQueries'
-    scriptContent: crossClusterServiceLogsScript
-    principalPermissionsAction: 'RetainPermissionOnScriptCompletion'
-    continueOnErrors: false
+    readAccessPrincipalIds: [grafanaPrincipalId]
   }
-  dependsOn: [
-    databaseUserScripts
-    serviceLogsTables
-    hostedControlPlaneLogsTables
-  ]
-}
-
-module crossClusterHostedControlPlaneLogsQueryScript 'script.bicep' = if (deployCrossClusterHostedControlPlaneLogsScript) {
-  name: 'crossClusterHostedControlPlaneLogsScript'
-  params: {
-    kustoName: kustoName
-    databaseName: db.hostedControlPlaneLogs
-    scriptName: 'crossClusterQueries'
-    scriptContent: crossClusterHostedControlPlaneLogsScript
-    principalPermissionsAction: 'RetainPermissionOnScriptCompletion'
-    continueOnErrors: false
-  }
-  dependsOn: [
-    databaseUserScripts
-    serviceLogsTables
-    hostedControlPlaneLogsTables
-  ]
+  dependsOn: [serviceLogsTables]
 }
 
 // 6. Remove the caller principal
 // THIS MUST BE THE LAST SCRIPT TO RUN
+// The table scripts above use RetainPermissionOnScriptCompletion, so the
+// principal that runs them keeps database Admin on each logs database after
+// they finish. This dummy script runs LAST with RemovePermissionOnScriptCompletion
+// to strip that retained, per-database Admin so no standing admin accumulates on
+// the Kusto databases.
+// The strip is database-scoped and only affects that deployment principal; it
+// does not touch the cluster-scoped AllDatabasesAdmin principalAssignment that
+// cluster.bicep grants the global rollout MSI, which is what lets the
+// KustoEntityGroups pipeline step (kustoctl) sync entity groups on all three
+// databases (including MonitoringEvents) after deployment.
 module removePermission 'script.bicep' = [
   for (database, i) in databases: {
     name: '${database}-removePermission-${i}'
@@ -211,8 +254,8 @@ module removePermission 'script.bicep' = [
       databaseUserScripts
       serviceLogsTables
       hostedControlPlaneLogsTables
-      crossClusterServiceLogsQueryScript
-      crossClusterHostedControlPlaneLogsQueryScript
+      monitoringEventsTables
+      grafanaServiceLogsAccess
     ]
   }
 ]

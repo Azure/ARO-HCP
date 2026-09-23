@@ -10,4 +10,5 @@ Generally verbose logs, but may exhibit repeated errors when Azure infrastructur
 
 ## Where to Go Next
 
-Review `events/clustersService/events.md` to confirm that Clusters Service is functioning properly.
+- Review `events/clustersService/events.md` to confirm that Clusters Service is functioning properly.
+- If logs show the destruct chain stuck at a destructor (repeated `Not continuing to the next destructor`), check `conditions/acm/managedClusterConditions.md` for ManagedCluster status, `events/acm/klusterletEvents.md` for K8s events, and `logs/acm/klusterletLogs.md` for addon pod evictions or scheduling failures in the klusterlet namespace.

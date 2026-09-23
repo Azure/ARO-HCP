@@ -1,0 +1,44 @@
+rule_files:
+- access-cluster-slo-recordingRule.yaml
+evaluation_interval: 1m
+tests:
+# Verify recording rules produce expected output from input series
+- interval: 1m
+  input_series:
+  # 8 succeeded, 2 failed credential operations
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/a", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", phase="succeeded", cluster="mgmt-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/b", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", phase="succeeded", cluster="mgmt-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/c", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", phase="succeeded", cluster="mgmt-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/d", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", phase="succeeded", cluster="mgmt-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/e", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="revokecredentials", phase="succeeded", cluster="mgmt-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/f", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="revokecredentials", phase="succeeded", cluster="mgmt-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/g", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="revokecredentials", phase="succeeded", cluster="mgmt-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/h", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="revokecredentials", phase="succeeded", cluster="mgmt-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/i", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", phase="failed", cluster="mgmt-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/j", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="revokecredentials", phase="failed", cluster="mgmt-1"}'
+    values: "1+0x15"
+  promql_expr_test:
+  - expr: "errors:backend_credential_operation:succeeded_total"
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:backend_credential_operation:succeeded_total{cluster="mgmt-1"}'
+      value: 8
+  - expr: "errors:backend_credential_operation:terminal_total"
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:backend_credential_operation:terminal_total{cluster="mgmt-1"}'
+      value: 10
+  - expr: "errors:backend_credential_operation:error_rate"
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:backend_credential_operation:error_rate{cluster="mgmt-1"}'
+      value: 0.2

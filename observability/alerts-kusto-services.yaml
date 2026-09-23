@@ -1,0 +1,20 @@
+prometheusRules:
+  rulesFolders:
+  - ../frontend/alerts/frontend-path-latency-prometheusRule.yaml
+  - alerts/serviceMemoryResources-prometheusRule.yaml
+  untestedRules:
+  - alerts/kubernetesControlPlane-prometheusRule.yaml
+  prometheusOperatorVersion: e02554298cb62b5533f3407c8eacc664e80bc74b
+  outputBicep: ../dev-infrastructure/modules/metrics/rules/generatedKustoOnlyServicePrometheusAlertingRules.bicep
+  groupNamePrefix: "svc-"
+  outputReplacements:
+  - from: 'job="kube-scheduler"'
+    to: 'job="controlplane-kube-scheduler"'
+  - from: 'job="apiserver"'
+    to: 'job="controlplane-apiserver"'
+  - from: 'job="etcd"'
+    to: 'job="controlplane-etcd"'
+  - from: 'job="cluster-autoscaler"'
+    to: 'job="controlplane-cluster-autoscaler"'
+  - from: 'job="kube-controller-manager"'
+    to: 'job="controlplane-kube-controller-manager"'

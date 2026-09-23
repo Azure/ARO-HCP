@@ -1,0 +1,20 @@
+{{- /*
+Container logs for a namespace from the HostedControlPlaneLogs database, where the
+per-cluster hosted control plane pod logs (kube-apiserver, etcd,
+control-plane-operator, etc.) live. Unlike the ServiceLogs container logs, these
+are NOT filtered by the management cluster's `cluster` column — that column does
+not carry the management cluster name here — so the control-plane namespace name
+(globally unique, it embeds the cluster id) is the scope. Paired with the
+ServiceLogs container logs so a namespace's pod logs are captured wherever the
+forwarder routed them.
+*/ -}}
+{{- if .NoTruncation}}set notruncation;
+{{end -}}
+containerLogs
+| where timestamp between ({{ .TimestampMin }} .. {{ .TimestampMax }})
+| where namespace_name == '{{.Namespace}}'
+| project timestamp, log, cluster, namespace_name, container_name, pod_name
+| order by pod_name asc, container_name asc, timestamp asc
+{{- if gt .Limit 0}}
+| limit {{.Limit}}
+{{- end}}

@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: aro-hcp-ocp-versions-config
+  namespace: '{{ .Release.Namespace }}'
+data:
+  aro-hcp-ocp-versions-config.yaml: |
+    defaultVersion:
+      channelGroupName: stable
+      version: 4.20.8
+    channelGroups:
+      - url: https://api.openshift.com/api/upgrades_info/graph
+        channelGroupName: stable
+        minVersion: 4.20.0
+        maxVersion: ""
+      - url: https://api.openshift.com/api/upgrades_info/graph
+        channelGroupName: fast
+        minVersion: 4.20.0
+        maxVersion: ""
+      - url: https://api.openshift.com/api/upgrades_info/graph
+        channelGroupName: candidate
+        minVersion: 4.20.0
+        maxVersion: ""
+      - url: https://multi.ocp.releases.ci.openshift.org/graph
+        channelGroupName: nightly
+        minVersion: 4.20.0-0.nightly-20200101
+        maxVersion: ""

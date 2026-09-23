@@ -1,4 +1,17 @@
 ---
+# Source: mgmt-agent/templates/mgmt-agent.poddisruptionbudget.yaml
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: mgmt-agent
+  namespace: mgmt-agent
+spec:
+  minAvailable: 1
+  unhealthyPodEvictionPolicy: AlwaysAllow
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: mgmt-agent
+---
 # Source: mgmt-agent/templates/serviceaccount.yaml
 apiVersion: v1
 kind: ServiceAccount
@@ -10,6 +23,214 @@ metadata:
     azure.workload.identity/tenant-id: '__tenantId__'
   name: mgmt-agent
   namespace: mgmt-agent
+---
+# Source: mgmt-agent/templates/node-health-config.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mgmt-agent-node-health
+  namespace: mgmt-agent
+  labels:
+    app.kubernetes.io/name: mgmt-agent
+data:
+  config.yaml: |
+    enabled: true
+---
+# Source: mgmt-agent/templates/capacityreport-crd.yaml
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: capacityreports.mgmtagent.aro-hcp.azure.com
+  labels:
+    app.kubernetes.io/name: mgmt-agent
+spec:
+  group: mgmtagent.aro-hcp.azure.com
+  names:
+    kind: CapacityReport
+    listKind: CapacityReportList
+    plural: capacityreports
+    singular: capacityreport
+  scope: Cluster
+  versions:
+  - name: v1alpha1
+    served: true
+    storage: true
+    additionalPrinterColumns:
+    - name: Last Reported
+      type: date
+      jsonPath: .status.lastReportedAt
+    subresources:
+      status: {}
+    schema:
+      openAPIV3Schema:
+        type: object
+        properties:
+          apiVersion:
+            type: string
+          kind:
+            type: string
+          metadata:
+            type: object
+          status:
+            type: object
+            properties:
+              conditions:
+                description: |-
+                  conditions reports the health of the capacity reporting process.
+                  Known condition types are:
+                  - "ReportCurrent": True when the most recent data collection succeeded
+                items:
+                  description: Condition contains details for one aspect of the current state of this API Resource.
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        lastTransitionTime is the last time the condition transitioned from one status to another.
+                        This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        message is a human readable message indicating details about the transition.
+                        This may be an empty string.
+                      maxLength: 32768
+                      type: string
+                    observedGeneration:
+                      description: |-
+                        observedGeneration represents the .metadata.generation that the condition was set based upon.
+                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                        with respect to the current state of the instance.
+                      format: int64
+                      minimum: 0
+                      type: integer
+                    reason:
+                      description: |-
+                        reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                        Producers of specific condition types may define expected values and meanings for this field,
+                        and whether the values are considered a guaranteed API.
+                        The value should be a CamelCase string.
+                        This field may not be empty.
+                      maxLength: 1024
+                      minLength: 1
+                      pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                      type: string
+                    status:
+                      description: status of the condition, one of True, False, Unknown.
+                      enum:
+                      - "True"
+                      - "False"
+                      - Unknown
+                      type: string
+                    type:
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                      maxLength: 316
+                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+                x-kubernetes-list-map-keys:
+                - type
+                x-kubernetes-list-type: map
+              lastReportedAt:
+                type: string
+                format: date-time
+              nodes:
+                type: array
+                maxItems: 64
+                x-kubernetes-list-type: map
+                x-kubernetes-list-map-keys:
+                - sku
+                items:
+                  type: object
+                  required:
+                  - sku
+                  - ready
+                  - notReady
+                  properties:
+                    sku:
+                      type: string
+                      maxLength: 253
+                    ready:
+                      type: integer
+                      format: int32
+                      minimum: 0
+                    notReady:
+                      type: integer
+                      format: int32
+                      minimum: 0
+                    allocatable:
+                      description: >-
+                        Sum of node.status.allocatable across ready nodes of this SKU. NotReady nodes contribute zero.
+                      type: object
+                      maxProperties: 16
+                      additionalProperties:
+                        anyOf:
+                        - type: integer
+                        - type: string
+                        # Standard Kubernetes resource.Quantity validation pattern
+                        pattern: "^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$"
+                        x-kubernetes-int-or-string: true
+              usage:
+                description: >-
+                  Actual resource consumption across HCP workloads in ocm-* namespaces, sourced from metrics-server PodMetrics.
+                type: object
+                maxProperties: 16
+                additionalProperties:
+                  anyOf:
+                  - type: integer
+                  - type: string
+                  # Standard Kubernetes resource.Quantity validation pattern
+                  pattern: "^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$"
+                  x-kubernetes-int-or-string: true
+              requested:
+                description: >-
+                  Sum of resource requests across regular (non-init) containers of non-terminal pods (phase is not Succeeded or Failed) in ocm-* namespaces. This approximates steady-state reservation.
+                type: object
+                maxProperties: 16
+                additionalProperties:
+                  anyOf:
+                  - type: integer
+                  - type: string
+                  # Standard Kubernetes resource.Quantity validation pattern
+                  pattern: "^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$"
+                  x-kubernetes-int-or-string: true
+              hostedControlPlanes:
+                description: >-
+                  Reported as a single atomic unit: the whole object is replaced on every apply, since mgmt-agent is the sole writer and there is no need to track ownership of readyResourceIDs/notReadyResourceIDs individually.
+                type: object
+                x-kubernetes-map-type: atomic
+                properties:
+                  readyResourceIDs:
+                    description: >-
+                      ARM resource IDs of HostedControlPlanes whose Available condition is True.
+                    type: array
+                    items:
+                      type: string
+                    x-kubernetes-list-type: set
+                  notReadyResourceIDs:
+                    description: >-
+                      ARM resource IDs of HostedControlPlanes whose Available condition is not True or missing.
+                    type: array
+                    items:
+                      type: string
+                    x-kubernetes-list-type: set
+              averageHCPResourceUsage:
+                description: >-
+                  Average actual resource consumption per ready HCP. Omitted when readyResourceIDs is empty.
+                type: object
+                maxProperties: 16
+                additionalProperties:
+                  anyOf:
+                  - type: integer
+                  - type: string
+                  # Standard Kubernetes resource.Quantity validation pattern
+                  pattern: "^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$"
+                  x-kubernetes-int-or-string: true
 ---
 # Source: mgmt-agent/templates/clusterrole.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -27,11 +248,29 @@ rules:
   - get
   - list
   - watch
+  - patch
 - apiGroups:
   - ""
   resources:
   - nodes/status
   verbs:
+  - patch
+  - update
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - list
+  - watch
+  - create
   - patch
   - update
 - apiGroups:
@@ -62,6 +301,16 @@ rules:
 - apiGroups:
   - ""
   resources:
+  - configmaps
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - patch
+- apiGroups:
+  - ""
+  resources:
   - services
   verbs:
   - get
@@ -79,6 +328,27 @@ rules:
   - watch
   - create
   - patch
+- apiGroups:
+  - mgmtagent.aro-hcp.azure.com
+  resources:
+  - capacityreports
+  verbs:
+  - get
+  - create
+  - patch
+- apiGroups:
+  - mgmtagent.aro-hcp.azure.com
+  resources:
+  - capacityreports/status
+  verbs:
+  - get
+  - patch
+- apiGroups:
+  - metrics.k8s.io
+  resources:
+  - pods
+  verbs:
+  - list
 ---
 # Source: mgmt-agent/templates/clusterrolebinding.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -95,6 +365,34 @@ subjects:
 - kind: ServiceAccount
   name: mgmt-agent
   namespace: mgmt-agent
+---
+# Source: mgmt-agent/templates/backup-cleanup-rbac.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: mgmt-agent-backup-cleanup
+  namespace: velero
+rules:
+- apiGroups:
+  - velero.io
+  resources:
+  - backups
+  - backuprepositories
+  - datauploads
+  - datadownloads
+  - restores
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - velero.io
+  resources:
+  - deletebackuprequests
+  verbs:
+  - list
+  - create
+  - delete
 ---
 # Source: mgmt-agent/templates/leader_election_role.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -125,6 +423,21 @@ rules:
   - create
   - patch
 ---
+# Source: mgmt-agent/templates/backup-cleanup-rbac.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: mgmt-agent-backup-cleanup
+  namespace: velero
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: mgmt-agent-backup-cleanup
+subjects:
+- kind: ServiceAccount
+  name: mgmt-agent
+  namespace: mgmt-agent
+---
 # Source: mgmt-agent/templates/leader_election_role_binding.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -146,10 +459,11 @@ subjects:
 apiVersion: v1
 kind: Service
 metadata:
-  name: mgmt-agent
+  name: mgmt-agent-metrics
   namespace: 'mgmt-agent'
   labels:
     app.kubernetes.io/name: "mgmt-agent"
+    port: metrics
 spec:
   selector:
     app.kubernetes.io/name: mgmt-agent
@@ -157,6 +471,7 @@ spec:
   - port: 8080
     targetPort: 8080
     protocol: TCP
+    name: metrics
 ---
 # Source: mgmt-agent/templates/deployment.yaml
 apiVersion: apps/v1
@@ -187,6 +502,8 @@ spec:
         - "--health-address=:8080"
         - "--ksm-image=mcr.microsoft.com/oss/v2/kubernetes/kube-state-metrics@sha256:1234567890"
         - "--log-verbosity=2"
+        - "--node-health-configmap=mgmt-agent-node-health"
+        - "--node-health-config-key=config.yaml"
         image: "arohcpsvcdev.azurecr.io/mgmt-agent@sha256:1234567890"
         name: mgmt-agent-controller
         env:
@@ -225,11 +542,32 @@ spec:
           periodSeconds: 10
         resources:
           requests:
-            cpu: 50m
-            memory: 64Mi
+            cpu: 100m
+            memory: 768Mi
         volumeMounts: []
       volumes: []
       serviceAccountName: mgmt-agent
+      priorityClassName: service-lifecycle-critical
       terminationGracePeriodSeconds: 10
       nodeSelector:
+---
+# Source: mgmt-agent/templates/servicemonitor.yaml
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: mgmt-agent
+  namespace: 'mgmt-agent'
+spec:
+  endpoints:
+  - interval: 30s
+    path: /metrics
+    port: metrics
+    scheme: http
+  namespaceSelector:
+    matchNames:
+    - 'mgmt-agent'
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: mgmt-agent
+      port: metrics
 

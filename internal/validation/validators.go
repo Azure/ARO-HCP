@@ -37,7 +37,8 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/utils/apihelpers"
 )
 
@@ -182,7 +183,7 @@ func OpenshiftVersionAtMostOneMinorSkew(previousVersionID, newVersionID string) 
 		}
 		previousVersionReleaseLine := fmt.Sprintf("%d.%d", parsedPreviousVersion.Major, parsedPreviousVersion.Minor)
 		desiredVersionReleaseLine := fmt.Sprintf("%d.%d", parsedDesiredVersion.Major, parsedDesiredVersion.Minor)
-		allowedTargetReleaseLine := api.AllowMajorUpgradePaths[previousVersionReleaseLine]
+		allowedTargetReleaseLine := metadataapi.AllowMajorUpgradePaths[previousVersionReleaseLine]
 		if desiredVersionReleaseLine != allowedTargetReleaseLine {
 			return fmt.Errorf("invalid upgrade path from %s to %s: cross-major upgrade from %s is only allowed to %s", previousVersionID, newVersionID, previousVersionReleaseLine, allowedTargetReleaseLine)
 		}
@@ -364,6 +365,11 @@ var (
 
 	azureVMName      = `^[a-zA-Z0-9]([a-zA-Z0-9._-]{0,62}[a-zA-Z0-9_])?$`
 	azureVMNameRegex = regexp.MustCompile(azureVMName)
+
+	// diskEncryptionSetName See https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/resource-name-rules#microsoftcompute
+	diskEncryptionSetName            = `^[a-zA-Z0-9_-]+$`
+	diskEncryptionSetNameRegex       = regexp.MustCompile(diskEncryptionSetName)
+	diskEncryptionSetNameErrorString = `(must contain only alphanumeric characters, underscores, and hyphens)`
 )
 
 func MatchesRegex(_ context.Context, _ operation.Operation, fldPath *field.Path, value, _ *string, regex *regexp.Regexp, errorString string) field.ErrorList {
@@ -658,6 +664,24 @@ func SameSubscription(ctx context.Context, op operation.Operation, fldPath *fiel
 	return nil
 }
 
+// SameVirtualNetwork checks that value and otherSubnet belong to the same Azure VNet.
+// Both must be subnet resource IDs whose Parent is the VNet.
+func SameVirtualNetwork(_ context.Context, _ operation.Operation, fldPath *field.Path, value, _ *azcorearm.ResourceID, otherSubnet *azcorearm.ResourceID) field.ErrorList {
+	if value == nil || otherSubnet == nil || value.Parent == nil || otherSubnet.Parent == nil {
+		return nil
+	}
+
+	if !strings.EqualFold(value.Parent.String(), otherSubnet.Parent.String()) {
+		return field.ErrorList{field.Invalid(
+			fldPath,
+			value.String(),
+			fmt.Sprintf("must belong to the same VNet as subnetId '%s'", otherSubnet.String()),
+		)}
+	}
+
+	return nil
+}
+
 // ResourceID
 // 1. has subscription
 // 2. has name
@@ -911,7 +935,7 @@ func ValidateCrossMajorNodePoolSkew(nodePoolVersion, controlPlaneVersion semver.
 	npKey := fmt.Sprintf("%d.%d", nodePoolVersion.Major, nodePoolVersion.Minor)
 	cpKey := fmt.Sprintf("%d.%d", controlPlaneVersion.Major, controlPlaneVersion.Minor)
 
-	allowedCPs, exists := api.AllowControlPlaneNodePoolMajorVersionSkew[npKey]
+	allowedCPs, exists := metadataapi.AllowControlPlaneNodePoolMajorVersionSkew[npKey]
 	if !exists {
 		return fmt.Errorf("node pool version %s is not allowed to coexist with a different-major control plane",
 			nodePoolVersion.String())
@@ -930,7 +954,7 @@ func ValidateMajorUpgrade(fromVersion, toVersion semver.Version) error {
 	sourceKey := fmt.Sprintf("%d.%d", fromVersion.Major, fromVersion.Minor)
 	targetKey := fmt.Sprintf("%d.%d", toVersion.Major, toVersion.Minor)
 
-	allowedTargets, exists := api.AllowMajorUpgradePaths[sourceKey]
+	allowedTargets, exists := metadataapi.AllowMajorUpgradePaths[sourceKey]
 	if !exists {
 		return fmt.Errorf("invalid upgrade path from %s to %s: major version upgrades are not supported",
 			fromVersion.String(), toVersion.String())
@@ -951,17 +975,28 @@ func ValidateMajorUpgrade(fromVersion, toVersion semver.Version) error {
 //   - Downgrade: at most -2 minor versions from the highest control plane version
 //   - Cross-major changes (either direction) require AFEC FeatureExperimentalReleaseFeatures
 //   - NP version must be in the allowed skew map when CP and NP are on different majors
-func ValidateNodePoolVersionChange(desiredVersion semver.Version, activeVersions []api.HCPNodePoolActiveVersion, lowestCPVersion, highestCPVersion *semver.Version, allowMajorUpgrade bool) error {
+func ValidateNodePoolVersionChange(desiredVersion semver.Version, activeVersions []coreapi.ServiceProviderNodePoolActiveVersion, lowestCPVersion, highestCPVersion *semver.Version, allowMajorUpgrade bool) error {
 	// Skip if already in active versions
-	if slices.ContainsFunc(activeVersions, func(av api.HCPNodePoolActiveVersion) bool {
+	if slices.ContainsFunc(activeVersions, func(av coreapi.ServiceProviderNodePoolActiveVersion) bool {
 		return av.Version != nil && av.Version.EQ(desiredVersion)
 	}) {
 		return nil
 	}
+	if lowestCPVersion == nil {
+		return fmt.Errorf("cannot validate node pool version change because lowest control plane version is not known")
+	}
+	if highestCPVersion == nil {
+		return fmt.Errorf("cannot validate node pool version change because highest control plane version is not known")
+	}
 
 	lowest, highest := apihelpers.FindLowestAndHighestNodePoolVersion(activeVersions)
 
-	if desiredVersion.GT(*lowestCPVersion) {
+	// Only the node pool's major.minor must not exceed the lowest control
+	// plane version; a higher patch (z-stream) is allowed. Compare
+	// major.minor instead of the full semantic version so that e.g. NP
+	// 4.22.8 is permitted with CP 4.22.7.
+	if desiredVersion.Major > lowestCPVersion.Major ||
+		(desiredVersion.Major == lowestCPVersion.Major && desiredVersion.Minor > lowestCPVersion.Minor) {
 		return fmt.Errorf(
 			"invalid node pool version %s: cannot exceed control plane version %s",
 			desiredVersion.String(), lowestCPVersion.String(),
@@ -984,7 +1019,7 @@ func ValidateNodePoolVersionChange(desiredVersion semver.Version, activeVersions
 	isSameMajorNPChange := highest == nil || desiredVersion.Major == highest.Major
 	if desiredVersion.Major != highestCPVersion.Major && isSameMajorNPChange {
 		if !allowMajorUpgrade {
-			return fmt.Errorf("major version changes are not supported")
+			return fmt.Errorf("node pool version changes are not supported while the control plane is on a different major version (node pool major version %d vs control plane major version %d)", desiredVersion.Major, highestCPVersion.Major)
 		}
 		return ValidateCrossMajorNodePoolSkew(desiredVersion, *highestCPVersion)
 	}

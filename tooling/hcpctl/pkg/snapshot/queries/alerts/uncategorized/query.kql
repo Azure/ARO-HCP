@@ -1,0 +1,11 @@
+{{ template "alertEventsBase" . }}
+| where isnull(alertContext.labels.namespace) or
+    isnotnull(alertContext.labels.namespace) and
+    alertContext.labels.namespace !startswith 'ocm-arohcp' and
+    alertContext.labels.namespace !startswith 'klusterlet' and
+    alertContext.labels.namespace !in (
+        'sessiongate', 'maestro', 'fleet', 'clusters-service',
+        'aro-hcp-admin-api', 'aro-hcp', 'acrpull', 'velero',
+        'mgmt-agent', 'kube-applier', 'hypershift-sharedingress', 'hypershift'
+    )
+{{ template "alertEventsProject" . }}

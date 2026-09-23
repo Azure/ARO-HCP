@@ -7,7 +7,7 @@ FRONTEND_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 ARO_HCP_REVISION ?= $(shell git rev-parse HEAD)
 ARO_HCP_COMMIT_TIME ?= $(shell TZ=UTC git show -s --format=%cd --date=iso-strict-local ${ARO_HCP_REVISION})
 ARO_HCP_IMAGE_REGISTRY ?= ${ARO_HCP_IMAGE_ACR}.azurecr.io
-FRONTEND_IMAGE_TAG ?= $(shell DETECT_DIRTY_GIT_WORKTREE=${DETECT_DIRTY_GIT_WORKTREE} DEPLOY_ENV=${DEPLOY_ENV} ../generate-tag.sh)
+FRONTEND_IMAGE_TAG ?= $(or $(IMAGE_TAG),$(shell DETECT_DIRTY_GIT_WORKTREE=${DETECT_DIRTY_GIT_WORKTREE} DEPLOY_ENV=${DEPLOY_ENV} ../generate-tag.sh))
 FRONTEND_GENERATED_IMAGE_REPOSITORY = $(shell DEPLOY_ENV=${DEPLOY_ENV} BASELINE_REPO=${FRONTEND_IMAGE_REPOSITORY} ../generate-repo.sh)
 FRONTEND_TAGGED_IMAGE ?= $(ARO_HCP_IMAGE_REGISTRY)/$(FRONTEND_GENERATED_IMAGE_REPOSITORY):$(FRONTEND_IMAGE_TAG)
 
@@ -81,6 +81,13 @@ record-override: $(YQ) $(ORAS)
 		.clouds.dev.environments.$(DEPLOY_ENV).defaults.frontend.image.digest = \"$$DIGEST\" \
 	" > $(OVERRIDE_CONFIG_FILE)
 .PHONY: record-override
+
+record-latest-override: $(YQ)
+	@../hack/record-latest-image-override.sh \
+		"$(ARO_HCP_IMAGE_ACR)" "$(ARO_HCP_IMAGE_REGISTRY)" \
+		"$(FRONTEND_IMAGE_REPOSITORY)" "$(DEPLOY_ENV)" \
+		"frontend" "$(OVERRIDE_CONFIG_FILE)" "$(YQ)"
+.PHONY: record-latest-override
 
 deploy: build-and-push record-override
 	make -C .. pipeline/RP.Frontend OVERRIDE_CONFIG_FILE=$(OVERRIDE_CONFIG_FILE)

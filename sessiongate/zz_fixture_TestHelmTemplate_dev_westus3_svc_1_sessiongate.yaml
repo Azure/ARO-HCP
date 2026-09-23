@@ -1,4 +1,17 @@
 ---
+# Source: sessiongate/templates/sessiongate.poddisruptionbudget.yaml
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: sessiongate
+  namespace: sessiongate
+spec:
+  minAvailable: 1
+  unhealthyPodEvictionPolicy: AlwaysAllow
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: sessiongate
+---
 # Source: sessiongate/templates/serviceaccount.yaml
 apiVersion: v1
 kind: ServiceAccount

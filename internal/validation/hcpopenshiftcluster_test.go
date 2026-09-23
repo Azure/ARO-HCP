@@ -20,32 +20,35 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/blang/semver/v4"
+
 	"k8s.io/apimachinery/pkg/api/operation"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 var (
-	managedIdentity1 = api.NewTestUserAssignedIdentity("myManagedIdentity1")
-	managedIdentity2 = api.NewTestUserAssignedIdentity("myManagedIdentity2")
-	managedIdentity3 = api.NewTestUserAssignedIdentity("myManagedIdentity3")
+	managedIdentity1 = coreapitesting.NewTestUserAssignedIdentity("myManagedIdentity1")
+	managedIdentity2 = coreapitesting.NewTestUserAssignedIdentity("myManagedIdentity2")
+	managedIdentity3 = coreapitesting.NewTestUserAssignedIdentity("myManagedIdentity3")
 )
 
 func TestClusterRequired(t *testing.T) {
 	tests := []struct {
 		name         string
-		resource     *api.HCPOpenShiftCluster
-		tweaks       *api.HCPOpenShiftCluster
+		resource     *coreapi.HCPOpenShiftCluster
+		tweaks       *coreapi.HCPOpenShiftCluster
 		opOptions    []string
 		expectErrors []utils.ExpectedError
 	}{
 		{
 			name:     "Empty cluster",
-			resource: &api.HCPOpenShiftCluster{},
+			resource: &coreapi.HCPOpenShiftCluster{},
 			expectErrors: []utils.ExpectedError{
 				{
 					Message:   "Required value",
@@ -106,6 +109,18 @@ func TestClusterRequired(t *testing.T) {
 				{
 					Message:   "Unsupported value",
 					FieldPath: "customerProperties.api.visibility",
+				},
+				{
+					Message:   "Required value",
+					FieldPath: "customerProperties.ingress.type",
+				},
+				{
+					Message:   "Unsupported value",
+					FieldPath: "customerProperties.ingress.type",
+				},
+				{
+					Message:   "Unsupported value",
+					FieldPath: "customerProperties.cryptoRestrictions",
 				},
 				{
 					Message:   "Required value",
@@ -175,9 +190,9 @@ func TestClusterRequired(t *testing.T) {
 		},
 		{
 			name: "Default cluster",
-			resource: api.NewDefaultHCPOpenShiftCluster(
-				api.Must(azcorearm.ParseResourceID("/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster")),
-				api.TestLocation,
+			resource: coreapi.NewDefaultHCPOpenShiftCluster(
+				metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster")),
+				coreapitesting.TestLocation,
 			),
 			expectErrors: []utils.ExpectedError{
 				{
@@ -201,6 +216,14 @@ func TestClusterRequired(t *testing.T) {
 					FieldPath: "customerProperties.platform.networkSecurityGroupId",
 				},
 				{
+					Message:   "Unsupported value",
+					FieldPath: "customerProperties.etcd.dataEncryption.keyManagementMode",
+				},
+				{
+					Message:   "Required value",
+					FieldPath: "customerProperties.etcd.dataEncryption.keyManagementMode",
+				},
+				{
 					Message:   "Required value",
 					FieldPath: "serviceProviderProperties.managedIdentitiesDataPlaneIdentityURL",
 				},
@@ -212,27 +235,27 @@ func TestClusterRequired(t *testing.T) {
 		},
 		{
 			name:         "Minimum valid cluster",
-			resource:     api.MinimumValidClusterTestCase(),
+			resource:     coreapitesting.MinimumValidClusterTestCase(),
 			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "Cluster with identity",
-			tweaks: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
-					Platform: api.CustomerPlatformProfile{
-						OperatorsAuthentication: api.OperatorsAuthenticationProfile{
-							UserAssignedIdentities: api.UserAssignedIdentitiesProfile{
+			tweaks: &coreapi.HCPOpenShiftCluster{
+				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+					Platform: coreapi.CustomerPlatformProfile{
+						OperatorsAuthentication: coreapi.OperatorsAuthenticationProfile{
+							UserAssignedIdentities: coreapi.UserAssignedIdentitiesProfile{
 								ControlPlaneOperators: map[string]*azcorearm.ResourceID{
-									"operatorX": api.NewTestUserAssignedIdentity("MyManagedIdentity"),
+									"operatorX": coreapitesting.NewTestUserAssignedIdentity("MyManagedIdentity"),
 								},
 							},
 						},
 					},
 				},
-				Identity: &arm.ManagedServiceIdentity{
-					Type: arm.ManagedServiceIdentityTypeUserAssigned,
-					UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{
-						api.NewTestUserAssignedIdentity("MyManagedIdentity").String(): {},
+				Identity: &coreapi.ManagedServiceIdentity{
+					Type: coreapi.ManagedServiceIdentityTypeUserAssigned,
+					UserAssignedIdentities: map[string]*coreapi.UserAssignedIdentity{
+						coreapitesting.NewTestUserAssignedIdentity("MyManagedIdentity").String(): {},
 					},
 				},
 			},
@@ -244,7 +267,7 @@ func TestClusterRequired(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			resource := tt.resource
 			if resource == nil {
-				resource = api.ClusterTestCase(t, tt.tweaks)
+				resource = coreapitesting.ClusterTestCase(t, tt.tweaks)
 			}
 
 			op := operation.Operation{Type: operation.Create, Options: tt.opOptions}
@@ -259,21 +282,21 @@ func TestClusterValidate(t *testing.T) {
 	// This function tests all the other validators in use.
 	tests := []struct {
 		name         string
-		resource     *api.HCPOpenShiftCluster
-		tweaks       *api.HCPOpenShiftCluster
+		resource     *coreapi.HCPOpenShiftCluster
+		tweaks       *coreapi.HCPOpenShiftCluster
 		opOptions    []string
 		expectErrors []utils.ExpectedError
 	}{
 		{
 			name:         "Minimum valid cluster",
-			tweaks:       &api.HCPOpenShiftCluster{},
+			tweaks:       &coreapi.HCPOpenShiftCluster{},
 			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "Bad cidrv4",
-			tweaks: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
-					Network: api.NetworkProfile{
+			tweaks: &coreapi.HCPOpenShiftCluster{
+				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+					Network: coreapi.NetworkProfile{
 						PodCIDR: "Mmm... apple cider",
 					},
 				},
@@ -287,9 +310,9 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Bad dns_rfc1035_label",
-			tweaks: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
-					DNS: api.CustomerDNSProfile{
+			tweaks: &coreapi.HCPOpenShiftCluster{
+				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+					DNS: coreapi.CustomerDNSProfile{
 						BaseDomainPrefix: "0badlabel",
 					},
 				},
@@ -303,9 +326,9 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Bad enum_outboundtype",
-			tweaks: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
-					Platform: api.CustomerPlatformProfile{
+			tweaks: &coreapi.HCPOpenShiftCluster{
+				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+					Platform: coreapi.CustomerPlatformProfile{
 						OutboundType: "loadJuggler",
 					},
 				},
@@ -319,8 +342,8 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Version ID is required",
-			resource: func() *api.HCPOpenShiftCluster {
-				r := api.MinimumValidClusterTestCase()
+			resource: func() *coreapi.HCPOpenShiftCluster {
+				r := coreapitesting.MinimumValidClusterTestCase()
 				r.CustomerProperties.Version.ID = ""
 				return r
 			}(),
@@ -333,8 +356,8 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Version ID with micro version is rejected without experimental flag",
-			resource: func() *api.HCPOpenShiftCluster {
-				r := api.MinimumValidClusterTestCase()
+			resource: func() *coreapi.HCPOpenShiftCluster {
+				r := coreapitesting.MinimumValidClusterTestCase()
 				r.CustomerProperties.Version.ID = "4.20.8"
 				return r
 			}(),
@@ -347,18 +370,18 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Version ID with micro version is allowed with experimental flag",
-			resource: func() *api.HCPOpenShiftCluster {
-				r := api.MinimumValidClusterTestCase()
+			resource: func() *coreapi.HCPOpenShiftCluster {
+				r := coreapitesting.MinimumValidClusterTestCase()
 				r.CustomerProperties.Version.ID = "4.20.8"
 				return r
 			}(),
-			opOptions:    testFeatureOptions(api.FeatureExperimentalReleaseFeatures),
+			opOptions:    testFeatureOptions(metadataapi.FeatureExperimentalReleaseFeatures),
 			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "ChannelGroup candidate is rejected without experimental flag",
-			resource: func() *api.HCPOpenShiftCluster {
-				r := api.MinimumValidClusterTestCase()
+			resource: func() *coreapi.HCPOpenShiftCluster {
+				r := coreapitesting.MinimumValidClusterTestCase()
 				r.CustomerProperties.Version.ChannelGroup = "candidate"
 				return r
 			}(),
@@ -371,18 +394,18 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "ChannelGroup candidate is allowed with experimental flag",
-			resource: func() *api.HCPOpenShiftCluster {
-				r := api.MinimumValidClusterTestCase()
+			resource: func() *coreapi.HCPOpenShiftCluster {
+				r := coreapitesting.MinimumValidClusterTestCase()
 				r.CustomerProperties.Version.ChannelGroup = "candidate"
 				return r
 			}(),
-			opOptions:    testFeatureOptions(api.FeatureExperimentalReleaseFeatures),
+			opOptions:    testFeatureOptions(metadataapi.FeatureExperimentalReleaseFeatures),
 			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "Version ID with prerelease is rejected without experimental flag",
-			resource: func() *api.HCPOpenShiftCluster {
-				r := api.MinimumValidClusterTestCase()
+			resource: func() *coreapi.HCPOpenShiftCluster {
+				r := coreapitesting.MinimumValidClusterTestCase()
 				r.CustomerProperties.Version.ID = "4.21.0-rc.1"
 				return r
 			}(),
@@ -395,29 +418,29 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Version ID with prerelease is allowed with experimental flag",
-			resource: func() *api.HCPOpenShiftCluster {
-				r := api.MinimumValidClusterTestCase()
+			resource: func() *coreapi.HCPOpenShiftCluster {
+				r := coreapitesting.MinimumValidClusterTestCase()
 				r.CustomerProperties.Version.ID = "4.21.0-rc.1"
 				return r
 			}(),
-			opOptions:    testFeatureOptions(api.FeatureExperimentalReleaseFeatures),
+			opOptions:    testFeatureOptions(metadataapi.FeatureExperimentalReleaseFeatures),
 			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "Version ID with nightly format is allowed with experimental flag",
-			resource: func() *api.HCPOpenShiftCluster {
-				r := api.MinimumValidClusterTestCase()
+			resource: func() *coreapi.HCPOpenShiftCluster {
+				r := coreapitesting.MinimumValidClusterTestCase()
 				r.CustomerProperties.Version.ChannelGroup = "nightly"
 				r.CustomerProperties.Version.ID = "4.21.0-0.nightly-2024-01-15-123456"
 				return r
 			}(),
-			opOptions:    testFeatureOptions(api.FeatureExperimentalReleaseFeatures),
+			opOptions:    testFeatureOptions(metadataapi.FeatureExperimentalReleaseFeatures),
 			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "ChannelGroup fast is allowed without experimental flag",
-			resource: func() *api.HCPOpenShiftCluster {
-				r := api.MinimumValidClusterTestCase()
+			resource: func() *coreapi.HCPOpenShiftCluster {
+				r := coreapitesting.MinimumValidClusterTestCase()
 				r.CustomerProperties.Version.ChannelGroup = "fast"
 				return r
 			}(),
@@ -425,27 +448,29 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Version must be at least 4.20 without experimental flag",
-			resource: func() *api.HCPOpenShiftCluster {
-				r := api.MinimumValidClusterTestCase()
+			resource: func() *coreapi.HCPOpenShiftCluster {
+				r := coreapitesting.MinimumValidClusterTestCase()
 				r.CustomerProperties.Version.ID = "4.20"
 				return r
 			}(),
 			expectErrors: []utils.ExpectedError{},
 		},
 		{
-			name: "Version must be at least 4.19 with experimental flag",
-			resource: func() *api.HCPOpenShiftCluster {
-				r := api.MinimumValidClusterTestCase()
+			name: "Version must be at least 4.20 with experimental flag",
+			resource: func() *coreapi.HCPOpenShiftCluster {
+				r := coreapitesting.MinimumValidClusterTestCase()
 				r.CustomerProperties.Version.ID = "4.19"
 				return r
 			}(),
-			opOptions:    testFeatureOptions(api.FeatureExperimentalReleaseFeatures),
-			expectErrors: []utils.ExpectedError{},
+			opOptions: testFeatureOptions(metadataapi.FeatureExperimentalReleaseFeatures),
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be at least 4.20", FieldPath: "customerProperties.version.id"},
+			},
 		},
 		{
 			name: "ChannelGroup nightly is rejected without experimental flag",
-			resource: func() *api.HCPOpenShiftCluster {
-				r := api.MinimumValidClusterTestCase()
+			resource: func() *coreapi.HCPOpenShiftCluster {
+				r := coreapitesting.MinimumValidClusterTestCase()
 				r.CustomerProperties.Version.ChannelGroup = "nightly"
 				return r
 			}(),
@@ -457,23 +482,45 @@ func TestClusterValidate(t *testing.T) {
 			},
 		},
 		{
-			name: "ChannelGroup nightly is allowed with experimental flag",
-			resource: func() *api.HCPOpenShiftCluster {
-				r := api.MinimumValidClusterTestCase()
+			// A bare "<major>.<minor>" with no exact pin is what the object looks
+			// like post-mutation when the customer did not supply a full version.
+			name: "ChannelGroup nightly without a full version is rejected with experimental flag",
+			resource: func() *coreapi.HCPOpenShiftCluster {
+				r := coreapitesting.MinimumValidClusterTestCase()
 				r.CustomerProperties.Version.ChannelGroup = "nightly"
 				return r
 			}(),
-			opOptions:    testFeatureOptions(api.FeatureExperimentalReleaseFeatures),
+			opOptions: testFeatureOptions(metadataapi.FeatureExperimentalReleaseFeatures),
+			expectErrors: []utils.ExpectedError{
+				{
+					Message:   "must be specified as MAJOR.MINOR.PATCH (optionally with a pre-release, e.g. a nightly build suffix) when channelGroup is \"nightly\"",
+					FieldPath: "customerProperties.version.id",
+				},
+			},
+		},
+		{
+			// Post-mutation shape for a full nightly version.id: version.id is
+			// reduced to its release line and the exact build is pinned on
+			// ExperimentalFeatures. The validator maps the pin back and accepts it.
+			name: "ChannelGroup nightly with a mapped exact version is allowed with experimental flag",
+			resource: func() *coreapi.HCPOpenShiftCluster {
+				r := coreapitesting.MinimumValidClusterTestCase()
+				r.CustomerProperties.Version.ChannelGroup = "nightly"
+				exact := semver.MustParse("4.20.0-0.nightly-2026-08-05-123456")
+				r.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion = &exact
+				return r
+			}(),
+			opOptions:    testFeatureOptions(metadataapi.FeatureExperimentalReleaseFeatures),
 			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "ChannelGroup blah is rejected even with experimental flag",
-			resource: func() *api.HCPOpenShiftCluster {
-				r := api.MinimumValidClusterTestCase()
+			resource: func() *coreapi.HCPOpenShiftCluster {
+				r := coreapitesting.MinimumValidClusterTestCase()
 				r.CustomerProperties.Version.ChannelGroup = "blah"
 				return r
 			}(),
-			opOptions: testFeatureOptions(api.FeatureExperimentalReleaseFeatures),
+			opOptions: testFeatureOptions(metadataapi.FeatureExperimentalReleaseFeatures),
 			expectErrors: []utils.ExpectedError{
 				{
 					Message:   "supported values: \"candidate\", \"fast\", \"nightly\", \"stable\"",
@@ -483,9 +530,9 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Bad enum_visibility",
-			tweaks: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
-					API: api.CustomerAPIProfile{
+			tweaks: &coreapi.HCPOpenShiftCluster{
+				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+					API: coreapi.CustomerAPIProfile{
 						Visibility: "it's a secret to everybody",
 					},
 				},
@@ -499,8 +546,8 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Bad enum_managedserviceidentitytype",
-			tweaks: &api.HCPOpenShiftCluster{
-				Identity: &arm.ManagedServiceIdentity{
+			tweaks: &coreapi.HCPOpenShiftCluster{
+				Identity: &coreapi.ManagedServiceIdentity{
 					Type: "brokenServiceType",
 				},
 			},
@@ -513,10 +560,10 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Bad enum_clusterimageregistryprofilestate",
-			tweaks: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
-					ClusterImageRegistry: api.ClusterImageRegistryProfile{
-						State: api.ClusterImageRegistryState("not enabled"),
+			tweaks: &coreapi.HCPOpenShiftCluster{
+				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+					ClusterImageRegistry: coreapi.ClusterImageRegistryProfile{
+						State: metadataapi.ClusterImageRegistryState("not enabled"),
 					},
 				},
 			},
@@ -529,9 +576,9 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Base domain prefix is too long",
-			tweaks: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
-					DNS: api.CustomerDNSProfile{
+			tweaks: &coreapi.HCPOpenShiftCluster{
+				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+					DNS: coreapi.CustomerDNSProfile{
 						BaseDomainPrefix: "this-domain-is-too-long",
 					},
 				},
@@ -545,9 +592,9 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Host prefix is too small",
-			tweaks: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
-					Network: api.NetworkProfile{
+			tweaks: &coreapi.HCPOpenShiftCluster{
+				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+					Network: coreapi.NetworkProfile{
 						HostPrefix: 22,
 					},
 				},
@@ -561,9 +608,9 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Host prefix is too large",
-			tweaks: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
-					Network: api.NetworkProfile{
+			tweaks: &coreapi.HCPOpenShiftCluster{
+				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+					Network: coreapi.NetworkProfile{
 						HostPrefix: 27,
 					},
 				},
@@ -577,11 +624,11 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Control plane operator name cannot be empty",
-			tweaks: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
-					Platform: api.CustomerPlatformProfile{
-						OperatorsAuthentication: api.OperatorsAuthenticationProfile{
-							UserAssignedIdentities: api.UserAssignedIdentitiesProfile{
+			tweaks: &coreapi.HCPOpenShiftCluster{
+				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+					Platform: coreapi.CustomerPlatformProfile{
+						OperatorsAuthentication: coreapi.OperatorsAuthenticationProfile{
+							UserAssignedIdentities: coreapi.UserAssignedIdentitiesProfile{
 								ControlPlaneOperators: map[string]*azcorearm.ResourceID{
 									"": managedIdentity1,
 								},
@@ -604,11 +651,11 @@ func TestClusterValidate(t *testing.T) {
 
 		{
 			name: "Data plane operator name cannot be empty",
-			tweaks: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
-					Platform: api.CustomerPlatformProfile{
-						OperatorsAuthentication: api.OperatorsAuthenticationProfile{
-							UserAssignedIdentities: api.UserAssignedIdentitiesProfile{
+			tweaks: &coreapi.HCPOpenShiftCluster{
+				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+					Platform: coreapi.CustomerPlatformProfile{
+						OperatorsAuthentication: coreapi.OperatorsAuthenticationProfile{
+							UserAssignedIdentities: coreapi.UserAssignedIdentitiesProfile{
 								DataPlaneOperators: map[string]*azcorearm.ResourceID{
 									"": managedIdentity1,
 								},
@@ -626,15 +673,11 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Customer managed ETCD key management mode requires CustomerManaged fields",
-			tweaks: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
-					Etcd: api.EtcdProfile{
-						DataEncryption: api.EtcdDataEncryptionProfile{
-							KeyManagementMode: api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
-						},
-					},
-				},
-			},
+			resource: func() *coreapi.HCPOpenShiftCluster {
+				r := coreapitesting.MinimumValidClusterTestCase()
+				r.CustomerProperties.Etcd.DataEncryption.CustomerManaged = nil
+				return r
+			}(),
 			expectErrors: []utils.ExpectedError{
 				{
 					Message:   "must be specified when `keyManagementMode` is \"CustomerManaged\"",
@@ -643,42 +686,12 @@ func TestClusterValidate(t *testing.T) {
 			},
 		},
 		{
-			name: "Platform managed ETCD key management mode excludes CustomerManaged fields",
-			tweaks: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
-					Etcd: api.EtcdProfile{
-						DataEncryption: api.EtcdDataEncryptionProfile{
-							KeyManagementMode: api.EtcdDataEncryptionKeyManagementModeTypePlatformManaged,
-							CustomerManaged:   &api.CustomerManagedEncryptionProfile{},
-						},
-					},
-				},
-			},
-			expectErrors: []utils.ExpectedError{
-				{
-					Message:   "may only be specified when `keyManagementMode` is \"CustomerManaged\"",
-					FieldPath: "customerProperties.etcd.dataEncryption.customerManaged",
-				},
-				{
-					Message:   "supported values: \"KMS\"",
-					FieldPath: "customerProperties.etcd.dataEncryption.customerManaged.encryptionType",
-				},
-			},
-		},
-		{
 			name: "Customer managed Key Management Service (KMS) requires Kms fields",
-			tweaks: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
-					Etcd: api.EtcdProfile{
-						DataEncryption: api.EtcdDataEncryptionProfile{
-							KeyManagementMode: api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
-							CustomerManaged: &api.CustomerManagedEncryptionProfile{
-								EncryptionType: api.CustomerManagedEncryptionTypeKMS,
-							},
-						},
-					},
-				},
-			},
+			resource: func() *coreapi.HCPOpenShiftCluster {
+				r := coreapitesting.MinimumValidClusterTestCase()
+				r.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms = nil
+				return r
+			}(),
 			expectErrors: []utils.ExpectedError{
 				{
 					Message:   "must be specified when `encryptionType` is \"KMS\"",
@@ -689,19 +702,12 @@ func TestClusterValidate(t *testing.T) {
 		{
 			// FIXME Use a valid alternate EncryptionType once we have one.
 			name: "Alternate customer managed ETCD encyption type excludes Kms fields",
-			tweaks: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
-					Etcd: api.EtcdProfile{
-						DataEncryption: api.EtcdDataEncryptionProfile{
-							KeyManagementMode: api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
-							CustomerManaged: &api.CustomerManagedEncryptionProfile{
-								EncryptionType: "Alternate",
-								Kms:            &api.KmsEncryptionProfile{},
-							},
-						},
-					},
-				},
-			},
+			resource: func() *coreapi.HCPOpenShiftCluster {
+				r := coreapitesting.MinimumValidClusterTestCase()
+				r.CustomerProperties.Etcd.DataEncryption.CustomerManaged.EncryptionType = "Alternate"
+				r.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms = &coreapi.KmsEncryptionProfile{}
+				return r
+			}(),
 			expectErrors: []utils.ExpectedError{
 				{
 					Message:   "supported values: \"KMS\"",
@@ -740,9 +746,9 @@ func TestClusterValidate(t *testing.T) {
 
 		{
 			name: "Cluster with overlapping machine and service CIDRs",
-			tweaks: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
-					Network: api.NetworkProfile{
+			tweaks: &coreapi.HCPOpenShiftCluster{
+				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+					Network: coreapi.NetworkProfile{
 						ServiceCIDR: "10.0.0.0/23",
 						MachineCIDR: "10.0.0.0/16",
 					},
@@ -757,9 +763,9 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Cluster with overlapping machine and pod CIDRs",
-			tweaks: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
-					Network: api.NetworkProfile{
+			tweaks: &coreapi.HCPOpenShiftCluster{
+				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+					Network: coreapi.NetworkProfile{
 						PodCIDR:     "10.1.0.0/18",
 						MachineCIDR: "10.1.0.0/23",
 					},
@@ -774,9 +780,9 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Cluster with overlapping service and pod CIDRs",
-			tweaks: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
-					Network: api.NetworkProfile{
+			tweaks: &coreapi.HCPOpenShiftCluster{
+				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+					Network: coreapi.NetworkProfile{
 						PodCIDR:     "10.2.0.0/18",
 						ServiceCIDR: "10.2.0.0/24",
 					},
@@ -791,13 +797,14 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Cluster with invalid managed resource group",
-			tweaks: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
-					Platform: api.CustomerPlatformProfile{
-						ManagedResourceGroup: api.TestResourceGroupName,
+			tweaks: &coreapi.HCPOpenShiftCluster{
+				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+					Platform: coreapi.CustomerPlatformProfile{
+						ManagedResourceGroup: coreapitesting.TestResourceGroupName,
 						// Use a different resource group name to avoid a subnet ID error.
-						SubnetID:                api.Must(azcorearm.ParseResourceID(path.Join("/subscriptions", api.TestSubscriptionID, "resourceGroups", "anotherResourceGroup", "providers", "Microsoft.Network", "virtualNetworks", api.TestVirtualNetworkName, "subnets", api.TestSubnetName))),
-						VnetIntegrationSubnetID: api.Must(azcorearm.ParseResourceID(path.Join("/subscriptions", api.TestSubscriptionID, "resourceGroups", "anotherResourceGroup", "providers", "Microsoft.Network", "virtualNetworks", api.TestVirtualNetworkName, "subnets", api.TestVnetIntegrationSubnetName))),
+						SubnetID:                metadataapi.Must(azcorearm.ParseResourceID(path.Join("/subscriptions", coreapitesting.TestSubscriptionID, "resourceGroups", "anotherResourceGroup", "providers", "Microsoft.Network", "virtualNetworks", coreapitesting.TestVirtualNetworkName, "subnets", coreapitesting.TestSubnetName))),
+						VnetIntegrationSubnetID: metadataapi.Must(azcorearm.ParseResourceID(path.Join("/subscriptions", coreapitesting.TestSubscriptionID, "resourceGroups", "anotherResourceGroup", "providers", "Microsoft.Network", "virtualNetworks", coreapitesting.TestVirtualNetworkName, "subnets", coreapitesting.TestVnetIntegrationSubnetName))),
+						NetworkSecurityGroupID:  metadataapi.Must(azcorearm.ParseResourceID(path.Join("/subscriptions", coreapitesting.TestSubscriptionID, "resourceGroups", "anotherResourceGroup", "providers", "Microsoft.Network", "networkSecurityGroups", coreapitesting.TestNetworkSecurityGroupName))),
 					},
 				},
 			},
@@ -810,15 +817,13 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Cluster with invalid subnet ID",
-			tweaks: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
-					Platform: api.CustomerPlatformProfile{
-						ManagedResourceGroup:    "MRG",
-						SubnetID:                api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/MRG/providers/Microsoft.Network/virtualNetworks/testVirtualNetwork/subnets/testSubnet")),
-						VnetIntegrationSubnetID: api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/anotherResourceGroup/providers/Microsoft.Network/virtualNetworks/testVirtualNetwork/subnets/testVnetIntegrationSubnet")),
-					},
-				},
-			},
+			resource: func() *coreapi.HCPOpenShiftCluster {
+				c := coreapitesting.MinimumValidClusterTestCase()
+				c.CustomerProperties.Platform.ManagedResourceGroup = "MRG"
+				c.CustomerProperties.Platform.SubnetID = metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/MRG/providers/Microsoft.Network/virtualNetworks/testVirtualNetwork/subnets/testSubnet"))
+				c.CustomerProperties.Platform.VnetIntegrationSubnetID = metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/anotherResourceGroup/providers/Microsoft.Network/virtualNetworks/testVirtualNetwork/subnets/testVnetIntegrationSubnet"))
+				return c
+			}(),
 			expectErrors: []utils.ExpectedError{
 				{
 					Message:   "must not be the same resource group name: \"MRG\"",
@@ -829,6 +834,10 @@ func TestClusterValidate(t *testing.T) {
 					FieldPath: "customerProperties.platform.subnetId",
 				},
 				{
+					Message:   "must belong to the same VNet as subnetId",
+					FieldPath: "customerProperties.platform.vnetIntegrationSubnetId",
+				},
+				{
 					Message:   "must be in the same Azure subscription: \"11111111-1111-1111-1111-111111111111\"",
 					FieldPath: "customerProperties.platform.vnetIntegrationSubnetId",
 				},
@@ -836,22 +845,22 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Cluster with differently-cased identities",
-			tweaks: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
-					Platform: api.CustomerPlatformProfile{
-						OperatorsAuthentication: api.OperatorsAuthenticationProfile{
-							UserAssignedIdentities: api.UserAssignedIdentitiesProfile{
+			tweaks: &coreapi.HCPOpenShiftCluster{
+				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+					Platform: coreapi.CustomerPlatformProfile{
+						OperatorsAuthentication: coreapi.OperatorsAuthenticationProfile{
+							UserAssignedIdentities: coreapi.UserAssignedIdentitiesProfile{
 								ControlPlaneOperators: map[string]*azcorearm.ResourceID{
-									"operatorX": api.Must(azcorearm.ParseResourceID(strings.ToLower(managedIdentity1.String()))),
+									"operatorX": metadataapi.Must(azcorearm.ParseResourceID(strings.ToLower(managedIdentity1.String()))),
 								},
-								ServiceManagedIdentity: api.Must(azcorearm.ParseResourceID(strings.ToLower(managedIdentity2.String()))),
+								ServiceManagedIdentity: metadataapi.Must(azcorearm.ParseResourceID(strings.ToLower(managedIdentity2.String()))),
 							},
 						},
 					},
 				},
-				Identity: &arm.ManagedServiceIdentity{
-					Type: arm.ManagedServiceIdentityTypeUserAssigned,
-					UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{
+				Identity: &coreapi.ManagedServiceIdentity{
+					Type: coreapi.ManagedServiceIdentityTypeUserAssigned,
+					UserAssignedIdentities: map[string]*coreapi.UserAssignedIdentity{
 						strings.ToUpper(managedIdentity1.String()): {},
 						strings.ToUpper(managedIdentity2.String()): {},
 					},
@@ -860,11 +869,11 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Cluster with broken identities",
-			tweaks: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
-					Platform: api.CustomerPlatformProfile{
-						OperatorsAuthentication: api.OperatorsAuthenticationProfile{
-							UserAssignedIdentities: api.UserAssignedIdentitiesProfile{
+			tweaks: &coreapi.HCPOpenShiftCluster{
+				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+					Platform: coreapi.CustomerPlatformProfile{
+						OperatorsAuthentication: coreapi.OperatorsAuthenticationProfile{
+							UserAssignedIdentities: coreapi.UserAssignedIdentitiesProfile{
 								ControlPlaneOperators: map[string]*azcorearm.ResourceID{
 									"operatorX": managedIdentity1,
 								},
@@ -873,9 +882,9 @@ func TestClusterValidate(t *testing.T) {
 						},
 					},
 				},
-				Identity: &arm.ManagedServiceIdentity{
-					Type: arm.ManagedServiceIdentityTypeUserAssigned,
-					UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{
+				Identity: &coreapi.ManagedServiceIdentity{
+					Type: coreapi.ManagedServiceIdentityTypeUserAssigned,
+					UserAssignedIdentities: map[string]*coreapi.UserAssignedIdentity{
 						managedIdentity3.String(): {},
 					},
 				},
@@ -897,11 +906,11 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Cluster with multiple identities",
-			tweaks: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
-					Platform: api.CustomerPlatformProfile{
-						OperatorsAuthentication: api.OperatorsAuthenticationProfile{
-							UserAssignedIdentities: api.UserAssignedIdentitiesProfile{
+			tweaks: &coreapi.HCPOpenShiftCluster{
+				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+					Platform: coreapi.CustomerPlatformProfile{
+						OperatorsAuthentication: coreapi.OperatorsAuthenticationProfile{
+							UserAssignedIdentities: coreapi.UserAssignedIdentitiesProfile{
 								ControlPlaneOperators: map[string]*azcorearm.ResourceID{
 									"operatorX": managedIdentity1,
 									"operatorY": managedIdentity1,
@@ -911,14 +920,22 @@ func TestClusterValidate(t *testing.T) {
 						},
 					},
 				},
-				Identity: &arm.ManagedServiceIdentity{
-					Type: arm.ManagedServiceIdentityTypeUserAssigned,
-					UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{
+				Identity: &coreapi.ManagedServiceIdentity{
+					Type: coreapi.ManagedServiceIdentityTypeUserAssigned,
+					UserAssignedIdentities: map[string]*coreapi.UserAssignedIdentity{
 						managedIdentity1.String(): {},
 					},
 				},
 			},
 			expectErrors: []utils.ExpectedError{
+				{
+					Message:   "must be unique within the cluster",
+					FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators",
+				},
+				{
+					Message:   "must be unique within the cluster",
+					FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.serviceManagedIdentity",
+				},
 				{
 					Message:   "identity is used multiple times",
 					FieldPath: "identity.userAssignedIdentities",
@@ -927,11 +944,11 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Cluster with invalid data plane operator identities",
-			tweaks: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
-					Platform: api.CustomerPlatformProfile{
-						OperatorsAuthentication: api.OperatorsAuthenticationProfile{
-							UserAssignedIdentities: api.UserAssignedIdentitiesProfile{
+			tweaks: &coreapi.HCPOpenShiftCluster{
+				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+					Platform: coreapi.CustomerPlatformProfile{
+						OperatorsAuthentication: coreapi.OperatorsAuthenticationProfile{
+							UserAssignedIdentities: coreapi.UserAssignedIdentitiesProfile{
 								DataPlaneOperators: map[string]*azcorearm.ResourceID{
 									"operatorX": managedIdentity1,
 								},
@@ -939,9 +956,9 @@ func TestClusterValidate(t *testing.T) {
 						},
 					},
 				},
-				Identity: &arm.ManagedServiceIdentity{
-					Type: arm.ManagedServiceIdentityTypeUserAssigned,
-					UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{
+				Identity: &coreapi.ManagedServiceIdentity{
+					Type: coreapi.ManagedServiceIdentityTypeUserAssigned,
+					UserAssignedIdentities: map[string]*coreapi.UserAssignedIdentity{
 						managedIdentity1.String(): {},
 					},
 				},
@@ -960,8 +977,8 @@ func TestClusterValidate(t *testing.T) {
 		// Managed resource group name validation
 		{
 			name: "Managed resource group name is missing",
-			resource: func() *api.HCPOpenShiftCluster {
-				r := api.MinimumValidClusterTestCase()
+			resource: func() *coreapi.HCPOpenShiftCluster {
+				r := coreapitesting.MinimumValidClusterTestCase()
 				r.CustomerProperties.Platform.ManagedResourceGroup = ""
 				return r
 			}(),
@@ -974,9 +991,9 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Managed resource group name ends with period",
-			tweaks: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
-					Platform: api.CustomerPlatformProfile{
+			tweaks: &coreapi.HCPOpenShiftCluster{
+				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+					Platform: coreapi.CustomerPlatformProfile{
 						ManagedResourceGroup: "invalid-name.",
 					},
 				},
@@ -990,9 +1007,9 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Managed resource group name with invalid characters",
-			tweaks: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
-					Platform: api.CustomerPlatformProfile{
+			tweaks: &coreapi.HCPOpenShiftCluster{
+				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+					Platform: coreapi.CustomerPlatformProfile{
 						ManagedResourceGroup: "invalid$name",
 					},
 				},
@@ -1006,9 +1023,9 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Managed resource group name too long",
-			tweaks: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
-					Platform: api.CustomerPlatformProfile{
+			tweaks: &coreapi.HCPOpenShiftCluster{
+				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+					Platform: coreapi.CustomerPlatformProfile{
 						ManagedResourceGroup: "a123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890",
 					},
 				},
@@ -1022,9 +1039,9 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Valid managed resource group name with periods and parentheses",
-			tweaks: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
-					Platform: api.CustomerPlatformProfile{
+			tweaks: &coreapi.HCPOpenShiftCluster{
+				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+					Platform: coreapi.CustomerPlatformProfile{
 						ManagedResourceGroup: "valid.name(test)",
 					},
 				},
@@ -1037,7 +1054,7 @@ func TestClusterValidate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			resource := tt.resource
 			if resource == nil {
-				resource = api.ClusterTestCase(t, tt.tweaks)
+				resource = coreapitesting.ClusterTestCase(t, tt.tweaks)
 			}
 
 			op := operation.Operation{Type: operation.Create, Options: tt.opOptions}

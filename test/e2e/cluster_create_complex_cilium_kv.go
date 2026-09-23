@@ -42,6 +42,8 @@ var _ = Describe("Customer", func() {
 		labels.Positive,
 		labels.AroRpApiCompatible,
 		labels.CreateCluster,
+		labels.AllowRetry, // owner: @raelga, tracking: ARO-28611. Known-issue test, retriable during EV2 gating. Remove this label when the issue is fixed.
+		labels.MIContainers(1),
 		func(ctx context.Context) {
 			const (
 				customerClusterName  = "cilium-cluster"
@@ -61,6 +63,7 @@ var _ = Describe("Customer", func() {
 
 			By("creating cluster parameters")
 			clusterParams := framework.NewDefaultClusterParams20251223()
+			clusterParams.DisableSwift = false
 			clusterParams.ClusterName = customerClusterName
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			clusterParams.ManagedResourceGroupName = managedResourceGroupName
@@ -104,14 +107,16 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %q with no CNI and private etcd", customerClusterName)
 
 			By("getting admin credentials for the cluster")
-			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
+			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20260901(
 				ctx,
-				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
+				tc.Get20260901ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
 				customerClusterName,
 				framework.GetAdminRESTConfigTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to get admin REST config for cluster %q", customerClusterName)
+			adminRESTConfig.QPS = 50
+			adminRESTConfig.Burst = 100
 
 			By("disabling kube-proxy via networks.operator.openshift.io patch")
 			opClient, err := operatorclient.NewForConfig(adminRESTConfig)
@@ -124,6 +129,11 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to disable kube-proxy via network operator patch")
 			GinkgoLogr.Info("Disabled kube-proxy via network operator patch")
 
+			By("providing a Multus-compatible custom CNI conflist for Cilium")
+			const ciliumNamespace = "kube-system"
+			err = framework.EnsureCiliumCNIConfigMap(ctx, adminRESTConfig, ciliumNamespace, framework.CiliumCNIConfigMapName, framework.CiliumConflistNone)
+			Expect(err).NotTo(HaveOccurred(), "failed to create Cilium CNI conflist ConfigMap")
+
 			By("installing Cilium via helm SDK")
 			kubeconfigContent, err := framework.GenerateKubeconfig(adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred(), "failed to generate kubeconfig for Helm installation")
@@ -132,6 +142,7 @@ var _ = Describe("Customer", func() {
 					"uninstall": false,
 					"binPath":   "/var/lib/cni/bin",
 					"confPath":  "/var/run/multus/cni/net.d",
+					"configMap": framework.CiliumCNIConfigMapName,
 				},
 				"kubeProxyReplacement": true,
 				"k8sServiceHost":       "172.20.0.1",
@@ -184,6 +195,10 @@ var _ = Describe("Customer", func() {
 						tc.LogDirPath)
 				}
 			}
+
+			By("allowing DNS pods to reach the kube-apiserver-proxy via CiliumNetworkPolicy (OCP >= 4.22 only)")
+			cnpErr := framework.EnsureDNSAllowHostAPIServerCiliumNetworkPolicy(ctx, adminRESTConfig, framework.NodePoolCreationTimeout)
+			Expect(cnpErr).NotTo(HaveOccurred(), "failed to create CiliumNetworkPolicy allowing DNS pods to reach the kube-apiserver-proxy")
 
 			By("verifying nodes become Ready with Cilium CNI")
 			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig, verifiers.VerifyNodesReady(), verifiers.VerifyCiliumOperational("kube-system", "k8s-app=cilium"))

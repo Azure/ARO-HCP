@@ -17,7 +17,7 @@
 * **Timeouts:** Add named constants in [`test/util/framework/constants.go`](util/framework/constants.go) only for durations **shared across multiple test cases** (same ARM operation, framework helper, or verifier pattern). A timeout that is unique to one test and used once can stay as a local literal (e.g. in an `Eventually` block). When several tests need the same budget, use the matching constant instead of repeating a magic number:
   * **Provisioning:** `ClusterCreationTimeout`, `NodePoolCreationTimeout`, `ExternalAuthCreationTimeout`
   * **Access Cluster:** `GetAdminRESTConfigTimeout` (for `GetAdminRESTConfigForHCPClusterYYYYMMDD` and similar credential fetches)
-  * **Deletion:** `HCPClusterDeletionTimeout` (for `DeleteHCPClusterYYYYMMDD`, inline delete pollers, and per-cluster deletes in `DeleteAllHCPClusters`)
+  * **Deletion:** `HCPClusterDeletionTimeout` (for `DeleteHCPClusterYYYYMMDD`, inline delete pollers, and per-cluster deletes in `DeleteAllHCPClusters`), `NodePoolDeletionTimeout` (for `DeleteNodePoolYYYYMMDD`), `ExternalAuthDeletionTimeout` (for `DeleteExternalAuthYYYYMMDD`)
   * **Updates:** `UpdateHCPClusterTimeout` (PATCH/update cluster properties), `HCPClusterVersionUpgradeTimeout` (control plane version upgrades), `NodePoolVersionUpgradeTimeout` (node pool version upgrades), `NodePoolScalingTimeout` (replica changes and autoscaling updates)
   Add a new constant only when a second (or later) test needs the same duration. See [`test/e2e/README.md`](e2e/README.md#updating-e2e-timeouts) for the constant table and how to tune shared values from telemetry.
 
@@ -39,6 +39,9 @@ All cluster and node pool operations are tied to a specific API version. This me
 
 * **K8S client-go:** Use this client to communicate with created HCP clusters. Client requires rest Config which is provided by method `GetAdminRESTConfigForHCPCluster20240610` with 10 minutes timeout.
 * **HostedClusterVerifier:** This interface is designed for all verifiers and provides the essential `Name` and `Verify` methods for extension.
+* **Parallel checks:** Use `VerifyHCPCluster(ctx, adminRESTConfig, verifiers.VerifyFoo(), verifiers.VerifyBar(), ...)` to run independent verifiers in parallel. Each verifier is responsible for its own polling, diagnostics, and delta-only logging when it needs to wait.
+* **Polling:** Verifiers that poll require a timeout parameter (e.g. `verifiers.VerifyDaemonSetReady(ns, name, 10*time.Minute)`). The timeout must be > 0; passing zero is a runtime error. Verifiers that are inherently single-shot (e.g. `VerifyPullSecretAuthData`) do not accept a timeout. Polling runs inside each verifier's `Verify` method via shared helpers in `poll.go` using `verifiers.DefaultPollInterval`. Reuse `verifiers.VerifyDaemonSetReady(namespace, name, timeout)` for any DaemonSet readiness check; `VerifyGlobalPullSecretSyncer` is a thin alias for the syncer in kube-system.
+* **Phased checks:** When a verifier depends on resources established by earlier steps (e.g. Cilium running before a web app test), run `VerifyHCPCluster` for the independent batch first, then call dependent verifiers with `Expect(verifier.Verify(...)).NotTo(HaveOccurred(), "...")` in a later `By` step. See `cluster_create_cni_cilium.go`.
 * **Code location:** Verifiers are located in the util module `verifiers`. ([https://github.com/Azure/ARO-HCP/tree/main/test/util/verifiers](https://github.com/Azure/ARO-HCP/tree/main/test/util/verifiers))
 
 ## Cleanup of Resources
@@ -84,7 +87,9 @@ When writing tests that poll until a condition is met (e.g. `Eventually(...)`, `
 
 4. **Consider dumping targeted state on failure:** When a polling loop times out, it is strongly recommended to dump the status of the specific resources you were directly polling — e.g. if you were waiting for Machines to upgrade, dump those Machine statuses. Keep this narrowly scoped to avoid log clutter; broad cluster diagnostics should be left to `oc adm inspect` or equivalent artifact collection. The goal is that the most immediately relevant context appears inline next to the failure message.
 
-5. **Think about failure before writing the test:** Test authors must consider what happens when the test fails. Before submitting a test, intentionally trigger a failure and verify that the error output answers: *what went wrong, what was expected, and what information does someone need to debug it?*
+5. **Polling inside verifiers:** Verifiers that poll require a timeout parameter (e.g. `verifiers.VerifyDaemonSetReady(ns, name, 10*time.Minute)`); the timeout must be > 0. Verifiers that are inherently single-shot (e.g. `VerifyPullSecretAuthData`) do not accept a timeout. Each verifier runs polling inside its own `Verify` method using shared helpers in `test/util/verifiers/poll.go` (delta-only logging, elapsed-time reporting, optional diagnostics). When polling completes, verifiers log actual wall-clock duration (success and timeout) via `GinkgoLogr` (`elapsed` field) and `GinkgoWriter` (`[VerifierName] succeeded after 1m23s`). Tests should call `Expect(verifier.Verify(ctx, cfg)).NotTo(HaveOccurred(), "intent message")` — the annotation describes what the test was trying to do; the returned error carries the proximal failure (see **Descriptive error checks** above). Do not add test-level `EventuallyVerify`-style wrappers or wrapper verifiers that rerun another verifier's `Verify`. Verifiers with bespoke polling needs (e.g. exponential backoff or multi-phase waits) implement that logic directly in `Verify`, as `VerifyAllClusterOperatorsAvailable` does.
+
+6. **Think about failure before writing the test:** Test authors must consider what happens when the test fails. Before submitting a test, intentionally trigger a failure and verify that the error output answers: *what went wrong, what was expected, and what information does someone need to debug it?* CI log readers and agentic debug flows should not need to open test source to understand intent.
 
 ## Labels
 
@@ -212,6 +217,7 @@ Every test MUST include appropriate labels from these categories:
 ### Test Environment Labels (MANDATORY - exactly one):
 - `labels.RequireNothing`: Per-test cluster tests (creates own cluster) — **preferred approach**
 - `labels.RequireHappyPathInfra`: Per-run cluster tests (uses pre-created cluster)
+- `labels.UpgradeInPlace`: End-to-end in-place upgrade tests — exclusively selected by the `upgrade/in-place` suite and automatically excluded from all other suites. Use for tests that invoke the Region entrypoint pipeline against pre-provisioned regional infrastructure and must only run in dev environments. See [Upgrade Barrier](#upgrade-barrier) for the parallel coordination pattern.
 
 ### Importance Labels (MANDATORY - exactly one):
 - `labels.Critical`: Blockers for rollout
@@ -229,15 +235,15 @@ Every test MUST include appropriate labels from these categories:
 - `labels.TeardownValidation`: Post-test validation
 - `labels.CoreInfraService`: Gates rollout of ARO-HCP components
 - `labels.AroRpApiCompatible`: Can run against both ARO HCP RP and ARM endpoint (dev environment compatible)
+- `labels.AllowRetry`: Marks a test as safe to auto-retry during an EV2 Stage/Prod gating run when it fails due to a known, actively tracked issue. Temporary by design (tracked in AROSLSRE-1721): every use must have an owner and a tracking issue in an inline comment, and must be removed once the underlying issue is fixed.
 
 ### Optional Environment Labels:
 - `labels.DevelopmentOnly`
 - `labels.IntegrationOnly`
 - `labels.StageAndProdOnly`
 
-### Resource Demand Labels (when applicable):
-- `labels.MIDemandHigh`: Needs multiple managed identity containers
-- `labels.MIDemandMedium`: Needs more than one container
+### Resource Demand Labels (required on every spec):
+- `labels.MIContainers(N)`: Declares how many managed identity containers the test needs (0 for tests that don't use MI containers). Enforced by `verify-mi-containers` CI check and runtime scheduler.
 
 ### Speed Labels (when applicable):
 - `labels.Slow`: For tests that take significantly longer than average
@@ -249,6 +255,7 @@ It("should create cluster successfully",
     labels.Critical, 
     labels.Positive, 
     labels.CreateCluster,
+    labels.MIContainers(1),
     func(ctx context.Context) {
         // test code
     })
@@ -281,7 +288,7 @@ It("should create cluster successfully",
 
 - **Check if enabled**: Use `tc.UsePooledIdentities()` to check if pooled identities are enabled
 - **Assign containers**: Call `tc.AssignIdentityContainers(ctx, count, timeout)` before resource creation
-  - Example: `tc.AssignIdentityContainers(ctx, 1, 60*time.Second)`
+  - Example: `tc.AssignIdentityContainers(ctx, 1, framework.IdentityContainerAssignmentRetryInterval)`
 - **Error handling**: Expect assignment to succeed: `Expect(err).NotTo(HaveOccurred(), "failed to assign pooled identity containers")`
 
 ## Error Handling in Negative Tests
@@ -330,6 +337,114 @@ The following patterns should be rejected in code review:
 ❌ **Wrong file suffix**: Using `_test.go` for E2E test files (except framework unit tests)
 ❌ **Missing `By()` steps**: Complex tests without documented steps
 ❌ **Abandoned resources**: Creating resources outside TestContext without explicit cleanup
+
+## Upgrade Barrier and Coordinator
+
+`framework.UpgradeBarrier` and `framework.UpgradeCoordinator` work together to coordinate parallel `UpgradeInPlace` specs so that:
+
+1. Every spec provisions its own cluster and captures a baseline independently (full parallelism).
+2. All specs check in to the barrier. The **UpgradeCoordinator** — running in the long-lived parent `run-suite` process — waits for all specs to check in, then invokes the Region entrypoint pipeline via `run.RunPipeline`.
+3. While the upgrade runs, every spec can independently validate its own cluster (during-upgrade validation).
+4. After the upgrade completes (or fails), every spec independently validates its own cluster (post-upgrade validation).
+
+### Architecture
+
+```
+Parent process (run-suite)
+  └─ BeforeAll ──► NewUpgradeCoordinator() ──► go coord.Run(ctx)
+                                                   │
+                                                   ├─ waitSettled (polls state file)
+                                                   ├─ run.RunPipeline (Region entrypoint)
+                                                   └─ markUpgradeDone → state file
+
+Worker process per spec (run-test)
+  └─ Spec A ──► provision ──► CheckIn() ──► Consistently(validate, upgradeDoneCtx) ──► WaitForUpgrade() ──► post-upgrade validate
+  └─ Spec B ──► provision ──► CheckIn() ──► Consistently(validate, upgradeDoneCtx) ──► WaitForUpgrade() ──► post-upgrade validate
+  └─ Spec C ──► FAIL ──────── DeferCleanup abort (increments aborted_count; coordinator unblocks)
+```
+
+There is **no runner election** — all specs are identical. The upgrade runs in the parent process and is completely independent of individual spec success or failure.
+
+### How it works
+
+**UpgradeCoordinator** (parent process):
+- Created synchronously in `BeforeAll` (guarded to the parent `run-suite` process only) via `NewUpgradeCoordinator()`, which writes the initial state file before any worker is dispatched.
+- `Run(ctx)` is launched in a goroutine. It polls until `checked_in + aborted_count >= total` (settlement), then calls `runRegionEntrypoint`, then writes `UpgradeDone` + any error to the state file.
+- If all specs aborted before checking in, `Run` returns early without running the pipeline.
+- Logs go to `os.Stderr` via a `logr/stdr` logger (set via `SetUpgradeCoordinatorLogger` in `main.go`) — never to Ginkgo's captured output.
+
+**UpgradeBarrier** (worker processes):
+- Created per-spec via `NewUpgradeBarrier()`. All instances share the same lock file (`os.TempDir()/upgrade-barrier.lock`) and state file (under `ARTIFACT_DIR` or `os.TempDir()`).
+- `CheckIn(ctx)` atomically increments `checked_in` and **returns immediately** — it does not wait for settlement. It also starts a background goroutine that polls for `UpgradeDone` and cancels the returned `upgradeDoneCtx` when the coordinator signals completion.
+- `WaitForUpgrade(ctx)` blocks until `UpgradeDone=true` and returns the coordinator's upgrade error (if any).
+- `CheckInAndWait(ctx)` is a convenience wrapper combining `CheckIn` + `WaitForUpgrade` for specs that do not need during-upgrade validation.
+- If a spec fails before `CheckIn`, a `DeferCleanup` registered by `NewUpgradeBarrier` increments `aborted_count` so the coordinator is not left waiting for a participant that will never arrive.
+
+### Timing
+
+| Timeout | Value | Meaning |
+|---|---|---|
+| `defaultSettleTimeout` | 45 min | How long the coordinator waits for all specs to check in or abort |
+| `defaultUpgradeRunTimeout` | 50 min | Budget for the Region entrypoint pipeline itself |
+| `defaultUpgradeTimeout` | 60 min | How long specs wait in `WaitForUpgrade` for the coordinator's signal (10 min buffer over run timeout) |
+
+### Stale state detection
+
+The state file carries the parent PID of the suite runner as `run_id`. All parallel workers in the same invocation share the same parent PID, so they recognise the existing state file as their own. A new suite invocation gets a different PID:
+- The **coordinator** resets any stale file with a different `run_id` in `initState()`.
+- A **worker** (barrier) errors loudly if it finds a mismatched `run_id` — this signals that the coordinator did not initialise the state before the worker was dispatched, which should never happen in a correct setup.
+
+In Prow each job runs in a fresh pod, so there is no leakage between runs. For local runs `os.TempDir()` is a fixed path, but local runs are always single-spec (no parallelism), which further narrows the risk.
+
+### CI setup
+
+`ARTIFACT_DIR` is optional. When set, the state file is written there and collected as a CI artifact. When absent (local runs), it falls back to `os.TempDir()`.
+
+**Required environment variables for local runs** (in addition to the usual `AROHCP_ENV`, `LOCATION`, `DEPLOY_ENV`, `KUBECONFIG`):
+
+```bash
+export GITHUB_ACTIONS=true   # makes templatize's cmdutils.GetAzureTokenCredentials use az CLI credentials
+                             # instead of workload-identity tokens (which are only available in CI)
+```
+
+`AROHCP_ENV=development` controls the *test framework's* own Azure credential (subscription/resource-group
+lookups done by the test helpers). `GITHUB_ACTIONS` controls the credential used by the *templatize pipeline*
+when it performs its own subscription lookup. Both must be set for a fully local run of `upgrade/in-place`.
+
+The total number of `UpgradeInPlace` specs is computed dynamically in `main.go`'s `setupCli()` — after `BuildExtensionTestSpecsFromOpenShiftGinkgoSuite()` builds the spec list, the code counts specs with `labels.UpgradeInPlace` and calls `framework.SetUpgradeInPlaceSpecCount(n)`. The same count drives both the suite `Parallelism` and `NewUpgradeBarrier()`. **No constant to maintain** — adding a new `UpgradeInPlace` spec automatically updates both.
+
+### Invocation
+
+**`run-test` is not supported for upgrade specs.** The `UpgradeCoordinator` only starts in the long-lived `run-suite` process; a direct `run-test` invocation will fail immediately with a RunID mismatch error. Always use `run-suite` or CI to execute upgrade specs.
+
+### Typical It-block skeleton
+
+```go
+tc := framework.NewTestContext()
+
+// NewUpgradeBarrier must be called after NewTestContext so its abort DeferCleanup
+// runs before tc teardown in FILO order, unblocking other specs before resource cleanup.
+// The total spec count was set by main.go's setupCli() via SetUpgradeInPlaceSpecCount.
+barrier, err := framework.NewUpgradeBarrier()
+Expect(err).NotTo(HaveOccurred(), "failed to create upgrade barrier")
+
+// ... provision cluster, capture baseline ...
+
+// Option A: no during-upgrade validation — one call handles check-in and waiting.
+err = barrier.CheckInAndWait(ctx)
+Expect(err).NotTo(HaveOccurred(), "upgrade phase failed")
+
+// Option B: during-upgrade validation — use CheckIn + WaitForUpgrade separately.
+upgradeDoneCtx, err := barrier.CheckIn(ctx)
+Expect(err).NotTo(HaveOccurred(), "failed to check in to upgrade barrier")
+Consistently(func(g Gomega) {
+    // validate cluster is stable while upgrade runs
+}, upgradeDoneCtx, rolloutPollInterval).Should(Succeed(), "cluster unstable during upgrade")
+err = barrier.WaitForUpgrade(ctx)
+Expect(err).NotTo(HaveOccurred(), "upgrade phase failed")
+
+// ... post-upgrade validation ...
+```
 
 ## Code Review Checklist
 

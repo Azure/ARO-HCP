@@ -12,9 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package agent implements LLM-driven test failure analysis using the
-// GitHub Copilot SDK. It wraps the Copilot CLI process and provides a
-// structured session interface for analysis workflows.
+// Package agent implements LLM-driven test failure analysis using
+// pluggable LLM providers. The LLMProvider and LLMSession interfaces
+// (defined in provider.go) abstract the underlying LLM backend;
+// built-in implementations exist for the GitHub Copilot SDK
+// (this file) and the Anthropic Claude API (claude_provider.go).
 package agent
 
 import (
@@ -24,6 +26,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	copilot "github.com/github/copilot-sdk/go"
@@ -75,8 +78,16 @@ type AgentConfig struct {
 	Verbosity int
 }
 
+// Compile-time check: *CopilotClient implements LLMProvider.
+var _ LLMProvider = (*CopilotClient)(nil)
+
+// Compile-time check: *Session implements LLMSession.
+var _ LLMSession = (*Session)(nil)
+
 // CopilotClient wraps a copilot.Client that manages the Copilot CLI process.
-// One instance is created per process lifetime.
+// It implements the LLMProvider interface via CreateProviderSession, and also
+// exposes a Copilot-specific CreateSession for callers that need direct access
+// to copilot.SessionConfig. One instance is created per process lifetime.
 type CopilotClient struct {
 	inner *copilot.Client
 	cfg   *AgentConfig
@@ -142,10 +153,16 @@ type SessionConfig struct {
 // the conversation can be saved even if the CLI process is no longer
 // available (e.g. after ctrl-C kills the subprocess).
 type Session struct {
-	inner        *copilot.Session
-	client       *CopilotClient
-	logger       logr.Logger
-	lastMessages json.RawMessage
+	inner           *copilot.Session
+	client          *CopilotClient
+	logger          logr.Logger
+	lastMessages    json.RawMessage
+	usageMu         sync.RWMutex
+	usage           UsageReport
+	usageProvider   string
+	usageDimensions map[string]string
+	usageModel      string
+	seenUsageKeys   map[string]struct{}
 }
 
 // CreateSession creates a new Copilot session for an analysis run.
@@ -191,12 +208,26 @@ func (c *CopilotClient) CreateSession(ctx context.Context, logger logr.Logger, c
 
 	logger = logger.WithValues("sessionID", session.SessionID)
 	logger.Info("Created Copilot session.")
+	usageProvider := "github-copilot"
+	usageDimensions := map[string]string{"backend": "github"}
+	if c.cfg.AuthMode == CopilotAuthModeBYOK {
+		usageProvider = "azure-ai-foundry"
+		usageDimensions["backend"] = "byok"
+	}
 
 	s := &Session{
-		inner:  session,
-		client: c,
-		logger: logger,
+		inner:           session,
+		client:          c,
+		logger:          logger,
+		usageProvider:   usageProvider,
+		usageDimensions: usageDimensions,
+		usageModel:      sessionCfg.Model,
+		seenUsageKeys:   make(map[string]struct{}),
 	}
+	// Register before the first SendAndWait. The SDK dispatches handlers in
+	// registration order, so all preceding usage events are recorded before
+	// SendAndWait's temporary session.idle handler returns to the caller.
+	s.inner.On(s.recordUsageEvent)
 
 	// When verbosity is high enough, trace every session event for debugging.
 	if c.cfg.Verbosity >= 5 {
@@ -206,9 +237,99 @@ func (c *CopilotClient) CreateSession(ctx context.Context, logger logr.Logger, c
 	return s, nil
 }
 
+// CreateProviderSession creates a new Copilot session from a provider-neutral
+// configuration. This is the LLMProvider interface implementation. It converts
+// ToolDefinition values to copilot.Tool values and builds a Copilot
+// SystemMessageConfig from the provider-neutral system prompt.
+func (c *CopilotClient) CreateProviderSession(ctx context.Context, logger logr.Logger, cfg ProviderSessionConfig) (LLMSession, error) {
+	// Convert provider-neutral tool definitions to Copilot tools.
+	copilotTools := make([]copilot.Tool, 0, len(cfg.Tools))
+	for _, td := range cfg.Tools {
+		ct, err := toolDefinitionToCopilotTool(td)
+		if err != nil {
+			return nil, fmt.Errorf("converting tool %q: %w", td.Name, err)
+		}
+		copilotTools = append(copilotTools, ct)
+	}
+
+	// Build a SystemMessageConfig from the provider-neutral config. The
+	// identity and tone prompts come from cfg (set centrally by the caller)
+	// while the domain-specific content goes into the custom instructions
+	// section.
+	systemMsg := &copilot.SystemMessageConfig{
+		Mode: "customize",
+		Sections: map[string]copilot.SectionOverride{
+			copilot.SectionIdentity: {
+				Action:  copilot.SectionActionReplace,
+				Content: cfg.IdentityPrompt,
+			},
+			copilot.SectionTone: {
+				Action:  copilot.SectionActionReplace,
+				Content: cfg.TonePrompt,
+			},
+			copilot.SectionCodeChangeRules: {
+				Action: copilot.SectionActionRemove,
+			},
+			copilot.SectionCustomInstructions: {
+				Action:  copilot.SectionActionAppend,
+				Content: cfg.SystemPrompt,
+			},
+		},
+	}
+
+	return c.CreateSession(ctx, logger, SessionConfig{
+		WorkingDirectory: cfg.WorkingDirectory,
+		SystemMessage:    systemMsg,
+		Tools:            copilotTools,
+		Model:            cfg.Model,
+	})
+}
+
+// toolDefinitionToCopilotTool converts a provider-neutral ToolDefinition to a
+// copilot.Tool by parsing the JSON schema and wrapping the handler.
+func toolDefinitionToCopilotTool(td ToolDefinition) (copilot.Tool, error) {
+	var schemaMap map[string]any
+	if len(td.ParamSchema) > 0 {
+		if err := json.Unmarshal(td.ParamSchema, &schemaMap); err != nil {
+			return copilot.Tool{}, fmt.Errorf("parsing parameter schema: %w", err)
+		}
+	}
+
+	return copilot.Tool{
+		Name:        td.Name,
+		Description: td.Description,
+		Parameters:  schemaMap,
+		Handler: func(inv copilot.ToolInvocation) (copilot.ToolResult, error) {
+			rawJSON, err := json.Marshal(inv.Arguments)
+			if err != nil {
+				return copilot.ToolResult{}, fmt.Errorf("marshaling tool arguments: %w", err)
+			}
+			result, err := td.Handler(inv.TraceContext, rawJSON)
+			if err != nil {
+				return copilot.ToolResult{}, err
+			}
+			return copilot.ToolResult{
+				TextResultForLLM: result,
+				ResultType:       "success",
+			}, nil
+		},
+	}, nil
+}
+
 // SessionID returns the unique identifier for this session.
 func (s *Session) SessionID() string {
 	return s.inner.SessionID
+}
+
+// ResetHistory is a no-op for the Copilot provider — the Copilot SDK
+// manages conversation context internally within the CLI subprocess.
+func (s *Session) ResetHistory() {}
+
+// Usage returns the aggregate token usage observed from live session events.
+func (s *Session) Usage() UsageReport {
+	s.usageMu.RLock()
+	defer s.usageMu.RUnlock()
+	return s.usage.Clone()
 }
 
 // SendAndWait sends a prompt to the session and blocks until the agent is idle.
@@ -216,6 +337,10 @@ func (s *Session) SessionID() string {
 // Returns the final assistant message content.
 func (s *Session) SendAndWait(ctx context.Context, prompt string) (string, error) {
 	s.logger.V(1).Info("Sending message to Copilot session.", "promptLength", len(prompt))
+
+	errorCapture := &copilotSessionErrorCapture{provider: s.usageProvider}
+	unsubscribe := s.inner.On(errorCapture.record)
+	defer unsubscribe()
 
 	// The SDK applies a 60s default timeout when the context has no deadline.
 	// Analysis turns routinely take 10+ minutes, so set a generous deadline
@@ -255,7 +380,7 @@ func (s *Session) SendAndWait(ctx context.Context, prompt string) (string, error
 		return "", ctx.Err()
 	case r := <-ch:
 		if r.err != nil {
-			return "", fmt.Errorf("copilot session failed: %w", r.err)
+			return "", wrapCopilotSessionError(errorCapture, r.err)
 		}
 		if r.event == nil {
 			return "", fmt.Errorf("copilot session returned no response")
@@ -290,12 +415,197 @@ func (s *Session) snapshotMessages() {
 		s.logger.Error(err, "Failed to snapshot session messages.")
 		return
 	}
+	// Replay any persisted usage-bearing events as a fallback. Live events have
+	// already been recorded, so stable request/event identities suppress them.
+	for _, event := range events {
+		s.recordUsageEvent(event)
+	}
 	data, err := json.MarshalIndent(events, "", "  ")
 	if err != nil {
 		s.logger.Error(err, "Failed to marshal session messages for snapshot.")
 		return
 	}
 	s.lastMessages = data
+}
+
+// recordUsageEvent aggregates billable requests from the live event stream.
+// assistant.usage events are ephemeral and unavailable through GetEvents, so
+// they must be captured as they are delivered. Compaction usage is emitted on
+// a distinct session.compaction_complete event and represents a separate LLM
+// request.
+func (s *Session) recordUsageEvent(event copilot.SessionEvent) {
+	switch event.Data.(type) {
+	case *copilot.AssistantUsageData, *copilot.SessionCompactionCompleteData:
+	default:
+		return
+	}
+
+	keys := copilotUsageEventKeys(event)
+	s.usageMu.Lock()
+	defer s.usageMu.Unlock()
+	entry, ok := usageBreakdownFromCopilotEvent(event, s.usageProvider, s.usageDimensions, s.usageModel)
+	if !ok {
+		return
+	}
+	if s.seenUsageKeys == nil {
+		s.seenUsageKeys = make(map[string]struct{})
+	}
+	duplicate := false
+	for _, key := range keys {
+		if _, seen := s.seenUsageKeys[key]; seen {
+			duplicate = true
+		}
+		s.seenUsageKeys[key] = struct{}{}
+	}
+	if duplicate {
+		return
+	}
+	if entry.Model != "" {
+		s.usageModel = entry.Model
+	}
+	s.usage.Add(entry)
+}
+
+// usageReportFromCopilotEvents aggregates a supplied event stream. Production
+// sessions call recordUsageEvent from Session.On; this helper keeps conversion
+// and deduplication directly testable without starting the Copilot CLI.
+func usageReportFromCopilotEvents(events []copilot.SessionEvent, provider string, baseDimensions map[string]string) UsageReport {
+	s := &Session{
+		usageProvider:   provider,
+		usageDimensions: baseDimensions,
+		seenUsageKeys:   make(map[string]struct{}),
+	}
+	for _, event := range events {
+		s.recordUsageEvent(event)
+	}
+	return s.Usage()
+}
+
+func usageBreakdownFromCopilotEvent(event copilot.SessionEvent, provider string, baseDimensions map[string]string, fallbackModel string) (UsageBreakdown, bool) {
+	switch data := event.Data.(type) {
+	case *copilot.AssistantUsageData:
+		dimensions := cloneStringMap(baseDimensions)
+		if dimensions == nil {
+			dimensions = make(map[string]string)
+		}
+		if data.APIEndpoint != nil {
+			dimensions["apiEndpoint"] = string(*data.APIEndpoint)
+		}
+
+		outputDetails := make(map[string]int64)
+		if data.ReasoningTokens != nil && *data.ReasoningTokens > 0 {
+			outputDetails["reasoning"] = *data.ReasoningTokens
+		}
+		if len(outputDetails) == 0 {
+			outputDetails = nil
+		}
+
+		providerReportedCosts := make(map[string]float64)
+		if data.Cost != nil {
+			providerReportedCosts["modelMultiplier"] = *data.Cost
+		}
+		if data.CopilotUsage != nil {
+			providerReportedCosts["nanoAIU"] = data.CopilotUsage.TotalNanoAiu
+		}
+		if len(providerReportedCosts) == 0 {
+			providerReportedCosts = nil
+		}
+		tokens := normalizedCopilotTokenUsage(data.InputTokens, data.OutputTokens, data.CacheReadTokens, data.CacheWriteTokens)
+		tokens.OutputTokenDetails = outputDetails
+
+		return UsageBreakdown{
+			Provider:              provider,
+			Model:                 data.Model,
+			Dimensions:            dimensions,
+			Requests:              1,
+			Tokens:                tokens,
+			ProviderReportedCosts: providerReportedCosts,
+		}, true
+
+	case *copilot.SessionCompactionCompleteData:
+		if data.CompactionTokensUsed == nil {
+			return UsageBreakdown{}, false
+		}
+		// Count reported usage even when compaction itself failed: the model
+		// request completed far enough to report usage and may still be billed.
+		compaction := data.CompactionTokensUsed
+		model := fallbackModel
+		if compaction.Model != nil {
+			model = *compaction.Model
+		}
+		providerReportedCosts := make(map[string]float64)
+		if compaction.CopilotUsage != nil {
+			providerReportedCosts["nanoAIU"] = compaction.CopilotUsage.TotalNanoAiu
+		}
+		if len(providerReportedCosts) == 0 {
+			providerReportedCosts = nil
+		}
+
+		return UsageBreakdown{
+			Provider:              provider,
+			Model:                 model,
+			Dimensions:            cloneStringMap(baseDimensions),
+			Requests:              1,
+			Tokens:                normalizedCopilotTokenUsage(compaction.InputTokens, compaction.OutputTokens, compaction.CacheReadTokens, compaction.CacheWriteTokens),
+			ProviderReportedCosts: providerReportedCosts,
+		}, true
+	}
+
+	return UsageBreakdown{}, false
+}
+
+func normalizedCopilotTokenUsage(input, output, cacheRead, cacheWrite *int64) TokenUsage {
+	inputTokens := int64Value(input)
+	cacheReadTokens := int64Value(cacheRead)
+	uncachedInputTokens := inputTokens - cacheReadTokens
+	if uncachedInputTokens < 0 {
+		uncachedInputTokens = 0
+	}
+
+	return TokenUsage{
+		UncachedInputTokens:   uncachedInputTokens,
+		CacheReadInputTokens:  cacheReadTokens,
+		CacheWriteInputTokens: int64Value(cacheWrite),
+		OutputTokens:          int64Value(output),
+	}
+}
+
+func int64Value(value *int64) int64 {
+	if value == nil {
+		return 0
+	}
+	return *value
+}
+
+func copilotUsageEventKeys(event copilot.SessionEvent) []string {
+	keys := make([]string, 0, 4)
+	addKey := func(kind, value string) {
+		if value != "" {
+			keys = append(keys, kind+":"+value)
+		}
+	}
+
+	switch data := event.Data.(type) {
+	case *copilot.AssistantUsageData:
+		if data.APICallID != nil {
+			addKey("api-call", *data.APICallID)
+		}
+		if data.ServiceRequestID != nil {
+			addKey("service-request", *data.ServiceRequestID)
+		}
+		if data.ProviderCallID != nil {
+			addKey("provider-request", *data.ProviderCallID)
+		}
+	case *copilot.SessionCompactionCompleteData:
+		if data.ServiceRequestID != nil {
+			addKey("service-request", *data.ServiceRequestID)
+		}
+		if data.RequestID != nil {
+			addKey("provider-request", *data.RequestID)
+		}
+	}
+	addKey("event", event.ID)
+	return keys
 }
 
 // SaveConversation writes the most recent conversation snapshot to a JSON

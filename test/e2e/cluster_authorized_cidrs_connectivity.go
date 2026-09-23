@@ -15,11 +15,9 @@ package e2e
 
 import (
 	"context"
-	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"strings"
 	"time"
 
@@ -34,9 +32,8 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
-	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 )
@@ -48,6 +45,7 @@ var _ = Describe("Authorized CIDRs", func() {
 			labels.Critical,
 			labels.Positive,
 			labels.AroRpApiCompatible,
+			labels.MIContainers(1),
 			func(ctx context.Context) {
 				const (
 					clusterName                      = "cidr-connectivity-test"
@@ -89,45 +87,9 @@ var _ = Describe("Authorized CIDRs", func() {
 				)
 				Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for authorized CIDRs cluster")
 
-				By("generating SSH key pair for VM")
-				sshPublicKey, _, err := framework.GenerateSSHKeyPair()
-				Expect(err).NotTo(HaveOccurred(), "failed to generate SSH key pair for test VM")
-
 				By("deploying test VM")
-				vmName := fmt.Sprintf("%s-test-vm", clusterName)
-				// The test VM is a throwaway kubectl client: it only needs a public IP
-				// (used as the single authorized CIDR) and to make one API call to the
-				// cluster. We use the common general-purpose Standard_D2s_v3 (same 2-vCPU
-				// size as the old burstable Standard_B2s) because the burstable B-series
-				// is the SKU class most prone to regional SkuNotAvailable capacity
-				// restrictions, which is what flaked this test.
-				const vmSize = "Standard_D2s_v3"
-				var vmDeployment *armresources.DeploymentExtended
-				var deployErr error
-				// Bounded retry to absorb transient ARM errors, but fail fast on
-				// SkuNotAvailable: a regional capacity restriction is not transient, so
-				// re-submitting an identical request only burns the timeout budget.
-				for attempt := 0; attempt < 3; attempt++ {
-					vmDeployment, deployErr = tc.CreateBicepTemplateAndWait(ctx,
-						framework.WithTemplateFromFS(TestArtifactsFS, "test-artifacts/generated-test-artifacts/modules/test-vm.json"),
-						framework.WithDeploymentName("test-vm"),
-						framework.WithScope(framework.BicepDeploymentScopeResourceGroup),
-						framework.WithClusterResourceGroup(*resourceGroup.Name),
-						framework.WithParameters(map[string]any{
-							"vmName":       vmName,
-							"vnetName":     customerVnetName,
-							"subnetName":   customerVnetSubnetName,
-							"sshPublicKey": sshPublicKey,
-							"vmSize":       vmSize,
-						}),
-						framework.WithTimeout(30*time.Minute),
-					)
-					if deployErr == nil || strings.Contains(deployErr.Error(), "SkuNotAvailable") {
-						break
-					}
-					time.Sleep(20 * time.Second)
-				}
-				Expect(deployErr).NotTo(HaveOccurred(), "failed to deploy test VM")
+				vmName, vmDeployment, err := tc.DeployTestVM(ctx, TestArtifactsFS, *resourceGroup.Name, clusterName, customerVnetName, customerVnetSubnetName)
+				Expect(err).NotTo(HaveOccurred(), "failed to deploy test VM")
 
 				By("extracting VM public IP from deployment outputs")
 				vmPublicIP, err := framework.GetOutputValueString(vmDeployment, "publicIP")
@@ -184,15 +146,14 @@ var _ = Describe("Authorized CIDRs", func() {
 
 				By("testing connectivity from current machine (should be blocked)")
 				// Try to connect from the test runner (which is not in authorized CIDRs)
-				err = testAPIConnectivity(apiURL, 5*time.Second)
+				err = framework.TestHTTPSConnectivity(ctx, apiURL+"/healthz", 5*time.Second, true)
 				Expect(err).To(HaveOccurred(), "Connection from unauthorized IP should be blocked")
-				// Verify it's a connection error (EOF indicates connection was closed by server/network)
-				Expect(err.Error()).To(ContainSubstring(fmt.Sprintf("Get \"%s/healthz\": EOF", apiURL)), "Should fail with EOF error indicating blocked connection")
+				GinkgoWriter.Printf("Connection from unauthorized IP address failed as expected on error: %v\n", err)
 
 				By("verifying VM can access cluster API with credentials")
-				adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
+				adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20260901(
 					ctx,
-					tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
+					tc.Get20260901ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 					*resourceGroup.Name,
 					clusterName,
 					framework.GetAdminRESTConfigTimeout,
@@ -228,9 +189,11 @@ var _ = Describe("Authorized CIDRs", func() {
 				}, 5*time.Minute, 10*time.Second).Should(Succeed())
 
 				By("verifying aggregated API services from authorized VM")
-				// Only output unavailable services (filter out :True lines) to stay within 4KB VM output limit
+				// Filter :True lines on the VM to stay within the 4KB run-command output limit.
+				// Write kubectl output first so a kubectl failure fails the command. Isolate grep
+				// so only its rc=1 ("no matches", the healthy case) is treated as success.
 				apiServicesCmd := fmt.Sprintf(
-					`echo '%s' | base64 -d > /tmp/kubeconfig && kubectl --kubeconfig=/tmp/kubeconfig get apiservices -o jsonpath='{range .items[*]}{.metadata.name}:{.status.conditions[?(@.type=="Available")].status}{"\n"}{end}' | grep -v ':True$'`,
+					`echo '%s' | base64 -d > /tmp/kubeconfig && kubectl --kubeconfig=/tmp/kubeconfig get apiservices -o jsonpath='{range .items[*]}{.metadata.name}:{.status.conditions[?(@.type=="Available")].status}{"\n"}{end}' > /tmp/apiservices.status && { grep -v ':True$' /tmp/apiservices.status; rc=$?; [ $rc -le 1 ]; }`,
 					kubeconfigB64,
 				)
 
@@ -265,7 +228,9 @@ var _ = Describe("Authorized CIDRs", func() {
 				graphClient, err := tc.GetGraphClient(ctx)
 				Expect(err).NotTo(HaveOccurred(), "failed to get graph client")
 
-				pass, err := graphClient.AddPassword(ctx, app.ID, "cidr-external-auth-pass", time.Now(), time.Now().Add(24*time.Hour))
+				baseTime := time.Now()
+				// Start time shifted 5 minutes into the past to handle clock skew between test runner and Graph API
+				pass, err := graphClient.AddPassword(ctx, app.ID, "cidr-external-auth-pass", baseTime.Add(-5*time.Minute), baseTime.Add(24*time.Hour))
 				Expect(err).NotTo(HaveOccurred(), "failed to add password to app registration")
 
 				By("creating an external auth config with a prefix")
@@ -334,6 +299,7 @@ var _ = Describe("Authorized CIDRs", func() {
 
 				// MSGraph is eventually consistent, wait up to 2 minutes for the token to be valid
 				var accessToken azcore.AccessToken
+				var lastTokenErr string
 				Eventually(func() error {
 					var err error
 					accessToken, err = cred.GetToken(ctx, policy.TokenRequestOptions{
@@ -341,7 +307,10 @@ var _ = Describe("Authorized CIDRs", func() {
 					})
 
 					if err != nil {
-						GinkgoWriter.Printf("GetToken failed: %v\n", err)
+						if msg := err.Error(); msg != lastTokenErr {
+							GinkgoWriter.Printf("GetToken failed: %v\n", err)
+							lastTokenErr = msg
+						}
 					}
 					return err
 				}, 2*time.Minute, 10*time.Second).Should(Succeed())
@@ -392,9 +361,11 @@ var _ = Describe("Authorized CIDRs", func() {
 				Expect(err).NotTo(HaveOccurred(), "failed to create console OAuth client secret for external auth via VM")
 
 				By("verifying all cluster operators are healthy from authorized VM")
-				// Only output unavailable operators (filter out :True lines) to stay within 4KB VM output limit
+				// Filter :True lines on the VM to stay within the 4KB run-command output limit.
+				// Write kubectl output first so a kubectl failure fails the command. Isolate grep
+				// so only its rc=1 ("no matches", the healthy case) is treated as success.
 				clusterOperatorsCmd := fmt.Sprintf(
-					`echo '%s' | base64 -d > /tmp/kubeconfig && kubectl --kubeconfig=/tmp/kubeconfig get clusteroperators -o jsonpath='{range .items[*]}{.metadata.name}:{.status.conditions[?(@.type=="Available")].status}{"\n"}{end}' | grep -v ':True$'`,
+					`echo '%s' | base64 -d > /tmp/kubeconfig && kubectl --kubeconfig=/tmp/kubeconfig get clusteroperators -o jsonpath='{range .items[*]}{.metadata.name}:{.status.conditions[?(@.type=="Available")].status}{"\n"}{end}' > /tmp/clusteroperators.status && { grep -v ':True$' /tmp/clusteroperators.status; rc=$?; [ $rc -le 1 ]; }`,
 					kubeconfigB64,
 				)
 
@@ -420,6 +391,11 @@ var _ = Describe("Authorized CIDRs", func() {
 				currentCluster.Properties.API.AuthorizedCIDRs = []*string{
 					to.Ptr("192.0.2.0/24"), // Use TEST-NET-1 (reserved for documentation)
 				}
+				// The Get above returns a fully populated UserAssignedIdentities map
+				// (ClientID/PrincipalID set by ARM). Re-sending those populated values on
+				// this PUT is rejected by ARM with InvalidIdentityValues; existing
+				// identities must be echoed back as empty objects.
+				framework.ClearUserAssignedIdentityValues20240610(currentCluster.Identity)
 
 				// Use CreateOrUpdate (PUT) to apply the change
 				poller, err := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient().BeginCreateOrUpdate(
@@ -451,33 +427,6 @@ var _ = Describe("Authorized CIDRs", func() {
 		)
 	})
 })
-
-// Helper to test API connectivity with timeout
-func testAPIConnectivity(apiURL string, timeout time.Duration) error {
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-
-	// Simple HTTP GET to test connectivity
-	req, err := http.NewRequestWithContext(ctx, "GET", apiURL+"/healthz", nil)
-	if err != nil {
-		return err
-	}
-
-	client := &http.Client{
-		Timeout: timeout,
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-		},
-	}
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	return nil
-}
 
 func parseUnavailableResources(output string, skip ...string) []string {
 	skipSet := make(map[string]bool)

@@ -39,10 +39,10 @@ import (
 	sdk "github.com/openshift-online/ocm-sdk-go"
 
 	"github.com/Azure/ARO-HCP/frontend/pkg/frontend"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/audit"
 	"github.com/Azure/ARO-HCP/internal/azsdk"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/signal"
 	"github.com/Azure/ARO-HCP/internal/tracing"
@@ -54,11 +54,8 @@ type FrontendOpts struct {
 	auditLogQueueSize  int
 	auditConnectSocket bool
 
-	clustersServiceURL            string
-	clusterServiceProvisionShard  string
-	clusterServiceNoopProvision   bool
-	clusterServiceNoopDeprovision bool
-	insecure                      bool
+	clustersServiceURL string
+	insecure           bool
 
 	location    string
 	metricsPort int
@@ -102,9 +99,6 @@ func NewRootCmd() *cobra.Command {
 
 	rootCmd.Flags().StringVar(&opts.clustersServiceURL, "clusters-service-url", "https://api.openshift.com", "URL of the OCM API gateway.")
 	rootCmd.Flags().BoolVar(&opts.insecure, "insecure", false, "Skip validating TLS for clusters-service.")
-	rootCmd.Flags().StringVar(&opts.clusterServiceProvisionShard, "cluster-service-provision-shard", "", "Manually specify provision shard for all requests to cluster service")
-	rootCmd.Flags().BoolVar(&opts.clusterServiceNoopProvision, "cluster-service-noop-provision", false, "Skip cluster service provisioning steps for development purposes")
-	rootCmd.Flags().BoolVar(&opts.clusterServiceNoopDeprovision, "cluster-service-noop-deprovision", false, "Skip cluster service deprovisioning steps for development purposes")
 
 	rootCmd.Flags().BoolVar(&opts.exitOnPanic, "exit-on-panic", opts.exitOnPanic,
 		"If set, frontend will exit the process if a panic occurs. As of now it only controls the setting of k8s.io/apimachinery/pkg/util/runtime.ReallyCrash",
@@ -139,7 +133,7 @@ func CorrelationIDPolicy(req *policy.Request) (*http.Response, error) {
 	// The incoming request may not contain a correlation request ID (e.g.
 	// requests to /healthz).
 	if err == nil && cd.CorrelationRequestID != "" {
-		req.Raw().Header.Set(arm.HeaderNameCorrelationRequestID, cd.CorrelationRequestID)
+		req.Raw().Header.Set(coreapi.HeaderNameCorrelationRequestID, cd.CorrelationRequestID)
 	}
 
 	return req.Next()
@@ -216,7 +210,7 @@ func (opts *FrontendOpts) Run() error {
 	clientOpts.Cloud = cloud.AzurePublic
 	clientOpts.PerCallPolicies = []policy.Policy{PolicyFunc(CorrelationIDPolicy)}
 	clientOpts.TracingProvider = azotel.NewTracingProvider(otel.GetTracerProvider(), nil)
-	cosmosDatabaseClient, err := database.NewCosmosDatabaseClient(
+	cosmosDatabaseClient, err := corecosmosstorage.NewCosmosDatabaseClient(
 		opts.cosmosURL,
 		opts.cosmosName,
 		clientOpts,
@@ -225,14 +219,9 @@ func (opts *FrontendOpts) Run() error {
 		return fmt.Errorf("failed to create the CosmosDB client: %w", err)
 	}
 
-	resourcesDBClient, err := database.NewResourcesDBClient(cosmosDatabaseClient)
+	resourcesDBClient, err := corecosmosstorage.NewResourcesDBClient(cosmosDatabaseClient)
 	if err != nil {
 		return fmt.Errorf("failed to create the resources database client: %w", err)
-	}
-
-	locksDBClient, err := database.NewLocksDBClient(ctx, cosmosDatabaseClient)
-	if err != nil {
-		return fmt.Errorf("failed to create the locks database client: %w", err)
 	}
 
 	listener, err := net.Listen("tcp4", fmt.Sprintf(":%d", opts.port))
@@ -269,8 +258,7 @@ func (opts *FrontendOpts) Run() error {
 	f := frontend.NewFrontend(
 		logger, listener, metricsListener,
 		legacyregistry.Registerer(), legacyregistry.DefaultGatherer,
-		resourcesDBClient, locksDBClient, csClient, auditClient, opts.location, opts.clusterServiceProvisionShard,
-		opts.clusterServiceNoopProvision, opts.clusterServiceNoopDeprovision, opts.exitOnPanic,
+		resourcesDBClient, csClient, auditClient, opts.location, opts.exitOnPanic,
 	)
 
 	runErrCh := make(chan error, 1)

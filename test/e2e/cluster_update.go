@@ -21,7 +21,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
@@ -42,6 +42,7 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 	Context("Negative", func() {
 		It("creates a cluster and fails to update its name with a PATCH request",
 			labels.RequireNothing, labels.Medium, labels.Negative,
+			labels.MIContainers(1),
 			func(ctx context.Context) {
 				const clusterName = "patch-name-cluster"
 
@@ -83,9 +84,9 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 				Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster for patch-name test")
 
 				By("getting credentials")
-				adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
+				adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20260901(
 					ctx,
-					tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
+					tc.Get20260901ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 					*resourceGroup.Name,
 					clusterName,
 					framework.GetAdminRESTConfigTimeout,
@@ -118,6 +119,7 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 	Context("Positive", func() {
 		It("creates a cluster and updates tags with a PATCH request",
 			labels.RequireNothing, labels.Medium, labels.Positive, labels.AroRpApiCompatible,
+			labels.MIContainers(1),
 			func(ctx context.Context) {
 				const clusterName = "patch-tags-cluster"
 
@@ -159,9 +161,9 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 				Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster for patch-tags test")
 
 				By("getting credentials")
-				adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
+				adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20260901(
 					ctx,
-					tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
+					tc.Get20260901ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 					*resourceGroup.Name,
 					clusterName,
 					framework.GetAdminRESTConfigTimeout,

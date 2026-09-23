@@ -329,7 +329,7 @@ If you need to request quota increases for new regions or resources:
 **Cause**: You don't have access yet, or access hasn't propagated.
 
 **Solution**:
-1. Make sure you have accepted the invition to this tenant 
+1. Make sure you have accepted the invitation to this tenant 
 2. Wait 10-15 minutes for access to propagate
 3. Clear Azure CLI cache: `az account clear && az login`
 

@@ -34,7 +34,7 @@ func LoadPipelines(
 	pipelineConfigFilePath := filepath.Join(topologyDir, root.PipelinePath)
 	pipe, err := types.NewPipelineFromFile(pipelineConfigFilePath, cfg)
 	if err != nil {
-		return fmt.Errorf("failed to precompile pipeline: %w", err)
+		return fmt.Errorf("failed to precompile pipeline %s: %w", pipelineConfigFilePath, err)
 	}
 	if pipe.ServiceGroup != root.ServiceGroup {
 		return fmt.Errorf("pipeline loaded from %s is for %s, not %s", pipelineConfigFilePath, pipe.ServiceGroup, root.ServiceGroup)

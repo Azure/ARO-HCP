@@ -113,6 +113,58 @@ func VerifyNodeCount(clusterName string, expected int) HostedClusterVerifier {
 	}
 }
 
+type verifyAllNodesFromNodePool struct {
+	nodePoolName string
+}
+
+func (v verifyAllNodesFromNodePool) Name() string {
+	return fmt.Sprintf("VerifyAllNodesFromNodePool(nodePool=%s)", v.nodePoolName)
+}
+
+func (v verifyAllNodesFromNodePool) Verify(ctx context.Context, adminRESTConfig *rest.Config) error {
+	kubeClient, err := kubernetes.NewForConfig(adminRESTConfig)
+	if err != nil {
+		return fmt.Errorf("failed to create kubernetes client: %w", err)
+	}
+
+	nodes, err := kubeClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return fmt.Errorf("can't list nodes in the cluster: %w", err)
+	}
+
+	if len(nodes.Items) == 0 {
+		return fmt.Errorf("no nodes found in the cluster")
+	}
+
+	var nodesFromOtherPools []string
+	for i := range nodes.Items {
+		nodePoolLabel, ok := nodes.Items[i].Labels[hypershiftv1beta1.NodePoolLabel]
+		if !ok {
+			nodesFromOtherPools = append(nodesFromOtherPools, fmt.Sprintf("%s (no nodepool label)", nodes.Items[i].Name))
+			continue
+		}
+		nodePoolName := extractNodePoolName(nodePoolLabel)
+		if nodePoolName != v.nodePoolName {
+			nodesFromOtherPools = append(nodesFromOtherPools, fmt.Sprintf("%s (from nodepool %q)", nodes.Items[i].Name, nodePoolName))
+		}
+	}
+
+	if len(nodesFromOtherPools) > 0 {
+		return fmt.Errorf("expected all nodes to be from nodepool %q, but found nodes from other pools: %s; all nodes by pool: %s",
+			v.nodePoolName, strings.Join(nodesFromOtherPools, ", "), formatNodesByPool(nodes.Items))
+	}
+
+	return nil
+}
+
+// VerifyAllNodesFromNodePool verifies that all nodes in the cluster belong to the specified node pool.
+// This is useful after deleting a nodepool to ensure only nodes from the expected nodepool remain.
+func VerifyAllNodesFromNodePool(nodePoolName string) HostedClusterVerifier {
+	return verifyAllNodesFromNodePool{
+		nodePoolName: nodePoolName,
+	}
+}
+
 // nodePoolNameRegex matches valid ARO-HCP node pool resource names
 // Same pattern as internal/validation/validators.go nodePoolResourceName, which is unexported.
 var nodePoolNameRegex = regexp.MustCompile(`^[a-zA-Z][-a-zA-Z0-9]{1,13}[a-zA-Z0-9]$`)
@@ -221,26 +273,25 @@ type verifyNodePoolUpgrade struct {
 }
 
 // nodeSummary is a compact representation of a node for error messages.
-// Full node objects can be 10KB+ due to annotations and are too large for error output.
+// Full node objects can be 10KB+ due to annotations and image lists,
+// and are too large for error output.
 type nodeSummary struct {
-	Name                    string   `json:"name"`
-	Ready                   bool     `json:"ready"`
-	ContainerRuntimeVersion string   `json:"containerRuntimeVersion"`
-	ReleaseImages           []string `json:"releaseImages,omitempty"`
+	Name                    string `json:"name"`
+	Ready                   bool   `json:"ready"`
+	KubeletVersion          string `json:"kubeletVersion"`
+	ContainerRuntimeVersion string `json:"containerRuntimeVersion"`
+	ImageCount              int    `json:"imageCount"`
 }
 
 func summarizeNodes(nodes []corev1.Node) []nodeSummary {
 	summaries := make([]nodeSummary, len(nodes))
 	for i, node := range nodes {
-		var releaseImages []string
-		for _, img := range node.Status.Images {
-			releaseImages = append(releaseImages, img.Names...)
-		}
 		summaries[i] = nodeSummary{
 			Name:                    node.Name,
 			Ready:                   nodeReady(to.Ptr(node)),
+			KubeletVersion:          node.Status.NodeInfo.KubeletVersion,
 			ContainerRuntimeVersion: node.Status.NodeInfo.ContainerRuntimeVersion,
-			ReleaseImages:           releaseImages,
+			ImageCount:              len(node.Status.Images),
 		}
 	}
 	return summaries
@@ -329,29 +380,63 @@ func nodeReadyAndSchedulable(node *corev1.Node) bool {
 	return nodeReady(node) && !node.Spec.Unschedulable
 }
 
-// nodeVersionInMinor returns a non-empty reason if the node's version is not in the same major.minor as expectedSemver.
+// ocpToK8sMinor maps known OCP 4.x minor versions to the Kubernetes minor version they ship.
+// This is an explicit allowlist rather than an arithmetic offset: the OCP-to-Kubernetes minor
+// mapping has held steady at +13 across 4.14-4.22, but that's not a guarantee that holds
+// forever (in particular across an OCP major version bump), so an unlisted OCP version fails
+// loudly here instead of silently producing an unverified expected value. Add an entry whenever
+// we start testing against a new OCP minor.
+var ocpToK8sMinor = map[uint64]uint64{
+	14: 27, // OCP 4.14 = k8s 1.27
+	15: 28, // OCP 4.15 = k8s 1.28
+	16: 29, // OCP 4.16 = k8s 1.29
+	17: 30, // OCP 4.17 = k8s 1.30
+	18: 31, // OCP 4.18 = k8s 1.31
+	19: 32, // OCP 4.19 = k8s 1.32
+	20: 33, // OCP 4.20 = k8s 1.33
+	21: 34, // OCP 4.21 = k8s 1.34
+	22: 35, // OCP 4.22 = k8s 1.35
+}
+
+// nodeVersionInMinor returns a non-empty reason if the node's KubeletVersion minor does not match
+// the expected Kubernetes minor for the given OCP version. It parses KubeletVersion (e.g. "v1.35.6+abc")
+// and checks that its minor equals the value in ocpToK8sMinor for expectedSemver's major.minor.
 func (v verifyNodePoolUpgrade) nodeVersionInMinor(node *corev1.Node, expectedSemver semver.Version) string {
-	cri := node.Status.NodeInfo.ContainerRuntimeVersion
-	m := regexp.MustCompile(`rhaos(\d+)\.(\d+)`).FindStringSubmatch(cri)
-	nodeVerStr := ""
-	if len(m) == 3 {
-		nodeVerStr = m[1] + "." + m[2]
-	}
-	if len(nodeVerStr) == 0 {
-		return fmt.Sprintf("%s (no version in containerRuntimeVersion %q)", node.Name, node.Status.NodeInfo.ContainerRuntimeVersion)
-	}
-	nodeVer, err := semver.ParseTolerant(nodeVerStr)
+	kubeletVer := node.Status.NodeInfo.KubeletVersion
+	kv, err := semver.ParseTolerant(kubeletVer)
 	if err != nil {
-		return fmt.Sprintf("%s (invalid version %q)", node.Name, nodeVerStr)
+		return fmt.Sprintf("%s (cannot parse KubeletVersion %q: %v)",
+			node.Name, kubeletVer, err)
 	}
-	if nodeVer.Major != expectedSemver.Major || nodeVer.Minor != expectedSemver.Minor {
-		return fmt.Sprintf("%s (version %s not in same minor as expected %s)", node.Name, nodeVerStr, v.expectedVersion)
+
+	if kv.Major != 1 {
+		return fmt.Sprintf("%s (KubeletVersion %s has unexpected major %d, expected 1)",
+			node.Name, kubeletVer, kv.Major)
+	}
+
+	if expectedSemver.Major != 4 {
+		return fmt.Sprintf("%s (no known Kubernetes minor mapping for OCP major %d; add it to ocpToK8sMinor in nodes.go)",
+			node.Name, expectedSemver.Major)
+	}
+
+	expectedK8sMinor, ok := ocpToK8sMinor[expectedSemver.Minor]
+	if !ok {
+		return fmt.Sprintf("%s (no known Kubernetes minor mapping for OCP 4.%d; add it to ocpToK8sMinor in nodes.go)",
+			node.Name, expectedSemver.Minor)
+	}
+
+	if kv.Minor != expectedK8sMinor {
+		return fmt.Sprintf("%s (KubeletVersion %s has minor %d, expected %d for OCP %s)",
+			node.Name, kubeletVer, kv.Minor, expectedK8sMinor, v.expectedVersion)
 	}
 	return ""
 }
 
 // nodeReleaseImagesUpdated returns a non-empty reason if no release image on the node differs from previous.
 func (v verifyNodePoolUpgrade) nodeReleaseImagesUpdated(node *corev1.Node) string {
+	if len(node.Status.Images) == 0 {
+		return fmt.Sprintf("%s (node has no images yet)", node.Name)
+	}
 	var currentImgs []string
 	for _, img := range node.Status.Images {
 		currentImgs = append(currentImgs, img.Names...)
@@ -361,5 +446,5 @@ func (v verifyNodePoolUpgrade) nodeReleaseImagesUpdated(node *corev1.Node) strin
 			return "" // at least one new image differs from previous
 		}
 	}
-	return fmt.Sprintf("%s (release images unchanged: %v)", node.Name, currentImgs)
+	return fmt.Sprintf("%s (release images unchanged: %d image entries on node, none differ from pre-upgrade set)", node.Name, len(node.Status.Images))
 }

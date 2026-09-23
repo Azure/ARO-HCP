@@ -1,0 +1,23 @@
+{
+	"id": "0fdafd81-1267-50d2-9fe2-bf1c7e0e4514",
+	"partitionKey": "85176f51-8b54-4150-b6b5-b4ff5d007f5b",
+	"properties": {
+		"resourceId": "/subscriptions/85176f51-8b54-4150-b6b5-b4ff5d007f5b/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/basic/serviceProviderClusters/default",
+		"spec": {
+			"control_plane_version": {
+				"desired_version": "4.20.8"
+			}
+		},
+		"status": {
+			"control_plane_version": {
+				"active_versions": [
+					{
+						"version": "4.20.8"
+					}
+				]
+			}
+		}
+	},
+	"resourceID": "/subscriptions/85176f51-8b54-4150-b6b5-b4ff5d007f5b/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/basic/serviceProviderClusters/default",
+	"resourceType": "microsoft.redhatopenshift/hcpopenshiftclusters/serviceproviderclusters"
+}

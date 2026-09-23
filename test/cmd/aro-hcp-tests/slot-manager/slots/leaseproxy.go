@@ -152,6 +152,10 @@ func ReleaseLease(ctx context.Context, leaseProxyServerURL, name string, timeout
 			if response.StatusCode >= 200 && response.StatusCode < 300 {
 				return true, nil
 			}
+			if response.StatusCode == http.StatusInternalServerError &&
+				strings.Contains(strings.ToLower(string(responseBody)), "no resource name") {
+				return true, nil
+			}
 			if response.StatusCode == http.StatusTooManyRequests || response.StatusCode >= 500 {
 				return false, nil // retryable
 			}

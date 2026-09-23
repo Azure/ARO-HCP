@@ -1,14 +1,16 @@
 # CI Identity Leasing
 
-ARO HCP E2E uses two related Boskos-backed leasing mechanisms:
+ARO HCP E2E uses three related Boskos-backed leasing mechanisms:
 
 - a **managed identity container pool** used by the test framework when creating HCP-related managed identities
 - a **DEV-only MSI mock service-principal pool** used during local E2E provisioning to spread ARM read traffic across multiple actors
+- a **DEV-only ARM helper service-principal pool** used to give each E2E backend
+  an independent CheckAccess request budget
 
 The important operational distinction today is that the managed identity container pool is acquired in two different ways:
 
-- DEV `e2e-parallel` uses `slot-manager` through the `aro-hcp-local-e2e` workflow
-- all other E2E jobs still use the older ci-operator `leases:` path directly
+- DEV, INT, and STG `e2e-parallel` jobs use `slot-manager` through the `aro-hcp-local-e2e` workflow
+- PROD is being migrated onto the same slot-manager model; until its `openshift/release` job wiring lands it still uses the older ci-operator `leases:` path directly
 
 The high-level execution flow is summarized in [CI Execution](execution.md). This document preserves the deeper mechanics that matter when you need to reason about parallelism, pool sizing, workflow wiring, or lease-related failures.
 
@@ -24,7 +26,7 @@ The result is a split model:
 - the test framework reuses pre-created **identity-container resource groups**
 - DEV provisioning reuses a pool of **mock service principals**
 
-Both pools are backed by Boskos resource types, but they are consumed by different parts of the workflow. Both the directory quota and the role-assignment quota are actively monitored — see [CI Quota Monitoring](quota-monitoring.md).
+Both pools are backed by Boskos resource types, but they are consumed by different parts of the workflow. Both the directory quota and the role-assignment quota are actively monitored — see [DEV CI Monitoring and Alert Response](dev-ci-monitoring.md).
 
 ## Managed Identity Container Pool
 
@@ -79,9 +81,9 @@ For background on how leases work in OpenShift CI, see:
 - [Quota and Leases](https://docs.ci.openshift.org/docs/architecture/quota-and-leases/)
 - [Step Registry - Leases](https://docs.ci.openshift.org/docs/architecture/step-registry/#leases)
 
-#### DEV `e2e-parallel`: slot-managed acquisition
+#### DEV, INT, and STG `e2e-parallel`: slot-managed acquisition
 
-The only live slot-manager consumer today is the DEV `e2e-parallel` job in `openshift/release: ci-operator/config/Azure/ARO-HCP/Azure-ARO-HCP-main.yaml`.
+The live slot-manager consumers today are the DEV, INT, and STG `e2e-parallel` jobs in `openshift/release: ci-operator/config/Azure/ARO-HCP/Azure-ARO-HCP-main.yaml`. PROD is being onboarded onto the same path.
 
 That job uses `openshift/release: ci-operator/step-registry/aro-hcp/local-e2e/aro-hcp-local-e2e-workflow.yaml`, whose pre-steps start with:
 
@@ -106,9 +108,9 @@ That runtime contract includes:
 
 Downstream steps then source that file and map `SELECTED_LOCATION` to the runtime `LOCATION` they consume. The test framework still sees `LEASED_MSI_CONTAINERS`; the difference is that slot-manager now decides which subscription, slot, and identity-container set back that variable.
 
-#### Higher environments: legacy ci-operator leases
+#### Remaining legacy ci-operator leases
 
-INT, STG, and PROD E2E jobs still use the legacy acquire model.
+Any E2E job not yet migrated to slot-manager uses the legacy acquire model. Today that is PROD (during its onboarding) plus the non-`e2e-parallel` job variants such as the `__e2e` and `__periodic` jobs.
 
 Those jobs run the persistent workflow in `openshift/release: ci-operator/step-registry/aro-hcp/e2e/aro-hcp-e2e-workflow.yaml`, which does not call slot-manager acquire or release. Instead, the job definitions in:
 
@@ -116,25 +118,27 @@ Those jobs run the persistent workflow in `openshift/release: ci-operator/step-r
 - `openshift/release: ci-operator/config/Azure/ARO-HCP/Azure-ARO-HCP-main__e2e.yaml`
 - `openshift/release: ci-operator/config/Azure/ARO-HCP/Azure-ARO-HCP-main__periodic.yaml`
 
-still request environment-specific identity-container resource types through ci-operator `leases:`. Those leases populate `LEASED_MSI_CONTAINERS` directly, and the test framework consumes them exactly as it did before the DEV slot-manager rollout.
+still request environment-specific identity-container resource types through ci-operator `leases:`. Those leases populate `LEASED_MSI_CONTAINERS` directly, and the test framework consumes them exactly as it did before the slot-manager rollout.
 
 ### Subscription Sharding And Region Selection
 
-The slot-manager path is what lets DEV CI shard `e2e-parallel` across multiple customer subscriptions without forking the workflow or the test binary.
+The slot-manager path is what lets CI shard `e2e-parallel` across multiple customer subscriptions without forking the workflow or the test binary.
 
 The current model is:
 
-- the canonical DEV slot inventory lives in `test/e2e-config/e2e-slots.yaml`
+- the canonical slot inventory lives in `test/e2e-config/e2e-slots.yaml`
 - each slot pool has a Boskos `resource_type`, a customer `subscription_name`, slot count, and identity-container settings
 - `slot-manager acquire` maps `ARO_HCP_DEPLOY_ENV` to the catalog environment and builds an ordered candidate pool list
 - `ALLOWED_SUBSCRIPTIONS` narrows the candidate pool set when a job needs to pin or restrict shard selection
-- when `region_mode: runtime-selected` is used, the concrete runtime region is driven by the job's runtime override and exported as `SELECTED_LOCATION`
+- `fixed` pools take their runtime region from the catalog
+- `runtime-selected` pools take their runtime region from the job override, with the catalog region as fallback
+- `weighted` pools select deterministically from the catalog regions using per-job `LOCATION_WEIGHTS` and `BUILD_ID`; an explicit location override remains highest precedence
 
-The current DEV rollout intentionally keeps the implementation details in [slot-manager design](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md). For day-to-day CI understanding, the important points are:
+The implementation details live in [slot-manager design](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md). For day-to-day CI understanding, the important points are:
 
 - subscription sharding is driven by the slot catalog and slot-manager candidate pool selection
 - candidate pools are tried in catalog order when more than one pool is eligible
-- the active runtime region is controlled by the live `openshift/release` job configuration
+- the active runtime region is determined from the catalog mode and the live `openshift/release` job configuration
 
 This document intentionally does not freeze the current region value in prose. If you need the current runtime override for a job, inspect the live `openshift/release` config rather than relying on a doc snapshot.
 
@@ -154,14 +158,20 @@ In the test framework:
 
 ### Pool Sizing And Subscription Constraints
 
-The key limiting factor for identity pool sizing is **Azure role assignments per subscription**. To check current quota usage before resizing pools, see [CI Quota Monitoring](quota-monitoring.md).
+The key limiting factor for identity pool sizing is **Azure role assignments per subscription**. To check current quota usage before resizing pools, see [DEV CI Monitoring and Alert Response](dev-ci-monitoring.md).
 
 Each HCP cluster created during E2E consumes role assignments in its identity container. The cost depends on the RBAC scope mode:
 
-- **`resourceGroupScope`**: 24 role assignments per HCP (11 from E2E test bicep + 13 from the RP-managed resource group)
+- **`resourceGroupScope`**: 26 role assignments per HCP (13 from E2E test bicep + 13 from the RP-managed resource group)
 - **`resourceScope`**: 41 role assignments per HCP (28 from E2E test bicep + 13 from the RP-managed resource group)
 
-The E2E suite runs all tests in `resourceGroupScope` mode except one test path that uses `resourceScope`.
+Most specs run in `resourceGroupScope` mode; the exceptions are the specs that pass `framework.RBACScopeResource`. Derive that count from the test source rather than trusting a number written here — this sentence has been stale before:
+
+```bash
+git grep -o "framework.RBACScopeResource," -- test/e2e/ | wc -l   # 3 at the time of writing
+```
+
+A test path that deploys a pinned back-level copy of the setup bicep is also resource-scoped regardless of what it passes, because those copies have no `rbacScope` parameter and only ever grant resource-scoped RBAC. No such path exists today, but one has existed before and may again.
 
 The test-side role-assignment count comes from the managed-identity deployment bicep at `test/e2e-setup/bicep/modules/managed-identities.bicep`, which delegates to:
 
@@ -172,17 +182,72 @@ Each file contains conditional resources gated on the `rbacScope` parameter. To 
 
 Individual test specs may also create additional role assignments beyond this baseline. At the time of writing this is not the common case, but if it grows, the headroom in the formula below may need to be adjusted.
 
-Given a target suite parallelism and a subscription's role-assignment quota, the maximum identity-pool size for the flat legacy model is:
+Given the concurrent HCP demand of a run and a subscription's role-assignment quota, the cost of a run and the maximum number of concurrent runs are:
 
 ```text
-RG_SCOPE_COST  = 24   (current resourceGroupScope cost per HCP)
-RES_SCOPE_COST = 41   (current resourceScope cost per HCP)
+# Every value below is derived from a checked-in source. The numbers are current
+# at the time of writing; re-derive rather than trusting them.
 
-max-concurrency = floor((role-assignment-quota - 100) / (((suite-parallelism - 1) * RG_SCOPE_COST) + RES_SCOPE_COST))
-pool-size       = max-concurrency * suite-parallelism
+RG_SCOPE_COST   = 26   # unconditional + rbacScope=='resourceGroup' assignments
+                       #   in test/e2e-setup/bicep/modules/{non-msi,msi}-scoped-assignments.bicep,
+                       #   plus RP-managed assignments (see the per-HCP costs above)
+RES_SCOPE_COST  = 41   # same, for rbacScope=='resource'
+RES_SCOPED_HCPS = 3    # git grep -o "framework.RBACScopeResource," -- test/e2e/ | wc -l
+
+identity_container_count = 60   # the leasing pool's per-slot container count, from
+                                #   test/e2e-config/e2e-slots.yaml. Differs per pool
+                                #   (20, 25 and 60 today), so run-cost is per pool too.
+
+# Concurrent HCPs is NOT the Ginkgo worker count. Some specs lease more than one
+# identity container each, so P workers can hold more than P clusters.
+#
+# Let demand(spec) be the value of that spec's labels.MIContainers decorator,
+# taken over the specs the run actually selects, and let P = suite-parallelism.
+hcp-concurrency = min(
+    sum of demand(spec) over the selected specs,   # total declared demand
+    identity_container_count,                      # leased pool ceiling
+    sum of the P largest demand(spec) values       # worker bound
+)
+
+# A run cannot hold more resource-scoped clusters than clusters. Assuming every
+# resource-scoped spec is among those running concurrently is the worst case.
+res-scoped-concurrent = min(RES_SCOPED_HCPS, hcp-concurrency)
+
+run-cost        = ((hcp-concurrency - res-scoped-concurrent) * RG_SCOPE_COST) + (res-scoped-concurrent * RES_SCOPE_COST)
+max-concurrency = floor((role-assignment-quota - 100) / run-cost)
 ```
 
 The 100 subtracted from quota is headroom reserved for other activity in the subscription and for any additional role assignments created by individual specs.
+
+`suite-parallelism` is declared per suite in `test/cmd/aro-hcp-tests/main.go` and can be overridden at runtime by `ARO_HCP_SUITE_PARALLELISM`, which the CI job configuration in `openshift/release` sets. That override is not visible from this repository, so check the job config rather than assuming the source literal applies.
+
+`run-cost` is the cost of a single run. To answer whether a change fits within a
+subscription's quota — the question that arises whenever role assignments are
+added to the E2E bicep — scale it across the slots that subscription configures:
+
+```text
+# Slots and their container counts come from test/e2e-config/e2e-slots.yaml.
+# Group pools by subscription_name first: several pools can share one
+# subscription and therefore one quota, so their costs add up. Today the INT
+# environment is the case that matters.
+#
+# run-cost is per pool, not per subscription: it depends on
+# identity_container_count, which differs between pools (20, 25 and 60 today).
+# Compute it separately for each pool rather than reusing one value.
+subscription-cost = sum over that subscription's pools of (run-cost(pool) * slot_count(pool))
+
+assert subscription-cost + persistent-baseline <= role-assignment-quota
+```
+
+`persistent-baseline` is the role assignments a subscription holds independently of any running suite — subscription-scoped grants for humans and automation, plus long-lived infrastructure. Measure it on an idle subscription rather than assuming; assignments belonging to running clusters cannot be told apart by scope:
+
+```bash
+az role assignment list --subscription <name-or-id> --all -o json | jq length
+```
+
+This is a *configured worst case*: it assumes every slot runs a suite at peak concurrency simultaneously. Real usage is normally well below it, so a breach means the catalog permits one, not that one has occurred.
+
+Every input above has a stated derivation, so the whole calculation can be re-run from this repository without trusting a figure written here. Do that rather than reusing quoted numbers, which require manual maintenance and have been stale in the past.
 
 For the current live capacity model:
 
@@ -192,19 +257,40 @@ For the current live capacity model:
 
 ### Scaling Constraints
 
-Two bottlenecks still matter:
+Three bottlenecks matter:
 
 **Bottleneck 1: maximum concurrent E2E runs.**
 
 - In the legacy flat-pool model, each E2E job leases a fixed number of identity containers, so:
 
 ```text
+# pool-size here is the total size of the legacy flat identity pool, not a
+# quantity from the role-assignment model above.
 max-concurrent-runs = floor(pool-size / per-job-lease-count)
 ```
 
 - In the slot-managed DEV model, concurrency is instead bounded by the number of available slots across the shard pools that the job is allowed to consume.
 
-**Bottleneck 2: parallelism within a single run.** The per-job identity-container set still caps how many HCP clusters a single suite execution can run simultaneously. When the suite has more specs requiring HCPs than available leased containers, specs run in waves — the first wave runs, and the remaining specs block inside `AssignIdentityContainers()` until containers are released. This means adding more test specs increases total suite runtime even if the specs themselves are fast.
+**Bottleneck 2: parallelism within a single run.** How many HCP clusters a single suite execution holds at once is bounded by both the leased identity-container set and the effective suite parallelism, whichever is smaller — see `hcp-concurrency` above. When the suite has more specs requiring HCPs than can run concurrently, specs run in waves — the first wave runs, and the remaining specs block inside `AssignIdentityContainers()` until containers are released. This means adding more test specs increases total suite runtime even if the specs themselves are fast.
+
+**Bottleneck 3: deny assignments per subscription (AME only — STG and PROD).** The Azure Authorization RP allows at most **2000 deny assignments per subscription**. The RP currently creates *sharded* (per-cluster) deny assignments — roughly 21 per HCP — which caps a single subscription at about **92 concurrent HCP clusters**, regardless of role-assignment quota or identity-pool size:
+
+```text
+DENY_ASSIGNMENTS_PER_SUB   = 2000  (Authorization RP hard limit)
+DENY_ASSIGNMENTS_PER_HCP   = 21    (current sharded, per-cluster count)
+
+max-hcps-per-sub = floor(DENY_ASSIGNMENTS_PER_SUB / DENY_ASSIGNMENTS_PER_HCP) ≈ 92
+```
+
+This applies to **AME environments only (STG and PROD)**: the RP only creates deny assignments in AME. In practice it is the binding constraint for PROD slot sizing — STG runs a single slot per subscription, well under the ceiling. It translates into slot count as:
+
+```text
+max-slots-per-sub = floor(max-hcps-per-sub / identity-container-count-per-slot)
+```
+
+where `identity-container-count-per-slot` is the pool's `identity_container_count` — an upper bound on the HCPs a single suite run provisions concurrently, not the actual figure; see `hcp-concurrency` above. Using the ceiling here is deliberate and safe, since it overstates rather than understates deny-assignment consumption. The PROD `slot_count` in `test/e2e-config/e2e-slots.yaml` is sized to stay within this cap; that catalog is the source of truth for the current per-subscription values.
+
+The RP is expected to consolidate the per-cluster deny assignments into a single deny assignment with all managed identities excluded once Azure raises the excluded-principals limit from 10 to 25. When that lands, this per-subscription HCP ceiling is lifted and the PROD `slot_count` can be raised accordingly.
 
 The path to higher throughput is still adding subscription capacity, because each additional customer subscription brings its own role-assignment budget and its own managed identity container fleet. In DEV, slot-manager is what lets CI consume that extra capacity through one job family rather than through separate workflows.
 
@@ -214,8 +300,40 @@ For the live DEV slot-managed path:
 
 - update `test/e2e-config/e2e-slots.yaml`
 - sync or validate the release-side Boskos inventory with `./test/aro-hcp-tests slot-manager sync-boskos-config` and `./test/aro-hcp-tests slot-manager validate-boskos-config`
-- apply the identity pool with `./test/aro-hcp-tests slot-manager apply-identity-pool --environment dev`
+- apply the identity pool with `make -C test apply-identity-pool ENVIRONMENT=dev`
+
+  Always apply through this Make target rather than `go run` or a hand-built binary. The target rebuilds `aro-hcp-tests` and, as part of that, regenerates the Bicep-derived ARM artifacts (e.g. `msi-pools.json`) from the source-of-truth Bicep in `test/e2e-setup/bicep/`. The generated artifacts under `test/e2e/test-artifacts/generated-test-artifacts/` are git-ignored build outputs, so bypassing the Make build can embed and apply a stale template — which manifests as resource groups being deleted and recreated instead of updated in place.
 - follow [DEV E2E Subscription Onboarding](dev-e2e-subscription-onboarding.md) for the full operator runbook when adding another customer subscription
+
+#### Reconcile And Validate An Identity Pool
+
+If a job fails because a leased identity-container resource group is missing or
+incomplete, reconcile only the affected subscription:
+
+```bash
+make -C test apply-identity-pool \
+  ENVIRONMENT=<dev|int|stg|prod> \
+  SUBSCRIPTION="<catalog subscription_name>"
+```
+
+The command applies one subscription-scoped deployment stack per slot. Review
+the catalog diff before running it: deployment stacks use
+`ActionOnUnmanage: delete`, so reducing a pool or changing its resource names can
+delete resources that are no longer managed by the stack.
+
+Then validate the complete expected inventory against Azure:
+
+```bash
+make -C test validate-identity-pool \
+  ENVIRONMENT=<dev|int|stg|prod> \
+  SUBSCRIPTION="<catalog subscription_name>"
+```
+
+If either command fails, preserve the deployment-stack error and inspect the
+first nested Azure error instead of retrying blindly. Common blockers are
+insufficient RBAC, an unregistered `Microsoft.ManagedIdentity` provider,
+subscription quota exhaustion, or another deployment operation holding the
+stack in a non-terminal state.
 
 For higher environments, the identity-container acquisition path is still the older ci-operator `leases:` model. Those jobs are not yet wired to slot-manager acquire or release, so changes there still have to respect the existing `openshift/release` Boskos inventory and job configuration.
 
@@ -249,23 +367,33 @@ Personal development environments continue using the existing single `miMockClie
 
 ### Infrastructure Setup
 
-The pool currently uses a mixed-management setup. `MSI_MOCK_POOL_SIZE` in `dev-infrastructure/Makefile` still controls the local helper defaults, but customer-subscription RBAC is now reconciled from `config/config-dev-ci.yaml` through the standalone `Microsoft.Azure.ARO.HCP.DevCI.E2ESubscriptionRBAC` rollout.
+The pooled `aro-dev-msi-mock-pool-<i>` identities are fully declarative on the
+Azure side. Their certificates, Entra apps/service principals, pinning, and
+subscription RBAC are reconciled by the standalone, **Owner-only**
+`Microsoft.Azure.ARO.HCP.DevCI.Privileged` entrypoint. The pool size has one
+source of truth: `.ci.dev.mockIdentities.pool.size` in
+`config/config-dev-ci.yaml`.
 
 Typical maintainer flow:
 
-1. From `dev-infrastructure/`, run `make create-msi-mock-pool`.
-2. If any pooled principal object IDs changed, update `config/config-dev-ci.yaml` under `ci.dev.devMockIdentities.msiMockPool.principals`.
-3. From the repository root, run `make dev-ci-e2e-subscription-rbac-local-run`.
-4. From `dev-infrastructure/`, run `make populate-msi-mock-pool`.
-5. If the pool size or Boskos key set changed, update the release-side Boskos inventory and step-registry lease wiring as well.
+1. Change `.ci.dev.mockIdentities.pool.size` in `config/config-dev-ci.yaml`.
+2. Ask an OWNERS-group member to run `make dev-ci-privileged-local-run`
+   (requires subscription Owner, Key Vault certificate create/read, and
+   owner/Application.ReadWrite on the apps). It creates every missing indexed
+   certificate and app/SP, pins the current certificate, and applies RBAC.
+3. Run `make -C dev-infrastructure populate-msi-mock-pool` to regenerate the
+   static Boskos catalog. The target reads the desired size directly from
+   `config/config-dev-ci.yaml`.
+4. Update the release-side Boskos inventory and step-registry lease wiring.
 
 In the current model:
 
-- `make create-msi-mock-pool` is itself hybrid:
-  - `dev-infrastructure/templates/mock-identity-pool.bicep` ensures the Key Vault certificate set.
-  - `dev-infrastructure/scripts/create-sp-for-rbac.sh` and the surrounding `dev-infrastructure/Makefile` loop still create or update the `aro-dev-msi-mock-pool-<i>` Entra app and service principal objects and apply the home-subscription grants.
-- `make dev-ci-e2e-subscription-rbac-local-run` reconciles pooled-principal access on the DEV E2E customer subscriptions from the principal IDs recorded in `config/config-dev-ci.yaml`.
-- `dev-infrastructure/configurations/e2e-subscription-rbac-assignments.tmpl.bicepparam` still preserves legacy assignment IDs for the first DEV E2E subscription so the rollout can adopt existing grants without recreating them.
+- `make dev-ci-privileged-local-run` creates the pooled Entra objects
+  (`mock-identity-apps.bicep`), creates missing Key Vault certificates and pins
+  them via the `pin-mock-certs` Shell step, and reconciles access on the DEV home
+  and E2E customer subscriptions (`mock-identity-rbac.bicep`). Decreasing the
+  configured size does not delete higher-index resources; they are simply no
+  longer reconciled.
 - `make populate-msi-mock-pool` performs live Entra lookups and rewrites `dev-infrastructure/openshift-ci/msi-mock-pool.yaml`, which remains the static catalog consumed by release-side jobs.
 
 ### Naming Bridge
@@ -275,7 +403,10 @@ The Azure objects and the Boskos leases intentionally use different names:
 - Azure app and service principal display name: `aro-dev-msi-mock-pool-<i>`
 - Boskos resource key and static catalog key: `aro-hcp-msi-mock-cs-sp-dev-<i>`
 
-`dev-infrastructure/openshift-ci/populate-msi-mock-pool.sh` bridges those two namespaces by looking up the Azure object by display name and writing the resulting client ID and principal ID under the Boskos key in `msi-mock-pool.yaml`.
+`dev-infrastructure/openshift-ci/populate-mock-identity-pool.sh` bridges those
+two namespaces by looking up each Azure object by display name and writing the
+resulting client ID and principal ID under the Boskos key in the pool's static
+catalog.
 
 ### Boskos Configuration
 
@@ -297,12 +428,55 @@ MSI_MOCK_CERT_NAME=$(yq ".miMockPool.\"${LEASED_MSI_MOCK_SP}\".certName" dev-inf
 
 Jobs only consume the Boskos key and the static `msi-mock-pool.yaml` catalog at runtime. They do not query Entra or the `dev-ci` rollout directly during provisioning.
 
+## ARM Helper Service Principal Pool
+
+The DEV ARM helper pool prevents concurrent E2E backends from sharing the
+third-party-application CheckAccess limit. Each member is an
+`aro-dev-arm-helper-pool-<i>` application/service principal with its own pinned
+`armHelperPoolCert-<i>` certificate and the same subscription-level Contributor
+and Role Based Access Control Administrator grants as `aro-dev-arm-helper2` on
+the DEV home and E2E customer subscriptions. The home-subscription grants allow
+a pool member to be tested in a personal development environment.
+
+The Azure-side pool size has one source of truth:
+`.ci.dev.mockIdentities.armHelperPool.size`. Increasing it causes the privileged
+pipeline to create the missing certificate, application/service principal,
+pinned credential, and E2E-subscription RBAC for each new index. Decreasing it
+does not delete higher-index resources.
+
+Maintainer flow:
+
+1. Change `.ci.dev.mockIdentities.armHelperPool.size`.
+2. Run `make dev-ci-privileged-local-run`. The DEV `pin-mock-certs` step
+   reconciles the shared identities, MSI mock pool, and ARM helper pool after
+   their combined app deployment.
+3. Verify token acquisition for every new application. The full entrypoint also
+   reconciles the pool's home- and E2E-subscription grants in
+   `mock-identity-rbac`.
+4. Run `make -C dev-infrastructure populate-arm-helper-pool`. The target reads
+   the desired size directly from `config/config-dev-ci.yaml`.
+5. Add or update the `aro-hcp-arm-helper-sp-dev` Boskos inventory in
+   `openshift/release`;
+   after that inventory has rolled out, request two leases as
+   `LEASED_ARM_HELPER_SP`.
+
+The runtime catalog is
+`dev-infrastructure/openshift-ci/arm-helper-pool.yaml`. An unknown or incomplete
+lease entry fails provisioning. The first whitespace-separated lease configures
+Backend through `armHelperClientId` and `armHelperCertName`; the second configures
+Clusters Service through `clustersServiceArmHelperClientId` and
+`clustersServiceArmHelperCertName`. A single lease remains supported during the
+transition to the shared `hack/ci` provisioning scripts and configures both
+Backend and Clusters Service with that identity. A missing lease preserves all
+configured defaults. Neither lease overrides `armHelperFPAPrincipalId`, which is
+the shared mock first-party principal rather than an authenticating ARM helper.
+
 ## Where To Look
 
 When you need to change or debug identity leasing, start here:
 
 - [CI Execution](execution.md)
-- [DEV E2E Subscription Onboarding](dev-e2e-subscription-onboarding.md)
+- [E2E Subscription Onboarding](e2e-subscription-onboarding.md)
 - [slot-manager design](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md)
 - ARO HCP test framework: `test/util/framework/identities_helper.go`
 - slot-managed identity-pool code: `test/cmd/aro-hcp-tests/slot-manager/identity-pool/`
@@ -315,15 +489,16 @@ When you need to change or debug identity leasing, start here:
 - mock-SP pool setup and mixed management:
   - `config/config-dev-ci.yaml`
   - `dev-infrastructure/Makefile`
-  - `dev-infrastructure/dev-ci/e2e-subscription-rbac/pipeline.yaml`
-  - `dev-infrastructure/configurations/e2e-subscription-rbac-assignments.tmpl.bicepparam`
-  - `dev-infrastructure/openshift-ci/populate-msi-mock-pool.sh`
+  - `dev-infrastructure/dev-ci/e2e-subscription-rbac-grants/pipeline.yaml`
+  - `dev-infrastructure/configurations/mock-identity-apps.tmpl.bicepparam`
+  - `dev-infrastructure/configurations/mock-identity-rbac.tmpl.bicepparam`
+  - `dev-infrastructure/openshift-ci/populate-mock-identity-pool.sh`
 
 ## See Also
 
 - [CI Overview](README.md)
 - [CI Execution](execution.md)
-- [DEV E2E Subscription Onboarding](dev-e2e-subscription-onboarding.md)
-- [CI Quota Monitoring](quota-monitoring.md)
+- [E2E Subscription Onboarding](e2e-subscription-onboarding.md)
+- [DEV CI Monitoring and Alert Response](dev-ci-monitoring.md)
 - [CI Operations](operations.md)
 - [CI EV2 Integration](ev2-integration.md)

@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"html/template"
 	"math"
-	"os"
 	"slices"
 	"strconv"
 	"strings"
@@ -30,6 +29,7 @@ import (
 	"github.com/go-echarts/go-echarts/v2/charts"
 	"github.com/go-echarts/go-echarts/v2/opts"
 
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/utils/ptr"
 
 	"github.com/Azure/ARO-HCP/test/util/timing"
@@ -59,12 +59,14 @@ type parsedSeries struct {
 	data   []opts.LineData
 }
 
-func (s parsedSeries) peakValue() float64 {
+func seriesPeakValue(series []parsedSeries) float64 {
 	var peak float64
-	for _, d := range s.data {
-		if arr, ok := d.Value.([]any); ok && len(arr) == 2 {
-			if v, ok := arr[1].(float64); ok && v > peak {
-				peak = v
+	for _, s := range series {
+		for _, d := range s.data {
+			if arr, ok := d.Value.([]any); ok && len(arr) == 2 {
+				if v, ok := arr[1].(float64); ok && v > peak {
+					peak = v
+				}
 			}
 		}
 	}
@@ -84,41 +86,100 @@ type panelPageData struct {
 // chartData holds the rendered chart HTML and metadata for a single query
 // within a panel.
 type chartData struct {
-	Title       string
-	Description string
-	Query       string
-	HasData     bool
-	Error       string
-	ChartHTML   template.HTML // raw HTML from go-echarts, not escaped
+	Title            string
+	Description      string
+	Query            string
+	QueryLang        string // "PromQL" or "Azure Monitor", shown in the query footer
+	HasData          bool
+	Error            string
+	Warning          string        // non-fatal notice shown alongside a rendered chart (e.g. partial failures)
+	ChartHTML        template.HTML // raw HTML from go-echarts, not escaped
+	MinPeakThreshold float64
+	ChartType        string
 }
 
-// renderPanel assembles multiple charts into a single HTML page.
-func renderPanel(outputPath string, data panelPageData) error {
+// queryFooter returns the human-readable label and body shown in the collapsed
+// query footer of a chart, adapting to the query source. For Azure Monitor
+// charts the body is a copy-pasteable `az monitor metrics list` command that
+// reproduces the plotted data.
+func queryFooter(q QuerySpec, resourceID string, tw timing.TimeWindow) (lang, body string) {
+	if q.Source == sourceAzureMonitor {
+		return "Azure Monitor", azMetricsCommand(q, resourceID, tw)
+	}
+	return "PromQL", q.Query
+}
+
+// azMetricsCommand renders a copy-pasteable `az monitor metrics list` invocation
+// that reproduces the data plotted for an azureMonitor chart. A reader can paste
+// it into a shell (after `az login`) to pull the same timeseries straight from
+// Azure Monitor. One command is emitted per metric so each carries its own
+// dimension filter.
+func azMetricsCommand(q QuerySpec, resourceID string, tw timing.TimeWindow) string {
+	namespace := metricNamespaceForResource[q.Resource]
+	start := tw.Start.UTC().Format(time.RFC3339)
+	end := tw.End.UTC().Format(time.RFC3339)
+	interval := stepToISO8601(q.Step)
+
+	var cmds []string
+	for _, m := range q.Metrics {
+		var b strings.Builder
+		b.WriteString("az monitor metrics list \\\n")
+		fmt.Fprintf(&b, "  --resource %s \\\n", shellQuote(resourceID))
+		if namespace != "" {
+			fmt.Fprintf(&b, "  --namespace %s \\\n", shellQuote(namespace))
+		}
+		fmt.Fprintf(&b, "  --metrics %s \\\n", shellQuote(m.Name))
+		fmt.Fprintf(&b, "  --aggregation %s \\\n", q.Aggregation)
+		fmt.Fprintf(&b, "  --interval %s \\\n", interval)
+		if filter := buildMetricFilter(m); filter != "" {
+			fmt.Fprintf(&b, "  --filter %s \\\n", shellQuote(filter))
+		}
+		fmt.Fprintf(&b, "  --start-time %s \\\n", start)
+		fmt.Fprintf(&b, "  --end-time %s", end)
+		cmds = append(cmds, b.String())
+	}
+	return strings.Join(cmds, "\n\n")
+}
+
+// shellQuote wraps a value in double quotes when it contains characters a shell
+// would otherwise interpret. Azure $filter expressions embed single quotes
+// (e.g. CollectionName eq '*'), so double quoting is used and any embedded
+// double quote is escaped.
+func shellQuote(s string) string {
+	if s == "" {
+		return `""`
+	}
+	if !strings.ContainsAny(s, " \t'\"*|&;<>()$`\\") {
+		return s
+	}
+	return `"` + strings.ReplaceAll(s, `"`, `\"`) + `"`
+}
+
+// renderPanelHTML assembles multiple charts into a single self-contained HTML
+// page and returns its bytes.
+func renderPanelHTML(data panelPageData) ([]byte, error) {
 	tmplContent := mustReadArtifact("metricspanel.html.tmpl")
 	tmpl, err := template.New("panel").Parse(string(tmplContent))
 	if err != nil {
-		return fmt.Errorf("failed to parse panel template: %w", err)
+		return nil, fmt.Errorf("failed to parse panel template: %w", err)
 	}
 	var buf bytes.Buffer
 	if err := tmpl.Execute(&buf, data); err != nil {
-		return fmt.Errorf("failed to execute panel template: %w", err)
+		return nil, fmt.Errorf("failed to execute panel template: %w", err)
 	}
-	if err := os.WriteFile(outputPath, buf.Bytes(), 0644); err != nil {
-		return fmt.Errorf("failed to write %s: %w", outputPath, err)
-	}
-	return nil
+	return buf.Bytes(), nil
 }
 
 // estimateLegendHeight approximates the pixel height needed for the ECharts
 // horizontal legend by simulating how entries wrap across rows.
-func estimateLegendHeight(series []parsedSeries, chartWidth int) int {
-	if len(series) == 0 {
+func estimateLegendHeight(labels []string, chartWidth int) int {
+	if len(labels) == 0 {
 		return minLegendHeight
 	}
 	currentRowWidth := 0
 	rows := 1
-	for _, s := range series {
-		entryWidth := len(s.label)*legendCharWidth + legendEntryPadding
+	for _, label := range labels {
+		entryWidth := len(label)*legendCharWidth + legendEntryPadding
 		if currentRowWidth+entryWidth > chartWidth && currentRowWidth > 0 {
 			rows++
 			currentRowWidth = entryWidth
@@ -131,64 +192,60 @@ func estimateLegendHeight(series []parsedSeries, chartWidth int) int {
 
 // buildChartData builds the chart HTML for a single PromQL query result.
 // Each PrometheusResult becomes a separate series, labeled by its metric
-// labels.
-func buildChartData(title, description, query, unit, queryErr string, results []PrometheusResult, tw timing.TimeWindow) chartData {
-	var series []parsedSeries
-	for _, result := range results {
-		if len(result.Values) == 0 {
-			continue
-		}
-
-		var data []opts.LineData
-		for _, v := range result.Values {
-			if len(v) < 2 {
-				continue
-			}
-			ts, val, ok := parsePrometheusValue(v)
-			if !ok || ts == 0 {
-				continue
-			}
-			data = append(data, opts.LineData{
-				Value: []any{ts * 1000, val}, // ECharts time axis expects milliseconds
-			})
-		}
-
-		if len(data) == 0 {
-			continue
-		}
-
-		data = insertGapMarkers(data)
-
-		series = append(series, parsedSeries{
-			metric: result.Metric,
-			data:   data,
-		})
-	}
-
+// labels. warning carries a non-fatal notice (e.g. partial-failure details)
+// that is displayed alongside the chart when it still has data.
+func buildChartData(q QuerySpec, resourceID, queryErr, warning string, results []PrometheusResult, tw timing.TimeWindow) chartData {
+	lang, body := queryFooter(q, resourceID, tw)
+	series := parseResultsToSeries(results)
 	if len(series) == 0 {
-		return chartData{Title: title, Description: description, Query: query, Error: queryErr}
+		return chartData{Title: q.Title, Description: q.Description, Query: body, QueryLang: lang, Error: queryErr, Warning: warning, MinPeakThreshold: q.MinPeakThreshold}
 	}
+	switch q.ChartType {
+	case chartTypeFacetedLine:
+		cd := buildFacetedLineChartData(q, resourceID, series, tw)
+		cd.Warning = warning
+		return cd
+	case chartTypeFacetedStackedArea:
+		cd := buildFacetedStackedAreaChartData(q, resourceID, series, tw)
+		cd.Warning = warning
+		return cd
+	case chartTypeLine:
+		cd := buildLineChartData(q, resourceID, series, tw)
+		cd.Warning = warning
+		return cd
+	default:
+		return chartData{Title: q.Title, Description: q.Description, Query: body, QueryLang: lang, Error: fmt.Sprintf("unknown chartType: %q", q.ChartType)}
+	}
+}
 
-	// Sort by peak value descending for consistent legend ordering
-	slices.SortFunc(series, func(a, b parsedSeries) int {
-		return cmp.Compare(b.peakValue(), a.peakValue())
-	})
+func buildLineChartData(q QuerySpec, resourceID string, series []parsedSeries, tw timing.TimeWindow) chartData {
+	for i := range series {
+		series[i].data = insertGapMarkers(series[i].data)
+	}
 	subtitle := fmt.Sprintf("Window: %s — %s", tw.Start.UTC().Format(time.RFC3339), tw.End.UTC().Format(time.RFC3339))
 
-	// Build labels: strip label keys that are the same across all series
+	// Compact common labels unless the query explicitly keeps them visible.
 	commonLabels := findCommonLabels(series)
 	for i := range series {
-		series[i].label = compactMetricLabel(series[i].metric, commonLabels)
+		series[i].label = compactMetricLabel(series[i].metric, commonLabels, q.LegendLabels)
 	}
+	// Sort by label for consistent color assignment across charts
+	slices.SortFunc(series, func(a, b parsedSeries) int {
+		return cmp.Compare(a.label, b.label)
+	})
 
 	// Adjust chart height for legend when many series
-	legendHeight := estimateLegendHeight(series, defaultChartWidth)
+	seriesLabels := make([]string, len(series))
+	for i := range series {
+		seriesLabels[i] = series[i].label
+	}
+	legendHeight := estimateLegendHeight(seriesLabels, defaultChartWidth)
 	chartHeight := baseChartHeight + legendHeight
 
 	line := charts.NewLine()
 	line.SetGlobalOptions(
 		charts.WithInitializationOpts(opts.Initialization{
-			PageTitle:       title,
+			PageTitle:       q.Title,
 			Renderer:        "svg",
 			Height:          fmt.Sprintf("%dpx", chartHeight),
 			Width:           fmt.Sprintf("%dpx", defaultChartWidth),
@@ -196,7 +253,7 @@ func buildChartData(title, description, query, unit, queryErr string, results []
 			BackgroundColor: "#000",
 		}),
 		charts.WithTitleOpts(opts.Title{
-			Title:      title,
+			Title:      q.Title,
 			Subtitle:   subtitle,
 			TitleStyle: &opts.TextStyle{Align: "left", Color: "#4E9AF1", FontSize: 18},
 			TextAlign:  "left",
@@ -214,13 +271,25 @@ func buildChartData(title, description, query, unit, queryErr string, results []
 			Min:  tw.Start.UnixMilli(),
 			Max:  tw.End.UnixMilli(),
 		}),
-		charts.WithYAxisOpts(opts.YAxis{
-			Type:         "value",
-			Name:         unit,
-			NameLocation: "middle",
-			NameGap:      50,
-		}),
+		charts.WithYAxisOpts(func() opts.YAxis {
+			axis := opts.YAxis{
+				Type:         "value",
+				Name:         q.Unit,
+				NameLocation: "middle",
+				NameGap:      50,
+			}
+			if q.Unit == "percent" {
+				axis.Min = 0
+				maxVal := seriesPeakValue(series)
+				if maxVal <= 100 {
+					axis.Max = 100
+				}
+			}
+			return axis
+		}()),
 		charts.WithGridOpts(opts.Grid{
+			Left:   "80",
+			Right:  "40",
 			Bottom: fmt.Sprintf("%d", legendHeight+legendBottomPadding),
 		}),
 	)
@@ -238,12 +307,16 @@ func buildChartData(title, description, query, unit, queryErr string, results []
 	rendered := line.RenderContent()
 	html := extractChartBody(rendered)
 
+	lang, body := queryFooter(q, resourceID, tw)
 	return chartData{
-		Title:       title,
-		Description: description,
-		Query:       query,
-		HasData:     true,
-		ChartHTML:   template.HTML(html), //nolint:gosec // trusted go-echarts output
+		Title:            q.Title,
+		Description:      q.Description,
+		Query:            body,
+		QueryLang:        lang,
+		HasData:          true,
+		ChartHTML:        template.HTML(html), //nolint:gosec // trusted go-echarts output
+		MinPeakThreshold: q.MinPeakThreshold,
+		ChartType:        q.ChartType,
 	}
 }
 
@@ -257,6 +330,278 @@ func extractChartBody(rendered []byte) []byte {
 		return rendered[start+len("<body>") : end]
 	}
 	return rendered
+}
+
+// buildFacetedLineChartData gives each facet its own plot and legend. A shared
+// legend would merge the independent top-N cohorts back into more than N names.
+func buildFacetedLineChartData(q QuerySpec, resourceID string, series []parsedSeries, tw timing.TimeWindow) chartData {
+	facets := make(map[string][]parsedSeries)
+	for _, s := range series {
+		name := s.metric[q.FacetBy]
+		facets[name] = append(facets[name], s)
+	}
+	names := make([]string, 0, len(facets))
+	for name := range facets {
+		names = append(names, name)
+	}
+	slices.Sort(names)
+
+	var html bytes.Buffer
+	for _, name := range names {
+		facetQuery := q
+		facetQuery.Title = q.Title + " — " + name
+		facetQuery.ChartType = chartTypeLine
+		chart := buildLineChartData(facetQuery, resourceID, facets[name], tw)
+		html.WriteString(string(chart.ChartHTML))
+	}
+	lang, body := queryFooter(q, resourceID, tw)
+	return chartData{
+		Title:            q.Title,
+		Description:      q.Description,
+		Query:            body,
+		QueryLang:        lang,
+		HasData:          true,
+		ChartHTML:        template.HTML(html.String()), //nolint:gosec // trusted go-echarts output
+		MinPeakThreshold: q.MinPeakThreshold,
+		ChartType:        q.ChartType,
+	}
+}
+
+func buildFacetedStackedAreaChartData(q QuerySpec, resourceID string, series []parsedSeries, tw timing.TimeWindow) chartData {
+	facets := groupSeriesByFacet(series, q.FacetBy, q.StackBy)
+	facetNames := make([]string, 0, len(facets))
+	for name := range facets {
+		facetNames = append(facetNames, name)
+	}
+	slices.Sort(facetNames)
+
+	allPhases := collectUniqueStackValues(series, q.StackBy)
+	slices.Sort(allPhases)
+
+	legendHeight := estimateLegendHeight(allPhases, defaultChartWidth)
+
+	// ECharts multi-grid layouts require explicit pixel positions and total height — grids don't auto-stack.
+	numFacets := len(facetNames)
+	titleAreaHeight := 80
+	facetSpacing := 60
+	facetHeight := 250
+	totalHeight := titleAreaHeight + numFacets*(facetHeight+facetSpacing) + legendHeight + legendBottomPadding
+
+	subtitle := fmt.Sprintf("Window: %s — %s", tw.Start.UTC().Format(time.RFC3339), tw.End.UTC().Format(time.RFC3339))
+
+	var grids []opts.Grid
+	for i := range facetNames {
+		top := titleAreaHeight + i*(facetHeight+facetSpacing)
+		grids = append(grids, opts.Grid{
+			Top:          fmt.Sprintf("%dpx", top),
+			Height:       fmt.Sprintf("%dpx", facetHeight),
+			Left:         "80",
+			Right:        "40",
+			ContainLabel: ptr.To(false),
+		})
+	}
+
+	line := charts.NewLine()
+	line.SetGlobalOptions(
+		charts.WithInitializationOpts(opts.Initialization{
+			PageTitle:       q.Title,
+			Renderer:        "svg",
+			Height:          fmt.Sprintf("%dpx", totalHeight),
+			Width:           fmt.Sprintf("%dpx", defaultChartWidth),
+			Theme:           "dark",
+			BackgroundColor: "#000",
+		}),
+		charts.WithTitleOpts(opts.Title{
+			Title:      q.Title,
+			Subtitle:   subtitle,
+			TitleStyle: &opts.TextStyle{Align: "left", Color: "#4E9AF1", FontSize: 18},
+			TextAlign:  "left",
+			Left:       "center",
+		}),
+		charts.WithTooltipOpts(opts.Tooltip{
+			Trigger: "axis",
+		}),
+		charts.WithLegendOpts(opts.Legend{
+			Show:   ptr.To(true),
+			Bottom: "0",
+		}),
+		charts.WithXAxisOpts(opts.XAxis{
+			Type:      "time",
+			Min:       tw.Start.UnixMilli(),
+			Max:       tw.End.UnixMilli(),
+			GridIndex: 0,
+		}),
+		charts.WithYAxisOpts(opts.YAxis{
+			Type:         "value",
+			Name:         facetNames[0],
+			NameLocation: "middle",
+			NameGap:      50,
+			GridIndex:    0,
+		}),
+		charts.WithGridOpts(grids...),
+	)
+
+	for i := 1; i < numFacets; i++ {
+		line.ExtendXAxis(opts.XAxis{
+			Type:      "time",
+			Min:       tw.Start.UnixMilli(),
+			Max:       tw.End.UnixMilli(),
+			GridIndex: i,
+		})
+		line.ExtendYAxis(opts.YAxis{
+			Type:         "value",
+			Name:         facetNames[i],
+			NameLocation: "middle",
+			NameGap:      50,
+			GridIndex:    i,
+		})
+	}
+
+	for facetIdx, facetName := range facetNames {
+		facetSeries := alignSeriesToCommonTimestamps(facets[facetName])
+		for _, s := range facetSeries {
+			color := q.Colors[s.label]
+			seriesOpts := []charts.SeriesOpts{
+				charts.WithLineChartOpts(opts.LineChart{
+					ShowSymbol:   ptr.To(false),
+					ConnectNulls: ptr.To(false),
+					Stack:        fmt.Sprintf("facet-%d", facetIdx),
+					XAxisIndex:   facetIdx,
+					YAxisIndex:   facetIdx,
+				}),
+				charts.WithAreaStyleOpts(opts.AreaStyle{
+					Opacity: opts.Float(0.7),
+					Color:   color,
+				}),
+				charts.WithItemStyleOpts(opts.ItemStyle{Color: color}),
+				charts.WithLineStyleOpts(opts.LineStyle{Color: color}),
+			}
+			line.AddSeries(s.label, s.data, seriesOpts...)
+		}
+	}
+
+	rendered := line.RenderContent()
+	html := extractChartBody(rendered)
+
+	lang, body := queryFooter(q, resourceID, tw)
+	return chartData{
+		Title:       q.Title,
+		Description: q.Description,
+		Query:       body,
+		QueryLang:   lang,
+		HasData:     true,
+		ChartHTML:   template.HTML(html), //nolint:gosec // trusted go-echarts output
+		ChartType:   q.ChartType,
+	}
+}
+
+func parseResultsToSeries(results []PrometheusResult) []parsedSeries {
+	var series []parsedSeries
+	for _, result := range results {
+		if len(result.Values) == 0 {
+			continue
+		}
+		var data []opts.LineData
+		for _, v := range result.Values {
+			if len(v) < 2 {
+				continue
+			}
+			ts, val, ok := parsePrometheusValue(v)
+			if !ok || ts == 0 {
+				continue
+			}
+			data = append(data, opts.LineData{
+				Value: []any{ts * 1000, val},
+			})
+		}
+		if len(data) == 0 {
+			continue
+		}
+		series = append(series, parsedSeries{
+			metric: result.Metric,
+			data:   data,
+		})
+	}
+	return series
+}
+
+func groupSeriesByFacet(series []parsedSeries, facetBy, stackBy string) map[string][]parsedSeries {
+	facets := make(map[string][]parsedSeries)
+	for _, s := range series {
+		facetValue := s.metric[facetBy]
+		s.label = buildFacetSeriesLabel(s.metric, stackBy)
+		facets[facetValue] = append(facets[facetValue], s)
+	}
+	return facets
+}
+
+func buildFacetSeriesLabel(metric map[string]string, stackBy string) string {
+	if v := metric[stackBy]; len(v) > 0 {
+		return v
+	}
+	return "value"
+}
+
+func collectUniqueStackValues(series []parsedSeries, stackBy string) []string {
+	result := sets.New[string]()
+	for _, s := range series {
+		if v := s.metric[stackBy]; len(v) > 0 {
+			result.Insert(v)
+		}
+	}
+	return result.UnsortedList()
+}
+
+// alignSeriesToCommonTimestamps ensures all series share the same set of
+// timestamps by filling 0 where a series has no data point. This prevents
+// stacked area charts from collapsing when some series are absent at certain
+// timestamps.
+func alignSeriesToCommonTimestamps(series []parsedSeries) []parsedSeries {
+	if len(series) <= 1 {
+		return series
+	}
+
+	tsSet := make(map[int64]struct{})
+	for _, s := range series {
+		for _, d := range s.data {
+			ts := dataPointTimestamp(d)
+			if ts != 0 {
+				tsSet[ts] = struct{}{}
+			}
+		}
+	}
+
+	timestamps := make([]int64, 0, len(tsSet))
+	for ts := range tsSet {
+		timestamps = append(timestamps, ts)
+	}
+	slices.Sort(timestamps)
+
+	for i, s := range series {
+		existing := make(map[int64]opts.LineData, len(s.data))
+		for _, d := range s.data {
+			ts := dataPointTimestamp(d)
+			if ts == 0 {
+				continue
+			}
+			if arr, ok := d.Value.([]any); ok && len(arr) >= 2 && arr[1] == nil {
+				continue
+			}
+			existing[ts] = d
+		}
+
+		aligned := make([]opts.LineData, 0, len(timestamps))
+		for _, ts := range timestamps {
+			if d, ok := existing[ts]; ok {
+				aligned = append(aligned, d)
+			} else {
+				aligned = append(aligned, opts.LineData{Value: []any{ts, 0}})
+			}
+		}
+		series[i].data = aligned
+	}
+
+	return series
 }
 
 // findCommonLabels returns label keys whose values are identical across all series.
@@ -280,13 +625,12 @@ func findCommonLabels(series []parsedSeries) map[string]bool {
 	return common
 }
 
-// compactMetricLabel builds a short label showing only the label keys that
-// differ across series. If only one differentiating key exists, shows just
-// the value.
-func compactMetricLabel(metric map[string]string, common map[string]bool) string {
+// compactMetricLabel omits common labels except those explicitly named in
+// displayNames. Explicit labels retain their display name even when alone.
+func compactMetricLabel(metric map[string]string, common map[string]bool, displayNames map[string]string) string {
 	var keys []string
 	for k := range metric {
-		if !common[k] {
+		if _, explicit := displayNames[k]; explicit || !common[k] {
 			keys = append(keys, k)
 		}
 	}
@@ -297,11 +641,17 @@ func compactMetricLabel(metric map[string]string, common map[string]bool) string
 		return metricLabel(metric)
 	}
 	if len(keys) == 1 {
-		return metric[keys[0]]
+		if _, explicit := displayNames[keys[0]]; !explicit {
+			return metric[keys[0]]
+		}
 	}
 	var parts []string
 	for _, k := range keys {
-		parts = append(parts, fmt.Sprintf("%s=%s", k, metric[k]))
+		name := k
+		if displayName := displayNames[k]; displayName != "" {
+			name = displayName
+		}
+		parts = append(parts, fmt.Sprintf("%s=%s", name, metric[k]))
 	}
 	return strings.Join(parts, ", ")
 }

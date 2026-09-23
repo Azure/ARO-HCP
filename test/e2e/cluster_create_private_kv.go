@@ -40,6 +40,7 @@ var _ = Describe("Create HCPOpenShiftCluster with Private KeyVault", func() {
 		labels.Positive,
 		labels.AroRpApiCompatible,
 		labels.CreateCluster,
+		labels.MIContainers(1),
 		func(ctx context.Context) {
 			const customerClusterName = "private-kv-cluster"
 
@@ -56,6 +57,7 @@ var _ = Describe("Create HCPOpenShiftCluster with Private KeyVault", func() {
 
 			By("creating cluster parameters")
 			clusterParams := framework.NewDefaultClusterParams20251223()
+			clusterParams.DisableSwift = false
 			clusterParams.ClusterName = customerClusterName
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			clusterParams.ManagedResourceGroupName = managedResourceGroupName
@@ -140,9 +142,9 @@ var _ = Describe("Create HCPOpenShiftCluster with Private KeyVault", func() {
 				"nodePoolName", nodePoolParams.NodePoolName)
 
 			By("getting admin credentials for the cluster")
-			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
+			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20260901(
 				ctx,
-				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
+				tc.Get20260901ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
 				customerClusterName,
 				framework.GetAdminRESTConfigTimeout,

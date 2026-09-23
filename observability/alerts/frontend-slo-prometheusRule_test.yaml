@@ -1,0 +1,635 @@
+rule_files:
+- frontend-slo-prometheusRule.yaml
+evaluation_interval: 1m
+tests:
+# ----------------------------------------
+# Healthy - no alerts
+# ----------------------------------------
+- interval: 1m
+  input_series:
+  - series: 'frontend_http_requests_total{cluster="svc-1", code="200", route="/test"}'
+    values: "0+9999x80"
+  - series: 'frontend_http_requests_total{cluster="svc-1", code="500", route="/test"}'
+    values: "0+1x80"
+  - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-1", le="+Inf", route="/test", prometheus_replica="a"}'
+    values: "0+100x80"
+  - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-1", le="1.0", route="/test", prometheus_replica="a"}'
+    values: "0+100x80"
+  - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-1", le="+Inf", route="/test", prometheus_replica="b"}'
+    values: "0+100x80"
+  - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-1", le="1.0", route="/test", prometheus_replica="b"}'
+    values: "0+100x80"
+  - series: 'sli:frontend:ready:ratio5m{cluster="svc-1"}'
+    values: "1+0x80"
+  - series: 'sli:frontend:saturation_memory:ratio5m{cluster="svc-1"}'
+    values: "0.4+0x80"
+  - series: 'traffic:frontend_http:request_rate:rate5m{cluster="svc-1"}'
+    values: "2+0x80"
+  alert_rule_test:
+  - eval_time: 70m
+    alertname: userJourneyFrontendErrors1h5m
+    exp_alerts: []
+  - eval_time: 70m
+    alertname: userJourneyFrontendErrors6h30m
+    exp_alerts: []
+  - eval_time: 70m
+    alertname: userJourneyFrontendErrors3d6h
+    exp_alerts: []
+  - eval_time: 70m
+    alertname: userJourneyFrontendAvailability1h5m
+    exp_alerts: []
+  - eval_time: 70m
+    alertname: userJourneyFrontendAvailability6h30m
+    exp_alerts: []
+  - eval_time: 70m
+    alertname: userJourneyFrontendAvailability3d6h
+    exp_alerts: []
+  - eval_time: 70m
+    alertname: userJourneyFrontendLatency1h5m
+    exp_alerts: []
+  - eval_time: 70m
+    alertname: userJourneyFrontendLatency6h30m
+    exp_alerts: []
+  - eval_time: 70m
+    alertname: userJourneyFrontendLatency3d6h
+    exp_alerts: []
+  - eval_time: 70m
+    alertname: userJourneyFrontendSaturationMemory
+    exp_alerts: []
+  - eval_time: 70m
+    alertname: userJourneyFrontendTrafficDrop
+    exp_alerts: []
+  - eval_time: 70m
+    alertname: userJourneyFrontendReady
+    exp_alerts: []
+- interval: 1m
+  # Errors fast burn + Availability fast (MWMBR 1h AND 5m).
+  # eval_time 62m = 1h window + for:2m so the long window is fully populated.
+  input_series:
+  - series: 'frontend_http_requests_total{cluster="svc-1", code="200", route="/test"}'
+    values: "0+990x80"
+  - series: 'frontend_http_requests_total{cluster="svc-1", code="500", route="/test"}'
+    values: "0+10x80"
+  alert_rule_test:
+  - eval_time: 62m
+    alertname: userJourneyFrontendErrors1h5m
+    exp_alerts:
+    - exp_labels:
+        alertname: userJourneyFrontendErrors1h5m
+        cluster: svc-1
+        component: slo
+        severity: "3"
+        slo: frontend-errors
+        long_window: 1h
+        short_window: 5m
+      exp_annotations:
+        summary: "svc-1: Frontend HTTP 5xx error rate critically high (>0.72%)"
+        description: "Frontend 5xx share on cluster svc-1 is above 0.72% on both the 1h and 5m windows (14.4x burn of the 99.95% availability / 0.05% error budget). Would exhaust the 30d budget in ~2d (~50h)."
+        runbook_url: "https://aka.ms/arohcp-runbook-frontend"
+  - eval_time: 62m
+    alertname: userJourneyFrontendAvailability1h5m
+    exp_alerts:
+    - exp_labels:
+        alertname: userJourneyFrontendAvailability1h5m
+        cluster: svc-1
+        component: slo
+        severity: "4"
+        slo: frontend-availability
+        long_window: 1h
+        short_window: 5m
+      exp_annotations:
+        summary: "svc-1: Frontend HTTP availability critically low (<99.28%)"
+        description: "Frontend availability on cluster svc-1 is below 99.28% on both the 1h and 5m windows (14.4x burn of the 99.95% SLO / 0.05% error budget). Sev4 ticket - Errors family pages on the complementary 5xx burn."
+        runbook_url: "https://aka.ms/arohcp-runbook-frontend"
+- interval: 1m
+  # Request-weighting fix (ARO-29638): a short low-traffic 5xx blip during an
+  # otherwise busy hour must not trip the fast alert. A couple of 5xx in a
+  # near-idle minute is a large per-minute share but a tiny slice of the hour's
+  # requests. The reverted avg_over_time design equal-weighted every 5m bucket
+  # so the blip dominated; the request-weighted ratio dilutes it. High traffic
+  # (1000 rps, no 5xx) runs t=0-49 and t=55-91; t=50-54 drops to ~1 rps with
+  # 2 5xx/min (per-minute 5xx share ~0.667).
+  input_series:
+  - series: 'frontend_http_requests_total{cluster="svc-lowvol-blip", code="200", route="/test"}'
+    values: "0+1000x49 49001+1x4 50005+1000x36"
+  - series: 'frontend_http_requests_total{cluster="svc-lowvol-blip", code="500", route="/test"}'
+    values: "0x49 2+2x4 10x36"
+  promql_expr_test:
+  # Request-weighted 5xx share over the full hour stays well under the 0.72%
+  # fast floor because the blip is a negligible slice of hourly requests.
+  - expr: |
+      (
+        sum by (cluster) (rate(frontend_http_requests_total{code=~"5..", route!~".*hcpoperation(results|statuses).*"}[1h]))
+        /
+        sum by (cluster) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[1h]))
+      ) > bool 0.0072
+    eval_time: 70m
+    exp_samples:
+    - labels: '{cluster="svc-lowvol-blip"}'
+      value: 0
+  # The reverted design (averaging the 5m 5xx share over the hour) crosses the
+  # same floor, which is exactly why it produced false fast alerts.
+  - expr: |
+      avg_over_time(
+        (
+          sum by (cluster) (rate(frontend_http_requests_total{code=~"5..", route!~".*hcpoperation(results|statuses).*"}[5m]))
+          /
+          sum by (cluster) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[5m]))
+        )[1h:1m]
+      ) > bool 0.0072
+    eval_time: 70m
+    exp_samples:
+    - labels: '{cluster="svc-lowvol-blip"}'
+      value: 1
+  alert_rule_test:
+  - eval_time: 70m
+    alertname: userJourneyFrontendErrors1h5m
+    exp_alerts: []
+  - eval_time: 70m
+    alertname: userJourneyFrontendErrors6h30m
+    exp_alerts: []
+- interval: 5m
+  # Errors medium burn (0.4%), above the 0.30% medium floor but below 0.72% fast.
+  # 5m step x90 covers 7h30m so the 6h window is populated; eval after 6h+for:15m.
+  input_series:
+  - series: 'frontend_http_requests_total{cluster="svc-1", code="200", route="/test"}'
+    values: "0+996x90"
+  - series: 'frontend_http_requests_total{cluster="svc-1", code="500", route="/test"}'
+    values: "0+4x90"
+  alert_rule_test:
+  - eval_time: 6h20m
+    alertname: userJourneyFrontendErrors6h30m
+    exp_alerts:
+    - exp_labels:
+        alertname: userJourneyFrontendErrors6h30m
+        cluster: svc-1
+        component: slo
+        severity: "3"
+        slo: frontend-errors
+        long_window: 6h
+        short_window: 30m
+      exp_annotations:
+        summary: "svc-1: Frontend HTTP 5xx error rate elevated (>0.30%)"
+        description: "Frontend 5xx share on cluster svc-1 is above 0.30% on both the 6h and 30m windows (6x burn of the 0.05% error budget)."
+        runbook_url: "https://aka.ms/arohcp-runbook-frontend"
+  - eval_time: 6h20m
+    alertname: userJourneyFrontendErrors1h5m
+    exp_alerts: []
+- interval: 5m
+  # Availability medium burn, below the 99.70% medium floor but above 99.28% fast.
+  # 5m step x90 covers 7h30m so the 6h window is populated; eval after 6h+for:15m.
+  input_series:
+  - series: 'frontend_http_requests_total{cluster="svc-1", code="200", route="/test"}'
+    values: "0+995x90"
+  - series: 'frontend_http_requests_total{cluster="svc-1", code="500", route="/test"}'
+    values: "0+5x90"
+  alert_rule_test:
+  - eval_time: 6h20m
+    alertname: userJourneyFrontendAvailability6h30m
+    exp_alerts:
+    - exp_labels:
+        alertname: userJourneyFrontendAvailability6h30m
+        cluster: svc-1
+        component: slo
+        severity: "4"
+        slo: frontend-availability
+        long_window: 6h
+        short_window: 30m
+      exp_annotations:
+        summary: "svc-1: Frontend HTTP availability degraded (<99.70%)"
+        description: "Frontend availability on cluster svc-1 is below 99.70% on both the 6h and 30m windows (6x burn). Sev4 ticket - Errors family pages on the complementary 5xx burn."
+        runbook_url: "https://aka.ms/arohcp-runbook-frontend"
+  - eval_time: 6h20m
+    alertname: userJourneyFrontendAvailability1h5m
+    exp_alerts: []
+- interval: 5m
+  # Latency medium burn: 7% slow exceeds 6%, but remains below the 14.4% fast threshold.
+  input_series:
+  - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-1", le="+Inf", route="/test", prometheus_replica="a"}'
+    values: "0+100x90"
+  - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-1", le="1.0", route="/test", prometheus_replica="a"}'
+    values: "0+93x90"
+  - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-1", le="+Inf", route="/test", prometheus_replica="b"}'
+    values: "0+100x90"
+  - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-1", le="1.0", route="/test", prometheus_replica="b"}'
+    values: "0+93x90"
+  alert_rule_test:
+  - eval_time: 6h25m
+    alertname: userJourneyFrontendLatency6h30m
+    exp_alerts:
+    - exp_labels:
+        alertname: userJourneyFrontendLatency6h30m
+        cluster: svc-1
+        component: slo
+        severity: "3"
+        slo: frontend-latency
+        long_window: 6h
+        short_window: 30m
+      exp_annotations:
+        summary: "svc-1: Frontend HTTP latency budget burning fast (>6% over 1s)"
+        description: "More than 6% of Frontend requests on cluster svc-1 exceeded 1s on both the 6h and 30m windows (6x burn of the 1% latency budget)."
+        runbook_url: "https://aka.ms/arohcp-runbook-frontend"
+  - eval_time: 6h25m
+    alertname: userJourneyFrontendLatency1h5m
+    exp_alerts: []
+- interval: 1m
+  # Latency fast burn: 20% slow exceeds the 14.4% threshold.
+  input_series:
+  - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-1", le="+Inf", route="/test", prometheus_replica="a"}'
+    values: "0+100x80"
+  - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-1", le="1.0", route="/test", prometheus_replica="a"}'
+    values: "0+80x80"
+  - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-1", le="+Inf", route="/test", prometheus_replica="b"}'
+    values: "0+100x80"
+  - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-1", le="1.0", route="/test", prometheus_replica="b"}'
+    values: "0+80x80"
+  alert_rule_test:
+  - eval_time: 1h7m
+    alertname: userJourneyFrontendLatency1h5m
+    exp_alerts:
+    - exp_labels:
+        alertname: userJourneyFrontendLatency1h5m
+        cluster: svc-1
+        component: slo
+        severity: "3"
+        slo: frontend-latency
+        long_window: 1h
+        short_window: 5m
+      exp_annotations:
+        summary: "svc-1: Frontend HTTP latency budget burning critically fast (>14.4% over 1s)"
+        description: "More than 14.4% of Frontend requests on cluster svc-1 exceeded 1s on both the 1h and 5m windows (14.4x burn of the 1% latency budget)."
+        runbook_url: "https://aka.ms/arohcp-runbook-frontend"
+- interval: 1m
+  # Divergent HA replicas remain below the fast threshold when their bucket
+  # counts are summed. Independently taking max per bucket would report 20%.
+  input_series:
+  - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-ha-divergent", le="+Inf", route="/test", prometheus_replica="a"}'
+    values: "0+100x80"
+  - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-ha-divergent", le="1.0", route="/test", prometheus_replica="a"}'
+    values: "0+80x80"
+  - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-ha-divergent", le="+Inf", route="/test", prometheus_replica="b"}'
+    values: "0+80x80"
+  - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-ha-divergent", le="1.0", route="/test", prometheus_replica="b"}'
+    values: "0+80x80"
+  alert_rule_test:
+  - eval_time: 1h7m
+    alertname: userJourneyFrontendLatency1h5m
+    exp_alerts: []
+- interval: 5m
+  # Five percent slow traffic stays below the six-percent medium threshold.
+  input_series:
+  - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-below", le="+Inf", route="/test", prometheus_replica="a"}'
+    values: "0+100x90"
+  - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-below", le="1.0", route="/test", prometheus_replica="a"}'
+    values: "0+95x90"
+  - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-below", le="+Inf", route="/test", prometheus_replica="b"}'
+    values: "0+100x90"
+  - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-below", le="1.0", route="/test", prometheus_replica="b"}'
+    values: "0+95x90"
+  alert_rule_test:
+  - eval_time: 6h25m
+    alertname: userJourneyFrontendLatency6h30m
+    exp_alerts: []
+- interval: 1m
+  # The lower bucket is inconsistent only in the newest five minutes.
+  # Traffic rises at the same time, so without offset the false condition lasts
+  # beyond the alert's 2m pending period. offset 5m evaluates settled data.
+  input_series:
+  - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-delay", le="+Inf", route="/test", prometheus_replica="a"}'
+    values: "0+10x25 250+100x5"
+  - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-delay", le="1.0", route="/test", prometheus_replica="a"}'
+    values: "0+10x25 250+0x5"
+  promql_expr_test:
+  - expr: |
+      (
+        sum by (cluster) (
+          rate(frontend_http_requests_duration_seconds_bucket{le="+Inf"}[5m])
+        )
+        -
+        sum by (cluster) (
+          rate(frontend_http_requests_duration_seconds_bucket{le="1.0"}[5m])
+        )
+      )
+      /
+      sum by (cluster) (
+        rate(frontend_http_requests_duration_seconds_bucket{le="+Inf"}[5m])
+      )
+    eval_time: 30m
+    exp_samples:
+    - labels: '{cluster="svc-delay"}'
+      value: 1
+  - expr: |
+      (
+        sum by (cluster) (
+          rate(frontend_http_requests_duration_seconds_bucket{le="+Inf"}[5m] offset 5m)
+        )
+        -
+        sum by (cluster) (
+          rate(frontend_http_requests_duration_seconds_bucket{le="1.0"}[5m] offset 5m)
+        )
+      )
+      /
+      sum by (cluster) (
+        rate(frontend_http_requests_duration_seconds_bucket{le="+Inf"}[5m] offset 5m)
+      )
+    eval_time: 30m
+    exp_samples:
+    - labels: '{cluster="svc-delay"}'
+      value: 0
+  alert_rule_test:
+  - eval_time: 30m
+    alertname: userJourneyFrontendLatency1h5m
+    exp_alerts: []
+  - eval_time: 30m
+    alertname: userJourneyFrontendLatency6h30m
+    exp_alerts: []
+- interval: 5m
+  # A quiet window with one slow request followed by 1,000 fast requests
+  # remains within the request-weighted one-percent latency budget. The
+  # misleading stored p99 proves the previous averaged-p99 alert would fire.
+  input_series:
+  - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-skew", le="+Inf", route="/test", prometheus_replica="a"}'
+    values: "0 1 1001 2001"
+  - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-skew", le="1.0", route="/test", prometheus_replica="a"}'
+    values: "0 0 1000 2000"
+  - series: 'sli:frontend_http:latency_p99:rate5m{cluster="svc-skew"}'
+    values: "8+0x3"
+  promql_expr_test:
+  - expr: avg_over_time(sli:frontend_http:latency_p99:rate5m[1h])
+    eval_time: 15m
+    exp_samples:
+    - labels: '{cluster="svc-skew"}'
+      value: 8
+  alert_rule_test:
+  - eval_time: 15m
+    alertname: userJourneyFrontendLatency1h5m
+    exp_alerts: []
+- interval: 1m
+  # ARM async poll routes are excluded even when all of their requests exceed
+  # one second. Alert rules query raw histograms, so test the filter directly.
+  input_series:
+  - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-async-only", le="+Inf", route="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}", prometheus_replica="a"}'
+    values: "0+100x4700"
+  - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-async-only", le="1.0", route="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}", prometheus_replica="a"}'
+    values: "0+0x4700"
+  - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-async-only", le="+Inf", route="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationstatuses/{operationid}", prometheus_replica="a"}'
+    values: "0+100x4700"
+  - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-async-only", le="1.0", route="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationstatuses/{operationid}", prometheus_replica="a"}'
+    values: "0+0x4700"
+  alert_rule_test:
+  - eval_time: 77h
+    alertname: userJourneyFrontendLatency1h5m
+    exp_alerts: []
+  - eval_time: 77h
+    alertname: userJourneyFrontendLatency6h30m
+    exp_alerts: []
+  - eval_time: 77h
+    alertname: userJourneyFrontendLatency3d6h
+    exp_alerts: []
+- interval: 1m
+  # ----------------------------------------
+
+  # ----------------------------------------
+  # Saturation memory
+  input_series:
+  - series: 'sli:frontend:saturation_memory:ratio5m{cluster="svc-1"}'
+    values: "0.9+0x35"
+  alert_rule_test:
+  - eval_time: 17m
+    alertname: userJourneyFrontendSaturationMemory
+    exp_alerts:
+    - exp_labels:
+        alertname: userJourneyFrontendSaturationMemory
+        cluster: svc-1
+        component: slo
+        severity: "4"
+        slo: frontend-saturation
+      exp_annotations:
+        summary: "svc-1: Frontend pod memory above 85% of limit for 15+ minutes"
+        description: "Frontend container memory (working set/limit) on cluster svc-1 is above 85% for 15m."
+        runbook_url: "https://aka.ms/arohcp-runbook-frontend"
+- interval: 5m
+  # ----------------------------------------
+
+  # (~24h @ 5m step), then 0.2x13 = 13 samples (~65m) so drop is active by eval_time 25h.
+  # promtool expand counts are decimal (not hex): 5x288 = 288 samples @ 5 RPS
+  input_series:
+  - series: 'traffic:frontend_http:request_rate:rate5m{cluster="svc-1"}'
+    values: "5x288 0.2x13"
+  - series: 'sli:frontend:ready:ratio5m{cluster="svc-1"}'
+    values: "1x301"
+  alert_rule_test:
+  - eval_time: 25h
+    alertname: userJourneyFrontendTrafficDrop
+    exp_alerts:
+    - exp_labels:
+        alertname: userJourneyFrontendTrafficDrop
+        cluster: svc-1
+        component: slo
+        severity: "4"
+        slo: frontend-traffic
+      exp_annotations:
+        summary: "svc-1: Frontend HTTP traffic collapsed below 10% of 1d baseline"
+        description: "Frontend request rate on cluster svc-1 is below 10% of its 1-day average for 15m while the 1d baseline exceeded 0.5 RPS (fleet-wide noise floor) and pods are still Ready (traffic drought, not a replica outage)."
+        runbook_url: "https://aka.ms/arohcp-runbook-frontend"
+- interval: 5m
+  # Baseline 0.3 RPS is under the 0.5 RPS noise floor, then a 90% drop.
+  # Must not fire even though the relative collapse matches the 10% rule.
+  input_series:
+  - series: 'traffic:frontend_http:request_rate:rate5m{cluster="svc-1"}'
+    values: "0.3x288 0.02x13"
+  - series: 'sli:frontend:ready:ratio5m{cluster="svc-1"}'
+    values: "1x301"
+  alert_rule_test:
+  - eval_time: 25h
+    alertname: userJourneyFrontendTrafficDrop
+    exp_alerts: []
+- interval: 1m
+  # Replica outage: ready=0 pages; HTTP drought path does not apply.
+
+  input_series:
+  - series: 'sli:frontend:ready:ratio5m{cluster="svc-1"}'
+    values: "0+0x15"
+  alert_rule_test:
+  - eval_time: 7m
+    alertname: userJourneyFrontendReady
+    exp_alerts:
+    - exp_labels:
+        alertname: userJourneyFrontendReady
+        cluster: svc-1
+        component: slo
+        severity: "3"
+        slo: frontend-ready
+      exp_annotations:
+        summary: "svc-1: Frontend has no Ready replicas (kube /healthz)"
+        description: "aro-hcp-frontend on cluster svc-1 has 0 available replicas (kube readiness probes hit /healthz). This is a process outage, not an ARM traffic drought."
+        runbook_url: "https://aka.ms/arohcp-runbook-frontend"
+- interval: 1h
+  # Slow 3d/6h firing (1x burn). Hourly samples so the 3d window is populated
+  # without a 1m series. Error/availability values stay below fast/medium
+  # thresholds. 3d + for:1h → eval_time 73h.
+  input_series:
+  - series: 'frontend_http_requests_total{cluster="svc-1", code="200", route="/test"}'
+    values: "0+999x80"
+  - series: 'frontend_http_requests_total{cluster="svc-1", code="500", route="/test"}'
+    values: "0+1x80"
+  - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-1", le="+Inf", route="/test", prometheus_replica="a"}'
+    values: "0+1000x80"
+  - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-1", le="1.0", route="/test", prometheus_replica="a"}'
+    values: "0+980x80"
+  - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-1", le="+Inf", route="/test", prometheus_replica="b"}'
+    values: "0+1000x80"
+  - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-1", le="1.0", route="/test", prometheus_replica="b"}'
+    values: "0+980x80"
+  alert_rule_test:
+  - eval_time: 73h
+    alertname: userJourneyFrontendErrors3d6h
+    exp_alerts:
+    - exp_labels:
+        alertname: userJourneyFrontendErrors3d6h
+        cluster: svc-1
+        component: slo
+        severity: "4"
+        slo: frontend-errors
+        long_window: 3d
+        short_window: 6h
+      exp_annotations:
+        summary: "svc-1: Frontend HTTP 5xx error rate exceeds SLO (>0.05%)"
+        description: "Frontend 5xx share on cluster svc-1 is above the 0.05% SLO boundary on both the 3d and 6h windows (1x burn)."
+        runbook_url: "https://aka.ms/arohcp-runbook-frontend"
+  - eval_time: 73h
+    alertname: userJourneyFrontendErrors6h30m
+    exp_alerts: []
+  - eval_time: 73h
+    alertname: userJourneyFrontendErrors1h5m
+    exp_alerts: []
+  - eval_time: 73h
+    alertname: userJourneyFrontendAvailability3d6h
+    exp_alerts:
+    - exp_labels:
+        alertname: userJourneyFrontendAvailability3d6h
+        cluster: svc-1
+        component: slo
+        severity: "4"
+        slo: frontend-availability
+        long_window: 3d
+        short_window: 6h
+      exp_annotations:
+        summary: "svc-1: Frontend HTTP availability below SLO (<99.95%)"
+        description: "Frontend availability on cluster svc-1 is below the 99.95% SLO on both the 3d and 6h windows (1x burn)."
+        runbook_url: "https://aka.ms/arohcp-runbook-frontend"
+  - eval_time: 73h
+    alertname: userJourneyFrontendAvailability6h30m
+    exp_alerts: []
+  - eval_time: 73h
+    alertname: userJourneyFrontendAvailability1h5m
+    exp_alerts: []
+  - eval_time: 73h
+    alertname: userJourneyFrontendLatency3d6h
+    exp_alerts:
+    - exp_labels:
+        alertname: userJourneyFrontendLatency3d6h
+        cluster: svc-1
+        component: slo
+        severity: "4"
+        slo: frontend-latency
+        long_window: 3d
+        short_window: 6h
+      exp_annotations:
+        summary: "svc-1: Frontend HTTP latency exceeds its SLO budget (>1% over 1s)"
+        description: "More than 1% of Frontend requests on cluster svc-1 exceeded 1s on both the 3d and 6h windows (1x burn of the latency budget)."
+        runbook_url: "https://aka.ms/arohcp-runbook-frontend"
+  - eval_time: 73h
+    alertname: userJourneyFrontendLatency1h5m
+    exp_alerts: []
+- interval: 1h
+  # Short window only: recent hours carry 5xx, the rest of the 3d window is
+  # healthy. The request-weighted 3d ratio stays under the SLO line, so the
+  # MWMBR AND must not fire 3d/6h. Good traffic is constant (9990/h); 5xx are
+  # zero for 66h then ramp over the final hours.
+  input_series:
+  - series: 'frontend_http_requests_total{cluster="svc-1", code="200", route="/test"}'
+    values: "0+9990x80"
+  - series: 'frontend_http_requests_total{cluster="svc-1", code="500", route="/test"}'
+    values: "0x66 10+10x14"
+  - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-1", le="+Inf", route="/test", prometheus_replica="a"}'
+    values: "0+1000x80"
+  - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-1", le="1.0", route="/test", prometheus_replica="a"}'
+    values: "0+999x66 66914+980x14"
+  alert_rule_test:
+  - eval_time: 73h
+    alertname: userJourneyFrontendErrors3d6h
+    exp_alerts: []
+  - eval_time: 73h
+    alertname: userJourneyFrontendAvailability3d6h
+    exp_alerts: []
+  - eval_time: 73h
+    alertname: userJourneyFrontendLatency3d6h
+    exp_alerts: []
+# ----------------------------------------
+# Total 5xx outage (fast + medium): every request is 5xx, so the code!~"5.."
+# numerator series is absent. Without the `or 0 * <total>` fallback the ratio
+# yields no sample and the availability alert would never fire at 0%
+# availability. Both fast (1h/5m) and medium (6h/30m) availability alerts must
+# fire; the Errors family covers the paging.
+# ----------------------------------------
+- interval: 1m
+  input_series:
+  - series: 'frontend_http_requests_total{cluster="svc-allfivexx", code="500", route="/test"}'
+    values: "0+6000x400"
+  alert_rule_test:
+  - eval_time: 380m
+    alertname: userJourneyFrontendAvailability1h5m
+    exp_alerts:
+    - exp_labels:
+        alertname: userJourneyFrontendAvailability1h5m
+        cluster: svc-allfivexx
+        component: slo
+        severity: "4"
+        slo: frontend-availability
+        long_window: 1h
+        short_window: 5m
+      exp_annotations:
+        summary: "svc-allfivexx: Frontend HTTP availability critically low (<99.28%)"
+        description: "Frontend availability on cluster svc-allfivexx is below 99.28% on both the 1h and 5m windows (14.4x burn of the 99.95% SLO / 0.05% error budget). Sev4 ticket - Errors family pages on the complementary 5xx burn."
+        runbook_url: "https://aka.ms/arohcp-runbook-frontend"
+  - eval_time: 380m
+    alertname: userJourneyFrontendAvailability6h30m
+    exp_alerts:
+    - exp_labels:
+        alertname: userJourneyFrontendAvailability6h30m
+        cluster: svc-allfivexx
+        component: slo
+        severity: "4"
+        slo: frontend-availability
+        long_window: 6h
+        short_window: 30m
+      exp_annotations:
+        summary: "svc-allfivexx: Frontend HTTP availability degraded (<99.70%)"
+        description: "Frontend availability on cluster svc-allfivexx is below 99.70% on both the 6h and 30m windows (6x burn). Sev4 ticket - Errors family pages on the complementary 5xx burn."
+        runbook_url: "https://aka.ms/arohcp-runbook-frontend"
+# ----------------------------------------
+# Total 5xx outage (slow 3d/6h): same absent-numerator scenario at hourly
+# resolution so the 3d window is populated. The slow availability alert must
+# also fire at 0% availability.
+# ----------------------------------------
+- interval: 1h
+  input_series:
+  - series: 'frontend_http_requests_total{cluster="svc-allfivexx", code="500", route="/test"}'
+    values: "0+6000x80"
+  alert_rule_test:
+  - eval_time: 73h
+    alertname: userJourneyFrontendAvailability3d6h
+    exp_alerts:
+    - exp_labels:
+        alertname: userJourneyFrontendAvailability3d6h
+        cluster: svc-allfivexx
+        component: slo
+        severity: "4"
+        slo: frontend-availability
+        long_window: 3d
+        short_window: 6h
+      exp_annotations:
+        summary: "svc-allfivexx: Frontend HTTP availability below SLO (<99.95%)"
+        description: "Frontend availability on cluster svc-allfivexx is below the 99.95% SLO on both the 3d and 6h windows (1x burn)."
+        runbook_url: "https://aka.ms/arohcp-runbook-frontend"

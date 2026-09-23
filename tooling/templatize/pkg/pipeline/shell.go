@@ -61,7 +61,7 @@ func runShellStep(id graph.Identifier, s *types.ShellStep, ctx context.Context, 
 
 	// build ENV vars
 	state.RLock()
-	stepVars, err := mapStepVariables(id.ServiceGroup, s.Variables, options.Configuration, state.Outputs)
+	stepVars, err := mapStepVariables(id.ServiceGroup, s.Variables, options.Configuration, state.GetOutputs(id.Stamp))
 	state.RUnlock()
 	if err != nil {
 		return fmt.Errorf("failed to build env vars: %w", err)

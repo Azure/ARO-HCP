@@ -15,6 +15,45 @@
 interval: "5m"
 timeout: "30s"
 cacheTTL: "24h"
+prow:
+  enabled: {{ .opstool.tenantQuota.prow.enabled }}
+  baseURL: "{{ .opstool.tenantQuota.prow.baseURL }}"
+  interval: "{{ .opstool.tenantQuota.prow.interval }}"
+  retention: "{{ .opstool.tenantQuota.prow.retention }}"
+  repository:
+    org: "{{ .opstool.tenantQuota.prow.repository.org }}"
+    name: "{{ .opstool.tenantQuota.prow.repository.name }}"
+{{- if .opstool.tenantQuota.prow.excludeJobs }}
+  excludeJobs:
+{{- range .opstool.tenantQuota.prow.excludeJobs }}
+  - "{{ . }}"
+{{- end }}
+{{- else }}
+  excludeJobs: []
+{{- end }}
+ciJobOutcomes:
+  enabled: {{ .opstool.tenantQuota.ciJobOutcomes.enabled }}
+  clusterURI: "{{ .opstool.tenantQuota.ciJobOutcomes.clusterURI }}"
+  ingestionURI: "{{ .opstool.tenantQuota.ciJobOutcomes.ingestionURI }}"
+  database: "{{ .opstool.tenantQuota.ciJobOutcomes.database }}"
+  outcomes:
+    table: "{{ .opstool.tenantQuota.ciJobOutcomes.outcomes.table }}"
+    ingestionMapping: "{{ .opstool.tenantQuota.ciJobOutcomes.outcomes.ingestionMapping }}"
+  testNames:
+    table: "{{ .opstool.tenantQuota.ciJobOutcomes.testNames.table }}"
+    ingestionMapping: "{{ .opstool.tenantQuota.ciJobOutcomes.testNames.ingestionMapping }}"
+  testResults:
+    table: "{{ .opstool.tenantQuota.ciJobOutcomes.testResults.table }}"
+    ingestionMapping: "{{ .opstool.tenantQuota.ciJobOutcomes.testResults.ingestionMapping }}"
+  sippyURI: "{{ .opstool.tenantQuota.ciJobOutcomes.sippyURI }}"
+  jobFilter: "{{ .opstool.tenantQuota.ciJobOutcomes.jobFilter }}"
+  interval: "{{ .opstool.tenantQuota.ciJobOutcomes.interval }}"
+  timeout: "{{ .opstool.tenantQuota.ciJobOutcomes.timeout }}"
+  window: "{{ .opstool.tenantQuota.ciJobOutcomes.window }}"
+  releases:
+{{- range .opstool.tenantQuota.ciJobOutcomes.releases }}
+  - "{{ . }}"
+{{- end }}
 tenants:
 {{- range .opstool.tenantQuota.tenants }}
 - tenantId: "{{ .tenantId }}"
@@ -26,7 +65,6 @@ tenants:
   subscriptions:
 {{- range .subscriptions }}
   - name: "{{ .name }}"
-    roleAssignmentLimit: {{ .roleAssignmentLimit }}
     regions:
 {{- range .regions }}
     - "{{ . }}"

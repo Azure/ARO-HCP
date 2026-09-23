@@ -24,6 +24,7 @@
 			"clusterImageRegistry": {
 				"state": "Disabled"
 			},
+			"cryptoRestrictions": "None",
 			"dns": {},
 			"etcd": {
 				"dataEncryption": {
@@ -40,6 +41,9 @@
 					},
 					"keyManagementMode": "CustomerManaged"
 				}
+			},
+			"ingress": {
+				"type": "Public"
 			},
 			"network": {
 				"hostPrefix": 23,

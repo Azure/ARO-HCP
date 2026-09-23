@@ -26,9 +26,6 @@ images:
       tag: "latest"
       multiArch: true # Use multi-arch manifest
       useAuth: true
-      keyVault:
-        url: "https://arohcpdev-global.vault.azure.net/"
-        secretName: "component-sync-pull-secret"
     targets:
     - jsonPath: defaults.hypershift.image.digest
       filePath: ../../config/config.yaml
@@ -50,9 +47,6 @@ images:
       tag: "latest"
       versionLabel: "vcs-ref"
       useAuth: true
-      keyVault:
-        url: "https://arohcpdev-global.vault.azure.net/"
-        secretName: "component-sync-pull-secret"
     targets:
     - jsonPath: defaults.clustersService.image.digest
       filePath: ../../config/config.yaml
@@ -69,7 +63,7 @@ images:
   acm-operator:
     group: hypershift-stack
     source:
-      image: quay.io/redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-216
+      image: quay.io/redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-217
       tagPattern: "^v\\d+\\.\\d+\\.\\d+-\\d+$"
       repoVersionUpgrade:
         repoPrefix: "acm-operator-bundle-acm-"
@@ -79,7 +73,7 @@ images:
   acm-mce:
     group: hypershift-stack
     source:
-      image: quay.io/redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-211
+      image: quay.io/redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-217
       tagPattern: "^v\\d+\\.\\d+\\.\\d+-\\d+$"
       repoVersionUpgrade:
         repoPrefix: "mce-operator-bundle-mce-"
@@ -91,7 +85,7 @@ images:
     group: platform-utils
     source:
       image: mcr.microsoft.com/aks/command/runtime
-      tagPattern: "^master\\.\\d+\\.\\d+$"
+      tag: "master.260813.1" # Pinned: master.260901.1 breaks mgmt provisioning (AROSLSRE-2021). Revert to tagPattern: AROSLSRE-2025
       multiArch: true
     targets:
     - jsonPath: defaults.aksCommandRuntime.image.digest
@@ -144,16 +138,28 @@ images:
     targets:
     - jsonPath: defaults.secretSyncController.providerImage.digest
       filePath: ../../config/config.yaml
-  # Image Sync
-  imageSync:
-    group: aro-deps
+  # Tenant Quota Collector image
+  tenant-quota:
+    group: aro-ci-images
     source:
-      image: arohcpsvcdev.azurecr.io/image-sync/oc-mirror
+      image: arohcpsvcdev.azurecr.io/tenant-quota-collector
       tagPattern: "^[a-f0-9]{7}$"
+      versionLabel: vcs-ref
       useAuth: true
     targets:
-    - jsonPath: defaults.imageSync.ocMirror.image.digest
-      filePath: ../../config/config.yaml
+    - jsonPath: clouds.dev.defaults.opstool.tenantQuota.image.digest
+      filePath: ../../config/config-dev-ci.yaml
+  # CIHealth image
+  cihealth:
+    group: aro-ci-images
+    source:
+      image: quay.io/roivaz/cihealth
+      tagPattern: "^[a-f0-9]{7}$"
+      versionLabel: vcs-ref
+      multiArch: true
+    targets:
+    - jsonPath: clouds.dev.defaults.opstool.cihealth.image.digest
+      filePath: ../../config/config-dev-ci.yaml
   # Prometheus images
   prometheus-operator:
     group: prom-stack
@@ -203,39 +209,30 @@ images:
   velero-server:
     group: velero
     source:
-      image: registry.redhat.io/oadp/oadp-velero-rhel9
+      image: registry.stage.redhat.io/oadp/oadp-velero-rhel9
       tagPattern: "^\\d+\\.\\d+\\.\\d+$"
       multiArch: true
       useAuth: true
-      keyVault:
-        url: "https://arohcpdev-global.vault.azure.net/"
-        secretName: "component-sync-pull-secret"
     targets:
     - jsonPath: defaults.velero.server.digest
       filePath: ../../config/config.yaml
   velero-azure-plugin:
     group: velero
     source:
-      image: registry.redhat.io/oadp/oadp-velero-plugin-for-microsoft-azure-rhel9
+      image: registry.stage.redhat.io/oadp/oadp-velero-plugin-for-microsoft-azure-rhel9
       tagPattern: "^\\d+\\.\\d+\\.\\d+$"
       multiArch: true
       useAuth: true
-      keyVault:
-        url: "https://arohcpdev-global.vault.azure.net/"
-        secretName: "component-sync-pull-secret"
     targets:
     - jsonPath: defaults.velero.azurePlugin.digest
       filePath: ../../config/config.yaml
   velero-hypershift-plugin:
     group: velero
     source:
-      image: registry.redhat.io/oadp/oadp-hypershift-velero-plugin-rhel9
+      image: registry.stage.redhat.io/oadp/oadp-hypershift-velero-plugin-rhel9
       tagPattern: "^\\d+\\.\\d+\\.\\d+$"
       multiArch: true
       useAuth: true
-      keyVault:
-        url: "https://arohcpdev-global.vault.azure.net/"
-        secretName: "component-sync-pull-secret"
     targets:
     - jsonPath: defaults.velero.hypershiftPlugin.digest
       filePath: ../../config/config.yaml

@@ -15,14 +15,13 @@
 package roleassignments
 
 import (
-	"context"
 	"testing"
-	"time"
 
 	"github.com/go-logr/logr"
+	msgraphsdk "github.com/microsoftgraph/msgraph-sdk-go"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+	"k8s.io/apimachinery/pkg/util/sets"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v3"
 
 	"github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/pkg/engine/steps/common"
@@ -78,7 +77,7 @@ func TestMustNewDeleteOrphanedStep_PanicsWhenInvalid(t *testing.T) {
 	t.Parallel()
 
 	cfg := validDeleteOrphanedStepConfig()
-	cfg.AzureCredential = nil
+	cfg.GraphClient = nil
 
 	defer func() {
 		if recover() == nil {
@@ -195,18 +194,33 @@ func TestRoleAssignmentName_FallsBackToID(t *testing.T) {
 	}
 }
 
+func TestSelectOrphanedRoleAssignments(t *testing.T) {
+	t.Parallel()
+
+	assignments := []roleAssignmentRecord{
+		{ID: "active-assignment", PrincipalID: "active-principal"},
+		{ID: "soft-deleted-assignment", PrincipalID: "soft-deleted-principal"},
+		{ID: "absent-assignment", PrincipalID: "absent-principal"},
+		{ID: "ABSENT-ASSIGNMENT", PrincipalID: "absent-principal"},
+		{ID: "missing-principal-assignment"},
+	}
+	resolvedPrincipalIDs := sets.New("active-principal")
+
+	got := selectOrphanedRoleAssignments(assignments, resolvedPrincipalIDs)
+	if len(got) != 2 {
+		t.Fatalf("expected two orphaned assignments, got %#v", got)
+	}
+	if got[0].ID != "soft-deleted-assignment" || got[1].ID != "absent-assignment" {
+		t.Fatalf("expected soft-deleted and absent principal assignments, got %#v", got)
+	}
+}
+
 func strPtr(value string) *string { return &value }
 
 func validDeleteOrphanedStepConfig() DeleteOrphanedStepConfig {
 	return DeleteOrphanedStepConfig{
 		RoleAssignmentsClient: &armauthorization.RoleAssignmentsClient{},
-		AzureCredential:       roleAssignmentsTestCredential{},
+		GraphClient:           &msgraphsdk.GraphServiceClient{},
 		SubscriptionID:        "00000000-0000-0000-0000-000000000000",
 	}
-}
-
-type roleAssignmentsTestCredential struct{}
-
-func (roleAssignmentsTestCredential) GetToken(context.Context, policy.TokenRequestOptions) (azcore.AccessToken, error) {
-	return azcore.AccessToken{Token: "token", ExpiresOn: time.Now().Add(time.Hour)}, nil
 }

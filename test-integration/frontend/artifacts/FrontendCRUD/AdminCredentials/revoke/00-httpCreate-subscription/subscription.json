@@ -1,12 +1,5 @@
 {
-	"properties": {
-		"registeredFeatures": [
-			{
-				"name": "Microsoft.RedHatOpenShift/ExperimentalReleaseFeatures",
-				"state": "Registered"
-			}
-		]
-	},
+	"properties": null,
 	"registrationDate": "2025-12-19T19:53:15+00:00",
 	"resourceId": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6",
 	"state": "Registered"

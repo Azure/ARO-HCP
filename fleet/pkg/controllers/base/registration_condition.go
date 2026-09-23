@@ -18,35 +18,52 @@ import (
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	fleetapi "github.com/Azure/ARO-HCP/internal/api/fleet"
+	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 )
 
 // SetRegistrationCondition updates a registration condition based on the
 // reconcile result. Once True, the condition never regresses to False —
 // errors after a successful registration are recorded as True/CheckFailed
 // so operators can observe the problem without losing the registration state.
+//
+// When the condition already carries the target Status and Reason, the
+// update is skipped even if the Message differs. External API errors
+// embed per-request fields (operation IDs, timestamps) that change on
+// every call; writing a new Message each retry would bump the Cosmos
+// etag, trigger an informer update event, and enqueue the key via Add()
+// — bypassing the workqueue rate limiter and creating a hot retry loop.
+// The full error is still logged by the workqueue error handler, so no
+// debugging information is lost.
 func SetRegistrationCondition(conditions *[]metav1.Condition, conditionType string, syncErr error) {
+	var desired metav1.Condition
 	switch {
 	case syncErr == nil:
-		apimeta.SetStatusCondition(conditions, metav1.Condition{
+		desired = metav1.Condition{
 			Type:    conditionType,
 			Status:  metav1.ConditionTrue,
 			Reason:  string(fleetapi.ManagementClusterConditionReasonRegistered),
 			Message: "Registration successful",
-		})
+		}
 	case apimeta.IsStatusConditionTrue(*conditions, conditionType):
-		apimeta.SetStatusCondition(conditions, metav1.Condition{
+		desired = metav1.Condition{
 			Type:    conditionType,
 			Status:  metav1.ConditionTrue,
 			Reason:  string(fleetapi.ManagementClusterConditionReasonRegistrationCheckFailed),
 			Message: syncErr.Error(),
-		})
+		}
 	default:
-		apimeta.SetStatusCondition(conditions, metav1.Condition{
+		desired = metav1.Condition{
 			Type:    conditionType,
 			Status:  metav1.ConditionFalse,
 			Reason:  string(fleetapi.ManagementClusterConditionReasonRegistrationFailed),
 			Message: syncErr.Error(),
-		})
+		}
 	}
+
+	existing := apimeta.FindStatusCondition(*conditions, conditionType)
+	if existing != nil && existing.Status == desired.Status && existing.Reason == desired.Reason {
+		return
+	}
+
+	apimeta.SetStatusCondition(conditions, desired)
 }

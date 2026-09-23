@@ -52,9 +52,6 @@ type AzureResourceManagerCommonTypesTrackedResourceUpdate struct {
 type ClusterAutoscalingProfile struct {
 	// maxNodeProvisionTimeSeconds is the maximum time to wait for node provisioning before considering the provisioning to be
 	// unsuccessful. The default is 900 seconds, or 15 minutes.
-	// Note: The default value is not declared in the API specification because of a TypeSpec bug with updatable fields. The default
-	// value will be declared in a future API version once the TypeSpec bug is
-	// fixed. https://github.com/Azure/typespec-azure/issues/1586
 	MaxNodeProvisionTimeSeconds *int32
 
 	// maxNodesTotal is the maximum allowable number of nodes for the Autoscaler scale out to be operational. The autoscaler will
@@ -64,17 +61,11 @@ type ClusterAutoscalingProfile struct {
 
 	// maxPodGracePeriod is the maximum seconds to wait for graceful pod termination before scaling down a NodePool. The default
 	// is 600 seconds.
-	// Note: The default value is not declared in the API specification because of a TypeSpec bug with updatable fields. The default
-	// value will be declared in a future API version once the TypeSpec bug is
-	// fixed. https://github.com/Azure/typespec-azure/issues/1586
 	MaxPodGracePeriodSeconds *int32
 
 	// podPriorityThreshold enables users to schedule "best-effort" pods, which shouldn't trigger autoscaler actions, but only
 	// run when there are spare resources available. The default is -10. See the
 	// following for more details: https://github.com/kubernetes/autoscaler/blob/master/cluster-autoscaler/FAQ.md#how-does-cluster-autoscaler-work-with-pod-priority-and-preemption
-	// Note: The default value is not declared in the API specification because of a TypeSpec bug with updatable fields. The default
-	// value will be declared in a future API version once the TypeSpec bug is
-	// fixed. https://github.com/Azure/typespec-azure/issues/1586
 	PodPriorityThreshold *int32
 }
 
@@ -85,6 +76,25 @@ type ClusterImageRegistryProfile struct {
 	// ImageStream-backed image registry will be run as pods on worker nodes in the cluster. Disabled means the ImageStream-backed
 	// image registry will not be present in the cluster. The default is Enabled.
 	State *ClusterImageRegistryState
+}
+
+// Condition represents an observation of a resource's state.
+type Condition struct {
+	// READ-ONLY; The last time the condition transitioned from one status to another.
+	LastTransitionTime *time.Time
+
+	// READ-ONLY; A human readable message indicating details about the transition. This may be an empty string.
+	Message *string
+
+	// READ-ONLY; A programmatic identifier indicating the reason for the condition's last transition. This value should be a
+	// CamelCase string.
+	Reason *string
+
+	// READ-ONLY; The status of the condition.
+	Status *StatusType
+
+	// READ-ONLY; Type of the condition. This is a PascalCase identifier representing the type of the condition.
+	Type *ConditionType
 }
 
 // ConsoleProfile - Configuration of the cluster web console
@@ -101,6 +111,13 @@ type CustomerManagedEncryptionProfile struct {
 	// The Key Management Service (KMS) encryption key details.
 	// Required when encryptionType is "KMS".
 	Kms *KmsEncryptionProfile
+}
+
+// CustomerManagedEncryptionProfileUpdate - Customer managed encryption key profile.
+type CustomerManagedEncryptionProfileUpdate struct {
+	// The Key Management Service (KMS) encryption key details.
+	// Required when encryptionType is "KMS".
+	Kms *KmsEncryptionProfileUpdate
 }
 
 // DNSProfile - DNS contains the DNS settings of the cluster
@@ -149,18 +166,29 @@ type ErrorResponse struct {
 
 // EtcdDataEncryptionProfile - The ETCD data encryption settings.
 type EtcdDataEncryptionProfile struct {
+	// REQUIRED; Specify the key management strategy used for the encryption key that encrypts the ETCD data.
+	KeyManagementMode *EtcdDataEncryptionKeyManagementModeType
+
 	// Specify customer managed encryption key details. Required when keyManagementMode is "CustomerManaged".
 	CustomerManaged *CustomerManagedEncryptionProfile
+}
 
-	// Specify the key management strategy used for the encryption key that encrypts the ETCD data. By default, "PlatformManaged"
-	// is used.
-	KeyManagementMode *EtcdDataEncryptionKeyManagementModeType
+// EtcdDataEncryptionProfileUpdate - The ETCD data encryption settings.
+type EtcdDataEncryptionProfileUpdate struct {
+	// Specify customer managed encryption key details. Required when keyManagementMode is "CustomerManaged".
+	CustomerManaged *CustomerManagedEncryptionProfileUpdate
 }
 
 // EtcdProfile - The ETCD settings and configuration options.
 type EtcdProfile struct {
 	// ETCD Data Encryption settings. If not specified platform managed keys are used.
 	DataEncryption *EtcdDataEncryptionProfile
+}
+
+// EtcdProfileUpdate - The ETCD settings and configuration options.
+type EtcdProfileUpdate struct {
+	// ETCD Data Encryption settings. If not specified platform managed keys are used.
+	DataEncryption *EtcdDataEncryptionProfileUpdate
 }
 
 // ExternalAuth resource
@@ -230,24 +258,6 @@ type ExternalAuthClientProfile struct {
 	ExtraScopes []*string
 }
 
-// ExternalAuthCondition - Condition defines an observation of the external auth state.
-type ExternalAuthCondition struct {
-	// READ-ONLY; The last time the condition transitioned from one status to another.
-	LastTransitionTime *time.Time
-
-	// READ-ONLY; This is a human readable message indicating details about the transition. This may be an empty string.
-	Message *string
-
-	// READ-ONLY; This contains a programmatic identifier indicating the reason for the condition's last transition.
-	Reason *string
-
-	// READ-ONLY; The status of the condition.
-	Status *StatusType
-
-	// READ-ONLY; This is a PascalCase (or in foo.example.com/PascalCase) code to represent the type of condition.
-	Type *ExternalAuthConditionType
-}
-
 // ExternalAuthListResult - The response of a ExternalAuth list operation.
 type ExternalAuthListResult struct {
 	// REQUIRED; The ExternalAuth items on this page
@@ -268,11 +278,11 @@ type ExternalAuthProperties struct {
 	// External Auth OIDC clients There must not be more than 20 entries and entries must have unique namespace/name pairs.
 	Clients []*ExternalAuthClientProfile
 
-	// READ-ONLY; An observation of the current state with additional information.
-	Condition *ExternalAuthCondition
-
 	// READ-ONLY; Provisioning state
 	ProvisioningState *ExternalAuthProvisioningState
+
+	// READ-ONLY; Status of the external auth resource
+	Status *ResourceStatus
 }
 
 // ExternalAuthPropertiesUpdate - External Auth profile
@@ -391,6 +401,9 @@ type HcpOpenShiftClusterProperties struct {
 	// OpenShift internal image registry
 	ClusterImageRegistry *ClusterImageRegistryProfile
 
+	// Cryptographic restrictions for kernel and userspace libraries
+	CryptoRestrictions *CryptoRestrictions
+
 	// Cluster DNS configuration
 	DNS *DNSProfile
 
@@ -400,6 +413,9 @@ type HcpOpenShiftClusterProperties struct {
 	// imageDigestMirrors is a set of rules to allow pulling images from a mirrored registry by using digest specifications.
 	// WARNING: Updating this array will redeploy all node pools in the cluster.
 	ImageDigestMirrors []*ImageDigestMirror
+
+	// The cluster ingress configuration
+	Ingress *IngressProfile
 
 	// Cluster network configuration
 	Network *NetworkProfile
@@ -419,12 +435,18 @@ type HcpOpenShiftClusterProperties struct {
 
 	// READ-ONLY; The status of the last operation.
 	ProvisioningState *ProvisioningState
+
+	// READ-ONLY; Status of the cluster resource
+	Status *ResourceStatus
 }
 
 // HcpOpenShiftClusterPropertiesUpdate - HCP cluster properties
 type HcpOpenShiftClusterPropertiesUpdate struct {
 	// Configure ClusterAutoscaling .
 	Autoscaling *ClusterAutoscalingProfile
+
+	// Configure ETCD.
+	Etcd *EtcdProfileUpdate
 
 	// imageDigestMirrors is a set of rules to allow pulling images from a mirrored registry by using digest specifications.
 	// WARNING: Updating this array will redeploy all node pools in the cluster.
@@ -580,6 +602,12 @@ type ImageDigestMirror struct {
 	Source *string
 }
 
+// IngressProfile - Information about the Ingress of a cluster.
+type IngressProfile struct {
+	// The type of the default cluster ingress.
+	Type *IngressType
+}
+
 // KmsEncryptionProfile - Configure etcd encryption Key Management Service (KMS) key. Your Microsoft Entra application used
 // to create the cluster must be authorized to access this keyvault, e.g using the AzureCLI: az keyvault
 // set-policy -n $KEYVAULT_NAME --key-permissions decrypt encrypt --spn (YOUR APPLICATION CLIENT ID)
@@ -594,12 +622,26 @@ type KmsEncryptionProfile struct {
 	Visibility *KeyVaultVisibility
 }
 
+// KmsEncryptionProfileUpdate - Configure etcd encryption Key Management Service (KMS) key. Your Microsoft Entra application
+// used to create the cluster must be authorized to access this keyvault, e.g using the AzureCLI: az keyvault
+// set-policy -n $KEYVAULT_NAME --key-permissions decrypt encrypt --spn (YOUR APPLICATION CLIENT ID)
+type KmsEncryptionProfileUpdate struct {
+	// The details of the active key.
+	ActiveKey *KmsKeyUpdate
+}
+
 // KmsKey - A representation of a KeyVault Secret.
 type KmsKey struct {
 	// REQUIRED; name is the name of the keyvault key used for encryption/decryption.
 	Name *string
 
 	// REQUIRED; version contains the version of the key to use.
+	Version *string
+}
+
+// KmsKeyUpdate - A representation of a KeyVault Secret.
+type KmsKeyUpdate struct {
+	// version contains the version of the key to use.
 	Version *string
 }
 
@@ -760,6 +802,9 @@ type NodePoolProperties struct {
 
 	// READ-ONLY; Provisioning state
 	ProvisioningState *ProvisioningState
+
+	// READ-ONLY; Status of the node pool resource
+	Status *ResourceStatus
 }
 
 // NodePoolPropertiesUpdate - Represents the node pool properties
@@ -823,9 +868,6 @@ type NodePoolVersionProfile struct {
 
 	// ChannelGroup is the name of the set to which this version belongs. Each version belongs to only a single set.
 	// If not specified, the default value is 'stable'.
-	// Note: The default value is not declared in the API specification because of a TypeSpec bug with updatable fields. The default
-	// value will be declared in a future API version once the TypeSpec bug is
-	// fixed. https://github.com/Azure/typespec-azure/issues/1586
 	ChannelGroup *string
 }
 
@@ -833,9 +875,6 @@ type NodePoolVersionProfile struct {
 type NodePoolVersionProfileUpdate struct {
 	// ChannelGroup is the name of the set to which this version belongs. Each version belongs to only a single set.
 	// If not specified, the default value is 'stable'.
-	// Note: The default value is not declared in the API specification because of a TypeSpec bug with updatable fields. The default
-	// value will be declared in a future API version once the TypeSpec bug is
-	// fixed. https://github.com/Azure/typespec-azure/issues/1586
 	ChannelGroup *string
 
 	// ID is the unique identifier of the version.
@@ -935,7 +974,9 @@ type OsDiskProfile struct {
 	// Details on how to create a Disk Encryption Set can be found here: https://learn.microsoft.com/en-us/azure/virtual-machines/disks-enable-customer-managed-keys-portal#set-up-your-disk-encryption-set
 	EncryptionSetID *string
 
-	// The OS disk size in GiB
+	// The OS disk size in GiB. Maximum is 4095 GiB for Managed disks. For Ephemeral disks, the maximum is 2040 GiB; Azure may
+	// enforce a lower effective limit based on the selected VM size's local cache,
+	// temp, or NVMe capacity.
 	SizeGiB *int32
 }
 
@@ -1005,6 +1046,12 @@ type Resource struct {
 
 	// READ-ONLY; The type of the resource. E.g. "Microsoft.Compute/virtualMachines" or "Microsoft.Storage/storageAccounts"
 	Type *string
+}
+
+// ResourceStatus represents the observed status of the resource.
+type ResourceStatus struct {
+	// READ-ONLY; The conditions on the resource
+	Conditions []*Condition
 }
 
 // RoleDefinition - A single role definition required by a given operator
@@ -1243,9 +1290,6 @@ type VersionProfile struct {
 
 	// ChannelGroup is the name of the set to which this version belongs. Each version belongs to only a single set.
 	// If not specified, the default value is 'stable'.
-	// Note: The default value is not declared in the API specification because of a TypeSpec bug with updatable fields. The default
-	// value will be declared in a future API version once the TypeSpec bug is
-	// fixed. https://github.com/Azure/typespec-azure/issues/1586
 	ChannelGroup *string
 }
 
@@ -1253,9 +1297,6 @@ type VersionProfile struct {
 type VersionProfileUpdate struct {
 	// ChannelGroup is the name of the set to which this version belongs. Each version belongs to only a single set.
 	// If not specified, the default value is 'stable'.
-	// Note: The default value is not declared in the API specification because of a TypeSpec bug with updatable fields. The default
-	// value will be declared in a future API version once the TypeSpec bug is
-	// fixed. https://github.com/Azure/typespec-azure/issues/1586
 	ChannelGroup *string
 
 	// ID is the desired X.Y version of the cluster control plane.

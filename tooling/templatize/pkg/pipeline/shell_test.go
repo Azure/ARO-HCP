@@ -19,7 +19,6 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"sync"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -290,10 +289,7 @@ func TestRunShellStep(t *testing.T) {
 					ResourceGroup: "group",
 					Step:          "step",
 				},
-			}, tc.step, context.Background(), "", "", &StepRunOptions{}, &ExecutionState{
-				RWMutex: &sync.RWMutex{},
-				Outputs: Outputs{},
-			}, &buf)
+			}, tc.step, context.Background(), "", "", &StepRunOptions{}, NewExecutionState(), &buf)
 			if tc.err != "" {
 				assert.ErrorContains(t, err, tc.err)
 			} else {
@@ -315,10 +311,7 @@ func TestRunShellStepCaptureOutput(t *testing.T) {
 			ResourceGroup: "group",
 			Step:          "step",
 		},
-	}, step, context.Background(), "", "", &StepRunOptions{}, &ExecutionState{
-		RWMutex: &sync.RWMutex{},
-		Outputs: Outputs{},
-	}, &buf)
+	}, step, context.Background(), "", "", &StepRunOptions{}, NewExecutionState(), &buf)
 	assert.NoError(t, err)
 	assert.Equal(t, buf.String(), "hallo\n")
 }

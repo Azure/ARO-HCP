@@ -45,6 +45,9 @@
               "203.0.113.0/24"
             ]
           },
+          "ingress": {
+            "type": "Public"
+          },
           "platform": {
             "managedResourceGroup": "nhyhywrxupo",
             "subnetId": "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/resourceGroups/resourceGroupName/providers/Microsoft.Network/virtualNetworks/hcp-network-example/subnets/example-subnet",
@@ -104,7 +107,8 @@
           "nodeDrainTimeoutMinutes": 20,
           "clusterImageRegistry": {
             "state": "Enabled"
-          }
+          },
+          "cryptoRestrictions": "None"
         },
         "identity": {
           "principalId": "e5867472-f0ed-4fc1-80e1-59b4c0256adb",
@@ -136,7 +140,7 @@
     },
     "202": {
       "headers": {
-        "location": "https://contoso.com/operationstatus"
+        "Location": "https://contoso.com/operationstatus"
       }
     }
   }

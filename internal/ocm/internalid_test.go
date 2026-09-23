@@ -24,7 +24,7 @@ import (
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 )
 
 type FakeTransport struct{}
@@ -107,7 +107,7 @@ func TestInternalID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			internalID, err := api.NewInternalID(tt.path)
+			internalID, err := metadataapi.NewInternalID(tt.path)
 			if tt.expectErr {
 				assert.Error(t, err)
 			} else {

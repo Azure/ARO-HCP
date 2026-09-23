@@ -31,8 +31,8 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/test-integration/utils/databasemutationhelpers"
 	"github.com/Azure/ARO-HCP/test-integration/utils/integrationutils"
@@ -116,38 +116,50 @@ func testVersionCompliance(t *testing.T, withMock bool) {
 			require.NoError(t, err)
 
 			// Register subscription
-			subscriptionID := api.Must(azcorearm.ParseResourceID(scenario.ResourceID)).SubscriptionID
-			subscriptionResourceID := api.Must(arm.ToSubscriptionResourceID(subscriptionID))
-			subscriptionJSON := api.Must(artifacts.ReadFile("artifacts/VersionCompliance/subscription.json"))
+			subscriptionID := metadataapi.Must(azcorearm.ParseResourceID(scenario.ResourceID)).SubscriptionID
+			subscriptionResourceID := metadataapi.Must(coreapihelpers.ToSubscriptionResourceID(subscriptionID))
+			subscriptionJSON := metadataapi.Must(artifacts.ReadFile("artifacts/VersionCompliance/subscription.json"))
 			subscriptionAccessor := databasemutationhelpers.NewVersionedHTTPTestAccessor(testInfo.FrontendURL, scenario.CreateVersion)
 			require.NoError(t, subscriptionAccessor.CreateOrUpdate(ctx, subscriptionResourceID.String(), subscriptionJSON))
 
 			// For nodepool scenarios, create the parent cluster first
 			if scenario.ResourceType == "nodePool" {
 				require.NotEmpty(t, scenario.ClusterResourceID, "nodePool scenario must specify clusterResourceID")
-				clusterJSON := api.Must(artifacts.ReadFile(scenario.dir + "/cluster.json"))
+				clusterJSON := metadataapi.Must(artifacts.ReadFile(scenario.dir + "/cluster.json"))
 				clusterAccessor := databasemutationhelpers.NewVersionedHTTPTestAccessor(testInfo.FrontendURL, scenario.CreateVersion)
 				require.NoError(t, clusterAccessor.CreateOrUpdate(ctx, scenario.ClusterResourceID, clusterJSON))
 
 				// Complete the cluster creation operation
-				clusterResourceID := api.Must(azcorearm.ParseResourceID(scenario.ClusterResourceID))
+				clusterResourceID := metadataapi.Must(azcorearm.ParseResourceID(scenario.ClusterResourceID))
 				require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, testInfo.ResourcesDBClient(), subscriptionID, clusterResourceID.Name))
+
+				// Seed ServiceProviderCluster with active_versions so CREATE-time
+				// skew validation can find lowest/highest control plane versions.
+				loadCosmosFromArtifact(t, ctx, testInfo, scenario.dir+"/service_provider_cluster.json")
+
+				require.NoError(t, integrationutils.StampRandomClusterServiceID(
+					ctx,
+					testInfo.ResourcesDBClient(),
+					scenario.ClusterResourceID,
+				))
 			}
 
 			// Create the resource under test using the scenario's createVersion
-			requestJSON := api.Must(artifacts.ReadFile(scenario.dir + "/request.json"))
+			requestJSON := metadataapi.Must(artifacts.ReadFile(scenario.dir + "/request.json"))
 			createAccessor := databasemutationhelpers.NewVersionedHTTPTestAccessor(testInfo.FrontendURL, scenario.CreateVersion)
 			require.NoError(t, createAccessor.CreateOrUpdate(ctx, scenario.ResourceID, requestJSON))
 
 			// Complete the creation operation
-			resourceID := api.Must(azcorearm.ParseResourceID(scenario.ResourceID))
+			resourceID := metadataapi.Must(azcorearm.ParseResourceID(scenario.ResourceID))
 			require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, testInfo.ResourcesDBClient(), subscriptionID, resourceID.Name))
 
 			// GET via each version, compare to full expected response
 			for _, v := range allVersions {
 				t.Run("GET/"+v, func(t *testing.T) {
 					getter := databasemutationhelpers.NewVersionedHTTPTestAccessor(testInfo.FrontendURL, v)
-					actual, err := getter.Get(ctx, scenario.ResourceID)
+					resp, err := getter.Get(ctx, scenario.ResourceID)
+					require.NoError(t, err)
+					actual, err := databasemutationhelpers.DecodeResponseBody(resp)
 					require.NoError(t, err)
 
 					expected := loadExpectedResponse(t, artifacts, scenario.dir, "get", v)
@@ -193,7 +205,7 @@ func discoverScenarios(t *testing.T, fsys fs.FS, basePath string) []complianceSc
 	var scenarios []complianceScenario
 
 	// Walk resource type directories (Cluster, NodePool, etc.)
-	resourceTypeDirs := api.Must(fs.ReadDir(fsys, basePath))
+	resourceTypeDirs := metadataapi.Must(fs.ReadDir(fsys, basePath))
 	for _, rtEntry := range resourceTypeDirs {
 		if !rtEntry.IsDir() {
 			continue
@@ -201,7 +213,7 @@ func discoverScenarios(t *testing.T, fsys fs.FS, basePath string) []complianceSc
 		resourceTypePath := basePath + "/" + rtEntry.Name()
 
 		// Walk scenario directories within each resource type
-		scenarioDirs := api.Must(fs.ReadDir(fsys, resourceTypePath))
+		scenarioDirs := metadataapi.Must(fs.ReadDir(fsys, resourceTypePath))
 		for _, scenarioEntry := range scenarioDirs {
 			if !scenarioEntry.IsDir() {
 				continue
@@ -245,4 +257,16 @@ func prettyJSON(t *testing.T, v any) string {
 		return fmt.Sprintf("%v", v)
 	}
 	return strings.TrimSpace(string(b))
+}
+
+func loadCosmosFromArtifact(
+	t *testing.T,
+	ctx context.Context,
+	testInfo *integrationutils.IntegrationTestInfo,
+	artifactPath string,
+) {
+	t.Helper()
+
+	content := metadataapi.Must(artifacts.ReadFile(artifactPath))
+	require.NoError(t, testInfo.LoadContent(ctx, content))
 }

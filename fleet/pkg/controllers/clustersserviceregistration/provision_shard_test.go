@@ -22,15 +22,15 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api/fleet"
+	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 )
 
-func validManagementCluster() *fleet.ManagementCluster {
-	return &fleet.ManagementCluster{
-		Spec: fleet.ManagementClusterSpec{
-			SchedulingPolicy: fleet.ManagementClusterSchedulingPolicySchedulable,
+func validManagementCluster() *fleetapi.ManagementCluster {
+	return &fleetapi.ManagementCluster{
+		Spec: fleetapi.ManagementClusterSpec{
+			SchedulingPolicy: fleetapi.ManagementClusterSchedulingPolicySchedulable,
 		},
-		Status: fleet.ManagementClusterStatus{
+		Status: fleetapi.ManagementClusterStatus{
 			AKSResourceID:                                        mustParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/mc"),
 			PublicDNSZoneResourceID:                              mustParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dns-rg/providers/Microsoft.Network/dnszones/example.com"),
 			HostedClustersSecretsKeyVaultURL:                     "https://kv-secrets.vault.azure.net",
@@ -54,7 +54,7 @@ func mustParseResourceID(s string) *azcorearm.ResourceID {
 func TestBuildProvisionShardForCreate(t *testing.T) {
 	tests := []struct {
 		name            string
-		modify          func(managementCluster *fleet.ManagementCluster)
+		modify          func(managementCluster *fleetapi.ManagementCluster)
 		region          string
 		wantErrContains string
 	}{
@@ -64,13 +64,13 @@ func TestBuildProvisionShardForCreate(t *testing.T) {
 		},
 		{
 			name:            "nil AKSResourceID",
-			modify:          func(managementCluster *fleet.ManagementCluster) { managementCluster.Status.AKSResourceID = nil },
+			modify:          func(managementCluster *fleetapi.ManagementCluster) { managementCluster.Status.AKSResourceID = nil },
 			region:          "westus3",
 			wantErrContains: "AKSResourceID is required",
 		},
 		{
 			name: "nil PublicDNSZoneResourceID",
-			modify: func(managementCluster *fleet.ManagementCluster) {
+			modify: func(managementCluster *fleetapi.ManagementCluster) {
 				managementCluster.Status.PublicDNSZoneResourceID = nil
 			},
 			region:          "westus3",
@@ -78,7 +78,7 @@ func TestBuildProvisionShardForCreate(t *testing.T) {
 		},
 		{
 			name: "empty HostedClustersSecretsKeyVaultURL",
-			modify: func(managementCluster *fleet.ManagementCluster) {
+			modify: func(managementCluster *fleetapi.ManagementCluster) {
 				managementCluster.Status.HostedClustersSecretsKeyVaultURL = ""
 			},
 			region:          "westus3",
@@ -86,7 +86,7 @@ func TestBuildProvisionShardForCreate(t *testing.T) {
 		},
 		{
 			name: "empty HostedClustersManagedIdentitiesKeyVaultURL",
-			modify: func(managementCluster *fleet.ManagementCluster) {
+			modify: func(managementCluster *fleetapi.ManagementCluster) {
 				managementCluster.Status.HostedClustersManagedIdentitiesKeyVaultURL = ""
 			},
 			region:          "westus3",
@@ -94,7 +94,7 @@ func TestBuildProvisionShardForCreate(t *testing.T) {
 		},
 		{
 			name: "empty HostedClustersSecretsKeyVaultManagedIdentityClientID",
-			modify: func(managementCluster *fleet.ManagementCluster) {
+			modify: func(managementCluster *fleetapi.ManagementCluster) {
 				managementCluster.Status.HostedClustersSecretsKeyVaultManagedIdentityClientID = ""
 			},
 			region:          "westus3",
@@ -102,7 +102,7 @@ func TestBuildProvisionShardForCreate(t *testing.T) {
 		},
 		{
 			name: "empty MaestroConsumerName",
-			modify: func(managementCluster *fleet.ManagementCluster) {
+			modify: func(managementCluster *fleetapi.ManagementCluster) {
 				managementCluster.Status.MaestroConsumerName = ""
 			},
 			region:          "westus3",
@@ -110,7 +110,7 @@ func TestBuildProvisionShardForCreate(t *testing.T) {
 		},
 		{
 			name: "empty MaestroRESTAPIURL",
-			modify: func(managementCluster *fleet.ManagementCluster) {
+			modify: func(managementCluster *fleetapi.ManagementCluster) {
 				managementCluster.Status.MaestroRESTAPIURL = ""
 			},
 			region:          "westus3",
@@ -118,7 +118,7 @@ func TestBuildProvisionShardForCreate(t *testing.T) {
 		},
 		{
 			name: "empty MaestroGRPCTarget",
-			modify: func(managementCluster *fleet.ManagementCluster) {
+			modify: func(managementCluster *fleetapi.ManagementCluster) {
 				managementCluster.Status.MaestroGRPCTarget = ""
 			},
 			region:          "westus3",
@@ -131,7 +131,7 @@ func TestBuildProvisionShardForCreate(t *testing.T) {
 		},
 		{
 			name: "unknown scheduling policy",
-			modify: func(managementCluster *fleet.ManagementCluster) {
+			modify: func(managementCluster *fleetapi.ManagementCluster) {
 				managementCluster.Spec.SchedulingPolicy = "bogus"
 			},
 			region:          "westus3",

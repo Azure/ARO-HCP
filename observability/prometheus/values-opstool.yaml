@@ -73,10 +73,9 @@ prometheusSpec:
       memory: 1Gi
     limits:
       memory: 2Gi
+  replicas: 1
+  shards: 1
 prometheus:
-  prometheusSpec:
-    shards: 1
-    replicas: 1
   serviceAccount:
     managedIdentity: "__prometheusUAMIClientId__"
 environment: "opstool"

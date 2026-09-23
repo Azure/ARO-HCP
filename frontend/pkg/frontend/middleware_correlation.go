@@ -18,7 +18,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -31,7 +31,7 @@ func MiddlewareCorrelationData(w http.ResponseWriter, r *http.Request, next http
 		logger = utils.LoggerFromContext(ctx)
 	)
 
-	correlationData := arm.NewCorrelationData(r)
+	correlationData := coreapi.NewCorrelationData(r)
 	ctx = ContextWithCorrelationData(ctx, correlationData)
 
 	logger = logger.WithValues(utils.LogValues{}.AddRequestID(correlationData.RequestID.String())...)
@@ -45,10 +45,10 @@ func MiddlewareCorrelationData(w http.ResponseWriter, r *http.Request, next http
 	ctx = utils.ContextWithLogger(ctx, logger)
 	r = r.WithContext(ctx)
 
-	w.Header().Set(arm.HeaderNameRequestID, correlationData.RequestID.String())
-	returnClientRequestID := r.Header.Get(arm.HeaderNameReturnClientRequestID)
+	w.Header().Set(coreapi.HeaderNameRequestID, correlationData.RequestID.String())
+	returnClientRequestID := r.Header.Get(coreapi.HeaderNameReturnClientRequestID)
 	if strings.EqualFold(returnClientRequestID, "true") {
-		w.Header().Set(arm.HeaderNameClientRequestID, correlationData.ClientRequestID)
+		w.Header().Set(coreapi.HeaderNameClientRequestID, correlationData.ClientRequestID)
 	}
 
 	next(w, r)

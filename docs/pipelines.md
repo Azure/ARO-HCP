@@ -22,13 +22,17 @@ The tree of pipelines making up the ARO HCP service are documented here from the
         - Microsoft.Azure.ARO.HCP.Maestro.Agent ([ref](https://github.com/Azure/ARO-HCP/tree/main/maestro/agent/pipeline.yaml)): Deploy the Maestro Agent and register it with the MQTT stream.
         - Microsoft.Azure.ARO.HCP.KubeApplier ([ref](https://github.com/Azure/ARO-HCP/tree/main/kube-applier/pipeline.yaml)): Deploy the Kube Applier.
         - Microsoft.Azure.ARO.HCP.MgmtAgent ([ref](https://github.com/Azure/ARO-HCP/tree/main/mgmt-agent/pipeline.yaml)): Deploy the Management Agent.
+          - Microsoft.Azure.ARO.HCP.SwiftRecorder ([ref](https://github.com/Azure/ARO-HCP/tree/main/swift-recorder/pipeline.yaml)): Deploy the opt-in SWIFT-v2 node-local startup recorder.
         - Microsoft.Azure.ARO.HCP.Fleet.Registration ([ref](https://github.com/Azure/ARO-HCP/tree/main/fleet/registration/pipeline.yaml)): Register the stamp and management cluster in CosmosDB.
       - Microsoft.Azure.ARO.HCP.Monitoring ([ref](https://github.com/Azure/ARO-HCP/tree/main/dev-infrastructure/monitoring-pipeline.yaml)): Deploy the Monitoring resources (Monitoring)
       - Microsoft.Azure.ARO.HCP.E2E ([ref](https://github.com/Azure/ARO-HCP/tree/main/test/e2e-pipeline.yaml)): Run the E2E tests towards a region and gate SDP progression.
+- Microsoft.Azure.ARO.HCP.Global.StgGlobal ([ref](https://github.com/Azure/ARO-HCP/tree/main/dev-infrastructure/global-pipeline-stg.yaml)): Deploy global shared infrastructure (STG V2). (Global STG V2)
+  - Microsoft.Azure.ARO.HCP.Geography.StgGlobal ([ref](https://github.com/Azure/ARO-HCP/tree/main/dev-infrastructure/geography-pipeline-stg.yaml)): Deploy geography-level shared infrastructure (STG V2).
 - Microsoft.Azure.ARO.HCP.Management.Delete ([ref](https://github.com/Azure/ARO-HCP/tree/main/dev-infrastructure/cleanup/delete.mgmt.pipeline.yaml)): Delete the management resources and management resource group
 - Microsoft.Azure.ARO.HCP.Service.Delete ([ref](https://github.com/Azure/ARO-HCP/tree/main/dev-infrastructure/cleanup/delete.svc.pipeline.yaml)): Delete the service resources and service resource group
 - Microsoft.Azure.ARO.HCP.Region.Delete ([ref](https://github.com/Azure/ARO-HCP/tree/main/dev-infrastructure/cleanup/delete.region.pipeline.yaml)): Delete the region resources and resource group
+- Microsoft.Azure.ARO.HCP.Grafana ([ref](https://github.com/Azure/ARO-HCP/tree/main/dev-infrastructure/grafana-pipeline.yaml)): Test pipeline for Grafana reconciliation.
 - Microsoft.Azure.ARO.HCP.Observability ([ref](https://github.com/Azure/ARO-HCP/tree/main/observability/tracing/pipeline.yaml)): Deploy the development tracing stack.
 - Microsoft.Azure.ARO.HCP.Kusto.Delete ([ref](https://github.com/Azure/ARO-HCP/tree/main/dev-infrastructure/cleanup/delete.kusto.instance.pipeline.yaml)): Delete the kusto instance.
 - Microsoft.Azure.ARO.HCP.Service.Kubeconfig ([ref](https://github.com/Azure/ARO-HCP/tree/main/dev-infrastructure/svc-kubeconfig.yaml)): Grant access to AKS SVC AKS Clusters, mainly intended for E2E test setup.
-- Microsoft.Azure.ARO.HCP.Management.Kubeconfig ([ref](https://github.com/Azure/ARO-HCP/tree/main/dev-infrastructure/mgmt-kubeconfig.yaml)): Grant access to AKS SVC AKS Clusters, mainly intended for E2E test setup.
+- Microsoft.Azure.ARO.HCP.Management.Kubeconfig ([ref](https://github.com/Azure/ARO-HCP/tree/main/dev-infrastructure/mgmt-kubeconfig.yaml)): Grant access to AKS Management Clusters, mainly intended for E2E test setup.

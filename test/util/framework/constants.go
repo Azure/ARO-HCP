@@ -20,7 +20,13 @@ import "time"
 
 // Provisioning timeouts
 const (
-	ClusterCreationTimeout      = 20 * time.Minute
+	// ClusterCreationTimeout is temporarily raised from 20m as a stop-gap while
+	// Cluster Service provisioning latency is being investigated (CS steps run
+	// strictly serially today and recent telemetry shows several steps, e.g.
+	// DNS and RBAC role assignment on the MRG, taking noticeably longer than
+	// their historical p50/p90). Revisit and re-tune once the CS-side latency
+	// work lands; see test/e2e/README.md#updating-e2e-timeouts.
+	ClusterCreationTimeout      = 30 * time.Minute
 	NodePoolCreationTimeout     = 20 * time.Minute
 	ExternalAuthCreationTimeout = 15 * time.Minute
 	GetAdminRESTConfigTimeout   = 10 * time.Minute
@@ -28,8 +34,9 @@ const (
 
 // Deletion timeouts
 const (
-	HCPClusterDeletionTimeout   = 45 * time.Minute
-	ExternalAuthDeletionTimeout = 25 * time.Minute
+	HCPClusterDeletionTimeout   = 25 * time.Minute
+	NodePoolDeletionTimeout     = 25 * time.Minute
+	ExternalAuthDeletionTimeout = 15 * time.Minute
 )
 
 // Resource Update timeouts
@@ -43,4 +50,10 @@ const (
 // Identity assignment
 const (
 	IdentityContainerAssignmentRetryInterval = 60 * time.Second
+)
+
+// Backup timeouts
+const (
+	BackupWaitTimeout  = 11 * time.Minute
+	BackupWaitInterval = 30 * time.Second
 )

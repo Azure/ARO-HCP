@@ -28,7 +28,11 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 
 	maestroopenapi "github.com/openshift-online/maestro/pkg/api/openapi"
 	ocmsdk "github.com/openshift-online/ocm-sdk-go"
@@ -36,8 +40,11 @@ import (
 	"github.com/Azure/ARO-HCP/fleet/pkg/controllers/maestroregistration"
 	"github.com/Azure/ARO-HCP/fleet/pkg/manager"
 	"github.com/Azure/ARO-HCP/internal/azsdk"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/ocm"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 const (
@@ -62,13 +69,17 @@ type RawControllerOptions struct {
 	LeaderElectionID     string
 	HealthzListenAddress string
 	MetricsListenAddress string
+
+	AMWWorkspaceResourceIDs []string
+	AMWScalingPollInterval  time.Duration
 }
 
 func DefaultControllerOptions() *RawControllerOptions {
 	return &RawControllerOptions{
-		HealthzListenAddress: defaultHealthzListenAddress,
-		MetricsListenAddress: defaultMetricsListenAddress,
-		LeaderElectionID:     defaultLeaderElectionID,
+		HealthzListenAddress:   defaultHealthzListenAddress,
+		MetricsListenAddress:   defaultMetricsListenAddress,
+		LeaderElectionID:       defaultLeaderElectionID,
+		AMWScalingPollInterval: 30 * time.Minute,
 	}
 }
 
@@ -84,6 +95,8 @@ func BindControllerOptions(opts *RawControllerOptions, cmd *cobra.Command) error
 	cmd.Flags().StringVar(&opts.LeaderElectionID, "leader-election-id", opts.LeaderElectionID, "name of the leader election lease")
 	cmd.Flags().StringVar(&opts.HealthzListenAddress, "healthz-listen-address", opts.HealthzListenAddress, "listen address for healthz server")
 	cmd.Flags().StringVar(&opts.MetricsListenAddress, "metrics-listen-address", opts.MetricsListenAddress, "listen address for metrics server")
+	cmd.Flags().StringArrayVar(&opts.AMWWorkspaceResourceIDs, "amw-workspace-resource-id", opts.AMWWorkspaceResourceIDs, "Azure Monitor Workspace resource ID to manage ingestion limits for. Can be specified multiple times.")
+	cmd.Flags().DurationVar(&opts.AMWScalingPollInterval, "amw-scaling-poll-interval", opts.AMWScalingPollInterval, "Interval at which the AMW ingestion limits scaling controller checks utilization and scales limits.")
 
 	for _, flag := range []string{
 		"cloud-environment",
@@ -134,6 +147,15 @@ func (o *RawControllerOptions) Validate(ctx context.Context) (*ValidatedControll
 		return nil, fmt.Errorf("--cloud-environment: %w", err)
 	}
 
+	for _, id := range o.AMWWorkspaceResourceIDs {
+		if _, err := azcorearm.ParseResourceID(id); err != nil {
+			return nil, utils.TrackError(fmt.Errorf("--amw-workspace-resource-id %q is not a valid ARM resource ID: %w", id, err))
+		}
+	}
+	if len(o.AMWWorkspaceResourceIDs) > 0 && o.AMWScalingPollInterval <= 0 {
+		return nil, utils.TrackError(fmt.Errorf("--amw-scaling-poll-interval must be positive when AMW workspaces are configured"))
+	}
+
 	return &ValidatedControllerOptions{
 		validatedControllerOptions: &validatedControllerOptions{
 			RawControllerOptions: o,
@@ -143,13 +165,18 @@ func (o *RawControllerOptions) Validate(ctx context.Context) (*ValidatedControll
 }
 
 type controllerOptions struct {
-	fleetDBClient                database.FleetDBClient
+	kubeApplierDBClients         kubeappliercosmosstorage.KubeApplierDBClients
+	fleetDBClient                fleetcosmosstorage.FleetDBClient
 	clustersServiceClient        ocm.ClusterServiceClientSpec
 	maestroConsumerClientFactory maestroregistration.MaestroConsumerClientFactory
 	leaderElectionLock           resourcelock.Interface
 	region                       string
 	healthzListenAddr            string
 	metricsListenAddr            string
+	amwWorkspaceResourceIDs      []string
+	amwScalingPollInterval       time.Duration
+	azureCredential              azcore.TokenCredential
+	azureClientOptions           *policy.ClientOptions
 }
 
 type ControllerOptions struct {
@@ -160,12 +187,12 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 	clientOpts := azsdk.NewClientOptions(azsdk.ComponentFleet)
 	clientOpts.Cloud = o.cloudConfiguration
 
-	dbClient, err := database.NewCosmosDatabaseClient(o.CosmosURL, o.CosmosName, clientOpts)
+	dbClient, err := corecosmosstorage.NewCosmosDatabaseClient(o.CosmosURL, o.CosmosName, clientOpts)
 	if err != nil {
 		return nil, err
 	}
 
-	fleetDBClient, err := database.NewFleetDBClient(dbClient)
+	fleetDBClient, err := fleetcosmosstorage.NewFleetDBClient(dbClient)
 	if err != nil {
 		return nil, err
 	}
@@ -192,8 +219,25 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 		return nil, err
 	}
 
+	azureCredential, err := azidentity.NewDefaultAzureCredential(&azidentity.DefaultAzureCredentialOptions{
+		ClientOptions:                clientOpts,
+		RequireAzureTokenCredentials: true,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Azure credential: %w", err)
+	}
+	azureClientOptions := &policy.ClientOptions{
+		Cloud: clientOpts.Cloud,
+	}
+
+	kubeApplierDBClients := kubeappliercosmosstorage.NewKubeApplierDBClients(
+		dbClient,
+		kubeappliercosmosstorage.NewDBBackedManagementClusterLister(fleetDBClient),
+	)
+
 	return &ControllerOptions{
 		controllerOptions: &controllerOptions{
+			kubeApplierDBClients:         kubeApplierDBClients,
 			fleetDBClient:                fleetDBClient,
 			clustersServiceClient:        clustersServiceClient,
 			maestroConsumerClientFactory: maestroConsumerClientFactory,
@@ -201,12 +245,17 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 			region:                       o.Region,
 			healthzListenAddr:            o.HealthzListenAddress,
 			metricsListenAddr:            o.MetricsListenAddress,
+			amwWorkspaceResourceIDs:      o.AMWWorkspaceResourceIDs,
+			amwScalingPollInterval:       o.AMWScalingPollInterval,
+			azureCredential:              azureCredential,
+			azureClientOptions:           azureClientOptions,
 		},
 	}, nil
 }
 
 func (o *ControllerOptions) Run(ctx context.Context) error {
 	mgr := &manager.Manager{
+		KubeApplierDBClients:         o.kubeApplierDBClients,
 		FleetDBClient:                o.fleetDBClient,
 		ClustersServiceClient:        o.clustersServiceClient,
 		MaestroConsumerClientFactory: o.maestroConsumerClientFactory,
@@ -214,6 +263,10 @@ func (o *ControllerOptions) Run(ctx context.Context) error {
 		Region:                       o.region,
 		HealthzListenAddr:            o.healthzListenAddr,
 		MetricsListenAddr:            o.metricsListenAddr,
+		AMWWorkspaceResourceIDs:      o.amwWorkspaceResourceIDs,
+		AMWScalingPollInterval:       o.amwScalingPollInterval,
+		AzureCredential:              o.azureCredential,
+		AzureClientOptions:           o.azureClientOptions,
 	}
 	return mgr.Run(ctx)
 }

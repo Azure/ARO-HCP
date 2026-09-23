@@ -2,16 +2,23 @@
 
 set -euxo pipefail
 
-echo "Azure login"
-az login --identity --client-id "${AZURE_CLIENT_ID}"
-
 echo "ACR login"
-DOCKER_COMMAND=/usr/local/bin/docker-login.sh az acr login -n "${REGISTRY}"
+# In Azure this is the job's managed identity. An explicitly empty value opts into the
+# default credential chain for local dry-runs; unset is a misconfiguration, so fail loudly.
+if [[ -z "${AZURE_CLIENT_ID+x}" ]]; then
+    echo "ERROR: AZURE_CLIENT_ID is not set. Set it to the job's managed identity client ID, or set it to the empty string to use the ambient credential locally." >&2
+    exit 1
+fi
+/usr/local/bin/acrauth login \
+    --registry "${REGISTRY_URL}" \
+    --auth-file "${XDG_RUNTIME_DIR}/containers/auth.json" \
+    --client-id "${AZURE_CLIENT_ID}"
 
 # Prepare configuration
 IMAGE_SET_CONFIG_FILE="/config/imageset-config.yaml"
 echo "${IMAGE_SET_CONFIG}" | base64 -d | yq eval -P > ${IMAGE_SET_CONFIG_FILE}
 API_VERSION=$(yq eval '.apiVersion' ${IMAGE_SET_CONFIG_FILE})
+ADDITIONAL_FLAGS=""
 if echo "$API_VERSION" | grep -q "^mirror.openshift.io/v2"; then
     ADDITIONAL_FLAGS="--workspace file:///oc-mirror-workspace --v2"
 fi
@@ -32,4 +39,16 @@ echo "Inspecting DNS for target registry"
 dig "${REGISTRY_URL}"
 
 echo "Start mirroring"
-/usr/local/bin/oc-mirror-${OC_MIRROR_VERSION} --config ${IMAGE_SET_CONFIG_FILE} ${ADDITIONAL_FLAGS} docker://${REGISTRY_URL} @$
+MIRROR_LOG=$(mktemp)
+trap 'rm -f "${MIRROR_LOG}"' EXIT
+/usr/local/bin/oc-mirror-${OC_MIRROR_VERSION} --config ${IMAGE_SET_CONFIG_FILE} ${ADDITIONAL_FLAGS} docker://${REGISTRY_URL} "$@" 2>&1 | tee "${MIRROR_LOG}"
+
+# oc-mirror v2 exits 0 even when every image fails to mirror, so a broken job
+# reports success. Inspect its summary line and fail when nothing was mirrored.
+# The summary is prefixed with a timestamp and log level, e.g.
+#   2026/08/12 23:00:35  [INFO]   :    0 / 4 additional images mirrored: ...
+# Requiring whitespace before the 0 avoids matching counts such as "10 / 20".
+if grep -qE '[[:space:]]0 / [1-9][0-9]* (additional|release|operator) images mirrored' "${MIRROR_LOG}"; then
+    echo "ERROR: oc-mirror reported 0 mirrored images" >&2
+    exit 1
+fi

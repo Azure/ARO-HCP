@@ -14,19 +14,16 @@
 
 package conversion
 
-import (
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
-)
+import "github.com/Azure/ARO-HCP/internal/api/coreapi"
 
-func CopyReadOnlyProxyResourceValues(dest, src *arm.ProxyResource) {
+func CopyReadOnlyProxyResourceValues(dest, src *coreapi.ProxyResource) {
 	dest.ID = src.ID
 	dest.Name = src.Name
 	dest.Type = src.Type
 	dest.SystemData = src.SystemData.DeepCopy()
 }
 
-func CopyReadOnlyExternalAuthValues(dest, src *api.HCPOpenShiftClusterExternalAuth) {
+func CopyReadOnlyExternalAuthValues(dest, src *coreapi.HCPOpenShiftClusterExternalAuth) {
 	CopyReadOnlyProxyResourceValues(&dest.ProxyResource, &src.ProxyResource)
 
 	// CosmosMetadata is read-only on the API surface; carry over so the
@@ -34,6 +31,6 @@ func CopyReadOnlyExternalAuthValues(dest, src *api.HCPOpenShiftClusterExternalAu
 	dest.CosmosMetadata = *src.CosmosMetadata.DeepCopy()
 
 	dest.Properties.ProvisioningState = src.Properties.ProvisioningState
-	dest.Properties.Condition = *src.Properties.Condition.DeepCopy()
 	dest.ServiceProviderProperties = *src.ServiceProviderProperties.DeepCopy()
+	dest.Status = *src.Status.DeepCopy()
 }

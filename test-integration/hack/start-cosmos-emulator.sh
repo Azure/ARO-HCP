@@ -24,5 +24,5 @@ if [ -n "${RUNNING_CONTAINER}" ]; then
     echo "Will start a new emulator container..."
 fi
 
-CONTAINER_NAME="local-cosmos-emulator-$(shuf -i 1000-9999 -n 1)"
+CONTAINER_NAME="local-cosmos-emulator-$((1000 + RANDOM % 9000))"
 start_emulator "${CONTAINER_NAME}"

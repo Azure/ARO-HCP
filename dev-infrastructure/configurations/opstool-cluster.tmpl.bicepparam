@@ -5,6 +5,9 @@ param vnetAddressPrefix = '{{ .opstool.aks.vnetAddressPrefix }}'
 param subnetPrefix = '{{ .opstool.aks.subnetPrefix }}'
 param podSubnetPrefix = '{{ .opstool.aks.podSubnetPrefix }}'
 param aksClusterName = '{{ .opstool.aks.name }}'
+// Passed here to seed revisions at initial cluster create. Opstool clusters
+// don't run the IstioUpgrade pipeline step, so bicep must set the value.
+// SVC clusters omit this — see aks-cluster-base.bicep for the decoupling rationale.
 param istioVersions = '{{ .opstool.istio.versions }}'
 param aksKeyVaultName = '{{ .opstool.aks.etcd.name }}'
 param aksKeyVaultTagName = '{{ .opstool.aks.etcd.tagKey }}'
@@ -32,8 +35,11 @@ param infraZoneRedundantMode = '{{ .opstool.aks.infraAgentPool.zoneRedundantMode
 param infraOsDiskSizeGB = {{ .opstool.aks.infraAgentPool.osDiskSizeGB }}
 param aksNetworkDataplane = '{{ .opstool.aks.networkDataplane }}'
 param aksNetworkPolicy = '{{ .opstool.aks.networkPolicy }}'
+param aksUpgradeSettingsMaxSurge = '{{ .opstool.aks.upgradeSettings.maxSurge }}'
+param aksUpgradeSettingsMaxUnavailable = '{{ .opstool.aks.upgradeSettings.maxUnavailable }}'
 param aksClusterOutboundIPAddressIPTags = '{{ .opstool.aks.clusterOutboundIPAddressIPTags }}'
 param owningTeamTagValue = '{{ .monitoring.alertRuleOwningTeamTag }}'
+param aksClusterTags = '{{ .opstool.aks.tags }}'
 param azureMonitorWorkspaceName = '{{ .opstool.monitoring.workspaceName }}'
 param workloadKVName = '{{ .opstool.keyVault.name }}'
 param svcAcrName = '{{ .svc.acr.name }}'

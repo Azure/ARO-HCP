@@ -1,0 +1,14 @@
+{
+	"name": "np421",
+	"properties": {
+		"autoRepair": true,
+		"platform": {
+			"vmSize": "Standard_D8s_v3"
+		},
+		"version": {
+			"channelGroup": "stable",
+			"id": "4.21.0"
+		}
+	},
+	"type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools"
+}

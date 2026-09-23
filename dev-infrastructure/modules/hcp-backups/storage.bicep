@@ -35,7 +35,7 @@ module hcpBackupsStorageAccount '../storage/storage.bicep' = {
     skuName: determineZoneRedundancy(locationAvailabilityZoneList, zoneRedundantMode) ? 'Standard_ZRS' : 'Standard_LRS'
     accessTier: 'Cool'
     allowBlobPublicAccess: public
-    allowSharedKeyAccess: true
+    allowSharedKeyAccess: false
     publicNetworkAccess: 'Enabled'
     configureNetworkAcls: true
     networkAclsBypass: 'AzureServices'

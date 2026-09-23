@@ -2,7 +2,7 @@
 
 A personal DEV environment is a fully-fledged ARO HCP service stack that provides all major infrastructure and service components required to create hosted control planes in a region. Each ARO HCP team member creates their own personal DEV environment for development purposes.
 
-These environments are hosted in the Red Hat Azure tenant, meaning that all [restrictions](environments.md#aro-hcp-azure-tenant-overview) of that tenant apply.
+These environments are hosted in the Red Hat Azure tenant, meaning that all [restrictions](environments.md#azure-tenants) of that tenant apply.
 
 This document will describe how to create and manage a personal DEV environment and how to access them for development purposes.
 
@@ -38,8 +38,15 @@ All other tools should be transparently installed by the `make` targets that req
 ## Full Personal DEV Environment Setup
 
 > [!IMPORTANT] Environment Cleanup
-> A word of caution upfront: dev infrastructure is automatically deleted after 48h. If you want to keep your infrastructure indefinitely, run all the following commands with an env variable `PERSIST=true`.
-> Please consider the implication on cost if you decide to keep your infrastructure indefinitely.
+> A word of caution upfront: dev infrastructure is automatically deleted after 48h. Setting `PERSIST=true` extends retention to 15 days instead of permanent.
+> Please consider the implication on cost if you decide to persist your infrastructure.
+
+> [!CAUTION] Cleanup-sensitive naming patterns
+> The following resource group naming patterns trigger special cleanup rules. Avoid them for custom `DEPLOY_ENV` values or ad-hoc resource groups. See [`resourcegroups.policy.yaml`](../tooling/cleanup-sweeper/resourcegroups.policy.yaml) for details.
+>
+> **Prefixes:** `hcp-underlay-pers-`, `hcp-underlay-prow-`, `hcp-underlay-ci`, `hcp-underlay-cspr-`, `hcp-underlay-dev-`, `hcp-underlay-perf-`, `hcp-underlay-int-`, `hcp-underlay-stg-`, `hcp-underlay-prod-`
+>
+> **Suffixes:** `-shared-resources`
 
 The creation process can take up to 20 minutes.
 
@@ -119,14 +126,6 @@ To access the Maestro Azure Postgres DB run
   eval $(make -C dev-infrastructure maestro-miwi-pg-connect)
   psql -d maestro
   ```
-
-## Logging
-
-In order to enable Kusto logging, Ingest permissions need to be granted to your personal environment. This requires both mgmt and svc cluster to be created. Run following to grant permissions:
-
-```bash
-make -C dev-infrastructure kusto.grant.ingest
-```
 
 ## Observability
 

@@ -67712,6 +67712,61 @@ data:
             type: StateSet
           help: Cluster progressing condition
           name: progressing
+        - each:
+            stateSet:
+              labelName: status
+              list:
+              - "True"
+              - "False"
+              - Unknown
+              path:
+              - status
+              - conditions
+              - '[type=ValidAzureKMSConfig]'
+              - status
+            type: StateSet
+          help: Azure KMS configuration validity condition
+          name: valid_azure_kms_config
+      - groupVersionKind:
+          group: velero.io
+          kind: Backup
+          version: v1
+        labelsFromPath:
+          name:
+          - metadata
+          - name
+          namespace:
+          - metadata
+          - namespace
+          schedule:
+          - metadata
+          - labels
+          - velero.io/schedule-name
+        metricNamePrefix: veleroBackup
+        metrics:
+        - each:
+            stateSet:
+              labelName: phase
+              list:
+              - New
+              - Queued
+              - ReadyToStart
+              - FailedValidation
+              - InProgress
+              - WaitingForPluginOperations
+              - WaitingForPluginOperationsPartiallyFailed
+              - Finalizing
+              - FinalizingPartiallyFailed
+              - Completed
+              - PartiallyFailed
+              - Failed
+              - Deleting
+              path:
+              - status
+              - phase
+            type: StateSet
+          help: Backup phase
+          name: phase
 ---
 # Source: hcp-prometheus/templates/ama-metrics-settings-configmap.yaml
 kind: ConfigMap
@@ -67955,6 +68010,13 @@ rules:
   - hypershift.openshift.io
   resources:
   - hostedclusters
+  verbs:
+  - list
+  - watch
+- apiGroups:
+  - velero.io
+  resources:
+  - backups
   verbs:
   - list
   - watch
@@ -68278,6 +68340,7 @@ spec:
         args:
         - --port=8080
         - --resources=certificatesigningrequests,configmaps,cronjobs,daemonsets,deployments,endpoints,horizontalpodautoscalers,ingresses,jobs,leases,limitranges,mutatingwebhookconfigurations,namespaces,networkpolicies,nodes,persistentvolumeclaims,persistentvolumes,poddisruptionbudgets,pods,replicasets,replicationcontrollers,resourcequotas,secrets,services,statefulsets,storageclasses,validatingwebhookconfigurations,volumeattachments
+        - --metric-labels-allowlist=nodes=[node.kubernetes.io/instance-type,kubernetes.azure.com/agentpool]
         - --custom-resource-state-config-file=/etc/customresourcestate/config.yaml
         volumeMounts:
         - name: customresourcestate-config
@@ -68630,6 +68693,7 @@ spec:
     maxSkew: 1
     topologyKey: kubernetes.io/hostname
     whenUnsatisfiable: ScheduleAnyway
+    additionalLabelSelectors: OnShard
   walCompression: true
   externalLabels:
     cluster: 'dev-westus3-mgmt-1'
@@ -68650,8 +68714,16 @@ spec:
       maxBackoff: 256s
     metadataConfig:
       send: false
+    # Both drop rules are needed: the namespace rule catches HCP metrics where
+    # namespace is still ocm-* (cluster-scoped like nodes, plus non-KSM HCP metrics),
+    # while the hostedcontrolplane rule catches per-HCP KSM metrics for namespaced
+    # resources where namespace has been promoted to the actual resource namespace
+    # (e.g. openshift-ingress-operator) and no longer matches ocm-*.
     writeRelabelConfigs:
       - sourceLabels: [namespace]
+        regex: '^ocm-arohcpdev.*'
+        action: drop
+      - sourceLabels: [hostedcontrolplane]
         regex: '^ocm-arohcpdev.*'
         action: drop
   - url: '__hcpDcrRemoteWriteUrl__'
@@ -68668,9 +68740,14 @@ spec:
       maxBackoff: 256s
     metadataConfig:
       send: false
+    # Combined into a single rule because sequential keep rules are AND
+    # (a metric must match all rules to survive), but we need OR — keep if
+    # either namespace or hostedcontrolplane matches ocm-*.
+    # See https://github.com/prometheus/prometheus/issues/3996
     writeRelabelConfigs:
-      - sourceLabels: [namespace]
-        regex: '^ocm-arohcpdev.*'
+      - sourceLabels: [namespace, hostedcontrolplane]
+        separator: ;
+        regex: '(ocm-arohcpdev[^;]*;.*|.*;ocm-arohcpdev.*)'
         action: keep
 ---
 # Source: hcp-prometheus/charts/kube-prometheus-stack/templates/prometheus/rules-1.14/alertmanager.rules.yaml

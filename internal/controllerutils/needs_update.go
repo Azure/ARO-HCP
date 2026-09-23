@@ -16,6 +16,8 @@ package controllerutils
 
 import (
 	"bytes"
+	"encoding/json"
+	"strings"
 
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/conversion"
@@ -23,8 +25,8 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 )
 
 // needsUpdateEqualities is a copy of equality.Semantic with extra equality functions for types
@@ -43,9 +45,9 @@ import (
 var needsUpdateEqualities = func() conversion.Equalities {
 	e := equality.Semantic.Copy()
 	if err := e.AddFuncs(
-		// arm.CosmosMetadata: only compare ResourceID. CosmosETag is server-assigned and
+		// coreapi.CosmosMetadata: only compare ResourceID. CosmosETag is server-assigned and
 		// ExistingCosmosUID is an in-memory bridge.
-		func(a, b arm.CosmosMetadata) bool {
+		func(a, b coreapi.CosmosMetadata) bool {
 			return ResourceIDsEqual(a.ResourceID, b.ResourceID)
 		},
 		// *azcorearm.ResourceID: compare by string so unrelated parent pointer chains don't
@@ -57,12 +59,12 @@ var needsUpdateEqualities = func() conversion.Equalities {
 		func(a, b azcorearm.ResourceID) bool {
 			return a.String() == b.String()
 		},
-		// api.InternalID (value): compare by canonical path.
-		func(a, b api.InternalID) bool {
+		// metadataapi.InternalID (value): compare by canonical path.
+		func(a, b metadataapi.InternalID) bool {
 			return a.Path() == b.Path()
 		},
-		// *api.InternalID (pointer): nil-safe path comparison.
-		func(a, b *api.InternalID) bool {
+		// *metadataapi.InternalID (pointer): nil-safe path comparison.
+		func(a, b *metadataapi.InternalID) bool {
 			if a == nil && b == nil {
 				return true
 			}
@@ -83,7 +85,27 @@ var needsUpdateEqualities = func() conversion.Equalities {
 			if err != nil {
 				return false
 			}
-			return bytes.Equal(aBytes, bBytes)
+			if bytes.Equal(aBytes, bBytes) {
+				return true
+			}
+			// Normalize both to canonical JSON (sorted keys) so that
+			// key-ordering differences don't produce false positives.
+			var aObj, bObj any
+			if err := json.Unmarshal(aBytes, &aObj); err != nil {
+				return false
+			}
+			if err := json.Unmarshal(bBytes, &bObj); err != nil {
+				return false
+			}
+			aNorm, err := json.Marshal(aObj)
+			if err != nil {
+				return false
+			}
+			bNorm, err := json.Marshal(bObj)
+			if err != nil {
+				return false
+			}
+			return bytes.Equal(aNorm, bNorm)
 		},
 	); err != nil {
 		panic(err)
@@ -95,11 +117,17 @@ var needsUpdateEqualities = func() conversion.Equalities {
 // canonical string form. Both may be nil; non-nil values are compared by
 // String(), so independently-parsed instances with different parent pointer
 // chains still compare equal when they represent the same ARM ID.
+//
+// The comparison is case-insensitive: ARM resource IDs are case-insensitive for
+// their provider namespaces and resource types (for example Azure may return
+// "Microsoft.RedHatOpenshift" where our internal types use
+// "Microsoft.RedHatOpenShift"), so two IDs that differ only by casing represent
+// the same resource and must compare equal.
 func ResourceIDsEqual(a, b *azcorearm.ResourceID) bool {
 	if a == nil || b == nil {
 		return a == b
 	}
-	return a.String() == b.String()
+	return strings.EqualFold(a.String(), b.String())
 }
 
 // NeedsUpdate reports whether `desired` differs from `existing` in any way that should cause us to

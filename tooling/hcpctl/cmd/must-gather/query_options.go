@@ -40,6 +40,7 @@ type RawQueryOptions struct {
 	SkipKubernetesEventsLogs   bool     // Skip Kubernetes events logs
 	CollectSystemdLogs         bool     // Collect Systemd logs
 	SkipCustomLogs             bool     // Skip Custom logs
+	SkipOCAdmInspect           bool     // Skip per-cluster oc-adm-inspect of hosted-cluster namespaces
 }
 
 // DefaultQueryOptions returns a new RawQueryOptions struct initialized with sensible defaults.
@@ -64,6 +65,7 @@ func BindQueryOptions(opts *RawQueryOptions, cmd *cobra.Command) error {
 	cmd.Flags().BoolVar(&opts.SkipKubernetesEventsLogs, "skip-kubernetes-events-logs", opts.SkipKubernetesEventsLogs, "Do not gather Kubernetes events logs")
 	cmd.Flags().BoolVar(&opts.CollectSystemdLogs, "collect-systemd-logs", opts.CollectSystemdLogs, "Collect Systemd logs")
 	cmd.Flags().BoolVar(&opts.SkipCustomLogs, "skip-custom-logs", opts.SkipCustomLogs, "Skip Custom logs")
+	cmd.Flags().BoolVar(&opts.SkipOCAdmInspect, "skip-oc-adm-inspect", opts.SkipOCAdmInspect, "Skip per-cluster oc-adm-inspect of hosted-cluster and control-plane namespaces")
 	cmd.MarkFlagsMutuallyExclusive("subscription-id", "resource-id")
 	cmd.MarkFlagsMutuallyExclusive("resource-group", "resource-id")
 

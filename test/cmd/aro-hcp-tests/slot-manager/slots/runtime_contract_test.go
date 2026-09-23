@@ -32,12 +32,59 @@ func TestVerifyCustomerSubscriptionName(t *testing.T) {
 		t.Fatalf("expected write to succeed: %v", err)
 	}
 
-	resolved, err := VerifyCustomerSubscriptionName(clusterProfileDir, "customer-dev")
+	resolved, matchedDir, err := VerifyCustomerSubscriptionName([]string{clusterProfileDir}, "customer-dev")
 	if err != nil {
 		t.Fatalf("expected subscription verification to succeed: %v", err)
 	}
 	if resolved != "customer-dev" {
 		t.Fatalf("expected verified subscription %q, got %q", "customer-dev", resolved)
+	}
+	if matchedDir != clusterProfileDir {
+		t.Fatalf("expected matched dir %q, got %q", clusterProfileDir, matchedDir)
+	}
+}
+
+func TestVerifyCustomerSubscriptionNameResolvesAcrossDirs(t *testing.T) {
+	t.Parallel()
+
+	rhDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(rhDir, "customer-shard0-subscription-name"), []byte("rh-sub\n"), 0o644); err != nil {
+		t.Fatalf("expected write to succeed: %v", err)
+	}
+	testTenantDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(testTenantDir, "customer-shard0-subscription-name"), []byte("test-tenant-sub\n"), 0o644); err != nil {
+		t.Fatalf("expected write to succeed: %v", err)
+	}
+
+	resolved, matchedDir, err := VerifyCustomerSubscriptionName([]string{rhDir, testTenantDir}, "test-tenant-sub")
+	if err != nil {
+		t.Fatalf("expected subscription verification to succeed: %v", err)
+	}
+	if resolved != "test-tenant-sub" {
+		t.Fatalf("expected verified subscription %q, got %q", "test-tenant-sub", resolved)
+	}
+	if matchedDir != testTenantDir {
+		t.Fatalf("expected matched dir %q, got %q", testTenantDir, matchedDir)
+	}
+}
+
+func TestVerifyCustomerSubscriptionNameRejectsMatchInMultipleDirs(t *testing.T) {
+	t.Parallel()
+
+	dirA := t.TempDir()
+	dirB := t.TempDir()
+	for _, dir := range []string{dirA, dirB} {
+		if err := os.WriteFile(filepath.Join(dir, "customer-shard0-subscription-name"), []byte("dup-sub\n"), 0o644); err != nil {
+			t.Fatalf("expected write to succeed: %v", err)
+		}
+	}
+
+	_, _, err := VerifyCustomerSubscriptionName([]string{dirA, dirB}, "dup-sub")
+	if err == nil {
+		t.Fatal("expected cross-dir duplicate match verification to fail")
+	}
+	if !strings.Contains(err.Error(), "multiple customer subscription name files matched") {
+		t.Fatalf("expected duplicate match error, got %v", err)
 	}
 }
 
@@ -54,7 +101,7 @@ func TestVerifyCustomerSubscriptionNameRejectsDuplicateMatches(t *testing.T) {
 		}
 	}
 
-	_, err := VerifyCustomerSubscriptionName(clusterProfileDir, "customer-dev")
+	_, _, err := VerifyCustomerSubscriptionName([]string{clusterProfileDir}, "customer-dev")
 	if err == nil {
 		t.Fatal("expected duplicate match verification to fail")
 	}

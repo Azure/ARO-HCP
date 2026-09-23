@@ -1,4 +1,17 @@
 ---
+# Source: fleet/templates/fleet-controller.poddisruptionbudget.yaml
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: fleet-controller
+  namespace: fleet
+spec:
+  minAvailable: 1
+  unhealthyPodEvictionPolicy: AlwaysAllow
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: fleet-controller
+---
 # Source: fleet/templates/serviceaccount.yaml
 apiVersion: v1
 kind: ServiceAccount
@@ -121,6 +134,12 @@ spec:
         - 'http://clusters-service.clusters-service.svc.cluster.local:8000'
         - --kube-namespace
         - 'fleet'
+        - "--amw-scaling-poll-interval"
+        - "30s"
+        - "--amw-workspace-resource-id"
+        - "__svcAzureMonitorWorkspaceId__"
+        - "--amw-workspace-resource-id"
+        - "__hcpAzureMonitorWorkspaceId__"
         ports:
         - name: healthz
           containerPort: 8080

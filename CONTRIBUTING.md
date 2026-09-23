@@ -92,14 +92,15 @@ All pull requests must follow these standards. Reviewers will check for complian
 - Use formats like `Fixes #123`, `Closes PROJ-456`, or a direct URL.
 - If no ticket exists, create one first or explain why in the PR body.
 
-### 5. Include Screenshots for Graph/UI/Metrics/Performance Changes
-- Any change that affects dashboards, graphs, metrics visualizations, UI, or performance/metrics must include before/after screenshots.
-- This includes changes to alerting rules, SLOs, monitoring dashboards, and any observable behavioral change.
+### 5. Include Screenshots for Dashboard and UI Changes
+- Include before/after screenshots for changes to user-visible dashboards, graphs, metrics visualizations, or other UI.
+- Screenshots are not required for alerting-rule changes, routing/configuration changes, generated artifacts, or other backend-only monitoring changes unless they also change a user-visible dashboard or UI.
 - Annotate screenshots when the change is subtle.
 
 ### 6. Self-Review Before Requesting Review
 - Run `git diff` and review every changed line yourself before requesting others.
 - Look for: leftover debug code, TODOs, unintended changes, secrets, formatting issues.
+- **Security self-check**: Verify your PR does not accidentally include `.claude/settings.json`, `.vscode/` configuration files, or other IDE/agent config that shouldn't be committed. Changes to CI/CD configuration (`.github/workflows/`, `Makefile`, `*pipeline.yaml`, `Dockerfile`) should be called out explicitly in your PR description.
 
 ### 7. CI/CD Checks Must Pass
 - All tests, linting, and CI/CD pipeline checks must be green before requesting review, **excluding Tide**.
@@ -128,6 +129,11 @@ All pull requests must follow these standards. Reviewers will check for complian
 - After addressing review feedback, resolve each comment thread.
 - If you disagree with feedback, reply with your reasoning before resolving — do not silently dismiss.
 - A PR should have zero open threads before merging.
+
+### 13. Revert PRs Must Be Clean Reverts
+- A PR that claims to be a revert must be created using `git revert` and must cleanly reverse the intended prior change.
+- Its description must explicitly state that it is a clean revert created with `git revert`, and identify the reverted commit or PR.
+- Reviewers must verify these requirements. Treat a missing explicit statement or a revert that was not created with `git revert` as a critical issue.
 
 
 ## AI Skills

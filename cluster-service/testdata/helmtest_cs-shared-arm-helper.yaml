@@ -1,0 +1,9 @@
+values: ../values.yaml
+name: cs-shared-arm-helper
+namespace: clusters-service
+testData:
+  armHelperClientId: shared-client-id
+  armHelperCertName: shared-cert-name
+  armHelperFPAPrincipalId: mock-fpa-principal-id
+  clustersServiceArmHelperClientId: shared-client-id
+  clustersServiceArmHelperCertName: shared-cert-name

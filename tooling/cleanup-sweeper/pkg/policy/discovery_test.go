@@ -15,6 +15,7 @@
 package policy
 
 import (
+	"regexp"
 	"testing"
 	"time"
 
@@ -27,6 +28,7 @@ func TestSelectsResourceGroup_IntendedLegacyPolicyBehavior(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, time.March, 16, 15, 0, 0, 0, time.UTC)
+
 	pol := &RGDiscoveryPolicy{
 		Rules: []RGDiscoveryRule{
 			{
@@ -34,7 +36,7 @@ func TestSelectsResourceGroup_IntendedLegacyPolicyBehavior(t *testing.T) {
 				Action: RGDiscoveryActionSkip,
 				Match:  RGDiscoveryMatch{Any: true},
 				Conditions: RGDiscoveryConditions{
-					ManagedBySet: boolPtr(true),
+					ManagedByAlive: boolPtr(true),
 				},
 			},
 			{
@@ -76,18 +78,27 @@ func TestSelectsResourceGroup_IntendedLegacyPolicyBehavior(t *testing.T) {
 		name           string
 		rg             *armresources.ResourceGroup
 		excluded       sets.Set[string]
+		knownRGs       sets.Set[string]
 		expectSelected bool
 	}{
 		{
-			name: "managed RG is always skipped",
+			name: "managed RG with alive target is always skipped",
+			rg: newResourceGroupWithManagedBy(
+				"hcp-underlay-pers-usw3rvaz",
+				"/subscriptions/sub/resourceGroups/hcp-underlay-pers-usw3parent/providers/Microsoft.ContainerService/managedClusters/aks1",
+			),
+			knownRGs:       sets.New("hcp-underlay-pers-usw3parent"),
+			expectSelected: false,
+		},
+		{
+			name: "orphaned managed RG falls through to delete rules",
 			rg: newResourceGroup(
 				"hcp-underlay-pers-usw3rvaz",
-				timePtr(now.Add(-20*24*time.Hour)),
-				map[string]string{"persist": "false"},
+				timePtr(now.Add(-72*time.Hour)),
+				nil,
 				true,
 			),
-			excluded:       sets.New[string](),
-			expectSelected: false,
+			expectSelected: true,
 		},
 		{
 			name: "pers persist true older than 15 days is selected",
@@ -134,17 +145,6 @@ func TestSelectsResourceGroup_IntendedLegacyPolicyBehavior(t *testing.T) {
 			expectSelected: true,
 		},
 		{
-			name: "non-pers persist true is skipped by global persist protection",
-			rg: newResourceGroup(
-				"hcp-underlay-dev-usw3rvaz",
-				timePtr(now.Add(-72*time.Hour)),
-				map[string]string{"persist": "true"},
-				false,
-			),
-			excluded:       sets.New[string](),
-			expectSelected: false,
-		},
-		{
 			name: "non-pers older than 2 days is selected by global default",
 			rg: newResourceGroup(
 				"hcp-underlay-dev-usw3rvaz",
@@ -182,7 +182,7 @@ func TestSelectsResourceGroup_IntendedLegacyPolicyBehavior(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			selected, _ := pol.SelectsResourceGroup(tc.rg, tc.excluded, now)
+			selected, _ := pol.SelectsResourceGroup(tc.rg, tc.excluded, tc.knownRGs, now)
 			if selected != tc.expectSelected {
 				t.Fatalf("expected selected=%t, got selected=%t", tc.expectSelected, selected)
 			}
@@ -224,7 +224,7 @@ func TestSelectsResourceGroup_ReturnsStructuredRuleReason(t *testing.T) {
 	}
 	rg := newResourceGroup("example-rg", timePtr(now.Add(-72*time.Hour)), nil, false)
 
-	selected, reason := pol.SelectsResourceGroup(rg, sets.New[string](), now)
+	selected, reason := pol.SelectsResourceGroup(rg, sets.New[string](), sets.New[string](), now)
 	if !selected {
 		t.Fatalf("expected resource group to be selected")
 	}
@@ -245,6 +245,132 @@ func TestSelectsResourceGroup_ReturnsStructuredRuleReason(t *testing.T) {
 	}
 }
 
+func TestSelectsResourceGroup_PersistTrueDeleteAfter15d(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.March, 16, 15, 0, 0, 0, time.UTC)
+	pol := &RGDiscoveryPolicy{
+		Rules: []RGDiscoveryRule{
+			{
+				Name:   "skip-shared-env-persist-true",
+				Action: RGDiscoveryActionSkip,
+				Match:  RGDiscoveryMatch{NameRegex: regexp.MustCompile(`^hcp-underlay-(cspr|dev|perf|int|stg|prod)-`)},
+				Conditions: RGDiscoveryConditions{
+					TagsEq: map[string]string{"persist": "true"},
+				},
+			},
+			{
+				Name:   "persist-true-delete-after-15d",
+				Action: RGDiscoveryActionDelete,
+				Match:  RGDiscoveryMatch{Any: true},
+				Conditions: RGDiscoveryConditions{
+					TagsEq: map[string]string{"persist": "true"},
+				},
+				OlderThan: 15 * 24 * time.Hour,
+			},
+		},
+	}
+
+	excluded := sets.New("global", "dashboards", "opstool-westus3")
+
+	testCases := []struct {
+		name           string
+		rg             *armresources.ResourceGroup
+		expectSelected bool
+	}{
+		{
+			name: "custom env swft persist true older than 15d is selected",
+			rg: newResourceGroup(
+				"hcp-underlay-swft-usw3rvaz",
+				timePtr(now.Add(-16*24*time.Hour)),
+				map[string]string{"persist": "true"},
+				false,
+			),
+			expectSelected: true,
+		},
+		{
+			name: "custom env swft persist true younger than 15d is not selected",
+			rg: newResourceGroup(
+				"hcp-underlay-swft-usw3rvaz",
+				timePtr(now.Add(-10*24*time.Hour)),
+				map[string]string{"persist": "true"},
+				false,
+			),
+			expectSelected: false,
+		},
+		{
+			name: "adhoc RG zgalor-test persist true older than 15d is selected",
+			rg: newResourceGroup(
+				"zgalor-test",
+				timePtr(now.Add(-20*24*time.Hour)),
+				map[string]string{"persist": "true"},
+				false,
+			),
+			expectSelected: true,
+		},
+		{
+			name: "adhoc RG bbergen-net-rg-03 persist true older than 15d is selected",
+			rg: newResourceGroup(
+				"bbergen-net-rg-03",
+				timePtr(now.Add(-90*24*time.Hour)),
+				map[string]string{"persist": "true"},
+				false,
+			),
+			expectSelected: true,
+		},
+		{
+			name: "shared env dev persist true is skipped",
+			rg: newResourceGroup(
+				"hcp-underlay-dev-usw3rvaz",
+				timePtr(now.Add(-20*24*time.Hour)),
+				map[string]string{"persist": "true"},
+				false,
+			),
+			expectSelected: false,
+		},
+		{
+			name: "shared env cspr persist true is skipped",
+			rg: newResourceGroup(
+				"hcp-underlay-cspr-usw3rvaz",
+				timePtr(now.Add(-20*24*time.Hour)),
+				map[string]string{"persist": "true"},
+				false,
+			),
+			expectSelected: false,
+		},
+		{
+			name: "excluded infra RG is skipped regardless of persist",
+			rg: newResourceGroup(
+				"dashboards",
+				timePtr(now.Add(-90*24*time.Hour)),
+				map[string]string{"persist": "true"},
+				false,
+			),
+			expectSelected: false,
+		},
+		{
+			name: "RG without persist does not match",
+			rg: newResourceGroup(
+				"zgalor-test",
+				timePtr(now.Add(-72*time.Hour)),
+				nil,
+				false,
+			),
+			expectSelected: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			selected, _ := pol.SelectsResourceGroup(tc.rg, excluded, sets.New[string](), now)
+			if selected != tc.expectSelected {
+				t.Fatalf("expected selected=%t, got selected=%t", tc.expectSelected, selected)
+			}
+		})
+	}
+}
+
 func TestSelectionReasonSourceDescription_WithAndWithoutRule(t *testing.T) {
 	t.Parallel()
 
@@ -262,6 +388,13 @@ func TestSelectionReasonSourceDescription_WithAndWithoutRule(t *testing.T) {
 	withoutRule := RGSelectionReason{Code: "excluded"}
 	if got, want := withoutRule.SourceDescription(), "matched policy (excluded)"; got != want {
 		t.Fatalf("expected %q, got %q", want, got)
+	}
+}
+
+func newResourceGroupWithManagedBy(name, managedBy string) *armresources.ResourceGroup {
+	return &armresources.ResourceGroup{
+		Name:      strPtr(name),
+		ManagedBy: strPtr(managedBy),
 	}
 }
 

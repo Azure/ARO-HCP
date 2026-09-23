@@ -24,21 +24,22 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	fleetcontrollers "github.com/Azure/ARO-HCP/fleet/pkg/controllers/base"
-	"github.com/Azure/ARO-HCP/internal/api/fleet"
+	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 type lifecycleSyncer struct {
-	fleetDBClient database.FleetDBClient
+	fleetDBClient fleetcosmosstorage.FleetDBClient
 }
 
 func NewManagementClusterLifecycleController(
 	managementClusterInformer cache.SharedIndexInformer,
-	fleetDBClient database.FleetDBClient,
+	fleetDBClient fleetcosmosstorage.FleetDBClient,
 	cfg fleetcontrollers.StampWatchingControllerConfig,
-) *fleetcontrollers.StampWatchingController {
+) fleetcontrollers.Controller {
 	syncer := &lifecycleSyncer{
 		fleetDBClient: fleetDBClient,
 	}
@@ -58,9 +59,9 @@ func NewManagementClusterLifecycleController(
 
 func (s *lifecycleSyncer) SyncOnce(ctx context.Context, key fleetcontrollers.StampKey) error {
 	managementClusterCRUD := s.fleetDBClient.Stamps().ManagementClusters(key.StampIdentifier)
-	managementCluster, err := managementClusterCRUD.Get(ctx, fleet.ManagementClusterResourceName)
+	managementCluster, err := managementClusterCRUD.Get(ctx, fleetapi.ManagementClusterResourceName)
 	if err != nil {
-		if database.IsNotFoundError(err) {
+		if cosmosstorageutils.IsNotFoundError(err) {
 			return nil
 		}
 		return utils.TrackError(err)
@@ -68,16 +69,20 @@ func (s *lifecycleSyncer) SyncOnce(ctx context.Context, key fleetcontrollers.Sta
 
 	updated := managementCluster.DeepCopy()
 
-	clustersServiceRegistrationCondition := apimeta.FindStatusCondition(updated.Status.Conditions, string(fleet.ManagementClusterConditionClustersServiceRegistered))
-	maestroRegistrationCondition := apimeta.FindStatusCondition(updated.Status.Conditions, string(fleet.ManagementClusterConditionMaestroRegistered))
+	clustersServiceRegistrationCondition := apimeta.FindStatusCondition(updated.Status.Conditions, string(fleetapi.ManagementClusterConditionClustersServiceRegistered))
+	maestroRegistrationCondition := apimeta.FindStatusCondition(updated.Status.Conditions, string(fleetapi.ManagementClusterConditionMaestroRegistered))
+	sharedIngressAvailableCondition := apimeta.FindStatusCondition(updated.Status.Conditions, string(fleetapi.ManagementClusterConditionSharedIngressAvailable))
 
-	if clustersServiceRegistrationCondition == nil || maestroRegistrationCondition == nil {
+	if clustersServiceRegistrationCondition == nil || maestroRegistrationCondition == nil || sharedIngressAvailableCondition == nil {
 		var missing []string
 		if clustersServiceRegistrationCondition == nil {
-			missing = append(missing, string(fleet.ManagementClusterConditionClustersServiceRegistered))
+			missing = append(missing, string(fleetapi.ManagementClusterConditionClustersServiceRegistered))
 		}
 		if maestroRegistrationCondition == nil {
-			missing = append(missing, string(fleet.ManagementClusterConditionMaestroRegistered))
+			missing = append(missing, string(fleetapi.ManagementClusterConditionMaestroRegistered))
+		}
+		if sharedIngressAvailableCondition == nil {
+			missing = append(missing, string(fleetapi.ManagementClusterConditionSharedIngressAvailable))
 		}
 		logger := utils.LoggerFromContext(ctx)
 		logger.Info("Skipping Ready aggregation: preserving current Ready value until all registration conditions are present",
@@ -86,25 +91,28 @@ func (s *lifecycleSyncer) SyncOnce(ctx context.Context, key fleetcontrollers.Sta
 		return nil
 	}
 
-	if clustersServiceRegistrationCondition.Status == metav1.ConditionTrue && maestroRegistrationCondition.Status == metav1.ConditionTrue {
+	if clustersServiceRegistrationCondition.Status == metav1.ConditionTrue && maestroRegistrationCondition.Status == metav1.ConditionTrue && sharedIngressAvailableCondition.Status == metav1.ConditionTrue {
 		apimeta.SetStatusCondition(&updated.Status.Conditions, metav1.Condition{
-			Type:    string(fleet.ManagementClusterConditionReady),
+			Type:    string(fleetapi.ManagementClusterConditionReady),
 			Status:  metav1.ConditionTrue,
-			Reason:  string(fleet.ManagementClusterConditionReasonAllRegistered),
+			Reason:  string(fleetapi.ManagementClusterConditionReasonAllRegistered),
 			Message: "All downstream registrations completed successfully",
 		})
 	} else {
 		var notReady []string
 		if clustersServiceRegistrationCondition.Status != metav1.ConditionTrue {
-			notReady = append(notReady, string(fleet.ManagementClusterConditionClustersServiceRegistered))
+			notReady = append(notReady, string(fleetapi.ManagementClusterConditionClustersServiceRegistered))
 		}
 		if maestroRegistrationCondition.Status != metav1.ConditionTrue {
-			notReady = append(notReady, string(fleet.ManagementClusterConditionMaestroRegistered))
+			notReady = append(notReady, string(fleetapi.ManagementClusterConditionMaestroRegistered))
+		}
+		if sharedIngressAvailableCondition.Status != metav1.ConditionTrue {
+			notReady = append(notReady, string(fleetapi.ManagementClusterConditionSharedIngressAvailable))
 		}
 		apimeta.SetStatusCondition(&updated.Status.Conditions, metav1.Condition{
-			Type:    string(fleet.ManagementClusterConditionReady),
+			Type:    string(fleetapi.ManagementClusterConditionReady),
 			Status:  metav1.ConditionFalse,
-			Reason:  string(fleet.ManagementClusterConditionReasonRegistrationIncomplete),
+			Reason:  string(fleetapi.ManagementClusterConditionReasonRegistrationIncomplete),
 			Message: fmt.Sprintf("Pending downstream registrations: %s", strings.Join(notReady, ", ")),
 		})
 	}

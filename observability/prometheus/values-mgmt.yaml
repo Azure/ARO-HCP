@@ -74,6 +74,8 @@ kube-prometheus-stack:
   cleanPrometheusOperatorObjectNames: true
   # config for kube-state-metrics subchart that is imported by the kube-prometheus-stack chart conditionally
   kube-state-metrics:
+    metricLabelsAllowlist:
+    - nodes=[node.kubernetes.io/instance-type,kubernetes.azure.com/agentpool]
     image:
       registry: "{{ .mgmt.prometheus.kubeStateMetrics.image.registry }}"
       repository: "{{ .mgmt.prometheus.kubeStateMetrics.image.repository }}"
@@ -82,6 +84,9 @@ kube-prometheus-stack:
       extraRules:
       - apiGroups: ["hypershift.openshift.io"]
         resources: ["hostedclusters"]
+        verbs: ["list", "watch"]
+      - apiGroups: ["velero.io"]
+        resources: ["backups"]
         verbs: ["list", "watch"]
     customResourceState:
       enabled: true
@@ -128,6 +133,32 @@ kube-prometheus-stack:
                   path: [status, conditions, "[type=Progressing]", status]
                   labelName: status
                   list: ["True", "False", "Unknown"]
+            - name: "valid_azure_kms_config"
+              help: "Azure KMS configuration validity condition"
+              each:
+                type: StateSet
+                stateSet:
+                  path: [status, conditions, "[type=ValidAzureKMSConfig]", status]
+                  labelName: status
+                  list: ["True", "False", "Unknown"]
+          - groupVersionKind:
+              group: velero.io
+              kind: "Backup"
+              version: "v1"
+            metricNamePrefix: veleroBackup
+            labelsFromPath:
+              name: [metadata, name]
+              namespace: [metadata, namespace]
+              schedule: [metadata, labels, "velero.io/schedule-name"]
+            metrics:
+            - name: "phase"
+              help: "Backup phase"
+              each:
+                type: StateSet
+                stateSet:
+                  path: [status, phase]
+                  labelName: phase
+                  list: ["New", "Queued", "ReadyToStart", "FailedValidation", "InProgress", "WaitingForPluginOperations", "WaitingForPluginOperationsPartiallyFailed", "Finalizing", "FinalizingPartiallyFailed", "Completed", "PartiallyFailed", "Failed", "Deleting"]
 # this is our own config for the files in templates/
 prometheusSpec:
   image:
@@ -149,10 +180,9 @@ prometheusSpec:
       memory: {{ .mgmt.prometheus.prometheusSpec.resources.requests.memory }}
     limits:
       memory: {{ .mgmt.prometheus.prometheusSpec.resources.limits.memory }}
+  replicas: {{ .mgmt.prometheus.prometheusSpec.replicas }}
+  shards: {{ .mgmt.prometheus.prometheusSpec.shards }}
 prometheus:
-  prometheusSpec:
-    shards: {{ .mgmt.prometheus.prometheusSpec.shards }}
-    replicas: {{ .mgmt.prometheus.prometheusSpec.replicas }}
   serviceAccount:
     managedIdentity: "__prometheusUAMIClientId__"
 environment: "{{ .clustersService.environment }}"

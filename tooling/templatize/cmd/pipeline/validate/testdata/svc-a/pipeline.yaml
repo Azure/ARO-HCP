@@ -1,0 +1,11 @@
+resourceGroups:
+- name: rg1
+  subscription: sub1
+  steps:
+  - name: deploy-network
+    action: ARM
+    template: network.bicep
+    parameters: network.tmpl.bicepparam
+  - name: run-script
+    action: Shell
+    command: echo hello

@@ -23,8 +23,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/errorutils"
 )
 
@@ -40,15 +39,15 @@ const (
 
 	PatternSubscriptions     = "subscriptions/" + WildcardSubscriptionID
 	PatternLocations         = "locations/" + WildcardLocation
-	PatternProviders         = "providers/" + api.ProviderNamespace
-	PatternClusters          = api.ClusterResourceTypeName + "/" + WildcardResourceName
-	PatternNodePools         = api.NodePoolResourceTypeName + "/" + WildcardNodePoolName
-	PatternVersions          = api.VersionResourceTypeName + "/" + WildcardResourceName
-	PatternExternalAuth      = api.ExternalAuthResourceTypeName + "/" + WildcardExternalAuthName
+	PatternProviders         = "providers/" + coreapi.ProviderNamespace
+	PatternClusters          = coreapi.ClusterResourceTypeName + "/" + WildcardResourceName
+	PatternNodePools         = coreapi.NodePoolResourceTypeName + "/" + WildcardNodePoolName
+	PatternVersions          = coreapi.VersionResourceTypeName + "/" + WildcardResourceName
+	PatternExternalAuth      = coreapi.ExternalAuthResourceTypeName + "/" + WildcardExternalAuthName
 	PatternDeployments       = "deployments/" + WildcardDeploymentName
 	PatternResourceGroups    = "resourcegroups/" + WildcardResourceGroupName
-	PatternOperationResults  = api.OperationResultResourceTypeName + "/" + WildcardOperationID
-	PatternOperationStatuses = api.OperationStatusResourceTypeName + "/" + WildcardOperationID
+	PatternOperationResults  = coreapi.OperationResultResourceTypeName + "/" + WildcardOperationID
+	PatternOperationStatuses = coreapi.OperationStatusResourceTypeName + "/" + WildcardOperationID
 
 	ActionRequestAdminCredential = "requestadmincredential"
 	ActionRevokeCredentials      = "revokecredentials"
@@ -72,10 +71,11 @@ const (
 // AvailableOperations defines the static response content for the resource provider's "operations" endpoint.
 // There should be an entry in this list for each route defined in our provider namespace. For more details see:
 // https://github.com/cloud-and-ai-microsoft/resource-provider-contract/blob/master/v1.0/proxy-api-reference.md#exposing-available-operations
-var AvailableOperations = []arm.NamespaceOperation{
+var AvailableOperations = []coreapi.NamespaceOperation{
 	{
-		Name: path.Join(api.ProviderNamespace, "register", arm.NamespaceOperationAction),
-		Display: arm.NamespaceOperationDisplay{
+		// Per the RPC, this is a required operation. It is not specific to ARO-HCP.
+		Name: path.Join(coreapi.ProviderNamespace, "register", coreapi.NamespaceOperationAction),
+		Display: coreapi.NamespaceOperationDisplay{
 			Provider:    ProviderDisplay,
 			Resource:    ProviderDisplay,
 			Operation:   "Register the Azure Red Hat OpenShift (ARO) Resource Provider",
@@ -83,8 +83,18 @@ var AvailableOperations = []arm.NamespaceOperation{
 		},
 	},
 	{
-		Name: path.Join(api.ClusterResourceType.String(), arm.NamespaceOperationRead),
-		Display: arm.NamespaceOperationDisplay{
+		// Another required operation not mentioned in the RPC. It is not specific to ARO-HCP.
+		Name: path.Join(coreapi.ProviderNamespace, "unregister", coreapi.NamespaceOperationAction),
+		Display: coreapi.NamespaceOperationDisplay{
+			Provider:    ProviderDisplay,
+			Resource:    ProviderDisplay,
+			Operation:   "Unregister the Azure Red Hat OpenShift (ARO) Resource Provider",
+			Description: "Unregister the subscription from the Azure Red Hat OpenShift (ARO) resource provider",
+		},
+	},
+	{
+		Name: path.Join(coreapi.ClusterResourceType.String(), coreapi.NamespaceOperationRead),
+		Display: coreapi.NamespaceOperationDisplay{
 			Provider:    ProviderDisplay,
 			Resource:    ClusterResourceTypeDisplayPlural,
 			Operation:   "Read " + ClusterResourceTypeDisplaySingle,
@@ -92,8 +102,8 @@ var AvailableOperations = []arm.NamespaceOperation{
 		},
 	},
 	{
-		Name: path.Join(api.ClusterResourceType.String(), arm.NamespaceOperationWrite),
-		Display: arm.NamespaceOperationDisplay{
+		Name: path.Join(coreapi.ClusterResourceType.String(), coreapi.NamespaceOperationWrite),
+		Display: coreapi.NamespaceOperationDisplay{
 			Provider:    ProviderDisplay,
 			Resource:    ClusterResourceTypeDisplayPlural,
 			Operation:   "Create or Update " + ClusterResourceTypeDisplaySingle,
@@ -101,8 +111,8 @@ var AvailableOperations = []arm.NamespaceOperation{
 		},
 	},
 	{
-		Name: path.Join(api.ClusterResourceType.String(), arm.NamespaceOperationDelete),
-		Display: arm.NamespaceOperationDisplay{
+		Name: path.Join(coreapi.ClusterResourceType.String(), coreapi.NamespaceOperationDelete),
+		Display: coreapi.NamespaceOperationDisplay{
 			Provider:    ProviderDisplay,
 			Resource:    ClusterResourceTypeDisplayPlural,
 			Operation:   "Delete " + ClusterResourceTypeDisplaySingle,
@@ -110,8 +120,8 @@ var AvailableOperations = []arm.NamespaceOperation{
 		},
 	},
 	{
-		Name: path.Join(api.ClusterResourceType.String(), ActionRequestAdminCredential, arm.NamespaceOperationAction),
-		Display: arm.NamespaceOperationDisplay{
+		Name: path.Join(coreapi.ClusterResourceType.String(), ActionRequestAdminCredential, coreapi.NamespaceOperationAction),
+		Display: coreapi.NamespaceOperationDisplay{
 			Provider:    ProviderDisplay,
 			Resource:    ClusterResourceTypeDisplayPlural,
 			Operation:   "Request Administrator Credential",
@@ -119,8 +129,8 @@ var AvailableOperations = []arm.NamespaceOperation{
 		},
 	},
 	{
-		Name: path.Join(api.ClusterResourceType.String(), ActionRevokeCredentials, arm.NamespaceOperationAction),
-		Display: arm.NamespaceOperationDisplay{
+		Name: path.Join(coreapi.ClusterResourceType.String(), ActionRevokeCredentials, coreapi.NamespaceOperationAction),
+		Display: coreapi.NamespaceOperationDisplay{
 			Provider:    ProviderDisplay,
 			Resource:    ClusterResourceTypeDisplayPlural,
 			Operation:   "Revoke All Credentials",
@@ -128,8 +138,8 @@ var AvailableOperations = []arm.NamespaceOperation{
 		},
 	},
 	{
-		Name: path.Join(api.NodePoolResourceType.String(), arm.NamespaceOperationRead),
-		Display: arm.NamespaceOperationDisplay{
+		Name: path.Join(coreapi.NodePoolResourceType.String(), coreapi.NamespaceOperationRead),
+		Display: coreapi.NamespaceOperationDisplay{
 			Provider:    ProviderDisplay,
 			Resource:    NodePoolResourceTypeDisplayPlural,
 			Operation:   "Read " + NodePoolResourceTypeDisplaySingle,
@@ -137,8 +147,8 @@ var AvailableOperations = []arm.NamespaceOperation{
 		},
 	},
 	{
-		Name: path.Join(api.NodePoolResourceType.String(), arm.NamespaceOperationWrite),
-		Display: arm.NamespaceOperationDisplay{
+		Name: path.Join(coreapi.NodePoolResourceType.String(), coreapi.NamespaceOperationWrite),
+		Display: coreapi.NamespaceOperationDisplay{
 			Provider:    ProviderDisplay,
 			Resource:    NodePoolResourceTypeDisplayPlural,
 			Operation:   "Create or Update " + NodePoolResourceTypeDisplaySingle,
@@ -146,8 +156,8 @@ var AvailableOperations = []arm.NamespaceOperation{
 		},
 	},
 	{
-		Name: path.Join(api.NodePoolResourceType.String(), arm.NamespaceOperationDelete),
-		Display: arm.NamespaceOperationDisplay{
+		Name: path.Join(coreapi.NodePoolResourceType.String(), coreapi.NamespaceOperationDelete),
+		Display: coreapi.NamespaceOperationDisplay{
 			Provider:    ProviderDisplay,
 			Resource:    NodePoolResourceTypeDisplayPlural,
 			Operation:   "Delete " + NodePoolResourceTypeDisplaySingle,
@@ -155,8 +165,8 @@ var AvailableOperations = []arm.NamespaceOperation{
 		},
 	},
 	{
-		Name: path.Join(api.ExternalAuthResourceType.String(), arm.NamespaceOperationRead),
-		Display: arm.NamespaceOperationDisplay{
+		Name: path.Join(coreapi.ExternalAuthResourceType.String(), coreapi.NamespaceOperationRead),
+		Display: coreapi.NamespaceOperationDisplay{
 			Provider:    ProviderDisplay,
 			Resource:    ExternalAuthResourceTypeDisplayPlural,
 			Operation:   "Read " + ExternalAuthResourceTypeDisplaySingle,
@@ -164,8 +174,8 @@ var AvailableOperations = []arm.NamespaceOperation{
 		},
 	},
 	{
-		Name: path.Join(api.ExternalAuthResourceType.String(), arm.NamespaceOperationWrite),
-		Display: arm.NamespaceOperationDisplay{
+		Name: path.Join(coreapi.ExternalAuthResourceType.String(), coreapi.NamespaceOperationWrite),
+		Display: coreapi.NamespaceOperationDisplay{
 			Provider:    ProviderDisplay,
 			Resource:    ExternalAuthResourceTypeDisplayPlural,
 			Operation:   "Create or Update " + ExternalAuthResourceTypeDisplaySingle,
@@ -173,8 +183,8 @@ var AvailableOperations = []arm.NamespaceOperation{
 		},
 	},
 	{
-		Name: path.Join(api.ExternalAuthResourceType.String(), arm.NamespaceOperationDelete),
-		Display: arm.NamespaceOperationDisplay{
+		Name: path.Join(coreapi.ExternalAuthResourceType.String(), coreapi.NamespaceOperationDelete),
+		Display: coreapi.NamespaceOperationDisplay{
 			Provider:    ProviderDisplay,
 			Resource:    ExternalAuthResourceTypeDisplayPlural,
 			Operation:   "Delete " + ExternalAuthResourceTypeDisplaySingle,
@@ -182,8 +192,8 @@ var AvailableOperations = []arm.NamespaceOperation{
 		},
 	},
 	{
-		Name: path.Join(api.VersionResourceType.String(), arm.NamespaceOperationRead),
-		Display: arm.NamespaceOperationDisplay{
+		Name: path.Join(coreapi.VersionResourceType.String(), coreapi.NamespaceOperationRead),
+		Display: coreapi.NamespaceOperationDisplay{
 			Provider:    ProviderDisplay,
 			Resource:    VersionResourceTypeDisplayPlural,
 			Operation:   "Read " + VersionResourceTypeDisplaySingle,
@@ -191,8 +201,8 @@ var AvailableOperations = []arm.NamespaceOperation{
 		},
 	},
 	{
-		Name: path.Join(api.ProviderNamespace, "locations", api.OperationResultResourceTypeName, arm.NamespaceOperationRead),
-		Display: arm.NamespaceOperationDisplay{
+		Name: path.Join(coreapi.ProviderNamespace, "locations", coreapi.OperationResultResourceTypeName, coreapi.NamespaceOperationRead),
+		Display: coreapi.NamespaceOperationDisplay{
 			Provider:    ProviderDisplay,
 			Resource:    OperationResultResourceTypeDisplayPlural,
 			Operation:   "Read " + OperationResultResourceTypeDisplaySingle,
@@ -200,13 +210,124 @@ var AvailableOperations = []arm.NamespaceOperation{
 		},
 	},
 	{
-		Name: path.Join(api.ProviderNamespace, "locations", api.OperationStatusResourceTypeName, arm.NamespaceOperationRead),
-		Display: arm.NamespaceOperationDisplay{
+		Name: path.Join(coreapi.ProviderNamespace, "locations", coreapi.OperationStatusResourceTypeName, coreapi.NamespaceOperationRead),
+		Display: coreapi.NamespaceOperationDisplay{
 			Provider:    ProviderDisplay,
 			Resource:    OperationStatusResourceTypeDisplayPlural,
 			Operation:   "Read " + OperationStatusResourceTypeDisplaySingle,
 			Description: "Read the status of an ongoing or failed asynchronous operation",
 		},
+	},
+}
+
+// These operations were copied from the ARO "Classic" service:
+// https://github.com/Azure/ARO-RP/blob/master/pkg/api/operation.go
+//
+// ARO-HCP will respond with both services' operations until we
+// have approval to use the Split Operations ARM feature.
+//
+// Note, these are technically non-conformant to RPC requirements
+// because they lack the required Display.Description field. Unit
+// tests have been temporarily(?) adjusted to compensate.
+var AvailableClassicOperations = []coreapi.NamespaceOperation{
+	{
+		Name: path.Join(coreapi.ProviderNamespace, "locations", "operationresults", coreapi.NamespaceOperationRead),
+		Display: coreapi.NamespaceOperationDisplay{
+			Provider:  ProviderDisplay,
+			Resource:  "locations/operationresults",
+			Operation: "Read operation results",
+		},
+		Origin: coreapi.NamespaceOperationOriginUserSystem,
+	},
+	{
+		Name: path.Join(coreapi.ProviderNamespace, "locations", "operationsstatus", coreapi.NamespaceOperationRead),
+		Display: coreapi.NamespaceOperationDisplay{
+			Provider:  ProviderDisplay,
+			Resource:  "locations/operationsstatus",
+			Operation: "Read operations status",
+		},
+		Origin: coreapi.NamespaceOperationOriginUserSystem,
+	},
+	{
+		Name: path.Join(coreapi.ProviderNamespace, "operations", coreapi.NamespaceOperationRead),
+		Display: coreapi.NamespaceOperationDisplay{
+			Provider:  ProviderDisplay,
+			Resource:  "operations",
+			Operation: "Read operations",
+		},
+		Origin: coreapi.NamespaceOperationOriginUserSystem,
+	},
+	{
+		Name: path.Join(coreapi.ProviderNamespace, "openShiftClusters", coreapi.NamespaceOperationRead),
+		Display: coreapi.NamespaceOperationDisplay{
+			Provider:  ProviderDisplay,
+			Resource:  "openShiftClusters",
+			Operation: "Read OpenShift cluster",
+		},
+		Origin: coreapi.NamespaceOperationOriginUserSystem,
+	},
+	{
+		Name: path.Join(coreapi.ProviderNamespace, "openShiftClusters", coreapi.NamespaceOperationWrite),
+		Display: coreapi.NamespaceOperationDisplay{
+			Provider:  ProviderDisplay,
+			Resource:  "openShiftClusters",
+			Operation: "Write OpenShift cluster",
+		},
+		Origin: coreapi.NamespaceOperationOriginUserSystem,
+	},
+	{
+		Name: path.Join(coreapi.ProviderNamespace, "openShiftClusters", coreapi.NamespaceOperationDelete),
+		Display: coreapi.NamespaceOperationDisplay{
+			Provider:  ProviderDisplay,
+			Resource:  "openShiftClusters",
+			Operation: "Delete OpenShift cluster",
+		},
+		Origin: coreapi.NamespaceOperationOriginUserSystem,
+	},
+	{
+		Name: path.Join(coreapi.ProviderNamespace, "openShiftClusters", "listCredentials", coreapi.NamespaceOperationAction),
+		Display: coreapi.NamespaceOperationDisplay{
+			Provider:  ProviderDisplay,
+			Resource:  "openShiftClusters",
+			Operation: "List credentials of an OpenShift cluster",
+		},
+		Origin: coreapi.NamespaceOperationOriginUserSystem,
+	},
+	{
+		Name: path.Join(coreapi.ProviderNamespace, "openShiftClusters", "listAdminCredentials", coreapi.NamespaceOperationAction),
+		Display: coreapi.NamespaceOperationDisplay{
+			Provider:  ProviderDisplay,
+			Resource:  "openShiftClusters",
+			Operation: "List Admin Kubeconfig of an OpenShift cluster",
+		},
+		Origin: coreapi.NamespaceOperationOriginUserSystem,
+	},
+	{
+		Name: path.Join(coreapi.ProviderNamespace, "openShiftClusters", "detectors", coreapi.NamespaceOperationRead),
+		Display: coreapi.NamespaceOperationDisplay{
+			Provider:  ProviderDisplay,
+			Resource:  "openShiftClusters",
+			Operation: "Get OpenShift Cluster Detector",
+		},
+		Origin: coreapi.NamespaceOperationOriginUserSystem,
+	},
+	{
+		Name: path.Join(coreapi.ProviderNamespace, "locations", "listPlatformWorkloadIdentityRoleSets", coreapi.NamespaceOperationRead),
+		Display: coreapi.NamespaceOperationDisplay{
+			Provider:  ProviderDisplay,
+			Resource:  "listPlatformWorkloadIdentityRoleSets",
+			Operation: "Lists all PlatformWorkloadIdentityRoleSets available in the specified location",
+		},
+		Origin: coreapi.NamespaceOperationOriginUserSystem,
+	},
+	{
+		Name: path.Join(coreapi.ProviderNamespace, "locations", "openshiftVersions", coreapi.NamespaceOperationRead),
+		Display: coreapi.NamespaceOperationDisplay{
+			Provider:  ProviderDisplay,
+			Resource:  "openshiftVersions",
+			Operation: "Lists all OpenShift versions available to install in the specified location",
+		},
+		Origin: coreapi.NamespaceOperationOriginUserSystem,
 	},
 }
 
@@ -219,7 +340,7 @@ func MuxPattern(method string, segments ...string) string {
 
 func (f *Frontend) routes(r prometheus.Registerer) http.Handler {
 	// Setup metrics middleware
-	metricsMiddleware := NewMetricsMiddleware(r, f.collector)
+	metricsMiddleware := NewMetricsMiddleware(r)
 
 	middlewareMux := NewMiddlewareMux(
 		MiddlewarePanic,
@@ -247,19 +368,19 @@ func (f *Frontend) routes(r prometheus.Registerer) http.Handler {
 		newMiddlewareValidatedAPIVersion(f.apiRegistry).handleRequest,
 		newMiddlewareValidateSubscriptionState(f.resourcesDBClient).handleRequest)
 	middlewareMux.Handle(
-		MuxPattern(http.MethodGet, PatternSubscriptions, PatternProviders, api.ClusterResourceTypeName),
+		MuxPattern(http.MethodGet, PatternSubscriptions, PatternProviders, coreapi.ClusterResourceTypeName),
 		postMuxMiddleware.HandlerFunc(errorutils.ReportError(f.ArmResourceListClusters)))
 	middlewareMux.Handle(
-		MuxPattern(http.MethodGet, PatternSubscriptions, PatternResourceGroups, PatternProviders, api.ClusterResourceTypeName),
+		MuxPattern(http.MethodGet, PatternSubscriptions, PatternResourceGroups, PatternProviders, coreapi.ClusterResourceTypeName),
 		postMuxMiddleware.HandlerFunc(errorutils.ReportError(f.ArmResourceListClusters)))
 	middlewareMux.Handle(
-		MuxPattern(http.MethodGet, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters, api.NodePoolResourceTypeName),
+		MuxPattern(http.MethodGet, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters, coreapi.NodePoolResourceTypeName),
 		postMuxMiddleware.HandlerFunc(errorutils.ReportError(f.ArmResourceListNodePools)))
 	middlewareMux.Handle(
-		MuxPattern(http.MethodGet, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters, api.ExternalAuthResourceTypeName),
+		MuxPattern(http.MethodGet, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters, coreapi.ExternalAuthResourceTypeName),
 		postMuxMiddleware.HandlerFunc(errorutils.ReportError(f.ArmResourceListExternalAuths)))
 	middlewareMux.Handle(
-		MuxPattern(http.MethodGet, PatternSubscriptions, PatternProviders, PatternLocations, api.VersionResourceTypeName),
+		MuxPattern(http.MethodGet, PatternSubscriptions, PatternProviders, PatternLocations, coreapi.VersionResourceTypeName),
 		postMuxMiddleware.HandlerFunc(errorutils.ReportError(f.ArmResourceListVersion)))
 
 	// Resource read endpoints
@@ -288,7 +409,6 @@ func (f *Frontend) routes(r prometheus.Registerer) http.Handler {
 		MiddlewareResourceID,
 		MiddlewareLoggingPostMux,
 		newMiddlewareValidatedAPIVersion(f.apiRegistry).handleRequest,
-		newMiddlewareLockSubscription(f.locksDBClient).handleRequest,
 		newMiddlewareValidateSubscriptionState(f.resourcesDBClient).handleRequest)
 	middlewareMux.Handle(
 		MuxPattern(http.MethodPut, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters),
@@ -360,8 +480,7 @@ func (f *Frontend) routes(r prometheus.Registerer) http.Handler {
 		postMuxMiddleware.HandlerFunc(errorutils.ReportError(f.ArmSubscriptionGet)))
 	postMuxMiddleware = NewMiddleware(
 		MiddlewareResourceID,
-		MiddlewareLoggingPostMux,
-		newMiddlewareLockSubscription(f.locksDBClient).handleRequest)
+		MiddlewareLoggingPostMux)
 	middlewareMux.Handle(
 		MuxPattern(http.MethodPut, PatternSubscriptions),
 		postMuxMiddleware.HandlerFunc(errorutils.ReportError(f.ArmSubscriptionPut)))
@@ -371,7 +490,7 @@ func (f *Frontend) routes(r prometheus.Registerer) http.Handler {
 		MiddlewareLoggingPostMux,
 		newMiddlewareValidateSubscriptionState(f.resourcesDBClient).handleRequest)
 	middlewareMux.Handle(
-		MuxPattern(http.MethodPost, PatternSubscriptions, PatternResourceGroups, "providers", api.ProviderNamespace, PatternDeployments, "preflight"),
+		MuxPattern(http.MethodPost, PatternSubscriptions, PatternResourceGroups, "providers", coreapi.ProviderNamespace, PatternDeployments, "preflight"),
 		postMuxMiddleware.HandlerFunc(errorutils.ReportError(f.ArmDeploymentPreflight)))
 
 	mux := http.NewServeMux()

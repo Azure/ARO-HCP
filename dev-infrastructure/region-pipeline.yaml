@@ -11,6 +11,22 @@
 $schema: "pipeline.schema.v1"
 serviceGroup: Microsoft.Azure.ARO.HCP.Region
 rolloutName: Region Rollout
+# Pre-build the Go helper invoked by the ACR replication Shell steps before the
+# rollout runs. The EV2 Shell runner image has no Azure CLI, so replica
+# create/drift-reconcile is done in Go (see scripts/acr-replication), same
+# pattern as scripts/postgres-access in svc-pipeline.yaml.
+buildStep:
+  command: bash
+  args:
+  - -c
+  - |
+    set -euo pipefail
+    tmp="$(mktemp ./scripts/acr-replication/acr-replication.XXXXXX)"
+    trap 'rm -f "${tmp}"' EXIT
+    CGO_ENABLED=0 go build -o "${tmp}" ./scripts/acr-replication
+    chmod 0755 "${tmp}"
+    mv "${tmp}" ./scripts/acr-replication/acr-replication
+    trap - EXIT
 resourceGroups:
 - name: global
   resourceGroup: '{{ .global.rg }}'
@@ -25,13 +41,22 @@ resourceGroups:
     outputOnly: true
   - name: ocp-acr-replication
     action: Shell
-    command: ./manage-acr-replication.sh
-    workingDir: ./scripts
+    command: ./acr-replication
+    workingDir: ./scripts/acr-replication
     variables:
+    - name: SUBSCRIPTION_ID
+      input:
+        resourceGroup: global
+        step: output
+        name: subscriptionId
+    - name: RESOURCE_GROUP
+      configRef: global.rg
     - name: ACR_NAME
       configRef: acr.ocp.name
     - name: REPLICATION_REGION
       configRef: region
+    - name: REPLICATION_STATE
+      configRef: acr.ocp.replicationState
     shellIdentity:
       input:
         resourceGroup: global
@@ -39,34 +64,27 @@ resourceGroups:
         name: globalMSIId
   - name: svc-acr-replication
     action: Shell
-    command: ./manage-acr-replication.sh
-    workingDir: ./scripts
+    command: ./acr-replication
+    workingDir: ./scripts/acr-replication
     variables:
+    - name: SUBSCRIPTION_ID
+      input:
+        resourceGroup: global
+        step: output
+        name: subscriptionId
+    - name: RESOURCE_GROUP
+      configRef: global.rg
     - name: ACR_NAME
       configRef: acr.svc.name
     - name: REPLICATION_REGION
       configRef: region
+    - name: REPLICATION_STATE
+      configRef: acr.svc.replicationState
     shellIdentity:
       input:
         resourceGroup: global
         step: output
         name: globalMSIId
-  - name: add-grafana-datasource
-    action: GrafanaDatasources
-    omitFromServiceGroupCompletion: true
-    automatedRetry:
-      errorContainsAny:
-      - "UpdateConflict"
-      maximumRetryCount: 3
-      durationBetweenRetries: 1m
-    grafanaName: "{{ .monitoring.grafanaName }}"
-    identityFrom:
-      resourceGroup: global
-      step: output
-      name: globalMSIId
-    dependsOn:
-    - resourceGroup: regional
-      step: output
 - name: kusto
   resourceGroup: '{{ .kusto.rg }}'
   subscription: '{{ .global.subscription.key }}'
@@ -85,12 +103,48 @@ resourceGroups:
     dependsOn:
     - resourceGroup: regional
       step: rpRegistration
+    # On a first-time region rollout this deploys shortly after the geography
+    # pipeline creates the Kusto cluster/database it targets (they are separate
+    # service groups with no cross-pipeline dependsOn), so it can race ahead of
+    # ARM RP propagation and fail with a transient Internal Server Error (the
+    # observed failure was error.code=BadInput with that message text, already
+    # covered by the patterns below without a separate BadInput matcher).
+    # See AROSLSRE-1707.
+    automatedRetry:
+      errorContainsAny:
+      - "InternalServerError"
+      - "Internal server error"
+      - "500 Internal Server Error"
+      maximumRetryCount: 3
+      durationBetweenRetries: 1m
     variables:
     - name: auditLogsEventHubId
       input:
         resourceGroup: auditLogs
         step: auditLogsEventHub
         name: auditLogsEventHubId
+  - name: alertEventsDataConnection
+    action: ARM
+    template: templates/alert-events-data-connection.bicep
+    parameters: configurations/alert-events-data-connection.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    dependsOn:
+    - resourceGroup: regional
+      step: rpRegistration
+    # Same transient-failure risk as kustoDataConnection above. See AROSLSRE-1707.
+    automatedRetry:
+      errorContainsAny:
+      - "InternalServerError"
+      - "Internal server error"
+      - "500 Internal Server Error"
+      maximumRetryCount: 3
+      durationBetweenRetries: 1m
+    variables:
+    - name: alertEventsEventHubId
+      input:
+        resourceGroup: auditLogs
+        step: auditLogsEventHub
+        name: alertEventsEventHubId
 - name: auditLogs
   # In most regions this will be the same as the regional RG,
   # but in dev, we want to deploy the event hub to the shared RG
@@ -129,9 +183,16 @@ resourceGroups:
     template: templates/region.bicep
     parameters: configurations/region.tmpl.bicepparam
     deploymentLevel: ResourceGroup
+    # errorContainsAny is widened beyond "Internal error" because on a
+    # first-time region rollout this can also fail with the ARM RP
+    # propagation-lag variants seen elsewhere in this repo (e.g. shortly after
+    # rpRegistration completes for a brand new subscription). See AROSLSRE-1708.
     automatedRetry:
       errorContainsAny:
       - "Internal error"
+      - "InternalServerError"
+      - "Internal server error"
+      - "500 Internal Server Error"
       maximumRetryCount: 4
       durationBetweenRetries: 2m
     variables:

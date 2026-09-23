@@ -13,6 +13,9 @@ param backendMIName string
 @description('The name of the Session Gate managed identity')
 param sessiongateMIName string
 
+@description('The name of the Fleet managed identity')
+param fleetMIName string
+
 @description('The name of the Exporter managed identity')
 param exporterMIName string
 
@@ -22,6 +25,7 @@ resource csMSI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' exi
 }
 
 output cs string = csMSI.id
+output csManagedIdentityPrincipalId string = csMSI.properties.principalId
 
 // MSI refresher MI resource ID
 resource msiRefresherMSI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
@@ -50,6 +54,13 @@ resource sessiongateMSI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-0
 }
 
 output sessiongate string = sessiongateMSI.id
+
+// Fleet MI resource ID
+resource fleetMSI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
+  name: fleetMIName
+}
+
+output fleet string = fleetMSI.id
 
 // Exporter MI resource ID
 resource exporterMSI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {

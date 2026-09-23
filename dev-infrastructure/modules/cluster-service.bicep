@@ -1,9 +1,3 @@
-@description('The managed identity name CS will use to interact with Azure resources')
-param clusterServiceManagedIdentityName string
-
-@description('The managed identity CS uses to interact with Azure resources')
-param clusterServiceManagedIdentityPrincipalId string
-
 @description('Defines if the Postgres server should be deployed')
 param deployPostgres bool
 
@@ -158,21 +152,7 @@ module csPostgres 'postgres/postgres.bicep' = if (deployPostgres) {
   }
 }
 
-//
-// Create DB user for the clusters-service managed identity and enable entra authentication
-//
-
-module csManagedIdentityDatabaseAccess 'postgres/postgres-access.bicep' = if (deployPostgres) {
-  name: 'cs-db-access'
-  scope: resourceGroup(regionalResourceGroup)
-  params: {
-    postgresServerName: postgresServerName
-    postgresAdministrationManagedIdentityId: postgresAdministrationManagedIdentityId
-    databaseName: csDatabaseName
-    newUserName: clusterServiceManagedIdentityName
-    newUserPrincipalId: clusterServiceManagedIdentityPrincipalId
-  }
-  dependsOn: [
-    csPostgres
-  ]
-}
+// The clusters-service managed identity is granted database access and enabled
+// for Entra authentication by the `cs-postgres-access` Shell step in
+// svc-pipeline.yaml (the deploymentScript-based modules were removed for
+// SFI-ID4.2.1 compliance).

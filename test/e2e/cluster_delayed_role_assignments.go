@@ -26,7 +26,9 @@ import (
 	"k8s.io/apimachinery/pkg/util/rand"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	hcpsdk20251223preview "github.com/Azure/ARO-HCP/test/sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
@@ -39,6 +41,7 @@ var _ = Describe("ARO HCP Service", func() {
 		labels.High,
 		labels.Positive,
 		labels.AroRpApiCompatible,
+		labels.MIContainers(1),
 		func(ctx context.Context) {
 			const (
 				customerNsgName        = "customer-nsg-name"
@@ -46,7 +49,11 @@ var _ = Describe("ARO HCP Service", func() {
 				customerVnetSubnetName = "customer-vnet-subnet1"
 				customerClusterName    = "delayed-rbac-cluster"
 
-				clusterCreationTimeout   = 45 * time.Minute
+				// This test needs extra time beyond the default because it deliberately
+				// delays role assignments: 3m Consistently check + ~0.5m RBAC deployment
+				// + up to ~4m for CS retry and Azure RBAC propagation. Observed max delta
+				// over 24 CI runs is ~15m; 16m provides a small buffer.
+				clusterCreationTimeout   = framework.ClusterCreationTimeout + 16*time.Minute
 				consistentlyLoopDuration = 3 * time.Minute
 			)
 			tc := framework.NewTestContext()
@@ -64,6 +71,7 @@ var _ = Describe("ARO HCP Service", func() {
 			clusterParams := framework.NewDefaultClusterParams20251223()
 			clusterParams.ClusterName = customerClusterName
 			clusterParams.ManagedResourceGroupName = framework.SuffixName(*resourceGroup.Name, "-managed", 64)
+			clusterParams.Tags[metadataapi.TagClusterMaxCreationDuration] = to.Ptr((clusterCreationTimeout - time.Minute).String())
 
 			By("deploying customer infrastructure (NSG, VNet, subnet, KeyVault)")
 			suffix := rand.String(6)
@@ -139,16 +147,26 @@ var _ = Describe("ARO HCP Service", func() {
 				"timed out waiting for cluster resource to become visible after BeginCreateOrUpdate")
 
 			By("verifying cluster does not enter terminal Failed state while role assignments are missing")
+			var lastConsistentlyErr string
+			var lastConsistentlyState hcpsdk20251223preview.ProvisioningState
 			Consistently(func(g Gomega) {
 				resp, err := hcpClient.Get(ctx, *resourceGroup.Name, customerClusterName, nil)
 				if err != nil {
-					GinkgoLogr.Info("GET cluster returned error, skipping poll iteration", "error", err)
+					lastConsistentlyState = ""
+					if msg := err.Error(); msg != lastConsistentlyErr {
+						GinkgoLogr.Info("GET cluster returned error, skipping poll iteration", "error", err)
+						lastConsistentlyErr = msg
+					}
 					return
 				}
+				lastConsistentlyErr = ""
 				g.Expect(resp.Properties).NotTo(BeNil(), "cluster response has nil Properties")
 				g.Expect(resp.Properties.ProvisioningState).NotTo(BeNil(), "cluster response has nil ProvisioningState")
 				state := *resp.Properties.ProvisioningState
-				GinkgoLogr.Info("cluster provisioning state", "state", state)
+				if state != lastConsistentlyState {
+					GinkgoLogr.Info("cluster provisioning state", "state", state)
+					lastConsistentlyState = state
+				}
 				g.Expect(state).NotTo(Equal(hcpsdk20251223preview.ProvisioningStateFailed),
 					"cluster entered terminal Failed state — CS inflight validation should retry, not fail terminally (ARO-25805)")
 			}, consistentlyLoopDuration, 30*time.Second).Should(Succeed())
@@ -177,21 +195,31 @@ var _ = Describe("ARO HCP Service", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to deploy role assignments for managed identities")
 
 			By("waiting for cluster to reach Succeeded state")
+			var lastEventuallyErr string
+			var lastEventuallyState hcpsdk20251223preview.ProvisioningState
 			Eventually(func(g Gomega) {
 				resp, err := hcpClient.Get(ctx, *resourceGroup.Name, customerClusterName, nil)
 				if err != nil {
+					lastEventuallyState = ""
 					var respErr *azcore.ResponseError
 					if errors.As(err, &respErr) && respErr.StatusCode == http.StatusNotFound {
 						g.Expect(err).NotTo(HaveOccurred(), "cluster returned 404 — resource disappeared after role assignment deployment")
 						return
 					}
-					GinkgoLogr.Info("GET cluster returned error, retrying", "error", err)
+					if msg := err.Error(); msg != lastEventuallyErr {
+						GinkgoLogr.Info("GET cluster returned error, retrying", "error", err)
+						lastEventuallyErr = msg
+					}
 					g.Expect(err).NotTo(HaveOccurred(), "GET cluster failed — RP returned an unexpected error")
 				}
+				lastEventuallyErr = ""
 				g.Expect(resp.Properties).NotTo(BeNil(), "cluster response has nil Properties")
 				g.Expect(resp.Properties.ProvisioningState).NotTo(BeNil(), "cluster response has nil ProvisioningState")
 				state := *resp.Properties.ProvisioningState
-				GinkgoLogr.Info("cluster provisioning state", "state", state)
+				if state != lastEventuallyState {
+					GinkgoLogr.Info("cluster provisioning state", "state", state)
+					lastEventuallyState = state
+				}
 				g.Expect(state).NotTo(Equal(hcpsdk20251223preview.ProvisioningStateFailed),
 					"cluster entered terminal Failed state after role assignment deployment")
 				g.Expect(state).To(Equal(hcpsdk20251223preview.ProvisioningStateSucceeded),
@@ -200,9 +228,9 @@ var _ = Describe("ARO HCP Service", func() {
 				"cluster should eventually succeed after role assignments are created")
 
 			By("verifying cluster is viable")
-			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
+			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20260901(
 				ctx,
-				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
+				tc.Get20260901ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
 				customerClusterName,
 				10*time.Minute,

@@ -37,3 +37,5 @@ testData:
           limits:
             cpu: "2"
             memory: 10Gi
+        replicas: 2
+        shards: 2

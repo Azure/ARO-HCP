@@ -82,6 +82,7 @@ func NewKSMHCPController(
 	hcpInformer hcpinformers.HostedControlPlaneInformer,
 	deploymentInformer cache.SharedIndexInformer,
 	serviceInformer cache.SharedIndexInformer,
+	configMapInformer cache.SharedIndexInformer,
 	serviceMonitorInformer cache.SharedIndexInformer,
 	ksmImage string,
 ) (*KSMHCPController, error) {
@@ -93,6 +94,7 @@ func NewKSMHCPController(
 			hcpInformer.Informer().HasSynced,
 			deploymentInformer.HasSynced,
 			serviceInformer.HasSynced,
+			configMapInformer.HasSynced,
 			serviceMonitorInformer.HasSynced,
 		},
 		workqueue: workqueue.NewTypedRateLimitingQueueWithConfig(workqueue.DefaultTypedControllerRateLimiter[string](), workqueue.TypedRateLimitingQueueConfig[string]{Name: "KSMHCP"}),
@@ -145,6 +147,9 @@ func NewKSMHCPController(
 	}
 	if _, err := serviceInformer.AddEventHandler(enqueueOwner); err != nil {
 		return nil, fmt.Errorf("failed to add Service event handler: %w", err)
+	}
+	if _, err := configMapInformer.AddEventHandler(enqueueOwner); err != nil {
+		return nil, fmt.Errorf("failed to add ConfigMap event handler: %w", err)
 	}
 	if _, err := serviceMonitorInformer.AddEventHandler(enqueueOwner); err != nil {
 		return nil, fmt.Errorf("failed to add ServiceMonitor event handler: %w", err)
@@ -256,6 +261,11 @@ func (c *KSMHCPController) reconcile(ctx context.Context, hcp *hypershiftv1beta1
 		UID:        hcp.UID,
 	}
 
+	configMap := buildConfigMap(ns, ownerRef)
+	if err := c.applyConfigMap(ctx, configMap); err != nil {
+		return fmt.Errorf("failed to apply configmap in %s: %w", ns, err)
+	}
+
 	deployment := buildDeployment(ns, c.ksmImage, serviceNetworkKubeconfigSecret, serviceNetworkKubeconfigKey, ownerRef)
 	if err := c.applyDeployment(ctx, deployment); err != nil {
 		return fmt.Errorf("failed to apply deployment in %s: %w", ns, err)
@@ -280,6 +290,13 @@ func (c *KSMHCPController) reconcile(ctx context.Context, hcp *hypershiftv1beta1
 
 func (c *KSMHCPController) applyDeployment(ctx context.Context, desired *appsac.DeploymentApplyConfiguration) error {
 	_, err := c.kubeClientset.AppsV1().Deployments(*desired.Namespace).Apply(
+		ctx, desired, metav1.ApplyOptions{FieldManager: fieldManager, Force: true},
+	)
+	return err
+}
+
+func (c *KSMHCPController) applyConfigMap(ctx context.Context, desired *coreac.ConfigMapApplyConfiguration) error {
+	_, err := c.kubeClientset.CoreV1().ConfigMaps(*desired.Namespace).Apply(
 		ctx, desired, metav1.ApplyOptions{FieldManager: fieldManager, Force: true},
 	)
 	return err

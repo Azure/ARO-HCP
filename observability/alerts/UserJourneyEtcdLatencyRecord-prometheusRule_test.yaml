@@ -1,0 +1,57 @@
+rule_files:
+- UserJourneyEtcdLatencyRecord-prometheusRule.yaml
+evaluation_interval: 1m
+tests:
+# Test 1: Read P99 latency computed for Range method
+# 99 of 100 requests complete within 0.5s — P99 interpolates to exactly 0.5
+- interval: 1m
+  name: "Test 1: Read P99 latency for Range requests"
+  input_series:
+  - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", grpc_method="Range", namespace="ocm-test-01", cluster="mgmt-1", le="0.5"}'
+    values: "0+99x10"
+  - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", grpc_method="Range", namespace="ocm-test-01", cluster="mgmt-1", le="+Inf"}'
+    values: "0+100x10"
+  promql_expr_test:
+  - expr: etcd:grpc_server_handling:read_latency_p99:rate5m{namespace="ocm-test-01"}
+    eval_time: 5m
+    exp_samples:
+    - labels: '{__name__="etcd:grpc_server_handling:read_latency_p99:rate5m", cluster="mgmt-1", namespace="ocm-test-01"}'
+      value: 0.5
+# Test 2: Write P99 latency computed for Txn method
+- interval: 1m
+  name: "Test 2: Write P99 latency for Txn requests"
+  input_series:
+  - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", grpc_method="Txn", namespace="ocm-test-02", cluster="mgmt-2", le="0.5"}'
+    values: "0+99x10"
+  - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", grpc_method="Txn", namespace="ocm-test-02", cluster="mgmt-2", le="+Inf"}'
+    values: "0+100x10"
+  promql_expr_test:
+  - expr: etcd:grpc_server_handling:write_latency_p99:rate5m{namespace="ocm-test-02"}
+    eval_time: 5m
+    exp_samples:
+    - labels: '{__name__="etcd:grpc_server_handling:write_latency_p99:rate5m", cluster="mgmt-2", namespace="ocm-test-02"}'
+      value: 0.5
+# Test 3: Non-ocm namespace excluded
+- interval: 1m
+  name: "Test 3: Non-ocm namespace traffic excluded"
+  input_series:
+  - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", grpc_method="Range", namespace="kube-system", cluster="mgmt-3", le="0.5"}'
+    values: "0+100x10"
+  - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", grpc_method="Range", namespace="kube-system", cluster="mgmt-3", le="+Inf"}'
+    values: "0+100x10"
+  promql_expr_test:
+  - expr: etcd:grpc_server_handling:read_latency_p99:rate5m{namespace="kube-system"}
+    eval_time: 5m
+    exp_samples: []
+# Test 4: Non-KV gRPC service excluded
+- interval: 1m
+  name: "Test 4: Non-etcdserverpb.KV traffic excluded"
+  input_series:
+  - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.Watch", grpc_method="Watch", namespace="ocm-test-04", cluster="mgmt-4", le="0.5"}'
+    values: "0+100x10"
+  - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.Watch", grpc_method="Watch", namespace="ocm-test-04", cluster="mgmt-4", le="+Inf"}'
+    values: "0+100x10"
+  promql_expr_test:
+  - expr: etcd:grpc_server_handling:read_latency_p99:rate5m{namespace="ocm-test-04"}
+    eval_time: 5m
+    exp_samples: []

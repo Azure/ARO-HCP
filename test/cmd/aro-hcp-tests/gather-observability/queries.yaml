@@ -1,15 +1,65 @@
+# HA-replica dedup convention:
+# The Azure Monitor managed Prometheus can run in HA, scraping each target from
+# multiple replicas (label `prometheus_replica`). Counter/gauge queries must
+# collapse that replica dimension BEFORE aggregating, or every series is counted
+# once per replica and totals are inflated. Wrap the per-series function in
+# `max without (prometheus_replica) ( ... )` inside your `sum`/aggregation, e.g.
+#   sum by (cluster) ( max without (prometheus_replica) ( increase(foo_total[5m]) ) )
+# (`max` because both replicas observe ~the same value). See the workqueue and
+# request-count queries below for the pattern.
 panels:
 - title: "Frontend Metrics"
   queries:
-  - title: "Frontend Request Latency"
-    description: "Latency of frontend requests, measured as the 95th percentile of request duration. High latency indicates performance issues."
+  - title: "Frontend Slow-Request Fraction (>1s)"
+    description: "Fraction of frontend requests slower than 1 second, by method/route/cluster, over a trailing 30-minute window (matches the FrontendPathLatency alert's core signal). The alert fires at >0.05 (5%) but only for series that also clear its volume gate (>=50 requests/30m) and an absolute slow-call floor (>=3), so a single outlier on a low-traffic route cannot trip it. Uses count minus the le=1.0 bucket over count as the slow fraction; HA Prometheus replicas cancel in the ratio. Excludes hcpoperationresults (same as the alert)."
     query: |
-      histogram_quantile(0.95,
-        sum by (le, route, method) (
-            rate(frontend_http_requests_duration_seconds_bucket[5m])
-          )
+      (
+        sum by (route, method, cluster) (
+          rate(frontend_http_requests_duration_seconds_count{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m])
+        )
+        -
+        sum by (route, method, cluster) (
+          rate(frontend_http_requests_duration_seconds_bucket{le="1.0", route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m])
+        )
+      )
+      /
+      sum by (route, method, cluster) (
+        rate(frontend_http_requests_duration_seconds_count{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m])
+      )
+    unit: ratio
+    workspace: svc
+    step: "60s"
+  - title: "Frontend Median (p50) Request Latency"
+    description: "Median (p50) frontend request latency by method/route/cluster over a trailing 30-minute window (matches the FrontendPathMedianLatency alert, which fires at >250ms for series with >=10 requests/30m). The median is robust at low sample counts, so this catches regressions in normal-request handling that the p99 signal misses. No minPeakThreshold — sub-second routes must stay visible for CI triage. Excludes hcpoperationresults (same as the alert)."
+    query: |
+      histogram_quantile(0.5,
+        sum by (le, route, method, cluster) (
+          rate(frontend_http_requests_duration_seconds_bucket{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m])
+        )
       )
     unit: seconds
+    workspace: svc
+    step: "60s"
+  - title: "Frontend Request Latency (p99, triage)"
+    description: "P99 frontend request latency by method/route/cluster over a trailing 30-minute window. Triage-only: the CI gate is no longer a raw p99 threshold (a p99 over a few samples is an outlier check) — it is the FrontendPathLatency slow-fraction and FrontendPathMedianLatency p50 alerts. This panel remains to spot tail behaviour. No minPeakThreshold — sub-second routes must stay visible for CI triage. Excludes hcpoperationresults (same as the alerts)."
+    query: |
+      histogram_quantile(0.99,
+        sum by (le, route, method, cluster) (
+          rate(frontend_http_requests_duration_seconds_bucket{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m])
+        )
+      )
+    unit: seconds
+    workspace: svc
+    step: "60s"
+  - title: "Frontend Request Count (30m sliding)"
+    description: "Frontend HTTP requests served in the trailing thirty-minute window (matching the alert evaluation window), broken down by method and route per svc cluster (same breakdown as the latency panels, but counting every route including hcpoperationresults). Uses increase() over frontend_http_requests_total, deduplicating HA Prometheus replicas with max without(prometheus_replica) before summing. At each point the value is the request count for the preceding thirty minutes (a sliding block); use it to see which series clear the alert volume gates (>=50/30m for FrontendPathLatency, >=10/30m for FrontendPathMedianLatency)."
+    query: |
+      sum by (route, method, cluster) (
+        max without (prometheus_replica) (
+          increase(frontend_http_requests_total[30m])
+        )
+      )
+    unit: requests
     workspace: svc
     step: "60s"
 - title: "Backend Metrics"
@@ -33,6 +83,37 @@ panels:
     unit: ratio
     workspace: svc
     step: "60s"
+    minPeakThreshold: 0.5
+  - title: "Hosted Control Planes by Management Cluster and Phase"
+    description: "Hosted control planes per management cluster, stacked by provisioning phase. Each sub-chart shows one management cluster. Unassigned clusters shown separately."
+    query: |
+      label_replace(
+        count by (management_cluster_resource_id, phase) (
+          max by(resource_id, subscription_id, phase) (
+            backend_cluster_provision_state{namespace="aro-hcp"}
+          )
+          * on(resource_id) group_left(management_cluster_resource_id)
+          max by(resource_id, management_cluster_resource_id) (
+            backend_cluster_info{namespace="aro-hcp", management_cluster_resource_id!=""}
+          )
+        ),
+        "management_cluster_resource_id", "mgmt-$1",
+        "management_cluster_resource_id", ".*/stamps/([^/]+)/.*"
+      )
+    unit: clusters
+    workspace: svc
+    step: "60s"
+    chartType: faceted-stacked-area
+    facetBy: management_cluster_resource_id
+    stackBy: phase
+    colors:
+      succeeded: "#4CAF50"
+      provisioning: "#2196F3"
+      accepted: "#81D4FA"
+      updating: "#FF9800"
+      deleting: "#F44336"
+      failed: "#AB47BC"
+      canceled: "#9E9E9E"
   - title: "Controller Workqueue Depth"
     description: "Number of items waiting to be processed in each controller workqueue. Sustained depth indicates the controller cannot keep up with incoming work items."
     query: |
@@ -44,6 +125,7 @@ panels:
     unit: items
     workspace: svc
     step: "60s"
+    minPeakThreshold: 10
   - title: "Controller Panic Rate"
     description: "Rate of panics caught by the runtime panic handler, per controller. Any non-zero rate indicates a controller is actively crashing and recovering via the panic handler."
     query: |
@@ -74,6 +156,7 @@ panels:
     unit: ratio
     workspace: svc
     step: "60s"
+    minPeakThreshold: 0.5
   - title: "Controller Workqueue Depth"
     description: "Number of items waiting to be processed in each fleet controller workqueue. Sustained depth indicates the controller cannot keep up with incoming work items."
     query: |
@@ -85,6 +168,7 @@ panels:
     unit: items
     workspace: svc
     step: "60s"
+    minPeakThreshold: 10
   - title: "Controller Reconcile Rate"
     description: "Rate of reconciliations per fleet controller. Shows how much work each controller is processing."
     query: |
@@ -103,6 +187,130 @@ panels:
     unit: /s
     workspace: svc
     step: "60s"
+- title: "CosmosDB Metrics"
+  queries:
+  - title: "RU Consumption vs Provisioned"
+    description: "Per-container peak utilization of currently-provisioned throughput (max NormalizedRUConsumption). Sustained values near 100% mean the container is saturating its provisioned RU/s and will start throttling (429). Same signal as the 'Normalized RU Consumption High' alert."
+    source: azureMonitor
+    resource: cosmosdb
+    aggregation: Maximum
+    metrics:
+    - name: NormalizedRUConsumption
+      splitBy: CollectionName
+    unit: "%"
+    step: "60s"
+  - title: "Autoscale Provisioned RU vs Ceiling"
+    description: "Per-container autoscale-provisioned throughput (max AutoscaledRU) as a percentage of that container's configured autoscale maximum (from the rendered config). At 100% the autoscaler is at its ceiling and further load turns into throttling. Normalized client-side; the copyable query returns the raw RU/s."
+    source: azureMonitor
+    resource: cosmosdb
+    aggregation: Maximum
+    metrics:
+    - name: AutoscaledRU
+      splitBy: CollectionName
+      normalizeByAutoscaleMax: true
+    unit: "%"
+    step: "60s"
+  - title: "Throttled Requests (429)"
+    description: "Per-container count of throttled requests (TotalRequests filtered to StatusCode=429). Any sustained non-zero series means the container is exceeding its provisioned RU/s and clients are being rate-limited once SDK retries are exhausted."
+    source: azureMonitor
+    resource: cosmosdb
+    aggregation: Count
+    metrics:
+    - name: TotalRequests
+      splitBy: CollectionName
+      filter:
+        StatusCode: "429"
+    unit: requests
+    step: "60s"
+  - title: "RU/s by Container"
+    description: "Five-minute average reported RU/s per Cosmos container, summed across every calling source, operation, and status. All manifests-mc-* containers are summed into one group. First stop for 'where do we spend most RUs': whichever container's line is highest is where the cost concentrates. Includes charged retries and errors; this is neither provisioned RU/s nor a request count."
+    query: |
+      sum by (cosmosdb_container_group, cluster) (
+        label_replace(
+          label_replace(
+            max without (prometheus_replica) (
+              rate(cosmos_request_units_total[5m])
+            ),
+            "cosmosdb_container_group", "$1", "cosmosdb_container", "(.+)"
+          ),
+          "cosmosdb_container_group", "manifests-mc-*", "cosmosdb_container", "(?i:manifests-mc-.+)"
+        )
+      )
+    unit: RU/s
+    workspace: svc
+    step: "60s"
+  - title: "Top RU Cost Drivers by Container"
+    description: "For each Cosmos container group, the ten (source-kind, source) combinations with the highest total RU across the entire report window, plotted as five-minute average RU/s across every operation and status. Ranking uses the report's exact [start,end] span, not a fixed lookback, so a spike anywhere in the report surfaces its source here, not only one near the report's end. To find who was responsible for a spike: locate its timestamp on the line, read that line's legend entry. 'unattributed / unknown' rows are real, un-assignable cost (e.g. SDK background feed-range discovery) ranked alongside named sources rather than hidden in a separate chart."
+    query: |
+      sum by (cosmosdb_container_group, cluster, container, source_kind, source) (
+        label_replace(
+          label_replace(
+            max without (prometheus_replica) (
+              rate(cosmos_request_units_total[5m])
+            ),
+            "cosmosdb_container_group", "$1", "cosmosdb_container", "(.+)"
+          ),
+          "cosmosdb_container_group", "manifests-mc-*", "cosmosdb_container", "(?i:manifests-mc-.+)"
+        )
+      )
+      and
+      topk by (cosmosdb_container_group) (10,
+        sum by (cosmosdb_container_group, cluster, container, source_kind, source) (
+          label_replace(
+            label_replace(
+              max without (prometheus_replica) (
+                increase(cosmos_request_units_total[__REPORT_RANGE__] @ end())
+              ),
+              "cosmosdb_container_group", "$1", "cosmosdb_container", "(.+)"
+            ),
+            "cosmosdb_container_group", "manifests-mc-*", "cosmosdb_container", "(?i:manifests-mc-.+)"
+          )
+        ) > 0
+      )
+    unit: RU/s
+    workspace: svc
+    step: "60s"
+    chartType: faceted-line
+    facetBy: cosmosdb_container_group
+    legendLabels:
+      container: calling_service
+      source_kind: source_kind
+  - title: "Throttled (429) Requests by Source"
+    description: "For each Cosmos container group, the ten (source-kind, source) combinations with the most HTTP 429 responses across the entire report window, plotted as a five-minute average rate of 429s per second. This is a request count, not RU cost: a 429 is typically rejected before Cosmos DB does any work and usually carries a zero or absent request charge, so RU-based ranking cannot tell who was throttled. Use 'Throttled Requests (429)' as the authoritative per-container count; this chart narrows that down to a likely contributor within a flagged container."
+    query: |
+      sum by (cosmosdb_container_group, cluster, container, source_kind, source) (
+        label_replace(
+          label_replace(
+            max without (prometheus_replica) (
+              rate(cosmos_requests_total{status_code="429"}[5m])
+            ),
+            "cosmosdb_container_group", "$1", "cosmosdb_container", "(.+)"
+          ),
+          "cosmosdb_container_group", "manifests-mc-*", "cosmosdb_container", "(?i:manifests-mc-.+)"
+        )
+      )
+      and
+      topk by (cosmosdb_container_group) (10,
+        sum by (cosmosdb_container_group, cluster, container, source_kind, source) (
+          label_replace(
+            label_replace(
+              max without (prometheus_replica) (
+                increase(cosmos_requests_total{status_code="429"}[__REPORT_RANGE__] @ end())
+              ),
+              "cosmosdb_container_group", "$1", "cosmosdb_container", "(.+)"
+            ),
+            "cosmosdb_container_group", "manifests-mc-*", "cosmosdb_container", "(?i:manifests-mc-.+)"
+          )
+        ) > 0
+      )
+    unit: requests/s
+    workspace: svc
+    step: "60s"
+    chartType: faceted-line
+    facetBy: cosmosdb_container_group
+    legendLabels:
+      container: calling_service
+      source_kind: source_kind
 - title: "Maestro Metrics"
   queries:
   - title: "REST API Request Rate by Status"
@@ -195,5 +403,179 @@ panels:
         rate(advisory_lock_count{namespace="maestro"}[5m])
       )
     unit: /s
+    workspace: svc
+    step: "60s"
+- title: "Service Workload Metrics"
+  queries:
+  - title: "Top 20 Container CPU Usage"
+    description: "Twenty highest CPU-consuming service containers at each point in the CI run window, measured in CPU cores. The namespace scope matches the service memory resource alerts. This bounded chart is for failure triage and does not define a CI threshold."
+    query: |
+      topk(20,
+        sum by (cluster, namespace, pod, container) (
+          max without (prometheus_replica) (
+            rate(container_cpu_usage_seconds_total{
+              container!="",
+              container!="POD",
+              namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|clusters-service|fleet|kube-applier|maestro|mgmt-agent|prometheus|secret-sync-controller|sessiongate"
+            }[5m])
+          )
+        )
+      )
+    unit: cores
+    workspace: svc
+    step: "60s"
+  - title: "Top 20 Container Memory Working Set"
+    description: "Twenty highest memory-working-set service containers at each point in the CI run window. The namespace scope matches the service memory resource alerts. This bounded chart is for failure triage and does not define a CI threshold."
+    query: |
+      topk(20,
+        max by (cluster, namespace, pod, container) (
+          max without (prometheus_replica) (
+            container_memory_working_set_bytes{
+              container!="",
+              container!="POD",
+              namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|clusters-service|fleet|kube-applier|maestro|mgmt-agent|prometheus|secret-sync-controller|sessiongate"
+            }
+          )
+        )
+      )
+    unit: bytes
+    workspace: svc
+    step: "60s"
+  - title: "Running Service Pods by Namespace"
+    description: "Running pod count for each monitored service namespace and cluster during the CI run window. This low-cardinality chart shows workload density; use the MC pod-capacity chart to determine whether that density is exhausting node capacity."
+    query: |
+      count by (cluster, namespace) (
+        max by (cluster, namespace, pod) (
+          kube_pod_status_phase{
+            job="kube-state-metrics",
+            namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|clusters-service|fleet|kube-applier|maestro|mgmt-agent|prometheus|secret-sync-controller|sessiongate",
+            phase="Running"
+          } == 1
+        )
+      )
+    unit: pods
+    workspace: svc
+    step: "60s"
+- title: "MC AKS Metrics"
+  queries:
+  - title: "MC User Node Count by Phase"
+    description: "User node count per management cluster, stacked by phase: Ready (healthy, age >10m), NotReady (unhealthy, age >10m), Joining (any status, age ≤10m). Excludes system and infra pool nodes. Each sub-chart shows one management cluster."
+    query: |
+      label_replace(
+        count by (cluster) (
+          (max by (node, cluster, condition, status) (
+            kube_node_status_condition{cluster=~".*-mgmt-.*", node!~"aks-system-.*|aks-infra.*-.*", condition="Ready", status="true"}
+          ) == 1)
+          and on (node, cluster)
+          (time() - max by (node, cluster) (kube_node_created{cluster=~".*-mgmt-.*"}) > 600)
+        ),
+        "phase", "Ready", "", ""
+      )
+      or
+      label_replace(
+        count by (cluster) (
+          (max by (node, cluster, condition, status) (
+            kube_node_status_condition{cluster=~".*-mgmt-.*", node!~"aks-system-.*|aks-infra.*-.*", condition="Ready", status!="true"}
+          ) == 1)
+          and on (node, cluster)
+          (time() - max by (node, cluster) (kube_node_created{cluster=~".*-mgmt-.*"}) > 600)
+        ),
+        "phase", "NotReady", "", ""
+      )
+      or
+      label_replace(
+        count by (cluster) (
+          max by (node, cluster) (
+            kube_node_status_condition{cluster=~".*-mgmt-.*", node!~"aks-system-.*|aks-infra.*-.*", condition="Ready"}
+          )
+          and on (node, cluster)
+          (time() - max by (node, cluster) (kube_node_created{cluster=~".*-mgmt-.*"}) <= 600)
+        ),
+        "phase", "Joining", "", ""
+      )
+    unit: nodes
+    workspace: svc
+    step: "60s"
+    chartType: faceted-stacked-area
+    facetBy: cluster
+    stackBy: phase
+    colors:
+      Ready: "#4CAF50"
+      NotReady: "#F44336"
+      Joining: "#2196F3"
+  - title: "MC User Node Unhealthy Conditions"
+    description: "Count of user nodes with unhealthy conditions per management cluster. Only non-zero conditions are shown. Excludes Ready (shown separately) and VMEventScheduled (informational). Each sub-chart shows one management cluster."
+    query: |
+      count by (cluster, condition) (
+        max by (node, cluster, condition, status) (
+          kube_node_status_condition{
+            cluster=~".*-mgmt-.*",
+            node!~"aks-system-.*|aks-infra.*-.*",
+            condition!~"Ready|VMEventScheduled",
+            status="true"
+          }
+        ) == 1
+      )
+    unit: nodes
+    workspace: svc
+    step: "60s"
+    chartType: faceted-stacked-area
+    facetBy: cluster
+    stackBy: condition
+  - title: "MC User Node CPU Usage"
+    description: "Maximum CPU usage percentage across user nodes per management cluster. Shows the busiest node at each point. Sustained values above 80% indicate CPU pressure that may affect pod scheduling and kubelet health."
+    query: |
+      max by (cluster) (
+        (1 - avg by (instance, cluster) (
+          max without (prometheus_replica) (
+            rate(node_cpu_seconds_total{cluster=~".*-mgmt-.*", instance!~"aks-system-.*|aks-infra.*-.*", mode="idle"}[5m])
+          )
+        ))
+      ) * 100
+    unit: percent
+    workspace: svc
+    step: "60s"
+  - title: "MC User Node Memory Usage"
+    description: "Maximum memory usage percentage across user nodes per management cluster. Computed as (total - available) / total. Sustained high values indicate memory pressure that may trigger OOM kills or kubelet evictions."
+    query: |
+      max by (cluster) (
+        (1 - (
+          max by (instance, cluster) (node_memory_MemAvailable_bytes{cluster=~".*-mgmt-.*", instance!~"aks-system-.*|aks-infra.*-.*"})
+          /
+          max by (instance, cluster) (node_memory_MemTotal_bytes{cluster=~".*-mgmt-.*", instance!~"aks-system-.*|aks-infra.*-.*"})
+        ))
+      ) * 100
+    unit: percent
+    workspace: svc
+    step: "60s"
+  - title: "MC User Node Disk Usage"
+    description: "Maximum root filesystem usage percentage across user nodes per management cluster. Computed as (size - available) / size for the root mount. High values trigger DiskPressure node condition and pod evictions."
+    query: |
+      max by (cluster) (
+        (1 - (
+          max by (instance, cluster) (node_filesystem_avail_bytes{cluster=~".*-mgmt-.*", instance!~"aks-system-.*|aks-infra.*-.*", mountpoint="/", fstype!="tmpfs"})
+          /
+          max by (instance, cluster) (node_filesystem_size_bytes{cluster=~".*-mgmt-.*", instance!~"aks-system-.*|aks-infra.*-.*", mountpoint="/", fstype!="tmpfs"})
+        ))
+      ) * 100
+    unit: percent
+    workspace: svc
+    step: "60s"
+  - title: "MC User Node Pod Capacity"
+    description: "Overall pod utilization across user nodes per management cluster. Computed as total running pods / total pod capacity. Values approaching 100% mean the cluster is running out of pod capacity."
+    query: |
+      sum by (cluster) (
+        max by (instance, cluster) (kubelet_running_pods{cluster=~".*-mgmt-.*", instance!~"aks-system-.*|aks-infra.*-.*"})
+      )
+      /
+      sum by (cluster) (
+        max by (instance, cluster) (
+          label_replace(
+            kube_node_status_capacity{cluster=~".*-mgmt-.*", node!~"aks-system-.*|aks-infra.*-.*", resource="pods"},
+            "instance", "$1", "node", "(.*)"
+          )
+        )
+      ) * 100
+    unit: percent
     workspace: svc
     step: "60s"

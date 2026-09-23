@@ -1,0 +1,123 @@
+// Copyright 2025 Microsoft Corporation
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package coreapi
+
+import (
+	"encoding/json"
+	"path"
+	"strings"
+)
+
+// See https://learn.microsoft.com/en-us/rest/api/datareplication/deployment-preflight/deployment-preflight?view=rest-datareplication-2021-02-16-preview&tabs=Go
+
+// DeploymentPreflight represents the body of a deployment preflight request.
+// We use a RawMessage slice here because preflight validation is best effort.
+// So if one resource cannot be unmarshaled we move on to the next instead of
+// failing the whole operation.
+type DeploymentPreflight struct {
+	Resources []json.RawMessage `json:"resources"`
+}
+
+// DeploymentPreflightResource represents a desired resource in a deployment preflight request.
+type DeploymentPreflightResource struct {
+	Name       string `json:"name"`
+	Type       string `json:"type"`
+	Location   string `json:"location"`
+	APIVersion string `json:"apiVersion,omitempty"`
+
+	// Preserve other tracked resource fields as raw data.
+	Identity   json.RawMessage `json:"identity,omitempty"`
+	Properties json.RawMessage `json:"properties,omitempty"`
+	Tags       json.RawMessage `json:"tags,omitempty"`
+	SystemData json.RawMessage `json:"systemData,omitempty"`
+}
+
+// Convert discards the APIVersion, marshals itself back to raw JSON,
+// and then unmarshals the raw JSON to the given value, which should
+// be an extension of the TrackedResource type.
+func (r *DeploymentPreflightResource) Convert(v any) error {
+	var clone = *r
+
+	// Omit APIVersion from the clone.
+	clone.APIVersion = ""
+
+	data, err := json.Marshal(&clone)
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(data, v)
+}
+
+// ResourceID returns a resource ID string for the resource.
+func (r *DeploymentPreflightResource) ResourceID(subscriptionID, resourceGroup string) string {
+	return path.Join("/subscriptions", subscriptionID, "resourcegroups", resourceGroup, "providers", r.Type, r.Name)
+}
+
+// DeploymentPreflightStatus is used in a DeploymentPreflightResponse.
+type DeploymentPreflightStatus string
+
+const (
+	DeploymentPreflightStatusSucceeded DeploymentPreflightStatus = "Succeeded"
+	DeploymentPreflightStatusFailed    DeploymentPreflightStatus = "Failed"
+)
+
+// DeploymentPreflightResponse represents the JSON response structure
+// for a deployment preflight request.
+type DeploymentPreflightResponse struct {
+	Status DeploymentPreflightStatus `json:"status"`
+	Error  *CloudErrorBody           `json:"error,omitempty"`
+}
+
+func recurseDetectTLE(v any) bool {
+	switch v := v.(type) {
+	case string:
+		return IsTLE(v)
+	case []any:
+		for _, item := range v {
+			if recurseDetectTLE(item) {
+				return true
+			}
+		}
+	case map[string]any:
+		for mapk, mapv := range v {
+			if recurseDetectTLE(mapk) {
+				return true
+			}
+			if recurseDetectTLE(mapv) {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+// DetectTLE returns true if a Template Language Expression is detected in
+// any part of the JSON input.
+func DetectTLE(data []byte) (bool, error) {
+	var v any
+
+	err := json.Unmarshal(data, &v)
+	if err != nil {
+		return false, err
+	}
+
+	return recurseDetectTLE(v), nil
+}
+
+// IsTLE returns true if s is a Template Language Expression.
+func IsTLE(s string) bool {
+	return strings.HasPrefix(s, "[") && strings.HasSuffix(s, "]")
+}

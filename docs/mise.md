@@ -1,4 +1,4 @@
-# Whats is MISE?
+# What is MISE?
 
 Microsoft Identity Service Essentials (MISE) is an internal Microsoft service providing:
 - Validation of Azure Active Directory (AAD) tokens, including Proof-of-Possession (PoP) tokens and Bearer tokens.
@@ -10,6 +10,16 @@ Microsoft Identity Service Essentials (MISE) is an internal Microsoft service pr
 - MISE is deployed in its own dedicated namespace within the service cluster
 - MISE operates as a central authorization service for the RP frontend and other services requiring secure API validation like the Admin API and Backplane API
 - mTLS is enforced for communication between Istio components, MISE, and the APIs
+- An `ext-authz` provider is defined in the Istio mesh config and referenced by AuthorizationPolicies on each protected service (frontend, admin, sessiongate)
+
+# Configuration
+
+MISE uses v2 JSON configuration delivered via a ConfigMap (`appsettings.json` mounted into the pod). The config defines three inbound policies:
+- **ARM** — PoP (Proof-of-Possession) protocol, validating signed HTTP request fields
+- **Geneva Actions** — Bearer token protocol for admin/Geneva-originated requests
+- **SessionGate** — Bearer token protocol for session management
+
+See `istio/deploy/charts/mise/templates/configmap.yaml` for the full template.
 
 # Frontend Authorization Model
 - ARM sends an API call with a PoP token:
@@ -32,35 +42,43 @@ Microsoft Identity Service Essentials (MISE) is an internal Microsoft service pr
 - Istio enforces the decision (forward or reject).
 Note: This retrofit ensures that Geneva Action traffic is consistently validated through the same MISE-based framework, providing a unified security model for both ARM and Geneva-originated requests.
 
-# MISE v2 Deployment
+# Audit Logging
 
-MISE v2 is deployed alongside v1 as a separate workload in the `mise` namespace. It uses a JSON-based configuration (via ConfigMap) instead of the environment-variable-based configuration used by v1.
+MISE v2 (1.27.0+) automatically audits 100% of authentication requests. Audit records are written to the `AsmAuditCPRPMISE` Geneva table via the OpenTelemetry Geneva Log Exporter over a Unix domain socket provided by mdsd on the node.
 
-## Dual Frontend Routing
+## How it works
 
-Because Istio limits each workload to a single ext-authz provider, and because ext-authz calls bypass VirtualService routing entirely, header-based routing between MISE versions is achieved by running two separate frontend workloads, each with its own AuthorizationPolicy.
+On Linux, MISE resolves the audit connection in this order:
+1. If `AzureAd:AuditOptions:CustomConnectionString` is set, use it.
+2. If `/var/run/mdsd/asa/default_fluent.socket` exists (AzSecPack/AutoConfig), use it.
+3. Otherwise fall back to `Endpoint=unix:/var/run/mdsd/default_fluent.socket`.
 
-```mermaid
-graph TB
-    Client[Client Request] --> Gateway[Istio Ingress Gateway]
-    Gateway --> VS{VirtualService<br/>x-ms-mise-version?}
+ARO-HCP service cluster nodes run mdsd, exposing `/var/run/mdsd/` on the host. The MISE deployment mounts this directory into the pod via a `hostPath` volume when `audit.connectSocket` is enabled.
 
-    VS -->|"v2"| FEv2[aro-hcp-frontend-v2]
-    VS -->|default| FEv1[aro-hcp-frontend]
+## Configuration
 
-    FEv2 -->|"ext-authz-misev2<br/>provider"| MISEv2["misev2.mise<br/>(MISE v2)"]
-    FEv1 -->|"ext-authz<br/>provider"| MISEv1["mise.mise<br/>(MISE v1)"]
+Audit logging is controlled by the `audit.connectSocket` toggle, following the same pattern as the RP frontend and Admin API:
+
+- **Default** (`config/config.yaml`): `mise.audit.connectSocket: false`
+- **Production overlay** (`config/config.msft.clouds-overlay.yaml`): set to `true` for int, stg, and prod environments
+
+When enabled, the MISE Helm chart:
+- Mounts `/var/run/mdsd` from the host into the pod
+- Adds `AuditOptions.CustomConnectionString` to `appsettings.json` pointing to `Endpoint=unix:/var/run/mdsd/default_fluent.socket`
+
+See `istio/deploy/charts/mise/templates/deployment.yaml` and `istio/deploy/charts/mise/templates/configmap.yaml` for the implementation.
+
+## Emergency disable
+
+In an emergency, audit logging can be disabled via the MISE config without removing the socket mount:
+
+```json
+{
+  "AzureAd": {
+    "AuditOptions": {
+      "EmergencyDisableAllAuditLogging": true
+    }
+  }
+}
 ```
 
-### Components
-
-- **Two ext-authz providers** defined in the Istio mesh config (`istio-shared-configmap`):
-  - `ext-authz` → `mise.mise.svc.cluster.local:8080`
-  - `ext-authz-misev2` → `misev2.mise.svc.cluster.local:8080`
-- **Two frontend Deployments and Services**: `aro-hcp-frontend` and `aro-hcp-frontend-v2`, identical except for which ext-authz provider their AuthorizationPolicy references
-- **VirtualService on the ingress gateway**: routes requests with `x-ms-mise-version: v2` header to `aro-hcp-frontend-v2`, all other traffic to `aro-hcp-frontend`
-- **Shared label** `app.kubernetes.io/part-of: aro-hcp-frontend` on both frontend deployments, used by policies that apply to both (metrics, admin access)
-
-### Why Not VirtualService-Based Routing at the MISE Layer
-
-Istio ext-authz calls bypass VirtualService routing. The Envoy `envoyExtAuthzHttp` filter connects directly to the service cluster endpoints, not through the HTTP routing pipeline. This means a VirtualService on `mise.mise.svc.cluster.local` cannot split ext-authz traffic by header — the split must happen upstream by routing to different frontend workloads, each bound to its own ext-authz provider.

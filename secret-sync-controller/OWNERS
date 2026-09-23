@@ -2,3 +2,5 @@ approvers:
 - stevekuznetsov
 - geoberle
 - janboll
+labels:
+- area/secret-sync-controller

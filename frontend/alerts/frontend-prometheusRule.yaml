@@ -11,6 +11,8 @@ metadata:
 spec:
   groups:
   - name: frontend
+    labels:
+      component: frontend
     rules:
     - alert: FrontendClusterServiceErrorRate
       expr: |

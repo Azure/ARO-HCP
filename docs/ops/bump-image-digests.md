@@ -14,7 +14,6 @@ Each service component defines its image digest in the [configuration](../config
 | Maestro                       | `maestro.image.digest`                            |
 | Hypershift Operator           | `hypershift.image.digest`                         |
 | ACR Pull                      | `acrPull.image.digest`                            |
-| Image Sync (oc-mirror)        | `imageSync.ocMirror.image.digest`                 |
 | Prometheus Operator (SVC)     | `svc.prometheus.prometheusOperator.image.digest`  |
 | Prometheus Operator (MGMT)    | `mgmt.prometheus.prometheusOperator.image.digest` |
 | Prometheus Server (SVC)       | `svc.prometheus.prometheusSpec.image.digest`      |
@@ -51,4 +50,4 @@ To update a digest:
 2. Follow the [README instructions](https://dev.azure.com/msazure/AzureRedHatOpenShift/_git/sdp-pipelines?path=/hcp/README.md) in the `sdp-pipelines/hcp` directory bring in the change to the `sdp-pipelines` ADO repository via a pull request.
 
 > [!IMPORTANT]
-> Changes to MSFT environment configurations are not applied automatically to the respective environments. You have to trigger the relevant infrastructure or service component deployment pipelines manually via ADO after the `sdp-pipelines` PR is merged. You can find all ARP HCP pipelines in [ADO](https://msazure.visualstudio.com/AzureRedHatOpenShift/_build?definitionScope=%5COneBranch%5Csdp-pipelines%5Chcp). Refer to the [EV2 deployment documentation](../ev2-deployment.md#execute-an-ado-pipeline) for mores instructions.
+> Changes to MSFT environment configurations are not applied automatically to the respective environments. You have to trigger the relevant infrastructure or service component deployment pipelines manually via ADO after the `sdp-pipelines` PR is merged. You can find all ARP HCP pipelines in [ADO](https://msazure.visualstudio.com/AzureRedHatOpenShift/_build?definitionScope=%5COneBranch%5Csdp-pipelines%5Chcp). Refer to the [EV2 deployment documentation](../ev2-deployment.md#execute-an-ado-pipeline) for more instructions.

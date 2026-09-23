@@ -176,6 +176,13 @@ kubectl get hostedcluster <name> -n <namespace> \
 # Check what's blocking a Terminating namespace
 kubectl get namespace <namespace> -o json | jq '.status'
 
+# Show deletion timestamps explicitly (the default kubectl table omits them)
+kubectl get <kind> -n <namespace> -o json | \
+  jq -r '.items[] | "\(.metadata.name)\tdel=\(.metadata.deletionTimestamp)"'
+
+# Check whether CAPI/CAPZ can still reconcile machine deletion
+kubectl get deployment capi-provider cluster-api -n <cp-namespace>
+
 # Check Hypershift operator logs
 kubectl logs -n hypershift deployment/operator --tail=50 | grep <cluster-name-or-id>
 
@@ -206,6 +213,8 @@ kubectl get managedclusteraddon -n ${CLUSTER_ID} -o json | \
 
 Before removing resources on the management cluster, check if the source (CS/Maestro) will recreate them.
 
+> **Mandatory gate**: Complete Steps 5 and 6 before using any resolution strategy that patches or deletes management-cluster resources. If the cluster record or an active ResourceBundle still exists, removing downstream resources can cause them to be recreated.
+
 Connect to the service cluster:
 
 ```bash
@@ -230,12 +239,27 @@ kubectl exec -n clusters-service deployment/clusters-service -- \
 #### Step 6: Check Maestro Resource Bundles
 
 ```bash
-# Search for resource bundles by cluster ID (search in manifest content)
+# Search for resource bundles by cluster ID (matches anywhere in the bundle,
+# including manifest content and metadata.labels)
+#
+# TIP: Use port-forward instead of kubectl exec for more reliable Maestro API
+# inspection -- kubectl exec can truncate responses or drop fields:
+#   kubectl port-forward -n maestro svc/maestro 8002:8000
+#   curl -s 'http://localhost:8002/api/maestro/v1/resource-bundles?size=2900' | ...
+#
 kubectl exec -n maestro deployment/maestro -c maestro-server -- sh -c \
   "curl -s 'http://localhost:8000/api/maestro/v1/resource-bundles?size=2900'" | \
-  jq --arg cid "${CLUSTER_ID}" '[.items[] | select(.manifests | tostring | test($cid)) |
-  {id, name, created_at, consumer_name, deleted_at: .metadata.deleted_at,
+  jq --arg cid "${CLUSTER_ID}" '[.items[] | select(tostring | index($cid)) |
+  {id, name, created_at, consumer_name, deleted_at,
    labels: .metadata.labels}]'
+```
+
+ResourceBundle names are UUIDs. Match the cluster ID against the whole object because it may appear in `manifests` or `metadata.labels`; a bundle missed here is one that Maestro can later use to recreate everything you just deleted. `index` is a literal substring match, so the ID is never interpreted as a regex. Confirm the label inventory when a match looks unexpected:
+
+```bash
+kubectl exec -n maestro deployment/maestro -c maestro-server -- sh -c \
+  "curl -s 'http://localhost:8000/api/maestro/v1/resource-bundles?size=2900'" | \
+  jq -r '[.items[].metadata.labels["api.openshift.com/id"] // empty] | unique'
 ```
 
 ### Phase 3: Resolution
@@ -279,13 +303,82 @@ kubectl exec -n maestro deployment/maestro -c maestro-server -- sh -c \
 
 > **Note**: Maestro bundles behave differently on `DELETE`:
 > - **Readonly bundles** (the `*-readonly` HostedCluster / NodePool reflections) are hard-deleted immediately.
-> - **Bundles backing a `ManifestWork`** are only soft-deleted — the `DELETE` returns `204`, but the bundle remains listed with `metadata.deleted_at` set. The record is only removed from the Maestro store after the corresponding `ManifestWork` on the management cluster is also removed.
+> - **Bundles backing a `ManifestWork`** are only soft-deleted — the `DELETE` returns `204`, but the bundle remains listed with `deleted_at` set. The record is only removed from the Maestro store after the corresponding `ManifestWork` on the management cluster is also removed.
 >
-> If you see bundles still listed with a non-null `deleted_at` after `DELETE`, that is expected — proceed to Strategy 3 to clear the `ManifestWork` finalizers so Maestro can finish its own cleanup.
+> If you see bundles still listed with a non-null `deleted_at` after `DELETE`, that is expected — proceed to Strategy 3 or Strategy 4 to clear the `ManifestWork` so Maestro can finish its own cleanup.
 
-#### Strategy 3: Manual Finalizer Removal on Management Cluster (Last Resort)
+> **GOTCHA: `deleted_at` field location**
+>
+> The Maestro ResourceBundle API returns `deleted_at` at the **root level** of the JSON object, NOT inside `.metadata`. A query like `.metadata.deleted_at` will always return `null`, making bundles appear "clean" when they are actually soft-deleted. Always check the root-level `deleted_at` field:
+> ```bash
+> # WRONG — always returns null:
+> jq '.items[] | .metadata.deleted_at'
+>
+> # CORRECT:
+> jq '.items[] | {id, name, deleted_at}'
+> ```
+
+#### Strategy 3: Scale Down Maestro Agent and Clean ManifestWorks
+
+When ResourceBundles are already soft-deleted (`deleted_at` is set) but the Maestro Agent on the management cluster continues recreating ManifestWorks (see Scenario 7), the safest approach is to stop the agent, clean up, then restart it.
+
+> **⚠️ Prerequisite: Verify no customer-facing traffic on this management cluster.**
+>
+> Scaling the Maestro Agent to 0 stops **all** ManifestWork delivery on the management cluster, not just for the stuck clusters. While the agent is down, any in-flight or incoming ARM create, update, or delete operations targeting this MC will fail or time out.
+>
+> Before proceeding, confirm:
+> 1. The MC has **no customer clusters** currently running on it, **and**
+> 2. The region is **not actively serving new requests** that would be routed to this MC.
+>
+> If the region is live with customers, this procedure **requires a maintenance window**.
+>
+> If a maintenance window is not available, use [Strategy 4 (Manual Finalizer Removal)](#strategy-4-manual-finalizer-removal-on-management-cluster-last-resort) instead. Strategy 4 patches finalizers on individual resources without stopping the agent, so it does not block other operations on the MC.
+
+Connect to the management cluster:
+
+```bash
+hcpctl mc breakglass <mc-name>
+export KUBECONFIG=<path-from-output>
+```
+
+```bash
+# 1. Scale down the Maestro Agent to stop ManifestWork recreation
+kubectl scale deployment -n maestro maestro-agent --replicas=0
+
+# 2. Wait for the agent pod to terminate
+kubectl wait --for=delete pod -l app=maestro-agent -n maestro --timeout=60s
+
+# 3. Patch finalizers and delete all ManifestWorks for the stuck clusters
+for mw in $(kubectl get manifestwork -n local-cluster -o jsonpath='{.items[*].metadata.name}' | tr ' ' '\n' | grep -F "${CLUSTER_ID}"); do
+  kubectl patch manifestwork $mw -n local-cluster \
+    --type=merge -p='{"metadata":{"finalizers":null}}'
+  kubectl delete manifestwork $mw -n local-cluster
+done
+
+# 4. Also clean up AppliedManifestWorks (cluster-scoped)
+for amw in $(kubectl get appliedmanifestwork -o jsonpath='{.items[*].metadata.name}' | tr ' ' '\n' | grep -F "${CLUSTER_ID}"); do
+  kubectl patch appliedmanifestwork $amw \
+    --type=merge -p='{"metadata":{"finalizers":null}}'
+  kubectl delete appliedmanifestwork $amw
+done
+
+# 5. Scale the Maestro Agent back up
+kubectl scale deployment -n maestro maestro-agent --replicas=1
+
+# 6. Verify the agent does NOT recreate the ManifestWorks
+#    (it won't, because the bundles are soft-deleted)
+kubectl get manifestwork -n local-cluster | grep -F "${CLUSTER_ID}"
+```
+
+> **Why scale down instead of restart?** Restarting the agent creates a race condition: you delete ManifestWorks while the agent is still running, and it recreates them before you finish. Scaling to 0 guarantees no recreation during cleanup.
+
+> **Note**: After ManifestWorks are cleaned and the agent confirms no recreation, the CS destructor can complete. Verify on the service cluster that the cluster record is fully removed.
+
+#### Strategy 4: Manual Finalizer Removal on Management Cluster (Last Resort)
 
 Only after ensuring the source (CS/Maestro) won't recreate resources, remove finalizers **bottom-up** on the management cluster.
+
+> **Azure resource safety**: Before clearing an `AzureMachine` finalizer, verify that its Azure VM, NIC, disks, and other managed-resource-group dependencies are gone. Clearing the finalizer only removes Kubernetes bookkeeping; it does not delete Azure resources and can leave a costly resource leak. If access is blocked by a deny assignment, coordinate the Azure deletion with the subscription owner first.
 
 > **Note**: If Phase 1 Step 4 shows the `ManagedCluster` in `Detaching` state or `ManagedClusterAddon` resources with held finalizers, clear those **first** (step 0 below). The destruct chain stops at the `hypershift-managed-cluster-destructor` step when addon pre-delete hooks fail (commonly due to klusterlet auth loss during Detaching), and the CP namespace teardown is never even attempted.
 
@@ -301,11 +394,7 @@ done
 # 1. Check what's blocking the CP namespace (if Terminating):
 kubectl get namespace <cp-namespace> -o json | jq '.status.conditions[] | select(.type == "NamespaceContentRemaining")'
 
-# 2. Remove finalizers from CP namespace resources (bottom-up, leaf resources first):
-# Deployments with hypershift.openshift.io/component-finalizer
-kubectl patch deployment <name> -n <cp-namespace> \
-  --type=json -p='[{"op": "replace", "path": "/metadata/finalizers", "value": []}]'
-
+# 2. Remove finalizers from CP namespace resources (bottom-up, leaf resources first).
 # AzureMachines (infrastructure.cluster.x-k8s.io)
 # Uses a merge patch so the command is idempotent even if .metadata.finalizers is absent
 # on some items (JSONPatch `replace` would fail on those).
@@ -322,13 +411,23 @@ for kind in machines.cluster.x-k8s.io machinesets.cluster.x-k8s.io machinedeploy
   done
 done
 
+# Deployments with hypershift.openshift.io/component-finalizer
+# Only the Deployments actually holding that finalizer -- a CP namespace has dozens of
+# Deployments and stripping finalizers from all of them is far broader than intended.
+for name in $(kubectl get deployment -n <cp-namespace> -o json | \
+  jq -r '.items[] | select((.metadata.finalizers // []) |
+    index("hypershift.openshift.io/component-finalizer")) | .metadata.name'); do
+  kubectl patch deployment $name -n <cp-namespace> \
+    --type=merge -p='{"metadata":{"finalizers":null}}'
+done
+
 # Cluster CRD with cluster.cluster.x-k8s.io finalizer
 kubectl patch clusters.cluster.x-k8s.io <name> -n <cp-namespace> \
-  --type=json -p='[{"op": "replace", "path": "/metadata/finalizers", "value": []}]'
+  --type=merge -p='{"metadata":{"finalizers":null}}'
 
 # HostedControlPlane with hypershift.openshift.io/finalizer
 kubectl patch hostedcontrolplanes.hypershift.openshift.io <name> -n <cp-namespace> \
-  --type=json -p='[{"op": "replace", "path": "/metadata/finalizers", "value": []}]'
+  --type=merge -p='{"metadata":{"finalizers":null}}'
 
 # 3. Remove NodePool finalizers in the HostedCluster namespace
 # Uses a merge patch (idempotent when .metadata.finalizers is absent).
@@ -339,11 +438,11 @@ done
 
 # 4. Remove HostedCluster finalizer (only after CP namespace resources and NodePools are cleared)
 kubectl patch hostedcluster <name> -n ocm-${CLUSTER_PREFIX}-${CLUSTER_ID} \
-  --type=json -p='[{"op": "replace", "path": "/metadata/finalizers", "value": []}]'
+  --type=merge -p='{"metadata":{"finalizers":null}}'
 
 # 5. Remove ManifestWork finalizers
 kubectl patch manifestwork <name> -n local-cluster \
-  --type=json -p='[{"op": "replace", "path": "/metadata/finalizers", "value": []}]'
+  --type=merge -p='{"metadata":{"finalizers":null}}'
 
 # 6. Delete orphaned namespaces (only after all resources are cleared)
 kubectl delete namespace <namespace>
@@ -367,7 +466,7 @@ kubectl exec -n clusters-service deployment/clusters-service -- \
 # On the Service Cluster - verify no orphaned Maestro bundles
 kubectl exec -n maestro deployment/maestro -c maestro-server -- sh -c \
   "curl -s 'http://localhost:8000/api/maestro/v1/resource-bundles?size=2900'" | \
-  jq --arg cid "${CLUSTER_ID}" '[.items[] | select(.manifests | tostring | test($cid)) | {id, name}]'
+  jq --arg cid "${CLUSTER_ID}" '[.items[] | select(tostring | index($cid)) | {id, name, deleted_at}]'
 ```
 
 > **Note**: If CS still has the cluster record in `uninstalling` state after management cluster cleanup, re-issue the ARO-HCP `DELETE` (Strategy 1). With Maestro and the management cluster cleared, the CS controller can now complete the deletion and subsequent `GET`s will return `404`.
@@ -407,20 +506,20 @@ kubectl exec -n maestro deployment/maestro -c maestro-server -- sh -c \
 - `hostedcontrolplanes.hypershift.openshift.io` with `hypershift.openshift.io/finalizer`
 - `deployments` with `hypershift.openshift.io/component-finalizer`
 
-**Fix**: Check `kubectl get namespace <ns> -o json | jq '.status.conditions'` to identify blocking resources, then remove their finalizers (Strategy 3).
+**Fix**: Check `kubectl get namespace <ns> -o json | jq '.status.conditions'` to identify blocking resources, then remove their finalizers (Strategy 4).
 
-### Scenario 5: CP Namespace Stuck After Cluster and HostedControlPlane Are Cleared
+### Scenario 5: CAPI Machine Deletion Cannot Finish
 
-**Symptoms**: After force-removing finalizers on the CAPI `Cluster`, the `HostedControlPlane`, and the Hypershift Deployments, the CP namespace is still `Terminating`. `kubectl get namespace <cp-ns> -o json | jq '.status.conditions'` references infrastructure or machine kinds.
+**Symptoms**: The CP namespace remains `Terminating`; Machine conditions remain at `WaitingForInfrastructureDeletion`; and `kubectl get deployment capi-provider cluster-api -n <cp-namespace>` shows one or both controllers at `0/N` replicas. Namespace conditions may reference infrastructure or machine kinds, or may only show the parent `Cluster`, `HostedControlPlane`, and Deployments that are waiting on them.
 
-**Cause**: CAPI machine resources hold their own finalizers and are not removed when the parent `Cluster` is force-deleted (finalizer cleared). Common blockers in the CP namespace:
+**Cause**: CAPI machine resources hold their own finalizers, but CAPI/CAPZ is no longer running to process them. The stale `WaitingForInfrastructureDeletion` condition cannot self-resolve. Common blockers in the CP namespace:
 
 - `azuremachines.infrastructure.cluster.x-k8s.io` (`azuremachine.infrastructure.cluster.x-k8s.io`)
 - `machines.cluster.x-k8s.io` (`machine.cluster.x-k8s.io`)
 - `machinesets.cluster.x-k8s.io` (`cluster.x-k8s.io/machineset`)
 - `machinedeployments.cluster.x-k8s.io` (`cluster.x-k8s.io/machinedeployment`)
 
-**Fix**: Patch the finalizers on all four kinds in the CP namespace (see Strategy 3, step 2).
+**Fix**: First verify that the corresponding Azure resources are gone, then patch all four machine-resource kinds before clearing Deployment, CAPI `Cluster`, or `HostedControlPlane` finalizers (see Strategy 4, step 2). Clearing parent finalizers first can hide the actual blockers and leave cluster-scoped or cloud resources orphaned.
 
 ### Scenario 6: ManagedCluster Stuck Detaching - Addon Finalizers Held
 
@@ -428,7 +527,17 @@ kubectl exec -n maestro deployment/maestro -c maestro-server -- sh -c \
 
 **Cause**: The hosting addon pre-delete hook executes against the hosted cluster using the klusterlet user, but that identity has already lost its Azure AD authorization as part of the Detaching flow. The pre-delete hook fails, the addon's finalizers are never removed, and the ManagedCluster destructor cannot complete.
 
-**Fix**: Clear the held `ManagedClusterAddon` finalizers manually (see Strategy 3, step 0). After this, the `ManagedCluster` destructor completes, the `ManifestWork` cleanup proceeds, and the rest of the deletion chain advances normally.
+**Fix**: Clear the held `ManagedClusterAddon` finalizers manually (see Strategy 4, step 0). After this, the `ManagedCluster` destructor completes, the `ManifestWork` cleanup proceeds, and the rest of the deletion chain advances normally.
+
+### Scenario 7: Maestro Agent Ignores Soft-Deleted ResourceBundles (CloudEvents Desync)
+
+**Symptoms**: You delete ManifestWorks on the management cluster, but they are immediately recreated with a fresh `creationTimestamp`. This looks like Scenario 2, but checking Maestro shows the ResourceBundles are already soft-deleted (`deleted_at` is set at root level). AppliedManifestWorks carry Maestro labels (`work.open-cluster-management.io/applied-by: maestro-agent-*`).
+
+**Cause**: A bug in the Maestro Agent's CloudEvents sync (tracked as ARO-28432). The Maestro Server accepted the DELETE and soft-deleted the ResourceBundle, but the deletion event was never propagated to the agent via the MQTT CloudEvents channel. The agent's local state still considers the bundles active, so it keeps recreating ManifestWorks. A Maestro restart may self-heal some clusters (by replaying state from the server), but not all — in AROSLSRE-1520, a production rollout reduced stuck clusters from 50 to ~16, but the remainder required manual intervention.
+
+**Distinguishing from Scenario 2**: In Scenario 2 the bundles are active (no `deleted_at`). In Scenario 7 the bundles ARE soft-deleted but the agent ignores this. Check the root-level `deleted_at` field (see the GOTCHA note under Strategy 2) — if it is set but ManifestWorks are still being recreated, you are in Scenario 7.
+
+**Fix**: Use Strategy 3 — scale down the Maestro Agent on the management cluster, clean all ManifestWorks and AppliedManifestWorks for the affected clusters, then scale the agent back up. The agent will re-sync from the server on startup and will NOT recreate the ManifestWorks because the bundles are soft-deleted. After the ManifestWorks are gone, the CS destructor can complete.
 
 ## Quick Reference: Key API Endpoints
 
@@ -438,6 +547,25 @@ kubectl exec -n maestro deployment/maestro -c maestro-server -- sh -c \
 | CS - Delete cluster | `http://localhost:8000/api/aro_hcp/v1alpha1/clusters/<id>` | Must use `aro_hcp` endpoint |
 | Maestro - List bundles | `http://localhost:8000/api/maestro/v1/resource-bundles` | Via exec into maestro-server container |
 | Maestro - Delete bundle | `http://localhost:8000/api/maestro/v1/resource-bundles/<id>` | DELETE method |
+
+## Quick Reference: Maestro API Inspection via Port-Forward
+
+Port-forward is more reliable than `kubectl exec` for Maestro API inspection. It avoids response truncation and ensures all JSON fields (including root-level `deleted_at`) are visible.
+
+```bash
+# On the Service Cluster
+kubectl port-forward -n maestro svc/maestro 8002:8000
+
+# Then in another terminal:
+# List all resource bundles
+curl -s 'http://localhost:8002/api/maestro/v1/resource-bundles?size=2900' | \
+  jq '[.items[] | {id, name, deleted_at}]'
+
+# Search for a specific cluster's bundles
+curl -s 'http://localhost:8002/api/maestro/v1/resource-bundles?size=2900' | \
+  jq --arg cid "${CLUSTER_ID}" '[.items[] | select(tostring | index($cid)) |
+  {id, name, deleted_at, labels: .metadata.labels}]'
+```
 
 ## Quick Reference: Common Finalizers
 
@@ -463,6 +591,9 @@ kubectl logs -n hypershift deployment/operator --tail=100 | grep <cluster-name>
 
 # Maestro Agent (manages ManifestWork lifecycle)
 kubectl logs -n maestro deployment/maestro-agent -c maestro-agent | grep <cluster-id>
+
+# Maestro Agent replica count (check if scaled down)
+kubectl get deployment -n maestro maestro-agent -o jsonpath='{.spec.replicas}'
 
 # Work agent (manages ManifestWork application)
 kubectl logs -n open-cluster-management-agent deployment/klusterlet-work-agent

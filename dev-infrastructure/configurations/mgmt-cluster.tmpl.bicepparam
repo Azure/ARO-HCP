@@ -1,44 +1,9 @@
 using '../templates/mgmt-cluster.bicep'
 
 // AKS
-param kubernetesVersion = '{{ .mgmt.aks.kubernetesVersion }}'
-param vnetAddressPrefix = '{{ .mgmt.aks.vnetAddressPrefix }}'
-param subnetPrefix = '{{ .mgmt.aks.subnetPrefix }}'
-param podSubnetPrefix = '{{ .mgmt.aks.podSubnetPrefix }}'
 param aksClusterName = '{{ .mgmt.aks.name }}'
-param aksKeyVaultName = '{{ .mgmt.aks.etcd.name }}'
-param aksKeyVaultTagName = '{{ .mgmt.aks.etcd.tagKey }}'
-param aksKeyVaultTagValue = '{{ .mgmt.aks.etcd.tagValue }}'
-param aksEtcdKVEnableSoftDelete = {{ .mgmt.aks.etcd.softDelete }}
-param systemAgentPoolName = '{{ .mgmt.aks.systemAgentPool.name }}'
-param systemAgentMinCount = {{ .mgmt.aks.systemAgentPool.minCount}}
-param systemAgentMaxCount = {{ .mgmt.aks.systemAgentPool.maxCount }}
-param systemAgentVMSize = '{{ .mgmt.aks.systemAgentPool.vmSize }}'
-param systemAgentPoolZones = '{{ .mgmt.aks.systemAgentPool.zones }}'
-param systemOsDiskSizeGB = {{ .mgmt.aks.systemAgentPool.osDiskSizeGB }}
-param systemZoneRedundantMode = '{{ .mgmt.aks.systemAgentPool.zoneRedundantMode }}'
-param userAgentPoolName = '{{ .mgmt.aks.userAgentPool.name }}'
-param userAgentMinCount = {{ .mgmt.aks.userAgentPool.minCount }}
-param userAgentMaxCount = {{ .mgmt.aks.userAgentPool.maxCount }}
-param userAgentVMSize = '{{ .mgmt.aks.userAgentPool.vmSize }}'
-param userAgentPoolCount = {{ .mgmt.aks.userAgentPool.poolCount }}
-param userOsDiskSizeGB = {{ .mgmt.aks.userAgentPool.osDiskSizeGB }}
-param userAgentPoolZones = '{{ .mgmt.aks.userAgentPool.zones }}'
-param userZoneRedundantMode = '{{ .mgmt.aks.userAgentPool.zoneRedundantMode }}'
-param userSecondaryNicCount = {{ .mgmt.aks.userAgentPool.secondaryNicCount }}
-param infraAgentPoolName = '{{ .mgmt.aks.infraAgentPool.name }}'
-param infraAgentMinCount = {{ .mgmt.aks.infraAgentPool.minCount }}
-param infraAgentMaxCount = {{ .mgmt.aks.infraAgentPool.maxCount }}
-param infraAgentVMSize = '{{ .mgmt.aks.infraAgentPool.vmSize }}'
-param infraAgentPoolCount = {{ .mgmt.aks.infraAgentPool.poolCount }}
-param infraAgentPoolZones = '{{ .mgmt.aks.infraAgentPool.zones }}'
-param infraOsDiskSizeGB = {{ .mgmt.aks.infraAgentPool.osDiskSizeGB }}
-param infraZoneRedundantMode = '{{ .mgmt.aks.infraAgentPool.zoneRedundantMode }}'
-param aksClusterOutboundIPAddressIPTags = '{{ .mgmt.aks.clusterOutboundIPAddressIPTags }}'
-param aksNetworkDataplane = '{{ .mgmt.aks.networkDataplane }}'
-param aksNetworkPolicy = '{{ .mgmt.aks.networkDataplane }}'
-param aksEnableSwiftVnet = {{ .mgmt.aks.enableSwiftV2Vnet }}
-param aksEnableSwiftNodepools = {{ .mgmt.aks.enableSwiftV2Nodepools }}
+param nodeSubnetId = '__nodeSubnetId__'
+param vnetId = '__vnetId__'
 
 // Maestro
 param maestroConsumerMIName = '{{ .maestro.agent.managedIdentityName }}'
@@ -51,17 +16,14 @@ param mgmtAgentNamespace = '{{ .mgmtAgent.k8s.namespace }}'
 param mgmtAgentServiceAccountName = '{{ .mgmtAgent.k8s.serviceAccountName }}'
 
 param maestroConsumerName = '{{ .maestro.agent.consumerName }}'
-param maestroEventGridNamespaceId = '__maestroEventGridNamespaceId__'
-param maestroCertDomain = '{{ .maestro.certDomain }}'
+param maestroConsumerCertSAN = '{{ .maestro.agent.certSAN }}'
 param maestroCertIssuer = '{{ .maestro.certIssuer }}'
-param regionalSvcDNSZoneName = '{{ .dns.regionalSubdomain }}.{{ .dns.svcParentZoneName }}'
+param maestroEventGridNamespaceId = '__maestroEventGridNamespaceId__'
 
 // Kube Applier
 param kubeApplierMIName = '{{ .kubeApplier.managedIdentityName }}'
 param kubeApplierNamespace = '{{ .kubeApplier.k8s.namespace }}'
 param kubeApplierServiceAccountName = '{{ .kubeApplier.k8s.serviceAccountName }}'
-param kubeApplierContainerName = '{{ .kubeApplier.cosmosContainerName }}'
-param kubeApplierContainerMaxScale = {{ .kubeApplier.cosmosContainerMaxScale }}
 param rpCosmosDbAccountId = '__rpCosmosDbAccountId__'
 param rpCosmosDbPrivate = {{ .frontend.cosmosDB.private }}
 
@@ -91,14 +53,8 @@ param logsMSI = '{{ .logs.mdsd.msiName }}'
 param logsServiceAccount = '{{ .logs.mdsd.serviceAccountName }}'
 
 // Geneva logging settings
-param genevaCertificateDomain = '{{ .geneva.logs.certificateDomain }}'
-param genevaCertificateIssuer = '{{ .geneva.logs.certificateIssuer }}'
 param genevaRpLogsName = '{{ .geneva.logs.rp.secretName }}'
 param genevaClusterLogsName = '{{ .geneva.logs.cluster.secretName }}'
-param genevaManageCertificates = {{ .geneva.logs.manageCertificates }}
-
-// Alert rules tag value
-param owningTeamTagValue = '{{ .monitoring.alertRuleOwningTeamTag }}'
 
 // HCP Backups Storage Account
 param hcpBackupsStorageAccountName = '{{ .mgmt.hcpBackups.storageAccount.name }}'

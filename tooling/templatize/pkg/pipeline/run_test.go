@@ -16,10 +16,14 @@ package pipeline
 
 import (
 	"context"
+	"encoding/xml"
 	"fmt"
+	"os"
+	"path/filepath"
 	"slices"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/go-logr/logr"
 	"github.com/go-logr/logr/testr"
@@ -32,7 +36,16 @@ import (
 	"github.com/Azure/ARO-Tools/pipelines/types"
 
 	"github.com/Azure/ARO-HCP/tooling/templatize/bicep"
+	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/junit"
 )
+
+func mustStamp(v string) graph.Stamp {
+	s, err := graph.NewStamp(v)
+	if err != nil {
+		panic(err)
+	}
+	return s
+}
 
 func TestMockedPipelineRun(t *testing.T) {
 	pipeline := &types.Pipeline{
@@ -139,14 +152,16 @@ func TestMockedPipelineRun(t *testing.T) {
 		t.Fatalf("failed to start bicep language server: %v", err)
 	}
 
+	junitOutputFile := filepath.Join(t.TempDir(), "junit.xml")
 	if _, err := RunPipeline(&topology.Service{
 		ServiceGroup: "Microsoft.Azure.ARO.HCP.Test",
 	}, pipeline, logr.NewContext(t.Context(), testr.New(t)), &PipelineRunOptions{
 		BaseRunOptions: BaseRunOptions{
 			BicepClient: lspClient,
 		},
-		Environment: "test-env",
-		Stamp:       "1",
+		Environment:     "test-env",
+		Stamp:           "1",
+		JUnitOutputFile: junitOutputFile,
 		SubsciptionLookupFunc: func(_ context.Context, _ string) (string, error) {
 			return "test", nil
 		},
@@ -155,6 +170,19 @@ func TestMockedPipelineRun(t *testing.T) {
 		},
 	}, executor); err != nil {
 		t.Error(err)
+	}
+
+	report, err := os.ReadFile(junitOutputFile)
+	if err != nil {
+		t.Fatalf("failed to read JUnit report: %v", err)
+	}
+	var suites junit.TestSuites
+	if err := xml.Unmarshal(report, &suites); err != nil {
+		t.Fatalf("failed to decode JUnit report: %v", err)
+	}
+	if assert.Len(t, suites.Suites, 1) {
+		assert.Equal(t, "templatize-pipeline", suites.Suites[0].Name)
+		assert.Len(t, suites.Suites[0].TestCases, len(order))
 	}
 
 	lock.Lock()
@@ -362,7 +390,7 @@ func TestPipelineRun(t *testing.T) {
 		t.Fatalf("failed to start bicep language server: %v", err)
 	}
 
-	output, err := RunPipeline(&topology.Service{
+	state, err := RunPipeline(&topology.Service{
 		ServiceGroup: "Microsoft.Azure.ARO.HCP.Test",
 	}, pipeline, logr.NewContext(t.Context(), testr.New(t)), &PipelineRunOptions{
 		BaseRunOptions: BaseRunOptions{
@@ -382,7 +410,8 @@ func TestPipelineRun(t *testing.T) {
 	}, RunStep)
 
 	assert.NoError(t, err)
-	oValue, err := output[pipeline.ServiceGroup]["test"]["step"].GetValue("output")
+	outputs := state.GetOutputs(mustStamp("1"))
+	oValue, err := outputs[pipeline.ServiceGroup]["test"]["step"].GetValue("output")
 	assert.NoError(t, err)
 	assert.Equal(t, oValue.Value, "hello\n")
 }
@@ -561,6 +590,471 @@ func TestAddInputVars(t *testing.T) {
 	}
 }
 
+func TestRunEntrypointMultiStamp(t *testing.T) {
+	stamped := func() *bool { b := true; return &b }
+
+	parentPipeline := &types.Pipeline{
+		ServiceGroup: "Microsoft.Azure.ARO.HCP.Infra",
+		ResourceGroups: []*types.ResourceGroup{{
+			ResourceGroupMeta: &types.ResourceGroupMeta{
+				Name: "infra-rg", ResourceGroup: "infra-rg", Subscription: TEST_SUBSCRIPTION_ID,
+			},
+			Steps: []types.Step{
+				&types.ShellStep{StepMeta: types.StepMeta{Name: "deploy"}},
+			},
+		}},
+	}
+
+	topo := &topology.CombinedTopology{
+		Topology: topology.Topology{
+			Services: []topology.Service{{
+				ServiceGroup: "Microsoft.Azure.ARO.HCP.Infra",
+				PipelinePath: "infra/pipeline.yaml",
+				Purpose:      "infra",
+				Children: []topology.Service{{
+					ServiceGroup: "Microsoft.Azure.ARO.HCP.Mgmt",
+					PipelinePath: "mgmt/pipeline.yaml",
+					Purpose:      "mgmt",
+					Stamped:      stamped(),
+				}},
+			}},
+			Entrypoints: []topology.Entrypoint{{Identifier: "Microsoft.Azure.ARO.HCP.Infra"}},
+		},
+	}
+	topo.PropagateStamped()
+
+	entrypoint := &topo.Entrypoints[0]
+	basePipelines := map[string]*types.Pipeline{
+		"Microsoft.Azure.ARO.HCP.Infra": parentPipeline,
+		"Microsoft.Azure.ARO.HCP.Mgmt": {
+			ServiceGroup: "Microsoft.Azure.ARO.HCP.Mgmt",
+			ResourceGroups: []*types.ResourceGroup{{
+				ResourceGroupMeta: &types.ResourceGroupMeta{
+					Name: "mgmt-rg", ResourceGroup: "mgmt-rg-base", Subscription: TEST_SUBSCRIPTION_ID,
+				},
+				Steps: []types.Step{
+					&types.ShellStep{StepMeta: types.StepMeta{Name: "deploy"}},
+				},
+			}},
+		},
+	}
+
+	lock := sync.Mutex{}
+	var executedSteps []string
+
+	var executor Executor = func(id graph.Identifier, s types.Step, ctx context.Context, executionTarget ExecutionTarget, options *StepRunOptions, state *ExecutionState) (Output, DetailsProducer, error) {
+		key := fmt.Sprintf("%s/%s/stamp=%s/rg=%s", id.ServiceGroup, s.StepName(), options.Stamp, executionTarget.GetResourceGroup())
+		lock.Lock()
+		executedSteps = append(executedSteps, key)
+		lock.Unlock()
+		return nil, nil, nil
+	}
+
+	logger := testr.New(t)
+	ctx := logr.NewContext(t.Context(), logger)
+
+	lspClient, err := bicep.StartJSONRPCServer(ctx, logger, false)
+	if err != nil {
+		t.Fatalf("failed to start bicep language server: %v", err)
+	}
+
+	stampConfigs := map[graph.Stamp]configtypes.Configuration{
+		mustStamp("1"): {"stamp": "1"},
+		mustStamp("2"): {"stamp": "2"},
+		mustStamp("3"): {"stamp": "3"},
+	}
+
+	makeStampPipelines := func(stamp string) map[string]*types.Pipeline {
+		return map[string]*types.Pipeline{
+			"Microsoft.Azure.ARO.HCP.Infra": parentPipeline,
+			"Microsoft.Azure.ARO.HCP.Mgmt": {
+				ServiceGroup: "Microsoft.Azure.ARO.HCP.Mgmt",
+				ResourceGroups: []*types.ResourceGroup{{
+					ResourceGroupMeta: &types.ResourceGroupMeta{
+						Name: "mgmt-rg", ResourceGroup: "mgmt-rg-" + stamp, Subscription: TEST_SUBSCRIPTION_ID,
+						Stamped: true,
+					},
+					Steps: []types.Step{
+						&types.ShellStep{StepMeta: types.StepMeta{Name: "deploy"}},
+					},
+				}},
+			},
+		}
+	}
+
+	_, err = RunEntrypoint(topo, entrypoint, basePipelines, ctx, &PipelineRunOptions{
+		BaseRunOptions: BaseRunOptions{
+			BicepClient: lspClient,
+		},
+		SubsciptionLookupFunc: func(_ context.Context, _ string) (string, error) {
+			return TEST_SUBSCRIPTION_ID, nil
+		},
+		TopoDirLookupFunc: func(_ string) (string, error) { return ".", nil },
+		StampConfigs:      stampConfigs,
+		StampPipelines: map[graph.Stamp]map[string]*types.Pipeline{
+			mustStamp("1"): makeStampPipelines("1"),
+			mustStamp("2"): makeStampPipelines("2"),
+			mustStamp("3"): makeStampPipelines("3"),
+		},
+	}, executor)
+	assert.NoError(t, err)
+
+	lock.Lock()
+	defer lock.Unlock()
+
+	slices.Sort(executedSteps)
+	expected := []string{
+		"Microsoft.Azure.ARO.HCP.Infra/deploy/stamp=/rg=infra-rg",
+		"Microsoft.Azure.ARO.HCP.Mgmt/deploy/stamp=1/rg=mgmt-rg-1",
+		"Microsoft.Azure.ARO.HCP.Mgmt/deploy/stamp=2/rg=mgmt-rg-2",
+		"Microsoft.Azure.ARO.HCP.Mgmt/deploy/stamp=3/rg=mgmt-rg-3",
+	}
+	if diff := cmp.Diff(expected, executedSteps); diff != "" {
+		t.Errorf("unexpected step execution (-want +got):\n%s", diff)
+	}
+}
+
+func TestStampOutputIsolation(t *testing.T) {
+	stamped := func() *bool { b := true; return &b }
+
+	topo := &topology.CombinedTopology{
+		Topology: topology.Topology{
+			Services: []topology.Service{{
+				ServiceGroup: "SG.Mgmt",
+				PipelinePath: "mgmt/pipeline.yaml",
+				Purpose:      "mgmt",
+				Stamped:      stamped(),
+			}},
+			Entrypoints: []topology.Entrypoint{{Identifier: "SG.Mgmt"}},
+		},
+	}
+	topo.PropagateStamped()
+
+	makeStampPipelines := func(stamp string) map[string]*types.Pipeline {
+		return map[string]*types.Pipeline{
+			"SG.Mgmt": {
+				ServiceGroup: "SG.Mgmt",
+				ResourceGroups: []*types.ResourceGroup{{
+					ResourceGroupMeta: &types.ResourceGroupMeta{
+						Name: "rg", ResourceGroup: "mgmt-rg-" + stamp, Subscription: "sub-" + stamp,
+						Stamped: true,
+					},
+					Steps: []types.Step{
+						&types.ShellStep{StepMeta: types.StepMeta{Name: "step1"}},
+						&types.ShellStep{
+							StepMeta: types.StepMeta{Name: "step2"},
+							Variables: []types.Variable{{
+								Name: "FROM_STEP1",
+								Value: types.Value{
+									Input: &types.Input{
+										StepDependency: types.StepDependency{ResourceGroup: "rg", Step: "step1"},
+										Name:           "result",
+									},
+								},
+							}},
+						},
+					},
+				}},
+			},
+		}
+	}
+
+	lock := sync.Mutex{}
+	inputsPerStamp := map[string]any{}
+
+	var executor Executor = func(id graph.Identifier, s types.Step, ctx context.Context, executionTarget ExecutionTarget, options *StepRunOptions, state *ExecutionState) (Output, DetailsProducer, error) {
+		if s.StepName() == "step1" {
+			return ArmOutput{"result": map[string]any{"type": "string", "value": "output-from-" + id.Stamp.String()}}, nil, nil
+		}
+		if s.StepName() == "step2" {
+			state.RLock()
+			outputs := state.GetOutputs(id.Stamp)
+			state.RUnlock()
+			vals, err := getInputValues(id.ServiceGroup, s.(*types.ShellStep).Variables, options.Configuration, outputs)
+			if err != nil {
+				return nil, nil, err
+			}
+			lock.Lock()
+			inputsPerStamp[id.Stamp.String()] = vals["FROM_STEP1"]
+			lock.Unlock()
+		}
+		return nil, nil, nil
+	}
+
+	logger := testr.New(t)
+	ctx := logr.NewContext(t.Context(), logger)
+
+	lspClient, err := bicep.StartJSONRPCServer(ctx, logger, false)
+	if err != nil {
+		t.Fatalf("failed to start bicep language server: %v", err)
+	}
+
+	_, err = RunEntrypoint(topo, &topo.Entrypoints[0], makeStampPipelines("1"), ctx, &PipelineRunOptions{
+		BaseRunOptions: BaseRunOptions{BicepClient: lspClient},
+		SubsciptionLookupFunc: func(_ context.Context, subName string) (string, error) {
+			return "id-" + subName, nil
+		},
+		TopoDirLookupFunc: func(_ string) (string, error) { return ".", nil },
+		StampConfigs: map[graph.Stamp]configtypes.Configuration{
+			mustStamp("1"): {"stamp": "1"},
+			mustStamp("2"): {"stamp": "2"},
+		},
+		StampPipelines: map[graph.Stamp]map[string]*types.Pipeline{
+			mustStamp("1"): makeStampPipelines("1"),
+			mustStamp("2"): makeStampPipelines("2"),
+		},
+	}, executor)
+	assert.NoError(t, err)
+
+	assert.Equal(t, "output-from-1", inputsPerStamp["1"], "stamp 1 should see its own step1 output")
+	assert.Equal(t, "output-from-2", inputsPerStamp["2"], "stamp 2 should see its own step1 output")
+}
+
+func TestStampSubscriptionResolution(t *testing.T) {
+	stamped := func() *bool { b := true; return &b }
+
+	topo := &topology.CombinedTopology{
+		Topology: topology.Topology{
+			Services: []topology.Service{{
+				ServiceGroup: "SG.Mgmt",
+				PipelinePath: "mgmt/pipeline.yaml",
+				Purpose:      "mgmt",
+				Stamped:      stamped(),
+			}},
+			Entrypoints: []topology.Entrypoint{{Identifier: "SG.Mgmt"}},
+		},
+	}
+	topo.PropagateStamped()
+
+	makeStampPipelines := func(stamp, subscription string) map[string]*types.Pipeline {
+		return map[string]*types.Pipeline{
+			"SG.Mgmt": {
+				ServiceGroup: "SG.Mgmt",
+				ResourceGroups: []*types.ResourceGroup{{
+					ResourceGroupMeta: &types.ResourceGroupMeta{
+						Name: "rg", ResourceGroup: "mgmt-rg-" + stamp, Subscription: subscription,
+						Stamped: true,
+					},
+					Steps: []types.Step{
+						&types.ShellStep{StepMeta: types.StepMeta{Name: "deploy"}},
+					},
+				}},
+			},
+		}
+	}
+
+	lock := sync.Mutex{}
+	subscriptionsUsed := map[string]string{}
+
+	var executor Executor = func(id graph.Identifier, s types.Step, ctx context.Context, executionTarget ExecutionTarget, options *StepRunOptions, state *ExecutionState) (Output, DetailsProducer, error) {
+		lock.Lock()
+		subscriptionsUsed[id.Stamp.String()] = executionTarget.GetSubscriptionID()
+		lock.Unlock()
+		return nil, nil, nil
+	}
+
+	logger := testr.New(t)
+	ctx := logr.NewContext(t.Context(), logger)
+
+	lspClient, err := bicep.StartJSONRPCServer(ctx, logger, false)
+	if err != nil {
+		t.Fatalf("failed to start bicep language server: %v", err)
+	}
+
+	_, err = RunEntrypoint(topo, &topo.Entrypoints[0], makeStampPipelines("1", "sub-alpha"), ctx, &PipelineRunOptions{
+		BaseRunOptions: BaseRunOptions{BicepClient: lspClient},
+		SubsciptionLookupFunc: func(_ context.Context, subName string) (string, error) {
+			return "resolved-" + subName, nil
+		},
+		TopoDirLookupFunc: func(_ string) (string, error) { return ".", nil },
+		StampConfigs: map[graph.Stamp]configtypes.Configuration{
+			mustStamp("1"): {"stamp": "1"},
+			mustStamp("2"): {"stamp": "2"},
+		},
+		StampPipelines: map[graph.Stamp]map[string]*types.Pipeline{
+			mustStamp("1"): makeStampPipelines("1", "sub-alpha"),
+			mustStamp("2"): makeStampPipelines("2", "sub-beta"),
+		},
+	}, executor)
+	assert.NoError(t, err)
+
+	assert.Equal(t, "resolved-sub-alpha", subscriptionsUsed["1"], "stamp 1 should resolve sub-alpha")
+	assert.Equal(t, "resolved-sub-beta", subscriptionsUsed["2"], "stamp 2 should resolve sub-beta")
+}
+
+func TestUnstampedOutputVisibleToStampedSteps(t *testing.T) {
+	stamped := func() *bool { b := true; return &b }
+
+	topo := &topology.CombinedTopology{
+		Topology: topology.Topology{
+			Services: []topology.Service{{
+				ServiceGroup: "SG.Infra",
+				PipelinePath: "infra/pipeline.yaml",
+				Purpose:      "infra",
+				Children: []topology.Service{{
+					ServiceGroup: "SG.Mgmt",
+					PipelinePath: "mgmt/pipeline.yaml",
+					Purpose:      "mgmt",
+					Stamped:      stamped(),
+				}},
+			}},
+			Entrypoints: []topology.Entrypoint{{Identifier: "SG.Infra"}},
+		},
+	}
+	topo.PropagateStamped()
+
+	infraPipeline := &types.Pipeline{
+		ServiceGroup: "SG.Infra",
+		ResourceGroups: []*types.ResourceGroup{{
+			ResourceGroupMeta: &types.ResourceGroupMeta{
+				Name: "infra-rg", ResourceGroup: "infra-rg", Subscription: TEST_SUBSCRIPTION_ID,
+			},
+			Steps: []types.Step{
+				&types.ShellStep{StepMeta: types.StepMeta{Name: "setup"}},
+			},
+		}},
+	}
+
+	makeStampPipelines := func(stamp string) map[string]*types.Pipeline {
+		return map[string]*types.Pipeline{
+			"SG.Infra": infraPipeline,
+			"SG.Mgmt": {
+				ServiceGroup: "SG.Mgmt",
+				ResourceGroups: []*types.ResourceGroup{{
+					ResourceGroupMeta: &types.ResourceGroupMeta{
+						Name: "mgmt-rg", ResourceGroup: "mgmt-rg-" + stamp, Subscription: TEST_SUBSCRIPTION_ID,
+						Stamped: true,
+					},
+					Steps: []types.Step{
+						&types.ShellStep{StepMeta: types.StepMeta{Name: "deploy"}},
+					},
+				}},
+			},
+		}
+	}
+
+	lock := sync.Mutex{}
+	infraOutputSeen := map[string]string{}
+
+	var executor Executor = func(id graph.Identifier, s types.Step, ctx context.Context, executionTarget ExecutionTarget, options *StepRunOptions, state *ExecutionState) (Output, DetailsProducer, error) {
+		if s.StepName() == "setup" {
+			return ArmOutput{"endpoint": map[string]any{"type": "string", "value": "https://infra.example.com"}}, nil, nil
+		}
+		if s.StepName() == "deploy" {
+			state.RLock()
+			outputs := state.GetOutputs(id.Stamp)
+			state.RUnlock()
+			if sg, ok := outputs["SG.Infra"]; ok {
+				if rg, ok := sg["infra-rg"]; ok {
+					if step, ok := rg["setup"]; ok {
+						val, _ := step.GetValue("endpoint")
+						lock.Lock()
+						infraOutputSeen[id.Stamp.String()] = val.Value.(string)
+						lock.Unlock()
+					}
+				}
+			}
+		}
+		return nil, nil, nil
+	}
+
+	logger := testr.New(t)
+	ctx := logr.NewContext(t.Context(), logger)
+
+	lspClient, err := bicep.StartJSONRPCServer(ctx, logger, false)
+	if err != nil {
+		t.Fatalf("failed to start bicep language server: %v", err)
+	}
+
+	_, err = RunEntrypoint(topo, &topo.Entrypoints[0], makeStampPipelines("1"), ctx, &PipelineRunOptions{
+		BaseRunOptions: BaseRunOptions{BicepClient: lspClient},
+		SubsciptionLookupFunc: func(_ context.Context, _ string) (string, error) {
+			return TEST_SUBSCRIPTION_ID, nil
+		},
+		TopoDirLookupFunc: func(_ string) (string, error) { return ".", nil },
+		StampConfigs: map[graph.Stamp]configtypes.Configuration{
+			mustStamp("1"): {"stamp": "1"},
+			mustStamp("2"): {"stamp": "2"},
+		},
+		StampPipelines: map[graph.Stamp]map[string]*types.Pipeline{
+			mustStamp("1"): makeStampPipelines("1"),
+			mustStamp("2"): makeStampPipelines("2"),
+		},
+	}, executor)
+	assert.NoError(t, err)
+
+	assert.Equal(t, "https://infra.example.com", infraOutputSeen["1"], "stamp 1 should see unstamped infra output")
+	assert.Equal(t, "https://infra.example.com", infraOutputSeen["2"], "stamp 2 should see unstamped infra output")
+}
+
+func TestMultiStampErrorPropagation(t *testing.T) {
+	stamped := func() *bool { b := true; return &b }
+
+	topo := &topology.CombinedTopology{
+		Topology: topology.Topology{
+			Services: []topology.Service{{
+				ServiceGroup: "SG.Mgmt",
+				PipelinePath: "mgmt/pipeline.yaml",
+				Purpose:      "mgmt",
+				Stamped:      stamped(),
+			}},
+			Entrypoints: []topology.Entrypoint{{Identifier: "SG.Mgmt"}},
+		},
+	}
+	topo.PropagateStamped()
+
+	makeStampPipelines := func(stamp string) map[string]*types.Pipeline {
+		return map[string]*types.Pipeline{
+			"SG.Mgmt": {
+				ServiceGroup: "SG.Mgmt",
+				ResourceGroups: []*types.ResourceGroup{{
+					ResourceGroupMeta: &types.ResourceGroupMeta{
+						Name: "rg", ResourceGroup: "mgmt-rg-" + stamp, Subscription: TEST_SUBSCRIPTION_ID,
+						Stamped: true,
+					},
+					Steps: []types.Step{
+						&types.ShellStep{StepMeta: types.StepMeta{Name: "deploy"}},
+					},
+				}},
+			},
+		}
+	}
+
+	var executor Executor = func(id graph.Identifier, s types.Step, ctx context.Context, executionTarget ExecutionTarget, options *StepRunOptions, state *ExecutionState) (Output, DetailsProducer, error) {
+		if id.Stamp.String() == "2" {
+			return nil, nil, fmt.Errorf("deployment failed for stamp 2")
+		}
+		return nil, nil, nil
+	}
+
+	logger := testr.New(t)
+	ctx := logr.NewContext(t.Context(), logger)
+
+	lspClient, err := bicep.StartJSONRPCServer(ctx, logger, false)
+	if err != nil {
+		t.Fatalf("failed to start bicep language server: %v", err)
+	}
+
+	_, err = RunEntrypoint(topo, &topo.Entrypoints[0], makeStampPipelines("1"), ctx, &PipelineRunOptions{
+		BaseRunOptions: BaseRunOptions{BicepClient: lspClient},
+		SubsciptionLookupFunc: func(_ context.Context, _ string) (string, error) {
+			return TEST_SUBSCRIPTION_ID, nil
+		},
+		TopoDirLookupFunc: func(_ string) (string, error) { return ".", nil },
+		StampConfigs: map[graph.Stamp]configtypes.Configuration{
+			mustStamp("1"): {"stamp": "1"},
+			mustStamp("2"): {"stamp": "2"},
+		},
+		StampPipelines: map[graph.Stamp]map[string]*types.Pipeline{
+			mustStamp("1"): makeStampPipelines("1"),
+			mustStamp("2"): makeStampPipelines("2"),
+		},
+	}, executor)
+
+	assert.Error(t, err, "RunEntrypoint should return error when a stamp fails")
+	assert.Contains(t, err.Error(), "stamp 2", "error should contain stamp context")
+}
+
 func TestShouldRetryError(t *testing.T) {
 	testCases := []struct {
 		name     string
@@ -659,4 +1153,74 @@ func TestShouldExecuteStep(t *testing.T) {
 			assert.Equal(t, tc.expected, result)
 		})
 	}
+}
+
+func TestStepContextTimeout(t *testing.T) {
+	t.Run("helm with timeout still uses default outer", func(t *testing.T) {
+		d, err := stepContextTimeout(&types.HelmStep{Timeout: "10m"})
+		assert.NoError(t, err)
+		assert.Equal(t, defaultStepContextTimeout, d)
+	})
+
+	t.Run("shell uses default outer", func(t *testing.T) {
+		d, err := stepContextTimeout(&types.ShellStep{Timeout: "10m"})
+		assert.NoError(t, err)
+		assert.Equal(t, defaultStepContextTimeout, d)
+	})
+
+	t.Run("istio upgrade 60m", func(t *testing.T) {
+		d, err := stepContextTimeout(&types.IstioUpgradeStep{Timeout: "60m"})
+		assert.NoError(t, err)
+		assert.Equal(t, 60*time.Minute, d)
+	})
+
+	t.Run("istio upgrade unset defaults to 30m", func(t *testing.T) {
+		d, err := stepContextTimeout(&types.IstioUpgradeStep{})
+		assert.NoError(t, err)
+		assert.Equal(t, defaultStepContextTimeout, d)
+	})
+
+	t.Run("invalid istio duration", func(t *testing.T) {
+		_, err := stepContextTimeout(&types.IstioUpgradeStep{Timeout: "not-a-duration"})
+		assert.Error(t, err)
+	})
+}
+
+func TestWaitForRetry(t *testing.T) {
+	t.Run("completes normally after duration", func(t *testing.T) {
+		ctx := context.Background()
+		duration := 20 * time.Millisecond
+
+		start := time.Now()
+		err := waitForRetry(ctx, duration)
+		elapsed := time.Since(start)
+
+		assert.NoError(t, err, "should return nil on normal timer completion")
+		assert.GreaterOrEqual(t, elapsed, duration, "should wait at least the configured duration")
+	})
+
+	t.Run("returns context cause on cancellation", func(t *testing.T) {
+		cause := fmt.Errorf("step timeout exceeded")
+		ctx, cancel := context.WithCancelCause(context.Background())
+		cancel(cause)
+
+		start := time.Now()
+		err := waitForRetry(ctx, 1*time.Second)
+		elapsed := time.Since(start)
+
+		assert.Equal(t, cause, err, "should return the context cancellation cause")
+		assert.Less(t, elapsed, 100*time.Millisecond, "should cancel immediately without waiting for full duration")
+	})
+
+	t.Run("stops timer and returns error on context deadline", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+		defer cancel()
+
+		start := time.Now()
+		err := waitForRetry(ctx, 1*time.Second)
+		elapsed := time.Since(start)
+
+		assert.NotNil(t, err, "should return an error on context deadline")
+		assert.Less(t, elapsed, 200*time.Millisecond, "should cancel without waiting for full duration")
+	})
 }

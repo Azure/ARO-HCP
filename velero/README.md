@@ -23,7 +23,7 @@ The Velero CLI has a bug where it does not truncate init container names to be l
 
 ## Image Access
 
-The three Velero images are sourced from `registry.redhat.io`:
+The three Velero images are sourced from `registry.stage.redhat.io`:
 
 | Config Key | Repository |
 |---|---|
@@ -35,7 +35,7 @@ Image registries, repositories, and digests are defined in [`config/config.yaml`
 
 ### Image mirroring
 
-The deployment pipeline mirrors each image from `registry.redhat.io` to the service ACR before the Helm deploy step. This is handled by `ImageMirror` steps in [`velero/pipeline.yaml`](pipeline.yaml). Authentication to the Red Hat registry uses the `component-sync-pull-secret` stored in the global Key Vault (referenced via `imageSync.ondemandSync.pullSecretName`). See [`docs/secret-sync.md`](../docs/secret-sync.md) for how the pull secret is managed and validated.
+The deployment pipeline mirrors each image from `registry.stage.redhat.io` to the service ACR before the Helm deploy step. This is handled by `ImageMirror` steps in [`velero/pipeline.yaml`](pipeline.yaml). Authentication to the Red Hat registry uses the `component-sync-pull-secret` stored in the global Key Vault (referenced via `imageSync.ondemandSync.pullSecretName`). See [`docs/secret-sync.md`](../docs/secret-sync.md) for how the pull secret is managed and validated.
 
 ## OADP Partner Information
 

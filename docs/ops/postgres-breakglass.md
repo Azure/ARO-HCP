@@ -5,7 +5,7 @@ This guide describes how to access the Postgres database of ARO HCP service, spe
 ## Process
 
 1. Get access to the service cluster hosting the respective service
-2. Scale up the postgress-breakglass deployment in the respective service component namespace
+2. Scale up the postgres-breakglass deployment in the respective service component namespace
    ```/bin/sh
    kubectl scale deployment postgres-breakglass -n clusters-service --replicas=1
    or

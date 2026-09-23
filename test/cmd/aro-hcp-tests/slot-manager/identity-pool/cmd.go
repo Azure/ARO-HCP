@@ -52,7 +52,47 @@ subscription name and region.
 	return cmd, nil
 }
 
+func NewValidateCommand() (*cobra.Command, error) {
+	opts := DefaultValidateOptions()
+
+	cmd := &cobra.Command{
+		Use:   "validate-identity-pool",
+		Short: "Validate the managed identity pool against the canonical slot catalog.",
+		Long: `Validate the managed identity pool against the canonical slot catalog.
+
+This command performs read-only Azure list operations and compares the resource groups and user-assigned identities in each
+selected subscription with the slot-expanded inventory declared by the canonical E2E slot catalog.
+
+Validation covers every matching pool and fails when resource groups or expected identities are missing, or when unexpected
+resource groups or identities are present within a managed pool prefix.
+`,
+		SilenceUsage: true,
+	}
+
+	if err := BindValidateOptions(opts, cmd); err != nil {
+		return nil, err
+	}
+	cmd.RunE = func(cmd *cobra.Command, args []string) error {
+		opts.Out = cmd.OutOrStdout()
+		return Validate(cmd.Context(), opts)
+	}
+
+	return cmd, nil
+}
+
 func Apply(ctx context.Context, opts *RawApplyOptions) error {
+	validated, err := opts.Validate()
+	if err != nil {
+		return err
+	}
+	completed, err := validated.Complete(ctx)
+	if err != nil {
+		return err
+	}
+	return completed.Run(ctx)
+}
+
+func Validate(ctx context.Context, opts *RawValidateOptions) error {
 	validated, err := opts.Validate()
 	if err != nil {
 		return err

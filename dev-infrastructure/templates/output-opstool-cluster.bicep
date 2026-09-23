@@ -58,12 +58,12 @@ resource azureMonitorWorkspace 'Microsoft.Monitor/accounts@2023-04-03' existing 
   name: azureMonitorWorkspaceName
 }
 
-resource sharedActionGroup 'Microsoft.Insights/actionGroups@2024-10-01-preview' existing = {
-  name: 'opstool-email-alerts'
+resource pagerDutyActionGroup 'Microsoft.Insights/actionGroups@2024-10-01-preview' existing = {
+  name: 'opstool-pagerduty'
 }
 
 output aksClusterName string = aksClusterName
-output sharedActionGroupId string = sharedActionGroup.id
+output sharedActionGroupId string = pagerDutyActionGroup.id
 output azureMonitorWorkspaceId string = azureMonitorWorkspace.id
 output workloadKVName string = workloadKV.name
 output workloadKVUrl string = workloadKV.properties.vaultUri

@@ -74,6 +74,8 @@ kube-prometheus-stack:
   cleanPrometheusOperatorObjectNames: true
   # config for kube-state-metrics subchart that is imported by the kube-prometheus-stack chart conditionally
   kube-state-metrics:
+    metricLabelsAllowlist:
+    - nodes=[node.kubernetes.io/instance-type,kubernetes.azure.com/agentpool]
     image:
       registry: "{{ .svc.prometheus.kubeStateMetrics.image.registry }}"
       repository: "{{ .svc.prometheus.kubeStateMetrics.image.repository }}"
@@ -99,10 +101,9 @@ prometheusSpec:
       memory: {{ .svc.prometheus.prometheusSpec.resources.requests.memory }}
     limits:
       memory: {{ .svc.prometheus.prometheusSpec.resources.limits.memory }}
+  replicas: {{ .svc.prometheus.prometheusSpec.replicas }}
+  shards: {{ .svc.prometheus.prometheusSpec.shards }}
 prometheus:
-  prometheusSpec:
-    shards: {{ .svc.prometheus.prometheusSpec.shards }}
-    replicas: {{ .svc.prometheus.prometheusSpec.replicas }}
   serviceAccount:
     managedIdentity: "__prometheusUAMIClientId__"
 environment: "{{ .clustersService.environment }}"

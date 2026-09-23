@@ -92,6 +92,11 @@
             }
           }
         },
+        "entraAppOwnerIds": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Comma-separated Entra object IDs that own CI-managed applications and service principals"
+        },
         "global": {
           "type": "object",
           "properties": {
@@ -268,6 +273,8 @@
               "description": "Tenant quota collector configuration",
               "properties": {
                 "image": { "$ref": "#/$defs/Image" },
+                "prow": { "$ref": "#/$defs/ProwMetricsConfig" },
+                "ciJobOutcomes": { "$ref": "#/$defs/CIJobOutcomesConfig" },
                 "tenants": {
                   "type": "array",
                   "description": "List of Azure AD tenants to monitor for directory and subscription quota",
@@ -334,6 +341,40 @@
                   }
                 }
               }
+            },
+            "batchAnalysis": {
+              "type": "object",
+              "description": "Configuration for the Chai-bot Tide-batch analysis output storage",
+              "properties": {
+                "storageAccount": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "description": "Globally-unique storage account name that holds Chai-bot batch-analysis artifacts"
+                    },
+                    "location": {
+                      "type": "string",
+                      "description": "Azure region for the storage account"
+                    },
+                    "containerName": {
+                      "type": "string",
+                      "description": "Blob container that receives analysis artifacts"
+                    }
+                  },
+                  "required": ["name", "location", "containerName"]
+                },
+                "chaiBot": {
+                  "type": "object",
+                  "properties": {
+                    "principalId": {
+                      "type": "string",
+                      "description": "Object (principal) ID of the Chai-bot service principal granted read/write on the storage account"
+                    }
+                  },
+                  "required": ["principalId"]
+                }
+              }
             }
           }
         },
@@ -371,8 +412,8 @@
             "$ref": "#/$defs/InfraSubscriptionReference"
           }
         },
-        "devMockIdentities": {
-          "$ref": "#/$defs/DevMockIdentities"
+        "mockIdentities": {
+          "$ref": "#/$defs/MockIdentities"
         }
       },
       "required": ["bot", "e2eSubscriptions"]
@@ -395,46 +436,82 @@
         "id": { "type": "string" },
         "isGlobalSubscription": {
           "type": "boolean",
-          "description": "Marks where shared infra lives; the bot gets extra data-plane roles (Key Vault Admin, Grafana Admin) here"
+          "description": "Marks where shared infra lives; the bot gets extra global-only data-plane roles (Grafana Admin) here"
         }
       },
       "required": ["name", "id"]
     },
-    "DevMockIdentities": {
+    "MockIdentities": {
       "type": "object",
-      "description": "DEV-only mock identities to simulate FPA behavior; absent from stg/prod",
+      "description": "Mock identity Entra app definitions for non-production environments; principalIds are resolved at deployment time via Graph lookup",
       "properties": {
-        "homeSubscriptionId": {
+        "vaultUrl": {
           "type": "string",
-          "description": "Subscription ID where custom role definitions for mock identities are created"
+          "description": "Key Vault data-plane URL containing the mock identity certificates"
         },
-        "sharedPrincipals": {
-          "type": "object",
-          "properties": {
-            "firstParty": {
-              "$ref": "#/$defs/PrincipalReference"
-            },
-            "armHelper": {
-              "$ref": "#/$defs/PrincipalReference"
-            },
-            "miMock": {
-              "$ref": "#/$defs/PrincipalReference"
-            }
-          }
+        "firstParty": {
+          "$ref": "#/$defs/MockIdentityApp"
         },
-        "msiMockPool": {
-          "type": "object",
-          "properties": {
-            "principals": {
-              "type": "object",
-              "additionalProperties": {
-                "$ref": "#/$defs/PrincipalReference"
-              }
-            }
-          }
+        "armHelper": {
+          "$ref": "#/$defs/MockIdentityApp"
+        },
+        "clustersServiceArmHelper": {
+          "$ref": "#/$defs/MockIdentityApp"
+        },
+        "armHelperPool": {
+          "$ref": "#/$defs/MockIdentityPool"
+        },
+        "msiMock": {
+          "$ref": "#/$defs/MockIdentityApp"
+        },
+        "pool": {
+          "$ref": "#/$defs/MockIdentityPool"
         }
       },
-      "required": ["homeSubscriptionId", "sharedPrincipals"]
+      "required": ["vaultUrl", "firstParty", "armHelper", "msiMock", "pool"]
+    },
+    "MockIdentityApp": {
+      "type": "object",
+      "description": "Entra application definition for a mock identity",
+      "properties": {
+        "applicationName": {
+          "type": "string",
+          "description": "Entra application display name; the Graph uniqueName is derived from it (lowercased, spaces replaced with dashes)"
+        },
+        "certName": {
+          "type": "string",
+          "description": "Key Vault certificate name"
+        },
+        "certDns": {
+          "type": "string",
+          "description": "DNS name placed on the mock identity certificate"
+        }
+      },
+      "required": ["applicationName", "certName", "certDns"]
+    },
+    "MockIdentityPool": {
+      "type": "object",
+      "description": "Pool of mock identities for throttle distribution",
+      "properties": {
+        "appBaseName": {
+          "type": "string",
+          "description": "Base application name; pool members are named {appBaseName}-{index}"
+        },
+        "certBaseName": {
+          "type": "string",
+          "description": "Base Key Vault certificate name; pool members are named {certBaseName}-{index}"
+        },
+        "certBaseDns": {
+          "type": "string",
+          "description": "Base certificate DNS; pool members use {index}.{certBaseDns}"
+        },
+        "size": {
+          "type": "integer",
+          "description": "Number of pool members to create",
+          "minimum": 0
+        }
+      },
+      "required": ["appBaseName", "certBaseName", "certBaseDns", "size"]
     },
     "SubscriptionReference": {
       "type": "object",
@@ -443,13 +520,6 @@
         "id": { "type": "string" }
       },
       "required": ["name", "id"]
-    },
-    "PrincipalReference": {
-      "type": "object",
-      "properties": {
-        "principalId": { "type": "string" }
-      },
-      "required": ["principalId"]
     },
     "Image": {
       "type": "object",
@@ -490,12 +560,72 @@
       },
       "required": ["tenantId", "tenantName", "servicePrincipalClientId", "keyVaultSecretName"]
     },
+    "CIJobOutcomesConfig": {
+      "type": "object",
+      "description": "Configuration for recording CI job outcomes in Kusto, so that the alerts and logs already held there can be attributed to the run that produced them",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "kustoName": { "type": "string", "description": "Name of the Kusto cluster holding the table" },
+        "kustoResourceGroup": { "type": "string", "description": "Resource group of the Kusto cluster" },
+        "clusterURI": { "type": "string", "format": "uri", "description": "Kusto cluster URI, used to read which runs are already stored" },
+        "ingestionURI": { "type": "string", "format": "uri", "description": "Kusto ingestion URI, used to write rows" },
+        "database": { "type": "string" },
+        "outcomes": { "$ref": "#/$defs/KustoTableConfig", "description": "Table holding one row per CI job run" },
+        "testNames": { "$ref": "#/$defs/KustoTableConfig", "description": "Dimension table holding one row per distinct test name" },
+        "testResults": { "$ref": "#/$defs/KustoTableConfig", "description": "Join table holding one row per test executed in a run" },
+        "sippyURI": { "type": "string", "format": "uri", "description": "Sippy endpoint that runs are read from" },
+        "jobFilter": { "type": "string", "description": "Substring a job name must contain to be recorded" },
+        "interval": { "type": "string", "description": "How often outcomes are recorded, as a Go duration" },
+        "timeout": { "type": "string", "description": "Bounds a single pass, as a Go duration; longer than the collector-wide timeout because a pass reads artifacts per run" },
+        "window": { "type": "string", "description": "How much recent history each pass reads, as a Go duration; runs already stored are subtracted" },
+        "releases": {
+          "type": "array",
+          "description": "Sippy releases whose runs are recorded",
+          "items": { "type": "string" }
+        }
+      },
+      "required": ["enabled"]
+    },
+    "KustoTableConfig": {
+      "type": "object",
+      "description": "A destination Kusto table and the ingestion mapping declared alongside it",
+      "additionalProperties": false,
+      "properties": {
+        "table": { "type": "string" },
+        "ingestionMapping": { "type": "string", "description": "Ingestion mapping declared on the table" }
+      },
+      "required": ["table", "ingestionMapping"]
+    },
+    "ProwMetricsConfig": {
+      "type": "object",
+      "description": "Configuration for collecting ARO-HCP Prow job metrics",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "baseURL": { "type": "string", "format": "uri" },
+        "interval": { "type": "string", "description": "Prow polling interval as a Go duration" },
+        "retention": { "type": "string", "description": "How long completed runs remain exposed as active metrics" },
+        "repository": {
+          "type": "object",
+          "properties": {
+            "org": { "type": "string" },
+            "name": { "type": "string" }
+          },
+          "required": ["org", "name"]
+        },
+        "excludeJobs": {
+          "type": "array",
+          "description": "Exact Prow job names to exclude",
+          "items": { "type": "string" }
+        }
+      },
+      "required": ["enabled", "baseURL", "interval", "retention", "repository", "excludeJobs"]
+    },
     "SubscriptionQuotaConfig": {
       "type": "object",
       "description": "Configuration for monitoring quota in a single subscription",
       "properties": {
         "name": { "type": "string", "description": "Subscription display name (used to resolve the subscription ID at runtime)" },
-        "roleAssignmentLimit": { "type": "integer", "description": "Role assignment limit for the subscription (default 4000)" },
         "regions": {
           "type": "array",
           "description": "Azure regions to monitor for regional quotas",

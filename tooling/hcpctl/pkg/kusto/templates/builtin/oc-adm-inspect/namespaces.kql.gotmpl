@@ -1,0 +1,18 @@
+{{- /*
+Distinct namespaces present on a management cluster within the window. When
+cluster ids are supplied, restricts to namespaces that embed one of them: both a
+hosted-cluster namespace (ocm-<env>-<cid>) and its control-plane namespace
+(ocm-<env>-<cid>-<name>) contain the cluster id, so this finds all namespaces
+belonging to those clusters without querying HostedCluster objects. Without
+cluster ids it lists every namespace on the cluster (used to pair a requested
+namespace with its hosted/control-plane counterpart).
+*/ -}}
+kubernetesResourceSnapshots
+| where timestamp between ({{ .TimestampMin }} .. {{ .TimestampMax }})
+| where cluster == '{{.ClusterName}}'
+| where isnotempty(namespace)
+{{- if .ClusterIds}}
+| where namespace has_any ({{.ClusterIds}})
+{{- end}}
+| distinct namespace
+| order by namespace asc

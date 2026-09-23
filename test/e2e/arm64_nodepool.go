@@ -17,7 +17,6 @@ package e2e
 import (
 	"context"
 	"fmt"
-	"regexp"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -36,6 +35,7 @@ var _ = Describe("Customer", func() {
 		labels.Critical,
 		labels.Positive,
 		labels.AroRpApiCompatible,
+		labels.MIContainers(1),
 		func(ctx context.Context) {
 			const (
 				customerNetworkSecurityGroupName = "arm64-vm-customer-nsg"
@@ -45,7 +45,6 @@ var _ = Describe("Customer", func() {
 				customerNodePoolName             = "arm64-vm-np-1"
 			)
 			// This pattern matches a subset of the smallest (2GiB) ARM64-capable VM sizes listed in https://issues.redhat.com/browse/ARO-22443
-			vmSizePattern := regexp.MustCompile(`^Standard_D(?:2|4)pl(?:d)?s_v6$`)
 
 			tc := framework.NewTestContext()
 
@@ -89,8 +88,8 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %q", customerClusterName)
 
 			By("discovering an ARM64-capable VM size")
-			nodePoolVMSize, err := tc.FindVirtualMachineSizeMatching(ctx, vmSizePattern)
-			Expect(err).NotTo(HaveOccurred(), "failed to find an ARM64-capable VM size")
+			nodePoolVMSize, err := tc.SelectVMSize(ctx, framework.ARM64NodePoolVMSizeSelector())
+			Expect(err).NotTo(HaveOccurred(), "failed to find an ARM64-capable VM size; check VM SKU restrictions/quota for the test subscription in %s", tc.Location())
 
 			By(fmt.Sprintf("creating the ARM64-based node pool %q with VM size %q", customerNodePoolName, nodePoolVMSize))
 			nodePoolParams := framework.NewDefaultNodePoolParams20240610()

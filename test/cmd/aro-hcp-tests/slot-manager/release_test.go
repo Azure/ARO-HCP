@@ -51,7 +51,7 @@ func writeReleaseTestState(t *testing.T, sharedDir string) {
 	if err := slots.WriteAcquiredSlotState(sharedDir, state); err != nil {
 		t.Fatalf("expected state write to succeed: %v", err)
 	}
-	if err := slots.WriteEnvFile(sharedDir, state, "dev-sub"); err != nil {
+	if err := slots.WriteEnvFile(sharedDir, state, "dev-sub", "/var/run/aro-hcp-dev"); err != nil {
 		t.Fatalf("expected env file write to succeed: %v", err)
 	}
 }

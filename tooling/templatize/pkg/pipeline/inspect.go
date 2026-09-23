@@ -22,6 +22,7 @@ import (
 	"github.com/go-logr/logr"
 
 	configtypes "github.com/Azure/ARO-Tools/config/types"
+	"github.com/Azure/ARO-Tools/pipelines/graph"
 	"github.com/Azure/ARO-Tools/pipelines/topology"
 	"github.com/Azure/ARO-Tools/pipelines/types"
 
@@ -137,11 +138,11 @@ func acquireOutputChainingInputs(ctx context.Context, steps []string, pipeline *
 			Concurrency:           options.Concurrency,
 			TopoDirLookupFunc:     options.TopoDirLookupFunc,
 		}
-		outputs, err := RunPipeline(options.Service, pipeline, ctx, runOptions, RunStep)
+		state, err := RunPipeline(options.Service, pipeline, ctx, runOptions, RunStep)
 		if err != nil {
 			return nil, err
 		}
-		for serviceGroup, resourceGroups := range outputs {
+		for serviceGroup, resourceGroups := range state.GetOutputs(graph.Unstamped()) {
 			if _, ok := inputs[serviceGroup]; !ok {
 				inputs[serviceGroup] = map[string]map[string]Output{}
 			}

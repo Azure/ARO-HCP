@@ -1,0 +1,29 @@
+{
+	"cosmosMetadata": {
+		"partitionKey": "/providers/microsoft.redhatopenshift/stamps/test/managementclusters/mgmt-1",
+		"resourceID": "/providers/microsoft.redhatopenshift/stamps/test/managementclusters/default/applydesires/hello"
+	},
+	"spec": {
+		"managementCluster": "/providers/microsoft.redhatopenshift/stamps/test/managementclusters/mgmt-1",
+		"serverSideApply": {
+			"kubeContent": {
+				"apiVersion": "v1",
+				"data": {
+					"key": "value"
+				},
+				"kind": "ConfigMap",
+				"metadata": {
+					"name": "hello",
+					"namespace": "apply-creates-configmap-mgmt-scoped"
+				}
+			}
+		},
+		"targetItem": {
+			"name": "hello",
+			"namespace": "apply-creates-configmap-mgmt-scoped",
+			"resource": "configmaps",
+			"version": "v1"
+		},
+		"type": "ServerSideApply"
+	}
+}

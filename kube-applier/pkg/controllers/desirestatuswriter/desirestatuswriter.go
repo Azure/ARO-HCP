@@ -14,7 +14,7 @@
 
 // Package desirestatuswriter is the generic "read-mutate-replace" helper that
 // writes back the .status section of kube-applier *Desire Cosmos documents
-// (ApplyDesire, DeleteDesire, ReadDesire). It has nothing to do with the
+// (ApplyDesire and ReadDesire). It has nothing to do with the
 // .status section of the Kubernetes objects those desires target — that
 // content, when relevant, lives in ReadDesire.status.kubeContent and is
 // written by the per-instance ReadDesireKubernetesController, not by this
@@ -38,7 +38,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/equality"
 
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 )
 
 // Fetcher reads the current state of a single desire by a controller-defined
@@ -111,7 +111,7 @@ func (w *writer[T, K, PT]) UpdateStatus(ctx context.Context, key K, mutate Mutat
 	existing, err := w.fetcher.Fetch(ctx, key)
 	if err != nil {
 		// NotFound is normal: the desire was deleted between dispatch and now.
-		if database.IsNotFoundError(err) {
+		if cosmosstorageutils.IsNotFoundError(err) {
 			return nil
 		}
 		return fmt.Errorf("fetch %v: %w", key, err)

@@ -78,6 +78,33 @@ mock in scope. It also keeps the cost of admission predictable — every
 lookup happens once, before validation, instead of being scattered through
 the admit functions.
 
+## The frontend must never reach the management cluster; mirror through ServiceProviderCluster
+
+The frontend (and therefore admission, which the frontend drives) must
+**never** have direct access to kube-applier, a `ReadDesireLister`, Maestro,
+or any management-cluster / HostedCluster Kubernetes API. The frontend is an
+ARM-facing service in the service cluster; giving it a path to the management
+clusters would widen its blast radius and break the isolation boundary between
+the RP and the clusters it manages. Do not add such a client to
+`Frontend`, and do not import `backend/pkg/kubeapplierhelpers` (or anything
+that reads ReadDesires) from `frontend/` or `internal/admission/`.
+
+When admission needs data that only exists on the management cluster — for
+example the observed `HostedCluster.status.version.desired.channels` — the
+**backend** (which legitimately watches the management clusters via the
+kube-applier ReadDesire mirror) must observe it and copy a distilled form onto
+the `ServiceProviderCluster` document in Cosmos. The frontend then prefetches
+`ServiceProviderCluster` in `newClusterAdmissionContext` like any other
+server-side state, and admission reads it from the context struct.
+
+Concrete example in this package: `admitClusterVersionID` validates a
+version.id change against `ServiceProviderCluster.Status.DesiredVersionChannels`.
+That field is populated by the backend `ControlPlaneActiveVersions` controller
+from the observed HostedCluster — the frontend never talks to the management
+cluster to obtain it. Any future "admission needs live cluster state" case must
+follow the same pattern: backend observes → mirrors onto `ServiceProviderCluster`
+→ frontend prefetches → admission reads from context.
+
 ## Tests
 
 - Unit tests live next to the implementation (`admit_xxx_test.go`).

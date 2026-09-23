@@ -1,6 +1,5 @@
+# DO NOT USE THIS QUEUE, IT'S BEING REMOVED
 prometheusRules:
-  rulesFolders:
-  - ../frontend/alerts/frontend-latency-prometheusRule.yaml
-  - ../backend/alerts/backend-retryhotloop-prometheusRule.yaml
+  rulesFolders: []
   untestedRules: []
   outputBicep: ../dev-infrastructure/modules/metrics/rules/generatedSREServicePrometheusAlertingRules.bicep

@@ -27,6 +27,7 @@ import (
 
 	"github.com/Azure/ARO-Tools/tools/grafanactl/cmd/clean"
 	"github.com/Azure/ARO-Tools/tools/grafanactl/cmd/list"
+	"github.com/Azure/ARO-Tools/tools/grafanactl/cmd/manage"
 	"github.com/Azure/ARO-Tools/tools/grafanactl/cmd/modify"
 	"github.com/Azure/ARO-Tools/tools/grafanactl/cmd/sync"
 	"github.com/Azure/ARO-Tools/tools/grafanactl/cmd/verify"
@@ -79,6 +80,7 @@ and other operational tasks.`,
 	mainCommands := []func(string) (*cobra.Command, error){
 		clean.NewCleanCommand,
 		list.NewListCommand,
+		manage.NewManageCommand,
 		modify.NewModifyCommand,
 		sync.NewSyncCommand,
 		verify.NewVerifyCommand,

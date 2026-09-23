@@ -2,12 +2,12 @@ $schema: config-dev-ci.schema.json
 #
 # Usage (from repo root):
 #   PROJECT_ROOT_DIR="$(pwd)" && \
-#   ./tooling/templatize/templatize pipeline run \
+#   ./tooling/templatize/templatize-$(uname -m) pipeline run \
 #     --config-file="${PROJECT_ROOT_DIR}/config/config-dev-ci.yaml" \
 #     --topology-file="${PROJECT_ROOT_DIR}/topology-dev-ci.yaml" \
 #     --dev-settings-file="${PROJECT_ROOT_DIR}/tooling/templatize/settings.yaml" \
 #     --dev-environment dev-ci \
-#     --service-group Microsoft.Azure.ARO.HCP.DevCI.Infra
+#     --service-group Microsoft.Azure.ARO.HCP.DevCI.Unprivileged
 #
 # Prerequisites for manual deployment:
 #   - Build templatize: make templatize
@@ -16,6 +16,8 @@ $schema: config-dev-ci.schema.json
 clouds:
   dev:
     defaults:
+      environmentName: "{{ .ctx.environment }}"
+      region: "{{ .ctx.region }}"
       svc:
         rg: "opstool-{{ .ctx.region }}"
         subscription:
@@ -32,15 +34,20 @@ clouds:
         globalMSIName: "global-rollout-identity"
       dns:
         regionalSubdomain: "{{ .ctx.regionShort }}"
+      entraAppOwnerIds: "e4022ba9-7428-4de4-9afa-f40c521c1a33,cc1cceaf-e7fa-4cbb-9379-f6fbd70c9cf1,28c69853-0f40-49de-ad85-b9de0165e5b6,c1824db4-7152-429b-a58a-2170eaa74a53,772a02e3-1df6-48dd-86ab-dfe98438ab1e,9ff7a250-d897-41ee-982e-dc4ec28c4920,1daf5200-78ea-454d-84a1-a15f98876f5d,2a42baa4-f7b2-4856-8bc7-67fe5327cae7,55236c0a-cada-46da-8985-8282535f77ac,48522ac4-74b2-426d-b56c-4a4abca49d12,770ce6b0-5afe-472d-ac0d-1fae72acc4e4,d2f4cb88-b929-4f6c-8944-221108a41f57,f5b85e91-2303-4094-9cd1-73dab9585935,71185b05-072a-4683-ab19-0fb016b58101" # aro-hcp-owners members
       opstool:
         aks:
           name: "opstool-{{ .ctx.regionShort }}"
+          tags: "clusterType=opstool-cluster,persist=true"
           vnetAddressPrefix: "10.0.0.0/16"
           subnetPrefix: "10.0.1.0/24"
           podSubnetPrefix: "10.0.2.0/24"
-          kubernetesVersion: 1.32.5
+          kubernetesVersion: "1.35"
           networkDataplane: "cilium"
           networkPolicy: "cilium"
+          upgradeSettings:
+            maxSurge: "10%"
+            maxUnavailable: "0"
           clusterOutboundIPAddressIPTags: ""
           etcd:
             name: "opstool-etcd-{{ .ctx.regionShort }}"
@@ -124,7 +131,7 @@ clouds:
           image:
             registry: "quay.io"
             repository: "roivaz/cihealth"
-            tag: "9763534"
+            digest: sha256:95a79e4c72249144eda18f1ec196f21b240151ae01aa73947a25366dc39eeb3b # 5dea9d3 (2026-09-21 10:14)
           disableRuntimeWorkloads: false
           app:
             replicas: 2
@@ -139,6 +146,15 @@ clouds:
             gatewayNamespace: "aks-istio-ingress"
             sectionName: "tools-https"
             blockReviewPath: true
+        batchAnalysis:
+          storageAccount:
+            name: "arohcpdevcibatch{{ .ctx.regionShort }}"
+            location: "{{ .ctx.region }}"
+            containerName: "analyses"
+          chaiBot:
+            # app registration associated with chai-bot (same principal used as
+            # the shared Kusto viewerIdentity)
+            principalId: "5990dc26-1b73-4547-9bba-9a5bd64a0165"
         alerting:
           email: "aro-hcp-service-lifecycle-team@redhat.com"
           enabled: true
@@ -146,7 +162,50 @@ clouds:
           image:
             registry: "arohcpsvcdev.azurecr.io"
             repository: "tenant-quota-collector"
-            tag: "latest"
+            digest: sha256:363e34d6ee000fea0b6735140229a40e818c782c7b9522464a095931859a3545 # b391793fcfa04c2b91e5ba4420b5d12dafc7d153 (2026-09-18 18:28)
+          ciJobOutcomes:
+            # Records the outcome of each CI job run so the alerts and logs in
+            # the dev Kusto can be attributed to the run that produced them.
+            enabled: true
+            kustoName: "hcp-dev-us-2"
+            kustoResourceGroup: "hcp-kusto-us"
+            clusterURI: "https://hcp-dev-us-2.eastus2.kusto.windows.net"
+            ingestionURI: "https://ingest-hcp-dev-us-2.eastus2.kusto.windows.net"
+            database: "ServiceLogs"
+            outcomes:
+              table: "ciJobOutcomes"
+              ingestionMapping: "ciJobOutcomesMapping"
+            testNames:
+              table: "ciTestNames"
+              ingestionMapping: "ciTestNamesMapping"
+            testResults:
+              table: "ciTestResults"
+              ingestionMapping: "ciTestResultsMapping"
+            sippyURI: "https://sippy.dptools.openshift.org"
+            jobFilter: "e2e-parallel"
+            interval: "5m"
+            # Bounds a single pass, so a stuck read cannot stall collection.
+            # Longer than the collector-wide timeout because a pass reads one
+            # set of artifacts per run it has not seen.
+            timeout: "10m"
+            # How much recent history each pass reads. Runs already stored are
+            # subtracted, so this only has to cover a slow run completing after
+            # faster ones started later.
+            window: "24h"
+            releases:
+            - "Presubmits"
+            - "aro-integration"
+            - "aro-stage"
+            - "aro-production"
+          prow:
+            enabled: true
+            baseURL: "https://prow.ci.openshift.org"
+            interval: "5m"
+            retention: "24h"
+            repository:
+              org: "Azure"
+              name: "ARO-HCP"
+            excludeJobs: []
           tenants:
           - tenantId: "64dc69e4-d083-49fc-9569-ebece1dd1408"
             tenantName: "RedHat0"
@@ -155,47 +214,46 @@ clouds:
             directoryQuota: true
             subscriptions:
             - name: "ARO Hosted Control Planes (EA Subscription 1)"
-              roleAssignmentLimit: 4000
               regions:
               - westus3
               - centralus
               - canadacentral
             - name: "ARO HCP E2E Hosted Clusters (EA Subscription)"
-              roleAssignmentLimit: 8000
               regions:
               - westus3
               - centralus
               - canadacentral
             - name: "ARO HCP E2E Hosted Clusters 2 (EA Subscription)"
-              roleAssignmentLimit: 8000
               regions:
               - westus3
               - centralus
               - canadacentral
             - name: "ARO HCP E2E Hosted Clusters - Dev - 02"
-              roleAssignmentLimit: 8000
               regions:
               - westus3
               - centralus
               - canadacentral
             - name: "ARO HCP E2E Hosted Clusters - Dev - 03"
-              roleAssignmentLimit: 8000
               regions:
               - westus3
               - centralus
               - canadacentral
             - name: "ARO HCP E2E Infrastructure (EA Subscription)"
-              roleAssignmentLimit: 4000
               regions:
               - westus3
               - centralus
               - canadacentral
             - name: "ARO SRE Team - INT (EA Subscription 3)"
-              roleAssignmentLimit: 4000
               regions:
               - uksouth
             - name: "ARO HCP E2E Hosted Clusters - Stage - 00"
-              roleAssignmentLimit: 8000
+              regions:
+              - uksouth
+              - westus3
+            - name: "ARO HCP E2E Hosted Clusters - Prod - 00"
+              regions:
+              - uksouth
+            - name: "ARO HCP E2E Hosted Clusters - Prod - 01"
               regions:
               - uksouth
           # Test Test Azure Red Hat OpenShift (Microsoft E2E tenant); directory quota off — subscription ARM only.
@@ -206,7 +264,6 @@ clouds:
             directoryQuota: false
             subscriptions:
             - name: "ARO HCP E2E"
-              roleAssignmentLimit: 4000
               regions:
               - eastus2euap
               - uksouth
@@ -236,63 +293,59 @@ clouds:
             isGlobalSubscription: true
           - name: "ARO HCP E2E Infrastructure (EA Subscription)"
             id: "0ef1ad54-9296-44cd-9600-5dc8e9a74034"
-          devMockIdentities:
-            homeSubscriptionId: "1d3378d3-5a3f-4712-85a1-2485495dfc4b"
-            sharedPrincipals:
-              firstParty:
-                principalId: "47f69502-0065-4d9a-b19b-d403e183d2f4"
-              armHelper:
-                principalId: "ddeffa11-e3d9-487d-8fc9-9a9e26f64975"
-              miMock:
-                principalId: "d6b62dfa-87f5-49b3-bbcb-4a687c4faa96"
-            msiMockPool:
-              principals:
-                aro-hcp-msi-mock-cs-sp-dev-0:
-                  principalId: "db27175c-5bd0-48b4-929a-41de9a53ffbf"
-                aro-hcp-msi-mock-cs-sp-dev-1:
-                  principalId: "cd39c606-1f6a-4062-a5b9-497cd04c39fc"
-                aro-hcp-msi-mock-cs-sp-dev-2:
-                  principalId: "3871b527-fb1e-4123-b38b-3cb2445a9fc8"
-                aro-hcp-msi-mock-cs-sp-dev-3:
-                  principalId: "e92b9f76-b040-4cf6-a4dd-5c8bdc759e69"
-                aro-hcp-msi-mock-cs-sp-dev-4:
-                  principalId: "3d8c36e1-ae7a-42ef-b7d1-ea4667708d30"
-                aro-hcp-msi-mock-cs-sp-dev-5:
-                  principalId: "3015be55-a361-4a86-8439-0abc7860a4ef"
-                aro-hcp-msi-mock-cs-sp-dev-6:
-                  principalId: "f8be0ede-39df-41cf-aed7-7f3626f23a5a"
-                aro-hcp-msi-mock-cs-sp-dev-7:
-                  principalId: "07aa0e83-353e-444c-9f1d-d023ac3c5396"
-                aro-hcp-msi-mock-cs-sp-dev-8:
-                  principalId: "0d25d885-2cd8-4972-b610-4d85881c1ec4"
-                aro-hcp-msi-mock-cs-sp-dev-9:
-                  principalId: "5157a63c-87dc-4680-8f46-954b46399bdc"
-                aro-hcp-msi-mock-cs-sp-dev-10:
-                  principalId: "5a34d2fd-f7db-460a-a272-334006a8a3b8"
-                aro-hcp-msi-mock-cs-sp-dev-11:
-                  principalId: "fd35ac5f-6493-40cb-9131-d669a70114c3"
-                aro-hcp-msi-mock-cs-sp-dev-12:
-                  principalId: "a76148d4-cb11-4b93-9363-54ba8239b0b1"
-                aro-hcp-msi-mock-cs-sp-dev-13:
-                  principalId: "b117cf0f-0276-4486-9691-4f00f5a90e1b"
-                aro-hcp-msi-mock-cs-sp-dev-14:
-                  principalId: "8d1ff6d0-aadd-4331-9171-9443ac5f4337"
-                aro-hcp-msi-mock-cs-sp-dev-15:
-                  principalId: "3e3ad333-db6b-46df-b57d-6f0989dda8b2"
-                aro-hcp-msi-mock-cs-sp-dev-16:
-                  principalId: "b26c2343-0863-4a55-bb7e-dfb2544999c1"
-                aro-hcp-msi-mock-cs-sp-dev-17:
-                  principalId: "39eefc4f-5e24-491d-9f09-bcc0ad573bcf"
-                aro-hcp-msi-mock-cs-sp-dev-18:
-                  principalId: "ccbf438f-08ec-4e2b-ae4e-219ce7dc3762"
-                aro-hcp-msi-mock-cs-sp-dev-19:
-                  principalId: "12eafc4e-f869-4b62-8198-816b7d6d0876"
+          mockIdentities:
+            vaultUrl: "https://aro-hcp-dev-svc-kv.vault.azure.net"
+            firstParty:
+              applicationName: "aro-dev-first-party2"
+              certName: "firstPartyCert2"
+              certDns: "firstparty.hcp.osadev.cloud"
+            armHelper:
+              applicationName: "aro-dev-arm-helper2"
+              certName: "armHelperCert2"
+              certDns: "armhelper.hcp.osadev.cloud"
+            armHelperPool:
+              appBaseName: "aro-dev-arm-helper-pool"
+              certBaseName: "armHelperPoolCert"
+              certBaseDns: "armhelperpool.hcp.osadev.cloud"
+              size: 40
+            msiMock:
+              applicationName: "aro-dev-msi-mock2"
+              certName: "msiMockCert2"
+              certDns: "msimock.hcp.osadev.cloud"
+            pool:
+              appBaseName: "aro-dev-msi-mock-pool"
+              certBaseName: "msiMockPoolCert"
+              certBaseDns: "msimockpool.hcp.osadev.cloud"
+              size: 20
         int:
           bot:
             applicationName: "OpenShift Release Bot - INT"
           e2eSubscriptions:
           - name: "ARO SRE Team - INT (EA Subscription 3)"
             id: "64f0619f-ebc2-4156-9d91-c4c781de7e54"
+          mockIdentities:
+            vaultUrl: "https://aro-hcp-int-kv.vault.azure.net"
+            firstParty:
+              applicationName: "aro-hcp-int-fp"
+              certName: "intFirstPartyCert"
+              certDns: "intfirstparty.hcp.osadev.cloud"
+            armHelper:
+              applicationName: "aro-hcp-int-arm-helper"
+              certName: "intArmHelperCert"
+              certDns: "intarmhelper.hcp.osadev.cloud"
+            clustersServiceArmHelper:
+              applicationName: "aro-hcp-int-cs-arm-helper"
+              certName: "intCsArmHelperCert"
+              certDns: "intcsarmhelper.hcp.osadev.cloud"
+            msiMock:
+              applicationName: "aro-hcp-int-msi-mock"
+              certName: "intMsiMockCert"
+              certDns: "intmsimock.hcp.osadev.cloud"
+            pool:
+              appBaseName: "aro-hcp-int-msi-mock-pool"
+              certBaseName: "intMsiMockPoolCert"
+              certBaseDns: "intmsimockpool.hcp.osadev.cloud"
+              size: 0
         stg:
           bot:
             applicationName: "OpenShift Release Bot - STG"

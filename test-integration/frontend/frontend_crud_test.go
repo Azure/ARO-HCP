@@ -21,7 +21,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/test-integration/utils/integrationutils"
 )
 
@@ -38,9 +38,9 @@ func testFrontendCRUD(t *testing.T, withMock bool) {
 	allCRUDDirFS, err := fs.Sub(artifacts, "artifacts/FrontendCRUD")
 	require.NoError(t, err)
 
-	crudSuiteDirs := api.Must(fs.ReadDir(allCRUDDirFS, "."))
+	crudSuiteDirs := metadataapi.Must(fs.ReadDir(allCRUDDirFS, "."))
 	for _, crudSuiteDirEntry := range crudSuiteDirs {
-		crudSuiteDir := api.Must(fs.Sub(allCRUDDirFS, crudSuiteDirEntry.Name()))
+		crudSuiteDir := metadataapi.Must(fs.Sub(allCRUDDirFS, crudSuiteDirEntry.Name()))
 		t.Run(crudSuiteDirEntry.Name(), func(t *testing.T) {
 			testUntypedCRUDSuite(
 				ctx,

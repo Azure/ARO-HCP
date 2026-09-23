@@ -30,6 +30,16 @@ RUN curl -sfL https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq
     tar -zvxf yq.tar.gz && \
     mv yq_linux_amd64 /usr/local/bin/yq
 
+FROM --platform=linux/amd64 mcr.microsoft.com/oss/go/microsoft/golang:1.25-azurelinux3.0 AS gobuilder
+WORKDIR /src
+COPY acrauth/go.mod acrauth/go.sum acrauth/
+RUN cd acrauth && go mod download
+COPY acrauth/ acrauth/
+# https://github.com/microsoft/go/tree/microsoft/main/eng/doc/fips#build-option-to-require-fips-mode
+ENV CGO_ENABLED=1 GOFIPS140=latest
+RUN --mount=type=cache,target=/go/cache \
+    cd acrauth && GOCACHE=/go/cache go build -o /out/acrauth .
+
 # azurelinux3.0 from Apr 1st 2025
 FROM --platform=linux/amd64 mcr.microsoft.com/azure-cli@sha256:18ec5cf02ba6b46e9858ddff1125baaa1f14ba919f77ebc67c918c891f8df4a2
 
@@ -42,7 +52,8 @@ RUN mkdir --mode=777 /workspace; \
 WORKDIR /workspace
 
 ADD mirror.sh /usr/local/bin/mirror.sh
-ADD docker-login.sh /usr/local/bin/docker-login.sh
+
+COPY --chown=0:0 --chmod=755 --from=gobuilder /out/acrauth /usr/local/bin/acrauth
 
 COPY --chown=0:0 --chmod=755 --from=downloader \
     /usr/local/bin/oc-mirror-4.16 \

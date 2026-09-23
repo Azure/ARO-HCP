@@ -136,6 +136,10 @@ Incomplete list:
 
 The github.com/Azure/ARO-Tools repo is also a dependency and changes can be suggested for it.
 
+## Architectural Boundaries
+
+- **The frontend must never access kube-applier, `ReadDesireLister`, or management cluster APIs directly.** All management-cluster state needed by the frontend or admission code must be mirrored through `ServiceProviderCluster` by the backend. This architectural boundary prevents the frontend from having credentials or network access to management clusters. Concretely: the backend (which legitimately watches management clusters) observes the needed state and writes a distilled form onto the `ServiceProviderCluster` document in Cosmos; the frontend prefetches `ServiceProviderCluster` and admission reads it from the admission context — never from a live management-cluster client. For example, `admitClusterVersionID` validates a version change against `ServiceProviderCluster.Status.DesiredVersionChannels`, which the backend `ControlPlaneActiveVersions` controller mirrors from the observed HostedCluster. See `internal/admission/CLAUDE.md` for the full rule.
+
 ## Additional Build, Configuration and Deployment Info
 
 ### Go Workspace
@@ -198,6 +202,12 @@ Each service follows consistent patterns:
   - `Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster")` — not `Expect(err).NotTo(HaveOccurred())`
   - `Expect(resp.Properties).NotTo(BeNil(), "cluster response Properties was nil")` — not `Expect(resp.Properties).NotTo(BeNil())`
 
+- **Every controller has a name constant and seeds its logger from it.** Each controller package defines `const XxxControllerName = "..."` and uses that single value for: the `name` field on the controller struct, the workqueue `Name` (which surfaces as a Prometheus label), `utils.ContextWithControllerName(ctx, name)`, and `utils.LogValues{}.AddControllerName(name)`. Hardcoded string literals in those four call sites are a review-blocker — they cause silent drift between metrics labels, ctx values, and log fields.
+
+- **Workqueue keys implement `utils.LoggableKey`.** Any struct used as a controller workqueue key must implement `AddLoggerValues(logger logr.Logger) logr.Logger` (declared in `internal/utils/context.go` alongside `LogValues`). The standard implementation builds the key's `*azcorearm.ResourceID` and calls `utils.LogValues{}.AddLogValuesForResourceID(...)` so every log line from a reconcile carries the same `subscription_id` / `resource_group` / `resource_id` / `hcp_cluster_name` set — uniform across backend and kube-applier, and consistent with the Kusto indexes. Backend examples: `HCPClusterKey`, `HCPNodePoolKey`, `OperationKey` in `backend/pkg/controllers/controllerutils/util.go`. Kube-applier examples: `ApplyDesireKey`, `DeleteDesireKey`, `ReadDesireKey` in `kube-applier/pkg/controllers/keys/keys.go`.
+
+- **Worker loops seed per-key logger via `utils.AddLoggerValues`.** Every controller's `processNext` (or equivalent) must call `logger := utils.AddLoggerValues(utils.LoggerFromContext(ctx), key)` and `ctx = utils.ContextWithLogger(ctx, logger)` after pulling a key off the queue but before invoking `SyncOnce`. The backend's `genericWatchingController` does this once; kube-applier controllers, which run their own worker loops, must do it themselves.
+
 ### API Versioning
 ARM API versions live under `internal/api/v<YYYYMMDD>preview/` (e.g. `v20240610preview`, `v20251223preview`). Each version directory has a `generated/` subdirectory with auto-generated types and a `register.go` that wires the version into the API registry. Conversion between API versions and internal types happens in the `*_methods.go` files. The internal (versionless) types live in `internal/api/`.
 
@@ -244,6 +254,26 @@ Custom tools in `tooling/`:
 - `templatize` - Pipeline template processing
 - `secret-sync` - Secret management utilities
 - `prometheus-rules` - Monitoring rule generation
+
+## Cosmos Data Flow Documentation
+
+`docs/cosmos-data-flow.md` documents every controller, endpoint writes, external resource effects, and cluster/node-pool/external-auth lifecycles. Keep the reference and its Graphviz sources/PNGs in sync with the code.
+
+### When to regenerate
+Regenerate `docs/cosmos-data-flow.md` (using [the generation prompt](docs/prompts/controller-data-flow.md)) whenever a change touches:
+- `frontend/pkg/frontend/` — any handler that writes to Cosmos
+- Controller implementations or startup registration in backend, fleet, kube-applier, mgmt-agent, sessiongate, or shared informer management — including controllers without Cosmos writes
+- Azure/Cluster Service/Kubernetes effects, reconciliation gates, or resource lifecycle dependencies
+- `internal/api/` — any struct field that is stored in Cosmos
+- `internal/database/` — any change to CRUD operations or precondition logic
+
+### Field-level writer annotations
+Every leaf struct field in `internal/api/types_*.go` files (the types stored in Cosmos) must have a `// Written by:` comment listing the actors (frontend endpoints and/or backend controllers) that set it. For example:
+```go
+// Written by: Frontend PUT Cluster (Create), ClusterClusterServiceCreate
+ClusterServiceID *InternalID `json:"clusterServiceID,omitempty"`
+```
+When adding or modifying a field, update this comment. When adding or modifying a controller or frontend endpoint that writes a field, update the comment on the field it writes.
 
 ## Subdirectory Guidance
 

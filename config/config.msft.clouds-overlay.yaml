@@ -4,10 +4,6 @@ clouds:
       int:
         # this is the MSFT INT environment
         defaults:
-          # Monitoring - Int needs higher limits
-          monitoring:
-            maxActiveTimeSeries: 4000000
-            maxEventsPerMinute: 4000000
           # E2E
           e2e:
             regionTest:
@@ -16,12 +12,110 @@ clouds:
           frontend:
             audit:
               connectSocket: true
+          # MISE
+          mise:
+            audit:
+              connectSocket: true
+          # Prometheus mgmt-cluster survival tuning (AROSLSRE-1553/1554/1555).
+          # A single prom-agent OOM-crashloop blacked out int-uksouth-mgmt-1 for
+          # ~37h. Mitigations, all scoped to the INT mgmt clusters:
+          #  - infraAgentPool.minCount 1 -> 2: raise the guaranteed infra floor
+          #    from 2 to 4 nodes (poolCount 2 x minCount 2) so the 8 prom pods
+          #    (4 shards x 2 replicas) sit ~2/node with room to breathe; the
+          #    autoscaler ceiling (maxCount 3/pool) is unchanged.
+          #  - shards 2 -> 4: halves per-shard series/WAL so a remote-write stall
+          #    replay after a restart stays bounded.
+          #  - requests.memory 2Gi: keeps all 8 pods schedulable across 4 nodes
+          #    (2 x 2Gi + ~2Gi infra baseline = ~6Gi/node of ~11.8Gi).
+          # The memory limit is intentionally not set here: sdp-pipelines pins
+          # the mgmt prometheus limit to 6Gi (hcp/config.msft.sensitive.clouds-overlay.yaml)
+          # and that override wins, so any value set here is dead config.
+          mgmt:
+            aks:
+              infraAgentPool:
+                minCount: 2
+            prometheus:
+              prometheusSpec:
+                shards: 4
+                resources:
+                  requests:
+                    memory: 2Gi
       stg:
         # this is the MSFT STAGE environment
+        regions:
+          # westus3: second STG region, born on the dedicated hcp-stg-global sub with
+          # its "…2" global names (AROSLSRE-1657). uksouth stays on hcp-global.
+          westus3:
+            global:
+              subscription:
+                key: hcp-stg-global
+              keyVault:
+                name: "arohcp{{ .ctx.environment }}2-global"
+            acr:
+              svc:
+                name: "arohcpsvc{{ .ctx.environment }}2"
+              ocp:
+                name: "arohcpocp{{ .ctx.environment }}2"
+            geneva:
+              actions:
+                keyVault:
+                  name: "arohcp{{ .ctx.environment }}2-geneva-kv"
+            oidc:
+              storageAccount:
+                name: "arohcp{{ .ctx.environment }}2oidc{{ .ctx.regionShort }}"
+              frontdoor:
+                name: "arohcp{{ .ctx.environment }}2"
+                keyVault:
+                  name: "ah-{{ .ctx.environment }}2-afd"
+            monitoring:
+              grafanaName: "arohcp-{{ .ctx.environment }}2"
+            kusto:
+              # US-geography cluster (hcp-{env}-{geoShort} convention), separate from
+              # the uksouth hcp-stg-uk-* cluster.
+              kustoName: "hcp-{{ .ctx.environment }}-us-1"
         defaults:
-          # This must be defined here, so our ci jobs can know this
+          # Carry the environment in the subscription display names for stage, so the
+          # stg subscriptions are distinguishable from the identically-named prod ones.
+          # The base config.yaml default omits the environment, so prod is unchanged;
+          # this only overrides stage, matching the global sub which already includes it.
+          svc:
+            subscription:
+              displayName: "Azure Red Hat OpenShift HCP - {{ .ctx.environment }} - {{ .ev2.regionFriendlyName }} - SVC"
+          mgmt:
+            subscription:
+              displayName: "Azure Red Hat OpenShift HCP - {{ .ctx.environment }} - {{ .ev2.regionFriendlyName }} - MGMT - {{ .ctx.stamp }}"
+          serviceKeyVault:
+            subscription:
+              displayName: "Azure Red Hat OpenShift HCP - {{ .ctx.environment }} - {{ .ev2.regionFriendlyName }} - SVC"
+          # This must be defined here, so our ci jobs can know this.
+          # This is the LIVE (V1) cluster in rg hcp-kusto-stg-uk of the
+          # `Azure Red Hat OpenShift v4.x - HCP Global` sub, which uksouth deploys
+          # into. Do NOT set it to hcp-stg-uk-3 — that is the transient V2 cluster
+          # under stgGlobalV2, in the separate hcp-stg-global sub. Both subs have an
+          # rg named hcp-kusto-stg-uk, and Kusto cluster names are globally unique.
           kusto:
             kustoName: "hcp-stg-uk-2"
+          # Transient STG-global "V2" names for the parallel infra in the dedicated
+          # hcp-stg-global sub during coexistence. Removed at decommission.
+          stgGlobalV2:
+            acrSvcName: "arohcpsvc{{ .ctx.environment }}2"
+            acrOcpName: "arohcpocp{{ .ctx.environment }}2"
+            globalKeyVaultName: "arohcp{{ .ctx.environment }}2-global"
+            genevaKeyVaultName: "arohcp{{ .ctx.environment }}2-geneva-kv"
+            frontDoorName: "arohcp{{ .ctx.environment }}2"
+            frontDoorKeyVaultName: "ah-{{ .ctx.environment }}2-afd"
+            oidcStorageAccountName: "arohcp{{ .ctx.environment }}2oidc{{ .ctx.regionShort }}"
+            # Dedicated stg parent zones (replace the shared aro-hcp.azure.com / aroapp-hcp.io).
+            svcParentZoneName: "aro-hcp-{{ .ctx.environment }}.azure.com"
+            cxParentZoneName: "aroapp-hcp-{{ .ctx.environment }}.azure.com"
+            # V2 stg Kusto cluster.
+            kustoName: "hcp-{{ .ctx.environment }}-uk-3"
+            # V2 Grafana workspace (globally unique, differs from the live name).
+            grafanaName: "arohcp-{{ .ctx.environment }}2"
+            # Dedicated stg billing Kusto in hcp-stg-global (E8a_v4; E8ads_v5 is not
+            # offered in uksouth). Consumed by the transient Billing.StgGlobal bicepparam.
+            billingKustoName: "arohcpHoBo{{ .ctx.environment }}"
+            billingKustoSku: "Standard_E8a_v4"
           # E2E
           e2e:
             regionTest:
@@ -31,6 +125,10 @@ clouds:
             deployDebugJobs: true
           # RP Frontend
           frontend:
+            audit:
+              connectSocket: true
+          # MISE
+          mise:
             audit:
               connectSocket: true
       prod:
@@ -47,10 +145,26 @@ clouds:
           frontend:
             audit:
               connectSocket: true
+          # MISE
+          mise:
+            audit:
+              connectSocket: true
         regions:
           eastus2euap:
+            e2e:
+              regionTest:
+                # Canary: eastus2euap is pinned to the Test-Tenant sub, the only
+                # PROD sub onboarded into the canary program.
+                allowedSubscriptions: "ARO HCP E2E"
             kusto:
               location: "eastus2"
+            # Canary/EUAP replica: keep its regional data endpoint disabled so it
+            # doesn't serve co-located prod pulls (AROSLSRE-1592, AROSLSRE-1810).
+            acr:
+              ocp:
+                replicationState: false
+              svc:
+                replicationState: false
           switzerlandnorth:
             kusto:
               kustoName: "hcp-prod-ch-2"

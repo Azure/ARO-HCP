@@ -1,16 +1,14 @@
 {{ template "bundleMap" . }}
 let bundleResources = bundleMap
 | summarize groupVersion = take_any(groupVersion), resourceKind = take_any(resourceKind), label = take_any(label) by resourceNamespace, resourceName;
-cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('aksEvents')
-| where timestamp between ({{ kqlDatetime .PhaseStartTime }} .. {{ kqlDatetime .PhaseEndTime }})
+cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('kubeAudit')
+| where requestReceivedTimestamp between ({{ kqlDatetime .PhaseStartTime }} .. {{ kqlDatetime .PhaseEndTime }})
 {{- if and .ServiceClusterName .ManagementClusterName }}
-| where cluster in ('{{ .ServiceClusterName }}', '{{ .ManagementClusterName }}')
+| where resourceId contains '{{ .ServiceClusterName }}' or resourceId contains '{{ .ManagementClusterName }}'
 {{- end }}
-| where operationName == 'kube-audit'
-| extend event = parse_json(log)
-| where event.stage == 'ResponseComplete'
-| extend objectNamespace = tostring(event.objectRef.namespace), objectName = tostring(event.objectRef.name)
+| where stage == 'ResponseComplete'
+| extend objectNamespace = tostring(objectRef.namespace), objectName = tostring(objectRef.name)
 | lookup bundleResources on $left.objectNamespace == $right.resourceNamespace, $left.objectName == $right.resourceName
 | where isnotempty(label)
-| project timestamp, groupVersion, resourceKind, label, objectNamespace, objectName, verb = tostring(event.verb), user = tostring(event.user.username), responseCode = toint(event.responseStatus.code)
+| project timestamp = requestReceivedTimestamp, groupVersion, resourceKind, label, objectNamespace, objectName, verb, user = tostring(user.username), responseCode = toint(responseStatus.code)
 | order by timestamp asc

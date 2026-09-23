@@ -4,6 +4,12 @@ entrypoints:
     name: Global
     scopeDoc: high-level-architecture.md
     incremental: "true"
+# TRANSIENT - new root entrypoint for the parallel STG-global "V2" stack. Kept
+# separate from HCP.Global so EV2 never co-deploys the two. Removed at decommission.
+- identifier: 'Microsoft.Azure.ARO.HCP.Global.StgGlobal'
+  metadata:
+    name: Global STG V2
+    scopeDoc: high-level-architecture.md
 - identifier: 'Microsoft.Azure.ARO.HCP.Region'
   metadata:
     name: Region
@@ -68,6 +74,11 @@ services:
         - serviceGroup: Microsoft.Azure.ARO.HCP.MgmtAgent
           pipelinePath: mgmt-agent/pipeline.yaml
           purpose: Deploy the Management Agent.
+          children:
+          # Optional diagnostics follow mgmt-agent without gating fleet registration.
+          - serviceGroup: Microsoft.Azure.ARO.HCP.SwiftRecorder
+            pipelinePath: swift-recorder/pipeline.yaml
+            purpose: Deploy the opt-in SWIFT-v2 node-local startup recorder.
         - serviceGroup: Microsoft.Azure.ARO.HCP.Fleet.Registration
           pipelinePath: fleet/registration/pipeline.yaml
           purpose: Register the stamp and management cluster in CosmosDB.
@@ -85,8 +96,20 @@ services:
     purpose: Deploy geography-level shared infrastructure.
   pipelinePath: dev-infrastructure/global-pipeline.yaml
   purpose: Deploy global shared infrastructure.
+# TRANSIENT - STG-global "V2" parallel global stack under the new
+# HCP.Global.StgGlobal entrypoint (NOT under HCP.Global). Deploys global +
+# geography into the dedicated hcp-stg-global subscription during coexistence.
+# Removed at decommission.
+- serviceGroup: Microsoft.Azure.ARO.HCP.Global.StgGlobal
+  children:
+  - serviceGroup: Microsoft.Azure.ARO.HCP.Geography.StgGlobal
+    pipelinePath: dev-infrastructure/geography-pipeline-stg.yaml
+    purpose: Deploy geography-level shared infrastructure (STG V2).
+  pipelinePath: dev-infrastructure/global-pipeline-stg.yaml
+  purpose: Deploy global shared infrastructure (STG V2).
 # Cleanup pipelines
 - serviceGroup: Microsoft.Azure.ARO.HCP.Management.Delete
+  stamped: true
   pipelinePath: dev-infrastructure/cleanup/delete.mgmt.pipeline.yaml
   purpose: Delete the management resources and management resource group
 - serviceGroup: Microsoft.Azure.ARO.HCP.Service.Delete
@@ -96,7 +119,11 @@ services:
   pipelinePath: dev-infrastructure/cleanup/delete.region.pipeline.yaml
   purpose: Delete the region resources and resource group
 # Dev-only pipelines
+- serviceGroup: Microsoft.Azure.ARO.HCP.Grafana
+  pipelinePath: dev-infrastructure/grafana-pipeline.yaml
+  purpose: Test pipeline for Grafana reconciliation.
 - serviceGroup: Microsoft.Azure.ARO.HCP.Observability
+  stamped: true
   pipelinePath: observability/tracing/pipeline.yaml
   purpose: Deploy the development tracing stack.
 # Kusto Infra pipeline
@@ -107,5 +134,6 @@ services:
   pipelinePath: dev-infrastructure/svc-kubeconfig.yaml
   purpose: Grant access to AKS SVC AKS Clusters, mainly intended for E2E test setup.
 - serviceGroup: Microsoft.Azure.ARO.HCP.Management.Kubeconfig
+  stamped: true
   pipelinePath: dev-infrastructure/mgmt-kubeconfig.yaml
-  purpose: Grant access to AKS SVC AKS Clusters, mainly intended for E2E test setup.
+  purpose: Grant access to AKS Management Clusters, mainly intended for E2E test setup.

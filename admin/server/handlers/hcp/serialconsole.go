@@ -23,8 +23,9 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5"
 
-	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/fpa"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/internal/validation"
@@ -38,13 +39,13 @@ const (
 // for debugging purposes. This endpoint allows SREs to access boot diagnostics
 // and console output from VMs in the HCP cluster's managed resource group.
 type HCPSerialConsoleHandler struct {
-	resourcesDBClient      database.ResourcesDBClient
+	resourcesDBClient      corecosmosstorage.ResourcesDBClient
 	fpaCredentialRetriever fpa.FirstPartyApplicationTokenCredentialRetriever
 }
 
 // NewHCPSerialConsoleHandler creates a new serial console handler with the required dependencies
 func NewHCPSerialConsoleHandler(
-	resourcesDBClient database.ResourcesDBClient,
+	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	fpaCredentialRetriever fpa.FirstPartyApplicationTokenCredentialRetriever,
 ) *HCPSerialConsoleHandler {
 	return &HCPSerialConsoleHandler{
@@ -57,9 +58,9 @@ func NewHCPSerialConsoleHandler(
 func (h *HCPSerialConsoleHandler) ServeHTTP(writer http.ResponseWriter, request *http.Request) error {
 	resourceID, err := utils.ResourceIDFromContext(request.Context())
 	if err != nil {
-		return arm.NewCloudError(
+		return coreapi.NewCloudError(
 			http.StatusBadRequest,
-			arm.CloudErrorCodeInvalidRequestContent,
+			coreapi.CloudErrorCodeInvalidRequestContent,
 			"",
 			"invalid resource identifier in request",
 		)
@@ -67,18 +68,18 @@ func (h *HCPSerialConsoleHandler) ServeHTTP(writer http.ResponseWriter, request 
 
 	vmName := request.URL.Query().Get("vmName")
 	if vmName == "" {
-		return arm.NewCloudError(
+		return coreapi.NewCloudError(
 			http.StatusBadRequest,
-			arm.CloudErrorCodeInvalidRequestContent,
+			coreapi.CloudErrorCodeInvalidRequestContent,
 			"",
 			"vmName query parameter is required",
 		)
 	}
 
 	if !validation.IsValidAzureVMName(vmName) {
-		return arm.NewCloudError(
+		return coreapi.NewCloudError(
 			http.StatusBadRequest,
-			arm.CloudErrorCodeInvalidRequestContent,
+			coreapi.CloudErrorCodeInvalidRequestContent,
 			"",
 			"vmName contains invalid characters or format",
 		)
@@ -90,10 +91,10 @@ func (h *HCPSerialConsoleHandler) ServeHTTP(writer http.ResponseWriter, request 
 	}
 
 	subscription, err := h.resourcesDBClient.Subscriptions().Get(request.Context(), resourceID.SubscriptionID)
-	if database.IsNotFoundError(err) {
-		return arm.NewCloudError(
+	if cosmosstorageutils.IsNotFoundError(err) {
+		return coreapi.NewCloudError(
 			http.StatusNotFound,
-			arm.CloudErrorCodeNotFound,
+			coreapi.CloudErrorCodeNotFound,
 			"",
 			"subscription %s not found", resourceID.SubscriptionID,
 		)
@@ -127,17 +128,17 @@ func (h *HCPSerialConsoleHandler) ServeHTTP(writer http.ResponseWriter, request 
 		var azErr *azcore.ResponseError
 		if ok := errors.As(err, &azErr); ok && azErr != nil {
 			if azErr.StatusCode == http.StatusNotFound {
-				return arm.NewCloudError(
+				return coreapi.NewCloudError(
 					http.StatusNotFound,
-					arm.CloudErrorCodeNotFound,
+					coreapi.CloudErrorCodeNotFound,
 					"",
 					"VM %s not found in resource group %s", vmName, managedResourceGroup,
 				)
 			}
 			if azErr.StatusCode == http.StatusConflict {
-				return arm.NewCloudError(
+				return coreapi.NewCloudError(
 					http.StatusConflict,
-					arm.CloudErrorCodeConflict,
+					coreapi.CloudErrorCodeConflict,
 					"",
 					"Boot diagnostics are unexpectedly not enabled for VM %s. Serial console logs require boot diagnostics to be enabled.", vmName,
 				)
@@ -147,9 +148,9 @@ func (h *HCPSerialConsoleHandler) ServeHTTP(writer http.ResponseWriter, request 
 	}
 
 	if result.SerialConsoleLogBlobURI == nil || *result.SerialConsoleLogBlobURI == "" {
-		return arm.NewCloudError(
+		return coreapi.NewCloudError(
 			http.StatusNotFound,
-			arm.CloudErrorCodeNotFound,
+			coreapi.CloudErrorCodeNotFound,
 			"",
 			"serial console not available for VM %s",
 			vmName,

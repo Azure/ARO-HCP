@@ -50,11 +50,18 @@ param istioVersions array = []
 param vnetName string
 param nodeSubnetId string
 param podSubnetPrefix string
-param clusterType string
+@description('CSV of key=value tag pairs for the AKS cluster resource (e.g. clusterType=svc-cluster,persist=true)')
+param aksClusterTags string
+
+@description('Owning team tag value for alert rule routing')
+param owningTeamTagValue string
 param workloadIdentities array
 param networkDataplane string
 param networkPolicy string
 param enableSwiftV2Nodepools bool
+
+param upgradeSettingsMaxSurge string
+param upgradeSettingsMaxUnavailable string
 
 param aksClusterUserDefinedManagedIdentityName string
 
@@ -67,9 +74,6 @@ param aksKeyVaultName string
 // KV tagging
 param aksKeyVaultTagName string
 param aksKeyVaultTagValue string
-
-// Owning team tag
-param owningTeamTagValue string
 
 // Local Params
 @description('Optional DNS prefix to use with hosted Kubernetes API server FQDN.')
@@ -108,6 +112,9 @@ var networkContributorRoleId = subscriptionResourceId(
   '4d97b98b-1d4f-4787-a291-c67834d212e7'
 )
 
+import {
+  csvTagsToObject
+} from '../modules/common.bicep'
 import * as res from '../modules/resource.bicep'
 
 //
@@ -257,18 +264,14 @@ var systemPoolZonesArray = systemZoneRedundantMode == 'Enabled' || (systemZoneRe
   ? systemAgentPoolZones
   : null
 
-resource aksCluster 'Microsoft.ContainerService/managedClusters@2025-07-02-preview' = {
+resource aksCluster 'Microsoft.ContainerService/managedClusters@2026-04-02-preview' = {
   location: location
   name: aksClusterName
   sku: {
     name: 'Base'
     tier: 'Standard'
   }
-  tags: {
-    persist: 'true'
-    clusterType: clusterType
-    owningTeam: owningTeamTagValue
-  }
+  tags: union(csvTagsToObject(aksClusterTags), { owningTeam: owningTeamTagValue })
   identity: {
     type: 'UserAssigned'
     userAssignedIdentities: {
@@ -409,17 +412,33 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2025-07-02-previ
     serviceMeshProfile: (deployIstio)
       ? {
           mode: 'Istio'
-          istio: {
-            components: {
-              ingressGateways: [
-                {
-                  enabled: true
-                  mode: 'External'
-                }
-              ]
-            }
-            revisions: istioVersions
-          }
+          // ISTIO REVISION DECOUPLING
+          //
+          // Mesh revisions are managed in two places:
+          //   1. Here (bicep) — sets serviceMeshProfile.istio.revisions at cluster create
+          //   2. IstioUpgrade pipeline step (svc-pipeline.yaml) — manages revisions at
+          //      deploy time via ARO-Tools istio-upgrade, reading svc.istio.versions
+          //      from config
+          //
+          // If bicep always set a concrete revision list, every ARM deployment would
+          // overwrite whatever the pipeline step had installed — potentially rolling
+          // back a completed upgrade. So istioVersions defaults to [], and we omit
+          // the revisions property entirely (ARM treats explicit null as "clear",
+          // which could wipe existing mesh revisions). Callers only pass a value
+          // for initial cluster bootstrap; after that, the pipeline step owns it.
+          istio: union(
+            {
+              components: {
+                ingressGateways: [
+                  {
+                    enabled: true
+                    mode: 'External'
+                  }
+                ]
+              }
+            },
+            empty(istioVersions) ? {} : { revisions: istioVersions }
+          )
         }
       : null
     ingressProfile: deployIstio
@@ -449,42 +468,12 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2025-07-02-previ
   ]
 }
 
-resource maintenanceWindows 'Microsoft.ContainerService/managedClusters/maintenanceConfigurations@2025-08-02-preview' = [
-  for maintenanceType in ['default', 'aksManagedAutoUpgradeSchedule', 'aksManagedNodeOSUpgradeSchedule']: {
-    parent: aksCluster
-    name: maintenanceType
-    properties: {
-      maintenanceWindow: {
-        durationHours: 10
-        startTime: '22:00'
-        notAllowedDates: [
-          {
-            start: '2025-11-16'
-            end: '2025-11-22'
-          }
-          {
-            start: '2025-11-24'
-            end: '2025-12-03'
-          }
-          {
-            start: '2025-12-22'
-            end: '2026-01-13'
-          }
-          {
-            start: '2026-02-16'
-            end: '2026-02-20'
-          }
-        ]
-        schedule: {
-          weekly: {
-            dayOfWeek: 'Saturday'
-            intervalWeeks: 1
-          }
-        }
-      }
-    }
+module maintenanceWindows 'aks/maintenance.bicep' = {
+  name: 'aks-maintenance'
+  params: {
+    aksClusterName: aksCluster.name
   }
-]
+}
 
 module userAgentPools '../modules/aks/pool.bicep' = {
   name: 'user-agent-pools'
@@ -503,6 +492,8 @@ module userAgentPools '../modules/aks/pool.bicep' = {
     vnetSubnetId: nodeSubnetId
     podSubnetId: aksPodSubnet.id
     zoneRedundantMode: userZoneRedundantMode
+    upgradeSettingsMaxSurge: upgradeSettingsMaxSurge
+    upgradeSettingsMaxUnavailable: upgradeSettingsMaxUnavailable
     maxPods: 225
   }
 }
@@ -524,6 +515,8 @@ module infraAgentPools '../modules/aks/pool.bicep' = {
     vnetSubnetId: nodeSubnetId
     podSubnetId: aksPodSubnet.id
     zoneRedundantMode: infraZoneRedundantMode
+    upgradeSettingsMaxSurge: upgradeSettingsMaxSurge
+    upgradeSettingsMaxUnavailable: upgradeSettingsMaxUnavailable
     maxPods: 225
     taints: [
       'infra=true:NoSchedule'

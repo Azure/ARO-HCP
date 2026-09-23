@@ -1,9 +1,11 @@
 # ARO-HCP
 
 # Description
-The RP for the ARO-HCP project.
+This repository contains the code, configuration, and deployment pipelines for Red Hat OpenShift on Azure (ARO) using the Hosted Control Planes (HCP) architecture. It includes the ARM Resource Provider (frontend/backend), Cluster Service integration, management cluster controllers, and all Azure infrastructure as code.
 
-The components for HCP are each encapsulated in a top-level directory and each directory contains its own Makefile. There's a single Makefile in the root directory that allows building all HCP components.
+Each component is encapsulated in a top-level directory with its own Makefile. A root Makefile provides targets for building all components and managing deployments.
+
+For a full overview, see the [documentation index](./docs/README.md) and the [high-level architecture](./docs/high-level-architecture.md).
 
 > [!TIP] Make Options
 > [Make Options](./docs/make-options.md) describes how to customize the make build e.g. by defining the container engine to be used or limiting parallel jobs.
@@ -18,7 +20,7 @@ For instructions on building and testing Frontend -- Check out Frontend's [READM
 
 The setup is based on VSCode Remote Containers. See [here](https://code.visualstudio.com/docs/remote/containers) for more information.
 
-VSCode should be installed from the [offical downloads page](https://code.visualstudio.com/download) (as opposed to other sources, like flatpak). This is to avoid potential docker compatibility issues with the required extensions mentioned below.
+VSCode should be installed from the [official downloads page](https://code.visualstudio.com/download) (as opposed to other sources, like flatpak). This is to avoid potential docker compatibility issues with the required extensions mentioned below.
 
 The predefined container is in `.devcontainer` with a custom `postCreate.sh`.
 To use it, please install the [Remote - Containers](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers) extension in VSCode.

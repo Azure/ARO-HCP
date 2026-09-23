@@ -11,6 +11,8 @@ metadata:
 spec:
   groups:
   - name: mise
+    labels:
+      component: frontend
     rules:
     - alert: MiseEnvoyScrapeDown
       # Get list of all `svc` clusters (returns 1 for each)

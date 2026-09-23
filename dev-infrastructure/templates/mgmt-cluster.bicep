@@ -1,35 +1,14 @@
-import {
-  csvToArray
-  getLocationAvailabilityZonesCSV
-} from '../modules/common.bicep'
-
-import * as mi from '../modules/managed-identities.bicep'
-import * as res from '../modules/resource.bicep'
-
 @description('Azure Region Location')
 param location string = resourceGroup().location
-
-@description('Availability Zones to use for the infrastructure, as a CSV string. Defaults to all the zones of the location')
-param locationAvailabilityZones string = getLocationAvailabilityZonesCSV(location)
-var locationAvailabilityZoneList = csvToArray(locationAvailabilityZones)
 
 @description('AKS cluster name')
 param aksClusterName string = 'aro-hcp-aks'
 
-@description('Name of the system agent pool')
-param systemAgentPoolName string
+@description('Resource ID of the node subnet, from mgmt-infra.bicep')
+param nodeSubnetId string
 
-@description('Name of the user agent pool')
-param userAgentPoolName string
-
-@description('Name of the infra agent pool')
-param infraAgentPoolName string
-
-@description('Disk size for the AKS system nodes')
-param systemOsDiskSizeGB int
-
-@description('Disk size for the AKS user nodes')
-param userOsDiskSizeGB int
+@description('Resource ID of the VNet, from mgmt-infra.bicep')
+param vnetId string
 
 @description('The resource ID of the OCP ACR')
 param ocpAcrResourceId string
@@ -37,113 +16,13 @@ param ocpAcrResourceId string
 @description('The resource ID of the SVC ACR')
 param svcAcrResourceId string
 
-@description('Name of the resource group for the AKS nodes')
-param aksNodeResourceGroupName string = '${resourceGroup().name}-aks1'
-
-@description('VNET address prefix')
-param vnetAddressPrefix string
-
-@description('Min replicas for the worker nodes')
-param userAgentMinCount int = 1
-
-@description('Max replicas for the worker nodes')
-param userAgentMaxCount int = 3
-
-@description('VM instance type for the worker nodes')
-param userAgentVMSize string = 'Standard_D2s_v3'
-
-@description('Number of pools to create for user nodes')
-param userAgentPoolCount int
-
-@description('Zones to use for the user nodes')
-param userAgentPoolZones string
-
-@description('Zone redundant mode for the user nodes')
-param userZoneRedundantMode string
-
-@description('Secondary NIC count for the user nodes')
-param userSecondaryNicCount int
-
-@description('Min replicas for the infra worker nodes')
-param infraAgentMinCount int
-
-@description('Max replicas for the infra worker nodes')
-param infraAgentMaxCount int
-
-@description('VM instance type for the infra worker nodes')
-param infraAgentVMSize string
-
-@description('Number of pools to create for infra nodes')
-param infraAgentPoolCount int
-
-@description('Zones to use for the infra nodes')
-param infraAgentPoolZones string
-
-@description('Disk size for the AKS infra nodes')
-param infraOsDiskSizeGB int
-
-@description('Zone redundant mode for the infra nodes')
-param infraZoneRedundantMode string
-
-@description('Min replicas for the system nodes')
-param systemAgentMinCount int = 2
-
-@description('Max replicas for the system nodes')
-param systemAgentMaxCount int = 3
-
-@description('VM instance type for the system nodes')
-param systemAgentVMSize string = 'Standard_D2s_v3'
-
-@description('Zones to use for the system nodes')
-param systemAgentPoolZones string
-
-@description('Zone redundant mode for the system nodes')
-param systemZoneRedundantMode string
-
-@description('Network dataplane plugin for the AKS cluster')
-param aksNetworkDataplane string
-
-@description('Network policy plugin for the AKS cluster')
-param aksNetworkPolicy string
-
-@description('Subnet address prefix')
-param subnetPrefix string
-
-@description('Specifies the address prefix of the subnet hosting the pods of the AKS cluster.')
-param podSubnetPrefix string
-
-@description('Kuberentes version to use with AKS')
-param kubernetesVersion string
-
-@description('The name of the keyvault for AKS.')
-@maxLength(24)
-param aksKeyVaultName string
-
-@description('The tag key for the AKS keyvault')
-param aksKeyVaultTagName string
-
-@description('The tag value for the AKS keyvault')
-param aksKeyVaultTagValue string
-
-@description('Manage soft delete setting for AKS etcd key-value store')
-param aksEtcdKVEnableSoftDelete bool = true
-
-@description('IPTags to be set on the cluster outbound IP address in the format of ipTagType:tag,ipTagType:tag')
-param aksClusterOutboundIPAddressIPTags string = ''
-
-@description('Enable Swift V2 for the AKS cluster VNET')
-param aksEnableSwiftVnet bool
-
-@description('Enable Swift V2 for the AKS cluster nodepools')
-param aksEnableSwiftNodepools bool
-
 @description('The name of the maestro consumer.')
 param maestroConsumerName string
 
-@description('The domain to use to use for the maestro certificate. Relevant only for environments where OneCert can be used.')
-param maestroCertDomain string
+@description('The SAN and CN for the Maestro consumer EventGrid certificate.')
+param maestroConsumerCertSAN string
 
-@description('The issuer of the maestro certificate.')
+@description('The issuer of the Maestro certificate.')
 param maestroCertIssuer string
 
 @description('The Azure resource ID of the eventgrid namespace for Maestro.')
@@ -173,12 +52,6 @@ param kubeApplierNamespace string
 @description('The service account name for kube-applier.')
 param kubeApplierServiceAccountName string
 
-@description('The CosmosDB container name for kube-applier.')
-param kubeApplierContainerName string
-
-@description('The autoscale max throughput for the kube-applier CosmosDB container.')
-param kubeApplierContainerMaxScale int
-
 @description('The name of the mgmt-agent managed identity.')
 param mgmtAgentMIName string
 
@@ -187,9 +60,6 @@ param mgmtAgentNamespace string
 
 @description('The service account name of the mgmt-agent controller.')
 param mgmtAgentServiceAccountName string
-
-@description('The regional SVC DNS zone name.')
-param regionalSvcDNSZoneName string
 
 @description('The name of the CX KeyVault')
 param cxKeyVaultName string
@@ -219,26 +89,14 @@ param logsMSI string
 @description('The service account name of the logs managed identity')
 param logsServiceAccount string
 
-@description('Issuer of certificate for Geneva Authentication')
-param genevaCertificateIssuer string = 'Self'
-
 @description('Name of certificate in Keyvault and hostname used in SAN')
 param genevaRpLogsName string
 
 @description('Name of certificate in Keyvault and hostname used in SAN')
 param genevaClusterLogsName string
 
-@description('Domain used for creation of geneva auth certificates')
-param genevaCertificateDomain string
-
-@description('Should geneva certificates be managed')
-param genevaManageCertificates bool
-
 @description('The name of the Azure Storage account to create for HCP Backups')
 param hcpBackupsStorageAccountName string
-
-@description('The cluster tag value for the owning team')
-param owningTeamTagValue string
 
 @description('Event Hub name for AKS audit logs')
 param auditLogsEventHubName string
@@ -246,9 +104,28 @@ param auditLogsEventHubName string
 @description('Resource ID of the event hub authorization rule for AKS audit logs')
 param auditLogsEventHubAuthRuleId string
 
+// The ManagedCluster resource + its node pools are created by the aks-cluster-create Go
+// tool (dev-infrastructure/scripts/aks-cluster-create), which runs as its own pipeline
+// step before this one -- see the "cluster-create" step in mgmt-pipeline.yaml. Everything
+// below reads the cluster via an `existing` resource lookup rather than a bicep module
+// output, and the workload-identity/ACR/RBAC wiring that used to live in
+// aks-cluster-base.bicep (which this template used to call as a module) is now in
+// modules/aks-cluster-post.bicep, called below.
+resource aksCluster 'Microsoft.ContainerService/managedClusters@2026-04-02-preview' existing = {
+  name: aksClusterName
+}
+
 //
 //   M A N A G E D   I D E N T I T I E S
 //
+
+module managedIdentities '../modules/managed-identities.bicep' = {
+  name: 'managed-identities'
+  params: {
+    location: location
+    manageIdentityNames: [for wi in workloadIdentities: wi.value.uamiName]
+  }
+}
 
 var workloadIdentities = items({
   maestro_wi: {
@@ -283,154 +160,32 @@ var workloadIdentities = items({
   }
 })
 
-module managedIdentities '../modules/managed-identities.bicep' = {
-  name: 'managed-identities'
+module aksPostConfig '../modules/aks-cluster-post.bicep' = {
+  name: 'aks-cluster-post'
   params: {
-    location: location
-    manageIdentityNames: [for wi in workloadIdentities: wi.value.uamiName]
-  }
-}
-
-//
-//   A K S
-//
-
-resource aksClusterUserDefinedManagedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
-  name: '${aksClusterName}-msi'
-  location: location
-}
-
-resource mgmtClusterNSG 'Microsoft.Network/networkSecurityGroups@2023-11-01' = {
-  location: location
-  name: 'mgmt-cluster-node-nsg'
-  properties: {
-    securityRules: [
-      {
-        name: 'kas-443-in-internet'
-        properties: {
-          access: 'Allow'
-          destinationAddressPrefix: '*'
-          destinationPortRange: '443'
-          direction: 'Inbound'
-          priority: 120
-          protocol: 'Tcp'
-          sourceAddressPrefix: '*'
-          sourcePortRange: '*'
-        }
-      }
-      {
-        name: 'kas-6443-in-internet'
-        properties: {
-          access: 'Allow'
-          destinationAddressPrefix: '*'
-          destinationPortRange: '6443'
-          direction: 'Inbound'
-          priority: 130
-          protocol: 'Tcp'
-          sourceAddressPrefix: '*'
-          sourcePortRange: '*'
-        }
-      }
-    ]
-  }
-}
-
-var vnetName = 'aks-net'
-var nodeSubnetName = 'ClusterSubnet-001'
-
-module vnetCreation '../modules/network/vnet.bicep' = {
-  name: 'vnet-${vnetName}-creation'
-  params: {
-    location: location
-    vnetName: vnetName
-    vnetAddressPrefix: vnetAddressPrefix
-    enableSwift: aksEnableSwiftVnet
-    deploymentMsiId: globalMSIId
-  }
-}
-
-module nodeSubnetCreation '../modules/network/aks-node-subnet.bicep' = {
-  name: 'subnet-${nodeSubnetName}-creation'
-  params: {
-    vnetName: vnetName
-    subnetName: nodeSubnetName
-    subnetNSGId: mgmtClusterNSG.id
-    subnetPrefix: subnetPrefix
-  }
-  dependsOn: [
-    vnetCreation
-  ]
-}
-
-module mgmtCluster '../modules/aks-cluster-base.bicep' = {
-  name: 'cluster-${uniqueString(resourceGroup().name)}'
-  scope: resourceGroup()
-  params: {
-    location: location
-    ipZones: locationAvailabilityZoneList
-    ipResourceGroup: resourceGroup().name
     aksClusterName: aksClusterName
-    aksNodeResourceGroupName: aksNodeResourceGroupName
-    aksEtcdKVEnableSoftDelete: aksEtcdKVEnableSoftDelete
-    aksClusterOutboundIPAddressIPTags: aksClusterOutboundIPAddressIPTags
-    deployIstio: false
-    kubernetesVersion: kubernetesVersion
-    vnetName: vnetName
-    nodeSubnetId: nodeSubnetCreation.outputs.subnetId
-    podSubnetPrefix: podSubnetPrefix
-    clusterType: 'mgmt-cluster'
-    workloadIdentities: workloadIdentities
-    aksKeyVaultName: aksKeyVaultName
-    aksKeyVaultTagName: aksKeyVaultTagName
-    aksKeyVaultTagValue: aksKeyVaultTagValue
-    pullAcrResourceIds: [ocpAcrResourceId, svcAcrResourceId]
-    systemAgentPoolName: systemAgentPoolName
-    systemAgentMinCount: systemAgentMinCount
-    systemAgentMaxCount: systemAgentMaxCount
-    systemAgentVMSize: systemAgentVMSize
-    systemAgentPoolZones: length(csvToArray(systemAgentPoolZones)) > 0
-      ? csvToArray(systemAgentPoolZones)
-      : locationAvailabilityZoneList
-    systemOsDiskSizeGB: systemOsDiskSizeGB
-    systemZoneRedundantMode: systemZoneRedundantMode
-    userOsDiskSizeGB: userOsDiskSizeGB
-    userAgentPoolName: userAgentPoolName
-    userAgentMinCount: userAgentMinCount
-    userAgentMaxCount: userAgentMaxCount
-    userAgentVMSize: userAgentVMSize
-    userAgentPoolCount: userAgentPoolCount
-    userAgentPoolZones: length(csvToArray(userAgentPoolZones)) > 0
-      ? csvToArray(userAgentPoolZones)
-      : locationAvailabilityZoneList
-    userZoneRedundantMode: userZoneRedundantMode
-    userSecondaryNicCount: userSecondaryNicCount
-    infraAgentPoolName: infraAgentPoolName
-    infraAgentMinCount: infraAgentMinCount
-    infraAgentMaxCount: infraAgentMaxCount
-    infraAgentVMSize: infraAgentVMSize
-    infraAgentPoolCount: infraAgentPoolCount
-    infraAgentPoolZones: length(csvToArray(infraAgentPoolZones)) > 0
-      ? csvToArray(infraAgentPoolZones)
-      : locationAvailabilityZoneList
-    infraZoneRedundantMode: infraZoneRedundantMode
-    infraOsDiskSizeGB: infraOsDiskSizeGB
-    networkDataplane: aksNetworkDataplane
-    networkPolicy: aksNetworkPolicy
+    location: location
     deploymentMsiId: globalMSIId
-    enableSwiftV2Nodepools: aksEnableSwiftNodepools
-    owningTeamTagValue: owningTeamTagValue
-    aksClusterUserDefinedManagedIdentityName: aksClusterUserDefinedManagedIdentity.name
+    pullAcrResourceIds: [ocpAcrResourceId, svcAcrResourceId]
+    workloadIdentities: workloadIdentities
   }
   dependsOn: [
     managedIdentities
   ]
 }
 
-output aksClusterName string = mgmtCluster.outputs.aksClusterName
+output aksClusterName string = aksClusterName
 
 //
 // M E T R I C S
 //
+
+resource prometheusUAMI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
+  name: 'prometheus'
+  dependsOn: [
+    managedIdentities
+  ]
+}
 
 module dataCollection '../modules/metrics/datacollection.bicep' = {
   name: 'metrics-infra'
@@ -439,16 +194,31 @@ module dataCollection '../modules/metrics/datacollection.bicep' = {
     azureMonitoringWorkspaceId: azureMonitoringWorkspaceId
     hcpAzureMonitoringWorkspaceId: hcpAzureMonitoringWorkspaceId
     aksClusterName: aksClusterName
-    prometheusPrincipalId: mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, 'prometheus').uamiPrincipalID
+    prometheusPrincipalId: prometheusUAMI.properties.principalId
   }
-  dependsOn: [
-    mgmtCluster
-  ]
+}
+
+// Declare this management cluster in the authoritative underlay-cluster inventory (see the module
+// for details). Instantiated per stamp, so each management cluster emits its own series and they
+// are torn down individually when a stamp is decommissioned.
+module underlayClusterMetric '../modules/metrics/underlay-clusters-metric.bicep' = {
+  name: 'underlay-clusters-metric'
+  params: {
+    azureMonitoringWorkspaceId: azureMonitoringWorkspaceId
+    clusterName: aksClusterName
+  }
 }
 
 //
 // K E Y V A U L T S
 //
+
+resource logsUAMI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
+  name: logsMSI
+  dependsOn: [
+    managedIdentities
+  ]
+}
 
 module logsMgmtKeyVaultAccess '../modules/keyvault/keyvault-secret-access.bicep' = {
   name: guid(mgmtKeyVaultName, logsMSI, 'certuser')
@@ -456,7 +226,7 @@ module logsMgmtKeyVaultAccess '../modules/keyvault/keyvault-secret-access.bicep'
     keyVaultName: mgmtKeyVaultName
     roleName: 'Key Vault Certificate User'
     managedIdentityPrincipalIds: [
-      mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, logsMSI).uamiPrincipalID
+      logsUAMI.properties.principalId
     ]
   }
 }
@@ -471,7 +241,7 @@ module cxCSIKeyVaultAccess '../modules/keyvault/keyvault-secret-access.bicep' = 
     params: {
       keyVaultName: cxKeyVaultName
       roleName: role
-      managedIdentityPrincipalIds: [mgmtCluster.outputs.aksClusterKeyVaultSecretsProviderPrincipalId]
+      managedIdentityPrincipalIds: [aksCluster.properties.addonProfiles.azureKeyvaultSecretsProvider.identity.objectId]
     }
   }
 ]
@@ -486,7 +256,7 @@ module msiCSIKeyVaultAccess '../modules/keyvault/keyvault-secret-access.bicep' =
     params: {
       keyVaultName: msiKeyVaultName
       roleName: role
-      managedIdentityPrincipalIds: [mgmtCluster.outputs.aksClusterKeyVaultSecretsProviderPrincipalId]
+      managedIdentityPrincipalIds: [aksCluster.properties.addonProfiles.azureKeyvaultSecretsProvider.identity.objectId]
     }
   }
 ]
@@ -496,32 +266,24 @@ resource mgmtKeyVault 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing = 
 }
 
 //
-//   G E N E V A   C E R T I F I C A T E
+//   G E N E V A   C E R T I F I C A T E   A C C E S S
 //
 
-module genevaRPCertificate '../modules/keyvault/key-vault-cert-with-access.bicep' = if (genevaManageCertificates) {
+module genevaRpLogsCertCSIAccess '../modules/keyvault/key-vault-secret-access.bicep' = {
   name: 'geneva-mgmt-rp-certificate'
   params: {
     keyVaultName: mgmtKeyVaultName
-    kvCertOfficerManagedIdentityResourceId: globalMSIId
-    certDomain: genevaCertificateDomain
-    certificateIssuer: genevaCertificateIssuer
-    hostName: genevaRpLogsName
-    keyVaultCertificateName: genevaRpLogsName
-    certificateAccessManagedIdentityPrincipalId: mgmtCluster.outputs.aksClusterKeyVaultSecretsProviderPrincipalId
+    principalId: aksCluster.properties.addonProfiles.azureKeyvaultSecretsProvider.identity.objectId
+    secretName: genevaRpLogsName
   }
 }
 
-module genevaClusterLogCertificate '../modules/keyvault/key-vault-cert-with-access.bicep' = if (genevaManageCertificates) {
+module genevaClusterLogsCertCSIAccess '../modules/keyvault/key-vault-secret-access.bicep' = {
   name: 'geneva-cluster-log-certificate'
   params: {
     keyVaultName: mgmtKeyVaultName
-    kvCertOfficerManagedIdentityResourceId: globalMSIId
-    certDomain: genevaCertificateDomain
-    certificateIssuer: genevaCertificateIssuer
-    hostName: genevaClusterLogsName
-    keyVaultCertificateName: genevaClusterLogsName
-    certificateAccessManagedIdentityPrincipalId: mgmtCluster.outputs.aksClusterKeyVaultSecretsProviderPrincipalId
+    principalId: aksCluster.properties.addonProfiles.azureKeyvaultSecretsProvider.identity.objectId
+    secretName: genevaClusterLogsName
   }
 }
 
@@ -529,21 +291,22 @@ module genevaClusterLogCertificate '../modules/keyvault/key-vault-cert-with-acce
 //   M A E S T R O
 //
 
-var effectiveMaestroCertDomain = !empty(maestroCertDomain) ? maestroCertDomain : 'maestro.${regionalSvcDNSZoneName}'
+resource maestroConsumerUAMI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
+  name: 'maestro-consumer'
+  dependsOn: [
+    managedIdentities
+  ]
+}
 
-module maestroConsumer '../modules/maestro/maestro-consumer.bicep' = if (maestroEventGridNamespaceId != '') {
+module maestroConsumer '../modules/maestro/maestro-consumer.bicep' = {
   name: 'maestro-consumer'
   params: {
-    maestroAgentManagedIdentityPrincipalId: mi.getManagedIdentityByName(
-      managedIdentities.outputs.managedIdentities,
-      'maestro-consumer'
-    ).uamiPrincipalID
+    maestroAgentManagedIdentityPrincipalId: maestroConsumerUAMI.properties.principalId
     maestroConsumerName: maestroConsumerName
     maestroEventGridNamespaceId: maestroEventGridNamespaceId
     certKeyVaultName: mgmtKeyVaultName
-    keyVaultOfficerManagedIdentityName: globalMSIId
-    maestroCertificateDomain: effectiveMaestroCertDomain
-    maestroCertificateIssuer: maestroCertIssuer
+    certificateSAN: maestroConsumerCertSAN
+    certificateIssuer: maestroCertIssuer
   }
   dependsOn: [
     mgmtKeyVault
@@ -554,39 +317,20 @@ module maestroConsumer '../modules/maestro/maestro-consumer.bicep' = if (maestro
 //  E V E N T   G R I D   P R I V A T E   E N D P O I N T   C O N N E C T I O N
 //
 
-module eventGrindPrivateEndpoint '../modules/private-endpoint.bicep' = if (maestroEventGridNamespaceId != '') {
+module eventGrindPrivateEndpoint '../modules/private-endpoint.bicep' = {
   name: 'eventGridPrivateEndpoint'
   params: {
     location: location
-    subnetIds: [nodeSubnetCreation.outputs.subnetId]
+    subnetIds: [nodeSubnetId]
     privateLinkServiceId: maestroEventGridNamespaceId
-    vnetId: vnetCreation.outputs.vnetId
+    vnetId: vnetId
     serviceType: 'eventgrid'
     groupId: 'topicspace'
   }
 }
 
 //
-//   K U B E   A P P L I E R
-//
 
-var rpCosmosDbAccountRef = res.cosmosDBAccountRefFromId(rpCosmosDbAccountId)
-
-module kubeApplierCosmos '../modules/rp-cosmos-kube-applier.bicep' = if (rpCosmosDbAccountId != '') {
-  name: 'kube-applier-cosmos'
-  scope: resourceGroup(rpCosmosDbAccountRef.resourceGroup.subscriptionId, rpCosmosDbAccountRef.resourceGroup.name)
-  params: {
-    cosmosDBAccountName: rpCosmosDbAccountRef.name
-    containerName: kubeApplierContainerName
-    containerMaxScale: kubeApplierContainerMaxScale
-    kubeApplierManagedIdentityPrincipalId: mi.getManagedIdentityByName(
-      managedIdentities.outputs.managedIdentities,
-      kubeApplierMIName
-    ).uamiPrincipalID
-  }
-}
-
-//
 //  C O S M O S D B   P R I V A T E   E N D P O I N T   C O N N E C T I O N
 //
 
@@ -594,9 +338,9 @@ module cosmosDbPrivateEndpoint '../modules/private-endpoint.bicep' = if (rpCosmo
   name: 'cosmosDbPrivateEndpoint'
   params: {
     location: location
-    subnetIds: [nodeSubnetCreation.outputs.subnetId]
+    subnetIds: [nodeSubnetId]
     privateLinkServiceId: rpCosmosDbAccountId
-    vnetId: vnetCreation.outputs.vnetId
+    vnetId: vnetId
     serviceType: 'cosmosdb'
     groupId: 'Sql'
   }
@@ -606,11 +350,18 @@ module cosmosDbPrivateEndpoint '../modules/private-endpoint.bicep' = if (rpCosmo
 // O A D P  B A C K U P S
 //
 
+resource veleroUAMI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
+  name: 'velero'
+  dependsOn: [
+    managedIdentities
+  ]
+}
+
 module hcpBackupsRbac '../modules/hcp-backups/storage-rbac.bicep' = {
   name: 'hcp-backups-rbac'
   params: {
     storageAccountName: hcpBackupsStorageAccountName
-    veleroManagedIdentityPrincipalId: mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, 'velero').uamiPrincipalID
+    veleroManagedIdentityPrincipalId: veleroUAMI.properties.principalId
   }
 }
 
@@ -620,9 +371,6 @@ module hcpBackupsRbac '../modules/hcp-backups/storage-rbac.bicep' = {
 
 module diagnosticSetting '../modules/aks/diagnostic-setting.bicep' = if (auditLogsEventHubAuthRuleId != '') {
   name: 'aks-diagnostic-setting'
-  dependsOn: [
-    mgmtCluster
-  ]
   params: {
     aksClusterName: aksClusterName
     auditLogsEventHubName: auditLogsEventHubName

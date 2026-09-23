@@ -144,7 +144,7 @@
 <node CREATED="1742324517000" ID="ID_1000117" MODIFIED="1742324517000" TEXT="other controllers">
 <node CREATED="1742324518000" ID="ID_1000118" MODIFIED="1742324518000" TEXT="mismatch controllers - reconcile Cosmos vs Cluster Service state"/>
 <node CREATED="1742324519000" ID="ID_1000119" MODIFIED="1742324519000" TEXT="upgrade controllers - trigger control plane upgrades"/>
-<node CREATED="1742324520000" ID="ID_1000120" MODIFIED="1742324520000" TEXT="cluster properties sync - identity migration, customer properties"/>
+<node CREATED="1742324520000" ID="ID_1000120" MODIFIED="1742324520000" TEXT="cluster identity sync - MSI identities, cluster identity from SPC"/>
 <node CREATED="1742324521000" ID="ID_1000121" MODIFIED="1742324521000" TEXT="Maestro bundle controllers - create/delete readonly resource bundles"/>
 </node>
 </node>

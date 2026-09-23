@@ -97,20 +97,32 @@ param aksNetworkDataplane string = 'cilium'
 @description('Network policy plugin for the AKS cluster')
 param aksNetworkPolicy string = 'cilium'
 
+@description('Maximum surge for AKS node pool upgrades')
+param aksUpgradeSettingsMaxSurge string
+
+@description('Maximum unavailable for AKS node pool upgrades')
+param aksUpgradeSettingsMaxUnavailable string
+
 @description('IPTags to be set on the cluster outbound IP address')
 param aksClusterOutboundIPAddressIPTags string = ''
 
 @description('Azure Monitor Workspace name for Prometheus remote write')
 param azureMonitorWorkspaceName string
 
-@description('Maximum active time series limit for Azure Monitor Workspace (2M initial, bump when hitting 50% utilization)')
-param amwMaxActiveTimeSeries int = 2000000
+@description('Maximum active time series limit for Azure Monitor Workspace in millions (2M initial, bump when hitting 50% utilization)')
+param amwMaxActiveTimeSeriesMillions int = 2
 
-@description('Maximum events per minute limit for Azure Monitor Workspace (2M initial, bump when hitting 50% utilization)')
-param amwMaxEventsPerMinute int = 2000000
+@description('Maximum events per minute limit for Azure Monitor Workspace in millions (2M initial, bump when hitting 50% utilization)')
+param amwMaxEventsPerMinuteMillions int = 2
 
+// owningTeamTagValue is used independently by the azureMonitorWorkspace resource
+// below, so it cannot be removed even though aksClusterTags also carries an
+// owningTeam entry for the AKS cluster resource.
 @description('Owning team tag value')
 param owningTeamTagValue string = 'ARO-HCP-SRE'
+
+@description('CSV of key=value tag pairs for the AKS cluster resource')
+param aksClusterTags string
 
 @description('AKS Key Vault name for etcd encryption')
 @maxLength(24)
@@ -196,7 +208,6 @@ module vnetCreation '../modules/network/vnet.bicep' = {
     vnetName: vnetName
     vnetAddressPrefix: vnetAddressPrefix
     enableSwift: false
-    deploymentMsiId: opstoolMI.id
   }
 }
 
@@ -237,7 +248,8 @@ module opstoolCluster '../modules/aks-cluster-base.bicep' = {
     vnetName: vnetName
     nodeSubnetId: nodeSubnetCreation.outputs.subnetId
     podSubnetPrefix: podSubnetPrefix
-    clusterType: 'opstool-cluster'
+    aksClusterTags: aksClusterTags
+    owningTeamTagValue: owningTeamTagValue
     userOsDiskSizeGB: userOsDiskSizeGB
     userAgentMinCount: userAgentMinCount
     userAgentMaxCount: userAgentMaxCount
@@ -266,6 +278,8 @@ module opstoolCluster '../modules/aks-cluster-base.bicep' = {
     systemZoneRedundantMode: systemZoneRedundantMode
     networkDataplane: aksNetworkDataplane
     networkPolicy: aksNetworkPolicy
+    upgradeSettingsMaxSurge: aksUpgradeSettingsMaxSurge
+    upgradeSettingsMaxUnavailable: aksUpgradeSettingsMaxUnavailable
     workloadIdentities: workloadIdentities
     aksKeyVaultName: aksKeyVaultName
     aksKeyVaultTagName: aksKeyVaultTagName
@@ -275,7 +289,6 @@ module opstoolCluster '../modules/aks-cluster-base.bicep' = {
       : [resourceId(svcAcrResourceGroupName, 'Microsoft.ContainerRegistry/registries', svcAcrName)]
     deploymentMsiId: opstoolMI.id
     enableSwiftV2Nodepools: false
-    owningTeamTagValue: owningTeamTagValue
     aksClusterUserDefinedManagedIdentityName: aksClusterUserDefinedManagedIdentity.name
   }
 }
@@ -295,8 +308,8 @@ module amwIngestionLimits '../modules/metrics/amw-ingestion-limits.bicep' = {
   params: {
     azureMonitorWorkspaceName: azureMonitorWorkspaceName
     location: location
-    maxActiveTimeSeries: amwMaxActiveTimeSeries
-    maxEventsPerMinute: amwMaxEventsPerMinute
+    maxActiveTimeSeriesMillions: amwMaxActiveTimeSeriesMillions
+    maxEventsPerMinuteMillions: amwMaxEventsPerMinuteMillions
   }
   dependsOn: [
     azureMonitorWorkspace
@@ -328,6 +341,7 @@ module workloadKV '../modules/keyvault/keyvault.bicep' = {
     keyVaultName: workloadKVName
     enableSoftDelete: false
     private: false
+    enabledForTemplateDeployment: true
     tagKey: 'aroHCPPurpose'
     tagValue: 'opstool-workload-secrets'
   }

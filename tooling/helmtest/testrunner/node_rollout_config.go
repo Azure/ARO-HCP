@@ -74,6 +74,8 @@ var flagCategories = map[string]flagEffect{
 	"--enable-size-tagging":               flagSafe,
 	"--limit-crd-install":                 flagSafe,
 	"--hypershift-image":                  flagSafe,
+	"--install-scope":                     flagSafe, // phase selector (crds vs resources), does not affect node config
+	"--disable-capi-migration":            flagSafe,
 
 	// Node-affecting: tracked in dedicated NodeRolloutConfig fields
 	"--registry-overrides": flagNodeAffecting,

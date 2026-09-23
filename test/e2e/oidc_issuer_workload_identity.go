@@ -59,7 +59,7 @@ func newWITestPodWithWebhook(namespace string) *corev1.Pod {
 					Name:  "azure-cli",
 					Image: "mcr.microsoft.com/azure-cli:latest",
 					SecurityContext: &corev1.SecurityContext{
-						RunAsUser:                to.Ptr(int64(0)),
+						RunAsNonRoot:             to.Ptr(true),
 						AllowPrivilegeEscalation: to.Ptr(false),
 						SeccompProfile: &corev1.SeccompProfile{
 							Type: corev1.SeccompProfileTypeRuntimeDefault,
@@ -75,6 +75,12 @@ func newWITestPodWithWebhook(namespace string) *corev1.Pod {
 							-t "$AZURE_TENANT_ID" \
 							--allow-no-subscriptions
 					`},
+					Env: []corev1.EnvVar{
+						{
+							Name:  "HOME",
+							Value: "/tmp",
+						},
+					},
 				},
 			},
 		},
@@ -122,7 +128,7 @@ func newWITestPodWithManualInjection(namespace, clientID, tenantID string) *core
 					Name:  "azure-cli",
 					Image: "mcr.microsoft.com/azure-cli:latest",
 					SecurityContext: &corev1.SecurityContext{
-						RunAsUser:                to.Ptr(int64(0)),
+						RunAsNonRoot:             to.Ptr(true),
 						AllowPrivilegeEscalation: to.Ptr(false),
 						SeccompProfile: &corev1.SeccompProfile{
 							Type: corev1.SeccompProfileTypeRuntimeDefault,
@@ -151,6 +157,10 @@ func newWITestPodWithManualInjection(namespace, clientID, tenantID string) *core
 							Name:  "AZURE_FEDERATED_TOKEN_FILE",
 							Value: tokenPath,
 						},
+						{
+							Name:  "HOME",
+							Value: "/tmp",
+						},
 					},
 					VolumeMounts: []corev1.VolumeMount{
 						{
@@ -171,6 +181,7 @@ var _ = Describe("Customer", func() {
 		labels.Medium,
 		labels.Positive,
 		labels.AroRpApiCompatible,
+		labels.MIContainers(1),
 		func(ctx context.Context) {
 			const (
 				customerClusterName  = "oidc-wi-cluster"

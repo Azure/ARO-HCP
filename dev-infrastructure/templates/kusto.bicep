@@ -16,6 +16,9 @@ param serviceLogsDatabase string
 @description('Name of the hosted control plane logs database.')
 param hostedControlPlaneLogsDatabase string
 
+@description('Name of the monitoring events database.')
+param monitoringEventsDatabase string
+
 @description('CSV separated list of groups to assign admin in the Kusto cluster')
 param adminGroups string
 
@@ -25,8 +28,26 @@ param viewerGroups string
 @description('CSV separated list of identities (apps/managed identities) to assign viewer in the Kusto cluster')
 param viewerIdentities string = ''
 
+@description('Name of the global rollout MSI granted AllDatabasesAdmin so the KustoEntityGroups pipeline step (kustoctl) can sync entity groups. Empty disables the grant.')
+param globalMSIName string = ''
+
+@description('Resource group of the global rollout MSI (same subscription as this deployment). Required when globalMSIName is set.')
+param globalMSIResourceGroup string = ''
+
+@description('ARO-HCP environment (int, stg, prod) tagged on the Kusto cluster so kustoctl can scope entity-group discovery per environment.')
+param environment string = ''
+
 @description('Name of the Kusto cluster to create')
 param kustoName string
+
+@description('ARO-HCP geography short ID used for global resource discovery')
+param geoShortId string
+
+@description('Whether to grant the global Grafana identity Viewer access to ServiceLogs')
+param enableGrafanaIntegration bool = false
+
+@description('Global Azure Managed Grafana principal ID')
+param grafanaPrincipalId string = ''
 
 @description('Minimum number of nodes for autoscale')
 param autoScaleMin int
@@ -37,30 +58,28 @@ param autoScaleMax int
 @description('Toggle if autoscale should be enabled')
 param enableAutoScale bool
 
-@description('Optional cross-cluster ServiceLogs Kusto script content.')
-@secure()
-param crossClusterServiceLogsScript string = ''
-
-@description('Optional cross-cluster HostedControlPlaneLogs Kusto script content.')
-@secure()
-param crossClusterHostedControlPlaneLogsScript string = ''
 module kusto '../modules/logs/kusto/main.bicep' = if (manageInstance) {
   name: 'kusto-${location}'
   params: {
     location: location
     kustoName: kustoName
+    geoShortId: geoShortId
+    enableGrafanaIntegration: enableGrafanaIntegration
+    grafanaPrincipalId: grafanaPrincipalId
     dstsGroups: []
     sku: sku
     tier: tier
     serviceLogsDatabase: serviceLogsDatabase
     hostedControlPlaneLogsDatabase: hostedControlPlaneLogsDatabase
+    monitoringEventsDatabase: monitoringEventsDatabase
     adminGroups: adminGroups
     viewerGroups: viewerGroups
     viewerIdentities: viewerIdentities
+    globalMSIName: globalMSIName
+    globalMSIResourceGroup: globalMSIResourceGroup
+    environment: environment
     autoScaleMin: autoScaleMin
     autoScaleMax: autoScaleMax
     enableAutoScale: enableAutoScale
-    crossClusterServiceLogsScript: crossClusterServiceLogsScript
-    crossClusterHostedControlPlaneLogsScript: crossClusterHostedControlPlaneLogsScript
   }
 }

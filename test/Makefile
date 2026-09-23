@@ -4,6 +4,8 @@ SHELL = /bin/bash
 
 all: build
 
+BICEP ?= bicep
+
 BICEP_OUTPUT_DIR=$(TEST_DIR)e2e/test-artifacts/generated-test-artifacts/
 
 DEMO_BICEP_DIR=$(TEST_DIR)../demo/bicep
@@ -11,20 +13,23 @@ DEMO_BICEP_SOURCES = $(shell find $(DEMO_BICEP_DIR) -name '*.bicep')
 DEMO_BICEP_OUTPUTS = $(addprefix $(BICEP_OUTPUT_DIR)standard-cluster-create/,$(addsuffix .json,$(basename $(notdir $(DEMO_BICEP_SOURCES)))))
 $(BICEP_OUTPUT_DIR)standard-cluster-create/%.json: $(DEMO_BICEP_DIR)/%.bicep
 	@mkdir -p $(dir $@)
-	az bicep build --file=$< --outfile=$@
+	$(BICEP) build $< --outfile $@
 
 TEST_BICEP_DIR=$(TEST_DIR)e2e-setup/bicep
 TEST_BICEP_SOURCES = $(shell cd $(TEST_BICEP_DIR) && find * -name '*.bicep')
 TEST_BICEP_OUTPUTS = $(addprefix $(BICEP_OUTPUT_DIR),$(addsuffix .json,$(basename $(TEST_BICEP_SOURCES))))
 $(BICEP_OUTPUT_DIR)%.json: $(TEST_BICEP_DIR)/%.bicep
 	@mkdir -p $(dir $@)
-	az bicep build --file=$< --outfile=$@
+	$(BICEP) build $< --outfile $@
+
+bicep-fixtures: $(DEMO_BICEP_OUTPUTS) $(TEST_BICEP_OUTPUTS)
+.PHONY: bicep-fixtures
 
 update-go-fixtures:
 	UPDATE=true go test --count=1 ./... -v
 .PHONY: update-go-fixtures
 
-update: $(DEMO_BICEP_OUTPUTS) $(TEST_BICEP_OUTPUTS) update-go-fixtures
+update: bicep-fixtures update-go-fixtures
 .PHONY: update
 
 TEST_SOURCES = $(shell find $(TEST_DIR) -name '*.go' -o -name '*.json' -o -name '*.bicep')
@@ -39,6 +44,31 @@ $(PROW_JOB_EXECUTOR): $(PROW_JOB_EXECUTOR_SOURCES) $(MAKEFILE_LIST) $(TEST_DIR)/
 
 build: $(PROW_JOB_EXECUTOR) $(ARO_HCP_TESTS)
 .PHONY: build
+
+# Apply the slot-managed identity pool ARM deployment stack for a given environment.
+# Depends on $(ARO_HCP_TESTS), whose own prerequisites regenerate the Bicep-derived
+# ARM artifacts (e.g. msi-pools.json) from the source-of-truth Bicep before the binary
+# is (re)built and embeds them. Always run through this target instead of `go run`/
+# `go build`, otherwise a stale, git-ignored artifact may be embedded and applied.
+#
+# Set the optional SUBSCRIPTION variable to limit provisioning to the named
+# subscription(s); this is required to provision unmanaged pools
+# (identity_provisioning: unmanaged), which are skipped otherwise. Example:
+#   make -C test apply-identity-pool ENVIRONMENT=dev SUBSCRIPTION="Hypershift Managed Azure"
+apply-identity-pool: $(ARO_HCP_TESTS)
+	$(ARO_HCP_TESTS) slot-manager apply-identity-pool \
+		--environment "$${ENVIRONMENT:?ENVIRONMENT must be set (e.g. dev, int, stg, prod)}" \
+		$(if $(SUBSCRIPTION),--subscription "$(SUBSCRIPTION)")
+.PHONY: apply-identity-pool
+
+# Validate the slot-managed identity pool against the canonical catalog using
+# read-only Azure list operations. SUBSCRIPTION has the same filtering semantics
+# as apply-identity-pool.
+validate-identity-pool: $(ARO_HCP_TESTS)
+	$(ARO_HCP_TESTS) slot-manager validate-identity-pool \
+		--environment "$${ENVIRONMENT:?ENVIRONMENT must be set (e.g. dev, int, stg, prod)}" \
+		$(if $(SUBSCRIPTION),--subscription "$(SUBSCRIPTION)")
+.PHONY: validate-identity-pool
 
 int-e2e:
 	PROW_JOB_NAME="$$(yq .clouds.public.environments.int.defaults.e2e.regionTest.prowJobName < ../config/config.msft.clouds-overlay.yaml)" \

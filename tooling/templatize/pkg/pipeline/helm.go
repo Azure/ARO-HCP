@@ -56,7 +56,7 @@ func runHelmStep(id graph.Identifier, step *types.HelmStep, ctx context.Context,
 	}()
 
 	state.RLock()
-	outputs := state.Outputs
+	outputs := state.GetOutputs(id.Stamp)
 	state.RUnlock()
 
 	replacements := map[string]string{}
