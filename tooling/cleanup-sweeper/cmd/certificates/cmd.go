@@ -39,6 +39,7 @@ func NewCommand() *cobra.Command {
 		MinAge:       168 * time.Hour,
 		MaxDeletions: 1000,
 		MaxPurges:    1000,
+		Workers:      2,
 	}
 	var timeout time.Duration
 	cmd := &cobra.Command{
@@ -54,7 +55,9 @@ Eligible soft-deleted certificates are purgeable tombstones matching the same fi
 their age and RG ownership do not protect a name that is already deleted and unavailable for reuse.
 Dry-run lists metadata only. --delete-active and --purge-deleted independently select the enabled actions.
 Apply rechecks active and deleted certificate metadata and, when active deletion is enabled, refreshes the owner inventory
-before the first delete and at most every 30 seconds. Azure has no atomic owner-check/delete:
+before the first delete and at most every 30 seconds. Successful deletes wait up to 30 seconds for their tombstone,
+then revalidate and purge it immediately. A bounded worker pool limits concurrent Azure mutations.
+Azure has no atomic owner-check/delete:
 concurrent RG or certificate creation remains a race. Purging is irreversible and requires certificates/purge permission.
 The command never deletes keys or secrets directly.`,
 		Args: cobra.NoArgs,
@@ -95,6 +98,7 @@ The command never deletes keys or secrets directly.`,
 	cmd.Flags().DurationVar(&opts.MinAge, "min-age", opts.MinAge, "Minimum age of BOTH latest created and updated timestamps (minimum 24h).")
 	cmd.Flags().IntVar(&opts.MaxDeletions, "max-deletions", opts.MaxDeletions, "Maximum selected certificates per run, including failed attempts (must be positive; also caps dry-run).")
 	cmd.Flags().IntVar(&opts.MaxPurges, "max-purges", opts.MaxPurges, "Maximum selected deleted certificate tombstones per run; deleted-certificate paging stops at this limit (must be positive; also caps dry-run).")
+	cmd.Flags().IntVar(&opts.Workers, "workers", opts.Workers, "Maximum concurrent certificate delete/purge chains (must be positive).")
 	cmd.Flags().DurationVar(&timeout, "timeout", 30*time.Minute, "Overall timeout, including discovery and all Azure requests (must be positive).")
 	return cmd
 }

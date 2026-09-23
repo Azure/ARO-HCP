@@ -101,18 +101,20 @@ The dedicated backstop is:
 # Read-only rehearsal with an existing developer login:
 AZURE_CONFIG_DIR="$HOME/.azure-redhat" AZURE_TOKEN_CREDENTIALS=AzureCLICredential \
   go run ./tooling/cleanup-sweeper ci-certificates \
-    --dry-run --min-age=168h --max-deletions=1000 --max-purges=1000 --timeout=30m
+    --dry-run --min-age=168h --max-deletions=1000 --max-purges=1000 \
+    --workers=2 --timeout=30m
 
 # Apply only after reviewing candidates and confirming the fixed DEV scope:
 AZURE_CONFIG_DIR="$HOME/.azure-redhat" AZURE_TOKEN_CREDENTIALS=AzureCLICredential \
   go run ./tooling/cleanup-sweeper ci-certificates \
-    --dry-run=false --min-age=168h --max-deletions=1000 --max-purges=1000 --timeout=30m
+    --dry-run=false --min-age=168h --max-deletions=1000 --max-purges=1000 \
+    --workers=2 --timeout=30m
 
 # Purge legacy tombstones without resuming active-certificate deletion:
 AZURE_CONFIG_DIR="$HOME/.azure-redhat" AZURE_TOKEN_CREDENTIALS=AzureCLICredential \
   go run ./tooling/cleanup-sweeper ci-certificates \
     --dry-run=false --delete-active=false --purge-deleted=true \
-    --max-purges=1000 --timeout=30m
+    --max-purges=1000 --workers=2 --timeout=30m
 ```
 
 The command defaults to dry-run and has no vault or subscription override. It
@@ -157,7 +159,15 @@ and summary logs.
 
 Active candidates are soft-deleted as complete certificate objects, including
 all versions and their policy; backing certificate material can become
-unavailable. Deleted candidates must match the same exact transient CI naming
+unavailable. When purge is enabled, each successful soft-delete waits up to 30
+seconds for the corresponding tombstone, revalidates it, and purges it
+immediately. The configurable `--workers` pool bounds concurrent delete/purge
+chains and defaults to two to limit Key Vault and Resource Manager throttling.
+Owner inventory refreshes are serialized and shared by the workers, while each
+certificate still rejects an inventory older than 30 seconds immediately before
+delete.
+
+Deleted candidates must match the same exact transient CI naming
 policy, retain no protected tag or placeholder suffix, provide consistent
 certificate and recovery IDs, and report a recovery level containing
 `Purgeable`. Their deletion and scheduled-purge timestamps are required and
@@ -167,10 +177,12 @@ reserves a reusable seven-digit job name. Purge is irreversible and requires
 certificate purge permission.
 
 The command never issues separate key or secret delete calls. Failed deletes and
-purges are reported together at the end and retried only on a later run, after
-repeating safety checks. Individual failures do not fail the command when at
-least one certificate was deleted, purged, or already absent; the command fails
-when every attempted change failed.
+purges are reported together at the end. The deleted-certificate inventory is
+retained as a recovery path: if a tombstone does not appear within 30 seconds,
+the process is interrupted, or immediate purge fails, a later run rediscovers
+and retries it after repeating safety checks. Individual failures do not fail
+the command when at least one certificate was deleted, purged, or already
+absent; the command fails when every attempted change failed.
 
 Azure does not provide an atomic owner-check/certificate-delete operation, so
 concurrent reuse of a seven-digit job suffix remains a race. The age guard, recent

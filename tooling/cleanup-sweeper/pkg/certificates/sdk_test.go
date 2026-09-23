@@ -70,9 +70,15 @@ func TestSDKHTTP(t *testing.T) {
 						VaultURL+"/deletedcertificates/"+deletedName,
 						referenceTime.Add(-time.Hour).Unix(),
 						referenceTime.Add(89*24*time.Hour).Unix())
+				case r.Method == http.MethodGet && r.URL.Path == "/deletedcertificates/"+name:
+					body = fmt.Sprintf(`{"id":%q,"recoveryId":%q,"attributes":{"recoveryLevel":"Recoverable+Purgeable"},"deletedDate":%d,"scheduledPurgeDate":%d}`,
+						VaultURL+"/certificates/"+name+"/version1",
+						VaultURL+"/deletedcertificates/"+name,
+						referenceTime.Unix(),
+						referenceTime.Add(90*24*time.Hour).Unix())
 				case r.Method == http.MethodDelete && r.URL.Path == "/certificates/"+name:
 					body = `{}`
-				case r.Method == http.MethodDelete && r.URL.Path == "/deletedcertificates/"+deletedName:
+				case r.Method == http.MethodDelete && (r.URL.Path == "/deletedcertificates/"+deletedName || r.URL.Path == "/deletedcertificates/"+name):
 					body = `{}`
 				default:
 					t.Fatalf("unexpected request %s %s", r.Method, r.URL)
@@ -94,6 +100,9 @@ func TestSDKHTTP(t *testing.T) {
 					"DELETE /deletedcertificates/"+deletedName,
 					"GET /certificates/"+name+"/",
 					"DELETE /certificates/"+name,
+					"GET /deletedcertificates/"+name,
+					"GET /deletedcertificates/"+name,
+					"DELETE /deletedcertificates/"+name,
 				)
 			}
 			if !reflect.DeepEqual(calls, want) {

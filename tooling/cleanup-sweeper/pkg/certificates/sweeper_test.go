@@ -21,6 +21,7 @@ import (
 	"log/slog"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -58,6 +59,7 @@ func deletedCertificate(name string) *azcertificates.DeletedCertificatePropertie
 }
 
 type fakeCertificates struct {
+	mu               sync.Mutex
 	pages            [][]*azcertificates.CertificateProperties
 	listError        int // 1-based page number
 	deletedPages     [][]*azcertificates.DeletedCertificateProperties
@@ -110,7 +112,9 @@ func (f *fakeCertificates) GetCertificate(_ context.Context, name, version strin
 	if version != "" {
 		panic("must request latest, not a historical version")
 	}
+	f.mu.Lock()
 	f.gets = append(f.gets, name)
+	f.mu.Unlock()
 	if f.get != nil {
 		return f.get(name)
 	}
@@ -125,7 +129,9 @@ func latestCertificate(name string) azcertificates.GetCertificateResponse {
 }
 
 func (f *fakeCertificates) DeleteCertificate(_ context.Context, name string, _ *azcertificates.DeleteCertificateOptions) (azcertificates.DeleteCertificateResponse, error) {
+	f.mu.Lock()
 	f.deletes = append(f.deletes, name)
+	f.mu.Unlock()
 	var err error
 	if f.delete != nil {
 		err = f.delete(name)
@@ -134,7 +140,9 @@ func (f *fakeCertificates) DeleteCertificate(_ context.Context, name string, _ *
 }
 
 func (f *fakeCertificates) GetDeletedCertificate(_ context.Context, name string, _ *azcertificates.GetDeletedCertificateOptions) (azcertificates.GetDeletedCertificateResponse, error) {
+	f.mu.Lock()
 	f.deletedGets = append(f.deletedGets, name)
+	f.mu.Unlock()
 	if f.getDeleted != nil {
 		return f.getDeleted(name)
 	}
@@ -151,7 +159,9 @@ func (f *fakeCertificates) GetDeletedCertificate(_ context.Context, name string,
 }
 
 func (f *fakeCertificates) PurgeDeletedCertificate(_ context.Context, name string, _ *azcertificates.PurgeDeletedCertificateOptions) (azcertificates.PurgeDeletedCertificateResponse, error) {
+	f.mu.Lock()
 	f.purges = append(f.purges, name)
+	f.mu.Unlock()
 	var err error
 	if f.purge != nil {
 		err = f.purge(name)
@@ -212,6 +222,7 @@ func options(dryRun bool) Options {
 		MinAge:       168 * time.Hour,
 		MaxDeletions: 1000,
 		MaxPurges:    1000,
+		Workers:      1,
 	}
 }
 
@@ -614,6 +625,84 @@ func TestPurgeOnlySkipsActiveInventoryAndOwnerGuards(t *testing.T) {
 	}
 }
 
+func TestImmediatePurgeWaitsForTombstone(t *testing.T) {
+	s, f, _, _ := newTestSweeper("maestro-server-j1234567")
+	s.pollInterval = time.Millisecond
+	gets := 0
+	f.getDeleted = func(name string) (azcertificates.GetDeletedCertificateResponse, error) {
+		gets++
+		if gets < 3 {
+			return azcertificates.GetDeletedCertificateResponse{}, &azcore.ResponseError{StatusCode: 404}
+		}
+		c := deletedCertificate(name)
+		return azcertificates.GetDeletedCertificateResponse{DeletedCertificate: azcertificates.DeletedCertificate{
+			Attributes:         c.Attributes,
+			ID:                 c.ID,
+			RecoveryID:         c.RecoveryID,
+			Tags:               c.Tags,
+			X509Thumbprint:     c.X509Thumbprint,
+			DeletedDate:        c.DeletedDate,
+			ScheduledPurgeDate: c.ScheduledPurgeDate,
+		}}, nil
+	}
+
+	if err := s.run(t.Context(), options(false)); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(f.deletes, []string{"maestro-server-j1234567"}) {
+		t.Fatalf("deletes = %v", f.deletes)
+	}
+	if len(f.deletedGets) != 4 {
+		t.Fatalf("expected three tombstone polls and one purge revalidation, got %v", f.deletedGets)
+	}
+	if !reflect.DeepEqual(f.purges, []string{"maestro-server-j1234567"}) {
+		t.Fatalf("purges = %v", f.purges)
+	}
+}
+
+func TestWorkerLimit(t *testing.T) {
+	s, f, _, _ := newTestSweeper(
+		"maestro-server-j1234567",
+		"maestro-server-j2345678",
+		"maestro-server-j3456789",
+		"maestro-server-j4567890",
+	)
+	started := make(chan struct{}, 4)
+	release := make(chan struct{})
+	f.delete = func(string) error {
+		started <- struct{}{}
+		<-release
+		return nil
+	}
+	opts := options(false)
+	opts.PurgeDeleted = false
+	opts.Workers = 2
+	done := make(chan error, 1)
+	go func() {
+		done <- s.run(t.Context(), opts)
+	}()
+
+	for range 2 {
+		select {
+		case <-started:
+		case <-time.After(time.Second):
+			t.Fatal("workers did not start")
+		}
+	}
+	select {
+	case <-started:
+		t.Fatal("more than two delete workers ran concurrently")
+	case <-time.After(20 * time.Millisecond):
+	}
+	close(release)
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	if len(f.deletes) != 4 {
+		t.Fatalf("deletes = %v", f.deletes)
+	}
+}
+
 func TestPurgeFailuresAndBoundedAttempts(t *testing.T) {
 	for _, operation := range []string{"all failures", "partial failure", "purge 404", "GET 404", "success"} {
 		t.Run(operation, func(t *testing.T) {
@@ -743,18 +832,19 @@ func TestCancellation(t *testing.T) {
 func TestOptions(t *testing.T) {
 	for _, opts := range []Options{
 		{},
-		{DeleteActive: true, MinAge: 23 * time.Hour, MaxDeletions: 1},
-		{DeleteActive: true, MinAge: 168 * time.Hour},
-		{DeleteActive: true, MinAge: 168 * time.Hour, MaxDeletions: -1},
-		{PurgeDeleted: true},
+		{DeleteActive: true, MinAge: 23 * time.Hour, MaxDeletions: 1, Workers: 1},
+		{DeleteActive: true, MinAge: 168 * time.Hour, Workers: 1},
+		{DeleteActive: true, MinAge: 168 * time.Hour, MaxDeletions: -1, Workers: 1},
+		{PurgeDeleted: true, Workers: 1},
+		{PurgeDeleted: true, MaxPurges: 1},
 	} {
 		if opts.Validate() == nil {
 			t.Fatalf("accepted unsafe options: %+v", opts)
 		}
 	}
 	for _, opts := range []Options{
-		{DeleteActive: true, MinAge: 24 * time.Hour, MaxDeletions: 1},
-		{PurgeDeleted: true, MaxPurges: 1},
+		{DeleteActive: true, MinAge: 24 * time.Hour, MaxDeletions: 1, Workers: 1},
+		{PurgeDeleted: true, MaxPurges: 1, Workers: 1},
 	} {
 		if err := opts.Validate(); err != nil {
 			t.Fatal(err)

@@ -24,10 +24,13 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 	"unicode"
 
 	"github.com/go-logr/logr"
+
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
@@ -41,10 +44,13 @@ const (
 	devInfrastructureSubscription       = "1d3378d3-5a3f-4712-85a1-2485495dfc4b"
 	devSharedInfrastructureSubscription = "0ef1ad54-9296-44cd-9600-5dc8e9a74034"
 	ownerMaxAge                         = 30 * time.Second
+	deletedCertificateWait              = 30 * time.Second
+	defaultDeletedPollInterval          = time.Second
 )
 
 var certificateName = regexp.MustCompile(`^(?:(?:frontend-cert|admin-api-cert|sessiongate-cert)-(?:prow|ci00|ci01)|maestro-server)-j([0-9]{7})$`)
 var jobToken = regexp.MustCompile(`^j[0-9]{7}$`)
+var errOwnerInventory = errors.New("owner inventory unavailable")
 
 type Options struct {
 	DryRun       bool
@@ -53,6 +59,7 @@ type Options struct {
 	MinAge       time.Duration
 	MaxDeletions int
 	MaxPurges    int
+	Workers      int
 }
 
 func (o Options) Validate() error {
@@ -67,6 +74,9 @@ func (o Options) Validate() error {
 	}
 	if o.PurgeDeleted && o.MaxPurges <= 0 {
 		return fmt.Errorf("--max-purges must be positive")
+	}
+	if o.Workers <= 0 {
+		return fmt.Errorf("--workers must be positive")
 	}
 	return nil
 }
@@ -88,6 +98,7 @@ type sweeper struct {
 	certificates certificateClient
 	groups       map[string]resourceGroupClient
 	now          func() time.Time
+	pollInterval time.Duration
 }
 
 // Run always targets the shared dev vault and BOTH dev infrastructure subscriptions.
@@ -116,21 +127,126 @@ func Run(ctx context.Context, credential azcore.TokenCredential, opts Options) e
 }
 
 type summary struct {
-	Scanned            int
-	Eligible           int
-	Selected           int
-	Attempts           int
-	Deleted            int
-	AlreadyAbsent      int
-	Failed             int
-	DeletedScanned     int
-	PurgeEligible      int
-	PurgeSelected      int
-	PurgeAttempts      int
-	Purged             int
-	PurgeAlreadyAbsent int
-	PurgeFailed        int
-	Skipped            map[string]int
+	Scanned                int
+	Eligible               int
+	Selected               int
+	Attempts               int
+	Deleted                int
+	AlreadyAbsent          int
+	Failed                 int
+	DeletedScanned         int
+	PurgeEligible          int
+	PurgeSelected          int
+	PurgeAttempts          int
+	Purged                 int
+	PurgeAlreadyAbsent     int
+	PurgeFailed            int
+	ImmediatePurgeWaits    int
+	ImmediatePurgeDeferred int
+	Skipped                map[string]int
+}
+
+func newSummary() summary {
+	return summary{Skipped: map[string]int{}}
+}
+
+func (s *summary) merge(other summary) {
+	s.Attempts += other.Attempts
+	s.Deleted += other.Deleted
+	s.AlreadyAbsent += other.AlreadyAbsent
+	s.Failed += other.Failed
+	s.PurgeAttempts += other.PurgeAttempts
+	s.Purged += other.Purged
+	s.PurgeAlreadyAbsent += other.PurgeAlreadyAbsent
+	s.PurgeFailed += other.PurgeFailed
+	s.ImmediatePurgeWaits += other.ImmediatePurgeWaits
+	s.ImmediatePurgeDeferred += other.ImmediatePurgeDeferred
+	for reason, count := range other.Skipped {
+		s.Skipped[reason] += count
+	}
+}
+
+type cleanupTask struct {
+	name   string
+	action string
+	run    func(context.Context) (summary, error)
+}
+
+type cleanupTaskResult struct {
+	task   cleanupTask
+	counts summary
+	err    error
+}
+
+func runCleanupTasks(ctx context.Context, workers int, tasks []cleanupTask) (summary, []error) {
+	counts := newSummary()
+	if len(tasks) == 0 {
+		return counts, nil
+	}
+	if workers > len(tasks) {
+		workers = len(tasks)
+	}
+
+	jobs := make(chan cleanupTask, len(tasks))
+	results := make(chan cleanupTaskResult, len(tasks))
+	for _, task := range tasks {
+		jobs <- task
+	}
+	close(jobs)
+
+	var wg sync.WaitGroup
+	for range workers {
+		wg.Add(1)
+		go func() {
+			defer utilruntime.HandleCrash()
+			defer wg.Done()
+			for task := range jobs {
+				taskCounts, err := task.run(ctx)
+				results <- cleanupTaskResult{task: task, counts: taskCounts, err: err}
+			}
+		}()
+	}
+	wg.Wait()
+	close(results)
+
+	var failures []error
+	completed := 0
+	for result := range results {
+		completed++
+		counts.merge(result.counts)
+		if result.err != nil {
+			failures = append(failures, fmt.Errorf("%s %s: %w", result.task.action, result.task.name, result.err))
+		}
+	}
+	if completed != len(tasks) {
+		failures = append(failures, fmt.Errorf("certificate worker pool completed %d of %d tasks", completed, len(tasks)))
+	}
+	return counts, failures
+}
+
+type ownerGuard struct {
+	mu     sync.Mutex
+	s      *sweeper
+	owners map[string]bool
+	at     time.Time
+	failed error
+}
+
+func (g *ownerGuard) current(ctx context.Context) (map[string]bool, time.Time, error) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if g.failed != nil {
+		return nil, time.Time{}, g.failed
+	}
+	if g.at.IsZero() || g.s.now().Sub(g.at) >= ownerMaxAge {
+		owners, at, err := g.s.owners(ctx)
+		if err != nil {
+			g.failed = fmt.Errorf("%w: %v", errOwnerInventory, err)
+			return nil, time.Time{}, g.failed
+		}
+		g.owners, g.at = owners, at
+	}
+	return g.owners, g.at, nil
 }
 
 func (s *sweeper) run(ctx context.Context, opts Options) error {
@@ -142,8 +258,9 @@ func (s *sweeper) run(ctx context.Context, opts Options) error {
 		"dryRun", opts.DryRun,
 		"deleteActive", opts.DeleteActive,
 		"purgeDeleted", opts.PurgeDeleted,
+		"workers", opts.Workers,
 	)
-	counts := summary{Skipped: map[string]int{}}
+	counts := newSummary()
 	defer func() { logger.Info("CI certificate sweep summary", "counts", counts) }()
 	now := s.now()
 	cutoff := now.Add(-opts.MinAge)
@@ -237,45 +354,127 @@ func (s *sweeper) run(ctx context.Context, opts Options) error {
 		return ctx.Err()
 	}
 	var failures []error
+	var purgeTasks []cleanupTask
 	for _, cert := range purgeCandidates {
-		if err := ctx.Err(); err != nil {
-			return errors.Join(append(failures, err)...)
-		}
 		name, _, _ := certificateID(cert.ID)
-		if err := s.purgeCertificate(ctx, cert, &counts); err != nil {
-			counts.PurgeFailed++
-			failure := fmt.Errorf("%s: %w", name, err)
-			failures = append(failures, failure)
-			logger.Error(err, "Deleted certificate purge attempt failed", "name", name)
-		}
+		cert := cert
+		purgeTasks = append(purgeTasks, cleanupTask{
+			name:   name,
+			action: "purge",
+			run: func(ctx context.Context) (summary, error) {
+				taskCounts := newSummary()
+				if err := s.purgeCertificate(ctx, cert, &taskCounts); err != nil {
+					taskCounts.PurgeFailed++
+					return taskCounts, err
+				}
+				return taskCounts, nil
+			},
+		})
 	}
-	var ownersAt time.Time // Force a fresh complete inventory before the first delete.
+	taskCounts, taskFailures := runCleanupTasks(ctx, opts.Workers, purgeTasks)
+	counts.merge(taskCounts)
+	failures = append(failures, taskFailures...)
+	for _, failure := range taskFailures {
+		logger.Error(failure, "Deleted certificate purge attempt failed")
+	}
+
+	guard := &ownerGuard{s: s}
+	var deleteTasks []cleanupTask
 	for _, cert := range selected {
-		if err := ctx.Err(); err != nil {
-			return errors.Join(append(failures, err)...)
-		}
-		if ownersAt.IsZero() || s.now().Sub(ownersAt) >= ownerMaxAge {
-			nextOwners, nextOwnersAt, err := s.owners(ctx)
-			if err != nil {
-				return errors.Join(append(failures, err)...)
-			}
-			owners, ownersAt = nextOwners, nextOwnersAt
-		}
 		name, _, _ := certificateID(cert.ID)
-		if err := s.deleteCertificate(ctx, cert, owners, ownersAt, cutoff, &counts); err != nil {
-			counts.Failed++
-			failure := fmt.Errorf("%s: %w", name, err)
-			failures = append(failures, failure)
-			logger.Error(err, "Certificate deletion attempt failed", "name", name)
-		}
+		cert := cert
+		deleteTasks = append(deleteTasks, cleanupTask{
+			name:   name,
+			action: "delete",
+			run: func(ctx context.Context) (summary, error) {
+				taskCounts := newSummary()
+				owners, ownersAt, err := guard.current(ctx)
+				if err != nil {
+					taskCounts.Failed++
+					return taskCounts, err
+				}
+				deleted, err := s.deleteCertificate(ctx, cert, owners, ownersAt, cutoff, &taskCounts)
+				if err != nil {
+					taskCounts.Failed++
+					return taskCounts, err
+				}
+				if !deleted || !opts.PurgeDeleted {
+					return taskCounts, nil
+				}
+
+				taskCounts.ImmediatePurgeWaits++
+				deletedCert, err := s.waitForDeletedCertificate(ctx, name)
+				if err != nil {
+					taskCounts.PurgeFailed++
+					taskCounts.ImmediatePurgeDeferred++
+					return taskCounts, err
+				}
+				if err := s.purgeCertificate(ctx, deletedCert, &taskCounts); err != nil {
+					taskCounts.PurgeFailed++
+					taskCounts.ImmediatePurgeDeferred++
+					return taskCounts, err
+				}
+				return taskCounts, nil
+			},
+		})
+	}
+	taskCounts, taskFailures = runCleanupTasks(ctx, opts.Workers, deleteTasks)
+	counts.merge(taskCounts)
+	failures = append(failures, taskFailures...)
+	for _, failure := range taskFailures {
+		logger.Error(failure, "Certificate delete-to-purge attempt failed")
 	}
 	if len(failures) > 0 {
 		logger.Error(errors.Join(failures...), "Certificate cleanup attempts completed with errors", "failed", len(failures))
+	}
+	if joined := errors.Join(failures...); errors.Is(joined, errOwnerInventory) || ctx.Err() != nil {
+		return errors.Join(joined, ctx.Err())
 	}
 	if counts.Deleted+counts.AlreadyAbsent+counts.Purged+counts.PurgeAlreadyAbsent == 0 {
 		return errors.Join(failures...)
 	}
 	return nil
+}
+
+func (s *sweeper) waitForDeletedCertificate(ctx context.Context, name string) (*azcertificates.DeletedCertificateProperties, error) {
+	waitCtx, cancel := context.WithTimeout(ctx, deletedCertificateWait)
+	defer cancel()
+
+	interval := s.pollInterval
+	if interval <= 0 {
+		interval = defaultDeletedPollInterval
+	}
+	timer := time.NewTimer(0)
+	defer timer.Stop()
+	for {
+		select {
+		case <-waitCtx.Done():
+			return nil, fmt.Errorf("wait for soft-delete tombstone: %w", waitCtx.Err())
+		case <-timer.C:
+		}
+
+		latest, err := s.certificates.GetDeletedCertificate(waitCtx, name, nil)
+		if err == nil {
+			cert := &azcertificates.DeletedCertificateProperties{
+				Attributes:         latest.Attributes,
+				ID:                 latest.ID,
+				RecoveryID:         latest.RecoveryID,
+				Tags:               latest.Tags,
+				X509Thumbprint:     latest.X509Thumbprint,
+				DeletedDate:        latest.DeletedDate,
+				ScheduledPurgeDate: latest.ScheduledPurgeDate,
+			}
+			latestName, _, reason := eligibleDeleted(cert)
+			if reason != "" || latestName != name {
+				return nil, fmt.Errorf("soft-delete tombstone failed eligibility revalidation: %s", reason)
+			}
+			return cert, nil
+		}
+		if !isNotFound(err) {
+			return nil, fmt.Errorf("get soft-delete tombstone: %w", err)
+		}
+		timer.Reset(interval)
+	}
 }
 
 func (s *sweeper) purgeCertificate(ctx context.Context, cert *azcertificates.DeletedCertificateProperties, counts *summary) error {
@@ -322,20 +521,20 @@ func (s *sweeper) purgeCertificate(ctx context.Context, cert *azcertificates.Del
 	}
 }
 
-func (s *sweeper) deleteCertificate(ctx context.Context, cert *azcertificates.CertificateProperties, owners map[string]bool, ownersAt, cutoff time.Time, counts *summary) error {
+func (s *sweeper) deleteCertificate(ctx context.Context, cert *azcertificates.CertificateProperties, owners map[string]bool, ownersAt, cutoff time.Time, counts *summary) (bool, error) {
 	name, version, _ := certificateID(cert.ID)
 	job := "j" + certificateName.FindStringSubmatch(name)[1]
 	if owners[job] {
 		counts.Skipped["owner-revalidation"]++
-		return nil
+		return false, nil
 	}
 	latest, err := s.certificates.GetCertificate(ctx, name, "", nil)
 	if isNotFound(err) {
 		counts.AlreadyAbsent++
-		return nil
+		return false, nil
 	}
 	if err != nil {
-		return fmt.Errorf("revalidate: %w", err)
+		return false, fmt.Errorf("revalidate: %w", err)
 	}
 	current := &azcertificates.CertificateProperties{ID: latest.ID, Attributes: latest.Attributes, Tags: latest.Tags, X509Thumbprint: latest.X509Thumbprint}
 	latestName, _, reason := eligible(current, s.now(), cutoff)
@@ -346,25 +545,25 @@ func (s *sweeper) deleteCertificate(ctx context.Context, cert *azcertificates.Ce
 		!cert.Attributes.Created.Equal(*latest.Attributes.Created) || !cert.Attributes.Updated.Equal(*latest.Attributes.Updated) ||
 		(len(cert.X509Thumbprint) > 0 && !bytes.Equal(cert.X509Thumbprint, latest.X509Thumbprint)) {
 		counts.Skipped["certificate-revalidation"]++
-		return nil
+		return false, nil
 	}
 	if s.now().Sub(ownersAt) >= ownerMaxAge {
-		return errors.New("owner inventory expired during certificate revalidation")
+		return false, errors.New("owner inventory expired during certificate revalidation")
 	}
 	if err := ctx.Err(); err != nil {
-		return err
+		return false, err
 	}
 	counts.Attempts++
 	_, err = s.certificates.DeleteCertificate(ctx, name, nil)
 	switch {
 	case isNotFound(err):
 		counts.AlreadyAbsent++
-		return nil
+		return false, nil
 	case err != nil:
-		return fmt.Errorf("soft-delete: %w", err)
+		return false, fmt.Errorf("soft-delete: %w", err)
 	default:
 		counts.Deleted++
-		return nil
+		return true, nil
 	}
 }
 
