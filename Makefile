@@ -15,6 +15,13 @@ TOPOLOGY_FILE ?= topology.yaml
 export AZURE_TOKEN_CREDENTIALS ?= dev
 BUILD_SERVICES_OPTS ?= -j7
 
+# Pin the Go toolchain to the version declared in go.work so make targets are
+# reproducible and match CI even on machines with a newer Go installed. With the
+# default GOTOOLCHAIN=auto, a newer local toolchain is used as-is (auto only
+# upgrades, never downgrades), which drifts test output (e.g. flate/gzip bytes,
+# encoding/json error text) from CI. Override with `make GOTOOLCHAIN=...` if needed.
+export GOTOOLCHAIN ?= $(shell awk '/^go /{print "go"$$2; exit}' go.work)
+
 .DEFAULT_GOAL := all
 
 # There is currently no convenient way to run commands against a whole Go workspace
