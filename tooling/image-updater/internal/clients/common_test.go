@@ -178,6 +178,26 @@ func TestValidateCreationTimestamp(t *testing.T) {
 	}
 }
 
+func TestResolveCreationTimestamp(t *testing.T) {
+	now := time.Now()
+	if got, err := resolveCreationTimestamp("master.210916.2", now); err != nil || !got.Equal(now) {
+		t.Fatalf("resolveCreationTimestamp() = %v, %v; want %v, nil", got, err, now)
+	}
+
+	// Bazel-built images pin the config timestamp to the Unix epoch.
+	want := time.Date(2021, 9, 16, 0, 0, 0, 0, time.UTC)
+	for _, timestamp := range []time.Time{{}, time.Unix(0, 0).UTC()} {
+		got, err := resolveCreationTimestamp("master.210916.2", timestamp)
+		if err != nil || !got.Equal(want) {
+			t.Fatalf("resolveCreationTimestamp(%v) = %v, %v; want %v, nil", timestamp, got, err, want)
+		}
+	}
+
+	if _, err := resolveCreationTimestamp("latest", time.Unix(0, 0).UTC()); err == nil || !strings.Contains(err.Error(), "latest") {
+		t.Fatalf("resolveCreationTimestamp() error = %v, want missing timestamp error", err)
+	}
+}
+
 func TestHasEquivalentSemanticVersions(t *testing.T) {
 	if !hasEquivalentSemanticVersions([]Tag{{Name: "v1.2.3+build1"}, {Name: "v1.2.3+build2"}}) {
 		t.Fatal("hasEquivalentSemanticVersions() = false, want true for equal semantic precedence")

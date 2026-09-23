@@ -375,7 +375,7 @@ func (c *QuayClient) enrichTagsViaRegistryAPI(ctx context.Context, repository st
 			if err == nil {
 				configFile, err = img.ConfigFile()
 				if err == nil {
-					tag.LastModified, err = validateCreationTimestamp(tag.Name, configFile.Created.Time)
+					tag.LastModified, err = resolveCreationTimestamp(tag.Name, configFile.Created.Time)
 					tag.Version = extractVersionFromConfigLabels(configFile.Config.Labels, versionLabel)
 				}
 			}
@@ -582,7 +582,7 @@ func (c *QuayClient) GetDigestForTag(ctx context.Context, repository string, tag
 	if err != nil {
 		return nil, fmt.Errorf("failed to get config for tag %s: %w", tagName, err)
 	}
-	tag.LastModified, err = validateCreationTimestamp(tagName, configFile.Created.Time)
+	tag.LastModified, err = resolveCreationTimestamp(tagName, configFile.Created.Time)
 	if err != nil {
 		return nil, err
 	}
