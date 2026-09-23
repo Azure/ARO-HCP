@@ -10,9 +10,6 @@ param region string
 @description('Resource ID of the SL ICM action group (empty string if not managed)')
 param actionGroupSL string
 
-@description('Resource ID of the SRE ICM action group (empty string if not managed)')
-param actionGroupSRE string
-
 @description('Resource ID of the RP ICM action group (empty string if not managed)')
 param actionGroupRP string
 
@@ -36,9 +33,6 @@ param alertEventsEventHubNamespaceName string = ''
 
 @description('Event Hub name for alert events')
 param alertEventsEventHubName string = ''
-
-@description('Whether the SRE IcM action group is wired to SRE alert rules. When false, SRE rules still evaluate in Prometheus but do not deliver to IcM.')
-param icmEnabledSRE bool = true
 
 @description('Whether the SL IcM action group is wired to SL alert rules. When false, SL rules still evaluate in Prometheus but do not deliver to IcM.')
 param icmEnabledSL bool = true
@@ -72,7 +66,6 @@ var ehActionGroups = eventHubAlertingEnabled ? [eventHubActionGroup!.outputs.act
 // The Event Hub action group is created here (region-specific).
 var slActionGroups = actionGroupSL != '' && icmEnabledSL ? concat([actionGroupSL], ehActionGroups) : ehActionGroups
 var rpActionGroups = actionGroupRP != '' && icmEnabledRP ? concat([actionGroupRP], ehActionGroups) : ehActionGroups
-var sreActionGroups = actionGroupSRE != '' && icmEnabledSRE ? concat([actionGroupSRE], ehActionGroups) : ehActionGroups
 var msftActionGroups = actionGroupMSFT != '' && icmEnabledMSFT
   ? concat([actionGroupMSFT], ehActionGroups)
   : ehActionGroups
@@ -96,12 +89,10 @@ module kustoServiceAlerts '../modules/metrics/kusto-service-rules.bicep' = {
   }
 }
 
-module hcpAlerts '../modules/metrics/hcp-rules.bicep' = {
-  name: 'hcpAlerts'
+module hcpRecordingRules '../modules/metrics/hcp-rules.bicep' = {
+  name: 'hcpRecordingRules'
   params: {
     azureMonitoringWorkspaceId: hcpAzureMonitoringWorkspaceId
-    actionGroups: sreActionGroups
-    severityCeiling: alertSeverityCeiling
   }
 }
 
@@ -119,15 +110,6 @@ module kustoHcpAlerts '../modules/metrics/kusto-hcp-rules.bicep' = {
   params: {
     azureMonitoringWorkspaceId: hcpAzureMonitoringWorkspaceId
     actionGroups: ehActionGroups
-    severityCeiling: alertSeverityCeiling
-  }
-}
-
-module sreServiceAlerts '../modules/metrics/sre-service-rules.bicep' = {
-  name: 'sreServiceAlerts'
-  params: {
-    azureMonitoringWorkspaceId: azureMonitoringWorkspaceId
-    actionGroups: sreActionGroups
     severityCeiling: alertSeverityCeiling
   }
 }

@@ -888,12 +888,6 @@ monitoring:
       automitigationEnabled: ""
       enabled: true
       routingId: ""
-    sre:
-      actionGroupName: ""
-      actionGroupShortName: ""
-      automitigationEnabled: ""
-      enabled: true
-      routingId: ""
   svcWorkspaceName: services-cspr-usw3
 msiCredentialsRefresher:
   certificate:

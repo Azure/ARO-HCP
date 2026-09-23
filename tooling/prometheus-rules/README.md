@@ -42,7 +42,6 @@ make recording-rules # Both recording-rules configs
 
 # Generate individually
 make run-sl-services              # Alerting rules: SL queue, services datasource
-make run-sre-hcps                 # Alerting rules: SRE queue, HCPs datasource
 make run-rp-services              # Alerting rules: RP queue, services datasource
 make run-rp-hcps                  # Alerting rules: RP queue, HCPs datasource
 make run-msft-services            # Alerting rules: MSFT queue, services datasource

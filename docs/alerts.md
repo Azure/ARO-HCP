@@ -166,7 +166,6 @@ Add your rule file to the appropriate configuration in `observability/`:
 | Config file | Purpose | When to use |
 |---|---|---|
 | `observability/alerts-sl-services.yaml` | Service and platform alerts (SL queue) | Most alerts go here |
-| `observability/alerts-sre-hcps.yaml` | HCP namespace alerts (SRE queue) | Alerts specific to hosted control planes |
 | `observability/alerts-rp-services.yaml` | Resource provider alerts (RP queue) | RP-specific alerts |
 | `observability/alerts-rp-hcps.yaml` | HCP namespace alerts (RP queue) | RP-specific alerts using HCP metrics |
 | `observability/alerts-msft-services.yaml` | MSFT-filtered alerts (MSFT queue) | Subset of alerts for MSFT environments (uses `includedAlertsByGroup`) |
@@ -230,8 +229,7 @@ nothing for the alert to evaluate and nothing fires. PromQL `absent()` does not 
 its own: the synthetic series it returns carries only the labels written literally in the
 selector, so it has no `cluster` label to key an incident on. This is why the tier configs
 rewrite `absent(up{job="..."} == 1)` into `count by (cluster) (up{job="..."} == 1) == 0` via
-`regexOutputReplacements` (see `observability/alerts-sre-hcps.yaml` and
-`observability/alerts-msft-services.yaml`) -- but that still only covers clusters whose `up` is
+`regexOutputReplacements` (see `observability/alerts-msft-services.yaml`) -- but that still only covers clusters whose `up` is
 present and `0`, not ones that have vanished entirely.
 
 The authoritative inventory closes that gap: an alert compares "should exist" against "is
