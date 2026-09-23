@@ -72,6 +72,13 @@ Please note, that you might be asked to comply with these guidelines before your
 
 All pull requests must follow these standards. Reviewers will check for compliance before approving.
 
+### Automated PR Policy
+
+- Every PR created by automation MUST open as a GitHub Draft. Automation MUST keep a PR in Draft unless a human changes its state or gives an explicit instruction to make that PR ready for review or drive it to merge.
+- Explicit authorization permits only the requested PR state change or merge-driving. It does not bypass self-review, required CI checks, reviewer approval, comment resolution, or merge policy.
+- Automation MUST write an evergreen description: the enduring problem, decision, behavior, operational contract, verification, dependencies, and intentional non-goals. The description MUST remain accurate after merge.
+- Do not lead an automated PR description with agent activity, transient CI state, workflow narration, or “preview only” framing. State a dependency or non-goal when it is part of the lasting contract.
+
 ### 1. Keep PRs Small
 - One PR per task — do not mix features with refactors, style fixes, or unrelated bug fixes.
 - If a task requires multiple concerns, split them into separate PRs.
