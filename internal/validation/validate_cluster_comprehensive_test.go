@@ -906,7 +906,8 @@ func TestValidateClusterCreate(t *testing.T) {
 			},
 		},
 		{
-			name: "vnet integration subnet is optional - create",
+			name:      "vnet integration subnet is optional in 20240610 - create",
+			opOptions: []string{metadataapi.APIVersionOption(metadataapi.APIVersionV20240610Preview)},
 			cluster: func() *coreapi.HCPOpenShiftCluster {
 				c := createValidCluster()
 				// vnetIntegrationSubnetId is optional for backwards compatibility

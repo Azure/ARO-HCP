@@ -64,6 +64,7 @@ type ClusterParams20261001 struct {
 	EncryptionKeyManagementMode   string
 	EncryptionType                string
 	VnetIntegrationSubnetID       string
+	DisableSwift                  bool // Test-only networking choice, independent of visibility.
 	KeyVaultVisibility            string
 	IngressType                   string
 	Network                       NetworkConfig
@@ -101,6 +102,7 @@ type NodePoolParams20261001 struct {
 
 func NewDefaultClusterParams20261001() ClusterParams20261001 {
 	params := ClusterParams20261001{
+		DisableSwift:       true,
 		OpenshiftVersionId: DefaultOpenshiftControlPlaneVersionId(),
 		Network: NetworkConfig{
 			NetworkType: "OVNKubernetes",
@@ -471,10 +473,11 @@ func BuildHCPClusterFromParams20261001(
 		}
 	}
 
+	tags, vnetIntegrationSubnetID := buildClusterNetworking(parameters.DisableSwift, parameters.Tags, parameters.VnetIntegrationSubnetID)
 	return hcpsdk20261001preview.HcpOpenShiftCluster{
 		Location: to.Ptr(location),
 		Identity: identity,
-		Tags:     parameters.Tags,
+		Tags:     tags,
 		Properties: &hcpsdk20261001preview.HcpOpenShiftClusterProperties{
 			Version: &hcpsdk20261001preview.VersionProfile{
 				ID:           to.Ptr(parameters.OpenshiftVersionId),
@@ -484,7 +487,7 @@ func BuildHCPClusterFromParams20261001(
 				ManagedResourceGroup:    to.Ptr(parameters.ManagedResourceGroupName),
 				NetworkSecurityGroupID:  to.Ptr(parameters.NsgResourceID),
 				SubnetID:                to.Ptr(parameters.SubnetResourceID),
-				VnetIntegrationSubnetID: to.Ptr(parameters.VnetIntegrationSubnetID),
+				VnetIntegrationSubnetID: vnetIntegrationSubnetID,
 				OperatorsAuthentication: &hcpsdk20261001preview.OperatorsAuthenticationProfile{
 					UserAssignedIdentities: uamis,
 				},

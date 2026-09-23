@@ -48,6 +48,7 @@ var _ = Describe("ARO-HCP", func() {
 		labels.MIContainers(1),
 		func(ctx context.Context, version string) {
 			clusterParams := framework.NewDefaultClusterParams20251223()
+			clusterParams.DisableSwift = false
 
 			customerNetworkSecurityGroupName := "customer-nsg-" + clusterParams.ChannelGroup + "-"
 			customerVnetName := "customer-vnet-" + clusterParams.ChannelGroup + "-"

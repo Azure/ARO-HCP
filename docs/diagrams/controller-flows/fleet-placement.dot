@@ -25,7 +25,7 @@ digraph fleet_placement {
   lifecycle -> placement [label="Ready = True"];
   capacity -> placement [label="current capacity + scaling data;\navailable SWIFT NICs"];
   policy -> placement [label="eligible policy"];
-  placement -> selected [label="fit: one NIC SingleReplica,\nthree otherwise"];
+  placement -> selected [label="fit: zero NICs non-SWIFT,\none SWIFT SingleReplica, three otherwise"];
   placement -> deferred [label="no eligible fit"];
   selected -> create [label="selected provision shard"];
   selected -> operation [label="placement check satisfied;\nother checks still required"];
