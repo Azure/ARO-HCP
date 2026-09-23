@@ -101,12 +101,20 @@ The acquire step calls `./test/aro-hcp-tests slot-manager acquire`, which:
 That runtime contract includes:
 
 - `CUSTOMER_SUBSCRIPTION`
+- `CUSTOMER_SUBSCRIPTION_ID`
+- `SELECTED_CLUSTER_PROFILE_DIR`
 - `SELECTED_LOCATION`
 - `LEASED_MSI_CONTAINERS`
 - `ARO_HCP_E2E_SLOT_NAME`
 - `ARO_HCP_E2E_SLOT_RESOURCE_TYPE`
 
-Downstream steps then source that file and map `SELECTED_LOCATION` to the runtime `LOCATION` they consume. The test framework still sees `LEASED_MSI_CONTAINERS`; the difference is that slot-manager now decides which subscription, slot, and identity-container set back that variable.
+Downstream steps source that file, authenticate with the credentials in
+`SELECTED_CLUSTER_PROFILE_DIR`, and consume the selected customer subscription
+without reading an unqualified cluster-profile subscription field. See the
+[cluster profile secret contract](cluster-profile-secret-contract.md) for the
+complete field and runtime-variable definitions. The test framework still sees
+`LEASED_MSI_CONTAINERS`; the difference is that slot-manager now decides which
+subscription, slot, and identity-container set back that variable.
 
 #### Remaining legacy ci-operator leases
 

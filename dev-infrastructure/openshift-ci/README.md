@@ -37,20 +37,16 @@ And in our Release Job(presubmit/periodic) we consume this prebuild images as bu
 | Script | Purpose |
 |--------|---------|
 | `create-openshift-release-bot-msft-test.sh` | Create Azure AD app + roles + permissions (calls `recycle-openshift-release-bot-creds.sh`) |
-| `recycle-openshift-release-bot-creds.sh` | Rotate credentials and update `*-test-tenant` Vault secrets |
-| `switch-vault-tenant.sh` | Switch active secrets between Test Test tenant and legacy tenant |
+| `recycle-openshift-release-bot-creds.sh` | Rotate credentials and patch the active `aro-hcp-prod` Vault profile |
 
 ## Vault Secret Structure
 
-```
-selfservice/hcm-aro/
-├── aro-hcp-stg              # Active secret (used by Prow jobs, with secretsync)
-├── aro-hcp-stg-test-tenant  # Test Test Azure Red Hat OpenShift tenant credentials (backup, no secretsync)
-├── aro-hcp-stg-legacy       # Original legacy tenant credentials (backup, no secretsync)
-├── aro-hcp-prod             # Active secret (used by Prow jobs, with secretsync)
-├── aro-hcp-prod-test-tenant # Test Test Azure Red Hat OpenShift tenant credentials (backup, no secretsync)
-└── aro-hcp-prod-legacy      # Original legacy tenant credentials (backup, no secretsync)
-```
+The rotation script updates `kv/selfservice/hcm-aro/aro-hcp-prod`. It patches
+only `client-id`, `client-secret`, and `tenant`, preserving the customer shard
+inventory and secret-sync metadata.
+
+The supported profile shape is documented in
+[Cluster Profile Secret Contract](../../docs/ci/cluster-profile-secret-contract.md).
 
 ## Prerequisites
 
@@ -65,26 +61,6 @@ selfservice/hcm-aro/
 ```bash
 # Create Azure AD app, assign roles, grant permissions, and store credentials
 ./create-openshift-release-bot-msft-test.sh
-
-# Switch to Test Test tenant
-./switch-vault-tenant.sh --to test-tenant
-```
-
-## Switching Tenants
-
-```bash
-# Check current tenant status
-./switch-vault-tenant.sh --status
-
-# Switch to Test Test Azure Red Hat OpenShift tenant
-./switch-vault-tenant.sh --to test-tenant
-
-# Rollback to legacy tenant
-./switch-vault-tenant.sh --to legacy
-
-# Switch only specific environment
-./switch-vault-tenant.sh --to test-tenant --env stg
-./switch-vault-tenant.sh --to test-tenant --env prod
 ```
 
 ## Credential Rotation
@@ -97,34 +73,28 @@ When credentials are expiring or need to be rotated:
 
 # Rotate and delete old credentials
 ./recycle-openshift-release-bot-creds.sh --delete-old
-
-# Rotate only specific environment
-./recycle-openshift-release-bot-creds.sh --env stg
-
-# Apply rotated credentials to active secrets
-./switch-vault-tenant.sh --to test-tenant
 ```
 
 ## Verification
 
 ```bash
-# Check current tenant status
-./switch-vault-tenant.sh --status
+# Verify the active profile identity without printing the credential.
+vault kv get -field=tenant kv/selfservice/hcm-aro/aro-hcp-prod
+vault kv get -field=client-id kv/selfservice/hcm-aro/aro-hcp-prod
 ```
 
 ## Troubleshooting
 
-### Rollback to Legacy Tenant
-
-If issues occur with Test Test tenant:
-
-```bash
-./switch-vault-tenant.sh --to legacy
-```
+Credential rotation no longer copies whole profiles or switches tenants. If a
+rotation must be rolled back, create a new credential for the intended
+application and patch the three identity fields again. Do not restore legacy
+`subscription-id`, `subscription-name`, or `infra-subscription-id` fields.
 
 ### Check Prow Job Logs
 
-Look for `Acquired 1 lease(s) for aro-hcp-test-tenant-quota-slice` in the build logs to confirm Test Test tenant is being used.
+Check the credential-selection step and confirm the expected cluster profile
+directory was selected. Slot-managed jobs publish
+`SELECTED_CLUSTER_PROFILE_DIR` in `${SHARED_DIR}/aro-hcp-slot.env`.
 
 ## Documentation
 

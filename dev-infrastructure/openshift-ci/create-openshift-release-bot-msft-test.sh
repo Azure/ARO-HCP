@@ -122,7 +122,7 @@ az ad app permission admin-consent --id "${APP_ID}"
 header "Storing Credentials in Vault"
 
 # Call recycle script to handle credential generation and Vault storage
-# This rotates credentials once and updates both stg and prod Vault secrets
+# This rotates credentials once and updates the active PROD Vault secret.
 "${SCRIPT_DIR}/recycle-openshift-release-bot-creds.sh"
 
 header "Setup Complete"
@@ -131,8 +131,4 @@ echo "Application: ${APPLICATION_NAME}"
 echo "App ID: ${APP_ID}"
 echo ""
 echo "Credentials stored in:"
-echo "  - kv/selfservice/hcm-aro/aro-hcp-stg-test-tenant"
-echo "  - kv/selfservice/hcm-aro/aro-hcp-prod-test-tenant"
-echo ""
-echo "To switch to Test Test tenant:"
-echo "  ./switch-vault-tenant.sh --to test-tenant"
+echo "  - kv/selfservice/hcm-aro/aro-hcp-prod"

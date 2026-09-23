@@ -51,6 +51,13 @@ ARO HCP CI is split across this repository and the OpenShift CI configuration in
 - [DEV E2E Subscription Onboarding](e2e-subscription-onboarding.md#dev-e2e-subscription-onboarding)
 - [INT/STG/PROD E2E Subscription Onboarding](e2e-subscription-onboarding.md#intstgprod-e2e-subscription-onboarding)
 
+### [Cluster Profile Secret Contract](cluster-profile-secret-contract.md)
+
+- [Profile Fields](cluster-profile-secret-contract.md#profile-fields)
+- [Consumer Rules](cluster-profile-secret-contract.md#consumer-rules)
+- [Slot-Manager Runtime Contract](cluster-profile-secret-contract.md#slot-manager-runtime-contract)
+- [Updating The Inventory](cluster-profile-secret-contract.md#updating-the-inventory)
+
 ### [DEV Mock Identities](dev-mock-identities.md)
 
 - [The Identities At A Glance](dev-mock-identities.md#the-identities-at-a-glance)
