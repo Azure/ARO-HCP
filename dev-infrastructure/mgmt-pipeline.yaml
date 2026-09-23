@@ -651,6 +651,10 @@ resourceGroups:
   - name: kubelet-ds
     aksCluster: '{{ .mgmt.aks.name }}'
     action: Helm
+    # Serial rollout (maxUnavailable: 1) + minReadySeconds: 30 per worker means
+    # ~40-70s per node; 20m covers ~18 worker mgmt clusters with headroom.
+    # See mgmt-fixes/README.md ("Proportional Kubelet Reservations").
+    timeout: 20m
     releaseName: 'mgmt-fixes'
     releaseNamespace: 'kubelet-ds'
     chartDir: ../mgmt-fixes/deploy/kubelet-ds
