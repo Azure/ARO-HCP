@@ -16,11 +16,17 @@ package gatherobservability
 
 import (
 	"context"
+	"time"
 
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
 
 	"github.com/Azure/ARO-HCP/test/pkg/logger"
+)
+
+const (
+	defaultGatherTimeout = 4 * time.Minute
+	gatherReportReserve  = time.Minute
 )
 
 func NewCommand() (*cobra.Command, error) {
@@ -54,6 +60,8 @@ func GatherObservability(ctx context.Context, opts *RawOptions) error {
 	if err != nil {
 		return err
 	}
+	ctx, cancel := context.WithTimeout(ctx, validated.timeout)
+	defer cancel()
 	completed, err := validated.Complete(ctx)
 	if err != nil {
 		return err
