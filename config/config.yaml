@@ -193,7 +193,7 @@ defaults:
       image:
         registry: mcr.microsoft.com
         repository: geneva/distroless/mdsd
-        digest: sha256:5eca8f713c64383bc545dd55f4af4020fd5db0c392d891cdc441765a2f7e52c3 # 1.44.1-20260917-2 (2026-09-17 23:30)
+        digest: sha256:7af6cb650e29c367219bebbce4020e6d53088d22e07ab5040d4b4a03685e7176 # 1.44.1-20260918-1 (2026-09-18 21:13)
   # Kube Events
   kubeEvents:
     enabled: true
@@ -413,7 +413,7 @@ defaults:
     image:
       registry: quay.io
       repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
-      digest: sha256:0116fcc33ef9bf73984848689ed3020ca3f1a28ded8261d132e0581d760ac32b # 214006ce75692dee27164e3d6f27ec390c9dbf90 (2026-09-22 13:19)
+      digest: sha256:4036f3eecdf413b4bd8b9e8383421aa6be7108845e4c1af778a68e6b3bb6dbfb # 117ff4e1c297e0d1ccee9cc5743522e2724e46b3 (2026-09-22 20:50)
     namespace: hypershift
     additionalInstallArg: '--enable-cpo-overrides --disable-capi-migration'
     # By default we set it to empty as this tag is only required for msft environments. We override
@@ -1115,12 +1115,12 @@ defaults:
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-217
-        digest: sha256:dacdf774da4fdf5711026d7aba6904377011c1cf2cdf3986b0e5185480fe2fc1 # v2.17.3-460 (2026-09-22 14:10)
+        digest: sha256:6dfb0ad83446230aa7db3fd65735a66aa556d18e294efa2eecb6ae408d628baf # v2.17.3-461 (2026-09-22 20:18)
     mce:
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-217
-        digest: sha256:236e9bd535e3281bc8b878b198ca82fca4dcbac18f5500f58aaba63b5829bf39 # v2.17.3-496 (2026-09-22 14:19)
+        digest: sha256:a7027158c0b762347e55d5c4212b6745b21df83421b874f37d02b1b87e4be016 # v2.17.3-497 (2026-09-22 21:10)
   # Cluster Service
   clustersService:
     image:
