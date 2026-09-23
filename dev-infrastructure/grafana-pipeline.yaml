@@ -34,6 +34,17 @@ resourceGroups:
       configRef: monitoring.grafanaPublicNetworkAccess
     crossTenantSecurityGroup:
       configRef: monitoring.crossTenantSecurityGroup
+    adx:
+      enabled:
+        configRef: monitoring.adxIntegrationEnabled
+      environment:
+        configRef: environmentName
+      geographies:
+        configRef: monitoring.adxIntegrationGeographies
+      scenario:
+        configRef: monitoring.adxIntegrationScenario
+      targetResourceId:
+        configRef: monitoring.adxIntegrationTargetResourceId
     identityFrom:
       resourceGroup: singleton
       step: output

@@ -8,8 +8,8 @@ github.com/AdaLogics/go-fuzz-headers v0.0.0-20230811130428-ced1acdcaa24 h1:bvDV9
 github.com/AdaLogics/go-fuzz-headers v0.0.0-20230811130428-ced1acdcaa24/go.mod h1:8o94RPi1/7XTJvwPpRSzSUedZrtlirdB3r9Z20bi2f8=
 github.com/Azure/ARO-Tools/config v0.0.0-20260917062117-27fb5fa3a294 h1:t8vt5p6FLXiPe4BZD1Xa86p0oYgN8ckjugSMLAwPCFU=
 github.com/Azure/ARO-Tools/config v0.0.0-20260917062117-27fb5fa3a294/go.mod h1:Y8OSwVxHnZVK+EOJlPl5I2CMiX8ISZ34FF3TVdjoGog=
-github.com/Azure/ARO-Tools/pipelines v0.0.0-20260917062117-27fb5fa3a294 h1://FimNc16cIKgMp2F5d9naB48VOWAGfGWh+m+xkvyHs=
-github.com/Azure/ARO-Tools/pipelines v0.0.0-20260917062117-27fb5fa3a294/go.mod h1:0yvr2AYo+cuD47Wyw1KkSms87zrJb+/AItfa+o4gvhY=
+github.com/Azure/ARO-Tools/pipelines v0.0.0-20260921171559-9111ffaaedb3 h1:S8RRXZ/buklqhePQNkXHPn4TNC6Pi54vup1NjMWIatY=
+github.com/Azure/ARO-Tools/pipelines v0.0.0-20260921171559-9111ffaaedb3/go.mod h1:0yvr2AYo+cuD47Wyw1KkSms87zrJb+/AItfa+o4gvhY=
 github.com/Azure/ARO-Tools/testutil v0.0.0-20260917062117-27fb5fa3a294 h1:h+cXDtiMnNLFnRqPHZBIp/ofX9AKFL45wWVFkwMNmOA=
 github.com/Azure/ARO-Tools/testutil v0.0.0-20260917062117-27fb5fa3a294/go.mod h1:vKa6bvu+tFVip4oWO9PNI2NbtmN1KUezvdX7rZCQtQU=
 github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260917062117-27fb5fa3a294 h1:nMqNb3vJ1IgMLqR4b+mQym1l/VkN4gJ2JIMCr1w04CU=
