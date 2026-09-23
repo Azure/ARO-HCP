@@ -157,6 +157,55 @@ When a cluster is marked for deletion (its `DeletionTimestamp` is set) and its m
 2. Once the Delete-type desire reports success (and its observed status is cleared), the ApplyDesire is purged from Cosmos.
 3. After all ApplyDesires are gone, the corresponding backup schedule ReadDesires are deleted from Cosmos.
 
+### Orphaned Backup Cleanup
+
+The management agent's `BackupCleanup` controller requests deletion of ARO-HCP
+backups after their HostedCluster is absent. It also reconciles existing backups
+at startup, so it can clean up backups left by clusters deleted before the
+controller was deployed. A HostedCluster that is still terminating is preserved.
+
+The controller recognizes backups in `velero` by their HCP ARM-resource-ID
+annotation and explicit HostedCluster/control-plane namespace pair. Legacy
+association uses the Cluster Service naming contract
+`ocm-<environment-identifier>-<32-character-cluster-id>` and its control-plane
+namespace suffix. It never reconstructs a HostedCluster name from that suffix:
+any HostedCluster in the source HostedCluster namespace protects the backup.
+Unrecognized or ambiguous backup shapes are left untouched.
+
+Cleanup uses Velero `DeleteBackupRequest` objects, not direct deletion of Backup
+CRs. The controller waits for terminal backup phases and for associated uploads,
+restores and downloads to finish. It rechecks the backup, repository opt-outs, and
+HostedCluster absence through the Kubernetes API before submitting a request;
+API errors do not authorize deletion. Failed processed requests are retried while
+the backup remains. Backend schedule teardown is still responsible for stopping
+new scheduled backups.
+
+To opt out of this controller's cleanup, add this annotation to a Backup or its
+BackupRepository **before the HostedCluster disappears**, including before making
+backups visible on a recovery management cluster:
+
+```yaml
+metadata:
+  annotations:
+    mgmt-agent.aro-hcp.azure.com/preserve-backup: ""
+```
+
+Presence of the annotation is sufficient, regardless of its value. On a
+BackupRepository it also protects backups that include the repository's volume
+namespace and use the same backup storage location. The opt-out does not change
+Velero's TTL expiration and cannot cancel a deletion request already submitted
+to Velero. Schedule annotations propagate to newly scheduled Backups; an
+annotation on a HostedCluster alone does not protect backups.
+
+**Repository retirement is not implemented by this controller.** Deleting a
+Backup through Velero forgets its Kopia snapshots, but physical data reclamation
+requires subsequent repository maintenance. Deleting a BackupRepository CR does
+not erase its blob prefix and would stop that maintenance. Repositories and
+their maintenance Jobs/pods therefore remain, including when no backups remain;
+this change does not resolve the maintenance-pod count by itself. Full repository
+retirement needs a separately verified cleanup mechanism, not a time-based guess
+that garbage collection has completed. No direct blob deletion is performed.
+
 ### Admin API
 
 The admin API exposes HTTP endpoints for operators to inspect and control backup behavior per cluster. It reads schedule state from Cosmos DB and surfaces per-schedule status from ReadDesires.

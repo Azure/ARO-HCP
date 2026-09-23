@@ -75,6 +75,7 @@ resourceGroups:
     valuesFile: ./values.yaml
     namespaceFiles:
     - namespace.yaml
+    - velero.namespace.yaml
     kustoEndpoint:
       resourceGroup: kusto
       step: kusto-lookup

@@ -56,6 +56,7 @@ import (
 
 	sharedleaderelection "github.com/Azure/ARO-HCP/internal/leaderelection"
 	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller"
+	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller/backupcleanup"
 	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller/capacityreporting"
 	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller/ksmhcp"
 	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller/nodehealth"
@@ -117,6 +118,8 @@ type completedControllerOptions struct {
 	ksmCtrl                  *ksmhcp.KSMHCPController
 	nodeHealth               *nodehealth.Controller
 	capacityReport           *capacityreporting.CapacityReportController
+	backupCleanup            *backupcleanup.Controller
+	veleroInformers          dynamicinformer.DynamicSharedInformerFactory
 	resourceWatcher          *controller.ResourceWatcher
 	podWatcher               *controller.PodWatcher
 	configMapWatcher         *controller.ConfigMapWatcher
@@ -279,6 +282,16 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 		return nil, fmt.Errorf("failed to create hypershift clientset: %w", err)
 	}
 	hsInformers := hypershiftinformers.NewSharedInformerFactory(hsClient, 10*time.Minute)
+	veleroInformers := dynamicinformer.NewFilteredDynamicSharedInformerFactory(dynamicClient, 0, backupcleanup.Namespace, nil)
+	backupCleanup, err := backupcleanup.NewController(
+		dynamicClient,
+		hsInformers.Hypershift().V1beta1().HostedClusters().Informer(),
+		veleroInformers.ForResource(backupcleanup.BackupsGVR).Informer(),
+		veleroInformers.ForResource(backupcleanup.BackupRepositoriesGVR).Informer(),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create backup cleanup controller: %w", err)
+	}
 
 	metricsClient, err := metricsclientset.NewForConfig(kubeConfig)
 	if err != nil {
@@ -346,6 +359,8 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 			ksmCtrl:                  ksmCtrl,
 			nodeHealth:               nodeHealth,
 			capacityReport:           capacityReportCtrl,
+			backupCleanup:            backupCleanup,
+			veleroInformers:          veleroInformers,
 			resourceWatcher:          resourceWatcher,
 			podWatcher:               podWatcher,
 			configMapWatcher:         configMapWatcher,
@@ -456,6 +471,7 @@ func (o *ControllerOptions) runControllersUnderLeaderElection(ctx context.Contex
 				logger.Info("acquired leader election lease; starting informers and controllers")
 				o.kubeInformers.Start(ctx.Done())
 				o.hypershiftInformers.Start(ctx.Done())
+				o.veleroInformers.Start(ctx.Done())
 				if o.ksmKubeInformers != nil {
 					o.ksmKubeInformers.Start(ctx.Done())
 				}
@@ -524,6 +540,13 @@ func (o *ControllerOptions) runControllersUnderLeaderElection(ctx context.Contex
 					defer utilruntime.HandleCrash()
 					if err := o.capacityReport.Run(ctx); err != nil {
 						logger.Error(err, "capacity reporting controller failed")
+					}
+				}()
+
+				go func() {
+					defer utilruntime.HandleCrash()
+					if err := o.backupCleanup.Run(ctx, o.workers); err != nil {
+						logger.Error(err, "backup cleanup controller failed")
 					}
 				}()
 
