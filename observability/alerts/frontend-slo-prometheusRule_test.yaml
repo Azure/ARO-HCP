@@ -209,10 +209,14 @@ tests:
     values: "0+100x90"
   - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-1", le="1.0", route="/test", prometheus_replica="a"}'
     values: "0+93x90"
+  - series: 'frontend_http_requests_duration_seconds_count{cluster="svc-1", route="/test", prometheus_replica="a"}'
+    values: "0+100x90"
   - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-1", le="+Inf", route="/test", prometheus_replica="b"}'
     values: "0+100x90"
   - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-1", le="1.0", route="/test", prometheus_replica="b"}'
     values: "0+93x90"
+  - series: 'frontend_http_requests_duration_seconds_count{cluster="svc-1", route="/test", prometheus_replica="b"}'
+    values: "0+100x90"
   alert_rule_test:
   - eval_time: 6h25m
     alertname: userJourneyFrontendLatency6h30m
@@ -232,6 +236,54 @@ tests:
   - eval_time: 6h25m
     alertname: userJourneyFrontendLatency1h5m
     exp_alerts: []
+- interval: 1m
+  # A young CI cluster with only ~30 requests in the 30m short window must not
+  # page even when 10% are slow. Both HA replicas contain the same observations;
+  # the request floor must deduplicate them instead of treating them as ~60.
+  input_series:
+  - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-young-low-volume", le="+Inf", route="/test", prometheus_replica="a"}'
+    values: "0+1x150"
+  - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-young-low-volume", le="1.0", route="/test", prometheus_replica="a"}'
+    values: "0+0.9x150"
+  - series: 'frontend_http_requests_duration_seconds_count{cluster="svc-young-low-volume", route="/test", prometheus_replica="a"}'
+    values: "0+1x150"
+  - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-young-low-volume", le="+Inf", route="/test", prometheus_replica="b"}'
+    values: "0+1x150"
+  - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-young-low-volume", le="1.0", route="/test", prometheus_replica="b"}'
+    values: "0+0.9x150"
+  - series: 'frontend_http_requests_duration_seconds_count{cluster="svc-young-low-volume", route="/test", prometheus_replica="b"}'
+    values: "0+1x150"
+  alert_rule_test:
+  - eval_time: 2h
+    alertname: userJourneyFrontendLatency6h30m
+    exp_alerts: []
+- interval: 1m
+  # A partial 6h window must still detect a genuine high-volume regression.
+  # Cluster age alone is not a gate: the 30m window has ~300 requests and ~30
+  # slow calls, so the 10% burn remains actionable on a two-hour-old cluster.
+  input_series:
+  - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-young-high-volume", le="+Inf", route="/test", prometheus_replica="a"}'
+    values: "0+10x150"
+  - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-young-high-volume", le="1.0", route="/test", prometheus_replica="a"}'
+    values: "0+9x150"
+  - series: 'frontend_http_requests_duration_seconds_count{cluster="svc-young-high-volume", route="/test", prometheus_replica="a"}'
+    values: "0+10x150"
+  alert_rule_test:
+  - eval_time: 2h
+    alertname: userJourneyFrontendLatency6h30m
+    exp_alerts:
+    - exp_labels:
+        alertname: userJourneyFrontendLatency6h30m
+        cluster: svc-young-high-volume
+        component: slo
+        severity: "3"
+        slo: frontend-latency
+        long_window: 6h
+        short_window: 30m
+      exp_annotations:
+        summary: "svc-young-high-volume: Frontend HTTP latency budget burning fast (>6% over 1s)"
+        description: "More than 6% of Frontend requests on cluster svc-young-high-volume exceeded 1s on both the 6h and 30m windows (6x burn of the 1% latency budget)."
+        runbook_url: "https://aka.ms/arohcp-runbook-frontend"
 - interval: 1m
   # Latency fast burn: 20% slow exceeds the 14.4% threshold.
   input_series:
