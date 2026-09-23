@@ -748,13 +748,14 @@ resource backendAsyncOperations 'Microsoft.AlertsManagement/prometheusRuleGroups
         }
         annotations: {
           correlationId: 'BackendAsyncOperationStuck/{{ $labels.cluster }}/{{ $labels.resource_id }}'
-          description: 'Cluster create operation for {{ $labels.resource_id }} has been running for over 20 minutes and is currently in {{ $labels.phase }} phase (e2e timeout: ClusterCreationTimeout).'
-          info: 'Cluster create operation for {{ $labels.resource_id }} has been running for over 20 minutes and is currently in {{ $labels.phase }} phase (e2e timeout: ClusterCreationTimeout).'
+          description: 'Cluster create operation for {{ $labels.resource_id }} has been running for over 60 minutes and is currently in {{ $labels.phase }} phase.'
+          info: 'Cluster create operation for {{ $labels.resource_id }} has been running for over 60 minutes and is currently in {{ $labels.phase }} phase.'
           runbook_url: 'TBD'
           summary: 'Cluster create for {{ $labels.resource_id }} stuck in {{ $labels.phase }}'
           title: 'Cluster create for {{ $labels.resource_id }} stuck in {{ $labels.phase }}'
         }
-        expression: '((max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster, region) (time() - backend_resource_operation_start_time_seconds{operation_type="create",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) and max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster, region) (backend_resource_operation_phase_info{operation_type="create",phase=~"accepted|provisioning",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1) > 1200) unless on (subscription_id) internal_subscription:info'
+        expression: '((max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster, region) (time() - backend_resource_operation_start_time_seconds{operation_type="create",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) and max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster, region) (backend_resource_operation_phase_info{operation_type="create",phase=~"accepted|provisioning",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1) > 3600) unless on (subscription_id) internal_subscription:info'
+        for: 'PT5M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
