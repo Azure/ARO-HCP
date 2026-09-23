@@ -206,7 +206,7 @@ func PickAtLeastOpenshiftVersionId(defaultVersion, minimalVersion string) (strin
 		return "", fmt.Errorf("failed to parse minimal version %q: %w", minimalVersion, err)
 	}
 
-	if len(defaultSemver.Pre) > 0  {
+	if len(defaultSemver.Pre) > 0 {
 		// For nightly builds, ignore the pre-release suffix and compare Major.Minor.Patch
 		// directly. Bare semver ordering would rank "4.19.0-0.nightly-multi-..." below
 		// "4.19.0", producing false negatives for patch-zero minimums. Nightly builds are
