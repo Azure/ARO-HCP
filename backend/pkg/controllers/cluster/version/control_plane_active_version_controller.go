@@ -94,7 +94,7 @@ func (c *controlPlaneActiveVersionSyncer) SyncOnce(ctx context.Context, key cont
 		return nil
 	}
 
-	hostedCluster, err := kubeapplierhelpers.GetCachedHostedClusterForCluster(ctx, c.readDesireLister, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	hostedCluster, _, err := kubeapplierhelpers.GetCachedHostedClusterForCluster(ctx, c.readDesireLister, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get HostedCluster from ReadDesire: %w", err))
 	}

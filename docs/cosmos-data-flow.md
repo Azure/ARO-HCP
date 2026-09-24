@@ -430,14 +430,14 @@ Leaves the field `nil` until the HostedCluster is observed, and only writes when
 object changes. A missing or unsuccessful ReadDesire observation leaves an already-published
 mirror in place — those states also cover a cold union informer, so clearing on them would wipe
 and rewrite every mirror on each backend restart. A successful empty observation clears the
-mirror because it proves the HostedCluster is absent. A cluster with a `DeletionTimestamp` is
-skipped while its HostedCluster is still up, and once that HostedCluster is gone the mirror is
-retracted to `nil` so it never outlives the object it mirrors.
+mirror because it proves the HostedCluster is absent. Deletion does not gate mirroring:
+successful observations continue updating the object while the cluster is deleting, and a
+successful empty observation retracts it to `nil` for both active and deleting clusters.
 
 | | Object | Fields |
 |---|--------|--------|
-| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp`</li></ul> |
-| Read | ReadDesire (HostedCluster) | <ul><li>`Status.Conditions[Successful]` — gates whether empty `kubeContent` counts as an answer</li><li>`Status.KubeContent` — the observed HostedCluster, whole object (`Spec` + `Status`)</li></ul> |
+| Read | `HCPOpenShiftCluster` | Existence only; no deletion gate |
+| Read | ReadDesire (HostedCluster) | <ul><li>`Status.Conditions[Successful]` — gates all mirror updates, including clearing empty content</li><li>`Status.KubeContent` — the observed HostedCluster, whole object (`Spec` + `Status`)</li></ul> |
 | **Write** | **`ServiceProviderCluster`** | <ul><li>**`Status.ActualHostedCluster`** = the observed HostedCluster, mirrored verbatim (`Spec` + `Status` + `metadata`)</li></ul> |
 
 #### FetchMSIIdentitiesInfo
