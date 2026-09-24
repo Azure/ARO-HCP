@@ -48,46 +48,24 @@ spec:
   #     already cover OperationClusterUpdate at the same thresholds.
   #   Duplicating either here would double-page on a single condition.
   #
-  # Multi-window burn-rate-style alerting adapted for gauge metrics.
+  # Windowed burn-rate alerting, following the cluster provisioning SLO.
   # Naming convention: {Scope}{Subject}{Metric}{BurnRateTier} per ADR-001.
   #
-  # Alerts are named for the burn tier they represent (FastBurn / MediumBurn /
-  # SlowBurn) rather than for MWMBR window pairs such as "1h5m". The window-pair
-  # naming would be inaccurate here: the underlying metric is a gauge
-  # (backend_resource_operation_phase_info, a point-in-time count from Cosmos),
-  # so rate() over a long window is not meaningful and true dual-window MWMBR
-  # is not available. Each rule is a single instantaneous comparison held by a
-  # 'for' duration, which approximates only the short window.
-  #
-  # For the same reason these alerts deliberately carry NO long_window /
-  # short_window labels. Those labels are used elsewhere in this repo (see
-  # UserJourneyEtcdLatencyMonitor-prometheusRule.yaml) on rules that genuinely
-  # evaluate both windows; asserting them here would claim behaviour that is
-  # not implemented.
+  # These read the windowed recording rules
+  # (errors:backend_cluster_update:{failed,total,error_rate}_{1h,6h,3d}), which
+  # count only cluster update operations whose terminal transition landed inside
+  # the window. Each tier therefore evaluates a real event window rather than the
+  # trailing 7-day gauge ratio, so a stale failure ages out instead of paging for
+  # the full Cosmos TTL.
   #
   # Burn rate thresholds calculated from 95% SLO (5% error budget):
-  #   Fast (14.4x): 14.4 * 0.05 = 0.72 → 72% error rate
-  #   Medium (6x):  6 * 0.05 = 0.30 → 30% error rate
-  #   Slow (1x):    1 * 0.05 = 0.05 → 5% error rate
+  #   Fast (14.4x): 14.4 * 0.05 = 0.72 → 72% error rate over 1h
+  #   Medium (6x):  6 * 0.05 = 0.30 → 30% error rate over 6h
+  #   Slow (1x):    1 * 0.05 = 0.05 → 5% error rate over 3d
   #
-  # The 'for' duration enforces sustained observation, approximating the
-  # short window of multi-window burn rate alerting. For gauge metrics
-  # (point-in-time state rather than event rates), this provides equivalent
-  # protection against transient spikes.
-  #
-  # MINIMUM VOLUME GUARD
-  #
-  # Every rule below is gated on terminal_total >= 5. Without it a single
-  # failed update on an otherwise quiet service cluster yields error_rate = 1.0
-  # and opens a Sev 3 after 5 minutes with no systemic failure.
-  # imageDigestMirrors changes are low-volume, so that is a realistic pager
-  # risk rather than a theoretical one.
-  #
-  # The threshold of 5 is a judgement call pending baseline data, and it is a
-  # genuine trade-off: a service cluster with fewer than 5 resources in a
-  # terminal update state is not alerted on at all. Five was chosen because it
-  # suppresses the degenerate 1-of-1 and 2-of-2 cases while still allowing
-  # FastBurn to fire on 4 of 5 failures. Revisit once real volume is known.
+  # Volume guard: each tier requires an absolute floor of completions/failures
+  # in the window so a single failure on a quiet window cannot page. The floors
+  # match the cluster provisioning SLO.
   - name: arohcp_idms_mirror_slo_error_alerts
     labels:
       component: slo
@@ -95,65 +73,66 @@ spec:
     # ----------------------------------------
     # Fast Burn Alert (IcM Sev 3 — RP lane / customer-facing UJ)
     # ----------------------------------------
-    # 14.4x burn rate → >72% failure rate sustained for 5 minutes
-    # Would exhaust 7-day error budget in ~12 hours
+    # 14.4x burn: >72% failures over 1h, at least 3 failures.
     - alert: userJourneyIDMSMirrorErrorsFastBurn
       expr: |
-        errors:backend_cluster_update:error_rate > 0.72
-        and on (cluster)
-        errors:backend_cluster_update:terminal_total >= 5
+        errors:backend_cluster_update:failed_1h >= 3
+        and
+        errors:backend_cluster_update:error_rate_1h > 0.72
       for: 5m
       labels:
         severity: "3"
         slo: idms-mirror-errors
+        long_window: 1h
+        short_window: 5m
       annotations:
-        summary: "{{ $labels.cluster }}: Cluster update error rate critically high (>72%)"
-        description: "More than 72% of cluster update operations are in failed state, indicating a fast error budget burn (14.4x) that would exhaust the 95% SLO budget in ~12 hours. Confirm whether the affected operations carried an imageDigestMirrors change before triaging as an IDMS issue."
+        summary: "{{ $labels.cluster }}: Cluster update operations failing fast (>72% over 1h)"
+        description: "More than 72% of completed cluster update operations on {{ $labels.cluster }} failed over the last hour with at least 3 failures, a 14.4x burn of the 95% SLO budget. Confirm whether the affected operations carried an imageDigestMirrors change before triaging as an IDMS issue."
         runbook_url: "https://aka.ms/arohcp-runbook-idms"
     # ----------------------------------------
     # Medium Burn Alert (IcM Sev 3)
     # ----------------------------------------
-    # 6x burn rate → >30% failure rate sustained for 30 minutes
-    # Would exhaust 7-day error budget in ~28 hours
+    # 6x burn: >30% failures over 6h, at least 5 completions.
     - alert: userJourneyIDMSMirrorErrorsMediumBurn
       expr: |
-        errors:backend_cluster_update:error_rate > 0.30
-        and on (cluster)
-        errors:backend_cluster_update:terminal_total >= 5
+        errors:backend_cluster_update:total_6h >= 5
+        and
+        errors:backend_cluster_update:error_rate_6h > 0.30
       for: 30m
       labels:
         severity: "3"
         slo: idms-mirror-errors
+        long_window: 6h
+        short_window: 30m
       annotations:
-        summary: "{{ $labels.cluster }}: Cluster update error rate elevated (>30%) for 30+ minutes"
-        description: "More than 30% of cluster update operations are in failed state sustained over 30 minutes, indicating a medium error budget burn (6x) that would exhaust the 95% SLO budget in ~28 hours. Confirm whether the affected operations carried an imageDigestMirrors change before triaging as an IDMS issue."
+        summary: "{{ $labels.cluster }}: Cluster update error rate elevated (>30% over 6h)"
+        description: "More than 30% of completed cluster update operations on {{ $labels.cluster }} failed over the last 6 hours (at least 5 completions), a 6x burn of the 95% SLO budget. Confirm whether the affected operations carried an imageDigestMirrors change before triaging as an IDMS issue."
         runbook_url: "https://aka.ms/arohcp-runbook-idms"
     # ----------------------------------------
     # Slow Burn Alert (IcM Sev 4 — ticket)
     # ----------------------------------------
     # Per ADR: slow burn alerts generate a ticket, not a page.
-    # 1x burn rate → >5% failure rate sustained for 6 hours
-    # Would exhaust 7-day error budget in ~7 days
+    # 1x burn: >5% failures over 3d, at least 10 completions and 2 failures.
     - alert: userJourneyIDMSMirrorErrorsSlowBurn
       expr: |
-        errors:backend_cluster_update:error_rate > 0.05
-        and on (cluster)
-        errors:backend_cluster_update:terminal_total >= 5
+        errors:backend_cluster_update:total_3d >= 10
+        and
+        errors:backend_cluster_update:failed_3d >= 2
+        and
+        errors:backend_cluster_update:error_rate_3d > 0.05
       for: 6h
       labels:
         severity: "4"
         slo: idms-mirror-errors
+        long_window: 3d
       annotations:
-        summary: "{{ $labels.cluster }}: Cluster update error rate exceeds SLO target (>5%) for 6+ hours"
-        description: "More than 5% of cluster update operations are in failed state sustained over 6 hours, indicating persistent degradation at the 95% SLO boundary that would exhaust the error budget in ~7 days."
+        summary: "{{ $labels.cluster }}: Cluster update error budget burning (>5% over 3d)"
+        description: "More than 5% of completed cluster update operations on {{ $labels.cluster }} failed over the last 3 days (at least 10 completions and 2 failures), a 1x burn that exhausts the 95% SLO error budget over the window."
         runbook_url: "https://aka.ms/arohcp-runbook-idms"
     # ----------------------------------------
     # Note: there is deliberately no separate "degradation" precursor alert.
     # A >15% / 30m precursor was considered and rejected: above 30% it fires at
     # exactly the same time as MediumBurn (same 30m 'for'), producing a Sev 4
     # ticket shadowing every Sev 3 page for one condition. Its only unique
-    # coverage was the 15-30% band, where SlowBurn already tickets at 6h. At a
-    # 20% error rate that is a 4x burn — roughly 42h to exhaust the 7d budget —
-    # so a 6h ticket delay costs ~13% of the budget, which is acceptable for a
-    # ticket-severity signal.
+    # coverage was the 15-30% band, where SlowBurn already tickets at 6h.
     # ----------------------------------------
