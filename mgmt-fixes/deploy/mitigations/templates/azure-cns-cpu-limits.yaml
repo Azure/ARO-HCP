@@ -1,0 +1,78 @@
+{{- if .Values.azureCnsCpuLimits.enabled }}
+# Increase CPU requests and limits for the azure-cns DaemonSet to reduce DHCP
+# timeout failures during HCP cluster creation.  At default limits (100m/500m),
+# azure-cns is throttled at ~37% on CI management clusters, causing DHCP
+# Discover packets to time out and blocking cluster-network bring-up.
+# Ref: https://issues.redhat.com/browse/AROSLSRE-1956
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: azure-cns-cpu-patcher
+  namespace: '{{ .Release.Namespace }}'
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: azure-cns-cpu-patcher-role
+rules:
+- apiGroups:
+  - apps
+  resources:
+  - daemonsets
+  verbs:
+  - get
+  - patch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: azure-cns-cpu-patcher-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: azure-cns-cpu-patcher-role
+subjects:
+- kind: ServiceAccount
+  name: azure-cns-cpu-patcher
+  namespace: '{{ .Release.Namespace }}'
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: azure-cns-cpu-limits-patch
+  namespace: '{{ .Release.Namespace }}'
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "1"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  activeDeadlineSeconds: 300
+  backoffLimit: 3
+  template:
+    spec:
+      containers:
+      - name: patcher
+        image: "{{ .Values.jobImage }}"
+        command:
+        - /bin/sh
+        - -c
+        - |
+          DESIRED_REQ="{{ .Values.azureCnsCpuLimits.cpuRequest }}"
+          DESIRED_LIM="{{ .Values.azureCnsCpuLimits.cpuLimit }}"
+          CURRENT_REQ=$(kubectl get daemonset azure-cns -n kube-system \
+            -o jsonpath='{.spec.template.spec.containers[?(@.name=="azure-cns")].resources.requests.cpu}' 2>/dev/null || echo "")
+          CURRENT_LIM=$(kubectl get daemonset azure-cns -n kube-system \
+            -o jsonpath='{.spec.template.spec.containers[?(@.name=="azure-cns")].resources.limits.cpu}' 2>/dev/null || echo "")
+          if [ "$CURRENT_REQ" = "$DESIRED_REQ" ] && [ "$CURRENT_LIM" = "$DESIRED_LIM" ]; then
+            echo "azure-cns CPU resources already at desired values (request=$DESIRED_REQ limit=$DESIRED_LIM), skipping patch"
+            exit 0
+          fi
+          echo "Patching azure-cns CPU: request $CURRENT_REQ->$DESIRED_REQ, limit $CURRENT_LIM->$DESIRED_LIM"
+          kubectl patch daemonset azure-cns -n kube-system --type=json -p="[
+            {\"op\": \"replace\", \"path\": \"/spec/template/spec/containers/0/resources/requests/cpu\", \"value\": \"$DESIRED_REQ\"},
+            {\"op\": \"replace\", \"path\": \"/spec/template/spec/containers/0/resources/limits/cpu\", \"value\": \"$DESIRED_LIM\"}
+          ]"
+          echo "Patch applied successfully"
+      restartPolicy: OnFailure
+      serviceAccountName: azure-cns-cpu-patcher
+{{- end }}

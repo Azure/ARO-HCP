@@ -1,0 +1,9 @@
+jobImage: ""
+
+azureCnsCpuLimits:
+  enabled: false
+  # Raised from AKS defaults (100m request / 500m limit) to reduce DHCP
+  # timeout failures. At default limits azure-cns is throttled at ~37% on CI
+  # management clusters. Ref: AROSLSRE-1956
+  cpuRequest: "500m"
+  cpuLimit: "2000m"
