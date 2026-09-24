@@ -1401,6 +1401,12 @@ clouds:
           tlsCertificatesIssuer: Self
         clusterScopedIdentitiesConfig:
           roleSetName: dev
+      # Kube Applier
+      kubeApplier:
+        k8s:
+          resources:
+            requests:
+              memory: 224Mi
       # Management Agent
       mgmtAgent:
         k8s:
