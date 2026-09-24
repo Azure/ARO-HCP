@@ -526,7 +526,7 @@ kubeApplier:
         memory: unlimited
       requests:
         cpu: 100m
-        memory: 128Mi
+        memory: 224Mi
     serviceAccountName: kube-applier
   managedIdentityName: kube-applier
   partitionKey: /providers/microsoft.redhatopenshift/stamps/1/managementclusters/default
