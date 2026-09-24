@@ -47,7 +47,7 @@ func parseKnownIssues(data []byte) ([]knownIssue, error) {
 			ExpiresAfter string            `yaml:"expiresAfter,omitempty"`
 		} `yaml:"knownIssues"`
 	}
-	if err := yaml.Unmarshal(data, &cfg); err != nil {
+	if err := yaml.UnmarshalStrict(data, &cfg); err != nil {
 		return nil, fmt.Errorf("failed to parse known issues config: %w", err)
 	}
 	result := make([]knownIssue, len(cfg.KnownIssues))

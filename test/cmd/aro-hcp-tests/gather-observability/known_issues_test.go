@@ -73,6 +73,21 @@ func TestParseKnownIssues(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			name:    "misspelled expiry field",
+			content: "knownIssues:\n- name: \"SomeAlert\"\n  reason: \"tracked\"\n  expiresAfer: \"2026-10-31\"\n",
+			wantErr: true,
+		},
+		{
+			name:    "misspelled top-level field",
+			content: "knownIssue: []\n",
+			wantErr: true,
+		},
+		{
+			name:    "duplicate field",
+			content: "knownIssues:\n- name: \"SomeAlert\"\n  reason: \"tracked\"\n  reason: \"duplicate\"\n",
+			wantErr: true,
+		},
+		{
 			name:    "invalid yaml",
 			content: "not: [valid: yaml",
 			wantErr: true,
