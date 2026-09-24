@@ -1,0 +1,32 @@
+- alert:
+    condition: ""
+    labels:
+      method: PUT
+      route: /clusters
+    name: FrontendPathMedianLatency
+    severity: ""
+    state: ""
+  metadata:
+    knownIssue: true
+    knownIssueReason: read-path SLO
+- alert:
+    condition: ""
+    labels:
+      method: put
+      route: /clusters
+    name: FrontendPathMedianLatency
+    severity: ""
+    state: ""
+  metadata:
+    knownIssue: true
+    knownIssueReason: read-path SLO
+- alert:
+    condition: ""
+    labels:
+      method: GET
+      route: /clusters
+    name: FrontendPathMedianLatency
+    severity: ""
+    state: ""
+  metadata:
+    knownIssue: false
