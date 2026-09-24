@@ -536,6 +536,16 @@ resourceGroups:
         resourceGroup: regional
         step: output
         name: hcpAzureMonitoringWorkspaceId
+    - name: azureMonitorWorkspaceLocation
+      input:
+        resourceGroup: regional
+        step: output
+        name: azureMonitorWorkspaceLocation
+    - name: hcpAzureMonitorWorkspaceLocation
+      input:
+        resourceGroup: regional
+        step: output
+        name: hcpAzureMonitorWorkspaceLocation
     - name: maestroEventGridNamespaceId
       input:
         resourceGroup: regional
@@ -669,6 +679,17 @@ resourceGroups:
     parameters: configurations/output-mgmt-cluster.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
+    variables:
+    - name: svcWorkspaceLocation
+      input:
+        resourceGroup: regional
+        step: output
+        name: azureMonitorWorkspaceLocation
+    - name: hcpWorkspaceLocation
+      input:
+        resourceGroup: regional
+        step: output
+        name: hcpAzureMonitorWorkspaceLocation
     dependsOn:
     - resourceGroup: regional
       step: output

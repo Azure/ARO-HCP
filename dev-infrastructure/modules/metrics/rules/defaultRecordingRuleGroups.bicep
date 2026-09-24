@@ -1,9 +1,10 @@
 param azureMonitoring string
+param location string = resourceGroup().location
 
 // default recording rules from https://github.com/Azure/prometheus-collector/blob/main/AddonBicepTemplate/FullAzureMonitorMetricsProfile.bicep
 resource kubernetesRecordingRuleGroup 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'all-clusters-defaultK8sRecordingRules'
-  location: resourceGroup().location
+  location: location
   properties: {
     description: 'default kubernetes recording rules'
     scopes: [
@@ -107,7 +108,7 @@ resource kubernetesRecordingRuleGroup 'Microsoft.AlertsManagement/prometheusRule
 resource nodeRecordingRuleGroup 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'all-clusters-defaultNodeRecordingRules'
 
-  location: resourceGroup().location
+  location: location
   properties: {
     description: 'default node recording rules'
     scopes: [

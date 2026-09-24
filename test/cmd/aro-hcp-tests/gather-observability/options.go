@@ -79,6 +79,8 @@ type ValidatedOptions struct {
 
 type completedOptions struct {
 	OutputDir         string
+	SubscriptionID    string
+	RegionRG          string
 	Workspaces        map[string]azcorearm.ResourceID
 	MetricResources   map[string]azcorearm.ResourceID
 	TimeWindow        timing.TimeWindow
@@ -148,15 +150,7 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 	workspaceErrors := map[string]error{}
 	workspaces := map[string]azcorearm.ResourceID{}
 	for _, wsType := range []string{workspaceSvc, workspaceHcp} {
-		name, err := testutil.ConfigGetString(cfg, "monitoring."+wsType+"WorkspaceName")
-		if err == nil && name == "" {
-			err = fmt.Errorf("workspace name is empty")
-		}
-		if err != nil {
-			workspaceErrors[wsType] = fmt.Errorf("failed to get %s workspace name from config: %w", wsType, err)
-			continue
-		}
-		id, err := azcorearm.ParseResourceID(fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Monitor/accounts/%s", o.SubscriptionID, regionRG, name))
+		id, err := resolveWorkspace(cfg, wsType, o.SubscriptionID, regionRG)
 		if err != nil {
 			workspaceErrors[wsType] = err
 			continue
@@ -240,6 +234,8 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 
 	return &Options{completedOptions: &completedOptions{
 		OutputDir:          o.OutputDir,
+		SubscriptionID:     o.SubscriptionID,
+		RegionRG:           regionRG,
 		Workspaces:         workspaces,
 		MetricResources:    metricResources,
 		TimeWindow:         tw,
@@ -300,7 +296,7 @@ func buildCosmosAutoscaleMaxLookup(cfg configtypes.Configuration) (autoscaleMaxL
 type gatherDependencies struct {
 	fetchAlerts           func(context.Context, azcore.TokenCredential, string, time.Time, time.Time) ([]alert, error)
 	fetchMetricAlertRules func(context.Context, azcore.TokenCredential, string, string) ([]string, error)
-	fetchAlertRules       func(context.Context, azcore.TokenCredential, azcorearm.ResourceID) ([]string, error)
+	fetchAlertRules       func(context.Context, azcore.TokenCredential, string, string, azcorearm.ResourceID) ([]string, error)
 	lookupEndpoint        func(context.Context, azcore.TokenCredential, string, string, string) (string, error)
 	queryRange            func(context.Context, *http.Client, azcore.TokenCredential, string, string, time.Time, time.Time, string) (*PrometheusResponse, error)
 	queryMetrics          func(context.Context, azcore.TokenCredential, azcorearm.ResourceID, QuerySpec, time.Time, time.Time, autoscaleMaxLookup) ([]PrometheusResult, string, error)
@@ -384,7 +380,8 @@ func (o Options) run(ctx context.Context, deps gatherDependencies) error {
 		ws := o.Workspaces[wsType]
 		wsData := buildWorkspaceAlertData(wsType, ws, allAlerts, o.SeverityThreshold, o.knownIssues)
 		workspaces[wsType] = wsData
-		rules, err := deps.fetchAlertRules(ctx, o.cred, ws)
+		// Rule groups belong to the job even when the workspace is pooled elsewhere.
+		rules, err := deps.fetchAlertRules(ctx, o.cred, o.SubscriptionID, o.RegionRG, ws)
 		if err != nil {
 			err = fmt.Errorf("failed to fetch %s alert rules: %w", wsType, err)
 			record(err)

@@ -46,6 +46,8 @@ param globalMSIId = '__globalMSIId__'
 // Azure Monitor Workspace
 param azureMonitoringWorkspaceId = '__azureMonitoringWorkspaceId__'
 param hcpAzureMonitoringWorkspaceId = '__hcpAzureMonitoringWorkspaceId__'
+param azureMonitorWorkspaceLocation = '__azureMonitorWorkspaceLocation__'
+param hcpAzureMonitorWorkspaceLocation = '__hcpAzureMonitorWorkspaceLocation__'
 
 // MDSD / Genevabits
 param logsNamespace = '{{ .logs.mdsd.namespace }}'

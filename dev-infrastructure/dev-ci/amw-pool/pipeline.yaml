@@ -1,0 +1,15 @@
+$schema: "pipeline.schema.v1"
+serviceGroup: Microsoft.Azure.ARO.HCP.DevCI.AMWPool
+rolloutName: Dev CI Azure Monitor Workspace Pool Rollout
+# Invoke with --persist-tag=true; the RG's -shared-resources suffix protects it
+# from cleanup-sweeper's age-based policy. See docs/ci/amw-pools.md.
+resourceGroups:
+- name: amw-pool
+  resourceGroup: '{{ .ci.dev.amwPool.resourceGroup }}'
+  subscription: '{{ .ci.dev.amwPool.subscriptionName }}'
+  steps:
+  - name: workspaces
+    action: ARM
+    template: ../../templates/dev-ci-amw-pool.bicep
+    parameters: ../../configurations/dev-ci-amw-pool.tmpl.bicepparam
+    deploymentLevel: ResourceGroup

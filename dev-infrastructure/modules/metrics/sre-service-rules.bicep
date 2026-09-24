@@ -2,6 +2,7 @@
 
 @description('The Azure resource ID of the Azure Monitor Workspace (stores prometheus metrics for services/aks level metrics)')
 param azureMonitoringWorkspaceId string
+param location string = resourceGroup().location
 
 param actionGroups array
 
@@ -12,6 +13,7 @@ module generatedAlerts 'rules/generatedSREServicePrometheusAlertingRules.bicep' 
   name: 'generatedSREServicePrometheusAlertingRules'
   params: {
     azureMonitoring: azureMonitoringWorkspaceId
+    location: location
     actionGroups: actionGroups
     severityCeiling: severityCeiling
   }

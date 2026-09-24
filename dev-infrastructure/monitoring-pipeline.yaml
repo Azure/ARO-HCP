@@ -56,6 +56,16 @@ resourceGroups:
         resourceGroup: regional
         step: output
         name: hcpAzureMonitoringWorkspaceId
+    - name: azureMonitorWorkspaceLocation
+      input:
+        resourceGroup: regional
+        step: output
+        name: azureMonitorWorkspaceLocation
+    - name: hcpAzureMonitorWorkspaceLocation
+      input:
+        resourceGroup: regional
+        step: output
+        name: hcpAzureMonitorWorkspaceLocation
     - name: rpCosmosDbAccountId
       input:
         resourceGroup: regional

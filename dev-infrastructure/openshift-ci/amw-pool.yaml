@@ -1,0 +1,9 @@
+amwPool:
+  services-ci-pool-0:
+    workspaceId: /subscriptions/0ef1ad54-9296-44cd-9600-5dc8e9a74034/resourceGroups/aro-hcp-ci-amw-pool-shared-resources/providers/Microsoft.Monitor/accounts/services-ci-pool-0
+    location: westus2
+    purpose: services
+  hcps-ci-pool-0:
+    workspaceId: /subscriptions/0ef1ad54-9296-44cd-9600-5dc8e9a74034/resourceGroups/aro-hcp-ci-amw-pool-shared-resources/providers/Microsoft.Monitor/accounts/hcps-ci-pool-0
+    location: westus2
+    purpose: hcps

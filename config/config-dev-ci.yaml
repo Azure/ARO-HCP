@@ -293,6 +293,17 @@ clouds:
             isGlobalSubscription: true
           - name: "ARO HCP E2E Infrastructure (EA Subscription)"
             id: "0ef1ad54-9296-44cd-9600-5dc8e9a74034"
+          amwPool:
+            subscriptionName: "ARO HCP E2E Infrastructure (EA Subscription)"
+            subscriptionId: "0ef1ad54-9296-44cd-9600-5dc8e9a74034"
+            resourceGroup: "aro-hcp-ci-amw-pool-shared-resources"
+            location: "westus2"
+            services:
+              namePrefix: "services-ci-pool"
+              size: 1
+            hcps:
+              namePrefix: "hcps-ci-pool"
+              size: 1
           mockIdentities:
             vaultUrl: "https://aro-hcp-dev-svc-kv.vault.azure.net"
             firstParty:

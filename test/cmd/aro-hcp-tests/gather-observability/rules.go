@@ -27,14 +27,14 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/prometheusrulegroups/armprometheusrulegroups"
 )
 
-func fetchAlertRules(ctx context.Context, cred azcore.TokenCredential, workspaceResourceID azcorearm.ResourceID) ([]string, error) {
-	client, err := armprometheusrulegroups.NewClient(workspaceResourceID.SubscriptionID, cred, nil)
+func fetchAlertRules(ctx context.Context, cred azcore.TokenCredential, subscriptionID, resourceGroup string, workspaceResourceID azcorearm.ResourceID) ([]string, error) {
+	client, err := armprometheusrulegroups.NewClient(subscriptionID, cred, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create prometheus rule groups client: %w", err)
 	}
 
 	seen := make(map[string]bool)
-	pager := client.NewListByResourceGroupPager(workspaceResourceID.ResourceGroupName, nil)
+	pager := client.NewListByResourceGroupPager(resourceGroup, nil)
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {

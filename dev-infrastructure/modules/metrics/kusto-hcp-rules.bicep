@@ -2,6 +2,7 @@
 
 @description('The Azure resource ID of the Azure Monitor Workspace (stores prometheus metrics for HCPs)')
 param azureMonitoringWorkspaceId string
+param location string = resourceGroup().location
 
 @description('Action group resource IDs to notify when alerts fire')
 param actionGroups array
@@ -13,6 +14,7 @@ module generatedAlerts 'rules/generatedKustoOnlyHCPPrometheusAlertingRules.bicep
   name: 'generatedKustoOnlyHCPPrometheusAlertingRules'
   params: {
     azureMonitoring: azureMonitoringWorkspaceId
+    location: location
     actionGroups: actionGroups
     severityCeiling: severityCeiling
   }

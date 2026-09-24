@@ -131,6 +131,41 @@ func TestRepositoryPolicyProtectsIdentityContainerPools(t *testing.T) {
 	}
 }
 
+func TestRepositoryPolicyProtectsAMWPool(t *testing.T) {
+	t.Parallel()
+
+	pol, err := Load("../../resourcegroups.policy.yaml")
+	if err != nil {
+		t.Fatalf("failed to load repository policy: %v", err)
+	}
+	if err := pol.Validate(); err != nil {
+		t.Fatalf("failed to validate repository policy: %v", err)
+	}
+
+	now := time.Date(2026, time.September, 24, 12, 0, 0, 0, time.UTC)
+	excluded := sets.New(pol.RGOrdered.ExcludedResourceGroups...)
+	for _, name := range []string{"aro-hcp-ci-amw-pool-shared-resources", "aro-hcp-ci-amw-pool-other"} {
+		for _, persist := range []string{"", "false", "true"} {
+			t.Run(name+"/persist="+persist, func(t *testing.T) {
+				t.Parallel()
+				tags := map[string]string{}
+				if persist != "" {
+					tags["persist"] = persist
+				}
+				rg := newResourceGroup(name, timePtr(now.Add(-365*24*time.Hour)), tags, false)
+				selected, reason := pol.RGOrdered.Discovery.SelectsResourceGroup(rg, excluded, sets.New[string](), now)
+				if name == "aro-hcp-ci-amw-pool-other" {
+					if !selected {
+						t.Fatalf("unrelated expired group must remain eligible: %v", reason)
+					}
+				} else if selected || reason.Rule == nil || reason.Rule.Name != "skip-shared-resources" {
+					t.Fatalf("shared AMW pool must be protected by the shared suffix, got selected=%t reason=%v", selected, reason)
+				}
+			})
+		}
+	}
+}
+
 func TestPolicyValidate_RejectsInvalidRules(t *testing.T) {
 	t.Parallel()
 

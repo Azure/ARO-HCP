@@ -3210,6 +3210,16 @@
           "pattern": "^[a-z0-9][a-z0-9-]*[a-z0-9]$",
           "description": "The workspace name should include 4-63 letters, digits or '-'. The '-' shouldn't be the first or the last symbol. We limit the name to 44 characters so we have a future option to use NSP: https://learn.microsoft.com/en-us/azure/private-link/network-security-perimeter-concepts"
         },
+        "svcWorkspaceResourceId": {
+          "type": "string",
+          "pattern": "^$|^/[sS][uU][bB][sS][cC][rR][iI][pP][tT][iI][oO][nN][sS]/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/[rR][eE][sS][oO][uU][rR][cC][eE][gG][rR][oO][uU][pP][sS]/[^/]+/[pP][rR][oO][vV][iI][dD][eE][rR][sS]/[mM][iI][cC][rR][oO][sS][oO][fF][tT]\\.[mM][oO][nN][iI][tT][oO][rR]/[aA][cC][cC][oO][uU][nN][tT][sS]/[^/]+$",
+          "description": "Optional full resource ID of an existing services Azure Monitor Workspace. Empty creates the regional owned workspace; independent of the HCP workspace setting. Location is resolved from Azure."
+        },
+        "hcpWorkspaceResourceId": {
+          "type": "string",
+          "pattern": "^$|^/[sS][uU][bB][sS][cC][rR][iI][pP][tT][iI][oO][nN][sS]/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/[rR][eE][sS][oO][uU][rR][cC][eE][gG][rR][oO][uU][pP][sS]/[^/]+/[pP][rR][oO][vV][iI][dD][eE][rR][sS]/[mM][iI][cC][rR][oO][sS][oO][fF][tT]\\.[mM][oO][nN][iI][tT][oO][rR]/[aA][cC][cC][oO][uU][nN][tT][sS]/[^/]+$",
+          "description": "Optional full resource ID of an existing HCP Azure Monitor Workspace. Empty creates the regional owned workspace; independent of the services workspace setting. Location is resolved from Azure."
+        },
         "amwScaling": {
           "type": "object",
           "properties": {

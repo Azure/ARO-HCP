@@ -1,3 +1,5 @@
+import { monitoringWorkspaceRefFromId } from '../resource.bicep'
+
 @description('The name of the fleet managed identity')
 param msiName string
 
@@ -18,6 +20,12 @@ param svcMonitorName string
 
 @description('The name of the HCP Azure Monitor Workspace')
 param hcpMonitorName string
+
+@description('Optional existing SVC Azure Monitor Workspace resource ID; defaults to the regional workspace')
+param svcWorkspaceResourceId string = ''
+
+@description('Optional existing HCP Azure Monitor Workspace resource ID; defaults to the regional workspace')
+param hcpWorkspaceResourceId string = ''
 
 //
 //   I M A G E   P U L L E R   L O O K U P
@@ -69,14 +77,21 @@ output cxDnsZoneResourceId string = cxDnsZone.id
 //   A Z U R E   M O N I T O R   W O R K S P A C E   L O O K U P
 //
 
+var svcMonitorRef = monitoringWorkspaceRefFromId(
+  empty(svcWorkspaceResourceId) ? resourceId(regionalResourceGroup, 'Microsoft.Monitor/accounts', svcMonitorName) : svcWorkspaceResourceId
+)
+var hcpMonitorRef = monitoringWorkspaceRefFromId(
+  empty(hcpWorkspaceResourceId) ? resourceId(regionalResourceGroup, 'Microsoft.Monitor/accounts', hcpMonitorName) : hcpWorkspaceResourceId
+)
+
 resource svcMonitor 'Microsoft.Monitor/accounts@2021-06-03-preview' existing = {
-  scope: resourceGroup(regionalResourceGroup)
-  name: svcMonitorName
+  scope: resourceGroup(svcMonitorRef.resourceGroup.subscriptionId, svcMonitorRef.resourceGroup.name)
+  name: svcMonitorRef.name
 }
 
 resource hcpMonitor 'Microsoft.Monitor/accounts@2021-06-03-preview' existing = {
-  scope: resourceGroup(regionalResourceGroup)
-  name: hcpMonitorName
+  scope: resourceGroup(hcpMonitorRef.resourceGroup.subscriptionId, hcpMonitorRef.resourceGroup.name)
+  name: hcpMonitorRef.name
 }
 
 output svcAzureMonitorWorkspaceId string = svcMonitor.id

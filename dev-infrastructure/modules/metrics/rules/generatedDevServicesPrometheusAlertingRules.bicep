@@ -82,7 +82,7 @@ Please check the status of the Prometheus pods, service endpoints, and network c
           summary: 'Prometheus uptime below 95% over 24 hours.'
           title: 'Prometheus uptime below 95% over 24 hours.'
         }
-        expression: '(sum by (job, namespace, cluster, region) (sum_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d])) / sum by (job, namespace, cluster, region) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d]))) < 0.95'
+        expression: '(sum by (job, namespace, cluster, region) (sum_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d])) / sum by (job, namespace, cluster, region) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d]))) < 0.95 and on (cluster) underlay_clusters{source="bicep"}'
         for: 'PT10M'
         severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }
@@ -118,7 +118,7 @@ Check the PrometheusAgent pod status, remote write pipeline, and PodMonitor conf
           summary: 'Prometheus sample count below 95% SLO threshold for 24 hours.'
           title: 'Prometheus sample count below 95% SLO threshold for 24 hours.'
         }
-        expression: '(sum by (job, namespace, cluster, region) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d])) < 0.95 * (24 * 3600 / 30)) and sum by (job, namespace, cluster, region) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d] offset 1d)) > 0'
+        expression: '(sum by (job, namespace, cluster, region) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d])) < 0.95 * (24 * 3600 / 30)) and sum by (job, namespace, cluster, region) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d] offset 1d)) > 0 and on (cluster) underlay_clusters{source="bicep"}'
         for: 'PT10M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -140,11 +140,11 @@ Check the PrometheusAgent pod status, remote write pipeline, and PodMonitor conf
         }
         annotations: {
           correlationId: 'PrometheusMetricsAbsentPerCluster/{{ $labels.cluster }}'
-          description: '''Prometheus on cluster {{ $labels.cluster }} has not reported any up metrics in the last 10 minutes, but was reporting within the last 7 days.
+          description: '''Prometheus on declared underlay cluster {{ $labels.cluster }} has not reported any up metrics in the last 10 minutes.
 This indicates the Prometheus agent on this specific cluster is dead or its remote write pipeline is broken.
 Check the PrometheusAgent pod status and remote write configuration on the affected cluster.
 '''
-          info: '''Prometheus on cluster {{ $labels.cluster }} has not reported any up metrics in the last 10 minutes, but was reporting within the last 7 days.
+          info: '''Prometheus on declared underlay cluster {{ $labels.cluster }} has not reported any up metrics in the last 10 minutes.
 This indicates the Prometheus agent on this specific cluster is dead or its remote write pipeline is broken.
 Check the PrometheusAgent pod status and remote write configuration on the affected cluster.
 '''
@@ -152,7 +152,7 @@ Check the PrometheusAgent pod status and remote write configuration on the affec
           summary: 'Prometheus metrics absent for cluster {{ $labels.cluster }}.'
           title: 'Prometheus metrics absent for cluster {{ $labels.cluster }}.'
         }
-        expression: 'count by (cluster, region) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1w])) unless count by (cluster, region) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[10m]))'
+        expression: 'group by (cluster, region) (underlay_clusters{source="bicep"}) unless on (cluster) count by (cluster, region) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[10m]))'
         for: 'PT10M'
         severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }

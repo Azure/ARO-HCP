@@ -414,9 +414,44 @@
         },
         "mockIdentities": {
           "$ref": "#/$defs/MockIdentities"
+        },
+        "amwPool": {
+          "$ref": "#/$defs/AMWPool"
         }
       },
       "required": ["bot", "e2eSubscriptions"]
+    },
+    "AMWPool": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Persistent Azure Monitor workspaces, sized independently for services and hosted control planes",
+      "properties": {
+        "subscriptionName": { "type": "string", "minLength": 1, "description": "Subscription display name used by templatize deployment lookup" },
+        "subscriptionId": { "type": "string", "format": "uuid" },
+        "resourceGroup": { "type": "string", "minLength": 1 },
+        "location": { "type": "string", "minLength": 1 },
+        "services": { "$ref": "#/$defs/AMWPurposePool" },
+        "hcps": { "$ref": "#/$defs/AMWPurposePool" }
+      },
+      "required": ["subscriptionName", "subscriptionId", "resourceGroup", "location", "services", "hcps"]
+    },
+    "AMWPurposePool": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "namePrefix": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Workspace members are named {namePrefix}-{index}"
+        },
+        "size": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 800,
+          "description": "Number of workspaces for this purpose, independent of the other pool"
+        }
+      },
+      "required": ["namePrefix", "size"]
     },
     "CIBot": {
       "type": "object",

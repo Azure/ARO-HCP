@@ -437,6 +437,11 @@ resourceGroups:
         resourceGroup: regional
         step: output
         name: azureMonitoringWorkspaceId
+    - name: azureMonitorWorkspaceLocation
+      input:
+        resourceGroup: regional
+        step: output
+        name: azureMonitorWorkspaceLocation
     - name: rpCosmosDbAccountId
       input:
         resourceGroup: regional

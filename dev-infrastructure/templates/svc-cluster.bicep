@@ -344,6 +344,9 @@ param sreServiceTag string
 @description('The Azure Resource ID of the Azure Monitor Workspace (stores prometheus metrics)')
 param azureMonitoringWorkspaceId string
 
+@description('Location of the services Azure Monitor Workspace')
+param azureMonitorWorkspaceLocation string = location
+
 @description('The name of the CS managed identity')
 param csMIName string
 
@@ -738,7 +741,8 @@ module opsIngressGatewayIPAddress '../modules/network/publicipaddress.bicep' = i
 module dataCollection '../modules/metrics/datacollection.bicep' = {
   name: 'metrics-infra'
   params: {
-    azureMonitorWorkspaceLocation: location
+    location: location
+    azureMonitorWorkspaceLocation: azureMonitorWorkspaceLocation
     azureMonitoringWorkspaceId: azureMonitoringWorkspaceId
     aksClusterName: aksClusterName
     prometheusPrincipalId: mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, 'prometheus').uamiPrincipalID
@@ -753,6 +757,7 @@ module dataCollection '../modules/metrics/datacollection.bicep' = {
 module underlayClusterMetric '../modules/metrics/underlay-clusters-metric.bicep' = {
   name: 'underlay-clusters-metric'
   params: {
+    location: azureMonitorWorkspaceLocation
     azureMonitoringWorkspaceId: azureMonitoringWorkspaceId
     clusterName: aksClusterName
   }

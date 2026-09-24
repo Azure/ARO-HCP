@@ -2,6 +2,7 @@
 
 @description('The Azure resource ID of the Azure Monitor Workspace (stores prometheus metrics for HCPs)')
 param azureMonitoringWorkspaceId string
+param location string = resourceGroup().location
 
 param actionGroups array
 
@@ -12,6 +13,7 @@ module generatedAlerts 'rules/generatedSLHCPPrometheusAlertingRules.bicep' = {
   name: 'generatedSLHCPPrometheusAlertingRules'
   params: {
     azureMonitoring: azureMonitoringWorkspaceId
+    location: location
     actionGroups: actionGroups
     severityCeiling: severityCeiling
   }

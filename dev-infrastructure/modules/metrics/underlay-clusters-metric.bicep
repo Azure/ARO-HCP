@@ -1,6 +1,8 @@
 @description('Resource ID of the Azure Monitor Workspace the inventory series is emitted into')
 param azureMonitoringWorkspaceId string
 
+param location string = resourceGroup().location
+
 @description('Name of the underlay (service or management) cluster this series represents. Must match the `cluster` external label that this cluster\'s Prometheus stamps onto its metrics.')
 param clusterName string
 
@@ -21,7 +23,7 @@ param clusterName string
 // metric the cluster reports about itself.
 resource underlayClusterInventory 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'underlay-clusters-metric-${clusterName}'
-  location: resourceGroup().location
+  location: location
   properties: {
     description: 'Authoritative list entry declaring that underlay cluster ${clusterName} should be running.'
     scopes: [

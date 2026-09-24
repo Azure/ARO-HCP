@@ -7,6 +7,9 @@ param monitorName string
 @description('Purpose of the monitor')
 param purpose string
 
+@description('Workspace region')
+param location string = resourceGroup().location
+
 import * as res from '../resource.bicep'
 
 var grafanaRef = res.grafanaRefFromId(grafanaResourceId)
@@ -14,7 +17,7 @@ var hasGrafanaResourceId = !empty(grafanaResourceId)
 
 resource monitor 'microsoft.monitor/accounts@2021-06-03-preview' = {
   name: monitorName
-  location: resourceGroup().location
+  location: location
   tags: {
     aroHCPPurpose: purpose
   }

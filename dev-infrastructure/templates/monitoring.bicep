@@ -4,6 +4,12 @@ param azureMonitoringWorkspaceId string
 @description('ID of the Azure Monitor Workspace for hosted control planes')
 param hcpAzureMonitoringWorkspaceId string
 
+@description('Location of the services Azure Monitor Workspace')
+param azureMonitorWorkspaceLocation string = resourceGroup().location
+
+@description('Location of the HCP Azure Monitor Workspace')
+param hcpAzureMonitorWorkspaceLocation string = azureMonitorWorkspaceLocation
+
 @description('ARO HCP region name')
 param region string
 
@@ -81,6 +87,7 @@ var devActionGroups = actionGroupDEV != '' && icmEnabledDEV ? concat([actionGrou
 module serviceAlerts '../modules/metrics/service-rules.bicep' = {
   name: 'serviceAlerts'
   params: {
+    location: azureMonitorWorkspaceLocation
     azureMonitoringWorkspaceId: azureMonitoringWorkspaceId
     actionGroups: slActionGroups
     severityCeiling: alertSeverityCeiling
@@ -90,6 +97,7 @@ module serviceAlerts '../modules/metrics/service-rules.bicep' = {
 module kustoServiceAlerts '../modules/metrics/kusto-service-rules.bicep' = {
   name: 'kustoServiceAlerts'
   params: {
+    location: azureMonitorWorkspaceLocation
     azureMonitoringWorkspaceId: azureMonitoringWorkspaceId
     actionGroups: ehActionGroups
     severityCeiling: alertSeverityCeiling
@@ -99,6 +107,7 @@ module kustoServiceAlerts '../modules/metrics/kusto-service-rules.bicep' = {
 module hcpAlerts '../modules/metrics/hcp-rules.bicep' = {
   name: 'hcpAlerts'
   params: {
+    location: hcpAzureMonitorWorkspaceLocation
     azureMonitoringWorkspaceId: hcpAzureMonitoringWorkspaceId
     actionGroups: sreActionGroups
     severityCeiling: alertSeverityCeiling
@@ -108,6 +117,7 @@ module hcpAlerts '../modules/metrics/hcp-rules.bicep' = {
 module slHcpAlerts '../modules/metrics/sl-hcp-rules.bicep' = {
   name: 'slHcpAlerts'
   params: {
+    location: hcpAzureMonitorWorkspaceLocation
     azureMonitoringWorkspaceId: hcpAzureMonitoringWorkspaceId
     actionGroups: slActionGroups
     severityCeiling: alertSeverityCeiling
@@ -117,6 +127,7 @@ module slHcpAlerts '../modules/metrics/sl-hcp-rules.bicep' = {
 module kustoHcpAlerts '../modules/metrics/kusto-hcp-rules.bicep' = {
   name: 'kustoHcpAlerts'
   params: {
+    location: hcpAzureMonitorWorkspaceLocation
     azureMonitoringWorkspaceId: hcpAzureMonitoringWorkspaceId
     actionGroups: ehActionGroups
     severityCeiling: alertSeverityCeiling
@@ -126,6 +137,7 @@ module kustoHcpAlerts '../modules/metrics/kusto-hcp-rules.bicep' = {
 module sreServiceAlerts '../modules/metrics/sre-service-rules.bicep' = {
   name: 'sreServiceAlerts'
   params: {
+    location: azureMonitorWorkspaceLocation
     azureMonitoringWorkspaceId: azureMonitoringWorkspaceId
     actionGroups: sreActionGroups
     severityCeiling: alertSeverityCeiling
@@ -135,6 +147,7 @@ module sreServiceAlerts '../modules/metrics/sre-service-rules.bicep' = {
 module rpAlerts '../modules/metrics/rp-rules.bicep' = {
   name: 'rpAlerts'
   params: {
+    location: azureMonitorWorkspaceLocation
     azureMonitoringWorkspaceId: azureMonitoringWorkspaceId
     actionGroups: rpActionGroups
     severityCeiling: alertSeverityCeiling
@@ -144,6 +157,7 @@ module rpAlerts '../modules/metrics/rp-rules.bicep' = {
 module rpHcpAlerts '../modules/metrics/rp-hcp-rules.bicep' = {
   name: 'rpHcpAlerts'
   params: {
+    location: hcpAzureMonitorWorkspaceLocation
     azureMonitoringWorkspaceId: hcpAzureMonitoringWorkspaceId
     actionGroups: rpActionGroups
     severityCeiling: alertSeverityCeiling
@@ -153,6 +167,7 @@ module rpHcpAlerts '../modules/metrics/rp-hcp-rules.bicep' = {
 module msftAlerts '../modules/metrics/msft-rules.bicep' = {
   name: 'msftAlerts'
   params: {
+    location: azureMonitorWorkspaceLocation
     azureMonitoringWorkspaceId: azureMonitoringWorkspaceId
     actionGroups: msftActionGroups
     severityCeiling: alertSeverityCeiling
@@ -162,6 +177,7 @@ module msftAlerts '../modules/metrics/msft-rules.bicep' = {
 module devServicesAlerts '../modules/metrics/dev-services-rules.bicep' = {
   name: 'devServicesAlerts'
   params: {
+    location: azureMonitorWorkspaceLocation
     azureMonitoringWorkspaceId: azureMonitoringWorkspaceId
     actionGroups: devActionGroups
     severityCeiling: alertSeverityCeiling
@@ -171,6 +187,7 @@ module devServicesAlerts '../modules/metrics/dev-services-rules.bicep' = {
 module devHcpsAlerts '../modules/metrics/dev-hcps-rules.bicep' = {
   name: 'devHcpsAlerts'
   params: {
+    location: hcpAzureMonitorWorkspaceLocation
     azureMonitoringWorkspaceId: hcpAzureMonitoringWorkspaceId
     actionGroups: devActionGroups
     severityCeiling: alertSeverityCeiling

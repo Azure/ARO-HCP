@@ -151,6 +151,7 @@ param sreServiceTag = '{{ .administration.sreServiceTag }}'
 
 // Azure Monitor Workspace
 param azureMonitoringWorkspaceId = '__azureMonitoringWorkspaceId__'
+param azureMonitorWorkspaceLocation = '__azureMonitorWorkspaceLocation__'
 
 // MDSD / Genevabits
 param logsNamespace = '{{ .logs.mdsd.namespace }}'

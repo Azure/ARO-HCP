@@ -17,10 +17,12 @@ package gatherobservability
 import (
 	"fmt"
 	"slices"
+	"strings"
 	"testing"
 
 	"k8s.io/apimachinery/pkg/util/sets"
 
+	configtypes "github.com/Azure/ARO-Tools/config/types"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/alertsmanagement/armalertsmanagement"
 )
@@ -51,6 +53,11 @@ func TestAlertBelongsToWorkspace(t *testing.T) {
 		{
 			name:                "different_workspace",
 			monitoringWorkspace: mustParseResourceID("sub-123", "my-rg", "hcps-westus3").String(),
+			want:                false,
+		},
+		{
+			name:                "same_name_and_resource_group_different_subscription",
+			monitoringWorkspace: mustParseResourceID("other-sub", "my-rg", "services-westus3").String(),
 			want:                false,
 		},
 		{
@@ -250,6 +257,21 @@ func TestScopeContainsWorkspace(t *testing.T) {
 			want:   false,
 		},
 		{
+			name:   "same_name_and_resource_group_different_subscription",
+			scopes: []*string{strPtr(mustParseResourceID("other-sub", "my-rg", "hcps-westus3").String())},
+			want:   false,
+		},
+		{
+			name:   "same_name_different_resource_group",
+			scopes: []*string{strPtr(mustParseResourceID("sub-123", "other-rg", "hcps-westus3").String())},
+			want:   false,
+		},
+		{
+			name:   "case_insensitive_full_id",
+			scopes: []*string{strPtr(strings.ToUpper(wsStr))},
+			want:   true,
+		},
+		{
 			name:   "nil_scope_skipped",
 			scopes: []*string{nil, &wsStr},
 			want:   true,
@@ -272,6 +294,44 @@ func TestScopeContainsWorkspace(t *testing.T) {
 			got := scopeContainsWorkspace(tt.scopes, *wsPtr)
 			if got != tt.want {
 				t.Errorf("scopeContainsWorkspace() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestResolveWorkspace(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		name       string
+		monitoring map[string]any
+		want       string
+		wantError  string
+	}{
+		{name: "omitted ID", monitoring: map[string]any{"svcWorkspaceName": "svc"}, want: mustParseResourceID("job-sub", "job-rg", "svc").String()},
+		{name: "empty ID", monitoring: map[string]any{"svcWorkspaceName": "svc", "svcWorkspaceResourceId": ""}, want: mustParseResourceID("job-sub", "job-rg", "svc").String()},
+		{name: "external ID without name", monitoring: map[string]any{"svcWorkspaceResourceId": mustParseResourceID("pool-sub", "pool-rg", "pooled").String()}, want: mustParseResourceID("pool-sub", "pool-rg", "pooled").String()},
+		{name: "malformed ID does not fall back", monitoring: map[string]any{"svcWorkspaceName": "svc", "svcWorkspaceResourceId": "invalid"}, wantError: "invalid monitoring.svcWorkspaceResourceId"},
+		{name: "wrong resource type", monitoring: map[string]any{"svcWorkspaceResourceId": "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.Storage/storageAccounts/account"}, wantError: "must be a full Microsoft.Monitor/accounts resource ID"},
+		{name: "resource group ID", monitoring: map[string]any{"svcWorkspaceResourceId": "/subscriptions/sub/resourceGroups/rg"}, wantError: "must be a full Microsoft.Monitor/accounts resource ID"},
+		{name: "missing subscription", monitoring: map[string]any{"svcWorkspaceResourceId": "/providers/Microsoft.Monitor/accounts/account"}, wantError: "must be a full Microsoft.Monitor/accounts resource ID"},
+		{name: "non string ID", monitoring: map[string]any{"svcWorkspaceResourceId": 42}, wantError: "not string"},
+		{name: "missing name", monitoring: map[string]any{}, wantError: "failed to get svc workspace name from config"},
+		{name: "empty name", monitoring: map[string]any{"svcWorkspaceName": ""}, wantError: "workspace name is empty"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			id, err := resolveWorkspace(configtypes.Configuration{"monitoring": tt.monitoring}, workspaceSvc, "job-sub", "job-rg")
+			if tt.wantError != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantError) {
+					t.Fatalf("resolveWorkspace error = %v, want %q", err, tt.wantError)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if id.String() != tt.want {
+				t.Errorf("workspace ID = %q, want %q", id.String(), tt.want)
 			}
 		})
 	}

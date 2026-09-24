@@ -20,7 +20,10 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/sets"
 
+	configtypes "github.com/Azure/ARO-Tools/config/types"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/internal/testutil"
 )
 
 const (
@@ -57,6 +60,35 @@ func buildWorkspaceAlertData(wsType string, workspaceResourceID azcorearm.Resour
 }
 
 const azureMonitorResourceType = "microsoft.monitor/accounts"
+
+func resolveWorkspace(cfg configtypes.Configuration, wsType, subscriptionID, resourceGroup string) (*azcorearm.ResourceID, error) {
+	path := "monitoring." + wsType + "WorkspaceResourceId"
+	if value, err := cfg.GetByPath(path); err == nil {
+		resourceID, ok := value.(string)
+		if !ok {
+			return nil, fmt.Errorf("config value at %q is %T, not string", path, value)
+		}
+		if resourceID != "" {
+			id, err := azcorearm.ParseResourceID(resourceID)
+			if err != nil {
+				return nil, fmt.Errorf("invalid %s: %w", path, err)
+			}
+			if id.SubscriptionID == "" || id.ResourceGroupName == "" || !strings.EqualFold(id.ResourceType.String(), azureMonitorResourceType) {
+				return nil, fmt.Errorf("%s must be a full Microsoft.Monitor/accounts resource ID", path)
+			}
+			return id, nil
+		}
+	}
+
+	name, err := testutil.ConfigGetString(cfg, "monitoring."+wsType+"WorkspaceName")
+	if err == nil && name == "" {
+		err = fmt.Errorf("workspace name is empty")
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to get %s workspace name from config: %w", wsType, err)
+	}
+	return azcorearm.ParseResourceID(fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Monitor/accounts/%s", subscriptionID, resourceGroup, name))
+}
 
 func buildInfraAlertData(allAlerts []alert, metricAlertRules []string, severityThreshold int, knownIssues []knownIssue) *workspaceData {
 	var alerts []alert

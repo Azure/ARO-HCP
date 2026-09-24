@@ -79,6 +79,12 @@ param azureMonitoringWorkspaceId string
 @description('The Azure resource ID of the Azure Monitor Workspace (stores prometheus metrics for hosted control planes)')
 param hcpAzureMonitoringWorkspaceId string
 
+@description('Location of the services Azure Monitor Workspace')
+param azureMonitorWorkspaceLocation string = location
+
+@description('Location of the HCP Azure Monitor Workspace')
+param hcpAzureMonitorWorkspaceLocation string = azureMonitorWorkspaceLocation
+
 // logs
 @description('The namespace of the logs')
 param logsNamespace string
@@ -190,7 +196,9 @@ resource prometheusUAMI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-0
 module dataCollection '../modules/metrics/datacollection.bicep' = {
   name: 'metrics-infra'
   params: {
-    azureMonitorWorkspaceLocation: location
+    location: location
+    azureMonitorWorkspaceLocation: azureMonitorWorkspaceLocation
+    hcpAzureMonitorWorkspaceLocation: hcpAzureMonitorWorkspaceLocation
     azureMonitoringWorkspaceId: azureMonitoringWorkspaceId
     hcpAzureMonitoringWorkspaceId: hcpAzureMonitoringWorkspaceId
     aksClusterName: aksClusterName
@@ -204,6 +212,7 @@ module dataCollection '../modules/metrics/datacollection.bicep' = {
 module underlayClusterMetric '../modules/metrics/underlay-clusters-metric.bicep' = {
   name: 'underlay-clusters-metric'
   params: {
+    location: azureMonitorWorkspaceLocation
     azureMonitoringWorkspaceId: azureMonitoringWorkspaceId
     clusterName: aksClusterName
   }

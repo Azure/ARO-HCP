@@ -12,6 +12,13 @@ set -o pipefail
 # shellcheck source=hack/ci/az-login.sh
 source "$(dirname "$0")/az-login.sh"
 
+# Keep the job's lease catalog when switching to the baseline revision. The
+# baseline must already support AMW leases and external workspace IDs.
+if [[ -n "${SVC_AMW_LEASE:-}${HCP_AMW_LEASE:-}" ]]; then
+  cp "${AMW_POOL_CATALOG:-dev-infrastructure/openshift-ci/amw-pool.yaml}" "${SHARED_DIR}/baseline-amw-pool.yaml"
+  export AMW_POOL_CATALOG="${SHARED_DIR}/baseline-amw-pool.yaml"
+fi
+
 # Check out the main-branch revision to provision.
 # Presubmits rewind the PR merge commit to its base, while periodics and
 # rehearsals fetch main because they do not have an ARO-HCP PULL_BASE_SHA.

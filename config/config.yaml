@@ -459,6 +459,9 @@ defaults:
     grafanaPublicNetworkAccess: "Enabled"
     svcWorkspaceName: 'services-{{ .ctx.region }}'
     hcpWorkspaceName: 'hcps-{{ .ctx.region }}'
+    # Optional existing workspaces. Names above are used only when creating owned workspaces.
+    svcWorkspaceResourceId: ''
+    hcpWorkspaceResourceId: ''
     amwScaling:
       # Azure Monitor Workspace static ingestion limits (legacy, being replaced by AMW scaling controller)
       # 2M initial limit, bump per env when hitting 50% utilization (Azure requires <200% increase)

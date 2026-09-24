@@ -90,7 +90,7 @@ func TestGatherIndependentFailures(t *testing.T) {
 				fetchMetricAlertRules: func(_ context.Context, _ azcore.TokenCredential, _, rg string) ([]string, error) {
 					return []string{"metric-rule-" + rg}, call("metricRules:" + rg)
 				},
-				fetchAlertRules: func(_ context.Context, _ azcore.TokenCredential, ws azcorearm.ResourceID) ([]string, error) {
+				fetchAlertRules: func(_ context.Context, _ azcore.TokenCredential, _, _ string, ws azcorearm.ResourceID) ([]string, error) {
 					return []string{"quiet"}, call("rules:" + ws.Name)
 				},
 				lookupEndpoint: func(_ context.Context, _ azcore.TokenCredential, _, _, name string) (string, error) {
@@ -248,6 +248,95 @@ func TestCompleteRetainsIndependentSetupResults(t *testing.T) {
 			}
 			if missing == "scaling" && (o.cosmosAutoscaleMax("Resources") != 1000 || o.cosmosAutoscaleMax("Manifests-MC-1") != 5000) {
 				t.Fatal("missing one autoscale ceiling discarded available values")
+			}
+		})
+	}
+}
+
+func TestGatherWorkspaceResolutionAndRuleScope(t *testing.T) {
+	t.Setenv("AZURE_TOKEN_CREDENTIALS", "AzureCLICredential")
+	for _, tt := range []struct {
+		name  string
+		svcID string
+		hcpID string
+	}{
+		{name: "default"},
+		{name: "external svc only", svcID: mustParseResourceID("pool-sub", "pool-rg", "pooled-svc").String()},
+		{name: "external hcp only", hcpID: mustParseResourceID("pool-sub", "pool-rg", "pooled-hcp").String()},
+		{name: "both external cross subscription different RG", svcID: mustParseResourceID("pool-sub", "svc-pool-rg", "pooled-svc").String(), hcpID: mustParseResourceID("other-pool-sub", "hcp-pool-rg", "pooled-hcp").String()},
+		{name: "same RG name cross subscription", svcID: mustParseResourceID("pool-sub", "job-rg", "svc").String(), hcpID: mustParseResourceID("pool-sub", "job-rg", "hcp").String()},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			cfg := map[string]any{
+				"regionRG": "job-rg",
+				"monitoring": map[string]any{
+					"svcWorkspaceName": "svc", "hcpWorkspaceName": "hcp",
+					"svcWorkspaceResourceId": tt.svcID, "hcpWorkspaceResourceId": tt.hcpID,
+				},
+			}
+			data, err := json.Marshal(cfg)
+			if err != nil {
+				t.Fatal(err)
+			}
+			path := filepath.Join(dir, "config.json")
+			if err := os.WriteFile(path, data, 0600); err != nil {
+				t.Fatal(err)
+			}
+			raw := &RawOptions{TimingInputDir: dir, OutputDir: dir, RenderedConfig: path, SubscriptionID: "job-sub", StartTimeFallback: time.Now().Add(-time.Hour).UTC().Format(time.RFC3339)}
+			validated, err := raw.Validate()
+			if err != nil {
+				t.Fatal(err)
+			}
+			ctx := logr.NewContext(t.Context(), logr.Discard())
+			o, err := validated.Complete(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(o.workspaceErrors) != 0 {
+				t.Fatalf("workspace setup errors: %v", o.workspaceErrors)
+			}
+			want := map[string]string{workspaceSvc: tt.svcID, workspaceHcp: tt.hcpID}
+			for wsType, id := range want {
+				if id == "" {
+					want[wsType] = mustParseResourceID("job-sub", "job-rg", wsType).String()
+				}
+				ws := o.Workspaces[wsType]
+				if ws.String() != want[wsType] {
+					t.Fatalf("%s workspace = %q, want %q", wsType, ws.String(), want[wsType])
+				}
+			}
+			if !o.resourceGroups.Equal(sets.New("/subscriptions/job-sub/resourceGroups/job-rg")) {
+				t.Fatalf("job resource group lost: %v", o.resourceGroups)
+			}
+
+			// Exercise routing without Azure calls or unrelated metric collection.
+			o.Queries, o.cosmosError = nil, nil
+			deps := o.dependencies()
+			deps.fetchAlerts = func(context.Context, azcore.TokenCredential, string, time.Time, time.Time) ([]alert, error) {
+				return nil, nil
+			}
+			deps.fetchMetricAlertRules = func(context.Context, azcore.TokenCredential, string, string) ([]string, error) { return nil, nil }
+			ruleIDs, endpointIDs := sets.New[string](), sets.New[string]()
+			deps.fetchAlertRules = func(_ context.Context, _ azcore.TokenCredential, sub, rg string, ws azcorearm.ResourceID) ([]string, error) {
+				if sub != "job-sub" || rg != "job-rg" {
+					t.Errorf("rule discovery scope = %s/%s, want job-sub/job-rg", sub, rg)
+				}
+				ruleIDs.Insert(ws.String())
+				return nil, nil
+			}
+			deps.lookupEndpoint = func(_ context.Context, _ azcore.TokenCredential, sub, rg, name string) (string, error) {
+				endpointIDs.Insert(mustParseResourceID(sub, rg, name).String())
+				return "https://prometheus.example.com", nil
+			}
+			deps.collectUtilization = func(context.Context, map[string]*workspaceData) utilizationReport { return utilizationReport{} }
+			deps.renderUtilization = func(utilizationReport) ([]byte, error) { return []byte("utilization"), nil }
+			if err := o.run(ctx, deps); err != nil {
+				t.Fatal(err)
+			}
+			wantIDs := sets.New(want[workspaceSvc], want[workspaceHcp])
+			if !ruleIDs.Equal(wantIDs) || !endpointIDs.Equal(wantIDs) {
+				t.Errorf("workspace routing: rule IDs=%v endpoint IDs=%v, want %v", ruleIDs, endpointIDs, wantIDs)
 			}
 		})
 	}

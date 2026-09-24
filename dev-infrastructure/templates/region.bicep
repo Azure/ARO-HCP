@@ -54,6 +54,12 @@ param svcMonitorName string
 @description('Name of the Azure Monitor Workspace for hosted control planes')
 param hcpMonitorName string
 
+@description('Existing services Azure Monitor Workspace resource ID, or empty to create an owned workspace')
+param svcWorkspaceResourceId string = ''
+
+@description('Existing HCP Azure Monitor Workspace resource ID, or empty to create an owned workspace')
+param hcpWorkspaceResourceId string = ''
+
 import { determineZoneRedundancyForRegion } from '../modules/common.bicep'
 import * as res from '../modules/resource.bicep'
 
@@ -152,7 +158,7 @@ module rpCosmosAccount '../modules/rp-cosmos-account.bicep' = {
 //   M O N I T O R I N G
 //
 
-module svcMonitor '../modules/metrics/monitor.bicep' = {
+module svcMonitor '../modules/metrics/monitor.bicep' = if (svcWorkspaceResourceId == '') {
   name: 'svc-monitor'
   params: {
     grafanaResourceId: grafanaResourceId
@@ -161,7 +167,7 @@ module svcMonitor '../modules/metrics/monitor.bicep' = {
   }
 }
 
-module hcpMonitor '../modules/metrics/monitor.bicep' = {
+module hcpMonitor '../modules/metrics/monitor.bicep' = if (hcpWorkspaceResourceId == '') {
   name: 'hcp-monitor'
   params: {
     grafanaResourceId: grafanaResourceId
@@ -169,6 +175,45 @@ module hcpMonitor '../modules/metrics/monitor.bicep' = {
     purpose: 'hcps'
   }
 }
+
+// External workspaces skip monitor.bicep, but still need Grafana query access.
+// Match monitor.bicep's compiled resource ID casing to preserve its persisted assignment GUIDs.
+var localSvcWorkspaceId = resourceId('Microsoft.Monitor/accounts', svcMonitorName)
+var localHcpWorkspaceId = resourceId('Microsoft.Monitor/accounts', hcpMonitorName)
+var ownedWorkspaceIds = union(
+  empty(svcWorkspaceResourceId) ? [toLower(localSvcWorkspaceId)] : [],
+  empty(hcpWorkspaceResourceId) ? [toLower(localHcpWorkspaceId)] : []
+)
+// Do not duplicate grants already deployed by either owned monitor module.
+var externalWorkspaceIds = empty(grafanaResourceId) ? [] : filter(
+  union(
+    empty(svcWorkspaceResourceId) ? [] : [toLower(svcWorkspaceResourceId)],
+    empty(hcpWorkspaceResourceId) ? [] : [toLower(hcpWorkspaceResourceId)]
+  ),
+  id => !contains(ownedWorkspaceIds, id)
+)
+var externalWorkspaceRefs = map(externalWorkspaceIds, id => res.monitoringWorkspaceRefFromId(id))
+var grafanaRef = res.grafanaRefFromId(grafanaResourceId)
+
+resource grafana 'Microsoft.Dashboard/grafana@2023-09-01' existing = if (!empty(externalWorkspaceIds)) {
+  name: grafanaRef.name
+  scope: resourceGroup(grafanaRef.resourceGroup.subscriptionId, grafanaRef.resourceGroup.name)
+}
+
+module externalMonitorGrafanaRoles '../modules/metrics/amw-role-assignment.bicep' = [for (workspace, i) in externalWorkspaceRefs: {
+  name: 'grafana-amw-${uniqueString(grafanaResourceId, workspace.resourceGroup.subscriptionId, workspace.resourceGroup.name, workspace.name)}'
+  scope: resourceGroup(workspace.resourceGroup.subscriptionId, workspace.resourceGroup.name)
+  params: {
+    workspaceName: workspace.name
+    principalId: grafana!.identity.principalId
+    roleDefinitionId: 'b0d8363b-8ddd-447d-831f-62ca05bff136'
+    roleAssignmentName: externalWorkspaceIds[i] == toLower(localSvcWorkspaceId)
+      ? guid(localSvcWorkspaceId, grafana!.id, 'b0d8363b-8ddd-447d-831f-62ca05bff136')
+      : externalWorkspaceIds[i] == toLower(localHcpWorkspaceId)
+          ? guid(localHcpWorkspaceId, grafana!.id, 'b0d8363b-8ddd-447d-831f-62ca05bff136')
+          : ''
+  }
+}]
 
 // Ingestion limits for Azure Monitor Workspaces are managed dynamically by the
 // AMW scaling controller in the fleet component (fleet/pkg/controllers/amwscaling).

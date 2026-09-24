@@ -844,6 +844,7 @@ monitoring:
   grafanaSku: Standard
   grafanaZoneRedundantMode: Disabled
   hcpWorkspaceName: hcps-j7654321
+  hcpWorkspaceResourceId: ""
   icm:
     connectionId: ""
     connectionName: ""
@@ -880,6 +881,7 @@ monitoring:
       enabled: true
       routingId: ""
   svcWorkspaceName: services-j7654321
+  svcWorkspaceResourceId: ""
 msiCredentialsRefresher:
   certificate:
     commonName: ""

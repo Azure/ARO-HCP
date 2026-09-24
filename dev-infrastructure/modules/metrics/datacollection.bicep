@@ -3,12 +3,27 @@ import { safeTake } from '../common.bicep'
 param azureMonitoringWorkspaceId string
 param hcpAzureMonitoringWorkspaceId string = ''
 param azureMonitorWorkspaceLocation string
+param hcpAzureMonitorWorkspaceLocation string = azureMonitorWorkspaceLocation
+@description('Cluster region used in resource names, independent of workspace placement')
+param location string = azureMonitorWorkspaceLocation
 param aksClusterName string
 param prometheusPrincipalId string
 
-var dceName = safeTake('MSProm-${azureMonitorWorkspaceLocation}-${aksClusterName}', 44)
-var dcrName = safeTake('MSProm-${azureMonitorWorkspaceLocation}-${aksClusterName}', 44)
-var hcpDcrName = safeTake('HCP-${azureMonitorWorkspaceLocation}-${aksClusterName}', 44)
+// Keep names stable when selecting workspaces in another region; output templates reconstruct these names.
+var dceName = safeTake('MSProm-${location}-${aksClusterName}', 44)
+var dcrName = safeTake('MSProm-${location}-${aksClusterName}', 44)
+var hcpDcrName = safeTake('HCP-${location}-${aksClusterName}', 44)
+var separateHcpDce = hcpAzureMonitoringWorkspaceId != '' && hcpAzureMonitorWorkspaceLocation != azureMonitorWorkspaceLocation
+
+resource hcpDce 'Microsoft.Insights/dataCollectionEndpoints@2022-06-01' = if (separateHcpDce) {
+  name: hcpDcrName
+  location: hcpAzureMonitorWorkspaceLocation
+  kind: 'Linux'
+  tags: {
+    purpose: 'hcp'
+  }
+  properties: {}
+}
 
 resource dce 'Microsoft.Insights/dataCollectionEndpoints@2022-06-01' = {
   name: dceName
@@ -64,13 +79,13 @@ resource dcr 'Microsoft.Insights/dataCollectionRules@2022-06-01' = {
 
 resource hcpDcr 'Microsoft.Insights/dataCollectionRules@2022-06-01' = if (hcpAzureMonitoringWorkspaceId != '') {
   name: hcpDcrName
-  location: azureMonitorWorkspaceLocation
+  location: hcpAzureMonitorWorkspaceLocation
   kind: 'Linux'
   tags: {
     purpose: 'hcp'
   }
   properties: {
-    dataCollectionEndpointId: dce.id
+    dataCollectionEndpointId: separateHcpDce ? hcpDce!.id : dce.id
     dataFlows: [
       {
         destinations: [

@@ -29,12 +29,14 @@ spec:
         runbook_url: https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/Prometheus.md
         summary: Prometheus is unreachable for 10 minutes.
     - alert: PrometheusUptime
+      # Retained samples in a reused workspace must not alert for deleted clusters.
       expr: |
         (
           sum by (job, namespace, cluster) (sum_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d]))
           /
           sum by (job, namespace, cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d]))
         ) < 0.95
+        and on (cluster) underlay_clusters{source="bicep"}
       for: 10m
       labels:
         severity: critical
@@ -58,6 +60,7 @@ spec:
         )
         and
         sum by (job, namespace, cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d] offset 1d)) > 0
+        and on (cluster) underlay_clusters{source="bicep"}
       for: 10m
       labels:
         severity: warning
@@ -70,13 +73,15 @@ spec:
         runbook_url: https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/Prometheus.md
         summary: Prometheus sample count below 95% SLO threshold for 24 hours.
     - alert: PrometheusMetricsAbsentPerCluster
-      expr: count by (cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[7d])) unless count by (cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[10m]))
+      # Azure emits this inventory independently of ingestion; deleting the cluster's
+      # rule removes it after the normal instant-vector lookback, not the retention window.
+      expr: group by (cluster) (underlay_clusters{source="bicep"}) unless on (cluster) count by (cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[10m]))
       for: 10m
       labels:
         severity: critical
       annotations:
         description: |
-          Prometheus on cluster {{ $labels.cluster }} has not reported any up metrics in the last 10 minutes, but was reporting within the last 7 days.
+          Prometheus on declared underlay cluster {{ $labels.cluster }} has not reported any up metrics in the last 10 minutes.
           This indicates the Prometheus agent on this specific cluster is dead or its remote write pipeline is broken.
           Check the PrometheusAgent pod status and remote write configuration on the affected cluster.
         runbook_url: https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/Prometheus.md

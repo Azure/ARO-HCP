@@ -226,6 +226,10 @@ resourceGroups:
     variables:
     - name: REGIONAL_RESOURCE_GROUP
       configRef: regionRG
+    - name: SVC_WORKSPACE_RESOURCE_ID
+      configRef: monitoring.svcWorkspaceResourceId
+    - name: HCP_WORKSPACE_RESOURCE_ID
+      configRef: monitoring.hcpWorkspaceResourceId
     dependsOn:
     - resourceGroup: regional
       step: infra

@@ -103,6 +103,14 @@ populate-arm-helper-pool:
 
 .PHONY: populate-arm-helper-pool
 
+amw-pool:
+	$(MAKE) -C .. pipeline/DevCI.AMWPool DEPLOY_ENV=dev-ci CONFIG_FILE=config/config-dev-ci.yaml TOPOLOGY_FILE=topology-dev-ci.yaml PERSIST=true STEP_CACHE_DIR=""
+.PHONY: amw-pool
+
+populate-amw-pool:
+	bash openshift-ci/populate-amw-pool.sh
+.PHONY: populate-amw-pool
+
 frontend-grant-ingress:
 	./scripts/frontend-grant-ingress-from-ip.sh "${SVC_RESOURCEGROUP}"
 .PHONY: frontend-grant-ingress

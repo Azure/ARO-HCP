@@ -24,4 +24,6 @@ param globalMSIId = '__globalMSIId__'
 // Monitoring
 param svcMonitorName = '{{ .monitoring.svcWorkspaceName }}'
 param hcpMonitorName = '{{ .monitoring.hcpWorkspaceName }}'
+param svcWorkspaceResourceId = '{{ .monitoring.svcWorkspaceResourceId }}'
+param hcpWorkspaceResourceId = '{{ .monitoring.hcpWorkspaceResourceId }}'
 param grafanaResourceId = '__grafanaResourceId__'

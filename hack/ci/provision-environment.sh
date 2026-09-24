@@ -16,7 +16,7 @@ source "$(dirname "$0")/az-login.sh"
 oc version
 kubelogin --version
 
-# Build config override (image overrides, MSI mock SP, MGMT sizing, hypershift merges)
+# Build the same override used by upgrades, including optional external AMW IDs.
 # shellcheck source=hack/ci/build-config-override.sh
 source "$(dirname "$0")/build-config-override.sh"
 

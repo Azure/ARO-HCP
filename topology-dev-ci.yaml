@@ -32,6 +32,9 @@ services:
   - serviceGroup: Microsoft.Azure.ARO.HCP.DevCI.BatchAnalysis
     pipelinePath: dev-infrastructure/dev-ci/batch-analysis/pipeline.yaml
     purpose: Provision the storage account for Chai-bot Tide-batch analysis output and grant the bot read/write access.
+  - serviceGroup: Microsoft.Azure.ARO.HCP.DevCI.AMWPool
+    pipelinePath: dev-infrastructure/dev-ci/amw-pool/pipeline.yaml
+    purpose: Provision persistent, independently sized services and HCP Azure Monitor workspace pools.
 - serviceGroup: Microsoft.Azure.ARO.HCP.DevCI.Privileged
   pipelinePath: dev-infrastructure/dev-ci/privileged/pipeline.yaml
   purpose: No-op grouping root for the on-demand privileged entrypoint. Owner-only; run manually by an OWNERS-group member.

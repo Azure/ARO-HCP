@@ -11,6 +11,8 @@ usage() {
     echo "  REGIONAL_RESOURCE_GROUP: Azure resource group containing regional resources to clean up"
     echo ""
     echo "Optional environment variables:"
+    echo "  SVC_WORKSPACE_RESOURCE_ID: Externally owned service workspace to preserve"
+    echo "  HCP_WORKSPACE_RESOURCE_ID: Externally owned HCP workspace to preserve"
     echo "  DRY_RUN: Set to any value to simulate deletions without actually deleting"
     echo ""
     exit 1
@@ -48,7 +50,7 @@ execute() {
 echo "Discovering Azure monitoring workspaces in resource group $REGIONAL_RESOURCE_GROUP..."
 
 # Get all monitoring workspaces in the resource group
-workspaces=$(az monitor account list --resource-group "$REGIONAL_RESOURCE_GROUP" --query "[].name" -o tsv)
+workspaces=$(az monitor account list --resource-group "$REGIONAL_RESOURCE_GROUP" --query "[].id" -o tsv)
 
 if [ -z "$workspaces" ]; then
     echo "No monitoring workspaces found in resource group $REGIONAL_RESOURCE_GROUP"
@@ -58,7 +60,15 @@ fi
 echo "Found workspaces: $workspaces"
 
 # Check each workspace for the aroHCPPurpose tag
-for workspace in $workspaces; do
+svc_workspace_resource_id=${SVC_WORKSPACE_RESOURCE_ID:-}
+hcp_workspace_resource_id=${HCP_WORKSPACE_RESOURCE_ID:-}
+for workspace_id in $workspaces; do
+    # Explicit workspace IDs are references, not ownership, even within this RG.
+    if [[ "${workspace_id,,}" == "${svc_workspace_resource_id,,}" || "${workspace_id,,}" == "${hcp_workspace_resource_id,,}" ]]; then
+        echo "Workspace '$workspace_id' is externally owned - preserving"
+        continue
+    fi
+    workspace=${workspace_id##*/}
     echo "Checking workspace: $workspace"
 
     # Get the tags for this workspace
