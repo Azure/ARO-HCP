@@ -118,7 +118,8 @@ func TestCreateIgnoresReadOnlyFields(t *testing.T) {
 						payload["tags"] = map[string]any{"purpose": "readonly-create"}
 					}
 					if tc.kind == "NodePool" {
-						// Only the cluster payload ships identities, via withRequiredOperatorIdentities.
+						// The node pool payload ships no identity, so synthesise one to keep
+						// clearReadOnlyIdentityFields covered on that path.
 						payload["identity"] = map[string]any{
 							"type": "UserAssigned", "userAssignedIdentities": map[string]any{identityID: map[string]any{}},
 						}
