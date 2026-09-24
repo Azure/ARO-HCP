@@ -1,0 +1,4 @@
+jobImage: "{{ .aksCommandRuntime.image.registry }}/{{ .aksCommandRuntime.image.repository }}@{{ .aksCommandRuntime.image.digest }}"
+
+azureCnsCpuLimits:
+  enabled: {{ .mgmt.azureCnsCpuLimits }}
