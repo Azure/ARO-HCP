@@ -295,9 +295,10 @@ func newKmsEncryptionProfile(from *coreapi.KmsEncryptionProfile) generated.KmsEn
 		return generated.KmsEncryptionProfile{}
 	}
 	return generated.KmsEncryptionProfile{
-		ActiveKey:  metadataapihelpers.PtrOrNil(newKmsKey(&from.ActiveKey)),
-		VaultName:  metadataapihelpers.PtrOrNil(from.ActiveKey.VaultName),
-		Visibility: metadataapihelpers.PtrOrNil(generated.KeyVaultVisibility(from.Visibility)),
+		ActiveKey:    metadataapihelpers.PtrOrNil(newKmsKey(&from.ActiveKey)),
+		KeyVaultType: metadataapihelpers.PtrOrNil(generated.KmsKeyVaultType(from.KeyVaultType)),
+		VaultName:    metadataapihelpers.PtrOrNil(from.ActiveKey.VaultName),
+		Visibility:   metadataapihelpers.PtrOrNil(generated.KeyVaultVisibility(from.Visibility)),
 	}
 }
 func newKmsKey(from *coreapi.KmsKey) generated.KmsKey {
@@ -778,6 +779,7 @@ func normalizeCustomerManaged(p *generated.CustomerManagedEncryptionProfile, out
 		normalizeActiveKey(p.Kms.ActiveKey, &out.Kms.ActiveKey)
 		out.Kms.ActiveKey.VaultName = metadataapihelpers.Deref(p.Kms.VaultName)
 		out.Kms.Visibility = metadataapi.KeyVaultVisibility(metadataapihelpers.Deref(p.Kms.Visibility))
+		out.Kms.KeyVaultType = string(metadataapihelpers.Deref(p.Kms.KeyVaultType))
 	} else {
 		out.Kms = nil
 	}

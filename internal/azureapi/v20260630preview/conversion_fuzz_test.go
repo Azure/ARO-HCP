@@ -34,16 +34,18 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 	seed := rand.Int63()
 	t.Logf("seed: %d", seed)
 
-	fuzzer := coreapitesting.FuzzerFor(
-		append(coreapitesting.CommonRoundTripFuzzFuncs(),
-			// ContainerRegistry does not exist in v20260630preview.
-			func(j *coreapi.CustomerPlatformProfile, c randfill.Continue) {
-				c.FillNoCustom(j)
-				j.ContainerRegistry = coreapi.ContainerRegistryProfile{}
-			},
-		),
-		rand.NewSource(seed),
-	)
+	fuzzer := coreapitesting.FuzzerFor(append(coreapitesting.CommonRoundTripFuzzFuncs(),
+		// ContainerRegistry was added in v20261001preview and does not exist in v20260630preview.
+		func(j *coreapi.CustomerPlatformProfile, c randfill.Continue) {
+			c.FillNoCustom(j)
+			j.ContainerRegistry = coreapi.ContainerRegistryProfile{}
+		},
+		// KeyVaultType was added in v20261001preview and does not exist in v20260630preview.
+		func(j *coreapi.KmsEncryptionProfile, c randfill.Continue) {
+			c.FillNoCustom(j)
+			j.KeyVaultType = ""
+		},
+	), rand.NewSource(seed))
 
 	for i := 0; i < 200; i++ {
 		original := &coreapi.Cluster{}
