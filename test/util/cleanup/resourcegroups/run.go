@@ -93,13 +93,14 @@ func (o *Options) Run(ctx context.Context) error {
 	}
 
 	logger.Info("Starting resource group deletion", "count", len(resourceGroupsToDelete), "mode", o.CleanupWorkflow,
-		"timeout", o.Timeout, "include-locations", o.IncludeLocations, "exclude-locations", o.ExcludeLocations,
+		"timeout", o.Timeout, "concurrency", o.Concurrency, "include-locations", o.IncludeLocations, "exclude-locations", o.ExcludeLocations,
 		"is-development", o.IsDevelopment)
 
 	opts := framework.CleanupResourceGroupsOptions{
 		ResourceGroupNames: resourceGroupsToDelete,
 		Timeout:            o.Timeout,
 		CleanupWorkflow:    o.CleanupWorkflow,
+		Concurrency:        o.Concurrency,
 		FPACredentials: framework.FPACredentials{
 			ClientID: o.FPAClientID,
 			CertPath: o.FPACertPath,

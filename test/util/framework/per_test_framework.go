@@ -353,40 +353,82 @@ type CleanupResourceGroupsOptions struct {
 	ResourceGroupNames []string
 	Timeout            time.Duration
 	CleanupWorkflow    CleanupWorkflow
+	Concurrency        int
 	FPACredentials     FPACredentials
 }
 
 func (tc *perItOrDescribeTestContext) CleanupResourceGroups(ctx context.Context, opts CleanupResourceGroupsOptions) error {
-	// deletion takes a while, it's worth it to do this in parallel
-	wg := sync.WaitGroup{}
-	errCh := make(chan error, len(opts.ResourceGroupNames))
-	for _, currResourceGroupName := range opts.ResourceGroupNames {
-		wg.Add(1)
-		go func(ctx context.Context) {
-			defer wg.Done()
-			// prevent a stray panic from exiting the process. Don't do this generally because ginkgo/gomega rely on panics to function.
-			defer utilruntime.HandleCrashWithContext(ctx)
+	var cleanup func(context.Context, string) error
+	switch opts.CleanupWorkflow {
+	case CleanupWorkflowStandard:
+		cleanup = func(ctx context.Context, resourceGroupName string) error {
+			return tc.cleanupResourceGroup(ctx, resourceGroupName, opts.Timeout)
+		}
+	case CleanupWorkflowNoRP:
+		cleanup = func(ctx context.Context, resourceGroupName string) error {
+			return tc.cleanupResourceGroupNoRP(ctx, resourceGroupName, opts.Timeout, opts.FPACredentials)
+		}
+	default:
+		return fmt.Errorf("unsupported cleanup workflow %q", opts.CleanupWorkflow)
+	}
 
-			switch opts.CleanupWorkflow {
-			case CleanupWorkflowStandard:
-				if err := tc.cleanupResourceGroup(ctx, currResourceGroupName, opts.Timeout); err != nil {
-					errCh <- err
-				}
-			case CleanupWorkflowNoRP:
-				if err := tc.cleanupResourceGroupNoRP(ctx, currResourceGroupName, opts.Timeout, opts.FPACredentials); err != nil {
-					errCh <- err
-				}
+	return runResourceGroupCleanup(ctx, opts.ResourceGroupNames, opts.Concurrency, cleanup)
+}
+
+func runResourceGroupCleanup(
+	ctx context.Context,
+	resourceGroupNames []string,
+	concurrency int,
+	cleanup func(context.Context, string) error,
+) error {
+	if len(resourceGroupNames) == 0 {
+		return nil
+	}
+
+	if concurrency <= 0 || concurrency > len(resourceGroupNames) {
+		concurrency = len(resourceGroupNames)
+	}
+
+	var group errgroup.Group
+	group.SetLimit(concurrency)
+
+	var lock sync.Mutex
+	var errs []error
+	successful := 0
+
+	for _, resourceGroupName := range resourceGroupNames {
+		resourceGroupName := resourceGroupName
+		group.Go(func() error {
+			var err error
+			func() {
+				// Preserve the framework's panic logging and crash policy while recording recovered
+				// panics as cleanup failures when ReallyCrash is disabled.
+				defer utilruntime.HandleCrashWithContext(ctx, func(_ context.Context, recovered any) {
+					err = fmt.Errorf("panic during cleanup: %v", recovered)
+				})
+				err = cleanup(ctx, resourceGroupName)
+			}()
+
+			lock.Lock()
+			defer lock.Unlock()
+			if err != nil {
+				errs = append(errs, fmt.Errorf("resource group %q: %w", resourceGroupName, err))
+			} else {
+				successful++
 			}
-
-		}(ctx)
+			return nil
+		})
 	}
-	wg.Wait()
-	close(errCh)
 
-	errs := []error{}
-	for err := range errCh {
-		errs = append(errs, err)
-	}
+	_ = group.Wait()
+	logr.FromContextOrDiscard(ctx).Info(
+		"Finished resource group cleanup",
+		"total", len(resourceGroupNames),
+		"successful", successful,
+		"failed", len(errs),
+		"concurrency", concurrency,
+	)
+
 	return errors.Join(errs...)
 }
 
