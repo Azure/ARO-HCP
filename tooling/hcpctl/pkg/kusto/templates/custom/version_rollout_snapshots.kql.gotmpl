@@ -1,0 +1,14 @@
+// Rollout documents live in the fleet partition, outside the customer's
+// resource group. Keep their best-version, counts, conditions and assignment
+// history alongside the HCP snapshots when investigating delayed upgrades.
+{{if .NoTruncation}}set notruncation;
+{{end -}}
+cosmosResourceSnapshots
+| where timestamp between ({{.TimestampMin}} .. {{.TimestampMax}})
+| where cluster in ({{.ClusterNames}})
+| where resourceType =~ "Microsoft.RedHatOpenShift/controlPlaneVersionRollouts"
+| project timestamp, observedTime = timestamp, infraCluster = cluster, cosmosContainer, resourceType, resourceName, resourceID, content
+| order by timestamp {{.OrderBy}}
+{{- if gt .Limit 0}}
+| limit {{.Limit}}
+{{- end}}

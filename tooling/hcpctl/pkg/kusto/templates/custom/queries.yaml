@@ -47,6 +47,16 @@
   queryType: custom-logs
   includeInMustGather: true
   templatePath: templates/custom/cosmos_resource_snapshots.kql.gotmpl
+- name: versionRolloutLogs
+  database: ServiceLogs
+  queryType: custom-logs
+  includeInMustGather: true
+  templatePath: templates/custom/version_rollout_logs.kql.gotmpl
+- name: versionRolloutSnapshots
+  database: ServiceLogs
+  queryType: custom-logs
+  includeInMustGather: true
+  templatePath: templates/custom/version_rollout_snapshots.kql.gotmpl
 - name: hostedControlPlaneLogs
   database: HostedControlPlaneLogs
   queryType: custom-logs

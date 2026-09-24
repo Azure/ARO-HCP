@@ -15,6 +15,7 @@
 package kusto
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -169,6 +170,27 @@ func TestServiceLogs_NoClusterIds(t *testing.T) {
 	require.Len(t, queries, 1)
 
 	testutil.CompareWithFixture(t, queryToFixture(queries[0]))
+}
+
+func TestVersionRolloutQueries(t *testing.T) {
+	for _, name := range []string{"versionRolloutLogs", "versionRolloutSnapshots"} {
+		for _, limit := range []int{100, -1} {
+			t.Run(fmt.Sprintf("%s/limit%d", name, limit), func(t *testing.T) {
+				f, err := NewQueryFactory()
+				require.NoError(t, err)
+				opts := baseOptions()
+				opts.Limit = limit
+				def, err := f.GetCustomQueryDefinition(name)
+				require.NoError(t, err)
+				require.NotNil(t, def)
+				require.True(t, def.IncludeInMustGather, "rollout diagnostics must be collected by default")
+				queries, err := f.Build(*def, NewTemplateDataFromOptions(opts, WithClusterNames([]string{"svc-cluster-1", "mgmt-cluster-1"})))
+				require.NoError(t, err)
+				require.Len(t, queries, 1)
+				testutil.CompareWithFixture(t, queryToFixture(queries[0]))
+			})
+		}
+	}
 }
 
 func TestHostedControlPlaneLogs(t *testing.T) {
