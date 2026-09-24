@@ -23,6 +23,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 )
 
 func TestRunResourceGroupCleanupBoundsConcurrency(t *testing.T) {
@@ -108,9 +110,44 @@ func TestRunResourceGroupCleanupContinuesAfterFailures(t *testing.T) {
 			t.Errorf("expected resource group %q to be attempted", resourceGroupName)
 		}
 	}
+
 	for _, resourceGroupName := range []string{"two", "four"} {
 		if !strings.Contains(err.Error(), fmt.Sprintf("resource group %q", resourceGroupName)) {
 			t.Errorf("expected error to identify resource group %q: %v", resourceGroupName, err)
+		}
+	}
+}
+
+func TestRunResourceGroupCleanupReturnsRecoveredPanics(t *testing.T) {
+	originalReallyCrash := utilruntime.ReallyCrash
+	utilruntime.ReallyCrash = false
+	t.Cleanup(func() {
+		utilruntime.ReallyCrash = originalReallyCrash
+	})
+
+	resourceGroups := []string{"panics", "succeeds"}
+	var lock sync.Mutex
+	attempted := map[string]bool{}
+
+	err := runResourceGroupCleanup(context.Background(), resourceGroups, 2, func(_ context.Context, resourceGroupName string) error {
+		lock.Lock()
+		attempted[resourceGroupName] = true
+		lock.Unlock()
+		if resourceGroupName == "panics" {
+			panic("cleanup panic")
+		}
+		return nil
+	})
+
+	if err == nil {
+		t.Fatal("expected recovered panic to be returned as a cleanup failure")
+	}
+	if !strings.Contains(err.Error(), `resource group "panics": panic during cleanup: cleanup panic`) {
+		t.Fatalf("expected recovered panic to identify the resource group: %v", err)
+	}
+	for _, resourceGroupName := range resourceGroups {
+		if !attempted[resourceGroupName] {
+			t.Errorf("expected resource group %q to be attempted", resourceGroupName)
 		}
 	}
 }

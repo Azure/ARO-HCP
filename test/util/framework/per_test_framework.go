@@ -399,10 +399,15 @@ func runResourceGroupCleanup(
 	for _, resourceGroupName := range resourceGroupNames {
 		resourceGroupName := resourceGroupName
 		group.Go(func() error {
-			// Prevent a stray panic from exiting the process. Don't do this generally because ginkgo/gomega rely on panics to function.
-			defer utilruntime.HandleCrashWithContext(ctx)
-
-			err := cleanup(ctx, resourceGroupName)
+			var err error
+			func() {
+				// Preserve the framework's panic logging and crash policy while recording recovered
+				// panics as cleanup failures when ReallyCrash is disabled.
+				defer utilruntime.HandleCrashWithContext(ctx, func(_ context.Context, recovered any) {
+					err = fmt.Errorf("panic during cleanup: %v", recovered)
+				})
+				err = cleanup(ctx, resourceGroupName)
+			}()
 
 			lock.Lock()
 			defer lock.Unlock()
