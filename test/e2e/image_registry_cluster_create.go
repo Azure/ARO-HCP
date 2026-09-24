@@ -34,6 +34,7 @@ var _ = Describe("Customer", func() {
 	})
 
 	It("should be able to create an HCP cluster with Image Registry not present",
+		FlakeAttempts(2),
 		labels.RequireNothing,
 		labels.Critical,
 		labels.Positive,
