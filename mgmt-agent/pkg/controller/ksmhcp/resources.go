@@ -94,7 +94,7 @@ func buildDeployment(namespace, ksmImage, kubeconfigSecretName, kubeconfigKey st
 							"--resources=nodes",
 							"--namespaces=openshift-ingress-operator",
 							"--kubeconfig=/opt/k8s/.kube/config",
-							"--metric-allowlist=kube_node_status_condition,kube_node_info,ingresscontroller_info",
+							"--metric-allowlist=kube_node_status_condition,kube_node_info,ingresscontroller_info,kube_node_spec_unschedulable",
 							"--custom-resource-state-config-file=/etc/customresourcestate/config.yaml",
 						).
 						WithPorts(
